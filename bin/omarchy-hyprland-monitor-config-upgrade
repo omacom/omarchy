@@ -1,133 +1,138 @@
 #!/bin/bash
 
-# omarchy:summary=Move an older monitors.lua over to the monitor panel's saved settings
+# omarchy:summary=Move an older monitors.lua over to the new template
 # omarchy:hidden=true
 
-# Older versions kept Omarchy's monitor defaults in hypr/monitors.lua and saved
-# the display panel's scale there as rules naming the connector. The defaults
-# now live in default/hypr/monitors.lua and the panel's choices are saved per
-# monitor, so this turns such a file into the new template and what's left:
+# Older versions kept Omarchy's monitor defaults in hypr/monitors.lua, with
+# comments explaining them. The defaults now live in default/hypr/monitors.lua,
+# so this puts the new template at the top and the old file below it, minus
+# only lines Omarchy itself shipped there: its comments and examples, and its
+# defaults where they're unchanged and nothing else uses them. Everything else
+# is kept exactly as written and in order, since it's the user's own Lua:
+# rules for particular monitors, changed defaults, block comments,
+# conditionals. Choices saved from the monitor panel still win over a rule for
+# the same monitor.
 #
-# - omarchy_monitor_scale, omarchy_gdk_scale and the lines using them go, or
-#   become plain lines where they no longer match Omarchy's defaults;
-# - a one-line rule for a connector with only a mode, a position and a number
-#   scale becomes that monitor's saved settings, when the monitor behind the
-#   connector is known, and goes when settings are already saved for it;
-# - every other line is kept, in order, below the template.
-#
-# The old file is kept beside it as monitors.lua.bak.<time>. A file with
-# nothing to move is left alone.
+# The old file is kept as monitors.lua.bak.<time>. A file with none of those
+# lines is left alone.
 
 monitor_lua="$HOME/.config/hypr/monitors.lua"
 template="$OMARCHY_PATH/config/hypr/monitors.lua"
-settings="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/monitors/settings"
 
 [[ -f $monitor_lua && -f $template ]] || exit 0
 target=$(readlink -f "$monitor_lua")
 
-re_monitor_scale='^local[[:space:]]+omarchy_monitor_scale[[:space:]]*=[[:space:]]*(.+)$'
-re_gdk_scale='^local[[:space:]]+omarchy_gdk_scale[[:space:]]*=[[:space:]]*(.+)$'
-re_gdk_env_local='^hl\.env\("GDK_SCALE",[[:space:]]*tostring\(omarchy_gdk_scale\)\)$'
-re_gdk_env='^hl\.env\("GDK_SCALE",[[:space:]]*"([^"]*)"\)$'
-re_catch_all='^hl\.monitor\(\{[[:space:]]*output[[:space:]]*=[[:space:]]*"",[[:space:]]*mode[[:space:]]*=[[:space:]]*"preferred",[[:space:]]*position[[:space:]]*=[[:space:]]*"auto",[[:space:]]*scale[[:space:]]*=[[:space:]]*omarchy_monitor_scale[[:space:]]*\}\)$'
-re_rule='^hl\.monitor\(\{[[:space:]]*output[[:space:]]*=[[:space:]]*"([A-Za-z0-9._-]+)",[[:space:]]*mode[[:space:]]*=[[:space:]]*"([^"]*)",[[:space:]]*position[[:space:]]*=[[:space:]]*"([^"]*)",[[:space:]]*scale[[:space:]]*=[[:space:]]*([0-9]+([.][0-9]+)?)[[:space:]]*\}\)$'
-re_number='^[0-9]+([.][0-9]+)?$'
+# A file that already opens like the template has been moved over, and a few
+# of the old comments live on in the new template.
+grep -Fxq -- "$(head -n 1 "$template")" "$target" && exit 0
 
-changed=0
-monitor_scale=""
-monitor_scale_line=""
-gdk_scale=""
-gdk_scale_line=""
-kept=()
+# Every comment the template shipped before the defaults moved out of it.
+mapfile -t shipped_comments <<'LINES'
+-- app for a change to reach it.
+-- "auto" lets Hyprland pick per display.
+-- Configure a specific monitor.
+-- crisp instead of being stretched by the compositor. GTK only honors whole
+-- Disable the second ghost monitor on an Apple 6K XDR over Thunderbolt.
+-- Example for Framework 13 w/ 6K XDR Apple display.
+-- GDK scale is GDK_SCALE, the factor GTK draws its own UI at. It's what
+-- Good compromise for 27" or 32" 4K monitors (but fractional!)
+-- Good compromise for 27" or 32" 4K monitors (but fractional!): monitor scale 1.6, GDK scale 1.75.
+-- hl.env("GDK_SCALE", "1")
+-- hl.env("GDK_SCALE", "1.75")
+-- hl.monitor({ output = "DP-2", disabled = true })
+-- hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "0x0", scale = 1 })
+-- hl.monitor({ output = "DP-2", mode = "preferred", position = "auto", scale = 1, transform = 1 })
+-- hl.monitor({ output = "DP-5", mode = "6016x3384@60", position = "auto", scale = 2 })
+-- hl.monitor({ output = "eDP-1", mode = "2880x1920@120", position = "auto", scale = 2 })
+-- hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+-- hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })
+-- List current monitors and resolutions possible: hyprctl monitors all
+-- List current monitors and supported resolutions with: hyprctl monitors all
+-- local omarchy_gdk_scale = 1
+-- local omarchy_gdk_scale = 1.75
+-- local omarchy_gdk_scale = 2
+-- local omarchy_monitor_scale = 1
+-- local omarchy_monitor_scale = 1.6
+-- local omarchy_monitor_scale = "auto"
+-- Monitor scale is Hyprland's scale for the output. It sizes everything
+-- numbers, so use the nearest integer to the monitor scale, and restart an
+-- Optimized for retina-class 2x displays, like 13" 2.8K, 27" 5K, 32" 6K.
+-- Or for ultrawide monitors like 34" 3440x1440 or 49" 5120x1440.
+-- Portrait/rotated secondary monitor (transform: 1 = 90°, 3 = 270°)
+-- Portrait/rotated secondary monitor (transform: 1 = 90°, 3 = 270°).
+-- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+-- sizes X11/XWayland windows, which Omarchy leaves unscaled so they stay
+-- Straight 1x setup for low-resolution displays like 1080p, 1440p, or ultrawides: both 1.
+-- Straight 1x setup for low-resolution displays like 1080p or 1440p.
+-- Wayland-native, accepts fractions (1.6, 1.75), and applies immediately.
+LINES
 
-saved() {
-  [[ -f $settings ]] && awk -F'\t' -v identity="$1" '$4 == identity { found = 1 } END { exit !found }' "$settings"
+# The template's defaults, each a local and the line using it, which go only
+# together: when the local holds Omarchy's own value and no other line uses it.
+monitor_scale_default='local omarchy_monitor_scale = "auto"'
+monitor_scale_use='hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })'
+gdk_scale_default='local omarchy_gdk_scale = 2'
+gdk_scale_use='hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))'
+
+# Defaults older templates set directly, matching Omarchy's own.
+mapfile -t shipped_defaults <<'LINES'
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
+hl.env("GDK_SCALE", "2")
+LINES
+
+mapfile -t lines <"$target"
+lines=("${lines[@]%$'\r'}")
+
+# Whether a line other than the default pair names the local.
+used_elsewhere() {
+  local name="$1" default="$2" use="$3" line
+  for line in "${lines[@]}"; do
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ $line == "$default" || $line == "$use" ]] && continue
+    [[ $line =~ (^|[^A-Za-z0-9_])$name([^A-Za-z0-9_]|$) ]] && return 0
+  done
+  return 1
 }
 
-while IFS= read -r line || [[ -n $line ]]; do
-  code="${line%%--*}"
-  code="${code#"${code%%[![:space:]]*}"}"
-  code="${code%"${code##*[![:space:]]}"}"
+drop=("${shipped_comments[@]}" "${shipped_defaults[@]}")
+printf '%s\n' "${lines[@]}" | grep -Fxq -- "$monitor_scale_default" &&
+  ! used_elsewhere omarchy_monitor_scale "$monitor_scale_default" "$monitor_scale_use" &&
+  drop+=("$monitor_scale_default" "$monitor_scale_use")
+printf '%s\n' "${lines[@]}" | grep -Fxq -- "$gdk_scale_default" &&
+  ! used_elsewhere omarchy_gdk_scale "$gdk_scale_default" "$gdk_scale_use" &&
+  drop+=("$gdk_scale_default" "$gdk_scale_use")
 
-  # Comments and blank lines: the old file keeps them in its backup.
-  [[ -n $code ]] || continue
+declare -A dropped_line
+for line in "${drop[@]}"; do
+  dropped_line["$line"]=1
+done
 
-  if [[ $code =~ $re_monitor_scale ]]; then
-    monitor_scale="${BASH_REMATCH[1]//\"/}"
-    monitor_scale_line="$line"
+kept=()
+changed=0
+for line in "${lines[@]}"; do
+  trimmed="${line%"${line##*[![:space:]]}"}"
+  if [[ -n $trimmed && -n ${dropped_line["$trimmed"]:-} ]]; then
     changed=1
-  elif [[ $code =~ $re_gdk_scale ]]; then
-    gdk_scale="${BASH_REMATCH[1]//\"/}"
-    gdk_scale_line="$line"
-    changed=1
-  elif [[ $code =~ $re_gdk_env_local || $code =~ $re_catch_all ]]; then
-    changed=1
-  elif [[ $code =~ $re_gdk_env ]]; then
-    gdk_scale="${BASH_REMATCH[1]}"
-    changed=1
-  elif [[ $code =~ $re_rule ]]; then
-    output="${BASH_REMATCH[1]}"
-    mode="${BASH_REMATCH[2]}"
-    position="${BASH_REMATCH[3]}"
-    scale="${BASH_REMATCH[4]}"
-    [[ $mode == "preferred" ]] && mode=""
-    [[ $position == "auto" ]] && position=""
-    identity=$(omarchy-hyprland-monitor-identity "$output" 2>/dev/null)
-
-    # A connector nothing knows the monitor behind can't be saved by monitor,
-    # so its rule stays where it is.
-    if [[ -z $identity || $identity == "$output" ]]; then
-      kept+=("$line")
-    elif saved "$identity"; then
-      changed=1
-    elif omarchy-hyprland-monitor-persist "$output" "$scale" "$mode" "$position"; then
-      changed=1
-    else
-      kept+=("$line")
-    fi
   else
     kept+=("$line")
   fi
-done <"$target"
+done
 
 (( changed )) || exit 0
-
-extras=()
-
-# A default that differs from Omarchy's own becomes a plain line; one that
-# isn't a plain number keeps the lines that set it.
-if [[ $monitor_scale =~ $re_number ]]; then
-  extras+=("hl.monitor({ output = \"\", mode = \"preferred\", position = \"auto\", scale = $monitor_scale })")
-elif [[ -n $monitor_scale && $monitor_scale != "auto" ]]; then
-  extras+=("$monitor_scale_line" 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })')
-  monitor_scale_line=""
-fi
-if [[ $gdk_scale =~ ^[0-9]+$ ]]; then
-  (( gdk_scale == 2 )) || extras+=("hl.env(\"GDK_SCALE\", \"$gdk_scale\")")
-elif [[ -n $gdk_scale ]]; then
-  extras+=("${gdk_scale_line:-hl.env(\"GDK_SCALE\", \"$gdk_scale\")}")
-  [[ -n $gdk_scale_line ]] && extras+=('hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))')
-  gdk_scale_line=""
-fi
-
-# A kept line that still names one of the old locals needs it defined.
-if (( ${#kept[@]} )); then
-  [[ -n $monitor_scale_line ]] && printf '%s\n' "${kept[@]}" | grep -q '\<omarchy_monitor_scale\>' && extras+=("$monitor_scale_line")
-  [[ -n $gdk_scale_line ]] && printf '%s\n' "${kept[@]}" | grep -q '\<omarchy_gdk_scale\>' && extras+=("$gdk_scale_line")
-  extras+=("${kept[@]}")
-fi
 
 backup="$target.bak.$(date +%s)"
 cp -p "$target" "$backup"
 
 # Hyprland reloads on every write, so build the new file beside the real one
-# and rename it into place, through any symlink, in one step.
+# and rename it into place, through any symlink, in one step. What's kept goes
+# below the template as it was, with the blank lines dropped lines left behind
+# squeezed together.
 tmp=$(mktemp "$target.XXXXXX")
 {
   cat "$template"
-  if (( ${#extras[@]} )); then
+  if printf '%s\n' "${kept[@]}" | grep -q '[^[:space:]]'; then
     printf '\n-- Kept from your earlier monitors.lua, which is saved as %s.\n' "${backup##*/}"
-    printf '%s\n' "${extras[@]}"
+    printf '%s\n' "${kept[@]}" | cat -s | sed -e '/[^[:space:]]/,$!d'
   fi
 } >"$tmp"
 chmod --reference="$target" "$tmp"
