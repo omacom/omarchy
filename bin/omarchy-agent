@@ -197,6 +197,12 @@ commandcode)
   command=(commandcode --yolo)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
+vibe)
+  # Permission prompts follow Vibe's own config; a positional prompt seeds
+  # the interactive session.
+  command=(vibe)
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1

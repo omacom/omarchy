@@ -568,6 +568,9 @@
   "setup.default.agent.qwen": {
     "label": "Qwen Code"
   },
+  "setup.default.agent.vibe": {
+    "label": "Vibe"
+  },
   "setup.default.browser": {
     "label": "Browser",
     "title": "Default Browser"
