@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Name=Rex
+GenericName=Regular Expression Workbench
+Comment=Test, explain, debug, optimize, and learn regular expressions offline
+Exec=omarchy-launch-rex
+Terminal=false
+Type=Application
+Icon=rex
+Categories=Development;Utility;
+Keywords=regex;regexp;regular expression;pattern;grep;
+StartupNotify=true
