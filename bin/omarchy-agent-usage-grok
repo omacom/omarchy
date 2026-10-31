@@ -1,0 +1,396 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok usage into one display-ready JSON record.
+
+The plan comes from the settings Grok caches from xAI, and the limit from the
+credits endpoint the Grok CLI itself reads for its /usage view, asked with
+each account's own sign-in. Sessions come from the summary Grok keeps beside
+each session, and tokens and prompts from its usage.json, the ledger `grok
+usage` prints: one entry per finished turn, with when it ended and its tokens
+by model. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import json
+import math
+import os
+import re
+import sys
+import time
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  account_entry,
+  base_record,
+  cached_scan,
+  emit,
+  empty_bucket,
+  local_day,
+  obj,
+  open_json,
+  read_json,
+  registered_accounts,
+  scan_max_age,
+  token_count,
+)
+
+AGENT_ID = "grok"
+AGENT_NAME = "Grok"
+AUTH_HELP = "Start Grok, or run `grok login`, to sign in."
+CREDITS_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
+# A unified-billing account counts its usage against a monthly quota, which
+# the same endpoint answers without the credits format.
+MONTHLY_URL = "https://cli-chat-proxy.grok.com/v1/billing"
+# Grok's docs give a saved sign-in 30 days; a refresh token older than that
+# can't renew the access token, so it no longer counts as signed in.
+REFRESH_LIFETIME_SECONDS = 30 * 24 * 3600
+
+
+def parse_time(value):
+  try:
+    parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# The home Grok uses when nothing selects an account: GROK_HOME when set,
+# as the CLI itself reads it, else ~/.grok.
+def default_home():
+  return Path(os.environ.get("GROK_HOME") or (Path.home() / ".grok"))
+
+
+# The local day a session or turn was active on, or None to skip it: a
+# missing time is no activity here, and one local_day() can't trust (out of
+# range, before 2000 or after 2100) counts nowhere. A time without a zone is
+# UTC, as parse_time() reads it.
+def active_day(value):
+  if value is None:
+    return None
+  parsed = parse_time(value) if isinstance(value, str) else None
+  return local_day(parsed.isoformat() if parsed else value)
+
+
+# Every session under <home>/sessions/<folder>/<session>/: its summary says
+# when it was last active, and its usage.json lists each finished turn with
+# its tokens by model, one turn per typed prompt. Added accounts link their
+# sessions to the primary's, so this covers all of them. Grok counts cached
+# input inside inputTokens; the record keeps the two apart, as the other
+# collectors do. Counts are read as every collector reads them: one that
+# isn't a plain number is no count.
+#
+# A fork's usage.json repeats its source's turns verbatim before its own, so
+# a turn already seen (same end time, same tokens) counts once. A subagent's
+# turns are tokens it spent, but its prompts came from the parent agent, not
+# the person typing. The summary's num_messages counts system and assistant
+# messages, inherited ones too, so it is no prompt count.
+def local_stats(home):
+  now = datetime.now().astimezone()
+  today = now.date().isoformat()
+  week = [(now.date() - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+  prompts = sessions = today_sessions = today_prompts = today_tokens = 0
+  days = set()
+  by_day = {day: 0 for day in week}
+  today_by_model = {}
+  models = {}
+  seen = set()
+  for session in (Path(home) / "sessions").glob("*/*/"):
+    summary = read_json(session / "summary.json")
+    subagent = False
+    if isinstance(summary, dict):
+      subagent = str(summary.get("session_kind") or "").startswith("subagent")
+      day = active_day(summary.get("last_active_at"))
+      if day:
+        sessions += 1
+        days.add(day)
+        if day == today:
+          today_sessions += 1
+
+    usage = read_json(session / "usage.json")
+    turns = usage.get("turns") if isinstance(usage, dict) else None
+    for turn in turns if isinstance(turns, list) else []:
+      day = active_day(turn.get("endedAt")) if isinstance(turn, dict) else None
+      if not day:
+        continue
+      copy = json.dumps([turn.get("endedAt"), turn.get("modelUsage")], sort_keys=True, default=str)
+      if copy in seen:
+        continue
+      seen.add(copy)
+      days.add(day)
+      if not subagent:
+        prompts += 1
+        if day == today:
+          today_prompts += 1
+      for model, bucket in obj(turn.get("modelUsage")).items():
+        if not isinstance(bucket, dict):
+          continue
+        # Grok's totalTokens leaves cache writes out; counting them here keeps
+        # the day's total equal to the sum of its model's buckets.
+        cached = token_count(bucket.get("cachedReadTokens"))
+        uncached = max(0, token_count(bucket.get("inputTokens")) - cached)
+        output = token_count(bucket.get("outputTokens"))
+        created = token_count(bucket.get("cacheCreationTokens"))
+        tokens = uncached + cached + output + created
+        totals = models.setdefault(model, empty_bucket())
+        totals["inputTokens"] += uncached
+        totals["outputTokens"] += output
+        totals["cacheReadInputTokens"] += cached
+        totals["cacheCreationInputTokens"] += created
+        if day in by_day:
+          by_day[day] += tokens
+        if day == today:
+          today_tokens += tokens
+          today_by_model[model] = today_by_model.get(model, 0) + tokens
+
+  return {
+    "hasLocalStats": sessions > 0,
+    "todayPrompts": today_prompts,
+    "todaySessions": today_sessions,
+    "todayTotalTokens": today_tokens,
+    "todayTokensByModel": today_by_model,
+    "recentDays": [{"date": day, "messageCount": by_day[day]} for day in week],
+    "totalPrompts": prompts,
+    "totalSessions": sessions,
+    "activeDays": len(days),
+    "activeDates": sorted(days),
+    "modelUsage": models,
+  }
+
+
+# Cached per home and per day, and rebuilt under a lock, so overlapping runs
+# (the update command backgrounds one per agent while the panel refreshes on
+# its own) scan once between them.
+def cached_local_stats(home, max_age):
+  return cached_scan(AGENT_ID, [home], max_age, lambda: (local_stats(home), True))
+
+
+# One login per issuer in auth.json; the first is the CLI's own.
+def login(home):
+  auth = read_json(Path(home) / "auth.json")
+  if not isinstance(auth, dict):
+    return {}
+  return next((v for v in auth.values() if isinstance(v, dict)), {})
+
+
+def plan(home):
+  cached = read_json(Path(home) / "settings_cache.json")
+  try:
+    settings = obj(obj(json.loads(cached.get("payload") or "{}")).get("settings"))
+  except Exception:
+    return ""
+  return str(settings.get("subscription_tier_display") or "")
+
+
+# A percentage or amount from xAI's answer: a number, or a money field's
+# {"val": n}, whose val protobuf JSON leaves out when it's zero.
+def amount(value):
+  if isinstance(value, dict):
+    value = value.get("val") or 0
+  if isinstance(value, bool):
+    raise ValueError("not a number")
+  value = float(value)
+  # NaN would pass any clamp as 100%; a number that isn't one is no answer.
+  if not math.isfinite(value):
+    raise ValueError("not a number")
+  return value
+
+
+# The credits answer as one limit window: how much of this period's included
+# usage is gone, and when the period ends. The answer is protobuf JSON, which
+# leaves out a field holding zero, so a period with nothing used yet has no
+# percentage at all. A unified-billing account leaves it out too, its usage
+# counted against the monthly quota instead, so it has no window here (None);
+# and a period already over without one says nothing about this one.
+def credits_limit(data):
+  config = data["config"]
+  period = config["currentPeriod"]
+  ends = parse_time(period["end"])
+  used = config.get("creditUsagePercent")
+  if used is None:
+    if config.get("isUnifiedBillingUser") is True:
+      return None
+    if ends.timestamp() <= time.time():
+      raise ValueError("an ended period without a percentage")
+    used = 0
+  return {
+    "label": "Weekly" if "WEEK" in str(period.get("type")) else "Monthly",
+    "percent": max(0.0, min(1.0, amount(used) / 100)),
+    "resetsAt": ends.isoformat(),
+  }
+
+
+# The monthly answer as one limit window: how much of the month's included
+# quota is used, and when the billing period ends.
+def monthly_limit(data):
+  config = data["config"]
+  quota = amount(config["monthlyLimit"])
+  if quota <= 0:
+    raise ValueError("no monthly quota")
+  return {
+    "label": "Monthly",
+    "percent": max(0.0, min(1.0, amount(config["used"]) / quota)),
+    "resetsAt": parse_time(config["billingPeriodEnd"]).isoformat(),
+  }
+
+
+def collect_limits(home, key, force):
+  result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0}
+  entry = login(home)
+  token = str(entry.get("key") or "")
+  if not token:
+    result["usageStatusText"] = "Waiting for auth"
+    return result
+
+  # A kept window whose reset has passed starts over empty. Its next reset is
+  # xAI's to say, so it stays unknown until a probe answers.
+  cache = LimitsCache(AGENT_ID, key)
+  fallback, result["fetchedAtMs"] = cache.kept()
+
+  expires = parse_time(entry.get("expires_at"))
+  if expires and expires.timestamp() <= time.time():
+    result["limits"] = fallback
+    # The access token lives six hours and Grok mints a new one from its
+    # refresh token whenever it starts, so a lapsed one is routine, not a
+    # sign-out: the limits are paused, the last numbers kept as stale, until
+    # Grok runs again. Only a refresh token past its 30 days is a sign-in to
+    # redo.
+    if entry.get("refresh_token") and time.time() - expires.timestamp() < REFRESH_LIFETIME_SECONDS:
+      result["usageStatusText"] = "Limits paused"
+      result["authHelpText"] = (
+        "Grok's access token has lapsed"
+        + (" — showing the last known limits." if fallback else ".")
+        + " Start Grok to refresh it; signing in again is not needed."
+      )
+    else:
+      result["usageStatusText"] = "Sign-in expired"
+      result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."
+    return result
+
+  # A panel opened and shut repeatedly reuses an answer this recent rather
+  # than asking xAI again.
+  if cache.fresh(force):
+    result.update(limits=fallback, live=True, authHelpText="")
+    return result
+
+  headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+  limits = []
+  try:
+    credits = open_json(urllib.request.Request(CREDITS_URL, headers=headers), timeout=8)
+    weekly = credits_limit(credits)
+    if weekly is None:
+      limits = [monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8))]
+    else:
+      limits = [weekly]
+      # A unified-billing account can carry both: the weekly credits and the
+      # monthly included quota, which Grok's own /usage shows side by side.
+      # The weekly window stands on its own when the monthly one won't come.
+      if credits["config"].get("isUnifiedBillingUser") is True and weekly["label"] == "Weekly":
+        try:
+          limits.append(monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8)))
+        except Exception:
+          pass
+  except HttpError as error:
+    if error.status in (401, 403):
+      # The token was turned away before it lapsed: a sign-in to redo.
+      result["usageStatusText"] = "Sign-in expired"
+      result["authHelpText"] = "xAI refused Grok's saved sign-in. Start Grok, or run `grok login`, to sign in again."
+    elif error.status:
+      result["authHelpText"] = f"Grok's usage endpoint returned status {error.status}. Local Grok stats are still shown."
+    elif error.transport:
+      # No server answered at all (no route, no DNS, a timeout), often a
+      # network not up yet after login, so the panel asks again soon. Any real
+      # answer, an error status included, is a server to stop pestering.
+      result["retryAdvised"] = True
+      result["authHelpText"] = "Couldn't reach Grok's usage endpoint. Retrying shortly. Local Grok stats are still shown."
+    else:
+      result["authHelpText"] = "Grok's usage endpoint answered without a usable limit. Local Grok stats are still shown."
+  except Exception:
+    result["authHelpText"] = "Grok's usage endpoint answered without a usable limit. Local Grok stats are still shown."
+
+  if limits:
+    result.update(limits=limits, live=True, fetchedAtMs=cache.save(limits), authHelpText="")
+  else:
+    result["limits"] = fallback
+    if not result["usageStatusText"] and not result["limits"]:
+      result["usageStatusText"] = "Grok limits unavailable"
+  return result
+
+
+def home_of(account):
+  return Path(account.get("home") or (Path.home() / ".grok"))
+
+
+# Keyed by who the home is signed in as, so a home signed in to someone else
+# never shows the last one's numbers.
+def cache_key(home, fallback):
+  user = str(login(home).get("user_id") or "")
+  return re.sub(r"[^A-Za-z0-9_-]", "", user) or fallback
+
+
+def account_limits(account, force):
+  home = home_of(account)
+  limits = collect_limits(home, cache_key(home, account["id"]), force)
+  return account_entry(account, limits, plan(home))
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  registered = registered_accounts(AGENT_ID)
+  accounts = [account_limits(account, args.force) for account in registered]
+  current = next((a for a in accounts if a["active"]), None)
+  if current:
+    tier = current["plan"]
+    limits = current
+    stale, fetched_at = current["stale"], current["fetchedAt"]
+  else:
+    home = default_home()
+    tier = plan(home)
+    limits = collect_limits(home, cache_key(home, "main"), args.force)
+    stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
+
+  # With accounts registered, the primary is ~/.grok by definition.
+  stats_home = Path.home() / ".grok" if accounts else default_home()
+  stats = cached_local_stats(stats_home, scan_max_age(args.force, args.limits_only))
+  # In use here once someone signed in or ran a session; otherwise an empty
+  # record, which the panel skips.
+  in_use = bool(accounts) or bool(login(stats_home)) or stats["totalSessions"] > 0
+  # A missing sign-in is only news where Grok has been set up: a machine
+  # with no Grok home at all says nothing.
+  if not in_use and not stats_home.exists() and not limits["limits"]:
+    limits = {"limits": [], "usageStatusText": "", "authHelpText": ""}
+    stale, fetched_at = False, 0
+  record = base_record(
+    AGENT_ID,
+    AGENT_NAME,
+    ready=in_use,
+    tierLabel=tier,
+    usageStatusText=limits["usageStatusText"],
+    authHelpText=limits["authHelpText"],
+    limits=limits["limits"],
+    limitsStale=stale,
+    limitsFetchedAt=fetched_at,
+  )
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  record.update(stats)
+  if accounts:
+    record["accountSwitch"] = registered[0]["switch"]
+    record["accounts"] = accounts
+  emit(record)
+
+
+if __name__ == "__main__":
+  main()

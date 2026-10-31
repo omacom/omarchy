@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import "NightlightModel.js" as NightlightModel
+import qs.Commons
 
 Item {
   id: root
@@ -85,7 +86,7 @@ Item {
 
   Component.onCompleted: refresh()
 
-  IpcHandler {
+  ShellIpc {
     target: "nightlight"
 
     function status(): string {
