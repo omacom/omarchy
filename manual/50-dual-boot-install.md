@@ -37,6 +37,18 @@ When you finish your Omarchy install, you'll notice that the Limine bootloader i
 
 In order to do that, run `limine-scan` and follow the prompts to add whichever items you'd like to your limine config. Then when you boot, you'll see your normal options for Omarchy, as well as Windows Boot Manager or others.
 
+## Fixing Windows Time Synchronization
+
+When dual-booting Windows and Omarchy, you may notice that the clock is off by your time zone's offset after switching between the operating systems. This happens because both share the computer's hardware clock but read it differently: Windows assumes it holds your local time, while Omarchy (like most Linux distributions) assumes it holds Coordinated Universal Time (UTC).
+
+To make Windows keep the hardware clock in UTC too, follow these steps:
+
+- **Open PowerShell as Administrator:** Boot into Windows and open PowerShell as Administrator. Paste the following command and press Enter:
+  ```powershell
+  reg add HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation /v RealTimeIsUniversal /t REG_DWORD /d 1 /f
+  ```
+- **Restart Windows:** Restart your computer for the registry change to take effect.
+
 ## Bitlocker
 
 It's important to note that this install method is not compatible with Bitlocker as it encrypts the entire drive, not just the partition. If you encounter an error stating that Bitlocker is enabled, boot to Windows, go to **Settings -> Privacy & Security -> Device encryption** and toggle Bitlocker off. It may take some time to decrypt the drive.
