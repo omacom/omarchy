@@ -99,6 +99,7 @@
   "crash.captureEnabled": "Crash capture enabled",
   "crash.diagnose": "Click to diagnose with AI",
   "crash.processCrashed": "Process crashed: %1",
+  "default.aurHelperSet": "%1 is now the default AUR helper",
   "default.browserSet": "%1 is now the default browser",
   "default.editorSet": "%1 is now the default editor",
   "default.terminalSet": "%1 is now the default terminal",

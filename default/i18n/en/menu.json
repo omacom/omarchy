@@ -644,6 +644,16 @@
   "setup.default.editor.emacs": {
     "label": "Emacs"
   },
+  "setup.default.aur-helper": {
+    "label": "AUR Helper",
+    "title": "Default AUR Helper"
+  },
+  "setup.default.aur-helper.yay": {
+    "label": "yay"
+  },
+  "setup.default.aur-helper.paru": {
+    "label": "paru"
+  },
   "setup.plugin": {
     "label": "Plugins"
   },

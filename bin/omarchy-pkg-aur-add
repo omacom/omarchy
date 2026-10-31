@@ -4,7 +4,8 @@
 # omarchy:args=<packages...>
 
 if omarchy-pkg-missing "$@"; then
-  yay -S --noconfirm --needed -- "$@" || exit 1
+  aur_helper=$(omarchy-pkg-aur-helper) || exit 1
+  "$aur_helper" -S --noconfirm --needed -- "$@" || exit 1
 fi
 
 for pkg in "$@"; do
