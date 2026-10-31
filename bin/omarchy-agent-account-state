@@ -716,6 +716,15 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
   return {"action": "exhausted", "alert": alert, "from": current, "fromPeak": current_peak, "soonest": soonest}
 
 
+# The windows that stop a prompt. A credit allowance does not: running it
+# down returns the account to its rate limit windows, and its month-long
+# window would hold an account over the threshold for weeks.
+def rate_limits(limits: Any) -> Any:
+  if not isinstance(limits, list):
+    return limits
+  return [l for l in limits if not (isinstance(l, dict) and "spend" in l)]
+
+
 # Limits per account id. An account nobody is signed in to is left out, so it
 # is never a candidate: its cached headroom is no use to a session that can't
 # start. One whose token merely expired stays in, since a session refreshes it.
@@ -726,7 +735,7 @@ def usage_by_account(provider: str) -> tuple[dict[str, Any], frozenset[str]]:
     if isinstance(a, dict) and a.get("id") and a.get("usageStatusText") != "Waiting for auth"
   ]
   return (
-    {str(a["id"]): a.get("limits") for a in accounts},
+    {str(a["id"]): rate_limits(a.get("limits")) for a in accounts},
     frozenset(str(a["id"]) for a in accounts if a.get("stale") is True),
   )
 

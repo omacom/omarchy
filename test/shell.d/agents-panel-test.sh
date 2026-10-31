@@ -103,3 +103,96 @@ assertDeepEqual(
   'agents panel shows a model-scoped window under the window it runs on'
 )
 JS
+
+# A usage-credit window carries the money behind its percentage. It shows as
+# a row with the money in its tooltip, but nothing that answers "what stops
+# the next prompt" counts it: running credits down returns the account to its
+# rate limit windows rather than stopping anything.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const catalog = root + '/default/i18n/en/shell.json'
+const english = JSON.parse(fs.readFileSync(catalog, 'utf8'))
+const panelRoot = { nowMs: Date.now() }
+// QML's String.arg fills the lowest-numbered %N left.
+String.prototype.arg = function (value) {
+  const holes = (this.match(/%\d/g) || []).sort()
+  return holes.length ? this.replace(holes[0], String(value)) : String(this)
+}
+const Commons = { I18n: {
+  t: (key) => english[key],
+  formatNumber: (value, decimals) => Number(value).toFixed(decimals || 0)
+} }
+const start = source.indexOf('function windowIsLong')
+const summary = '// ' + '-'.repeat(64) + ' summary'
+const end = source.indexOf(summary)
+assert(start > 0 && end > start,
+  'agents panel exposes its window and money helpers')
+eval(source.slice(start, end).replaceAll('root.nowMs', 'panelRoot.nowMs'))
+
+const money = { used: 458.2, limit: 500, currency: 'EUR' }
+const credits = {
+  label: 'Usage credits', title: 'Usage credits', percent: 0.92,
+  resetsAt: '', spend: money
+}
+const windowOf = (entry) => limitWindows({ limits: [entry] })[0]
+
+assertDeepEqual(windowOf(credits),
+  { title: 'Usage credits', percent: 0.92, resetAt: '', spend: money },
+  'agents panel carries a credit allowance through to its window')
+const refund = { ...money, used: -5 }
+assertDeepEqual(windowOf({ ...credits, percent: 0, spend: refund }).spend,
+  refund, 'agents panel keeps the signed money of a refund')
+
+// Amounts it cannot read say nothing rather than "$0.00 / $0.00".
+for (const spend of [null, {}, { used: 10 }, { used: 10, limit: 0 }]) {
+  assertEqual(windowOf({ ...credits, spend }).spend, undefined,
+    'agents panel drops an allowance it cannot read: ' + JSON.stringify(spend))
+}
+
+// Last month's money says nothing about a month that has started.
+const lastMonth = new Date(panelRoot.nowMs - 1000).toISOString()
+assertEqual(windowOf({ ...credits, resetsAt: lastMonth }).spend, undefined,
+  'agents panel drops the money of a credit window that has reset')
+
+for (const [spend, expected, name] of [
+  [money, '€458.20 / €500.00 spent', 'money spent of the cap'],
+  [refund, '-€5.00 / €500.00 spent', 'a refund as a signed amount'],
+  [null, '', 'nothing for a rate limit window'],
+]) {
+  assertEqual(spendDetailText(spend), expected, 'agents panel writes ' + name)
+}
+
+assertEqual(windowDisplayTitle('Usage credits'),
+  english['agents.windowUsageCredits'],
+  'agents panel translates the credit window title')
+
+const weekly = { label: 'Weekly (7-day)', percent: 0.11, resetsAt: '' }
+assertEqual(bindingWindow({ limits: [weekly, credits] }).title, 'Weekly',
+  'agents panel binds the bar to a rate limit window, not the credit window')
+assertEqual(bindingWindow({ limits: [credits] }), null,
+  'agents panel binds the bar to nothing when only credits are known')
+JS
+
+# The faster limit checks catch an account crossing its switch threshold. A
+# credit allowance never switches an account, so it does not start them.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const start = source.indexOf('readonly property bool nearLimit: {')
+const end = source.indexOf('\n  }\n', start)
+assert(start > 0 && end > start, 'agents main exposes its near-limit check')
+const body = source.slice(source.indexOf('{', start) + 1, end)
+const nearLimit = (limits) => new Function('agents', 'dataRevision', body)(
+  [{ record: { accounts: [{}, {}], limits } }], 0)
+
+// The checks start 15 points under the default 95% threshold: at 80%.
+for (const [limits, expected, name] of [
+  [[{ percent: 0.79 }], false, 'a session under 80%'],
+  [[{ percent: 0.8 }], true, 'a session at 80%'],
+  [[{ percent: 0.1 }, { percent: 0.99, spend: { used: 495, limit: 500 } }],
+    false, 'a full credit allowance'],
+]) {
+  assertEqual(nearLimit(limits), expected, 'near-limit check: ' + name)
+}
+JS

@@ -204,4 +204,129 @@ check("Claude collector calls a lapsed access token paused, not signed out",
 record, _ = claude()
 check("Claude collector serves open cached windows without a token",
       record["usageStatusText"] == "Waiting for auth" and labels(record) == ["Session (5-hour)", "Weekly (7-day)"], record)
+
+# ------------------------------------------------------------ usage credits
+
+sandbox()
+signed_in()
+
+
+def money(minor, currency="EUR", exponent=2):
+  return {"amount_minor": minor, "currency": currency, "exponent": exponent}
+
+
+def enabled(used, limit):
+  return {"enabled": True, "used": used, "limit": limit}
+
+
+def credits_of(spend):
+  read = read_limits({"five_hour": {"utilization": 0.0}, "spend": spend})
+  return [entry for entry in read["limits"] if "spend" in entry]
+
+
+# The money is minor units over 10 ** exponent: 45820 at exponent 2 is
+# 458.20, and 458.20 of 500.00 is 91.64%. A refund below zero empties the
+# meter and keeps the signed amount; spending past the cap fills it.
+for name, spend, percent, amounts in (
+  ("a share of the cap", enabled(money(45820), money(50000)),
+   0.9164, (458.2, 500.0, "EUR")),
+  ("past the cap", enabled(money(60000), money(50000)),
+   1.0, (600.0, 500.0, "EUR")),
+  ("a refund", enabled(money(-500), money(50000)),
+   0.0, (-5.0, 500.0, "EUR")),
+  ("a zero-decimal currency",
+   enabled(money(25000, "JPY", 0), money(50000, "JPY", 0)),
+   0.5, (25000.0, 50000.0, "JPY")),
+):
+  read = credits_of(spend)
+  expect(f"Claude collector reads usage credits as a window: {name}",
+         [(entry["label"], round(entry["percent"], 6),
+           tuple(entry["spend"].values())) for entry in read],
+         [("Usage credits", percent, amounts)], read)
+
+# No allowance, or one it cannot read, is no window rather than a guess.
+for name, spend in (
+  ("no spend object", None),
+  ("credits switched off",
+   {"enabled": False, "used": money(0), "limit": money(50000)}),
+  ("no cap", enabled(money(100), None)),
+  ("a zero cap", enabled(money(100), money(0))),
+  ("two currencies", enabled(money(100, "USD"), money(50000))),
+  ("no exponent",
+   enabled({"amount_minor": 100, "currency": "EUR"}, money(50000))),
+  ("a negative exponent", enabled(money(100, exponent=-2), money(50000))),
+  ("an amount as text", enabled(money("100"), money(50000))),
+  ("an amount as a boolean", enabled(money(True), money(50000))),
+  ("an amount that is not a number",
+   enabled(money(float("nan")), money(50000))),
+):
+  read = credits_of(spend)
+  expect(f"Claude collector adds no credit window for {name}", read, [], read)
+
+# Credits refill on the first of the coming month, dated in the offset that
+# day carries: Stockholm leaves summer time on 25 October 2026 and enters it
+# on 29 March 2026.
+collector = load_collector("claude")
+zone = os.environ.get("TZ")
+for now, tz, expected in (
+  (datetime(2026, 10, 15, 12), "Europe/Stockholm",
+   "2026-11-01T00:00:00+01:00"),
+  (datetime(2026, 3, 15, 12), "Europe/Stockholm",
+   "2026-04-01T00:00:00+02:00"),
+  (datetime(2026, 12, 31, 23), "UTC", "2027-01-01T00:00:00+00:00"),
+):
+  os.environ["TZ"] = tz
+  time.tzset()
+  expect(f"Claude credits reset on the first after {now:%Y-%m-%d} ({tz})",
+         collector.next_month_start(now), expected, now)
+if zone is None:
+  os.environ.pop("TZ")
+else:
+  os.environ["TZ"] = zone
+time.tzset()
+
+WEEKLY = {"label": "Weekly (7-day)", "percent": 0.11,
+          "resetsAt": iso_in(3 * 3600)}
+CREDITS = {"label": "Usage credits", "title": "Usage credits",
+           "percent": 0.92, "resetsAt": iso_in(10 * 86400),
+           "spend": {"used": 458.2, "limit": 500.0, "currency": "EUR"}}
+
+# Inside the reuse interval the cache is the last probe's answer, credits
+# and all, and Anthropic is not asked again.
+sandbox()
+signed_in()
+kept_limits(5, [WEEKLY, CREDITS])
+record, http = claude("--limits-only")
+check("Claude collector reuses a fresh cache with its credit window",
+      labels(record) == ["Weekly (7-day)", "Usage credits"]
+      and not any(USAGE in r["url"] for r in http.requests), record)
+
+
+def no_token():
+  signed_in()
+  (home() / ".claude" / ".credentials.json").unlink()
+
+
+def expired():
+  signed_in(expires=1000, refresh_expires=1000)
+
+
+# Past a failed check, money measured within CURRENT_ENOUGH_SECONDS (900)
+# still describes the account, as the windows beside it do. Older money could
+# misreport weeks of spending, so it waits for a check that lands.
+for name, plant, mode in (
+  ("an expired sign-in", expired, "up"),
+  ("no sign-in", no_token, "up"),
+  ("an unreachable endpoint", signed_in, "down"),
+  ("a refused check", signed_in, 429),
+):
+  for ago, kept in ((60, True), (890, True), (910, False), (1800, False)):
+    sandbox()
+    plant()
+    kept_limits(ago, [WEEKLY, CREDITS])
+    record, _ = claude(mode=mode)
+    verb = "keeps" if kept else "drops"
+    expect(f"Claude collector {verb} cached credits {ago}s old after {name}",
+           labels(record),
+           ["Weekly (7-day)"] + (["Usage credits"] if kept else []), record)
 PY

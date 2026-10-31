@@ -3410,18 +3410,24 @@ def limit_window_open(entry: dict[str, Any], now: datetime) -> bool:
   return resets_at > now
 
 
+def elapsed_limit(entry: dict[str, Any]) -> dict[str, Any]:
+  kept = {key: value for key, value in entry.items() if key != "spend"}
+  return dict(kept, percent=0.0, resetsAt="")
+
+
 def open_limits(entries: Any) -> list[dict[str, Any]]:
   """Kept limit windows, as they read now.
 
   A window whose reset has passed comes back at percent 0 with resetsAt "":
   the allowance it measured has been renewed, so it is untouched rather than
-  unknown, and never dropped.
+  unknown, and never dropped. Money it carried (`spend`) was spent in the
+  period that ended, so it goes with the percentage.
   """
   if not isinstance(entries, list):
     return []
   now = datetime.now(timezone.utc)
   return [
-    entry if limit_window_open(entry, now) else dict(entry, percent=0.0, resetsAt="")
+    entry if limit_window_open(entry, now) else elapsed_limit(entry)
     for entry in entries if isinstance(entry, dict)
   ]
 
