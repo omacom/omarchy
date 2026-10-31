@@ -394,5 +394,10 @@
   "windowsVm.ramHeader": "How much RAM would you like to allocate to Windows VM?",
   "windowsVm.usernameHeader": "Enter Windows username:",
   "windowsVm.usernamePlaceholder": "Username (Press enter to use default: %1)",
-  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?"
+  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?",
+  "reminder.customAtTime": "%1 at %2",
+  "reminder.itsTime": "It's %1",
+  "reminder.setForTime": "Reminder set for %1",
+  "reminder.willRemindTodayAt": "You'll be reminded today at %1",
+  "reminder.willRemindTomorrowAt": "You'll be reminded tomorrow at %1"
 }
