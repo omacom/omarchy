@@ -69,6 +69,17 @@ dashboard_url() {
 # a unit that was written but never enabled (an install that died halfway)
 # would otherwise be "started" once and stay off at every following login,
 # where --force rewrites and enables it.
+# A remote client's gateway runs on another host, and the dashboard probe reads
+# it as not running. Installing a local one would write a token the remote
+# gateway rejects, so attach the terminal UI to the configured gateway instead.
+if [[ $(jq -r '.gateway.mode // empty' "$HOME/.openclaw/openclaw.json" 2>/dev/null) == "remote" ]]; then
+  if [[ $tui == "true" ]]; then
+    exec openclaw tui "${message[@]}"
+  else
+    exec omarchy-launch-floating-terminal-with-presentation 'omarchy-launch-openclaw --tui'
+  fi
+fi
+
 if ! url=$(dashboard_url); then
   if systemctl --user is-enabled --quiet openclaw-gateway.service 2>/dev/null; then
     timeout 60 openclaw gateway start >&2 || true

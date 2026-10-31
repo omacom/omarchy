@@ -108,6 +108,23 @@ grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#cold-start$' "$TEST_LOG"
 pass "OpenClaw launch starts a stopped gateway before opening the app"
 rm -f "$tmp_dir/gateway-enabled"
 
+# A remote client has no local gateway to install or start: the gateway it is
+# configured for runs elsewhere, and a local install breaks its token.
+printf '{"gateway":{"mode":"remote","remote":{"url":"wss://gateway.example"}}}\n' >"$HOME/.openclaw/openclaw.json"
+rm -f "$tmp_dir/gateway-up"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw"
+! grep -q '^openclaw:gateway' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a remote client's gateway alone" "$(grep '^openclaw:gateway' "$TEST_LOG")"
+grep -q '^omarchy-launch-floating-terminal-with-presentation:omarchy-launch-openclaw --tui$' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a remote client's gateway alone" "terminal UI never opened"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw" --tui
+grep -q '^openclaw:tui$' "$TEST_LOG" && ! grep -q '^openclaw:gateway' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a remote client's gateway alone" "--tui: $(cat "$TEST_LOG")"
+pass "OpenClaw launch leaves a remote client's gateway alone"
+: >"$HOME/.openclaw/openclaw.json"
+
 # A dashboard probe that hangs is cut off, so the launch still fails cleanly
 # instead of sitting forever behind an app-grid icon with no terminal.
 cat >"$tmp_dir/bin/timeout" <<SCRIPT
