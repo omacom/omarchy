@@ -57,19 +57,141 @@ capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
 energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
 energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
 upower_hours=$(awk '/time to (empty|full)/ { print ($5 ~ /^minute/ ? $4 / 60 : $4); exit }' <<<"$battery_info")
-power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
+upower_rate=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
+power_rate_raw="$upower_rate"
+state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
 battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
+# Guards: the read must succeed and be numeric, and the magnitude must be sane.
+# Some ECs report bogus values (e.g. MSI BIF0_9 reports current_now=-65A for a
+# ~7.5W discharge, yielding -1124W), so reject anything above 150W or wildly
+# above UPower's rate and keep the UPower value instead.
+sysfs_rate=""
+if microwatts=$(cat "$battery_path/power_now" 2>/dev/null) && [[ $microwatts =~ ^-?[0-9]+$ ]]; then
+  sysfs_rate=$(awk -v microwatts="$microwatts" 'BEGIN { print microwatts / 1000000 }')
+elif microamps=$(cat "$battery_path/current_now" 2>/dev/null) && [[ $microamps =~ ^-?[0-9]+$ ]] \
+  && microvolts=$(cat "$battery_path/voltage_now" 2>/dev/null) && [[ $microvolts =~ ^[0-9]+$ ]]; then
+  sysfs_rate=$(awk \
+    -v microamps="$microamps" \
+    -v microvolts="$microvolts" \
     'BEGIN { print microamps * microvolts / 1000000000000 }')
+fi
+
+sysfs_usable=false
+if [[ -n $sysfs_rate ]]; then
+  if awk -v s="${sysfs_rate:-0}" -v u="${upower_rate:-0}" 'BEGIN {
+    s_abs = (s < 0 ? -s : s)
+    u_abs = (u < 0 ? -u : u)
+    ok = (s_abs <= 150) && (u_abs <= 0.5 || s_abs <= 10 || s_abs <= 3 * u_abs)
+    exit !ok
+  }'; then
+    power_rate_raw="$sysfs_rate"
+    sysfs_usable=true
+  fi
+fi
+
+# Last resort: estimate from charge_now deltas. UPower's estimator can wedge at
+# 0W for hours on ECs reporting bogus current, and sysfs is unusable then too.
+# charge_now advances in whole steps, so a short window quantises badly (one
+# 1mAh step per 5s is 8.6W at 12V) and the panel would flicker between 0W and
+# multiples of that step. Keep a short history instead and measure across the
+# oldest sample that is at least 30s old, so the value tracks the actual load.
+# Samples record the battery and charge state, so a sample taken from another
+# battery or from an AC transition is never measured against this one.
+#
+# The history is capped at maximum_window, so a panel closed for less than that
+# estimates on the next open, and one closed for longer shows UPower's 0W until
+# a 30s sample exists again (suspend, a long hold at a charge limit or a pack
+# swap) — none of which a script that only runs while the panel is open can
+# observe directly. Batteries that expose energy but no charge carry no sample,
+# so they get no estimate.
+minimum_window=30
+maximum_window=120
+if [[ -n ${OMARCHY_BATTERY_CACHE:-} ]]; then
+  rate_cache="$OMARCHY_BATTERY_CACHE"
+elif [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  rate_cache="$XDG_RUNTIME_DIR/omarchy-battery-rate.cache"
+else
+  # A shared /tmp name is not safe to trust for arithmetic, so skip caching.
+  rate_cache=""
+fi
+cache_dir=$(dirname -- "$rate_cache")
+charge_sample=$(cat "$battery_path/charge_now" 2>/dev/null)
+volt_sample=$(cat "$battery_path/voltage_now" 2>/dev/null)
+
+# Sampling only happens while the battery is charging or discharging. A hold at
+# a charge limit (pending-charge, fully-charged) or an unknown state is observed
+# here between the two halves of a discharge, so the history from before it must
+# not be measured across it: the elapsed time would include the hold and report
+# too little draw with too much time left. A closed panel runs no script and so
+# leaves the history alone, which a state change does not.
+if [[ -n $rate_cache && $state != "discharging" && $state != "charging" ]]; then
+  rm -f -- "$rate_cache"
+fi
+
+sampleable=false
+if [[ -n $rate_cache ]] \
+  && [[ $charge_sample =~ ^[0-9]+$ ]] && [[ $volt_sample =~ ^[0-9]+$ ]] \
+  && { [[ $state == "discharging" ]] || [[ $state == "charging" ]]; } \
+  && { [[ -d $cache_dir ]] || mkdir -p -- "$cache_dir" 2>/dev/null; }; then
+  sampleable=true
+fi
+
+if [[ $sampleable == "true" ]]; then
+  now_ts=$(date +%s)
+
+  # Keep only this battery's samples from the current state, dropping anything
+  # past the maximum window, dated in the future (a wall-clock correction can
+  # push samples ahead), or missing a numeric reading.
+  kept_samples=()
+  if [[ -r $rate_cache ]]; then
+    while read -r sample_battery sample_state sample_ts sample_charge sample_volt; do
+      [[ $sample_battery == "$native_path" && $sample_state == "$state" ]] || continue
+      [[ $sample_ts =~ ^[0-9]+$ ]] || continue
+      [[ $sample_charge =~ ^[0-9]+$ && $sample_volt =~ ^[0-9]+$ ]] || continue
+      (( sample_ts <= now_ts )) || continue
+      (( now_ts - sample_ts <= maximum_window )) || continue
+      kept_samples+=("$sample_ts $sample_charge $sample_volt")
+    done <"$rate_cache"
+  fi
+
+  # Estimate only when neither UPower nor sysfs supplied a usable rate. Older
+  # than the minimum window and there is nothing to measure yet, so the panel
+  # keeps UPower's 0W until the first full window elapses.
+  if [[ $sysfs_usable == "false" ]] \
+    && awk -v u="${upower_rate:-0}" 'BEGIN { u_abs = (u < 0 ? -u : u); exit !(u_abs <= 0.5) }'; then
+    for sample in "${kept_samples[@]}"; do
+      read -r sample_ts sample_charge sample_volt <<<"$sample"
+      if (( now_ts - sample_ts >= minimum_window )); then
+        delta_charge=$((charge_sample - sample_charge))
+        if { [[ $state == "discharging" ]] && (( delta_charge < 0 )); } \
+          || { [[ $state == "charging" ]] && (( delta_charge > 0 )); }; then
+          avg_volt=$(((volt_sample + sample_volt) / 2))
+          estimate=$(awk -v dc="$delta_charge" -v v="$avg_volt" -v dt="$((now_ts - sample_ts))" \
+            'BEGIN { dc_abs = (dc < 0 ? -dc : dc); print dc_abs / 1000000 * v / 1000000 / (dt / 3600) }')
+          if awk -v e="${estimate:-0}" 'BEGIN { exit !(e >= 0.2 && e <= 150) }'; then
+            power_rate_raw="$estimate"
+          fi
+        fi
+        break
+      fi
+    done
+  fi
+
+  # A per-process temp file keeps a concurrent run (the panel refreshes every
+  # 5s while the notification can invoke the script independently) from
+  # interleaving with this one; the atomic rename then publishes one complete
+  # cache and the other run's sample is simply dropped.
+  cache_tmp="$rate_cache.$$.tmp"
+  {
+    for sample in "${kept_samples[@]}"; do
+      printf '%s %s %s\n' "$native_path" "$state" "$sample"
+    done
+    printf '%s %s %s %s %s\n' "$native_path" "$state" "$now_ts" "$charge_sample" "$volt_sample"
+  } >"$cache_tmp" 2>/dev/null && mv -f "$cache_tmp" "$rate_cache" 2>/dev/null || rm -f -- "$cache_tmp"
 fi
 
 # Some kernels sign power_now by direction (negative while discharging on
@@ -80,7 +202,7 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   sub(/\.0$/, "", rounded)
   print rounded
 }')
-state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
+
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
@@ -152,8 +274,15 @@ if [[ $shell_output == "true" ]]; then
   cycles=""
   [[ ! -r $battery_path/cycle_count ]] || cycles=$(<"$battery_path/cycle_count")
   [[ -n $cycles ]] || cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  upower_cycles=$(awk '/charge-cycles/ { print $2; exit }' <<<"$battery_info")
 
-  [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
+  # Some ECs report cycle_count 0 while UPower reports N/A. Omit it so the
+  # panel shows "—" instead of a misleading 0.
+  if [[ -n $cycles ]]; then
+    if ! { [[ $cycles == "0" ]] && { [[ -z $upower_cycles ]] || [[ $upower_cycles == "N/A" ]]; }; }; then
+      printf 'cycles\t%s\n' "$cycles"
+    fi
+  fi
 
   if [[ -n $threshold_end ]]; then
     if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
