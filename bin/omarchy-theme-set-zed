@@ -194,13 +194,17 @@ case $action in
   *) echo "Usage: omarchy-theme-set-zed [--select|--font <font-name>]" >&2; exit 1 ;;
 esac
 
-if [[ $action == font ]]; then
+if [[ $action == "font" ]]; then
   mkdir -p "$ZED_CONFIG_DIR" || exit 1
   update_settings "$action" "$native_theme_ready" "$font_name"
   exit $?
 fi
 
 if [[ -f $CURRENT_THEME_DIR/zed.json ]]; then
+  if grep -Fq '{{' "$CURRENT_THEME_DIR/zed.json"; then
+    echo "The current Zed theme has unresolved color placeholders" >&2
+    exit 1
+  fi
   if ! jq -e -s 'length == 1 and (.[0] | any(.themes[]?; .name == "Omarchy" and (.appearance == "light" or .appearance == "dark") and (.style | type == "object")))' "$CURRENT_THEME_DIR/zed.json" >/dev/null; then
     echo "The current Zed theme is invalid or does not define an Omarchy theme" >&2
     exit 1
@@ -208,16 +212,16 @@ if [[ -f $CURRENT_THEME_DIR/zed.json ]]; then
   mkdir -p "$ZED_CONFIG_DIR/themes" || exit 1
   cp "$CURRENT_THEME_DIR/zed.json" "$ZED_CONFIG_DIR/themes/omarchy.json" || exit 1
   native_theme_ready=true
-elif [[ $action == select ]]; then
+elif [[ $action == "select" ]]; then
   echo "The current Omarchy theme has no Zed theme; refresh it first" >&2
   exit 1
-elif [[ $action == sync ]]; then
+elif [[ $action == "sync" ]]; then
   exit 0
 fi
 
-[[ $action == sync ]] && exit 0
+[[ $action == "sync" ]] && exit 0
 
-if [[ $action == migrate && ! -f $ZED_SETTINGS_PATH ]]; then
+if [[ $action == "migrate" && ! -f $ZED_SETTINGS_PATH ]]; then
   exit 0
 fi
 

@@ -199,67 +199,19 @@ HOME="$missing_zed_home" PATH="$test_tmp/missing-zed-bin:$ROOT/bin:$PATH" \
 [[ ! -e $missing_zed_home/.local/state/omarchy/zed/font-sync ]] || fail "font sync does not opt in without Zed"
 pass "Zed font sync skips users without Zed"
 
-hook_dir="$home/.config/omarchy/hooks/theme-set.d"
-hook_file="$home/.config/omarchy/hooks/theme-set"
-hook_target="$home/.config/omarchy/hooks/theme-set-target"
-font_hook_dir="$home/.config/omarchy/hooks/font-set.d"
-mkdir -p "$hook_dir" "$font_hook_dir"
-cat >"$hook_target" <<'HOOK'
-#!/bin/bash
-echo before
-# >>> omazed hook - do not edit >>>
-omazed set "$1"
-# <<< omazed hook - do not edit <<<
-echo after
-HOOK
-ln -s "$(basename "$hook_target")" "$hook_file"
-printf '#!/bin/bash\nomazed set "$1"\n' >"$hook_dir/omazed"
-printf '#!/bin/bash\nomazed set-font "$1"\n' >"$font_hook_dir/omazed"
-touch "$font_hook_dir/user-font-hook"
-printf 'old theme\n' >"$home/.config/zed/themes/omazed.json"
-mkdir -p "$home/.local/share/omazed"
-touch "$home/.local/share/omazed/initialized"
-rm "$home/.local/state/omarchy/zed/font-sync"
-printf '{"theme":"Omazed"}\n' >"$settings"
-
-cat >"$stub_bin/omarchy-pkg-drop" <<'STUB'
-#!/bin/bash
-printf 'drop %s\n' "$*" >>"$TEST_LOG"
-STUB
-cat >"$stub_bin/omarchy-theme-refresh" <<'STUB'
-#!/bin/bash
-echo refresh >>"$TEST_LOG"
-STUB
-chmod +x "$stub_bin/omarchy-pkg-drop" "$stub_bin/omarchy-theme-refresh"
-
-export TEST_LOG="$test_tmp/migration.log"
-for _ in 1 2; do
-  HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null
-done
-
-! grep -q 'omazed hook\|omazed set' "$hook_file" || fail "Zed migration removes the omazed hook block"
-grep -q '^echo before$' "$hook_file" && grep -q '^echo after$' "$hook_file" ||
-  fail "Zed migration preserves user theme hooks"
-[[ -L $hook_file ]] || fail "Zed migration preserves a symlinked hook file"
-[[ ! -e $hook_dir/omazed ]] || fail "Zed migration removes the omazed hook fragment"
-[[ ! -e $font_hook_dir/omazed ]] || fail "Zed migration removes the obsolete Omazed font hook"
-[[ -e $font_hook_dir/user-font-hook ]] || fail "Zed migration preserves other font hooks"
-[[ -f $home/.local/state/omarchy/zed/font-sync ]] || fail "Zed migration retains the previous font sync opt-in"
-grep -Fxq 'old theme' "$home/.config/zed/themes/omazed.json" ||
-  fail "Zed migration preserves a theme that a workspace may still use"
-[[ -f $home/.local/share/omazed/initialized ]] || fail "Zed migration preserves Omazed state"
-! grep -q '^drop omazed$' "$TEST_LOG" || fail "Zed migration keeps Omazed for other users"
-grep -q '^refresh$' "$TEST_LOG" || fail "Zed migration refreshes the current theme"
-grep -q '"theme":"Omarchy"' "$settings" || fail "Zed migration replaces the selected Omazed theme"
-pass "Zed migration is idempotent and preserves user hooks"
-
 other_home="$test_tmp/other-home"
 mkdir -p "$other_home/.config/zed/themes" "$other_home/.local/state/omarchy/current/theme"
 cp "$generated_theme" "$other_home/.local/state/omarchy/current/theme/zed.json"
-printf '%s\n' '{' '  // "theme": "Omazed",' '  "theme": "One Dark"' '}' >"$other_home/.config/zed/settings.json"
-touch "$other_home/.config/zed/themes/omazed.json"
+printf '{"theme":"Omazed"}\n' >"$other_home/.config/zed/settings.json"
+for _ in 1 2; do
+  HOME="$other_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --migrate
+done
+jq -e '.theme == "Omarchy"' "$other_home/.config/zed/settings.json" >/dev/null ||
+  fail "Zed sync replaces an Omazed selection"
+pass "Zed sync migrates an Omazed selection idempotently"
 
-HOME="$other_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null
+printf '%s\n' '{' '  // "theme": "Omazed",' '  "theme": "One Dark"' '}' >"$other_home/.config/zed/settings.json"
+HOME="$other_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --migrate
 
 grep -q '"theme": "One Dark"' "$other_home/.config/zed/settings.json" ||
   fail "Zed migration preserves a manually selected theme"
@@ -267,7 +219,7 @@ grep -q '// "theme": "Omazed",' "$other_home/.config/zed/settings.json" ||
   fail "Zed migration ignores an Omazed reference inside a comment"
 pass "Zed migration preserves another selected theme"
 [[ ! -e $other_home/.local/state/omarchy/zed/font-sync ]] ||
-  fail "Zed migration does not enable font sync without an old font hook"
+  fail "Zed theme sync does not enable font sync"
 
 cat >"$other_home/.config/zed/settings.json" <<'JSONC'
 {
@@ -284,54 +236,15 @@ jq -e '.theme.mode == "system" and .theme.light == "One Light" and .theme.dark =
   fail "Zed migration replaces only Omazed in a light/dark theme object"
 pass "Zed migration preserves other choices in a light/dark theme object"
 
-custom_home="$test_tmp/custom-home"
-mkdir -p "$custom_home/.config/omarchy/hooks/theme-set.d" "$custom_home/.config/omarchy/hooks/font-set.d" \
-  "$custom_home/.config/zed/themes" "$custom_home/.local/state/omarchy/current/theme"
-cp "$generated_theme" "$custom_home/.local/state/omarchy/current/theme/zed.json"
-printf '{"theme":"Omazed"}\n' >"$custom_home/.config/zed/settings.json"
-printf '#!/bin/bash\nomazed set "$1"\necho custom\n' >"$custom_home/.config/omarchy/hooks/theme-set.d/omazed"
-printf '#!/bin/bash\nomazed set-font "$1"\necho custom\n' >"$custom_home/.config/omarchy/hooks/font-set.d/omazed"
-HOME="$custom_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null
-grep -q '^echo custom$' "$custom_home/.config/omarchy/hooks/theme-set.d/omazed" ||
-  fail "Zed migration preserves a customized theme hook"
-grep -q '^echo custom$' "$custom_home/.config/omarchy/hooks/font-set.d/omazed" ||
-  fail "Zed migration preserves a customized font hook"
-[[ ! -e $custom_home/.local/state/omarchy/zed/font-sync ]] ||
-  fail "Zed migration does not duplicate a customized font hook"
-pass "Zed migration preserves customized Omazed hooks"
-
-incomplete_home="$test_tmp/incomplete-home"
-mkdir -p "$incomplete_home/.config/omarchy/hooks"
-printf '%s\n' 'echo before' '# >>> omazed hook - do not edit >>>' 'echo keep me' >"$incomplete_home/.config/omarchy/hooks/theme-set"
-HOME="$incomplete_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null
-grep -q '^echo keep me$' "$incomplete_home/.config/omarchy/hooks/theme-set" ||
-  fail "Zed migration leaves an incomplete hook marker block untouched"
-pass "Zed migration requires a complete hook marker block"
-
 missing_theme_home="$test_tmp/missing-theme-home"
 mkdir -p "$missing_theme_home/.config/zed/themes"
 printf '{"theme":"Omazed"}\n' >"$missing_theme_home/.config/zed/settings.json"
-touch "$missing_theme_home/.config/zed/themes/omazed.json"
-mkdir -p "$missing_theme_home/.config/omarchy/hooks/theme-set.d" "$missing_theme_home/.config/omarchy/hooks/font-set.d"
-printf '#!/bin/bash\nomazed set "$1"\n' >"$missing_theme_home/.config/omarchy/hooks/theme-set.d/omazed"
-printf '#!/bin/bash\nomazed set-font "$1"\n' >"$missing_theme_home/.config/omarchy/hooks/font-set.d/omazed"
-: >"$TEST_LOG"
-if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null 2>&1; then
-  fail "Zed migration fails while a selected Omazed theme has no native replacement"
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --migrate >/dev/null 2>&1; then
+  fail "Zed sync fails while a selected Omazed theme has no native replacement"
 fi
-[[ -e $missing_theme_home/.config/zed/themes/omazed.json ]] ||
-  fail "Zed migration keeps Omazed in place until the native theme is ready"
 grep -q '"theme":"Omazed"' "$missing_theme_home/.config/zed/settings.json" ||
-  fail "Zed migration keeps the working selection when the native theme is unavailable"
-[[ -e $missing_theme_home/.config/omarchy/hooks/theme-set.d/omazed ]] ||
-  fail "Zed migration keeps the Omazed hook until the replacement is ready"
-[[ -e $missing_theme_home/.config/omarchy/hooks/font-set.d/omazed ]] ||
-  fail "Zed migration keeps the Omazed font hook until the replacement is ready"
-[[ ! -e $missing_theme_home/.local/state/omarchy/zed/font-sync ]] ||
-  fail "Zed migration does not enable native font sync before its theme is ready"
-! grep -q '^drop omazed$' "$TEST_LOG" ||
-  fail "Zed migration does not remove Omazed until the replacement is ready"
-pass "Zed migration does not remove Omazed before its replacement is ready"
+  fail "Zed sync keeps the working selection when the native theme is unavailable"
+pass "Zed sync keeps Omazed selected until the replacement is ready"
 
 if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --select >/dev/null 2>&1; then
   fail "Zed selection reports a missing generated theme"
@@ -341,21 +254,14 @@ pass "Zed selection fails rather than silently selecting a missing theme"
 mkdir -p "$missing_theme_home/.local/state/omarchy/current/theme"
 printf '%s\n' '{"themes": []}' >"$missing_theme_home/.local/state/omarchy/current/theme/zed.json"
 cp "$generated_theme" "$missing_theme_home/.config/zed/themes/omarchy.json"
-: >"$TEST_LOG"
-if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null 2>&1; then
-  fail "Zed migration fails when the replacement does not define the Omarchy theme"
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --migrate >/dev/null 2>&1; then
+  fail "Zed sync fails when the replacement does not define the Omarchy theme"
 fi
-[[ -e $missing_theme_home/.config/omarchy/hooks/theme-set.d/omazed ]] ||
-  fail "Zed migration keeps the Omazed hook when the replacement is invalid"
-[[ -e $missing_theme_home/.config/zed/themes/omazed.json ]] ||
-  fail "Zed migration keeps the Omazed theme when the replacement is invalid"
-! grep -q '^drop omazed$' "$TEST_LOG" ||
-  fail "Zed migration keeps the Omazed package when the replacement is invalid"
 grep -q '"theme":"Omazed"' "$missing_theme_home/.config/zed/settings.json" ||
-  fail "Zed migration keeps the old selection when the replacement is invalid"
+  fail "Zed sync keeps the old selection when the replacement is invalid"
 cmp -s "$generated_theme" "$missing_theme_home/.config/zed/themes/omarchy.json" ||
   fail "Zed sync does not overwrite a valid theme with an invalid replacement"
-pass "Zed migration rejects an invalid replacement before removing Omazed"
+pass "Zed sync rejects an invalid replacement"
 
 printf '%s\n' '{broken json' >"$missing_theme_home/.local/state/omarchy/current/theme/zed.json"
 if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" >/dev/null 2>&1; then
@@ -372,3 +278,71 @@ fi
 cmp -s "$generated_theme" "$missing_theme_home/.config/zed/themes/omarchy.json" ||
   fail "Zed sync preserves the previous theme when multiple documents are supplied"
 pass "Zed sync rejects multiple JSON documents"
+
+jq '.themes[0].style["border"] = "{{ accent }}"' "$generated_theme" >"$missing_theme_home/.local/state/omarchy/current/theme/zed.json"
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" >/dev/null 2>&1; then
+  fail "Zed sync rejects unresolved color placeholders"
+fi
+cmp -s "$generated_theme" "$missing_theme_home/.config/zed/themes/omarchy.json" ||
+  fail "Zed sync keeps its previous theme when colors are unresolved"
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --migrate >/dev/null 2>&1; then
+  fail "Zed sync does not migrate to a theme with unresolved colors"
+fi
+grep -q '"theme":"Omazed"' "$missing_theme_home/.config/zed/settings.json" ||
+  fail "Zed sync keeps Omazed selected when colors are unresolved"
+pass "Zed sync preserves the previous theme when colors are unresolved"
+
+python3 - "$settings" "$test_tmp/crlf-expected" <<'PY'
+import pathlib
+import sys
+
+before = (b'\xef\xbb\xbf{\r\n  "other": [1, 2, false,], // keep }\r\n'
+          b'  "buffer_font_family": /* keep */ "Old" /* }, */,\r\n}\r\n')
+pathlib.Path(sys.argv[1]).write_bytes(before)
+pathlib.Path(sys.argv[2]).write_bytes(before.replace(b'"Old"', b'"New Font"'))
+PY
+run_sync --font 'New Font'
+cmp -s "$test_tmp/crlf-expected" "$settings" || fail "Zed font sync preserves BOM, CRLF, and JSONC comments"
+pass "Zed font sync preserves BOM, CRLF, and JSONC comments"
+
+printf '{"theme":"First", "theme":"Second"}\n' >"$settings"
+cp "$settings" "$test_tmp/duplicate-settings.json"
+if run_sync --select >/dev/null 2>&1; then
+  fail "Zed sync refuses ambiguous duplicate settings"
+fi
+cmp -s "$test_tmp/duplicate-settings.json" "$settings" || fail "Zed sync preserves ambiguous settings"
+pass "Zed sync refuses ambiguous duplicate settings"
+
+python3 - "$ROOT" "$test_tmp" <<'PY'
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+root = Path(sys.argv[1])
+home = Path(sys.argv[2]) / "concurrent-home"
+settings = home / ".config/zed/settings.json"
+settings.parent.mkdir(parents=True)
+theme = home / ".local/state/omarchy/current/theme/zed.json"
+theme.parent.mkdir(parents=True)
+theme.write_text(json.dumps({"themes": [{"name": "Omarchy", "appearance": "dark", "style": {}}]}))
+env = dict(os.environ, HOME=str(home), PATH=f"{root / 'bin'}:{os.environ['PATH']}")
+command = str(root / "bin/omarchy-theme-set-zed")
+for existing in (True, False):
+    for _ in range(5):
+        if existing:
+            settings.write_text(json.dumps({"theme": "Old", "buffer_font_family": "Old", "padding": "x" * 100000}))
+        else:
+            settings.unlink(missing_ok=True)
+        commands = [[command, "--select"] for _ in range(3)] + [[command, "--font", "New Font"] for _ in range(3)]
+        children = [subprocess.Popen(args, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) for args in commands]
+        for child in children:
+            _, error = child.communicate()
+            if child.returncode:
+                raise RuntimeError(error.decode())
+        result = json.loads(settings.read_text())
+        if result["theme"] != "Omarchy" or result["buffer_font_family"] != "New Font":
+            raise AssertionError("concurrent theme and font updates lost a setting")
+print("ok - concurrent Zed theme and font updates do not overwrite one another")
+PY
