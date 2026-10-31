@@ -432,6 +432,7 @@ var GUARD_READERS = [
   "omarchy-default-dictation",
   "omarchy-dns",
   "omarchy-dock autohide",
+  "omarchy-dock background",
   "omarchy-dock position",
   "omarchy-hyprland-corners",
   "omarchy-hyprland-window-transparency",

@@ -269,6 +269,18 @@
   "appearance.dock.position.right": {
     "label": "Right Dock"
   },
+  "appearance.dock.background": {
+    "label": "Dock Background"
+  },
+  "appearance.dock.background.opaque": {
+    "label": "Opaque Dock"
+  },
+  "appearance.dock.background.glassy": {
+    "label": "Glassy Dock"
+  },
+  "appearance.dock.background.clear": {
+    "label": "Clear Dock"
+  },
   "appearance.workspace-layout": {
     "label": "Workspace Layout",
     "title": "Default Workspace Layout"
