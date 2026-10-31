@@ -65,16 +65,16 @@ pass "font controls create missing Kitty overrides without restoring the theme i
 mkdir -p "$test_home/.config/alacritty"
 cp "$ROOT/config/alacritty/alacritty.toml" "$test_home/.config/alacritty/alacritty.toml"
 run_command omarchy-font-set 'Test Font'
-python3 - "$test_home/.config/alacritty/alacritty.toml" <<'PY' || fail "changing Alacritty's family preserves each style"
+python3 - "$ROOT/config/alacritty/alacritty.toml" "$test_home/.config/alacritty/alacritty.toml" <<'PY' || fail "changing Alacritty's family preserves each style"
 import sys, tomllib
 with open(sys.argv[1], "rb") as f:
+    expected = tomllib.load(f)["font"]
+with open(sys.argv[2], "rb") as f:
     font = tomllib.load(f)["font"]
-assert font == {
-    "normal": {"family": "Test Font", "style": "Regular"},
-    "bold": {"family": "Test Font", "style": "Bold"},
-    "italic": {"family": "Test Font", "style": "Italic"},
-    "size": 9,
-}, font
+for variant in ("normal", "bold", "italic", "bold_italic"):
+    if variant in expected:
+        expected[variant]["family"] = "Test Font"
+assert font == expected, font
 PY
 pass "changing Alacritty's family preserves each style"
 
