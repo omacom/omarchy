@@ -51,7 +51,7 @@ pass "a package link must resolve to its named command"
 # Run the protected entrypoints themselves with a mismatched root. These must
 # stop before any sudo or operational fixture command, not merely validate in
 # an isolated library test.
-for command in omarchy-update omarchy-refresh-pacman omarchy-update-stay-awake omarchy-channel-set; do
+for command in omarchy-update omarchy-refresh-pacman omarchy-update-stay-awake omarchy-channel-set omarchy-refresh-limine; do
   rm -f "$SUDO_TEST_ROOT/bin/$command"
   copy_boundary_file "bin/$command"
   for root in "$boundary_tmp/other-root" .; do
@@ -59,7 +59,19 @@ for command in omarchy-update omarchy-refresh-pacman omarchy-update-stay-awake o
     if OMARCHY_PATH="$root" "$SUDO_TEST_ROOT/bin/$command" >"$boundary_tmp/output" 2>&1; then
       fail "$command accepted a mismatched root"
     fi
+    if [[ $command == "omarchy-refresh-limine" ]]; then
+      grep -q 'OMARCHY_PATH does not match this Omarchy command\.' "$boundary_tmp/output" ||
+        fail "$command did not report the source-root rejection" "$(<"$boundary_tmp/output")"
+    fi
     [[ ! -s $SUDO_TEST_LOG ]] || fail "$command ran work before rejecting its root"
   done
+  if [[ $command == "omarchy-refresh-limine" ]]; then
+    reset_boundary
+    if /usr/bin/bash "$SUDO_TEST_ROOT/bin/$command" -p >"$boundary_tmp/output" 2>&1; then
+      fail "$command accepted a decoy privileged-mode argument"
+    fi
+    [[ ! -s $SUDO_TEST_LOG ]] || fail "$command ran work from an ordinary Bash launch"
+    pass "$command rejects an ordinary Bash launch before work"
+  fi
   pass "$command rejects mismatched and relative roots before work"
 done
