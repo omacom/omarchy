@@ -38,6 +38,8 @@ echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/brave-browser.desktop"
 # a system copy that the launchers would never read.
 echo "Exec=removed-browser %U" >"$XDG_DATA_HOME/applications/removed.desktop"
 echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/removed.desktop"
+# env always resolves, so it must not stand in for a removed browser behind it.
+echo "Exec=env DRI_PRIME=0 removed-browser %U" >"$XDG_DATA_HOME/applications/env-removed.desktop"
 
 cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
 [Added Associations]
@@ -45,7 +47,7 @@ x-scheme-handler/http=firefox.desktop;
 
 [Default Applications]
 text/html=firefox.desktop
-x-scheme-handler/http=missing.desktop;removed.desktop;chromium.desktop;
+x-scheme-handler/http=missing.desktop;removed.desktop;env-removed.desktop;chromium.desktop;
 EOF
 
 [[ $(omarchy-cmd-default-browser) == "chromium.desktop" ]] ||

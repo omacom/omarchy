@@ -145,6 +145,25 @@ grep -F -- ' -- vivaldi https://example.test/vivaldi' "$launch_log" >/dev/null |
   fail "a browser in XDG_DATA_DIRS launches from its desktop entry" "$(cat "$launch_log")"
 pass "browser launcher reads Exec= from the data dirs the resolver searched"
 
+# An env prefix sets variables for the browser; env is not the browser, and
+# launching it with only the URL ran `env <url>`, so every link did nothing.
+cat >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env DRI_PRIME=0 vivaldi %U
+EOF
+rm -f "$launch_log"
+launch "https://example.test/env"
+grep -F -- ' -- env DRI_PRIME=0 vivaldi https://example.test/env' "$launch_log" >/dev/null ||
+  fail "a browser behind an env prefix launches with its variables" "$(cat "$launch_log")"
+pass "a browser behind an env prefix launches with its variables"
+
+rm -f "$launch_log"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app-env"
+grep -F -- '-- env DRI_PRIME=0 vivaldi --app=https://example.test/app-env' "$launch_log" >/dev/null ||
+  fail "a web app in a browser behind an env prefix launches with its variables" "$(cat "$launch_log")"
+pass "a web app in a browser behind an env prefix launches with its variables"
+
 # With nothing to launch, the failure has to be visible from a keybinding,
 # where stderr goes nowhere, and must never reach uwsm-app as an empty command.
 rm -f "$XDG_CONFIG_HOME/mimeapps.list" "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
