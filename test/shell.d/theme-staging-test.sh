@@ -208,6 +208,7 @@ pass "a theme name cannot climb out of the theme directories"
 # recorded here as carrying colour, so a new template fails until it is placed.
 denied=(alacritty.toml foot.ini ghostty.conf kitty.conf gum_env.lua hyprland.lua neovim.lua vscode.json)
 colour_only=(btop.theme chromium.theme claude.json helix.toml hermes.yaml hyprland-preview-share-picker.css keyboard.rgb obsidian.css pi.json shell.toml t3code.json vscode-theme.json)
+colour_only+=(herdr-app.json)
 
 for tpl in "$ROOT"/default/themed/*.tpl; do
   generated=$(basename "$tpl" .tpl)

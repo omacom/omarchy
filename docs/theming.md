@@ -46,6 +46,14 @@ instead of racing.
 
 Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets the same theme on every enabled `herdr machine list` target that runs Omarchy, over SSH inside the remote's live Hyprland session, and logs each machine's result to `~/.local/state/omarchy/theme-set-herdr-machines.log`. Sync is off by default. The `herdr-theme-sync` toggle turns it on, and a machine only sends and accepts themes while it is on. A mirrored change carries `OMARCHY_THEME_SYNC_FROM`, so the receiving machine never sends it on.
 
+## Herdr desktop app
+
+`herdr-app.json.tpl` generates the desktop app's terminal palette. `omarchy-theme-set-herdr-app` publishes it as `~/.config/herdr-app/themes/omarchy.json` on theme changes, only when the app's home already exists (`HERDR_APP_HOME` overrides it). This is separate from the terminal Herdr client's remote-machine theme mirroring above.
+
+Run `omarchy-theme-set-herdr-app --activate` once after opening Herdr and refreshing the current Omarchy theme. This selects `omarchy` in Herdr's settings. Later theme switches update its palette and appearance live, preserving unrelated settings. Without activation the theme is only published for discovery; a different theme in settings is not replaced. Per-layout theme and color overrides still take precedence inside Herdr.
+
+Palette tokens are also written into the opted-in settings to support Herdr 0.1.10, whose theme-file reload fix is tracked in herdrdev/herdr-app#193. Explicit appearance follows Omarchy's resolved light/dark mode without waiting for the desktop portal at startup. Both files are published atomically, and unchanged files are left alone.
+
 ## What an installed theme may not ship
 
 `themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.
