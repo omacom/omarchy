@@ -1,7 +1,7 @@
 # Omarchy Plymouth Theme Script
 
-Window.SetBackgroundTopColor(0.101, 0.105, 0.149);
-Window.SetBackgroundBottomColor(0.101, 0.105, 0.149);
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
 
 logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
