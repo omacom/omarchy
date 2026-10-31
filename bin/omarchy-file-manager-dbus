@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# omarchy:summary=Answer org.freedesktop.FileManager1 launches with the current default file manager
+# omarchy:hidden=true
+
+# The registration omarchy-default-file-manager writes names this command, so
+# "Show in folder" always launches whatever the default is now: re-read on
+# every activation, never frozen in the service file. A default whose package
+# was removed falls back to the first file manager the machine still has, the
+# same list omarchy-launch-file-manager uses, so a stale registration can
+# never leave the bus starting something that is no longer installed.
+default_file_manager=$(omarchy-default-file-manager)
+
+case "$default_file_manager" in
+nautilus | nemo | dolphin | flea | thunar) file_manager=$default_file_manager ;;
+*) file_manager="" ;;
+esac
+
+if [[ -z $file_manager ]] || omarchy-cmd-missing "$file_manager"; then
+  file_manager=""
+  for candidate in nautilus nemo dolphin thunar flea; do
+    if omarchy-cmd-present "$candidate"; then
+      file_manager=$candidate
+      break
+    fi
+  done
+fi
+
+[[ -n $file_manager ]] || exit 1
+
+# Each manager registers its own way of being launched for the bus (the
+# service-mode flags). Find its registration in the data dirs and take over
+# that Exec; without one, launch the manager and let it grab the name itself.
+exec_line=""
+IFS=: read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+for dir in "${data_dirs[@]}"; do
+  for service in "$dir"/dbus-1/services/*.service; do
+    [[ -f $service ]] || continue
+    grep -qx "Name=org.freedesktop.FileManager1" "$service" || continue
+    candidate=$(sed -n 's/^Exec=//p' "$service" | head -1)
+    [[ ${candidate,,} == *"${file_manager,,}"* ]] || continue
+    exec_line=$candidate
+    break 2
+  done
+done
+
+if [[ -n $exec_line ]]; then
+  # Exec is a command line, not a path: split it the way the bus would.
+  read -ra exec_args <<<"$exec_line"
+  exec "${exec_args[@]}"
+fi
+
+exec "$file_manager"
