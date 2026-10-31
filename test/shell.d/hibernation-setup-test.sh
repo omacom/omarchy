@@ -18,12 +18,14 @@ sed -e "s|/sys/power/|$rtmp/sys/|g" \
   -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
   "$ROOT/bin/omarchy-hibernation-setup" >"$rtmp/setup"
 
-for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled omarchy-cmd-missing gum; do
+for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled omarchy-cmd-missing; do
   printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/$command"
 done
+# Hibernation setup passes --force in these cases; remove asks before it acts.
+printf '#!/bin/bash\nexit ${GUM_CONFIRM:-1}\n' >"$rtmp/bin/gum"
 printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
 printf '#!/bin/bash\n[[ $1 == --show ]] && echo "$SWAP_FILE_PATH"\nexit 0\n' >"$rtmp/bin/swapon"
-printf '#!/bin/bash\n[[ $1 == inspect-internal ]] && echo 4242\nexit 0\n' >"$rtmp/bin/btrfs"
+printf '#!/bin/bash\n[[ $1 == subvolume ]] && exit 1\n[[ $1 == inspect-internal ]] && echo 4242\nexit 0\n' >"$rtmp/bin/btrfs"
 printf '#!/bin/bash\n[[ $2 == SOURCE ]] && echo "$SWAP_SOURCE"\n[[ $2 == UUID ]] && echo "$SWAP_UUID"\nexit 0\n' >"$rtmp/bin/findmnt"
 
 # Root ownership is not the test's to give.
@@ -51,7 +53,7 @@ case ${REBUILD_RESULT:-ok} in
   skip) echo "==> ERROR: mkinitcpio failed for kernel 7.2.8-9-omarchy, skipping." >&2 ;;
   interrupt) kill -TERM "$PPID"; exit 0 ;;
 esac
-cat "$DROP_IN" >>"$REBUILD_LOG"
+[[ -e $DROP_IN ]] && cat "$DROP_IN" >>"$REBUILD_LOG"
 exit 0
 SH
 chmod +x "$rtmp/bin/"*
@@ -78,6 +80,17 @@ setup() {
   env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="$uuid" \
     DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" \
     bash "$rtmp/setup" "$@" >"$rtmp/out" 2>&1
+}
+
+sed -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
+  -e "s|/etc/limine-entry-tool.d|$rtmp/limine-entry-tool.d|g" \
+  -e "s|/etc/fstab|$rtmp/fstab|g" \
+  -e "s|\"/swap\"|\"$rtmp/swap\"|g" \
+  "$ROOT/bin/omarchy-hibernation-remove" >"$rtmp/remove"
+
+remove() {
+  env PATH="$rtmp/bin:$PATH" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" GUM_CONFIRM=0 \
+    bash "$rtmp/remove" >"$rtmp/out" 2>&1
 }
 
 # A kernel name such as nvme0n1p2 follows probe order, so with two NVMe disks it
@@ -131,6 +144,33 @@ for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=42
   [[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup leaves a drop-in it does not own alone" "$(<"$drop_in")"
 done
 pass "setup leaves device-mapper and hand-edited drop-ins alone"
+
+# A resume.conf left behind by a swapfile that no longer exists points at an
+# offset that is now something else, and the session is lost without a message.
+# A setup that finds no resume hook, the state a removal leaves behind, has to
+# recompute it rather than keep it.
+stale_line='KERNEL_CMDLINE[default]+=" resume=UUID=0f3c5a1e-7d2b-4c8e-9a61-2b7e4d9c1f08 resume_offset=1111"'
+machine "$stale_line"
+rm -rf "$rtmp/mkinitcpio.conf.d"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "setup on a leftover resume.conf" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] ||
+  fail "setup recomputes the offset of a leftover resume.conf" "$(<"$drop_in")"
+pass "setup recomputes a leftover resume.conf instead of keeping its offset"
+
+# Removal takes the resume kernel parameters with it; leaving them lets a later
+# setup write an offset for a swapfile that was deleted minutes earlier.
+machine "$uuid_line"
+remove || fail "remove on a set-up machine" "$(<"$rtmp/out")"
+[[ ! -e $drop_in ]] || fail "remove deletes the resume kernel parameters" "$(<"$drop_in")"
+[[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf ]] || fail "remove deletes the resume hook"
+pass "remove deletes the resume kernel parameters"
+
+# With no resume hook there is nothing to remove, so a drop-in stays.
+machine "$uuid_line"
+rm -rf "$rtmp/mkinitcpio.conf.d"
+remove || fail "remove without a setup" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] || fail "remove without a setup leaves the drop-in alone" "$(<"$drop_in")"
+pass "remove without a setup leaves the resume kernel parameters alone"
 rm -rf "$rtmp"
 
 if [[ ! -f /sys/power/image_size ]]; then
