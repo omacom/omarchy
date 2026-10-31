@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to the Herdr desktop app
+# omarchy:hidden=true
+
+set -euo pipefail
+
+HERDR_APP_SOURCE_PATH="$HOME/.local/state/omarchy/current/theme/herdr-app.json"
+# Where Herdr keeps its files, by the same rule the app uses.
+HERDR_APP_DIR="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
+# The filename is the theme name Herdr's theme picker shows and settings.json
+# accepts, and it stays stable while the colors change underneath.
+HERDR_APP_THEME_PATH="$HERDR_APP_DIR/themes/omarchy.json"
+
+# Quick theme switches run this after the switch lock is released, so two runs
+# can overlap. Serialize them and copy whichever theme is current once the lock
+# is held, so a slow earlier run can never publish an older palette last.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-herdr-app.lock"
+flock 9
+
+[[ -f $HERDR_APP_SOURCE_PATH ]] || exit 0
+
+# A theme without one of the colors leaves its placeholder unresolved, and
+# Herdr would reject the file, so keep the previous palette instead.
+if grep -q '{{' "$HERDR_APP_SOURCE_PATH"; then
+  echo "Skipping Herdr theme: $(basename "$HERDR_APP_SOURCE_PATH") has unresolved colors." >&2
+  exit 0
+fi
+
+# Only follow an install that already exists, so machines without Herdr don't
+# get a stray config dir.
+[[ -d $HERDR_APP_DIR ]] || exit 0
+
+# Herdr watches themes/ and retints live, so a half-written file would read as
+# invalid: write it atomically.
+mkdir -p "$(dirname "$HERDR_APP_THEME_PATH")"
+tmp=$(mktemp "$HERDR_APP_THEME_PATH.XXXXXX")
+cp "$HERDR_APP_SOURCE_PATH" "$tmp"
+mv "$tmp" "$HERDR_APP_THEME_PATH"
