@@ -1,4 +1,4 @@
-echo "Install Mesa's CPU Vulkan driver in virtual machines"
+echo "Install the Vulkan driver a virtual machine is missing"
 
 # install/hardware/vulkan.sh gave QEMU/virtio guests no Vulkan driver at all.
 # Ask about the VM first: vulkan.sh runs lspci, which wakes suspended GPUs.
