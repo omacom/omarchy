@@ -1,6 +1,7 @@
 echo "Disable SSH password authentication, or sshd itself when no key is authorized"
 
 config=/etc/ssh/sshd_config.d/10-omarchy-hardening.conf
+sshd_config=/etc/ssh/sshd_config
 authorized_keys="$HOME/.ssh/authorized_keys"
 
 as_root() {
@@ -67,6 +68,52 @@ fi
 # desktop distro, so the console remains; re-enabling password SSH afterwards
 # is an intentional, informed choice the warning explains how to make.
 if [[ ! -f $authorized_keys ]] || ! has_usable_key; then
+  if ! as_root true; then
+    echo "Administrator privileges are required to close the password-only SSH server. Run omarchy-migrate again from a terminal." >&2
+    exit 1
+  fi
+
+  # This user's file is only one place sshd looks for keys. Another account,
+  # root included, or an alternate key source may still be how an administrator
+  # gets in, and stopping sshd would lock them out mid-session.
+  effective_config=$(as_root sshd -T) || skip "Could not inspect sshd's effective configuration."
+  if ! grep -qixE "authorizedkeysfile \.ssh/authorized_keys( \.ssh/authorized_keys2)?" <<<"$effective_config" ||
+    ! grep -qixF "authorizedkeyscommand none" <<<"$effective_config" ||
+    ! grep -qixF "trustedusercakeys none" <<<"$effective_config" ||
+    ! grep -qixF "hostbasedauthentication no" <<<"$effective_config" ||
+    ! grep -qixF "gssapiauthentication no" <<<"$effective_config"; then
+    skip "sshd accepts keys, certificates, host-based or Kerberos logins from a source other than ~/.ssh/authorized_keys, so it was left running."
+  fi
+
+  # sshd -T only shows the global settings, so a Match block can still hand
+  # some users another key source. Includes outside sshd_config.d would hide
+  # further Match blocks from this check, so treat them the same way.
+  sshd_files=("$sshd_config" "$sshd_config.d"/*.conf)
+  includes=$(as_root grep -hiE "^[[:space:]]*Include[[:space:]]" -- "${sshd_files[@]}" 2>/dev/null || true)
+  if as_root grep -qiE "^[[:space:]]*Match[[:space:]]" -- "${sshd_files[@]}" 2>/dev/null ||
+    grep -qviE "^[[:space:]]*Include[[:space:]]+$sshd_config\.d/\*\.conf[[:space:]]*$" <<<"${includes:-Include $sshd_config.d/*.conf}"; then
+    skip "sshd's configuration has Match blocks or extra Include files that may authorize keys elsewhere, so it was left running."
+  fi
+
+  # Login shells are not checked: an account with /usr/bin/nologin can still
+  # authenticate for SFTP or a port forward. One privileged find covers every
+  # account, so no prompt is repeated per user.
+  other_keys=()
+  while IFS=: read -r _ _ _ _ _ home _; do
+    for keys in "$home/.ssh/authorized_keys" "$home/.ssh/authorized_keys2"; do
+      if [[ -n $home && $keys != "$authorized_keys" ]]; then
+        other_keys+=("$keys")
+      fi
+    done
+  done < <(getent passwd)
+  found_keys=""
+  if (( ${#other_keys[@]} > 0 )); then
+    found_keys=$(as_root find -L "${other_keys[@]}" -maxdepth 0 -type f -size +0 -print -quit 2>/dev/null || true)
+  fi
+  if [[ -n $found_keys ]]; then
+    skip "$found_keys holds SSH keys for another account, so sshd was left running."
+  fi
+
   if ! as_root systemctl disable --now sshd.service; then
     echo "Administrator privileges are required to close the password-only SSH server. Run omarchy-migrate again from a terminal." >&2
     exit 1
