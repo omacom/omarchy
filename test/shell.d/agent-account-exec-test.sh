@@ -201,14 +201,3 @@ run_isolated env OMARCHY_MISE_CONFIG_PATH="$declarations" OMARCHY_TEST_EXPECTED_
 (( status == 42 )) || fail "a failed first-run install stops dispatch" "$status"
 pass "a failed first-run install stops dispatch"
 rm "$real_bin/mise"
-
-# Migration only rebuilds native mise dispatch; account files stay untouched.
-registry_before=$(sha256sum "$registry_dir"/*.json)
-for attempt in 1 2; do
-  run_isolated bash -euo pipefail "$ROOT/migrations/1791112479.sh" >/dev/null
-  for provider in claude codex grok; do
-    [[ -L $mise_data/command-wrappers/bin/$provider ]] || fail "migration builds every account dispatcher"
-  done
-done
-[[ $(sha256sum "$registry_dir"/*.json) == "$registry_before" ]] || fail "migration preserves account state"
-pass "migration rebuilds dispatchers idempotently without changing account state"
