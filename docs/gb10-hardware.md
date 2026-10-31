@@ -4,7 +4,7 @@ The `aarch64-gb10` platform covers aarch64 desktops with NVIDIA GPU PCI ID `10de
 
 ## Installation and upgrades
 
-`install/omarchy-aarch64-gb10.packages` adds `rdma-core`, `fwupd`, `ethtool`, `nvme-cli` and `smartmontools` to the default set, so the ISO caches them for offline installation. Existing installations receive them through migration `1793239437.sh`. RDMA module loading uses the upstream package's udev rules and `rdma-load-modules@rdma.service`; there is no separate Omarchy module policy or hard-coded fabric addressing.
+`install/omarchy-aarch64-gb10.packages` adds `rdma-core`, `fwupd` and `ethtool` to the default set, so the ISO caches them for offline installation. Existing installations receive them through migration `1793239437.sh`. RDMA module loading uses the upstream package's udev rules and `rdma-load-modules@rdma.service`; there is no separate Omarchy module policy or hard-coded fabric addressing.
 
 System sleep is off, as on DGX OS (`install/hardware/gb10/sleep.sh`). The DGX Spark boots without a UKI to skip a 20-second firmware delay (`install/hardware/nvidia/dgx-spark-boot.sh`).
 
@@ -22,7 +22,6 @@ Hierarchical ACPI idle remains deferred in the shared kernel; flat LPI states ar
 | --- | --- | --- |
 | Firmware | `fwupdmgr get-devices`, `get-updates`, and post-reboot `get-history` | Exact OEM GUID and version, successful update result, boot and peripheral checks |
 | RDMA | `ibv_devices`, `ibv_devinfo`, `rdma link` | All expected verbs devices open; separate peer-to-peer data validation using known cable/topology |
-| Storage | `sudo nvme log smart /dev/nvme0`, `sudo smartctl -H /dev/nvme0` | No media errors, critical warnings or I/O errors; measured workload performance |
 | Wi-Fi | `ethtool -i wlan0`, `iw dev wlan0 link`, interface-bound gateway ping and throughput | Firmware timestamp, same BSSID/band/channel/signal, loss and latency at strong and weak signal |
 | Bluetooth | Pair/reconnect, A2DP playback, switch to HFP and record microphone | Actual audible playback and intelligible recording; controller enumeration is insufficient |
 | Display | HDMI and USB-C DP Alt Mode, hotplug, short and prolonged DPMS sleep | Picture returns, compositor remains responsive, HDMI audio returns, no GPU errors |

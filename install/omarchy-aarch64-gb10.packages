@@ -13,8 +13,6 @@ rdma-core
 # updates stay manual: fwupd only lists them.
 fwupd
 ethtool
-nvme-cli
-smartmontools
 # NVIDIA's GPU profilers.
 nsight-compute
 nsight-systems
