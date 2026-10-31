@@ -22,6 +22,23 @@ cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 [[ ! -e $OMARCHY_TEST_INSTALLED_DIR/$1 ]]
 SH
 
+cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+for package in "$@"; do
+  [[ -e $OMARCHY_TEST_INSTALLED_DIR/pkg-$package ]] || exit 1
+done
+SH
+
+cat >"$mock_bin/omarchy-pkg-missing" <<'SH'
+#!/bin/bash
+! omarchy-pkg-present "$@"
+SH
+
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_LAUNCH_LOG"
+SH
+
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >"$OMARCHY_TEST_TERMINAL_LOG"
@@ -66,10 +83,14 @@ if [[ $installer == "omarchy-install-browser" && ${OMARCHY_TEST_REAL_BROWSER_INS
   exec "$ROOT/bin/omarchy-install-browser" "$@"
 fi
 
+if [[ $installer == "omarchy-install-jetbrains" && ${OMARCHY_TEST_REAL_JETBRAINS_INSTALL:-false} == "true" ]]; then
+  exec "$ROOT/bin/omarchy-install-jetbrains" "$@"
+fi
+
 case $installer in
 omarchy-pkg-add|omarchy-pkg-aur-add)
   package=$1
-  printf 'pkg:%s\n' "$package" >>"$OMARCHY_TEST_INSTALL_LOG"
+  printf 'pkg:%s\n' "$*" >>"$OMARCHY_TEST_INSTALL_LOG"
   case $package in
   chromium) command=chromium ;;
   firefox) command=firefox ;;
@@ -79,6 +100,20 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   vim) command=vim ;;
   neovim) command=nvim ;;
   esac
+  # A JetBrains package only ships its launcher when the test says it should.
+  [[ ${OMARCHY_TEST_INSTALL_FAIL:-false} == "true" ]] || for package; do
+    touch "$OMARCHY_TEST_INSTALLED_DIR/pkg-$package"
+  done
+  command=${command:-${OMARCHY_TEST_LAUNCHER:-}}
+  ;;
+omarchy-install-jetbrains)
+  source "$OMARCHY_PATH/default/jetbrains/products.sh"
+  jetbrains_product "$1"
+  printf 'jetbrains:%s\n' "$1" >>"$OMARCHY_TEST_INSTALL_LOG"
+  command=$jetbrains_command
+  for package in "${jetbrains_packages[@]}"; do
+    touch "$OMARCHY_TEST_INSTALLED_DIR/pkg-$package"
+  done
   ;;
 omarchy-install-browser)
   selection=$1
@@ -110,13 +145,17 @@ omarchy-install-editor-*)
 esac
 
 [[ ${OMARCHY_TEST_INSTALL_FAIL:-false} != "true" ]] || exit 1
-touch "$OMARCHY_TEST_INSTALLED_DIR/$command"
+if [[ -n ${command:-} ]]; then
+  mkdir -p "$(dirname "$OMARCHY_TEST_INSTALLED_DIR/$command")"
+  touch "$OMARCHY_TEST_INSTALLED_DIR/$command"
+fi
 SH
 
 for installer in \
   omarchy-pkg-add \
   omarchy-pkg-aur-add \
   omarchy-install-browser \
+  omarchy-install-jetbrains \
   omarchy-install-terminal \
   omarchy-install-editor-vscode \
   omarchy-install-editor-zed \
@@ -144,6 +183,7 @@ export OMARCHY_TEST_INSTALL_LOG="$install_log"
 export OMARCHY_TEST_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_NOTIFICATION_LOG="$notification_log"
 export OMARCHY_TEST_SETUP_LOG="$setup_log"
+export OMARCHY_TEST_LAUNCH_LOG="$test_tmp/launch-log"
 export OMARCHY_TEST_BROWSER_FILE="$browser_file"
 
 assert_missing_opens_installer() {
@@ -184,6 +224,13 @@ editor_cases=(
   'emacs emacs editor:emacs'
   'nvim nvim pkg:neovim'
 )
+
+source "$ROOT/default/jetbrains/products.sh"
+jetbrains_editors=(air clion datagrip goland intellij-idea phpstorm pycharm rider rubymine rustrover webstorm)
+for product in "${jetbrains_editors[@]}"; do
+  jetbrains_product "$product"
+  editor_cases+=("$product $jetbrains_command jetbrains:$product")
+done
 
 for entry in "${browser_cases[@]}"; do
   read -r selection command installer <<<"$entry"
@@ -321,3 +368,60 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+# The real JetBrains installer: every product installs all its packages, opens
+# its desktop entry, and never touches the default editor.
+export OMARCHY_TEST_REAL_JETBRAINS_INSTALL=true
+omarchy-default-editor nvim
+for product in "${jetbrains_editors[@]}" toolbox gateway mps; do
+  jetbrains_product "$product"
+  rm -rf "${installed_dir:?}"/*
+  : >"$install_log"
+  rm -f "$OMARCHY_TEST_LAUNCH_LOG"
+  OMARCHY_TEST_LAUNCHER=$jetbrains_command omarchy-install-jetbrains "$product" >/dev/null
+  [[ $(<"$install_log") == "pkg:${jetbrains_packages[*]}" ]] || fail "$product installs every package it needs"
+  for _ in {1..100}; do [[ -s $OMARCHY_TEST_LAUNCH_LOG ]] && break; sleep 0.01; done
+  mapfile -d '' -t launch_args <"$OMARCHY_TEST_LAUNCH_LOG"
+  [[ ${launch_args[*]} == "uwsm-app -- gtk-launch $jetbrains_desktop" ]] || fail "$product opens its package desktop entry"
+  [[ $(omarchy-default-editor) == "nvim" ]] || fail "installing $product leaves the default editor unchanged"
+done
+pass "JetBrains installs open the product without changing the default"
+
+for product in toolbox gateway mps unknown --help; do
+  if omarchy-default-editor "$product" >/dev/null 2>&1; then fail "$product is not a default editor"; fi
+done
+if omarchy-install-jetbrains unknown >/dev/null 2>&1; then fail "unknown JetBrains products are rejected"; fi
+[[ $(omarchy-default-editor) == "nvim" ]] || fail "rejected JetBrains products preserve the default editor"
+pass "JetBrains tools and unknown names cannot become the default editor"
+
+rm -rf "${installed_dir:?}"/*
+: >"$notification_log"
+if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install pycharm >/dev/null 2>&1; then
+  fail "failed JetBrains installation returns an error"
+fi
+if omarchy-default-editor --install pycharm >/dev/null 2>&1; then
+  fail "a JetBrains install without its launcher returns an error"
+fi
+[[ $(omarchy-default-editor) == "nvim" ]] || fail "failed JetBrains installs preserve the default editor"
+pass "failed JetBrains installs preserve the current default"
+
+# A package missing its runtime is repaired rather than selected; an IDE with its
+# launcher but no Omarchy package (Toolbox, tarball) is selected as it is.
+: >"$install_log"
+mkdir -p "$installed_dir" && touch "$installed_dir/webstorm" "$installed_dir/pkg-webstorm"
+omarchy-default-editor webstorm
+[[ $(omarchy-default-editor) == "nvim" ]] || fail "an IDE missing its runtime is not selected"
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-editor --install webstorm" ]] || fail "an IDE missing its runtime reopens the installer"
+rm -f "$installed_dir/pkg-webstorm"
+omarchy-default-editor webstorm
+[[ $(omarchy-default-editor) == "webstorm" && ! -s $install_log ]] || fail "an external IDE launcher is selected without installing"
+pass "JetBrains runtime repair and external launchers"
+
+# A Go `air` on PATH must not stand in for JetBrains Air.
+rm -rf "${installed_dir:?}"/*
+touch "$installed_dir/air" "$installed_dir/nvim"
+omarchy-default-editor nvim
+omarchy-default-editor air
+[[ $(omarchy-default-editor) == "nvim" ]] || fail "the Go air executable is not mistaken for JetBrains Air"
+pass "JetBrains Air is not confused with the Go air executable"

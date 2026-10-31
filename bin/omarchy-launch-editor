@@ -31,6 +31,19 @@ nvim | vim | nano | micro | hx | helix | fresh)
     exec omarchy-launch-tui "$editor" -- "$@"
   fi
   ;;
+Air | clion | datagrip | goland | intellij-idea-ultimate-edition | phpstorm | pycharm | rider | jetbrains-rubymine | rustrover | webstorm)
+  # JetBrains treats `--` as a file to open. Absolute paths keep operands
+  # beginning with a dash from being interpreted as IDE options.
+  paths=()
+  for path in "$@"; do
+    if [[ $path == /* ]]; then
+      paths+=("$path")
+    else
+      paths+=("$PWD/$path")
+    fi
+  done
+  exec setsid uwsm-app -- "$editor" "${paths[@]}"
+  ;;
 *)
   exec setsid uwsm-app -- "$editor" -- "$@"
   ;;
