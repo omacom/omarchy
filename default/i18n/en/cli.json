@@ -182,6 +182,11 @@
   "layout.workspaceTiling": "Workspace layout set to tiling",
   "layout.workspaceTilingUnsaved": "Workspace layout set to tiling but could not be saved",
   "lock.didNotLock": "Screen did not lock before suspend",
+  "lock.failedToContact": "Failed to contact lock service.",
+  "lock.missingPam": "Lock screen password PAM service is missing. Run omarchy-apply-lock to configure it.",
+  "lock.refused": "Lock service refused to lock the session.",
+  "lock.sessionUnsecured": "Session Unsecured",
+  "lock.unexpectedResponse": "Unexpected response from lock service: %1",
   "lock.unlockedNoLockScreen": "The session was left unlocked (no lock screen is configured).",
   "lock.unlockedTimeout": "The session was left unlocked (the shell did not secure the session within %1ms).",
   "migrate.clickToRun": {
