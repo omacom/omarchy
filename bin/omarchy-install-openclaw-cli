@@ -316,18 +316,38 @@ case "$mode" in
   ;;
 esac
 
-# Refused before anything is installed or touched: the command's name, what
-# PATH finds, and a gateway running another OpenClaw all have to be clear. Each
-# is an OpenClaw of the user's own, and these refusals exit with a status no
-# tool run here uses, so the migration can tell them from a failed setup.
+# A service the old package installed, which stops starting once the seed
+# package has replaced it, or one a failed run stopped, which may already have
+# been moved and still has to run again.
+services_to_move() {
+  local role
+  for role in gateway node; do
+    [[ -f $(unit_path "$role") ]] && on_old_package "$(unit_path "$role")" && return 0
+    [[ -e $stopped_dir/$role ]] && return 0
+  done
+  return 1
+}
+
+# The command's name, what PATH finds, and a gateway running another OpenClaw
+# all have to be clear. Each is an OpenClaw of the user's own, and these
+# refusals exit with a status no tool run here uses, so the migration can tell
+# them from a failed setup. One in the command's name or on PATH is refused
+# before anything is installed or touched, unless the old package left a
+# service behind or a failed run left one stopped: that one is moved to the
+# runtime and running all the same, the user's command is left as it is, and
+# the refusal comes once that is done.
 users_own=79
+in_the_way=()
 if ! command_ours; then
-  echo "$command_path is not the OpenClaw Omarchy set up. Move it aside, then run omarchy-install-openclaw-cli --now again." >&2
-  exit "$users_own"
+  in_the_way=("$command_path is not the OpenClaw Omarchy set up. Move it aside, then run omarchy-install-openclaw-cli --now again.")
+elif ! path_clear; then
+  in_the_way=(
+    "Another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead of $runtime_command."
+    "Remove it, then run omarchy-install-openclaw-cli --now again."
+  )
 fi
-if ! path_clear; then
-  echo "Another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead of $runtime_command." >&2
-  echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
+if ((${#in_the_way[@]})) && ! { omarchy-pkg-present openclaw && services_to_move; }; then
+  printf '%s\n' "${in_the_way[@]}" >&2
   exit "$users_own"
 fi
 
@@ -389,8 +409,10 @@ if [[ $seeding == "true" ]]; then
   fi
 fi
 
-mkdir -p "${command_path%/*}"
-ln -sfn "$runtime_command" "$command_path"
+if command_ours; then
+  mkdir -p "${command_path%/*}"
+  ln -sfn "$runtime_command" "$command_path"
+fi
 
 rehome_services
 
@@ -433,6 +455,11 @@ for role in gateway node; do
     rm -f "$stopped_dir/$role"
   fi
 done
+
+if ((${#in_the_way[@]})); then
+  printf '%s\n' "${in_the_way[@]}" >&2
+  exit "$users_own"
+fi
 
 if ! on_path; then
   echo "$runtime_command is ready, but another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead." >&2
