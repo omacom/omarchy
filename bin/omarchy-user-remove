@@ -1,0 +1,194 @@
+#!/bin/bash
+
+# omarchy:summary=Remove a login user, keeping their home folder unless asked
+# omarchy:args=[name] [--delete-home] [--yes]
+# omarchy:examples=omarchy user remove alice | omarchy user remove bob --delete-home
+# omarchy:alias=omarchy user rm
+# omarchy:requires-sudo=true
+
+# Passwords live in variables; never trace them.
+set +x
+set -euo pipefail
+
+# Like Omarchy's other commands, these run as you and ask for sudo themselves.
+# Under sudo or in a root shell the session's OMARCHY_PATH is gone, so say so
+# before anything needs it.
+if (( EUID == 0 )); then
+  echo "omarchy-user-remove: run this as your user, not as root; it asks for sudo when it needs it" >&2
+  exit 1
+fi
+
+source "$OMARCHY_PATH/install/helpers/user-accounts.sh"
+
+name=""
+delete_home=0
+ASSUME_YES=0
+
+fail() {
+  echo "omarchy-user-remove: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+confirm() {
+  local prompt="$1"
+  (( ASSUME_YES )) && return 0
+  if interactive; then
+    gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$prompt"
+  else
+    fail "refusing to continue without confirmation; pass --yes"
+  fi
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+  --delete-home)
+    delete_home=1
+    ;;
+  --yes | -y)
+    ASSUME_YES=1
+    ;;
+  -h | --help)
+    echo "Usage: omarchy user remove [name] [--delete-home] [--yes]"
+    exit 0
+    ;;
+  -*)
+    fail "unknown option: $1"
+    ;;
+  *)
+    [[ -z $name ]] || fail "unexpected argument: $1"
+    name="$1"
+    ;;
+  esac
+  shift
+done
+
+self=$(user_accounts_self)
+
+omarchy-sudo-allowed || fail "only an administrator can remove accounts"
+
+if [[ -z $name ]]; then
+  interactive || fail "a name is required (e.g. omarchy user remove alice)"
+  candidates=$(user_accounts_login_users | cut -f1 | grep -vxF -- "$self" | sort || true)
+  [[ -n $candidates ]] || fail "there are no other login users to remove"
+  name=$(gum filter --placeholder "$(omarchy-i18n user.removeWhich)" <<<"$candidates") || fail "cancelled"
+  [[ -n $name ]] || fail "nothing selected"
+fi
+
+getent passwd "$name" >/dev/null || fail "there is no user '$name'"
+user_accounts_is_login_user "$name" || fail "'$name' is a system account, not a login user"
+[[ $name != "$self" ]] || fail "you can't remove your own account; ask another administrator"
+
+if user_accounts_is_admin "$name"; then
+  other_admins=$(user_accounts_admins | grep -vxF -- "$name" || true)
+  [[ -n $other_admins ]] || fail "'$name' is the last administrator; make someone else an administrator first"
+fi
+
+# Leaving one account makes this a single-user computer again: the remaining
+# administrator's password unlocks the disk, root and the login. Ask for it
+# before anything is deleted; it also opens sudo, so nothing asks twice.
+last_password=""
+if (( $(user_accounts_login_count) == 2 )); then
+  interactive || fail "removing '$name' leaves one account, which changes how this computer unlocks, so run it in a terminal"
+  if [[ -n $(user_accounts_root_luks_or_explain) ]]; then
+    echo "$name is the only other account, so after removing them your password will unlock the disk and root again, and you'll be logged in automatically."
+  else
+    echo "$name is the only other account, so after removing them root will have your password again."
+  fi
+  last_password=$(user_accounts_ask_own_password "$self") || exit 1
+else
+  as_root true || fail "couldn't get administrator rights (sudo)"
+fi
+user_accounts_lock || fail "another account change is in progress; try again when it's done"
+# What was checked before the lock must still hold.
+getent passwd "$name" >/dev/null || fail "there is no user '$name'"
+if user_accounts_is_admin "$name" && [[ -z $(user_accounts_admins | grep -vxF -- "$name" || true) ]]; then
+  fail "'$name' is the last administrator; make someone else an administrator first"
+fi
+count=$(user_accounts_login_count)
+if [[ -n $last_password ]]; then
+  (( count == 2 )) || fail "the accounts changed meanwhile; run this again"
+else
+  (( count != 2 )) || fail "the accounts changed meanwhile; run this again"
+fi
+
+home=$(getent passwd "$name" | cut -d: -f6)
+uid=$(getent passwd "$name" | cut -d: -f3)
+if (( delete_home )); then
+  confirm "$(omarchy-i18n user.removeAndDelete "$name" "$home")" || fail "cancelled"
+else
+  confirm "$(omarchy-i18n user.removeKeepHome "$name" "$home")" || fail "cancelled"
+fi
+
+# userdel refuses while the account has programs running. Ask now, so every
+# question is answered before anything changes.
+sign_out=0
+if user_accounts_has_programs "$name"; then
+  confirm "$(omarchy-i18n user.signOutRunning "$name")" || fail "cancelled"
+  sign_out=1
+fi
+
+# omarchy-drive-password keeps the note it needs to finish an interrupted
+# disk password change in the home of the administrator who started it, even
+# if they've stopped being one since, so that home isn't deleted while it
+# holds one.
+note="$home/.local/state/omarchy/drive-password.state"
+if (( delete_home )) && as_root test -e "$note"; then
+  fail "$home holds the note of an unfinished disk password change ($note), so it isn't deleted; finish that change first, or remove '$name' without --delete-home"
+fi
+
+# Switch back to one account before anyone is signed out or removed. Every
+# step of the switch can be repeated, and the account is still there until it's
+# done, so if anything stops this midway (a closed terminal, a wrong disk
+# password, a power cut), running the same command again finishes the job.
+if [[ -n $last_password ]]; then
+  status=0
+  user_accounts_go_single "$self" "$last_password" || status=$?
+  if (( status == 2 )); then
+    fail "an earlier disk password change stopped part way, so '$name' was not removed; once it's finished with omarchy-drive-password, run this again"
+  elif (( status != 0 )); then
+    fail "couldn't switch back to one account, so '$name' was not removed; run this again to finish"
+  fi
+fi
+
+if (( sign_out )); then
+  as_root loginctl disable-linger "$name" 2>/dev/null || true
+  user_accounts_sign_out "$name" || fail "'$name' still has programs running; try again in a moment"
+fi
+
+# A sudo grant naming the account would pass to a later user given the name,
+# and a passwordless grant naming its UID to one given the UID. They go before
+# the account does, so nothing that stops the removal from here on leaves one.
+user_accounts_drop_installer_grants "$name" && user_accounts_drop_passwordless_grants "$name" "$uid" ||
+  fail "couldn't remove the sudo grants naming '$name', so '$name' was not removed; run this again to finish"
+
+userdel_args=()
+if (( delete_home )); then
+  userdel_args=(-r)
+fi
+if ! output=$(as_root userdel "${userdel_args[@]}" "$name" 2>&1); then
+  printf '%s\n' "$output" >&2
+  # userdel can remove the account and then fail on its home folder.
+  if getent passwd "$name" >/dev/null; then
+    fail "couldn't remove '$name'; run this again to finish"
+  else
+    user_accounts_log "login user '$name' removed by $self, but home folder $home could not be deleted"
+    fail "removed '$name', but couldn't delete $home; delete it by hand"
+  fi
+fi
+# Omarchy has no local mail, so userdel's warning that there's no spool is noise.
+if [[ -n $output ]]; then
+  grep -v 'mail spool' <<<"$output" >&2 || true
+fi
+
+if (( delete_home )); then
+  user_accounts_log "login user '$name' removed by $self, home folder deleted"
+  echo "Removed $name and deleted $home."
+else
+  user_accounts_log "login user '$name' removed by $self, home folder $home kept"
+  echo "Removed $name. Their files stay in $home."
+fi
+

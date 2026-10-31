@@ -31,6 +31,18 @@ done
 OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 STATE_DIR="${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}"
 MIGRATIONS_DIR="$OMARCHY_PATH/migrations"
+# The migrations administrators' runs have finished, for the whole machine:
+# systemd-tmpfiles makes it writable by wheel and readable by everyone
+# (etc/tmpfiles.d/omarchy-admin-migrations.conf).
+RECORD_DIR="${OMARCHY_MIGRATION_RECORD:-/var/lib/omarchy/admin-migrations}"
+# The record starts with the migration that creates it; the ones before it run
+# as they did before it existed.
+RECORD_SINCE=1792864545.sh
+
+administrator=false
+if omarchy-sudo-allowed; then
+  administrator=true
+fi
 
 migration_entries() {
   [[ -d $MIGRATIONS_DIR ]] || return 0
@@ -44,12 +56,41 @@ migration_entries() {
   done
 }
 
+# An account that isn't an administrator runs a migration only once an
+# administrator's run has, so its own part follows the machine-wide one, and
+# stops at the first an administrator hasn't run yet. A machine without the
+# record runs them as before.
+waits_for_administrator() {
+  [[ $administrator == false && -d $RECORD_DIR && $1 > $RECORD_SINCE && ! -e $RECORD_DIR/$1 ]]
+}
+
+# An administrator's run records each migration it runs, before marking it
+# done, so one it couldn't record stays pending and runs again. The record
+# exists for every migration after the one that creates it, which fails rather
+# than leave it out. A file another administrator's run created is theirs, so
+# it is left as it is.
+record_run() {
+  if [[ $administrator == true && -d $RECORD_DIR && ! -e $RECORD_DIR/$1 ]]; then
+    touch "$RECORD_DIR/$1"
+  fi
+}
+
+# Pending for this account: not marked done here, or, for an administrator, a
+# newer migration the record lacks (lost to a rollback of / that kept /home,
+# say), which runs again to restore it.
+is_pending() { # NAME MARKER
+  [[ ! -f $2 ]] && return 0
+  [[ $administrator == true && -d $RECORD_DIR && $1 > $RECORD_SINCE && ! -e $RECORD_DIR/$1 ]]
+}
+
+# The pending migrations this account can run now, in order.
 pending_migrations() {
   local name file marker
 
   while IFS=$'\t' read -r name file marker; do
     [[ -n $name ]] || continue
-    if [[ ! -f $marker ]]; then
+    if is_pending "$name" "$marker"; then
+      waits_for_administrator "$name" && break
       printf '%s\n' "$name"
     fi
   done < <(migration_entries)
@@ -80,7 +121,42 @@ wait_for_pacman_transaction() {
   exit 0
 }
 
+# An administrator's run holds the machine-wide update lock, so two
+# administrators' updates or migrations never run the same migration at once:
+# both could rebuild one boot image or add one line twice. omarchy update
+# already holds it when it runs this. Other accounts' migrations change only
+# their own files and lock nothing, as before.
+if omarchy-update-lock shared && ! omarchy-update-lock held; then
+  exec omarchy-update-lock run "$0"
+fi
+
+# The update that installs the machine-wide lock holds only this account's
+# own, and the lock can appear before this run or during it.
+# Carry that update onto the machine's lock for the rest of it as soon as this
+# run sees the lock: at the start, after each migration, and at the end.
+# Another account's run holding it by then stops this one.
+carried=false
+carry_update() {
+  [[ $carried == false ]] || return 0
+  local status=0
+  omarchy-update-lock carry 3<&- || status=$?
+  case $status in
+    0) ;;
+    3) carried=true ;;
+    *) exit 1 ;;
+  esac
+}
+carry_update
+
 wait_for_pacman_transaction
+
+# An account that isn't an administrator applies only its own part of each
+# migration. The machine-wide steps are an administrator's, done by their own
+# run of the same migration, so here sudo and pkexec run nothing and report
+# success instead of asking for a password sudo would refuse.
+if [[ $administrator == false ]]; then
+  PATH="$OMARCHY_PATH/default/omarchy/migrate-limited:$PATH"
+fi
 
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
@@ -88,13 +164,21 @@ mkdir -p "$STATE_DIR"
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
-  if [[ ! -f $marker ]]; then
+  if is_pending "$name" "$marker"; then
+    if waits_for_administrator "$name"; then
+      echo "The remaining migrations wait for an administrator to run them first."
+      break
+    fi
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
     OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
+    record_run "$name"
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
+    carry_update
   fi
 done 3< <(migration_entries)
+
+carry_update
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current

@@ -6,6 +6,14 @@
 
 set -e
 
+# The time zone is the whole machine's. Omarchy's passwordless rule for it
+# covers wheel only, and a menu action has no terminal for sudo to ask in, so
+# anyone else would pick a zone and see nothing happen.
+if ! omarchy-sudo-allowed; then
+  omarchy-notification-send "$(omarchy-i18n timezone.adminOnly)"
+  exit 1
+fi
+
 timezone=$(timedatectl list-timezones | omarchy-menu-select "$(omarchy-i18n timezone.setTitle)" -- --width 520 --maxheight 520) || exit 1
 sudo timedatectl set-timezone "$timezone"
 omarchy-shell -q omarchy.clock refresh

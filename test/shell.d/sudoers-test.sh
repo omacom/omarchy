@@ -213,6 +213,29 @@ else
   skip "no unprivileged user and mount namespace; skipping the root trusted-PATH probes"
 fi
 
+# --- The timezone menu asks only accounts its rule reaches ---
+#
+# The timezone rule is wheel's alone, and a menu action has no terminal for sudo
+# to ask in, so an account outside wheel is told before the picker opens instead
+# of picking a zone and seeing nothing happen.
+timezone_bin="$test_tmp/timezone-bin"
+mkdir -p "$timezone_bin"
+for command in omarchy-menu-select sudo timedatectl omarchy-shell; do
+  printf '#!/bin/bash\necho "%s $*" >>"$TEST_CALLS"\n' "$command" >"$timezone_bin/$command"
+done
+printf '#!/bin/bash\necho "notify $*" >>"$TEST_CALLS"\n' >"$timezone_bin/omarchy-notification-send"
+printf '#!/bin/bash\nexit 1\n' >"$timezone_bin/omarchy-sudo-allowed"
+chmod +x "$timezone_bin"/*
+: >"$test_tmp/timezone-calls"
+if PATH="$timezone_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE=/nonexistent TEST_CALLS="$test_tmp/timezone-calls" \
+  bash "$ROOT/bin/omarchy-menu-timezone"; then
+  fail "the timezone menu reports success for an account outside wheel"
+fi
+grep -Fx "notify Only an administrator can change the time zone" "$test_tmp/timezone-calls" >/dev/null &&
+  ! grep -q -E "^(omarchy-menu-select|sudo|timedatectl) " "$test_tmp/timezone-calls" ||
+  fail "an account outside wheel is told, before the picker" "$(cat "$test_tmp/timezone-calls")"
+pass "an account outside wheel is told the time zone takes an administrator"
+
 # --- Self-elevating helpers take the grant only where it reaches ---
 
 # require_root returns immediately for root, so the stubs below would not stand

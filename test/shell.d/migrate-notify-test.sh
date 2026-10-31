@@ -11,9 +11,13 @@ stub_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 mkdir -p "$stub_bin" "$test_home"
 
+# OMARCHY_TEST_PENDING_FILE, when set, can change mid-run, as an update
+# applying the migrations does.
 cat >"$stub_bin/omarchy-migrate" <<'SH'
 #!/bin/bash
-if [[ ${1:-} == "--pending" && ${OMARCHY_TEST_PENDING_MIGRATIONS:-0} == 1 ]]; then
+pending=${OMARCHY_TEST_PENDING_MIGRATIONS:-0}
+[[ -z ${OMARCHY_TEST_PENDING_FILE:-} ]] || pending=$(<"$OMARCHY_TEST_PENDING_FILE")
+if [[ ${1:-} == "--pending" && $pending == 1 ]]; then
   echo 200-migration.sh
   exit 0
 else
@@ -22,13 +26,20 @@ fi
 SH
 chmod +x "$stub_bin/omarchy-migrate"
 
+# The real lock helper, with the machine-wide lock moved into this test's
+# directory so the machine's own is never read.
+machine_lock="$test_tmp/machine/omarchy-update.lock"
+sed "s#/run/omarchy-update.lock#$machine_lock#" "$ROOT/bin/omarchy-update-lock" >"$stub_bin/omarchy-update-lock"
+grep -qF "machine_lock_path=$machine_lock" "$stub_bin/omarchy-update-lock" || fail "the test moves the machine-wide lock"
+chmod +x "$stub_bin/omarchy-update-lock"
+
 # Waiting for the notification server is the notifier's one long pause, so it is
 # also where an update can start underneath it. Stand one up from inside the
 # wait to prove the notifier re-checks afterwards instead of sending a toast it
 # decided to send before the update existed.
 cat >"$stub_bin/omarchy-notification-wait" <<'SH'
 #!/bin/bash
-[[ ${OMARCHY_TEST_LOCK_DURING_WAIT:-0} == 1 ]] || exit 0
+[[ ${OMARCHY_TEST_LOCK_DURING_WAIT:-0} == 1 && ! -e $OMARCHY_TEST_LOCK_HOLDER_PID ]] || exit 0
 
 lock="$XDG_RUNTIME_DIR/omarchy-update.lock"
 held="$lock.held"
@@ -69,6 +80,7 @@ run_notify() {
   PATH="$stub_bin:$ROOT/bin:$PATH" \
   XDG_RUNTIME_DIR="$runtime_dir" \
   OMARCHY_TEST_PENDING_MIGRATIONS="$1" \
+  OMARCHY_TEST_PENDING_FILE="${OMARCHY_TEST_PENDING_FILE:-}" \
   OMARCHY_TEST_NOTIFY_ARGS="$test_tmp/notify-args" \
   OMARCHY_TEST_NOTIFY_SEND="${2:-send}" \
   OMARCHY_TEST_LOCK_DURING_WAIT="${OMARCHY_TEST_LOCK_DURING_WAIT:-0}" \
@@ -94,46 +106,71 @@ run_notify 1 >"$test_tmp/notified.out" 2>"$test_tmp/notified.err"
 notify_args_written || fail "migration notifier sends a notification for pending migrations"
 pass "migration notifier sends a notification for pending migrations"
 
-# `omarchy update` applies migrations itself, so nothing may notify about them
-# while it holds its lock -- a stale trigger firing mid-transaction is exactly
-# how the retired omarchy-update-user-notify.path used to interrupt updates.
+# Nothing may notify while an update holds a lock this account takes -- a stale
+# trigger firing mid-transaction is exactly how the retired
+# omarchy-update-user-notify.path used to interrupt updates. The notifier waits
+# the update out instead of leaving, then checks what is still pending. It runs
+# without the test's copy of the lock, as the login service does.
+notifier_waits() { # pid: still running, and nothing sent
+  sleep 0.3
+  kill -0 "$1" 2>/dev/null && [[ ! -e $test_tmp/notify-args ]]
+}
+
+# This account's own update applies the migrations, so afterwards there is
+# nothing to say.
 rm -f "$test_tmp/notify-args"
 update_lock="$runtime_dir/omarchy-update.lock"
 : >"$update_lock"
 exec {update_lock_fd}>"$update_lock"
 flock -n "$update_lock_fd" || fail "test could not hold the update lock"
-
-run_notify 1 >"$test_tmp/during-update.out" 2>"$test_tmp/during-update.err"
-[[ ! -s $test_tmp/during-update.out ]] || fail "migration notifier stays quiet on stdout during an update"
-[[ ! -s $test_tmp/during-update.err ]] || fail "migration notifier stays quiet on stderr during an update"
-[[ ! -e $test_tmp/notify-args ]] || fail "migration notifier sends no notification during an update"
-pass "migration notifier stays quiet while omarchy update holds its lock"
-
+echo 1 >"$test_tmp/pending"
+OMARCHY_TEST_PENDING_FILE="$test_tmp/pending" run_notify 1 >"$test_tmp/during-update.out" 2>"$test_tmp/during-update.err" {update_lock_fd}>&- &
+notify_pid=$!
+notifier_waits "$notify_pid" || fail "migration notifier waits while omarchy update holds its lock, sending nothing"
+echo 0 >"$test_tmp/pending"
 exec {update_lock_fd}>&-
+wait "$notify_pid" || fail "migration notifier finishes once the update releases its lock"
+[[ ! -s $test_tmp/during-update.out && ! -s $test_tmp/during-update.err && ! -e $test_tmp/notify-args ]] ||
+  fail "migration notifier has nothing to say once the update applied the migrations"
+pass "migration notifier waits out this account's own update, which applies the migrations"
 
-run_notify 1 >/dev/null 2>&1
-notify_args_written || fail "migration notifier resumes notifying once the update lock is released"
-pass "migration notifier resumes notifying after the update releases its lock"
-
+# Migrations still pending once the update has finished are prompted for then.
 rm -f "$test_tmp/notify-args"
-OMARCHY_TEST_LOCK_DURING_WAIT=1 run_notify 1 >"$test_tmp/raced.out" 2>"$test_tmp/raced.err"
-if [[ -s $test_tmp/lock-holder-pid ]]; then
-  kill "$(<"$test_tmp/lock-holder-pid")" 2>/dev/null || true
-  for _ in {1..200}; do
-    flock -n "$runtime_dir/omarchy-update.lock" true 2>/dev/null && break
-    sleep 0.05
-  done
-fi
-[[ ! -e $test_tmp/notify-args ]] ||
-  fail "migration notifier sends no notification when an update starts while it waits for the notification server"
+exec {update_lock_fd}>"$update_lock"
+flock -n "$update_lock_fd" || fail "test could not hold the update lock"
+run_notify 1 >/dev/null 2>&1 {update_lock_fd}>&- &
+notify_pid=$!
+notifier_waits "$notify_pid" || fail "migration notifier sends nothing while the update runs"
+exec {update_lock_fd}>&-
+wait "$notify_pid" || true
+notify_args_written || fail "migration notifier prompts once the update releases its lock"
+pass "migration notifier prompts for what is still pending once the update releases its lock"
+
+# An update that starts while it waits for the notification server is waited
+# out too, rather than notified over.
+rm -f "$test_tmp/notify-args" "$test_tmp/lock-holder-pid"
+OMARCHY_TEST_LOCK_DURING_WAIT=1 run_notify 1 >"$test_tmp/raced.out" 2>"$test_tmp/raced.err" &
+notify_pid=$!
+for _ in {1..200}; do
+  [[ -s $test_tmp/lock-holder-pid ]] && break
+  sleep 0.05
+done
+[[ -s $test_tmp/lock-holder-pid ]] || fail "the stub update starts while the notifier waits for the notification server"
+notifier_waits "$notify_pid" ||
+  fail "migration notifier sends no notification while an update that started during its wait runs"
+kill "$(<"$test_tmp/lock-holder-pid")" 2>/dev/null || true
+wait "$notify_pid" || true
+notify_args_written ||
+  fail "migration notifier prompts once the update that started during its wait has finished"
 pass "migration notifier re-checks for an update after waiting for the notification server"
 
-# The guard must never read a lock outside this user's runtime directory. The
-# updater falls back to /tmp/omarchy-update.lock without XDG_RUNTIME_DIR, and a
-# shared /tmp path belongs to whoever created it first, so honouring it would
-# let one user silence another user's critical notification. Hold that /tmp
-# lock in a private mount namespace, so the real /tmp is never touched, and run
-# the notifier with no runtime directory.
+# Apart from the machine-wide lock, the guard must never read a lock outside
+# this user's runtime directory. The updater falls back to
+# /tmp/omarchy-update.lock without XDG_RUNTIME_DIR, and a shared /tmp path
+# belongs to whoever created it first, so honouring it would let one user
+# silence another user's critical notification. Hold that /tmp lock in a
+# private mount namespace, so the real /tmp is never touched, and run the
+# notifier with no runtime directory.
 if unshare --user --map-root-user --mount true 2>/dev/null; then
   rm -f "$test_tmp/notify-args"
   unshare --user --map-root-user --mount bash -c '
@@ -150,13 +187,34 @@ if unshare --user --map-root-user --mount true 2>/dev/null; then
       PATH="$tmp/bin:$bin:$PATH" \
       OMARCHY_TEST_PENDING_MIGRATIONS=1 \
       OMARCHY_TEST_NOTIFY_ARGS="$tmp/notify-args" \
-      "$bin/omarchy-migrate-notify"
+      timeout 10 "$bin/omarchy-migrate-notify"
   ' _ "$test_tmp" "$ROOT/bin" >/dev/null 2>&1 || true
   notify_args_written || fail "migration notifier ignores a held update lock in shared /tmp"
   pass "migration notifier ignores a held update lock in shared /tmp"
 else
   skip "no unprivileged mount namespace; skipping the shared /tmp lock check"
 fi
+
+# With several administrators the lock is the machine's, root's file that each
+# of them can only read. Another administrator's update holding it is waited out
+# too, and this account's own migrations, which that update doesn't apply, are
+# prompted for once it has finished.
+rm -f "$test_tmp/notify-args"
+mkdir -p "$(dirname "$machine_lock")"
+: >"$machine_lock"
+chmod 444 "$machine_lock"
+exec {machine_lock_fd}<"$machine_lock"
+flock -n "$machine_lock_fd" || fail "test could not hold the machine-wide lock"
+run_notify 1 >/dev/null 2>&1 {machine_lock_fd}<&- &
+notify_pid=$!
+notifier_waits "$notify_pid" ||
+  fail "migration notifier sends nothing while another administrator's update holds the machine-wide lock"
+exec {machine_lock_fd}<&-
+wait "$notify_pid" || true
+notify_args_written ||
+  fail "migration notifier prompts for this account's migrations once the other administrator's update has finished"
+pass "migration notifier waits out another administrator's update, then prompts for this account's migrations"
+rm -f "$machine_lock"
 
 # The notifier is a Type=oneshot with no start timeout, so it must not stay
 # activating until the toast is answered. Handing the click command to the shell

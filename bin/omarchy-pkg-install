@@ -15,12 +15,19 @@ fzf_args=(
   --color 'pointer:green,marker:green'
 )
 
-pkg_names=$(pacman -Slq | fzf "${fzf_args[@]}")
+# Only an administrator can change the system's packages. Say so before the
+# picker rather than after, when sudo would refuse.
+if ! omarchy-sudo-allowed; then
+  echo "Only an administrator can install software." >&2
+  omarchy-show-done 1
+else
+  pkg_names=$(pacman -Slq | fzf "${fzf_args[@]}")
 
-if [[ -n $pkg_names ]]; then
-  source omarchy-sudo-keepalive
+  if [[ -n $pkg_names ]]; then
+    source omarchy-sudo-keepalive
 
-  # Convert newline-separated selections to space-separated for pacman
-  echo "$pkg_names" | tr '\n' ' ' | xargs sudo pacman -S --noconfirm
-  omarchy-show-done $?
+    # Convert newline-separated selections to space-separated for pacman
+    echo "$pkg_names" | tr '\n' ' ' | xargs sudo pacman -S --noconfirm
+    omarchy-show-done $?
+  fi
 fi

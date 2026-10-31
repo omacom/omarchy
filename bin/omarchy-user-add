@@ -1,0 +1,200 @@
+#!/bin/bash
+
+# omarchy:summary=Add a login user, optionally as an administrator
+# omarchy:args=[name] [--admin] [--password-stdin]
+# omarchy:examples=omarchy user add alice | omarchy user add bob --admin
+# omarchy:requires-sudo=true
+
+# Passwords live in variables; never trace them.
+set +x
+set -euo pipefail
+
+# Like Omarchy's other commands, these run as you and ask for sudo themselves.
+# Under sudo or in a root shell the session's OMARCHY_PATH is gone, so say so
+# before anything needs it.
+if (( EUID == 0 )); then
+  echo "omarchy-user-add: run this as your user, not as root; it asks for sudo when it needs it" >&2
+  exit 1
+fi
+
+source "$OMARCHY_PATH/install/helpers/user-accounts.sh"
+
+name=""
+admin=""
+password_stdin=0
+
+fail() {
+  echo "omarchy-user-add: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+# Prints why a name can't be used, or nothing when it can.
+name_problem() {
+  if [[ -z $1 ]]; then
+    echo "a username is required"
+  elif ! user_accounts_valid_name "$1"; then
+    echo "'$1' isn't a valid username: use lowercase letters, digits, - and _, starting with a letter or _ (32 at most)"
+  elif getent passwd "$1" >/dev/null; then
+    echo "user '$1' already exists"
+  elif getent group "$1" >/dev/null; then
+    echo "a group named '$1' already exists"
+  elif [[ -e /home/$1 ]]; then
+    # omarchy user remove keeps a removed user's home folder by default.
+    echo "/home/$1 already exists; move it aside first (sudo mv /home/$1 /home/$1.old)"
+  fi
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+  --admin)
+    admin="yes"
+    ;;
+  --password-stdin)
+    password_stdin=1
+    ;;
+  -h | --help)
+    echo "Usage: omarchy user add [name] [--admin] [--password-stdin]"
+    exit 0
+    ;;
+  -*)
+    fail "unknown option: $1"
+    ;;
+  *)
+    [[ -z $name ]] || fail "unexpected argument: $1"
+    name="$1"
+    ;;
+  esac
+  shift
+done
+
+# The second account changes how the computer unlocks and logs in, which needs
+# the administrator's go-ahead and their password. That one password also opens
+# sudo, so nothing asks for it twice. Otherwise sudo asks for it here, before
+# the new user's.
+omarchy-sudo-allowed || fail "only an administrator can add accounts"
+
+second_account=0
+mine=""
+if (( $(user_accounts_login_count) == 1 )); then
+  second_account=1
+  interactive || fail "the second account changes how this computer unlocks and logs in, so add it in a terminal"
+  user_accounts_explain_multi || fail "cancelled"
+  mine=$(user_accounts_ask_own_password "$(user_accounts_self)") || exit 1
+else
+  as_root true || fail "couldn't get administrator rights (sudo)"
+fi
+user_accounts_lock || fail "another account change is in progress; try again when it's done"
+# The count was read before the lock; it decides the whole course, so it must
+# still hold.
+count=$(user_accounts_login_count)
+if (( second_account ? count != 1 : count == 1 )); then
+  fail "the accounts changed meanwhile; run this again"
+fi
+
+if [[ -n $name ]]; then
+  problem=$(name_problem "$name")
+  [[ -z $problem ]] || fail "$problem"
+else
+  interactive || fail "a name is required (e.g. omarchy user add alice)"
+  while true; do
+    name=$(gum input --prompt "$(omarchy-i18n user.namePrompt)" --placeholder "$(omarchy-i18n user.namePlaceholder)") || fail "cancelled"
+    problem=$(name_problem "$name")
+    if [[ -z $problem ]]; then
+      break
+    fi
+    echo "${problem^}."
+  done
+fi
+
+if [[ -z $admin ]]; then
+  if interactive && gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n user.makeAdmin "$name")"; then
+    admin="yes"
+  else
+    admin="no"
+  fi
+fi
+
+# Everyone who starts the computer types the disk password, so no account may
+# log in with it: an administrator's would open root to all of them. Where the
+# system disk can't be told, no password can be checked against it, so the add
+# refuses rather than guess, as the switch to several accounts does.
+disk=$(user_accounts_root_luks_or_explain) || fail "'$name' was not added"
+opens_disk() {
+  local result
+  [[ -n $disk ]] || return 1
+  result=$(user_accounts_try_disk_password "$disk" "$1") || fail "couldn't check the password against the disk, so '$name' was not added"
+  [[ $result == "opens" ]]
+}
+
+# The password reaches chpasswd on stdin, never a command line.
+password=""
+if (( password_stdin )); then
+  IFS= read -r password || true
+  if [[ -n $password ]] && opens_disk "$password"; then
+    fail "that password unlocks the disk; give '$name' one that doesn't"
+  fi
+elif interactive; then
+  while true; do
+    password=$(gum input --password --prompt "$(omarchy-i18n user.passwordFor "$name")") || fail "cancelled"
+    if [[ -z $password ]]; then
+      echo "The password can't be empty."
+      continue
+    fi
+    confirmation=$(gum input --password --prompt "$(omarchy-i18n user.repeatPassword)") || fail "cancelled"
+    if [[ $password != "$confirmation" ]]; then
+      echo "The passwords don't match. Try again."
+    elif opens_disk "$password"; then
+      echo "That one unlocks the disk; choose one that doesn't."
+    else
+      break
+    fi
+  done
+else
+  fail "no terminal to ask for a password; pass --password-stdin"
+fi
+[[ -n $password ]] || fail "the password can't be empty"
+
+# The switch first, the account second: whatever stops this partway leaves
+# the machine with one account and more protection, never with a second
+# account and less. Every step of the switch can be repeated, so running this
+# again continues where it stopped.
+if (( second_account )); then
+  status=0
+  user_accounts_go_multi "$(user_accounts_self)" "$mine" "$password" || status=$?
+  if (( status == 2 )); then
+    fail "an earlier disk password change stopped part way, so '$name' was not added; once it's finished with omarchy-drive-password, run this again"
+  elif (( status != 0 )); then
+    fail "the switch to several accounts didn't finish, so '$name' was not added; run this again to continue"
+  fi
+fi
+
+groups=()
+if [[ $admin == "yes" ]]; then
+  user_accounts_ensure_wheel_sudo || fail "couldn't give the wheel group sudo, so '$name' was not added"
+  groups=(-G wheel)
+fi
+
+# A UID that owns nothing under /home, so a kept home folder never passes on.
+uid=$(user_accounts_free_uid) || fail "no free UID for '$name'"
+if ! as_root useradd -m -s /bin/bash -u "$uid" "${groups[@]}" "$name"; then
+  if (( second_account )); then
+    fail "couldn't create '$name'; this computer is now set up for several accounts, so run this again to add them"
+  else
+    fail "couldn't create '$name'"
+  fi
+fi
+
+if ! printf '%s:%s\n' "$name" "$password" | as_root chpasswd; then
+  as_root userdel -r "$name" 2>/dev/null || true
+  fail "couldn't set the password, so '$name' was not added"
+fi
+
+user_accounts_log "login user '$name' added by $(user_accounts_self) (administrator: $admin)"
+echo "Added $name (administrator: $admin). Their desktop is set up the first time they log in."
+if (( second_account )) && [[ -n $(user_accounts_root_luks 2>/dev/null || true) ]]; then
+  echo "Give $name the disk password: it unlocks the computer when it starts. Their own password logs them in."
+fi

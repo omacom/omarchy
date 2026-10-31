@@ -50,6 +50,13 @@ for dir in "${POLICY_DIRS[@]}"; do
 done
 $saw_any && $all_unchanged && exit 0
 
+# The policy is machine-wide and only an administrator may write it. Anyone
+# else leaves the browsers on the color an administrator's theme set, rather
+# than being asked for an administrator's password at every theme change.
+if ! omarchy-sudo-allowed; then
+  exit 0
+fi
+
 failed=0
 # A script's background job reads /dev/null unless told otherwise, which would
 # turn the writer's terminal sudo prompt into a pkexec dialog. Keep stdin.
