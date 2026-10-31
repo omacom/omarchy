@@ -359,7 +359,13 @@ Panel {
   onPasswordSsidChanged: {
     if (passwordSsid === "" && opened) {
       passwordText = ""
-      Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+      // Closing can happen from a delegate while syncWifiNetworks is walking
+      // the same model. Publish the held scan only after that call unwinds, so
+      // the delegate is never destroyed inside its own action handler.
+      Qt.callLater(function() {
+        if (root.passwordSsid === "") root.syncWifiNetworks()
+        if (panel.loadedContent) panel.loadedContent.forceActiveFocus()
+      })
     }
   }
 
@@ -389,6 +395,15 @@ Panel {
   }
 
   onWifiDeviceChanged: {
+    // The station disappearing removes the editor from the model. Drop its
+    // state as well, or the invisible prompt keeps PanelKeyCatcher blocked.
+    // Let the model hide the delegate first; cancelling it in the same change
+    // notification briefly makes the delegate's implicit height recursive.
+    if (!wifiDevice && passwordSsid !== "") {
+      Qt.callLater(function() {
+        if (!root.wifiDevice && root.passwordSsid !== "") root.cancelPasswordPrompt()
+      })
+    }
     setScannerEnabled(true)
     syncWifiNetworks()
     resetActiveApSignal()
@@ -708,7 +723,9 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    wifiNetworks = Model.sortWifiRows(nets)
+    // A new list rebuilds every delegate and re-sorts the open prompt's row away
+    // mid-typing, so hold it until the prompt closes and resyncs.
+    if (passwordSsid === "") wifiNetworks = Model.sortWifiRows(nets)
     wifiStationAvailable = !!wifiDevice
     scanning = false
   }
@@ -866,14 +883,14 @@ Panel {
     runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
   }
 
-  function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+  function connectWithPassphrase(network, passphrase) {
+    runNetworkAction("connect", network, function(liveNetwork) { liveNetwork.connectWithPsk(passphrase) })
   }
 
-  function connectEnterprise(ssid, identity, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+  function connectEnterprise(network, identity, passphrase) {
+    runNetworkAction("connect", network, function(liveNetwork) {
       enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
+      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", liveNetwork.name, identity]
       enterpriseConnect.running = true
     })
   }
@@ -1067,14 +1084,19 @@ Panel {
     repeat: false
     onTriggered: {
       if (!root.actionKind) return
+      var timedOutKind = root.actionKind
       var reason
-      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
-      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+      if (timedOutKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+      else if (timedOutKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
       else reason = Commons.I18n.t("network.timedOutForgetting")
       root.failureSsid = root.actionSsid
       root.failureReason = reason
       root.actionSsid = ""
       root.actionKind = ""
+      // A credentialed connection keeps the prompt's snapshot frozen while
+      // it is in flight. Release that snapshot on timeout so a network that
+      // left during the attempt cannot strand the panel on stale rows.
+      if (timedOutKind === "connect" && root.passwordSsid === root.failureSsid) root.cancelPasswordPrompt()
       root.refresh()
     }
   }
@@ -1790,8 +1812,17 @@ Panel {
 
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
-      if (!isEnterprise) return root.connectWithPassphrase(net.ssid, root.passwordText)
-      if (root.identityText.length > 0) root.connectEnterprise(net.ssid, root.identityText, root.passwordText)
+      var liveNetwork = root.networkForSsid(net.ssid)
+      if (!liveNetwork) {
+        // The visible rows stay frozen during entry, but the selected access
+        // point can still disappear from the live scan. Close the stale
+        // prompt and publish the latest scan instead of accepting a submit
+        // that cannot start.
+        root.cancelPasswordPrompt()
+        return
+      }
+      if (!isEnterprise) return root.connectWithPassphrase(liveNetwork, root.passwordText)
+      if (root.identityText.length > 0) root.connectEnterprise(liveNetwork, root.identityText, root.passwordText)
     }
 
     Connections {
@@ -1968,11 +1999,11 @@ Panel {
           // Signal strength is conveyed by the wifi-bars icon and the
           // right-edge glyph/buttons carry protection or forget affordances,
           // so the second line only carries action status (Connecting…,
-          // Connected, Failed, etc.). Collapses to zero height when empty
-          // so rows without status keep a tight one-line look.
+          // Connected, Failed, etc.). Column excludes an invisible child from
+          // layout, so rows without status keep a tight one-line look without
+          // binding Text.height back to its own implicitHeight.
           text: row.statusText
           visible: row.statusText !== ""
-          height: visible ? implicitHeight : 0
           color: row.statusColor
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
