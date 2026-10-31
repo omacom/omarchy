@@ -76,3 +76,6 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
   [[ -f $next/$name ]] || fail "every built-in template renders ($name)"
 done
 pass "theme templates render every built-in template"
+
+grep -q 'windowBg: #000000;' "$next/colors.tdesktop-theme" || fail "the telegram palette uses the theme background"
+pass "the telegram palette uses the theme background"

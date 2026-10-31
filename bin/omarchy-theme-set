@@ -547,6 +547,7 @@ other_theme_commands=(
   omarchy-theme-set-obsidian
   omarchy-theme-set-keyboard
   omarchy-theme-set-fcitx5
+  omarchy-theme-set-telegram
 )
 
 theme_still_current() {

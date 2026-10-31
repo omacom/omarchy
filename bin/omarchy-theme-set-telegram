@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the Omarchy palette to Telegram Desktop
+# omarchy:hidden=true
+
+# Telegram watches the palette path it was given. current/theme is replaced
+# on every switch, so the package lives beside it and keeps its name.
+# loadcolors only offers *.tdesktop-palette. Apply() reads a zip of
+# colors.tdesktop-theme and background.png from that file.
+
+set -euo pipefail
+
+PALETTE="$HOME/.local/state/omarchy/current/theme/colors.tdesktop-theme"
+OUTPUT="$HOME/.local/state/omarchy/telegram/omarchy.tdesktop-palette"
+
+omarchy-pkg-present telegram-desktop || exit 0
+[[ -f $PALETTE ]] || exit 0
+
+fresh=0
+[[ -f $OUTPUT ]] || fresh=1
+
+/usr/bin/python3 - "$PALETTE" "$OUTPUT" <<'PY'
+import io
+import os
+import struct
+import sys
+import tempfile
+import zlib
+import zipfile
+from pathlib import Path
+
+palette_path, output_path = sys.argv[1:]
+palette = Path(palette_path).read_bytes()
+
+
+def wallpaper_rgb(text):
+    for line in text.splitlines():
+        body = line.split("//", 1)[0].strip()
+        if not body.startswith("windowBg:"):
+            continue
+        value = body.split(":", 1)[1].strip().rstrip(";").strip()
+        if len(value) == 7 and value[0] == "#" and all(c in "0123456789abcdefABCDEF" for c in value[1:]):
+            return tuple(int(value[i : i + 2], 16) for i in (1, 3, 5))
+    return (0, 0, 0)
+
+
+def chunk(tag, data):
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+
+def png(rgb):
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    pixels = zlib.compress(b"\x00" + bytes(rgb))
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
+
+
+package = io.BytesIO()
+with zipfile.ZipFile(package, "w") as archive:
+    for name, content in (
+        ("colors.tdesktop-theme", palette),
+        ("background.png", png(wallpaper_rgb(palette.decode("utf-8", "replace")))),
+    ):
+        info = zipfile.ZipInfo(filename=name, date_time=(1980, 1, 1, 0, 0, 0))
+        info.compress_type = zipfile.ZIP_STORED
+        info.external_attr = 0o644 << 16
+        archive.writestr(info, content)
+
+data = package.getvalue()
+destination = Path(output_path)
+destination.parent.mkdir(parents=True, exist_ok=True)
+if destination.is_file() and destination.read_bytes() == data:
+    raise SystemExit(0)
+
+descriptor, temporary = tempfile.mkstemp(dir=destination.parent, prefix=".omarchy-telegram.")
+try:
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(data)
+    os.chmod(temporary, 0o644)
+    os.replace(temporary, destination)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+PY
+
+if (( fresh )); then
+  omarchy-notification-send -u normal \
+    "$(omarchy-i18n theme.telegramActivate)" \
+    "$(omarchy-i18n theme.telegramActivateBody "$OUTPUT")" || true
+fi

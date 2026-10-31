@@ -373,6 +373,10 @@ local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, a
 
 The input method's candidate window is drawn by Fcitx's classicui, from `default/themed/fcitx5-theme.conf.tpl`. `omarchy-theme-set-fcitx5` copies the rendered file to `~/.local/share/fcitx5/themes/omarchy/theme.conf`, links fcitx5's neutral grey page and menu glyphs beside it, and asks a running Fcitx to reload classicui without starting one. Setup and the migration run it with `--activate`, which also points `Theme` and `DarkTheme` in `~/.config/fcitx5/conf/classicui.conf` at `omarchy`, writing through a symlinked file. It replaces only fcitx5's stock `default` and `default-dark`, which a configtool save writes even when only the font changed, so a theme the user installed is kept. Theme switches never reselect it, so choosing fcitx5's own theme afterwards sticks.
 
+## Telegram Desktop
+
+`omarchy-theme-set` renders `default/themed/colors.tdesktop-theme.tpl` into the staged theme, then `omarchy-theme-set-telegram` packs that palette and a solid chat wallpaper into `~/.local/state/omarchy/telegram/omarchy.tdesktop-palette`. The path stays put because `current/theme` is replaced on every switch, and Telegram watches the file it was given. Native `telegram-desktop` has no apply command, so the first time the file is created Omarchy asks you to open Telegram Settings, type `loadcolors`, and choose that file. The same notice tells you to set Font family to Monospace once. Telegram keeps that name, so the next launch uses the font from `omarchy font set`. Later switches rewrite the palette in place and a running client reloads it. The command does nothing when the package is not installed, and it never reads Telegram's `tdata`.
+
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.

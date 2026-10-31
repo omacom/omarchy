@@ -1,0 +1,302 @@
+// Generated from the Omarchy palette. A theme may ship its own
+// colors.tdesktop-theme to replace this file.
+
+windowBg: {{ background }};
+windowFg: {{ foreground }};
+windowBgOver: {{ lighter_background }};
+windowBgRipple: {{ selection }};
+windowFgOver: {{ bright_foreground }};
+windowSubTextFg: {{ dark_foreground }};
+windowSubTextFgOver: {{ light_foreground }};
+windowBoldFg: {{ bright_foreground }};
+windowBoldFgOver: {{ bright_foreground }};
+windowBgActive: {{ accent }};
+windowFgActive: {{ background }};
+windowActiveTextFg: {{ accent }};
+windowShadowFg: #000000;
+windowShadowFgFallback: {{ dark_background }};
+
+shadowFg: #00000032;
+slideFadeOutBg: #0000003c;
+imageBg: #000000;
+imageBgTransparent: {{ background }};
+
+activeButtonBg: {{ accent }};
+activeButtonBgOver: {{ mix accent bright_foreground 12% }};
+activeButtonBgRipple: {{ mix accent bright_foreground 22% }};
+activeButtonFg: {{ background }};
+activeButtonFgOver: {{ background }};
+activeButtonSecondaryFg: {{ mix background accent 30% }};
+activeLineFg: {{ accent }};
+activeLineFgError: {{ red }};
+
+lightButtonBg: {{ background }};
+lightButtonBgOver: {{ lighter_background }};
+lightButtonBgRipple: {{ selection }};
+lightButtonFg: {{ accent }};
+lightButtonFgOver: {{ mix accent bright_foreground 12% }};
+
+attentionButtonFg: {{ red }};
+attentionButtonFgOver: {{ red }};
+attentionButtonBgOver: {{ mix background red 16% }};
+attentionButtonBgRipple: {{ mix background red 25% }};
+
+outlineButtonBg: {{ background }};
+outlineButtonBgOver: {{ lighter_background }};
+outlineButtonOutlineFg: {{ accent }};
+outlineButtonBgRipple: {{ selection }};
+
+menuBg: {{ background }};
+menuBgOver: {{ lighter_background }};
+menuBgRipple: {{ selection }};
+menuIconFg: {{ dark_foreground }};
+menuIconFgOver: {{ bright_foreground }};
+menuSubmenuArrowFg: {{ light_foreground }};
+menuFgDisabled: {{ muted }};
+menuSeparatorFg: {{ dark_background }};
+
+scrollBarBg: #{{ muted_strip }}73;
+scrollBarBgOver: #{{ muted_strip }}a6;
+scrollBg: #{{ muted_strip }}24;
+scrollBgOver: #{{ muted_strip }}40;
+
+placeholderFg: {{ dark_foreground }};
+placeholderFgActive: {{ light_foreground }};
+inputBorderFg: {{ muted }};
+filterInputBorderFg: {{ accent }};
+filterInputActiveBg: {{ background }};
+filterInputInactiveBg: {{ dark_background }};
+checkboxFg: {{ muted }};
+sliderBgInactive: {{ muted }};
+sliderBgActive: {{ accent }};
+
+tooltipBg: {{ dark_background }};
+tooltipFg: {{ foreground }};
+tooltipBorderFg: {{ muted }};
+toastBg: tooltipBg;
+toastFg: tooltipFg;
+
+titleBg: {{ dark_background }};
+titleBgActive: {{ background }};
+titleFg: {{ dark_foreground }};
+titleFgActive: {{ foreground }};
+titleButtonFg: titleFg;
+titleButtonFgOver: titleFgActive;
+titleButtonFgActive: titleFgActive;
+titleButtonCloseFg: attentionButtonFg;
+titleButtonCloseFgOver: attentionButtonFgOver;
+titleButtonCloseBgOver: attentionButtonBgOver;
+
+boxBg: {{ background }};
+boxTextFg: {{ foreground }};
+boxTextFgGood: {{ green }};
+boxTextFgError: {{ red }};
+boxTitleFg: {{ bright_foreground }};
+boxTitleAdditionalFg: {{ dark_foreground }};
+
+dialogsBg: {{ background }};
+dialogsNameFg: {{ bright_foreground }};
+dialogsDateFg: {{ dark_foreground }};
+dialogsTextFg: {{ dark_foreground }};
+dialogsTextFgService: {{ accent }};
+dialogsDraftFg: {{ red }};
+dialogsVerifiedIconBg: {{ accent }};
+dialogsVerifiedIconFg: {{ background }};
+dialogsSentIconFg: {{ green }};
+dialogsUnreadBg: {{ accent }};
+dialogsUnreadBgOver: {{ accent }};
+dialogsUnreadBgActive: {{ background }};
+dialogsUnreadBgMuted: {{ muted }};
+dialogsUnreadBgMutedOver: {{ muted }};
+dialogsUnreadBgMutedActive: {{ background }};
+dialogsUnreadFg: {{ background }};
+dialogsUnreadFgOver: {{ background }};
+dialogsOnlineBadgeFg: {{ green }};
+dialogsChatIconFg: dialogsTextFgService;
+dialogsChatIconFgOver: dialogsTextFgService;
+dialogsChatIconFgActive: dialogsNameFgActive;
+dialogsBgOver: {{ lighter_background }};
+dialogsNameFgOver: {{ bright_foreground }};
+dialogsDateFgOver: {{ light_foreground }};
+dialogsTextFgOver: {{ light_foreground }};
+dialogsBgActive: {{ accent }};
+dialogsNameFgActive: {{ background }};
+dialogsDateFgActive: {{ background }};
+dialogsTextFgActive: {{ background }};
+dialogsDraftFgActive: {{ mix background accent 25% }};
+dialogsUnreadFgActive: {{ bright_foreground }};
+dialogsOnlineBadgeFgActive: {{ background }};
+
+searchedBarBg: {{ dark_background }};
+searchedBarFg: {{ dark_foreground }};
+topBarBg: {{ background }};
+
+emojiPanBg: {{ background }};
+emojiPanCategories: {{ dark_background }};
+emojiPanHeaderFg: {{ dark_foreground }};
+emojiPanHeaderBg: #{{ background_strip }}f2;
+emojiIconFg: {{ dark_foreground }};
+emojiIconFgActive: {{ accent }};
+
+historyTextInFg: {{ foreground }};
+historyTextOutFg: {{ foreground }};
+historyLinkInFg: {{ accent }};
+historyLinkOutFg: {{ accent }};
+historyOutIconFg: {{ accent }};
+historySendingOutIconFg: {{ dark_foreground }};
+historyUnreadBarBg: {{ dark_background }};
+historyUnreadBarFg: {{ accent }};
+
+msgInBg: {{ lighter_background }};
+msgInBgSelected: {{ selection }};
+msgOutBg: {{ mix background accent 36% }};
+msgOutBgSelected: {{ mix selection accent 18% }};
+msgSelectOverlay: #{{ accent_strip }}4c;
+msgStickerOverlay: #{{ accent_strip }}7f;
+msgInServiceFg: {{ accent }};
+msgOutServiceFg: {{ accent }};
+msgInShadow: #00000024;
+msgInShadowSelected: #00000030;
+msgOutShadow: #00000024;
+msgOutShadowSelected: #00000030;
+msgInDateFg: {{ dark_foreground }};
+msgInDateFgSelected: {{ light_foreground }};
+msgOutDateFg: {{ mix foreground accent 62% }};
+msgOutDateFgSelected: {{ mix foreground accent 48% }};
+msgServiceFg: {{ background }};
+msgServiceBg: #{{ accent_strip }}90;
+msgServiceBgSelected: #{{ selection_strip }}b8;
+msgInReplyBarColor: {{ accent }};
+msgOutReplyBarColor: {{ accent }};
+msgInMonoFg: {{ cyan }};
+msgOutMonoFg: {{ cyan }};
+msgFileInBg: {{ accent }};
+msgFileInBgOver: {{ mix accent bright_foreground 12% }};
+msgFileInBgSelected: {{ mix accent selection 35% }};
+msgFileOutBg: {{ accent }};
+msgFileOutBgOver: {{ mix accent bright_foreground 12% }};
+msgFileOutBgSelected: {{ mix accent selection 35% }};
+msgDateImgBg: #00000070;
+msgDateImgBgOver: #0000008f;
+
+historyComposeAreaBg: {{ background }};
+historyComposeAreaFg: {{ foreground }};
+historyComposeAreaFgService: {{ dark_foreground }};
+historyComposeIconFg: {{ dark_foreground }};
+historyComposeIconFgOver: {{ bright_foreground }};
+historySendIconFg: {{ accent }};
+historySendIconFgOver: {{ mix accent bright_foreground 12% }};
+historyPinnedBg: {{ background }};
+historyReplyBg: {{ background }};
+historyReplyIconFg: {{ accent }};
+historyReplyCancelFg: {{ dark_foreground }};
+historyReplyCancelFgOver: {{ bright_foreground }};
+historyComposeButtonBg: {{ background }};
+historyComposeButtonBgOver: {{ lighter_background }};
+historyComposeButtonBgRipple: {{ selection }};
+
+historyToDownBg: windowBg;
+historyToDownBgOver: windowBgOver;
+historyToDownBgRipple: windowBgRipple;
+historyToDownFg: menuIconFg;
+historyToDownFgOver: menuIconFgOver;
+historyToDownShadow: #00000040;
+
+historyPeer1NameFg: {{ red }};
+historyPeer1UserpicBg: {{ mix background red 72% }};
+historyPeer1UserpicBg2: {{ red }};
+historyPeer2NameFg: {{ green }};
+historyPeer2UserpicBg: {{ mix background green 72% }};
+historyPeer2UserpicBg2: {{ green }};
+historyPeer3NameFg: {{ yellow }};
+historyPeer3UserpicBg: {{ mix background yellow 72% }};
+historyPeer3UserpicBg2: {{ yellow }};
+historyPeer4NameFg: {{ blue }};
+historyPeer4UserpicBg: {{ mix background blue 72% }};
+historyPeer4UserpicBg2: {{ blue }};
+historyPeer5NameFg: {{ magenta }};
+historyPeer5UserpicBg: {{ mix background magenta 72% }};
+historyPeer5UserpicBg2: {{ magenta }};
+historyPeer6NameFg: {{ mix red magenta 50% }};
+historyPeer6UserpicBg: {{ mix background magenta 36% }};
+historyPeer6UserpicBg2: {{ mix red magenta 50% }};
+historyPeer7NameFg: {{ cyan }};
+historyPeer7UserpicBg: {{ mix background cyan 72% }};
+historyPeer7UserpicBg2: {{ cyan }};
+historyPeer8NameFg: {{ mix red yellow 50% }};
+historyPeer8UserpicBg: {{ mix background yellow 36% }};
+historyPeer8UserpicBg2: {{ mix red yellow 50% }};
+
+msgFile1Bg: {{ mix background blue 72% }};
+msgFile1BgDark: {{ blue }};
+msgFile1BgOver: {{ mix blue bright_foreground 10% }};
+msgFile1BgSelected: {{ mix blue selection 32% }};
+msgFile2Bg: {{ mix background green 72% }};
+msgFile2BgDark: {{ green }};
+msgFile2BgOver: {{ mix green bright_foreground 10% }};
+msgFile2BgSelected: {{ mix green selection 32% }};
+msgFile3Bg: {{ mix background red 72% }};
+msgFile3BgDark: {{ red }};
+msgFile3BgOver: {{ mix red bright_foreground 10% }};
+msgFile3BgSelected: {{ mix red selection 32% }};
+msgFile4Bg: {{ mix background yellow 72% }};
+msgFile4BgDark: {{ yellow }};
+msgFile4BgOver: {{ mix yellow bright_foreground 10% }};
+msgFile4BgSelected: {{ mix yellow selection 32% }};
+
+profileVerifiedCheckBg: {{ accent }};
+profileVerifiedCheckFg: {{ background }};
+
+mediaPlayerBg: {{ background }};
+mediaPlayerActiveFg: {{ accent }};
+mediaPlayerInactiveFg: {{ muted }};
+
+mediaviewFileBg: {{ background }};
+mediaviewFileNameFg: {{ foreground }};
+mediaviewFileSizeFg: {{ dark_foreground }};
+mediaviewMenuBg: {{ darker_background }};
+mediaviewMenuBgOver: {{ dark_background }};
+mediaviewMenuBgRipple: {{ lighter_background }};
+mediaviewMenuFg: {{ bright_foreground }};
+mediaviewBg: #{{ darker_background_strip }}f2;
+mediaviewCaptionBg: #0000009a;
+mediaviewCaptionFg: {{ bright_foreground }};
+
+callBg: #{{ darker_background_strip }}f2;
+callBgOpaque: {{ darker_background }};
+callBgButton: #{{ dark_background_strip }}b8;
+callNameFg: {{ bright_foreground }};
+callStatusFg: {{ light_foreground }};
+callIconFg: {{ bright_foreground }};
+callIconFgActive: {{ darker_background }};
+callAnswerBg: {{ green }};
+callHangupBg: {{ red }};
+callBarBg: {{ accent }};
+callBarFg: {{ background }};
+
+groupCallBg: {{ darker_background }};
+groupCallActiveFg: {{ accent }};
+groupCallMembersBg: {{ dark_background }};
+groupCallMembersBgOver: {{ background }};
+groupCallMembersBgRipple: {{ lighter_background }};
+groupCallMembersFg: {{ bright_foreground }};
+groupCallMemberActiveIcon: {{ green }};
+groupCallMemberActiveStatus: {{ green }};
+groupCallMemberInactiveIcon: {{ muted }};
+groupCallMemberInactiveStatus: {{ accent }};
+groupCallMemberMutedIcon: {{ red }};
+groupCallMemberNotJoinedStatus: {{ dark_foreground }};
+groupCallIconFg: {{ bright_foreground }};
+groupCallLeaveBg: #{{ red_strip }}9e;
+groupCallLeaveBgRipple: #{{ red_strip }}c0;
+
+sideBarBg: {{ dark_background }};
+sideBarBgActive: {{ background }};
+sideBarBgRipple: {{ selection }};
+sideBarTextFg: {{ dark_foreground }};
+sideBarTextFgActive: {{ accent }};
+sideBarIconFg: {{ dark_foreground }};
+sideBarIconFgActive: {{ accent }};
+sideBarBadgeBg: {{ accent }};
+sideBarBadgeBgMuted: {{ muted }};
+sideBarBadgeFg: {{ background }};
