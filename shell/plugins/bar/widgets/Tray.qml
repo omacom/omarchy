@@ -148,6 +148,15 @@ BarWidget {
       return
     }
 
+    // A second click on the icon whose menu is already open closes it. The
+    // open popup's focus grab lists the bar window, so that click reaches the
+    // icon's MouseArea rather than dismissing the popup; without this check
+    // the same menu was reset and reopened on every repeated click.
+    if (trayMenuOpen && activeTrayItem === item) {
+      close()
+      return
+    }
+
     // Reset before switching items: trayMenuOpener.menu binds to
     // activeTrayItem.menu, so assigning a new item invalidates the old root's
     // children immediately, before any nested opener referencing them would
