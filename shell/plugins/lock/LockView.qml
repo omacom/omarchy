@@ -17,6 +17,7 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
+  property bool displaysBlank: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
@@ -184,8 +185,15 @@ Item {
         }
 
         Keys.onPressed: function(event) {
+          // A key hit at a dark panel is there to wake it, not to type. The
+          // wake clears displaysBlank, so read it first.
+          var wasBlank = root.displaysBlank
           root.wakeRequested()
           if (event.isAutoRepeat && root.dropsAutoRepeat(event.key)) {
+            event.accepted = true
+            return
+          }
+          if (wasBlank) {
             event.accepted = true
             return
           }
