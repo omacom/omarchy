@@ -139,6 +139,12 @@ grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >
   fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
 
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+DDC_CURRENT=40 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 +09% 2>"$test_tmp/stderr"
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 49' "$call_log" >/dev/null && [[ ! -s $test_tmp/stderr ]] || \
+  fail "an external step with a leading zero is read as decimal" "$(<"$test_tmp/stderr")"
+pass "an external step with a leading zero is read as decimal"
+
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 printf '%s\n' '[
