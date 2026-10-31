@@ -1,19 +1,21 @@
 # Sistemos miegas
 
-Omarchy pagal numatytuosius įjungia pristabdymą ir užmigdymą, bet jei tavo kompiuteryje su kuriuo nors kyla problemų, gali juos išjungti.
+Omarchy pagal numatytuosius nustatymus įjungia sustabdymą ir hibernaciją, bet jei jūsų kompiuteryje kyla problemų dėl kurio nors iš jų, galite juos išjungti.
+
+NVIDIA GB10 kompiuteriuose, pavyzdžiui, DGX Spark ir ASUS Ascent GX10, sustabdymas ir hibernacija yra išjungti, kaip ir NVIDIA DGX OS, nes dar neparodyta, kad miego režimas veiktų šioje aparatinėje įrangoje. Sustabdymo perjungimas ir hibernacijos nustatymas ten netaikomi. Norėdami vėl įjungti miego režimą, pašalinkite `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` naudodami `sudo rm`; tada Sustabdymas grįš į meniu, o hibernaciją bus galima nustatyti kaip kituose kompiuteriuose. Paleidus `sudo omarchy apply hardware --install-user "$USER"`, failas bus vėl įdėtas atgal.
 
 ### Maitinimo profiliai
 
-Nešiojamajame kompiuteryje Omarchy tavo maitinimo profilį prisimena atskirai prijungtam prie tinklo ir veikiančiam nuo akumuliatoriaus, ir persijungia tarp jų, kai įjungi ir atjungi laidą. Iš karto tai reiškia našumą nuo tinklo ir subalansuotą nuo akumuliatoriaus.
+Nešiojamajame kompiuteryje Omarchy atskirai įsimena jūsų maitinimo profilį, kai kompiuteris prijungtas prie elektros tinklo ir kai veikia naudodamas akumuliatorių, ir perjungia juos, kai prijungiate ir atjungiate kompiuterį. Iš karto tai reiškia performance esant AC ir balanced naudojant akumuliatorių.
 
-Gali pamatyti, ką tavo kompiuteris siūlo, su `omarchy powerprofiles list`, ir nustatyti norimą tai būsenai, kurioje dabar esi, su `omarchy powerprofiles set autodetect power-saver`. Kad nustatytum kitą būseną nieko neatjungdamas, pavadink ją tiesiogiai: `omarchy powerprofiles set battery power-saver`. Kad ir ką pasirinksi, tai gausi atgal kitą kartą būdamas toje būsenoje.
+Galite peržiūrėti, ką siūlo jūsų kompiuteris, naudodami `omarchy powerprofiles list`, ir nustatyti norimą profilį dabartinei būsenai naudodami `omarchy powerprofiles set autodetect power-saver`. Norėdami nustatyti kitą būseną nieko neatjungdami, nurodykite ją tiesiogiai: `omarchy powerprofiles set battery power-saver`. Kad ir kurį pasirinktumėte, tokį patį gausite kitą kartą, kai būsite toje būsenoje.
 
-### Pristabdymo perjungimas
+### Sustabdymo perjungimas
 
-Pristabdymą perjungi terminale paleidęs `omarchy toggle suspend`. Tai tiesiog parodo / paslepia parinktį po _Sistema_ (arba `Super + Esc`), ir tada gali pamatyti, ar tavo sistemoje ji veikia stabiliai. Jei ne, gali ją vėl paslėpti ta pačia komanda.
+Sustabdymą perjungiate paleisdami `omarchy toggle suspend` iš terminalo. Tai tik parodo arba paslepia parinktį skiltyje _System_ (arba `Super + Esc`), o tada galite patikrinti, ar ji nuosekliai veikia jūsų sistemoje. Jei ne, galite ją vėl paslėpti ta pačia komanda.
 
-### Užmigdymo perjungimas
+### Hibernacijos perjungimas
 
-Užmigdymą nustatai terminale paleidęs `omarchy hibernation setup`. Užmigdymas sukuria /swap povolumį tavo įkrovos diske tavo fizinės RAM dydžio, todėl įsitikink, kad turi pakankamai laisvos vietos. 32GB kompiuteryje šiam volumiui visada reikės 32GB+ laisvų. Užmigdymui taip pat reikia numatytojo Limine įkroviklio.
+Hibernaciją nustatote paleisdami `omarchy hibernation setup` iš terminalo. Hibernacija jūsų įkrovos diske sukuria /swap potonį, kurio dydis lygus jūsų fizinės RAM apimčiai, todėl įsitikinkite, kad turite pakankamai laisvos vietos. 32GB kompiuteryje šiam tomui visada reikės 32GB+ laisvos vietos. Hibernacijai taip pat reikalinga numatytoji Limine įkrovos tvarkyklė.
 
-Kai nustatysi, užmigdymo parinktį matysi po _Sistema_ (arba `Super + Esc`), ir tada gali pamatyti, ar tavo sistemoje ji veikia stabiliai. Jei ne, gali ją vėl pašalinti paleidęs `omarchy hibernation remove`.
+Nustačius, hibernacijos parinktį matysite skiltyje _System_ (arba `Super + Esc`), o tada galėsite patikrinti, ar ji nuosekliai veikia jūsų sistemoje. Jei ne, galite ją vėl pašalinti paleisdami `omarchy hibernation remove`.

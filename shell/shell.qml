@@ -24,6 +24,7 @@ ShellRoot {
   property AppLibrary appLibrary: AppLibrary { }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
+  property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
 
   property string home: Quickshell.env("HOME")
 
@@ -61,6 +62,8 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // shell.json has text the shell could not use; persisting would replace it with defaults.
+  property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -91,6 +94,7 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
+    userConfigUnreadable = !!userText.trim() && !user
     shellConfig = user || defaults
   }
 
@@ -116,6 +120,10 @@ ShellRoot {
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
+    if (userConfigUnreadable) {
+      console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
+      return
+    }
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
@@ -1746,8 +1754,27 @@ ShellRoot {
       shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
     }
 
-    function finishThemeIntro(token: string): void {
-      shell.bootIntro.finishTheme(token)
+    // A theme switch whose cover is up hands the rest over: the still, the
+    // intro if there is one, the reveal and Hyprland's reload.
+    function playThemeIntro(token: string, stillPath: string, introPath: string, prepared: string): string {
+      return shell.backgroundSwitch.play(token, stillPath, introPath, prepared)
+    }
+
+    // omarchy-theme-bg-set's change, with the intro it found or none.
+    function switchBackground(path: string, introPath: string): string {
+      return shell.backgroundSwitch.switchTo(path, introPath)
+    }
+
+    // What the latest background selection names, ahead of the link while
+    // its change is still queued or setting up.
+    function selectedBackground(): string {
+      return shell.backgroundSwitch.selected()
+    }
+
+    // A cover is up or revealing, so the screen does not yet show a frame a
+    // new switch could capture as its own outgoing cover.
+    function themeIntroBusy(): string {
+      return shell.backgroundSwitch.busy ? "pending" : "ready"
     }
 
     function themeIntroStatus(token: string): string {
