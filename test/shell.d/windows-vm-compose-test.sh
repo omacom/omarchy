@@ -164,7 +164,7 @@ pass "bring-up rejects tampered, duplicate, unprotected, and writable compose in
 
 # Pre-4.0.1 usernames the writer now rejects still migrate.
 # Install used to accept emails and other strings that fail valid_username.
-# USERNAME is inert after Windows setup; RDP uses the credentials file.
+# Windows keeps its account after setup, so RDP keeps the original name; only the web console takes docker.
 reset_case
 mkdir -p "$HOME/.config/windows"
 LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
@@ -183,6 +183,10 @@ services:
       - /home/old/.windows:/storage
       - /home/old/Windows:/shared
 LEG
+priv() { return 1; }
+migrate_legacy_compose >"$TMPDIR/migrate.out" 2>&1 && fail "migration succeeded though the elevated writer failed"
+grep -q 'signs in as docker' "$TMPDIR/migrate.out" && fail "migration announced the docker web console login though nothing migrated"
+[[ -f $LEGACY_COMPOSE_FILE ]] || fail "failed migration kept the legacy compose"
 priv() { local action=$1; shift; "__priv_$action" "$@"; }
 migrate_legacy_compose >"$TMPDIR/migrate.out"
 [[ -f $COMPOSE_FILE ]] || fail "migration wrote the root-owned compose for an email username"
