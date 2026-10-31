@@ -7,9 +7,8 @@ set -e
 
 # Hex installs itself as a user-local, self-updating executable; Omarchy only
 # supplies the runtime dependencies the published build links against.
-if omarchy-cmd-missing wtype wl-clipboard openblas curl jq; then
-  omarchy-pkg-add wtype wl-clipboard openblas xxd curl jq
-fi
+# omarchy-pkg-add skips packages that are already present.
+omarchy-pkg-add wtype wl-clipboard openblas xxd curl jq
 
 if omarchy-cmd-missing hex; then
   if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n dictation.installHex)"; then

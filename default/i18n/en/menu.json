@@ -594,6 +594,9 @@
     "label": "Dictation",
     "title": "Default Dictation"
   },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
   "setup.default.dictation.superwhisper": {
     "label": "Superwhisper"
   },
@@ -1081,6 +1084,9 @@
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   },
   "remove.dictation.voxtype": {
     "label": "Voxtype"

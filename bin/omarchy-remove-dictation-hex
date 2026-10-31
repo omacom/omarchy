@@ -22,7 +22,7 @@ if [[ -x $hex_bin ]]; then
     "$data_home/applications/hex.desktop"
   systemctl --user daemon-reload
 
-  backend_config="$HOME/.config/omarchy/defaults/dictation"
+  backend_config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
   if [[ -f $backend_config && $(< "$backend_config") == "hex" ]]; then
     rm "$backend_config"
   fi
