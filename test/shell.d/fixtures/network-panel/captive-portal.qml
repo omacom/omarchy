@@ -9,6 +9,7 @@ import "network" as Network
 ShellRoot {
   id: test
   property bool failed: false
+  property real defaultDesignWidth: 0
   function check(ok, message) {
     if (!ok) {
       failed = true
@@ -48,17 +49,25 @@ ShellRoot {
       if (!Quickshell.env("NETWORK_TEST_PREVIEW"))
         test.check(panel.testContent === null, "closed panel has not built its content")
       test.check(panel.testEnsureContent() !== null && panel.testContent !== null, "panel content builds on demand")
-      test.check(panel.kind === "wifi", "connected Wi-Fi fixture")
-      test.check(panel.connectivity === "full", "normal connectivity")
-      test.check(!panel.testButton.visible && !panel.testBarButton.active, "no false portal banner")
-      test.check(!panel.testPoll.running, "normal connectivity adds no polling")
-      test.check(NetworkMock.checks > 0, "checks at connection/startup")
-      var before = NetworkMock.checks
-      panel.checkConnectivity()
-      test.check(NetworkMock.checks === before + 1, "manual check delegates to NM")
-      NetworkMock.connectivity = NetworkConnectivity.Portal
-      Qt.callLater(portalChecks)
+      defaultDesignWidth = panel.testDesignWidth
+      Commons.Style.fontOverrides = { "body-small": 16 }
+      Qt.callLater(fontWidthChecks)
     }
+  }
+
+  function fontWidthChecks() {
+    check(panel.testDesignWidth > defaultDesignWidth, "network panel widens with a raised body-small font")
+    Commons.Style.fontOverrides = ({})
+    test.check(panel.kind === "wifi", "connected Wi-Fi fixture")
+    test.check(panel.connectivity === "full", "normal connectivity")
+    test.check(!panel.testButton.visible && !panel.testBarButton.active, "no false portal banner")
+    test.check(!panel.testPoll.running, "normal connectivity adds no polling")
+    test.check(NetworkMock.checks > 0, "checks at connection/startup")
+    var before = NetworkMock.checks
+    panel.checkConnectivity()
+    test.check(NetworkMock.checks === before + 1, "manual check delegates to NM")
+    NetworkMock.connectivity = NetworkConnectivity.Portal
+    Qt.callLater(portalChecks)
   }
 
   function portalChecks() {
