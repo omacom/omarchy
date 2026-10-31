@@ -7,6 +7,257 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # Bind mounts need CAP_SYS_ADMIN in a private mount namespace. Keep the
 # caller's uid so the non-root development path is exercised.
 if [[ ${OMARCHY_WINDOWS_TEST_NAMESPACE:-0} != 1 ]]; then
+  # Auth checks do not require bind mounts.
+  (
+    python3 - <<'PY'
+import os
+import pty
+import subprocess
+import tempfile
+from pathlib import Path
+
+
+script = r'''
+set -e
+set -- help
+source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+priv_target() { printf '/fixture/omarchy-windows-vm\n'; }
+sudo() { printf sudo >"$MODE_LOG"; printf exited; }
+pkexec() { printf pkexec >"$MODE_LOG"; printf exited; }
+migrate_legacy_compose() { :; }
+status_windows
+'''
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    (root / "docker-compose.yml").touch()
+    log = root / "mode"
+    env = dict(os.environ, OMARCHY_WINDOWS_DIR=str(root), MODE_LOG=str(log), HOME=str(root))
+    for name, terminal_input, terminal_error, expected in (
+            ("terminal status", True, True, "sudo"),
+            ("redirected stdin", False, True, "sudo"),
+            ("graphical caller", False, False, "pkexec")):
+        master, slave = pty.openpty()
+        try:
+            result = subprocess.run(["/bin/bash", "-c", script], env=env,
+                                    stdin=slave if terminal_input else subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE,
+                                    stderr=slave if terminal_error else subprocess.PIPE,
+                                    text=True, timeout=10)
+            assert result.returncode == 0, (name, result.stdout, result.stderr)
+            assert log.read_text() == expected, (name, log.read_text(), expected)
+            assert "Windows VM is stopped" in result.stdout
+        finally:
+            os.close(slave)
+            os.close(master)
+        print(f"ok - {name} uses {expected} while privileged status output is captured")
+PY
+
+    test_dir=$(mktemp -d)
+    trap 'rm -rf "$test_dir"' EXIT
+    touch "$test_dir/docker-compose.yml"
+    MODE_LOG="$test_dir/mode" OMARCHY_WINDOWS_DIR="$test_dir" ROOT="$ROOT" bash -c '
+      set -e
+      export HOME="$OMARCHY_WINDOWS_DIR/home"
+      mkdir -p "$HOME"
+      set -- help
+      source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+      priv() { printf "priv:%s\n" "$1" >>"$MODE_LOG"; }
+      secure_windows_migration
+      [[ $(<"$MODE_LOG") == "priv:secure" ]]
+      mkdir -p "$HOME/.config/windows"
+      touch "$HOME/.config/windows/docker-compose.yml"
+      : >"$MODE_LOG"
+      migrate_legacy_compose() {
+        printf "migrate\n" >>"$MODE_LOG"
+        priv secure
+        remove_legacy_compose
+      }
+      remove_legacy_compose() { printf "remove\n" >>"$MODE_LOG"; rm "$HOME/.config/windows/docker-compose.yml"; }
+      secure_windows_migration
+      [[ ! -e $HOME/.config/windows/docker-compose.yml ]]
+      expected=$(printf "migrate\npriv:secure\nremove")
+      [[ $(<"$MODE_LOG") == "$expected" ]]
+      valid_priv_action secure
+      rm "$OMARCHY_WINDOWS_DIR/docker-compose.yml"
+      : >"$MODE_LOG"
+      secure_windows_migration
+      [[ $(<"$MODE_LOG") == "priv:secure" ]]
+      touch "$HOME/.config/windows/docker-compose.yml"
+      migrate_legacy_compose() { return 23; }
+      if secure_windows_migration; then
+        exit 1
+      fi
+    '
+    pass "migration security repair authenticates and propagates upgrade failures"
+  )
+
+  # Credentials checks do not require bind mounts.
+  (
+    python3 - <<'PY'
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+
+prefix = r'''
+set -euo pipefail
+set -- help
+source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+mkdir -p "$HOME/.config/windows" "$OMARCHY_WINDOWS_DIR"
+CREDENTIALS_FILE="$HOME/.config/windows/credentials"
+TEST_PUBLISH_PATH=$CREDENTIALS_FILE
+prepare_user_mount_sources() { :; }
+check_prerequisites() { :; }
+omarchy-pkg-add() { :; }
+available_storage_gb() { printf 128; }
+timedatectl() { printf UTC; }
+sleep() { :; }
+xdg-open() { :; }
+gum() {
+  case "$1" in
+    choose)
+      cat >/dev/null
+      if [[ $* == *RAM* ]]; then printf 4G; else printf 64G; fi
+      ;;
+    input)
+      if [[ $* == *CPU* ]]; then printf 2
+      elif [[ $* == *username* ]]; then printf testuser
+      else printf testpass
+      fi
+      ;;
+    style | confirm) : ;;
+    *) return 1 ;;
+  esac
+}
+write_compose() { printf 'compose\n' >>"$TEST_LOG"; }
+priv() { printf 'priv:%s\n' "$1" >>"$TEST_LOG"; }
+'''
+
+
+def run_case(name, body, status=0, setup=None):
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        home = root / 'home'
+        home.mkdir()
+        env = dict(os.environ, HOME=str(home), OMARCHY_WINDOWS_DIR=str(root / 'runtime'),
+                   TEST_ROOT=str(root), TEST_LOG=str(root / 'calls'))
+        if setup:
+            setup(root)
+        result = subprocess.run(['/bin/bash', '-c', prefix + body], env=env,
+                                capture_output=True, text=True, timeout=20)
+        assert result.returncode == status, (name, result.returncode, result.stdout, result.stderr)
+        print('ok - ' + name)
+        return result
+
+
+for fixture in ('dangling-parent', 'file-parent', 'directory-destination'):
+    body = r'''
+case "$FIXTURE" in
+  dangling-parent)
+    rmdir "$HOME/.config/windows"
+    ln -s "$TEST_ROOT/missing" "$HOME/.config/windows"
+    ;;
+  file-parent)
+    rmdir "$HOME/.config/windows"
+    touch "$HOME/.config/windows"
+    ;;
+  directory-destination) mkdir "$CREDENTIALS_FILE" ;;
+esac
+if (install_windows); then exit 9; fi
+[[ ! -e $TEST_LOG ]]
+'''.replace('$FIXTURE', fixture)
+    run_case('install rejects ' + fixture + ' before privileged configuration', body)
+
+run_case('failed Compose staging preserves existing credentials and removes private candidates', r'''
+write_credentials previous oldpass
+before=$(sha256sum "$CREDENTIALS_FILE")
+write_compose() {
+  [[ $(read_credential PASSWORD) == oldpass ]] || exit 9
+  candidates=("$HOME/.config/windows"/.credentials-install.*)
+  [[ ${#candidates[@]} == 1 && -f ${candidates[0]} ]] || exit 9
+  [[ $(stat -c '%a' "${candidates[0]}") == 600 ]] || exit 9
+  printf 'compose\n' >>"$TEST_LOG"
+  return 7
+}
+if (install_windows); then exit 9; fi
+[[ $(sha256sum "$CREDENTIALS_FILE") == "$before" ]]
+[[ $(<"$TEST_LOG") == compose ]]
+[[ -z $(find "$HOME/.config/windows" -name '.credentials*' -print) ]]
+''')
+
+run_case('publication failure preserves prior credentials, cleans staging and never starts VM', r'''
+write_credentials previous oldpass
+before=$(sha256sum "$CREDENTIALS_FILE")
+mv() {
+  if [[ ${!#} == "$TEST_PUBLISH_PATH" ]]; then return 1; fi
+  command mv "$@"
+}
+if (install_windows); then exit 9; fi
+[[ $(sha256sum "$CREDENTIALS_FILE") == "$before" ]]
+[[ $(<"$TEST_LOG") == compose ]]
+[[ -z $(find "$HOME/.config/windows" -name '.credentials*' -print) ]]
+''')
+
+run_case('install publishes staged credentials before starting VM', r'''
+priv() {
+  [[ $1 == up && $(read_credential PASSWORD) == testpass ]] || exit 9
+  printf 'priv:up\n' >>"$TEST_LOG"
+}
+install_windows
+[[ $(<"$TEST_LOG") == $'compose\npriv:up' ]]
+[[ $(stat -c '%a' "$CREDENTIALS_FILE") == 600 ]]
+[[ -z $(find "$HOME/.config/windows" -name '.credentials*' -print) ]]
+''')
+
+run_case('linked config removal deletes actual credentials and preserves unrelated target files', r'''
+mv "$HOME/.config/windows" "$TEST_ROOT/config-target"
+ln -s "$TEST_ROOT/config-target" "$HOME/.config/windows"
+chmod 0755 "$TEST_ROOT/config-target"
+write_credentials linked secret
+[[ $(stat -c '%a' "$TEST_ROOT/config-target") == 700 ]]
+touch "$TEST_ROOT/config-target/keep"
+# These private candidates model SIGKILL/power-loss leftovers with no EXIT trap.
+for candidate in .credentials-install.ABC123 .credentials.XYZ123; do
+  printf 'interrupted private credentials\n' >"$TEST_ROOT/config-target/$candidate"
+  chmod 0600 "$TEST_ROOT/config-target/$candidate"
+done
+# Cleanup must unlink a planted candidate symlink without following its target.
+printf 'external data\n' >"$TEST_ROOT/candidate-victim"
+ln -s "$TEST_ROOT/candidate-victim" "$TEST_ROOT/config-target/.credentials.LINK12"
+migrate_legacy_compose() { return 1; }
+remove_windows
+[[ -z $(find "$TEST_ROOT/config-target" -name '.credentials*' -print) ]]
+[[ $(<"$TEST_ROOT/candidate-victim") == 'external data' ]]
+[[ ! -e $TEST_ROOT/config-target/credentials && -f $TEST_ROOT/config-target/keep ]]
+[[ ! -L $HOME/.config/windows && ! -e $HOME/.config/windows ]]
+''')
+
+run_case('credential deletion failure retains the config link and reports removal failure', r'''
+mv "$HOME/.config/windows" "$TEST_ROOT/config-target"
+ln -s "$TEST_ROOT/config-target" "$HOME/.config/windows"
+write_credentials linked secret
+migrate_legacy_compose() { return 1; }
+rm() {
+  if [[ " $* " == *" $CREDENTIALS_FILE "* ]]; then return 1; fi
+  command rm "$@"
+}
+if (remove_windows); then exit 9; fi
+[[ -L $HOME/.config/windows && -f $TEST_ROOT/config-target/credentials ]]
+''')
+
+run_case('real and dangling legacy Compose symlinks remain untouched without migration', r'''
+printf 'legacy plaintext\n' >"$TEST_ROOT/legacy-target"
+for target in "$TEST_ROOT/legacy-target" "$TEST_ROOT/missing-target"; do
+  ln -s "$target" "$LEGACY_COMPOSE_FILE"
+  if migrate_legacy_compose; then exit 9; fi
+  [[ -L $LEGACY_COMPOSE_FILE && ! -e $TEST_LOG ]]
+  [[ $(<"$TEST_ROOT/legacy-target") == 'legacy plaintext' ]]
+  rm "$LEGACY_COMPOSE_FILE"
+done
+''')
+PY
+  )
+
   if unshare --user --map-current-user --keep-caps --mount true 2>/dev/null; then
     exec env OMARCHY_WINDOWS_TEST_NAMESPACE=1 \
       unshare --user --map-current-user --keep-caps --mount --propagation private bash "$0"
@@ -67,6 +318,32 @@ reset_case() {
   mkdir -p "$HOME"
 }
 
+eval "$(declare -f fsync_directory | sed '1s/fsync_directory/original_fsync_directory/')"
+fsync_log="$TMPDIR/fsync-directories"
+fsync_directory() {
+  printf '%s\n' "$1" >>"$fsync_log"
+  original_fsync_directory "$1"
+}
+
+durable_parent="$TMPDIR/durable-parent"
+durable_child="$durable_parent/new-child"
+mkdir -p "$durable_parent"
+prepare_boundary_component "$durable_child" "$durable_parent" "$(id -u)" 0755
+grep -Fxq "$durable_child" "$fsync_log" || fail "new boundary directory was not synchronized"
+grep -Fxq "$durable_parent" "$fsync_log" || fail "new boundary entry was not synchronized in its parent"
+: >"$fsync_log"
+prepare_boundary_component "$durable_child" "$durable_parent" "$(id -u)" 0755
+grep -Fxq "$durable_child" "$fsync_log" || fail "existing boundary directory was not synchronized on retry"
+grep -Fxq "$durable_parent" "$fsync_log" || fail "existing boundary entry was not synchronized on retry"
+chmod 0700 "$durable_child"
+prepare_boundary_component "$durable_child" "$durable_parent" "$(id -u)" 0755 1
+[[ $(stat -Lc '%a' "$durable_child") == 700 ]] || fail "durability retry widened an existing boundary mode"
+rg -q 'prepare_boundary_component "\$runtime_parent" /var/lib 0 0755 1' "$ROOT/bin/omarchy-windows-vm" ||
+  fail "privileged runtime parent bypasses durable boundary creation"
+! rg -q 'if \(\(EUID == 0\)\) && \[\[ ! -e \$runtime_parent' "$ROOT/bin/omarchy-windows-vm" ||
+  fail "retry skips synchronization of the existing privileged runtime parent"
+pass "new and retried Windows runtime directories and parent entries are durable"
+
 # Fixed protected anchors consume the pinned source inodes.
 prepare_user_mount_sources
 write 4G 2 64G alice s3cret Europe/Copenhagen
@@ -100,7 +377,7 @@ grep -q 'PASSWORD: ".*\$\$.*"' "$COMPOSE" || fail "dollar not escaped"
 [[ $(unescape "$(read_compose_value PASSWORD "$COMPOSE")") == "$tricky" ]] || fail "password did not round-trip"
 pass "password with quote, backslash, and dollar round-trips"
 
-for action in write_compose up up_wait down status remove; do
+for action in write_compose up up_wait down status remove secure; do
   valid_priv_action "$action" || fail "known action rejected: $action"
 done
 for action in '/../evil/x' bogus 'up;rm' '' '__priv_up'; do
@@ -125,6 +402,73 @@ pass "pkexec target is only the canonical packaged regular file, never a PATH sy
 
 # Legacy migration keeps directories and legitimate symlinks in place.
 reset_case
+mkdir -p "$HOME/.config/windows"
+cat >"$HOME/.config/windows/docker-compose.yml" <<'LEG'
+services:
+  windows:
+    environment:
+      RAM_SIZE: "4G"
+      CPU_CORES: "2"
+      DISK_SIZE: "64G"
+      USERNAME: "legacyuser"
+      PASSWORD: "$HOME"
+      TZ: "UTC"
+LEG
+LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
+COMPOSE_FILE="$COMPOSE"
+migrate_legacy_compose 2>/dev/null && fail "environment-dependent legacy password was migrated"
+[[ -f $LEGACY_COMPOSE_FILE && ! -e $COMPOSE ]] || fail "ambiguous legacy password changed migration state"
+pass "environment-dependent legacy password interpolation fails before deletion"
+
+for unsafe_password in '\u0024HOME' 'tab\tvalue' 'line\nvalue'; do
+  reset_case
+  mkdir -p "$HOME/.config/windows"
+  LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
+  COMPOSE_FILE="$COMPOSE"
+  cat >"$LEGACY_COMPOSE_FILE" <<LEG
+services:
+  windows:
+    environment:
+      RAM_SIZE: "4G"
+      CPU_CORES: "2"
+      DISK_SIZE: "64G"
+      USERNAME: "legacyuser"
+      PASSWORD: "$unsafe_password"
+      TZ: "UTC"
+LEG
+  migrate_legacy_compose 2>/dev/null && fail "unsupported legacy YAML escape was migrated"
+  [[ -f $LEGACY_COMPOSE_FILE && ! -e $COMPOSE ]] || fail "unsupported YAML escape changed migration state"
+done
+pass "unsupported legacy YAML escapes fail closed before credential deletion"
+
+reset_case
+mkdir -p "$HOME/.config/windows"
+LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
+COMPOSE_FILE="$COMPOSE"
+cat >"$LEGACY_COMPOSE_FILE" <<'LEG'
+services:
+  windows:
+    environment:
+      RAM_SIZE: "4G"
+      CPU_CORES: "2"
+      DISK_SIZE: "64G"
+      USERNAME: "legacyuser"
+      PASSWORD: "original"
+      TZ: "UTC"
+      PASSWORD: "replacement"
+LEG
+migrate_legacy_compose 2>/dev/null && fail "duplicate legacy credential was migrated"
+[[ -f $LEGACY_COMPOSE_FILE && ! -e $COMPOSE ]] || fail "duplicate legacy credential changed migration state"
+pass "missing or duplicate legacy fields fail closed"
+
+for action in status_windows stop_windows; do
+  output=$($action 2>&1) && fail "$action accepted an ambiguous legacy credential"
+  [[ $output == *"Run omarchy-windows-vm install"* ]] || fail "$action hid legacy migration guidance"
+  [[ $output != *"not configured"* ]] || fail "$action misreported an unsafe legacy definition"
+done
+pass "status and stop retain actionable legacy migration errors"
+
+reset_case
 external_shared="$TMPDIR/external-shared"
 mkdir -m 0755 -p "$HOME/.windows" "$external_shared" "$HOME/.config/windows"
 # dockur leaves an initially empty share setgid, which a numeric chmod keeps.
@@ -141,24 +485,128 @@ services:
       CPU_CORES: "6"
       DISK_SIZE: "128G"
       USERNAME: "legacyuser"
-      PASSWORD: "legacypass"
+      PASSWORD: "legacy$$pass"
       TZ: "America/New_York"
     volumes:
       - /./:/storage
       - /etc:/shared
 LEG
+legacy_secure_log="$TMPDIR/legacy-secure"
+windows_status=running
+docker() {
+  if [[ $1 == inspect && ${2:-} == --format=* ]]; then
+    printf '%s' "$windows_status"
+    return 0
+  fi
+  [[ $1 == inspect ]]
+}
+dc() { printf '%s\n' "$*" >>"$legacy_secure_log"; }
 priv() { local action=$1; shift; "__priv_$action" "$@"; }
 migrate_legacy_compose
 resolve_caller
 [[ -f $COMPOSE ]] || fail "migration did not write compose"
 grep -q 'USERNAME: "legacyuser"' "$COMPOSE" || fail "migration lost settings"
+[[ $(read_credential PASSWORD) == 'legacy$pass' ]] || fail "migration changed the effective legacy password"
+[[ $(unescape "$(read_compose_value PASSWORD "$COMPOSE")") == 'legacy$pass' ]] ||
+  fail "replacement Compose changed the effective legacy password"
 [[ -f $HOME/.windows/existing-disk && -f $external_shared/existing-shared-file ]] || fail "migration lost data"
 [[ ! -L $HOME/.windows && $(readlink "$HOME/Windows") == "$external_shared" ]] || fail "migration consumed source path"
 [[ $(stat -Lc '%a' "$HOME/.windows") == 700 && $(stat -Lc '%a' "$external_shared") == 700 ]] || fail "migration did not harden legacy directories"
 grep -q -- '- /:/' "$COMPOSE" && fail "migration copied malicious storage"
 grep -q -- '- /etc:/shared' "$COMPOSE" && fail "migration copied malicious share"
 [[ ! -f $LEGACY_COMPOSE_FILE ]] || fail "migration left legacy compose"
+[[ $(tail -n1 "$legacy_secure_log") == "up -d" ]] || fail "running legacy VM was not securely recreated before deletion"
+unset -f docker dc
 pass "migration preserves data and symlinks while hardening permissions"
+
+# A retry after unlink but before its directory fsync sees no legacy file. The
+# ordinary command path must still synchronize the parent so power loss cannot
+# resurrect the credential-bearing directory entry.
+: >"$fsync_log"
+migrate_legacy_compose
+grep -Fxq "$(dirname -- "$LEGACY_COMPOSE_FILE")" "$fsync_log" ||
+  fail "an apparently completed legacy unlink was not synchronized on retry"
+pass "ordinary retries synchronize a previously interrupted legacy unlink"
+
+# User configuration may be linked elsewhere independently of VM setup. It
+# must not block ordinary reconciliation or the migration's secure
+# action, and must never make a legacy deletion through that link acceptable.
+mv "$HOME/.config/windows" "$TMPDIR/windows-config"
+ln -s "$TMPDIR/windows-config" "$HOME/.config/windows"
+: >"$fsync_log"
+migrate_legacy_compose || fail "linked user config blocked an existing private root definition"
+[[ ! -s $fsync_log ]] || fail "empty linked legacy directory was synchronized"
+(
+  priv() {
+    [[ $1 == secure ]] || fail "unexpected migration action"
+    assert_compose_trusted && compose_root_private || fail "root definition is not trusted and private"
+    printf 'secure\n' >"$TMPDIR/linked-config-secure"
+  }
+  secure_windows_migration || fail "linked user config blocked root migration security checks"
+)
+[[ $(<"$TMPDIR/linked-config-secure") == secure ]] || fail "migration skipped its root security action"
+printf 'legacy credentials\n' >"$LEGACY_COMPOSE_FILE"
+legacy_error=$(migrate_legacy_compose 2>&1) && fail "legacy removal through a linked config directory was accepted"
+[[ $legacy_error == *"$HOME/.config/windows"* ]] || fail "unsafe legacy directory error omitted its path"
+[[ $(<"$LEGACY_COMPOSE_FILE") == "legacy credentials" ]] || fail "linked legacy definition was changed"
+rm "$LEGACY_COMPOSE_FILE"
+ln -s "$TMPDIR/missing-legacy" "$LEGACY_COMPOSE_FILE"
+migrate_legacy_compose && fail "dangling legacy symlink bypassed the directory boundary"
+rm "$LEGACY_COMPOSE_FILE"
+chmod 0644 "$COMPOSE"
+migrate_legacy_compose || fail "linked user config blocked a root definition awaiting repair"
+(
+  priv() {
+    [[ $1 == secure ]] || fail "unexpected root repair action"
+    [[ $(stat -c '%a' "$COMPOSE_FILE") == 644 ]] || fail "root permissions changed before authorization"
+    printf 'repair\n' >"$TMPDIR/linked-config-repair"
+  }
+  secure_windows_migration || fail "linked user config blocked authenticated root repair"
+)
+[[ $(<"$TMPDIR/linked-config-repair") == repair ]] || fail "migration skipped root repair authorization"
+chmod 0600 "$COMPOSE"
+(
+  COMPOSE_FILE="$TMPDIR/no-vm-compose.yml"
+  priv() {
+    [[ $1 == secure ]] || fail "unexpected absent VM action"
+    __priv_secure
+  }
+  docker() {
+    [[ $1 == inspect && $2 == "$CONTAINER" ]] || fail "unexpected absent VM Docker command"
+    printf 'inspect\n' >"$TMPDIR/linked-config-no-vm"
+    return 1
+  }
+  secure_windows_migration || fail "linked user config blocked migration without a VM"
+)
+[[ $(<"$TMPDIR/linked-config-no-vm") == inspect ]] || fail "migration skipped the privileged absent VM check"
+rm "$HOME/.config/windows"
+mv "$TMPDIR/windows-config" "$HOME/.config/windows"
+pass "linked user config permits root operations, repair and absent VMs without authorizing legacy removals"
+
+# A crash after the root-owned Compose rename but before its directory fsync can
+# leave both definitions. Retry must authenticate, synchronize the trusted file,
+# and only then durably remove the old credential-bearing user file.
+root_compose_digest=$(sha256sum "$COMPOSE" | cut -d' ' -f1)
+cat >"$LEGACY_COMPOSE_FILE" <<'LEG'
+services:
+  windows:
+    environment:
+      USERNAME: "exposed"
+      PASSWORD: "credential"
+LEG
+chmod 0644 "$LEGACY_COMPOSE_FILE"
+: >"$fsync_log"
+migrate_legacy_compose
+[[ $(sha256sum "$COMPOSE" | cut -d' ' -f1) == "$root_compose_digest" ]] ||
+  fail "both-file recovery replaced the trusted Compose definition"
+[[ ! -e $LEGACY_COMPOSE_FILE ]] || fail "both-file recovery retained legacy credentials"
+grep -Fxq "$(dirname -- "$LEGACY_COMPOSE_FILE")" "$fsync_log" ||
+  fail "legacy credential removal was not synchronized"
+runtime_sync_line=$(grep -nFx "$RUNTIME_DIR" "$fsync_log" | head -n1 | cut -d: -f1)
+legacy_sync_line=$(grep -nFx "$(dirname -- "$LEGACY_COMPOSE_FILE")" "$fsync_log" | tail -n1 | cut -d: -f1)
+[[ -n $runtime_sync_line && -n $legacy_sync_line ]] && ((runtime_sync_line < legacy_sync_line)) ||
+  fail "legacy credentials were removed before the trusted Compose rename was synchronized"
+pass "ordinary Windows commands prove the replacement durable before legacy unlink"
 
 # Bring-up re-proves compose trust, cardinality, and mounted identities.
 assert_mounts_safe || fail "verified sources rejected"
@@ -178,6 +626,52 @@ chmod 0666 "$COMPOSE"
 assert_mounts_safe 2>/dev/null && fail "writable compose accepted"
 chmod 0640 "$COMPOSE"
 pass "bring-up rejects tampered, duplicate, unprotected, and writable compose inputs"
+
+# The one-time security migration replaces the live container from the trusted
+# hardened definition and preserves whether it was running or stopped.
+reset_case
+prepare_user_mount_sources
+write 8G 4 64G secure-user secure-pass UTC
+secure_log="$TMPDIR/secure-compose"
+windows_status=running
+docker() {
+  if [[ $1 == inspect && ${2:-} == --format=* ]]; then
+    printf '%s' "$windows_status"
+    return 0
+  fi
+  [[ $1 == inspect ]]
+}
+dc() { printf '%s\n' "$*" >>"$secure_log"; }
+__priv_secure
+[[ $(tail -n1 "$secure_log") == "up -d" ]] || fail "running VM was not reconciled running"
+windows_status=exited
+__priv_secure
+[[ $(tail -n1 "$secure_log") == "up --no-start" ]] || fail "stopped VM was not reconciled stopped"
+
+# A failed recreation retains the original lifecycle before Docker mutation. A
+# retry uses that durable state instead of mistaking the partial replacement's
+# created status for the user's original stopped intent.
+windows_status=running
+fail_secure_once=1
+dc() {
+  printf '%s\n' "$*" >>"$secure_log"
+  if ((fail_secure_once)); then
+    fail_secure_once=0
+    windows_status=created
+    return 1
+  fi
+  [[ $* == "up -d" ]] && windows_status=running
+}
+__priv_secure 2>/dev/null && fail "interrupted Windows reconciliation succeeded"
+[[ $(<"$SECURITY_MIGRATION_STATE") == running ]] || fail "running lifecycle was not durable before recreation"
+__priv_secure
+[[ $windows_status == running && ! -e $SECURITY_MIGRATION_STATE ]] || fail "retry did not restore and clear running lifecycle"
+rm -f "$COMPOSE"
+__priv_secure 2>/dev/null && fail "live Windows container without trusted Compose passed migration"
+docker() { [[ $1 == inspect ]] && return 1; }
+__priv_secure || fail "an absent Windows VM required a Compose definition"
+unset -f docker dc
+pass "security migration reconciles hardened Windows while durably preserving its lifecycle"
 
 # Both sources are pinned before a bind; bad symlinks stay untouched.
 reset_case
@@ -493,6 +987,16 @@ unset -f mv
 [[ $(cat "$CREDENTIALS_FILE") == "$credentials_before" ]] || fail "failed credentials rename replaced the live file"
 ! find "$credentials_dir" -name '.credentials.*' -print -quit | grep -q . || fail "failed credentials write left a temporary file"
 pass "credentials are atomically replaced as a private regular file"
+
+# A linked user config directory is valid; synchronize its actual directory.
+mv "$credentials_dir" "$TMPDIR/linked-credentials-target"
+ln -s "$TMPDIR/linked-credentials-target" "$credentials_dir"
+chmod 0755 "$TMPDIR/linked-credentials-target"
+write_credentials linked 'private=value' || fail "linked credentials directory rejected"
+[[ $(read_credential USERNAME) == linked && $(read_credential PASSWORD) == 'private=value' ]] || fail "linked credentials did not round-trip"
+[[ $(stat -c '%a' "$TMPDIR/linked-credentials-target") == 700 && $(stat -c '%a' "$CREDENTIALS_FILE") == 600 ]] || fail "linked credentials are not private"
+pass "credentials support a linked user configuration directory"
+
 
 # Free-space accounting follows the real storage target.
 reset_case
