@@ -19,6 +19,11 @@ import qs.Commons as Commons
 ToolTip {
   id: root
 
+  // Labels are translated by their English source string (I18n.tr), so
+  // a plugin's text follows the picked language without code changes. Set
+  // false for user or machine text (a device or host name, an email), or
+  // text the caller already translated, that must show exactly as given.
+  property bool translate: true
   property color panelForeground: Commons.Color.tooltip.text
   property color panelBackground: Commons.Color.tooltip.background
   property color panelBorder: Commons.Color.tooltip.border
@@ -38,7 +43,7 @@ ToolTip {
 
   contentItem: Text {
     textFormat: Text.PlainText
-    text: root.text
+    text: root.translate ? I18n.tr(root.text) : root.text
     color: root.panelForeground
     font.family: root.fontFamily
     font.pixelSize: root.fontSize

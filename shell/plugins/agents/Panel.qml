@@ -1827,6 +1827,7 @@ Panel {
         PanelToolTip {
           visible: nameMouse.containsMouse && String(head.account.email || "") !== ""
           text: String(head.account.email || "")
+          translate: false
         }
       }
 
