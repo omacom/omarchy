@@ -24,9 +24,11 @@ from agent_usage_fixtures import *
 
 API = "openrouter.ai/api/v1/"
 TODAY = datetime.now().astimezone()
+YESTERDAY = (TODAY - timedelta(days=1)).strftime("%Y-%m-%d")
 METER = {"data": {"limit": 10, "limit_remaining": 4, "limit_reset": "monthly"}}
 CREDITS = {"data": {"total_credits": 10, "total_usage": 1}}
-ACTIVITY = {"data": [{"date": TODAY.strftime("%Y-%m-%d"), "model": "a/b", "prompt_tokens": 10, "completion_tokens": 5}]}
+# /activity answers for completed UTC days only, so its newest row is yesterday's.
+ACTIVITY = {"data": [{"date": YESTERDAY, "model": "a/b", "prompt_tokens": 10, "completion_tokens": 5}]}
 ROUTES = {API + "activity": ACTIVITY, API + "key": METER, API + "credits": CREDITS}
 DOWN = urllib.error.URLError(OSError("Name or service not known"))
 
@@ -139,12 +141,18 @@ expect("a body that stalls is a transport failure", stalled, "transport")
 # --------------------------------------------------------------- the keys
 
 # A management key brings the account's 30-day history in place of the
-# local scan: account-wide numbers with no prompt counts.
+# local scan: account-wide numbers with no prompt counts. The history never
+# holds today, so this machine's sessions stand in for it.
 sandbox()
+write_pi_session(home() / ".pi" / "agent" / "sessions" / "--p--" / "s.jsonl", [pi_reply("openrouter", 100, id="a1", model="anthropic/claude-test")])
 record = openrouter(OPENROUTER_API_KEY="sk-test", OPENROUTER_MANAGEMENT_KEY="sk-mgmt")
+days = {day["date"]: day["messageCount"] for day in record["recentDays"]}
 expect("a management key's history is account-wide, with no prompt counts, beside the balance",
-       picked(record, "scope", "hasPromptStats", "todayTotalTokens") + [remaining(record), openrouter.asked],
-       ["account", False, 15, 9.0, ["/activity=sk-mgmt", "/credits=sk-mgmt", "/key=sk-test"]], record)
+       picked(record, "scope", "hasPromptStats") + [sorted(record["modelUsage"]), remaining(record), openrouter.asked],
+       ["account", False, ["b"], 9.0, ["/activity=sk-mgmt", "/credits=sk-mgmt", "/key=sk-test"]], record)
+expect("today comes from this machine's sessions, the days before from the history",
+       picked(record, "todayScope", "todayTotalTokens", "todayTokensByModel") + [days[TODAY.strftime("%Y-%m-%d")], days[YESTERDAY]],
+       ["device", 100, {"claude-test": 100}, 100, 15], record)
 
 # A management key alone still collects the history and the balance, with no
 # inference key's meter to show.
@@ -163,7 +171,7 @@ reused = openrouter(OPENROUTER_API_KEY="sk-test", force=False)
 expect("the activity history is reused", [[ask for ask in openrouter.asked if ask.startswith("/activity")], reused["scope"]], [[], "account"], reused)
 with contextlib.redirect_stderr(io.StringIO()):
   kept = openrouter(OPENROUTER_API_KEY="sk-test", routes=with_routes(activity=DOWN))
-expect("the activity history is kept past an unreachable check", picked(kept, "scope", "todayTotalTokens", "retryAdvised"), ["account", 15, True], kept)
+expect("the activity history is kept past an unreachable check", picked(kept, "scope", "retryAdvised") + [sorted(kept["modelUsage"])], ["account", True, ["b"]], kept)
 del os.environ["OPENROUTER_MANAGEMENT_KEY"]
 
 # A key nothing was spent through, with no credits and no limit, is an

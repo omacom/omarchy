@@ -631,7 +631,10 @@ Item {
   // Device-scoped stats add up across machines; account-scoped stats
   // (Fireworks' billing API) are replicas of the same upstream truth on
   // every synced device, so the widest value wins — summing them would
-  // double every token per machine.
+  // double every token per machine. A collector whose account history has
+  // no row for today yet (OpenRouter's /activity) fills today from this
+  // machine's own sessions and says so with todayScope, so today's numbers
+  // add up like device stats while the rest of the record still merges.
   function combineNumber(additive, current, value) {
     return additive ? numberValue(current) + numberValue(value) : Math.max(numberValue(current), numberValue(value))
   }
@@ -641,8 +644,18 @@ Item {
     for (var key in source) target[key] = combineNumber(additive, target[key], source[key])
   }
 
+  // A snapshot's today* fields carry no date of their own, so a machine that
+  // last synced yesterday still describes yesterday in them; only a snapshot
+  // written today may feed them. Its recentDays are dated and merge as usual.
+  function snapshotWrittenOn(snapshot, today) {
+    if (!snapshot.updatedAt) return true
+    var at = new Date(snapshot.updatedAt)
+    return isNaN(at.getTime()) || dateString(at) === today
+  }
+
   function aggregateSnapshots(snapshots) {
     var dates = recentDateStrings()
+    var today = dates[dates.length - 1]
     var devices = {}
     var providers = {}
 
@@ -674,6 +687,7 @@ Item {
     for (var i = 0; i < snapshots.length; i++) {
       var snapshot = snapshots[i]
       var device = safeDeviceId(snapshot.deviceId || "device")
+      var current = snapshotWrittenOn(snapshot, today)
       devices[device] = true
       var snapshotProviders = snapshot.providers || {}
       for (var providerId in snapshotProviders) {
@@ -687,9 +701,13 @@ Item {
         // count prompts, so a missing value reads as true.
         acc.hasPromptStats = acc.hasPromptStats || stats.hasPromptStats !== false
         var additive = String(stats.scope || "device") !== "account"
-        acc.todayPrompts = combineNumber(additive, acc.todayPrompts, stats.todayPrompts)
-        acc.todaySessions = combineNumber(additive, acc.todaySessions, stats.todaySessions)
-        acc.todayTotalTokens = combineNumber(additive, acc.todayTotalTokens, stats.todayTotalTokens)
+        var todayAdditive = String(stats.todayScope || stats.scope || "device") !== "account"
+        if (current) {
+          acc.todayPrompts = combineNumber(todayAdditive, acc.todayPrompts, stats.todayPrompts)
+          acc.todaySessions = combineNumber(todayAdditive, acc.todaySessions, stats.todaySessions)
+          acc.todayTotalTokens = combineNumber(todayAdditive, acc.todayTotalTokens, stats.todayTotalTokens)
+          combineObjectNumbers(todayAdditive, acc.todayTokensByModel, stats.todayTokensByModel || {})
+        }
         acc.totalPrompts = combineNumber(additive, acc.totalPrompts, stats.totalPrompts)
         acc.totalSessions = combineNumber(additive, acc.totalSessions, stats.totalSessions)
         // Active days overlap between machines, so union the dates rather than
@@ -698,14 +716,13 @@ Item {
         var activeDates = Array.isArray(stats.activeDates) ? stats.activeDates : []
         for (var ad = 0; ad < activeDates.length; ad++) acc.activeDates[String(activeDates[ad])] = true
         acc.activeDays = Math.max(acc.activeDays, numberValue(stats.activeDays))
-        combineObjectNumbers(additive, acc.todayTokensByModel, stats.todayTokensByModel || {})
 
         var recent = Array.isArray(stats.recentDays) ? stats.recentDays : []
         for (var r = 0; r < recent.length; r++) {
           var day = recent[r] || {}
           var date = String(day.date || "")
           if (acc.recentByDay[date] !== undefined)
-            acc.recentByDay[date] = combineNumber(additive, acc.recentByDay[date], day.messageCount)
+            acc.recentByDay[date] = combineNumber(date === today ? todayAdditive : additive, acc.recentByDay[date], day.messageCount)
         }
 
         var usage = stats.modelUsage || {}
@@ -763,6 +780,7 @@ Item {
       hasLocalStats: record.hasLocalStats !== false,
       hasPromptStats: record.hasPromptStats !== false,
       scope: String(record.scope || "device"),
+      todayScope: String(record.todayScope || record.scope || "device"),
       todayPrompts: numberValue(record.todayPrompts),
       todaySessions: numberValue(record.todaySessions),
       todayTotalTokens: numberValue(record.todayTotalTokens),
