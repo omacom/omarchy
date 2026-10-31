@@ -107,6 +107,68 @@ grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default app
 grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
 
+clipboard_output=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
+local active, sent, binds = nil, {}, {}
+hl = {
+  get_active_window = function() return active end,
+  dispatch = function(action) if action.state == "down" then table.insert(sent, action.mods .. "+" .. action.key) end end,
+  dsp = { send_key_state = function(options) return options end },
+  timer = function(callback) callback() end,
+}
+o = { bind = function(keys, _, dispatcher) binds[keys] = dispatcher end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/clipboard.lua")
+
+for _, window in ipairs({
+  { name = "opted-in", tags = { "native-super-clipboard*" } },
+  { name = "opted-in-static", tags = { "native-super-clipboard" } },
+  { name = "opted-in-terminal", tags = { "terminal*", "native-super-clipboard*" } },
+  { name = "terminal", tags = { "terminal*" } },
+  { name = "other", tags = {} },
+}) do
+  active = window
+  for _, key in ipairs({ "A", "C", "V", "X" }) do
+    sent = {}
+    binds["SUPER + " .. key]()
+    print(window.name .. " " .. key .. " " .. table.concat(sent, ","))
+  end
+end
+
+active = nil
+for _, key in ipairs({ "A", "C", "V", "X" }) do
+  sent = {}
+  binds["SUPER + " .. key]()
+  print("no-window " .. key .. " " .. table.concat(sent, ","))
+end
+LUA
+)
+expected_clipboard="opted-in A SUPER+A
+opted-in C SUPER+C
+opted-in V SUPER+V
+opted-in X SUPER+X
+opted-in-static A SUPER+A
+opted-in-static C SUPER+C
+opted-in-static V SUPER+V
+opted-in-static X SUPER+X
+opted-in-terminal A SUPER+A
+opted-in-terminal C SUPER+C
+opted-in-terminal V SUPER+V
+opted-in-terminal X SUPER+X
+terminal A CTRL+A
+terminal C CTRL SHIFT+C
+terminal V CTRL SHIFT+V
+terminal X CTRL+X
+other A CTRL+A
+other C CTRL+C
+other V CTRL+V
+other X CTRL+X
+no-window A CTRL+A
+no-window C CTRL+C
+no-window V CTRL+V
+no-window X CTRL+X"
+[[ $clipboard_output == "$expected_clipboard" ]] ||
+  fail "universal clipboard shortcuts pass the Super chord to apps that bind it" "$clipboard_output"
+pass "universal clipboard shortcuts pass the Super chord to apps that bind it"
+
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
