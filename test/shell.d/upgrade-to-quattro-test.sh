@@ -242,6 +242,40 @@ pass "the upgrade snapshots first and pins root= around the kernel install"
   fail "the upgrade never reboots into boot entries missing root="
 pass "the upgrade reboots on --reboot only when root= is confirmed in the boot entries"
 
+# Run the actual transition calls in a separate shell so set -e remains active
+# even though the test captures its status. An older packaged tree can lack
+# either unit; failure must warn and leave the rest of the transition reachable.
+user_enable_body=$(function_body enable_global_user_service)
+user_enable_calls=$(function_body apply_system_transition | grep '  enable_global_user_service ')
+for stub_enable_status in 0 1; do
+  user_enable_output=$(bash -s -- "$user_enable_body" "$user_enable_calls" "$stub_enable_status" <<'SH'
+set -euo pipefail
+calls=()
+as_root() {
+  [[ $1 == "systemctl" && $2 == "--global" && $3 == "enable" && $# == 4 ]] || exit 90
+  calls+=("$4")
+  return "$stub_enable_status"
+}
+warn() { printf 'warning: %s\n' "$*"; }
+eval "enable_global_user_service() { $1
+}"
+stub_enable_status=$3
+eval "$2"
+[[ ${calls[*]} == "podman.socket podman-restart.service" ]]
+echo continued
+SH
+  ) || fail "user unit enable status $stub_enable_status aborted the upgrade"
+  grep -qx continued <<<"$user_enable_output" || fail "upgrade continues after user unit setup"
+  if (( stub_enable_status == 0 )); then
+    [[ $user_enable_output == "continued" ]] || fail "successful user unit setup should not warn"
+  else
+    for unit in podman.socket podman-restart.service; do
+      grep -F "Could not enable user unit $unit" <<<"$user_enable_output" >/dev/null || fail "missing $unit should warn"
+    done
+  fi
+done
+pass "Omarchy 4 upgrade tolerates missing packaged user units under set -e"
+
 # The base list carries rtkit, which can make a running app with a zero
 # realtime budget realtime and get it killed. The repair that raises those
 # budgets and installs rtkit runs once the new omarchy package is in and before

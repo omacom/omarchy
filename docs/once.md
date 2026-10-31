@@ -1,0 +1,13 @@
+# Rootless ONCE
+
+The optional installer uses the source-built `once` package from omarchy-pkgs. It is ONCE v0.3.2 with a small downstream patch, identified as `v0.3.2-omarchy1`; the vendor `once-bin` binary remains available separately. The launcher refuses an unpatched binary because the integration depends on proxy and backup behavior, not just API availability.
+
+`omarchy-launch-once` pins the engine socket to the current user's `/run/user/<uid>` directory, clears Docker environment overrides, checks that the engine reports rootless operation, and selects the `omarchy-once` namespace. It sets `ONCE_ROOTLESS=1`, disables ONCE's binary self-updater, and uses a private umask for backups. The package manager owns binary updates. The user service uses the same launcher implementation through its packaged absolute path.
+
+The patch defaults the proxy to loopback HTTP 8080, HTTPS 8443 and metrics 1318. It refuses to reuse a publicly bound or privileged-port proxy in rootless mode. ONCE-created application and proxy containers allow their non-root processes to bind port 80 within their private network namespaces. Host sysctls, low ports and rootful socket permissions remain unchanged. This is a local desktop integration, not an automatically exposed public hosting service.
+
+Podman's archive API differs from Docker's: backup paths are rooted at the selected volume directory, and restoring through `/` on an unstarted temporary container can write into its disposable filesystem instead of the volume. The patch normalizes engine archive paths into ONCE's `data/` format and restores directly into the mounted volume. It rejects malformed old archives instead of silently producing an empty restoration. It also waits for exec completion before interpreting exit status; a still-running exec with a provisional zero exit code is not success.
+
+The installer enables the user background service and the engine's startup service, and enables user lingering so they run after logout and at boot. This setup can require administrator authentication; no ONCE process or application uses a root system service. Existing legacy services and stores are never automatically adopted. A legacy ONCE package or an active or enabled legacy system service keeps the generic engine migration pending for explicit, verified backup/restore. The rootless `once` package alone does not block migration.
+
+Validation must cover real application content, credentials, stop/start, replacement, backup/restore, background tasks and reboot. A successful installer or an HTTP health response alone is insufficient. Full ISO coverage remains separate from the Lab branch deployment.

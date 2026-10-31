@@ -166,21 +166,20 @@ for binding in \
 done
 pass "dictation bindings require an installed selection without hardcoding backends"
 
-# Lazydocker is optional on new installs, while existing installs keep the hotkey.
+# The native engine shortcut is independent of a retained Lazydocker binary.
 lazydocker_bin="$tmpdir/lazydocker-bin"
 mkdir -p "$lazydocker_bin"
 touch "$lazydocker_bin/lazydocker"
 chmod +x "$lazydocker_bin/lazydocker"
 lazydocker_output=$(PATH="$lazydocker_bin:$PATH" run_application_bindings "$fresh_home")
-grep -Fqx $'SUPER + SHIFT + D\tDocker' <<<"$lazydocker_output" ||
-  fail "installed Lazydocker keeps its Docker shortcut"
-pass "installed Lazydocker keeps its Docker shortcut"
+grep -Fqx $'SUPER + SHIFT + D\tPodman TUI' <<<"$lazydocker_output" ||
+  fail "retained Lazydocker does not replace the native Podman shortcut"
+pass "retained Lazydocker does not replace the native Podman shortcut"
 
 missing_lazydocker_output=$(PATH="$missing_bin" run_application_bindings "$fresh_home")
-if grep -Fq $'SUPER + SHIFT + D\tDocker' <<<"$missing_lazydocker_output"; then
-  fail "missing Lazydocker skips its Docker shortcut"
-fi
-pass "missing Lazydocker skips its Docker shortcut"
+grep -Fqx $'SUPER + SHIFT + D\tPodman TUI' <<<"$missing_lazydocker_output" ||
+  fail "Podman shortcut is available without Lazydocker"
+pass "Podman shortcut is available without Lazydocker"
 
 # The original scratchpad stays separate from the Quake console.
 scratchpad_home="$tmpdir/scratchpad-home"

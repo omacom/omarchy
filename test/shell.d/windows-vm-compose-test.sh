@@ -7,6 +7,448 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # Bind mounts need CAP_SYS_ADMIN in a private mount namespace. Keep the
 # caller's uid so the non-root development path is exercised.
 if [[ ${OMARCHY_WINDOWS_TEST_NAMESPACE:-0} != 1 ]]; then
+  # Auth checks do not require bind mounts.
+  (
+    python3 - <<'PY'
+import os
+import pty
+import subprocess
+import tempfile
+from pathlib import Path
+
+script = r'''
+set -e
+set -- help
+source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+priv_target() { printf '/fixture/omarchy-windows-vm\n'; }
+sudo() { printf sudo >"$MODE_LOG"; printf exited; }
+pkexec() { printf pkexec >"$MODE_LOG"; printf exited; }
+migrate_legacy_compose() { :; }
+status_windows
+'''
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    (root / 'docker-compose.yml').touch()
+    log = root / 'mode'
+    env = dict(os.environ, OMARCHY_WINDOWS_DIR=str(root), MODE_LOG=str(log), HOME=str(root))
+    for name, terminal_input, terminal_error, expected in (
+            ('terminal status', True, True, 'sudo'),
+            ('redirected stdin', False, True, 'sudo'),
+            ('graphical caller', False, False, 'pkexec')):
+        master, slave = pty.openpty()
+        try:
+            result = subprocess.run(['/bin/bash', '-c', script], env=env,
+                                    stdin=slave if terminal_input else subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE,
+                                    stderr=slave if terminal_error else subprocess.PIPE,
+                                    text=True, timeout=10)
+            assert result.returncode == 0, (name, result.stdout, result.stderr)
+            assert log.read_text() == expected, (name, log.read_text(), expected)
+            assert 'Windows VM is stopped' in result.stdout
+        finally:
+            os.close(slave)
+            os.close(master)
+        print(f'ok - {name} uses {expected} while privileged status output is captured')
+PY
+  )
+
+  # Credentials checks do not require bind mounts.
+  (
+    python3 - <<'PY'
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+
+prefix = r'''
+set -euo pipefail
+set -- help
+source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+mkdir -p "$HOME/.config/windows" "$OMARCHY_WINDOWS_DIR"
+CREDENTIALS_FILE="$HOME/.config/windows/credentials"
+TEST_PUBLISH_PATH=$CREDENTIALS_FILE
+prepare_user_mount_sources() { :; }
+check_prerequisites() { :; }
+omarchy-pkg-add() { :; }
+available_storage_gb() { printf 128; }
+timedatectl() { printf UTC; }
+sleep() { :; }
+xdg-open() { :; }
+gum() {
+  case "$1" in
+    choose)
+      cat >/dev/null
+      if [[ $* == *RAM* ]]; then printf 4G; else printf 64G; fi
+      ;;
+    input)
+      if [[ $* == *CPU* ]]; then printf 2
+      elif [[ $* == *username* ]]; then printf testuser
+      else printf testpass
+      fi
+      ;;
+    style | confirm) : ;;
+    *) return 1 ;;
+  esac
+}
+write_compose() { printf 'compose\n' >>"$TEST_LOG"; }
+priv() { printf 'priv:%s\n' "$1" >>"$TEST_LOG"; }
+'''
+
+
+def run_case(name, body, status=0, setup=None):
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        home = root / 'home'
+        home.mkdir()
+        env = dict(os.environ, HOME=str(home), OMARCHY_WINDOWS_DIR=str(root / 'runtime'),
+                   TEST_ROOT=str(root), TEST_LOG=str(root / 'calls'))
+        if setup:
+            setup(root)
+        result = subprocess.run(['/bin/bash', '-c', prefix + body], env=env,
+                                capture_output=True, text=True, timeout=20)
+        assert result.returncode == status, (name, result.returncode, result.stdout, result.stderr)
+        print('ok - ' + name)
+        return result
+
+
+for fixture in ('dangling-parent', 'file-parent', 'directory-destination'):
+    body = r'''
+case "$FIXTURE" in
+  dangling-parent)
+    rmdir "$HOME/.config/windows"
+    ln -s "$TEST_ROOT/missing" "$HOME/.config/windows"
+    ;;
+  file-parent)
+    rmdir "$HOME/.config/windows"
+    touch "$HOME/.config/windows"
+    ;;
+  directory-destination) mkdir "$CREDENTIALS_FILE" ;;
+esac
+if (install_windows); then exit 9; fi
+[[ ! -e $TEST_LOG ]]
+'''.replace('$FIXTURE', fixture)
+    run_case('install rejects ' + fixture + ' before privileged configuration', body)
+
+run_case('failed Compose staging preserves existing credentials and removes private candidates', r'''
+write_credentials previous oldpass
+before=$(sha256sum "$CREDENTIALS_FILE")
+write_compose() {
+  [[ $(read_credential PASSWORD) == oldpass ]] || exit 9
+  candidates=("$HOME/.config/windows"/.credentials-install.*)
+  [[ ${#candidates[@]} == 1 && -f ${candidates[0]} ]] || exit 9
+  [[ $(stat -c '%a' "${candidates[0]}") == 600 ]] || exit 9
+  printf 'compose\n' >>"$TEST_LOG"
+  return 7
+}
+if (install_windows); then exit 9; fi
+[[ $(sha256sum "$CREDENTIALS_FILE") == "$before" ]]
+[[ $(<"$TEST_LOG") == compose ]]
+[[ -z $(find "$HOME/.config/windows" -name '.credentials*' -print) ]]
+''')
+
+run_case('publication failure preserves prior credentials, cleans staging and never starts VM', r'''
+write_credentials previous oldpass
+before=$(sha256sum "$CREDENTIALS_FILE")
+mv() {
+  if [[ ${!#} == "$TEST_PUBLISH_PATH" ]]; then return 1; fi
+  command mv "$@"
+}
+if (install_windows); then exit 9; fi
+[[ $(sha256sum "$CREDENTIALS_FILE") == "$before" ]]
+[[ $(<"$TEST_LOG") == compose ]]
+[[ -z $(find "$HOME/.config/windows" -name '.credentials*' -print) ]]
+''')
+
+run_case('install publishes staged credentials before starting VM', r'''
+priv() {
+  [[ $1 == up && $(read_credential PASSWORD) == testpass ]] || exit 9
+  printf 'priv:up\n' >>"$TEST_LOG"
+}
+install_windows
+[[ $(<"$TEST_LOG") == $'compose\npriv:up' ]]
+[[ $(stat -c '%a' "$CREDENTIALS_FILE") == 600 ]]
+[[ -z $(find "$HOME/.config/windows" -name '.credentials*' -print) ]]
+''')
+
+run_case('linked config removal deletes actual credentials and preserves unrelated target files', r'''
+mv "$HOME/.config/windows" "$TEST_ROOT/config-target"
+ln -s "$TEST_ROOT/config-target" "$HOME/.config/windows"
+chmod 0755 "$TEST_ROOT/config-target"
+write_credentials linked secret
+[[ $(stat -c '%a' "$TEST_ROOT/config-target") == 700 ]]
+touch "$TEST_ROOT/config-target/keep"
+# These private candidates model SIGKILL/power-loss leftovers with no EXIT trap.
+for candidate in .credentials-install.ABC123 .credentials.XYZ123; do
+  printf 'interrupted private credentials\n' >"$TEST_ROOT/config-target/$candidate"
+  chmod 0600 "$TEST_ROOT/config-target/$candidate"
+done
+# Cleanup must unlink a planted candidate symlink without following its target.
+printf 'external data\n' >"$TEST_ROOT/candidate-victim"
+ln -s "$TEST_ROOT/candidate-victim" "$TEST_ROOT/config-target/.credentials.LINK12"
+migrate_legacy_compose() { return 1; }
+remove_windows
+[[ -z $(find "$TEST_ROOT/config-target" -name '.credentials*' -print) ]]
+[[ $(<"$TEST_ROOT/candidate-victim") == 'external data' ]]
+[[ ! -e $TEST_ROOT/config-target/credentials && -f $TEST_ROOT/config-target/keep ]]
+[[ ! -L $HOME/.config/windows && ! -e $HOME/.config/windows ]]
+''')
+
+run_case('credential deletion failure retains the config link and reports removal failure', r'''
+mv "$HOME/.config/windows" "$TEST_ROOT/config-target"
+ln -s "$TEST_ROOT/config-target" "$HOME/.config/windows"
+write_credentials linked secret
+migrate_legacy_compose() { return 1; }
+rm() {
+  if [[ " $* " == *" $CREDENTIALS_FILE "* ]]; then return 1; fi
+  command rm "$@"
+}
+if (remove_windows); then exit 9; fi
+[[ -L $HOME/.config/windows && -f $TEST_ROOT/config-target/credentials ]]
+''')
+
+run_case('real and dangling legacy Compose symlinks remain untouched without migration', r'''
+printf 'legacy plaintext\n' >"$TEST_ROOT/legacy-target"
+for target in "$TEST_ROOT/legacy-target" "$TEST_ROOT/missing-target"; do
+  ln -s "$target" "$LEGACY_COMPOSE_FILE"
+  if migrate_legacy_compose; then exit 9; fi
+  [[ -L $LEGACY_COMPOSE_FILE && ! -e $TEST_LOG ]]
+  [[ $(<"$TEST_ROOT/legacy-target") == 'legacy plaintext' ]]
+  rm "$LEGACY_COMPOSE_FILE"
+done
+''')
+PY
+  )
+
+  # Handover checks do not require bind mounts.
+  (
+    python3 - <<'PY'
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+
+with tempfile.TemporaryDirectory() as directory:
+    fixture = Path(directory)
+    startup = fixture / 'startup.sh'
+    startup.write_text('''
+pacman() {
+  printf 'query\\n' >>"$QUERY_LOG"
+  if [[ $1 == -Qq && ${2:-} == docker ]]; then
+    case "$PROVIDER" in
+      absent|broken) return 1 ;;
+      *) printf '%s\\n' "$PROVIDER" ;;
+    esac
+  else
+    [[ $PROVIDER != broken ]]
+  fi
+}
+gum() { printf 'prompt\\n' >>"$ACTION_LOG"; return 0; }
+podman() { printf 'engine\\n' >>"$ACTION_LOG"; return 1; }
+podman-compose() { printf 'engine\\n' >>"$ACTION_LOG"; return 0; }
+sudo() { printf 'elevation\\n' >>"$ACTION_LOG"; return 1; }
+pkexec() { printf 'elevation\\n' >>"$ACTION_LOG"; return 1; }
+''')
+    action_log = fixture / 'actions'
+    query_log = fixture / 'queries'
+    home = fixture / 'home'
+    disk = home / '.windows/disk.img'
+    env = dict(os.environ, BASH_ENV=str(startup), HOME=str(home),
+               OMARCHY_WINDOWS_DIR=str(fixture / 'runtime'),
+               ACTION_LOG=str(action_log), QUERY_LOG=str(query_log))
+
+    def invoke(provider, action):
+        action_log.unlink(missing_ok=True)
+        query_log.unlink(missing_ok=True)
+        disk.parent.mkdir(parents=True, exist_ok=True)
+        disk.write_text('retained Docker disk')
+        return subprocess.run(['/bin/bash', os.environ['ROOT'] + '/bin/omarchy-windows-vm', action],
+                              env=dict(env, PROVIDER=provider), capture_output=True, text=True, timeout=10)
+
+    # Removal without a compose file still reaches user-side disk cleanup.
+    # Run this first so the old implementation fails without any engine call.
+    for provider in ('docker', 'docker-git', 'broken'):
+        for action in ('remove', 'install', 'launch', 'start', 'stop', 'down', 'status', '__priv'):
+            result = invoke(provider, action)
+            assert result.returncode != 0, (provider, action, result.stdout, result.stderr)
+            assert disk.read_text() == 'retained Docker disk', (provider, action)
+            assert not action_log.exists(), (provider, action, action_log.read_text())
+            assert ('migration is pending' if provider != 'broken' else 'Cannot verify') in result.stderr
+        print(f'ok - {provider} blocks every Windows action before prompts, elevation, engines or disk cleanup')
+
+    for provider in ('podman-docker', 'absent'):
+        result = invoke(provider, 'status')
+        assert result.returncode == 1 and 'Windows VM not configured' in result.stdout, (provider, result.stdout, result.stderr)
+        assert disk.exists()
+        result = invoke(provider, 'remove')
+        assert result.returncode == 0, (provider, result.stdout, result.stderr)
+        assert not disk.exists(), provider
+        assert action_log.read_text() == 'prompt\n'
+        print(f'ok - {provider} allows ordinary status and confirmed user-side cleanup')
+
+    result = invoke('broken', 'help')
+    assert result.returncode == 0 and 'Usage:' in result.stdout
+    assert not query_log.exists() and not action_log.exists() and disk.exists()
+    print('ok - help remains available without querying the engine package')
+PY
+  )
+
+  # Local engine checks do not require bind mounts.
+  (
+    set -- help
+    source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+    export PATH="$ROOT/bin:$PATH"
+
+    # An empty remote engine must never authorize removal of an active local disk.
+    # Stub all mount/destructive operations; no real engine or filesystem changes.
+    export CONTAINER_HOST=unix:///tmp/omarchy-test-remote.sock
+    USERS_DIR=/fixture/users
+    CALLER_UID=1000
+    CALLER_DATA_ROOT="$USERS_DIR/$CALLER_UID"
+    EXPECTED_STORAGE="$USERS_DIR/$CALLER_UID/storage"
+    EXPECTED_SHARED="$USERS_DIR/$CALLER_UID/shared"
+    assert_mounts_safe() { :; }
+    mount_layer_count() { echo 1; }
+    mount_descendant_count() { echo 0; }
+    mounts_ready() { :; }
+    removal_trees_disjoint() { :; }
+    deleted=0
+    find() { [[ $* != *-delete* ]] || deleted=1; }
+    umount() { :; }
+    rm() { :; }
+    rmdir() { :; }
+    podman-compose() {
+      [[ $1 == --podman-path="$ROOT/bin/omarchy-podman-local" ]] || fail "Windows Compose can use a remote engine"
+      # Simulate an apparently successful down that left the local container.
+      return 0
+    }
+    podman() {
+      if [[ $1 == --remote=false ]]; then
+        shift
+        # Local container is still present; removal must refuse to delete its disk.
+        [[ $1 != inspect ]] || return 0
+      else
+        # The unrelated remote is healthy but has no matching Windows container.
+        [[ $1 != inspect ]] || return 1
+      fi
+      return 0
+    }
+
+    __priv_remove 2>/dev/null && fail "empty remote state authorized local Windows disk removal"
+    (( deleted == 0 )) || fail "local Windows disk was deleted while its container remained"
+    pass "Windows Compose and removal inspect the local engine despite a remote endpoint"
+
+    # Use the real Compose frontend so this catches global options incorrectly
+    # inserted after a Podman subcommand. Only the engine executable is a fixture.
+    python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+
+provider = shutil.which('podman-compose')
+if provider is None:
+    print('ok - podman-compose unavailable; skipping real frontend argument ordering')
+else:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        engine = root / 'podman'
+        engine.write_text('''#!/usr/bin/python3
+import json, os, sys
+with open(os.environ['ENGINE_LOG'], 'a') as log:
+    log.write(json.dumps(sys.argv[1:]) + '\\n')
+if sys.argv[1] != '--remote=false':
+    sys.exit('global local-engine option must precede the subcommand')
+if sys.argv[2] == '--version':
+    print('podman version 6.1.1')
+elif sys.argv[2] == 'ps':
+    print('[]')
+else:
+    sys.exit('unexpected engine action')
+''')
+        engine.chmod(0o755)
+        compose = root / 'compose.yml'
+        compose.write_text('services:\n  windows:\n    image: docker.io/library/alpine:latest\n')
+        log = root / 'engine.jsonl'
+        env = dict(os.environ, HOME=str(root), ENGINE_LOG=str(log), COMPOSE_FIXTURE=str(compose),
+                   PATH=f"{root}:{os.environ['ROOT']}/bin:{os.environ['PATH']}",
+                   CONTAINER_HOST='unix:///nonexistent/remote.sock', CONTAINER_CONNECTION='unavailable')
+        result = subprocess.run(['/bin/bash', '-c', '''
+set -- help
+source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+COMPOSE_FILE=$COMPOSE_FIXTURE
+dc ps
+'''], env=env, capture_output=True, text=True, timeout=20)
+        assert result.returncode == 0, (result.stdout, result.stderr)
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        assert any(call[1] == 'ps' for call in calls), calls
+        assert all(call[0] == '--remote=false' for call in calls), calls
+        print('ok - real Compose frontend places the local-engine option before every subcommand')
+PY
+  )
+
+  # Readiness checks do not require bind mounts.
+  (
+    set -- help
+    source "$ROOT/bin/omarchy-windows-vm" >/dev/null
+
+    assert_mounts_safe() { :; }
+    dc() { fail "running container should not be recreated"; }
+    sleep() { :; }
+
+    state=running
+    rdp_checks=0
+    podman() {
+      [[ $1 == --remote=false ]] || fail "Windows readiness must inspect the local engine"
+      shift
+      case "$1:$2" in
+        inspect:*Status*) printf '%s\n' "$state" ;;
+        inspect:*StartedAt*)
+          [[ $2 == *'json .State.StartedAt'* ]] || fail "Podman timestamp must be encoded as JSON"
+          echo '"2026-09-09T12:00:00Z"' ;;
+        logs:--since) echo 'Windows started successfully' ;;
+        *) fail "unexpected Podman command: $*" ;;
+      esac
+    }
+    nc() {
+      [[ $* == '-z -w 1 127.0.0.1 3389' ]] || fail "readiness must probe the local RDP listener"
+      ((++rdp_checks >= 3))
+    }
+    __priv_up_wait || fail "ready Windows VM failed to launch"
+    ((rdp_checks == 3)) || fail "QEMU startup log was mistaken for Windows readiness"
+    pass "launch waits for RDP after QEMU announces startup"
+
+    state=exited
+    dc() { :; }
+    __priv_up_wait 2>/dev/null && fail "an exited installer was reported ready"
+    pass "launch reports a stopped installer without waiting for the full deadline"
+
+    state=running
+    nc() { return 1; }
+    __priv_up_wait 2>/dev/null && fail "launch succeeded without RDP"
+    pass "unavailable RDP reaches a bounded failure"
+
+    fixture=$(mktemp -d)
+    trap 'rm -rf "$fixture"' EXIT
+    COMPOSE_FILE="$fixture/missing-compose"
+    CREDENTIALS_FILE="$fixture/config/credentials"
+    migrate_legacy_compose() { :; }
+    priv() { fail "missing credentials must not start the VM"; }
+    launch_windows "" >"$fixture/output" 2>&1 && fail "missing credentials used a guessed Windows login"
+    grep -q 'credentials are missing' "$fixture/output" || fail "missing credentials did not explain recovery"
+    for username in omarchy docker custom_user; do
+      write_credentials "$username" 'p=a$$w"x'
+      load_rdp_credentials || fail "saved credentials were rejected"
+      [[ $WIN_USER == "$username" && $WIN_PASS == 'p=a$$w"x' ]] || fail "saved Windows account changed"
+    done
+    rm "$CREDENTIALS_FILE"
+    printf 'USERNAME: "legacy"\nPASSWORD: "from compose"\n' >"$COMPOSE_FILE"
+    load_rdp_credentials || fail "readable legacy compose fallback was rejected"
+    [[ $WIN_USER == "legacy" && $WIN_PASS == "from compose" ]] || fail "legacy Windows account changed"
+    pass "missing credentials stop before VM launch; saved new, legacy and custom accounts are preserved"
+  )
+
   if unshare --user --map-current-user --keep-caps --mount true 2>/dev/null; then
     exec env OMARCHY_WINDOWS_TEST_NAMESPACE=1 \
       unshare --user --map-current-user --keep-caps --mount --propagation private bash "$0"
@@ -72,7 +514,7 @@ prepare_user_mount_sources
 write 4G 2 64G alice s3cret Europe/Copenhagen
 resolve_caller
 [[ -f $COMPOSE ]] || fail "writer produced a compose file"
-grep -q 'image: dockurr/windows' "$COMPOSE" || fail "image is pinned"
+grep -q 'image: docker.io/dockurr/windows' "$COMPOSE" || fail "image is pinned"
 grep -q -- '- NET_ADMIN' "$COMPOSE" || fail "cap_add is pinned"
 grep -q -- "- $EXPECTED_STORAGE:/storage" "$COMPOSE" || fail "storage uses the protected anchor"
 grep -q -- "- $EXPECTED_SHARED:/shared" "$COMPOSE" || fail "shared uses the protected anchor"
@@ -83,6 +525,14 @@ grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected
 [[ $(stat -Lc '%a' "$EXPECTED_STORAGE") == 700 && $(stat -Lc '%a' "$EXPECTED_SHARED") == 700 ]] || fail "mount leaves are not private"
 grep -q -- '- /:/' "$COMPOSE" && fail "compose contains host-root bind"
 pass "writer emits fixed anchors bound to exact private source inodes"
+
+# Dockur's Samba initialization sets setgid on the shared directory. A later
+# launch must normalize the already-mounted inode without rejecting the VM.
+chmod g+s "$HOME/Windows"
+prepare_caller_mounts || fail "Samba setgid prevented relaunch"
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "shared directory special bits survived normalization"
+mounts_ready || fail "normalized shared mount is not ready"
+pass "relaunch clears Samba's setgid bit on the pinned shared inode"
 
 # Input cannot widen a mount or compose field.
 rm -f "$COMPOSE"
@@ -355,7 +805,7 @@ write 4G 2 64G alias pw UTC
 resolve_caller
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 dc() { :; }
-docker() { [[ $1 == inspect ]] && return 1; :; }
+podman() { [[ $1 == --remote=false ]] || fail "Windows must use local Podman"; shift; [[ $1 == inspect ]] && return 1; :; }
 __priv_remove 2>/dev/null && fail "removal accepted a shared bind alias into storage"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "bind-alias removal refusal changed state"
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 1 && $(mount_layer_count "$EXPECTED_SHARED") == 1 ]] || fail "bind-alias removal refusal changed mounts"
@@ -384,7 +834,7 @@ touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mv "$HOME/Windows" "$HOME/.windows/moved-shared"
 ln -s "$HOME/.windows/moved-shared" "$HOME/Windows"
 dc() { :; }
-docker() { [[ $1 == inspect ]] && return 1; :; }
+podman() { [[ $1 == --remote=false ]] || fail "Windows must use local Podman"; shift; [[ $1 == inspect ]] && return 1; :; }
 __priv_remove 2>/dev/null && fail "removal accepted a shared inode moved below storage"
 [[ -f $HOME/.windows/disk.img && -f $HOME/.windows/moved-shared/keep.txt && -f $COMPOSE ]] || fail "overlap rejection changed disk, shared data, or compose"
 pass "removal revalidates pinned ancestry and leaves moved shared data untouched"
@@ -457,12 +907,12 @@ resolve_caller
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mount --no-canonicalize --bind "$HOME/.windows" "$EXPECTED_STORAGE"
 dc() { :; }
-docker() { [[ $1 == inspect ]] && return 1; :; }
+podman() { [[ $1 == --remote=false ]] || fail "Windows must use local Podman"; shift; [[ $1 == inspect ]] && return 1; :; }
 __priv_remove 2>/dev/null && fail "removal accepted stacked storage mount"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "rejected removal changed state"
 umount -- "$EXPECTED_STORAGE"
 dc() { return 1; }
-__priv_remove 2>/dev/null && fail "removal deleted data after docker-compose down failed"
+__priv_remove 2>/dev/null && fail "removal deleted data after podman-compose down failed"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "failed down changed data or compose"
 dc() { :; }
 __priv_remove
