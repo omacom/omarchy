@@ -216,6 +216,12 @@ local function identities_of(monitors)
   return identities
 end
 
+-- Each connected monitor's identity, keyed by connector, for settings that
+-- belong to the physical monitor rather than the port (see monitor-settings).
+function M.identities()
+  return identities_of(connected())
+end
+
 local function free_block()
   local taken = {}
   for _, block in pairs(blocks) do

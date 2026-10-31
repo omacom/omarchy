@@ -7,7 +7,7 @@
 
 # Positions are in Hyprland's layout space: logical pixels, after each
 # monitor's scale. Every position is applied in one eval, so the monitors never
-# pass through a half-moved arrangement, and then saved to each one's rule.
+# pass through a half-moved arrangement, and then saved for each monitor.
 
 usage() {
   echo "Usage: omarchy-hyprland-monitor-layout NAME=XxY [NAME=XxY...]"
@@ -107,5 +107,5 @@ for i in "${!names[@]}"; do
   else
     scale=$(jq -r --arg name "${names[i]}" '.[] | select(.name == $name) | .scale' <<<"$monitors_json")
   fi
-  omarchy-hyprland-monitor-persist --keep-gdk "${names[i]}" "$scale" "" "${positions[i]}"
+  omarchy-hyprland-monitor-persist "${names[i]}" "$scale" "" "${positions[i]}"
 done
