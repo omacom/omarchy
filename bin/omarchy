@@ -8,8 +8,8 @@ OMARCHY_BIN_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # package) install their own omarchy-* binaries into /usr/bin without also
 # symlinking them into /usr/share/omarchy/bin, so their routes are invisible
 # to a dispatcher that only scans its own directory. Fall back to /usr/bin on
-# a production install so those routes still resolve. Dev-link and test
-# invocations set OMARCHY_SECONDARY_BIN_DIR themselves (empty disables it).
+# a production install so those routes still resolve. Anywhere else, such as a
+# dev-linked checkout or a test, it is off unless OMARCHY_SECONDARY_BIN_DIR is set.
 if [[ -z ${OMARCHY_SECONDARY_BIN_DIR+set} ]]; then
   if [[ $OMARCHY_BIN_DIR == "/usr/share/omarchy/bin" ]]; then
     OMARCHY_SECONDARY_BIN_DIR="/usr/bin"
