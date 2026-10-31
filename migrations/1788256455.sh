@@ -54,7 +54,7 @@ if [[ -f $polkit ]] && is_omarchy_vulnerable_stack "$polkit"; then
   echo "Rewriting $polkit to defer to system-auth (restores pam_faillock lockout)..."
 
   backup="$polkit.omarchy-bak.$(date +%s)"
-  if ! sudo cp -a "$polkit" "$backup"; then
+  if ! sudo cp -aL "$polkit" "$backup"; then
     echo "Could not back up $polkit; leaving it unchanged so the migration retries." >&2
     exit 1
   fi
