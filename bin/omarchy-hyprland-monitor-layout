@@ -22,9 +22,11 @@ resized_scale=""
 # its right or below it shifts by however much it grew or shrank, so the
 # monitors that touched it still do. Otherwise a smaller monitor leaves a gap
 # beside it, and a larger one overlaps its neighbour. Shifting sideways and
-# down at once can push two neighbours onto each other, so a shifted monitor
-# that overlaps another goes back where it was whenever that spot is free; a
-# gap is better than a pile-up.
+# down at once can push two neighbours onto each other, so while any overlap
+# remains, a shifted monitor goes back where it was whenever that spot is free,
+# the overlapping ones first and then any whose return frees the way for them;
+# a gap is better than a pile-up. If overlaps still remain, the monitors keep
+# their old places when those are clear.
 if [[ ${1:-} == "--resized" ]]; then
   if (( $# != 6 )) || [[ ! $3 =~ ^[0-9]+x[0-9]+$ || ! $5 =~ ^[0-9]+x[0-9]+$ ]]; then
     usage >&2
@@ -35,15 +37,18 @@ if [[ ${1:-} == "--resized" ]]; then
     --argjson nw "${5%x*}" --argjson nh "${5#*x}" --argjson ns "$6" '
     def logical($w; $h; $s; $t): [($w / $s | round), ($h / $s | round)] | if ($t % 2) == 1 then reverse else . end;
     def overlaps($a; $b): $a.x < $b.x + $b.w and $b.x < $a.x + $a.w and $a.y < $b.y + $b.h and $b.y < $a.y + $a.h;
+    def piled: . as $r | any(range(0; length) as $i | range($i + 1; $r | length) as $j | overlaps($r[$i]; $r[$j]));
     def unpile:
       . as $r
-      | [range(0; $r | length) as $i | $r[$i] as $a
+      | if ($r | piled | not) then $r else
+        [range(0; $r | length) as $i | $r[$i] as $a
          | select($a.x != $a.ox or $a.y != $a.oy)
-         | select(any($r[]; .name != $a.name and overlaps($a; .)))
          | ($a | .x = .ox | .y = .oy) as $back
          | select(all($r[]; .name == $a.name or (overlaps($back; .) | not)))
-         | $i] as $movable
-      | if ($movable | length) == 0 then $r else ($r | .[$movable[0]] |= (.x = .ox | .y = .oy) | unpile) end;
+         | {i: $i, overlapping: any($r[]; .name != $a.name and overlaps($a; .))}]
+        | (map(select(.overlapping)) + map(select(.overlapping | not))) as $movable
+        | if ($movable | length) == 0 then $r else ($r | .[$movable[0].i] |= (.x = .ox | .y = .oy) | unpile) end
+      end;
     (map(select(.name == $name))[0]) as $m
     | if $m == null then empty else
       logical($ow; $oh; $os; $m.transform // 0) as $old
@@ -54,6 +59,8 @@ if [[ ${1:-} == "--resized" ]]; then
            x: (if .name != $name and .x >= $m.x + $old[0] then .x + $new[0] - $old[0] else .x end),
            y: (if .name != $name and .y >= $m.y + $old[1] then .y + $new[1] - $old[1] else .y end)}]
       | unpile
+      | (map(.x = .ox | .y = .oy)) as $old
+      | if piled and ($old | piled | not) then $old else . end
       | .[] | "\(.name)=\(.x)x\(.y)"
     end' <<<"$monitors_json")
   resized_name="$2"

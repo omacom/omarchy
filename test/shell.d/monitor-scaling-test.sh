@@ -302,6 +302,15 @@ grep -F 'hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output
   fail "monitor layout keeps neighbours from piling onto each other" "actual: $(<"$eval_out")"
 pass "monitor layout keeps neighbours from piling onto each other"
 
+# With a fourth screen beyond the tall one, neither overlapping screen can go
+# back until the far one, which overlaps nothing, frees the tall one's spot.
+write_monitor_config
+OMARCHY_TEST_MONITORS_JSON='[{"name":"DP-1","x":0,"y":0,"width":1000,"height":1000,"scale":1},{"name":"DP-2","x":1000,"y":0,"width":1000,"height":2000,"scale":1},{"name":"DP-3","x":0,"y":1000,"width":1000,"height":1000,"scale":1},{"name":"DP-4","x":2000,"y":0,"width":1000,"height":2000,"scale":1}]' \
+  run_layout --resized DP-1 1000x1000 1 1000x1000 2
+grep -F 'hl.monitor({ output = "DP-2", position = "1000x0" }) hl.monitor({ output = "DP-3", position = "0x500" }) hl.monitor({ output = "DP-4", position = "2000x0" })' "$eval_out" >/dev/null ||
+  fail "monitor layout untangles a pile-up a third screen blocks" "actual: $(<"$eval_out")"
+pass "monitor layout untangles a pile-up a third screen blocks"
+
 # A rule is Lua Hyprland loads on every change, so a value out of place (here a
 # flag it doesn't know, shifting a connector into the scale) writes nothing.
 write_monitor_config
