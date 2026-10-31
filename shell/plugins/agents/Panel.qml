@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -532,11 +533,71 @@ Panel {
   function limitWindow(label, percent, resetAt, title) {
     var reset = new Date(String(resetAt || "")).getTime()
     var expired = isFinite(reset) && reset <= root.nowMs
+    var resolved = String(title || "") !== "" ? String(title) : windowTitle(label)
     return {
-      title: String(title || "") !== "" ? String(title) : windowTitle(label),
+      title: resolved,
       percent: expired ? 0 : Number(percent),
-      resetAt: expired ? "" : String(resetAt || "")
+      resetAt: expired ? "" : String(resetAt || ""),
+      spanMs: windowSpanFor(resolved, label, expired ? "" : resetAt)
     }
+  }
+
+  // How long a window runs, from its settled title rather than the raw label
+  // for the same reason the title wins above; a model-scoped one ("Fable
+  // Weekly") runs as long as the window it's named for. Only a session reads
+  // its length from the label ("Session (5-hour)", "5h window"); anything
+  // else, such as a spend limit, has no clock to pace against.
+  function windowSpanFor(title, label, resetAt) {
+    var part = scopedPart(title)
+    var base = part ? part.window : title
+    if (base === "Weekly") return 7 * 24 * 3600 * 1000
+    if (base === "Monthly") return monthSpanBefore(resetAt)
+    if (base === "Session") return windowSpanMs(label)
+    return 0
+  }
+
+  // Every monthly allowance is a billing period that ends at its reset, so it
+  // began the same day a calendar month earlier: 28 days before a 1 March
+  // reset, 31 before a 1 August one. A day the shorter month lacks (31 March
+  // back to February) lands on that month's last day.
+  function monthSpanBefore(resetAt) {
+    var reset = new Date(String(resetAt || ""))
+    if (isNaN(reset.getTime())) return 30 * 24 * 3600 * 1000
+    var start = new Date(reset.getTime())
+    start.setUTCDate(1)
+    start.setUTCMonth(start.getUTCMonth() - 1)
+    var lastDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate()
+    start.setUTCDate(Math.min(reset.getUTCDate(), lastDay))
+    return reset.getTime() - start.getTime()
+  }
+
+  // Where an even burn would have the meter right now: the share of the
+  // window already behind us. Usage at or under it lasts until the reset.
+  function paceFor(w) {
+    if (!w || !(w.spanMs > 0) || w.resetAt === "") return -1
+    var reset = new Date(w.resetAt).getTime()
+    if (!isFinite(reset)) return -1
+    return clamp(1 - (reset - root.nowMs) / w.spanMs, 0, 1)
+  }
+
+  // The window's average burn so far, carried forward to 100%. Being over
+  // pace and running out before the reset are the same condition, so only
+  // that side names a time. Too early in the window the average is noise.
+  function paceText(w) {
+    var pace = paceFor(w)
+    if (pace < 0 || !(w.percent >= 0) || w.percent >= 1) return ""
+    var diff = Math.round((w.percent - pace) * 100)
+    if (Math.abs(diff) <= 2) return Commons.I18n.t("agents.paceOn")
+    var points = Commons.I18n.formatNumber(Math.abs(diff))
+    if (diff < 0) return Commons.I18n.t("agents.paceUnder").arg(points)
+    var elapsed = pace * w.spanMs
+    if (elapsed < w.spanMs * 0.02) return Commons.I18n.t("agents.paceOver").arg(points)
+    var reset = new Date(w.resetAt).getTime()
+    var outMs = root.nowMs + (1 - w.percent) * elapsed / w.percent
+    var out = new Date(outMs)
+    var sameDay = out.toDateString() === new Date(root.nowMs).toDateString()
+    var when = Qt.locale(Commons.I18n.formatLocale).toString(out, sameDay ? "HH:mm" : "ddd HH:mm")
+    return Commons.I18n.t("agents.paceOverRunsOut").arg(points).arg(when).arg(formatDuration(reset - outMs))
   }
 
   function limitWindows(p) {
@@ -2004,6 +2065,8 @@ Panel {
           lines.push(compact.resetMs > 0
             ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
+          var pace = root.paceText(compact.window)
+          if (pace !== "") lines.push(pace)
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
@@ -2035,6 +2098,7 @@ Panel {
       value: compact.window ? compact.window.percent : -1
       alarming: compact.alarming
       markers: compact.scoped
+      pace: root.paceFor(compact.window)
     }
 
     // Sized to the widest time left ("19h 40m"), so every meter ends in the
@@ -2071,6 +2135,10 @@ Panel {
 
     // Other allowances on the same clock, drawn as ticks across the track.
     property var markers: []
+    // Where even use would be by now, as a notch under the track. Ticks
+    // already mean other allowances, so pace gets its own shape. Fill past it
+    // is the stretch that runs the window out early, and shows urgent.
+    property real pace: -1
 
     implicitHeight: thickness
 
@@ -2082,15 +2150,61 @@ Panel {
     }
 
     Rectangle {
+      visible: meter.pace >= 0 && meter.value > meter.pace
       anchors.left: meterTrack.left
       anchors.verticalCenter: meterTrack.verticalCenter
       height: meterTrack.height
       radius: meterTrack.radius
       width: meterTrack.width * root.clamp(meter.value, 0, 1)
+      color: root.urgent
+
+      Behavior on width {
+        NumberAnimation {
+          duration: Style.duration(160)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
+        }
+      }
+    }
+
+    Rectangle {
+      anchors.left: meterTrack.left
+      anchors.verticalCenter: meterTrack.verticalCenter
+      height: meterTrack.height
+      radius: meterTrack.radius
+      width: meterTrack.width * root.clamp(meter.pace >= 0 ? Math.min(meter.value, meter.pace) : meter.value, 0, 1)
       color: meter.alarming ? root.urgent : root.foreground
 
       Behavior on width {
-        NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
+        NumberAnimation {
+          duration: Style.duration(160)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
+        }
+      }
+    }
+
+    Shape {
+      id: paceNotch
+      visible: meter.pace >= 0
+      width: Math.round(meter.thickness * 1.6)
+      height: Math.round(meter.thickness * 1.1)
+      anchors.top: meterTrack.bottom
+      anchors.topMargin: Math.max(1, Math.round(meter.thickness * 0.3))
+      // Explicit x doesn't mirror, so the notch measures from the end the
+      // fill grows from.
+      readonly property real along: root.clamp(meterTrack.width * meter.pace - width / 2, 0, meterTrack.width - width)
+      x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
+      preferredRendererType: Shape.CurveRenderer
+
+      ShapePath {
+        strokeWidth: -1
+        fillColor: root.dim
+        startX: 0
+        startY: paceNotch.height
+        PathLine { x: paceNotch.width / 2; y: 0 }
+        PathLine { x: paceNotch.width; y: paceNotch.height }
+        PathLine { x: 0; y: paceNotch.height }
       }
     }
 
