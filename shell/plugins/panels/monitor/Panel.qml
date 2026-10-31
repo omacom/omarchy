@@ -342,9 +342,44 @@ Panel {
     return textSizePreviewIndex >= 0 ? textSizeStops[textSizePreviewIndex] : Style.font.baseSize
   }
 
+  // A change made while the command is still running is queued (last one wins)
+  // and started when it exits; changing command mid-run would not start it.
+  property int queuedTextSize: 0
+
   function setTextSize(px) {
+    if (textScaleProc.running) {
+      queuedTextSize = px
+      return
+    }
     textScaleProc.command = ["omarchy-display-text-size", String(px)]
-    if (!textScaleProc.running) textScaleProc.running = true
+    textScaleProc.running = true
+  }
+
+  // A failed command changes nothing, so no base-size change will clear the
+  // pending stop: drop it so the knob shows the real size and a retry runs.
+  // (A successful exit leaves it for the base-size handler, which lands later.)
+  function textSizeCommandExited(exitCode) {
+    if (exitCode !== 0 && queuedTextSize <= 0) textSizePreviewIndex = -1
+  }
+
+  function runQueuedTextSize() {
+    if (queuedTextSize <= 0) {
+      // Last command done: if the live size already matches the pending stop,
+      // no base-size change will come to clear it.
+      if (textSizePreviewIndex >= 0 && nearestTextStop(Style.font.baseSize) === textSizePreviewIndex)
+        textSizePreviewIndex = -1
+      return
+    }
+    var px = queuedTextSize
+    queuedTextSize = 0
+    setTextSize(px)
+  }
+
+  // Slider release: hold the chosen stop as pending (like the keyboard) so the
+  // knob doesn't snap back. Skip only when that size is already in effect.
+  function selectTextSize(idx) {
+    if (textSizeStops[idx] === displayedTextPx()) return
+    adjustTextSize(idx - currentTextIndex())
   }
 
   function adjustTextSize(deltaSteps) {
@@ -450,6 +485,8 @@ Panel {
   // nothing to refresh here.
   Process {
     id: textScaleProc
+    onRunningChanged: if (!running) root.runQueuedTextSize()
+    onExited: function(exitCode) { root.textSizeCommandExited(exitCode) }
     stdout: StdioCollector { waitForEnd: true }
   }
 
@@ -725,7 +762,7 @@ Panel {
                 integer: true
                 tickCount: root.textSizeStops.length
                 value: root.currentTextIndex()
-                onReleased: function(v) { root.setTextSize(root.textSizeStops[Math.round(v)]) }
+                onReleased: function(v) { root.selectTextSize(Math.round(v)) }
               }
 
               HoverHandler {
