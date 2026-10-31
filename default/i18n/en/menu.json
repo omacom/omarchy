@@ -704,6 +704,9 @@
   "setup.direct-boot": {
     "label": "Direct Boot"
   },
+  "setup.virt-manager": {
+    "label": "Configure Virtual Machine Manager"
+  },
   "setup.reset": {
     "label": "Reset Computer"
   },
@@ -923,6 +926,9 @@
   "install.development.docker-dbs": {
     "label": "Docker DB"
   },
+  "install.development.virt-manager": {
+    "label": "Virtual Machine Manager"
+  },
   "install.development.javascript": {
     "label": "JavaScript"
   },
@@ -1135,6 +1141,9 @@
   },
   "remove.development.rails": {
     "label": "Ruby on Rails"
+  },
+  "remove.development.virt-manager": {
+    "label": "Virtual Machine Manager"
   },
   "remove.development.javascript": {
     "label": "JavaScript",
