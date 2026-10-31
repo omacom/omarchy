@@ -35,10 +35,6 @@ printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
 '
 
 write_stub sudo '#!/bin/bash
-case "${1:-}" in
-  -h) echo "usage: sudo [-ABbEHkNnPS] command"; exit 0 ;;
-  -k|-K) exit 0 ;;
-esac
 printf "sudo" >>"$OMARCHY_CHANNEL_TEST_LOG"
 for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
@@ -64,7 +60,9 @@ for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
 '
 
+# A current updater restores the caller PATH that channel-set hands it.
 write_stub omarchy-update '#!/bin/bash
+[[ -n ${OMARCHY_UPDATE_USER_PATH:-} ]] || exit 93
 printf "update" >>"$OMARCHY_CHANNEL_TEST_LOG"
 for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\tOMARCHY_PATH=%s" "$OMARCHY_PATH" >>"$OMARCHY_CHANNEL_TEST_LOG"

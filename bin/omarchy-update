@@ -21,15 +21,7 @@ omarchy_security_require_source_root "$0"
 # Preserve the caller's path only for the later hook/mise phases.
 user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
 unset OMARCHY_UPDATE_USER_PATH
-# Traps first, so a signal or failure during the entry revocation still
-# exits through the cleanup path. Starting cold means the single password
-# prompt below always belongs to this update, never to an earlier session.
-omarchy_security_install_sudo_cleanup_traps
-omarchy_security_revoke_sudo_timestamp || exit 1
-PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
-unset OMARCHY_SUDO_NO_UPDATE
-# Helpers that manage their own sudo boundary leave this authorization to us.
-export PATH OMARCHY_UPDATE_SUDO_SESSION=1
+export PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
@@ -64,20 +56,16 @@ end_update_authorization() {
     wait "$sudo_keepalive_pid" 2>/dev/null || true
     sudo_keepalive_pid=""
   fi
-  omarchy_security_revoke_sudo_timestamp
 }
 
 cleanup_update() {
   local status=$?
   trap - EXIT HUP INT TERM
-  if ! end_update_authorization; then
-    echo "Could not invalidate sudo before update cleanup." >&2
-    omarchy_security_exit_with_revoked_sudo 1
-  fi
+  end_update_authorization
   if (( update_stay_awake_stopped == 0 )); then
     omarchy-update-stay-awake stop || status=1
   fi
-  omarchy_security_exit_with_revoked_sudo "$status"
+  exit "$status"
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then

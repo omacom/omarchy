@@ -22,13 +22,11 @@ for command in omarchy-update omarchy-refresh-pacman omarchy-update-stay-awake o
   "$boundary_tmp/links/$command" "${args[@]}" >"$boundary_tmp/output" 2>&1 || status=$?
   [[ ! -e $SUDO_TEST_HOME/wrong-library ]] || fail "$command sourced a library beside its symlink"
   (( status != 126 )) || fail "$command failed to locate its actual library" "$(<"$boundary_tmp/output")"
-  [[ -s $SUDO_TEST_LOG ]] || fail "$command did not reach the protected fixture boundary"
-  assert_boundary_cold "$command symlink"
+  # The update runs its phases; the others reach their own argument check.
+  if [[ $command == "omarchy-update" ]]; then
+    [[ -s $SUDO_TEST_LOG ]] || fail "$command did not reach the protected fixture boundary"
+  else
+    grep -Eq '^(Usage|Invalid channel|Unknown channel):' "$boundary_tmp/output" || fail "$command did not reach its own argument check" "$(<"$boundary_tmp/output")"
+  fi
   pass "$command resolves its own library when invoked through a symlink"
 done
-
-ln -s "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo" "$boundary_tmp/links/sudo"
-reset_boundary
-"$boundary_tmp/links/sudo" -k || fail "symlinked sudo wrapper lost its source library"
-[[ $(<"$SUDO_TEST_LOG") == "sudo -k" ]] || fail "symlinked wrapper did not reach the fixed sudo stand-in"
-pass "the sudo wrapper resolves its source library independently of its invocation link"
