@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Install the pacman hook that restores SSSD account lookup after a settings update, where SSSD is set up
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -e
+
+# Run as root by whoever started it, ignore their PATH so nothing falls through
+# to a user-writable directory.
+if (( EUID == 0 )); then
+  export PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin
+fi
+
+as_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+sssd_pam_module=/usr/lib/security/pam_sss.so
+pacman_hook=/etc/pacman.d/hooks/50-omarchy-sssd.hook
+
+# SSSD is optional, and this runs on every update. Joining a domain enables the
+# service, which is the sign it is set up: /etc/sssd is readable by root only.
+if [[ ! -f $sssd_pam_module ]] || ! systemctl is-enabled --quiet sssd.service 2>/dev/null; then
+  exit 0
+fi
+
+# A settings update copies nsswitch.conf back without sss, and then sudo can no
+# longer look a directory account up, so a repair that asks sudo fails for the
+# very people it is for. A pacman hook runs as root inside that transaction,
+# right after the copy, before anything needs sudo again.
+#
+# The hook has to exist before that transaction starts, which is why the update
+# installs it ahead of the package upgrade, while sudo still knows the account.
+hook=$(cat <<'HOOK'
+# Written by omarchy-apply-sssd-hook. Delete it to stop restoring SSSD after updates.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = omarchy-settings
+Target = omarchy-settings-dev
+
+[Action]
+Description = Restoring SSSD account lookup...
+When = PostTransaction
+Exec = /usr/share/omarchy/bin/omarchy-apply-sssd
+HOOK
+)
+
+# Write only when it differs, so an update that finds it in place asks for no
+# privileges.
+if ! cmp -s <(printf '%s\n' "$hook") "$pacman_hook"; then
+  printf '%s\n' "$hook" | as_root install -Dm644 /dev/stdin "$pacman_hook"
+  echo "Installed $pacman_hook"
+fi

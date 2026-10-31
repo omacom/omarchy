@@ -22,6 +22,8 @@ steps=(
   omarchy-update-boot
   omarchy-update-keyring
   omarchy-update-system-pkgs
+  omarchy-apply-sssd-hook
+  omarchy-apply-sssd
   omarchy-migrate
   omarchy-hook
   omarchy-update-aur-pkgs
@@ -76,7 +78,9 @@ expected_steps() {
     omarchy-update-stay-awake \
     omarchy-update-dev \
     omarchy-update-keyring \
+    omarchy-apply-sssd-hook \
     omarchy-update-system-pkgs \
+    omarchy-apply-sssd \
     omarchy-migrate \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
@@ -117,7 +121,7 @@ pass "a confirmed update approves orphan removal"
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-apply-sssd omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
@@ -132,3 +136,29 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 assert_boundary_cold "update after mise failure"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# Re-applying SSSD guards directory accounts, not the update itself: when it
+# can't finish, the update reports that and carries on with the migrations.
+FAILING_STEP=omarchy-apply-sssd run_update -y ||
+  fail "an update still finishes when the SSSD re-apply fails" "$(cat "$test_tmp/err")"
+grep -q '^omarchy-migrate ' "$test_tmp/steps" || fail "a failed SSSD re-apply still lets the migrations run"
+grep -F 'Run omarchy-apply-sssd to retry' "$test_tmp/err" >/dev/null ||
+  fail "a failed SSSD re-apply tells the user how to retry" "$(cat "$test_tmp/err")"
+pass "a failed SSSD re-apply is reported and does not stop the update"
+
+# The hook has to be in place before the packages are upgraded: that upgrade is
+# what takes sss out of nsswitch.conf, after which sudo can no longer look a
+# directory account up. A hook that could not be installed is reported, and
+# does not stop the update.
+run_update -y || fail "an update where everything works reports a failure"
+hook_line=$(grep -n '^omarchy-apply-sssd-hook ' "$test_tmp/steps" | cut -d: -f1)
+packages_line=$(grep -n '^omarchy-update-system-pkgs ' "$test_tmp/steps" | cut -d: -f1)
+(( hook_line < packages_line )) || fail "the SSSD hook is installed before the packages are upgraded"
+pass "the SSSD hook is installed before the packages are upgraded"
+
+FAILING_STEP=omarchy-apply-sssd-hook run_update -y ||
+  fail "an update still finishes when the SSSD hook can't be installed" "$(cat "$test_tmp/err")"
+grep -q '^omarchy-update-system-pkgs ' "$test_tmp/steps" || fail "a failed SSSD hook install still lets the packages upgrade"
+grep -F 'Run omarchy-apply-sssd-hook to retry' "$test_tmp/err" >/dev/null ||
+  fail "a failed SSSD hook install tells the user how to retry" "$(cat "$test_tmp/err")"
+pass "a failed SSSD hook install is reported and does not stop the update"
