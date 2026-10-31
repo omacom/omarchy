@@ -165,14 +165,23 @@ startup=$(HOME="$loop_home" "$ROOT/bin/omarchy-theme-bg-loop-apply" --still-only
 [[ $startup == "$background" ]] || fail "a shell starting up on a still keeps it" "$startup"
 pass "a shell starting up begins from the loop's still"
 
-# Picking a still with a loop hands the shell the loop, once.
+# Picking a still hands the shell the still, which it may queue, and the loop
+# follows only under the settings of that moment.
 : >"$command_log"
-HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" SELECTED="$other" "$ROOT/bin/omarchy-theme-bg-set" "$background"
-[[ $(<"$command_log") == "shell: shell switchBackground $loop " ]] || fail "picking a still with a loop hands the shell the loop" "$(<"$command_log")"
+HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" SELECTED="$background" "$ROOT/bin/omarchy-theme-bg-set" "$background"
+[[ $(<"$command_log") == "shell: shell switchBackground $background "$'\n'"shell: shell replaceBackground $background $loop" ]] ||
+  fail "picking a still with a loop starts it after the shell has the still" "$(<"$command_log")"
+pass "picking a still with a loop starts it after the shell has the still"
+
 : >"$command_log"
+HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" SELECTED="$background" ANIMATIONS=off "$ROOT/bin/omarchy-theme-bg-set" "$background"
+[[ $(<"$command_log") == "shell: shell switchBackground $background " ]] || fail "a queued still stays a still with animations off" "$(<"$command_log")"
+pass "a queued still stays a still with animations off"
+
+ln -nsf "$other" "$link"
 HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-set" "$background"
 [[ $(readlink "$link") == "$loop" ]] || fail "without a shell, picking a still with a loop links the loop" "$(readlink "$link")"
-pass "picking a still with a loop hands the shell the loop, once"
+pass "without a shell, picking a still with a loop links the loop"
 
 # The first shell start of a session plays the intro, then starts the loop.
 mkdir -p "$backgrounds/intros"
@@ -183,6 +192,11 @@ printf 'owe: %s\n' "$*" >>"$COMMAND_LOG"
 [[ $1 != "status" ]] || printf '{"status":"ok"}\n'
 SH
 chmod +x "$command_bin/owe"
+ln -nsf "$other" "$link"
+HOME="$loop_home" PATH="$command_bin:$PATH" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-set" "$background"
+[[ $(readlink "$link") == "$loop" ]] || fail "without a shell, a still with an intro still starts its loop" "$(readlink "$link")"
+pass "without a shell, a still with an intro still starts its loop"
+
 rm -f "$loop_home/.local/state/omarchy/background-intro.session-id"
 ln -nsf "$background" "$link"
 : >"$command_log"
