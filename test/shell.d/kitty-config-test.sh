@@ -62,6 +62,13 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+# A leading zero is decimal, not octal: 016 is 16px, and 0024 is out of range.
+run_command omarchy-display-text-size 016
+grep -qx 'font_size 12.0' "$kitty_config" || fail "size command reads a leading zero as decimal"
+grep -qx 'base-size = 16' "$test_home/.config/omarchy/shell.toml" || fail "size command writes the size without its leading zero"
+! run_command omarchy-display-text-size 0024 2>/dev/null || fail "size command keeps a leading zero within range"
+pass "size command reads a leading zero as decimal"
+
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
 # is installed, so a command on PATH is not enough: ask Kitty itself.
 if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
