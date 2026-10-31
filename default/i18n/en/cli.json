@@ -87,6 +87,8 @@
   "capture.selectWebcam": "Select Webcam",
   "capture.textCopied": "Copied text from selection to clipboard",
   "clipboard.urlCopied": "URL copied to clipboard",
+  "clipboard.linkCleaned": "Link cleaned",
+  "clipboard.linkNotCleaned": "Link not cleaned",
   "common.disabled": "Disabled",
   "common.enabled": "Enabled",
   "common.no": "No",
