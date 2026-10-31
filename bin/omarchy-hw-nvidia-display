@@ -8,15 +8,37 @@
 # audio still playing), so the Hyprland NVIDIA env only applies when NVIDIA is
 # the display GPU.
 #
-# sysfs exposes which VGA device drives the display via boot_vga. When no
-# device claims it (attribute missing or unreadable), assume NVIDIA is the
-# display GPU to preserve the current behavior on machines we cannot tell.
+# Follow the GPU Hyprland renders on. Aquamarine makes the GPU with a connected
+# built-in panel (eDP, LVDS, DSI) the primary renderer, ahead of boot_vga, as on
+# a hybrid laptop docked to ports wired to NVIDIA. With no connected panel it
+# takes boot_vga, wherever external monitors are plugged in; panels on both GPUs
+# fall back to boot_vga here too. When no device claims it (attribute missing or
+# unreadable, as on iGPUs with a non-VGA PCI class), assume NVIDIA is the display
+# GPU to preserve the current behavior on machines we cannot tell.
 #
 # Read the cached sysfs IDs rather than lspci, which reads PCI config space and
 # resumes runtime-suspended GPUs.
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 
 shopt -s nullglob
+
+nvidia_panel=0
+other_panel=0
+
+for connector in "$drm_path"/card*-{eDP,LVDS,DSI}-*; do
+  [[ -f $connector/status ]] || continue
+  [[ $(< "$connector/status") == "connected" ]] || continue
+  card=${connector##*/}
+  card=${card%%-*}
+  vendor_file="$drm_path/$card/device/vendor"
+  [[ -f $vendor_file ]] || continue
+  if [[ $(< "$vendor_file") == "0x10de" ]]; then
+    nvidia_panel=1
+  else
+    other_panel=1
+  fi
+done
 
 nvidia_boot=0
 other_boot=0
@@ -38,7 +60,11 @@ for device in "$pci_devices_path"/*; do
   fi
 done
 
-if (( other_boot == 1 && nvidia_boot == 0 )); then
+if (( nvidia_panel && !other_panel )); then
+  exit 0
+elif (( other_panel && !nvidia_panel )); then
+  exit 1
+elif (( other_boot == 1 && nvidia_boot == 0 )); then
   exit 1
 else
   exit 0
