@@ -13,14 +13,21 @@ IFS=: read -ra desktops <<<"${XDG_CURRENT_DESKTOP:-}"
 
 # Installed means the command of the entry the launchers will read, the first
 # one found, still resolves: an entry of Omarchy's own can outlive the browser
-# it launched.
+# it launched. An env prefix is skipped, so env itself never counts as one.
 installed() {
-  local data_dir command
+  local data_dir
+  local -a words
 
   for data_dir in "${data_dirs[@]}"; do
     [[ -r $data_dir/applications/$1 ]] || continue
-    command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$1" | head -1)
-    [[ -n $command ]] && command -v "$command" >/dev/null
+    read -ra words <<<"$(sed -n 's/^Exec=//p' "$data_dir/applications/$1" | head -1)"
+    if [[ ${words[0]:-} == "env" || ${words[0]:-} == "/usr/bin/env" ]]; then
+      words=("${words[@]:1}")
+      while [[ ${words[0]:-} == *=* ]]; do
+        words=("${words[@]:1}")
+      done
+    fi
+    [[ -n ${words[0]:-} ]] && command -v "${words[0]}" >/dev/null
     return
   done
 
