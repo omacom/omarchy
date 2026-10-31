@@ -1165,18 +1165,18 @@ check_prerequisites() {
 
 # --- commands ----------------------------------------------------------------
 
-install_windows() {
-  # Set up trap to handle Ctrl+C
-  trap "echo ''; echo 'Installation cancelled by user'; exit 1" INT
+# The launcher treats this file as the installed-state marker: while it exists
+# the menu offers Launch/Remove instead of Install. Write it only once the VM
+# is actually up, or cancelling anywhere in the setup leaves the menu claiming
+# a VM that was never created.
+create_launcher_entry() (
+  local applications="$HOME/.local/share/applications"
+  local stage
+  mkdir -p "$applications" || return 1
+  stage=$(mktemp "$applications/.windows-vm.XXXXXX") || return 1
+  trap 'rm -f -- "$stage"' EXIT
 
-  prepare_user_mount_sources || exit 1
-  check_prerequisites
-
-  omarchy-pkg-add freerdp openbsd-netcat gum
-
-  mkdir -p "$HOME/.local/share/applications"
-
-  cat <<EOF | tee "$HOME/.local/share/applications/windows-vm.desktop" >/dev/null
+  cat >"$stage" <<EOF || return 1
 [Desktop Entry]
 Name=Windows
 Comment=Start Windows VM via Docker and connect with RDP
@@ -1186,6 +1186,18 @@ Terminal=false
 Type=Application
 Categories=System;Virtualization;
 EOF
+  chmod 644 "$stage" || return 1
+  mv -fT -- "$stage" "$applications/windows-vm.desktop"
+)
+
+install_windows() {
+  # Set up trap to handle Ctrl+C
+  trap "echo ''; echo 'Installation cancelled by user'; exit 1" INT
+
+  prepare_user_mount_sources || exit 1
+  check_prerequisites
+
+  omarchy-pkg-add freerdp openbsd-netcat gum
 
   # Get system resources
   TOTAL_RAM=$(free -h | awk 'NR==2 {print $2}')
@@ -1341,6 +1353,13 @@ EOF
     echo "   Common issues:"
     echo "   - Docker daemon not running: sudo systemctl start docker"
     echo "   - Port already in use: check if another VM is running"
+    exit 1
+  fi
+
+  if ! create_launcher_entry; then
+    echo "Windows VM started, but its launcher could not be saved." >&2
+    echo "Fix the applications directory or disk space, then retry installation." >&2
+    echo "To stop the running VM: omarchy windows vm stop" >&2
     exit 1
   fi
 
