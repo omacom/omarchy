@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Save a monitor's scale, and optionally its mode and position, to monitors.lua
-# omarchy:args=OUTPUT SCALE [MODE] [POSITION]
+# omarchy:args=[--keep-gdk] OUTPUT SCALE [MODE] [POSITION]
 # omarchy:hidden=true
 
 # Persist the scale (and the mode and position, when given; an empty MODE
@@ -14,6 +14,14 @@
 # rule naming the monitor) is left alone rather than risk broken Lua or a second
 # rule competing with the user's own.
 
+# --keep-gdk leaves GDK_SCALE alone, for a change that moves a monitor without
+# rescaling any.
+keep_gdk=0
+if [[ ${1:-} == "--keep-gdk" ]]; then
+  keep_gdk=1
+  shift
+fi
+
 output="$1"
 scale="$2"
 mode="${3:-}"
@@ -21,7 +29,7 @@ position="${4:-}"
 monitor_lua="$HOME/.config/hypr/monitors.lua"
 
 if [[ -z $output || -z $scale ]]; then
-  echo "Usage: omarchy-hyprland-monitor-persist OUTPUT SCALE [MODE] [POSITION]" >&2
+  echo "Usage: omarchy-hyprland-monitor-persist [--keep-gdk] OUTPUT SCALE [MODE] [POSITION]" >&2
   exit 1
 fi
 
@@ -82,9 +90,11 @@ if ! awk -v output="$output" -v scale="$scale" -v mode="$mode" -v position="$pos
   exit 0
 fi
 
-sed -i -E \
-  -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
-  -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
-  "$tmp"
+if (( ! keep_gdk )); then
+  sed -i -E \
+    -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
+    -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
+    "$tmp"
+fi
 chmod --reference="$target" "$tmp"
 mv "$tmp" "$target"

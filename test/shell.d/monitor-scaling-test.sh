@@ -19,22 +19,25 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"availableModes":["2880x1800@120.00Hz","2880x1800@60.00Hz","1920x1200@60.00Hz"]}' \
+  printf '[{"name":"eDP-1","focused":true,"x":0,"y":0,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"availableModes":["2880x1800@120.00Hz","2880x1800@60.00Hz","1920x1200@60.00Hz"]}' \
     "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
   if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
-    printf ',{"name":"DP-1","focused":false,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0,"availableModes":["3840x2160@60.00Hz","2560x1440@60.00Hz"]}' \
+    printf ',{"name":"DP-1","focused":false,"x":1440,"y":0,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0,"availableModes":["3840x2160@60.00Hz","2560x1440@60.00Hz"]}' \
       "$OMARCHY_TEST_OTHER_MONITOR_SCALE"
   fi
   printf ']'
 elif [[ $1 == "eval" ]]; then
-  printf '%s\n' "$2" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
+  printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
 else
   exit 1
 fi
 SH
 chmod +x "$stub_bin/hyprctl"
 
+# Each block starts from a fresh config and no evals; a change can eval more
+# than once (a resize, then the layout closing up around it).
 write_monitor_config() {
+  rm -f "$eval_out"
   cat >"$monitor_lua" <<'LUA'
 local omarchy_gdk_scale = 2
 local omarchy_monitor_scale = 2
@@ -231,7 +234,7 @@ pass "monitor resolution rejects a mode the monitor lacks"
 write_monitor_config
 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution --monitor DP-1 2560x1440
 grep -F 'output = "DP-1", mode = "2560x1440@60"' "$eval_out" >/dev/null || fail "monitor resolution sets an unfocused monitor"
-grep -F 'hl.monitor({ output = "DP-1", mode = "2560x1440@60", position = "auto", scale = 1 })' "$monitor_lua" >/dev/null ||
+grep -F 'hl.monitor({ output = "DP-1", mode = "2560x1440@60", position = "1440x0", scale = 1 })' "$monitor_lua" >/dev/null ||
   fail "monitor resolution persists an unfocused monitor's mode"
 rm -f "$eval_out"
 if OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution --monitor DP-1 2880x1800 2>/dev/null; then
@@ -243,9 +246,9 @@ pass "monitor resolution works per screen"
 # --monitor scales that screen, whichever is focused.
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_scaling --monitor DP-1 2
-grep -F 'output = "DP-1", mode = "3840x2160@60.0", position = "auto", scale = 2' "$eval_out" >/dev/null ||
+grep -F 'output = "DP-1", mode = "3840x2160@60.0", position = "1440x0", scale = 2' "$eval_out" >/dev/null ||
   fail "monitor scaling sets an unfocused monitor"
-grep -F 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 2 })' "$monitor_lua" >/dev/null ||
+grep -F 'hl.monitor({ output = "DP-1", mode = "preferred", position = "1440x0", scale = 2 })' "$monitor_lua" >/dev/null ||
   fail "monitor scaling persists an unfocused monitor's scale"
 scale=$(OMARCHY_TEST_OTHER_MONITOR_SCALE=1.5 run_scaling --monitor DP-1)
 [[ $scale == "1.5" ]] || fail "monitor scaling reports an unfocused monitor's scale" "actual: $scale"
@@ -274,3 +277,15 @@ if OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_layout 'DP-1=0x0"' 2>/dev/null; then f
 if run_layout HDMI-A-1=0x0 2>/dev/null; then fail "monitor layout rejects an unknown monitor"; fi
 [[ ! -e $eval_out ]] || fail "monitor layout applies nothing it rejects"
 pass "monitor layout moves and saves every monitor's position"
+
+# A smaller mode beside another monitor keeps its corner and pulls the monitor
+# on its right in, so no gap opens: 2880x1800 at 2x spans 1440, 1920x1200 960.
+write_monitor_config
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution 1920x1200
+grep -F 'output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2' "$eval_out" >/dev/null ||
+  fail "monitor resolution keeps its place beside another monitor" "actual: $(<"$eval_out")"
+grep -F 'hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/null ||
+  fail "monitor resolution moves its neighbour up to its new edge" "actual: $(<"$eval_out")"
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "960x0", scale = 1 })' "$monitor_lua" >/dev/null ||
+  fail "monitor resolution saves its neighbour's new position"
+pass "monitor resolution closes the layout up around a smaller mode"

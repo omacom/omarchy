@@ -95,10 +95,23 @@ set_scale() {
 
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
+  # Beside other monitors it keeps its place, and the layout closes up around
+  # its new size. Alone, Hyprland places it.
+  local others="$(hyprctl monitors -j | jq --arg name "$active_monitor" '[.[] | select(.name != $name)] | length')"
+  local position
+  if (( others > 0 )); then
+    position="$(echo "$monitor_info" | jq -r '"\(.x)x\(.y)"')"
+  else
+    position="auto"
+  fi
+
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"$position\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
   omarchy-hyprland-monitor-persist "$active_monitor" "$new_scale"
+  if (( others > 0 )); then
+    omarchy-hyprland-monitor-layout --resized "$active_monitor" "${width}x${height}" "$current_scale" "${width}x${height}" "$new_scale"
+  fi
 }
 
 scale_from_current() {
