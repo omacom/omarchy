@@ -31,9 +31,11 @@ case $1 in
 -T)
   # OpenSSH 10.x dumps keywords in CamelCase; 9.x dumped them lowercase.
   if [[ ${SSHD_DUMP_LOWERCASE:-0} == 1 ]]; then
+    printf 'permitrootlogin %s\n' "${SSHD_ROOT_LOGIN:-no}"
     printf 'passwordauthentication %s\n' "${SSHD_PASSWORD_AUTH:-no}"
     printf 'kbdinteractiveauthentication %s\n' "${SSHD_KBD_AUTH:-no}"
   else
+    printf 'PermitRootLogin %s\n' "${SSHD_ROOT_LOGIN:-no}"
     printf 'PasswordAuthentication %s\n' "${SSHD_PASSWORD_AUTH:-no}"
     printf 'KbdInteractiveAuthentication %s\n' "${SSHD_KBD_AUTH:-no}"
   fi
@@ -45,19 +47,15 @@ esac
 STUB
 cat >"$stub_bin/sudo" <<'STUB'
 #!/bin/bash
-case $1 in
-install)
-  destination="${TEST_ROOT:?}${4:?}"
-  /usr/bin/mkdir -p "${destination%/*}"
-  /usr/bin/install -Dm644 /dev/stdin "$destination"
-  ;;
-rm)
-  /usr/bin/rm -f "${TEST_ROOT:?}${3:?}"
-  ;;
-*)
-  exec "$@"
-  ;;
-esac
+args=()
+for arg in "$@"; do
+  if [[ $arg == /etc/* ]]; then
+    args+=("${TEST_ROOT:?}$arg")
+  else
+    args+=("$arg")
+  fi
+done
+exec "${args[@]}"
 STUB
 chmod +x "$stub_bin"/*
 
@@ -74,6 +72,7 @@ run_setup() {
 
   HOME="$home" TEST_ROOT="$root" CALL_LOG="$test_dir/$scenario.calls" \
     SSHD_SYNTAX_VALID="${SSHD_SYNTAX_VALID:-1}" \
+    SSHD_ROOT_LOGIN="${SSHD_ROOT_LOGIN:-no}" \
     SSHD_PASSWORD_AUTH="${SSHD_PASSWORD_AUTH:-no}" \
     SSHD_KBD_AUTH="${SSHD_KBD_AUTH:-no}" \
     PATH="$stub_bin:$PATH" \
@@ -82,6 +81,7 @@ run_setup() {
 
 output=$(run_setup success)
 config="$test_dir/success/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf"
+grep -qxF "PermitRootLogin no" "$config" || fail "SSH setup disables root login"
 grep -qxF "PasswordAuthentication no" "$config" || fail "SSH setup disables password authentication"
 grep -qxF "KbdInteractiveAuthentication no" "$config" || fail "SSH setup disables keyboard-interactive authentication"
 grep -qxF "systemctl reload sshd.service" "$test_dir/success.calls" || fail "SSH setup reloads the validated config"
@@ -115,3 +115,38 @@ fi
 ! grep -q "Password logins are off" "$test_dir/invalid.output" ||
   fail "SSH setup must not claim rejected hardening succeeded"
 pass "SSH setup fails safely when sshd rejects the config"
+
+if SSHD_ROOT_LOGIN=prohibit-password run_setup root-override >"$test_dir/root-override.output" 2>&1; then
+  fail "SSH setup must reject an earlier rule allowing root login"
+fi
+[[ ! -e $test_dir/root-override/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf ]] ||
+  fail "SSH setup removes ineffective root login restrictions"
+if grep -qF 'systemctl reload sshd.service' "$test_dir/root-override.calls"; then
+  fail "SSH setup must not reload ineffective root login restrictions"
+fi
+pass "SSH setup checks effective root login restrictions"
+
+# A failed rerun must retain the password restrictions installed previously.
+for rejection in syntax root; do
+  scenario="existing-$rejection"
+  config="$test_dir/$scenario/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf"
+  mkdir -p "${config%/*}"
+  printf '# Existing policy\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n' >"$config"
+  chmod 600 "$config"
+  cp -p "$config" "$test_dir/original"
+  if [[ $rejection == "syntax" ]]; then
+    if SSHD_SYNTAX_VALID=0 run_setup "$scenario" >"$test_dir/$scenario.output" 2>&1; then
+      fail "SSH setup must reject invalid configuration on rerun"
+    fi
+  else
+    if SSHD_ROOT_LOGIN=prohibit-password run_setup "$scenario" >"$test_dir/$scenario.output" 2>&1; then
+      fail "SSH setup must reject ineffective root restrictions on rerun"
+    fi
+  fi
+  cmp "$test_dir/original" "$config" || fail "failed SSH setup restores existing policy"
+  [[ $(stat -c %a "$config") == "600" ]] || fail "failed SSH setup preserves policy permissions"
+  if grep -qF 'systemctl reload sshd.service' "$test_dir/$scenario.calls"; then
+    fail "SSH setup must not reload rejected restrictions on rerun"
+  fi
+done
+pass "failed SSH setup restores existing restrictions and permissions"
