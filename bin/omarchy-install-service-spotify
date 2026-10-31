@@ -9,6 +9,19 @@ if omarchy-hw-x86; then
   echo "Installing Spotify..."
   omarchy-pkg-add spotify
 
+  # Spotify's bundled Chromium crashes its GPU process under XWayland (an
+  # upstream Spotify/CEF bug since 1.3.4.258); native Wayland avoids it. Give
+  # it the same Wayland default the browsers get, keeping the user's own flags.
+  spotify_flags_file="$HOME/.config/spotify-flags.conf"
+
+  if [[ ! -f $spotify_flags_file ]]; then
+    mkdir -p "$HOME/.config"
+    cp "$OMARCHY_PATH/config/spotify-flags.conf" "$spotify_flags_file"
+  elif ! grep -q -- '^--ozone-platform=' "$spotify_flags_file"; then
+    [[ -n $(tail -c1 "$spotify_flags_file") ]] && echo >>"$spotify_flags_file"
+    echo '--ozone-platform=wayland' >>"$spotify_flags_file"
+  fi
+
   echo "Opening Spotify..."
   setsid uwsm-app -- /usr/bin/spotify >/dev/null 2>&1 &
 else
