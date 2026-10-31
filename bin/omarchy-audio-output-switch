@@ -7,9 +7,12 @@
 fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
 
 # pactl translates availability, headers and yes/no; parse them in the C locale.
+# Sinks ranked below zero (WirePlumber's priority.session) are marked as never
+# meant to be the default, like a transmitter's sound card or a silent fallback.
 sinks=$(LC_ALL=C timeout 2 pactl -f json list sinks |
   jq --arg fronted "$fronted" '[.[]
     | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))
+    | select((.properties."priority.session" // "0" | tonumber? // 0) >= 0)
     | select($fronted == "" or .name != $fronted)]')
 sinks_count=$(jq 'length' <<<"$sinks")
 
