@@ -49,7 +49,7 @@ band_for_freq() {
 # Every value read back from nmcli goes through here. LC_ALL=C because nmcli
 # translates state words such as "connected", which would silently stop matching
 # under a non-English session; `-e no` because `-g` otherwise escapes ':' and
-# '\' in values, and an escaped SSID would never match iw's raw one.
+# '\' in values, and an escaped SSID would never match the decoded iw value.
 nm_get() {
   LC_ALL=C nmcli -e no -g "$@" 2>/dev/null
 }
@@ -68,11 +68,13 @@ selected_band() {
 }
 
 # Sets $ssid and $freq from one `iw dev <device> link`. iw prints the SSID as
-# the rest of its line, so an SSID containing ':' needs no special handling.
+# the rest of its line, escaping non-printable bytes, backslashes and edge
+# spaces as \xNN. Decode once to match NetworkManager's raw scan values.
 read_link() {
   local link
   link=$(iw dev "$1" link 2>/dev/null)
   ssid=$(awk '/SSID:/ { sub(/.*SSID: /, ""); print; exit }' <<<"$link")
+  printf -v ssid '%b' "$ssid"
   freq=$(awk '/freq:/ { print $2; exit }' <<<"$link")
 }
 
