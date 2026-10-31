@@ -7,7 +7,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 helper="$ROOT/bin/omarchy-install-camera"
 leaf="$ROOT/install/hardware/qualcomm/camera.sh"
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+grant_pid=""
+trap '[[ -n $grant_pid ]] && kill "$grant_pid" 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
 
 # The Snapdragon check answers from a file, so each case picks the platform.
 # Package installs are recorded instead of run.
@@ -84,3 +85,42 @@ bash -c "source '$leaf'"
 grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-aarch64-qualcomm.packages" || fail "new Snapdragon installs get the camera backend"
 grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-other.packages" || fail "the ISO can supply the camera backend offline"
 pass "Snapdragon installs get the PipeWire camera backend, new and existing"
+
+# At login on Snapdragon, WirePlumber waits for the media devices the seat hands
+# out, and only until this user can open them, so libcamera finds the camera.
+media="$test_tmp/media"
+mkdir -p "$media"
+cat >"$test_tmp/bin/udevadm" <<'STUB'
+#!/bin/bash
+if [[ ${*: -1} == */media0 ]]; then
+  echo ":uaccess:seat:"
+else
+  echo ":seat:"
+fi
+STUB
+chmod +x "$test_tmp/bin/udevadm"
+wait_for_camera() {
+  local start=${EPOCHREALTIME/./}
+  OMARCHY_MEDIA_DEVICES_PATH="$media" "$ROOT/bin/omarchy-hw-wait-camera-access"
+  echo $(((${EPOCHREALTIME/./} - start) / 1000))
+}
+
+if ((EUID == 0)); then
+  skip "the login camera wait needs a user that file modes apply to"
+else
+  : >"$media/media1"
+  chmod 000 "$media/media1"
+  (($(wait_for_camera) < 500)) || fail "WirePlumber does not wait for a media device the seat does not hand out"
+  : >"$media/media0"
+  chmod 000 "$media/media0"
+  rm "$OMARCHY_TEST_QUALCOMM"
+  (($(wait_for_camera) < 500)) || fail "other machines start WirePlumber without waiting"
+  touch "$OMARCHY_TEST_QUALCOMM"
+  (sleep 1 && chmod 600 "$media/media0") >/dev/null 2>&1 &
+  grant_pid=$!
+  elapsed=$(wait_for_camera)
+  wait "$grant_pid"
+  grant_pid=""
+  ((elapsed >= 900 && elapsed < 4000)) || fail "WirePlumber waits until the seat's camera opens" "waited ${elapsed} ms"
+  pass "WirePlumber waits for the seat's camera at login, only on Snapdragon and only for it"
+fi
