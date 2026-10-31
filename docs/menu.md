@@ -170,7 +170,7 @@ link is followed to its target. The default Hyprland bindings in
 The same plugin doubles as the system's dmenu. `omarchy-menu-select` and
 `omarchy-menu-input` summon it with a `mode: select` or `mode: input`
 payload, then block on a tempfile handshake: the shell writes the selection
-to `selectionFile` and touches `doneFile`, and cancellation (empty
+to `selectionFile` and then creates `doneFile`, and cancellation (empty
 selection) exits 1. A select option is `label`, `glyph\tlabel`, or
 `glyph\tlabel\tsubtext` — the glyph shows but never returns, the subtext
 renders under the label, filters with it, and comes back as
@@ -178,6 +178,7 @@ renders under the label, filters with it, and comes back as
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
 
+The shell writes both files itself rather than through a command, so the pick and anything typed into an input prompt never appear on a command line, where every user on the machine can read them. Both scripts create `selectionFile` before they summon and say so with `selectionFileCreated: true` in the payload. For such a request, a selection file that has gone means the caller gave up, because its summon timed out or it was stopped: the shell does not open a request whose file is already gone, and writes neither file once it has gone, rather than leave the pick in a new file in `/tmp` that any user can read. A request without `selectionFileCreated` is answered as before. `omarchy-menu-select` hands its options over the same way: it writes them as a JSON array to a private temp file and names it as `optionsFile` in the payload, which also keeps a long list clear of Linux's 128 KiB limit on a single argument. Options piped in on stdin therefore never appear on a command line; options passed as arguments are on `omarchy-menu-select`'s own. A select payload may still carry its options inline as `options`, and an `optionsFile` the shell cannot read cancels the request.
 
 Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat `--selected <value>` to preselect returned values (labels plus any subtext, without icons). Clicking or pressing Enter toggles an option without closing the menu; Apply returns a JSON array in option order, including `[]` when all choices are deselected. Cancellation still exits 1. Selections survive filtering.
 
