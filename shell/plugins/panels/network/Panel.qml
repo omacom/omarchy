@@ -1668,14 +1668,15 @@ Panel {
           required property var modelData
           required property int index
           readonly property string sectionTitle: root.wifiSectionTitle(index)
-          // Narrow only the rows, and only while the list scrolls: an as-needed
-          // scrollbar is still `visible`, just transparent, when everything fits.
-          width: ListView.view.width - (ListView.view.interactive ? networkScrollBar.width : 0)
+          width: ListView.view.width
           height: delegateColumn.implicitHeight
 
           Column {
             id: delegateColumn
-            width: parent.width
+            // Clear the scrollbar only while the list scrolls; anchoring left keeps the gap
+            // on the scrollbar's side when right-to-left languages mirror the panel.
+            anchors.left: parent.left
+            width: parent.width - (networkList.interactive ? networkScrollBar.width : 0)
             spacing: Style.space(4)
 
             PanelSectionHeader {
