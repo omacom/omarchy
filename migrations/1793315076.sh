@@ -15,9 +15,11 @@ if [[ -L $bashrc ]] || { [[ -f $bashrc ]] && grep -q 'default/bash/rc' "$bashrc"
   exit 0
 fi
 
+# Back up under a name nothing else holds, so an earlier ~/.bashrc.bak survives.
 if [[ -f $bashrc ]]; then
-  cp -a "$bashrc" "$bashrc.bak"
-  echo "Your previous ~/.bashrc is saved as ~/.bashrc.bak"
+  backup=$(mktemp "$bashrc.bak.XXXXXX")
+  cp -a "$bashrc" "$backup"
+  echo "Your previous ~/.bashrc is saved as ~${backup#"$HOME"}"
 fi
 
 cp -f "$OMARCHY_PATH/default/bashrc" "$bashrc"
