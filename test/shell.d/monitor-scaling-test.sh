@@ -19,10 +19,10 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}' \
+  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"availableModes":["2880x1800@120.00Hz","2880x1800@60.00Hz","1920x1200@60.00Hz"]}' \
     "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
   if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
-    printf ',{"name":"DP-1","focused":false,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0}' \
+    printf ',{"name":"DP-1","focused":false,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0,"availableModes":["3840x2160@60.00Hz","2560x1440@60.00Hz"]}' \
       "$OMARCHY_TEST_OTHER_MONITOR_SCALE"
   fi
   printf ']'
@@ -51,10 +51,17 @@ has_rule() {
 run_scaling() {
   HOME="$home_dir" \
     XDG_STATE_HOME="$home_dir/.local/state" \
-    PATH="$stub_bin:$PATH" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
     OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
     OMARCHY_TEST_MONITOR_SCALE="${OMARCHY_TEST_MONITOR_SCALE:-2}" \
     "$ROOT/bin/omarchy-hyprland-monitor-scaling" "$@"
+}
+
+run_resolution() {
+  HOME="$home_dir" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    "$ROOT/bin/omarchy-hyprland-monitor-resolution" "$@"
 }
 
 write_monitor_config
@@ -194,3 +201,52 @@ grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monito
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_OTHER_MONITOR_SCALE=3 run_scaling 2
 grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling lowers GDK scale to the newly lowest monitor"
 pass "monitor scaling sets GDK scale from the lowest monitor"
+
+# A resolution without a rate takes the fastest one the monitor offers for it,
+# and persists the mode with the scale.
+write_monitor_config
+run_resolution 2880x1800
+grep -F 'mode = "2880x1800@120"' "$eval_out" >/dev/null || fail "monitor resolution picks the fastest rate"
+pass "monitor resolution picks the fastest rate"
+
+write_monitor_config
+run_resolution 1920x1200
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "auto", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor resolution persists the mode"
+pass "monitor resolution persists the mode"
+
+# Changing the scale afterwards keeps the chosen resolution.
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "auto", scale = 1.6 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling keeps a persisted resolution"
+pass "monitor scaling keeps a persisted resolution"
+
+write_monitor_config
+rm -f "$eval_out"
+if run_resolution 1280x720 2>/dev/null; then fail "monitor resolution rejects a mode the monitor lacks"; fi
+[[ ! -e $eval_out ]] || fail "monitor resolution leaves an unsupported mode unapplied"
+pass "monitor resolution rejects a mode the monitor lacks"
+
+# Each screen takes only the modes it advertises itself, whichever is focused.
+write_monitor_config
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution --monitor DP-1 2560x1440
+grep -F 'output = "DP-1", mode = "2560x1440@60"' "$eval_out" >/dev/null || fail "monitor resolution sets an unfocused monitor"
+grep -F 'hl.monitor({ output = "DP-1", mode = "2560x1440@60", position = "auto", scale = 1 })' "$monitor_lua" >/dev/null ||
+  fail "monitor resolution persists an unfocused monitor's mode"
+rm -f "$eval_out"
+if OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution --monitor DP-1 2880x1800 2>/dev/null; then
+  fail "monitor resolution rejects another screen's mode"
+fi
+[[ ! -e $eval_out ]] || fail "monitor resolution leaves another screen's mode unapplied"
+pass "monitor resolution works per screen"
+
+# --monitor scales that screen, whichever is focused.
+write_monitor_config
+OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_scaling --monitor DP-1 2
+grep -F 'output = "DP-1", mode = "3840x2160@60.0", position = "auto", scale = 2' "$eval_out" >/dev/null ||
+  fail "monitor scaling sets an unfocused monitor"
+grep -F 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists an unfocused monitor's scale"
+scale=$(OMARCHY_TEST_OTHER_MONITOR_SCALE=1.5 run_scaling --monitor DP-1)
+[[ $scale == "1.5" ]] || fail "monitor scaling reports an unfocused monitor's scale" "actual: $scale"
+pass "monitor scaling works per screen"

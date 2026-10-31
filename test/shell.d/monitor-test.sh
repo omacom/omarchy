@@ -54,6 +54,29 @@ assertDeepEqual(
   'monitor keeps presets until display dimensions are known'
 )
 
+// A 6K panel also advertises a tiled half-width mode and legacy sizes.
+const sixK = ['6016x3384@60.00Hz', '3840x2160@60.00Hz', '6016x3384@59.94Hz', '5120x2880@60.00Hz',
+  '2560x2880@60.00Hz', '2560x1440@60.00Hz', '1920x1080@60.00Hz', '1280x720@60.00Hz', '1024x768@60.00Hz']
+assertDeepEqual(
+  monitor.resolutionOptions(sixK, 6016, 3384),
+  ['1920x1080', '2560x1440', '3840x2160', '5120x2880', '6016x3384'],
+  'monitor offers the native resolution and its same-shape modes, capped'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(sixK, 1024, 768),
+  ['1024x768', '1920x1080', '2560x1440', '3840x2160', '5120x2880', '6016x3384'],
+  'monitor keeps an odd current resolution in the list'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(['3840x2160@60.00Hz', '2560x1440@60.00Hz', '1920x1080@60.00Hz', '1600x900@60.00Hz', '1280x720@60.00Hz'], 3840, 2160),
+  ['1920x1080', '2560x1440', '3840x2160'],
+  'monitor offers nothing below 1080p'
+)
+assertDeepEqual(monitor.resolutionOptions(undefined, 0, 0), [], 'monitor offers no resolutions without modes')
+assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
+assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')
+assertEqual(monitor.resolutionLabel('2560x1440'), '1440p', 'monitor names smaller modes by height')
+
 assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
 assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
 

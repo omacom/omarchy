@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# omarchy:summary=Save a monitor's scale, and optionally its mode, to monitors.lua
+# omarchy:args=OUTPUT SCALE [MODE]
+# omarchy:hidden=true
+
+# Persist the scale (and mode, when given) as a rule for this monitor alone, so
+# other monitors keep theirs and the setting survives reboots. A rule already
+# naming the monitor is updated in place. Otherwise one is added after Omarchy's
+# catch-all, which stays the default for monitors without a rule of their own.
+# Only rules written on one line with plain values are edited; a config holding
+# anything else for these rules (a multi-line table, a scale expression, another
+# rule naming the monitor) is left alone rather than risk broken Lua or a second
+# rule competing with the user's own.
+
+output="$1"
+scale="$2"
+mode="${3:-}"
+monitor_lua="$HOME/.config/hypr/monitors.lua"
+
+if [[ -z $output || -z $scale ]]; then
+  echo "Usage: omarchy-hyprland-monitor-persist OUTPUT SCALE [MODE]" >&2
+  exit 1
+fi
+
+[[ -f $monitor_lua ]] || exit 0
+
+# GDK_SCALE is one value for the whole session, so it follows the lowest
+# monitor scale: XWayland apps end up a little small on denser screens rather
+# than oversized on the others. GTK only honors integers, so round it.
+gdk_scale="$(hyprctl monitors -j | jq -r --arg name "$output" --argjson scale "$scale" '
+  [.[] | select(.disabled != true) | if .name == $name then $scale else .scale end]
+  | min | . + 0.5 | floor | if . < 1 then 1 else . end')"
+
+# Hyprland reloads on every write, so build the new file beside the real one
+# and rename it into place, through any symlink, in one step.
+target="$(readlink -f "$monitor_lua")"
+tmp="$(mktemp "$target.XXXXXX")" || exit 0
+if ! awk -v output="$output" -v scale="$scale" -v mode="$mode" '
+  function rule(name) { return "hl.monitor({ output = \"" name "\"," }
+  function whole_line() { return $0 ~ /\}\)[[:space:]]*(--.*)?$/ }
+  function names_output(    code, value) {
+    code = $0
+    sub(/--.*/, "", code)
+    if (!match(code, /output[[:space:]]*=[[:space:]]*"[^"]*"/)) return 0
+    value = substr(code, RSTART, RLENGTH)
+    sub(/^[^"]*"/, "", value)
+    sub(/"$/, "", value)
+    return value == output
+  }
+  # Replace the plain value of key in $0, or fail when it is not there.
+  function set_field(key, value,    tail) {
+    if (!match($0, "[{, ]" key " = (\"[^\"]*\"|[A-Za-z0-9_.]+) *[,}]")) return 0
+    tail = substr($0, RSTART, RLENGTH)
+    sub("^[{, ]" key " = (\"[^\"]*\"|[A-Za-z0-9_.]+)", "", tail)
+    $0 = substr($0, 1, RSTART) key " = " value tail substr($0, RSTART + RLENGTH)
+    return 1
+  }
+  names_output() {
+    if (updated || index($0, rule(output)) != 1 || !whole_line() ||
+      !set_field("scale", scale) || (mode != "" && !set_field("mode", "\"" mode "\""))) {
+      skip = 1
+      exit
+    }
+    updated = 1
+  }
+  !catch_all && index($0, rule("")) == 1 { catch_all = NR; catch_all_whole = whole_line() }
+  { lines[NR] = $0 }
+  END {
+    if (skip || (!updated && !(catch_all && catch_all_whole))) exit 1
+    for (i = 1; i <= NR; i++) {
+      print lines[i]
+      if (!updated && i == catch_all)
+        print "hl.monitor({ output = \"" output "\", mode = \"" (mode != "" ? mode : "preferred") "\", position = \"auto\", scale = " scale " })"
+    }
+  }
+' "$target" >"$tmp"; then
+  rm -f "$tmp"
+  exit 0
+fi
+
+sed -i -E \
+  -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
+  -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
+  "$tmp"
+chmod --reference="$target" "$tmp"
+mv "$tmp" "$target"
