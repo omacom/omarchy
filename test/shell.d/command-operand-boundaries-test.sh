@@ -183,6 +183,44 @@ editor_argv=$(<"$editor_calls")
   fail "launch-editor separates an option-shaped path from editor options" "$editor_argv"
 pass "launch-editor separates an option-shaped path from editor options"
 
+# visudo ends its own options before the file ("-- /etc/sudoers.tmp"). A second
+# separator from the wrapper would reach the editor as a file named "--", and
+# nvim opens it as an empty first buffer (#16768). Exactly one gets through.
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -- /etc/sudoers.tmp
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<-->\n</etc/sudoers.tmp>' ]] ||
+  fail "launch-editor keeps one separator when the caller already ended its options" "$editor_argv"
+pass "launch-editor keeps one separator when the caller already ended its options"
+
+# less's v command runs `$EDITOR +LINE file`. The line number stays an option
+# ahead of the separator, so nvim opens the file at that line rather than a
+# file named "+50"; with no file after it, "+50" is still the file to open.
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline +50 notes.txt
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<+50>\n<-->\n<notes.txt>' ]] ||
+  fail "launch-editor passes a line number before the file as an option" "$editor_argv"
+
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline +50
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<-->\n<+50>' ]] ||
+  fail "launch-editor opens a lone +50 as a file" "$editor_argv"
+
+# After the caller's own "--", "+50" is a file name like any other, even with a
+# file after it.
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -- +50 notes.txt
+
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<-->\n<+50>\n<notes.txt>' ]] ||
+  fail "launch-editor opens +50 as a file after the caller's separator" "$editor_argv"
+pass "launch-editor passes a line number before the file as an option, and a lone one, or one after --, as a file"
+
 cat >"$mock_bin/omarchy-launch-tui" <<'STUB'
 #!/bin/bash
 

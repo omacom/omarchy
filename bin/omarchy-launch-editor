@@ -12,6 +12,15 @@ else
   inline=false
 fi
 
+# A caller that has already ended its own options, as visudo does with
+# "-- /etc/sudoers.tmp", would otherwise hand the editor a second separator,
+# which every editor opens as a file named "--" (#16768). One is kept: ours.
+options_ended=false
+if [[ ${1:-} == "--" ]]; then
+  options_ended=true
+  shift
+fi
+
 if [[ -f $default_editor ]]; then
   read -r editor <"$default_editor"
 else
@@ -23,12 +32,27 @@ fi
 
 omarchy-cmd-present "$editor" || editor="nvim"
 
+# As $EDITOR, this is also run as `$EDITOR +LINE file`, which is what less's v
+# command does by default. The separator below would make "+LINE" a file to
+# open, so a leading line number followed by a file stays an option, for the
+# editors that read one. On its own, or after the caller's own "--", "+LINE"
+# is still a file name.
+line=()
+case "${editor##*/}" in
+nvim | vim | nano | micro)
+  if [[ $options_ended == "false" ]] && (( $# > 1 )) && [[ $1 =~ ^\+[0-9]+$ ]]; then
+    line=("$1")
+    shift
+  fi
+  ;;
+esac
+
 case "${editor##*/}" in
 nvim | vim | nano | micro | hx | helix | fresh)
   if [[ $inline == "true" ]]; then
-    exec "$editor" -- "$@"
+    exec "$editor" "${line[@]}" -- "$@"
   else
-    exec omarchy-launch-tui "$editor" -- "$@"
+    exec omarchy-launch-tui "$editor" "${line[@]}" -- "$@"
   fi
   ;;
 *)
