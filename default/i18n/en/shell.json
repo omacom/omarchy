@@ -151,6 +151,7 @@
   "bluetooth.forgetting": "Forgetting…",
   "bluetooth.noAdapter": "No adapter",
   "bluetooth.noBluetoothAdapter": "No Bluetooth adapter",
+  "bluetooth.otherDevices": "Other devices",
   "bluetooth.pair": "Pair",
   "bluetooth.paired": "PAIRED",
   "bluetooth.phrase1": "Untangling wires",
