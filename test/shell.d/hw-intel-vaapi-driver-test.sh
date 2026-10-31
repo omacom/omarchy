@@ -44,7 +44,7 @@ assert_driver() {
     return
   fi
 
-  [[ $status -eq 0 && $actual == "$expected" ]] ||
+  (( status == 0 )) && [[ $actual == "$expected" ]] ||
     fail "$description" "expected $expected, got status=$status output=${actual@Q}"
   pass "$description"
 }
