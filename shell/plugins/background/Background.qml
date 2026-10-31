@@ -353,8 +353,13 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping && !root.suspended
+      visible: !remapGuard.remapping
       anchors { top: true; bottom: true; left: true; right: true }
+
+      // When OWE suspends this plugin its video layer covers the desktop
+      // visually, but the window stays mapped so the MouseArea below can
+      // still receive double-clicks to open the background/theme pickers.
+      readonly property bool contentVisible: !root.suspended
 
       ScreenMoveRemap {
         id: remapGuard
@@ -413,9 +418,11 @@ Item {
       exclusionMode: ExclusionMode.Ignore
 
       // OWE owns video backgrounds. This layer draws stills, and stays empty
-      // behind a video so OWE's own layer shows through.
+      // behind a video so OWE's own layer shows through. When suspended the
+      // content is hidden but the window remains mapped for input handling.
       BackgroundMedia {
         id: base
+        visible: panel.contentVisible
         anchors.fill: parent
         path: root.displayedBackground
         version: root.reloadVersion
@@ -447,14 +454,14 @@ Item {
         cache: false
         smooth: true
         mipmap: true
-        visible: root.oldBackground !== "" && root.revealProgress < 1
+        visible: panel.contentVisible && root.oldBackground !== "" && root.revealProgress < 1
         onStatusChanged: panel.maybeStartReveal()
       }
 
       Item {
         id: incomingLayer
         anchors.fill: parent
-        visible: root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
+        visible: panel.contentVisible && root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
         layer.enabled: root.incomingBackground !== "" && root.revealProgress < 1
         layer.smooth: true
         layer.effect: MultiEffect {
