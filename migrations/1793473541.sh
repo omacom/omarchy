@@ -15,5 +15,13 @@ fi
 # A failed reload must leave this migration pending until both reloads succeed.
 if systemctl is-active --quiet NetworkManager.service; then
   sudo nmcli general reload conf
+
+  # Profiles created after the provider was chosen relied on the drop-in and
+  # are not pinned. The hook only runs on the next up, so pin the active ones now.
+  while IFS=: read -r uuid device; do
+    [[ -n $uuid ]] || continue
+    sudo omarchy-dns --pin-connection "$uuid" "$device"
+  done < <(nmcli -t -f UUID,DEVICE connection show --active)
+
   sudo nmcli general reload dns-full
 fi
