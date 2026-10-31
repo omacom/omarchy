@@ -418,7 +418,9 @@ if theme_came_from_a_repo "$USER_THEMES_PATH/$THEME_NAME"; then
   stage_installed_theme "$USER_THEMES_PATH/$THEME_NAME"
   report_ignored_theme_files
 else
-  cp -r "$USER_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
+  # -L: a relative symlink copied as a link dangles once it sits under
+  # next-theme/, so copy what it points at.
+  cp -rL "$USER_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
 fi
 
 # Generate colors.toml from alacritty.toml if theme is missing colors.toml
