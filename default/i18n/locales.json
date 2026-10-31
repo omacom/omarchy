@@ -402,5 +402,13 @@
     "locale": "pt_BR.UTF-8",
     "decimal": ",",
     "zeroDigit": "0"
+  },
+  "gd": {
+    "name": "Gàidhlig",
+    "englishName": "Scottish Gaelic",
+    "formatLocale": "gd-GB",
+    "locale": "gd_GB.UTF-8",
+    "decimal": ".",
+    "zeroDigit": "0"
   }
 }

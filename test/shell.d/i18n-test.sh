@@ -36,7 +36,7 @@ assert(orphanMenu.length === 0, 'English menu catalog has no orphan ids', JSON.s
 // English side, so missing translations are pending work for the sync
 // workflow rather than failures. So are translations the manifest marks
 // stale (their English changed since) and orphans awaiting pruning —
-// an English-only edit must never wedge on 49 other languages. Structure
+// an English-only edit must never wedge on the other languages. Structure
 // of what IS current must still hold either way. I18N_STRICT=1 also wants
 // every catalog complete, as it is right after a sync.
 const structural = process.env.I18N_STRICT !== '1'
