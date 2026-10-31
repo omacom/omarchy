@@ -1,37 +1,43 @@
 # Riešenie problémov
 
-### Pokazil som si systém aktualizáciou!
+### Aktualizácia mi rozbila systém!
 
-Najskôr skúste [vrátiť systém späť](47-system-snapshots.md) na verziu pred najnovšou aktualizáciou. Ak to nefunguje, použite `omarchy-debug` a podeľte sa o problém v kanáli #omarchy-help na Discorde. A ak všetko ostatné zlyhá, môžete znova nainštalovať predvolené konfigurácie a balíky pomocou `omarchy-reinstall`.
+Najprv skúste [vrátiť systém](47-system-snapshots.md) na verziu pred nedávnou aktualizáciou. Ak to nepomôže, použite `omarchy-debug` a podeľte sa o svoj problém na #omarchy-help na Discorde. A ak zlyhá aj to, môžete pomocou `omarchy-reinstall` preinštalovať predvolené konfigurácie a balíky.
 
 ### Prečo sú niektoré aplikácie na mojom displeji také veľké?
 
-Omarchy predpokladá displej s vysokým rozlíšením 2x, čo si vyžaduje nastavenie `GDK_SCALE` na hodnotu 2 v `~/.config/hypr/monitors.lua`. Ale ak máte displej 1x, môžete zmeniť `local omarchy_gdk_scale = 2` na 1 (a potom reštartovať každú aplikáciu, ktorá je príliš veľká). Pozrite si [príručku o monitoroch](33-monitors.md).
+Omarchy predpokladá 2x displej s vysokým rozlíšením, takže nastavuje `GDK_SCALE` na 2, kým si v paneli monitora nevyberiete mierku. Ak máte 1x displej a GTK alebo X11 aplikácie vyzerajú príliš veľké, vyberte preň v paneli monitora 1x, alebo pridajte `hl.env("GDK_SCALE", "1")` do `~/.config/hypr/monitors.lua` (a potom reštartujte každú aplikáciu, ktorá je príliš veľká). Pozrite si [manuál o monitoroch](33-monitors.md).
 
-Pre Spotify môžete rozhranie zmenšiť skratkou `Ctrl + Minus` (a skratkou `Ctrl + Plus` ho zväčšiť).
+V Spotify môžete pomocou `Ctrl + Minus` zmenšiť používateľské rozhranie (a pomocou `Ctrl + Plus` ho zväčšiť).
 
-### Moja Wi-Fi, Bluetooth, zvuk alebo trackpad práve prestali fungovať
+### Prečo mi prestali fungovať všetky klávesové skratky so Super?
 
-Pred reštartom skúste reštartovať problematický podsystém samostatne. _Aktualizovať > Hardware_ v ponuke Omarchy má Wi-Fi, Bluetooth, Audio a Trackpad a opätovné načítanie jedného z nich vyrieši väčšinu situácií typu „pred piatimi minútami to fungovalo“ — slúchadlá Bluetooth, ktoré sa nechcú znova pripojiť, trackpad, ktorý po uspaní prestal reagovať, zvuk, ktorý zmizol, keď ste odpojili monitor.
+Na niektorých laptopoch ASUS ROG a TUF je `Fn + Super` ľahko prehliadnuteľná kombinácia, ktorá prepína firmvérový zámok klávesu Windows (určený na hranie, aby ste omylom neodišli z hry). Na obrazovke nič nenaznačuje, že sa to stalo. Kým je zámok zapnutý, Super nevydáva vôbec nič — takže každá skratka Omarchy, ktorá používa Super, jednoducho prestane fungovať a vyzerá to, akoby sa pokazil Hyprland.
 
-### Prečo nehrajú moje externé reproduktory?
+Skôr než sa začnete hrabať v `~/.config/hypr/`, stlačte raz `Fn + Super`, a ak to Super nevráti, stlačte ho znova, aby ste zámok nenechali zapnutý. Nie je to Fn-lock, ktorý mení len správanie radu F klávesov.
 
-Pravdepodobne preto, že nie sú nastavené ako primárny výstup. Kliknite na ikonu reproduktora na pravej strane lišty a otvorí sa vyskakovacie okno hlasitosti, kde si môžete vybrať výstupné zariadenie (a mixovať aj hlasitosť jednotlivých aplikácií).
+### Práve mi prestalo fungovať Wi-Fi, Bluetooth, zvuk alebo trackpad
 
-### Reproduktory môjho notebooku znejú divne
+Skôr než reštartujete počítač, skúste reštartovať len problematický subsystém samostatne. _Update > Hardware_ v menu Omarchy obsahuje Wi-Fi, Bluetooth, Audio a Trackpad a opätovné načítanie jedného z nich vyrieši väčšinu situácií typu „pred piatimi minútami to fungovalo“ — Bluetooth slúchadlá, ktoré sa nechcú znova pripojiť, trackpad, ktorý po uspaní prestal reagovať, zvuk, ktorý zmizol po odpojení monitora.
 
-Na niektorých notebookoch Omarchy automaticky použije ladenie reproduktorov, ktoré koriguje frekvenčnú odozvu vstavaných reproduktorov. `omarchy audio tuning status` vám povie, či je niektoré na vašom stroji aktívne, a `omarchy audio tuning off` ho vypne, ak chcete radšej počuť reproduktory bez úprav.
+### Prečo mi nehrajú externé reproduktory?
+
+Pravdepodobne preto, že nie sú nastavené ako hlavný výstup. Kliknite na ikonu reproduktora na pravej strane lišty a otvorí sa vyskakovacie okno hlasitosti, kde si môžete vybrať výstupné zariadenie (a nastaviť aj hlasitosť jednotlivých aplikácií).
+
+### Reproduktory môjho laptopu znejú čudne
+
+Na niektorých laptopoch Omarchy automaticky použije ladenie reproduktorov, ktoré koriguje frekvenčnú odozvu vstavaných reproduktorov. `omarchy audio tuning status` vám povie, či je nejaké na vašom počítači aktívne, a `omarchy audio tuning off` ho vypne, ak chcete reproduktory počuť bez úprav.
 
 ### Prečo sa nemôžem prihlásiť alebo použiť sudo so svojím heslom?
 
-Pravdepodobne ste ho príliš veľakrát zadali nesprávne a systém vás zamkol. Ak sa to deje na zamknutej obrazovke, môžete stlačiť `CTRL + ALT + F2` a spustiť nový TTY, kde sa môžete prihlásiť ako root, a potom spustiť `faillock --reset --user [your-username]`. Tým sa zamknutie zruší a môžete pokračovať.
+Pravdepodobne ste ho príliš veľakrát zadali nesprávne a účet sa vám uzamkol. Ak sa to deje na uzamknutej obrazovke, môžete stlačiť `CTRL + ALT + F2`, čím spustíte nové TTY, kde sa môžete prihlásiť ako root, a potom spustiť `faillock --reset --user [your-username]`. Tým sa uzamknutie zruší a môžete pokračovať.
 
-### Prečo sa nezobrazujú moje výzvy na autorizáciu 1Password pre 1Password SSH Agent / CLI?
+### Prečo sa mi nezobrazujú výzvy na autorizáciu 1Password pre 1Password SSH Agent / CLI?
 
 Môže sa to stať z 2 dôvodov:
 
-Aby sa zobrazila bohatá výzva na schválenie, musí byť zapnutá možnosť Settings > Advanced > Use Hardware Acceleration. _Poznámka: Aby začala fungovať, je potrebný reštart._
+Aby sa zobrazila plnohodnotná výzva na schválenie, musí byť zapnuté Settings > Advanced > Use Hardware Acceleration. _Poznámka: Aby to začalo fungovať, je potrebný reštart._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Alebo ak ste od zavedenia systému nespustili 1Password, výzva sa nezobrazí.
+Alebo ak ste od spustenia počítača nespustili 1Password, výzva sa nezobrazí.

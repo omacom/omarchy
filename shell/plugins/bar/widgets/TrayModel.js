@@ -19,7 +19,7 @@ function entryId(entry) {
 }
 
 function layoutHasWidget(layout, id) {
-  var sections = ["left", "center", "right", "tray"]
+  var sections = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
   for (var s = 0; s < sections.length; s++) {
     var entries = layout && layout[sections[s]]
     if (!Array.isArray(entries)) continue
@@ -49,8 +49,24 @@ function ownedByOmarchy(item, layout) {
   return false
 }
 
+// The stretch of the tray section, from `start` and `length` long along the
+// bar, that the drawer's clip, from `clipStart` and `clipLength` long, shows:
+// { start, length }, or null while it shows none of it. An empty section
+// shows once it is within a pixel of the clip's edge, as the drawer eases to
+// rest.
+function shownSpan(clipStart, clipLength, start, length) {
+  var from = Math.max(start, clipStart)
+  var to = Math.min(start + length, clipStart + clipLength)
+  if (to < from) {
+    if (from - to > 1) return null
+    from = to
+  }
+  return { start: from, length: to - from }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    shownSpan: shownSpan,
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,

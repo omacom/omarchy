@@ -1,81 +1,81 @@
-# Dotfile'id
+# Dotfiles
 
-Omarchy konfigureeritakse peamiselt niinimetatud dotfile'ide kaudu, mis elavad kaustas `~/.config`. Neid peetakse sinu failideks sinu muudatuste jaoks. Failid, mis elavad kaustas `/usr/share/omarchy`, kuuluvad Omarchyle endale ja sa ei peaks nendega jändama. Kui pead midagi kaustas `/usr/share/omarchy` muutma, peaksid selle asemel väärtuse kaustas `~/.config` üle kirjutama.
+Omarchyt seadistatakse peamiselt nn dotfiles-failide kaudu, mis asuvad kaustas `~/.config`. Neid peetakse sinu failideks sinu muudatuste jaoks. Failid, mis asuvad kaustas `/usr/share/omarchy`, kuuluvad Omarchyle endale ja sa ei peaks nendega jändama. Kui sul on vaja midagi muuta kaustas `/usr/share/omarchy`, peaksid selle väärtuse hoopis üle kirjutama kaustas `~/.config`.
 
-Peamisi konfiguratsioone saab redigeerida otse Omarchy menüüst (`Super + Space`), nagu _Seaded > Kuvarid_, _Seaded > Kiirklahvid_, _Seaded > Sisend_ ja _Seaded > Config > [file]_. Kui teed seda sel viisil, taaskäivitub iga protsess, mis vajab pärast konfiguratsiooni redigeerimist taaskäivitamist, automaatselt pärast redaktorist väljumist (vaikimisi Neovim — `:wq`, pea meeles! — kuid saad seda muuta jaotise _Seaded > Defaults > Editor_ kaudu).
+Põhikonfiguratsioone saab redigeerida otse Omarchy menüüst (`Super + Space`), näiteks _Setup > Keybindings_, _Setup > Input_ ja _Setup > Config > [file]_. Kui teed seda nii, käivitatakse iga protsess, mis vajab pärast konfiguratsioonimuudatusi taaskäivitamist, automaatselt taaskäivitatud pärast redaktorist väljumist (vaikimisi Neovim — `:wq`, pea meeles! — kuid seda saab muuta valiku _Setup > Defaults > Editor_ kaudu).
 
-Siin on kausta `~/.config` peamiste failide loend ja see, mida nad juhivad:
+Siin on loend kausta `~/.config` põhifailidest ja sellest, mida need juhivad:
 
 | File                  | Purpose              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | Peamine Hyprlandi konfiguratsioon. Laeb Omarchy vaikeväärtused pluss sinu allolevad ülekirjutamisfailid. [Lisateave Hyprlandi konfiguratsioonide kohta](https://wiki.hypr.land/Configuring/).  |
-| `~/.config/hypr/bindings.lua` | Sinu enda kiirklahvid ja vaikeväärtuste ülekirjutamised. |
-| `~/.config/hypr/monitors.lua` | Juhib sinu kuvareid, eraldusvõimet ja asendit. |
-| `~/.config/hypr/input.lua` | Juhib sinu klaviatuuri paigutust, hiire ja puuteplaadi seadeid. |
+| `~/.config/hypr/hyprland.lua` | Hyprlandi põhikonfiguratsioon. Laadib Omarchy vaikeväärtused ja sinu alltoodud ülekirjutusfailid. [Lisateave Hyprlandi konfiguratsioonide kohta](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | Sinu enda klahviseosed ja vaikeväärtuste ülekirjutused. |
+| `~/.config/hypr/monitors.lua` | Monitori seaded, mida monitori paneel ei kata, nagu pööramine, lisarežiimid või monitori väljalülitatuna hoidmine. |
+| `~/.config/hypr/input.lua` | Juhib sinu klaviatuuripaigutust, hiirt ja puuteplaadi seadeid. |
 | `~/.config/hypr/looknfeel.lua` | Juhib vahesid, ääriseid, animatsioone ja ülejäänud välimust. |
-| `~/.config/hypr/autostart.lua` | Juhib seansiga käivitatud lisaprotsesse. |
-| `~/.config/omarchy/shell.json` | Juhib Omarchy kesta: riba asendit, paigutust ja vidinaid, pluss ekraanisäästja, lukustuse ja jõudeoleku ajastused. |
-| `~/.config/foot/foot.ini` | Juhib sinu terminali (foot on vaikeseade). |
-| `~/.XCompose` | Määratleb sinu kiirjuurdepääsu emojid ja nime/e-posti automaatse täitmise. Veendu, et käivitad pärast muudatuste tegemist `omarchy-restart-xcompose`. |
+| `~/.config/hypr/autostart.lua` | Juhib seansiga käivitatavaid lisaprotsesse. |
+| `~/.config/omarchy/shell.json` | Juhib Omarchy kesta: riba asukohta, paigutust ja vidinaid ning ekraanisäästja, lukustamise ja jõudeoleku ajastusi. |
+| `~/.config/foot/foot.ini` | Juhib sinu terminali (vaikimisi on foot). |
+| `~/.XCompose` | Määrab sinu kiirpääsu emotikonid ja nime/e-posti automaatse täitmise. Pärast muudatuste tegemist käivita kindlasti `omarchy-restart-xcompose`. |
 
-Kui teed lõpuks oma seadistuse kohandamiseks palju muudatusi, on hea mõte kõik need dotfile'id varundada. [Stow on suurepärane viis selle tegemiseks](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+Kui teed lõpuks oma seadistuse kohandamiseks palju muudatusi, on hea mõte kõik need dotfiles-failid varundada. [Stow on selleks suurepärane vahend](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
 ### Oma rakenduste käivitamine koos seansiga
 
-Kui soovid, et midagi töötaks iga kord sisselogimisel — sünkroonimisdeemon, vestlusrakendus, sinu oma skript — pane see faili `~/.config/hypr/autostart.lua`:
+Kui soovid, et midagi käivituks iga kord, kui sisse logid — sünkroonimisdeemon, vestlusrakendus, sinu enda skript — pane see kausta `~/.config/hypr/autostart.lua`:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-See käivitab käsu seansi osana, nii et see koristatakse korralikult, kui uuesti välja logid.
+See käivitab käsu seansi osana, nii et see koristatakse korralikult ära, kui uuesti välja logid.
 
-### Skriptide käivitamine süsteemisündmustel
+### Skriptide käivitamine süsteemisündmuste korral
 
-Omarchy käivitab konkse käputäiel hetkedel ja saad oma skripte nende külge riputada. Nad elavad kaustas `~/.config/omarchy/hooks/<event>.d/`, üks kaust sündmuse kohta, ja iga sealne käivitatav fail töötab, kui sündmus toimub:
+Omarchy käivitab konkse käputäiel hetkedel ja saad nende külge riputada oma skripte. Need asuvad kaustas `~/.config/omarchy/hooks/<event>.d/`, iga sündmuse jaoks üks kataloog, ja iga sealne käivitatav fail käivitatakse sündmuse toimumisel:
 
 | Event | When it runs |
 | ----- | ------------ |
 | `post-boot` | Kohe pärast töölaua käivitumist |
-| `post-update` | Käsu `omarchy update` lõpu poole, pärast pakette, migratsioone ja teenuste taaskäivitusi, enne mise tööriistade uuendamist |
-| `pre-refresh-pacman` | Pärast seda, kui `omarchy refresh pacman` sünkroniseerib uuesti paketi konfiguratsiooni, enne pakettide uuendamist; kanali vahetus käivitab selle sama värskendussammu ajal |
-| `theme-set` | Pärast teema muutmist (teema nimi on `$1`-s) |
-| `font-set` | Pärast kirjatüübi muutmist (kirjatüübi nimi on `$1`-s) |
-| `battery-low` | Kui aku saab tühjaks (protsent on `$1`-s) |
+| `post-update` | `omarchy update` lõpu lähedal, pärast pakette, migratsioone ja teenuste taaskäivitusi, enne mise tööriistade värskendamist |
+| `pre-refresh-pacman` | Pärast seda, kui `omarchy refresh pacman` sünkroonib paketi konfiguratsiooni uuesti, enne pakettide värskendamist; kanali vahetus käivitab selle sama värskendusetapi ajal |
+| `theme-set` | Pärast teema muutmist (teema nimi asukohas `$1`) |
+| `font-set` | Pärast fondi muutmist (fondi nimi asukohas `$1`) |
+| `battery-low` | Kui aku hakkab tühjaks saama (protsent asukohas `$1`) |
 
-Konks `pre-refresh-pacman` on koht, kuhu kohandatud repod või `IgnorePkg` read kuuluvad, kuna see töötab enne paketi tehingut. Mõlemad uuendusega seotud konksud töötavad sinu kasutajana pärast seda, kui Omarchy tühjendab oma vahemälu salvestatud sudo autoriseerimise, nii et konks, mis kasutab `sudo`, vajab oma autoriseerimist ja võib küsida sinu parooli.
+Konks `pre-refresh-pacman` on koht, kuhu kuuluvad kohandatud hoidlad või `IgnorePkg` read, kuna see käivitatakse enne paketi tehingut. Mõlemad värskendustega seotud konksud käivitatakse sinu kasutajana pärast seda, kui Omarchy on oma vahemällu salvestatud sudo loa tühistanud, nii et konks, mis kasutab käsku `sudo`, vajab oma luba ja võib küsida sinu parooli.
 
-Kõik need kaustad sisaldavad juba `.sample` faili, mis näitab konksu kuju — eemalda nimest `.sample`, et see tööle panna. Kuskil mujal kirjutatud skripti paigaldamiseks kasuta `omarchy hook install post-boot ~/my-hook`, mis kopeerib selle sisse ja muudab selle käivitatavaks.
+Igas neist kataloogidest on juba `.sample` fail, mis näitab konksu kuju — eemalda nimest `.sample`, et see tööle panna. Mujal kirjutatud skripti installimiseks kasuta käsku `omarchy hook install post-boot ~/my-hook`, mis kopeerib selle sisse ja teeb selle käivitatavaks.
 
 ### Oma menüükirjete lisamine
 
-Omarchy menüüd (`Super + Space`) saab laiendada oma ridadega, redigeerides faili `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Kirjed on võtmega punktiiritud ID järgi ja ID paigutab need puusse, nii et `personal` ilmub juurmenüüsse ja `personal.notes` ilmub selle sisse:
+Omarchy menüüd (`Super + Space`) saab laiendada oma ridadega, redigeerides faili `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Kirjed on võtmestatud punktidega eraldatud id-ga ja just id paigutab need puusse, nii et `personal` kuvatakse juurmenüüs ja `personal.notes` kuvatakse selle sees:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Kasuta olemasolevat ID-d uuesti ja kirjutad selle rea üle, mitte ei lisa uut. Fail tuleb koos kõigi saadaolevate väljadega, mis on dokumenteeritud kommentaaridena.
+Kasuta olemasolevat id-d uuesti ja kirjutad selle rea uue lisamise asemel üle. Fail tarnitakse koos kõigi saadaolevate väljadega, mis on dokumenteeritud kommentaaridena.
 
-### Oma kesta eksportide, funktsioonide ja aliaste lisamine
+### Oma kesta ekspordide, funktsioonide ja aliastete lisamine
 
-Omarchy tuleb hulga ergonoomiliste aliaste ja kasulike funktsioonidega, kuid väga tavaline on soovida lisada oma. Sa peaksid lisama nii aliased, funktsioonid kui ka ekspordid faili `~/.bashrc`. Seda faili uuenduste korral üle ei kirjutata. Kui soovid mõnda Omarchy vaikeväärtust muuta, saad need ka siia turvaliselt lisada.
+Omarchy tarnitakse koos hulga ergonoomiliste aliastete ja kasulike funktsioonidega, kuid väga tavaline on soov lisada oma. Peaksid lisama nii aliased, funktsioonid kui ka ekspordid faili `~/.bashrc`. Seda faili värskenduste ajal üle ei kirjutata. Kui soovid muuta mõnda Omarchy vaikeväärtust, saad need ka siia ohutult lisada.
 
-### Sisemiste Omarchy failide muutmine
+### Omarchy sisemiste failide muutmine
 
-Kuule, see on sinu arvuti. Sa saad sellega teha, mida tahad, kuid ma soovitaksin mitte tehdä muudatusi otse kausta `/usr/share/omarchy` failides. Need kuuluvad Omarchy pacmani paketile, nii et sinu muudatused kirjutatakse järgmise uuendusega lihtsalt üle. Parem on lihtsalt kirjutada üle kõik vaikeväärtused, mis sulle kaustas `~/.config/*` ei meeldi.
+Kuule, see on sinu arvuti. Saad sellega teha, mida iganes soovid, kuid soovitaksin mitte muuta otse kaustas `/usr/share/omarchy` olevaid faile. Need kuuluvad Omarchy pacman paketti, nii et sinu muudatused kirjutatakse järgmise värskendusega lihtsalt üle. Sul on parem kirjutada kõik vaikeväärtused, mis sulle ei meeldi, üle hoopis kaustas `~/.config/*`.
 
-Peaaegu kõike saad sel viisil muuta, näiteks vaikekiirklahve. Redigeeri lihtsalt faili `~/.config/hypr/bindings.lua`, et näiteks asendada [Obsidian](https://obsidian.md/) rakendusega [Joplin](https://joplinapp.org/) (paigalda käsuga `omarchy-pkg-add joplin-bin`):
+Nii saad muuta peaaegu kõike, näiteks vaikeklahviseoseid. Redigeeri lihtsalt faili `~/.config/hypr/bindings.lua`, et näiteks asendada [Obsidian](https://obsidian.md/) rakendusega [Joplin](https://joplinapp.org/) (installi käsuga `omarchy-pkg-add joplin-bin`):
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-`o.rebind` eemaldab olemasoleva sidumise enne selle asenduse lisamist. See võtab samad argumendid nagu `o.bind`, sealhulgas käivitusabilised ja sidumisvõimalused. Kasuta sidumise lisamiseks `o.bind` või selle asendamata eemaldamiseks `hl.unbind`.
+`o.rebind` eemaldab olemasoleva seose enne selle asenduse lisamist. See võtab samad argumendid kui `o.bind`, sealhulgas käivitusabilised ja sidumisvalikud. Seose lisamiseks kasuta funktsiooni `o.bind` või selle ilma asendamata eemaldamiseks funktsiooni `hl.unbind`.
 
-Kui nõuad sisemiste Omarchy failide kallal nokitsemist, vaheta dev kanalile jaotise _Uuenda > Channel > Dev_ kaudu. See lingib Omarchy lähtekoodi giti checkoutiga kaustas `~/omarchy`, mida saad vabalt südamepõhjani muuta. Siin pole kedagi, kes sulle ütleks, mida teha!
+Kui nõuad Omarchy sisemiste failide häkkimist, lülitu dev-kanalile valiku _Update > Channel > Dev_ kaudu. See seob Omarchy lähtekoodi git-varundusega kaustas `~/omarchy`, mida saad südamerahuga muuta. Keegi siin ei ütle sulle, mida teha!
 
-### Muudatuste lähtestamine
+### Kõigi muudatuste lähtestamine
 
-Kui teed konfiguratsioonidest lõpuks segaduse, saad need alati vaikeväärtustele tagasi viia Omarchy menüü jaotise _Uuenda > Config_ kaudu. Või käivitades `omarchy reinstall configs`, et kõik lähtestada.
+Kui ajad konfiguratsioonid lõpuks sassi, saad need alati vaikeväärtustele tagasi keerata Omarchy menüü valiku _Update > Config_ kaudu. Või käivitades käsu `omarchy reinstall configs`, et kõik lähtestada.

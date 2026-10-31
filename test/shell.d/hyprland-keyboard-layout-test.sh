@@ -114,8 +114,18 @@ assert_input "non-latin layout gains us in front" "[us,ara] [,] [$toggle_options
 assert_input "prepended us keeps variants aligned" "[us,ru] [,phonetic] [$toggle_options]" 'XKBLAYOUT=ru
 XKBVARIANT=phonetic
 '
-
-assert_input "non-latin layout in front gains us even when us trails" "[us,il,us] [,] [$toggle_options]" 'XKBLAYOUT=il,us
+assert_input "non-latin layout in front moves a trailing us to the front" "[us,il] [,] [$toggle_options]" 'XKBLAYOUT=il,us
+'
+assert_input "a trailing us is not duplicated, so the toggle has one stop per layout" "[us,ru] [,] [$toggle_options]" 'XKBLAYOUT=ru,us
+'
+assert_input "moving us keeps every layout paired with its variant" "[us,ru] [intl,phonetic] [$toggle_options]" 'XKBLAYOUT=ru,us
+XKBVARIANT=phonetic,intl
+'
+assert_input "a third layout keeps its place and variant" "[us,ua,de] [,,nodeadkeys] [$toggle_options]" 'XKBLAYOUT=ua,us,de
+XKBVARIANT=,,nodeadkeys
+'
+assert_input "a us variant that can't type latin still gets a plain us in front" "[us,ru,us] [,,rus] [$toggle_options]" 'XKBLAYOUT=ru,us
+XKBVARIANT=,rus
 '
 
 caps=$(xkbcli compile-keymap --include "$ROOT/etc/xkb" --include-defaults --layout us,ru --options omarchy:shift_caps_compose | grep -A5 'key <CAPS>')
@@ -132,6 +142,18 @@ assert_greeter_input "greeter follows the system layout" "[fr] [] []" 'XKBLAYOUT
 
 assert_greeter_input "greeter keeps a latin layout in front" "[us,ru] [,phonetic] [grp:alts_toggle]" 'XKBLAYOUT=ru
 XKBVARIANT=phonetic
+'
+
+assert_greeter_input "greeter moves a trailing us and its variant to the front" "[us,ru] [intl,phonetic] [grp:alts_toggle]" 'XKBLAYOUT=ru,us
+XKBVARIANT=phonetic,intl
+'
+
+assert_greeter_input "greeter keeps later layouts and variants aligned" "[us,ua,de] [,,nodeadkeys] [grp:alts_toggle]" 'XKBLAYOUT=ua,us,de
+XKBVARIANT=,,nodeadkeys
+'
+
+assert_greeter_input "greeter keeps a plain us in front of a cherokee us" "[us,ru,us] [,,chr] [grp:alts_toggle]" 'XKBLAYOUT=ru,us
+XKBVARIANT=,chr
 '
 
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
@@ -154,6 +176,7 @@ sddm_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$sddm_lua" | grep -o '
 pass "greeter non-latin layout list stays in sync with the initramfs hook"
 
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\n XKB_LAYOUT="kr" # desktop only\n' assert_input "Korean selection overrides its installer US layout" "[kr] [] [$base_options]" $'XKBLAYOUT=us\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr:kr104\n' assert_input "Korean Right Alt selection maps 한/영 and 한자 to Right Alt and Right Ctrl" "[kr] [kr104] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=la\n' assert_input "Lao selection gets Lao behind US on the desktop" "[us,la] [,] [$toggle_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=xx\n' assert_input "an unknown desktop override is ignored" "[us] [] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later US variant overrides the Korean preference" "[us] [intl] [$base_options]" $'XKBLAYOUT=us\nXKBVARIANT=intl\n'

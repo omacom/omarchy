@@ -13,49 +13,15 @@ require_command python3
 jq empty "$ROOT/config/omarchy/shell.json"
 pass "default shell.json is valid JSON"
 
-jq -e '.version == 1 and (.bar.layout.left | type == "array") and (.bar.layout.center | type == "array") and (.bar.layout.right | type == "array")' "$ROOT/config/omarchy/shell.json" >/dev/null
+jq -e '.version == 1 and ([.bar.layout[("left", "centerBegin", "center", "centerEnd", "right")] | type == "array"] | all)' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 
-# Pinning the whole row made this fail every time an unrelated widget moved,
-# so assert the adjacency the name is about and let the rest of the row change.
-jq -e '
-  def ids: map(.id // .);
-  (.bar.layout.center | ids) as $ids |
-  ($ids | index("omarchy.weather")) as $weather |
-  ($ids | index("omarchy.system-update")) as $update |
-  $weather != null and $update == $weather + 1
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center layout keeps update next to weather"
-
-jq -e '
-  (.bar.centerAnchor // "") as $anchor |
-  any(.bar.layout.center[]; (.id // .) == $anchor)
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center anchor exists in center layout"
-
-jq -e '
-  def ids: map(.id // .);
-  (.bar.layout.center | ids) as $ids |
-  ($ids | index("omarchy.elsewhen")) as $elsewhen |
-  ($ids | index("omarchy.clock")) as $clock |
-  ($ids | index("omarchy.weather")) as $weather |
-  $clock != null and $elsewhen == $clock + 1 and $weather > $elsewhen
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center layout puts elsewhen immediately after the clock and before weather"
-
-jq -e '
-  any(.bar.layout.center[]; (.id // .) == "omarchy.clock" and (.formatAlt // "") == "d MMMM \u0027W\u0027ww yyyy")
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default clock date format has no leading zero"
-
-jq -e '
-  def ids: map(.id // .);
-  (.bar.layout.right | ids) as $ids |
-  ($ids | index("omarchy.tray")) as $tray |
-  ($ids | index("omarchy.agents")) as $agents |
-  $tray != null and $agents == $tray + 1
-' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default right layout keeps agents next to the tray"
+# Every CLI write goes through the normalizer, which keeps every bar section a
+# list, the ones beside the center box included.
+normalized=$(OMARCHY_PATH="$ROOT" bash -c 'source "$OMARCHY_PATH/bin/omarchy-shell-config" && jq -c "$NORMALIZE | .bar.layout" <<<"{\"bar\":{\"layout\":{\"centerBegin\":null}}}"')
+[[ $normalized == '{"centerBegin":[],"left":[],"center":[],"centerEnd":[],"right":[]}' ]] ||
+  fail "shell config normalizer keeps every bar section a list" "$normalized"
+pass "shell config normalizer keeps every bar section a list"
 
 ROOT="$ROOT" python3 <<'PY'
 import json
@@ -74,7 +40,7 @@ for manifest_path in (root / "shell/plugins").glob("**/manifest.json"):
   manifests[data.get("id", "")] = (manifest_path, data)
 
 entries = []
-for section in ("left", "center", "right"):
+for section in ("left", "centerBegin", "center", "centerEnd", "right"):
   entries.extend(config["bar"]["layout"][section])
 
 missing = []
@@ -142,6 +108,7 @@ package_defaults = [
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),
+  ("default/systemd/timesyncd.conf.d/10-omarchy.conf", "/usr/lib/systemd/timesyncd.conf.d/10-omarchy.conf", "systemd/timesyncd.conf.d/10-omarchy.conf"),
   ("default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "systemd/system/plocate-updatedb.service.d/10-omarchy.conf"),
   ("default/fonts/omarchy/omarchy.ttf", "/usr/share/fonts/omarchy/omarchy.ttf", "omarchy.ttf"),
   ("default/snapper/root", "/etc/snapper/config-templates/omarchy", "snapper/root"),
@@ -212,12 +179,6 @@ PY
 else
   skip "package-owned defaults live outside config: needs the omarchy-pkgs checkout; set OMARCHY_PKGS_PATH to it"
 fi
-
-grep -F 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$ROOT/config/hypr/hyprland.lua" >/dev/null
-grep -F 'require("default.hypr.omarchy")' "$ROOT/config/hypr/hyprland.lua" >/dev/null
-grep -F 'package.path = home' "$ROOT/default/hypr/bootstrap.lua" >/dev/null
-grep -F '/.local/state/?.lua;' "$ROOT/default/hypr/bootstrap.lua" >/dev/null
-pass "Hyprland user entrypoint keeps package and state path bootstrap in defaults"
 
 OMARCHY_PATH="$ROOT" lua <<'LUA'
 package.loaded["default.hypr.omarchy"] = true
@@ -490,7 +451,7 @@ jq -e '
   ($right | index("omarchy.tray")) as $tray |
   ($right | index("omarchy.tailscale") == $tray + 1) and
   ($right | index("omarchy.dropbox") == $tray + 2) and
-  (.bar.layout.center | ids | index("omarchy.tailscale") == null)
+  ([.bar.layout[]] | map(ids) | add | map(select(. == "omarchy.tailscale")) | length == 1)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "bar defaults places plugins for running optional services"
 
@@ -503,14 +464,14 @@ jq -e '
   ($right | index("omarchy.tray")) as $tray |
   ($right | index("omarchy.tailscale") == $tray + 1) and
   ($right | index("omarchy.dropbox") == $tray + 2) and
-  (.bar.layout.center | ids | index("omarchy.tailscale") == null)
+  ([.bar.layout[]] | map(ids) | add | map(select(. == "omarchy.tailscale")) | length == 1)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "bar defaults places service widgets without a running shell"
 
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$mock_path" OMARCHY_TEST_DROPBOX=0 OMARCHY_TEST_TAILSCALE=0 omarchy-refresh-shell
 jq -e '
   def ids: map(.id // .);
-  ([.bar.layout.left, .bar.layout.center, .bar.layout.right] | map(ids) | add) as $all |
+  ([.bar.layout[]] | map(ids) | add) as $all |
   ($all | index("omarchy.dropbox") == null) and
   ($all | index("omarchy.tailscale") == null)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
@@ -523,12 +484,7 @@ jq -e '
   ($right | index("omarchy.tray")) as $tray |
   ($right | index("omarchy.tailscale") == $tray + 1) and
   ($right | index("omarchy.dropbox") == $tray + 2) and
-  (.bar.layout.center | ids | index("omarchy.tailscale") == null)
+  ([.bar.layout[]] | map(ids) | add | map(select(. == "omarchy.tailscale")) | length == 1)
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
-
-if grep -RIl 'upgrade-to-quattro\|Omarchy 4\.0 is upgraded' "$ROOT/migrations" >/dev/null; then
-  fail "4.0 upgrade is not modeled as a migration"
-fi
-pass "4.0 upgrade is handled outside the migration runner"

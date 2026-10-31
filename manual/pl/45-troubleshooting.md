@@ -1,37 +1,43 @@
 # Rozwiązywanie problemów
 
-### Zepsułem system aktualizacją!
+### Aktualizacja zepsuła mi system!
 
-Najpierw spróbuj [wycofać system](47-system-snapshots.md) do wersji sprzed ostatniej aktualizacji. Jeśli to nie zadziała, użyj `omarchy-debug`, aby podzielić się swoim problemem na kanale #omarchy-help na Discordzie. A jeśli to wszystko zawiedzie, możesz ponownie zainstalować domyślne konfiguracje i pakiety poleceniem `omarchy-reinstall`.
+Najpierw spróbuj [przywrócić system](47-system-snapshots.md) do wersji sprzed ostatniej aktualizacji. Jeśli to nie zadziała, użyj `omarchy-debug`, aby podzielić się swoim problemem na kanale #omarchy-help na Discordzie. A jeśli wszystko inne zawiedzie, możesz ponownie zainstalować domyślne konfiguracje i pakiety za pomocą `omarchy-reinstall`.
 
-### Dlaczego niektóre aplikacje są tak duże na moim wyświetlaczu?
+### Dlaczego niektóre aplikacje są tak duże na moim ekranie?
 
-Omarchy zakłada wyświetlacz o wysokiej rozdzielczości 2x, co wymaga ustawienia `GDK_SCALE` na 2 w `~/.config/hypr/monitors.lua`. Ale jeśli masz wyświetlacz 1x, możesz zmienić `local omarchy_gdk_scale = 2` na 1 (a potem zrestartować każdą zbyt dużą aplikację). Zobacz [podręcznik o monitorach](33-monitors.md).
+Omarchy zakłada ekran o wysokiej rozdzielczości w skali 2x, więc ustawia `GDK_SCALE` na 2, dopóki nie wybierzesz skali w panelu monitora. Jeśli masz ekran 1x, a aplikacje GTK lub X11 wychodzą za duże, wybierz dla niego 1x w panelu monitora albo dodaj `hl.env("GDK_SCALE", "1")` do `~/.config/hypr/monitors.lua` (a potem uruchom ponownie każdą aplikację, która jest za duża). Zobacz [rozdział podręcznika o monitorach](33-monitors.md).
 
-W przypadku Spotify możesz użyć `Ctrl + Minus`, aby zmniejszyć interfejs (a `Ctrl + Plus`, aby go powiększyć).
+W przypadku Spotify możesz użyć `Ctrl + Minus`, aby zmniejszyć interfejs (oraz `Ctrl + Plus`, aby go powiększyć).
 
-### Moje Wi-Fi, Bluetooth, dźwięk albo gładzik właśnie przestały działać
+### Dlaczego wszystkie moje skróty z klawiszem Super przestały działać?
 
-Zanim zrestartujesz komputer, spróbuj zrestartować sam sprawiający problemy podsystem. _Aktualizuj > Sprzęt_ w menu Omarchy ma Wi-Fi, Bluetooth, Dźwięk i Gładzik, a ponowne załadowanie jednego z nich rozwiązuje większość sytuacji typu „przecież pięć minut temu działało” — słuchawki Bluetooth, które nie chcą się ponownie połączyć, gładzik, który przestał działać po wstrzymaniu, dźwięk, który zniknął po odłączeniu monitora.
+Na niektórych laptopach ASUS ROG i TUF `Fn + Super` to łatwa do przeoczenia kombinacja, która przełącza sprzętową blokadę klawisza Windows (przeznaczoną do gier, żeby przez przypadek nie wyjść z gry). Nic na ekranie nie informuje, że to się stało. Gdy blokada jest włączona, Super nie emituje absolutnie nic — więc każdy skrót Omarchy używający Super po prostu przestaje działać i wygląda to tak, jakby zepsuł się Hyprland.
 
-### Dlaczego moje zewnętrzne głośniki nie grają?
+Naciśnij raz `Fn + Super`, zanim zaczniesz grzebać w `~/.config/hypr/`, a jeśli to nie przywróci Super, naciśnij tę kombinację ponownie, aby nie zostawić włączonej blokady. To nie jest Fn-lock, który zmienia jedynie działanie rzędu klawiszy funkcyjnych.
 
-Prawdopodobnie dlatego, że nie są ustawione jako główne wyjście. Kliknij ikonę głośnika po prawej stronie paska, a otworzy się wyskakujące okienko głośności, w którym możesz wybrać urządzenie wyjściowe (i miksować też głośność poszczególnych aplikacji).
+### Sieć Wi-Fi, Bluetooth, dźwięk lub touchpad właśnie przestały mi działać
 
-### Głośniki mojego laptopa brzmią źle
+Zanim uruchomisz system ponownie, spróbuj zrestartować tylko wadliwy podsystem. W menu Omarchy pozycja _Aktualizacja > Sprzęt_ zawiera Wi-Fi, Bluetooth, Dźwięk i Touchpad, a ponowne załadowanie jednego z nich rozwiązuje większość sytuacji typu „działało pięć minut temu” — zestaw słuchawkowy Bluetooth, który nie chce się ponownie połączyć, touchpad, który przestał działać po uśpieniu, dźwięk, który zniknął po odłączeniu monitora.
 
-Na niektórych laptopach Omarchy automatycznie stosuje strojenie głośników, które koryguje charakterystykę częstotliwościową wbudowanych głośników. `omarchy audio tuning status` mówi ci, czy jakieś jest aktywne na twoim komputerze, a `omarchy audio tuning off` je wyłącza, jeśli wolisz słyszeć głośniki bez korekcji.
+### Dlaczego moje głośniki zewnętrzne nie odtwarzają dźwięku?
 
-### Dlaczego nie mogę zalogować się ani użyć sudo swoim hasłem?
+Prawdopodobnie dlatego, że nie zostały ustawione jako główne wyjście. Kliknij ikonę głośnika po prawej stronie paska, a otworzy się wyskakujące okno głośności, w którym możesz wybrać urządzenie wyjściowe (i regulować głośność dla poszczególnych aplikacji).
 
-Prawdopodobnie wpisałeś je źle zbyt wiele razy i zostałeś zablokowany. Jeśli dzieje się to na ekranie blokady, możesz nacisnąć `CTRL + ALT + F2`, aby uruchomić nowy TTY, w którym zalogujesz się jako root, a potem uruchomisz `faillock --reset --user [your-username]`. To zresetuje blokadę i możesz działać dalej.
+### Głośniki mojego laptopa brzmią dziwnie
 
-### Dlaczego monity autoryzacji 1Password dla 1Password SSH Agent / CLI się nie pojawiają?
+Na niektórych laptopach Omarchy automatycznie stosuje korekcję głośników, która poprawia pasmo przenoszenia wbudowanych głośników. Polecenie `omarchy audio tuning status` powie Ci, czy taka korekcja jest aktywna na Twojej maszynie, a `omarchy audio tuning off` wyłączy ją, jeśli wolisz słyszeć surowy dźwięk głośników.
 
-Może się to dziać z 2 powodów:
+### Dlaczego nie mogę zalogować się ani używać sudo przy użyciu swojego hasła?
 
-Aby pojawił się rozbudowany monit zatwierdzenia, w Settings > Advanced > Use Hardware Acceleration musi być włączona. _Uwaga: wymaga to restartu, aby zaczęło działać._
+Prawdopodobnie zbyt wiele razy wpisano błędne hasło i dostęp został zablokowany. Jeśli dzieje się to na ekranie blokady, możesz nacisnąć `CTRL + ALT + F2`, aby uruchomić nowy TTY, w którym zalogujesz się jako root, a następnie uruchomisz `faillock --reset --user [your-username]`. Spowoduje to usunięcie blokady i wszystko wróci do działania.
+
+### Dlaczego nie pojawiają się monity autoryzacji 1Password dla 1Password SSH Agent / CLI?
+
+Może się to zdarzyć z 2 powodów:
+
+Aby pojawił się rozbudowany monit o zatwierdzenie, opcja Ustawienia > Zaawansowane > Używaj akceleracji sprzętowej musi być włączona. _Uwaga: Aby zaczęło to działać, wymagane jest ponowne uruchomienie._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Albo jeśli nie uruchomiłeś 1Password od czasu rozruchu, monit się nie pojawi.
+Albo jeśli od uruchomienia systemu nie uruchomisz jeszcze 1Password, monit się nie pojawi.

@@ -1,10 +1,10 @@
 # Thèmes
 
-Omarchy est livré avec vingt-deux beaux thèmes. Vous pouvez les sélectionner via _Style > Thème_ dans le menu Omarchy (`Super + Space`) ou sauter directement au sélecteur de thème avec `Super + Ctrl + Shift + Space`.
+Omarchy est livré avec vingt-deux magnifiques thèmes. Vous pouvez choisir entre eux via _Apparence > Thème_ dans le menu Omarchy (`Super + Space`) ou accéder directement au sélecteur de thèmes avec `Super + Ctrl + T`.
 
-Chaque thème stylise le bureau, le terminal, neovim, l'écran d'activité (btop), Chromium et l'ensemble du shell Omarchy : barre supérieure, menu, notifications, OSD et écran de verrouillage. (Pour Obsidian, vous devez sélectionner manuellement le thème Omarchy via _Appearance > Themes_ dans l'appli).
+Chaque thème habille le bureau, le terminal, neovim, l'écran d'activité (btop), Chromium et l'ensemble du shell Omarchy : la barre supérieure, le menu, les notifications, l'OSD et l'écran de verrouillage. (Pour Obsidian, vous devez sélectionner manuellement le thème Omarchy via _Apparence > Thèmes_ dans l'application).
 
-Les thèmes ont un ensemble d'images d'arrière-plan parmi lesquelles vous pouvez choisir avec `Super + Ctrl + Space`.
+Les thèmes disposent d'un ensemble d'images d'arrière-plan parmi lesquelles vous pouvez choisir avec `Super + Ctrl + W`.
 
 Vous pouvez trouver encore plus de thèmes sur [la page des thèmes supplémentaires](https://omarchy.org/themes/) ou même [créer votre propre thème](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Déverrouillages
 
-Les thèmes peuvent aussi avoir un design de déverrouillage personnalisé, utilisé pour le processus de déchiffrement au démarrage. Vous pouvez en sélectionner un sous _Style > Déverrouiller_. Ils ressemblent à ceci :
+Les thèmes peuvent aussi avoir un design de déverrouillage personnalisé, utilisé pour le processus de déchiffrement au démarrage. Vous pouvez en sélectionner un sous _Apparence > Déverrouillage_. Voici à quoi ils ressemblent :
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

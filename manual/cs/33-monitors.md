@@ -1,55 +1,68 @@
 # Monitory
 
-Omarchy ve výchozím nastavení předpokládá, že běžíte na displeji třídy retina s možností 2× škálování. To je to, co potřebujete, abyste získali ta pěkná, ostrá programátorská písma. Pro toto jsou optimalizovány téměř všechny nové prémiové notebooky s obrazovkami s vysokým rozlišením. Je to to, co byste chtěli provozovat na 27palcovém 5K [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) nebo 32palcovém 6K [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/).
+Omarchy ve výchozím nastavení předpokládá, že používáte displej třídy retina s podporou 2x škálování. Právě to potřebujete k těm pěkným, ostrým programátorským fontům. Právě na to je optimalizována téměř všechna nová prémiová notebooková zařízení s obrazovkami s vysokým rozlišením. Právě to byste chtěli provozovat na 27" 5K [Apple Studio Display](https://www.apple.com/studio-display/)/[ProArt PA27JCV](https://www.asus.com/us/displays-desktops/monitors/proart/proart-display-5k-pa27jcv/)/[Samsung S9](https://www.samsung.com/us/computing/monitors/5k/27-viewfinity-s9-5k-monitor-with-thunderbolt-4-matte-display-and-smart-features-ls27c900panxza/)/[Kuycon G27P](https://kuycon.us/monitors/G27P/) nebo 32" 6K [Apple XDR](https://www.apple.com/pro-display-xdr/)/[ProArt PA32QCV](https://www.asus.com/displays-desktops/monitors/proart/proart-display-6k-pa32qcv/)/[Kuycon G32P](https://kuycon.us/monitors/G32P/).
 
-Ale pokud neběžíte na displeji s PPI 218 nebo vyšším, budete chtít nastavení monitoru změnit. Například, pokud máte 27palcový nebo 32palcový monitor 4K, můžete použít zlomkové škálování otevřením souboru `~/.config/hypr/monitors.lua` (v části _Nastavení > Monitory_ v nabídce Omarchy) a přepnutím na doporučení pro tuto kombinaci:
-
-```lua
-local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 1.6
-```
-
-Pokud používáte displej 1080p nebo 1440p, pravděpodobně budete chtít použít jen 1× škálování, takže můžete použít:
+Pokud ale nepoužíváte displej s PPI 218 nebo vyšším, budete chtít změnit nastavení monitoru. Pokud máte například 27" nebo 32" 4K, můžete pro něj vybrat zlomkové měřítko z panelu monitorů v horní liště, nebo nastavit výchozí hodnotu pro každý monitor otevřením `~/.config/hypr/monitors.lua` a přepnutím na doporučení pro danou kombinaci:
 
 ```lua
-local omarchy_gdk_scale = 1
-local omarchy_monitor_scale = 1
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })
 ```
 
-Změny proměnné `GDK_SCALE` se použijí na aplikace spuštěné po změně (a GTK respektuje pouze celá čísla, takže ji udržujte na nejbližším celém čísle vašeho měřítka pro monitor). Takže po změně nezapomeňte zavřít okna, která máte nadměrné velikosti (nebo zavřete všechna okna pomocí klávesové zkratky `Ctrl + Alt + Del`!).
+Pokud používáte displej 1080p nebo 1440p, pravděpodobně budete chtít použít jen škálování 1x, a totéž pro aplikace GTK a X11, takže můžete použít:
 
-Hlavními poměry škálování monitoru (1×, 1,25×, 1,6×, 2×, 3×, 4×) můžete také rychle procházet pomocí klávesové zkratky `Super + /` pro zvýšení a `Super + Alt + /` pro snížení. Pokud máte výchozí konfiguraci, tyto změny přetrvají i po restartu.
+```lua
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+hl.env("GDK_SCALE", "1")
+```
+
+Změny `GDK_SCALE` se projeví u aplikací spuštěných po změně (a GTK respektuje pouze celá čísla, takže ji ponechte na nejbližším celém čísle k měřítku vašeho monitoru). Po změně tedy nezapomeňte ukončit okna, která máte nadměrně velká (nebo zavřete všechna okna pomocí `Ctrl + Alt + Del`!).
+
+Můžete také rychle procházet hlavní poměry škálování monitoru (1x, 1.25x, 1.6x, 2x, 3x, 4x) pomocí `Super + /` pro zvýšení a `Super + Alt + /` pro snížení, nebo si jeden vybrat z panelu monitorů v horní liště. Ty mění pouze monitor, na který jste právě zaměřeni, takže obrazovka notebooku a externí displej mohou mít každý své vlastní měřítko. Panel také nastavuje rozlišení každého monitoru. Vaše volby se pro daný fyzický monitor ukládají do `~/.local/state/omarchy/monitors/settings`, takže přetrvají i po restartu a následují monitor do kteréhokoli portu nebo doku, do kterého ho příště zapojíte. Mají přednost před jakýmkoli pravidlem pro stejný monitor v `~/.config/hypr/monitors.lua`, které Omarchy nikdy neupravuje. Protože `GDK_SCALE` je jedna hodnota pro všechny obrazovky, nastaví ho zvolené měřítko podle monitoru s nejnižším měřítkem, takže aplikace X11 vyjdou na hustší obrazovce trochu malé, místo aby byly na té druhé nadměrně velké.
 
 ### Zvětšení nebo zmenšení textu
 
-Škálování monitoru mění velikost všeho. Pokud chcete jen větší nebo menší _text_, existuje pro to jediný ovladač:
+Škálování monitoru mění velikost všeho. Pokud chcete jen větší nebo menší _text_, existuje na to jediný ovládací prvek:
 
 ```
 omarchy display text size 14
 ```
 
-Ten přijímá velikost v pixelech mezi 9 a 20 a přesouvá společně shell Omarchy, aplikace GTK a váš terminál, takže celé pracovní prostředí zůstává v proporcích. Spusťte ho bez argumentu, abyste viděli, kde se nacházíte, a příkazem `omarchy display text size reset` se vraťte k výchozímu nastavení. Foot je jediný opozdilec: nemá způsob, jak svou konfiguraci načíst znovu, takže běžící terminály si uchovají svou starou velikost, dokud neotevřete nový.
+Zadáváte velikost v pixelech mezi 9 a 20 a společně tím posunete shell Omarchy, aplikace GTK i váš terminál, takže celá plocha zůstane v proporcích. Spusťte to bez argumentu, abyste viděli, kde právě jste, a `omarchy display text size reset` pro návrat k výchozí hodnotě. Foot je jediný opozdilec: nemá žádný způsob, jak znovu načíst svou konfiguraci, takže spuštěné terminály si zachovají starou velikost, dokud neotevřete nový.
 
-### Rozšíření a zrcadlení displejů notebooků
+### Rozšíření a zrcadlení displejů notebooku
 
-Když k notebooku připojíte externí obrazovku, displej se automaticky rozšíří. Ale pomocí části _Akce > Hardware_ v nabídce Omarchy nebo klávesové zkratky `Super + Ctrl + Alt + Delete` to můžete změnit na zrcadlení. To je obzvlášť užitečné, pokud je tato externí obrazovka projektor a vy chcete něco ukázat během práce.
+Když k notebooku připojíte externí obrazovku, displej se automaticky rozšíří. To ale můžete změnit na zrcadlení pomocí _Trigger > Hardware_ v nabídce Omarchy nebo `Super + Ctrl + Alt + Delete`. To se hodí zejména tehdy, pokud je tou externí obrazovkou projektor a chcete při práci něco ukázat.
 
-Když displej rozšiřujete, zavření víka notebooku automaticky vypne interní obrazovku. Otevření víka ji znovu zapne. Můžete to ovládat také ručně pomocí části _Akce > Hardware_ v nabídce Omarchy nebo klávesové zkratky `Super + Ctrl + Delete`.
+Když používáte rozšíření, zavřením víka notebooku se interní obrazovka automaticky vypne. Otevřením víka se znovu zapne. Můžete to také ovládat ručně pomocí _Trigger > Hardware_ v nabídce Omarchy nebo `Super + Ctrl + Delete`.
 
 ### Uspořádání více obrazovek
 
-Hyprland skvěle funguje s více obrazovkami. Další informace o tom, jak je rozvrhnout, najdete v [dokumentaci k monitorům Hyprlandu](https://wiki.hypr.land/Configuring/Basics/Monitors/). Můžete také [vázat konkrétní pracovní plochy na konkrétní monitory](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/). V Omarchy tato pravidla patří do souboru `~/.config/hypr/monitors.lua` jako položky `hl.monitor` — soubor je dodáván s okomentovanými příklady pro připnutí konkrétního monitoru na rozlišení, polohu a otáčení.
+Hyprland skvěle funguje s více obrazovkami. Panel monitorů v horní liště je kreslí tam, kde se nacházejí: přetáhněte jednu ke straně druhé, abyste ji tam přesunuli, a uspořádání se uloží spolu s ostatními nastaveními každého monitoru. Pro cokoli, co panel nepokrývá, si přečtěte více o tom, jak je rozložit, v [dokumentaci k monitorům Hyprlandu](https://wiki.hypr.land/Configuring/Basics/Monitors/). V Omarchy patří tyto položky do `~/.config/hypr/monitors.lua` jako záznamy `hl.monitor` — soubor se dodává s komentovanými příklady pro přiřazení konkrétního monitoru k rozlišení, pozici a otočení.
 
-Můžete se také podívat na program [Hyprmon](https://github.com/erans/hyprmon/), pokud byste chtěli TUI, které vám pomůže s umístěním více obrazovek.
+Každý monitor má svých vlastních pracovních ploch 1 až 10, takže `Super + 1` vždy znamená první pracovní plochu monitoru, na kterém se nacházíte. V pozadí Hyprland stále čísluje pracovní plochy napříč všemi monitory: obrazovka vašeho notebooku (nebo první monitor) dostane 1–10, další monitor 11–20 a tak dále a každý monitor si svůj blok zachová pokaždé, když ho zapojíte. Tato čísla použijte, pokud píšete [pravidla pracovních ploch](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) nebo pravidla oken pro konkrétní monitor, takže pracovní plocha 12 je druhá pracovní plocha vašeho druhého monitoru. `~/.local/state/omarchy/monitors/workspaces` uvádí, který blok má každý monitor.
+
+Šipky fungují napříč monitory, které ve vašem rozložení sdílejí hranu. Obrazovky, které se dotýkají pouze v rohu nebo mezi nimiž je mezera, nejsou sousedé, takže pro přechod mezi nimi použijte `Ctrl + Alt + Tab`.
+
+| Klávesová zkratka | Mezi monitory |
+| --- | --- |
+| `Super + Arrow` | Přesune zaměření na monitor na dané straně, jakmile tím směrem už nezbývá žádné okno |
+| `Super + Shift + Arrow` | Vymění se s oknem na monitoru na dané straně |
+| `Super + Alt + Arrow` | Přesune okno do skupiny na monitoru na dané straně |
+| `Super + Shift + Ctrl + Arrow` | Přesune okno na monitor na dané straně, na pracovní plochu, kterou zobrazuje |
+| `Super + Shift + Alt + Arrow` | Přesune pracovní plochu na monitor na dané straně a zachová její číslo, pokud je volné |
+| `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | Přesune zaměření na další nebo předchozí monitor, bez ohledu na rozložení |
+| `Super + 1-0`, `Super + Tab`, `Super + Scroll Wheel` | Zůstanou na monitoru, na kterém se nacházíte |
+
+Podívejte se také na [Hyprmon](https://github.com/erans/hyprmon/), pokud chcete TUI, které vám pomůže s umístěním více obrazovek.
 
 ### Ovládání jasu
 
-Jas monitoru se ovládá vyhrazenými funkčními klávesami pro zvýšení/snížení jasu. Pokud při jejich stisknutí podržíte klávesu Shift, přejdete na maximální nebo minimální jas. Klávesy ovládají displej, na který jste zaměřeni, takže externí monitory, které komunikují prostřednictvím DDC/CI, se upravují stejným způsobem jako obrazovka notebooku.
+Jas monitoru se ovládá vyhrazenými funkčními klávesami pro zvýšení/snížení jasu. Pokud při stisknutí těchto kláves podržíte Shift, přejdete na maximální nebo minimální jas. Klávesy ovládají displej, na který jste zaměřeni, takže externí monitory, které komunikují přes DDC/CI, se nastavují stejně jako obrazovka notebooku.
 
 ### Displeje Apple
 
-Pokud používáte displej Apple, budou běžné klávesové zkratky pro ovládání jasu z klávesnice také automaticky fungovat, pokud jste zaměřeni na displej Apple. Provádí se to příkazem `asdcontrol`.
+Pokud používáte displej Apple, budou běžné klávesy pro jas na klávesnici také automaticky fungovat, pokud jste zaměřeni na displej Apple. Děje se to prostřednictvím příkazu `asdcontrol`.
 
-Pamatujte, že pokud používáte displej Apple 6K XDR, můžete ve výpisu příkazu `hyprctl monitors` vidět přízračnou obrazovku. V části _Nastavení > Monitory_ ji můžete vypnout například příkazem `hl.monitor({ output = "DP-2", disabled = true })`.
+Všimněte si, že pokud používáte displej Apple 6K XDR, můžete ve výpisu `hyprctl monitors` vidět fantomovou obrazovku. Můžete ji vypnout něčím jako `hl.monitor({ output = "DP-2", disabled = true })` v `~/.config/hypr/monitors.lua`.
 
-Na počítačích s procesory Intel byste se měli k displejům Apple připojovat běžným kabelem Thunderbolt. Na jiných počítačích bez rozhraní Thunderbolt budete obvykle muset k fungování použít [kabel DP + USB-A -> USB-C](https://www.amazon.com/dp/B0BNX7MS6N).
+Na počítačích Intel byste se k displejům Apple měli připojovat pomocí běžného kabelu Thunderbolt. Na jiných počítačích bez Thunderboltu budete obvykle muset použít [kabel DP + USB-A -> USB-C](https://www.amazon.com/dp/B0BNX7MS6N), aby to fungovalo.

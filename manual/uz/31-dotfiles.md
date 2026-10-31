@@ -1,81 +1,81 @@
-# Dotfayllar
+# Dotfiles
 
-Omarchy asosan `~/.config` da yashovchi dotfayllar deb ataluvchilar orqali sozlanadi. Ular oʻzgarishlaringiz uchun sizning fayllaringiz hisoblanadi. `/usr/share/omarchy` da yashovchi fayllar Omarchy ning oʻziga tegishli va siz ularni buzib oʻtirmasligingiz kerak. Agar `/usr/share/omarchy` dagi biror narsani oʻzgartirishingiz kerak boʻlsa, uning oʻrniga qiymatni `~/.config` da ustiga yozishingiz kerak.
+Omarchy asosan `~/.config` ichida joylashgan dotfiles deb ataladigan fayllar orqali sozlanadi. Ular sizning oʻzgartirishlaringiz uchun sizning fayllaringiz deb hisoblanadi. `/usr/share/omarchy` ichida joylashgan fayllar Omarchy’ning oʻziga tegishli, va siz ularga aralashmasligingiz kerak. Agar `/usr/share/omarchy` ichida biror narsani oʻzgartirishingiz kerak boʻlsa, uning qiymatini oʻrniga `~/.config` ichida bekor qilishingiz kerak.
 
-Asosiy konfiguratsiyalarni Omarchy menyusidan (`Super + Space`) toʻgʻridan-toʻgʻri tahrirlash mumkin, masalan _Sozlash > Monitors_, _Sozlash > Keybindings_, _Sozlash > Input_ va _Sozlash > Config > [file]_. Buni shu tarzda qilganingizda, konfiguratsiya tahrirlaridan keyin qayta ishga tushishi kerak boʻlgan har qanday jarayon muharrirdan chiqqaningizdan keyin avtomatik boʻladi (standart tarzda Neovim — `:wq`, esda tuting! — lekin buni _Sozlash > Defaults > Editor_ orqali oʻzgartirishingiz mumkin).
+Asosiy konfiguratsiyalarni toʻgʻridan-toʻgʻri Omarchy menyusidan (`Super + Space`) tahrirlashingiz mumkin, masalan _Setup > Keybindings_, _Setup > Input_ va _Setup > Config > [file]_. Shunday qilganingizda, konfiguratsiyani tahrirlagandan keyin qayta ishga tushirilishi kerak boʻlgan har qanday jarayon muharrirni yopishingiz bilan avtomatik ravishda qayta ishga tushadi (standart holatda Neovim — `:wq`, esingizdami! — lekin buni _Setup > Defaults > Editor_ orqali oʻzgartirishingiz mumkin).
 
-Mana `~/.config` dagi asosiy fayllar roʻyxati va ular nimani boshqarishi:
+Mana `~/.config` ichidagi asosiy fayllar va ular nimani boshqarishi roʻyxati:
 
-| Fayl                  | Maqsadi              |
+| File                  | Purpose              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | Asosiy Hyprland konfiguratsiyasi. Omarchy standartlarini hamda quyidagi ustiga yozish fayllaringizni yuklaydi. [Hyprland konfiguratsiyalari haqida koʻproq bilib oling](https://wiki.hypr.land/Configuring/).  |
-| `~/.config/hypr/bindings.lua` | Oʻzingizning tugmalar birikmalaringiz va standartlarning ustiga yozuvlari. |
-| `~/.config/hypr/monitors.lua` | Monitorlaringiz, aniqligi va joyini boshqaradi. |
-| `~/.config/hypr/input.lua` | Klaviatura tartibingiz, sichqoncha va sensor panel sozlamalarini boshqaradi. |
-| `~/.config/hypr/looknfeel.lua` | Oraliqlar, chegaralar, animatsiyalar va koʻrinishning qolgan qismini boshqaradi. |
-| `~/.config/hypr/autostart.lua` | Sessiya bilan boshlangan qoʻshimcha jarayonlarni boshqaradi. |
-| `~/.config/omarchy/shell.json` | Omarchy shellini boshqaradi: panel joyi, tartibi va vidjetlari, plyus ekran saqlagich, qulflash va boʻsh vaqt vaqtlari. |
-| `~/.config/foot/foot.ini` | Terminalingizni boshqaradi (foot standartdir). |
-| `~/.XCompose` | Tezkor kirish emoji va ism/elektron pochta avtomatik toʻldirishini belgilaydi. Oʻzgarishlarni qilgandan keyin `omarchy-restart-xcompose` ni ishga tushirishga ishonch hosil qiling. |
+| `~/.config/hypr/hyprland.lua` | Asosiy Hyprland konfiguratsiyasi. Omarchy standart sozlamalarini hamda pastdagi bekor qilish fayllaringizni yuklaydi. [Hyprland konfiguratsiyalari haqida koʻproq bilib oling](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | Oʻzingizning klaviatura tugmalar birikmalaringiz va standartlarining bekor qilinishlari. |
+| `~/.config/hypr/monitors.lua` | Monitor paneli qamrab olmaydigan monitor sozlamalari, masalan, aylantirish, qoʻshimcha rejimlar yoki monitorni oʻchiq holda saqlash. |
+| `~/.config/hypr/input.lua` | Klaviatura tartibi, sichqoncha va trekpad sozlamalaringizni boshqaradi. |
+| `~/.config/hypr/looknfeel.lua` | Boʻshliqlar, chegaralar, animatsiyalar va qolgan koʻrinishni boshqaradi. |
+| `~/.config/hypr/autostart.lua` | Seans bilan birga ishga tushiriladigan qoʻshimcha jarayonlarni boshqaradi. |
+| `~/.config/omarchy/shell.json` | Omarchy shell’ini boshqaradi: panel joylashuvi, tartibi va vidjetlari, shuningdek ekran saqlagichi, qulflash va boʻsh turish vaqt chegaralari. |
+| `~/.config/foot/foot.ini` | Terminalingizni boshqaradi (standart holatda foot ishlatiladi). |
+| `~/.XCompose` | Tez kirish emoji’laringizni va ism/email avtomatik toʻldirishingizni belgilaydi. Oʻzgartirishlar kiritgandan keyin `omarchy-restart-xcompose` buyrugʻini ishga tushirishni unutmang. |
 
-Agar oʻz sozlamangizni moslashtirish uchun koʻp oʻzgarishlar qilib qoʻysangiz, bu dotfayllarning hammasini zaxiralab qoʻyish yaxshi fikr. [Stow buni qilishning ajoyib usulidir](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+Agar oʻz sozlashlaringizni moslashtirish uchun koʻp oʻzgartirishlar kiritadigan boʻlsangiz, barcha ushbu dotfiles’ni zaxiralab qoʻyish yaxshi fikr. [Stow — buni qilishning ajoyib usuli](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
-### Oʻz ilovalaringizni sessiya bilan boshlash
+### Seans bilan birga oʻz ilovalaringizni ishga tushirish
 
-Agar biror narsa har safar kirganingizda ishlashini istasangiz — sinxronlash demoni, chat ilovasi, oʻz skriptingiz — uni `~/.config/hypr/autostart.lua` ga qoʻying:
+Agar har safar tizimga kirganingizda biror narsa ishga tushishini istasangiz — sinxronlash daemoni, suhbat ilovasi, oʻz skriptingiz — uni `~/.config/hypr/autostart.lua` ichiga qoʻying:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-Bu buyruqni sessiyaning bir qismi sifatida boshlaydi, shuning uchun siz yana chiqqaningizda u toʻgʻri tozalanadi.
+Bu buyruqni seansning bir qismi sifatida ishga tushiradi, shuning uchun siz tizimdan chiqqaningizda u toʻgʻri tozalanadi.
 
 ### Tizim hodisalarida skriptlarni ishga tushirish
 
-Omarchy bir hovuch paytlarda hooklar chaqiradi va siz ularga oʻz skriptlaringizni osishingiz mumkin. Ular `~/.config/omarchy/hooks/<event>.d/` da yashaydi, har bir hodisa uchun bitta katalog va hodisa sodir boʻlganda u yerdagi har bir bajariladigan fayl ishlaydi:
+Omarchy bir nechta lahzalarda xuklarni ishga tushiradi, va siz ularga oʻz skriptlaringizni osib qoʻyishingiz mumkin. Ular `~/.config/omarchy/hooks/<event>.d/` ichida joylashgan, har bir hodisa uchun bitta katalog, va u yerdagi har bir bajariladigan fayl hodisa sodir boʻlganda ishga tushadi:
 
-| Hodisa | Qachon ishlaydi |
+| Event | When it runs |
 | ----- | ------------ |
-| `post-boot` | Ish stoli boshlanishidan darhol keyin |
-| `post-update` | `omarchy update` ning oxiriga yaqin, paketlar, migratsiyalar va xizmat qayta ishga tushirishlaridan keyin, mise vositalari yangilanishidan oldin |
-| `pre-refresh-pacman` | `omarchy refresh pacman` paket konfiguratsiyasini qayta sinxronlashdan keyin, paketlarni yangilashidan oldin; kanal almashishi uni oʻsha bir xil yangilash bosqichida ishga tushiradi |
-| `theme-set` | Mavzu oʻzgarishidan keyin (mavzu nomi `$1` da) |
-| `font-set` | Shrift oʻzgarishidan keyin (shrift nomi `$1` da) |
-| `battery-low` | Batareya kamayganda (foiz `$1` da) |
+| `post-boot` | Ish stoli ishga tushgandan soʻng darhol |
+| `post-update` | `omarchy update` oxirlariga yaqin, paketlar, migratsiyalar va xizmatlar qayta ishga tushirilgandan keyin, mise vositalari yangilanishidan oldin |
+| `pre-refresh-pacman` | `omarchy refresh pacman` paket konfiguratsiyasini qayta sinxronlagandan keyin, paketlarni yangilashidan oldin; kanal almashinuvi uni oʻsha yangilash bosqichining oʻzida ishga tushiradi |
+| `theme-set` | Mavzu oʻzgargandan keyin (mavzu nomi `$1` ichida) |
+| `font-set` | Shrift oʻzgargandan keyin (shrift nomi `$1` ichida) |
+| `battery-low` | Batareya quvvati kam qolganda (foiz `$1` ichida) |
 
-`pre-refresh-pacman` hook maxsus repozitoriylar yoki `IgnorePkg` qatorlari tegishli boʻlgan joydir, chunki u paket tranzaksiyasidan oldin ishlaydi. Ikkala yangilanishga oid hook ham Omarchy keshlangan sudo ruxsatini tozalagandan keyin sizning foydalanuvchingiz sifatida ishlaydi, shuning uchun `sudo` dan foydalanuvchi hookka oʻz ruxsati kerak va parolingizni soʻrashi mumkin.
+`pre-refresh-pacman` xuki — bu maxsus repozitoriylar yoki `IgnorePkg` qatorlari tegishli boʻlgan joy, chunki u paket tranzaksiyasidan oldin ishga tushadi. Ikkala yangilanish bilan bogʻliq xuk ham Omarchy keshlangan sudo ruxsatini tozalagandan keyin sizning foydalanuvchingiz sifatida ishga tushadi, shuning uchun `sudo` ishlatadigan xuk oʻz ruxsatiga muhtoj boʻladi va parolingizni soʻrashi mumkin.
 
-Oʻsha kataloglarning har biri allaqachon hook shaklini koʻrsatuvchi `.sample` faylini saqlaydi — uni ishga tushirish uchun nomidan `.sample` ni olib tashlang. Boshqa joyda yozgan skriptni oʻrnatish uchun `omarchy hook install post-boot ~/my-hook` dan foydalaning, u uni nusxalab kiritadi va bajariladigan qiladi.
+Ushbu kataloglarning har birida allaqachon xukning shaklini koʻrsatadigan `.sample` fayli mavjud — uni ishga tushirish uchun nomidan `.sample` ni olib tashlang. Boshqa joyda yozgan skriptingizni oʻrnatish uchun `omarchy hook install post-boot ~/my-hook` buyrugʻini ishlating, u uni nusxalab kiritadi va bajariladigan qiladi.
 
 ### Oʻz menyu yozuvlaringizni qoʻshish
 
-Omarchy menyusi (`Super + Space`) `~/.config/omarchy/extensions/omarchy-menu.jsonc` ni tahrirlash orqali oʻz qatorlaringiz bilan kengaytirilishi mumkin. Yozuvlar nuqtali id bilan kalitlangan va id ularni daraxtga joylashtiruvchi narsadir, shuning uchun `personal` ildiz menyusida paydo boʻladi va `personal.notes` uning ichida paydo boʻladi:
+Omarchy menyusini (`Super + Space`) `~/.config/omarchy/extensions/omarchy-menu.jsonc` faylini tahrirlash orqali oʻz qatorlaringiz bilan kengaytirishingiz mumkin. Yozuvlar nuqtali id boʻyicha kalitlanadi, va id ularni daraxtda joylashtiradi, shuning uchun `personal` ildiz menyuda koʻrinadi va `personal.notes` uning ichida koʻrinadi:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Mavjud id ni qayta ishlating va siz yangi qoʻshish oʻrniga oʻsha qatorni ustiga yozasiz. Fayl barcha mavjud maydonlar izoh sifatida hujjatlashtirilgan holda keladi.
+Mavjud id’dan qayta foydalansangiz, yangi qator qoʻshish oʻrniga oʻsha qatorni bekor qilasiz. Fayl barcha mavjud maydonlar sharhlar sifatida hujjatlashtirilgan holda keladi.
 
-### Oʻz shell eksportlari, funksiyalari va aliaslaringizni qoʻshish
+### Oʻz shell eksportlaringiz, funksiyalaringiz va aliaslaringizni qoʻshish
 
-Omarchy bir qator ergonomik aliaslar va foydali funksiyalar bilan keladi, lekin oʻzingiznikini qoʻshishni xohlash juda keng tarqalgan. Siz aliaslar, funksiyalar va eksportlarni ham `~/.bashrc` ga qoʻshishingiz kerak. Bu fayl yangilanishlarda ustiga yozilmaydi. Agar Omarchy standartlarining birortasini oʻzgartirishni istasangiz, ularni bu yerda ham xavfsiz qoʻshishingiz mumkin.
+Omarchy bir qancha ergonomik aliaslar va foydali funksiyalar bilan birga keladi, lekin oʻzingiznikini qoʻshishni istash juda keng tarqalgan holat. Aliaslar, funksiyalar va eksportlarni ham `~/.bashrc` ga qoʻshishingiz kerak. Bu fayl yangilanishlarda bekor qilinmaydi. Agar Omarchy standartlaridan birini oʻzgartirmoqchi boʻlsangiz, ularni ham bu yerga xavfsiz qoʻshishingiz mumkin.
 
 ### Ichki Omarchy fayllarini oʻzgartirish
 
-Qarang, bu sizning kompyuteringiz. U bilan xohlaganingizni qilishingiz mumkin, lekin men `/usr/share/omarchy` dagi fayllarga toʻgʻridan-toʻgʻri oʻzgarishlar qilishga qarshi maslahat bergan boʻlardim. Ular Omarchy pacman paketiga tegishli, shuning uchun oʻzgarishlaringiz shunchaki keyingi yangilanishda ustiga yoziladi. Uning oʻrniga sizga yoqmagan har qanday standart qiymatlarni shunchaki `~/.config/*` jildida ustiga yozganingiz yaxshiroqdir.
+Qarang, bu sizning kompyuteringiz. U bilan hohlaganingizni qilishingiz mumkin, lekin men `/usr/share/omarchy` ichidagi fayllarga toʻgʻridan-toʻgʻri oʻzgartirish kiritmaslikni maslahat berardim. Ular Omarchy pacman paketiga tegishli, shuning uchun oʻzgartirishlaringiz keyingi yangilanishda shunchaki bekor qilinadi. Buning oʻrniga, sizga yoqmagan har qanday standart qiymatlarni `~/.config/*` papkasida bekor qilganingiz yaxshiroq.
 
-Bu tarzda deyarli hamma narsani, masalan standart tugmalar birikmalarini oʻzgartirishingiz mumkin. Aytaylik, [Obsidian](https://obsidian.md/) ni [Joplin](https://joplinapp.org/) bilan almashtirish uchun shunchaki `~/.config/hypr/bindings.lua` ni tahrirlang (`omarchy-pkg-add joplin-bin` bilan oʻrnating):
+Shunday qilib deyarli hamma narsani oʻzgartirishingiz mumkin, masalan standart klaviatura birikmalarini. Faqat `~/.config/hypr/bindings.lua` ni tahrirlash kifoya, masalan [Obsidian](https://obsidian.md/) ni [Joplin](https://joplinapp.org/) bilan almashtirish uchun (`omarchy-pkg-add joplin-bin` bilan oʻrnating):
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-`o.rebind` almashtirishini qoʻshishdan oldin mavjud bogʻlanishni olib tashlaydi. U `o.bind` bilan bir xil argumentlarni, jumladan ishga tushirish yordamchilari va bogʻlanish variantlarini oladi. Bogʻlanishni qoʻshish uchun `o.bind` dan yoki uni almashtirmasdan olib tashlash uchun `hl.unbind` dan foydalaning.
+`o.rebind` oʻz oʻrniga keluvchini qoʻshishdan oldin mavjud birikmani olib tashlaydi. U `o.bind` bilan bir xil argumentlarni oladi, jumladan ishga tushirish yordamchilari va birikma variantlarini. Birikma qoʻshish uchun `o.bind` dan foydalaning, yoki uni almashtirmasdan olib tashlash uchun `hl.unbind` dan foydalaning.
 
-Agar ichki Omarchy fayllarini hack qilishda qatʼiy boʻlsangiz, _Yangilash > Channel > Dev_ orqali dev kanaliga oʻting. Bu Omarchy ni `~/omarchy` dagi manba kodining git checkout iga bogʻlaydi, uni koʻnglingizgacha oʻzgartirishingiz mumkin. Bu yerda sizga nima qilishni aytadigan hech kim yoʻq!
+Agar ichki Omarchy fayllarini buzib oʻynashga qat’iy ahd qilgan boʻlsangiz, _Update > Channel > Dev_ orqali dev kanaliga oʻting. Bu Omarchy’ni `~/omarchy` ichidagi manba kodining git nusxasiga bogʻlaydi, uni koʻnglingiz tusaganchalik oʻzgartirishingiz mumkin. Bu yerda sizga nima qilish kerakligini aytadigan hech kim yoʻq!
 
 ### Har qanday oʻzgarishlarni tiklash
 
-Agar konfiguratsiyalarni tartibsiz qilib qoʻysangiz, ularni har doim Omarchy menyusidagi _Yangilash > Config_ orqali standartlarga qaytarishingiz mumkin. Yoki hamma narsani tiklash uchun `omarchy reinstall configs` ni ishga tushirish orqali.
+Agar konfiguratsiyalarni oxir-oqibat chalkashtirib yuborsangiz, ularni har doim Omarchy menyusidagi _Update > Config_ orqali standartlarga qaytarishingiz mumkin. Yoki hammasini tiklash uchun `omarchy reinstall configs` buyrugʻini ishga tushirib.

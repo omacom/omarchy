@@ -1,81 +1,81 @@
 # Dotfiles
 
-Omarchy määrätään ensisijaisesti niin sanottujen dotfilejen kautta, jotka sijaitsevat hakemistossa `~/.config`. Niitä pidetään sinun tiedostoinasi sinun muutoksiasi varten. Tiedostot, jotka sijaitsevat hakemistossa `/usr/share/omarchy`, kuuluvat itse Omarchylle, eikä sinun pitäisi sorkkia niitä. Jos sinun pitää muuttaa jotain hakemistossa `/usr/share/omarchy`, sinun pitäisi sen sijaan ylikirjoittaa arvo hakemistossa `~/.config`.
+Omarchy määritetään ensisijaisesti niin kutsutuilla dotfiles-tiedostoilla, jotka ovat kansiossa `~/.config`. Ne ovat sinun tiedostojasi sinun muutoksiasi varten. Tiedostot, jotka ovat kansiossa `/usr/share/omarchy`, kuuluvat Omarchylle itselleen, eikä sinun pitäisi peukaloida niitä. Jos sinun täytyy muuttaa jotain kansiossa `/usr/share/omarchy`, sinun pitäisi sen sijaan korvata arvo kansiossa `~/.config`.
 
-Tärkeimpiä määrityksiä voi muokata suoraan Omarchy-valikosta (`Super + Space`), kuten _Asetukset > Näytöt_, _Asetukset > Pikanäppäimet_, _Asetukset > Syöttö_ ja _Asetukset > Määritykset > [file]_. Kun teet sen näin, kaikki prosessit, jotka tarvitsevat uudelleenkäynnistystä määritysmuutosten jälkeen, käynnistetään automaattisesti sen jälkeen, kun suljet editorin (oletuksena Neovim — `:wq`, muistathan! — mutta voit muuttaa sen kohdassa _Asetukset > Oletukset > Editori_).
+Keskeisiä määrityksiä voi muokata suoraan Omarchy-valikosta (`Super + Space`), kuten _Setup > Keybindings_, _Setup > Input_ ja _Setup > Config > [file]_. Kun teet sen näin, kaikki prosessit, jotka täytyy käynnistää uudelleen määritysten muokkauksen jälkeen, käynnistetään automaattisesti uudelleen, kun suljet editorin (oletuksena Neovim — `:wq`, muista! — mutta voit vaihtaa sen kohdasta _Setup > Defaults > Editor_).
 
-Tässä on luettelo hakemiston `~/.config` tärkeimmistä tiedostoista ja siitä, mitä ne ohjaavat:
+Tässä on luettelo kansion `~/.config` keskeisistä tiedostoista ja siitä, mitä ne ohjaavat:
 
-| Tiedosto                  | Tarkoitus              |
+| File                  | Purpose              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | Hyprlandin päämääritys. Lataa Omarchyn oletukset sekä alla olevat ohitustiedostosi. [Lue lisää Hyprland-määrityksistä](https://wiki.hypr.land/Configuring/).  |
-| `~/.config/hypr/bindings.lua` | Omat pikanäppäimesi ja oletuksien ohituksesi. |
-| `~/.config/hypr/monitors.lua` | Ohjaa näyttöjäsi, resoluutiotasi ja sijaintiasi. |
-| `~/.config/hypr/input.lua` | Ohjaa näppäinasetteluasi, hiirtäsi ja kosketuslevysi asetuksia. |
-| `~/.config/hypr/looknfeel.lua` | Ohjaa välejä, reunoja, animaatioita ja muuta ulkoasua. |
-| `~/.config/hypr/autostart.lua` | Ohjaa istunnon mukana käynnistettäviä lisäprosesseja. |
-| `~/.config/omarchy/shell.json` | Ohjaa Omarchy-shelliä: palkin sijaintia, asettelua ja widgettejä sekä näytönsäästäjän, lukon ja joutokäynnin ajoituksia. |
+| `~/.config/hypr/hyprland.lua` | Hyprlandin päämääritystiedosto. Lataa Omarchyn oletukset sekä alla olevat omat ohitustiedostosi. [Lue lisää Hyprland-määrityksistä](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | Omat näppäinsidontasi ja oletusten ohitukset. |
+| `~/.config/hypr/monitors.lua` | Näyttöasetukset, joita näyttöpaneeli ei kata, kuten kierto, ylimääräiset tilat tai näytön pitäminen pois päältä. |
+| `~/.config/hypr/input.lua` | Ohjaa näppäimistöasettelua, hiiren ja kosketuslevyn asetuksia. |
+| `~/.config/hypr/looknfeel.lua` | Ohjaa välejä, reunuksia, animaatioita ja muuta ulkoasua. |
+| `~/.config/hypr/autostart.lua` | Ohjaa istunnon mukana käynnistettäviä ylimääräisiä prosesseja. |
+| `~/.config/omarchy/shell.json` | Ohjaa Omarchy shelliä: palkin sijaintia, asettelua ja widgetejä sekä näytönsäästäjän, lukituksen ja joutoajan ajoituksia. |
 | `~/.config/foot/foot.ini` | Ohjaa päätettäsi (foot on oletus). |
-| `~/.XCompose` | Määrittää pikakäyttö-emojisi ja nimi/sähköposti-automaattitäydennyksesi. Muista ajaa `omarchy-restart-xcompose` muutosten tekemisen jälkeen. |
+| `~/.XCompose` | Määrittää pikakäyttöemojisi ja nimen/sähköpostin automaattisen täydennyksen. Muista suorittaa `omarchy-restart-xcompose` muutosten tekemisen jälkeen. |
 
-Jos päädyt tekemään paljon muutoksia oman asetuksesi säätämiseksi, on hyvä idea varmuuskopioida kaikki nämä dotfilet. [Stow on erinomainen tapa tehdä se](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+Jos päädyt tekemään paljon muutoksia oman kokoonpanosi virittämiseksi, kaikki nämä dotfiles-tiedostot kannattaa varmuuskopioida. [Stow on loistava tapa tehdä se](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
 ### Omien sovellustesi käynnistäminen istunnon mukana
 
-Jos haluat jonkin olevan käynnissä joka kerta, kun kirjaudut sisään — synkronointidaemonin, chat-sovelluksen, oman skriptisi — laita se tiedostoon `~/.config/hypr/autostart.lua`:
+Jos haluat jonkin suoritettavan joka kerta, kun kirjaudut sisään — synkronointidaemonin, chat-sovelluksen, oman skriptisi — laita se tiedostoon `~/.config/hypr/autostart.lua`:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-Se käynnistää komennon osana istuntoa, joten se siivotaan kunnolla, kun kirjaudut jälleen ulos.
+Se käynnistää komennon osana istuntoa, joten se siivotaan kunnolla, kun kirjaudut taas ulos.
 
-### Skriptien ajaminen järjestelmätapahtumissa
+### Skriptien suorittaminen järjestelmätapahtumien yhteydessä
 
-Omarchy laukaisee koukkuja kourallisessa hetkissä, ja voit ripustaa omat skriptisi niihin. Ne sijaitsevat hakemistossa `~/.config/omarchy/hooks/<event>.d/`, yksi hakemisto tapahtumaa kohden, ja jokainen siellä oleva suoritettava tiedosto ajetaan tapahtuman sattuessa:
+Omarchy laukaisee hookeja muutamissa hetkissä, ja voit ripustaa omia skriptejäsi niihin. Ne ovat kansiossa `~/.config/omarchy/hooks/<event>.d/`, yksi kansio per tapahtuma, ja jokainen siellä oleva suoritettava tiedosto suoritetaan, kun tapahtuma sattuu:
 
-| Tapahtuma | Milloin se ajetaan |
+| Event | When it runs |
 | ----- | ------------ |
 | `post-boot` | Heti työpöydän käynnistymisen jälkeen |
-| `post-update` | Lähellä komennon `omarchy update` loppua, pakettien, migraatioiden ja palveluiden uudelleenkäynnistysten jälkeen, ennen mise-työkalujen päivittämistä |
-| `pre-refresh-pacman` | Sen jälkeen, kun `omarchy refresh pacman` synkronoi pakettimäärityksen uudelleen, ennen kuin se päivittää paketit; kanavan vaihto ajaa sen saman virkistysvaiheen aikana |
-| `theme-set` | Teemanvaihdon jälkeen (teeman nimi muuttujassa `$1`) |
-| `font-set` | Fontinvaihdon jälkeen (fontin nimi muuttujassa `$1`) |
-| `battery-low` | Kun akku käy vähiin (prosentti muuttujassa `$1`) |
+| `post-update` | Lähellä `omarchy update` -komennon loppua, pakettien, migraatioiden ja palvelujen uudelleenkäynnistysten jälkeen, ennen kuin mise-työkalut päivitetään |
+| `pre-refresh-pacman` | Sen jälkeen, kun `omarchy refresh pacman` synkronoi pakettimääritykset uudelleen, ennen kuin se päivittää paketit; kanavan vaihto suorittaa sen saman refresh-vaiheen aikana |
+| `theme-set` | Teeman vaihdon jälkeen (teeman nimi kohdassa `$1`) |
+| `font-set` | Fontin vaihdon jälkeen (fontin nimi kohdassa `$1`) |
+| `battery-low` | Kun akku on vähissä (prosenttiosuus kohdassa `$1`) |
 
-Koukku `pre-refresh-pacman` on paikka, johon mukautetut repositoriot tai `IgnorePkg`-rivit kuuluvat, koska se ajetaan ennen pakettitransaktiota. Molemmat päivitykseen liittyvät koukut ajetaan käyttäjänäsi sen jälkeen, kun Omarchy tyhjentää välimuistiin tallennetun sudo-valtuutuksensa, joten `sudo`a käyttävä koukku tarvitsee oman valtuutuksensa ja saattaa kysyä salasanaasi.
+`pre-refresh-pacman`-hook on paikka, johon mukautetut repositoriot tai `IgnorePkg`-rivit kuuluvat, koska se suoritetaan ennen pakettitransaktiota. Molemmat päivitykseen liittyvät hookit suoritetaan käyttäjänäsi sen jälkeen, kun Omarchy tyhjentää välimuistiin tallennetun sudo-valtuutuksensa, joten `sudo`-komentoa käyttävä hook tarvitsee oman valtuutuksensa ja saattaa pyytää salasanaasi.
 
-Jokaisessa noista hakemistoista on jo tiedosto `.sample`, joka näyttää koukun muodon — pudota `.sample` nimestä ottaaksesi sen käyttöön. Asentaaksesi muualle kirjoittamasi skriptin käytä komentoa `omarchy hook install post-boot ~/my-hook`, joka kopioi sen sisään ja tekee siitä suoritettavan.
+Jokaisessa näistä kansioista on jo `.sample`-tiedosto, joka näyttää hookin muodon — poista nimestä `.sample` ottaaksesi sen käyttöön. Asentaaksesi muualle kirjoittamasi skriptin käytä komentoa `omarchy hook install post-boot ~/my-hook`, joka kopioi sen paikalleen ja tekee siitä suoritettavan.
 
-### Omien valikkomerkintöjesi lisääminen
+### Omien valikkomerkintöjen lisääminen
 
-Omarchy-valikkoa (`Super + Space`) voi laajentaa omilla riveillä muokkaamalla tiedostoa `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Merkinnät avataan pisteellisellä id:llä, ja id on se, mikä sijoittaa ne puuhun, joten `personal` ilmestyy juurivalikkoon ja `personal.notes` ilmestyy sen sisään:
+Omarchy-valikkoa (`Super + Space`) voi laajentaa omilla riveilläsi muokkaamalla tiedostoa `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Merkinnät avataan pisteellisellä id:llä, ja id sijoittaa ne puuhun, joten `personal` näkyy juurivalikossa ja `personal.notes` näkyy sen sisällä:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Käytä olemassa olevaa id:tä uudelleen, niin ohitat tuon rivin sen sijaan, että lisäisit uuden. Tiedosto toimitetaan kaikkien saatavilla olevien kenttien ollessa dokumentoituina kommentteina.
+Käytä olemassa olevaa id:tä uudelleen, niin ohitat kyseisen rivin sen sijaan, että lisäisit uuden. Tiedoston mukana tulevat kaikki käytettävissä olevat kentät kommentteina dokumentoituina.
 
-### Omien shell-vientiesi, funktioidesi ja aliastesi lisääminen
+### Omien shell-vientien, funktioiden ja aliasten lisääminen
 
-Omarchyssa on mukana joukko ergonomisia aliaksia ja hyödyllisiä funktioita, mutta on hyvin tavallista haluta lisätä omia. Lisää sekä aliakset, funktiot että viennit tiedostoon `~/.bashrc`. Tätä tiedostoa ei ylikirjoiteta päivityksissä. Jos haluat muuttaa jotain Omarchyn oletusta, voit myös turvallisesti lisätä sen tänne.
+Omarchyn mukana tulee joukko ergonomisia aliaksia ja hyödyllisiä funktioita, mutta omien lisääminen on hyvin yleistä. Sinun pitäisi lisätä sekä aliakset, funktiot että viennit tiedostoon `~/.bashrc`. Tätä tiedostoa ei korvata päivityksissä. Jos haluat muuttaa jotain Omarchyn oletuksista, voit myös turvallisesti lisätä ne tänne.
 
-### Sisäisten Omarchy-tiedostojen muuttaminen
+### Omarchyn sisäisten tiedostojen muuttaminen
 
-Kuuntele, tämä on sinun tietokoneesi. Voit tehdä sillä mitä haluat, mutta neuvoisin olemaan tekemättä muutoksia suoraan hakemiston `/usr/share/omarchy` tiedostoihin. Ne kuuluvat Omarchy-pacman-pakettiin, joten muutoksesi vain ylikirjoitetaan seuraavassa päivityksessä. Sinun on parempi vain ylikirjoittaa kaikki oletusarvot, joista et pidä, sen sijaan kansiossa `~/.config/*`.
+Kuule, tämä on sinun tietokoneesi. Voit tehdä sillä mitä haluat, mutta neuvoisin olemaan tekemättä muutoksia suoraan kansion `/usr/share/omarchy` tiedostoihin. Ne kuuluvat Omarchyn pacman-pakettiin, joten muutoksesi korvataan yksinkertaisesti seuraavan päivityksen yhteydessä. Sinun kannattaa sen sijaan vain korvata kaikki oletusarvot, joista et pidä, kansiossa `~/.config/*`.
 
-Voit muuttaa melkein kaiken niin, kuten oletus-pikanäppäimet. Muokkaa vain tiedostoa `~/.config/hypr/bindings.lua` korvataksesi vaikkapa ohjelman [Obsidian](https://obsidian.md/) ohjelmalla [Joplin](https://joplinapp.org/) (asenna komennolla `omarchy-pkg-add joplin-bin`):
+Voit muuttaa melkein kaiken sillä tavalla, kuten oletusnäppäinsidonnat. Muokkaa vain tiedostoa `~/.config/hypr/bindings.lua` esimerkiksi korvataksesi [Obsidianin](https://obsidian.md/) [Joplinilla](https://joplinapp.org/) (asenna komennolla `omarchy-pkg-add joplin-bin`):
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-`o.rebind` poistaa olemassa olevan sidonnan ennen korvaajansa lisäämistä. Se ottaa samat argumentit kuin `o.bind`, mukaan lukien käynnistysavustajat ja sidontavaihtoehdot. Käytä `o.bind` lisätäksesi sidonnan tai `hl.unbind` poistaaksesi yhden korvaamatta sitä.
+`o.rebind` poistaa olemassa olevan sidonnan ennen korvaavan lisäämistä. Se ottaa samat argumentit kuin `o.bind`, mukaan lukien käynnistysapufunktiot ja sidonnan valinnat. Käytä `o.bind`-komentoa sidonnan lisäämiseen tai `hl.unbind`-komentoa sen poistamiseen korvaamatta sitä.
 
-Jos vaadit hakkeroimaan sisäisiä Omarchy-tiedostoja, vaihda dev-kanavalle kohdassa _Päivitä > Kanava > Dev_. Se linkittää Omarchyn lähdekoodin git-noudettuun kopioon hakemistossa `~/omarchy`, jota saat muuttaa sydämesi kyllyydestä. Täällä ei ole kukaan kertomassa sinulle, mitä sinun pitäisi tehdä!
+Jos välttämättä haluat hakkeroida Omarchyn sisäisiä tiedostoja, vaihda dev-kanavalle kohdasta _Update > Channel > Dev_. Se linkittää Omarchyn lähdekoodin git-työkopioon kansiossa `~/omarchy`, jota voit vapaasti muuttaa sydämesi kyllyydestä. Kukaan täällä ei ole kertomassa sinulle, mitä tehdä!
 
-### Muutosten palauttaminen
+### Muutosten nollaaminen
 
-Jos päädyt tekemään määrityksistä sekasotkun, voit aina palauttaa ne oletuksiin Omarchy-valikon kohdassa _Päivitä > Määritykset_. Tai ajamalla `omarchy reinstall configs` palauttaaksesi kaiken.
+Jos päädyt sotkemaan määritykset, voit aina palauttaa ne oletuksiin Omarchy-valikon kohdasta _Update > Config_. Tai suorittamalla komennon `omarchy reinstall configs` nollataksesi kaiken.

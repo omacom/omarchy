@@ -1,50 +1,50 @@
-# Scoráin, Díomhaoin & an Coigilteoir Scáileáin
+# Scoránaigh, Díomhaointeas & an Spárálaí Scáileáin
 
-Ní socrú i ndáiríre é go leor den mhéid a athraíonn tú ó lá go lá. Is mód é a chasann tú air ar feadh uair an chloig agus as arís: solas oíche fad is atá tú ag obair go déanach, ná cuir isteach fad is atá tú ag cur i láthair, fan i do dhúis fad is atá tú ag féachaint ar rud éigin. Tugann Omarchy scoráin orthu sin, agus oibríonn siad ar fad ar an mbealach céanna — eochair ghasta, iontráil roghchláir, agus ordú, ar fad ag bualadh an lasc chéanna.
+Ní suíomh i ndáiríre é cuid mhór de na rudaí a athraíonn tú ó lá go lá. Is mód é a chasann tú air ar feadh uair an chloig agus as arís: solas oíche agus tú ag obair go déanach, ná cuir isteach agus tú ag cur i láthair, fan i do dhúiseacht agus tú ag breathnú ar rud éigin. Scoránaigh a thugann Omarchy orthu sin, agus oibríonn siad go léir ar an mbealach céanna — eochair aicearra, iontráil roghchláir, agus ordú, iad go léir ag bualadh an lasc chéanna.
 
-### Roghchlár na scorán
+### An roghchlár scoránaigh
 
-Osclaíonn `Super + Ctrl + O` _Spreag > Scoránaigh_ go díreach, nó is féidir leat siúl ann ó roghchlár Omarchy (`Super + Space`). Is lasc é gach rud sa liosta sin is féidir leat a chasadh gan smaoineamh ar an áit a bhfuil an stát. Suíonn lasca maidir le cuma na deisce in aice leis, faoi _Spreag > Cuma_.
+Osclaíonn `Super + Ctrl + O` _Trigger > Toggle_ go díreach, nó is féidir leat siúl ann ón roghchlár Omarchy (`Super + Space`). Is lasc gach rud ar an liosta sin is féidir leat a chasadh gan smaoineamh ar an áit a bhfuil an staid ina cónaí. Suíonn lasca don chuma atá ar an deasc in aice leis, faoi _Appearance_.
 
-Ón teirminéal, is iad na lasca céanna ná `omarchy toggle <thing>`. Rith `omarchy toggle` leis féin chun an grúpa ar fad a fheiceáil.
+Ón teirminéal, is iad na lasca céanna `omarchy toggle <thing>`. Rith `omarchy toggle` leis féin chun an grúpa ar fad a fheiceáil.
 
-| Scorán | Eochair ghasta | Ordú |
+| Scorán | Eochair aicearra | Ordú |
 | ------ | ------ | ------- |
-| Solas oíche | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Ciúnaigh fógraí | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
-| Fan i do dhúis (gan glas díomhaoin) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Gabháil tuairte | — | `omarchy toggle crash-capture` |
-| Coigilteoir scáileáin | — | `omarchy toggle screensaver` |
-| Sionc téama [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
+| Solas oíche | — | `omarchy toggle nightlight` |
+| Ciúnaigh fógraí | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Fan i do dhúiseacht (gan glas díomhaoin) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Gabháil tuairteála | — | `omarchy toggle crash-capture` |
+| Spárálaí scáileáin | — | `omarchy toggle screensaver` |
+| Sioncrónú téama [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barra roghchláir | `Super + Shift + Space` | `omarchy toggle bar` |
 | Ceap tadhaill | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
 | Scáileán tadhaill | — | `omarchy toggle touchscreen` |
 | Cuir ar fionraí | — | `omarchy toggle suspend` |
-| Hybrid GPU | — | `omarchy toggle hybrid gpu` |
+| GPU hibrideach | — | `omarchy toggle hybrid gpu` |
 
-Tá lasca an cheap tadhaill, an scáileáin tadhaill, agus Hybrid GPU faoi _Spreag > Crua-earraí_ (`Super + Ctrl + H`) seachas faoi Scoránaigh, mar ní thaispeántar iad ach nuair a bhíonn na crua-earraí sin agat i ndáiríre. Maireann na cinn cheap tadhaill agus scáileáin tadhaill athlódáil Hyprland — sábháiltear ainm an ghléis dhíchumasaithe chuig comhad stáit beag a léann Hyprland ag am tosaithe chun é a dhíchumasú arís.
+Tá na lasca ceap tadhaill, scáileán tadhaill, agus GPU hibrideach faoi _Trigger > Hardware_ (`Super + Ctrl + H`) seachas faoi Toggle, mar nach dtaispeántar iad ach amháin nuair a bhíonn an crua-earraí sin agat i ndáiríre. Maireann na cinn ceap tadhaill agus scáileán tadhaill tar éis athlódáil Hyprland — sábháiltear ainm an ghléis dhíchumasaithe chuig comhad beag staide a léann Hyprland ar thosú chun é a dhíchumasú arís.
 
-Coinníonn _Spreag > Cuma_ barra an roghchláir agus na beochana, móide cúpla rud nach orduithe `omarchy toggle` iad ach a iompraíonn ar an mbealach céanna: céatadán ceallra sa bharra, leagan amach réamhshocraithe an spáis oibre, bearnaí fuinneoige (`Super + Shift + Backspace`), agus gné chearnógach 1-fhuinneoige (`Super + Ctrl + Backspace`).
+Tá an barra roghchláir agus beochan in _Appearance_, móide roinnt rudaí nach orduithe `omarchy toggle` iad ach a iompraíonn ar an mbealach céanna: céatadán na ceallraí sa bharra, leagan amach réamhshocraithe an spáis oibre, agus faoi _Windows_, bearnaí fuinneog (`Super + Shift + Backspace`) agus an cóimheas gné cearnach 1 fhuinneog (`Super + Ctrl + Backspace`).
 
-Ní fíor ach comhad brataí faoi `~/.local/state/omarchy/toggles/` an chuid is mó díobh seo. Más mian leat brainse a dhéanamh ar cheann i script, tugann `omarchy-toggle-enabled` cód imeachta duit in ionad tú a chur ag lorg:
+Níl sa chuid is mó díobh seo ach comhad brataí faoi `~/.local/state/omarchy/toggles/`. Más mian leat brainse a dhéanamh ar cheann i script, tugann `omarchy-toggle-enabled` cód fágála duit in ionad tú a chur á chuardach:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Tá na bratacha ainmnithe don stát as — `screensaver-off`, `suspend-off`, `bar-off` — mar sin ciallaíonn a láithreacht go bhfuil an ghné díchumasaithe.
+Ainmnítear na bratacha don staid as — `screensaver-off`, `suspend-off`, `bar-off` — mar sin ciallaíonn a láithreacht go bhfuil an ghné díchumasaithe.
 
 ### Táscairí sa bharra
 
-Nuair a bhíonn mód air, faigheann tú glif beag i lár an bharra bharr in aice leis an gclog. Sin giuirléid na dtáscairí, agus iompraíonn sí deachtú, taifeadadh scáileáin, meabhrúcháin ar feitheamh, solas oíche, ná cuir isteach, agus fan i do dhúis.
+Nuair a bhíonn mód ar siúl, faigheann tú glíf beag i lár an bharra barr in aice leis an gclog. Sin an ghiuirléid táscairí, agus iompraíonn sí deachtú, taifeadadh scáileáin, meabhrúcháin ar feitheamh, solas oíche, ná cuir isteach, agus fan i do dhúiseacht.
 
-Tá táscairí neamhghníomhacha i bhfolach. Hover an limistéar timpeall orthu agus maolaíonn siad isteach, mar sin is féidir leat ceann a chliceáil chun é a chur air gan a eochair ghasta a bheith ar eolas agat. Casann cliceáil ar cheann gníomhach é as arís. Más fearr leat iad uile a fheiceáil i gcónaí, socraigh `alwaysShow` go `true` ar an iontráil `omarchy.indicators` i `~/.config/omarchy/shell.json` — féach [an barra barr](05-the-top-bar.md) maidir le conas a chumraítear giuirléidí barra.
+Folaítear táscairí neamhghníomhacha. Cuir an cúrsóir thar áit ar bith ar an mbarra agus céimníonn siad isteach maolaithe, ionas gur féidir leat ceann a chliceáil chun é a chasadh air gan a eochair aicearra a bheith ar eolas agat. Casann cliceáil ar cheann gníomhach as arís é. Más fearr leat iad go léir a fheiceáil an t-am ar fad, socraigh `alwaysShow` go `true` ar an iontráil `omarchy.indicators` in `~/.config/omarchy/shell.json` — féach [an barra barr](05-the-top-bar.md) chun a fháil amach conas a chumraítear giuirléidí barra.
 
 ### Solas oíche
 
-Téann `Super + Ctrl + N` an scáileán go 4000K, agus cuireann é a bhualadh arís ar ais go 6500K é. Tá sé á thiomáint ag hyprsunset, a thosaíonn an scorán duit mura bhfuil sé ag rith cheana.
+Teasaíonn solas oíche an scáileán go 4000K, agus cuireann casadh arís é ar ais go 6500K é. Cas é ón roghchlár scoránaigh (`Super + Ctrl + O`) nó le `omarchy toggle nightlight`. Tá sé tiomáinte ag hyprsunset, a thosaíonn an scorán duit mura bhfuil sé ar siúl cheana.
 
-De réir réamhshocraithe ní dhéanann hyprsunset rud ar bith le do scáileán ar chor ar bith. Tagann `~/.config/hypr/hyprsunset.conf` le próifíl chéannachta go beacht mar sin fanann an taispeáint gan teagmháil go dtí go n-iarrann tú teas. Más fearr leat é a athrú de réir an chloig, cuir próifíl ama ina áit sin:
+De réir réamhshocraithe ní dhéanann hyprsunset aon rud ar chor ar bith le do scáileán. Tagann `~/.config/hypr/hyprsunset.conf` le próifíl chéannachta go beacht ionas go bhfanann an taispeántas gan teagmháil go dtí go n-iarrann tú teas. Más fearr leat é a athrú de réir an chloig, cuir próifíl ama ina áit:
 
 ```
 profile {
@@ -57,15 +57,15 @@ Ansin tosaigh hyprsunset ag logáil isteach trí `o.launch_on_start("hyprsunset"
 
 ### Ná cuir isteach
 
-Ciúnaíonn `Super + Ctrl + ,` fógraí. Ní thaispeántar tóstaí fad is atá sé air, agus suíonn táscaire an chloig scriosta sa bharra chun a mheabhrú duit cén fáth a bhfuil an deasc ciúin.
+Ciúnaíonn `Super + Ctrl + Alt + ,` fógraí. Ní phreabann aon tóstaí aníos fad atá sé ar siúl, agus suíonn an táscaire cloig le líne tríd sa bharra chun a mheabhrú duit cén fáth a bhfuil an deasc ciúin anois.
 
-Ní chailltear rud ar bith, áfach. Scríobhtar fógra ciúnaithe go díreach isteach i do stair fógraí, arb é go beacht an taifead atá uait nuair a thagann tú ar ais agus a smaoiníonn tú cad a chaill tú. Oscail é le `Super + Shift + Alt + ,`. Féach [fógraí](10-notices.md) don chuid eile de scéal na bhfógraí.
+Ní chailltear aon rud, áfach. Coinnítear fógraí ciúnaithe siar: cuir na cinn dheireanacha ar ais ar an scáileán le `Super + Shift + Alt + ,`. Féach [fógraí](10-notices.md) don chuid eile.
 
-Tagann dhá chineál teachtaireachta tríd fós: tóstaí deimhnithe Omarchy féin do rud éigin a rinne tú díreach ("Theme changed", "Screenshot saved"), agus foláirimh chriticiúla a sheoltar ón líne ordaithe. Ní cháilíonn aipeanna comhrá a mharcálann gach rud criticiúil chun a mbealach a bhrú os do chomhair.
+Tagann dhá chineál teachtaireachta tríd i gcónaí: tóstaí deimhnithe Omarchy féin do rud a rinne tú díreach ("Téama athraithe", "Seat scáileáin sábháilte"), agus foláirimh chriticiúla a sheoltar ón líne ordaithe. Ní cháilíonn aipeanna comhrá a mharcálann gach rud criticiúil chun a mbealach a bhrú os do chomhair.
 
-### Díomhaoin
+### Díomhaointeas
 
-Is le blaosc Omarchy iompar díomhaoin, agus is bloc `idle` ar an leibhéal is airde iad na huainíochtaí i `~/.config/omarchy/shell.json`:
+Is le blaosc Omarchy iompar díomhaoin, agus is bloc `idle` ar an leibhéal barr in `~/.config/omarchy/shell.json` na huainithe:
 
 ```json
 {
@@ -77,26 +77,26 @@ Is le blaosc Omarchy iompar díomhaoin, agus is bloc `idle` ar an leibhéal is a
 }
 ```
 
-Is soicindí a chomhairtear ón nóiméad a chuaigh tú díomhaoin an dá uimhir — ní óna chéile. Mar sin leis na réamhshocruithe, tagann an coigilteoir scáileáin suas tar éis dhá nóiméad go leith agus glacann an scáileán glasa seilbh ag cúig nóiméad, cibé acu a rith an coigilteoir scáileáin nó nár rith. Sábháil an comhad agus glacann an bhlaosc na huainíochtaí nua láithreach.
+Is soicindí an dá uimhir arna gcomhaireamh ón nóiméad a d'éirigh tú díomhaoin — ní óna chéile. Mar sin leis na réamhshocruithe, tagann an spárálaí scáileáin aníos tar éis dhá nóiméad go leith agus glacann an scáileán glais seilbh ag cúig nóiméad, cibé ar rith an spárálaí scáileáin nó nár rith. Sábháil an comhad agus glacann an bhlaosc na huainithe nua láithreach.
 
-Má dhíbheann tú an coigilteoir scáileáin roimh spriocdháta an ghlasa, áirítear é sin mar ghníomhaíocht agus cealaítear an glas ar feitheamh. Ní ghlasáiltear amach thú as súil a chaitheamh ar do mheaisín.
+Má dhíbheann tú an spárálaí scáileáin roimh an spriocdháta glais, áirítear sin mar ghníomhaíocht agus cealaítear an glas ar feitheamh. Ní ghlasáiltear amach tú as sracfhéachaint a thabhairt ar do mheaisín.
 
-Chun stop a chur le glasáil ar dhíomhaoin go hiomlán, cuireann `Super + Ctrl + I` — nó `omarchy toggle idle` — fan i do dhúis air, agus taispeántar táscaire cupáin caife sa bharra. Sin an ceann le bualadh roimh chur i láthair fada nó tógáil ar mhaith leat féachaint air. Buail arís é chun dul ar ais go gnáth. Priontálann `omarchy toggle idle status` an stát reatha mar JSON má theastaíonn sé uait ó script.
+Chun stop a chur le glasáil ar dhíomhaointeas ar fad, casann `Super + Ctrl + I` — nó `omarchy toggle idle` — fan i do dhúiseacht air, agus feictear an táscaire cupáin caife sa bharra. Sin an ceann le bualadh roimh chur i láthair fada nó tógáil ar mian leat breathnú uirthi. Buail arís é chun dul ar ais go dtí an gnáthrud. Priontálann `omarchy toggle idle status` an staid reatha mar JSON más gá duit í ó script.
 
-Baineann sé seo le glasáil agus leis an gcoigilteoir scáileáin, ní le cumhacht. Tá a socrú féin ag fionraí agus geimhriú i [codladh córais](36-system-sleep.md).
+Baineann sé seo le glasáil agus leis an spárálaí scáileáin, ní le cumhacht. Tá a socrú féin ag fionraí agus ag geimhriú in [codladh an chórais](36-system-sleep.md).
 
-### An coigilteoir scáileáin
+### An spárálaí scáileáin
 
-Is ealaín ASCII é coigilteoir scáileáin Omarchy ag rith trí éifeachtaí téacs randamacha, sampla amháin in aghaidh an mhonatóra. Imíonn aon eochair nó gluaiseacht luiche as.
+Is ealaín ASCII é spárálaí scáileáin Omarchy ag rith trí éifeachtaí téacs randamacha, cás amháin in aghaidh an mhonatóra. Fágann aon eochair nó gluaiseacht luiche é.
 
-Is féidir leat é a thosú ar éileamh ó _Córas > Coigilteoir scáileáin_ (`Super + Esc`), a chuireann iachall air suas fiú má mhúch tú an coigilteoir scáileáin díomhaoin. Níl eochair ghasta ceangailte leis de réir réamhshocraithe.
+Is féidir leat é a thosú ar éileamh ó _System > Screensaver_ (`Super + Esc`), a bhrúnn aníos é fiú má chas tú an spárálaí scáileáin díomhaoin as. Níl aon eochair aicearra ceangailte leis de réir réamhshocraithe.
 
-Is é `omarchy toggle screensaver` an méid a mhúchann an ceann díomhaoin, más fearr leat dul go díreach ó bheith ag obair go bheith glasáilte. Teastaíonn teirminéal uaidh a bhfuil a fhios aige conas a chumrú — Alacritty, Foot, Ghostty, nó Kitty — agus inseoidh sé duit amhlaidh más rud éigin eile é do theirminéal réamhshocraithe.
+Is é `omarchy toggle screensaver` a chasann an ceann díomhaoin as, más fearr leat dul díreach ó bheith ag obair go bheith faoi ghlas. Dúnann aon eochair, cliceáil, scrolláil nó gluaiseacht luiche é.
 
-Is leatsa an lógó a tharraingíonn sé a athrú, faoi _Stíl > Coigilteoir scáileáin_. Uaslódáil png nó svg agus tiontaíonn Omarchy go ASCII é. Féach [brandáil](41-branding.md).
+Is leatsa an lógó a tharraingíonn sé a athrú, faoi _Appearance > Branding > Screensaver_. Uaslódáil png nó svg agus tiontaíonn Omarchy go ASCII é. Féach [brandáil](41-branding.md).
 
-### An scáileán glasa
+### An scáileán glais
 
-Glasálann `Super + Ctrl + L` an meaisín. Ritheann sé sin an scáileán glasa ó bhlaosc Omarchy, bánann sé an taispeáint, athshocraíonn sé leagan amach do mhéarchláir go dtí an chéad cheann mar sin ní bhíonn tú ag clóscríobh do phasfhocail san aibítir mícheart, agus — má tá sé ag rith agat — glasálann sé 1Password ar an mbealach amach.
+Glasálann `Super + Ctrl + L` an meaisín. Ritheann sin scáileán glais ó bhlaosc Omarchy, bánann sé an taispeántas, athshocraíonn sé leagan amach do mhéarchláir go dtí an chéad cheann ionas nach bhfuil tú ag clóscríobh do phasfhocail san aibítir mícheart, agus — má tá sé ar siúl agat — glasálann sé 1Password ar an mbealach amach.
 
-Glacann an scáileán glasa le pasfhocal, agus glacfaidh sé le méarlorg freisin nuair a bheidh ceann socraithe agat. Clúdaítear é sin, agus na slite eile chun fíordheimhniú, in [fíordheimhniú crua-earraí](37-hardware-authentication.md).
+Glacann an scáileán glais le pasfhocal, agus glacfaidh sé le méarlorg freisin nuair a bheidh ceann socraithe agat. Clúdaítear sin, agus na bealaí eile chun fíordheimhniú a dhéanamh, in [fíordheimhniú crua-earraí](37-hardware-authentication.md).
