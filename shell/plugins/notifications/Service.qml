@@ -632,13 +632,15 @@ Item {
 
   function watchNotification(notification, key) {
     var reservation = liveKeys[key]
-    notification.closed.connect(function() {
+    notification.closed.connect(function(reason) {
       if (service.refs[key] !== notification) return
       delete service.refs[key]
       service.refsRevision += 1
-      // Visible snapshots outlive their sender; pending rows must not appear
-      // after the sender withdraws them.
+      // Pending rows must not appear after the sender withdraws them. A visible
+      // card leaves too when the sender closes it on purpose (a chat app does
+      // once the message is read in the app); other closes keep the snapshot.
       if (service.rowIndexFor(key) < 0) service.finishClose(key, "closed")
+      else if (reason === NotificationCloseReason.CloseRequested) service.closeToast(key, "closed")
     })
     // NotificationServer emits onNotification only for new objects. A
     // replaces_id update mutates this QObject and emits its property signals,
