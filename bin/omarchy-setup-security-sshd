@@ -40,6 +40,8 @@ while (( $# > 0 )); do
     echo "Sets up the OpenSSH server, opens the SSH port in the UFW firewall,"
     echo "and authorizes an SSH key (from GitHub, pasted, or passed via --key)."
     echo
+    echo "After a key is authorized, password and root logins are disabled."
+    echo
     echo "Passing --key or --gh-keys skips the prompts, so the command can run"
     echo "unattended from a script or a fresh machine's first login."
     exit 0
@@ -143,11 +145,20 @@ authorize_pasted_key() {
   authorize_key "$key" || exit 1
 }
 
+restore_auth_config() {
+  local config="$1" backup="$2"
+  if [[ -n $backup ]]; then
+    sudo mv -f -- "$backup" "$config"
+  else
+    sudo rm -f -- "$config"
+  fi
+}
+
 # Only called after a key is authorized. Disabling password authentication
 # before then could lock the owner out of the machine.
 disable_password_auth() {
   local config=/etc/ssh/sshd_config.d/10-omarchy-hardening.conf
-  local effective_config
+  local effective_config backup=""
 
   if [[ ! -s $AUTHORIZED_KEYS ]]; then
     echo -e "\e[31mCannot disable SSH password authentication without an authorized key.\e[0m" >&2
@@ -155,18 +166,32 @@ disable_password_auth() {
   fi
 
   echo "Disabling SSH password authentication, now that a key is authorized..."
-  sudo install -Dm644 /dev/stdin "$config" <<'CONF'
+  # Keep the existing policy and its permissions until the replacement validates.
+  if sudo test -e "$config"; then
+    backup=$(sudo mktemp "${config}.XXXXXX")
+    if ! sudo cp -p -- "$config" "$backup"; then
+      sudo rm -f -- "$backup"
+      return 1
+    fi
+  fi
+
+  if ! sudo install -Dm644 /dev/stdin "$config" <<'CONF'
 # Written by omarchy-setup-security-sshd once an SSH key was authorized.
 # Delete this file and reload sshd to allow password logins again.
+PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 CONF
+  then
+    restore_auth_config "$config" "$backup"
+    return 1
+  fi
 
   # Validate before reloading: a config sshd rejects would otherwise take the
   # service down on its next restart, potentially stranding a remote owner.
   if ! sudo sshd -t; then
-    echo -e "\e[31msshd rejected the hardening config; removing it and leaving passwords on.\e[0m" >&2
-    sudo rm -f "$config"
+    echo -e "\e[31msshd rejected the hardening config; restoring the previous configuration.\e[0m" >&2
+    restore_auth_config "$config" "$backup"
     return 1
   fi
 
@@ -175,16 +200,23 @@ CONF
   # Match keywords case-insensitively: OpenSSH 9.x dumps them lowercase, 10.x
   # in CamelCase.
   if ! effective_config=$(sudo sshd -T) ||
+    ! grep -qixF "permitrootlogin no" <<<"$effective_config" ||
     ! grep -qixF "passwordauthentication no" <<<"$effective_config" ||
     ! grep -qixF "kbdinteractiveauthentication no" <<<"$effective_config"; then
-    echo -e "\e[31msshd did not apply the password-authentication restrictions; removing the ineffective config.\e[0m" >&2
-    sudo rm -f "$config"
+    echo -e "\e[31msshd did not apply the authentication restrictions; restoring the previous configuration.\e[0m" >&2
+    restore_auth_config "$config" "$backup"
     return 1
   fi
 
   # Reload rather than restart so an administrator already connected keeps
   # their session.
-  sudo systemctl reload sshd.service
+  if ! sudo systemctl reload sshd.service; then
+    restore_auth_config "$config" "$backup"
+    return 1
+  fi
+  if [[ -n $backup ]]; then
+    sudo rm -f -- "$backup"
+  fi
 }
 
 echo -e "\e[32mSetting up SSH server access with key-based authentication.\n\e[0m"
@@ -210,5 +242,5 @@ fi
 disable_password_auth
 
 echo -e "\e[32m\nPerfect! The SSH server is running and your key is authorized.\e[0m"
-echo "Password logins are off; this machine now accepts authorized keys only."
+echo "Password logins are off; root logins are disabled. This machine accepts authorized keys for ordinary users only."
 echo "You can now connect with: ssh $USER@$(hostname)"
