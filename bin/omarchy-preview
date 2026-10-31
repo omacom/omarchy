@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# omarchy:summary=Preview files with the Omarchy quick previewer
+# omarchy:args=<path>
+# omarchy:examples=omarchy preview ~/Downloads/manual.pdf|omarchy preview ~/Pictures/photo.jpg
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  omarchy preview <path>
+
+Preview a file or directory with Omarchy's quick previewer. This uses Sushi when
+available, then falls back to installed desktop preview applications.
+EOF
+}
+
+if [[ ${1:-} == "--help" || ${1:-} == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if (( $# == 0 )); then
+  usage >&2
+  exit 2
+fi
+
+if (( $# > 1 )); then
+  echo "omarchy preview: expected one path, got $#" >&2
+  usage >&2
+  exit 2
+fi
+
+preview_with() {
+  local command="$1"
+  shift
+
+  command -v "$command" >/dev/null 2>&1 || return 1
+  exec "$command" "$@"
+}
+
+first_path="$1"
+if [[ ! -e "$first_path" ]]; then
+  echo "omarchy preview: not found: $first_path" >&2
+  exit 1
+fi
+
+if command -v sushi >/dev/null 2>&1; then
+  exec sushi "$@"
+fi
+
+if [[ -d "$first_path" ]]; then
+  preview_with nautilus --new-window "$first_path" ||
+    preview_with xdg-open "$first_path" ||
+    preview_with gio open "$first_path" ||
+    {
+      echo "omarchy preview: no preview application found for $first_path" >&2
+      exit 1
+    }
+fi
+
+mime=$(file -b --mime-type -- "$first_path" 2>/dev/null || true)
+case "$mime" in
+image/*)
+  preview_with imv "$@" || true ;;
+application/pdf)
+  preview_with evince "$@" || true ;;
+video/* | audio/*)
+  preview_with mpv "$@" || true ;;
+esac
+
+preview_with gio open "$first_path" ||
+  preview_with xdg-open "$first_path" ||
+  {
+    echo "omarchy preview: no preview application found for $first_path" >&2
+    exit 1
+  }
