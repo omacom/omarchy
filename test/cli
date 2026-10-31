@@ -874,3 +874,21 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+scratch_home=$(mktemp -d)
+TMPDIRS+=("$scratch_home")
+scratch_bin=$(mktemp -d)
+TMPDIRS+=("$scratch_bin")
+printf '#!/bin/bash\nexit 0\n' >"$scratch_bin/omarchy-notification-send"
+printf '#!/bin/bash\nprintf "from clipboard"\n' >"$scratch_bin/wl-paste"
+chmod +x "$scratch_bin/omarchy-notification-send" "$scratch_bin/wl-paste"
+scratch_file=$(XDG_DATA_HOME="$scratch_home" PATH="$scratch_bin:$PATH" "$ROOT/bin/omarchy-scratch" path)
+XDG_DATA_HOME="$scratch_home" PATH="$scratch_bin:$PATH" "$ROOT/bin/omarchy-scratch" add "call the dentist" >/dev/null
+XDG_DATA_HOME="$scratch_home" PATH="$scratch_bin:$PATH" "$ROOT/bin/omarchy-scratch" paste >/dev/null
+[[ -f $scratch_file ]] || fail "scratch creates a note file"
+grep -q "call the dentist" "$scratch_file" || fail "scratch stores an added line"
+grep -q "from clipboard" "$scratch_file" || fail "scratch stores clipboard text"
+if XDG_DATA_HOME="$scratch_home" PATH="$scratch_bin:$PATH" "$ROOT/bin/omarchy-scratch" add "   " >/dev/null 2>&1; then
+  fail "scratch rejects a blank note"
+fi
+pass "scratch stores added and pasted lines"
