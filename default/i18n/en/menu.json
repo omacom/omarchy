@@ -959,6 +959,9 @@
   "install.development.scala": {
     "label": "Scala"
   },
+  "install.development.terraform": {
+    "label": "Terraform"
+  },
   "install.development.javascript.node": {
     "label": "Node.js"
   },
@@ -1174,6 +1177,9 @@
   },
   "remove.development.scala": {
     "label": "Scala"
+  },
+  "remove.development.terraform": {
+    "label": "Terraform"
   },
   "remove.development.javascript.node": {
     "label": "Node.js"
