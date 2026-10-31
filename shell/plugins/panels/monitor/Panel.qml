@@ -359,11 +359,11 @@ Panel {
     return Model.brightnessName(percent, Commons.I18n.t)
   }
 
-  // Only take the list when it changed: a new one rebuilds the picker and the
-  // layout, which would drop a hover or a drag in progress on each poll.
+  // Brightness is taken from every poll, so a level set elsewhere replaces one
+  // shown here. The list itself is only taken when something besides
+  // brightness changed: a new one rebuilds the picker and the layout, which
+  // would drop a hover or a drag in progress on each poll.
   function updateDisplays(displaysJson) {
-    if (displaysJson === root.displaysJson) return
-    root.displaysJson = displaysJson
     var parsed = Model.parseDisplays(displaysJson)
     var levels = {}
     for (var i = 0; i < parsed.displays.length; i++) {
@@ -372,6 +372,10 @@ Panel {
         levels[display.name] = display.brightness
     }
     root.brightnessLevels = levels
+
+    var shape = JSON.stringify(parsed.displays, function(key, value) { return key === "brightness" ? undefined : value })
+    if (shape === root.displaysJson) return
+    root.displaysJson = shape
     root.displays = parsed.displays
   }
 
