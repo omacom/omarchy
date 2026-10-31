@@ -171,6 +171,62 @@ function pickWindow(windows, workspaceId) {
 }
 
 
+// The app grid's selection ring. Colors are { r, g, b } with channels in 0..1,
+// as a QML color exposes them.
+
+// WCAG 2.x contrast between two opaque colors.
+function contrastRatio(a, b) {
+  function luminance(c) {
+    function channel(v) {
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+  }
+  var la = luminance(a)
+  var lb = luminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+// The accent at `alpha` when it stands out from the card by the 3:1 a focus
+// indicator needs, else the text color, so a theme with a soft accent still
+// shows the selection.
+function selectionRingColor(accent, text, background, alpha) {
+  var painted = {
+    r: accent.r * alpha + background.r * (1 - alpha),
+    g: accent.g * alpha + background.g * (1 - alpha),
+    b: accent.b * alpha + background.b * (1 - alpha)
+  }
+  if (contrastRatio(painted, background) >= 3) return { r: accent.r, g: accent.g, b: accent.b, a: alpha }
+  return { r: text.r, g: text.g, b: text.b, a: 1 }
+}
+
+// One step in the grid: the next cell in the same row, or the cell straight
+// above or below. A move that wraps to another row is not a step, so the ring
+// jumps there instead of sweeping across the grid.
+function isGridStep(from, to, columns) {
+  if (columns < 1 || from < 0 || to < 0) return false
+  var distance = Math.abs(to - from)
+  if (distance === columns) return true
+  return distance === 1 && Math.floor(from / columns) === Math.floor(to / columns)
+}
+
+// Whether the pointer moved at least a pixel from `anchor`, the last position
+// that counted. The caller keeps the anchor until this is true, so slow
+// movement in fractional steps adds up instead of being dropped step by step.
+function pointerMoved(anchor, point) {
+  return Math.abs(point.x - anchor.x) >= 1 || Math.abs(point.y - anchor.y) >= 1
+}
+
+// Top-left of the ring for the cell at `index` in the grid's content, inset by
+// `gutter`. A right-to-left layout fills each row from the right.
+function gridCellOrigin(index, columns, cellWidth, cellHeight, gutter, rightToLeft) {
+  var cols = Math.max(1, columns)
+  var i = Math.max(0, index)
+  var col = i % cols
+  if (rightToLeft) col = cols - 1 - col
+  return { x: col * cellWidth + gutter, y: Math.floor(i / cols) * cellHeight + gutter }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
@@ -185,6 +241,11 @@ if (typeof module !== "undefined") {
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow
+    pickWindow: pickWindow,
+    contrastRatio: contrastRatio,
+    selectionRingColor: selectionRingColor,
+    isGridStep: isGridStep,
+    pointerMoved: pointerMoved,
+    gridCellOrigin: gridCellOrigin
   }
 }
