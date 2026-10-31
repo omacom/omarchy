@@ -16,9 +16,8 @@ Panel {
 
   // Items inside the panel's lazily built content, null until it first
   // opens. Code inside the content reaches its own ids directly.
-  readonly property Item panelFlick: panel.loadedContent ? panel.loadedContent.panelFlick : null
   readonly property Item hero: panel.loadedContent ? panel.loadedContent.hero : null
-  readonly property Item fileColumn: panel.loadedContent ? panel.loadedContent.fileColumn : null
+  readonly property Item fileList: panel.loadedContent ? panel.loadedContent.fileList : null
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property string focusSection: "login"
@@ -91,7 +90,6 @@ Panel {
   function setHeaderCursor() {
     cursorActive = true
     focusSection = "header"
-    if (panelFlick) panelFlick.contentY = 0
   }
 
   function toggleRunning() {
@@ -117,25 +115,11 @@ Panel {
     scrollCursorIntoView()
   }
 
-  function scrollItemIntoView(item) {
-    if (!panelFlick || !item) return
-    Qt.callLater(function() {
-      if (!item) return
-      var margin = Style.space(6)
-      var point = item.mapToItem(panelFlick.contentItem, 0, 0)
-      var top = point.y
-      var bottom = top + item.height
-      var viewTop = panelFlick.contentY
-      var viewBottom = viewTop + panelFlick.height
-      var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
-      if (top < viewTop + margin) panelFlick.contentY = Math.max(0, top - margin)
-      else if (bottom > viewBottom - margin) panelFlick.contentY = Math.min(maxY, bottom + margin - panelFlick.height)
-    })
-  }
-
   function scrollCursorIntoView() {
-    if (focusSection === "files" && fileColumn && fileIndex >= 0 && fileIndex < fileColumn.children.length) {
-      scrollItemIntoView(fileColumn.children[fileIndex])
+    if (focusSection === "files" && fileList && fileIndex >= 0 && fileIndex < dropbox.files.length) {
+      Qt.callLater(function() {
+        if (fileList) fileList.positionViewAtIndex(fileIndex, ListView.Contain)
+      })
     }
   }
 
@@ -144,7 +128,6 @@ Panel {
 
   onOpenedChanged: if (opened) {
     cursorActive = false
-    if (panelFlick) panelFlick.contentY = 0
     dropbox.refresh()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
@@ -209,9 +192,8 @@ Panel {
 
     content: PanelKeyCatcher {
       id: keyCatcher
-      property alias panelFlick: panelFlick
       property alias hero: hero
-      property alias fileColumn: fileColumn
+      property alias fileList: fileList
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
@@ -227,20 +209,12 @@ Panel {
         else if (t === "p" || t === "P") root.toggleRunning()
       }
 
-      Flickable {
-        id: panelFlick
+      Item {
         anchors.fill: parent
-        contentWidth: width
-        contentHeight: column.implicitHeight
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        flickableDirection: Flickable.VerticalFlick
-        interactive: contentHeight > height
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
         Column {
           id: column
-          width: panelFlick.width
+          width: parent.width
           spacing: Style.space(12)
 
           Item {
@@ -348,21 +322,31 @@ Panel {
               horizontalAlignment: Text.AlignHCenter
             }
 
-            Column {
-              id: fileColumn
+            ListView {
+              id: fileList
               visible: dropbox.files.length > 0
               width: parent.width
+              implicitHeight: Math.min(contentHeight, Style.space(340))
+              height: Math.max(0, Math.min(implicitHeight,
+                panel.contentHeight - panel.verticalContentInset - (column.implicitHeight - implicitHeight)))
               spacing: Style.space(6)
+              clip: true
+              boundsBehavior: Flickable.StopAtBounds
+              interactive: contentHeight > height
+              model: dropbox.files
+              currentIndex: root.fileIndex
+              onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(function() {
+                positionViewAtIndex(currentIndex, ListView.Contain)
+              })
 
-              Repeater {
-                model: dropbox.files
-                FileRow {
-                  required property var modelData
-                  required property int index
-                  width: fileColumn.width
-                  file: modelData
-                  rowIndex: index
-                }
+              ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+              delegate: FileRow {
+                required property var modelData
+                required property int index
+                width: fileList.width
+                file: modelData
+                rowIndex: index
               }
             }
           }
