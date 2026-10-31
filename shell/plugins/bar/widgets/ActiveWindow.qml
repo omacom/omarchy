@@ -35,7 +35,7 @@ BarWidget {
       anchors.left: parent.left
       width: parent.width
       text: root.title
-      color: root.bar ? root.bar.barForeground : Commons.Color.foreground
+      color: root.bar ? (root.bar.foregroundForItem ? root.bar.foregroundForItem(root) : root.bar.barForeground) : Commons.Color.foreground
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
       font.pixelSize: Style.font.body
       elide: Text.ElideRight
