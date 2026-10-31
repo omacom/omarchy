@@ -147,3 +147,11 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
 }
 JS
+
+grep -Fq 'readonly property real outputVolumeMaximum: 1.25' "$ROOT/shell/plugins/panels/audio/Panel.qml" ||
+  fail "audio panel allows 125% master output volume"
+pass "audio panel allows 125% master output volume"
+
+grep -Fq 'max_volume=125' "$ROOT/bin/omarchy-audio-output-volume" ||
+  fail "audio volume command allows 125% output volume"
+pass "audio volume command allows 125% output volume"
