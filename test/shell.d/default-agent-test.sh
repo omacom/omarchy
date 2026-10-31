@@ -4,6 +4,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+real_mise=$(type -P mise || true)
+
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
@@ -85,6 +87,33 @@ if [[ $1 == "tool" && $3 == "--backend" ]]; then
   exit 0
 fi
 
+if [[ $1 == "settings" && $2 == "disable_tools" && $3 == "--json" ]]; then
+  if [[ ${OMARCHY_TEST_AGENT_DISABLED:-false} == "true" ]]; then
+    printf '["pi"]\n'
+  else
+    printf '[]\n'
+  fi
+  exit 0
+fi
+
+if [[ $1 == "tool" && $3 == "--requested" ]]; then
+  if [[ ${OMARCHY_TEST_AGENT_UNMANAGED:-false} == "true" ]]; then
+    printf 'null\n'
+  else
+    printf '["1.0.0"]\n'
+  fi
+  exit 0
+fi
+
+if [[ $1 == "ls" ]]; then
+  if [[ ${OMARCHY_TEST_AGENT_UNMANAGED:-false} == "true" ]]; then
+    printf '[]\n'
+  else
+    printf '[{"version":"1.0.0","installed":false}]\n'
+  fi
+  exit 0
+fi
+
 if [[ $1 == "where" || $1 == "which" ]]; then
   [[ ${OMARCHY_TEST_AGENT_INSTALLED:-false} == "true" ]]
   exit
@@ -131,7 +160,7 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
-export PATH="$mock_bin:$ROOT/bin:$PATH"
+export PATH="$mock_bin:$ROOT/bin:$test_home/.local/bin:$PATH"
 export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
 export OMARCHY_TEST_AGENT_LAUNCH_LOG="$launch_log"
@@ -476,21 +505,29 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
   fail "installed agent opens in a new terminal after selection"
 pass "installed agents select and open without notifications"
 
-# Cursor's installer links the wrapper's path, and the mise shims precede
-# ~/.local/bin, so a mise copy would shadow the user's own install.
+# An explicitly unmanaged Cursor can use its official installation.
 touch "$test_home/.local/bin/cursor-agent.official"
 chmod +x "$test_home/.local/bin/cursor-agent.official"
 ln -s cursor-agent.official "$test_home/.local/bin/cursor-agent"
 : >"$terminal_log"
 : >"$mise_log"
+: >"$mise_history"
 : >"$agent_open_log"
-omarchy-default-agent cursor-agent
+OMARCHY_TEST_AGENT_UNMANAGED=true omarchy-default-agent cursor-agent
 [[ ! -s $terminal_log ]] || fail "an official Cursor CLI install needs no install terminal"
-[[ ! -s $mise_log ]] || fail "an official Cursor CLI install is left to itself by mise"
+if grep -qE "^(install|use) " "$mise_history"; then
+  fail "an opted-out Cursor CLI install is left to itself by mise"
+fi
 [[ $(<"$agent_file") == "cursor-agent" ]] || fail "an official Cursor CLI install becomes the default"
 mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
   fail "an official Cursor CLI install opens after selection"
+# The same executable must not suppress installation of a configured tool.
+: >"$terminal_log"
+omarchy-default-agent cursor-agent
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-agent --install cursor-agent" ]] ||
+  fail "a local executable does not opt a configured agent out of mise"
 rm -f "$test_home/.local/bin/cursor-agent" "$test_home/.local/bin/cursor-agent.official"
 printf '%s\n' copilot >"$agent_file"
 pass "selecting an official Cursor CLI install skips mise"
@@ -662,9 +699,12 @@ chmod +x "$test_home/.local/bin/muse"
 : >"$mise_history"
 : >"$stub_log"
 : >"$terminal_log"
-omarchy-default-agent muse
+OMARCHY_TEST_AGENT_UNMANAGED=true omarchy-default-agent muse
 [[ $(omarchy-default-agent) == "muse" ]] || fail "a user-installed Muse can be selected"
-[[ ! -s $mise_history && ! -s $stub_log && ! -s $terminal_log ]] || fail "a user-installed Muse skips installation and wrapper creation"
+[[ ! -s $stub_log && ! -s $terminal_log ]] || fail "an unmanaged Muse skips installation and wrapper creation"
+if grep -qE "^(install|use) " "$mise_history"; then
+  fail "an unmanaged Muse is left to its existing installation"
+fi
 [[ $("$test_home/.local/bin/muse") == "user-muse" ]] || fail "a user-installed Muse is preserved"
 rm "$test_home/.local/bin/muse"
 pass "selecting a user-installed Muse preserves its launcher"
@@ -932,9 +972,8 @@ fi
 [[ ! -s $launch_log ]] || fail "OpenClaw's agent without the package starts nothing"
 pass "OpenClaw's agent hands a missing command to its launcher only when the package is there"
 
-# Native lazy shims can precede ~/.local/bin. The agent launcher must still run
-# the official command when the default-agent selector recognized one, for
-# every agent and whether or not it is wrapped in env or bash.
+# Launch through PATH whether mise has downloaded its configured tool or not,
+# including agents wrapped in env or bash.
 lazy_shims="$test_tmp/lazy-shims"
 mkdir -p "$lazy_shims"
 for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
@@ -943,9 +982,9 @@ for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
   chmod +x "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
   printf '%s\n' "$agent" >"$agent_file"
   output=$(PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
-  [[ $output == "official $agent" ]] || fail "agent launcher preserves the user-installed $agent ahead of a mise shim"
+  [[ $output == "lazy shim $agent" ]] || fail "agent launcher honors the selected shim before an uninstalled local $agent"
   output=$(PATH="$lazy_shims:$PATH" omarchy-agent-prompt --inline "Review this project")
-  [[ $output == "official $agent" ]] || fail "prompted agent launcher preserves the user-installed $agent ahead of a mise shim"
+  [[ $output == "lazy shim $agent" ]] || fail "prompted agent launcher honors the selected shim for $agent"
   # Once mise has its own copy installed, a terminal runs that one, so the
   # launcher does too rather than a leftover install in ~/.local/bin.
   output=$(OMARCHY_TEST_AGENT_INSTALLED=true PATH="$lazy_shims:$PATH" "$ROOT/bin/omarchy-agent" --inline)
@@ -957,4 +996,461 @@ for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
   [[ $output == "lazy shim $agent" ]] || fail "agent launcher treats an older one-line mise wrapper for $agent as a wrapper"
   rm "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
 done
-pass "agent launcher runs user-installed agents ahead of native lazy shims"
+pass "agent launcher preserves PATH precedence before and after mise installation"
+
+# This regression also runs without real mise. A valid external command later
+# on PATH cannot make an earlier legacy wrapper or native shim usable. Both
+# kinds of opt-out must keep the previous default, without invoking mise.
+external_bin="$test_tmp/external-agent-bin"
+shadow_shims="$test_tmp/shadow-shims"
+mkdir -p "$external_bin" "$shadow_shims"
+printf '#!/bin/bash\necho EXTERNAL_PI\n' >"$external_bin/pi"
+chmod +x "$external_bin/pi"
+for shadow in wrapper modern-wrapper cooldown-wrapper mise-exec-wrapper bare-exec-wrapper inline-wrapper single-command-wrapper symlink-single-command symlink-wrapper shim; do
+  if [[ $shadow != shim ]]; then
+    wrapper_path="$test_home/.local/bin/pi"
+    if [[ $shadow == symlink-wrapper || $shadow == symlink-single-command ]]; then
+      wrapper_path="$test_tmp/legacy-pi-wrapper"
+      ln -s "$wrapper_path" "$test_home/.local/bin/pi"
+    fi
+    case "$shadow" in
+      modern-wrapper)
+        printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "pi" || exit 25\nexec mise x "pi" -- "pi" "$@"\n' >"$wrapper_path"
+        ;;
+      cooldown-wrapper)
+        printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g "pi" || exit 1\nexec mise x "pi" -- "pi" "$@"\n' >"$wrapper_path"
+        ;;
+      mise-exec-wrapper)
+        printf '#!/bin/bash\nmise use -g "pi"\nexec mise exec "pi" -- "pi" "$@"\n' >"$wrapper_path"
+        ;;
+      bare-exec-wrapper)
+        printf '#!/bin/bash\nmise use -g "pi"\nexec "pi" "$@"\n' >"$wrapper_path"
+        ;;
+      inline-wrapper)
+        printf '#!/bin/bash\nMISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet "pi" || exit 25\nexec mise x "pi" -- "pi" "$@"\n' >"$wrapper_path"
+        ;;
+      single-command-wrapper | symlink-single-command)
+        printf '#!/bin/bash\nMISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet "pi" || exit 25\nprintf "old wrapper\\n"\n' >"$wrapper_path"
+        ;;
+      *) printf '#!/bin/bash\nmise use -g pi || exit 25\nexec mise x pi -- pi "$@"\n' >"$wrapper_path" ;;
+    esac
+    chmod +x "$wrapper_path"
+    shadow_path="$PATH:$external_bin"
+  else
+    ln -s "$mock_bin/mise" "$shadow_shims/pi"
+    shadow_path="$shadow_shims:$PATH:$external_bin"
+  fi
+  for optout in disabled removed-preinstalls; do
+    : >"$mise_history"
+    : >"$terminal_log"
+    : >"$agent_open_log"
+    printf '%s\n' muse >"$agent_file"
+    disabled=false
+    [[ $optout == disabled ]] && disabled=true
+    for args in pi '--install pi'; do
+      read -r -a selection_args <<<"$args"
+      if OMARCHY_TEST_AGENT_UNMANAGED=true OMARCHY_TEST_AGENT_DISABLED="$disabled" \
+        OMARCHY_TEST_MISE_FAIL=true PATH="$shadow_path" omarchy-default-agent "${selection_args[@]}" \
+        >"$test_tmp/shadow-failure" 2>&1; then
+        fail "$optout rejects a $shadow shadowing the external agent ($args)"
+      fi
+      [[ $(<"$agent_file") == muse ]] || fail "$optout preserves Muse after a shadowing $shadow ($args)"
+      [[ ! -s $terminal_log && ! -s $agent_open_log ]] || fail "$optout avoids launching a shadowed $shadow ($args)"
+    done
+    if grep -Eq '^(use|install|x) ' "$mise_history"; then
+      fail "$optout must not invoke mise through a shadowed $shadow"
+    fi
+  done
+  if [[ $shadow == shim ]]; then
+    rm "$shadow_shims/pi"
+  else
+    rm "$test_home/.local/bin/pi"
+    [[ $shadow == symlink-wrapper || $shadow == symlink-single-command ]] && rm "$test_tmp/legacy-pi-wrapper"
+  fi
+done
+# When the real executable is first on PATH, the same disabled configuration
+# must still permit selection and launch without ever invoking mise.
+: >"$mise_history"
+printf '%s\n' muse >"$agent_file"
+OMARCHY_TEST_AGENT_UNMANAGED=true OMARCHY_TEST_AGENT_DISABLED=true \
+  OMARCHY_TEST_MISE_FAIL=true PATH="$external_bin:$PATH" omarchy-default-agent pi
+[[ $(<"$agent_file") == pi ]] || fail "an external PATH winner remains selectable"
+output=$(OMARCHY_TEST_AGENT_UNMANAGED=true OMARCHY_TEST_AGENT_DISABLED=true \
+  OMARCHY_TEST_MISE_FAIL=true PATH="$external_bin:$PATH" omarchy-agent --inline)
+[[ $output == EXTERNAL_PI ]] || fail "the external PATH winner is launched"
+# An official installer may itself create a symlink to an external binary.
+# Comments mentioning mise operations must not make it look like a wrapper.
+mv "$external_bin/pi" "$external_bin/pi.real"
+printf '#!/bin/bash\n# mise use -g node installs an unrelated dependency\n# exec mise x node -- node is an example, not a wrapper\necho EXTERNAL_PI\n' >"$external_bin/pi.real"
+chmod +x "$external_bin/pi.real"
+ln -s pi.real "$external_bin/pi"
+printf '%s\n' muse >"$agent_file"
+OMARCHY_TEST_AGENT_UNMANAGED=true OMARCHY_TEST_AGENT_DISABLED=true \
+  OMARCHY_TEST_MISE_FAIL=true PATH="$external_bin:$PATH" omarchy-default-agent pi
+[[ $(<"$agent_file") == pi ]] || fail "a symlink to a real external agent remains selectable"
+output=$(OMARCHY_TEST_AGENT_UNMANAGED=true OMARCHY_TEST_AGENT_DISABLED=true \
+  OMARCHY_TEST_MISE_FAIL=true PATH="$external_bin:$PATH" omarchy-agent --inline)
+[[ $output == EXTERNAL_PI ]] || fail "a symlink to a real external agent launches"
+if grep -Eq '^(use|install|x) ' "$mise_history"; then
+  fail "launching the external PATH winner does not activate mise"
+fi
+pass "shadowed wrappers and native shims cannot replace a working default after opting out"
+
+# A user's own launcher may activate Node through mise without being an
+# Omarchy wrapper for Pi. The mise tool named on the line matters, even when
+# it has the historical inline environment-variable prefix.
+for body in \
+  'MISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet node >/dev/null 2>&1 || true' \
+  'mise use -g --quiet node >/dev/null 2>&1 || true'; do
+  printf '#!/bin/bash\n%s\necho EXTERNAL_PI\n' "$body" >"$external_bin/pi.real"
+  chmod +x "$external_bin/pi.real"
+  printf '%s\n' muse >"$agent_file"
+  : >"$terminal_log"
+  OMARCHY_TEST_AGENT_UNMANAGED=true OMARCHY_TEST_AGENT_DISABLED=true \
+    OMARCHY_TEST_MISE_FAIL=true PATH="$external_bin:$PATH" omarchy-default-agent pi \
+    >"$test_tmp/unrelated-mise" 2>&1 ||
+    fail "Pi accepts an external launcher that activates only Node"
+  [[ $(<"$agent_file") == pi && ! -s $terminal_log ]] ||
+    fail "Pi selects the external launcher rather than reinstalling mise's Pi"
+  output=$(OMARCHY_TEST_AGENT_UNMANAGED=true OMARCHY_TEST_AGENT_DISABLED=true \
+    OMARCHY_TEST_MISE_FAIL=true PATH="$external_bin:$PATH" omarchy-agent --inline)
+  [[ $output == EXTERNAL_PI ]] || fail "external Pi launcher using Node actually runs"
+done
+
+# An agent name and its mise package need not match: omp uses oh-my-pi.
+# Recognize its own legacy wrapper but not another tool's use of mise.
+printf '#!/bin/bash\necho EXTERNAL_OMP\n' >"$external_bin/omp"
+chmod +x "$external_bin/omp"
+printf '#!/bin/bash\nMISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet node >/dev/null 2>&1 || true\necho USER_OMP\n' >"$test_home/.local/bin/omp"
+chmod +x "$test_home/.local/bin/omp"
+printf '%s\n' muse >"$agent_file"
+OMARCHY_TEST_AGENT_UNMANAGED=true PATH="$PATH:$external_bin" omarchy-default-agent omp \
+  >"$test_tmp/unrelated-omp" 2>&1 || fail "unmanaged OMP can activate Node without being an Omarchy wrapper"
+[[ $(<"$agent_file") == omp ]] || fail "unmanaged OMP is selected despite its Node dependency"
+printf '#!/bin/bash\nMISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet "oh-my-pi" || exit 25\nprintf "legacy omp\\n"\n' >"$test_home/.local/bin/omp"
+for args in omp '--install omp'; do
+  read -r -a selection_args <<<"$args"
+  printf '%s\n' muse >"$agent_file"
+  : >"$terminal_log"
+  if OMARCHY_TEST_AGENT_UNMANAGED=true PATH="$PATH:$external_bin" \
+    omarchy-default-agent "${selection_args[@]}" >"$test_tmp/legacy-omp" 2>&1; then
+    fail "the oh-my-pi package's legacy OMP wrapper is not an external agent ($args)"
+  fi
+  [[ $(<"$agent_file") == muse && ! -s $terminal_log ]] ||
+    fail "the legacy OMP wrapper preserves Muse ($args)"
+done
+rm "$test_home/.local/bin/omp"
+
+# Include backend names shipped before registry shorthands, as recorded in
+# migration 1791382872.sh, as well as current packages with backend options.
+for entry in \
+  "omp|$omp_package" "mcode|$mcode_package" \
+  'codex|aqua:openai/codex' 'codex|npm:@openai/codex' \
+  'claude|aqua:anthropics/claude-code' 'crush|aqua:charmbracelet/crush' \
+  'agy|aqua:google-antigravity/antigravity-cli' 'agy|gemini' 'agy|npm:@google/gemini-cli' \
+  'copilot|aqua:github/copilot-cli' 'copilot|github:github/copilot-cli' 'copilot|npm:@github/copilot' \
+  'opencode|aqua:anomalyco/opencode' \
+  'pi|aqua:earendil-works/pi' 'pi|github:earendil-works/pi' 'pi|npm:@earendil-works/pi-coding-agent' \
+  'omp|github:can1357/oh-my-pi' 'grok|npm:@xai-official/grok' 'ori|github:OpenRouterLabs/ori-releases' \
+  'muse|http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]'; do
+  IFS='|' read -r selection package <<<"$entry"
+  "$ROOT/bin/omarchy-mise-install" "$package" "$selection"
+  printf '#!/bin/bash\necho EXTERNAL_AGENT\n' >"$external_bin/$selection"
+  chmod +x "$external_bin/$selection"
+  for args in "$selection" "--install $selection"; do
+    read -r -a selection_args <<<"$args"
+    printf '%s\n' muse >"$agent_file"
+    : >"$terminal_log"
+    if OMARCHY_TEST_AGENT_UNMANAGED=true PATH="$test_home/.local/bin:$PATH:$external_bin" \
+      omarchy-default-agent "${selection_args[@]}" >"$test_tmp/generated-wrapper" 2>&1; then
+      fail "the $selection generated wrapper cannot shadow the external agent ($args)"
+    fi
+    [[ $(<"$agent_file") == muse && ! -s $terminal_log ]] ||
+      fail "the $selection generated wrapper leaves Muse selected ($args)"
+  done
+  rm "$test_home/.local/bin/$selection"
+done
+pass "agent detection distinguishes mise dependencies from the selected tool"
+
+# Keep the dispatch check grounded in real mise selection rather than the stub's
+# answer about whether a tool has been downloaded.
+if [[ -z $real_mise ]]; then
+  skip "native agent selection (mise is not installed)"
+else
+  python3 - "$ROOT" "$real_mise" "$test_tmp" <<'PY'
+from pathlib import Path
+import subprocess, sys
+
+repo, mise, scratch = map(Path, sys.argv[1:])
+root = scratch / "native-selection"
+home, system, commands = root / "home", root / "system", root / "bin"
+project, external = home / "project", home / ".local/bin"
+for path in (project, external, commands, system, home / ".config/omarchy/defaults"):
+    path.mkdir(parents=True, exist_ok=True)
+(commands / "mise").symlink_to(mise)
+terminal = root / "terminal"
+def script(path, text):
+    path.write_text("#!/bin/bash\n" + text + "\n")
+    path.chmod(0o755)
+script(commands / "omarchy-launch-floating-terminal-with-presentation",
+       'printf "%s\\n" "$*" >>"$TEST_TERMINAL"')
+script(commands / "omarchy-launch-tui", 'shift; exec "$@"')
+script(external / "pi", 'echo EXTERNAL_PI; exit 42')
+system_config = system / "config.toml"
+system_config.write_text(
+    '[settings]\nsystem_installs_dir="~/.local/share/mise/installs"\n'
+    'system_shims_dir="~/.local/share/mise/shims"\n'
+    '[tools]\npi = {version="0.1.0",lazy=true,minimum_release_age="0s"}\n')
+project.joinpath("mise.toml").write_text('[tools]\npi="0.2.0"\n')
+config = home / ".config/mise/config.toml"
+config.parent.mkdir(parents=True, exist_ok=True)
+agent_file = home / ".config/omarchy/defaults/agent"
+env = {
+    "HOME": str(home), "PATH": f"{commands}:{repo / 'bin'}:/usr/bin:{external}",
+    "OMARCHY_PATH": str(repo), "OMARCHY_MISE_CONFIG_PATH": str(system_config),
+    "MISE_SYSTEM_DIR": str(system), "MISE_OFFLINE": "1", "MISE_YES": "1",
+    "MISE_COLOR": "0", "TERM": "dumb", "MISE_TRUSTED_CONFIG_PATHS": str(home),
+    "TEST_TERMINAL": str(terminal),
+    **{f"XDG_{kind}_HOME": str(home / suffix) for kind, suffix in (
+        ("CONFIG", ".config"), ("DATA", ".local/share"),
+        ("CACHE", ".cache"), ("STATE", ".local/state"))},
+}
+def run(args, cwd=project):
+    return subprocess.run(list(map(str, args)), env=env, cwd=cwd,
+                          text=True, capture_output=True, timeout=30)
+def check(ok, message, result=None):
+    if not ok:
+        raise AssertionError(f"{message}\n{result}")
+    print(f"ok - {message}", flush=True)
+r = run(["mise", "reshim", "--system"], home)
+check(r.returncode == 0, "native system lazy shims are generated", r)
+env["PATH"] = f"{home / '.local/share/mise/shims'}:{env['PATH']}"
+
+# Deliberately unavailable versions must fail rather than silently run an
+# unrelated executable. The exact release's existence is not under test.
+for label, cwd, version in (("system lazy", home, "0.1.0"),
+                            ("project pin", project, "0.2.0"),
+                            ("user pin", home, "0.3.0")):
+    if label == "user pin":
+        config.write_text('[tools]\npi="0.3.0"\n')
+    agent_file.write_text("pi\n")
+    r = run([repo / "bin/omarchy-agent", "--inline"], cwd)
+    check(r.returncode != 42 and f"pi@{version}" in r.stderr,
+          f"agent launcher preserves missing {label} selection", r)
+    agent_file.write_text("muse\n")
+    terminal.unlink(missing_ok=True)
+    r = run([repo / "bin/omarchy-default-agent", "pi"], cwd)
+    check(r.returncode == 0 and terminal.exists() and
+          agent_file.read_text() == "muse\n",
+          f"agent selector requires installation for {label}", r)
+
+config.unlink()
+
+# A cold cache can leave `latest` unresolved, but the raw request still owns
+# selection. Cover every config scope with an external command or old wrapper.
+system_defaults = system_config.read_text()
+project_pin = (project / "mise.toml").read_text()
+external_pi = (external / "pi").read_text()
+for label, cwd in (("system lazy", home), ("project pin", project), ("user pin", home)):
+    system_config.write_text(system_defaults.replace('version="0.1.0"', 'version="latest"')
+                             if label == "system lazy" else system_defaults)
+    (project / "mise.toml").write_text('[tools]\npi="latest"\n'
+                                     if label == "project pin" else project_pin)
+    config.unlink(missing_ok=True)
+    if label == "user pin":
+        config.write_text('[tools]\npi="latest"\n')
+    paths = (system_config, project / "mise.toml", config)
+    before = {p: p.read_bytes() if p.exists() else None for p in paths}
+    for command in ("external command", "old wrapper"):
+        if command == "external command":
+            (external / "pi").write_text(external_pi)
+        else:
+            script(external / "pi", 'mise use -g --quiet pi || exit 1\nexec mise x pi -- pi "$@"')
+        for args in (("pi",), ("--install", "pi")):
+            agent_file.write_text("muse\n")
+            terminal.unlink(missing_ok=True)
+            r = run([repo / "bin/omarchy-default-agent", *args], cwd)
+            if args == ("pi",):
+                expected = r.returncode == 0 and terminal.exists()
+            else:
+                expected = r.returncode != 0 and not terminal.exists()
+            check(expected and agent_file.read_text() == "muse\n" and
+                  {p: p.read_bytes() if p.exists() else None for p in paths} == before,
+                  f"unresolved {label} latest preserves Muse with {command} for {args}", r)
+system_config.write_text(system_defaults)
+(project / "mise.toml").write_text(project_pin)
+config.unlink(missing_ok=True)
+(external / "pi").write_text(external_pi)
+
+# A locally linked version exercises installed selection without a download.
+installed = root / "installed"
+(installed / "bin").mkdir(parents=True)
+script(installed / "bin/pi", 'echo SELECTED_PI; exit 43')
+r = run(["mise", "link", "pi@0.2.0", installed])
+check(r.returncode == 0, "native selected version can be linked offline", r)
+agent_file.write_text("pi\n")
+r = run([repo / "bin/omarchy-agent", "--inline"])
+check(r.returncode == 43 and "SELECTED_PI" in r.stdout,
+      "installed project version retains precedence", r)
+
+# Explicit opt-out applies even to an installed project selection. Both launch
+# and selection must leave user configuration intact and avoid an install.
+disabled = '[settings]\ndisable_tools=["pi"]\n'
+config.write_text(disabled)
+for location in ("home", "other PATH directory"):
+    if location != "home":
+        elsewhere = root / "external/bin"
+        elsewhere.mkdir(parents=True)
+        (external / "pi").rename(elsewhere / "pi")
+        env["PATH"] += f":{elsewhere}"
+    terminal.unlink(missing_ok=True)
+    r = run([repo / "bin/omarchy-agent", "--inline"])
+    check(r.returncode == 42, f"disabled agent uses {location}", r)
+    agent_file.write_text("muse\n")
+    r = run([repo / "bin/omarchy-default-agent", "pi"])
+    check(r.returncode == 42 and not terminal.exists() and
+          agent_file.read_text() == "pi\n" and
+          config.read_text() == disabled,
+          f"selecting disabled agent changes Muse to external Pi at {location}", r)
+
+(elsewhere / "pi").unlink()
+agent_file.write_text("muse\n")
+for args in (("pi",), ("--install", "pi")):
+    terminal.unlink(missing_ok=True)
+    r = run([repo / "bin/omarchy-default-agent", *args])
+    check(r.returncode != 0 and not terminal.exists() and
+          agent_file.read_text() == "muse\n" and
+          config.read_text() == disabled,
+          f"disabled missing agent rejects {args} and preserves Muse", r)
+script(elsewhere / "pi", 'echo EXTERNAL_PI; exit 42')
+
+config.unlink()
+(home / ".config/mise/miserc.toml").write_text(
+    f'ignored_config_paths=["{system_config}"]\n')
+terminal.unlink(missing_ok=True)
+r = run([repo / "bin/omarchy-default-agent", "pi"], home)
+check(r.returncode == 42 and not terminal.exists() and not config.exists(),
+      "removed preinstalls keep an existing agent unmanaged", r)
+
+# The remaining native shim cannot stand in for a real external installation.
+(elsewhere / "pi").unlink()
+# Remove only the linked install, retaining the shim to exercise stale state.
+(home / ".local/share/mise/installs/pi/0.2.0").unlink()
+agent_file.write_text("muse\n")
+terminal.unlink(missing_ok=True)
+r = run([repo / "bin/omarchy-default-agent", "pi"], home)
+check(r.returncode == 0 and terminal.exists() and
+      agent_file.read_text() == "muse\n" and not config.exists(),
+      "removed preinstalls with only a stale shim require installation", r)
+
+# A leftover Omarchy wrapper ahead of a real external Pi still runs mise, even
+# with an opt-out. Unlike a native shim, it cannot forward to that executable.
+script(external / "pi", 'mise use -g --quiet pi || exit 25\nexec mise x pi -- pi "$@"')
+script(elsewhere / "pi", 'echo EXTERNAL_PI; exit 42')
+linked = root / "linked-wrapper"
+linked.mkdir()
+(linked / "pi").symlink_to(external / "pi")
+single = root / "single-command-wrapper"
+single.mkdir()
+script(single / "pi", 'MISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet pi || exit 25\n'
+       'printf "old wrapper\\n"')
+single_linked = root / "linked-single-command-wrapper"
+single_linked.mkdir()
+(single_linked / "pi").symlink_to(single / "pi")
+original_path = env["PATH"]
+# All five shipped formats from migration 1791382872.sh must be rejected before
+# they run, including formats that would recurse through PATH after a failed use.
+shipped_paths = []
+for form, body in (
+        ("quiet", 'export MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "pi" || exit 1\nexec mise x "pi" -- "pi" "$@"'),
+        ("cooldown-export", 'export MISE_MINIMUM_RELEASE_AGE=0\nmise use -g "pi" || exit 1\nexec mise x "pi" -- "pi" "$@"'),
+        ("bail-on-failure", 'mise use -g "pi" || exit 1\nexec mise x "pi" -- "pi" "$@"'),
+        ("mise-exec", 'mise use -g "pi"\nexec mise exec "pi" -- "pi" "$@"'),
+        ("bare-exec", 'mise use -g "pi"\nexec "pi" "$@"')):
+    directory = root / form
+    directory.mkdir()
+    script(directory / "pi", body)
+    shipped_paths.append((form, f"{directory}:{original_path}:{elsewhere}"))
+for path_kind, path in (("old wrapper", f"{external}:{original_path}:{elsewhere}"),
+                        ("symlink to old wrapper", f"{linked}:{original_path}:{elsewhere}"),
+                        ("single-command wrapper", f"{single}:{original_path}:{elsewhere}"),
+                        ("symlink to single-command wrapper", f"{single_linked}:{original_path}:{elsewhere}"),
+                        ("native shim then wrapper", f"{original_path}:{elsewhere}"),
+                        *shipped_paths):
+    env["PATH"] = path
+    for optout in ("removed preinstalls", "disabled tool"):
+        if optout == "disabled tool":
+            config.write_text(disabled)
+        else:
+            config.unlink(missing_ok=True)
+        for args in (("pi",), ("--install", "pi")):
+            agent_file.write_text("muse\n")
+            terminal.unlink(missing_ok=True)
+            r = run([repo / "bin/omarchy-default-agent", *args], home)
+            check(r.returncode != 0 and not terminal.exists() and
+                  agent_file.read_text() == "muse\n" and
+                  (config.read_text() == disabled if config.exists()
+                   else optout == "removed preinstalls"),
+                  f"{optout} rejects {path_kind} for {args} without changing Muse", r)
+
+# A real executable before the old wrapper must still launch without touching
+# the explicitly disabled mise tool or changing the opt-out setting.
+config.write_text(disabled)
+env["PATH"] = f"{elsewhere}:{external}:{original_path}"
+agent_file.write_text("muse\n")
+r = run([repo / "bin/omarchy-default-agent", "pi"], home)
+check(r.returncode == 42 and agent_file.read_text() == "pi\n" and
+      config.read_text() == disabled, "external command ahead of wrapper can be selected", r)
+r = run([repo / "bin/omarchy-agent", "--inline"], home)
+check(r.returncode == 42 and "EXTERNAL_PI" in r.stdout,
+      "external command ahead of wrapper actually launches", r)
+(elsewhere / "pi").rename(elsewhere / "pi.real")
+script(elsewhere / "pi.real", '# mise use -g node is an example, not this launcher\n'
+       '# exec mise x node -- node is also only documentation\n'
+       'echo EXTERNAL_PI; exit 42')
+(elsewhere / "pi").symlink_to("pi.real")
+agent_file.write_text("muse\n")
+r = run([repo / "bin/omarchy-default-agent", "pi"], home)
+check(r.returncode == 42 and agent_file.read_text() == "pi\n" and
+      config.read_text() == disabled,
+      "symlink to genuine external CLI remains selectable with real mise", r)
+
+# Activating a different mise tool is not a legacy wrapper for Pi. Confirm
+# both selection entry points with the native CLI and a symlinked launcher.
+script(elsewhere / "pi.real", 'MISE_MINIMUM_RELEASE_AGE=0 mise use -g --quiet node >/dev/null 2>&1 || true\n'
+       'echo EXTERNAL_PI; exit 42')
+for args in (("pi",), ("--install", "pi")):
+    agent_file.write_text("muse\n")
+    terminal.unlink(missing_ok=True)
+    r = run([repo / "bin/omarchy-default-agent", *args], home)
+    check(r.returncode == 42 and agent_file.read_text() == "pi\n" and
+          config.read_text() == disabled and not terminal.exists() and
+          "EXTERNAL_PI" in r.stdout,
+          f"native external Pi can activate Node with {args}", r)
+
+# Omarchy shipped OMP under its full GitHub backend before the shorthand.
+# That wrapper still installs the same tool and must respect either opt-out.
+r = run([repo / "bin/omarchy-mise-install", "github:can1357/oh-my-pi", "omp"], home)
+check(r.returncode == 0, "historical OMP wrapper can be generated", r)
+script(elsewhere / "omp", 'echo EXTERNAL_OMP; exit 42')
+env["PATH"] = f"{external}:{original_path}:{elsewhere}"
+system_config.write_text(system_config.read_text() + '\noh-my-pi={version="0.1.0",lazy=true}\n')
+miserc = home / ".config/mise/miserc.toml"
+for optout in ("removed preinstalls", "disabled tool"):
+    if optout == "disabled tool":
+        disabled_omp = '[settings]\ndisable_tools=["oh-my-pi"]\n'
+        config.write_text(disabled_omp)
+        miserc.unlink()
+    else:
+        config.unlink()
+    for args in (("omp",), ("--install", "omp")):
+        agent_file.write_text("muse\n")
+        terminal.unlink(missing_ok=True)
+        r = run([repo / "bin/omarchy-default-agent", *args], home)
+        check(r.returncode != 0 and not terminal.exists() and
+              agent_file.read_text() == "muse\n" and
+              (config.read_text() == disabled_omp if optout == "disabled tool"
+               else not config.exists()),
+              f"{optout} rejects historical OMP backend with {args}", r)
+PY
+fi
