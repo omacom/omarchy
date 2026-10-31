@@ -17,6 +17,7 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
+  property bool capsLockOn: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
@@ -30,6 +31,11 @@ Item {
   // Space to keep clear on each side of the field for the fingerprint icon
   // (icon width plus a gap) so the centered dots never run under it.
   readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  readonly property bool showCapsLock: capsLockOn && inputEnabled
+  readonly property real capsLockReserve: showCapsLock ? Math.round(capsLockIcon.implicitWidth + 12) : 0
+  // Icons sit on both edges, so reserve the larger on each side to keep the
+  // dots centered.
+  readonly property real iconReserve: Math.max(fingerprintReserve, capsLockReserve)
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
@@ -48,6 +54,7 @@ Item {
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
+  signal capsLockPressed()
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
@@ -142,11 +149,11 @@ Item {
         id: passwordInput
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
-        // Reserve the fingerprint icon's width on both sides so the centered
-        // dots stay symmetric and never slide under the icon as they grow.
-        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
+        // Reserve the icons' width on both sides so the centered dots stay
+        // symmetric and never slide under an icon as they grow.
+        anchors.rightMargin: inputField.borderRight + 18 + root.iconReserve
         anchors.bottomMargin: inputField.borderBottom
-        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve
+        anchors.leftMargin: inputField.borderLeft + 18 + root.iconReserve
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
@@ -194,6 +201,12 @@ Item {
             event.accepted = true
           }
         }
+
+        // XKB turns Caps Lock off on the key's release, so ask for the state
+        // only once the key is up.
+        Keys.onReleased: function(event) {
+          if (event.key === Qt.Key_CapsLock) root.capsLockPressed()
+        }
       }
 
       Text {
@@ -208,6 +221,24 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+      }
+
+      // Caps Lock warning pinned inside the field's left edge, opposite the
+      // fingerprint icon, so it sits right where the password goes.
+      Text {
+        id: capsLockIcon
+        objectName: "capsLockIndicator"
+        textFormat: Text.PlainText
+        anchors.left: parent.left
+        anchors.leftMargin: inputField.borderLeft + 18
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.showCapsLock
+        text: "󰘲"
+        color: Commons.Color.lock.textError
+        font.family: Style.font.family
+        font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
       }
 
       // Fingerprint hint pinned inside the field's right edge when a sensor is
@@ -232,22 +263,41 @@ Item {
       }
     }
 
-    // The crossed-out icon has no meaning to a user who has never seen it — it
-    // is not intuitive that it signals a broken reader — so the words carry the
-    // explanation and the icon only reinforces it.
-    Text {
-      objectName: "fingerprintUnavailableNotice"
-      textFormat: Text.PlainText
+    Column {
       anchors.top: inputField.bottom
       anchors.topMargin: 18
       anchors.horizontalCenter: inputField.horizontalCenter
-      visible: root.fingerprintConfigured && root.fingerprintUnavailable
-      text: Commons.I18n.t("lock.fingerprintUnavailable")
-      color: Commons.Color.lock.textError
-      font.family: Style.font.family
-      font.pixelSize: Style.font.heading
-      font.italic: true
-      horizontalAlignment: Text.AlignHCenter
+      spacing: 8
+
+      // A password typed with Caps Lock on fails with no hint why, so say so
+      // before the user burns through attempts.
+      Text {
+        objectName: "capsLockNotice"
+        textFormat: Text.PlainText
+        anchors.horizontalCenter: parent.horizontalCenter
+        visible: root.showCapsLock
+        text: Commons.I18n.t("lock.capsLockOn")
+        color: Commons.Color.lock.textError
+        font.family: Style.font.family
+        font.pixelSize: Style.font.heading
+        horizontalAlignment: Text.AlignHCenter
+      }
+
+      // The crossed-out icon has no meaning to a user who has never seen it — it
+      // is not intuitive that it signals a broken reader — so the words carry the
+      // explanation and the icon only reinforces it.
+      Text {
+        objectName: "fingerprintUnavailableNotice"
+        textFormat: Text.PlainText
+        anchors.horizontalCenter: parent.horizontalCenter
+        visible: root.fingerprintConfigured && root.fingerprintUnavailable
+        text: Commons.I18n.t("lock.fingerprintUnavailable")
+        color: Commons.Color.lock.textError
+        font.family: Style.font.family
+        font.pixelSize: Style.font.heading
+        font.italic: true
+        horizontalAlignment: Text.AlignHCenter
+      }
     }
   }
 }
