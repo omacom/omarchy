@@ -7,6 +7,7 @@
 set -e
 
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+source "$OMARCHY_PATH/install/helpers/brave-web-speech.sh"
 
 opt_path="${OMARCHY_OPT_PATH:-/opt}"
 
@@ -77,6 +78,7 @@ edge)
 brave)
   echo "Installing Brave..."
   omarchy-pkg-aur-add brave-bin || exit 1
+  omarchy_ensure_brave_web_speech || exit 1
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-flags.conf
@@ -88,6 +90,7 @@ brave)
 brave-origin)
   echo "Installing Brave Origin..."
   omarchy-pkg-aur-add brave-origin-bin || exit 1
+  omarchy_ensure_brave_web_speech || exit 1
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-origin-flags.conf
