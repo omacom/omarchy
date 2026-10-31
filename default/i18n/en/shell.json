@@ -314,9 +314,9 @@
     "other": "%1 selected"
   },
   "monitor.brightness": "BRIGHTNESS",
+  "monitor.builtInDisplay": "Built-in Display",
   "monitor.display": "Display",
   "monitor.displayFocused": "%1 · focused",
-  "monitor.displays": "DISPLAYS",
   "monitor.fixedBrightness": "FIXED BRIGHTNESS",
   "monitor.level.candlelit": "Candlelit",
   "monitor.level.evenDay": "Even day",

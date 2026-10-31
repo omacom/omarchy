@@ -130,6 +130,17 @@ function resolutionLabel(resolution) {
   return h + "p"
 }
 
+// What to call a display: the built-in panel by what it is, since laptops
+// report a panel code as its model, and any other by its model, else its make,
+// else its connector.
+function displayTitle(display, builtInLabel) {
+  var name = String((display && display.name) || "")
+  if (/^(eDP|LVDS|DSI)-/.test(name)) return builtInLabel || "Built-in Display"
+  var model = String(display.model || "").trim()
+  if (model && !/^(0x)?[0-9a-f]+$/i.test(model)) return model
+  return String(display.make || "").trim() || name
+}
+
 // tr is an optional translate(key, english) from the QML side (I18n.t);
 // without it the English text stands, which is what the Node tests assert.
 function brightnessName(percent, tr) {
@@ -174,6 +185,7 @@ if (typeof module !== "undefined") {
     availableScales: availableScales,
     resolutionOptions: resolutionOptions,
     resolutionLabel: resolutionLabel,
+    displayTitle: displayTitle,
     brightnessName: brightnessName,
     parseDisplays: parseDisplays
   }
