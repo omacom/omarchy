@@ -1081,8 +1081,8 @@ Item {
       var win = windowForPid(row.senderPid) || windowForSource(row.source)
       if (win) focusWindow(win)
       else if (Markup.hostname(row.source))
-        Security.openExternalUrl("https://" + Markup.hostname(row.source) + "/")
-      else if (String(row.link || "")) Security.openExternalUrl(String(row.link))
+        Security.openExternalUrl("https://" + Markup.hostname(row.source) + "/", Util.openUrl)
+      else if (String(row.link || "")) Security.openExternalUrl(String(row.link), Util.openUrl)
       else if (String(row.app || "")) Util.execArgv(["omarchy-hyprland-focus-app", String(row.app)])
     }
     closeToast(key, "activated", instant)
