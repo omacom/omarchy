@@ -1,7 +1,31 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Overwrite the user config for the Limine bootloader and rebuild it.
 # omarchy:requires-sudo=true
+
+# Privileged Bash startup prevents BASH_ENV and exported functions from running
+# before the environment can be sanitized.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+# Root copies bootloader config out of $OMARCHY_PATH into /boot, so the same
+# source-root rule the other privileged refresh commands apply binds that read
+# to the packaged tree (or an omarchy dev link'ed checkout) rather than to
+# whatever a caller's environment points at.
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_revoke_sudo_timestamp || exit 1
+# Authorize once, then run the privileged steps behind the command-scoped sudo
+# wrapper so they reuse that timestamp and sudo resolves from a fixed PATH.
+/usr/bin/sudo /usr/bin/true || exit 1
+omarchy_security_enable_no_update_sudo
 
 legacy_uki="/boot/EFI/Linux/$(cat /etc/machine-id)_linux.efi"
 
@@ -11,7 +35,9 @@ if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki";
 fi
 echo "Resetting limine config"
 
-sudo mv /boot/limine.conf /boot/limine.conf.bak
+if sudo test -f /boot/limine.conf; then
+  sudo mv /boot/limine.conf /boot/limine.conf.bak
+fi
 
 sudo cp "$OMARCHY_PATH/default/limine/limine.conf" /boot/limine.conf
 
