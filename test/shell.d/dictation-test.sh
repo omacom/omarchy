@@ -47,19 +47,27 @@ fi
 exit "${DICTATION_EXIT:-0}"
 SH
 done
-# Like Hex, control commands exit 3 until `hex start` brings it up.
-export HEX_RUNNING="$test_tmp/hex-running"
-touch "$HEX_RUNNING"
+# Like Hex: control commands exit 3 until `hex start` brings it up, and
+# `stop --print` hands back the transcript instead of pasting it.
+export HEX_STATE="$test_tmp/hex-state"
+echo listening > "$HEX_STATE"
 cat > "$test_tmp/bin/hex" <<'SH'
 #!/bin/bash
-printf 'hex %s\n' "$*" >> "$DICTATION_LOG"
+[[ $1 == "status" ]] || printf 'hex %s\n' "$*" >> "$DICTATION_LOG"
 if [[ $1 == "start" ]]; then
-  touch "$HEX_RUNNING"
-elif [[ ! -e $HEX_RUNNING ]]; then
+  echo listening > "$HEX_STATE"
+elif [[ ! -e $HEX_STATE ]]; then
   exit 3
+elif [[ $1 == "status" ]]; then
+  printf '{"desktop":{"activity":{"state":"%s"}}}\n' "$(< "$HEX_STATE")"
+elif [[ $* == "dictation start" ]]; then
+  echo dictating > "$HEX_STATE"
+elif [[ $* == "dictation stop --print" ]]; then
+  echo listening > "$HEX_STATE"
+  echo hello
 fi
 SH
-for command in omarchy-pkg-add omarchy-notification-send hyprctl omarchy-restart-shell; do
+for command in omarchy-pkg-add omarchy-clipboard-paste-text omarchy-notification-send hyprctl omarchy-restart-shell; do
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
@@ -117,19 +125,23 @@ for backend in voxtype superwhisper hex; do
   elif [[ $backend == "superwhisper" ]]; then
     expected=$'superwhisper start\nsuperwhisper stop\nsuperwhisper record'
   else
-    expected=$'hex dictation start\nhex dictation stop\nhex dictation toggle'
+    expected=$'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text hello\nhex dictation start'
   fi
   [[ $(cat "$DICTATION_LOG") == "$expected" ]] || fail "adapter dispatches recording for $backend"
 done
 pass "built-in adapters implement start stop and toggle"
 
-rm "$HEX_RUNNING"
 : > "$DICTATION_LOG"
+omarchy-dictation-hex toggle
+[[ $(cat "$DICTATION_LOG") == $'hex dictation stop --print\nomarchy-clipboard-paste-text hello' ]] || fail "toggling a recording Hex types its transcript"
+: > "$DICTATION_LOG"
+omarchy-dictation-hex stop || fail "stopping an idle Hex succeeds"
+rm "$HEX_STATE"
 omarchy-dictation-hex stop || fail "stopping Hex succeeds when it is not running, so switching away works"
-[[ ! -e $HEX_RUNNING ]] || fail "stopping never launches Hex"
+[[ ! -e $HEX_STATE && ! -s $DICTATION_LOG ]] || fail "stopping an idle or stopped Hex sends nothing"
 omarchy-dictation-hex start
-[[ $(cat "$DICTATION_LOG") == $'hex dictation stop\nhex dictation start\nhex start\nhex dictation start' ]] || fail "starting launches a stopped Hex, then records"
-pass "Hex stops quietly when not running and starts it to record"
+[[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex start\nhex dictation start' ]] || fail "starting launches a stopped Hex, then records"
+pass "Hex types its transcript itself, stops quietly when idle, and starts Hex to record"
 
 cat > "$test_tmp/bin/omarchy-dictation-future-backend" <<'SH'
 #!/bin/bash
