@@ -311,7 +311,8 @@ SHELL_ANSWERED=0
 ask_to_put() {
   local id="$1" placement="$2" attempt absent=0
   for (( attempt = 0; attempt < ${OMARCHY_SHELL_READY_ATTEMPTS:-50}; attempt++ )); do
-    if PUT_RESULT=$(omarchy-shell shell putBarWidget "$id" "$placement" 2>&1); then
+    # An unavailable LC_ALL also makes Bash warn before omarchy-shell starts.
+    if PUT_RESULT=$(LC_ALL=C.UTF-8 omarchy-shell shell putBarWidget "$id" "$placement" 2>&1); then
       SHELL_ANSWERED=1
       [[ $PUT_RESULT == "not ready" ]] || return 0
     elif [[ $PUT_RESULT == *"not ready"* ]]; then
