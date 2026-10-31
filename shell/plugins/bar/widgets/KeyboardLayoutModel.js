@@ -70,7 +70,9 @@ function eventKeyboardName(event) {
   if (!parts) parts = String(event && event.data ? event.data : "").split(",")
 
   var name = String(parts[0] || "")
-  return name.indexOf("hl-virtual-keyboard") === 0 ? "" : name
+  // A pointer or companion endpoint switching raises activelayout as well; its
+  // layout never moved, so it must not name the keyboard being typed on.
+  return isTypedKeyboard(name) ? name : ""
 }
 
 // Hyprland reports more than keyboards as keyboards. fcitx5 binds a virtual one
@@ -81,12 +83,23 @@ function eventKeyboardName(event) {
 // the seat hands it ends up describing a button. Leave them out and what remains
 // is keyboards, which is what the rest of this file can then assume.
 //
+// Pointers and their companion HID endpoints answer activelayout too: a 2.4G
+// receiver exposes a mouse, a consumer control and a system control, and a
+// vendor hotkey block arrives as a radio control or extra buttons. Hyprland
+// keeps the layout per device, so these hold the seat's starting layout while
+// nobody ever types on them, and an event that names one would drag the label
+// off the keyboard being typed on. The kernel puts the endpoint's kind at the end
+// of its name, and a combo receiver sold as a "2.4G Mouse" names its keyboard
+// 2.4g-mouse-keyboard, so only the end of the name decides.
+//
 // Missing a name here costs the accuracy the seat had before, never a keyboard:
 // anything unrecognised stays in the list.
 var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)/
+var UNTYPED_DEVICES = /-(mouse|consumer-control|system-control|radio-control|extra-buttons)(-\d+)?$/i
 
 function isTypedKeyboard(name) {
-  return !UNTYPED_KEYBOARDS.test(String(name || ""))
+  name = String(name || "")
+  return !UNTYPED_KEYBOARDS.test(name) && !UNTYPED_DEVICES.test(name)
 }
 
 // Every keyboard on the seat carries the same layout list unless one was given
