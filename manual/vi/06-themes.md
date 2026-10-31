@@ -1,10 +1,10 @@
 # Chủ đề
 
-Omarchy đi kèm hai mươi hai chủ đề đẹp. Bạn có thể chọn giữa chúng qua _Phong cách > Chủ đề_ trong Menu Omarchy (`Super + Space`) hoặc nhảy trực tiếp tới bộ chọn chủ đề bằng `Super + Ctrl + Shift + Space`.
+Omarchy đi kèm với hai mươi hai chủ đề tuyệt đẹp. Bạn có thể chọn giữa chúng qua _Giao diện > Chủ đề_ trong Omarchy Menu (`Super + Space`) hoặc nhảy thẳng tới trình chọn chủ đề bằng `Super + Ctrl + T`.
 
-Mỗi chủ đề tạo kiểu cho desktop, terminal, neovim, màn hình hoạt động (btop), Chromium và toàn bộ shell Omarchy: thanh trên cùng, menu, thông báo, OSD và màn hình khóa. (Đối với Obsidian, bạn phải tự chọn chủ đề Omarchy qua _Appearance > Themes_ bên trong ứng dụng).
+Mỗi chủ đề tạo phong cách cho desktop, terminal, neovim, màn hình hoạt động (btop), Chromium, và toàn bộ Omarchy shell: thanh trên cùng, menu, thông báo, OSD, và màn hình khóa. (Đối với Obsidian, bạn phải tự chọn chủ đề Omarchy qua _Giao diện > Chủ đề_ bên trong ứng dụng).
 
-Các chủ đề có một bộ hình nền mà bạn có thể chọn bằng `Super + Ctrl + Space`.
+Các chủ đề có một bộ hình nền mà bạn có thể chọn qua lại bằng `Super + Ctrl + W`.
 
 Bạn có thể tìm thêm nhiều chủ đề nữa trên [trang chủ đề bổ sung](https://omarchy.org/themes/) hoặc thậm chí [tự tạo chủ đề của riêng bạn](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Mở khóa
+### Màn hình mở khóa
 
-Các chủ đề cũng có thể có thiết kế mở khóa tùy chỉnh, được dùng cho quá trình giải mã khi khởi động. Bạn có thể chọn một trong số chúng trong _Phong cách > Mở khóa_. Chúng trông như thế này:
+Các chủ đề cũng có thể có thiết kế mở khóa tùy chỉnh, được dùng cho quá trình giải mã khi khởi động. Bạn có thể chọn một trong số chúng trong _Giao diện > Mở khóa_. Chúng trông như thế này:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
