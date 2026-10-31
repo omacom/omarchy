@@ -684,6 +684,141 @@ function applyTranslations(items, catalog) {
   return out
 }
 
+// ------------------------------------------------------------------
+// Live query plugins (Alfred/Raycast-style inline results)
+//
+// Pure logic for deciding which plugins fire for a free-text query and how to
+// render their result rows. Kept here so the shell test suite can exercise it
+// directly under Node; the QML side (Menu.qml) supplies the process spawning
+// and displayModel insertion that cannot run headless.
+// ------------------------------------------------------------------
+
+// Heuristic: an arithmetic expression contains a digit and at least one math
+// operator, and is not a URL.
+function looksLikeMath(q) {
+  q = String(q || "")
+  if (/^https?:\/\//.test(q)) return false
+  if (!/[0-9]/.test(q)) return false
+  return /[+\-*/^%().,]/.test(q)
+}
+
+// Decide which plugins fire for a given free-text query. `plugins` is the merged
+// map (id -> definition).
+//
+// Alfred-style ordering:
+//   - math fires when the text looks like arithmetic (e.g. "5+5", "log(50)").
+//   - web (search) is offered as a fallback for every query, including
+//     arithmetic and bare URLs (omarchy-query-web passes those through, so
+//     Enter opens the URL itself). A web plugin with a keyword fires only when
+//     the query starts with it.
+//   - user plugins (copy/run/snippet) fire only when the query starts with their
+//     keyword to avoid noise.
+// The returned order is ranked explicitly (math first, keyword plugins next,
+// web last) rather than relying on object insertion order, so a user-defined
+// math plugin still lands above the built-in web fallback.
+function queryPluginsForQuery(plugins, query) {
+  var q = String(query || "").trim()
+  var active = []
+  if (!q) return active
+  var ids = Object.keys(plugins || {})
+  for (var i = 0; i < ids.length; i++) {
+    var p = plugins[ids[i]]
+    if (!p || p.enabled === false) continue
+    if (p.kind === "math") {
+      if (looksLikeMath(q)) active.push(p)
+    } else if (p.kind === "web") {
+      if (!p.keyword || q.indexOf(p.keyword) === 0) active.push(p)
+    } else if (p.kind === "copy" || p.kind === "run" || p.kind === "snippet") {
+      var kw = p.keyword || ""
+      if (kw && q.indexOf(kw) === 0) active.push(p)
+    }
+  }
+  var rank = function(p) {
+    if (p.kind === "math") return 0
+    if (p.kind === "web") return 2
+    return 1
+  }
+  // Stable sort by rank (Array.prototype.sort is stable in modern JS engines).
+  active.sort(function(a, b) { return rank(a) - rank(b) })
+  return active
+}
+
+// Localized label for a plugin. Falls back to the raw label, then the id.
+function queryPluginLabel(plugin, lang) {
+  var l = lang || "en"
+  if (plugin.i18n && plugin.i18n[l]) return plugin.i18n[l]
+  if (plugin.label) return plugin.label
+  return plugin.id
+}
+
+function queryEncode(s) {
+  return encodeURIComponent(String(s || ""))
+}
+
+// Build the display row for a plugin result. `result` is the command output,
+// or "" for the placeholder shown while the command runs. Returns a
+// displayModel-compatible object. The QML side owns the action string, but
+// the pure shape and label logic live here. Web rows go in the "fallback"
+// section, placed below the search matches; every other plugin's row goes in
+// "results", above them. `lang` picks the plugin's own `i18n` name; `tr` is
+// an optional translate(key, english) from the QML side (I18n.t), and without
+// it the English text stands, which is what the Node tests assert.
+function queryPluginRow(plugin, query, result, lang, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  // Multi-line output stays intact for the action; the one-line row shows its
+  // lines joined.
+  var value = String(result || "").trim().replace(/\s*\n\s*/g, " ")
+  var label = value || query
+  var detail = ""
+  if (plugin.action === "copy") {
+    detail = t("menu.queryCopy", "Copy to clipboard")
+  } else if (plugin.action === "run") {
+    detail = t("menu.queryOpen", "Open")
+  }
+  // Icons: the plugin's own `icon` always wins (bundled key, image path, or
+  // glyph); math/web fall back to the bundled calc/search SVG keys. Rendering
+  // is resolved in Menu.qml (queryIconSource) so icons look identical on every
+  // font/theme — glyphs and theme icons were unreliable (they rendered as a
+  // generic "file"/gear on some setups).
+  var icon = plugin.icon || ""
+  if (plugin.kind === "math") {
+    if (!icon) icon = "calc"
+    label = query + " = " + (value || "…")
+  } else if (plugin.kind === "web") {
+    if (!icon) icon = "search"
+    var webLabel = plugin.builtin ? "" : queryPluginLabel(plugin, lang)
+    if (webLabel === plugin.id) webLabel = ""
+    if (/^https?:\/\//.test(query)) label = query
+    // Callbacks keep `$` sequences in the query or name literal.
+    else if (webLabel) label = t("menu.queryPluginLabel", "%1: %2").replace(/%[12]/g, function(token) { return token === "%1" ? webLabel : query })
+    else label = t("menu.querySearch", "Search: %1").replace("%1", function() { return query })
+  } else {
+    // copy/run/snippet: the result stays the prominent label and the plugin's
+    // localized name becomes the detail, so `label`/`i18n` have a visible
+    // effect (e.g. the documented "Copiar texto" row).
+    var plabel = queryPluginLabel(plugin, lang)
+    if (plabel && plabel !== plugin.id) detail = plabel
+  }
+  return {
+    itemId: plugin.id + ".result",
+    disabled: false,
+    kind: "query",
+    icon: icon,            // icon key: "calc" | "search" | <plugin.icon>
+    iconFont: "",
+    appIcon: "",
+    appId: "",
+    label: label,
+    target: "",
+    detail: detail,
+    path: "",
+    childCount: 0,
+    action: "",
+    provider: "",
+    score: 0,
+    section: plugin.kind === "web" ? "fallback" : "results"
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     summonAction: summonAction,
@@ -719,6 +854,11 @@ if (typeof module !== "undefined") {
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
-    applyTranslations: applyTranslations
+    applyTranslations: applyTranslations,
+    looksLikeMath: looksLikeMath,
+    queryPluginsForQuery: queryPluginsForQuery,
+    queryPluginLabel: queryPluginLabel,
+    queryEncode: queryEncode,
+    queryPluginRow: queryPluginRow
   }
 }

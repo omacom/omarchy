@@ -142,6 +142,12 @@ Adding a provider means adding an entry to the `providers` map in `Menu.qml`
 (script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
 it with `provider:`.
 
+## Live query plugins
+
+The menu can run commands against the free text you type and surface results, Alfred/Raycast style. The calculator (`bin/omarchy-query-calc`) and web search (`bin/omarchy-query-web`) ship built in. The calculator fires when the query looks like arithmetic; its row sits above the normal search matches and copies the bare result on Enter. Web search is offered for every query below the matches (on top when nothing else matches), and for bare `http(s)://` URLs it opens the URL itself. Both are `query` rows in `displayModel`, kept across the rebuilds provider merges cause and dispatched by `activateIndex` like any action.
+
+Plugins are discovered at runtime from three sources, lowest precedence first: built-in definitions in `Menu.qml`, user plugins in `~/.config/omarchy/query-plugins.json`, and per-plugin preferences (enabled / language) in `~/.config/omarchy/extensions/query-plugins-prefs.jsonc`. Both user files are watched, so edits take effect without restarting the shell. The pure decision and row logic lives in `MenuModel.js` and is exercised by `test/shell.d/menu-test.sh`, which also runs the real calculator and web helpers. See `docs/query-plugins.md` for the schema and examples.
+
 ## Driving the menu from the CLI
 
 `bin/omarchy-menu` is a thin wrapper over the standard plugin IPC surface:
