@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# omarchy:summary=Pin the current clipboard, or copy and pin text from stdin (max 10 pins)
+# omarchy:args=[--copy]
+# omarchy:examples=omarchy clipboard pin | omarchy clipboard pin --copy < snippet.txt
+
+set -euo pipefail
+
+copy=false
+case "${1:-}" in
+  "") ;;
+  --copy) copy=true; shift ;;
+  *) echo "Usage: omarchy clipboard pin [--copy]" >&2; exit 1 ;;
+esac
+(( $# == 0 )) || { echo "Usage: omarchy clipboard pin [--copy]" >&2; exit 1; }
+
+# Only the running shell writes history; this request cannot race a watcher
+# by independently reading and rewriting the history file.
+umask 077
+request=$(mktemp "${TMPDIR:-/tmp}/omarchy-clipboard-pin.XXXXXX")
+trap 'rm -f "$request"' EXIT
+
+if [[ $copy == "true" ]]; then
+  jq -Rs '{type: "text", text: .}' >"$request"
+else
+  "$OMARCHY_PATH/shell/plugins/clipboard/capture.sh" >"$request"
+fi
+
+if ! jq -e '(.type == "text" and (.text | test("\\S"))) or (.type == "image" and (.path | type == "string"))' "$request" >/dev/null 2>&1; then
+  echo "Nothing to pin: clipboard is empty, unsupported, or marked sensitive." >&2
+  exit 1
+fi
+
+result=$(omarchy-shell shell call omarchy.clipboard pinClipboardFile "$request")
+case "$result" in
+  pinned|already-pinned)
+    if [[ $copy == "true" ]]; then
+      jq -j '.text' "$request" | wl-copy
+    fi
+    echo "Clipboard pinned."
+    ;;
+  limit) echo "All 10 pins are in use. Unpin an entry in clipboard history first." >&2; exit 1 ;;
+  not-ready) echo "Clipboard history is still loading. Try again shortly." >&2; exit 1 ;;
+  save-failed) echo "Could not save clipboard history. Try again." >&2; exit 1 ;;
+  *) echo "Could not pin clipboard. The running shell must support clipboard pins." >&2; exit 1 ;;
+esac
