@@ -97,6 +97,7 @@ done < <(jq -c '.entryPoints | to_entries[] | .value' "$MANIFEST")
 for kind_entry_point in \
   "bar:bar" \
   "bar-widget:barWidget" \
+  "extension:extension" \
   "menu:menu" \
   "overlay:overlay" \
   "panel:panel" \
