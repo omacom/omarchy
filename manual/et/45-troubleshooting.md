@@ -1,42 +1,63 @@
 # Tõrkeotsing
 
-### Rikkusin värskendusega oma süsteemi ära!
+### Ma lõhkusin uuendusega oma süsteemi ära!
 
-Proovi kõigepealt [oma süsteem taastada](47-system-snapshots.md) versioonile enne viimast värskendust. Kui see ei aita, kasuta oma probleemi jagamiseks Discordi kanalis #omarchy-help käsku `omarchy-debug`. Ja kui kõik muu ebaõnnestub, saad vaikekonfiguratsioonid ja paketid uuesti installida käsuga `omarchy-reinstall`.
+Esmalt proovi [oma süsteem tagasi pöörata](47-system-snapshots.md) versioonile, mis oli enne sinu viimast uuendust. Kui see ei tööta, kasuta käsku `omarchy-debug`, et jagada oma probleemi Discordi kanalil #omarchy-help. Ja kui kõik muu ebaõnnestub, saad vaike konfiguratsioonid ja paketid uuesti installida käsuga `omarchy-reinstall`.
 
 ### Miks on mõned rakendused minu ekraanil nii suured?
 
-Omarchy eeldab 2x kõrge eraldusvõimega ekraani, nii et see seab `GDK_SCALE` väärtuseks 2, kuni valid monitoripaneelil mastaabi. Kui sul on 1x ekraan ja GTK või X11 rakendused tulevad välja liiga suurena, vali selle jaoks monitoripaneelil 1x või lisa `hl.env("GDK_SCALE", "1")` faili `~/.config/hypr/monitors.lua` (ja seejärel taaskäivita iga rakendus, mis on liiga suur). Vaata [monitoride kasutusjuhendit](33-monitors.md).
+Omarchy eeldab 2x kõrge eraldusvõimega ekraani, seega määrab see `GDK_SCALE` väärtuseks 2, kuni valid monitori paneelil mastaabi. Kui kasutad 1x ekraani ja GTK või X11 rakendused tulevad liiga suured välja, vali selle jaoks monitori paneelil 1x või lisa `hl.env("GDK_SCALE", "1")` faili `~/.config/hypr/monitors.lua` (ja seejärel taaskäivita iga rakendus, mis on liiga suur). Vaata [monitoride käsiraamatut](33-monitors.md).
 
-Spotify puhul saad kasutajaliidese väiksemaks teha klahvidega `Ctrl + Minus` (ja suuremaks klahvidega `Ctrl + Plus`).
+Spotify puhul saad kasutajaliidese kahandamiseks kasutada `Ctrl + Minus` (ja suurendamiseks `Ctrl + Plus`).
 
-### Miks kõik minu Super-klahvi otseteed lakkasid töötamast?
+### Miks kõik minu Super klahvi seosed enam ei tööta?
 
-Osadel ASUS ROG ja TUF sülearvutitel on `Fn + Super` kergesti märkamata jääv klahvikombinatsioon, mis lülitab sisse või välja püsivara Windowsi klahvi lukustuse (mõeldud mängimiseks, et sa kogemata mängust välja ei läheks). Miski ekraanil ei anna sulle teada, et see juhtus. Kui lukustus on sisse lülitatud, ei väljasta Super üldse midagi — nii et iga Omarchy otsetee, mis kasutab Super-klahvi, lihtsalt lakkab töötamast ja tundub, et Hyprland läks katki.
+Mõnel ASUS ROG ja TUF sülearvutil on `Fn + Super` kergesti märkamata jääv kombinatsioon, mis lülitab sisse või välja püsivara Windowsi klahvi luku (mõeldud mängimiseks, et sa kogemata mängust ei lahkuks). Miski ekraanil ei anna sulle teada, et see juhtus. Kuni lukk on peal, ei saada Super üldse midagi — seega iga Omarchy seos, mis kasutab Super klahvi, lihtsalt lakkab töötamast ja tundub, et Hyprland läks katki.
 
-Vajuta üks kord `Fn + Super`, enne kui hakkad failis `~/.config/hypr/` tuhnima, ja kui see Super-klahvi tagasi ei too, vajuta seda uuesti, et sa lukustust sisse ei jätaks. See ei ole Fn-lukk, mis muudab ainult seda, mida F-klahvide rida teeb.
+Vajuta üks kord `Fn + Super`, enne kui hakkad uurima kausta `~/.config/hypr/`, ja kui see Super klahvi tagasi ei too, vajuta seda uuesti, et sa lukku peale ei jätaks. See ei ole Fn-lock, mis muudab ainult seda, mida F-klahvide rida teeb.
 
-### Minu Wi-Fi, Bluetooth, heli või puuteplaat lakkasid just töötamast
+### Minu Wi-Fi, Bluetooth, heli või puuteplaat lakkas lihtsalt töötamast
 
-Enne taaskäivitamist proovi vigane alamsüsteem eraldi taaskäivitada. Omarchy menüüs oleval _Värskendus > Riistvara_ on Wi-Fi, Bluetooth, heli ja puuteplaat ning ühe neist uuesti laadimine lahendab enamiku olukordadest „see töötas viis minutit tagasi" — Bluetoothi peakomplekt, mis ei taha uuesti ühenduda, puuteplaat, mis pärast unerežiimi suri, heli, mis kadus, kui ühendasid monitori lahti.
+Enne taaskäivitamist proovi probleemne alamsüsteem eraldi taaskäivitada. Omarchy menüüs _Update > Hardware_ on Wi-Fi, Bluetooth, Audio ja Trackpad ning ühe neist uuesti laadimine lahendab enamiku olukordadest stiilis „see töötas viis minutit tagasi“ — Bluetooth kõrvaklapid, mis ei taha uuesti ühenduda, puuteplaat, mis lakkas pärast unerežiimi töötamast, heli, mis kadus monitori lahtiühendamisel.
 
 ### Miks minu välised kõlarid ei mängi?
 
-Tõenäoliselt sellepärast, et need ei ole määratud peamiseks väljundiks. Klõpsa riba paremal küljel oleval kõlariikoonil ja see avab helitugevuse hüpikakna, kus saad valida väljundseadme (ja miksida ka iga rakenduse helitugevust eraldi).
+Tõenäoliselt seetõttu, et need ei ole määratud peamiseks väljundiks. Klõpsa riba paremal küljel kõlariikoonil ja see avab helitugevuse hüpikakna, kus saad valida väljundseadme (ja reguleerida ka iga rakenduse helitugevust eraldi).
 
-### Minu sülearvuti kõlarid kõlavad imelikult
+### Minu sülearvuti kõlarid kõlavad valesti
 
-Osadel sülearvutitel rakendab Omarchy automaatselt kõlarite häälestust, mis korrigeerib sisseehitatud kõlarite sageduskarakteristikut. `omarchy audio tuning status` ütleb sulle, kas sinu masinal on mõni aktiivne, ja `omarchy audio tuning off` lülitab selle välja, kui eelistad kuulata kõlareid töötlemata kujul.
+Mõnel sülearvutil rakendab Omarchy automaatselt kõlarite häälestuse, mis korrigeerib sisseehitatud kõlarite sageduskarakteristikut. `omarchy audio tuning status` ütleb sulle, kas sinu masinal on mõni aktiivne, ja `omarchy audio tuning off` lülitab selle välja, kui eelistad kuulata kõlareid töötlemata kujul.
 
-### Miks ma ei saa oma parooliga sisse logida ega sudo-t kasutada?
+### Miks ma ei saa oma parooliga sisse logida ega sudo't kasutada?
 
-Tõenäoliselt sisestasid selle liiga mitu korda valesti ja sind lukustati välja. Kui see juhtub lukustuskuval, saad vajutada `CTRL + ALT + F2`, et käivitada uus TTY, kus saad root-kasutajana sisse logida, seejärel käivita `faillock --reset --user [your-username]`. See tühistab lukustuse ja võid jätkata.
+Tõenäoliselt sisestasid selle liiga mitu korda valesti ja sind lukustati välja. Kui see juhtub lukustuskuval, saad vajutada `CTRL + ALT + F2`, et käivitada uus TTY, kus saad root kasutajana sisse logida, seejärel käivita `faillock --reset --user [your-username]`. See lähtestab lukustuse ja võid jätkata.
 
-### Miks minu 1Passwordi autoriseerimisviibad 1Password SSH Agent / CLI jaoks ei ilmu?
+### Minu parool võetakse vastu, kuid mind suunatakse tagasi sisselogimiskuvale
 
-Sellel võib olla 2 põhjust:
+Katkine seansi keskkonnafail võib takistada töölaua käivitumist isegi siis, kui sinu parool on õige. Seda tasub eriti kontrollida pärast kausta `~/.config/uwsm/env.d/` muutmist.
 
-Et rikkalik kinnitusviip ilmuks, peab Settings > Advanced > Use Hardware Acceleration olema sisse lülitatud. _Märkus: Selle toimima hakkamiseks on vaja taaskäivitust._
+Vajuta `Ctrl + Alt + F2`, logi oma tavalise kasutajanime ja parooliga sisse ning vaata praeguse käivituse kasutaja päevikut:
+
+```bash
+journalctl --user -b -t uwsm_env-preloader --no-pager
+```
+
+Otsi viga, mis nimetab ühte sinu keskkonnafailidest, näiteks `bad substitution`, vahetult enne teadet, et env väljundi märki ei leitud. Tõsta see fail enne uuesti sisselogimise proovimist kaustast `env.d` välja. Näiteks kui viga nimetab faili `99-custom`:
+
+```bash
+mkdir -p ~/.config/uwsm/disabled
+mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
+```
+
+UWSM jätab süntaksiveaga faili vahele, kuid saatuslik viga, mis ilmneb ainult faili töötamise ajal, näiteks `bad substitution`, võib endiselt takistada töölaua käivitumist. Süsteemi hetktõmmise tagasipööramine neid faile ei paranda, sest kausta `/home` ei pöörata tagasi.
+
+Kui saad sisse logida, paranda salvestatud koopia enne selle tagasi tõstmist ära. `sh -n` püüab süntaksivead faili käivitamata kinni, kuid ei suuda püüda iga viga, mis selle sisse lugemisel tekib. Hoia muudatusi testides töötav terminal avatuna.
+
+### Miks minu 1Password autoriseerimisviibad 1Password SSH Agent / CLI jaoks ei ilmu?
+
+See võib juhtuda kahel põhjusel:
+
+Et rikkalik kinnitusviip ilmuks, peab Settings > Advanced > Use Hardware Acceleration olema sisse lülitatud. _Märkus: See nõuab toimima hakkamiseks taaskäivitamist._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 

@@ -1,81 +1,85 @@
 # Dotfiles
 
-Omarchy मुख्य रूप से तथाकथित dotfiles के माध्यम से कॉन्फ़िगर किया जाता है जो `~/.config` में रहती हैं। वे तुम्हारे बदलावों के लिए तुम्हारी फ़ाइलें मानी जाती हैं। `/usr/share/omarchy` में रहने वाली फ़ाइलें Omarchy की खुद की हैं, और तुम्हें उनसे छेड़छाड़ नहीं करनी चाहिए। अगर तुम्हें `/usr/share/omarchy` में कुछ बदलने की आवश्यकता है, तो तुम्हें इसके बजाय `~/.config` में उस मान को overwrite करना चाहिए।
+Omarchy मुख्य रूप से तथाकथित dotfiles के माध्यम से कॉन्फ़िगर किया जाता है जो `~/.config` में रहती हैं। वे तुम्हारे बदलावों के लिए तुम्हारी फ़ाइलें मानी जाती हैं। जो फ़ाइलें `/usr/share/omarchy` में रहती हैं वे Omarchy की अपनी हैं, और तुम्हें उनसे छेड़छाड़ नहीं करनी चाहिए। अगर तुम्हें `/usr/share/omarchy` में कुछ बदलने की ज़रूरत है, तो तुम्हें इसके बजाय `~/.config` में वैल्यू को ओवरराइट करना चाहिए।
 
-मुख्य configs को Omarchy मेनू (`Super + Space`) से सीधे edit किया जा सकता है, जैसे _Setup > Keybindings_, _Setup > Input_, और _Setup > Config > [file]_। जब तुम ऐसा करते हो, तो config edits के बाद जिस भी process को restart करने की आवश्यकता होती है, वह तुम्हारे editor बंद करने के बाद अपने आप restart हो जाएगा (डिफ़ॉल्ट रूप से Neovim — `:wq`, याद है ना! — लेकिन तुम इसे _Setup > Defaults > Editor_ के माध्यम से बदल सकते हो)।
+मुख्य कॉन्फ़िग सीधे Omarchy मेनू (`Super + Space`) से एडिट किए जा सकते हैं, जैसे _Setup > Keybindings_, _Setup > Input_, और _Setup > Config > [file]_। जब तुम इसे इस तरह करते हो, तो कॉन्फ़िग एडिट के बाद रीस्टार्ट होने की ज़रूरत वाली कोई भी प्रोसेस, तुम्हारे एडिटर से बाहर निकलने के बाद अपने आप रीस्टार्ट हो जाएगी (डिफ़ॉल्ट रूप से Neovim — `:wq`, याद रखना! — लेकिन तुम इसे _Setup > Defaults > Editor_ के माध्यम से बदल सकते हो)।
 
-यहाँ `~/.config` में मौजूद मुख्य फ़ाइलों की सूची है और वे क्या control करती हैं:
+यहाँ `~/.config` में मुख्य फ़ाइलों की सूची है और वे क्या नियंत्रित करती हैं:
 
-| फ़ाइल | उद्देश्य |
+| File                  | Purpose              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | मुख्य Hyprland config। Omarchy defaults के साथ-साथ नीचे दी गई तुम्हारी override फ़ाइलें load करता है। [Hyprland configs के बारे में और जानें](https://wiki.hypr.land/Configuring/)। |
-| `~/.config/hypr/bindings.lua` | तुम्हारी अपनी keybindings और defaults के overrides। |
-| `~/.config/hypr/monitors.lua` | वे monitor settings जिन्हें monitor panel cover नहीं करता, जैसे rotation, extra modes, या किसी monitor को बंद रखना। |
-| `~/.config/hypr/input.lua` | तुम्हारे keyboard layout, mouse, और trackpad settings को control करता है। |
-| `~/.config/hypr/looknfeel.lua` | gaps, borders, animations, और बाकी पूरे look को control करता है। |
-| `~/.config/hypr/autostart.lua` | सेशन के साथ शुरू होने वाले extra processes को control करता है। |
-| `~/.config/omarchy/shell.json` | Omarchy shell को control करता है: bar position, layout, और widgets, साथ ही screensaver, lock, और idle timings। |
-| `~/.config/foot/foot.ini` | तुम्हारे terminal को control करता है (foot डिफ़ॉल्ट है)। |
-| `~/.XCompose` | तुम्हारे quick-access emoji और name/email autocomplete को define करता है। बदलाव करने के बाद `omarchy-restart-xcompose` चलाना सुनिश्चित करो। |
+| `~/.config/hypr/hyprland.lua` | मुख्य Hyprland कॉन्फ़िग। Omarchy डिफ़ॉल्ट के साथ-साथ नीचे दी गई तुम्हारी ओवरराइड फ़ाइलें लोड करता है। [Hyprland कॉन्फ़िग के बारे में और जानें](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | तुम्हारी अपनी keybindings और डिफ़ॉल्ट की ओवरराइड। |
+| `~/.config/hypr/monitors.lua` | वे मॉनिटर सेटिंग जो मॉनिटर पैनल कवर नहीं करता, जैसे रोटेशन, अतिरिक्त मोड, या किसी मॉनिटर को बंद रखना। |
+| `~/.config/hypr/input.lua` | तुम्हारे कीबोर्ड लेआउट, माउस और trackpad सेटिंग को नियंत्रित करता है। |
+| `~/.config/hypr/looknfeel.lua` | gaps, borders, animations और बाकी के लुक को नियंत्रित करता है। |
+| `~/.config/hypr/autostart.lua` | सेशन के साथ शुरू होने वाली अतिरिक्त प्रोसेस को नियंत्रित करता है। |
+| `~/.config/omarchy/shell.json` | Omarchy shell को नियंत्रित करता है: bar की स्थिति, लेआउट और widgets, साथ ही screensaver, lock और idle के समय। |
+| `~/.config/foot/foot.ini` | तुम्हारे टर्मिनल को नियंत्रित करता है (foot डिफ़ॉल्ट है)। |
+| `~/.XCompose` | तुम्हारे quick-access emoji और नाम/ईमेल autocomplete को परिभाषित करता है। बदलाव करने के बाद `omarchy-restart-xcompose` चलाना सुनिश्चित करो। |
 
-अगर तुम अंत में अपने खुद के setup को tweak करने के लिए बहुत सारे बदलाव कर डालते हो, तो इन सभी dotfiles का backup लेना एक अच्छा विचार है। [Stow ऐसा करने का एक बढ़िया तरीका है](https://www.youtube.com/watch?v=NoFiYOqnC4o)।
+अगर तुम अपने खुद के सेटअप को ठीक करने के लिए बहुत सारे बदलाव कर डालते हो, तो इन सभी dotfiles का बैकअप लेना एक अच्छा विचार है। [Stow ऐसा करने का एक बढ़िया तरीका है](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
 ### सेशन के साथ अपने खुद के ऐप शुरू करना
 
-अगर तुम चाहते हो कि हर बार log in करने पर कुछ चले — एक sync daemon, एक chat app, तुम्हारी अपनी script — तो उसे `~/.config/hypr/autostart.lua` में रख दो:
+अगर तुम चाहते हो कि हर बार लॉग इन करने पर कुछ चले — एक sync daemon, एक चैट ऐप, तुम्हारी अपनी स्क्रिप्ट — तो उसे `~/.config/hypr/autostart.lua` में डालो:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-यह उस command को सेशन के हिस्से के रूप में शुरू करता है, इसलिए जब तुम फिर से log out करते हो तो वह ठीक ढंग से clean up हो जाता है।
+यह कमांड को सेशन के हिस्से के रूप में शुरू करता है, इसलिए जब तुम फिर से लॉग आउट करते हो तो यह ठीक से साफ़ हो जाता है।
 
-### सिस्टम इवेंट्स पर स्क्रिप्ट चलाना
+### सिस्टम इवेंट पर स्क्रिप्ट चलाना
 
-Omarchy कुछ चुनिंदा क्षणों पर hooks fire करता है, और तुम उन पर अपनी खुद की scripts टांग सकते हो। वे `~/.config/omarchy/hooks/<event>.d/` में रहती हैं, प्रत्येक event के लिए एक directory, और event होने पर वहाँ मौजूद हर executable फ़ाइल चलती है:
+Omarchy कुछ चुनिंदा मौकों पर hooks फ़ायर करता है, और तुम अपनी खुद की स्क्रिप्ट उनसे जोड़ सकते हो। वे `~/.config/omarchy/hooks/<event>.d/` में रहती हैं, प्रति इवेंट एक डायरेक्टरी, और वहाँ मौजूद हर executable फ़ाइल इवेंट होने पर चलती है:
 
-| Event | यह कब चलता है |
+| Event | When it runs |
 | ----- | ------------ |
-| `post-boot` | Desktop शुरू होने के ठीक बाद |
-| `post-update` | `omarchy update` के अंत के करीब, packages, migrations, और service restarts के बाद, mise tools update होने से पहले |
-| `pre-refresh-pacman` | `omarchy refresh pacman` द्वारा package config को फिर से sync करने के बाद, उसके द्वारा packages update करने से पहले; channel switch उसी refresh step के दौरान इसे चलाता है |
-| `theme-set` | Theme बदलने के बाद (theme का नाम `$1` में) |
-| `font-set` | Font बदलने के बाद (font का नाम `$1` में) |
-| `battery-low` | जब battery कम हो जाती है (percentage `$1` में) |
+| `post-boot` | डेस्कटॉप शुरू होने के ठीक बाद |
+| `post-update` | `omarchy update` के अंत के करीब, पैकेज, माइग्रेशन और सर्विस रीस्टार्ट के बाद, mise टूल अपडेट होने से पहले |
+| `pre-refresh-pacman` | `omarchy refresh pacman` द्वारा पैकेज कॉन्फ़िग फिर से सिंक किए जाने के बाद, उसके द्वारा पैकेज अपडेट किए जाने से पहले; एक चैनल स्विच उसी refresh चरण के दौरान इसे चलाता है |
+| `theme-set` | थीम बदलने के बाद (थीम का नाम `$1` में) |
+| `font-set` | फ़ॉन्ट बदलने के बाद (फ़ॉन्ट का नाम `$1` में) |
+| `battery-low` | जब बैटरी कम हो जाती है (प्रतिशत `$1` में) |
 
-`pre-refresh-pacman` hook वह जगह है जहाँ custom repositories या `IgnorePkg` lines होनी चाहिए, क्योंकि यह package transaction से पहले चलता है। दोनों update-संबंधी hooks Omarchy द्वारा अपनी cached sudo authorization साफ़ करने के बाद तुम्हारे user के रूप में चलते हैं, इसलिए `sudo` का उपयोग करने वाले hook को अपनी खुद की authorization की आवश्यकता होगी और वह तुमसे तुम्हारा password माँग सकता है।
+`pre-refresh-pacman` hook वह जगह है जहाँ कस्टम रिपॉज़िटरी या `IgnorePkg` लाइनें होनी चाहिए, क्योंकि यह पैकेज ट्रांज़ैक्शन से पहले चलता है। दोनों अपडेट-संबंधी hook तुम्हारे यूज़र के रूप में तब चलते हैं जब Omarchy अपना कैश किया गया sudo ऑथराइज़ेशन साफ़ कर चुका होता है, इसलिए `sudo` का उपयोग करने वाले hook को अपने खुद के ऑथराइज़ेशन की ज़रूरत होती है और वह तुमसे तुम्हारा पासवर्ड मांग सकता है।
 
-उनमें से प्रत्येक directory में पहले से ही एक `.sample` फ़ाइल मौजूद है जो hook का आकार दिखाती है — उसे काम में लाने के लिए नाम से `.sample` हटा दो। कहीं और लिखी हुई script install करने के लिए `omarchy hook install post-boot ~/my-hook` का उपयोग करो, जो उसे वहाँ copy कर देगा और executable बना देगा।
+उनमें से हर डायरेक्टरी में पहले से ही एक `.sample` फ़ाइल है जो hook का आकार दिखाती है — इसे काम पर लगाने के लिए नाम से `.sample` हटा दो। कहीं और लिखी हुई स्क्रिप्ट को इंस्टॉल करने के लिए, `omarchy hook install post-boot ~/my-hook` का उपयोग करो, जो इसे कॉपी करके अंदर डाल देता है और executable बना देता है।
 
-### अपने खुद के मेनू एंट्री जोड़ना
+### अपनी खुद की मेनू एंट्री जोड़ना
 
-Omarchy मेनू (`Super + Space`) को `~/.config/omarchy/extensions/omarchy-menu.jsonc` edit करके अपनी खुद की rows के साथ बढ़ाया जा सकता है। Entries एक dotted id से keyed होती हैं, और id ही उन्हें tree में रखता है, इसलिए `personal` root मेनू पर दिखाई देता है और `personal.notes` उसके अंदर दिखाई देता है:
+Omarchy मेनू (`Super + Space`) को `~/.config/omarchy/extensions/omarchy-menu.jsonc` को एडिट करके तुम्हारी अपनी पंक्तियों के साथ बढ़ाया जा सकता है। एंट्री एक dotted id द्वारा कुंजीबद्ध होती हैं, और id ही उन्हें ट्री में रखता है, इसलिए `personal` रूट मेनू पर दिखाई देता है और `personal.notes` उसके अंदर दिखाई देता है:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-मौजूदा id को फिर से उपयोग करने पर तुम नई row जोड़ने के बजाय उस row को override कर देते हो। फ़ाइल में सभी उपलब्ध fields comments के रूप में documented हैं।
+किसी मौजूदा id का फिर से उपयोग करो और तुम एक नई पंक्ति जोड़ने के बजाय उस पंक्ति को ओवरराइड कर दोगे। फ़ाइल सभी उपलब्ध फ़ील्ड को कमेंट के रूप में दस्तावेज़ करके शिप होती है।
 
 ### अपने खुद के shell exports, functions, और aliases जोड़ना
 
-Omarchy बहुत सारे ergonomic aliases और मददगार functions के साथ आता है, लेकिन अपने खुद के जोड़ना चाहना बहुत आम है। तुम्हें aliases, functions, और exports को `~/.bashrc` में जोड़ना चाहिए। यह फ़ाइल updates पर overwrite नहीं होगी। अगर तुम Omarchy defaults में से किसी को बदलना चाहते हो, तो तुम उन्हें यहाँ भी सुरक्षित रूप से जोड़ सकते हो।
+Omarchy कई ergonomic aliases और मददगार functions के साथ आता है, लेकिन अपने खुद के जोड़ना चाहना बहुत आम है। तुम्हें aliases, functions, और exports को `~/.bashrc` में जोड़ना चाहिए। यह फ़ाइल अपडेट पर ओवरराइट नहीं होगी। अगर तुम Omarchy डिफ़ॉल्ट में से कोई भी बदलना चाहते हो, तो तुम उन्हें यहाँ भी सुरक्षित रूप से जोड़ सकते हो।
+
+### डेस्कटॉप के लिए environment variables सेट करना
+
+डेस्कटॉप सेशन exports `~/.config/uwsm/env.d/` में होते हैं। ये फ़ाइलें तुम्हारे डेस्कटॉप के शुरू होने से पहले चलती हैं, इसलिए एक shell त्रुटि तुम्हें वापस लॉगिन स्क्रीन पर भेज सकती है। उन्हें एडिट करते समय एक काम करता हुआ टर्मिनल खुला रखो। किसी ओवरराइड को अक्षम करने के लिए, उसे `env.d` से बाहर ले जाओ। अगर कोई बदलाव लॉगिन को रोकता है तो [लॉगिन रिकवरी](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen) देखो।
 
 ### आंतरिक Omarchy फ़ाइलें बदलना
 
-देखो, यह तुम्हारा कंप्यूटर है। तुम इसके साथ जो चाहो कर सकते हो, लेकिन मैं `/usr/share/omarchy` में मौजूद फ़ाइलों में सीधे बदलाव करने के खिलाफ सलाह दूँगा। वे Omarchy pacman package से संबंधित हैं, इसलिए तुम्हारे बदलाव अगले update पर बस overwrite हो जाएँगे। इसके बजाय तुम्हारे लिए बेहतर होगा कि तुम `~/.config/*` folder में उन default values को ही overwrite कर दो जो तुम्हें पसंद नहीं हैं।
+देखो, यह तुम्हारा कंप्यूटर है। तुम इसके साथ जो चाहो कर सकते हो, लेकिन मैं `/usr/share/omarchy` में फ़ाइलों में सीधे बदलाव करने के खिलाफ़ सलाह दूंगा। वे Omarchy pacman पैकेज की हैं, इसलिए तुम्हारे बदलाव अगले अपडेट पर बस ओवरराइट हो जाएंगे। इसके बजाय तुम `~/.config/*` फ़ोल्डर में जो भी डिफ़ॉल्ट वैल्यू तुम्हें पसंद नहीं हैं उन्हें ओवरराइट करके बेहतर रहोगे।
 
-तुम उस तरीके से लगभग सब कुछ बदल सकते हो, जैसे default keybindings। बस `~/.config/hypr/bindings.lua` को edit करके, मान लो, [Obsidian](https://obsidian.md/) को [Joplin](https://joplinapp.org/) से बदल दो (`omarchy-pkg-add joplin-bin` से install करो):
+तुम इस तरह लगभग सब कुछ बदल सकते हो, जैसे डिफ़ॉल्ट keybindings। बस `~/.config/hypr/bindings.lua` को एडिट करो, मान लो, [Obsidian](https://obsidian.md/) को [Joplin](https://joplinapp.org/) से बदलने के लिए (`omarchy-pkg-add joplin-bin` से इंस्टॉल करो):
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-`o.rebind` replacement जोड़ने से पहले मौजूदा binding को हटा देता है। यह `o.bind` के समान ही arguments लेता है, launch helpers और binding options सहित। Binding जोड़ने के लिए `o.bind` का उपयोग करो, या उसे बिना replace किए हटाने के लिए `hl.unbind` का उपयोग करो।
+`o.rebind` अपनी replacement जोड़ने से पहले मौजूदा binding को हटा देता है। यह `o.bind` के समान ही arguments लेता है, launch helpers और binding options सहित। एक binding जोड़ने के लिए `o.bind` का उपयोग करो, या बिना बदले किसी को हटाने के लिए `hl.unbind` का उपयोग करो।
 
-अगर तुम आंतरिक Omarchy फ़ाइलों को hack करने पर ही अड़े हुए हो, तो _Update > Channel > Dev_ के माध्यम से dev channel पर switch कर लो। इससे Omarchy `~/omarchy` में मौजूद source code के git checkout से link हो जाता है, जिसे तुम दिल भरकर बदलने के लिए स्वतंत्र हो। यहाँ तुम्हें यह बताने वाला कोई नहीं है कि तुम्हें क्या करना है!
+अगर तुम आंतरिक Omarchy फ़ाइलों पर हैकिंग करने पर अड़े हो, तो _Update > Channel > Dev_ के माध्यम से dev चैनल पर स्विच करो। यह Omarchy को `~/omarchy` में स्रोत कोड के एक git चेकआउट से लिंक करता है, जिसे तुम अपने मन की संतुष्टि तक बदलने के लिए स्वतंत्र हो। यहाँ तुम्हें यह बताने वाला कोई नहीं है कि क्या करना है!
 
-### किसी भी बदलाव को रीसेट करना
+### कोई भी बदलाव रीसेट करना
 
-अगर तुम अंत में configurations की गड़बड़ कर डालते हो, तो तुम उन्हें Omarchy मेनू में _Update > Config_ के माध्यम से हमेशा defaults पर वापस ले जा सकते हो। या सब कुछ रीसेट करने के लिए `omarchy reinstall configs` चलाकर।
+अगर तुम अंत में कॉन्फ़िगरेशन की गड़बड़ कर देते हो, तो तुम उन्हें Omarchy मेनू में _Update > Config_ के माध्यम से हमेशा डिफ़ॉल्ट पर वापस ला सकते हो। या सब कुछ रीसेट करने के लिए `omarchy reinstall configs` चलाकर।

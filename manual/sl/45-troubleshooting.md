@@ -1,43 +1,64 @@
 # Odpravljanje težav
 
-### Z posodobitvijo sem pokvaril sistem!
+### Sistem sem pokvaril s posodobitvijo!
 
-Najprej poskusite [povrniti sistem](47-system-snapshots.md) na različico pred zadnjo posodobitvijo. Če to ne deluje, uporabite `omarchy-debug` in svojo težavo delite na #omarchy-help v Discordu. Če pa tudi to odpove, lahko z `omarchy-reinstall` znova namestite privzete konfiguracije in pakete.
+Najprej poskusite [povrniti sistem](47-system-snapshots.md) na različico pred nedavno posodobitvijo. Če to ne deluje, uporabite `omarchy-debug` in svojo težavo delite v kanalu #omarchy-help na Discordu. In če ne uspe niti to, lahko z `omarchy-reinstall` znova namestite privzete konfiguracije in pakete.
 
 ### Zakaj so nekatere aplikacije na mojem zaslonu tako velike?
 
-Omarchy predvideva zaslon z visoko ločljivostjo 2x, zato `GDK_SCALE` nastavi na 2, dokler v panelu monitorja ne izberete merila. Če uporabljate zaslon 1x in so aplikacije GTK ali X11 prevelike, zanj v panelu monitorja izberite 1x ali v `~/.config/hypr/monitors.lua` dodajte `hl.env("GDK_SCALE", "1")` (in nato znova zaženite vse prevelike aplikacije). Glejte [priročnik o monitorjih](33-monitors.md).
+Omarchy predvideva zaslon visoke ločljivosti 2x, zato nastavi `GDK_SCALE` na 2, dokler ne izberete merila v plošči monitorja. Če ste na zaslonu 1x in so aplikacije GTK ali X11 prevelike, zanj v plošči monitorja izberite 1x ali dodajte `hl.env("GDK_SCALE", "1")` v `~/.config/hypr/monitors.lua` (nato pa znova zaženite vsako preveliko aplikacijo). Oglejte si [priročnik o monitorjih](33-monitors.md).
 
-Pri Spotifyju lahko z `Ctrl + Minus` pomanjšate uporabniški vmesnik (z `Ctrl + Plus` pa ga povečate).
+Za Spotify lahko uporabite `Ctrl + Minus`, da pomanjšate vmesnik (in `Ctrl + Plus`, da ga povečate).
 
 ### Zakaj so vse moje bližnjice s tipko Super prenehale delovati?
 
-Pri nekaterih prenosnikih ASUS ROG in TUF je `Fn + Super` kombinacija, ki jo zlahka spregledate in ki preklopi zaklepanje tipke Windows v vdelani programski opremi (namenjeno igranju iger, da igre ne zapustite po pomoti). Na zaslonu ni ničesar, kar bi vas na to opozorilo. Ko je zaklepanje vklopljeno, Super ne oddaja prav ničesar — zato vsaka bližnjica v Omarchy, ki uporablja Super, preprosto preneha delovati in videti je, kot da se je pokvaril Hyprland.
+Pri nekaterih prenosnikih ASUS ROG in TUF je `Fn + Super` kombinacija, ki jo zlahka spregledate in ki preklopi zaklep tipke Windows v vdelani programski opremi (namenjen igranju iger, da igre ne zapustite po nesreči). Na zaslonu ni ničesar, kar bi vam povedalo, da se je to zgodilo. Ko je zaklep vklopljen, Super ne odda ničesar — zato vsaka bližnjica v Omarchyju, ki uporablja Super, preprosto preneha delovati in videti je, kot da se je Hyprland pokvaril.
 
-Preden se začnete poglabljati v `~/.config/hypr/`, enkrat pritisnite `Fn + Super`, in če s tem Super ne začne znova delovati, pritisnite znova, da zaklepanja ne boste pustili vklopljenega. To ni Fn-lock, ki spreminja le delovanje vrste tipk F.
+Enkrat pritisnite `Fn + Super`, preden začnete kopati po `~/.config/hypr/`, in če to tipke Super ne vrne, pritisnite znova, da zaklepa ne pustite vklopljenega. To ni Fn-lock, ki spremeni le delovanje vrstice tipk F.
 
 ### Moj Wi-Fi, Bluetooth, zvok ali sledilna ploščica je pravkar prenehala delovati
 
-Pred ponovnim zagonom poskusite znova zagnati samo problematični podsistem. _Posodobitev > Strojna oprema_ v meniju Omarchy vsebuje Wi-Fi, Bluetooth, Zvok in Sledilna ploščica, ponovni zagon enega od njih pa odpravi večino situacij tipa "pred petimi minutami je še delovalo" — slušalke Bluetooth, ki se nočejo znova povezati, sledilna ploščica, ki je po spanju prenehala delovati, zvok, ki je izginil, ko ste izklopili monitor.
+Preden znova zaženete sistem, poskusite znova zagnati samo okvarjeni podsistem. _Posodobitev > Strojna oprema_ v meniju Omarchy ima Wi-Fi, Bluetooth, Audio in Trackpad, ponovno nalaganje enega od njih pa odpravi večino položajev »pred petimi minutami je še delovalo« — slušalke Bluetooth, ki se nočejo znova povezati, sledilna ploščica, ki je prenehala delovati po stanju pripravljenosti, zvok, ki je izginil, ko ste izklopili monitor.
 
 ### Zakaj moji zunanji zvočniki ne predvajajo zvoka?
 
-Verjetno zato, ker niso nastavljeni kot primarni izhod. Kliknite ikono zvočnika na desni strani vrstice in odprl se bo pojavni okvir za glasnost, v katerem lahko izberete izhodno napravo (in nastavite tudi glasnost za posamezne aplikacije).
+Verjetno zato, ker niso nastavljeni kot primarni izhod. Kliknite ikono zvočnika na desni strani vrstice in odprlo se bo pojavno okno za glasnost, kjer lahko izberete izhodno napravo (in mešate tudi glasnost za posamezne aplikacije).
 
-### Zvočniki mojega prenosnika zvenijo čudno
+### Zvočniki na mojem prenosniku zvenijo čudno
 
-Pri nekaterih prenosnikih Omarchy samodejno uporabi uglasitev zvočnikov, ki popravi frekvenčni odziv vgrajenih zvočnikov. `omarchy audio tuning status` vam pove, ali je na vaši napravi aktivna katera od njih, `omarchy audio tuning off` pa jo izklopi, če želite zvočnike poslušati brez obdelave.
+Pri nekaterih prenosnikih Omarchy samodejno uporabi uglasitev zvočnikov, ki popravi frekvenčni odziv vgrajenih zvočnikov. `omarchy audio tuning status` vam pove, ali je na vašem računalniku aktivna kakšna uglasitev, `omarchy audio tuning off` pa jo izklopi, če bi raje slišali zvočnike brez obdelave.
 
-### Zakaj se ne morem prijaviti ali uporabiti sudo s svojim geslom?
+### Zakaj se s svojim geslom ne morem prijaviti ali uporabiti sudo?
 
-Verjetno ste ga prevečkrat vnesli napačno in ste se zaklenili ven. Če se to dogaja na zaklenjenem zaslonu, lahko pritisnete `CTRL + ALT + F2`, da zaženete nov TTY, v katerem se lahko prijavite kot root, nato pa zaženete `faillock --reset --user [your-username]`. To bo ponastavilo zaklepanje in lahko nadaljujete.
+Verjetno ste ga prevečkrat vnesli napačno in ste bili zaklenjeni. Če se to dogaja na zaklenjenem zaslonu, lahko pritisnete `CTRL + ALT + F2`, da zaženete nov TTY, kjer se lahko prijavite kot root, nato pa zaženete `faillock --reset --user [your-username]`. S tem boste ponastavili zaklep in lahko boste nadaljevali.
 
-### Zakaj se moji pozivi za pooblastitev 1Password za 1Password SSH Agent / CLI ne prikazujejo?
+### Geslo je sprejeto, vendar se vrnem na prijavni zaslon
 
-To se lahko zgodi iz dveh razlogov:
+Pokvarjena datoteka z okoljem seje lahko prepreči zagon namizja, tudi če je vaše geslo pravilno. To je še posebej vredno preveriti po urejanju `~/.config/uwsm/env.d/`.
 
-Da se prikaže bogati poziv za odobritev, mora biti vklopljena možnost Settings > Advanced > Use Hardware Acceleration. _Opomba: Da začne delovati, je potreben ponovni zagon._
+Pritisnite `Ctrl + Alt + F2`, prijavite se z običajnim uporabniškim imenom in geslom ter preglejte uporabniški dnevnik trenutnega zagona:
+
+```bash
+journalctl --user -b -t uwsm_env-preloader --no-pager
+```
+
+Poiščite napako, ki poimenuje eno od vaših datotek z okoljem, kot je `bad substitution`, tik pred sporočilom, da oznake izhoda okolja ni bilo mogoče najti. To datoteko premaknite iz `env.d`, preden se poskusite znova prijaviti. Če napaka na primer poimenuje `99-custom`:
+
+```bash
+mkdir -p ~/.config/uwsm/disabled
+mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
+```
+
+UWSM preskoči datoteko z napako v sintaksi, usodna napaka, ki se pokaže šele med izvajanjem datoteke, kot je `bad substitution`, pa še vedno lahko prepreči zagon namizja. Povrnitev posnetka sistema teh datotek ne popravi, ker `/home` ni povrnjen.
+
+Ko se lahko prijavite, popravite shranjeno kopijo, preden jo premaknete nazaj. `sh -n` ujame napake v sintaksi, ne da bi datoteko zagnal, vendar ne more ujeti vsake napake, ki se pojavi, ko je datoteka vključena kot vir. Med preizkušanjem sprememb imejte odprt delujoč terminal.
+
+### Zakaj se moji pozivi za avtorizacijo 1Password za 1Password SSH Agent / CLI ne prikažejo?
+
+To se lahko zgodi iz 2 razlogov:
+
+Da se prikaže obogateni poziv za odobritev, mora biti vklopljeno Settings > Advanced > Use Hardware Acceleration. _Opomba: Za začetek delovanja je potreben ponovni zagon._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-Ali če od zagona sistema še niste zagnali 1Password, se poziv ne bo prikazal.
+Ali pa se poziv ne bo prikazal, če od zagona sistema še niste zagnali 1Password.
