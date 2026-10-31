@@ -142,3 +142,22 @@ pass "service facades resolve enabled clones without widening replacement-bar ac
 require_quickshell "plugin authentication boundary runtime test"
 
 run_qml_fixture plugin-auth-boundary "plugin authentication boundary runtime behavior" services
+
+denials() {
+  grep -cF "Plugin example.safe was denied $1" "$QML_FIXTURE_LOG" || true
+}
+
+if [[ $(denials 'serviceFor("omarchy.idle")') != 1 ||
+  $(denials 'resolveEnabledId("omarchy.idle")') != 1 ||
+  $(denials 'firstPartyServiceFor("omarchy.polkit")') != 1 ||
+  $(denials 'firstPartyServiceFor("constructor")') != 1 ||
+  $(denials 'resolveEnabledId("constructor")') != 1 ||
+  $(denials 'serviceFor("example.source")') != 0 ||
+  $(denials 'firstPartyServiceFor("example.source")') != 0 ||
+  $(denials 'serviceFor("example.safe")') != 0 ||
+  $(denials 'resolveEnabledId("example.safe")') != 0 ]]; then
+  sed -n '1,220p' "$QML_FIXTURE_LOG" >&2
+  fail "denied plugin lookups warn once per id"
+fi
+
+pass "denied plugin lookups warn once per id"

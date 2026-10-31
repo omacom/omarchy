@@ -639,12 +639,16 @@ ShellRoot {
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
       _serviceLookup: function(requestedId) {
-        return allowOwnService ? shell.pluginServiceFor(key, requestedId) : null
+        return allowOwnService && shell.pluginOwnsTarget(key, requestedId)
+          ? shell.pluginServiceFor(key, requestedId) : undefined
       },
       _firstPartyServiceLookup: function(requestedId) {
         if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
           return shell.pluginServiceFor(key, requestedId)
-        return hasCurrentBarCapabilities() ? (firstPartyServices[requestedId] || null) : null
+        if (hasCurrentBarCapabilities()
+            && Object.prototype.hasOwnProperty.call(firstPartyServices, requestedId))
+          return firstPartyServices[requestedId]
+        return undefined
       },
       _barEntryShellLookup: function(ownerId, moduleName) {
         return hasCurrentBarCapabilities()

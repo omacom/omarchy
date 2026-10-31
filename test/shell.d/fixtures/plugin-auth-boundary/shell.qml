@@ -20,6 +20,11 @@ ShellRoot {
     PluginShellApi { }
   }
 
+  Component {
+    id: registryApiComponent
+    PluginRegistryApi { }
+  }
+
   FileView {
     id: resultFile
     path: Quickshell.env("OMARCHY_QML_TEST_RESULT")
@@ -34,7 +39,11 @@ ShellRoot {
       pluginId: caller,
       idleConfig: { screensaver: 60, lock: 120 },
       _serviceLookup: function(requestedId) {
-        return requestedId === caller ? root.ownService : null
+        if (requestedId === caller) return root.ownService
+        return requestedId === "example.source" ? null : undefined
+      },
+      _firstPartyServiceLookup: function(requestedId) {
+        return requestedId === "example.source" ? null : undefined
       },
       _summon: function(requestedId) {
         if (requestedId !== caller) return false
@@ -60,6 +69,19 @@ ShellRoot {
     })
 
     var own = api.serviceFor(caller)
+    var registry = registryApiComponent.createObject(null, { pluginId: caller })
+    // A clone may own its built-in source id even while its service is unloaded.
+    api.serviceFor("example.source")
+    api.firstPartyServiceFor("example.source")
+    var inheritedFirstPartyDenied = api.firstPartyServiceFor("constructor") === null
+    // Repeated denied lookups (bindings re-evaluating) should warn only once.
+    var repeatedDenials = api.serviceFor("omarchy.idle") === null
+      && api.serviceFor("omarchy.idle") === null
+      && registry.resolveEnabledId("omarchy.idle") === ""
+      && registry.resolveEnabledId("omarchy.idle") === ""
+      && registry.resolveEnabledId(caller) === caller
+      && api.firstPartyServiceFor("omarchy.polkit") === null
+      && registry.resolveEnabledId("constructor") === ""
     var result = {
       detached: api.parent === undefined || api.parent === null,
       ownService: own && own.marker === "own",
@@ -82,6 +104,8 @@ ShellRoot {
         && root.ownService.manifest.version === "kept",
       authStoreImportIsolated: authStoreReader.has("omarchy.lock") === false,
       noGenericPluginShellFactory: typeof api.pluginShellForId !== "function",
+      inheritedFirstPartyDenied: inheritedFirstPartyDenied,
+      repeatedDenials: repeatedDenials,
       calls: root.calls
     }
     result.ok = Object.keys(result).every(function(key) {
