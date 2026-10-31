@@ -2,9 +2,16 @@
 
 # omarchy:summary=Ensure default application launchers are installed.
 
-# Copy .desktop declarations
+# Copy shipped launchers unless this install omitted them. Do not delete a
+# launcher the user explicitly installed later, even if its name is skipped.
 mkdir -p ~/.local/share/applications
-cp "$OMARCHY_PATH"/applications/*.desktop ~/.local/share/applications/
+skipped="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped"
+for launcher in "$OMARCHY_PATH"/applications/*.desktop; do
+  name=${launcher##*/}
+  if [[ ! -r $skipped ]] || ! grep -qxF -- "${name%.desktop}" "$skipped"; then
+    cp "$launcher" ~/.local/share/applications/
+  fi
+done
 
 if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/

@@ -309,7 +309,7 @@ def scan_candidates(root):
 
 # ------------------------------------------------------------- keybindings
 
-BIND_CALL = re.compile(r"\b(o\.(?:bind|rebind|bind_toggle|bind_hold)|hl\.bind)\(")
+BIND_CALL = re.compile(r"\b(o\.(?:bind|rebind|bind_toggle|bind_hold|bind_preinstalled)|hl\.bind)\(")
 LUA_STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 
