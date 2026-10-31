@@ -41,6 +41,28 @@ assert(audio.isHeadphones(headphones), 'audio detects headphone devices')
 assertEqual(audio.sinkGlyph(headphones), '󰋋', 'audio uses headphone sink glyph')
 assert(audio.sourceGlyph({ ready: true, properties: { 'device.icon-name': 'camera-webcam' } }).length > 0, 'audio maps webcam source glyph')
 
+// Sharing audio: the combined sink is identified by name, and never lists as a
+// device of its own.
+assert(audio.isCombineSink({ name: 'omarchy_combined_output' }), 'audio recognizes the combined sink')
+assert(!audio.isCombineSink({ name: 'alsa_output.speakers' }), 'a physical sink is not the combined sink')
+assert(!audio.isCombineSink(null), 'a missing node is not the combined sink')
+assert(audio.hasCombineSink([{ name: 'bluez_output.headset' }, { name: 'omarchy_combined_output' }]), 'audio sees an active combined sink')
+assert(!audio.hasCombineSink([{ name: 'bluez_output.headset' }]), 'audio sees no combined sink when it is absent')
+assert(audio.isShareableSink({ name: 'alsa_output.speakers' }), 'a physical sink is shareable')
+assert(!audio.isShareableSink({ name: 'easyeffects_sink' }), 'a processing sink is not shareable')
+assert(audio.isShareableSink({ name: 'omarchy_speaker_tuning' }), 'the tuning sink stands in for the speakers it fronts')
+assertDeepEqual(
+  audio.shareableSinks([{ name: 'alsa_output.speakers' }, { name: 'omarchy_combined_output' }, { name: 'bluez_output.headset' }]).map(node => node.name),
+  ['alsa_output.speakers', 'bluez_output.headset'],
+  'shareable sinks drop the combined sink'
+)
+assertDeepEqual(
+  audio.shareableSinks([{ name: 'alsa_output.speakers' }, { name: 'easyeffects_sink' }, { name: 'omarchy_speaker_tuning' }]).map(node => node.name),
+  ['alsa_output.speakers', 'omarchy_speaker_tuning'],
+  'shareable sinks keep the tuning and leave out other virtual sinks'
+)
+assertDeepEqual(audio.shareableSinks(undefined), [], 'shareable sinks of a missing list are none')
+
 assertEqual(audio.friendlyStreamLabel('spotify'), 'Spotify', 'audio normalizes known stream labels')
 assert(audio.streamRepresentsMprisPlayer('Chromium', 'Chromium Browser'), 'audio matches related stream and MPRIS labels')
 
