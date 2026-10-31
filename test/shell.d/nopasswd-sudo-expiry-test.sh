@@ -286,6 +286,13 @@ done
 assert_status 1 env TEST_POLICY_FAILURE=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 pass "menu probe reads policy tags without executing a privileged action or changing the timestamp"
 
+: >"$test_tmp/commands"
+/usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --help >"$test_tmp/public.log"
+grep -q '^  (no args)' "$test_tmp/public.log" || fail "help must explain the bare invocation"
+[[ ! -s $test_tmp/commands ]] || fail "help must not run sudo or gum"
+assert_status 1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 0 2>/dev/null
+pass "help prints the modes and exits cleanly while invalid durations still fail"
+
 for status in 0 3; do
   : >"$test_tmp/commands"
   TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
