@@ -51,10 +51,11 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
-# and anything resolving "monospace" all read from here. This file is loaded
-# after the package-owned default, and prepend_first puts the chosen family at
-# the head of the list so it wins over the family that default prefers.
-fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
+# and anything resolving "monospace" all read from here. Write a drop-in under
+# conf.d so the user's own ~/.config/fontconfig/fonts.conf is never truncated.
+# prepend_first puts the chosen family at the head of the list so it wins over
+# the family that the package default prefers.
+fontconfig_file="$HOME/.config/fontconfig/conf.d/50-omarchy-monospace.conf"
 mkdir -p "$(dirname "$fontconfig_file")"
 cat >"$fontconfig_file" <<XML
 <?xml version="1.0"?>
@@ -70,6 +71,41 @@ cat >"$fontconfig_file" <<XML
   </match>
 </fontconfig>
 XML
+
+# conf.d loads before fonts.conf, so a match block written by earlier versions
+# of this command would still win over the drop-in. Surgically remove every
+# <match target="pattern"> block that carries both the monospace test and
+# prepend_first — whatever font it names — and keep the rest of the file
+# byte-for-byte. A file left with nothing but the XML skeleton is deleted.
+legacy_fontconfig="$HOME/.config/fontconfig/fonts.conf"
+if [[ -f $legacy_fontconfig ]]; then
+  legacy_tmp=$(mktemp "$legacy_fontconfig.XXXXXX")
+  awk '
+    /<match[^>]*>.*<\/match>/ {
+      if (!($0 ~ /<match target="pattern">/ && $0 ~ /<string>monospace<\/string>/ && $0 ~ /mode="prepend_first"/)) print
+      next
+    }
+    /<match[^>]*>/ { inmatch = 1; buf = $0 "\n"; next }
+    inmatch {
+      buf = buf $0 "\n"
+      if (/<\/match>/) {
+        if (!(buf ~ /<match target="pattern">/ && buf ~ /<string>monospace<\/string>/ && buf ~ /mode="prepend_first"/)) printf "%s", buf
+        buf = ""
+        inmatch = 0
+      }
+      next
+    }
+    { print }
+  ' "$legacy_fontconfig" >"$legacy_tmp"
+
+  if cmp -s "$legacy_tmp" "$legacy_fontconfig"; then
+    rm -f "$legacy_tmp"
+  elif ! grep -vE '^[[:space:]]*$|<\?xml[^?]*\?>|<!DOCTYPE[^>]*>|</?fontconfig>' "$legacy_tmp" | grep -q .; then
+    rm -f "$legacy_tmp" "$legacy_fontconfig"
+  else
+    mv "$legacy_tmp" "$legacy_fontconfig"
+  fi
+fi
 
 omarchy-restart-shell
 
