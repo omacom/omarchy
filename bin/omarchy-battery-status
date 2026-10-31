@@ -81,17 +81,43 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+threshold_start=""
+threshold_end=""
 
-# Read the thresholds from the battery UPower resolved rather than a BAT* glob,
-# which misses every battery with another name.
-[[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
-[[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+# The kernel's thresholds are the limit the battery actually stops at, so they
+# win. UPower's can be the udev hwdb's generic 75-80% default rather than the
+# limit in force, and stand in only when sysfs has none and UPower says the
+# limit is on. Read them from the battery UPower resolved rather than a BAT*
+# glob, which misses every battery with another name.
+own_limit=false
+if [[ -r $battery_path/charge_control_end_threshold ]]; then
+  own_limit=true
+  threshold_end=$(<"$battery_path/charge_control_end_threshold")
+  [[ ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+elif grep -qE '^\s*charge-threshold-enabled:\s+yes' <<<"$battery_info"; then
+  own_limit=true
+  threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+  threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+fi
+
+# An end threshold of 100 (or 0 on some firmware) means no limit is set.
+clear_unset_limit() {
+  if [[ -n $threshold_end ]] && (( threshold_end <= 0 || threshold_end >= 100 )); then
+    threshold_start=""
+    threshold_end=""
+  fi
+}
+
+clear_unset_limit
 # The time to full counts to this battery's own limit, never another one's.
 charge_limit=${threshold_end:-100}
-[[ -n $threshold_end ]] || threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
-[[ -n $threshold_start ]] || threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+# Only a battery that says nothing of its own limit borrows a BAT* one; a
+# battery known to have none keeps none.
+if [[ $own_limit == "false" ]]; then
+  threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
+  threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+  clear_unset_limit
+fi
 
 # Time left is the energy left over the draw shown beside it, so the two always
 # agree; charging counts up to the charge limit. UPower's own estimate averages

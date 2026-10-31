@@ -130,6 +130,50 @@ charging_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bi
 grep -Fx $'time\t1h' <<<"$charging_output" >/dev/null || fail "time to full counts up to the charge limit" "$charging_output"
 pass "battery status times charging to the charge limit"
 
+# The limit sysfs enforces wins over UPower's, which can be the hwdb's generic
+# 75-80% default rather than the limit set in firmware or asusctl.
+sed -i 's/charge-end-threshold: 80%/charge-threshold-enabled: yes\n  charge-start-threshold: 75%\n  charge-end-threshold: 80%/' "$hold_dir/bin/upower"
+printf '90\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
+sysfs_limit_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t1h 15m' <<<"$sysfs_limit_output" >/dev/null || fail "time to full counts to the sysfs charge limit" "$sysfs_limit_output"
+grep -Fx $'threshold\t90%' <<<"$sysfs_limit_output" >/dev/null || fail "the sysfs charge limit is the one reported" "$sysfs_limit_output"
+
+# A sysfs end threshold of 100 means no limit, whatever UPower reports.
+printf '100\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
+no_limit_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t1h 30m' <<<"$no_limit_output" >/dev/null || fail "no limit counts up to a full battery" "$no_limit_output"
+if grep -q '^threshold' <<<"$no_limit_output"; then
+  fail "no limit reports no threshold" "$no_limit_output"
+fi
+
+# A battery known to have no limit doesn't borrow another battery's.
+mkdir -p "$hold_dir/power/BAT1"
+cp "$hold_dir/power/BAT0/power_now" "$hold_dir/power/BAT1/power_now"
+printf '100\n' >"$hold_dir/power/BAT1/charge_control_end_threshold"
+printf '60\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
+sed -i 's/native-path:          BAT0/native-path:          BAT1/' "$hold_dir/bin/upower"
+unlimited_beside_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+if grep -q '^threshold' <<<"$unlimited_beside_output"; then
+  fail "a battery with no limit doesn't report another battery's" "$unlimited_beside_output"
+fi
+sed -i 's/native-path:          BAT1/native-path:          BAT0/' "$hold_dir/bin/upower"
+rm -r "$hold_dir/power/BAT1"
+
+# With no sysfs threshold, UPower's limit counts only when UPower says it's on.
+rm "$hold_dir/power/BAT0/charge_control_end_threshold"
+upower_limit_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t1h' <<<"$upower_limit_output" >/dev/null || fail "time to full counts to an enabled UPower limit" "$upower_limit_output"
+grep -Fx $'threshold\t75-80%' <<<"$upower_limit_output" >/dev/null || fail "an enabled UPower limit is reported" "$upower_limit_output"
+sed -i 's/charge-threshold-enabled: yes/charge-threshold-enabled: no/' "$hold_dir/bin/upower"
+upower_off_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t1h 30m' <<<"$upower_off_output" >/dev/null || fail "a disabled UPower limit doesn't shorten time to full" "$upower_off_output"
+if grep -q '^threshold' <<<"$upower_off_output"; then
+  fail "a disabled UPower limit isn't reported" "$upower_off_output"
+fi
+printf '80\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
+sed -i '/charge-threshold-enabled: no/d; /charge-start-threshold: 75%/d' "$hold_dir/bin/upower"
+pass "battery status prefers the charge limit sysfs enforces"
+
 # UPower's own estimate stands in when the draw is too small to divide by...
 printf '100000\n' >"$hold_dir/power/BAT0/power_now"
 idle_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
