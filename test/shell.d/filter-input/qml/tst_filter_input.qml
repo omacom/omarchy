@@ -56,9 +56,25 @@ Item {
       compare(input.text, "")
     }
 
+    // Qt NumLock desync: keypad 7/5 arrive as Home/Clear with KeypadModifier
+    // and no text. The handler leaves those alone; FilterInput types the digit.
+    function test_keypadNavigationKeysTypeDigits() {
+      keyClick(Qt.Key_Home, Qt.KeypadModifier)
+      keyClick(Qt.Key_Clear, Qt.KeypadModifier)
+      compare(input.text, "75")
+    }
+
+    function test_syncedKeypadDigitIsLeftToTextInput() {
+      // Synced NumLock already carries text; digitFor must not double-insert.
+      keyClick(Qt.Key_7, Qt.KeypadModifier)
+      compare(input.text, "7")
+    }
+
     function test_readOnlyTypesNothing() {
       input.readOnly = true
       keyClick(Qt.Key_T)
+      compare(input.text, "")
+      keyClick(Qt.Key_Home, Qt.KeypadModifier)
       compare(input.text, "")
     }
 

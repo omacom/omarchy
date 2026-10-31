@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
+import "../../Commons/KeypadDigits.js" as KeypadDigits
 
 Item {
   id: root
@@ -1327,6 +1328,16 @@ Item {
           if (root.deleteConfirmOpen) {
             // Swallow the rest too, or it would type into the search line behind the dialog.
             deleteConfirm.handleKey(event)
+            event.accepted = true
+            return
+          }
+
+          // Keypad digits can arrive as Home/End/arrows with KeypadModifier and
+          // empty text while Qt's NumLock is desynced. Map them before Delete /
+          // Up / Down, which would otherwise uninstall or navigate.
+          var keypadDigit = KeypadDigits.digitFor(event.key, event.modifiers, event.text)
+          if (keypadDigit !== null) {
+            root.setFilter(root.filterText + keypadDigit)
             event.accepted = true
             return
           }
