@@ -78,3 +78,25 @@ Before writing ANY window rules, you MUST fetch the current documentation from t
 DO NOT rely on cached or memorized window rule syntax. The format has changed multiple times and using outdated syntax will cause errors or unexpected behavior.
 
 Window rules go in `~/.config/hypr/hyprland.lua` or a required Lua module. Prefer Omarchy's `o.window(match, rules)` helper — see examples in `$OMARCHY_PATH/default/hypr/windows.lua`.
+
+## Layer Rules
+
+Shell surfaces are layers, not windows: `omarchy-bar`, `omarchy-menu`,
+`omarchy-notifications`, `omarchy-osd` and the other shell surfaces
+(`hyprctl layers` lists them). Blur, animations and similar effects on them are layer rules; the same
+syntax caution applies, see https://wiki.hypr.land/configuring/core/rules/layer-rules/.
+
+Blur behind pills on a clear bar, as written for Hyprland 0.56:
+
+```lua
+hl.layer_rule({ match = { namespace = "^omarchy-bar$" }, blur = true, ignore_alpha = 0.3 })
+```
+
+`ignore_alpha` matters when the bar background is clear (`omarchy bar
+background none`): the bar layer spans the whole strip, so without it the
+blur covers the empty strip, not only the pills. Hyprland blurs only where
+the pill is more opaque than `ignore_alpha`, so the blur shows with a
+`[bar] pill-alpha` between 0.3 and 1, set in `~/.config/omarchy/shell.toml`.
+
+Frosted pills need no rule: with pills on, `omarchy bar background glassy`
+draws no strip, and the blur Omarchy turns on falls behind the pills alone.
