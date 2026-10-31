@@ -1,10 +1,10 @@
 # Dynamic theme colors
 config-file = ?"~/.local/state/omarchy/current/theme/ghostty.conf"
 
-# Font
+# Font family is shared. Size lives in ~/.config/ghostty/local so two machines
+# can keep the same config and different sizes. `omarchy font size` writes it.
 font-family = "JetBrainsMono Nerd Font"
 font-style = Regular
-font-size = 9
 
 # Window
 window-theme = ghostty
@@ -39,3 +39,6 @@ mouse-scroll-multiplier = 0.95
 
 # Fix general slowness on hyprland (https://github.com/ghostty-org/ghostty/discussions/3224)
 async-backend = epoll
+
+# Optional per-machine overrides (font-size). Missing file is ignored.
+config-file = ?"~/.config/ghostty/local"

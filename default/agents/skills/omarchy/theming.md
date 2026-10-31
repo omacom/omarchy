@@ -75,5 +75,10 @@ omarchy theme set catppuccin-custom
 ```bash
 omarchy font list               # Available fonts
 omarchy font current            # Current font
-omarchy font set <name>         # Change font
+omarchy font set <name>         # Change font family (all machines)
+omarchy font size               # Show this machine's terminal font size
+omarchy font size 11            # Set this machine's terminal font size
+omarchy display text size 14    # Shell + GTK + terminal, still per-machine for the terminal
 ```
+
+Family is shared. Terminal size is per-machine: `~/.config/ghostty/local`, `kitty/local.conf`, `foot/local.ini`, `alacritty/local.toml`.
