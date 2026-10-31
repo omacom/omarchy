@@ -299,6 +299,7 @@ reset_fixture() {
 
 run_setup() {
   HOME="$fixture_home" XDG_CONFIG_HOME="$fixture_home/config" XDG_STATE_HOME="$fixture_home/state" \
+    OMARCHY_PATH="${TEST_OMARCHY_PATH:-$ROOT}" \
     DISPLAY="${TEST_DISPLAY-:0}" WAYLAND_DISPLAY=wayland-test HYPRLAND_INSTANCE_SIGNATURE=fixture \
     TEST_SERVICES="$fixture_state" TEST_CALLS="$calls" PATH="$stub_bin:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-hyprland-parallels" "$@"
@@ -433,3 +434,23 @@ finally:
       worker.wait(timeout=5)
 PY
 pass "overlapping activation and deactivation preserve the original startup file"
+
+# Package data can change while the user keeps an activation enabled. Neither
+# replaying on nor turning it off should mistake that update for a user edit.
+for action in on off; do
+  reset_fixture
+  package="$test_tmp/package-$action"
+  mkdir -p "$package/default/systemd/user"
+  cp -a "$ROOT/default/parallels" "$package/default/"
+  for unit in omarchy-parallels.service omarchy-parallels-agent.service omarchy-parallels-helper@.service; do
+    cp "$ROOT/default/systemd/user/$unit" "$package/default/systemd/user/"
+  done
+  TEST_OMARCHY_PATH="$package" run_setup on
+  printf '\nComment=Updated packaged template\n' >>"$package/default/parallels/prlcc.desktop"
+  TEST_OMARCHY_PATH="$package" run_setup "$action"
+  if [[ $action == "on" ]]; then
+    TEST_OMARCHY_PATH="$package" run_setup off
+  fi
+  cmp -s "$test_tmp/original.desktop" "$fixture_home/config/autostart/prlcc.desktop" || fail "package update preserves the original startup file"
+done
+pass "package template updates do not prevent replaying or disabling an activation"

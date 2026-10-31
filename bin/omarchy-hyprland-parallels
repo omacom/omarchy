@@ -42,7 +42,7 @@ disable_compatibility() {
   local failed=0
   systemctl --user disable --now omarchy-parallels.service || failed=1
   if [[ -d $state ]]; then
-    if ! cmp -s "$autostart" "$autostart_source"; then
+    if ! cmp -s "$autostart" "$state/managed-autostart"; then
       echo "The Parallels autostart override was changed; leaving it and its backup in $state." >&2
       return 1
     fi
@@ -65,7 +65,7 @@ disable_compatibility() {
   if [[ -f $state/stock-agent-active && -n ${WAYLAND_DISPLAY:-} ]]; then
     systemctl --user start app-prlcc@autostart.service || return 1
   fi
-  rm -f -- "$state/stock-agent-active" "$state/saved"
+  rm -f -- "$state/stock-agent-active" "$state/saved" "$state/managed-autostart"
   [[ ! -d $state ]] || rmdir -- "$state"
   return "$failed"
 }
@@ -118,7 +118,7 @@ case $action in
         exit 1
       fi
     done
-    if [[ -d $state ]] && ! cmp -s "$autostart" "$autostart_source"; then
+    if [[ -d $state ]] && ! cmp -s "$autostart" "$state/managed-autostart"; then
       echo "The Parallels autostart override was changed; restore it or disable the integration first." >&2
       exit 1
     fi
@@ -129,6 +129,8 @@ case $action in
       if [[ -e $autostart || -L $autostart ]]; then
         cp -a -- "$autostart" "$backup/original-autostart"
       fi
+      # Package updates must not change what counts as this activation's bytes.
+      cp -- "$autostart_source" "$backup/managed-autostart"
       if systemctl --user is-active --quiet app-prlcc@autostart.service; then
         : >"$backup/stock-agent-active"
       fi
@@ -138,7 +140,7 @@ case $action in
 
     # A file rename also handles a pre-existing symlink without editing its target.
     temporary=$(mktemp "$config_home/autostart/.prlcc.XXXXXX")
-    install -m 0644 "$autostart_source" "$temporary"
+    install -m 0644 "$state/managed-autostart" "$temporary"
     mv -fT "$temporary" "$autostart"
     if stop_stock_agent && systemctl --user daemon-reload &&
       systemctl --user link "${units[@]/#/$OMARCHY_PATH/default/systemd/user/}" &&
