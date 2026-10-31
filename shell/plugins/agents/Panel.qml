@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -11,20 +12,27 @@ Panel {
   ipcTarget: "omarchy.agents"
   manageIpc: false
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  // Items inside the panel's lazily built content, null until it first
+  // opens. Code inside the content reaches its own ids directly.
+  readonly property Item panelFlick: panel.loadedContent ? panel.loadedContent.panelFlick : null
+  readonly property Item hero: panel.loadedContent ? panel.loadedContent.hero : null
+  readonly property Item column: panel.loadedContent ? panel.loadedContent.column : null
+  readonly property Item providerSections: panel.loadedContent ? panel.loadedContent.providerSections : null
+
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
-  readonly property color surface: Color.popups.background
-  readonly property color track: Style.selectedFillFor(foreground, Color.accent)
+  readonly property color surface: Commons.Color.popups.background
+  readonly property color track: Style.selectedFillFor(foreground, Commons.Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: usage.enabledProviders
+  readonly property var providers: usage.subscribedProviders
 
   property bool cursorActive: false
 
-  // Countdowns and "as of" ages read this instead of Date.now() so the
+  // Countdowns and "last updated" ages read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
 
@@ -46,8 +54,8 @@ Panel {
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's buttons, then each agent's
-  // Sign-in required link or switchable accounts, and the starter tiles, or
-  // the agents to add while picking one. Up and down change rows, left and right move along one.
+  // header, its Sign-in required link or switchable accounts, and the starter
+  // tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
   // Hovering moves the same cursor, so only one thing is lit.
   readonly property var keyRows: {
     var rows = []
@@ -66,6 +74,8 @@ Panel {
       // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
+        // Every agent's header is a stop, so Ctrl+Up/Down can move it.
+        rows.push([{ kind: "provider", index: p }])
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -135,9 +145,60 @@ Panel {
     }
   }
 
+  // The agent the cursor is in, by its position on the page.
+  function providerIndexOfKey() {
+    var target = keyTarget
+    if (!target) return -1
+    if (target.kind === "provider" || target.kind === "providerSignin") return target.index
+    if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
+    var entry = accountEntries[target.index]
+    return entry ? providers.indexOf(entry.provider) : -1
+  }
+
+  // Ctrl+Up/Down carries the agent the cursor is in up or down the page, and
+  // the cursor along with it.
+  function reorderProvider(dy) {
+    var from = providerIndexOfKey()
+    if (from < 0) return
+    var to = clamp(from + dy, 0, providers.length - 1)
+    if (to === from) return
+    usage.moveProvider(providers[from].providerId, to)
+    Qt.callLater(function() { pointAt("provider", to) })
+  }
+
+  // Dragging an agent by its mark lights the header it would land on, and
+  // moves it there on release: the sections are rebuilt when the order
+  // changes, which would drop a drag still in progress.
+  property string dragProviderId: ""
+  property int dragTarget: -1
+  // An account name being edited keeps Ctrl+Up/Down: moving its agent would
+  // rebuild the section and drop the unfinished name.
+  property bool renaming: false
+
+  function dragProviderOver(y) {
+    if (!providerSections) return
+    for (var i = 0; i < providerSections.count; i++) {
+      var item = providerSections.itemAt(i)
+      if (item && y >= item.y && y < item.y + item.height) {
+        dragTarget = i
+        return
+      }
+    }
+  }
+
+  function dropProvider() {
+    var id = dragProviderId
+    var to = dragTarget
+    dragProviderId = ""
+    dragTarget = -1
+    if (id === "" || to < 0) return
+    usage.moveProvider(id, to)
+    Qt.callLater(function() { pointAt("provider", to) })
+  }
+
   // Keeps whatever the cursor lands on inside the scrolled view.
   function revealItem(item) {
-    if (!item || !panelFlick || !panelFlick.interactive) return
+    if (!item || !column || !panelFlick || !panelFlick.interactive) return
     var top = item.mapToItem(column, 0, 0).y
     var margin = Style.space(12)
     if (top - margin < panelFlick.contentY)
@@ -211,7 +272,7 @@ Panel {
 
   function chooseAddProvider(id) {
     var state = addChecks[id] || ""
-    if (state === "unsupported" || state === "") return
+    if (state === "") return
     addProvider = id
     if (state === "additional") addStage = "name"
     else startAdd("")
@@ -219,7 +280,7 @@ Panel {
 
   function startAdd(label) {
     addPrivate = (addChecks[addProvider] || "") === "additional"
-    addStatus = "Starting…"
+    addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
     // Claude's login offers pasting a code back whenever its page shows one,
@@ -245,7 +306,7 @@ Panel {
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
-    addStatus = "Checking the code…"
+    addStatus = Commons.I18n.t("agents.checkingCode")
   }
 
   // The add command's own lines are tagged; everything else is the CLI
@@ -264,7 +325,7 @@ Panel {
           usage.refreshLimits()
           addDoneTimer.restart()
           // Nothing to show yet means the sign-in is what counts as set up.
-          if (providers.length === 0 && !checkProcess.running) {
+          if (usage.enabledProviders.length === 0 && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
@@ -286,9 +347,9 @@ Panel {
 
   // A few ways into making Omarchy your own, handed to the default agent.
   readonly property var starterPrompts: [
-    { glyph: "󰏘", label: "Theme", prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
-    { glyph: "󰐱", label: "Plugin", prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
-    { glyph: "󰣆", label: "App", prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
+    { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
+    { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
+    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
   ]
 
   function startPrompt(prompt) {
@@ -347,36 +408,51 @@ Panel {
 
   // Hands the keyboard back to the panel after an inline edit.
   function focusKeys() {
-    keyCatcher.forceActiveFocus()
+    if (panel.loadedContent) panel.loadedContent.forceActiveFocus()
   }
 
   function accountDetail(account) {
     var parts = []
     if (String(account.plan || "") !== "") parts.push(account.plan)
     if (account.resetCredits && Number(account.resetCredits.available) > 0)
-      parts.push(account.resetCredits.available + " free reset" + (Number(account.resetCredits.available) === 1 ? "" : "s"))
+      parts.push(freeResetsText(Number(account.resetCredits.available)))
     return parts.join(" · ")
+  }
+
+  // Only the agents `omarchy-agent-account-add` signs in get the link; any
+  // other agent's sign-in trouble stays text, with its own help to follow.
+  function supportsSignIn(p) {
+    for (var i = 0; i < addProviders.length; i++)
+      if (p && addProviders[i].providerId === p.providerId) return true
+    return false
   }
 
   // A lapsed or missing sign-in is something you can fix from here; any other
   // trouble is only reported.
   function needsSignIn(item) {
+    if (item && item.providerId && !supportsSignIn(item)) return false
     var status = String(item && item.usageStatusText || "")
     return status === "Sign-in expired" || status === "Waiting for auth"
   }
 
-  function otherTrouble(item) {
-    var status = String(item && item.usageStatusText || "")
-    return status !== "" && !needsSignIn(item) ? status : ""
+  // Whatever keeps the numbers from being current, said beside the last ones
+  // known: they stay on show until a check succeeds again. A failed refresh
+  // with numbers kept may leave the status empty and say why only in its help.
+  function usageNote(item) {
+    if (!item || needsSignIn(item)) return ""
+    var status = String(item.usageStatusText || "")
+    var stale = item.limitsStale === true || item.stale === true
+    if (status === "" && !(stale && String(item.authHelpText || "") !== "")) return ""
+    return helpDisplayText(item.authHelpText) || statusDisplayText(status)
   }
 
   // Sign an account that's already here in again, following along in the
   // add view just like adding one.
   function signInAgain(p, account) {
-    if (!p || addStage === "running") return
+    if (!supportsSignIn(p) || addStage === "running") return
     addProvider = p.providerId
     addPrivate = !!account && account.primary !== true
-    addStatus = "Starting…"
+    addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
     // Claude's login offers pasting a code back whenever its page shows one,
@@ -393,14 +469,21 @@ Panel {
   function resetCreditsText(credits) {
     if (!credits || !(Number(credits.available) > 0)) return ""
     var count = Number(credits.available)
-    var text = count + " free reset" + (count === 1 ? "" : "s")
     var expires = new Date(String(credits.nextExpiresAt || "")).getTime()
-    if (isFinite(expires) && expires > nowMs) text += " · next expires in " + formatDuration(expires - nowMs)
-    return text
+    if (isFinite(expires) && expires > nowMs) {
+      return Commons.I18n.tn("agents.freeResetsExpires", count)
+        .arg(Commons.I18n.formatNumber(count)).arg(formatDuration(expires - nowMs))
+    }
+    return freeResetsText(count)
+  }
+
+  function freeResetsText(count) {
+    return Commons.I18n.tn("agents.freeResets", count).arg(Commons.I18n.formatNumber(count))
   }
 
   function planLabel(p) {
     var tier = String(p && p.tierLabel || "")
+    if (tier === "Prepaid") return Commons.I18n.t("agents.tierPrepaid")
     return tier === "" ? "" : tier.charAt(0).toUpperCase() + tier.slice(1)
   }
 
@@ -447,10 +530,12 @@ Panel {
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
   function limitWindow(label, percent, resetAt, title) {
+    var reset = new Date(String(resetAt || "")).getTime()
+    var expired = isFinite(reset) && reset <= root.nowMs
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
-      percent: Number(percent),
-      resetAt: String(resetAt || "")
+      percent: expired ? 0 : Number(percent),
+      resetAt: expired ? "" : String(resetAt || "")
     }
   }
 
@@ -517,13 +602,80 @@ Panel {
   }
 
   function formatDuration(ms) {
-    if (!(ms > 0)) return "now"
+    if (!(ms > 0)) return Commons.I18n.t("agents.durationNow")
     var minutes = Math.floor(ms / 60000)
     var hours = Math.floor(minutes / 60)
     var days = Math.floor(hours / 24)
-    if (days > 0) return days + "d " + (hours % 24) + "h"
-    if (hours > 0) return hours + "h " + (minutes % 60) + "m"
-    return Math.max(1, minutes) + "m"
+    if (days > 0) return Commons.I18n.t("agents.durationDaysHours").arg(Commons.I18n.formatNumber(days)).arg(Commons.I18n.formatNumber(hours % 24))
+    if (hours > 0) return Commons.I18n.t("agents.durationHoursMinutes").arg(Commons.I18n.formatNumber(hours)).arg(Commons.I18n.formatNumber(minutes % 60))
+    return Commons.I18n.t("agents.durationMinutes").arg(Commons.I18n.formatNumber(Math.max(1, minutes)))
+  }
+
+  // Window titles stay English in the records, where scopedPart() and the
+  // collectors match on them; only what reaches the screen is translated.
+  function windowDisplayTitle(title) {
+    var value = String(title || "")
+    if (value === "Session") return Commons.I18n.t("agents.windowSession")
+    if (value === "Weekly") return Commons.I18n.t("agents.windowWeekly")
+    if (value === "Monthly") return Commons.I18n.t("agents.windowMonthly")
+    if (value === "Spend limit") return Commons.I18n.t("agents.windowSpendLimit")
+    if (value === "Limit") return Commons.I18n.t("agents.windowLimit")
+    var part = scopedPart(value)
+    if (part && part.window === "Session") return Commons.I18n.t("agents.modelSession").arg(part.model)
+    if (part && part.window === "Weekly") return Commons.I18n.t("agents.modelWeekly").arg(part.model)
+    if (part && part.window === "Monthly") return Commons.I18n.t("agents.modelMonthly").arg(part.model)
+    return value
+  }
+
+  function scopedAllowanceText(scoped, windowTitle) {
+    var percent = Commons.I18n.formatNumber(Math.round(scoped.percent * 100))
+    var value = String(windowTitle || "")
+    if (value === "Session") return Commons.I18n.t("agents.scopedSession").arg(scoped.title).arg(percent)
+    if (value === "Weekly") return Commons.I18n.t("agents.scopedWeekly").arg(scoped.title).arg(percent)
+    if (value === "Monthly") return Commons.I18n.t("agents.scopedMonthly").arg(scoped.title).arg(percent)
+    return Commons.I18n.t("agents.scopedOther").arg(scoped.title).arg(percent).arg(windowDisplayTitle(value))
+  }
+
+  // The collectors write a fixed English status; the ones that reach the
+  // screen are shown in the current language.
+  function statusDisplayText(status) {
+    var value = String(status || "")
+    if (value === "Balance unavailable") return Commons.I18n.t("agents.balanceUnavailable")
+    if (value === "Out of credits") return Commons.I18n.t("agents.outOfCredits")
+    var limits = value.match(/^(.+) limits unavailable$/)
+    if (limits) return Commons.I18n.t("agents.providerLimitsUnavailable").arg(limits[1])
+    var provider = value.match(/^(.+) unavailable$/)
+    if (provider) return Commons.I18n.t("agents.providerUnavailable").arg(provider[1])
+    if (value === "Sign-in expired") return Commons.I18n.t("agents.signInExpired")
+    if (value === "Waiting for auth") return Commons.I18n.t("agents.waitingForAuth")
+    if (value === "Limits paused") return Commons.I18n.t("agents.limitsPaused")
+    return value
+  }
+
+  // The usage collectors cache their help lines in English, so the fixed
+  // ones are translated here; commands stay verbatim as arguments, and raw
+  // error text from a provider passes through as it came.
+  function helpDisplayText(text) {
+    var value = String(text || "")
+    switch (value) {
+    case "Run `claude auth login` to restore authoritative usage.":
+      return Commons.I18n.t("agents.helpRunToRestoreUsage").arg("`claude auth login`")
+    case "Run `codex login` to authenticate.":
+      return Commons.I18n.t("agents.helpRunToAuthenticate").arg("`codex login`")
+    case "Start Grok, or run `grok login`, to sign in.":
+      return Commons.I18n.t("agents.helpStartOrRunToSignIn").arg("Grok").arg("`grok login`")
+    case "Start Grok to see its limits; signing in again is not needed.":
+      return Commons.I18n.t("agents.helpStartToSeeLimits").arg("Grok")
+    case "Grok's saved sign-in expired. Start Grok to refresh it.":
+      return Commons.I18n.t("agents.helpSignInExpired").arg("Grok")
+    case "Set FIREWORKS_API_KEY, run `firectl set-api-key`, or sign in to Fireworks in pi or opencode.":
+      return Commons.I18n.t("agents.helpFireworksSignIn").arg("FIREWORKS_API_KEY").arg("`firectl set-api-key`")
+    case "codex not found in PATH":
+      return Commons.I18n.t("agents.helpNotInPath").arg("codex")
+    case "Fireworks usage scan failed":
+      return Commons.I18n.t("agents.helpScanFailed").arg("Fireworks")
+    }
+    return value
   }
 
   // ---------------------------------------------------------------- balance
@@ -548,14 +700,16 @@ Panel {
   function formatMoney(value, currency) {
     var amount = Number(value)
     if (!isFinite(amount)) amount = 0
-    return currencyPrefix(currency) + amount.toFixed(2)
+    return currencyPrefix(currency) + Commons.I18n.formatNumber(amount, 2)
   }
 
   function balanceDetailText(b) {
     if (!b || !(b.funded > 0)) return ""
-    var text = formatMoney(b.spent, b.currency) + " spent of " + formatMoney(b.funded, b.currency) + " funded"
-    if (b.estimated) text += " · estimated"
-    return text
+    var spent = formatMoney(b.spent, b.currency)
+    var funded = formatMoney(b.funded, b.currency)
+    return b.estimated
+      ? Commons.I18n.t("agents.balanceSpentEstimated").arg(spent).arg(funded)
+      : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
   }
 
   // ---------------------------------------------------------------- summary
@@ -571,6 +725,7 @@ Panel {
     var sessions = 0
     var byDay = {}
     var byModel = {}
+    var providers = usage.enabledProviders
     for (var i = 0; i < providers.length; i++) {
       var p = providers[i]
       var days = p.recentDays || []
@@ -595,16 +750,16 @@ Panel {
     }
 
     var phrases = []
-    if (week > 0) phrases.push(usage.formatTokenCount(week) + " tokens this week")
-    if (today > 0) phrases.push(usage.formatTokenCount(today) + " tokens today")
+    if (week > 0) phrases.push(Commons.I18n.tn("agents.tokensThisWeek", week).arg(usage.formatTokenCount(week)))
+    if (today > 0) phrases.push(Commons.I18n.tn("agents.tokensToday", today).arg(usage.formatTokenCount(today)))
     var topModel = ""
     for (var model in byModel) if (topModel === "" || byModel[model] > byModel[topModel]) topModel = model
-    if (topModel !== "" && byModel[topModel] > 0) phrases.push("Mostly " + topModel)
+    if (topModel !== "" && byModel[topModel] > 0) phrases.push(Commons.I18n.t("agents.mostlyModel").arg(topModel))
     var busiest = ""
     for (var date in byDay) if (busiest === "" || byDay[date] > byDay[busiest]) busiest = date
-    if (busiest !== "" && byDay[busiest] > 0) phrases.push("Busiest day: " + dayName(busiest))
-    if (prompts > 0) phrases.push(prompts + " prompt" + (prompts === 1 ? "" : "s") + " today")
-    if (sessions > 0) phrases.push(sessions + " session" + (sessions === 1 ? "" : "s") + " today")
+    if (busiest !== "" && byDay[busiest] > 0) phrases.push(Commons.I18n.t("agents.busiestDay").arg(dayName(busiest)))
+    if (prompts > 0) phrases.push(Commons.I18n.tn("agents.promptsToday", prompts).arg(Commons.I18n.formatNumber(prompts)))
+    if (sessions > 0) phrases.push(Commons.I18n.tn("agents.sessionsToday", sessions).arg(Commons.I18n.formatNumber(sessions)))
     return phrases
   }
   property int phraseIndex: 0
@@ -614,7 +769,7 @@ Panel {
   property string shownPhrase: ""
   readonly property string heroPhrase: addStage !== "" || blankSlate
     ? addHeading
-    : (shownPhrase !== "" ? shownPhrase : "Subscriptions")
+    : (shownPhrase !== "" ? shownPhrase : Commons.I18n.t("agents.subscriptions"))
 
   function showPhrase() {
     var n = summaryPhrases.length
@@ -623,19 +778,27 @@ Panel {
 
   onSummaryPhrasesChanged: if (shownPhrase === "" || summaryPhrases.length <= 1) showPhrase()
 
+  // The held line was written in the language it was shown in; once a new
+  // language's strings arrive and the phrases rebuild, show it again.
+  Connections {
+    target: Commons.I18n
+    function onStringsChanged() { Qt.callLater(root.showPhrase) }
+  }
+
   function dayName(date) {
     var parsed = new Date(String(date || "") + "T00:00:00")
     if (isNaN(parsed.getTime())) return String(date || "")
-    return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][parsed.getDay()]
+    return Qt.locale(Commons.I18n.formatLocale).dayName([7, 1, 2, 3, 4, 5, 6][parsed.getDay()])
   }
 
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
     if (usage.syncStatusText !== "") return usage.syncStatusText
+    var providers = usage.enabledProviders
     for (var i = 0; i < providers.length; i++) {
       var count = Number(providers[i].syncDeviceCount || 0)
       if (providers[i].syncEnabled && count > 0)
-        return "Merged from " + count + " device" + (count === 1 ? "" : "s")
+        return Commons.I18n.tn("agents.merged", count).arg(Commons.I18n.formatNumber(count))
     }
     return ""
   }
@@ -661,7 +824,7 @@ Panel {
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var candidates = []
-    if (colorLuminance(surfaceColor || Color.background) >= 0.5)
+    if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + p.providerId + ".svg"))
     return candidates
@@ -674,7 +837,9 @@ Panel {
       if (addChecks[id] !== "first") return true
     return false
   }
-  readonly property bool blankSlate: providers.length === 0 && !anySignedIn
+  // Local history counts as set up, so a machine with no subscription still
+  // gets its summary rather than the picker.
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -685,11 +850,11 @@ Panel {
 
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: picking || addProvider === ""
-    ? "Add an account"
-    : "Add " + (/^[AEIOU]/.test(addProviderName(addProvider)) ? "an " : "a ") + addProviderName(addProvider) + " account"
+    ? Commons.I18n.t("agents.addAccount")
+    : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
   onAddStageChanged: {
     phraseSwap.stop()
-    hero.metaOpacity = 1.0
+    if (hero) hero.metaOpacity = 1.0
     resetKeys()
   }
 
@@ -711,11 +876,11 @@ Panel {
   onOpenedChanged: if (opened) {
     if (addStage !== "running") addStage = ""
     resetKeys()
-    if (providers.length === 0 && !checkProcess.running) checkProcess.running = true
+    if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
   Main {
@@ -745,7 +910,7 @@ Panel {
     stdout: SplitParser { onRead: function(line) { root.handleAddLine(line) } }
     onExited: {
       if (root.addStage === "running") {
-        root.addResult = "The sign-in didn't finish."
+        root.addResult = Commons.I18n.t("agents.signInUnfinished")
         root.addStage = "error"
       }
     }
@@ -777,7 +942,7 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: {
@@ -787,7 +952,7 @@ Panel {
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -820,13 +985,20 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
+    focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(860))
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
 
-    PanelKeyCatcher {
+    content: PanelKeyCatcher {
       id: keyCatcher
+      property alias panelFlick: panelFlick
+      property alias hero: hero
+      property alias column: column
+      property alias providerSections: providerSections
+      implicitHeight: column.implicitHeight
       anchors.fill: parent
+      reorderable: root.addStage === "" && !root.renaming
+      onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
         // Naming and signing in have their own fields; there the arrows scroll.
@@ -849,7 +1021,12 @@ Panel {
 
       Flickable {
         id: panelFlick
+        // Reaches a little into the panel's padding on the left, with the
+        // content shifted back, so the box around a lit agent mark isn't
+        // clipped where it overhangs the content's edge.
+        readonly property real overhang: Style.space(8)
         anchors.fill: parent
+        anchors.leftMargin: -overhang
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -863,16 +1040,19 @@ Panel {
 
         Column {
           id: column
+          // The overhang sits on the start side, which is the right when
+          // mirrored; there the scroll bar takes the left instead.
+          x: LayoutMirroring.enabled ? (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0) : panelFlick.overhang
           // When the panel scrolls, the bar gets its own strip rather than
           // sitting on top of the right-aligned numbers.
-          width: panelFlick.width - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
+          width: panelFlick.width - panelFlick.overhang - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
           spacing: Style.space(16)
 
           // ---------- Hero: agents · rotating summary · add ----------
           PanelHero {
             id: hero
             width: parent.width
-            title: "Agents"
+            title: Commons.I18n.t("agents.title")
             meta: root.heroPhrase
             foreground: root.foreground
             fontFamily: root.fontFamily
@@ -898,7 +1078,7 @@ Panel {
                   onHovered: root.pointAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
-                  tooltip: adding ? "Back to the limits" : "Add a subscription"
+                  tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addSubscription")
                   onClicked: adding ? root.cancelAdd() : root.addAccount()
                 }
 
@@ -907,7 +1087,7 @@ Panel {
                   hasCursor: root.hasKey("launch")
                   onHovered: root.pointAt("launch")
                   glyph: "󰞷"
-                  tooltip: "Start the default agent"
+                  tooltip: Commons.I18n.t("agents.startDefaultAgent")
                   onClicked: root.launchAgent()
                 }
               }
@@ -920,6 +1100,7 @@ Panel {
           }
 
           Repeater {
+            id: providerSections
             model: root.addStage === "" ? root.providers : []
 
             ProviderSection {
@@ -943,7 +1124,7 @@ Panel {
             spacing: Style.space(12)
 
             PanelSectionHeader {
-              text: "MAKE SOMETHING COOL"
+              text: Commons.I18n.t("agents.makeSomethingCool")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -997,15 +1178,15 @@ Panel {
     Text {
       visible: root.blankSlate && root.picking
       width: parent.width
-      text: "Sign in to an AI coding subscription, and this panel keeps track of how much of it you have left."
+      text: Commons.I18n.t("agents.signInIntro")
+      textFormat: Text.PlainText
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       wrapMode: Text.WordWrap
     }
 
-    // Pick: each agent by a large mark over its name, three across. One that
-    // can't be added right now is dimmed, and says why on hover.
+    // Pick: each agent by a large mark over its name, three across.
     Row {
       id: choiceRow
       visible: root.picking
@@ -1024,7 +1205,6 @@ Panel {
           readonly property bool hasCursor: root.hasKey("choice", index)
           width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
           implicitHeight: choiceBody.implicitHeight + Style.space(16)
-          opacity: state === "unsupported" ? 0.4 : 1.0
           onHasCursorChanged: if (hasCursor) root.revealItem(choice)
 
           Column {
@@ -1044,7 +1224,7 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               textFormat: Text.PlainText
               text: choice.modelData.providerName
-              color: choice.hasCursor ? Color.accent : root.foreground
+              color: choice.hasCursor ? Commons.Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               font.bold: true
@@ -1059,11 +1239,6 @@ Panel {
             onClicked: root.chooseAddProvider(choice.modelData.providerId)
           }
 
-          PanelToolTip {
-            visible: choice.state === "unsupported" && choice.hasCursor
-            // Kept short: the tooltip can't grow past the panel's edges.
-            text: "Already signed in. " + choice.modelData.providerName + " takes one account."
-          }
         }
       }
     }
@@ -1076,7 +1251,8 @@ Panel {
 
       Text {
         width: parent.width
-        text: "Name this account. It signs in through a private window, so your browser's current account isn't picked up."
+        text: Commons.I18n.t("agents.nameAccount")
+        textFormat: Text.PlainText
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -1086,7 +1262,7 @@ Panel {
       TextField {
         id: addNameField
         width: parent.width
-        placeholderText: "Work"
+        placeholderText: Commons.I18n.t("agents.placeholderWork")
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -1118,7 +1294,8 @@ Panel {
         spacing: Style.space(4)
 
         Text {
-          text: "Confirm this code in your browser"
+          text: Commons.I18n.t("agents.confirmCode")
+          textFormat: Text.PlainText
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1127,7 +1304,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           text: root.addCode
-          color: Color.accent
+          color: Commons.Color.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.display
           font.bold: true
@@ -1142,7 +1319,8 @@ Panel {
 
         Text {
           width: parent.width
-          text: "If the page shows a code instead of finishing, paste it here."
+          text: Commons.I18n.t("agents.pasteCode")
+          textFormat: Text.PlainText
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1152,7 +1330,7 @@ Panel {
         TextField {
           id: pasteField
           width: parent.width
-          placeholderText: "Code"
+          placeholderText: Commons.I18n.t("agents.placeholderCode")
           foreground: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -1163,7 +1341,7 @@ Panel {
 
       TextLink {
         visible: root.addUrl !== ""
-        text: "Open the sign-in page again"
+        text: Commons.I18n.t("agents.reopenSignIn")
         onClicked: root.reopenSignIn()
       }
     }
@@ -1193,18 +1371,50 @@ Panel {
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     spacing: Style.space(16)
+    opacity: root.dragProviderId !== "" && provider && root.dragProviderId === provider.providerId ? 0.5 : 1.0
 
     PanelSeparator { foreground: root.foreground }
 
     Item {
+      id: sectionHead
       width: parent.width
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
+      // Lit for the keyboard, and as the drop spot while an agent is dragged.
+      readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
+      onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
+
+      // Only the mark is lit: it's the handle the agent moves by.
+      CursorSurface {
+        anchors.fill: sectionMark
+        anchors.margins: -Style.space(5)
+        z: -1
+        hasCursor: sectionHead.lit
+        foreground: root.foreground
+      }
 
       ProviderIcon {
         id: sectionMark
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         provider: section.provider
+
+        // The mark is the handle for dragging the agent up or down the page.
+        MouseArea {
+          anchors.fill: parent
+          anchors.margins: -Style.space(4)
+          hoverEnabled: true
+          preventStealing: true
+          cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+          onPressed: {
+            root.dragProviderId = section.provider ? section.provider.providerId : ""
+            root.dragTarget = section.providerIndex
+          }
+          onPositionChanged: function(mouse) {
+            if (pressed) root.dragProviderOver(mapToItem(root.column, mouse.x, mouse.y).y)
+          }
+          onReleased: root.dropProvider()
+          onCanceled: { root.dragProviderId = ""; root.dragTarget = -1 }
+        }
       }
 
       Text {
@@ -1220,6 +1430,14 @@ Panel {
         font.bold: true
       }
 
+      UsageNote {
+        anchors.left: sectionName.right
+        anchors.leftMargin: Style.space(8)
+        anchors.verticalCenter: sectionName.verticalCenter
+        visible: !section.multi && message !== ""
+        record: section.provider
+      }
+
       Text {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
@@ -1232,27 +1450,17 @@ Panel {
       }
     }
 
-    // Sign-in and endpoint trouble for a single-account provider; with
-    // several, each account says so on its own line.
+    // A sign-in to redo for a single-account provider; with several, each
+    // account says so on its own line.
     TextLink {
       visible: !section.multi && root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
-      text: "Sign-in required"
+      text: Commons.I18n.t("agents.signInRequired")
       idleColor: root.urgent
-      tooltip: "Sign in to " + (section.provider ? section.provider.providerName : "") + " again"
+      tooltip: Commons.I18n.t("agents.signInAgainProvider").arg(section.provider ? section.provider.providerName : "")
       onClicked: root.signInAgain(section.provider, null)
     }
 
-    Text {
-      visible: !section.multi && root.otherTrouble(section.provider) !== ""
-      width: parent.width
-      textFormat: Text.PlainText
-      text: section.provider ? String(section.provider.authHelpText || "") : ""
-      color: root.urgent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.WordWrap
-    }
 
     Column {
       visible: !section.multi && section.windows.length > 0
@@ -1298,7 +1506,7 @@ Panel {
           textFormat: Text.PlainText
           width: parent.width * 0.3
           anchors.verticalCenter: parent.verticalCenter
-          text: "Balance"
+          text: Commons.I18n.t("agents.balance")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -1424,7 +1632,7 @@ Panel {
     property bool hasCursor: false
     implicitHeight: tileBody.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: hasCursor ? root.alpha(Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    color: hasCursor ? root.alpha(Commons.Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
     onHasCursorChanged: if (hasCursor) root.revealItem(tile)
 
     Row {
@@ -1436,7 +1644,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.glyph
-        color: Color.accent
+        color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.heading
       }
@@ -1445,7 +1653,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.title
-        color: tile.hasCursor ? Color.accent : root.foreground
+        color: tile.hasCursor ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -1463,7 +1671,7 @@ Panel {
 
     PanelToolTip {
       visible: tileMouse.containsMouse
-      text: "Start your default agent on a new " + tile.title.toLowerCase()
+      text: Commons.I18n.t("agents.startOnNew").arg(tile.title.toLowerCase())
     }
   }
 
@@ -1479,16 +1687,16 @@ Panel {
     implicitHeight: implicitWidth
     radius: Style.cornerRadius
     // The cursor needs more than a shade deeper to read on a tinted square.
-    color: root.alpha(Color.accent, hasCursor ? 0.3 : 0.12)
+    color: root.alpha(Commons.Color.accent, hasCursor ? 0.3 : 0.12)
     border.width: hasCursor ? Math.max(1, Style.hoverBorderWidth) : 0
-    border.color: Color.accent
+    border.color: Commons.Color.accent
     onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
 
     Text {
       anchors.centerIn: parent
       textFormat: Text.PlainText
       text: heroButton.glyph
-      color: Color.accent
+      color: Commons.Color.accent
       font.family: root.fontFamily
       font.pixelSize: Style.font.heading
     }
@@ -1520,7 +1728,7 @@ Panel {
     readonly property bool hot: linkMouse.containsMouse || picked
     onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
-    color: current ? Color.accent : (hot ? root.foreground : idleColor)
+    color: current ? Commons.Color.accent : (hot ? root.foreground : idleColor)
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     font.bold: current
@@ -1559,6 +1767,7 @@ Panel {
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
 
     onAccountChanged: renamedTo = ""
+    onEditingChanged: root.renaming = editing
     onPickedChanged: if (picked) root.revealItem(head)
 
     // Anywhere on the line counts, so Use can show up when it's hidden.
@@ -1600,7 +1809,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.min(implicitWidth, parent.width * 0.6)
         text: head.label
-        color: head.picked ? Color.accent : root.foreground
+        color: head.picked ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: head.isActive
@@ -1621,8 +1830,8 @@ Panel {
         }
       }
 
-      // Bounded by the actions on the right: the plan and any trouble shorten
-      // first, and the Sign-in required link keeps its whole width.
+      // Bounded by the actions on the right: the plan shortens first, and the
+      // Sign-in required link keeps its whole width.
       Row {
         id: detailRow
         visible: !head.editing
@@ -1636,20 +1845,22 @@ Panel {
           textFormat: Text.PlainText
           visible: text !== ""
           width: Math.max(0, Math.min(implicitWidth, detailRow.width
+            - (accountNote.visible ? accountNote.implicitWidth + detailRow.spacing : 0)
             - (signInDot.visible ? signInDot.implicitWidth + detailRow.spacing : 0)
             - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
           elide: Text.ElideRight
           text: {
-            var parts = []
             var detail = root.accountDetail(head.account)
-            if (detail !== "") parts.push(detail)
-            var trouble = root.otherTrouble(head.account)
-            if (trouble !== "") parts.push(trouble)
-            return parts.length > 0 ? "· " + parts.join(" · ") : ""
+            return detail !== "" ? "· " + detail : ""
           }
-          color: root.otherTrouble(head.account) !== "" ? root.urgent : root.dim
+          color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
+        }
+
+        UsageNote {
+          id: accountNote
+          record: head.account
         }
 
         // The dot is punctuation, not part of the link.
@@ -1666,9 +1877,9 @@ Panel {
           id: signInLink
           visible: root.needsSignIn(head.account)
           picked: head.pickedKind === "signin"
-          text: "Sign-in required"
+          text: Commons.I18n.t("agents.signInRequired")
           idleColor: root.urgent
-          tooltip: "Sign in to this account again"
+          tooltip: Commons.I18n.t("agents.signInAgainAccount")
           onClicked: root.signInAgain(head.owner, head.account)
         }
       }
@@ -1704,8 +1915,9 @@ Panel {
         id: headActive
         visible: head.isActive
         anchors.right: parent.right
-        text: "ACTIVE"
-        color: Color.accent
+        text: Commons.I18n.t("agents.active")
+        textFormat: Text.PlainText
+        color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -1723,23 +1935,46 @@ Panel {
 
         TextLink {
           visible: head.autoOn || useHover.hovered || head.picked
-          text: head.pickedKind === "autoswitch" ? "Autoswitch ⏎" : "Autoswitch"
+          text: Commons.I18n.t("agents.autoswitch") + (head.pickedKind === "autoswitch" ? " ⏎" : "")
           picked: head.pickedKind === "autoswitch"
           current: head.autoOn
           tooltip: head.autoOn
-            ? "Stop switching automatically"
-            : "Switch here automatically at " + root.switchThreshold(head.owner) + "%"
+            ? Commons.I18n.t("agents.stopAutoSwitch")
+            : Commons.I18n.t("agents.switchAutoAt").arg(Commons.I18n.formatNumber(root.switchThreshold(head.owner)))
           onClicked: root.setSwitchMode(head.owner, head.autoOn ? "manual" : "auto")
         }
 
         // With Autoswitch on, Use waits until the line is hovered or picked.
         TextLink {
           visible: !head.autoOn || useHover.hovered || head.picked
-          text: head.pickedKind === "account" ? "Use ⏎" : "Use"
+          text: Commons.I18n.t("agents.use") + (head.pickedKind === "account" ? " ⏎" : "")
           picked: head.pickedKind === "account"
           onClicked: root.useAccount(head.owner, head.account)
         }
       }
+    }
+  }
+
+  // A mark beside the name when the numbers aren't current, with why and
+  // what to do on hover.
+  component UsageNote: Text {
+    id: noteMark
+    property var record: null
+    readonly property string message: root.usageNote(record)
+    visible: message !== ""
+    text: "󰋽"
+    textFormat: Text.PlainText
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+
+    HoverHandler { id: noteHover }
+
+    PanelToolTip {
+      visible: noteHover.hovered && noteMark.visible
+      // Capped through implicitWidth, which the tooltip centers itself by.
+      implicitWidth: Math.min(implicitContentWidth + leftPadding + rightPadding, Style.space(320))
+      text: noteMark.message
     }
   }
 
@@ -1749,10 +1984,9 @@ Panel {
   component CompactLimit: Item {
     id: compact
     property var window: null
-    // Numbers kept past a failed check dim, and say how old they are on hover.
+    // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
-    opacity: stale ? 0.5 : 1.0
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
@@ -1765,16 +1999,18 @@ Panel {
       text: {
         var lines = []
         if (compact.window) {
-          lines.push(compact.window.title + ": " + Math.round(compact.window.percent * 100) + "% used"
-            + (compact.resetMs > 0 ? " · resets in " + root.formatDuration(compact.resetMs) : ""))
+          var windowName = root.windowDisplayTitle(compact.window.title)
+          var used = Commons.I18n.formatNumber(Math.round(compact.window.percent * 100))
+          lines.push(compact.resetMs > 0
+            ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
+            : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
-            ? "As of " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
-            : "Last known")
+            ? Commons.I18n.t("agents.lastUpdatedAgo").arg(root.formatDuration(root.nowMs - compact.fetchedAt))
+            : compact.fetchedAt > 0 ? Commons.I18n.t("agents.lastUpdatedJustNow") : Commons.I18n.t("agents.lastUpdatedUnknown"))
         for (var i = 0; i < compact.scoped.length; i++)
-          lines.push(compact.scoped[i].title + ": " + Math.round(compact.scoped[i].percent * 100) + "% of its "
-            + String(compact.window ? compact.window.title : "").toLowerCase() + " allowance")
+          lines.push(root.scopedAllowanceText(compact.scoped[i], compact.window ? compact.window.title : ""))
         return lines.join("\n")
       }
     }
@@ -1784,7 +2020,7 @@ Panel {
       textFormat: Text.PlainText
       width: parent.width * 0.3
       anchors.verticalCenter: parent.verticalCenter
-      text: compact.window ? compact.window.title : ""
+      text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -1867,7 +2103,10 @@ Panel {
         height: meter.thickness * 2.5
         radius: width / 2
         anchors.verticalCenter: meterTrack.verticalCenter
-        x: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
+        // Explicit x doesn't mirror, so the tick measures from the end the
+        // fill grows from.
+        readonly property real along: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
+        x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
         color: meter.alarming ? root.urgent : root.foreground
       }
     }
