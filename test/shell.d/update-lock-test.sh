@@ -84,7 +84,7 @@ ln -s ../bin/systemd-inhibit "$SUDO_TEST_ROOT/mock/systemd-inhibit"
 # omarchy-update should hold the lock before snapshotting, so a second update
 # cannot even enter its pre-update snapshot.
 update_snapshot_marker="$test_tmp/update-snapshot-started"
-write_stub omarchy-snapshot 'echo started >"$TEST_MARKER"; sleep 2; exit 0'
+write_stub omarchy-snapshot 'echo started >"$TEST_MARKER"; sleep 0.8; exit 0'
 
 OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$update_snapshot_marker" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-first.out" 2>&1 &
 update_pid=$!
@@ -115,7 +115,7 @@ inhibit_pid_file="$test_tmp/inhibit-pid"
 keyring_marker="$test_tmp/keyring-started"
 write_stub omarchy-snapshot 'exit 0'
 write_stub systemd-inhibit '[[ -z ${INHIBIT_PID_FILE:-} ]] || echo "$$" >"$INHIBIT_PID_FILE"; while [[ $1 == --* ]]; do shift; done; exec "$@"'
-write_stub omarchy-update-keyring 'echo started >"$TEST_MARKER"; sleep 3; exit 0'
+write_stub omarchy-update-keyring 'echo started >"$TEST_MARKER"; sleep 1; exit 0'
 
 OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$keyring_marker" INHIBIT_PID_FILE="$inhibit_pid_file" \
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-inhibit.out" 2>&1 &

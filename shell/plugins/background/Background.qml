@@ -119,6 +119,12 @@ Item {
     failedBackground = ""
     revealStartedVersion = -1
 
+    // OWE draws a video background and fades the last still into it. That
+    // still stays on screen until OWE has the first frame and suspends this
+    // layer, so the desktop does not show an empty background meanwhile. A
+    // running reveal finishes on its incoming still, which OWE fades from.
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+
     revealAnimation.stop()
     finishingTransition = false
 
@@ -221,10 +227,11 @@ Item {
       Util.execArgv(["omarchy-shell", "shell", "summon", "omarchy.image-picker", payload])
   }
 
+  // omarchy-theme-bg-set tells this service of the new background itself. A
+  // refresh here would start an ordinary transition under an intro's cover.
   Process {
     id: bgSwitchProc
     command: ["bash", "-c", "background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""]
-    onExited: root.refreshBackground()
   }
 
   Process {
@@ -325,7 +332,10 @@ Item {
     easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
-        root.displayedBackground = root.currentBackground || root.incomingBackground
+        // After a video was chosen during the reveal, the incoming still
+        // stays until OWE takes the background.
+        root.displayedBackground = root.currentBackground && !root.isVideo(root.currentBackground)
+          ? root.currentBackground : root.incomingBackground
         root.finishingTransition = true
       }
       root.revealProgress = 1
@@ -509,15 +519,41 @@ Item {
         }
       }
 
-      MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onDoubleClicked: function(mouse) {
-          if (mouse.button === Qt.RightButton) root.openThemeSwitcher()
-          else root.openSelector()
-          mouse.accepted = true
-        }
-      }
+      DesktopClicks { service: root }
+    }
+  }
+
+  // OWE's video layer takes no clicks, and this service's own layer is hidden
+  // under it while a video plays. A clear layer above the video and below
+  // every window keeps the desktop's double-clicks working meanwhile.
+  Variants {
+    model: Quickshell.screens
+
+    PanelWindow {
+      required property var modelData
+
+      screen: modelData
+      visible: root.suspended
+      color: "transparent"
+      anchors { top: true; bottom: true; left: true; right: true }
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.namespace: "omarchy-background"
+      WlrLayershell.layer: WlrLayer.Bottom
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+      DesktopClicks { service: root }
+    }
+  }
+
+  // Inline components do not see this file's ids, so each one is handed the service.
+  component DesktopClicks: MouseArea {
+    required property var service
+    anchors.fill: parent
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    onDoubleClicked: function(mouse) {
+      if (mouse.button === Qt.RightButton) service.openThemeSwitcher()
+      else service.openSelector()
+      mouse.accepted = true
     }
   }
 }

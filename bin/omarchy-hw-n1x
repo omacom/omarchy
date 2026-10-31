@@ -1,0 +1,15 @@
+#!/bin/bash -p
+
+# omarchy:summary=Detect whether the computer is an NVIDIA N1x laptop (the old name of omarchy-hw-aarch64-n1x).
+# omarchy:hidden=true
+
+# Kept while N1x install images still call it by this name. Like the predicate
+# it runs, it refuses a launch without -p and searches no PATH.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir != "${BASH_SOURCE[0]}" ]] || dir=.
+exec "$dir/omarchy-hw-aarch64-n1x"

@@ -75,17 +75,16 @@ for platform in x86 aarch64; do
 done
 pass "x86 and plain aarch64 updates are unchanged: no boot check runs, nothing asks for root and the reboot is offered"
 
-# Apple: verify runs once the last package step, AUR, is done, cold through
-# the no-update wrapper, before the reboot offer.
+# Apple: verify runs once the last package step, AUR, is done, under the
+# update's one authorization, before the reboot offer.
 run_update aarch64-apple "$tmp/passing"
 (( status == 0 )) || fail "apple: an update whose boot check passes reports success" "status $status: $(cat "$tmp/err")"
 [[ $(cat "$tmp/boot-ran") == "update-verify" ]] || fail "apple: verify runs once" "$(cat "$tmp/boot-ran")"
-aur=$(at 'step:omarchy-update-aur-pkgs') verify=$(at 'sudo -N omarchy-lifecycle-dispatch update-verify') hook=$(at 'step:omarchy-hook post-update')
+aur=$(at 'step:omarchy-update-aur-pkgs') verify=$(at 'sudo omarchy-lifecycle-dispatch update-verify') hook=$(at 'step:omarchy-hook post-update')
 [[ -n $aur && -n $verify && -n $hook ]] && (( hook < aur && aur < verify )) ||
-  fail "apple: verify follows AUR through the no-update wrapper" "$(cat "$SUDO_TEST_LOG")"
-! grep -q '^sudo omarchy-lifecycle-dispatch update-verify' "$SUDO_TEST_LOG" || fail "apple: verification never uses a reusable timestamp" "$(cat "$SUDO_TEST_LOG")"
-[[ $(sed -n "$((verify - 1))p;$((verify + 1))p" "$SUDO_TEST_LOG") == $'sudo -k\nsudo -k' ]] ||
-  fail "apple: verification starts cold after AUR and sudo is revoked right after it" "$(cat "$SUDO_TEST_LOG")"
+  fail "apple: verify follows AUR" "$(cat "$SUDO_TEST_LOG")"
+! sed -n "${aur},${verify}p" "$SUDO_TEST_LOG" | grep -q '^sudo -k$' ||
+  fail "apple: verification shares the update's authorization" "$(cat "$SUDO_TEST_LOG")"
 reboot_offered || fail "apple: a verified update offers the reboot"
 assert_boundary_cold "apple update"
 pass "apple: verify runs as root through the boot package, and a verified update offers the reboot"
