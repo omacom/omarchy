@@ -297,6 +297,137 @@ local function unmaximize_others(window)
   end
 end
 
+-- Hyprland draws a maximized window under every floating window it lets over
+-- it, whatever their order, but hands a click to whichever is highest in that
+-- order. Anything that raises the maximized window, a click on it or an app
+-- asking for focus, leaves it above windows still drawn over it, and they pass
+-- every click through to it. So the order is kept to what is on screen. A true
+-- fullscreen window keeps the screen to itself and is left alone.
+local function maximized_on_floating_workspace(window)
+  return window ~= nil and window.floating and (window.fullscreen or 0) == 1 and window.workspace ~= nil
+    and floating_workspace(window.workspace.id)
+end
+
+-- The windows drawn over a maximized one, bottom to top, and how many of them
+-- are under it in the order clicks follow.
+local function drawn_over(window)
+  local over, under, passed = {}, 0, false
+
+  for _, other in ipairs(hl.get_workspace_windows(tostring(window.workspace.id))) do
+    if other.address == window.address then
+      passed = true
+    elseif other.floating and other.allowed_over_fullscreen and not other.pinned then
+      table.insert(over, other)
+      if not passed then
+        under = under + 1
+      end
+    end
+  end
+
+  return over, under
+end
+
+local function restack(window, mode)
+  hl.dispatch(hl.dsp.window.alter_zorder({ mode = mode, window = "address:" .. window.address }))
+end
+
+-- Puts the windows drawn over a maximized one back above it, in their own order.
+local function keep_over(window)
+  local over, under = drawn_over(window)
+  if under == 0 then
+    return
+  end
+
+  for _, other in ipairs(over) do
+    restack(other, "top")
+  end
+end
+
+-- Brings a maximized window to the front, as a click on it does on Windows: the
+-- windows the mode floated over it wait behind it until they are brought
+-- forward. One floating on its own account, such as a dialog or a portal's
+-- file picker, belongs over the maximized window, which its app may block until
+-- it closes, so it stays there and is put back above it for the clicks on it.
+local function bring_forward(window)
+  local over, mine = drawn_over(window), claimed()
+  for index = #over, 1, -1 do
+    if mine[over[index].address] then
+      restack(over[index], "bottom")
+    end
+  end
+
+  for _, other in ipairs(over) do
+    if not mine[other.address] then
+      restack(other, "top")
+    end
+  end
+end
+
+-- A click goes to what is on screen, so the order is put right before Hyprland
+-- picks the window under the pointer. If the click then raised the maximized
+-- window above them all, it landed on the maximized window, which comes forward.
+local function before_click()
+  for _, window in ipairs(hl.get_windows()) do
+    if maximized_on_floating_workspace(window) then
+      keep_over(window)
+    end
+  end
+
+  hl.timer(function()
+    local window = hl.get_active_window()
+    if maximized_on_floating_workspace(window) then
+      local over, under = drawn_over(window)
+      if #over > 0 and under == #over then
+        bring_forward(window)
+      end
+    end
+  end, { type = "oneshot", timeout = 1 })
+end
+
+-- A maximized window the user brings forward, with a click, the dock or Alt +
+-- Tab, comes to the front. One that its app asked focus for, as an app does
+-- right after opening a link in the browser, leaves the windows over it there.
+local asked_for_focus = nil
+
+local function on_urgent(window)
+  asked_for_focus = window.address
+  hl.timer(function()
+    asked_for_focus = nil
+  end, { type = "oneshot", timeout = 1 })
+end
+
+local function on_active(window)
+  if not maximized_on_floating_workspace(window) then
+    return
+  end
+
+  -- Focus can pass through on its way to another window, as it does when one
+  -- comes back from the dock, and only where it lands counts.
+  local asked = asked_for_focus == window.address
+  hl.timer(function()
+    local active = hl.get_active_window()
+    if not active or active.address ~= window.address or not maximized_on_floating_workspace(window) then
+      return
+    end
+
+    if asked then
+      keep_over(window)
+    else
+      bring_forward(window)
+    end
+  end, { type = "oneshot", timeout = 1 })
+end
+
+-- The dock brings a window forward by focusing it, and focusing the window
+-- that has the focus already changes nothing Hyprland reports, so the dock
+-- asks here too: `hyprctl eval 'o.bring_forward("0x…")'`.
+function o.bring_forward(address)
+  local window = hl.get_window("address:" .. address)
+  if maximized_on_floating_workspace(window) then
+    bring_forward(window)
+  end
+end
+
 -- The workspace is passed in when a window is still on its way to it.
 local function arrange(windows, workspace)
   local floating = {}
@@ -368,6 +499,12 @@ local function watch()
       arrange({ window })
     end, { type = "oneshot", timeout = 1 })
   end)
+
+  hl.on("window.urgent", on_urgent)
+  hl.on("window.active", on_active)
+  for button = 272, 276 do
+    hl.bind("mouse:" .. button, before_click, { non_consuming = true, ignore_mods = true })
+  end
 
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)
