@@ -13,4 +13,4 @@ systemctl --user enable hex.service
 hex start
 omarchy-dictation-use hex
 hyprctl reload >/dev/null
-omarchy-notification-send -g "$(omarchy-i18n dictation.hexReady)" "$(omarchy-i18n dictation.hint)" -t 10000
+omarchy-notification-send -g  "$(omarchy-i18n dictation.hexReady)" "$(omarchy-i18n dictation.hint)" -t 10000
