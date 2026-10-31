@@ -592,8 +592,8 @@ Item {
     return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
   }
 
-  function searchScore(entry, query) {
-    return MenuModel.searchScore(root.items, entry, query)
+  function searchScore(entry, query, active) {
+    return MenuModel.searchScore(root.items, entry, query, active)
   }
 
   function displayRow(entry, detail, score, section) {
@@ -730,7 +730,7 @@ Item {
         if (!root.matchesQuery(entry, query)) continue
 
         var detail = root.parentPathFor(entry.id)
-        var row = root.displayRow(entry, detail, root.searchScore(entry, query))
+        var row = root.displayRow(entry, detail, root.searchScore(entry, query, active))
         if (entry.parent === active) currentRows.push(row)
         else drilldownRows.push(row)
       }
