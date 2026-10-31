@@ -23,9 +23,10 @@ confirm_reboot() {
 
 if [[ $mode != "--services-only" ]]; then
   running_kernel=$(uname -r)
-  kernel_updated=true
+  kernel_updated=false
 
   # Every kernel package owns modules.builtin; Arch Linux ARM's ships no vmlinuz here (#12440).
+  # A system booting no package kernel at all (WSL, containers) has nothing pacman updated.
   for kernel in "$kernel_modules_path"/*/modules.builtin; do
     if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
       installed_kernel=$(basename "$(dirname "$kernel")")
@@ -34,6 +35,7 @@ if [[ $mode != "--services-only" ]]; then
         kernel_updated=false
         break
       fi
+      kernel_updated=true
     fi
   done
 
