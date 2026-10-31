@@ -6,6 +6,7 @@
 
 verbose=false
 internet_probe=1.1.1.1
+address_family=inet
 
 case "${1:-}" in
   "")
@@ -19,10 +20,29 @@ case "${1:-}" in
     ;;
 esac
 
+select_route() {
+  local ipv6_route
+
+  route_json=$(ip -j route get "$internet_probe" 2>/dev/null)
+
+  # Keep ordinary IPv4 routes. With no IPv4 route, or an IPv4-over-IPv6
+  # route such as CLAT, prefer a native IPv6 route when one is available.
+  if ! jq -e '.[0] | .dev and (.via.family != "inet6") and
+    ((.prefsrc // .src // "") | test("^192\\.0\\.0\\.[0-7]$") | not)
+  ' <<<"$route_json" >/dev/null 2>&1; then
+    ipv6_route=$(ip -j -6 route get 2606:4700:4700::1111 2>/dev/null)
+    if jq -e '.[0].dev' <<<"$ipv6_route" >/dev/null 2>&1; then
+      route_json=$ipv6_route
+      internet_probe=2606:4700:4700::1111
+      address_family=inet6
+    fi
+  fi
+}
+
 print_status() {
   local device nm state ssid signal freq
 
-  device=$(ip route get "$internet_probe" 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+  device=$(jq -r '.[0].dev // ""' <<<"$route_json" 2>/dev/null)
 
   if [[ -z $device ]]; then
     printf 'disconnected\t\t\t\n'
@@ -83,18 +103,17 @@ print_ping_samples() {
 }
 
 print_verbose() {
-  local route_json iface gw src prefix link
-
-  route_json=$(ip -j route get "$internet_probe" 2>/dev/null)
-  [[ -z $route_json ]] && return
+  local iface gw src prefix link router_probe
 
   iface=$(jq -r '.[0].dev // ""' <<<"$route_json" 2>/dev/null)
-  gw=$(jq -r '.[0].gateway // ""' <<<"$route_json" 2>/dev/null)
-  src=$(jq -r '.[0].prefsrc // ""' <<<"$route_json" 2>/dev/null)
+  gw=$(jq -r '.[0].gateway // .[0].via.host // ""' <<<"$route_json" 2>/dev/null)
+  src=$(jq -r '.[0].prefsrc // .[0].src // ""' <<<"$route_json" 2>/dev/null)
 
   [[ -z $iface ]] && return
 
-  prefix=$(ip -j addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet") | .prefixlen // ""' 2>/dev/null | head -n 1)
+  prefix=$(ip -j addr show "$iface" 2>/dev/null | jq -r --arg family "$address_family" --arg src "$src" '
+    .[0].addr_info[]? | select(.family == $family and .local == $src) | .prefixlen // ""
+  ' 2>/dev/null | head -n 1)
 
   printf 'iface\t%s\n' "$iface"
   printf 'ip\t%s\n' "$src"
@@ -127,8 +146,16 @@ print_verbose() {
     [[ -r /sys/class/net/$iface/duplex ]] && printf 'duplex\t%s\n' "$(cat /sys/class/net/$iface/duplex)"
   fi
 
-  print_ping_samples "$gw"
+  router_probe=$gw
+  # Link-local gateways need the interface scope even when several links
+  # happen to use the same router address.
+  if [[ ${gw,,} == fe[89ab]*:* && $gw != *%* ]]; then
+    router_probe="$gw%$iface"
+  fi
+  print_ping_samples "$router_probe"
 }
+
+select_route
 
 if [[ $verbose == "true" ]]; then
   print_verbose
