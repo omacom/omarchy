@@ -318,6 +318,7 @@
   "monitor.display": "Display",
   "monitor.displayFocused": "%1 · focused",
   "monitor.fixedBrightness": "FIXED BRIGHTNESS",
+  "monitor.layout": "LAYOUT",
   "monitor.level.candlelit": "Candlelit",
   "monitor.level.evenDay": "Even day",
   "monitor.level.goldenHour": "Golden hour",

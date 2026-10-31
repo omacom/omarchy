@@ -250,3 +250,27 @@ grep -F 'hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", sc
 scale=$(OMARCHY_TEST_OTHER_MONITOR_SCALE=1.5 run_scaling --monitor DP-1)
 [[ $scale == "1.5" ]] || fail "monitor scaling reports an unfocused monitor's scale" "actual: $scale"
 pass "monitor scaling works per screen"
+
+run_layout() {
+  HOME="$home_dir" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    "$ROOT/bin/omarchy-hyprland-monitor-layout" "$@"
+}
+
+# A layout moves every monitor in one eval and saves each position, keeping a
+# chosen resolution and adding a rule for a monitor without one.
+write_monitor_config
+run_resolution 1920x1200
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_layout eDP-1=0x0 DP-1=960x-200
+grep -Fx 'hl.monitor({ output = "eDP-1", position = "0x0" }) hl.monitor({ output = "DP-1", position = "960x-200" }) ' "$eval_out" >/dev/null ||
+  fail "monitor layout moves every monitor in one eval" "actual: $(<"$eval_out")"
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor layout saves a position and keeps the mode"
+grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "960x-200", scale = 1 })' "$monitor_lua" >/dev/null ||
+  fail "monitor layout adds a rule with the position"
+rm -f "$eval_out"
+if OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_layout 'DP-1=0x0"' 2>/dev/null; then fail "monitor layout rejects a malformed position"; fi
+if run_layout HDMI-A-1=0x0 2>/dev/null; then fail "monitor layout rejects an unknown monitor"; fi
+[[ ! -e $eval_out ]] || fail "monitor layout applies nothing it rejects"
+pass "monitor layout moves and saves every monitor's position"

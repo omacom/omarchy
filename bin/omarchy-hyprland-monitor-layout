@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Arrange monitors by placing each at a position in the layout
+# omarchy:args=NAME=XxY [NAME=XxY...]
+# omarchy:examples=omarchy hyprland monitor layout eDP-1=0x0 DP-1=1280x0
+# omarchy:hidden=true
+
+# Positions are in Hyprland's layout space: logical pixels, after each
+# monitor's scale. Every position is applied in one eval, so the monitors never
+# pass through a half-moved arrangement, and then saved to each one's rule.
+
+usage() {
+  echo "Usage: omarchy-hyprland-monitor-layout NAME=XxY [NAME=XxY...]"
+}
+
+if (( $# == 0 )); then
+  usage >&2
+  exit 1
+fi
+
+monitors_json=$(hyprctl monitors -j)
+names=()
+positions=()
+expr=""
+
+for arg in "$@"; do
+  # The name is written into the Lua string eval'd below, so only a plain
+  # connector name may pass; a hostile one could execute otherwise.
+  if [[ ! $arg =~ ^([A-Za-z0-9._-]+)=(-?[0-9]+x-?[0-9]+)$ ]]; then
+    usage >&2
+    exit 1
+  fi
+  name="${BASH_REMATCH[1]}"
+  position="${BASH_REMATCH[2]}"
+
+  if ! jq -e --arg name "$name" 'any(.[]; .name == $name)' <<<"$monitors_json" >/dev/null; then
+    echo "No such monitor: $name" >&2
+    exit 1
+  fi
+
+  names+=("$name")
+  positions+=("$position")
+  expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
+done
+
+hyprctl eval "$expr" >/dev/null
+
+for i in "${!names[@]}"; do
+  scale=$(jq -r --arg name "${names[i]}" '.[] | select(.name == $name) | .scale' <<<"$monitors_json")
+  omarchy-hyprland-monitor-persist "${names[i]}" "$scale" "" "${positions[i]}"
+done

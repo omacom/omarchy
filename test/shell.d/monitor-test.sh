@@ -81,6 +81,31 @@ assertEqual(monitor.displayTitle({ name: 'eDP-1', make: 'LG Display', model: '0x
 assertEqual(monitor.displayTitle({ name: 'DP-1', make: 'Apple Computer Inc', model: 'ProDisplayXDR' }), 'ProDisplayXDR', 'monitor names an external display by its model')
 assertEqual(monitor.displayTitle({ name: 'HDMI-A-1', make: 'Dell Inc.', model: '0x40F3' }), 'Dell Inc.', 'monitor falls back to the make when the model is a code')
 
+assertDeepEqual(
+  monitor.logicalRect({ name: 'DP-1', x: 1280, y: 0, width: 6016, height: 3384, scale: 2, transform: 1 }),
+  { name: 'DP-1', x: 1280, y: 0, w: 1692, h: 3008 },
+  'monitor lays out a rotated display by its scaled, turned size'
+)
+
+// A laptop at 1280x800 with a 6K at 3008x1692 to its right, tops aligned.
+const desk = [{ name: 'eDP-1', x: 0, y: 0, w: 1280, h: 800 }, { name: 'DP-1', x: 1280, y: 0, w: 3008, h: 1692 }]
+assertDeepEqual(
+  monitor.dropDisplay(desk, 'eDP-1', 1000, 1650, 40),
+  [{ name: 'eDP-1', x: 0, y: 1692, w: 1280, h: 800 }, { name: 'DP-1', x: 280, y: 0, w: 3008, h: 1692 }],
+  'monitor drops a display against the nearest side and starts the layout at 0x0'
+)
+assertDeepEqual(
+  monitor.dropDisplay(desk, 'eDP-1', 2120, 1700, 40).find((r) => r.name === 'eDP-1'),
+  { name: 'eDP-1', x: 864, y: 1692, w: 1280, h: 800 },
+  'monitor snaps a dropped display to the center of the one it lands against'
+)
+assertDeepEqual(
+  monitor.placeDisplay(desk, 'eDP-1', 'right'),
+  [{ name: 'eDP-1', x: 3008, y: 446, w: 1280, h: 800 }, { name: 'DP-1', x: 0, y: 0, w: 3008, h: 1692 }],
+  'monitor moves a display to the right of the rest, centered'
+)
+assert(monitor.sameLayout(monitor.normalizeLayout(desk), desk), 'monitor sees an unmoved layout as the same')
+
 assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
 assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
 

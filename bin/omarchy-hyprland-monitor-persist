@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# omarchy:summary=Save a monitor's scale, and optionally its mode, to monitors.lua
-# omarchy:args=OUTPUT SCALE [MODE]
+# omarchy:summary=Save a monitor's scale, and optionally its mode and position, to monitors.lua
+# omarchy:args=OUTPUT SCALE [MODE] [POSITION]
 # omarchy:hidden=true
 
-# Persist the scale (and mode, when given) as a rule for this monitor alone, so
+# Persist the scale (and the mode and position, when given; an empty MODE
+# keeps the saved one) as a rule for this monitor alone, so
 # other monitors keep theirs and the setting survives reboots. A rule already
 # naming the monitor is updated in place. Otherwise one is added after Omarchy's
 # catch-all, which stays the default for monitors without a rule of their own.
@@ -16,10 +17,11 @@
 output="$1"
 scale="$2"
 mode="${3:-}"
+position="${4:-}"
 monitor_lua="$HOME/.config/hypr/monitors.lua"
 
 if [[ -z $output || -z $scale ]]; then
-  echo "Usage: omarchy-hyprland-monitor-persist OUTPUT SCALE [MODE]" >&2
+  echo "Usage: omarchy-hyprland-monitor-persist OUTPUT SCALE [MODE] [POSITION]" >&2
   exit 1
 fi
 
@@ -36,7 +38,7 @@ gdk_scale="$(hyprctl monitors -j | jq -r --arg name "$output" --argjson scale "$
 # and rename it into place, through any symlink, in one step.
 target="$(readlink -f "$monitor_lua")"
 tmp="$(mktemp "$target.XXXXXX")" || exit 0
-if ! awk -v output="$output" -v scale="$scale" -v mode="$mode" '
+if ! awk -v output="$output" -v scale="$scale" -v mode="$mode" -v position="$position" '
   function rule(name) { return "hl.monitor({ output = \"" name "\"," }
   function whole_line() { return $0 ~ /\}\)[[:space:]]*(--.*)?$/ }
   function names_output(    code, value) {
@@ -58,7 +60,8 @@ if ! awk -v output="$output" -v scale="$scale" -v mode="$mode" '
   }
   names_output() {
     if (updated || index($0, rule(output)) != 1 || !whole_line() ||
-      !set_field("scale", scale) || (mode != "" && !set_field("mode", "\"" mode "\""))) {
+      !set_field("scale", scale) || (mode != "" && !set_field("mode", "\"" mode "\"")) ||
+      (position != "" && !set_field("position", "\"" position "\""))) {
       skip = 1
       exit
     }
@@ -71,7 +74,7 @@ if ! awk -v output="$output" -v scale="$scale" -v mode="$mode" '
     for (i = 1; i <= NR; i++) {
       print lines[i]
       if (!updated && i == catch_all)
-        print "hl.monitor({ output = \"" output "\", mode = \"" (mode != "" ? mode : "preferred") "\", position = \"auto\", scale = " scale " })"
+        print "hl.monitor({ output = \"" output "\", mode = \"" (mode != "" ? mode : "preferred") "\", position = \"" (position != "" ? position : "auto") "\", scale = " scale " })"
     }
   }
 ' "$target" >"$tmp"; then
