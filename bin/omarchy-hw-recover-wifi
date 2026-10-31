@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# omarchy:summary=Re-probe an Intel Wi-Fi card whose firmware failed to start at boot.
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# Intel AX200/AX210/AX211 cards sometimes time out while their firmware starts
+# ("probe with driver iwlwifi failed with error -110"), most often after a warm
+# reboot. The card then never gets a network interface: the Wi-Fi menu is empty
+# for the whole session and there is no way to get online to look up why.
+# Removing the card from the PCI bus and rescanning re-runs the probe, and
+# reloading iwlwifi covers a driver left half-initialized by the failure.
+
+pci_path="${OMARCHY_PCI_PATH:-/sys/bus/pci}"
+module_path="${OMARCHY_MODULE_PATH:-/sys/module}"
+
+# Intel network controllers (class 0x0280) that have no wireless interface.
+stalled_cards() {
+  local device vendor class
+
+  for device in "$pci_path"/devices/*; do
+    [[ -r $device/vendor && -r $device/class ]] || continue
+    read -r vendor <"$device/vendor"
+    read -r class <"$device/class"
+    if [[ $vendor == "0x8086" && $class == 0x0280* ]] && ! compgen -G "$device/net/*/wireless" >/dev/null; then
+      basename "$device"
+    fi
+  done
+}
+
+wait_for_cards() {
+  for _ in {1..15}; do
+    [[ -z $(stalled_cards) ]] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+# A normal boot can still be bringing the interface up.
+wait_for_cards && exit 0
+
+for attempt in 1 2 3; do
+  echo "Wi-Fi card has no interface, re-probing it (attempt $attempt)"
+  for card in $(stalled_cards); do
+    echo 1 >"$pci_path/devices/$card/remove"
+  done
+  sleep 2
+  echo 1 >"$pci_path/rescan"
+  if wait_for_cards; then
+    echo "Wi-Fi card recovered"
+    exit 0
+  fi
+
+  # Only reload a driver that is already in use, so a blacklisted iwlwifi stays out.
+  if [[ -d $module_path/iwlwifi ]]; then
+    echo "Reloading iwlwifi (attempt $attempt)"
+    for module in iwlmld iwlmvm iwlwifi; do
+      [[ -d $module_path/$module ]] && modprobe -r "$module"
+    done
+    sleep 2
+    modprobe iwlwifi
+    if wait_for_cards; then
+      echo "Wi-Fi card recovered"
+      exit 0
+    fi
+  fi
+done
+
+echo "Wi-Fi card did not recover; power the computer fully off and on again" >&2
+exit 1
