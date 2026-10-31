@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Install and configure Hex dictation
+# omarchy:requires-sudo=true
+
+set -e
+
+# Hex installs itself as a user-local, self-updating executable; Omarchy only
+# supplies the runtime dependencies the published build links against.
+if omarchy-cmd-missing wtype wl-clipboard openblas curl jq; then
+  omarchy-pkg-add wtype wl-clipboard openblas xxd curl jq
+fi
+
+if omarchy-cmd-missing hex; then
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n dictation.installHex)"; then
+    curl -fsSL https://anoma.ly/hex/files/install-linux.sh | sh
+  else
+    exit 0
+  fi
+fi
+
+# Setup reuses the configured model and downloads it only when missing.
+~/.local/bin/hex model install
+~/.local/bin/hex start
+# First launch loads the signed user unit; autostart at login through systemd.
+systemctl --user enable hex.service
+
+omarchy-dictation-use hex
+hyprctl reload >/dev/null
+omarchy-notification-send -g  "$(omarchy-i18n dictation.hexReady)" "$(omarchy-i18n dictation.hint)" -t 10000

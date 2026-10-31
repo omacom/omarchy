@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Hex dictation and its configuration
+
+set -e
+
+hex_bin="$HOME/.local/bin/hex"
+data_home="$HOME/.local/share"
+
+if [[ -x $hex_bin ]]; then
+  echo "Uninstall Hex."
+
+  systemctl --user disable --now hex.service 2>/dev/null || true
+  "$hex_bin" quit --force >/dev/null 2>&1 || true
+
+  rm -f "$hex_bin"
+  rm -rf "$data_home/hex" "$HOME/.cache/hex"
+  rm -f "$HOME/.config/systemd/user/hex.service" \
+    "$HOME/.config/autostart/anomaly.hex.desktop" \
+    "$HOME/.config/autostart/hex.desktop" \
+    "$data_home/applications/anomaly.hex.desktop" \
+    "$data_home/applications/hex.desktop"
+  systemctl --user daemon-reload
+
+  backend_config="$HOME/.config/omarchy/defaults/dictation"
+  if [[ -f $backend_config && $(< "$backend_config") == "hex" ]]; then
+    rm "$backend_config"
+  fi
+  hyprctl reload >/dev/null
+else
+  echo "Hex was not installed."
+fi

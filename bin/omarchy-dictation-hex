@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation using Hex
+# omarchy:args=<start|stop|toggle>
+
+case "${1:-}" in
+  start|toggle) hex dictation "$1" ;;
+  stop)
+    if omarchy-cmd-missing hex || ! hex status >/dev/null 2>&1; then
+      exit 0
+    else
+      hex dictation stop
+    fi
+    ;;
+  *) echo "Usage: omarchy dictation hex <start|stop|toggle>" >&2; exit 1 ;;
+esac
