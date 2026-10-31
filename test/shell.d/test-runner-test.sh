@@ -82,3 +82,19 @@ run_suite all
 (( status == 1 )) && [[ $output == *"CLI fixture passed"* && $output == *"Skipped checks in 3 of 5 test files:"* && $output == *$'1 of 2 suites failed:\n  test/shell'* ]] ||
   fail "the aggregate runner preserves shell failures and skip reporting" "$output"
 pass "the aggregate runner preserves shell failures and skip reporting"
+
+# The overlap file starts beside the pool rather than in either batch; it
+# must still run, print in file order, and count like any other file.
+cat >"$test_dir/test/shell.d/shell-idle-spawn-test.sh" <<'SH'
+# The real file is exclusive by its require_compositor; the overlap
+# classification must win over it.
+set -euo pipefail
+source "$(dirname "$0")/base-test.sh"
+pass "overlap fixture ran"
+SH
+run_suite
+(( status == 1 )) && [[ $output == *"ok - overlap fixture ran"* && $output == *$'1 of 6 test files failed:\n  test/shell.d/d-failed-test.sh'* && $output == *"Skipped checks in 3 of 6 test files:"* ]] ||
+  fail "the overlap file runs and is reported like any other file" "$output"
+[[ $output == *$'==> test/shell.d/shell-idle-spawn-test.sh\nok - overlap fixture ran'* && $output == *$'==> test/shell.d/z-last-test.sh'* ]] ||
+  fail "the overlap file prints in file order" "$output"
+pass "the overlap file runs beside the pool and is reported in order"
