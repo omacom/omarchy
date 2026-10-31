@@ -6,7 +6,10 @@ system_installs_dir = "~/.local/share/mise/installs"
 system_shims_dir = "~/.local/share/mise/shims"
 
 # Agent CLIs update themselves before they run, at most once every four hours (mise auto_update).
+# Backend options go inside a tool's table, never in a "tool[...]" key: mise drops bracket options from a
+# key whose value is a table, so a tool declared that way installs without them.
 [tools]
+amp = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["amp"], minimum_release_age = "0s" }
 antigravity-cli = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 basecamp = { version = "latest", lazy = true, minimum_release_age = "0s" }
 claude = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
@@ -18,14 +21,22 @@ gh = { version = "latest", lazy = true, minimum_release_age = "0s" }
 ghui = { version = "latest", lazy = true, minimum_release_age = "0s" }
 grok = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 hey-cli = { version = "latest", lazy = true, minimum_release_age = "0s" }
+"http:devin" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["devin"], minimum_release_age = "0s", platforms_linux_x64_url = "https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz", platforms_linux_arm64_url = "https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz", bin_path = "bin", version_list_url = "https://static.devin.ai/cli/current/manifest.json", version_json_path = ".version" }
+"http:kiro-cli" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["kiro-cli"], minimum_release_age = "0s", platforms_linux_x64_url = "https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz", platforms_linux_arm64_url = "https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz", version_list_url = "https://prod.download.cli.kiro.dev/stable/latest/manifest.json", version_json_path = ".version" }
 hunk = { version = "latest", lazy = true, minimum_release_age = "0s" }
 muse = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 node = { version = "latest", lazy = true, minimum_release_age = "0s" }
+"npm:@deepseek-ai/dsh" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["dsh"], minimum_release_age = "0s" }
+"npm:@kilocode/cli" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["kilo"], minimum_release_age = "0s" }
+"npm:@minimax-ai/code" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["mcode"], minimum_release_age = "0s", allow_builds = "better-sqlite3" }
 "npm:@moonshot-ai/kimi-code" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["kimi"], minimum_release_age = "0s" }
 "npm:cf" = { version = "latest", lazy = true, lazy_bins = ["cf"], minimum_release_age = "0s" }
+"npm:command-code" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["commandcode"], minimum_release_age = "0s" }
+"npm:freebuff" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["freebuff"], minimum_release_age = "0s" }
 oh-my-pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 opencode = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 ori = { version = "latest", lazy = true, minimum_release_age = "0s" }
 pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 playwright = { version = "latest", lazy = true, minimum_release_age = "0s" }
+qwen = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 uv = { version = "latest", lazy = true, minimum_release_age = "0s" }
