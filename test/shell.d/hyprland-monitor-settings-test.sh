@@ -113,6 +113,19 @@ check(env.GDK_SCALE == "1", "sets GDK_SCALE from the saved scale, got " .. tostr
 ' || fail "monitor settings update GDK_SCALE without touching monitors"
 pass "monitor settings update GDK_SCALE without touching monitors"
 
+# A saved rotation goes with the rest, and a monitor already turned that way
+# isn't turned again when it arrives.
+printf '%s\t%s\t%s\t%s\t%s\n' "" "0x0" "1.5" "1" "Dell Inc. DELL U2723QE" >"$settings"
+run_lua '
+plug("DP-3", "Dell Inc. DELL U2723QE", { width = 3840, height = 2160, refresh_rate = 60, scale = 1.5, x = 0, y = 0, transform = 1 })
+load_module()
+check(#applied == 1 and applied[1].transform == 1, "applies the saved rotation")
+applied = {}
+handlers["monitor.added"]({ name = "DP-3" })
+check(#applied == 0, "leaves a monitor already turned as saved alone")
+' || fail "monitor settings apply a saved rotation"
+pass "monitor settings apply a saved rotation"
+
 # Switched off in monitors.lua, the saved settings are left alone entirely.
 printf '%s\t%s\t%s\t%s\n' "1920x1200@60" "0x0" "1" "LG Display 0x0804" >"$settings"
 run_lua '

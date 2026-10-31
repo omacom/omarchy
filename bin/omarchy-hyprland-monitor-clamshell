@@ -144,7 +144,9 @@ saved_internal_monitor_value() {
   esac
 
   identity=$(omarchy-hyprland-monitor-identity "$INTERNAL")
-  awk -F'\t' -v identity="$identity" -v field="$field" '$4 == identity { print $field; exit }' "$MONITOR_SETTINGS"
+  # The identity is the last field: lines saved before rotation was saved lack
+  # the transform before it.
+  awk -F'\t' -v identity="$identity" -v field="$field" '$NF == identity { print $field; exit }' "$MONITOR_SETTINGS"
 }
 
 configured_monitor_scale() {

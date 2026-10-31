@@ -11,13 +11,14 @@
 
 usage() {
   echo "Usage: omarchy-hyprland-monitor-layout NAME=XxY [NAME=XxY...]"
-  echo "       omarchy-hyprland-monitor-layout --resized NAME OLD_SIZE OLD_SCALE NEW_SIZE NEW_SCALE [MODE]"
+  echo "       omarchy-hyprland-monitor-layout --resized NAME OLD_SIZE OLD_SCALE NEW_SIZE NEW_SCALE [MODE [TRANSFORM]]"
 }
 
 monitors_json=$(hyprctl monitors -j)
 resized_name=""
 resized_scale=""
 resized_mode=""
+resized_transform=""
 
 # A monitor whose mode or scale changed keeps its corner, and every monitor to
 # its right or below it shifts by however much it grew or shrank, so the
@@ -34,15 +35,18 @@ resized_mode=""
 # from it first, farthest first, then it, then the ones closing in, nearest
 # first, so none moves into a spot another hasn't left. Resized on its own first, a
 # monitor that grew would sit over a neighbour until it moved, and Hyprland
-# warns about the overlap.
+# warns about the overlap. Given a TRANSFORM too, it turns in the same eval; a
+# quarter turn's swapped size comes in as its NEW_SIZE.
 if [[ ${1:-} == "--resized" ]]; then
-  if (( $# != 6 && $# != 7 )) || [[ ! $3 =~ ^[0-9]+x[0-9]+$ || ! $5 =~ ^[0-9]+x[0-9]+$ ]] ||
+  if (( $# < 6 || $# > 8 )) || [[ ! $3 =~ ^[0-9]+x[0-9]+$ || ! $5 =~ ^[0-9]+x[0-9]+$ ]] ||
     [[ ! $4 =~ ^[0-9]+([.][0-9]+)?$ || ! $6 =~ ^[0-9]+([.][0-9]+)?$ ]] ||
-    [[ -n ${7:-} && ! $7 =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]]; then
+    [[ -n ${7:-} && ! $7 =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]] ||
+    [[ -n ${8:-} && ! $8 =~ ^[0-7]$ ]]; then
     usage >&2
     exit 1
   fi
   resized_mode="${7:-}"
+  resized_transform="${8:-}"
   mapfile -t positions < <(jq -r --arg name "$2" \
     --argjson ow "${3%x*}" --argjson oh "${3#*x}" --argjson os "$4" \
     --argjson nw "${5%x*}" --argjson nh "${5#*x}" --argjson ns "$6" '
@@ -109,7 +113,9 @@ for arg in "$@"; do
   names+=("$name")
   positions+=("$position")
   if [[ $name == "$resized_name" && -n $resized_mode ]]; then
-    expr+="hl.monitor({ output = \"$name\", mode = \"$resized_mode\", position = \"$position\", scale = $resized_scale }) "
+    turn=""
+    [[ -n $resized_transform ]] && turn=", transform = $resized_transform"
+    expr+="hl.monitor({ output = \"$name\", mode = \"$resized_mode\", position = \"$position\", scale = $resized_scale$turn }) "
   else
     expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
   fi

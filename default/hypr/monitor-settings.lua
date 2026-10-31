@@ -1,8 +1,8 @@
--- Each monitor's mode, position and scale as chosen in the display panel, kept
--- by the physical monitor rather than the port it's plugged into.
+-- Each monitor's mode, position, scale and rotation as chosen in the display
+-- panel, kept by the physical monitor rather than the port it's plugged into.
 --
--- They live in a state file, one line per monitor ever set: its mode, position
--- and scale, any of them empty when never chosen, then its identity (make,
+-- They live in a state file, one line per monitor ever set: its mode, position,
+-- scale and transform, any of them empty when never chosen, then its identity (make,
 -- model and serial, as monitor-workspaces names it). A dock renames its
 -- connectors between plugs, so a rule naming DP-1 would hand one monitor's
 -- mode to whatever turns up on that port next. omarchy-hyprland-monitor-persist
@@ -33,13 +33,19 @@ local function load()
     return settings
   end
 
+  -- Mode, position, scale and transform, then the identity; lines saved before
+  -- rotation was saved lack the transform.
   for line in file:lines() do
-    local mode, position, scale, identity = line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t(.+)$")
+    local mode, position, scale, transform, identity = line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]+)$")
+    if not identity then
+      mode, position, scale, identity = line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]+)$")
+    end
     if identity then
       settings[identity] = {
         mode = mode ~= "" and mode or nil,
         position = position ~= "" and position or nil,
         scale = tonumber(scale),
+        transform = tonumber(transform),
       }
     end
   end
@@ -71,13 +77,17 @@ local function matches(monitor, saved)
     end
   end
 
+  if saved.transform and saved.transform ~= (monitor.transform or 0) then
+    return false
+  end
+
   return true
 end
 
 -- Only what was chosen: hl.monitor updates the connector's existing rule, so
 -- anything never set in the panel keeps what hypr/monitors.lua gives it.
 local function rule(name, saved)
-  return { output = name, mode = saved.mode, position = saved.position, scale = saved.scale }
+  return { output = name, mode = saved.mode, position = saved.position, scale = saved.scale, transform = saved.transform }
 end
 
 -- GDK_SCALE is one value for the whole session, so it follows the lowest
