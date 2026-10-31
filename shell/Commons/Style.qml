@@ -1,6 +1,6 @@
 pragma Singleton
 import QtQuick
-import qs.Commons as Commons
+import "." as Commons
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io

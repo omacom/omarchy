@@ -1,0 +1,4 @@
+module Omarchy
+ToolTip 2.0 ToolTip.qml
+ToolTip 6.0 ToolTip.qml
+import QtQuick.Controls.Fusion auto
