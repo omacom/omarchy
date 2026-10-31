@@ -272,6 +272,7 @@ attempt() {
   set_now() { NOW=0; }
   render_setup_static() { :; }
   render_setup_dynamic() { :; }
+  render_setup_finish() { :; }
   SHOW_CURSOR=""
   run_setup
 }
