@@ -71,6 +71,12 @@ valid_plugin_id "$id" || fail "invalid plugin id '$id'"
 target="$PLUGINS_DIR/$id"
 [[ -e $target || -L $target ]] || fail "plugin '$id' is not installed"
 
+# Serialize archive replacement with removal, keeping its recovery copy intact.
+if [[ -f $target/.omarchy-package.json && ! -d $target/.git ]]; then
+  exec {archive_lock}>"$PLUGINS_DIR/.archive.lock"
+  flock "$archive_lock"
+fi
+
 was_enabled=""
 shell_plugins=$(omarchy-shell shell listPlugins)
 if [[ -n $shell_plugins ]]; then
