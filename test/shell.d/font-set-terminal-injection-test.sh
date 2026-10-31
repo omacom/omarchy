@@ -58,7 +58,7 @@ grep -Fq 'family = "CaskaydiaMono Nerd Font"' "$test_home/.config/alacritty/alac
   fail "font-set rewrites the Alacritty family" "$(cat "$test_home/.config/alacritty/alacritty.toml")"
 grep -Fq 'font-family = "CaskaydiaMono Nerd Font"' "$test_home/.config/ghostty/config" ||
   fail "font-set rewrites the Ghostty family" "$(cat "$test_home/.config/ghostty/config")"
-grep -Fq 'font=CaskaydiaMono Nerd Font:size=9' "$test_home/.config/foot/foot.ini" ||
+grep -Fq 'font=CaskaydiaMono Nerd Font:size=11' "$test_home/.config/foot/foot.ini" ||
   fail "font-set rewrites the Foot font" "$(cat "$test_home/.config/foot/foot.ini")"
 grep -Fxq 'font_family CaskaydiaMono Nerd Font' "$test_home/.config/kitty/kitty.conf" ||
   fail "font-set rewrites the Kitty family" "$(cat "$test_home/.config/kitty/kitty.conf")"
