@@ -21,7 +21,10 @@ resized_scale=""
 # A monitor whose mode or scale changed keeps its corner, and every monitor to
 # its right or below it shifts by however much it grew or shrank, so the
 # monitors that touched it still do. Otherwise a smaller monitor leaves a gap
-# beside it, and a larger one overlaps its neighbour.
+# beside it, and a larger one overlaps its neighbour. Shifting sideways and
+# down at once can push two neighbours onto each other, so a shifted monitor
+# that overlaps another goes back where it was whenever that spot is free; a
+# gap is better than a pile-up.
 if [[ ${1:-} == "--resized" ]]; then
   if (( $# != 6 )) || [[ ! $3 =~ ^[0-9]+x[0-9]+$ || ! $5 =~ ^[0-9]+x[0-9]+$ ]]; then
     usage >&2
@@ -31,14 +34,27 @@ if [[ ${1:-} == "--resized" ]]; then
     --argjson ow "${3%x*}" --argjson oh "${3#*x}" --argjson os "$4" \
     --argjson nw "${5%x*}" --argjson nh "${5#*x}" --argjson ns "$6" '
     def logical($w; $h; $s; $t): [($w / $s | round), ($h / $s | round)] | if ($t % 2) == 1 then reverse else . end;
+    def overlaps($a; $b): $a.x < $b.x + $b.w and $b.x < $a.x + $a.w and $a.y < $b.y + $b.h and $b.y < $a.y + $a.h;
+    def unpile:
+      . as $r
+      | [range(0; $r | length) as $i | $r[$i] as $a
+         | select($a.x != $a.ox or $a.y != $a.oy)
+         | select(any($r[]; .name != $a.name and overlaps($a; .)))
+         | ($a | .x = .ox | .y = .oy) as $back
+         | select(all($r[]; .name == $a.name or (overlaps($back; .) | not)))
+         | $i] as $movable
+      | if ($movable | length) == 0 then $r else ($r | .[$movable[0]] |= (.x = .ox | .y = .oy) | unpile) end;
     (map(select(.name == $name))[0]) as $m
     | if $m == null then empty else
       logical($ow; $oh; $os; $m.transform // 0) as $old
       | logical($nw; $nh; $ns; $m.transform // 0) as $new
-      | .[] | select((.mirrorOf // "none") == "none")
-      | (if .name != $name and .x >= $m.x + $old[0] then .x + $new[0] - $old[0] else .x end) as $x
-      | (if .name != $name and .y >= $m.y + $old[1] then .y + $new[1] - $old[1] else .y end) as $y
-      | "\(.name)=\($x)x\($y)"
+      | [.[] | select((.mirrorOf // "none") == "none")
+        | (if .name == $name then $new else logical(.width; .height; .scale; .transform // 0) end) as $size
+        | {name, ox: .x, oy: .y, w: $size[0], h: $size[1],
+           x: (if .name != $name and .x >= $m.x + $old[0] then .x + $new[0] - $old[0] else .x end),
+           y: (if .name != $name and .y >= $m.y + $old[1] then .y + $new[1] - $old[1] else .y end)}]
+      | unpile
+      | .[] | "\(.name)=\(.x)x\(.y)"
     end' <<<"$monitors_json")
   resized_name="$2"
   resized_scale="$6"

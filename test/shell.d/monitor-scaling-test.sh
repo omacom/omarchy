@@ -18,7 +18,9 @@ mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
-if [[ $1 == "monitors" && $2 == "-j" ]]; then
+if [[ $1 == "monitors" && $2 == "-j" && -n $OMARCHY_TEST_MONITORS_JSON ]]; then
+  printf '%s' "$OMARCHY_TEST_MONITORS_JSON"
+elif [[ $1 == "monitors" && $2 == "-j" ]]; then
   printf '[{"name":"eDP-1","focused":true,"x":0,"y":0,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"availableModes":["2880x1800@120.00Hz","2880x1800@60.00Hz","1920x1200@60.00Hz"]}' \
     "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
   if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
@@ -289,6 +291,16 @@ grep -F 'hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/
 grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "960x0", scale = 1 })' "$monitor_lua" >/dev/null ||
   fail "monitor resolution saves its neighbour's new position"
 pass "monitor resolution closes the layout up around a smaller mode"
+
+# Two screens stacked on the left of a tall one: shrinking the top-left one
+# would pull the tall one left and the lower one up onto each other, so the one
+# that can go back does, and nothing overlaps.
+write_monitor_config
+OMARCHY_TEST_MONITORS_JSON='[{"name":"DP-1","x":0,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-2","x":100,"y":0,"width":100,"height":200,"scale":1},{"name":"DP-3","x":0,"y":100,"width":100,"height":100,"scale":1}]' \
+  run_layout --resized DP-1 100x100 1 100x100 2
+grep -F 'hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output = "DP-3", position = "0x50" })' "$eval_out" >/dev/null ||
+  fail "monitor layout keeps neighbours from piling onto each other" "actual: $(<"$eval_out")"
+pass "monitor layout keeps neighbours from piling onto each other"
 
 # A rule is Lua Hyprland loads on every change, so a value out of place (here a
 # flag it doesn't know, shifting a connector into the scale) writes nothing.
