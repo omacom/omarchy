@@ -249,6 +249,20 @@ grep -F 'hl.monitor({ output = "DP-1", position = "1800x0" }) hl.monitor({ outpu
   fail "monitor scaling grows only after its neighbour moves away" "actual: $(<"$eval_out")"
 pass "monitor resizes and moves apply in one step without overlapping"
 
+# In a row of three, the far screen moves out of the way before the middle one
+# moves into its spot, and on the way back the middle one closes in first.
+fresh
+row='[{"name":"DP-1","x":0,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-2","x":100,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-3","x":200,"y":0,"width":100,"height":100,"scale":1}]'
+OMARCHY_TEST_MONITORS_JSON="$row" run_layout --resized DP-1 100x100 1 200x100 1 200x100@60
+grep -F 'hl.monitor({ output = "DP-3", position = "300x0" }) hl.monitor({ output = "DP-2", position = "200x0" }) hl.monitor({ output = "DP-1", mode = "200x100@60"' "$eval_out" >/dev/null ||
+  fail "monitor layout moves the farthest neighbour away first" "actual: $(<"$eval_out")"
+fresh
+row='[{"name":"DP-1","x":0,"y":0,"width":200,"height":100,"scale":1},{"name":"DP-2","x":200,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-3","x":300,"y":0,"width":100,"height":100,"scale":1}]'
+OMARCHY_TEST_MONITORS_JSON="$row" run_layout --resized DP-1 200x100 1 100x100 1 100x100@60
+grep -F 'position = "0x0", scale = 1 }) hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output = "DP-3", position = "200x0" })' "$eval_out" >/dev/null ||
+  fail "monitor layout closes in the nearest neighbour first" "actual: $(<"$eval_out")"
+pass "monitor layout orders a row's moves so none overlaps"
+
 # Two screens stacked on the left of a tall one: shrinking the top-left one
 # would pull the tall one left and the lower one up onto each other, so the one
 # that can go back does, and nothing overlaps.

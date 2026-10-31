@@ -31,7 +31,8 @@ resized_mode=""
 #
 # Given the MODE, the resized monitor takes its new mode and scale in the same
 # eval as its neighbours move, ordered so no step overlaps: the ones moving away
-# from it first, then it, then the ones closing in. Resized on its own first, a
+# from it first, farthest first, then it, then the ones closing in, nearest
+# first, so none moves into a spot another hasn't left. Resized on its own first, a
 # monitor that grew would sit over a neighbour until it moved, and Hyprland
 # warns about the overlap.
 if [[ ${1:-} == "--resized" ]]; then
@@ -71,7 +72,9 @@ if [[ ${1:-} == "--resized" ]]; then
       | unpile
       | (map(.x = .ox | .y = .oy)) as $old
       | if piled and ($old | piled | not) then $old else . end
-      | sort_by(if .name == $name then 1 elif .x > .ox or .y > .oy then 0 else 2 end)
+      | sort_by(if .name == $name then [1, 0]
+          elif .x > .ox or .y > .oy then [0, -(.ox + .oy)]
+          else [2, .ox + .oy] end)
       | .[] | "\(.name)=\(.x)x\(.y)"
     end' <<<"$monitors_json")
   resized_name="$2"
