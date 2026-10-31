@@ -9,6 +9,8 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
 fi
 
 omarchy_security_require_privileged_bash_startup() {
+  local script=${1:-}
+
   [[ $- == *p* ]] || return 1
   # The caller is this check's parent, under the number this /proc gives it.
   # arch-chroot runs the installer in a new PID namespace beneath the outer
@@ -18,10 +20,18 @@ omarchy_security_require_privileged_bash_startup() {
     read -r _ caller _ <<<"${stat##*) }"
     mapfile -d "" -t argv <"/proc/$caller/cmdline" || exit 1
     executable=$(/usr/bin/readlink -e -- "/proc/$caller/exe") || exit 1
+    # An explicit entrypoint also rejects a privileged shell sourcing it:
+    # that shell can define callbacks after its own safe startup.
+    if [[ -n $1 ]]; then
+      script_index=2
+      [[ ${argv[script_index]:-} == "--" ]] && script_index=3
+      script=$(/usr/bin/readlink -e -- "${argv[script_index]:-}") || exit 1
+      [[ $script == "$1" ]] || exit 1
+    fi
     [[ $executable == "/usr/bin/bash" &&
       ( ${argv[0]:-} == "/bin/bash" || ${argv[0]:-} == "/usr/bin/bash" ) &&
       ${argv[1]:-} == "-p" ]]
-  ' omarchy-bash-startup
+  ' omarchy-bash-startup "$script"
 }
 
 omarchy_security_sanitize_bash_environment() {
