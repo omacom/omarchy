@@ -351,6 +351,18 @@
   "trigger.capture.qr": {
     "label": "QR Code"
   },
+  "trigger.capture.eyes": {
+    "label": "Eyes"
+  },
+  "trigger.capture.eyes.describe": {
+    "label": "Describe Screen"
+  },
+  "trigger.capture.eyes.locate": {
+    "label": "Find On Screen"
+  },
+  "trigger.capture.eyes.setup": {
+    "label": "Set Up Eyes"
+  },
   "trigger.capture.color": {
     "label": "Color"
   },
