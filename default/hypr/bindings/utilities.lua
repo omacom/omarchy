@@ -13,6 +13,7 @@ o.bind("SUPER + CTRL + K", "Herdr keybindings", "omarchy-menu-herdr-keybindings"
 o.bind_toggle("SUPER + SHIFT + SPACE", "Toggle top bar", "bar")
 o.bind("SUPER + CTRL + SPACE", "Background switcher", { menu = "background" })
 o.bind("SUPER + CTRL + W", "Background switcher", { menu = "background" })
+o.bind("SUPER + CTRL + ALT + SPACE", "All backgrounds", { menu = "appearance.background-all" })
 o.bind("SUPER + SHIFT + CTRL + SPACE", "Theme menu", { menu = "theme" })
 o.bind("SUPER + CTRL + T", "Theme menu", { menu = "theme" })
 o.bind("SUPER + BACKSPACE", "Toggle transparency on a window", "omarchy-hyprland-window-transparency-toggle")
