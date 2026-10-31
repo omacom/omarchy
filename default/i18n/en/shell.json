@@ -104,6 +104,8 @@
   "agents.windowWeekly": "Weekly",
   "appLibrary.launching": "Launching %1…",
   "appLibrary.launchingApp": "Launching application…",
+  "audio.combine": "Play on all outputs",
+  "audio.combineFailed": "Could not change the shared output",
   "audio.input": "INPUT",
   "audio.level.concertHall": "Concert hall",
   "audio.level.crankedUp": "Cranked up",
