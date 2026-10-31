@@ -27,6 +27,7 @@ Panel {
     passwordSsid = ""
     passwordText = ""
     identityText = ""
+    passwordVisible = false
   }
 
   // Live connection details from `ip` / /sys / iw.
@@ -98,6 +99,7 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  property bool passwordVisible: false
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -359,6 +361,7 @@ Panel {
   onPasswordSsidChanged: {
     if (passwordSsid === "" && opened) {
       passwordText = ""
+      passwordVisible = false
       Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
     }
   }
@@ -794,6 +797,7 @@ Panel {
     if (passwordSsid !== ssid) {
       passwordText = ""
       identityText = ""
+      passwordVisible = false
     }
     passwordSsid = ssid
   }
@@ -2013,9 +2017,8 @@ Panel {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: parent.right
         anchors.top: parent.top
-        anchors.rightMargin: Style.space(6)
         placeholderText: Commons.I18n.t("network.identity")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2037,11 +2040,11 @@ Panel {
         id: pwField
         visible: !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: revealPwBtn.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
-        password: true
+        password: !root.passwordVisible
         placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2057,6 +2060,29 @@ Panel {
 
         onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
+      }
+
+      PanelActionButton {
+        id: revealPwBtn
+        visible: !row.isBusy && !row.isFailed
+        anchors.right: connectPwBtn.left
+        anchors.rightMargin: Style.space(4)
+        anchors.verticalCenter: pwField.verticalCenter
+        iconText: "󰈉"
+        tooltipText: root.passwordVisible
+          ? Commons.I18n.t("network.hidePassword")
+          : Commons.I18n.t("network.showPassword")
+        foreground: root.passwordVisible ? Commons.Color.accent : root.bar.foreground
+        hoverColor: Commons.Color.accent
+        fontFamily: root.bar.fontFamily
+        focusable: true
+        Keys.onEscapePressed: root.cancelPasswordPrompt()
+        onClicked: {
+          root.passwordVisible = !root.passwordVisible
+          // Revealing the value is part of credential entry, not a change of
+          // task. Return focus so typing can continue immediately.
+          Qt.callLater(function() { if (pwField.visible) pwField.forceActiveFocus() })
+        }
       }
 
       BorderSurface {
@@ -2089,7 +2115,7 @@ Panel {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed
         anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenter: pwField.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
         tooltipText: Commons.I18n.t("network.connect")
