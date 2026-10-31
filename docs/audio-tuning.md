@@ -39,8 +39,8 @@ omarchy audio tuning off       # remove it, back to raw speakers
 omarchy audio tuning status    # installed? in use? what matches?
 ```
 
-`match` and `fronted-sink` are also accepted; they exist for the install hooks
-and the sink-listing scripts rather than for daily use.
+`match`, `fronted-sink` and `sink` are also accepted; they exist for the install
+hooks and the sink-listing and output-switching scripts rather than for daily use.
 
 `on` verifies its own work: it waits for the tuning sink to appear and confirms
 its output linked to the expected physical sink, and uninstalls everything again
@@ -142,6 +142,10 @@ real bugs:
   in the graph, and selecting the physical one would only bypass the tuning. So
   `omarchy-audio-sink-availability` reports it unavailable and
   `omarchy-audio-output-switch` skips it, leaving one speaker entry in the panel.
+  Activating a card profile whose sink is the fronted one
+  (`omarchy-audio-output-set-profile`) makes the tuning sink the default instead
+  (`omarchy-audio-tuning sink`), so switching outputs from the panel never drops
+  the tuning.
   A WirePlumber smart filter would remove the need for both — it leaves the real
   device as the default output — but on PipeWire 1.6.8 / WirePlumber 0.5.15 the
   graph loads and links correctly as a smart filter and then passes audio through
