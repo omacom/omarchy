@@ -546,7 +546,13 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (percent >= 0) {
+        var window = limitWindow(entry.label, percent, entry.resetsAt, entry.title)
+        // Only a real breakdown carries the flag. Copying a false one onto
+        // every window would change the rows the meters compare.
+        if (entry.supplementary === true) window.supplementary = true
+        out.push(window)
+      }
     }
     return out
   }
@@ -585,11 +591,22 @@ Panel {
   }
 
   // The window that decides how much room is left — the fullest one, since
-  // that is what stops the next prompt.
+  // that is what stops the next prompt. Cursor's auto and named model meters
+  // are a breakdown of the included total, so they do not count, whether the
+  // record marks them supplementary or only still titles them that way. A
+  // model allowance of its own, such as Fable or a Claude session, does, and
+  // so does an on-demand dollar cap.
+  function supplementaryWindow(w) {
+    if (w && w.supplementary === true) return true
+    var text = String(w && w.title || "")
+    return text.indexOf("Auto models ") === 0 || text.indexOf("Named models ") === 0
+  }
+
   function bindingWindow(p) {
     var windows = limitWindows(p)
     var best = null
     for (var i = 0; i < windows.length; i++) {
+      if (supplementaryWindow(windows[i])) continue
       if (!best || windows[i].percent > best.percent) best = windows[i]
     }
     return best
