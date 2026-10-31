@@ -9,6 +9,12 @@ if [[ ${OMARCHY_SUDO_NO_UPDATE:-0} == "1" ]]; then
   sudo_options=(--sudo "$sudo_wrapper" --sudoloop=false)
 fi
 
+# mise exports GOROOT and GOBIN for its own Go. omarchy-update runs this with
+# the system PATH, so /usr/bin/go would compile with mise's toolchain and every
+# Go PKGBUILD fails with "compile: version ... does not match go tool version".
+# With both unset, whichever go is on PATH uses its own root.
+unset GOROOT GOBIN
+
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"
