@@ -51,6 +51,7 @@ run_logged "$OMARCHY_INSTALL/hardware/qualcomm/dtb-uki.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/kernel-params.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/initramfs.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/firmware.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-dsp.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/camera.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-yoga-pro7-bass-speakers.sh"
