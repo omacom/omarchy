@@ -393,6 +393,21 @@ run_helper stop
 wait_dead "$second_pid" || fail "repeated stop remains idempotent"
 pass "repeated start and stop preserve one inhibitor"
 
+# A killed update leaves its owner in the marker, and a reboot clears the
+# runtime record of it. The next update must still release Stay Awake.
+idle_marker="$test_home/.local/state/omarchy/indicators/stay-awake"
+mkdir -p "${idle_marker%/*}"
+printf '123:456:789\n' >"$idle_marker"
+run_helper start
+run_helper stop
+[[ ! -e $idle_marker ]] || fail "update leaves an orphaned update-owned Stay Awake enabled"
+: >"$idle_marker"
+run_helper start
+run_helper stop
+[[ -e $idle_marker ]] || fail "update clears the user's Stay Awake choice"
+rm -f "$idle_marker"
+pass "update releases Stay Awake left by an interrupted update"
+
 : >"$inhibitor_log"
 concurrent_jobs=()
 for _ in {1..4}; do

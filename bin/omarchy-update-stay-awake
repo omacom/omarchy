@@ -560,6 +560,12 @@ start_locked() {
     state_file_is_private "$launch_control_file" || return 1
     rm -f -- "$launch_control_file"
   fi
+  # An update killed before its stop leaves its owner in the marker, and a
+  # reboot clears the record that would match it. Only an update writes an
+  # owner there, so take it back rather than mistake it for the user's choice.
+  if [[ -f $stay_awake_state && $(<"$stay_awake_state") =~ ^[0-9]+:[0-9]+:[0-9]+$ ]]; then
+    rm -f -- "$stay_awake_state"
+  fi
   if [[ ! -f $stay_awake_state ]]; then
     atomic_write_state "$idle_owner_file" "$idle_owner" || return 1
     mkdir -p "$(dirname "$stay_awake_state")" || return 1
