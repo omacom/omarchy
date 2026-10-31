@@ -1,0 +1,435 @@
+#!/usr/bin/python3
+# omarchy:summary=Repair corrupted multiline secrets in Omarchy cleartext default keyring
+# omarchy:hidden=true
+"""Normalizes corrupted cleartext GNOME Keyring files without data loss.
+
+In gnome-keyring up through 1:51.1-1, generate_item() in
+pkcs11/secret-store/gkm-secret-textual.c writes the 'secret' property using
+g_key_file_set_value() without newline or backslash escaping. Applications
+storing multiline payloads (such as Proton VPN SSO or FlutterSecureStorage)
+cause raw continuation lines to be written to disk. On subsequent starts,
+gnome-keyring-daemon drops the file as invalid/unrecognized format.
+
+This utility parses the cleartext keyfile by section, folds unescaped continuation
+lines in corrupted items under 'secret=' into standard GLib-escaped sequences (\\n, \\\\),
+leaves valid items and non-item sections 100% byte-for-byte identical, and commits
+changes atomically with mode 0600. If an item cannot be safely recovered without
+leaving ambiguous continuation lines or contains ambiguous section boundaries,
+the original file is kept untouched and the process exits with code 1.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import sys
+from pathlib import Path
+
+# Legitimate section header patterns in cleartext GNOME Keyring files
+VALID_SECTION_HEADER_RE = re.compile(r"^\[(?:keyring|\d+(?::attribute\d+)?)\]$")
+ITEM_HEADER_RE = re.compile(r"^\[(\d+)\]$")
+ATTR_HEADER_RE = re.compile(r"^\[(\d+):attribute(\d+)\]$")
+ANY_BRACKET_RE = re.compile(r"^\[.+\]$")
+
+# Legitimate property patterns in cleartext GNOME Keyring files per gkm-secret-textual.c
+KEYFILE_PROPERTY_RE = re.compile(
+    r"^(?:item-type=\d+|display-name=.*|binary-secret=.*|secret=.*|ctime=\d+|mtime=\d+|name=.*|type=.*|value=.*|lock-on-idle=.*|lock-after=.*)$"
+)
+
+# Legitimate metadata keys inside an item section [N] per gkm-secret-textual.c
+ITEM_METADATA_KEY_RE = re.compile(
+    r"^(?:item-type=\d+|display-name=.*|binary-secret=.*|ctime=\d+|mtime=\d+)$"
+)
+
+# Only ctime and mtime can legally follow secret= inside generate_item()
+POST_SECRET_KEY_RE = re.compile(r"^(?:ctime=\d+|mtime=\d+)$")
+
+
+def escape_keyfile_string(value: str) -> str:
+    """Escape backslashes, control characters, and leading spaces per GLib GKeyFile specification."""
+    leading_spaces = len(value) - len(value.lstrip(" "))
+    prefix = "\\s" * leading_spaces
+    body = value[leading_spaces:]
+
+    escaped_body = (
+        body.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+    return prefix + escaped_body
+
+
+def strip_delim(line: str, d_file: str) -> str:
+    """Strip only the file delimiter d_file, preserving interior carriage returns."""
+    if d_file == "\r\n" and line.endswith("\r\n"):
+        return line[:-2]
+    if line.endswith("\n"):
+        return line[:-1]
+    return line
+
+
+def split_file_lines(content: str) -> list[str]:
+    """Split content strictly at LF (\\n) boundaries, preserving exact line characters."""
+    if not content:
+        return []
+    parts = content.split("\n")
+    lines = [p + "\n" for p in parts[:-1]]
+    if parts[-1]:
+        lines.append(parts[-1])
+    return lines
+
+
+def is_bare_continuation(raw_line: str) -> bool:
+    """Return True if a line is an unescaped bare continuation line."""
+    stripped = raw_line.strip()
+    if not stripped or stripped.startswith("#"):
+        return False
+    if stripped.startswith("[") and stripped.endswith("]"):
+        return False
+    return not bool(KEYFILE_PROPERTY_RE.match(stripped))
+
+
+def split_sections(lines: list[str]) -> list[list[str]]:
+    """Partition keyfile lines into sections starting at valid [group] headers."""
+    sections: list[list[str]] = []
+    current: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if VALID_SECTION_HEADER_RE.match(stripped):
+            if current:
+                sections.append(current)
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        sections.append(current)
+    return sections
+
+
+def validate_section_hierarchy(sections: list[list[str]]) -> bool:
+    """Validate section hierarchy, sequential numbering, and header uniqueness."""
+    if not sections:
+        return True
+
+    header_idx = 0
+    first_line = sections[0][0].strip() if sections[0] else ""
+    if not (first_line.startswith("[") and first_line.endswith("]")):
+        if any(line.strip() and not line.strip().startswith("#") for line in sections[0]):
+            return False
+        header_idx = 1
+
+    if header_idx >= len(sections):
+        return False
+
+    first_sec_header = sections[header_idx][0].strip() if sections[header_idx] else ""
+    if first_sec_header != "[keyring]":
+        return False
+
+    seen_headers: set[str] = set()
+    seen_items: set[str] = set()
+    next_attr_idx: dict[str, int] = {}
+
+    for sec in sections[header_idx:]:
+        if not sec:
+            continue
+        header = sec[0].strip()
+        if header in seen_headers:
+            return False
+        seen_headers.add(header)
+
+        if header == "[keyring]":
+            continue
+
+        m_item = ITEM_HEADER_RE.match(header)
+        if m_item:
+            item_id = m_item.group(1)
+            seen_items.add(item_id)
+            next_attr_idx[item_id] = 0
+            continue
+
+        m_attr = ATTR_HEADER_RE.match(header)
+        if m_attr:
+            item_id = m_attr.group(1)
+            attr_idx = int(m_attr.group(2))
+            if item_id not in seen_items or attr_idx != next_attr_idx[item_id]:
+                return False
+            next_attr_idx[item_id] += 1
+            continue
+
+        return False
+
+    return True
+
+
+def repair_keyring_content(content: str) -> tuple[str, bool, bool]:
+    """Parse GKeyFile format and fold unescaped multiline secret continuation lines.
+
+    Rationale:
+        Time Complexity: O(N) linear time over file line count. Two streaming passes
+        (validation pass and recovery pass) eliminate backtracking and unbounded search.
+        Memory Complexity: O(N) bounded memory proportional to file size, operating strictly
+        on string slices and lists of references without deep copy overhead.
+        Fail-Safe Invariant: Returns had_error=True on any boundary or metadata ambiguity,
+        guaranteeing the caller leaves the original file untouched byte-for-byte.
+
+    Returns (repaired_content, was_modified, had_error).
+    """
+    lines = split_file_lines(content)
+    if not lines:
+        return content, False, False
+
+    # Invariant: Must have [keyring] as the first section header, ignoring
+    # any leading comments or blank lines.
+    first_header = next(
+        (
+            line.strip()
+            for line in lines
+            if line.strip().startswith("[") and line.strip().endswith("]")
+        ),
+        "",
+    )
+    if first_header != "[keyring]":
+        # Do not modify encrypted binary keyrings or foreign formats
+        return content, False, False
+
+    # Pre-flight validation gate:
+    # If the file contains no bare continuation lines anywhere, it is fully valid
+    # and must be left untouched byte-for-byte.
+    if not any(is_bare_continuation(line) for line in lines):
+        return content, False, False
+
+    # Reject ambiguous section boundaries before committing
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if ANY_BRACKET_RE.match(stripped) and not VALID_SECTION_HEADER_RE.match(stripped):
+            return content, False, True
+
+    # Detect file newline delimiter from the [keyring] header line
+    d_file = "\n"
+    for line in lines:
+        if line.strip() == "[keyring]":
+            if line.endswith("\r\n"):
+                d_file = "\r\n"
+            break
+
+    sections = split_sections(lines)
+    if not validate_section_hierarchy(sections):
+        return content, False, True
+
+    output_lines: list[str] = []
+    modified_any = False
+
+    for sec in sections:
+        header = sec[0].strip() if sec else ""
+        is_item = bool(ITEM_HEADER_RE.match(header))
+        has_bare = any(is_bare_continuation(line) for line in sec)
+
+        if not is_item:
+            if has_bare:
+                return content, False, True
+            output_lines.extend(sec)
+            continue
+
+        if not has_bare:
+            output_lines.extend(sec)
+            continue
+
+        # Item section has bare continuation lines (damaged item)
+        # 1. Bracket prohibition: any bracket inside damaged item is undecidable
+        if any(ANY_BRACKET_RE.match(line.strip()) for line in sec[1:]):
+            return content, False, True
+
+        # 2. Check metadata keys before secret= and locate secret_idx
+        secret_idx: int | None = None
+        seen_keys: set[str] = set()
+
+        for idx in range(1, len(sec)):
+            line = sec[idx]
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("secret="):
+                secret_idx = idx
+                break
+            if stripped.startswith("item-type="):
+                if not re.match(r"^item-type=\d+$", stripped) or "item-type" in seen_keys:
+                    return content, False, True
+                seen_keys.add("item-type")
+            elif stripped.startswith("display-name="):
+                if "display-name" in seen_keys:
+                    return content, False, True
+                seen_keys.add("display-name")
+            else:
+                return content, False, True
+
+        if secret_idx is None:
+            return content, False, True
+
+        # 3. Reverse tail-metadata partitioning
+        tail_idx = len(sec) - 1
+        trailing_lines: list[str] = []
+        while tail_idx > secret_idx:
+            stripped = sec[tail_idx].strip()
+            if not stripped or stripped.startswith("#"):
+                trailing_lines.append(sec[tail_idx])
+                tail_idx -= 1
+            else:
+                break
+        trailing_lines.reverse()
+
+        tail_metadata: list[str] = []
+        seen_tail_keys: set[str] = set()
+        while tail_idx > secret_idx:
+            stripped = sec[tail_idx].strip()
+            if stripped.startswith("ctime=") and POST_SECRET_KEY_RE.match(stripped):
+                if "ctime" in seen_tail_keys:
+                    break
+                seen_tail_keys.add("ctime")
+                tail_metadata.append(sec[tail_idx])
+                tail_idx -= 1
+            elif stripped.startswith("mtime=") and POST_SECRET_KEY_RE.match(stripped):
+                if "mtime" in seen_tail_keys:
+                    break
+                seen_tail_keys.add("mtime")
+                tail_metadata.append(sec[tail_idx])
+                tail_idx -= 1
+            else:
+                break
+        tail_metadata.reverse()
+
+        # 4. Secret folding and ambiguity verification
+        secret_line = sec[secret_idx]
+        secret_raw = strip_delim(secret_line, d_file)
+        _, initial_val = secret_raw.split("secret=", 1)
+        secret_acc = [initial_val]
+
+        metadata_in_body_counts: dict[str, int] = {"ctime": 0, "mtime": 0}
+
+        for k in range(secret_idx + 1, tail_idx + 1):
+            raw_line = sec[k]
+            stripped = raw_line.strip()
+            if stripped.startswith("ctime=") and POST_SECRET_KEY_RE.match(stripped):
+                metadata_in_body_counts["ctime"] += 1
+            elif stripped.startswith("mtime=") and POST_SECRET_KEY_RE.match(stripped):
+                metadata_in_body_counts["mtime"] += 1
+            secret_acc.append(strip_delim(raw_line, d_file))
+
+        if len(secret_acc) <= 1:
+            return content, False, True
+
+        if metadata_in_body_counts["ctime"] > 1 or metadata_in_body_counts["mtime"] > 1:
+            return content, False, True
+
+        if metadata_in_body_counts["ctime"] > 0 and "ctime" not in seen_tail_keys:
+            return content, False, True
+        if metadata_in_body_counts["mtime"] > 0 and "mtime" not in seen_tail_keys:
+            return content, False, True
+
+        combined = "\n".join(secret_acc)
+        escaped = escape_keyfile_string(combined)
+        new_secret_line = f"secret={escaped}{d_file}"
+
+        out = list(sec[:secret_idx])
+        out.append(new_secret_line)
+        out.extend(tail_metadata)
+        out.extend(trailing_lines)
+
+        if any(is_bare_continuation(line) for line in out):
+            return content, False, True
+
+        output_lines.extend(out)
+        modified_any = True
+
+    return "".join(output_lines), modified_any, False
+
+
+def repair_keyring_file(path: Path) -> tuple[bool, bool]:
+    """Repairs a single keyring file.
+
+    Returns (was_repaired, had_error).
+    """
+    if not path.is_file():
+        return False, False
+
+    try:
+        raw_bytes = path.read_bytes()
+        # Binary encrypted keyring check (GnomeKeyring header)
+        if raw_bytes.startswith((b"GnomeKeyring\n\r\0", b"GNUPG")):
+            return False, False
+
+        text = raw_bytes.decode("utf-8", errors="surrogateescape")
+    except OSError as err:
+        sys.stderr.write(f"omarchy-keyring-repair: failed to read {path}: {err}\n")
+        return False, True
+
+    repaired_text, modified, error = repair_keyring_content(text)
+    if error:
+        sys.stderr.write(
+            f"omarchy-keyring-repair: cannot safely recover {path}: ambiguous boundaries or continuation lines remain\n"
+        )
+        return False, True
+
+    if not modified:
+        return False, False
+
+    # Atomic write directly with mode 0600, full write loop, and fsync before replace
+    tmp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    try:
+        encoded = repaired_text.encode("utf-8", errors="surrogateescape")
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            total_written = 0
+            while total_written < len(encoded):
+                written = os.write(fd, encoded[total_written:])
+                if written == 0:
+                    raise OSError("write failed: 0 bytes written")
+                total_written += written
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp_path, path)
+        return True, False
+    except OSError as err:
+        sys.stderr.write(f"omarchy-keyring-repair: failed to commit {path}: {err}\n")
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        return False, True
+
+
+def main() -> int:
+    custom_dir = os.environ.get("OMARCHY_KEYRING_DIR")
+    if custom_dir:
+        keyring_dir = Path(custom_dir)
+    else:
+        xdg_data = os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")
+        keyring_dir = Path(xdg_data) / "keyrings"
+
+    if not keyring_dir.is_dir():
+        return 0
+
+    repaired_any = False
+    has_error = False
+    for keyring_file in keyring_dir.glob("*.keyring"):
+        repaired, err = repair_keyring_file(keyring_file)
+        if err:
+            has_error = True
+        elif repaired:
+            repaired_any = True
+
+    if repaired_any:
+        sys.stderr.write("omarchy-keyring-repair: recovered corrupt multiline secrets\n")
+
+    if has_error:
+        sys.stderr.write("omarchy-keyring-repair: one or more keyrings could not be repaired\n")
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as exc:  # pylint: disable=broad-except
+        sys.stderr.write(f"omarchy-keyring-repair: unexpected error: {exc}\n")
+        sys.exit(1)
