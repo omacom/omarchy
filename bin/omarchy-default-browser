@@ -52,4 +52,4 @@ fi
 # only see mimeapps.list, where the browser itself is kept.
 env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser "$desktop_id" || exit 1
 
-omarchy-notification-send -g $glyph "$name is now the default browser"
+omarchy-notification-send -g $glyph "$(omarchy-i18n default.browserSet "$name")"
