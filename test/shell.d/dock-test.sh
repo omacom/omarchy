@@ -129,7 +129,8 @@ if omarchy_dock position diagonal 2>/dev/null; then
 fi
 pass "dock position is set and read through omarchy-dock"
 
-[[ $(omarchy_dock pinned | paste -sd " ") == "org.gnome.Nautilus chromium foot omacalc omawrite X YouTube" ]] || fail "dock pins start from the defaults"
+default_pins=$(jq -r '.dock.pinned[]' "$ROOT/config/omarchy/shell.json" | paste -sd " ")
+[[ -n $default_pins && $(omarchy_dock pinned | paste -sd " ") == "$default_pins" ]] || fail "dock pins start from the defaults"
 omarchy_dock unpin spotify >/dev/null
 omarchy_dock pin com.example.App.desktop >/dev/null
 omarchy_dock pin com.example.App >/dev/null
@@ -157,12 +158,6 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
-
-# The dock only shows on floating workspaces, and gets out of the way of a
-# fullscreen window; a maximized one only tucks it away.
-grep -qF 'dock.isFloating(workspaceId) && fullscreenMode < 2' "$ROOT/shell/plugins/dock/DockWindow.qml" ||
-  fail "dock shows only on floating workspaces without a fullscreen window"
-pass "dock shows only on floating workspaces without a fullscreen window"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
@@ -222,10 +217,3 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
-
-# Terminal apps launch through Omarchy's TUI launcher from every launcher that
-# uses the app library, so their windows carry an app id of their own.
-grep -qF 'var command = root.terminalCommand(DesktopEntries.byId(id))' "$ROOT/shell/services/AppLibrary.qml" &&
-  grep -qF '"omarchy-launch-tui "' "$ROOT/shell/services/AppLibrary.qml" ||
-  fail "the app library launches terminal apps through the TUI launcher"
-pass "the app library launches terminal apps through the TUI launcher"

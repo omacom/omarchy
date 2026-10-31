@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Select input methods for Japanese, Korean, or Chinese typing
-# omarchy:args=[mozc|hangul|pinyin|chewing]
+# omarchy:args=[mozc|hangul|pinyin|chewing|cangjie5]
 # omarchy:examples=omarchy setup input | omarchy setup input mozc
 # omarchy:requires-sudo=true
 
 set -euo pipefail
 
 if (( $# > 1 )); then
-  echo "Usage: omarchy setup input [mozc|hangul|pinyin|chewing]" >&2
+  echo "Usage: omarchy setup input [mozc|hangul|pinyin|chewing|cangjie5]" >&2
   exit 1
 fi
 
@@ -19,7 +19,7 @@ if [[ -z $method ]]; then
 fi
 
 case "$method" in
-  mozc | hangul | pinyin | chewing) ;;
+  mozc | hangul | pinyin | chewing | cangjie5) ;;
   *) echo "Unknown input method: $method" >&2; exit 1 ;;
 esac
 
