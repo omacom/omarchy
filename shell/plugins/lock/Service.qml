@@ -32,8 +32,19 @@ Item {
   property double fingerprintLastSettleMs: 0
   property double fingerprintResumedAtMs: 0
   property int fingerprintProbeStreak: 0
-  // While the lock has the displays off no new attempt starts, so the reader
-  // isn't held awake all night; any wake starts it again.
+  // Default to pausing new attempts while blank, so the reader can rest.
+  // An explicit plugin setting keeps the existing bounded retry loop available.
+  readonly property bool fingerprintWhileBlank: {
+    var entries = shell && shell.shellConfig ? shell.shellConfig.plugins : null
+    if (!Array.isArray(entries)) return false
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i] && entries[i].id === "omarchy.lock")
+        return entries[i].fingerprintWhileBlank === true
+    }
+    return false
+  }
+  // Tracks blanking requested by this lock, not arbitrary compositor state.
+  property bool displaysBlanked: false
   property bool fingerprintPaused: false
   // The sleep watch is stopped while paused, so a sleep seen after the
   // pre-suspend lock request is marked here instead.
@@ -204,6 +215,7 @@ Item {
     fingerprintLastSettleMs = 0
     fingerprintResumedAtMs = 0
     fingerprintProbeStreak = 0
+    displaysBlanked = false
     fingerprintPaused = false
     fingerprintSleptWhilePaused = false
     fingerprintRecheckTimer.stop()
@@ -254,6 +266,7 @@ Item {
   }
 
   function runWake() {
+    displaysBlanked = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
@@ -263,9 +276,16 @@ Item {
   // An attempt already running is left to finish under its own timeouts, so
   // a slow claim still completes; only the next one waits for a wake.
   function pauseFingerprint() {
-    if (fingerprintPaused) return
+    displaysBlanked = true
+    if (fingerprintWhileBlank || fingerprintPaused) return
     fingerprintPaused = true
     fingerprintRetryTimer.stop()
+  }
+
+  onFingerprintWhileBlankChanged: {
+    if (!lockRequested || !displaysBlanked) return
+    if (fingerprintWhileBlank) resumeFingerprint()
+    else pauseFingerprint()
   }
 
   // The retry keeps whatever backoff was armed, counting the time spent blank,
@@ -667,6 +687,7 @@ Item {
       lastTickMs = now
       if (slept && root.lockRequested && root.fingerprintPaused) {
         stop()
+        root.displaysBlanked = false
         root.fingerprintSleptWhilePaused = true
         root.resumeFingerprint()
         root.armBlankTimer()
@@ -821,6 +842,7 @@ Item {
     function onScreensChanged() {
       var screens = root.realScreenCount()
       if (screens > root.knownScreenCount) {
+        root.displaysBlanked = false
         root.resumeFingerprint()
         if (root.lockRequested) root.armBlankTimer()
       }
