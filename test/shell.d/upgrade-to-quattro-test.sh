@@ -156,24 +156,28 @@ pass "Omarchy 4 upgrade recognises exactly the root= pins that hold"
 )
 pass "Omarchy 4 upgrade pins root= on machines the transaction moves to limine"
 
-# Quattro's initramfs unlocks with the classic encrypt hook, which ignores
-# sd-encrypt's rd.luks.name=, so a pin carrying it never opens the root.
+# Quattro's initramfs unlocks with the classic encrypt hook, which reads one
+# cryptdevice= and ignores rd.luks.*, so the pin must name the root volume for it.
 (
-  eval "$(sed -n '/^normalize_encrypt_hook_param() {$/,/^}$/p;/^preserve_kernel_cmdline_root() {$/,/^}$/p' "$upgrade_to_quattro")"
-  luks_uuid=11111111-2222-3333-4444-555555555555
-  proc_cmdline="rd.luks.name=$luks_uuid=root root=/dev/mapper/root rw cryptdevice=UUID=abc:home"
+  eval "$(sed -n '/^encrypt_hook_cryptdevice() {$/,/^}$/p;/^preserve_kernel_cmdline_root() {$/,/^}$/p' "$upgrade_to_quattro")"
   default_limine=$(mktemp)
   trap 'rm -f "$default_limine"' EXIT
-  as_root() { [[ $1 == "test" ]] || command cat >>"$default_limine"; }
+  as_root() { [[ $1 == "test" ]] || command cat >"$default_limine"; }
   cat() { [[ $1 == /proc/cmdline ]] && printf '%s\n' "$proc_cmdline"; }
   kernel_cmdline_root_pinned() { return 1; }
   log() { :; }
-  preserve_kernel_cmdline_root
-  pin=$(grep -F 'KERNEL_CMDLINE[default]+=' "$default_limine")
-  [[ $pin == *" cryptdevice=UUID=$luks_uuid:root "* && $pin != *rd.luks.name* ]] ||
-    fail "Omarchy 4 upgrade converts rd.luks.name to cryptdevice for the encrypt hook" "$pin"
-  [[ $pin == *" cryptdevice=UUID=abc:home"* ]] ||
-    fail "Omarchy 4 upgrade keeps an existing cryptdevice parameter" "$pin"
+  pin() {
+    proc_cmdline=$1
+    preserve_kernel_cmdline_root
+    grep -F 'KERNEL_CMDLINE[default]+=' "$default_limine"
+  }
+
+  pinned=$(pin "rd.luks.name=aaaa=root root=/dev/mapper/root rw")
+  [[ $pinned == *" cryptdevice=UUID=aaaa:root"* && $pinned == *" rd.luks.name=aaaa=root "* ]] ||
+    fail "Omarchy 4 upgrade pins rd.luks.name with its cryptdevice equivalent" "$pinned"
+  pinned=$(pin "rd.luks.name=aaaa=root rd.luks.name=bbbb=home root=/dev/mapper/root rw")
+  [[ $pinned == *" cryptdevice=UUID=aaaa:root"* && $pinned != *"cryptdevice=UUID=bbbb"* ]] ||
+    fail "Omarchy 4 upgrade gives the encrypt hook the root volume among several" "$pinned"
 )
 pass "Omarchy 4 upgrade pins encrypted-root parameters the encrypt hook reads"
 

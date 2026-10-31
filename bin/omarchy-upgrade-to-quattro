@@ -521,17 +521,26 @@ normalize_limine_config() {
   fi
 }
 
-normalize_encrypt_hook_param() {
-  local param="$1"
+# The classic encrypt hook reads one cryptdevice= and ignores rd.luks.*, while
+# sd-encrypt ignores cryptdevice=, so the pin carries both for the root volume.
+encrypt_hook_cryptdevice() {
+  local param root_name="" luks=()
 
-  # Omarchy's mkinitcpio drop-in selects the classic encrypt hook. Convert the
-  # equivalent sd-encrypt selector before carrying a pre-Quattro cmdline into
-  # the new UKIs, or the initramfs ignores it and never creates the mapper.
-  if [[ $param =~ ^rd\.luks\.name=([^=]+)=([^=]+)$ ]]; then
-    printf 'cryptdevice=UUID=%s:%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
-  else
-    printf '%s\n' "$param"
-  fi
+  for param in "$@"; do
+    case $param in
+      cryptdevice=*) return 0 ;;
+      root=/dev/mapper/*) root_name=${param#root=/dev/mapper/} ;;
+      rd.luks.name=*=*) luks+=("${param#rd.luks.name=}") ;;
+    esac
+  done
+
+  for param in "${luks[@]}"; do
+    [[ -n ${param#*=} && ${param#*=} != *:* ]] || continue
+    if [[ ${param#*=} == "$root_name" ]] || { [[ -z $root_name ]] && ((${#luks[@]} == 1)); }; then
+      printf 'cryptdevice=UUID=%s:%s\n' "${param%%=*}" "${param#*=}"
+      return 0
+    fi
+  done
 }
 
 # True when the limine config layers state root= themselves, rather than leaving
@@ -567,7 +576,7 @@ kernel_cmdline_root_pinned() {
 
 preserve_kernel_cmdline_root() {
   local default_conf=/etc/default/limine
-  local cmdline param key root_source root_stack root_uuid subvol
+  local cmdline param key root_source root_stack root_uuid subvol cryptdevice
   local boot_params=()
   local have_root=0 have_mount_mode=0 have_unlock=0
 
@@ -605,11 +614,7 @@ preserve_kernel_cmdline_root() {
         have_mount_mode=1
         boot_params+=("$param")
         ;;
-      rd.luks.name)
-        have_unlock=1
-        boot_params+=("$(normalize_encrypt_hook_param "$param")")
-        ;;
-      cryptdevice | cryptkey | rd.luks.uuid | rd.luks.options | rd.luks.key | rd.luks.crypttab | dm-mod.create)
+      cryptdevice | cryptkey | rd.luks.name | rd.luks.uuid | rd.luks.options | rd.luks.key | rd.luks.crypttab | dm-mod.create)
         have_unlock=1
         boot_params+=("$param")
         ;;
@@ -650,6 +655,11 @@ preserve_kernel_cmdline_root() {
     if [[ $(findmnt -no FSTYPE / 2>/dev/null) == "btrfs" && -n $subvol && $subvol != "/" ]]; then
       boot_params+=("rootflags=subvol=${subvol#/}")
     fi
+  fi
+
+  cryptdevice=$(encrypt_hook_cryptdevice "${boot_params[@]}")
+  if [[ -n $cryptdevice ]]; then
+    boot_params+=("$cryptdevice")
   fi
 
   log "Preserving the kernel cmdline root parameters in $default_conf"
