@@ -7,6 +7,19 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const osd = requireFromRoot('shell/plugins/osd/OsdModel.js')
 
+const locales = {
+  eng: {name: 'en_US', nativeLanguageName: 'American English'},
+  en_001: {name: 'en_001', nativeLanguageName: 'English'},
+  ara: {name: 'ar_EG', nativeLanguageName: 'العربية'},
+  ja: {name: 'ja_JP', nativeLanguageName: '日本語'}
+}
+const localeFor = code => locales[code] || {name: 'C', nativeLanguageName: ''}
+assertEqual(osd.inputLanguage({language: 'eng', name: 'English (US)'}, localeFor), 'English', 'generic English uses the standard language name')
+assertEqual(osd.inputLanguage({language: 'ara', name: 'Arabic'}, localeFor), 'العربية', 'XKB ISO 639 codes use native names')
+assertEqual(osd.inputLanguage({language: 'ja', name: 'Mozc'}, localeFor), '日本語', 'engine names do not replace language names')
+assertEqual(osd.inputLanguage({language: 'unknown', name: 'Custom input'}, localeFor), 'Custom input', 'unknown language codes retain the provided name')
+assertEqual(osd.inputLanguage(null, localeFor), '', 'missing language metadata stays empty')
+
 assertEqual(osd.iconFor('', 0), osd.iconFor('muted', 50), 'osd falls back to muted icon at zero percent')
 assertEqual(osd.iconFor('volume-high', 1), osd.iconFor('', 100), 'osd maps high volume aliases')
 assertEqual(osd.iconFor('logout', 50), '󰍃', 'osd maps logout icon')

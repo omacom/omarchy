@@ -155,6 +155,22 @@ assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupporte
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
 {
   const widget = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/KeyboardLayout.qml'), 'utf8')
+  const selection = new Function('InputMethodState', 'KeyboardLayoutModel',
+    'return ' + widget.match(/readonly property var inputState: ([^\n]+)/)[1])
+  const confirmedArabic = { key: 'ara:', current: 'keyboard-us', label: '', name: 'Arabic', layout: 'Arabic', language: 'ara' }
+  const raw = { ...japanese, current: 'keyboard-us', switch: confirmedArabic }
+  const display = state => selection({ state }, model)
+  const render = new Function('KeyboardLayoutModel', 'inputState', 'layoutFull', 'layoutLabel', 'layoutBriefs',
+    'return ' + widget.match(/readonly property string inputLabel: ([^\n]+)/)[1])
+  const label = state => render(model, display(state), 'English (US)', 'EN', { Arabic: 'ar', 'English (US)': 'en' })
+  assertEqual(label(raw), 'AR', 'resetting the compositor to US cannot replace the confirmed Arabic label')
+  assertEqual(label({ ...raw, current: 'mozc' }), 'AR', 'a queued engine stays hidden until the confirmed selection changes')
+  const confirmedJapanese = { key: 'mozc', current: 'mozc', label: 'あ', name: 'Mozc', language: 'ja' }
+  assertEqual(label({ ...raw, switch: confirmedJapanese }), 'あ', 'engine acknowledgement replaces the old label directly')
+  assertEqual(label({ ...raw, switch: { ...confirmedJapanese, label: 'ア' } }), 'ア', 'confirmed mode updates retain the live engine glyph')
+  assertEqual(model.inputTooltip(display(raw), display(raw).layout, true), 'Arabic · Super + I', 'the tooltip uses the same confirmed layout')
+  assertEqual(label({ ...raw, methods: [], current: '', switch: { ...confirmedArabic, current: '' } }), 'AR', 'without Fcitx the confirmed compositor layout still displays')
+  assertEqual(display({ current: 'mozc' }).current, 'mozc', 'readers without confirmation metadata retain their existing behavior')
   assert(!/Component\.onCompleted: \{[\s\S]*?briefsProc\.running = true/.test(widget), 'the xkb layout table is not read at startup')
   const load = new Function('state', 'briefsProc', widget.match(/function loadBriefs\(\) \{([\s\S]*?)\n  \}/)[1].replace(/\b(needsBriefs|briefsRequested)\b/g, 'state.$1'))
   const proc = { running: false }
