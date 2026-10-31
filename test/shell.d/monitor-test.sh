@@ -77,6 +77,21 @@ assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
 assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')
 assertEqual(monitor.resolutionLabel('2560x1440'), '1440p', 'monitor names smaller modes by height')
 
+// A gaming monitor advertises several rates at its resolution, and others at
+// smaller ones and below 60Hz.
+const gaming = ['2560x1440@143.98Hz', '2560x1440@120.00Hz', '2560x1440@59.95Hz', '2560x1440@60.00Hz',
+  '2560x1440@50.00Hz', '1920x1080@240.00Hz']
+assertDeepEqual(
+  monitor.refreshOptions(gaming, 2560, 1440),
+  [{ label: '60', rate: '60' }, { label: '120', rate: '120' }, { label: '144', rate: '143.98' }],
+  'monitor offers its resolution\'s rates from 60Hz up, one per whole rate, keeping the exact one'
+)
+assertDeepEqual(
+  monitor.refreshOptions(['3840x2160@60.00Hz', '3840x2160@59.94Hz', '3840x2160@30.00Hz'], 3840, 2160),
+  [],
+  'monitor offers no rates when none is faster than 60Hz'
+)
+
 assertEqual(monitor.displayTitle({ name: 'eDP-1', make: 'LG Display', model: '0x0804' }), 'Built-in Display', 'monitor names the built-in panel by what it is')
 assertEqual(monitor.displayTitle({ name: 'DP-1', make: 'Apple Computer Inc', model: 'ProDisplayXDR' }), 'ProDisplayXDR', 'monitor names an external display by its model')
 assertEqual(monitor.displayTitle({ name: 'HDMI-A-1', make: 'Dell Inc.', model: '0x40F3' }), 'Dell Inc.', 'monitor falls back to the make when the model is a code')
