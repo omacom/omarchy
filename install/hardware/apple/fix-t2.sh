@@ -3,23 +3,17 @@
 if lspci -nn | grep "106b:180[12]" >/dev/null; then
   echo "Detected MacBook with T2 chip. Installing support items..."
 
-  # The Wi-Fi firmware may only be taken from macOS, which a single-boot install
-  # wipes; the ISO saves it to the firmware stage first, and it is put in place here.
+  # apple-bcm-firmware-fetcher reads its firmware off an on-disk macOS volume —
+  # Wi-Fi firmware for T2 Macs is only legally obtainable from there. A
+  # single-boot install that wiped macOS has no such volume, so the fetch comes
+  # up empty; those machines need the firmware supplied from a macOS copy or a
+  # downloaded recovery image instead.
   omarchy-pkg-add \
     linux-t2 \
     linux-t2-headers \
     apple-t2-audio-config \
     apple-bcm-firmware-fetcher \
     t2fanrd
-
-  t2_firmware_stage=/var/lib/omarchy/firmware-stage/apple-bcm
-  if [[ -n $(ls -A "$t2_firmware_stage" 2>/dev/null) ]]; then
-    echo "Installing the Wi-Fi and Bluetooth firmware saved from macOS"
-    mkdir -p /lib/firmware/brcm /var/lib/apple-bcm-firmware-fetcher
-    cp -a "$t2_firmware_stage/." /lib/firmware/brcm/
-    # The fetcher's own record, so removing its package removes these too.
-    ls -A "$t2_firmware_stage" >/var/lib/apple-bcm-firmware-fetcher/installed-files
-  fi
 
   # Enable T2 fan control
   systemctl enable t2fanrd.service
