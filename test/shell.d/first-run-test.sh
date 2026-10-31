@@ -42,7 +42,7 @@ chmod +x "$mock_bin/systemctl" "$mock_bin/omarchy-hook-install"
 
 enable_user_units() {
   rm -f "$test_tmp/calls"
-  PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" OMARCHY_TEST_MISSING_UNIT="$1" \
+  HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" OMARCHY_TEST_MISSING_UNIT="$1" \
     bash "$ROOT/install/user/first-run/enable-user-units.sh"
 }
 
@@ -61,6 +61,16 @@ for unit in "${units[@]}"; do
 done
 (( ${#units[@]} > 1 )) || fail "first-run enables each unit on its own"
 pass "a unit missing from the build costs first-run only that unit"
+
+# Units omarchy-settings does not ship yet are copied where the user manager
+# looks before anything enables them, under the user's home and nowhere else.
+for unit in omarchy-clock-resync.service omarchy-clock-resync.timer; do
+  [[ -e /usr/lib/systemd/user/$unit ]] || cmp -s "$ROOT/default/systemd/user/$unit" "$test_tmp/home/.config/systemd/user/$unit" ||
+    fail "first-run puts the clock resync units where the user manager finds them" "$unit"
+done
+grep -Fxq -- '--user enable --now omarchy-clock-resync.timer' <<<"$clean_run" ||
+  fail "first-run enables the clock resync timer"
+pass "first-run enables the clock resync timer"
 
 # First run offers an update only when there is one. A fresh install from
 # current media is already current, and a critical toast that leads to

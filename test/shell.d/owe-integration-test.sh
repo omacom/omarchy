@@ -19,13 +19,13 @@ SH
 done
 
 : >"$TEST_CALLS"
-HOME="$work/home" PATH="$work/bin:$PATH" bash "$ROOT/install/user/first-run/enable-user-units.sh"
+HOME="$work/home" OMARCHY_PATH="$ROOT" PATH="$work/bin:$PATH" bash "$ROOT/install/user/first-run/enable-user-units.sh"
 grep -E '^systemctl --user enable --now .*owed.service' "$TEST_CALLS" >/dev/null
 grep -Fx 'omarchy-hook-install theme-set /usr/share/owe/10-owe-sync' "$TEST_CALLS" >/dev/null
 pass "fresh installs enable OWE and install the theme refresh hook"
 
 : >"$TEST_CALLS"
-HOME="$work/home" PATH="$work/bin:$PATH" TEST_INPUT_FAIL=1 bash "$ROOT/install/user/first-run/enable-user-units.sh"
+HOME="$work/home" OMARCHY_PATH="$ROOT" PATH="$work/bin:$PATH" TEST_INPUT_FAIL=1 bash "$ROOT/install/user/first-run/enable-user-units.sh"
 grep -Fx 'omarchy-input-method configure --defaults' "$TEST_CALLS" >/dev/null
 grep -E '^systemctl --user enable --now .*owed.service' "$TEST_CALLS" >/dev/null
 pass "failed input defaults do not block enabling first-run services"
