@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# omarchy:summary=Print the private directory for Omarchy runtime lock files
+# omarchy:hidden=true
+
+# Lock files must never live in a directory another local user can write to:
+# a planted symlink at the lock pathname would hand the truncating open to an
+# attacker-chosen file. XDG_RUNTIME_DIR is created per-user, mode 0700, by
+# pam_systemd, so it is already private. When it is unset we fall back to a
+# per-UID directory under /tmp that we create mode 700 and verify we own
+# before trusting anything inside it.
+
+set -euo pipefail
+
+if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  dir="$XDG_RUNTIME_DIR"
+  if [[ ! -d $dir || -L $dir ]]; then
+    echo "omarchy-lock-dir: refusing non-directory runtime location: $dir" >&2
+    exit 1
+  fi
+  owner=$(stat -c %u "$dir" 2>/dev/null || true)
+  mode=$(stat -c %a "$dir" 2>/dev/null || true)
+  if [[ $owner != "$UID" || $mode != "700" ]]; then
+    echo "omarchy-lock-dir: refusing runtime directory without private ownership/mode: $dir" >&2
+    exit 1
+  fi
+  printf '%s\n' "$dir"
+  exit 0
+fi
+
+dir="/tmp/omarchy-lock-$UID"
+
+# -m 700 closes the window between creation and chmod: a directory we create
+# is private from the start.
+mkdir -p -m 700 "$dir" 2>/dev/null || {
+  echo "omarchy-lock-dir: cannot create $dir" >&2
+  exit 1
+}
+
+# Owner-verified: a pre-existing symlink, non-directory, or another user's
+# directory is refused rather than used.
+if [[ ! -d $dir || -L $dir ]]; then
+  echo "omarchy-lock-dir: refusing non-directory lock location: $dir" >&2
+  exit 1
+fi
+
+owner=$(stat -c %u "$dir" 2>/dev/null || echo "")
+if [[ $owner != "$UID" ]]; then
+  echo "omarchy-lock-dir: refusing lock directory owned by uid ${owner:-unknown}: $dir" >&2
+  exit 1
+fi
+
+# Harden any directory inherited from a prior run; failed chmod must not
+# return an attacker-writable location as a trustworthy lock directory.
+if ! chmod 700 "$dir" 2>/dev/null; then
+  echo "omarchy-lock-dir: cannot protect fallback lock directory: $dir" >&2
+  exit 1
+fi
+mode=$(stat -c %a "$dir" 2>/dev/null || true)
+if [[ $mode != "700" ]]; then
+  echo "omarchy-lock-dir: refusing fallback directory without mode 700: $dir" >&2
+  exit 1
+fi
+
+printf '%s\n' "$dir"

@@ -6,7 +6,10 @@
 
 set -e
 
-lock_dir="${XDG_RUNTIME_DIR:-/tmp}"
+# The lock lives in a private, owner-verified runtime directory: no other
+# local user can plant a pathname there, so there is no attacker-writable
+# transition between validation and the truncating open below.
+lock_dir=$(omarchy-lock-dir) || exit 1
 lock_path="$lock_dir/omarchy-update.lock"
 
 lock_is_held() {
@@ -30,7 +33,16 @@ case "${1:-}" in
       exit 2
     fi
 
-    mkdir -p "$lock_dir" 2>/dev/null || true
+    # Sanity check: this script is the only writer of the lock path, so
+    # anything but a regular file here is foreign. Refusing -- not replacing
+    # -- keeps the flock mutual exclusion intact: two updaters can never hold
+    # the lock on different inodes. (A FIFO would hang the open.) The
+    # directory itself is already private (see omarchy-lock-dir), so unlike a
+    # bare check-then-open under /tmp, nothing can race this inspection.
+    if [[ -L $lock_path || ( -e $lock_path && ! -f $lock_path ) ]]; then
+      echo "Refusing to use non-regular update lock: $lock_path" >&2
+      exit 1
+    fi
     exec {OMARCHY_UPDATE_LOCK_FD}>"$lock_path"
     if ! flock -n "$OMARCHY_UPDATE_LOCK_FD"; then
       echo "An Omarchy update is already running."
