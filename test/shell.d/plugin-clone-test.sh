@@ -31,7 +31,14 @@ fi
 exit 0
 SH
 
-for command in omarchy-plugin-enable omarchy-notification-send fake-editor; do
+cat >"$TMPDIR/bin/omarchy-plugin-enable" <<'SH'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$FAKE_CALLS"
+# A client-side IPC timeout: the shell applies the change, the caller fails.
+(( ${FAKE_ENABLE_TIMEOUT:-0} == 0 ))
+SH
+
+for command in omarchy-notification-send fake-editor; do
   cat >"$TMPDIR/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$FAKE_CALLS"
@@ -191,3 +198,10 @@ fi
 [[ ! -e $TMPDIR/home/.config/omarchy/plugins/tester.osd ]] ||
   fail "failed clone discovery leaves a partial clone behind"
 pass "clone removes a partial clone when switching fails"
+
+if FAKE_ENABLE_TIMEOUT=1 clone_plugin omarchy.osd >/dev/null 2>&1; then
+  fail "clone hides a failed enable"
+fi
+[[ -f $TMPDIR/home/.config/omarchy/plugins/tester.osd/manifest.json ]] ||
+  fail "a timed-out enable deletes the clone the shell may already use"
+pass "clone keeps a copied plugin when enabling it times out"
