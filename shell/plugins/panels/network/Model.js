@@ -16,7 +16,10 @@ function parseNetworkStatus(raw) {
 
 function wifiIconFor(strength) {
   var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
-  var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
+  // NetworkManager's scan strength is noisy: an excellent link can report
+  // 95 one scan and 74-76 the next. Shift the boundaries down so that noise
+  //  cannot drop a healthy connection from full to 3/4 bars.
+  var index = Math.max(0, Math.min(4, Math.ceil((strength + 20) / 20) - 1))
   return icons[index]
 }
 
