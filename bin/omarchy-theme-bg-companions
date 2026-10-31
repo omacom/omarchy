@@ -63,13 +63,16 @@ theme_bg_still_for() {
   printf '%s\n' "$background"
 }
 
+theme_bg_loops_on() {
+  [[ -f $HOME/.local/state/omarchy/toggles/background-loops-on ]]
+}
+
 # What the background link should name for a still: its theme loop while live
 # backgrounds are on, otherwise the still.
 theme_bg_live_target() {
   local still="$1" loop
 
-  if [[ -f $HOME/.local/state/omarchy/toggles/background-loops-on ]] &&
-    loop=$(theme_bg_companion loops "$still") && ! theme_bg_animations_off; then
+  if theme_bg_loops_on && loop=$(theme_bg_companion loops "$still") && ! theme_bg_animations_off; then
     printf '%s\n' "$loop"
   else
     printf '%s\n' "$still"

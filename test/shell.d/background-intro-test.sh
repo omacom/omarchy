@@ -335,6 +335,7 @@ mkdir -p "$command_bin"
 cat >"$command_bin/omarchy-shell" <<'SH'
 #!/bin/bash
 if [[ $* == "shell selectedBackground" ]]; then
+  : >"$COMMAND_LOG.asked"
   printf '%s' "${SELECTED:-}"
   exit 0
 fi
@@ -354,6 +355,7 @@ apply() {
 
 apply env
 [[ $(readlink "$link") == "$background" && -z $(<"$command_log") ]] || fail "a still stays until live backgrounds are turned on" "$(readlink "$link")"
+[[ ! -e $command_log.asked ]] || fail "with live backgrounds off the shell is not asked"
 pass "a still stays until live backgrounds are turned on"
 
 mkdir -p "$loop_home/.local/state/omarchy/toggles"

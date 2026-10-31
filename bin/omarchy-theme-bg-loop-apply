@@ -41,6 +41,11 @@ if [[ ${1:-} == "--still-only" ]]; then
   exit 0
 fi
 
+# With live backgrounds off and no loop left to stop, there is nothing to do.
+if ! theme_bg_loops_on && [[ $current != */backgrounds/loops/* ]]; then
+  exit 0
+fi
+
 # The shell moves the link itself, and may hold a selection it has not linked
 # yet, so it is asked first. It makes the swap only while that selection is
 # still what it shows and no other change is under way; whatever ends that
