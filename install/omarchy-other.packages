@@ -62,6 +62,9 @@ iptsd
 surface-pro-11-sensors
 surface-pro-11-support
 
+# Surface Laptop 8 (Snapdragon) support packages
+surface-laptop-8-support
+
 # Dell laptop support packages
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
