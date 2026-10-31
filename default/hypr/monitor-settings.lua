@@ -15,7 +15,7 @@
 
 local paths = require("default.hypr.paths")
 
-local STATE_FILE = paths.state_home .. "/omarchy/monitor-settings"
+local STATE_FILE = paths.state_home .. "/omarchy/monitors/settings"
 
 local M = {}
 

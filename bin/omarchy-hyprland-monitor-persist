@@ -6,7 +6,7 @@
 
 # Saves the settings by the physical monitor rather than its connector, since a
 # dock renames connectors between plugs: one line per monitor in
-# $XDG_STATE_HOME/omarchy/monitor-settings, which default/hypr/monitor-settings.lua
+# $XDG_STATE_HOME/omarchy/monitors/settings, which default/hypr/monitor-settings.lua
 # applies whenever the config loads or the monitor arrives. An empty MODE or
 # POSITION keeps the saved one. hypr/monitors.lua is the user's and is never
 # written here.
@@ -31,7 +31,7 @@ if [[ ! $output =~ ^[A-Za-z0-9._-]+$ || ! $scale =~ ^[0-9]+([.][0-9]+)?$ ]] ||
 fi
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-settings="$state_dir/monitor-settings"
+settings="$state_dir/monitors/settings"
 
 # The monitor's identity as monitor-workspaces names it, which also tells two
 # of the same model apart; its description when that file hasn't seen the
@@ -43,7 +43,7 @@ fi
 identity="${identity:-$output}"
 identity="${identity//[$'\t\n']/ }"
 
-mkdir -p "$state_dir"
+mkdir -p "${settings%/*}"
 touch "$settings"
 tmp=$(mktemp "$settings.XXXXXX")
 awk -F'\t' -v OFS='\t' -v identity="$identity" -v mode="$mode" -v position="$position" -v scale="$scale" '

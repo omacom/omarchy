@@ -13,8 +13,8 @@ require_command lua
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-mkdir -p "$tmpdir/state/omarchy"
-settings="$tmpdir/state/omarchy/monitor-settings"
+mkdir -p "$tmpdir/state/omarchy/monitors"
+settings="$tmpdir/state/omarchy/monitors/settings"
 
 cat >"$tmpdir/fake.lua" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
