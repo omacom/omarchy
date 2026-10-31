@@ -54,6 +54,8 @@ The arrow keys work across monitors that share an edge in your layout. Screens t
 | `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | Moves focus to the next or previous monitor, whatever the layout |
 | `Super + 1-0`, `Super + Tab`, `Super + Scroll Wheel` | Stay on the monitor you're on |
 
+The rule that ships in that file has an empty `output`. Hyprland uses it for every monitor that does not have its own entry, and `mode = "preferred"` is what keeps each screen at its native resolution. Setting a fixed mode there — a common way to pin the laptop panel — forces that same mode onto every external display. Add a separate `hl.monitor` entry for the output you want to pin. Its name is in `hyprctl monitors all`. Leave the empty-output rule at `preferred`.
+
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.
 
 ### Controlling brightness
