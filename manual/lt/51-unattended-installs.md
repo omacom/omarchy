@@ -1,36 +1,36 @@
-# Neprižiūrimi įdiegimai
+# Diegimas be priežiūros
 
-Omarchy ISO gali pats save įdiegti niekam nebūnant prie klaviatūros. Jei įdiegyklė randa antrą diską, pažymėtą `cidata`, nešantį jos konfigūracijos failus, ji nukopijuoja juos, visiškai praleidžia sąrankos vediklį ir pati perkraunasi į baigtą sistemą. Jokio specialaus ISO build, jokio papildomo įkrovos meniu įrašo — kai tokio disko neprijungta, niekas nesikeičia ir gauni įprastą vediklį.
+Omarchy ISO gali įsidiegti pats, niekam nesėdint prie klaviatūros. Jei diegimo programa randa antrą diską su žyma `cidata`, kuriame yra jos konfigūracijos failai, ji juos nukopijuoja, visiškai praleidžia sąrankos vedlį ir pati persikrauna į baigtą sistemą. Jokio specialaus ISO atvaizdo, jokio papildomo įrašo paleidimo meniu — neprijungus tokio disko, niekas nesikeičia ir gaunate įprastą vedlį.
 
-Dėl to Omarchy puiki kaip bazinis atvaizdas vienkartinėms kūrimo aplinkoms: sukuri VM Proxmox ar su Packer, įkrauni ją, nueini, prisijungi per SSH. `cidata` yra cloud-init `NoCloud` etiketė, todėl visi įprasti virtualizacijos įrankiai jau žino, kaip tokį diską prijungti.
+Dėl to Omarchy puikiai tinka kaip bazinis atvaizdas vienkartinėms kūrimo aplinkoms: sukuriate VM Proxmox arba su Packer, paleidžiate ją, nueinate šalin, prisijungiate per SSH. `cidata` yra cloud-init `NoCloud` žyma, todėl visi įprasti virtualizacijos įrankiai jau moka tokį diską prijungti.
 
 ## Konfigūracijos failai
 
-Failai yra tiksliai tai, ką įrašo pati įdiegyklės vediklis, todėl lengviausias būdas gauti pradinį rinkinį yra atlikti vieną interaktyvų įdiegimą (tarkime, VM) ir nukopijuoti tai, ką jis įrašė į `/root`:
+Failai yra lygiai tie patys, kuriuos įrašo pačios diegimo programos vedlys, todėl lengviausia pradinį rinkinį gauti atlikus vieną interaktyvų diegimą (pavyzdžiui, VM) ir nukopijavus tai, ką ji įrašė į `/root`:
 
-| Failas | Privaloma | Paskirtis |
+| Failas | Privalomas | Paskirtis |
 |------|----------|---------|
-| `user_configuration.json` | Taip | Diskas, šeimininko pavadinimas, laiko juosta, klaviatūra |
-| `user_credentials.json` | Taip | Vartotojo vardas ir slaptažodžio hash |
-| `user_full_name.txt` | Ne | Git pilnas vardas |
-| `user_email_address.txt` | Ne | Git el. paštas |
-| `user_encrypt_installation.txt` | Ne | `true`, kai konfigūracija turi `disk_encryption` bloką |
+| `user_configuration.json` | Taip | Diskas, kompiuterio pavadinimas, laiko juosta, klaviatūra |
+| `user_credentials.json` | Taip | Naudotojo vardas ir slaptažodžio maiša |
+| `user_encrypt_installation.txt` | Ne | `true`, kai konfigūracijoje yra `disk_encryption` blokas |
 | `authorized_keys` | Ne | SSH viešieji raktai, po vieną eilutėje |
-| `tailscale_authkey` | Ne | Tailscale auth raktas prisijungimui prie tavo tailnet pirmosios įkrovos metu |
+| `tailscale_authkey` | Ne | Tailscale autentifikavimo raktas, skirtas prisijungti prie jūsų tailnet pirmojo paleidimo metu |
 
-Slaptažodžio hash failui `user_credentials.json` sugeneruok su `openssl passwd -6 "yourpassword"`.
+Slaptažodžio maišą failui `user_credentials.json` sugeneruokite komanda `openssl passwd -6 "yourpassword"`.
 
-Taip pat vietoj `user_credentials.json` gali įmesti tuščią failą pavadinimu `defer-provisioning`. Tai paleidžia tą patį [paruošimo kitam savininkui įdiegimą](02-getting-started.md), kurį gali iškviesti interaktyviai: kompiuteris įsidiegia be asmeninių duomenų, o kas jį įkraus pirmas, išsirenka klaviatūrą ir susikuria vartotoją. Tai režimas atvaizdų kūrimo stendams, kur diskas neturėtų nešti niekieno kredencialų.
+Vardas ir el. paštas git įrašams nėra diegimo dalis. Nustatykite juos, kai kompiuteris jau veiks, pavyzdžiui, per SSH, komanda `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-## SSH prieiga
+Taip pat galite vietoj `user_credentials.json` įdėti tuščią failą pavadinimu `defer-provisioning`. Tai paleidžia tą patį [diegimą paruošiant kitam savininkui](02-getting-started.md), kurį galite paleisti interaktyviai: kompiuteris įdiegiamas be jokių asmeninių duomenų, o tas, kas jį paleidžia pirmas, pasirenka savo klaviatūrą ir susikuria savo naudotoją. Tai režimas atvaizdų kūrimo stendams, kur diske neturėtų būti apskritai niekieno kredencialų.
 
-Kai yra `authorized_keys`, įdiegimas nustato raktus kaip vartotojo `~/.ssh/authorized_keys`, įjungia `sshd` ir atidaro ugniasienę jam. (Standartinis Omarchy įdiegimas pateikia openssh su išjungta paslauga ir uždarytu prievadu, todėl neprižiūrimas kompiuteris kitaip būtų nepasiekiamas.) Įdiegimas tik prideda tavo raktus — jis neatpalaiduoja jokių kitų SSH demono tapatybės patvirtinimo nuostatų.
+## Prieiga per SSH
 
-Kai yra `tailscale_authkey`, kompiuteris vietoj to pirmosios įkrovos metu prisijungia prie tavo tailnet: Tailscale įdiegiama iš ISO pateiktų paketų, ugniasienė leidžia tailnet sąsają, o foninis darbas paleidžia prisijungimą, kai tik kompiuteris iš tikrųjų turi tinklą, kartodamas, kol pavyksta. Naudok daugkartinį, iš anksto autorizuotą raktą, kad vienas disko atvaizdas galėtų tarnauti daugeliui kompiuterių.
+Kai yra `authorized_keys`, diegimas nustato raktus kaip naudotojo `~/.ssh/authorized_keys`, įjungia `sshd` ir atveria jai ugniasienę. (Standartinis Omarchy diegimas pateikiamas su openssh, kurio tarnyba išjungta, o prievadas uždarytas, todėl be priežiūros diegiamas kompiuteris kitaip būtų nepasiekiamas.) Diegimas tik prideda jūsų raktus — jis nesušvelnina jokių kitų SSH demono autentifikavimo nustatymų.
+
+Kai yra `tailscale_authkey`, kompiuteris pirmojo paleidimo metu vietoj to prisijungia prie jūsų tailnet: Tailscale įdiegiamas iš ISO pateikiamų paketų, ugniasienė leidžia tailnet sąsają, o foninė užduotis atlieka prisijungimą, kai tik kompiuteris faktiškai gauna tinklą, ir kartoja, kol pavyksta. Naudokite daugkartinį, iš anksto autorizuotą raktą, kad vienas disko atvaizdas galėtų aptarnauti daug kompiuterių.
 
 ## cidata disko kūrimas
 
-Tinka bet kuri failų sistema su tinkama etikete. Mažas ISO yra lengvas būdas:
+Tinka bet kuri failų sistema su tinkama žyma. Mažas ISO yra lengviausias būdas:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Tada prijunk jį prie VM šalia Omarchy ISO. Štai pilnas Proxmox pavyzdys:
+Tada prijunkite jį prie VM kartu su Omarchy ISO. Štai išsamus Proxmox pavyzdys:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Įkrovos tvarka diską tyčia išvardija pirmą: tuščias diskas pirmosios įkrovos metu krenta į ISO, o įdiegta sistema nuo tada kraunasi iš disko.
+Paleidimo tvarkoje diskas sąmoningai nurodytas pirmas: tuščias diskas pirmojo paleidimo metu praleidžiamas ir paleidžiama iš ISO, o įdiegta sistema nuo tol visada paleidžiama iš disko.
 
 ## Dvi išlygos
 
-Užšifruoti neprižiūrimi įdiegimai nėra pilnai neprižiūrimi — kažkas pirmosios įkrovos metu vis tiek turi įvesti LUKS slaptafrazę. O `disk_encryption` blokas faile `user_configuration.json` tą slaptafrazę neša atviru tekstu, todėl cidata diską, sukurtą iš užšifruoto įdiegimo, laikyk tokia paslaptimi, kokia jis yra.
+Šifruoti diegimai be priežiūros nėra visiškai be priežiūros — pirmojo paleidimo metu kažkas vis tiek turi įvesti LUKS slaptafrazę. O `disk_encryption` blokas faile `user_configuration.json` saugo tą slaptafrazę atviru tekstu, todėl cidata diską, sukurtą iš šifruoto diegimo, saugokite kaip paslaptį, kokia jis ir yra.
