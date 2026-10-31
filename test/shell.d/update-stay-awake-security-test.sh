@@ -518,7 +518,7 @@ else
 fi
 
 namespace_capable=0
-if (( ${#namespace_args[@]} > 0 )) &&
+if (( ${#namespace_args[@]} > 0 )) && user_namespace_available &&
   "${namespace_args[@]}" /usr/bin/bash -c '
     set -e
     mount -t tmpfs -o mode=1777 tmpfs /tmp
