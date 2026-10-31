@@ -102,6 +102,12 @@ apply() {
 }
 
 apply env
+[[ $(readlink "$link") == "$background" && -z $(<"$command_log") ]] || fail "a still stays until live backgrounds are turned on" "$(readlink "$link")"
+pass "a still stays until live backgrounds are turned on"
+
+mkdir -p "$loop_home/.local/state/omarchy/toggles"
+touch "$loop_home/.local/state/omarchy/toggles/background-loops-on"
+apply env
 [[ $(readlink "$link") == "$loop" ]] || fail "the still's loop takes over the background" "$(readlink "$link")"
 [[ $(<"$command_log") == "shell: -q background set $loop" ]] || fail "the shell learns of the loop" "$(<"$command_log")"
 pass "the still's loop takes over the background"
@@ -114,13 +120,12 @@ apply env ANIMATIONS=off
 [[ $(readlink "$link") == "$background" ]] || fail "disabled animations return to the still" "$(readlink "$link")"
 pass "disabled animations return to the still"
 
-mkdir -p "$loop_home/.local/state/omarchy/toggles"
-touch "$loop_home/.local/state/omarchy/toggles/background-loops-off"
+rm "$loop_home/.local/state/omarchy/toggles/background-loops-on"
 ln -nsf "$loop" "$link"
 apply env
 [[ $(readlink "$link") == "$background" ]] || fail "the loop toggle returns to the still" "$(readlink "$link")"
 pass "the loop toggle returns to the still"
-rm "$loop_home/.local/state/omarchy/toggles/background-loops-off"
+touch "$loop_home/.local/state/omarchy/toggles/background-loops-on"
 
 ln -nsf "$other" "$link"
 apply env

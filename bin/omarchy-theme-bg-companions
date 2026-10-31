@@ -68,7 +68,7 @@ theme_bg_still_for() {
 theme_bg_live_target() {
   local still="$1" loop
 
-  if [[ ! -f $HOME/.local/state/omarchy/toggles/background-loops-off ]] &&
+  if [[ -f $HOME/.local/state/omarchy/toggles/background-loops-on ]] &&
     loop=$(theme_bg_companion loops "$still") && ! theme_bg_animations_off; then
     printf '%s\n' "$loop"
   else
