@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 import "MediaModel.js" as MediaModel
+import qs.Commons
 
 Item {
   id: root
@@ -342,7 +343,7 @@ Item {
     }
 
     if (showFeedback !== false) Qt.callLater(function() {
-      root.showOsd("Source", "media-source", next)
+      root.showOsd(I18n.t("media.source"), "media-source", next)
     })
 
     return true
@@ -370,27 +371,27 @@ Item {
   function runAction(action, showFeedback, targetKey) {
     var player = playerForAction(action, targetKey)
     var key = playerKey(player)
-    var actionLabel = "Play/pause"
+    var actionLabel = I18n.t("media.playPause")
     var iconName = "media"
     var beforeTrackSignature = trackSignature(player)
     var handled = false
 
     if (action === "next") {
-      actionLabel = "Next"
+      actionLabel = I18n.t("media.next")
       iconName = "media-next"
       if (player && player.canGoNext) {
         player.next()
         handled = true
       }
     } else if (action === "previous") {
-      actionLabel = "Previous"
+      actionLabel = I18n.t("media.previous")
       iconName = "media-previous"
       if (player && player.canGoPrevious) {
         player.previous()
         handled = true
       }
     } else if (action === "play") {
-      actionLabel = "Play"
+      actionLabel = I18n.t("media.play")
       iconName = "media-play"
       if (player && player.canPlay) {
         player.play()
@@ -400,7 +401,7 @@ Item {
         handled = true
       }
     } else if (action === "pause") {
-      actionLabel = "Pause"
+      actionLabel = I18n.t("media.pause")
       iconName = "media-pause"
       if (player && player.canPause) {
         player.pause()
@@ -410,7 +411,7 @@ Item {
         handled = true
       }
     } else if (action === "playPause") {
-      actionLabel = player && player.isPlaying ? "Pause" : "Play"
+      actionLabel = player && player.isPlaying ? I18n.t("media.pause") : I18n.t("media.play")
       iconName = player && player.isPlaying ? "media-pause" : "media-play"
       if (player && player.isPlaying && player.canPause) {
         player.pause()
@@ -455,6 +456,55 @@ Item {
 
   PwObjectTracker { objects: root.playbackStreams }
 
+  // ------------------------------------------------------------- volume keys
+  //
+  // The volume keys arrive as global shortcuts and change the volume here,
+  // with no process per press, stepping, clamping, unmuting and debouncing the
+  // way omarchy-audio-output-volume does, so either path lands on the same
+  // volume and OSD. That script resolves a DSP sink through to the physical
+  // sink it feeds on every press, from the live routing. An ALSA sink is its
+  // own physical sink, so only then do the keys act here; any other default
+  // sink falls back to the script.
+  readonly property var defaultSink: Pipewire.defaultAudioSink
+  readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null
+  property double lastMuteToggle: 0
+
+  // Returns false when the default sink is not one to control here, so the
+  // caller falls back to the script.
+  function handleVolumeKey(action) {
+    var audio = volumeSink && volumeSink.audio
+    if (!audio) return false
+
+    var step = MediaModel.volumeKeyStep(action, Math.round(audio.volume * 100), audio.muted)
+    if (!step) return false
+
+    if (action === "mute-toggle") {
+      // Some keyboards bounce the mute key; the script ignores a second
+      // toggle within 250ms too.
+      var now = Date.now()
+      if (now - lastMuteToggle < 250) return true
+      lastMuteToggle = now
+      audio.muted = step.muted
+    } else {
+      audio.muted = false
+      audio.volume = step.percent / 100
+    }
+
+    // The payload omarchy-osd builds, from the values just set: the node may
+    // not report them back before the OSD draws.
+    shell.summon("omarchy.osd", JSON.stringify({
+      icon: MediaModel.volumeOsdIcon(step.percent, step.muted),
+      message: "",
+      value: String(step.percent),
+      progressText: I18n.formatNumber(step.percent) + "%",
+      max: "100",
+      duration: ""
+    }))
+    return true
+  }
+
+  PwObjectTracker { objects: root.defaultSink ? [root.defaultSink] : [] }
+
   function statusJson() {
     var p = activePlayer
     return JSON.stringify({
@@ -473,7 +523,16 @@ Item {
     })
   }
 
-  IpcHandler {
+  // Keybindings reach these handlers as Hyprland global shortcuts, run here
+  // exactly as the IPC call would run them, with no client to spawn.
+  function runShortcut(method) {
+    if (typeof ipcHandler[method] !== "function") return false
+    ipcHandler[method]()
+    return true
+  }
+
+  ShellIpc {
+    id: ipcHandler
     target: "media"
 
     function status(): string {

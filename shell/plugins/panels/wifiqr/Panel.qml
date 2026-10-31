@@ -183,7 +183,7 @@ Item {
       if (exitCode !== 0 || root.qrSize === 0) {
         root.qrSize = 0
         root.qrRows = []
-        if (root.error === "") root.error = "Could not generate the Wi-Fi QR code"
+        if (root.error === "") root.error = I18n.t("wifiqr.generateFailed")
       }
     }
   }
@@ -206,18 +206,13 @@ Item {
       if (root.pwExpectedStop) return
       if (!root.opened) return
       if (exitCode === 0 && root.password !== "") root.passwordVisible = true
-      else root.passwordError = "Could not read the Wi-Fi password"
+      else root.passwordError = I18n.t("wifiqr.passwordFailed")
     }
   }
 
-  PanelWindow {
-    visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
+  OverlayWindow {
+    shown: root.opened
     WlrLayershell.namespace: "omarchy-network-qr"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
     // Deep scrim: the floating code needs the backdrop to carry the contrast
     // on any wallpaper.
@@ -257,6 +252,7 @@ Item {
           spacing: Style.space(16)
 
           Text {
+            textFormat: Text.PlainText
             text: (root.ssid || "Wi-Fi").toUpperCase()
             color: root.onScrimDim
             font.family: root.fontFamily
@@ -290,6 +286,9 @@ Item {
             Grid {
               anchors.fill: parent
               columns: root.qrSize
+              // A mirrored QR code does not scan: modules stay left to right
+              // in right-to-left languages too.
+              LayoutMirroring.enabled: false
 
               Repeater {
                 model: root.qrSize * root.qrSize
@@ -309,7 +308,8 @@ Item {
 
           Text {
             visible: root.loading
-            text: "Generating QR code…"
+            text: I18n.t("wifiqr.generating")
+            textFormat: Text.PlainText
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -318,6 +318,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             visible: root.error !== ""
             text: root.error
             color: root.onScrimUrgent
@@ -331,7 +332,8 @@ Item {
 
           Text {
             visible: root.showingQr
-            text: "Scan to join this network"
+            text: I18n.t("wifiqr.scanToJoin")
+            textFormat: Text.PlainText
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -340,10 +342,11 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             visible: root.showingQr && root.secured
             text: root.passwordError !== "" ? root.passwordError
               : root.passwordVisible ? root.password
-              : "Show password"
+              : I18n.t("wifiqr.showPassword")
             color: root.passwordError !== "" ? root.onScrimUrgent : root.onScrim
             opacity: root.passwordVisible || root.passwordError !== "" ? 1 : 0.6
             font.family: root.fontFamily
