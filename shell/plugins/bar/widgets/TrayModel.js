@@ -2,6 +2,13 @@ function text(value) {
   return String(value || "").toLowerCase()
 }
 
+function iconNeedsTint(icon) {
+  var name = String(icon || "").split("?")[0]
+  // Cloudflare's connected icon is solid white, but lacks the symbolic suffix.
+  // Its other status icons use meaningful colors and must stay untouched.
+  return name.slice(-9) === "-symbolic" || /(^|\/)zero-trust-connected$/.test(name)
+}
+
 function itemNamed(item, name) {
   if (!item) return false
   return text(item.id).indexOf(name) !== -1
@@ -66,6 +73,7 @@ function shownSpan(clipStart, clipLength, start, length) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    iconNeedsTint: iconNeedsTint,
     shownSpan: shownSpan,
     itemNamed: itemNamed,
     entryId: entryId,
