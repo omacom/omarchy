@@ -346,6 +346,9 @@ and/or a working user systemd instance:
   `install/user/first-run/gtk-primary-paste.sh` — GNOME/GTK settings that
   need the dconf daemon.
 - `install/user/first-run/audio-tuning.sh` — apply speaker tuning.
+- `install/user/first-run/gdk-scale.sh` — lower `omarchy_gdk_scale` in an
+  untouched `monitors.lua` when every display runs at 1x. Needs the live
+  monitors, and skips when any output is disabled (clamshell mode).
 - `install/user/first-run/welcome.sh` — keybindings toast that greets the
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
