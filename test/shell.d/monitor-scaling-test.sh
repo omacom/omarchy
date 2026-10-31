@@ -83,14 +83,14 @@ has_rule 3 || fail "monitor scaling explicit 3x persists"
 grep -Fx 'local omarchy_gdk_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 3x persists GDK scale"
 pass "monitor scaling explicit 3x remains available"
 
-# GTK only honors integer GDK_SCALE, so fractional monitor scales persist a
-# rounded GDK scale.
+# GTK only honors integer GDK_SCALE. Fractional monitor scales (< 2.0) persist
+# GDK_SCALE=1 to avoid IME cursor drift and oversized coordinates.
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
 grep -F 'scale = 1.6' "$eval_out" >/dev/null || fail "monitor scaling explicit 1.6x remains available"
 has_rule 1.6 || fail "monitor scaling explicit 1.6x persists"
-grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling 1.6x persists integer GDK scale 2"
-pass "monitor scaling 1.6x persists integer GDK scale 2"
+grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monitor scaling 1.6x persists integer GDK scale 1"
+pass "monitor scaling 1.6x persists integer GDK scale 1"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.25

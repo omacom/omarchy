@@ -92,10 +92,12 @@ set_scale() {
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GDK_SCALE is one value for the whole session, so it follows the lowest
   # monitor scale: XWayland apps end up a little small on denser screens rather
-  # than oversized on the others. GTK only honors integers, so round it.
+  # than oversized on the others. GTK only honors integers, and setting GDK_SCALE=2
+  # on fractional scales (< 2.0) causes severe IME candidate box drift and oversized
+  # coordinates, so fractional scales persist GDK_SCALE=1.
   local new_gdk_scale="$(echo "$monitors_json" | jq -r --arg name "$active_monitor" --argjson scale "$new_scale" '
     [.[] | select(.disabled != true) | if .name == $name then $scale else .scale end]
-    | min | . + 0.5 | floor | if . < 1 then 1 else . end')"
+    | min | if . < 2 then 1 else (. + 0.5 | floor) end')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
