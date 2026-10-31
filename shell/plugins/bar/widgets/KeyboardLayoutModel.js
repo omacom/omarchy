@@ -43,14 +43,25 @@ function layoutBriefs(text) {
 // Nearly every brief is a bare two-letter code, but a few tack a script onto it
 // (Burmese (Zawgyi) is my-zwg) and the custom layout's is a word, so drop the
 // script and cap the result at the same three characters the fallback gets.
+// When a two-letter brief covers multiple scripts (like Serbian Cyrillic and
+// Latin), an explicit Latin or Cyrillic name uses the third character.
 // The widget sits between fixed neighbours on the bar and has no room to grow.
+var SCRIPT_IN_DESCRIPTION = /(^|[^\w-])(Latin|Cyrillic)(?=[,)])/i
+
 function shortLabel(description, briefs) {
   if (!description) return ""
 
   // A description like "constructor" reaches an inherited member rather than a
   // brief, so take the lookup only when it hands back the string it promises.
   var brief = (briefs || {})[description]
-  var label = typeof brief === "string" && brief ? brief.split("-")[0] : description.split(/\s+/)[0]
+  var hasBrief = typeof brief === "string" && brief
+  var label = hasBrief ? brief.split("-")[0] : String(description).split(/\s+/)[0]
+
+  if (hasBrief && label.length === 2 && typeof description === "string") {
+    var script = description.match(SCRIPT_IN_DESCRIPTION)
+    if (script) label += script[2][0]
+  }
+
   return label.substring(0, 3).toUpperCase()
 }
 
