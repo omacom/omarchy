@@ -206,6 +206,7 @@
   "diskSpeedtest.write": "WRITE",
   "dock.autoHide": "Auto-hide",
   "dock.keepInDock": "Keep in Dock",
+  "dock.minimized": "Minimized",
   "dock.newWindow": "New Window",
   "dock.noAppsMatch": "No apps match “%1”",
   "dock.open": "Open",
