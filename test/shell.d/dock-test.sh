@@ -217,3 +217,6 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+
+# Exercise the real QML and activespecial events in a private compositor.
+source "$SHELL_TEST_DIR/fixtures/dock-special-workspace/run.sh"

@@ -24,6 +24,8 @@ PanelWindow {
   readonly property var monitor: Hyprland.monitorFor(screen)
   readonly property var workspace: monitor ? monitor.activeWorkspace : null
   readonly property int workspaceId: workspace ? workspace.id : -1
+  // A special workspace, such as the scratchpad, covers the floating one.
+  readonly property bool specialWorkspaceShown: !!monitor && !!monitor.lastIpcObject.specialWorkspace?.name
   // The most fullscreen window on the workspace, as Hyprland counts it: 1 is
   // maximized, and 2 or 3 fullscreen.
   readonly property int fullscreenMode: {
@@ -37,7 +39,7 @@ PanelWindow {
     }
     return mode
   }
-  readonly property bool shown: !!dock && dock.isFloating(workspaceId) && fullscreenMode < 2
+  readonly property bool shown: !!dock && !specialWorkspaceShown && dock.isFloating(workspaceId) && fullscreenMode < 2
   // With auto-hide on, the dock waits off screen until the pointer reaches its
   // edge, and stays while the pointer, a menu, or a drag still needs it. A
   // maximized window hides the dock the same way, so it can still be called up.
