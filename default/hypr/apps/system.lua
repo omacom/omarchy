@@ -4,11 +4,17 @@ o.window({ tag = "floating-window" }, { center = true })
 o.window({ tag = "floating-window" }, { size = { 875, 600 } })
 
 o.window(
-  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Evince|Omarchy|About|TUI.float|imv|mpv)",
+  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Evince|Omarchy|About|TUI.float|mpv)",
   {
     tag = "+floating-window",
   }
 )
+
+-- Images are mostly screenshots and photos at full screen resolution, which the
+-- shared 875x600 float shrinks to a thumbnail. Give the viewer most of the monitor.
+o.window("^imv$", { float = true })
+o.window("^imv$", { center = true })
+o.window("^imv$", { size = { "(monitor_w*0.8)", "(monitor_h*0.8)" } })
 
 -- The portal only ever shows dialogs — file pickers, screen shares, permission
 -- prompts — so every one of its windows belongs in the floating treatment,
