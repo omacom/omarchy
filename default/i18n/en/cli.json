@@ -221,6 +221,7 @@
   "plugin.replacedByClone": "Original plugin has been replace by clone.",
   "preinstalls.confirmRemove": "Are you sure you want to remove all preinstalled web apps, TUI wrappers, and desktop applications?",
   "preinstalls.confirmRestore": "Are you sure you want to restore all preinstalled web apps, TUI wrappers, and desktop applications?",
+  "rea.removeAnyway": "Remove REA anyway? Your agents may keep an entry that no longer works.",
   "reminder.cleared": "All reminders have been cleared",
   "reminder.count": {
     "one": "%1 reminder",
