@@ -471,6 +471,14 @@ assert(after.floating == false, "a window opened after the mode ended was floate
 o.workspace_mode({ workspace = "3", mode = "scrolling" })
 assert(workspace_rules[#workspace_rules].layout == "scrolling", "scrolling was not applied as a layout")
 assert(workspace_rules[#workspace_rules].workspace == "3")
+
+-- A follow_mouse changed at runtime, after the watchers started, is the one a
+-- tiled workspace gets back once a floating one has turned it off.
+config["input.follow_mouse"] = 2
+o.workspace_mode({ workspace = "3", mode = "floating" })
+assert(config["input.follow_mouse"] == 0, "a floating workspace did not turn follow_mouse off")
+o.workspace_mode({ workspace = "3", mode = "dwindle" })
+assert(config["input.follow_mouse"] == 2, "leaving floating restored a stale follow_mouse: " .. tostring(config["input.follow_mouse"]))
 LUA
 
 # Lua 5.5 exits 0 when a script that failed came in on stdin, so a heredoc piped
