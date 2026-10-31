@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# omarchy:summary=Match the 2017 Google Pixelbook (Eve).
+
+sys_vendor="${OMARCHY_DMI_SYS_VENDOR:-/sys/class/dmi/id/sys_vendor}"
+product_name="${OMARCHY_DMI_PRODUCT_NAME:-/sys/class/dmi/id/product_name}"
+
+grep -qx "Google" "$sys_vendor" 2>/dev/null &&
+  grep -qx "Eve" "$product_name" 2>/dev/null
