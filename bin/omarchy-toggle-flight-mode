@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle flight mode
+# omarchy:args=[--status]
+# omarchy:examples=omarchy toggle flight-mode
+
+blocked() {
+  local list
+
+  list=$(rfkill list 2>/dev/null) || return 1
+  [[ -n $list ]] || return 1
+  ! grep -q "Soft blocked: no" <<<"$list"
+}
+
+status_json() {
+  local enabled
+
+  if blocked; then
+    enabled=true
+  else
+    enabled=false
+  fi
+
+  jq -cn --argjson enabled "$enabled" '{enabled:$enabled}'
+}
+
+if [[ ${1:-} == "--status" ]]; then
+  status_json
+  exit 0
+fi
+
+if blocked; then
+  rfkill unblock all
+else
+  rfkill block all
+fi
+
+omarchy-shell -q omarchy.flight-mode refresh
