@@ -11,10 +11,13 @@
 # Steps run in order and each one that succeeds leaves the queue, so a failure
 # stops the run and the next run resumes at that step. Once the queue is empty
 # the initramfs is rebuilt if any step changed its configuration or asked for
-# the rebuild, and the service is disabled. With nothing deferred this does
-# nothing. A failed step, or a failure to make the pacman keyring the build
-# asked for, exits 75 (it stays queued for the next run); anything else that
-# stops the run, such as an untrusted manifest or queue, exits 1.
+# the rebuild, and the service is disabled. A Limine rebuild that can't be
+# confirmed leaves a marker for owner setup, which asks the owner to fix it
+# before the first login (see confirm_boot_image in omarchy-provision-owner).
+# With nothing deferred this does nothing. A failed step, or a failure to make
+# the pacman keyring the build asked for, exits 75 (it stays queued for the
+# next run); anything else that stops the run, such as an untrusted manifest or
+# queue, or a failed rebuild, exits 1.
 
 set -euo pipefail
 
@@ -142,10 +145,23 @@ done
 if [[ -e $omarchy_image_boot_rebuild || $(initramfs_inputs) != "$(<"$omarchy_image_initramfs_baseline")" ]]; then
   echo "Rebuilding the initramfs for the deferred hardware setup"
   if omarchy-cmd-present limine-mkinitcpio; then
-    limine-mkinitcpio </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
+    status=0
+    omarchy_image_limine_rebuild "$OMARCHY_INSTALL_LOG_FILE" || status=$?
+    if (( status == 1 )); then
+      # Both ways Limine fails here (a module mkinitcpio can't build, a boot
+      # partition too full to take the image) fail again on every boot, so
+      # owner setup, with the owner at the screen, asks to fix it instead.
+      echo "Warning: Could not confirm the initramfs rebuild (see $OMARCHY_INSTALL_LOG_FILE); owner setup asks to fix it before the first login" |
+        tee -a "$OMARCHY_INSTALL_LOG_FILE" >&2
+      echo "$(date -u +%FT%TZ) limine-mkinitcpio" >"$omarchy_image_rebuild_unconfirmed" ||
+        fail "could not record the unconfirmed rebuild for owner setup"
+    elif (( status != 0 )); then
+      fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+    fi
   else
-    mkinitcpio -P </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
-  fi || fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+    mkinitcpio -P </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1 ||
+      fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+  fi
   # The new image must be on disk before the queue that owes it is cleared.
   sync || fail "could not flush the rebuilt initramfs to disk"
 fi
