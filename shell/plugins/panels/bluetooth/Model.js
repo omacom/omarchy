@@ -154,6 +154,75 @@ function sectionDevices(lists, section) {
   return []
 }
 
+// A row's identity across rebuilds: the section it sits in plus its BlueZ
+// address. A device that moves between sections is removed and inserted again,
+// which is what a ListView needs to see anyway.
+function scrollRowKey(section, address) {
+  return String(section || "") + ":" + String(address || "")
+}
+
+function scrollRowValues(row) {
+  var dev = (row && row.dev) || {}
+  return {
+    key: scrollRowKey(row.section, dev.address),
+    address: dev.address || "",
+    name: dev.name || "",
+    deviceName: dev.deviceName || "",
+    connected: !!dev.connected,
+    devState: dev.state !== undefined ? dev.state : -1,
+    batteryAvailable: !!dev.batteryAvailable,
+    battery: dev.battery !== undefined ? dev.battery : 0,
+    pairing: !!dev.pairing,
+    section: row.section || "",
+    indexInSection: row.indexInSection !== undefined ? row.indexInSection : 0,
+    first: row.first === true
+  }
+}
+
+// Apply the difference between a ListModel's rows and `rows` in place.
+// Replacing a ListView's model resets its scroll position to the top, and the
+// panel rebuilds the desired rows every time BlueZ reports a device, so the
+// view has to keep its model across updates. Rows keep their identity: an
+// unchanged row is never removed and re-added, and only its changed fields
+// are written.
+function syncScrollRows(model, rows) {
+  var desired = []
+  var wanted = ({})
+  for (var i = 0; i < rows.length; i++) {
+    var values = scrollRowValues(rows[i])
+    desired.push(values)
+    wanted[values.key] = true
+  }
+
+  for (var r = model.count - 1; r >= 0; r--) {
+    if (!wanted[model.get(r).key]) model.remove(r)
+  }
+
+  for (var k = 0; k < desired.length; k++) {
+    var want = desired[k]
+    var current = k < model.count ? model.get(k) : null
+    if (!current || current.key !== want.key) {
+      var found = -1
+      for (var m = k + 1; m < model.count; m++) {
+        if (model.get(m).key === want.key) { found = m; break }
+      }
+      if (found >= 0) model.move(found, k, 1)
+      else model.insert(k, want)
+    }
+    updateScrollRow(model, k, want)
+  }
+}
+
+function updateScrollRow(model, index, want) {
+  var current = model.get(index)
+  for (var field in want) {
+    if (current[field] !== want[field]) {
+      model.set(index, want)
+      return
+    }
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     deviceLabel: deviceLabel,
@@ -172,6 +241,9 @@ if (typeof module !== "undefined") {
     pendingAction: pendingAction,
     withPendingAction: withPendingAction,
     visibleSections: visibleSections,
-    sectionDevices: sectionDevices
+    sectionDevices: sectionDevices,
+    scrollRowKey: scrollRowKey,
+    scrollRowValues: scrollRowValues,
+    syncScrollRows: syncScrollRows
   }
 }

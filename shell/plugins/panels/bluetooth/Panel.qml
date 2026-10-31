@@ -134,18 +134,29 @@ Panel {
   }
 
   // The scrollable half of the panel — remembered devices, then whatever the
-  // scan turned up — flattened into one model so a ListView can own the
+  // scan turned up — flattened into one list so a ListView can own the
   // viewport. Each entry carries the section it came from, which is what lets
-  // the delegate and the cursor keep working in section-relative terms.
+  // the delegate and the cursor keep working in section-relative terms, and
+  // `first` marks the row that opens its section.
   readonly property var scrollRows: {
     var rows = []
     for (var k = 0; k < knownDevices.length; k++)
-      rows.push({ dev: Model.deviceRow(knownDevices[k]), section: "known", indexInSection: k })
+      rows.push({ dev: Model.deviceRow(knownDevices[k]), section: "known", indexInSection: k, first: k === 0 })
     if (sectionVisible("discovered"))
       for (var d = 0; d < discoveredDevices.length; d++)
-        rows.push({ dev: Model.deviceRow(discoveredDevices[d]), section: "discovered", indexInSection: d })
+        rows.push({ dev: Model.deviceRow(discoveredDevices[d]), section: "discovered", indexInSection: d, first: d === 0 })
     return rows
   }
+
+  // The view reads this model, not scrollRows itself. Assigning a new model
+  // resets a ListView's scroll position to the top, and discovery rebuilds
+  // scrollRows on every device report, so handing the array over made a busy
+  // room impossible to scroll. The rows are synced in place instead, keeping
+  // every unchanged row and the viewport that holds it.
+  ListModel { id: scrollRowModel }
+
+  onScrollRowsChanged: Model.syncScrollRows(scrollRowModel, scrollRows)
+  Component.onCompleted: Model.syncScrollRows(scrollRowModel, scrollRows)
 
   // Connected devices render above the scroll area; same primitives-only
   // projection so those delegates never hold Device QObject wrappers either.
@@ -177,14 +188,6 @@ Panel {
     for (var i = 0; i < scrollRows.length; i++)
       if (scrollRows[i].section === focusSection && scrollRows[i].indexInSection === selectedIndex) return i
     return -1
-  }
-
-  // A row opens a section when it is the first of its kind in the flat list.
-  function scrollSectionTitle(index) {
-    var rows = scrollRows
-    if (index < 0 || index >= rows.length) return ""
-    if (index > 0 && rows[index - 1].section === rows[index].section) return ""
-    return rows[index].section === "known" ? Commons.I18n.t("bluetooth.paired") : Commons.I18n.t("bluetooth.available")
   }
 
   function audioSinks() {
@@ -677,8 +680,12 @@ Panel {
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dy !== 0) root.moveCursor(dy)
-        else if (dx !== 0) root.moveCursorH(dx)
+        if (dy !== 0) {
+          root.moveCursor(dy)
+          deviceListView.revealCursor()
+        } else if (dx !== 0) {
+          root.moveCursorH(dx)
+        }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.close()
@@ -803,10 +810,10 @@ Panel {
           foreground: root.bar.foreground
         }
 
-        // ListView, not a Flickable: it owns the scroll position, so it keeps
-        // the current row visible on j/k, re-clamps itself when discovery
-        // shortens the list, and — because Contain only moves when a row is
-        // actually clipped — never lurches under a hovering mouse.
+        // ListView, not a Flickable: it owns the scroll position, so discovery
+        // shortening the list re-clamps the viewport, and — because Contain
+        // only moves when a row is actually clipped — j/k never lurches the
+        // list under a hovering mouse.
         ListView {
           id: deviceListView
           width: parent.width
@@ -818,22 +825,46 @@ Panel {
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-          model: root.scrollRows
-          currentIndex: root.scrollRowIndex
-          // Deferred by a turn. Called straight out of the signal the position
-          // does not take — verified with the cursor six rows down and
-          // contentY still 0 — because scrollRows is rebuilt every time
-          // discovery reports, and swapping the model resets the view out from
-          // under the call. Network's list is stable enough not to need this.
-          onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(keepCurrentVisible)
-          function keepCurrentVisible() {
-            if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+          model: scrollRowModel
+
+          // Scrolling to the cursor is driven by the key that moved it, never
+          // by a row index that shifted because discovery inserted a device
+          // above it. Otherwise a scan report would drag the view back to the
+          // focused row while the mouse was scrolling somewhere else.
+          function revealCursor() {
+            if (root.scrollRowIndex >= 0) positionViewAtIndex(root.scrollRowIndex, ListView.Contain)
           }
 
           delegate: Item {
-            required property var modelData
             required property int index
-            readonly property string sectionTitle: root.scrollSectionTitle(index)
+            required property string section
+            required property int indexInSection
+            required property string address
+            required property string name
+            required property string deviceName
+            required property bool connected
+            required property int devState
+            required property bool batteryAvailable
+            required property real battery
+            required property bool pairing
+            required property bool first
+
+            // DeviceRow works with the same primitives-only projection the
+            // connected list uses. Not named `dev`: inside DeviceRow's binding
+            // scope that would resolve to DeviceRow's own property.
+            readonly property var rowDev: ({
+              address: address,
+              name: name,
+              deviceName: deviceName,
+              connected: connected,
+              state: devState,
+              batteryAvailable: batteryAvailable,
+              battery: battery,
+              pairing: pairing
+            })
+            readonly property string sectionTitle: first
+              ? (section === "known" ? Commons.I18n.t("bluetooth.paired") : Commons.I18n.t("bluetooth.available"))
+              : ""
 
             width: ListView.view.width
             height: delegateColumn.implicitHeight
@@ -844,14 +875,14 @@ Panel {
               spacing: Style.space(10)
 
               PanelSeparator {
-                visible: index > 0 && sectionTitle !== ""
-                height: visible ? implicitHeight : 0
+                visible: index > 0 && first
+                height: index > 0 && first ? implicitHeight : 0
                 foreground: root.bar.foreground
               }
 
               PanelSectionHeader {
-                visible: sectionTitle !== ""
-                height: visible ? implicitHeight : 0
+                visible: first
+                height: first ? implicitHeight : 0
                 text: sectionTitle
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
@@ -859,10 +890,10 @@ Panel {
 
               DeviceRow {
                 width: parent.width
-                dev: modelData.dev
-                rowIndex: modelData.indexInSection
-                sectionName: modelData.section
-                isDiscovered: modelData.section === "discovered"
+                dev: rowDev
+                rowIndex: indexInSection
+                sectionName: section
+                isDiscovered: section === "discovered"
               }
             }
           }

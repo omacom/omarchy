@@ -97,6 +97,77 @@ assert(
   !bluetooth.bluetoothSinkMatchesDevice({ isSink: false, isStream: false, ready: true, name: 'bluez_output.AA_BB_CC_DD_EE_FF.1', properties: {} }, { address: 'AA:BB:CC:DD:EE:FF', name: 'JBL Go 3' }),
   'bluetooth ignores non-sink nodes when matching audio outputs'
 )
+
+// The panel hands its ListView a ListModel it syncs in place, because giving
+// the view a fresh model resets its scroll position — the Bluetooth list's
+// jump-to-top bug while discovery reports keep arriving.
+function fakeRowModel() {
+  const rows = []
+  let inserts = 0
+  let removes = 0
+  let moves = 0
+  return {
+    get count() { return rows.length },
+    get(i) { return rows[i] },
+    insert(i, values) { inserts += 1; rows.splice(i, 0, Object.assign({}, values)) },
+    remove(i) { removes += 1; rows.splice(i, 1) },
+    move(from, to, count) { moves += 1; rows.splice(to, 0, ...rows.splice(from, count)) },
+    set(i, values) { rows[i] = Object.assign({}, values) },
+    stats() { return { inserts, removes, moves } },
+    resetStats() { inserts = 0; removes = 0; moves = 0 },
+    keys() { return rows.map(row => row.key) }
+  }
+}
+
+function scrollRow(section, address, name, first) {
+  return { section: section, indexInSection: 0, first: first === true, dev: { address: address, name: name } }
+}
+
+const scrollModel = fakeRowModel()
+bluetooth.syncScrollRows(scrollModel, [scrollRow('known', '1', 'Keyboard', true)])
+assertDeepEqual(scrollModel.keys(), ['known:1'], 'bluetooth seeds the scroll model')
+const seededRow = scrollModel.get(0)
+scrollModel.resetStats()
+
+bluetooth.syncScrollRows(scrollModel, [
+  scrollRow('known', '1', 'Keyboard', true),
+  scrollRow('discovered', '2', 'Lamp', true),
+  scrollRow('discovered', '3', 'Mouse')
+])
+assertDeepEqual(scrollModel.keys(), ['known:1', 'discovered:2', 'discovered:3'], 'bluetooth appends new devices in scan order')
+assert(scrollModel.get(0) === seededRow, 'bluetooth keeps an unchanged row instead of rebuilding the model')
+assertDeepEqual(scrollModel.stats(), { inserts: 2, removes: 0, moves: 0 }, 'bluetooth appends without touching existing rows')
+
+bluetooth.syncScrollRows(scrollModel, [
+  scrollRow('known', '1', 'Keyboard', true),
+  scrollRow('discovered', '3', 'Mouse')
+])
+assertDeepEqual(scrollModel.keys(), ['known:1', 'discovered:3'], 'bluetooth removes vanished devices in place')
+assert(scrollModel.stats().removes === 1, 'bluetooth removes only what vanished')
+
+bluetooth.syncScrollRows(scrollModel, [
+  scrollRow('known', '1', 'Keyboard', true),
+  scrollRow('discovered', '4', 'Headset', true),
+  scrollRow('discovered', '3', 'Mouse')
+])
+assertDeepEqual(scrollModel.keys(), ['known:1', 'discovered:4', 'discovered:3'], 'bluetooth inserts a device ahead of existing rows')
+assert(scrollModel.stats().moves === 0, 'bluetooth inserts rather than reorders when a new device sorts first')
+
+bluetooth.syncScrollRows(scrollModel, [
+  scrollRow('known', '1', 'Keyboard', true),
+  scrollRow('discovered', '3', 'Mouse'),
+  scrollRow('discovered', '4', 'Headset', true)
+])
+assertDeepEqual(scrollModel.keys(), ['known:1', 'discovered:3', 'discovered:4'], 'bluetooth reorders rows when a scan result sorts first')
+assert(scrollModel.stats().moves === 1, 'bluetooth moves an existing row instead of rebuilding it')
+
+const settled = scrollModel.stats()
+bluetooth.syncScrollRows(scrollModel, [
+  scrollRow('known', '1', 'Keyboard', true),
+  scrollRow('discovered', '3', 'Mouse'),
+  scrollRow('discovered', '4', 'Headset', true)
+])
+assertDeepEqual(scrollModel.stats(), settled, 'bluetooth leaves a row set that did not change alone')
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
