@@ -128,4 +128,7 @@ o.bind("SUPER + CTRL + ALT + Z", "Reset zoom", function()
   hl.config({ cursor = { zoom_factor = 1 } })
 end)
 
+-- Super+L is the Windows lock key. Ctrl+Super+Q is the macOS one (Ctrl+Command+Q).
+o.bind("SUPER + L", "Lock system", "omarchy-system-lock")
+o.bind("SUPER + CTRL + Q", "Lock system", "omarchy-system-lock")
 o.bind("SUPER + CTRL + L", "Lock system", "omarchy-system-lock")

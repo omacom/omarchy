@@ -697,7 +697,7 @@ assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme f
 fi
 pass "titlebars load when a workspace floats and follow the theme"
 
-# A workspace that starts floating after the config loaded, with Super + L,
+# A workspace that starts floating after the config loaded, with Super + N,
 # gets titlebars at once rather than on the next reload, and only once however
 # many workspaces start floating after it.
 rm -f "$modes_dir"/*.lua

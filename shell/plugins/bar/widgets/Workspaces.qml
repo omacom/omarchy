@@ -131,7 +131,7 @@ BarWidget {
 
   // The workspace each monitor shows carries its layout: a square tiles, a
   // circle scrolls, and a triangle floats. Clicking it cycles to the next one,
-  // as Super + L does.
+  // as Super + N does.
   property string activeMode: "dwindle"
   property bool modeStale: false
 
@@ -231,7 +231,7 @@ BarWidget {
     }
   }
 
-  // Super + L and the default layout change the mode without a focus change,
+  // Super + N and the default layout change the mode without a focus change,
   // so they ask every bar to read it again.
   ShellIpc {
     target: "omarchy.workspaces"
