@@ -142,8 +142,10 @@ Item {
   readonly property int normalDuration: 8000
   readonly property int maxDuration: 30000
 
-  // Critical waits for you. Everything else gets at least its urgency's
-  // minimum, stretched up to 30s when the sender asks for longer.
+  // Critical waits for you — but a browser's counts as normal
+  // (Delivery.expiryUrgency), since it only vouches for a web push. Everything
+  // else gets at least its urgency's minimum, stretched up to 30s when the
+  // sender asks for longer.
   function durationFor(urgency, requested) {
     if (urgency === NotificationUrgency.Critical) return 0
     var base = urgency === NotificationUrgency.Low ? lowDuration : normalDuration
@@ -588,7 +590,7 @@ Item {
     notification.tracked = true
 
     var row = Store.snapshot(notification, key, NotificationUrgency)
-    row.duration = durationFor(notification.urgency, row.expireTimeout)
+    row.duration = durationFor(Delivery.expiryUrgency(row, notification.urgency), row.expireTimeout)
 
     var previous = refs[key]
     refs[key] = notification
