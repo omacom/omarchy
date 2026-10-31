@@ -161,3 +161,19 @@ write_sep 396400000 not-ready
 assert_detects "a USB reader found by vendor is detected while Touch ID reads not-ready"
 
 rm -f "$platform_root/fingerprint-readers"
+
+# A wedged device blocks reads of its product descriptor until the device lock
+# frees. A FIFO with no writer blocks the same way, so the detector must give
+# up on the name and fall through to the vendor check instead of hanging.
+hang_product() {
+  rm -f "$tmp_dir/devices/$1/product"
+  mkfifo "$tmp_dir/devices/$1/product"
+}
+
+write_usb_devices '27c6:609c'
+hang_product 1-0
+assert_detects "a reader whose product read hangs is detected by vendor"
+
+write_usb_devices '1234:5678'
+hang_product 1-0
+assert_rejects "a non-reader whose product read hangs is rejected"
