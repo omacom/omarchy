@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Remove preinstalled Omarchy applications (web apps, TUIs, and selected packages).
+
+if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n preinstalls.confirmRemove)"; then
+  echo -e "Removing preinstalled Omarchy applications...\n"
+
+  omarchy-webapp-remove-all
+  omarchy-tui-remove-all
+
+  mkdir -p ~/.local/state/omarchy
+  touch ~/.local/state/omarchy/preinstalls-removed
+  hyprctl reload
+
+  # Disable Omarchy's default mise tools for this user and retire their shims.
+  omarchy-mise-default-tools disable || exit 1
+
+  # Remove wrappers left by older Omarchy releases.
+  rm -f ~/.local/bin/codex ~/.local/bin/claude ~/.local/bin/agy ~/.local/bin/copilot \
+       ~/.local/bin/gh ~/.local/bin/opencode ~/.local/bin/playwright ~/.local/bin/playwright-cli ~/.local/bin/pi \
+       ~/.local/bin/omp ~/.local/bin/ori ~/.local/bin/cf ~/.local/bin/grok ~/.local/bin/crush ~/.local/bin/ghui ~/.local/bin/hunk
+
+  # Preserve a user-managed Kimi launcher at the same path.
+  if [[ -f ~/.local/bin/kimi && ! -L ~/.local/bin/kimi ]] &&
+    grep -Eq '^mise use -g .*"npm:@moonshot-ai/kimi-code"' ~/.local/bin/kimi; then
+    rm -f ~/.local/bin/kimi
+  fi
+
+  # Cursor's own installer links ~/.local/bin/cursor-agent as well, so only
+  # the mise wrapper omarchy-mise-install wrote is a preinstall.
+  if [[ -f ~/.local/bin/cursor-agent && ! -L ~/.local/bin/cursor-agent ]] &&
+    grep -Eq '^mise use -g .*"cursor-agent"' ~/.local/bin/cursor-agent; then
+    rm -f ~/.local/bin/cursor-agent
+  fi
+
+  # Preserve a user-managed Muse launcher at the same path.
+  if [[ -f ~/.local/bin/muse && ! -L ~/.local/bin/muse ]] &&
+    grep -Eq '^mise use -g .*"(muse"|http:muse\[)' ~/.local/bin/muse; then
+    rm -f ~/.local/bin/muse
+  fi
+
+  omarchy-pkg-drop \
+    aether \
+    cliamp \
+    libreoffice-fresh \
+    pinta \
+    obsidian \
+    moonlight-qt \
+    omacut \
+    monologue \
+    omacalc \
+    omawrite \
+    hype \
+    signed
+fi

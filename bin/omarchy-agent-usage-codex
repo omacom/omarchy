@@ -1,0 +1,863 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Codex usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Codex usage into one display-ready JSON record.
+
+Local stats come from native Codex CLI session files, pi/omp sessions that
+ran through openai-codex, and opencode sessions that ran on an OpenAI
+provider; rate limits and the plan come from the Codex app-server RPC. The agents
+panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import select
+import subprocess
+import sys
+import tempfile
+import time
+import tomllib
+from datetime import datetime, timezone
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  LimitsCache,
+  Stats,
+  account_entry,
+  base_record,
+  cached_scan,
+  codex_provider_urls,
+  codex_rollout_cache,
+  codex_rollouts,
+  codex_route_owner,
+  codex_scan_match,
+  emit,
+  find_command,
+  jwt_claims,
+  now_ms,
+  number,
+  obj,
+  opencode_db,
+  pi_session_roots,
+  registered_accounts,
+  runtime_env,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  warn,
+)
+
+AGENT_ID = "codex"
+AGENT_NAME = "Codex"
+AUTH_HELP = "Run `codex login` to authenticate."
+API_KEY_HELP = "Signed in with an API key, which has no plan limits."
+
+# session_meta.model_provider for the built-in OpenAI backend, which is the
+# only one this subscription pays for. Any other id points somewhere else:
+# `--oss`'s ollama or lmstudio, or a custom provider in config.toml.
+NATIVE_PROVIDER = "openai"
+
+# What a dead app-server's stderr says when it never reached OpenAI at all,
+# rather than being turned away by it.
+TRANSPORT_ERRORS = (
+  "error sending request",
+  "dns error",
+  "failed to lookup address",
+  "connection refused",
+  "connection reset",
+  "network is unreachable",
+  "timed out",
+)
+
+
+
+def model_name(raw):
+  value = str(raw or "codex")
+  return value if value else "codex"
+
+
+
+
+ENV = runtime_env()
+
+
+def mise_shims_dir():
+  data_home = ENV.get("MISE_DATA_DIR") or os.path.join(
+    ENV.get("XDG_DATA_HOME") or os.path.join(str(Path.home()), ".local", "share"), "mise")
+  return os.path.join(data_home, "shims")
+
+
+def is_lazy_launcher(path):
+  # omarchy-mise-install writes a regular file whose first step is `mise use
+  # -g`, and mise's shims exec `mise x`; running either installs the tool it
+  # wraps. A shim is a symlink to the mise binary itself, so the symlink
+  # check comes after the shim checks: a symlink elsewhere is the user's own
+  # binary.
+  if os.path.dirname(os.path.abspath(path)) == mise_shims_dir():
+    return True
+  if os.path.islink(path):
+    mise = find_command("mise")
+    return bool(mise) and os.path.realpath(path) == os.path.realpath(mise)
+  try:
+    with open(path, "rb") as handle:
+      head = handle.read(4096)
+    return b"mise use" in head or b"mise x " in head
+  except OSError:
+    return False
+
+
+def find_codex_binary():
+  for directory in ENV.get("PATH", "").split(os.pathsep):
+    candidate = os.path.join(directory, "codex")
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK) and not is_lazy_launcher(candidate):
+      return candidate
+  # `mise which` only prints a binary that is already installed, so it is the
+  # safe way to resolve a codex managed by mise without running the launcher.
+  # `mise which` can resolve a configured `latest` over the network; the usage
+  # probe stays offline.
+  mise = find_command("mise")
+  if mise:
+    try:
+      out = subprocess.run([mise, "which", "codex"], capture_output=True, text=True, env=dict(ENV, MISE_OFFLINE="1"), timeout=10)
+      resolved = out.stdout.strip()
+      if out.returncode == 0 and os.path.isfile(resolved) and not is_lazy_launcher(resolved):
+        return resolved
+    except Exception:
+      pass
+  return None
+
+
+
+def codex_home():
+  return Path(ENV.get("CODEX_HOME") or (Path.home() / ".codex"))
+
+
+# Every source folds into one run's totals.
+STATS = Stats()
+
+
+# pi and omp sessions that ran through openai-codex, by provider or by the
+# Responses API pi drives for it. Their compatible JSONL transcripts carry the
+# provider, model, and token usage on every assistant message.
+PI_PATTERN = r'"provider"\s*:\s*"openai-codex"|"api"\s*:\s*"openai-codex'
+
+
+def pi_billed_here(provider, model, entry):
+  return provider == "openai-codex" or str(entry.get("api") or "").startswith("openai-codex")
+
+
+# A subscription burned entirely through opencode leaves no native session
+# files, but opencode records per-message provider, model, and token usage in
+# its own database. Exact match: opencode provider ids are free-form, and a
+# custom "openai-local" gateway is not this subscription.
+def opencode_billed_here(provider, model, entry):
+  return provider == "openai"
+
+
+def scan_pi_sessions_into_stats():
+  # Whether every root was read in full, so a partial scan is never cached
+  # as the whole story.
+  rows, complete = scan_pi_sessions(PI_PATTERN, pi_billed_here)
+  for row in rows:
+    STATS.add_row(row, model_name(row.model))
+  return complete
+
+
+def scan_opencode_sessions():
+  # The closing quote makes the database's prefilter match the whole id.
+  rows, complete = scan_opencode(['openai"'], opencode_billed_here)
+  for row in rows:
+    STATS.add_row(row, model_name(str(row.model or "").rstrip("/").split("/")[-1]))
+  return complete
+
+
+
+def scan_native_codex_sessions(reuse):
+  """Fold every native rollout into the run, as the shared reader reads it,
+  and say whether each was read in full. A rollout that only grew is read on
+  from where the last read stopped, by whichever collector got to it first.
+
+  Codex CLI happily fronts any OpenAI-compatible backend (`--oss`, or a
+  custom model_provider in config.toml). Those turns bill the local box or a
+  third party, never this subscription, so only rollouts on the built-in
+  provider count, and ones from before Codex recorded a provider at all. Where
+  openai_base_url sends the built-in provider decides which of their models
+  are this subscription's; the models codex_route_owner() gives another
+  collector are left to it, each with the prompts it answered."""
+  urls = codex_provider_urls()
+  records, complete = codex_rollouts(codex_rollout_cache(), reuse=reuse, native=True)
+  owners = {}
+  for record in records.values():
+    if record["provider"] not in ("", NATIVE_PROVIDER):
+      continue
+    for day, models in record["days"].items():
+      for model, (input_tokens, output_tokens, cache_read, cache_write, prompts) in models.items():
+        if model not in owners:
+          owners[model] = codex_route_owner(NATIVE_PROVIDER, model, urls) == AGENT_ID
+        if not owners[model]:
+          continue
+        # One prompt can take many requests, one per tool call it makes, so
+        # the requests count no prompts of their own.
+        if input_tokens or output_tokens or cache_read or cache_write:
+          STATS.add(day, record["session"], model, input_tokens, output_tokens, cache_read, cache_write, prompts=0)
+        if prompts:
+          STATS.add_prompts(day, record["session"], prompts)
+  return complete
+
+
+
+# Every data path the scan reads: the codex session roots, the opencode DB,
+# and the pi/omp session roots.
+def scan_sources():
+  return [Path.home(), codex_home(), opencode_db(), *pi_session_roots()]
+
+
+def local_stats():
+  """Snapshot the aggregated local usage into the record's stats dict."""
+  return STATS.snapshot()
+
+
+# A forced scan (no reuse at all) reads every session file again.
+def run_local_scans(max_age):
+  global STATS
+  STATS = Stats()
+  complete = scan_pi_sessions_into_stats()
+  complete = scan_native_codex_sessions(max_age > 0) and complete
+  complete = scan_opencode_sessions() and complete
+  return local_stats(), complete
+
+
+def cached_local_stats(max_age):
+  # The route config can change who bills a rollout without it changing.
+  return cached_scan(AGENT_ID, scan_sources(), max_age, lambda: run_local_scans(max_age), match=codex_scan_match())
+
+
+
+def rpc_send(proc, payload, operation):
+  """Write one JSON-RPC frame. Raise immediately if the app-server is gone."""
+  try:
+    proc.stdin.write(json.dumps(payload) + "\n")
+    proc.stdin.flush()
+  except OSError as exc:
+    try:
+      proc.stdin.close()
+    except OSError:
+      pass
+    raise RuntimeError(f"Codex app-server exited before {operation}") from exc
+
+
+def rpc_request(proc, request_id, method, params=None, timeout=8):
+  payload = {"id": request_id, "method": method, "params": params or {}}
+  rpc_send(proc, payload, method)
+  # Read the raw fd and split lines ourselves. The app-server can emit
+  # notifications in the same write as a reply; a buffered readline() would
+  # pull them all into Python's buffer where select() cannot see them, and
+  # the reply would sit there until the deadline.
+  fd = proc.stdout.fileno()
+  pending = getattr(proc, "_rpc_pending", b"")
+  deadline = time.monotonic() + timeout
+  try:
+    while True:
+      while b"\n" in pending:
+        line, pending = pending.split(b"\n", 1)
+        try:
+          message = json.loads(line)
+        except Exception:
+          continue
+        if isinstance(message, dict) and message.get("id") == request_id:
+          return message
+      remaining = deadline - time.monotonic()
+      if remaining <= 0:
+        break
+      ready, _, _ = select.select([fd], [], [], min(0.25, remaining))
+      if not ready:
+        if proc.poll() is not None:
+          raise RuntimeError(f"Codex app-server exited before {method}")
+        continue
+      chunk = os.read(fd, 65536)
+      if not chunk:
+        raise RuntimeError(f"Codex app-server exited before {method}")
+      pending += chunk
+  finally:
+    proc._rpc_pending = pending
+  # Process still up but silent: keep the method name searchable, but name the stall.
+  raise TimeoutError(f"Codex app-server did not answer {method}")
+
+
+def limit_window(window):
+  if not isinstance(window, dict):
+    return None
+  try:
+    used = float(window.get("usedPercent"))
+  except (TypeError, ValueError):
+    return None
+  # A percentage that isn't one (NaN, infinite, a boolean) says nothing.
+  if isinstance(window.get("usedPercent"), bool) or not math.isfinite(used):
+    return None
+  mins = number(window.get("windowDurationMins"))
+  if mins == 10080:
+    label = "Weekly (7-day)"
+  elif mins and mins % 60 == 0:
+    label = f"{mins // 60}h window"
+  elif mins:
+    label = f"{mins}m window"
+  else:
+    label = "Limit"
+  reset = number(window.get("resetsAt"))
+  try:
+    resets_at = datetime.fromtimestamp(reset, timezone.utc).isoformat() if reset > 0 else ""
+  except (OverflowError, OSError, ValueError):
+    resets_at = ""
+  return {
+    "label": label,
+    "percent": max(0.0, min(1.0, used / 100.0)),
+    "resetsAt": resets_at,
+    "minutes": mins,
+  }
+
+
+# The panel reads a window from its title, and a model's own allowance titled
+# "<model> Session" or "<model> Weekly" sits beside the general window of the
+# same span rather than as a row of its own.
+def window_title(minutes):
+  if minutes >= 28 * 24 * 60:
+    return "Monthly"
+  if minutes >= 24 * 60:
+    return "Weekly"
+  if minutes > 0:
+    return "Session"
+  return ""
+
+
+def rate_limit_buckets(result):
+  # New app-servers return every metered bucket; rateLimits is only the
+  # backward-compatible single-bucket view. Never count both views.
+  buckets = result.get("rateLimitsByLimitId")
+  if isinstance(buckets, dict):
+    entries = [(str(key), value) for key, value in buckets.items() if isinstance(value, dict)]
+    if entries:
+      # Keep the subscription's general limits and plan ahead of model limits.
+      return sorted(entries, key=lambda entry: entry[0] != "codex")
+  legacy = result.get("rateLimits")
+  return [("codex", legacy)] if isinstance(legacy, dict) else []
+
+
+def bucket_limits(buckets):
+  limits = []
+  for limit_id, bucket in buckets:
+    # The general bucket's windows are the plain ones. Any other bucket is a
+    # model's own allowance, named the way the app-server names it.
+    general = limit_id == "codex" or (len(buckets) == 1 and not bucket.get("limitName"))
+    name = str(bucket.get("limitName") or limit_id).strip()
+    for window in (bucket.get("primary"), bucket.get("secondary")):
+      entry = limit_window(window)
+      if not entry:
+        continue
+      minutes = entry.pop("minutes")
+      if not general:
+        span = window_title(minutes)
+        entry["title"] = f"{name} {span}" if span else name
+      limits.append(entry)
+  return limits
+
+
+def finite_number(value):
+  # A boolean, NaN or infinity is no amount.
+  if isinstance(value, bool):
+    return None
+  try:
+    amount = float(value)
+  except (TypeError, ValueError):
+    return None
+  return amount if math.isfinite(amount) else None
+
+
+# A spend cap can be returned without any rate windows, as observed on a
+# Business seat. Its snapshot gives a reset time but no period, so no
+# frequency is inferred from the plan or date, and the meter is titled for
+# what it is. The amounts give the share; remainingPercent only has
+# whole-percent precision, so it stands in only for a cap of zero.
+def spend_limit(snapshot):
+  if not isinstance(snapshot, dict):
+    return None
+  cap = finite_number(snapshot.get("limit"))
+  used = finite_number(snapshot.get("used"))
+  if cap is not None and cap > 0 and used is not None:
+    share = used / cap
+  else:
+    remaining = finite_number(snapshot.get("remainingPercent"))
+    if remaining is None:
+      return None
+    share = 1 - remaining / 100
+  reset = number(snapshot.get("resetsAt"))
+  try:
+    resets_at = datetime.fromtimestamp(reset, timezone.utc).isoformat() if reset > 0 else ""
+  except (OverflowError, OSError, ValueError):
+    resets_at = ""
+  return {
+    "label": "Spend limit",
+    "percent": max(0.0, min(1.0, share)),
+    "resetsAt": resets_at,
+    "title": "Spend limit",
+  }
+
+
+# The cap is the account's, so it is read once: from the general bucket ahead
+# of a model's, and from the backward-compatible view when no bucket has it.
+def individual_spend_limit(buckets, rpc_result):
+  legacy = rpc_result.get("rateLimits")
+  for bucket in [bucket for _, bucket in buckets] + [legacy if isinstance(legacy, dict) else {}]:
+    if isinstance(bucket.get("individualLimit"), dict):
+      return spend_limit(bucket["individualLimit"])
+  return None
+
+
+# The plans as Codex's own /status names them (SubscriptionDisplay::Status in
+# Codex 0.163's TUI), keyed by the wire planType: "pro" is the 200 plan, and
+# a "team" workspace is what Codex sells as Business.
+PLAN_NAMES = {
+  "free": "Free",
+  "go": "Go",
+  "plus": "Plus",
+  "pro": "Pro 200",
+  "prolite": "Pro 100",
+  "promax": "Pro 500",
+  "team": "Business",
+  "self_serve_business_usage_based": "Business",
+  "self_serve_business_prolite": "Business Premium",
+  "business": "Enterprise",
+  "enterprise_cbp_automation": "Enterprise (Automation)",
+  "enterprise_cbp_usage_based": "Enterprise",
+  "ent26": "Enterprise",
+  "enterprise": "Enterprise",
+  "edu": "Edu",
+  "edu_plus": "Edu Plus",
+  "edu_pro": "Edu Pro",
+}
+
+
+def plan_name(plan):
+  # A plan newer than this table keeps its wire name, made readable.
+  plan = str(plan or "")
+  return PLAN_NAMES.get(plan, plan.replace("_", " "))
+
+
+def codex_rpc_help(proc, stderr_file, exc):
+  """Explain an app-server RPC failure: a live server's stall, a dead one's own
+  stderr, or the login hint when it died saying nothing."""
+  try:
+    proc.wait(timeout=1)
+  except Exception:
+    pass
+
+  text = str(exc).strip()
+  if proc.poll() is None:
+    # Still up: stall or unparseable payload. Not an auth problem, and any
+    # stderr so far is its logging, not why it stopped.
+    return text[:300] or AUTH_HELP
+
+  try:
+    stderr_file.seek(0)
+    detail = stderr_file.read()
+  except Exception:
+    detail = ""
+  lines = [line.strip() for line in detail.splitlines() if line.strip()]
+  if lines:
+    # The fatal error comes last, after whatever the CLI logged on the way up.
+    return f"codex app-server exited: {' '.join(lines)[-275:]}"
+  # Exited cleanly with empty stderr — typical "not logged in" shape.
+  return AUTH_HELP
+
+
+# Credits are an extra: a malformed field loses them, never the limits.
+def reset_credits(result):
+  granted = obj(result.get("rateLimitResetCredits")).get("credits")
+  if not isinstance(granted, list):
+    return None
+  available = [c for c in granted if isinstance(c, dict) and c.get("status") == "available"]
+  if not available:
+    return None
+  expiries = [number(c.get("expiresAt")) for c in available if number(c.get("expiresAt")) > 0]
+  try:
+    next_expiry = datetime.fromtimestamp(min(expiries), timezone.utc).isoformat() if expiries else ""
+  except (OverflowError, OSError, ValueError):
+    next_expiry = ""
+  return {"available": len(available), "nextExpiresAt": next_expiry}
+
+
+# Keyring and auto stores keep credentials outside auth.json, so only the file
+# store can be known to be empty without asking Codex.
+def has_codex_credentials(codex_home, env):
+  if env.get("CODEX_ACCESS_TOKEN"):
+    return True
+  try:
+    with (codex_home / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except FileNotFoundError:
+    config = {}
+  except Exception:
+    # A config this can't read may still name another store; let Codex say.
+    return True
+  if str(config.get("cli_auth_credentials_store") or "file") != "file":
+    return True
+  return (codex_home / "auth.json").is_file()
+
+
+# An API key in auth.json signs Codex in to the API, which bills by the token
+# and has no plan limits: account/rateLimits/read only says it wants ChatGPT.
+# Codex reads auth_mode first, else any API key, ChatGPT tokens beside it or
+# not, as an older login wrote them both.
+def api_key_login(codex_home, env):
+  if env.get("CODEX_ACCESS_TOKEN"):
+    return False
+  try:
+    with (codex_home / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except FileNotFoundError:
+    config = {}
+  except Exception:
+    return False
+  if str(config.get("cli_auth_credentials_store") or "file") != "file":
+    return False
+  try:
+    auth = json.loads((codex_home / "auth.json").read_text(encoding="utf-8"))
+  except Exception:
+    return False
+  if not isinstance(auth, dict):
+    return False
+  if auth.get("auth_mode") is not None:
+    return auth["auth_mode"] == "apikey"
+  return bool(auth.get("OPENAI_API_KEY"))
+
+
+# The environment a home's app-server runs in. CODEX_ACCESS_TOKEN signs in
+# the primary home alone: handed to every registered home, it would make each
+# of them answer for the same account.
+def home_env(home=None, primary=True):
+  env = dict(ENV, CODEX_HOME=str(home)) if home else dict(ENV)
+  if not primary:
+    env.pop("CODEX_ACCESS_TOKEN", None)
+  return env
+
+
+def fetch_codex_rpc(home=None, primary=True):
+  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
+  env = home_env(home, primary)
+  codex = find_codex_binary()
+  if not codex:
+    result["usageStatusText"] = "Codex limits unavailable"
+    result["authHelpText"] = "codex not found in PATH"
+    return result
+
+  # No auth.json under the file store and no CODEX_ACCESS_TOKEN means
+  # account/read can only fail — and starting the app-server is not free: it
+  # syncs the plugin list, a git fetch per refresh that also leaves
+  # .tmp/git-* folders behind. The home is the one being probed, so a
+  # signed-out secondary account reads as signed out even while ~/.codex
+  # holds a login.
+  if not has_codex_credentials(Path(env.get("CODEX_HOME") or (Path.home() / ".codex")), env):
+    result["usageStatusText"] = "Waiting for auth"
+    result["authHelpText"] = AUTH_HELP
+    return result
+  # Signed in, with no limits to read: no app-server, and nothing to sign in to.
+  if api_key_login(Path(env.get("CODEX_HOME") or (Path.home() / ".codex")), env):
+    result["authHelpText"] = API_KEY_HELP
+    result["ok"] = True
+    return result
+
+  # stderr goes to a regular file, not a PIPE: an unread pipe can fill and
+  # deadlock a chatty app-server. It is only read once the process has exited.
+  # Without temporary space the probe still runs, just without its error text.
+  try:
+    stderr_file = tempfile.TemporaryFile("w+", errors="replace")
+  except OSError:
+    stderr_file = None
+  try:
+    proc = subprocess.Popen(
+      [codex, "-s", "read-only", "-a", "on-request", "app-server"],
+      stdin=subprocess.PIPE,
+      stdout=subprocess.PIPE,
+      stderr=stderr_file or subprocess.DEVNULL,
+      text=True,
+      env=env,
+    )
+  except Exception as exc:
+    if stderr_file:
+      stderr_file.close()
+    result["usageStatusText"] = "Codex limits unavailable"
+    result["authHelpText"] = str(exc)[:300]
+    return result
+
+  try:
+    rpc_request(proc, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
+    rpc_send(proc, {"method": "initialized", "params": {}}, "initialized")
+    limits_msg = rpc_request(proc, 2, "account/rateLimits/read", timeout=8)
+
+    # A home nobody is signed in to answers with an error rather than limits.
+    # Say so the same way the Claude collector does, so the panel offers to
+    # sign that account in again.
+    error = limits_msg.get("error")
+    if isinstance(error, dict):
+      message = str(error.get("message") or "")
+      if "auth" in message.lower():
+        result["usageStatusText"] = "Waiting for auth"
+        result["authHelpText"] = AUTH_HELP
+      else:
+        result["usageStatusText"] = "Codex limits unavailable"
+        result["authHelpText"] = message
+      return result
+    rpc_result = limits_msg.get("result") if isinstance(limits_msg.get("result"), dict) else {}
+    buckets = rate_limit_buckets(rpc_result)
+    # An answer with neither view of the limits isn't a plan without any; it
+    # fails like any other probe, so the last good windows stand, stale.
+    if not buckets:
+      result["usageStatusText"] = "Codex limits unavailable"
+      result["authHelpText"] = "Codex's app-server answered without its rate limits."
+      return result
+    result["authHelpText"] = ""
+    plan = next((bucket.get("planType") for _, bucket in buckets if bucket.get("planType")), "")
+    if not plan and isinstance(rpc_result.get("rateLimits"), dict):
+      plan = rpc_result["rateLimits"].get("planType") or ""
+
+    # The limits name the plan themselves. account/read is only a fallback
+    # for when they don't, and never a reason to lose them: Codex 0.158's
+    # app-server can leave it unanswered for good.
+    if not plan:
+      try:
+        account_msg = rpc_request(proc, 3, "account/read", timeout=2)
+        account = obj(obj(account_msg.get("result")).get("account"))
+        plan = account.get("planType") or account.get("type") or ""
+      except (TimeoutError, RuntimeError):
+        pass
+    result["tierLabel"] = plan_name(plan)
+
+    result["limits"] = bucket_limits(buckets)
+    spend = individual_spend_limit(buckets, rpc_result)
+    if spend:
+      result["limits"].append(spend)
+
+    # OpenAI hands out free "full reset" credits that wipe the rate limits on
+    # demand and lapse after a month. Worth knowing about before a limit bites.
+    credits = reset_credits(rpc_result)
+    if credits:
+      result["resetCredits"] = credits
+    result["ok"] = True
+  except Exception as exc:
+    result["usageStatusText"] = "Codex limits unavailable"
+    result["authHelpText"] = codex_rpc_help(proc, stderr_file, exc)
+    # A live app-server that never answered, or one that died saying it
+    # couldn't reach OpenAI, is a network that isn't up yet (the first probe
+    # after login often beats DHCP), so the panel asks again soon. One that
+    # was turned away, or died for its own reasons, would only fail again.
+    help_text = result["authHelpText"].lower()
+    if isinstance(exc, TimeoutError) or (
+      help_text.startswith("codex app-server exited:") and any(error in help_text for error in TRANSPORT_ERRORS)
+    ):
+      result["transport"] = True
+  finally:
+    try:
+      proc.terminate()
+      proc.wait(timeout=1)
+    except Exception:
+      try:
+        proc.kill()
+      except Exception:
+        pass
+    if stderr_file:
+      stderr_file.close()
+  return result
+
+
+# Who a home's probe answers for, or "" when only Codex could say: keyring and
+# auto stores keep the login out of auth.json.
+def signed_in_identity(codex_home, primary=True):
+  token = ENV.get("CODEX_ACCESS_TOKEN") if primary else ""
+  if token:
+    return "token:" + hashlib.sha1(token.encode("utf-8", "surrogatepass")).hexdigest()
+  try:
+    with (codex_home / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except FileNotFoundError:
+    config = {}
+  except Exception:
+    return ""
+  if str(config.get("cli_auth_credentials_store") or "file") != "file":
+    return ""
+  # account_id names the workspace, whose members each have their own limits,
+  # so the user comes from the ID token's claims, read as Codex reads them.
+  try:
+    tokens = json.loads((codex_home / "auth.json").read_text(encoding="utf-8"))["tokens"]
+    claims = jwt_claims(tokens["id_token"])["https://api.openai.com/auth"]
+    workspace = str(tokens["account_id"] or "")
+    user = str(claims.get("chatgpt_user_id") or claims.get("user_id") or "")
+  except Exception:
+    return ""
+  return f"{workspace}\n{user}" if workspace and user else ""
+
+
+# Keyed by the home and the account it is signed in to, so a home signed in to
+# someone else never falls back on the last one's numbers. None when the
+# account can't be told, since then no numbers can be vouched for.
+def limits_cache(home, primary=True):
+  home = Path(home or codex_home())
+  identity = signed_in_identity(home, primary)
+  if not identity:
+    return None
+  try:
+    return LimitsCache(AGENT_ID, str(home), identity)
+  except Exception as exc:
+    warn(f"limits cache unavailable ({exc})")
+    return None
+
+
+# The app-server's answer, with the last limits it gave kept as the answer of
+# record when a later probe fails: one slow or dropped call is no reason to
+# blank limits that were right a refresh ago. `live` says the limits came from
+# this probe, or one recent enough to stand in for it. Elapsed windows come
+# back at zero.
+def collect_limits(home=None, force=False, primary=True):
+  cache = limits_cache(home, primary)
+  fallback, fetched_at_ms = cache.kept() if cache else ([], 0)
+
+  # Each probe starts an app-server, which syncs the plugin list on the way
+  # up, so a panel opened and shut repeatedly reuses a recent answer instead.
+  # --force is a person asking for fresh numbers, so it skips the reuse
+  # window. A plan without windows is an answer like any other, so it stands
+  # in too.
+  if cache and cache.fresh(force, allow_empty=True):
+    result = {
+      "limits": fallback,
+      "tierLabel": str(cache.data.get("tierLabel") or ""),
+      "usageStatusText": "",
+      "authHelpText": "",
+      "live": True,
+      "fetchedAtMs": cache.fetched_at,
+    }
+    if isinstance(cache.data.get("resetCredits"), dict):
+      result["resetCredits"] = cache.data["resetCredits"]
+    return result
+
+  rpc = fetch_codex_rpc(home, primary)
+  ok = rpc.pop("ok", False)
+  transport = rpc.pop("transport", False)
+  # A login that changed while the probe ran leaves no telling whose these are.
+  after = limits_cache(home, primary) if cache else None
+  same_login = cache is not None and after is not None and after.path == cache.path
+
+  if ok:
+    rpc["live"] = True
+    if same_login:
+      rpc["fetchedAtMs"] = cache.save(rpc["limits"], tierLabel=rpc["tierLabel"], resetCredits=rpc.get("resetCredits"))
+    else:
+      rpc["fetchedAtMs"] = now_ms()
+    return rpc
+
+  rpc["live"] = False
+  rpc["fetchedAtMs"] = 0
+  if transport:
+    rpc["retryAdvised"] = True
+  if fallback and same_login:
+    # A sign-in to restore still says so; any other failure leaves the kept
+    # numbers to speak for themselves, with their age, and the detail of what
+    # went wrong in the help text.
+    rpc.update(limits=fallback, fetchedAtMs=fetched_at_ms, tierLabel=rpc["tierLabel"] or str(cache.data.get("tierLabel") or ""))
+    if rpc["usageStatusText"] == "Codex limits unavailable":
+      rpc["usageStatusText"] = ""
+  elif same_login and cache.fetched_at > 0:
+    # The last answer was a plan without windows, which has no limits to
+    # lose: a failed recheck is no news, though a sign-in to restore still is.
+    rpc["tierLabel"] = rpc["tierLabel"] or str(cache.data.get("tierLabel") or "")
+    if rpc["usageStatusText"] == "Codex limits unavailable":
+      rpc.update(usageStatusText="", authHelpText="")
+  return rpc
+
+
+# Each account's app-server runs in that account's home, so it answers for that
+# login and refreshes that login's tokens there.
+def account_limits(account, force):
+  # The primary is ~/.codex by definition, not whatever CODEX_HOME this run
+  # happened to inherit — that would report another account's limits as Main's.
+  rpc = collect_limits(account.get("home") or (Path.home() / ".codex"), force, primary=bool(account.get("primary")))
+  return account_entry(account, rpc, rpc["tierLabel"], resetCredits=rpc.get("resetCredits"))
+
+
+# Codex is in use here once its CLI or a launcher for it is on PATH, its home
+# exists, a token is handed to it, or something has local usage to show.
+# Only then is a missing sign-in or binary worth saying.
+def codex_in_use(stats):
+  return (
+    bool(find_command("codex"))
+    or bool(find_codex_binary())
+    or codex_home().exists()
+    or bool(ENV.get("CODEX_ACCESS_TOKEN"))
+    or number(stats.get("totalSessions")) > 0
+  )
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  # --force rescans everything and rewrites the cache. --limits-only is kept
+  # for CLI compatibility with the panel's refreshLimits() call: only the
+  # limits probe must be fresh, so it may reuse a scan for far longer than a
+  # normal run, whose short window exists purely to dedup concurrent
+  # collector runs.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  stats = cached_local_stats(scan_max_age(args.force, args.limits_only))
+  registered = registered_accounts(AGENT_ID)
+  accounts = [account_limits(account, args.force) for account in registered]
+  current = next((a for a in accounts if a["active"]), None)
+  if current:
+    # The top-level fields keep describing the account new sessions use.
+    rpc = {
+      "limits": current["limits"],
+      "tierLabel": current["plan"],
+      "usageStatusText": current["usageStatusText"],
+      "authHelpText": current["authHelpText"],
+    }
+    if current.get("resetCredits"):
+      rpc["resetCredits"] = current["resetCredits"]
+    stale, fetched_at, retry = current["stale"], current["fetchedAt"], current["retryAdvised"]
+  elif codex_in_use(stats):
+    rpc = collect_limits(force=args.force)
+    stale, fetched_at, retry = not rpc.pop("live"), rpc.pop("fetchedAtMs"), rpc.pop("retryAdvised", False)
+  else:
+    # Nothing here has ever run Codex, so there is no sign-in to ask for and
+    # no binary to miss: the unused record, which the panel skips.
+    rpc = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": ""}
+    stale, fetched_at, retry = False, 0, False
+
+  record = base_record(
+    AGENT_ID,
+    AGENT_NAME,
+    # In use here once it has local usage or limits to show; a machine that
+    # never ran Codex prints an empty record the panel skips.
+    # Requests a typed prompt can't be found for still count as use.
+    ready=number(stats.get("totalSessions")) > 0 or bool(rpc["limits"]) or bool(accounts),
+    hasLocalStats=True,
+  )
+  record.update(stats)
+  record.update(rpc)
+  # Numbers kept past a failed probe, and when they were measured, so the
+  # panel can tell them apart from ones checked just now.
+  record["limitsStale"] = stale
+  record["limitsFetchedAt"] = fetched_at
+  if retry:
+    record["retryAdvised"] = True
+  if accounts:
+    record["accountSwitch"] = registered[0]["switch"]
+    record["accounts"] = accounts
+  emit(record)
+
+
+if __name__ == "__main__":
+  main()

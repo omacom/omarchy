@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Measure live internet speed for one direction
+# omarchy:group=network
+# omarchy:args=[down|up]
+
+client=${OMARCHY_SPEEDTEST_BINARY:-/usr/lib/omarchy/speedtest}
+
+if (( $# != 1 )) || [[ $1 != "down" && $1 != "up" ]]; then
+  echo "Usage: omarchy-network-speedtest [down|up]" >&2
+  exit 2
+elif [[ ! -x $client ]]; then
+  echo "The speed test client is missing: install the omarchy-speedtest package" >&2
+  exit 1
+else
+  # The client replaces this script, so the panel stopping it stops the
+  # transfers, and checks it still belongs to the panel that started it.
+  export OMARCHY_SPEEDTEST_PARENT_PID=$PPID
+  exec "$client" "$1"
+fi

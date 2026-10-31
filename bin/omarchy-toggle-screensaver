@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle screensaver availability
+
+omarchy-toggle screensaver-off
+
+if omarchy-toggle-enabled screensaver-off; then
+  omarchy-notification-send -g 󱄄 "$(omarchy-i18n screensaver.disabled)"
+else
+  omarchy-notification-send -g 󱄄 "$(omarchy-i18n screensaver.enabled)"
+fi

@@ -1,0 +1,304 @@
+#!/bin/bash
+
+# omarchy:summary=Resolve semantic colors from an Omarchy theme colors.toml
+# omarchy:args=[--file <colors.toml>] (--all | --raw | <key> [fallback])
+# omarchy:hidden=true
+
+# Shared colors.toml parser/resolver. The alias/fallback cascade mirrors what
+# omarchy-theme-set-templates bakes into the generated configs at theme-set
+# time, so every consumer (templates, OSC sequences, tmux, GNOME, previews)
+# resolves the exact same palette.
+#
+#   --all            print every resolved key<TAB>value pair (sorted by key)
+#   --raw            print only the key<TAB>value pairs defined in the file
+#   <key> [fallback] print one resolved value; the fallback is tried as
+#                    another palette key first, then used verbatim
+#
+# Theme mode precedence: `mode` key, legacy `theme_type` key, a light.mode
+# file beside the colors.toml, background luminance auto-detect, dark.
+
+COLORS_FILE="$HOME/.local/state/omarchy/current/theme/colors.toml"
+OUTPUT=""
+QUERY_KEY=""
+QUERY_FALLBACK=""
+
+usage() {
+  echo "Usage: omarchy-theme-color [--file <colors.toml>] (--all | --raw | <key> [fallback])"
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --file)
+      COLORS_FILE="${2:-}"
+      shift 2
+      ;;
+    --all)
+      OUTPUT="all"
+      shift
+      ;;
+    --raw)
+      OUTPUT="raw"
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ -z $QUERY_KEY ]]; then
+        QUERY_KEY="$1"
+      elif [[ -z $QUERY_FALLBACK ]]; then
+        QUERY_FALLBACK="$1"
+      else
+        usage >&2
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z $OUTPUT && -z $QUERY_KEY ]] || [[ -n $OUTPUT && -n $QUERY_KEY ]]; then
+  usage >&2
+  exit 1
+fi
+
+COLORS_DIR=$(dirname "$COLORS_FILE")
+
+declare -A THEME_COLORS
+
+# Mix two hex colors. Amount may be a fraction (0.30) or percentage (30%).
+mix_color() {
+  local start="${1#\#}"
+  local end="${2#\#}"
+  local amount="$3"
+
+  awk -v start="$start" -v end="$end" -v amount="$amount" '
+    function hex_value(char) {
+      return index("0123456789abcdef", tolower(char)) - 1
+    }
+
+    function hex_pair_to_int(hex, idx) {
+      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
+    }
+
+    BEGIN {
+      if (amount ~ /%$/) {
+        sub(/%$/, "", amount)
+        amount = amount / 100
+      } else {
+        amount += 0
+        if (amount > 1) amount = amount / 100
+      }
+
+      if (amount < 0) amount = 0
+      if (amount > 1) amount = 1
+
+      start_r = hex_pair_to_int(start, 1)
+      start_g = hex_pair_to_int(start, 3)
+      start_b = hex_pair_to_int(start, 5)
+      end_r = hex_pair_to_int(end, 1)
+      end_g = hex_pair_to_int(end, 3)
+      end_b = hex_pair_to_int(end, 5)
+
+      red = int(start_r * (1 - amount) + end_r * amount + 0.5)
+      green = int(start_g * (1 - amount) + end_g * amount + 0.5)
+      blue = int(start_b * (1 - amount) + end_b * amount + 0.5)
+
+      printf "#%02x%02x%02x\n", red, green, blue
+    }
+  '
+}
+
+alias_theme_color() {
+  local key="$1"
+  local fallback="$2"
+
+  [[ ${THEME_COLORS[$key]} ]] || THEME_COLORS[$key]="${THEME_COLORS[$fallback]}"
+}
+
+resolve_theme_mode() {
+  local bg_hex lum
+
+  [[ ${THEME_COLORS[mode]} ]] || THEME_COLORS[mode]="${THEME_COLORS[theme_type]}"
+  [[ ${THEME_COLORS[mode]} ]] && return
+
+  if [[ -f $COLORS_DIR/light.mode ]]; then
+    THEME_COLORS[mode]="light"
+  elif [[ ${THEME_COLORS[background]} =~ ^#[0-9A-Fa-f]{6}$ ]]; then
+    bg_hex="${THEME_COLORS[background]#\#}"
+    lum=$(( $(printf "%d" "0x${bg_hex:0:2}") + $(printf "%d" "0x${bg_hex:2:2}") + $(printf "%d" "0x${bg_hex:4:2}") ))
+    (( lum > 382 )) && THEME_COLORS[mode]="light" || THEME_COLORS[mode]="dark"
+  else
+    THEME_COLORS[mode]="dark"
+  fi
+}
+
+parse_colors_file() {
+  local key value
+
+  [[ -f $COLORS_FILE ]] || return 0
+
+  while IFS='=' read -r key value; do
+    key="${key//[\"\' ]/}"                # strip quotes and spaces from key
+    [[ $key && $key != \#* ]] || continue # skip empty lines and comments
+
+    if [[ $value == *[\"\']* ]]; then
+      value="${value#*[\"\']}"
+      value="${value%%[\"\']*}" # extract value between quotes (ignores inline comments)
+    else
+      value="${value#"${value%%[![:space:]]*}"}"
+      value="${value%"${value##*[![:space:]]}"}" # trim unquoted values
+    fi
+
+    # Values reach consumers as sed replacement text, so the charset excludes
+    # the delimiter, backslash, and & while still covering everything a real
+    # palette holds: hex, rgb()/rgba() lists, gradient angles like -45deg,
+    # decimals, and bare words. Rejections are announced so a third-party theme
+    # doesn't lose a key silently and leave a raw {{ placeholder }} behind.
+    if [[ ! $key =~ ^[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]+$ ]]; then
+      printf 'omarchy-theme-color: skipping key with unsupported characters\n' >&2
+      continue
+    fi
+
+    if [[ ! $value =~ ^[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#(),._+/%\ -]*$ ]]; then
+      printf 'omarchy-theme-color: skipping %s: unsupported characters in value\n' "$key" >&2
+      continue
+    fi
+
+    THEME_COLORS[$key]="$value"
+    [[ $OUTPUT == "raw" ]] && printf '%s\t%s\n' "$key" "$value"
+  done <"$COLORS_FILE"
+
+  return 0
+}
+
+resolve_theme_colors() {
+  local key
+
+  # Accept the complete legacy short-name palette before applying ANSI
+  # fallbacks or deriving shades. Canonical names take precedence when a theme
+  # defines both forms.
+  declare -A legacy_palette_alias=(
+    [background]=bg
+    [dark_background]=dark_bg
+    [darker_background]=darker_bg
+    [lighter_background]=lighter_bg
+    [foreground]=fg
+    [dark_foreground]=dark_fg
+    [light_foreground]=light_fg
+    [bright_foreground]=bright_fg
+  )
+  for key in "${!legacy_palette_alias[@]}"; do
+    alias_theme_color "$key" "${legacy_palette_alias[$key]}"
+  done
+
+  # Themes generated before the semantic palette may only define ANSI names.
+  [[ ${THEME_COLORS[background]} ]] || THEME_COLORS[background]="${THEME_COLORS[color0]}"
+  [[ ${THEME_COLORS[foreground]} ]] || THEME_COLORS[foreground]="${THEME_COLORS[color7]}"
+  [[ ${THEME_COLORS[background]} ]] && THEME_COLORS[color0]="${THEME_COLORS[background]}"
+  [[ ${THEME_COLORS[foreground]} ]] && THEME_COLORS[color7]="${THEME_COLORS[foreground]}"
+
+  # Legacy compatibility: map ANSI color0..color15 to semantic names.
+  declare -A legacy_alias=(
+    [red]=color1
+    [green]=color2
+    [yellow]=color3
+    [blue]=color4
+    [magenta]=color5
+    [cyan]=color6
+    [bright_red]=color9
+    [bright_green]=color10
+    [bright_yellow]=color11
+    [bright_blue]=color12
+    [bright_magenta]=color13
+    [bright_cyan]=color14
+  )
+  for key in "${!legacy_alias[@]}"; do
+    alias_theme_color "$key" "${legacy_alias[$key]}"
+  done
+  alias_theme_color magenta purple
+  alias_theme_color bright_magenta bright_purple
+
+  [[ ${THEME_COLORS[light_foreground]} ]]  || THEME_COLORS[light_foreground]="${THEME_COLORS[color7]:-${THEME_COLORS[foreground]}}"
+  [[ ${THEME_COLORS[bright_foreground]} ]] || THEME_COLORS[bright_foreground]="${THEME_COLORS[color15]:-${THEME_COLORS[foreground]}}"
+  THEME_COLORS[cursor]="${THEME_COLORS[bright_foreground]}"
+  [[ ${THEME_COLORS[lighter_background]} ]] || THEME_COLORS[lighter_background]="${THEME_COLORS[color0]:-${THEME_COLORS[background]}}"
+  [[ ${THEME_COLORS[dark_foreground]} ]]    || THEME_COLORS[dark_foreground]="${THEME_COLORS[color8]:-${THEME_COLORS[foreground]}}"
+  [[ ${THEME_COLORS[muted]} ]]      || THEME_COLORS[muted]="${THEME_COLORS[color8]:-${THEME_COLORS[dark_foreground]}}"
+  [[ ${THEME_COLORS[selection]} ]]            || THEME_COLORS[selection]="${THEME_COLORS[selection_background]:-${THEME_COLORS[color8]:-${THEME_COLORS[color0]:-${THEME_COLORS[background]}}}}"
+  [[ ${THEME_COLORS[selection_background]} ]] || THEME_COLORS[selection_background]="${THEME_COLORS[selection]}"
+  [[ ${THEME_COLORS[selection_foreground]} ]] || THEME_COLORS[selection_foreground]="${THEME_COLORS[bright_foreground]}"
+  [[ ${THEME_COLORS[orange]} ]]               || THEME_COLORS[orange]="${THEME_COLORS[yellow]}"
+  [[ ${THEME_COLORS[brown]} ]]      || THEME_COLORS[brown]=$(mix_color "${THEME_COLORS[orange]}" "#000000" 50%)
+
+  # Auto-derive shades from base accents when not defined and not aliased from colorN
+  [[ ${THEME_COLORS[dark_background]} ]]   || THEME_COLORS[dark_background]=$(mix_color "${THEME_COLORS[background]}" "#000000" 25%)
+  [[ ${THEME_COLORS[darker_background]} ]] || THEME_COLORS[darker_background]=$(mix_color "${THEME_COLORS[background]}" "#000000" 50%)
+  [[ ${THEME_COLORS[bright_red]} ]]    || THEME_COLORS[bright_red]=$(mix_color "${THEME_COLORS[red]}" "#ffffff" 20%)
+  [[ ${THEME_COLORS[bright_yellow]} ]] || THEME_COLORS[bright_yellow]=$(mix_color "${THEME_COLORS[yellow]}" "#ffffff" 20%)
+  [[ ${THEME_COLORS[bright_green]} ]]  || THEME_COLORS[bright_green]=$(mix_color "${THEME_COLORS[green]}" "#ffffff" 20%)
+  [[ ${THEME_COLORS[bright_cyan]} ]]   || THEME_COLORS[bright_cyan]=$(mix_color "${THEME_COLORS[cyan]}" "#ffffff" 20%)
+  [[ ${THEME_COLORS[bright_blue]} ]]   || THEME_COLORS[bright_blue]=$(mix_color "${THEME_COLORS[blue]}" "#ffffff" 20%)
+  [[ ${THEME_COLORS[bright_magenta]} ]] || THEME_COLORS[bright_magenta]=$(mix_color "${THEME_COLORS[magenta]}" "#ffffff" 20%)
+  alias_theme_color purple magenta
+  alias_theme_color bright_purple bright_magenta
+
+  # Keep semantic themes compatible with consumers that still reference the
+  # legacy ANSI names directly.
+  declare -A ansi_alias=(
+    [color0]=background
+    [color1]=red
+    [color2]=green
+    [color3]=yellow
+    [color4]=blue
+    [color5]=magenta
+    [color6]=cyan
+    [color7]=foreground
+    [color8]=muted
+    [color9]=bright_red
+    [color10]=bright_green
+    [color11]=bright_yellow
+    [color12]=bright_blue
+    [color13]=bright_magenta
+    [color14]=bright_cyan
+    [color15]=bright_foreground
+  )
+  for key in "${!ansi_alias[@]}"; do
+    alias_theme_color "$key" "${ansi_alias[$key]}"
+  done
+
+  # Keep canonical themes compatible with old user templates and consumers
+  # that still query the short palette names directly.
+  for key in "${!legacy_palette_alias[@]}"; do
+    if [[ ${THEME_COLORS[$key]} ]]; then
+      THEME_COLORS["${legacy_palette_alias[$key]}"]="${THEME_COLORS[$key]}"
+    fi
+  done
+
+  resolve_theme_mode
+  THEME_COLORS[theme_type]="${THEME_COLORS[mode]}"
+}
+
+parse_colors_file
+
+if [[ $OUTPUT == "raw" ]]; then
+  exit 0
+fi
+
+resolve_theme_colors
+
+if [[ $OUTPUT == "all" ]]; then
+  while IFS= read -r key; do
+    printf '%s\t%s\n' "$key" "${THEME_COLORS[$key]}"
+  done < <(printf '%s\n' "${!THEME_COLORS[@]}" | LC_ALL=C sort)
+  exit 0
+fi
+
+value="${THEME_COLORS[$QUERY_KEY]:-}"
+if [[ -z $value && -n $QUERY_FALLBACK ]]; then
+  value="${THEME_COLORS[$QUERY_FALLBACK]:-$QUERY_FALLBACK}"
+fi
+
+[[ -n $value ]] || exit 1
+printf '%s\n' "$value"

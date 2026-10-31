@@ -1,0 +1,101 @@
+#!/bin/bash
+#
+# In-guest acceptance suite. Runs inside a live Omarchy session (typically a
+# VM installed by omarchy-iso-test, reached over SSH) and verifies that the
+# desktop actually works: session health, application launches, and shell
+# surfaces (launcher, emoji picker, menu).
+#
+# Artifacts (screenshots, logs) land in $OMARCHY_ACCEPTANCE_DIR.
+
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+TEST_DIR="$ROOT/test/acceptance.d"
+
+export OMARCHY_ACCEPTANCE_DIR="${OMARCHY_ACCEPTANCE_DIR:-/tmp/omarchy-acceptance}"
+mkdir -p "$OMARCHY_ACCEPTANCE_DIR"
+
+# Discover the graphical session so the suite works over SSH, where none of
+# the session environment is inherited.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+# The suite verifies the installed product the session is running, so default
+# OMARCHY_PATH to the installed tree — never this checkout, which may hold
+# only test/ (omarchy-iso-test's --sync-omarchy). qs matches shell instances
+# by config path, so a suite pointed at any other tree reads the session
+# shell as "not running". Callers testing a different tree pass it explicitly.
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
+export PATH="$OMARCHY_PATH/bin:$PATH"
+
+if [[ -z ${DISPLAY:-} ]]; then
+  display=$(systemctl --user show-environment | sed -n 's/^DISPLAY=//p' | head -1)
+  export DISPLAY="${display:-:0}"
+fi
+
+if [[ -z ${LANG:-} ]]; then
+  locale_name=$(systemctl --user show-environment | sed -n 's/^LANG=//p' | head -1)
+  export LANG="${locale_name:-C.UTF-8}"
+fi
+
+# First boot may still be settling; wait for Hyprland to come up.
+boot_deadline=$((SECONDS + ${OMARCHY_ACCEPTANCE_BOOT_TIMEOUT:-300}))
+
+wait_for_session() {
+  local signature
+
+  while true; do
+    signature=$(ls -t "$XDG_RUNTIME_DIR/hypr" 2>/dev/null | head -1)
+
+    if [[ -n $signature ]]; then
+      export HYPRLAND_INSTANCE_SIGNATURE="$signature"
+      hyprctl -j monitors >/dev/null 2>&1 && return 0
+    fi
+
+    if ((SECONDS >= boot_deadline)); then
+      echo "not ok - Hyprland session never came up" >&2
+      exit 1
+    fi
+
+    sleep 2
+  done
+}
+
+wait_for_session
+printf 'ok - Hyprland session is up (signature %s)\n' "$HYPRLAND_INSTANCE_SIGNATURE"
+
+if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
+  display=$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name "wayland-*" ! -name "*.lock" -printf '%f\n' 2>/dev/null | head -1)
+  export WAYLAND_DISPLAY="${display:-wayland-1}"
+fi
+
+shopt -s nullglob
+tests=()
+for test in "$TEST_DIR"/*-test.sh; do
+  [[ $(basename "$test") == "base-test.sh" ]] && continue
+  tests+=("$test")
+done
+shopt -u nullglob
+
+if (( ${#tests[@]} == 0 )); then
+  echo "No acceptance tests found in $TEST_DIR" >&2
+  exit 1
+fi
+
+status=0
+suite_started=$SECONDS
+for test in "${tests[@]}"; do
+  test_started=$SECONDS
+  printf '==> %s\n' "${test#$ROOT/}"
+  if ! timeout "${OMARCHY_ACCEPTANCE_TEST_TIMEOUT:-420}" bash "$test"; then
+    status=1
+  fi
+  printf '    completed in %ss\n' "$((SECONDS - test_started))"
+done
+
+if ((status != 0)); then
+  printf 'not ok - acceptance suite failed in %ss (artifacts in %s)\n' "$((SECONDS - suite_started))" "$OMARCHY_ACCEPTANCE_DIR" >&2
+  exit $status
+fi
+
+printf 'ok - acceptance suite passed in %ss (artifacts in %s)\n' "$((SECONDS - suite_started))" "$OMARCHY_ACCEPTANCE_DIR"

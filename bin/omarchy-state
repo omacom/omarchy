@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Manage persistent state files for Omarchy toggles and settings.
+# omarchy:args=<set|clear> <state-name-or-pattern>
+# omarchy:hidden=true
+
+STATE_DIR="$HOME/.local/state/omarchy"
+mkdir -p "$STATE_DIR"
+
+COMMAND="$1"
+STATE_NAME="$2"
+
+if [[ -z $COMMAND ]]; then
+  echo "Usage: omarchy-state <set|clear> <state-name-or-pattern>"
+  exit 1
+fi
+
+if [[ -z $STATE_NAME ]]; then
+  echo "Usage: omarchy-state $COMMAND <state-name>"
+  exit 1
+fi
+
+case "$COMMAND" in
+set)
+  # State names are fixed labels (reboot-required, restart-*-required). The
+  # name becomes a filename under the state directory. A slash would turn it
+  # into directory levels, and a bare `.` or `..` would touch the directory
+  # itself or its parent. Refuse those. Dots inside a name (a..b) are fine;
+  # once slashes are out, only the whole name being `.` or `..` can leave the
+  # directory. clear needs no such guard: find -name matches basenames only,
+  # so a pattern can never walk out of the directory.
+  if [[ $STATE_NAME == */* || $STATE_NAME == "." || $STATE_NAME == ".." ]]; then
+    echo "Invalid state name: $STATE_NAME" >&2
+    exit 2
+  fi
+  touch "$STATE_DIR/$STATE_NAME"
+  ;;
+clear) find "$STATE_DIR" -maxdepth 1 -type f -name "$STATE_NAME" -delete ;;
+esac

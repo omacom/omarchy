@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.keyboard-layout",
+  "name": "Keyboard layout",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Current keyboard layout and input language, click cycles",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "KeyboardLayout.qml"
+  },
+  "barWidget": {
+    "displayName": "Keyboard layout",
+    "description": "Current keyboard layout and input language, click cycles",
+    "category": "Compositor",
+    "defaultSection": "right",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonePaths": [
+      {
+        "source": "KeyboardLayoutModel.js",
+        "target": "KeyboardLayoutModel.js"
+      }
+    ]
+  }
+}

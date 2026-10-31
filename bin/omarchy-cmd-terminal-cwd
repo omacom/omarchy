@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Print the current working directory of the active terminal window
+# omarchy:args=[terminal-pid]
+# omarchy:hidden=true
+
+terminal_pid=${1:-$(hyprctl activewindow | awk '/pid:/ {print $2}')}
+kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
+cwd=""
+
+if [[ -S $kitty_socket ]]; then
+  cwd=$(kitten @ --to "unix:$kitty_socket" ls --match "state:focused" 2>/dev/null |
+    jq -r '.[].tabs[].windows[].cwd // empty')
+else
+  # The newest child, as pgrep -P | tail -n1 found it, read from the kernel's
+  # child lists: pgrep scans all of /proc on every new terminal.
+  shell_pid=""
+  for children_file in /proc/"$terminal_pid"/task/*/children; do
+    [[ -r $children_file ]] || continue
+    read -ra children <"$children_file" || true
+    for child in "${children[@]}"; do
+      (( child > ${shell_pid:-0} )) && shell_pid=$child
+    done
+  done
+
+  # A terminal's shell leads its own session on the terminal's pty. A shell any other app
+  # spawned, like a browser's download helper, does not, so that app gets a terminal in HOME.
+  if [[ -n $shell_pid ]] && read -r stat 2>/dev/null <"/proc/$shell_pid/stat"; then
+    read -r _ _ _ session tty_nr _ <<<"${stat##*) }"
+    if (( session == shell_pid && tty_nr != 0 )); then
+      cwd=$(readlink -f "/proc/$shell_pid/cwd" 2>/dev/null)
+      shell=$(readlink -f "/proc/$shell_pid/exe" 2>/dev/null)
+      grep -Fqsx "$shell" /etc/shells || cwd=""
+    fi
+  fi
+fi
+
+if [[ -d $cwd ]]; then
+  echo "$cwd"
+else
+  echo "$HOME"
+fi

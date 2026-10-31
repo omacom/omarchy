@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Install Steam and graphics drivers selected for this system
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Steam..."
+
+# Install the lib32 drivers first. Steam depends on the virtual package
+# lib32-vulkan-driver, and omarchy-pkg-add runs pacman with --noconfirm, which
+# resolves an unsatisfied virtual dependency to the first provider without
+# asking. That provider is currently lib32-nvidia-utils, so installing Steam
+# ahead of the drivers pulls the NVIDIA stack onto machines that have no NVIDIA
+# GPU.
+omarchy-install-gaming-gpu-lib32
+omarchy-pkg-add steam
+omarchy-lifecycle-dispatch post-install steam
+
+echo ""
+echo "Steam will start automatically now. This might take a while..."
+
+setsid uwsm-app -- gtk-launch steam >/dev/null 2>&1 &

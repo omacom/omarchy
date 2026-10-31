@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Prompt for confirmation before starting an update
+
+gum style --border normal --padding "1 2" \
+  "$(omarchy-i18n update.ready)" \
+  "" \
+  "• $(omarchy-i18n update.cannotStop)" \
+  "• $(omarchy-i18n update.connectPower)" \
+  "" \
+  "$(omarchy-i18n update.whatsNew "https://github.com/omacom/omarchy/releases/latest")"
+
+echo
+
+if ! gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n update.continue)"; then
+  echo "Update cancelled"
+  exit 1
+fi

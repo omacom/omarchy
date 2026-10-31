@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Show the weather status notification after Omarchy has started.
+# To put it into use, remove .sample from this file name.
+
+# The status fails when the weather is unavailable, in whatever language it says so.
+if weather=$(omarchy-weather-status 2>/dev/null) && [[ -n $weather ]]; then
+  omarchy-notification-send -u low "$weather"
+fi

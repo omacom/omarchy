@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Dismiss a notification by summary substring. Used by the first-run notifications to dismiss them after clicking for action.
+# omarchy:args=<summary>
+
+if (($# == 0)); then
+  echo "Usage: omarchy-notification-dismiss <summary>"
+  exit 1
+fi
+
+omarchy-shell -q notifications dismiss "$1"

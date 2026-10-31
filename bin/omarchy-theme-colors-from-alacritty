@@ -1,0 +1,151 @@
+#!/bin/bash
+
+# omarchy:summary=Generate a theme's colors.toml from its alacritty.toml palette
+# omarchy:args=<theme-dir>
+# omarchy:hidden=true
+
+set -e
+
+THEME_SOURCE="${1:-}"
+COLORS_OUTPUT="$THEME_SOURCE/colors.toml"
+ALACRITTY_FILE="$THEME_SOURCE/alacritty.toml"
+
+if [[ -z $THEME_SOURCE ]]; then
+  echo "Usage: omarchy-theme-colors-from-alacritty <theme-dir>" >&2
+  exit 1
+fi
+
+# Skip if colors.toml already exists in source theme
+if [[ -f $COLORS_OUTPUT ]]; then
+  exit 0
+fi
+
+# Skip if no alacritty.toml to extract from
+if [[ ! -f $ALACRITTY_FILE ]]; then
+  exit 0
+fi
+
+# Parse the alacritty TOML in a single awk pass, emitting one
+# "<dotted-path>\t#<hex>" pair per color-valued key. Dotted keys are
+# normalized (`normal.black = ...` under [colors] becomes
+# colors.normal.black, same as `black = ...` under [colors.normal]),
+# with the section form taking precedence and the first valid
+# occurrence of a key winning.
+declare -A COLORS
+
+while IFS=$'\t' read -r key value; do
+  COLORS[$key]=$value
+done < <(awk '
+  /^[ \t]*\[/ {
+    line = $0
+    sub(/^[ \t]+/, "", line)
+    if (line ~ /^\[[^]]*\][ \t]*$/) {
+      section = substr(line, 2, index(line, "]") - 2)
+    } else {
+      section = ""
+    }
+    next
+  }
+
+  section != "" {
+    split_pos = index($0, "=")
+    if (split_pos == 0) {
+      next
+    }
+
+    key = substr($0, 1, split_pos - 1)
+    gsub(/^[ \t]+|[ \t]+$/, "", key)
+    if (key == "" || key ~ /^#/) {
+      next
+    }
+
+    value = substr($0, split_pos + 1)
+    gsub(/^[ \t]+|[ \t]+$/, "", value)
+
+    # Accept a lone hex color, optionally 0x- or #-prefixed and quoted,
+    # ignoring any trailing comment. The color always yields the first
+    # run of six hex digits.
+    if (value !~ /^["'\''](0[xX]|#)?[0-9a-fA-F]{6}(["'\'']([ \t]*#.*)?)?$/ &&
+        value !~ /^(0[xX])?[0-9a-fA-F]{6}([ \t]*#.*)?$/) {
+      next
+    }
+    match(value, /[0-9a-fA-F]{6}/)
+    hex = tolower(substr(value, RSTART, RLENGTH))
+
+    path = section "." key
+    if (section == "colors" && index(key, ".") > 0) {
+      if (!(path in dotted)) dotted[path] = hex
+    } else {
+      if (!(path in direct)) direct[path] = hex
+    }
+  }
+
+  END {
+    for (path in direct) print path "\t#" direct[path]
+    for (path in dotted) if (!(path in direct)) print path "\t#" dotted[path]
+  }
+' "$ALACRITTY_FILE")
+
+names=(black red green yellow blue magenta cyan white)
+
+# Extract normal colors (color0-7)
+for i in {0..7}; do
+  name="${names[$i]}"
+  printf -v "color$i" "%s" "${COLORS[colors.normal.$name]}"
+done
+
+# Validate we have all normal colors (required)
+for c in color0 color1 color2 color3 color4 color5 color6 color7; do
+  if [[ -z ${!c} ]]; then
+    echo "Warning: Cannot extract all normal colors from $ALACRITTY_FILE, skipping generation" >&2
+    exit 0
+  fi
+done
+
+# Extract bright colors (color8-15), falling back to normal
+for i in {0..7}; do
+  normal="color$i"
+  name="${names[$i]}"
+  val="${COLORS[colors.bright.$name]}"
+  printf -v "color$((i + 8))" "%s" "${val:-${!normal}}"
+done
+
+# Extract primary and selection colors
+background="${COLORS[colors.primary.background]}"
+foreground="${COLORS[colors.primary.foreground]}"
+selection_background="${COLORS[colors.selection.background]}"
+
+# Apply defaults
+background=${background:-$color0}
+foreground=${foreground:-$color7}
+color0=$background
+color7=$foreground
+selection_background=${selection_background:-$foreground}
+accent=$color4
+
+mkdir -p "$THEME_SOURCE"
+
+cat > "$COLORS_OUTPUT" <<EOF
+accent = "$accent"
+selection = "$selection_background"
+
+background = "$background"
+foreground = "$foreground"
+
+color0 = "$color0"
+color1 = "$color1"
+color2 = "$color2"
+color3 = "$color3"
+color4 = "$color4"
+color5 = "$color5"
+color6 = "$color6"
+color7 = "$color7"
+color8 = "$color8"
+color9 = "$color9"
+color10 = "$color10"
+color11 = "$color11"
+color12 = "$color12"
+color13 = "$color13"
+color14 = "$color14"
+color15 = "$color15"
+EOF

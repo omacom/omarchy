@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Steam and all of its game libraries, configs, and caches.
+# omarchy:requires-sudo=true
+
+set -e
+
+omarchy-lifecycle-dispatch pre-remove steam
+omarchy-pkg-drop steam
+
+rm -rf \
+  "$HOME/.steam" \
+  "$HOME/.local/share/Steam" \
+  "$HOME/.config/steam" \
+  "$HOME/.cache/steam"
+
+echo ""
+echo "Steam and its data have been removed."

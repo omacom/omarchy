@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when clamshell mode is active
+# omarchy:hidden=true
+
+# Clamshell = lid closed while driving one or more external monitors.
+omarchy-hw-laptop-closed && omarchy-hw-external-monitors

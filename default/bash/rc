@@ -1,0 +1,7 @@
+: "${OMARCHY_PATH:=/usr/share/omarchy}"
+source "$OMARCHY_PATH/default/bash/envs"
+source "$OMARCHY_PATH/default/bash/shell"
+source "$OMARCHY_PATH/default/bash/aliases"
+source "$OMARCHY_PATH/default/bash/functions"
+source "$OMARCHY_PATH/default/bash/init"
+[[ $- == *i* ]] && bind -f "$OMARCHY_PATH/default/bash/inputrc"

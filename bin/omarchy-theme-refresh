@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Refresh the current theme from its templates.
+
+THEME_NAME_PATH="$HOME/.local/state/omarchy/current/theme.name"
+
+# Installers and migrations refresh the theme and then read the app configs it
+# writes, so this waits for every retint rather than leaving some running.
+if [[ -f $THEME_NAME_PATH ]]; then
+  OMARCHY_THEME_WAIT=1 OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$(cat $THEME_NAME_PATH)"
+fi
