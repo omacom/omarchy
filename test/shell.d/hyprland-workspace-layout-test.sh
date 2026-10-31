@@ -252,6 +252,9 @@ local queried = {}
 local all = {}
 local placed = {}
 local config = { ["input.follow_mouse"] = 1, ["general.resize_on_border"] = false, ["decoration.shadow.enabled"] = true }
+-- What Hyprland reports as the active workspace, replaced by cases that
+-- simulate its focus state lagging an event.
+local active_ws = { id = 3 }
 
 local function window(address, options)
   options = options or {}
@@ -358,7 +361,7 @@ hl = {
   end,
   -- The move handler waits for the move to land; here it lands at once.
   timer = function(callback) callback() end,
-  get_active_workspace = function() return { id = 3 } end,
+  get_active_workspace = function() return active_ws end,
   get_config = function(key) return config[key] end,
   config = function(values)
     for section, options in pairs(values) do
@@ -471,6 +474,32 @@ assert(after.floating == false, "a window opened after the mode ended was floate
 o.workspace_mode({ workspace = "3", mode = "scrolling" })
 assert(workspace_rules[#workspace_rules].layout == "scrolling", "scrolling was not applied as a layout")
 assert(workspace_rules[#workspace_rules].workspace == "3")
+
+-- A monitor focus event hands over the monitor it is for: Hyprland's own
+-- active-workspace read can still report the one the pointer left when the
+-- handler runs, which left follow_mouse one monitor behind on tiled ones.
+o.workspace_mode({ workspace = "3", mode = "floating" })
+assert(config["input.follow_mouse"] == 0, "a floating workspace did not turn follow_mouse off")
+
+local focus_changed = subscriptions["monitor.focused"][1]
+assert(focus_changed, "monitor.focused was not subscribed")
+
+-- Hyprland still reports the floating workspace 3, but the monitor that took
+-- focus shows the tiled 5: the user's follow_mouse comes back.
+active_ws = { id = 3 }
+focus_changed({ name = "DP-2", active_workspace = { id = 5 } })
+assert(config["input.follow_mouse"] == 1, "focus moving to a tiled monitor kept follow_mouse off")
+
+-- And the way round: the stale report says tiled 5 while the monitor that
+-- took focus shows floating 3, which must keep follow_mouse off.
+active_ws = { id = 5 }
+focus_changed({ name = "DP-1", active_workspace = { id = 3 } })
+assert(config["input.follow_mouse"] == 0, "focus moving to a floating monitor turned follow_mouse on")
+
+-- Without a monitor to read, the handler falls back to the active workspace.
+active_ws = { id = 5 }
+focus_changed(nil)
+assert(config["input.follow_mouse"] == 1, "a focus event without a monitor did not read the active workspace")
 LUA
 
 # Lua 5.5 exits 0 when a script that failed came in on stdin, so a heredoc piped
