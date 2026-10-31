@@ -18,7 +18,7 @@ local omarchy_monitor_scale = 1
 
 Changes to `GDK_SCALE` apply to applications started after the change (and GTK only honors whole numbers, so keep it at the nearest integer of your monitor scale). So make sure you quit the windows that you have that are oversized after the change (or close all windows with `Ctrl + Alt + Del`!).
 
-You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower. If you have the default configuration, these changes will also persist past reboot.
+You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower, or pick one from the monitor panel in the top bar. These change only the monitor you're focused on, so a laptop screen and an external display can each have their own scale. The choice is saved to `~/.config/hypr/monitors.lua` as an `hl.monitor` rule for that monitor, so it persists past reboot and takes precedence over `omarchy_monitor_scale`, which remains the scale for every monitor without a rule of its own. Since `GDK_SCALE` is one value for all screens, these changes set it from the monitor with the lowest scale, so X11 apps come out a little small on the denser screen rather than oversized on the other.
 
 ### Making text bigger or smaller
 
@@ -38,7 +38,21 @@ When you're extending, closing the lid on the laptop will automatically turn off
 
 ### Arranging multiple screens
 
-Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). You can [bind specific workspaces to specific monitors](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) as well. In Omarchy, these rules go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.
+Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). In Omarchy, these go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.
+
+Every monitor has workspaces 1 through 10 of its own, so `Super + 1` always means the first workspace of the monitor you're on. Behind the scenes, Hyprland still numbers workspaces across all monitors: your laptop screen (or first monitor) gets 1–10, the next monitor 11–20, and so on, and each monitor keeps its block every time you plug it in. Use those numbers if you write [workspace rules](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) or window rules for a specific monitor, so workspace 12 is the second workspace of your second monitor. `~/.local/state/omarchy/monitor-workspaces` lists which block each monitor has.
+
+The arrow keys work across monitors that share an edge in your layout. Screens that only touch at a corner, or that have a gap between them, aren't neighbors, so use `Ctrl + Alt + Tab` to get between them.
+
+| Hotkey | Across monitors |
+| --- | --- |
+| `Super + Arrow` | Moves focus to the monitor on that side once there's no window left in that direction |
+| `Super + Shift + Arrow` | Swaps with a window on the monitor on that side |
+| `Super + Alt + Arrow` | Moves the window into a group on the monitor on that side |
+| `Super + Shift + Ctrl + Arrow` | Moves the window to the monitor on that side, onto the workspace it's showing |
+| `Super + Shift + Alt + Arrow` | Moves the workspace to the monitor on that side, keeping its number if it's free |
+| `Ctrl + Alt + Tab` / `Ctrl + Alt + Shift + Tab` | Moves focus to the next or previous monitor, whatever the layout |
+| `Super + 1-0`, `Super + Tab`, `Super + Scroll Wheel` | Stay on the monitor you're on |
 
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.
 

@@ -36,7 +36,11 @@ Edit `~/.config/hypr/bindings.lua`. Format:
 ```lua
 o.bind("SUPER + SHIFT + R", "SSH", "alacritty -e ssh your-server")
 o.bind("SUPER + B", "Browser", { launch = "chromium" })  -- launch wraps with uwsm-app
+o.bind("SUPER + M", "Theme menu", { menu = "theme" })     -- toggle an Omarchy menu route
+o.bind("SUPER + N", "Network", { panel = "omarchy.network" })  -- toggle a shell panel
 ```
+
+Prefer `{ menu = ... }` and `{ panel = ... }` over running `omarchy-menu toggle ...` or `omarchy-shell shell toggle ...` as a command. Routes and panels listed in `$OMARCHY_PATH/default/omarchy/shortcuts` go straight to the running shell as Hyprland global shortcuts, with no process started on each press; any other route or panel still works, through the command.
 
 View current bindings: `omarchy menu keybindings --print`
 

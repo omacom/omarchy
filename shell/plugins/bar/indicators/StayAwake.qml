@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BarIndicator {
@@ -8,12 +9,12 @@ BarIndicator {
   readonly property var idleService: bar?.shell?.firstPartyServiceFor("omarchy.idle")
 
   active: idleService ? idleService.stayAwake : false
-  activeText: "󰅶"
-  inactiveText: "󰅶"
+  activeText: ""
+  inactiveText: ""
   activeTooltipText: idleService && idleService.stayAwakeUntil > 0
-    ? "Stay Awake until " + Qt.formatTime(new Date(idleService.stayAwakeUntil), "hh:mm") + "\nRight-click for duration"
-    : "Allow Idle Lock & Screensaver\nRight-click for duration"
-  inactiveTooltipText: "Stay Awake\nRight-click for duration"
+    ? I18n.t("bar.stayAwakeUntil").arg(Qt.formatTime(new Date(idleService.stayAwakeUntil), Qt.locale(), Locale.ShortFormat)) + "\n" + I18n.t("bar.stayAwakeDurationHint")
+    : I18n.t("bar.allowIdleLock") + "\n" + I18n.t("bar.stayAwakeDurationHint")
+  inactiveTooltipText: I18n.t("bar.stayAwake") + "\n" + I18n.t("bar.stayAwakeDurationHint")
 
   function toggle() {
     if (root.idleService) root.idleService.setIdleEnabled(root.active)
@@ -34,14 +35,14 @@ BarIndicator {
     anchorItem: root
     owner: root
     bar: root.bar
-    focusTarget: keys
+    focusTarget: durationPopup.loadedContent
     contentWidth: fittedContentWidth(Style.space(232))
-    contentHeight: fittedContentHeight(options.implicitHeight)
-    onOpenChanged: if (open) keys.currentIndex = 0
+    contentHeight: fittedContentHeight(loadedContentHeight)
+    onOpenChanged: if (open && loadedContent) loadedContent.currentIndex = 0
 
-    PanelKeyCatcher {
+    content: PanelKeyCatcher {
       id: keys
-      anchors.fill: parent
+      implicitHeight: options.implicitHeight
       property int currentIndex: 0
 
       function moveChoice(direction) {
@@ -62,9 +63,9 @@ BarIndicator {
         spacing: Style.spacing.labelGap
 
         Text {
-          text: "Stay awake"
+          text: I18n.t("bar.stayAwake")
           textFormat: Text.PlainText
-          color: Color.popups.text
+          color: Commons.Color.popups.text
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           font.bold: true
@@ -75,11 +76,11 @@ BarIndicator {
         Repeater {
           id: choices
           model: [
-            { label: "30 minutes", seconds: 1800 },
-            { label: "1 hour", seconds: 3600 },
-            { label: "3 hours", seconds: 10800 },
-            { label: "8 hours", seconds: 28800 },
-            { label: "Indefinitely", seconds: 0 }
+            { label: I18n.t("bar.stayAwake30Minutes"), seconds: 1800 },
+            { label: I18n.t("bar.stayAwake1Hour"), seconds: 3600 },
+            { label: I18n.t("bar.stayAwake3Hours"), seconds: 10800 },
+            { label: I18n.t("bar.stayAwake8Hours"), seconds: 28800 },
+            { label: I18n.t("bar.stayAwakeIndefinitely"), seconds: 0 }
           ]
 
           Button {
@@ -87,7 +88,7 @@ BarIndicator {
             required property int index
             width: options.width
             text: modelData.label
-            foreground: Color.popups.text
+            foreground: Commons.Color.popups.text
             leftAlign: true
             hasCursor: keys.currentIndex === index
             onHovered: function(hovered) { if (hovered) keys.currentIndex = index }
@@ -101,13 +102,13 @@ BarIndicator {
           }
         }
 
-        PanelSeparator { foreground: Color.popups.text }
+        PanelSeparator { foreground: Commons.Color.popups.text }
 
         Button {
           id: turnOff
           width: options.width
-          text: "Turn off"
-          foreground: Color.popups.text
+          text: I18n.t("bar.stayAwakeTurnOff")
+          foreground: Commons.Color.popups.text
           leftAlign: true
           hasCursor: keys.currentIndex === choices.count
           onHovered: function(hovered) { if (hovered) keys.currentIndex = choices.count }

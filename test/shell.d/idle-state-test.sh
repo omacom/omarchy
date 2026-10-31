@@ -14,10 +14,13 @@ cleanup() {
     kill "$qs_pid" 2>/dev/null || true
     wait "$qs_pid" 2>/dev/null || true
   fi
+  if [[ -n ${boundary_tmp:-} ]]; then rm -rf -- "$boundary_tmp"; fi
+  if [[ -n ${update_state_dir:-} ]]; then rm -rf -- "$update_state_dir"; fi
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
 mkdir -p "$test_home" "$fixture" "$test_tmp/bin"
+ln -s "$ROOT/shell/Commons" "$fixture/Commons"
 cat > "$fixture/shell.qml" <<'QML'
 import QtQuick
 import Quickshell
@@ -163,26 +166,50 @@ pass "failed saves preserve the prior setting and notify the user"
 
 # Pause update publication after its ownership read, then make a newer choice.
 # Only filesystem state is exercised: never acquire a real sleep inhibitor.
-cat > "$test_tmp/bin/omarchy-cmd-present" <<'BASH'
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+trap cleanup EXIT
+export SUDO_TEST_HOME="$test_home"
+copy_boundary_file bin/omarchy-update-stay-awake
+runtime_dir="/run/user/$(id -u)"
+update_state_name="omarchy-update-stay-awake-test-$BASHPID-$RANDOM"
+update_state_dir="$runtime_dir/$update_state_name"
+sed -i "s#state_dir=\"\$state_base/omarchy-update-stay-awake\"#state_dir=\"\$state_base/$update_state_name\"#" "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake"
+cat > "$SUDO_TEST_ROOT/mock/systemd-inhibit" <<'BASH'
 #!/bin/bash
-exit 1
+while [[ $1 == --* ]]; do shift; done
+exec "$@"
 BASH
-cat > "$test_tmp/bin/mv" <<'BASH'
+cat > "$SUDO_TEST_ROOT/mock/pkexec" <<'BASH'
 #!/bin/bash
-if [[ -e $HOME/pause-rename ]]; then
-  rm "$HOME/pause-rename"
-  touch "$HOME/rename-ready"
+exec "$@"
+BASH
+cat > "$SUDO_TEST_ROOT/mock/setpriv" <<'BASH'
+#!/bin/bash
+while [[ ${1:-} == --* ]]; do
+  case "$1" in
+    --reuid|--regid) shift 2 ;;
+    --clear-groups) shift ;;
+    *) exit 90 ;;
+  esac
+done
+exec "$@"
+BASH
+cat > "$SUDO_TEST_ROOT/bin/mv" <<'BASH'
+#!/bin/bash
+# Pause the marker publication, after the shared lock and ownership read.
+if [[ ${!#} == */indicators/stay-awake && -e $SUDO_TEST_HOME/pause-rename ]]; then
+  rm "$SUDO_TEST_HOME/pause-rename"
+  touch "$SUDO_TEST_HOME/rename-ready"
   for _ in {1..200}; do
-    [[ ! -e $HOME/rename-ready ]] && break
+    [[ ! -e $SUDO_TEST_HOME/rename-ready ]] && break
     sleep 0.02
   done
 fi
 exec /usr/bin/mv "$@"
 BASH
-chmod +x "$test_tmp/bin/omarchy-cmd-present" "$test_tmp/bin/mv"
+chmod +x "$SUDO_TEST_ROOT/mock/"* "$SUDO_TEST_ROOT/bin/mv"
 update_idle() {
-  HOME="$test_home" XDG_RUNTIME_DIR="$test_tmp/runtime" PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
-    "$ROOT/bin/omarchy-update-stay-awake" "$@"
+  XDG_RUNTIME_DIR="$runtime_dir" "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" "$@"
 }
 for phase in start stop; do
   for choice in timed indefinite off cli-on cli-off cli-toggle; do
