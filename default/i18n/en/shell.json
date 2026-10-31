@@ -140,6 +140,7 @@
   "bar.stayAwake": "Stay Awake",
   "bar.stopRecording": "Stop recording",
   "bluetooth.available": "AVAILABLE",
+  "bluetooth.batteryCharging": "%1 · Charging",
   "bluetooth.connect": "Connect",
   "bluetooth.connected": "CONNECTED",
   "bluetooth.connectedStatus": "Connected",
