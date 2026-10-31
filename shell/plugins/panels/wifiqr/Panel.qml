@@ -213,6 +213,7 @@ Item {
   OverlayWindow {
     shown: root.opened
     WlrLayershell.namespace: "omarchy-network-qr"
+    onDismissRequested: root.dismiss()
 
     // Deep scrim: the floating code needs the backdrop to carry the contrast
     // on any wallpaper.

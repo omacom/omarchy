@@ -162,6 +162,7 @@ Item {
     id: panel
     shown: root.opened
     WlrLayershell.namespace: "omarchy-emojis"
+    onDismissRequested: root.dismiss()
 
     Rectangle {
       anchors.fill: parent

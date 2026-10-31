@@ -15,6 +15,10 @@ PanelWindow {
   property int shownLayer: WlrLayer.Overlay
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
 
+  // Emitted when the user clicks another output while this overlay holds the
+  // keyboard. Overlays treat it like a click on their own scrim.
+  signal dismissRequested()
+
   property var targetScreen: null
   readonly property var targetMonitor: {
     var monitors = Hyprland.monitors.values
@@ -55,6 +59,8 @@ PanelWindow {
   onShownChanged: {
     targetScreen = shown ? focusedScreen() : null
     if (shown) Hyprland.refreshMonitors()
+    focusPrimed = false
+    beginFocusPrime()
   }
   onDevicePixelRatioChanged: if (shown) Hyprland.refreshMonitors()
 
@@ -78,7 +84,66 @@ PanelWindow {
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
   WlrLayershell.layer: shownLayer
-  WlrLayershell.keyboardFocus: shownKeyboardFocus
+
+  // An Exclusive overlay is primed with Exclusive on every open, then settles
+  // on OnDemand. Exclusive takes the keyboard even from an application that
+  // constrained the pointer, and Hyprland focuses OnDemand only when a surface
+  // first maps, not when a mapped one changes from None back to OnDemand. But
+  // while a layer is Exclusive, Hyprland routes every click on every output to
+  // it, so the dismiss twins below would never see one and the other outputs
+  // would be dead to the pointer. OnDemand releases that compositor-wide
+  // hit-testing. Same approach as KeyboardPanel.
+  readonly property bool exclusive: shownKeyboardFocus === WlrKeyboardFocus.Exclusive
+  property bool focusPrimed: false
+  WlrLayershell.keyboardFocus: exclusive && focusPrimed ? WlrKeyboardFocus.OnDemand : shownKeyboardFocus
+
+  function beginFocusPrime() {
+    if (shown && backingWindowVisible) focusPrimeTimer.restart()
+  }
+  onBackingWindowVisibleChanged: beginFocusPrime()
+  onShownKeyboardFocusChanged: { focusPrimed = false; beginFocusPrime() }
+
+  Timer {
+    id: focusPrimeTimer
+    // Enough for several Qt/Wayland commit cycles after the surface maps while
+    // keeping the compositor-wide Exclusive phase imperceptibly short.
+    interval: 75
+    onTriggered: if (window.shown) window.focusPrimed = true
+  }
+
+  // The surface spans only its own output, and the compositor hit-tests
+  // pointer input per output, so the overlay's scrim can never see a click on
+  // another monitor. Give every other output a transparent twin whose only job
+  // is to catch that click and ask the overlay to close. Keyboard focus None:
+  // the twins must catch the pointer without taking the keyboard from the
+  // overlay when the cursor merely crosses onto their output.
+  Variants {
+    model: window.shown && window.exclusive ? Quickshell.screens : []
+
+    delegate: Component {
+      PanelWindow {
+        required property var modelData
+
+        screen: modelData
+        // Compare by output name: the target screen must be known before any
+        // twin maps, or a twin would cover the overlay's own output.
+        visible: window.shown && !!window.targetScreen && modelData.name !== window.targetScreen.name
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        anchors { top: true; left: true; bottom: true; right: true }
+
+        WlrLayershell.namespace: "omarchy-overlay-dismiss"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.AllButtons
+          onPressed: window.dismissRequested()
+        }
+      }
+    }
+  }
 
   // Opacity preserves keyboard handling while the scale arrives, including
   // search keystrokes and Escape pressed immediately after opening.
