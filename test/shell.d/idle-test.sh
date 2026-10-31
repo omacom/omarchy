@@ -18,6 +18,17 @@ assertEqual(idle.firstIdleTimeout(0, 0), 0, 'idle has no first-idle timeout when
 assertEqual(idle.delayAfterFirstIdle(300, 150), 150, 'idle delays lock until its own timeout')
 assertEqual(idle.delayAfterFirstIdle(150, 150), 0, 'idle fires an action immediately when it is the first timeout')
 assertEqual(idle.delayAfterFirstIdle(0, 150), 0, 'idle does not schedule a disabled action')
+assertEqual(idle.inhibitorCountFromText('{"count":2,"holders":[]}'), 2, 'inhibitor parses a numeric count')
+assertEqual(idle.inhibitorCountFromText('{}'), 0, 'inhibitor treats an empty object as zero')
+assertEqual(idle.inhibitorCountFromText(''), 0, 'inhibitor treats missing text as zero')
+assertEqual(idle.inhibitorCountFromText('not-json'), 0, 'inhibitor treats unparseable text as zero')
+assertEqual(idle.inhibitorCountFromText(undefined), 0, 'inhibitor treats undefined as zero')
+assertEqual(idle.inhibitorCountFromText('{"count":"2"}'), 0, 'inhibitor ignores a non-numeric count')
+assertEqual(idle.inhibitorTransition(0, 1), 'cancel', 'a first inhibitor cancels an idle cycle')
+assertEqual(idle.inhibitorTransition(1, 0), 'rearm', 'releasing the last inhibitor re-arms idle')
+assertEqual(idle.inhibitorTransition(0, 0), 'noop', 'no inhibitor counts mean no transition')
+assertEqual(idle.inhibitorTransition(1, 2), 'noop', 'an added inhibitor while others remain is no-op')
+assertEqual(idle.inhibitorTransition(2, 1), 'noop', 'a removed inhibitor while others remain is no-op')
 JS
 
 test_tmp=$(mktemp -d)

@@ -1,0 +1,326 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Serve D-Bus idle inhibitors and session-lock notifications
+# omarchy:group=system
+# omarchy:hidden=true
+
+"""Own org.freedesktop.ScreenSaver so apps can suppress the screensaver.
+
+Quattro's idle service honors only the Wayland idle-inhibit protocol. Browsers
+and players request inhibit over D-Bus instead. Chromium/Chrome call
+/org/freedesktop/ScreenSaver; VLC and Firefox use /ScreenSaver. Nothing has
+owned that name since hypridle was replaced (issue #6475).
+
+This daemon owns ScreenSaver only — the same contract hypridle had. Chromium
+routes display wake locks (playing video) there and routes audio, downloads,
+and WebRTC to org.freedesktop.PowerManagement, which we leave unowned so
+background audio cannot pin the screensaver and lock off.
+
+Inhibitors are reaped when the caller leaves the bus. JSON state is published
+for the idle service to watch. The lock plugin publishes compositor-confirmed
+state on a private interface; this service relays it through the same public
+ScreenSaver owner, regardless of which component starts first.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import signal
+import sys
+import warnings
+from datetime import datetime, timezone
+
+import gi
+
+warnings.filterwarnings("ignore", message=".*register_object is deprecated.*")
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+gi.require_version("GLibUnix", "2.0")
+from gi.repository import GLibUnix  # noqa: E402
+
+SS_NAME = "org.freedesktop.ScreenSaver"
+SS_PATHS = ["/org/freedesktop/ScreenSaver", "/ScreenSaver"]
+LOCK_NAME = "org.omarchy.SessionLock"
+LOCK_PATH = "/org/omarchy/SessionLock"
+
+SS_XML = """
+<node>
+  <interface name="org.freedesktop.ScreenSaver">
+    <method name="GetActive">
+      <arg name="active" type="b" direction="out"/>
+    </method>
+    <signal name="ActiveChanged">
+      <arg name="active" type="b"/>
+    </signal>
+    <method name="Inhibit">
+      <arg name="application_name" type="s" direction="in"/>
+      <arg name="reason_for_inhibit" type="s" direction="in"/>
+      <arg name="cookie" type="u" direction="out"/>
+    </method>
+    <method name="UnInhibit">
+      <arg name="cookie" type="u" direction="in"/>
+    </method>
+  </interface>
+</node>
+"""
+
+
+def default_state_file() -> str:
+  runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+  return os.path.join(runtime, "omarchy", "idle-inhibit", "state") if runtime else ""
+
+
+class InhibitState:
+  MAX_HOLDERS = 256
+  MAX_TEXT = 4096
+
+  def __init__(self) -> None:
+    self.cookies: dict[int, dict] = {}
+    self.next_cookie = 1
+
+  def add(self, app: str, reason: str, owner: str) -> int:
+    if len(self.cookies) >= self.MAX_HOLDERS:
+      raise GLib.Error.new_literal(
+        Gio.dbus_error_quark(),
+        "too many outstanding inhibits",
+        Gio.DBusError.LIMITS_EXCEEDED,
+      )
+    cookie = self.next_cookie
+    self.next_cookie = (self.next_cookie + 1) & 0xFFFFFFFF or 1
+    self.cookies[cookie] = {
+      "app": str(app)[: self.MAX_TEXT],
+      "reason": str(reason)[: self.MAX_TEXT],
+      "owner": str(owner),
+      "cookie": cookie,
+      "since": datetime.now(timezone.utc).isoformat(),
+    }
+    return cookie
+
+  def remove(self, cookie: int) -> None:
+    self.cookies.pop(int(cookie), None)
+
+  def drop_owner(self, owner: str) -> list[int]:
+    gone = [cookie for cookie, holder in self.cookies.items() if holder["owner"] == owner]
+    for cookie in gone:
+      del self.cookies[cookie]
+    return gone
+
+  def snapshot(self) -> dict:
+    holders = [self.cookies[cookie] for cookie in sorted(self.cookies)]
+    return {
+      "pid": os.getpid(),
+      "inhibited": bool(holders),
+      "count": len(holders),
+      "holders": holders,
+    }
+
+
+class Daemon:
+  def __init__(self, state: InhibitState, connection: Gio.DBusConnection, state_file: str) -> None:
+    self.state = state
+    self.connection = connection
+    self.state_file = state_file
+    self.registration_ids: list[int] = []
+    self.owned_names = 0
+    self.exit_code = 0
+    self.loop: GLib.MainLoop | None = None
+    self.is_locked = False
+    self.lock_owner = None
+    self.lock_revision = 0
+    self.lock_initialized = False
+
+  def publish_lock_state(self, is_locked: bool) -> None:
+    changed = not self.lock_initialized or self.is_locked != is_locked
+    self.lock_initialized = True
+    self.is_locked = is_locked
+    if changed:
+      for path in SS_PATHS:
+        self.connection.emit_signal(
+          None, path, SS_NAME, "ActiveChanged", GLib.Variant("(b)", (is_locked,))
+        )
+
+  def lock_owner_appeared(self, connection, name, owner) -> None:
+    self.lock_owner = owner
+    self.lock_initialized = False
+    self.lock_revision += 1
+    revision = self.lock_revision
+
+    def received_state(connection, result) -> None:
+      try:
+        state = connection.call_finish(result).unpack()[0]
+      except GLib.Error as error:
+        # The publisher may still be waiting for its first compositor state.
+        if Gio.dbus_error_get_remote_error(error) != "org.omarchy.SessionLock.NotReady":
+          print(f"omarchy-idle-inhibit: lock state unavailable ({error.message})", file=sys.stderr)
+        return
+      if self.lock_owner == owner and self.lock_revision == revision:
+        self.publish_lock_state(state)
+
+    connection.call(
+      owner, LOCK_PATH, LOCK_NAME, "GetActive", None,
+      GLib.VariantType.new("(b)"), Gio.DBusCallFlags.NONE, 2000, None, received_state,
+    )
+
+  def lock_owner_vanished(self, connection, name) -> None:
+    self.lock_owner = None
+    self.lock_revision += 1
+    # Losing the publisher is not an unlock: Wayland's failsafe may hold the lock.
+
+  def lock_state_changed(self, connection, sender, path, iface, signal, params) -> None:
+    if sender == self.lock_owner:
+      self.lock_revision += 1
+      self.publish_lock_state(params.unpack()[0])
+
+  def publish(self, snapshot: dict | None = None) -> None:
+    payload = snapshot if snapshot is not None else self.state.snapshot()
+    directory = os.path.dirname(self.state_file)
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    tmp = self.state_file + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle, separators=(",", ":"))
+      handle.flush()
+      os.fsync(handle.fileno())
+    os.replace(tmp, self.state_file)
+
+  def after_change(self) -> None:
+    try:
+      self.publish()
+    except OSError as error:
+      print(f"omarchy-idle-inhibit: cannot write {self.state_file} ({error})", file=sys.stderr)
+      # A live PID would make the idle probe trust a stale positive count.
+      self.exit_code = 1
+      if self.loop is not None:
+        self.loop.quit()
+
+  def handle_inhibit(self, sender: str, params: GLib.Variant, invocation: Gio.DBusMethodInvocation) -> None:
+    app, reason = params.unpack()
+    try:
+      cookie = self.state.add(app, reason, sender)
+    except GLib.Error as error:
+      invocation.return_dbus_error("org.freedesktop.DBus.Error.LimitsExceeded", error.message)
+      return
+    self.after_change()
+    invocation.return_value(GLib.Variant("(u)", (cookie,)))
+
+  def handle_uninhibit(self, params: GLib.Variant, invocation: Gio.DBusMethodInvocation) -> None:
+    (cookie,) = params.unpack()
+    self.state.remove(cookie)
+    self.after_change()
+    invocation.return_value(None)
+
+  def dispatch(self, connection, sender, path, iface, method, params, invocation) -> None:
+    if method == "GetActive":
+      invocation.return_value(GLib.Variant("(b)", (self.is_locked,)))
+    elif method == "Inhibit":
+      self.handle_inhibit(sender, params, invocation)
+    elif method == "UnInhibit":
+      self.handle_uninhibit(params, invocation)
+
+  def handle_name_owner_changed(self, connection, sender, path, iface, signal, params) -> None:
+    name, old_owner, new_owner = params.unpack()
+    # Only the caller's unique name vanishing means it left the bus; dropping a
+    # well-known name (its MPRIS name, say) leaves it connected and inhibiting.
+    if name == old_owner and not new_owner and self.state.drop_owner(old_owner):
+      self.after_change()
+
+  def export_objects(self) -> None:
+    node_ss = Gio.DBusNodeInfo.new_for_xml(SS_XML)
+    for path in SS_PATHS:
+      self.registration_ids.append(
+        self.connection.register_object(path, node_ss.interfaces[0], self.dispatch)
+      )
+    self.connection.signal_subscribe(
+      LOCK_NAME, LOCK_NAME, "ActiveChanged", LOCK_PATH, None,
+      Gio.DBusSignalFlags.NONE, self.lock_state_changed,
+    )
+    Gio.bus_watch_name_on_connection(
+      self.connection, LOCK_NAME, Gio.BusNameWatcherFlags.NONE,
+      self.lock_owner_appeared, self.lock_owner_vanished,
+    )
+    self.connection.signal_subscribe(
+      "org.freedesktop.DBus",
+      "org.freedesktop.DBus",
+      "NameOwnerChanged",
+      None,
+      None,
+      Gio.DBusSignalFlags.NONE,
+      self.handle_name_owner_changed,
+    )
+
+  def own_name(self, name: str) -> None:
+    def on_acquired(connection, acquired) -> None:
+      self.owned_names += 1
+      self.after_change()
+
+    def on_lost(connection, lost) -> None:
+      print(f"omarchy-idle-inhibit: {lost} unavailable; exiting for retry", file=sys.stderr)
+      self.exit_code = 1
+      if self.loop is not None:
+        GLib.idle_add(self.loop.quit)
+
+    Gio.bus_own_name_on_connection(
+      self.connection,
+      name,
+      Gio.BusNameOwnerFlags.DO_NOT_QUEUE,
+      on_acquired,
+      on_lost,
+    )
+
+  def stop_serving(self) -> None:
+    if not self.owned_names:
+      return
+    empty = {"pid": os.getpid(), "inhibited": False, "count": 0, "holders": []}
+    try:
+      self.publish(empty)
+    except OSError as error:
+      print(f"omarchy-idle-inhibit: final publish failed ({error})", file=sys.stderr)
+
+
+def parse_args() -> argparse.Namespace:
+  parser = argparse.ArgumentParser(description="Own D-Bus idle-inhibit names for Omarchy")
+  parser.add_argument("--state-file", default="", help="JSON state path (default: $XDG_RUNTIME_DIR/omarchy/idle-inhibit/state)")
+  return parser.parse_args()
+
+
+def main() -> int:
+  args = parse_args()
+  state_file = args.state_file or default_state_file()
+  if not state_file:
+    print("omarchy-idle-inhibit: XDG_RUNTIME_DIR is not set; no session to serve", file=sys.stderr)
+    return 1
+
+  try:
+    connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+  except GLib.Error as error:
+    print(f"omarchy-idle-inhibit: no session bus ({error.message})", file=sys.stderr)
+    return 1
+
+  loop = GLib.MainLoop()
+  daemon = Daemon(InhibitState(), connection, state_file)
+  daemon.loop = loop
+  daemon.export_objects()
+  daemon.own_name(SS_NAME)
+
+  def on_term():
+    daemon.stop_serving()
+    GLib.idle_add(loop.quit)
+    return GLib.SOURCE_REMOVE
+
+  GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, on_term)
+  GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, on_term)
+
+  try:
+    loop.run()
+  except KeyboardInterrupt:
+    pass
+  daemon.stop_serving()
+  return daemon.exit_code
+
+
+if __name__ == "__main__":
+  sys.exit(main())
