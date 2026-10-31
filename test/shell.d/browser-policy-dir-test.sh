@@ -277,6 +277,68 @@ fi
 [[ -d $dir_dist/policies.json ]] || fail "Firefox policy install leaves a planted policies.json directory in place"
 pass "Firefox policy install does not write into a planted policies.json directory"
 
+omafox_dist=$test_tmp/omafox-distribution
+mkdir -p "$omafox_dist"
+cat >"$omafox_dist/policies.json" <<'JSON'
+{
+  "policies": {
+    "DisableTelemetry": true,
+    "ExtensionSettings": {
+      "enterprise@example.com": {
+        "installation_mode": "force_installed",
+        "install_url": "https://example.com/enterprise.xpi"
+      }
+    }
+  }
+}
+JSON
+browser_policy_firefox_policy_file_ok() { return 0; }
+browser_policy_purge_dir() { :; }
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_ensure_firefox_omafox_policy "$omafox_dist" ||
+  fail "Omafox policy setup merges into a valid existing Firefox policy"
+jq -e '
+  .policies.DisableTelemetry == true and
+  .policies.ExtensionSettings["enterprise@example.com"].installation_mode == "force_installed" and
+  .policies.ExtensionSettings["@omafox"] == {
+    "installation_mode": "normal_installed",
+    "install_url": "https://addons.mozilla.org/firefox/downloads/latest/omafox/latest.xpi"
+  }
+' "$omafox_dist/policies.json" >/dev/null ||
+  fail "Omafox policy setup preserves existing enterprise settings"
+pass "Omafox policy setup merges into an existing enterprise policy"
+
+for mode in blocked removed allowed force_installed normal_installed; do
+  jq --arg mode "$mode" '
+    .policies.ExtensionSettings["@omafox"] = {
+      "installation_mode": $mode,
+      "install_url": "https://example.com/omafox.xpi",
+      "blocked_install_message": "Contact your administrator",
+      "restricted_domains": ["example.com"]
+    }
+  ' "$omafox_dist/policies.json" >"$test_tmp/existing-omafox.json"
+  cp "$test_tmp/existing-omafox.json" "$omafox_dist/policies.json"
+  policy_before=$(jq -S . "$omafox_dist/policies.json")
+
+  for attempt in 1 2; do
+    browser_policy_ensure_firefox_omafox_policy "$omafox_dist" ||
+      fail "Omafox policy setup respects an existing $mode policy"
+    [[ $(jq -S . "$omafox_dist/policies.json") == "$policy_before" ]] ||
+      fail "Omafox policy setup preserves all settings of an existing $mode policy"
+  done
+  pass "Omafox policy setup preserves an existing $mode policy on repeated runs"
+done
+
+printf '{not valid json\n' >"$omafox_dist/policies.json"
+browser_policy_ensure_firefox_omafox_policy "$omafox_dist" 2>/dev/null ||
+  fail "Omafox policy setup skips an invalid trusted policy"
+grep -Fxq '{not valid json' "$omafox_dist/policies.json" ||
+  fail "Omafox policy setup leaves an invalid trusted policy untouched"
+pass "Omafox policy setup does not replace an invalid trusted policy"
+
+unset -f browser_policy_firefox_policy_file_ok
+unset -f browser_policy_purge_dir
+
 grep -F 'exit "$failed"' "$ROOT/bin/omarchy-theme-set-browser" >/dev/null ||
   fail "omarchy-theme-set-browser exits non-zero when a policy write fails"
 pass "omarchy-theme-set-browser exits non-zero when a policy write fails"
