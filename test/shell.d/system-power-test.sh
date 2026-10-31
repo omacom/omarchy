@@ -9,16 +9,24 @@ mock_bin="$test_tmp/bin"
 call_log="$test_tmp/calls.log"
 mkdir -p "$mock_bin"
 export PATH="$mock_bin:$PATH" CALL_LOG="$call_log" OMARCHY_PATH="$ROOT"
+export HYPRLAND_INSTANCE_SIGNATURE="test-session"
+export EXPECTED_PATH="$PATH" EXPECTED_OMARCHY_PATH="$OMARCHY_PATH"
 
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
 
 printf 'systemd-run %s\n' "$*" >>"$CALL_LOG"
 [[ ${FAIL_SYSTEMD_RUN:-false} == "true" ]] && exit 1
-[[ " $* " == *" --on-active="* ]] && exit 0
-while [[ $1 == --* ]]; do shift; done
+forwarded=()
+while [[ $1 == --* ]]; do
+  if [[ $1 == --setenv=* ]]; then
+    name=${1#--setenv=}
+    forwarded+=("$name=${!name}")
+  fi
+  shift
+done
 # Capture the service command so its exit status is tested separately.
-printf '%q ' "$@" >"$CALL_LOG.worker"
+printf '%q ' /usr/bin/env "${forwarded[@]}" "$@" >"$CALL_LOG.worker"
 SH
 
 cat >"$mock_bin/systemd-inhibit" <<'SH'
@@ -32,43 +40,40 @@ trap 'rm -f "$CALL_LOG.inhibited"' EXIT
 "$@"
 SH
 
-for command in omarchy-state omarchy-hyprland-window-close-all omarchy-osd omarchy-notification-send sleep systemctl; do
+for command in uwsm omarchy-state omarchy-hyprland-window-close-all omarchy-osd omarchy-notification-send sleep timeout systemctl; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 
 command=${0##*/}
 printf '%s %s\n' "$command" "$*" >>"$CALL_LOG"
 case $command in
+  omarchy-osd)
+    [[ $PATH == "$EXPECTED_PATH" && $OMARCHY_PATH == "$EXPECTED_OMARCHY_PATH" && $HYPRLAND_INSTANCE_SIGNATURE == "test-session" ]] || exit 38
+    touch "$CALL_LOG.environment"
+    ;;
   omarchy-hyprland-window-close-all)
     if [[ ${BLOCK_WINDOW_CLOSE:-false} == "true" ]]; then
-      for (( attempt = 0; attempt < 200; attempt++ )); do
-        if [[ -f $CALL_LOG.poweroff ]]; then
-          touch "$CALL_LOG.close-finished"
-          exit 0
-        fi
-        /usr/bin/sleep 0.01
-      done
-      touch "$CALL_LOG.close-timeout"
-      exit 1
+      /usr/bin/sleep 10
     fi
     ;;
   omarchy-notification-send)
     [[ ${FAIL_NOTIFICATION:-false} != "true" ]] || exit 42
     ;;
-  sleep)
-    if [[ $1 == "2" ]]; then
-      # Synchronize with background preparation without a fixed test-time sleep.
-      for (( attempt = 0; attempt < 200; attempt++ )); do
-        grep -q '^omarchy-hyprland-window-close-all ' "$CALL_LOG" && break
-        /usr/bin/sleep 0.01
-      done
-      touch "$CALL_LOG.grace"
-    fi
+  timeout)
+    [[ $1 == "2s" ]] || exit 2
+    shift
+    /usr/bin/timeout 0.2s "$@"
+    status=$?
+    touch "$CALL_LOG.grace"
+    exit "$status"
     ;;
-  systemctl)
-    [[ $* == "poweroff --no-wall" && -f $CALL_LOG.inhibited && -f $CALL_LOG.grace ]] || exit 2
+  uwsm | systemctl)
+    [[ -f $CALL_LOG.grace ]] || exit 2
+    if [[ $1 == "poweroff" ]]; then
+      [[ -f $CALL_LOG.inhibited ]] || exit 2
+    fi
     touch "$CALL_LOG.poweroff"
-    [[ ${FAIL_POWEROFF:-false} != "true" ]]
+    [[ ${FAIL_POWEROFF:-false} != "true" && ${FAIL_EXIT:-false} != "true" ]]
     ;;
 esac
 SH
@@ -79,29 +84,41 @@ run_power_command() {
   local action="$1"
 
   : >"$call_log"
-  rm -f "$CALL_LOG.grace"
-  "$ROOT/bin/omarchy-system-$action"
+  rm -f "$CALL_LOG.grace" "$CALL_LOG.worker" "$CALL_LOG.environment"
+  "$ROOT/bin/omarchy-system" "$action"
 }
 
-run_power_command reboot
-printf '%s\n' \
-  'systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms systemctl reboot --no-wall' \
-  'omarchy-osd -i reboot -m Rebooting -d 5000' \
-  'omarchy-state clear re*-required' \
-  'omarchy-hyprland-window-close-all ' \
-  'sleep 1' >"$test_tmp/reboot-expected.log"
-diff -u "$test_tmp/reboot-expected.log" "$call_log" || fail "reboot runs after being scheduled outside the terminal scope"
-pass "reboot runs after being scheduled outside the terminal scope"
+for action in reboot logout; do
+  run_power_command "$action" || fail "$action service is scheduled"
+  (( $(wc -l <"$call_log") == 1 )) || fail "$action preparation runs outside the launching terminal"
+  [[ -s $CALL_LOG.worker ]] || fail "$action schedules its worker"
+  grep -q -- '--property=RuntimeMaxSec=30s' "$CALL_LOG" || fail "$action bounds the worker lifetime"
+  PATH=/stale/bin OMARCHY_PATH=/stale/checkout HYPRLAND_INSTANCE_SIGNATURE=stale /bin/bash "$CALL_LOG.worker" || fail "$action worker succeeds"
+  [[ -f $CALL_LOG.environment ]] || fail "$action forwards the caller environment over stale manager values"
+  grep -q '^timeout 2s omarchy-hyprland-window-close-all --wait$' "$CALL_LOG" || fail "$action waits for application exit with a deadline"
+  ! grep -q '^sleep ' "$CALL_LOG" || fail "$action has no fixed sleep"
+  rm -f "$CALL_LOG.grace"
+  BLOCK_WINDOW_CLOSE=true bash "$CALL_LOG.worker" || fail "$action proceeds after the close deadline"
+  ! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "$action does not report a close timeout as failure"
+  rm -f "$CALL_LOG.grace"
+  if FAIL_EXIT=true bash "$CALL_LOG.worker"; then
+    fail "$action propagates a rejected exit request"
+  fi
+  grep -q "^omarchy-notification-send -u critical ${action^} failed " "$CALL_LOG" || fail "$action reports a rejected exit request"
+  pass "$action waits outside the launching terminal without a fixed delay"
+done
 
 run_power_command shutdown || fail "shutdown service is scheduled"
-grep -q '^systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s .* --inhibit$' "$CALL_LOG" || fail "shutdown uses a bounded service outside the launching terminal"
-bash "$CALL_LOG.worker" || fail "protected shutdown succeeds"
+grep -q '^systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s .* shutdown --execute$' "$CALL_LOG" || fail "shutdown uses a bounded service outside the launching terminal"
+PATH=/stale/bin OMARCHY_PATH=/stale/checkout HYPRLAND_INSTANCE_SIGNATURE=stale /bin/bash "$CALL_LOG.worker" || fail "protected shutdown succeeds"
+[[ -f $CALL_LOG.environment ]] || fail "shutdown forwards the caller environment over stale manager values"
 grep -q '^systemd-inhibit --what=sleep:idle:handle-lid-switch .* --mode=block .* --inhibited$' "$CALL_LOG" || fail "shutdown blocks sleep and lid handling"
 inhibit_line=$(grep -n '^systemd-inhibit ' "$CALL_LOG" | cut -d: -f1)
 osd_line=$(grep -n '^omarchy-osd ' "$CALL_LOG" | cut -d: -f1)
 (( inhibit_line < osd_line )) || fail "inhibition precedes preparation"
 grep -q '^omarchy-state clear re\*-required$' "$CALL_LOG" || fail "shutdown clears restart state"
-grep -q '^omarchy-hyprland-window-close-all ' "$CALL_LOG" || fail "shutdown closes windows"
+grep -q '^timeout 2s omarchy-hyprland-window-close-all --wait$' "$CALL_LOG" || fail "shutdown waits for applications with a deadline"
+! grep -q '^sleep ' "$CALL_LOG" || fail "shutdown has no fixed sleep"
 grep -q '^systemctl poweroff --no-wall$' "$CALL_LOG" || fail "poweroff runs after the grace period while inhibited"
 [[ ! -f $CALL_LOG.inhibited ]] || fail "accepted poweroff releases inhibition"
 ! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "successful shutdown sends no failure notification"
@@ -119,16 +136,13 @@ pass "shutdown uses its own script when the service environment is stale"
 : >"$call_log"
 rm -f "$CALL_LOG.grace" "$CALL_LOG.poweroff"
 BLOCK_WINDOW_CLOSE=true bash "$CALL_LOG.worker" || fail "shutdown proceeds while window closing is blocked"
-for (( attempt = 0; attempt < 200; attempt++ )); do
-  [[ -f $CALL_LOG.close-finished || -f $CALL_LOG.close-timeout ]] && break
-  /usr/bin/sleep 0.01
-done
-[[ -f $CALL_LOG.close-finished && ! -f $CALL_LOG.close-timeout ]] || fail "poweroff releases the blocked window helper before its timeout"
-pass "blocked window closing cannot delay poweroff"
+[[ -f $CALL_LOG.poweroff ]] || fail "poweroff follows the window-close deadline"
+! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "shutdown does not report a close timeout as failure"
+pass "blocked window closing cannot prevent poweroff"
 
-for action in reboot shutdown; do
+for action in reboot shutdown logout; do
   : >"$call_log"
-  if FAIL_SYSTEMD_RUN=true "$ROOT/bin/omarchy-system-$action"; then
+  if FAIL_SYSTEMD_RUN=true "$ROOT/bin/omarchy-system" "$action"; then
     fail "$action aborts when scheduling fails"
   fi
 
@@ -162,3 +176,31 @@ done
 FAIL_INHIBIT=true FAIL_NOTIFICATION=true bash "$CALL_LOG.worker"
 [[ $? == 17 ]] || fail "notification failure preserves the shutdown error"
 pass "notification failure preserves the shutdown error"
+
+for action in logout reboot shutdown; do
+  for route in "$action" "system $action"; do
+    : >"$call_log"
+    read -ra args <<<"$route"
+    "$ROOT/bin/omarchy" "${args[@]}" || fail "$route dispatches"
+    grep -q "omarchy-system $action --execute$" "$call_log" || fail "$route forwards the action"
+    : >"$call_log"
+    "$ROOT/bin/omarchy" "${args[@]}" --help >/dev/null || fail "$route help succeeds"
+    [[ ! -s $call_log ]] || fail "$route help never schedules a session exit"
+  done
+  pass "$action aliases and system routes forward the action safely"
+done
+
+for action in logout reboot shutdown; do
+  : >"$call_log"
+  "$ROOT/bin/omarchy-system" "$action" --help >/dev/null || fail "direct $action help succeeds"
+  if "$ROOT/bin/omarchy-system" "$action" --typo >/dev/null 2>&1; then
+    fail "direct $action rejects an unknown mode"
+  fi
+  if "$ROOT/bin/omarchy-system" "$action" --execute unexpected >/dev/null 2>&1; then
+    fail "direct $action rejects extra arguments"
+  fi
+  [[ ! -s $call_log ]] || fail "direct $action help and invalid arguments never schedule an exit"
+  pass "direct $action help and invalid arguments are safe"
+done
+"$ROOT/bin/omarchy" system lock --help | grep -q 'omarchy-system-lock' || fail "system lock remains routed to its own command"
+pass "existing system subcommands keep their routes"

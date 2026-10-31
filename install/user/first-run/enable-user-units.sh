@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+omarchy-input-method configure --defaults || echo "Input method defaults deferred; run omarchy setup input after login." >&2
+
 systemctl --user daemon-reload
 
 # One at a time: given a list, systemctl enables none of it when it cannot find
@@ -23,9 +25,7 @@ for unit in \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
-  omarchy-crash-watch.service \
-  omarchy-usb-authorization.service \
-  omarchy-thunderbolt-authorization.service; do
+  omarchy-crash-watch.service; do
   systemctl --user enable --now "$unit" || failed=1
 done
 

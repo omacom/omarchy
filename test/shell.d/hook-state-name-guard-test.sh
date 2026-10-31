@@ -10,10 +10,12 @@ trap 'rm -rf "$work_dir"' EXIT
 fake_home="$work_dir/home"
 mkdir -p "$fake_home/.config/omarchy/hooks" "$fake_home/.local/state/omarchy"
 
-# --- omarchy-hook --------------------------------------------------------------
+# A hook or state name is a label, not a path. One carrying a slash, or one
+# that is a bare `.` or `..`, would reach outside the hooks or state directory:
+# the runner would run a script from there, the installer would mkdir/cp
+# there, and state set would touch a file there.
 
-# A hook name is a label, not a path. One carrying a slash, or one that is a
-# bare `.` or `..`, would run a script from outside the hooks directory.
+# --- names that stay inside the directory ------------------------------------
 
 cat >"$fake_home/.config/omarchy/hooks/test-hook" <<'SH'
 touch "$HOME/hook-ran"
@@ -34,41 +36,6 @@ HOME="$fake_home" "$ROOT/bin/omarchy-hook" a..b
   fail "omarchy hook accepts a hook name with dots in the middle"
 pass "omarchy hook accepts a hook name with dots in the middle"
 
-for name in . ..; do
-  status=0
-  HOME="$fake_home" "$ROOT/bin/omarchy-hook" "$name" >/dev/null 2>&1 || status=$?
-  (( status == 2 )) ||
-    fail "omarchy hook refuses a hook name of $name" "exit: $status"
-  pass "omarchy hook refuses a hook name of $name"
-done
-
-# This file sits where a name of ../../evil would resolve: hooks/../.. is
-# ~/.config.
-cat >"$fake_home/.config/evil" <<'SH'
-touch "$HOME/escape-ran"
-SH
-chmod +x "$fake_home/.config/evil"
-
-status=0
-HOME="$fake_home" "$ROOT/bin/omarchy-hook" "../../evil" >/dev/null 2>&1 || status=$?
-(( status == 2 )) ||
-  fail "omarchy hook refuses a hook name with a dot-dot" "exit: $status"
-[[ ! -e $fake_home/escape-ran ]] ||
-  fail "omarchy hook runs nothing when it refuses the name"
-pass "omarchy hook refuses a hook name with a dot-dot"
-
-status=0
-HOME="$fake_home" "$ROOT/bin/omarchy-hook" "sub/dir" >/dev/null 2>&1 || status=$?
-(( status == 2 )) ||
-  fail "omarchy hook refuses a hook name with a slash" "exit: $status"
-pass "omarchy hook refuses a hook name with a slash"
-
-# --- omarchy-hook-install ------------------------------------------------------
-
-# The installer joins the type into ~/.config/omarchy/hooks/<type>.d before
-# mkdir/cp. The runner already refuses a slashed type; install must too, or a
-# name the runner will not run still lands on disk.
-
 source_hook="$work_dir/source-hook"
 cat >"$source_hook" <<'SH'
 #!/bin/bash
@@ -85,35 +52,6 @@ HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" a..b "$source_hook" >/dev/nul
   fail "omarchy hook install accepts a hook name with dots in the middle"
 pass "omarchy hook install accepts a hook name with dots in the middle"
 
-for name in . ..; do
-  status=0
-  HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" "$name" "$source_hook" >/dev/null 2>&1 || status=$?
-  (( status == 2 )) ||
-    fail "omarchy hook install refuses a hook name of $name" "exit: $status"
-  [[ ! -e $fake_home/.config/omarchy/hooks/${name}.d ]] ||
-    fail "omarchy hook install creates no directory for a hook name of $name"
-  pass "omarchy hook install refuses a hook name of $name"
-done
-
-# hooks/../../evil.d is ~/.config/evil.d. The guard must fire before mkdir.
-status=0
-HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" "../../evil" "$source_hook" >/dev/null 2>&1 || status=$?
-(( status == 2 )) ||
-  fail "omarchy hook install refuses a hook name with a dot-dot" "exit: $status"
-[[ ! -e $fake_home/.config/evil.d ]] ||
-  fail "omarchy hook install creates nothing outside the hooks directory"
-pass "omarchy hook install refuses a hook name with a dot-dot"
-
-status=0
-HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" "sub/dir" "$source_hook" >/dev/null 2>&1 || status=$?
-(( status == 2 )) ||
-  fail "omarchy hook install refuses a hook name with a slash" "exit: $status"
-[[ ! -e $fake_home/.config/omarchy/hooks/sub ]] ||
-  fail "omarchy hook install creates no nested directory from a slashed name"
-pass "omarchy hook install refuses a hook name with a slash"
-
-# --- omarchy-state -------------------------------------------------------------
-
 state_dir="$fake_home/.local/state/omarchy"
 
 HOME="$fake_home" "$ROOT/bin/omarchy-state" set reboot-required
@@ -126,28 +64,38 @@ HOME="$fake_home" "$ROOT/bin/omarchy-state" set v1..2
   fail "omarchy state set accepts a state name with dots in the middle"
 pass "omarchy state set accepts a state name with dots in the middle"
 
-for name in . ..; do
-  status=0
-  HOME="$fake_home" "$ROOT/bin/omarchy-state" set "$name" >/dev/null 2>&1 || status=$?
-  (( status == 2 )) ||
-    fail "omarchy state set refuses a state name of $name" "exit: $status"
-  pass "omarchy state set refuses a state name of $name"
+# --- names that would leave it ------------------------------------------------
+
+# This file sits where a hook name of ../../evil would resolve: hooks/../.. is
+# ~/.config. The same name is ~/.config/evil.d to the installer and
+# ~/.local/evil to state set.
+cat >"$fake_home/.config/evil" <<'SH'
+touch "$HOME/escape-ran"
+SH
+chmod +x "$fake_home/.config/evil"
+
+snapshot() {
+  find "$fake_home" | sort
+}
+
+# A refused name exits 2 and leaves the home exactly as it was: nothing run,
+# nothing created.
+refused() {
+  local description=$1 before after status=0
+  shift
+  before=$(snapshot)
+  HOME="$fake_home" "$@" >/dev/null 2>&1 || status=$?
+  after=$(snapshot)
+  (( status == 2 )) || fail "$description" "exit: $status"
+  [[ $after == "$before" ]] || fail "$description" "$(diff <(printf '%s\n' "$before") <(printf '%s\n' "$after"))"
+  pass "$description"
+}
+
+for name in . .. ../../evil sub/dir; do
+  refused "omarchy hook refuses a hook name of $name" "$ROOT/bin/omarchy-hook" "$name"
+  refused "omarchy hook install refuses a hook name of $name" "$ROOT/bin/omarchy-hook-install" "$name" "$source_hook"
+  refused "omarchy state set refuses a state name of $name" "$ROOT/bin/omarchy-state" set "$name"
 done
-
-# state/../.. is ~/.local. The guard must fire before touch gets there.
-status=0
-HOME="$fake_home" "$ROOT/bin/omarchy-state" set "../../escape" >/dev/null 2>&1 || status=$?
-(( status == 2 )) ||
-  fail "omarchy state set refuses a state name with a dot-dot" "exit: $status"
-[[ ! -e $fake_home/.local/escape ]] ||
-  fail "omarchy state set creates nothing outside the state directory"
-pass "omarchy state set refuses a state name with a dot-dot"
-
-status=0
-HOME="$fake_home" "$ROOT/bin/omarchy-state" set "sub/dir" >/dev/null 2>&1 || status=$?
-(( status == 2 )) ||
-  fail "omarchy state set refuses a state name with a slash" "exit: $status"
-pass "omarchy state set refuses a state name with a slash"
 
 # clear takes patterns by design ("state-name-or-pattern") and matches
 # basenames through find -name, so it can never walk out of the directory.

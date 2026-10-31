@@ -15,7 +15,6 @@ bolt
 brightnessctl
 btop
 chromium
-clang
 cliamp
 cups
 cups-filters
@@ -34,8 +33,13 @@ eza
 fakeroot
 fastfetch
 fcitx5
+fcitx5-chewing
+fcitx5-chinese-addons
 fcitx5-gtk
+fcitx5-hangul
+fcitx5-mozc
 fcitx5-qt
+fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
@@ -66,7 +70,6 @@ inotify-tools
 inxi
 networkmanager
 jq
-kdenlive
 kernel-modules-hook
 lazygit
 less
@@ -74,7 +77,6 @@ libsecret
 libvips
 libyaml
 libreoffice-fresh
-llvm
 localsend
 lua51
 luarocks
@@ -93,23 +95,25 @@ noto-fonts-cjk
 noto-fonts-emoji
 nss-mdns
 nvim
-obs-studio
 obsidian
 omacalc
 omacut
 omawrite
 omarchy-nvim
+omarchy-hyprland-titlebars
+# Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
+# on ARM laptops. Back to stock once upstream merges MR !236 and !239.
+omarchy-power-profiles-daemon
+omarchy-screensaver
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
-owe-lockfeed
 pacman-contrib
 pamixer
 pinta
 plocate
 plymouth
 postgresql-libs
-power-profiles-daemon
 python-gobject
 python-poetry-core
 qt6-base
@@ -123,8 +127,10 @@ qrencode
 qt6-imageformats
 quickshell
 ripgrep
+rtkit
 ruby
 sddm
+signed
 slurp
 socat
 starship
@@ -144,7 +150,6 @@ udiskie
 ufw
 ufw-docker
 unzip
-usbguard
 usage
 uwsm
 vi
@@ -157,7 +162,6 @@ woff2-font-awesome
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
-xournalpp
 yaru-icon-theme
 yay
 yt-dlp
