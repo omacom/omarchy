@@ -212,60 +212,40 @@ pass "selection updates are atomic for concurrent readers"
 
 lua <<'LUA'
 local root = os.getenv("ROOT")
-local selected, installed, bindings, commands, timers = nil, true, {}, {}, {}
+local selected, installed, bindings = nil, true, {}
 io.popen = function(command)
   assert(command == "omarchy-default-dictation 2>/dev/null")
   return { read = function() return selected end, close = function() end }
 end
-hl = {
-  exec_cmd = function(command) table.insert(commands, command) end,
-  timer = function(callback) table.insert(timers, callback) end,
-}
 o = {
   cmd_missing = function(command)
     assert(command == selected)
     return not installed
   end,
-  bind = function(keys) table.insert(bindings, { keys }) end,
+  bind = function(...) table.insert(bindings, {...}) end,
   bind_hold = function(keys, _, press, _, release)
-    bindings[keys] = { press = press, release = release }
-    table.insert(bindings, { keys })
+    table.insert(bindings, { keys, false, press })
+    table.insert(bindings, { keys, false, release })
   end,
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
 selected = "some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
-assert(#bindings == 2 and bindings["ALT + SPACE"] and bindings["ALT + Alt_R"], "any installed backend gets Alt + Space and Right Alt, and nothing else")
-
-local function run(action)
-  if type(action) == "function" then action() else hl.exec_cmd(action) end
-end
-local function expect(steps, expected, description)
-  commands = {}
-  for _, step in ipairs(steps) do
-    if step == "timer" then
-      for _, callback in ipairs(timers) do callback() end
-      timers = {}
-    else
-      run(bindings[step[1]][step[2]])
-    end
+local function binds(keys, command)
+  for _, binding in ipairs(bindings) do
+    if binding[1] == keys and binding[3] == command then return true end
   end
-  assert(table.concat(commands, ",") == expected, description .. ": " .. table.concat(commands, ","))
 end
-local space, right = "ALT + SPACE", "ALT + Alt_R"
-expect({ { space, "press" }, "timer", { space, "release" } }, "omarchy-dictation start,omarchy-dictation stop", "holding Alt + Space records until release")
-expect({ { space, "press" }, { space, "release" } }, "omarchy-dictation start", "tapping Alt + Space keeps recording")
-expect({ { space, "press" }, { space, "release" } }, "omarchy-dictation stop", "the next Alt + Space press finishes a tapped recording")
-expect({ { right, "press" }, { right, "release" } }, "omarchy-dictation start,omarchy-dictation stop", "Right Alt records while held")
-expect({ { right, "press" }, { space, "press" }, { space, "release" }, { right, "release" }, { space, "press" } },
-  "omarchy-dictation start,omarchy-dictation start,omarchy-dictation stop,omarchy-dictation start",
-  "releasing Right Alt ends a recording Alt + Space joined, so the next press starts afresh")
+assert(#bindings == 3, "any installed backend receives Alt + Space and Right Alt, and nothing else")
+assert(binds("ALT + SPACE", "omarchy-dictation toggle"), "Alt + Space toggles dictation")
+assert(binds("ALT + Alt_R", "omarchy-dictation start") and binds("ALT + Alt_R", "omarchy-dictation stop"),
+  "Right Alt starts dictation on press and stops it on release")
 bindings, installed = {}, false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
 LUA
-pass "Alt + Space records while held or until pressed again after a tap, and Right Alt records while held"
+pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"

@@ -159,7 +159,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
 | `Alt + Shift + L` | Copy current URL from webapp or Chromium |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
-| `Alt + Space` | Hold to dictate, or tap to keep dictating until the next press (requires _Setup > Defaults > Dictation_) |
+| `Alt + Space` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
 | `Right Alt` | Hold to dictate (requires _Setup > Defaults > Dictation_) |
 
 With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. See [screenshots and recording](12-screenshots-recording.md) for the details.

@@ -11,7 +11,7 @@
 state_file = "auto"
 
 [hotkey]
-# Hotkeys are configured in Hyprland: hold Alt + Space or Right Alt, or tap Alt + Space to keep recording.
+# Hotkeys are configured in Hyprland: hold Right Alt, or toggle with Alt + Space.
 enabled = false
 
 [audio]

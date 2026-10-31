@@ -160,7 +160,7 @@ bindings=$(PATH="$stub_bin:$PATH" list_bindings "$home")
 
 grep -Fq $'SUPER + RETURN\tTerminal' <<<"$bindings" || fail "conflict check sees the essential bindings"
 grep -Fq $'SUPER + SHIFT + A\tChatGPT' <<<"$bindings" || fail "conflict check sees the preinstalled bindings"
-grep -Fq $'ALT + SPACE\tStart dictation (push-to-talk)' <<<"$bindings" || fail "conflict check sees the Voxtype bindings"
+grep -Fq $'ALT + SPACE\tToggle dictation' <<<"$bindings" || fail "conflict check sees the Voxtype bindings"
 pass "conflict check covers the full default binding set"
 
 duplicates=$(duplicate_signatures <<<"$bindings")
@@ -181,9 +181,9 @@ pass "allowed duplicate chords are still stacked on purpose"
 
 # The press and release halves of a push-to-talk key are separate binds, not a
 # collision.
-(( $(grep -c $'^ALT+SPACE\t' <<<"$bindings") == 1 )) ||
+(( $(grep -c $'^ALT+ALT_R\t' <<<"$bindings") == 1 )) ||
   fail "press and release bindings on one key do not read as a conflict"
-(( $(grep -c $'^ALT+SPACE (release)\t' <<<"$bindings") == 1 )) ||
+(( $(grep -c $'^ALT+ALT_R (release)\t' <<<"$bindings") == 1 )) ||
   fail "release bindings keep their own signature"
 pass "press and release bindings on one key do not read as a conflict"
 

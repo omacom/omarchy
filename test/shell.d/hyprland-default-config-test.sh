@@ -157,8 +157,7 @@ printf '#!/bin/bash\nexit 0\n' > "$missing_bin/future-backend"
 chmod +x "$missing_bin/future-backend"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
 for binding in \
-  $'ALT + SPACE\tStart dictation (push-to-talk)' \
-  $'ALT + SPACE\tStop dictation (push-to-talk)' \
+  $'ALT + SPACE\tToggle dictation' \
   $'ALT + Alt_R\tStart dictation (push-to-talk)' \
   $'ALT + Alt_R\tStop dictation (push-to-talk)'; do
   grep -Fq "$binding" <<<"$dictation_output" || fail "dictation bindings load for any selected backend" "$binding"
