@@ -153,6 +153,7 @@ done
 ! grep -qx 'omarchy-hook' "$log" || fail "the theme-set hook waits for the other retints"
 touch "$test_tmp/intro-done"
 wait_logged '^omarchy-theme-set-gnome$' "other apps retint once the intro has revealed"
+wait_logged '^omarchy-theme-set-slack$' "Slack retints in the native app batch after the intro reveal"
 wait_logged '^omarchy-theme-bg-cache$' "thumbnail warmup starts once the intro has revealed"
 ! grep -qx 'omarchy-theme-set-browser' "$log" || fail "the held browser retint is still running"
 touch "$test_tmp/release"
