@@ -43,6 +43,14 @@ ShellRoot {
       var retry = timer(service, 250, false)
       var reach = timer(service, 20000, false)
       var recheck = timer(service, 1000, false)
+      var blankTimer = timer(service, 5000, false)
+      service.armBlankTimer()
+      check(blankTimer.running && blankTimer.interval === 5000, "the blank countdown defaults to five seconds")
+      service.shell = { shellConfig: { idle: { lockBlank: 30 } } }
+      service.armBlankTimer()
+      check(blankTimer.running && blankTimer.interval === 30000, "idle.lockBlank drives the blank countdown")
+      blankTimer.stop()
+      service.shell = null
       service.lockRequested = true
 
       service.applyFingerprintProbe("Could not activate remote peer")
@@ -203,7 +211,6 @@ ShellRoot {
       // The blank countdown would drive the real displays, so it is stopped
       // whenever the resume path arms it.
       var resumeTimer = resumeWatch(service)
-      var blankTimer = timer(service, 5000, false)
       retry.stop()
       service.pauseFingerprint()
       service.noteSleepRequested()
