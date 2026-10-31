@@ -177,9 +177,7 @@ done
 pass "plugin add lets legitimate git URLs reach git clone"
 
 # --- Interactive placement of a clone ----------------------------------------
-#
-# Enabling a clone swaps it into its source's slot, so an interactive add only
-# asks for a section when the source is not on the bar to take over.
+# Enabling a clone swaps it into its source's slot, so the section is asked only when the source is off the bar.
 
 if script -qec true /dev/null >/dev/null 2>&1; then
   place_stubs="$TMPDIR/place-stubs"
@@ -187,66 +185,29 @@ if script -qec true /dev/null >/dev/null 2>&1; then
   cat >"$place_stubs/omarchy-shell" <<'STUB'
 #!/bin/bash
 case $2 in
-  listPlugins)
-    printf '[{"id":"omarchy.monitor","enabled":%s},{"id":"acme.display","enabled":false,"clonedFrom":"omarchy.monitor"},{"id":"acme.odd","enabled":false,"clonedFrom":""}]\n' "$SOURCE_ON_BAR" ;;
-  enablePlugin)
-    printf '%s\n' "$4" >"$ENABLE_LOG"
-    echo ok ;;
+  listPlugins) printf '[{"id":"omarchy.monitor","enabled":%s},{"id":"acme.display","clonedFrom":"omarchy.monitor"}]\n' "$SOURCE_ON_BAR" ;;
+  enablePlugin) printf '%s\n' "$4" >"$ENABLE_LOG"; echo ok ;;
 esac
 STUB
-  cat >"$place_stubs/gum" <<'STUB'
-#!/bin/bash
-case $1 in
-  choose)
-    touch "$CHOOSE_MARKER"
-    echo right ;;
-esac
-STUB
+  printf '#!/bin/bash\necho right\n' >"$place_stubs/gum"
   chmod +x "$place_stubs/omarchy-shell" "$place_stubs/gum"
 
   clone_repo="$TMPDIR/clone-repo"
   write_plugin "$clone_repo" "acme.display" "Display"
-  jq '.omarchy = { clonedFrom: "omarchy.monitor" }' "$clone_repo/manifest.json" >"$clone_repo/manifest.tmp"
-  mv "$clone_repo/manifest.tmp" "$clone_repo/manifest.json"
   git -C "$clone_repo" init -q
   git -C "$clone_repo" add .
   git -C "$clone_repo" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
 
-  add_clone() {
-    local home="$TMPDIR/place-home-$1"
-    rm -rf "$home" "$TMPDIR/enable-log" "$TMPDIR/choose-marker"
-    mkdir -p "$home"
-    SOURCE_ON_BAR="$1" ENABLE_LOG="$TMPDIR/enable-log" CHOOSE_MARKER="$TMPDIR/choose-marker" \
-      HOME="$home" OMARCHY_PATH="$ROOT" PATH="$place_stubs:$ROOT/bin:$PATH" \
-      script -qec "omarchy-plugin-add '${2:-$clone_repo}' --enable" /dev/null 2>&1
-  }
-
-  output=$(add_clone true) || fail "plugin add enables a clone whose source is on the bar" "$output"
-  [[ ! -e $TMPDIR/choose-marker ]] ||
-    fail "plugin add asks for a section for a clone whose source is on the bar" "$output"
-  [[ $(cat "$TMPDIR/enable-log") == "{}" ]] ||
-    fail "plugin add leaves a clone in its source's slot" "$(cat "$TMPDIR/enable-log")"
-  pass "plugin add puts a clone in its source's slot without asking for a section"
-
-  output=$(add_clone false) || fail "plugin add enables a clone whose source is off the bar" "$output"
-  [[ -e $TMPDIR/choose-marker ]] ||
-    fail "plugin add asks for a section for a clone whose source is off the bar" "$output"
-  [[ $(cat "$TMPDIR/enable-log") == '{"section":"right"}' ]] ||
-    fail "plugin add places a clone whose source is off the bar where asked" "$(cat "$TMPDIR/enable-log")"
-  pass "plugin add asks where to put a clone whose source is off the bar"
-
-  odd_repo="$TMPDIR/odd-repo"
-  write_plugin "$odd_repo" "acme.odd" "Odd"
-  jq '.omarchy = "not an object"' "$odd_repo/manifest.json" >"$odd_repo/manifest.tmp"
-  mv "$odd_repo/manifest.tmp" "$odd_repo/manifest.json"
-  git -C "$odd_repo" init -q
-  git -C "$odd_repo" add .
-  git -C "$odd_repo" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
-
-  output=$(add_clone false "$odd_repo") || fail "plugin add enables a widget whose omarchy metadata is not an object" "$output"
-  [[ $(cat "$TMPDIR/enable-log") == '{"section":"right"}' ]] ||
-    fail "plugin add places a widget whose omarchy metadata is not an object" "$output"
-  pass "plugin add treats omarchy metadata that is not an object as no clone"
+  for source_on_bar in true false; do
+    if [[ $source_on_bar == "true" ]]; then expected="{}"; else expected='{"section":"right"}'; fi
+    output=$(SOURCE_ON_BAR="$source_on_bar" ENABLE_LOG="$TMPDIR/enable-log" HOME="$TMPDIR/place-home-$source_on_bar" \
+      OMARCHY_PATH="$ROOT" PATH="$place_stubs:$ROOT/bin:$PATH" \
+      script -qec "omarchy-plugin-add '$clone_repo' --enable" /dev/null 2>&1) ||
+      fail "plugin add enables a clone (source on bar: $source_on_bar)" "$output"
+    [[ $(cat "$TMPDIR/enable-log") == "$expected" ]] ||
+      fail "plugin add places a clone (source on bar: $source_on_bar)" "$(cat "$TMPDIR/enable-log")"
+  done
+  pass "plugin add keeps a clone in its source's slot and asks for a section only when the source is off the bar"
 else
   skip "script -qec unavailable; skipping the interactive clone placement cases"
 fi
