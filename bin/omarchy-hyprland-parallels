@@ -1,0 +1,161 @@
+#!/bin/bash
+
+# omarchy:summary=Manage Parallels Tools display resizing for Hyprland
+# omarchy:args=[on|off|status]
+# omarchy:examples=omarchy hyprland parallels on | omarchy hyprland parallels off
+
+set -euo pipefail
+
+action=${1:-status}
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+state="$state_home/omarchy/parallels"
+autostart="$config_home/autostart/prlcc.desktop"
+autostart_source="$OMARCHY_PATH/default/parallels/prlcc.desktop"
+units=(omarchy-parallels.service omarchy-parallels-agent.service omarchy-parallels-helper@.service)
+
+acquire_setup_lock() {
+  # Keep the lock outside the state directory that off removes.
+  local previous_umask
+  mkdir -p "$state_home/omarchy"
+  previous_umask=$(umask)
+  umask 077
+  exec {setup_lock_fd}>>"$state_home/omarchy/parallels.lock"
+  umask "$previous_umask"
+  flock "$setup_lock_fd"
+}
+
+stop_stock_agent() {
+  if systemctl --user is-active --quiet app-prlcc@autostart.service; then
+    systemctl --user stop app-prlcc@autostart.service
+  fi
+}
+
+reset_start_limits() {
+  # A user-requested retry may follow a failed graphical-session startup.
+  systemctl --user reset-failed omarchy-parallels.service omarchy-parallels-agent.service \
+    omarchy-parallels-helper@prlcp.service omarchy-parallels-helper@prldnd.service \
+    omarchy-parallels-helper@prlshprof.service 2>/dev/null || true
+}
+
+disable_compatibility() {
+  local failed=0
+  systemctl --user disable --now omarchy-parallels.service || failed=1
+  if [[ -d $state ]]; then
+    if ! cmp -s "$autostart" "$state/managed-autostart"; then
+      echo "The Parallels autostart override was changed; leaving it and its backup in $state." >&2
+      return 1
+    fi
+    if [[ -e $state/original-autostart || -L $state/original-autostart ]]; then
+      mv -fT "$state/original-autostart" "$autostart"
+    else
+      rm -f -- "$autostart"
+    fi
+  fi
+
+  local unit destination source
+  for unit in "${units[@]}"; do
+    destination="$config_home/systemd/user/$unit"
+    source="$OMARCHY_PATH/default/systemd/user/$unit"
+    if [[ -L $destination && $(readlink -f "$destination") == "$(readlink -f "$source")" ]]; then
+      rm -- "$destination"
+    fi
+  done
+  systemctl --user daemon-reload || return 1
+  if [[ -f $state/stock-agent-active && -n ${WAYLAND_DISPLAY:-} ]]; then
+    systemctl --user start app-prlcc@autostart.service || return 1
+  fi
+  rm -f -- "$state/stock-agent-active" "$state/saved" "$state/managed-autostart"
+  [[ ! -d $state ]] || rmdir -- "$state"
+  return "$failed"
+}
+
+case $action in
+  -h | --help)
+    echo "Usage: omarchy-hyprland-parallels [on|off|status]"
+    ;;
+  --watch)
+    if omarchy-hw-parallels && omarchy-cmd-present prlcc; then
+      exec /usr/bin/python3 "$OMARCHY_PATH/default/hypr/parallels.py"
+    else
+      exit 0
+    fi
+    ;;
+  status)
+    if systemctl --user is-active --quiet omarchy-parallels.service; then
+      echo "Parallels display resizing: on"
+    else
+      echo "Parallels display resizing: off"
+    fi
+    ;;
+  off)
+    acquire_setup_lock
+    disable_compatibility
+    echo "Parallels display resizing: off"
+    ;;
+  on)
+    if ! omarchy-hw-parallels; then
+      echo "Parallels display resizing is only available inside a Parallels VM." >&2
+      exit 1
+    fi
+    if ! omarchy-cmd-present prlcc; then
+      echo "Install Parallels Tools from Parallels Desktop before enabling display resizing." >&2
+      exit 1
+    fi
+    if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} || -z ${WAYLAND_DISPLAY:-} || -z ${DISPLAY:-} ]]; then
+      echo "Run this command from the Omarchy desktop with XWayland enabled." >&2
+      exit 1
+    fi
+
+    acquire_setup_lock
+
+    # Never replace a user's unit overrides with these defaults.
+    for unit in "${units[@]}"; do
+      destination="$config_home/systemd/user/$unit"
+      source="$OMARCHY_PATH/default/systemd/user/$unit"
+      if [[ ( -e $destination || -L $destination ) && $(readlink -f "$destination") != "$(readlink -f "$source")" ]]; then
+        echo "Leaving custom systemd unit in place: $destination" >&2
+        exit 1
+      fi
+    done
+    if [[ -d $state ]] && ! cmp -s "$autostart" "$state/managed-autostart"; then
+      echo "The Parallels autostart override was changed; restore it or disable the integration first." >&2
+      exit 1
+    fi
+
+    mkdir -p "$config_home/autostart" "$config_home/systemd/user" "$state_home/omarchy"
+    if [[ ! -d $state ]]; then
+      backup=$(mktemp -d "$state_home/omarchy/.parallels.XXXXXX")
+      if [[ -e $autostart || -L $autostart ]]; then
+        cp -a -- "$autostart" "$backup/original-autostart"
+      fi
+      # Package updates must not change what counts as this activation's bytes.
+      cp -- "$autostart_source" "$backup/managed-autostart"
+      if systemctl --user is-active --quiet app-prlcc@autostart.service; then
+        : >"$backup/stock-agent-active"
+      fi
+      : >"$backup/saved"
+      mv -T "$backup" "$state"
+    fi
+
+    # A file rename also handles a pre-existing symlink without editing its target.
+    temporary=$(mktemp "$config_home/autostart/.prlcc.XXXXXX")
+    install -m 0644 "$state/managed-autostart" "$temporary"
+    mv -fT "$temporary" "$autostart"
+    if stop_stock_agent && systemctl --user daemon-reload &&
+      systemctl --user link "${units[@]/#/$OMARCHY_PATH/default/systemd/user/}" &&
+      reset_start_limits &&
+      systemctl --user enable --now omarchy-parallels.service &&
+      systemctl --user is-active --quiet omarchy-parallels.service; then
+      echo "Parallels display resizing: on"
+    else
+      echo "Could not start Parallels display resizing; restoring the previous Tools startup." >&2
+      disable_compatibility || true
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-hyprland-parallels [on|off|status]" >&2
+    exit 1
+    ;;
+esac

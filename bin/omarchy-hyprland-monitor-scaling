@@ -28,6 +28,7 @@ audit_scale_change() {
   local active_monitor="$2"
   local current_scale="$3"
   local new_scale="$4"
+  local preferred_scale="$5"
   local parent_pid="$PPID"
   local grandparent_pid
   local parent_cmd
@@ -39,7 +40,7 @@ audit_scale_change() {
   parent_cmd=$(cmdline_for_pid "$parent_pid")
   grandparent_cmd=$(cmdline_for_pid "$grandparent_pid")
 
-  printf 'at=%s\trequested=%s\tcurrent=%s\tnew=%s\tmonitor=%s\tpid=%s\tppid=%s\tparent=%s\tgppid=%s\tgrandparent=%s\n' \
+  printf 'at=%s\trequested=%s\tcurrent=%s\tnew=%s\tmonitor=%s\tpid=%s\tppid=%s\tparent=%s\tgppid=%s\tgrandparent=%s\tpreferred=%s\n' \
     "$(date --iso-8601=seconds)" \
     "$requested" \
     "$current_scale" \
@@ -49,7 +50,8 @@ audit_scale_change() {
     "$parent_pid" \
     "$parent_cmd" \
     "$grandparent_pid" \
-    "$grandparent_cmd" >>"$SCALE_LOG"
+    "$grandparent_cmd" \
+    "$preferred_scale" >>"$SCALE_LOG"
 }
 
 # Hyprland only accepts scales where the mode divides into whole logical
@@ -74,13 +76,15 @@ normalize_scale() {
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitors_json="$(hyprctl monitors -j)"
-  local monitor_info="$(echo "$monitors_json" | jq -e -c '.[] | select(.focused == true)')"
-  local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
-  local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
-  local width="$(echo "$monitor_info" | jq -r '.width')"
-  local height="$(echo "$monitor_info" | jq -r '.height')"
-  local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
+  local monitors_json monitor_info active_monitor current_scale width height refresh_rate
+  local new_scale new_gdk_scale
+  monitors_json="$(hyprctl monitors -j)"
+  monitor_info="$(echo "$monitors_json" | jq -e -c '.[] | select(.focused == true)')"
+  active_monitor="$(echo "$monitor_info" | jq -r '.name')"
+  current_scale="$(echo "$monitor_info" | jq -r '.scale')"
+  width="$(echo "$monitor_info" | jq -r '.width')"
+  height="$(echo "$monitor_info" | jq -r '.height')"
+  refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
 
   # active_monitor is written into the Lua string eval'd below, so only a plain
   # connector name may pass; a hostile output name could execute otherwise.
@@ -89,17 +93,17 @@ set_scale() {
     exit 1
   fi
 
-  local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
+  new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GDK_SCALE is one value for the whole session, so it follows the lowest
   # monitor scale: XWayland apps end up a little small on denser screens rather
   # than oversized on the others. GTK only honors integers, so round it.
-  local new_gdk_scale="$(echo "$monitors_json" | jq -r --arg name "$active_monitor" --argjson scale "$new_scale" '
+  new_gdk_scale="$(echo "$monitors_json" | jq -r --arg name "$active_monitor" --argjson scale "$new_scale" '
     [.[] | select(.disabled != true) | if .name == $name then $scale else .scale end]
     | min | . + 0.5 | floor | if . < 1 then 1 else . end')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
-  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
+  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale" "$requested_scale"
 
   persist_scale "$monitor_lua" "$active_monitor" "$new_scale" "$new_gdk_scale"
 }

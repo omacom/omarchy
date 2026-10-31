@@ -1,0 +1,18 @@
+[Unit]
+Description=Parallels desktop helper %i
+StartLimitIntervalSec=300
+StartLimitBurst=3
+After=graphical-session.target wayland-session-waitenv.service
+PartOf=graphical-session.target omarchy-parallels.service
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionFileIsExecutable=/usr/bin/%i
+
+[Service]
+Type=exec
+TimeoutStartSec=20
+TimeoutStopSec=10
+ExecCondition=/usr/bin/env omarchy-hw-parallels
+Environment=GDK_BACKEND=wayland
+ExecStart=/usr/bin/%i
+Restart=on-failure
+RestartSec=2
