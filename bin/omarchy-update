@@ -17,6 +17,15 @@ omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
 omarchy_security_require_source_root "$0"
+
+# -y is the only argument. The router hands a mistyped subcommand to the
+# nearest command it finds, so `omarchy update firmwre` arrives here as an
+# argument, and ignoring it would start a full update nobody asked for (#16770).
+if (( $# > 1 )) || { (( $# == 1 )) && [[ $1 != "-y" ]]; }; then
+  echo "omarchy update: unknown argument: $*" >&2
+  echo "Usage: omarchy update [-y]" >&2
+  exit 2
+fi
 # Logging and lock acquisition re-exec this command with a sanitized PATH.
 # Preserve the caller's path only for the later hook/mise phases.
 user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
