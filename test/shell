@@ -5,13 +5,68 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 TEST_DIR="$ROOT/test/shell.d"
 
-shopt -s nullglob
+tree_state() {
+  git -C "$ROOT" status --porcelain --untracked-files=all 2>/dev/null || true
+}
+tree_before=$(tree_state)
+
+names=("$@")
 tests=()
-for test in "$TEST_DIR"/*-test.sh; do
-  [[ $(basename "$test") == "base-test.sh" ]] && continue
-  tests+=("$test")
-done
-shopt -u nullglob
+if (( ${#names[@]} == 0 )); then
+  shopt -s nullglob
+  for test in "$TEST_DIR"/*-test.sh; do
+    [[ $(basename "$test") == "base-test.sh" ]] && continue
+    tests+=("$test")
+  done
+  shopt -u nullglob
+else
+  declare -A seen_tests=()
+  for n in "${names[@]}"; do
+    matched=0
+    if [[ -f "$n" ]]; then
+      test_file=$(realpath "$n")
+      if [[ -z ${seen_tests[$test_file]:-} ]]; then
+        seen_tests[$test_file]=1
+        tests+=("$test_file")
+      fi
+      matched=1
+    elif [[ -f "$TEST_DIR/$n" ]]; then
+      test_file="$TEST_DIR/$n"
+      if [[ -z ${seen_tests[$test_file]:-} ]]; then
+        seen_tests[$test_file]=1
+        tests+=("$test_file")
+      fi
+      matched=1
+    else
+      base=$(basename "$n")
+      base=${base%.sh}
+      base=${base%-test}
+      if [[ -f "$TEST_DIR/$base-test.sh" ]]; then
+        test_file="$TEST_DIR/$base-test.sh"
+        if [[ -z ${seen_tests[$test_file]:-} ]]; then
+          seen_tests[$test_file]=1
+          tests+=("$test_file")
+        fi
+        matched=1
+      else
+        shopt -s nullglob
+        for match in "$TEST_DIR"/$base*.sh; do
+          [[ $(basename "$match") == "base-test.sh" ]] && continue
+          if [[ -z ${seen_tests[$match]:-} ]]; then
+            seen_tests[$match]=1
+            tests+=("$match")
+          fi
+          matched=1
+        done
+        shopt -u nullglob
+      fi
+    fi
+    if (( ! matched )); then
+      echo "test/shell: no test matching '$n' in $TEST_DIR" >&2
+      exit 2
+    fi
+  done
+fi
 
 if (( ${#tests[@]} == 0 )); then
   echo "No shell tests found in $TEST_DIR" >&2
@@ -40,11 +95,25 @@ is_overlap() {
   [[ $(basename "$1") == "shell-idle-spawn-test.sh" ]]
 }
 
+# Files that modify or destroy shared system state run in an epilogue phase
+# with automatic state tree recovery so they do not contaminate other tests.
+is_destructive() {
+  local base
+  base=$(basename "$1")
+  case "$base" in
+    unowned-system-paths*|*passwordless*|*factory-reset*|*polkit*|*sudoers*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 parallel_tests=()
 exclusive_tests=()
+destructive_tests=()
 overlap_tests=()
 for test in "${tests[@]}"; do
-  if is_overlap "$test"; then
+  if is_destructive "$test"; then
+    destructive_tests+=("$test")
+  elif is_overlap "$test"; then
     overlap_tests+=("$test")
   elif is_exclusive "$test"; then
     exclusive_tests+=("$test")
@@ -90,6 +159,13 @@ fi
 for test in "${exclusive_tests[@]}"; do
   run_one "$test"
 done
+for test in "${destructive_tests[@]}"; do
+  run_one "$test"
+  if [[ $(tree_state) != "$tree_before" ]]; then
+    git -C "$ROOT" checkout -- . 2>/dev/null || true
+    git -C "$ROOT" clean -fd 2>/dev/null || true
+  fi
+done
 
 failed=()
 skipped=()
@@ -104,6 +180,15 @@ for test in "${tests[@]}"; do
     skipped+=("${test#$ROOT/}")
   fi
 done
+
+tree_after=$(tree_state)
+if [[ $tree_after != "$tree_before" ]]; then
+  printf '\nError: tests modified the source tree:\n' >&2
+  diff <(printf '%s\n' "$tree_before") <(printf '%s\n' "$tree_after") >&2 || true
+  git -C "$ROOT" checkout -- . 2>/dev/null || true
+  git -C "$ROOT" clean -fd 2>/dev/null || true
+  exit 1
+fi
 
 if (( ${#skipped[@]} > 0 )); then
   printf '\nSkipped checks in %d of %d test files:\n' "${#skipped[@]}" "${#tests[@]}"

@@ -21,9 +21,7 @@ the end and exits non-zero.
   `omarchy-theme-color`, `omarchy-theme-osc`), the theme sync commands
   (tmux, GNOME, VS Code, Pi, Claude) run against stub binaries and a fake
   `$HOME`.
-- **`./test/shell`** — runs every `test/shell.d/*-test.sh` (except
-  `base-test.sh` itself). Each file is an independent suite covering one area:
-  a shell plugin, a `bin/` command, or a config invariant. This is where new tests go.
+- **`./test/shell [name ...]`** — runs tests under `test/shell.d/` (except `base-test.sh` itself). Each file is an independent suite covering one area: a shell plugin, a `bin/` command, or a config invariant. Pass test names (e.g. `./test/shell idle` or `./test/shell menu-test.sh`) to run specific files, or omit arguments to execute the full suite scheduled across parallel, compositor, and destructive epilogue phases with automatic tree recovery. This is where new tests go.
 - **Acceptance** — everything that needs a real desktop doing real things.
   Deliberately excluded from `./test/all`; it runs in a VM, not the
   development session.
