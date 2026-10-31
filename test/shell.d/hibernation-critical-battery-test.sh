@@ -35,6 +35,8 @@ esac
 STUB
 printf '#!/bin/bash\n[[ ${BATTERY:-1} == 1 ]]\n' > "$scratch/bin/omarchy-battery-present"
 printf '#!/bin/bash\nexit 0\n' > "$scratch/bin/gum"
+# Setup skips Apple Silicon, so the test must not ask the host's hardware.
+printf '#!/bin/bash\nexit 1\n' > "$scratch/bin/omarchy-hw-aarch64-apple"
 printf '#!/bin/bash\necho "btrfs $*" >> "$CALL_LOG"\nexit 1\n' > "$scratch/bin/btrfs"
 chmod +x "$scratch/bin/"*
 
