@@ -102,7 +102,7 @@
   "default.browserSet": "%1 är nu standardwebbläsare",
   "default.editorSet": "%1 är nu standardredigerare",
   "default.terminalSet": "%1 är nu standardterminal",
-  "dictation.hint": "Håll ned höger Alt eller F9 för att diktera (eller växla med Super + Ctrl + X).",
+  "dictation.hint": "Håll in höger Alt för att diktera, eller växla med Alt + Space.",
   "dictation.installVoxtype": "Installera Voxtype + AI-modell (~150MB) för att aktivera diktering?",
   "dictation.superwhisperReady": "Superwhisper-diktering redo",
   "dictation.voxtypeReady": "Voxtype-diktering redo",

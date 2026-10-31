@@ -102,7 +102,7 @@
   "default.browserSet": "%1 is nu de standaardbrowser",
   "default.editorSet": "%1 is nu de standaardeditor",
   "default.terminalSet": "%1 is nu de standaardterminal",
-  "dictation.hint": "Houd rechter Alt of F9 ingedrukt om te dicteren (of schakel met Super + Ctrl + X).",
+  "dictation.hint": "Houd Right Alt ingedrukt om te dicteren, of zet dicteren aan/uit met Alt + Space.",
   "dictation.installVoxtype": "Voxtype + AI-model (~150MB) installeren om dicteren in te schakelen?",
   "dictation.superwhisperReady": "Superwhisper-dicteren klaar",
   "dictation.voxtypeReady": "Voxtype-dicteren klaar",

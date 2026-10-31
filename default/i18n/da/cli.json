@@ -102,7 +102,7 @@
   "default.browserSet": "%1 er nu standardbrowseren",
   "default.editorSet": "%1 er nu standardeditoren",
   "default.terminalSet": "%1 er nu standardterminalen",
-  "dictation.hint": "Hold højre Alt eller F9 nede for at diktere (eller slå til/fra med Super + Ctrl + X).",
+  "dictation.hint": "Hold højre Alt nede for at diktere, eller skift med Alt + Mellemrum.",
   "dictation.installVoxtype": "Installer Voxtype + AI-model (~150MB) for at aktivere diktering?",
   "dictation.superwhisperReady": "Superwhisper-diktering klar",
   "dictation.voxtypeReady": "Voxtype-diktering klar",

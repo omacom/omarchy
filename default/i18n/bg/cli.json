@@ -102,7 +102,7 @@
   "default.browserSet": "%1 е браузърът по подразбиране",
   "default.editorSet": "%1 е редакторът по подразбиране",
   "default.terminalSet": "%1 е терминалът по подразбиране",
-  "dictation.hint": "Задръж Right Alt или F9 за диктовка (или превключи със Super + Ctrl + X).",
+  "dictation.hint": "Задръжте Right Alt за диктовка или превключете с Alt + Space.",
   "dictation.installVoxtype": "Да се инсталира Voxtype + AI модел (~150MB) за диктовка?",
   "dictation.superwhisperReady": "Superwhisper диктовката е готова",
   "dictation.voxtypeReady": "Voxtype диктовката е готова",

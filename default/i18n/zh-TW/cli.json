@@ -101,7 +101,7 @@
   "default.browserSet": "%1 已設為預設瀏覽器",
   "default.editorSet": "%1 已設為預設編輯器",
   "default.terminalSet": "%1 已設為預設終端機",
-  "dictation.hint": "按住右 Alt 或 F9 聽寫（或用 Super + Ctrl + X 切換）。",
+  "dictation.hint": "按住 Right Alt 聽寫，或按 Alt + Space 切換。",
   "dictation.installVoxtype": "安裝 Voxtype + AI 模型 (~150MB) 以啟用聽寫？",
   "dictation.superwhisperReady": "Superwhisper 聽寫已就緒",
   "dictation.voxtypeReady": "Voxtype 聽寫已就緒",

@@ -101,7 +101,7 @@
   "default.browserSet": "%1이(가) 이제 기본 브라우저입니다",
   "default.editorSet": "%1이(가) 이제 기본 편집기입니다",
   "default.terminalSet": "%1이(가) 이제 기본 터미널입니다",
-  "dictation.hint": "받아쓰려면 오른쪽 Alt 또는 F9를 길게 누르세요 (또는 Super + Ctrl + X로 토글).",
+  "dictation.hint": "오른쪽 Alt를 누른 채 받아쓰기하거나 Alt + Space로 전환하세요.",
   "dictation.installVoxtype": "받아쓰기를 사용하도록 Voxtype + AI 모델(~150MB)을 설치할까요?",
   "dictation.superwhisperReady": "Superwhisper 받아쓰기 준비 완료",
   "dictation.voxtypeReady": "Voxtype 받아쓰기 준비 완료",

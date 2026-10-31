@@ -101,7 +101,7 @@
   "default.browserSet": "%1 が既定のブラウザになりました",
   "default.editorSet": "%1 が既定のエディタになりました",
   "default.terminalSet": "%1 が既定のターミナルになりました",
-  "dictation.hint": "右AltキーまたはF9キーを長押しして音声入力します（Super + Ctrl + X で切り替えも可能）。",
+  "dictation.hint": "右 Alt を長押しで音声入力、Alt + Space で切り替え。",
   "dictation.installVoxtype": "音声入力を有効にするため、Voxtype と AI モデル (~150MB) をインストールしますか？",
   "dictation.superwhisperReady": "Superwhisper 音声入力の準備が完了しました",
   "dictation.voxtypeReady": "Voxtype 音声入力の準備が完了しました",

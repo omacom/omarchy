@@ -104,7 +104,7 @@
   "default.browserSet": "%1 je zdaj privzeti brskalnik",
   "default.editorSet": "%1 je zdaj privzeti urejevalnik",
   "default.terminalSet": "%1 je zdaj privzeti terminal",
-  "dictation.hint": "Držite desni Alt ali F9 za narekovanje (ali preklopite s Super + Ctrl + X).",
+  "dictation.hint": "Držite desni Alt za narekovanje ali preklopite z Alt + Space.",
   "dictation.installVoxtype": "Namestiti Voxtype + model AI (~150MB) za narekovanje?",
   "dictation.superwhisperReady": "Narekovanje Superwhisper pripravljeno",
   "dictation.voxtypeReady": "Narekovanje Voxtype pripravljeno",

@@ -103,7 +103,7 @@
   "default.browserSet": "%1 je nyní výchozí prohlížeč",
   "default.editorSet": "%1 je nyní výchozí editor",
   "default.terminalSet": "%1 je nyní výchozí terminál",
-  "dictation.hint": "Podržte pravý Alt nebo F9 pro diktování (nebo přepněte pomocí Super + Ctrl + X).",
+  "dictation.hint": "Podržte pravý Alt pro diktování, nebo přepínejte pomocí Alt + Space.",
   "dictation.installVoxtype": "Nainstalovat Voxtype + AI model (~150MB) a povolit diktování?",
   "dictation.superwhisperReady": "Diktování Superwhisper připraveno",
   "dictation.voxtypeReady": "Diktování Voxtype připraveno",

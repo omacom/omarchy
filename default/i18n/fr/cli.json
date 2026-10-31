@@ -103,7 +103,7 @@
   "default.browserSet": "%1 est désormais le navigateur par défaut",
   "default.editorSet": "%1 est désormais l'éditeur par défaut",
   "default.terminalSet": "%1 est désormais le terminal par défaut",
-  "dictation.hint": "Maintenez Alt droit ou F9 pour dicter (ou basculez avec Super + Ctrl + X).",
+  "dictation.hint": "Maintenez Alt droit pour dicter, ou basculez avec Alt + Space.",
   "dictation.installVoxtype": "Installer Voxtype + modèle IA (~150 Mo) pour activer la dictée ?",
   "dictation.superwhisperReady": "Dictée Superwhisper prête",
   "dictation.voxtypeReady": "Dictée Voxtype prête",

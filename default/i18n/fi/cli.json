@@ -102,7 +102,7 @@
   "default.browserSet": "%1 on nyt oletusselain",
   "default.editorSet": "%1 on nyt oletuseditori",
   "default.terminalSet": "%1 on nyt oletuspääte",
-  "dictation.hint": "Pidä oikeaa Alt tai F9 painettuna sanellaksesi (tai vaihda näppäimillä Super + Ctrl + X).",
+  "dictation.hint": "Pidä oikea Alt pohjassa sanelua varten tai vaihda Alt + Space -näppäimillä.",
   "dictation.installVoxtype": "Asennetaanko Voxtype + tekoälymalli (~150MB) sanelua varten?",
   "dictation.superwhisperReady": "Superwhisper-sanelu valmis",
   "dictation.voxtypeReady": "Voxtype-sanelu valmis",

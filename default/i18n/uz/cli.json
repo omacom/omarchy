@@ -102,7 +102,7 @@
   "default.browserSet": "%1 endi standart brauzer",
   "default.editorSet": "%1 endi standart muharrir",
   "default.terminalSet": "%1 endi standart terminal",
-  "dictation.hint": "Diktant uchun Right Alt yoki F9 ni ushlab turing (yoki Super + Ctrl + X bilan almashtiring).",
+  "dictation.hint": "Ovozli kiritish uchun Oʻng Alt ni bosib turing yoki Alt + Space bilan almashtiring.",
   "dictation.installVoxtype": "Ovozli kiritishni yoqish uchun Voxtype + AI modeli (~150MB) oʻrnatilsinmi?",
   "dictation.superwhisperReady": "Superwhisper ovozli kiritish tayyor",
   "dictation.voxtypeReady": "Voxtype ovozli kiritish tayyor",

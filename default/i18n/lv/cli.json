@@ -103,7 +103,7 @@
   "default.browserSet": "%1 tagad ir noklusējuma pārlūks",
   "default.editorSet": "%1 tagad ir noklusējuma redaktors",
   "default.terminalSet": "%1 tagad ir noklusējuma terminālis",
-  "dictation.hint": "Turi labo Alt vai F9, lai diktētu (vai pārslēdz ar Super + Ctrl + X).",
+  "dictation.hint": "Turiet nospiestu labo Alt, lai diktētu, vai pārslēdziet ar Alt + Space.",
   "dictation.installVoxtype": "Instalēt Voxtype + AI modeli (~150MB), lai iespējotu diktēšanu?",
   "dictation.superwhisperReady": "Superwhisper diktēšana gatava",
   "dictation.voxtypeReady": "Voxtype diktēšana gatava",

@@ -102,7 +102,7 @@
   "default.browserSet": "%1 on nüüd vaikebrauser",
   "default.editorSet": "%1 on nüüd vaikeredaktor",
   "default.terminalSet": "%1 on nüüd vaiketerminal",
-  "dictation.hint": "Hoia dikteerimiseks paremat Alt või F9 (või lülita Super + Ctrl + X).",
+  "dictation.hint": "Dikteerimiseks hoia all paremat Alt klahvi või lülita Alt + Space abil.",
   "dictation.installVoxtype": "Paigalda dikteerimiseks Voxtype + AI-mudel (~150MB)?",
   "dictation.superwhisperReady": "Superwhisperi dikteerimine valmis",
   "dictation.voxtypeReady": "Voxtype dikteerimine valmis",

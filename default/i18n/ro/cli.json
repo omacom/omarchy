@@ -103,7 +103,7 @@
   "default.browserSet": "%1 este acum browserul implicit",
   "default.editorSet": "%1 este acum editorul implicit",
   "default.terminalSet": "%1 este acum terminalul implicit",
-  "dictation.hint": "Ține apăsat Alt dreapta sau F9 pentru a dicta (sau comută cu Super + Ctrl + X).",
+  "dictation.hint": "Ține apăsat Alt dreapta pentru a dicta sau comută cu Alt + Space.",
   "dictation.installVoxtype": "Instalezi Voxtype + modelul AI (~150MB) pentru a activa dictarea?",
   "dictation.superwhisperReady": "Dictare Superwhisper pregătită",
   "dictation.voxtypeReady": "Dictare Voxtype pregătită",

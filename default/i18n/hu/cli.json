@@ -102,7 +102,7 @@
   "default.browserSet": "%1 most az alapértelmezett böngésző",
   "default.editorSet": "%1 most az alapértelmezett szerkesztő",
   "default.terminalSet": "%1 most az alapértelmezett terminál",
-  "dictation.hint": "Tartsd lenyomva a jobb Alt vagy F9 billentyűt a diktáláshoz (vagy kapcsold: Super + Ctrl + X).",
+  "dictation.hint": "Tartsd nyomva a Right Alt billentyűt a diktáláshoz, vagy kapcsold az Alt + Space billentyűkkel.",
   "dictation.installVoxtype": "Telepíted a Voxtype + AI-modellt (~150MB) a diktáláshoz?",
   "dictation.superwhisperReady": "Superwhisper diktálás kész",
   "dictation.voxtypeReady": "Voxtype diktálás kész",

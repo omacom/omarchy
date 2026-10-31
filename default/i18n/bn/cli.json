@@ -102,7 +102,7 @@
   "default.browserSet": "%1 এখন ডিফল্ট ব্রাউজার",
   "default.editorSet": "%1 এখন ডিফল্ট এডিটর",
   "default.terminalSet": "%1 এখন ডিফল্ট টার্মিনাল",
-  "dictation.hint": "ডিকটেট করতে Right Alt বা F9 ধরে রাখুন (বা Super + Ctrl + X দিয়ে টগল করুন)।",
+  "dictation.hint": "ডিকটেশনের জন্য Right Alt ধরে রাখুন, বা Alt + Space দিয়ে টগল করুন।",
   "dictation.installVoxtype": "ডিকটেশন চালু করতে Voxtype + AI মডেল (~150MB) ইনস্টল করবেন?",
   "dictation.superwhisperReady": "Superwhisper ডিকটেশন প্রস্তুত",
   "dictation.voxtypeReady": "Voxtype ডিকটেশন প্রস্তুত",

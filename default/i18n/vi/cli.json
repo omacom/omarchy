@@ -101,7 +101,7 @@
   "default.browserSet": "%1 giờ là trình duyệt mặc định",
   "default.editorSet": "%1 giờ là trình soạn thảo mặc định",
   "default.terminalSet": "%1 giờ là terminal mặc định",
-  "dictation.hint": "Giữ Right Alt hoặc F9 để đọc chính tả (hoặc bật/tắt bằng Super + Ctrl + X).",
+  "dictation.hint": "Nhấn giữ Right Alt để đọc chính tả, hoặc bật/tắt bằng Alt + Space.",
   "dictation.installVoxtype": "Cài Voxtype + mô hình AI (~150MB) để bật đọc chính tả?",
   "dictation.superwhisperReady": "Đọc chính tả Superwhisper đã sẵn sàng",
   "dictation.voxtypeReady": "Đọc chính tả Voxtype đã sẵn sàng",

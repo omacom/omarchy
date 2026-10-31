@@ -102,7 +102,7 @@
   "default.browserSet": "%1 sasa ni kivinjari chaguomsingi",
   "default.editorSet": "%1 sasa ni kihariri chaguomsingi",
   "default.terminalSet": "%1 sasa ni terminali chaguomsingi",
-  "dictation.hint": "Shikilia Alt ya kulia au F9 ili kutoa imla (au badilisha kwa Super + Ctrl + X).",
+  "dictation.hint": "Shikilia Alt ya kulia kwa imla, au geuza kwa Alt + Space.",
   "dictation.installVoxtype": "Sakinisha Voxtype + modeli ya AI (~150MB) ili kuwasha imla?",
   "dictation.superwhisperReady": "Imla ya Superwhisper iko tayari",
   "dictation.voxtypeReady": "Imla ya Voxtype iko tayari",

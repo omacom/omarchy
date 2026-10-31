@@ -102,7 +102,7 @@
   "default.browserSet": "%1 ist jetzt der Standard-Browser",
   "default.editorSet": "%1 ist jetzt der Standard-Editor",
   "default.terminalSet": "%1 ist jetzt das Standard-Terminal",
-  "dictation.hint": "Halte Right Alt oder F9 zum Diktieren (oder umschalten mit Super + Ctrl + X).",
+  "dictation.hint": "Rechte Alt gedrückt halten zum Diktieren oder mit Alt + Space umschalten.",
   "dictation.installVoxtype": "Voxtype + KI-Modell (~150MB) installieren, um Diktat zu aktivieren?",
   "dictation.superwhisperReady": "Superwhisper-Diktat bereit",
   "dictation.voxtypeReady": "Voxtype-Diktat bereit",

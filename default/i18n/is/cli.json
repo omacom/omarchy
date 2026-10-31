@@ -102,7 +102,7 @@
   "default.browserSet": "%1 er nú sjálfgefinn vafri",
   "default.editorSet": "%1 er nú sjálfgefinn ritill",
   "default.terminalSet": "%1 er nú sjálfgefinn terminal",
-  "dictation.hint": "Haltu hægri Alt eða F9 niðri til að tala inn (eða víxla með Super + Ctrl + X).",
+  "dictation.hint": "Haltu inni hægri Alt fyrir upplestur, eða skiptu með Alt + Space.",
   "dictation.installVoxtype": "Setja upp Voxtype + AI-líkan (~150MB) til að virkja upplestur?",
   "dictation.superwhisperReady": "Superwhisper upplestur tilbúinn",
   "dictation.voxtypeReady": "Voxtype upplestur tilbúinn",

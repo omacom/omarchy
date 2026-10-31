@@ -103,7 +103,7 @@
   "default.browserSet": "%1 ara és el navegador per defecte",
   "default.editorSet": "%1 ara és l'editor per defecte",
   "default.terminalSet": "%1 ara és el terminal per defecte",
-  "dictation.hint": "Mantén premuda la tecla Alt dreta o F9 per dictar (o commuta-ho amb Super + Ctrl + X).",
+  "dictation.hint": "Mantingues premut l'Alt dret per dictar, o alterna amb Alt + Space.",
   "dictation.installVoxtype": "Instal·lar Voxtype + model d'IA (~150MB) per activar el dictat?",
   "dictation.superwhisperReady": "Dictat de Superwhisper a punt",
   "dictation.voxtypeReady": "Dictat de Voxtype a punt",

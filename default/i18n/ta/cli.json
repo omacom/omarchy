@@ -102,7 +102,7 @@
   "default.browserSet": "%1 இப்போது இயல்புநிலை உலாவி",
   "default.editorSet": "%1 இப்போது இயல்புநிலை திருத்தி",
   "default.terminalSet": "%1 இப்போது இயல்புநிலை முனையம்",
-  "dictation.hint": "சொல்ல Right Alt அல்லது F9 ஐ அழுத்திப் பிடிக்கவும் (அல்லது Super + Ctrl + X உடன் மாற்றவும்).",
+  "dictation.hint": "சொல்வதெழுத வலது Alt ஐ அழுத்திப் பிடிக்கவும், அல்லது Alt + Space உடன் மாற்றவும்.",
   "dictation.installVoxtype": "சொல்வதெழுதுதலை இயக்க Voxtype + AI மாதிரியை (~150MB) நிறுவவா?",
   "dictation.superwhisperReady": "Superwhisper சொல்வதெழுதுதல் தயார்",
   "dictation.voxtypeReady": "Voxtype சொல்வதெழுதுதல் தயார்",

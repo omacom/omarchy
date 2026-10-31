@@ -102,7 +102,7 @@
   "default.browserSet": "%1 अब डिफ़ॉल्ट ब्राउज़र है",
   "default.editorSet": "%1 अब डिफ़ॉल्ट संपादक है",
   "default.terminalSet": "%1 अब डिफ़ॉल्ट टर्मिनल है",
-  "dictation.hint": "बोलने के लिए Right Alt या F9 दबाए रखें (या Super + Ctrl + X से टॉगल करें)।",
+  "dictation.hint": "डिक्टेशन के लिए Right Alt दबाए रखें, या Alt + Space से टॉगल करें।",
   "dictation.installVoxtype": "डिक्टेशन चालू करने के लिए Voxtype + AI मॉडल (~150MB) इंस्टॉल करें?",
   "dictation.superwhisperReady": "Superwhisper डिक्टेशन तैयार है",
   "dictation.voxtypeReady": "Voxtype डिक्टेशन तैयार है",

@@ -104,7 +104,7 @@
   "default.browserSet": "%1 тепер типовий браузер",
   "default.editorSet": "%1 тепер типовий редактор",
   "default.terminalSet": "%1 тепер типовий термінал",
-  "dictation.hint": "Утримуйте правий Alt або F9 для диктування (або перемикайте за допомогою Super + Ctrl + X).",
+  "dictation.hint": "Утримуйте правий Alt, щоб диктувати, або перемикайте за допомогою Alt + Space.",
   "dictation.installVoxtype": "Встановити Voxtype + модель ШІ (~150MB), щоб увімкнути диктування?",
   "dictation.superwhisperReady": "Диктування Superwhisper готове",
   "dictation.voxtypeReady": "Диктування Voxtype готове",
