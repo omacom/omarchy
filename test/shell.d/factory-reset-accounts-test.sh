@@ -66,7 +66,12 @@ usermod() {
 }
 rm() {
   [[ ${FAIL_COMMAND:-} == "rm" && $* == *"$FAIL_ROOT/etc/shadow-"* ]] && return 42
+  [[ ${FAIL_COMMAND:-} == "packages" && ${*: -1} == "$FAIL_ROOT$PROVISIONING_DIR/packages" ]] && return 42
   command rm "$@"
+}
+install() {
+  [[ ${FAIL_COMMAND:-} == "guard" && ${*: -1} == "$FAIL_ROOT/etc/systemd/system/omarchy-provision-owner.service.d/10-discard-packages.conf" ]] && return 42
+  command install "$@"
 }
 # FAIL_MV is a pattern for the source of the renames that should fail.
 mv() {
@@ -86,7 +91,10 @@ make_fixture() {
   local top="$1" root_hash="${2:-original-root-hash}"
   local factory="$top/@factory"
   mkdir -p "$top/@" "$factory/etc" "$factory/home/seller" \
+    "$factory/var/lib/omarchy/provisioning/packages" \
     "$factory/usr/bin" "$factory/usr/share/omarchy/install/provisioning"
+  printf 'untrusted archive\n' >"$factory/var/lib/omarchy/provisioning/packages/node-v99.0.0-linux-x64.tar.gz"
+  printf 'wheel\n' >"$factory/var/lib/omarchy/provisioning/groups"
   touch "$top/@/old-system" "$factory/home/seller/private-file" \
     "$factory/usr/share/omarchy/install/provisioning/omarchy-provision-owner.service"
   printf '#!/bin/bash\n' >"$factory/usr/bin/omarchy-provision-owner"
@@ -112,6 +120,8 @@ EOF
 
 assert_scrubbed() {
   local root="$1" file
+  [[ ! -e $root/var/lib/omarchy/provisioning/packages ]] || fail "reset removes legacy provisioning archives"
+  [[ $(cat "$root/var/lib/omarchy/provisioning/groups") == "wheel" ]] || fail "reset preserves provisioning groups"
   [[ $(awk -F: '$1 == "root" { print $2 }' "$root/etc/shadow") == "!" ]] ||
     fail "reset erases the root hash while keeping the account locked"
   ! grep -q 'original-.*-hash\|seller' "$root/etc/"{passwd,shadow,group,gshadow} ||
@@ -144,8 +154,50 @@ for scenario in normal locked; do
   pass "$scenario reset scrubs both roots, preserves service accounts, and can be repeated"
 done
 
+top="$test_tmp/legacy-reset"
+make_fixture "$top"
+cp "$ROOT/install/provisioning/omarchy-provision-owner.service" \
+  "$top/@factory/usr/share/omarchy/install/provisioning/omarchy-provision-owner.service"
+# The relevant operations from the reset before a91616cbe: restore the
+# baseline, copy the live Node archive, and replace the main setup unit.
+cat >"$top/@factory/usr/bin/omarchy-system-factory-reset" <<'SH'
+#!/bin/bash
+set -euo pipefail
+factory=$1 next=$2 live=$3
+provisioning=/var/lib/omarchy/provisioning
+cp -a "$factory" "$next"
+install -d "$next$provisioning/packages"
+cp "$live"/node-v*.tar.gz "$next$provisioning/packages/"
+install -Dm644 "$next/usr/share/omarchy/install/provisioning/omarchy-provision-owner.service" \
+  "$next/etc/systemd/system/omarchy-provision-owner.service"
+SH
+chmod +x "$top/@factory/usr/bin/omarchy-system-factory-reset"
+bash "$test_tmp/reset" "$test_tmp" "$top" || fail "reset stages the legacy baseline"
+live="$test_tmp/live-packages"
+next="$top/legacy-next"
+mkdir -p "$live"
+tar -czf "$live/node-v99.0.0-linux-x64.tar.gz" --files-from /dev/null
+"$top/@/usr/bin/omarchy-system-factory-reset" "$top/@factory" "$next" "$live"
+[[ -f $next/var/lib/omarchy/provisioning/packages/node-v99.0.0-linux-x64.tar.gz ]] ||
+  fail "legacy reset introduces the fresh live archive"
+
+# Execute the persisted pre-start commands with real binaries in the cloned
+# root, without starting a service in the development session. The VM check
+# separately covers systemd's ordering and the full legacy setup leaf.
+dropin="$next/etc/systemd/system/omarchy-provision-owner.service.d/10-discard-packages.conf"
+mapfile -t commands < <(awk '/^\[/ { service = ($0 == "[Service]") } service && sub(/^ExecStartPre=/, "") { print }' "$dropin")
+(( ${#commands[@]} > 0 )) || fail "legacy reset retains the owner setup pre-start commands"
+for command in "${commands[@]}"; do
+  read -ra args <<<"$command"
+  mapfile -t libraries < <(ldd "${args[0]}" | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^\//) print $i }')
+  cp --parents --dereference "${args[0]}" "${libraries[@]}" "$next"
+  chroot "$next" "${args[@]}" || fail "persisted owner setup cleanup succeeds"
+done
+assert_scrubbed "$next"
+pass "persisted cleanup discards a fresh archive from a restored legacy reset before owner setup"
+
 for target in @omarchy-reset-next @factory; do
-  for command in userdel usermod rm; do
+  for command in userdel usermod rm packages guard; do
     top="$test_tmp/fail-$target-$command"
     make_fixture "$top"
     if FAIL_COMMAND="$command" FAIL_ROOT="$top/$target" bash "$test_tmp/reset" "$test_tmp" "$top"; then
