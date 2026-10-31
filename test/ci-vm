@@ -59,8 +59,10 @@ trap cleanup EXIT
 
 # A key made for this run only, handed in through the firmware tables as a
 # systemd credential: the image holds no key, and no run can reuse another's.
+# The throwaway image also needs one fixed package transaction without an
+# interactive password; this grant disappears with the run's overlay.
 ssh-keygen -q -t ed25519 -N '' -C ci-vm -f "$state/id_ed25519"
-keys=$(printf 'd /home/omarchy/.ssh 0700 omarchy omarchy -\nf+ /home/omarchy/.ssh/authorized_keys 0600 omarchy omarchy - %s\n' \
+keys=$(printf 'd /home/omarchy/.ssh 0700 omarchy omarchy -\nf+ /home/omarchy/.ssh/authorized_keys 0600 omarchy omarchy - %s\nf+ /etc/sudoers.d/omarchy-ci-usbguard 0440 root root - omarchy ALL=(root) NOPASSWD: /usr/bin/pacman -Sy --noconfirm --needed -- usbguard\n' \
   "$(cat "$state/id_ed25519.pub")" | base64 -w0)
 
 qemu-img create -qf qcow2 -b "$(realpath "$image/base.qcow2")" -F qcow2 "$state/run.qcow2"
@@ -102,6 +104,11 @@ until ssh_vm 'systemctl --user show-environment | grep -q ^HYPRLAND_INSTANCE_SIG
   fi
 done
 echo "test/ci-vm: sources copied and desktop up after $(seconds) s"
+
+# The release image can predate this checkout's USB protection. Its policy
+# tests use USBGuard's real rule parser, not a fixture that accepts every rule.
+# Its package sync databases are stripped, so fetch them for this transaction.
+ssh_vm 'sudo -n /usr/bin/pacman -Sy --noconfirm --needed -- usbguard'
 
 # Nobody touches this machine, and after a few minutes without input Omarchy
 # turns the screen off. The tests that read the screen then read black.

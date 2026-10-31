@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Notify after USBGuard has applied a blocking policy
+
+set -euo pipefail
+notify=0
+case ${USBGUARD_IPC_SIGNAL:-} in
+  IPC.Connected) notify=1 ;;
+  Device.PolicyApplied) if [[ ${USBGUARD_DEVICE_TARGET_NEW:-} == "block" ]]; then notify=1; fi ;;
+  Device.PresenceChanged) [[ ${USBGUARD_DEVICE_EVENT:-} == "Remove" ]] || exit 0 ;;
+  *) exit 0 ;;
+esac
+
+blocked_title=$(omarchy-i18n usb.accessoryBlocked)
+requests="$XDG_RUNTIME_DIR/omarchy-usb-lock-notices"
+mkdir -p "$requests"
+chmod 700 "$requests"
+exec 9>"$requests/.lock"
+while true; do
+  flock 9
+  if [[ ! -e /etc/omarchy/usb-lock.approval || ! -e /etc/omarchy/usb-lock.enabled ]]; then
+    omarchy-notification-dismiss "$blocked_title" || true
+    rm -f "$requests/current"
+    exit 0
+  fi
+  # Wait for the shell during login/recovery, then avoid prompting over a lock.
+  status=$(omarchy-shell lock status 2>/dev/null || true)
+  if jq -e '.locked == true' <<<"$status" >/dev/null 2>&1; then
+    omarchy-notification-dismiss "$blocked_title" || true
+    rm -f "$requests/current"
+    exit 0
+  elif ! jq -e '.locked == false' <<<"$status" >/dev/null 2>&1; then
+    flock -u 9
+    sleep 1
+    continue
+  fi
+  generation=$(systemctl show omarchy-usb-lock.service --property=InvocationID --value)
+  [[ $generation =~ ^[0-9a-f]{32}$ ]] || exit 1
+  blocked=$(usbguard list-devices --blocked)
+  if [[ -z $blocked ]]; then
+    omarchy-notification-dismiss "$blocked_title" || true
+    rm -f "$requests/current"
+    exit 0
+  fi
+  # An allow/removal event may overlap another device's initial presence. It
+  # can clear stale warnings, but must not create a prompt for that transient
+  # block. A block event must still describe the exact currently blocked device.
+  (( notify )) || exit 0
+  if [[ $USBGUARD_IPC_SIGNAL == "Device.PolicyApplied" ]]; then
+    [[ ${USBGUARD_DEVICE_ID:-} =~ ^[0-9]+$ ]] || exit 0
+    grep -Fqx -- "$USBGUARD_DEVICE_ID: ${USBGUARD_DEVICE_RULE:-}" <<<"$blocked" || exit 0
+  fi
+  # Coalesce simultaneous policy events. A new daemon/watcher or a different
+  # blocked inventory gets a fresh prompt, including after a disconnected watch.
+  token=$(printf '%s\0%s\0%s' "$OMARCHY_USB_LOCK_WATCH_ID" "$generation" "$blocked" | sha256sum | cut -d' ' -f1)
+  [[ ! -f $requests/current || $(<"$requests/current") != "$token" ]] || exit 0
+  omarchy-notification-dismiss "$blocked_title" || true
+  if omarchy-notification-wait 1 && omarchy-notification-send --urgency critical --glyph 󰖀 \
+    "$blocked_title" "$(omarchy-i18n thunderbolt.reviewPending)" \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-usb-lock-review; then
+    printf '%s\n' "$token" >"$requests/current"
+    exit 0
+  fi
+  flock -u 9
+  sleep 1
+done

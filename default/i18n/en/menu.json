@@ -665,6 +665,15 @@
   "setup.security": {
     "label": "Security"
   },
+  "setup.security.usb-devices": {
+    "label": "USB Devices"
+  },
+  "setup.security.thunderbolt-devices": {
+    "label": "Thunderbolt Devices"
+  },
+  "setup.security.usb-lock": {
+    "label": "USB & Thunderbolt"
+  },
   "setup.config": {
     "label": "Config"
   },
@@ -1024,6 +1033,9 @@
   "remove.security": {
     "label": "Security",
     "title": "Remove"
+  },
+  "remove.security.usb-lock": {
+    "label": "USB & Thunderbolt"
   },
   "remove.security.fingerprint": {
     "label": "Fingerprint"

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+export OMARCHY_PATH=$ROOT
 
 # Factory reset's boot step through the real omarchy-lifecycle-dispatch. On an
 # x86 fixture the generic Limine UKI path runs and the boot-package entrypoints

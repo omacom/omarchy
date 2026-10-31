@@ -1,0 +1,16 @@
+[Unit]
+Description=Notify about USB accessories awaiting approval
+After=dbus.socket wayland-session-waitenv.service
+Requires=dbus.socket
+PartOf=graphical-session.target
+ConditionEnvironment=OMARCHY_PATH
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-usb-lock-watch
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
