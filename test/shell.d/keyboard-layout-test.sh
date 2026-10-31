@@ -143,6 +143,20 @@ assertEqual(model.isTypedKeyboard('sleep-button'), false, 'a sleep button is not
 assertEqual(model.isTypedKeyboard('hl-virtual-keyboard-1'), false, 'the keyboard an input method injects through is not')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
 
+// T2 Macs expose the headphone jack's inline remote through apple-bce as a
+// keyboard. It carries and advances through the seat's layouts, but switching
+// it changes nothing anyone types. Filtering the actual Hyprland device name
+// must leave the real keyboard as the target even when the headset is further
+// through the layout list.
+const t2Seat = [
+  { name: 'apple-headset', active_layout_index: 1, active_keymap: 'Greek' },
+  { name: 'apple-spi-keyboard', active_layout_index: 0, active_keymap: 'English (US)' },
+]
+const t2Typed = t2Seat.filter(keyboard => model.isTypedKeyboard(keyboard.name))
+
+assertEqual(model.isTypedKeyboard('apple-headset'), false, 'the T2 inline remote is not a keyboard')
+assertEqual(model.selectKeyboard(t2Typed).name, 'apple-spi-keyboard', 'a T2 layout label reads the keyboard used for typing')
+
 // The activelayout event names the keyboard ahead of the layout it moved to,
 // and a description with a comma in it has to survive the split.
 const rawEvent = data => ({ data })
@@ -152,6 +166,8 @@ assertEqual(model.eventKeyboardName(rawEvent('at-translated-set-2-keyboard,Frenc
 assertEqual(model.eventKeyboardName(parsedEvent('at-translated-set-2-keyboard,English (US, intl.)')), 'at-translated-set-2-keyboard', 'a description carrying a comma leaves the name alone')
 assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')), '', 'the keyboard an input method injects through is not typed on')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
+assertEqual(model.eventKeyboardName(rawEvent('apple-headset,Greek')), '', 'headset layout events leave the typing keyboard selected')
+assertEqual(model.eventKeyboardName(rawEvent('power-button,French')), '', 'button events cannot replace the typing keyboard')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
 {
   const widget = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/KeyboardLayout.qml'), 'utf8')
