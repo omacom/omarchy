@@ -31,6 +31,14 @@ prompt themselves. Migrations must be idempotent: if one user already applied a
 machine-wide repair, the same migration running for another user should detect
 that and no-op.
 
+### Accounts that aren't administrators
+
+On an account outside `wheel` (`omarchy-sudo-allowed` fails), `omarchy-migrate` puts `default/omarchy/migrate-limited/` first on `PATH`: its `sudo` and `pkexec` run nothing, print what they left on stderr, and report success. The machine-wide steps are an administrator's, done by their own run of the same migration, normally `omarchy update` as soon as it has installed the migration. The limited account's run applies only its own part, without a password prompt sudo would refuse, and only after an administrator's run: an administrator's run records each migration it runs in `/var/lib/omarchy/admin-migrations`, and a limited account's run stops at the first pending migration not recorded there, so its part always follows the machine-wide one (`--pending` lists only what it can run now). An administrator's run also reruns a newer migration the record lacks, such as one lost to a rollback of `/`. Migrations older than the one that creates the record run as they did before. So:
+
+- Don't base a step for the user on what a sudo command printed or returned: for such an account it printed nothing and succeeded.
+- A privileged step about the account itself, with its name or home in the command (`sudo gpasswd -d "$USER" input`), is not one an administrator's run does for it, so there it fails, says so, and the migration stays pending until an administrator has done it. Where a repair applies to every account, have the administrator's run do it for all of them.
+- Package helpers still refuse there when a package is missing (`omarchy-pkg-add` says an administrator installs software), which fails the migration and leaves it pending until an administrator has installed it.
+
 ## When migrations run
 
 ### During `omarchy update`
@@ -43,7 +51,11 @@ omarchy-hook post-update
 ```
 
 `omarchy-migrate` waits for any active pacman transaction to finish, then runs
-all pending migrations for the current user in the visible update terminal.
+all pending migrations for the current user in the visible update terminal. An
+administrator's run holds the machine-wide update lock while it does, so two
+administrators' updates or migrations never run the same migration at once;
+run on its own while another holds it, it says so and runs nothing. Other
+accounts' runs change only their own files and lock nothing.
 
 ### At login
 
@@ -54,8 +66,10 @@ Every graphical login starts `omarchy-migrate-notify.service` after
 omarchy-migrate --pending
 ```
 
-It stays silent while `omarchy update` holds its lock, since that update applies
-the pending migrations itself.
+It waits while an update or migration holds a lock the account takes, and only
+then counts what is still pending: the account's own update applies its pending
+migrations itself, and those another administrator's update doesn't are
+prompted for once it has finished.
 
 If that user has pending migrations, it shows a notification that opens a
 terminal for:

@@ -88,8 +88,14 @@ cat >"$mock_bin/omarchy-i18n" <<'SH'
 #!/bin/bash
 echo "$1"
 SH
+# Only an administrator is offered an update; these cases run as one unless
+# TEST_ADMIN says otherwise.
+cat >"$mock_bin/omarchy-sudo-allowed" <<'SH'
+#!/bin/bash
+[[ ${TEST_ADMIN:-yes} == "yes" ]]
+SH
 chmod +x "$mock_bin/nm-online" "$mock_bin/omarchy-update-available" \
-  "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send" "$mock_bin/omarchy-i18n"
+  "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send" "$mock_bin/omarchy-i18n" "$mock_bin/omarchy-sudo-allowed"
 
 # Arguments: OMARCHY_PATH, omarchy-update-available's exit status, then
 # checkupdates'.
@@ -116,6 +122,14 @@ if offers_update "$checkout" 1 2; then
   fail "first run offers no update when a current checkout has nothing pending"
 fi
 pass "first run offers an update only when there is one"
+
+# Only an administrator can install it, and another account doesn't even sync
+# the package databases to look.
+if TEST_ADMIN=no offers_update "$installed" 1 0; then
+  fail "first run offers no update to an account that isn't an administrator"
+fi
+! grep -qx checkupdates "$test_tmp/calls" || fail "first run doesn't check for updates for an account that isn't an administrator"
+pass "first run offers an update only to an administrator"
 
 # Arguments: the git name and email already configured, empty for unset.
 offers_git_setup() {

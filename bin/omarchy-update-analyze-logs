@@ -2,10 +2,17 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+# Same path omarchy-update logs to: per-user so a second account's update can
+# write its transcript under fs.protected_regular=1 (#15679).
+update_log="${XDG_RUNTIME_DIR:-/tmp}/omarchy-update-$UID.log"
+if [[ ! -e $update_log ]]; then
+  # The update that installs this change was started by the previous
+  # omarchy-update, which still opened the legacy path.
+  update_log="/tmp/omarchy-update.log"
+fi
 
 # Check for initramfs generation failure
-if grep -q "Updating linux initcpios" "$update_log"; then
+if [[ -r $update_log ]] && grep -q "Updating linux initcpios" "$update_log"; then
   if ! grep -q "Initcpio image generation successful" "$update_log"; then
     echo -e '\e[31mError: Initramfs generation may have failed. Review logs before restart.\e[0m'
     echo

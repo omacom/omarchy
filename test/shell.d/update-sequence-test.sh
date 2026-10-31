@@ -132,3 +132,25 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 assert_boundary_cold "update after mise failure"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# An update changes the whole machine, so it takes an administrator. Anyone else
+# is told so before the update log, the lock or a password prompt: no step runs
+# and sudo is never asked to authenticate (dropping a cached credential and
+# reading sudo's options come first and ask for nothing).
+cat >"$stub_bin/script" <<'STUB'
+#!/bin/bash
+printf 'script\n' >>"$STEP_LOG"
+STUB
+chmod +x "$stub_bin/script"
+: >"$test_tmp/steps"
+: >"$SUDO_TEST_LOG"
+if STEP_LOG="$test_tmp/steps" SUDO_TEST_ADMIN=0 PATH="$stub_bin:$PATH"   "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "an update by an account that isn't an administrator reports success"
+fi
+grep -Fx 'Omarchy updates are installed by an administrator.' "$test_tmp/err" >/dev/null ||
+  fail "a refused update doesn't say who installs updates" "$(cat "$test_tmp/err")"
+[[ ! -s $test_tmp/steps ]] || fail "a refused update still ran" "$(cat "$test_tmp/steps")"
+if grep -v -E '^sudo -[kKh]$' "$SUDO_TEST_LOG" | grep -q '^sudo'; then
+  fail "a refused update still asked sudo" "$(cat "$SUDO_TEST_LOG")"
+fi
+pass "an account that isn't an administrator is told so before anything runs"

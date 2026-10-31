@@ -1,21 +1,62 @@
 #!/bin/bash
 
 # omarchy:summary=Run a command while holding the Omarchy update lock
-# omarchy:args=<held|run> [command] [args...]
+# omarchy:args=<held|run|shared|busy|wait|carry> [command] [args...]
 # omarchy:hidden=true
 
 set -e
 
-lock_dir="${XDG_RUNTIME_DIR:-/tmp}"
-lock_path="$lock_dir/omarchy-update.lock"
+# Each account's own lock, which every update has always taken.
+own_lock_dir="${XDG_RUNTIME_DIR:-/tmp}"
+own_lock_path="$own_lock_dir/omarchy-update.lock"
 
+# One lock for the whole machine, so two administrators' updates and
+# migrations never run at once: both rebuild the same boot images and edit the
+# same system files. systemd-tmpfiles creates it, readable by wheel alone
+# (etc/tmpfiles.d/omarchy-update-lock.conf). An account that can read it takes
+# it instead of its own; any other account, or one on a machine that hasn't
+# created it yet, takes its own as before.
+machine_lock_path=/run/omarchy-update.lock
+
+shared() {
+  [[ -r $machine_lock_path ]]
+}
+
+# Whether some process holds the lock at this path. Opening it only to read
+# works on another account's file too.
+lock_busy() {
+  local fd
+
+  [[ -f $1 && -r $1 ]] || return 1
+  exec {fd}<"$1" || return 1
+  if flock -n "$fd"; then
+    exec {fd}<&-
+    return 1
+  fi
+  exec {fd}<&-
+}
+
+# The locks this account takes that exist: the machine's, and its own in its
+# runtime directory. Never the shared /tmp fallback, which whoever created it
+# first owns.
+account_locks() {
+  if shared; then
+    echo "$machine_lock_path"
+  fi
+  if [[ -n ${XDG_RUNTIME_DIR:-} && -f $own_lock_path ]]; then
+    echo "$own_lock_path"
+  fi
+}
+
+# An update that started before the machine-wide lock existed holds only its
+# own, and its migrations run inside it all the same.
 lock_is_held() {
   local lock_fd_path=""
 
   [[ -n ${OMARCHY_UPDATE_LOCK_FD:-} && -e /proc/$$/fd/$OMARCHY_UPDATE_LOCK_FD ]] || return 1
 
   lock_fd_path=$(readlink -f "/proc/$$/fd/$OMARCHY_UPDATE_LOCK_FD" 2>/dev/null || true)
-  [[ $lock_fd_path == "$(readlink -m "$lock_path")" ]] &&
+  [[ $lock_fd_path == "$(readlink -m "$machine_lock_path")" || $lock_fd_path == "$(readlink -m "$own_lock_path")" ]] &&
     flock -n "$OMARCHY_UPDATE_LOCK_FD"
 }
 
@@ -30,18 +71,75 @@ case "${1:-}" in
       exit 2
     fi
 
-    mkdir -p "$lock_dir" 2>/dev/null || true
-    exec {OMARCHY_UPDATE_LOCK_FD}>"$lock_path"
+    if shared; then
+      # This account's update from before the machine-wide lock existed still
+      # holds only its own.
+      if lock_busy "$own_lock_path"; then
+        echo "An Omarchy update or migration is already running."
+        exit 1
+      fi
+      # Root's file: reading it is enough to lock it.
+      exec {OMARCHY_UPDATE_LOCK_FD}<"$machine_lock_path"
+    else
+      mkdir -p "$own_lock_dir" 2>/dev/null || true
+      exec {OMARCHY_UPDATE_LOCK_FD}>"$own_lock_path"
+    fi
     if ! flock -n "$OMARCHY_UPDATE_LOCK_FD"; then
-      echo "An Omarchy update is already running."
+      echo "An Omarchy update or migration is already running."
       exit 1
     fi
 
     export OMARCHY_UPDATE_LOCK_FD
     exec "$@"
     ;;
+  shared)
+    shared
+    ;;
+  busy)
+    # Whether an update or migration holds a lock this account takes.
+    while IFS= read -r path; do
+      lock_busy "$path" && exit 0
+    done < <(account_locks)
+    exit 1
+    ;;
+  wait)
+    # Until no update or migration holds a lock this account takes. A shared
+    # lock waits for the holder, and keeps out a new run only for the moment it
+    # takes to let go.
+    while IFS= read -r path; do
+      [[ -r $path ]] || continue
+      exec {fd}<"$path"
+      flock -s "$fd"
+      exec {fd}<&-
+    done < <(account_locks)
+    ;;
+  carry)
+    # The update that installs the machine-wide lock started without it, so it
+    # holds only this account's own. Take the machine's for it now, and leave
+    # it with a background process that lets go once the update lets go of its
+    # own, so another administrator's update can't start alongside it. Exits 3
+    # once carried, 0 when there is nothing to carry (an update that holds the
+    # machine's already), and 1 when another account's run holds it.
+    if shared && lock_is_held; then
+      held_path=$(readlink -f "/proc/$$/fd/$OMARCHY_UPDATE_LOCK_FD" 2>/dev/null || true)
+      if [[ $held_path == "$(readlink -m "$own_lock_path")" ]]; then
+        exec {machine_fd}<"$machine_lock_path"
+        if ! flock -n "$machine_fd"; then
+          echo "An Omarchy update or migration is already running."
+          exit 1
+        fi
+        (
+          exec {OMARCHY_UPDATE_LOCK_FD}<&-
+          exec {own_fd}<"$own_lock_path"
+          flock -s "$own_fd"
+        ) </dev/null >/dev/null 2>&1 &
+        exit 3
+      fi
+    fi
+    exit 0
+    ;;
   *)
-    echo "Usage: omarchy-update-lock <held|run> [command] [args...]" >&2
+    echo "Usage: omarchy-update-lock <held|run|shared|busy|wait|carry> [command] [args...]" >&2
     exit 2
     ;;
 esac

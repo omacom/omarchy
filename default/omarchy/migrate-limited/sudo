@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# On PATH only while omarchy-migrate runs migrations for an account that isn't
+# an administrator (see agents/skills/migrations.md). A migration's
+# machine-wide steps are an administrator's, done by their own run of it, so
+# this runs nothing, says what it left, and reports success, instead of asking
+# for a password sudo would refuse. A step about this account itself, naming
+# it (alone or as user:group) or a path in its home, is not one an
+# administrator's run does for it:
+# that fails, and the migration stays pending until an administrator has done
+# it. pkexec is the same file.
+
+account=$(id -un)
+# sudo's and pkexec's own options come first, then the program, which is not
+# an account even when it shares a name with one: only its arguments count.
+arguments=("$@")
+index=0
+while (( index < ${#arguments[@]} )); do
+  case ${arguments[index]} in
+  --) index=$((index + 1)); break ;;
+  -u | -g | -p | -C | -D | -h | -r | -t | -T | -U | --user) index=$((index + 2)) ;;
+  -*) index=$((index + 1)) ;;
+  *) break ;;
+  esac
+done
+for argument in "${arguments[@]:index+1}"; do
+  if [[ $argument == "$account" || $argument == "$account":* || $argument == *:"$account" || $argument == */"$account" ||
+    $argument == "$HOME" || $argument == "$HOME"/* ]]; then
+    echo "Needs an administrator, for this account: ${0##*/} $*" >&2
+    exit 1
+  fi
+done
+
+# Take what a pipe hands the command (printf ... | sudo tee), so the writer
+# doesn't fail on a closed pipe. Wait a moment for it and no longer: stdin may
+# be a pipe nothing writes to, and a terminal is left alone.
+if [[ ! -t 0 ]] && IFS= read -r -t 0.2 -n 1 _; then
+  cat >/dev/null
+fi
+echo "Left to an administrator: ${0##*/} $*" >&2
+exit 0

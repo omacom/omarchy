@@ -29,6 +29,8 @@ run_orphan_checker() {
 write_stub pacman 'if [[ $1 == "-Qtdq" ]]; then printf "old-lib\nunused-tool\n"; exit 0; fi; exit 1'
 write_stub sudo 'echo "sudo should not be called" >&2; exit 99'
 write_stub gum 'echo "gum should not be called" >&2; exit 99'
+# Removing packages takes an administrator; these cases run as one.
+write_stub omarchy-sudo-allowed 'exit 0'
 
 run_orphan_checker >"$test_tmp/noninteractive.out" 2>"$test_tmp/noninteractive.err"
 grep -q '^  old-lib$' "$test_tmp/noninteractive.out" || fail "orphan checker lists orphan packages"

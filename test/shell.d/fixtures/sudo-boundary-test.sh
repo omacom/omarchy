@@ -52,6 +52,14 @@ echo "${SUDO_TEST_PLATFORM:-x86}"
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/omarchy-hw-platform"
 
+# Updates take an administrator. One unless a test says otherwise, so no test
+# depends on the groups of whoever runs it.
+cat >"$SUDO_TEST_ROOT/bin/omarchy-sudo-allowed" <<'STUB'
+#!/bin/bash
+[[ ${SUDO_TEST_ADMIN:-1} == "1" ]]
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/omarchy-sudo-allowed"
+
 cat >"$SUDO_TEST_ROOT/mock/sudo" <<'STUB'
 #!/bin/bash
 set -euo pipefail
