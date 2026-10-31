@@ -22,6 +22,9 @@ hl.on("hyprland.start", function()
   -- it with a tty environment, and agents in its panes can't read the clipboard.
   hl.exec_cmd(o.launch("herdr server"))
 
+  -- Re-arm reminders that a reboot or logout dropped, once notifications are up.
+  hl.exec_cmd("omarchy-notification-wait && omarchy-reminder restore")
+
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
 end)
