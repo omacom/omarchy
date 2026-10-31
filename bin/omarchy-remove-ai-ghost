@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Ghost, keeping every ghost home in place.
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# pkg-drop's pacman -Rns takes ghost-runtime with Ghost when it came in as
+# Ghost's dependency, and leaves it when the owner installed it on its own for
+# another app; the daemon stops only when the runtime goes.
+if ! pacman -Qqe ghost-runtime >/dev/null 2>&1; then
+  systemctl --user disable --now ghostd.service 2>/dev/null || true
+fi
+
+# Take the HUD out of the running shell. When no shell answers, unlink it by
+# hand, moving aside a real directory an older install left, as the plugin
+# remover itself does.
+plugin=~/.config/omarchy/plugins/ferdousbhai.ghost
+omarchy-plugin-remove ferdousbhai.ghost --yes 2>/dev/null || true
+if [[ -L $plugin || -f $plugin ]]; then
+  rm -f "$plugin"
+elif [[ -d $plugin ]]; then
+  mv "$plugin" "$HOME/.config/omarchy/plugins/.ferdousbhai.ghost.bak.$(date -u +%Y%m%d%H%M%S)"
+fi
+
+omarchy-pkg-drop ghost
+
+echo ""
+if pacman -Qq ghost-runtime >/dev/null 2>&1; then
+  echo "Ghost's HUD has been removed. ghost-runtime, installed on its own, keeps running."
+else
+  echo "Ghost has been removed. Your ghosts, settings, and state remain, and installing it again picks them up."
+fi
