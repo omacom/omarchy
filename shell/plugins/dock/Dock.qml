@@ -295,18 +295,30 @@ Item {
     modeProc.running = true
   }
 
+  // Reads every workspace's mode again, the ones on screen first. A mode stays
+  // until its read lands, as the dock hides on a workspace with no mode; a
+  // gone workspace's is dropped, so one made again is read afresh.
   function refresh() {
-    root.modes = ({})
-    root.pendingModes = []
-    root.modeGeneration++
+    var ids = []
     var monitors = Hyprland.monitors.values
     for (var i = 0; i < monitors.length; i++) {
-      if (monitors[i].activeWorkspace) root.readMode(monitors[i].activeWorkspace.id)
+      if (monitors[i].activeWorkspace) ids.push(monitors[i].activeWorkspace.id)
     }
     // Read the rest ahead of time, so the dock shows or hides the moment the
     // user switches to one.
     var workspaces = Hyprland.workspaces.values
-    for (var j = 0; j < workspaces.length; j++) root.readMode(workspaces[j].id)
+    for (var j = 0; j < workspaces.length; j++) ids.push(workspaces[j].id)
+    var kept = ({})
+    root.pendingModes = []
+    for (var k = 0; k < ids.length; k++) {
+      var id = ids[k]
+      if (!(id >= 1) || root.pendingModes.indexOf(id) !== -1) continue
+      root.pendingModes.push(id)
+      if (root.modes[id] !== undefined) kept[id] = root.modes[id]
+    }
+    root.modes = kept
+    root.modeGeneration++
+    root.readNextMode()
   }
 
   Component.onCompleted: {
