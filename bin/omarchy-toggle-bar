@@ -4,7 +4,39 @@
 # omarchy:args=[toggle|on|off]
 # omarchy:examples=omarchy toggle bar | omarchy toggle bar off | omarchy toggle bar on
 
-omarchy-toggle bar-off "${1:-toggle}"
+# The `bar-hidden` flag is named for the state it represents: present = hidden,
+# absent = visible. Map the user-facing `on`/`off` to that directly so the
+# command name matches the effect.
+FLAG="$HOME/.local/state/omarchy/toggles/bar-hidden"
+
+hide() {
+  mkdir -p "$(dirname "$FLAG")"
+  touch "$FLAG"
+}
+
+show() {
+  rm -f "$FLAG"
+}
+
+case "${1:-toggle}" in
+  on)
+    show
+    ;;
+  off)
+    hide
+    ;;
+  toggle|"")
+    if [[ -f $FLAG ]]; then
+      show
+    else
+      hide
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy toggle bar [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
 
 # The shell's watch on the toggles directory can miss flag changes that land in
 # quick succession, stranding the bar off screen until the shell restarts.
