@@ -54,7 +54,7 @@ OUT
     echo "Volume: front-left: 32768 /  50% / -18.06 dB"
     ;;
   "get-sink-mute "*)
-    echo "Mute: no"
+    cat "$PREVIOUS_MUTE"
     ;;
   "set-default-sink "*)
     echo "${*:2}" >"$DEFAULT_SINK"
@@ -89,10 +89,11 @@ chmod +x "$work/bin"/*
 export CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
 export SINKS_JSON="$work/sinks.json" SHORT_SINKS="$work/short-sinks"
 export DEFAULT_SINK="$work/default-sink" MODULES="$work/modules"
-export TUNING_FRONTED="$work/tuning-fronted"
+export TUNING_FRONTED="$work/tuning-fronted" PREVIOUS_MUTE="$work/previous-mute"
 export XDG_RUNTIME_DIR="$work/runtime"
 mkdir -p "$XDG_RUNTIME_DIR"
 : >"$TUNING_FRONTED"
+echo "Mute: no" >"$PREVIOUS_MUTE"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 cat >"$SINKS_JSON" <<'OUT'
@@ -279,6 +280,7 @@ reset_combine() {
 OUT
   echo "bluez_output.headset" >"$DEFAULT_SINK"
   : >"$TUNING_FRONTED"
+  echo "Mute: no" >"$PREVIOUS_MUTE"
   rm -f "$XDG_RUNTIME_DIR/omarchy-audio-output-combine.previous"
 }
 
@@ -291,6 +293,8 @@ grep -q 'pactl load-module module-combine-sink sink_name=omarchy_combined_output
   fail 'combine selects the combined output' "$(cat "$DEFAULT_SINK")"
 grep -q ' pactl set-sink-volume omarchy_combined_output 50%$' "$CALLS" ||
   fail 'combine keeps the volume of the output it replaces' "$(calls)"
+grep -q ' pactl set-sink-mute omarchy_combined_output 0$' "$CALLS" ||
+  fail 'combine comes up unmuted when the output it replaces was' "$(calls)"
 [[ $(omarchy-audio-output-combine status) == "on" ]] || fail 'combine reports on'
 pass 'combine shares to plugged-in physical outputs only'
 
@@ -307,6 +311,15 @@ grep -q 'pactl unload-module 900$' "$CALLS" || fail 'combine off removes the mod
   fail 'combine off restores the output it replaced' "$(cat "$DEFAULT_SINK")"
 [[ $(omarchy-audio-output-combine status) == "off" ]] || fail 'combine reports off'
 pass 'combine off restores the output it replaced'
+
+# A muted output stays muted when its mix replaces it.
+reset_combine
+echo "Mute: yes" >"$PREVIOUS_MUTE"
+: >"$CALLS"
+omarchy-audio-output-combine on
+grep -q ' pactl set-sink-mute omarchy_combined_output 1$' "$CALLS" ||
+  fail 'combine carries the mute of the output it replaces' "$(calls)"
+pass 'combine carries the mute of the output it replaces'
 
 reset_combine
 omarchy-audio-output-combine toggle

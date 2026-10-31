@@ -67,8 +67,10 @@ match_level() {
   if [[ -n $volume ]]; then
     timeout 2 pactl set-sink-volume "$sink_name" "${volume}%" >/dev/null 2>&1 || true
   fi
-  if [[ $mute == "yes" ]]; then
-    timeout 2 pactl set-sink-mute "$sink_name" 1 >/dev/null 2>&1 || true
+  # Explicitly both ways: the sink remembers its own mute from its last use, so
+  # an output that was never muted must not come back silent.
+  if [[ -n $mute ]]; then
+    timeout 2 pactl set-sink-mute "$sink_name" "$([[ $mute == "yes" ]] && echo 1 || echo 0)" >/dev/null 2>&1 || true
   fi
 }
 
