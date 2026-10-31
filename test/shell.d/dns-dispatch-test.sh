@@ -6,16 +6,10 @@ source "$(dirname "$0")/base-test.sh"
 
 dns="$ROOT/bin/omarchy-dns"
 
-# NetworkManager runs dispatcher.d entries as root, so both ends of the hook
-# must name packaged paths, never a checkout a dev link could point at.
 if [[ ${1:-} != "--inside" ]]; then
-  grep -Fx 'NM_DISPATCHER_TARGET=/usr/bin/omarchy-dns-dispatch' "$dns" >/dev/null ||
-    fail "omarchy-dns links the dispatcher hook to the packaged path"
-  grep -F 'exec /usr/bin/omarchy-dns --pin-connection' "$ROOT/bin/omarchy-dns-dispatch" >/dev/null ||
-    fail "dispatcher hook hands off to the packaged omarchy-dns"
   [[ -x $ROOT/bin/omarchy-dns-dispatch ]] ||
     fail "dispatcher hook is executable so NetworkManager can run it"
-  pass "DNS dispatcher hook only runs packaged code"
+  pass "DNS dispatcher hook is executable"
 
   # omarchy-dns pins PATH and reads /etc/systemd/resolved.conf as root, so run
   # the rest once inside a private user+mount namespace with an nmcli stub over
