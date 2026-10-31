@@ -11,10 +11,13 @@ lock_path="$lock_dir/omarchy-update.lock"
 
 # The wrapper process holds the flock. The command runs with the descriptor
 # closed, so AUR daemons that outlive the update (Flutter's adb, for example)
-# cannot keep the lock after we exit. held() is an env flag set only for that
-# child, which is how omarchy-update knows not to acquire the lock a second time.
+# cannot keep the lock after we exit. held() asks whether that wrapper is still
+# alive with the lock open, since a leftover process keeps the environment too.
 lock_is_held() {
-  [[ ${OMARCHY_UPDATE_LOCKED:-} == "1" ]]
+  local holder=${OMARCHY_UPDATE_LOCK_HOLDER:-}
+
+  [[ $holder =~ ^[0-9]+:[0-9]+$ ]] || return 1
+  [[ $(readlink -f "/proc/${holder%:*}/fd/${holder#*:}" 2>/dev/null) == "$(readlink -m "$lock_path")" ]]
 }
 
 case "${1:-}" in
@@ -35,7 +38,7 @@ case "${1:-}" in
       exit 1
     fi
 
-    export OMARCHY_UPDATE_LOCKED=1
+    export OMARCHY_UPDATE_LOCK_HOLDER="$$:$OMARCHY_UPDATE_LOCK_FD"
     # A closing terminal signals the whole group; hold the lock until the update's own cleanup finishes.
     trap : HUP TERM
     "$@" {OMARCHY_UPDATE_LOCK_FD}>&-

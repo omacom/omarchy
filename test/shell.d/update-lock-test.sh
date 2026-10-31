@@ -433,6 +433,18 @@ run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-lock" run \
 if run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-lock" held; then
   fail "omarchy-update-lock held is false outside a locked child"
 fi
+
+# A process the update leaves behind keeps its environment, but not the lock.
+leftover_go="$test_tmp/leftover-go"
+leftover_held="$test_tmp/leftover-held"
+run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-lock" run \
+  bash -c 'setsid -f bash -c "for _ in {1..250}; do [[ -e \$1 ]] && break; sleep 0.02; done; if omarchy-update-lock held; then echo yes; else echo no; fi >\"\$2\"" bash "$1" "$2" </dev/null >/dev/null 2>&1' bash "$leftover_go" "$leftover_held"
+touch "$leftover_go"
+for _ in {1..250}; do
+  [[ -s $leftover_held ]] && break
+  sleep 0.02
+done
+[[ $(<"$leftover_held") == "no" ]] || fail "omarchy-update-lock held is false in a process left behind by a finished update"
 pass "omarchy-update-lock held is only true for the locked child"
 
 # Closing the terminal signals the wrapper and the update together. The wrapper
