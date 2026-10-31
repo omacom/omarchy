@@ -13,6 +13,21 @@ assert(media.hasMetadata({ identity: 'Spotify' }), 'media detects identity metad
 assert(media.hasTrackMetadata({ trackTitle: 'Track' }), 'media detects track metadata')
 assert(media.hasTrackTitle({ trackTitle: 'Track' }), 'media detects track titles')
 assert(!media.hasTrackTitle({ trackArtUrl: 'file:///cover.jpg' }), 'media ignores blank titles with stale art')
+
+// An idle browser keeps an MPRIS session with only art and length; the bar hides it, so it must not hide a paused track.
+const idleBrowser = { identity: 'Chrome', trackArtUrl: 'file:///tmp/art' }
+const pausedTrack = { identity: 'Cider', trackTitle: 'Song', trackArtist: 'Artist', canPlay: true }
+const withStreams = (...players) => (p) => players.includes(p)
+assert(!media.hasShownTrack(idleBrowser), 'media does not show an art-only player')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], null, withStreams(idleBrowser, pausedTrack)), pausedTrack, 'media shows a paused track over an idle browser when both hold streams')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], pausedTrack, withStreams(idleBrowser)), pausedTrack, 'media shows the paused track after its player closes its stream')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], null, withStreams(idleBrowser)), pausedTrack, 'media shows a paused track over a hidden stream holder')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], idleBrowser, withStreams()), idleBrowser, 'media keeps a hidden player the user chose')
+assertEqual(media.idlePlayer([idleBrowser], null, withStreams(idleBrowser)), idleBrowser, 'media falls back to a hidden player when none is shown')
+const otherTrack = { identity: 'Spotify', trackTitle: 'Other', canPlay: true }
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], null, withStreams(otherTrack, pausedTrack)), otherTrack, 'media keeps the first shown stream holder')
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], pausedTrack, withStreams(otherTrack)), otherTrack, 'media still ranks a stream holder above the preference')
+assertEqual(media.idlePlayer([], null, withStreams()), null, 'media selects nothing without players')
 assert(media.playerCanControl({ canGoNext: true }), 'media detects controllable players')
 assert(media.canHandleAction({ canTogglePlaying: true }, 'playPause'), 'media maps playPause capability')
 assert(media.canCycleSource({ identity: 'Spotify', canPlay: true }), 'media detects cycleable sources')
@@ -42,4 +57,17 @@ assert(media.trackChanged(trackSignature, { ...track, trackTitle: 'Next song' })
 assertEqual(media.labelFor({ trackTitle: 'Song', identity: 'Spotify' }), 'Song', 'media labels players by track first')
 assertEqual(media.osdMessage({ trackTitle: 'Song', trackArtist: 'Artist' }, 'Fallback'), 'Song - Artist', 'media builds OSD messages')
 assertEqual(media.osdMessage(null, 'Fallback'), 'Fallback', 'media falls back OSD messages')
+
+// The in-shell volume keys follow omarchy-audio-output-volume's rules.
+assertDeepEqual(media.volumeKeyStep('raise', 43, true), { percent: 48, muted: false }, 'volume raise steps 5 and unmutes')
+assertDeepEqual(media.volumeKeyStep('lower', 48, true), { percent: 43, muted: false }, 'volume lower steps 5 and unmutes')
+assertDeepEqual(media.volumeKeyStep('raise', 98, false), { percent: 100, muted: false }, 'volume raise clamps at 100')
+assertDeepEqual(media.volumeKeyStep('raise', 120, false), { percent: 100, muted: false }, 'volume raise brings a boosted sink back to 100')
+assertDeepEqual(media.volumeKeyStep('lower', 120, false), { percent: 115, muted: false }, 'volume lower steps down from a boosted sink')
+assertDeepEqual(media.volumeKeyStep('lower', 3, false), { percent: 0, muted: false }, 'volume lower clamps at 0')
+assertDeepEqual(media.volumeKeyStep('mute-toggle', 48, false), { percent: 48, muted: true }, 'mute toggle keeps the volume')
+assertEqual(media.volumeKeyStep('+1', 48, false), null, 'volume keys leave other steps to the script')
+assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the speaker when audible')
+assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
+assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
 JS
