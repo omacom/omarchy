@@ -513,6 +513,17 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// Output as Util.parseModuleJson hands it over: the parsed last line, or { text } when it is not JSON.
+assertEqual(bar.customCommandText('{"text":"","class":"ok"}', { text: '', class: 'ok' }, ''), '', 'an empty JSON text hides a command module rather than showing its JSON')
+assertEqual(bar.customCommandText('{"text":""}', { text: '' }, 'Fallback'), '', 'an empty JSON text hides a command module with configured text too')
+assertEqual(bar.customCommandText('{"text":"42%"}', { text: '42%' }, 'Fallback'), '42%', 'a JSON text is the command module label')
+assertEqual(bar.customCommandText('{"text":0}', { text: 0 }, ''), '0', 'a zero JSON text is shown')
+assertEqual(bar.customCommandText('{"class":"ok"}', { class: 'ok' }, 'Fallback'), 'Fallback', 'JSON with no text shows the configured text')
+assertEqual(bar.customCommandText('{"text":null}', { text: null }, ''), '', 'JSON with a null text shows nothing rather than its JSON')
+assertEqual(bar.customCommandText('plain text', { text: 'plain text' }, 'Fallback'), 'plain text', 'output that is not JSON is the label')
+assertEqual(bar.customCommandText(' [1,2]\n', [1, 2], ''), '[1,2]', 'JSON that is not an object shows as plain text')
+assertEqual(bar.customCommandText('', {}, 'Fallback'), 'Fallback', 'no output shows the configured text')
 JS
 
 put_tmp=$(mktemp -d)
