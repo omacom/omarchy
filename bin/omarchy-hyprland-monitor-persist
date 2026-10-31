@@ -58,5 +58,7 @@ awk -F'\t' -v OFS='\t' -v identity="$identity" -v mode="$mode" -v position="$pos
 mv "$tmp" "$settings"
 
 # The running session already shows the change; this brings GDK_SCALE up to
-# date for apps launched from here on.
-hyprctl eval 'if o.monitor_settings then o.monitor_settings.apply(false) end' >/dev/null 2>&1 || true
+# date for apps launched from here on. Only this monitor's settings are
+# replayed, and those it already runs: a layout saves its monitors one at a
+# time, and replaying another's older saved position would pull it back.
+hyprctl eval 'if o.monitor_settings then o.monitor_settings.apply(false, "'"$output"'") end' >/dev/null 2>&1 || true
