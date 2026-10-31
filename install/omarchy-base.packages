@@ -151,7 +151,7 @@ ufw
 ufw-docker
 unzip
 usage
-uwsm
+rwsm
 vi
 whois
 wireless-regdb
