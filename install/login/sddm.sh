@@ -1,7 +1,4 @@
-# Prevent password-based SDDM logins from creating an encrypted login keyring
-# that conflicts with Omarchy's passwordless default keyring behavior. The ISO
-# owns autologin/session state because it knows whether the target is encrypted.
-if [[ -f /etc/pam.d/sddm ]]; then
-  sed -i '/-auth.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm
-  sed -i '/-password.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm
-fi
+# Keep native encrypted login-keyring integration. This also repairs only the
+# known stock entries removed by older Omarchy installs, leaving custom PAM
+# stacks for their administrator. Disk-encryption autologin remains unchanged.
+/usr/bin/python3 "$OMARCHY_PATH/default/omarchy/keyring-pam.py"
