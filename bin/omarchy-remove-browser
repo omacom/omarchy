@@ -54,13 +54,16 @@ close_browser() {
     kill -TERM "${pids[@]}" 2>/dev/null
 
     for _ in {1..100}; do
-      if ! kill -0 "${pids[@]}" 2>/dev/null; then
-        return
-      fi
+      kill -0 "${pids[@]}" 2>/dev/null || break
       sleep 0.1
     done
 
-    kill -KILL "${pids[@]}" 2>/dev/null
+    # Scan again rather than reuse the list, so late children are caught and a recycled PID is not
+    mapfile -t pids < <(package_pids "$package")
+
+    if (( ${#pids[@]} > 0 )); then
+      kill -KILL "${pids[@]}" 2>/dev/null
+    fi
   fi
 }
 
