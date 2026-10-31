@@ -220,11 +220,20 @@ def session_model(meta):
   config = obj(meta.get("config"))
   model = resolve_model(config)
   if not isinstance(model, dict):
+    # A config without a models list still names the model it ran on, and
+    # Vibe serves a model it names no entry for on its default backend.
+    alias = config.get("active_model")
+    model = {"alias": alias} if isinstance(alias, str) and alias.strip() else None
+  if not isinstance(model, dict):
     return None
   label = model_label(model.get("alias") or model.get("name"))
   if label is None:
     return None
-  return label, provider_owner(str(model.get("provider") or ""), config.get("providers"), str(model.get("name") or ""))
+  # An entry that names no provider is one of Vibe's own models: /model
+  # persists a bare alias and thinking level, and the built-in list serves
+  # it on the default Mistral backend.
+  provider = str(model.get("provider") or PROVIDER)
+  return label, provider_owner(provider, config.get("providers"), str(model.get("name") or ""))
 
 
 def count_prompts(messages_path):
