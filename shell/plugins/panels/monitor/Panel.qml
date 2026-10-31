@@ -47,7 +47,7 @@ Panel {
     for (var i = 0; i < displays.length; i++) {
       var display = displays[i]
       if (display && display.focused)
-        return Model.availableScales(scalePresets, display.width, display.height)
+        return Model.generateScalePresets(display.width, display.height, monitorScale, 6)
     }
     return scalePresets
   }
