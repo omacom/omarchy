@@ -62,6 +62,22 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+mkdir -p "$test_home/.config/alacritty"
+cp "$ROOT/config/alacritty/alacritty.toml" "$test_home/.config/alacritty/alacritty.toml"
+run_command omarchy-font-set 'Test Font'
+python3 - "$test_home/.config/alacritty/alacritty.toml" <<'PY' || fail "changing Alacritty's family preserves each style"
+import sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    font = tomllib.load(f)["font"]
+assert font == {
+    "normal": {"family": "Test Font", "style": "Regular"},
+    "bold": {"family": "Test Font", "style": "Bold"},
+    "italic": {"family": "Test Font", "style": "Italic"},
+    "size": 9,
+}, font
+PY
+pass "changing Alacritty's family preserves each style"
+
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
 # is installed, so a command on PATH is not enough: ask Kitty itself.
 if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
