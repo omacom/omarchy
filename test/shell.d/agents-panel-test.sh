@@ -67,15 +67,15 @@ assertDeepEqual(
     { label: 'Opus 5 (1M context) Weekly', title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.78, resetAt: '' },
-    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '' }
+    { title: 'Session', percent: 0.78, resetAt: '', spanMs: 18000000, history: [] },
+    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '', spanMs: 604800000, history: [] }
   ],
   'agents panel titles a limit off the collector when it states one'
 )
 
 assertDeepEqual(
   limitWindows({ limits: [{ label: 'Weekly (7-day)', percent: 0.12, resetsAt: '' }] }),
-  [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
+  [{ title: 'Weekly', percent: 0.12, resetAt: '', spanMs: 604800000, history: [] }],
   'agents panel still reads a window out of a label that carries no title'
 )
 
@@ -83,23 +83,87 @@ const resetAt = new Date(panelRoot.nowMs + 1000).toISOString()
 const measured = { limits: [{ label: 'Session (5-hour)', percent: 0.78, resetsAt: resetAt }] }
 assertEqual(limitWindows(measured)[0].percent, 0.78, 'usage remains until the reset time')
 panelRoot.nowMs += 1000
-assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, resetAt: '' }], 'usage resets at the deadline while the panel stays open')
+assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, resetAt: '', spanMs: 18000000, history: [] }], 'usage resets at the deadline while the panel stays open')
 assertEqual(measured.limits[0].percent, 0.78, 'display reset leaves the measured record intact')
 
-// A model's weekly allowance rides under the Weekly row; one whose window has
-// no row of its own keeps a row.
+// A model's weekly allowance is a row of its own, paced on the weekly clock.
 assertDeepEqual(
-  displayWindows({ limits: [
-    { label: 'Session (5-hour)', percent: 0.94, resetsAt: '' },
-    { label: 'Weekly (7-day)', percent: 0.25, resetsAt: 'w' },
-    { label: 'Fable Weekly', title: 'Fable Weekly', percent: 0.09, resetsAt: 'w' },
-    { label: 'Opus Monthly', title: 'Opus Monthly', percent: 0.5, resetsAt: '' }
-  ] }),
-  [
-    { title: 'Session', percent: 0.94, resetAt: '', scoped: [] },
-    { title: 'Weekly', percent: 0.25, resetAt: 'w', scoped: [{ title: 'Fable', percent: 0.09, resetAt: 'w' }] },
-    { title: 'Opus Monthly', percent: 0.5, resetAt: '', scoped: [] }
-  ],
-  'agents panel shows a model-scoped window under the window it runs on'
+  limitWindows({ limits: [{ label: 'Fable Weekly', title: 'Fable Weekly', percent: 0.09, resetsAt: '' }] }),
+  [{ title: 'Fable Weekly', percent: 0.09, resetAt: '', spanMs: 604800000, history: [] }],
+  'agents panel gives a model-scoped window the span of the window it runs on'
 )
+// A scoped session's label carries no length; it borrows the session's.
+assertDeepEqual(
+  limitWindows({ limits: [
+    { label: 'Session (5-hour)', percent: 0.5, resetsAt: '' },
+    { label: 'Fable Session', title: 'Fable Session', percent: 0.2, resetsAt: '' },
+    { label: 'Opus Monthly', title: 'Opus Monthly', percent: 0.1, resetsAt: '' }
+  ] }).map(w => [w.title, w.spanMs]),
+  [['Session', 18000000], ['Fable Session', 18000000], ['Opus Monthly', 0]],
+  'a model-scoped session paces on the session clock, and a monthly one still draws no pace'
+)
+
+// Pace weighs what is left against the share of the window still ahead; the
+// projection carries the rate so far to the reset and stays quiet where it
+// would only guess.
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+eval(source.slice(source.indexOf('function resetMsFor'), source.indexOf('function formatDuration')).replaceAll('root.nowMs', 'panelRoot.nowMs'))
+eval(source.slice(source.indexOf('function windowLeft'), source.indexOf('// Within the on-pace band')).replaceAll('root.nowMs', 'panelRoot.nowMs'))
+const hour = 3600 * 1000
+const weekly = (percent, hoursLeft) => ({ percent, resetAt: new Date(panelRoot.nowMs + hoursLeft * hour).toISOString(), spanMs: 168 * hour })
+
+const heavy = paceFor(weekly(0.4, 128))
+assertEqual(heavy.state, 'ahead', 'less left than the share of the window ahead is ahead of pace')
+assertEqual(Math.round(heavy.evenLeft * 100), 76, 'the pace tick sits at the share of the window still ahead')
+assertEqual(Math.round(-heavy.leftAtReset * 100), 68, 'an allowance that runs dry says how much more the rate needs')
+assertEqual(Math.round(heavy.runsOutMs / hour), 60, 'an allowance that runs dry says when')
+assertEqual(paceFor(weekly(0.27, 128)).state, 'on', 'within five points of the clock is on pace')
+const light = paceFor(weekly(0.1, 128))
+assertEqual(light.state, 'under', 'more left than the clock is under pace')
+assertEqual(Math.round(light.leftAtReset * 100), 58, 'the projection says what is still left at the reset')
+assertEqual(light.runsOutMs, -1, 'an allowance that outlasts its window never runs out')
+assertEqual(paceFor(weekly(0.03, 167)).projected, false, 'the first 5% of a window projects nothing')
+assertEqual(paceFor({ ...weekly(0.4, 128), spanMs: 60 * 1000 }), null, 'a span shorter than the time to reset is a misread label')
+const session = { limits: [{ label: 'Session (5-hour)', percent: 0.5, resetsAt: new Date(panelRoot.nowMs + 2.5 * hour).toISOString() }] }
+assertEqual(paceFor(limitWindows(session)[0]).evenLeft, 0.5, 'the window length comes from the collector label')
+const monthly = { limits: [{ label: 'Monthly', percent: 0.15, resetsAt: new Date(panelRoot.nowMs + 26 * 24 * hour).toISOString() }] }
+assertEqual(paceFor(limitWindows(monthly)[0]), null, 'a monthly window of unknown length draws no pace')
+
+// Samples on the window put the projection on the recent burn rate: about the
+// last fifth of the window, an hour of a session or a day of a week.
+eval(source.slice(source.indexOf('function paceUrgent'), source.indexOf('function paceGlyph')))
+const minute = 60 * 1000
+const sampled = (percent, hoursLeft, spanHours, samples) => ({
+  percent, resetAt: new Date(panelRoot.nowMs + hoursLeft * hour).toISOString(), spanMs: spanHours * hour,
+  history: samples.map(([minutesAgo, p]) => [panelRoot.nowMs - minutesAgo * minute, p])
+})
+const future = new Date(panelRoot.nowMs + hour).toISOString()
+assertDeepEqual(limitWindows({ limits: [{ label: 'Session (5-hour)', percent: 0.1, resetsAt: future, history: [[1, 0.1]] }] })[0].history,
+  [[1, 0.1]], 'a window keeps the samples its record carries')
+// A session whose window opened on the hour but whose first prompt came 45
+// minutes later: 22% gone in those 45 minutes, not in the 90 since the hour.
+const lateStart = sampled(0.22, 3.5, 5, [[45, 0], [30, 0.08], [15, 0.15], [0, 0.22]])
+assertEqual(paceFor({ ...lateStart, history: [] }).runsOutMs, -1, 'the average over the whole window sees a session that lasts')
+const late = paceFor(lateStart)
+assertEqual(late.rateSpanMs, 45 * minute, 'samples younger than the lookback use all they cover')
+assertEqual(Math.round(late.runsOutMs / minute), 160, 'the recent rate says when the session runs dry')
+assertEqual(Math.round(-late.leftAtReset * 100), 25, 'and how much more allowance it would need')
+assert(paceUrgent(late), 'a recent rate that runs dry is urgent even under pace by the clock')
+assert(!paceUrgent(paceFor(weekly(0.24, 128))), 'an average that runs dry on pace is still only rounding')
+const idle = paceFor(sampled(0.22, 3, 5, [[90, 0.02], [60, 0.2], [45, 0.22], [0, 0.22]]))
+assertEqual(idle.rateSpanMs, hour, 'the rate looks back an hour of a session')
+assertEqual(Math.round(idle.leftAtReset * 100), 72, 'a burst that stopped no longer drains the projection')
+assertEqual(paceFor(sampled(0.22, 3.5, 5, [[5, 0.21], [0, 0.22]])).rateSpanMs, 0, 'a few minutes of samples leave the average in place')
+const behind = paceFor(sampled(0.22, 3.5, 5, [[70, 0], [10, 0.22]]))
+assertEqual(Math.round(behind.runsOutMs / minute), 203, 'the rate holds from its newest sample, not from now')
+assertEqual(paceFor(sampled(0.42, 64, 168, [[23 * 60, 0.3], [0, 0.42]])).rateSpanMs, 0, 'a week needs a whole day of samples')
+// 11% gone over an evening and a night of work, well under pace for the week:
+// carried over the nights to the reset, that rate would run dry before it.
+const evening = paceFor(sampled(0.52, 53, 168, [[11 * 60 + 22, 0.41], [0, 0.52]]))
+assertEqual(evening.state, 'under', 'the evening ends under pace by the clock')
+assertEqual(evening.rateSpanMs, 0, 'an evening of samples leaves the week on its average')
+assertEqual(Math.round(evening.leftAtReset * 100), 24, 'which still leaves headroom at the reset')
+const week = paceFor(sampled(0.42, 64, 168, [[36 * 60, 0.25], [24 * 60, 0.3], [0, 0.42]]))
+assertEqual(week.rateSpanMs, 24 * hour, 'the rate looks back a day of a week')
+assertEqual(Math.round(week.leftAtReset * 100), 26, 'the projection carries the last day to the reset')
 JS

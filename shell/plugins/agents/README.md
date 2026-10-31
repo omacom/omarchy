@@ -17,16 +17,31 @@ Every subscription on one page, limits first.
   corner has + to add a subscription and >_ to start the default agent.
 - **One section per subscription** — an agent with limits, a balance, a plan,
   or accounts to show gets one; local history alone only feeds the hero's
-  line. Its mark, name, and plan, then a compact line
-  per limit window: its meter and the time until it resets (the exact percentage
-  on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
-  limit) is a tick on that window's meter rather than a line of its own; the
-  row's tooltip names it. A lapsed or missing Claude, Codex, or Grok sign-in
-  shows a _Sign-in required_ link that signs that account in again from the
-  panel. Any other trouble — a paused token, another agent's sign-in, an
-  endpoint that didn't answer — leaves the last known limits on show, with a
-  small info mark beside the name whose tooltip says why they aren't current
-  and what to do; each meter's tooltip says how old it is.
+  line. Its mark, name, and plan, then a row per limit window that reads as
+  what is left: the title and the share left, a meter that drains toward
+  empty, and the time until it resets. A taller tick on the meter marks even
+  pace (the share of the window still ahead), and the icon beside the
+  percentage says whether usage is ahead of it (more than five points below),
+  on it, or under it. Beside the countdown, the recent burn rate is carried to
+  the reset: "~34% left at reset", or "Out in 2d 3h · 65% short" when the
+  allowance would run dry first. The rate looks back the last hour of a
+  session or the last day of a week, over the samples each limit carries (see
+  Data); the window's own average would miss a session whose window opened on
+  the hour but whose first prompt came at :45, or a habit that changed
+  halfway. A week runs through nights as well as working hours, so its rate
+  counts only once the samples cover a whole day; a session's once they cover
+  a sixth of its hour. Until then the window's average rate so far stands in,
+  once 5% of the window has passed. A recent rate that runs dry turns the
+  projection urgent, an average one only when ahead of pace. Monthly windows, whose billing period
+  length isn't reported, draw no pace. Hover a row for the full breakdown,
+  including which rate it used. A model-scoped allowance (Claude's Fable
+  weekly limit) is a row of its own, paced on the clock of the window it runs
+  on. A lapsed or missing Claude, Codex, or Grok sign-in shows a _Sign-in
+  required_ link that signs that account in again from the panel. Any other
+  trouble — a paused token, another agent's sign-in, an endpoint that didn't
+  answer — leaves the last known limits on show, with a small info mark beside
+  the name whose tooltip says why they aren't current and what to do; those
+  limits draw no pace, and each meter's tooltip says how old it is.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the
@@ -98,6 +113,8 @@ Adding an agent needs no QML changes: ship a collector that follows the contract
 Every collector follows the same rules, so the same situation reads the same for every agent: a recent answer is reused for 15 seconds unless refresh is pressed, each credential or account keeps its own last good answer, a failed check keeps it with its age on hover and windows that have since reset back at zero, an endpoint that can't be reached is retried soon, and an agent the machine doesn't use stays out of the panel. Tokens are counted once, under the provider that bills them: pi, omp, and opencode sessions are split by provider into the matching collector. A pi compaction's usage counts, but omp records only the context's size before and after one, not what its summary request used, so omp's compactions are missing from the tokens. pi and omp sessions are read from every profile, and from `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`, and a `settings.json` `sessionDir` as well as the defaults when set, a forked session's copied messages once; opencode is read from both its `message` and V2 `session_message` stores in the database `OPENCODE_DB` names, a message migrated into both once and a fork's copied history not at all. A machine with none of an agent's home, CLI, or usage prints an empty record the panel skips; one that has them but no sign-in says it is waiting for one. The sections below cover where each agent's sign-in and data come from.
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json` registers more than one account, the `claude`, `codex`, and `grok` records also carry `accounts: [{ id, label, email, plan, active, primary, limits, stale, fetchedAt, retryAdvised, usageStatusText, authHelpText }]`, each account probed with its own sign-in (each account caches its own last limits; Codex runs one app-server per account home), and `accountSwitch: { mode, threshold }`. The record's top-level `limits` and `tierLabel` keep describing the active account, and local stats stay one set, since every account shares the primary home's history. After each run, `omarchy-agent-usage-update` hands the fresh limits to `omarchy-agent-account-state autoswitch`, which notifies or switches when the active account crosses its threshold, and re-collects the record if the active account changed.
+
+Each limit in a record written by `omarchy-agent-usage-update`, an account's included, also carries `history: [[ms, percent], …]`, samples of its current window carried over from the record it replaces, for the panel's recent burn rate. A sample is stamped with when its limits were measured (`limitsFetchedAt`, or an account's `fetchedAt`), so a cached or stale answer adds none. A reset time that moved, or another active account behind the record's own limits, starts the history over. Samples reach back 26 hours, at least five minutes apart except the newest. Collectors don't write it.
 
 ### Claude Code
 
