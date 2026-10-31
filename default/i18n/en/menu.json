@@ -776,6 +776,12 @@
   "install.preinstalls": {
     "label": "Preinstalls"
   },
+  "install.hardware": {
+    "label": "Hardware"
+  },
+  "install.hardware.scanner": {
+    "label": "Scanner"
+  },
   "install.browser.chrome": {
     "label": "Chrome"
   },
@@ -1023,6 +1029,13 @@
   },
   "remove.preinstalls": {
     "label": "Preinstalls"
+  },
+  "remove.hardware": {
+    "label": "Hardware",
+    "title": "Remove"
+  },
+  "remove.hardware.scanner": {
+    "label": "Scanner"
   },
   "remove.security": {
     "label": "Security",
