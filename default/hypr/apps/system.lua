@@ -1,7 +1,9 @@
 -- Floating windows.
 o.window({ tag = "floating-window" }, { float = true })
 o.window({ tag = "floating-window" }, { center = true })
-o.window({ tag = "floating-window" }, { size = { 875, 600 } })
+-- Capped to the monitor so the float still fits a small or scaled-up screen
+-- (a 1280x720 panel at 1.25 has only 576 logical pixels of height).
+o.window({ tag = "floating-window" }, { size = { "min(875,monitor_w*0.9)", "min(600,monitor_h*0.9)" } })
 
 o.window(
   "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Evince|Omarchy|About|TUI.float|imv|mpv)",
@@ -25,7 +27,7 @@ o.window({
 -- rule before every later launch.
 o.window("org.omarchy.about", { float = true })
 o.window("org.omarchy.about", { center = true })
-o.window("org.omarchy.about", { size = { 920, 480 } })
+o.window("org.omarchy.about", { size = { "min(920,monitor_w*0.9)", "min(480,monitor_h*0.9)" } })
 
 o.window("omacalc", { float = true })
 
