@@ -9,7 +9,8 @@
 #   • the omarchy shell's font base-size (~/.config/omarchy/shell.toml [font])
 #   • GNOME/GTK's text-scaling-factor    (12px -> 1.0, quantized so the GTK
 #     interface font lands on a whole point size, so 16 -> 15pt/11pt = 1.3636)
-#   • the terminal font point size       (12px -> 9pt, so terminal_pt = px * 9/12)
+#   • terminal font point sizes except Ghostty, which already follows GTK's
+#     text-scaling-factor (12px -> 9pt for the other terminals)
 # The shell override layers on top of the active theme (so the size survives
 # theme switches) and the shell watches the file, so shell text re-flows live.
 # Accepts an integer from 9 to 20 (px).
@@ -29,7 +30,7 @@ usage() {
   echo "Usage: omarchy-display-text-size [size|reset]"
   echo "  (no args)   print the current text size, GTK factor, and terminal size"
   echo "  <size>      set text size in px ($MIN–$MAX); shell + GTK + terminals together"
-  echo "  reset       return all three to their defaults (12px / 1.0 / 9pt)"
+  echo "  reset       return shell, GTK, and other terminals to defaults; keep Ghostty's base font"
 }
 
 # ---- shell base-size: the rem root every shell type size derives from ----
@@ -118,7 +119,7 @@ gtk_font_pt() {
 }
 
 set_factor() {
-  gsettings set "$GKEY_SCHEMA" "$GKEY_NAME" "$1" 2>/dev/null || true
+  gsettings set "$GKEY_SCHEMA" "$GKEY_NAME" "$1"
 }
 
 # ---- terminal font point size ----
@@ -129,8 +130,9 @@ term_pt_for() {
     'BEGIN { printf "%d", int(s * p / b + 0.5) }'
 }
 
-# Set the font point size in terminal configs, creating Kitty overrides when
-# it inherits its size from the system config. Family is left
+# Set the font point size in terminal configs other than Ghostty, which applies
+# GTK's text-scaling-factor to its existing base font size. Create Kitty
+# overrides when it inherits its size from the system config. Family is left
 # untouched — that is omarchy-font-set's job. Live-reload signals mirror
 # omarchy-font-set; foot has no reload signal, so running instances are nudged.
 set_terminal_size() {
@@ -148,11 +150,6 @@ set_terminal_size() {
       printf '\nfont_size %s.0\n' "$pt" >>~/.config/kitty/kitty.conf
     fi
     pkill -USR1 kitty 2>/dev/null || true
-  fi
-
-  if [[ -f ~/.config/ghostty/config ]]; then
-    sed -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
-    pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
   if [[ -f ~/.config/foot/foot.ini ]]; then
@@ -177,10 +174,9 @@ set_terminal_size() {
 }
 
 # Report the current terminal point size from whichever config we find first.
+# Ghostty is skipped: its font-size is a base the GTK factor scales, not the size set here.
 term_current_pt() {
-  if [[ -f ~/.config/ghostty/config ]]; then
-    grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config | head -1
-  elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
+  if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
     grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml | head -1
   elif [[ -f ~/.config/kitty/kitty.conf ]]; then
     local pt
@@ -208,8 +204,8 @@ case "${1:-}" in
     exit 0
     ;;
   reset | default)
+    gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" || exit 1
     reset_base_size
-    gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
     set_terminal_size "$TERM_DEFAULT_PT"
     exit 0
     ;;
@@ -222,15 +218,15 @@ if [[ ! $size =~ ^[0-9]+$ ]] || ((size < MIN || size > MAX)); then
   exit 1
 fi
 
-# Shell side: base-size in px (the omarchy shell's rem root).
-set_base_size "$size"
-
 # GTK side: multiplier anchored so 12px == 1.0, quantized so the interface
 # font renders at a whole point size. Raw ratios yield fractional point sizes,
 # which GTK4 menus clip at the ascenders on scale-1 monitors.
 factor="$(awk -v s="$size" -v b="$SHELL_DEFAULT_PX" -v f="$(gtk_font_pt)" \
   'BEGIN { printf "%.4f", int(f * s / b + 0.5) / f }')"
-set_factor "$factor"
+set_factor "$factor" || exit 1
+
+# Shell side: base-size in px (the omarchy shell's rem root).
+set_base_size "$size"
 
 # Terminal side: point size anchored so 12px == 9pt.
 set_terminal_size "$(term_pt_for "$size")"
