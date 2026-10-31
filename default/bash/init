@@ -3,7 +3,7 @@ if command -v mise &> /dev/null; then
 fi
 
 if [[ $- == *i* ]] && [[ ${TERM:-} != "dumb" ]] && command -v starship &> /dev/null; then
-  eval "$(starship init bash)"
+  eval "$(starship init bash --print-full-init)"
 fi
 
 if command -v zoxide &> /dev/null; then
@@ -18,10 +18,9 @@ if command -v try &> /dev/null; then
   }
 fi
 
+# Only the key bindings (Ctrl-R, Ctrl-T, Alt-C): fzf's completion.bash rewraps
+# ~76 commands' completions on every shell start, adding ~25ms before the prompt.
 if command -v fzf &> /dev/null; then
-  if [[ -f /usr/share/fzf/completion.bash ]]; then
-    source /usr/share/fzf/completion.bash
-  fi
   if [[ -f /usr/share/fzf/key-bindings.bash ]]; then
     source /usr/share/fzf/key-bindings.bash
   fi
