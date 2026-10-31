@@ -229,7 +229,6 @@
   "dropbox.monthsAgo": "преди %1 мес.",
   "dropbox.noFiles": "Няма синхронизирани файлове.",
   "dropbox.notInstalled": "Dropbox CLI не е инсталиран",
-  "dropbox.openedLogin": "Входът в Dropbox е отворен",
   "dropbox.pauseSyncing": "Сложи синхронизацията на пауза",
   "dropbox.phrase1": "Подреждане файлове",
   "dropbox.phrase10": "Каталогизиране хаос",

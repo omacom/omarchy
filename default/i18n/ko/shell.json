@@ -221,7 +221,6 @@
   "dropbox.monthsAgo": "%1개월 전",
   "dropbox.noFiles": "동기화된 파일을 찾을 수 없습니다.",
   "dropbox.notInstalled": "Dropbox CLI가 설치되지 않았습니다",
-  "dropbox.openedLogin": "Dropbox 로그인을 열었습니다",
   "dropbox.pauseSyncing": "동기화 일시 정지",
   "dropbox.phrase1": "파일 정리",
   "dropbox.phrase10": "혼돈 분류",
