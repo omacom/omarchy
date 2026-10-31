@@ -150,14 +150,28 @@ function dayName(dateString, formatter) {
   return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()]
 }
 
-function openMeteoForecastDays(dailyForecastReport, todayString) {
+// The date at the forecast's location. Open-Meteo dates its days in the
+// location's own time zone (timezone=auto) and says how far that is from UTC,
+// while this machine's date can be a day either side of it: viewed from
+// Sydney, Honolulu is still on yesterday. Without the offset, or without the
+// time now, the machine's date stands.
+function locationToday(dailyForecastReport, nowMs, todayString) {
+  var offset = dailyForecastReport ? dailyForecastReport.utc_offset_seconds : undefined
+  var now = Number(nowMs)
+  if (typeof offset !== "number" || !isFinite(offset) || nowMs === undefined || nowMs === null || !isFinite(now))
+    return String(todayString || "")
+  return new Date(now + offset * 1000).toISOString().slice(0, 10)
+}
+
+function openMeteoForecastDays(dailyForecastReport, todayString, nowMs) {
   var daily = dailyForecastReport && dailyForecastReport.daily ? dailyForecastReport.daily : null
   if (!daily || !daily.time) return []
 
+  var today = locationToday(dailyForecastReport, nowMs, todayString)
   var result = []
   for (var i = 0; i < daily.time.length && result.length < 3; ++i) {
     var date = daily.time[i]
-    if (!isFutureForecastDate(date, todayString)) continue
+    if (!isFutureForecastDate(date, today)) continue
 
     var maxC = daily.temperature_2m_max ? daily.temperature_2m_max[i] : ""
     var minC = daily.temperature_2m_min ? daily.temperature_2m_min[i] : ""
@@ -221,8 +235,8 @@ function wttrNextForecastDays(report, todayString) {
   return result
 }
 
-function buildForecastDays(report, dailyForecastReport, todayString) {
-  var days = openMeteoForecastDays(dailyForecastReport, todayString)
+function buildForecastDays(report, dailyForecastReport, todayString, nowMs) {
+  var days = openMeteoForecastDays(dailyForecastReport, todayString, nowMs)
   return days.length > 0 ? days : wttrNextForecastDays(report, todayString)
 }
 
@@ -294,6 +308,7 @@ if (typeof module !== "undefined") {
     parseGeocodingResults: parseGeocodingResults,
     locationCommit: locationCommit,
     isFutureForecastDate: isFutureForecastDate,
+    locationToday: locationToday,
     roundedTemp: roundedTemp,
     celsiusToFahrenheit: celsiusToFahrenheit,
     formatTemp: formatTemp,
