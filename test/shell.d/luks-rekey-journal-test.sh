@@ -378,7 +378,9 @@ enroll_tokens() {
   printf '{"type":"systemd-tpm2","keyslots":["%s"],"tpm2-blob":"AA==","tpm2-pcrs":[7],"tpm2-pcr-bank":"sha256","tpm2-primary-alg":"ecc","tpm2-policy-hash":"00","tpm2-pin":false}' "$slot" |
     cryptsetup token import --disable-external-tokens "$device" || return 1
   cryptsetup token add --key-description "$description" --key-slot "$slot" "$device" >/dev/null || return 1
-  LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1 | grep -qx "Key slot $slot unlocked."
+  local unlocked
+  unlocked=$(LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1) || return 1
+  grep -qx "Key slot $slot unlocked." <<<"$unlocked"
 }
 
 unlock_files_present() {

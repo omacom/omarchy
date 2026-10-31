@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "Pumunta"
+  },
+  "apps": {
+    "label": "Mga App"
+  },
+  "learn": {
+    "label": "Matuto"
+  },
+  "appearance": {
+    "label": "Hitsura"
+  },
+  "trigger": {
+    "label": "Mag-trigger"
+  },
+  "setup": {
+    "label": "Pag-setup"
+  },
+  "install": {
+    "label": "I-install"
+  },
+  "remove": {
+    "label": "Alisin"
+  },
+  "update": {
+    "label": "I-update"
+  },
+  "about": {
+    "label": "Tungkol"
+  },
+  "system": {
+    "label": "Sistema"
+  },
+  "system.screensaver": {
+    "label": "Screensaver"
+  },
+  "system.lock": {
+    "label": "I-lock"
+  },
+  "system.suspend": {
+    "label": "I-suspend"
+  },
+  "system.hibernate": {
+    "label": "Hibernate"
+  },
+  "system.logout": {
+    "label": "Mag-logout"
+  },
+  "system.reboot": {
+    "label": "I-reboot"
+  },
+  "system.shutdown": {
+    "label": "I-shutdown"
+  },
+  "learn.keybindings": {
+    "label": "Mga Keybinding"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Komunidad"
+  },
+  "appearance.theme": {
+    "label": "Tema"
+  },
+  "appearance.background": {
+    "label": "Background"
+  },
+  "appearance.font": {
+    "label": "Font"
+  },
+  "appearance.top-bar": {
+    "label": "Menu Bar"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Itago ang Bar"
+  },
+  "appearance.top-bar.show": {
+    "label": "Ipakita ang Bar"
+  },
+  "appearance.top-bar.position": {
+    "label": "Iposisyon ang Bar"
+  },
+  "appearance.top-bar.background": {
+    "label": "Background ng Bar"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Opaque na Bar"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Mala-salaming Bar"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Malinaw na Bar"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Mga Indikator ng Bar"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Orasan"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Linggo 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Linggo 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Linggo 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Linggo 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Lin 3 Mayo 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Lin 3 Mayo 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 Mayo W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 Mayo W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Bar sa Itaas"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Bar sa Ibaba"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Bar sa Kaliwa"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Bar sa Kanan"
+  },
+  "appearance.windows.corners": {
+    "label": "Sulok ng Bintana"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Sulok ng Tema"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Matalim na Sulok"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Bilugang Sulok"
+  },
+  "appearance.windows.transparency": {
+    "label": "Opacity ng Bintana"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Opaque na Bintana"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Transparent na Bintana"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Mala-salaming Bintana"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Screensaver"
+  },
+  "appearance.branding.about": {
+    "label": "Tungkol"
+  },
+  "appearance.branding.about.text": {
+    "label": "I-edit ang Teksto"
+  },
+  "appearance.branding.about.image": {
+    "label": "Itakda mula sa Larawan"
+  },
+  "appearance.branding.about.default": {
+    "label": "Ibalik ang Default"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "I-edit ang Teksto"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Itakda mula sa Larawan"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Ibalik ang Default"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Awtomatikong Itago ang Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Laging Kita ang Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Posisyon ng Dock"
+  },
+  "appearance.dock.position.top": {
+    "label": "Dock sa Itaas"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Dock sa Ibaba"
+  },
+  "appearance.dock.position.left": {
+    "label": "Dock sa Kaliwa"
+  },
+  "appearance.dock.position.right": {
+    "label": "Dock sa Kanan"
+  },
+  "appearance.workspace-layout": {
+    "label": "Layout ng Workspace",
+    "title": "Default na Layout ng Workspace"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Pag-tile"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Pag-scroll"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Lumulutang"
+  },
+  "appearance.unlock": {
+    "label": "I-unlock"
+  },
+  "trigger.toggle": {
+    "label": "I-toggle"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Kasaysayan ng Clipboard"
+  },
+  "trigger.reminder": {
+    "label": "Paalala"
+  },
+  "trigger.capture": {
+    "label": "Kuha"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Screenshot"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Itigil ang Pag-record"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Pag-record ng Screen"
+  },
+  "trigger.capture.text": {
+    "label": "Teksto"
+  },
+  "trigger.capture.qr": {
+    "label": "QR Code"
+  },
+  "trigger.capture.color": {
+    "label": "Kulay"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Walang audio"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "May audio ng desktop"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "May audio ng desktop + mikropono"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "May audio ng desktop + mikropono + webcam"
+  },
+  "trigger.transcode": {
+    "label": "I-transcode"
+  },
+  "trigger.share": {
+    "label": "Ibahagi"
+  },
+  "trigger.hardware": {
+    "label": "Hardware"
+  },
+  "trigger.tests": {
+    "label": "Test ng Bilis"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Haptics ng Touchpad"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "mababa"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "katamtaman"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "mataas"
+  },
+  "trigger.reminder.set": {
+    "label": "Magtakda"
+  },
+  "trigger.reminder.show": {
+    "label": "Ipakita lahat"
+  },
+  "trigger.reminder.clear": {
+    "label": "Burahin lahat"
+  },
+  "trigger.share.clipboard": {
+    "label": "Clipboard"
+  },
+  "trigger.share.file": {
+    "label": "File"
+  },
+  "trigger.share.folder": {
+    "label": "Folder"
+  },
+  "trigger.share.receive": {
+    "label": "Tumanggap"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Test ng Bilis ng Network"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Test ng Bilis ng Disk"
+  },
+  "setup.monitors": {
+    "label": "Mga Monitor"
+  },
+  "setup.keybindings": {
+    "label": "Mga Keybinding"
+  },
+  "setup.input": {
+    "label": "Input"
+  },
+  "setup.typing": {
+    "label": "Pag-type"
+  },
+  "setup.typing.keyboard": {
+    "label": "Mga Layout ng Keyboard"
+  },
+  "setup.typing.input": {
+    "label": "Mga Paraan ng Input"
+  },
+  "setup.language": {
+    "label": "Wika"
+  },
+  "setup.network": {
+    "label": "Network"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Pasadya"
+  },
+  "setup.network.qr": {
+    "label": "QR Code"
+  },
+  "setup.default": {
+    "label": "Mga Default"
+  },
+  "setup.default.agent": {
+    "label": "Agent",
+    "title": "Default na Agent"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Browser",
+    "title": "Default na Browser"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Diktasyon",
+    "title": "Default na Diktasyon"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminal",
+    "title": "Default na Terminal"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Editor",
+    "title": "Default na Editor"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Mga Plugin"
+  },
+  "setup.plugin.enable": {
+    "label": "I-enable ang Plugin"
+  },
+  "setup.plugin.disable": {
+    "label": "I-disable ang Plugin"
+  },
+  "setup.plugin.add": {
+    "label": "Magdagdag ng Plugin"
+  },
+  "setup.plugin.clone": {
+    "label": "I-clone ang Plugin"
+  },
+  "setup.plugin.remove": {
+    "label": "Alisin ang Plugin"
+  },
+  "setup.security": {
+    "label": "Seguridad"
+  },
+  "setup.config": {
+    "label": "Konfig"
+  },
+  "setup.security.fingerprint": {
+    "label": "Fingerprint"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker na Walang Sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo na Walang Password"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Direktang Boot"
+  },
+  "setup.reset": {
+    "label": "I-reset ang Computer"
+  },
+  "install.package": {
+    "label": "Pakete"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Serbisyo"
+  },
+  "install.development": {
+    "label": "Pag-develop"
+  },
+  "install.editor": {
+    "label": "Editor"
+  },
+  "install.style": {
+    "label": "Estilo"
+  },
+  "install.style.theme": {
+    "label": "Tema"
+  },
+  "install.style.background": {
+    "label": "Background"
+  },
+  "install.style.font": {
+    "label": "Font"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Paglalaro"
+  },
+  "install.browser": {
+    "label": "Browser"
+  },
+  "install.webapp": {
+    "label": "Web App"
+  },
+  "install.terminal": {
+    "label": "Terminal"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Mga Preinstall"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Account ng Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Mga Controller ng Xbox"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "Launcher ng RetroArch"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Pakete"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Alisin"
+  },
+  "remove.dictation": {
+    "label": "Diktasyon"
+  },
+  "remove.service": {
+    "label": "Mga Serbisyo",
+    "title": "Alisin"
+  },
+  "remove.development": {
+    "label": "Pag-develop",
+    "title": "Alisin"
+  },
+  "remove.theme": {
+    "label": "Tema"
+  },
+  "remove.gaming": {
+    "label": "Paglalaro",
+    "title": "Alisin"
+  },
+  "remove.browser": {
+    "label": "Browser",
+    "title": "Alisin"
+  },
+  "remove.webapp": {
+    "label": "Web App"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Mga Preinstall"
+  },
+  "remove.security": {
+    "label": "Seguridad",
+    "title": "Alisin"
+  },
+  "remove.security.fingerprint": {
+    "label": "Fingerprint"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker na Walang Sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Mga Controller ng Xbox (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Alisin"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Alisin"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Alisin"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Channel"
+  },
+  "update.config": {
+    "label": "Konfig",
+    "title": "I-reset sa default"
+  },
+  "update.themes": {
+    "label": "Dagdag na Mga Tema"
+  },
+  "update.process": {
+    "label": "Proseso",
+    "title": "I-restart"
+  },
+  "update.hardware": {
+    "label": "Hardware",
+    "title": "I-restart"
+  },
+  "update.firmware": {
+    "label": "Firmware"
+  },
+  "update.password": {
+    "label": "Password"
+  },
+  "update.timezone": {
+    "label": "Sona ng Oras"
+  },
+  "update.time": {
+    "label": "Oras"
+  },
+  "update.channel.stable": {
+    "label": "Stable"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "Audio"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Trackpad"
+  },
+  "update.password.drive": {
+    "label": "Pag-encrypt ng Drive"
+  },
+  "update.password.user": {
+    "label": "Gumagamit"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Ipakita ang Baterya %"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Itago ang Baterya %"
+  },
+  "appearance.windows": {
+    "label": "Mga Bintana"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Mga Puwang ng Bintana Naka-on"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Mga Puwang ng Bintana Naka-off"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Ratio ng 1 Bintana Naka-on"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Ratio ng 1 Bintana Naka-off"
+  },
+  "appearance.branding": {
+    "label": "Tatak"
+  },
+  "appearance.animations-on": {
+    "label": "Mga Animasyon Naka-on"
+  },
+  "appearance.animations-off": {
+    "label": "Mga Animasyon Naka-off"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Manatiling Gising"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Hayaang Matulog"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Mga Notipikasyon Naka-on"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Patahimikin ang mga Notipikasyon"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Nightlight Naka-on"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nightlight Naka-off"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Screensaver Naka-on"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Screensaver Naka-off"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Crash Capture Naka-on"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Crash Capture Naka-off"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptop Display Naka-on"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptop Display Naka-off"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Display Mirroring Naka-on"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Display Mirroring Naka-off"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Lumipat sa Hybrid GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Lumipat sa Integrated GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "I-enable ang Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "I-disable ang Touchpad"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "I-enable ang Touchscreen"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "I-disable ang Touchscreen"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "update.kernel": {
+    "label": "Kernel"
+  }
+}
