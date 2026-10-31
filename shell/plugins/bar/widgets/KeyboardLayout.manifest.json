@@ -4,7 +4,7 @@
   "name": "Keyboard layout",
   "version": "1.0.0",
   "author": "Omarchy",
-  "description": "Current keyboard layout and input language, click cycles",
+  "description": "Current input language, click cycles and right-click chooses or edits",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Keyboard layout",
-    "description": "Current keyboard layout and input language, click cycles",
+    "description": "Current input language, click cycles and right-click chooses or edits",
     "category": "Compositor",
     "defaultSection": "right",
     "allowMultiple": false

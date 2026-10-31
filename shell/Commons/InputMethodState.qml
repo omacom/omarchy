@@ -13,6 +13,12 @@ Singleton {
     return true
   }
 
+  function choose() {
+    if (!watcher.running) return false
+    watcher.write("choose\n")
+    return true
+  }
+
   // One reader and pending selection for every monitor's keyboard widget.
   Process {
     id: watcher
