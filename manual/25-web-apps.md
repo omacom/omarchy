@@ -74,6 +74,13 @@ You start Zoom using the application launcher (`Super + Space`).
 
 You start Discord using the application launcher (`Super + Space`).
 
+### Vesktop theme
+
+If you use [Vesktop](https://vesktop.dev/), it can follow your Omarchy colors. Open Vesktop once, then reapply your current theme from _Appearance > Theme_. In Vesktop, open _User Settings > Vencord > Themes > Local Themes_ and enable **Omarchy**. Future Omarchy theme changes update the colors while Vesktop is running.
+
+This works with the native app and Flatpak. Your other Vesktop settings and themes are left alone. To stop following Omarchy, disable **Omarchy** in Vesktop's Themes settings.
+
+
 ## Microsoft apps
 
 Select _Install > Service > Microsoft_ to add Outlook, Word, Excel, PowerPoint, Teams, and OneDrive as web apps. Each app has its own launcher and opens directly, using the commercial Microsoft 365 URLs and your existing browser profile. They open in the same browser app windows as Omarchy's other web apps; they do not install the separate Teams for Linux client.
