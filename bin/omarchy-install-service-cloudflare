@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Sign in to the Cloudflare CLI and add a web app for the Cloudflare Dashboard.
+
+set -e
+
+launcher="$HOME/.local/share/applications/Cloudflare.desktop"
+if [[ -e $launcher || -L $launcher ]] && ! omarchy-installed-service-cloudflare; then
+  echo "Cloudflare.desktop belongs to another app. Rename it before setting up Cloudflare." >&2
+  exit 1
+fi
+
+# Install the CLI and its Node runtime without copying lazy defaults into the
+# user's mise config. Node may not have been installed on a fresh desktop.
+if omarchy-mise-default-tools declares npm:cf; then
+  mise install node npm:cf
+else
+  node_versions=$(mise ls --current --json node)
+  if jq -e 'length > 0' <<<"$node_versions" >/dev/null; then
+    mise install node
+  else
+    mise use --global node
+  fi
+  mise use --global npm:cf
+fi
+
+# Keep a Remove route even if login is interrupted or dashboard creation fails.
+# A failed attempt remains retryable because Install checks the launcher instead.
+mkdir -p "$HOME/.local/state/omarchy"
+touch "$HOME/.local/state/omarchy/cloudflare-service"
+
+echo -e "\nSigning in to Cloudflare..."
+# Select the Cloudflare backend explicitly: another cf must not receive login.
+mise x npm:cf -- cf auth login
+
+omarchy-webapp-install "Cloudflare" "https://dash.cloudflare.com" https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/cloudflare.png
+
+omarchy-plugin-enable omarchy.cloudflare
+
+echo ""
+echo "Cloudflare has been set up."
