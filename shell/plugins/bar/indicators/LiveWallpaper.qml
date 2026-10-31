@@ -11,8 +11,8 @@ BarIndicator {
   property bool loopsOn: false
 
   active: loopsOn
-  activeText: "󰕧"
-  inactiveText: "󰕧"
+  activeText: "󰞍"
+  inactiveText: "󰞍"
   activeTooltipText: I18n.t("bar.liveWallpaperOff")
   inactiveTooltipText: I18n.t("bar.liveWallpaperOn")
 
