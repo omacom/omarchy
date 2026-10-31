@@ -958,14 +958,13 @@ Panel {
             }
 
             // Padded like a slider's track, around a map as tall as the arrangement.
-            CursorSurface {
+            // No row box: the keyboard cursor shows on the shown display instead.
+            Item {
               id: layoutRow
+              readonly property bool hasCursor: root.cursorActive && root.focusSection === "layout"
               width: parent.width
               height: layoutMap.implicitHeight + panelColumn.sliderInset * 2
-              hasCursor: root.cursorActive && root.focusSection === "layout"
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(layoutRow)
-              foreground: root.bar.foreground
-              outline: true
 
               LayoutMap {
                 id: layoutMap
@@ -975,10 +974,7 @@ Panel {
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
                 height: implicitHeight
-              }
-
-              HoverHandler {
-                onHoveredChanged: if (hovered) root.pointAt("layout", 0)
+                hasCursor: layoutRow.hasCursor
               }
             }
           }
@@ -1034,6 +1030,8 @@ Panel {
   // start, center or end when dropped near one. Clicking one shows it above.
   component LayoutMap: Item {
     id: map
+    // The keyboard is on the map: h/l moves the shown display.
+    property bool hasCursor: false
 
     readonly property var bounds: {
       var rects = root.layoutRects
@@ -1083,7 +1081,7 @@ Panel {
         color: isCurrent
           ? Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
           : Style.hoverFillFor(root.bar.foreground, Commons.Color.accent)
-        border.width: 1
+        border.width: isCurrent && map.hasCursor ? 2 : 1
         border.color: isCurrent ? Commons.Color.accent : Qt.darker(root.bar.foreground, 1.6)
 
         Text {
