@@ -88,6 +88,8 @@ The `[bar]` section of a theme's `shell.toml` supplies the shared dimensions. `i
 
 Custom `iconComponent` content also fits the shared target. Its source dimensions can be 15px or another size. The bar measures its glyph, image, or vector bounds and applies one scale without changing its aspect ratio. A source `iconSize` override does not change the rendered target. Image padding remains part of an application's tray asset.
 
+A badge, count or state mark drawn next to the icon goes in `badgeComponent`, not in `iconComponent`. The bar leaves it out of the measured bounds and loads it in a box over the painted mark, so its `parent.width` and `parent.height` are the mark's painted size and it can sit on the mark's corner. The badge is drawn at its own size; it is not scaled with the icon.
+
 Custom text bounds include text alignment and padding. The bar applies each shape's fill mode and alignment to `Shape.boundingRect`. Canvas and shader icons use their item bounds. Set their item size to match their artwork.
 
 `WidgetButton` also uses the shared renderer for a single icon glyph. This covers custom command widgets and existing plugins that use `WidgetButton` with a different `fontSize`. Text labels retain their text size. Custom widgets must use `WidgetButton` or `BarIconButton` for this icon contract.
