@@ -29,8 +29,13 @@ def snapshot(bus):
 
 
 def layout_keyboard(keyboards):
-  typed = [keyboard for keyboard in keyboards if not re.match(
-    r"^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)", keyboard.get("name", ""))]
+  # Same list as KeyboardLayoutModel's UNTYPED_KEYBOARDS: vendor hotkey blocks,
+  # split-out consumer-control interfaces and the AVRCP remote a Bluetooth
+  # headset exposes all carry the seat layout and drift its index without
+  # anyone typing on them.
+  typed = [keyboard for keyboard in keyboards if not re.search(
+    r"^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus"
+    r"|intel-hid-events|dell-wmi-hotkeys)|avrcp|consumer-control", keyboard.get("name", ""))]
   typed = [item for item in typed if len(item.get("layout", "").split(",")) > 1]
   if not typed:
     return None

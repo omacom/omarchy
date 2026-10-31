@@ -92,6 +92,22 @@ assert indicator.layout_switches([{ "name": "physical", "layout": "fr" }]) == []
 assert indicator.layout_switches([]) == []
 print("ok - layout switching synchronizes matching devices, wraps, and preserves device-specific layouts")
 
+# Vendor hotkey blocks, consumer-control interfaces and Bluetooth AVRCP remotes
+# carry the seat layout too, and can drift its index without being typed on:
+# they still join the seat-wide sync but must never be the keyboard read from.
+# The physical keyboard starts at 0 so the remote genuinely drifts ahead —
+# otherwise a tie lets the keyboard win even without the filter.
+keyboards[1]["active_layout_index"] = 0
+remote = {"name": "wh-1000xm4-(avrcp)", "layout": "us,fr", "active_layout_index": 1}
+pick = indicator.layout_keyboard(keyboards + [remote])
+assert pick["name"] == "physical keyboard"
+assert indicator.layout_keyboard([remote]) is None
+assert indicator.layout_keyboard([{"name": "consumer-control", "layout": "us,fr"}]) is None
+assert indicator.layout_keyboard([{"name": "intel-hid-events", "layout": "us,fr"}]) is None
+assert indicator.layout_switches(keyboards + [remote]) == \
+  [["hyprctl", "switchxkblayout", item["name"], "1"] for item in keyboards[:3] + [remote]]
+print("ok - non-typing devices sync the seat layout without ever driving the pick")
+
 import json
 def reader_cycle(state, keyboards):
   with patch.object(indicator, "snapshot", return_value=dict(state)), patch.object(indicator, "call") as call, patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps({"keyboards": keyboards}))) as process:
