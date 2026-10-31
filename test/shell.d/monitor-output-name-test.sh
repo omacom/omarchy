@@ -22,7 +22,8 @@ make_stub() {
   chmod +x "$stub_dir/$name"
 }
 
-make_stub omarchy-notification-send ':'
+make_stub omarchy-notification-send 'printf "%s\n" "$*" >>"$NOTIFY_LOG"'
+make_stub omarchy-i18n 'printf "%s\n" "$1"'
 make_stub omarchy-hyprland-monitor-external-active 'exit 0'
 make_stub omarchy-hyprland-toggle-disabled 'exit 0'
 make_stub omarchy-hyprland-toggle ':'
@@ -32,20 +33,28 @@ make_stub omarchy-hw-clamshell 'exit 0'
 make_stub omarchy-hyprland-monitor-laptop 'printf "%s\n" "$LAPTOP_NAME"'
 make_stub hyprctl 'case "$1" in
   monitors) cat "$MONITORS_JSON" ;;
-  eval) printf "%s\n" "$2" >>"$EVAL_LOG" ;;
+  eval)
+    printf "%s\n" "$2" >>"$EVAL_LOG"
+    exit "${EVAL_STATUS:-0}"
+    ;;
+  dispatch) printf "dispatch %s\n" "$2" >>"$EVAL_LOG" ;;
 esac'
 
 eval_log="$tmpdir/eval.log"
+notify_log="$tmpdir/notify.log"
 
 run_monitor() {
   local command=$1
   shift
   : >"$eval_log"
+  : >"$notify_log"
   HOME="$home_dir" \
     XDG_STATE_HOME="$home_dir/.local/state" \
     LAPTOP_NAME="${LAPTOP_NAME:-eDP-1}" \
     MONITORS_JSON="$monitors_json" \
     EVAL_LOG="$eval_log" \
+    EVAL_STATUS="${EVAL_STATUS:-0}" \
+    NOTIFY_LOG="$notify_log" \
     PATH="$stub_dir:$ROOT/bin:$PATH" \
     "$ROOT/bin/$command" "$@"
 }
@@ -67,6 +76,57 @@ set -e
 (( status != 0 )) || fail "internal off rejects a monitor name with Lua metacharacters"
 [[ ! -e $disable_flag ]] || fail "an unsafe monitor name is not written as Lua"
 pass "internal off refuses an unsafe monitor name"
+
+# `on` and `recover` both clear the toggle flag and are expected to leave the
+# panel lit. Clearing the flag does not do that on its own: the output stays
+# disabled until a spec says disabled = false.
+rm -f "$disable_flag"
+printf '[{"name":"eDP-1"},{"name":"DP-3"}]\n' >"$monitors_json"
+run_monitor omarchy-hyprland-monitor-internal on
+grep -Fx 'hl.monitor({ output = "eDP-1", disabled = false })' "$eval_log" >/dev/null ||
+  fail "internal on re-enables the output it stopped disabling"
+pass "internal on turns the panel back on"
+
+set +e
+LAPTOP_NAME='eDP-1", disabled = false })os.execute("calc")--' \
+  run_monitor omarchy-hyprland-monitor-internal on >/dev/null 2>&1
+status=$?
+set -e
+(( status != 0 )) || fail "internal on rejects a monitor name with Lua metacharacters"
+! grep -F 'os.execute' "$eval_log" >/dev/null ||
+  fail "internal on eval's an unsafe monitor name"
+grep -F 'monitor.unsafeName' "$notify_log" >/dev/null ||
+  fail "internal on says why it left the panel alone"
+pass "internal on refuses an unsafe monitor name"
+
+# recover runs from the clamshell watcher, so it re-enables only once the
+# external is gone and the flag is set, and stays silent otherwise.
+make_stub omarchy-hyprland-monitor-external-active 'exit 1'
+printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$disable_flag"
+run_monitor omarchy-hyprland-monitor-internal recover
+grep -Fx 'hl.monitor({ output = "eDP-1", disabled = false })' "$eval_log" >/dev/null ||
+  fail "clamshell recovery re-enables the panel it cleared the flag for"
+pass "recover turns the panel back on"
+
+# hyprctl exits non-zero on a spec it refuses, and the Display panel only logs
+# a refusal it sees. The wake after it is best effort and still runs.
+for action in on recover; do
+  printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$disable_flag"
+  set +e
+  EVAL_STATUS=7 run_monitor omarchy-hyprland-monitor-internal "$action"
+  status=$?
+  set -e
+  (( status != 0 )) || fail "internal $action reports a refused re-enable"
+  grep -Fx 'dispatch hl.dsp.dpms({ action = "enable" })' "$eval_log" >/dev/null ||
+    fail "internal $action still wakes the displays after a refused re-enable"
+  pass "internal $action reports a refused re-enable"
+done
+
+rm -f "$disable_flag"
+run_monitor omarchy-hyprland-monitor-internal recover
+[[ ! -s $eval_log ]] || fail "recover drives the output with no flag set" "$(<"$eval_log")"
+pass "recover stays a no-op with nothing to recover"
+make_stub omarchy-hyprland-monitor-external-active 'exit 0'
 
 mirror_flag="$flag_dir/internal-monitor-mirror.lua"
 run_monitor omarchy-hyprland-monitor-internal-mirror on

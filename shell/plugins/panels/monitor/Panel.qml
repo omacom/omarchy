@@ -302,21 +302,23 @@ Panel {
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
-    // hyprctl keyword is rejected under the Lua config ("non-legacy parsers"),
-    // so drive the monitor through the hl.monitor eval API instead.
-    var output = '"' + name.replace(/[\\"]/g, "\\$&") + '"'
-    // hl.monitor updates the existing rule. Keep its mode, position and scale
-    // when bringing the display back.
-    var expr = enabled
-      ? 'hl.monitor({ output = ' + output + ', disabled = true })'
-      : 'hl.monitor({ output = ' + output + ', disabled = false })'
-    actionProc.command = ["hyprctl", "eval", expr]
+    var command = Model.displayToggleCommand(name, enabled, root.internalMonitor)
+    if (!command) return
+
+    actionProc.command = command
     if (!actionProc.running) actionProc.running = true
   }
 
   function setScale(scale) {
     actionProc.command = ["bash", "-c", "omarchy-hyprland-monitor-scaling " + scale]
     if (!actionProc.running) actionProc.running = true
+  }
+
+  // Names no command: actionProc is shared, and either caller above may already
+  // have reassigned it. hyprctl quotes the spec it refused, which is the part
+  // worth having.
+  function warnRefusedAction() {
+    console.warn("monitor", "display action exited", actionProc.lastExitCode, String(actionStdout.text || "").trim())
   }
 
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
@@ -441,8 +443,36 @@ Panel {
 
   Process {
     id: actionProc
-    stdout: StdioCollector { waitForEnd: true }
-    onRunningChanged: if (!running) root.refresh()
+    // hyprctl reports a refused monitor spec on stdout and exits 7, so without
+    // this a rejected change looks exactly like an applied one in the journal.
+    // Exit and stream-finished have no guaranteed order, so the code is held
+    // and whichever signal arrives second logs the pair, once.
+    property int lastExitCode: 0
+    property bool outputEnded: false
+
+    stdout: StdioCollector {
+      id: actionStdout
+      waitForEnd: true
+      onStreamFinished: {
+        actionProc.outputEnded = true
+        if (actionProc.lastExitCode !== 0) root.warnRefusedAction()
+      }
+    }
+
+    onExited: function(exitCode) {
+      actionProc.lastExitCode = exitCode
+      if (exitCode !== 0 && actionProc.outputEnded) root.warnRefusedAction()
+    }
+
+    onRunningChanged: {
+      if (running) {
+        actionProc.lastExitCode = 0
+        actionProc.outputEnded = false
+        return
+      }
+
+      root.refresh()
+    }
   }
 
   // Applies text size via the CLI, which rewrites the shell override file;
