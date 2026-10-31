@@ -670,6 +670,83 @@ assert(not moving.floating, "a window carried to a tiled workspace kept floating
 fi
 pass "the mode leaves windows on their way to a special workspace alone"
 
+# A minimized window that gets focus, as when a link opens in a minimized
+# browser, comes back the way the dock brings it instead of Hyprland showing the
+# store of minimized windows over the screen.
+if ! run_lua '
+local store = { id = -98, name = "special:minimized" }
+local monitor = { active_workspace = { id = 2, name = "2" }, active_special_workspace = store }
+local dispatched = {}
+hl.get_active_monitor = function() return monitor end
+hl.dsp.focus = function(spec) return { kind = "focus", window = spec.window } end
+hl.dsp.window.set_prop = function(spec) return { kind = "prop", value = spec.value } end
+hl.dsp.window.alter_zorder = function(spec) return { kind = "top" } end
+hl.dsp.workspace = { toggle_special = function(name) return { kind = "toggle", name = name } end }
+local timers, active = {}, nil
+hl.timer = function(callback) table.insert(timers, callback) end
+hl.get_active_window = function() return active end
+local function settle()
+  local queued = timers
+  timers = {}
+  for _, callback in ipairs(queued) do callback() end
+end
+hl.dispatch = function(action)
+  table.insert(dispatched, action)
+  if action.kind == "place" and action.workspace then
+    action.window.workspace = { id = tonumber(action.workspace), name = action.workspace }
+  end
+end
+require("default.hypr.minimized-windows")
+local focused = state().subscriptions["window.active"][1]
+
+local elsewhere = window("0x1", 2)
+focused(elsewhere)
+assert(#dispatched == 0, "a window outside the store was moved")
+
+local minimized = window("0x2", -98)
+minimized.workspace.name = store.name
+active = minimized
+focused(minimized)
+settle()
+assert(minimized.workspace.id == 2, "a minimized window that got focus stayed in the store")
+local kinds = {}
+for _, action in ipairs(dispatched) do kinds[action.kind] = action end
+assert(kinds.toggle and kinds.toggle.name == "minimized", "the store was left showing")
+assert(kinds.focus and kinds.focus.window == minimized and kinds.top, "the window did not come back focused and on top")
+
+dispatched = {}
+monitor.active_special_workspace = nil
+local another = window("0x3", -98)
+another.workspace.name = store.name
+active = another
+focused(another)
+settle()
+assert(another.workspace.id == 2, "a second minimized window stayed in the store")
+for _, action in ipairs(dispatched) do
+  assert(action.kind ~= "toggle", "a store Hyprland had already closed was toggled back open")
+end
+
+-- Showing the store, Hyprland reports focus for the window last focused there
+-- before the one asked for, and is not done until both are reported.
+dispatched = {}
+monitor.active_special_workspace = store
+local last = window("0x4", -98)
+last.workspace.name = store.name
+local asked = window("0x5", -98)
+asked.workspace.name = store.name
+active = last
+focused(last)
+active = asked
+focused(asked)
+assert(#dispatched == 0, "a window was moved while Hyprland was still showing the store")
+settle()
+assert(asked.workspace.id == 2, "the window asked for stayed in the store")
+assert(last.workspace.id == -98, "the window Hyprland focused on its way was brought back too")
+'; then
+  fail "a minimized window that gets focus comes back instead of showing the store"
+fi
+pass "a minimized window that gets focus comes back instead of showing the store"
+
 # Titlebars: asked for only when installed, and themed once loaded.
 if ! run_lua '
 window("0x1", 1)
