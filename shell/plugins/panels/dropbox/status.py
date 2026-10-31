@@ -7,6 +7,13 @@ import heapq
 from pathlib import Path
 
 
+# Dropbox stages downloads under .dropbox.cache and keeps its metadata in
+# .dropbox, both at the root of the account folder. Neither holds user files:
+# during a sync the cache dominates "recent files" and adds tens of GB to the
+# reported usage.
+DROPBOX_INTERNAL = {".dropbox", ".dropbox.cache"}
+
+
 PLAN_QUOTAS = {
   "basic": 2_000_000_000,
   "plus": 2_000_000_000_000,
@@ -50,6 +57,9 @@ def scan_dropbox(path, limit):
   try:
     for root, dirs, files in os.walk(path):
       dirs[:] = [name for name in dirs if not os.path.islink(os.path.join(root, name))]
+      if root == path:
+        dirs[:] = [name for name in dirs if name not in DROPBOX_INTERNAL]
+        files = [name for name in files if name not in DROPBOX_INTERNAL]
       for name in files:
         file_path = os.path.join(root, name)
         if os.path.islink(file_path):

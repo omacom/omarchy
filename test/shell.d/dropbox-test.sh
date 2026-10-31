@@ -32,3 +32,36 @@ assertEqual(
   'dropbox file metadata includes relative time and folder'
 )
 JS
+
+require_command jq
+require_command python3
+
+TEST_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME"' EXIT
+
+dropbox_dir="$TEST_HOME/Dropbox"
+mkdir -p "$dropbox_dir/Documents" "$dropbox_dir/.dropbox.cache/new_files" "$TEST_HOME/.dropbox"
+cat >"$TEST_HOME/.dropbox/info.json" <<JSON
+{"personal": {"path": "$dropbox_dir", "host": 1, "is_team": false, "subscription_type": "Basic"}}
+JSON
+
+# A real file, and the staging copy Dropbox writes while syncing it. The cache
+# entry is larger and newer, so an unfiltered scan would report it first.
+printf 'hello' >"$dropbox_dir/Documents/notes.txt"
+head -c 4096 /dev/zero >"$dropbox_dir/.dropbox.cache/new_files/abc123"
+printf 'metadata' >"$dropbox_dir/.dropbox"
+touch -d '2020-01-01' "$dropbox_dir/Documents/notes.txt"
+
+result=$(HOME="$TEST_HOME" python3 "$ROOT/shell/plugins/panels/dropbox/status.py" 10)
+
+[[ $(jq -r '.files | length' <<<"$result") == "1" ]] ||
+  fail "dropbox lists only user files" "$result"
+pass "dropbox lists only user files"
+
+[[ $(jq -r '.files[0].name' <<<"$result") == "notes.txt" ]] ||
+  fail "dropbox skips .dropbox.cache staging files" "$result"
+pass "dropbox skips .dropbox.cache staging files"
+
+[[ $(jq -r '.usedBytes' <<<"$result") == "5" ]] ||
+  fail "dropbox usage excludes internal directories" "$result"
+pass "dropbox usage excludes internal directories"
