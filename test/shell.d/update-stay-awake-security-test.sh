@@ -32,7 +32,7 @@ test_run_id="test-$BASHPID-$RANDOM"
 state_dir="$runtime_dir/omarchy-update-stay-awake-$test_run_id"
 state_hardlink="$runtime_dir/.omarchy-update-stay-awake-hardlink-$test_run_id"
 inhibitor_log="$test_tmp/inhibitors"
-mkdir -p "$stub_bin" "$test_home" "$mapped_root/bin" "$mapped_root/default/omarchy/sudo-no-update"
+mkdir -p "$stub_bin" "$test_home" "$mapped_root/bin"
 : >"$inhibitor_log"
 
 cat >"$stub_bin/pkexec" <<'SH'
@@ -44,17 +44,18 @@ SH
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
 case ${1:-} in
-  -h) echo 'usage: sudo [-bHkNnPS] command'; exit 0 ;;
   -k|-K|-v)
     [[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'sudo %s\n' "$1" >>"$SUDO_EVENT_LOG"
     exit 0
     ;;
 esac
 [[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'sudo %s\n' "$*" >>"$SUDO_EVENT_LOG"
+# Non-interactive sudo cannot authenticate without a cached credential.
+[[ ${1:-} != "-n" || -z ${SUDO_COLD:-} ]] || exit 1
 background=0
 while (( $# )); do
   case "$1" in
-    -N|-n) shift ;;
+    -n) shift ;;
     -b) background=1; shift ;;
     --) shift; break ;;
     *) break ;;
@@ -110,11 +111,9 @@ ln -s "$stub_bin/omarchy-toggle-idle" "$mapped_root/bin/omarchy-toggle-idle"
 mapped_helper="$mapped_root/bin/omarchy-update-stay-awake"
 cp "$ROOT/bin/omarchy-update-stay-awake" "$mapped_helper"
 cp "$ROOT/bin/omarchy-security-functions" "$mapped_root/bin/omarchy-security-functions"
-cp "$ROOT/default/omarchy/sudo-no-update/sudo" "$mapped_root/default/omarchy/sudo-no-update/sudo"
 for mapped_file in \
   "$mapped_helper" \
-  "$mapped_root/bin/omarchy-security-functions" \
-  "$mapped_root/default/omarchy/sudo-no-update/sudo"; do
+  "$mapped_root/bin/omarchy-security-functions"; do
   sed -i \
     -e "s#/usr/bin/sudo#$stub_bin/sudo#g" \
     -e "s#/usr/bin/pkexec#$stub_bin/pkexec#g" \
@@ -123,7 +122,7 @@ for mapped_file in \
     -e 's#state_dir="$state_base/omarchy-update-stay-awake"#state_dir="$state_base/omarchy-update-stay-awake-${OMARCHY_TEST_RUN_ID:?}"#' \
     "$mapped_file"
 done
-chmod +x "$mapped_helper" "$mapped_root/default/omarchy/sudo-no-update/sudo"
+chmod +x "$mapped_helper"
 
 run_helper() {
   HOME="$test_home" \
@@ -182,26 +181,29 @@ wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
 
-# omarchy update owns its one authorization; the helper must not revoke it.
-# Run on its own, the helper still starts and ends cold.
-sudo_events="$test_tmp/sudo-events"
-: >"$sudo_events"
-OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper start
-OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop
-! grep -qx 'sudo -k' "$sudo_events" || fail "helper revoked the update's authorization" "$(<"$sudo_events")"
-SUDO_EVENT_LOG="$sudo_events" run_helper start
-SUDO_EVENT_LOG="$sudo_events" run_helper stop
-grep -qx 'sudo -k' "$sudo_events" || fail "standalone helper no longer revokes sudo"
-pass "helper leaves the update's authorization alone and revokes when standalone"
+# Root holds the inhibitor directly, so only other accounts authenticate.
+if (( EUID == 0 )); then
+  skip "inhibitor authentication paths do not apply to root"
+else
+  # Without a terminal, the inhibitor reuses a cached authorization, such as the
+  # update's own, non-interactively instead of asking again through polkit.
+  sudo_events="$test_tmp/sudo-events"
+  : >"$sudo_events"
+  SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+  SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+  grep -q -- '^sudo -n -b -- ' "$sudo_events" || fail "inhibitor without a terminal did not reuse sudo" "$(<"$sudo_events")"
+  ! grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal asked polkit" "$(<"$sudo_events")"
+  ! grep -qx 'sudo -k' "$sudo_events" || fail "inhibitor revoked the caller's authorization" "$(<"$sudo_events")"
+  pass "inhibitor without a terminal reuses a cached authorization instead of polkit"
 
-# Without a terminal, an update's inhibitor reuses the update's authorization
-# non-interactively instead of asking again through polkit.
-: >"$sudo_events"
-OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
-OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
-grep -q -- '^sudo -n -N -b -- ' "$sudo_events" || fail "update inhibitor without a terminal did not reuse sudo" "$(<"$sudo_events")"
-! grep -qx pkexec "$sudo_events" || fail "update inhibitor without a terminal asked polkit" "$(<"$sudo_events")"
-pass "update inhibitor without a terminal reuses the update's authorization instead of polkit"
+  # With nothing cached it asks through polkit rather than failing.
+  : >"$sudo_events"
+  SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+  SUDO_COLD=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+  grep -qx pkexec "$sudo_events" || fail "inhibitor without a terminal or cached authorization did not use polkit" "$(<"$sudo_events")"
+  ! grep -q -- '^sudo -n -b ' "$sudo_events" || fail "inhibitor ran sudo without an authorization" "$(<"$sudo_events")"
+  pass "inhibitor without a terminal or cached authorization uses polkit"
+fi
 
 permissive_runtime="$test_tmp/permissive-runtime"
 mkdir -m 755 "$permissive_runtime"

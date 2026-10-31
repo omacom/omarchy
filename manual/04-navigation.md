@@ -10,9 +10,9 @@ You can then hit `Super + J` to stack them on top of each other instead of side 
 
  ![navigation-stacked](images/navigation-stacked.webp)
 
-Hit `Super + J` again to return them to their side-by-side positions. Then try `Super + Shift + Arrow Right` while on the browser to swap the windows.
+Hit `Super + J` again to return them to their side-by-side positions. Then try `Super + Shift + Arrow Right` while in the browser to swap the windows.
 
-Now try `Super + Shift + T` to start the Activity monitor. That'll appear as a floating window. You can tile it using `Super + T` (and hit that again to make it floating again). Now press `Super + Shift + F` to open the files manager. You'll have a neat four-way setup:
+Now try `Super + Shift + T` to start the Activity monitor. That will appear as a floating window. You can tile it using `Super + T` (and hit that again to make it floating again). Now press `Super + Shift + F` to open the file manager. You'll have a neat four-way setup:
 
  ![navigation-fourway-tiling](images/navigation-fourway-tiling.webp)
 
@@ -24,13 +24,13 @@ With more than one monitor, every monitor has workspaces 1 through 10 of its own
 
 If you hold down `Super` and use the mouse to click on a window, you'll be able to rearrange where it sits. If you hold `Super` and use the right button on the mouse, you can freely resize the window.
 
-You close a window on `Super + W` or `Super + Q` (and close all windows on `Ctrl + Alt + Delete`).
+You close a window with `Super + W` or `Super + Q` (and close all windows with `Ctrl + Alt + Delete`).
 
 You can also go full screen with `Super + F` or even just full-width (keeping the top bar) with `Super + Alt + F` or full-screen within a window with `Super + Ctrl + F` (good for YouTube!).
 
 ### Dwindle vs scrolling layout
 
-Omarchy's default layout is called dwindle. It keeps all the windows you open on a single workspace visible at all time, even if it has to shrink them down.
+Omarchy's default layout is called dwindle. It keeps all the windows you open on a single workspace visible at all times, even if it has to shrink them down.
 
  ![navigation-dwindle-layout](images/navigation-dwindle-layout.webp)
 
@@ -62,7 +62,7 @@ New workspaces, and any you haven't given a layout of their own with `Super + L`
 
 ### Grouping windows
 
-Windows can be grouped using `Super + G`. Once you're in a group, every window you start while that's active will belong to the group. You can move between these grouped windows using `Super + Ctrl + Arrow Left/Right` or `Super + Alt + 1/2/3/4` to go directly to grouped window in order.
+Windows can be grouped using `Super + G`. Once you're in a group, every window you start while that's active will belong to the group. You can move between these grouped windows using `Super + Ctrl + Arrow Left/Right` or `Super + Alt + 1/2/3/4` to go directly to grouped windows in order.
 
 You can move a window out of the grouping with `Super + Alt + G` or disassemble the entire group by hitting `Super + G` again. Finally, you can move windows outside the group into it with `Super + Alt + Arrows`.
 
@@ -74,11 +74,17 @@ You can pop a window out of its workspace allocation with `Super + O`. That'll p
 
 ### Scratchpad workspace
 
-Finally, there's a special scratchpad workspace that drops down over whatever workspace you're currently on, much like a Quake console. Toggle it with `Super + Grave` or `Super + S`, and place a window there using `Super + Shift + Grave` or `Super + Alt + S`.
+There's a special full-size scratchpad workspace that overlays whatever workspace you're currently on. You access what's on it using `Super + S`, and you place windows there using `Super + Alt + S`.
 
-It works especially well for a terminal running an agent, or for controls you want to interact with quickly without leaving the current workspace. To move a window off the scratchpad, send it directly to another workspace with something like `Super + Shift + 1`.
+It works well for controls or a terminal you want to interact with quickly without leaving the current workspace.
 
-While the scratchpad holds a single window, it drops down as a centered panel rather than spanning the screen. Put a second app on it and it goes back to the full width, so the two have room to sit side by side.
+### Quake console
+
+Finally, there's a half-height Quake console that drops down over whatever workspace you're currently on. Toggle it with `Super + Grave`, and place a window there using `Super + Shift + Grave`.
+
+It opens with your default agent ready to go. While the console holds a single window, it drops down as a centered panel rather than spanning the screen. Put a second app on it and it goes back to the full width, so the two have room to sit side by side.
+
+To move a window off either the scratchpad or the console, send it directly to another workspace with something like `Super + Shift + 1`.
 
 ### It takes some getting used to!
 
