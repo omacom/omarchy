@@ -6,10 +6,11 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 firmware_setup="$ROOT/install/hardware/qualcomm/firmware.sh"
 dtb_setup="$ROOT/install/hardware/qualcomm/dtb-uki.sh"
+zenbook_setup="$ROOT/install/hardware/asus/zenbook-14-ux3480qa.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-for script in "$firmware_setup" "$dtb_setup"; do
+for script in "$firmware_setup" "$dtb_setup" "$zenbook_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
 done
 
@@ -216,3 +217,23 @@ for platform in aarch64 aarch64-apple x86; do
   done
 done
 pass "Snapdragon setup follows the real platform detector"
+
+zenbook="$scratch/zenbook"
+(
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-hw-match() { [[ $1 == "UX3480QA" ]]; }
+  OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$zenbook/mkinitcpio.conf.d" source "$zenbook_setup" >/dev/null
+)
+(
+  MODULES=()
+  source "$zenbook/mkinitcpio.conf.d/asus-zenbook-14-ux3480qa.conf"
+  [[ ${MODULES[*]} == "qrtr pmic_glink_altmode gpio_sbu_mux" ]] ||
+    fail "the Zenbook 14 UX3480QA shows its panel at the disk unlock prompt"
+)
+(
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-hw-match() { return 1; }
+  OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$scratch/other/mkinitcpio.conf.d" source "$zenbook_setup" >/dev/null
+)
+[[ ! -e $scratch/other/mkinitcpio.conf.d ]] || fail "other Snapdragon laptops get no Zenbook setup"
+pass "the Zenbook 14 UX3480QA setup names its panel's initramfs modules"
