@@ -601,6 +601,12 @@ Panel {
           width: scrollArea.availableWidth
           spacing: Style.space(14)
 
+          // A slider's row is as tall as its knob plus a control gap, with the
+          // thin track centered in it. Rows of pills and the layout map are
+          // padded by the room around that track, so every section shows the
+          // same gap above and below what's drawn.
+          readonly property real sliderInset: Math.round((textSizeRow.height - textSizeSlider.trackHeight) / 2)
+
           // ---------- Hero: the shown display, and the picker ----------
           Item {
             width: parent.width
@@ -833,14 +839,11 @@ Panel {
             foreground: root.bar.foreground
           }
 
-          // A slider row is padded by half a control gap above and below inside
-          // its cursor box, so rows of pills take the same room to keep every
-          // section's rhythm even.
           Column {
             visible: root.current !== null && root.current.scales.length > 0
             width: parent.width
-            spacing: Style.space(6) + Math.round(Style.spacing.controlGap / 2)
-            bottomPadding: Math.round(Style.spacing.controlGap / 2)
+            spacing: Style.space(6) + panelColumn.sliderInset
+            bottomPadding: panelColumn.sliderInset
 
             PanelSectionHeader {
               text: Commons.I18n.t("monitor.scale")
@@ -876,8 +879,8 @@ Panel {
           Column {
             visible: root.current !== null && root.current.resolutions.length > 0
             width: parent.width
-            spacing: Style.space(6) + Math.round(Style.spacing.controlGap / 2)
-            bottomPadding: Math.round(Style.spacing.controlGap / 2)
+            spacing: Style.space(6) + panelColumn.sliderInset
+            bottomPadding: panelColumn.sliderInset
 
             Item {
               width: parent.width
@@ -946,11 +949,11 @@ Panel {
               fontFamily: root.bar.fontFamily
             }
 
-            // Padded like a slider row, around a map as tall as the arrangement.
+            // Padded like a slider's track, around a map as tall as the arrangement.
             CursorSurface {
               id: layoutRow
               width: parent.width
-              height: layoutMap.implicitHeight + Style.spacing.controlGap
+              height: layoutMap.implicitHeight + panelColumn.sliderInset * 2
               hasCursor: root.cursorActive && root.focusSection === "layout"
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(layoutRow)
               foreground: root.bar.foreground
@@ -970,11 +973,6 @@ Panel {
                 onHoveredChanged: if (hovered) root.pointAt("layout", 0)
               }
             }
-          }
-
-          Item {
-            width: parent.width
-            height: Style.space(4)
           }
         }
       }
