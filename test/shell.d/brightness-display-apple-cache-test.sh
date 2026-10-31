@@ -41,12 +41,15 @@ chmod +x "$stub_dir/sudo"
 cat >"$stub_dir/asdcontrol" <<STUB
 #!/bin/bash
 printf '%s\n' "\$*" >>"$asd_log"
-# --detect reports nothing, so detection never yields a device.
 if [[ \$1 == "--detect" ]]; then
+  if [[ -n \${ASD_DETECT_DEVICE:-} ]]; then
+    printf '%s: Mock display\n' "\$ASD_DETECT_DEVICE"
+  fi
   exit 0
 fi
-# A brightness read (a lone device arg) returns a plausible value; a set
-# (<device> -- <step>) just succeeds.
+if (( \$# > 1 )) && [[ \${ASD_WRITE_FAIL:-0} == "1" ]]; then
+  exit 1
+fi
 if [[ \$# -eq 1 ]]; then
   printf '%s: BRIGHTNESS=30000\n' "\$1"
 fi
@@ -122,6 +125,14 @@ if [[ -n $real_hiddev ]]; then
   grep -qF -- "$real_hiddev -- +5%" "$asd_log" ||
     fail "wrapper did not trust a valid cached hiddev node: $real_hiddev"
   pass "wrapper trusts a cached hiddev character device without re-detecting"
+
+  : >"$asd_log"
+  if ASD_DETECT_DEVICE="$real_hiddev" ASD_WRITE_FAIL=1 XDG_RUNTIME_DIR="$xdg_dir" PATH="$stub_dir:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-brightness-display-apple" --no-osd 50% >/dev/null 2>&1; then
+    fail "a rejected Apple brightness retry is reported to the panel"
+  fi
+  (( $(grep -c -- ' -- 50%' "$asd_log") == 2 )) || fail "Apple brightness retries once after refreshing its device"
+  pass "a rejected Apple brightness retry is reported to the panel"
 else
   skip "no /dev/hiddev* character device present; skipping the valid-cache case"
 fi

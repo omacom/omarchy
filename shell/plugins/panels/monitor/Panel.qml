@@ -15,10 +15,9 @@ Panel {
 
   // manageIpc: false so this panel can own the single IpcHandler the target
   // permits — needed for the brightness + state methods below.
-  property int brightnessPercent: 0
-  property int pendingBrightnessPercent: 0
-  property bool brightnessSetQueued: false
-  property bool brightnessAvailable: false
+
+  readonly property int brightnessPercent: brightnessController.percent
+  readonly property bool brightnessAvailable: brightnessController.available
   property string internalMonitor: ""
   property string externalMonitor: ""
   property string focusedMonitor: ""
@@ -144,7 +143,7 @@ Panel {
   function adjustBrightness(delta) {
     if (focusSection !== "brightness") return
     if (!brightnessAvailable) return
-    setBrightness(root.brightnessPercent + delta)
+    brightnessController.request(root.brightnessPercent + delta)
   }
 
   function activateCursor() {
@@ -205,8 +204,8 @@ Panel {
 
   function brightnessIpc(percent) {
     var value = Number(percent)
-    root.setBrightness(value)
-    return "got " + root.pendingBrightnessPercent
+    brightnessController.request(value)
+    return "got " + root.brightnessPercent
   }
 
   function stateIpc() {
@@ -232,27 +231,10 @@ Panel {
   }
 
   function refresh() {
-    if (!stateProc.running) stateProc.running = true
-  }
-
-  function setBrightness(value) {
-    var percent = Model.clampBrightness(value)
-    root.brightnessPercent = percent
-    root.pendingBrightnessPercent = percent
-
-    if (setBrightnessProc.running) {
-      root.brightnessSetQueued = true
-      return
+    if (!stateProc.running) {
+      stateProc.brightnessGeneration = brightnessController.readGeneration()
+      stateProc.running = true
     }
-
-    root.brightnessSetQueued = false
-    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", root.focusedMonitor, percent + "%"]
-    setBrightnessProc.running = true
-  }
-
-  function previewBrightness(value) {
-    root.brightnessPercent = Model.clampBrightness(value)
-    brightnessDebounce.restart()
   }
 
   function showBrightnessOsd(percent) {
@@ -378,6 +360,7 @@ Panel {
     }
   }
 
+  onFocusedMonitorChanged: wheelAccumulator = 0
   onBrightnessAvailableChanged: clampCursor()
   onDisplaysChanged: clampCursor()
   onScaleValuesChanged: clampCursor()
@@ -395,48 +378,29 @@ Panel {
 
   Process {
     id: stateProc
+    property int brightnessGeneration: -1
     command: ["omarchy-monitor-state"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         var lines = String(text || "").split("\n")
         var brightness = String(lines[0] || "").trim()
-        root.brightnessAvailable = brightness !== "unavailable" && brightness !== ""
-        root.brightnessPercent = root.brightnessAvailable ? Math.max(0, Math.min(100, parseInt(brightness, 10))) : 0
+        var monitor = String(lines[5] || "").trim()
+        brightnessController.acceptRead(monitor, brightness, stateProc.brightnessGeneration)
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
         root.mirrorEnabled = String(lines[4] || "").trim() === root.externalMonitor && root.externalMonitor !== ""
-        root.focusedMonitor = String(lines[5] || "").trim()
+        root.focusedMonitor = monitor
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
       }
     }
   }
 
-  Timer {
-    id: brightnessDebounce
-    interval: 180
-    repeat: false
-    onTriggered: root.setBrightness(root.brightnessPercent)
-  }
-
-  Process {
-    id: setBrightnessProc
-    stdout: StdioCollector { waitForEnd: true }
-    // Do NOT call refresh() after a brightness set completes. The local
-    // brightnessPercent we just wrote is authoritative; re-reading via
-    // `omarchy-brightness-display` races the hardware/driver and can
-    // return an empty string, which the parser then coerces to 0 —
-    // visible as a "bounce to zero" after h/l keypresses. External
-    // brightness changes are still picked up by the 5s periodic refresh,
-    // the open-time refresh, and Component.onCompleted.
-    onRunningChanged: {
-      if (running) return
-      if (root.brightnessSetQueued) {
-        root.setBrightness(root.pendingBrightnessPercent)
-      }
-    }
+  BrightnessController {
+    id: brightnessController
+    onVerified: function(percent) { root.showBrightnessOsd(percent) }
   }
 
   Process {
@@ -486,8 +450,7 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      root.setBrightness(root.brightnessPercent + wheel.steps * 5)
-      root.showBrightnessOsd(root.brightnessPercent)
+      brightnessController.request(root.brightnessPercent + wheel.steps * 5, true)
     }
   }
 
@@ -649,10 +612,14 @@ Panel {
                 step: 1
                 value: root.brightnessPercent
                 integer: true
-                onMoved: function(v) { root.previewBrightness(v) }
-                onReleased: function(v) {
-                  brightnessDebounce.stop()
-                  root.setBrightness(v)
+                onMoved: function(v) { brightnessController.preview(v) }
+                onReleased: function(v) { brightnessController.request(v) }
+
+                Connections {
+                  target: root
+                  function onFocusedMonitorChanged() {
+                    brightnessSlider.cancelDrag()
+                  }
                 }
               }
 
