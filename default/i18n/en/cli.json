@@ -153,6 +153,7 @@
   "gitSetup.namePlaceholder": "Your full name",
   "gitSetup.namePrompt": "Full name> ",
   "gpu.enableDedicated": "Enable dedicated GPU and reboot?",
+  "gpu.restoreHybrid": "GPU mode is stuck on Vfio. Return to Hybrid mode and reboot?",
   "gpu.useIntegrated": "Use only integrated GPU and reboot?",
   "hermes.deleteData": "Also delete ~/.hermes and ~/.config/Hermes (%1: chats, memories, skills, connections and tokens)?",
   "input.inputMethodsFailed": "Input methods could not be updated",
