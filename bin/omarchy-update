@@ -80,13 +80,18 @@ cleanup_update() {
   omarchy_security_exit_with_revoked_sudo "$status"
 }
 
-if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
-  script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
-fi
-
+# Lock before starting the transcript: script(1) truncates it on open, so a
+# second update would otherwise wipe the running one's log before learning it
+# has to stop, and the initramfs check would read the wrong transcript. The
+# lock descriptor passes through script(1) to the update it runs; script runs
+# it with $SHELL, so pin bash, which keeps it open and reads the %q quoting.
 if ! omarchy-update-lock held; then
   exec env OMARCHY_UPDATE_USER_PATH="$user_path" omarchy-update-lock run "$0" "$@"
+fi
+
+if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
+  script_command=$(printf '%q ' "$0" "$@")
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" SHELL=/usr/bin/bash script -qefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPlease review the output above carefully, correct the error, and retry the update.\n\nIf you need assistance, get help from the community at https://omarchy.org/discord\033[0m"' ERR
