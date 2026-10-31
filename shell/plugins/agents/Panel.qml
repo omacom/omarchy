@@ -873,14 +873,66 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  onOpenedChanged: if (opened) {
-    if (addStage !== "running") addStage = ""
-    resetKeys()
-    if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
-    nowMs = Date.now()
-    if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
-    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+  // The section whose top is nearest the view is the one being read.
+  function rememberVisibleProvider() {
+    if (!providerSections || !panelFlick || !column) return
+    var y = panelFlick.contentY
+    var best = ""
+    var bestDist = 1e12
+    for (var i = 0; i < providerSections.count; i++) {
+      var item = providerSections.itemAt(i)
+      if (!item || !item.provider) continue
+      var top = item.mapToItem(column, 0, 0).y
+      var dist = Math.abs(top - y)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = String(item.provider.providerId || "")
+      }
+    }
+    if (best !== "") usage.rememberProvider(best)
+  }
+
+  // Layout is not finished on the tick the panel opens, so a section that
+  // still sits at y=0 is asked again until it has a real place.
+  property int restoreTries: 0
+  function restoreLastProvider() {
+    var id = usage.lastProviderId
+    if (!id || !panelFlick || !providerSections || !column) return
+    var item = null
+    var index = -1
+    for (var i = 0; i < providerSections.count; i++) {
+      var candidate = providerSections.itemAt(i)
+      if (candidate && candidate.provider && candidate.provider.providerId === id) {
+        item = candidate
+        index = i
+        break
+      }
+    }
+    if (!item) return
+    var top = item.mapToItem(column, 0, 0).y
+    if (index > 0 && top < 1 && restoreTries < 8) {
+      restoreTries++
+      Qt.callLater(restoreLastProvider)
+      return
+    }
+    restoreTries = 0
+    var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+    panelFlick.contentY = Math.max(0, Math.min(top, maxY))
+  }
+
+  onOpenedChanged: {
+    if (opened) {
+      if (addStage !== "running") addStage = ""
+      resetKeys()
+      if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
+      nowMs = Date.now()
+      restoreTries = 0
+      usage.refreshLimits()
+      Qt.callLater(restoreLastProvider)
+      Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+    } else {
+      rememberVisibleProvider()
+    }
   }
 
   Main {

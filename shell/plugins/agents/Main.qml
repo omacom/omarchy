@@ -293,6 +293,32 @@ Item {
     onFileChanged: reload()
   }
 
+  // The subscription the panel was left on. Reopening scrolls back to it
+  // instead of always starting at the first section.
+  readonly property string selectionPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/selection.json"
+  property string lastProviderId: ""
+
+  function rememberProvider(id) {
+    id = String(id || "")
+    if (id === "" || id === lastProviderId) return
+    lastProviderId = id
+    selectionFile.setText(JSON.stringify(id) + "\n")
+  }
+
+  FileView {
+    id: selectionFile
+    path: root.selectionPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = ""
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = "" }
+      root.lastProviderId = typeof parsed === "string" ? parsed : ""
+    }
+    onFileChanged: reload()
+  }
+
   function providerEnabled(id) {
     if (!settings || !settings.providers || !settings.providers[id]) return true
     return settings.providers[id].enabled !== false
