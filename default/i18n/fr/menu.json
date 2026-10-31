@@ -1282,5 +1282,11 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Capture des plantages activée"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

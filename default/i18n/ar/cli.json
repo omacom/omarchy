@@ -106,6 +106,7 @@
   "default.browserSet": "أصبح %1 الآن المتصفح الافتراضي",
   "default.editorSet": "أصبح %1 الآن المحرر الافتراضي",
   "default.terminalSet": "أصبح %1 الآن الطرفية الافتراضية",
+  "dictation.hexReady": "إملاء Hex جاهز",
   "dictation.hint": "استمر في الضغط على Right Alt للإملاء، أو بدّل باستخدام Alt + Space.",
   "dictation.installVoxtype": "ثبّت Voxtype + نموذج الذكاء الاصطناعي (~150MB) لتمكين الإملاء؟",
   "dictation.superwhisperReady": "إملاء Superwhisper جاهز",

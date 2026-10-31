@@ -1282,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "커널"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

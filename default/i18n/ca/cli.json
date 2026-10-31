@@ -103,6 +103,7 @@
   "default.browserSet": "%1 ara és el navegador per defecte",
   "default.editorSet": "%1 ara és l'editor per defecte",
   "default.terminalSet": "%1 ara és el terminal per defecte",
+  "dictation.hexReady": "Dictat de Hex a punt",
   "dictation.hint": "Mantingues premut l'Alt dret per dictar, o alterna amb Alt + Space.",
   "dictation.installVoxtype": "Instal·lar Voxtype + model d'IA (~150MB) per activar el dictat?",
   "dictation.superwhisperReady": "Dictat de Superwhisper a punt",

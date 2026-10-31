@@ -104,6 +104,7 @@
   "default.browserSet": "Браузер по умолчанию: %1",
   "default.editorSet": "Редактор по умолчанию: %1",
   "default.terminalSet": "Терминал по умолчанию: %1",
+  "dictation.hexReady": "Диктовка Hex готова",
   "dictation.hint": "Удерживайте правый Alt для диктовки или переключайте с помощью Alt + Space.",
   "dictation.installVoxtype": "Установить Voxtype + модель ИИ (~150MB) для диктовки?",
   "dictation.superwhisperReady": "Диктовка Superwhisper готова",

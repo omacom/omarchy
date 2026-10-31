@@ -101,6 +101,7 @@
   "default.browserSet": "%1 kini menjadi peramban bawaan",
   "default.editorSet": "%1 kini menjadi editor bawaan",
   "default.terminalSet": "%1 kini menjadi terminal bawaan",
+  "dictation.hexReady": "Dikte Hex Siap",
   "dictation.hint": "Tahan Right Alt untuk mendikte, atau alihkan dengan Alt + Space.",
   "dictation.installVoxtype": "Pasang Voxtype + model AI (~150MB) untuk mengaktifkan dikte?",
   "dictation.superwhisperReady": "Dikte Superwhisper Siap",

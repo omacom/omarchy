@@ -101,6 +101,7 @@
   "default.browserSet": "%1 kini ialah pelayar lalai",
   "default.editorSet": "%1 kini ialah penyunting lalai",
   "default.terminalSet": "%1 kini ialah terminal lalai",
+  "dictation.hexReady": "Imlak Hex Sedia",
   "dictation.hint": "Tahan Alt Kanan untuk imlak, atau togol dengan Alt + Space.",
   "dictation.installVoxtype": "Pasang Voxtype + model AI (~150MB) untuk dayakan imlak?",
   "dictation.superwhisperReady": "Imlak Superwhisper Sedia",

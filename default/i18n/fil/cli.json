@@ -102,6 +102,7 @@
   "default.browserSet": "Si %1 na ngayon ang default na browser",
   "default.editorSet": "Si %1 na ngayon ang default na editor",
   "default.terminalSet": "Si %1 na ngayon ang default na terminal",
+  "dictation.hexReady": "Handa na ang Diktasyon ng Hex",
   "dictation.hint": "Pindutin nang matagal ang Right Alt para magdikta, o i-toggle gamit ang Alt + Space.",
   "dictation.installVoxtype": "I-install ang Voxtype + AI model (~150MB) para paganahin ang diktasyon?",
   "dictation.superwhisperReady": "Handa na ang Diktasyon ng Superwhisper",

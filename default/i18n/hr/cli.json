@@ -103,6 +103,7 @@
   "default.browserSet": "%1 je sada zadani preglednik",
   "default.editorSet": "%1 je sada zadani uređivač",
   "default.terminalSet": "%1 je sada zadani terminal",
+  "dictation.hexReady": "Hex diktiranje spremno",
   "dictation.hint": "Držite desni Alt za diktiranje ili prebacite tipkama Alt + Space.",
   "dictation.installVoxtype": "Instalirati Voxtype + AI model (~150MB) za uključivanje diktiranja?",
   "dictation.superwhisperReady": "Superwhisper diktiranje spremno",

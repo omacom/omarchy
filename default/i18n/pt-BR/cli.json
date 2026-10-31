@@ -103,6 +103,7 @@
   "default.browserSet": "%1 agora é o navegador padrão",
   "default.editorSet": "%1 agora é o editor padrão",
   "default.terminalSet": "%1 agora é o terminal padrão",
+  "dictation.hexReady": "Ditado Hex pronto",
   "dictation.hint": "Segure o Alt direito para ditar ou alterne com Alt + Space.",
   "dictation.installVoxtype": "Instalar Voxtype + modelo de IA (~150MB) para ativar o ditado?",
   "dictation.superwhisperReady": "Ditado Superwhisper pronto",

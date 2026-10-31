@@ -103,6 +103,7 @@
   "default.browserSet": "%1 הוא כעת דפדפן ברירת המחדל",
   "default.editorSet": "%1 הוא כעת עורך ברירת המחדל",
   "default.terminalSet": "%1 הוא כעת מסוף ברירת המחדל",
+  "dictation.hexReady": "הכתבת Hex מוכנה",
   "dictation.hint": "החזק את Right Alt כדי להכתיב, או החלף מצב עם Alt + Space.",
   "dictation.installVoxtype": "להתקין את Voxtype + מודל AI (~150MB) כדי להפעיל הכתבה?",
   "dictation.superwhisperReady": "הכתבת Superwhisper מוכנה",

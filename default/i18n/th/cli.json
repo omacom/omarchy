@@ -101,6 +101,7 @@
   "default.browserSet": "%1 เป็นเบราว์เซอร์เริ่มต้นแล้ว",
   "default.editorSet": "%1 เป็นตัวแก้ไขเริ่มต้นแล้ว",
   "default.terminalSet": "%1 เป็นเทอร์มินัลเริ่มต้นแล้ว",
+  "dictation.hexReady": "Hex Dictation พร้อมใช้",
   "dictation.hint": "กด Right Alt ค้างไว้เพื่อพูดพิมพ์ หรือสลับด้วย Alt + Space",
   "dictation.installVoxtype": "ติดตั้ง Voxtype + โมเดล AI (~150MB) เพื่อเปิดการพูดพิมพ์ไหม?",
   "dictation.superwhisperReady": "Superwhisper Dictation พร้อมใช้",

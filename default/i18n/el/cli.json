@@ -102,6 +102,7 @@
   "default.browserSet": "Το %1 είναι πλέον ο προεπιλεγμένος περιηγητής",
   "default.editorSet": "Το %1 είναι πλέον ο προεπιλεγμένος επεξεργαστής",
   "default.terminalSet": "Το %1 είναι πλέον το προεπιλεγμένο τερματικό",
+  "dictation.hexReady": "Η υπαγόρευση Hex είναι έτοιμη",
   "dictation.hint": "Κρατήστε πατημένο το Right Alt για υπαγόρευση ή πατήστε Alt + Space για εναλλαγή.",
   "dictation.installVoxtype": "Εγκατάσταση του Voxtype + μοντέλου AI (~150MB) για ενεργοποίηση της υπαγόρευσης;",
   "dictation.superwhisperReady": "Η υπαγόρευση Superwhisper είναι έτοιμη",

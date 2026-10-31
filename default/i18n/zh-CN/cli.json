@@ -101,6 +101,7 @@
   "default.browserSet": "%1 现在是默认浏览器",
   "default.editorSet": "%1 现在是默认编辑器",
   "default.terminalSet": "%1 现在是默认终端",
+  "dictation.hexReady": "Hex 听写已就绪",
   "dictation.hint": "按住 Right Alt 进行听写，或用 Alt + Space 切换。",
   "dictation.installVoxtype": "安装 Voxtype + AI 模型（~150MB）以启用听写？",
   "dictation.superwhisperReady": "Superwhisper 听写已就绪",

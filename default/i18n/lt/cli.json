@@ -103,6 +103,7 @@
   "default.browserSet": "%1 dabar yra numatytoji naršyklė",
   "default.editorSet": "%1 dabar yra numatytasis redaktorius",
   "default.terminalSet": "%1 dabar yra numatytasis terminalas",
+  "dictation.hexReady": "Hex diktavimas paruoštas",
   "dictation.hint": "Laikykite dešinįjį Alt diktavimui arba perjunkite su Alt + Space.",
   "dictation.installVoxtype": "Įdiegti Voxtype + AI modelį (~150MB) diktavimui įjungti?",
   "dictation.superwhisperReady": "Superwhisper diktavimas paruoštas",

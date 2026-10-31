@@ -105,6 +105,7 @@
   "default.browserSet": "Is é %1 an brabhsálaí réamhshocraithe anois",
   "default.editorSet": "Is é %1 an t-eagarthóir réamhshocraithe anois",
   "default.terminalSet": "Is é %1 an críochfort réamhshocraithe anois",
+  "dictation.hexReady": "Deachtú Hex réidh",
   "dictation.hint": "Coinnigh Alt ar dheis síos chun deachtú, nó scoránaigh le Alt + Space.",
   "dictation.installVoxtype": "Suiteáil Voxtype + samhail AI (~150MB) chun deachtú a chumasú?",
   "dictation.superwhisperReady": "Deachtú Superwhisper réidh",

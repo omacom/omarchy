@@ -103,6 +103,7 @@
   "default.browserSet": "%1 je teraz predvolený prehliadač",
   "default.editorSet": "%1 je teraz predvolený editor",
   "default.terminalSet": "%1 je teraz predvolený terminál",
+  "dictation.hexReady": "Diktovanie Hex pripravené",
   "dictation.hint": "Na diktovanie podržte pravý Alt, alebo prepnite Alt + Space.",
   "dictation.installVoxtype": "Nainštalovať Voxtype + AI model (~150MB) a zapnúť diktovanie?",
   "dictation.superwhisperReady": "Diktovanie Superwhisper pripravené",
