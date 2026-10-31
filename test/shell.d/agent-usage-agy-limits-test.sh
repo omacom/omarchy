@@ -92,6 +92,18 @@ read = limits({"groups": [
 ]})
 expect("Antigravity collector finds the Gemini group wherever it is listed", [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5)], read)
 
+# Google's quota endpoint can answer with the Claude and GPT pool alone: those
+# are the scoped allowances they are, shown under their own names, and the
+# plan's Session and Weekly meters are absent rather than wearing 3P numbers.
+read = limits({"groups": [
+  {"displayName": "Claude and GPT models", "buckets": [
+    {"bucketId": "3p-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "resetTime": "2026-09-18T12:56:14Z", "remainingFraction": 0.98},
+    {"bucketId": "3p-5h", "displayName": "Five Hour Limit Remaining", "window": "5h", "resetTime": "2026-09-15T22:16:22Z", "remainingFraction": 1.0},
+  ]},
+]})
+expect("Antigravity collector reads an answer with no Gemini group as allowances only, never as the plan's meters",
+       [(entry["label"], round(entry["percent"], 2)) for entry in read], [("Claude/GPT Weekly", 0.02)], read)
+
 read = limits({"buckets": [
   {"window": "5h", "remaining_fraction": 0.4, "reset_time": "2026-09-15T19:31:46Z"},
   {"window": "weekly", "remainingFraction": "plenty"},
