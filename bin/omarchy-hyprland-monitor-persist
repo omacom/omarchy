@@ -33,6 +33,16 @@ if [[ -z $output || -z $scale ]]; then
   exit 1
 fi
 
+# Everything here is written into Lua that Hyprland loads on every change, so
+# a value that isn't plainly a connector, number, mode or position would leave
+# the whole config unloadable.
+if [[ ! $output =~ ^[A-Za-z0-9._-]+$ || ! $scale =~ ^[0-9]+([.][0-9]+)?$ ]] ||
+  [[ -n $mode && ! $mode =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]] ||
+  [[ -n $position && ! $position =~ ^-?[0-9]+x-?[0-9]+$ ]]; then
+  echo "Refusing to save an unsafe monitor rule: $*" >&2
+  exit 1
+fi
+
 [[ -f $monitor_lua ]] || exit 0
 
 # GDK_SCALE is one value for the whole session, so it follows the lowest
@@ -90,7 +100,7 @@ if ! awk -v output="$output" -v scale="$scale" -v mode="$mode" -v position="$pos
   exit 0
 fi
 
-if (( ! keep_gdk )); then
+if (( ! keep_gdk )) && [[ $gdk_scale =~ ^[0-9]+$ ]]; then
   sed -i -E \
     -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
     -e 's|^hl\.env\("GDK_SCALE", "[^"]*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \

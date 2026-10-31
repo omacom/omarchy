@@ -289,3 +289,13 @@ grep -F 'hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/
 grep -Fx 'hl.monitor({ output = "DP-1", mode = "preferred", position = "960x0", scale = 1 })' "$monitor_lua" >/dev/null ||
   fail "monitor resolution saves its neighbour's new position"
 pass "monitor resolution closes the layout up around a smaller mode"
+
+# A rule is Lua Hyprland loads on every change, so a value out of place (here a
+# flag it doesn't know, shifting a connector into the scale) writes nothing.
+write_monitor_config
+cp "$monitor_lua" "$test_tmp/expected.lua"
+if HOME="$home_dir" PATH="$stub_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-persist" --other eDP-1 2 2>/dev/null; then
+  fail "monitor persist refuses a rule with a value out of place"
+fi
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "monitor persist leaves the config alone when it refuses"
+pass "monitor persist refuses a rule that would break the config"
