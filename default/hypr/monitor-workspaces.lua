@@ -29,9 +29,10 @@ local SLOTS = 10
 local STATE_DIR = paths.state_home .. "/omarchy/monitors"
 local STATE_FILE = STATE_DIR .. "/workspaces"
 local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
--- Where the blocks lived before moving into monitors/, read until a migration
+-- Where these lived before moving into monitors/, read until a migration
 -- moves them, in case the config reloads first.
 local OLD_STATE_FILE = paths.state_home .. "/omarchy/monitor-workspaces"
+local OLD_MERGED_FILE = paths.state_home .. "/omarchy/monitor-workspaces-merged"
 
 local M = { slots = SLOTS }
 
@@ -69,7 +70,7 @@ load_blocks()
 local merged = {}
 
 local function load_merged()
-  local file = io.open(MERGED_FILE, "r")
+  local file = io.open(MERGED_FILE, "r") or io.open(OLD_MERGED_FILE, "r")
   if not file then
     return
   end

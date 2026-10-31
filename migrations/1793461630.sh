@@ -3,20 +3,20 @@ echo "Move each monitor's workspace blocks and scaling log into ~/.local/state/o
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 mkdir -p "$state_dir/monitors"
 
-# The blocks give every monitor back its own workspaces when it's plugged in.
-# A config reload after the update may already have carried them over, reading
-# the old file and writing the new one; then the old one only needs to go.
-if [[ -f $state_dir/monitor-workspaces ]]; then
-  if [[ -f $state_dir/monitors/workspaces ]]; then
-    rm -f "$state_dir/monitor-workspaces"
-  else
-    mv "$state_dir/monitor-workspaces" "$state_dir/monitors/workspaces"
+# The blocks give every monitor back its own workspaces when it's plugged in,
+# and the merged list sends an unplugged monitor's workspaces home when it
+# returns, which an update in the middle of a session must not forget. A config
+# reload after the update may already have carried either over, reading the old
+# file and writing the new one; then the old one only needs to go.
+for name in workspaces workspaces-merged; do
+  if [[ -f $state_dir/monitor-$name ]]; then
+    if [[ -f $state_dir/monitors/$name ]]; then
+      rm -f "$state_dir/monitor-$name"
+    else
+      mv "$state_dir/monitor-$name" "$state_dir/monitors/$name"
+    fi
   fi
-fi
-
-# Where unplugged monitors' workspaces came from is forgotten every session, so
-# the old file is simply dropped.
-rm -f "$state_dir/monitor-workspaces-merged"
+done
 
 # The scaling log is history, kept ahead of any entries written since.
 if [[ -f $state_dir/monitor-scaling.log ]]; then
