@@ -73,6 +73,30 @@ local function rule(name, saved)
   return { output = name, mode = saved.mode, position = saved.position, scale = saved.scale }
 end
 
+-- GDK_SCALE is one value for the whole session, so it follows the lowest
+-- monitor scale: XWayland apps end up a little small on denser screens rather
+-- than oversized on the others. GTK only honors integers, so round it. Left to
+-- hypr/monitors.lua until a scale has been chosen here.
+local function set_gdk_scale(settings, identities)
+  local lowest = nil
+  local chosen = false
+
+  for _, monitor in ipairs(hl.get_monitors()) do
+    if not monitor.is_mirror then
+      local saved = settings[identities[monitor.name]]
+      chosen = chosen or (saved ~= nil and saved.scale ~= nil)
+      local scale = (saved and saved.scale) or monitor.scale
+      if scale and (not lowest or scale < lowest) then
+        lowest = scale
+      end
+    end
+  end
+
+  if chosen and lowest then
+    hl.env("GDK_SCALE", tostring(math.max(1, math.floor(lowest + 0.5))))
+  end
+end
+
 -- Apply the saved settings of the connected monitors, or just of `only`. While
 -- the config loads every one is applied, since the rules just read from
 -- hypr/monitors.lua would otherwise win; afterwards one already running as
@@ -84,30 +108,23 @@ function M.apply(loading, only)
   end
 
   local identities = o.workspaces.identities()
-  local lowest = nil
-  local chosen = false
-
   for _, monitor in ipairs(hl.get_monitors()) do
-    if not monitor.is_mirror then
-      local saved = settings[identities[monitor.name]]
-      if saved and (not only or monitor.name == only) and (loading or not matches(monitor, saved)) then
-        hl.monitor(rule(monitor.name, saved))
-      end
-
-      chosen = chosen or (saved ~= nil and saved.scale ~= nil)
-      local scale = (saved and saved.scale) or monitor.scale
-      if scale and (not lowest or scale < lowest) then
-        lowest = scale
-      end
+    local saved = settings[identities[monitor.name]]
+    if not monitor.is_mirror and saved and (not only or monitor.name == only)
+        and (loading or not matches(monitor, saved)) then
+      hl.monitor(rule(monitor.name, saved))
     end
   end
 
-  -- GDK_SCALE is one value for the whole session, so it follows the lowest
-  -- monitor scale: XWayland apps end up a little small on denser screens
-  -- rather than oversized on the others. GTK only honors integers, so round
-  -- it. Left to hypr/monitors.lua until a scale has been chosen here.
-  if chosen and lowest then
-    hl.env("GDK_SCALE", tostring(math.max(1, math.floor(lowest + 0.5))))
+  set_gdk_scale(settings, identities)
+end
+
+-- Bring GDK_SCALE up to date after a save, without touching any monitor: the
+-- command that saved has already applied the change, in the order it chose.
+function M.update_gdk_scale()
+  local settings = load()
+  if next(settings) ~= nil then
+    set_gdk_scale(settings, o.workspaces.identities())
   end
 end
 

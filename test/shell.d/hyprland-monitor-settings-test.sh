@@ -100,6 +100,19 @@ check(env.GDK_SCALE == "1", "rounds 1.25 down to 1, got " .. tostring(env.GDK_SC
 ' || fail "monitor settings round GDK_SCALE down"
 pass "monitor settings set GDK_SCALE from the lowest scale"
 
+# After a save, GDK_SCALE follows without any monitor being touched: the command
+# that saved has already applied the change in its own order.
+printf '%s\t%s\t%s\t%s\n' "1920x1200@60" "0x0" "1" "LG Display 0x0804" >"$settings"
+run_lua '
+plug("eDP-1", "LG Display 0x0804", { width = 2880, height = 1800, refresh_rate = 120, scale = 2, x = 0, y = 0 })
+load_module()
+applied, env = {}, {}
+o.monitor_settings.update_gdk_scale()
+check(#applied == 0, "touches no monitor")
+check(env.GDK_SCALE == "1", "sets GDK_SCALE from the saved scale, got " .. tostring(env.GDK_SCALE))
+' || fail "monitor settings update GDK_SCALE without touching monitors"
+pass "monitor settings update GDK_SCALE without touching monitors"
+
 # Until something is saved, monitors.lua alone decides, GDK_SCALE included.
 rm -f "$settings"
 run_lua '

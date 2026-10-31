@@ -11,12 +11,13 @@
 
 usage() {
   echo "Usage: omarchy-hyprland-monitor-layout NAME=XxY [NAME=XxY...]"
-  echo "       omarchy-hyprland-monitor-layout --resized NAME OLD_MODE OLD_SCALE NEW_MODE NEW_SCALE"
+  echo "       omarchy-hyprland-monitor-layout --resized NAME OLD_SIZE OLD_SCALE NEW_SIZE NEW_SCALE [MODE]"
 }
 
 monitors_json=$(hyprctl monitors -j)
 resized_name=""
 resized_scale=""
+resized_mode=""
 
 # A monitor whose mode or scale changed keeps its corner, and every monitor to
 # its right or below it shifts by however much it grew or shrank, so the
@@ -27,11 +28,20 @@ resized_scale=""
 # the overlapping ones first and then any whose return frees the way for them;
 # a gap is better than a pile-up. If overlaps still remain, the monitors keep
 # their old places when those are clear.
+#
+# Given the MODE, the resized monitor takes its new mode and scale in the same
+# eval as its neighbours move, ordered so no step overlaps: the ones moving away
+# from it first, then it, then the ones closing in. Resized on its own first, a
+# monitor that grew would sit over a neighbour until it moved, and Hyprland
+# warns about the overlap.
 if [[ ${1:-} == "--resized" ]]; then
-  if (( $# != 6 )) || [[ ! $3 =~ ^[0-9]+x[0-9]+$ || ! $5 =~ ^[0-9]+x[0-9]+$ ]]; then
+  if (( $# != 6 && $# != 7 )) || [[ ! $3 =~ ^[0-9]+x[0-9]+$ || ! $5 =~ ^[0-9]+x[0-9]+$ ]] ||
+    [[ ! $4 =~ ^[0-9]+([.][0-9]+)?$ || ! $6 =~ ^[0-9]+([.][0-9]+)?$ ]] ||
+    [[ -n ${7:-} && ! $7 =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]]; then
     usage >&2
     exit 1
   fi
+  resized_mode="${7:-}"
   mapfile -t positions < <(jq -r --arg name "$2" \
     --argjson ow "${3%x*}" --argjson oh "${3#*x}" --argjson os "$4" \
     --argjson nw "${5%x*}" --argjson nh "${5#*x}" --argjson ns "$6" '
@@ -61,6 +71,7 @@ if [[ ${1:-} == "--resized" ]]; then
       | unpile
       | (map(.x = .ox | .y = .oy)) as $old
       | if piled and ($old | piled | not) then $old else . end
+      | sort_by(if .name == $name then 1 elif .x > .ox or .y > .oy then 0 else 2 end)
       | .[] | "\(.name)=\(.x)x\(.y)"
     end' <<<"$monitors_json")
   resized_name="$2"
@@ -94,7 +105,11 @@ for arg in "$@"; do
 
   names+=("$name")
   positions+=("$position")
-  expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
+  if [[ $name == "$resized_name" && -n $resized_mode ]]; then
+    expr+="hl.monitor({ output = \"$name\", mode = \"$resized_mode\", position = \"$position\", scale = $resized_scale }) "
+  else
+    expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
+  fi
 done
 
 hyprctl eval "$expr" >/dev/null

@@ -238,6 +238,17 @@ grep -F 'hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/
 [[ $(setting DP-1) == "|960x0|1" ]] || fail "monitor resolution saves its neighbour's new position" "actual: $(setting DP-1)"
 pass "monitor resolution closes the layout up around a smaller mode"
 
+# The resize and the moves around it are one eval, ordered so no step overlaps
+# and Hyprland has nothing to warn about: a shrinking monitor resizes before its
+# neighbour closes in, and a growing one waits for its neighbour to move away.
+grep -F 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2 }) hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/null ||
+  fail "monitor resolution shrinks before its neighbour closes in" "actual: $(<"$eval_out")"
+fresh
+OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_scaling 1.6
+grep -F 'hl.monitor({ output = "DP-1", position = "1800x0" }) hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 1.6 })' "$eval_out" >/dev/null ||
+  fail "monitor scaling grows only after its neighbour moves away" "actual: $(<"$eval_out")"
+pass "monitor resizes and moves apply in one step without overlapping"
+
 # Two screens stacked on the left of a tall one: shrinking the top-left one
 # would pull the tall one left and the lower one up onto each other, so the one
 # that can go back does, and nothing overlaps.
