@@ -1948,13 +1948,14 @@ ShellRoot {
         ? shell.bar.panelWidgetIdAt(section, index)
         : ""
       if (!id) return "unknown"
-      // A replacement bar cloned before toggleBarWidget existed still has the shell route.
+      var toggled = false
       if (typeof shell.bar.toggleBarWidget === "function") {
-        return shell.bar.toggleBarWidget(id) ? id : "unknown"
-      } else {
-        shell.toggle(id, "{}")
-        return id
+        toggled = shell.bar.toggleBarWidget(id)
+      } else if (typeof shell.bar.isBarWidgetOpen === "function") {
+        // A replacement bar cloned before toggleBarWidget existed; shell.toggle would open an overlay instead.
+        toggled = shell.bar.isBarWidgetOpen(id) ? shell.bar.hideBarWidget(id) : shell.bar.summonBarWidget(id)
       }
+      return toggled ? id : "unknown"
     }
 
     function call(id: string, method: string, arg: string): string {
