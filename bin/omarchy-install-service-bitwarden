@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Install Bitwarden and launch it.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Bitwarden..."
+omarchy-pkg-add bitwarden
+
+if omarchy-pkg-missing bitwarden-cli; then
+  echo "Installing Bitwarden CLI..."
+  if ! omarchy-pkg-add bitwarden-cli; then
+    echo ""
+    echo "Bitwarden desktop was installed, but Bitwarden CLI could not be installed."
+    echo "See the pacman output above."
+    if [[ "$(pacman -Qq nodejs 2>/dev/null)" == "nodejs" ]]; then
+      echo "bitwarden-cli depends on a Node.js LTS package that conflicts with the installed nodejs package"
+      echo "(often pulled in by Cursor or Zed)."
+      echo "Install the CLI later with: sudo pacman -S bitwarden-cli"
+      echo "Pacman will ask to replace nodejs. The LTS package provides nodejs, so Cursor and Zed keep working."
+    fi
+  fi
+fi
+
+echo "Opening Bitwarden..."
+setsid uwsm-app -- gtk-launch bitwarden >/dev/null 2>&1 &
+
+echo ""
+echo "Bitwarden has been installed."
