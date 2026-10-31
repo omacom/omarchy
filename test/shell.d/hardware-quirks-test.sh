@@ -289,6 +289,9 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-ptl+unreadable|0
 # has to surface rather than be swallowed by a successful install.
 hardware/dell-xps13-sidecar-amps.sh|xps13-apply-fails|1|pkg-add dell-xps13-sidecar-amps|sudo dell-xps13-sidecar-amps-apply
 hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sidecar-amps
+# Wildcat Lake's GPU is named only "[Intel Graphics]".
+hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
+hardware/intel/video-acceleration.sh|nouveau|0
 user/hardware/fix-nouveau-cursor.sh|nouveau|0|wrote home/.config/hypr/looknfeel.lua
 # Supported GPUs still use nouveau during installation before switching drivers on reboot.
 user/hardware/fix-nouveau-cursor.sh|nouveau-proprietary|0
