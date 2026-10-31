@@ -319,7 +319,7 @@
     "label": "Hız Testi"
   },
   "trigger.hardware.touchpad-haptics": {
-    "label": "Dokunmatik Titreşim"
+    "label": "Dokunmatik Yüzey Titreşimi"
   },
   "trigger.hardware.touchpad-haptics.low": {
     "label": "düşük"
@@ -582,7 +582,7 @@
     "label": "XCompose"
   },
   "setup.direct-boot": {
-    "label": "Doğrudan Başlatma"
+    "label": "Doğrudan Önyükleme"
   },
   "setup.reset": {
     "label": "Bilgisayarı Sıfırla"
@@ -1170,25 +1170,25 @@
     "label": "Pencereler"
   },
   "appearance.windows.gaps-on": {
-    "label": "Pencere Boşlukları Açık"
+    "label": "Pencere Boşluklarını Aç"
   },
   "appearance.windows.gaps-off": {
-    "label": "Pencere Boşlukları Kapalı"
+    "label": "Pencere Boşluklarını Kapat"
   },
   "appearance.windows.one-window-ratio-on": {
-    "label": "Tek Pencere Oranı Açık"
+    "label": "Tek Pencere Oranını Aç"
   },
   "appearance.windows.one-window-ratio-off": {
-    "label": "Tek Pencere Oranı Kapalı"
+    "label": "Tek Pencere Oranını Kapat"
   },
   "appearance.branding": {
     "label": "Markalama"
   },
   "appearance.animations-on": {
-    "label": "Animasyonlar Açık"
+    "label": "Animasyonları Aç"
   },
   "appearance.animations-off": {
-    "label": "Animasyonlar Kapalı"
+    "label": "Animasyonları Kapat"
   },
   "trigger.toggle.idle-lock-on": {
     "label": "Uyanık Kal"
@@ -1197,28 +1197,28 @@
     "label": "Uykuya İzin Ver"
   },
   "trigger.toggle.notifications-on": {
-    "label": "Bildirimler Açık"
+    "label": "Bildirimleri Aç"
   },
   "trigger.toggle.notifications-off": {
     "label": "Bildirimleri Sessize Al"
   },
   "trigger.toggle.nightlight-on": {
-    "label": "Gece Işığı Açık"
+    "label": "Gece Işığını Aç"
   },
   "trigger.toggle.nightlight-off": {
-    "label": "Gece Işığı Kapalı"
+    "label": "Gece Işığını Kapat"
   },
   "trigger.toggle.screensaver-on": {
-    "label": "Ekran Koruyucu Açık"
+    "label": "Ekran Koruyucuyu Aç"
   },
   "trigger.toggle.screensaver-off": {
-    "label": "Ekran Koruyucu Kapalı"
+    "label": "Ekran Koruyucuyu Kapat"
   },
   "trigger.toggle.crash-capture-on": {
-    "label": "Çökme Yakalama Açık"
+    "label": "Çökme Yakalamayı Aç"
   },
   "trigger.toggle.crash-capture-off": {
-    "label": "Çökme Kaydını Kapat"
+    "label": "Çökme Yakalamayı Kapat"
   },
   "trigger.hardware.laptop-display-on": {
     "label": "Dizüstü Ekranını Aç"
@@ -1239,10 +1239,10 @@
     "label": "Tümleşik GPU'ya Geç"
   },
   "trigger.hardware.touchpad-on": {
-    "label": "Touchpad'i Etkinleştir"
+    "label": "Dokunmatik Yüzeyi Etkinleştir"
   },
   "trigger.hardware.touchpad-off": {
-    "label": "Touchpad'i Devre Dışı Bırak"
+    "label": "Dokunmatik Yüzeyi Devre Dışı Bırak"
   },
   "trigger.hardware.touchscreen-on": {
     "label": "Dokunmatik Ekranı Etkinleştir"
