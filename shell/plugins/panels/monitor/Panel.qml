@@ -42,15 +42,14 @@ Panel {
   // Cursor model shared by keyboard and mouse. Sections, top to bottom:
   //   "displays"   - the display picker in the hero; h/l shows the next one.
   //                  Only present with more than one display.
-  // The shown display's rows:
-  //   "brightness" - its brightness slider, selectedIndex = -1 sentinel
-  //                  (mirrors Audio's slider rows); only present when its
-  //                  brightness can be controlled.
-  //   "scale"      - its scale presets.
+  //   "brightness" - the shown display's brightness slider, selectedIndex = -1
+  //                  sentinel (mirrors Audio's slider rows); only present when
+  //                  its brightness can be controlled.
+  //   "textsize"   - single slider row, the same -1 sentinel; one size for
+  //                  every display.
+  //   "scale"      - the shown display's scale presets.
   //   "resolution" - the resolutions it advertises, when it has more than one
   //                  to offer.
-  // Then the settings every display shares:
-  //   "textsize"   - single slider row, the same -1 sentinel.
   //   "layout"     - the arrangement of the displays; h/l moves the shown one
   //                  to the left or right of the rest.
   // Every section is one row: j/k steps between them, h/l moves a slider or
@@ -161,12 +160,10 @@ Panel {
   readonly property var visibleSections: {
     var list = []
     if (segments.length > 1) list.push("displays")
-    if (current) {
-      if (currentBrightness >= 0) list.push("brightness")
-      if (current.scales.length > 0) list.push("scale")
-      if (current.resolutions.length > 0) list.push("resolution")
-    }
+    if (currentBrightness >= 0) list.push("brightness")
     list.push("textsize")
+    if (current && current.scales.length > 0) list.push("scale")
+    if (current && current.resolutions.length > 0) list.push("resolution")
     if (layoutRects.length > 1) list.push("layout")
     return list
   }
@@ -397,7 +394,7 @@ Panel {
 
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
   // One size for the whole session: the shell font, GTK and the terminals each
-  // take a single value, so unlike the rows above it isn't per display.
+  // take a single value, so unlike the rows around it it isn't per display.
   function nearestTextStop(px) {
     var best = 0
     var bestDist = 1e9
@@ -763,6 +760,74 @@ Panel {
             }
           }
 
+          // ---------- Text size ----------
+          PanelSeparator {
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(6)
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(textSizeHeader.implicitHeight, textSizePx.implicitHeight)
+
+              PanelSectionHeader {
+                id: textSizeHeader
+                text: Commons.I18n.t("monitor.textSize")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: textSizePx
+                textFormat: Text.PlainText
+                text: Commons.I18n.formatNumber(textSizeSlider.dragging
+                       ? root.textSizeStops[Math.round(textSizeSlider.liveValue)]
+                       : root.displayedTextPx()) + "px"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
+            }
+
+            CursorSurface {
+              id: textSizeRow
+              width: parent.width
+              height: textSizeSlider.implicitHeight + Style.spacing.controlGap
+              hasCursor: root.cursorActive && root.focusSection === "textsize" && root.selectedIndex === -1
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(textSizeRow)
+              foreground: root.bar.foreground
+              outline: true
+
+              PanelSlider {
+                id: textSizeSlider
+                bar: root.bar
+                anchors.fill: parent
+                anchors.leftMargin: Style.space(6)
+                anchors.rightMargin: Style.space(6)
+                minimum: 0
+                maximum: root.textSizeStops.length - 1
+                step: 1
+                integer: true
+                tickCount: root.textSizeStops.length
+                value: root.currentTextIndex()
+                onReleased: function(v) { root.setTextSize(root.textSizeStops[Math.round(v)]) }
+              }
+
+              HoverHandler {
+                onHoveredChanged: if (hovered) root.pointAt("textsize", -1)
+              }
+            }
+          }
+
           // ---------- Scale ----------
           PanelSeparator {
             visible: root.current !== null && root.current.scales.length > 0
@@ -856,74 +921,6 @@ Panel {
                   resolutionIndex: index
                   width: resolutionGrid.cellWidth
                 }
-              }
-            }
-          }
-
-          // ---------- Text size ----------
-          PanelSeparator {
-            foreground: root.bar.foreground
-          }
-
-          Column {
-            width: parent.width
-            spacing: Style.space(6)
-
-            Item {
-              width: parent.width
-              implicitHeight: Math.max(textSizeHeader.implicitHeight, textSizePx.implicitHeight)
-
-              PanelSectionHeader {
-                id: textSizeHeader
-                text: Commons.I18n.t("monitor.textSize")
-                foreground: root.bar.foreground
-                fontFamily: root.bar.fontFamily
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-              }
-
-              Text {
-                id: textSizePx
-                textFormat: Text.PlainText
-                text: Commons.I18n.formatNumber(textSizeSlider.dragging
-                       ? root.textSizeStops[Math.round(textSizeSlider.liveValue)]
-                       : root.displayedTextPx()) + "px"
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(6)
-                anchors.verticalCenter: parent.verticalCenter
-              }
-            }
-
-            CursorSurface {
-              id: textSizeRow
-              width: parent.width
-              height: textSizeSlider.implicitHeight + Style.spacing.controlGap
-              hasCursor: root.cursorActive && root.focusSection === "textsize" && root.selectedIndex === -1
-              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(textSizeRow)
-              foreground: root.bar.foreground
-              outline: true
-
-              PanelSlider {
-                id: textSizeSlider
-                bar: root.bar
-                anchors.fill: parent
-                anchors.leftMargin: Style.space(6)
-                anchors.rightMargin: Style.space(6)
-                minimum: 0
-                maximum: root.textSizeStops.length - 1
-                step: 1
-                integer: true
-                tickCount: root.textSizeStops.length
-                value: root.currentTextIndex()
-                onReleased: function(v) { root.setTextSize(root.textSizeStops[Math.round(v)]) }
-              }
-
-              HoverHandler {
-                onHoveredChanged: if (hovered) root.pointAt("textsize", -1)
               }
             }
           }
