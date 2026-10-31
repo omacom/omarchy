@@ -48,3 +48,10 @@ touch "$tmp_dir/home/.local/share/applications/YouTube.desktop"
 HOME="$tmp_dir/home" OMARCHY_UPGRADE_TO_QUATTRO_LIVE=1 "$ROOT/bin/omarchy-webapp-remove" YouTube
 ! grep -Fq 'hyprctl:reload' "$TEST_LOG" || fail "web app removal does not reload Hyprland during the live quattro upgrade"
 pass "web app removal does not reload Hyprland during the live quattro upgrade"
+
+: >"$TEST_LOG"
+printf '[Desktop Entry]\nName=YouTube\nExec=omarchy-launch-webapp https://youtube.com/\n' >"$tmp_dir/home/.local/share/applications/YouTube.desktop"
+HOME="$tmp_dir/home" "$ROOT/bin/omarchy-webapp-remove-all" >/dev/null
+[[ ! -e $tmp_dir/home/.local/share/applications/YouTube.desktop ]] || fail "removing all web apps deletes their launcher entries"
+grep -Fxq 'hyprctl:reload' "$TEST_LOG" || fail "removing all web apps reloads Hyprland so their bindings go away" "$(cat "$TEST_LOG")"
+pass "removing all web apps reloads Hyprland so their bindings go away"
