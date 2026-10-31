@@ -22,7 +22,7 @@ cat >"$tmpdir/fake.lua" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 
 -- Neighbours map a monitor to the one in each direction, l, r, u or d.
-world = { monitors = {}, workspaces = {}, windows = {}, neighbours = {}, focused = nil, active_window = nil, swaps = 0, handlers = {} }
+world = { monitors = {}, workspaces = {}, windows = {}, neighbours = {}, rules = {}, focused = nil, active_window = nil, swaps = 0, handlers = {} }
 
 o = {
   bind_expressions = {},
@@ -126,7 +126,7 @@ end
 
 local function resolve(id)
   local workspace = workspace_numbered(id)
-  return workspace or create(id, world.focused)
+  return workspace or create(id, world.rules[id] or world.focused)
 end
 
 hl = {
@@ -342,6 +342,33 @@ check(o.bind_expressions[m.move_window(3, false)] == "o.workspaces.move_window(3
 check(o.bind_expressions[m.focus(2, "DP-1")] == "o.workspaces.focus(2, \"DP-1\")", "the bar names its monitor")
 ' || fail "Super + N acts on the focused monitor's own workspaces"
 pass "Super + N acts on the focused monitor's own workspaces"
+
+for action in focus follow silent; do
+  run_lua "rule-$action" '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "External", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.active_window = "0xa"
+-- A rule retained from a global workspace plan sends a newly created slot
+-- to another monitor. There is nothing for reclaim() to move before creation.
+world.rules[2] = "DP-1"
+local action = "'"$action"'"
+if action == "focus" then
+  hl.dispatch(m.focus(2))
+else
+  hl.dispatch(m.move_window(2, action ~= "silent"))
+  check(world.windows["0xa"].workspace == 2, "the window must reach the requested slot")
+end
+check(on(2) == "eDP-1", "a new slot followed the old rule onto the other monitor")
+check(world.focused == "eDP-1", "the action switched monitors")
+check(shows("eDP-1") == (action == "silent" and 1 or 2), "silent/follow behavior changed")
+check(shows("DP-1") == 11, "the other monitor lost its visible workspace")
+' || fail "$action keeps a new slot on its monitor despite a conflicting creation rule"
+  pass "$action keeps a new slot on its monitor despite a conflicting creation rule"
+done
 
 run_lua reclaim '
 plug("eDP-1", 0, "Panel", 1)

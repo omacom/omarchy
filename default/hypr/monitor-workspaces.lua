@@ -327,6 +327,14 @@ end
 local function show(monitor, id)
   local workspace = hl.get_workspace(id)
 
+  if not workspace then
+    hl.dispatch(hl.dsp.focus({ monitor = monitor.name }))
+    hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
+    workspace = hl.get_workspace(id)
+  end
+
+  -- Creation applies workspace monitor rules, which can point to a different
+  -- monitor even after focusing this one. Check placement after creation too.
   if workspace and workspace.monitor and workspace.monitor.name ~= monitor.name then
     hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = monitor.name }))
     workspace = hl.get_workspace(id)
@@ -334,9 +342,6 @@ local function show(monitor, id)
 
   if workspace then
     monitor:set_workspace({ workspace = workspace.name })
-  else
-    hl.dispatch(hl.dsp.focus({ monitor = monitor.name }))
-    hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
   end
 end
 
@@ -367,6 +372,7 @@ local function reclaim(monitor, id)
 
   local monitors = connected()
   settle(away, monitors, assign(monitors))
+  return true
 end
 
 -- Renumber a workspace into a block, keeping its slot when that one is free and
@@ -450,6 +456,12 @@ function M.focus(slot, monitor_name)
     local id = M.workspace_id(monitor, slot)
     reclaim(monitor, id)
     hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
+    -- A new workspace did not exist when reclaim first checked it. An older
+    -- monitor rule may have created it elsewhere and taken focus with it.
+    if reclaim(monitor, id) then
+      show(monitor, id)
+      hl.dispatch(hl.dsp.focus({ monitor = monitor.name }))
+    end
   end, "o.workspaces.focus(" .. slot .. (monitor_name and ", " .. literal(monitor_name) or "") .. ")")
 end
 
@@ -464,8 +476,17 @@ function M.move_window(slot, follow)
     end
 
     local id = M.workspace_id(monitor, slot)
+    local previous = monitor.active_workspace
     reclaim(monitor, id)
     hl.dispatch(hl.dsp.window.move({ workspace = tostring(id), follow = follow ~= false, window = "address:" .. window.address }))
+    if reclaim(monitor, id) then
+      if follow == false and regular(previous) then
+        show(monitor, previous.id)
+      else
+        show(monitor, id)
+      end
+      hl.dispatch(hl.dsp.focus({ monitor = monitor.name }))
+    end
   end, "o.workspaces.move_window(" .. slot .. (follow == false and ", false" or "") .. ")")
 end
 
