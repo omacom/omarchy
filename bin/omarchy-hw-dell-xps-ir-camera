@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Match Dell XPS systems with the Himax HM1092 IR camera and its IR flood LED.
+# omarchy:hidden=true
+
+# Detect straight from sysfs so this answers before any camera driver is
+# installed: the face setup installs the driver once this says the camera is
+# there.
+acpi_devices="${OMARCHY_ACPI_DEVICES_PATH:-/sys/bus/acpi/devices}"
+leds_path="${OMARCHY_LEDS_PATH:-/sys/class/leds}"
+
+sensor_hid="HIMX1092"
+
+omarchy-hw-match "XPS" || exit 1
+
+# The DSDT lists the same sensor id once per module variant Dell fits, and only
+# the fitted one reports _STA present (bit 0) and enabled (bit 1).
+sensor_present() {
+  local device status
+
+  for device in "$acpi_devices/$sensor_hid":*; do
+    [[ -r $device/status ]] || continue
+    status=$(<"$device/status")
+    [[ $status =~ ^[0-9]+$ ]] || continue
+    (( (status & 3) == 3 )) && return 0
+  done
+  return 1
+}
+
+# The in-tree INT3472 driver exposes the module's IR flood illuminator as a LED
+# named after the sensor, with no sensor driver needed.
+led_present() {
+  local led
+
+  for led in "$leds_path/${sensor_hid}_"*"::ir_flood_led"; do
+    [[ -d $led ]] && return 0
+  done
+  return 1
+}
+
+sensor_present && led_present
