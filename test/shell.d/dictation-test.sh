@@ -241,9 +241,11 @@ assert(#bindings == 3, "any installed backend receives Alt + Space and Right Alt
 assert(binds("ALT + SPACE", "omarchy-dictation toggle"), "Alt + Space toggles dictation")
 assert(binds("ALT + Alt_R", "omarchy-dictation start") and binds("ALT + Alt_R", "omarchy-dictation stop"),
   "Right Alt starts dictation on press and stops it on release")
+assert(o.dictation_installed(), "personal dictation keys see the installed backend")
 bindings, installed = {}, false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
+assert(not o.dictation_installed(), "personal dictation keys release their keys once the backend is gone")
 LUA
 pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
 

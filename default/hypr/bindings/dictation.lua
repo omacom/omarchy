@@ -1,12 +1,17 @@
--- Bound only once the chosen backend's own program is installed (Omarchy ships
--- every adapter): an aarch64 machine has no Superwhisper build, and
--- push-to-talk would hold Right Alt (AltGr) for nothing.
-local pipe = io.popen("omarchy-default-dictation 2>/dev/null", "r")
-local backend = pipe and pipe:read("*l")
-if pipe then
-  pipe:close()
+-- Dictation keys are bound only once the chosen backend's own program is
+-- installed (Omarchy ships every adapter): an aarch64 machine has no
+-- Superwhisper build, and push-to-talk would hold Right Alt (AltGr) for
+-- nothing. Personal bindings.lua dictation keys use the same check.
+function o.dictation_installed()
+  local pipe = io.popen("omarchy-default-dictation 2>/dev/null", "r")
+  local backend = pipe and pipe:read("*l")
+  if pipe then
+    pipe:close()
+  end
+  return backend ~= nil and backend:match("^[%w%-]+$") ~= nil and not o.cmd_missing(backend)
 end
-if backend and backend:match("^[%w%-]+$") and not o.cmd_missing(backend) then
+
+if o.dictation_installed() then
   o.bind("ALT + SPACE", "Toggle dictation", "omarchy-dictation toggle")
   -- A modifier's mask changes between its press and release. Match the keysym
   -- independently of that mask; AltGr layouts use a different keysym.
