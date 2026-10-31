@@ -22,6 +22,7 @@ Column {
       implicitHeight: Style.spacing.popupRowHeight
       foreground: list.citySearch.foreground
       hasCursor: list.citySearch.selectedIndex === index
+      accessibleName: match.modelData.label + ((match.modelData.region || match.modelData.value) ? ", " + (match.modelData.region || match.modelData.value) : "")
 
       // The region is what tells Portland, Oregon from Portland, Maine; it
       // gives way first when the line is tight.
@@ -93,6 +94,8 @@ Column {
         onPositionChanged: list.citySearch.selectedIndex = match.index
         onClicked: list.citySearch.pick(match.modelData)
       }
+
+      Accessible.onPressAction: list.citySearch.pick(match.modelData)
     }
   }
 
