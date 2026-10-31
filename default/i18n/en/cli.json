@@ -289,6 +289,8 @@
   "share.couldNot": "Could not share",
   "share.filesTitle": "Share files",
   "share.folderTitle": "Share folder",
+  "shell.actionUnavailable": "Omarchy shell action unavailable",
+  "shell.actionUnavailableBody": "%1 is missing from the running shell. Restart the shell to load updated plugins.",
   "sshd.githubUserPrompt": "GitHub username> ",
   "sshd.howToAddKey": "How would you like to add your SSH key?",
   "sshd.keyFromGithub": "Grab key from GitHub",

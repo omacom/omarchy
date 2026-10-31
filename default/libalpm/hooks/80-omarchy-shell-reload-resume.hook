@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = omarchy
+Target = omarchy-dev
+
+[Action]
+Description = Restarting the Omarchy shell after the package update...
+When = PostTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-shell-reload-guard resume

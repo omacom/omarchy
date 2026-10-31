@@ -7,7 +7,10 @@ shell via `omarchy-launch-shell`; restart it with `omarchy-restart-shell`.
 IPC is the canonical way for CLIs to talk to a running shell —
 `omarchy-shell` forwards a call and fails when the shell is not running
 (`-q` makes it quiet best-effort; `OMARCHY_SHELL_IPC_TIMEOUT` bounds the
-wait).
+wait). A non-quiet call whose target or function is missing from the running
+shell also raises a desktop notification, at most once every five minutes per
+action: during a package update the old shell may not have the newly installed
+plugin yet, and a dead keybinding should say so.
 
 ## Plugin manifest
 
@@ -118,6 +121,7 @@ or `omarchy.power`. There is no `bar` target.
 | `togglePanelAt <section> <index>`     | toggle the panel at a bar position; any center section counts `centerBegin`, `center` and `centerEnd` as one |
 | `call <id> <method> <arg>`            | call an already-loaded plugin   |
 | `rescanPlugins`                       | re-walk plugin dirs and hot-reload plugin code |
+| `pausePlugins`                        | stop loading plugin QML until the shell restarts (used by the package-update guard) |
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | cycle the bar background from clear to glassy to opaque |
@@ -134,6 +138,13 @@ or `omarchy.power`. There is no `bar` target.
 `setPluginEnabled` takes a string; only literal `"true"` enables. Methods
 answer on stdout with exit 0 — `ok` on success, `unknown` or an error
 string on a miss.
+
+`pausePlugins` is for package transactions. `/usr/share/omarchy` is
+replaced while the shell runs, and loading newly installed plugin QML
+into the old engine can fail on types that engine does not have. A paused
+shell keeps its already-loaded plugins working and is restarted when the
+transaction completes; it never resumes the old engine against the new
+tree.
 
 ## shell.json
 
@@ -186,7 +197,11 @@ The bar's sections run along it in the order `left`, `centerBegin`, `center`, `c
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user
-customizes, `shell.json` is canonical — there is no deep-merge.
+customizes, `shell.json` is canonical — there is no deep-merge. The
+packaged default is read when the shell starts and is not watched: an
+update replaces it and then restarts the shell, so a running shell never
+applies a half-installed plugin list. The user's
+`~/.config/omarchy/shell.json` is watched and applies immediately.
 
 `shell.json` is shell configuration; theme tokens live in `shell.toml`
 (next section). Both are current — they answer different questions. A

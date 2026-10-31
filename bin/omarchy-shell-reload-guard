@@ -1,0 +1,284 @@
+#!/bin/bash
+
+# omarchy:summary=Pause Omarchy shell plugin loads around package transactions.
+# omarchy:hidden=true
+
+set -euo pipefail
+
+command="${1:-}"
+case "$command" in
+  pause | resume | paused) ;;
+  *)
+    echo "Usage: omarchy-shell-reload-guard pause|resume|paused" >&2
+    exit 1
+    ;;
+esac
+
+run_root="${OMARCHY_SHELL_RELOAD_GUARD_RUN_ROOT:-/run/user}"
+state_dir="${OMARCHY_SHELL_RELOAD_GUARD_STATE_DIR:-/run/omarchy/shell-reload-guard}"
+quickshell_bin="${OMARCHY_SHELL_RELOAD_GUARD_QUICKSHELL:-/usr/bin/quickshell}"
+qs_bin="${OMARCHY_SHELL_RELOAD_GUARD_QS:-/usr/bin/qs}"
+restart_bin="${OMARCHY_SHELL_RELOAD_GUARD_RESTART:-/usr/bin/omarchy-restart-shell}"
+locked_bin="${OMARCHY_SHELL_RELOAD_GUARD_LOCKED:-/usr/bin/omarchy-hyprland-session-locked}"
+runuser_bin="${OMARCHY_SHELL_RELOAD_GUARD_RUNUSER:-/usr/bin/runuser}"
+
+log() {
+  printf 'omarchy-shell-reload-guard: %s\n' "$*" >&2
+}
+
+user_for_uid() {
+  getent passwd "$1" | cut -d: -f1
+}
+
+home_for_uid() {
+  getent passwd "$1" | cut -d: -f6
+}
+
+# ALPM hooks run as root. Talk to each session as its owner so the shell's
+# socket and the user manager both belong to the right user.
+as_user() {
+  local uid="$1" runtime_dir="$2" home="$3" user="$4"
+  shift 4
+
+  if (( EUID == 0 )) && [[ -n $user && $user != "root" ]]; then
+    "$runuser_bin" -u "$user" -- env \
+      HOME="$home" \
+      USER="$user" \
+      LOGNAME="$user" \
+      PATH=/usr/local/bin:/usr/bin:/bin \
+      XDG_RUNTIME_DIR="$runtime_dir" \
+      DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus" \
+      "$@"
+  else
+    env \
+      HOME="$home" \
+      USER="$user" \
+      LOGNAME="$user" \
+      PATH=/usr/local/bin:/usr/bin:/bin \
+      XDG_RUNTIME_DIR="$runtime_dir" \
+      DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus" \
+      "$@"
+  fi
+}
+
+# Variables from the running shell's process, not from the hook's environment.
+process_env() {
+  local pid="$1" key="$2" name value
+
+  [[ -r /proc/$pid/environ ]] || return 1
+
+  while IFS='=' read -r name value; do
+    if [[ $name == "$key" ]]; then
+      printf '%s\n' "$value"
+      return 0
+    fi
+  done < <(tr '\0' '\n' <"/proc/$pid/environ")
+
+  return 1
+}
+
+instances_json() {
+  local runtime_dir="$1"
+
+  XDG_RUNTIME_DIR="$runtime_dir" "$quickshell_bin" list -a -j 2>/dev/null || true
+}
+
+instances() {
+  local runtime_dir uid json
+
+  [[ -d $run_root ]] || return 0
+
+  for runtime_dir in "$run_root"/*; do
+    [[ -d $runtime_dir ]] || continue
+
+    uid="${runtime_dir##*/}"
+    [[ $uid =~ ^[0-9]+$ ]] || continue
+
+    json=$(instances_json "$runtime_dir")
+    [[ -n $json ]] || continue
+
+    jq -r --arg runtime_dir "$runtime_dir" --arg uid "$uid" '
+      .[]
+      | select((.config_path // "") | endswith("/shell/shell.qml"))
+      | [$uid, $runtime_dir, .pid, .config_path]
+      | @tsv
+    ' <<<"$json" 2>/dev/null || true
+  done
+}
+
+session_locked() {
+  local uid="$1" runtime_dir="$2" home="$3" user="$4" signature="$5"
+
+  [[ -n $signature && -x $locked_bin ]] || return 1
+
+  as_user "$uid" "$runtime_dir" "$home" "$user" env \
+    HYPRLAND_INSTANCE_SIGNATURE="$signature" \
+    "$locked_bin"
+}
+
+wait_for_exit() {
+  local pid="$1" tries="$2" i
+
+  for ((i = 0; i < tries; i++)); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 0.1
+  done
+
+  ! kill -0 "$pid" 2>/dev/null
+}
+
+record_instance() {
+  local uid="$1" runtime_dir="$2" pid="$3" config_path="$4"
+  local display="$5" signature="$6" action="$7"
+  local key
+
+  if ! mkdir -p "$state_dir"; then
+    log "cannot create state directory $state_dir"
+    return 0
+  fi
+
+  key=$(printf '%s\n%s\n%s\n%s\n' "$runtime_dir" "$config_path" "$display" "$pid" | md5sum | cut -d' ' -f1)
+  if ! printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$uid" "$runtime_dir" "$pid" "$config_path" "$display" "$signature" "$action" \
+    >"$state_dir/$key"; then
+    log "cannot record shell $pid in $state_dir"
+  fi
+}
+
+pause_instance() {
+  local uid="$1" runtime_dir="$2" pid="$3" config_path="$4"
+  local user home omarchy_path display signature action output env_omarchy_path
+
+  [[ $pid =~ ^[0-9]+$ ]] || return 0
+
+  # Another Quickshell config can also live at shell/shell.qml. Only touch a
+  # shell whose own OMARCHY_PATH names the tree it is running from.
+  env_omarchy_path=$(process_env "$pid" OMARCHY_PATH || true)
+  env_omarchy_path=${env_omarchy_path%/}
+  if [[ -n $env_omarchy_path && $config_path != "$env_omarchy_path/shell/shell.qml" ]]; then
+    return 0
+  fi
+
+  user=$(user_for_uid "$uid") || return 0
+  [[ -n $user ]] || return 0
+  home=$(home_for_uid "$uid") || home=/
+  omarchy_path=${config_path%/shell/shell.qml}
+  display=$(process_env "$pid" WAYLAND_DISPLAY || true)
+  signature=$(process_env "$pid" HYPRLAND_INSTANCE_SIGNATURE || true)
+
+  # The shell answers only after it has loaded its own IPC target. A timeout
+  # or a missing method is an old shell: it cannot protect itself, so stop it
+  # cleanly and let the post-transaction hook start the new one.
+  output=$(as_user "$uid" "$runtime_dir" "$home" "$user" \
+    timeout --kill-after=1s 2s "$qs_bin" ipc --pid "$pid" call -- shell pausePlugins 2>/dev/null || true)
+
+  if [[ $output == "ok" ]]; then
+    action="paused"
+  else
+    # Stopping a lock client would strand the session behind Hyprland's
+    # failsafe. Leave it running instead; the next restart loads the new tree.
+    if session_locked "$uid" "$runtime_dir" "$home" "$user" "$signature"; then
+      log "leaving locked shell $pid running; it cannot pause plugin loads"
+      return 0
+    fi
+
+    if ! as_user "$uid" "$runtime_dir" "$home" "$user" \
+      "$quickshell_bin" kill --pid "$pid" >/dev/null 2>&1; then
+      log "could not stop shell $pid before the package transaction"
+      return 0
+    fi
+
+    if ! wait_for_exit "$pid" 50; then
+      log "shell $pid did not exit after a clean stop"
+      return 0
+    fi
+
+    action="stopped"
+  fi
+
+  record_instance "$uid" "$runtime_dir" "$pid" "$config_path" "$display" "$signature" "$action"
+}
+
+instance_pid_live() {
+  local runtime_dir="$1" pid="$2" json
+
+  json=$(instances_json "$runtime_dir")
+  [[ -n $json ]] || return 1
+
+  jq -e --argjson pid "$pid" 'any(.[]; .pid == $pid)' <<<"$json" >/dev/null 2>&1
+}
+
+instance_config_live() {
+  local runtime_dir="$1" config_path="$2" json
+
+  json=$(instances_json "$runtime_dir")
+  [[ -n $json ]] || return 1
+
+  jq -e --arg path "$config_path" 'any(.[]; .config_path == $path)' <<<"$json" >/dev/null 2>&1
+}
+
+resume_state() {
+  local state_file="$1"
+  local uid runtime_dir pid config_path display signature action
+  local user home omarchy_path
+
+  IFS=$'\t' read -r uid runtime_dir pid config_path display signature action <"$state_file" || {
+    rm -f "$state_file"
+    return 0
+  }
+
+  # The session ended, or another shell already replaced the one we touched.
+  if [[ ! -d $runtime_dir ]]; then
+    rm -f "$state_file"
+    return 0
+  fi
+
+  user=$(user_for_uid "$uid") || user=""
+  if [[ -z $user ]]; then
+    rm -f "$state_file"
+    return 0
+  fi
+
+  if [[ $action == "paused" ]]; then
+    if ! instance_pid_live "$runtime_dir" "$pid"; then
+      rm -f "$state_file"
+      return 0
+    fi
+  elif instance_config_live "$runtime_dir" "$config_path"; then
+    rm -f "$state_file"
+    return 0
+  fi
+
+  home=$(home_for_uid "$uid") || home=/
+  omarchy_path=${config_path%/shell/shell.qml}
+
+  if as_user "$uid" "$runtime_dir" "$home" "$user" env \
+    OMARCHY_PATH="$omarchy_path" \
+    WAYLAND_DISPLAY="$display" \
+    HYPRLAND_INSTANCE_SIGNATURE="$signature" \
+    "$restart_bin" >/dev/null 2>&1; then
+    rm -f "$state_file"
+  else
+    log "could not restart the shell for $user; leaving its state for the next transaction"
+  fi
+}
+
+case "$command" in
+  paused)
+    compgen -G "$state_dir/*" >/dev/null
+    ;;
+  pause)
+    while IFS=$'\t' read -r uid runtime_dir pid config_path; do
+      [[ -n $pid ]] || continue
+      pause_instance "$uid" "$runtime_dir" "$pid" "$config_path"
+    done < <(instances)
+    ;;
+  resume)
+    [[ -d $state_dir ]] || exit 0
+    for state_file in "$state_dir"/*; do
+      [[ -f $state_file ]] || continue
+      resume_state "$state_file"
+    done
+    rmdir "$state_dir" 2>/dev/null || true
+    ;;
+esac

@@ -161,6 +161,8 @@ if notify_alias not in pkgbuild:
 alpm_hooks = [
   "00-omarchy-update-guard.hook",
   "10-omarchy-hyprland-reload-pause.hook",
+  "20-omarchy-shell-reload-pause.hook",
+  "80-omarchy-shell-reload-resume.hook",
   "90-omarchy-hyprland-reload-resume.hook",
 ]
 for hook in alpm_hooks:

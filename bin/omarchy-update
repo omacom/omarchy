@@ -68,8 +68,19 @@ end_update_authorization() {
 }
 
 cleanup_update() {
-  local status=$?
+  local status=$? guard
   trap - EXIT HUP INT TERM
+  # A transaction that fails never reaches its PostTransaction hook, which
+  # would leave the shell paused. The hook's state is root-owned, so resume
+  # through the update's authorization while it is still valid. On success the
+  # hook has already restarted the shell and cleared the state, making this a
+  # no-op.
+  if guard=$(command -v omarchy-shell-reload-guard); then
+    if /usr/bin/sudo -n "$guard" paused >/dev/null 2>&1; then
+      /usr/bin/sudo -n "$guard" resume >/dev/null 2>&1 ||
+        echo "Could not resume the shell after the update; restart it to load new plugins." >&2
+    fi
+  fi
   if ! end_update_authorization; then
     echo "Could not invalidate sudo before update cleanup." >&2
     omarchy_security_exit_with_revoked_sudo 1
