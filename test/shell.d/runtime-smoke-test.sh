@@ -4,102 +4,19 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-TMPDIR=""
-QS_PID=""
-
-# Quickshell leaves some of its children running when it is stopped, among them
-# the inotifywait watching the plugin directory, which then holds whatever it
-# inherited open (a flock around the run, say) indefinitely. Once the shell is
-# stopped, stop whatever still runs with this test's scratch OMARCHY_PATH: every
-# child inherits it, and it finds the ones a shell that already died left
-# reparented. The environment is read afresh before every signal, so a pid
-# that has since been reused by something else is never sent one.
-leftover_pids() {
-  local environ pid
-
-  [[ -n ${test_root:-} ]] || return 0
-  while IFS= read -r environ; do
-    pid=${environ#/proc/}
-    echo "${pid%/environ}"
-  done < <(grep -lzxF -- "OMARCHY_PATH=$test_root" /proc/[0-9]*/environ 2>/dev/null || true)
-}
-
-signal_leftovers() {
-  local leftovers=()
-
-  mapfile -t leftovers < <(leftover_pids)
-  (( ${#leftovers[@]} > 0 )) || return 1
-  kill "$1" "${leftovers[@]}" 2>/dev/null || true
-}
-
-# TERM, a few seconds' grace, then KILL, so nothing that ignores TERM can hang
-# the run. Bash can reap the shell, and free its pid, before it is waited for,
-# so the shell gets KILL only while it was still seen running.
-cleanup() {
-  local alive
-
-  if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
-    kill "$QS_PID" 2>/dev/null || true
-    alive=1
-    for _ in {1..30}; do
-      if ! kill -0 "$QS_PID" 2>/dev/null; then
-        alive=0
-        break
-      fi
-      sleep 0.1
-    done
-    (( alive == 0 )) || kill -KILL "$QS_PID" 2>/dev/null || true
-    wait "$QS_PID" 2>/dev/null || true
-  fi
-  if signal_leftovers -TERM; then
-    for _ in {1..30}; do
-      [[ -n $(leftover_pids) ]] || break
-      sleep 0.1
-    done
-    signal_leftovers -KILL || true
-  fi
-  [[ -n ${test_root:-} ]] && rm -f "$(shell_ipc_socket "$test_root")"
-  [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
-  return 0
-}
-trap cleanup EXIT
-
-require_compositor "shell runtime smoke test"
-
-if ! command -v quickshell >/dev/null 2>&1; then
-  skip "quickshell not installed; skipping shell runtime smoke test"
-  exit 0
-fi
-
-require_command jq
-
-shell_ipc() {
-  OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-shell" "$@"
-}
-
-shell_ipc_quiet() {
-  OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-shell" -q "$@"
-}
+require_quickshell "shell runtime smoke test"
 
 fail_with_log() {
   local description="$1"
-  sed -n '1,240p' "$log" >&2
+  sed -n '1,240p' "$SCRATCH_LOG" >&2
   fail "$description"
 }
 
-TMPDIR=$(mktemp -d)
-test_root="$TMPDIR/omarchy"
-test_home="$TMPDIR/home"
-stub_bin="$TMPDIR/bin"
-log="$TMPDIR/quickshell.log"
-mkdir -p "$test_root" "$test_home" "$stub_bin"
-cp -a "$ROOT/shell" "$test_root/shell"
-ln -s "$ROOT/config" "$test_root/config"
-ln -s "$ROOT/bin" "$test_root/bin"
+setup_scratch_shell
 
 # Every plugin under ~/.config/omarchy/plugins hot-reloads, whoever wrote it.
 hot_reload_id="acme.hot-reload"
-hot_reload_dir="$test_home/.config/omarchy/plugins/$hot_reload_id"
+hot_reload_dir="$SCRATCH_HOME/.config/omarchy/plugins/$hot_reload_id"
 mkdir -p "$hot_reload_dir"
 cat >"$hot_reload_dir/manifest.json" <<JSON
 {
@@ -124,7 +41,7 @@ QML
 # A keepLoaded service must keep its instance (and in-memory state) across a
 # plugin rescan. The marker below can only survive if the object does.
 keep_service_id="acme.keep-service"
-keep_service_dir="$test_home/.config/omarchy/plugins/$keep_service_id"
+keep_service_dir="$SCRATCH_HOME/.config/omarchy/plugins/$keep_service_id"
 mkdir -p "$keep_service_dir"
 cat >"$keep_service_dir/manifest.json" <<JSON
 {
@@ -163,7 +80,7 @@ QML
 # live service, and its barConfig must be a detached snapshot on both initial
 # injection and later host-config updates.
 victim_service_id="acme.victim-service"
-victim_service_dir="$test_home/.config/omarchy/plugins/$victim_service_id"
+victim_service_dir="$SCRATCH_HOME/.config/omarchy/plugins/$victim_service_id"
 mkdir -p "$victim_service_dir"
 cat >"$victim_service_dir/manifest.json" <<JSON
 {
@@ -187,7 +104,7 @@ QML
 # its own widget receives the raw companion service under the trusted bar, while
 # a replacement bar receives only the narrow media proxy resolved to the clone.
 media_clone_id="acme.media-clone"
-media_clone_dir="$test_home/.config/omarchy/plugins/$media_clone_id"
+media_clone_dir="$SCRATCH_HOME/.config/omarchy/plugins/$media_clone_id"
 mkdir -p "$media_clone_dir"
 cat >"$media_clone_dir/manifest.json" <<JSON
 {
@@ -249,7 +166,7 @@ Item {
 QML
 
 review_bar_id="acme.review-bar"
-review_bar_dir="$test_home/.config/omarchy/plugins/$review_bar_id"
+review_bar_dir="$SCRATCH_HOME/.config/omarchy/plugins/$review_bar_id"
 mkdir -p "$review_bar_dir"
 cat >"$review_bar_dir/manifest.json" <<JSON
 {
@@ -353,14 +270,14 @@ Item {
 }
 QML
 
-cat >"$stub_bin/omarchy-update-available" <<'SH'
+cat >"$SCRATCH_BIN/omarchy-update-available" <<'SH'
 #!/bin/bash
 echo "Omarchy update available (test)"
 exit 0
 SH
-chmod +x "$stub_bin/omarchy-update-available"
+chmod +x "$SCRATCH_BIN/omarchy-update-available"
 
-cat >"$stub_bin/curl" <<'SH'
+cat >"$SCRATCH_BIN/curl" <<'SH'
 #!/bin/bash
 
 case "${*: -1}" in
@@ -375,34 +292,33 @@ case "${*: -1}" in
     ;;
 esac
 SH
-chmod +x "$stub_bin/curl"
+chmod +x "$SCRATCH_BIN/curl"
 
-OMARCHY_PATH="$test_root" \
-HOME="$test_home" \
-XDG_CONFIG_HOME="$test_home/.config" \
-XDG_CACHE_HOME="$test_home/.cache" \
-XDG_STATE_HOME="$test_home/.local/state" \
-PATH="$stub_bin:$ROOT/bin:$PATH" \
-  quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
-QS_PID=$!
+# Counts the transparent bar's wallpaper samples.
+text_color_calls="$SCRATCH_DIR/text-color.calls"
+cat >"$SCRATCH_BIN/omarchy-bar-text-color" <<SH
+#!/bin/bash
+echo "\$*" >>"$text_color_calls"
+echo "#ffffff"
+SH
+chmod +x "$SCRATCH_BIN/omarchy-bar-text-color"
 
-for _ in {1..80}; do
-  if shell_ipc_quiet shell ping >/dev/null 2>&1; then
-    break
-  fi
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
-    fail_with_log "test shell exited before IPC became available"
-  fi
-  sleep 0.1
-done
+state_dir="$SCRATCH_HOME/.local/state/omarchy"
+mkdir -p "$state_dir/current/theme"
+: >"$state_dir/current/theme/a.png"
+: >"$state_dir/current/theme/b.png"
+ln -s "$state_dir/current/theme/a.png" "$state_dir/current/background"
+
+start_scratch_shell
+wait_scratch_shell
 
 plugins=""
 for _ in {1..80}; do
-  plugins=$(shell_ipc shell listPlugins 2>/dev/null || true)
+  plugins=$(scratch_ipc shell listPlugins 2>/dev/null || true)
   if jq -e 'length > 0' <<<"$plugins" >/dev/null 2>&1; then
     break
   fi
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  if ! kill -0 "$SCRATCH_PID" 2>/dev/null; then
     fail_with_log "test shell exited before plugins were listed"
   fi
   sleep 0.1
@@ -419,15 +335,70 @@ jq -e '
 }
 pass "shell IPC lists plugin metadata"
 
+# Plugins save their own state beside current/. That must not make the
+# transparent bar sample the wallpaper again; repointing the background must.
+text_color_count() {
+  if [[ -f $text_color_calls ]]; then
+    wc -l <"$text_color_calls"
+  else
+    echo 0
+  fi
+}
+
+bar_background() {
+  HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" background "$@"
+}
+
+# Elsewhen saves its first-run cities once its probe returns, and that save
+# writes the shell's whole config back to shell.json. Landing after an edit
+# from outside the shell, it puts the old config back, so wait for it before
+# editing shell.json. A machine slower than a desktop returns the probe late.
+wait_for_elsewhen_cities() {
+  local saved='any(.bar.layout[][]; .id? == "omarchy.elsewhen" and .cities? != null)'
+  local config="$SCRATCH_HOME/.config/omarchy/shell.json"
+
+  for _ in {1..300}; do
+    jq -e "$saved" "$config" >/dev/null 2>&1 && return 0
+    kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited before Elsewhen saved its cities"
+    sleep 0.1
+  done
+  fail_with_log "Elsewhen saves its first-run cities before shell.json is edited"
+}
+
+wait_for_elsewhen_cities
+bar_background none >/dev/null
+for _ in {1..50}; do
+  (( $(text_color_count) > 0 )) && break
+  sleep 0.1
+done
+(( $(text_color_count) > 0 )) || fail_with_log "transparent bar samples the wallpaper when turned on"
+sleep 0.5
+before=$(text_color_count)
+
+printf '{}' >"$state_dir/unrelated.tmp"
+mv "$state_dir/unrelated.tmp" "$state_dir/unrelated.json"
+sleep 1
+(( $(text_color_count) == before )) ||
+  fail_with_log "unrelated state writes re-sample the wallpaper (was $before, now $(text_color_count))"
+
+ln -nsf "$state_dir/current/theme/b.png" "$state_dir/current/background"
+for _ in {1..50}; do
+  (( $(text_color_count) > before )) && break
+  sleep 0.1
+done
+(( $(text_color_count) > before )) || fail_with_log "repointing the background re-samples the wallpaper"
+bar_background opaque >/dev/null
+pass "unrelated state writes leave the transparent bar alone"
+
 jq '.name = "After Hot Reload"' "$hot_reload_dir/manifest.json" >"$hot_reload_dir/manifest.json.tmp"
 mv "$hot_reload_dir/manifest.json.tmp" "$hot_reload_dir/manifest.json"
 
 hot_reload_name=""
 for _ in {1..80}; do
-  hot_reload_name=$(shell_ipc shell listPlugins 2>/dev/null |
+  hot_reload_name=$(scratch_ipc shell listPlugins 2>/dev/null |
     jq -r --arg id "$hot_reload_id" '.[] | select(.id == $id) | .name' 2>/dev/null || true)
   [[ $hot_reload_name == "After Hot Reload" ]] && break
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  if ! kill -0 "$SCRATCH_PID" 2>/dev/null; then
     fail_with_log "test shell exited while reloading a changed installed plugin"
   fi
   sleep 0.1
@@ -436,15 +407,15 @@ done
   fail_with_log "installed plugin changes reload without an explicit rescan"
 pass "installed plugin changes reload without an explicit rescan"
 
-[[ $(shell_ipc shell setPluginEnabled "$hot_reload_id" true) == "ok" ]] ||
+[[ $(scratch_ipc shell setPluginEnabled "$hot_reload_id" true) == "ok" ]] ||
   fail_with_log "installed plugin could not be enabled"
-[[ $(shell_ipc shell summon omarchy.emojis "{}") == "ok" ]] ||
+[[ $(scratch_ipc shell summon omarchy.emojis "{}") == "ok" ]] ||
   fail_with_log "calls to a cloned source id do not reach its enabled clone"
-shell_ipc_quiet shell hide omarchy.emojis >/dev/null
-shell_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null
+scratch_ipc_quiet shell hide omarchy.emojis >/dev/null
+scratch_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null
 pass "shell IPC routes built-in ids to enabled clones"
 
-shell_config=$(shell_ipc shell listShellConfig)
+shell_config=$(scratch_ipc shell listShellConfig)
 jq -e '
   .version == 1 and
   (.bar.layout.left | type == "array") and
@@ -456,60 +427,60 @@ jq -e '
 }
 pass "shell IPC returns effective shell config"
 
-[[ $(shell_ipc shell summon omarchy.menu '{"menu":"apps"}') == "ok" ]] || fail_with_log "shell IPC summons menu apps overlay"
-shell_ipc_quiet shell hide omarchy.menu >/dev/null
-[[ $(shell_ipc shell summon missing.plugin "{}") == "unknown" ]] || fail_with_log "shell IPC rejects unknown plugin"
+[[ $(scratch_ipc shell summon omarchy.menu '{"menu":"apps"}') == "ok" ]] || fail_with_log "shell IPC summons menu apps overlay"
+scratch_ipc_quiet shell hide omarchy.menu >/dev/null
+[[ $(scratch_ipc shell summon missing.plugin "{}") == "unknown" ]] || fail_with_log "shell IPC rejects unknown plugin"
 pass "shell IPC summon and hide contract works"
 
-[[ $(shell_ipc notifications ping) == "ok" ]] || fail_with_log "notifications IPC responds"
-[[ $(shell_ipc notifications setDnd false) == "off" ]] || fail_with_log "notifications IPC toggles DND"
-[[ $(shell_ipc media ping) == "ok" ]] || fail_with_log "media IPC responds"
-jq -e '.hasPlayer | type == "boolean"' <<<"$(shell_ipc media status)" >/dev/null || fail_with_log "media IPC returns status JSON"
-jq -e '.enabled | type == "boolean"' <<<"$(shell_ipc idle status)" >/dev/null || fail_with_log "idle IPC returns status JSON"
-jq -e '.locked | type == "boolean"' <<<"$(shell_ipc lock status)" >/dev/null || fail_with_log "lock IPC returns status JSON"
-[[ $(shell_ipc shell setPluginEnabled "$keep_service_id" true) == "ok" ]] ||
+[[ $(scratch_ipc notifications ping) == "ok" ]] || fail_with_log "notifications IPC responds"
+[[ $(scratch_ipc notifications setDnd false) == "off" ]] || fail_with_log "notifications IPC toggles DND"
+[[ $(scratch_ipc media ping) == "ok" ]] || fail_with_log "media IPC responds"
+jq -e '.hasPlayer | type == "boolean"' <<<"$(scratch_ipc media status)" >/dev/null || fail_with_log "media IPC returns status JSON"
+jq -e '.enabled | type == "boolean"' <<<"$(scratch_ipc idle status)" >/dev/null || fail_with_log "idle IPC returns status JSON"
+jq -e '.locked | type == "boolean"' <<<"$(scratch_ipc lock status)" >/dev/null || fail_with_log "lock IPC returns status JSON"
+[[ $(scratch_ipc shell setPluginEnabled "$keep_service_id" true) == "ok" ]] ||
   fail_with_log "keepLoaded fixture service could not be enabled"
 keep_marker_set=""
 for _ in {1..80}; do
-  keep_marker_set=$(shell_ipc acme-keep set "survived" 2>/dev/null || true)
+  keep_marker_set=$(scratch_ipc acme-keep set "survived" 2>/dev/null || true)
   [[ $keep_marker_set == "ok" ]] && break
   sleep 0.1
 done
 [[ $keep_marker_set == "ok" ]] || fail_with_log "keepLoaded fixture service IPC responds"
-[[ $(shell_ipc image-selector ping) == "ok" ]] || fail_with_log "image selector IPC responds"
-[[ $(shell_ipc osd ping) == "ok" ]] || fail_with_log "OSD IPC responds"
-[[ $(shell_ipc osd show '{"message":"Runtime smoke","duration":0}') == "ok" ]] || fail_with_log "OSD IPC opens"
-[[ $(shell_ipc osd close) == "ok" ]] || fail_with_log "OSD IPC closes"
+[[ $(scratch_ipc image-selector ping) == "ok" ]] || fail_with_log "image selector IPC responds"
+[[ $(scratch_ipc osd ping) == "ok" ]] || fail_with_log "OSD IPC responds"
+[[ $(scratch_ipc osd show '{"message":"Runtime smoke","duration":0}') == "ok" ]] || fail_with_log "OSD IPC opens"
+[[ $(scratch_ipc osd close) == "ok" ]] || fail_with_log "OSD IPC closes"
 pass "plugin IPC contracts respond"
 
-shell_ipc_quiet shell rescanPlugins >/dev/null
-selector_rows_b64=$(printf '%s\t%s' "$TMPDIR/selector.png" "$TMPDIR/selector.png" | base64 -w 0)
-selector_selection_file=$(mktemp "$TMPDIR/selector-selection.XXXXXX")
-selector_done_file=$(mktemp "$TMPDIR/selector-done.XXXXXX")
+scratch_ipc_quiet shell rescanPlugins >/dev/null
+selector_rows_b64=$(printf '%s\t%s' "$SCRATCH_DIR/selector.png" "$SCRATCH_DIR/selector.png" | base64 -w 0)
+selector_selection_file=$(mktemp "$SCRATCH_DIR/selector-selection.XXXXXX")
+selector_done_file=$(mktemp "$SCRATCH_DIR/selector-done.XXXXXX")
 rm -f "$selector_done_file"
 selector_open=""
 for _ in {1..80}; do
-  selector_open=$(shell_ipc image-selector open "" "$selector_rows_b64" "" "$selector_selection_file" "$selector_done_file" false false 2>/dev/null || true)
+  selector_open=$(scratch_ipc image-selector open "" "$selector_rows_b64" "" "$selector_selection_file" "$selector_done_file" false false 2>/dev/null || true)
   if [[ $selector_open == "ok" ]]; then
     break
   fi
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  if ! kill -0 "$SCRATCH_PID" 2>/dev/null; then
     fail_with_log "test shell exited during plugin rescan"
   fi
   sleep 0.1
 done
 [[ $selector_open == "ok" ]] || fail_with_log "image selector IPC survives plugin rescan"
-shell_ipc_quiet image-selector cancel "$selector_done_file" >/dev/null
+scratch_ipc_quiet image-selector cancel "$selector_done_file" >/dev/null
 rm -f "$selector_selection_file" "$selector_done_file"
 pass "image selector IPC survives plugin rescan"
 
-lock_status_after=$(shell_ipc lock status)
+lock_status_after=$(scratch_ipc lock status) || fail_with_log "lock IPC answers after plugin rescan"
 jq -e '.locked | type == "boolean"' <<<"$lock_status_after" >/dev/null || fail_with_log "lock IPC survives plugin rescan"
 lock_event_after=$(jq -r '.lastEvent // empty' <<<"$lock_status_after")
 [[ $lock_event_after != lock-stranded* ]] ||
   fail_with_log "plugin rescan does not strand the session lock ($lock_event_after)"
 # A recreated instance would answer with a fresh, empty marker.
-[[ $(shell_ipc acme-keep get) == "survived" ]] ||
+[[ $(scratch_ipc acme-keep get) == "survived" ]] ||
   fail_with_log "plugin rescan keeps the keepLoaded service instance mounted"
 pass "keepLoaded service instance survives plugin rescan"
 
@@ -520,7 +491,7 @@ jq 'del(.keepLoaded) | .kinds = ["overlay"] | .entryPoints = {"overlay": "Servic
 mv "$keep_service_dir/manifest.json.tmp" "$keep_service_dir/manifest.json"
 keep_gone=""
 for _ in {1..80}; do
-  keep_gone=$(shell_ipc acme-keep get 2>/dev/null || true)
+  keep_gone=$(scratch_ipc acme-keep get 2>/dev/null || true)
   [[ $keep_gone != "survived" ]] && break
   sleep 0.1
 done
@@ -528,30 +499,17 @@ done
   fail_with_log "kept service is dropped when its plugin stops declaring a service"
 pass "kept service is dropped when its plugin stops declaring a service"
 
-shell_ipc_quiet omarchy.system-update refresh >/dev/null 2>&1 || true
-sleep 0.8
-
-default_ids=$(jq -c '[.bar.layout[]] | add | map(.id // .)' "$ROOT/config/omarchy/shell.json")
-visible_default_ids='[
-  "omarchy.menu",
-  "omarchy.workspaces",
-  "omarchy.clock",
-  "omarchy.weather",
-  "omarchy.system-update",
-  "omarchy.network",
-  "omarchy.audio",
-  "omarchy.monitor"
-]'
+default_layout=$(jq -c '.bar.layout' "$ROOT/config/omarchy/shell.json")
 
 geometry=""
 for _ in {1..80}; do
-  geometry=$(shell_ipc shell debugBarGeometry 2>/dev/null || true)
-  if jq -e --argjson expected "$default_ids" '
-    . as $rows | all($expected[]; . as $id | any($rows[]; .id == $id))
+  geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
+  if jq -e --argjson layout "$default_layout" '
+    . as $rows | all([$layout[]] | add | .[]; (.id // .) as $id | any($rows[]; .id == $id))
   ' <<<"$geometry" >/dev/null 2>&1; then
     break
   fi
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  if ! kill -0 "$SCRATCH_PID" 2>/dev/null; then
     fail_with_log "test shell exited before default bar geometry settled"
   fi
   sleep 0.1
@@ -561,36 +519,25 @@ if [[ -z $geometry ]]; then
   fail_with_log "debug bar geometry returned output"
 fi
 
-jq -e --argjson expected "$default_ids" --argjson visibleExpected "$visible_default_ids" '
+# Every widget the default config places gets a slot in the section it names.
+# Some hide on a machine without their hardware, but whatever shows has a size,
+# and the menu, workspaces and clock always show.
+jq -e --argjson layout "$default_layout" '
   . as $rows |
-  all($expected[]; . as $id | any($rows[]; .id == $id)) and
-  all($visibleExpected[]; . as $id | any($rows[]; .id == $id and .visible == true and .width > 0 and .height > 0))
+  all($layout | to_entries[]; .key as $section |
+    all(.value[]; (.id // .) as $id | any($rows[]; .id == $id and .section == $section))) and
+  all($rows[] | select(.visible == true); .width > 0 and .height > 0) and
+  all("omarchy.menu", "omarchy.workspaces", "omarchy.clock"; . as $id | any($rows[]; .id == $id and .visible == true))
 ' <<<"$geometry" >/dev/null || {
   printf 'Geometry:\n' >&2
   jq . <<<"$geometry" >&2
-  fail_with_log "default bar layout renders expected module slots"
+  fail_with_log "default bar layout renders each widget in its configured section"
 }
-pass "default bar layout renders expected module slots"
-
-jq -e '
-  def ids($section): map(select(.section == $section) | .id);
-  ids("centerBegin") as $begin | ids("center") as $box | ids("centerEnd") as $end |
-  ($begin | index("omarchy.indicators")) != null and
-  ($box | index("omarchy.clock")) != null and
-  ($end | index("omarchy.weather")) != null and
-  ($end | index("omarchy.system-update")) != null and
-  (($end | index("omarchy.weather")) < ($end | index("omarchy.system-update")))
-' <<<"$geometry" >/dev/null || {
-  printf 'Geometry:\n' >&2
-  jq . <<<"$geometry" >&2
-  fail_with_log "runtime geometry hangs indicators and update off the clock's box"
-}
-
-pass "runtime geometry hangs indicators and update off the clock's box"
+pass "default bar layout renders each widget in its configured section"
 
 for panel_id in omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network omarchy.power; do
-  shell_ipc "$panel_id" open >/dev/null || fail_with_log "direct panel IPC opens $panel_id"
-  shell_ipc "$panel_id" close >/dev/null || fail_with_log "direct panel IPC closes $panel_id"
+  scratch_ipc "$panel_id" open >/dev/null || fail_with_log "direct panel IPC opens $panel_id"
+  scratch_ipc "$panel_id" close >/dev/null || fail_with_log "direct panel IPC closes $panel_id"
 done
 pass "direct panel IPC opens and closes default panels"
 
@@ -603,11 +550,11 @@ pass "direct panel IPC opens and closes default panels"
 screens=$(hyprctl -j monitors 2>/dev/null | jq 'length' 2>/dev/null || true)
 [[ $screens =~ ^[0-9]+$ ]] && (( screens > 0 )) || screens=1
 # No matches is the good case, and pipefail would otherwise abort the run.
-worst=$(grep -oE "another handler is registered for target [a-z.-]+" "$log" |
+worst=$(grep -oE "another handler is registered for target [a-z.-]+" "$SCRATCH_LOG" |
   sort | uniq -c | sort -rn | head -1 | awk '{print $1}' || true)
 worst=${worst:-0}
 if (( worst > screens - 1 )); then
-  grep "another handler is registered for target" "$log" | sed 's/^/  /' | head -20 >&2
+  { grep "another handler is registered for target" "$SCRATCH_LOG" | sed 's/^/  /' | head -20 >&2; } || true
   fail_with_log "each widget registers its IPC handler once per screen (saw $worst for $screens screen(s))"
 fi
 pass "each widget registers its IPC handler once per screen"
@@ -616,8 +563,8 @@ pass "each widget registers its IPC handler once per screen"
 # opened-change handler (no battery: open, then close at once), which
 # QML reports as a binding loop for Panel.opened. Opening every panel
 # above must not bring it back.
-if grep -q 'Binding loop detected for property "opened"' "$log"; then
-  grep "Binding loop" "$log" | sed 's/^/  /' | head -5 >&2
+if grep -q 'Binding loop detected for property "opened"' "$SCRATCH_LOG"; then
+  grep "Binding loop" "$SCRATCH_LOG" | sed 's/^/  /' | head -5 >&2
   fail_with_log "panel opens have no binding loop for opened"
 fi
 pass "panel opens have no binding loop for opened"
@@ -625,22 +572,22 @@ pass "panel opens have no binding loop for opened"
 # The platform FileViews (audio hints, display cutouts) must load without a
 # binding loop: a binding that reads text() and the flag its own load
 # handlers write loops on every shell start.
-if grep -q 'Binding loop detected for property "hints"\|Binding loop detected for property "displayCutouts"' "$log"; then
-  grep "Binding loop" "$log" | sed 's/^/  /' | head -5 >&2
+if grep -q 'Binding loop detected for property "hints"\|Binding loop detected for property "displayCutouts"' "$SCRATCH_LOG"; then
+  grep "Binding loop" "$SCRATCH_LOG" | sed 's/^/  /' | head -5 >&2
   fail_with_log "shell start has no platform FileView binding loops"
 fi
 pass "shell start has no platform FileView binding loops"
 
-HOME="$test_home" OMARCHY_PATH="$test_root" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-plugin-disable" omarchy.audio
+HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-plugin-disable" omarchy.audio
 
 for _ in {1..80}; do
-  shell_config=$(shell_ipc shell listShellConfig 2>/dev/null || true)
-  geometry=$(shell_ipc shell debugBarGeometry 2>/dev/null || true)
+  shell_config=$(scratch_ipc shell listShellConfig 2>/dev/null || true)
+  geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
   if jq -e 'all(.bar.layout.right[]; (.id // .) != "omarchy.audio")' <<<"$shell_config" >/dev/null 2>&1 && \
      jq -e 'all(.[]; .id != "omarchy.audio")' <<<"$geometry" >/dev/null 2>&1; then
     break
   fi
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  if ! kill -0 "$SCRATCH_PID" 2>/dev/null; then
     fail_with_log "test shell exited before reloaded bar geometry settled"
   fi
   sleep 0.1
@@ -666,17 +613,17 @@ pass "bar remove reloads shell config and updates bar layout"
 # bar where it is, so putting one the defaults already carry (as
 # omarchy.keyboard-layout is, in right) can never move it into center.
 bar_put() {
-  HOME="$test_home" OMARCHY_PATH="$test_root" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" put "$@"
+  HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" put "$@"
 }
 
 center_ids() {
-  jq -c '[.bar.layout.center[] | .id // .]' <<<"$(shell_ipc shell listShellConfig)"
+  jq -c '[.bar.layout.center[] | .id // .]' <<<"$(scratch_ipc shell listShellConfig)"
 }
 
 bar_put omarchy.microphone --after omarchy.clock >/dev/null
 for _ in {1..80}; do
   [[ $(center_ids) == *omarchy.microphone* ]] && break
-  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited while putting a bar widget"
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while putting a bar widget"
   sleep 0.1
 done
 
@@ -685,7 +632,7 @@ jq -e '
   | ($ids | index("omarchy.clock")) as $clock
   | ($ids | index("omarchy.microphone")) as $widget
   | $clock != null and $widget == $clock + 1
-' <<<"$(shell_ipc shell listShellConfig)" >/dev/null ||
+' <<<"$(scratch_ipc shell listShellConfig)" >/dev/null ||
   fail_with_log "bar put places a widget after the one it names ($(center_ids))"
 pass "bar put places a widget after the one it names"
 
@@ -695,18 +642,56 @@ sleep 0.5
 [[ $(center_ids) == "$placed" ]] ||
   fail_with_log "bar put left a widget already on the bar alone (was $placed, now $(center_ids))"
 jq -e 'all(.bar.layout.right[]; (.id // .) != "omarchy.microphone")' \
-  <<<"$(shell_ipc shell listShellConfig)" >/dev/null ||
+  <<<"$(scratch_ipc shell listShellConfig)" >/dev/null ||
   fail_with_log "bar put added a second copy of a widget already on the bar"
 pass "bar put leaves a widget already on the bar alone"
+
+# A hand edit that drops the closing brace puts the shell on the defaults,
+# which have no omarchy.microphone. A bar change then applies for the session
+# only, leaving the file as the user left it until they fix it.
+config="$SCRATCH_HOME/.config/omarchy/shell.json"
+wait_for_elsewhen_cities
+sed -i '$ d' "$config"
+cp "$config" "$SCRATCH_DIR/broken.json"
+for _ in {1..80}; do
+  [[ $(center_ids) != *omarchy.microphone* ]] && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading an unreadable shell.json"
+  sleep 0.1
+done
+[[ $(center_ids) != *omarchy.microphone* ]] || fail_with_log "shell falls back to defaults on an unreadable shell.json"
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+  fail_with_log "bar widget setting is applied while shell.json is unreadable"
+jq -e 'any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")' \
+  <<<"$(scratch_ipc shell listShellConfig)" >/dev/null ||
+  fail_with_log "a bar change still applies in memory while shell.json is unreadable"
+sleep 0.5
+cmp -s "$config" "$SCRATCH_DIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
+pass "a bar change leaves an unreadable shell.json as the user left it"
+
+printf '}\n' >>"$config"
+for _ in {1..80}; do
+  [[ $(center_ids) == *omarchy.microphone* ]] && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading a fixed shell.json"
+  sleep 0.1
+done
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"H:mm"' '{}') == "ok" ]] ||
+  fail_with_log "bar widget setting is applied once shell.json is fixed"
+saved='any(.bar.layout[][]; (.id? // .) == "omarchy.microphone") and any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "H:mm")'
+for _ in {1..40}; do
+  jq -e "$saved" "$config" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+jq -e "$saved" "$config" >/dev/null || fail "a bar change is saved again once shell.json is fixed" "$(cat "$config")"
+pass "a bar change is saved again once shell.json is fixed"
 
 # Run the replacement-bar probes last: switching bar loaders can transiently
 # leave bar-aware panels without a visual host, which should not add noise to
 # the default-bar assertions above.
-[[ $(shell_ipc shell setPluginEnabled "$media_clone_id" true) == "ok" ]] ||
+[[ $(scratch_ipc shell setPluginEnabled "$media_clone_id" true) == "ok" ]] ||
   fail_with_log "media clone fixture could not be enabled"
 clone_widget_probe=""
 for _ in {1..80}; do
-  clone_widget_probe=$(shell_ipc acme-media-clone-widget probeOwnService 2>/dev/null || true)
+  clone_widget_probe=$(scratch_ipc acme-media-clone-widget probeOwnService 2>/dev/null || true)
   if jq -e '.reachable == true and .marker == "clone-service"' \
     <<<"$clone_widget_probe" >/dev/null 2>&1; then
     break
@@ -720,23 +705,23 @@ jq -e '.reachable == true and .marker == "clone-service"' \
 }
 pass "trusted bar gives a cloned widget its own companion service"
 
-[[ $(shell_ipc acme-media-clone-service summonOsd) == "true" ]] ||
+[[ $(scratch_ipc acme-media-clone-service summonOsd) == "true" ]] ||
   fail_with_log "a cloned media service cannot summon its existing OSD target"
 pass "a cloned built-in service retains its auxiliary UI integration"
 
-[[ $(shell_ipc shell setPluginEnabled "$victim_service_id" true) == "ok" ]] ||
+[[ $(scratch_ipc shell setPluginEnabled "$victim_service_id" true) == "ok" ]] ||
   fail_with_log "victim service fixture could not be enabled"
-[[ $(shell_ipc shell enablePlugin "$review_bar_id" '{}') == "ok" ]] ||
+[[ $(scratch_ipc shell enablePlugin "$review_bar_id" '{}') == "ok" ]] ||
   fail_with_log "replacement-bar fixture could not be enabled"
 
 review_probe=""
 for _ in {1..80}; do
-  review_probe=$(shell_ipc acme-review-bar probeVictim 2>/dev/null || true)
+  review_probe=$(scratch_ipc acme-review-bar probeVictim 2>/dev/null || true)
   if jq -e '.genericFactory == false and .entryFacade == false and .victimServiceReachable == false' \
     <<<"$review_probe" >/dev/null 2>&1; then
     break
   fi
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  if ! kill -0 "$SCRATCH_PID" 2>/dev/null; then
     fail_with_log "test shell exited while loading the replacement-bar fixture"
   fi
   sleep 0.1
@@ -747,30 +732,30 @@ jq -e '.genericFactory == false and .entryFacade == false and .victimServiceReac
   fail_with_log "replacement bar cannot recover another plugin's live service"
 }
 
-media_proxy_probe=$(shell_ipc acme-review-bar probeMediaProxy)
+media_proxy_probe=$(scratch_ipc acme-review-bar probeMediaProxy)
 jq -e '.reachable == true and .enabled == true' <<<"$media_proxy_probe" >/dev/null || {
   printf 'Replacement-bar media proxy probe: %s\n' "$media_proxy_probe" >&2
   fail_with_log "replacement-bar service proxies resolve enabled clones"
 }
 
-media_summon_probe=$(shell_ipc acme-review-bar probeMediaWidgetSummon)
+media_summon_probe=$(scratch_ipc acme-review-bar probeMediaWidgetSummon)
 jq -e '.entryFacade == true and .osdSummoned == true and .foreignSummoned == false' \
   <<<"$media_summon_probe" >/dev/null || {
   printf 'Replacement-bar media summon probe: %s\n' "$media_summon_probe" >&2
   fail_with_log "replacement-bar clone facades retain only their auxiliary UI integration"
 }
 
-bar_config_before=$(shell_ipc shell listShellConfig | jq -c '.bar')
-shell_ipc acme-review-bar mutateSnapshot >/dev/null
-bar_config_after=$(shell_ipc shell listShellConfig | jq -c '.bar')
+bar_config_before=$(scratch_ipc shell listShellConfig | jq -c '.bar')
+scratch_ipc acme-review-bar mutateSnapshot >/dev/null
+bar_config_after=$(scratch_ipc shell listShellConfig | jq -c '.bar')
 [[ $bar_config_after == "$bar_config_before" ]] ||
   fail_with_log "replacement bar mutated the initially injected host configuration"
 
-[[ $(shell_ipc shell setBarWidget omarchy.clock format '"HH:mm:ss"' '{}') == "ok" ]] ||
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm:ss"' '{}') == "ok" ]] ||
   fail_with_log "host bar configuration could not be updated for snapshot testing"
 updated_snapshot=""
 for _ in {1..80}; do
-  updated_snapshot=$(shell_ipc acme-review-bar snapshot 2>/dev/null || true)
+  updated_snapshot=$(scratch_ipc acme-review-bar snapshot 2>/dev/null || true)
   if jq -e 'any(.layout.center[]; (.id // .) == "omarchy.clock" and .format == "HH:mm:ss")' \
     <<<"$updated_snapshot" >/dev/null 2>&1; then
     break
@@ -780,15 +765,15 @@ done
 jq -e 'any(.layout.center[]; (.id // .) == "omarchy.clock" and .format == "HH:mm:ss")' \
   <<<"$updated_snapshot" >/dev/null ||
   fail_with_log "replacement bar did not receive the refreshed configuration snapshot"
-bar_config_before=$(shell_ipc shell listShellConfig | jq -c '.bar')
-shell_ipc acme-review-bar mutateSnapshot >/dev/null
-bar_config_after=$(shell_ipc shell listShellConfig | jq -c '.bar')
+bar_config_before=$(scratch_ipc shell listShellConfig | jq -c '.bar')
+scratch_ipc acme-review-bar mutateSnapshot >/dev/null
+bar_config_after=$(scratch_ipc shell listShellConfig | jq -c '.bar')
 [[ $bar_config_after == "$bar_config_before" ]] ||
   fail_with_log "replacement bar mutated a refreshed host configuration"
 
 pass "replacement-bar service and configuration boundaries hold at runtime"
 
-capability_before=$(shell_ipc acme-review-capability probe)
+capability_before=$(scratch_ipc acme-review-capability probe)
 jq -e '.currentAllowed == true and .retainedAllowed == true' \
   <<<"$capability_before" >/dev/null ||
   fail_with_log "bar service fixture did not initially receive bar capabilities"
@@ -801,12 +786,12 @@ jq '.kinds = ["service"] | .entryPoints = {"service": "Service.qml"}' \
 mv "$review_bar_dir/manifest.json.tmp" "$review_bar_dir/manifest.json"
 capability_after=""
 for _ in {1..80}; do
-  capability_after=$(shell_ipc acme-review-capability probe 2>/dev/null || true)
+  capability_after=$(scratch_ipc acme-review-capability probe 2>/dev/null || true)
   if jq -e '.currentAllowed == false and .retainedAllowed == false' \
     <<<"$capability_after" >/dev/null 2>&1; then
     break
   fi
-  if ! kill -0 "$QS_PID" 2>/dev/null; then
+  if ! kill -0 "$SCRATCH_PID" 2>/dev/null; then
     fail_with_log "test shell exited while revoking changed manifest capabilities"
   fi
   sleep 0.1
