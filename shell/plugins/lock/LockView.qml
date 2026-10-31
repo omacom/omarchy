@@ -154,6 +154,10 @@ Item {
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
         echoMode: TextInput.Password
+        // Suppress IME preedit: echoMode only masks committed text, an active
+        // input method would still draw its composing text in plaintext above
+        // the lock surface (#16976).
+        inputMethodHints: Qt.ImhHiddenText | Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
         passwordCharacter: "\u25CF"
         passwordMaskDelay: 0
         color: Commons.Color.lock.text
