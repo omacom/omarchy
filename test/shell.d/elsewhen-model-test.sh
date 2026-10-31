@@ -121,6 +121,12 @@ assert(M.moveZone(four, 2, 2) === four && M.moveZone(four, -1, 2) === four && M.
 assertEqual(labels(four), 'A,B,C,D', 'elsewhen leaves the original list untouched')
 assertEqual(M.removeZoneAt([zones[0]], 0).length, 1, 'elsewhen never removes the last city')
 assertEqual(labels(M.removeZone(zones, 'Asia/Tokyo')), 'Paris,New York', 'elsewhen removes a city by zone')
+const shared = M.parseZones('Miami|America/New_York, Boston|America/New_York, Tokyo|Asia/Tokyo')
+assertEqual(labels(M.removeZone(shared, 'America/New_York')), 'Boston,Tokyo', 'elsewhen removes only one city of a shared zone')
+assertEqual(labels(M.removeZone(shared, 'America/New_York', 'Boston')), 'Miami,Tokyo', 'elsewhen removes the named city of a shared zone')
+const allShared = M.parseZones('Miami|America/New_York, Boston|America/New_York')
+assertEqual(M.removeZone(M.removeZone(allShared, 'America/New_York'), 'America/New_York').length, 1, 'elsewhen never empties the list when every city shares the zone')
+assert(M.removeZone(shared, 'Europe/Nowhere') === shared, 'elsewhen removing an unknown zone is a no-op')
 
 const catalog = M.zoneOptions('America/Los_Angeles\nAsia/Tokyo', [])
 const sharing = catalog.filter(o => o.value === 'America/Los_Angeles')
