@@ -77,6 +77,10 @@ for command in \
 done
 write_stub omarchy-update-available 'exit 1'
 write_stub pkexec 'exec "$@"'
+write_stub omarchy-toggle-idle '
+if [[ $1 == "allow-idle" ]]; then
+  rm -f "$SUDO_TEST_HOME/.local/state/omarchy/indicators/stay-awake"
+fi'
 ln -s ../bin/pkexec "$SUDO_TEST_ROOT/mock/pkexec"
 write_stub systemd-inhibit 'while [[ $1 == --* ]]; do shift; done; exec "$@"'
 ln -s ../bin/systemd-inhibit "$SUDO_TEST_ROOT/mock/systemd-inhibit"
@@ -112,12 +116,17 @@ pass "omarchy-update prevents overlapping top-level updates"
 # would otherwise leave the inhibitor holding the flock forever, blocking every
 # later update and silencing omarchy-migrate-notify, which reads the same lock.
 inhibit_pid_file="$test_tmp/inhibit-pid"
+inhibit_args_log="$test_tmp/inhibit-args.log"
 keyring_marker="$test_tmp/keyring-started"
 write_stub omarchy-snapshot 'exit 0'
-write_stub systemd-inhibit '[[ -z ${INHIBIT_PID_FILE:-} ]] || echo "$$" >"$INHIBIT_PID_FILE"; while [[ $1 == --* ]]; do shift; done; exec "$@"'
+write_stub systemd-inhibit '
+[[ -z ${INHIBIT_ARGS_LOG:-} ]] || printf "%s\n" "$@" >"$INHIBIT_ARGS_LOG"
+[[ -z ${INHIBIT_PID_FILE:-} ]] || echo "$$" >"$INHIBIT_PID_FILE"
+while [[ $1 == --* ]]; do shift; done
+exec "$@"'
 write_stub omarchy-update-keyring 'echo started >"$TEST_MARKER"; sleep 1; exit 0'
 
-OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$keyring_marker" INHIBIT_PID_FILE="$inhibit_pid_file" \
+OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$keyring_marker" INHIBIT_PID_FILE="$inhibit_pid_file" INHIBIT_ARGS_LOG="$inhibit_args_log" \
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-inhibit.out" 2>&1 &
 inhibit_update_pid=$!
 
@@ -139,12 +148,69 @@ done
 
 wait "$inhibit_update_pid"
 
+# LidSwitchIgnoreInhibited defaults to yes, so logind ignores high-level sleep
+# locks when the lid closes. Check the low-level lock from the real launcher.
+grep -Fxq -- '--what=sleep:idle:handle-lid-switch' "$inhibit_args_log" ||
+  fail "update inhibitor blocks the lid switch" "$(<"$inhibit_args_log")"
+pass "update inhibitor blocks the lid switch during updates"
+
 (( inhibitor_holds_lock == 0 )) || fail "update keeps the update lock out of the sleep inhibitor it leaves running"
 pass "omarchy-update keeps the update lock out of its sleep inhibitor"
 
 kill -0 "$inhibitor_pid" 2>/dev/null &&
   fail "update waits for its sleep inhibitor to stop before continuing"
 pass "omarchy-update waits for its sleep inhibitor to stop"
+
+# A failed update must release the lid lock even when credential revocation
+# fails. Make only cleanup revocation fail, after the inhibitor is ready.
+mv "$SUDO_TEST_ROOT/mock/sudo" "$SUDO_TEST_ROOT/mock/sudo-cleanup-test"
+cat >"$SUDO_TEST_ROOT/mock/sudo" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "-k" && -e ${TEST_REVOKE_FAILURE_MARKER:-} ]]; then
+  printf 'sudo -k\n' >>"$SUDO_TEST_LOG"
+  exit 1
+fi
+exec "${0%/*}/sudo-cleanup-test" "$@"
+SH
+chmod +x "$SUDO_TEST_ROOT/mock/sudo"
+write_stub omarchy-update-keyring '
+case "$TEST_UPDATE_FAILURE" in
+  error) exit 17 ;;
+  revoke) touch "$TEST_REVOKE_FAILURE_MARKER"; exit 17 ;;
+  *) kill -s "$TEST_UPDATE_FAILURE" "$PPID" ;;
+esac'
+
+for failure in error HUP INT TERM revoke; do
+  rm -f "$inhibit_pid_file" "$test_tmp/revoke-failure"
+  update_status=0
+  OMARCHY_UPDATE_LOGGED=1 TEST_UPDATE_FAILURE="$failure" \
+    TEST_REVOKE_FAILURE_MARKER="$test_tmp/revoke-failure" INHIBIT_PID_FILE="$inhibit_pid_file" \
+    run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-$failure.out" 2>&1 || update_status=$?
+  case "$failure" in
+    error) expected_status=17 ;;
+    HUP) expected_status=129 ;;
+    INT) expected_status=130 ;;
+    TERM) expected_status=143 ;;
+    revoke) expected_status=1 ;;
+  esac
+  [[ -s $inhibit_pid_file ]] || fail "$failure cleanup test started its inhibitor"
+  inhibitor_pid=$(<"$inhibit_pid_file")
+  leaked_inhibitor=0
+  if kill -0 "$inhibitor_pid" 2>/dev/null &&
+    [[ $(awk '{ print $3 }' "/proc/$inhibitor_pid/stat" 2>/dev/null || true) != "Z" ]]; then
+    leaked_inhibitor=1
+  fi
+  [[ ! -e $runtime_dir/$stay_awake_dir_name ]] || leaked_inhibitor=1
+  [[ ! -e $test_home/.local/state/omarchy/indicators/stay-awake ]] || leaked_inhibitor=1
+  # Restore the fixture even when the assertion fails, so a regression cannot
+  # leave an inhibitor running after the test exits.
+  rm -f "$test_tmp/revoke-failure"
+  OMARCHY_UPDATE_SUDO_SESSION=1 run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
+  (( leaked_inhibitor == 0 )) || fail "$failure cleanup releases the update inhibitor and Stay Awake state" "$(<"$test_tmp/update-$failure.out")"
+  (( update_status == expected_status )) || fail "$failure cleanup preserves the update exit status" "$update_status, expected $expected_status"
+  pass "$failure cleanup releases the update inhibitor and preserves the exit status"
+done
+mv -f "$SUDO_TEST_ROOT/mock/sudo-cleanup-test" "$SUDO_TEST_ROOT/mock/sudo"
 
 if (( EUID != 0 )); then
   sudo_log="$SUDO_TEST_LOG"
