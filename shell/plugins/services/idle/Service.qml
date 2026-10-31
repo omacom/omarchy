@@ -34,6 +34,7 @@ Item {
   property double stayAwakeUntil: 0
   property int stayAwakeRevision: 0
   property bool stayAwakeProbePending: false
+  property double scheduledStayAwakeUntil: 0
   property bool idledThisCycle: false
   property bool screensaverStartedThisCycle: false
   property string lastEvent: "starting"
@@ -186,10 +187,18 @@ Item {
   }
 
   function persistStayAwake(value, until) {
-    if (stayAwakeStateWriter.running) {
-      root.pendingStayAwakePersist = { value: value, until: until }
+    root.pendingStayAwakePersist = { value: value, until: until }
+    flushStayAwakePersist()
+  }
+
+  function flushStayAwakePersist() {
+    if (stayAwakeStateWriter.running) return
+    if (!root.pendingStayAwakePersist) {
+      root.refreshStayAwakeState()
       return
     }
+    var pending = root.pendingStayAwakePersist
+    root.pendingStayAwakePersist = null
 
     // Rename a complete file into place. Readers must never see a timed write as
     // an empty (indefinite) file, and a symlink must not redirect a truncation.
@@ -206,13 +215,13 @@ Item {
       else
         rm -f -- "$1/stay-awake"
       fi
-    `, "--", root.stayAwakeStateDir, String(value), until > 0 ? String(until) : ""]
+    `, "--", root.stayAwakeStateDir, String(pending.value), pending.until > 0 ? String(pending.until) : ""]
     stayAwakeStateWriter.running = true
   }
 
   function refreshStayAwakeState() {
     root.stayAwakeProbePending = true
-    if (stayAwakeStateWriter.running || stayAwakeStateProbe.running) return
+    if (stayAwakeStateWriter.running || root.pendingStayAwakePersist || stayAwakeStateProbe.running) return
     root.stayAwakeProbePending = false
     stayAwakeStateProbe.revision = root.stayAwakeRevision
     stayAwakeStateProbe.running = true
@@ -230,6 +239,7 @@ Item {
 
     root.stayAwake = enabled
     root.stayAwakeStateLoaded = true
+    Qt.callLater(root.scheduleStayAwakeExpiry)
 
     if (!changed) return enabled ? "disabled" : "enabled"
 
@@ -250,13 +260,40 @@ Item {
     return applyStayAwake(true, true, "timed", until)
   }
 
-  // Check the saved wall-clock deadline so suspend does not extend the session.
-  Timer {
-    interval: 1000
-    repeat: true
-    running: root.stayAwake && root.stayAwakeUntil > 0
-    onTriggered: {
-      if (Date.now() >= root.stayAwakeUntil) root.applyStayAwake(false, false, "expired")
+  function scheduleStayAwakeExpiry() {
+    if (!root.stayAwake || root.stayAwakeUntil <= 0) return
+    if (Date.now() >= root.stayAwakeUntil) {
+      root.applyStayAwake(false, false, "expired")
+      return
+    }
+    if (stayAwakeExpiryScheduler.running || root.scheduledStayAwakeUntil === root.stayAwakeUntil) return
+    stayAwakeExpiryScheduler.deadline = root.stayAwakeUntil
+    // Calendar epoch syntax uses whole seconds; round up to avoid an early refresh.
+    stayAwakeExpiryScheduler.command = [
+      "systemd-run", "--user", "--quiet", "--collect",
+      "--on-calendar=@" + Math.ceil(root.stayAwakeUntil / 1000),
+      "--timer-property=AccuracySec=1ms",
+      "--timer-property=RemainAfterElapse=no",
+      "--setenv=OMARCHY_PATH=" + Quickshell.env("OMARCHY_PATH"),
+      "--setenv=WAYLAND_DISPLAY=" + Quickshell.env("WAYLAND_DISPLAY"),
+      "--", Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-shell", "-q", "idle", "refresh"
+    ]
+    stayAwakeExpiryScheduler.running = true
+  }
+
+  // Calendar timers count suspended time and deliver overdue events on resume.
+  // An old timer only refreshes the saved choice, so it cannot cancel a newer one.
+  Process {
+    id: stayAwakeExpiryScheduler
+    property double deadline: 0
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.scheduledStayAwakeUntil = deadline
+      else if (root.stayAwake && root.stayAwakeUntil === deadline) {
+        root.logEvent("expiry-schedule-failed", exitCode)
+        root.applyStayAwake(false, true, "expiry-schedule-failed")
+        Quickshell.execDetached(["omarchy-notification-send", I18n.t("idle.scheduleFailedTitle"), I18n.t("idle.scheduleFailedBody")])
+      }
+      Qt.callLater(root.scheduleStayAwakeExpiry)
     }
   }
 
@@ -340,24 +377,20 @@ Item {
         if (exitCode !== 0) root.logEvent("state-read-failed", exitCode)
       }
       stayAwakeStateWatcher.reload()
-      if (root.stayAwakeProbePending || revision !== root.stayAwakeRevision) root.refreshStayAwakeState()
+      if (root.stayAwakeProbePending || revision !== root.stayAwakeRevision) Qt.callLater(root.refreshStayAwakeState)
     }
   }
 
   Process {
     id: stayAwakeStateWriter
     onExited: function(exitCode) {
-      if (root.pendingStayAwakePersist) {
-        var pending = root.pendingStayAwakePersist
-        root.pendingStayAwakePersist = null
-        root.persistStayAwake(pending.value, pending.until)
-      } else {
-        if (exitCode !== 0) {
-          root.logEvent("state-write-failed", exitCode)
-          Quickshell.execDetached(["omarchy-notification-send", I18n.t("idle.saveFailedTitle"), I18n.t("idle.saveFailedBody")])
-        }
-        root.refreshStayAwakeState()
+      if (exitCode !== 0 && !root.pendingStayAwakePersist) {
+        root.logEvent("state-write-failed", exitCode)
+        Quickshell.execDetached(["omarchy-notification-send", I18n.t("idle.saveFailedTitle"), I18n.t("idle.saveFailedBody")])
       }
+      // Process.running can remain true until the exit signal returns. Drain
+      // the latest queued choice afterward, or reread the saved state on failure.
+      Qt.callLater(root.flushStayAwakePersist)
     }
   }
 
@@ -384,6 +417,10 @@ Item {
 
     function debug(): string {
       return root.statusJson()
+    }
+
+    function refresh(): void {
+      root.refreshStayAwakeState()
     }
 
     function enable(): string {
