@@ -450,6 +450,8 @@
   "reminders.invalidTitle": "Invalid reminder",
   "reminders.messagePrompt": "Reminder message...",
   "reminders.minutesPrompt": "Remind in minutes...",
+  "screensaver.amigaAudioOff": "M = Turn Off Audio",
+  "screensaver.amigaAudioOn": "M = Turn On Audio",
   "speedtest.download": "DOWNLOAD",
   "speedtest.failed": "Speed test failed",
   "speedtest.measureAgain": "Measure again",

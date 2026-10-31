@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# omarchy:summary=Select the Default or Amiga screensaver
+# omarchy:args=[default|amiga|--is-default|--is-amiga] [--install|--pack <zip>]
+
+set -euo pipefail
+
+state="$HOME/.config/omarchy/screensaver"
+
+choice="text"
+if [[ -f $state ]] && [[ $(<"$state") == "amiga" ]]; then
+  choice="amiga"
+elif [[ -f $state ]] && [[ $(<"$state") == "default" ]]; then
+  choice="default"
+fi
+
+case "${1:-}" in
+"") printf '%s\n' "$choice" ;;
+--is-text | --is-default) [[ $choice != "amiga" ]] ;;
+--is-amiga) [[ $choice == "amiga" ]] ;;
+default | text | amiga)
+  if [[ $1 == "amiga" ]]; then
+    if omarchy-screensaver-amiga --check; then
+      if (( $# == 1 )); then
+        : # Installed and checksum-verified: selection is an idempotent no-op.
+      elif (( $# == 2 )) && [[ $2 == "--install" ]]; then
+        : # Installer-side recheck closes the preflight/install race.
+      else
+        echo "Usage: omarchy-setup-screensaver amiga [--install|--pack <zip>]" >&2
+        exit 1
+      fi
+    else
+      if (( $# == 1 )); then
+        # Silent preflight runs before a window exists. Only the not-ready path
+        # opens the interactive package transaction, which rechecks internally.
+        exec omarchy-launch-floating-terminal-with-presentation 'omarchy-setup-screensaver amiga --install'
+      fi
+      if ! omarchy-hw-x86 && ! omarchy-hw-aarch64; then
+        omarchy-i18n screensaver.amigaUnsupported >&2
+        exit 1
+      fi
+      if [[ ${2:-} == "--pack" && -n ${3:-} && $# == 3 ]]; then
+        # Explicit development seam for a reviewed local Top archive. Production
+        # installation is the single omarchy-amiga package contract below.
+        if ! omarchy-screensaver-amiga --install-pack "$3"; then
+          omarchy-i18n screensaver.amigaInstall >&2
+          exit 1
+        fi
+      elif [[ ${2:-} == "--install" && $# == 2 ]]; then
+        if ! pacman -Si omarchy-amiga &>/dev/null; then
+          omarchy-i18n screensaver.amigaUnavailable >&2
+          exit 1
+        elif ! omarchy-pkg-add omarchy-amiga; then
+          omarchy-i18n screensaver.amigaInstall >&2
+          exit 1
+        fi
+      else
+        echo "Usage: omarchy-setup-screensaver amiga [--install|--pack <zip>]" >&2
+        exit 1
+      fi
+      # The bundle owns the target-native runtime and minimal Top pack. Its
+      # readiness command validates architecture, runtime hashes, catalog count
+      # and every declared content checksum before selection is persisted.
+      if ! omarchy-screensaver-amiga --check; then
+        omarchy-i18n screensaver.amigaVerify >&2
+        exit 1
+      fi
+    fi
+  fi
+  mkdir -p "${state%/*}"
+  temporary=$(mktemp "${state}.XXXXXX")
+  trap 'rm -f "$temporary"' EXIT
+  printf '%s\n' "$1" > "$temporary"
+  mv -f "$temporary" "$state"
+  ;;
+*)
+  echo "Usage: omarchy-setup-screensaver [text|amiga|--is-text|--is-amiga]" >&2
+  exit 1
+  ;;
+esac
