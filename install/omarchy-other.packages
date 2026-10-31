@@ -53,6 +53,8 @@ vpl-gpu-rt
 vulkan-intel
 vulkan-radeon
 vulkan-asahi
+# CPU fallback for VMs that match none of the above
+vulkan-swrast
 
 # Surface laptop support packages
 linux-firmware-marvell
