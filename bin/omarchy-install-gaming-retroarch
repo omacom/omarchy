@@ -26,7 +26,8 @@ omarchy-pkg-add \
   libretro-vice-xcbm2-git libretro-vice-xcbm5x0-git libretro-vice-xpet-git \
   libretro-vice-xplus4-git libretro-vice-xscpu64-git libretro-vice-xvic-git \
   libretro-database-git \
-  retroarch-joypad-autoconfig-git
+  retroarch-joypad-autoconfig-git \
+  vulkan-tools
 
 # Set up ~/Games for BIOS files and ROMs
 mkdir -p "$HOME/Games/bios" "$HOME/Games/roms"
@@ -60,8 +61,15 @@ set_cfg content_database_path "/usr/share/libretro/database/rdb"
 set_cfg cheat_database_path "/usr/share/libretro/database/cht"
 set_cfg cursor_directory "/usr/share/libretro/database/cursors"
 
-# Vulkan is required for slang shaders and unlocks hardware renderers in beetle-psx-hw, parallel-n64, dolphin
-set_cfg video_driver "vulkan"
+# Vulkan unlocks the hardware renderers in beetle-psx-hw, parallel-n64 and
+# dolphin, but RetroArch refuses to start when no GPU provides a Vulkan device,
+# and an installed ICD doesn't mean one does. Use it only when a real GPU
+# enumerates; glcore still runs the slang shaders configured below.
+if vulkaninfo --summary 2>/dev/null | grep -qE 'deviceType += PHYSICAL_DEVICE_TYPE_(INTEGRATED|DISCRETE|VIRTUAL)_GPU'; then
+  set_cfg video_driver "vulkan"
+else
+  set_cfg video_driver "glcore"
+fi
 
 # XMB is the classic PS3-style menu (vs. ozone/rgui/glui)
 set_cfg menu_driver "xmb"
