@@ -9,9 +9,10 @@ command: local token stats from pi and omp sessions, opencode's message
 database, Codex's `--oss` rollouts and Claude Code's transcripts that ran on
 the `ollama-cloud` provider (or on a cloud model through the local daemon),
 and the account's 5-hour session and 7-day weekly
-limits (or the monthly included credits) from Ollama's balance endpoint. The
-panel itself only ever reads the JSON this prints; it never talks to disk
-formats or endpoints.
+limits (or the monthly included credits) from Ollama's balance endpoint,
+asked with the account's key or, without one, of the local daemon that holds
+the account. The panel itself only ever reads the JSON this prints; it never
+talks to disk formats or endpoints.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import argparse
 import math
 import os
 import sys
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +50,7 @@ from collectors import (  # noqa: E402
   scan_opencode,
   scan_pi_sessions,
   scan_routed,
+  trusted_endpoint,
 )
 
 AGENT_ID = "ollama"
@@ -56,6 +59,9 @@ PROVIDER = "ollama-cloud"
 BALANCE_ENDPOINT = "https://ollama.com/api/balance"
 ME_ENDPOINT = "https://ollama.com/api/me"
 AUTH_HELP_NO_KEY = "Set OLLAMA_API_KEY, or sign in to pi with an Ollama Cloud key, to show the account limits."
+AUTH_HELP_NO_DAEMON = (
+  "Sign in to the local Ollama daemon (`ollama signin`), or set OLLAMA_API_KEY, to show the account limits."
+)
 AUTH_HELP_BAD_KEY = (
   "Ollama Cloud rejected the API key. Update OLLAMA_API_KEY or ~/.config/omarchy/agents/ollama.json,"
   " or sign in to pi again. Local stats are still shown."
@@ -65,6 +71,13 @@ AUTH_HELP_BAD_KEY = (
 # resets_at}) and a current plan with `included.balance_usd`,
 # `allowance_usd` and `period.until`. /api/usage only reports token and cost
 # history, never the limits.
+#
+# The local daemon holds the account session of whoever ran `ollama signin`
+# and answers the same questions for it, without a key. A machine that runs
+# its cloud models through the daemon therefore knows its allowance even when
+# it has no API key for ollama.com, which is the shape most local-daemon
+# users are in.
+DAEMON_IDENTITY = "local-daemon"
 
 
 def config_dir() -> Path:
@@ -78,6 +91,62 @@ def read_config() -> dict[str, Any]:
 def pi_agent_dir() -> Path:
   configured = os.environ.get("PI_CODING_AGENT_DIR", "").strip()
   return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
+
+
+def daemon_base() -> str:
+  """The local daemon's address, the one OLLAMA_HOST names, or the default.
+
+  The daemon takes the host as it takes it on the command line: a bare
+  `127.0.0.1:11434` means the same as an `http://` one.
+  """
+  raw = os.environ.get("OLLAMA_HOST", "").strip() or "http://127.0.0.1:11434"
+  if "://" not in raw:
+    raw = "http://" + raw
+  return raw.rstrip("/")
+
+
+def daemon_endpoint(path: str) -> str:
+  """The daemon's answer for `path`, or "" when it can't be asked.
+
+  The daemon is asked over plain HTTP on this machine, or over HTTPS
+  anywhere; a plain-HTTP host on the network is not one to ask for an
+  account's allowance.
+  """
+  url = daemon_base() + path
+  return url if trusted_endpoint(url) else ""
+
+
+def daemon_identity() -> str:
+  """The daemon's address, normalized: one daemon under two spellings is one
+  daemon, and two daemons are two accounts.
+
+  The scheme and the host are folded to lower case and the port kept, so
+  `127.0.0.1:11434` and `http://127.0.0.1:11434` are one address, and
+  `http://127.0.0.1:11435` is another. An address that won't parse is kept
+  as it was written: it is asked nothing of, and it must not take the
+  collector down with it.
+  """
+  raw = daemon_base()
+  try:
+    parts = urllib.parse.urlsplit(raw)
+    port = parts.port
+  except ValueError:
+    # A malformed address ("http://[::1") is one the daemon can't be asked
+    # at, the same as any other address that won't parse.
+    return raw
+  host = (parts.hostname or "").lower()
+  if ":" in host:
+    host = f"[{host}]"
+  address = f"{parts.scheme.lower()}://{host}"
+  return f"{address}:{port}" if port else address
+
+
+def cache_identity(access_key: str) -> str:
+  # The daemon's account is its own: its numbers never show under a key's.
+  # The daemon's address is part of that identity: another daemon holds
+  # another account, and its numbers never show under this one's, nor as
+  # this one's fallback.
+  return access_key if access_key else f"{DAEMON_IDENTITY}@{daemon_identity()}"
 
 
 def api_key() -> str:
@@ -222,15 +291,44 @@ def kept_balance(cache: LimitsCache) -> dict[str, Any] | None:
 
 
 def probe_limits(access_key: str) -> dict[str, Any]:
-  request = urllib.request.Request(
-    BALANCE_ENDPOINT,
-    headers={"Authorization": "Bearer " + access_key, "Accept": "application/json"},
-  )
+  """The account's allowance.
+
+  A key asks ollama.com for the account it signs in to. Without one, the
+  local daemon answers for the account it holds: the same allowance, asked
+  of the machine itself, with no credential going anywhere.
+  """
+  if access_key:
+    endpoint = BALANCE_ENDPOINT
+    headers = {"Authorization": "Bearer " + access_key, "Accept": "application/json"}
+  else:
+    endpoint = daemon_endpoint("/api/balance")
+    headers = {"Accept": "application/json"}
+  if not endpoint:
+    # A daemon that can't be asked (a plain-HTTP host on the network) is no
+    # account's answer to give.
+    return {"ok": False, "noAuth": True, "helpText": AUTH_HELP_NO_KEY}
+
+  request = urllib.request.Request(endpoint, headers=headers)
   try:
     payload = open_json(request, timeout=10)
   except HttpError as error:
     if error.status in (401, 403):
-      return {"ok": False, "auth": True, "helpText": AUTH_HELP_BAD_KEY}
+      # A refused key is a sign-in to redo; a daemon that isn't signed in
+      # is one to sign in to.
+      if access_key:
+        return {"ok": False, "auth": True, "helpText": AUTH_HELP_BAD_KEY}
+      return {"ok": False, "noAuth": True, "helpText": AUTH_HELP_NO_DAEMON}
+    if not access_key and (error.status == 404 or error.transport):
+      # A daemon that isn't running, or one too old to answer the balance,
+      # knows nothing about the account: no key, no allowance.
+      return {
+        "ok": False,
+        "noAuth": True,
+        "helpText": (
+          f"Couldn't reach the local Ollama daemon at {daemon_base()}."
+          " Start it, or set OLLAMA_API_KEY, to show the account limits."
+        ),
+      }
     if error.status:
       return {"ok": False, "helpText": f"Ollama's balance endpoint returned status {error.status}. Local stats are still shown."}
     if error.transport:
@@ -253,11 +351,15 @@ def probe_limits(access_key: str) -> dict[str, Any]:
 
 def probe_plan(access_key: str) -> str | None:
   """The plan Ollama names for the key, "" when it names none, None when it couldn't be asked."""
-  request = urllib.request.Request(
-    ME_ENDPOINT,
-    headers={"Authorization": "Bearer " + access_key, "Accept": "application/json"},
-    method="POST",
-  )
+  if access_key:
+    endpoint = ME_ENDPOINT
+    headers = {"Authorization": "Bearer " + access_key, "Accept": "application/json"}
+  else:
+    endpoint = daemon_endpoint("/api/me")
+    headers = {"Accept": "application/json"}
+  if not endpoint:
+    return None
+  request = urllib.request.Request(endpoint, headers=headers, method="POST")
   try:
     payload = open_json(request, timeout=10)
   except Exception:
@@ -270,8 +372,8 @@ def probe_plan(access_key: str) -> str | None:
 
 def limits_cache_path(access_key: str) -> Path:
   # Keyed by the credential: another key never shows this one's allowance or
-  # plan.
-  return shared_limits_cache_path(AGENT_ID, access_key)
+  # plan, and the daemon's account is kept apart from every key's.
+  return shared_limits_cache_path(AGENT_ID, cache_identity(access_key))
 
 
 def collect_limits(access_key: str, force: bool) -> dict[str, Any]:
@@ -280,15 +382,7 @@ def collect_limits(access_key: str, force: bool) -> dict[str, Any]:
   # can tell kept limits from fresh ones.
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0}
 
-  if access_key == "":
-    result["usageStatusText"] = "Waiting for auth"
-    result["authHelpText"] = AUTH_HELP_NO_KEY
-    return result
-
-  # A panel that is opened and shut repeatedly must not turn into a request
-  # per flick, so recent probe results are reused for a short window — and
-  # kept as the answer of record when a later probe fails.
-  cache = LimitsCache(AGENT_ID, access_key)
+  cache = LimitsCache(AGENT_ID, cache_identity(access_key))
   cached_plan = str(cache.data.get("plan") or "")
 
   # --force is a person asking for fresh numbers, so it skips the reuse window
@@ -319,6 +413,10 @@ def collect_limits(access_key: str, force: bool) -> dict[str, Any]:
     result.update(limits=fallback, tierLabel=cached_plan, fetchedAtMs=cache.fetched_at, balance=balance)
   if probe.get("auth"):
     result["usageStatusText"] = "Sign-in expired"
+  elif probe.get("noAuth"):
+    # No key, and no daemon that could answer for the account: the limits
+    # wait for a sign-in, which is what a person can do about it.
+    result["usageStatusText"] = "Waiting for auth"
   elif not fallback and not balance:
     result["usageStatusText"] = "Ollama limits unavailable"
   return result
