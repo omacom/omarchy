@@ -315,6 +315,26 @@ check(state_file():find("0\t\tSamsung Panel\n", 1, true), "an unplugged monitor 
 ' || fail "a monitor keeps its block across sessions and connectors"
 pass "a monitor keeps its block across sessions and connectors"
 
+# A full disk lets a file be emptied and then fails the write, as a file size
+# limit does here until it is lifted. The blocks saved before must outlive the
+# failed write, and the next reconcile must try again.
+(
+  ulimit -S -f 0
+  trap '' XFSZ
+  run_lua blocks '
+local saved = state_file()
+plug("HDMI-A-1", 0, "Dell 333", 1)
+world.focused = "HDMI-A-1"
+load_module()
+world.handlers["hyprland.start"]()
+os.execute("prlimit --pid $PPID --fsize=unlimited:")
+check(state_file() == saved, "a failed write lost the saved blocks: " .. state_file())
+world.handlers["config.reloaded"]()
+check(state_file():find("3\tHDMI-A-1\tDell 333\n", 1, true), "the new block was never saved: " .. state_file())
+'
+) || fail "a failed write keeps the saved blocks and is tried again"
+pass "a failed write keeps the saved blocks and is tried again"
+
 # --- The keys ------------------------------------------------------------------
 
 run_lua keys '
