@@ -54,7 +54,9 @@ echo listening > "$HEX_STATE"
 cat > "$test_tmp/bin/hex" <<'SH'
 #!/bin/bash
 [[ $1 == "status" ]] || printf 'hex %s\n' "$*" >> "$DICTATION_LOG"
-if [[ $1 == "start" ]]; then
+if [[ $1 == "model" ]]; then
+  exit "${HEX_MODEL_EXIT:-0}"
+elif [[ $1 == "start" ]]; then
   echo listening > "$HEX_STATE"
 elif [[ ! -e $HEX_STATE ]]; then
   exit 3
@@ -379,3 +381,15 @@ printf '%s\n' voxtype > "$config"
 omarchy-remove-dictation-superwhisper
 [[ $(cat "$config") == "voxtype" ]] || fail "removing Superwhisper preserves another selected backend"
 pass "Superwhisper removal clears its selection and owned links while preserving user data and other backends"
+
+printf '%s\n' voxtype > "$config"
+if HEX_MODEL_EXIT=1 omarchy-install-dictation-hex > "$test_tmp/output" 2>&1; then fail "failed Hex model download must fail"; fi
+[[ $(cat "$config") == "voxtype" ]] || fail "failed Hex setup preserves selection"
+omarchy-install-dictation-hex > "$test_tmp/output" 2>&1
+[[ $(cat "$config") == "hex" ]] || fail "installer selects Hex"
+omarchy-remove-dictation-hex
+[[ ! -e $config ]] || fail "Hex removal clears its selection"
+printf '%s\n' voxtype > "$config"
+omarchy-remove-dictation-hex
+[[ $(cat "$config") == "voxtype" ]] || fail "removing Hex preserves another selected backend"
+pass "Hex installer selects Hex only after setup succeeds, and removal clears only its own selection"
