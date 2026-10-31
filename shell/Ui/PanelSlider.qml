@@ -9,6 +9,7 @@ Item {
   property real value: 0
   property real minimum: 0
   property real maximum: 1
+  // Unused. Kept so cloned panels that still set it can load.
   property real step: 0.05
   property bool integer: false
   property color trackColor: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "#333"
@@ -22,7 +23,7 @@ Item {
   // macOS-style notches. When > 1, that many evenly-spaced tick marks are cut
   // into the track (drawn in the panel background color, so only the part
   // crossing the track shows). Purely visual — snapping is the caller's job via
-  // `integer`/`step` or an index-based value. Default 0 leaves the track plain.
+  // `integer` or an index-based value. Default 0 leaves the track plain.
   property int tickCount: 0
   property color tickColor: bar ? bar.background : Commons.Color.background
 
@@ -146,14 +147,6 @@ Item {
       root.dragging = false
       root.released(root.liveValue)
       root.liveValue = root.value
-    }
-    onWheel: function(wheel) {
-      var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
-      var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
-      if (root.integer) next = Math.round(next)
-      root.liveValue = next
-      root.moved(next)
-      root.released(next)
     }
   }
 }
