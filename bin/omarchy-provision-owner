@@ -257,9 +257,10 @@ set_now() {
   return 0
 }
 
-# One tip per 8 seconds, elapsed-time driven like the install dashboard.
+# One tip per 8 seconds, elapsed-time driven like the install dashboard. It
+# sets SETUP_TIP rather than printing it, so a frame forks no subshell for it.
 current_tip() {
-  printf '%s' "${tips[$(((NOW - SETUP_T0) / 8 % ${#tips[@]}))]}"
+  SETUP_TIP="Tip: ${tips[(NOW - SETUP_T0) / 8 % ${#tips[@]}]}"
 }
 
 SETUP_POS=10
@@ -352,11 +353,13 @@ render_setup_dynamic() {
   (( poll )) && setup_progress
   pm=$SETUP_POS
   (( pm > 999 )) && pm=999
-  progress_icon_frame "$pm" "Setting up your machine" "Tip: $(current_tip)"
+  current_tip
+  progress_icon_frame "$pm" "Setting up your machine" "$SETUP_TIP"
 }
 
 render_setup_finish() {
-  progress_icon_finish "Setting up your machine" "Tip: $(current_tip)"
+  current_tip
+  progress_icon_finish "Setting up your machine" "$SETUP_TIP"
 }
 
 # The first thing a new owner sees, shown once before the keyboard step:

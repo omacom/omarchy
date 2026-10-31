@@ -315,3 +315,57 @@ form || fail "off a console the layout is only persisted" "$(cat "$tmp/screen" "
 ! grep -q '^loadkeys' "$tmp/calls" || fail "loadkeys runs only on a virtual console" "$(cat "$tmp/calls")"
 assert_layout dk "off a console"
 pass "off a virtual console the layout is persisted and checked without loadkeys"
+
+# First-boot setup's progress screen, which the ISO install dashboard draws too:
+# install/provisioning/progress-icon.sh. It runs in a subshell so its globals and
+# stubs stay out of the keyboard tests.
+(
+  # shellcheck disable=SC1091
+  source "$ROOT/install/provisioning/progress-icon.sh"
+
+  # The Linux VT draws a bright background (SGR 100-107) as the normal one
+  # (40-47), so a frame must never ask for one: the grey half of a cell under
+  # the green tip would vanish. Trace every step at every size the screen draws.
+  for scale in 1 2 3; do
+    progress_icon_build "$scale"
+    for ((pm = 1; pm <= 1000; pm++)); do
+      progress_icon_render "$pm"
+    done >"$tmp/trace"
+    ! grep -qaE $'\033\\[[0-9]+;10[0-7]m' "$tmp/trace" ||
+      fail "the icon at scale $scale never asks for a bright background" "$(grep -aoE $'\033\\[[0-9]+;10[0-7]m.' "$tmp/trace" | sort -u | cat -v)"
+  done
+  pass "the traced icon never asks the VT for a bright background"
+
+  # The icon is sized to the console font's real cell, which first boot can set
+  # to sun12x22. Every grid column must still get the same whole number of
+  # screen columns, or the icon loses its right edge or draws some strokes half
+  # as wide. Its second grid row is three strokes one grid column wide.
+  for cell in "8 16" "12 22" "9 19" "16 32"; do
+    read -r CELL_WIDTH CELL_HEIGHT <<<"$cell"
+    for scale in 1 2 3; do
+      progress_icon_build "$scale"
+      row=""
+      for ((x = 0; x < ICON_WIDTH; x++)); do
+        row+=${ICON_FILL[scale * ICON_WIDTH + x]}
+      done
+      read -ra strokes <<<"${row//0/ }"
+      (( ${#strokes[@]} == 3 )) && [[ ${strokes[0]} == "${strokes[1]}" && ${strokes[1]} == "${strokes[2]}" ]] ||
+        fail "a ${cell/ /x} font at scale $scale draws all three strokes of the icon's second row, equally wide" "$row"
+    done
+  done
+  pass "every console font draws the whole icon with equally wide strokes"
+
+  # Setup draws ten frames a second while it works the disk, so a frame must not
+  # start processes: only every fifth reads the console size, and none runs sed.
+  stty() { echo stty >>"$tmp/started"; echo "40 120"; }
+  sed() { echo sed >>"$tmp/started"; command sed "$@"; }
+  progress_icon_cell_size() { echo "8 16"; }
+  progress_icon_layout /dev/null 78
+  : >"$tmp/started"
+  for ((frame = 1; frame <= 10; frame++)); do
+    progress_icon_frame "$((frame * 50))" "Setting up your machine" "Tip: one of the tips"
+  done >/dev/null
+  ! grep -q '^sed$' "$tmp/started" && (( $(grep -c '^stty$' "$tmp/started") <= 2 )) ||
+    fail "ten frames read the console size at most twice and run no sed" "$(sort "$tmp/started" | uniq -c)"
+  pass "a frame starts no process except the console size check on every fifth"
+)
