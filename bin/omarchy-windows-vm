@@ -738,6 +738,10 @@ EOF
   if ((EUID == 0)); then
     chown root:docker "$tmp" 2>/dev/null || chown root:root "$tmp" || exit 1
   fi
+  # Keep the file being replaced, hand edits included, so they can be re-applied.
+  if [[ -f $COMPOSE_FILE && ! -L $COMPOSE_FILE ]]; then
+    ln -fT -- "$COMPOSE_FILE" "$COMPOSE_FILE.bak" || exit 1
+  fi
   mv -fT -- "$tmp" "$COMPOSE_FILE" || exit 1
   tmp=""
   trap - EXIT
@@ -980,7 +984,7 @@ __priv_remove() {
   umount -- "$EXPECTED_SHARED" || return 1
   umount -- "$EXPECTED_STORAGE" || return 1
   docker rmi "$IMAGE" 2>/dev/null || true
-  rm -f "$COMPOSE_FILE"
+  rm -f "$COMPOSE_FILE" "$COMPOSE_FILE.bak"
   rmdir -- "$EXPECTED_STORAGE" "$EXPECTED_SHARED" "$CALLER_DATA_ROOT" 2>/dev/null || true
 }
 
@@ -1127,7 +1131,10 @@ migrate_legacy_compose() {
     echo "Re-run: omarchy-windows-vm install" >&2
     return 1
   fi
-  rm -f "$LEGACY_COMPOSE_FILE"
+  # Moved aside rather than deleted: only the settings above carry over, so any
+  # hand edits have to be re-applied from it.
+  mv -f -- "$LEGACY_COMPOSE_FILE" "$LEGACY_COMPOSE_FILE.bak" || return 1
+  echo "Your previous configuration is kept at $LEGACY_COMPOSE_FILE.bak; re-apply any hand edits from it with sudo."
 }
 
 # --- prerequisites -----------------------------------------------------------
@@ -1312,8 +1319,9 @@ EOF
     exit 1
   fi
 
-  local tz
+  local tz had_compose=false
   tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo UTC)
+  [[ -f $COMPOSE_FILE ]] && had_compose=true
 
   # Write the root-owned compose from the validated settings (one prompt if
   # sudoless Docker is off). The writer pins the familiar home directories (or
@@ -1323,6 +1331,9 @@ EOF
     echo "❌ Failed to write the Windows VM configuration."
     exit 1
   }
+  if $had_compose; then
+    echo "Your previous configuration is kept at $COMPOSE_FILE.bak; re-apply any hand edits from it with sudo."
+  fi
   write_credentials "$USERNAME" "$PASSWORD" || {
     echo "❌ Failed to store private RDP credentials." >&2
     exit 1
