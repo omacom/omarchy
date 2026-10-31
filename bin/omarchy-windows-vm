@@ -1502,7 +1502,7 @@ To stop: omarchy-windows-vm stop"
     echo "Try again, or connect at: http://127.0.0.1:8006"
     echo "To stop it: omarchy-windows-vm stop"
     # The desktop entry runs without a terminal, so the lines above go unseen there.
-    omarchy-notification-send "Windows VM" "Could not connect over RDP. The VM is still running: launch again, or open http://127.0.0.1:8006"
+    omarchy-notification-send "Windows VM" "$(omarchy-i18n windowsVm.rdpFailed http://127.0.0.1:8006)"
     return "$RDP_STATUS"
     ;;
   esac

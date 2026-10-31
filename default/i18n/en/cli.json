@@ -392,6 +392,7 @@
   "windowsVm.passwordPlaceholder": "Password (Press enter to use default: %1)",
   "windowsVm.proceed": "Proceed with this configuration?",
   "windowsVm.ramHeader": "How much RAM would you like to allocate to Windows VM?",
+  "windowsVm.rdpFailed": "Could not connect over RDP. The VM is still running: launch again, or open %1",
   "windowsVm.usernameHeader": "Enter Windows username:",
   "windowsVm.usernamePlaceholder": "Username (Press enter to use default: %1)",
   "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?"
