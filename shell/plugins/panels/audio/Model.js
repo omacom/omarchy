@@ -273,6 +273,43 @@ function isUntypedSource(node, sourceAvailability) {
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
 
+// The virtual sink that plays one mix on every connected output. The command
+// names it; the panel only has to recognize it.
+const combineSinkName = "omarchy_combined_output"
+
+function isCombineSink(node) {
+  return !!node && String(node.name || "") === combineSinkName
+}
+
+function hasCombineSink(list) {
+  var values = list && list.length ? list : []
+  for (var i = 0; i < values.length; i++)
+    if (isCombineSink(values[i])) return true
+  return false
+}
+
+// The outputs a combined sink is built from: a real ALSA or Bluetooth device,
+// or the virtual sink a speaker tuning hosts in front of one. EasyEffects and
+// other virtual sinks are not outputs here -- a mix sent into one would route
+// back into the processing graph -- and neither is the combined sink itself,
+// which is the switch below the list rather than a row of its own.
+function isShareableSink(node) {
+  if (!node) return false
+  var name = String(node.name || "")
+  if (name === combineSinkName) return false
+  return name.indexOf("alsa_output.") === 0
+    || name.indexOf("bluez_output.") === 0
+    || name === "omarchy_speaker_tuning"
+}
+
+function shareableSinks(list) {
+  var values = list && list.length ? list : []
+  var sinks = []
+  for (var i = 0; i < values.length; i++)
+    if (isShareableSink(values[i])) sinks.push(values[i])
+  return sinks
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -299,6 +336,10 @@ if (typeof module !== "undefined") {
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
     streamRepresentsPlayer: streamRepresentsPlayer,
-    isUntypedSource: isUntypedSource
+    isUntypedSource: isUntypedSource,
+    isCombineSink: isCombineSink,
+    isShareableSink: isShareableSink,
+    hasCombineSink: hasCombineSink,
+    shareableSinks: shareableSinks
   }
 }
