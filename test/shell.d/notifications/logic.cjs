@@ -755,11 +755,21 @@ for (const holding of [false, true]) { // Silencing closes a muted update; only 
   n.replace({ urgency: 2 })
   s.drainCallLater()
   assert.equal(s.toasts.get(0).urgency, 2)
-  assert.equal(s.toasts.get(0).duration, 0)
+  assert.equal(s.toasts.get(0).duration, s.maxDuration)
   n.replace({ hints: { 'sender-pid': 1234 } })
   s.drainCallLater()
   assert.equal(s.toasts.get(0).senderPid, 1234)
   assert.equal(s.toasts.count, 1)
+}
+
+{ // Every urgency gets a finite stay; critical holds the full cap.
+  const s = newCapacityScope()
+  assert.equal(s.durationFor(0, 0), 5000)
+  assert.equal(s.durationFor(0, 4000), 5000)
+  assert.equal(s.durationFor(1, 0), 8000)
+  assert.equal(s.durationFor(1, 12345), 12345)
+  assert.equal(s.durationFor(2, 0), s.maxDuration)
+  assert.equal(s.durationFor(2, 60000), s.maxDuration)
 }
 
 const storedRows = count => Array.from({ length: count }, (_, i) => ({ key: 'stored-' + i, summary: 'Stored ' + i }))
@@ -953,7 +963,8 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
                   body: '<a href="https://app.slack.com/">app.slack.com</a>\n\nGurbinder: <b>look</b>',
                   hints: { 'omarchy-exec-argv': JSON.stringify(['omarchy-update']), 'omarchy-glyph': '\u{f0954}' } }, 'n1')),
                 Store.persistable({ key: 'n2', summary: 'Your code is 938271' }),
-                Store.persistable({ key: 'n3', body: '中'.repeat(30000) })]
+                Store.persistable({ key: 'n3', body: '中'.repeat(30000) }),
+                Store.persistable({ key: 'n4', summary: 'Battery low', urgency: 2 })]
   const text = Store.serialise(rows)
   assert.equal(Store.serialise(Store.parseLive(text)), text)
   const history = rows.map((row, i) => Store.closedEntry(row, 'expired', 1000 + i))
@@ -963,6 +974,10 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   eq([restored.restored, restored.duration, restored.execArgv, restored.glyph, restored.source],
                    [true, Store.RESTORE_GRACE, '["omarchy-update"]', '\u{f0954}', 'app.slack.com'])
   assert.equal(Store.normalise(history[0]).bodyLine, restored.bodyLine)
+  // A restored critical card gets the same grace rather than waiting forever.
+  const restoredCritical = Store.restored(Store.parseLive(text)[3])
+  eq([restoredCritical.restored, restoredCritical.urgency, restoredCritical.duration],
+                   [true, 2, Store.RESTORE_GRACE])
 }
 
 { // quiet.json keeps today's shape, and anything else in it is ignored.

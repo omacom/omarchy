@@ -142,10 +142,11 @@ Item {
   readonly property int normalDuration: 8000
   readonly property int maxDuration: 30000
 
-  // Critical waits for you. Everything else gets at least its urgency's
-  // minimum, stretched up to 30s when the sender asks for longer.
+  // Every urgency gets a finite stay: at least its urgency's minimum,
+  // stretched up to 30s when the sender asks for longer. Critical holds the
+  // full 30s rather than waiting to be dismissed.
   function durationFor(urgency, requested) {
-    if (urgency === NotificationUrgency.Critical) return 0
+    if (urgency === NotificationUrgency.Critical) return maxDuration
     var base = urgency === NotificationUrgency.Low ? lowDuration : normalDuration
     return Math.min(maxDuration, Math.max(base, requested > 0 ? requested : 0))
   }
