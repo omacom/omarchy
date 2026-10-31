@@ -253,8 +253,7 @@ Item {
     idleBlankTimer.restart()
   }
 
-  // Pointer motion calls this at input rate, so coalesce. The reused Process
-  // this replaced coalesced too, until a child that never exited pinned it.
+  // Pointer motion calls this at input rate, so the spawn is coalesced.
   function runWake() {
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
