@@ -122,6 +122,12 @@ hl.config({
     warp_on_change_workspace = 1,
   },
 
+  render = {
+    -- Keep HDR displays in SDR when a window goes fullscreen. Auto-switching
+    -- left SDR content looking washed out on the Pro Display XDR.
+    cm_auto_hdr = 0,
+  },
+
   binds = {
     hide_special_on_workspace_change = true,
   },
