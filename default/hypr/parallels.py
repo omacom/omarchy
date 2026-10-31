@@ -61,7 +61,8 @@ def scale_records(path):
   for line in lines:
     fields = dict(field.split("=", 1) for field in line.split("\t") if "=" in field)
     name = fields.get("monitor", "")
-    preferred = valid_scale(fields.get("requested")) or valid_scale(fields.get("new"))
+    preferred = (valid_scale(fields.get("preferred")) or valid_scale(fields.get("requested"))
+      or valid_scale(fields.get("new")))
     if re.fullmatch(r"Virtual-[0-9]+", name) and preferred is not None:
       records[name] = ScalePreference(line, preferred, valid_scale(fields.get("new")) or preferred)
   return records

@@ -19,8 +19,8 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}' \
-    "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
+  printf '[{"name":"%s","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}' \
+    "${OMARCHY_TEST_MONITOR_NAME:-eDP-1}" "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
   if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
     printf ',{"name":"DP-1","focused":false,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0}' \
       "$OMARCHY_TEST_OTHER_MONITOR_SCALE"
@@ -194,3 +194,49 @@ grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monito
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_OTHER_MONITOR_SCALE=3 run_scaling 2
 grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling lowers GDK scale to the newly lowest monitor"
 pass "monitor scaling sets GDK scale from the lowest monitor"
+
+# Use the real command producer and bridge consumer. A shortcut's numeric
+# preset must survive both a rounded window size and a later config reload.
+for direction in up down; do
+  write_monitor_config
+  : >"$scale_log"
+  if [[ $direction == "up" ]]; then
+    initial_scale=1
+  else
+    initial_scale=2
+  fi
+  OMARCHY_TEST_MONITOR_NAME=Virtual-1 OMARCHY_TEST_MONITOR_SCALE="$initial_scale" \
+    OMARCHY_TEST_MONITOR_WIDTH=1744 OMARCHY_TEST_MONITOR_HEIGHT=1092 run_scaling "$direction"
+  python3 - "$ROOT" "$scale_log" "$direction" <<'PY'
+from pathlib import Path
+import runpy
+import sys
+import tempfile
+from types import SimpleNamespace
+
+root, log, direction = sys.argv[1:]
+bridge_module = runpy.run_path(str(Path(root) / "default/hypr/parallels.py"))
+monitor = {"name": "Virtual-1", "width": 1744, "height": 1092, "scale": 4 / 3}
+
+def configure(current, mode, scale):
+  width, height = map(int, mode.split("x"))
+  monitor.update(width=width, height=height, scale=scale)
+
+compositor = SimpleNamespace(monitors=lambda: [monitor.copy()], configure=configure)
+with tempfile.TemporaryDirectory() as directory:
+  drm = Path(directory)
+  connector = drm / "card7-Virtual-1"
+  connector.mkdir()
+  mode_file = connector / "modes"
+  mode_file.write_text("1744x1092\n")
+  bridge = bridge_module["ResizeBridge"](compositor, drm, Path(log))
+  assert bridge.reconcile({"startup"})
+  mode_file.write_text("6400x3600\n")
+  assert bridge.reconcile({"hotplug"})
+  assert monitor["scale"] == 1.25, f"{direction}: lost 1.25x preset, applied {monitor['scale']}x"
+  monitor["scale"] = 4 / 3
+  assert bridge.reconcile({"config"})
+  assert monitor["scale"] == 1.25, f"{direction}: config reload lost the selected preset"
+PY
+done
+pass "scale shortcuts retain their numeric preset through Parallels resize and reload"
