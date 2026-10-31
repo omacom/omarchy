@@ -6,6 +6,9 @@ source "$(dirname "$0")/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 export HOME="$test_tmp/home" HERDR_APP_HOME="$test_tmp/herdr" PATH="$ROOT/bin:$PATH"
+export OMARCHY_PATH="$ROOT"
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
+mkdir -p "$XDG_RUNTIME_DIR"
 current="$HOME/.local/state/omarchy/current/theme"
 next="$HOME/.local/state/omarchy/current/next-theme"
 
@@ -73,3 +76,56 @@ if omarchy-theme-set-herdr-app >"$test_tmp/broken.log" 2>&1; then
 fi
 cmp -s "$test_tmp/good-theme.json" "$HERDR_APP_HOME/themes/omarchy.json" || fail "broken settings must not partially publish a theme"
 pass "broken settings are not overwritten or partially applied"
+
+for colors in '"broken"' '[]' 'null' 'true'; do
+  printf '{"theme":"omarchy","colors":%s}\n' "$colors" >"$HERDR_APP_HOME/settings.json"
+  cp "$HERDR_APP_HOME/settings.json" "$test_tmp/broken-settings.json"
+  if omarchy-theme-set-herdr-app >"$test_tmp/broken-colors.log" 2>&1; then
+    fail "non-object colors must be rejected"
+  fi
+  cmp -s "$test_tmp/good-theme.json" "$HERDR_APP_HOME/themes/omarchy.json" || fail "invalid colors must not replace the working theme"
+  cmp -s "$test_tmp/broken-settings.json" "$HERDR_APP_HOME/settings.json" || fail "invalid colors must not replace settings"
+done
+pass "non-object colors leave both published files untouched"
+
+cp "$test_tmp/good-settings.json" "$HERDR_APP_HOME/settings.json"
+
+# A real helper must wait while a theme setter holds its staging lock. Swap
+# the palette halfway through, then release: the helper must publish the new
+# palette and mode together, rather than the old snapshot or a mixture.
+python3 - <<'PY'
+import fcntl
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+current = Path.home() / ".local/state/omarchy/current/theme"
+app = Path(os.environ["HERDR_APP_HOME"])
+with (Path(os.environ["XDG_RUNTIME_DIR"]) / "omarchy-theme-set.lock").open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    helper = subprocess.Popen(["omarchy-theme-set-herdr-app"])
+    try:
+        try:
+            helper.wait(timeout=0.3)
+            raise AssertionError("Herdr helper did not wait for the theme setter")
+        except subprocess.TimeoutExpired:
+            pass
+        # Finish a switch to Nord while owning the real staging lock.
+        palette = json.loads((app / "themes/omarchy.json").read_text())
+        (current / "herdr-app.json").write_text(json.dumps(palette))
+        shutil.copy(Path(os.environ["ROOT"]) / "themes/nord/colors.toml", current / "colors.toml")
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        helper.wait(timeout=5)
+        assert helper.returncode == 0
+        settings = json.loads((app / "settings.json").read_text())
+        published = json.loads((app / "themes/omarchy.json").read_text())
+        assert settings["appearance"] == "dark"
+        assert settings["colors"]["background"] == published["background"] == "#2e3440"
+    finally:
+        if helper.poll() is None:
+            helper.kill()
+            helper.wait()
+PY
+pass "a queued helper publishes a consistent palette and mode after the theme switch"

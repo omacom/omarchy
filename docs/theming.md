@@ -52,7 +52,7 @@ Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets t
 
 Run `omarchy-theme-set-herdr-app --activate` once after opening Herdr and refreshing the current Omarchy theme. This selects `omarchy` in Herdr's settings. Later theme switches update its palette and appearance live, preserving unrelated settings. Without activation the theme is only published for discovery; a different theme in settings is not replaced. Per-layout theme and color overrides still take precedence inside Herdr.
 
-Palette tokens are also written into the opted-in settings to support Herdr 0.1.10, whose theme-file reload fix is tracked in herdrdev/herdr-app#193. Explicit appearance follows Omarchy's resolved light/dark mode without waiting for the desktop portal at startup. Both files are published atomically, and unchanged files are left alone.
+Palette tokens are also written into the opted-in settings to support Herdr 0.1.10, whose theme-file reload fix is tracked in herdrdev/herdr-app#193. Explicit appearance follows Omarchy's resolved light/dark mode without waiting for the desktop portal at startup. The helper holds the theme-switch staging lock while reading the palette and mode and publishing the update, so queued helpers use the current theme and cannot overwrite a newer update. Both files are prepared before either is replaced, each replacement is atomic, and unchanged files are left alone.
 
 ## What an installed theme may not ship
 
