@@ -59,15 +59,31 @@ Item {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        // A probe that started before a toggle reads the old temperature;
+        // applyProcess refreshes once the toggle has landed.
+        if (applyProcess.running) return
         root.temperature = NightlightModel.temperatureFromOutput(text)
         root.stateLoaded = true
       }
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0) {
+      if (exitCode !== 0 && !applyProcess.running) {
         root.temperature = null
         root.stateLoaded = true
       }
+    }
+  }
+
+  // hyprsunset switches its schedule profiles without telling anyone, and
+  // always on a minute boundary, so probe again just after each one.
+  Timer {
+    id: minuteProbe
+    running: true
+    interval: NightlightModel.msUntilNextMinuteProbe(new Date())
+    onTriggered: {
+      if (!applyProcess.running) root.refresh()
+      interval = NightlightModel.msUntilNextMinuteProbe(new Date())
+      start()
     }
   }
 
