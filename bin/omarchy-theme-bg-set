@@ -23,6 +23,20 @@ flock 9
 
 INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
 
+# A still with a theme loop goes straight to the loop, so the shell is told
+# once. With an intro it gets the still, and starts the loop once the intro has
+# handed the desktop back.
+if [[ -z $INTRO ]]; then
+  source omarchy-theme-bg-companions
+  BACKGROUND=$(theme_bg_live_target "$BACKGROUND")
+fi
+
+# Serialize with omarchy-theme-bg-loop-apply, so a loop it starts in the
+# meantime never replaces this choice.
+mkdir -p "$HOME/.local/state/omarchy"
+exec 8>"$HOME/.local/state/omarchy/background-loop.lock"
+flock 8
+
 # The shell sequences the change, with the intro or the ordinary transition,
 # and repoints the link itself once nothing on screen can flash.
 if [[ $(omarchy-shell shell switchBackground "$BACKGROUND" "$INTRO" 2>/dev/null) != "ok" ]]; then

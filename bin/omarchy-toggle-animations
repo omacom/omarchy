@@ -15,6 +15,10 @@ off) omarchy-hyprland-toggle no-animations on ;;
   ;;
 esac
 
+# A theme loop is motion too: it gives way to its still with animations off,
+# and comes back with them.
+omarchy-theme-bg-loop-apply || true
+
 if omarchy-hyprland-toggle-enabled no-animations; then
   omarchy-notification-send -g 󰗘 "$(omarchy-i18n animations.disabled)"
 else

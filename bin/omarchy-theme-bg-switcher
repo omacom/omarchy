@@ -7,6 +7,9 @@
 
 theme_name=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 current_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+# A playing theme loop is listed as its still.
+[[ $current_background != */backgrounds/loops/* ]] ||
+  current_background=$(omarchy-theme-bg-loop-apply --still "$current_background")
 
 omarchy-menu-images \
   --selected "$current_background" \
