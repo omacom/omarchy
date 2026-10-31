@@ -315,6 +315,7 @@
   "monitor.level.softGlow": "부드러운 빛",
   "monitor.level.solarFlare": "태양 플레어",
   "monitor.level.sunBlast": "태양 폭발",
+  "monitor.refreshRate": "주사율",
   "monitor.resolution": "해상도",
   "monitor.rotate180": "180°",
   "monitor.rotate270": "270°",
