@@ -13,7 +13,7 @@ home_dir="$test_tmp/home"
 state_dir="$home_dir/.local/state/omarchy"
 monitor_lua="$home_dir/.config/hypr/monitors.lua"
 settings_file="$state_dir/monitors/settings"
-scale_log="$state_dir/monitor-scaling.log"
+scale_log="$state_dir/monitors/scaling"
 
 mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 
@@ -42,7 +42,7 @@ chmod +x "$stub_bin/hyprctl"
 # than once (a resize, then the layout closing up around it). monitors.lua is
 # the user's, and only there to show it is never written.
 fresh() {
-  rm -f "$eval_out" "$settings_file" "$state_dir/monitor-workspaces"
+  rm -f "$eval_out" "$settings_file" "$state_dir/monitors/workspaces"
   printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })' >"$monitor_lua"
 }
 
@@ -161,8 +161,8 @@ pass "monitor scaling saves one line per monitor, outside monitors.lua"
 # Settings belong to the physical monitor, as monitor-workspaces names it, so
 # they follow it to whatever connector a dock gives it next.
 fresh
-mkdir -p "$state_dir"
-printf '0\teDP-1\tLG Display 0x0804\n' >"$state_dir/monitor-workspaces"
+mkdir -p "$state_dir/monitors"
+printf '0\teDP-1\tLG Display 0x0804\n' >"$state_dir/monitors/workspaces"
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
 [[ $(setting "LG Display 0x0804") == "||3" ]] || fail "monitor scaling saves by the monitor's identity" "actual: $(<"$settings_file")"
 [[ -z $(setting eDP-1) ]] || fail "monitor scaling doesn't save by connector when the identity is known"

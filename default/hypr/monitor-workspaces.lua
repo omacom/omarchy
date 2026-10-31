@@ -26,9 +26,12 @@
 local paths = require("default.hypr.paths")
 
 local SLOTS = 10
-local STATE_DIR = paths.state_home .. "/omarchy"
-local STATE_FILE = STATE_DIR .. "/monitor-workspaces"
-local MERGED_FILE = STATE_DIR .. "/monitor-workspaces-merged"
+local STATE_DIR = paths.state_home .. "/omarchy/monitors"
+local STATE_FILE = STATE_DIR .. "/workspaces"
+local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
+-- Where the blocks lived before moving into monitors/, read until a migration
+-- moves them, in case the config reloads first.
+local OLD_STATE_FILE = paths.state_home .. "/omarchy/monitor-workspaces"
 
 local M = { slots = SLOTS }
 
@@ -40,7 +43,7 @@ local written = nil
 local current = {}
 
 local function load_blocks()
-  local file = io.open(STATE_FILE, "r")
+  local file = io.open(STATE_FILE, "r") or io.open(OLD_STATE_FILE, "r")
   if not file then
     return
   end
