@@ -213,7 +213,7 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
   generated=$(basename "$tpl" .tpl)
   classified=""
 
-  for name in "${denied[@]}" "${colour_only[@]}"; do
+  for name in "${denied[@]}" "${colour_only[@]}" herdr-app.json; do
     if [[ $generated == "$name" ]]; then
       classified=1
       break
