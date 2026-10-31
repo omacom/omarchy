@@ -220,10 +220,12 @@ pci_devices 0x10de:0x030000
 assert_composed "NVIDIA-only with hibernation and a provisioning key is unchanged" x86 \
   "$omarchy_hooks_without_kms resume" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
 
+# The drop-in the T2 installer writes. Only linux-t2 ships t2bce, so it must be
+# optional ('?') or linux-omarchy's image next to it fails to build.
 new_etc
-drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
-assert_composed "a T2 Mac is unchanged" x86 \
-  "$omarchy_hooks" "t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
+sed -n 's/.*echo "\(MODULES+=(.*)\)".*/\1/p' "$ROOT/install/hardware/apple/fix-t2.sh" | drop_in apple-t2.conf
+assert_composed "a T2 Mac keeps t2bce optional for other kernels" x86 \
+  "$omarchy_hooks" "t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
 
 new_etc
 drop_in macbook_spi_modules.conf <<<"MODULES=(applespi intel_lpss_pci spi_pxa2xx_platform)"
