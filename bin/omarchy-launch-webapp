@@ -4,22 +4,47 @@
 # omarchy:args=<url>
 
 browser=$(omarchy-cmd-default-browser)
-
-case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
-esac
+chromium_browsers="chromium|chrome|brave|microsoft-edge|vivaldi|opera|helium"
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
 # omarchy-launch-browser does, so a browser it resolved is one this can start.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-browser_exec=""
-for data_dir in "${data_dirs[@]}"; do
-  entry="$data_dir/applications/$browser"
-  [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-  break
-done
+
+# Print the Exec= program of the first <desktop-file> found under <data-dir>/applications.
+desktop_exec() {
+  local desktop_file=$1 data_dir
+  shift
+  for data_dir in "$@"; do
+    if [[ -f $data_dir/applications/$desktop_file ]]; then
+      sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$desktop_file" | head -1
+      return
+    fi
+  done
+}
+
+# A launcher of the user's own can open web apps when its Exec= runs a
+# Chromium-based browser, directly or through a wrapper script naming one.
+chromium_based() {
+  local program=$(desktop_exec "$1" "${data_dirs[@]}")
+
+  [[ -n $program ]] || return 1
+  [[ ${program##*/} =~ $chromium_browsers ]] ||
+    grep -qIE -- "--user-data-dir|$chromium_browsers" "$(type -P "$program")" 2>/dev/null
+}
+
+case $browser in
+google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+*)
+  if ! chromium_based "$browser"; then
+    if [[ -n $browser && $browser != "chromium.desktop" ]]; then
+      omarchy-notification-send "$(omarchy-i18n webapp.browserFallback "${browser%.desktop}")"
+    fi
+    browser="chromium.desktop"
+  fi
+  ;;
+esac
+
+browser_exec=$(desktop_exec "$browser" "${data_dirs[@]}")
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
 # which fails a keybinding silently. A web app runs in a Chromium-based

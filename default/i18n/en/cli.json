@@ -371,6 +371,7 @@
   "update.whatsNew": "What's new: %1",
   "weather.status": "%1  ·  Temp %2  ·  Wind %3",
   "weather.unavailable": "Weather unavailable",
+  "webapp.browserFallback": "%1 can't open web apps, so they open in Chromium",
   "webapp.iconPlaceholder": "Could not fetch favicon automatically. Enter PNG icon URL or icon name",
   "webapp.intro": "Let's create a new web app you can start with the app launcher.",
   "webapp.namePlaceholder": "My favorite web app",
