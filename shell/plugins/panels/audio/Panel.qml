@@ -92,7 +92,23 @@ Panel {
   property var cachedAudioSinks: []
   property var cachedAudioSources: []
 
-  readonly property var rawAudioSinks: Model.availableDevices(candidateSinks, sinkAvailability, sink)
+  readonly property var rawAudioSinks: {
+    var candidates = []
+    for (var i = 0; i < candidateSinks.length; i++) {
+      // The combined sink is the switch below the list, not a device row.
+      if (Model.isCombineSink(candidateSinks[i])) continue
+      candidates.push(candidateSinks[i])
+    }
+    return Model.availableDevices(candidates, sinkAvailability, Model.isCombineSink(sink) ? null : sink)
+  }
+
+  // Sharing is the presence of the combined sink in the PipeWire graph, so the
+  // panel needs no process and no poll to know whether the switch is on. The
+  // row appears once two outputs can actually be mixed, which is the same set
+  // the command builds the sink from.
+  readonly property bool sharingAudio: Model.hasCombineSink(nodes)
+  readonly property bool combineVisible: sharingAudio || Model.shareableSinks(rawAudioSinks).length >= 2
+
   readonly property var rawAudioSources: Model.availableDevices(candidateSources, sourceAvailability, source)
 
   readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
@@ -232,7 +248,7 @@ Panel {
     : "transparent"
 
   function sectionCount(section) {
-    if (section === "output") return displayAudioSinks.length
+    if (section === "output") return displayAudioSinks.length + (combineVisible ? 1 : 0)
     if (section === "input") return displayAudioSources.length
     if (section === "streams") return displayAudioStreams.length
     return 0
@@ -339,6 +355,7 @@ Panel {
     if (focusSection === "header") { toggleAllMuted(); return }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
+      if (selectedIndex === displayAudioSinks.length) { toggleCombine(); return }
       var sink = nodeFor(displayAudioSinks[selectedIndex])
       if (sink) setDefaultSink(sink)
       return
@@ -541,6 +558,13 @@ Panel {
     }
   }
 
+  // The command creates or removes the combined sink; PipeWire then
+  // republishes the graph, which is where sharingAudio comes from.
+  function toggleCombine() {
+    if (combineProc.running) return
+    combineProc.running = true
+  }
+
   function setDefaultSource(node) {
     if (!node) return
     // Quickshell refuses an untyped node; the command below still selects it.
@@ -662,6 +686,11 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.sourceAvailability = Model.parseSinkAvailability(text)
     }
+  }
+
+  Process {
+    id: combineProc
+    command: ["omarchy-audio-output-combine", "toggle"]
   }
 
   Process {
@@ -948,6 +977,12 @@ Panel {
                 rowIndex: index
               }
             }
+
+            CombineRow {
+              width: panelColumn.width
+              visible: root.combineVisible
+              rowIndex: root.displayAudioSinks.length
+            }
           }
 
           // ---- Input ----
@@ -1159,6 +1194,75 @@ Panel {
         root.selectedIndex = sinkRow.rowIndex
       }
       onClicked: root.setDefaultSink(sinkRow.node)
+    }
+  }
+
+  // "Play on all outputs" — a device-like row below the sink list, and the only
+  // thing that creates or removes the combined sink. The switch mirrors
+  // sharingAudio, which comes straight from the PipeWire graph.
+  component CombineRow: CursorSurface {
+    id: combineRow
+    required property int rowIndex
+
+    hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
+    onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(combineRow)
+    current: root.sharingAudio
+    foreground: root.bar.foreground
+    fill: root.hoverFill
+    currentFill: root.selectedFill
+    implicitHeight: combineInner.implicitHeight + Style.spacing.xl
+
+    Row {
+      id: combineInner
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.leftMargin: Style.space(6)
+      anchors.rightMargin: Style.space(6)
+      spacing: Style.space(8)
+
+      Text {
+        textFormat: Text.PlainText
+        text: "󰕾"
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.title
+        width: Style.space(22)
+        horizontalAlignment: Text.AlignHCenter
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        text: Commons.I18n.t("audio.combine")
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: combineRow.current
+        elide: Text.ElideRight
+        width: parent.width - Style.space(22) - combineSwitch.width - Style.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      ToggleSwitch {
+        id: combineSwitch
+        checked: root.sharingAudio
+        interactive: false
+        foreground: root.bar.foreground
+        anchors.verticalCenter: parent.verticalCenter
+      }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onContainsMouseChanged: if (containsMouse) {
+        root.cursorActive = true
+        root.focusSection = "output"
+        root.selectedIndex = combineRow.rowIndex
+      }
+      onClicked: root.toggleCombine()
     }
   }
 
