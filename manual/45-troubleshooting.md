@@ -6,21 +6,15 @@ First try to [rollback your system](47-system-snapshots.md) the version before y
 
 ### Why are some apps so large on my display?
 
-Omarchy assumes a 2x high-resolution display, which requires setting `GDK_SCALE` to 2 in `~/.config/hypr/monitors.lua`. But if you're on a 1x display, you can change `local omarchy_gdk_scale = 2` to 1 (and then restart any app that's oversized). See [the manual on monitors](33-monitors.md).
+Omarchy assumes a 2x high-resolution display, so it sets `GDK_SCALE` to 2 until you choose a scale in the monitor panel. If you're on a 1x display and GTK or X11 apps come out oversized, pick 1x for it in the monitor panel, or add `hl.env("GDK_SCALE", "1")` to `~/.config/hypr/monitors.lua` (and then restart any app that's oversized). See [the manual on monitors](33-monitors.md).
 
 For Spotify, you can use `Ctrl + Minus` to shrink the UI (and `Ctrl + Plus` to make it bigger).
 
-### Why isn't Caps Lock working?
+### Why did all my Super key binds stop working?
 
-In Omarchy, Caps Lock has been designated to be the xcompose key. That's how you get [quick emojis](07-hotkeys.md#quick-emojis) and [other autocompletions](07-hotkeys.md#quick-completions) done. If you really miss using Caps Lock, you can remap the xcompose key to something else by editing `~/.config/hypr/input.lua`, like setting it to the right alt key:
+On some ASUS ROG and TUF laptops, `Fn + Super` is an easy-to-miss chord that toggles a firmware Windows-key lock (meant for gaming so you don't leave a game by accident). Nothing on screen tells you it happened. While the lock is on, Super emits nothing at all — so every Omarchy bind that uses Super just stops, and it looks like Hyprland broke.
 
-```
-hl.config({
-  input = {
-    kb_options = "compose:ralt",
-  },
-})
-```
+Press `Fn + Super` once before you dig into `~/.config/hypr/`, and if that doesn't bring Super back, press it again so you don't leave the lock on. This is not Fn-lock, which only changes what the F-key row does.
 
 ### My Wi-Fi, Bluetooth, audio, or trackpad just stopped working
 
