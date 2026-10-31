@@ -29,6 +29,22 @@ fi
 # Retry these steps even when an earlier attempt already installed the binary.
 voxtype setup --download --no-post-install
 voxtype setup systemd
+
+# The intel-ipu7 camera resume hook restarts wireplumber.service on every
+# resume, and WirePlumber going away under Voxtype's open playback stream can
+# leave its audio thread spinning at 100% CPU. Tie the service's lifetime to
+# WirePlumber's so it stops with WirePlumber and starts after it comes back.
+drop_in_dir="$config_home/systemd/user/voxtype.service.d"
+mkdir -p "$drop_in_dir"
+cat >"$drop_in_dir/omarchy-restart-with-wireplumber.conf" <<'EOF'
+# Omarchy: restart Voxtype with WirePlumber. The intel-ipu7 camera resume hook
+# restarts wireplumber.service on every resume, and Voxtype's open playback
+# stream can spin at 100% CPU once WirePlumber disappears under it.
+[Unit]
+PartOf=wireplumber.service
+After=wireplumber.service
+EOF
+systemctl --user daemon-reload
 systemctl --user enable --now voxtype.service
 
 omarchy-dictation-use voxtype
