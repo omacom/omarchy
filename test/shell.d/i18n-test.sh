@@ -182,8 +182,14 @@ for (const file of englishManual) englishTexts[file] = fs.readFileSync(path.join
 const bagOf = (items) => JSON.stringify([...items].sort())
 const fencesOf = (text) => [...text.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((m) => m[1])
 // The published manual's autolinks leave trailing ASCII punctuation out of a
-// bare URL but keep 。 or । in it, and a (destination) keeps it all.
-const urlsOf = (text) => [...text.matchAll(/https?:\/\/[^\s)`]+/g)].map((m) => text[m.index - 1] === '(' ? m[0] : m[0].replace(/[.,;:!?]+$/, ''))
+// bare URL but keep 。 or । in it, a ](destination) keeps it all, and a URL in
+// inline code is no link at all (protectedInlineOf holds it).
+const destUrlRe = /\]\(\s*<?(https?:\/\/[^\s)]+)/g
+const urlsOf = (text) => {
+  const prose = text.replace(destUrlRe, '').replace(/`[^`\n]+`/g, (span) => (/https?:\/\//.test(span) ? '' : span))
+  const bare = prose.match(/https?:\/\/[^\s)]+/g) || []
+  return [...[...text.matchAll(destUrlRe)].map((m) => m[1]), ...bare.map((url) => url.replace(/[.,;:!?]+$/, ''))]
+}
 const relDestsOf = (text) => [...text.matchAll(/\]\((?!<?https?:\/\/)([^)\s]+)/g)].map((m) => m[1])
 const protectedInlineOf = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1])
   .filter((span) => /[/~$]/.test(span) || span.startsWith('omarchy ') || span.startsWith('omarchy-'))
@@ -206,7 +212,13 @@ assert(['https://example.org/walls を参照してください。', 'ดูท�
   ['参照: https://example.org/walls。', 'देखें https://example.org/walls।', 'دیکھیں https://example.org/walls۔', 'See https://example.org/other.']
     .every((translated) => manualProblems('See https://example.org/walls.', translated).length > 0) &&
   manualProblems('[LocalSend](https://localsend.org/)', '[LocalSend](https://localsend.org/ダウンロード)').length > 0 &&
-  manualProblems('[dharmx/walls](https://github.com/dharmx/walls).', '[dharmx/walls](https://github.com/dharmx/walls.)。').length > 0, 'the manual integrity check ignores the full stop the published link drops, not one it keeps')
+  ['[dharmx/walls](https://github.com/dharmx/walls.)。', '[dharmx/walls]( https://github.com/dharmx/walls.)。', '[dharmx/walls](https://github.com/dharmx/walls`x)。', '[dharmx/walls](https://github.com/dharmx/walls`x`)。']
+    .every((translated) => manualProblems('[dharmx/walls](https://github.com/dharmx/walls).', translated).length > 0) &&
+  manualProblems('(see https://example.org/walls.)', '(参照 https://example.org/walls)').length === 0 &&
+  manualProblems('`a` [x](https://example.org/walls) `b`', '`a` [あ](https://example.org/walls) `b`').length === 0 &&
+  manualProblems('Like `https://example.org/walls.sig`.', '例：`https://example.org/walls.sig`。').length === 0 &&
+  manualProblems('Use `https://`.', '`https://` を使います。').length === 0 &&
+  manualProblems('[x](https://example.org/ab) `https://hidden`', '[x](https://example.org/a`https://hidden`b)').length > 0, 'the manual integrity check ignores the full stop the published link drops, not one it keeps')
 for (const code of codes) {
   if (code === 'en') continue
   const dir = path.join(manualDir, code)
