@@ -24,8 +24,9 @@ local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
+local LAYOUTS_DIR = paths.state_home .. "/omarchy/workspace-layouts"
 
-local M = {}
+local M = { layouts_dir = LAYOUTS_DIR }
 
 local modes = {}
 local default_mode = nil
@@ -406,6 +407,47 @@ function o.workspace_mode(spec)
   end
 
   arrange(hl.get_workspace_windows(workspace))
+  sync_open_rules()
+  update_input()
+end
+
+-- Per-monitor workspaces renumber a workspace as it joins another monitor's
+-- block, and the mode it was given goes with it, saved file and all. The number
+-- it leaves goes back to the default layout, as does the number it takes when
+-- it has no mode of its own, so whatever opens under either later starts fresh.
+function M.renumber(from, to)
+  from, to = tostring(from), tostring(to)
+  local mode = modes[from]
+  if not mode and not modes[to] then
+    return
+  end
+
+  modes[from] = nil
+  modes[to] = mode
+
+  -- The old file goes once the new one is written. A layout that cannot be
+  -- saved under the new number stays saved under the old one, as it would have
+  -- before, rather than being lost on the next reload.
+  if mode then
+    local saved = io.open(LAYOUTS_DIR .. "/" .. to .. ".lua", "w")
+    if saved then
+      local written = saved:write(string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', to, mode)) ~= nil
+      written = saved:close() and written
+      if written then
+        os.remove(LAYOUTS_DIR .. "/" .. from .. ".lua")
+      end
+    end
+  else
+    os.remove(LAYOUTS_DIR .. "/" .. to .. ".lua")
+  end
+
+  -- A floating workspace tiles in the default layout once it stops floating,
+  -- rather than in whatever its new number was last set to.
+  local default_layout = hl.get_config("general.layout") or "dwindle"
+  hl.workspace_rule({ workspace = to, layout = mode ~= "floating" and mode or default_layout })
+  hl.workspace_rule({ workspace = from, layout = default_layout })
+
+  arrange(hl.get_workspace_windows(to))
   sync_open_rules()
   update_input()
 end

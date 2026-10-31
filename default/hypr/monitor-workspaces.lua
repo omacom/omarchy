@@ -24,6 +24,7 @@
 -- the block they stay guests, and the bar lists them after the monitor's own.
 
 local paths = require("default.hypr.paths")
+local workspace_modes = require("default.hypr.workspace-modes")
 
 local SLOTS = 10
 local STATE_DIR = paths.state_home .. "/omarchy"
@@ -263,10 +264,12 @@ local function identity_of_block(block)
   return nil
 end
 
--- Give a workspace another id, carrying where it came from with it.
+-- Give a workspace another id, carrying where it came from and its layout
+-- with it.
 local function renumber(workspace, id)
   local old = workspace.id
   hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(old), id = id }))
+  workspace_modes.renumber(old, id)
 
   -- A record left under the new id belonged to a workspace that has gone.
   if merged[old] or merged[id] then

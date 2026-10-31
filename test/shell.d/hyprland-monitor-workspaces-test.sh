@@ -618,3 +618,32 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+# --- Layouts ------------------------------------------------------------------
+
+run_lua layouts '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local renumbered = {}
+package.loaded["default.hypr.workspace-modes"] = {
+  renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
+}
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 12)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+check(world.windows["0xb"].workspace == 2, "the workspace joined the laptop'"'"'s")
+check(table.concat(renumbered, " ") == "12>2", "the layout did not follow the workspace to its new number: " .. table.concat(renumbered, " "))
+
+plug("DP-3", 3, "LG", 3)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xb"].workspace == 12, "the workspace went home")
+check(table.concat(renumbered, " ") == "12>2 2>12", "the layout did not follow the workspace home: " .. table.concat(renumbered, " "))
+' || fail "a renumbered workspace takes its layout with it"
+pass "a renumbered workspace takes its layout with it"
