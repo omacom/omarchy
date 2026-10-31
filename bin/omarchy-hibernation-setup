@@ -116,11 +116,9 @@ rename_resume_device() {
   return 1
 }
 
-rebuild_renamed_resume_device() {
+rebuild_boot_image() {
   local log
   local -a status
-
-  [[ -e $RESUME_REBUILD_PENDING ]] && ! $NO_REBUILD || return 0
 
   # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
   log=$(mktemp) || return 1
@@ -128,11 +126,21 @@ rebuild_renamed_resume_device() {
   status=("${PIPESTATUS[@]}")
   if (( status[0] == 0 && status[1] == 0 )) && ! grep -q 'mkinitcpio failed for kernel' "$log"; then
     rm -f "$log"
+    return 0
+  fi
+
+  rm -f "$log"
+  return 1
+}
+
+rebuild_renamed_resume_device() {
+  [[ -e $RESUME_REBUILD_PENDING ]] && ! $NO_REBUILD || return 0
+
+  if rebuild_boot_image; then
     sudo rm -f "$RESUME_REBUILD_PENDING"
     return
   fi
 
-  rm -f "$log"
   echo "Could not rebuild the boot image with the renamed resume device; run omarchy-hibernation-setup again once that is fixed" >&2
   return 1
 }
@@ -159,7 +167,7 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
     rebuild_renamed_resume_device || exit 1
   elif $NEEDS_REBUILD && ! $NO_REBUILD; then
     echo "Regenerating initramfs..."
-    sudo limine-mkinitcpio || exit 1
+    rebuild_boot_image || exit 1
     echo
   fi
 

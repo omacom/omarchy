@@ -143,9 +143,11 @@ done
 machine "$uuid_line"
 SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "forced setup without rebuild" "$(<"$rtmp/out")"
 [[ ! -s $rtmp/rebuilds ]] || fail "--no-rebuild suppresses a forced rebuild"
-if SWAP_SOURCE="/dev/nvme0n1p2[/@]" REBUILD_RESULT=fail setup --force; then
-  fail "forced setup reports a rebuild that failed"
-fi
+for result in fail skip; do
+  if SWAP_SOURCE="/dev/nvme0n1p2[/@]" REBUILD_RESULT=$result setup --force || grep -q "already set up" "$rtmp/out"; then
+    fail "forced setup reports a rebuild that failed ($result)" "$(<"$rtmp/out")"
+  fi
+done
 pass "forced setup rebuilds the boot image of a machine already set up"
 rm -rf "$rtmp"
 
