@@ -839,9 +839,11 @@ Panel {
 
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
+    var needsCredentials = requiresCredentials(network.security)
     actionTimeout.stop()
+    if (actionKind === "connect" && !shouldRepromptPassphrase(reason, needsCredentials)) passwordSsid = ""
     failureSsid = actionSsid
-    failureReason = networkFailureReason(reason, requiresCredentials(network.security))
+    failureReason = networkFailureReason(reason, needsCredentials)
     actionSsid = ""
     actionKind = ""
     refresh()
@@ -872,21 +874,39 @@ Panel {
 
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      enterpriseConnect.targetSsid = ssid
       enterpriseConnect.secret = passphrase
       enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
       enterpriseConnect.running = true
     })
   }
 
+  function handleEnterpriseConnectExit(exitCode) {
+    var ssid = enterpriseConnect.targetSsid
+    enterpriseConnect.targetSsid = ""
+    if (actionKind !== "connect" || actionSsid !== ssid) return
+    if (exitCode === 0) {
+      clearNetworkAction()
+      return
+    }
+    var network = networkForSsid(ssid)
+    if (network) failNetworkAction(network, connectionFailReasons.WifiClientFailed)
+    else clearNetworkAction()
+  }
+
   // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).
   // The password goes over stdin, never argv.
   Process {
     id: enterpriseConnect
+    property string targetSsid: ""
     property string secret: ""
     stdinEnabled: true
     onStarted: {
       write(secret + "\n")
       secret = ""
+    }
+    onExited: function(exitCode) {
+      root.handleEnterpriseConnectExit(exitCode)
     }
   }
 

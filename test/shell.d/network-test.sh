@@ -202,6 +202,90 @@ assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reas
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, false, reasons), false, 'network does not reprompt an open network on auth timeout')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiClientFailed, true, reasons), false, 'network does not reprompt on generic connection failures')
 
+// An early failure in enterpriseConnectScript (before nmcli connection up hands
+// off to NetworkManager) never fires WifiNetwork.onConnectionFailed, so the
+// Process exit handler has to clear the in-flight connect and report a general
+// failure without mislabeling it as a wrong password or keeping the prompt open.
+const os = require("os")
+const { spawnSync } = require("child_process")
+
+const clearActionHelper = panelSource.match(/function clearNetworkAction\(\) \{[\s\S]*?\n {2}\}/)
+const failActionHelper = panelSource.match(/function failNetworkAction\(network, reason\) \{[\s\S]*?\n {2}\}/)
+const enterpriseExitHelper = panelSource.match(/function handleEnterpriseConnectExit\(exitCode\) \{[\s\S]*?\n {2}\}/)
+assert(clearActionHelper && failActionHelper && enterpriseExitHelper, "network defines enterprise connect exit helpers")
+
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omarchy-eap-test-"))
+const logFile = path.join(tmpDir, "nmcli.log")
+fs.writeFileSync(
+  path.join(tmpDir, "nmcli"),
+  "#!/bin/bash\nprintf \"%s %s\\n\" \"$1\" \"$2\" >> \"$NMCLI_LOG\"\n[[ \"$1 $2\" == \"connection add\" ]] && exit 4\nexit 0\n",
+  { mode: 0o755 }
+)
+fs.writeFileSync(
+  path.join(tmpDir, "uuidgen"),
+  "#!/bin/bash\necho 00000000-0000-0000-0000-000000000042\n",
+  { mode: 0o755 }
+)
+
+const earlyFailRun = spawnSync(
+  "bash",
+  ["-c", network.enterpriseConnectScript, "nmcli-eap", "Campus WiFi", "student@example.edu"],
+  {
+    input: "hunter2\n",
+    encoding: "utf8",
+    env: Object.assign({}, process.env, { PATH: tmpDir + ":" + process.env.PATH, NMCLI_LOG: logFile })
+  }
+)
+const nmcliCalls = fs.readFileSync(logFile, "utf8").trim().split("\n")
+fs.rmSync(tmpDir, { recursive: true, force: true })
+
+assert(earlyFailRun.status !== 0, "enterpriseConnectScript exits non-zero when profile creation fails")
+assertDeepEqual(
+  nmcliCalls,
+  ["connection add", "connection delete"],
+  "enterpriseConnectScript stops before edit/up and cleans up when connection add fails"
+)
+
+var actionTimeout = { stopped: 0, stop: function() { this.stopped++ } }
+var actionKind = "connect"
+var actionSsid = "Campus WiFi"
+var passwordSsid = "Campus WiFi"
+var failureSsid = ""
+var failureReason = ""
+var refreshed = 0
+var connectionFailReasons = reasons
+var enterpriseConnect = { targetSsid: "Campus WiFi" }
+var wifiNetBySsid = { "Campus WiFi": { name: "Campus WiFi", security: security.Wpa2Eap } }
+function refresh() { refreshed++ }
+function networkForSsid(ssid) { return wifiNetBySsid[ssid] || null }
+function requiresCredentials(sec) { return network.requiresCredentials(sec, security.Open, security.Owe) }
+function networkFailureReason(reason, needsCreds) { return network.networkFailureReason(reason, needsCreds, connectionFailReasons) }
+function shouldRepromptPassphrase(reason, needsCreds) { return network.shouldRepromptPassphrase(reason, needsCreds, connectionFailReasons) }
+
+eval(clearActionHelper[0])
+eval(failActionHelper[0])
+eval(enterpriseExitHelper[0])
+
+handleEnterpriseConnectExit(earlyFailRun.status)
+assertEqual(actionKind, "", "early enterprise script failure clears actionKind")
+assertEqual(actionSsid, "", "early enterprise script failure clears actionSsid")
+assertEqual(passwordSsid, "", "early enterprise script failure closes the passphrase prompt instead of reprompting")
+assertEqual(failureSsid, "Campus WiFi", "early enterprise script failure records the failed SSID")
+assertEqual(failureReason, "Connection failed", "early enterprise script failure reports a general connection failure")
+
+actionKind = "connect"
+actionSsid = "Campus WiFi"
+passwordSsid = "Campus WiFi"
+enterpriseConnect.targetSsid = "Stale WiFi"
+handleEnterpriseConnectExit(1)
+assertEqual(actionSsid, "Campus WiFi", "stale enterprise exit does not clear a newer connect action")
+
+enterpriseConnect.targetSsid = "Campus WiFi"
+handleEnterpriseConnectExit(0)
+assertEqual(actionKind, "", "successful enterprise script exit clears the connect action")
+assertEqual(passwordSsid, "", "successful enterprise script exit closes the passphrase prompt")
+assertEqual(failureReason, "", "successful enterprise script exit clears any prior failure reason")
+
 assertEqual(network.bandLabel('2.4'), '2.4ghz', 'network labels the 2.4GHz band')
 assertEqual(network.bandLabel('6'), '6ghz', 'network labels the 6GHz band')
 assertEqual(network.bandLabel('auto'), 'Auto', 'network labels the automatic band choice')
