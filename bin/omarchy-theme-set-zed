@@ -15,7 +15,7 @@ update_settings() {
   local lock_fd status
 
   # Theme and font changes can run together; serialize our settings edits so
-  # each one sees the other's changes before replacing the file.
+  # each one sees the other's changes before updating the file.
   mkdir -p "$HOME/.local/state/omarchy/zed" || return 1
   exec {lock_fd}>"$HOME/.local/state/omarchy/zed/settings.lock" || return 1
   flock "$lock_fd" || return 1
@@ -28,11 +28,8 @@ update_settings() {
 
   python3 - "$ZED_SETTINGS_PATH" "$action" "$native_theme_ready" "$font_name" <<'PY'
 import json
-import os
 import re
-import stat
 import sys
-import tempfile
 
 path, action, native_theme_ready, font_name = sys.argv[1:]
 property_name = "buffer_font_family" if action == "font" else "theme"
@@ -151,18 +148,15 @@ except (ValueError, json.JSONDecodeError) as error:
     sys.exit(1)
 
 try:
-    target = os.path.realpath(path)
-    target_stat = os.stat(target)
-    descriptor, temporary = tempfile.mkstemp(prefix=".settings.json.", dir=os.path.dirname(target))
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as settings_file:
+    # Zed watches the file itself, so replacing it would break its watcher.
+    with open(path, "r+", encoding="utf-8", newline="") as settings_file:
+        if settings_file.read() != text:
+            raise ValueError("settings changed while updating")
+        if updated != text:
+            settings_file.seek(0)
             settings_file.write(updated)
-        os.chmod(temporary, stat.S_IMODE(target_stat.st_mode))
-        os.replace(temporary, target)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-except (OSError, UnicodeError) as error:
+            settings_file.truncate()
+except (OSError, UnicodeError, ValueError) as error:
     print(f"Could not update Zed settings: {error}", file=sys.stderr)
     sys.exit(1)
 PY

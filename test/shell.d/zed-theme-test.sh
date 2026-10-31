@@ -143,6 +143,46 @@ sed '/^[[:space:]]*\/\//d' "$settings" | jq -e --arg font "$font_name" \
   fail "Zed font sync escapes the font and preserves unrelated settings"
 pass "Zed font sync preserves JSONC and per-language settings"
 
+python3 - "$ROOT" "$test_tmp" <<'PY'
+import ctypes
+import json
+import os
+from pathlib import Path
+import struct
+import subprocess
+import sys
+
+root = Path(sys.argv[1])
+home = Path(sys.argv[2]) / "watch-home"
+settings = home / ".config/zed/settings.json"
+settings.parent.mkdir(parents=True)
+settings.write_text('{"buffer_font_family":"Old Font"}\n')
+libc = ctypes.CDLL(None, use_errno=True)
+in_modify = 0x2
+fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+if fd < 0 or libc.inotify_add_watch(fd, os.fsencode(settings), in_modify) < 0:
+    raise OSError(ctypes.get_errno(), "cannot watch Zed settings")
+env = dict(os.environ, HOME=str(home), PATH=f"{root / 'bin'}:{os.environ['PATH']}")
+try:
+    for font in ("First Font", "Second Font"):
+        subprocess.run([str(root / "bin/omarchy-theme-set-zed"), "--font", font], env=env, check=True)
+        try:
+            events = os.read(fd, 65536)
+        except BlockingIOError:
+            events = b""
+        masks = []
+        while events:
+            _, mask, _, length = struct.unpack_from("iIII", events)
+            masks.append(mask)
+            events = events[16 + length:]
+        if not any(mask & in_modify for mask in masks):
+            raise AssertionError(f"Zed settings watcher missed the update to {font}")
+        assert json.loads(settings.read_text())["buffer_font_family"] == font
+finally:
+    os.close(fd)
+print("ok - repeated font changes notify a Zed settings file watcher")
+PY
+
 font_target="$home/.config/zed/font-settings-target.json"
 mv "$settings" "$font_target"
 ln -s "$(basename "$font_target")" "$settings"
