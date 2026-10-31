@@ -59,6 +59,29 @@ plugin_id_manifest() {
   '
 }
 
+audit_plugin() {
+  local directory=$1
+  local report
+
+  report="$audit_workspace/report"
+  audit_step '3/4 Audit source'
+  omarchy-plugin-audit "$directory" >"$report"
+
+  if interactive && (( ! ASSUME_YES )); then
+    omarchy-plugin-audit-review "$report" || fail "audit review cancelled or failed; nothing installed"
+  else
+    cat "$report"
+  fi
+
+  rm -f "$report"
+}
+
+audit_step() {
+  if interactive && (( ! ASSUME_YES )); then
+    printf '\n\033[32m%s\033[0m\n' "$1"
+  fi
+}
+
 url=""
 enable_after=""
 
@@ -94,6 +117,10 @@ if [[ -z $url ]]; then
   [[ -n $url ]] || fail "a git URL is required"
 fi
 
+if ! interactive && (( ! ASSUME_YES )); then
+  fail "refusing to continue without confirmation; pass --yes"
+fi
+
 # Refuse a URL that names a git option or a transport helper before cloning, so
 # an untrusted URL cannot run a command before the plugin is validated or
 # enabled. The check is shared with omarchy-theme-install and explains itself; a
@@ -111,40 +138,59 @@ if (( ! ASSUME_YES )); then
       URL: $url
 
 WARN
-  confirm "$(omarchy-i18n plugin.confirmAdd)" || fail "aborted"
 fi
 
-mkdir -p "$PLUGINS_DIR"
+# Keep unreviewed files outside the shell's watched/discovered plugin tree.
+# Use /tmp explicitly: TMPDIR can point into the plugin tree. mktemp makes a
+# private (0700), unpredictable parent for both the checkout and audit report.
+audit_workspace=$(mktemp -d /tmp/omarchy-plugin-add.XXXXXXXXXX)
+readonly audit_workspace
+install_workspace=""
+cleanup_audit() {
+  rm -rf -- "$audit_workspace"
+  if [[ -n $install_workspace ]]; then
+    rm -rf -- "$install_workspace"
+  fi
+}
+trap cleanup_audit EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-stage="$PLUGINS_DIR/.add.tmp.$$"
-rm -rf "$stage"
-if ! git clone -- "$url" "$stage"; then
-  rm -rf "$stage"
+stage="$audit_workspace/checkout"
+audit_step '1/4 Fetch repository'
+if ! git clone -- "$url" "$stage" >"$audit_workspace/fetch.log" 2>&1; then
+  cat "$audit_workspace/fetch.log" >&2
   fail "failed to clone $url"
 fi
 
+audit_step '2/4 Validate plugin'
 if ! omarchy-plugin-validate "$stage"; then
-  rm -rf "$stage"
   fail "refusing to add: validation failed"
 fi
 
+audit_plugin "$stage"
+
 id=$(jq -r '.id' "$stage/manifest.json")
 existing_manifest=$(plugin_id_manifest "$id") || {
-  rm -rf "$stage"
   fail "could not inspect installed plugin ids"
 }
 if [[ -n $existing_manifest ]]; then
-  rm -rf "$stage"
   fail "plugin id '$id' is already used by $existing_manifest"
 fi
 
 target="$PLUGINS_DIR/$id"
 if [[ -e $target || -L $target ]]; then
-  rm -rf "$stage"
   fail "plugin '$id' is already installed; update it with: omarchy plugin update $id"
 fi
 
-mv "$stage" "$target"
+mkdir -p "$PLUGINS_DIR"
+# /tmp may be on a different filesystem. Copy accepted files into a hidden,
+# private destination-side workspace, then publish with a single rename.
+install_workspace=$(mktemp -d "$PLUGINS_DIR/.add.XXXXXXXXXX")
+cp -a -- "$stage" "$install_workspace/checkout"
+mv -T -- "$install_workspace/checkout" "$target"
+cleanup_audit
 echo "Added $id into $target"
 
 omarchy-shell shell rescanPlugins >/dev/null
