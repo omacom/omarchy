@@ -6,7 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 export HOME="$test_tmp/home" XDG_CONFIG_HOME="$test_tmp/config" OMARCHY_PATH="$ROOT"
-export DICTATION_LOG="$test_tmp/calls" DICTATION_INSTALLED="voxtype superwhisper"
+export DICTATION_LOG="$test_tmp/calls" DICTATION_INSTALLED="voxtype superwhisper hex"
 mkdir -p "$test_tmp/bin" "$XDG_CONFIG_HOME/omarchy/defaults"
 export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
 config="$XDG_CONFIG_HOME/omarchy/defaults/dictation"
@@ -47,6 +47,18 @@ fi
 exit "${DICTATION_EXIT:-0}"
 SH
 done
+# Like Hex, control commands exit 3 until `hex start` brings it up.
+export HEX_RUNNING="$test_tmp/hex-running"
+touch "$HEX_RUNNING"
+cat > "$test_tmp/bin/hex" <<'SH'
+#!/bin/bash
+printf 'hex %s\n' "$*" >> "$DICTATION_LOG"
+if [[ $1 == "start" ]]; then
+  touch "$HEX_RUNNING"
+elif [[ ! -e $HEX_RUNNING ]]; then
+  exit 3
+fi
+SH
 for command in omarchy-pkg-add omarchy-notification-send hyprctl omarchy-restart-shell; do
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
@@ -95,19 +107,29 @@ if omarchy-default-dictation '../invalid' > "$test_tmp/output" 2>&1; then fail "
 pass "Defaults delegates setup without prematurely selecting a backend"
 
 
-for backend in voxtype superwhisper; do
+for backend in voxtype superwhisper hex; do
   printf '%s\n' "$backend" > "$config"
   [[ $(omarchy-default-dictation) == "$backend" ]] || fail "configured backend is readable"
   : > "$DICTATION_LOG"
   for action in start stop toggle; do omarchy dictation "$action"; done
   if [[ $backend == "voxtype" ]]; then
     expected=$'voxtype record start\nvoxtype status\nvoxtype record stop\nvoxtype record toggle'
-  else
+  elif [[ $backend == "superwhisper" ]]; then
     expected=$'superwhisper start\nsuperwhisper stop\nsuperwhisper record'
+  else
+    expected=$'hex dictation start\nhex dictation stop\nhex dictation toggle'
   fi
   [[ $(cat "$DICTATION_LOG") == "$expected" ]] || fail "adapter dispatches recording for $backend"
 done
 pass "built-in adapters implement start stop and toggle"
+
+rm "$HEX_RUNNING"
+: > "$DICTATION_LOG"
+omarchy-dictation-hex stop || fail "stopping Hex succeeds when it is not running, so switching away works"
+[[ ! -e $HEX_RUNNING ]] || fail "stopping never launches Hex"
+omarchy-dictation-hex start
+[[ $(cat "$DICTATION_LOG") == $'hex dictation stop\nhex dictation start\nhex start\nhex dictation start' ]] || fail "starting launches a stopped Hex, then records"
+pass "Hex stops quietly when not running and starts it to record"
 
 cat > "$test_tmp/bin/omarchy-dictation-future-backend" <<'SH'
 #!/bin/bash

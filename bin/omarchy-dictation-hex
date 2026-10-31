@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation using Hex
+# omarchy:args=<start|stop|toggle>
+
+# Hex's control commands exit 3 when no Hex is running and never launch it.
+not_running=3
+
+case "${1:-}" in
+  start|toggle)
+    hex dictation "$1"
+    result=$?
+    if (( result == not_running )); then
+      hex start >/dev/null && hex dictation "$1"
+    else
+      exit "$result"
+    fi
+    ;;
+  stop)
+    if omarchy-cmd-present hex; then
+      hex dictation stop
+      result=$?
+      if (( result != not_running )); then
+        exit "$result"
+      fi
+    fi
+    ;;
+  *) echo "Usage: omarchy dictation hex <start|stop|toggle>" >&2; exit 1 ;;
+esac
