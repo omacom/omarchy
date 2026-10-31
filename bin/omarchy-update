@@ -164,7 +164,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   update_stay_awake_stopped=1
 
   if (( mise_updated == 0 )); then
-    echo -e "\e[33m\nSome mise tools could not be updated. Review the errors above and run 'omarchy update mise' to retry.\e[0m" >&2
+    echo -e "\e[33m\nSome mise tools could not be updated or cleaned up. Review the errors above and run 'omarchy update mise' to retry.\e[0m" >&2
   fi
 
   if (( boot_verified )); then

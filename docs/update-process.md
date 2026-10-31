@@ -139,8 +139,8 @@ omarchy-update
   ├─ automatically remove orphan packages and run log analysis
   ├─ clear the shell update indicator: the update just installed what it showed
   ├─ restart marked services and the shell
-  ├─ run the post-update hook, then update mise tools (a failed tool update
-  │  warns and the update continues)
+  ├─ run the post-update hook, then update mise tools and prune Omarchy's
+  │  unused tool versions (a failed tool update warns and the update continues)
   ├─ update AUR packages
   ├─ omarchy-update-boot, then stop the keepalive and invalidate sudo
   │    └─ the platform's boot package proves the boot files boot the updated system
@@ -310,7 +310,7 @@ scripts.
 | `omarchy-update-user-notify` | Hidden compatibility wrapper for `omarchy-migrate-notify`. | **Temporary.** Keep only for old callers. |
 | `omarchy-update-available` | Update checker for the shell widget. The update itself clears the widget instead of rechecking. | **Keep.** Could eventually be renamed `omarchy-update-check`, but current name matches widget semantics. |
 | `omarchy-update-aur-pkgs` | Updates AUR packages with `yay -Sua` if foreign packages exist and AUR is reachable. | **Question.** Omarchy is package-backed now, but users may still install AUR packages. Keep for now. |
-| `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
+| `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point — then `mise prune --tools --yes` for the tools `omarchy-mise-default-tools list` declares, which removes their versions no tracked config or tool stub selects, except those mise detects as running. Upgrade pruning stays off so `mise up` never deletes a version out from under a live session, so this is where the old versions `auto_update` leaves behind are cleaned up. Tools Omarchy does not declare are never pruned, since something outside mise, such as a virtualenv, can depend on an old version of one. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
 | `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal unless passed `-y`, as the update pipeline does; standalone noninteractive mode only reports. | **Keep for now.** Automates cleanup during updates and supports standalone review. |
 | `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
 | `omarchy-update-boot` | Hidden helper that runs the platform's `update-verify` lifecycle operation through `omarchy-lifecycle-dispatch`, with `sudo` only when the platform implements it. | **Keep internal/hidden.** Keeps platform boot checks out of the pipeline and stubbable in tests. |
