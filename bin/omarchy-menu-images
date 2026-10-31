@@ -81,8 +81,12 @@ selection_file=$(mktemp)
 done_file=$(mktemp)
 pending_file=$(mktemp)
 pending_video_file=$(mktemp)
+rows_file=""
 rm -f "$done_file"
-trap 'rm -f "$selection_file" "$done_file" "$pending_file" "$pending_video_file"' EXIT
+trap 'rm -f "$selection_file" "$done_file" "$pending_file" "$pending_video_file" "$rows_file"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 image_dirs_env=""
 for dir in "${image_dirs[@]}"; do
@@ -378,24 +382,28 @@ if [[ $print_rows == true ]]; then
   exit 0
 fi
 
-# Image rows can contain newlines and tabs, which don't survive positional
-# shell IPC arguments. Base64-encode for transit; the ImagePicker plugin
-# Qt.atob()s on the other side.
-rows_b64=$(printf '%s' "$rows" | base64 -w 0)
+# Keep the existing base64 IPC for small lists. Linux limits a single argv
+# entry to 128 KiB on 4 KiB-page systems; large lists travel through a private
+# file instead. The shell reads it before replying, including for preloads, so
+# the caller can remove it on exit without racing a deferred picker load.
+rows_bytes=$(printf '%s' "$rows" | wc -c)
+if (( rows_bytes > 72 * 1024 )); then
+  rows_file=$(mktemp "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/omarchy-image-rows.XXXXXX") || exit 1
+  printf '%s' "$rows" >"$rows_file" || exit 1
+  open_args=(openFile "$rows_file" "$selected_list_image" "$selection_file" "$done_file" "$show_labels" "$filterable")
+  preload_args=(preloadFile "$rows_file" "$selected_list_image" "$show_labels" "$filterable")
+else
+  rows_b64=$(printf '%s' "$rows" | base64 -w 0)
+  open_args=(open "" "$rows_b64" "$selected_list_image" "$selection_file" "$done_file" "$show_labels" "$filterable")
+  preload_args=(preload "$rows_b64" "$selected_list_image" "$show_labels" "$filterable")
+fi
 
 if [[ $preload == true ]]; then
-  omarchy-shell image-selector preload "$rows_b64" "$selected_list_image" "$show_labels" "$filterable" >/dev/null || true
+  omarchy-shell image-selector "${preload_args[@]}" >/dev/null || true
   exit 0
 fi
 
-if ! open_result=$(omarchy-shell image-selector open \
-     "" \
-     "$rows_b64" \
-     "$selected_list_image" \
-     "$selection_file" \
-     "$done_file" \
-     "$show_labels" \
-     "$filterable"); then
+if ! open_result=$(omarchy-shell image-selector "${open_args[@]}"); then
   echo "Image selector failed to accept request" >&2
   exit 1
 fi
