@@ -218,7 +218,7 @@
   "plugin.noneToRemove": "No plugin to remove",
   "plugin.removeTitle": "Remove plugin",
   "plugin.removeWhich": "Remove which plugin?",
-  "plugin.replacedByClone": "Original plugin has been replace by clone.",
+  "plugin.replacedByClone": "Original plugin has been replaced by clone.",
   "preinstalls.confirmRemove": "Are you sure you want to remove all preinstalled web apps, TUI wrappers, and desktop applications?",
   "preinstalls.confirmRestore": "Are you sure you want to restore all preinstalled web apps, TUI wrappers, and desktop applications?",
   "reminder.cleared": "All reminders have been cleared",
