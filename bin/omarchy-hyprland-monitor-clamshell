@@ -100,6 +100,8 @@ configured_internal_monitor_value() {
 # value before anything written there.
 saved_internal_monitor_value() {
   [[ -n $INTERNAL && -f $MONITOR_SETTINGS ]] || return 0
+  # monitors.lua can switch the panel's choices off, leaving itself in charge.
+  monitor_rules | grep -Eq '^[[:space:]]*omarchy_monitor_panel_settings[[:space:]]*=[[:space:]]*false' && return 0
   local field identity
 
   case "$1" in
