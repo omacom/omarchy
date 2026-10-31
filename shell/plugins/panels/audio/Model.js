@@ -92,9 +92,17 @@ function nodeLabel(node, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   if (!node) return t("audio.unknownDevice", "Unknown")
   var p = nodeProps(node)
-  var nickname = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || p["device.profile.description"] || "")
+  var nickname = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || "")
+  var description = friendlyDeviceLabel(node.description || p["node.description"] || "")
+  // A multi-port device shares one product nick. PipeWire puts the port on
+  // the description, as that nick plus the port name. The nick alone makes
+  // those ports look identical.
+  if (nickname && description.length > nickname.length && description.indexOf(nickname) === 0)
+    return description
   if (nickname) return nickname
-  return friendlyDeviceLabel(node.description || p["node.description"] || node.name || t("audio.unknownDevice", "Unknown"))
+  var profile = friendlyDeviceLabel(p["device.profile.description"] || "")
+  if (profile) return profile
+  return description || friendlyDeviceLabel(node.name || t("audio.unknownDevice", "Unknown"))
 }
 
 function isHeadphones(node) {
