@@ -10,11 +10,11 @@ You can also install Omarchy inside a Parallels VM. Quite the cumbersome process
 
 ### VirtualBox
 
-VirtualBox is a popular VM runner. [You can run Omarchy inside that too](https://github.com/omacom/omarchy/discussions/176). But performance probably won't be great.
+VirtualBox is a popular VM runner. [You can run Omarchy inside that too](https://github.com/omacom/omarchy/discussions/176). But performance probably won't be great. Its default graphics controller, VMSVGA, is the same adapter VMware presents, so the display handling described under VMware Workstation below applies here too.
 
 ### VMware Workstation on Windows 11
 
-Another popular VM runner for Windows. [Omarchy has been setup inside of that as well](https://github.com/omacom/omarchy/discussions/572).
+Another popular VM runner for Windows. [Omarchy has been setup inside of that as well](https://github.com/omacom/omarchy/discussions/572). Omarchy recognises its display adapter, which the `vmwgfx` driver handles, and starts the desktop at 1x, because that virtual display reports no physical size for automatic scaling to work from. Apps there render with software OpenGL (llvmpipe): the driver hands Hyprland graphics buffers it cannot release, which kills every hardware-rendered app on its first frame until [hyprwm/aquamarine#360](https://github.com/hyprwm/aquamarine/issues/360) is fixed. Leave 3D acceleration enabled in the VM settings; Hyprland itself still uses it. For file sharing and clipboard, install VMware's guest tools with `omarchy pkg add open-vm-tools`.
 
 ### Steam Deck
 
