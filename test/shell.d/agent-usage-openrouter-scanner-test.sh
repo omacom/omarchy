@@ -197,6 +197,11 @@ expect("pi's and omp's saved OpenRouter key is used", saved + [openrouter.asked,
 opencode_auth(None, "openrouter", "sk-opencode")
 record = openrouter()
 expect("opencode's saved OpenRouter key comes before pi's", openrouter.asked, ["/credits=sk-opencode", "/key=sk-opencode"], record)
+pasted = module.api_key({"apiKey": "sk-panel"})
+os.environ["OPENROUTER_API_KEY"] = "sk-env"
+expect("the key pasted into the panel comes before opencode's, and OPENROUTER_API_KEY before it",
+       [pasted, module.api_key({"apiKey": "sk-panel"})], ["sk-panel", "sk-env"])
+del os.environ["OPENROUTER_API_KEY"]
 
 # A "management" key that /activity refuses (an inference key, or one
 # revoked) falls back to the local scan: machine numbers with prompt counts,

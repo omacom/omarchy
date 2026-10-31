@@ -339,4 +339,9 @@ expect("pi's $VAR keys resolve, and a missing one stays unresolved",
        [module.resolve_pi_key("$FW_TEST_ENV_KEY"), module.resolve_pi_key("$FW_DEFINITELY_MISSING")], ["fw_from_env", ""])
 pi_auth(None, "fireworks", "!secret-tool lookup fw")
 expect("pi's !command keys are skipped for the next rung", module.credentials(missing, {})[0], "fw_opencode")
+pasted = module.credentials(auth, {"apiKey": "fw_panel"})[0]
+os.environ["FIREWORKS_API_KEY"] = "fw_env"
+expect("the key pasted into the panel comes below FIREWORKS_API_KEY and above firectl",
+       [pasted, module.credentials(auth, {"apiKey": "fw_panel"})[0]], ["fw_panel", "fw_env"])
+del os.environ["FIREWORKS_API_KEY"]
 PY

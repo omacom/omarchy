@@ -1,26 +1,31 @@
 #!/bin/bash
 
-# omarchy:summary=Sign in to a Claude, Codex, or Grok subscription
-# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok] [label]
-# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side
+# omarchy:summary=Sign in to a coding agent subscription, or save a provider's API key
+# omarchy:args=[--check] [--events] [--reauth <account>] [--key <provider>] [claude|codex|grok|cursor|copilot|kimi|muse|agy|devin] [label]
+# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side | omarchy agent account add cursor | omarchy agent account add --key openrouter
 
 set -uo pipefail
 
 # --check prints, per provider, whether adding one now would be its first
-# sign-in, an additional account, or not possible yet. --events is for the
-# agents panel: progress arrives as `@@omarchy <event> <detail>` lines mixed
-# into the CLI's own output (which carries codes the panel shows), nothing
-# waits on a terminal, and the result also lands as a notification in case
+# sign-in, an additional account, already signed in, or a key to paste.
+# --events is for the agents panel: progress arrives as
+# `@@omarchy <event> <detail>` lines mixed into the CLI's own output (which
+# carries the URLs and codes the panel shows), nothing waits on a terminal it
+# doesn't open itself, and the result also lands as a notification in case
 # the panel has closed.
 # --reauth <account> signs an account that's already here in again, in its
 # own home, for when its sign-in has lapsed.
+# --key <provider> saves the API key read from stdin for a provider that
+# signs in with one alone.
 check=false
 events=false
+key_mode=false
 reauth=""
 while [[ ${1:-} == --* ]]; do
   case "$1" in
   --check) check=true ;;
   --events) events=true ;;
+  --key) key_mode=true ;;
   --reauth)
     reauth="${2:-}"
     shift
@@ -30,37 +35,185 @@ while [[ ${1:-} == --* ]]; do
   shift
 done
 
+usage() {
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok|cursor|copilot|kimi|muse|agy|devin] [label]" >&2
+  echo "       omarchy-agent-account-add [--events] --key <zai|minimax|synthetic|ollama|openrouter|deepseek|fireworks|opencode|kimchi>" >&2
+  exit 1
+}
+
+account_providers=(claude codex grok)
+signin_providers=(cursor copilot kimi muse agy devin)
+key_providers=(zai minimax synthetic ollama openrouter deepseek fireworks opencode kimchi)
+
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+
 # Whether a provider's own home (~/.claude, ~/.codex, ~/.grok) is signed in.
 primary_signed_in() {
   omarchy-agent-account-state list "$1" | jq -e '.[0].accounts | any(.primary and .signedIn)' >/dev/null
 }
 
+# Whether a JSON file holds a non-empty string at a path.
+json_has() {
+  [[ -s $1 ]] && jq -e "$2 | strings | length > 0" "$1" >/dev/null 2>&1
+}
+
+# Who gh is signed in to github.com as, read the way the Copilot collector
+# reads hosts.yml: the host's own `user:` key, as plain lines.
+gh_signed_in() {
+  local hosts="${GH_CONFIG_DIR:-$config_home/gh}/hosts.yml"
+  [[ -f $hosts ]] || return 1
+  awk '
+    /^[[:space:]]*(#|$)/ { next }
+    {
+      match($0, /^ */)
+      indent = RLENGTH
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+    }
+    indent == 0 { in_host = (line == "github.com:"); child = -1; next }
+    !in_host { next }
+    child < 0 { child = indent }
+    indent == child && line ~ /^user:/ {
+      sub(/^user:[[:space:]]*/, "", line)
+      gsub(/^["\047]+|["\047]+$/, "", line)
+      if (line != "") { found = 1; exit }
+    }
+    END { exit !found }
+  ' "$hosts"
+}
+
+kimi_credentials() {
+  if [[ -n ${KIMI_CODE_HOME:-} ]]; then
+    echo "$KIMI_CODE_HOME/credentials/kimi-code.json"
+  elif [[ ! -f $HOME/.kimi-code/credentials/kimi-code.json && -f ${KIMI_SHARE_DIR:-$HOME/.kimi}/credentials/kimi-code.json ]]; then
+    echo "${KIMI_SHARE_DIR:-$HOME/.kimi}/credentials/kimi-code.json"
+  else
+    echo "$HOME/.kimi-code/credentials/kimi-code.json"
+  fi
+}
+
+agy_token_file() {
+  echo "${AGY_DIR:-$HOME/.gemini/antigravity-cli}/antigravity-oauth-token"
+}
+
+# Beside the CLI's data directory, as the Devin collector looks for it.
+devin_credentials() {
+  local data_dir="${DEVIN_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/devin/cli}"
+  data_dir=${data_dir%/}
+  echo "${data_dir%/*}/credentials.toml"
+}
+
+# Whether a sign-in agent is signed in where its usage collector looks. Only
+# files and the keyring are read: every CLI here is a lazy mise shim, and
+# running one could start an install.
+signed_in() {
+  case "$1" in
+  cursor) json_has "${CURSOR_AUTH_PATH:-$config_home/cursor/auth.json}" '.accessToken' ;;
+  copilot)
+    # An exported token counts, as it does for the collector.
+    local tokens="${COPILOT_QUOTA_TOKEN:-}${GH_TOKEN:-}${GITHUB_TOKEN:-}"
+    [[ -n ${tokens//[[:space:]]/} ]] || gh_signed_in
+    ;;
+  kimi) json_has "$(kimi_credentials)" '.access_token' ;;
+  muse) json_has "${MUSE_AUTH_PATH:-$config_home/muse/auth.json}" '.providers.meta.access_token' ;;
+  agy)
+    [[ -s $(agy_token_file) ]] || [[ -n $(timeout 3 secret-tool lookup service gemini username antigravity 2>/dev/null) ]]
+    ;;
+  devin) [[ -s $(devin_credentials) ]] ;;
+  *) return 1 ;;
+  esac
+}
+
+# Where a key provider's pasted key is saved: Kimchi's own config, which its
+# CLI's login writes, and an Omarchy file of the provider's for the rest.
+key_file() {
+  if [[ $1 == "kimchi" ]]; then
+    # Kimchi and its collector both read ~/.config, whatever XDG_CONFIG_HOME says.
+    echo "$HOME/.config/kimchi/config.json"
+  else
+    echo "$config_home/omarchy/agents/$1.json"
+  fi
+}
+
 if [[ $check == "true" ]]; then
-  for p in claude codex grok; do
+  for p in "${account_providers[@]}"; do
     if primary_signed_in "$p"; then
       echo "$p additional"
     else
       echo "$p first"
     fi
   done
+  for p in "${signin_providers[@]}"; do
+    if signed_in "$p"; then
+      echo "$p signed"
+    else
+      echo "$p first"
+    fi
+  done
+  for p in "${key_providers[@]}"; do
+    if json_has "$(key_file "$p")" '.apiKey // .api_key'; then
+      echo "$p keyed"
+    else
+      echo "$p key"
+    fi
+  done
   exit 0
 fi
 
-# The provider can be left out when it's your default agent:
-# `omarchy agent account add Work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
-  default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+known() {
+  local wanted=$1 list
+  shift
+  for list in "$@"; do
+    [[ $list == "$wanted" ]] && return 0
+  done
+  return 1
+}
+
+if known "${1:-}" "${key_providers[@]}"; then
+  kind="key"
+elif [[ $key_mode == "true" ]]; then
+  usage
+elif known "${1:-}" "${signin_providers[@]}"; then
+  [[ -z $reauth ]] || usage
+  kind="signin"
+else
+  kind="account"
+  # The provider can be left out when it's your default agent:
+  # `omarchy agent account add Work`.
+  if ! known "${1:-}" "${account_providers[@]}"; then
+    default=$(omarchy-default-agent)
+    known "$default" "${account_providers[@]}" && set -- "$default" "$@"
+  fi
 fi
 
-case "${1:-}" in
-claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
-codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
-grok) provider="grok"; name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
-*)
-  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
-  exit 1
+provider="${1:-}"
+package=""
+command="$provider"
+case "$provider" in
+claude) name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
+codex) name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
+grok) name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
+cursor) name="Cursor"; command="cursor-agent"; package="cursor-agent"; agent_id="cursor-agent"; collectors=(cursor grokbot) ;;
+copilot) name="GitHub Copilot"; command="gh"; package="gh"; agent_id="copilot"; collectors=(copilot) ;;
+kimi) name="Kimi"; package="npm:@moonshot-ai/kimi-code"; agent_id="kimi"; collectors=(kimi) ;;
+muse) name="Muse"; package="muse"; agent_id="muse"; collectors=(muse) ;;
+agy) name="Antigravity"; package="antigravity-cli"; agent_id="agy"; collectors=(agy) ;;
+devin)
+  name="Devin"; agent_id="devin"; collectors=(devin)
+  # Cognition publishes per-platform archives behind a manifest of the current release.
+  package="http:devin[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
   ;;
+zai) name="Z.ai"; key_env=(ZAI_API_KEY ZHIPU_API_KEY ZHIPUAI_API_KEY) ;;
+minimax) name="MiniMax"; key_env=(MINIMAX_API_KEY) ;;
+synthetic) name="Synthetic"; key_env=(SYNTHETIC_API_KEY) ;;
+ollama) name="Ollama Cloud"; key_env=(OLLAMA_API_KEY) ;;
+openrouter) name="OpenRouter"; key_env=(OPENROUTER_API_KEY) ;;
+deepseek) name="DeepSeek"; key_env=(DEEPSEEK_API_KEY) ;;
+fireworks) name="Fireworks"; key_env=(FIREWORKS_API_KEY) ;;
+opencode) name="OpenCode"; key_env=(OPENCODE_API_KEY OPENCODE_GO_API_KEY) ;;
+kimchi) name="Kimchi"; key_env=(KIMCHI_API_KEY) ;;
+*) usage ;;
 esac
 label="${2:-}"
 
@@ -93,12 +246,25 @@ fail() {
 }
 
 # Cancelling from the panel stops the CLI's login too, and leaves no
-# half-made home behind.
+# half-made home behind. A key that was never confirmed goes back to what
+# was there before it.
 home=""
 browser=""
+scratch=""
+key_saved=""
+key_backup=""
 cleanup() {
   [[ -n $browser ]] && rm -f "$browser"
   [[ -n $home && -d $home && $home == */.pending/* ]] && rm -rf "$home"
+  if [[ -n $key_saved ]]; then
+    if [[ -n $key_backup ]]; then
+      mv -f "$key_backup" "$key_saved"
+    else
+      rm -f "$key_saved"
+    fi
+  fi
+  [[ -n $key_backup ]] && rm -f "$key_backup"
+  [[ -n $scratch ]] && rm -f "$scratch"
 }
 trap cleanup EXIT
 trap 'pkill -TERM -P $$; exit 130' TERM INT
@@ -112,14 +278,220 @@ interruptible() {
   wait $!
 }
 
-if omarchy-cmd-missing "$provider"; then
+# The first agent signed in on a machine with none chosen becomes the
+# default, so `omarchy agent` and the panel's starter prompts have one to run.
+# A default someone already picked is never touched.
+adopt_default() {
+  if [[ -z $(omarchy-default-agent) ]]; then
+    mkdir -p "$HOME/.config/omarchy/defaults"
+    printf '%s\n' "$1" >"$HOME/.config/omarchy/defaults/agent"
+  fi
+}
+
+# ------------------------------------------------------------------- API keys
+
+if [[ $kind == "key" ]]; then
+  if [[ $events == "false" && -t 0 ]]; then
+    key=$(gum input --password --placeholder "API key" --prompt "$name API key: ") || exit 130
+  else
+    key=""
+    IFS= read -r key || true
+  fi
+  # Whitespace around a pasted key is never part of it.
+  key=${key//$'\r'/}
+  key=${key#"${key%%[![:space:]]*}"}
+  key=${key%"${key##*[![:space:]]}"}
+  [[ -n $key ]] || fail "$(omarchy-i18n agents.keyEmpty)"
+
+  # Saved with only the owner able to read it, merged into whatever else the
+  # file holds (a funded amount, a region, a management key), and swapped in
+  # whole so nothing ever reads half a file.
+  previous_umask=$(umask)
+  umask 077
+  file=$(key_file "$provider")
+  dir=${file%/*}
+  mkdir -p "$dir" || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+  merge=()
+  if [[ -s $file ]]; then
+    jq -e 'type == "object"' "$file" >/dev/null 2>&1 || fail "$(omarchy-i18n agents.keyUnreadable "$file")"
+    merge=(--slurpfile saved "$file")
+  fi
+  scratch=$(mktemp "$dir/.${file##*/}.XXXXXX") || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+  # The key reaches jq on stdin, never as an argument anyone could list.
+  if (( ${#merge[@]} > 0 )); then
+    printf '%s' "$key" | jq -Rs "${merge[@]}" '$saved[0] + {apiKey: .}' >"$scratch"
+  else
+    printf '%s' "$key" | jq -Rs '{apiKey: .}' >"$scratch"
+  fi || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+  unset key
+  chmod 600 "$scratch" || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+  if [[ -e $file ]]; then
+    key_backup=$(mktemp "$dir/.${file##*/}.previous.XXXXXX") || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+    cp -p "$file" "$key_backup" || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+  fi
+  key_saved=$file
+  mv -f "$scratch" "$file" || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+  scratch=""
+  umask "$previous_umask"
+
+  # The collector asks the provider with the key just saved: the provider's
+  # own variables are left out so an exported key can't answer for it. Only
+  # a refusal undoes the save; a provider that can't be reached says nothing
+  # about the key.
+  say "$(omarchy-i18n agents.keyChecking "$name")"
+  scratch=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/omarchy-account-key.XXXXXX") || fail "$(omarchy-i18n agents.keySaveFailed "$name")"
+  unset_env=()
+  for variable in "${key_env[@]}"; do
+    unset_env+=(-u "$variable")
+  done
+  env "${unset_env[@]}" timeout 30 "omarchy-agent-usage-$provider" --force >"$scratch" 2>/dev/null </dev/null &
+  wait $!
+  if [[ $(jq -r '.usageStatusText // ""' "$scratch" 2>/dev/null) == "Sign-in expired" ]]; then
+    fail "$(omarchy-i18n agents.keyRejected "$name")"
+  fi
+
+  key_saved=""
+  omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+  finish "$(omarchy-i18n agents.keySaved "$name")"
+  exit 0
+fi
+
+install_cli() {
+  omarchy-cmd-missing "$command" || return 0
   say "$(omarchy-i18n agents.installingCli "$name")"
   if [[ $events == "true" ]]; then
-    mise use -g "$package" >/dev/null 2>&1 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
+    exec 3>/dev/null
   else
-    mise use -g "$package" || exit 1
+    exec 3>&1
   fi
+  # An npm-backed CLI needs node, which mise won't install as its dependency
+  # while it's missing.
+  if [[ $package == npm:* ]] && ! mise where node &>/dev/null; then
+    mise install node >&3 2>&3 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
+  fi
+  mise use -g "$package" >&3 2>&3 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
+  exec 3>&-
+}
+
+# --------------------------------------------------------- other sign-ins
+
+# Signing in to an agent that keeps a single sign-in, where its CLI always
+# looks, through your normal browser.
+if [[ $kind == "signin" ]]; then
+  install_cli
+
+  # Echoes the CLI's output as it comes, and opens the first https URL in it
+  # once, for a CLI that only prints where to sign in.
+  open_first_url() {
+    local line opened=false
+    while IFS= read -r line; do
+      printf '%s\n' "$line"
+      if [[ $opened == "false" && $line =~ (https://[^[:space:]\"\'\<\>]+) ]]; then
+        opened=true
+        omarchy-launch-browser "${BASH_REMATCH[1]}" >/dev/null 2>&1 &
+      fi
+    done
+  }
+
+  # The CLI's own output reaches the panel, stderr too (Kimi writes its
+  # whole login there), with its URL opened when the CLI opens none.
+  # Both the CLI and the filter are this script's own children, so Cancel
+  # stops them both.
+  run_login() {
+    local open=$1 filter="" status
+    shift
+    if [[ $open == "open" ]]; then
+      exec 4> >(open_first_url)
+      filter=$!
+      "$@" <&0 >&4 2>&1 &
+      exec 4>&-
+    else
+      "$@" <&0 2>&1 &
+    fi
+    wait $!
+    status=$?
+    # The filter finishes printing what the CLI wrote last.
+    [[ -n $filter ]] && wait "$filter"
+    return "$status"
+  }
+
+  signed_in_now() {
+    if [[ $provider == "copilot" ]]; then
+      # gh writes hosts.yml; a token the environment exports says nothing
+      # about this login.
+      gh_signed_in
+    else
+      signed_in "$provider"
+    fi
+  }
+
+  # What the sign-in looks like now, so a new one can be told from the one
+  # already there. Fingerprints only: nothing here is printed.
+  credential_stamp() {
+    case "$provider" in
+    agy)
+      stat -c '%Y %s' "$(agy_token_file)" 2>/dev/null
+      timeout 3 secret-tool lookup service gemini username antigravity 2>/dev/null | sha256sum
+      ;;
+    devin) stat -c '%Y %s' "$(devin_credentials)" 2>/dev/null ;;
+    esac
+  }
+
+  case "$provider" in
+  cursor | kimi | muse | copilot)
+    say "$(omarchy-i18n agents.signInBrowser "$name")"
+    case "$provider" in
+    cursor) run_login keep cursor-agent login ;;
+    kimi) run_login keep kimi login ;;
+    muse) run_login open muse login ;;
+    copilot)
+      # Copilot's CLI and its usage collector both ask as gh's sign-in. An
+      # exported token would make gh refuse to sign in at all.
+      run_login open env -u GH_TOKEN -u GITHUB_TOKEN gh auth login --web --hostname github.com --git-protocol https
+      ;;
+    esac
+    login_status=$?
+    if (( login_status != 0 )) || ! signed_in_now; then
+      fail "$(omarchy-i18n agents.signInFailed "$name")"
+    fi
+    ;;
+  agy | devin)
+    # Neither signs in without a terminal: agy walks its sign-in in its own
+    # TUI, and devin's login refuses to run without one. The terminal takes
+    # it from here, and this waits for the sign-in to land.
+    case "$provider" in
+    agy) login_command=(agy) ;;
+    devin) login_command=(devin auth login) ;;
+    esac
+    before=$(credential_stamp)
+    say "$(omarchy-i18n agents.signInTerminal "$name")"
+    omarchy-launch-floating-terminal-with-presentation "${login_command[@]}" </dev/null >/dev/null 2>&1 &
+    waited=0
+    until signed_in_now && [[ $(credential_stamp) != "$before" ]]; do
+      if (( waited >= 900 )); then
+        fail "$(omarchy-i18n agents.signInFailed "$name")"
+      fi
+      sleep 2 &
+      wait $!
+      (( waited += 2 ))
+    done
+    ;;
+  esac
+
+  # Copilot's usage collector asks GitHub only where the Copilot CLI has a
+  # home; signing in to Copilot here says it's used.
+  if [[ $provider == "copilot" ]]; then
+    mkdir -p "${COPILOT_HOME:-$HOME/.copilot}"
+  fi
+  adopt_default "$agent_id"
+  omarchy-agent-usage-update --force "${collectors[@]}" >/dev/null 2>&1 &
+  finish "$(omarchy-i18n agents.signedIn "$name")"
+  exit 0
 fi
+
+# ------------------------------------------------------------- accounts
+
+install_cli
 
 # Your main browser is almost certainly signed in to the account you already
 # have, and a login would quietly reuse it. The CLIs open their login page
@@ -171,13 +543,7 @@ fi
 if ! primary_signed_in "$provider"; then
   say "$(omarchy-i18n agents.signInBrowser "$name")"
   if login && primary_signed_in "$provider"; then
-    # The first agent signed in on a machine with none chosen becomes the
-    # default, so `omarchy agent` and the panel's starter prompts have one to
-    # run. A default someone already picked is never touched.
-    if [[ -z $(omarchy-default-agent) ]]; then
-      mkdir -p "$HOME/.config/omarchy/defaults"
-      printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
-    fi
+    adopt_default "$provider"
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
     finish "$(omarchy-i18n agents.signedIn "$name")"
   else

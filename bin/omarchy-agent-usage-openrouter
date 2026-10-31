@@ -12,9 +12,10 @@ opencode SQLite DB
 (providerID == "openrouter", role == "assistant") and from pi/omp session
 files whose assistant messages ran on the openrouter provider, read-only.
 Each key keeps its own last good meter and balance, shown stale when a
-check fails. The key is OPENROUTER_API_KEY, opencode's or pi/omp's saved
-OpenRouter login, or the config file's. Without any, the local stats still
-show and the record waits for auth.
+check fails. The key is OPENROUTER_API_KEY, the one pasted into the agents
+panel (`apiKey` in ~/.config/omarchy/agents/openrouter.json), or opencode's
+or pi/omp's saved OpenRouter login. Without any, the local stats still show
+and the record waits for auth.
 
 Tier 2 (management key): when OPENROUTER_MANAGEMENT_KEY (or the management
 key in the config file) is set, the last-30-days token history comes from
@@ -80,7 +81,7 @@ from collectors import (  # noqa: E402
 AGENT_ID = "openrouter"
 AGENT_NAME = "OpenRouter"
 PROVIDER = "openrouter"
-AUTH_HELP = "Set OPENROUTER_API_KEY, or sign in to OpenRouter in opencode, pi or omp. For the 30-day history, add a management key as OPENROUTER_MANAGEMENT_KEY (openrouter.ai/settings/management-keys)."
+AUTH_HELP = "Set OPENROUTER_API_KEY, add a key in the agents panel (~/.config/omarchy/agents/openrouter.json), or sign in to OpenRouter in opencode, pi or omp. For the 30-day history, add a management key as OPENROUTER_MANAGEMENT_KEY (openrouter.ai/settings/management-keys)."
 MANAGEMENT_AUTH_HELP = "Replace OPENROUTER_MANAGEMENT_KEY (or managementKey in ~/.config/omarchy/agents/openrouter.json) with a working one from openrouter.ai/settings/management-keys."
 API_BASE = "https://openrouter.ai/api/v1"
 
@@ -121,14 +122,14 @@ def read_pi_key(path: Path) -> str:
 
 
 def api_key(config: dict[str, Any]) -> str:
-  # Explicit key or an opencode, pi or omp login wins; the config file is
-  # the last resort for headless/refresh-timer runs without any.
+  # An explicit key wins, then the key pasted into the agents panel, then
+  # an opencode, pi or omp login.
   return (
     str(os.environ.get("OPENROUTER_API_KEY", "")).strip()
+    or str(config.get("apiKey") or "").strip()
     or read_opencode_key(data_home() / "opencode" / "auth.json")
     or read_pi_key(pi_agent_dir() / "auth.json")
     or read_pi_key(Path.home() / ".omp" / "agent" / "auth.json")
-    or str(config.get("apiKey") or "").strip()
   )
 
 

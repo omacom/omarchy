@@ -8,9 +8,11 @@ Local stats come from pi/omp session files whose assistant messages ran on the
 deepseek provider, from opencode sessions that ran on a deepseek provider, and
 from DeepSeek Harness (dsh) session logs on its DeepSeek routes. DeepSeek
 billing is prepaid, so the record carries the live credit balance from
-GET https://api.deepseek.com/user/balance when a key is available, plus the
-optional funded/spent detail derived from ~/.config/omarchy/agents/deepseek.json
-(the same shape the fireworks collector uses). The agents panel only ever reads
+GET https://api.deepseek.com/user/balance when a key is available
+(DEEPSEEK_API_KEY, then the key pasted into the agents panel, `apiKey` in
+~/.config/omarchy/agents/deepseek.json, then the agents that keep one), plus
+the optional funded/spent detail derived from that same file (the shape the
+fireworks collector uses). The agents panel only ever reads
 the JSON this prints.
 """
 
@@ -212,13 +214,14 @@ def read_dotenv_key(path: Path) -> str:
 
 
 def api_key() -> str:
-  # The environment first, then the agents that keep a DeepSeek key, read
-  # only: pi and omp, opencode, and dsh's managed store with its `.env`
-  # fallback.
+  # The environment first, then the key pasted into the agents panel, then
+  # the agents that keep a DeepSeek key, read only: pi and omp, opencode, and
+  # dsh's managed store with its `.env` fallback.
   env_key = str(os.environ.get("DEEPSEEK_API_KEY", "")).strip()
   if env_key:
     return env_key
   for read in (
+    lambda: str(read_config().get("apiKey") or "").strip(),
     lambda: read_json_key(pi_agent_dir() / "auth.json", "deepseek"),
     lambda: read_json_key(Path.home() / ".omp" / "agent" / "auth.json", "deepseek"),
     lambda: read_json_key(data_home() / "opencode" / "auth.json", "deepseek"),
@@ -267,7 +270,7 @@ def fetch_balance(api_base_url: str, key: str) -> dict[str, Any]:
     payload = open_json(request, timeout=15)
   except HttpError as error:
     if error.status in (401, 403):
-      raise DeepSeekError("DeepSeek rejected the saved API key. Set a current one in DEEPSEEK_API_KEY or the agent that holds it.", refused=True) from error
+      raise DeepSeekError("DeepSeek rejected the saved API key. Add a current one in the agents panel (~/.config/omarchy/agents/deepseek.json), DEEPSEEK_API_KEY, or the agent that holds it.", refused=True) from error
     if error.status:
       raise DeepSeekError(f"DeepSeek's balance endpoint returned HTTP {error.status}.") from error
     if error.transport:

@@ -9,7 +9,9 @@ synthetic provider, and from Claude Code, MiniMax Code and Codex sessions sent
 to Synthetic's API. The account's allowances (the rolling five-hour request
 limit, the weekly credits, search and free tool calls) come from Synthetic's
 documented GET https://api.synthetic.new/v2/quotas, which doesn't count
-against them. The agents panel only ever reads the JSON this prints.
+against them, asked with SYNTHETIC_API_KEY, the key pasted into the agents
+panel (`apiKey` in ~/.config/omarchy/agents/synthetic.json), or the one pi,
+omp or opencode saved. The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
@@ -30,6 +32,7 @@ from collectors import (  # noqa: E402
   Stats,
   base_record,
   cached_scan,
+  config_home,
   data_home,
   emit,
   number,
@@ -51,8 +54,8 @@ AGENT_ID = "synthetic"
 AGENT_NAME = "Synthetic"
 PROVIDER = "synthetic"
 API_BASE_URL = "https://api.synthetic.new"
-AUTH_HELP = "Set SYNTHETIC_API_KEY, or sign in to Synthetic in pi, omp or opencode, to read its quotas."
-REFUSED_HELP = "Synthetic rejected the API key. Set a current one in SYNTHETIC_API_KEY or sign in to Synthetic again."
+AUTH_HELP = "Add a Synthetic API key in the agents panel (~/.config/omarchy/agents/synthetic.json), set SYNTHETIC_API_KEY, or sign in to Synthetic in pi, omp or opencode, to read its quotas."
+REFUSED_HELP = "Synthetic rejected the API key. Add a current one in the agents panel (~/.config/omarchy/agents/synthetic.json) or SYNTHETIC_API_KEY, or sign in to Synthetic again."
 
 
 def finite(value):
@@ -141,6 +144,10 @@ def api_key():
   explicit = str(os.environ.get("SYNTHETIC_API_KEY", "")).strip()
   if explicit:
     return explicit
+  # The key pasted into the agents panel, ahead of any other agent's store.
+  saved = str(read_json(config_home() / "omarchy" / "agents" / "synthetic.json").get("apiKey") or "").strip()
+  if saved:
+    return saved
   # The default pi and omp sign-ins, then opencode's, then each named profile's:
   # a profile's sessions are counted, so a sign-in made only there must read
   # its quotas too, without outranking the defaults.
