@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test ng Bilis ng Disk"
   },
-  "setup.monitors": {
-    "label": "Mga Monitor"
-  },
   "setup.keybindings": {
     "label": "Mga Keybinding"
   },

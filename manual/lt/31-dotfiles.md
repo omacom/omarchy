@@ -1,81 +1,81 @@
 # Dotfiles
 
-Omarchy pirmiausia konfigūruojama per vadinamuosius dotfiles, kurie gyvena `~/.config`. Jie laikomi tavo failais tavo pakeitimams. Failai, gyvenantys `/usr/share/omarchy`, priklauso pačiai Omarchy, ir tau neturėtų jų knisti. Jei reikia ką nors pakeisti `/usr/share/omarchy`, vietoj to turėtum perrašyti reikšmę `~/.config`.
+Omarchy pirmiausia konfigūruojama per vadinamuosius dotfiles failus, esančius `~/.config`. Jie laikomi jūsų failais jūsų pakeitimams. Failai, esantys `/usr/share/omarchy`, priklauso pačiai Omarchy, ir neturėtumėte su jais žaisti. Jei reikia ką nors keisti `/usr/share/omarchy`, turėtumėte vietoj to perrašyti reikšmę `~/.config`.
 
-Svarbiausias konfigūracijas galima redaguoti tiesiai iš Omarchy meniu (`Super + Space`), pavyzdžiui, _Nuostatos > Monitoriai_, _Nuostatos > Spartieji klavišai_, _Nuostatos > Input_ ir _Nuostatos > Config > [file]_. Kai tai darai šiuo būdu, bet kuris procesas, kurį reikia paleisti iš naujo po konfigūracijos redagavimo, automatiškai bus paleistas po to, kai išeisi iš redaktoriaus (pagal nutylėjimą Neovim — `:wq`, atmink! — bet gali tai pakeisti per _Nuostatos > Defaults > Editor_).
+Pagrindines konfigūracijas galima redaguoti tiesiai iš Omarchy meniu (`Super + Space`), pavyzdžiui, _Sąranka > Klavišų susiejimai_, _Sąranka > Įvestis_ ir _Sąranka > Konfigūracija > [file]_. Kai tai darote šiuo būdu, bet kuris procesas, kurį reikia paleisti iš naujo po konfigūracijos redagavimo, bus automatiškai paleistas iš naujo, kai uždarysite redaktorių (pagal numatytuosius nustatymus Neovim — `:wq`, prisiminkite! — bet tai galite pakeisti per _Sąranka > Numatytieji nustatymai > Redaktorius_).
 
-Štai sąrašas svarbiausių failų `~/.config` ir ką jie kontroliuoja:
+Štai pagrindinių failų `~/.config` sąrašas ir tai, ką jie valdo:
 
 | Failas                  | Paskirtis              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | Pagrindinė Hyprland konfigūracija. Įkelia Omarchy numatytuosius ir tavo perrašymo failus žemiau. [Sužinok daugiau apie Hyprland konfigūracijas](https://wiki.hypr.land/Configuring/).  |
-| `~/.config/hypr/bindings.lua` | Tavo paties klavišų susiejimai ir numatytųjų perrašymai. |
-| `~/.config/hypr/monitors.lua` | Kontroliuoja tavo monitorius, raišką ir padėtį. |
-| `~/.config/hypr/input.lua` | Kontroliuoja tavo klaviatūros išdėstymą, pelės ir jutiklinio kilimėlio nuostatas. |
-| `~/.config/hypr/looknfeel.lua` | Kontroliuoja tarpus, kraštines, animacijas ir likusią išvaizdą. |
-| `~/.config/hypr/autostart.lua` | Kontroliuoja papildomus procesus, paleidžiamus kartu su sesija. |
-| `~/.config/omarchy/shell.json` | Kontroliuoja Omarchy shell: juostos padėtį, išdėstymą ir valdiklius, plius ekrano užsklandos, užrakinimo ir veiklos nutraukimo laikus. |
-| `~/.config/foot/foot.ini` | Kontroliuoja tavo terminalą (foot yra numatytasis). |
-| `~/.XCompose` | Apibrėžia tavo greito priėjimo emoji ir vardo/el. pašto automatinį užbaigimą. Po pakeitimų būtinai paleisk `omarchy-restart-xcompose`. |
+| `~/.config/hypr/hyprland.lua` | Pagrindinė Hyprland konfigūracija. Įkelia Omarchy numatytuosius nustatymus ir jūsų toliau nurodytus perrašymo failus. [Sužinokite daugiau apie Hyprland konfigūracijas](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | Jūsų paties klavišų susiejimai ir numatytųjų perrašymai. |
+| `~/.config/hypr/monitors.lua` | Monitoriaus nustatymai, kurių neapima monitoriaus skydelis, pavyzdžiui, pasukimas, papildomi režimai arba monitoriaus palikimas išjungto. |
+| `~/.config/hypr/input.lua` | Valdo jūsų klaviatūros išdėstymą, pelės ir jutiklinio kilimėlio nustatymus. |
+| `~/.config/hypr/looknfeel.lua` | Valdo tarpus, rėmelius, animacijas ir likusią išvaizdos dalį. |
+| `~/.config/hypr/autostart.lua` | Valdo papildomus procesus, paleidžiamus su sesija. |
+| `~/.config/omarchy/shell.json` | Valdo Omarchy apvalkalą: juostos padėtį, išdėstymą ir valdiklius, taip pat ekrano užsklandos, užrakto ir tuščiosios eigos laiką. |
+| `~/.config/foot/foot.ini` | Valdo jūsų terminalą (foot yra numatytasis). |
+| `~/.XCompose` | Apibrėžia jūsų sparčiąją prieigą prie jaustukų ir vardo / el. pašto automatinį užbaigimą. Atlikę pakeitimus nepamirškite paleisti `omarchy-restart-xcompose`. |
 
-Jei galiausiai atliksi daug pakeitimų, kad pritaikytum savo sąranką, gera mintis sukurti atsargines visų šių dotfiles kopijas. [Stow yra puikus būdas tai padaryti](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+Jei galiausiai atliksite daug pakeitimų, kad pritaikytumėte savo sąranką, gera mintis yra pasidaryti visų šių dotfiles failų atsarginę kopiją. [Stow yra puikus būdas tai padaryti](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
-### Savo programų paleidimas kartu su sesija
+### Savo programų paleidimas su sesija
 
-Jei nori, kad kažkas veiktų kiekvieną kartą prisijungus — sinchronizavimo daemonas, pokalbių programa, tavo paties scenarijus — įdėk tai į `~/.config/hypr/autostart.lua`:
+Jei norite, kad kas nors būtų paleidžiama kiekvieną kartą prisijungus — sinchronizavimo demonas, pokalbių programa, jūsų pačių scenarijus — įdėkite tai į `~/.config/hypr/autostart.lua`:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-Tai paleidžia komandą kaip sesijos dalį, tad ji tinkamai išvaloma vėl atsijungiant.
+Taip komanda paleidžiama kaip sesijos dalis, todėl atsijungus ji tinkamai išvaloma.
 
-### Scenarijų vykdymas pagal sistemos įvykius
+### Scenarijų paleidimas sistemos įvykių metu
 
-Omarchy sukelia kablį (hook) keletu momentų, o prie jų gali prikabinti savo scenarijus. Jie gyvena `~/.config/omarchy/hooks/<event>.d/`, po vieną katalogą kiekvienam įvykiui, ir kiekvienas ten esantis vykdomasis failas paleidžiamas, kai įvykis atsitinka:
+Omarchy tam tikrais momentais paleidžia kabliukus, ir prie jų galite prikabinti savo scenarijus. Jie yra `~/.config/omarchy/hooks/<event>.d/`, po vieną katalogą kiekvienam įvykiui, ir kiekvienas ten esantis vykdomasis failas paleidžiamas, kai įvyksta įvykis:
 
-| Įvykis | Kada veikia |
+| Įvykis | Kada paleidžiama |
 | ----- | ------------ |
-| `post-boot` | Iškart po to, kai darbalaukis pasileido |
-| `post-update` | Netoli `omarchy update` pabaigos, po paketų, migracijų ir paslaugų paleidimų iš naujo, prieš atnaujinant mise įrankius |
-| `pre-refresh-pacman` | Po to, kai `omarchy refresh pacman` iš naujo sinchronizuoja paketų konfigūraciją, prieš jam atnaujinant paketus; kanalo perjungimas jį paleidžia per tą patį atnaujinimo žingsnį |
+| `post-boot` | Iš karto po to, kai darbalaukis paleistas |
+| `post-update` | Beveik `omarchy update` pabaigoje, po paketų, migracijų ir paslaugų paleidimo iš naujo, prieš atnaujinant mise įrankius |
+| `pre-refresh-pacman` | Po to, kai `omarchy refresh pacman` iš naujo sinchronizuoja paketų konfigūraciją, prieš atnaujinant paketus; kanalo perjungimas jį paleidžia to paties atnaujinimo veiksmo metu |
 | `theme-set` | Po temos pakeitimo (temos pavadinimas `$1`) |
 | `font-set` | Po šrifto pakeitimo (šrifto pavadinimas `$1`) |
-| `battery-low` | Kai akumuliatorio įkrova sumažėja (procentai `$1`) |
+| `battery-low` | Kai akumuliatoriaus įkrova tampa maža (procentai `$1`) |
 
-Kablys `pre-refresh-pacman` yra ta vieta, kur priklauso pasirinktinių saugyklų arba `IgnorePkg` eilutės, kadangi jis veikia prieš paketų operaciją. Abu su atnaujinimu susiję kabliai veikia kaip tavo naudotojas, po to, kai Omarchy išvalo savo talpintą sudo leidimą, tad kabliui, kuris naudoja `sudo`, reikia savo leidimo ir gali paprašyti tavo slaptažodžio.
+`pre-refresh-pacman` kabliukas yra vieta, kur priklauso pasirinktinės saugyklos arba `IgnorePkg` eilutės, nes jis paleidžiamas prieš paketų transakciją. Abu su atnaujinimu susiję kabliukai paleidžiami kaip jūsų naudotojas po to, kai Omarchy išvalo talpykloje saugomą sudo autorizaciją, todėl kabliukui, naudojančiam `sudo`, reikia savo autorizacijos ir jis gali paprašyti jūsų slaptažodžio.
 
-Kiekviename iš tų katalogų jau yra `.sample` failas, rodantis kablio formą — numesk `.sample` iš pavadinimo, kad jį priverstum dirbti. Kad įdiegtum scenarijų, kurį parašei kitur, naudok `omarchy hook install post-boot ~/my-hook`, kuris jį nukopijuos ir padarys vykdomuoju.
+Kiekviename iš šių katalogų jau yra `.sample` failas, rodantis kabliuko formą — pašalinkite `.sample` iš pavadinimo, kad jis pradėtų veikti. Norėdami įdiegti scenarijų, kurį parašėte kitur, naudokite `omarchy hook install post-boot ~/my-hook`, kuris jį nukopijuoja ir padaro vykdomuoju.
 
 ### Savo meniu įrašų pridėjimas
 
-Omarchy meniu (`Super + Space`) gali būti išplėstas tavo paties eilutėmis redaguojant `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Įrašai raktuojami taškiniu id, ir id yra tai, kas juos patalpina medyje, tad `personal` pasirodo šakniniame meniu, o `personal.notes` pasirodo jo viduje:
+Omarchy meniu (`Super + Space`) galima išplėsti savo eilutėmis redaguojant `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Įrašai raktuojami taškiniu id, ir id lemia jų vietą medyje, todėl `personal` rodomas šakniniame meniu, o `personal.notes` rodomas jo viduje:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Naudok esamą id ir perrašysi tą eilutę, užuot pridėjęs naują. Failas pristatomas su visais prieinamais laukais, dokumentuotais kaip komentarais.
+Pakartotinai naudodami esamą id, perrašysite tą eilutę, o ne pridėsite naują. Faile visi galimi laukai aprašyti kaip komentarai.
 
-### Savo shell eksportų, funkcijų ir alias pridėjimas
+### Savo apvalkalo eksportų, funkcijų ir slapyvardžių pridėjimas
 
-Omarchy pristatoma su daugybe ergonomiškų alias ir naudingų funkcijų, bet labai įprasta norėti pridėti savųjų. Tiek alias, tiek funkcijas, tiek eksportus turėtum pridėti į `~/.bashrc`. Šis failas nebus perrašytas atnaujinimų metu. Jei nori pakeisti bet kuriuos Omarchy numatytuosius, taip pat gali juos saugiai pridėti čia.
+Omarchy pateikiama su daugybe ergonomiškų slapyvardžių ir naudingų funkcijų, bet labai įprasta norėti pridėti savų. Tiek slapyvardžius, funkcijas, tiek eksportus turėtumėte pridėti į `~/.bashrc`. Šis failas nebus perrašytas atnaujinimų metu. Jei norite pakeisti bet kuriuos Omarchy numatytuosius nustatymus, juos taip pat galite saugiai pridėti čia.
 
 ### Vidinių Omarchy failų keitimas
 
-Žiūrėk, tai tavo kompiuteris. Gali su juo daryti ką nori, bet patarčiau nekeisti failų `/usr/share/omarchy` tiesiogiai. Jie priklauso Omarchy pacman paketui, tad tavo pakeitimai tiesiog bus perrašyti kito atnaujinimo metu. Geriau tiesiog perrašyti bet kurias numatytąsias reikšmes, kurios nepatinka, aplanke `~/.config/*`.
+Žiūrėkite, tai jūsų kompiuteris. Galite su juo daryti ką norite, bet patarčiau tiesiogiai nekeisti failų `/usr/share/omarchy`. Jie priklauso Omarchy pacman paketui, todėl jūsų pakeitimai tiesiog bus perrašyti kito atnaujinimo metu. Geriau tiesiog perrašykite bet kurias numatytąsias reikšmes, kurios jums nepatinka, `~/.config/*` aplanke.
 
-Taip gali pakeisti beveik viską, pavyzdžiui, numatytuosius klavišų susiejimus. Tiesiog redaguok `~/.config/hypr/bindings.lua`, kad, tarkim, pakeistum [Obsidian](https://obsidian.md/) į [Joplin](https://joplinapp.org/) (įdiek su `omarchy-pkg-add joplin-bin`):
+Taip galite pakeisti beveik viską, pavyzdžiui, numatytuosius klavišų susiejimus. Tiesiog redaguokite `~/.config/hypr/bindings.lua`, kad, tarkime, [Obsidian](https://obsidian.md/) pakeistumėte į [Joplin](https://joplinapp.org/) (įdiekite su `omarchy-pkg-add joplin-bin`):
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-`o.rebind` pašalina esamą susiejimą prieš pridėdamas jo pakaitalą. Jis ima tuos pačius argumentus kaip `o.bind`, įskaitant paleidimo pagalbines ir susiejimo parinktis. Naudok `o.bind`, kad pridėtum susiejimą, arba `hl.unbind`, kad vieną pašalintum nepakeisdamas.
+`o.rebind` pašalina esamą susiejimą prieš pridėdamas jo pakaitalą. Jis priima tuos pačius argumentus kaip `o.bind`, įskaitant paleidimo pagalbines priemones ir susiejimo parinktis. Naudokite `o.bind`, kad pridėtumėte susiejimą, arba `hl.unbind`, kad pašalintumėte jį jo nepakeisdami.
 
-Jei primygtinai nori kapstytis vidiniuose Omarchy failuose, pereik prie dev kanalo per _Atnaujinti > Channel > Dev_. Tai susieja Omarchy su šaltinio kodo git kopija `~/omarchy`, kurią laisvai gali keisti kiek širdis geidžia. Čia niekas nesiruošia tau sakyti, ką daryti!
+Jei primygtinai norite laužtis į vidinius Omarchy failus, perjunkite į dev kanalą per _Atnaujinimas > Kanalas > Dev_. Taip Omarchy susiejama su git esančia šaltinio kodo kopija `~/omarchy`, kurią galite laisvai keisti kiek širdis geidžia. Niekas čia jums nenurodinės, ką daryti!
 
-### Bet kokių pakeitimų atkūrimas
+### Bet kokių pakeitimų atstatymas
 
-Jei galiausiai padarysi netvarką konfigūracijose, visada gali jas grąžinti prie numatytųjų per _Atnaujinti > Config_ Omarchy meniu. Arba paleidęs `omarchy reinstall configs`, kad atkurtum viską.
+Jei galiausiai sugadinsite konfigūracijas, visada galite jas grąžinti į numatytąsias per _Atnaujinimas > Konfigūracija_ Omarchy meniu. Arba paleisdami `omarchy reinstall configs`, kad viską atstatytumėte.

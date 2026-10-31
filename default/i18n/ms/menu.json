@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Ujian Kelajuan Cakera"
   },
-  "setup.monitors": {
-    "label": "Monitor"
-  },
   "setup.keybindings": {
     "label": "Ikatan Kekunci"
   },

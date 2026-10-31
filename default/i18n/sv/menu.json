@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diskhastighetstest"
   },
-  "setup.monitors": {
-    "label": "Skärmar"
-  },
   "setup.keybindings": {
     "label": "Tangentgenvägar"
   },

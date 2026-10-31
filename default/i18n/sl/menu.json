@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Hitrost diska"
   },
-  "setup.monitors": {
-    "label": "Zasloni"
-  },
   "setup.keybindings": {
     "label": "Bližnjice"
   },

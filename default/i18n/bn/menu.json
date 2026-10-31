@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "ডিস্ক গতি পরীক্ষা"
   },
-  "setup.monitors": {
-    "label": "মনিটর"
-  },
   "setup.keybindings": {
     "label": "কিবাইন্ডিং"
   },

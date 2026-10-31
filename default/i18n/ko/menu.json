@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "디스크 속도 테스트"
   },
-  "setup.monitors": {
-    "label": "모니터"
-  },
   "setup.keybindings": {
     "label": "단축키"
   },

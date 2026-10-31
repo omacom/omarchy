@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test viteză disc"
   },
-  "setup.monitors": {
-    "label": "Monitoare"
-  },
   "setup.keybindings": {
     "label": "Scurtături"
   },

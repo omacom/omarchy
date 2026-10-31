@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test prędkości dysku"
   },
-  "setup.monitors": {
-    "label": "Monitory"
-  },
   "setup.keybindings": {
     "label": "Skróty"
   },

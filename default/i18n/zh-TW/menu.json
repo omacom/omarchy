@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "磁碟測速"
   },
-  "setup.monitors": {
-    "label": "顯示器"
-  },
   "setup.keybindings": {
     "label": "快捷鍵"
   },

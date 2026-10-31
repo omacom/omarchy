@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk tezligi testi"
   },
-  "setup.monitors": {
-    "label": "Monitorlar"
-  },
   "setup.keybindings": {
     "label": "Tugmalar birikmasi"
   },

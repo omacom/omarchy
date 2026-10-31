@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "اختبار سرعة القرص"
   },
-  "setup.monitors": {
-    "label": "الشاشات"
-  },
   "setup.keybindings": {
     "label": "اختصارات المفاتيح"
   },
