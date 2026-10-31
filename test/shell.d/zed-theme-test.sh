@@ -56,6 +56,11 @@ cat >"$settings" <<'JSONC'
   "theme": "Existing"
 }
 JSONC
+cp "$settings" "$test_tmp/manual-settings.json"
+run_sync
+cmp -s "$test_tmp/manual-settings.json" "$settings" ||
+  fail "Zed theme sync preserves a manually selected theme"
+pass "Zed theme sync preserves a manually selected theme"
 run_sync --select
 grep -q '// Keep this user preference.' "$settings" || fail "Zed sync preserves JSONC comments"
 grep -q '"autosave": "on_focus_change"' "$settings" || fail "Zed sync preserves unrelated settings"
@@ -148,7 +153,7 @@ chmod +x "$stub_bin/omarchy-pkg-drop" "$stub_bin/omarchy-theme-refresh"
 
 export TEST_LOG="$test_tmp/migration.log"
 for _ in 1 2; do
-  HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1787583487.sh" >/dev/null
+  HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null
 done
 
 ! grep -q 'omazed hook\|omazed set' "$hook_file" || fail "Zed migration removes the omazed hook block"
@@ -168,7 +173,7 @@ cp "$generated_theme" "$other_home/.local/state/omarchy/current/theme/zed.json"
 printf '%s\n' '{' '  // "theme": "Omazed",' '  "theme": "One Dark"' '}' >"$other_home/.config/zed/settings.json"
 touch "$other_home/.config/zed/themes/omazed.json"
 
-HOME="$other_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1787583487.sh" >/dev/null
+HOME="$other_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null
 
 grep -q '"theme": "One Dark"' "$other_home/.config/zed/settings.json" ||
   fail "Zed migration preserves a manually selected theme"
@@ -176,10 +181,25 @@ grep -q '// "theme": "Omazed",' "$other_home/.config/zed/settings.json" ||
   fail "Zed migration ignores an Omazed reference inside a comment"
 pass "Zed migration preserves another selected theme"
 
+cat >"$other_home/.config/zed/settings.json" <<'JSONC'
+{
+  "theme": {
+    "mode": "system",
+    "light": "One Light",
+    "dark": "Omazed"
+  }
+}
+JSONC
+HOME="$other_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --migrate
+jq -e '.theme.mode == "system" and .theme.light == "One Light" and .theme.dark == "Omarchy"' \
+  "$other_home/.config/zed/settings.json" >/dev/null ||
+  fail "Zed migration replaces only Omazed in a light/dark theme object"
+pass "Zed migration preserves other choices in a light/dark theme object"
+
 incomplete_home="$test_tmp/incomplete-home"
 mkdir -p "$incomplete_home/.config/omarchy/hooks"
 printf '%s\n' 'echo before' '# >>> omazed hook - do not edit >>>' 'echo keep me' >"$incomplete_home/.config/omarchy/hooks/theme-set"
-HOME="$incomplete_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1787583487.sh" >/dev/null
+HOME="$incomplete_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null
 grep -q '^echo keep me$' "$incomplete_home/.config/omarchy/hooks/theme-set" ||
   fail "Zed migration leaves an incomplete hook marker block untouched"
 pass "Zed migration requires a complete hook marker block"
@@ -188,11 +208,50 @@ missing_theme_home="$test_tmp/missing-theme-home"
 mkdir -p "$missing_theme_home/.config/zed/themes"
 printf '{"theme":"Omazed"}\n' >"$missing_theme_home/.config/zed/settings.json"
 touch "$missing_theme_home/.config/zed/themes/omazed.json"
-if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1787583487.sh" >/dev/null 2>&1; then
+mkdir -p "$missing_theme_home/.config/omarchy/hooks/theme-set.d"
+touch "$missing_theme_home/.config/omarchy/hooks/theme-set.d/omazed"
+: >"$TEST_LOG"
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null 2>&1; then
   fail "Zed migration fails while a selected Omazed theme has no native replacement"
 fi
 [[ -e $missing_theme_home/.config/zed/themes/omazed.json ]] ||
   fail "Zed migration keeps Omazed in place until the native theme is ready"
 grep -q '"theme":"Omazed"' "$missing_theme_home/.config/zed/settings.json" ||
   fail "Zed migration keeps the working selection when the native theme is unavailable"
+[[ -e $missing_theme_home/.config/omarchy/hooks/theme-set.d/omazed ]] ||
+  fail "Zed migration keeps the Omazed hook until the replacement is ready"
+! grep -q '^drop omazed$' "$TEST_LOG" ||
+  fail "Zed migration does not remove Omazed until the replacement is ready"
 pass "Zed migration does not remove Omazed before its replacement is ready"
+
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" --select >/dev/null 2>&1; then
+  fail "Zed selection reports a missing generated theme"
+fi
+pass "Zed selection fails rather than silently selecting a missing theme"
+
+mkdir -p "$missing_theme_home/.local/state/omarchy/current/theme"
+printf '%s\n' '{"themes": []}' >"$missing_theme_home/.local/state/omarchy/current/theme/zed.json"
+cp "$generated_theme" "$missing_theme_home/.config/zed/themes/omarchy.json"
+: >"$TEST_LOG"
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash -euo pipefail "$ROOT/migrations/1793461828.sh" >/dev/null 2>&1; then
+  fail "Zed migration fails when the replacement does not define the Omarchy theme"
+fi
+[[ -e $missing_theme_home/.config/omarchy/hooks/theme-set.d/omazed ]] ||
+  fail "Zed migration keeps the Omazed hook when the replacement is invalid"
+[[ -e $missing_theme_home/.config/zed/themes/omazed.json ]] ||
+  fail "Zed migration keeps the Omazed theme when the replacement is invalid"
+! grep -q '^drop omazed$' "$TEST_LOG" ||
+  fail "Zed migration keeps the Omazed package when the replacement is invalid"
+grep -q '"theme":"Omazed"' "$missing_theme_home/.config/zed/settings.json" ||
+  fail "Zed migration keeps the old selection when the replacement is invalid"
+cmp -s "$generated_theme" "$missing_theme_home/.config/zed/themes/omarchy.json" ||
+  fail "Zed sync does not overwrite a valid theme with an invalid replacement"
+pass "Zed migration rejects an invalid replacement before removing Omazed"
+
+printf '%s\n' '{broken json' >"$missing_theme_home/.local/state/omarchy/current/theme/zed.json"
+if HOME="$missing_theme_home" PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-zed" >/dev/null 2>&1; then
+  fail "Zed sync reports malformed theme JSON"
+fi
+cmp -s "$generated_theme" "$missing_theme_home/.config/zed/themes/omarchy.json" ||
+  fail "Zed sync preserves its previous theme when generated JSON is malformed"
+pass "Zed sync preserves the previous theme when generated JSON is malformed"

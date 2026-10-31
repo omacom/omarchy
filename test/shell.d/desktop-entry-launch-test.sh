@@ -22,12 +22,18 @@ cat >"$mock_bin/omarchy-font-set" <<'SH'
 printf 'font:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
-for command in omarchy-pkg-aur-add omarchy-install-emacs omarchy-theme-set-vscode omarchy-theme-set-zed omarchy-install-gaming-gpu-lib32 omarchy-lifecycle-dispatch; do
+for command in omarchy-pkg-aur-add omarchy-install-emacs omarchy-theme-set-vscode omarchy-install-gaming-gpu-lib32 omarchy-lifecycle-dispatch; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 exit 0
 SH
 done
+
+cat >"$mock_bin/omarchy-theme-set-zed" <<'SH'
+#!/bin/bash
+printf 'zed:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
+exit "${OMARCHY_TEST_ZED_STATUS:-0}"
+SH
 
 cat >"$mock_bin/setsid" <<'SH'
 #!/bin/bash
@@ -72,6 +78,25 @@ assert_detached_installer_launch() {
 assert_detached_installer_launch omarchy-install-editor-emacs emacsclient
 assert_detached_installer_launch omarchy-install-editor-vscode code
 assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
+grep -Fxq 'pkg:zed' "$OMARCHY_TEST_LOG" || fail "Zed installer installs Zed without Omazed"
+grep -Fxq 'zed:--select' "$OMARCHY_TEST_LOG" || fail "Zed installer selects the native theme"
+
+: >"$OMARCHY_TEST_LOG"
+if OMARCHY_TEST_PKG_STATUS=1 bash "$ROOT/bin/omarchy-install-editor-zed"; then
+  fail "Zed installer reports package installation failure"
+fi
+if grep -Eq '^(zed:|launch:)' "$OMARCHY_TEST_LOG"; then
+  fail "Zed installer does not configure or launch after package installation failure"
+fi
+: >"$OMARCHY_TEST_LOG"
+if OMARCHY_TEST_ZED_STATUS=1 bash "$ROOT/bin/omarchy-install-editor-zed"; then
+  fail "Zed installer reports theme selection failure"
+fi
+if grep -q '^launch:' "$OMARCHY_TEST_LOG"; then
+  fail "Zed installer does not launch after theme selection failure"
+fi
+pass "Zed installer stops when installation or theme selection fails"
+
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam
 

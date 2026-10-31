@@ -5,6 +5,11 @@ marker_end="# <<< omazed hook - do not edit <<<"
 hook_file="$HOME/.config/omarchy/hooks/theme-set"
 hook_dir="$HOME/.config/omarchy/hooks/theme-set.d"
 
+# Keep the old integration working until the replacement is ready. In
+# particular, a failed refresh must not remove the selected Omazed theme.
+omarchy-theme-refresh
+omarchy-theme-set-zed --migrate
+
 if [[ -f $hook_file ]] && awk -v start="$marker_start" -v end="$marker_end" '
   $0 == start { found_start = 1 }
   found_start && $0 == end { found_end = 1; exit }
@@ -17,8 +22,6 @@ rm -f "$hook_dir/omazed"
 rmdir "$hook_dir" 2>/dev/null || true
 
 omarchy-pkg-drop omazed
-omarchy-theme-refresh
-omarchy-theme-set-zed --migrate
 
 rm -f "$HOME/.config/zed/themes/omazed.json"
 rm -f "$HOME/.local/share/omazed/initialized"
