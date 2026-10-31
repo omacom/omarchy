@@ -6,5 +6,13 @@ o.window({ tag = "chromium-based-browser" }, { tile = true })
 -- Video apps: remove the chromium browser tag so they can float.
 o.window("(^.+-youtube\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { tag = "-chromium-based-browser" })
 
+-- Chrome Live Caption / Live Translate bubble. Same class as the browser, so
+-- the tile=true rule above would pull it into the layout; float it instead.
+o.window({ tag = "chromium-based-browser", title = "(Live Caption|Live Translate|实时字幕)" }, {
+  float = true,
+  pin = true,
+  border_size = 0,
+})
+
 -- Hide screen sharing notification windows.
 o.window({ title = ".*is sharing.*" }, { workspace = "special silent" })
