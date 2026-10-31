@@ -10,89 +10,37 @@ trap 'rm -rf "$PKG_TEST_DIR"' EXIT
 PKG_STUB_DIR="$PKG_TEST_DIR/bin"
 mkdir -p "$PKG_STUB_DIR"
 
-cat >"$PKG_STUB_DIR/fzf" <<'SH'
-#!/bin/bash
-sed -n '1p'
-SH
-chmod +x "$PKG_STUB_DIR/fzf"
-
-cat >"$PKG_STUB_DIR/pacman" <<'SH'
-#!/bin/bash
-
-case "${1:-}" in
-  -Slq)
-    printf 'example\n'
-    ;;
-  -S)
-    printf '%s\n' "$*" >>"$PKG_TEST_DIR/pacman-install.log"
-    exit "${PACMAN_INSTALL_STATUS:-0}"
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-SH
-chmod +x "$PKG_STUB_DIR/pacman"
-
-cat >"$PKG_STUB_DIR/yay" <<'SH'
-#!/bin/bash
-
-case "${1:-}" in
-  -Slqa)
-    printf 'example\n'
-    ;;
-  -S)
-    printf '%s\n' "$*" >>"$PKG_TEST_DIR/yay-install.log"
-    exit "${YAY_INSTALL_STATUS:-0}"
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-SH
-chmod +x "$PKG_STUB_DIR/yay"
-
+# A cancelled password prompt makes `sudo -v` fail; every other call is logged.
 cat >"$PKG_STUB_DIR/sudo" <<'SH'
 #!/bin/bash
-
-case "${1:-}" in
-  -v)
-    printf 'validate\n' >>"$PKG_TEST_DIR/sudo-validate.log"
-    exit "${SUDO_VALIDATE_STATUS:-0}"
-    ;;
-  -n)
-    exit 0
-    ;;
-  updatedb)
-    printf 'updatedb\n' >>"$PKG_TEST_DIR/updatedb.log"
-    exit "${UPDATEDB_STATUS:-0}"
-    ;;
-esac
-
-exec "$@"
+if [[ $1 == "-v" ]]; then
+  printf 'sudo -v\n' >>"$PKG_TEST_DIR/calls.log"
+  exit 1
+fi
+printf 'sudo %s\n' "$*" >>"$PKG_TEST_DIR/calls.log"
 SH
-chmod +x "$PKG_STUB_DIR/sudo"
 
-cat >"$PKG_STUB_DIR/omarchy-show-done" <<'SH'
+for cmd in pacman yay; do
+  cat >"$PKG_STUB_DIR/$cmd" <<'SH'
 #!/bin/bash
-printf 'done\n' >>"$PKG_TEST_DIR/show-done.log"
+if [[ $1 == -Slq* ]]; then
+  printf 'example\n'
+else
+  printf '%s %s\n' "${0##*/}" "$*" >>"$PKG_TEST_DIR/calls.log"
+fi
 SH
-chmod +x "$PKG_STUB_DIR/omarchy-show-done"
+done
 
-if PKG_TEST_DIR="$PKG_TEST_DIR" SUDO_VALIDATE_STATUS=1 PATH="$PKG_STUB_DIR:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-pkg-install"; then
-  fail "pkg install should exit non-zero when sudo validation fails"
-fi
-[[ -f $PKG_TEST_DIR/sudo-validate.log ]] || fail "pkg install should reach sudo validation"
-[[ ! -f $PKG_TEST_DIR/pacman-install.log ]] || fail "pkg install should not run pacman after sudo validation failure"
-[[ ! -f $PKG_TEST_DIR/show-done.log ]] || fail "pkg install should not show done after sudo validation failure"
-pass "pkg install aborts cleanly when sudo validation fails"
+printf '#!/bin/bash\nhead -n1\n' >"$PKG_STUB_DIR/fzf"
+printf '#!/bin/bash\nprintf "done\\n" >>"$PKG_TEST_DIR/calls.log"\n' >"$PKG_STUB_DIR/omarchy-show-done"
+chmod +x "$PKG_STUB_DIR"/*
 
-rm -f "$PKG_TEST_DIR"/*.log
-if PKG_TEST_DIR="$PKG_TEST_DIR" SUDO_VALIDATE_STATUS=1 PATH="$PKG_STUB_DIR:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-pkg-aur-install"; then
-  fail "aur install should exit non-zero when sudo validation fails"
-fi
-[[ -f $PKG_TEST_DIR/sudo-validate.log ]] || fail "aur install should reach sudo validation"
-[[ ! -f $PKG_TEST_DIR/yay-install.log ]] || fail "aur install should not run yay after sudo validation failure"
-[[ ! -f $PKG_TEST_DIR/updatedb.log ]] || fail "aur install should not run updatedb after sudo validation failure"
-[[ ! -f $PKG_TEST_DIR/show-done.log ]] || fail "aur install should not show done after sudo validation failure"
-pass "aur install aborts cleanly when sudo validation fails"
+for installer in omarchy-pkg-install omarchy-pkg-aur-install; do
+  rm -f "$PKG_TEST_DIR/calls.log"
+  if PKG_TEST_DIR="$PKG_TEST_DIR" PATH="$PKG_STUB_DIR:$ROOT/bin:$PATH" "$ROOT/bin/$installer"; then
+    fail "$installer should exit non-zero when the sudo prompt is cancelled"
+  fi
+  calls=$(<"$PKG_TEST_DIR/calls.log")
+  [[ $calls == "sudo -v" ]] || fail "$installer should stop after the cancelled sudo prompt" "$calls"
+  pass "$installer stops when the sudo prompt is cancelled"
+done
