@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Herdr desktop app from its official installer
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Herdr's own installer puts the app in ~/.local/share/herdr-app with a
+# launcher entry, and adds herdr-core in ~/.local/bin when there is none yet.
+# The app updates itself and its core from then on. Downloaded whole before it
+# runs, so a dropped connection can never run half a script.
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+curl -fsSL --retry 3 https://releases.herdr.dev/app/install.sh -o "$installer"
+sh "$installer"
+
+echo "Opening Herdr..."
+setsid uwsm-app -- "$HOME/.local/bin/herdr-app" >/dev/null 2>&1 &
+
+echo ""
+echo "Herdr has been installed. It updates itself."
