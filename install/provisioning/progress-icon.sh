@@ -35,6 +35,7 @@ ICON_FRAME=""
 ICON_TTY=/dev/tty
 ICON_SIZE=""
 ICON_TEXT_WIDTH=78
+ICON_TEXT_LIMIT=78
 ICON_DISPLAY_PM=0
 ICON_TARGET_PM=0
 declare -a ICON_ORDER=() ICON_TRACE=() ICON_FILL=()
@@ -55,41 +56,41 @@ import time
 import tty
 
 with open(sys.argv[1], "r+b", buffering=0) as terminal:
-    fd = terminal.fileno()
-    rows, cols, width, height = struct.unpack(
-        "HHHH", fcntl.ioctl(fd, termios.TIOCGWINSZ, bytes(8)))
-    if rows and cols and width and height:
-        print(round(width / cols), round(height / rows))
-        sys.exit()
-    try:
-        font = bytearray(struct.pack("@5IP", 1, 0, 0, 0, 0, 0))
-        fcntl.ioctl(fd, 0x4B72, font)  # KDFONTOP / KD_FONT_OP_GET, no glyph data
-        _, _, width, height, _ = struct.unpack_from("@5I", font)
-        if width and height:
-            print(width, height)
-            sys.exit()
-    except OSError:
-        pass
+  fd = terminal.fileno()
+  rows, cols, width, height = struct.unpack(
+    "HHHH", fcntl.ioctl(fd, termios.TIOCGWINSZ, bytes(8)))
+  if rows and cols and width and height:
+    print(round(width / cols), round(height / rows))
+    sys.exit()
+  try:
+    font = bytearray(struct.pack("@5IP", 1, 0, 0, 0, 0, 0))
+    fcntl.ioctl(fd, 0x4B72, font)  # KDFONTOP / KD_FONT_OP_GET, no glyph data
+    _, _, width, height, _ = struct.unpack_from("@5I", font)
+    if width and height:
+      print(width, height)
+      sys.exit()
+  except OSError:
+    pass
 
-    settings = termios.tcgetattr(fd)
-    try:
-        tty.setcbreak(fd, termios.TCSANOW)
-        os.write(fd, b"\x1b[16t")
-        response = b""
-        deadline = time.monotonic() + 0.15
-        while select.select([fd], [], [], max(0, deadline - time.monotonic()))[0]:
-            response += os.read(fd, 64)
-            match = re.search(rb"\x1b\[6;(\d+);(\d+)t", response)
-            if match:
-                height, width = map(int, match.groups())
-                if width and height:
-                    print(width, height)
-                    sys.exit()
-            if time.monotonic() >= deadline:
-                break
-    finally:
-        termios.tcsetattr(fd, termios.TCSANOW, settings)
-    print(8, 16)  # Conventional console font when dimensions aren't available.
+  settings = termios.tcgetattr(fd)
+  try:
+    tty.setcbreak(fd, termios.TCSANOW)
+    os.write(fd, b"\x1b[16t")
+    response = b""
+    deadline = time.monotonic() + 0.15
+    while select.select([fd], [], [], max(0, deadline - time.monotonic()))[0]:
+      response += os.read(fd, 64)
+      match = re.search(rb"\x1b\[6;(\d+);(\d+)t", response)
+      if match:
+        height, width = map(int, match.groups())
+        if width and height:
+          print(width, height)
+          sys.exit()
+      if time.monotonic() >= deadline:
+        break
+  finally:
+    termios.tcsetattr(fd, termios.TCSANOW, settings)
+  print(8, 16)  # Conventional console font when dimensions aren't available.
 PY
 }
 
@@ -259,10 +260,13 @@ progress_icon_truncate() {
 }
 
 # Pick the largest icon the console fits and center it, with the five text rows
-# beneath it, vertically. The text never runs wider than <text-width>.
+# beneath it, vertically. The text never runs wider than <text-width>, which is
+# kept apart from the width the current console leaves, so a console that
+# shrinks and grows back shows the full text again.
 progress_icon_layout() {
   local rows cols scale=1 top
   ICON_TTY="${1:-/dev/tty}"
+  [[ -n ${2:-} ]] && ICON_TEXT_LIMIT=$2
   ICON_SIZE="$(progress_icon_term_size)"
   read -r rows cols <<<"$ICON_SIZE"
   [[ $rows =~ ^[0-9]+$ ]] || rows=24
@@ -280,12 +284,12 @@ progress_icon_layout() {
   ICON_LEFT=$(( (cols - ICON_WIDTH) / 2 + 1 ))
   (( ICON_LEFT < 1 )) && ICON_LEFT=1
   ICON_TEXT_WIDTH=$((cols - 2))
-  (( ICON_TEXT_WIDTH > ${2:-$ICON_TEXT_WIDTH} )) && ICON_TEXT_WIDTH=$2
+  (( ICON_TEXT_WIDTH > ICON_TEXT_LIMIT )) && ICON_TEXT_WIDTH=$ICON_TEXT_LIMIT
   return 0
 }
 
 progress_icon_static() {
-  progress_icon_layout "$ICON_TTY" "$ICON_TEXT_WIDTH"
+  progress_icon_layout "$ICON_TTY"
   printf '%s2J%sH' "$PROGRESS_ICON_CSI" "$PROGRESS_ICON_CSI"
   progress_icon_render "$ICON_DISPLAY_PM" 1
 }
