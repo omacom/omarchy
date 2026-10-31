@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Print the Omarchy edition (desktop or server)
+
+edition_file=${OMARCHY_EDITION_FILE:-/etc/omarchy-edition}
+
+# No marker means an install that predates editions, and every one of those is a
+# desktop. Defaulting keeps the predicates answerable on machines the installer
+# never stamped.
+if [[ ! -e $edition_file ]]; then
+  edition="desktop"
+else
+  # Strip all whitespace including CRLF
+  edition=$(tr -d '[:space:]' <"$edition_file")
+fi
+
+# Validate the edition value
+case "$edition" in
+  desktop | server)
+    # Valid edition
+    ;;
+  *)
+    # Unknown edition: error when printing, both predicates false
+    if [[ $# -eq 0 ]]; then
+      echo "omarchy-edition: unrecognized edition in $edition_file: ${edition:-<empty>}" >&2
+      exit 1
+    else
+      # For predicates, unknown editions match nothing (both predicates false)
+      exit 1
+    fi
+    ;;
+esac
+
+# If an argument is given, act as a predicate (exit 0 if it matches, 1 otherwise)
+if [[ $# -eq 1 ]]; then
+  [[ $1 == "$edition" ]]
+  exit $?
+elif [[ $# -gt 1 ]]; then
+  echo "omarchy-edition: too many arguments" >&2
+  exit 2
+else
+  echo "$edition"
+fi

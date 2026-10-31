@@ -1,1 +1,0 @@
-{{ background_rgb }}

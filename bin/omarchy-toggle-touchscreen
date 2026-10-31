@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Enable, disable, or toggle the touch functionality of the screen
-# omarchy:args=[on|off|toggle]
-
-exec omarchy-toggle-input-device touchscreen "${1:-toggle}"

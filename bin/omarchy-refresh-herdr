@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Overwrite the user herdr config with the Omarchy default and reload herdr.
-
-omarchy-refresh-config herdr/config.toml
-omarchy-restart-herdr

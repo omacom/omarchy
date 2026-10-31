@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Enable, disable, or toggle the touchpad
-# omarchy:args=[on|off|toggle]
-
-exec omarchy-toggle-input-device touchpad "${1:-toggle}"

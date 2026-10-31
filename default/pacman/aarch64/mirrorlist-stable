@@ -1,3 +1,0 @@
-# Omarchy's mirror of Arch Linux ARM, over HTTPS since the repository databases
-# are unsigned. It keeps Arch Linux ARM's $arch/$repo layout.
-Server = https://arm-stable-mirror.omarchy.org/$arch/$repo
