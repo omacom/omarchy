@@ -663,11 +663,37 @@ Panel {
               }
             }
 
-            DisplayPicker {
+            // One button per display, named in its tooltip; the shown one is lit.
+            Row {
               id: picker
               visible: root.segments.length > 1
+              spacing: Style.spacing.xs
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
+
+              Repeater {
+                model: root.segments
+
+                Button {
+                  id: pick
+                  required property var modelData
+                  required property int index
+
+                  iconText: root.displayGlyph(modelData)
+                  tooltipText: modelData.title + " · " + modelData.name
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  horizontalPadding: Style.spacing.sm
+                  verticalPadding: Style.spacing.controlPaddingY
+
+                  active: root.currentIndex === index
+                  hasCursor: root.cursorActive && root.focusSection === "displays" && root.selectedIndex === index
+                  onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pick)
+
+                  onClicked: root.selectDisplay(modelData.name)
+                  onHovered: function(isHovered) { if (isHovered) root.pointAt("displays", pick.index) }
+                }
+              }
             }
           }
 
@@ -682,10 +708,31 @@ Panel {
             width: parent.width
             spacing: Style.space(6)
 
-            SectionHeader {
-              icon: "\u{F05A8}"  // sun
-              text: Commons.I18n.t("monitor.brightness")
-              value: Commons.I18n.formatNumber(Math.round(brightnessSlider.dragging ? brightnessSlider.liveValue : root.currentBrightness)) + "%"
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(brightnessHeader.implicitHeight, brightnessPercent.implicitHeight)
+
+              PanelSectionHeader {
+                id: brightnessHeader
+                text: Commons.I18n.t("monitor.brightness")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: brightnessPercent
+                textFormat: Text.PlainText
+                text: Commons.I18n.formatNumber(Math.round(brightnessSlider.dragging ? brightnessSlider.liveValue : root.currentBrightness)) + "%"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
 
             CursorSurface {
@@ -730,12 +777,33 @@ Panel {
             width: parent.width
             spacing: Style.space(6)
 
-            SectionHeader {
-              icon: "\u{F0B34}"  // letter case, "Aa"
-              text: Commons.I18n.t("monitor.textSize")
-              value: Commons.I18n.formatNumber(textSizeSlider.dragging
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(textSizeHeader.implicitHeight, textSizePx.implicitHeight)
+
+              PanelSectionHeader {
+                id: textSizeHeader
+                text: Commons.I18n.t("monitor.textSize")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: textSizePx
+                textFormat: Text.PlainText
+                text: Commons.I18n.formatNumber(textSizeSlider.dragging
                        ? root.textSizeStops[Math.round(textSizeSlider.liveValue)]
                        : root.displayedTextPx()) + "px"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
 
             CursorSurface {
@@ -780,9 +848,10 @@ Panel {
             spacing: Style.space(6) + panelColumn.sliderInset
             bottomPadding: panelColumn.sliderInset
 
-            SectionHeader {
-              icon: "\u{F004C}"  // arrows out to the corners
+            PanelSectionHeader {
               text: Commons.I18n.t("monitor.scale")
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
             }
 
             Grid {
@@ -821,10 +890,31 @@ Panel {
             spacing: Style.space(6) + panelColumn.sliderInset
             bottomPadding: panelColumn.sliderInset
 
-            SectionHeader {
-              icon: "\u{F0293}"  // full-screen corners
-              text: Commons.I18n.t("monitor.resolution")
-              value: root.current ? root.current.current.replace("x", "×") : ""
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(resolutionHeader.implicitHeight, resolutionCurrent.implicitHeight)
+
+              PanelSectionHeader {
+                id: resolutionHeader
+                text: Commons.I18n.t("monitor.resolution")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: resolutionCurrent
+                textFormat: Text.PlainText
+                text: root.current ? root.current.current.replace("x", "×") : ""
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
 
             Grid {
@@ -861,9 +951,10 @@ Panel {
             width: parent.width
             spacing: Style.space(6)
 
-            SectionHeader {
-              icon: "\u{F037A}"  // two monitors
+            PanelSectionHeader {
               text: Commons.I18n.t("monitor.layout")
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
             }
 
             // Padded like a slider's track, around a map as tall as the arrangement.
@@ -889,95 +980,6 @@ Panel {
           }
         }
       }
-    }
-  }
-
-  // The display picker: one frame holding a cell per display, the shown one
-  // filled, like a segmented control. Each cell is named in its tooltip.
-  component DisplayPicker: BorderSurface {
-    id: displayPicker
-    readonly property real inset: Style.space(3)
-
-    implicitWidth: cells.implicitWidth + inset * 2
-    implicitHeight: cells.implicitHeight + inset * 2
-    radius: Style.cornerRadius > 0 ? Style.cornerRadius + inset : 0
-    color: "transparent"
-    borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
-
-    Row {
-      id: cells
-      anchors.centerIn: parent
-
-      Repeater {
-        model: root.segments
-
-        Button {
-          id: cell
-          required property var modelData
-          required property int index
-
-          iconText: root.displayGlyph(modelData)
-          tooltipText: modelData.title + " · " + modelData.name
-          foreground: root.bar.foreground
-          fontFamily: root.bar.fontFamily
-          horizontalPadding: Style.spacing.sm
-          verticalPadding: Style.spacing.controlPaddingY
-
-          active: root.currentIndex === index
-          hasCursor: root.cursorActive && root.focusSection === "displays" && root.selectedIndex === index
-          onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(cell)
-
-          onClicked: root.selectDisplay(modelData.name)
-          onHovered: function(isHovered) { if (isHovered) root.pointAt("displays", cell.index) }
-        }
-      }
-    }
-  }
-
-  // A section's label with its icon beside it, and an optional value on the right.
-  component SectionHeader: Item {
-    id: sectionHeader
-    property string icon: ""
-    property string text: ""
-    property string value: ""
-
-    width: parent ? parent.width : 0
-    implicitHeight: Math.max(headerIcon.implicitHeight, headerLabel.implicitHeight, headerValue.implicitHeight)
-
-    Text {
-      id: headerIcon
-      width: Style.space(22)
-      textFormat: Text.PlainText
-      text: sectionHeader.icon
-      color: root.bar.foreground
-      font.family: root.bar.fontFamily
-      font.pixelSize: Style.font.title
-      horizontalAlignment: Text.AlignHCenter
-      anchors.left: parent.left
-      anchors.verticalCenter: parent.verticalCenter
-    }
-
-    PanelSectionHeader {
-      id: headerLabel
-      text: sectionHeader.text
-      foreground: root.bar.foreground
-      fontFamily: root.bar.fontFamily
-      anchors.left: headerIcon.right
-      anchors.leftMargin: Style.space(8)
-      anchors.verticalCenter: parent.verticalCenter
-    }
-
-    Text {
-      id: headerValue
-      textFormat: Text.PlainText
-      text: sectionHeader.value
-      color: Qt.darker(root.bar.foreground, 1.4)
-      font.family: root.bar.fontFamily
-      font.pixelSize: Style.font.caption
-      font.bold: true
-      anchors.right: parent.right
-      anchors.rightMargin: Style.space(6)
-      anchors.verticalCenter: parent.verticalCenter
     }
   }
 
