@@ -2,7 +2,9 @@
 
 mkinitcpio_dir=${OMARCHY_SURFACE_PRO11_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 uki_config=${OMARCHY_SURFACE_PRO11_UKI_CONFIG:-/etc/kernel/uki.conf}
-dtb_root=${OMARCHY_QUALCOMM_DTB_ROOT:-/boot/dtbs}
+# Omarchy's kernel keeps its device trees in /usr/lib/dtbs since 7.3-8, in
+# /boot/dtbs before that; the first root with the tree wins.
+IFS=: read -ra dtb_roots <<<"${OMARCHY_QUALCOMM_DTB_ROOT:-/usr/lib/dtbs:/boot/dtbs}"
 
 # Only the X Elite OLED model has been tested. The LCD and X Plus models share
 # the DMI product name but use other device trees and panels.
@@ -19,11 +21,13 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-
   # and X Plus models share. Omarchy's kernel carries the tree, found the way
   # dtb-uki.sh finds it; without it the list stays and an earlier pin goes.
   surface_pro11_dtb=""
-  for dtb in "$dtb_root"/linux-omarchy*/qcom/x1e80100-microsoft-denali-oled.dtb; do
-    if [[ -f $dtb ]]; then
-      surface_pro11_dtb=$dtb
-      break
-    fi
+  for dtb_root in "${dtb_roots[@]}"; do
+    for dtb in "$dtb_root"/linux-omarchy*/qcom/x1e80100-microsoft-denali-oled.dtb; do
+      if [[ -f $dtb ]]; then
+        surface_pro11_dtb=$dtb
+        break 2
+      fi
+    done
   done
 
   if [[ -n $surface_pro11_dtb || -f $uki_config ]]; then

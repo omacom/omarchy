@@ -32,7 +32,7 @@ run_setup() (
   OMARCHY_PROC_ROOT="$dir/proc" \
     OMARCHY_SURFACE_PRO11_MKINITCPIO_DIR="$dir/mkinitcpio.conf.d" \
     OMARCHY_SURFACE_PRO11_UKI_CONFIG="$dir/kernel/uki.conf" \
-    OMARCHY_QUALCOMM_DTB_ROOT="$dir/dtbs" \
+    OMARCHY_QUALCOMM_DTB_ROOT="${dtb_roots_override:-$dir/dtbs}" \
     source "$setup"
 )
 
@@ -157,6 +157,16 @@ mv "$renamed/dtbs/linux-omarchy" "$renamed/dtbs/linux-omarchy-aarch64"
 run_setup "$renamed" >/dev/null
 grep -Fxq "DeviceTree=$renamed/dtbs/linux-omarchy-aarch64/qcom/x1e80100-microsoft-denali-oled.dtb" "$renamed/kernel/uki.conf" ||
   fail "the device tree is found under any linux-omarchy package directory, as dtb-uki.sh finds it"
+
+# Omarchy's kernel keeps the tree in /usr/lib/dtbs since 7.3-8; that root comes
+# before the /boot/dtbs one a kernel from before the move left behind.
+moved="$scratch/moved"
+surface_pro11 "$moved"
+mkdir -p "$moved/usrdtbs/linux-omarchy/qcom"
+: >"$moved/usrdtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb"
+dtb_roots_override="$moved/usrdtbs:$moved/dtbs" run_setup "$moved" >/dev/null
+grep -Fxq "DeviceTree=$moved/usrdtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb" "$moved/kernel/uki.conf" ||
+  fail "the device tree is taken from the first root that has it"
 
 for model in 'microsoft,denali\0qcom,x1p64100' 'lenovo,yoga-slim7x\0qcom,x1e80100'; do
   other="$scratch/other"

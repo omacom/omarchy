@@ -129,6 +129,31 @@ run_dtb_root_setup
 grep -Fq "DeviceTreeAuto=$scratch/dtbroot/qcom/x1e80100-stock.dtb" "$scratch/uki-root.conf" ||
   fail "Snapdragon DTB setup falls back to Arch Linux ARM's device trees"
 
+# Omarchy's kernel moved its device trees from /boot/dtbs to /usr/lib/dtbs.
+# The roots are searched in order, and Arch Linux ARM's trees come from the last.
+mkdir -p "$scratch/usrdtbs/linux-omarchy/qcom" "$scratch/dtbroot/linux-omarchy/qcom"
+: >"$scratch/usrdtbs/linux-omarchy/qcom/x1e80100-moved.dtb"
+: >"$scratch/dtbroot/linux-omarchy/qcom/x1e80100-old.dtb"
+run_dtb_roots_setup() (
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-pkg-add() { :; }
+
+  OMARCHY_QUALCOMM_DTB_ROOT="$scratch/usrdtbs:$scratch/dtbroot"
+  OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki-roots.conf"
+  source "$dtb_setup"
+)
+run_dtb_roots_setup
+grep -Fxq "DeviceTreeAuto=$scratch/usrdtbs/linux-omarchy/qcom/x1e80100-moved.dtb" "$scratch/uki-roots.conf" ||
+  fail "Snapdragon DTB setup takes Omarchy's kernel's device trees from /usr/lib/dtbs first"
+rm -r "$scratch/usrdtbs/linux-omarchy"
+run_dtb_roots_setup
+grep -Fxq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy/qcom/x1e80100-old.dtb" "$scratch/uki-roots.conf" ||
+  fail "Snapdragon DTB setup still finds an older Omarchy kernel's device trees in /boot/dtbs"
+rm -r "$scratch/dtbroot/linux-omarchy"
+run_dtb_roots_setup
+grep -Fxq "DeviceTreeAuto=$scratch/dtbroot/qcom/x1e80100-stock.dtb" "$scratch/uki-roots.conf" ||
+  fail "Snapdragon DTB setup takes Arch Linux ARM's device trees from the last root"
+
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
 
 defaults=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" aarch64-qualcomm)

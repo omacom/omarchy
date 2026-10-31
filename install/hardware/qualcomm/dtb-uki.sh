@@ -6,14 +6,17 @@ if omarchy-hw-aarch64-qualcomm; then
 
   # Arch Linux ARM's kernel keeps every board's device trees in /boot/dtbs.
   # Omarchy's own kernel keeps its Snapdragon ones under its package name, and
-  # those come first, so the trees match the kernel that boots.
-  dtb_root=${OMARCHY_QUALCOMM_DTB_ROOT:-/boot/dtbs}
-  dtb_dir=$dtb_root/qcom
-  for kernel_dtb_dir in "$dtb_root"/linux-omarchy*/qcom; do
-    if [[ -d $kernel_dtb_dir ]]; then
-      dtb_dir=$kernel_dtb_dir
-      break
-    fi
+  # those come first, so the trees match the kernel that boots. Since 7.3-8 it
+  # keeps them in /usr/lib/dtbs, off the ESP; before that, in /boot/dtbs.
+  IFS=: read -ra dtb_roots <<<"${OMARCHY_QUALCOMM_DTB_ROOT:-/usr/lib/dtbs:/boot/dtbs}"
+  dtb_dir=${dtb_roots[-1]}/qcom
+  for dtb_root in "${dtb_roots[@]}"; do
+    for kernel_dtb_dir in "$dtb_root"/linux-omarchy*/qcom; do
+      if [[ -d $kernel_dtb_dir ]]; then
+        dtb_dir=$kernel_dtb_dir
+        break 2
+      fi
+    done
   done
   dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-$dtb_dir}
   uki_config=${OMARCHY_QUALCOMM_UKI_CONFIG:-/etc/kernel/uki.conf}
