@@ -572,6 +572,18 @@ Panel {
     combineProc.running = true
   }
 
+  // A refused or failed toggle leaves the switch where PipeWire says it is, so
+  // the reason has to be spoken: the command's own diagnostic when it has one,
+  // and a plain headline when it does not.
+  function notifyCombineFailure(reason) {
+    var text = String(reason || "").trim()
+    if (text === "") {
+      Util.execArgv(["omarchy-notification-send", Commons.I18n.t("audio.combineFailed")])
+    } else {
+      Util.execArgv(["omarchy-notification-send", Commons.I18n.t("audio.combineFailed"), text])
+    }
+  }
+
   function setDefaultSource(node) {
     if (!node) return
     // Quickshell refuses an untyped node; the command below still selects it.
@@ -708,6 +720,14 @@ Panel {
   Process {
     id: combineProc
     command: ["omarchy-audio-output-combine", "toggle"]
+    stderr: StdioCollector {
+      id: combineError
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
+      if (exitCode === 0) return
+      root.notifyCombineFailure(combineError.text)
+    }
   }
 
   Process {
