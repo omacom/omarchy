@@ -259,6 +259,30 @@ pi_auth(None, "ollama-cloud", "$OLLAMA_KEY")
 expect("Ollama passes over pi's $VAR entry to omp's key", load_collector("ollama").api_key(), "omp-key")
 pi_auth(home() / ".omp" / "agent", "ollama-cloud", "!pass show ollama")
 expect("Ollama never sends a pi $VAR or !command entry as a key", load_collector("ollama").api_key(), "")
+
+# omp keeps the key it signed in with in its agent.db, never in an auth.json;
+# a key it disabled is passed over, and PI_CODING_AGENT_DIR moves the
+# database with the rest of omp's tree.
+def omp_key(directory, *rows):
+  database = Path(directory) / "agent.db"
+  database.parent.mkdir(parents=True, exist_ok=True)
+  conn = sqlite3.connect(database)
+  conn.execute("CREATE TABLE auth_credentials (id INTEGER PRIMARY KEY, provider TEXT, credential_type TEXT, data TEXT, disabled_cause TEXT)")
+  for provider, key, disabled in rows:
+    conn.execute("INSERT INTO auth_credentials (provider, credential_type, data, disabled_cause) VALUES (?, 'api_key', ?, ?)",
+                 (provider, json.dumps({"key": key, "source": "login"}), disabled))
+  conn.commit()
+  conn.close()
+
+
+sandbox()
+omp_key(home() / ".omp" / "agent", ("ollama-cloud", "omp-db-key", None), ("ollama-cloud", "revoked-key", "revoked"), ("zai", "zai-key", None))
+pi_auth(home() / ".omp" / "agent", "ollama-cloud", "omp-json-key")
+expect("Ollama asks with the key omp keeps in its agent.db, passing over a disabled one", load_collector("ollama").api_key(), "omp-db-key")
+sandbox()
+omp_key(home() / "moved", ("ollama-cloud", "moved-key", None))
+os.environ["PI_CODING_AGENT_DIR"] = str(home() / "moved")
+expect("Ollama finds omp's agent.db where PI_CODING_AGENT_DIR puts it", load_collector("ollama").api_key(), "moved-key")
 # A MiniMax Code custom provider on the local daemon that answered with a
 # cloud-tagged model ran on Ollama's servers, so it is Ollama's, prompt and
 # all, and no local work.
