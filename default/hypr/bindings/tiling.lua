@@ -30,9 +30,14 @@ o.bind_expressions[close_window] = "o.close_window()"
 
 o.bind("SUPER + W", "Close window", close_window)
 o.bind("SUPER + Q", "Close window", close_window)
-o.bind("CTRL + ALT + DELETE", "Close all windows", function()
+local function close_all_windows()
   hl.dispatch(hl.dsp.exec_cmd("omarchy-hyprland-window-close-all --policy " .. o.shell_quote(terminal_close_policy())))
-end)
+end
+function o.close_all_windows()
+  return close_all_windows
+end
+o.bind_expressions[close_all_windows] = "o.close_all_windows()"
+o.bind("CTRL + ALT + DELETE", "Close all windows", close_all_windows)
 
 o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
 o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())

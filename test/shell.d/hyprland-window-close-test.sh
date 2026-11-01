@@ -41,6 +41,13 @@ assert(dispatched == "omarchy-hyprland-window-close --policy 'always' '0xabc'", 
 omarchy_terminal_close_confirmation = false
 binds["SUPER + W"]()
 assert(dispatched.window == "address:0xabc", "opting out restores the direct close")
+local before = dispatched
+local replay_all = assert(load("return " .. o.bind_expressions[binds["CTRL + ALT + DELETE"]]))()
+assert(dispatched == before, "evaluating close-all menu expression does not dispatch")
+assert(replay_all == binds["CTRL + ALT + DELETE"], "close-all menu returns the same dispatcher")
+omarchy_terminal_close_confirmation = "always"
+replay_all()
+assert(dispatched == "omarchy-hyprland-window-close-all --policy 'always'", "close-all replay uses current policy")
 omarchy_terminal_close_confirmation = nil
 active.tags = {}
 binds["SUPER + W"]()

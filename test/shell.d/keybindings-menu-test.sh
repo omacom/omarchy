@@ -59,6 +59,7 @@ keybindings() {
 stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + W" "Close window")
 $(lua_bind 64 "SUPER + Q" "Close window")
+$(lua_bind 12 "CTRL + ALT + DELETE" "Close all windows")
 $(lua_bind 64 "SUPER + F" "Full screen")
 $(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
@@ -94,6 +95,8 @@ grep -q 'SUPER + W / SUPER + Q  *→ Close window' <<<"$rendered" ||
 pass "an alternative chord joins the row of the first one"
 grep -qP '→ Close window\tlua\to.close_window\(\)$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "the shared close row replays the guarded Lua callback"
+grep -qP '→ Close all windows\tlua\to.close_all_windows\(\)$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "the close-all row replays the guarded Lua callback"
 
 # Which chord leads is the whole point of keeping Hyprland's order: SUPER + W is
 # the documented default and SUPER + Q the alternative bound after it.
