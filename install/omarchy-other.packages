@@ -57,6 +57,11 @@ vulkan-asahi
 # Surface laptop support packages
 linux-firmware-marvell
 
+# Surface Pro 11 (Snapdragon) support packages
+iptsd
+surface-pro-11-sensors
+surface-pro-11-support
+
 # Dell laptop support packages
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
@@ -64,6 +69,7 @@ linux-firmware-cirrus-dx13260
 
 # ASUS laptop support packages
 asus-proart-p14-speaker-firmware
+asus-zenbook-a16-audio
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
