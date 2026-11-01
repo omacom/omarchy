@@ -31,10 +31,17 @@ Item {
     return ["bash", scriptPath, String(node.name), String(node.audio.channels.length)]
   }
   readonly property string processKey: processCommand.join("\n")
-  onProcessKeyChanged: syncProcess()
+  onProcessKeyChanged: {
+    quickExits = 0
+    syncProcess()
+  }
   Component.onCompleted: syncProcess()
 
   property real processPeak: 0
+  // A capture that keeps failing within a second of starting is given up on
+  // until the source changes or the panel reopens, rather than respawned forever.
+  property real startedAt: 0
+  property int quickExits: 0
 
   function syncProcess() {
     var want = processCommand
@@ -83,9 +90,13 @@ Item {
       onRead: function(line) { root.applyProcessSample(line) }
     }
     onRunningChanged: {
-      if (running) return
+      if (running) {
+        root.startedAt = Date.now()
+        return
+      }
       root.processPeak = 0
-      if (root.processKey !== "") retryTimer.restart()
+      root.quickExits = Date.now() - root.startedAt < 1000 ? root.quickExits + 1 : 0
+      if (root.processKey !== "" && root.quickExits < 5) retryTimer.restart()
     }
   }
 
