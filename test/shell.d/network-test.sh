@@ -385,6 +385,11 @@ if (updateHotspotSource) {
   updateHotspot('ap_capable\t1\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\nmax_clients\t4\n', 0, '')
   assertEqual(hotspotMaxClients, '2', 'a late first status keeps a participant limit the user already picked')
   hotspotLoaded = false
+  hotspotEditedFields = { saveData: true }
+  hotspotSaveData = 'never'
+  updateHotspot('ap_capable\t1\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\nsave_data\talways\n', 0, '')
+  assertEqual(hotspotSaveData, 'never', 'a late first status keeps a data choice the user already picked')
+  hotspotLoaded = false
   hotspotEditedFields = {}
   hotspotSsid = ''
   hotspotPassword = ''
