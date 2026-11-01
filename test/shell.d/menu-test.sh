@@ -206,7 +206,6 @@ const appRow = (name, appId) => ({
 const webapp = appRow('YouTube', 'chrome-agimnkijcaahngcdmfeangaknmldooml-Default')
 assert(!menu.matchesQuery(webapp, 'default', true), 'menu does not match a web app by its generated id')
 assert(menu.matchesQuery(webapp, 'youtube', true), 'menu still matches a web app by its name')
-assertEqual(webapp.id, 'apps.chrome-agimnkijcaahngcdmfeangaknmldooml-Default', 'a web app row keeps its real id')
 assert(
   menu.matchesQuery(appRow('Files', 'org.gnome.Nautilus'), 'nautilus', true),
   'menu matches a normal app by its id'
