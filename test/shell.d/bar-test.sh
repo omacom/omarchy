@@ -416,6 +416,7 @@ case ${OMARCHY_TEST_SHELL_STATE:-ready} in
     ;;
   flapping)
     # IPC timeout on every ask: the 2s default window keeps expiring.
+    echo >>"$OMARCHY_TEST_SHELL_MARKER"
     echo "omarchy-shell is not responding" >&2
     exit 1
     ;;
@@ -453,14 +454,16 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=starti
 pass "put carries on when the shell never becomes ready"
 
 # A shell that answers nothing but IPC timeouts must be carried on from the
-# same way: retrying is right, but failing the first timeout wedges every
-# subsequent update on a shell that keeps missing the 2s window
-# (omacom/omarchy#13301).
-put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=flapping OMARCHY_SHELL_READY_ATTEMPTS=2 \
+# same way: failing the first timeout wedges every subsequent update on a
+# shell that keeps missing the 2s window (omacom/omarchy#13301), and asking
+# it the full ready budget holds the update for over a minute.
+put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=flapping OMARCHY_SHELL_TIMEOUT_ATTEMPTS=2 \
+  OMARCHY_TEST_SHELL_MARKER="$put_tmp/timeouts" \
   "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
   fail "put carries on when the shell only times out" "$put_output"
 [[ $put_output == *"did not become ready"* ]] || fail "put says the shell never settled" "$put_output"
-pass "put retries a timing-out shell and then carries on"
+(( $(wc -l <"$put_tmp/timeouts") == 2 )) || fail "put stops asking a shell that keeps timing out" "$put_output"
+pass "put gives up on a shell that keeps timing out"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=crashing \
   OMARCHY_TEST_SHELL_MARKER="$put_tmp/started" \

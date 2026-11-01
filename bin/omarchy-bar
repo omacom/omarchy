@@ -238,7 +238,7 @@ bar_widget_default_section() {
 PUT_RESULT=""
 SHELL_ANSWERED=0
 ask_to_put() {
-  local id="$1" placement="$2" attempt absent=0
+  local id="$1" placement="$2" attempt absent=0 timeouts=0
   for (( attempt = 0; attempt < ${OMARCHY_SHELL_READY_ATTEMPTS:-50}; attempt++ )); do
     if PUT_RESULT=$(omarchy-shell shell putBarWidget "$id" "$placement" 2>&1); then
       SHELL_ANSWERED=1
@@ -249,8 +249,15 @@ ask_to_put() {
       # A transient IPC timeout, not a verdict: identical putBarWidget calls
       # flap ok/fail within minutes on the same machine, and the 2s default
       # window is racy right after an update drops new code into the shell.
-      # Keep asking inside the budget instead of failing on the first miss.
+      # Ask again instead of failing on the first miss; a put that landed late
+      # is left where it is. Each miss costs the whole window, so only a few.
       SHELL_ANSWERED=1
+      if (( timeouts == 0 )); then
+        echo "omarchy-shell is not responding; asking again" >&2
+      fi
+      if (( ++timeouts >= ${OMARCHY_SHELL_TIMEOUT_ATTEMPTS:-5} )); then
+        break
+      fi
     elif [[ $PUT_RESULT == *"is not running"* ]]; then
       # Answered once and now gone: it stopped mid-request.
       if (( SHELL_ANSWERED )); then
