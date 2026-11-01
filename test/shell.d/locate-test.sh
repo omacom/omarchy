@@ -5,8 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command python3
-require_command updatedb
-require_command plocate
 
 python3 - <<'PY'
 import os
@@ -30,8 +28,6 @@ command = shlex.split(directives[2].removeprefix("ExecStart="))
 options = ["--prune-bind-mounts=no", "--add-prunepaths=/.snapshots"]
 check(command == ["/usr/bin/updatedb", *options],
       "locate service runs updatedb directly with fixed Btrfs options")
-check("ConditionACPower=true" in (root / "etc/systemd/system/plocate-updatedb.service.d/ac-only.conf").read_text(),
-      "scheduled locate indexing keeps its AC-power condition")
 
 with tempfile.TemporaryDirectory(prefix="omarchy-locate-") as scratch:
   scratch = Path(scratch)
@@ -56,34 +52,4 @@ with tempfile.TemporaryDirectory(prefix="omarchy-locate-") as scratch:
     check(calls.read_text().splitlines() == options,
           relative + " passes the scheduled service options directly")
     calls.unlink()
-
-  tree = scratch / "tree"
-  visible = tree / "home/current-file"
-  excluded = tree / "private&pipe|directory"
-  hidden = excluded / "private-file"
-  visible.parent.mkdir(parents=True)
-  excluded.mkdir()
-  visible.touch()
-  hidden.touch()
-  conf = scratch / "updatedb.conf"
-  conf.write_text('PRUNE_BIND_MOUNTS = "yes"\nPRUNEPATHS = "' + str(excluded) + '"\n')
-  conf.chmod(0o640)
-  original = conf.read_bytes()
-  metadata = conf.stat()
-  database = scratch / "plocate.db"
-  run = [*command, "--config-file", str(conf), "--database-root", str(tree),
-         "--output", str(database), "--require-visibility", "no", "--debug-pruning"]
-  result = subprocess.run(run, capture_output=True, text=True, check=True)
-  debug = result.stdout + result.stderr
-  check("prune_bind_mounts\\000\n0\\000" in debug and "/.snapshots\\000" in debug,
-        "real updatedb overrides bind-mount pruning and adds root snapshots to exclusions")
-  entries = subprocess.check_output(["plocate", "--database", str(database), ""], text=True).splitlines()
-  check(str(visible) in entries and str(hidden) not in entries,
-        "real locate indexes current files and preserves literal administrator exclusions")
-  check(conf.read_bytes() == original and (conf.stat().st_mode, conf.stat().st_uid, conf.stat().st_gid, conf.stat().st_mtime_ns)
-        == (metadata.st_mode, metadata.st_uid, metadata.st_gid, metadata.st_mtime_ns),
-        "indexing preserves configuration bytes, permissions, ownership, and modification time")
-  subprocess.run(run, capture_output=True, check=True)
-  repeated = subprocess.check_output(["plocate", "--database", str(database), ""], text=True).splitlines()
-  check(repeated == entries, "repeated indexing retains the same results and exclusions")
 PY

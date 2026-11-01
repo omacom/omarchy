@@ -58,6 +58,11 @@ if [[ -d $accounts_dir ]]; then
   "$OMARCHY_PATH/bin/omarchy-agent-account-state" refresh
 fi
 
+# Collectors forced together read the Codex rollouts they share once between
+# them, whenever each gets to them, by knowing when this refresh began.
+# EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
+
 pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue

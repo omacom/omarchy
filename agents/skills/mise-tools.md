@@ -2,6 +2,10 @@
 
 Read this before adding or changing a mise-managed tool. Default tools belong in `etc/mise/conf.d/omarchy-tools.toml`, which the settings package installs; `install/user/mise.sh` creates their native mise shims during user setup.
 
+## Leave the user's config alone
+
+Omarchy does not write `~/.config/mise/config.toml`; it is the user's, for overriding what Omarchy ships. Settings go in `etc/mise/conf.d/omarchy.toml`, which still loads after a user opts out of the default tools, and tools in `omarchy-tools.toml`. A command that installs a default tool runs `mise install <tool>` when `omarchy-mise-default-tools declares <tool>`, and `mise use -g` only for a user who opted out. `mise use -g` on a declared tool would copy the declaration's options, `lazy = true` included, into the user's config.
+
 ## Declare a default tool
 
 Use a registry shorthand and set `lazy = true` so the first command invocation installs the tool. Follow the existing defaults' release policy: `minimum_release_age = "0s"` makes new releases eligible immediately.

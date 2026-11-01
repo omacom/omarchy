@@ -20,7 +20,13 @@ install_php() {
 
 install_node() {
   echo -e "Installing Node.js...\n"
-  mise use --global node
+  # Omarchy declares Node as a default tool. A user who removed the preinstalls,
+  # like one without Omarchy's declarations, selects it in their own config.
+  if omarchy-mise-default-tools declares node; then
+    mise install node
+  else
+    mise use --global node
+  fi
 }
 
 case "$1" in
