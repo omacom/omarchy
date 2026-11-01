@@ -107,6 +107,13 @@ jq -e '
 ' "$menu/manifest.json" >/dev/null || fail "menu clone loses plugin kinds"
 grep -qx 'omarchy-plugin-enable tester.menu' "$CALLS" ||
   fail "clone does not enable a multi-kind plugin"
+# Clone copies only the plugin directory, so a relative ../../Commons/*.js
+# import would resolve under ~/.config/omarchy/Commons and fail to load.
+if grep -E 'import[[:space:]]+"(\.\./)+Commons/' "$menu/Menu.qml" >/dev/null; then
+  fail "cloned menu still imports Commons by relative path"
+fi
+grep -q 'Util.keypadDigit' "$menu/Menu.qml" ||
+  fail "cloned menu does not resolve keypad digits through qs.Commons Util"
 pass "clone preserves and enables multi-kind plugins"
 
 remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \

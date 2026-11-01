@@ -23,6 +23,7 @@ Item {
     id: input
     width: parent.width
     keyHandler: handler
+    compositorNumLock: true
   }
 
   TestCase {
@@ -31,6 +32,7 @@ Item {
 
     function init() {
       input.readOnly = false
+      input.compositorNumLock = true
       input.text = ""
       handler.handled = []
       input.forceActiveFocus()
@@ -56,9 +58,38 @@ Item {
       compare(input.text, "")
     }
 
+    // Qt NumLock desync with compositor NumLock on: keypad 7/5 arrive as
+    // Home/Clear with KeypadModifier and no text. FilterInput types the digit.
+    function test_keypadNavigationKeysTypeDigitsWhenNumLockOn() {
+      keyClick(Qt.Key_Home, Qt.KeypadModifier)
+      keyClick(Qt.Key_Clear, Qt.KeypadModifier)
+      compare(input.text, "75")
+    }
+
+    function test_keypadNavigationStaysNavigationWhenNumLockOff() {
+      input.compositorNumLock = false
+      keyClick(Qt.Key_Home, Qt.KeypadModifier)
+      keyClick(Qt.Key_Down, Qt.KeypadModifier)
+      compare(input.text, "")
+    }
+
+    function test_altKeypadChordDoesNotType() {
+      keyClick(Qt.Key_Home, Qt.KeypadModifier | Qt.AltModifier)
+      keyClick(Qt.Key_Home, Qt.KeypadModifier | Qt.MetaModifier)
+      compare(input.text, "")
+    }
+
+    function test_syncedKeypadDigitIsLeftToTextInput() {
+      // Synced NumLock already carries text; digitFor must not double-insert.
+      keyClick(Qt.Key_7, Qt.KeypadModifier)
+      compare(input.text, "7")
+    }
+
     function test_readOnlyTypesNothing() {
       input.readOnly = true
       keyClick(Qt.Key_T)
+      compare(input.text, "")
+      keyClick(Qt.Key_Home, Qt.KeypadModifier)
       compare(input.text, "")
     }
 

@@ -15,6 +15,10 @@ Item {
   property var shell: null
   property var manifest: null
 
+  // Compositor NumLock from hyprctl. Defaults true (Omarchy's numlock_by_default);
+  // when false, keypad Home/arrows stay navigation instead of digits.
+  property bool compositorNumLock: true
+
   // Plugin lifecycle hooks. The host calls open(payloadJson) after
   // `omarchy-shell shell summon omarchy.menu ...` and close() when hidden.
   property string pendingInitialMenu: "root"
@@ -27,12 +31,18 @@ Item {
     // A shell that started mid-update may never have read the shipped menu
     // whole; reading it again here keeps the menu from opening empty.
     if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
+    root.refreshCompositorNumLock()
 
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
     } else {
       root.openRoute(payload.initialMenu || payload.menu || "root")
     }
+  }
+
+  function refreshCompositorNumLock() {
+    numLockProc.running = false
+    numLockProc.running = true
   }
 
   function close() {
@@ -1046,6 +1056,15 @@ Item {
   }
 
   Process {
+    id: numLockProc
+    command: ["hyprctl", "-j", "devices"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.compositorNumLock = Util.numLockFromDevices(text)
+    }
+  }
+
+  Process {
     id: providerProc
     property string menuId: ""
     property string providerKey: ""
@@ -1331,6 +1350,18 @@ Item {
             return
           }
 
+          // Keypad digits can arrive as Home/End/arrows with KeypadModifier and
+          // empty text while Qt's NumLock is desynced. Map them before Delete /
+          // Up / Down when the compositor reports NumLock on; otherwise leave
+          // genuine NumLock-off navigation alone. Util.keypadDigit also refuses
+          // Alt/Ctrl/Super chords (Keys.forwardTo runs before FilterInput).
+          var keypadDigit = Util.keypadDigit(event, root.compositorNumLock)
+          if (keypadDigit !== null) {
+            root.setFilter(root.filterText + keypadDigit)
+            event.accepted = true
+            return
+          }
+
           if (event.key === Qt.Key_Delete) {
             root.requestDeleteSelected()
             event.accepted = true
@@ -1406,6 +1437,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             keyHandler: keyCatcher
+            compositorNumLock: root.compositorNumLock
             // Input-method commits bypass key handling, so the dialog has to refuse them here.
             readOnly: root.deleteConfirmOpen
             color: root.foreground
