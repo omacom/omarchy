@@ -35,6 +35,9 @@ if [[ -s $config_file ]]; then
       end;
 
     .bar.layout.center |= place_indicators_before_clock
-  ' "$config_file" >"$tmp" && omarchy-config-replace "$tmp" "$config_file" || { rm -f "$tmp"; exit 1; }
+  ' "$config_file" >"$tmp" || { rm -f "$tmp"; exit 1; }
+  if ! jq -e --slurpfile new "$tmp" '. == $new[0]' "$config_file" >/dev/null; then
+    omarchy-config-replace "$tmp" "$config_file" || { rm -f "$tmp"; exit 1; }
+  fi
   rm -f "$tmp"
 fi

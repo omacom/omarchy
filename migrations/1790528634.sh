@@ -15,8 +15,9 @@ if [[ -s $config_file ]]; then
     | if (.plugins | type) == "array" then .plugins |= map(rename) end
     | if (.disabledPlugins | type) == "array" then .disabledPlugins |= map(rename) end
   ' "$config_file" >"$tmp" || { rm -f "$tmp"; exit 1; }
-
-  omarchy-config-replace "$tmp" "$config_file" || { rm -f "$tmp"; exit 1; }
+  if ! jq -e --slurpfile new "$tmp" '. == $new[0]' "$config_file" >/dev/null; then
+    omarchy-config-replace "$tmp" "$config_file" || { rm -f "$tmp"; exit 1; }
+  fi
   rm -f "$tmp"
 fi
 
