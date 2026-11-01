@@ -76,3 +76,45 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
   [[ -f $next/$name ]] || fail "every built-in template renders ($name)"
 done
 pass "theme templates render every built-in template"
+
+# Publishing a generated palette must retain settings and refresh a real file
+# in Vencord's watched directory, rather than leave a stale symlink target.
+vesktop_home="$test_tmp/vesktop-home"
+vesktop_config="$test_tmp/vesktop-config"
+mkdir -p "$vesktop_home/.local/state/omarchy/current/theme" "$vesktop_config/vesktop"
+printf '{"enabledThemes":["mine.css"],"other":true}\n' > "$vesktop_config/vesktop/settings.json"
+cp "$vesktop_config/vesktop/settings.json" "$test_tmp/vesktop-settings.before"
+vesktop_source="$vesktop_home/.local/state/omarchy/current/theme/vesktop.theme.css"
+vesktop_target="$vesktop_config/vesktop/themes/omarchy.theme.css"
+printf ':root { --brand-500: #ffffff; --text: __OMARCHY_ON_ACCENT__; }\n' > "$vesktop_source"
+HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-set-vesktop"
+[[ -f $vesktop_target && ! -L $vesktop_target ]] || fail "Vesktop gets a watched theme file"
+grep -q -- '--text: #000000' "$vesktop_target" || fail "light accents get dark button text"
+cmp "$test_tmp/vesktop-settings.before" "$vesktop_config/vesktop/settings.json" || fail "Vesktop settings are preserved"
+vesktop_inode=$(stat -c %i "$vesktop_target")
+HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-set-vesktop"
+[[ $(stat -c %i "$vesktop_target") == "$vesktop_inode" ]] || fail "unchanged palettes are not rewritten"
+printf ':root { --brand-500: #000000; --text: __OMARCHY_ON_ACCENT__; }\n' > "$vesktop_source"
+HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-set-vesktop"
+grep -q -- '--text: #ffffff' "$vesktop_target" || fail "dark accents get light button text"
+cp "$vesktop_target" "$test_tmp/vesktop-theme.before"
+printf '{{ accent }}\n' > "$vesktop_source"
+if HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-set-vesktop" >/dev/null 2>&1; then
+  fail "unresolved palettes are rejected"
+fi
+cmp "$test_tmp/vesktop-theme.before" "$vesktop_target" || fail "invalid palettes preserve the last theme"
+[[ ! -d $vesktop_config/Vesktop ]] || fail "absent Vesktop installations are left alone"
+mkdir -p "$vesktop_config/Vesktop" "$vesktop_home/.var/app/dev.vencord.Vesktop/config/vesktop"
+cp "$test_tmp/vesktop-theme.before" "$vesktop_source"
+HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-set-vesktop"
+cmp "$vesktop_target" "$vesktop_config/Vesktop/themes/omarchy.theme.css" || fail "alternate native data directory receives the palette"
+cmp "$vesktop_target" "$vesktop_home/.var/app/dev.vencord.Vesktop/config/vesktop/themes/omarchy.theme.css" || fail "Flatpak data directory receives the palette"
+pass "Vesktop theme refresh preserves settings, skips unchanged content, and keeps readable button text"
+
+# Theme-provided CSS need not use Omarchy's contrast placeholder or hex accents.
+for custom_css in ':root { --brand-500: rgb(10, 20, 30); }' ':root { --brand-500: var(--custom-accent); }' ':root { --background-primary: #123456; }'; do
+  printf '%s\n' "$custom_css" > "$vesktop_source"
+  HOME="$vesktop_home" XDG_CONFIG_HOME="$vesktop_config" "$ROOT/bin/omarchy-theme-set-vesktop"
+  cmp "$vesktop_source" "$vesktop_target" || fail "custom Vesktop CSS is published unchanged"
+done
+pass "custom Vesktop CSS does not require a hex accent without the contrast placeholder"
