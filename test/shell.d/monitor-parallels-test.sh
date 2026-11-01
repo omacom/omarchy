@@ -34,11 +34,15 @@ class Compositor:
   def monitors(self):
     return copy.deepcopy(self.outputs)
 
-  def configure(self, monitor, mode, scale):
+  def configure(self, monitor, mode, scale, layout=None):
     self.applied.append((monitor["name"], mode, scale))
     width, height = parallels.parse_mode(mode)
     output = next(output for output in self.outputs if output["name"] == monitor["name"])
     output.update(width=width, height=height, scale=scale)
+    if layout and not getattr(self, "ignore_positions", False):
+      for target in layout:
+        output = next(output for output in self.outputs if output["name"] == target["name"])
+        output.update(x=target["x"], y=target["y"])
 
 
 class ResizeTests(unittest.TestCase):
@@ -71,6 +75,10 @@ class ResizeTests(unittest.TestCase):
     personal_config.parent.mkdir(parents=True)
     personal_config.write_text('hl.monitor({output="", mode="preferred", scale=2})\n')
     original = personal_config.read_bytes()
+    settings = self.directory / ".local/state/omarchy/monitors/settings"
+    settings.parent.mkdir(parents=True)
+    settings.write_text("1920x1080\t0x0\t2\tVirtual-1\n")
+    original_settings = settings.read_bytes()
     self.assertTrue(self.bridge.reconcile({"startup"}))
     self.assertEqual(self.compositor.applied[-1], ("Virtual-1", "6400x3600", 2))
     # A config reload restores the old preferred resolution. The next event
@@ -79,6 +87,7 @@ class ResizeTests(unittest.TestCase):
     self.assertTrue(self.bridge.reconcile({"config"}))
     self.assertEqual(self.compositor.outputs[0]["width"], 6400)
     self.assertEqual(personal_config.read_bytes(), original)
+    self.assertEqual(settings.read_bytes(), original_settings)
 
   def test_fractional_preference_survives_a_size_that_needs_rounding(self):
     self.preference(1.25)
@@ -93,6 +102,57 @@ class ResizeTests(unittest.TestCase):
     self.mode("Virtual-1", "6400x3600")
     self.bridge.reconcile({"hotplug"})
     self.assertEqual(self.compositor.applied[-1][2], 1.25)
+
+  def test_resizes_keep_neighbors_outside_the_new_logical_bounds(self):
+    for transform, axis in ((0, "x"), (1, "x"), (0, "y"), (3, "y")):
+      with self.subTest(transform=transform, axis=axis):
+        first = self.compositor.outputs[0]
+        first.update(width=1024, height=768, scale=2, x=-100, y=-200, transform=transform)
+        old_span = (768 if transform % 2 else 1024) // 2 if axis == "x" else (1024 if transform % 2 else 768) // 2
+        second = dict(first, name="Virtual-2", width=1280, height=800, scale=1.25, transform=2)
+        second[axis] += old_span + 30
+        self.compositor.outputs = [first, second]
+        self.mode("Virtual-2", "1280x800")
+        self.assertTrue(self.bridge.reconcile({"hotplug"}))
+        new_span = (3600 if transform % 2 else 6400) // 2 if axis == "x" else (6400 if transform % 2 else 3600) // 2
+        self.assertEqual(second[axis], first[axis] + new_span + 30)
+        self.assertEqual((second["scale"], second["transform"]), (1.25, 2))
+        self.mode("Virtual-1", "1024x768")
+        self.assertTrue(self.bridge.reconcile({"hotplug"}))
+        self.assertEqual(second[axis], first[axis] + old_span + 30)
+        self.mode("Virtual-1", "6400x3600")
+
+  def test_reconciliation_verifies_neighbor_positions_and_retries_them(self):
+    self.compositor.outputs.append(dict(self.compositor.outputs[0], name="Virtual-2", x=512))
+    self.mode("Virtual-2", "1024x768")
+    self.compositor.ignore_positions = True
+    self.assertFalse(self.bridge.reconcile({"hotplug"}))
+    self.assertFalse(self.bridge.reconcile({"hotplug"}))
+    self.compositor.ignore_positions = False
+    self.assertTrue(self.bridge.reconcile({"hotplug"}))
+    self.assertEqual(self.compositor.outputs[1]["x"], 3200)
+
+  def test_simultaneous_resizes_use_the_updated_layout_for_each_output(self):
+    self.compositor.outputs.append(dict(self.compositor.outputs[0], name="Virtual-2", x=512))
+    self.mode("Virtual-2", "2560x1600")
+    self.assertTrue(self.bridge.reconcile({"hotplug"}))
+    self.assertEqual(self.compositor.outputs[1]["x"], 3200)
+    self.assertEqual(self.compositor.outputs[1]["width"], 2560)
+    self.assertFalse(parallels.layout_overlaps(self.compositor.outputs))
+
+  def test_ipc_batches_neighbor_moves_before_growth_without_changing_their_scale(self):
+    ipc = parallels.Hyprland(self.directory / "unused.sock")
+    commands = []
+    ipc.request = lambda command: commands.append(command) or "ok"
+    monitor = self.compositor.outputs[0]
+    ipc.configure(monitor, "6400x3600", 2, [
+      {"name": "Virtual-2", "x": 3200, "y": 0}, {"name": "Virtual-1", "x": 0, "y": 0}])
+    self.assertEqual(len(commands), 1)
+    neighbor, resized = commands[0].split("hl.monitor(")[1:]
+    self.assertIn('position = "3200x0"', neighbor)
+    self.assertNotIn("scale", neighbor)
+    self.assertNotIn("transform", neighbor)
+    self.assertIn('mode = "6400x3600"', resized)
 
   def test_scaling_controls_override_a_previous_preference(self):
     self.bridge.reconcile({"startup"})

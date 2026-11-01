@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import signal
 import socket
+import subprocess
 from typing import NamedTuple
 
 
@@ -85,6 +86,51 @@ def notify_ready():
       connection.sendall(b"READY=1")
 
 
+def active_outputs(monitors):
+  return [monitor for monitor in monitors if not monitor.get("disabled")
+    and monitor.get("dpmsStatus") is not False and monitor.get("mirrorOf", "none") == "none"]
+
+
+def resize_layout(monitors, monitor, mode, scale):
+  if len(monitors) == 1:
+    return [{"name": monitor["name"], "x": int(monitor.get("x", 0)), "y": int(monitor.get("y", 0))}]
+  planner = Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-hyprland-monitor-layout"
+  result = subprocess.run(["bash", str(planner), "--plan", "--resized", monitor["name"],
+    f"{monitor['width']}x{monitor['height']}", str(monitor["scale"]), mode, str(scale),
+    mode, str(monitor.get("transform", 0))], input=json.dumps(monitors), text=True,
+    capture_output=True, check=True, timeout=3)
+  layout = json.loads(result.stdout)
+  if (not isinstance(layout, list) or len(layout) != len(monitors)
+      or {target["name"] for target in layout} != {output["name"] for output in monitors}
+      or any(type(target[coordinate]) is not int for target in layout for coordinate in ("x", "y"))):
+    raise ValueError("invalid monitor layout plan")
+  return layout
+
+
+def layout_matches(monitors, expected):
+  actual = {monitor["name"]: monitor for monitor in active_outputs(monitors)}
+  if actual.keys() != expected.keys():
+    return False
+  return all(all(actual[name].get(field, 0) == target.get(field, 0)
+    for field in ("width", "height", "x", "y", "transform"))
+    and math.isclose(actual[name]["scale"], target["scale"], abs_tol=0.001)
+    for name, target in expected.items())
+
+
+def layout_overlaps(monitors):
+  bounds = []
+  for monitor in monitors:
+    width = math.floor(monitor["width"] / monitor["scale"] + 0.5)
+    height = math.floor(monitor["height"] / monitor["scale"] + 0.5)
+    if monitor.get("transform", 0) % 2:
+      width, height = height, width
+    bounds.append((monitor.get("x", 0), monitor.get("y", 0), width, height))
+  return any(left < other_left + other_width and other_left < left + width
+    and top < other_top + other_height and other_top < top + height
+    for index, (left, top, width, height) in enumerate(bounds)
+    for other_left, other_top, other_width, other_height in bounds[index + 1:])
+
+
 class Hyprland:
   def __init__(self, socket_path):
     self.socket_path = str(socket_path)
@@ -110,14 +156,17 @@ class Hyprland:
       raise ValueError("invalid Hyprland monitor response")
     return monitors
 
-  def configure(self, monitor, mode, scale):
-    # Connector names and modes are validated before becoming Lua. Keep the
-    # existing position/rotation, and let hl.monitor merge other explicit fields.
-    rule = {"output": monitor["name"], "mode": mode, "scale": scale,
-      "position": f"{int(monitor.get('x', 0))}x{int(monitor.get('y', 0))}",
-      "transform": int(monitor.get("transform", 0))}
-    fields = ", ".join(f"{key} = {json.dumps(value)}" for key, value in rule.items())
-    response = self.request(f"eval hl.monitor({{{fields}}})").strip()
+  def configure(self, monitor, mode, scale, layout):
+    # Apply in the planner's order: move neighbors away before growing, and
+    # shrink before closing gaps. Only the resized output changes mode/scale.
+    rules = []
+    for target in layout:
+      rule = {"output": target["name"], "position": f"{target['x']}x{target['y']}"}
+      if target["name"] == monitor["name"]:
+        rule.update(mode=mode, scale=scale, transform=int(monitor.get("transform", 0)))
+      fields = ", ".join(f"{key} = {json.dumps(value)}" for key, value in rule.items())
+      rules.append(f"hl.monitor({{{fields}}})")
+    response = self.request("eval " + " ".join(rules)).strip()
     if response != "ok":
       raise ValueError(f"Hyprland rejected monitor rule: {response}")
 
@@ -130,11 +179,35 @@ class ResizeBridge:
     self.preferences = {}
     self.audit_records = {}
     self.last_verified = {}
+    self.pending_layout = None
+
+  def apply_pending_layout(self):
+    monitor, mode, scale, layout, expected = self.pending_layout
+    self.compositor.configure(monitor, mode, scale, layout)
+    if not layout_matches(self.compositor.monitors(), expected):
+      return False
+    self.pending_layout = None
+    return True
 
   def reconcile(self, reasons):
     records = scale_records(self.scale_log)
     successful = True
-    for monitor in self.compositor.monitors():
+    if self.pending_layout:
+      expected = self.pending_layout[-1]
+      if {output["name"] for output in active_outputs(self.compositor.monitors())} != expected.keys():
+        self.pending_layout = None
+      else:
+        try:
+          if not self.apply_pending_layout():
+            return False
+        except (OSError, ValueError, KeyError) as error:
+          LOG.warning("Cannot finish pending display layout: %s", error)
+          return False
+    for name in [output.get("name", "") for output in self.compositor.monitors()]:
+      monitors = self.compositor.monitors()
+      monitor = next((output for output in monitors if output.get("name") == name), None)
+      if monitor is None:
+        continue
       name = monitor.get("name", "")
       if (not re.fullmatch(r"Virtual-[0-9]+", name) or monitor.get("disabled")
           or monitor.get("dpmsStatus") is False or monitor.get("mirrorOf", "none") != "none"):
@@ -173,17 +246,22 @@ class ResizeBridge:
         scale = clean_scale(self.preferences[name], width, height)
         if ((monitor.get("width"), monitor.get("height")) != (width, height)
             or not math.isclose(current_scale, scale, abs_tol=0.001)):
-          self.compositor.configure(monitor, mode, scale)
-          updated = next(output for output in self.compositor.monitors() if output["name"] == name)
-          if ((updated["width"], updated["height"]) != (width, height)
-              or not math.isclose(updated["scale"], scale, abs_tol=0.001)):
-            successful = False
-            continue
+          outputs = active_outputs(monitors)
+          layout = resize_layout(outputs, monitor, mode, scale)
+          expected = {output["name"]: dict(output) for output in outputs}
+          for target in layout:
+            expected[target["name"]].update(x=target["x"], y=target["y"])
+          expected[name].update(width=width, height=height, scale=scale)
+          if layout_overlaps(expected.values()):
+            raise ValueError("resize would leave overlapping monitors")
+          self.pending_layout = (monitor, mode, scale, layout, expected)
+          if not self.apply_pending_layout():
+            return False
         verified = (mode, scale)
         if self.last_verified.get(name) != verified:
           LOG.info("%s: verified %s at %gx (preferred %gx)", name, mode, scale, self.preferences[name])
           self.last_verified[name] = verified
-      except (OSError, ValueError, KeyError, StopIteration) as error:
+      except (OSError, ValueError, KeyError, StopIteration, subprocess.SubprocessError) as error:
         LOG.warning("%s: %s", name, error)
         successful = False
     return successful

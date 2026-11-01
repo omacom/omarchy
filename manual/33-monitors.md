@@ -61,7 +61,7 @@ Monitor brightness is controlled by the dedicated function keys for brightness u
 
 ### Resizing a Parallels virtual machine
 
-After installing Parallels Tools from the Parallels Desktop menu, run `omarchy hyprland parallels on` inside the Omarchy desktop to make the guest follow the VM window size. It starts with your graphical session and applies display changes without rewriting `~/.config/hypr/monitors.lua`. Monitor scaling controls continue to set your preferred scale; when a window size needs rounding to whole logical pixels, that preference is retained for the next compatible size.
+After installing Parallels Tools from the Parallels Desktop menu, run `omarchy hyprland parallels on` inside the Omarchy desktop to make the guest follow the VM window size. It starts with your graphical session and applies display changes without rewriting `~/.config/hypr/monitors.lua` or saving each resize to your monitor layout. Neighboring displays move with the resized display's logical bounds so they stay separate. Monitor scaling controls continue to set your preferred scale; when a window size needs rounding to whole logical pixels, that preference is retained for the next compatible size.
 
 This is an opt-in compatibility integration for Parallels Tools' GNOME/KDE-specific Wayland display backend. The display agent runs through XWayland, while clipboard, drag-and-drop, and shared-profile helpers retain their Wayland backend. It is inactive on other hardware and does not install Parallels Tools.
 

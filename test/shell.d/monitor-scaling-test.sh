@@ -448,9 +448,10 @@ from types import SimpleNamespace
 
 root, log, direction = sys.argv[1:]
 bridge_module = runpy.run_path(str(Path(root) / "default/hypr/parallels.py"))
-monitor = {"name": "Virtual-1", "width": 1744, "height": 1092, "scale": 4 / 3}
+monitor = {"name": "Virtual-1", "width": 1744, "height": 1092, "scale": 4 / 3,
+  "x": 0, "y": 0, "transform": 0}
 
-def configure(current, mode, scale):
+def configure(current, mode, scale, layout):
   width, height = map(int, mode.split("x"))
   monitor.update(width=width, height=height, scale=scale)
 
