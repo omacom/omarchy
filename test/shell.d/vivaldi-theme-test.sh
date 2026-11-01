@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 source "$(dirname "$0")/base-test.sh"
 
 TEST_HOME=$(mktemp -d)
