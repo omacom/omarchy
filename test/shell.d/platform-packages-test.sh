@@ -154,11 +154,11 @@ for platform in aarch64 x86; do
 done
 pass "omarchy-reinstall-pkgs installs the platform's default set"
 
-# A JACK server the ARM migration kept would conflict with pipewire-jack and
-# fail the reinstall, so it is left out there.
+# A JACK server the ARM migration kept would be removed for pipewire-jack, so
+# it is left out there.
 grep -Fxq pipewire-jack "$work/aarch64.packages" || fail "aarch64 defaults include pipewire-jack"
 export STUB_LOG="$work/jack.log"
-expected="-Syu --noconfirm --needed $(grep -vx pipewire-jack "$work/aarch64.packages" | tr '\n' ' ')"
+expected="-Syu --noconfirm --ask 4 --needed $(grep -vx pipewire-jack "$work/aarch64.packages" | tr '\n' ' ')"
 for server in jack2 jack; do
   : >"$STUB_LOG"
   INSTALLED=$server OMARCHY_PROC_ROOT="$work/aarch64/proc" PATH="$work/stubs:$work/aarch64/bin:$ROOT/bin:$PATH" \
