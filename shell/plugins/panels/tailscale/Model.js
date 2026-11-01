@@ -225,6 +225,17 @@ function mullvadCountryOptions(nodes) {
   return mullvadRegionOptions(nodes)
 }
 
+// ExitNodeStatus carries the node's addresses as prefixes ("100.1.1.1/32");
+// the first one names the node when its peer row is missing.
+function exitNodeAddress(exitStatus) {
+  var prefixes = (exitStatus && exitStatus.TailscaleIPs) || []
+  for (var i = 0; i < prefixes.length; i++) {
+    var ip = String(prefixes[i] || "").split("/")[0]
+    if (ip !== "") return ip
+  }
+  return ""
+}
+
 // message is the IPC status() text, so it stays English.
 function parseStatus(raw, tr) {
   var text = String(raw || "").trim()
@@ -238,14 +249,27 @@ function parseStatus(raw, tr) {
     var peers = []
     var exitNodes = []
     var rawPeers = data.Peer || {}
+    // Tailscale fails closed: while the selected exit node is offline all
+    // internet traffic is dropped, so keep that node visible and say so.
+    var exitStatus = data.ExitNodeStatus || null
+    var exitNodeId = exitStatus ? String(exitStatus.ID || "") : ""
+    var exitNodeName = ""
 
     for (var id in rawPeers) {
       var peer = rawPeers[id] || {}
       var normalized = peerFromStatus(id, peer, tr)
+      var selectedExitNode = exitNodeId !== "" && String(peer.ID || "") === exitNodeId
+      if (selectedExitNode) {
+        normalized.ExitNode = true
+        exitNodeName = normalized.DisplayName
+      }
       if (normalized.Mullvad) continue
       if (normalized.Online) {
         peers.push(normalized)
         if (normalized.ExitNodeOption) exitNodes.push(normalized)
+      } else if (selectedExitNode) {
+        // Listed so it can still be clicked to stop using it.
+        exitNodes.push(normalized)
       }
     }
 
@@ -269,7 +293,10 @@ function parseStatus(raw, tr) {
       selfUserId: String(self.UserID || ""),
       fileSharing: hasFileSharing(self),
       peers: peers,
-      exitNodes: exitNodes
+      exitNodes: exitNodes,
+      exitNodeOffline: backendState === "Running" && exitStatus !== null && exitStatus.Online !== true,
+      exitNodeId: exitNodeId,
+      exitNodeName: exitNodeName || exitNodeAddress(exitStatus)
     }
   } catch (e) {
     return { ok: false, unavailable: true, message: "Status error", error: "Failed to parse tailscale status" }
@@ -325,6 +352,7 @@ if (typeof module !== "undefined") {
     parseExitNodeList: parseExitNodeList,
     mullvadRegionOptions: mullvadRegionOptions,
     mullvadCountryOptions: mullvadCountryOptions,
+    exitNodeAddress: exitNodeAddress,
     parseStatus: parseStatus,
     parseAccounts: parseAccounts
   }
