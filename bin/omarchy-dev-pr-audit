@@ -7,7 +7,10 @@
 
 set -euo pipefail
 
-[[ -n ${OMARCHY_PATH:-} && -d $OMARCHY_PATH/bin ]] && export PATH="$OMARCHY_PATH/bin:$PATH"
+if ! command -v omarchy-cmd-missing >/dev/null 2>&1; then
+  bin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+  [[ -x $bin_dir/omarchy-cmd-missing ]] && export PATH="$bin_dir:$PATH"
+fi
 
 usage() {
   cat <<'EOF'
