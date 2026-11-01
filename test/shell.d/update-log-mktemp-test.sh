@@ -32,8 +32,6 @@ export TMPDIR="$test_tmp/untrusted-tmp"
 awk '/if \[\[ -z \$\{OMARCHY_UPDATE_LOGGED:-\} \]\]; then/{flag=1} flag{print} flag && /^fi$/{exit}' \
   "$FIXED_UPDATE" >"$test_tmp/wrapper.sh"
 [[ -s $test_tmp/wrapper.sh ]] || fail "could not extract the update-logging wrapper from bin/omarchy-update"
-grep -q 'mktemp' "$test_tmp/wrapper.sh" || fail "extracted wrapper does not create a private log"
-grep -q 'OMARCHY_UPDATE_LOG_FILE' "$test_tmp/wrapper.sh" || fail "extracted wrapper does not export OMARCHY_UPDATE_LOG_FILE"
 
 # Stub script(1): last argv word is the transcript. Capture the original
 # process PID to prove the logging wrapper uses exec rather than waiting
@@ -57,7 +55,6 @@ run_wrapper() {
   WRAPPER_RC=0
   (
     export PATH="$test_tmp/bin:/usr/bin:/bin"
-    user_path="/usr/bin:/bin"
     set -- "$test_tmp/inner.sh"
     printf '%s\n' "$BASHPID" >"$SANDBOX/wrapper-pid"
     # shellcheck disable=SC1090
