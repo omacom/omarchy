@@ -392,6 +392,70 @@ grep -Fxq "opencode first" <<<"$add_check" ||
   fail "--check reports a single replaceable OpenCode Go key" "$add_check"
 pass "--check reports the existing providers' sign-in states"
 
+# Go sign-in must make the database private before saving a secret, not just
+# repair the permissions afterward. Keep gateway traffic inside this fixture.
+python3 - <<'PY' || fail "Go sign-in secures the credential database before saving the key"
+import json, os, sqlite3, stat, subprocess, tempfile
+from pathlib import Path
+
+with tempfile.TemporaryDirectory() as temporary:
+  fixture = Path(temporary)
+  mock_bin = fixture / "bin"
+  mock_bin.mkdir()
+  for command, body in (("curl", "printf 200"), ("opencode", "exit 0")):
+    executable = mock_bin / command
+    executable.write_text("#!/bin/bash\n" + body + "\n")
+    executable.chmod(0o755)
+
+  # Instrument the child Python process at the database boundary. Checking
+  # only the final mode would miss a chmod performed after exposing the key.
+  spy = fixture / "spy"
+  spy.mkdir()
+  (spy / "sitecustomize.py").write_text('''
+import os, sqlite3, stat
+original_connect = sqlite3.connect
+class PermissionGuard(sqlite3.Connection):
+  def execute(self, sql, *args, **kwargs):
+    if sql.startswith("INSERT INTO credential"):
+      mode = stat.S_IMODE(os.stat(os.environ["OPENCODE_DB"]).st_mode)
+      if mode != 0o600:
+        raise AssertionError("Credential database readable at insertion: " + oct(mode))
+      with open(os.environ["GO_INSERT_PROOF"], "w") as proof:
+        proof.write("private")
+    return super().execute(sql, *args, **kwargs)
+def connect(*args, **kwargs):
+  kwargs["factory"] = PermissionGuard
+  return original_connect(*args, **kwargs)
+sqlite3.connect = connect
+''')
+
+  for existing in (True, False):
+    case = fixture / ("existing" if existing else "new")
+    case.mkdir()
+    database = case / "credentials.db"
+    if existing:
+      with sqlite3.connect(database) as conn:
+        conn.execute("CREATE TABLE credential (id text, integration_id text, active integer, time_updated integer, value text)")
+        conn.execute("INSERT INTO credential VALUES ('old', 'opencode-go', 1, 1, ?)",
+                     (json.dumps({"type": "key", "key": "old-fixture-key"}),))
+      database.chmod(0o644)
+    proof = case / "insert-proof"
+    environment = dict(os.environ, OPENCODE_DB=str(database),
+                       XDG_DATA_HOME=str(case / "data"), PYTHONPATH=str(spy),
+                       GO_INSERT_PROOF=str(proof),
+                       PATH=str(mock_bin) + os.pathsep + os.environ["PATH"])
+    result = subprocess.run(["omarchy-agent-account-add", "--events", "opencode"],
+                            input="replacement-fixture-key\n", text=True,
+                            capture_output=True, env=environment)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert proof.read_text() == "private", "The key INSERT was not observed"
+    assert stat.S_IMODE(database.stat().st_mode) == 0o600
+    with sqlite3.connect(database) as conn:
+      active = conn.execute("SELECT value FROM credential WHERE active = 1").fetchall()
+    assert [json.loads(row[0])["key"] for row in active] == ["replacement-fixture-key"], active
+PY
+pass "Go sign-in secures existing and new credential databases before saving the key"
+
 : >"$notifications"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --events claude Events </dev/null >"$test_tmp/events-output"
