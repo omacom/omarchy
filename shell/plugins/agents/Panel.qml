@@ -243,7 +243,8 @@ Panel {
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude Code" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "opencode", providerName: "OpenCode Go" }
   ]
   property string addStage: ""
   property string addProvider: ""
@@ -284,9 +285,10 @@ Panel {
     addCode = ""
     addUrl = ""
     // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
-    // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    // and its prompt for it has no newline to read it by; OpenCode Go's
+    // sign-in is a pasted Console API key, so the field is there from the
+    // start for both.
+    addNeedsPaste = addProvider === "claude" || addProvider === "opencode"
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
@@ -456,9 +458,10 @@ Panel {
     addCode = ""
     addUrl = ""
     // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
-    // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    // and its prompt for it has no newline to read it by; OpenCode Go's
+    // reauth is a fresh pasted key, so the field is there from the start for
+    // both.
+    addNeedsPaste = addProvider === "claude" || addProvider === "opencode"
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
@@ -674,6 +677,8 @@ Panel {
       return Commons.I18n.t("agents.helpNotInPath").arg("codex")
     case "Fireworks usage scan failed":
       return Commons.I18n.t("agents.helpScanFailed").arg("Fireworks")
+    case "Add an OpenCode Go API key with `omarchy agent account add opencode`.":
+      return Commons.I18n.t("agents.helpGoAddKey").arg("`omarchy agent account add opencode`")
     }
     return value
   }
@@ -1513,6 +1518,9 @@ Panel {
         }
 
         Meter {
+          // No funded total means the balance is a plain residual: just the
+          // number, no gauge.
+          visible: !!section.balance && section.balance.funded > 0
           anchors.left: balanceTitle.right
           anchors.right: balanceValue.left
           anchors.rightMargin: Style.spacing.md
