@@ -19,6 +19,7 @@ Item {
   property bool loadBackground: true
   property string passwordText: ""
   property bool syncingPasswordText: false
+  readonly property bool passwordActiveFocus: passwordInput.activeFocus
 
   readonly property string placeholderText: Commons.I18n.t("lock.enterPassword")
   readonly property int fieldWidth: 381
@@ -75,6 +76,23 @@ Item {
   onPasswordTextChanged: syncPasswordText()
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
+  }
+  Connections {
+    target: root.Window.window
+    function onActiveChanged() {
+      var win = root.Window.window
+      if (win && win.active && root.inputEnabled) {
+        Qt.callLater(root.forcePasswordFocus)
+      }
+    }
+    function onActiveFocusItemChanged() {
+      var win = root.Window.window
+      if (win && win.active && root.inputEnabled) {
+        if (!win.activeFocusItem || win.activeFocusItem === win.contentItem) {
+          Qt.callLater(root.forcePasswordFocus)
+        }
+      }
+    }
   }
   Component.onCompleted: {
     syncPasswordText()
