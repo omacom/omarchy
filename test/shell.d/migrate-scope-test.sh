@@ -9,7 +9,14 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 test_root="$test_tmp/omarchy"
 test_home="$test_tmp/home"
-mkdir -p "$test_root/migrations" "$test_home"
+stub_bin="$test_tmp/bin"
+mkdir -p "$test_root/migrations" "$test_home" "$stub_bin"
+
+cat >"$stub_bin/omarchy-notification-dismiss" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >>"$TEST_DISMISSALS"
+SH
+chmod +x "$stub_bin/omarchy-notification-dismiss"
 
 cat >"$test_root/migrations/100-first.sh" <<'SH'
 [[ $OMARCHY_PATH == "$TEST_EXPECTED_OMARCHY_PATH" ]]
@@ -21,36 +28,46 @@ echo second >>"$TEST_CALLS"
 SH
 
 calls="$test_tmp/calls"
+dismissals="$test_tmp/dismissals"
 
-if ! HOME="$test_home" OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-migrate" --pending >"$test_tmp/pending.out"; then
+# $1 is HOME, $2 is OMARCHY_PATH; the rest are omarchy-migrate's arguments.
+run_migrate() {
+  local home="$1" root="$2"
+  shift 2
+  HOME="$home" \
+  OMARCHY_PATH="$root" \
+  PATH="$stub_bin:$ROOT/bin:$PATH" \
+  TEST_EXPECTED_OMARCHY_PATH="$root" \
+  TEST_CALLS="${TEST_CALLS:-$calls}" \
+  TEST_DISMISSALS="$dismissals" \
+    "$ROOT/bin/omarchy-migrate" "$@"
+}
+
+if ! run_migrate "$test_home" "$test_root" --pending >"$test_tmp/pending.out"; then
   fail "migration runner reports pending migrations before state exists"
 fi
 grep -q '^100-first\.sh$' "$test_tmp/pending.out" || fail "migration runner lists first pending migration filename"
 grep -q '^200-second\.sh$' "$test_tmp/pending.out" || fail "migration runner lists second pending migration filename"
 pass "migration runner detects pending migrations"
 
-HOME="$test_home" \
-OMARCHY_PATH="$test_root" \
-TEST_EXPECTED_OMARCHY_PATH="$test_root" \
-TEST_CALLS="$calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/first-run.out"
+run_migrate "$test_home" "$test_root" >"$test_tmp/first-run.out"
 [[ $(sed -n '1p' "$calls") == "first" ]] || fail "migration runner runs first migration"
 [[ $(sed -n '2p' "$calls") == "second" ]] || fail "migration runner runs second migration"
 [[ -f $test_home/.local/state/omarchy/migrations/100-first.sh ]] || fail "migration runner records first migration marker"
 [[ -f $test_home/.local/state/omarchy/migrations/200-second.sh ]] || fail "migration runner records second migration marker"
 pass "migration runner runs all migrations"
 
-HOME="$test_home" \
-OMARCHY_PATH="$test_root" \
-TEST_EXPECTED_OMARCHY_PATH="$test_root" \
-TEST_CALLS="$calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/second-run.out"
-[[ $(wc -l <"$calls") -eq 2 ]] || fail "migration runner skips completed migrations"
+grep -Fx 'Omarchy Migrations' "$dismissals" >/dev/null || fail "migration runner dismisses migration notifications"
+pass "migration runner clears completed migration notifications"
+
+run_migrate "$test_home" "$test_root" >"$test_tmp/second-run.out"
+(( $(wc -l <"$calls") == 2 )) || fail "migration runner skips completed migrations"
 pass "migration runner skips completed migrations"
 
-if HOME="$test_home" OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-migrate" --pending >"$test_tmp/not-pending.out"; then
+if run_migrate "$test_home" "$test_root" --pending >"$test_tmp/not-pending.out"; then
   fail "migration runner reports no pending migrations after state exists"
 fi
+[[ ! -s $test_tmp/not-pending.out ]] || fail "migration runner --pending stays quiet without pending migrations"
 pass "migration runner detects no pending migrations"
 
 failure_root="$test_tmp/failure-omarchy"
@@ -64,13 +81,10 @@ echo after-fail >>"$TEST_CALLS"
 SH
 
 set +e
-HOME="$failure_home" \
-OMARCHY_PATH="$failure_root" \
-TEST_CALLS="$calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/failure.out" 2>"$test_tmp/failure.err"
+run_migrate "$failure_home" "$failure_root" >"$test_tmp/failure.out" 2>"$test_tmp/failure.err"
 failure_status=$?
 set -e
-[[ $failure_status -ne 0 ]] || fail "migration runner exits non-zero when a migration fails"
+(( failure_status != 0 )) || fail "migration runner exits non-zero when a migration fails"
 [[ ! -f $failure_home/.local/state/omarchy/migrations/500-fail.sh ]] || fail "migration runner does not mark failed migration complete"
 grep -q '^before-fail$' "$calls" || fail "migration runner started failing migration"
 ! grep -q '^after-fail$' "$calls" || fail "migration runner stops failing migration under strict mode"
@@ -89,11 +103,8 @@ cat >"$stdin_root/migrations/200-after.sh" <<'SH'
 echo after-reader >>"$TEST_CALLS"
 SH
 
-printf 'migration input\n' | \
-  HOME="$stdin_home" \
-  OMARCHY_PATH="$stdin_root" \
-  TEST_CALLS="$stdin_calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/stdin.out"
+printf 'migration input\n' |
+  TEST_CALLS="$stdin_calls" run_migrate "$stdin_home" "$stdin_root" >"$test_tmp/stdin.out"
 
 grep -q '^reader:migration input$' "$stdin_calls" ||
   fail "migration runner preserves the caller's stdin for a migration" "$(cat "$stdin_calls")"
@@ -103,3 +114,23 @@ grep -q '^after-reader$' "$stdin_calls" ||
   -f $stdin_home/.local/state/omarchy/migrations/200-after.sh ]] ||
   fail "migration runner marks both stdin-isolated migrations complete"
 pass "migration queue uses a private file descriptor instead of migration stdin"
+
+# A transaction that outlasts the wait has to fail rather than look applied:
+# omarchy-update runs its post-update hooks next, against un-migrated state.
+lock_home="$test_tmp/lock-home"
+lock_calls="$test_tmp/lock-calls"
+lock_file="$test_tmp/db.lck"
+mkdir -p "$lock_home"
+: >"$lock_file"
+ln -s /bin/true "$stub_bin/sleep"
+
+if OMARCHY_PACMAN_LOCK="$lock_file" TEST_CALLS="$lock_calls" \
+  run_migrate "$lock_home" "$test_root" >"$test_tmp/locked.out" 2>&1; then
+  fail "omarchy-migrate fails when the pacman transaction outlasts the wait"
+fi
+[[ ! -s $lock_calls ]] || fail "omarchy-migrate runs no migration while pacman holds its lock"
+grep -q 'Omarchy migrations did not run' "$test_tmp/locked.out" ||
+  fail "omarchy-migrate says the migrations did not run" "$(cat "$test_tmp/locked.out")"
+run_migrate "$lock_home" "$test_root" --pending >/dev/null ||
+  fail "omarchy-migrate leaves the migrations pending after a locked run"
+pass "omarchy-migrate fails instead of skipping migrations under a pacman lock"
