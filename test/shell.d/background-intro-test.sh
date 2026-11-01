@@ -43,7 +43,6 @@ cat >"$command_bin/owe" <<'SH'
 printf 'owe: %s\n' "$*" >>"$COMMAND_LOG"
 case ${1:-} in
   intro)
-    [[ -z ${COVER_READY_FILE:-} || -f $COVER_READY_FILE ]] || exit 1
     [[ ${OWE_FAIL:-} != "interrupted" && ${OWE_FAIL:-} != "unavailable" ]] || exit 1
     [[ -z ${OWE_READY_FILE:-} || -f $OWE_READY_FILE ]] || exit 1
     ;;
@@ -71,25 +70,6 @@ printf '{"option":"animations:enabled","int":%s,"bool":%s}\n' \
   "$([[ ${ANIMATIONS:-on} == on ]] && echo 1 || echo 0)" "$([[ ${ANIMATIONS:-on} == on ]] && echo true || echo false)"
 SH
 chmod +x "$command_bin/hyprctl"
-cat >"$command_bin/omarchy-shell" <<'SH'
-#!/bin/bash
-# The outgoing cover finishes loading on poll COVER_READY_AFTER.
-if [[ $2 == "themeIntroCoverStatus" ]]; then
-  if [[ -n ${COVER_READY_FILE:-} && ! -f $COVER_READY_FILE ]]; then
-    polls=$(( $(cat "$COVER_READY_FILE.polls" 2>/dev/null || echo 0) + 1 ))
-    echo "$polls" >"$COVER_READY_FILE.polls"
-    if (( polls < ${COVER_READY_AFTER:-1} )); then
-      echo "loading"
-    else
-      touch "$COVER_READY_FILE"
-      echo "${COVER_STATUS:-ready}"
-    fi
-  else
-    echo "${COVER_STATUS:-ready}"
-  fi
-fi
-SH
-chmod +x "$command_bin/omarchy-shell"
 
 mkdir -p "$(dirname "$toggle")"
 resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-startup)
@@ -225,38 +205,20 @@ PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/b
 PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-intro" status || fail "enabled background intros report an enabled status"
 pass "background intros have one global on/off control"
 
+# The shell asks which clip a background change would play.
 : >"$command_log"
 before_marker=$(<"$marker")
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")"
-grep -Fxq 'owe: refresh' "$command_log" || fail "unprepared theme switching synchronizes OWE with the selected image"
-grep -Fxq "owe: intro --start first-frame $theme_intro_dir/road.mp4" "$command_log" || fail "theme switching plays its matching intro even after boot was consumed"
-: >"$command_log"
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true
-grep -Fxq "owe: intro --start first-frame --refresh $theme_intro_dir/road.mp4" "$command_log" || fail "prepared theme switching synchronizes and starts in one call"
-! grep -Fxq 'owe: refresh' "$command_log" || fail "prepared playback avoids an extra refresh call"
-cover_ready="$test_tmp/cover-ready"
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_READY_FILE="$cover_ready" COVER_READY_AFTER=3 "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true || fail "playback waits for the outgoing cover before starting"
-: >"$command_log"
-if PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_STATUS=error "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true; then
-  fail "a failed cover requests the still fallback"
-fi
-! grep -q '^owe: intro ' "$command_log" || fail "a failed outgoing cover cannot expose an intro"
-[[ $(<"$marker") == "$before_marker" ]] || fail "theme switching does not reopen the session marker"
-: >"$command_log"
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$custom_background" "$(stat -Lc '%d:%i' "$intro_state/theme")"
-! grep -q '^owe: intro ' "$command_log" || fail "a superseded theme switch does not play an old intro"
-theme_id=$(stat -Lc '%d:%i' "$intro_state/theme")
-: >"$command_log"
-if PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" ANIMATIONS=off "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$theme_id"; then
-  fail "a current theme launch requests its still fallback when animations were disabled"
-fi
-! grep -q '^owe: intro ' "$command_log" || fail "a canceled theme intro does not play"
-mv "$intro_state/theme" "$intro_state/previous-theme"
-cp -r "$intro_state/previous-theme" "$intro_state/theme"
-: >"$command_log"
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$theme_id"
-! grep -q '^owe: intro ' "$command_log" || fail "reused filenames do not let a superseded theme launch play"
-pass "theme switches can play their selected intro without resetting login startup"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-enabled "$background")
+[[ $resolved == "$theme_intro_dir/road.mp4" ]] || fail "a background's clip resolves while intros are on" "$resolved"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" ANIMATIONS=off "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-enabled "$background")
+[[ -z $resolved ]] || fail "no clip resolves while animations are off"
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-intro" disable
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-enabled "$background")
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-intro" enable
+[[ -z $resolved ]] || fail "no clip resolves while intros are off"
+! grep -q '^owe: ' "$command_log" || fail "resolving a clip plays nothing"
+[[ $(<"$marker") == "$before_marker" ]] || fail "resolving a clip leaves login startup alone"
+pass "a background's clip resolves only while intros and animations are on"
 
 packaged_pairs=0
 for intro in "$ROOT"/themes/*/backgrounds/intros/*.mp4; do
