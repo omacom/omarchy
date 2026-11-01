@@ -677,6 +677,51 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
   return result
 
 
+# Claude Code signed in with an API key (pay as you go through the Anthropic
+# Console) has no plan limits, and isn't waiting for a sign-in. The key is the
+# CLI's own (primaryApiKey in its profile), supplied by its user settings (an
+# apiKeyHelper, or a key in their env block), or set in the environment it
+# starts with, once approved; settings.local.json beside them is a project's, which it doesn't
+# sign in from. Only whether a key is configured is checked; the key itself is
+# never recorded.
+API_KEY_HELP = "Signed in with an API key, which has no plan limits."
+API_KEY_VARIABLES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+SIGN_IN_STATUSES = ("Waiting for auth", "Sign-in expired")
+
+
+def api_key_login(claude_dir: Path) -> bool:
+  profile = read_json(profile_path(claude_dir))
+  if profile.get("primaryApiKey"):
+    return True
+  settings = read_json(claude_dir / "settings.json")
+  if settings.get("apiKeyHelper"):
+    return True
+  # The settings' env block is applied over the environment, as the CLI does,
+  # so a variable it sets, even to nothing, is the one that counts.
+  env = {name: os.environ.get(name) for name in API_KEY_VARIABLES}
+  overrides = settings.get("env")
+  if isinstance(overrides, dict):
+    env.update({name: overrides[name] for name in API_KEY_VARIABLES if name in overrides})
+  # The CLI asks once whether to use an ANTHROPIC_API_KEY it finds, and keeps a
+  # yes as the key's ending in its profile; only a key approved there counts.
+  responses = profile.get("customApiKeyResponses")
+  approved = responses.get("approved") if isinstance(responses, dict) else None
+  key = env.get("ANTHROPIC_API_KEY")
+  if not (isinstance(key, str) and isinstance(approved, list) and any(isinstance(end, str) and end and key.endswith(end) for end in approved)):
+    env["ANTHROPIC_API_KEY"] = None
+  return any(env.values())
+
+
+# Where the subscription would ask for a sign-in (there is none, or it expired),
+# a configured API key makes that sign-in unnecessary: no plan, no limits, and
+# nothing to sign in to. collect_limits decides both before reaching the
+# network.
+def with_api_key(claude_dir: Path, plan: str, limits: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+  if limits["usageStatusText"] in SIGN_IN_STATUSES and api_key_login(claude_dir):
+    return "", {"limits": [], "usageStatusText": "", "authHelpText": API_KEY_HELP, "live": True, "fetchedAtMs": 0, "apiKey": True}
+  return plan, limits
+
+
 # ---------------------------------------------------------------- accounts
 
 
@@ -702,7 +747,12 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   else:
     cache_name = f"claude-limits-{key}.json"
   limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
-  return account_entry(account, limits, plan)
+  plan, limits = with_api_key(home, plan, limits)
+  entry = account_entry(account, limits, plan)
+  # An account on its key has no plan, whatever the registry kept from before.
+  if limits.get("apiKey"):
+    entry["plan"] = ""
+  return entry
 
 
 # -------------------------------------------------------------------- record
@@ -736,6 +786,7 @@ def main() -> int:
     identity = re.sub(r"[^A-Za-z0-9_-]", "", current_account_id(claude_dir))
     cache_name = f"claude-limits-{identity}.json" if identity else "claude-limits.json"
     limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force, cache_name)
+    plan, limits = with_api_key(claude_dir, plan, limits)
     stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
     # Asking for a sign-in only makes sense where Claude Code is in use: its
     # config home or profile exists, or there is local usage. A machine that
@@ -755,7 +806,10 @@ def main() -> int:
   record = base_record(
     AGENT_ID,
     AGENT_NAME,
-    ready=number(stats.get("totalPrompts")) > 0 or bool(stats.get("modelUsage")) or len(limits["limits"]) > 0,
+    # A configured key is a credential, and so is each registered account, which
+    # makes the agent in use too.
+    ready=number(stats.get("totalPrompts")) > 0 or bool(stats.get("modelUsage")) or len(limits["limits"]) > 0
+    or bool(limits.get("apiKey")) or bool(accounts),
     hasLocalStats=True,
     tierLabel=plan,
     usageStatusText=limits["usageStatusText"],

@@ -204,4 +204,39 @@ check("Claude collector calls a lapsed access token paused, not signed out",
 record, _ = claude()
 check("Claude collector serves open cached windows without a token",
       record["usageStatusText"] == "Waiting for auth" and labels(record) == ["Session (5-hour)", "Weekly (7-day)"], record)
+
+# An API key makes a sign-in unnecessary: where the subscription would ask for
+# one, there is no plan, no limits and nothing to sign in to, and the key never
+# reaches the record. A subscription that isn't asking keeps its plan.
+write_json(home() / ".claude.json", {"primaryApiKey": "sk-ant-test"})
+record, http = claude()
+check("Claude collector takes an API key for a missing sign-in",
+      record["usageStatusText"] == "" and record["tierLabel"] == "" and record["limits"] == []
+      and "API key" in record["authHelpText"] and "sk-ant-test" not in str(record) and http.count == 0 and record["ready"], record)
+signed_in(expires=1000, refresh_expires=1000)
+record, _ = claude()
+check("Claude collector takes an API key for an expired sign-in", record["usageStatusText"] == "" and record["tierLabel"] == "", record)
+signed_in(expires=1000, refresh_expires=ms_in(30 * 86400))
+record, _ = claude()
+check("Claude collector keeps a refreshable subscription beside an API key", record["usageStatusText"] == "Limits paused" and record["tierLabel"] != "", record)
+
+# A key exported to the CLI counts too once Claude Code has approved it, unless
+# its settings' env block empties it, as Claude Code applies that block over the
+# environment.
+(home() / ".claude.json").unlink()
+signed_in(expires=1000, refresh_expires=1000)
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test"
+record, _ = claude()
+check("Claude collector ignores an exported key Claude Code hasn't approved", record["usageStatusText"] == "Sign-in expired", record)
+write_json(home() / ".claude.json", {"customApiKeyResponses": {"approved": ["sk-ant-test"[-20:]], "rejected": []}})
+record, _ = claude()
+check("Claude collector takes an exported API key Claude Code approved", record["usageStatusText"] == "", record)
+write_json(home() / ".claude" / "settings.json", {"env": {"ANTHROPIC_API_KEY": ""}})
+record, _ = claude()
+check("Claude collector ignores an exported key its settings empty", record["usageStatusText"] == "Sign-in expired", record)
+(home() / ".claude" / "settings.json").unlink()
+write_json(home() / ".claude.json", {"customApiKeyResponses": {"approved": [], "rejected": ["sk-ant-test"[-20:]]}})
+record, _ = claude()
+check("Claude collector ignores an exported key Claude Code was told not to use", record["usageStatusText"] == "Sign-in expired", record)
+del os.environ["ANTHROPIC_API_KEY"]
 PY
