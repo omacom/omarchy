@@ -389,6 +389,12 @@ local function watch()
         hl.dispatch(hl.dsp.window.alter_zorder({ mode = "bottom", window = other }))
       end
     end
+
+    -- Each lower replays the pointer, which can focus a sibling under it before that one is lowered too.
+    local active = hl.get_active_window()
+    if not active or active.address ~= window.address then
+      hl.dispatch(hl.dsp.focus({ window = "address:" .. window.address }))
+    end
   end)
 
   hl.on("workspace.active", update_input)

@@ -224,6 +224,8 @@ local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = fal
 local rules = {}
 local placed = {}
 local lowered = {}
+local focused = nil
+local steal = nil
 local active = { id = 1 }
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
 
@@ -284,7 +286,13 @@ hl = {
   end,
   dispatch = function(action)
     local target = action.window
-    if action.kind == "place" then
+    if action.kind == "focus" then
+      for _, candidate in ipairs(all) do
+        if "address:" .. candidate.address == target then
+          focused = candidate
+        end
+      end
+    elseif action.kind == "place" then
       placed[target.address] = true
     elseif action.kind == "fullscreen" then
       if action.mode == "maximized" then
@@ -295,6 +303,7 @@ hl = {
     elseif action.kind == "alter_zorder" then
       target.zorder = action.mode
       table.insert(lowered, { address = target.address, mode = action.mode })
+      focused = steal or focused
     elseif action.tag then
       local name = action.tag:sub(2)
       if action.tag:sub(1, 1) == "+" then
@@ -323,6 +332,7 @@ hl = {
       fullscreen = function(spec) spec.kind = "fullscreen" return spec end,
       alter_zorder = function(spec) spec.kind = "alter_zorder" return spec end,
     },
+    focus = function(spec) spec.kind = "focus" return spec end,
   },
   on = function(event, callback)
     subscriptions[event] = subscriptions[event] or {}
@@ -330,6 +340,7 @@ hl = {
   end,
   timer = function(callback) callback() end,
   get_active_workspace = function() return active end,
+  get_active_window = function() return focused end,
   get_config = function(key) return config[key] end,
   config = function(values)
     if values.plugin then
@@ -367,6 +378,9 @@ function state()
     rules = rules,
     placed = placed,
     lowered = lowered,
+    set_focused = function(window) focused = window end,
+    set_steal = function(window) steal = window end,
+    focused = function() return focused end,
     subscriptions = subscriptions,
     active = active,
   }
@@ -552,7 +566,11 @@ local normal2 = window("0x3", 1, { floating = true })
 local other_ws = window("0x4", 2, { floating = true })
 
 local s = state()
+s.set_focused(full)
+s.set_steal(normal1)
 s.subscriptions["window.active"][1](full)
+s.set_steal(nil)
+assert(s.focused() == full, "focus taken by a sibling while lowering was not handed back to the fullscreen window")
 assert(#s.lowered == 2, "unexpected number of windows lowered: " .. #s.lowered)
 assert(s.lowered[1].address == "0x3" and s.lowered[1].mode == "bottom", "topmost sibling was not lowered first")
 assert(s.lowered[2].address == "0x2" and s.lowered[2].mode == "bottom", "next sibling was not lowered second")
