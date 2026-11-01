@@ -1,12 +1,12 @@
 # Temes
 
-Omarchy ve amb vint-i-dos temes preciosos. Podeu seleccionar entre ells mitjançant _Estil > Tema_ al menú d'Omarchy (`Super + Space`) o saltar directament al selector de temes amb `Super + Ctrl + Shift + Space`.
+Omarchy inclou vint-i-dos temes preciosos. Pots triar entre ells a través d'_Aspecte > Tema_ al menú d'Omarchy (`Super + Space`) o anar directament al selector de temes amb `Super + Ctrl + T`.
 
-Cada tema dona estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), Chromium i tot el shell d'Omarchy: barra superior, menú, notificacions, OSD i pantalla de bloqueig. (Per a Obsidian, heu de seleccionar manualment el tema d'Omarchy mitjançant _Aparença > Temes_ dins de l'aplicació).
+Cada tema dona estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), Chromium i tota la interfície d'Omarchy: la barra superior, el menú, les notificacions, l'OSD i la pantalla de bloqueig. (Per a Obsidian, has de seleccionar manualment el tema d'Omarchy a través d'_Aspecte > Temes_ dins de l'aplicació).
 
-Els temes tenen un conjunt d'imatges de fons entre les quals podeu triar amb `Super + Ctrl + Space`.
+Els temes tenen un conjunt d'imatges de fons entre les quals pots triar amb `Super + Ctrl + W`.
 
-Podeu trobar encara més temes a [la pàgina de temes addicionals](https://omarchy.org/themes/) o fins i tot [crear el vostre propi tema](43-making-your-own-theme.md).
+Pots trobar encara més temes a [la pàgina de temes addicionals](https://omarchy.org/themes/) o fins i tot [crear el teu propi tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloquejos
 
-Els temes també poden tenir un disseny de desbloqueig personalitzat, que es fa servir per al procés de desxifratge a l'arrencada. En podeu seleccionar un a _Estil > Desbloqueja_. Són així:
+Els temes també poden tenir un disseny de desbloqueig personalitzat, que s'utilitza per al procés de desxifratge d'arrencada. Pots seleccionar-ne un a _Aspecte > Desbloqueig_. Tenen aquest aspecte:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
