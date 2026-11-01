@@ -48,6 +48,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The prompt checks the username before elevation, outside the root half's C pin.
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
+if turkish_locale "$TMPDIR/locales"; then
+  in_turkish bash -c "$(declare -f valid_username); valid_username alice" || fail "valid_username accepts alice under tr_TR.UTF-8"
+  pass "the username check reads a name with an i the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi
+
 write() { # RAM CORES DISK USER PASS TZ
   printf 'RAM=%s\nCORES=%s\nDISK=%s\nUSERNAME=%s\nPASSWORD=%s\nTZ=%s\n' \
     "$@" | __priv_write_compose
