@@ -92,6 +92,14 @@ SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild || fail "setup on 
   fail "setup keeps the device-mapper name of an encrypted root" "$(<"$drop_in")"
 pass "setup names the resume device by filesystem UUID, or by its device-mapper name"
 
+# An earlier remove could leave the drop-in behind, naming the deleted swapfile's offset.
+machine
+mkdir -p "$rtmp/limine-entry-tool.d"
+printf '%s\n' 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=1929151"' >"$drop_in"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "setup over a leftover drop-in" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] || fail "setup rewrites a drop-in left by an earlier setup" "$(<"$drop_in")"
+pass "setup rewrites a drop-in left by an earlier setup"
+
 # A machine set up before: a rerun renames the device and rebuilds from the
 # renamed drop-in, once. An empty offset is filled in first.
 for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/nvme1n1p2 resume_offset=4242"' \
