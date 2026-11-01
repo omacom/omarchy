@@ -400,6 +400,11 @@ if (updateHotspotSource) {
   updateHotspot('ap_capable\t1\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\nsave_data\talways\n', 0, '')
   assertEqual(hotspotSaveData, 'never', 'a late first status keeps a data choice the user already picked')
   hotspotLoaded = false
+  hotspotEditedFields = { security: true }
+  hotspotSecurity = 'wpa3'
+  updateHotspot('ap_capable\t1\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\nsecurity\tmixed\n', 0, '')
+  assertEqual(hotspotSecurity, 'wpa3', 'a late first status keeps a security mode the user already picked')
+  hotspotLoaded = false
   hotspotEditedFields = {}
   hotspotSsid = ''
   hotspotPassword = ''
