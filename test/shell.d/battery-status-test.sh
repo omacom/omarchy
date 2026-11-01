@@ -265,6 +265,8 @@ pass "single-pack status stays on BAT0 when DisplayDevice is also listed"
 # pack leaves the power panel stuck on the idle internal one. Its thresholds
 # and cycle count still come from that pack, whatever it is called.
 mkdir -p "$tmp_dir/power/CMB0"
+# A live reading on the first pack, so taking it over DisplayDevice's would show.
+printf '7300000\n' >"$tmp_dir/power/CMB0/power_now"
 printf '60\n' >"$tmp_dir/power/CMB0/charge_control_end_threshold"
 printf '48\n' >"$tmp_dir/power/CMB0/cycle_count"
 cat >"$tmp_dir/bin/upower" <<'STUB'
