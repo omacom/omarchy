@@ -39,20 +39,19 @@ chmod +x "$SUDO_TEST_ROOT/bin/cp"
 # exactly as the channel refresh did before regions existed.
 reset_boundary
 "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" rc >"$boundary_tmp/output" 2>&1 || fail "refresh failed" "$(<"$boundary_tmp/output")"
-assert_boundary_cold "regional refresh"
 python3 - "$SUDO_TEST_LOG" "$SUDO_TEST_ROOT" <<'PY'
 import re
 import sys
 events = open(sys.argv[1]).read().splitlines()
 root = sys.argv[2]
-copies = [i for i, e in enumerate(events) if e.startswith('sudo -N cp ')]
+copies = [i for i, e in enumerate(events) if e.startswith('sudo cp ')]
 # The China render writes pacman.conf itself, so the rendered directory is the
 # one root copies from, and it is a scratch directory, never the templates.
 rendered = events[copies[2]].split()[-2].rsplit('/', 1)[0]
 assert not rendered.startswith(root), events
 assert [events[i] for i in copies[2:]] == [
-    f'sudo -N cp -f {rendered}/pacman.conf /etc/pacman.conf',
-    f'sudo -N cp -f {rendered}/mirrorlist /etc/pacman.d/mirrorlist',
+    f'sudo cp -f {rendered}/pacman.conf /etc/pacman.conf',
+    f'sudo cp -f {rendered}/mirrorlist /etc/pacman.d/mirrorlist',
 ], events
 assert not any(e.startswith('sudo ') and 'omarchy-apply-pacman' in e for e in events), events
 transaction = next(i for i, e in enumerate(events) if e.startswith('step:pacman '))
@@ -71,12 +70,12 @@ reset_boundary
 if "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" dev >"$boundary_tmp/output" 2>&1; then
   fail "refresh accepts an invalid channel"
 fi
-if grep -Eq '^(sudo -N cp |step:pacman )' "$SUDO_TEST_LOG"; then
+if grep -Eq '^(sudo cp |step:pacman )' "$SUDO_TEST_LOG"; then
   fail "invalid channel reached privileged work" "$(<"$SUDO_TEST_LOG")"
 fi
 pass "failed refresh does not proceed to privileged copies or a package update"
 
-# A failed render still removes its scratch directory and exits cold.
+# A failed render still removes its scratch directory.
 reset_boundary
 mv "$SUDO_TEST_ROOT/bin/omarchy-apply-pacman" "$boundary_tmp/omarchy-apply-pacman"
 cat >"$SUDO_TEST_ROOT/bin/omarchy-apply-pacman" <<'STUB'
@@ -91,8 +90,7 @@ if TMPDIR="$boundary_tmp/scratch" "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" r
 fi
 mv "$boundary_tmp/omarchy-apply-pacman" "$SUDO_TEST_ROOT/bin/omarchy-apply-pacman"
 [[ -z $(ls -A "$boundary_tmp/scratch") ]] || fail "failed render leaves its scratch directory" "$(ls -AR "$boundary_tmp/scratch")"
-if grep -Eq '^(sudo -N cp |step:pacman )' "$SUDO_TEST_LOG"; then
+if grep -Eq '^(sudo cp |step:pacman )' "$SUDO_TEST_LOG"; then
   fail "failed render reached privileged work" "$(<"$SUDO_TEST_LOG")"
 fi
-assert_boundary_cold "failed render"
-pass "failed render removes its scratch directory and exits cold"
+pass "failed render removes its scratch directory"

@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Ujian Kelajuan Cakera"
   },
-  "setup.monitors": {
-    "label": "Monitor"
-  },
-  "setup.keybindings": {
-    "label": "Ikatan Kekunci"
-  },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Penaipan"
-  },
-  "setup.typing.keyboard": {
-    "label": "Susun Atur Papan Kekunci"
-  },
-  "setup.typing.input": {
-    "label": "Kaedah Input"
   },
   "setup.language": {
     "label": "Bahasa"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Kernel"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Papan Kekunci"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Ikatan Kekunci"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Input Papan Kekunci"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Kaedah Input"
   }
 }

@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Тест скорости диска"
   },
-  "setup.monitors": {
-    "label": "Мониторы"
-  },
-  "setup.keybindings": {
-    "label": "Сочетания клавиш"
-  },
   "setup.input": {
     "label": "Ввод"
-  },
-  "setup.typing": {
-    "label": "Ввод текста"
-  },
-  "setup.typing.keyboard": {
-    "label": "Раскладки клавиатуры"
-  },
-  "setup.typing.input": {
-    "label": "Методы ввода"
   },
   "setup.language": {
     "label": "Язык"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Ядро"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Клавиатура"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Сочетания клавиш"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Клавиатурный ввод"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Методы ввода"
   }
 }
