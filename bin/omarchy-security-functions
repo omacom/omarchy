@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:hidden=true
-# omarchy:summary=Provide internal helpers for command-scoped sudo authentication
+# omarchy:summary=Provide internal helpers for privileged Omarchy entrypoints
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   echo "omarchy-security-functions is an internal function library." >&2
@@ -10,13 +10,18 @@ fi
 
 omarchy_security_require_privileged_bash_startup() {
   [[ $- == *p* ]] || return 1
+  # The caller is this check's parent, under the number this /proc gives it.
+  # arch-chroot runs the installer in a new PID namespace beneath the outer
+  # /proc, where $$ names no process, or someone else's.
   /usr/bin/env -i /usr/bin/bash -p -c '
-    mapfile -d "" -t argv <"/proc/$1/cmdline" || exit 1
-    executable=$(/usr/bin/readlink -e -- "/proc/$1/exe") || exit 1
+    stat=$(</proc/self/stat) || exit 1
+    read -r _ caller _ <<<"${stat##*) }"
+    mapfile -d "" -t argv <"/proc/$caller/cmdline" || exit 1
+    executable=$(/usr/bin/readlink -e -- "/proc/$caller/exe") || exit 1
     [[ $executable == "/usr/bin/bash" &&
       ( ${argv[0]:-} == "/bin/bash" || ${argv[0]:-} == "/usr/bin/bash" ) &&
       ${argv[1]:-} == "-p" ]]
-  ' omarchy-bash-startup "$$"
+  ' omarchy-bash-startup
 }
 
 omarchy_security_sanitize_bash_environment() {
@@ -58,60 +63,10 @@ omarchy_security_require_source_root() {
   fi
 }
 
-omarchy_security_sudo_supports_no_update() {
-  local help
-  help=$(LC_ALL=C /usr/bin/sudo -h 2>&1) || return 1
-  /usr/bin/grep -Eq '^usage: sudo .*\[[^]]*N[^]]*\]' <<< "$help"
-}
-
-omarchy_security_revoke_sudo_timestamp() {
-  /usr/bin/sudo -k
-}
-
-omarchy_security_exit_with_revoked_sudo() {
-  local status=$1
-  local message=${2:-Could not invalidate cached sudo authorization.}
-
-  trap - EXIT HUP INT TERM
-  if ! omarchy_security_revoke_sudo_timestamp; then
-    echo "$message" >&2
-    (( status != 0 )) || status=1
-  fi
-  exit "$status"
-}
-
 omarchy_security_install_signal_exit_traps() {
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
-}
-
-omarchy_security_install_sudo_cleanup_traps() {
-  OMARCHY_SECURITY_SUDO_CLEANUP_MESSAGE=${1:-Could not invalidate cached sudo authorization.}
-  trap omarchy_security_run_sudo_cleanup_trap EXIT
-  omarchy_security_install_signal_exit_traps
-}
-
-omarchy_security_enable_no_update_sudo() {
-  local wrapper_dir="$OMARCHY_PATH/default/omarchy/sudo-no-update"
-  if ! omarchy_security_sudo_supports_no_update; then
-    echo "This sudo does not support --no-update; refusing mixed-trust work." >&2
-    return 1
-  fi
-  if [[ ! -f $wrapper_dir/sudo || ! -x $wrapper_dir/sudo ]]; then
-    echo "The command-scoped sudo wrapper is missing." >&2
-    return 1
-  fi
-  PATH="$wrapper_dir:$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
-  OMARCHY_SUDO_NO_UPDATE=1
-  export PATH OMARCHY_SUDO_NO_UPDATE
-}
-
-omarchy_security_run_sudo_cleanup_trap() {
-  local status=$?
-
-  omarchy_security_exit_with_revoked_sudo "$status" \
-    "${OMARCHY_SECURITY_SUDO_CLEANUP_MESSAGE:-Could not invalidate cached sudo authorization.}"
 }
 
 omarchy_security_assert_root_directory() {

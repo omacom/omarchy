@@ -12,43 +12,47 @@ call_log="$tmpdir/calls"
 mkdir -p "$mock_bin"
 
 for command in hyprctl pkill; do
-  cat >"$mock_bin/$command" <<'MOCK'
+  cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "$(basename "$0")" "$*" >>"$CALL_LOG"
-MOCK
+SH
 done
 
-cat >"$mock_bin/omarchy-shell" <<'MOCK'
+cat >"$mock_bin/omarchy-shell" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "$(basename "$0")" "$*" >>"$CALL_LOG"
 printf '%s\n' "${LOCK_REPLY-ok}"
 exit "${LOCK_STATUS:-0}"
-MOCK
+SH
 
-cat >"$mock_bin/pgrep" <<'MOCK'
+# A screensaver that does not exit within its second; 1Password's bounded lock runs.
+cat >"$mock_bin/timeout" <<'SH'
 #!/bin/bash
-[[ ${PASSWORD_MANAGER_RUNNING:-0} == "1" ]]
-MOCK
-cat >"$mock_bin/omarchy-cmd-present" <<'MOCK'
-#!/bin/bash
-exit 0
-MOCK
-cat >"$mock_bin/flock" <<'MOCK'
-#!/bin/bash
-exit 0
-MOCK
-cat >"$mock_bin/1password" <<'MOCK'
-#!/bin/bash
-printf '1password %s\n' "$*" >>"$CALL_LOG"
-MOCK
-cat >"$mock_bin/timeout" <<'MOCK'
-#!/bin/bash
-printf 'timeout %s\n' "$*" >>"$CALL_LOG"
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$CALL_LOG"
 if [[ $1 == "--kill-after=1s" ]]; then
   shift 2
   "$@"
+else
+  exit 124
 fi
-MOCK
+SH
+
+cat >"$mock_bin/pgrep" <<'SH'
+#!/bin/bash
+[[ ${PASSWORD_MANAGER_RUNNING:-0} == "1" ]]
+SH
+cat >"$mock_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$mock_bin/flock" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$mock_bin/1password" <<'SH'
+#!/bin/bash
+printf '1password %s\n' "$*" >>"$CALL_LOG"
+SH
 chmod +x "$mock_bin"/*
 
 run_lock() {
@@ -57,24 +61,25 @@ run_lock() {
 
 # New lock requests and already-locked sessions both answer "ok".
 run_lock
-cat >"$tmpdir/expected" <<'EXPECTED'
-omarchy-shell lock lock
-hyprctl switchxkblayout all 0
-pkill -x ttfx
-timeout 1s pidwait -x ttfx
-pkill -f [o]rg.omarchy.screensaver
-EXPECTED
-cmp -s "$tmpdir/expected" "$call_log" ||
-  fail "accepted lock waits for ttfx before closing its terminal" "$(cat "$call_log")"
-pass "accepted lock waits for ttfx before closing its terminal"
+mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
+
+[[ ${shutdown[0]} == "pkill -f [/]usr/lib/omarchy-screensaver/omarchy-screensaver" ]] ||
+  fail "system lock stops the native screensaver" "calls: ${shutdown[*]}"
+[[ ${shutdown[1]} == "timeout 1s pidwait -f [/]usr/lib/omarchy-screensaver/omarchy-screensaver" ]] ||
+  fail "system lock waits for the native screensaver to clean up" "calls: ${shutdown[*]}"
+[[ ${shutdown[2]} == "pkill -KILL -f [/]usr/lib/omarchy-screensaver/omarchy-screensaver" ]] ||
+  fail "system lock force-stops a stuck native screensaver" "calls: ${shutdown[*]}"
+rg -A1 '^pkill -KILL ' "$call_log" | rg -q 'invisible = false' ||
+  fail "system lock shows the cursor a killed screensaver left hidden" "$(<"$call_log")"
+pass "system lock gives the screensaver a second to restore the cursor before killing it, then restores it itself"
 
 for reply in missing-pam failed ""; do
   : >"$call_log"
   status=0
   LOCK_REPLY="$reply" run_lock >/dev/null 2>"$tmpdir/error" || status=$?
   (( status == 1 )) || fail "refused lock returns failure" "reply: $reply; status: $status"
-  [[ $(cat "$call_log") == $'omarchy-shell lock lock\nhyprctl switchxkblayout all 0' ]] ||
-    fail "refused lock preserves the screensaver" "$(cat "$call_log")"
+  [[ $(<"$call_log") == $'omarchy-shell lock lock\nhyprctl switchxkblayout all 0' ]] ||
+    fail "refused lock preserves the screensaver" "$(<"$call_log")"
   [[ -s $tmpdir/error ]] || fail "refused lock explains the failure"
 done
 pass "refused and empty lock replies preserve the screensaver and return failure"
@@ -83,8 +88,8 @@ pass "refused and empty lock replies preserve the screensaver and return failure
 status=0
 LOCK_STATUS=7 run_lock >/dev/null 2>&1 || status=$?
 (( status == 7 )) || fail "failed IPC preserves its exit status" "status: $status"
-[[ $(cat "$call_log") == $'omarchy-shell lock lock\nhyprctl switchxkblayout all 0' ]] ||
-  fail "failed IPC preserves the screensaver" "$(cat "$call_log")"
+[[ $(<"$call_log") == $'omarchy-shell lock lock\nhyprctl switchxkblayout all 0' ]] ||
+  fail "failed IPC preserves the screensaver" "$(<"$call_log")"
 pass "failed IPC preserves its exit status and the screensaver"
 
 # Capture stdout so the subshell also waits for the finite background vault-lock
@@ -94,7 +99,7 @@ status=0
 output=$(PASSWORD_MANAGER_RUNNING=1 LOCK_STATUS=7 run_lock 2>"$tmpdir/error") || status=$?
 (( status == 7 )) || fail "IPC failure remains visible after password-manager protection" "status: $status"
 (( $(grep -c '^1password --lock$' "$call_log") == 1 )) ||
-  fail "failed screen lock still locks the password manager once" "$(cat "$call_log")"
+  fail "failed screen lock still locks the password manager once" "$(<"$call_log")"
 grep -F 'timeout --kill-after=1s 3s 1password --lock' "$call_log" >/dev/null ||
   fail "password-manager locking keeps its timeout"
 if grep -q '^pkill ' "$call_log"; then
