@@ -118,6 +118,12 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   mise_updated=1
   omarchy-update-mise || mise_updated=0
 
+  # A machine that has run a local model gets the latest catalog, so its status
+  # can say when a better recipe is recommended. It never fails the update.
+  if [[ -d $HOME/.local/state/omarchy/agent-local/catalog ]]; then
+    omarchy-agent-local-refresh --quiet || echo -e "\e[33mThe local model catalog could not be refreshed.\e[0m" >&2
+  fi
+
   # AUR packages build against the upgraded system, so they go after it, and
   # share the update's one authorization like every step before them.
   omarchy-update-aur-pkgs

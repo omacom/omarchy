@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
-# omarchy:examples=omarchy agent | omarchy agent --inline
+# omarchy:args=[--inline] [--pick] [--local]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local
 
 inline=false
 pick=false
+local=false
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -17,6 +18,10 @@ while (($#)); do
       ;;
     --pick)
       pick=true
+      shift
+      ;;
+    --local)
+      local=true
       shift
       ;;
     --prompt)
@@ -202,6 +207,23 @@ commandcode)
   exit 1
   ;;
 esac
+
+# --local points the agent at the model `omarchy agent local use` runs, through
+# a launch-time overlay Omarchy owns, never by editing the agent's own config.
+# Only agents with such an overlay can be pointed there.
+if [[ $local == "true" ]]; then
+  case "$agent" in
+  opencode)
+    mapfile -t overlay < <(omarchy-agent-local-overlay opencode)
+    (( ${#overlay[@]} == 2 )) || exit 1
+    command=(env "OPENCODE_CONFIG=${overlay[0]}" "${command[@]}" --model "${overlay[1]}")
+    ;;
+  *)
+    echo "Local models work with opencode so far; $agent has no launch-time overlay yet." >&2
+    exit 1
+    ;;
+  esac
+fi
 
 # An agent with no way to take a starting prompt still opens, with the prompt
 # on the clipboard to paste as its first message, so a prompted launch from the

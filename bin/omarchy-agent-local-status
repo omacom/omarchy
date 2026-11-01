@@ -1,0 +1,13 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Show the running local model and whether a better one is recommended
+# omarchy:args=[--json]
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+
+import agent_local  # noqa: E402
+
+sys.exit(agent_local.main("status", sys.argv[1:]))

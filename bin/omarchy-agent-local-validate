@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Validate a local model catalog checkout
+# omarchy:args=<catalog-dir> [--online]
+# omarchy:hidden=true
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+
+import agent_local  # noqa: E402
+
+sys.exit(agent_local.main("validate", sys.argv[1:]))

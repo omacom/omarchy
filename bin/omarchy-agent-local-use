@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Run a local model for your agents, best for this machine or a named recipe
+# omarchy:args=best|<recipe> [--ctx <n>] [--gpu <family>] [--catalog <commit>] [--manifest <file>]
+# omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local use --manifest <file>
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+
+import agent_local  # noqa: E402
+
+sys.exit(agent_local.main("use", sys.argv[1:]))

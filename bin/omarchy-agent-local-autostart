@@ -1,0 +1,13 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Start the local model with your session, or stop doing so
+# omarchy:args=<on|off>
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+
+import agent_local  # noqa: E402
+
+sys.exit(agent_local.main("autostart", sys.argv[1:]))
