@@ -1326,8 +1326,12 @@ apply_participant_limit() {
 
   if profile_active; then
     nmcli connection down "$PROFILE" >/dev/null 2>&1 || true
-    nmcli connection up "$PROFILE" >/dev/null 2>&1 ||
+    if ! nmcli connection up "$PROFILE" >/dev/null 2>&1; then
+      # The AP is down for good: give back the firewall rules and forwarding
+      # it was holding, as turning it off would.
+      stop || fail "participant limit saved, but the hotspot did not come back up and releasing its host state failed"
       fail "participant limit saved, but the hotspot did not come back up"
+    fi
   fi
 }
 

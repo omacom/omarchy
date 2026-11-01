@@ -1327,3 +1327,26 @@ start Hotspot 2.4
 DRIVER
 run_isolated "$TEST_TMP/start-limit-driver.sh"
 pass "start applies the chosen participant limit"
+
+# A live limit change that cannot bring the AP back gives back the host
+# state the AP held, as turning it off would.
+reset_firewall_fixture
+touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
+printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
+printf '%s\n' enabled >"$FORWARDING_STATE"
+cat >"$TEST_TMP/limit-restart-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+export NMCLI_UP_SUCCEED=0
+apply_participant_limit 1 4
+DRIVER
+set +e
+limit_restart_output=$(run_isolated "$TEST_TMP/limit-restart-driver.sh" 2>&1)
+limit_restart_status=$?
+set -e
+(( limit_restart_status != 0 )) || fail "a failed restart after a limit change is reported"
+[[ $limit_restart_output == *"did not come back up"* ]] || fail "a failed restart says the AP is down" "$limit_restart_output"
+grep -q ' release$' "$PRIVILEGED_LOG" || fail "a failed restart releases the hotspot's host state" "$(<"$PRIVILEGED_LOG")"
+[[ ! -e $FORWARDING_STATE && $(<"$FORWARDING_STATE_VALUE") == "0" ]] || fail "a failed restart restores forwarding"
+pass "a limit change that cannot restart the AP releases its host state"
