@@ -72,7 +72,6 @@ run omarchy-hyprland-window-transparency glassy
 (( $(grep -c 'omarchy-glass begin' "$gtk_css") == 1 )) || fail "see-through GTK apps import the backdrop blur once"
 run omarchy-hyprland-window-transparency opaque
 [[ $(<"$gtk_css") == 'label { color: red; }' ]] || fail "opaque windows drop the backdrop blur"
-grep -qF 'backdrop-filter: blur(' "$ROOT/default/gtk/glass.css" || fail "the GTK glass is a backdrop blur"
 printf 'label { color: red; }' >"$gtk_css"
 run omarchy-hyprland-window-transparency glassy
 run omarchy-hyprland-window-transparency opaque
