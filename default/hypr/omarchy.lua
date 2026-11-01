@@ -7,6 +7,7 @@ local require_optional = require("default.hypr.require_optional")
 require("default.hypr.autostart")
 require("default.hypr.monitors")
 require("default.hypr.monitor-workspaces")
+require("default.hypr.minimized-windows")
 if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.media")
   require("default.hypr.bindings.clipboard")
