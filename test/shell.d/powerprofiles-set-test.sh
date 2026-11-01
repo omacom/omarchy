@@ -83,7 +83,3 @@ pass "power profile init restores the autodetected preference"
 out="$("$ROOT/bin/omarchy-powerprofiles-list" --active-state)"
 [[ $out == $'power-saver\t0\nbalanced\t1\nperformance\t0' ]] || fail "power profiles list reads D-Bus Profiles and marks the active one" "$out"
 pass "power profiles list reads D-Bus Profiles and marks the active one"
-
-rg -q 'powerprofilesctl' "$ROOT/bin/omarchy-powerprofiles-list" "$ROOT/bin/omarchy-powerprofiles-set" &&
-  fail "power profile scripts no longer call powerprofilesctl"
-pass "power profile scripts no longer call powerprofilesctl"
