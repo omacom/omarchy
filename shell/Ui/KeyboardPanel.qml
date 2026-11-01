@@ -1,8 +1,10 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import qs.Commons
 import qs.Commons as Commons
+import "../Commons/ReservedArea.js" as ReservedArea
 
 // Layer-shell popup attached to a bar widget icon, designed for
 // click-driven AND keyboard-driven panels (e.g. SUPER+CTRL+W summon).
@@ -28,8 +30,8 @@ import qs.Commons as Commons
 // axis (away-from-bar) because mapToItem on the anchor returns
 // bar-content-relative coords with internal layout offsets baked in
 // (e.g. ~13px from the bar's vertical centering of its widget row). The
-// parallel axis (along-the-bar) uses the anchor's content x/y since the
-// bar window spans the full screen on that axis.
+// parallel axis (along-the-bar) uses the anchor's content x/y, moved by
+// where the bar window sits on its screen (`_barOrigin`).
 //
 // Outside-click dismissal: an overlay MouseArea catches clicks, with the
 // QsWindow.mask subtracting the bar strip so clicks on the bar still
@@ -160,7 +162,7 @@ PanelWindow {
   // Clickable region is the whole screen. Clicks in the bar strip are
   // forwarded to registered bar buttons so switching between panel icons
   // works in one click even when the overlay surface is above the bar.
-  readonly property real _barStripSize: bar ? barThickness + gap : 0
+  readonly property real _barStripSize: bar ? _barEdge + gap : 0
   mask: Region {
     width: root.screenW
     height: root.screenH
@@ -176,25 +178,26 @@ PanelWindow {
     b: anchorItem
   }
 
-  // Anchor item's position within the bar's content surface. For a
-  // full-width top bar, the content x maps directly to screen x; the y
+  // Anchor item's position on the screen: its place in the bar's content,
+  // moved by where the bar window sits. The y
   // returned here has the bar's internal padding baked in (e.g. ~13px
   // from vertical centering of the widget row), which is why `cardOrigin`
   // below uses `barThickness` for the perpendicular axis instead of this y.
   readonly property point anchorScreenPos: {
     anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
-    return anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    var p = anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    return Qt.point(p.x + _barOrigin.x, p.y + _barOrigin.y)
   }
   readonly property real anchorW: anchorItem ? anchorItem.width : 0
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barThickness + gap + margin : margin * 2))
+    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? _barEdge + gap + margin : margin * 2))
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barThickness + gap + margin : margin * 2))
+    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? _barEdge + gap + margin : margin * 2))
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -237,27 +240,41 @@ PanelWindow {
   // bar-window content coordinates in barPoint() below.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+  // This surface ignores exclusive zones and spans the screen, but the bar
+  // is laid out inside the monitor's reserved area, so anything reserved
+  // before it (the config error banner, a `reserved_area` monitor rule)
+  // moves it in from the screen edges, along the bar as well as across it.
+  readonly property var _monitor: screen ? Hyprland.monitorFor(screen) : null
+  readonly property var _barInsets: ReservedArea.barInsets(
+    _monitor && _monitor.lastIpcObject ? _monitor.lastIpcObject.reserved : null,
+    barPos, bar && !bar.barHidden ? barThickness : 0)
+  readonly property point _barOrigin: {
+    var origin = ReservedArea.barWindowOrigin(_barInsets, barPos, screenW, screenH, barW, barH)
+    return Qt.point(origin.x, origin.y)
+  }
+  // Distance from the bar's screen edge to the strip's inner edge.
+  readonly property real _barEdge: (_barInsets[barPos] || 0) + barThickness
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
       x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barThickness - drawnHeight - gap : barThickness + gap
+      y = barPos === "bottom" ? screenH - _barEdge - drawnHeight - gap : _barEdge + gap
     } else if (centerOnBar) {
-      x = barPos === "left" ? barThickness + gap : screenW - barThickness - contentWidth - gap
+      x = barPos === "left" ? _barEdge + gap : screenW - _barEdge - contentWidth - gap
       y = screenH / 2 - drawnHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barThickness - drawnHeight - gap
+      y = screenH - _barEdge - drawnHeight - gap
     } else if (barPos === "left") {
-      x = barThickness + gap
+      x = _barEdge + gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else if (barPos === "right") {
-      x = screenW - barThickness - contentWidth - gap
+      x = screenW - _barEdge - contentWidth - gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barThickness + gap
+      y = _barEdge + gap
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
     y = Math.max(margin, Math.min(y, screenH - drawnHeight - margin))
@@ -283,6 +300,10 @@ PanelWindow {
   onOpenChanged: {
     heightLive = false
     if (open) {
+      // The config error banner comes and goes, and follows the focused
+      // monitor, without a monitor event, so the cached reserved area can
+      // be stale.
+      Hyprland.refreshMonitors()
       heightSettle.restart()
       if (content) contentRequested = true
       focusPrimed = false
@@ -378,6 +399,16 @@ PanelWindow {
     onTriggered: root.popoutSwitchClosing = false
   }
 
+  // A config reload can raise or clear the error banner under an open panel.
+  Connections {
+    target: Hyprland
+    enabled: root.open
+    function onRawEvent(event) {
+      var name = event ? String(event.name) : ""
+      if (name === "configreloaded" || name === "focusedmon") Hyprland.refreshMonitors()
+    }
+  }
+
   // --- outside-click dismissal --------------------------------------------
 
   // Catches clicks anywhere in the clickable region (i.e. everywhere on
@@ -402,9 +433,7 @@ PanelWindow {
     }
 
     function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
+      return Qt.point(px - root._barOrigin.x, py - root._barOrigin.y)
     }
 
     function pressTargetAt(px, py) {
