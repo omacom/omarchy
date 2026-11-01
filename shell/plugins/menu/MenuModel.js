@@ -436,6 +436,7 @@ var GUARD_READERS = [
   "omarchy-hyprland-corners",
   "omarchy-hyprland-window-transparency",
   "omarchy-hyprland-workspace-layout-default",
+  "omarchy-keyboard-toprow",
   "omarchy-shell notifications isDnd",
   "omarchy-toggle-nightlight --status"
 ]

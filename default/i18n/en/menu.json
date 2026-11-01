@@ -447,20 +447,29 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
-  "setup.keybindings": {
+  "setup.keyboard": {
+    "label": "Keyboard"
+  },
+  "setup.keyboard.keybindings": {
     "label": "Keybindings"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Keyboard Inputs"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Input Methods"
+  },
+  "setup.keyboard.toprow": {
+    "label": "Top Row"
+  },
+  "setup.keyboard.toprow.media": {
+    "label": "Media Keys"
+  },
+  "setup.keyboard.toprow.function": {
+    "label": "Function Keys"
   },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Typing"
-  },
-  "setup.typing.keyboard": {
-    "label": "Keyboard Layouts"
-  },
-  "setup.typing.input": {
-    "label": "Input Methods"
   },
   "setup.language": {
     "label": "Language"
