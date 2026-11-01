@@ -541,7 +541,9 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
-    centerOnBar: true
+    // Anchor under the widget rather than the middle of the bar, so the
+    // popup follows wherever the widget is placed.
+    centerOnBar: false
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(480))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
@@ -713,7 +715,7 @@ Panel {
                 RotationAnimator on rotation {
                   running: root.savingLocation && !Style.reduceMotion
                   from: 0; to: 360
-                  duration: 800
+                  duration: Style.duration(800)
                   loops: Animation.Infinite
                 }
               }

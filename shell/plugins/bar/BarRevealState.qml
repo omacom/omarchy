@@ -9,7 +9,7 @@ Item {
   readonly property bool barHovered: barHoverCount > 0
   property bool centerSectionRevealHeld: false
 
-  // Open from this bar up to the end of its center box, widgets included
+  // Open from this bar up to the clock at the start of its center box
   // (BarModel.peeksAt). Revealing can slide a widget under a stationary
   // pointer, so hold until the pointer leaves that stretch of bar.
   function setBarHovered(hovered) {
