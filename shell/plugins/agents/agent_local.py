@@ -2346,12 +2346,23 @@ def _remove_files(rid):
       removed_runs += 1
   shutil.rmtree(os.path.join(data_dir(), "models", rid), ignore_errors=True)
   freed = 0
+  # A blob stays only while another recipe's files link it. A link from
+  # outside the store, like the --seed copy it was set up from, isn't a
+  # reason to keep it, though dropping it frees no space.
+  used = set()
+  for directory, _, names in os.walk(os.path.join(data_dir(), "models")):
+    for name in names:
+      info = os.stat(os.path.join(directory, name))
+      used.add((info.st_dev, info.st_ino))
   for directory, _, names in os.walk(os.path.join(data_dir(), "blobs")):
     for name in names:
       path = os.path.join(directory, name)
-      if os.stat(path).st_nlink == 1:
-        freed += os.path.getsize(path)
-        os.unlink(path)
+      info = os.stat(path)
+      if (info.st_dev, info.st_ino) in used:
+        continue
+      if info.st_nlink == 1:
+        freed += info.st_size
+      os.unlink(path)
   kept_images = set()
   for name in os.listdir(runs_dir()) if os.path.isdir(runs_dir()) else []:
     try:

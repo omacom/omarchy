@@ -298,4 +298,21 @@ write_toml(repo / "catalog.toml", {"schema": 999})
 commit("invalid schema")
 catalog, note = a.refresh_catalog(force=True)
 check("an invalid catalog never replaces the accepted one", catalog.commit == accepted and a.catalog_state()["current"] == accepted and "failed validation" in note, note)
+
+# Removing a recipe drops the blobs only it used, even one still linked from
+# the seed copy it was set up from, and keeps those another recipe links.
+store = Path(a.data_dir())
+for name in ("kept", "seeded"):
+  (store / "blobs/sha256").mkdir(parents=True, exist_ok=True)
+  (store / "blobs/sha256" / name).write_text(name)
+for rid, name in (("gone", "kept"), ("gone", "seeded"), ("other", "kept")):
+  (store / "models" / rid).mkdir(parents=True, exist_ok=True)
+  os.link(store / "blobs/sha256" / name, store / "models" / rid / name)
+seed = Path(os.environ["HOME"]) / "seed"
+seed.mkdir()
+os.link(store / "blobs/sha256/seeded", seed / "seeded")
+with patch.object(a, "write_unit_files"):
+  a._remove_files("gone")
+check("removal drops a blob only a seed copy still links", not (store / "blobs/sha256/seeded").exists() and (seed / "seeded").read_text() == "seeded")
+check("removal keeps a blob another recipe links", (store / "blobs/sha256/kept").exists())
 PY
