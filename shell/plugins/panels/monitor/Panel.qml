@@ -151,6 +151,9 @@ Panel {
   // nothing to move it against: no dragging, hover or keyboard stop, and no
   // accent marking the shown display. Right-clicking it still rotates it.
   readonly property bool layoutMovable: layoutRects.length > 1
+  // The section shows when there's something to arrange or to mirror onto,
+  // not for a lone display; r still rotates that one.
+  readonly property bool layoutShown: layoutMovable || mirrorAvailable
 
   readonly property var mirroredBy: {
     var map = {}
@@ -562,9 +565,12 @@ Panel {
 
   // r: the shown display's rotate menu, opened over the middle of the map.
   function openRotateMenuForShown() {
-    var map = panel.loadedContent ? panel.loadedContent.layoutMap : null
-    if (!current || !map || !map.visible) return
-    openRotateMenu(current.name, map, map.width / 2, map.height / 2)
+    var content = panel.loadedContent
+    if (!current || !content) return
+    var map = content.layoutMap
+    // A lone display has no map, so the menu opens near the top instead.
+    if (map && map.visible) openRotateMenu(current.name, map, map.width / 2, map.height / 2)
+    else openRotateMenu(current.name, content, content.width / 2, Style.space(60))
   }
 
   function applyRotateMenu() {
@@ -1290,14 +1296,13 @@ Panel {
           }
 
           // ---------- Layout ----------
-          // Shown for a single display too: right-clicking it is how it's rotated.
           PanelSeparator {
-            visible: root.layoutRects.length > 0
+            visible: root.layoutShown
             foreground: root.bar.foreground
           }
 
           Column {
-            visible: root.layoutRects.length > 0
+            visible: root.layoutShown
             width: parent.width
             spacing: Style.space(6)
 
