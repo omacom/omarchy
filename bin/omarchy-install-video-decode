@@ -1,21 +1,22 @@
 #!/bin/bash
 
-# omarchy:summary=Let mpv and Chromium decode video on the video chip of Snapdragon laptops
+# omarchy:summary=Let mpv and Chromium decode video on the video chip of Snapdragon laptops, and keep mpv off nouveau's decoder on older GPUs
 
 set -euo pipefail
 
 # The Snapdragon video chip is a V4L2 decoder. mpv's auto-safe list leaves V4L2
 # decoders out, and Arch Linux ARM's Chromium only turns its V4L2 decoder on
 # with ANGLE on GLES and the AcceleratedVideoDecoder feature. Other machines
-# keep both programs' defaults.
+# keep both programs' defaults, except that mpv decodes in software on nouveau
+# with a GPU older than Turing.
 
 # mpv reads this after /etc/mpv/mpv.conf. A global hwdec the user set stays as
 # it is. One inside a profile only applies with that profile, so the fallback
 # still goes in, on top, where no [profile] section can catch it.
 setup_mpv() {
   local conf=~/.config/mpv/mpv.conf
-  local comment="# Fall back to the Snapdragon video chip's decoder (Omarchy)"
-  local hwdec='hwdec=auto-safe,v4l2m2m-copy'
+  local comment=$1
+  local hwdec=$2
 
   if [[ ! -s $conf ]]; then
     mkdir -p ~/.config/mpv || return
@@ -61,12 +62,41 @@ setup_chromium() {
   omarchy-chromium-add-feature AcceleratedVideoDecoder
 }
 
+# Mesa's VA-API driver for nouveau crashes mpv instead of failing over to
+# software on GPUs older than Turing, which need video firmware nouveau can't
+# ship. Turing and newer, from device ID 0x1e00, decode through GSP firmware. A
+# GPU with the NVIDIA driver configured only runs nouveau until the next reboot.
+#
+# Read the cached sysfs IDs rather than lspci, which reads PCI config space and
+# resumes runtime-suspended GPUs.
+nouveau_without_decoder() {
+  local device driver
+
+  if [[ -f ${OMARCHY_NVIDIA_MODPROBE_CONFIG:-/etc/modprobe.d/nvidia.conf} ]]; then
+    return 1
+  fi
+
+  for device in "${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"/*; do
+    [[ -e $device/driver ]] || continue
+    [[ $(<"$device/vendor") == "0x10de" && $(<"$device/class") == 0x03* ]] || continue
+    driver=$(readlink "$device/driver")
+    [[ ${driver##*/} == "nouveau" ]] || continue
+    if (( $(<"$device/device") < 0x1e00 )); then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 if omarchy-hw-aarch64-qualcomm; then
   # A config that can't be written for one program doesn't hold back the other.
   # Running them under || turns set -e off inside, so each write returns its
   # own failure.
   status=0
-  setup_mpv || status=$?
+  setup_mpv "# Fall back to the Snapdragon video chip's decoder (Omarchy)" 'hwdec=auto-safe,v4l2m2m-copy' || status=$?
   setup_chromium || status=$?
   exit "$status"
+elif nouveau_without_decoder; then
+  setup_mpv "# nouveau's hardware decoder crashes mpv, so decode in software (Omarchy)" 'hwdec=no'
 fi
