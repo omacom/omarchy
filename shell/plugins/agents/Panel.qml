@@ -1747,24 +1747,26 @@ Panel {
         font.bold: true
       }
 
-      UsageNote {
+      // The plan reads as part of the name: Claude Code Max 20x.
+      Text {
+        id: sectionPlan
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.verticalCenter: sectionName.verticalCenter
-        visible: !section.multi && message !== ""
-        record: section.provider
-      }
-
-      Text {
-        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: sectionLaunch.visible ? Style.space(10) : 0
-        anchors.verticalCenter: parent.verticalCenter
-        visible: !section.multi
+        visible: !section.multi && text !== ""
         textFormat: Text.PlainText
         text: root.planLabel(section.provider)
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
+      }
+
+      UsageNote {
+        anchors.left: sectionPlan.visible ? sectionPlan.right : sectionName.right
+        anchors.leftMargin: Style.space(8)
+        anchors.verticalCenter: sectionName.verticalCenter
+        visible: !section.multi && message !== ""
+        record: section.provider
       }
 
       // Opens the coding agent made for this subscription: Codex for OpenAI,
