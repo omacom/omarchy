@@ -559,6 +559,15 @@ HOME="$PI_TMPDIR" CLAUDE_CONFIG_DIR="$CLAUDE_TEST_CONFIG" "$ROOT/bin/omarchy-the
 jq -e '.theme == "custom:omarchy" and .model == "keep-me"' "$CLAUDE_TEST_CONFIG/settings.json" >/dev/null
 pass "claude theme activation preserves configured settings"
 
+echo '{"model":"keep-me","theme":"dark"}' >"$PI_TMPDIR/dotfiles-settings.json"
+chmod 0644 "$PI_TMPDIR/dotfiles-settings.json"
+ln -sf "$PI_TMPDIR/dotfiles-settings.json" "$CLAUDE_TEST_CONFIG/settings.json"
+HOME="$PI_TMPDIR" CLAUDE_CONFIG_DIR="$CLAUDE_TEST_CONFIG" "$ROOT/bin/omarchy-theme-set-claude" --activate
+[[ -L $CLAUDE_TEST_CONFIG/settings.json ]] || fail "claude theme activation keeps a symlinked settings file linked"
+jq -e '.theme == "custom:omarchy" and .model == "keep-me"' "$PI_TMPDIR/dotfiles-settings.json" >/dev/null || fail "claude theme activation writes through a symlinked settings file"
+[[ $(stat -c %a "$PI_TMPDIR/dotfiles-settings.json") == "644" ]] || fail "claude theme activation keeps the settings file mode"
+pass "claude theme activation writes through a symlinked settings file"
+
 make_tmpdir THEME_TMPDIR
 OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$THEME_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
