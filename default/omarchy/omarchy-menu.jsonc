@@ -194,6 +194,7 @@
   "setup.network.qr": {"icon":"󰐲","label":"QR Code","aliases":["wifi-qr"],"when":"omarchy-network-wifi-connected","action":"omarchy-shell shell summon omarchy.wifiqr"},
   "setup.default": {"icon":"","label":"Defaults","aliases":["default","defaults"]},
   "setup.default.agent": {"icon":"󰚩","label":"Agent","title":"Default Agent"},
+  "setup.default.agent.afk": {"icon":"","iconFont":"omarchy","label":"AFK","checked":"[[ \"$(omarchy-default-agent)\" == \"afk\" ]]","action":"omarchy-default-agent afk"},
   "setup.default.agent.amp": {"icon":"","iconFont":"omarchy","label":"Amp","checked":"[[ \"$(omarchy-default-agent)\" == \"amp\" ]]","action":"omarchy-default-agent amp"},
   "setup.default.agent.agy": {"icon":"","iconFont":"omarchy","label":"Antigravity","checked":"[[ \"$(omarchy-default-agent)\" == \"agy\" ]]","action":"omarchy-default-agent agy"},
   "setup.default.agent.claude": {"icon":"","iconFont":"omarchy","label":"Claude","checked":"[[ \"$(omarchy-default-agent)\" == \"claude\" ]]","action":"omarchy-default-agent claude"},
