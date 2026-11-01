@@ -13,6 +13,6 @@ echo "Stop mise from globally managing Python now that the dev-env installer use
 # pin is enough to stop `python`/`pip` from resolving to mise outside such a
 # project, and gating on the pin itself (rather than on an installed version
 # existing on disk) leaves a project-only mise Python alone.
-mise config get tools.python -g >/dev/null 2>&1 || exit 0
-
-mise rm -g --no-prune python
+if mise config get tools.python -g >/dev/null 2>&1; then
+  mise rm -g --no-prune python
+fi
