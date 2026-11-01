@@ -93,9 +93,8 @@ gather() {
   [[ -n $mem_text ]] || mem_text="-"
 
   disk_used=0 disk_total=0 disk_text="-"
-  read -r disk_used disk_total disk_text < <(guarded 3 df -hP --output=used,size,avail / |
-    awk 'NR == 2 { printf "%s %s %s free", $1, $2, $3 }' |
-    awk '{ print $1, $2, $3, $4 }')
+  read -r disk_used disk_total disk_text < <(guarded 3 df -h --output=used,size,avail / |
+    awk 'NR == 2 { print $1, $2, $3, "free" }')
   [[ -n $disk_text ]] || disk_text="-"
   read -r disk_pct < <(guarded 3 df -P / | awk 'NR == 2 { gsub(/%/, "", $5); print $5 }')
   [[ -n ${disk_pct:-} ]] || disk_pct=0
