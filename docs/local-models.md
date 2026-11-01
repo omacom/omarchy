@@ -10,7 +10,7 @@ Local models run open models on the machine for the coding agents. The work happ
 | `shell/plugins/agents/Main.qml` | Watches the engine's `status.json` (`localModel`) and `list.json` (`localRecipes`, null until the package has listed recipes) |
 | `shell/plugins/agents/Panel.qml` | Model lines (play/pause, terminal, memory meter, loading, stopping and removing bars, errors, Delete to remove) and Add another › Local AI. Before the package is set up, Local AI opens a terminal running `omarchy-agent-local use best` |
 | `bin/omarchy-agent` | `--local` and `--local-model <recipe>` ask `omarchy-agent-local overlay` for the agent's launch overlay |
-| `bin/omarchy-update` | Runs `omarchy-agent-local refresh --quiet` when the package is installed, so the panel's listing follows a package upgrade |
+| `shell/plugins/agents/Panel.qml` (Add another) | Runs `omarchy-agent-local refresh --quiet` when the add view opens, so Local AI lists what an upgraded package brought |
 | `manual/17-ai.md` | The user-facing guide |
 
 ## The contract with the package

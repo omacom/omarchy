@@ -118,13 +118,6 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   mise_updated=1
   omarchy-update-mise || mise_updated=0
 
-  # The upgrade may have brought the omarchy-local-ai package new recipes;
-  # refreshing rewrites what the agents panel lists and recommends. It never
-  # fails the update.
-  if omarchy-cmd-present omarchy-local-ai; then
-    omarchy-agent-local refresh --quiet || echo -e "\e[33mThe local model listing could not be refreshed.\e[0m" >&2
-  fi
-
   # AUR packages build against the upgraded system, so they go after it, and
   # share the update's one authorization like every step before them.
   omarchy-update-aur-pkgs

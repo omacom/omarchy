@@ -446,6 +446,9 @@ Panel {
     addStage = "pick"
     addChecks = ({})
     if (!checkProcess.running) checkProcess.running = true
+    // A package upgrade may have brought new recipes; the listing Local AI
+    // offers from is rewritten here, where it's about to be read.
+    if (localSetUp) Util.execArgv(["omarchy-agent-local", "refresh", "--quiet"])
   }
 
   function chooseAddProvider(id) {
