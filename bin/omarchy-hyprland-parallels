@@ -38,11 +38,39 @@ reset_start_limits() {
     omarchy-parallels-helper@prlshprof.service 2>/dev/null || true
 }
 
+autostart_matches_original() {
+  if [[ -L $state/original-autostart ]]; then
+    [[ -L $autostart && $(readlink "$autostart") == "$(readlink "$state/original-autostart")" ]]
+  elif [[ -e $state/original-autostart ]]; then
+    [[ ! -L $autostart ]] && cmp -s "$autostart" "$state/original-autostart"
+  else
+    [[ ! -e $autostart && ! -L $autostart ]]
+  fi
+}
+
+autostart_was_changed() {
+  [[ -e $autostart || -L $autostart ]] &&
+    ! cmp -s "$autostart" "$state/managed-autostart" &&
+    ! { [[ -f $state/install-pending ]] && autostart_matches_original; }
+}
+
+rollback_initial_installation() {
+  # No service has been touched yet. An unchanged original needs no restore;
+  # an external edit must keep both its bytes and the saved original available.
+  if ! autostart_matches_original; then
+    echo "The Parallels autostart changed during installation; leaving it and its backup in $state." >&2
+    return 1
+  fi
+  rm -f -- "$state/original-autostart" "$state/managed-autostart" \
+    "$state/stock-agent-active" "$state/saved" "$state/install-pending" || return 1
+  rmdir -- "$state"
+}
+
 disable_compatibility() {
   local failed=0
   systemctl --user disable --now omarchy-parallels.service || failed=1
   if [[ -d $state ]]; then
-    if [[ -e $autostart || -L $autostart ]] && ! cmp -s "$autostart" "$state/managed-autostart"; then
+    if autostart_was_changed; then
       echo "The Parallels autostart override was changed; leaving it and its backup in $state." >&2
       return 1
     fi
@@ -65,7 +93,7 @@ disable_compatibility() {
   if [[ -f $state/stock-agent-active && -n ${WAYLAND_DISPLAY:-} ]]; then
     systemctl --user start app-prlcc@autostart.service || return 1
   fi
-  rm -f -- "$state/stock-agent-active" "$state/saved" "$state/managed-autostart"
+  rm -f -- "$state/stock-agent-active" "$state/saved" "$state/managed-autostart" "$state/install-pending"
   [[ ! -d $state ]] || rmdir -- "$state"
   return "$failed"
 }
@@ -118,12 +146,13 @@ case $action in
         exit 1
       fi
     done
-    if [[ -d $state && ( -e $autostart || -L $autostart ) ]] && ! cmp -s "$autostart" "$state/managed-autostart"; then
+    if [[ -d $state ]] && autostart_was_changed; then
       echo "The Parallels autostart override was changed; restore it or disable the integration first." >&2
       exit 1
     fi
 
     mkdir -p "$config_home/autostart" "$config_home/systemd/user" "$state_home/omarchy"
+    created_state=0
     if [[ ! -d $state ]]; then
       backup=$(mktemp -d "$state_home/omarchy/.parallels.XXXXXX")
       if [[ -e $autostart || -L $autostart ]]; then
@@ -135,13 +164,25 @@ case $action in
         : >"$backup/stock-agent-active"
       fi
       : >"$backup/saved"
+      : >"$backup/install-pending"
       mv -T "$backup" "$state"
+      created_state=1
     fi
 
     # A file rename also handles a pre-existing symlink without editing its target.
-    temporary=$(mktemp "$config_home/autostart/.prlcc.XXXXXX")
-    install -m 0644 "$state/managed-autostart" "$temporary"
-    mv -fT "$temporary" "$autostart"
+    temporary=""
+    if temporary=$(mktemp "$config_home/autostart/.prlcc.XXXXXX") &&
+      install -m 0644 "$state/managed-autostart" "$temporary" &&
+      mv -fT "$temporary" "$autostart" && rm -f -- "$state/install-pending"; then
+      :
+    else
+      [[ -z $temporary ]] || rm -f -- "$temporary" || true
+      if (( created_state )); then
+        rollback_initial_installation || true
+      fi
+      echo "Could not install the Parallels autostart override." >&2
+      exit 1
+    fi
     if stop_stock_agent && systemctl --user daemon-reload &&
       systemctl --user link "${units[@]/#/$OMARCHY_PATH/default/systemd/user/}" &&
       reset_start_limits &&

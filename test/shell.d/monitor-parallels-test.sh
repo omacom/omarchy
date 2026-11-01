@@ -258,11 +258,27 @@ cat >"$stub_bin/omarchy-cmd-present" <<'SH'
 SH
 cat >"$stub_bin/install" <<'SH'
 #!/bin/bash
+if [[ ${TEST_FILE_FAILURE:-} == "install" ]]; then
+  if [[ ${TEST_EDIT_DURING_FAILURE:-0} == "1" ]]; then
+    printf '[Desktop Entry]\nExec=my-edited-agent\n' >"$XDG_CONFIG_HOME/autostart/prlcc.desktop"
+  fi
+  exit 1
+fi
 if [[ -n ${TEST_INSTALL_GATE:-} ]]; then
   : >"$TEST_INSTALL_GATE/entered"
   IFS= read -r release <"$TEST_INSTALL_GATE/release"
 fi
 exec /usr/bin/install "$@"
+SH
+cat >"$stub_bin/mktemp" <<'SH'
+#!/bin/bash
+if [[ ${TEST_FILE_FAILURE:-} == "mktemp" && $* == *"/autostart/.prlcc."* ]]; then exit 1; fi
+exec /usr/bin/mktemp "$@"
+SH
+cat >"$stub_bin/mv" <<'SH'
+#!/bin/bash
+if [[ ${TEST_FILE_FAILURE:-} == "mv" && ${!#} == "$XDG_CONFIG_HOME/autostart/prlcc.desktop" ]]; then exit 1; fi
+exec /usr/bin/mv "$@"
 SH
 cat >"$stub_bin/flock" <<'SH'
 #!/bin/bash
@@ -374,6 +390,48 @@ for stage in link enable inactive; do
   [[ -f $fixture_state/stock ]] || fail "failed $stage restarts the original agent"
 done
 pass "activation failures roll back even when the new service cannot be disabled"
+
+for operation in mktemp install mv; do
+  for original in present absent symlink dangling; do
+    reset_fixture
+    case $original in
+      absent) rm "$fixture_home/config/autostart/prlcc.desktop" ;;
+      symlink | dangling)
+        rm "$fixture_home/config/autostart/prlcc.desktop"
+        target="$test_tmp/original-$original"
+        [[ $original == "dangling" ]] || cp "$test_tmp/original.desktop" "$target"
+        ln -s "$target" "$fixture_home/config/autostart/prlcc.desktop"
+        ;;
+    esac
+    if TEST_FILE_FAILURE="$operation" run_setup on >"$test_tmp/file-failure.log" 2>&1; then
+      fail "initial $operation failure is reported"
+    fi
+    [[ ! -d $fixture_home/state/omarchy/parallels ]] || fail "initial $operation failure retires unfinished activation state"
+    [[ -f $fixture_state/stock && ! -f $fixture_state/feature ]] || fail "file failure leaves services unchanged"
+    run_setup on
+    run_setup off
+    if [[ $original == "absent" ]]; then
+      [[ ! -e $fixture_home/config/autostart/prlcc.desktop ]] || fail "retry keeps original absence"
+    elif [[ $original == "present" ]]; then
+      cmp -s "$test_tmp/original.desktop" "$fixture_home/config/autostart/prlcc.desktop" || fail "retry preserves original bytes"
+    else
+      [[ -L $fixture_home/config/autostart/prlcc.desktop && $(readlink "$fixture_home/config/autostart/prlcc.desktop") == "$target" ]] || fail "retry preserves original symlink"
+    fi
+  done
+done
+pass "initial mktemp, install and rename failures preserve originals and allow retry"
+
+reset_fixture
+if TEST_FILE_FAILURE=install TEST_EDIT_DURING_FAILURE=1 run_setup on >"$test_tmp/edited-failure.log" 2>&1; then
+  fail "failed installation with an external edit is reported"
+fi
+cp "$fixture_home/config/autostart/prlcc.desktop" "$test_tmp/edited-failure.desktop"
+for action in on off; do
+  if run_setup "$action" >"$test_tmp/edited-failure-$action.log" 2>&1; then fail "external edit blocks $action"; fi
+done
+cmp -s "$test_tmp/edited-failure.desktop" "$fixture_home/config/autostart/prlcc.desktop" || fail "external edit survives failed setup"
+cmp -s "$test_tmp/original.desktop" "$fixture_home/state/omarchy/parallels/original-autostart" || fail "external edit keeps the original backup"
+pass "an edit made during failed installation preserves the edited file and original backup"
 
 reset_fixture
 mkdir -p "$fixture_home/config/systemd/user"
