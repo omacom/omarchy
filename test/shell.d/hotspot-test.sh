@@ -333,6 +333,7 @@ extract_hotspot_function() {
 extract_hotspot_function profile_shared_address
 extract_hotspot_function shared_base
 extract_hotspot_function profile_max_clients
+extract_hotspot_function shared_gateway_host
 extract_hotspot_function dhcp_range_for
 cat >"$TEST_TMP/limit-drivers.sh" <<'DRIVER'
 PROFILE=omarchy-hotspot
@@ -345,6 +346,7 @@ nm_get() { printf '%s\n' "${PROPERTY_VALUES[$1]:-}"; }
 source "$TEST_TMP/profile_shared_address.sh"
 source "$TEST_TMP/shared_base.sh"
 source "$TEST_TMP/profile_max_clients.sh"
+source "$TEST_TMP/shared_gateway_host.sh"
 source "$TEST_TMP/dhcp_range_for.sh"
 [[ $(shared_base) == "10.42.0" ]] || fail "shared_base keeps the profile subnet"
 [[ $(dhcp_range_for 4) == "10.42.0.2,10.42.0.5" ]] || fail "a four-device limit hands out four leases"
@@ -365,6 +367,16 @@ PROPERTY_VALUES[ipv4.shared-dhcp-range]="nonsense"
 [[ -z $(profile_max_clients) ]] || fail "an unparseable range reads back as unlimited"
 PROPERTY_VALUES[ipv4.shared-dhcp-range]=""
 [[ -z $(profile_max_clients) ]] || fail "an absent range reads back as unlimited"
+
+# A kept address that is not .1 never ends up inside its own lease range.
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.2/24"
+[[ $(dhcp_range_for 1) == "10.42.0.3,10.42.0.3" ]] || fail "leases follow a .2 gateway rather than include it"
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.254/24"
+[[ $(dhcp_range_for 4) == "10.42.0.250,10.42.0.253" ]] || fail "leases sit below a gateway at the top of the subnet"
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.100/24"
+if (dhcp_range_for 200) >/dev/null 2>&1; then
+  fail "a limit that cannot fit beside the gateway is refused"
+fi
 
 PROPERTY_VALUES[ipv4.addresses]="10.42.0.1/16"
 if (shared_base) >/dev/null 2>&1; then
