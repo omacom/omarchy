@@ -1,4 +1,4 @@
-# Dedicated Herdr profile for the Omarchy scratchpad agent.
+# Dedicated Herdr profile for the Omarchy qconsole agent.
 onboarding = false
 
 [theme]
@@ -6,7 +6,7 @@ name = "terminal"
 
 [terminal]
 new_cwd = "follow"
-default_shell = "omarchy-scratchpad-agent"
+default_shell = "omarchy-qconsole-agent"
 shell_mode = "non_login"
 
 [keys]
