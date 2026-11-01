@@ -20,7 +20,9 @@ if pgrep -x "1password" >/dev/null && omarchy-cmd-present 1password; then
 fi
 
 # Avoid running screensaver when locked
-pkill -x ttfx 2>/dev/null || true
-# ttfx handles SIGTERM asynchronously, so keep its terminal alive until it exits.
-timeout 1s pidwait -x ttfx 2>/dev/null || true
-pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null || true
+screensaver='[/]usr/lib/omarchy-screensaver/omarchy-screensaver'
+if pkill -f "$screensaver" 2>/dev/null; then
+  timeout 1s pidwait -f "$screensaver" 2>/dev/null || pkill -KILL -f "$screensaver" 2>/dev/null || true
+  # It hid the cursor, and a killed or failed exit leaves it hidden.
+  hyprctl eval 'hl.config({ cursor = { invisible = false } })' >/dev/null 2>&1 || hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
+fi

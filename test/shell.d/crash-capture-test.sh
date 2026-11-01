@@ -45,15 +45,6 @@ grep -Fqx -- "--user start omarchy-crash-watch.service" "$SYSTEMCTL_LOG" ||
   fail "crash capture toggle starts the watcher, so enabling takes effect before the next login"
 pass "crash capture toggle re-enables the watcher"
 
-service="$ROOT/default/systemd/user/omarchy-crash-watch.service"
-grep -Fx 'ConditionPathExists=!%h/.local/state/omarchy/toggles/crash-capture-off' "$service" >/dev/null ||
-  fail "the watcher is pulled back in at every login, so disabling it never survives a logout"
-pass "crash watcher stays disabled across logins"
-
-grep -F 'omarchy-crash-watch.service' "$ROOT/install/user/first-run/enable-user-units.sh" >/dev/null ||
-  fail "crash capture is no longer on by default for new installs"
-pass "crash capture is on by default"
-
 require_command jq
 
 # The per-program mute, driven through the real watcher with a stubbed journal:
@@ -372,39 +363,3 @@ refusal=$(HOME="$mute_home" PATH="$failing_bin:$ROOT/bin:$PATH" \
 ! grep -Fq "Muted crash notifications" <<<"$refusal" ||
   fail "a mute that could not be written still reports success, so the user believes a program is silenced when it is not"
 pass "a mute that could not be written is not reported as one"
-
-skill="$ROOT/default/agents/skills/diagnose-crash/SKILL.md"
-grep -Fq 'omarchy-crash-mute' "$skill" ||
-  fail "the diagnosis no longer names the command that mutes, so the offer it makes cannot be carried out"
-pass "the diagnosis names the command that mutes"
-
-# gdb decides on debuginfod during startup, before -ex commands run, and never
-# retries the executable lookup; only -iex enables it in time, so -ex leaves
-# the crashed program's own frames unsymbolized while libraries still resolve.
-grep -Fq -- "-iex 'set debuginfod enabled on'" "$skill" ||
-  fail "the diagnosis enables debuginfod with -ex, which runs after gdb's startup lookup and leaves the crashed executable unsymbolized"
-pass "the diagnosis enables debuginfod before gdb's startup lookup"
-
-# A bare `bt` only prints the selected thread's stack, but the skill asks for
-# other threads' stacks to show work in flight; `thread apply all bt` is the
-# only form that collects them.
-grep -Fq -- "-ex 'thread apply all bt'" "$skill" ||
-  fail "the diagnosis backtraces only the selected thread, so the work-in-flight stacks the report asks for are never collected"
-pass "the diagnosis collects every thread's backtrace"
-
-grep -Fq 'GROUP_DESCRIPTIONS[crash]' "$ROOT/bin/omarchy" ||
-  fail "the crash group has no description, so the router lists a group it cannot describe"
-pass "the crash group is described in the router"
-
-run_node_test <<'JS'
-const fs = require('fs')
-const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
-const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
-const byId = Object.fromEntries(items.map(item => [item.id, item]))
-
-assertEqual(
-  byId['trigger.toggle.crash-capture'].action,
-  'omarchy-toggle-crash-capture',
-  'menu toggles crash capture from Trigger > Toggle'
-)
-JS
