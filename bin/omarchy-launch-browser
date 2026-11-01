@@ -87,26 +87,49 @@ if ! desktop_exec_argv "$default_browser"; then
   exit 1
 fi
 
-browser_exec=""
-skip_value=0
-for token in "${desktop_exec_argv[@]}"; do
-  if (( skip_value )); then
-    skip_value=0
-  elif [[ $token == -u || $token == --unset || $token == -C || $token == --chdir ]]; then
-    skip_value=1
-  elif [[ $token != env && $token != */env && $token != *=* && $token != -* && $token != run && $token != flatpak && $token != */flatpak ]]; then
+# The browser is what an env or flatpak wrapper runs, including inside an
+# env -S string; a Flatpak's is its app id, which is no command on the host.
+browser_exec="" flatpak_app=""
+tokens=("${desktop_exec_argv[@]}")
+for (( i = 0; i < ${#tokens[@]}; i++ )); do
+  token=${tokens[i]}
+  case $token in
+  -u | --unset | -C | --chdir) (( i++ )) ;;
+  -S | --split-string | -S?* | --split-string=*)
+    if [[ $token == "-S" || $token == "--split-string" ]]; then
+      split_value=${tokens[i + 1]}
+      rest=("${tokens[@]:i+2}")
+    else
+      split_value=${token#--split-string=}
+      split_value=${split_value#-S}
+      rest=("${tokens[@]:i+1}")
+    fi
+    read -ra split <<<"$split_value"
+    tokens=("${tokens[@]:0:i}" "${split[@]}" "${rest[@]}")
+    (( i-- ))
+    ;;
+  env | */env | flatpak | */flatpak | run | -* | *=*) ;;
+  *)
     browser_exec=$token
+    [[ ${tokens[0]##*/} == "flatpak" ]] && flatpak_app=$token
     break
-  fi
+    ;;
+  esac
 done
 [[ -n $browser_exec ]] || browser_exec=${desktop_exec_argv[0]}
 
 # Only a private launch needs the browser's flag, and probing a Firefox-family
 # browser's --help starts the whole binary, so ordinary launches skip it and
-# leave their arguments as they are.
+# leave their arguments as they are. A Flatpak is named by its app id instead.
 private_flag="--private"
 if [[ " $* " == *" --private "* ]]; then
-  if "$browser_exec" --help 2>/dev/null | grep -q MOZ_LOG; then
+  if [[ -n $flatpak_app ]]; then
+    case ${flatpak_app,,} in
+    org.mozilla.firefox | io.gitlab.librewolf-community | app.zen_browser.zen | net.waterfox.waterfox | one.ablaze.floorp) private_flag="--private-window" ;;
+    com.microsoft.edge) private_flag="--inprivate" ;;
+    *) private_flag="--incognito" ;;
+    esac
+  elif "$browser_exec" --help 2>/dev/null | grep -q MOZ_LOG; then
     private_flag="--private-window"
   elif [[ $browser_exec =~ edge ]]; then
     private_flag="--inprivate"
