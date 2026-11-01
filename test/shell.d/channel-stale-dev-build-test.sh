@@ -12,9 +12,9 @@ export OMARCHY_UPDATE_LOGGED=1
 
 # Leaving edge for stable or rc swaps omarchy-dev and omarchy-settings-dev for
 # omarchy and omarchy-settings. Stable's repository listed an omarchy-dev from
-# August (4.0.0.r1832) until October 2026, which predates command-scoped sudo,
-# and the refresh before the swap is a downgrade-capable upgrade. Every
-# privileged step is a stand-in; pacman is a model of that repository.
+# August (4.0.0.r1832) until October 2026, and the refresh before the swap is
+# a downgrade-capable upgrade. Every privileged step is a stand-in; pacman is a
+# model of that repository.
 python3 - "$SUDO_TEST_ROOT/bin/omarchy-channel-set" "$SUDO_TEST_ROOT" <<'PY'
 import sys
 from pathlib import Path
@@ -42,8 +42,6 @@ cat >"$SUDO_TEST_ROOT/bin/pacman" <<'STUB'
 set -euo pipefail
 printf 'step:pacman %s\n' "$*" >>"$SUDO_TEST_LOG"
 installed=$SUDO_TEST_INSTALLED_FILE
-# Only an installed package tree carries the wrapper; a linked checkout keeps its own.
-wrapper=$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo
 case "$1" in
   -Q) cat "$installed" ;;
   -Syyuu)
@@ -51,29 +49,25 @@ case "$1" in
     if grep -q '^omarchy-dev 4.0.0.r7052' "$installed" && [[ " $* " != *" --ignore omarchy-dev,omarchy-settings-dev "* ]]; then
       printf 'omarchy-dev 4.0.0.r1832.g23dab9e-1\nomarchy-settings-dev 4.0.0.r1832.g23dab9e-1\n' >"$installed"
       printf 'model:downgraded omarchy-dev to 4.0.0.r1832\n' >>"$SUDO_TEST_LOG"
-      rm -f "$wrapper"
     fi
     ;;
   -S)
-    # The swap: the release replaces the -dev pair, and it predates the wrapper too.
+    # The swap: the release replaces the -dev pair.
     if [[ ${*: -2} == "omarchy omarchy-settings" ]]; then
       printf 'omarchy 4.0.5-1\nomarchy-settings 4.0.5-1\n' >"$installed"
-      rm -f "$wrapper"
     fi
     ;;
 esac
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/pacman"
 
-cp "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo" "$boundary_tmp/saved-package-wrapper"
 checkout="$SUDO_TEST_HOME/omarchy"
-cp -a "$SUDO_TEST_ROOT" "$checkout"
+/usr/bin/cp -a "$SUDO_TEST_ROOT" "$checkout"
 mkdir -p "$checkout/.git" "$checkout/shell"
 
 for source in edge dev; do
   for channel in stable rc; do
     reset_boundary
-    cp "$boundary_tmp/saved-package-wrapper" "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo"
     printf 'omarchy-dev 4.0.0.r7052.ga6dcc31-1\nomarchy-settings-dev 4.0.0.r7052.ga6dcc31-1\n' >"$SUDO_TEST_INSTALLED_FILE"
     root=$SUDO_TEST_ROOT
     [[ $source != "dev" ]] || root=$checkout
@@ -86,14 +80,14 @@ for source in edge dev; do
     fi
     grep -Fxq 'step:pacman -S --needed --noconfirm --ask 4 omarchy omarchy-settings' "$SUDO_TEST_LOG" ||
       fail "$source to $channel: the switch installs omarchy and omarchy-settings" "$(<"$SUDO_TEST_LOG")$(<"$boundary_tmp/output")"
+    # The swap calls pacman itself, so a release without this tree's helpers can't strand it.
+    grep -Fxq 'sudo env OMARCHY_UPDATE_PACMAN=1 pacman -S --needed --noconfirm --ask 4 omarchy omarchy-settings' "$SUDO_TEST_LOG" ||
+      fail "$source to $channel: the swap runs pacman as root directly" "$(<"$SUDO_TEST_LOG")"
     [[ $(<"$SUDO_TEST_INSTALLED_FILE") == $'omarchy 4.0.5-1\nomarchy-settings 4.0.5-1' ]] ||
       fail "$source to $channel: the machine ends on the release" "$(<"$SUDO_TEST_INSTALLED_FILE")"
-    (( status == 3 )) || fail "$source to $channel: the switch stops for the release's own update (exit $status)" "$(<"$boundary_tmp/output")"
-    grep -Fq "Packages are switched to omarchy 4.0.5-1, omarchy-settings 4.0.5-1." "$boundary_tmp/output" ||
-      fail "$source to $channel: the stop names the release it installed" "$(<"$boundary_tmp/output")"
-    grep -Fq "Run 'omarchy update' from a new terminal to finish" "$boundary_tmp/output" ||
-      fail "$source to $channel: the stop says how to finish" "$(<"$boundary_tmp/output")"
-    assert_boundary_cold "$source to $channel"
+    (( status == 0 )) || fail "$source to $channel: the switch completes (exit $status)" "$(<"$boundary_tmp/output")"
+    grep -q '^step:omarchy-hook post-update$' "$SUDO_TEST_LOG" ||
+      fail "$source to $channel: the switch finishes with the release's update" "$(<"$SUDO_TEST_LOG")"
     pass "$source to $channel leaves omarchy-dev to the swap when the repository lists an older build, and ends on the release"
   done
 done

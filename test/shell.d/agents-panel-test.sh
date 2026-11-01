@@ -8,20 +8,37 @@ run_node_test <<'JS'
 const fs = require('fs')
 const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 
-const signInFunctions = ['supportsSignIn', 'needsSignIn', 'otherTrouble'].map(name => {
+const signInFunctions = ['supportsSignIn', 'needsSignIn', 'usageNote'].map(name => {
   const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
   return match ? match[0] : ''
 }).join('\n')
-const signIn = new Function('addProviders', signInFunctions + '\nreturn {needsSignIn, otherTrouble}')(
-  [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}]
+const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, usageNote}')(
+  [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}], text => text, status => status
 )
-for (const id of ['claude', 'codex', 'grok'])
+for (const id of ['claude', 'codex', 'grok']) {
   assert(signIn.needsSignIn({providerId: id, usageStatusText: 'Sign-in expired'}), id + ' keeps its sign-in link')
+  assertEqual(signIn.usageNote({providerId: id, usageStatusText: 'Sign-in expired'}), '', id + ' offers its sign-in link instead of a note')
+}
 assert(signIn.needsSignIn({usageStatusText: 'Sign-in expired'}), 'account rows keep their sign-in link')
 for (const status of ['Sign-in expired', 'Waiting for auth']) {
   assert(!signIn.needsSignIn({providerId: 'agy', usageStatusText: status}), 'an agent the panel cannot sign in gets no link for ' + status)
-  assert(signIn.otherTrouble({providerId: 'agy', usageStatusText: status}) === status, 'an agent the panel cannot sign in still shows ' + status)
+  assertEqual(signIn.usageNote({providerId: 'agy', usageStatusText: status}), status, 'an agent the panel cannot sign in still notes ' + status)
 }
+assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: 'Limits paused', authHelpText: 'Start Grok to refresh it.'}),
+  'Start Grok to refresh it.', 'paused limits stay on show with a note saying how to refresh them')
+assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: ''}), '', 'current limits carry no note')
+assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsStale: true, authHelpText: "Couldn't reach Grok's usage endpoint."}),
+  "Couldn't reach Grok's usage endpoint.", 'a failed refresh that kept its limits still says why')
+assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
+  'Endpoint returned 500.', 'an account whose refresh failed still says why')
+
+// Local history alone feeds the summary; a section needs a subscription to show.
+const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const subscribed = new Function(mainSource.match(/function providerHasSubscription\([^]*?\n  \}/)[0] + '\nreturn providerHasSubscription')()
+const historyOnly = { limits: [], accounts: [], balance: null, tierLabel: '', totalPrompts: 1 }
+assertEqual(subscribed(historyOnly), false, 'an agent with only local history gets no section')
+assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a plan earns a section before its limits arrive')
+assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
 
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.
@@ -43,14 +60,6 @@ const start = source.indexOf('function windowIsLong')
 const end = source.indexOf('// The window that decides')
 assert(start > 0 && end > start, 'agents panel exposes its limit-window helpers')
 eval(source.slice(start, end).replaceAll('root.nowMs', 'panelRoot.nowMs'))
-eval(source.slice(source.indexOf('function needsSignIn'), source.indexOf('// Sign an account')))
-
-const paused = { usageStatusText: 'Limits paused', limits: [] }
-assertEqual(pausedWithoutLimits(paused), true, 'paused usage without a cache shows a recovery placeholder')
-assertEqual(otherTrouble(paused), '', 'paused usage never puts the confusing status in the header')
-assertEqual(pausedWithoutLimits({ ...paused, limits: [{ label: 'Session (5-hour)', percent: 0, resetsAt: '' }] }), false, 'cached usage replaces the recovery placeholder')
-assertEqual(pausedWithoutLimits({ usageStatusText: 'Sign-in expired', limits: [] }), false, 'expired sign-ins retain their sign-in action')
-assertEqual(pausedWithoutLimits(null), false, 'missing records do not show a paused-usage placeholder')
 
 assertDeepEqual(
   limitWindows({ limits: [

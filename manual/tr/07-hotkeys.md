@@ -1,23 +1,23 @@
 # Kısayol Tuşları
 
-Tüm ana klavye bağlantılarını `Super + K` ile görebilirsiniz (Tmux bağlantıları `Super + Alt + K` ile ve Herdr bağlantıları `Super + Ctrl + K` ile).
+Tüm ana klavye bağlamalarını `Super + K` ile görebilirsiniz (Tmux bağlamaları `Super + Alt + K` ile ve Herdr bağlamaları `Super + Ctrl + K` ile).
 
 ## Gezinme
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy menüsü (uygulamalar ve diğer her şey)    |
 | `Super + Alt + Space` | Uygulama ızgarası |
-| `Super + Escape` | Sistem menüsü (askıya al, yeniden başlat vb.)  |
+| `Super + Escape` | Sistem menüsü (askıya al, yeniden başlat, vb.)  |
 | `Super + Ctrl + L` | Bilgisayarı kilitle |
-| `Super + W` or `Super + Q` | Pencereyi kapat             |
+| `Super + W` veya `Super + Q` | Pencereyi kapat             |
 | `Ctrl + Alt + Del` | Tüm pencereleri kapat |
-| `Super + T`               | Pencereyi döşeme/yüzer arasında değiştir             |
+| `Super + T`               | Pencereyi döşeme/yüzen arasında değiştir             |
 | `Super + J` | Pencere konumunu değiştir (yatay/dikey) |
-| `Super + O`               | Pencereyi sticky'n'floating moduna alıp çıkar |
-| `Super + L`               | dwindle, scrolling ve floating düzenleri arasında geçiş yap |
+| `Super + O`               | Pencereyi yapışkan ve yüzen moda geçirmeyi aç/kapat |
+| `Super + L`               | Dwindle, kaydırma ve yüzen düzenler arasında geçiş yap |
 | `Super + Alt + L`         | Düzenler arasında ters yönde geçiş yap |
-| `Super + P`               | Sözde pencere stilini değiştir (natural v stretch) |
+| `Super + P`               | Sözde pencere stilini aç/kapat (doğal ve esnetilmiş) |
 | `Super + F`                 | Tam ekrana geç              |
 | `Super + Alt + F`                 | Tam genişliğe geç              |
 | `Super + Ctrl + F`                 | Pencere içinde tam ekrana geç              |
@@ -26,46 +26,48 @@ Tüm ana klavye bağlantılarını `Super + K` ile görebilirsiniz (Tmux bağlan
 | `Super + Shift + Tab` | Odaklanılan monitörde önceki çalışma alanına git |
 | `Super + Ctrl + Tab` | Odaklanılan monitörde eski çalışma alanına git |
 | `Super + Shift + 1/2/3/4` | Pencereyi odaklanılan monitördeki çalışma alanına taşı |
-| `Super + Shift + Alt + 1/2/3/4` | Pencereyi odaklanılan monitördeki çalışma alanına peşinden gitmeden taşı |
-| `Super + S` | Tam scratchpad'i aç/kapat |
-| `Super + Alt + S` | Pencereyi tam scratchpad'e taşı |
+| `Super + Shift + Alt + 1/2/3/4` | Pencereyi takip etmeden odaklanılan monitördeki çalışma alanına taşı |
+| `Super + S` | Tam karalama defterini aç/kapat |
+| `Super + Alt + S` | Pencereyi tam karalama defterine taşı |
 | `Super + Grave` | Quake konsolunu aç/kapat |
 | `Super + Shift + Grave` | Pencereyi Quake konsoluna taşı |
 | `Super + Shift + Ctrl + Arrows` | Pencereyi o yöndeki monitöre taşı |
 | `Super + Shift + Alt + Arrows` | Çalışma alanını o yöndeki monitöre taşı |
 | `Super + Arrow`  | Odağı ok yönündeki pencereye taşı, ekran kenarında o taraftaki monitöre geçerek |
-| `Super + Shift + Arrow`  | Pencereyi ok yönündeki başka bir pencereyle değiştir, o taraftaki monitördeki biri dahil |
+| `Super + Shift + Arrow`  | Pencereyi ok yönündeki başka bir pencereyle takas et, o taraftaki monitördekiler dahil |
 | `Super + Minus` | Pencereyi sola genişlet |
-| `Super + Equal` | Pencereyi soldan küçült |
-| `Super + Shift + Minus` | Pencereyi yukarıdan küçült |
+| `Super + Equal` | Pencereyi sola daralt |
+| `Super + Shift + Minus` | Pencereyi yukarı daralt |
 | `Super + Shift + Equal` | Pencereyi aşağı genişlet |
-| `Super + Alt + Minus/Equal` | Aynı yeniden boyutlandırma, daha küçük adımlarla |
-| `Super + Ctrl + Minus/Equal` | Aynı yeniden boyutlandırma, daha büyük adımlarla |
+| `Super + Alt + Minus/Equal` | Daha küçük adımlarla aynı boyutlandırma |
+| `Super + Ctrl + Minus/Equal` | Daha büyük adımlarla aynı boyutlandırma |
 | `Super + Alt + Home` | Pencere genişliğini kaydet |
-| `Super + Home` | Kaydedilen pencere genişliğini geri yükle |
-| `Super + Left Mouse` | Pencereyi sürükle |
-| `Super + Right Mouse` | Pencereyi yeniden boyutlandır |
-| `Super + Scroll Wheel` | Odaklanılan monitördeki çalışma alanları arasında kaydır |
-| `Super + G`               | Pencere gruplandırmayı aç/kapat      |
-| `Super + Alt + G`               | Pencereyi gruplandırmanın dışına taşı      |
-| `Super + Alt + Tab`               | Gruplandırma içindeki pencereler arasında geçiş yap      |
-| `Super + Alt + Shift + Tab`               | Gruplandırma içindeki pencereler arasında geriye doğru geçiş yap      |
-| `Super + Alt + Scroll Wheel` | Gruplandırma içindeki pencereler arasında geçiş yap |
-| `Super + Alt + 1/2/3/4/5`               | Gruplandırma içindeki belirli pencereye git      |
-| `Super + Alt + Arrow`  | Pencereyi ok yönünde gruplandırmanın içine taşı, o taraftaki monitördeki biri dahil |
-| `Super + Ctrl + Left/Right`  | Bir döşeme grubu içindeki pencereler arasında geçiş yap |
-| `Super + Ctrl + Z` | Ekranı yakınlaştır (daha fazla yakınlaştırma için tekrarla) |
+| `Super + Home` | Kaydedilmiş pencere genişliğini geri yükle |
+| `Super + Left Mouse` | Pencereyi etrafta sürükle |
+| `Super + Right Mouse` | Pencereyi boyutlandır |
+| `Super + Scroll Wheel` | Odaklanılan monitörde çalışma alanları arasında kaydır |
+| `Super + G`               | Pencere gruplandırmasını aç/kapat      |
+| `Super + Alt + G`               | Pencereyi gruplandırmadan çıkar      |
+| `Super + Alt + Tab`               | Gruplandırmadaki pencereler arasında geçiş yap      |
+| `Super + Alt + Shift + Tab`               | Gruplandırmadaki pencereler arasında geriye doğru geçiş yap      |
+| `Super + Alt + Scroll Wheel` | Gruplandırmadaki pencereler arasında geçiş yap |
+| `Super + Alt + 1/2/3/4/5`               | Gruplandırmada belirli pencereye git      |
+| `Super + Alt + Arrow`  | Pencereyi ok yönünde gruplandırmaya taşı, o taraftaki monitördekiler dahil |
+| `Super + Ctrl + Left/Right`  | Döşeme grubu içindeki pencereler arasında geçiş yap |
+| `Super + Ctrl + Z` | Ekrana yakınlaş (daha fazla yakınlaşmak için tekrarla) |
 | `Super + Ctrl + Alt + Z` | Ekrandan tamamen uzaklaş |
-| `Super + /` | Monitör ölçekleme seçeneklerinde ileriye doğru git |
-| `Super + Alt + /` | Monitör ölçekleme seçeneklerinde geriye doğru git |
-| `Alt + Tab` | Etkin çalışma alanındaki pencereler arasında ileriye doğru geçiş yap |
+| `Super + /` | Monitör ölçekleme seçeneklerinde ileri adım at |
+| `Super + Alt + /` | Monitör ölçekleme seçeneklerinde geri adım at |
+| `Alt + Tab` | Etkin çalışma alanındaki pencereler arasında ileri doğru geçiş yap |
 | `Alt + Shift + Tab` | Etkin çalışma alanındaki pencereler arasında geriye doğru geçiş yap |
-| `Ctrl + Alt + Tab`| Odağı monitörler arasında ileriye doğru dolaştır |
-| `Ctrl + Alt + Shift + Tab`| Odağı monitörler arasında geriye doğru dolaştır |
+| `Ctrl + Alt + Tab`| Monitörler arasında odağı ileri doğru geçir |
+| `Ctrl + Alt + Shift + Tab`| Monitörler arasında odağı geriye doğru geçir |
+
+Boyutlandırma kısayolları, klavyede basılı karakterlerden bağımsız olarak fiziksel `code:20` ve `code:21` tuşlarını (XKB `<AE11>` ve `<AE12>`) kullanır. ABD klavyelerinde bu tuşlar `-` ve `=`; Japon (JIS) klavyelerinde `-` ve `^`; İspanyol klavyelerinde `'` ve `¡`. JIS'te, `Super + ^`, `Super + Equal` olurken, `Super + Shift + -` (`=` yazar) `Super + Shift + Minus` olur.
 
 ## Sistem kontrolleri
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Ses paneli    |
 | `Super + Ctrl + B`           | Bluetooth paneli    |
@@ -75,8 +77,8 @@ Tüm ana klavye bağlantılarını `Super + K` ile görebilirsiniz (Tmux bağlan
 | `Super + Ctrl + Alt + D`           | Takvim paneli    |
 | `Super + Ctrl + Alt + E`           | Dünya saati paneli    |
 | `Super + Ctrl + 1-9`           | Çubuk panelini konumuna göre aç/kapat    |
-| `Super + Ctrl + S` | Paylaşım menüsü (LocalSend ile) |
-| `Super + Ctrl + C` | Yakalama kontrolleri (ekran görüntüsü/kaydı/seçici) |
+| `Super + Ctrl + S` | Paylaşım menüsü (LocalSend aracılığıyla) |
+| `Super + Ctrl + C` | Yakalama kontrolleri (ekran görüntüsü/-kaydı/seçici) |
 | `Super + Ctrl + O` | Menüyü aç/kapat |
 | `Super + Ctrl + H` | Donanım menüsü |
 | `Super + Ctrl + E` | Emoji seçici |
@@ -85,39 +87,39 @@ Tüm ana klavye bağlantılarını `Super + K` ile görebilirsiniz (Tmux bağlan
 
 ## Ayarlamalar
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Maksimum ekran parlaklığı |
 | `Shift + Brightness Down` | Minimum ekran parlaklığı |
 | `Alt + Brightness Up/Down` | Hassas %1 parlaklık değişiklikleri |
 | `Alt + Volume Up/Down` | Hassas %1 ses değişiklikleri |
-| `Keyboard Brightness Up/Down` | Klavye arka aydınlatmasını artır/azalt |
-| `Keyboard Backlight` | Klavye arka aydınlatma seviyeleri arasında geçiş yap |
+| `Keyboard Brightness Up/Down` | Klavye arka ışığını artır/azalt |
+| `Keyboard Backlight` | Klavye arka ışık seviyeleri arasında geçiş yap |
 | `Alt + Play` | Sonraki parça |
 | `Alt + Shift + Play` | Önceki parça |
 
 ## Uygulamaları başlatma
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |
 | `Super + Alt + Return` | Tmux terminali |
 | `Super + Ctrl + Return` | Herdr (ajan yöneticisi) |
 | `Super + Shift + Return`           | Tarayıcı    |
-| `Super + Shift + Alt + B`           | Tarayıcı (gizli)    |
+| `Super + Shift + Alt + B`           | Tarayıcı (gizli/incognito)    |
 | `Super + Shift + F`           | Dosya yöneticisi    |
-| `Super + Shift + Alt + F`           | Dosya yöneticisini terminalin cwd'sinde aç    |
+| `Super + Shift + Alt + F`           | Terminalin cwd'sindeki dosya yöneticisi    |
 | `Super + Shift + M`           | Müzik (Spotify)    |
 | `Super + Shift + Alt + M`           | Müzik (cliamp)    |
 | `Super + Shift + /`           | Parola yöneticisi (1password)    |
-| `Super + Shift + Q`           | Hesap Makinesi (Omacalc)    |
+| `Super + Shift + Q`           | Hesap makinesi (Omacalc)    |
 | `Super + Shift + T`           | Etkinlik (btop)    |
 | `Super + Shift + N`           | Düzenleyici (Neovim)  |
 | `Super + Shift + C`           | Takvim ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | E-posta ([HEY](https://hey.com/))  |
 | `Super + Shift + Alt + E`           | Yeni e-posta ([HEY](https://hey.com/))  |
-| `Super + Shift + A`           | AI (ChatGPT)  |
-| `Super + Shift + Alt + A`           | AI (Grok)  |
+| `Super + Shift + A`           | Yapay zeka (ChatGPT)  |
+| `Super + Shift + Alt + A`           | Yapay zeka (Grok)  |
 | `Super + Shift + G`           | Mesajlaşma (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
@@ -129,43 +131,44 @@ Tüm ana klavye bağlantılarını `Super + K` ile görebilirsiniz (Tmux bağlan
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Bağlantıları `~/.config/hypr/bindings.lua` içinde değiştirin/ekleyin.
+Bağlamaları `~/.config/hypr/bindings.lua` içinde değiştirin/ekleyin.
 
 ## Evrensel pano
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
+| `Super + A`           | `Ctrl + A` destekleyen uygulamalarda tümünü seç    |
 | `Super + C`           | Kopyala    |
 | `Super + X`           | Kes (terminalde değil)    |
 | `Super + V`           | Yapıştır    |
 | `Super + Ctrl + V`           | Pano yöneticisi    |
 
-Genellikle Linux'ta, terminalde kopyala'n'yapıştır için `Ctrl + Shift + C/V` ve diğer her yerde yapmak için `Ctrl + C/V` kullanmanız gerekir. Bu Omarchy birleşik pano kısayolları her yerde çalışır.
+Linux'ta genellikle terminalde kopyala'yapıştır için `Ctrl + Shift + C/V`, diğer her yerde yapmak için `Ctrl + C/V` kullanmanız gerekir. Bu Omarchy birleşik pano kısayol tuşları her yerde çalışır.
 
 ## Yakalama
 
-| Hotkey              | Function                       |
+| Kısayol Tuşu              | İşlev                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Ekran görüntüsü                      |
 | `Super + Ctrl + Alt + C`            | Ekran görüntüsü (aynı çekim, Print Screen tuşu olmayan klavyeler için) |
 | `Super + Ctrl + C` | Yakalama menüsü |
 | `Alt + Print Screen`            | Ekran kaydı                     |
 | `Super + Print Screen` | Renk seçici |
-| `Super + Ctrl + Print Screen` | Metni çıkarıp panoya kopyala |
+| `Super + Ctrl + Print Screen` | Panoya metin çıkarma |
 | `Super + Alt + [` | Kayıt sırasında web kamerası katmanını küçült |
 | `Super + Alt + ]` | Kayıt sırasında web kamerası katmanını büyüt |
 | `Alt + Shift + L` | Web uygulamasından veya Chromium'dan geçerli URL'yi kopyala |
 | `Alt + Shift + D` | Geçerli sayfadaki videoyu `~/Videos` klasörüne indir |
-| `Super + Ctrl + X` | Dikteyi başlat/durdur (_Kurulum > Varsayılanlar > Dikte_ gerektirir) |
-| `Right Alt` / `F9` | Bas-konuş dikte (Voxtype veya Superwhisper gerektirir) |
+| `Alt + Space` | Dikteyi başlat/durdur (_Kurulum > Varsayılanlar > Dikte_ gerekir) |
+| `Right Alt` | Dikte etmek için basılı tut (_Kurulum > Varsayılanlar > Dikte_ gerekir) |
 
-Ekran kayıtlarında, kısayol önce hangi sesi istediğinizi sorar, ardından kaydı başlatır. Durdurmak için tekrar basın. Ayrıntılar için [ekran görüntüleri ve kayıt](12-screenshots-recording.md) bölümüne bakın.
+Ekran kayıtlarında, kısayol tuşu önce hangi sesi istediğinizi sorar, ardından kaydı başlatır. Durdurmak için tekrar basın. Ayrıntılar için bkz. [ekran görüntüleri ve kayıt](12-screenshots-recording.md).
 
-Tüm yakalama seçeneklerine Omarchy menüsündeki (`Super + Space`) _Tetikleyici > Yakalama_ altından da erişilebilir.
+Tüm yakalama seçeneklerine Omarchy menüsünde (`Super + Space`) _Tetikleyici > Yakalama_ altından da erişilebilir.
 
 ## Bildirimler
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + ,` | En son bildirim üzerinde işlem yap: açın veya tek düğmesine basın, seçeneklerinden birini seçin ya da hiçbiri yoksa kapatın  |
 | `Super + Shift + ,` | Tüm bildirimleri kapat |
@@ -176,20 +179,20 @@ Tüm yakalama seçeneklerine Omarchy menüsündeki (`Super + Space`) _Tetikleyic
 
 ## Stil
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Yeni bir tema seç (ayrıca `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Tema arka planını seç (ayrıca `Super + Ctrl + Space`) |
 | `Super + Backspace` | Bir pencerede şeffaflığı aç/kapat |
-| `Super + Ctrl + Backspace` | Tek pencerede kare en-boy oranını aç/kapat |
+| `Super + Ctrl + Backspace` | Tek pencere kare en-boy oranını aç/kapat |
 
-Ekstra arka plan görselleri `~/.config/omarchy/backgrounds/<theme name>` içinde bulunur. Omarchy menüsündeki _Kur > Stil > Arka Plan_ yoluyla da kullanılabilir.
+Ekstra arka plan görselleri `~/.config/omarchy/backgrounds/<theme name>` içinde bulunur. Omarchy menüsünde _Yükle > Stil > Arka Plan_ aracılığıyla da kullanılabilir.
 
-Tüm stil seçeneklerine Omarchy menüsündeki (`Super + Space`) _Stil_ altından da erişilebilir.
+Tüm stil seçeneklerine Omarchy menüsünde (`Super + Space`) _Stil_ altından da erişilebilir.
 
-## Açma/Kapama
+## Açma/Kapatma
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Boştayken kilitlemeyi aç/kapat |
 | `Super + Ctrl + Delete` | Dizüstü bilgisayar ekranını aç/kapat |
@@ -202,41 +205,41 @@ Tüm stil seçeneklerine Omarchy menüsündeki (`Super + Space`) _Stil_ altında
 
 ## Hatırlatıcılar
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Bir hatırlatıcı ayarla  |
 | `Super + Ctrl + Alt + R` | Tüm hatırlatıcıları gör  |
 | `Super + Ctrl + Shift + R` | Tüm hatırlatıcıları temizle  |
 
-## Duyurular
+## Uyarılar
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Saati bildirim olarak göster  |
 | `Super + Ctrl + Alt + B` | Pili bildirim olarak göster  |
-| `Super + Ctrl + Alt + W` | Hava durumunu bildirim olarak göstermeyi aç/kapat  |
+| `Super + Ctrl + Alt + W` | Hava durumunu bildirim olarak aç/kapat  |
 
 ## Tmux
 
-Ön ek tuşu `Ctrl + Space` tuşudur (`Ctrl + B` de çalışır). Bu bağlantıları `~/.config/tmux/tmux.conf` içinde değiştirebilirsiniz.
+Önek tuşu `Ctrl + Space`'tir (`Ctrl + B` de çalışır). Bu bağlamaları `~/.config/tmux/tmux.conf` içinde değiştirebilirsiniz.
 
 ### Bölmeler
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Prefix + v` | Bölmeyi yanına böl (dikey) |
 | `Prefix + h` | Bölmeyi altına böl (yatay) |
 | `Prefix + x` | Bölmeyi kapat |
-| `Prefix + z` | Bölme yakınlaştırmayı aç/kapat (tam ekran) |
-| `Alt + Enter` | Bölmeyi altına böl (ön ek yok) |
-| `Alt + Shift + Enter` | Bölmeyi yanına böl (ön ek yok) |
-| `Alt + Escape` | Bölmeyi kapat (ön ek yok) |
+| `Prefix + z` | Bölme yakınlaştırmasını aç/kapat (tam ekran) |
+| `Alt + Enter` | Bölmeyi altına böl (önek yok) |
+| `Alt + Shift + Enter` | Bölmeyi yanına böl (önek yok) |
+| `Alt + Escape` | Bölmeyi kapat (önek yok) |
 | `Ctrl + Alt + Arrows` | Bölmeler arasında geçiş yap |
-| `Ctrl + Alt + Shift + Arrows` | Bölmeleri yeniden boyutlandır |
+| `Ctrl + Alt + Shift + Arrows` | Bölmeleri boyutlandır |
 
 ### Pencereler
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Yeni pencere |
 | `Prefix + k` | Pencereyi kapat |
@@ -247,7 +250,7 @@ Tüm stil seçeneklerine Omarchy menüsündeki (`Super + Space`) _Stil_ altında
 
 ### Oturumlar
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Yeni oturum |
 | `Prefix + K` | Oturumu kapat |
@@ -260,7 +263,7 @@ Tüm stil seçeneklerine Omarchy menüsündeki (`Super + Space`) _Stil_ altında
 
 ### Kopyalama modu (vi tarzı)
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Kopyalama moduna gir |
 | `v` | Seçimi başlat (kopyalama modunda) |
@@ -268,33 +271,33 @@ Tüm stil seçeneklerine Omarchy menüsündeki (`Super + Space`) _Stil_ altında
 
 ### Genel
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Yapılandırmayı yeniden yükle |
-| `Prefix + ?` | Tmux tuş bağlantılarını göster |
+| `Prefix + ?` | Tmux tuş bağlamalarını göster |
 | `Prefix + :` | Komut istemi |
 
-### Tmux düzen fonksiyonları
+### Tmux düzen işlevleri
 
-Bu fonksiyonlar bir Tmux oturumu içinde çalıştırılmalıdır.
+Bu işlevler bir Tmux oturumu içinde çalıştırılmalıdır.
 
-| Command | Function |
+| Komut | İşlev |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Düzenleyici, AI ve terminal içeren geliştirme düzeni oluştur |
+| `tdl <ai> [<second_ai>]` | Editör, AI ve terminal ile geliştirme düzeni oluştur |
 | `tdlm <ai> [<second_ai>]` | Alt dizin başına geliştirme düzeni oluştur |
-| `tsl <count> <command>` | Çok bölmeli swarm düzeni oluştur |
+| `tsl <count> <command>` | Çok bölmeli sürü düzeni oluştur |
 
-## Ghostty Terminal
+## Ghostty Terminali
 
-Ghostty terminali, Omarchy menüsündeki _Kur > Terminal_ kullanılarak kurulur.
+Ghostty terminali, Omarchy menüsü aracılığıyla _Yükle > Terminal_ kullanılarak yüklenir.
 
-| Hotkey                  | Function              |
+| Kısayol Tuşu                  | İşlev              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Aşağıya yeni bölme |
 | `Ctrl + Shift + O` | Yanına yeni bölme |
 | `Ctrl + Alt + Arrows` | Bölmeler arasında geçiş yap |
-| `Super + Ctrl + Shift + Arrows` | Bölmeyi 10 satır yeniden boyutlandır |
-| `Super + Ctrl + Shift + Alt + Arrows` | Bölmeyi 100 satır yeniden boyutlandır |
+| `Super + Ctrl + Shift + Arrows` | Bölmeyi 10 satır boyutlandır |
+| `Super + Ctrl + Shift + Alt + Arrows` | Bölmeyi 100 satır boyutlandır |
 | `Ctrl + Shift + T` | Yeni sekme  |
 | `Ctrl + Shift + Arrows` | Sekmeler arasında geçiş yap |
 | `Alt + Numbers` | Belirli sekmeye git |
@@ -303,24 +306,24 @@ Ghostty terminali, Omarchy menüsündeki _Kur > Terminal_ kullanılarak kurulur.
 
 ## Dosya Yöneticisi
 
-| Hotkey              | Function                       |
+| Kısayol Tuşu              | İşlev                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Yola git                     |
 | `Space`               | Dosyayı önizle (oklar gezinir) |
-| `Backspace`      | Bir klasör geri git             |
+| `Alt + Up`       | Üst klasöre git        |
 
 ## Neovim (LazyVim ile)
 
 ### Gezinme
 
-| Hotkey                   | Function                        |
+| Kısayol Tuşu                   | İşlev                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Komut seçeneklerini göster            |
-| `Space Space`              | Bulanık aramayla dosya aç      |
+| `Space Space`              | Bulanık arama ile dosya aç      |
 | `Space E`                  | Kenar çubuğunu aç/kapat                  |
-| `Space G G`                | git kontrollerini göster               |
+| `Space G G`                | Git kontrollerini göster               |
 | `Space S G`                | Dosya içeriğini ara             |
-| `Ctrl + W W`               | Kenar çubuğu ile düzenleyici arasında geçiş yap |
+| `Ctrl + W W`               | Kenar çubuğu ve düzenleyici arasında geçiş yap |
 | `Ctrl + Left/right arrow`  | Kenar çubuğunun boyutunu değiştir          |
 | `Shift + H`                      | Soldaki dosya sekmesine git             |
 | `Shift + L`                      | Sağdaki dosya sekmesine git            |
@@ -328,7 +331,7 @@ Ghostty terminali, Omarchy menüsündeki _Kur > Terminal_ kullanılarak kurulur.
 
 ### Kenar çubuğundayken
 
-| Hotkey                   | Function                        |
+| Kısayol Tuşu                   | İşlev                        |
 | ------------------------ | ------------------------------- |
 | `A`                        | Üst dizinde yeni dosya ekle      |
 | `Shift + A`                | Üst dizinde yeni alt dizin ekle    |
@@ -337,17 +340,17 @@ Ghostty terminali, Omarchy menüsündeki _Kur > Terminal_ kullanılarak kurulur.
 | `R`                        | Vurgulanan dosya/dizini yeniden adlandır     |
 | `?`                        | Tüm komutlar için yardımı göster      |
 
-[LazyVim tarafından yapılandırılan tüm Neovim kısayol tuşlarını görün](https://www.lazyvim.org/keymaps).
+[LazyVim tarafından yapılandırılan tüm Neovim kısayol tuşlarına bakın](https://www.lazyvim.org/keymaps).
 
 ## Hızlı Emojiler
 
-Seçimi panoya koyacak eksiksiz bir emoji seçici göstermek için `Super + Ctrl + E` kullanabilir veya bu hızlı erişim seçeneklerini kullanabilirsiniz.
+`Super + Ctrl + E` kullanarak seçimi panoya yerleştirecek eksiksiz bir emoji seçici gösterebilir ya da bu hızlı erişim seçeneklerini kullanabilirsiniz.
 
-| Hotkey       | EM | Clue       |
+| Kısayol Tuşu       | EM | İpucu       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | gülümse      |
-| `Shift + CapsLock M C` | 😂 | ağla        |
-| `Shift + CapsLock M L` | 😍 | sevgi       |
+| `Shift + CapsLock M S` | 😄 | gülümseme      |
+| `Shift + CapsLock M C` | 😂 | ağlama        |
+| `Shift + CapsLock M L` | 😍 | aşk       |
 | `Shift + CapsLock M V` | ✌️ | zafer    |
 | `Shift + CapsLock M H` | ❤️ | kalp      |
 | `Shift + CapsLock M Y` | 👍 | evet        |
@@ -371,10 +374,10 @@ Seçimi panoya koyacak eksiksiz bir emoji seçici göstermek için `Super + Ctrl
 
 ## Hızlı Tamamlamalar
 
-| Hotkey       | Completion       |
+| Kısayol Tuşu       | Tamamlama       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (uzun tire)   |
 | `Shift + CapsLock Space N` | Adınız (kurulumda girildiği gibi)  |
 | `Shift + CapsLock Space E` | E-postanız (kurulumda girildiği gibi)  |
 
-`~/.XCompose` dosyasını düzenleyerek kendinizden daha fazlasını ekleyebilir, ardından değişikliklerin alınması için terminalde `omarchy-restart-xcompose` çalıştırabilirsiniz.
+`~/.XCompose` dosyasını düzenleyerek kendinizinkilerden daha fazlasını ekleyebilir, ardından değişikliklerin alınması için terminalde `omarchy-restart-xcompose` çalıştırabilirsiniz.

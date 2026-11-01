@@ -77,7 +77,7 @@ remember_scale() {
 
 run_clamshell() {
   HOME="$home_dir" \
-    PATH="$stub_bin:$PATH" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
     OMARCHY_TEST_HYPRCTL_EVAL_LOG="$eval_log" \
     OMARCHY_TEST_INTERNAL_SCALE="${OMARCHY_TEST_INTERNAL_SCALE:-2}" \
     OMARCHY_TEST_INTERNAL_DISABLED="${OMARCHY_TEST_INTERNAL_DISABLED:-false}" \
@@ -265,3 +265,32 @@ OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_T
 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=HEADLESS-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while a headless output is enabled" off - \
   'scale = 1.25' '!disabled = false' <<<"$internal_config"
+
+# The display panel's choices for the panel win over monitors.lua, as
+# default/hypr/monitor-settings.lua applies them over it, so a scale chosen
+# there isn't corrected back to the catch-all's on every idle-wake, and the
+# panel comes back at its chosen mode and position.
+settings_file="$home_dir/.local/state/omarchy/monitors/settings"
+mkdir -p "${settings_file%/*}"
+printf '%s\t%s\t%s\t%s\n' "2560x1600@60" "640x1440" "1.6" "eDP-1" >"$settings_file"
+expect_sync "clamshell recovery keeps the scale chosen in the display panel" 1.6 - '!scale = ' <<<"$internal_config"
+expect_sync "clamshell recovery brings the panel back as chosen in the display panel" off - \
+  'mode = "2560x1600@60", position = "640x1440", scale = 1.6' <<<"$internal_config"
+
+# With the panel's choices switched off, monitors.lua alone decides when the
+# panel comes back, but a scale changed from the panel since lasts until reload
+# rather than being corrected on every sync.
+expect_sync "clamshell recovery follows monitors.lua when the panel's choices are off" off - \
+  'mode = "preferred", position = "0x0", scale = 1.25' <<<"omarchy_monitor_panel_settings = false
+$internal_config"
+expect_sync "clamshell recovery leaves a panel-changed scale until reload when the panel's choices are off" 1.6 - \
+  '!scale = ' <<<"omarchy_monitor_panel_settings = false
+$internal_config"
+
+# A switch inside a block comment spanning lines is commented out.
+expect_sync "clamshell recovery ignores a switch inside a block comment" off - \
+  'mode = "2560x1600@60", position = "640x1440", scale = 1.6' <<<"--[[
+omarchy_monitor_panel_settings = false
+]]
+$internal_config"
+rm -f "$settings_file"

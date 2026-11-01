@@ -156,7 +156,7 @@ def seed_language(method):
     if all(name.startswith("keyboard-") for name, override in items):
       save_inputs([method])
   except (OSError, ValueError, KeyError, IndexError, RuntimeError, subprocess.CalledProcessError) as error:
-    print(f"Add {setup.PRESETS[method]['label']} under Setup > Typing > Input Methods: {error}", file=sys.stderr)
+    print(f"Add {setup.PRESETS[method]['label']} under Setup > Keyboard > Input Methods: {error}", file=sys.stderr)
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   setup.font_default(config_home, method)
 
