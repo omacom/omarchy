@@ -192,10 +192,8 @@
     "other": "Fai clic per eseguire %1 migrazioni in sospeso."
   },
   "migrate.pending": "Migrazioni Omarchy in sospeso",
-  "monitor.extendedRestored": "Modalità estesa ripristinata",
   "monitor.laptopDisabled": "Schermo portatile disattivato",
   "monitor.laptopEnabled": "Schermo portatile attivato",
-  "monitor.mirroringEnabled": "Duplicazione attivata (%1)",
   "monitor.noExternalForMirror": "Nessun monitor esterno da duplicare",
   "monitor.noLaptopDisplay": "Nessuno schermo portatile trovato",
   "monitor.noLaptopToMirror": "Nessuno schermo portatile da duplicare",

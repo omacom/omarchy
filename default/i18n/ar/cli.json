@@ -198,10 +198,8 @@
     "zero": "لا ترحيلات معلّقة للتشغيل."
   },
   "migrate.pending": "ترحيلات Omarchy المعلّقة",
-  "monitor.extendedRestored": "استعيد الوضع الموسّع",
   "monitor.laptopDisabled": "عُطّلت شاشة المحمول",
   "monitor.laptopEnabled": "فُعّلت شاشة المحمول",
-  "monitor.mirroringEnabled": "فُعّل العكس (%1)",
   "monitor.noExternalForMirror": "لم يُعثر على شاشات خارجية للعكس",
   "monitor.noLaptopDisplay": "لم يُعثر على شاشة محمول",
   "monitor.noLaptopToMirror": "لم يُعثر على شاشة محمول لعكسها",

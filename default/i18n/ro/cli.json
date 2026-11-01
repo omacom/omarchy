@@ -192,10 +192,8 @@
     "other": "Clic pentru a rula %1 de migrări în așteptare."
   },
   "migrate.pending": "Migrări Omarchy în așteptare",
-  "monitor.extendedRestored": "Mod extins restabilit",
   "monitor.laptopDisabled": "Ecran laptop dezactivat",
   "monitor.laptopEnabled": "Ecran laptop activat",
-  "monitor.mirroringEnabled": "Oglindire activată (%1)",
   "monitor.noExternalForMirror": "Nu s-au găsit monitoare externe pentru oglindire",
   "monitor.noLaptopDisplay": "Nu s-a găsit ecran de laptop",
   "monitor.noLaptopToMirror": "Nu s-a găsit monitor de laptop de oglindit",

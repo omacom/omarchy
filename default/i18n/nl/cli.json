@@ -190,10 +190,8 @@
     "other": "Klik om %1 openstaande migraties uit te voeren."
   },
   "migrate.pending": "Openstaande Omarchy-migraties",
-  "monitor.extendedRestored": "Uitgebreide modus hersteld",
   "monitor.laptopDisabled": "Laptopscherm uitgeschakeld",
   "monitor.laptopEnabled": "Laptopscherm ingeschakeld",
-  "monitor.mirroringEnabled": "Spiegelen ingeschakeld (%1)",
   "monitor.noExternalForMirror": "Geen externe monitoren gevonden om te spiegelen",
   "monitor.noLaptopDisplay": "Geen laptopscherm gevonden",
   "monitor.noLaptopToMirror": "Geen laptopscherm gevonden om te spiegelen",

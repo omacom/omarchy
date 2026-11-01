@@ -190,10 +190,8 @@
     "other": "Κάνε κλικ για να εκτελεστούν %1 εκκρεμείς μετεγκαταστάσεις."
   },
   "migrate.pending": "Εκκρεμείς μετεγκαταστάσεις Omarchy",
-  "monitor.extendedRestored": "Η εκτεταμένη λειτουργία επαναφέρθηκε",
   "monitor.laptopDisabled": "Η οθόνη φορητού απενεργοποιήθηκε",
   "monitor.laptopEnabled": "Η οθόνη φορητού ενεργοποιήθηκε",
-  "monitor.mirroringEnabled": "Ο κατοπτρισμός ενεργοποιήθηκε (%1)",
   "monitor.noExternalForMirror": "Δεν βρέθηκαν εξωτερικές οθόνες για κατοπτρισμό",
   "monitor.noLaptopDisplay": "Δεν βρέθηκε οθόνη φορητού",
   "monitor.noLaptopToMirror": "Δεν βρέθηκε οθόνη φορητού για κατοπτρισμό",

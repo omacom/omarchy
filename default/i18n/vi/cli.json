@@ -188,10 +188,8 @@
     "other": "Nhấp để chạy %1 di chuyển đang chờ."
   },
   "migrate.pending": "Di chuyển Omarchy đang chờ",
-  "monitor.extendedRestored": "Đã khôi phục chế độ mở rộng",
   "monitor.laptopDisabled": "Đã tắt màn hình laptop",
   "monitor.laptopEnabled": "Đã bật màn hình laptop",
-  "monitor.mirroringEnabled": "Đã bật phản chiếu (%1)",
   "monitor.noExternalForMirror": "Không tìm thấy màn hình ngoài để phản chiếu",
   "monitor.noLaptopDisplay": "Không tìm thấy màn hình laptop",
   "monitor.noLaptopToMirror": "Không tìm thấy màn hình laptop để phản chiếu",

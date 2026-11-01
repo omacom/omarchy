@@ -188,10 +188,8 @@
     "other": "点击运行 %1 个待处理迁移。"
   },
   "migrate.pending": "待处理的 Omarchy 迁移",
-  "monitor.extendedRestored": "扩展模式已恢复",
   "monitor.laptopDisabled": "笔记本显示器已禁用",
   "monitor.laptopEnabled": "笔记本显示器已启用",
-  "monitor.mirroringEnabled": "镜像已启用（%1）",
   "monitor.noExternalForMirror": "未找到用于镜像的外部显示器",
   "monitor.noLaptopDisplay": "未找到笔记本显示器",
   "monitor.noLaptopToMirror": "未找到可镜像的笔记本显示器",

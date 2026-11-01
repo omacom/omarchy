@@ -192,10 +192,8 @@
     "other": "Кликните да покренете %1 миграција на чекању."
   },
   "migrate.pending": "Omarchy миграције на чекању",
-  "monitor.extendedRestored": "Проширени режим враћен",
   "monitor.laptopDisabled": "Екран лаптопа онемогућен",
   "monitor.laptopEnabled": "Екран лаптопа омогућен",
-  "monitor.mirroringEnabled": "Зрцаљење омогућено (%1)",
   "monitor.noExternalForMirror": "Нема спољашњих монитора за зрцаљење",
   "monitor.noLaptopDisplay": "Екран лаптопа није пронађен",
   "monitor.noLaptopToMirror": "Нема монитора лаптопа за зрцаљење",

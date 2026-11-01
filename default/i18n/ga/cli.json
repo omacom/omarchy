@@ -196,10 +196,8 @@
     "two": "Cliceáil chun dhá imirce ar feitheamh a rith."
   },
   "migrate.pending": "Imircí Omarchy ar feitheamh",
-  "monitor.extendedRestored": "Mód leathnaithe athchóirithe",
   "monitor.laptopDisabled": "Scáileán ríomhaire glúine díchumasaithe",
   "monitor.laptopEnabled": "Scáileán ríomhaire glúine cumasaithe",
-  "monitor.mirroringEnabled": "Scáthánú cumasaithe (%1)",
   "monitor.noExternalForMirror": "Níor aimsíodh monatóirí seachtracha le scáthánú",
   "monitor.noLaptopDisplay": "Níor aimsíodh scáileán ríomhaire glúine",
   "monitor.noLaptopToMirror": "Níor aimsíodh monatóir ríomhaire glúine le scáthánú",

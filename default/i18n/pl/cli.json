@@ -194,10 +194,8 @@
     "other": "Kliknij, aby uruchomić %1 oczekującej migracji."
   },
   "migrate.pending": "Oczekujące migracje Omarchy",
-  "monitor.extendedRestored": "Przywrócono tryb rozszerzony",
   "monitor.laptopDisabled": "Ekran laptopa wyłączony",
   "monitor.laptopEnabled": "Ekran laptopa włączony",
-  "monitor.mirroringEnabled": "Duplikowanie włączone (%1)",
   "monitor.noExternalForMirror": "Nie znaleziono zewnętrznych monitorów do duplikowania",
   "monitor.noLaptopDisplay": "Nie znaleziono ekranu laptopa",
   "monitor.noLaptopToMirror": "Nie znaleziono ekranu laptopa do duplikowania",

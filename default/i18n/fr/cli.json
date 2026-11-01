@@ -192,10 +192,8 @@
     "other": "Cliquez pour exécuter %1 migrations en attente."
   },
   "migrate.pending": "Migrations Omarchy en attente",
-  "monitor.extendedRestored": "Mode étendu restauré",
   "monitor.laptopDisabled": "Écran du portable désactivé",
   "monitor.laptopEnabled": "Écran du portable activé",
-  "monitor.mirroringEnabled": "Recopie d'écran activée (%1)",
   "monitor.noExternalForMirror": "Aucun écran externe trouvé pour la recopie",
   "monitor.noLaptopDisplay": "Aucun écran de portable trouvé",
   "monitor.noLaptopToMirror": "Aucun écran de portable à recopier",

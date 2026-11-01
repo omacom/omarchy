@@ -190,10 +190,8 @@
     "other": "நிலுவையில் உள்ள %1 இடம்பெயர்வுகளை இயக்க கிளிக் செய்யவும்."
   },
   "migrate.pending": "நிலுவையில் உள்ள Omarchy இடம்பெயர்வுகள்",
-  "monitor.extendedRestored": "விரிவாக்கப்பட்ட பயன்முறை மீட்டமைக்கப்பட்டது",
   "monitor.laptopDisabled": "மடிக்கணினி திரை முடக்கப்பட்டது",
   "monitor.laptopEnabled": "மடிக்கணினி திரை இயக்கப்பட்டது",
-  "monitor.mirroringEnabled": "பிரதிபலிப்பு இயக்கப்பட்டது (%1)",
   "monitor.noExternalForMirror": "பிரதிபலிக்க வெளிப்புற திரைகள் எதுவும் இல்லை",
   "monitor.noLaptopDisplay": "மடிக்கணினி திரை எதுவும் இல்லை",
   "monitor.noLaptopToMirror": "பிரதிபலிக்க மடிக்கணினி திரை எதுவும் இல்லை",

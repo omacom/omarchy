@@ -192,10 +192,8 @@
     "other": "Clique para executar %1 migrações pendentes."
   },
   "migrate.pending": "Migrações pendentes do Omarchy",
-  "monitor.extendedRestored": "Modo estendido restaurado",
   "monitor.laptopDisabled": "Tela do notebook desativada",
   "monitor.laptopEnabled": "Tela do notebook ativada",
-  "monitor.mirroringEnabled": "Espelhamento ativado (%1)",
   "monitor.noExternalForMirror": "Nenhum monitor externo encontrado para espelhar",
   "monitor.noLaptopDisplay": "Nenhuma tela de notebook encontrada",
   "monitor.noLaptopToMirror": "Nenhum monitor de notebook encontrado para espelhar",

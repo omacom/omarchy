@@ -192,10 +192,8 @@
     "other": "Kliknutím spustíte %1 čakajúcich migrácií."
   },
   "migrate.pending": "Čakajúce migrácie Omarchy",
-  "monitor.extendedRestored": "Rozšírený režim obnovený",
   "monitor.laptopDisabled": "Displej notebooku vypnutý",
   "monitor.laptopEnabled": "Displej notebooku zapnutý",
-  "monitor.mirroringEnabled": "Zrkadlenie zapnuté (%1)",
   "monitor.noExternalForMirror": "Nenašli sa externé monitory na zrkadlenie",
   "monitor.noLaptopDisplay": "Displej notebooku sa nenašiel",
   "monitor.noLaptopToMirror": "Nenašiel sa monitor notebooku na zrkadlenie",

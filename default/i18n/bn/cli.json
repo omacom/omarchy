@@ -190,10 +190,8 @@
     "other": "%1টি অপেক্ষমাণ মাইগ্রেশন চালাতে ক্লিক করুন।"
   },
   "migrate.pending": "অপেক্ষমাণ Omarchy মাইগ্রেশন",
-  "monitor.extendedRestored": "এক্সটেন্ডেড মোড পুনরুদ্ধার হয়েছে",
   "monitor.laptopDisabled": "ল্যাপটপ ডিসপ্লে বন্ধ",
   "monitor.laptopEnabled": "ল্যাপটপ ডিসপ্লে চালু",
-  "monitor.mirroringEnabled": "মিররিং চালু (%1)",
   "monitor.noExternalForMirror": "মিররের জন্য কোনো বাইরের মনিটর পাওয়া যায়নি",
   "monitor.noLaptopDisplay": "কোনো ল্যাপটপ ডিসপ্লে পাওয়া যায়নি",
   "monitor.noLaptopToMirror": "মিরর করার জন্য কোনো ল্যাপটপ মনিটর পাওয়া যায়নি",

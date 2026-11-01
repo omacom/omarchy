@@ -192,10 +192,8 @@
     "zero": "Noklikšķini, lai palaistu %1 gaidāmo migrāciju."
   },
   "migrate.pending": "Gaidāmas Omarchy migrācijas",
-  "monitor.extendedRestored": "Paplašinātais režīms atjaunots",
   "monitor.laptopDisabled": "Klēpjdatora ekrāns izslēgts",
   "monitor.laptopEnabled": "Klēpjdatora ekrāns ieslēgts",
-  "monitor.mirroringEnabled": "Spoguļošana ieslēgta (%1)",
   "monitor.noExternalForMirror": "Nav atrasts neviens ārējais monitors spoguļošanai",
   "monitor.noLaptopDisplay": "Nav atrasts neviens klēpjdatora ekrāns",
   "monitor.noLaptopToMirror": "Nav atrasts neviens klēpjdatora monitors spoguļošanai",

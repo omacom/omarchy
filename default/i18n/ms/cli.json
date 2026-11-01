@@ -188,10 +188,8 @@
     "other": "Klik untuk menjalankan %1 migrasi tertunda."
   },
   "migrate.pending": "Migrasi Omarchy Tertunda",
-  "monitor.extendedRestored": "Mod dilanjutkan dipulihkan",
   "monitor.laptopDisabled": "Paparan laptop dilumpuhkan",
   "monitor.laptopEnabled": "Paparan laptop didayakan",
-  "monitor.mirroringEnabled": "Pencerminan didayakan (%1)",
   "monitor.noExternalForMirror": "Tiada monitor luaran ditemui untuk dicerminkan",
   "monitor.noLaptopDisplay": "Tiada paparan laptop ditemui",
   "monitor.noLaptopToMirror": "Tiada monitor laptop ditemui untuk dicerminkan",

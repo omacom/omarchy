@@ -190,10 +190,8 @@
     "other": "අපේක්ෂිත සංක්‍රමණ %1 ක්‍රියාත්මක කිරීමට ක්ලික් කරන්න."
   },
   "migrate.pending": "අපේක්ෂිත Omarchy සංක්‍රමණ",
-  "monitor.extendedRestored": "දිගු කළ මාදිලිය යළි පිහිටුවා",
   "monitor.laptopDisabled": "ලැප්ටොප් සංදර්ශකය අක්‍රිය කළා",
   "monitor.laptopEnabled": "ලැප්ටොප් සංදර්ශකය සක්‍රිය කළා",
-  "monitor.mirroringEnabled": "දර්පණය කිරීම සක්‍රිය කළා (%1)",
   "monitor.noExternalForMirror": "දර්පණය කිරීමට බාහිර මොනිටර හමු නොවීය",
   "monitor.noLaptopDisplay": "ලැප්ටොප් සංදර්ශකයක් හමු නොවීය",
   "monitor.noLaptopToMirror": "දර්පණය කිරීමට ලැප්ටොප් මොනිටරයක් හමු නොවීය",

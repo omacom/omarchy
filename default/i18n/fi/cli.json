@@ -190,10 +190,8 @@
     "other": "Napsauta ja suorita %1 odottavaa siirtoa."
   },
   "migrate.pending": "Odottavat Omarchy-siirrot",
-  "monitor.extendedRestored": "Laajennettu tila palautettu",
   "monitor.laptopDisabled": "Kannettavan näyttö pois käytöstä",
   "monitor.laptopEnabled": "Kannettavan näyttö käytössä",
-  "monitor.mirroringEnabled": "Peilaus käytössä (%1)",
   "monitor.noExternalForMirror": "Ulkoisia näyttöjä peilaukseen ei löytynyt",
   "monitor.noLaptopDisplay": "Kannettavan näyttöä ei löytynyt",
   "monitor.noLaptopToMirror": "Peilattavaa kannettavan näyttöä ei löytynyt",

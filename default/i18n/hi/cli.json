@@ -190,10 +190,8 @@
     "other": "%1 लंबित माइग्रेशन चलाने के लिए क्लिक करें."
   },
   "migrate.pending": "लंबित Omarchy माइग्रेशन",
-  "monitor.extendedRestored": "विस्तारित मोड पुनर्स्थापित किया गया",
   "monitor.laptopDisabled": "लैपटॉप डिस्प्ले अक्षम किया गया",
   "monitor.laptopEnabled": "लैपटॉप डिस्प्ले सक्षम किया गया",
-  "monitor.mirroringEnabled": "मिररिंग सक्षम किया गया (%1)",
   "monitor.noExternalForMirror": "मिरर के लिए कोई बाहरी मॉनिटर नहीं मिला",
   "monitor.noLaptopDisplay": "कोई लैपटॉप डिस्प्ले नहीं मिला",
   "monitor.noLaptopToMirror": "मिरर करने के लिए कोई लैपटॉप मॉनिटर नहीं मिला",

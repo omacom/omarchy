@@ -190,10 +190,8 @@
     "other": "Kliki, et käivitada %1 ootel migratsiooni."
   },
   "migrate.pending": "Ootel Omarchy migratsioonid",
-  "monitor.extendedRestored": "Laiendatud režiim taastatud",
   "monitor.laptopDisabled": "Sülearvuti ekraan keelatud",
   "monitor.laptopEnabled": "Sülearvuti ekraan lubatud",
-  "monitor.mirroringEnabled": "Peegeldamine lubatud (%1)",
   "monitor.noExternalForMirror": "Peegeldamiseks väliseid kuvareid ei leitud",
   "monitor.noLaptopDisplay": "Sülearvuti ekraani ei leitud",
   "monitor.noLaptopToMirror": "Peegeldatavat sülearvuti kuvari ei leitud",
