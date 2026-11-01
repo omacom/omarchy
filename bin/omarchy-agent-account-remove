@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Forget an added Claude, Codex, or Grok account
+# omarchy:args=[claude|codex|grok] <account>
+# omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side
+
+set -uo pipefail
+
+# The provider can be left out when it's your default agent:
+# `omarchy agent account use work`.
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+  default=$(omarchy-default-agent)
+  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+fi
+
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]] || [[ -z ${2:-} ]]; then
+  echo "Usage: omarchy-agent-account-remove [claude|codex|grok] <account>" >&2
+  exit 1
+fi
+
+# Removing only deletes the account's home here. It never logs out, which
+# would revoke the sign-in for every other copy of it too.
+if [[ -t 0 ]] && ! gum confirm "Forget the $1 account $2? You'd have to sign in again to add it back."; then
+  exit 130
+fi
+
+account=$(omarchy-agent-account-state remove "$1" "$2") || exit 1
+echo "Forgot $(jq -r .label <<<"$account")."
+# The panel reads which accounts exist from the usage record.
+omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &

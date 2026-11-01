@@ -163,6 +163,8 @@ rm ~/.local/state/omarchy/migrations/<migration>.sh
 omarchy-migrate
 ```
 
+Don't add a test for a migration under `test/`. It runs once per machine and is frozen once it ships, so the test stops guarding anything. If a migration needs logic worth testing, put that logic in a `bin/` command the migration calls and test the command. Tests of `omarchy-migrate`, the login notifier, and `omarchy-upgrade-to-quattro` stay.
+
 Omarchy 4.0 is upgraded through `bin/omarchy-upgrade-to-quattro`, not through the
 normal migration runner. Do not add compatibility migrations for old installer
 layouts; put pre-4 package-layout transition work in the upgrade command instead.

@@ -1,13 +1,14 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Item {
   id: root
 
   property real iconSize: Style.font.icon
-  property color color: Color.foreground
-  property color badgeColor: Color.urgent
+  property color color: Commons.Color.foreground
+  property color badgeColor: Commons.Color.urgent
   property bool crossed: false
   property bool warning: false
 
@@ -51,12 +52,12 @@ Item {
     color: root.badgeColor
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    borderSpec: Border.flat(Color.popups.background, 1)
+    borderSpec: Border.flat(Commons.Color.popups.background, 1)
 
     Text {
       anchors.centerIn: parent
       text: "!"
-      color: Color.background
+      color: Commons.Color.background
       font.family: Style.font.family
       font.pixelSize: Math.max(6, parent.height * 0.72)
       font.bold: true
