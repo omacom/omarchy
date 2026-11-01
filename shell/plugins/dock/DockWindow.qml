@@ -55,6 +55,13 @@ PanelWindow {
   readonly property int slotSize: iconSize + iconInset * 2
   // A pinned app that is not running is drawn faded.
   readonly property real idleOpacity: 0.7
+  // The box behind the apps takes the bar's colors: solid when opaque, and as
+  // see-through as the Glassy bar when glassy. A theme change cross-fades it;
+  // switching between looks jumps, as the bar's does.
+  readonly property string background: dock ? dock.background : "none"
+  property color boxBase: Commons.Color.bar.background
+  Behavior on boxBase { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
+  readonly property color boxColor: background === "glassy" ? Qt.rgba(boxBase.r, boxBase.g, boxBase.b, Math.min(boxBase.a, 0.35)) : boxBase
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
@@ -289,6 +296,26 @@ PanelWindow {
     // visibility, so the icons keep their textures and are drawn on the first
     // frame back instead of being uploaded again.
     opacity: window.shown ? 1 : 0
+
+    // Inside the body, so it tucks and hides with the apps. An app dragged in
+    // from the app grid steps the slots aside by half a slot at each end, and
+    // the box grows with them.
+    Rectangle {
+      property real grow: window.insertIndex >= 0 ? window.slotSize / 2 : 0
+
+      Behavior on grow {
+        enabled: window.animateShifts
+        NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+      }
+
+      visible: window.background !== "none"
+      x: window.vertical ? 0 : -grow
+      y: window.vertical ? -grow : 0
+      width: parent.width + (window.vertical ? 0 : grow * 2)
+      height: parent.height + (window.vertical ? grow * 2 : 0)
+      radius: Style.cornerRadius
+      color: window.boxColor
+    }
 
     HoverHandler {
       id: bodyHover
