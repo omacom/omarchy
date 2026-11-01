@@ -55,9 +55,8 @@ Panel {
   //                  faster than 60Hz.
   //   "mirror"     - Mirror or Extend, when there's a built-in display and an
   //                  external one to mirror it on.
-  //   "layout"     - the arrangement of the displays; h/l moves the shown one
-  //                  to the left or right of the rest, ctrl+j/k above or
-  //                  below them.
+  //   "layout"     - the arrangement of the displays; ctrl+h/j/k/l places
+  //                  the shown one left of, below, above or right of the rest.
   // Every section is one row: j/k steps between them, h/l moves a slider or
   // walks a row of pills, identical to bluetooth's header. r opens the shown
   // display's rotate menu from anywhere, which j/k and Enter then walk.
@@ -278,8 +277,8 @@ Panel {
     selectedIndex = sectionFirstIndex(focusSection)
   }
 
-  // h/l: a slider moves, the picker shows the next display, a row of pills
-  // walks its pills, and the layout moves the shown display to that side.
+  // h/l: a slider moves, the picker shows the next display and a row of pills
+  // walks its pills. The layout takes ctrl+h/l instead, like ctrl+j/k.
   function moveCursorH(delta) {
     if (focusSection === "brightness") {
       if (current) adjustBrightness(current.name, delta * 5)
@@ -291,8 +290,6 @@ Panel {
       selectedIndex = next
     } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh" || focusSection === "mirror") {
       selectedIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, selectedIndex + delta))
-    } else if (focusSection === "layout" && current) {
-      applyLayout(Model.placeDisplay(layoutRects, current.name, delta < 0 ? "left" : "right"))
     }
   }
 
@@ -518,10 +515,10 @@ Panel {
     closeRotateMenu()
   }
 
-  // ctrl+j/k on the layout: the shown display above or below the rest.
-  function moveLayoutVertical(dy) {
+  // ctrl+h/j/k/l on the layout: the shown display to that side of the rest.
+  function placeShown(side) {
     if (!current || !layoutMovable) return
-    applyLayout(Model.placeDisplay(layoutRects, current.name, dy < 0 ? "above" : "below"))
+    applyLayout(Model.placeDisplay(layoutRects, current.name, side))
   }
 
   function closeRotateMenu() {
@@ -749,7 +746,9 @@ Panel {
       property alias scrollArea: scrollArea
       property alias layoutMap: layoutMap
       reorderable: root.rotateMenuName === "" && root.cursorActive && root.focusSection === "layout"
-      onReorderRequested: function(dy) { root.moveLayoutVertical(dy) }
+      reorderableSideways: reorderable
+      onReorderRequested: function(dy) { root.placeShown(dy < 0 ? "above" : "below") }
+      onReorderSidewaysRequested: function(dx) { root.placeShown(dx < 0 ? "left" : "right") }
       onTextKey: function(t) {
         if ((t === "r" || t === "R") && root.rotateMenuName === "") root.openRotateMenuForShown()
       }
@@ -1452,7 +1451,7 @@ Panel {
 
   component LayoutMap: Item {
     id: map
-    // The keyboard is on the map: h/l moves the shown display.
+    // The keyboard is on the map: ctrl+h/j/k/l moves the shown display.
     property bool hasCursor: false
 
     readonly property var bounds: {

@@ -5,8 +5,9 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 # The display panel's layout map from the keyboard alone: a temporary second
-# monitor gives it something to arrange, then the hint shows, ctrl+j/k place
-# the shown display below and above the other, and r opens the rotate menu.
+# monitor gives it something to arrange, then the hint shows, ctrl+j/k/l place
+# the shown display below, above and right of the other, and r opens the
+# rotate menu.
 original_monitors=$(hyprctl -j monitors)
 primary=$(jq -r 'map(select(.focused))[0].name // .[0].name' <<<"$original_monitors")
 primary_position=$(jq -r --arg name "$primary" '.[] | select(.name == $name) | "\(.x)x\(.y)"' <<<"$original_monitors")
@@ -31,10 +32,14 @@ find_virtual_monitor() {
 # Logical rectangles, as the layout map draws them.
 primary_is() {
   hyprctl -j monitors | jq -e --arg p "$primary" --arg v "$virtual_monitor" --arg side "$1" '
-    def rect: {x, y, h: (if (.transform % 2) == 1 then .width else .height end) / .scale};
+    def rect: {x, y,
+      w: (if (.transform % 2) == 1 then .height else .width end) / .scale,
+      h: (if (.transform % 2) == 1 then .width else .height end) / .scale};
     (map(select(.name == $p))[0] | rect) as $a
     | (map(select(.name == $v))[0] | rect) as $b
-    | if $side == "below" then $a.y >= $b.y + $b.h else $a.y + $a.h <= $b.y end'
+    | if $side == "below" then $a.y >= $b.y + $b.h
+      elif $side == "right" then $a.x >= $b.x + $b.w
+      else $a.y + $a.h <= $b.y end'
 }
 
 primary_turned() {
@@ -68,6 +73,11 @@ wtype -M ctrl k -m ctrl
 wait_until "ctrl+k places the shown display above the other" 15 primary_is above
 screenshot "success-monitor-panel-03-above"
 pass "ctrl+k places the shown display above the other"
+
+wtype -M ctrl l -m ctrl
+wait_until "ctrl+l places the shown display right of the other" 15 primary_is right
+screenshot "success-monitor-panel-03b-right"
+pass "ctrl+l places the shown display right of the other"
 
 wtype r
 wait_until "r opens the rotate menu" 15 screen_contains "Normal"
