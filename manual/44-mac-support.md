@@ -16,9 +16,9 @@ You can still restore it later via Internet Recovery if you'd like.
 
 #### Wi-Fi Firmware on T2 Macs
 
-On a Mac with a T2 chip, the Wi-Fi and Bluetooth firmware can only be taken from macOS, so the installer saves it from macOS before it wipes the drive and puts it in place on the new system. Leave macOS installed until then.
+On a Mac with a T2 chip, the installer saves the Wi-Fi and Bluetooth firmware from the Mac's installed macOS before it wipes the drive, and puts it in place on the new system. Leave macOS installed until then.
 
-If macOS is already gone, or the installer could not read it, the install carries on without Wi-Fi. The [t2linux Wi-Fi and Bluetooth guide](https://wiki.t2linux.org/guides/wifi-bluetooth/) can download the firmware from Apple's recovery image instead, which needs another way online while the Wi-Fi is down. That method does not work on the iMac Pro, whose firmware can only be taken from macOS.
+If macOS is already gone, or the installer could not read it, the install carries on without Wi-Fi. The [t2linux Wi-Fi and Bluetooth guide](https://wiki.t2linux.org/guides/wifi-bluetooth/) can download the firmware from Apple's recovery image instead, which needs another way online while the Wi-Fi is down. That method does not work on the iMac Pro, whose firmware can only be taken from an installed macOS.
 
 For the sake of this part, we'll assume you've already reviewed [Getting Started](02-getting-started.md) and have your USB drive ready. If you don't go ahead and do that now.
 
