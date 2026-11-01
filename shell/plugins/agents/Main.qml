@@ -29,6 +29,25 @@ Item {
     onLoaded: root.parseLocalModel(text())
   }
 
+  // The recipes this machine can switch between, from the listing every
+  // omarchy-agent-local command rewrites; the card offers the ones that fit.
+  property var localRecipes: []
+
+  FileView {
+    path: root.home + "/.local/state/omarchy/agent-local/list.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        var parsed = JSON.parse(text())
+        if (Array.isArray(parsed)) root.localRecipes = parsed
+      } catch (e) {
+        // A half-written listing keeps the last good one.
+      }
+    }
+  }
+
   function parseLocalModel(content) {
     try {
       var parsed = JSON.parse(content)

@@ -35,36 +35,76 @@ Panel {
   readonly property bool localRunning: hasLocalModel && localModel.unit === "active"
   readonly property bool localStopping: localModel.unit === "deactivating"
   readonly property bool localCanStop: localRunning || localModel.unit === "activating"
-  readonly property bool localBestAvailable: !!localModel.best && localModel.best !== localModel.recipe
+  // The card's keyboard stops: the play/pause button, then launching an agent.
+  // Setting one up starts from Install › AI in the menu, where recipes that
+  // can't run on this machine say why; the panel only follows one that exists.
   readonly property var localActions: {
     var actions = []
-    // Setting one up starts from Install › AI in the menu, where recipes that
-    // can't run on this machine say why; the panel only follows one that exists.
     if (!hasLocalModel) return actions
-    if (!localStopping) actions.push(localCanStop ? "stop" : "start")
+    if (!localStopping) actions.push("toggle")
     if (localRunning) actions.push("launch")
-    actions.push("switch")
-    if (localBestAvailable) actions.push("setup")
     return actions
   }
 
-  function localActionLabel(action) {
-    switch (action) {
-    case "start": return Commons.I18n.t("agents.localStart")
-    case "stop": return Commons.I18n.t("agents.localStop")
-    case "launch": return Commons.I18n.t("agents.localLaunch")
-    case "switch": return Commons.I18n.t("agents.localSwitch")
-    default: return Commons.I18n.t("agents.localSetup")
+  // The other recipes that fit this machine, recommended first: switching is
+  // done right here rather than from a menu.
+  readonly property var localChoices: {
+    if (!hasLocalModel) return []
+    var recipes = usage.localRecipes || []
+    var choices = []
+    for (var i = 0; i < recipes.length; i++) {
+      var recipe = recipes[i]
+      if (recipe && recipe.available && recipe.id !== localModel.recipe) choices.push(recipe)
     }
+    choices.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
+    return choices
+  }
+
+  // A recipe already on disk switches in place, in seconds; one that still
+  // has to download opens a terminal to show its progress.
+  function switchLocal(recipe) {
+    if (!recipe) return
+    if (recipe.installed) {
+      Util.execArgv(["omarchy-agent-local-switch", String(recipe.id)])
+    } else {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local-use " + Util.shellQuote(String(recipe.id))])
+      root.close()
+    }
+  }
+
+  readonly property real localMemoryShare: {
+    var used = Number(localModel.observed ? localModel.observed.ram_used_gib : 0)
+    var total = Number(localModel.ram_total_gib || 0)
+    return used > 0 && total > 0 ? Math.min(used / total, 1) : -1
+  }
+
+  function localStateText() {
+    if (localRunning) return Commons.I18n.t("agents.localRunning")
+    if (localModel.unit === "activating") return Commons.I18n.t("agents.localLoading")
+    if (localStopping) return Commons.I18n.t("agents.localStopping")
+    if (localModel.unit === "failed") return localModel.result && localModel.result !== "success"
+      ? Commons.I18n.t("agents.localFailedResult").arg(String(localModel.result))
+      : Commons.I18n.t("agents.localFailed")
+    return Commons.I18n.t("agents.localStopped")
+  }
+
+  // "Local model on halogen · 128K context": the runtime and window in one line.
+  function localMetaText() {
+    var ctx = Number(localModel.ctx || 0)
+    var runtime = String(localModel.runtime || "")
+    if (ctx <= 0) return Commons.I18n.t("agents.localMetaNoContext").arg(runtime)
+    return Commons.I18n.t("agents.localMeta").arg(runtime).arg(Commons.I18n.formatNumber(Math.round(ctx / 1024)) + "K")
+  }
+
+  function toggleLocal() {
+    if (localCanStop) Util.execArgv(["omarchy-agent-local-stop"])
+    else Util.execArgv(["systemctl", "--user", "start", "omarchy-agent-local"])
   }
 
   function runLocalAction(action) {
     switch (action) {
-    case "start": Util.execArgv(["systemctl", "--user", "start", "omarchy-agent-local"]); break
-    case "stop": Util.execArgv(["omarchy-agent-local-stop"]); break
+    case "toggle": toggleLocal(); break
     case "launch": Util.execArgv(["omarchy-agent", "--local"]); root.close(); break
-    case "switch": Util.execArgv(["omarchy-menu", "summon", "install.ai.local-models"]); root.close(); break
-    case "setup": Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local-use best"]); root.close(); break
     }
   }
 
@@ -106,6 +146,7 @@ Panel {
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
       if (addStage === "" && localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
+      if (addStage === "") for (var lc = 0; lc < localChoices.length; lc++) rows.push([{ kind: "localChoice", index: lc }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -131,6 +172,7 @@ Panel {
         }
       }
       if (localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
+      for (var c = 0; c < localChoices.length; c++) rows.push([{ kind: "localChoice", index: c }])
       if (!blankSlate) {
         var tiles = []
         for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
@@ -434,6 +476,7 @@ Panel {
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "local") runLocalAction(localActions[target.index])
+    else if (target.kind === "localChoice") switchLocal(localChoices[target.index])
     else if (target.kind === "launch") launchAgent()
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
@@ -1160,102 +1203,192 @@ Panel {
 
             PanelSeparator { foreground: root.foreground }
 
-            PanelSectionHeader {
-              text: Commons.I18n.t("agents.localTitle")
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-            }
-
-            Column {
-              visible: root.hasLocalModel
+            // Laid out like a provider: mark, name and state on one line, then
+            // what it runs on, then how much of the machine it holds.
+            Item {
               width: parent.width
-              spacing: Style.space(6)
+              implicitHeight: Math.max(localMark.implicitHeight, localName.implicitHeight)
+
+              // The model maker's mark, as a provider shows its own.
+              ProviderIcon {
+                id: localMark
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                provider: ({ providerId: String(root.localModel.vendor || "ollama") })
+              }
 
               Text {
-                width: parent.width
+                id: localName
+                anchors.left: localMark.right
+                anchors.leftMargin: Style.space(10)
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, parent.width - localMark.width - localState.implicitWidth - localMeta.implicitWidth - localToggle.width - Style.space(50))
                 textFormat: Text.PlainText
                 text: String(root.localModel.name || root.localModel.recipe || "")
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
                 font.bold: true
-                wrapMode: Text.Wrap
+                elide: Text.ElideRight
               }
 
+              // Where a provider notes its usage status: whether the model is up.
               Text {
-                width: parent.width
+                id: localState
+                anchors.left: localName.right
+                anchors.leftMargin: Style.space(8)
+                anchors.verticalCenter: localName.verticalCenter
                 textFormat: Text.PlainText
-                text: String(root.localModel.runtime || "")
-                color: root.dim
+                text: root.localStateText()
+                color: root.localModel.unit === "failed" ? root.urgent : root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
-                wrapMode: Text.Wrap
-              }
 
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: {
-                  if (root.localRunning) return Commons.I18n.t("agents.localRunning")
-                  if (root.localModel.unit === "activating") return Commons.I18n.t("agents.localLoading")
-                  if (root.localStopping) return Commons.I18n.t("agents.localStopping")
-                  if (root.localModel.unit === "failed") return root.localModel.result
-                    ? Commons.I18n.t("agents.localFailedResult").arg(String(root.localModel.result))
-                    : Commons.I18n.t("agents.localFailed")
-                  return Commons.I18n.t("agents.localStopped")
+                HoverHandler { id: localStateHover }
+
+                PanelToolTip {
+                  visible: localStateHover.hovered && root.localRunning
+                  text: Commons.I18n.t("agents.localEndpoint").arg(String(root.localModel.endpoint || "")).arg(String(root.localModel.recipe || ""))
                 }
-                color: root.localModel.unit === "failed" ? root.urgent : root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                wrapMode: Text.Wrap
               }
 
+              // Where a provider shows its plan: what the model runs on.
               Text {
-                visible: root.localRunning
-                width: parent.width
+                id: localMeta
+                anchors.right: localToggle.left
+                anchors.rightMargin: Style.space(10)
+                anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
-                text: String(root.localModel.endpoint || "")
+                text: root.localMetaText()
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
-                wrapMode: Text.WrapAnywhere
               }
 
-              Text {
-                visible: root.localRunning && Number(root.localModel.ctx) > 0
-                width: parent.width
-                textFormat: Text.PlainText
-                text: Commons.I18n.t("agents.localContext").arg(Commons.I18n.formatNumber(Number(root.localModel.ctx) || 0))
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                wrapMode: Text.Wrap
-              }
-
-              Text {
-                visible: root.localBestAvailable
-                width: parent.width
-                textFormat: Text.PlainText
-                text: Commons.I18n.t("agents.localBetter")
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                wrapMode: Text.WordWrap
+              // Play to start it, pause to stop it and free its memory.
+              PanelActionButton {
+                id: localToggle
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                visible: !root.localStopping
+                iconText: root.localCanStop ? "󰏤" : "󰐊"
+                tooltipText: root.localCanStop ? Commons.I18n.t("agents.localStop") : Commons.I18n.t("agents.localStart")
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                hasCursor: root.hasKey("local", root.localActions.indexOf("toggle"))
+                onClicked: root.toggleLocal()
               }
             }
 
-            Flow {
+            // How much of the machine the model holds: it's the cost of running
+            // one, the way a limit is the cost of a subscription.
+            Item {
+              visible: root.localRunning && root.localMemoryShare >= 0
               width: parent.width
-              spacing: Style.space(16)
+              implicitHeight: Math.max(localMemoryTitle.implicitHeight, localMemoryValue.implicitHeight)
+
+              Text {
+                id: localMemoryTitle
+                width: parent.width * 0.3
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: Commons.I18n.t("agents.localMemory")
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              Meter {
+                anchors.left: localMemoryTitle.right
+                anchors.right: localMemoryValue.left
+                anchors.rightMargin: Style.space(20)
+                anchors.verticalCenter: parent.verticalCenter
+                value: root.localMemoryShare
+              }
+
+              Text {
+                id: localMemoryValue
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                horizontalAlignment: Text.AlignRight
+                text: Commons.I18n.t("agents.localMemoryValue")
+                  .arg(Commons.I18n.formatNumber(Math.round(Number(root.localModel.observed ? root.localModel.observed.ram_used_gib : 0))))
+                  .arg(Commons.I18n.formatNumber(Math.round(Number(root.localModel.ram_total_gib || 0))))
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+
+            TextLink {
+              visible: root.localRunning
+              picked: root.hasKey("local", root.localActions.indexOf("launch"))
+              text: Commons.I18n.t("agents.localLaunch")
+              onClicked: root.runLocalAction("launch")
+            }
+
+            // The other models this machine can run, switched to in place. The
+            // recommended one comes first and says so.
+            Column {
+              visible: root.localChoices.length > 0
+              width: parent.width
+              spacing: Style.space(10)
 
               Repeater {
-                model: root.localActions
-                TextLink {
-                  required property string modelData
+                model: root.localChoices
+
+                Item {
+                  id: choiceRow
+                  required property var modelData
                   required property int index
-                  picked: root.hasKey("local", index)
-                  text: root.localActionLabel(modelData)
-                  onClicked: root.runLocalAction(modelData)
+                  width: parent.width
+                  implicitHeight: Math.max(choiceMark.height, choiceName.implicitHeight, choiceLink.implicitHeight)
+
+                  ProviderIcon {
+                    id: choiceMark
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    size: Style.font.body
+                    provider: ({ providerId: String(choiceRow.modelData.vendor || "ollama") })
+                  }
+
+                  Text {
+                    id: choiceName
+                    anchors.left: choiceMark.right
+                    anchors.leftMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, parent.width - choiceMark.width - choiceNote.implicitWidth - choiceLink.implicitWidth - Style.space(40))
+                    textFormat: Text.PlainText
+                    text: String(choiceRow.modelData.name || choiceRow.modelData.id)
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    elide: Text.ElideRight
+                  }
+
+                  Text {
+                    id: choiceNote
+                    anchors.left: choiceName.right
+                    anchors.leftMargin: Style.space(8)
+                    anchors.verticalCenter: choiceName.verticalCenter
+                    textFormat: Text.PlainText
+                    text: choiceRow.modelData.best
+                      ? Commons.I18n.t("agents.localChoiceBest").arg(String(choiceRow.modelData.runtime || ""))
+                      : String(choiceRow.modelData.runtime || "")
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  TextLink {
+                    id: choiceLink
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    picked: root.hasKey("localChoice", choiceRow.index)
+                    text: choiceRow.modelData.installed ? Commons.I18n.t("agents.localSwitch") : Commons.I18n.t("agents.localDownload")
+                    onClicked: root.switchLocal(choiceRow.modelData)
+                  }
                 }
               }
             }

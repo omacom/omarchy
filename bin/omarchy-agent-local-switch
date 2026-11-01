@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Switch the local model in place, notifying when it fails
+# omarchy:args=<recipe>
+# omarchy:hidden=true
+
+# The agents panel switches to a recipe already on disk without a terminal, so
+# a failed switch has to say so somewhere. use restores the previous model
+# itself; this only reports it.
+recipe=${1:?Usage: omarchy-agent-local-switch <recipe>}
+
+if ! omarchy-agent-local-use "$recipe"; then
+  omarchy-notification-send -u critical "$(omarchy-i18n agents.localSwitchFailed "$recipe")" "$(omarchy-i18n agents.localSwitchFailedBody)"
+  exit 1
+fi
