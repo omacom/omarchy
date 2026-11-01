@@ -215,7 +215,7 @@ upgrade. This is documented in the PKGBUILD.
 
 ## Locate indexing
 
-`default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf` ships through `omarchy-settings` to `/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf`. It replaces the existing service's `ExecStart` with `updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots`, keeping Btrfs subvolume mounts searchable and excluding Snapper snapshots. The upstream service retains its timer, resource limits, and sandbox; Omarchy's existing AC-power condition still applies.
+`default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf` ships through `omarchy-settings` to `/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf`. It replaces the existing service's `ExecStart` with `updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots --add-prunefs="fuse.rclone smb3 ceph"`, keeping Btrfs subvolume mounts searchable, excluding Snapper snapshots, and skipping rclone, SMB3, and Ceph mounts that plocate's default `PRUNEFS` misses. The upstream service retains its timer, resource limits, and sandbox; Omarchy's existing AC-power condition still applies.
 
 `/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. Installer and AUR package refreshes pass the same options directly because installation may run without systemd and an explicitly requested refresh should work on battery.
 
