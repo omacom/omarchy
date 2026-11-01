@@ -17,15 +17,10 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
-  // A locked session blanks the displays after a few seconds. Nothing is
-  // visible from then until the user wakes it, so a video must not keep
-  // decoding through what is usually the longest part of a lock.
-  property bool displaysBlank: false
-  property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
-  readonly property string placeholderText: "Enter Password"
+  readonly property string placeholderText: Commons.I18n.t("lock.enterPassword")
   readonly property int fieldWidth: 381
   readonly property int fieldHeight: 67
   readonly property int outlineThickness: 3
@@ -46,8 +41,8 @@ Item {
     ? Border.surfaceSpec("lock", "border-error", Commons.Color.lock.borderError, root.outlineThickness, "border-alpha")
     : Border.surfaceSpec("lock", "border-active", Commons.Color.lock.borderActive, root.outlineThickness, "border-alpha")
 
+  // A video wallpaper shows its still poster: nothing plays behind the lock.
   readonly property bool video: Util.isVideoPath(root.backgroundPath)
-  readonly property bool feedActive: root.video && root.loadBackground && !root.displaysBlank && !root.powerSaverActive
 
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
@@ -124,25 +119,6 @@ Item {
       blurMax: 128
       blurMultiplier: 1.25
       contrast: -0.08
-    }
-
-    // The cached poster stays behind the feed when policy pauses playback,
-    // the module is unavailable, or a new connection has not received a frame.
-    Loader {
-      id: feedLoader
-      objectName: "lockFeedLoader"
-      anchors.fill: parent
-      active: root.feedActive
-      source: "LockFeedSurface.qml"
-      visible: status === Loader.Ready
-    }
-
-    // The feed item cannot be sampled by MultiEffect on every renderer.
-    // Keep video wallpapers visible and darken them slightly for legibility.
-    Rectangle {
-      anchors.fill: feedLoader
-      visible: root.video
-      color: "#22000000"
     }
 
     MouseArea {
@@ -223,7 +199,7 @@ Item {
       Text {
         textFormat: Text.PlainText
         anchors.fill: passwordInput
-        text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+        text: root.authenticatingPassword ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
         visible: passwordInput.text.length === 0
         color: root.authenticatingPassword ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
         font.family: Style.font.family
@@ -266,7 +242,7 @@ Item {
       anchors.topMargin: 18
       anchors.horizontalCenter: inputField.horizontalCenter
       visible: root.fingerprintConfigured && root.fingerprintUnavailable
-      text: "Fingerprint reader unavailable"
+      text: Commons.I18n.t("lock.fingerprintUnavailable")
       color: Commons.Color.lock.textError
       font.family: Style.font.family
       font.pixelSize: Style.font.heading
