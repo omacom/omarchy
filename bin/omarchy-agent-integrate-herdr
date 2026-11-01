@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# omarchy:summary=Install herdr's status and session-restore integration for coding agents
+# omarchy:args=[--existing]
+# omarchy:hidden=true
+
+# mise runs this as a postinstall hook (etc/mise/conf.d/omarchy.toml), naming the
+# tools it just installed in MISE_INSTALLED_TOOLS. Omarchy's agents are lazy, so
+# that is an agent's first use, and every later upgrade refreshes its hooks.
+# herdr only installs into a config directory the agent already made, and the
+# agent makes it on its first run, after this hook, so it is created here.
+# --existing integrates every agent that already has its config directory.
+
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+targets=(pi omp claude codex copilot devin kimi opencode kilo qwen cursor antigravity-cli grok)
+
+# The directory herdr requires before it installs, with the overrides it honors
+# (src/integration/env.rs in herdr).
+config_dir() {
+  case $1 in
+  pi) echo "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}" ;;
+  omp) echo "${PI_CODING_AGENT_DIR:-$HOME/${PI_CONFIG_DIR:-.omp}/agent}" ;;
+  claude) echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" ;;
+  codex) echo "${CODEX_HOME:-$HOME/.codex}" ;;
+  copilot) echo "${COPILOT_HOME:-$HOME/.copilot}" ;;
+  devin) echo "$config_home/devin" ;;
+  kimi) echo "${KIMI_CODE_HOME:-$HOME/.kimi-code}" ;;
+  opencode) echo "${OPENCODE_CONFIG_DIR:-$config_home/opencode}" ;;
+  kilo) echo "$config_home/kilo" ;;
+  qwen) echo "${QWEN_HOME:-$HOME/.qwen}" ;;
+  cursor) echo "${CURSOR_CONFIG_DIR:-$HOME/.cursor}" ;;
+  antigravity-cli) echo "${ANTIGRAVITY_CLI_CONFIG_DIR:-$HOME/.gemini/config}" ;;
+  grok) echo "${GROK_CONFIG_DIR:-${GROK_HOME:-$HOME/.grok}}" ;;
+  esac
+}
+
+# The herdr integration for a mise tool, if it has one.
+herdr_target() {
+  case $1 in
+  pi | claude | codex | copilot | opencode | qwen | grok | antigravity-cli) echo "$1" ;;
+  oh-my-pi) echo "omp" ;;
+  cursor-agent | http:cursor-agent) echo "cursor" ;;
+  http:devin) echo "devin" ;;
+  npm:@kilocode/cli) echo "kilo" ;;
+  npm:@moonshot-ai/kimi-code) echo "kimi" ;;
+  esac
+}
+
+# Its report goes to stdout, which would land in the agent's first screen.
+integrate() {
+  if ! mkdir -p "$(config_dir "$1")" || ! herdr integration install "$1" >/dev/null; then
+    echo "Could not install the herdr integration for $1" >&2
+  fi
+}
+
+if [[ ${1:-} == "--existing" ]]; then
+  for target in "${targets[@]}"; do
+    if [[ -d $(config_dir "$target") ]]; then
+      integrate "$target"
+    fi
+  done
+else
+  while IFS= read -r tool; do
+    target=$(herdr_target "$tool")
+    if [[ -n $target ]]; then
+      integrate "$target"
+    fi
+  done < <(jq -r '.[].name' <<<"${MISE_INSTALLED_TOOLS:-[]}" 2>/dev/null)
+fi
+
+exit 0
