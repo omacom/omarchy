@@ -168,6 +168,8 @@
   "trigger.hardware.touchpad-haptics.high": {"icon":"󰌌","label":"high","when":"omarchy-hw-dell-xps-haptic-touchpad && omarchy-cmd-present dell-xps-touchpad-haptics","checked":"[[ \"$(dell-xps-touchpad-haptics get)\" == \"high\" ]]","action":"dell-xps-touchpad-haptics set high"},
   "trigger.hardware.touchscreen-on": {"icon":"󰆽","label":"Enable Touchscreen","when":"omarchy-hw-touchscreen && [[ -f ~/.local/state/omarchy/toggles/hypr/touchscreen-disabled-name ]]","action":"omarchy-toggle-touchscreen"},
   "trigger.hardware.touchscreen-off": {"icon":"󰆽","label":"Disable Touchscreen","when":"omarchy-hw-touchscreen && [[ ! -f ~/.local/state/omarchy/toggles/hypr/touchscreen-disabled-name ]]","action":"omarchy-toggle-touchscreen"},
+  "trigger.hardware.rotation-lock-on": {"icon":"󰌾","label":"Lock Rotation","when":"omarchy-hw-chuwi-minibook-x && ! omarchy-toggle-enabled rotation-lock","action":"omarchy-toggle-rotation-lock"},
+  "trigger.hardware.rotation-lock-off": {"icon":"󰑝","label":"Unlock Rotation","when":"omarchy-hw-chuwi-minibook-x && omarchy-toggle-enabled rotation-lock","action":"omarchy-toggle-rotation-lock"},
   "trigger.reminder.set": {"icon":"󰢌","label":"Set one","aliases":["reminder-set","remind"],"action":"omarchy-reminder -i"},
   "trigger.reminder.show": {"icon":"󰢌","label":"Show all","action":"omarchy-reminder show"},
   "trigger.reminder.clear": {"icon":"󰢌","label":"Clear all","action":"omarchy-reminder clear"},
