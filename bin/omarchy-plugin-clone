@@ -156,8 +156,10 @@ for (( attempt = 0; attempt < 40; attempt++ )); do
   sleep 0.05
 done
 (( discovered )) || fail "cloned plugin '$new_id' was not discovered"
-omarchy-plugin-enable "$new_id" >/dev/null
+# Keep the clone even if enable fails: a timed-out client may still have
+# switched shell.json to it.
 clone_complete=1
+omarchy-plugin-enable "$new_id" >/dev/null
 omarchy-notification-send -g 󰐱 \
   "$(omarchy-i18n plugin.editingClone)" \
   "$(omarchy-i18n plugin.replacedByClone)"
