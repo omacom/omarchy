@@ -15,10 +15,13 @@ app=${1:-}
 # Agent terminals notify as kitty/foot/etc. while their shared window class is
 # org.omarchy.agent, leaving the terminal name only in initialTitle. So match
 # by class first, then fall back to the launch-time title of agent windows.
+# Among several matches take the one focused last, which is also the window a
+# browser hands a new tab to.
 address=$(
   hyprctl clients -j 2>/dev/null |
     jq -r --arg pattern "$app" \
       'def matches($value): ($value // "") | test($pattern; "i");
+       sort_by(.focusHistoryID) |
        first(
          (.[] | select(matches(.class))),
          (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))

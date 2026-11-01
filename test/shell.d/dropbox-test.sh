@@ -31,28 +31,71 @@ assertEqual(
   '1h ago · Docs',
   'dropbox file metadata includes relative time and folder'
 )
+
+const day = 86400 * 1000
+assertEqual(dropbox.relativeTime(1, 1000 + 359 * day), '11mo ago', 'dropbox shows months just under a year')
+assertEqual(dropbox.relativeTime(1, 1000 + 360 * day), '11mo ago', 'dropbox never shows zero years at 360 days')
+assertEqual(dropbox.relativeTime(1, 1000 + 364 * day), '11mo ago', 'dropbox never shows zero years at 364 days')
+assertEqual(dropbox.relativeTime(1, 1000 + 365 * day), '1y ago', 'dropbox shows one year at 365 days')
 JS
 
 require_command jq
 require_command python3
 
-TEST_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME"' EXIT
+test_tmp=$(mktemp -d)
+daemon_pid=""
+trap '[[ -n $daemon_pid ]] && kill "$daemon_pid" 2>/dev/null; rm -rf "$test_tmp"' EXIT
 
-dropbox_dir="$TEST_HOME/Dropbox"
-mkdir -p "$dropbox_dir/Documents" "$dropbox_dir/.dropbox.cache/new_files" "$TEST_HOME/.dropbox"
-cat >"$TEST_HOME/.dropbox/info.json" <<JSON
-{"personal": {"path": "$dropbox_dir", "host": 1, "is_team": false, "subscription_type": "Basic"}}
-JSON
+mkdir -p "$test_tmp/bin" "$test_tmp/home/.dropbox"
+cat >"$test_tmp/bin/dropbox-cli" <<'SH'
+#!/bin/bash
+echo "$*" >>"$HOME/cli.log"
+echo "Up to date"
+SH
+chmod +x "$test_tmp/bin/dropbox-cli"
+
+dropbox_status() {
+  HOME="$test_tmp/home" PATH="$test_tmp/bin:$PATH" python3 "$ROOT/shell/plugins/panels/dropbox/status.py" 25
+}
+
+# Every `dropbox-cli status` mints a new link URL while unlinked, voiding the one Log in opened.
+status=$(dropbox_status)
+[[ $(jq -r .running <<<"$status") == "false" && ! -e $test_tmp/home/cli.log ]] ||
+  fail "dropbox status reads an unlinked, stopped daemon without asking it for a link" "$status"
+pass "dropbox status reads an unlinked, stopped daemon without asking it for a link"
+
+(exec -a dropbox sleep 60) &
+daemon_pid=$!
+echo "$daemon_pid" >"$test_tmp/home/.dropbox/dropbox.pid"
+status=$(dropbox_status)
+[[ $(jq -r .running <<<"$status") == "true" && $(jq -r .authenticated <<<"$status") == "false" && ! -e $test_tmp/home/cli.log ]] ||
+  fail "dropbox status reads an unlinked, running daemon without asking it for a link" "$status"
+pass "dropbox status reads an unlinked, running daemon without asking it for a link"
+
+# info.json can outlive an unlink, so naming an account does not prove the daemon has stopped minting links.
+jq -n --arg path "$test_tmp/home/Dropbox" '{personal: {path: $path, subscription_type: "Plus"}}' >"$test_tmp/home/.dropbox/info.json"
+status=$(dropbox_status)
+[[ $(jq -r .authenticated <<<"$status") == "false" && ! -e $test_tmp/home/cli.log ]] ||
+  fail "dropbox status leaves the daemon alone while info.json names a missing folder" "$status"
+pass "dropbox status leaves the daemon alone while info.json names a missing folder"
+
+mkdir -p "$test_tmp/home/Dropbox"
+jq -n --arg path "$test_tmp/home/Dropbox" '{personal: {path: $path, subscription_type: "Plus"}}' >"$test_tmp/home/.dropbox/info.json"
+status=$(dropbox_status)
+[[ $(jq -r .running <<<"$status") == "true" && $(jq -r .statusText <<<"$status") == "Up to date" && $(<"$test_tmp/home/cli.log") == "status" ]] ||
+  fail "dropbox status asks a linked daemon for its status" "$status"
+pass "dropbox status asks a linked daemon for its status"
 
 # A real file, and the staging copy Dropbox writes while syncing it. The cache
 # entry is larger and newer, so an unfiltered scan would report it first.
+dropbox_dir="$test_tmp/home/Dropbox"
+mkdir -p "$dropbox_dir/Documents" "$dropbox_dir/.dropbox.cache/new_files"
 printf 'hello' >"$dropbox_dir/Documents/notes.txt"
 head -c 4096 /dev/zero >"$dropbox_dir/.dropbox.cache/new_files/abc123"
 printf 'metadata' >"$dropbox_dir/.dropbox"
 touch -d '2020-01-01' "$dropbox_dir/Documents/notes.txt"
 
-result=$(HOME="$TEST_HOME" python3 "$ROOT/shell/plugins/panels/dropbox/status.py" 10)
+result=$(dropbox_status)
 
 [[ $(jq -r '.files | length' <<<"$result") == "1" ]] ||
   fail "dropbox lists only user files" "$result"
