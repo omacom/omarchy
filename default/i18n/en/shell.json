@@ -3,6 +3,7 @@
   "agents.addAccount": "Add an account",
   "agents.addAnother": "Add another",
   "agents.localAi": "Local AI",
+  "agents.localAllInstalled": "All eligible models are installed",
   "agents.localRecommended": "recommended",
   "agents.addProviderAccount": "Add %1 account",
   "agents.app": "App",

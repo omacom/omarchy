@@ -1411,7 +1411,11 @@ Panel {
           required property var modelData
           required property int index
           readonly property string state: root.addChecks[modelData.providerId] || ""
-          readonly property bool available: modelData.providerId === "local" ? root.localAddRecipes.length > 0 : state === "first" || state === "additional"
+          readonly property bool local: modelData.providerId === "local"
+          readonly property bool available: local ? root.localAddRecipes.length > 0 : state === "first" || state === "additional"
+          // Local AI stays offered once everything that fits is installed,
+          // greyed out and saying so.
+          opacity: local && !available ? 0.4 : 1
           readonly property bool hasCursor: root.hasKey("choice", index)
           width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
           implicitHeight: choiceBody.implicitHeight + Style.space(16)
@@ -1442,6 +1446,7 @@ Panel {
           }
 
           MouseArea {
+            id: choiceMouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
@@ -1449,6 +1454,10 @@ Panel {
             onClicked: root.chooseAddProvider(choice.modelData.providerId)
           }
 
+          PanelToolTip {
+            visible: choice.local && !choice.available && choiceMouse.containsMouse
+            text: Commons.I18n.t("agents.localAllInstalled")
+          }
         }
       }
     }
