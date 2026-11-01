@@ -42,6 +42,7 @@ for unit_file in "$unit_dir"/openclaw-gateway.service "$unit_dir"/openclaw-node.
     # A unit that had been failing stays listed as "not-found failed" after
     # its file is gone until its failed state is reset.
     systemctl --user reset-failed "$unit" 2>/dev/null || true
+    rm -f "$HOME/.local/state/omarchy/openclaw-stopped/$role"
   else
     echo "Could not stop $unit; OpenClaw was not removed." >&2
     exit 1
@@ -57,6 +58,9 @@ omarchy-pkg-drop openclaw
 if [[ -L $HOME/.local/bin/openclaw && $(readlink -- "$HOME/.local/bin/openclaw") == "$HOME/.openclaw/bin/openclaw" ]]; then
   rm -f "$HOME/.local/bin/openclaw"
 fi
+
+# What omarchy-install-openclaw-cli kept of services it stopped goes with them.
+rm -rf "$HOME/.local/state/omarchy/openclaw-stopped"
 
 # The web app launcher and icon omarchy-install-ai-openclaw created.
 rm -f "$HOME/.local/share/applications/OpenClaw.desktop"
