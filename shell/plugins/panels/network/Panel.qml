@@ -1517,6 +1517,7 @@ Panel {
       // fields own it while focused, or letters like j/k/x and Space would
       // move the cursor instead of reaching the field.
       blocked: root.passwordSsid !== "" || hotspotSsidField.activeFocus || hotspotPwField.activeFocus
+        || hotspotAliasField.activeFocus
 
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) {
