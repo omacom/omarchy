@@ -2688,7 +2688,10 @@ Panel {
     selected: root.hotspotSaveData === choice
     enabled: !root.hotspotBusy
 
-    onClicked: root.hotspotSaveData = choice
+    onClicked: {
+      root.hotspotEdited = true
+      root.hotspotSaveData = choice
+    }
   }
 
   // One DNS provider pill. The cursor + current visuals come entirely from
