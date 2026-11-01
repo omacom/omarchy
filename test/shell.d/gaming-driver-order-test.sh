@@ -20,10 +20,12 @@ printf 'drivers\n' >>"$OMARCHY_TEST_CALLS"
 exit "${OMARCHY_TEST_DRIVER_STATUS:-0}"
 SH
 
-# Answers pacman -Q from the packages the test says are installed.
+# Answers pacman -Q from the packages the test says are installed; wine-staging provides wine.
 cat >"$stub_bin/pacman" <<'SH'
 #!/bin/bash
-[[ $1 == -Q && " ${OMARCHY_TEST_INSTALLED:-} " == *" ${!#} "* ]]
+installed=" ${OMARCHY_TEST_INSTALLED:-} "
+[[ $installed == *" wine-staging "* ]] && installed+="wine "
+[[ $1 == "-Q" && $installed == *" ${!#} "* ]]
 SH
 
 cat >"$stub_bin/omarchy-pkg-add" <<'SH'
