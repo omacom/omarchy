@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: greptile-labeler-${{ github.event.issue.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   pull-requests: write
@@ -34,17 +34,23 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Always resolve the latest Greptile review comment to prevent stale events from overwriting
+          latest_comment=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
+            --jq '[.[] | select((.user.login == "greptile-apps" or .user.login == "greptile-apps[bot]") and (.body | contains("greptile_summary")))] | last | .body // empty' || true)
+
+          review_body="${latest_comment:-$COMMENT_BODY}"
+
           # Extract Greptile confidence score
           score=""
-          if [[ $COMMENT_BODY =~ \<\!--[[:space:]]*greptile_confidence_score:([0-9]+)[[:space:]]*--\> ]]; then
+          if [[ $review_body =~ \<\!--[[:space:]]*greptile_confidence_score:([0-9]+)[[:space:]]*--\> ]]; then
             score="${BASH_REMATCH[1]}"
-          elif [[ $COMMENT_BODY =~ Confidence[[:space:]]+Score:[[:space:]]*([0-9]+)/5 ]]; then
+          elif [[ $review_body =~ Confidence[[:space:]]+Score:[[:space:]]*([0-9]+)/5 ]]; then
             score="${BASH_REMATCH[1]}"
           fi
 
           # Extract Greptile impact level
           impact=""
-          if [[ $COMMENT_BODY =~ \*\*\[([a-zA-Z]+)[[:space:]]+impact\]\*\* ]]; then
+          if [[ $review_body =~ \*\*\[([a-zA-Z]+)[[:space:]]+impact\]\*\* ]]; then
             impact="${BASH_REMATCH[1],,}"
           fi
 
@@ -62,7 +68,7 @@ jobs:
           fi
 
           if [[ -z $target_score_label && -z $target_impact_label ]]; then
-            echo "No actionable Greptile labels found in comment."
+            echo "No actionable Greptile labels found in review."
             exit 0
           fi
 
