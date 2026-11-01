@@ -772,7 +772,7 @@ Panel {
             }
 
             // One icon per display, named in its tooltip. Plain glyphs like
-            // Extend | Mirror: the shown one in the accent, the rest dim until
+            // Extend and Mirror: the shown one in the accent, the rest dim until
             // hovered or picked, and no box either way.
             Row {
               id: picker
@@ -1153,21 +1153,12 @@ Panel {
               Row {
                 id: mirrorRow
                 visible: root.mirrorAvailable
-                spacing: Style.space(8)
+                spacing: Style.space(14)
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
 
                 MirrorLink { mode: "extend"; modeIndex: 0 }
-
-                Text {
-                  text: "|"
-                  textFormat: Text.PlainText
-                  color: Qt.darker(root.bar.foreground, 1.55)
-                  font.family: root.bar.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-
                 MirrorLink { mode: "mirror"; modeIndex: 1 }
               }
             }
