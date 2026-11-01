@@ -78,22 +78,20 @@ Panel {
     return used > 0 && total > 0 ? Math.min(used / total, 1) : -1
   }
 
+  // Running and stopped are what the play/pause button already says; only the
+  // states in between, and a failure, need words.
   function localStateText() {
-    if (localRunning) return Commons.I18n.t("agents.localRunning")
     if (localModel.unit === "activating") return Commons.I18n.t("agents.localLoading")
     if (localStopping) return Commons.I18n.t("agents.localStopping")
     if (localModel.unit === "failed") return localModel.result && localModel.result !== "success"
       ? Commons.I18n.t("agents.localFailedResult").arg(String(localModel.result))
       : Commons.I18n.t("agents.localFailed")
-    return Commons.I18n.t("agents.localStopped")
+    return ""
   }
 
-  // "Local model on halogen · 128K context": the runtime and window in one line.
   function localMetaText() {
     var ctx = Number(localModel.ctx || 0)
-    var runtime = String(localModel.runtime || "")
-    if (ctx <= 0) return Commons.I18n.t("agents.localMetaNoContext").arg(runtime)
-    return Commons.I18n.t("agents.localMeta").arg(runtime).arg(Commons.I18n.formatNumber(Math.round(ctx / 1024)) + "K")
+    return ctx > 0 ? Commons.I18n.t("agents.localMeta").arg(Commons.I18n.formatNumber(Math.round(ctx / 1024)) + "K") : ""
   }
 
   function toggleLocal() {
@@ -1230,26 +1228,27 @@ Panel {
                 font.pixelSize: Style.font.body
                 font.bold: true
                 elide: Text.ElideRight
+
+                HoverHandler { id: localNameHover }
+
+                PanelToolTip {
+                  visible: localNameHover.hovered && root.localRunning
+                  text: Commons.I18n.t("agents.localEndpoint").arg(String(root.localModel.endpoint || "")).arg(String(root.localModel.recipe || ""))
+                }
               }
 
-              // Where a provider notes its usage status: whether the model is up.
+              // Where a provider notes its usage status: loading, or a failure.
               Text {
                 id: localState
                 anchors.left: localName.right
                 anchors.leftMargin: Style.space(8)
                 anchors.verticalCenter: localName.verticalCenter
+                visible: text !== ""
                 textFormat: Text.PlainText
                 text: root.localStateText()
                 color: root.localModel.unit === "failed" ? root.urgent : root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
-
-                HoverHandler { id: localStateHover }
-
-                PanelToolTip {
-                  visible: localStateHover.hovered && root.localRunning
-                  text: Commons.I18n.t("agents.localEndpoint").arg(String(root.localModel.endpoint || "")).arg(String(root.localModel.recipe || ""))
-                }
               }
 
               // Where a provider shows its plan: what the model runs on.
@@ -1314,7 +1313,6 @@ Panel {
                 horizontalAlignment: Text.AlignRight
                 text: Commons.I18n.t("agents.localMemoryValue")
                   .arg(Commons.I18n.formatNumber(Math.round(Number(root.localModel.observed ? root.localModel.observed.ram_used_gib : 0))))
-                  .arg(Commons.I18n.formatNumber(Math.round(Number(root.localModel.ram_total_gib || 0))))
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -1372,10 +1370,9 @@ Panel {
                     anchors.left: choiceName.right
                     anchors.leftMargin: Style.space(8)
                     anchors.verticalCenter: choiceName.verticalCenter
+                    visible: choiceRow.modelData.best === true
                     textFormat: Text.PlainText
-                    text: choiceRow.modelData.best
-                      ? Commons.I18n.t("agents.localChoiceBest").arg(String(choiceRow.modelData.runtime || ""))
-                      : String(choiceRow.modelData.runtime || "")
+                    text: Commons.I18n.t("agents.localChoiceBest")
                     color: root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
