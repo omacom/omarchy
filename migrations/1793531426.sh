@@ -5,12 +5,12 @@ ghostty_config="$HOME/.config/ghostty/config"
 
 # Preserve dotfile managers that own a file or any directory through HOME.
 path="$ghostty_config"
-while [[ $path != / ]]; do
+while [[ $path != "/" ]]; do
   if [[ -L $path ]]; then
     echo "Preserving symlink-managed Ghostty config: $path"
     exit 0
   fi
-  [[ $path != "$HOME" ]] || break
+  [[ $path != $HOME ]] || break
   path=$(dirname "$path")
 done
 
