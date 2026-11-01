@@ -43,9 +43,11 @@ if [[ $mode != "--services-only" ]]; then
     confirm_reboot "$(omarchy-i18n update.rebootRequired)"
   fi
 
-  running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
-  if [[ $running_hyprland == *"(deleted)"* ]]; then
-    confirm_reboot "$(omarchy-i18n update.hyprlandReboot)"
+  if omarchy-edition-desktop; then
+    running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
+    if [[ $running_hyprland == *"(deleted)"* ]]; then
+      confirm_reboot "$(omarchy-i18n update.hyprlandReboot)"
+    fi
   fi
 fi
 
@@ -60,10 +62,12 @@ if [[ $mode != "--reboot-only" ]]; then
     fi
   done
 
-  # Updates routinely replace the shell's QML, and a stale process can lazy-load
-  # new files into old code. A restart failure (locked session, ssh, TTY) only
-  # prints its reason: the next update or login gets a fresh shell anyway.
-  echo -e "\e[32m\nRestarting shell\e[0m"
-  echo "All plugins have been reloaded"
-  omarchy-restart-shell || true
+  if omarchy-edition-desktop; then
+    # Updates routinely replace the shell's QML, and a stale process can lazy-load
+    # new files into old code. A restart failure (locked session, ssh, TTY) only
+    # prints its reason: the next update or login gets a fresh shell anyway.
+    echo -e "\e[32m\nRestarting shell\e[0m"
+    echo "All plugins have been reloaded"
+    omarchy-restart-shell || true
+  fi
 fi
