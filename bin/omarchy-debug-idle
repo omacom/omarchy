@@ -32,24 +32,24 @@ journalctl -t omarchy-shell -n "$lines" --no-pager --quiet 2>/dev/null || true
 
 section "Relevant processes"
 ps -eo pid=,args= \
-  | grep -E 'quickshell -n -p|omarchy-system-sleep-monitor|systemd-inhibit.*Lock screen before suspend|org\.omarchy\.screensaver|omarchy-screensaver|(^|/| )ttfx( |$)' \
+  | grep -E 'quickshell -n -p|omarchy-system-sleep-monitor|systemd-inhibit.*Lock screen before suspend|omarchy-screensaver' \
   | grep -v grep || true
 
 section "Sleep lock service"
 systemctl --user status omarchy-sleep-lock.service --no-pager 2>/dev/null || true
 
-section "Hyprland screensaver clients"
-hyprctl clients -j 2>/dev/null \
-  | jq -r '.[] | select(.class == "org.omarchy.screensaver" or .initialClass == "org.omarchy.screensaver") | [.pid,.class,.initialClass,.title,.focusHistoryID] | @tsv' || true
+section "Hyprland screensaver layers"
+hyprctl layers -j 2>/dev/null \
+  | jq -r '.. | objects | select(.namespace? == "org.omarchy.screensaver") | [.pid,.namespace,.x,.y,.w,.h] | @tsv' || true
 
 section "Idle inhibitors"
 hyprctl clients -j 2>/dev/null \
   | jq -r '.[] | select(.inhibitingIdle == true or ((.tags // []) | index("noidle"))) | [.pid,.class,.title,((.tags // []) | join(",")),.inhibitingIdle] | @tsv' || true
 
 section "Screensaver detector"
-if hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class == "org.omarchy.screensaver" or .initialClass == "org.omarchy.screensaver")' >/dev/null; then
-  echo "running-window"
-elif pgrep -f '[o]rg.omarchy.screensaver' >/dev/null; then
+if hyprctl layers -j 2>/dev/null | jq -e '[.. | objects | select(.namespace? == "org.omarchy.screensaver")] | length > 0' >/dev/null; then
+  echo "running-layer"
+elif pgrep -f '[/]usr/lib/omarchy-screensaver/omarchy-screensaver' >/dev/null; then
   echo "running-process"
 elif omarchy-toggle-enabled screensaver-off; then
   echo "disabled"
