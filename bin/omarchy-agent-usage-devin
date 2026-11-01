@@ -1,0 +1,497 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Devin usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Devin usage into one display-ready JSON record.
+
+Token stats come from the Devin CLI session database at
+$XDG_DATA_HOME/devin/cli/sessions.db, where each assistant message carries
+metadata.metrics with its input/output/cache token counts and the model that
+generated it, and from pi/omp sessions and opencode's message database (both
+of its stores) that ran on the devin provider.
+
+The daily and weekly quota comes from the user-status cache the Devin CLI
+writes at $XDG_CACHE_HOME/devin/cli/user_status.*.bin every time it starts:
+the GetUserStatus answer it fetched, base64 protobuf. The collector reads that
+cache, the same data the CLI's /usage command renders, and makes no network
+call of its own. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import base64
+import json
+import math
+import os
+import sqlite3
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  Stats,
+  base_record,
+  cache_root,
+  cached_scan,
+  data_home,
+  emit,
+  local_day,
+  number,
+  obj,
+  open_limits,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  token_count,
+  warn,
+  write_json,
+)
+
+AGENT_ID = "devin"
+AGENT_NAME = "Devin"
+PROVIDER = "devin"
+AUTH_HELP = "Run `devin auth login` so Devin can record its quota."
+REFRESH_HELP = "Devin hasn't recorded its quota since it was signed in. Start Devin to refresh it."
+
+# The quota is a file read, so it is read on every run; only the local scan
+# is cached.
+
+# The quota comes from a cache the CLI writes when it starts, never from a
+# check of ours, and cloud sessions keep spending it meanwhile. Numbers this
+# recent still describe the account; older ones are reported stale, with
+# their age.
+LIMITS_CURRENT_ENOUGH_SECONDS = 900
+
+# The plan tiers GetUserStatus numbers, named as Devin names them. Only asked
+# when the plan carries no name of its own.
+TEAMS_TIER = {
+  1: "Teams", 2: "Pro", 3: "Enterprise Saas", 4: "Hybrid", 5: "Enterprise Self Hosted",
+  6: "Waitlist Pro", 7: "Teams Ultimate", 8: "Pro Ultimate", 9: "Trial", 10: "Enterprise Self Serve",
+  11: "Enterprise Saas Pooled", 12: "Devin Enterprise", 14: "Devin Teams", 15: "Devin Teams V2", 16: "Devin Pro",
+  17: "Devin Max", 18: "Max", 19: "Devin Free", 20: "Devin Trial",
+}
+
+# The CLI's status cache dates its fetch in epoch seconds; past these bounds
+# the stamp is garbage, not a time.
+EARLIEST_EPOCH = 946_684_800  # 2000-01-01
+LATEST_EPOCH = 4_102_444_800  # 2100-01-01
+
+
+def epoch_seconds(value):
+  if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    return None
+  # Stamps are seconds or milliseconds.
+  seconds = value / 1000 if value > 100_000_000_000 else value
+  if not EARLIEST_EPOCH <= seconds < LATEST_EPOCH:
+    return None
+  return seconds
+
+
+def iso_from_unix(value):
+  seconds = epoch_seconds(value)
+  return datetime.fromtimestamp(seconds, timezone.utc).isoformat() if seconds else ""
+
+
+def stored_day(value):
+  # The Devin CLI dates every row it writes, so a row without a time is
+  # unreadable rather than today's.
+  return None if value is None else local_day(value)
+
+
+def model_name(raw):
+  return str(raw or "").strip() or AGENT_ID
+
+
+# ------------------------------------------------------------- Devin CLI
+
+
+def data_dir():
+  return Path(os.environ.get("DEVIN_DATA_DIR") or (data_home() / "devin" / "cli"))
+
+
+def credentials_path():
+  return data_dir().parent / "credentials.toml"
+
+
+def session_databases():
+  """The CLI's own database, or failing that the older layout some builds
+  wrote straight under $XDG_DATA_HOME/devin. Never both: a machine that moved
+  to the newer layout may still have the old files, holding the same work."""
+  primary = data_dir() / "sessions.db"
+  if primary.is_file():
+    return [primary]
+  root = data_home() / "devin"
+  return [path for path in (root / "cli_sessions.db", root / "sessions.db") if path.is_file()]
+
+
+def table_columns(conn, table):
+  return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def scan_message_nodes(conn, stats, prefix):
+  # Every assistant message records what it spent under metadata.metrics.
+  # The LIKE gate skips rows that cannot hold metrics before any parse.
+  for session_id, created_at, raw in conn.execute(
+    "SELECT session_id, created_at, chat_message FROM message_nodes WHERE chat_message LIKE '%\"metrics\"%'"
+  ):
+    try:
+      metadata = obj(obj(json.loads(raw)).get("metadata"))
+    except (TypeError, ValueError):
+      continue
+    metrics = obj(metadata.get("metrics"))
+    day = stored_day(created_at)
+    if not metrics or day is None:
+      continue
+    # The Devin CLI records what a reply spent and what a person asked in
+    # separate rows: prompts are counted from prompt_history, where each one
+    # is a row.
+    stats.add(
+      day, prefix + str(session_id), model_name(metadata.get("generation_model")),
+      token_count(metrics.get("input_tokens")), token_count(metrics.get("output_tokens")),
+      token_count(metrics.get("cache_read_tokens")), token_count(metrics.get("cache_creation_tokens")),
+      prompts=0,
+    )
+
+
+def scan_prompt_history(conn, stats, prefix):
+  for session_id, timestamp in conn.execute("SELECT session_id, timestamp FROM prompt_history"):
+    day = stored_day(timestamp)
+    if day is not None:
+      stats.add_prompts(day, prefix + str(session_id))
+
+
+def scan_session_totals(conn, stats, prefix, tables):
+  # The older layout keeps one lifetime total per session and no split by
+  # kind, so the tokens land on the day the session was last active and in
+  # inputTokens, the one bucket that cannot overstate a split it doesn't have.
+  for session_id, model, created_at, last_activity_at, total_tokens in conn.execute(
+    "SELECT id, model, created_at, last_activity_at, total_tokens FROM sessions"
+  ):
+    day = stored_day(last_activity_at) or stored_day(created_at)
+    if day is not None:
+      stats.add(day, prefix + str(session_id), model_name(model), token_count(total_tokens), 0, 0, 0, prompts=0)
+  if "messages" in tables and {"role", "timestamp", "session_id"} <= table_columns(conn, "messages"):
+    for session_id, role, timestamp in conn.execute("SELECT session_id, role, timestamp FROM messages WHERE role = 'assistant'"):
+      day = stored_day(timestamp)
+      if day is not None:
+        stats.add_prompts(day, prefix + str(session_id))
+
+
+def scan_devin_database(path, stats):
+  """Add one session database. Returns whether it was read to the end."""
+  try:
+    # Read-only: Devin may be writing right now.
+    conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return False
+  prefix = "devin:" + path.name + ":"
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    known = False
+    if "message_nodes" in tables and {"session_id", "created_at", "chat_message"} <= table_columns(conn, "message_nodes"):
+      known = True
+      scan_message_nodes(conn, stats, prefix)
+    if "prompt_history" in tables and {"session_id", "timestamp"} <= table_columns(conn, "prompt_history"):
+      known = True
+      scan_prompt_history(conn, stats, prefix)
+    if not known and "sessions" in tables and {"id", "model", "created_at", "last_activity_at", "total_tokens"} <= table_columns(conn, "sessions"):
+      known = True
+      scan_session_totals(conn, stats, prefix, tables)
+    if not known:
+      # A layout this collector doesn't know: reading it again won't help.
+      warn(f"{path} has no session tables this collector reads")
+  except sqlite3.Error as error:
+    # Transient lock, schema migration, corruption: the numbers stop here,
+    # incomplete.
+    warn(f"{path}: {error}")
+    return False
+  finally:
+    conn.close()
+  return True
+
+
+# ------------------------------------------------------- pi, omp, opencode
+
+
+# pi, omp, and opencode name the provider alike, by its exact id.
+def billed_here(provider, model, entry):
+  return provider == PROVIDER
+
+
+# -------------------------------------------------------------- scan cache
+
+
+def scan_sources():
+  return [Path.home(), data_dir(), data_home(), *pi_session_roots(), opencode_db()]
+
+
+# The local stats and whether every source was read; a session database that
+# couldn't be read is added to `unreadable`.
+def run_local_scans(unreadable):
+  stats = Stats()
+  pi_rows, complete = scan_pi_sessions(r'"provider"\s*:\s*"devin"', billed_here)
+  for path in session_databases():
+    if not scan_devin_database(path, stats):
+      complete = False
+      unreadable.append(path)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([PROVIDER + '"'], billed_here)
+  for row in pi_rows + db_rows:
+    stats.add_row(row, model_name(row.model))
+  return stats.snapshot(), complete and db_complete
+
+
+# ------------------------------------------------------------------ quota
+#
+# GetUserStatus is protobuf, and the record needs a handful of its fields, so
+# they are walked by hand rather than through generated code. In the cached
+# UserStatus, field 10 is the plan tier and field 13 the PlanStatus; inside
+# that, field 1 is the PlanInfo, 3 the plan's end, 5-7 the credits used,
+# 14/15 the daily/weekly percent remaining and 17/18 their reset times.
+
+
+def decode_varint(data, pos):
+  result = 0
+  shift = 0
+  while True:
+    byte = data[pos]
+    result |= (byte & 0x7F) << shift
+    pos += 1
+    if not byte & 0x80:
+      return result, pos
+    shift += 7
+    if shift > 63:
+      raise ValueError("varint too long")
+
+
+def proto_fields(data):
+  """field number -> first value: an int for a varint, bytes for a message."""
+  found = {}
+  pos = 0
+  try:
+    while pos < len(data):
+      tag, pos = decode_varint(data, pos)
+      number_, wire = tag >> 3, tag & 0x07
+      if wire == 0:
+        value, pos = decode_varint(data, pos)
+      elif wire == 1:
+        value, pos = None, pos + 8
+      elif wire == 2:
+        length, pos = decode_varint(data, pos)
+        value, pos = bytes(data[pos:pos + length]), pos + length
+      elif wire == 5:
+        value, pos = None, pos + 4
+      else:
+        break
+      if value is not None:
+        found.setdefault(number_, value)
+  except (IndexError, ValueError):
+    pass
+  return found
+
+
+def message(fields, number_):
+  value = fields.get(number_)
+  return proto_fields(value) if isinstance(value, bytes) else {}
+
+
+def varint(fields, number_):
+  value = fields.get(number_)
+  if not isinstance(value, int):
+    return None
+  return value - (1 << 64) if value >= (1 << 63) else value
+
+
+def text(fields, number_):
+  value = fields.get(number_)
+  return value.decode("utf-8", errors="replace").strip() if isinstance(value, bytes) else ""
+
+
+def quota_window(label, remaining, reset):
+  # The percent is what's left; the panel wants what's spent. Proto3 leaves a
+  # zero off the wire, so a window with nothing left carries no percent.
+  remaining = max(0, min(100, remaining or 0))
+  return {"label": label, "percent": (100 - remaining) / 100.0, "resetsAt": iso_from_unix(reset)}
+
+
+def parse_user_status(payload):
+  status = proto_fields(payload)
+  plan_status = message(status, 13)
+  plan = message(plan_status, 1)
+  tier = text(plan, 2) or TEAMS_TIER.get(varint(plan, 1)) or TEAMS_TIER.get(varint(status, 10)) or ""
+
+  limits = []
+  if plan_status:
+    # A credit plan leaves the quota percents at their defaults, so a window
+    # only shows when the server dates its reset or the plan bills by quota,
+    # and never when the plan hides it.
+    quota_plan = varint(plan, 35) == 2
+    windows = (("Daily", 36, 14, 17), ("Weekly", 37, 15, 18))
+    for label, hidden, remaining, reset in windows:
+      if varint(plan, hidden):
+        continue
+      if (varint(plan_status, reset) or 0) > 0 or quota_plan:
+        limits.append(quota_window(label, varint(plan_status, remaining), varint(plan_status, reset)))
+
+    # Monthly credit buckets exist only on credit plans, and last until the
+    # plan's period ends; a quota plan reports no grant and is skipped.
+    plan_end = iso_from_unix(varint(message(plan_status, 3), 1))
+    for label, limit_field, used_field in (("Prompt credits", 12, 6), ("Flow credits", 13, 5), ("Flex credits", 14, 7)):
+      limit = varint(plan, limit_field) or 0
+      used = max(0, varint(plan_status, used_field) or 0)
+      if limit > 0:
+        limits.append({"label": label, "percent": min(1.0, used / limit), "resetsAt": plan_end})
+  return {"tierLabel": tier, "limits": limits}
+
+
+def user_status_dir():
+  xdg_cache_home = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache"))
+  return Path(os.environ.get("DEVIN_CACHE_DIR") or (xdg_cache_home / "devin" / "cli"))
+
+
+# The CLI rewrites credentials.toml on sign-in, so a status fetched before
+# that write describes the account signed in before. The new account's first
+# fetch can land a beat before the file is flushed, hence the allowance.
+SIGN_IN_ALLOWANCE_SECONDS = 30
+
+
+def sign_in_time():
+  try:
+    return credentials_path().stat().st_mtime
+  except OSError:
+    return None
+
+
+def sign_in_state_path():
+  return cache_root() / "devin-sign-in.json"
+
+
+def sign_in_state(signed_in_at):
+  """Which status caches belonged to the sign-in before this one.
+
+  The allowance alone can't tell the old account's last fetch from the new
+  one's first: both can land in the seconds before the rewrite. The cache
+  this collector served under the previous sign-in is known to be the old
+  account's, so it is remembered and kept out of that gap.
+  """
+  state = read_json(sign_in_state_path())
+  current = [name for name in state.get("current") or [] if isinstance(name, str)]
+  previous = [name for name in state.get("previous") or [] if isinstance(name, str)]
+  if state.get("signedInAt") != signed_in_at:
+    return {"signedInAt": signed_in_at, "current": [], "previous": current if "signedInAt" in state else []}
+  return {"signedInAt": signed_in_at, "current": current, "previous": previous}
+
+
+def remember_served(state, name):
+  if name in state["current"]:
+    return
+  state["current"] = state["current"] + [name]
+  try:
+    write_json(sign_in_state_path(), state)
+  except OSError as exc:
+    warn(f"could not write the sign-in state ({exc})")
+
+
+def read_quota():
+  """The newest user-status cache fetched under the current sign-in, or None.
+
+  The CLI keeps one cache per sign-in and no marker of which is active, so
+  the newest fetch wins, and fetches from before the last sign-in are dropped:
+  after a switch with no fetch since, nothing qualifies rather than the
+  previous account's numbers. Without a credentials file to date the sign-in,
+  the newest fetch stands.
+  """
+  signed_in_at = sign_in_time()
+  cutoff = None if signed_in_at is None else signed_in_at - SIGN_IN_ALLOWANCE_SECONDS
+  state = None if signed_in_at is None else sign_in_state(signed_in_at)
+  best = None
+  try:
+    paths = sorted(user_status_dir().glob("user_status.*.bin"))
+  except OSError:
+    paths = []
+  for path in paths:
+    cache = read_json(path)
+    if not isinstance(cache.get("payload"), str):
+      continue
+    fetched_at = epoch_seconds(cache.get("fetched_at_secs"))
+    if fetched_at is None or (cutoff is not None and fetched_at < cutoff):
+      continue
+    if state and fetched_at < signed_in_at and path.name in state["previous"]:
+      continue
+    try:
+      quota = parse_user_status(base64.b64decode(cache["payload"], validate=True))
+    except ValueError:
+      continue
+    if not quota["limits"] and not quota["tierLabel"]:
+      continue
+    if best is None or fetched_at > best[0]:
+      best = (fetched_at, quota, path.name)
+  if best is None:
+    return None
+  fetched_at, quota, name = best
+  if state:
+    remember_served(state, name)
+  age = time.time() - fetched_at
+  return {
+    "tierLabel": quota["tierLabel"],
+    # A window whose reset has passed is untouched, not unknown: it comes back
+    # at zero with no reset time until the CLI fetches the next one.
+    "limits": open_limits(quota["limits"]),
+    # Floored, never rounded: a stamp half a millisecond ahead reads as a
+    # clock that went back.
+    "limitsFetchedAt": int(fetched_at * 1000),
+    "limitsStale": not 0 <= age < LIMITS_CURRENT_ENOUGH_SECONDS,
+  }
+
+
+# ------------------------------------------------------------------ record
+
+
+def build_record(stats, unreadable):
+  quota = read_quota()
+  signed_in = credentials_path().is_file()
+  in_use = number(stats.get("totalPrompts")) > 0 or bool(stats.get("modelUsage"))
+
+  # A sign-in with no sessions here has no local stats to show.
+  local = in_use or number(stats.get("totalSessions")) > 0
+  record = base_record(AGENT_ID, AGENT_NAME, ready=in_use or signed_in or bool(quota and quota["limits"]), hasLocalStats=local)
+  if quota:
+    record.update(quota)
+  elif signed_in:
+    record["usageStatusText"] = "Devin limits unavailable"
+    record["authHelpText"] = REFRESH_HELP
+  elif in_use:
+    record["usageStatusText"] = "Waiting for auth"
+    record["authHelpText"] = AUTH_HELP
+  elif unreadable:
+    # Nothing else to say, and a database that can't be read is trouble the
+    # panel shows rather than a Devin it hides as unused.
+    record["ready"] = True
+    record["usageStatusText"] = "Devin unavailable"
+    record["authHelpText"] = "Couldn't read Devin's session database (" + "; ".join(map(str, unreadable)) + ")."
+  record.update(stats)
+  return record
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Devin usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="rescan local sessions, ignoring the scan cache")
+  parser.add_argument("--limits-only", action="store_true", help="reuse a recent local scan")
+  args = parser.parse_args()
+
+  # A scan served from the cache read every database.
+  unreadable = []
+  stats = cached_scan(AGENT_ID, scan_sources(), scan_max_age(args.force, args.limits_only), lambda: run_local_scans(unreadable))
+  emit(build_record(stats, unreadable), sort_keys=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
