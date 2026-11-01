@@ -377,6 +377,43 @@ cmp -s "$test_tmp/edited.desktop" "$fixture_home/config/autostart/prlcc.desktop"
 cmp -s "$test_tmp/original.desktop" "$fixture_home/state/omarchy/parallels/original-autostart" || fail "original backup remains available"
 pass "disabling preserves an autostart override edited after activation"
 
+# Losing the managed override must not strand its saved original or unit links.
+for original in present absent; do
+  for action in on off; do
+    reset_fixture
+    if [[ $original == "absent" ]]; then
+      rm "$fixture_home/config/autostart/prlcc.desktop"
+    fi
+    run_setup on
+    rm "$fixture_home/config/autostart/prlcc.desktop"
+    run_setup "$action"
+    if [[ $action == "on" ]]; then
+      run_setup off
+    fi
+    if [[ $original == "present" ]]; then
+      cmp -s "$test_tmp/original.desktop" "$fixture_home/config/autostart/prlcc.desktop" || fail "missing override restores the original startup"
+    else
+      [[ ! -e $fixture_home/config/autostart/prlcc.desktop ]] || fail "missing override stays absent without an original"
+    fi
+    for unit in omarchy-parallels.service omarchy-parallels-agent.service omarchy-parallels-helper@.service; do
+      [[ ! -L $fixture_home/config/systemd/user/$unit ]] || fail "missing override cleans up unit links"
+    done
+    [[ ! -d $fixture_home/state/omarchy/parallels && -f $fixture_state/stock && ! -f $fixture_state/feature ]] || fail "missing override finishes restoration"
+  done
+done
+pass "missing managed autostart permits reactivation and full deactivation"
+
+# A dangling symlink is still a user edit, not a missing override.
+reset_fixture
+run_setup on
+rm "$fixture_home/config/autostart/prlcc.desktop"
+ln -s "$test_tmp/missing-target" "$fixture_home/config/autostart/prlcc.desktop"
+if run_setup off >"$test_tmp/dangling.log" 2>&1; then
+  fail "dangling user override is reported"
+fi
+[[ -L $fixture_home/config/autostart/prlcc.desktop && -f $fixture_home/state/omarchy/parallels/original-autostart ]] || fail "dangling override and original backup are preserved"
+pass "dangling user override is not mistaken for an absent file"
+
 # Pause a real repeated activation at its filesystem boundary, then overlap
 # deactivation. Pass-through flock exposes its wait point without replacing
 # the real OS lock; the assertion is the user's restored startup file.
