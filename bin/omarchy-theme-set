@@ -438,6 +438,15 @@ if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
 fi
 
+# Staging itself can still lose the palette: an installed theme's colors.toml
+# is a symlink the installed-theme filter drops, and an alacritty.toml missing
+# a normal colour converts to nothing. Refuse before anything is replaced --
+# the current theme and its background stay exactly as they are.
+if [[ ! -f $NEXT_THEME_PATH/colors.toml ]]; then
+  echo "Theme '$THEME_NAME' staged no colors.toml and cannot be applied"
+  exit 1
+fi
+
 CHOSEN_THEME_BACKGROUND=""
 STAGED_THEME_BACKGROUND=""
 OLD_BACKGROUND_SNAPSHOT=""

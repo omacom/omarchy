@@ -213,8 +213,10 @@ pass "a theme name cannot climb out of the theme directories"
 shipped="$test_tmp/shipped-omarchy"
 mkdir -p "$shipped/themes/osaka-jade/backgrounds/intros"
 printf 'mp4\n' >"$shipped/themes/osaka-jade/backgrounds/intros/1-glowing-city.mp4"
-rm -rf "$state/theme"
 
+# The refusal fires before the staging area is rebuilt, so the working theme
+# (mine-link, from the case above) must survive it untouched: same palette,
+# same name.
 if HOME="$home" OMARCHY_PATH="$shipped" PATH="$ROOT/bin:$PATH" \
   OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
   XDG_RUNTIME_DIR="$test_tmp" \
@@ -222,11 +224,53 @@ if HOME="$home" OMARCHY_PATH="$shipped" PATH="$ROOT/bin:$PATH" \
   fail "omarchy-theme-set refuses a backgrounds-only theme directory"
 fi
 grep -q 'no colors.toml' "$test_tmp/stdout" || fail "the refusal names the missing palette" "$(cat "$test_tmp/stdout")"
-if [[ -e $(staged colors.toml) ]]; then
-  fail "a refused theme stages nothing"
-fi
+grep -q '#7aa2f7' "$(staged colors.toml)" || fail "the refusal keeps the working theme's palette"
+[[ $(<"$state/theme.name") == "mine-link" ]] || fail "the refusal keeps the working theme's name"
 
 pass "a theme directory without a palette is refused, not silently applied"
+
+# Staging itself can still lose the palette. An installed theme's colors.toml
+# is a symlink, which the installed-theme filter drops, and an alacritty.toml
+# missing a normal colour converts to nothing. Either must refuse the switch
+# with the working theme (mine-link) left exactly as it was.
+linked_palette="$themes/linked-palette"
+mkdir -p "$linked_palette/.git"
+ln -s /etc/hostname "$linked_palette/colors.toml"
+
+if HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+  XDG_RUNTIME_DIR="$test_tmp" \
+  bash "$ROOT/bin/omarchy-theme-set" linked-palette >"$test_tmp/stdout" 2>&1; then
+  fail "omarchy-theme-set refuses an installed theme whose colors.toml is a symlink"
+fi
+grep -q 'staged no colors.toml' "$test_tmp/stdout" || fail "the symlinked palette refusal names the staged palette" "$(cat "$test_tmp/stdout")"
+grep -q '#7aa2f7' "$(staged colors.toml)" || fail "the symlinked palette refusal keeps the working theme's palette"
+[[ $(<"$state/theme.name") == "mine-link" ]] || fail "the symlinked palette refusal keeps the working theme's name"
+
+pass "an installed theme whose only palette is a symlink is refused, not applied"
+
+partial="$themes/partial-alacritty"
+mkdir -p "$partial/.git"
+cat >"$partial/alacritty.toml" <<TOML
+[colors.primary]
+background = "#102030"
+
+[colors.normal]
+black = "#102030"
+red = "#ff0000"
+TOML
+
+if HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+  XDG_RUNTIME_DIR="$test_tmp" \
+  bash "$ROOT/bin/omarchy-theme-set" partial-alacritty >"$test_tmp/stdout" 2>&1; then
+  fail "omarchy-theme-set refuses an alacritty.toml that converts to no palette"
+fi
+grep -q 'staged no colors.toml' "$test_tmp/stdout" || fail "the partial alacritty refusal names the staged palette" "$(cat "$test_tmp/stdout")"
+grep -q '#7aa2f7' "$(staged colors.toml)" || fail "the partial alacritty refusal keeps the working theme's palette"
+[[ $(<"$state/theme.name") == "mine-link" ]] || fail "the partial alacritty refusal keeps the working theme's name"
+
+pass "an alacritty.toml that yields no palette is refused, not applied"
 
 # A denylist is only correct while someone adding a template classifies what it
 # generates. Every generated theme file is either denied to an installed theme or
