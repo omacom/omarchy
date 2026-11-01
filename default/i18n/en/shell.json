@@ -82,6 +82,7 @@
   "agents.localLaunch": "Launch agent",
   "agents.localLoadingMeter": "Loading",
   "agents.localStoppingMeter": "Stopping",
+  "agents.localRemovingMeter": "Removing",
   "agents.localNotEnoughMemory": "Not enough memory",
   "agents.localRemoveConfirm": "Stop %1 and delete its downloaded weights?",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",

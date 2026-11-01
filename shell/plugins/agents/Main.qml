@@ -56,7 +56,7 @@ Item {
       for (var id in parsed.models) {
         var model = parsed.models[id]
         if (!model || model.recipe !== id || id === "") return
-        if (["active", "activating", "inactive", "failed", "deactivating"].indexOf(model.unit) < 0) return
+        if (["active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
       }
       root.localModel = parsed
     } catch (e) {

@@ -33,6 +33,7 @@ Panel {
 
   function localActions(model) {
     var actions = []
+    if (model.unit === "removing") return actions
     if (model.unit !== "deactivating") actions.push("toggle")
     if (model.unit === "active") actions.push("launch")
     return actions
@@ -63,7 +64,7 @@ Panel {
   }
 
   property double loadNowMs: Date.now()
-  readonly property bool localLoading: providers.some(function(p) { return p.localModel && (p.localModel.unit === "activating" || p.localModel.unit === "deactivating") })
+  readonly property bool localLoading: providers.some(function(p) { return p.localModel && ["activating", "deactivating", "removing"].indexOf(p.localModel.unit) >= 0 })
   Timer {
     interval: 250
     running: root.opened && root.localLoading
@@ -1710,6 +1711,8 @@ Panel {
     readonly property bool loading: !!model && model.unit === "activating"
     readonly property bool running: !!model && model.unit === "active"
     readonly property bool stopping: !!model && model.unit === "deactivating"
+    // Removing stops it first, then deletes its weights; one bar covers both.
+    readonly property bool removing: !!model && model.unit === "removing"
     // When a start or stop ends, its bar fills to the end before the row
     // changes over to memory (or goes), rather than vanishing near 90%.
     property string finishing: ""
@@ -1724,7 +1727,8 @@ Panel {
     }
     readonly property real loadSeconds: model && Number(model.expected_load_seconds) > 0 ? Number(model.expected_load_seconds) : 60
     readonly property real stopSeconds: model && Number(model.expected_stop_seconds) > 0 ? Number(model.expected_stop_seconds) : 10
-    readonly property real phaseSeconds: stopping ? stopSeconds : loadSeconds
+    readonly property real removeSeconds: model && Number(model.expected_remove_seconds) > 0 ? Number(model.expected_remove_seconds) : 10
+    readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
     readonly property var accounts: root.providerAccounts(provider)
@@ -1838,7 +1842,7 @@ Panel {
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && !section.stopping
+        visible: !!section.model && !section.stopping && !section.removing
         // Greyed out, not disabled, so the reason still shows on hover.
         readonly property bool blocked: root.localStartBlocked(section.model)
         iconText: section.running || section.loading ? "󰏤" : "󰐊"
@@ -1878,7 +1882,7 @@ Panel {
     // Under a local model: memory while it runs, progress while it loads or
     // stops (against how long that took last time), or why it couldn't start.
     Item {
-      visible: section.running || section.loadingShown || section.stoppingShown
+      visible: section.running || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -1887,7 +1891,8 @@ Panel {
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
+        text: section.removing ? Commons.I18n.t("agents.localRemovingMeter")
+          : section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
           : section.stoppingShown ? Commons.I18n.t("agents.localStoppingMeter")
           : Commons.I18n.t("agents.localMemory")
         color: root.foreground
@@ -1899,7 +1904,7 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.finishing !== "" ? 1 : section.loading || section.stopping ? root.phaseProgress(section.elapsed, section.phaseSeconds)
+        value: section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
           : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
       }
       Text {
@@ -1908,7 +1913,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.loadingShown || section.stoppingShown ? ""
+        text: section.loadingShown || section.stoppingShown || section.removing ? ""
           : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
         color: root.dim
         font.family: root.fontFamily
@@ -1917,7 +1922,7 @@ Panel {
     }
 
     Text {
-      visible: !!section.model && !section.running && !section.loadingShown && !section.stoppingShown && String(section.model.error || "") !== ""
+      visible: !!section.model && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
       width: parent.width
       textFormat: Text.PlainText
       text: section.model ? String(section.model.error || "") : ""

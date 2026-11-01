@@ -1962,12 +1962,17 @@ def start_fit(manifest, profile):
 def model_record(rid, manifest, catalog=None, profile=None):
   props = unit_props(rid, "ActiveState", "SubState", "Result", "InactiveExitTimestamp", "ActiveExitTimestamp")
   unit = props.get("ActiveState", "inactive") or "inactive"
+  # A removal in progress outranks the unit's own state, which passes
+  # through stopping and stopped on the way.
+  removing = _read(removing_path(rid))
+  if removing:
+    unit = "removing"
   recipe = manifest["recipe"]
   vendor = recipe.get("vendor", "")
   if not vendor and catalog:
     vendor = catalog.recipes.get(rid, {}).get("vendor", "")
   observed = manifest.get("observed") or {}
-  fits, fit_reason = (True, "") if unit in ("active", "activating", "deactivating") or profile is None else start_fit(manifest, profile)
+  fits, fit_reason = (True, "") if unit in ("active", "activating", "deactivating", "removing") or profile is None else start_fit(manifest, profile)
   error = _read(error_path(rid))
   # A memory refusal isn't a failure to show: play is greyed out with its
   # reason before a start is even tried.
@@ -1997,9 +2002,10 @@ def model_record(rid, manifest, catalog=None, profile=None):
     "observed": observed or None,
     # When the current start or stop began, and how long the last load took:
     # the panel's progress bar measures the one against the other.
-    "since_ms": _unix_ms(props.get("InactiveExitTimestamp") if unit == "activating" else props.get("ActiveExitTimestamp") if unit == "deactivating" else ""),
+    "since_ms": int(os.path.getmtime(removing_path(rid)) * 1000) if removing else _unix_ms(props.get("InactiveExitTimestamp") if unit == "activating" else props.get("ActiveExitTimestamp") if unit == "deactivating" else ""),
     "expected_load_seconds": expected_load_seconds(rid, manifest),
     "expected_stop_seconds": expected_stop_seconds(rid),
+    "expected_remove_seconds": float(removing) if removing else None,
   }
 
 
@@ -2195,54 +2201,89 @@ def cmd_remove(argv):
   if not ID_RE.match(rid):
     raise LocalError("Not a recipe id")
   with Lock():
-    if unit_active(rid):
-      say(f"Stopping {rid}")
-      write_status({rid: "deactivating"})
-      systemctl("stop", unit_name(rid))
-    write_unit_files(rid, None)
-    for path in (model_manifest_path(rid), autostart_flag(rid), error_path(rid), stop_seconds_path(rid), load_seconds_path(rid)):
-      if os.path.exists(path):
-        os.unlink(path)
-    if _read(os.path.join(state_dir(), "last")) == rid:
-      os.unlink(os.path.join(state_dir(), "last"))
-    ports = load_ports()
-    if ports.pop(rid, None) is not None:
-      write_atomic(ports_path(), json.dumps(ports, indent=2, sort_keys=True) + "\n")
-    removed_runs = 0
-    removed_images = set()
-    for name in os.listdir(runs_dir()) if os.path.isdir(runs_dir()) else []:
-      if run_recipe_id(name) == rid:
-        path = os.path.join(runs_dir(), name)
-        try:
-          with open(path) as handle:
-            removed_images.add(json.load(handle)["image"])
-        except (OSError, ValueError, KeyError):
-          pass
-        os.unlink(path)
-        removed_runs += 1
-    shutil.rmtree(os.path.join(data_dir(), "models", rid), ignore_errors=True)
-    freed = 0
-    for directory, _, names in os.walk(os.path.join(data_dir(), "blobs")):
-      for name in names:
-        path = os.path.join(directory, name)
-        if os.stat(path).st_nlink == 1:
-          freed += os.path.getsize(path)
+    manifest = load_model(rid)
+    running = unit_active(rid)
+    size_gib = gib(sum(record.get("size", 0) for record in (manifest or {}).get("files", [])))
+    # Shown as removing until it's gone: the marker outlasts the stop below,
+    # whose hook would otherwise report the model as merely stopped.
+    expected = (expected_stop_seconds(rid) or 10 if running else 0) + size_gib * removal_rate()
+    if manifest:
+      write_atomic(removing_path(rid), f"{expected:.1f}\n")
+      write_status()
+    started = time.time()
+    try:
+      if running:
+        say(f"Stopping {rid}")
+        systemctl("stop", unit_name(rid))
+      deleting = time.time()
+      result = _remove_files(rid)
+      if size_gib > 1:
+        write_atomic(os.path.join(state_dir(), "removal_rate"), f"{(time.time() - deleting) / size_gib:.4f}\n")
+    finally:
+      for path in (model_manifest_path(rid), removing_path(rid)):
+        if os.path.exists(path):
           os.unlink(path)
-    kept_images = set()
-    for name in os.listdir(runs_dir()) if os.path.isdir(runs_dir()) else []:
-      try:
-        with open(os.path.join(runs_dir(), name)) as handle:
-          kept_images.add(json.load(handle)["image"])
-      except (OSError, ValueError, KeyError):
-        pass
-    images = []
-    for image in sorted(removed_images - kept_images):
-      if subprocess.run(["podman", "rmi", image], capture_output=True).returncode == 0:
-        images.append(image)
   refresh_list_cache()
   write_status()
-  say(f"Removed {rid}: {removed_runs} run manifest(s), {gib(freed):.1f} GiB of weights no other recipe uses" + (f", {len(images)} image(s)" if images else ""))
+  removed_runs, freed, images = result
+  say(f"Removed {rid} in {time.time() - started:.0f}s: {removed_runs} run manifest(s), {gib(freed):.1f} GiB of weights no other recipe uses" + (f", {len(images)} image(s)" if images else ""))
   return 0
+
+
+def removing_path(rid):
+  return os.path.join(state_dir(), "removing", rid)
+
+
+def removal_rate():
+  """Seconds per GiB the last removal took, deleting weights and image."""
+  try:
+    return float(_read(os.path.join(state_dir(), "removal_rate")))
+  except ValueError:
+    return 0.1
+
+
+def _remove_files(rid):
+  write_unit_files(rid, None)
+  for path in (autostart_flag(rid), error_path(rid), stop_seconds_path(rid), load_seconds_path(rid)):
+    if os.path.exists(path):
+      os.unlink(path)
+  if _read(os.path.join(state_dir(), "last")) == rid:
+    os.unlink(os.path.join(state_dir(), "last"))
+  ports = load_ports()
+  if ports.pop(rid, None) is not None:
+    write_atomic(ports_path(), json.dumps(ports, indent=2, sort_keys=True) + "\n")
+  removed_runs = 0
+  removed_images = set()
+  for name in os.listdir(runs_dir()) if os.path.isdir(runs_dir()) else []:
+    if run_recipe_id(name) == rid:
+      path = os.path.join(runs_dir(), name)
+      try:
+        with open(path) as handle:
+          removed_images.add(json.load(handle)["image"])
+      except (OSError, ValueError, KeyError):
+        pass
+      os.unlink(path)
+      removed_runs += 1
+  shutil.rmtree(os.path.join(data_dir(), "models", rid), ignore_errors=True)
+  freed = 0
+  for directory, _, names in os.walk(os.path.join(data_dir(), "blobs")):
+    for name in names:
+      path = os.path.join(directory, name)
+      if os.stat(path).st_nlink == 1:
+        freed += os.path.getsize(path)
+        os.unlink(path)
+  kept_images = set()
+  for name in os.listdir(runs_dir()) if os.path.isdir(runs_dir()) else []:
+    try:
+      with open(os.path.join(runs_dir(), name)) as handle:
+        kept_images.add(json.load(handle)["image"])
+    except (OSError, ValueError, KeyError):
+      pass
+  images = []
+  for image in sorted(removed_images - kept_images):
+    if subprocess.run(["podman", "rmi", image], capture_output=True).returncode == 0:
+      images.append(image)
+  return removed_runs, freed, images
 
 
 def cmd_profile(argv):
