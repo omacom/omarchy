@@ -157,7 +157,13 @@ Panel {
   // Re-resolve whenever the selected output changes, and when nodes or links
   // come and go: a tuning being applied or removed underneath us, or a DSP sink
   // rerouted to another output, shows up as exactly that.
-  onSinkChanged: resolveVolumeSink()
+  onSinkChanged: {
+    resolveVolumeSink()
+    volumeThrottleTimer.stop()
+    root.volumeSetQueued = false
+    root.pendingOutputVolume = -1
+    root.pendingVolumeSink = ""
+  }
   onNodesChanged: volumeSinkResolveTimer.restart()
 
   Connections {
@@ -194,6 +200,17 @@ Panel {
     watchChanges: true
     printErrors: false
     onFileChanged: volumeSinkResolveTimer.restart()
+  }
+
+  property int pendingOutputVolume: -1
+  property string pendingVolumeSink: ""
+  property bool volumeSetQueued: false
+
+  onVolumeSinkNameChanged: {
+    volumeThrottleTimer.stop()
+    root.volumeSetQueued = false
+    root.pendingOutputVolume = -1
+    root.pendingVolumeSink = ""
   }
 
   readonly property real outputVolume: volumeSink && volumeSink.audio ? volumeSink.audio.volume : 0
@@ -333,7 +350,8 @@ Panel {
   // moving the global slider would surprise the user.
   function adjustVolume(delta) {
     if (focusSection === "output" && selectedIndex === -1) {
-      setOutputVolume(outputVolume + delta)
+      var base = root.pendingOutputVolume >= 0 ? root.pendingOutputVolume / 100.0 : root.outputVolume
+      setOutputVolume(base + delta)
       return
     }
     if (focusSection === "input" && selectedIndex === -1) {
@@ -497,10 +515,51 @@ Panel {
     return Model.outputVolumeName(volume, muted, Commons.I18n.t)
   }
 
+  function currentTargetSinkName() {
+    return root.volumeSinkName || (root.volumeSink ? root.volumeSink.name : "")
+  }
+
+  function clearPendingVolumeIfIdle() {
+    if (!root.volumeSetQueued && !setVolumeProc.running && !volumeThrottleTimer.running) {
+      root.pendingOutputVolume = -1
+      root.pendingVolumeSink = ""
+    }
+  }
+
+  function dispatchPendingVolume() {
+    if (!root.volumeSetQueued || setVolumeProc.running) return
+    var targetSink = root.pendingVolumeSink
+    var currentSink = root.currentTargetSinkName()
+    if (targetSink && currentSink && targetSink !== currentSink) {
+      root.volumeSetQueued = false
+      root.pendingOutputVolume = -1
+      root.pendingVolumeSink = ""
+      return
+    }
+
+    root.volumeSetQueued = false
+    var args = ["omarchy-audio-output-volume", "--no-osd", "--preserve-mute"]
+    if (targetSink) {
+      args.push("--sink", targetSink)
+    }
+    args.push(root.pendingOutputVolume + "%")
+    setVolumeProc.command = args
+    setVolumeProc.running = true
+  }
+
   function setOutputVolume(v) {
     if (!volumeSink || !volumeSink.audio) return outputVolume
     var volume = Math.max(0, Math.min(1, v))
     volumeSink.audio.volume = volume
+    root.pendingOutputVolume = Math.round(volume * 100)
+    root.pendingVolumeSink = root.currentTargetSinkName()
+    root.volumeSetQueued = true
+    if (!setVolumeProc.running && !volumeThrottleTimer.running) {
+      root.dispatchPendingVolume()
+      volumeThrottleTimer.start()
+    } else if (!volumeThrottleTimer.running) {
+      volumeThrottleTimer.start()
+    }
     return volume
   }
 
@@ -704,6 +763,34 @@ Panel {
     }
   }
 
+  Process {
+    id: setVolumeProc
+    stdout: StdioCollector { waitForEnd: true }
+    onRunningChanged: {
+      if (running) return
+      if (root.volumeSetQueued && !volumeThrottleTimer.running) {
+        root.dispatchPendingVolume()
+        volumeThrottleTimer.start()
+      } else {
+        root.clearPendingVolumeIfIdle()
+      }
+    }
+  }
+
+  Timer {
+    id: volumeThrottleTimer
+    interval: 100
+    repeat: false
+    onTriggered: {
+      if (root.volumeSetQueued) {
+        if (!setVolumeProc.running) {
+          root.dispatchPendingVolume()
+        }
+      }
+      root.clearPendingVolumeIfIdle()
+    }
+  }
+
   Timer {
     interval: 5000
     running: root.opened
@@ -749,7 +836,9 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      var volume = root.setOutputVolume(root.outputVolume + wheel.steps * 0.05)
+      var base = root.pendingOutputVolume >= 0 ? root.pendingOutputVolume / 100.0 : root.outputVolume
+      var next = Math.max(0, Math.min(1, base + wheel.steps * 0.05))
+      var volume = root.setOutputVolume(next)
       root.showVolumeOsd(volume)
     }
   }
@@ -948,6 +1037,13 @@ Panel {
                 enabled: !!root.sink
 
                 onMoved: function(v) { root.setOutputVolume(v) }
+                onReleased: function(v) {
+                  if (root.volumeSetQueued && !setVolumeProc.running) {
+                    volumeThrottleTimer.stop()
+                    root.dispatchPendingVolume()
+                  }
+                  root.clearPendingVolumeIfIdle()
+                }
                 onRightClicked: root.toggleOutputMute()
               }
 
