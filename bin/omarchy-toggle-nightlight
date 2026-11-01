@@ -34,13 +34,14 @@ if [[ ${1:-} == "--status" ]]; then
   exit 0
 fi
 
-# Ensure hyprsunset is running. One a few seconds old may still be booting,
-# such as one started at login, so it counts as just started too.
+# Ensure this user's hyprsunset is running. Another user's process controls a
+# different Hyprland session. One a few seconds old may still be booting, such
+# as one started at login, so it counts as just started too.
 STARTING=false
-if ! pgrep -x hyprsunset >/dev/null; then
+if ! pgrep -x -u "$UID" hyprsunset >/dev/null; then
   setsid uwsm-app -- hyprsunset &
   STARTING=true
-elif (( $(ps -o etimes= -p "$(pgrep -nx hyprsunset)" 2>/dev/null || echo 0) < 3 )); then
+elif (( $(ps -o etimes= -p "$(pgrep -nx -u "$UID" hyprsunset)" 2>/dev/null || echo 0) < 3 )); then
   STARTING=true
 fi
 
