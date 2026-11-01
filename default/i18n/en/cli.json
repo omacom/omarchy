@@ -1,4 +1,7 @@
 {
+  "notification.commandFailed": "Command failed",
+  "notification.commandResult": "%1 (exit %2)",
+  "notification.commandSucceeded": "Command finished",
   "about.ageUptimeUpdate": "Age / Uptime / Update",
   "about.days": {
     "one": "%1 day",
