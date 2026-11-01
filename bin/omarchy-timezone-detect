@@ -3,9 +3,11 @@
 # omarchy:summary=Detect the local timezone from nearby Wi-Fi networks
 # omarchy:args=[--no-ip|--network]
 
-# Prints "<zone> <source> <accuracy-in-meters>" and exits 0, or exits 1 when
-# the location cannot be told. Never changes the clock; omarchy-timezone-set
-# does that. --network instead prints a key for the access point Wi-Fi is
+# Prints "<zone> <source> <accuracy-in-meters>" and exits 0. Exits 1 when
+# there is nothing to tell the location from (too few networks, no fix, only a
+# VPN to look through) and 2 when a lookup failed (offline, a timeout, a
+# service error), which is worth trying again. Never changes the clock;
+# omarchy-timezone-set does that. --network instead prints a key for the access point Wi-Fi is
 # connected to, which the watcher remembers zones by, or exits 1 when there is
 # no such access point worth remembering.
 #
@@ -107,6 +109,7 @@ wifi_request() {
              | {considerIp: false, fallbacks: {ipf: false, lacf: false}, wifiAccessPoints: .}'
 }
 
+# Fails only when the request does; an answer without a zone prints nothing.
 zone_at() {
   local lat=$1 lng=$2
   curl -fsS --max-time 10 -A "$USER_AGENT" \
@@ -115,11 +118,18 @@ zone_at() {
 }
 
 detect_from_wifi() {
-  local request response lat lng accuracy zone
+  local request response code lat lng accuracy zone
 
   request=$(wifi_request) || return 1
-  response=$(curl -fsS --max-time 10 -A "$USER_AGENT" \
-    -H "Content-Type: application/json" --data "$request" "$BEACONDB_URL" 2>/dev/null) || return 1
+  response=$(curl -sS --max-time 10 -A "$USER_AGENT" -w '\n%{http_code}' \
+    -H "Content-Type: application/json" --data "$request" "$BEACONDB_URL" 2>/dev/null) || return 2
+
+  # 404 is the API's "these networks are unknown", an answer; anything else
+  # that isn't 200 is the service having a bad moment.
+  code=${response##*$'\n'}
+  response=${response%$'\n'*}
+  [[ $code == "404" ]] && return 1
+  [[ $code == "200" ]] || return 2
 
   read -r lat lng accuracy < <(jq -r '[.location.lat, .location.lng, .accuracy] | map(tostring) | join(" ")' <<<"$response" 2>/dev/null)
   [[ $lat =~ ^-?[0-9]+([.][0-9]+)?$ && $lng =~ ^-?[0-9]+([.][0-9]+)?$ ]] || return 1
@@ -127,7 +137,7 @@ detect_from_wifi() {
   accuracy=${accuracy%%.*}
   ((accuracy <= max_accuracy)) || return 1
 
-  zone=$(zone_at "$lat" "$lng")
+  zone=$(zone_at "$lat" "$lng") || return 2
   valid_zone "$zone" || return 1
   echo "$zone wifi $accuracy"
 }
@@ -154,7 +164,7 @@ detect_from_ip() {
   local zone
   ((use_ip)) || return 1
   vpn_active && return 1
-  zone=$(tzupdate --print-only --timeout 10 2>/dev/null) || return 1
+  zone=$(tzupdate --print-only --timeout 10 2>/dev/null) || return 2
   valid_zone "$zone" || return 1
   echo "$zone ip -"
 }
@@ -176,5 +186,14 @@ connected_network() {
 if ((network_only)); then
   connected_network
 else
-  detect_from_wifi || detect_from_ip
+  detect_from_wifi
+  wifi=$?
+  ((wifi == 0)) && exit 0
+
+  detect_from_ip
+  ip=$?
+  ((ip == 0)) && exit 0
+
+  ((wifi == 2 || ip == 2)) && exit 2
+  exit 1
 fi

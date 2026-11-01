@@ -19,6 +19,7 @@ mkdir -p "$STUB"
 # writing files and reads back what was asked by reading logs.
 cat >"$stubs/nmcli" <<'SH'
 #!/bin/bash
+printf '%s\n' "$*" >>"$STUB/nmcli-log"
 case "$*" in
   *"BSSID,SIGNAL,SSID device wifi list"*) cat "$STUB/scan" 2>/dev/null ;;
   *"IN-USE,BSSID device wifi list"*) cat "$STUB/in-use" 2>/dev/null ;;
@@ -36,8 +37,12 @@ case $url in
       [[ $1 == "--data" ]] && printf '%s' "$2" >"$STUB/request"
       shift
     done
-    [[ -s $STUB/beacon ]] || exit 22
-    cat "$STUB/beacon"
+    # beacon-status: "down" times out, a number is the HTTP status; the
+    # detector asks for the status after the body with -w.
+    status=$(cat "$STUB/beacon-status" 2>/dev/null || echo 200)
+    [[ $status == "down" ]] && exit 28
+    if [[ $status == "200" ]]; then cat "$STUB/beacon"; else echo '{"error":{}}'; fi
+    printf '\n%s' "$status"
     ;;
   *forecast*)
     jq -cn --arg zone "$(cat "$STUB/meteo")" '{timezone: $zone}'
@@ -174,6 +179,20 @@ out=$(run omarchy-timezone-detect) && fail "open sea is not somewhere to set the
 pass "Etc zones from open sea are rejected"
 
 reset_world
+echo "vpn" >"$STUB/active"
+echo 404 >"$STUB/beacon-status"
+status=0
+run omarchy-timezone-detect >/dev/null || status=$?
+((status == 1)) || fail "networks BeaconDB doesn't know are an answer, not a failure" "status $status"
+for outage in down 503; do
+  echo "$outage" >"$STUB/beacon-status"
+  status=0
+  run omarchy-timezone-detect >/dev/null || status=$?
+  ((status == 2)) || fail "a lookup that failed ($outage) is reported as worth retrying" "status $status"
+done
+pass "failed lookups exit 2, unknown networks exit 1"
+
+reset_world
 [[ $(run omarchy-timezone-detect --network) == "001a2b3c4d5e" ]] || fail "the connected access point keys remembered zones"
 echo '*:F2\:11\:22\:33\:44\:55' >"$STUB/in-use"
 run omarchy-timezone-detect --network >/dev/null && fail "a randomized hotspot address is never remembered"
@@ -182,10 +201,10 @@ pass "network keys come from the connected access point, never a hotspot"
 # --- watcher decisions --------------------------------------------------------
 
 reset_world
-run omarchy-timezone-watch --check
+run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$STUB/zone") == "America/New_York" ]] || fail "one reading never moves the clock"
 [[ $(cat "$state/candidate") == "America/Chicago" ]] || fail "the first reading is held as a candidate"
-run omarchy-timezone-watch --check
+run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$STUB/zone") == "America/Chicago" ]] || fail "a confirming second reading moves the clock"
 [[ $(cat "$state/networks/001a2b3c4d5e") == "America/Chicago" ]] || fail "the new zone is remembered for this network"
 grep -Fq -- "--action Undo omarchy-timezone-set --undo --with America/New_York" "$STUB/notify-log" ||
@@ -195,8 +214,8 @@ pass "a new zone is taken after two agreeing readings, with an undo"
 : >"$STUB/curl-log"
 run omarchy-timezone-set --undo America/New_York
 [[ $(cat "$STUB/zone") == "America/New_York" ]] || fail "undo puts the old zone back"
-run omarchy-timezone-watch --check
-run omarchy-timezone-watch --check
+run omarchy-timezone-watch --check >/dev/null
+run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$STUB/zone") == "America/New_York" ]] || fail "an undone zone stays undone on that network"
 [[ ! -s $STUB/curl-log ]] || fail "a remembered network needs no lookup" "$(cat "$STUB/curl-log")"
 pass "undo pins the old zone to this network without further lookups"
@@ -205,18 +224,18 @@ reset_world
 : >"$STUB/in-use"
 run omarchy-timezone-set --detected wifi America/Chicago
 run omarchy-timezone-set --undo America/New_York
-run omarchy-timezone-watch --check
-run omarchy-timezone-watch --check
+run omarchy-timezone-watch --check >/dev/null
+run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$STUB/zone") == "America/New_York" ]] || fail "off a known network, an undone zone is declined"
 echo "America/Denver" >"$STUB/meteo"
-run omarchy-timezone-watch --check
-run omarchy-timezone-watch --check
+run omarchy-timezone-watch --check >/dev/null
+run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$STUB/zone") == "America/Denver" ]] || fail "a different zone turning up lifts the decline"
 pass "undo off a known network declines that zone until somewhere else turns up"
 
 reset_world
 echo "America/Chicago" >"$STUB/zone"
-run omarchy-timezone-watch --check
+run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$state/networks/001a2b3c4d5e") == "America/Chicago" ]] || fail "agreement is remembered for the network"
 [[ ! -f $STUB/notify-log ]] || fail "agreement is silent"
 pass "a reading that matches the clock quietly teaches the network its zone"
@@ -224,7 +243,7 @@ pass "a reading that matches the clock quietly teaches the network its zone"
 reset_world
 mkdir -p "$state/networks"
 echo "Europe/Copenhagen" >"$state/networks/001a2b3c4d5e"
-run omarchy-timezone-watch --check
+run omarchy-timezone-watch --check >/dev/null
 [[ $(cat "$STUB/zone") == "Europe/Copenhagen" ]] || fail "a remembered network moves the clock straight back"
 [[ ! -f $STUB/curl-log ]] || fail "a remembered network is never looked up"
 pass "returning to a remembered network restores its zone without a lookup"
@@ -234,6 +253,18 @@ run omarchy-timezone-set Europe/Paris
 [[ $(cat "$state/networks/001a2b3c4d5e") == "Europe/Paris" ]] || fail "a manual pick is remembered for the network"
 grep -Fq "Timezone is now set to Europe/Paris" "$STUB/notify-log" || fail "a manual pick is confirmed" "$(cat "$STUB/notify-log")"
 pass "a manual pick wins on its network"
+
+reset_world
+: >"$STUB/in-use"
+run omarchy-timezone-watch --check >/dev/null
+echo down >"$STUB/beacon-status"
+echo "vpn" >"$STUB/active"
+[[ $(run omarchy-timezone-watch --check) == "retry" ]] || fail "a failed confirming lookup asks for a retry"
+[[ $(cat "$state/candidate") == "America/Chicago" ]] || fail "a failed lookup keeps the candidate for the retry to confirm"
+rm "$STUB/beacon-status"
+[[ $(run omarchy-timezone-watch --check) == "done" ]] || fail "the retry confirms and finishes"
+[[ $(cat "$STUB/zone") == "America/Chicago" ]] || fail "the retry is the confirming reading"
+pass "a failed lookup is retried and still counts toward confirmation"
 
 # --- toggle -------------------------------------------------------------------
 
@@ -252,16 +283,65 @@ pass "the toggle enables and disables the watcher"
 # exit for systemd to restart it once its event source is gone.
 cat >"$stubs/dbus-monitor" <<'SH'
 #!/bin/bash
-echo "signal time=1.0 sender=:1.5 -> destination=(null destination) serial=9 path=/org/freedesktop/NetworkManager; interface=org.freedesktop.NetworkManager; member=StateChanged"
-echo "   uint32 70"
-sleep 5
+# $STUB/events holds signals to print; a "sleep N" line pauses between them.
+while IFS= read -r line; do
+  if [[ $line == "sleep "* ]]; then sleep "${line#sleep }"; else printf '%s\n' "$line"; fi
+done <"$STUB/events"
+sleep "${STUB_BUS_SECONDS:-3}"
 SH
 chmod +x "$stubs/dbus-monitor"
 
 reset_world
+cat >"$STUB/events" <<'EVENTS'
+signal time=1.0 sender=:1.5 -> destination=(null destination) serial=9 path=/org/freedesktop/NetworkManager; interface=org.freedesktop.NetworkManager; member=StateChanged
+   uint32 70
+EVENTS
 status=0
 OMARCHY_TIMEZONE_SETTLE_SECONDS=1 OMARCHY_TIMEZONE_CONFIRM_SECONDS=1 \
   run timeout 15 omarchy-timezone-watch || status=$?
 ((status == 1)) || fail "the watcher exits when its event source goes away" "status $status"
 [[ $(cat "$STUB/zone") == "America/Chicago" ]] || fail "the watcher moves the clock after a network event and a confirming reading"
 pass "the event loop checks after a network event, confirms, and moves the clock"
+
+# Count checks by how often the connected access point is asked for. Sitting
+# on a remembered network keeps each check to that one question.
+checks_for() {
+  local events=$1
+  reset_world
+  mkdir -p "$state/networks"
+  echo "America/New_York" >"$state/networks/001a2b3c4d5e"
+  printf '%s\n' "$events" >"$STUB/events"
+  OMARCHY_TIMEZONE_SETTLE_SECONDS=1 run timeout 20 omarchy-timezone-watch || true
+  grep -c "IN-USE,BSSID" "$STUB/nmcli-log"
+}
+
+properties() {
+  echo "signal time=1.0 sender=:1.5 -> destination=(null destination) serial=9 path=$1; interface=org.freedesktop.DBus.Properties; member=PropertiesChanged"
+  echo "   string \"$2\""
+  echo "   array ["
+  echo "      dict entry("
+  echo "         string \"$3\""
+  echo "         variant             object path \"/org/freedesktop/NetworkManager/AccessPoint/7\""
+  echo "      )"
+  echo "   ]"
+}
+
+roam=$(printf 'sleep 2\n%s' "$(properties /org/freedesktop/NetworkManager/Devices/3 org.freedesktop.NetworkManager.Device.Wireless ActiveAccessPoint)")
+count=$(checks_for "$roam")
+((count == 2)) || fail "moving to another access point sets off a check, even while Ethernet stays connected" "checks: $count"
+
+scan=$(printf 'sleep 2\n%s' "$(properties /org/freedesktop/NetworkManager/Devices/3 org.freedesktop.NetworkManager.Device.Wireless LastScan)")
+count=$(checks_for "$scan")
+((count == 1)) || fail "a finished scan alone never sets off a check" "checks: $count"
+pass "access point and connection changes set off a check; scans do not"
+
+reset_world
+: >"$STUB/in-use"
+echo down >"$STUB/beacon-status"
+echo "vpn" >"$STUB/active"
+: >"$STUB/events"
+STUB_BUS_SECONDS=8 OMARCHY_TIMEZONE_SETTLE_SECONDS=1 OMARCHY_TIMEZONE_RETRY_SECONDS="1 1" \
+  run timeout 20 omarchy-timezone-watch || true
+count=$(grep -c geolocate "$STUB/curl-log")
+((count == 3)) || fail "a failing lookup is tried once and retried twice, then left for the next event" "lookups: $count"
+pass "failed lookups are retried a bounded number of times"
