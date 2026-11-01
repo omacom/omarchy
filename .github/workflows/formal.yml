@@ -1,0 +1,42 @@
+name: Formal checks
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/formal.yml
+      - test/formal/**
+      - shell/services/PluginRegistry.qml
+      - test/shell.d/plugin-manifest-scan-test.sh
+      - test/shell.d/fixtures/plugin-registry/**
+  push:
+    branches: [quattro]
+    paths:
+      - .github/workflows/formal.yml
+      - test/formal/**
+      - shell/services/PluginRegistry.qml
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-scan:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Muro
+        shell: bash
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/muro" https://github.com/murolang/muro/releases/download/v0.20.3/muro-0.20.3-linux-x86_64
+          echo "90e6a1462c36baf63ef8e657f41ea1b81d96c81d517a551e946f937d2e19aec8  $RUNNER_TEMP/muro" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/muro"
+      - name: Check framing evidence
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/muro" check test/formal/plugin-scan.muro
+      - name: Check that evidence rejects framing mutations
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/muro" mutate test/formal/plugin-scan.muro --only frame --only read-field --max-survivors 0

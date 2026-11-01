@@ -1,0 +1,36 @@
+-- The scanner writes three NUL-terminated fields per record: origin, source,
+-- manifest. Bash variables and filesystem names cannot contain NUL. A text
+-- token represents any non-NUL code unit, including newlines and old markers.
+-- The theorem preserves both the field and the entire following stream.
+import "std:list.muro"
+
+data Wire : Type where
+  boundary : Wire
+  text : Nat → Wire
+
+def frame : run Π (field : List Nat) → Π (rest : List Wire) → List Wire :=
+  λ (field : List Nat) → λ (rest : List Wire) →
+    match field motive (λ _ → List Wire)
+      | nil => cons boundary rest
+      | cons c cs => cons (text c) (frame cs rest)
+
+def read-field : run Π (wire : List Wire) → List Nat × List Wire :=
+  λ (wire : List Wire) →
+    match wire motive (λ _ → List Nat × List Wire)
+      | nil => (nil, nil)
+      | cons token remaining =>
+          match token motive (λ _ → List Nat × List Wire)
+            | boundary => (nil, remaining)
+            | text c =>
+                let (field, rest) = read-field remaining in (cons c field, rest)
+
+def framed-field-roundtrip : evidence Π (field : List Nat) → Π (rest : List Wire) →
+  {read-field (frame field rest) ≡ (field, rest) : List Nat × List Wire} :=
+  λ (field : List Nat) → λ (rest : List Wire) →
+    match field motive (λ (xs : List Nat) →
+      {read-field (frame xs rest) ≡ (xs, rest) : List Nat × List Wire})
+      | nil => refl
+      | cons c cs =>
+          rewrite framed-field-roundtrip cs rest motive (λ pair →
+            {(let (contents, suffix) = pair in (cons c contents, suffix)) ≡
+             (cons c cs, rest) : List Nat × List Wire}) in refl

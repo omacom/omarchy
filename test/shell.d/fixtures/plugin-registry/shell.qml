@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import "services"
 
 ShellRoot {
@@ -64,9 +65,9 @@ ShellRoot {
   }
 
   function block(kind, source, payload) {
-    return "===" + kind + "::" + source + "===\n"
+    return kind + "\0" + source + "\0"
       + (typeof payload === "string" ? payload : JSON.stringify(payload))
-      + "\n=== EOM ===\n"
+      + "\0"
   }
 
   function has(id) {
@@ -589,7 +590,25 @@ ShellRoot {
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "a widget named as bar.id and already on the bar is not placed twice")
 
     root.assertTrue(changeCount > 0, "registry emits change notifications")
-    writeResult()
+    transportProbe.running = true
+  }
+
+  // Exercise NUL preservation through the actual Process/StdioCollector path,
+  // alongside the registry checks above and the real scanner's Node test.
+  Process {
+    id: transportProbe
+    command: ["bash", "-c", "printf '%s\\0%s\\0%s\\0' \"$@\"", "transport-probe",
+      "firstparty", "/first/transport\nsource",
+      JSON.stringify(root.manifest("omarchy.transport", ["panel"], { panel: "Panel.qml" }))]
+    stdout: StdioCollector { id: transportOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      root.assertEqual(exitCode, 0, "native transport emits its record")
+      registry.parseScanOutput(transportOutput.text)
+      var value = registry.installedPlugins["omarchy.transport"]
+      root.assertTrue(!!value, "native collector preserves NUL field boundaries")
+      if (value) root.assertEqual(value.__sourceDir, "/first/transport\nsource", "native collector preserves source newlines as data")
+      root.writeResult()
+    }
   }
 
   PluginRegistry {

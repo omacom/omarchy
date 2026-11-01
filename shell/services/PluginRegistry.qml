@@ -600,56 +600,38 @@ QtObject {
 
   // ---------------------------------------------------------------- scanning
 
-  // Output format produced by the rescan script:
-  //   ===<kind>::<absolute-source-dir>===
-  //   ... raw manifest.json content ...
-  //   === EOM ===
-  // (repeating for every manifest found)
+  // Three NUL-terminated fields per record: kind, source directory, manifest.
+  // Bash variables and filesystem names cannot contain NUL, so manifest text
+  // cannot become a scanner-issued origin or source, even when it is invalid
+  // JSON. test/formal/plugin-scan.muro proves field and suffix preservation.
   function parseScanOutput(text) {
-    var lines = String(text || "").split("\n")
+    var fields = String(text || "").split("\0")
+    if (fields.pop() !== "" || fields.length % 3 !== 0) {
+      console.warn("PluginRegistry: incomplete manifest scan")
+      scanning = false
+      scanFinished()
+      return
+    }
     var firstParty = {}
     var thirdParty = {}
-    var currentSource = null
-    var currentKind = null
-    var currentJson = []
 
-    function flush() {
-      if (!currentSource) return
-      var raw = currentJson.join("\n").trim()
+    for (var i = 0; i < fields.length; i += 3) {
+      var kind = fields[i]
+      var source = fields[i + 1].replace(/\/$/, "")
+      if ((kind !== "firstparty" && kind !== "thirdparty") || !source) continue
       try {
-        var manifest = JSON.parse(raw)
-        manifest.__sourceDir = currentSource
-        manifest.__isFirstParty = (currentKind === "firstparty")
-        var validated = validateManifest(manifest, currentSource + "/manifest.json")
+        var manifest = JSON.parse(fields[i + 2])
+        manifest.__sourceDir = source
+        manifest.__isFirstParty = (kind === "firstparty")
+        var validated = validateManifest(manifest, source + "/manifest.json")
         if (validated) {
-          if (currentKind === "firstparty") firstParty[validated.id] = validated
+          if (kind === "firstparty") firstParty[validated.id] = validated
           else thirdParty[validated.id] = validated
         }
       } catch (e) {
-        console.warn("PluginRegistry: bad manifest at " + currentSource + ": " + e)
+        console.warn("PluginRegistry: bad manifest at " + source + ": " + e)
       }
-      currentSource = null
-      currentKind = null
-      currentJson = []
     }
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i]
-      var startMatch = line.match(/^===([a-z]+)::(.+)===$/)
-      if (startMatch) {
-        flush()
-        currentKind = startMatch[1]
-        currentSource = startMatch[2].replace(/\/$/, "")
-        currentJson = []
-        continue
-      }
-      if (line === "=== EOM ===") {
-        flush()
-        continue
-      }
-      if (currentSource) currentJson.push(line)
-    }
-    flush()
 
     stampHostCapabilities(firstParty, thirdParty)
 
@@ -762,9 +744,7 @@ QtObject {
     var script = ""
       + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
       + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"${manifest%/*}\"; fi; "
-      + "  printf '===%s::%s===\\n' \"$kind\" \"$sub\"; "
-      + "  printf '%s\\n' \"$(<\"$manifest\")\"; "
-      + "  printf '\\n=== EOM ===\\n'; "
+      + "  printf '%s\\0%s\\0%s\\0' \"$kind\" \"$sub\" \"$(<\"$manifest\")\"; "
       + "}; "
       + "scan_firstparty() { local dir=\"$1\"; "
       + "  [[ -d \"$dir\" ]] || return 0; "
