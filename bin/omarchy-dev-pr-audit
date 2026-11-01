@@ -7,6 +7,8 @@
 
 set -euo pipefail
 
+[[ -n ${OMARCHY_PATH:-} && -d $OMARCHY_PATH/bin ]] && export PATH="$OMARCHY_PATH/bin:$PATH"
+
 usage() {
   cat <<'EOF'
 Usage: omarchy dev pr audit [options]
@@ -31,15 +33,15 @@ failing_only=false
 missing_tests_only=false
 json_output=false
 
-while [[ $# -gt 0 ]]; do
+while (( $# > 0 )); do
   case "$1" in
     --repo)
-      [[ $# -ge 2 ]] || { echo "Error: --repo requires an argument" >&2; exit 1; }
+      (( $# >= 2 )) || { echo "Error: --repo requires an argument" >&2; exit 1; }
       repo="$2"
       shift 2
       ;;
     --limit)
-      [[ $# -ge 2 ]] || { echo "Error: --limit requires an argument" >&2; exit 1; }
+      (( $# >= 2 )) || { echo "Error: --limit requires an argument" >&2; exit 1; }
       limit="$2"
       shift 2
       ;;
@@ -71,13 +73,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v gh >/dev/null 2>&1; then
+if omarchy-cmd-missing gh; then
   echo "Error: gh (GitHub CLI) is required but not installed." >&2
-  exit 1
-fi
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "Error: jq is required but not installed." >&2
   exit 1
 fi
 
@@ -85,7 +82,8 @@ fi
 if [[ -z $repo ]]; then
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     remote_url=$(git remote get-url upstream 2>/dev/null || git remote get-url origin 2>/dev/null || true)
-    if [[ $remote_url =~ github\.com[:/]([^/]+/[^/.]+)(\.git)?$ ]]; then
+    remote_url="${remote_url%.git}"
+    if [[ $remote_url =~ github\.com[:/]([^/]+/.+)$ ]]; then
       repo="${BASH_REMATCH[1]}"
     fi
   fi
