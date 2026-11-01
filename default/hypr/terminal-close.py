@@ -269,16 +269,35 @@ def close_all(policy="conditional", wait=False):
   snapshot = window_snapshot()
   if not confirm_exit(snapshot, policy):
     return 1
+  def client_batch():
+    batch = {}
+    for window in hypr_json("clients"):
+      address = window.get("address")
+      if address is not None:
+        batch.setdefault(address, window)
+    return batch
+
+  current = client_batch()
+
+  def same_owner(window, started):
+    owner = current.get(window["address"])
+    return (owner is not None and owner.get("pid") == window.get("pid")
+            and (started is None or process_identity(window.get("pid"))[0] == started))
+
   # A prompt can outlive an application. Do not attach a waiter to a PID that
   # now belongs to an unrelated process, even though dispatch would skip it.
   snapshot = [(window, started, executable) for window, started, executable in snapshot
-              if same_window(window["address"], window.get("pid"), started)]
+              if same_owner(window, started)]
   pids = sorted({window["pid"] for window, started, _ in snapshot
                  if started is not None and isinstance(window.get("pid"), int) and window["pid"] > 0})
   waiter = None
   try:
     if wait and pids:
       waiter = subprocess.Popen(["pidwait", "--euid", str(os.getuid()), "--pid", ",".join(map(str, pids))])
+    # Full O(1) batching was rejected: Astra reproduced address reuse during
+    # an earlier dispatch while the original owner survived. Hyprland has no
+    # PID-checked atomic close-by-address, so retain dispatch-time freshness.
+    # Batch only the filter: snapshot + post-prompt batch + N fresh checks.
     for window, started, _ in snapshot:
       if same_window(window["address"], window.get("pid"), started):
         dispatch_close(window["address"])

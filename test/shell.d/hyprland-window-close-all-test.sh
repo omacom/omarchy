@@ -52,7 +52,7 @@ TEST_CLIENTS="[{\"address\":\"0xabc\",\"pid\":$first_pid},{\"address\":\"0xdef\"
 pass "already exited and missing PIDs succeed"
 
 python3 - <<'PYTEST' || fail "aggregate confirmation and snapshot safety"
-import importlib.util, os, tempfile
+import importlib.util, json, os, tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -72,8 +72,7 @@ with tempfile.TemporaryDirectory() as runtime, patch.dict(os.environ,{'XDG_RUNTI
           current['0xd']={'address':'0xd','pid':104}
         return SimpleNamespace(returncode=returncode,stdout=args[3].lstrip('\t') if accept else '')
       return SimpleNamespace(returncode=0)
-    with patch.object(guard,'hypr_json',return_value=windows), \
-         patch.object(guard,'find_window',side_effect=lambda address:current.get(address)), \
+    with patch.object(guard,'hypr_json',side_effect=lambda *args:[dict(window) for window in current.values()]), \
          patch.object(guard,'process_identity',return_value=('123','foot')), \
          patch.object(guard,'program_names',return_value='codex'), \
          patch.object(guard,'translate',side_effect=lambda command,*args:command.split()[-1]), \
@@ -93,10 +92,57 @@ with tempfile.TemporaryDirectory() as runtime, patch.dict(os.environ,{'XDG_RUNTI
   assert len(closes)==1 and 'address:0xc' in closes[0][-1],closes
   assert not any('address:0xd' in str(args) for args in calls),'new windows are outside the approved snapshot'
   with patch.object(guard,'window_snapshot',return_value=[(windows[0],'123','foot')]), \
-       patch.object(guard,'same_window',return_value=False), \
+       patch.object(guard,'hypr_json',return_value=[]), \
        patch.object(guard.subprocess,'Popen') as waiter, \
        patch.object(guard.subprocess,'run',return_value=SimpleNamespace(returncode=0)):
     assert guard.close_all('never',wait=True)==0
     assert not waiter.called,'changed or vanished targets must never start a PID waiter'
+  # Exercise the real snapshot and client-list parsing across the prompt.
+  current = [dict(window) for window in windows]
+  started = {101: '123', 102: '123', 103: '123'}
+  def confirm(snapshot, policy):
+    current[0]['pid'] = 201
+    started[102] = '456'
+    return True
+  with patch.object(guard.subprocess,'check_output',side_effect=lambda *args,**kwargs:json.dumps(current)) as clients, \
+       patch.object(guard,'confirm_exit',side_effect=confirm), \
+       patch.object(guard,'process_identity',side_effect=lambda pid:(started[pid],'foot')), \
+       patch.object(guard.subprocess,'Popen') as waiter, \
+       patch.object(guard.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:
+    waiter.return_value.wait.return_value = 0
+    waiter.return_value.poll.return_value = 0
+    assert guard.close_all('always',wait=True)==0
+    assert clients.call_count==2+1,'snapshot + post-prompt batch + one surviving-window dispatch check'
+    assert all(call.args[0]==['hyprctl','clients','-j'] for call in clients.call_args_list)
+    closes=[call.args[0] for call in run.call_args_list if 'window.close' in call.args[0][-1]]
+    assert len(closes)==1 and 'address:0xc' in closes[0][-1],'reused address and changed process start must not close'
+    assert waiter.call_count==1 and waiter.call_args.args[0][-1]=='103','dropped owners must not be waited on'
+  # Closing A reuses B's address while B's original process still survives.
+  current = [dict(window) for window in windows]
+  def close_and_replace(address):
+    if address == '0xa':
+      current[1]['pid'] = 202
+  with patch.object(guard,'hypr_json',side_effect=lambda *args:[dict(window) for window in current]) as clients, \
+       patch.object(guard,'confirm_exit',return_value=True), \
+       patch.object(guard,'process_identity',return_value=('123','foot')), \
+       patch.object(guard,'dispatch_close',side_effect=close_and_replace) as close, \
+       patch.object(guard.subprocess,'run',return_value=SimpleNamespace(returncode=0)):
+    assert guard.close_all('always')==0
+    assert clients.call_count==2+len(windows),'snapshot + post-prompt batch + one fresh dispatch check per surviving window (N+2)'
+    assert [call.args[0] for call in close.call_args_list]==['0xa','0xc'],'B replacement during A dispatch must not close even while B original process survives'
+  # A later duplicate must not override the first owner in the prompt batch.
+  # A missing address must not prevent the remaining clients from closing.
+  replacement = dict(windows[0], pid=201)
+  for duplicates in ([], [replacement]):
+    batch = [*windows, *duplicates, {'pid':999}]
+    with patch.object(guard,'hypr_json',side_effect=[windows, batch, *([windows]*len(windows))]), \
+         patch.object(guard,'confirm_exit',return_value=True), \
+         patch.object(guard,'process_identity',return_value=('123','foot')), \
+         patch.object(guard,'dispatch_close') as close, \
+         patch.object(guard.subprocess,'run',return_value=SimpleNamespace(returncode=0)):
+      assert guard.close_all('always')==0
+      assert [call.args[0] for call in close.call_args_list]==['0xa','0xb','0xc'],'batch lookup must ignore missing addresses and keep the first duplicate'
+print('ok - per-window dispatch checks exclude between-dispatch replacements while original owners survive')
+print('ok - close-all batches client fetches and excludes replaced owners from closes and waits')
 print('ok - aggregate cancellation/timeout have no effects; acceptance closes only unchanged captured windows')
 PYTEST
