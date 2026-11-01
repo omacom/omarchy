@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Warn when the root Btrfs spans extra LUKS devices the initramfs cannot unlock
+# omarchy:hidden=true
+
+# Stock encrypt opens one cryptdevice=. A second LUKS-backed Btrfs member is
+# committed by `btrfs device add` immediately, so the next reboot drops to
+# initramfs. Fail-open when the tools that would prove that are missing.
+if omarchy-cmd-missing btrfs || omarchy-cmd-missing lsblk || omarchy-cmd-missing findmnt; then
+  exit 0
+fi
+
+fstype=$(findmnt -no FSTYPE / 2>/dev/null) || exit 0
+if [[ $fstype != "btrfs" ]]; then
+  exit 0
+fi
+
+src=$(findmnt -no SOURCE / 2>/dev/null) || exit 0
+src=${src%%\[*}
+if [[ -z $src ]]; then
+  exit 0
+fi
+
+show=$(btrfs filesystem show / 2>/dev/null) || exit 0
+
+members=()
+while IFS= read -r line; do
+  if [[ $line =~ devid[[:space:]]+[0-9]+.*path[[:space:]]+([^[:space:]]+) ]]; then
+    members+=("${BASH_REMATCH[1]}")
+  fi
+done <<<"$show"
+
+if (( ${#members[@]} < 2 )); then
+  exit 0
+fi
+
+first_luks_ancestor() {
+  local device=$1 name member_fstype
+
+  while read -r name member_fstype; do
+    if [[ $member_fstype == "crypto_LUKS" ]]; then
+      printf '%s\n' "$name"
+      return 0
+    fi
+  done < <(lsblk -nspo NAME,FSTYPE "$device" 2>/dev/null)
+
+  return 1
+}
+
+root_luks=$(first_luks_ancestor "$src" || true)
+
+extra_luks=0
+for member in "${members[@]}"; do
+  member_luks=$(first_luks_ancestor "$member" || true)
+  if [[ -n $member_luks && $member_luks != "$root_luks" ]]; then
+    extra_luks=1
+    break
+  fi
+done
+
+if (( extra_luks )); then
+  echo -e '\e[33mWarning: root Btrfs spans extra LUKS devices the initramfs cannot unlock. Stock encrypt opens only cryptdevice=, so the next reboot will drop to initramfs. Remove the extra member before rebooting.\e[0m' >&2
+  exit 1
+fi
+
+exit 0
