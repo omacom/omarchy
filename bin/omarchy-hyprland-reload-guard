@@ -16,6 +16,12 @@ esac
 
 run_root="${OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT:-/run/user}"
 state_dir="${OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR:-/run/omarchy/hyprland-reload-guard}"
+# A pause is a system-wide fact (a pacman transaction is in flight), but the
+# per-instance state files in state_dir carry another user's runtime_dir and
+# settings, so that directory stays root-only. This marker is the public half:
+# empty, world-readable, and sibling to state_dir rather than inside it, so a
+# session user can check it exists without needing to read anything private.
+pause_marker="$state_dir.active"
 hyprctl_bin="${HYPRCTL:-/usr/bin/hyprctl}"
 setpriv_bin="${SETPRIV:-/usr/bin/setpriv}"
 # Exists only so tests can exercise the privileged (EUID 0) code path without
@@ -171,19 +177,36 @@ resume_instance() {
 
 case "$command" in
   paused)
-    compgen -G "$state_dir/*" >/dev/null
+    [[ -e $pause_marker ]]
     ;;
   pause)
+    # Created before state_dir, and without -m: a mode given to mkdir -p
+    # applies to every directory it creates along the path, so combining
+    # this step with state_dir's own -m 0700 would have left this parent
+    # (and the marker beside state_dir) just as unreadable to a session
+    # user as state_dir itself. Self-heals a parent an older build of this
+    # script already left too-restrictive within the same boot.
+    parent_dir="${state_dir%/*}"
+    mkdir -p "$parent_dir"
+    chmod 0755 "$parent_dir" 2>/dev/null || true
+    : >"$pause_marker"
+    chmod 0644 "$pause_marker"
+
     while IFS=$'\t' read -r runtime_dir signature; do
       pause_instance "$runtime_dir" "$signature"
     done < <(instances)
     ;;
   resume)
-    [[ -d $state_dir ]] || exit 0
-    for state_file in "$state_dir"/*; do
-      [[ -f $state_file ]] || continue
-      resume_instance "$state_file"
-    done
-    rmdir "$state_dir" 2>/dev/null || true
+    if [[ -d $state_dir ]]; then
+      for state_file in "$state_dir"/*; do
+        [[ -f $state_file ]] || continue
+        resume_instance "$state_file"
+      done
+      rmdir "$state_dir" 2>/dev/null || true
+    fi
+    # Removed last, and unconditionally: a pause with nothing left to
+    # resume (or nothing that was ever paused) is still a pause the marker
+    # must keep reporting true for until this point.
+    rm -f "$pause_marker"
     ;;
 esac
