@@ -23,10 +23,15 @@ else
     done
   done
 
-  if [[ -n $shell_pid ]]; then
-    cwd=$(readlink -f "/proc/$shell_pid/cwd" 2>/dev/null)
-    shell=$(readlink -f "/proc/$shell_pid/exe" 2>/dev/null)
-    grep -Fqsx "$shell" /etc/shells || cwd=""
+  # A terminal's shell leads its own session on the terminal's pty. A shell any other app
+  # spawned, like a browser's download helper, does not, so that app gets a terminal in HOME.
+  if [[ -n $shell_pid ]] && read -r stat 2>/dev/null <"/proc/$shell_pid/stat"; then
+    read -r _ _ _ session tty_nr _ <<<"${stat##*) }"
+    if (( session == shell_pid && tty_nr != 0 )); then
+      cwd=$(readlink -f "/proc/$shell_pid/cwd" 2>/dev/null)
+      shell=$(readlink -f "/proc/$shell_pid/exe" 2>/dev/null)
+      grep -Fqsx "$shell" /etc/shells || cwd=""
+    fi
   fi
 fi
 
