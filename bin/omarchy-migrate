@@ -32,27 +32,111 @@ OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 STATE_DIR="${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}"
 MIGRATIONS_DIR="$OMARCHY_PATH/migrations"
 
+file_dependencies() {
+  local file="$1"
+  local line line_count=0 deps=""
+  while IFS= read -r line && (( line_count < 20 )); do
+    (( line_count++ ))
+    if [[ $line =~ ^#[[:space:]]*omarchy:depends_on=(.*) ]]; then
+      deps="${BASH_REMATCH[1]}"
+      break
+    fi
+  done < "$file"
+  echo "$deps"
+}
+
 migration_entries() {
   [[ -d $MIGRATIONS_DIR ]] || return 0
 
   local file filename
+  local -a raw_files=() names=()
+  local -A file_map=() in_degree=() adj_list=() marker_map=()
 
   for file in "$MIGRATIONS_DIR"/*.sh; do
     [[ -f $file ]] || continue
     filename=$(basename "$file")
-    printf '%s\t%s\t%s\n' "$filename" "$file" "$STATE_DIR/$filename"
+    raw_files+=("$filename")
+    file_map["$filename"]="$file"
+    marker_map["$filename"]="$STATE_DIR/$filename"
+    in_degree["$filename"]=0
+    adj_list["$filename"]=""
+  done
+
+  (( ${#raw_files[@]} > 0 )) || return 0
+
+  local name dep raw_deps
+  local -A missing_prereq=()
+  for name in "${raw_files[@]}"; do
+    raw_deps=$(file_dependencies "${file_map[$name]}")
+    [[ -n $raw_deps ]] || continue
+
+    IFS=', ' read -r -a dep_list <<< "$raw_deps"
+    for dep in "${dep_list[@]}"; do
+      [[ -n $dep ]] || continue
+      [[ $dep == *.sh ]] || dep="${dep}.sh"
+
+      if [[ -f ${marker_map[$dep]:-$STATE_DIR/$dep} ]]; then
+        continue
+      fi
+
+      if [[ -n ${file_map[$dep]:-} ]]; then
+        adj_list["$dep"]+="$name "
+        in_degree["$name"]=$(( in_degree["$name"] + 1 ))
+      else
+        echo "Warning: migration $name requires missing prerequisite $dep" >&2
+        missing_prereq["$name"]="$dep"
+        in_degree["$name"]=$(( in_degree["$name"] + 1 ))
+      fi
+    done
+  done
+
+  local -a ready=() sorted=()
+  for name in "${raw_files[@]}"; do
+    if (( in_degree["$name"] == 0 )); then
+      ready+=("$name")
+    fi
+  done
+
+  local curr neighbor
+  while (( ${#ready[@]} > 0 )); do
+    mapfile -t ready < <(printf '%s\n' "${ready[@]}" | sort)
+    curr="${ready[0]}"
+    ready=("${ready[@]:1}")
+    sorted+=("$curr")
+
+    for neighbor in ${adj_list["$curr"]:-}; do
+      in_degree["$neighbor"]=$(( in_degree["$neighbor"] - 1 ))
+      if (( in_degree["$neighbor"] == 0 )); then
+        ready+=("$neighbor")
+      fi
+    done
+  done
+
+  if (( ${#sorted[@]} != ${#raw_files[@]} )); then
+    if (( ${#missing_prereq[@]} > 0 )); then
+      # Prerequisite is missing: stop before running migrations blocked by missing prerequisites
+      echo "Error: migrations blocked by missing prerequisites" >&2
+      return 1
+    else
+      echo "Warning: circular migration dependency detected; falling back to natural order" >&2
+      sorted=("${raw_files[@]}")
+    fi
+  fi
+
+  for name in "${sorted[@]}"; do
+    printf '%s\t%s\t%s\n' "$name" "${file_map[$name]}" "${marker_map[$name]}"
   done
 }
 
 pending_migrations() {
-  local name file marker
-
-  while IFS=$'\t' read -r name file marker; do
-    [[ -n $name ]] || continue
-    if [[ ! -f $marker ]]; then
-      printf '%s\n' "$name"
+  local file filename
+  for file in "$MIGRATIONS_DIR"/*.sh; do
+    [[ -f $file ]] || continue
+    filename=$(basename "$file")
+    if [[ ! -f "$STATE_DIR/$filename" ]]; then
+      printf '%s\n' "$filename"
     fi
-  done < <(migration_entries)
+  done
 }
 
 if [[ $mode == "pending" ]]; then
@@ -85,6 +169,8 @@ wait_for_pacman_transaction
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
+entries=$(migration_entries) || exit 1
+
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
@@ -94,7 +180,7 @@ while IFS=$'\t' read -r name file marker <&3; do
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
   fi
-done 3< <(migration_entries)
+done 3<<< "$entries"
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current
