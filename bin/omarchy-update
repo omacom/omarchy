@@ -70,9 +70,11 @@ trap 'exit 143' TERM
 
 omarchy-update-requires-free-space
 
-# -y suppresses Omarchy confirmation prompts; sudo authorization is still
-# required. Interactive review steps report and move on instead of waiting.
-[[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
+# -y skips the start confirmation and, unless the caller set
+# OMARCHY_UPDATE_UNATTENDED itself, suppresses Omarchy confirmation prompts;
+# sudo authorization is still required. Interactive review steps report and
+# move on instead of waiting.
+[[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=${OMARCHY_UPDATE_UNATTENDED:-1}
 
 if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   authorize_update
