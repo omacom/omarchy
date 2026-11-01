@@ -4,8 +4,15 @@
 # omarchy:args=[slack-arguments...]
 # omarchy:hidden=true
 
+# Slack's own restarts come back through here with the pipe flag the
+# launcher added; the launcher adds it again with a pipe behind it.
+arguments=()
+for argument in "$@"; do
+  [[ $argument == "--remote-debugging-pipe" ]] || arguments+=("$argument")
+done
+
 if [[ -f $HOME/.local/state/omarchy/slack/enabled ]]; then
-  exec /usr/bin/python "$OMARCHY_PATH/default/slack/launcher.py" "$@"
+  exec /usr/bin/python "$OMARCHY_PATH/default/slack/launcher.py" "${arguments[@]}"
 else
-  exec /usr/bin/slack "$@"
+  exec /usr/bin/slack "${arguments[@]}"
 fi

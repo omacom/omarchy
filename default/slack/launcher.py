@@ -22,7 +22,7 @@ class Slack:
         self.outbox = []
         self.loop = GLib.MainLoop()
 
-    def start(self, arguments, binary='/usr/bin/slack'):
+    def start(self, arguments, binary='/usr/bin/slack', name=None):
         # Chromium reads descriptor 3 and writes descriptor 4. The inherited
         # pipes belong to this launch; no debugging socket or port is opened.
         outgoing, writer = os.pipe()
@@ -30,7 +30,12 @@ class Slack:
         launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.NONE)
         launcher.take_fd(outgoing, 3)
         launcher.take_fd(incoming, 4)
-        self.child = launcher.spawnv([binary, '--remote-debugging-pipe', *arguments])
+        # Slack's restart actions relaunch the command line it started with,
+        # and Electron quits when the pipe flag arrives without the pipe.
+        # Starting Slack under the launcher's name brings those restarts back
+        # through it, so the new Slack gets a pipe of its own.
+        self.child = launcher.spawnv(['/bin/bash', '-c', 'exec -a "$0" "$@"', name or binary,
+                                      binary, '--remote-debugging-pipe', *arguments])
         self.input = Gio.UnixInputStream.new(reader, True)
         self.output = Gio.UnixOutputStream.new(writer, True)
         self.input.read_bytes_async(65536, 0, None, self.received)
@@ -121,7 +126,7 @@ class Slack:
         self.loop.quit()
 
     def run(self, arguments):
-        self.start(arguments)
+        self.start(arguments, name=os.environ['OMARCHY_PATH'] + '/bin/omarchy-launch-slack')
         self.loop.run()
         return self.child.get_exit_status() if self.child.get_if_exited() else 128 + self.child.get_term_sig()
 
