@@ -89,7 +89,8 @@ Item {
       Text {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: root.badge
+        text: root.badge === "home" ? Commons.I18n.t("elsewhen.badgeHome")
+          : root.badge === "tracked" ? Commons.I18n.t("elsewhen.badgeTracked") : ""
         visible: root.has && text !== ""
         color: Commons.Color.accent
         font.family: root.fontFamily
