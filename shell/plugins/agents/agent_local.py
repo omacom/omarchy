@@ -27,9 +27,8 @@ import urllib.error
 import urllib.request
 
 SCHEMA = 1
-PORT = 11435
-UNIT = "omarchy-agent-local.service"
-CONTAINER = "omarchy-agent-local"
+BASE_PORT = 11435
+UNIT_PREFIX = "omarchy-agent-local-model-"
 NETWORK_UNIT = "omarchy-agent-local.network"
 NETWORK_NAME = "omarchy-agent-local"
 SECRET = "omarchy-agent-local-key"
@@ -849,7 +848,7 @@ def resolve_best(catalog, profile, gpu, ctx=None):
   raise LocalError(f"No recommended recipe fits this machine: {details}")
 
 
-def recipe_listing(catalog, profile, active_id=None):
+def recipe_listing(catalog, profile, running=()):
   rows = []
   try:
     gpu = choose_gpu(profile)
@@ -881,7 +880,7 @@ def recipe_listing(catalog, profile, active_id=None):
       "available": variant is not None,
       "reason": "" if variant else reason,
       "best": rid == best_id,
-      "active": rid == active_id,
+      "active": rid in running,
       "override": f"recipes/{rid}" in catalog.overrides,
     })
   return rows
@@ -1219,11 +1218,11 @@ def render_container(rid, recipe, runtime, variant, roles, gpu, autostart=False)
     *QUADLET_SECTION,
     "",
     "[Container]",
-    f"ContainerName={CONTAINER}",
+    f"ContainerName={unit_base(rid)}",
     f"Image={runtime['image']}",
     f"Label=org.omarchy.agent-local.recipe={rid}",
     f"Network={NETWORK_UNIT}",
-    f"PublishPort=127.0.0.1:{PORT}:{runtime['port']}",
+    f"PublishPort=127.0.0.1:{port_for(rid)}:{runtime['port']}",
     f"Volume=%h/.local/share/omarchy/agent-local/models/{rid}:/models:ro",
     f"Secret={SECRET},type=env,target={KEY_ENV}",
   ]
@@ -1267,8 +1266,10 @@ def render_container(rid, recipe, runtime, variant, roles, gpu, autostart=False)
     "Restart=on-failure",
     "RestartSec=10s",
     # The agents panel watches status.json; every start, stop and crash rewrites it.
-    "ExecStartPost=-omarchy-agent-local-status --write",
-    "ExecStopPost=-omarchy-agent-local-status --write",
+    # systemd resolves a bare name in its own search path, not PATH; env uses the
+    # unit's PATH, which holds Omarchy's bin.
+    "ExecStartPost=-/usr/bin/env omarchy-agent-local-status --write",
+    "ExecStopPost=-/usr/bin/env omarchy-agent-local-status --write",
   ]
   if autostart:
     lines += ["", "[Install]", "WantedBy=graphical-session.target"]
@@ -1282,8 +1283,58 @@ def systemctl(*args, check=False, timeout=None):
   return subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True, check=check, timeout=timeout)
 
 
-def unit_props(*names):
-  result = systemctl("show", UNIT, *(f"--property={name}" for name in names))
+# ---------------------------------------------------------------- one unit per model
+#
+# Every recipe runs as its own Quadlet unit on its own loopback port, so several
+# models can run side by side when memory allows. Names never collide with the
+# shared network unit (omarchy-agent-local.network becomes
+# omarchy-agent-local-network.service), whatever a recipe is called.
+
+
+def unit_base(rid):
+  return f"{UNIT_PREFIX}{rid}"
+
+
+def unit_name(rid):
+  return f"{unit_base(rid)}.service"
+
+
+def quadlet_path(rid):
+  return os.path.join(quadlet_dir(), f"{unit_base(rid)}.container")
+
+
+def ports_path():
+  return os.path.join(state_dir(), "ports.json")
+
+
+def load_ports():
+  try:
+    with open(ports_path()) as handle:
+      ports = json.load(handle)
+    return {rid: int(port) for rid, port in ports.items() if ID_RE.match(rid)}
+  except (OSError, ValueError, AttributeError):
+    return {}
+
+
+def port_for(rid):
+  """A stable loopback port per recipe, so a model's endpoint never moves."""
+  ports = load_ports()
+  if rid not in ports:
+    taken = set(ports.values())
+    port = BASE_PORT
+    while port in taken:
+      port += 1
+    ports[rid] = port
+    write_atomic(ports_path(), json.dumps(ports, indent=2, sort_keys=True) + "\n")
+  return ports[rid]
+
+
+def endpoint(rid):
+  return f"http://127.0.0.1:{port_for(rid)}/v1"
+
+
+def unit_props(rid, *names):
+  result = systemctl("show", unit_name(rid), "--timestamp=unix", *(f"--property={name}" for name in names))
   props = {}
   for line in result.stdout.splitlines():
     key, _, value = line.partition("=")
@@ -1291,12 +1342,12 @@ def unit_props(*names):
   return props
 
 
-def unit_active():
-  return unit_props("ActiveState").get("ActiveState") in ("active", "activating", "reloading")
+def unit_active(rid):
+  return unit_props(rid, "ActiveState").get("ActiveState") in ("active", "activating", "reloading")
 
 
-def journal_tail(lines=15):
-  result = subprocess.run(["journalctl", "--user", "-u", UNIT, "-n", str(lines), "-o", "cat", "--no-pager"], capture_output=True, text=True)
+def journal_tail(rid, lines=15):
+  result = subprocess.run(["journalctl", "--user", "-u", unit_name(rid), "-n", str(lines), "-o", "cat", "--no-pager"], capture_output=True, text=True)
   return result.stdout.strip()
 
 
@@ -1350,7 +1401,7 @@ def http_status(url, key=None, timeout=10):
 
 
 def post_start_checks(rid, key):
-  base = f"http://127.0.0.1:{PORT}/v1/models"
+  base = f"{endpoint(rid)}/models"
   status, _ = http_status(base)
   if status not in (401, 403):
     raise LocalError(f"The server answered {status or 'nothing'} without the key; refusing a model that doesn't enforce its key")
@@ -1362,7 +1413,7 @@ def post_start_checks(rid, key):
   except ValueError:
     ids = []
   if rid not in ids:
-    raise LocalError(f"Port {PORT} is serving {', '.join(map(str, ids)) or 'an unknown model'}, not {rid}")
+    raise LocalError(f"Port {port_for(rid)} is serving {', '.join(map(str, ids)) or 'an unknown model'}, not {rid}")
 
 
 def free_memory(gpu):
@@ -1391,10 +1442,12 @@ def check_headroom(variant, gpu):
     if available >= variant["peak_ram_gib"] + RESERVE_GIB and gpu_free >= variant["peak_gpu_gib"]:
       return available, gpu_free
     time.sleep(1)
+  running = [rid for rid in known_models() if unit_active(rid)]
   raise LocalError(
     f"Not enough free memory right now: the model needs {variant['peak_ram_gib']:g} GiB RAM plus {RESERVE_GIB} GiB for the desktop "
     f"and {variant['peak_gpu_gib']:g} GiB GPU-addressable; {available:.1f} GiB RAM and {gpu_free:.1f} GiB GPU are free.\n"
-    f"Largest memory users: {top_memory_users()}"
+    + (f"Local models running: {', '.join(running)} (stop one with: omarchy agent local stop <recipe>)\n" if running else "")
+    + f"Largest memory users: {top_memory_users()}"
   )
 
 
@@ -1405,29 +1458,80 @@ def runs_dir():
   return os.path.join(state_dir(), "runs")
 
 
-def active_manifest_path():
-  return os.path.join(state_dir(), "active.json")
+def models_dir():
+  return os.path.join(state_dir(), "models")
 
 
-def load_active():
+def model_manifest_path(rid):
+  return os.path.join(models_dir(), f"{rid}.json")
+
+
+def load_model(rid):
+  """The manifest a recipe currently runs from, or None if it isn't set up."""
   try:
-    with open(active_manifest_path()) as handle:
+    with open(model_manifest_path(rid)) as handle:
       return json.load(handle)
   except (OSError, ValueError):
     return None
 
 
+def known_models():
+  """Every recipe set up on this machine, in no particular order."""
+  if not os.path.isdir(models_dir()):
+    return []
+  return sorted(name[:-5] for name in os.listdir(models_dir()) if name.endswith(".json") and ID_RE.match(name[:-5]))
+
+
+def last_model_id():
+  rid = _read(os.path.join(state_dir(), "last"))
+  return rid if rid and load_model(rid) else None
+
+
+def default_model(running_only=False):
+  """The model a launch or bench means when none is named: the last one
+  started, if it qualifies, else any running one."""
+  last = last_model_id()
+  if last and (not running_only or unit_active(last)):
+    return load_model(last)
+  for rid in known_models():
+    if not running_only or unit_active(rid):
+      return load_model(rid)
+  return None
+
+
+def resolve_model(rid=None, running_only=False):
+  if rid:
+    if not ID_RE.match(rid):
+      raise LocalError("Not a recipe id")
+    manifest = load_model(rid)
+    if not manifest:
+      raise LocalError(f"{rid} isn't set up. Run: omarchy agent local use {rid}")
+    if running_only and not unit_active(rid):
+      raise LocalError(f"{rid} isn't running. Start it with: omarchy agent local start {rid}")
+    return manifest
+  manifest = default_model(running_only)
+  if not manifest:
+    raise LocalError("No local model is running. Run: omarchy agent local use best" if running_only else "No local model set up. Run: omarchy agent local use best")
+  return manifest
+
+
 def save_run(manifest):
   stamp = time.strftime("%Y%m%dT%H%M%S")
-  path = os.path.join(runs_dir(), f"{stamp}-{manifest['recipe_id']}.json")
+  rid = manifest["recipe_id"]
+  path = os.path.join(runs_dir(), f"{stamp}-{rid}.json")
   text = json.dumps(manifest, indent=2) + "\n"
   write_atomic(path, text)
-  write_atomic(active_manifest_path(), text)
+  write_atomic(model_manifest_path(rid), text)
+  write_atomic(os.path.join(state_dir(), "last"), rid + "\n")
   return path
 
 
-def autostart_enabled():
-  return os.path.exists(os.path.join(state_dir(), "autostart"))
+def autostart_flag(rid):
+  return os.path.join(state_dir(), "autostart", rid)
+
+
+def autostart_enabled(rid):
+  return os.path.exists(autostart_flag(rid))
 
 
 class Lock:
@@ -1446,16 +1550,20 @@ class Lock:
     self.handle.close()
 
 
-def write_unit_files(container_text):
+def write_unit_files(rid, container_text):
   ensure_dir(quadlet_dir())
   write_atomic(os.path.join(quadlet_dir(), NETWORK_UNIT), render_network())
-  write_atomic(os.path.join(quadlet_dir(), f"{CONTAINER}.container"), container_text)
+  if container_text is None:
+    if os.path.exists(quadlet_path(rid)):
+      os.unlink(quadlet_path(rid))
+  else:
+    write_atomic(quadlet_path(rid), container_text)
   systemctl("daemon-reload", check=True)
 
 
-def start_unit():
+def start_unit(rid):
   say("Starting the model (waiting until it's loaded and healthy)")
-  process = subprocess.Popen(["systemctl", "--user", "start", UNIT], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  process = subprocess.Popen(["systemctl", "--user", "start", unit_name(rid)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
   started = time.time()
   while process.poll() is None:
     time.sleep(1)
@@ -1463,35 +1571,35 @@ def start_unit():
     if elapsed and elapsed % 15 == 0:
       say(f"  still loading ({elapsed}s)")
   if process.returncode != 0:
-    raise LocalError(f"The model didn't start: {process.stderr.read().strip()}\n{journal_tail()}")
+    raise LocalError(f"The model didn't start: {process.stderr.read().strip()}\n{journal_tail(rid)}")
   return time.time() - started
 
 
 def activate(manifest, recipe, runtime, gpu, key):
-  """Switch to a resolved manifest, rolling back to the previous unit on any failure."""
-  container_path = os.path.join(quadlet_dir(), f"{CONTAINER}.container")
-  previous_text = open(container_path).read() if os.path.isfile(container_path) else None
-  was_running = unit_active()
-  container_text = render_container(manifest["recipe_id"], recipe, runtime, manifest["variant"], manifest["roles"], gpu, autostart_enabled())
+  """Start a recipe from a resolved manifest. Other models keep running; a
+  failure restores this recipe's previous unit, and restarts it if it ran."""
+  rid = manifest["recipe_id"]
+  previous_text = open(quadlet_path(rid)).read() if os.path.isfile(quadlet_path(rid)) else None
+  was_running = unit_active(rid)
+  container_text = render_container(rid, recipe, runtime, manifest["variant"], manifest["roles"], gpu, autostart_enabled(rid))
   if was_running:
-    say("Stopping the running model (in-flight requests are interrupted)")
-    systemctl("stop", UNIT)
+    say(f"Restarting {rid} with the new setup (its in-flight requests are interrupted)")
+    write_status({rid: "deactivating"})
+    systemctl("stop", unit_name(rid))
   try:
     before_ram, before_gpu = check_headroom(manifest["variant"], gpu)
-    write_unit_files(container_text)
-    systemctl("reset-failed", UNIT)
-    load_seconds = start_unit()
-    post_start_checks(manifest["recipe_id"], key)
+    write_unit_files(rid, container_text)
+    systemctl("reset-failed", unit_name(rid))
+    write_status({rid: "activating"}, pending={rid: (recipe, manifest)})
+    load_seconds = start_unit(rid)
+    post_start_checks(rid, key)
   except (LocalError, subprocess.CalledProcessError) as error:
-    systemctl("stop", UNIT)
-    if previous_text is not None:
-      say("Restoring the previous model")
-      write_unit_files(previous_text)
-      if was_running:
-        systemctl("start", UNIT)
-    else:
-      os.unlink(container_path) if os.path.exists(container_path) else None
-      systemctl("daemon-reload")
+    systemctl("stop", unit_name(rid))
+    write_unit_files(rid, previous_text)
+    if previous_text is not None and was_running:
+      say(f"Restoring the previous setup of {rid}")
+      systemctl("start", unit_name(rid))
+    write_status()
     raise LocalError(str(error))
   after_ram, after_gpu = free_memory(gpu)
   manifest["observed"] = {
@@ -1599,11 +1707,15 @@ def cmd_use(argv):
     refresh_list_cache(profile)
     write_status()
     say("")
-    say(f"Running {rid} at http://127.0.0.1:{PORT}/v1 (model id {rid}, key in {key_path()})")
+    say(f"Running {rid} at {endpoint(rid)} (model id {rid}, key in {key_path()})")
     say(f"Loaded in {manifest['observed']['load_seconds']:.0f}s, using about {manifest['observed']['ram_used_gib']:.0f} GiB")
     say(f"Manifest: {path}")
-    say("Launch an agent against it with: omarchy agent --local")
+    say(f"Launch an agent against it with: omarchy agent --local-model {rid}")
   return 0
+
+
+def running_models():
+  return {rid for rid in known_models() if unit_active(rid)}
 
 
 def refresh_list_cache(profile=None):
@@ -1611,8 +1723,7 @@ def refresh_list_cache(profile=None):
   if catalog is None:
     return []
   profile = profile or machine_profile()
-  active = load_active()
-  rows = recipe_listing(catalog, profile, active["recipe_id"] if active else None)
+  rows = recipe_listing(catalog, profile, running_models())
   write_list_cache(rows)
   return rows
 
@@ -1630,8 +1741,7 @@ def cmd_list(argv):
       raise LocalError("No cached catalog yet; run without --offline")
   else:
     catalog, note = refresh_catalog()
-  active = load_active()
-  rows = recipe_listing(catalog, profile, active["recipe_id"] if active else None)
+  rows = recipe_listing(catalog, profile, running_models())
   write_list_cache(rows)
   if args.json:
     print(json.dumps(rows, indent=2))
@@ -1641,7 +1751,7 @@ def cmd_list(argv):
   gpu = profile["gpus"][0]["family"] if profile["gpus"] else "no GPU"
   say(f"Catalog {catalog.commit[:12]} · this machine: {gpu}, {profile['ram_class']} GB, {profile['platform']}")
   for row in rows:
-    marks = [mark for mark, on in (("best", row["best"]), ("active", row["active"]), ("local override", row["override"])) if on]
+    marks = [mark for mark, on in (("best", row["best"]), ("running", row["active"]), ("installed", row["installed"]), ("local override", row["override"])) if on]
     tier = f" · third-party ({row['publisher']})" if row["tier"] == "third-party" else ""
     say(f"{'●' if row['available'] else '○'} {row['id']}{' [' + ', '.join(marks) + ']' if marks else ''}")
     say(f"    {row['name']} on {row['runtime']}{tier} — {row['summary']}")
@@ -1650,33 +1760,68 @@ def cmd_list(argv):
   return 0
 
 
-def status_record():
-  active = load_active()
-  props = unit_props("ActiveState", "SubState", "Result", "ActiveEnterTimestamp")
-  catalog = cached_catalog()
-  state = catalog_state()
-  record = {
-    "unit": props.get("ActiveState", "inactive"),
+def _unix_ms(value):
+  value = (value or "").lstrip("@")
+  return int(value) * 1000 if value.isdigit() else None
+
+
+def latest_run(rid):
+  runs = runs_dir()
+  if not os.path.isdir(runs):
+    return None
+  names = sorted(name for name in os.listdir(runs) if name.endswith(f"-{rid}.json"))
+  if not names:
+    return None
+  try:
+    with open(os.path.join(runs, names[-1])) as handle:
+      return json.load(handle)
+  except (OSError, ValueError):
+    return None
+
+
+def model_record(rid, manifest, catalog=None):
+  props = unit_props(rid, "ActiveState", "SubState", "Result", "InactiveExitTimestamp", "ActiveExitTimestamp")
+  unit = props.get("ActiveState", "inactive") or "inactive"
+  recipe = manifest["recipe"]
+  vendor = recipe.get("vendor", "")
+  if not vendor and catalog:
+    vendor = catalog.recipes.get(rid, {}).get("vendor", "")
+  observed = manifest.get("observed") or {}
+  return {
+    "recipe": rid,
+    "name": recipe.get("name", rid),
+    "vendor": vendor,
+    "runtime": manifest["runtime_id"],
+    "image": manifest["image"],
+    "ctx": manifest["variant"]["ctx"],
+    "unit": unit,
     "sub_state": props.get("SubState", ""),
     "result": props.get("Result", ""),
-    "endpoint": f"http://127.0.0.1:{PORT}/v1",
-    "recipe": active["recipe_id"] if active else None,
-    "name": active["recipe"].get("name") if active else None,
-    "vendor": active["recipe"].get("vendor", "") if active else "",
+    "port": port_for(rid),
+    "endpoint": endpoint(rid),
+    "autostart": autostart_enabled(rid),
+    "catalog_commit": manifest["catalog"]["commit"],
+    "observed": observed or None,
+    # When the current start or stop began, and how long the last load took:
+    # the panel's progress bar measures the one against the other.
+    "since_ms": _unix_ms(props.get("InactiveExitTimestamp") if unit == "activating" else props.get("ActiveExitTimestamp") if unit == "deactivating" else ""),
+    "expected_load_seconds": observed.get("load_seconds"),
+  }
+
+
+def status_record():
+  catalog = cached_catalog()
+  state = catalog_state()
+  models = {rid: model_record(rid, load_model(rid), catalog) for rid in known_models()}
+  record = {
+    "models": models,
+    "last": last_model_id(),
     "ram_total_gib": round(gib(meminfo().get("MemTotal", 0)), 1),
-    "runtime": active["runtime_id"] if active else None,
-    "image": active["image"] if active else None,
-    "ctx": active["variant"]["ctx"] if active else None,
-    "catalog_commit": active["catalog"]["commit"] if active else None,
     "catalog_current": state.get("current"),
     "catalog_age_hours": round((time.time() - state.get("fetched_at", 0)) / 3600, 1) if state.get("fetched_at") else None,
-    "autostart": autostart_enabled(),
     "best": None,
-    "observed": active.get("observed") if active else None,
   }
   if catalog:
-    if active and not record["vendor"]:
-      record["vendor"] = catalog.recipes.get(active["recipe_id"], {}).get("vendor", "")
     try:
       profile = machine_profile()
       record["best"] = resolve_best(catalog, profile, choose_gpu(profile))[0]
@@ -1685,8 +1830,19 @@ def status_record():
   return record
 
 
-def write_status():
+def write_status(transitions=None, pending=None):
+  """Rewrite status.json, which the agents panel watches. `transitions` reports
+  a start or stop before systemd reaches it, so a click shows at once;
+  `pending` describes a model being set up before its manifest is saved."""
   record = status_record()
+  now = int(time.time() * 1000)
+  for rid, (recipe, manifest) in (pending or {}).items():
+    run = latest_run(rid) or {}
+    record["models"][rid] = model_record(rid, {**manifest, "observed": run.get("observed")})
+  for rid, unit in (transitions or {}).items():
+    if rid in record["models"]:
+      record["models"][rid]["unit"] = unit
+      record["models"][rid]["since_ms"] = now
   write_atomic(os.path.join(state_dir(), "status.json"), json.dumps(record, indent=2) + "\n")
   return record
 
@@ -1703,50 +1859,85 @@ def cmd_status(argv):
   if args.json:
     print(json.dumps(record, indent=2))
     return 0
-  if not record["recipe"]:
+  if not record["models"]:
     say("No local model has been set up. Run: omarchy agent local use best")
     return 0
-  state = record["unit"] if record["unit"] != "active" else "running"
-  say(f"{record['recipe']} ({record['name']}) on {record['runtime']}: {state}")
-  say(f"  endpoint {record['endpoint']} · model id {record['recipe']} · context {record['ctx']}")
-  say(f"  catalog {str(record['catalog_commit'])[:12]}" + (f" · cached catalog {record['catalog_age_hours']}h old" if record["catalog_age_hours"] is not None else ""))
-  say(f"  autostart {'on' if record['autostart'] else 'off'}")
-  if record["unit"] == "failed":
-    say(f"  last failure: {record['result']}")
-    tail = journal_tail(5)
-    if tail:
-      say("  " + tail.replace("\n", "\n  "))
-  if record["best"] and record["best"] != record["recipe"]:
-    say(f"  the recommendation for this machine is now {record['best']}: omarchy agent local use best")
+  for rid, model in record["models"].items():
+    state = {"active": "running", "activating": "loading", "deactivating": "stopping"}.get(model["unit"], model["unit"])
+    say(f"{rid} ({model['name']}) on {model['runtime']}: {state}")
+    say(f"  endpoint {model['endpoint']} · model id {rid} · context {model['ctx']} · autostart {'on' if model['autostart'] else 'off'}")
+    if model["unit"] == "failed":
+      say(f"  last failure: {model['result']}")
+      tail = journal_tail(rid, 5)
+      if tail:
+        say("  " + tail.replace("\n", "\n  "))
+  if record["catalog_age_hours"] is not None:
+    say(f"Catalog {str(record['catalog_current'])[:12]}, {record['catalog_age_hours']}h old")
+  if record["best"] and record["best"] not in record["models"]:
+    say(f"The recommendation for this machine is {record['best']}: omarchy agent local use best")
   return 0
 
 
 def cmd_stop(argv):
-  argparse.ArgumentParser(prog="omarchy agent local stop").parse_args(argv)
-  systemctl("stop", UNIT)
+  parser = argparse.ArgumentParser(prog="omarchy agent local stop")
+  parser.add_argument("recipe", nargs="?", help="the model to stop (default: every running one)")
+  args = parser.parse_args(argv)
+  targets = [resolve_model(args.recipe)["recipe_id"]] if args.recipe else sorted(running_models())
+  if not targets:
+    say("No local model is running")
+    return 0
+  # A model takes seconds to let go of its memory; the panel says so meanwhile.
+  write_status({rid: "deactivating" for rid in targets})
+  for rid in targets:
+    systemctl("stop", unit_name(rid))
   write_status()
-  say("Stopped the local model")
+  say(f"Stopped {', '.join(targets)}")
+  return 0
+
+
+def cmd_start(argv):
+  parser = argparse.ArgumentParser(prog="omarchy agent local start")
+  parser.add_argument("recipe", nargs="?", help="the model to start (default: the last one started)")
+  parser.add_argument("--setup", action="store_true", help="set the recipe up first when it isn't yet")
+  args = parser.parse_args(argv)
+  if args.setup and args.recipe and ID_RE.match(args.recipe) and not load_model(args.recipe):
+    return cmd_use([args.recipe])
+  manifest = resolve_model(args.recipe)
+  rid = manifest["recipe_id"]
+  if unit_active(rid):
+    say(f"{rid} is already running at {endpoint(rid)}")
+    return 0
+  gpu = choose_gpu(machine_profile(), manifest["gpu"])
+  check_headroom(manifest["variant"], gpu)
+  write_status({rid: "activating"})
+  systemctl("reset-failed", unit_name(rid))
+  result = systemctl("start", unit_name(rid))
+  write_atomic(os.path.join(state_dir(), "last"), rid + "\n")
+  write_status()
+  if result.returncode != 0:
+    raise LocalError(f"{rid} didn't start: {result.stderr.strip()}\n{journal_tail(rid)}")
+  say(f"Started {rid} at {endpoint(rid)}")
   return 0
 
 
 def cmd_autostart(argv):
   parser = argparse.ArgumentParser(prog="omarchy agent local autostart")
   parser.add_argument("mode", choices=("on", "off"))
+  parser.add_argument("recipe", nargs="?", help="the model (default: the last one started)")
   args = parser.parse_args(argv)
   with Lock():
-    flag = os.path.join(state_dir(), "autostart")
+    manifest = resolve_model(args.recipe)
+    rid = manifest["recipe_id"]
+    flag = autostart_flag(rid)
     if args.mode == "on":
       write_atomic(flag, "on\n")
     elif os.path.exists(flag):
       os.unlink(flag)
-    active = load_active()
-    if active:
-      profile = machine_profile()
-      gpu = choose_gpu(profile, active["gpu"])
-      text = render_container(active["recipe_id"], active["recipe"], active["runtime"], active["variant"], active["roles"], gpu, args.mode == "on")
-      write_unit_files(text)
+    gpu = choose_gpu(machine_profile(), manifest["gpu"])
+    text = render_container(rid, manifest["recipe"], manifest["runtime"], manifest["variant"], manifest["roles"], gpu, args.mode == "on")
+    write_unit_files(rid, text)
     write_status()
-  say(f"Autostart {args.mode}: the local model {'starts' if args.mode == 'on' else 'no longer starts'} with your session")
+  say(f"Autostart {args.mode}: {rid} {'starts' if args.mode == 'on' else 'no longer starts'} with your session")
   return 0
 
 
@@ -1754,22 +1945,27 @@ def cmd_remove(argv):
   parser = argparse.ArgumentParser(prog="omarchy agent local remove")
   parser.add_argument("recipe")
   args = parser.parse_args(argv)
-  if not ID_RE.match(args.recipe):
+  rid = args.recipe
+  if not ID_RE.match(rid):
     raise LocalError("Not a recipe id")
   with Lock():
-    active = load_active()
-    if active and active["recipe_id"] == args.recipe:
-      if unit_active():
-        raise LocalError(f"{args.recipe} is running; stop it first with: omarchy agent local stop")
-      container = os.path.join(quadlet_dir(), f"{CONTAINER}.container")
-      if os.path.exists(container):
-        os.unlink(container)
-      systemctl("daemon-reload")
-      os.unlink(active_manifest_path())
+    if unit_active(rid):
+      say(f"Stopping {rid}")
+      write_status({rid: "deactivating"})
+      systemctl("stop", unit_name(rid))
+    write_unit_files(rid, None)
+    for path in (model_manifest_path(rid), autostart_flag(rid)):
+      if os.path.exists(path):
+        os.unlink(path)
+    if _read(os.path.join(state_dir(), "last")) == rid:
+      os.unlink(os.path.join(state_dir(), "last"))
+    ports = load_ports()
+    if ports.pop(rid, None) is not None:
+      write_atomic(ports_path(), json.dumps(ports, indent=2, sort_keys=True) + "\n")
     removed_runs = 0
     removed_images = set()
     for name in os.listdir(runs_dir()) if os.path.isdir(runs_dir()) else []:
-      if name.endswith(f"-{args.recipe}.json"):
+      if name.endswith(f"-{rid}.json"):
         path = os.path.join(runs_dir(), name)
         try:
           with open(path) as handle:
@@ -1778,7 +1974,7 @@ def cmd_remove(argv):
           pass
         os.unlink(path)
         removed_runs += 1
-    shutil.rmtree(os.path.join(data_dir(), "models", args.recipe), ignore_errors=True)
+    shutil.rmtree(os.path.join(data_dir(), "models", rid), ignore_errors=True)
     freed = 0
     for directory, _, names in os.walk(os.path.join(data_dir(), "blobs")):
       for name in names:
@@ -1799,7 +1995,7 @@ def cmd_remove(argv):
         images.append(image)
   refresh_list_cache()
   write_status()
-  say(f"Removed {args.recipe}: {removed_runs} run manifest(s), {gib(freed):.1f} GiB of weights no other recipe uses" + (f", {len(images)} image(s)" if images else ""))
+  say(f"Removed {rid}: {removed_runs} run manifest(s), {gib(freed):.1f} GiB of weights no other recipe uses" + (f", {len(images)} image(s)" if images else ""))
   return 0
 
 
@@ -1853,32 +2049,23 @@ def cmd_validate(argv):
 OVERLAY_PROVIDER = "llamacpp"
 
 
-def running_manifest():
-  active = load_active()
-  if not active:
-    raise LocalError("No local model set up. Run: omarchy agent local use best")
-  if not unit_active():
-    raise LocalError("The local model isn't running. Start it with: systemctl --user start omarchy-agent-local")
-  return active
-
-
-def pi_overlay():
-  """A pi extension registering the running model, loaded only by local launches."""
-  active = running_manifest()
-  rid = active["recipe_id"]
+def pi_overlay(rid=None):
+  """A pi extension registering a running model, loaded only by local launches."""
+  manifest = resolve_model(rid, running_only=True)
+  rid = manifest["recipe_id"]
   provider = {
     "name": "Omarchy local model",
-    "baseUrl": f"http://127.0.0.1:{PORT}/v1",
+    "baseUrl": endpoint(rid),
     "apiKey": f"!cat {json.dumps(key_path())[1:-1]}",
     "api": "openai-completions",
     "models": [{
       "type": "chat",
       "id": rid,
-      "name": active["recipe"].get("name", rid),
+      "name": manifest["recipe"].get("name", rid),
       "reasoning": True,
       "input": ["text"],
       "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
-      "contextWindow": active["variant"]["ctx"],
+      "contextWindow": manifest["variant"]["ctx"],
       "maxTokens": 16384,
     }],
   }
@@ -1893,17 +2080,17 @@ def pi_overlay():
   return path, OVERLAY_PROVIDER, rid
 
 
-def opencode_overlay():
-  active = running_manifest()
-  rid = active["recipe_id"]
+def opencode_overlay(rid=None):
+  manifest = resolve_model(rid, running_only=True)
+  rid = manifest["recipe_id"]
   overlay = {
     "$schema": "https://opencode.ai/config.json",
     "provider": {
       OVERLAY_PROVIDER: {
         "npm": "@ai-sdk/openai-compatible",
         "name": "Omarchy local model",
-        "options": {"baseURL": f"http://127.0.0.1:{PORT}/v1", "apiKey": "{file:" + key_path() + "}"},
-        "models": {rid: {"name": active["recipe"].get("name", rid), "limit": {"context": active["variant"]["ctx"], "output": 16384}}},
+        "options": {"baseURL": endpoint(rid), "apiKey": "{file:" + key_path() + "}"},
+        "models": {rid: {"name": manifest["recipe"].get("name", rid), "limit": {"context": manifest["variant"]["ctx"], "output": 16384}}},
       }
     },
   }
@@ -1915,8 +2102,9 @@ def opencode_overlay():
 def cmd_overlay(argv):
   parser = argparse.ArgumentParser(prog="omarchy agent local overlay")
   parser.add_argument("agent", choices=("opencode", "pi"))
+  parser.add_argument("recipe", nargs="?", help="the running model (default: the last one started)")
   args = parser.parse_args(argv)
-  for line in (pi_overlay if args.agent == "pi" else opencode_overlay)():
+  for line in (pi_overlay if args.agent == "pi" else opencode_overlay)(args.recipe):
     print(line)
   return 0
 
@@ -1936,7 +2124,7 @@ def bench_request(prompt, model, key, max_tokens=512):
     "chat_template_kwargs": {"enable_thinking": False},
   }
   request = urllib.request.Request(
-    f"http://127.0.0.1:{PORT}/v1/chat/completions",
+    f"{endpoint(model)}/chat/completions",
     data=json.dumps(body).encode(),
     headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
   )
@@ -1973,11 +2161,10 @@ def bench_request(prompt, model, key, max_tokens=512):
 
 def cmd_bench(argv):
   parser = argparse.ArgumentParser(prog="omarchy agent local bench")
+  parser.add_argument("recipe", nargs="?", help="the running model (default: the last one started)")
   parser.add_argument("--output", help="write the measurement record here (default: print it)")
   args = parser.parse_args(argv)
-  active = load_active()
-  if not active or not unit_active():
-    raise LocalError("No local model is running. Run: omarchy agent local use best")
+  active = resolve_model(args.recipe, running_only=True)
   catalog = cached_catalog()
   corpus = os.path.join(catalog.root, "bench", "context.txt") if catalog else ""
   if not os.path.isfile(corpus):
@@ -2045,6 +2232,7 @@ COMMANDS = {
   "list": cmd_list,
   "status": cmd_status,
   "stop": cmd_stop,
+  "start": cmd_start,
   "autostart": cmd_autostart,
   "remove": cmd_remove,
   "profile": cmd_profile,

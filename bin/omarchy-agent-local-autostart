@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 # omarchy:summary=Start the local model with your session, or stop doing so
-# omarchy:args=<on|off>
+# omarchy:args=<on|off> [recipe]
 
 import os
 import sys

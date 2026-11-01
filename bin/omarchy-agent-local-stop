@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
-# omarchy:summary=Stop the running local model
+# omarchy:summary=Stop a local model, or every running one
+# omarchy:args=[recipe]
 
 import os
 import sys

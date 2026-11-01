@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 # omarchy:summary=Measure the running local model and write a measurement record
-# omarchy:args=[--output <file>]
+# omarchy:args=[recipe] [--output <file>]
 
 import os
 import sys

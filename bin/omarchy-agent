@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local] [--agent <id>]
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--agent <id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
 pick=false
 use_local=false
+local_model=""
 agent_override=""
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
@@ -24,6 +25,11 @@ while (($#)); do
     --local)
       use_local=true
       shift
+      ;;
+    --local-model)
+      use_local=true
+      local_model=${2:?--local-model needs a recipe id}
+      shift 2
       ;;
     --agent)
       agent_override=${2:?--agent needs an agent id}
@@ -244,7 +250,7 @@ esac
 # a launch-time overlay Omarchy owns, never by editing the agent's own config.
 # Only agents with such an overlay can be pointed there.
 if [[ $use_local == "true" ]]; then
-  mapfile -t overlay < <(omarchy-agent-local-overlay "$agent")
+  mapfile -t overlay < <(omarchy-agent-local-overlay "$agent" ${local_model:+"$local_model"})
   (( ${#overlay[@]} == 3 )) || exit 1
   case "$agent" in
   opencode)

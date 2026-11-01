@@ -162,6 +162,16 @@ record = {"recipe": "model", "method": 'say "hello"\nnext\\line', "ctx": 4096,
           "short": {"ttft": 1.5, "ok": True}}
 check("bench-shaped TOML round-trips tables, arrays and escaped strings", tomllib.loads(a.toml_dumps(record)) == record)
 
+# Models run side by side, each on its own port; an agent pointed at one must
+# never land on another, so ports are distinct, stable, and freed on removal.
+first, second = a.port_for("model-a"), a.port_for("model-b")
+check("each model gets its own loopback port", first == a.BASE_PORT and second == a.BASE_PORT + 1)
+check("a model keeps its port across lookups", a.port_for("model-a") == first)
+ports = a.load_ports()
+ports.pop("model-a")
+a.write_atomic(a.ports_path(), json.dumps(ports))
+check("a removed model's port is reused before a new one", a.port_for("model-c") == first and a.port_for("model-b") == second)
+
 # Exercise typed unit generation, then the real Quadlet parser without starting services.
 hostile = '50% $HOME "quoted space" \\tail'
 changed = copy.deepcopy(recipe)
@@ -214,7 +224,7 @@ if generator:
   def option(flag, value):
     return f"{flag}={value}" in argv or any(argv[i:i+2] == [flag, value] for i in range(len(argv)))
   check("Quadlet keeps internal network and container restrictions", option("--network", "omarchy-agent-local") and "--read-only" in argv and option("--cap-drop", "all") and option("--security-opt", "no-new-privileges"), exec_line)
-  check("Quadlet publishes only the loopback endpoint", option("--publish", "127.0.0.1:11435:8080"), exec_line)
+  check("Quadlet publishes only the loopback endpoint", option("--publish", f"127.0.0.1:{a.port_for('model')}:8080"), exec_line)
   check("hostile server argument survives Quadlet as one argument", hostile in argv, repr(argv))
 else:
   skip("Quadlet parser unavailable: Podman generator is not installed")
