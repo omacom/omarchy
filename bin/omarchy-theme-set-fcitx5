@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to the Fcitx candidate window
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+THEME_SOURCE="$HOME/.local/state/omarchy/current/theme/fcitx5-theme.conf"
+THEME_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/themes/omarchy"
+CLASSICUI_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5/conf/classicui.conf"
+PACKAGED_THEME="${OMARCHY_FCITX5_PACKAGED_THEME:-/usr/share/fcitx5/themes/default}"
+ACTIVATE=0
+
+usage() {
+  echo "Usage: omarchy-theme-set-fcitx5 [--activate]"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --activate)
+      ACTIVATE=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Point classicui at the theme, unless the user picked one of their own. A
+# configtool save writes Theme=default even when only the font changed, so the
+# stock themes count as unpicked. Only activation does this, so a later choice
+# of fcitx5's own theme sticks.
+select_theme() {
+  local conf original updated key value
+
+  conf=$(realpath -m "$CLASSICUI_CONF")
+  original=$([[ -f $conf ]] && cat "$conf" || true)
+  updated=$original
+
+  for key in Theme DarkTheme; do
+    value=$(sed -n "s/^$key=//p" <<<"$updated" | tail -n 1)
+    if [[ -z $value ]]; then
+      updated+="${updated:+$'\n'}$key=omarchy"
+    elif [[ $value == "default" || $value == "default-dark" ]]; then
+      updated=$(sed "s/^$key=.*/$key=omarchy/" <<<"$updated")
+    fi
+  done
+
+  if [[ $updated != "$original" ]]; then
+    # Write through a dotfiles symlink rather than replacing it.
+    mkdir -p "${conf%/*}"
+    printf '%s\n' "$updated" >"$conf.omarchy-tmp"
+    mv "$conf.omarchy-tmp" "$conf"
+  fi
+}
+
+# Until activation there is no theme directory, and nothing to keep in step.
+if (( ACTIVATE == 0 )) && [[ ! -d $THEME_DIR ]]; then
+  exit 0
+fi
+
+mkdir -p "$THEME_DIR"
+if [[ -f $THEME_SOURCE ]]; then
+  tmp=$(mktemp "$THEME_DIR/theme.conf.XXXXXX")
+  cp "$THEME_SOURCE" "$tmp"
+  mv "$tmp" "$THEME_DIR/theme.conf"
+fi
+
+# Image= entries resolve inside the theme's own directory. fcitx5's page and
+# menu glyphs are neutral grey, so the packaged ones suit every palette.
+for glyph in "$PACKAGED_THEME"/*.svg; do
+  [[ -e $glyph ]] && ln -sfn "$glyph" "$THEME_DIR/${glyph##*/}"
+done
+
+if (( ACTIVATE == 1 )); then
+  select_theme
+fi
+
+# classicui reads its theme only when its config loads. Never start Fcitx just
+# to tell it.
+busctl --user --auto-start=no call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 \
+  ReloadAddonConfig s classicui >/dev/null 2>&1 || true
