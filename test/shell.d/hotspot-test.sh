@@ -341,11 +341,10 @@ if [[ ${1:-} == "-j" && ${2:-} == "addr" ]]; then
   printf '%s\n' '[{"addr_info":[{"family":"inet","local":"10.42.0.1"}]}]'
   exit 0
 fi
-if [[ ${1:-} == "neigh" ]]; then
-  printf '%s\n' \
-    '10.42.0.5 dev wlan0 lladdr aa:bb:cc:dd:ee:01 REACHABLE' \
-    '10.42.0.6 dev wlan0 lladdr aa:bb:cc:dd:ee:02 STALE' \
-    'fe80::1 dev wlan0 lladdr aa:bb:cc:dd:ee:03 REACHABLE'
+# As `ip -j neigh show dev wlan0` prints it: filtering by device drops the
+# dev field from every entry.
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01","state":["REACHABLE"]},{"dst":"10.42.0.6","lladdr":"AA:BB:CC:DD:EE:02","state":["STALE"]},{"dst":"fe80::1","lladdr":"aa:bb:cc:dd:ee:03","state":["REACHABLE"]}]'
   exit 0
 fi
 exit 2
@@ -353,8 +352,8 @@ STUB
 cat >"$STUB_BIN/getent" <<'STUB'
 #!/bin/bash
 case "${1:-}:${2:-}" in
-  hosts:10.42.0.5) printf '%s\n' 'pixel-8.lan 10.42.0.5' ;;
-  hosts:10.42.0.6) printf '%s\n' 'bad;name.lan 10.42.0.6' ;;
+  hosts:10.42.0.5) printf '%s\n' '10.42.0.5       pixel-8.lan pixel-8' ;;
+  hosts:10.42.0.6) printf '%s\n' '10.42.0.6       bad;name.lan' ;;
   *) exit 2 ;;
 esac
 STUB
@@ -385,11 +384,8 @@ pass "status names clients from the neighbour table and the system resolver"
 # A hostile neighbour table must not widen the status contract.
 cat >"$STUB_BIN/ip" <<'STUB'
 #!/bin/bash
-if [[ ${1:-} == "neigh" ]]; then
-  printf '%s\n' \
-    '10.42.0.5 dev wlan0 lladdr aa:bb:cc:dd:ee:01 REACHABLE' \
-    'not-an-address dev wlan0 lladdr aa:bb:cc:dd:ee:02 STALE' \
-    '10.42.0.9 dev wlan0 lladdr aa:bb:cc:dd:ee:09 REACHABLE'
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01"},{"dst":"not-an-address","lladdr":"aa:bb:cc:dd:ee:02"},{"dst":"10.42.0.9","lladdr":"aa:bb:cc:dd:ee:09"},{"dst":["10.42.0.7"],"lladdr":"aa:bb:cc:dd:ee:02"}]'
   exit 0
 fi
 exit 2
@@ -397,8 +393,8 @@ STUB
 cat >"$STUB_BIN/getent" <<'STUB'
 #!/bin/bash
 case "${2:-}" in
-  10.42.0.5) printf '%s\n' "$(printf 'a\tb\nc') 10.42.0.5" ;;
-  10.42.0.9) printf '%s\n' 'has spaces 10.42.0.9' ;;
+  10.42.0.5) printf '%s\n' "10.42.0.5 $(printf 'a;b\nc')" ;;
+  10.42.0.9) printf '%s\n' '10.42.0.9 has spaces' ;;
   *) exit 2 ;;
 esac
 STUB
