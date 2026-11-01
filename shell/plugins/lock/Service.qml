@@ -670,7 +670,7 @@ Item {
         stop()
         root.fingerprintSleptWhilePaused = true
         root.resumeFingerprint()
-        root.armBlankTimer()
+        root.armBlankTimer(idleBlankTimer.resumeMs)
       } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
         stop()
       }
