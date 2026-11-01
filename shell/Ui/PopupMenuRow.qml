@@ -15,11 +15,13 @@ Rectangle {
   signal triggered()
 
   width: parent ? parent.width : 0
+  implicitWidth: rowLabel.implicitWidth + Style.spacing.controlPaddingX * 2 + (checked ? checkMark.implicitWidth + Style.spacing.controlPaddingX : 0)
   height: visible ? Style.spacing.popupRowHeight : 0
   radius: Style.cornerRadius
   color: rowMouse.containsMouse || highlighted ? Style.hoverFill : "transparent"
 
   Text {
+    id: rowLabel
     anchors.verticalCenter: parent.verticalCenter
     anchors.left: parent.left
     anchors.leftMargin: Style.spacing.controlPaddingX
@@ -31,6 +33,7 @@ Rectangle {
   }
 
   Text {
+    id: checkMark
     visible: row.checked
     anchors.verticalCenter: parent.verticalCenter
     anchors.right: parent.right
