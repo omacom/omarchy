@@ -2,7 +2,6 @@ run_logged "$OMARCHY_INSTALL/user/theme.sh"
 if omarchy-edition-desktop; then
   run_logged "$OMARCHY_INSTALL/user/chromium.sh"
 fi
-run_logged "$OMARCHY_INSTALL/user/git.sh"
 if omarchy-edition-desktop; then
   run_logged "$OMARCHY_INSTALL/user/xcompose.sh"
   run_logged "$OMARCHY_INSTALL/user/language.sh"

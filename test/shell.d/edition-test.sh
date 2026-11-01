@@ -65,3 +65,50 @@ pass "edition-set round-trips through omarchy-edition"
 ! omarchy-edition-set desktop server >/dev/null 2>&1 ||
   fail "edition-set refuses more than one argument"
 pass "edition-set validates its argument before writing"
+
+for edition in desktop server; do
+  printf '%s\n' "$edition" >"$OMARCHY_EDITION_FILE"
+  (
+    OMARCHY_INSTALL="$ROOT/install"
+    run_logged() {
+      [[ -f $1 ]] || fail "$edition setup dispatches an existing leaf" "$1"
+      [[ $1 != */git.sh ]] || fail "git setup stays in first-run, outside user finalization"
+    }
+    source "$OMARCHY_INSTALL/config/all.sh"
+    source "$OMARCHY_INSTALL/user/all.sh"
+  ) || exit 1
+done
+pass "both editions dispatch existing setup leaves and leave git setup to first-run"
+
+for edition in server desktop; do
+  printf '%s\n' "$edition" >"$OMARCHY_EDITION_FILE"
+  for encrypted in true false; do
+    login_root="$workdir/login-$edition-$encrypted"
+    mkdir -p "$login_root"
+    if [[ $edition == "desktop" ]]; then
+      mkdir -p "$login_root/etc/systemd/system"
+    fi
+    (
+      eval "$(sed -n '/^configure_login() {/,/^}/p; /^install_autologin_once_cleanup() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" |
+        sed "s|/etc/|$login_root/etc/|g; s|/var/lib/|$login_root/var/lib/|g")"
+      username=owner
+      encrypted_install() { "$encrypted"; }
+      chown() { :; }
+      configure_login
+    ) || fail "$edition login configuration succeeds (encrypted=$encrypted)"
+    if [[ $edition == "server" ]]; then
+      [[ ! -e $login_root/etc && ! -e $login_root/var ]] ||
+        fail "server provisioning leaves ordinary console authentication (encrypted=$encrypted)"
+    else
+      grep -qx 'User=owner' "$login_root/etc/sddm.conf.d/autologin.conf" ||
+        fail "desktop provisioning configures owner login"
+      if [[ -e $login_root/etc/systemd/system/omarchy-provision-autologin-once.service ]]; then
+        cleanup=true
+      else
+        cleanup=false
+      fi
+      [[ $cleanup != "$encrypted" ]] || fail "only unencrypted desktops schedule autologin cleanup"
+    fi
+  done
+done
+pass "servers require console authentication while desktops retain their login policy"
