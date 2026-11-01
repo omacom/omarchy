@@ -149,6 +149,11 @@ Panel {
   }
 
   // The displays showing each layout rect's picture, keyed by the rect's name.
+  // With one box in the map, a lone display or a mirrored stack, there's
+  // nothing to move it against: no dragging, hover or keyboard stop, and no
+  // accent marking the shown display. Right-clicking it still rotates it.
+  readonly property bool layoutMovable: layoutRects.length > 1
+
   readonly property var mirroredBy: {
     var map = {}
     for (var i = 0; i < layoutDisplays.length; i++) {
@@ -232,7 +237,7 @@ Panel {
     if (current && current.resolutions.length > 0) list.push("resolution")
     if (current && current.refreshes.length > 0) list.push("refresh")
     if (mirrorAvailable) list.push("mirror")
-    if (layoutRects.length > 0) list.push("layout")
+    if (layoutMovable) list.push("layout")
     return list
   }
 
@@ -1227,7 +1232,7 @@ Panel {
             // No row box: the keyboard cursor shows on the shown display instead.
             Item {
               id: layoutRow
-              readonly property bool hasCursor: root.cursorActive && root.focusSection === "layout"
+              readonly property bool hasCursor: root.layoutMovable && root.cursorActive && root.focusSection === "layout"
               width: parent.width
               height: layoutMap.implicitHeight + panelColumn.sliderInset * 2
               onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(layoutRow)
@@ -1246,6 +1251,7 @@ Panel {
               // The pointer on the map takes the shared cursor, as every row does,
               // so h/l afterwards moves the shown display instead of the last row.
               HoverHandler {
+                enabled: root.layoutMovable
                 onHoveredChanged: if (hovered) root.pointAt("layout", 0)
               }
             }
@@ -1450,7 +1456,7 @@ Panel {
         id: screenRect
         required property var modelData
 
-        readonly property bool isCurrent: root.current !== null && root.current.name === modelData.name
+        readonly property bool isCurrent: root.layoutMovable && root.current !== null && root.current.name === modelData.name
         property real dragX: 0
         property real dragY: 0
         property real pressX: 0
@@ -1519,7 +1525,7 @@ Panel {
 
         MouseArea {
           // A lone display, or a mirrored stack, has nothing to move against.
-          readonly property bool canDrag: root.layoutRects.length > 1 && !root.pendingRects
+          readonly property bool canDrag: root.layoutMovable && !root.pendingRects
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: !canDrag ? Qt.ArrowCursor : (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
