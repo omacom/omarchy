@@ -216,3 +216,109 @@ for platform in aarch64 aarch64-apple x86; do
   done
 done
 pass "Snapdragon setup follows the real platform detector"
+
+# The A16 hook must not follow a portable installation onto another board.
+a16_setup="$ROOT/install/hardware/asus/fix-asus-zenbook-a16-dsp.sh"
+a16_out="$scratch/a16"
+mkdir -p "$a16_out"
+sed "s|/etc/|$a16_out/etc/|g" "$a16_setup" >"$a16_out/setup.sh"
+
+run_a16_setup() (
+  local compatible=$1
+  fake_platform "$scratch/a16-platform" aarch64-qualcomm
+  printf '%s\0' "$compatible" qcom,glymur >"$scratch/a16-platform/proc/device-tree/compatible"
+  export OMARCHY_PROC_ROOT="$scratch/a16-platform/proc"
+  export PATH="$scratch/a16-platform/bin:$ROOT/bin:$PATH"
+  omarchy-pkg-add() { printf '%s\n' "$*" >"$a16_out/packages"; }
+  source "$a16_out/setup.sh"
+)
+
+for compatible in lenovo,yoga-slim7x microsoft,denali-oled qcom,x1p42100-crd qcom,glymur \
+  asus,zenbook-a16-ux3607oa-other other-asus,zenbook-a16-ux3607oa; do
+  run_a16_setup "$compatible"
+  [[ ! -e $a16_out/packages && ! -e $a16_out/etc ]] || fail "A16 DSP setup leaves $compatible alone"
+done
+for platform in x86 aarch64 aarch64-apple; do
+  (
+    fake_platform "$scratch/a16-$platform" "$platform"
+    export OMARCHY_PROC_ROOT="$scratch/a16-$platform/proc"
+    export PATH="$scratch/a16-$platform/bin:$ROOT/bin:$PATH"
+    omarchy-pkg-add() { fail "$platform must not install A16 firmware"; }
+    source "$a16_out/setup.sh"
+  )
+  [[ ! -e $a16_out/etc ]] || fail "A16 DSP setup leaves $platform alone"
+done
+run_a16_setup asus,zenbook-a16-ux3607oa
+[[ -s $a16_out/etc/initcpio/hooks/omarchy-a16-dsp ]] || fail "the A16 gets the DSP startup hook"
+pass "A16 DSP installation is restricted to the exact board"
+
+(
+  export OMARCHY_PROC_ROOT="$scratch/a16-platform/proc"
+  export PATH="$scratch/a16-platform/bin:$ROOT/bin:$PATH"
+  config="$a16_out/etc/mkinitcpio.conf.d/zz-omarchy-a16-dsp.conf"
+  for hooks in 'base udev modconf block encrypt filesystems' 'base udev modconf block filesystems'; do
+    read -ra HOOKS <<<"$hooks"
+    source "$config"
+    first="${HOOKS[*]}"
+    source "$config"
+    [[ ${HOOKS[*]} == "$first" && $first == "base udev omarchy-a16-dsp "* ]] ||
+      fail "A16 startup precedes root activation and is inserted once"
+  done
+  HOOKS=(base systemd sd-encrypt filesystems)
+  if source "$config"; then fail "A16 startup refuses a systemd initramfs"; fi
+  [[ ${HOOKS[*]} == 'base systemd sd-encrypt filesystems' ]] || fail "a refused hook layout is unchanged"
+  printf '%s\0' microsoft,denali-oled qcom,x1e80100 >"$OMARCHY_PROC_ROOT/device-tree/compatible"
+  HOOKS=(base udev modconf encrypt filesystems)
+  source "$config"
+  [[ ${HOOKS[*]} == 'base udev modconf encrypt filesystems' ]] || fail "a portable root rebuilt on another board gets no A16 hook"
+)
+pass "A16 DSP hook ordering preserves other boards and rejects unsupported initramfs layouts"
+
+# Sysfs fixtures exercise the readiness decisions without loading a host module.
+sys="$scratch/dsp-sys"
+mkdir -p "$sys/firmware/devicetree/base" "$sys/class/typec/port0" "$sys/class/typec/port1" \
+  "$sys/class/power_supply/battery" "$sys/bus/rpmsg/devices/pmic"
+sed -e "s|/sys/|$sys/|g" -e "s|/etc/|$scratch/initrd-etc/|g" \
+  "$ROOT/default/initcpio/hooks/omarchy-a16-dsp" >"$scratch/dsp-hook"
+source "$scratch/dsp-hook"
+for compatible in microsoft,denali-oled asus,zenbook-a16-ux3607oa-other; do
+  printf '%s\0' "$compatible" qcom,glymur >"$sys/firmware/devicetree/base/compatible"
+  if a16_dsp_board; then fail "the runtime guard rejects $compatible"; fi
+  (
+    modprobe() { fail "an A16 image must not start DSPs on $compatible"; }
+    a16_dsp_stop() { fail "an A16 image must not hold boot on $compatible"; }
+    run_earlyhook
+    run_hook
+  )
+done
+printf '%s\0' asus,zenbook-a16-ux3607oa qcom,glymur >"$sys/firmware/devicetree/base/compatible"
+a16_dsp_board || fail "the runtime guard accepts the exact A16 compatible"
+for pair in '7 adsp running' '3 cdsp running' '9 soccp attached'; do
+  read -r index name state <<<"$pair"
+  mkdir -p "$sys/class/remoteproc/remoteproc$index"
+  printf '%s\n' "$name" >"$sys/class/remoteproc/remoteproc$index/name"
+  printf '%s\n' "$state" >"$sys/class/remoteproc/remoteproc$index/state"
+done
+printf '%s\n' PMIC_RTR_SOCCP_APPS >"$sys/bus/rpmsg/devices/pmic/name"
+ln -s /driver "$sys/bus/rpmsg/devices/pmic/driver"
+echo Battery >"$sys/class/power_supply/battery/type"
+echo 13000000 >"$sys/class/power_supply/battery/voltage_now"
+a16_dsp_ready || fail "running DSPs, attached SoCCP and ready clients permit boot"
+echo offline >"$sys/class/remoteproc/remoteproc7/state"
+if a16_dsp_ready; then fail "an offline DSP must hold root activation"; fi
+echo crashed >"$sys/class/remoteproc/remoteproc7/state"
+status=0
+a16_dsp_ready || status=$?
+(( status == 2 )) || fail "a crashed DSP reports a fatal startup failure"
+echo running >"$sys/class/remoteproc/remoteproc7/state"
+for voltage in '' 0 unknown; do
+  printf '%s\n' "$voltage" >"$sys/class/power_supply/battery/voltage_now"
+  if a16_dsp_ready; then fail "an unreadable battery holds root activation"; fi
+done
+echo 13000000 >"$sys/class/power_supply/battery/voltage_now"
+rm "$sys/bus/rpmsg/devices/pmic/driver"
+if a16_dsp_ready; then fail "an unbound PMIC service holds root activation"; fi
+ln -s /driver "$sys/bus/rpmsg/devices/pmic/driver"
+rmdir "$sys/class/typec/port1"
+if a16_dsp_ready; then fail "missing Type-C initialization holds root activation"; fi
+pass "A16 readiness waits for firmware and its PMIC clients, independent of remoteproc numbering"

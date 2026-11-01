@@ -1,0 +1,113 @@
+#!/usr/bin/ash
+
+a16_dsp_board() {
+  [ -r /sys/firmware/devicetree/base/compatible ] &&
+    tr '\000' '\n' </sys/firmware/devicetree/base/compatible | grep -Fxq 'asus,zenbook-a16-ux3607oa'
+}
+
+a16_dsp_stop() {
+  echo "A16 DSP startup stopped: $*"
+  echo "Reboot and select the previous boot image."
+  # The hook runner ignores return codes: do not continue to unlock or mount root.
+  launch_interactive_shell --exec
+  while :; do sleep 3600; done
+}
+
+run_earlyhook() {
+  # PAS is bundled for this hook: prevent coldplug even if this image boots on
+  # another board. Only the A16 starts it explicitly; the real root is unchanged.
+  mkdir -p /etc/modprobe.d || a16_dsp_stop "Cannot prevent DSP autoload"
+  echo 'blacklist qcom_q6v5_pas' >/etc/modprobe.d/omarchy-a16-dsp.conf || a16_dsp_stop "Cannot prevent DSP autoload"
+}
+
+a16_dsp_ready() {
+  local path name state adsp=0 cdsp=0 soccp=0 endpoint=0 battery=0 value
+  for path in /sys/class/remoteproc/remoteproc*; do
+    [ -r "$path/name" ] && [ -r "$path/state" ] || continue
+    read -r name <"$path/name"
+    read -r state <"$path/state"
+    case "$name:$state" in
+      adsp:running) adsp=1 ;;
+      cdsp:running) cdsp=1 ;;
+      soccp:attached) soccp=1 ;;
+      adsp:crashed|cdsp:crashed|soccp:crashed) return 2 ;;
+    esac
+  done
+  [ "$adsp$cdsp$soccp" = 111 ] || return 1
+  for path in /sys/bus/rpmsg/devices/*; do
+    [ -r "$path/name" ] || continue
+    read -r name <"$path/name"
+    [ "$name" = PMIC_RTR_SOCCP_APPS ] && [ -L "$path/driver" ] && endpoint=1
+  done
+  for path in /sys/class/power_supply/*; do
+    [ -r "$path/type" ] || continue
+    read -r name <"$path/type"
+    [ "$name" = Battery ] || continue
+    value=$(cat "$path/voltage_now" 2>/dev/null) || continue
+    case "$value" in ''|*[!0-9]*) continue ;; esac
+    [ "$value" -gt 0 ] && battery=1
+  done
+  [ "$endpoint$battery" = 11 ] && [ -e /sys/class/typec/port0 ] && [ -e /sys/class/typec/port1 ]
+}
+
+a16_dsp_root_identity() {
+  local rootdev blockpath diskseq
+  rootdev=$(readlink -f "$1") || return 1
+  [ -b "$rootdev" ] || return 1
+  blockpath=$(readlink -f "/sys/class/block/${rootdev##*/}") || return 1
+  [ ! -r "$blockpath/partition" ] || blockpath=${blockpath%/*}
+  diskseq=$(cat "$blockpath/diskseq" 2>/dev/null) || return 1
+  case "$diskseq" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s:%s:%s\n' "$rootdev" "$blockpath" "$diskseq"
+}
+
+run_hook() {
+  a16_dsp_board || return 0
+  local device="${root:-}" cryptname _options module attempt=0 stable=0 previous="" identity status
+  if [ -n "${cryptdevice:-}" ]; then
+    # Match encrypt's parsing, including escaped colons in a device label.
+    # shellcheck disable=SC2162
+    IFS=: read device cryptname _options <<EOF
+$cryptdevice
+EOF
+    [ ! -b "/dev/mapper/$cryptname" ] || a16_dsp_stop "Root is already unlocked"
+  fi
+  if grep -Eq ' /(sysroot|new_root|root) ' /proc/mounts; then
+    a16_dsp_stop "Root is already mounted"
+  fi
+  case "$device" in
+    UUID=*|LABEL=*|PARTUUID=*|PARTLABEL=*) device=$(tag_to_udev_path "${device%%=*}" "${device#*=}") ;;
+    /dev/mapper/*|/dev/dm-*|/dev/md*) a16_dsp_stop "Root must be a direct disk or use cryptdevice" ;;
+    /dev/*) ;;
+    *) a16_dsp_stop "Root device is not supported" ;;
+  esac
+
+  echo "Starting A16 DSPs before opening the root disk..."
+  for module in qcom_glink_smem qrtr_smd qcom_pd_mapper pmic_glink qcom_battmgr ucsi_glink pmic_glink_altmode qcom_q6v5_pas; do
+    modprobe "$module" || a16_dsp_stop "Could not load $module"
+  done
+  while [ "$attempt" -lt 90 ]; do
+    a16_dsp_ready
+    status=$?
+    [ "$status" -ne 2 ] || a16_dsp_stop "Remote processor crashed"
+    identity=$(a16_dsp_root_identity "$device")
+    if [ "$status" -eq 0 ] && [ -n "$identity" ]; then
+      if [ "$identity" = "$previous" ]; then stable=$((stable + 1)); else stable=0; fi
+      # shortcut: ten samples cannot rule out delayed connector work; replace with measured service completion.
+      if [ "$stable" -ge 10 ]; then
+        udevadm settle --timeout=10 || a16_dsp_stop "udev did not settle"
+        if a16_dsp_ready && [ "$identity" = "$(a16_dsp_root_identity "$device")" ]; then
+          echo "A16 DSPs and PMIC services ready; root disk stable."
+          return 0
+        fi
+        stable=0
+      fi
+    else
+      stable=0
+    fi
+    previous=$identity
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  a16_dsp_stop "DSP, PMIC, Type-C or root disk readiness timed out"
+}
