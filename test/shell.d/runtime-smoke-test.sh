@@ -14,6 +14,16 @@ fail_with_log() {
 
 setup_scratch_shell
 
+# The shell reads the platform root at a fixed path; the copy reads an empty
+# fixture instead, so a machine's own platform files (a MacBook's notch puts
+# the bar in its cutout layout) never change the layout this test checks.
+platform_root="$SCRATCH_DIR/platform"
+mkdir -p "$platform_root"
+{ grep -rlF /usr/share/omarchy-platform "$SCRATCH_ROOT/shell" || true; } |
+  xargs -r sed -i "s|/usr/share/omarchy-platform|$platform_root|g"
+! grep -rqF /usr/share/omarchy-platform "$SCRATCH_ROOT/shell" ||
+  fail "the shell copy reads a fixture platform root, not the machine's"
+
 # Every plugin under ~/.config/omarchy/plugins hot-reloads, whoever wrote it.
 hot_reload_id="acme.hot-reload"
 hot_reload_dir="$SCRATCH_HOME/.config/omarchy/plugins/$hot_reload_id"
