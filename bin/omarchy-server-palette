@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# omarchy:summary=Emit the active theme as shell-sourceable ANSI escapes for the server front door
+# omarchy:args=[--file <colors.toml>] [--truecolor|--ansi] [--names] [--console]
+# omarchy:examples=eval "$(omarchy-server-palette)" | omarchy-server-palette --ansi
+
+# The pre-login issue file, the login splash, and the home menu all draw in the
+# active theme. omarchy-theme-color already resolves colors.toml into a full
+# palette, aliases and derived shades included, so this only translates that
+# palette into escape sequences and picks a depth the terminal can actually
+# render.
+#
+# Everything is emitted in one awk pass. This runs on every interactive login,
+# so a subprocess per color would be paid at exactly the wrong moment.
+
+set -euo pipefail
+
+COLORS_FILE=""
+DEPTH=""
+NAMES_ONLY=0
+CONSOLE=""
+
+usage() {
+  echo "Usage: omarchy-server-palette [--file <colors.toml>] [--truecolor|--ansi] [--names] [--console]"
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --file)
+      COLORS_FILE="${2:-}"
+      shift 2
+      ;;
+    --truecolor)
+      DEPTH="truecolor"
+      shift
+      ;;
+    --ansi)
+      DEPTH="ansi"
+      shift
+      ;;
+    --names)
+      NAMES_ONLY=1
+      shift
+      ;;
+    --console)
+      CONSOLE=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+# A dumb terminal is the case that matters: the Linux console renders 16 colors
+# and no box drawing worth relying on, and the art has to survive it rather than
+# arrive as a screenful of escape sequences.
+if [[ -z $DEPTH ]]; then
+  if [[ ${OMARCHY_BBS_DEPTH:-} == "ansi" || ${OMARCHY_BBS_DEPTH:-} == "truecolor" ]]; then
+    DEPTH=$OMARCHY_BBS_DEPTH
+  elif [[ ${TERM:-} == "dumb" || -z ${TERM:-} ]]; then
+    # An explicit claim of no capability outranks an inherited COLORTERM, which
+    # survives into places the terminal it described does not.
+    DEPTH="ansi"
+  elif [[ ${COLORTERM:-} == "truecolor" || ${COLORTERM:-} == "24bit" ]]; then
+    DEPTH="truecolor"
+  elif (( $(tput colors 2>/dev/null || echo 8) >= 256 )); then
+    DEPTH="truecolor"
+  else
+    DEPTH="ansi"
+  fi
+fi
+
+# Depth and glyphs are independent. Unknown SGR parameters are ignored or
+# approximated rather than printed, so truecolor escapes are safe to send at a
+# console that cannot render them; box-drawing characters are not, because a
+# console font without them prints substitutes that wreck the alignment.
+if [[ ${OMARCHY_BBS_UNICODE:-} == "0" || ${OMARCHY_BBS_UNICODE:-} == "1" ]]; then
+  unicode=$OMARCHY_BBS_UNICODE
+elif [[ ${TERM:-} == "linux" || ${TERM:-} == "dumb" || -z ${TERM:-} ]]; then
+  unicode=0
+else
+  unicode=1
+fi
+
+# \e]P must only reach a VT: other terminals read it as a malformed OSC.
+if [[ -z $CONSOLE ]]; then
+  if [[ ${TERM:-} == "linux" ]]; then
+    CONSOLE=1
+  else
+    CONSOLE=0
+  fi
+fi
+
+if (( NAMES_ONLY )); then
+  printf '%s\n' ACCENT FG DIM RULE BRIGHT TITLE KEY OK WARN INFO ALERT \
+    ACCENT_BG SELECTION_BG ON_ACCENT RESET BOLD
+  exit 0
+fi
+
+if [[ -n $COLORS_FILE ]]; then
+  palette=$(omarchy-theme-color --file "$COLORS_FILE" --all)
+else
+  palette=$(omarchy-theme-color --all)
+fi
+
+printf '%s\n' "$palette" | awk -F'\t' -v depth="$DEPTH" -v unicode="$unicode" -v console="$CONSOLE" '
+  # role -> palette key, then the SGR code to fall back to when the terminal
+  # cannot do better. Roles, not color names: a theme moves, the roles do not.
+  BEGIN {
+    split("ACCENT FG DIM RULE BRIGHT TITLE KEY OK WARN INFO ALERT ACCENT_BG SELECTION_BG ON_ACCENT", roles, " ")
+
+    key["ACCENT"]       = "accent";            ansi["ACCENT"]       = 34
+    key["FG"]           = "foreground";        ansi["FG"]           = 37
+    key["DIM"]          = "dark_foreground";   ansi["DIM"]          = 90
+    key["RULE"]         = "muted";             ansi["RULE"]         = 90
+    key["BRIGHT"]       = "bright_foreground"; ansi["BRIGHT"]       = 97
+    key["TITLE"]        = "bright_magenta";    ansi["TITLE"]        = 95
+    key["KEY"]          = "yellow";            ansi["KEY"]          = 33
+    key["OK"]           = "green";             ansi["OK"]           = 32
+    key["WARN"]         = "bright_yellow";     ansi["WARN"]         = 93
+    key["INFO"]         = "bright_cyan";       ansi["INFO"]         = 96
+    key["ALERT"]        = "red";               ansi["ALERT"]        = 31
+
+    # Backgrounds. ON_ACCENT is the text colour that sits on the accent bar, so
+    # it is a foreground drawn from the darkest background the theme defines.
+    key["ACCENT_BG"]    = "accent";            ansi["ACCENT_BG"]    = 44;  is_bg["ACCENT_BG"] = 1
+    key["SELECTION_BG"] = "selection";         ansi["SELECTION_BG"] = 100; is_bg["SELECTION_BG"] = 1
+    key["ON_ACCENT"]    = "darker_background"; ansi["ON_ACCENT"]    = 30
+  }
+
+  { color[$1] = $2 }
+
+  function channel(hex, index_,   digits, hi, lo) {
+    digits = "0123456789abcdef"
+    hi = index(digits, tolower(substr(hex, index_, 1))) - 1
+    lo = index(digits, tolower(substr(hex, index_ + 1, 1))) - 1
+    return hi * 16 + lo
+  }
+
+  function escape(role,   hex, layer) {
+    hex = color[key[role]]
+
+    if (depth == "truecolor" && hex ~ /^#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) {
+      layer = is_bg[role] ? 48 : 38
+      return sprintf("\\033[%d;2;%d;%d;%dm", layer, channel(hex, 2), channel(hex, 4), channel(hex, 6))
+    }
+
+    # Either the terminal cannot do truecolor, or the theme left this role
+    # undefined and omarchy-theme-color had nothing to derive it from.
+    return sprintf("\\033[%dm", ansi[role])
+  }
+
+  END {
+    for (i = 1; i in roles; i++) {
+      printf "OMARCHY_BBS_%s=$%c%s%c\n", roles[i], 39, escape(roles[i]), 39
+    }
+    printf "OMARCHY_BBS_RESET=$%c\\033[0m%c\n", 39, 39
+    printf "OMARCHY_BBS_BOLD=$%c\\033[1m%c\n", 39, 39
+    printf "OMARCHY_BBS_DEPTH=%s\n", depth
+    printf "OMARCHY_BBS_UNICODE=%s\n", unicode
+
+    seq = ""
+    if (console == 1) {
+      for (i = 0; i < 16; i++) {
+        hex = color["color" i]
+        if (hex ~ /^#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/)
+          seq = seq sprintf("\\033]P%x%s", i, substr(hex, 2))
+      }
+    }
+    printf "OMARCHY_BBS_CONSOLE_PALETTE=$%c%s%c\n", 39, seq, 39
+  }
+'

@@ -1,0 +1,188 @@
+#!/bin/bash
+
+# omarchy:summary=Draw the server edition's login splash
+# omarchy:args=[--no-input]
+# omarchy:examples=omarchy server splash --no-input
+
+# Exits 0 when the caller chose the menu and non-zero when they chose a shell,
+# so a splash that fails for any reason lands them in a shell rather than
+# somewhere they did not ask to be.
+#
+# Every reading is gathered under a hard timeout. A login that hangs because a
+# wedged Docker daemon will not answer is a worse failure than a stale count,
+# so anything that cannot answer in time renders as a dash and the splash draws
+# on schedule.
+
+set -uo pipefail
+
+READ_INPUT=1
+[[ ${1:-} == "--no-input" ]] && READ_INPUT=0
+
+eval "$(omarchy-server-palette)"
+
+printf '%s' "$OMARCHY_BBS_CONSOLE_PALETTE"
+
+cols=$(tput cols 2>/dev/null || echo 80)
+(( cols > 0 )) || cols=80
+
+if [[ ${OMARCHY_BBS_UNICODE:-1} == "1" ]]; then
+  sep=" ▪ "; dot="●"; up="▲"; tick="✓"; caret="▮"; rule_char="═"
+else
+  sep=" - "; dot="*"; up="!"; tick="+"; caret="_"; rule_char="="
+fi
+
+# Readings that talk to a daemon, a package database, or a log get a leash.
+# The rest are file reads and cost nothing worth guarding.
+guarded() {
+  timeout "${1}s" "${@:2}" 2>/dev/null || true
+}
+
+# Built with parameter expansion rather than tr, which substitutes bytes: the
+# rule character is three bytes in UTF-8, so tr would replace only the first and
+# emit invalid sequences the terminal draws as missing glyphs.
+rule() {
+  local width=$(( cols - 4 ))
+  (( width > 0 )) || width=1
+
+  local blanks
+  printf -v blanks '%*s' "$width" ''
+  printf '  %s%s%s\n' "$OMARCHY_BBS_RULE" "${blanks// /$rule_char}" "$OMARCHY_BBS_RESET"
+}
+
+field() {
+  printf '%s%s%s %s%s%s' "$OMARCHY_BBS_DIM" "$1" "$OMARCHY_BBS_RESET" \
+    "$OMARCHY_BBS_FG" "$2" "$OMARCHY_BBS_RESET"
+}
+
+# ---- readings ------------------------------------------------------------
+
+uptime_pretty=$(guarded 2 uptime -p)
+uptime_pretty=${uptime_pretty#up }
+[[ -n $uptime_pretty ]] || uptime_pretty="-"
+
+load="-"
+[[ -r /proc/loadavg ]] && read -r load _ </proc/loadavg
+
+memory=$(awk '/MemTotal/ { total = $2 } /MemAvailable/ { available = $2 }
+  END { if (total) printf "%.1f/%.0fG", (total - available) / 1048576, total / 1048576 }' \
+  /proc/meminfo 2>/dev/null)
+[[ -n $memory ]] || memory="-"
+
+disk=$(guarded 2 df -h --output=avail / | tail -n1 | tr -d ' ')
+[[ -n $disk ]] || disk="-"
+
+kernel=$(uname -r 2>/dev/null || echo "-")
+version=$(guarded 2 omarchy-version)
+[[ -n $version ]] || version="-"
+
+services=$(guarded 3 systemctl list-units --type=service --state=running --no-legend | grep -c .)
+[[ -n $services ]] || services="-"
+
+# Docker is the reading most likely to hang: a daemon that is up but wedged
+# accepts the connection and never answers.
+containers=$(guarded 2 docker ps --quiet | grep -c .)
+[[ -n $containers ]] || containers="-"
+
+# The local sync database, not the network. This is deliberately whatever the
+# last refresh knew: a login is the wrong moment to talk to a mirror.
+updates=$(guarded 3 pacman -Qu | grep -c .)
+[[ -n $updates ]] || updates="-"
+
+# Wave 5 replaces this with the backup plan's own status. Until that exists,
+# the door and its status line are wired to a stub rather than missing.
+backup_status="no backups yet"
+
+last_call=$(guarded 2 last -n 2 --time-format iso | awk 'NR == 1 && $1 != "" { print $1, $3, $4 }')
+[[ -n $last_call ]] || last_call="-"
+callers=$(guarded 2 last --since today | awk 'NF && $1 != "wtmp" { print $1 }' | sort -u | grep -c .)
+[[ -n $callers ]] || callers="0"
+
+host=$(uname -n 2>/dev/null || echo "-")
+# iproute2, not hostname -I: Arch's hostname comes from inetutils, which has no
+# such flag, and answers with nothing at all.
+address=$(guarded 2 ip -4 -oneline address show scope global |
+  awk 'NR == 1 { split($4, cidr, "/"); print cidr[1] }')
+[[ -n $address ]] || address="-"
+tty_name=$(tty 2>/dev/null | sed 's|^/dev/||')
+[[ -n $tty_name && $tty_name != "not a tty" ]] || tty_name="-"
+
+# ---- draw ----------------------------------------------------------------
+
+clear 2>/dev/null || printf '\033[H\033[2J'
+printf '\n'
+
+# The wordmark is 81 columns wide. Anything narrower gets the compact header
+# rather than a wrapped one, which reads as damage.
+logo_path="$OMARCHY_PATH/logo.txt"
+if (( cols >= 85 )) && [[ -r $logo_path ]]; then
+  printf '%s' "$OMARCHY_BBS_ACCENT"
+  sed 's/^/  /' "$logo_path"
+  printf '%s\n' "$OMARCHY_BBS_RESET"
+fi
+
+rule
+printf '  %s%sOMARCHY SERVER%s%s%s%s%s%s%s%s%snode %s%s%s%s%s%s%s%s%s\n' \
+  "$OMARCHY_BBS_BOLD" "$OMARCHY_BBS_TITLE" "$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_DIM" "$sep" "$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_FG" "$version" "$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_DIM$sep$OMARCHY_BBS_RESET" "$OMARCHY_BBS_DIM" \
+  "$OMARCHY_BBS_BRIGHT" "$host" "$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_DIM$sep$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_FG" "$address" "$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_DIM$sep$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_FG$tty_name$OMARCHY_BBS_RESET"
+rule
+printf '\n'
+
+printf '  %s    %s    %s    %s    %s\n\n' \
+  "$(field UPTIME "$uptime_pretty")" \
+  "$(field LOAD "$load")" \
+  "$(field MEM "$memory")" \
+  "$(field DISK "$disk free")" \
+  "$(field KERNEL "$kernel")"
+
+printf '  %s%s%s %s%s services up%s   %s%s%s %s%s containers up%s   ' \
+  "$OMARCHY_BBS_OK" "$dot" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_FG" "$services" "$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_OK" "$dot" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_FG" "$containers" "$OMARCHY_BBS_RESET"
+if [[ $updates == "0" ]]; then
+  printf '%s%s%s %sup to date%s   ' \
+    "$OMARCHY_BBS_OK" "$dot" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_FG" "$OMARCHY_BBS_RESET"
+else
+  printf '%s%s%s %s%s updates ready%s   ' \
+    "$OMARCHY_BBS_WARN" "$up" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_FG" "$updates" "$OMARCHY_BBS_RESET"
+fi
+printf '%s%s%s %s%s%s\n\n' \
+  "$OMARCHY_BBS_INFO" "$tick" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_FG" "$backup_status" "$OMARCHY_BBS_RESET"
+
+printf '  %s%s%s%s%s%s\n\n' \
+  "$(field 'Last call:' "$last_call")" \
+  "$OMARCHY_BBS_DIM" "$sep" "$OMARCHY_BBS_RESET" \
+  "$OMARCHY_BBS_FG$callers callers today" "$OMARCHY_BBS_RESET"
+
+(( READ_INPUT )) || exit 1
+
+printf '  %sPress %s[ENTER]%s for the main menu, %s[SPACE]%s to drop to a shell %s%s%s' \
+  "$OMARCHY_BBS_DIM" \
+  "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
+  "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
+  "$OMARCHY_BBS_ACCENT" "$caret" "$OMARCHY_BBS_RESET"
+
+# Every other key is ignored on purpose, so the prompt stays on screen rather
+# than the splash looking hung after a stray keystroke.
+while IFS= read -rsn1 key; do
+  case "$key" in
+    "")
+      printf '\n'
+      if [[ -z ${OMARCHY_BBS_SESSION:-} ]]; then
+        OMARCHY_BBS_SESSION=1 exec omarchy-server-menu
+      fi
+      exit 0
+      ;;
+    " ")
+      printf '\n'
+      exit 1
+      ;;
+  esac
+done
+
+exit 1
