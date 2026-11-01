@@ -6,7 +6,7 @@
 
 inline=false
 pick=false
-local=false
+use_local=false
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -21,7 +21,7 @@ while (($#)); do
       shift
       ;;
     --local)
-      local=true
+      use_local=true
       shift
       ;;
     --prompt)
@@ -56,6 +56,25 @@ fi
 if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
+fi
+
+# Only agents with a launch-time overlay can be pointed at the local model. When
+# the default can't, open the first one installed that can, and say so, rather
+# than a launch from the panel opening nothing.
+if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
+  local_agent=""
+  for candidate in pi opencode; do
+    if omarchy-cmd-present "$candidate"; then
+      local_agent=$candidate
+      break
+    fi
+  done
+  if [[ -z $local_agent ]]; then
+    omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
+    exit 1
+  fi
+  omarchy-notification-send "$(omarchy-i18n agents.localFallback "$local_agent")" "$(omarchy-i18n agents.localFallbackBody "$agent")"
+  agent=$local_agent
 fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts
@@ -211,16 +230,15 @@ esac
 # --local points the agent at the model `omarchy agent local use` runs, through
 # a launch-time overlay Omarchy owns, never by editing the agent's own config.
 # Only agents with such an overlay can be pointed there.
-if [[ $local == "true" ]]; then
+if [[ $use_local == "true" ]]; then
+  mapfile -t overlay < <(omarchy-agent-local-overlay "$agent")
+  (( ${#overlay[@]} == 3 )) || exit 1
   case "$agent" in
   opencode)
-    mapfile -t overlay < <(omarchy-agent-local-overlay opencode)
-    (( ${#overlay[@]} == 2 )) || exit 1
-    command=(env "OPENCODE_CONFIG=${overlay[0]}" "${command[@]}" --model "${overlay[1]}")
+    command=(env "OPENCODE_CONFIG=${overlay[0]}" "${command[@]}" --model "${overlay[1]}/${overlay[2]}")
     ;;
-  *)
-    echo "Local models work with opencode so far; $agent has no launch-time overlay yet." >&2
-    exit 1
+  pi)
+    command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
     ;;
   esac
 fi

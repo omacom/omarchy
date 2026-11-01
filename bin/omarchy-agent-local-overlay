@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 # omarchy:summary=Write an agent's launch overlay for the running local model
-# omarchy:args=<opencode>
+# omarchy:args=<opencode|pi>
 # omarchy:hidden=true
 
 import os
