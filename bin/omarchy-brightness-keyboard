@@ -29,11 +29,10 @@ fi
 # blanking again after a resume cannot save its own 0 over it.
 saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
 
-if [[ $direction == "off" || $direction == "restore" ]]; then
-  # The lock runs blank and wake as separate processes that can overlap.
-  exec {lock_fd}>"$saved.lock" || exit 1
-  flock "$lock_fd" || exit 1
-fi
+# The lock runs blank and wake as separate processes that can overlap, and a
+# key pressed on the lock screen can land between them.
+exec {lock_fd}>"$saved.lock" || exit 1
+flock "$lock_fd" || exit 1
 
 if [[ $direction == "off" ]]; then
   if [[ ! -s $saved ]]; then

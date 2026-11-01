@@ -85,6 +85,11 @@ run_keyboard off
 run_keyboard --no-osd up
 run_keyboard restore
 [[ $(level) == "1" ]] || fail "a level set with the keys while blanked survives restore (got $(level))"
+run_keyboard off
+run_keyboard --no-osd up
+run_keyboard --no-osd down
+run_keyboard restore
+[[ $(level) == "0" ]] || fail "a backlight stepped back to 0 with the keys while blanked stays off (got $(level))"
 pass "a level set with the keys while blanked survives restore"
 
 # Down while blanked changes nothing, so the blank is still undone.
