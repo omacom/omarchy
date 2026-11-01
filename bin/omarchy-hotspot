@@ -1284,10 +1284,13 @@ start() {
   save_data=$HOTSPOT_SAVE_DATA
   hotspot_lock
 
-  apply_args=("${HOTSPOT_OPERANDS[@]}")
+  # apply parses its arguments again, so the operands go after `--`: a name
+  # starting with a dash stays a name the second time too.
+  apply_args=()
   if [[ -n $save_data ]]; then
     apply_args+=("--save-data=$save_data")
   fi
+  apply_args+=(-- "${HOTSPOT_OPERANDS[@]}")
   apply "${apply_args[@]}"
   firewall_ensure
   if ! forwarding_ensure; then
@@ -1412,7 +1415,7 @@ toggle() {
     password=$(profile_secret)
     [[ -n $ssid ]] || fail "no hotspot SSID configured"
     [[ -n $password ]] || fail "no saved hotspot password"
-    printf '%s\n' "$password" | start "$ssid" "$band"
+    printf '%s\n' "$password" | start -- "$ssid" "$band"
   else
     omarchy-shell shell summon omarchy.network 2>/dev/null || true
   fi

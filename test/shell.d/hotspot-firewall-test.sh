@@ -1316,14 +1316,18 @@ pass "hotspot actions share one machine-wide lock once root has created it"
 # range alone when no limit is given.
 reset_firewall_fixture
 cat >"$TEST_TMP/start-limit-driver.sh" <<'DRIVER'
-apply() { printf '%s\n' "$#" "$@" >"$TEST_TMP/apply-args"; }
+# The stub parses as apply does and records the operands it ends up with.
+apply() { parse_hotspot_args "$@"; printf '%s\n' "${#HOTSPOT_OPERANDS[@]}" "${HOTSPOT_OPERANDS[@]}" "save=$HOTSPOT_SAVE_DATA" >"$TEST_TMP/apply-args"; }
 firewall_ensure() { :; }
 forwarding_ensure() { :; }
 ipv4_forwarding_enabled() { :; }
 start Hotspot 2.4 4
-[[ $(<"$TEST_TMP/apply-args") == $'3\nHotspot\n2.4\n4' ]] || { echo "start passed: $(<"$TEST_TMP/apply-args")" >&2; exit 1; }
+[[ $(<"$TEST_TMP/apply-args") == $'3\nHotspot\n2.4\n4\nsave=' ]] || { echo "start passed: $(<"$TEST_TMP/apply-args")" >&2; exit 1; }
 start Hotspot 2.4
-[[ $(<"$TEST_TMP/apply-args") == $'2\nHotspot\n2.4' ]] || { echo "start without a limit passed: $(<"$TEST_TMP/apply-args")" >&2; exit 1; }
+[[ $(<"$TEST_TMP/apply-args") == $'2\nHotspot\n2.4\nsave=' ]] || { echo "start without a limit passed: $(<"$TEST_TMP/apply-args")" >&2; exit 1; }
+# A name starting with a dash survives apply parsing the arguments again.
+start --save-data=never -- -Guest 2.4
+[[ $(<"$TEST_TMP/apply-args") == $'2\n-Guest\n2.4\nsave=never' ]] || { echo "a dash-leading name reached apply as: $(<"$TEST_TMP/apply-args")" >&2; exit 1; }
 DRIVER
 run_isolated "$TEST_TMP/start-limit-driver.sh"
 pass "start applies the chosen participant limit"

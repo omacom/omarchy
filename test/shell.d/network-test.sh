@@ -541,11 +541,11 @@ for (const [name, verb] of [['startHotspot', 'start'], ['applyHotspot', 'apply']
   assert(source, 'network has ' + name)
   if (!source) continue
   const state = {
-    hotspotBusy: false, hotspotSsid: ' Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4', hotspotSaveData: 'never',
+    hotspotBusy: false, hotspotSsid: ' -Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4', hotspotSaveData: 'never',
     hotspotCommand: 'omarchy-hotspot', hotspotError: '', hotspotActionKind: '',
     hotspotActionProc: {}, Model: network, Commons: englishCommons,
   }
   new Function('state', 'with (state) {\n' + source[0] + '\n' + name + '()\n}')(state)
-  assertEqual(JSON.stringify(state.hotspotActionProc.command), JSON.stringify(['omarchy-hotspot', verb, 'Cafe', '5', '4', '--save-data=never']), 'hotspot ' + verb + ' passes the chosen participant limit and data choice')
+  assertEqual(JSON.stringify(state.hotspotActionProc.command), JSON.stringify(['omarchy-hotspot', verb, '--save-data=never', '--', '-Cafe', '5', '4']), 'hotspot ' + verb + ' passes the chosen participant limit and data choice')
 }
 JS

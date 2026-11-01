@@ -1082,7 +1082,8 @@ Panel {
     hotspotBusy = true
     hotspotError = ""
     hotspotActionProc.secret = hotspotPassword
-    hotspotActionProc.command = [hotspotCommand, "start", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData]
+    // Options first, then `--`, so a name starting with a dash stays a name.
+    hotspotActionProc.command = [hotspotCommand, "start", "--save-data=" + hotspotSaveData, "--", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument]
     hotspotActionProc.running = true
   }
 
@@ -1123,7 +1124,7 @@ Panel {
     hotspotBusy = true
     hotspotError = ""
     hotspotActionProc.secret = hotspotPassword
-    hotspotActionProc.command = [hotspotCommand, "apply", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData]
+    hotspotActionProc.command = [hotspotCommand, "apply", "--save-data=" + hotspotSaveData, "--", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument]
     hotspotActionProc.running = true
   }
 
