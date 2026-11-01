@@ -1,0 +1,217 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+setup="$ROOT/install/hardware/lenovo/yoga-slim7x.sh"
+starter="$ROOT/install/hardware/lenovo/start-yoga-slim7x-remoteprocs.sh"
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+
+for script in "$setup" "$starter"; do
+  bash -n "$script" || fail "Yoga Slim 7x hardware scripts have valid syntax"
+done
+
+matching="$scratch/matching"
+mkdir -p "$matching"
+(
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-hw-match() { [[ $1 == "83ED" ]]; }
+  systemctl() { printf '%s\n' "$*" >>"$matching/systemctl.log"; }
+
+  OMARCHY_YOGA_MODULES_LOAD_DIR="$matching/modules-load.d" \
+    OMARCHY_YOGA_MKINITCPIO_DIR="$matching/mkinitcpio.conf.d" \
+    OMARCHY_YOGA_LIMINE_CONFIG_DIR="$matching/limine-entry-tool.d" \
+    OMARCHY_YOGA_SYSTEMD_DIR="$matching/systemd" \
+    source "$setup"
+)
+
+grep -Fxq 'scmi-cpufreq' "$matching/modules-load.d/yoga-slim7x.conf" ||
+  fail "Yoga Slim 7x setup loads its SCMI CPU-frequency driver"
+(
+  firmware_root="$scratch/firmware"
+  mkdir -p "$firmware_root/qcom" "$firmware_root/updates/qcom"
+  touch "$firmware_root/qcom/gen70500_sqe.fw.zst" \
+    "$firmware_root/qcom/gen70500_gmu.bin.xz"
+  MODULES=() FILES=()
+  OMARCHY_YOGA_FIRMWARE_ROOT="$firmware_root" \
+    source "$matching/mkinitcpio.conf.d/yoga-slim7x-initramfs.conf"
+  [[ ${MODULES[*]} == "i2c-hid-of qrtr ps883x pmic_glink_altmode" ]] ||
+    fail "the generated config loads the keyboard and display modules"
+  (( ${#FILES[@]} == 2 )) || fail "GPU microcode is included without duplicating the board zap shader"
+  [[ ${FILES[0]} == "$firmware_root/qcom/gen70500_sqe.fw.zst" ]] ||
+    fail "zstd display firmware is included"
+  [[ ${FILES[1]} == "$firmware_root/qcom/gen70500_gmu.bin.xz" ]] ||
+    fail "xz display firmware is included"
+  touch "$firmware_root/updates/qcom/gen70500_sqe.fw"
+  FILES=()
+  OMARCHY_YOGA_FIRMWARE_ROOT="$firmware_root" \
+    source "$matching/mkinitcpio.conf.d/yoga-slim7x-initramfs.conf"
+  [[ ${FILES[0]} == "$firmware_root/updates/qcom/gen70500_sqe.fw" ]] ||
+    fail "plain extracted firmware takes precedence over compressed packaged firmware"
+)
+(
+  declare -A KERNEL_CMDLINE=([default]="root=/dev/mapper/root quiet splash")
+  source "$matching/limine-entry-tool.d/yoga-slim7x.conf"
+  [[ " ${KERNEL_CMDLINE[default]} " == *" console=tty0 "* ]] ||
+    fail "Yoga Slim 7x uses the laptop console for graphical disk unlock"
+  [[ " ${KERNEL_CMDLINE[default]} " == *" initcall_blacklist=simpledrm_platform_driver_init "* ]] ||
+    fail "Yoga Slim 7x defers display ownership to the native driver"
+  [[ ${KERNEL_CMDLINE[default]} == "root=/dev/mapper/root quiet splash "* ]] ||
+    fail "Yoga Slim 7x preserves the existing boot parameters"
+)
+grep -Fq 'ConditionPathExists=!/etc/modprobe.d/qualcomm-adsp-nofw.conf' \
+  "$matching/systemd/yoga-slim7x-remoteprocs.service" ||
+  fail "Yoga Slim 7x skips DSP startup when the generic firmware leaf blacklists it"
+if grep -Fq 'systemd-udev-settle.service' "$matching/systemd/yoga-slim7x-remoteprocs.service"; then
+  fail "Yoga Slim 7x DSP startup does not wait for all udev devices"
+fi
+grep -Fxq 'enable yoga-slim7x-remoteprocs.service' "$matching/systemctl.log" ||
+  fail "Yoga Slim 7x enables its remote processor service"
+
+nonmatching="$scratch/nonmatching"
+mkdir -p "$nonmatching"
+(
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-hw-match() { return 1; }
+  systemctl() { fail "nonmatching Qualcomm hardware does not enable Yoga services"; }
+
+  OMARCHY_YOGA_MODULES_LOAD_DIR="$nonmatching/modules-load.d" \
+    OMARCHY_YOGA_MKINITCPIO_DIR="$nonmatching/mkinitcpio.conf.d" \
+    OMARCHY_YOGA_LIMINE_CONFIG_DIR="$nonmatching/limine-entry-tool.d" \
+    OMARCHY_YOGA_SYSTEMD_DIR="$nonmatching/systemd" \
+    source "$setup"
+)
+
+[[ ! -e $nonmatching/modules-load.d/yoga-slim7x.conf ]] ||
+  fail "nonmatching Qualcomm hardware does not get Yoga CPU setup"
+[[ ! -e $nonmatching/mkinitcpio.conf.d/yoga-slim7x-initramfs.conf ]] ||
+  fail "nonmatching Qualcomm hardware does not get Yoga initramfs setup"
+[[ ! -e $nonmatching/limine-entry-tool.d/yoga-slim7x.conf ]] ||
+  fail "nonmatching Qualcomm hardware does not get Yoga boot parameters"
+[[ ! -e $nonmatching/systemd/yoga-slim7x-remoteprocs.service ]] ||
+  fail "nonmatching Qualcomm hardware does not get Yoga services"
+
+remoteprocs="$scratch/remoteproc"
+mkdir -p "$remoteprocs/remoteproc0" "$remoteprocs/remoteproc1" "$remoteprocs/remoteproc2"
+printf 'qcom/x1e80100/LENOVO/83ED/qcadsp8380.mbn\n' >"$remoteprocs/remoteproc0/firmware"
+printf 'offline\n' >"$remoteprocs/remoteproc0/state"
+printf 'qcom/x1e80100/LENOVO/83ED/qccdsp8380.mbn\n' >"$remoteprocs/remoteproc1/firmware"
+printf 'offline\n' >"$remoteprocs/remoteproc1/state"
+printf 'unrelated.mbn\n' >"$remoteprocs/remoteproc2/firmware"
+printf 'offline\n' >"$remoteprocs/remoteproc2/state"
+
+OMARCHY_YOGA_REMOTEPROC_ROOT="$remoteprocs" \
+  OMARCHY_YOGA_REMOTEPROC_ATTEMPTS=1 \
+  OMARCHY_YOGA_REMOTEPROC_SLEEP=0 \
+  bash "$starter"
+
+[[ $(<"$remoteprocs/remoteproc0/state") == start ]] ||
+  fail "Yoga Slim 7x helper starts the audio DSP by firmware identity"
+[[ $(<"$remoteprocs/remoteproc1/state") == start ]] ||
+  fail "Yoga Slim 7x helper starts the compute DSP by firmware identity"
+[[ $(<"$remoteprocs/remoteproc2/state") == offline ]] ||
+  fail "Yoga Slim 7x helper leaves unrelated remote processors alone"
+
+run_starter() {
+  OMARCHY_YOGA_REMOTEPROC_ROOT="$remoteprocs" \
+    OMARCHY_YOGA_REMOTEPROC_ATTEMPTS=1 \
+    OMARCHY_YOGA_REMOTEPROC_SLEEP=0 \
+    bash "$starter"
+}
+printf 'running\n' >"$remoteprocs/remoteproc0/state"
+printf 'running\n' >"$remoteprocs/remoteproc1/state"
+run_starter
+[[ $(<"$remoteprocs/remoteproc0/state") == running ]] || fail "running ADSP is not restarted"
+[[ $(<"$remoteprocs/remoteproc1/state") == running ]] || fail "running CDSP is not restarted"
+
+printf 'unrelated.mbn\n' >"$remoteprocs/remoteproc0/firmware"
+if run_starter; then fail "missing ADSP must time out, even when CDSP is running"; fi
+printf 'qcadsp8380.mbn\n' >"$remoteprocs/remoteproc0/firmware"
+printf 'offline\n' >"$remoteprocs/remoteproc0/state"
+(
+  printf() {
+    [[ $1 != "start\n" ]] || return 1
+    # shellcheck disable=SC2059 # Forward the caller's format unchanged.
+    builtin printf "$@"
+  }
+  export -f printf
+  if run_starter; then fail "a failed ADSP start must be reported"; fi
+)
+
+# The compute DSP can appear once the audio DSP is already up.
+late="$scratch/late"
+mkdir -p "$late/remoteproc0"
+printf 'qcadsp8380.mbn\n' >"$late/remoteproc0/firmware"
+printf 'offline\n' >"$late/remoteproc0/state"
+run_late_starter() {
+  OMARCHY_YOGA_REMOTEPROC_ROOT="$late" \
+    OMARCHY_YOGA_REMOTEPROC_ATTEMPTS=2 \
+    OMARCHY_YOGA_REMOTEPROC_SLEEP=0 \
+    bash "$starter"
+}
+(
+  sleep() {
+    mkdir -p "$late/remoteproc1"
+    printf 'qccdsp8380.mbn\n' >"$late/remoteproc1/firmware"
+    printf 'offline\n' >"$late/remoteproc1/state"
+  }
+  export late
+  export -f sleep
+  run_late_starter
+)
+[[ $(<"$late/remoteproc1/state") == start ]] ||
+  fail "a compute DSP that appears after the audio DSP is still started"
+
+# A compute DSP that never starts is tried to the end, and the audio DSP still
+# decides the result.
+printf 'offline\n' >"$late/remoteproc0/state"
+printf 'offline\n' >"$late/remoteproc1/state"
+(
+  printf() {
+    [[ $1 != "start\n" || ${kind:-} != CDSP ]] || return 1
+    # shellcheck disable=SC2059 # Forward the caller's format unchanged.
+    builtin printf "$@"
+  }
+  export -f printf
+  run_late_starter 2>"$scratch/late.err" ||
+    fail "a compute DSP that cannot start does not fail a started audio DSP"
+)
+[[ $(<"$late/remoteproc0/state") == start ]] || fail "the audio DSP is started beside a failing compute DSP"
+(( $(grep -c 'could not start CDSP' "$scratch/late.err") == 2 )) ||
+  fail "a compute DSP that cannot start is tried on every attempt"
+
+pass "Yoga Slim 7x adds only its board-specific keyboard, display, CPU and DSP setup"
+
+# The family half of the gate is omarchy-hw-aarch64-qualcomm, so ask the real
+# detector: the DMI name sets a Snapdragon laptop up and no other platform.
+require_platform_fixtures "the Yoga Slim 7x gate under the real detector"
+
+run_setup_on() (
+  platform=$1
+  out="$scratch/on/$platform"
+  mkdir -p "$out"
+  fake_platform "$scratch/platforms/$platform" "$platform"
+  export OMARCHY_PROC_ROOT="$scratch/platforms/$platform/proc"
+  export PATH="$scratch/platforms/$platform/bin:$ROOT/bin:$PATH"
+
+  omarchy-hw-match() { [[ $1 == "83ED" ]]; }
+  systemctl() { printf '%s\n' "$*" >>"$out/systemctl.log"; }
+
+  OMARCHY_YOGA_MODULES_LOAD_DIR="$out/modules-load.d" \
+    OMARCHY_YOGA_MKINITCPIO_DIR="$out/mkinitcpio.conf.d" \
+    OMARCHY_YOGA_LIMINE_CONFIG_DIR="$out/limine-entry-tool.d" \
+    OMARCHY_YOGA_SYSTEMD_DIR="$out/systemd" \
+    source "$setup"
+)
+
+run_setup_on aarch64-qualcomm
+[[ -f $scratch/on/aarch64-qualcomm/systemd/yoga-slim7x-remoteprocs.service ]] ||
+  fail "the DMI name on a Snapdragon device tree gets the Yoga setup"
+for platform in aarch64 aarch64-apple x86; do
+  run_setup_on "$platform"
+  [[ -z $(ls -A "$scratch/on/$platform") ]] ||
+    fail "a matching DMI name on $platform gets no Yoga setup" "$(ls -A "$scratch/on/$platform")"
+done
+pass "Yoga Slim 7x setup follows the real platform detector"

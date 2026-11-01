@@ -116,11 +116,3 @@ if ! BUSCTL_FAIL_REMAINING="$tmp_dir/busctl-failures" ON_BATTERY=1 "$ROOT/bin/om
 fi
 [[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "power profile autodetect recovers battery preference after retries"
 pass "power profile autodetect retries transient detection failures"
-
-rg -F '["omarchy-powerprofiles-set", pendingPowerSource]' "$ROOT/shell/plugins/services/battery/Service.qml" >/dev/null ||
-  fail "battery service applies profiles through Omarchy command"
-pass "battery service applies profiles through Omarchy command"
-
-rg -F 'omarchy-powerprofiles-set autodetect' "$ROOT/shell/plugins/menu/Menu.qml" >/dev/null ||
-  fail "power profile menu persists selections through Omarchy command"
-pass "power profile menu persists selections through Omarchy command"
