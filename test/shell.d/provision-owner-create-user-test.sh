@@ -13,7 +13,6 @@ mkdir -p "$PROVISIONING_DIR" "$OMARCHY_PATH/install/helpers"
 printf 'BROWSER_POLICY_MANAGED_DIRS=()\n' >"$OMARCHY_PATH/install/helpers/browser-policy.sh"
 
 username=tester
-full_name="Test User"
 password=secret
 useradd_status=0
 usermod_status=0
