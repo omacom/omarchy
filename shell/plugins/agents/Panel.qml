@@ -1752,7 +1752,7 @@ Panel {
         id: sectionPlan
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
-        anchors.verticalCenter: sectionName.verticalCenter
+        anchors.baseline: sectionName.baseline
         visible: !section.multi && text !== ""
         textFormat: Text.PlainText
         text: root.planLabel(section.provider)
