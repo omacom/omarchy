@@ -43,7 +43,7 @@ assert(
   'guard script substitutes the captured answer into the expression'
 )
 assert(
-  script.indexOf('__omarchy_read_') < script.indexOf('if { omarchy-pkg-present'),
+  script.indexOf('__omarchy_read_') < script.search(/^if .*omarchy-pkg-present/m),
   'guard script captures readers before any guard runs, since $() would trap a lazy memo in its subshell'
 )
 
@@ -266,21 +266,37 @@ slow_output=$(bash -c "$slow_script")
 grep -qx 'row7:w:1' <<<"$slow_output" || fail "guard batch waits for its slowest group" "row7 missing"
 pass "guard batch exits only after its slowest group has answered"
 
-# A group that dies part way leaves its remaining rows unanswered, and the
-# menu keeps its last complete answers only when the batch fails. Under a
-# login shell's `set -u` an unset variable kills the group mid-guard.
-nounset_script=$(menu_js '
-  const items = {}
-  for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 3 ? "[[ -n $OMARCHY_TEST_UNSET ]]" : "true" }
-  return menu.guardScript(items)
-')
-nounset_status=0
-env -u OMARCHY_TEST_UNSET bash -u -c "$nounset_script" >/dev/null 2>&1 || nounset_status=$?
-((nounset_status != 0)) || fail "a guard group that dies part way fails the batch"
-bash -c "$nounset_script" >/dev/null 2>&1 || fail "a batch whose groups all finish succeeds"
-OMARCHY_TEST_UNSET=set bash -u -c "$nounset_script" >/dev/null 2>&1 ||
-  fail "the batch itself runs under set -u when no guard trips it"
-pass "a guard group that dies part way fails the whole batch, so the menu keeps its last answers"
+# A guard that exits, fails, does not parse or trips a login shell's `set -u`
+# answers only its own row. Guards are dealt to groups in turn, so the eight
+# rows behind them give every hostile guard a later row in its own group.
+hostile_script=$(menu_js "$(cat <<'JS'
+const items = {
+  quits: { id: 'quits', when: 'true; exit 0' },
+  failing: { id: 'failing', when: 'exit 3' },
+  broken: { id: 'broken', when: 'fi then' },
+  nounset: { id: 'nounset', when: '[[ -n $OMARCHY_TEST_UNSET ]]' },
+  quote: { id: 'quote', when: "[[ 'a b' == 'a b' ]]" },
+  escape: { id: 'escape', when: 'true; echo pwned:w:9; exit 0' }
+}
+for (let i = 0; i < 8; i++) items[`after${i}`] = { id: `after${i}`, when: 'true' }
+return menu.guardScript(items)
+JS
+)")
+
+# Runs the batch, answering rows on one line and the batch's status last.
+hostile_batch() {
+  local status=0 output
+  output=$("$@" XDG_RUNTIME_DIR= bash -eu -c "$hostile_script" 2>/dev/null | sort | tr '\n' ' ') || status=$?
+  printf '%sstatus=%s' "$output" "$status"
+}
+
+result=$(hostile_batch env OMARCHY_TEST_UNSET=set)
+[[ $result == "after0:w:1 after1:w:1 after2:w:1 after3:w:1 after4:w:1 after5:w:1 after6:w:1 after7:w:1 broken:w:0 escape:w:1 failing:w:0 nounset:w:1 quits:w:1 quote:w:1 status=0" ]] ||
+  fail "a guard that exits, fails or does not parse answers only its own row" "got: $result"
+result=$(hostile_batch env -u OMARCHY_TEST_UNSET)
+[[ $result == "after0:w:1 after1:w:1 after2:w:1 after3:w:1 after4:w:1 after5:w:1 after6:w:1 after7:w:1 broken:w:0 escape:w:1 failing:w:0 nounset:w:0 quits:w:1 quote:w:1 status=0" ]] ||
+  fail "a guard tripping set -u answers its own row and leaves the group standing" "got: $result"
+pass "a guard that exits, fails, does not parse or trips set -u answers only its own row"
 
 # Update > Extra Themes runs omarchy-theme-update, which pulls the themes that
 # came from a git clone and skips everything else, so the guard has to answer
@@ -301,7 +317,7 @@ STUB
 chmod +x "$stub_dir/git"
 
 # The updater names each theme it pulls, so what it printed is what the row
-# would have been for. Run the guard the way the batch does, braces and all,
+# would have been for. Run the guard the way the batch does, in a subshell,
 # and say which shapes are meant to show it rather than only that the two
 # agree: they read the same command now, and agreement alone would hold even
 # if both went wrong together.
@@ -309,7 +325,7 @@ assert_themes_guard_agrees() {
   local description="$1" home="$2" expected="$3"
   local guarded=0 updated=0
 
-  HOME="$home" PATH="$ROOT/bin:$PATH" bash -e -c "{ $themes_guard; } >/dev/null 2>&1" || guarded=$?
+  HOME="$home" PATH="$ROOT/bin:$PATH" bash -e -c '( eval "$1" ) >/dev/null 2>&1' _ "$themes_guard" || guarded=$?
   [[ -n $(HOME="$home" PATH="$ROOT/bin:$stub_dir:$PATH" "$ROOT/bin/omarchy-theme-update" 2>/dev/null) ]] || updated=1
   ((guarded == expected)) || fail "$description" "$home: guard=$guarded expected=$expected"
   ((updated == expected)) || fail "$description" "$home: update=$updated expected=$expected"
