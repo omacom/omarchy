@@ -74,4 +74,45 @@ assertEqual(acronymMatches[0], 'Google Contacts', 'short acronym matching still 
 
 const directMatches = search.sortedEntries(entries, 'obs').map(row => search.entryName(row.entry))
 assertEqual(directMatches[0], 'OBS Studio', 'direct app-name matching still works')
+
+// Word-prefix matching (#11614)
+const chromeEntry = { name: 'Google Chrome', id: 'google-chrome.desktop' }
+const submatchEntry = { name: 'Synchro', id: 'synchro.desktop' }
+const chromeScore = search.fuzzyScore(chromeEntry, 'chr')
+const subScore = search.fuzzyScore(submatchEntry, 'chr')
+assert(chromeScore > 9000, 'word prefix matching gives top tier score to second word (#11614)')
+assert(subScore > 0, 'substring matches Synchro containing chr inside word')
+assert(chromeScore > subScore, 'word prefix "Chrome" ranks above non-prefix substring match "Synchro"')
+
+const doc = search.buildEntryDocument(chromeEntry)
+assertDeepEqual(doc.nameWords, ['google', 'chrome'], 'entry document pre-tokenizes words')
+assertEqual(search.buildEntryDocument(chromeEntry), doc, 'entry document is cached in weakmap')
+
+// Cached entries refresh when data changes
+const mutableEntry = { name: 'Original App', id: 'app.desktop', keywords: ['alpha'] }
+const initialDoc = search.buildEntryDocument(mutableEntry)
+assertEqual(initialDoc.name, 'Original App', 'initial document reflects original name')
+
+mutableEntry.name = 'Updated App'
+const refreshedDoc = search.buildEntryDocument(mutableEntry)
+assertEqual(refreshedDoc.name, 'Updated App', 'cached document updates when entry is modified in place')
+
+search.invalidateEntry(mutableEntry)
+const invalidatedDoc = search.buildEntryDocument(mutableEntry)
+assertEqual(invalidatedDoc.name, 'Updated App', 'invalidating entry rebuilds valid document')
+
+// Menu ranking with word prefix and apps (#11614)
+const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const menuItems = {
+  root: { id: 'root', parent: '', kind: 'menu', label: 'Root' },
+  'install.browser.chrome': { id: 'install.browser.chrome', parent: 'root', kind: 'action', label: 'Chrome', order: 0 },
+  'tools.synchro': { id: 'tools.synchro', parent: 'root', kind: 'action', label: 'Synchro Tool', order: 1 },
+  'apps.chrome': { id: 'apps.chrome', parent: 'apps', kind: 'app', label: 'Google Chrome', order: 2 }
+}
+const chromeAppScore = menu.searchScore(menuItems, menuItems['apps.chrome'], 'chr')
+const chromeActionScore = menu.searchScore(menuItems, menuItems['install.browser.chrome'], 'chr')
+const synchroScore = menu.searchScore(menuItems, menuItems['tools.synchro'], 'chr')
+
+assert(chromeAppScore < synchroScore, 'word-prefix app outranks substring action in menu')
+assert(chromeAppScore < chromeActionScore, 'word-prefix app outranks prefix action in menu')
 JS
