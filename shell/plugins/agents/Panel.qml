@@ -1081,7 +1081,7 @@ Panel {
   // offers from is rewritten whenever the picker shows, from + or as a blank
   // slate, including one the panel opens on.
   function refreshLocalListing() {
-    Util.execArgv(["omarchy-agent-local", "refresh", "--quiet"])
+    usage.refreshLocal()
   }
 
   // Picking an agent to add starts on the first one, ready for Enter. The

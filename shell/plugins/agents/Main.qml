@@ -34,6 +34,7 @@ Item {
   property var localRecipes: []
 
   FileView {
+    id: localRecipesFile
     path: root.home + "/.local/state/omarchy/agent-local/list.json"
     watchChanges: true
     printErrors: false
@@ -45,6 +46,22 @@ Item {
       } catch (e) {
         // A half-written listing keeps the last good one.
       }
+    }
+  }
+
+  // Rewrites the listing and status, which a package upgrade may have
+  // changed. On a fresh account neither file exists until this first run, and
+  // a missing file can't be watched, so both are loaded once it finishes.
+  function refreshLocal() {
+    if (!localRefresh.running) localRefresh.running = true
+  }
+
+  Process {
+    id: localRefresh
+    command: ["omarchy-agent-local", "refresh", "--quiet"]
+    onExited: {
+      localRecipesFile.reload()
+      localModelFile.reload()
     }
   }
 
