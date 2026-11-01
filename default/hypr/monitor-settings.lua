@@ -152,6 +152,14 @@ hl.on("monitor.added", function(monitor)
   M.apply(false, monitor and monitor.name)
 end)
 
+-- The removed monitor is still listed during teardown; read the remaining
+-- monitors once teardown has returned, without applying any monitor rules.
+hl.on("monitor.removed", function()
+  hl.timer(function()
+    M.update_gdk_scale()
+  end, { type = "oneshot", timeout = 1 })
+end)
+
 o.monitor_settings = M
 
 return M

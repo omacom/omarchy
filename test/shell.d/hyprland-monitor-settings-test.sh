@@ -19,13 +19,16 @@ settings="$tmpdir/state/omarchy/monitors/settings"
 cat >"$tmpdir/fake.lua" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 
-applied, env, handlers, monitors, identities = {}, {}, {}, {}, {}
+applied, env, handlers, monitors, identities, timers = {}, {}, {}, {}, {}, {}
 
 hl = {
   get_monitors = function() return monitors end,
   monitor = function(spec) applied[#applied + 1] = spec end,
   env = function(name, value) env[name] = value end,
   on = function(name, handler) handlers[name] = handler end,
+  timer = function(callback, options)
+    timers[#timers + 1] = { callback = callback, options = options }
+  end,
 }
 
 o = { workspaces = { identities = function() return identities end } }
@@ -152,6 +155,24 @@ handlers["monitor.added"]({ name = "DP-1" })
 check(env.GDK_SCALE == "1", "uses the lowest scale when an unsaved monitor arrives")
 ' || fail "monitor settings set initial GTK scale from running monitors"
 pass "monitor settings set initial GTK scale from running monitors"
+
+# Removal updates only the environment, after the teardown timer fires.
+run_lua '
+plug("eDP-1", "Retina", { scale = 2 })
+plug("DP-1", "External", { scale = 1 })
+load_module()
+check(env.GDK_SCALE == "1", "uses the lowest connected scale before removal")
+handlers["monitor.removed"]({ name = "DP-1" })
+check(env.GDK_SCALE == "1", "waits for teardown before recomputing scale")
+check(#timers == 1 and timers[1].options.type == "oneshot" and timers[1].options.timeout == 1,
+  "queues a one-second teardown timer")
+-- Removal completes after teardown returns, before the queued callback reads state.
+table.remove(monitors, 2)
+timers[1].callback()
+check(env.GDK_SCALE == "2", "uses the remaining monitor scale after removal")
+check(#applied == 0, "applies no rules to the removed or remaining monitor")
+' || fail "monitor settings update GTK scale after monitor removal"
+pass "monitor settings update GTK scale after monitor removal"
 
 run_lua '
 load_module()
