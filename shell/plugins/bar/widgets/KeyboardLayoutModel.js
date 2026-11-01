@@ -84,7 +84,7 @@ function eventKeyboardName(event) {
 //
 // Missing a name here costs the accuracy the seat had before, never a keyboard:
 // anything unrecognised stays in the list.
-var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus|apple-smc-power)/
+var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus|apple-smc-power)|(-wmi-hotkeys|-wireless-radio-control)(-\d+)?$/
 
 function isTypedKeyboard(name) {
   return !UNTYPED_KEYBOARDS.test(String(name || ""))
@@ -111,6 +111,24 @@ function selectKeyboard(typed, namedByEvent) {
   }, keyboards[0])
 }
 
+function inputLabel(state, fallback) {
+  if (!state || !state.current || state.current.indexOf("keyboard-") === 0) return fallback
+  if (state.label) return String(state.label).substring(0, 3)
+  var labels = { mozc: "あ", hangul: "한", pinyin: "拼", chewing: "注", cangjie5: "倉" }
+  return labels[state.current] || shortLabel(state.language || state.name, {})
+}
+
+function inputTooltip(state, layout, multipleLayouts) {
+  if (!state || !state.methods || state.methods.length < 2)
+    return layout + (multipleLayouts ? " · Super + I" : "")
+  var name = state.current && state.current.indexOf("keyboard-") === 0 ? layout : (state.name || layout)
+  return name.replace(/^Keyboard - /, "") + " · Super + I"
+}
+
+function showIndicator(layoutLabel, multipleLayouts, multipleInputs) {
+  return multipleInputs || (layoutLabel !== "" && multipleLayouts)
+}
+
 function layoutIndex(keyboard) {
   return (keyboard && keyboard.active_layout_index) || 0
 }
@@ -121,6 +139,9 @@ if (typeof module !== "undefined") {
     isTypedKeyboard: isTypedKeyboard,
     layoutBriefs: layoutBriefs,
     selectKeyboard: selectKeyboard,
-    shortLabel: shortLabel
+    shortLabel: shortLabel,
+    inputLabel: inputLabel,
+    inputTooltip: inputTooltip,
+    showIndicator: showIndicator
   }
 }
