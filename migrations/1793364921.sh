@@ -16,7 +16,7 @@ omarchy-pkg-add asus-zenbook-a16-firmware
 # gets them too. The boot settings change the initramfs and the kernel command
 # line, so the image is rebuilt once. The root shell is as strict as this one,
 # so a failed step keeps it pending.
-sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
+sudo env PATH="/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
   source "$OMARCHY_PATH/install/hardware/qualcomm/initramfs.sh"
   source "$OMARCHY_PATH/install/hardware/qualcomm/firmware.sh"
   source "$OMARCHY_PATH/install/hardware/asus/fix-asus-zenbook-a16-boot.sh"
