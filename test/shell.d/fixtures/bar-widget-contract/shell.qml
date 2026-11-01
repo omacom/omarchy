@@ -91,6 +91,10 @@ ShellRoot {
       item.settings = {}
       root.assertTrue(item.settings !== null && item.settings !== undefined, entry.id + " accepts settings injection")
     }
+    if ("fixedEdge" in item) {
+      item.fixedEdge = "start"
+      root.assertEqual(item.fixedEdge, "start", entry.id + " accepts fixedEdge injection")
+    }
     if (typeof item.setting === "function") {
       root.assertEqual(item.setting("missing", "fallback"), "fallback", entry.id + " exposes setting fallback")
     }
