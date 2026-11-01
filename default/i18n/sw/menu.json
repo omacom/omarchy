@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Jaribio la kasi ya diski"
   },
-  "setup.keybindings": {
-    "label": "Mikato ya vitufe"
-  },
   "setup.input": {
     "label": "Ingizo"
-  },
-  "setup.typing": {
-    "label": "Kuandika"
-  },
-  "setup.typing.keyboard": {
-    "label": "Miundo ya kibodi"
-  },
-  "setup.typing.input": {
-    "label": "Mbinu za ingizo"
   },
   "setup.language": {
     "label": "Lugha"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Kibodi"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Mikato ya Kibodi"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Maingizo ya Kibodi"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Mbinu za Uingizaji"
   }
 }

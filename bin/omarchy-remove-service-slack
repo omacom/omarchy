@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Uninstall Slack Desktop and clean up its theme integration
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-drop slack-desktop
+override="$HOME/.local/share/applications/slack.desktop"
+if [[ -f $override ]] && grep -qE '^Exec=omarchy-launch-slack( |$)' "$override"; then
+  rm "$override"
+  update-desktop-database "${override%/*}"
+fi
+rm -rf "$HOME/.local/state/omarchy/slack"

@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Kiểm tra tốc độ đĩa"
   },
-  "setup.keybindings": {
-    "label": "Phím tắt"
-  },
   "setup.input": {
     "label": "Đầu vào"
-  },
-  "setup.typing": {
-    "label": "Gõ phím"
-  },
-  "setup.typing.keyboard": {
-    "label": "Bố cục bàn phím"
-  },
-  "setup.typing.input": {
-    "label": "Bộ gõ"
   },
   "setup.language": {
     "label": "Ngôn ngữ"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Bàn phím"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Phím tắt"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Đầu vào bàn phím"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Phương thức nhập"
   }
 }

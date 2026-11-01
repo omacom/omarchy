@@ -1720,7 +1720,7 @@ Item {
     // before it maps (see BarModel.cutoutPending), so it maps at its floor
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
-    visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
+    visible: cutoutWaitOver || !cutoutPending
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
@@ -1737,11 +1737,6 @@ Item {
     // the slot's window, which is not this PanelWindow object itself.
     readonly property bool dragActive: (root.barDragSource !== null && root.sameWindow(root.barDragWindow, barWindow)) ||
       (root.barMoveActive && root.sameWindow(root.barMoveWindow, barWindow))
-
-    ScreenMoveRemap {
-      id: remapGuard
-      window: barWindow
-    }
 
     // Parked by the whole surface, which spans its screen, so none of it
     // stays on screen: not the strip, however thick a notch floor makes it,
@@ -2900,6 +2895,8 @@ Item {
     // Its drawer section is outlined while a widget that could go in it is
     // dragged on this bar, as the center box is.
     readonly property bool traySectionShown: hostsTraySection && root.traySectionDragActive && root.sameWindow(root.barDragWindow, window)
+    // A drop now would land in its drawer section, so the whole tray lights up.
+    readonly property bool trayDropInto: traySectionShown && root.barDragRegion === "tray"
     // The part of the section the drawer shows, in the slot's widget area,
     // or null while the drawer hides all of it (the tray's sectionShown).
     readonly property var traySectionGeometry: {
@@ -2973,6 +2970,18 @@ Item {
 
       RoomOutline { visible: slot.dragSource }
 
+      // The whole tray, lit while a drop would land in its drawer section and
+      // dark again the moment the pointer takes the widget out, so in and out
+      // of the tray read at a glance. Under the icons, so they stay crisp.
+      DropOutline {
+        visible: slot.trayDropInto
+        length: root.vertical ? parent.height : parent.width
+        dropInto: true
+        color: Util.alpha(Commons.Color.accent, 0.15)
+        x: root.vertical ? Math.round((parent.width - across) / 2) : 0
+        y: root.vertical ? 0 : Math.round((parent.height - across) / 2)
+      }
+
       // Folding away under a drag, the slot keeps the widget centred, like
       // the copy in the room it opens (DragSpacer).
       Item {
@@ -2985,13 +2994,13 @@ Item {
       // The tray section's outline, as the center box's: around what it
       // holds, the room for the dragged widget included, or a line where it
       // holds nothing. Drawn over the tray rather than in its drawer, whose
-      // clip would hide an empty section's line.
+      // clip would hide an empty section's line. Faint until a drop would
+      // land in it; then the whole tray's highlight takes over.
       DropOutline {
         readonly property var section: slot.traySectionGeometry || { x: 0, y: 0, width: 0, height: 0 }
 
-        visible: slot.traySectionShown && !!slot.traySectionGeometry
+        visible: slot.traySectionShown && !slot.trayDropInto && !!slot.traySectionGeometry
         length: root.vertical ? section.height : section.width
-        dropInto: root.barDragRegion === "tray"
         x: root.vertical ? Math.round((parent.width - across) / 2) : section.x
         y: root.vertical ? section.y : Math.round((parent.height - across) / 2)
         z: 40

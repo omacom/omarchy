@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Тест швидкості диска"
   },
-  "setup.keybindings": {
-    "label": "Сполучення клавіш"
-  },
   "setup.input": {
     "label": "Введення"
-  },
-  "setup.typing": {
-    "label": "Набір тексту"
-  },
-  "setup.typing.keyboard": {
-    "label": "Розкладки клавіатури"
-  },
-  "setup.typing.input": {
-    "label": "Методи введення"
   },
   "setup.language": {
     "label": "Мова"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Клавіатура"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Комбінації клавіш"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Введення з клавіатури"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Методи введення"
   }
 }

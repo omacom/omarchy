@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Hız Testi"
   },
-  "setup.keybindings": {
-    "label": "Kısayollar"
-  },
   "setup.input": {
     "label": "Girdi"
-  },
-  "setup.typing": {
-    "label": "Yazma"
-  },
-  "setup.typing.keyboard": {
-    "label": "Klavye Düzenleri"
-  },
-  "setup.typing.input": {
-    "label": "Girdi Yöntemleri"
   },
   "setup.language": {
     "label": "Dil"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klavye"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Tuş Atamaları"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Klavye Girdileri"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Girdi Yöntemleri"
   }
 }

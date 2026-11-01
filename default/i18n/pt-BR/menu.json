@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Teste de velocidade do disco"
   },
-  "setup.keybindings": {
-    "label": "Atalhos de teclado"
-  },
   "setup.input": {
     "label": "Entrada"
-  },
-  "setup.typing": {
-    "label": "Digitação"
-  },
-  "setup.typing.keyboard": {
-    "label": "Layouts de teclado"
-  },
-  "setup.typing.input": {
-    "label": "Métodos de entrada"
   },
   "setup.language": {
     "label": "Idioma"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Teclado"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Atalhos"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Entradas do teclado"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Métodos de entrada"
   }
 }

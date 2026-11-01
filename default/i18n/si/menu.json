@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "තැටි වේග පරීක්ෂණය"
   },
-  "setup.keybindings": {
-    "label": "යතුරු බන්ධන"
-  },
   "setup.input": {
     "label": "ආදානය"
-  },
-  "setup.typing": {
-    "label": "ටයිප් කිරීම"
-  },
-  "setup.typing.keyboard": {
-    "label": "යතුරුපුවරු සැකැස්ම්"
-  },
-  "setup.typing.input": {
-    "label": "ආදාන ක්‍රම"
   },
   "setup.language": {
     "label": "භාෂාව"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "යතුරු පුවරුව"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "යතුරු බැඳීම්"
+  },
+  "setup.keyboard.inputs": {
+    "label": "යතුරුපුවරු ආදාන"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "ආදාන ක්‍රම"
   }
 }

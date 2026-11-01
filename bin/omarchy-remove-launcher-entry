@@ -77,6 +77,10 @@ if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e
   exit 0
 fi
 
+if [[ $desktop_file_name == "slack.desktop" && $exec_line =~ ^omarchy-launch-slack($|[[:space:]]) ]]; then
+  exec omarchy-launch-floating-terminal-with-presentation omarchy-remove-service-slack
+fi
+
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
   rm -f "$desktop_file"

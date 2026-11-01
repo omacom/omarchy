@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "تست سرعت دیسک"
   },
-  "setup.keybindings": {
-    "label": "میانبرها"
-  },
   "setup.input": {
     "label": "ورودی"
-  },
-  "setup.typing": {
-    "label": "تایپ"
-  },
-  "setup.typing.keyboard": {
-    "label": "چیدمان صفحه‌کلید"
-  },
-  "setup.typing.input": {
-    "label": "روش‌های ورودی"
   },
   "setup.language": {
     "label": "زبان"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "صفحه‌کلید"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "میانبرها"
+  },
+  "setup.keyboard.inputs": {
+    "label": "ورودی‌های صفحه‌کلید"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "روش‌های ورودی"
   }
 }

@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "בדיקת מהירות דיסק"
   },
-  "setup.keybindings": {
-    "label": "קיצורי מקלדת"
-  },
   "setup.input": {
     "label": "קלט"
-  },
-  "setup.typing": {
-    "label": "הקלדה"
-  },
-  "setup.typing.keyboard": {
-    "label": "פריסות מקלדת"
-  },
-  "setup.typing.input": {
-    "label": "שיטות קלט"
   },
   "setup.language": {
     "label": "שפה"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "מקלדת"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "קיצורי מקלדת"
+  },
+  "setup.keyboard.inputs": {
+    "label": "קלטי מקלדת"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "שיטות קלט"
   }
 }

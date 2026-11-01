@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk tezligi testi"
   },
-  "setup.keybindings": {
-    "label": "Tugmalar birikmasi"
-  },
   "setup.input": {
     "label": "Kiritish"
-  },
-  "setup.typing": {
-    "label": "Yozish"
-  },
-  "setup.typing.keyboard": {
-    "label": "Klaviatura tartibi"
-  },
-  "setup.typing.input": {
-    "label": "Kiritish usullari"
   },
   "setup.language": {
     "label": "Til"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klaviatura"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Tugmalar birikmalari"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Klaviatura kirishlari"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Kiritish usullari"
   }
 }

@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diskhastighedstest"
   },
-  "setup.keybindings": {
-    "label": "Tastaturgenveje"
-  },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Skrivning"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tastaturlayout"
-  },
-  "setup.typing.input": {
-    "label": "Inputmetoder"
   },
   "setup.language": {
     "label": "Sprog"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastatur"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Tastaturgenveje"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Tastaturinput"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Inputmetoder"
   }
 }

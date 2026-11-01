@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diska ātruma tests"
   },
-  "setup.keybindings": {
-    "label": "Taustiņu saīsnes"
-  },
   "setup.input": {
     "label": "Ievade"
-  },
-  "setup.typing": {
-    "label": "Rakstīšana"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tastatūras izkārtojumi"
-  },
-  "setup.typing.input": {
-    "label": "Ievades metodes"
   },
   "setup.language": {
     "label": "Valoda"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastatūra"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Taustiņu saistījumi"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Tastatūras ievade"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Ievades metodes"
   }
 }

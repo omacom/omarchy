@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "ทดสอบความเร็วดิสก์"
   },
-  "setup.keybindings": {
-    "label": "ปุ่มลัด"
-  },
   "setup.input": {
     "label": "อินพุต"
-  },
-  "setup.typing": {
-    "label": "การพิมพ์"
-  },
-  "setup.typing.keyboard": {
-    "label": "เค้าโครงแป้นพิมพ์"
-  },
-  "setup.typing.input": {
-    "label": "วิธีป้อนข้อมูล"
   },
   "setup.language": {
     "label": "ภาษา"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "คีย์บอร์ด"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "ปุ่มลัด"
+  },
+  "setup.keyboard.inputs": {
+    "label": "อินพุตคีย์บอร์ด"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "วิธีป้อนข้อมูล"
   }
 }
