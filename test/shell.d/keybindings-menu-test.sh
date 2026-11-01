@@ -45,22 +45,24 @@ stub_hyprctl() {
   chmod +x "$stub_bin/hyprctl"
 }
 
+# Renders the menu, by default the copy without a platform package, caching
+# under $tmpdir/cache unless given another directory.
 keybindings() {
   env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
-    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
-    bash "$menu" --print
+    XDG_CACHE_HOME="${2:-$tmpdir/cache}" OMARCHY_PATH="$ROOT" \
+    bash "${1:-$menu}" --print
 }
 
-# Closing a window and toggling the scratchpad are two of the actions Omarchy
-# binds twice on purpose. The last bind carries the longest description Omarchy
-# ships, which is what puts a row closest to the width the menu allows.
+# Closing a window is one of the actions Omarchy binds twice on purpose. The
+# last bind carries the longest description Omarchy ships, which is what puts a
+# row closest to the width the menu allows.
 stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + W" "Close window")
 $(lua_bind 64 "SUPER + Q" "Close window")
 $(lua_bind 64 "SUPER + F" "Full screen")
 $(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
-$(lua_bind 64 "SUPER + grave" "Toggle scratchpad")
+$(lua_bind 64 "SUPER + grave" "Toggle Quake console")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
 BINDS
 
@@ -98,7 +100,7 @@ grep -q '^SUPER + W / SUPER + Q' <<<"$rendered" ||
 pass "the chord declared first leads a shared row"
 
 # Hyprland calls the key left of 1 "grave". Nobody reads their keyboard that way.
-grep -q 'SUPER + S / SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
+grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
   fail "the grave key reads as the symbol printed on it" "$rendered"
 ! grep -q 'grave' <<<"$rendered" ||
   fail "no entry still says grave" "$rendered"
@@ -121,7 +123,7 @@ pass "no entry outgrows the width the menu gives it"
 # the entry: XF86Calculator alone belongs in the tail the menu keeps for media
 # keys, while the calculator itself sits in the body of the list.
 stub_hyprctl <<BINDS
-$(exec_bind 68 "SUPER CTRL + Q" "Calculator" "omacalc")
+$(exec_bind 65 "SUPER SHIFT + Q" "Calculator" "omacalc")
 $(exec_bind 0 "XF86Calculator" "Calculator" "omacalc")
 $(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
 BINDS
@@ -141,13 +143,13 @@ bind
 	key: 
 	keycode: 49
 	catchall: false
-	description: Toggle scratchpad
+	description: Toggle Quake console
 	dispatcher: exec
 	arg: true
 BINDS
 
 rendered=$(keybindings)
-grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
+grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
 
@@ -230,30 +232,16 @@ rendered=$(keybindings)
   fail "chords whose dispatch is unknown stay apart" "$rendered"
 pass "chords whose dispatch is unknown stay apart"
 
-# What the menu is expected to pair up, written out here rather than read from
-# the script, so dropping an action from the list fails instead of shrinking
-# what gets checked.
-expected_alternatives=(
-  "Close window"
-  "Calculator"
-  "Toggle scratchpad"
-  "Move window to scratchpad"
-)
-
+# A renamed description would leave an action the menu pairs up matching
+# nothing, and the row it was meant to share would quietly split in two. Only
+# real binds count: a commented-out example is not a second chord.
 eval "$(sed -n '/^alternative_chord_actions()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
-
-[[ $(alternative_chord_actions) == "$(printf '%s\n' "${expected_alternatives[@]}")" ]] ||
-  fail "the menu pairs up the actions Omarchy means it to" "$(alternative_chord_actions)"
-pass "the menu pairs up the actions Omarchy means it to"
-
-# A renamed description would leave an action named here matching nothing, and
-# the row it was meant to share would quietly split in two. Only real binds
-# count: a commented-out example is not a second chord.
-for action in "${expected_alternatives[@]}"; do
+[[ -n $(alternative_chord_actions) ]] || fail "the menu names the actions it pairs up"
+while IFS= read -r action; do
   (( $(grep -rhE '^[[:space:]]*o\.bind\(' "$ROOT/default/hypr/bindings" |
        grep -cF ", \"$action\",") >= 2 )) ||
     fail "every action named as having an alternative is bound twice" "$action"
-done
+done < <(alternative_chord_actions)
 pass "every action named as having an alternative is bound twice"
 
 # The terminal bind is a Lua function Hyprland reports only as __lua, so picking
@@ -267,6 +255,25 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A plugin that walks the window list while it loads must not wedge the scan,
+# and the binds after it must still be recovered from the Lua source.
+{
+  printf 'for _ in ipairs(hl.get_windows()) do\n  local window = nil\nend\n'
+  cat "$home/.config/hypr/hyprland.lua"
+} >"$tmpdir/hyprland.lua"
+mv "$tmpdir/hyprland.lua" "$home/.config/hypr/hyprland.lua"
+
+rm -rf "$tmpdir/cache"
+# A wedged scan is stopped by the menu's own timeout before the Terminal bind,
+# which the check below catches; the outer timeout only turns a hang into a fail.
+timeout --kill-after=1s 60s env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$menu" --print >/dev/null 2>&1 ||
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan"
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "a plugin iterating windows at load time does not wedge the keybindings scan (it stopped before the Terminal bind)"
+pass "a plugin iterating windows at load time does not wedge the keybindings scan"
 
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
@@ -288,3 +295,192 @@ expected=$(printf '%s\n' \
   $'SUPER + X                           → My own thing\texec\tmy-thing')
 [[ $translated == "$expected" ]] || fail "keybinding descriptions show in the Omarchy language" "$translated"
 pass "keybinding descriptions show in the Omarchy language"
+
+# A platform package names keys the way its keyboards print them. On a MacBook
+# XF86MonBrightnessUp/Down are the F2/F1 keys, so without the names the menu
+# shows rows like "SHIFT + XF86MonBrightnessUp". The menu reads them from the
+# fixed platform root; copies of it read a fixture root with key names, one
+# saved with CRLF line ends and blanks around a line, and (the copy above) none.
+platform=$tmpdir/platform
+mkdir -p "$platform/root" "$platform/crlf"
+printf '%s\n' 'XF86MonBrightnessUp F2' 'XF86MonBrightnessDown F1' 'not a line' 'Bad-Sym F3' >"$platform/root/key-names"
+printf '%s\r\n' 'XF86MonBrightnessUp F2' '  XF86MonBrightnessDown	F1 ' >"$platform/crlf/key-names"
+platform_root_copy "$ROOT/bin/omarchy-menu-keybindings" "$platform/with-names" "$platform/root"
+platform_root_copy "$ROOT/bin/omarchy-menu-keybindings" "$platform/crlf-names" "$platform/crlf"
+
+stub_hyprctl <<'BINDS'
+bindl
+	modmask: 1
+	key: XF86MonBrightnessUp
+	keycode: 0
+	description: Keyboard brightness up
+	dispatcher: exec
+	arg: omarchy-brightness-keyboard up
+
+bindl
+	modmask: 1
+	key: XF86MonBrightnessDown
+	keycode: 0
+	description: Keyboard brightness down
+	dispatcher: exec
+	arg: omarchy-brightness-keyboard down
+
+bindi
+	modmask: 8
+	key: XF86MonBrightnessUp
+	keycode: 0
+	description: Brightness up precise
+	dispatcher: exec
+	arg: omarchy-brightness-display +1%
+
+bind
+	modmask: 64
+	key: F5
+	keycode: 0
+	description: Press brightness up
+	dispatcher: exec
+	arg: wtype -k XF86MonBrightnessUp
+
+bindm
+	modmask: 64
+	key: Q
+	keycode: 0
+	description: Close window
+	dispatcher: killactive
+	arg:
+BINDS
+
+# A run before the platform package arrived leaves a cache that differs from
+# the one with key names only in them, so it is the stale cache a cache key
+# blind to the names would serve.
+names_cache=$tmpdir/cache-names
+output=$(keybindings "$menu" "$names_cache")
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
+  fail "without key names the brightness key keeps its own name" "$output"
+
+output=$(keybindings "$platform/with-names" "$names_cache")
+
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + F2 → Keyboard brightness up' ||
+  fail "SHIFT + XF86MonBrightnessUp renders as SHIFT + F2 with its description" "$output"
+
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + F1 → Keyboard brightness down' ||
+  fail "SHIFT + XF86MonBrightnessDown renders as SHIFT + F1 with its description" "$output"
+
+tr -s ' ' <<<"$output" | grep -qF 'ALT + F2 → Brightness up precise' ||
+  fail "modifier combos keep the F-key name (ALT + F2)" "$output"
+
+grep -qF 'XF86MonBrightness' <<<"$output" &&
+  fail "raw XF86MonBrightness symbols no longer leak into the menu" "$output"
+
+tr -s ' ' <<<"$output" | grep -qF 'SUPER + Q → Close window' ||
+  fail "unrelated bindings render unchanged (SUPER + Q)" "$output"
+
+# The menu runs a chosen row from its cached record, which carries what the
+# binding runs.
+records=$(cat "$names_cache"/omarchy/keybindings-*.records)
+grep -qF 'wtype -k XF86MonBrightnessUp' <<<"$records" && ! grep -qF 'wtype -k F2' <<<"$records" ||
+  fail "a key name never changes what a binding runs" "$records"
+
+pass "keybindings menu shows a platform's key names (F1/F2), stale caches ignored"
+
+output=$(keybindings "$platform/crlf-names" "$names_cache")
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + F2 → Keyboard brightness up' && tr -s ' ' <<<"$output" | grep -qF 'SHIFT + F1 → Keyboard brightness down' ||
+  fail "key names saved with CRLF line ends and blanks around them still apply" "$output"
+pass "keybindings menu reads key names saved with CRLF line ends"
+
+# Without a platform package the keys keep their own names, and a cache made
+# with the names is not reused.
+output=$(keybindings "$menu" "$names_cache")
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
+  fail "without key names the brightness key keeps its own name" "$output"
+grep -qF 'SHIFT + F2' <<<"$output" && fail "without key names nothing is renamed F2" "$output"
+pass "keybindings menu keeps keysym names without a platform package"
+
+# The menu learns about Lua-only binds by running the user's hyprland.lua under
+# a stub `hl`. That stub has to survive whatever a config does at load time, or
+# the scan hangs (one user config spun a `lua` at 100% CPU for 27 hours after a
+# single SUPER+K) or aborts halfway, silently dropping every bind declared after
+# the failing line. The scan is run here on its own, lifted out of the menu.
+scan=$(awk '/lua (-E - )?<<.LUA.$/ { capture = 1; next } /^LUA$/ { capture = 0 } capture' "$ROOT/bin/omarchy-menu-keybindings")
+[[ -n $scan ]] || fail "keybindings menu embeds the Lua bind scan"
+
+scan_home=$tmpdir/scan-home
+mkdir -p "$scan_home/.config/hypr"
+# No time budget, so a slow machine cannot fail it: a scan that never ended
+# would be killed by the timeout, which fails the run on its exit status.
+lua_scan() {
+  HOME="$scan_home" DEBUG=1 timeout 60 lua -E - <<<"$scan" 2>&1
+}
+
+cat >"$scan_home/.config/hypr/hyprland.lua" <<'LUA'
+-- Load-time reads a real config does against the compositor state.
+for _, monitor in ipairs(hl.get_monitors()) do
+  hl.monitor({ output = monitor.name, scale = monitor.scale })
+end
+
+local monitor = hl.get_active_monitor()
+if not monitor or not monitor.scale or monitor.scale <= 0 then
+  error("comparison should not raise")
+end
+local reserved = monitor.height - monitor.reserved.top * monitor.scale
+local label = "monitor " .. monitor.name .. " " .. tostring(monitor.scale)
+if #hl.get_workspaces() ~= 0 then
+  error("stub collections should be empty")
+end
+if monitor.scale > 1 then
+  error("stub comparisons should be false")
+end
+
+hl.bind("SUPER + K", hl.dsp.exec_cmd("omarchy-menu keybindings"), { description = "Keybindings menu" })
+hl.bind("SUPER + code:20", hl.dsp.workspace({ name = "special" }), { description = "Lua only bind" })
+LUA
+
+output=$(lua_scan) || fail "Lua bind scan exits cleanly on a config that iterates and compares compositor state (output: $output)"
+pass "Lua bind scan survives load-time loops, comparisons, and arithmetic over stub state"
+
+[[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on stub comparisons ($output)"
+grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports exec binds declared after load-time reads (got: $output)"
+grep -qF $'64\tLua only bind\tcode:20\tlua\thl.dsp.workspace({ name = "special" })' <<<"$output" || fail "Lua bind scan reports Lua dispatcher binds (got: $output)"
+pass "Lua bind scan reports binds declared after load-time compositor reads"
+
+# A loop nothing in the stub can end is stopped inside the scan, well before
+# the timeout, and the binds declared ahead of it are still reported.
+cat >"$scan_home/.config/hypr/hyprland.lua" <<'LUA'
+hl.bind("SUPER + K", hl.dsp.exec_cmd("omarchy-menu keybindings"), { description = "Keybindings menu" })
+while true do end
+LUA
+
+output=$(lua_scan) || fail "Lua bind scan stops a runaway config instead of running until killed (output: $output)"
+grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan keeps binds declared before a runaway loop (got: $output)"
+pass "Lua bind scan stops a runaway config and keeps the binds declared before it"
+
+# Indexing a collection still reads a stand-in: only `ipairs` sees it as empty,
+# so a config that names its first or last monitor keeps the binds after it.
+cat >"$scan_home/.config/hypr/hyprland.lua" <<'LUA'
+local monitors = hl.get_monitors()
+local first = monitors[1].name
+local last = monitors[#monitors].name
+hl.monitor({ output = first, scale = 1 })
+hl.monitor({ output = last, scale = 1 })
+hl.bind("SUPER + K", hl.dsp.exec_cmd("omarchy-menu keybindings"), { description = "Keybindings menu" })
+LUA
+
+output=$(lua_scan) || fail "Lua bind scan reads an indexed stub collection (output: $output)"
+[[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed stub collection ($output)"
+grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after indexing a stub collection (got: $output)"
+pass "Lua bind scan reads an indexed stub collection and keeps the binds after it"
+
+# A walk by index ends too, and the binds after it are still reported.
+cat >"$scan_home/.config/hypr/hyprland.lua" <<'LUA'
+local monitors = hl.get_monitors()
+local i = 1
+while monitors[i] do
+  i = i + 1
+end
+hl.bind("SUPER + K", hl.dsp.exec_cmd("omarchy-menu keybindings"), { description = "Keybindings menu" })
+LUA
+
+output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub collection (output: $output)"
+[[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
+grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
+pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"

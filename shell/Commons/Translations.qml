@@ -28,12 +28,19 @@ QtObject {
   readonly property string baseLanguage: language.split("-")[0]
   readonly property string directoryPath: String(directory).replace(/^file:\/\//, "").replace(/\/+$/, "")
 
-  // Reassigned whole on every load (never mutated in place) so bindings that
-  // called t() re-evaluate when the language or a catalog changes.
-  property var strings: ({})
-  property var englishStrings: ({})
-  property var baseStrings: ({})
-  property var languageStrings: ({})
+  // Read through FileView so blockLoading applies to the first lookup, and
+  // keep the maps bound to the watched files for subsequent updates.
+  readonly property var englishStrings: parseCatalog(englishFile.text())
+  readonly property var baseStrings: parseCatalog(baseFile.text())
+  readonly property var languageStrings: parseCatalog(languageFile.text())
+  readonly property var strings: {
+    var merged = ({})
+    var layers = [root.englishStrings, root.baseStrings, root.languageStrings]
+    for (var i = 0; i < layers.length; i++)
+      for (var key in layers[i])
+        if (typeof layers[i][key] === "string" || (layers[i][key] && typeof layers[i][key] === "object")) merged[key] = layers[i][key]
+    return merged
+  }
 
   function t(key, fallback) {
     var value = root.strings[key]
@@ -62,15 +69,6 @@ QtObject {
     }
   }
 
-  function rebuildStrings() {
-    var merged = ({})
-    var layers = [root.englishStrings, root.baseStrings, root.languageStrings]
-    for (var i = 0; i < layers.length; i++)
-      for (var key in layers[i])
-        if (typeof layers[i][key] === "string" || (layers[i][key] && typeof layers[i][key] === "object")) merged[key] = layers[i][key]
-    root.strings = merged
-  }
-
   function catalogPath(code) {
     return root.directoryPath !== "" ? root.directoryPath + "/" + code + ".json" : ""
   }
@@ -80,8 +78,6 @@ QtObject {
     watchChanges: true
     printErrors: false
     blockLoading: true
-    onLoaded: { root.englishStrings = root.parseCatalog(text()); root.rebuildStrings() }
-    onLoadFailed: { root.englishStrings = ({}); root.rebuildStrings() }
     onFileChanged: reload()
   }
 
@@ -91,9 +87,6 @@ QtObject {
     watchChanges: true
     printErrors: false
     blockLoading: true
-    onLoaded: { root.baseStrings = root.parseCatalog(text()); root.rebuildStrings() }
-    onLoadFailed: { root.baseStrings = ({}); root.rebuildStrings() }
-    onPathChanged: if (path === "") { root.baseStrings = ({}); root.rebuildStrings() }
     onFileChanged: reload()
   }
 
@@ -102,9 +95,6 @@ QtObject {
     watchChanges: true
     printErrors: false
     blockLoading: true
-    onLoaded: { root.languageStrings = root.parseCatalog(text()); root.rebuildStrings() }
-    onLoadFailed: { root.languageStrings = ({}); root.rebuildStrings() }
-    onPathChanged: if (path === "") { root.languageStrings = ({}); root.rebuildStrings() }
     onFileChanged: reload()
   }
 }
