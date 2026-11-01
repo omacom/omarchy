@@ -1,0 +1,153 @@
+#!/bin/bash
+
+# omarchy:summary=Set the default file manager used by xdg, the desktop keys and Show in folder
+# omarchy:args=[nautilus|nemo|dolphin|flea|thunar]
+# omarchy:examples=omarchy default file-manager | omarchy default file-manager thunar
+
+installing=false
+if [[ ${1:-} == "--install" ]]; then
+  installing=true
+  shift
+fi
+
+if (($# == 0)); then
+  handler=$(xdg-mime query default inode/directory 2>/dev/null || true)
+  case "$handler" in
+  org.gnome.Nautilus.desktop) echo "nautilus" ;;
+  nemo.desktop) echo "nemo" ;;
+  org.kde.dolphin.desktop) echo "dolphin" ;;
+  com.thisisgm.flea.desktop) echo "flea" ;;
+  thunar.desktop) echo "thunar" ;;
+  "")
+    # Nothing valid answers inode/directory anywhere: Omarchy's default does.
+    echo "nautilus"
+    ;;
+  *) echo "$handler" ;;
+  esac
+  exit 0
+fi
+
+case "$1" in
+nautilus) package="nautilus"; command="nautilus"; desktop_id="org.gnome.Nautilus.desktop"; name="Nautilus"; glyph="" ;;
+nemo) package="nemo"; command="nemo"; desktop_id="nemo.desktop"; name="Nemo"; glyph="" ;;
+dolphin) package="dolphin"; command="dolphin"; desktop_id="org.kde.dolphin.desktop"; name="Dolphin"; glyph="" ;;
+flea) package="flea"; command="flea"; desktop_id="com.thisisgm.flea.desktop"; name="Flea"; glyph="" ;;
+thunar) package="thunar"; command="thunar"; desktop_id="thunar.desktop"; name="Thunar"; glyph="" ;;
+*)
+  echo "Usage: omarchy-default-file-manager <nautilus|nemo|dolphin|flea|thunar>"
+  exit 1
+  ;;
+esac
+
+if omarchy-cmd-missing "$command"; then
+  if [[ $installing == "false" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-default-file-manager --install "$1"
+  else
+    omarchy-pkg-add "$package" || exit 1
+  fi
+fi
+
+# `flea --default` binds the file-manager keys by appending a marked block to
+# the user's bindings, which would keep answering them after another file
+# manager is chosen here. Only that block goes: both markers have to be there
+# for it to be the block Flea wrote, and `flea --picker`'s own block and
+# anything else the file holds are left alone.
+user_bindings="$HOME/.config/hypr/bindings.lua"
+if [[ -f $user_bindings ]] &&
+  grep -q -- '-- flea --default: begin' "$user_bindings" &&
+  grep -q -- '-- flea --default: end' "$user_bindings"; then
+  sed -i '/-- flea --default: begin/,/-- flea --default: end/d' "$user_bindings"
+  hyprctl reload >/dev/null 2>&1 || true
+fi
+
+# The handler is read back rather than trusted: xdg-mime default exits 0 no
+# matter what it wrote.
+xdg-mime default "$desktop_id" inode/directory || exit 1
+handler=$(xdg-mime query default inode/directory 2>/dev/null || true)
+if [[ $handler != "$desktop_id" ]]; then
+  echo "Could not set $name as the default file manager (handler: ${handler:-none})" >&2
+  exit 1
+fi
+
+# "Show in folder" calls org.freedesktop.FileManager1 on the session bus. The
+# user's registration for that name is read before every system one, so it
+# decides who the bus launches. It names omarchy-file-manager-dbus rather
+# than any particular manager: the entry point re-reads the default on every
+# activation, so the choice keeps working after a package is removed and
+# switching managers never rewrites this file again.
+file_manager1_service() {
+  local entry_point
+  local user_dir="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services"
+  local user_service="$user_dir/org.freedesktop.FileManager1.service"
+  registration_ours=false
+
+  # Only files carrying our marker are ours to replace. A registration the
+  # user wrote themselves keeps its launch command and settings: the bus
+  # reads whatever the file holds, whatever the file is called, so leaving it
+  # standing is what preserves their custom Show in folder behaviour.
+  if [[ -f $user_service ]] && ! grep -q "omarchy-default-file-manager" "$user_service"; then
+    echo "Kept the existing $user_service: it is not Omarchy's, so Show in folder keeps using it" >&2
+    return 0
+  fi
+
+  entry_point=$(command -v omarchy-file-manager-dbus) || {
+    echo "Could not find omarchy-file-manager-dbus to register for Show in folder" >&2
+    return 1
+  }
+  mkdir -p "$user_dir"
+  {
+    printf '# Written by omarchy-default-file-manager so the chosen file manager answers Show in folder.\n'
+    printf '[D-BUS Service]\n'
+    printf 'Name=org.freedesktop.FileManager1\n'
+    printf 'Exec=%s\n' "$entry_point"
+  } >"$user_service"
+  registration_ours=true
+}
+file_manager1_service || exit 1
+
+# The registration only decides who the bus launches next: a manager that
+# already owns org.freedesktop.FileManager1 keeps answering until it exits.
+# Ask the current owner to quit -- the Quit method the FileManager1 spec
+# defines -- so the new default answers Show in folder right away instead of
+# the old one until the user closes it. Best effort: the xdg handler is
+# already set, so a bus failure only leaves the old manager answering until
+# it is closed.
+file_manager1_release() {
+  local owner owner_pid owner_comm waited=0
+
+  owner=$(busctl --user --auto-start=no call org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus GetNameOwner s org.freedesktop.FileManager1 2>/dev/null |
+    sed -n 's/^s "\(.*\)"$/\1/p')
+  [[ -n $owner ]] || return 0
+
+  owner_pid=$(busctl --user --auto-start=no call org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus GetConnectionUnixProcessID s "$owner" 2>/dev/null |
+    sed -n 's/^u \([0-9]*\)$/\1/p')
+
+  # The chosen file manager already owns the name: nothing to hand over.
+  if [[ -n $owner_pid && -r /proc/$owner_pid/comm ]]; then
+    read -r owner_comm <"/proc/$owner_pid/comm" || true
+    [[ ${owner_comm,,} == "${command,,}" ]] && return 0
+  fi
+
+  busctl --user --auto-start=no --timeout=2 call org.freedesktop.FileManager1 \
+    /org/freedesktop/FileManager1 org.freedesktop.FileManager1 Quit >/dev/null 2>&1 || true
+
+  # Quit is ask-and-wait: a manager that ignores it keeps the name. Poll for
+  # it to drop; when it never does, tell the user what is still standing.
+  while ((waited < 10)); do
+    owner=$(busctl --user --auto-start=no call org.freedesktop.DBus /org/freedesktop/DBus \
+      org.freedesktop.DBus GetNameOwner s org.freedesktop.FileManager1 2>/dev/null |
+      sed -n 's/^s "\(.*\)"$/\1/p')
+    [[ -z $owner ]] && return 0
+    sleep 0.2
+    ((waited += 1))
+  done
+
+  omarchy-notification-send -g $glyph "$(omarchy-i18n default.fileManagerStillOpen "$name")"
+}
+# Only when the registration is ours: with a user's own standing, the name
+# belongs to whatever their file launches, and quitting that fights their setup.
+[[ $registration_ours == true ]] && file_manager1_release
+
+omarchy-notification-send -g $glyph "$(omarchy-i18n default.fileManagerSet "$name")"

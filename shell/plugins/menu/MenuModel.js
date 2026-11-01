@@ -428,6 +428,7 @@ var GUARD_READERS = [
   "omarchy-default-agent",
   "omarchy-default-browser",
   "omarchy-default-editor",
+  "omarchy-default-file-manager",
   "omarchy-default-terminal",
   "omarchy-default-dictation",
   "omarchy-dns",
