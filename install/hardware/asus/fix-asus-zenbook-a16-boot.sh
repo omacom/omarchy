@@ -5,11 +5,12 @@ limine_config_dir=${OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR:-/etc/limine-entry-too
 sleep_config_dir=${OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR:-/etc/systemd/sleep.conf.d}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  # Resuming resets the SoC, so keep the laptop from suspending.
+  # The kernel defaults to deep sleep, PSCI system suspend, and resuming from
+  # it resets the SoC. Suspend to idle resumes cleanly, so sleep that way.
   mkdir -p "$sleep_config_dir"
   cat >"$sleep_config_dir/zenbook-a16.conf" <<'CONF'
 [Sleep]
-AllowSuspend=no
+MemorySleepMode=s2idle
 AllowHibernation=no
 AllowSuspendThenHibernate=no
 AllowHybridSleep=no
