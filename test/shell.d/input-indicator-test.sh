@@ -104,6 +104,8 @@ assert pick["name"] == "physical keyboard"
 assert indicator.layout_keyboard([remote]) is None
 assert indicator.layout_keyboard([{"name": "consumer-control", "layout": "us,fr"}]) is None
 assert indicator.layout_keyboard([{"name": "intel-hid-events", "layout": "us,fr"}]) is None
+assert indicator.layout_keyboard([{"name": "asus-wmi-hotkeys-1", "layout": "us,fr"}]) is None
+assert indicator.layout_keyboard([{"name": "acer-wireless-radio-control", "layout": "us,fr"}]) is None
 assert indicator.layout_switches(keyboards + [remote]) == \
   [["hyprctl", "switchxkblayout", item["name"], "1"] for item in keyboards[:3] + [remote]]
 print("ok - non-typing devices sync the seat layout without ever driving the pick")

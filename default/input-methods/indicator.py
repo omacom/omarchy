@@ -35,7 +35,8 @@ def layout_keyboard(keyboards):
   # anyone typing on them.
   typed = [keyboard for keyboard in keyboards if not re.search(
     r"^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus"
-    r"|intel-hid-events|dell-wmi-hotkeys)|avrcp|consumer-control", keyboard.get("name", ""))]
+    r"|intel-hid-events|dell-wmi-hotkeys)"
+    r"|avrcp|consumer-control|(-wmi-hotkeys|-wireless-radio-control)(-\d+)?$", keyboard.get("name", ""))]
   typed = [item for item in typed if len(item.get("layout", "").split(",")) > 1]
   if not typed:
     return None
