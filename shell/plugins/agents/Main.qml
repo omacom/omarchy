@@ -139,8 +139,14 @@ Item {
       var limits = Array.isArray(record.limits) ? record.limits : []
       var threshold = Number(record.accountSwitch && record.accountSwitch.threshold || 95)
       var from = Math.min(0.8, (threshold - 15) / 100)
-      for (var j = 0; j < limits.length; j++)
-        if (Number(limits[j] && limits[j].percent) >= from) return true
+      // A credit allowance never moves an account, so it never needs the
+      // faster checks.
+      for (var j = 0; j < limits.length; j++) {
+        if (limits[j] && !limits[j].spend
+            && Number(limits[j].percent) >= from) {
+          return true
+        }
+      }
     }
     return false
   }

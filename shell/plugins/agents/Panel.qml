@@ -529,14 +529,27 @@ Panel {
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title) {
+  function limitWindow(label, percent, resetAt, title, spend) {
     var reset = new Date(String(resetAt || "")).getTime()
     var expired = isFinite(reset) && reset <= root.nowMs
-    return {
+    var window = {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
       resetAt: expired ? "" : String(resetAt || "")
     }
+    // A monetary allowance says what its percentage cost. A rate limit
+    // window has no such figure and carries nothing here.
+    var money = expired ? null : spendValue(spend)
+    if (money) window.spend = money
+    return window
+  }
+
+  function spendValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var used = Number(raw.used)
+    var limit = Number(raw.limit)
+    if (!isFinite(used) || !(limit > 0)) return null
+    return { used: used, limit: limit, currency: String(raw.currency || "USD") }
   }
 
   function limitWindows(p) {
@@ -546,7 +559,7 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, entry.spend))
     }
     return out
   }
@@ -585,11 +598,15 @@ Panel {
   }
 
   // The window that decides how much room is left — the fullest one, since
-  // that is what stops the next prompt.
+  // that is what stops the next prompt. A credit allowance is passed over:
+  // running it down drops the account back onto these rate limit windows
+  // rather than stopping anything, and its month-long window would hold the
+  // bar in alarm for weeks over money that was already spent.
   function bindingWindow(p) {
     var windows = limitWindows(p)
     var best = null
     for (var i = 0; i < windows.length; i++) {
+      if (windows[i].spend) continue
       if (!best || windows[i].percent > best.percent) best = windows[i]
     }
     return best
@@ -619,6 +636,7 @@ Panel {
     if (value === "Weekly") return Commons.I18n.t("agents.windowWeekly")
     if (value === "Monthly") return Commons.I18n.t("agents.windowMonthly")
     if (value === "Spend limit") return Commons.I18n.t("agents.windowSpendLimit")
+    if (value === "Usage credits") return Commons.I18n.t("agents.windowUsageCredits")
     if (value === "Limit") return Commons.I18n.t("agents.windowLimit")
     var part = scopedPart(value)
     if (part && part.window === "Session") return Commons.I18n.t("agents.modelSession").arg(part.model)
@@ -700,7 +718,16 @@ Panel {
   function formatMoney(value, currency) {
     var amount = Number(value)
     if (!isFinite(amount)) amount = 0
-    return currencyPrefix(currency) + Commons.I18n.formatNumber(amount, 2)
+    var sign = amount < 0 ? "-" : ""
+    return sign + currencyPrefix(currency)
+      + Commons.I18n.formatNumber(Math.abs(amount), 2)
+  }
+
+  function spendDetailText(spend) {
+    if (!spend) return ""
+    return Commons.I18n.t("agents.creditsSpent")
+      .arg(formatMoney(spend.used, spend.currency))
+      .arg(formatMoney(spend.limit, spend.currency))
   }
 
   function balanceDetailText(b) {
@@ -2004,6 +2031,8 @@ Panel {
           lines.push(compact.resetMs > 0
             ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
+          var spent = root.spendDetailText(compact.window.spend)
+          if (spent !== "") lines.push(spent)
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
