@@ -364,6 +364,15 @@ function matchesQuery(entry, query, visible) {
   return true
 }
 
+function hasWordPrefix(text, q) {
+  if (!text || !q) return false
+  var words = String(text).toLowerCase().split(/[\s\-_\/.]+/)
+  for (var i = 0; i < words.length; i++) {
+    if (words[i] && words[i].indexOf(q) === 0) return true
+  }
+  return false
+}
+
 function searchScore(items, entry, query) {
   var needle = String(query || "").toLowerCase().trim()
   var label = entry.label.toLowerCase()
@@ -376,6 +385,7 @@ function searchScore(items, entry, query) {
   // for Zen Browser) beats exact-labeled menu entries like Install > Zen.
   else if (entry.kind === "app" && label.split(/\s+/).indexOf(needle) >= 0) score = 0
   else if (label.indexOf(needle) === 0) score = 10
+  else if (hasWordPrefix(label, needle)) score = 12
   else if (label.indexOf(needle) >= 0) score = 30
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
