@@ -1221,7 +1221,9 @@ Panel {
         z: 20
         opened: root.deleteTarget !== null
         onOpenedChanged: {
-          selectedIndex = 0
+          // Delete then Return removes, as in every other confirmation;
+          // starting on Cancel made that Return quietly do nothing.
+          selectedIndex = 1
           if (opened) forceActiveFocus()
           else root.focusKeys()
         }
