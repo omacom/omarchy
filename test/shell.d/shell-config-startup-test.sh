@@ -174,8 +174,8 @@ JSON
   local disabled_starts
   enabled_starts=$(grep -cF 'STARTUP_PROBE enabled started' "$log" || true)
   disabled_starts=$(grep -cF 'STARTUP_PROBE disabled started' "$log" || true)
-  [[ $enabled_starts == 1 ]] || fail "$case_name enabled probe starts exactly once" "count=$enabled_starts"
-  [[ $disabled_starts == 0 ]] || {
+  (( enabled_starts == 1 )) || fail "$case_name enabled probe starts exactly once" "count=$enabled_starts"
+  (( disabled_starts == 0 )) || {
     printf 'Shell config startup log (%s):\n' "$case_name" >&2
     sed -n '1,260p' "$log" >&2
     fail "$case_name disabled probe never starts before delayed config arrives" "count=$disabled_starts"
