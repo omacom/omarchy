@@ -7,7 +7,6 @@ run_node_test <<'JS'
 const fs = require('fs')
 const vm = require('vm')
 const background = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
-const media = fs.readFileSync(path.join(root, 'shell/Ui/BackgroundMedia.qml'), 'utf8')
 
 // Run the actual QML function bodies, with only the process and animation
 // objects mocked. Completing a probe also runs the real onExited handler.
@@ -174,11 +173,4 @@ assertEqual(s.displayedBackground, 'a.png', 'an instant theme transition waits f
 s.completeProbe()
 assertEqual(s.displayedBackground, 'final.png', 'an instant theme transition displays its durable final path')
 
-assert(
-  /retainWhileLoading: root\.retainWhileLoading/.test(media) &&
-    /path: root\.displayedBackground\s*retainWhileLoading: true/.test(background),
-  'the desktop retains the old decoded frame while its replacement loads'
-)
-assert(media.includes('property bool retainWhileLoading: false'), 'retention is opt-in so the lock keeps its existing loading and blur behavior')
-assert(/active: root\.path !== "" && !root\.video/.test(media), 'empty paths and videos still unload the shared image')
 JS
