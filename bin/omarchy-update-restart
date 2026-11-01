@@ -63,7 +63,13 @@ if [[ $mode != "--reboot-only" ]]; then
   # Updates routinely replace the shell's QML, and a stale process can lazy-load
   # new files into old code. A restart failure (locked session, ssh, TTY) only
   # prints its reason: the next update or login gets a fresh shell anyway.
-  echo -e "\e[32m\nRestarting shell\e[0m"
-  echo "All plugins have been reloaded"
-  omarchy-restart-shell || true
+  # Without a compositor nothing can start one, so the restart could only wait
+  # out its readiness deadline on a headless machine.
+  if pgrep -u "$UID" -x Hyprland >/dev/null; then
+    echo -e "\e[32m\nRestarting shell\e[0m"
+    echo "All plugins have been reloaded"
+    omarchy-restart-shell || true
+  else
+    echo "No Hyprland session is running, so there is no shell to restart."
+  fi
 fi
