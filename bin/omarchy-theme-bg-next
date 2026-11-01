@@ -25,12 +25,11 @@ else
   # move on from the one before. Without it, the link names the current one.
   # With neither, cycling starts from the first background.
   CURRENT_BACKGROUND=$(omarchy-shell shell selectedBackground 2>/dev/null)
-  if [[ -z $CURRENT_BACKGROUND && -L $CURRENT_BACKGROUND_LINK ]]; then
-    CURRENT_BACKGROUND=$(readlink "$CURRENT_BACKGROUND_LINK")
-  fi
-  # Either may name the file as omarchy-theme-set found it, not by its real path
   if [[ -n $CURRENT_BACKGROUND ]]; then
+    # The shell names it as omarchy-theme-set found it, not by its real path
     CURRENT_BACKGROUND=$(realpath -m -- "$CURRENT_BACKGROUND")
+  elif [[ -L $CURRENT_BACKGROUND_LINK ]]; then
+    CURRENT_BACKGROUND=$(readlink -f "$CURRENT_BACKGROUND_LINK")
   fi
 
   # Find current background index

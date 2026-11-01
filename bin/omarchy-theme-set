@@ -162,8 +162,7 @@ choose_theme_background() {
 
   # Match on real paths, since omarchy-theme-bg-set links one, but choose the path as found so a
   # staged one still maps onto the current theme; one entry per file so an alias cannot pin the cycle
-  mapfile -d '' -t found_resolved < <(printf '%s\0' "${found[@]}" | xargs -0 -r realpath -z --)
-  (( ${#found_resolved[@]} == ${#found[@]} )) || found_resolved=("${found[@]}")
+  mapfile -d '' -t found_resolved < <(printf '%s\0' "${found[@]}" | xargs -0 -r realpath -m -z --)
   for i in "${!found[@]}"; do
     [[ -n ${seen[${found_resolved[$i]}]:-} ]] && continue
     seen[${found_resolved[$i]}]=1
