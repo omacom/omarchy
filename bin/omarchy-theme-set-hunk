@@ -5,10 +5,10 @@
 
 # Hunk's default terminal theme re-reads the terminal palette on SIGWINCH. Terminals reload
 # their colors in parallel with this hook, so nudge once now and once after they have settled;
-# Hunk only repaints when the palette actually changed.
+# Hunk only repaints when the palette actually changed. The second nudge waits in the
+# background: omarchy-theme-set holds its theme-set hook until every retint returns.
 
 if pgrep -x hunk >/dev/null; then
   pkill -WINCH -x hunk
-  sleep 1
-  pkill -WINCH -x hunk
+  (sleep 1; pkill -WINCH -x hunk) >/dev/null 2>&1 </dev/null &
 fi

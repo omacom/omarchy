@@ -27,7 +27,8 @@ fi
 
 # A DSP sink feeds its physical output through a stream of its own; follow that
 # stream down to the sink underneath.
-downstream="$(pactl list sink-inputs 2>/dev/null |
+# pactl translates its headers; parse them in the C locale.
+downstream="$(LC_ALL=C pactl list sink-inputs 2>/dev/null |
   awk -v virt="$sink" '
     BEGIN {
       output = virt
