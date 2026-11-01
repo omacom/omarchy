@@ -9,13 +9,13 @@ tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 export OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH"
 
-# Exit statuses, expected NVD_BACKEND/LIBVA/GLX values, then vendor:device:class[:boot_vga].
+# Exit statuses, expected NVD_BACKEND/LIBVA/GLX values, then vendor:device:class[:boot_vga][:conn,...].
 while IFS='|' read -r description nvidia gsp without_gsp display expected_env devices; do
   rm -rf "$tmp_dir/devices"
   mkdir -p "$tmp_dir/devices"
   slot=0
   for spec in $devices; do
-    IFS=: read -r vendor device class boot_vga <<<"$spec"
+    IFS=: read -r vendor device class boot_vga connectors <<<"$spec"
     device_dir="$tmp_dir/devices/$slot"
     mkdir -p "$device_dir"
     printf '%s\n' "$vendor" >"$device_dir/vendor"
@@ -24,6 +24,13 @@ while IFS='|' read -r description nvidia gsp without_gsp display expected_env de
     if [[ -n $boot_vga ]]; then
       printf '%s\n' "$boot_vga" >"$device_dir/boot_vga"
     fi
+    for connector in ${connectors//,/ }; do
+      conn_dir="$device_dir/drm/card0/card0-${connector%%=*}"
+      mkdir -p "$conn_dir"
+      conn_state="${connector#*=}"
+      [[ $conn_state == "${connector%%=*}" ]] && conn_state=connected
+      printf '%s\n' "$conn_state" >"$conn_dir/status"
+    done
     slot=$((slot + 1))
   done
 
@@ -57,4 +64,8 @@ AMD display with Ampere offload|0|0|1|1|direct - -|0x1002:0x15bf:0x030000:1 0x10
 Intel display with Maxwell offload|0|1|0|1|egl - -|0x8086:0x46a6:0x030000:1 0x10de:0x1340:0x030000:0
 NVIDIA display with inactive iGPU|0|0|1|0|direct nvidia nvidia|0x1002:0x15bf:0x030000:0 0x10de:0x2c02:0x030000:1
 Hybrid without boot_vga|0|0|1|0|direct nvidia nvidia|0x1002:0x15e7:0x030000 0x10de:0x2560:0x030200
+iGPU display connector without boot_vga|0|0|1|1|direct - -|0x1002:0x150e:0x038000::eDP-1 0x10de:0x2d18:0x030000:0
+iGPU outputs present but all disconnected|0|0|1|1|direct - -|0x1002:0x15e7:0x038000::eDP-1=disconnected,DP-1=disconnected 0x10de:0x2560:0x030200:0
+NVIDIA wired connector without boot_vga|0|0|1|0|direct nvidia nvidia|0x1002:0x15e7:0x038000 0x10de:0x2560:0x030200:0:HDMI-A-1
+Both GPUs claim displays|0|0|1|0|direct nvidia nvidia|0x1002:0x15e7:0x038000::eDP-1 0x10de:0x2d18:0x030000:0:HDMI-A-1
 CASES
