@@ -154,12 +154,46 @@ Panel {
     return sink
   }
 
-  // Re-resolve whenever the selected output changes; the timer below is only a
-  // safety net for the tuning being applied or removed underneath us.
+  // Re-resolve whenever the selected output changes, and when nodes or links
+  // come and go: a tuning being applied or removed underneath us, or a DSP sink
+  // rerouted to another output, shows up as exactly that.
   onSinkChanged: resolveVolumeSink()
+  onNodesChanged: volumeSinkResolveTimer.restart()
+
+  Connections {
+    target: Pipewire.linkGroups
+    function onValuesChanged() { volumeSinkResolveTimer.restart() }
+  }
+
+  property bool volumeSinkStale: false
+  // Bumped by every resolve, so a script read still running from before cannot
+  // overwrite a newer answer, the hardware fast path's included.
+  property int volumeSinkGeneration: 0
+  property int volumeSinkRequest: -1
 
   function resolveVolumeSink() {
-    if (!volumeSinkProc.running) volumeSinkProc.running = true
+    volumeSinkGeneration++
+    // A hardware output is its own volume sink, as omarchy-audio-output-sink
+    // reports without looking further, so only a DSP sink needs the script.
+    if (sink && String(sink.name).indexOf("alsa_output.") === 0) {
+      volumeSinkName = String(sink.name)
+      return
+    }
+    if (volumeSinkProc.running) {
+      volumeSinkStale = true
+      return
+    }
+    volumeSinkRequest = volumeSinkGeneration
+    volumeSinkProc.running = true
+  }
+
+  // An idle EasyEffects is resolved through its configured output device, which
+  // changes without touching the Pipewire graph.
+  FileView {
+    path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/easyeffects/db/easyeffectsrc"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: volumeSinkResolveTimer.restart()
   }
 
   readonly property real outputVolume: volumeSink && volumeSink.audio ? volumeSink.audio.volume : 0
@@ -200,7 +234,7 @@ Panel {
   readonly property bool hasOutput: !!(volumeSink && volumeSink.audio)
   readonly property bool hasInput: !!(source && source.audio) || (inputViaWpctl && UntypedInput.known)
   readonly property bool anyAudible: (hasOutput && !outputMuted) || (hasInput && !inputMuted)
-  readonly property string toggleHint: anyAudible ? "Mute" : "Unmute"
+  readonly property string toggleHint: anyAudible ? Commons.I18n.t("audio.mute") : Commons.I18n.t("audio.unmute")
 
   readonly property color hoverFill: bar
     ? Style.hoverFillFor(bar.foreground, Commons.Color.accent)
@@ -392,12 +426,14 @@ Panel {
   // walk the selection off-screen — wifi uses ListView.positionViewAtIndex
   // for this; we don't have that affordance with a multi-section Column.
   function resetScroll() {
+    var scrollArea = panel.loadedContent ? panel.loadedContent.scrollArea : null
     if (!scrollArea) return
     var flick = scrollArea.contentItem
     if (flick && flick.contentY !== undefined) flick.contentY = 0
   }
 
   function ensureCursorVisible(item) {
+    var scrollArea = panel.loadedContent ? panel.loadedContent.scrollArea : null
     if (!item || !scrollArea) return
     var flick = scrollArea.contentItem
     if (!flick || flick.contentY === undefined) return
@@ -458,7 +494,7 @@ Panel {
   // panel's brightnessName ladder; bands are wide enough that small
   // tweaks don't rename the room you're in.
   function outputVolumeName(volume, muted) {
-    return Model.outputVolumeName(volume, muted)
+    return Model.outputVolumeName(volume, muted, Commons.I18n.t)
   }
 
   function setOutputVolume(v) {
@@ -547,7 +583,7 @@ Panel {
   }
 
   function nodeLabel(node) {
-    return Model.nodeLabel(node)
+    return Model.nodeLabel(node, Commons.I18n.t)
   }
 
   function nodeProps(node) {
@@ -613,7 +649,7 @@ Panel {
   // displayAudioStreams carries primitives now, and resolving each row back
   // would only rebuild what audioStreams already is.
   function streamLabel(node) {
-    return Model.streamLabel(node, mprisPlayers, audioStreams)
+    return Model.streamLabel(node, mprisPlayers, audioStreams, Commons.I18n.t)
   }
 
   function streamRepresentsPlayer(node, player) {
@@ -656,7 +692,15 @@ Panel {
     command: ["omarchy-audio-output-sink"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.volumeSinkName = String(text).trim()
+      onStreamFinished: {
+        if (root.volumeSinkRequest === root.volumeSinkGeneration) root.volumeSinkName = String(text).trim()
+      }
+    }
+    onExited: {
+      if (!root.volumeSinkStale) return
+      root.volumeSinkStale = false
+      // Deferred: the process still reports running while it signals exit.
+      Qt.callLater(root.resolveVolumeSink)
     }
   }
 
@@ -673,14 +717,15 @@ Panel {
 
   // Runs whether or not the panel is open: the bar shows and scrolls the output
   // volume too, so an unresolved sink there would read and change the virtual
-  // tuning sink instead of the speakers.
+  // tuning sink instead of the speakers. Streams starting and stopping also
+  // change the graph, so a burst of changes resolves once.
   Timer {
-    interval: 15000
-    running: true
-    repeat: true
-    triggeredOnStart: true
+    id: volumeSinkResolveTimer
+    interval: 500
     onTriggered: root.resolveVolumeSink()
   }
+
+  Component.onCompleted: root.resolveVolumeSink()
 
   Timer {
     id: audioModelRefreshTimer
@@ -715,12 +760,14 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
+    focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(panelColumn.implicitHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
 
-    PanelKeyCatcher {
+    content: PanelKeyCatcher {
       id: keyCatcher
+      property alias scrollArea: scrollArea
+      implicitHeight: panelColumn.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
@@ -813,7 +860,8 @@ Panel {
               spacing: Style.space(2)
 
               Text {
-                text: "Audio"
+                text: Commons.I18n.t("audio.title")
+                textFormat: Text.PlainText
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -855,7 +903,7 @@ Panel {
 
               PanelSectionHeader {
                 id: outputHeader
-                text: "OUTPUT"
+                text: Commons.I18n.t("audio.output")
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
                 anchors.left: parent.left
@@ -865,7 +913,7 @@ Panel {
               Text {
                 id: outputPercent
                 textFormat: Text.PlainText
-                text: Math.round((outputSlider.dragging ? outputSlider.liveValue : root.outputVolume) * 100) + "%"
+                text: Commons.I18n.formatNumber(Math.round((outputSlider.dragging ? outputSlider.liveValue : root.outputVolume) * 100)) + "%"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -942,7 +990,7 @@ Panel {
 
               PanelSectionHeader {
                 id: microphoneHeader
-                text: "INPUT"
+                text: Commons.I18n.t("audio.input")
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
                 anchors.left: parent.left
@@ -952,7 +1000,7 @@ Panel {
               Text {
                 id: microphonePercent
                 textFormat: Text.PlainText
-                text: root.inputLevelKnown ? Math.round((inputSlider.dragging ? inputSlider.liveValue : root.inputVolume) * 100) + "%" : "–"
+                text: root.inputLevelKnown ? Commons.I18n.formatNumber(Math.round((inputSlider.dragging ? inputSlider.liveValue : root.inputVolume) * 100)) + "%" : "–"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -1050,7 +1098,7 @@ Panel {
             visible: root.displayAudioStreams.length > 0
 
             PanelSectionHeader {
-              text: "SOURCES"
+              text: Commons.I18n.t("audio.sources")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
             }
@@ -1269,7 +1317,7 @@ Panel {
         Text {
           id: streamPct
           textFormat: Text.PlainText
-          text: Math.round(streamRow.streamVolume * 100) + "%"
+          text: Commons.I18n.formatNumber(Math.round(streamRow.streamVolume * 100)) + "%"
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption

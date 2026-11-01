@@ -7,11 +7,13 @@ Item {
   id: root
 
   property real iconSize: Style.font.icon
+  readonly property real aspectRatio: 1.18
+  property real artworkScale: 0.95
   property color color: Commons.Color.foreground
 
-  width: iconSize * 1.18
+  width: iconSize * aspectRatio
   height: iconSize
-  implicitWidth: iconSize * 1.18
+  implicitWidth: iconSize * aspectRatio
   implicitHeight: iconSize
 
   Shape {
@@ -19,7 +21,7 @@ Item {
     antialiasing: true
     layer.enabled: true
     layer.samples: 4
-    scale: 0.95
+    scale: root.artworkScale
 
     Tile { cx: root.width * 0.25; cy: root.height * 0.188 }
     Tile { cx: root.width * 0.75; cy: root.height * 0.188 }

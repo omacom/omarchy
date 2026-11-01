@@ -69,11 +69,17 @@ You start LibreOffice via the application launcher (`Super + Space`).
 
 You start Hype via the application launcher (`Super + Space`). Press `?` inside it to see every shortcut.
 
+## Signed
+
+[Signed](https://github.com/omacom/signed) is Omarchy's own dead-simple way to sign PDFs and fill them in. Put your saved signature, text, and today's date anywhere on a page, then save a signed copy beside the original. See [Filling out PDFs](27-filling-out-pdfs.md) for how.
+
+You start Signed via the application launcher (`Super + Space`), or open a PDF with it from the file manager.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.
 
-You start Omacalc with `Super + Ctrl + Q` (or the calculator key, if your keyboard has one).
+You start Omacalc with `Super + Shift + Q` (or the calculator key, if your keyboard has one).
 
 ## Signal
 
