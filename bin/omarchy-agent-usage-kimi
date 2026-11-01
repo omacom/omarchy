@@ -1,0 +1,784 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Kimi usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Kimi account quota and Kimi Code's local usage into one
+display-ready JSON record."""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import hashlib
+import json
+import math
+import os
+import stat
+import sys
+import tempfile
+import threading
+import time
+import tomllib
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  UsageRow,
+  base_record as shared_base_record,
+  cached_scan,
+  claude_code_owner,
+  emit,
+  local_day,
+  obj,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  token_count,
+  warn,
+  write_json,
+)
+
+AGENT_ID = "kimi"
+AGENT_NAME = "Kimi"
+AUTH_HELP = "Set KIMI_API_KEY or sign in to Kimi (run `kimi login`)."
+USAGE_URL = os.environ.get("KIMI_USAGE_URL") or (
+  os.environ.get("KIMI_CODE_BASE_URL", "https://api.kimi.com/coding/v1").rstrip("/") + "/usages"
+)
+OAUTH_HOST = (
+  os.environ.get("KIMI_CODE_OAUTH_HOST") or os.environ.get("KIMI_OAUTH_HOST") or "https://auth.kimi.com"
+)
+TOKEN_URL = OAUTH_HOST.rstrip("/") + "/api/oauth/token"
+OAUTH_CLIENT_ID = "17e5f671-d194-4dfb-9706-5516cb48c098"
+# Tokens may only leave this machine for hosts under this domain.
+ALLOWED_DOMAINS = ("kimi.com", "kimi.ai")
+REFRESH_SKEW_S = 60
+LOCK_WAIT_SECONDS = 15
+# proper-lockfile's own stale age: a lease left this long unrenewed is dead.
+LOCK_STALE_SECONDS = 10
+
+
+# The legacy kimi-cli's share directory: KIMI_SHARE_DIR, else ~/.kimi
+# (kimi_cli/share.py), a relative one read from here as Kimi Code's own
+# migration reads it.
+def legacy_home() -> Path:
+  if share := os.environ.get("KIMI_SHARE_DIR", "").strip():
+    return Path(os.path.abspath(share))
+  return Path.home() / ".kimi"
+
+
+def credentials_dir() -> Path:
+  if home := os.environ.get("KIMI_CODE_HOME"):
+    return Path(home).expanduser() / "credentials"
+  candidates = [Path.home() / ".kimi-code" / "credentials", legacy_home() / "credentials"]
+  for candidate in candidates:
+    if (candidate / "kimi-code.json").is_file():
+      return candidate
+  return candidates[0]
+
+
+CREDENTIALS_DIR = credentials_dir()
+CREDENTIALS_PATH = CREDENTIALS_DIR / "kimi-code.json"
+
+
+class KimiError(Exception):
+  # `retry` marks a service that couldn't be reached at all, so the panel
+  # tries again soon; `refused` marks a credential Kimi turned down, which
+  # only signing in again (or a new key) repairs; `missing` marks no
+  # credential at all.
+  def __init__(self, message: str, retry: bool = False, refused: bool = False, missing: bool = False):
+    super().__init__(message)
+    self.retry = retry
+    self.refused = refused
+    self.missing = missing
+
+
+def trusted_url(url: str) -> tuple[str, bool]:
+  """Require HTTPS (plain HTTP only for loopback); report credential trust."""
+  try:
+    parts = urllib.parse.urlsplit(url)
+  except ValueError as error:
+    raise KimiError("Kimi endpoint URL is invalid") from error
+  host = (parts.hostname or "").lower()
+  loopback = host in ("localhost", "127.0.0.1", "::1")
+  if parts.scheme != "https" and not (loopback and parts.scheme == "http"):
+    raise KimiError("Kimi endpoint must use HTTPS")
+  if parts.username is not None or parts.password is not None:
+    raise KimiError("Kimi endpoint URL must not contain credentials")
+  return url, any(host == domain or host.endswith("." + domain) for domain in ALLOWED_DOMAINS)
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  return shared_base_record(AGENT_ID, AGENT_NAME, **overrides)
+
+
+# --------------------------------------------------------------- kimi auth
+
+
+def read_credentials() -> dict[str, Any]:
+  return read_json(CREDENTIALS_PATH)
+
+
+# The Kimi CLI's own credential file, rewritten only under its lock: private
+# from the first byte and flushed before it replaces the old one, unlike the
+# shared cache writer.
+def write_private_json(path: Path, payload: dict[str, Any]) -> None:
+  path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+  fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
+  try:
+    with os.fdopen(fd, "w") as handle:
+      json.dump(payload, handle)
+      handle.flush()
+      os.fsync(handle.fileno())
+    os.replace(temporary, path)
+  finally:
+    Path(temporary).unlink(missing_ok=True)
+
+
+def write_credentials(credentials: dict[str, Any]) -> None:
+  CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+  CREDENTIALS_DIR.chmod(0o700)
+  write_private_json(CREDENTIALS_PATH, credentials)
+
+
+def token_fresh(credentials: dict[str, Any]) -> bool:
+  try:
+    expiry = float(credentials.get("expires_at") or 0)
+    return bool(credentials.get("access_token")) and math.isfinite(expiry) and (
+      expiry == 0 or expiry - REFRESH_SKEW_S > time.time()
+    )
+  except (TypeError, ValueError):
+    return False
+
+
+def request_refresh(refresh_token: str) -> dict[str, Any]:
+  url, trusted = trusted_url(TOKEN_URL)
+  if not trusted:
+    raise KimiError("Kimi login endpoint is not trusted")
+  form = urllib.parse.urlencode(
+    {
+      "client_id": OAUTH_CLIENT_ID,
+      "grant_type": "refresh_token",
+      "refresh_token": refresh_token,
+    }
+  ).encode()
+  headers = {"Content-Type": "application/x-www-form-urlencoded"}
+  request = urllib.request.Request(url, data=form, headers=headers)
+  try:
+    decoded = open_json(request, timeout=15)
+  except HttpError as error:
+    if error.status in (400, 401, 403):
+      raise KimiError("Kimi rejected the sign-in; sign in again with `kimi login`", refused=True) from error
+    if error.status:
+      raise KimiError(f"Kimi token refresh failed (HTTP {error.status})") from error
+    if error.transport:
+      raise KimiError("Could not reach the Kimi login service", retry=True) from error
+    raise KimiError("Kimi returned an invalid token response") from error
+  if not isinstance(decoded, dict) or any(
+    not isinstance(decoded.get(key), str) or not decoded[key] for key in ("access_token", "refresh_token")
+  ):
+    raise KimiError("Kimi returned an invalid token response")
+  try:
+    duration = float(decoded.get("expires_in"))
+    if not math.isfinite(duration) or duration <= 0:
+      raise ValueError
+  except (TypeError, ValueError):
+    raise KimiError("Kimi returned an invalid token lifetime")
+  return decoded
+
+
+@contextmanager
+def refresh_lock():
+  deadline = time.monotonic() + LOCK_WAIT_SECONDS
+  legacy = CREDENTIALS_DIR == legacy_home() / "credentials" and not os.environ.get("KIMI_CODE_HOME")
+  if legacy:
+    with (CREDENTIALS_DIR / "kimi-code.lock").open("a") as handle:
+      while True:
+        try:
+          fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+          break
+        except BlockingIOError:
+          if time.monotonic() >= deadline:
+            raise KimiError("Kimi sign-in is busy; try again")
+          time.sleep(0.1)
+      yield lambda: None
+    return
+
+  # Kimi 2.x uses proper-lockfile's directory lease, renewed before its 5s expiry.
+  lock = CREDENTIALS_DIR.parent / "oauth" / "kimi-code.lock"
+  lock.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+  while True:
+    try:
+      lock.mkdir(mode=0o700)
+      break
+    except FileExistsError:
+      # The CLI may let go between the mkdir and this look: a lock that is
+      # gone is free, so try again. Only something that isn't a directory
+      # blocks the lock for good.
+      try:
+        info = lock.lstat()
+      except FileNotFoundError:
+        continue
+      blocked = not stat.S_ISDIR(info.st_mode)
+      # A lease nobody renewed is left by a CLI that died holding it, and is
+      # taken over the way proper-lockfile itself does.
+      if not blocked and time.time() - info.st_mtime > LOCK_STALE_SECONDS:
+        try:
+          lock.rmdir()
+          continue
+        except OSError:
+          pass
+      if blocked or time.monotonic() >= deadline:
+        raise KimiError("Kimi sign-in is busy; start Kimi and try again")
+      time.sleep(0.1)
+
+  owner = lock.stat().st_ino
+  stopped = threading.Event()
+  lost = threading.Event()
+
+  def check():
+    if lost.is_set() or not lock.is_dir() or lock.stat().st_ino != owner:
+      raise KimiError("Kimi sign-in lock was lost; start Kimi and try again")
+
+  def renew():
+    while not stopped.wait(1):
+      try:
+        check()
+        os.utime(lock, None)
+      except (OSError, KimiError):
+        lost.set()
+        return
+
+  heartbeat = threading.Thread(target=renew, daemon=True)
+  heartbeat.start()
+  try:
+    yield check
+  finally:
+    stopped.set()
+    heartbeat.join()
+    if lock.is_dir() and lock.stat().st_ino == owner:
+      lock.rmdir()
+
+
+def refresh_credentials(auth: dict[str, str] | None = None) -> dict[str, Any]:
+  with refresh_lock() as check:
+    credentials = read_credentials()
+    previous_key = str(credentials.get("access_token") or "")
+    if auth is not None:
+      auth["key"] = previous_key
+    if token_fresh(credentials):
+      return credentials
+    refresh_token = str(credentials.get("refresh_token") or "")
+    if not refresh_token:
+      raise KimiError("Kimi sign-in expired; sign in again with `kimi login`", refused=True)
+    granted = request_refresh(refresh_token)
+    check()
+    latest = read_credentials()
+    if latest != credentials:
+      if auth is not None:
+        auth["key"] = str(latest.get("access_token") or "")
+      if token_fresh(latest):
+        return latest
+      raise KimiError("Kimi sign-in changed during refresh; try again")
+    credentials.update(
+      {
+        "access_token": str(granted["access_token"]),
+        "refresh_token": str(granted.get("refresh_token") or refresh_token),
+        "expires_at": time.time() + float(granted.get("expires_in") or 0),
+        "expires_in": float(granted.get("expires_in") or 0),
+        "scope": str(granted.get("scope") or credentials.get("scope") or ""),
+        "token_type": str(granted.get("token_type") or "Bearer"),
+      }
+    )
+    write_credentials(credentials)
+    if auth is not None:
+      auth.update(previous_key=previous_key, key=str(credentials["access_token"]))
+    return credentials
+
+
+def api_key(auth: dict[str, str] | None = None) -> str:
+  key = os.environ.get("KIMI_API_KEY", "").strip()
+  if key:
+    if auth is not None:
+      auth["key"] = key
+    return key
+  credentials = read_credentials()
+  if auth is not None:
+    auth["key"] = str(credentials.get("access_token") or "")
+  if not credentials.get("access_token"):
+    raise KimiError(AUTH_HELP, missing=True)
+  if not token_fresh(credentials):
+    credentials = refresh_credentials(auth)
+  return str(credentials.get("access_token") or "")
+
+
+# -------------------------------------------------------------------- quota
+
+
+def quota(key: str) -> dict[str, Any]:
+  url, trusted = trusted_url(USAGE_URL)
+  headers = {"Accept": "application/json"}
+  if trusted:
+    headers["Authorization"] = "Bearer " + key
+  request = urllib.request.Request(url, headers=headers)
+  try:
+    decoded = open_json(request, timeout=15)
+  except HttpError as error:
+    if error.status in (401, 403):
+      remedy = "Update or unset KIMI_API_KEY." if os.environ.get("KIMI_API_KEY", "").strip() else "Sign in again with `kimi login`."
+      raise KimiError("Kimi rejected the credentials. " + remedy, refused=True) from error
+    if error.status == 404:
+      raise KimiError("Kimi usage endpoint not available. Try Kimi for Coding.") from error
+    if error.status:
+      raise KimiError(f"Kimi API returned HTTP {error.status}") from error
+    if error.transport:
+      raise KimiError("Could not reach the Kimi API", retry=True) from error
+    raise KimiError("Kimi returned an invalid usage response") from error
+  if not isinstance(decoded, dict):
+    raise KimiError("Kimi returned an empty usage response")
+  # A reply naming none of the quota shapes isn't an answer, so it fails the
+  # check rather than replacing the kept limits with none.
+  if not any(key in decoded for key in ("usages", "usage", "limits")):
+    raise KimiError("Kimi returned an invalid usage response")
+  return decoded
+
+
+def to_int(value: Any) -> int | None:
+  try:
+    return int(value)
+  except (OverflowError, TypeError, ValueError):
+    return None
+
+
+def reset_at(detail: dict[str, Any]) -> str:
+  for key in ("reset_at", "resetAt", "reset_time", "resetTime"):
+    raw = str(detail.get(key) or "").strip()
+    if not raw:
+      continue
+    # A time that won't parse names no reset, rather than passing through as
+    # one the panel can't read.
+    if raw.isdigit():
+      try:
+        stamp = int(raw)
+        if stamp < 1_000_000_000_000:
+          stamp *= 1000
+        return datetime.fromtimestamp(stamp / 1000, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+      except (OverflowError, OSError, ValueError):
+        return ""
+    # Kimi stamps carry nanosecond fractions Python cannot parse; trim them.
+    normalized = raw.replace("Z", "+00:00")
+    if "." in normalized:
+      head, tail = normalized.split(".", 1)
+      digits = ""
+      for character in tail:
+        if not character.isdigit():
+          break
+        digits += character
+      tail = digits[:6] + tail[len(digits) :]
+      normalized = head + "." + tail
+    try:
+      return datetime.fromisoformat(normalized).isoformat().replace("+00:00", "Z")
+    except ValueError:
+      return ""
+  return ""
+
+
+def window_label(item: dict[str, Any], detail: dict[str, Any], window: dict[str, Any], index: int) -> str:
+  for key in ("name", "title", "scope"):
+    value = item.get(key) or detail.get(key)
+    if value:
+      return str(value)
+  duration = to_int(window.get("duration") or item.get("duration") or detail.get("duration"))
+  unit = str(window.get("timeUnit") or item.get("timeUnit") or detail.get("timeUnit") or "")
+  if duration:
+    if "MINUTE" in unit.upper():
+      return "Session (5-hour)" if duration == 300 else f"{duration}m limit"
+    if "HOUR" in unit.upper():
+      return f"{duration}h limit"
+    if "DAY" in unit.upper():
+      return "Weekly (7-day)" if duration == 7 else f"{duration}d limit"
+    return f"{duration} limit"
+  return f"Limit #{index + 1}"
+
+
+def limit_row(detail: dict[str, Any], default_label: str) -> dict[str, Any] | None:
+  limit = to_int(detail.get("limit"))
+  used = to_int(detail.get("used"))
+  if used is None and limit is not None:
+    remaining = to_int(detail.get("remaining"))
+    if remaining is not None:
+      used = limit - remaining
+  if not limit or limit <= 0 or used is None:
+    return None
+  label = str(detail.get("name") or detail.get("title") or default_label)
+  percent = min(1.0, max(0.0, used / limit))
+  return {"label": label, "percent": percent, "resetsAt": reset_at(detail)}
+
+
+def to_limits(data: dict[str, Any]) -> list[dict[str, Any]]:
+  limits = []
+  usages = data.get("usages")
+  if isinstance(usages, dict):
+    for key, label in (("limit_5h", "Session (5-hour)"), ("limit_7d", "Weekly limit"),
+                       ("limit_month_total", "Monthly total"), ("limit_month_code", "Monthly code")):
+      detail = usages.get(key)
+      if not isinstance(detail, dict):
+        continue
+      try:
+        ratio = float(detail.get("used_ratio"))
+      except (TypeError, ValueError):
+        continue
+      if math.isfinite(ratio):
+        row = {"label": label, "percent": min(1.0, max(0.0, ratio)), "resetsAt": reset_at(detail)}
+        if key == "limit_month_code":
+          row["title"] = "Code Monthly"
+        limits.append(row)
+    return limits
+  usage = data.get("usage")
+  if isinstance(usage, dict):
+    row = limit_row(usage, "Weekly limit")
+    if row:
+      limits.append(row)
+  entries = data.get("limits")
+  if isinstance(entries, list):
+    for index, entry in enumerate(entries):
+      if not isinstance(entry, dict):
+        continue
+      detail = entry.get("detail") if isinstance(entry.get("detail"), dict) else entry
+      window = entry.get("window") if isinstance(entry.get("window"), dict) else {}
+      row = limit_row(detail, window_label(entry, detail, window, index))
+      if row:
+        limits.append(row)
+  return limits
+
+
+# -------------------------------------------------------------- local stats
+
+
+# Kimi Code's home, as resolveKimiHome finds it.
+def code_home() -> Path:
+  if home := os.environ.get("KIMI_CODE_HOME"):
+    return Path(home).expanduser()
+  return Path.home() / ".kimi-code"
+
+
+# Kimi as pi, omp and opencode name it: the Kimi Code plan (pi's own
+# `kimi-coding` provider and omp's `kimi-code`, both api.kimi.com/coding/v1,
+# and models.dev's `kimi-code-plan-global` and `kimi-code-plan-cn`), and
+# Moonshot's pay-as-you-go API (pi's and opencode's `moonshotai` and
+# `moonshotai-cn`, omp's `moonshot`), which these limits don't meter but
+# which counts here, as Claude Code's turns to Moonshot do. Exact ids.
+PROVIDERS = ("kimi-coding", "kimi-code", "kimi-code-plan-global", "kimi-code-plan-cn", "moonshotai", "moonshotai-cn", "moonshot")
+
+
+def billed_here(provider: str, model: str, entry: dict) -> bool:
+  return provider in PROVIDERS
+
+
+# Kimi Code logs each agent of a session, subagents included, to its own
+# append-only sessions/<workspace>/<session>/agents/<agent>/wire.jsonl: a
+# usage.record for every model request it made, compactions included, the
+# input its user gave (turn.prompt, or turn.steer into a running turn), the
+# model alias an agent is bound to (profile.bind) and each request is sent on
+# (llm.request), answered or not, and, at the end of a fork's copy of its
+# source's records, a forked marker.
+WIRE_TYPES = (b'"usage.record"', b'"turn.prompt"', b'"turn.steer"', b'"forked"', b'"profile.bind"', b'"llm.request"')
+USAGE_FIELDS = ("inputOther", "output", "inputCacheRead", "inputCacheCreation")
+
+
+# What someone typed, as Kimi Code's isUserVisibleTurnInputRecord reads it,
+# less a shell command, which asks the model nothing.
+def typed(origin: dict[str, Any]) -> bool:
+  kind = origin.get("kind")
+  return kind == "user" or kind in ("skill_activation", "plugin_command") and origin.get("trigger") == "user-slash"
+
+
+def read_wire(path: Path) -> tuple[bool, list[tuple]]:
+  """Whether a wire.jsonl is a fork's, and its rows: ("u", key, day, model,
+  counts) for a request's usage, ("p", key, day) for a typed input, and
+  ("b", alias) and ("r", alias) for an alias bound and a request sent on
+  it. A usage or input row whose time can't be trusted is skipped."""
+  forked, rows = False, []
+  with path.open("rb") as handle:
+    for raw in handle:
+      if not any(marker in raw for marker in WIRE_TYPES):
+        continue
+      try:
+        record = json.loads(raw)
+      except (ValueError, RecursionError):
+        continue
+      if not isinstance(record, dict):
+        continue
+      kind, time_ms = record.get("type"), record.get("time")
+      if kind == "forked":
+        forked = True
+        continue
+      alias = record.get("modelAlias")
+      if kind in ("profile.bind", "llm.request") and isinstance(alias, str) and alias.strip():
+        rows.append(("b" if kind == "profile.bind" else "r", alias.strip()))
+        continue
+      day = local_day(time_ms) if isinstance(time_ms, (int, float)) else None
+      if day is None:
+        continue
+      if kind == "usage.record":
+        model = record.get("model")
+        usage = obj(record.get("usage"))
+        counts = tuple(token_count(usage.get(field)) for field in USAGE_FIELDS)
+        if isinstance(model, str) and model.strip() and sum(counts) > 0:
+          # A fork copies its source's records as they were, so a record's
+          # agent, time, model and counts together name it.
+          rows.append(("u", (str(record.get("agentId")), time_ms, model, counts), day, model.strip(), counts))
+      elif kind in ("turn.prompt", "turn.steer") and typed(obj(record.get("origin"))):
+        key = record.get("promptId" if kind == "turn.prompt" else "messageId")
+        if not isinstance(key, str) or not key:
+          key = (str(record.get("agentId")), time_ms)
+        rows.append(("p", (kind, key), day))
+  return forked, rows
+
+
+# A usage.record names the model alias it ran on, and config.toml says where
+# that alias goes: its [models.<alias>] provider, whose type and base_url
+# (else the *_BASE_URL in the provider's env table) name the endpoint, unless
+# the model carries a base_url of its own. A provider with no base_url is its
+# type's official endpoint: Kimi's for a `kimi` one, no collector's for
+# Anthropic's, OpenAI's or Google's.
+def code_routes() -> dict[str, tuple[str, str, str]]:
+  """model alias -> (provider type, base URL, model id), from Kimi Code's
+  config.toml."""
+  try:
+    with (code_home() / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+    return {}
+  providers, models = obj(config.get("providers")), obj(config.get("models"))
+  routes = {}
+  for alias, model in models.items():
+    model = obj(model)
+    provider = obj(providers.get(str(model.get("provider") or "")))
+    env = obj(provider.get("env"))
+    url = model.get("base_url") if model.get("protocol") else None
+    url = url or provider.get("base_url") or next((value for key, value in env.items() if str(key).endswith("_BASE_URL")), "")
+    routes[str(alias)] = (str(provider.get("type") or ""), str(url or "").strip(), str(model.get("model") or alias))
+  return routes
+
+
+# The prefix of the aliases /login provisions for the Kimi Code plan
+# (managedModelKey).
+MANAGED_PREFIX = "kimi-code/"
+
+
+def route_owner(alias: str, routes: dict[str, tuple[str, str, str]]) -> str | None:
+  """The collector that bills a request on `alias`, or None for one nothing
+  here can place. A base URL is read the way every collector reads Claude
+  Code's (claude_code_owner): a provider's host is that provider's, and a
+  server you run is local's, unless the model is a Claude or an Ollama cloud
+  one it only forwards. Kimi Code sends nothing on an alias config.toml
+  doesn't name, so one missing from it is either Kimi's own, the alias
+  KIMI_MODEL_NAME makes up for a run (no provider prefix) or one of the
+  plan's `kimi-code/` models /logout or a catalog refresh dropped, or a
+  provider's since removed, which nothing here can place."""
+  if alias not in routes:
+    return AGENT_ID if "/" not in alias or alias.startswith(MANAGED_PREFIX) else None
+  kind, url, model = routes[alias]
+  if url:
+    return claude_code_owner(model, url)
+  return AGENT_ID if kind == "kimi" else None
+
+
+def harness_sources() -> list[Path]:
+  return [code_home()]
+
+
+def harness_match() -> dict[str, str]:
+  """What harness_rows() decided owners under, for cached_scan(match=...):
+  config.toml's routes, so a scan made before a route changed never stands in
+  for one after it, in this collector or in local."""
+  routes = json.dumps(sorted(code_routes().items()))
+  return {"kimiCodeRoutes": hashlib.sha256(routes.encode("utf-8", "surrogatepass")).hexdigest()[:16]}
+
+
+def harness_rows(owner: str) -> tuple[list[UsageRow], bool]:
+  """Kimi Code's usage that `owner` bills, each request counted once though
+  forks copy them, with each typed prompt as a row of its own billed with the
+  next request sent for it, answered or not, else with the alias its agent
+  was bound to, and whether every session was read. A prompt in a log that
+  names neither, from before Kimi Code recorded them, is Kimi Code's own."""
+  routes = code_routes()
+  complete = True
+  wires = []
+  for path in sorted((code_home() / "sessions").glob("*/*/agents/*/wire.jsonl")):
+    try:
+      forked, rows = read_wire(path)
+    except OSError as exc:
+      warn(f"skipping {path}: {type(exc).__name__}")
+      complete = False
+      continue
+    wires.append((forked, path, rows))
+  # A source's rows go to the source's session, not to a fork read first.
+  wires.sort(key=lambda wire: wire[0])
+  seen = set()
+  found = []
+  for _, path, rows in wires:
+    session = path.parents[2].name
+    bound, unanswered = AGENT_ID, []
+    for row in rows:
+      if row[0] == "b":
+        bound = route_owner(row[1], routes)
+      unanswered.append(bound)
+    requested, answered = False, None
+    owners = []
+    for row, fallback in zip(reversed(rows), reversed(unanswered)):
+      if row[0] in ("u", "r"):
+        requested, answered = True, route_owner(row[3] if row[0] == "u" else row[1], routes)
+      owners.append(answered if requested else fallback)
+    for row, billed in zip(rows, reversed(owners)):
+      if row[0] not in ("u", "p") or (row[0], row[1]) in seen:
+        continue
+      seen.add((row[0], row[1]))
+      if billed != owner:
+        continue
+      if row[0] == "u":
+        found.append(UsageRow(row[2], session, "", row[3], *row[4], prompts=0))
+      else:
+        found.append(UsageRow(row[2], session, "", "", 0, 0, 0, 0))
+  return found, complete
+
+
+def scan(reuse: bool = True) -> tuple[dict[str, Any], bool]:
+  """Kimi Code's usage and typed prompts on Kimi's routes, pi, omp and
+  opencode sessions on the Kimi Code plan, Claude Code's turns on Kimi
+  (pointed at Kimi's or Moonshot's API, or answered by a Kimi model) and
+  MiniMax Code's custom providers at those hosts, and whether every session
+  was read."""
+  stats = Stats()
+  code_rows, complete = harness_rows(AGENT_ID)
+  for row in code_rows:
+    stats.add_row(row, row.model)
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"(' + "|".join(PROVIDERS) + r')"', billed_here)
+  # The database's prefilter matches every plan id.
+  db_rows, db_complete = scan_opencode(["kimi-cod", "moonshot"], billed_here)
+  for row in routed_rows + pi_rows + db_rows:
+    stats.add_row(row, row.model.rstrip("/").split("/")[-1] or AGENT_ID)
+  return stats.snapshot(), complete and routed_complete and pi_complete and db_complete
+
+
+# Keyed by the credential store, the endpoint, and the token, so another
+# sign-in or another Kimi service never shows this one's quota.
+def limits_cache(key: str) -> LimitsCache:
+  return LimitsCache(AGENT_ID, str(CREDENTIALS_PATH), USAGE_URL, key)
+
+
+def has_credential() -> bool:
+  return bool(os.environ.get("KIMI_API_KEY", "").strip() or read_credentials().get("access_token"))
+
+
+# Kimi counts as in use on this machine when it has a credential or a Kimi
+# home of its own, where Kimi Code keeps its sessions: a home without a
+# sign-in is waiting for one, while a machine with neither never ran Kimi.
+def in_use() -> bool:
+  if has_credential() or CREDENTIALS_PATH.exists():
+    return True
+  if home := os.environ.get("KIMI_CODE_HOME"):
+    return Path(home).expanduser().is_dir()
+  return (Path.home() / ".kimi-code").is_dir() or legacy_home().is_dir()
+
+
+def failure_record(error: Exception, cache: LimitsCache | None) -> dict[str, Any]:
+  # A kept window whose reset has passed comes back at zero, with no reset
+  # time until Kimi names the next one.
+  fallback, fetched_at = cache.kept() if cache else ([], 0)
+  help_text = str(error) if isinstance(error, KimiError) else "Kimi usage scan failed"
+  if isinstance(error, KimiError) and error.missing or not has_credential():
+    status, help_text = "Waiting for auth", AUTH_HELP
+  elif isinstance(error, KimiError) and error.refused:
+    status = "Sign-in expired"
+  elif fallback:
+    # A failed check that kept the last good limits isn't trouble to flag;
+    # limitsStale and the age on hover say the rest.
+    status = ""
+  else:
+    status = "Kimi limits unavailable"
+  record = base_record(
+    ready=True,
+    usageStatusText=status,
+    authHelpText=help_text,
+    limits=fallback,
+    limitsStale=bool(fallback),
+    limitsFetchedAt=fetched_at,
+  )
+  if isinstance(error, KimiError) and error.retry:
+    record["retryAdvised"] = True
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Kimi usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  # The digest covers Kimi Code's home, so another home never reuses this
+  # one's numbers, pi's and omp's session roots and opencode's database, and
+  # Claude Code's and MiniMax Code's sessions, whose owner depends on where
+  # they are sent, as Kimi Code's does on its routes.
+  sources = [code_home(), *pi_session_roots(), opencode_db(), *routed_sources()]
+  # A forced scan reads every Codex rollout again too.
+  max_age = scan_max_age(args.force, args.limits_only)
+  stats = cached_scan(AGENT_ID, sources, max_age, lambda: scan(reuse=max_age > 0), match={**routed_match(), **harness_match()})
+  if not in_use() and not stats.get("modelUsage") and not stats.get("totalPrompts"):
+    emit(base_record())
+    return 0
+
+  cache = None
+  auth = {}
+  try:
+    key = api_key(auth)
+    if not key:
+      raise KimiError(AUTH_HELP, missing=True)
+    cache = limits_cache(key)
+    if not cache.fetched_at and auth.get("previous_key"):
+      # A refresh just rotated the token: the last answer under the old one
+      # is still this account's, so it moves to the new key.
+      previous = limits_cache(auth["previous_key"])
+      if previous.fetched_at:
+        try:
+          write_json(cache.path, previous.data)
+        except OSError:
+          pass
+        cache.reload()
+    # A plan without windows is an answer too, and stands in like one.
+    if cache.fresh(args.force, allow_empty=True):
+      limits, fetched_at = cache.limits, cache.fetched_at
+    else:
+      limits = to_limits(quota(key))
+      fetched_at = cache.save(limits)
+    record = base_record(ready=True, limits=limits, limitsFetchedAt=fetched_at)
+  except Exception as error:
+    if (cache is None or not cache.fetched_at) and auth.get("key"):
+      cache = limits_cache(auth["key"])
+    record = failure_record(error, cache)
+  record.update(stats)
+  record["hasLocalStats"] = bool(stats.get("modelUsage") or stats.get("totalSessions"))
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

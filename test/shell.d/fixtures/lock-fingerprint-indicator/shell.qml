@@ -57,6 +57,19 @@ ShellRoot {
           return
         }
 
+        // Long passwords shrink the dots instead of clipping, and keep
+        // shrinking as they grow; the fit itself is checked below against
+        // the narrower width left beside the fingerprint icon.
+        view.passwordText = "x".repeat(6)
+        root.assertTrue(view.passwordDotScale === 1, "short passwords keep full-size dots, got scale " + view.passwordDotScale)
+
+        view.passwordText = "x".repeat(40)
+        var longScale = view.passwordDotScale
+        root.assertTrue(longScale > 0 && longScale < 1, "overflowing passwords shrink the dots, got scale " + longScale)
+
+        view.passwordText = "x".repeat(80)
+        root.assertTrue(view.passwordDotScale < longScale, "dots keep shrinking as the password grows, got " + view.passwordDotScale + " vs " + longScale)
+
         var indicator = view.children ? findByObjectName(view, "fingerprintIndicator") : null
         root.assertTrue(indicator !== null, "fingerprint indicator exists in the lock view")
 
@@ -84,6 +97,27 @@ ShellRoot {
 
           view.fingerprintConfigured = false
           root.assertTrue(view.fingerprintReserve === 0, "no space is reserved when no sensor is configured")
+
+          // An unreachable reader must announce itself instead of silently
+          // inviting touches that can never unlock.
+          view.fingerprintConfigured = true
+          var notice = findByObjectName(view, "fingerprintUnavailableNotice")
+          root.assertTrue(notice !== null, "unavailable notice exists in the lock view")
+
+          if (notice) {
+            var workingGlyph = indicator.text
+            root.assertTrue(!notice.visible, "notice stays hidden while the reader works")
+
+            view.fingerprintUnavailable = true
+            root.assertTrue(notice.visible, "notice appears when the reader is unavailable")
+            root.assertTrue(indicator.visible, "icon stays visible when the reader is unavailable")
+            root.assertTrue(indicator.text !== workingGlyph, "icon crosses out when the reader is unavailable")
+            root.assertTrue(view.fingerprintReserve > 0, "space stays reserved for the crossed-out icon")
+
+            view.fingerprintUnavailable = false
+            root.assertTrue(!notice.visible, "notice clears when the reader recovers")
+            root.assertTrue(indicator.text === workingGlyph, "icon restores when the reader recovers")
+          }
         }
 
         view.destroy()
