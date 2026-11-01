@@ -6,6 +6,53 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 /usr/bin/python "$ROOT/test/shell.d/fixtures/slack-pipe.py"
 
+# Slack's module runtime with or without the actions theme.js looks for: each
+# look over the exports is counted, and the clock and DOM observer are ours.
+run_node_test <<'JS'
+const vm = require('vm')
+const fs = require('fs')
+const source = fs.readFileSync(path.join(root, 'default/slack/theme.js'), 'utf8')
+
+function slack(withActions) {
+  const sandbox = { looks: 0, now: 0, dispatched: [], observing: false }
+  const store = { dispatch: action => sandbox.dispatched.push(action) }
+  const exports = withActions ? {
+    a: Object.assign(() => ({ T1: store }), { meta: { key: 'getStoreInstanceMap' } }),
+    b: Object.assign(() => store, { meta: { key: 'tryGetClientStoreInstance' } }),
+    c: Object.assign(action => ({ pref: action }), { meta: { key: 'createActionSetUserPref' } }),
+    d: Object.assign(scheme => ({ mode: scheme }), { meta: { key: 'createActionSetClientThemeInternal' } })
+  } : { a: () => {} }
+  const runtime = { c: { module: { get exports() { sandbox.looks++; return exports } } } }
+  sandbox.window = { rspackChunkGantryV2: { push: chunk => chunk[2](runtime) } }
+  sandbox.document = {}
+  sandbox.Date = { now: () => sandbox.now }
+  sandbox.MutationObserver = class {
+    constructor(callback) { sandbox.mutate = callback }
+    observe() { sandbox.observing = true }
+    disconnect() { sandbox.observing = false }
+  }
+  vm.createContext(sandbox)
+  sandbox.theme = vm.runInContext(source, sandbox)
+  return sandbox
+}
+
+const colors = { mode: 'dark', background: '#111111', accent: '#222222', green: '#333333', red: '#444444' }
+
+const unknown = slack(false)
+unknown.theme(colors)
+for (let i = 0; i < 100; i++) unknown.mutate()
+assertEqual(unknown.looks, 1, 'a Slack build without the actions is searched at most once a second')
+unknown.now = 61000
+unknown.mutate()
+assert(!unknown.observing, 'theme.js stops watching a Slack build without the actions after a minute')
+
+const known = slack(true)
+known.theme(colors)
+known.theme({ ...colors, mode: 'light', background: '#eeeeee' })
+assertEqual(known.looks, 1, 'theme changes reuse the actions found on the first look')
+assertEqual(known.dispatched.at(-3).pref.value.primary.custom, '#eeeeee', 'a theme change dispatches its own colors')
+JS
+
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 export HOME="$scratch"

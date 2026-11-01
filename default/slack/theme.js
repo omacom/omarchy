@@ -6,13 +6,27 @@
       window.rspackChunkGantryV2.push([["omarchy-theme"], {}, runtime => { state.runtime = runtime; }]);
     }
     if (!state.runtime) return;
-    const values = Object.values(state.runtime.c).flatMap(module => Object.values(module.exports || {}));
-    const find = key => values.find(value => typeof value === "function" && (value.meta?.key === key || value.name === key));
-    const stores = find("getStoreInstanceMap")?.();
-    const client = find("tryGetClientStoreInstance")?.();
-    const preference = find("createActionSetUserPref");
-    const mode = find("createActionSetClientThemeInternal");
-    if (!stores || !Object.keys(stores).length || !client || !preference || !mode) return;
+    if (!state.actions) {
+      // A look walks every export of Slack's ~13,000 modules, about 20 ms, and
+      // the observer calls this on each DOM change. Look at most once a second,
+      // and give up after a minute on a Slack build whose actions have moved.
+      const now = Date.now();
+      if (state.lookedAt !== undefined && now - state.lookedAt < 1000) return;
+      state.lookedAt = now;
+      state.firstLook ??= now;
+      const values = Object.values(state.runtime.c).flatMap(module => Object.values(module.exports || {}));
+      const find = key => values.find(value => typeof value === "function" && (value.meta?.key === key || value.name === key));
+      const actions = ["getStoreInstanceMap", "tryGetClientStoreInstance", "createActionSetUserPref", "createActionSetClientThemeInternal"].map(find);
+      if (actions.includes(undefined)) {
+        if (now - state.firstLook > 60000) state.observer?.disconnect();
+        return;
+      }
+      state.actions = actions;
+    }
+    const [storeMap, clientStore, preference, mode] = state.actions;
+    const stores = storeMap();
+    const client = clientStore();
+    if (!stores || !Object.keys(stores).length || !client) return;
     const { background, accent, green, red, mode: scheme } = state.colors;
     const color = hex => ({ palette: "gray", custom: hex });
     const theme = {
