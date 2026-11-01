@@ -10,12 +10,12 @@ toggle="$HOME/.local/state/omarchy/toggles/background-intros-off"
 case ${1:-} in
   enable)
     rm -f "$toggle"
-    omarchy-notification-send "Background Intros" "Enabled"
+    omarchy-notification-send "$(omarchy-i18n theme.backgroundIntros)" "$(omarchy-i18n common.enabled)"
     ;;
   disable)
     mkdir -p "$(dirname "$toggle")"
     touch "$toggle"
-    omarchy-notification-send "Background Intros" "Disabled"
+    omarchy-notification-send "$(omarchy-i18n theme.backgroundIntros)" "$(omarchy-i18n common.disabled)"
     ;;
   toggle)
     if [[ -f $toggle ]]; then
