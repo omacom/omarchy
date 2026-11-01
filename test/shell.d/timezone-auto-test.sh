@@ -222,7 +222,7 @@ pass "undo pins the old zone to this network without further lookups"
 
 reset_world
 : >"$STUB/in-use"
-run omarchy-timezone-set --detected wifi America/Chicago
+run omarchy-timezone-set --detected wifi --expect America/New_York America/Chicago
 run omarchy-timezone-set --undo America/New_York
 run omarchy-timezone-watch --check >/dev/null
 run omarchy-timezone-watch --check >/dev/null
@@ -265,6 +265,37 @@ rm "$STUB/beacon-status"
 [[ $(run omarchy-timezone-watch --check) == "done" ]] || fail "the retry confirms and finishes"
 [[ $(cat "$STUB/zone") == "America/Chicago" ]] || fail "the retry is the confirming reading"
 pass "a failed lookup is retried and still counts toward confirmation"
+
+# The user picks a zone while a detected change is on its way in: after the
+# watcher has read its candidate, before omarchy-timezone-set takes the lock.
+# The stale detection must not land on top of that choice. Twice: on Wi-Fi,
+# where the network now remembers the pick, and on Ethernet, where only the
+# clock having moved can tell.
+cat >"$stubs/flock" <<SH
+#!/bin/bash
+if [[ -f \$STUB/race-on-lock ]] && tr '\\0' ' ' </proc/\$PPID/cmdline | grep -q -- "--detected"; then
+  rm -f "\$STUB/race-on-lock"
+  PATH="$stubs:$ROOT/bin:\$PATH" OMARCHY_PATH="$ROOT" omarchy-timezone-set Europe/Paris >/dev/null
+fi
+exec /usr/bin/flock "\$@"
+SH
+chmod +x "$stubs/flock"
+
+race_manual_pick() {
+  run omarchy-timezone-watch --check >/dev/null
+  touch "$STUB/race-on-lock"
+  run omarchy-timezone-watch --check >/dev/null
+  [[ ! -f $STUB/race-on-lock ]] || fail "the race was staged ($1)"
+  [[ $(cat "$STUB/zone") == "Europe/Paris" ]] || fail "a pick made during a detected change is not overwritten by it ($1)" "$(cat "$STUB/zone")"
+}
+
+reset_world
+race_manual_pick wifi
+[[ $(cat "$state/networks/001a2b3c4d5e") == "Europe/Paris" ]] || fail "a pick made during a detected change stays remembered for the network"
+reset_world
+: >"$STUB/in-use"
+race_manual_pick ethernet
+pass "a manual pick made during a detected change wins over the stale detection"
 
 # --- toggle -------------------------------------------------------------------
 

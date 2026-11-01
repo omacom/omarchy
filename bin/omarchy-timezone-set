@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the system timezone and remember it for the current Wi-Fi network
-# omarchy:args=[--detected <wifi|ip|network> | --undo] <zone>
+# omarchy:args=[--detected <wifi|ip|network> --expect <zone> | --undo] <zone>
 # omarchy:hidden=true
 
 # The one place the clock is moved from, by hand (the timezone menu), by the
@@ -14,6 +14,12 @@
 # (etc/sudoers.d/omarchy-tzupdate) with sudo -n: none of the callers has a
 # terminal to type a password into, so a missing rule fails instead of
 # waiting on a prompt nobody can see.
+#
+# Everything here runs under a lock on the state directory, which the watcher
+# also takes for its own writes. A detection takes seconds to look up, so the
+# user can pick a zone while one is in flight; --expect names the zone the
+# watcher's check started from, and the detected change is dropped when the
+# clock has moved since or this network now remembers something else.
 
 set -uo pipefail
 
@@ -23,17 +29,20 @@ readonly STATE_DIR="$HOME/.local/state/omarchy/timezone"
 readonly GLOBE_GLYPH=$'\ueb01'
 
 usage() {
-  echo "Usage: omarchy-timezone-set [--detected <wifi|ip|network> | --undo] <zone>" >&2
+  echo "Usage: omarchy-timezone-set [--detected <wifi|ip|network> --expect <zone> | --undo] <zone>" >&2
   exit 1
 }
 
 detected=
+expect=
 undo=0
 case ${1:-} in
   --detected)
     detected=${2:-}
     [[ $detected == "wifi" || $detected == "ip" || $detected == "network" ]] || usage
-    shift 2
+    [[ ${3:-} == "--expect" && -n ${4:-} ]] || usage
+    expect=$4
+    shift 4
     ;;
   --undo)
     undo=1
@@ -48,7 +57,20 @@ if [[ ! $zone =~ ^[A-Za-z0-9_+][A-Za-z0-9_+.-]*(/[A-Za-z0-9_+][A-Za-z0-9_+.-]*)*
   exit 1
 fi
 
+mkdir -p "$STATE_DIR/networks"
+exec {lock}>"$STATE_DIR/lock"
+flock "$lock"
+
 previous=$(timedatectl show --property=Timezone --value 2>/dev/null)
+network=$(omarchy-timezone-detect --network) || network=
+
+if [[ -n $detected ]]; then
+  # A newer choice, by hand or by Undo, won while the lookup was in flight.
+  [[ $previous == "$expect" ]] || exit 0
+  if [[ -n $network && -f $STATE_DIR/networks/$network ]]; then
+    [[ $(head -n 1 "$STATE_DIR/networks/$network") == "$zone" ]] || exit 0
+  fi
+fi
 
 if [[ $zone != "$previous" ]]; then
   if ! sudo -n timedatectl set-timezone "$zone"; then
@@ -58,12 +80,8 @@ if [[ $zone != "$previous" ]]; then
   omarchy-shell -q omarchy.clock refresh >/dev/null 2>&1 || true
 fi
 
-mkdir -p "$STATE_DIR/networks"
 rm -f "$STATE_DIR/candidate"
-
-if network=$(omarchy-timezone-detect --network); then
-  printf '%s\n' "$zone" >"$STATE_DIR/networks/$network"
-fi
+[[ -n $network ]] && printf '%s\n' "$zone" >"$STATE_DIR/networks/$network"
 
 if ((undo)); then
   # Off any remembered network (Ethernet, a hotspot) there is nowhere to pin

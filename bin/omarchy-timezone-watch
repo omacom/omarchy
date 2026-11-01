@@ -43,6 +43,32 @@ read_state() {
   [[ -f $STATE_DIR/$1 ]] && head -n 1 "$STATE_DIR/$1"
 }
 
+# Runs a command under the lock omarchy-timezone-set holds, so what a check
+# writes after its lookup can't land on top of a choice made meanwhile. Never
+# held across a lookup, so a pick from the menu doesn't wait on the network.
+locked() {
+  local lock status
+  exec {lock}>"$STATE_DIR/lock"
+  flock "$lock"
+  "$@"
+  status=$?
+  exec {lock}>&-
+  return "$status"
+}
+
+# Both only write while the clock still shows what the check started from.
+learn_network() {
+  local network=$1 zone=$2
+  [[ $(timedatectl show --property=Timezone --value 2>/dev/null) == "$zone" ]] || return 0
+  [[ -f $STATE_DIR/networks/$network ]] || printf '%s\n' "$zone" >"$STATE_DIR/networks/$network"
+}
+
+hold_candidate() {
+  local zone=$1 current=$2
+  [[ $(timedatectl show --property=Timezone --value 2>/dev/null) == "$current" ]] || return 1
+  printf '%s\n' "$zone" >"$STATE_DIR/candidate"
+}
+
 # Returns 0 when a confirming check is due, 2 when the lookup failed and is
 # worth retrying, and 1 when there is nothing more to do.
 check() {
@@ -55,7 +81,7 @@ check() {
     known=$(read_state "networks/$network")
     if [[ -n $known ]]; then
       rm -f "$STATE_DIR/candidate"
-      [[ $known == "$current" ]] || omarchy-timezone-set --detected network "$known"
+      [[ $known == "$current" ]] || omarchy-timezone-set --detected network --expect "$current" "$known"
       return 1
     fi
   fi
@@ -73,7 +99,7 @@ check() {
 
   if [[ $zone == "$current" ]]; then
     rm -f "$STATE_DIR/candidate" "$STATE_DIR/declined"
-    [[ -n $network ]] && printf '%s\n' "$zone" >"$STATE_DIR/networks/$network"
+    [[ -n $network ]] && locked learn_network "$network" "$zone"
     return 1
   fi
 
@@ -84,12 +110,11 @@ check() {
 
   candidate=$(read_state candidate)
   if [[ $candidate == "$zone" ]]; then
-    omarchy-timezone-set --detected "$source" "$zone"
+    omarchy-timezone-set --detected "$source" --expect "$current" "$zone"
     return 1
   fi
 
-  printf '%s\n' "$zone" >"$STATE_DIR/candidate"
-  return 0
+  locked hold_candidate "$zone" "$current"
 }
 
 watch_events() {
