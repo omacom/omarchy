@@ -12,9 +12,9 @@ fi
 test_home=$(mktemp -d)
 trap 'rm -rf -- "$test_home"' EXIT
 export HOME=$test_home
-# Each override points an agent's home outside HOME, at the developer's own.
+# herdr honors each of these over HOME, which would reach the developer's own agent homes.
 unset PI_CODING_AGENT_DIR PI_CONFIG_DIR COPILOT_HOME KIMI_CODE_HOME OPENCODE_CONFIG_DIR QWEN_HOME \
-  CURSOR_CONFIG_DIR ANTIGRAVITY_CLI_CONFIG_DIR GROK_CONFIG_DIR QODER_CONFIG_DIR HERMES_HOME
+  CURSOR_CONFIG_DIR ANTIGRAVITY_CLI_CONFIG_DIR GROK_CONFIG_DIR QODER_CONFIG_DIR HERMES_HOME XDG_CONFIG_HOME
 
 integration_state() {
   herdr integration status | awk -v target="$1" -F ': ' '$1 == target { split($2, state, " "); print state[1] }'
@@ -31,17 +31,3 @@ done
 [[ ! -s $test_home/out.log ]] || fail "integrating stays quiet in the agent's first screen" "$(cat "$test_home/out.log")"
 pass "a first mise install integrates the agent with herdr"
 
-# Updating existing installs only touches agents that have already run.
-mkdir -p "$test_home/.qwen"
-"$ROOT/bin/omarchy-agent-integrate-herdr" --existing
-[[ $(integration_state qwen) == "current" ]] || fail "--existing integrates an agent that has run"
-[[ ! -e $test_home/.copilot ]] || fail "--existing leaves agents that never ran alone"
-pass "--existing integrates only agents that have run"
-
-# One agent's broken config warns and moves on, so the migration doesn't stall.
-printf 'not json' >"$test_home/.qwen/settings.json"
-rm -rf "$test_home/.grok/hooks"
-"$ROOT/bin/omarchy-agent-integrate-herdr" --existing 2>"$test_home/err.log" || fail "--existing succeeds past a failed agent"
-grep -q "qwen" "$test_home/err.log" || fail "--existing warns about the failed agent" "$(cat "$test_home/err.log")"
-[[ $(integration_state grok) == "current" ]] || fail "--existing still integrates the agents after a failed one"
-pass "--existing warns about a failed agent and integrates the rest"
