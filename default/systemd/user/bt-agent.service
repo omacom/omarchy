@@ -16,15 +16,15 @@ Type=simple
 # Wait for bluetoothd inside ExecStart (not ExecCondition / ExecStartPre).
 # ExecCondition skip is terminal for the session across a bluez race.
 # ExecStartPre would hold graphical-session.target for the whole wait.
-# A single long-lived wait shell avoids a restart storm when bluetoothd
-# is off while /sys/class/bluetooth still exists; Restart=on-failure still
-# recovers after mid-session bluez restarts because bt-agent exits 1 when
-# released.
+# gdbus blocks until bluetoothd claims org.bluez (bluetooth.service is
+# Type=dbus, so that is when it goes active), with no restart storm or
+# polling while bluetoothd is off; Restart=on-failure still recovers after
+# mid-session bluez restarts because bt-agent exits 1 when released.
 # NoInputNoOutput auto-accepts pair requests. Safe because the adapter
 # is only `pairable: true` when the user explicitly opens the omarchy
 # bluetoothPanel and starts scanning; outside that window bluez refuses
 # inbound pair attempts at a lower layer.
-ExecStart=/usr/bin/bash -c 'until systemctl is-active --quiet bluetooth.service; do sleep 2; done; exec /usr/bin/bt-agent -c NoInputNoOutput'
+ExecStart=/usr/bin/bash -c '/usr/bin/gdbus wait --system org.bluez && exec /usr/bin/bt-agent -c NoInputNoOutput'
 Restart=on-failure
 RestartSec=2
 
