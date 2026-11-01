@@ -51,6 +51,12 @@ function isMullvadPeer(peer) {
   return isMullvadHost(dnsName) || isMullvadHost(hostName)
 }
 
+// Funnel relays and machines of users we've shared with sit in the netmap only
+// so they can reach us — tailscale status hides them, so the panel does too.
+function isShareeNode(peer) {
+  return peer && peer.ShareeNode === true
+}
+
 function osIcon(os) {
   var value = String(os || "").toLowerCase()
   if (value === "linux") return "󰌽"
@@ -241,6 +247,7 @@ function parseStatus(raw, tr) {
 
     for (var id in rawPeers) {
       var peer = rawPeers[id] || {}
+      if (isShareeNode(peer)) continue
       var normalized = peerFromStatus(id, peer, tr)
       if (normalized.Mullvad) continue
       if (normalized.Online) {
@@ -321,6 +328,7 @@ if (typeof module !== "undefined") {
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,
+    isShareeNode: isShareeNode,
     peerFromStatus: peerFromStatus,
     parseExitNodeList: parseExitNodeList,
     mullvadRegionOptions: mullvadRegionOptions,
