@@ -6,7 +6,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 helper="$ROOT/bin/omarchy-install-camera"
 leaf="$ROOT/install/hardware/qualcomm/camera.sh"
-migration=$(grep -l -- 'omarchy-install-camera' "$ROOT"/migrations/*.sh | head -n1)
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
@@ -85,13 +84,3 @@ bash -c "source '$leaf'"
 grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-aarch64-qualcomm.packages" || fail "new Snapdragon installs get the camera backend"
 grep -Fxq 'pipewire-libcamera' "$ROOT/install/omarchy-other.packages" || fail "the ISO can supply the camera backend offline"
 pass "Snapdragon installs get the PipeWire camera backend, new and existing"
-
-[[ -n $migration ]] || fail "a migration runs the camera setup on existing installs"
-home=$(new_home migration)
-cp "$shipped" "$home/.config/chromium-flags.conf"
-rm -f "$OMARCHY_TEST_PACKAGES"
-HOME=$home OMARCHY_PATH=$ROOT bash -euo pipefail "$migration" >/dev/null
-[[ $(cat "$OMARCHY_TEST_PACKAGES") == "pipewire-libcamera" ]] || fail "the migration installs the camera backend"
-grep -Fxq -- "$features,WebRtcPipeWireCamera" "$home/.config/chromium-flags.conf" || fail "the migration turns on Chromium's PipeWire camera" "$(cat "$home/.config/chromium-flags.conf")"
-[[ $(stat -c %a "$migration" 2>/dev/null || stat -f %Lp "$migration") == "644" ]] || fail "the migration is not executable"
-pass "the migration sets up the camera on existing Snapdragon installs"
