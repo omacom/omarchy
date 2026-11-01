@@ -203,6 +203,31 @@ done
 
 pass "a theme name cannot climb out of the theme directories"
 
+# A removed theme can leave a backgrounds-only directory behind: omarchy-themes-intros
+# still ships themes/osaka-jade after the theme left the repo (#17198). That
+# directory alone must not pass as a theme -- the switch used to exit 0 having
+# staged nothing, and foot then pointed at a theme file that was never generated.
+# OMARCHY_PATH is only read for themes/ here, so a shadow tree carrying the
+# package-shipped directory stands in for the installed Omarchy. The refusal
+# fires before the staging area is rebuilt, so what was staged before survives.
+shipped="$test_tmp/shipped-omarchy"
+mkdir -p "$shipped/themes/osaka-jade/backgrounds/intros"
+printf 'mp4\n' >"$shipped/themes/osaka-jade/backgrounds/intros/1-glowing-city.mp4"
+rm -rf "$state/theme"
+
+if HOME="$home" OMARCHY_PATH="$shipped" PATH="$ROOT/bin:$PATH" \
+  OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+  XDG_RUNTIME_DIR="$test_tmp" \
+  bash "$ROOT/bin/omarchy-theme-set" osaka-jade >"$test_tmp/stdout" 2>&1; then
+  fail "omarchy-theme-set refuses a backgrounds-only theme directory"
+fi
+grep -q 'no colors.toml' "$test_tmp/stdout" || fail "the refusal names the missing palette" "$(cat "$test_tmp/stdout")"
+if [[ -e $(staged colors.toml) ]]; then
+  fail "a refused theme stages nothing"
+fi
+
+pass "a theme directory without a palette is refused, not silently applied"
+
 # A denylist is only correct while someone adding a template classifies what it
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.
