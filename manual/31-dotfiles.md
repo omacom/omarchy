@@ -2,7 +2,7 @@
 
 Omarchy is primarily configured through the so-called dotfiles that live in `~/.config`. Those are considered your files for your changes. The files that live in `/usr/share/omarchy` belong to Omarchy itself, and you shouldn't be messing with those. If you need to change anything in `/usr/share/omarchy`, you should be overwriting the value in `~/.config` instead.
 
-The key configs can be edited straight from the Omarchy menu (`Super + Space`), like _Setup > Monitors_, _Setup > Keybindings_, _Setup > Input_, and _Setup > Config > [file]_. When you do it this way, any process that needs restarting after config edits automatically will be after you quit the editor (Neovim by default — `:wq`, remember! — but you can change that via _Setup > Defaults > Editor_).
+The key configs can be edited straight from the Omarchy menu (`Super + Space`), like _Setup > Keybindings_, _Setup > Input_, and _Setup > Config > [file]_. When you do it this way, any process that needs restarting after config edits automatically will be after you quit the editor (Neovim by default — `:wq`, remember! — but you can change that via _Setup > Defaults > Editor_).
 
 Here's a list of the key files in `~/.config` and what they control:
 
@@ -10,7 +10,7 @@ Here's a list of the key files in `~/.config` and what they control:
 | ----------------------- | --------------------- |
 | `~/.config/hypr/hyprland.lua` | The main Hyprland config. Loads the Omarchy defaults plus your override files below. [Learn more about Hyprland configs](https://wiki.hypr.land/Configuring/).  |
 | `~/.config/hypr/bindings.lua` | Your own keybindings and overrides of the defaults. |
-| `~/.config/hypr/monitors.lua` | Controls your monitors, resolution, and position. |
+| `~/.config/hypr/monitors.lua` | Monitor settings the monitor panel doesn't cover, like rotation, extra modes, or keeping a monitor off. |
 | `~/.config/hypr/input.lua` | Controls your keyboard layout, mouse, and trackpad settings. |
 | `~/.config/hypr/looknfeel.lua` | Controls gaps, borders, animations, and the rest of the look. |
 | `~/.config/hypr/autostart.lua` | Controls extra processes started with the session. |
@@ -61,6 +61,10 @@ Reuse an existing id and you override that row instead of adding a new one. The 
 ### Adding your own shell exports, functions, and aliases
 
 Omarchy ships with a bunch of ergonomic aliases and helpful functions, but it's very common to want to add your own. You should add both aliases, functions, and exports in `~/.bashrc`. This file will not be overwritten on updates. If you want to change any of the Omarchy defaults, you can also safely add them here.
+
+### Setting environment variables for the desktop
+
+Desktop session exports belong in `~/.config/uwsm/env.d/`. These files run before your desktop starts, so a shell error can send you back to the login screen. Keep a working terminal open while editing them. To disable an override, move it out of `env.d`. See [login recovery](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen) if a change prevents login.
 
 ### Changing internal Omarchy files
 
