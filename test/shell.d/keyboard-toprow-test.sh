@@ -49,6 +49,10 @@ printf 'Y\n' >"$bare/hid_asus/parameters/fnlock_default"
 [[ $(sys_module="$bare" toprow) == "fnkeys" ]] || fail "toprow reports the booted hid_asus Fn-lock"
 printf 'N\n' >"$bare/hid_asus/parameters/fnlock_default"
 [[ $(sys_module="$bare" toprow) == "mediakeys" ]] || fail "toprow reports hid_asus mediakeys"
+apple_only="$test_tmp/apple-sys-module"
+mkdir -p "$apple_only/hid_apple/parameters"
+printf '2\n' >"$apple_only/hid_apple/parameters/fnmode"
+[[ $(sys_module="$apple_only" toprow) == "fnkeys" ]] || fail "toprow reports an Apple-style keyboard without the ASUS drivers"
 pass "toprow reports the booted mode before anything is chosen"
 
 # Omarchy's own earlier file goes; an administrator's own stays and is overridden.
@@ -64,10 +68,19 @@ pass "toprow mediakeys sets every host-kept Fn-lock and rebuilds the boot image"
 : >"$calls"
 toprow mediakeys >/dev/null
 [[ ! -s $calls ]] || fail "toprow rebuilds nothing when nothing changed"
+printf '2\n' >"$sys_module/hid_apple/parameters/fnmode"
+toprow mediakeys >/dev/null
+[[ ! -s $calls && $(<"$sys_module/hid_apple/parameters/fnmode") == "1" ]] || fail "toprow restores a drifted hid_apple mode without a rebuild"
 pass "toprow rebuilds nothing when nothing changed"
 
 REBUILD_FAILS=1 toprow fnkeys >/dev/null 2>&1 && fail "toprow fails when the boot image is not rebuilt"
 : >"$calls"
 toprow fnkeys >/dev/null
 [[ $(<"$calls") == "rebuild" && $(toprow) == "fnkeys" ]] || fail "toprow retries a failed rebuild" "$(cat "$calls")"
+
+# The keyboard that needed the rebuild may be unplugged before the retry.
+REBUILD_FAILS=1 toprow mediakeys >/dev/null 2>&1 && fail "toprow fails when the boot image is not rebuilt"
+: >"$calls"
+sys_module="$test_tmp/unplugged-sys-module" toprow mediakeys >/dev/null
+[[ $(<"$calls") == "rebuild" && ! -e $test_tmp/rebuild-pending ]] || fail "toprow retries an owed rebuild after the keyboard is unplugged" "$(cat "$calls")"
 pass "toprow retries a failed rebuild"

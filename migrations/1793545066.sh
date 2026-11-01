@@ -28,5 +28,14 @@ fi
 # it, while a missing marker still retries an interrupted rebuild.
 [[ ! -e $rebuild_marker ]] || exit 0
 
-sudo limine-mkinitcpio
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+sudo limine-mkinitcpio 2>&1 | tee "$log"
+
+# limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+# Without the marker, this migration stays pending and retries.
+if grep -q 'mkinitcpio failed for kernel' "$log"; then
+  echo "Could not rebuild the boot image; this migration stays pending." >&2
+  exit 1
+fi
 sudo install -Dm644 /dev/null "$rebuild_marker"

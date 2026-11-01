@@ -56,7 +56,7 @@ if [[ -z $state ]]; then
   elif grep -qx 'options hid_asus fnlock_default=0' "$conf" 2>/dev/null; then
     echo mediakeys
   else
-    fnlock=$(param hid_asus fnlock_default || param asus_wmi fnlock_default)
+    fnlock=$(param hid_asus fnlock_default || param asus_wmi fnlock_default || true)
     case $fnlock:$(param hid_apple fnmode) in
       Y:* | 1:* | :0 | :2) echo fnkeys ;;
       N:* | 0:* | :1) echo mediakeys ;;
@@ -96,6 +96,12 @@ if [[ -f $modprobe_dir/hid_asus.conf && $(<"$modprobe_dir/hid_asus.conf") == "$l
   legacy+=("$modprobe_dir/hid_asus.conf")
 fi
 
+# hid_apple takes the change right away; the others read it only when they load.
+# Applied even when the file already matches, since the live mode can drift.
+if [[ -e $sys_module/hid_apple/parameters/fnmode && $(param hid_apple fnmode) != "$fnmode" ]]; then
+  echo "$fnmode" | sudo tee "$sys_module/hid_apple/parameters/fnmode" >/dev/null
+fi
+
 # A rebuild that failed or was interrupted last time is still owed, even with
 # the file in place.
 if [[ ! -e $rebuild_pending && -f $conf && $(<"$conf") == "$content" ]] && (( ${#legacy[@]} == 0 )); then
@@ -105,9 +111,10 @@ fi
 
 # A loaded HID keyboard driver is in the boot image, with the options it had
 # when that was built. Record the rebuild before changing anything, so an
-# interrupted run still owes it.
+# interrupted run still owes it. An owed rebuild stays owed even after the
+# keyboard that needed it is unplugged.
 needs_rebuild=0
-if (( rebuild )) && [[ -d $sys_module/hid_asus || -d $sys_module/hid_apple ]]; then
+if (( rebuild )) && [[ -e $rebuild_pending || -d $sys_module/hid_asus || -d $sys_module/hid_apple ]]; then
   needs_rebuild=1
   sudo install -Dm644 /dev/null "$rebuild_pending"
 fi
@@ -115,12 +122,7 @@ fi
 (( ${#legacy[@]} == 0 )) || sudo rm -f "${legacy[@]}"
 printf '%s\n' "$content" | sudo install -Dm644 /dev/stdin "$conf"
 
-# hid_apple takes the change right away; the others read it only when they load.
-if [[ -e $sys_module/hid_apple/parameters/fnmode ]]; then
-  echo "$fnmode" | sudo tee "$sys_module/hid_apple/parameters/fnmode" >/dev/null
-fi
-
-if [[ ! -d $sys_module/hid_asus && ! -d $sys_module/hid_apple && ! -d $sys_module/asus_wmi ]]; then
+if (( ! needs_rebuild )) && [[ ! -d $sys_module/hid_asus && ! -d $sys_module/hid_apple && ! -d $sys_module/asus_wmi ]]; then
   echo "The top row now sends $first by default on keyboards that leave Fn-lock to Linux."
   echo "This machine's keyboard keeps Fn-lock in its own firmware, where Fn+Esc already survives a reboot."
   exit 0
