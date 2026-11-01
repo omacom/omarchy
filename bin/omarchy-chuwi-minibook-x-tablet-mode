@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# omarchy:summary=Turn off the Chuwi MiniBook X keyboard and touchpad while it is folded into a tablet
+# omarchy:hidden=true
+
+# Runs as omarchy-chuwi-minibook-x-tablet-mode.service. The firmware has no
+# working tablet-mode switch, so compare the lid and base accelerometers
+# (install/hardware/chuwi/minibook-x-sensors.sh brings up the base one): the
+# angle between the two gravity vectors follows the hinge, about 90-130 degrees
+# in laptop use, 180 flat and near 0 folded back. Within 45 degrees of folded
+# is tablet mode; it ends once the hinge reopens past 65 degrees.
+#
+# A flag file lets default/hypr/chuwi-minibook-x.lua keep the devices off
+# across config reloads.
+
+flag="$HOME/.local/state/omarchy/chuwi-minibook-x/tablet-mode"
+touchpad_disabled="$HOME/.local/state/omarchy/toggles/hypr/touchpad-disabled-name"
+
+omarchy-hw-chuwi-minibook-x || exit 0
+
+find_sensor() {
+  local device
+  for device in /sys/bus/iio/devices/iio:device*; do
+    if [[ $(readlink -f "$device") == *"$1"* ]]; then
+      echo "$device"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# The internal keyboard, and every node of the Hantick 0911:5288 touchpad. The
+# kernel names its nodes inconsistently ("... Touchpad", "... Mouse" or no
+# suffix, even within one boot), so match the hardware ID, not one name.
+internal_devices() {
+  echo at-translated-set-2-keyboard
+  hyprctl devices -j 2>/dev/null | jq -r '.mice[].name | select(contains("0911:5288"))'
+}
+
+set_tablet() {
+  local enabled=true device
+  [[ $1 == on ]] && enabled=false
+
+  while read -r device; do
+    [[ -n $device && $device != *[!a-z0-9:._-]* ]] || continue
+
+    # Leaving tablet mode must not bring back a touchpad turned off from the
+    # Hardware menu (omarchy-toggle-touchpad).
+    if [[ $enabled == true && -f $touchpad_disabled && $(<"$touchpad_disabled") == "$device" ]]; then
+      continue
+    fi
+    hyprctl eval "hl.device({ name = '$device', enabled = $enabled })" >/dev/null 2>&1
+  done < <(internal_devices)
+
+  if [[ $1 == on ]]; then
+    mkdir -p "$(dirname "$flag")"
+    touch "$flag"
+  else
+    rm -f "$flag"
+  fi
+}
+
+# Unknown at start, so the first reading syncs the devices with the flag.
+mode=""
+
+while true; do
+  lid=$(find_sensor "i2c-MDA6655:00") && base=$(find_sensor "/0-0015/") || {
+    sleep 2
+    continue
+  }
+
+  if ! read -r ax <"$lid/in_accel_x_raw" || ! read -r ay <"$lid/in_accel_y_raw" || ! read -r az <"$lid/in_accel_z_raw" ||
+    ! read -r bx <"$base/in_accel_x_raw" || ! read -r by <"$base/in_accel_y_raw" || ! read -r bz <"$base/in_accel_z_raw"; then
+    sleep 1
+    continue
+  fi
+
+  # The hinge runs along the y axis of both sensors, so only the x and z parts
+  # of gravity turn with the lid: cos(hinge angle) = dot / (|a| |b|) over x and
+  # z. Held on its side, gravity runs along the hinge and those parts shrink to
+  # noise, so while either holds under half of gravity (within 30 degrees of the
+  # hinge) keep the last mode rather than guess.
+  across_lid=$((ax * ax + az * az))
+  across_base=$((bx * bx + bz * bz))
+  if ((4 * across_lid < across_lid + ay * ay || 4 * across_base < across_base + by * by)); then
+    sleep 0.5
+    continue
+  fi
+
+  # Compare squares in integers to stay in bash: cos > cos(45) is
+  # 2 dot^2 > |a|^2 |b|^2 with dot > 0; cos < cos(65) is dot <= 0 or
+  # 10000 dot^2 < 1786 |a|^2 |b|^2.
+  dot=$((ax * bx + az * bz))
+  norms=$((across_lid * across_base))
+
+  if [[ $mode != tablet ]] && ((dot > 0 && 2 * dot * dot > norms)); then
+    mode=tablet
+    set_tablet on
+  elif [[ $mode != laptop ]] && ((dot <= 0 || 10000 * dot * dot < 1786 * norms)); then
+    mode=laptop
+    set_tablet off
+  fi
+
+  sleep 0.5
+done

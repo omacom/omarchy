@@ -66,3 +66,18 @@ end
 hl.monitor({ output = "DSI-1", mode = "preferred", position = "auto", scale = 1.5, transform = transform })
 hl.config({ input = { touchdevice = { output = "DSI-1", transform = panel_transform() or transform } } })
 
+local flag = io.open(state_dir .. "/tablet-mode", "r")
+if flag then
+  flag:close()
+  -- The touchpad's nodes go by any of these names; see
+  -- omarchy-chuwi-minibook-x-tablet-mode.
+  for _, name in ipairs({
+    "at-translated-set-2-keyboard",
+    "xxxx0000:05-0911:5288",
+    "xxxx0000:05-0911:5288-1",
+    "xxxx0000:05-0911:5288-touchpad",
+    "xxxx0000:05-0911:5288-mouse",
+  }) do
+    hl.device({ name = name, enabled = false })
+  end
+end

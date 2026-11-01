@@ -26,7 +26,8 @@ for unit in \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service \
-  omarchy-chuwi-minibook-x-autorotate.service; do
+  omarchy-chuwi-minibook-x-autorotate.service \
+  omarchy-chuwi-minibook-x-tablet-mode.service; do
   systemctl --user enable --now "$unit" || failed=1
 done
 
