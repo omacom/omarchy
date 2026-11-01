@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether an ASUS ROG laptop runs from a USB-C charger rather than its barrel adapter.
+
+# The firmware reports which input it charges from (WMI DSTS 0x0012006C):
+# 0 for none, bit 0 for the barrel adapter, bit 1 for a USB-C PD charger, and 3
+# when both are plugged in and it charges from the barrel. Other bits can be set
+# too: a 60 W PD charger reads 18 (0x12, bit 4 as well), so only bits 0 and 1
+# are tested. The kernel publishes
+# it read-only as the asus-armoury charge_mode attribute, or as asus-nb-wmi's
+# charge_mode on kernels without asus-armoury. UPower can't tell the two apart:
+# the ACPI adapter reads online for either.
+sys="${OMARCHY_SYS_ROOT:-/sys}"
+charge_mode_files=(
+  "$sys/class/firmware-attributes/asus-armoury/attributes/charge_mode/current_value"
+  "$sys/devices/platform/asus-nb-wmi/charge_mode"
+)
+
+charge_mode_file=""
+for file in "${charge_mode_files[@]}"; do
+  if [[ -r $file ]]; then
+    charge_mode_file=$file
+    break
+  fi
+done
+
+[[ -n $charge_mode_file ]] || exit 1
+omarchy-hw-asus-rog || exit 1
+
+read_charge_mode() {
+  local value=""
+  read -r value <"$charge_mode_file" 2>/dev/null || true
+  [[ $value =~ ^[0-9]+$ ]] || value=0
+  charge_mode=$((10#$value))
+}
+
+read_charge_mode
+
+# The firmware sets the bits a moment after the adapter comes online, so a
+# charger plugged in just now can still read 0. Give it up to two seconds, and
+# only while external power is present: on battery 0 is the answer.
+if (( charge_mode == 0 )) && omarchy-power-present; then
+  for _ in {1..8}; do
+    sleep 0.25
+    read_charge_mode
+    (( charge_mode == 0 )) || break
+  done
+fi
+
+(( !(charge_mode & 1) && (charge_mode & 2) ))

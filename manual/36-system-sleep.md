@@ -8,7 +8,7 @@ On NVIDIA GB10 machines, such as the DGX Spark and the ASUS Ascent GX10, suspend
 
 On a laptop, Omarchy remembers your power profile separately for plugged in and running on battery, and switches between the two as you plug and unplug. Out of the box that means performance on AC and balanced on battery.
 
-You can see what your machine offers with `omarchy powerprofiles list`, and set the one you want for the state you're currently in with `omarchy powerprofiles set autodetect power-saver`. To set the other state without unplugging anything, name it directly: `omarchy powerprofiles set battery power-saver`. Whatever you pick is what you'll get back the next time you're in that state.
+You can see what your machine offers with `omarchy powerprofiles list`, and set the one you want for the state you're currently in with `omarchy powerprofiles set autodetect power-saver`. To set the other state without unplugging anything, name it directly: `omarchy powerprofiles set battery power-saver`. Whatever you pick is what you'll get back the next time you're in that state. On an ASUS ROG laptop, a USB-C charger is a state of its own, `usb-c`, apart from the barrel adapter's `ac`: it defaults to balanced, and `omarchy powerprofiles set usb-c performance` sets it from anywhere.
 
 ### Toggle suspend
 
