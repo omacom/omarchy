@@ -61,6 +61,7 @@ Item {
   // The keyboard backlight saves its level as it goes off, so only the first
   // blank since a wake turns it off; a second would save the 0 over it.
   property bool keyboardBlank: false
+  property double sleepRequestedAtMs: 0
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
@@ -213,6 +214,7 @@ Item {
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
+    sleepRequestedAtMs = 0
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -271,6 +273,8 @@ Item {
     if (fingerprintPaused) return
     fingerprintPaused = true
     fingerprintRetryTimer.stop()
+    // A suspend logind holds past the blank countdown still sleeps blank.
+    if (Date.now() - sleepRequestedAtMs < 20000) watchForResume()
   }
 
   // The retry keeps whatever backoff was armed, counting the time spent blank,
@@ -295,7 +299,12 @@ Item {
   // countdown then pauses it again if nothing else happens. The idle service
   // repeats the same request without sleeping, so the sleep has to be seen.
   function noteSleepRequested() {
-    if (!lockRequested || !fingerprintPaused) return
+    if (!lockRequested) return
+    sleepRequestedAtMs = Date.now()
+    if (fingerprintPaused) watchForResume()
+  }
+
+  function watchForResume() {
     // logind holds a suspend for its inhibitor delay, at most 15 seconds here.
     fingerprintResumeTimer.ticksLeft = 20
     fingerprintResumeTimer.lastTickMs = Date.now()
