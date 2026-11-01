@@ -65,3 +65,17 @@ pass "edition-set round-trips through omarchy-edition"
 ! omarchy-edition-set desktop server >/dev/null 2>&1 ||
   fail "edition-set refuses more than one argument"
 pass "edition-set validates its argument before writing"
+
+for edition in desktop server; do
+  printf '%s\n' "$edition" >"$OMARCHY_EDITION_FILE"
+  (
+    OMARCHY_INSTALL="$ROOT/install"
+    run_logged() {
+      [[ -f $1 ]] || fail "$edition setup dispatches an existing leaf" "$1"
+      [[ $1 != */git.sh ]] || fail "git setup stays in first-run, outside user finalization"
+    }
+    source "$OMARCHY_INSTALL/config/all.sh"
+    source "$OMARCHY_INSTALL/user/all.sh"
+  ) || exit 1
+done
+pass "both editions dispatch existing setup leaves and leave git setup to first-run"
