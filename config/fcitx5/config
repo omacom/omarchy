@@ -9,7 +9,9 @@
 [Hotkey/DeactivateKeys]
 0=Muhenkan
 
+# A lone Shift leaves an engine like Pinyin for Latin input and returns to it.
 [Hotkey/AltTriggerKeys]
+0=Shift_L
 
 [Hotkey/EnumerateGroupForwardKeys]
 
