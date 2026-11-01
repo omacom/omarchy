@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Show or set the Omarchy language and the session's locale
-# omarchy:args=[<code>|list|locale [<code>]]
+# omarchy:args=[<code>|list|locale [<code>]|seed <code>]
 # omarchy:examples=omarchy language | omarchy language da | omarchy language list
 
 set -euo pipefail
@@ -162,6 +162,20 @@ case "${1:-}" in
   ;;
 list)
   list_languages
+  ;;
+seed)
+  # Install finalization: the system step already generated the locale and
+  # there is no session yet, so only files are written, and a language the
+  # user already chose is kept: the preset is a default, never an override.
+  code=${2:-}
+  if ! known_language "$code"; then
+    echo "Unknown language code: $code" >&2
+    exit 1
+  fi
+  [[ -s $language_file ]] && exit 0
+  mkdir -p "$(dirname "$session_env")" "$(dirname "$language_file")"
+  printf '# The session language, set by omarchy-language (Setup > Language).\nexport LANG=%s\n' "$(locale_for "$code")" >"$session_env"
+  echo "$code" >"$language_file"
   ;;
 locale)
   code=${2:-$(current_language)}

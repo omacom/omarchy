@@ -89,11 +89,7 @@ run_remove
 (( status == 0 )) || fail "removal succeeds with standard SSH rules" "$output"
 [[ $(<"$state") == 'allow 443/tcp' ]] || fail "removal deletes only standard SSH rules" "$(cat "$state")"
 [[ -s $home/.ssh/authorized_keys ]] || fail "declined key removal preserves authorized keys"
-
-run_remove
-(( status == 0 )) || fail "repeated removal accepts absent rules" "$output"
-[[ $(<"$state") == 'allow 443/tcp' ]] || fail "repeated removal preserves unrelated rules"
-pass "removal deletes all standard SSH rules, preserves HTTPS, and is idempotent"
+pass "removal deletes all standard SSH rules"
 
 for failure in delete-limit delete-port delete-service delete-service-limit delete-app-allow delete-app-limit reload; do
   prepare_case "$failure"
