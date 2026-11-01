@@ -446,9 +446,6 @@ Panel {
     addStage = "pick"
     addChecks = ({})
     if (!checkProcess.running) checkProcess.running = true
-    // A package upgrade may have brought new recipes; the listing Local AI
-    // offers from is rewritten here, where it's about to be read.
-    if (localSetUp) Util.execArgv(["omarchy-agent-local", "refresh", "--quiet"])
   }
 
   function chooseAddProvider(id) {
@@ -1078,7 +1075,17 @@ Panel {
 
   // A first setup ends when the records land, which swaps the rows under the
   // cursor without any stage change.
-  onPickingChanged: resetKeys()
+  onPickingChanged: {
+    resetKeys()
+    if (picking) refreshLocalListing()
+  }
+
+  // A package upgrade may have brought new recipes; the listing Local AI
+  // offers from is rewritten whenever the picker shows, from + or as a blank
+  // slate, including one the panel opens on.
+  function refreshLocalListing() {
+    if (localSetUp) Util.execArgv(["omarchy-agent-local", "refresh", "--quiet"])
+  }
 
   // Picking an agent to add starts on the first one, ready for Enter. The
   // rows follow the same stage change, so the cursor waits a tick for them.
@@ -1107,6 +1114,7 @@ Panel {
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
+    if (picking) refreshLocalListing()
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
