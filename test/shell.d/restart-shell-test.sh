@@ -344,6 +344,7 @@ for (( attempt = 0; attempt < 100; attempt++ )); do
   [[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] && break
   sleep 0.01
 done
+[[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] || fail "wedged shell fixture stops itself"
 ln -s ../by-id/wedged "$quickshell_runtime/by-pid/$restart_pid_one"
 ln -s ../by-id/live "$quickshell_runtime/by-pid/$$"
 : >"$restart_state"

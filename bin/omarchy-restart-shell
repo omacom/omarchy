@@ -143,11 +143,12 @@ if (( ${#signalled_pids[@]} > 0 )); then
   for signal in TERM KILL; do
     kill -"$signal" "${signalled_pids[@]}" 2>/dev/null
     for (( attempt = 0; attempt < 20; attempt++ )); do
-      alive=0
+      alive_pids=()
       for pid in "${signalled_pids[@]}"; do
-        shell_pid_alive "$pid" && alive=1
+        shell_pid_alive "$pid" && alive_pids+=("$pid")
       done
-      (( alive )) || break 2
+      signalled_pids=("${alive_pids[@]}")
+      (( ${#signalled_pids[@]} > 0 )) || break 2
       sleep 0.1
     done
   done
