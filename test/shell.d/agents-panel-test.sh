@@ -202,6 +202,7 @@ mkdir -p "$stage/bin" "$stage/home"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
 ln -s "$ROOT/shell/Ui" "$stage/Ui"
 ln -s "$ROOT/shell/plugins/agents" "$stage/agents"
+ln -s "$ROOT/shell/plugins/panels" "$stage/panels"
 cat >"$stage/bin/omarchy-agent-usage-update" <<'SH'
 #!/bin/bash
 printf 'poll during %s\n' "$(<"$AGENTS_POLL_STEP")" >>"$AGENTS_POLL_LOG"
