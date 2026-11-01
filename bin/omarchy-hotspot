@@ -1043,7 +1043,9 @@ hotspot_release() {
   # together at the end.
   local -a failed=()
   (forwarding_restore) || failed+=("IPv4 forwarding restore")
-  [[ $(firewall_backend) != "ufw" ]] || (firewall_remove) || failed+=("firewall rule removal")
+  # UFW keeps its rules while disabled and brings them back when re-enabled,
+  # so the hotspot's own rules go whether or not UFW is running right now.
+  (firewall_remove) || failed+=("firewall rule removal")
   ((${#failed[@]} == 0)) || fail "could not release hotspot host state: ${failed[*]}"
 }
 
@@ -1170,10 +1172,11 @@ teardown() {
   backend=$(firewall_backend)
   iface=$(recorded_iface)
   [[ -n $iface ]] || iface=$(ap_iface)
+  # The hotspot's UFW rules go even while UFW is off: it would restore them
+  # when re-enabled.
+  (firewall_remove) || failed+=("firewall removal")
   case $backend in
-    ufw) (firewall_remove) || failed+=("firewall removal") ;;
     firewalld | nftables) firewall_warn_unsupported "$backend" "$iface" ;;
-    none) echo "hotspot: no active firewall found; nothing to remove" >&2 ;;
   esac
   ((${#failed[@]} == 0)) || fail "could not tear down hotspot: ${failed[*]}"
 }

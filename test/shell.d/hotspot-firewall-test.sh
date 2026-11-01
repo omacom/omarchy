@@ -482,6 +482,7 @@ DRIVER
   touch "$TEST_TMP/nmcli-active"
   cat >"$TEST_TMP/teardown-unsupported-driver.sh" <<'DRIVER'
 require_root() { :; }
+require_privileged() { :; }
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
@@ -1227,3 +1228,22 @@ remaining=$(<"$UFW_STATE")
 DRIVER
 run_isolated "$TEST_TMP/rollback-continue-driver.sh"
 pass "firewall rollback tries every rule past a failed delete"
+
+# UFW keeps its rules while disabled and restores them when re-enabled, so
+# releasing the hotspot removes them even with UFW off.
+reset_firewall_fixture
+cat >"$TEST_TMP/release-inactive-driver.sh" <<'DRIVER'
+require_privileged() { :; }
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+export UFW_SHOW_ALLOWED=1
+firewall_apply wlan2 10.55.0.0/24 >/dev/null
+[[ -s $UFW_STATE ]] || { echo "fixture installed no rules" >&2; exit 1; }
+export UFW_ACTIVE=0
+hotspot_release
+[[ ! -s $UFW_STATE ]] || { echo "release left rules behind with UFW off: $(<"$UFW_STATE")" >&2; exit 1; }
+[[ ! -s $FIREWALL_STATE_FILE ]] || { echo "release kept ownership records" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/release-inactive-driver.sh"
+pass "releasing the hotspot removes its rules while UFW is disabled"
