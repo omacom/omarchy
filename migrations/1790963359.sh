@@ -10,7 +10,30 @@ defaults_conf="${OMARCHY_LIMINE_DEFAULTS_CONF:-/etc/limine-entry-tool.d/omarchy-
 default_limine="${OMARCHY_DEFAULT_LIMINE:-/etc/default/limine}"
 running_cmdline="${OMARCHY_RUNNING_CMDLINE:-/proc/cmdline}"
 rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1790963359}"
+modules_dir="${OMARCHY_KERNEL_MODULES_DIR:-/usr/lib/modules}"
+limine_functions="${OMARCHY_LIMINE_FUNCTIONS:-/usr/lib/limine/limine-common-functions}"
 param="usbcore.autosuspend=-1"
+
+# Whether a command line carries the parameter as the kernel reads it: split on
+# whitespace outside single or double quotes, the last assignment of the key winning.
+carries_param() {
+  local cmdline=$1 word="" last="" quote="" char i
+  for ((i = 0; i < ${#cmdline}; i++)); do
+    char=${cmdline:i:1}
+    if [[ -z $quote && ($char == '"' || $char == "'") ]]; then
+      quote=$char
+    elif [[ $char == "$quote" ]]; then
+      quote=""
+    elif [[ -z $quote && $' \t\n\r' == *"$char"* ]]; then
+      [[ $word != "${param%%=*}="* ]] || last=$word
+      word=""
+    else
+      word+=$char
+    fi
+  done
+  [[ $word != "${param%%=*}="* ]] || last=$word
+  [[ $last == "$param" ]]
+}
 
 omarchy-cmd-present limine-mkinitcpio || exit 0
 [[ -f $defaults_conf && -r $running_cmdline ]] || exit 0
@@ -67,10 +90,37 @@ if [[ $value == "-1" ]]; then
     limine_conf="${esp:-/boot}/limine.conf"
   fi
 
-  if sudo grep -Eq '^[[:space:]]*cmdline:' "$limine_conf" 2>/dev/null &&
-    ! sudo grep -Eq "^[[:space:]]*cmdline:.*[[:space:]]${param//./\\.}([[:space:]]|$)" "$limine_conf"; then
-    echo "The boot menu still has no entry with $param after the rebuild" >&2
-    exit 1
+  menu_cmdlines=$(sudo grep -E '^[[:space:]]*cmdline:' "$limine_conf" 2>/dev/null) || menu_cmdlines=""
+  built=0
+  while IFS= read -r menu_cmdline; do
+    ! carries_param "${menu_cmdline#*cmdline:}" || built=1
+  done <<<"$menu_cmdlines"
+
+  if [[ -n $menu_cmdlines ]] && ((!built)); then
+    # Unless per-kernel keys leave it out of every kernel the rebuild builds,
+    # which no rebuild can change. Ask limine-entry-tool for each, as 1791581004 does.
+    # shellcheck disable=SC2016
+    fallback=$(sudo bash -c 'source "$1" && load_config >/dev/null && printf "%s\n" "${MKINITCPIO_FALLBACK:-}"' _ "$limine_functions")
+    configured=0
+    shopt -s nullglob
+    for kernel_dir in "$modules_dir"/*/; do
+      [[ -f ${kernel_dir}modules.builtin ]] || continue
+      kernel_name=$(pacman -Qqo "${kernel_dir}modules.builtin" 2>/dev/null) || continue
+      entries=("$kernel_name")
+      [[ $fallback != "yes" && $fallback != "$kernel_name" ]] || entries+=("$kernel_name-fallback")
+      for entry in "${entries[@]}"; do
+        kernel_cmdline=$(sudo limine-entry-tool --get-cmdline "$entry" | tail -n 1)
+        ! carries_param "$kernel_cmdline" || configured=1
+      done
+    done
+    shopt -u nullglob
+
+    if ((configured)); then
+      echo "The boot menu still has no entry with $param after the rebuild" >&2
+      exit 1
+    fi
+
+    echo "Limine's per-kernel command lines leave out $param, so USB autosuspend stays on"
   fi
 
   omarchy-state set reboot-required
