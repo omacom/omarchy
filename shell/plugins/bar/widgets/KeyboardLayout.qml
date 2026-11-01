@@ -19,18 +19,36 @@ BarWidget {
   // naming one that has been unplugged.
   property string keyboardName: ""
   property string typedKeyboardName: ""
-  // Keyboards on the seat, buttons and virtual ones excluded, and whether the
-  // last reading left that shape in doubt.
-  property int keyboardCount: 0
+  // Whether the last reading left the seat's shape in doubt.
   property bool keyboardUnresolved: false
   // Nothing to read or switch on the single-layout install most people run, so
   // the widget ships on the bar and stays out of the way until there are two.
   // An older Hyprland that doesn't report the list keeps showing the label.
   property bool multipleLayouts: true
+  // Where the reading sits in the layout list, how long that list is, and every
+  // keyboard sharing it. A switch moves that set together, so it needs all three.
+  property int layoutIndex: 0
+  property int layoutCount: 0
+  property var syncNames: []
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
+  // The table is only needed once the widget shows a label, which a seat with
+  // one layout and one input method never does, so it's read on first need.
+  property bool layoutsRead: false
+  property bool briefsRequested: false
+  readonly property bool needsBriefs: layoutsRead && (multipleLayouts || multipleInputs)
+  onNeedsBriefsChanged: loadBriefs()
+
+  function loadBriefs() {
+    if (!needsBriefs || briefsRequested) return
+    briefsRequested = true
+    briefsProc.running = true
+  }
   readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  readonly property var inputState: InputMethodState.state
+  readonly property bool multipleInputs: (inputState.methods || []).length > 1
+  readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
 
   // A query already in flight was started before this event, so it may read the
   // layout the switch replaced. Remember the request and re-run once it lands
@@ -63,24 +81,35 @@ BarWidget {
   }
 
   // switchxkblayout is a hyprctl command rather than a dispatcher, so it has to
-  // be run rather than sent over the dispatch socket. It switches the keyboard
-  // the last reading spoke for, so a click always advances the device the label
-  // is describing. Switching the seat together would reach the typed keyboard
-  // without having to name it, but it would also carry the buttons along, and
-  // the whole read depends on those staying where they started: once a button
-  // has been advanced too, a toggle that wraps the keyboard back to the first
-  // layout leaves the button reading as the furthest along, and the label
-  // follows the button.
+  // be run rather than sent over the dispatch socket.
+  //
+  // Move every keyboard holding the same layout list, rather than the single one
+  // the last reading spoke for. Naming one device puts the whole switch behind
+  // UNTYPED_KEYBOARDS recognising every non-keyboard by name, and that list
+  // cannot keep up with what a seat carries: vendor hotkey blocks
+  // (intel-hid-events, dell-wmi-hotkeys), HID consumer controls, and Bluetooth
+  // AVRCP endpoints from a pair of headphones all arrive holding the seat's
+  // layout list, and they sort ahead of the keyboard being typed on. The click
+  // then advances a device nobody types on; that device is now the furthest
+  // along, so it wins the next reading too, and the label describes it while the
+  // real keyboard never moved.
+  //
+  // An absolute index rather than "next", because "next" advances each device
+  // from wherever it already sits: a seat that has drifted apart stays drifted
+  // and merely inverts. One index converges them in a single click, and a seat
+  // in lockstep is what leaves the reading nothing to disagree about afterwards.
+  //
+  // Keyboards given their own kb_layout hold a different list and are left out:
+  // an index into this list would not mean the same layout to them.
   function cycleLayout() {
-    if (!root.keyboardName || !root.bar) return
-    root.bar.run("hyprctl switchxkblayout " + Util.shellQuote(root.keyboardName) + " next")
+    if (!root.bar || root.layoutCount < 2 || root.syncNames.length === 0) return
+    const next = (root.layoutIndex + 1) % root.layoutCount
+    root.bar.run(root.syncNames.map(name =>
+      "hyprctl switchxkblayout " + Util.shellQuote(name) + " " + next).join("; "))
     refreshTimer.restart()
   }
 
-  Component.onCompleted: {
-    briefsProc.running = true
-    refresh()
-  }
+  Component.onCompleted: refresh()
 
   Connections {
     target: Hyprland
@@ -116,10 +145,14 @@ BarWidget {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        // A reading that failed leaves the seat in doubt, so the timer below
+        // asks again: a device change is announced once, and nothing else
+        // would bring the label back to it.
         let listed
         try {
           listed = JSON.parse(text || "{}").keyboards
         } catch (e) {
+          root.keyboardUnresolved = true
           return
         }
 
@@ -127,7 +160,10 @@ BarWidget {
         // string parses into the same shape a seat with no keyboards would.
         // Tell them apart by the list itself, so only a reading that reached
         // hyprctl gets to speak for the seat.
-        if (!Array.isArray(listed)) return
+        if (!Array.isArray(listed)) {
+          root.keyboardUnresolved = true
+          return
+        }
 
         const typed = root.typedKeyboards(listed)
         const kb = root.selectKeyboard(typed)
@@ -146,16 +182,25 @@ BarWidget {
         }
 
         root.keyboardUnresolved = false
-        root.keyboardCount = typed.length
         root.keyboardName = String(kb.name || "")
         root.multipleLayouts = kb.layout === undefined || String(kb.layout).indexOf(",") !== -1
+        root.layoutsRead = true
+        root.layoutIndex = kb.active_layout_index || 0
+        root.layoutCount = kb.layout === undefined ? 0 : String(kb.layout).split(",").length
+        // Buttons and virtual keyboards are included on purpose: they hold the
+        // same list, and leaving them behind is what lets a reading drift onto
+        // one of them later.
+        root.syncNames = listed.filter(k => String(k.layout) === String(kb.layout))
+                               .map(k => String(k.name || ""))
+                               .filter(name => name !== "")
         root.layoutFull = kb.active_keymap
       }
     }
   }
 
-  // The table only changes when xkb data is upgraded, so read it at startup and
-  // leave it alone. The bar is built per monitor, so this runs once per widget.
+  // The table only changes when xkb data is upgraded, so read it once, when
+  // first needed, and leave it alone. The bar is built per monitor, so this
+  // runs once per widget.
   // The exotic rulesets cover layouts like trans (IPA) that ship in the same xkb
   // package and set just as well, so load them or those labels lose their code.
   Process {
@@ -187,21 +232,26 @@ BarWidget {
     }
   }
 
-  // Which keyboard on a crowded seat the label is describing can change without
-  // Hyprland announcing it, since a device arriving or leaving raises no event
-  // of its own, and that can only be learned by asking. Poll while there is that
-  // ambiguity, until a first reading lands so a query that failed at login still
-  // recovers, and while a reading has left the seat's shape in doubt. The
-  // one-keyboard install has none of those, and is left alone rather than
-  // spawning hyprctl forever for an answer that cannot change.
+  // Which keyboard on a crowded seat the label is describing changes when a
+  // device arrives or leaves, which Hyprland raises no event for, so read the
+  // seat again whenever /dev/input changes.
+  Connections {
+    target: InputDevices
+    function onChanged() { root.refresh() }
+  }
+
+  // Ask again until a first reading lands, so a query that failed at login
+  // still recovers, and while a reading has left the seat's shape in doubt. A
+  // settled seat has neither, and is left alone rather than spawning hyprctl
+  // forever for an answer only a device change can alter.
   Timer {
     interval: 10000
-    running: !root.keyboardName || root.keyboardUnresolved || root.keyboardCount > 1
+    running: !root.keyboardName || root.keyboardUnresolved || !InputDevices.healthy
     repeat: true
     onTriggered: root.refresh()
   }
 
-  visible: layoutLabel !== "" && multipleLayouts
+  visible: inputLabel !== "" && KeyboardLayoutModel.showIndicator(layoutLabel, multipleLayouts, multipleInputs)
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -209,10 +259,16 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.layoutLabel
+    text: root.inputLabel
     fontSize: Style.font.caption
     horizontalMargin: 6
-    tooltipText: root.layoutFull
-    onPressed: function() { root.cycleLayout() }
+    tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
+    onPressed: function(button) {
+      if (root.multipleInputs && button === Qt.LeftButton) {
+        InputMethodState.cycle()
+      } else if (root.multipleLayouts) {
+        root.cycleLayout()
+      }
+    }
   }
 }
