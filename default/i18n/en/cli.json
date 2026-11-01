@@ -332,6 +332,7 @@
   "theme.notAppliedEverywhere": "Theme not applied everywhere",
   "theme.removeExtraTitle": "Remove extra theme",
   "theme.removed": "Theme removed",
+  "theme.restartBrowser": "Restart %1 to apply the theme",
   "theme.repoPlaceholder": "Git repo URL (https or git@host:org/repo.git)",
   "themeSync.disabled": "Herdr theme sync disabled",
   "themeSync.enabled": "Herdr theme sync enabled",

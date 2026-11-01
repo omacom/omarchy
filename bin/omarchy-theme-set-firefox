@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# omarchy:summary=Sync Omarchy theme to Firefox, Zen, LibreWolf, Floorp, and Waterfox profiles
+# omarchy:hidden=true
+
+THEME_CSS="$HOME/.local/state/omarchy/current/theme/firefox-userChrome.css"
+IMPORT_LINE='@import "omarchy.css";'
+STYLESHEETS_PREF='user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
+
+# Profile root, process name and display name of each browser. Newer Firefox
+# and Zen releases keep profiles under ~/.config; older ones in the home folder.
+BROWSERS=(
+  "$HOME/.mozilla/firefox:firefox:Firefox"
+  "$HOME/.config/mozilla/firefox:firefox:Firefox"
+  "$HOME/.zen:zen-bin:Zen"
+  "$HOME/.config/zen:zen-bin:Zen"
+  "$HOME/.librewolf:librewolf:LibreWolf"
+  "$HOME/.floorp:floorp:Floorp"
+  "$HOME/.waterfox:waterfox:Waterfox"
+)
+
+[[ -f $THEME_CSS ]] || exit 0
+omarchy-toggle-enabled skip-firefox-theme-changes && exit 0
+
+# Prints the directory of every profile listed in a profiles.ini. A path is
+# relative to the profile root only when its section says IsRelative=1.
+profile_dirs() {
+  local root="$1"
+
+  awk -v root="$root" '
+    function emit() {
+      if (path != "") print (relative ? root "/" path : path)
+      path = ""
+      relative = 0
+    }
+    /^\[/ { emit() }
+    /^Path=/ { path = substr($0, 6) }
+    /^IsRelative=/ { relative = (substr($0, 12) == "1") }
+    END { emit() }
+  ' "$root/profiles.ini"
+}
+
+# userChrome.css stays the user's file: the theme only adds an import at the
+# top, where CSS requires @import to be.
+theme_profile() {
+  local profile="$1"
+  local user_chrome="$profile/chrome/userChrome.css"
+  local tmp
+
+  mkdir -p "$profile/chrome" || return 1
+  cp "$THEME_CSS" "$profile/chrome/omarchy.css" || return 1
+
+  if [[ ! -f $user_chrome ]]; then
+    printf '%s\n' "$IMPORT_LINE" >"$user_chrome" || return 1
+  elif ! grep -qxF "$IMPORT_LINE" "$user_chrome"; then
+    # The user's file is only overwritten once its new contents are complete.
+    tmp=$(mktemp) || return 1
+    if ! { printf '%s\n' "$IMPORT_LINE" && cat "$user_chrome"; } >"$tmp"; then
+      rm -f "$tmp"
+      return 1
+    fi
+    cat "$tmp" >"$user_chrome"
+    rm -f "$tmp"
+  fi
+
+  # Browsers only load userChrome.css with this pref set.
+  if ! grep -qxF "$STYLESHEETS_PREF" "$profile/user.js" 2>/dev/null; then
+    [[ -s $profile/user.js && -n $(tail -c1 "$profile/user.js") ]] && echo >>"$profile/user.js"
+    printf '%s\n' "$STYLESHEETS_PREF" >>"$profile/user.js" || return 1
+  fi
+}
+
+declare -A themed=()
+failed=0
+for browser in "${BROWSERS[@]}"; do
+  IFS=: read -r root process name <<<"$browser"
+  [[ -f $root/profiles.ini ]] || continue
+
+  while IFS= read -r profile; do
+    [[ -d $profile ]] || continue
+    if theme_profile "$profile"; then
+      themed[$process]=$name
+    else
+      echo "Could not theme the $name profile $profile" >&2
+      failed=1
+    fi
+  done < <(profile_dirs "$root")
+done
+
+(( ${#themed[@]} > 0 )) || exit "$failed"
+
+# A running browser keeps the stylesheet it started with, so ask for a restart.
+running=""
+while read -r process; do
+  if [[ -n ${themed[$process]:-} ]]; then
+    running+="${running:+, }${themed[$process]}"
+    unset "themed[$process]"
+  fi
+done < <(ps -eo comm=)
+
+if [[ -n $running ]]; then
+  omarchy-notification-send "$(omarchy-i18n theme.restartBrowser "$running")" -t 4000
+fi
+
+exit "$failed"
