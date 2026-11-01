@@ -4,7 +4,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const { URL } = require('node:url')
 const load = require('./loader.cjs')
 const S = load('Security'), M = load('Markup'), D = load('Detect'), Store = load('Store')
-const Layout = load('Layout'), Delivery = load('Delivery'), Icons = load('Icons')
+const Layout = load('Layout'), Delivery = load('Delivery'), Icons = load('Icons'), Countdown = load('Countdown')
 const snap = (n, key = 'k') => Store.snapshot(n, key, { Normal: 1 })
 
 // ---------------------------------------------------------------- URL policy
@@ -295,6 +295,23 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
   for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
+}
+
+// ----------------------------------------------------------------- countdown
+{ // A suspend stops the timer but not the clock, so the first tick after the
+  // machine wakes must charge the whole sleep; charging the timer's own
+  // interval instead is what let a card outlive its lifetime by the sleep.
+  let left = 8000, at = 0
+  for (let t = 500; t <= 2000; t += 500) { left = Countdown.charge(left, at, t); at = t }
+  assert.equal(left, 6000, 'a running card charges the time each tick took')
+  assert.ok(Countdown.charge(left, at, at + 20000) <= 0, 'a suspend charges the whole sleep, so the card expires')
+  // A card whose timer started late still expires on its lifetime, not a tick
+  // count: one charge covers the whole period.
+  assert.equal(Countdown.charge(8000, 0, 8000), 0, 'the card expires on the lifetime, not on a tick count')
+  // A clock that stepped back or cannot be read charges nothing; it must not
+  // credit the card with time it never spent.
+  assert.equal(Countdown.charge(6000, 1000, 900), 6000, 'a backwards clock charges nothing')
+  assert.equal(Countdown.charge(6000, 1000, NaN), 6000, 'an unreadable clock charges nothing')
 }
 
 // --------------------------------------------------- Service.qml functions

@@ -12,6 +12,7 @@ import "Security.js" as Security
 import "Delivery.js" as Delivery
 import "Store.js" as Store
 import "Icons.js" as Icons
+import "Countdown.js" as Countdown
 
 Item {
   id: card
@@ -151,15 +152,23 @@ Item {
   // time, and gets a fresh display period of its own duration. Its picture
   // may be new at the same path, so the image is read again too.
   property real remaining: Number(row.duration || 0)
+  // When `remaining` was last charged. The countdown cannot assume its own
+  // interval passed: the timer stops while the deck is open, and a suspend
+  // stops it without stopping time. Re-baselined whenever the timer starts
+  // again or the content restarts, so neither a pause nor a fresh arrival
+  // inherits the previous period's tail.
+  property double countedAt: Date.now()
   readonly property bool ticking: Number(row.duration || 0) > 0 && !paused
   readonly property string arrival: String(row.ts) + ":" + String(row.duration)
   property bool reloading: false
   onArrivalChanged: {
     remaining = Number(row.duration || 0)
+    countedAt = Date.now()
     thumb.failed = 0
     reloading = true
     Qt.callLater(function() { card.reloading = false })
   }
+  onTickingChanged: if (ticking) countedAt = Date.now()
 
   // Coarse: nothing draws the time left, only the expiry needs it.
   Timer {
@@ -167,7 +176,9 @@ Item {
     repeat: true
     running: card.ticking && card.remaining > 0
     onTriggered: {
-      card.remaining -= interval
+      var at = Date.now()
+      card.remaining = Countdown.charge(card.remaining, card.countedAt, at)
+      card.countedAt = at
       if (card.remaining <= 0) card.expired()
     }
   }
