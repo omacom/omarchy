@@ -1,0 +1,896 @@
+#!/bin/bash
+
+# omarchy:summary=Migrate Omarchy to a different drive
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+gib=1073741824
+
+human_size() {
+  if (( $1 == 0 )); then
+    printf '0B\n'
+  else
+    numfmt --to=iec-i --suffix=B --format='%.1f' "$1" 2>/dev/null || printf '%s B\n' "$1"
+  fi
+}
+
+disk_size() {
+  local size
+  size=$(lsblk -bdno SIZE "$1" 2>/dev/null | tr -d '[:space:]')
+  [[ $size =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$size"
+}
+
+# --- Helpers for source/destination detection (verbatim from tested API) ---
+
+disk_for_source() {
+  local source=${1%%[*} disk
+  disk=$(lsblk -s -n -r -p -o NAME,TYPE "$source" 2>/dev/null |
+    awk '$2 == "disk" { print $1; exit }')
+  [[ -n $disk ]] || return 1
+  readlink -f -- "$disk"
+}
+
+current_installation_disks() {
+  local mount source disk
+  local -a disks=()
+
+  for mount in / /boot /boot/efi; do
+    source=$(findmnt -no SOURCE "$mount" 2>/dev/null) || continue
+    disk=$(disk_for_source "$source") || continue
+    if [[ " ${disks[*]-} " != *" $disk "* ]]; then
+      disks+=("$disk")
+    fi
+  done
+
+  ((${#disks[@]} > 0)) || return 1
+  printf '%s\n' "${disks[@]}"
+}
+
+is_source_disk() {
+  local check src
+  check=$(readlink -f -- "$1")
+  while read -r src; do
+    [[ $(readlink -f -- "$src") == $check ]] && return 0
+  done < <(current_installation_disks 2>/dev/null)
+  return 1
+}
+
+required_bytes() {
+  local disk=$1 line fstype fsused total=0
+
+  while IFS= read -r line; do
+    [[ $line =~ FSTYPE=\"([^\"]*)\" ]] && fstype=${BASH_REMATCH[1]} || fstype=
+    case $fstype in
+      ""|crypto_LUKS|LVM2_member|linux_raid_member|swap|zfs_member|iso9660) continue ;;
+    esac
+    [[ $line =~ FSUSED=\"([^\"]*)\" ]] && fsused=${BASH_REMATCH[1]} || fsused=
+    if [[ $fstype == vfat ]]; then
+      # Count the full ESP partition size, not just used bytes, because the
+      # clone recreates the ESP at the source partition's size.
+      if [[ $line =~ SIZE=\"([^\"]*)\" ]]; then
+        fsused=${BASH_REMATCH[1]}
+      fi
+      [[ $fsused =~ ^[0-9]+$ ]] || fsused=0
+      if (( fsused < gib )); then
+        fsused=$gib
+      fi
+    elif [[ ! $fsused =~ ^[0-9]+$ ]]; then
+      continue
+    fi
+    total=$((total + fsused))
+  done < <(lsblk -bpP -o NAME,SIZE,TYPE,FSTYPE,FSUSED "$disk" 2>/dev/null)
+
+  printf '%s\n' "$total"
+}
+
+migration_reserve() {
+  local used=$1
+  local reserve=$((used / 20))
+
+  if (( reserve < gib )); then
+    reserve=$gib
+  fi
+
+  printf '%d\n' "$reserve"
+}
+
+physical_disks() {
+  local name size type
+  while read -r name size type; do
+    [[ $type == disk ]] || continue
+    [[ $name =~ ^/dev/(sd|hd|vd|nvme|mmcblk|xv) ]] || continue
+    [[ $size =~ ^[0-9]+$ ]] || continue
+    printf '%s\t%s\n' "$name" "$size"
+  done < <(lsblk -bdpno NAME,SIZE,TYPE 2>/dev/null)
+}
+
+classify_destination_disks() {
+  local required=$1 drive size source skip
+  shift
+  local -a source_disks=("$@")
+
+  eligible=()
+  too_small=()
+
+  while IFS=$'\t' read -r drive size; do
+    skip=0
+    for source in "${source_disks[@]}"; do
+      [[ $drive == $source ]] && skip=1
+    done
+    (( skip == 0 )) || continue
+
+    if (( size >= required )); then
+      eligible+=("$drive")
+    else
+      too_small+=("$drive")
+    fi
+  done < <(physical_disks)
+}
+
+# --- State file and EFI boot management ---
+
+STATE_FILE="/var/lib/omarchy/drive-migration.state"
+VERIFY_SERVICE="/etc/systemd/system/omarchy-drive-migrate-verify.service"
+
+state_exists() { [[ -f $STATE_FILE ]]; }
+
+state_get() {
+  # usage: state_get <jq-filter>  (prints value or empty)
+  [[ -f $STATE_FILE ]] || { echo ""; return; }
+  jq -r "$1 // empty" "$STATE_FILE" 2>/dev/null || echo ""
+}
+
+state_write() {
+  # usage: state_write key value  (updates a single key)
+  local key=$1 value=$2 tmp
+  [[ -f $STATE_FILE ]] || echo '{}' > "$STATE_FILE"
+  tmp="${STATE_FILE}.tmp.$$"
+  jq --arg k "$key" --arg v "$value" '.[$k]=$v' "$STATE_FILE" > "$tmp" && mv -f "$tmp" "$STATE_FILE"
+  chmod 644 "$STATE_FILE" 2>/dev/null || true
+}
+
+state_init() {
+  # usage: state_init <source_disk> <dest_disk> <dest_partuuid> <log_file>
+  local src=$1 dst=$2 partuuid=$3 logfile=$4 tmp
+  mkdir -p /var/lib/omarchy
+  tmp="${STATE_FILE}.tmp.$$"
+  jq -n \
+    --arg ts "$(date -Is)" \
+    --arg src "$src" \
+    --arg dst "$dst" \
+    --arg pu "$partuuid" \
+    --arg lf "$logfile" \
+    '{version:1, timestamp:$ts, source_disk:$src, dest_disk:$dst,
+      dest_partuuid:$pu, log_file:$lf, status:"pending",
+      boot_option_set:"no", old_bootnum:"", new_bootnum:"", usb_bootnums:[]}' \
+    > "$tmp" && mv -f "$tmp" "$STATE_FILE"
+  chmod 644 "$STATE_FILE" 2>/dev/null || true
+}
+
+state_clear() { rm -f "$STATE_FILE"; }
+
+# EFI helpers (adapted from omarchy-migrate lib/boot.sh, simplified)
+
+efi_entries() { efibootmgr 2>/dev/null | grep -E '^Boot[0-9A-Fa-f]{4}\*?[[:space:]]' || true; }
+
+efi_entry_num() { printf '%s\n' "$1" | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\).*/\1/p'; }
+
+efi_entry_label() { printf '%s\n' "$1" | sed -E 's/^Boot[0-9A-Fa-f]{4}\*?[[:space:]]+//' | cut -f1; }
+
+efi_entry_partuuid() { printf '%s\n' "$1" | grep -oE 'GPT,[0-9a-fA-F-]{36}' | head -n1 | cut -d, -f2; }
+
+efi_find_partuuid() {
+  local pu=$1 line
+  [[ -n $pu ]] || return 0
+  while IFS= read -r line; do
+    [[ $(efi_entry_partuuid "$line") == $pu ]] && efi_entry_num "$line" || true
+  done < <(efi_entries)
+}
+
+efi_find_label() {
+  local label=$1 line
+  while IFS= read -r line; do
+    [[ $(efi_entry_label "$line") == $label ]] && efi_entry_num "$line" || true
+  done < <(efi_entries)
+}
+
+efi_delete_num() {
+  local num=$1
+  [[ -n $num ]] || return 0
+  efibootmgr --delete-bootnum --bootnum "$num" >/dev/null 2>&1 || true
+}
+
+efi_create_entry() {
+  # usage: efi_create_entry <disk> <partnum> <label> <loader>  -> prints boot number
+  # Captures stderr for diagnostics.
+  local disk=$1 partnum=$2 label=$3 loader=$4 num err
+  # Do not delete existing entries here; the caller decides cleanup.
+  # (Previously this deleted ALL entries with the label, even on other drives.)
+  local out
+  out=$(efibootmgr --create --disk "$disk" --part "$partnum" --label "$label" --loader "$loader" 2>&1) || {
+    echo "efibootmgr --create failed: $out" >&2
+    return 1
+  }
+  # Extract the new entry number from efibootmgr output (e.g. "Boot0025* ...").
+  num=$(printf '%s\n' "$out" | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\).*/\1/p' | head -n1)
+  if [[ -z $num ]]; then
+    num=$(efi_find_partuuid "$(blkid -s PARTUUID -o value "${disk}$( [[ $disk == *[0-9] ]] && echo p )${partnum}" 2>/dev/null)" | head -n1)
+  fi
+  [[ -n $num ]] || { echo "efibootmgr created entry but could not determine its number." >&2; return 1; }
+  printf '%s\n' "$num"
+}
+
+efi_set_order_first() {
+  # Put $1 first while preserving USB entries first, then the rest.
+  local num=$1 current rest usb_nums other_nums new_order
+  [[ -n $num ]] || return 1
+  current=$(efibootmgr 2>/dev/null | sed -n 's/^BootOrder:[[:space:]]*//p' | head -n1)
+  # Identify USB entries (label or device path contains USB) to keep first.
+  usb_nums=""
+  other_nums=""
+  local line n
+  while IFS= read -r line; do
+    n=$(efi_entry_num "$line")
+    [[ -n $n && "$n" != "$num" ]] || continue
+    if printf '%s' "$line" | grep -qi "usb"; then
+      usb_nums="${usb_nums:+$usb_nums,}$n"
+    else
+      other_nums="${other_nums:+$other_nums,}$n"
+    fi
+  done < <(efi_entries)
+  # Build new order: USB entries, then new drive, then remaining (excluding new).
+  new_order=""
+  [[ -n $usb_nums ]] && new_order="$usb_nums"
+  new_order="${new_order:+$new_order,}$num"
+  # Add remaining non-usb entries that aren't the new num.
+  local rest_filtered=""
+  IFS=',' read -ra arr <<< "$other_nums"
+  for n in "${arr[@]}"; do
+    [[ -n $n && "$n" != "$num" ]] && rest_filtered="${rest_filtered:+$rest_filtered,}$n"
+  done
+  [[ -n $rest_filtered ]] && new_order="$new_order,$rest_filtered"
+  efibootmgr --bootorder "$new_order" >/dev/null 2>&1
+}
+
+efi_partnum() {
+  # Parse partition number from device name (e.g., nvme0n1p1 -> 1, sda1 -> 1).
+  # More reliable than lsblk PARTN column.
+  local part=$1 name
+  name=$(basename "$part")
+  # nvme/mmcblk: ends with pN
+  if [[ $name == *p[0-9]* ]]; then
+    printf '%s\n' "${name##*p}"
+  else
+    # sdXN / vdXN / hdXN: trailing digits
+    printf '%s\n' "${name##*[!0-9]}"
+  fi
+}
+
+is_uefi() { [[ -d /sys/firmware/efi ]]; }
+
+# EFI fallback bootloader filename for the current platform.
+efi_loader_path() {
+  if omarchy-hw-aarch64; then
+    printf '%s\n' '\EFI\BOOT\BOOTAA64.EFI'
+  else
+    printf '%s\n' '\EFI\BOOT\BOOTX64.EFI'
+  fi
+}
+
+install_verify_service() {
+  cat > "$VERIFY_SERVICE" <<'EOF'
+[Unit]
+Description=Verify Omarchy drive migration on first boot
+ConditionPathExists=/var/lib/omarchy/drive-migration.state
+After=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/share/omarchy/bin/omarchy-drive-migrate --verify
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical.target
+EOF
+  systemctl daemon-reload 2>/dev/null || true
+  systemctl enable omarchy-drive-migrate-verify.service 2>/dev/null || true
+}
+
+uninstall_verify_service() {
+  systemctl disable omarchy-drive-migrate-verify.service 2>/dev/null || true
+  rm -f "$VERIFY_SERVICE"
+  systemctl daemon-reload 2>/dev/null || true
+}
+
+notify() {
+  # Send a desktop notification if possible (best effort). Use the repo's
+  # helper only; never call notify-send directly (AGENTS.md). Translate
+  # via omarchy-i18n when available, fall back to English otherwise.
+  local title=$1 body=$2
+  shift 2
+  local title_en body_en
+  case "$title" in
+    driveMigrate.success.title) title_en="Migration successful" ;;
+    driveMigrate.failed.title)  title_en="Migration failed" ;;
+    *) title_en="$title" ;;
+  esac
+  case "$body" in
+    driveMigrate.success.body) body_en="Omarchy is now running from $1. Open 'Migrate drive' to finalize." ;;
+    driveMigrate.failed.body)  body_en="Booted from $1 instead of $2. Open 'Migrate drive' to retry." ;;
+    *) body_en="$body" ;;
+  esac
+  title=$(omarchy-i18n "$title" "$@" 2>/dev/null || echo "$title_en")
+  body=$(omarchy-i18n "$body" "$@" 2>/dev/null || echo "$body_en")
+  # If i18n returned the key unchanged (no translation), use English.
+  [[ $title == "driveMigrate."* ]] && title=$title_en
+  [[ $body == "driveMigrate."* ]] && body=$body_en
+  omarchy-notification-send "$title" "$body" 2>/dev/null || true
+}
+
+# --- Verify mode (run by the systemd service on first boot) ---
+
+verify_migration() {
+  [[ -f $STATE_FILE ]] || { echo "No migration state; nothing to verify."; return 0; }
+  local status dest src current_disk
+  status=$(state_get '.status')
+  [[ $status == "pending" ]] || { echo "Migration already verified (status=$status)."; return 0; }
+
+  dest=$(state_get '.dest_disk')
+  src=$(state_get '.source_disk')
+  dest_pu=$(state_get '.dest_partuuid')
+  current_disk=$(disk_for_source "$(findmnt -no SOURCE /)") || current_disk=""
+  # Compare by PARTUUID, not /dev name (names can change across reboots).
+  current_pu=""
+  if [[ -n $current_disk ]]; then
+    current_root_part=$(lsblk -nsrpo NAME,TYPE,FSTYPE "$(findmnt -no SOURCE / | sed 's/\\[.*//')" 2>/dev/null | awk '$2=="part" && $3=="crypto_LUKS"{print $1;exit}')
+    [[ -n $current_root_part ]] || current_root_part=$(lsblk -nsrpo NAME,TYPE "$(findmnt -no SOURCE / | sed 's/\\[.*//')" 2>/dev/null | awk '$2=="part"{print $1;exit}')
+    current_pu=$(blkid -s PARTUUID -o value "$current_root_part" 2>/dev/null || echo "")
+  fi
+
+  if [[ -n $dest_pu && "$current_pu" == "$dest_pu" ]]; then
+    state_write "status" "success"
+    notify "driveMigrate.success.title" "driveMigrate.success.body" "$dest"
+    echo "Migration verified: booted from $dest (success)."
+  else
+    state_write "status" "failed"
+    notify "driveMigrate.failed.title" "driveMigrate.failed.body" "$current_disk" "$dest"
+    echo "Migration failed: booted from $current_disk, expected $dest."
+  fi
+
+  # Disable the service so it doesn't run again.
+  uninstall_verify_service
+  return 0
+}
+
+# --- Main ---
+
+main() {
+  # Logo is shown by the presentation wrapper (13 lines: green + 10 logo +
+  # reset + blank). In the user phase we only clear below it.
+  LOGO_CURSOR_ROW=13
+  clear_below_logo() {
+    if command -v tput >/dev/null 2>&1 && [[ -t 1 ]]; then
+      tput cup "$LOGO_CURSOR_ROW" 0 2>/dev/null || true
+      tput ed 2>/dev/null || true
+    fi
+  }
+
+  # --verify mode: non-interactive, used by the systemd service on first boot.
+  if [[ ${1:-} == "--verify" ]]; then
+    verify_migration
+    exit 0
+  fi
+
+  # --status mode: show migration state and current boot disk (no elevation needed).
+  if [[ ${1:-} == "--status" ]]; then
+    echo "=== Migration status ==="
+    if state_exists; then
+      echo "State file: $STATE_FILE"
+      echo "Status:      $(state_get '.status')"
+      echo "Source:      $(state_get '.source_disk')"
+      echo "Dest:        $(state_get '.dest_disk')"
+      echo "Boot option set: $(state_get '.boot_option_set')"
+      echo "New bootnum: $(state_get '.new_bootnum')"
+    else
+      echo "No migration state file found."
+    fi
+    echo "Currently booted from: $(disk_for_source "$(findmnt -no SOURCE /)" 2>/dev/null || echo 'unknown')"
+    echo "UEFI: $(is_uefi && echo yes || echo no)"
+    if is_uefi; then
+      echo "=== EFI boot entries ==="
+      efibootmgr 2>/dev/null || echo "(efibootmgr failed)"
+    fi
+    exit 0
+  fi
+
+  # --set-boot mode: create EFI entry for the migration destination and set boot order.
+  # Requires root. Uses the destination from the state file, or accepts a disk arg.
+  if [[ ${1:-} == "--set-boot" ]]; then
+    if (( EUID != 0 )); then
+      echo "Error: --set-boot requires root." >&2
+      exit 1
+    fi
+    export PATH="${OMARCHY_PATH:-/usr/share/omarchy}/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+
+    local dest_disk dest_partuuid esp_partnum new_bootnum
+    if [[ -n "${2:-}" ]]; then
+      dest_disk=$2
+    elif state_exists; then
+      dest_disk=$(state_get '.dest_disk')
+    else
+      echo "Error: no destination disk. Usage: $0 --set-boot /dev/nvme0n1" >&2
+      exit 1
+    fi
+
+    if [[ ! -b $dest_disk ]]; then
+      echo "Error: $dest_disk is not a block device." >&2
+      exit 1
+    fi
+
+    if ! is_uefi; then
+      echo "Not running on UEFI. Cannot set firmware boot order." >&2
+      exit 1
+    fi
+
+    dest_partuuid=$(blkid -s PARTUUID -o value "${dest_disk}$( [[ $dest_disk == *[0-9] ]] && echo p )2" 2>/dev/null || echo "")
+    if [[ -z $dest_partuuid ]]; then
+      echo "Error: cannot find PARTUUID for ${dest_disk}p2." >&2
+      exit 1
+    fi
+
+    dest_esp_partuuid=$(blkid -s PARTUUID -o value "${dest_disk}$( [[ $dest_disk == *[0-9] ]] && echo p )1" 2>/dev/null || echo "")
+
+    echo "Destination disk: $dest_disk"
+    echo "Destination root PARTUUID: $dest_partuuid"
+    echo "Destination ESP PARTUUID:  $dest_esp_partuuid"
+    echo
+
+    # Check if entry already exists (by ESP PARTUUID, since EFI entries point to ESP).
+    echo "Checking for existing EFI entry (may take a few seconds)..."
+    new_bootnum=$(efi_find_partuuid "$dest_esp_partuuid" | head -n1)
+    if [[ -n $new_bootnum ]]; then
+      echo "EFI entry already exists: Boot$new_bootnum"
+    else
+      echo "Creating EFI boot entry for $dest_disk..."
+      esp_partnum=$(efi_partnum "${dest_disk}$( [[ $dest_disk == *[0-9] ]] && echo p )1")
+      echo "  ESP partition number: $esp_partnum"
+      echo "  Calling efibootmgr --create (firmware may take 10-30s)..."
+      local boot_label
+      boot_label=$(gum input --value "Omarchy (migrated)" --header "EFI boot entry label (Enter to accept default)") || boot_label="Omarchy (migrated)"
+      [[ -n $boot_label ]] || boot_label="Omarchy (migrated)"
+      new_bootnum=$(efi_create_entry "$dest_disk" "$esp_partnum" "$boot_label" "$(efi_loader_path)")
+      if [[ -n $new_bootnum ]]; then
+        echo "  Created entry: Boot$new_bootnum"
+      else
+        echo "  Failed to create EFI entry." >&2
+        exit 1
+      fi
+    fi
+
+    echo
+    echo "Setting boot order (USB entries first, then new drive)..."
+    efi_set_order_first "$new_bootnum"
+    echo "Boot order updated."
+    echo
+    echo "New boot order:"
+    efibootmgr | grep -E "BootOrder|Boot[0-9A-Fa-f]{4}\*"
+
+    # Update state file if it exists.
+    if state_exists; then
+      state_write "new_bootnum" "$new_bootnum"
+      state_write "boot_option_set" "yes"
+      echo
+      echo "State file updated."
+    fi
+
+    exit 0
+  fi
+
+  # --- User phase: check for previous migration state, then confirm + elevate. ---
+  if (( EUID != 0 )); then
+    # Handle previous migration state before starting a new one. Actual
+    # file/service operations need root, so they are deferred to the root
+    # phase via OMARCHY_CLEAR_STATE / OMARCHY_FINALIZE env vars.
+    if state_exists; then
+      local prev_status prev_dest current_disk
+      prev_status=$(state_get '.status')
+      prev_dest=$(state_get '.dest_disk')
+      current_disk=$(disk_for_source "$(findmnt -no SOURCE /)" 2>/dev/null || echo "")
+      # Compare by PARTUUID, not /dev name (names can change across reboots).
+      prev_dest_pu=$(state_get '.dest_partuuid')
+      current_root_part=$(lsblk -nsrpo NAME,TYPE,FSTYPE "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | awk '$2=="part" && $3=="crypto_LUKS"{print $1;exit}')
+      [[ -n $current_root_part ]] || current_root_part=$(lsblk -nsrpo NAME,TYPE "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | awk '$2=="part"{print $1;exit}')
+      current_pu=$(blkid -s PARTUUID -o value "$current_root_part" 2>/dev/null || echo "")
+      # If we are actually booted from the destination, treat as success
+      # regardless of what the state file says (the verify service may have
+      # run on the old drive before the user switched).
+      if [[ -n $prev_dest_pu && "$current_pu" == $prev_dest_pu ]]; then
+        prev_status="success"
+      fi
+      case "$prev_status" in
+        success)
+          echo "Previous migration to $prev_dest succeeded."
+          local src_pu old_count
+          src_pu=$(state_get '.source_partuuid')
+          old_count=0
+          if [[ -n $src_pu ]]; then
+            old_count=$(efi_find_partuuid "$src_pu" 2>/dev/null | grep -c .) || old_count=0
+          fi
+          if (( old_count > 0 )); then
+            echo "Found $old_count old boot entry/entries pointing to the source drive."
+          else
+            echo "Old boot entry already removed (nothing to do)."
+          fi
+          echo "Note: EFI entry check requires root; will verify during finalization."
+          if (( old_count > 0 )); then
+            if gum confirm --default=false "Remove the old drive's boot entry/entries and finalize?" --affirmative="Yes, finalize" --negative="Not now"; then
+              export OMARCHY_FINALIZE=1
+            fi
+          fi
+          if gum confirm --default=false "Clear migration state and start fresh?" --affirmative="Yes" --negative="No"; then
+            export OMARCHY_CLEAR_STATE=1
+          else
+            echo "State kept."
+            clear_below_logo
+            exit 0
+          fi
+          ;;
+        failed)
+          echo "Previous migration to $prev_dest FAILED (booted from original drive)."
+          if gum confirm --default=false "Clear state and retry migration?" --affirmative="Yes, retry" --negative="No"; then
+            export OMARCHY_CLEAR_STATE=1
+          else
+            echo "State kept. Re-run 'omarchy-drive-migrate' to retry later."
+            clear_below_logo
+            exit 0
+          fi
+          ;;
+        pending)
+          echo "A migration to $prev_dest is pending (no reboot yet?)."
+          if gum confirm --default=false "Clear pending state and start fresh?" --affirmative="Yes" --negative="No"; then
+            export OMARCHY_CLEAR_STATE=1
+          else
+            echo "State kept."
+            clear_below_logo
+            exit 0
+          fi
+          ;;
+      esac
+    fi
+
+    # If state was cleared or finalized, elevate to root to execute, then exit.
+    if [[ ${OMARCHY_CLEAR_STATE:-} == "1" || "${OMARCHY_FINALIZE:-}" == "1" ]]; then
+      self=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 1
+      mapfile -t gum_env < <(env | grep '^GUM_' || true)
+      exec sudo env "${gum_env[@]}" "OMARCHY_PATH=${OMARCHY_PATH:-/usr/share/omarchy}" "OMARCHY_CLEAR_STATE=${OMARCHY_CLEAR_STATE:-}" "OMARCHY_FINALIZE=${OMARCHY_FINALIZE:-}" "$self" "$@"
+    fi
+
+    # No state to handle (or state handled + cleared): start a new migration.
+    omarchy-drive-migrate-confirm || exit 130
+
+    self=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 1
+    mapfile -t gum_env < <(env | grep '^GUM_' || true)
+    exec sudo env "${gum_env[@]}" "OMARCHY_PATH=${OMARCHY_PATH:-/usr/share/omarchy}" "$self" "$@"
+  fi
+
+  export PATH="${OMARCHY_PATH:-/usr/share/omarchy}/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+
+  # --- EFI boot entry check (always when state exists, needs root) ---
+  if state_exists; then
+    dest_disk=$(state_get '.dest_disk')
+    dest_esp_pu=$(blkid -s PARTUUID -o value "${dest_disk}$( [[ $dest_disk == *[0-9] ]] && echo p )1" 2>/dev/null || echo "")
+    local new_count=0
+    if [[ -n $dest_esp_pu ]]; then
+      new_count=$(efi_find_partuuid "$dest_esp_pu" 2>/dev/null | grep -c .) || new_count=0
+    fi
+    if (( new_count == 0 )); then
+      echo "No EFI entry found for the new drive."
+      if gum confirm --default=false "Create an EFI boot entry for the new drive now?" --affirmative="Yes, create" --negative="No"; then
+        local esp_partnum new_bootnum boot_label
+        esp_partnum=$(efi_partnum "${dest_disk}$( [[ $dest_disk == *[0-9] ]] && echo p )1")
+        boot_label=$(gum input --value "Omarchy (migrated)" --header "EFI boot entry label (Enter to accept default)") || boot_label="Omarchy (migrated)"
+        [[ -n $boot_label ]] || boot_label="Omarchy (migrated)"
+        new_bootnum=$(efi_create_entry "$dest_disk" "$esp_partnum" "$boot_label" "$(efi_loader_path)")
+        if [[ -n $new_bootnum ]]; then
+          echo "Created EFI entry: Boot$new_bootnum"
+          efi_set_order_first "$new_bootnum"
+          state_write "new_bootnum" "$new_bootnum"
+          state_write "boot_option_set" "yes"
+          echo "Boot order updated."
+        else
+          echo "Failed to create EFI entry. Run manually: sudo omarchy-drive-migrate --set-boot" >&2
+        fi
+      fi
+    else
+      echo "New drive EFI entry present ($new_count entry/entries)."
+    fi
+  fi
+
+  # --- Finalize: remove old boot entries (only if requested) ---
+  if [[ ${OMARCHY_FINALIZE:-} == "1" ]] && state_exists; then
+    src_pu=$(state_get '.source_partuuid')
+    local old_nums=() old_count=0 deleted=0
+    if [[ -n $src_pu ]]; then
+      while IFS= read -r old_num; do
+        [[ -n $old_num ]] && old_nums+=("$old_num")
+      done < <(efi_find_partuuid "$src_pu" 2>/dev/null)
+      old_count=${#old_nums[@]}
+    fi
+    if (( old_count > 0 )); then
+      echo "Found $old_count old boot entry/entries pointing to source drive. Removing..."
+      for old_num in "${old_nums[@]}"; do
+        if efibootmgr --delete-bootnum --bootnum "$old_num" >/dev/null 2>&1; then
+          deleted=$((deleted + 1))
+          echo "  Removed Boot$old_num"
+        else
+          echo "  Failed to remove Boot$old_num" >&2
+        fi
+      done
+      echo "Removed $deleted of $old_count old entries."
+    fi
+    state_write "status" "finalized"
+    echo "Finalization complete."
+  fi
+  if [[ ${OMARCHY_CLEAR_STATE:-} == "1" ]]; then
+    state_clear
+    uninstall_verify_service
+    echo "Migration state cleared."
+  fi
+  # If we were only clearing/finalizing (not starting a new migration), exit.
+  if [[ ${OMARCHY_CLEAR_STATE:-} == "1" || "${OMARCHY_FINALIZE:-}" == "1" ]]; then
+    clear_below_logo
+    exit 0
+  fi
+
+  # --- Root phase ---
+  if command -v tput >/dev/null 2>&1 && [[ -t 1 ]]; then
+    LOGO_CURSOR_ROW=$(( $(wc -l < "$OMARCHY_PATH/logo.txt") + 3 ))
+    logo=$(cat "$OMARCHY_PATH/logo.txt"; printf x); logo=${logo%x}
+    printf '\033[?25l\033[2J\033[3J\033[H\033[32m\n%s\033[0m\n\n\033[%d;1H\033[J\033[?25h' \
+      "$logo" "$((LOGO_CURSOR_ROW + 1))"
+  else
+    LOGO_CURSOR_ROW=0
+  fi
+
+  clear_below_logo() {
+    if (( LOGO_CURSOR_ROW > 0 )); then
+      printf '\033[?25l\033[2J\033[3J\033[H\033[32m\n%s\033[0m\n\n\033[%d;1H\033[J\033[?25h' \
+        "$logo" "$((LOGO_CURSOR_ROW + 1))"
+    fi
+  }
+
+  while true; do
+    clear_below_logo
+    migration_step="$(omarchy-drive-migrate-menu)" || exit 0
+
+    case "$migration_step" in
+      "Start migration")
+        clear_below_logo
+        mapfile -t source_disks < <(current_installation_disks)
+        if ((${#source_disks[@]} == 0)); then
+          echo "Error: cannot tell which disk holds the current installation." >&2
+          read -r -p "Press Enter to return to the menu..." || true
+          continue
+        fi
+
+        root_disk=$(disk_for_source "$(findmnt -no SOURCE /)") || {
+          echo "Error: cannot find the disk holding /." >&2
+          read -r -p "Press Enter to return to the menu..." || true
+          continue
+        }
+        root_size=$(disk_size "$root_disk") || root_size=0
+
+        used=0
+        for drive in "${source_disks[@]}"; do
+          size=$(required_bytes "$drive")
+          used=$((used + size))
+        done
+        if (( used == 0 )); then
+          echo "Error: cannot measure the data in use on the current installation." >&2
+          read -r -p "Press Enter to return to the menu..." || true
+          continue
+        fi
+
+        reserve=$(migration_reserve "$used")
+        required=$((used + reserve))
+
+        gum style --border normal --padding "1 2" \
+          "Select a destination drive" \
+          "" \
+          "Current installation: $(omarchy-drive-info "$root_disk")" \
+          "Data to copy: $(human_size "$used")" \
+          "Space required: $(human_size "$required") (including $(human_size "$reserve") of headroom)" \
+          "" \
+          "The current installation disk is not offered as a destination."
+
+        classify_destination_disks "$required" "${source_disks[@]}"
+
+        if ((${#too_small[@]} > 0)); then
+          echo
+          for drive in "${too_small[@]}"; do
+            size=$(disk_size "$drive") || size=0
+            printf '• %s (%s) - too small\n' "$drive" "$(human_size "$size")"
+          done
+          echo
+        fi
+
+        if ((${#eligible[@]} == 0)); then
+          if ((${#too_small[@]} == 0)); then
+            gum style --border normal --padding "1 2" \
+              "No destination drive found" \
+              "" \
+              "Connect another drive and try again."
+          else
+            gum style --border normal --padding "1 2" \
+              "No destination drive is large enough" \
+              "" \
+              "Connect a drive with at least $(human_size "$required") of space and try again."
+          fi
+          read -r -p "Press Enter to return to the menu..." || true
+          continue
+        fi
+
+        selected=$(omarchy-drive-select "${eligible[@]}") || {
+          echo "Migration cancelled."
+          continue
+        }
+
+        found=0
+        for drive in "${eligible[@]}"; do
+          [[ $selected == $drive ]] && found=1
+        done
+        if (( found == 0 )); then
+          echo "Error: '$selected' is not an eligible destination drive." >&2
+          read -r -p "Press Enter to return to the menu..." || true
+          continue
+        fi
+
+        destination_size=$(disk_size "$selected") || destination_size=0
+
+        clear_below_logo
+        gum style --border normal --padding "1 2" \
+          "Destination drive selected" \
+          "" \
+          "$(omarchy-drive-info "$selected")"
+
+        if (( destination_size > 0 && root_size > 0 && destination_size < root_size )); then
+          echo
+          echo "The destination is smaller than the current drive; partitions will be sized to the data actually in use."
+        fi
+
+        echo
+
+        # Wipe confirmation.
+        gum confirm --default=false \
+          "This will ERASE ALL DATA on $(basename "$selected") and copy the system there. Continue?" \
+          --affirmative="Yes, proceed" \
+          --negative="No, cancel" || {
+          echo "Migration cancelled."
+          clear_below_logo
+          continue
+        }
+
+        source_destination=0
+        for drive in "${source_disks[@]}"; do
+          if [[ $(readlink -f -- "$drive") == $(readlink -f -- "$selected") ]]; then
+            source_destination=1
+            break
+          fi
+        done
+        if (( source_destination )); then
+          echo "ERROR: destination is a source disk" >&2
+          read -r -p "Press Enter to return to the menu..." || true
+          continue
+        fi
+
+        before_ts=$(date +%s)
+        # Destructive engine (subprocess for isolation).
+        OMARCHY_DRIVE_MIGRATE_CONFIRMED=1 "$OMARCHY_PATH/bin/omarchy-drive-migrate-clone" "$selected" "$used" || {
+          read -r -p "Press Enter to return to the menu..." || true
+          continue
+        }
+
+        # --- After successful copy: boot order question + state + service ---
+        clear_below_logo
+        gum style --border normal --padding "1 2" \
+          "Copy complete." \
+          "" \
+          "The system has been copied to $selected." \
+          "" \
+          "Before rebooting, you can set the new drive as the first boot option."
+
+        set_boot_first="no"
+        if is_uefi; then
+          if gum confirm --default=false "Set the new drive as the first boot option?" --affirmative="Yes, set it" --negative="No, I'll select manually"; then
+            set_boot_first="yes"
+          fi
+        fi
+
+        # Gather destination info for state file (after clone succeeded).
+        dest_root_part="${selected}$( [[ $selected == *[0-9] ]] && echo p )2"
+        dest_partuuid=$(blkid -s PARTUUID -o value "$dest_root_part" 2>/dev/null || echo "")
+        dest_esp_partuuid=$(blkid -s PARTUUID -o value "${selected}$( [[ $selected == *[0-9] ]] && echo p )1" 2>/dev/null || echo "")
+        dest_luks_uuid=$(blkid -s UUID -o value "$dest_root_part" 2>/dev/null || echo "")
+        src_root_part=$(lsblk -nsrpo NAME,TYPE,FSTYPE "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | awk '$2=="part" && $3=="crypto_LUKS"{print $1;exit}')
+        [[ -n $src_root_part ]] || src_root_part=$(lsblk -nsrpo NAME,TYPE "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | awk '$2=="part"{print $1;exit}')
+        src_partuuid=$(blkid -s PARTUUID -o value "$src_root_part" 2>/dev/null || echo "")
+
+        clone_log=$(find /var/log -maxdepth 1 -name 'omarchy-drive-migrate-*.log' -newermt "@$before_ts" 2>/dev/null | head -1)
+        [[ -n $clone_log ]] || clone_log="/var/log/omarchy-drive-migrate-*.log"
+
+        # Write state file.
+        state_init "${source_disks[0]}" "$selected" "$dest_partuuid" "$clone_log"
+        state_write "source_partuuid" "$src_partuuid"
+        state_write "dest_luks_uuid" "$dest_luks_uuid"
+
+        # Set boot order if requested.
+        if [[ $set_boot_first == "yes" && -n $dest_partuuid ]]; then
+          if ! is_uefi; then
+            echo "Not running on UEFI; cannot set firmware boot order automatically." >&2
+            echo "Set the new drive first in your firmware boot menu manually." >&2
+          else
+            # Verify the new ESP has the Limine fallback bootloader.
+            if ! mdir -i "${selected}$( [[ $selected == *[0-9] ]] && echo p )1" ::/EFI/BOOT/BOOTX64.EFI >/dev/null 2>&1 && \
+               ! mdir -i "${selected}$( [[ $selected == *[0-9] ]] && echo p )1" ::/EFI/BOOT/BOOTAA64.EFI >/dev/null 2>&1; then
+              echo "Warning: Limine fallback bootloader (BOOTX64.EFI) not found on the new ESP." >&2
+              echo "The new drive may not be bootable. Re-run migration or install Limine manually." >&2
+            fi
+            # Find or create EFI entry for the new drive's ESP.
+            new_bootnum=""
+            new_bootnum=$(efi_find_partuuid "$dest_esp_partuuid" | head -n1)
+            if [[ -z $new_bootnum ]]; then
+              esp_partnum=$(efi_partnum "${selected}$( [[ $selected == *[0-9] ]] && echo p )1")
+              local boot_label
+              boot_label=$(gum input --value "Omarchy (migrated)" --header "EFI boot entry label (Enter to accept default)") || boot_label="Omarchy (migrated)"
+              [[ -n $boot_label ]] || boot_label="Omarchy (migrated)"
+              new_bootnum=$(efi_create_entry "$selected" "$esp_partnum" "$boot_label" "$(efi_loader_path)")
+            fi
+            if [[ -n $new_bootnum ]]; then
+              efi_set_order_first "$new_bootnum"
+              state_write "new_bootnum" "$new_bootnum"
+              state_write "boot_option_set" "yes"
+              echo "Boot order updated: new drive set first (USB entries preserved)."
+              echo "Boot entry number: $new_bootnum"
+            else
+              echo "Warning: could not create EFI boot entry for the new drive." >&2
+              echo "You will need to select the drive manually in the firmware boot menu." >&2
+            fi
+          fi
+        fi
+
+        # Install verification service for next boot.
+        install_verify_service
+        state_write "status" "pending"
+
+        # Completion + reboot prompt.
+        clear_below_logo
+        gum style --border normal --padding "1 2" \
+          "Migration Complete!" \
+          "" \
+          "The system has been copied to $selected." \
+          "" \
+          "Log saved to the migration log." \
+          "" \
+          "The old drive is untouched." \
+          "" \
+          "On next boot, the verification service will check if migration succeeded."
+
+        if gum confirm --default=false "Reboot now to start from the new drive?" --affirmative="Yes, reboot" --negative="No, stay here"; then
+          systemctl reboot
+        fi
+        ;;
+
+      "Quit")
+        exit 0
+        ;;
+    esac
+  done
+}
+
+if [[ ${BASH_SOURCE[0]} == $0 ]]; then
+  main "$@"
+fi

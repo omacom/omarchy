@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Select a drive migration step. Used by omarchy-drive-migrate.
+
+set -e
+
+migration_steps=("Start migration" "Quit")
+
+selected_step="$(printf '%s\n' "${migration_steps[@]}" | gum choose --header "Select migration option")"
+printf "%s\n" "$selected_step"
