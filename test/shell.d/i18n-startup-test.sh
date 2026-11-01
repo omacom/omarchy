@@ -52,9 +52,17 @@ persian = dict(english, language='fa', locale='fa-IR', number='۱۳٫۵', rtl=Tr
 french_fallback = dict(english, language='fr', locale='fr-FR', number='13,5')
 
 
-def write_json(path, data):
+# The shell watches these files and reloads them as they change, so replace
+# each one whole: a file written in place can be read while still empty.
+def write_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+    staged = path.with_name(path.name + '.tmp')
+    staged.write_text(text, encoding='utf-8')
+    os.replace(staged, path)
+
+
+def write_json(path, data):
+    write_text(path, json.dumps(data, ensure_ascii=False))
 
 
 class Probe:
@@ -159,7 +167,7 @@ try:
     try:
         probe.wait(english)
         for language, expected in [('da', danish), ('pt-BR', portuguese), ('fr', french_fallback), ('en', english)]:
-            probe.language.write_text(language)
+            write_text(probe.language, language)
             probe.wait(expected)
         print('ok - live language changes update shell, plugin, and locale bindings', flush=True)
 
@@ -175,21 +183,21 @@ try:
 
         other = probe.path / 'other-plugin'
         write_json(other / 'en.json', dict(en_catalog, **{'test.hello': 'Other %1', 'test.baseOnly': 'English base'}))
-        probe.directory.write_text(str(other))
+        write_text(probe.directory, str(other))
         changed = dict(changed, pluginText='Other Ada')
         probe.wait(changed)
-        probe.directory.write_text(str(probe.plugin))
+        write_text(probe.directory, str(probe.plugin))
         changed = dict(changed, pluginText='Plugin Ada')
         probe.wait(changed)
         print('ok - changing the plugin catalog directory refreshes existing bindings', flush=True)
 
-        probe.language.write_text('da')
+        write_text(probe.language, 'da')
         probe.wait(danish)
         probe.language.unlink()
         probe.wait(changed)
         print('ok - deleting the language selection restores English', flush=True)
 
-        probe.language.write_text('da')
+        write_text(probe.language, 'da')
         probe.wait(danish)
         (probe.catalogs / 'da/shell.json').unlink()
         (probe.plugin / 'da.json').unlink()

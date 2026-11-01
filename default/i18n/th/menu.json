@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "ทดสอบความเร็วดิสก์"
   },
-  "setup.monitors": {
-    "label": "จอภาพ"
-  },
   "setup.keybindings": {
     "label": "ปุ่มลัด"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "เคอร์เนล"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

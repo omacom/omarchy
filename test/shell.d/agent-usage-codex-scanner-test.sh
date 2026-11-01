@@ -22,6 +22,7 @@ fake_codex "$HOME"
 python3 - <<'PY'
 import shutil
 import tempfile
+from compression import zstd
 
 from agent_usage_fixtures import *
 
@@ -367,6 +368,22 @@ if os.geteuid() != 0:
   record = codex("--limits-only")
   expect("Codex never caches a scan that couldn't read a rollout",
          [partial["todayTotalTokens"], record["todayTotalTokens"]], [0, 7], record)
+
+# Codex compresses a finished rollout to .jsonl.zst and decompresses it again
+# to append, so a compressed rollout counts, one caught mid-swap counts once,
+# and a damaged one costs only itself.
+new_home()
+plain = rollout("rollout-compressed.jsonl", context("gpt-compressed"), tokens(7, 2))
+packed = plain.with_name(plain.name + ".zst")
+packed.write_bytes(zstd.compress(plain.read_bytes()))
+plain.unlink()
+(sessions() / "rollout-damaged.jsonl.zst").write_bytes(zstd.compress(plain.name.encode() * 100)[:20])
+compressed = codex()
+plain.write_bytes(zstd.decompress(packed.read_bytes()))
+swapping = codex()
+expect("Codex counts a compressed rollout, once while Codex swaps its compression, past a damaged one",
+       [[record["modelUsage"].get("gpt-compressed", {}).get(key) for key in ("inputTokens", "outputTokens")] for record in (compressed, swapping)],
+       [[7, 2], [7, 2]], swapping)
 
 # ------------------------------------------------------- pi and opencode
 

@@ -14,9 +14,11 @@ export HOME="$tmp_dir/home"
 export OMARCHY_OPENCLAW_ONBOARD_SETTLE_SECONDS=0
 
 # Run a scratch copy of the wrapper with its 2s gateway poll shortened;
-# every scenario otherwise costs at least one full poll interval.
+# every scenario otherwise costs at least one full poll interval. Each poll is
+# logged, so a wizard stub can outlast a number of polls rather than a time.
 onboard="$tmp_dir/omarchy-openclaw-onboard"
-sed 's/^  sleep 2$/  sleep 0.1/' "$ROOT/bin/omarchy-openclaw-onboard" >"$onboard"
+sed 's/^  sleep 2$/  sleep 0.1; echo poll >>"$TEST_LOG"/' "$ROOT/bin/omarchy-openclaw-onboard" >"$onboard"
+grep -q '^  sleep 0.1; echo poll' "$onboard" || fail "the scratch copy shortens the gateway poll"
 chmod +x "$onboard"
 unit="$HOME/.config/systemd/user/openclaw-gateway.service"
 export unit
@@ -217,24 +219,42 @@ grep -q '^terminated$' "$TEST_LOG" || fail "stopping the wrapper stops the wizar
 ! pgrep -f "$tmp_dir/bin/openclaw onboard" >/dev/null || fail "stopping the wrapper stops the wizard" "wizard process still alive"
 pass "stopping the wrapper stops the wizard"
 
-# A config left by an earlier, incomplete setup does not start the gateway
-# deadline: only this run applying setup does. The wizard here takes longer
-# than the deadline at its prompts, never touches the old config, and must be
-# left to finish on its own.
-: >"$TEST_LOG"
-mkdir -p "$HOME/.openclaw" && touch "$HOME/.openclaw/openclaw.json"
-sleep 1
-cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
+# A wizard still at its prompts: it finishes on its own once the wrapper has
+# polled three times, each a chance for the wrapper to wrongly stop it.
+cat >"$tmp_dir/prompting-wizard" <<'SCRIPT'
 #!/bin/bash
 printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
 case $1 in
-onboard) trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM; sleep 2; echo finished >>"$TEST_LOG"; exit 0 ;;
-dashboard) echo '{"ok":false}'; exit 1 ;;
+onboard)
+  trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM
+  for _ in {1..400}; do
+    (( $(grep -c '^poll$' "$TEST_LOG") >= 3 )) && break
+    sleep 0.05
+  done
+  (( $(grep -c '^poll$' "$TEST_LOG") >= 3 )) && echo finished >>"$TEST_LOG"
+  exit 0
+  ;;
+dashboard)
+  if [[ -n ${ORPHAN_ANSWERS:-} ]]; then
+    echo '{"ok":true,"port":18789}'
+  else
+    echo '{"ok":false}'
+    exit 1
+  fi
+  ;;
 esac
 SCRIPT
-chmod +x "$tmp_dir/bin/openclaw"
+chmod +x "$tmp_dir/prompting-wizard"
+
+# A config left by an earlier, incomplete setup does not start the gateway
+# deadline: only this run applying setup does. With no grace at all, the
+# deadline would end the wizard at the first poll were the old config counted;
+# it never touches that config and must be left to finish on its own.
+: >"$TEST_LOG"
+mkdir -p "$HOME/.openclaw" && touch -d '1 minute ago' "$HOME/.openclaw/openclaw.json"
+cp "$tmp_dir/prompting-wizard" "$tmp_dir/bin/openclaw"
 rc=0
-"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
+OMARCHY_OPENCLAW_ONBOARD_GATEWAY_TIMEOUT=0 "$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 0 ]] || fail "a stale config does not start the gateway deadline" "rc=$rc"
 grep -q '^finished$' "$TEST_LOG" || fail "a stale config does not start the gateway deadline" "wizard was cut short"
 ! grep -q '^terminated$' "$TEST_LOG" || fail "a stale config does not start the gateway deadline" "wizard was signalled"
@@ -263,17 +283,9 @@ pass "a config rewritten by this run arms the gateway deadline"
 # foreground gateway) would otherwise end a wizard still at its first prompt.
 : >"$TEST_LOG"
 rm -rf "$HOME/.openclaw" "$unit" "$listener_file"
-cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
-#!/bin/bash
-printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
-case $1 in
-onboard) trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM; sleep 2; echo finished >>"$TEST_LOG"; exit 0 ;;
-dashboard) echo '{"ok":true,"port":18789}' ;;
-esac
-SCRIPT
-chmod +x "$tmp_dir/bin/openclaw"
+cp "$tmp_dir/prompting-wizard" "$tmp_dir/bin/openclaw"
 rc=0
-"$onboard" </dev/null >/dev/null 2>&1 || rc=$?
+ORPHAN_ANSWERS=1 "$onboard" </dev/null >/dev/null 2>&1 || rc=$?
 [[ $rc == 0 ]] || fail "an orphaned gateway answering with no config does not end the wizard" "rc=$rc"
 grep -q '^finished$' "$TEST_LOG" || fail "an orphaned gateway answering with no config does not end the wizard" "wizard was cut short"
 ! grep -q '^terminated$' "$TEST_LOG" || fail "an orphaned gateway answering with no config does not end the wizard" "wizard was signalled"
