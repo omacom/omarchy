@@ -1,0 +1,11 @@
+[Unit]
+Description=Omarchy face key: hold face scans until the Copilot key is pressed
+
+[Socket]
+ListenStream=/run/omarchy-face-key.sock
+SocketMode=0600
+SocketUser=root
+SocketGroup=root
+
+[Install]
+WantedBy=sockets.target

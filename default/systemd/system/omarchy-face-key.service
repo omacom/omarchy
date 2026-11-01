@@ -1,0 +1,22 @@
+[Unit]
+Description=Omarchy face key: hold face scans until the Copilot key is pressed
+Requires=omarchy-face-key.socket
+
+[Service]
+ExecStart=/usr/bin/omarchy-face-key serve
+DevicePolicy=closed
+DeviceAllow=char-input r
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID
+NoNewPrivileges=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native

@@ -1,0 +1,7 @@
+# The lock screen runs its PAM conversation as the session user, while Howdy
+# keeps its models and scripts readable by root only, so the face helper behind
+# the omarchy-lock-face line re-executes its packaged copy through this rule.
+# No arguments: the account to match comes from SUDO_USER, which sudo itself
+# sets after env_reset, so a user can only ever match their own face, and the
+# outcome is a verdict for PAM, never a session or a file.
+%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-face-match ""

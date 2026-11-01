@@ -17,6 +17,21 @@ function fingerprintConfiguredFromPamConfig(raw) {
   return false
 }
 
+// Face authentication is offered only in the form that asks first: the helper
+// with expose_authtok, which scans only when the Copilot key answered the
+// password prompt. A face line without it would scan unasked, and the dialog
+// must not invite that.
+function faceConfiguredFromPamConfig(raw) {
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].replace(/^\s+|\s+$/g, "")
+    if (!line || line.charAt(0) === "#") continue
+    if (!line.match(/^auth\s+/)) continue
+    if (line.indexOf("omarchy-face-match") !== -1 && line.indexOf("expose_authtok") !== -1) return true
+  }
+  return false
+}
+
 function authorizationLabel(message, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
@@ -28,6 +43,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     promptLooksFingerprint: promptLooksFingerprint,
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
+    faceConfiguredFromPamConfig: faceConfiguredFromPamConfig,
     authorizationLabel: authorizationLabel
   }
 }
