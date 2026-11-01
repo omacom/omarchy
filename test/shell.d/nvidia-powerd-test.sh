@@ -40,7 +40,7 @@ while IFS='|' read -r description architecture controller expected; do
   pass "$description"
 done <<'CASES'
 x86 exact controller enables Dynamic Boost|x86|NVDA0820|enable nvidia-powerd
-ARM exact controller does not enable Dynamic Boost|arm|NVDA0820|
+ARM exact controller does not enable Dynamic Boost|aarch64|NVDA0820|
 x86 with no controller ID does not enable Dynamic Boost|x86|missing|
 x86 controller prefix does not match|x86|NVDA0820extra|
 x86 controller suffix does not match|x86|extraNVDA0820|
