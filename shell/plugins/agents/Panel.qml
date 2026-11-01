@@ -43,9 +43,15 @@ Panel {
       Util.execArgv(["omarchy-agent", "--local-model", model.recipe])
       root.close()
     } else if (action === "toggle") {
-      Util.execArgv([model.unit === "active" || model.unit === "activating"
-        ? "omarchy-agent-local-stop" : "omarchy-agent-local-switch", model.recipe])
+      var running = model.unit === "active" || model.unit === "activating"
+      // Greyed out means not startable by any route: click, Return or Enter.
+      if (!running && localStartBlocked(model)) return
+      Util.execArgv([running ? "omarchy-agent-local-stop" : "omarchy-agent-local-switch", model.recipe])
     }
+  }
+
+  function localStartBlocked(model) {
+    return !!model && model.unit !== "active" && model.unit !== "activating" && model.fits === false
   }
 
   // A start or stop runs steadily to 90% at the time the last one took, then
@@ -1815,7 +1821,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         visible: !!section.model && !section.stopping
         // Greyed out, not disabled, so the reason still shows on hover.
-        readonly property bool blocked: !section.running && !section.loading && !!section.model && section.model.fits === false
+        readonly property bool blocked: root.localStartBlocked(section.model)
         iconText: section.running || section.loading ? "󰏤" : "󰐊"
         tooltipText: blocked ? Commons.I18n.t("agents.localNotEnoughMemory")
           : section.running || section.loading ? Commons.I18n.t("agents.localStop") : Commons.I18n.t("agents.localStart")
@@ -1823,7 +1829,15 @@ Panel {
         opacity: blocked ? 0.5 : 1
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelToggle", section.providerIndex)
-        onClicked: if (!blocked) root.runLocalAction(section.model, "toggle")
+        onClicked: root.runLocalAction(section.model, "toggle")
+
+        // The button's own tooltip follows the pointer; the keyboard cursor
+        // landing on a greyed-out play says why too.
+        PanelToolTip {
+          visible: localToggle.blocked && localToggle.hasCursor
+          text: Commons.I18n.t("agents.localNotEnoughMemory")
+          fontFamily: root.fontFamily
+        }
       }
 
       // Opens the coding agent made for this subscription: Codex for OpenAI,
