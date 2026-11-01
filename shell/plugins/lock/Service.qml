@@ -13,6 +13,17 @@ Item {
   property var shell: null
   property string omarchyPath: ""
 
+  readonly property int defaultLockBlankSeconds: 5
+  readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
+    ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
+  readonly property int lockBlankSeconds: secondsFromConfig(idleConfig.lockBlank, defaultLockBlankSeconds)
+
+  function secondsFromConfig(value, fallback) {
+    var n = Number(value)
+    if (!isFinite(n) || n < 0) return fallback
+    return Math.floor(n)
+  }
+
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
@@ -249,6 +260,9 @@ Item {
   }
 
   function armBlankTimer() {
+    // Set the interval when the countdown is armed, not as a binding: a
+    // shell.json change mid-lock must not restart a pending blank countdown.
+    idleBlankTimer.interval = lockBlankSeconds * 1000
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
   }
@@ -765,6 +779,7 @@ Item {
 
   Timer {
     id: idleBlankTimer
+    // armBlankTimer() sets the interval from shell.json's idle.lockBlank.
     interval: 5000
     repeat: false
     property double armedAt: 0
