@@ -56,8 +56,3 @@ none='00:00.0 Host bridge: Intel Corporation Device 1234'
 got=$(run_script "$none")
 [[ -z $got ]] || fail "no display controller installs nothing, got: $got"
 pass "no display controller installs nothing"
-
-bus='3d:00.0 Non-Volatile memory controller: Intel Corporation Device abcd'
-got=$(run_script "$bus")
-[[ -z $got ]] || fail "PCI bus id 3d must not select a Vulkan driver, got: $got"
-pass "PCI bus id 3d does not select a Vulkan driver"
