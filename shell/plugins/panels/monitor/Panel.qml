@@ -458,27 +458,50 @@ Panel {
     root.displays = parsed.displays
   }
 
+  // One display command at a time, in the order asked: a second key press or
+  // drop while the first is still applying waits its turn instead of being
+  // lost, as starting a running Process again would lose it.
+  property var queuedActions: []
+  readonly property bool actionBusy: actionProc.running || queuedActions.length > 0
+
+  function runAction(command) {
+    if (actionBusy) {
+      queuedActions = queuedActions.concat([command])
+      return
+    }
+    actionProc.command = command
+    actionProc.running = true
+  }
+
+  function runNextAction() {
+    if (actionProc.running) return
+    if (queuedActions.length === 0) {
+      refresh()
+      return
+    }
+    var next = queuedActions[0]
+    queuedActions = queuedActions.slice(1)
+    actionProc.command = next
+    actionProc.running = true
+  }
+
   function setScale(name, scale) {
-    actionProc.command = ["omarchy-hyprland-monitor-scaling", "--monitor", name, scale]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-scaling", "--monitor", name, scale])
   }
 
   function setResolution(name, resolution) {
-    actionProc.command = ["omarchy-hyprland-monitor-resolution", "--monitor", name, resolution]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-resolution", "--monitor", name, resolution])
   }
 
   function setMirror(enabled) {
     if (enabled === mirrorEnabled) return
     pendingMirror = enabled ? "on" : "off"
     mirrorSettle.restart()
-    actionProc.command = ["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"])
   }
 
   function setRotation(name, degrees) {
-    actionProc.command = ["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)])
   }
 
   // The layout map's right-click menu: the display it's for, where it opened
@@ -537,8 +560,7 @@ Panel {
     var args = ["omarchy-hyprland-monitor-layout"]
     for (var i = 0; i < rects.length; i++)
       args.push(rects[i].name + "=" + rects[i].x + "x" + rects[i].y)
-    actionProc.command = args
-    if (!actionProc.running) actionProc.running = true
+    runAction(args)
   }
 
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
@@ -630,12 +652,12 @@ Panel {
         root.updateDisplays(String(lines[7] || "[]").trim())
         // A mirror switch has landed once a read shows it; until then, look
         // again shortly instead of waiting for the next regular read.
-        if (root.pendingMirror !== "" && !actionProc.running) {
+        if (root.pendingMirror !== "" && !root.actionBusy) {
           if (root.mirroredNow === (root.pendingMirror === "on")) root.pendingMirror = ""
           else mirrorRecheck.restart()
         }
         // The move has landed once a read after it comes back.
-        if (!actionProc.running) root.pendingRects = null
+        if (!root.actionBusy) root.pendingRects = null
         root.mirrorManaged = String(lines[8] || "").trim() === "on"
       }
     }
@@ -682,7 +704,8 @@ Panel {
   Process {
     id: actionProc
     stdout: StdioCollector { waitForEnd: true }
-    onRunningChanged: if (!running) root.refresh()
+    // The next one starts a turn later, not from inside this change.
+    onRunningChanged: if (!running) Qt.callLater(root.runNextAction)
   }
 
   // Applies text size via the CLI, which rewrites the shell override file;
