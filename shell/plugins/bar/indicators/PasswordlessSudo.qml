@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BarIndicator {
@@ -12,10 +13,10 @@ BarIndicator {
   active: granted
   activeText: "󰟵"
   inactiveText: "󰟵"
-  activeTooltipText: "Disable Passwordless Sudo"
-  inactiveTooltipText: "Passwordless Sudo"
+  activeTooltipText: I18n.t("bar.disablePasswordlessSudo")
+  inactiveTooltipText: I18n.t("bar.passwordlessSudo")
   useActiveColor: true
-  activeColor: Color.urgent
+  activeColor: Commons.Color.urgent
 
   function refresh() {
     if (!root.bar) return
@@ -30,17 +31,13 @@ BarIndicator {
   onBarChanged: refresh()
   Component.onCompleted: refresh()
 
+  // No polling: each probe is a hardened script plus sudo calls that can log.
+  // omarchy-sudo-passwordless refreshes omarchy.indicators on enable, disable
+  // and expiry instead.
   Connections {
     target: root.indicatorHost
     ignoreUnknownSignals: true
     function onRefreshRequested() { root.refresh() }
-  }
-
-  Timer {
-    interval: 5000
-    repeat: true
-    running: !!root.bar
-    onTriggered: root.refresh()
   }
 
   Process {
@@ -57,7 +54,7 @@ BarIndicator {
     command: ["omarchy-sudo-passwordless", "--disable"]
     onExited: function(exitCode, exitStatus) {
       if ((exitCode !== 0 || exitStatus !== 0) && root.bar)
-        root.bar.run('omarchy-notification-send "Could not disable passwordless sudo" "Check the sudo configuration and try again."')
+        Util.execArgv(["omarchy-notification-send", I18n.t("bar.passwordlessSudoDisableFailed"), I18n.t("bar.passwordlessSudoDisableFailedBody")])
       if (root.indicatorHost) root.indicatorHost.refresh()
       else root.refresh()
     }
