@@ -58,6 +58,46 @@ marker="$test_tmp/var/lib/omarchy/migrations/1788163635"
 )
 pass "migration checks marker ownership and rejects symlinks"
 
+# Under sudo's default verifypw=all one password-requiring entry makes `sudo -v`
+# prompt, so the grant carries a default scoped to the account that asked.
+(
+  source "$library"
+  enable_locked 1000 15
+  [[ $(head -1 "$(rule_file 1000)") == 'Defaults:audituser verifypw = any' ]]
+)
+pass "a published grant lets its own account validate without a password"
+
+# Grants published before the default are rewritten in place, deadline kept,
+# through the dispatch the migration uses. Administrator policy is left alone.
+(
+  source "$library"
+  reset_grant
+  printf 'audituser ALL=(ALL) NOTAFTER=20261231235959Z NOPASSWD: ALL\n' >"$(rule_file 1000)"
+  printf 'admin ALL=(ALL) NOPASSWD: /usr/bin/true\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-custom"
+  for _ in 1 2; do
+    PATH="$test_tmp/bin:$PATH" TEST_EUID=0 "$test_tmp/omarchy-sudo-passwordless" __upgrade-grant-format
+  done
+  [[ $(cat "$(rule_file 1000)") == $'Defaults:audituser verifypw = any\naudituser ALL=(ALL) NOTAFTER=20261231235959Z NOPASSWD: ALL' ]]
+  [[ $(cat "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-custom") == 'admin ALL=(ALL) NOPASSWD: /usr/bin/true' ]]
+  rm "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-custom"
+)
+pass "the upgrade adds the default to old grants once and leaves other policy alone"
+
+# Status and revocation run the installed copy. One that cannot read the new
+# form fails the upgrade, leaving the grant as it was and the migration pending.
+(
+  source "$library"
+  reset_grant
+  printf 'audituser ALL=(ALL) NOPASSWD: ALL\n' >"$(rule_file 1000 permanent)"
+  rm "$test_tmp/installed/omarchy-sudo-passwordless"
+  sed '/__upgrade-grant-format/d' "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/installed/omarchy-sudo-passwordless"
+  assert_status 1 upgrade_grant_format_locked
+  [[ $(cat "$(rule_file 1000 permanent)") == 'audituser ALL=(ALL) NOPASSWD: ALL' ]]
+)
+rm -f "$test_tmp/installed/omarchy-sudo-passwordless"
+ln -s ../omarchy-sudo-passwordless "$test_tmp/installed/omarchy-sudo-passwordless"
+pass "the upgrade fails while the installed copy cannot read the new form"
+
 # systemd-tmpfiles operates on an explicit disposable root, never the host.
 reset_grant
 : >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000"
