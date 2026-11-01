@@ -3,6 +3,36 @@
 set -o pipefail
 
 OMARCHY_BIN_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+# Sibling packages (omarchy-settings, omarchy-nvim) install their commands
+# straight into the system bin dir with no link in the dispatcher's own dir, so
+# an installed dispatcher (/usr/share/omarchy/bin/omarchy) would never see them.
+# It searches the system bin dir after its own dir; tests override the path to
+# fake the installed layout.
+OMARCHY_EXTRA_BIN_DIR="${OMARCHY_EXTRA_BIN_DIR:-}"
+if [[ -z $OMARCHY_EXTRA_BIN_DIR && $OMARCHY_BIN_DIR == "/usr/share/omarchy/bin" ]]; then
+  OMARCHY_EXTRA_BIN_DIR="/usr/bin"
+fi
+OMARCHY_COMMAND_DIRS=("$OMARCHY_BIN_DIR")
+if [[ -n $OMARCHY_EXTRA_BIN_DIR && $OMARCHY_EXTRA_BIN_DIR != "$OMARCHY_BIN_DIR" ]]; then
+  OMARCHY_COMMAND_DIRS+=("$OMARCHY_EXTRA_BIN_DIR")
+fi
+
+# Absolute path of a command binary, own dir first.
+command_binary_path() {
+  local binary="$1"
+  local dir=""
+
+  for dir in "${OMARCHY_COMMAND_DIRS[@]}"; do
+    if [[ -f $dir/$binary && -x $dir/$binary ]]; then
+      printf '%s\n' "$dir/$binary"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 METADATA_SCAN_LIMIT=80
 
 COMMAND_KEYS=()
@@ -173,6 +203,13 @@ register_route() {
 register_command() {
   local file="$1"
   local file_binary="${file##*/}"
+
+  # A binary present in more than one search dir registers once: the copy in
+  # the dispatcher's own dir wins.
+  if [[ -n ${BINARY_TO_KEY[$file_binary]+x} ]]; then
+    return 0
+  fi
+
   local group=""
   local name=""
   local summary=""
@@ -326,11 +363,13 @@ reset_commands() {
 }
 
 load_commands() {
-  local file=""
+  local dir="" file=""
 
-  for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
-    [[ -f $file && -x $file ]] || continue
-    register_command "$file"
+  for dir in "${OMARCHY_COMMAND_DIRS[@]}"; do
+    for file in "$dir"/omarchy-*; do
+      [[ -f $file && -x $file ]] || continue
+      register_command "$file"
+    done
   done
 
 }
@@ -343,48 +382,67 @@ load_commands() {
 load_route_candidates() {
   local first="$1"
   local -A seen=()
-  local file=""
+  local dir="" file=""
 
   [[ $first =~ ^[[:alnum:]][[:alnum:]_-]*$ ]] || return 1
 
-  for file in "$OMARCHY_BIN_DIR/omarchy-$first"-*; do
-    seen["$file"]=1
+  for dir in "${OMARCHY_COMMAND_DIRS[@]}"; do
+    for file in "$dir/omarchy-$first"-*; do
+      seen["$file"]=1
+    done
+    while IFS= read -r file; do
+      seen["$file"]=1
+    done < <(grep -l -E -e "omarchy:group=$first([^[:alnum:]_-]|$)" -e "omarchy:alias(es)?=.*omarchy[[:space:]]+$first([[:space:]]|\||$)" "$dir"/omarchy-* 2>/dev/null)
   done
-  while IFS= read -r file; do
-    seen["$file"]=1
-  done < <(grep -l -E -e "omarchy:group=$first([^[:alnum:]_-]|$)" -e "omarchy:alias(es)?=.*omarchy[[:space:]]+$first([[:space:]]|\||$)" "$OMARCHY_BIN_DIR"/omarchy-* 2>/dev/null)
+
+  # A candidate shadowed by a copy in an earlier search dir must register from
+  # that winning copy, or its aliases and argument rules would be applied to a
+  # binary command_binary_path would never run.
+  local -A winners=()
+  local binary="" winning_file=""
+  for file in "${!seen[@]}"; do
+    [[ -f $file && -x $file ]] || continue
+    binary="${file##*/}"
+    winning_file=$(command_binary_path "$binary") || continue
+    winners["$winning_file"]=1
+  done
 
   # The full load's own glob, so colliding routes register in the same order.
-  for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
-    [[ -n ${seen[$file]} && -f $file && -x $file ]] || continue
-    register_command "$file"
+  for dir in "${OMARCHY_COMMAND_DIRS[@]}"; do
+    for file in "$dir"/omarchy-*; do
+      [[ -n ${winners[$file]} ]] || continue
+      register_command "$file"
+    done
   done
 }
 
 load_command_by_binary() {
-  local binary="$1"
-  local file="$OMARCHY_BIN_DIR/$binary"
+  local file=""
 
-  [[ -f $file && -x $file ]] || return 1
+  file=$(command_binary_path "$1") || return 1
   register_command "$file"
 }
 
 load_child_commands_by_binary() {
   local binary="$1"
-  local file=""
+  local dir="" file=""
 
-  for file in "$OMARCHY_BIN_DIR/$binary"-*; do
-    [[ -f $file && -x $file ]] || continue
-    register_command "$file"
+  for dir in "${OMARCHY_COMMAND_DIRS[@]}"; do
+    for file in "$dir/$binary"-*; do
+      [[ -f $file && -x $file ]] || continue
+      register_command "$file"
+    done
   done
 }
 
 group_has_child_commands() {
   local group="$1"
-  local file=""
+  local dir="" file=""
 
-  for file in "$OMARCHY_BIN_DIR/omarchy-$group"-*; do
-    [[ -f $file && -x $file ]] && return 0
+  for dir in "${OMARCHY_COMMAND_DIRS[@]}"; do
+    for file in "$dir/omarchy-$group"-*; do
+      [[ -f $file && -x $file ]] && return 0
+    done
   done
 
   return 1
@@ -393,7 +451,9 @@ group_has_child_commands() {
 group_has_binary_commands() {
   local group="$1"
 
-  [[ -x $OMARCHY_BIN_DIR/omarchy-$group ]] && return 0
+  if command_binary_path "omarchy-$group" >/dev/null; then
+    return 0
+  fi
   group_has_child_commands "$group"
 }
 
@@ -442,15 +502,17 @@ command_takes_only_flags() {
 
 load_group_commands() {
   local group="$1"
-  local file=""
+  local dir="" file="" group_binary=""
 
-  if [[ -f $OMARCHY_BIN_DIR/omarchy-$group && -x $OMARCHY_BIN_DIR/omarchy-$group ]]; then
-    register_command "$OMARCHY_BIN_DIR/omarchy-$group"
+  if group_binary=$(command_binary_path "omarchy-$group"); then
+    register_command "$group_binary"
   fi
 
-  for file in "$OMARCHY_BIN_DIR/omarchy-$group"-*; do
-    [[ -f $file && -x $file ]] || continue
-    register_command "$file"
+  for dir in "${OMARCHY_COMMAND_DIRS[@]}"; do
+    for file in "$dir/omarchy-$group"-*; do
+      [[ -f $file && -x $file ]] || continue
+      register_command "$file"
+    done
   done
 
 }
@@ -462,14 +524,12 @@ resolve_direct_route() {
   local prefix_count=0
   local route=""
   local binary=""
-  local candidate=""
 
   for (( prefix_count = argc; prefix_count >= 1; prefix_count-- )); do
     route="omarchy $(join_words " " "${args[@]:0:prefix_count}")"
 
     binary="omarchy-$(join_words "-" "${args[@]:0:prefix_count}")"
-    candidate="$OMARCHY_BIN_DIR/$binary"
-    if [[ -f $candidate && -x $candidate ]]; then
+    if command_binary_path "$binary" >/dev/null; then
       DIRECT_RESOLVED_BINARY="$binary"
       DIRECT_RESOLVED_COUNT="$prefix_count"
       DIRECT_RESOLVED_ROUTE="$route"
@@ -788,7 +848,7 @@ show_commands_check() {
       done < <(pipe_values_as_lines "${COMMAND_METADATA_ERRORS[$key]}")
     fi
 
-    if [[ ! -x $OMARCHY_BIN_DIR/${COMMAND_BINARY[$key]} ]]; then
+    if ! command_binary_path "${COMMAND_BINARY[$key]}" >/dev/null; then
       echo "Missing binary: ${COMMAND_BINARY[$key]}" >&2
       failures=$((failures + 1))
     fi
@@ -1023,7 +1083,7 @@ dispatch_fast_or_help() {
 
   if resolve_direct_route "$#" "${args[@]}"; then
     remaining=("${args[@]:DIRECT_RESOLVED_COUNT}")
-    binary_path="$OMARCHY_BIN_DIR/$DIRECT_RESOLVED_BINARY"
+    binary_path=$(command_binary_path "$DIRECT_RESOLVED_BINARY")
 
     if (( ${#remaining[@]} == 1 || ${#remaining[@]} == 2 )) && [[ ${remaining[0]} != -* ]] &&
       { (( ${#remaining[@]} == 1 )) || remaining_has_help_flag "${remaining[1]}"; } &&
@@ -1118,7 +1178,7 @@ dispatch_or_help() {
       return 0
     fi
 
-    binary_path="$OMARCHY_BIN_DIR/${COMMAND_BINARY[$key]}"
+    binary_path=$(command_binary_path "${COMMAND_BINARY[$key]}")
     if [[ ! -x $binary_path ]]; then
       echo "Binary is missing or not executable: ${COMMAND_BINARY[$key]}" >&2
       return 127

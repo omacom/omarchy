@@ -750,6 +750,55 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
 
+# Sibling packages (omarchy-settings, omarchy-nvim) install their commands into
+# the system bin dir with no link in the dispatcher's own dir, so an installed
+# dispatcher (/usr/share/omarchy/bin/omarchy) must also search there (#17125).
+make_tmpdir SIB_TMPDIR
+mkdir -p "$SIB_TMPDIR/share/omarchy/bin" "$SIB_TMPDIR/system-bin"
+ln -s "$CLI" "$SIB_TMPDIR/share/omarchy/bin/omarchy"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Sibling package command\n'
+  printf 'echo settings-ok\n'
+} >"$SIB_TMPDIR/system-bin/omarchy-sib-test"
+chmod +x "$SIB_TMPDIR/system-bin/omarchy-sib-test"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Duplicate owned by the dispatcher package\n'
+  printf 'echo own-dup\n'
+} >"$SIB_TMPDIR/share/omarchy/bin/omarchy-dup-test"
+chmod +x "$SIB_TMPDIR/share/omarchy/bin/omarchy-dup-test"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Duplicate shadowed by the dispatcher package\n'
+  printf '# omarchy:aliases=omarchy shadow dup\n'
+  printf 'echo extra-dup\n'
+} >"$SIB_TMPDIR/system-bin/omarchy-dup-test"
+chmod +x "$SIB_TMPDIR/system-bin/omarchy-dup-test"
+
+output=$(OMARCHY_EXTRA_BIN_DIR="$SIB_TMPDIR/system-bin" "$SIB_TMPDIR/share/omarchy/bin/omarchy" sib-test)
+assert_output_contains "sibling-package command routes from the system bin dir" "$output" "settings-ok"
+
+output=$(OMARCHY_EXTRA_BIN_DIR="$SIB_TMPDIR/system-bin" "$SIB_TMPDIR/share/omarchy/bin/omarchy" commands --all --json)
+echo "$output" | jq -e '.commands[] | select(.route == "omarchy sib test" and .summary == "Sibling package command")' >/dev/null
+pass "sibling-package command is listed by commands --all"
+
+output=$(OMARCHY_EXTRA_BIN_DIR="$SIB_TMPDIR/system-bin" "$SIB_TMPDIR/share/omarchy/bin/omarchy" dup-test)
+assert_output_contains "command in the dispatcher's own dir wins over the system bin dir" "$output" "own-dup"
+
+output=$(OMARCHY_EXTRA_BIN_DIR="$SIB_TMPDIR/system-bin" "$SIB_TMPDIR/share/omarchy/bin/omarchy" shadow dup 2>&1 || true)
+assert_output_contains "shadowed copy's alias is ignored, not run against the winning binary" "$output" "Unknown Omarchy command"
+
+output=$(OMARCHY_EXTRA_BIN_DIR="$SIB_TMPDIR/system-bin" "$SIB_TMPDIR/share/omarchy/bin/omarchy" commands --all --json)
+echo "$output" | jq -e '.commands[] | select(.binary == "omarchy-dup-test") | .aliases | length == 0' >/dev/null
+pass "winning duplicate copy keeps its own alias list in commands --all"
+
+output=$(env -u OMARCHY_EXTRA_BIN_DIR "$SIB_TMPDIR/share/omarchy/bin/omarchy" sib-test 2>&1 || true)
+assert_output_contains "without the system bin dir the sibling command stays unknown" "$output" "Unknown Omarchy command"
+
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
 # used to start a real update because only the first leftover token was checked).
