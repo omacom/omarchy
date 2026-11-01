@@ -57,9 +57,15 @@ function connectivityState(kind, connectivity, states, checksEnabled) {
   return "unknown"
 }
 
-function connectionIcon(kind, signalStrength, connectivity) {
+// nf-md-link, the chain phones draw for a hotspot, from the same Material
+// family as the row's lock.
+var hotspotIcon = "󰌷"
+
+// A captive or limited link keeps the alert glyph: signing in matters more
+// than knowing the link is a phone.
+function connectionIcon(kind, signalStrength, connectivity, hotspot) {
   var restricted = connectivity === "portal" || connectivity === "limited"
-  if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
+  if (kind === "wifi") return restricted ? "󰤩" : (hotspot ? hotspotIcon : wifiIconFor(signalStrength))
   if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
   return "󰤮"
 }
@@ -177,6 +183,152 @@ function parseKeyValue(raw) {
   }
   return next
 }
+
+// Quickshell's WifiNetwork carries no beacon elements, so hotspot detection
+// reads the kernel's cached scan (`iw dev <iface> scan dump -u`). Without -u,
+// iw drops the vendor elements this depends on.
+//
+// Two advertisements count:
+// - Apple OUI 00:17:f2 type 0x06 is the Personal Hotspot element. Other
+//   Apple types (AirPlay and so on) are ordinary Wi-Fi. Many Android phones,
+//   Xiaomi included, send it too.
+// - Microsoft OUI 00:50:f2 type 0x11 is the Network Cost element. Its first
+//   byte is the cost level: Fixed (0x02) or Variable (0x04) is a portable
+//   hotspot; Unknown (0x00) and Unrestricted (0x01) are not.
+// Interworking "Chargeable Public" alone is not enough: carrier and venue
+// networks send it too.
+function vendorElementIsHotspot(oui, bytes) {
+  var type = bytes[0]
+  if (oui === "00:17:f2") return type === 0x06
+  if (oui === "00:50:f2") return type === 0x11 && (bytes[1] === 0x02 || bytes[1] === 0x04)
+  return false
+}
+
+function hexBytes(text) {
+  var bytes = []
+  var tokens = String(text || "").trim().split(/\s+/)
+  for (var i = 0; i < tokens.length; i++) {
+    if (/^[0-9a-f]{2}$/i.test(tokens[i])) bytes.push(parseInt(tokens[i], 16))
+  }
+  return bytes
+}
+
+function scanLineIsHotspot(line) {
+  var vendor = line.match(/^\s*Vendor specific: OUI ([0-9a-f:]{8}), data:(.*)$/i)
+  if (vendor) return vendorElementIsHotspot(vendor[1].toLowerCase(), hexBytes(vendor[2]))
+
+  // iw names Microsoft's OUI itself and strips the type into the label.
+  var ms = line.match(/^\s*MS\/WiFi 0x([0-9a-f]+), data:(.*)$/i)
+  if (ms) return vendorElementIsHotspot("00:50:f2", [parseInt(ms[1], 16)].concat(hexBytes(ms[2])))
+
+  return false
+}
+
+function parseIwScanDump(raw) {
+  var entries = []
+  var current = null
+  var lines = String(raw || "").split("\n")
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    var bss = line.match(/^BSS ([0-9a-f:]{17})/i)
+    if (bss) {
+      current = { ssid: "", bssid: bss[1].toLowerCase(), hotspot: false, associated: /-- associated/.test(line) }
+      entries.push(current)
+      continue
+    }
+    if (!current) continue
+
+    var ssid = line.match(/^\tSSID: (.*)$/)
+    if (ssid) current.ssid = decodeIwSsid(ssid[1])
+    else if (scanLineIsHotspot(line)) current.hotspot = true
+  }
+
+  return entries
+}
+
+// SSID is the only key a Quickshell row has, so one hotspot BSSID marks every
+// row with that name.
+function hotspotSsids(entries) {
+  var ssids = {}
+  var list = Array.isArray(entries) ? entries : []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].hotspot && list[i].ssid) ssids[list[i].ssid] = true
+  }
+  return ssids
+}
+
+// Own keys only, so a network named "constructor" or "toString" is not taken
+// for a hotspot by way of Object.prototype.
+function isHotspotSsid(ssids, name) {
+  return !!ssids && !!name && Object.prototype.hasOwnProperty.call(ssids, name) && ssids[name] === true
+}
+
+// NetworkManager reports "yes (guessed)" when an Android phone sends
+// ANDROID_METERED over DHCP, which covers hotspots whose beacon says nothing.
+function isMetered(value) {
+  return /^yes\b/.test(String(value || "").trim())
+}
+
+// The active link is a hotspot when NetworkManager calls it metered or the
+// associated BSS advertised itself as one.
+function activeLinkIsHotspot(metered, entries) {
+  if (isMetered(metered)) return true
+  var list = Array.isArray(entries) ? entries : []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].associated) return !!list[i].hotspot
+  }
+  return false
+}
+
+// Prints the interface's metering, its active profile and that profile's own
+// metered setting as `key\tvalue` lines, then the cached scan for the
+// interface in $1. `scan dump` reads what the last scan left behind; it never
+// starts one.
+var hotspotScanScript =
+  "uuid=$(nmcli -g GENERAL.CON-UUID device show \"$1\" 2>/dev/null);" +
+  " printf 'metered\\t%s\\n' \"$(nmcli -g GENERAL.METERED device show \"$1\" 2>/dev/null)\";" +
+  " printf 'connection\\t%s\\n' \"$uuid\";" +
+  " [ -n \"$uuid\" ] && printf 'limit\\t%s\\n' \"$(nmcli -g connection.metered connection show uuid \"$uuid\" 2>/dev/null)\";" +
+  " iw dev \"$1\" scan dump -u 2>/dev/null"
+
+function parseHotspotScan(raw) {
+  var lines = String(raw || "").split("\n")
+  var header = {}
+  var i = 0
+  for (; i < lines.length && !/^BSS /.test(lines[i]); i++) {
+    var tab = lines[i].indexOf("\t")
+    if (tab !== -1) header[lines[i].substring(0, tab)] = lines[i].substring(tab + 1).trim()
+  }
+  var entries = parseIwScanDump(lines.slice(i).join("\n"))
+  var metered = header.metered || ""
+  return {
+    metered: metered,
+    connection: header.connection || "",
+    limit: header.limit || "",
+    ssids: hotspotSsids(entries),
+    active: activeLinkIsHotspot(metered, entries)
+  }
+}
+
+// A hotspot gets NetworkManager's metered flag, the switch other software
+// already honors, but only while its profile has no setting of its own: an
+// explicit yes or no is the user's and stays.
+function shouldLimitHotspot(scan) {
+  var value = scan || {}
+  return !!value.active && !!value.connection && value.limit === "unknown"
+}
+
+// Writes connection.metered ($2) on profile $1 and reapplies it to interface
+// $3, so the running link changes without reconnecting. With $4 set, a
+// profile that already has its own setting is left alone. The reapply only
+// happens while $3 still runs $1: otherwise the saved setting waits for the
+// profile's next connection rather than touching another link.
+var meteredScript =
+  "if [ -n \"$4\" ] && [ \"$(nmcli -g connection.metered connection show uuid \"$1\")\" != unknown ]; then exit 0; fi;" +
+  " nmcli connection modify uuid \"$1\" connection.metered \"$2\" || exit;" +
+  " [ \"$(nmcli -g GENERAL.CON-UUID device show \"$3\" 2>/dev/null)\" = \"$1\" ] || exit 0;" +
+  " nmcli device reapply \"$3\""
 
 function throughputState(previous, next, now) {
   var prev = previous || {}
@@ -326,7 +478,7 @@ function formatPingLatency(ms, hasSamples, tr, fmt) {
   return f(value, value > 0 && value < 10 ? 1 : 0) + " ms"
 }
 
-function wifiRow(network) {
+function wifiRow(network, hotspot) {
   if (!network) return null
   // Primitives only: rows become list-model data, so a WifiNetwork here puts a
   // live QObject wrapper in every delegate's var property. NetworkManager churn
@@ -338,7 +490,8 @@ function wifiRow(network) {
     known: !!network.known,
     ssid: network.name || "",
     signal: Math.round((network.signalStrength || 0) * 100),
-    security: network.security
+    security: network.security,
+    hotspot: !!hotspot
   }
 }
 
@@ -414,6 +567,74 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
 
+// --- Hotspot (AP-mode internet sharing) helpers ---
+
+// Parses `omarchy-hotspot status` output: "key\tvalue" lines. Values that may
+// contain tabs (ssid) are preserved; clients arrives as a JSON array string.
+function parseHotspotStatus(raw) {
+  var next = {}
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    if (!line) continue
+    var idx = line.indexOf("\t")
+    if (idx === -1) continue
+    next[line.substring(0, idx)] = line.substring(idx + 1)
+  }
+  return next
+}
+
+// AP bands the adapter reports, e.g. ["2.4"] or ["2.4", "5"]. Derived from
+// `iw phy` band presence, which over-approximates AP support, so this is a
+// best-effort hint; a card that cannot actually serve a reported band just
+// surfaces the real NetworkManager reason when the AP fails.
+function hotspotBands(status) {
+  var raw = (status && status.ap_bands) || ""
+  var bands = String(raw).split(",").map(function(b) { return b.trim() })
+  return bands.filter(function(b) { return b !== "" })
+}
+
+// The band the panel should select: the profile's current band when the card
+// still supports it, else the first supported band (2.4 preferred).
+function hotspotDefaultBand(status) {
+  var bands = hotspotBands(status)
+  if (bands.length === 0) return ""
+  var current = (status && status.band) || ""
+  if (current !== "" && bands.indexOf(current) !== -1) return current
+  if (bands.indexOf("2.4") !== -1) return "2.4"
+  return bands[0]
+}
+
+function hotspotClients(status) {
+  var value = (status && status.clients) || "[]"
+  try {
+    var parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (e) {
+    return []
+  }
+}
+
+// formatNumber writes the signal in the language's digits (I18n.formatNumber).
+function hotspotClientLabel(client, formatNumber) {
+  var c = client || {}
+  var mac = String(c.mac || "").toUpperCase()
+  var signal = parseInt(c.signal, 10)
+  var format = typeof formatNumber === "function" ? formatNumber : String
+  if (!mac) return ""
+  if (isFinite(signal)) return mac + " \u00b7 " + format(signal) + " dBm"
+  return mac
+}
+
+function hotspotCredentialsError(ssid, password, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (String(ssid || "").trim() === "") return t("network.hotspotNameRequired", "Enter a hotspot name")
+  var length = String(password || "").length
+  if (length < 8) return t("network.hotspotPasswordTooShort", "Password needs 8+ characters")
+  if (length > 63) return t("network.hotspotPasswordTooLong", "Password can't exceed 63 characters")
+  return ""
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseNetworkStatus: parseNetworkStatus,
@@ -421,6 +642,16 @@ if (typeof module !== "undefined") {
     connectionIcon: connectionIcon,
     connectedSignalStrength: connectedSignalStrength,
     parseActiveApSignal: parseActiveApSignal,
+    hotspotIcon: hotspotIcon,
+    parseIwScanDump: parseIwScanDump,
+    hotspotSsids: hotspotSsids,
+    isHotspotSsid: isHotspotSsid,
+    isMetered: isMetered,
+    activeLinkIsHotspot: activeLinkIsHotspot,
+    hotspotScanScript: hotspotScanScript,
+    parseHotspotScan: parseHotspotScan,
+    shouldLimitHotspot: shouldLimitHotspot,
+    meteredScript: meteredScript,
     connectivityState: connectivityState,
     captivePortalUrl: captivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,
@@ -447,6 +678,12 @@ if (typeof module !== "undefined") {
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
-    shouldRepromptPassphrase: shouldRepromptPassphrase
+    shouldRepromptPassphrase: shouldRepromptPassphrase,
+    parseHotspotStatus: parseHotspotStatus,
+    hotspotBands: hotspotBands,
+    hotspotDefaultBand: hotspotDefaultBand,
+    hotspotClients: hotspotClients,
+    hotspotClientLabel: hotspotClientLabel,
+    hotspotCredentialsError: hotspotCredentialsError
   }
 }
