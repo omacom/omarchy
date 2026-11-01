@@ -3171,9 +3171,7 @@ Item {
       var data = Util.parseModuleJson(raw)
       var klass = data.class || data.alt || ""
 
-      // An empty (or missing) "text" hides the widget, the way Waybar does;
-      // plain output already arrives as {text: raw}.
-      outputText = data.text === undefined || data.text === null ? "" : String(data.text)
+      outputText = BarModel.customCommandLabel(data)
       outputTooltip = data.tooltip || String(setting("tooltip", ""))
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
