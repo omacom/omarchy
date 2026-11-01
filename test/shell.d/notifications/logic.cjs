@@ -818,6 +818,7 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
 { // A muted replacement saved under its shown card's key replays beside it.
   const s = newCapacityScope()
   s.admit(s.fakeNotification(1, 'Shown'))
+  const mutedKey = s.keyForOriginal(1)
   s.toasts.get(0).ts -= 5 // the card on screen predates its saved update
   s.doNotDisturb = true
   s.handleNotification(s.fakeNotification(1, 'Muted update'))
@@ -831,6 +832,32 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
   s.restoreRows(s.historyEntries, true)
   s.drainCallLater()
   assert.equal(s.liveCount(), 2)
+  // The shown card expiring changes nothing while the replayed copy is up.
+  s.finishClose(mutedKey, 'expired')
+  s.drainCallLater()
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Muted update'])
+}
+
+{ // A closed original never replays over its newer saved update.
+  const s = newCapacityScope()
+  s.admit(s.fakeNotification(1, 'Original'))
+  const key = s.keyForOriginal(1)
+  s.toasts.get(0).ts -= 5
+  s.doNotDisturb = true
+  s.handleNotification(s.fakeNotification(1, 'Update'))
+  s.finishClose(key, 'dismissed')
+  s.drainCallLater()
+  // History now holds the dismissed original and, newer, its muted update.
+  assert.equal(s.historyEntries.length, 2)
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Update'])
+  // And a second replay adds nothing while that copy is up.
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.equal(s.liveCount(), 1)
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.

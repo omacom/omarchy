@@ -1342,13 +1342,20 @@ Item {
       if (liveKeys[row.key]) {
         // A live key never yields: startup must not overwrite a newer live
         // arrival, and a replay must not stack a second copy of an entry
-        // that is already on screen. A muted replacement saves a different
-        // update under its card's key; that entry replays beside the card.
+        // that is already on screen. A muted replacement saves a newer
+        // update under its card's key; that entry replays beside the card,
+        // under a stable key so pressing the shortcut again adds nothing.
+        // An older saved entry never replays over a newer card of its key.
         var at = rowIndexFor(row.key)
-        if (!replay || at < 0 || toasts.get(at).ts === row.ts) continue
+        if (!replay || at < 0 || toasts.get(at).ts >= row.ts) continue
         row.key = replayKey(row.key)
         if (liveKeys[row.key]) continue
         row.groupKey = Markup.regroup(row)
+      } else if (replay && liveKeys[replayKey(row.key)]) {
+        // The original is gone while its earlier replay is still up: that
+        // copy, and any older entry of the key, must not come back either.
+        var forked = rowIndexFor(replayKey(row.key))
+        if (forked < 0 || toasts.get(forked).ts >= row.ts) continue
       }
       if (!reserveLive(row.key)) break
       showRow(row)
