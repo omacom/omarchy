@@ -70,3 +70,17 @@ echo 0 >"$other_led"
 SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" post hibernate
 [[ $(<"$other_led") == 0 ]] || fail "post hibernate leaves a different keyboard dark" "LED reads $(<"$other_led")"
 pass "post hibernate restores only the keyboard it cleared"
+
+# A keyboard that sorts first can appear during the resume; the level still goes
+# back to the one it was read from.
+rm -rf "${other_led%/*}"
+mkdir -p "${led%/*}"
+echo 3 >"$led"
+SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" pre hibernate
+first_led="$leds/acer::kbd_backlight/brightness"
+mkdir -p "${first_led%/*}"
+echo 0 >"$first_led"
+SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" post hibernate
+[[ $(<"$led") == 3 ]] || fail "post hibernate restores the recorded keyboard when another sorts first" "LED reads $(<"$led")"
+[[ $(<"$first_led") == 0 ]] || fail "post hibernate leaves the keyboard that sorts first dark" "LED reads $(<"$first_led")"
+pass "post hibernate restores the recorded keyboard when another sorts first"

@@ -44,12 +44,14 @@ else
     read -r recorded_device level <"$level_record"
     rm -f "$level_record"
 
+    # The level belongs to the keyboard it was read from, wherever it now sorts.
+    recorded_led=/sys/class/leds/$recorded_device/brightness
+
     # A lit LED wins: the idle-restore plugin or a lock's own restore may have
     # put a level back already, and this must not fight either of them.
-    current=$(read_level "$device")
-    # The level belongs to the keyboard it was read from; never light another.
-    if [[ $recorded_device == "$device" && $level =~ ^[0-9]+$ ]] && (( level > 0 )) && (( current == 0 )); then
-      printf '%s\n' "$level" >"$led" 2>/dev/null
+    if [[ $recorded_device == *kbd_backlight* && $recorded_device != */* && -e $recorded_led && $level =~ ^[0-9]+$ ]] &&
+      (( level > 0 )) && (( $(read_level "$recorded_device") == 0 )); then
+      printf '%s\n' "$level" >"$recorded_led" 2>/dev/null
     fi
   fi
 fi
