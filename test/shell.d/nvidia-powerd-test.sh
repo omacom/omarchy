@@ -24,6 +24,7 @@ export TEST_PACKAGES="$tmp_dir/packages" TEST_SERVICES="$tmp_dir/services"
 
 while IFS='|' read -r description architecture controller expected; do
   mkdir -p "$tmp_dir/acpi/controller"
+  rm -rf "$tmp_dir/etc"
   rm -f "$tmp_dir/acpi/controller/hid" "$TEST_PACKAGES" "$TEST_SERVICES"
   if [[ $controller != "missing" ]]; then
     printf '%s\n' "$controller" >"$tmp_dir/acpi/controller/hid"
