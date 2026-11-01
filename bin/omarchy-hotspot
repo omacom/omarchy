@@ -258,30 +258,40 @@ station_address() {
 # mDNS when nss-mdns is installed. `getent hosts` prints the address first and
 # the name second. Only a bare label is reported: whatever the network hands
 # back is untrusted text that ends up on screen.
+# The resolver can hang when DNS is slow or the hotspot has no upstream, so
+# each lookup gets half a second, and a status run stops asking after two
+# seconds in all (see station_list): a client without a name keeps its address.
+HOTSPOT_NAME_LOOKUP_TIMEOUT=0.5
+HOTSPOT_NAME_LOOKUP_BUDGET_MS=2000
+
 station_hostname() {
   local address=$1 name
   [[ -n $address ]] || return 0
-  name=$(getent hosts "$address" 2>/dev/null | awk 'NR == 1 { print $2 }') || return 0
+  name=$(timeout "$HOTSPOT_NAME_LOOKUP_TIMEOUT" getent hosts "$address" 2>/dev/null | awk 'NR == 1 { print $2 }') || return 0
   name=${name%%.*}
   [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$ ]] || return 0
   printf '%s\n' "$name"
 }
 
 station_list() {
-  local iface=$1 mac signal address hostname
+  local iface=$1 mac signal address hostname lookup_deadline
   local dump block
   dump=$(iw dev "$iface" station dump 2>/dev/null) || return 0
   [[ -n $dump ]] || return 0
   block=$(printf '%s\n' "$dump" | awk '/^Station / { if (seen) print ""; seen=1 } { printf "%s ", $0 }')
   [[ -n $block ]] || return 0
   local line first=1
+  lookup_deadline=$(( ${EPOCHREALTIME//[!0-9]/} / 1000 + HOTSPOT_NAME_LOOKUP_BUDGET_MS ))
   while IFS= read -r line; do
     [[ -n $line ]] || continue
     mac=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "Station") { print $(i + 1); break } }' <<<"$line")
     signal=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "signal:") { gsub(/[^0-9-]/, "", $(i + 1)); print $(i + 1); break } }' <<<"$line")
     [[ -n $mac ]] || continue
     address=$(station_address "$iface" "$mac")
-    hostname=$(station_hostname "$address")
+    hostname=""
+    if (( ${EPOCHREALTIME//[!0-9]/} / 1000 < lookup_deadline )); then
+      hostname=$(station_hostname "$address")
+    fi
     [[ $first == "1" ]] || printf '\n'
     first=0
     printf '%s\t%s\t%s\t%s' "$mac" "${signal:-0}" "$address" "$hostname"
