@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
@@ -33,43 +32,26 @@ from collectors import (  # noqa: E402
   HttpError,
   LimitsCache,
   base_record,
+  cliproxy_request,
+  cliproxy_settings,
   codex_plan_name,
-  config_home,
   emit,
   finite,
   number,
-  open_json,
   open_limits,
-  read_json,
   trusted_endpoint,
 )
 
 AGENT_ID = "cliproxy"
 AGENT_NAME = "CLIProxyAPI"
-DEFAULT_URL = "http://127.0.0.1:8317"
 AUTH_HELP = "Set `managementKey` in ~/.config/omarchy/agents/cliproxy.json to the proxy's `management.secret-key`."
-
-
-def settings() -> tuple[str, str]:
-  """The proxy's base URL and its management key: CLIPROXY_URL and
-  CLIPROXY_MANAGEMENT_KEY, else `url` and `managementKey` in
-  ~/.config/omarchy/agents/cliproxy.json, the URL defaulting to the port the
-  proxy listens on out of the box."""
-  config = read_json(config_home() / "omarchy" / "agents" / "cliproxy.json")
-  url = str(os.environ.get("CLIPROXY_URL") or config.get("url") or DEFAULT_URL).strip().rstrip("/")
-  key = str(os.environ.get("CLIPROXY_MANAGEMENT_KEY") or config.get("managementKey") or "").strip()
-  return url, key
 
 
 # ------------------------------------------------------------------ limits
 
 
 def fetch_accounts(url: str, key: str) -> list[dict[str, Any]]:
-  request = urllib.request.Request(
-    f"{url}/v0/management/auth-files",
-    headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
-  )
-  answer = open_json(request, timeout=10)
+  answer = cliproxy_request(url, key, "auth-files")
   files = answer.get("files") if isinstance(answer, dict) else None
   if not isinstance(files, list):
     raise ValueError("no files list")
@@ -151,8 +133,10 @@ def own_windows(windows: list[dict[str, Any]], account_id: str) -> list[dict[str
 def fill(record: dict[str, Any], accounts: list[dict[str, Any]], windows: list[dict[str, Any]], fetched_at: int, stale: bool) -> None:
   """One account reads as the agent's own plan and limits; several are listed
   in `accounts`, each with its own. The proxy picks the account for every
-  request, so none is the active one and none can be switched to here."""
-  record.update(ready=bool(accounts), limitsStale=stale, limitsFetchedAt=fetched_at if accounts else 0)
+  request, so none is the active one and none can be switched to here. A
+  configured proxy is in use even with no Claude or Codex account yet: the
+  panel shows no section for it, but offers to add one to it."""
+  record.update(ready=True, limitsStale=stale, limitsFetchedAt=fetched_at if accounts else 0)
   if len(accounts) == 1:
     record.update(tierLabel=accounts[0]["plan"], limits=own_windows(windows, accounts[0]["id"]))
   elif accounts:
@@ -174,7 +158,7 @@ def fill(record: dict[str, Any], accounts: list[dict[str, Any]], windows: list[d
 
 def collect(force: bool = False) -> dict[str, Any]:
   record = base_record(AGENT_ID, AGENT_NAME, hasPromptStats=False)
-  url, key = settings()
+  url, key = cliproxy_settings()
   # Without a management key there is nothing to ask, and nothing says the
   # machine uses a proxy at all.
   if not key:

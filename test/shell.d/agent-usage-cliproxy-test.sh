@@ -99,9 +99,12 @@ service["files"] = [claude_file(session="NaN", weekly="7"), "junk", {"provider":
 record = cliproxy()
 expect("an unreadable utilization reads 0 and one past full reads full", windows(record["limits"]), [["Session", 0.0], ["Weekly", 1.0]], record)
 
-# A proxy with no Claude or Codex account has nothing to show.
+# A proxy with no Claude or Codex account has nothing to show, but is still
+# somewhere the panel can add one.
 service["files"] = [{"id": "gemini-c.json", "provider": "gemini"}]
-expect("a proxy without Claude or Codex accounts gives an unused record", cliproxy()["ready"], False)
+record = cliproxy()
+expect("a proxy without Claude or Codex accounts is in use with nothing to show",
+       [record["ready"], record["limits"], "accounts" in record, record["tierLabel"]], [True, [], False, ""], record)
 service["files"] = [claude_file()]
 
 # ---------------------------------------------------------------- the key
@@ -125,4 +128,113 @@ expect("a key is never sent over plain HTTP to another machine",
 sandbox()
 record = cliproxy()
 expect("without a management key the record is unused and nothing is asked", [record["ready"], len(cliproxy.requests)], [False, 0], record)
+
+# ------------------------------------------------- adding and removing
+
+import importlib.machinery
+import importlib.util
+import subprocess
+import types
+
+
+def load_command(name):
+  loader = importlib.machinery.SourceFileLoader(name.replace("-", "_"), str(ROOT / "bin" / name))
+  module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+  loader.exec_module(module)
+  return module
+
+
+# The commands a module starts are recorded, not run, and omarchy-i18n
+# answers <key> for the key it was asked for.
+class Spawned:
+  CalledProcessError = subprocess.CalledProcessError
+  DEVNULL = subprocess.DEVNULL
+
+  def __init__(self):
+    self.calls = []
+
+  def run(self, argv, **kwargs):
+    self.calls.append(argv)
+    return types.SimpleNamespace(stdout=f"<{argv[1]}>" if argv[0] == "omarchy-i18n" else "", returncode=0)
+
+  def Popen(self, argv, **kwargs):
+    self.calls.append(argv)
+
+
+def run_command(name, args, routes, stdin=""):
+  module = load_command(name)
+  spawned = Spawned()
+  module.subprocess = spawned
+  module.POLL_SECONDS = 0.01
+  saved = sys.argv, sys.stdin
+  sys.argv, sys.stdin = [name, *args], io.StringIO(stdin)
+  out = io.StringIO()
+  try:
+    with FakeHttp(routes) as http, contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+      code = module.main()
+  finally:
+    sys.argv, sys.stdin = saved
+  return code, out.getvalue().splitlines(), http.requests, spawned.calls
+
+
+PAGE = "https://claude.ai/oauth/authorize?state=s1"
+pasted = []
+sign_in = {"result": {"status": "ok"}, "local": False}
+
+
+def callback(request):
+  pasted.append(json.loads(request.data))
+  return {"status": "ok"}
+
+
+# The proxy reports the sign-in pending until its redirect arrives: by
+# itself for a proxy on this machine, else through a pasted address.
+def auth_status(request):
+  return sign_in["result"] if pasted or sign_in["local"] else {"status": "wait"}
+
+
+ADD_ROUTES = {
+  "anthropic-auth-url": {"url": PAGE, "state": "s1", "status": "ok"},
+  "oauth-callback": callback,
+  "get-auth-status": auth_status,
+}
+
+# A proxy on another machine can't catch the browser's redirect, so the
+# address it lands on is pasted back and handed to the proxy.
+sandbox()
+configured("https://proxy.example.ts.net:8317")
+code, lines, requests, calls = run_command("omarchy-agent-cliproxy-add", ["--events", "claude"], ADD_ROUTES,
+                                           stdin="http://localhost:54545/callback?code=c1&state=s1\n")
+expect("a remote proxy's sign-in asks for the address, hands it over, and finishes",
+       [code, "@@omarchy paste <agents.proxyPasteAddress>" in lines, lines[-1], pasted],
+       [0, True, "@@omarchy done <agents.proxyAdded>", [{"redirect_url": "http://localhost:54545/callback?code=c1&state=s1"}]])
+expect("the sign-in opens in a private window, without asking the proxy to catch the redirect",
+       [["omarchy-launch-browser", "--private", PAGE] in calls, "is_webui" in requests[0]["url"]], [True, False])
+
+# A proxy on this machine catches the redirect itself.
+sandbox()
+configured()
+pasted.clear()
+sign_in["local"] = True
+code, lines, requests, calls = run_command("omarchy-agent-cliproxy-add", ["--events", "claude"], ADD_ROUTES)
+expect("a local proxy catches the redirect itself, so nothing is pasted",
+       [code, requests[0]["url"].endswith("anthropic-auth-url?is_webui=true"), any(line.startswith("@@omarchy paste") for line in lines)],
+       [0, True, False])
+
+# The proxy's own failure is the one reported.
+sign_in["result"] = {"status": "error", "error": "access denied"}
+code, lines, _, _ = run_command("omarchy-agent-cliproxy-add", ["--events", "claude"], ADD_ROUTES)
+expect("a sign-in the proxy reports failed ends in an error", [code, lines[-1]], [1, "@@omarchy error <agents.proxySignInFailed>"])
+
+# A code shown on the provider's page goes back with the sign-in's state.
+expect("a pasted code#state is sent as the code, with the sign-in's own state",
+       load_command("omarchy-agent-cliproxy-add").callback_body(" c2#other \n", "s1"), {"code": "c2", "state": "s1"})
+
+# Removing deletes the account the panel lists, by its proxy file name.
+code, _, requests, calls = run_command("omarchy-agent-cliproxy-remove", ["claude-a.json"], {"auth-files": {"status": "ok"}})
+expect("remove deletes the named account from the proxy and refreshes the record",
+       [code, requests[0]["method"], requests[0]["url"], ["omarchy-agent-usage-update", "--force", "cliproxy"] in calls],
+       [0, "DELETE", "http://127.0.0.1:8317/v0/management/auth-files?name=claude-a.json", True])
+code, _, _, _ = run_command("omarchy-agent-cliproxy-remove", ["claude-a.json"], {"auth-files": 404})
+expect("a remove the proxy refuses exits non-zero, for the panel's notification", code, 1)
 PY

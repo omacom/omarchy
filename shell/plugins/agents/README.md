@@ -34,7 +34,13 @@ Every subscription on one page, limits first.
   moves new sessions over on their own once the active account reaches its
   threshold; while it's on it stands in for Use, which shows only when you're
   on the line, and clicking it again goes back to notifying. Click a name to
-  rename the account in place.
+  rename the account in place. Hovering an account that isn't active also
+  offers Hide, which folds it into one line of hidden accounts under the
+  agent's section, with Show to bring them back (kept in the panel's
+  settings as `hiddenAccounts`), and Remove, which asks first and then runs
+  `omarchy agent account remove`; the CLI's own sign-in can be hidden but not
+  removed. Delete on a picked account removes it too. A [CLIProxyAPI](#cliproxyapi)'s
+  accounts offer Hide and Remove only.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
@@ -49,7 +55,9 @@ Every subscription on one page, limits first.
   status, the code Grok asks you to confirm in the browser, a field to paste
   Claude's code back if its page shows one instead of finishing, and a link to
   reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
-  carries on and its result arrives as a notification.
+  carries on and its result arrives as a notification. With a
+  [CLIProxyAPI](#cliproxyapi) set up, picking Claude Code or Codex first asks
+  where to sign in: this machine, or the proxy.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of Claude,
@@ -284,6 +292,8 @@ Synthetic reads `SYNTHETIC_API_KEY` first, then the key pi stores in `~/.pi/agen
 ```
 
 `url` (or `CLIPROXY_URL`) defaults to `http://127.0.0.1:8317`, the proxy's own default; the key is sent only over HTTPS, or plain HTTP to this machine. The management API is on once the proxy's `management.secret-key` is set, and a proxy on another machine also needs `management.allow-remote`. Without a key the section stays hidden. Every enabled Claude account shows its shared five-hour and seven-day windows, and every enabled Codex account its primary and secondary windows and its plan; one account reads as the section's own limits, several are listed by name. The numbers are those of each account's last response through the proxy, so an account no request has used since the proxy started shows no windows. Tokens count where the requests are made: a Claude model's reply through the proxy is already Claude's, by the [Claude Code](#claude-code) rule.
+
+The panel also manages the proxy's accounts through the same API. Adding one (`omarchy agent cliproxy add <claude|codex>`, or + in the panel, then the proxy as where to sign in) asks the proxy for the provider's sign-in page (`anthropic-auth-url` or `codex-auth-url`), opens it in a private window, and waits on `get-auth-status` until the proxy has saved the account. The provider sends the browser back to a localhost port: a proxy on this machine catches it itself (`is_webui=true`), while for one on another machine the panel asks for the address the browser landed on, which goes to the proxy's `oauth-callback`. Removing one (`omarchy agent cliproxy remove <account>`, or Remove on its line) deletes its auth file from the proxy (`DELETE /v0/management/auth-files`), so it comes back only by signing it in again.
 
 ### Local models
 

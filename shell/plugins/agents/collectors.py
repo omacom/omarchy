@@ -3677,6 +3677,35 @@ def trusted_endpoint(url: str) -> bool:
   return parts.scheme == "https" or (parts.scheme == "http" and loopback)
 
 
+# --------------------------------------------------------------- cliproxy
+
+CLIPROXY_DEFAULT_URL = "http://127.0.0.1:8317"
+
+
+def cliproxy_settings() -> tuple[str, str]:
+  """A CLIProxyAPI's base URL and management key: CLIPROXY_URL and
+  CLIPROXY_MANAGEMENT_KEY, else `url` and `managementKey` in
+  ~/.config/omarchy/agents/cliproxy.json, the URL defaulting to the port the
+  proxy listens on out of the box. The key is "" when none is set."""
+  config = read_json(config_home() / "omarchy" / "agents" / "cliproxy.json")
+  url = str(os.environ.get("CLIPROXY_URL") or config.get("url") or CLIPROXY_DEFAULT_URL).strip().rstrip("/")
+  key = str(os.environ.get("CLIPROXY_MANAGEMENT_KEY") or config.get("managementKey") or "").strip()
+  return url, key
+
+
+def cliproxy_request(url: str, key: str, path: str, method: str = "GET", body: Any = None, timeout: float = 10) -> Any:
+  """One call to the proxy's management API (`path` under /v0/management),
+  through open_json. The caller checks trusted_endpoint(url) first, since the
+  key rides on every call."""
+  request = urllib.request.Request(
+    f"{url}/v0/management/{path}",
+    data=None if body is None else json.dumps(body).encode(),
+    headers={"Authorization": f"Bearer {key}", "Accept": "application/json", "Content-Type": "application/json"},
+    method=method,
+  )
+  return open_json(request, timeout=timeout)
+
+
 # ---------------------------------------------------------------- sign-ins
 
 

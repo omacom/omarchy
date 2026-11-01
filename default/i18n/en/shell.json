@@ -114,6 +114,18 @@
   },
   "agents.unknownModel": "Unknown",
   "agents.use": "Use",
+  "agents.hide": "Hide",
+  "agents.hiddenAccounts": {
+    "one": "%1 hidden: %2",
+    "other": "%1 hidden: %2"
+  },
+  "agents.remove": "Remove",
+  "agents.removeAccountConfirm": "Forget %1 on this machine? Signing in again adds it back.",
+  "agents.removeProxyAccountConfirm": "Remove %1 from %2? It stops serving requests until it's signed in there again.",
+  "agents.removeFailed": "Couldn't remove %1",
+  "agents.show": "Show",
+  "agents.signInOn": "Sign in on",
+  "agents.thisMachine": "This machine",
   "agents.waitingForAuth": "Waiting for auth",
   "agents.windowLimit": "Limit",
   "agents.windowMonthly": "Monthly",

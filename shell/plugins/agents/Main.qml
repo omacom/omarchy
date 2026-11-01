@@ -308,6 +308,18 @@ Item {
   // toward the summary, but would leave an empty section.
   readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
 
+  // The CLIProxyAPI record once a proxy is set up and switched on, with
+  // accounts or none yet: adding a Claude or Codex account offers it as a
+  // place to sign in.
+  readonly property var proxyRecord: {
+    var rev = dataRevision
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (record && record.id === "cliproxy" && record.ready === true && providerEnabled("cliproxy")) return record
+    }
+    return null
+  }
+
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
       || !!p.balance || p.tierLabel !== ""

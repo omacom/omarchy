@@ -76,8 +76,14 @@ Panel {
   }
 
   property var deleteTarget: null
+  // Delete on an agent hides it from the panel; on an account that can be
+  // removed, it removes the account. Either asks first.
   function deleteSelected() {
     var target = keyTarget
+    if (pickedEntry) {
+      if (removableAccount(pickedEntry.provider, pickedEntry.account)) deleteTarget = pickedEntry
+      return
+    }
     if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(target.kind) < 0) return
     deleteTarget = providers[target.index]
   }
@@ -86,7 +92,9 @@ Panel {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
-    if (target.localModel) {
+    if (target.account) {
+      removeAccount(target.provider, target.account)
+    } else if (target.localModel) {
       Util.execArgv(["omarchy-agent-local", "remove", target.localModel.recipe])
     } else if (bar && bar.shell) {
       var next = JSON.parse(JSON.stringify(settings || {}))
@@ -108,13 +116,13 @@ Panel {
   readonly property var accountEntries: {
     var out = []
     for (var i = 0; i < providers.length; i++) {
-      var list = providerAccounts(providers[i])
-      if (list.length < 2) continue
+      if (providerAccounts(providers[i]).length < 2) continue
+      var list = shownAccounts(providers[i])
       for (var j = 0; j < list.length; j++) out.push({ provider: providers[i], account: list[j] })
     }
     return out
   }
-  readonly property var pickedEntry: keyTarget && ["account", "autoswitch", "signin"].indexOf(keyTarget.kind) >= 0
+  readonly property var pickedEntry: keyTarget && ["account", "autoswitch", "signin", "hide", "remove"].indexOf(keyTarget.kind) >= 0
     ? accountEntries[keyTarget.index] || null
     : null
 
@@ -134,11 +142,14 @@ Panel {
       rows.push(choices)
     } else if (addStage === "local") {
       for (var r = 0; r < localAddRecipes.length; r++) rows.push([{ kind: "localAdd", index: r }])
+    } else if (addStage === "where") {
+      rows.push([{ kind: "where", index: 0 }, { kind: "where", index: 1 }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
-      // done is a stop: one that isn't active offers Autoswitch beside Use, a
+      // done is a stop: one that isn't active offers Hide, Remove where it
+      // can be removed, and Autoswitch and Use where it can be switched to, a
       // lapsed sign-in comes first, and the active account with nothing to
-      // fix is skipped.
+      // fix is skipped. Hidden accounts are one Show stop after the rest.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
         if (providers[p].localModel) {
@@ -154,15 +165,21 @@ Panel {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
           continue
         }
-        for (var a = 0; a < accounts.length; a++, entry++) {
+        var shown = shownAccounts(providers[p])
+        for (var a = 0; a < shown.length; a++, entry++) {
           var row = []
-          if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
-          if (!accounts[a].active && supportsSignIn(providers[p])) {
-            row.push({ kind: "autoswitch", index: entry })
-            row.push({ kind: "account", index: entry })
+          if (needsSignIn(shown[a])) row.push({ kind: "signin", index: entry })
+          if (!shown[a].active) {
+            row.push({ kind: "hide", index: entry })
+            if (removableAccount(providers[p], shown[a])) row.push({ kind: "remove", index: entry })
+            if (supportsSignIn(providers[p])) {
+              row.push({ kind: "autoswitch", index: entry })
+              row.push({ kind: "account", index: entry })
+            }
           }
           if (row.length > 0) rows.push(row)
         }
+        if (shown.length < accounts.length) rows.push([{ kind: "showHidden", index: p }])
       }
       if (!blankSlate) {
         var tiles = []
@@ -371,6 +388,71 @@ Panel {
     return p && p.accounts && p.accounts.length > 0 ? p.accounts : []
   }
 
+  // Accounts someone hid stay out of the page, kept per agent in the panel's
+  // settings as `hiddenAccounts: { claude: ["work"] }`. The active account
+  // always shows, so a switch can't hide where new sessions go.
+  function accountHidden(p, account) {
+    var ids = p && settings && settings.hiddenAccounts ? settings.hiddenAccounts[p.providerId] : null
+    if (!ids || account.active) return false
+    for (var i = 0; i < ids.length; i++)
+      if (String(ids[i]) === String(account.id)) return true
+    return false
+  }
+
+  function shownAccounts(p) {
+    return Array.prototype.filter.call(providerAccounts(p), function(account) { return !accountHidden(p, account) })
+  }
+
+  function hiddenAccounts(p) {
+    return Array.prototype.filter.call(providerAccounts(p), function(account) { return accountHidden(p, account) })
+  }
+
+  function setAccountHidden(p, account, hidden) {
+    if (!p || !account || !bar || !bar.shell) return
+    var next = JSON.parse(JSON.stringify(settings || {}))
+    var all = next.hiddenAccounts || {}
+    var ids = (all[p.providerId] || []).filter(function(id) { return String(id) !== String(account.id) })
+    if (hidden) ids.push(String(account.id))
+    if (ids.length > 0) all[p.providerId] = ids
+    else delete all[p.providerId]
+    next.hiddenAccounts = all
+    bar.shell.updateEntryInline(moduleName, next)
+  }
+
+  function showAccounts(p) {
+    if (!p || !bar || !bar.shell || !settings || !settings.hiddenAccounts) return
+    var next = JSON.parse(JSON.stringify(settings))
+    delete next.hiddenAccounts[p.providerId]
+    bar.shell.updateEntryInline(moduleName, next)
+  }
+
+  // An agent's own accounts can be forgotten here except the CLI's own
+  // sign-in, as `omarchy agent account remove` allows; a proxy's are deleted
+  // from the proxy.
+  function removableAccount(p, account) {
+    if (!p || !account) return false
+    return supportsSignIn(p) ? !account.primary : p.providerId === "cliproxy"
+  }
+
+  function removeAccount(p, account) {
+    if (!removableAccount(p, account)) return
+    var command = supportsSignIn(p)
+      ? ["omarchy-agent-account-remove", p.providerId, String(account.id)]
+      : ["omarchy-agent-cliproxy-remove", String(account.id)]
+    // Both commands say why on stderr; the panel has no terminal, so a
+    // failure (a session still using the account, an unreachable proxy)
+    // becomes a notification.
+    Util.execArgv(["bash", "-c", 'out=$("${@:2}" 2>&1 </dev/null) || omarchy-notification-send -u critical "$1" "$out"',
+                   "omarchy-agent-remove", Commons.I18n.t("agents.removeFailed").arg(String(account.label || account.id))].concat(command))
+  }
+
+  function removeConfirmText(target) {
+    var label = String(target.account.label || target.account.id)
+    return supportsSignIn(target.provider)
+      ? Commons.I18n.t("agents.removeAccountConfirm").arg(label)
+      : Commons.I18n.t("agents.removeProxyAccountConfirm").arg(label).arg(target.provider.providerName || "")
+  }
+
   readonly property bool localBlocked: providers.some(function(p) { return p.localModel && p.localModel.fits === false })
 
   function refreshNow() {
@@ -428,6 +510,9 @@ Panel {
   property string addCode: ""
   property string addUrl: ""
   property bool addNeedsPaste: false
+  // What to paste, when the sign-in in progress says (a proxy wants the
+  // address the browser landed on); else the default, a code.
+  property string addPasteHint: ""
   property string addResult: ""
   // Whether the sign-in in progress opened a private window, so reopening its
   // page does too.
@@ -454,23 +539,48 @@ Panel {
     var state = addChecks[id] || ""
     if (state === "") return
     addProvider = id
-    if (state === "additional") addStage = "name"
+    // With a CLIProxyAPI set up, a Claude or Codex account can sign in to it
+    // instead of this machine.
+    if (usage.proxyRecord && (id === "claude" || id === "codex")) addStage = "where"
+    else addHere()
+  }
+
+  // Signing in on this machine: a second account needs a name first.
+  function addHere() {
+    if ((addChecks[addProvider] || "") === "additional") addStage = "name"
     else startAdd("")
   }
 
-  function startAdd(label) {
-    addPrivate = (addChecks[addProvider] || "") === "additional"
+  function chooseWhere(proxy) {
+    if (proxy) startProxyAdd()
+    else addHere()
+  }
+
+  function beginAddRun(command, isPrivate) {
+    addPrivate = isPrivate
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
+    addPasteHint = ""
+    addResult = ""
+    addStage = "running"
+    addProcess.command = command
+    addProcess.running = true
+  }
+
+  // The proxy runs the login and says when it needs the address pasted.
+  function startProxyAdd() {
+    addNeedsPaste = false
+    beginAddRun(["omarchy-agent-cliproxy-add", "--events", addProvider], true)
+  }
+
+  function startAdd(label) {
     // Claude's login offers pasting a code back whenever its page shows one,
     // and its prompt for it has no newline to read it by, so the field is
     // there from the start.
     addNeedsPaste = addProvider === "claude"
-    addResult = ""
-    addStage = "running"
-    addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
-    addProcess.running = true
+    beginAddRun(["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : []),
+                (addChecks[addProvider] || "") === "additional")
   }
 
   function cancelAdd() {
@@ -494,9 +604,12 @@ Panel {
   // browser (Grok), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
     var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|done|error) (.*)$/)
+    var tagged = text.match(/^@@omarchy (status|done|error|paste) (.*)$/)
     if (tagged) {
-      if (tagged[1] === "status") {
+      if (tagged[1] === "paste") {
+        addNeedsPaste = true
+        addPasteHint = tagged[2]
+      } else if (tagged[1] === "status") {
         addStatus = tagged[2]
       } else {
         addResult = tagged[2]
@@ -582,6 +695,10 @@ Panel {
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
     else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
+    else if (target.kind === "hide") setAccountHidden(pickedEntry.provider, pickedEntry.account, true)
+    else if (target.kind === "remove") deleteTarget = pickedEntry
+    else if (target.kind === "showHidden") showAccounts(providers[target.index])
+    else if (target.kind === "where") chooseWhere(target.index === 1)
     else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
   }
 
@@ -1098,6 +1215,7 @@ Panel {
     Qt.callLater(function() {
       if (picking) pointAt("choice", 0)
       else if (addStage === "local") pointAt("localAdd", 0)
+      else if (addStage === "where") pointAt("where", 0)
     })
   }
   implicitWidth: button.implicitWidth
@@ -1248,7 +1366,8 @@ Panel {
           handleKey(event)
           event.accepted = true
         }
-        message: !root.deleteTarget ? "" : root.deleteTarget.localModel
+        message: !root.deleteTarget ? "" : root.deleteTarget.account ? root.removeConfirmText(root.deleteTarget)
+          : root.deleteTarget.localModel
           ? Commons.I18n.t("agents.localRemoveConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
@@ -1605,6 +1724,40 @@ Panel {
       }
     }
 
+    // Where: with a CLIProxyAPI set up, this machine or the proxy.
+    Column {
+      visible: root.addStage === "where"
+      width: parent.width
+      spacing: Style.space(10)
+
+      Text {
+        width: parent.width
+        text: Commons.I18n.t("agents.signInOn")
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Row {
+        spacing: Style.space(16)
+
+        TextLink {
+          text: Commons.I18n.t("agents.thisMachine")
+          idleColor: root.foreground
+          picked: root.hasKey("where", 0)
+          onClicked: root.chooseWhere(false)
+        }
+
+        TextLink {
+          text: usage.proxyRecord ? String(usage.proxyRecord.name || "") : ""
+          idleColor: root.foreground
+          picked: root.hasKey("where", 1)
+          onClicked: root.chooseWhere(true)
+        }
+      }
+    }
+
     // Name: a second account needs telling apart from the first.
     Column {
       visible: root.addStage === "name"
@@ -1681,7 +1834,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: Commons.I18n.t("agents.pasteCode")
+          text: root.addPasteHint !== "" ? root.addPasteHint : Commons.I18n.t("agents.pasteCode")
           textFormat: Text.PlainText
           color: root.dim
           font.family: root.fontFamily
@@ -1692,7 +1845,7 @@ Panel {
         TextField {
           id: pasteField
           width: parent.width
-          placeholderText: Commons.I18n.t("agents.placeholderCode")
+          placeholderText: root.addPasteHint !== "" ? "https://…" : Commons.I18n.t("agents.placeholderCode")  // i18n: ignore
           foreground: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -2050,7 +2203,7 @@ Panel {
     }
 
     Repeater {
-      model: section.multi ? section.accounts : []
+      model: section.multi ? root.shownAccounts(section.provider) : []
 
       Column {
         id: accountBlock
@@ -2083,6 +2236,34 @@ Panel {
             }
           }
         }
+      }
+    }
+
+    // Hidden accounts, by name, with Show to bring them all back.
+    Row {
+      id: hiddenLine
+      readonly property var hidden: section.multi ? root.hiddenAccounts(section.provider) : []
+      visible: hidden.length > 0
+      width: parent.width
+      spacing: Style.space(10)
+
+      Text {
+        width: Math.min(implicitWidth, hiddenLine.width - showLink.implicitWidth - hiddenLine.spacing)
+        textFormat: Text.PlainText
+        elide: Text.ElideRight
+        text: Commons.I18n.tn("agents.hiddenAccounts", hiddenLine.hidden.length)
+          .arg(Commons.I18n.formatNumber(hiddenLine.hidden.length))
+          .arg(hiddenLine.hidden.map(function(account) { return String(account.label || account.id) }).join(", "))
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      TextLink {
+        id: showLink
+        text: Commons.I18n.t("agents.show")
+        picked: root.hasKey("showHidden", section.providerIndex)
+        onClicked: root.showAccounts(section.provider)
       }
     }
   }
@@ -2253,9 +2434,10 @@ Panel {
   }
 
   // An account's name, email and plan, with ACTIVE or a Use link on the
-  // right. Clicking the name edits it in place: Enter renames, Esc or
-  // clicking away leaves it as it was. An agent whose accounts can't be
-  // switched from here (a proxy's) shows the name and plan alone.
+  // right, and Hide and Remove on hover. Clicking the name edits it in place:
+  // Enter renames, Esc or clicking away leaves it as it was. An agent whose
+  // accounts can't be switched from here (a proxy's) offers no Use or
+  // rename.
   component AccountHeader: Item {
     id: head
     property var account: ({})
@@ -2312,7 +2494,9 @@ Panel {
         visible: !head.editing
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, parent.width * 0.6)
+        // The Sign-in required link and the note keep their whole width, so
+        // with the line's links showing it's the name that shortens.
+        width: Math.max(0, Math.min(implicitWidth, parent.width * 0.6, parent.width - Style.space(8) - detailRow.fixedWidth))
         text: head.label
         color: head.picked ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
@@ -2345,6 +2529,8 @@ Panel {
         anchors.verticalCenter: nameText.verticalCenter
         width: Math.max(0, parent.width - nameText.width - Style.space(8))
         spacing: Style.space(8)
+        readonly property real fixedWidth: (accountNote.visible ? accountNote.implicitWidth + spacing : 0)
+          + (signInLink.visible ? signInDot.implicitWidth + signInLink.implicitWidth + 2 * spacing : 0)
 
         Text {
           textFormat: Text.PlainText
@@ -2413,8 +2599,8 @@ Panel {
       id: headAction
       anchors.right: parent.right
       anchors.top: parent.top
-      implicitWidth: head.isActive ? headActive.implicitWidth : useRow.visible ? useRow.implicitWidth : 0
-      implicitHeight: head.isActive ? headActive.implicitHeight : useRow.visible ? useRow.implicitHeight : 0
+      implicitWidth: head.isActive ? headActive.implicitWidth : actionRow.implicitWidth
+      implicitHeight: head.isActive ? headActive.implicitHeight : actionRow.implicitHeight
 
       Text {
         id: headActive
@@ -2431,15 +2617,32 @@ Panel {
       // Switching now is Use. Hovering it also offers Autoswitch: move new
       // sessions over by themselves once the active account reaches the
       // threshold. While that's on it stays in view in place of Use, and
-      // clicking it again goes back to only being notified.
+      // clicking it again goes back to only being notified. Hovering also
+      // offers Hide, and Remove where the account can be removed; a proxy's
+      // accounts offer only those two.
       Row {
-        id: useRow
-        visible: !head.isActive && head.managed
+        id: actionRow
+        visible: !head.isActive
         anchors.right: parent.right
         spacing: Style.space(12)
 
         TextLink {
-          visible: head.autoOn || useHover.hovered || head.picked
+          visible: useHover.hovered || head.picked
+          text: Commons.I18n.t("agents.hide") + (head.pickedKind === "hide" ? " ⏎" : "")
+          picked: head.pickedKind === "hide"
+          onClicked: root.setAccountHidden(head.owner, head.account, true)
+        }
+
+        TextLink {
+          visible: root.removableAccount(head.owner, head.account) && (useHover.hovered || head.picked)
+          text: Commons.I18n.t("agents.remove") + (head.pickedKind === "remove" ? " ⏎" : "")
+          picked: head.pickedKind === "remove"
+          idleColor: root.urgent
+          onClicked: root.deleteTarget = { provider: head.owner, account: head.account }
+        }
+
+        TextLink {
+          visible: head.managed && (head.autoOn || useHover.hovered || head.picked)
           text: Commons.I18n.t("agents.autoswitch") + (head.pickedKind === "autoswitch" ? " ⏎" : "")
           picked: head.pickedKind === "autoswitch"
           current: head.autoOn
@@ -2451,7 +2654,7 @@ Panel {
 
         // With Autoswitch on, Use waits until the line is hovered or picked.
         TextLink {
-          visible: !head.autoOn || useHover.hovered || head.picked
+          visible: head.managed && (!head.autoOn || useHover.hovered || head.picked)
           text: Commons.I18n.t("agents.use") + (head.pickedKind === "account" ? " ⏎" : "")
           picked: head.pickedKind === "account"
           onClicked: root.useAccount(head.owner, head.account)
