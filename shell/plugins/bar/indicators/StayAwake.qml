@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 import qs.Ui
 
 BarIndicator {
@@ -10,8 +11,8 @@ BarIndicator {
   // A mug without a saucer, which drew a line under the cup.
   activeText: ""
   inactiveText: ""
-  activeTooltipText: "Allow Idle Lock & Screensaver"
-  inactiveTooltipText: "Stay Awake"
+  activeTooltipText: I18n.t("bar.allowIdleLock")
+  inactiveTooltipText: I18n.t("bar.stayAwake")
 
   function toggle() {
     if (root.idleService) root.idleService.setIdleEnabled(root.active)

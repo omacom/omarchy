@@ -30,6 +30,12 @@ Item {
   property bool crop: false
   property int horizontalAlignment: Image.AlignHCenter
   property int verticalAlignment: Image.AlignVCenter
+  // Left and right swap in a mirrored (right-to-left) layout, as they do for
+  // a plain Image.
+  readonly property int effectiveHorizontalAlignment: !LayoutMirroring.enabled ? horizontalAlignment
+    : horizontalAlignment === Image.AlignLeft ? Image.AlignRight
+    : horizontalAlignment === Image.AlignRight ? Image.AlignLeft
+    : horizontalAlignment
   property bool asynchronous: true
   readonly property alias status: image.status
   readonly property bool sized: width > 0 && height > 0
@@ -64,8 +70,8 @@ Item {
 
     width: root.scalable ? root.width : implicitWidth * placedScale
     height: root.scalable ? root.height : implicitHeight * placedScale
-    x: root.scalable || root.horizontalAlignment === Image.AlignLeft ? 0
-      : root.horizontalAlignment === Image.AlignRight ? root.width - width
+    x: root.scalable || root.effectiveHorizontalAlignment === Image.AlignLeft ? 0
+      : root.effectiveHorizontalAlignment === Image.AlignRight ? root.width - width
       : (root.width - width) / 2
     y: root.scalable || root.verticalAlignment === Image.AlignTop ? 0
       : root.verticalAlignment === Image.AlignBottom ? root.height - height
