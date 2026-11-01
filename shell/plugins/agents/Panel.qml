@@ -123,6 +123,8 @@ Panel {
       var choices = []
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
+    } else if (addStage === "local") {
+      for (var r = 0; r < localAddRecipes.length; r++) rows.push([{ kind: "localAdd", index: r }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -135,11 +137,9 @@ Panel {
           rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: action === "toggle" ? "modelToggle" : "modelLaunch", index: p } }) : [{ kind: "modelHeader", index: p }])
           continue
         }
-        // Every agent's header is a stop, so Ctrl+Up/Down can move it, with its
-        // terminal button beside it when the provider has a harness of its own.
-        var head = [{ kind: "provider", index: p }]
-        if (harnessFor(providers[p]) !== "") head.push({ kind: "providerLaunch", index: p })
-        rows.push(head)
+        // Every agent's line is a stop, so Ctrl+Up/Down can move it: its
+        // terminal button when it has a harness of its own, else its mark.
+        rows.push([{ kind: lineStop(p), index: p }])
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -189,6 +189,20 @@ Panel {
   }
 
   // The first arrow only shows where the cursor is, as in the other panels.
+  // A line's rightmost button, where the cursor lands on it: a local model's
+  // terminal while it runs, else its play; a subscription's terminal; the mark
+  // only for a line with no button.
+  function lineStop(p) {
+    var provider = providers[p]
+    if (!provider) return "provider"
+    if (provider.localModel) {
+      var actions = localActions(provider.localModel)
+      if (actions.indexOf("launch") >= 0) return "modelLaunch"
+      return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
+    }
+    return harnessFor(provider) !== "" ? "providerLaunch" : "provider"
+  }
+
   function moveKey(dx, dy) {
     if (keyRows.length === 0) return
     if (!cursorActive) {
@@ -199,11 +213,13 @@ Panel {
     }
     if (dy !== 0) {
       keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
-      // Arriving on an account lands on Use; left reaches Autoswitch.
+      // Arriving on an account lands on Use; left reaches Autoswitch. Arriving
+      // on an agent's line lands on its rightmost button: terminal, or play.
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      keyColumn = use >= 0 ? use : Math.min(keyColumn, row.length - 1)
+      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(row[0].kind) >= 0
+      keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
     }
@@ -228,7 +244,7 @@ Panel {
     var to = clamp(from + dy, 0, providers.length - 1)
     if (to === from) return
     usage.moveProvider(providers[from].providerId, to)
-    Qt.callLater(function() { pointAt(providers[to].localModel ? (localActions(providers[to].localModel).length ? "modelToggle" : "modelHeader") : "provider", to) })
+    Qt.callLater(function() { pointAt(lineStop(to), to) })
   }
 
   // As in Elsewhen, keep the layout fixed until the lifted section settles.
@@ -282,7 +298,7 @@ Panel {
     dragIndex = -1
     if (moved) usage.moveProvider(id, to)
     resetProviderDrag()
-    if (moved) Qt.callLater(function() { pointAt(providers[to].localModel ? (localActions(providers[to].localModel).length ? "modelToggle" : "modelHeader") : "provider", to) })
+    if (moved) Qt.callLater(function() { pointAt(lineStop(to), to) })
   }
 
   function settleProviderDrag(cancel) {
@@ -361,8 +377,28 @@ Panel {
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude Code" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "local", providerName: Commons.I18n.t("agents.localAi") }
   ]
+
+  // Local AI offers the catalog's recipes that fit this machine and aren't
+  // set up yet, recommended first. Each downloads tens of GB, so setting one
+  // up runs in a terminal that shows its progress.
+  readonly property var localAddRecipes: {
+    var models = usage.localModel && usage.localModel.models ? usage.localModel.models : {}
+    var recipes = (usage.localRecipes || []).filter(function(recipe) {
+      return recipe && recipe.available && !models[recipe.id]
+    })
+    recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
+    return recipes
+  }
+
+  function setUpLocal(recipe) {
+    if (!recipe) return
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local-use " + Util.shellQuote(String(recipe.id))])
+    cancelAdd()
+    root.close()
+  }
   property string addStage: ""
   property string addProvider: ""
   property var addChecks: ({})
@@ -389,6 +425,10 @@ Panel {
   }
 
   function chooseAddProvider(id) {
+    if (id === "local") {
+      if (localAddRecipes.length > 0) addStage = "local"
+      return
+    }
     var state = addChecks[id] || ""
     if (state === "") return
     addProvider = id
@@ -511,6 +551,7 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
+    else if (target.kind === "localAdd") setUpLocal(localAddRecipes[target.index])
     else if (target.kind === "modelToggle" || target.kind === "modelLaunch") runLocalAction(providers[target.index].localModel, target.kind === "modelToggle" ? "toggle" : "launch")
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
@@ -999,7 +1040,7 @@ Panel {
 
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: picking || addProvider === ""
-    ? Commons.I18n.t("agents.addAccount")
+    ? (blankSlate ? Commons.I18n.t("agents.addAccount") : Commons.I18n.t("agents.addAnother"))
     : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
   onAddStageChanged: {
     phraseSwap.stop()
@@ -1256,7 +1297,7 @@ Panel {
                   onHovered: root.pointAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
-                  tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addSubscription")
+                  tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addAnother")
                   onClicked: adding ? root.cancelAdd() : root.addAccount()
                 }
               }
@@ -1370,7 +1411,7 @@ Panel {
           required property var modelData
           required property int index
           readonly property string state: root.addChecks[modelData.providerId] || ""
-          readonly property bool available: state === "first" || state === "additional"
+          readonly property bool available: modelData.providerId === "local" ? root.localAddRecipes.length > 0 : state === "first" || state === "additional"
           readonly property bool hasCursor: root.hasKey("choice", index)
           width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
           implicitHeight: choiceBody.implicitHeight + Style.space(16)
@@ -1408,6 +1449,97 @@ Panel {
             onClicked: root.chooseAddProvider(choice.modelData.providerId)
           }
 
+        }
+      }
+    }
+
+    // Local AI: the curated recipes that fit this machine, one per row.
+    Column {
+      visible: root.addStage === "local"
+      width: parent.width
+      spacing: Style.space(14)
+
+      Repeater {
+        model: root.addStage === "local" ? root.localAddRecipes : []
+
+        Item {
+          id: recipeRow
+          required property var modelData
+          required property int index
+          readonly property bool hasCursor: root.hasKey("localAdd", index)
+          width: parent.width
+          implicitHeight: recipeBody.implicitHeight
+          onHasCursorChanged: if (hasCursor) root.revealItem(recipeRow)
+
+          CursorSurface {
+            anchors.fill: parent
+            anchors.margins: -Style.space(6)
+            z: -1
+            hasCursor: recipeRow.hasCursor
+            foreground: root.foreground
+          }
+
+          Column {
+            id: recipeBody
+            width: parent.width
+            spacing: Style.space(4)
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(recipeMark.height, recipeName.implicitHeight)
+
+              ProviderIcon {
+                id: recipeMark
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                provider: ({ providerId: String(recipeRow.modelData.vendor || "local") })
+              }
+
+              Text {
+                id: recipeName
+                anchors.left: recipeMark.right
+                anchors.leftMargin: Style.space(10)
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: String(recipeRow.modelData.name || recipeRow.modelData.id)
+                color: recipeRow.hasCursor ? Commons.Color.accent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+              }
+
+              Text {
+                anchors.left: recipeName.right
+                anchors.leftMargin: Style.space(8)
+                anchors.baseline: recipeName.baseline
+                visible: recipeRow.modelData.best === true
+                textFormat: Text.PlainText
+                text: Commons.I18n.t("agents.localRecommended")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+            }
+
+            Text {
+              width: parent.width
+              leftPadding: recipeMark.width + Style.space(10)
+              textFormat: Text.PlainText
+              text: String(recipeRow.modelData.summary || "")
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: root.pointAt("localAdd", recipeRow.index)
+            onClicked: root.setUpLocal(recipeRow.modelData)
+          }
         }
       }
     }
@@ -1539,6 +1671,18 @@ Panel {
     readonly property bool loading: !!model && model.unit === "activating"
     readonly property bool running: !!model && model.unit === "active"
     readonly property bool stopping: !!model && model.unit === "deactivating"
+    // When a start or stop ends, its bar fills to the end before the row
+    // changes over to memory (or goes), rather than vanishing near 90%.
+    property string finishing: ""
+    readonly property bool loadingShown: loading || finishing === "loading"
+    readonly property bool stoppingShown: stopping || finishing === "stopping"
+    onLoadingChanged: if (!loading && running) { finishing = "loading"; finishTimer.restart() }
+    onStoppingChanged: if (!stopping && !loading) { finishing = "stopping"; finishTimer.restart() }
+    Timer {
+      id: finishTimer
+      interval: Style.duration(450)
+      onTriggered: section.finishing = ""
+    }
     readonly property real loadSeconds: model && Number(model.expected_load_seconds) > 0 ? Number(model.expected_load_seconds) : 60
     readonly property real stopSeconds: model && Number(model.expected_stop_seconds) > 0 ? Number(model.expected_stop_seconds) : 10
     readonly property real phaseSeconds: stopping ? stopSeconds : loadSeconds
@@ -1572,7 +1716,7 @@ Panel {
       width: parent.width
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
-      readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : (root.hasKey("provider", section.providerIndex) || root.hasKey("modelToggle", section.providerIndex) || root.hasKey("modelLaunch", section.providerIndex) || root.hasKey("modelHeader", section.providerIndex))
+      readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : (root.hasKey("provider", section.providerIndex) || root.hasKey("modelHeader", section.providerIndex))
       onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
 
       // Only the mark is lit: it's the handle the agent moves by.
@@ -1687,7 +1831,7 @@ Panel {
     // Under a local model: memory while it runs, progress while it loads or
     // stops (against how long that took last time), or why it couldn't start.
     Item {
-      visible: section.running || section.loading || section.stopping
+      visible: section.running || section.loadingShown || section.stoppingShown
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -1696,8 +1840,8 @@ Panel {
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.loading ? Commons.I18n.t("agents.localLoadingMeter")
-          : section.stopping ? Commons.I18n.t("agents.localStoppingMeter")
+        text: section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
+          : section.stoppingShown ? Commons.I18n.t("agents.localStoppingMeter")
           : Commons.I18n.t("agents.localMemory")
         color: root.foreground
         font.family: root.fontFamily
@@ -1708,7 +1852,7 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.loading || section.stopping ? root.phaseProgress(section.elapsed, section.phaseSeconds)
+        value: section.finishing !== "" ? 1 : section.loading || section.stopping ? root.phaseProgress(section.elapsed, section.phaseSeconds)
           : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
       }
       Text {
@@ -1717,7 +1861,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.loading || section.stopping ? ""
+        text: section.loadingShown || section.stoppingShown ? ""
           : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
         color: root.dim
         font.family: root.fontFamily
@@ -1726,7 +1870,7 @@ Panel {
     }
 
     Text {
-      visible: !!section.model && !section.running && !section.loading && !section.stopping && String(section.model.error || "") !== ""
+      visible: !!section.model && !section.running && !section.loadingShown && !section.stoppingShown && String(section.model.error || "") !== ""
       width: parent.width
       textFormat: Text.PlainText
       text: section.model ? String(section.model.error || "") : ""

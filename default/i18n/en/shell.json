@@ -1,8 +1,10 @@
 {
   "agents.active": "ACTIVE",
   "agents.addAccount": "Add an account",
+  "agents.addAnother": "Add another",
+  "agents.localAi": "Local AI",
+  "agents.localRecommended": "recommended",
   "agents.addProviderAccount": "Add %1 account",
-  "agents.addSubscription": "Add a subscription",
   "agents.app": "App",
   "agents.autoswitch": "Autoswitch",
   "agents.backToLimits": "Back to the limits",

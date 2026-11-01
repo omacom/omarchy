@@ -1888,8 +1888,9 @@ def model_record(rid, manifest, catalog=None, profile=None):
   observed = manifest.get("observed") or {}
   fits, fit_reason = (True, "") if unit in ("active", "activating", "deactivating") or profile is None else start_fit(manifest, profile)
   error = _read(error_path(rid))
-  # A memory refusal stops being true once another model lets go of its memory.
-  if fits and error.startswith(NOT_ENOUGH_MEMORY):
+  # A memory refusal isn't a failure to show: play is greyed out with its
+  # reason before a start is even tried.
+  if error.startswith(NOT_ENOUGH_MEMORY):
     error = ""
   if not error and unit == "failed":
     error = f"Stopped unexpectedly ({props.get('Result') or 'failed'})"
