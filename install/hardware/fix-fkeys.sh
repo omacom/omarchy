@@ -6,5 +6,5 @@
 modprobe_dir="${OMARCHY_MODPROBE_DIR:-/etc/modprobe.d}"
 fn_option='^[[:space:]]*options[[:space:]]+(hid_apple[[:space:]].*fnmode|(hid_asus|asus_wmi)[[:space:]].*fnlock_default)='
 if ! omarchy-hw-aarch64-apple && ! grep -qsE "$fn_option" "$modprobe_dir"/*.conf; then
-  omarchy-keyboard-fnkeys off --no-rebuild
+  omarchy-keyboard-toprow media --no-rebuild
 fi

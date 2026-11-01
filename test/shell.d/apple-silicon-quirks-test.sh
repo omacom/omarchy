@@ -13,7 +13,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
 modprobe_dir="$test_tmp/modprobe.d"
-conf="$modprobe_dir/omarchy-fnkeys.conf"
+conf="$modprobe_dir/omarchy-toprow.conf"
 mkdir -p "$stub_bin"
 
 cat >"$stub_bin/omarchy-hw-aarch64-apple" <<'SH'
@@ -41,7 +41,7 @@ chmod +x "$stub_bin"/*
 run_fkeys() {
   mkdir -p "$test_tmp/sys-module"
   APPLE_SILICON="$1" OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$test_tmp/sys-module" \
-    OMARCHY_FNKEYS_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$ROOT/bin:$PATH" TEST_LOG="$calls" \
+    OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$ROOT/bin:$PATH" TEST_LOG="$calls" \
     bash -eE -o pipefail -c 'source "$1"' _ "$ROOT/install/hardware/fix-fkeys.sh" >/dev/null
 }
 
@@ -65,9 +65,9 @@ rm -rf "$modprobe_dir"
 : >"$calls"
 run_fkeys 1
 [[ ! -e $modprobe_dir && ! -s $calls ]] || fail "Apple Silicon keeps its own keyboard mode" "$(cat "$calls")"
-output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-keyboard-fnkeys" on 2>&1) &&
-  fail "omarchy keyboard fnkeys refuses Apple Silicon"
-[[ $output == *omarchy-mac* ]] || fail "omarchy keyboard fnkeys says why it refuses Apple Silicon" "$output"
+output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-keyboard-toprow" function 2>&1) &&
+  fail "omarchy keyboard toprow refuses Apple Silicon"
+[[ $output == *omarchy-mac* ]] || fail "omarchy keyboard toprow says why it refuses Apple Silicon" "$output"
 pass "Apple Silicon keeps its own keyboard mode"
 
 # The Windows guest is x86_64, so every other CPU refuses it before it touches

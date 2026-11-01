@@ -7,10 +7,10 @@ if ! omarchy-hw-aarch64-qualcomm || ! omarchy-hw-match "UX3607OA"; then
   exit 0
 fi
 
-if [[ -f /etc/modprobe.d/omarchy-fnkeys.conf || -f /etc/modprobe.d/hid_asus.conf ]] && [[ ! -e /var/lib/omarchy/fnkeys-rebuild-pending ]]; then
+if [[ -f /etc/modprobe.d/omarchy-toprow.conf || -f /etc/modprobe.d/hid_asus.conf ]] && [[ ! -e /var/lib/omarchy/toprow-rebuild-pending ]]; then
   exit 0
 fi
 
 # Rebuilds the boot image, where hid-asus loads; a failed rebuild exits non-zero
 # and keeps this migration pending.
-omarchy-keyboard-fnkeys off
+omarchy-keyboard-toprow media

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Choose whether the keyboard's top row sends F1-F12 or media keys by default
-# omarchy:args=[on|off]
-# omarchy:examples=omarchy keyboard fnkeys | omarchy keyboard fnkeys on | omarchy keyboard fnkeys off
+# omarchy:args=[media|function]
+# omarchy:examples=omarchy keyboard toprow | omarchy keyboard toprow media | omarchy keyboard toprow function
 # omarchy:requires-sudo=true
 
 set -euo pipefail
@@ -14,16 +14,16 @@ set -euo pipefail
 # Apple-style keyboards such as the Lofree Flow). This sets all three in one
 # file, which sorts after hid_apple.conf and hid_asus.conf, so it wins over them.
 #
-# on: the top row sends F1-F12, and Fn gives the media keys.
-# off: the top row sends the media keys, and Fn gives F1-F12.
+# media: the top row sends the media keys, and Fn gives F1-F12.
+# function: the top row sends F1-F12, and Fn gives the media keys.
 
 modprobe_dir=${OMARCHY_MODPROBE_DIR:-/etc/modprobe.d}
 sys_module=${OMARCHY_SYS_MODULE:-/sys/module}
-conf="$modprobe_dir/omarchy-fnkeys.conf"
-rebuild_pending=${OMARCHY_FNKEYS_REBUILD_PENDING:-/var/lib/omarchy/fnkeys-rebuild-pending}
+conf="$modprobe_dir/omarchy-toprow.conf"
+rebuild_pending=${OMARCHY_TOPROW_REBUILD_PENDING:-/var/lib/omarchy/toprow-rebuild-pending}
 
 usage() {
-  echo "Usage: omarchy-keyboard-fnkeys [on|off] [--no-rebuild]" >&2
+  echo "Usage: omarchy-keyboard-toprow [media|function] [--no-rebuild]" >&2
   exit 1
 }
 
@@ -31,7 +31,7 @@ state=
 rebuild=1
 for arg in "$@"; do
   case $arg in
-    on | off)
+    media | function)
       [[ -z $state ]] || usage
       state=$arg
       ;;
@@ -42,9 +42,9 @@ done
 
 if [[ -z $state ]]; then
   if grep -qx 'options hid_asus fnlock_default=1' "$conf" 2>/dev/null; then
-    echo on
+    echo function
   elif grep -qx 'options hid_asus fnlock_default=0' "$conf" 2>/dev/null; then
-    echo off
+    echo media
   else
     echo unset
   fi
@@ -56,13 +56,13 @@ if omarchy-hw-aarch64-apple; then
   exit 1
 fi
 
-if [[ $state == "on" ]]; then
+if [[ $state == "function" ]]; then
   fnmode=2 fnlock=1 first="F1-F12" second="the media keys"
 else
   fnmode=1 fnlock=0 first="the media keys" second="F1-F12"
 fi
 
-content="# Written by omarchy-keyboard-fnkeys: the top row sends $first by default,
+content="# Written by omarchy-keyboard-toprow: the top row sends $first by default,
 # and Fn (Fn+Esc to lock it) gives $second.
 options hid_apple fnmode=$fnmode
 options hid_asus fnlock_default=$fnlock
@@ -119,7 +119,7 @@ if (( needs_rebuild )); then
 
   # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
   if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
-    echo "Could not rebuild the boot image; run omarchy-keyboard-fnkeys $state again once that is fixed." >&2
+    echo "Could not rebuild the boot image; run omarchy-keyboard-toprow $state again once that is fixed." >&2
     exit 1
   fi
   sudo rm -f "$rebuild_pending"
