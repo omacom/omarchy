@@ -105,10 +105,42 @@ Panel {
   readonly property int currentBrightness: current ? brightnessOf(current.name) : -1
 
   // The displays that are on and not mirroring another, where they sit.
-  readonly property var layoutRects: {
-    var list = []
+  // Switching to Mirror reloads Hyprland, and a read can come back from
+  // before it lands, so the map shows the stack as soon as Mirror is clicked:
+  // the first external display mirroring the built-in one, as
+  // omarchy-hyprland-monitor-internal-mirror sets it up. "on" or "off" while
+  // a switch is on its way; Extend keeps the stack until the real layout,
+  // with the external back in its own place, comes in.
+  property string pendingMirror: ""
+  readonly property var layoutDisplays: {
+    if (pendingMirror !== "on") return displays
+    var internal = ""
+    var external = ""
     for (var i = 0; i < displays.length; i++) {
       var display = displays[i]
+      if (!display || !display.enabled) continue
+      if (/^(eDP|LVDS|DSI)-/.test(display.name)) { if (!internal) internal = display.name }
+      else if (!external) external = display.name
+    }
+    if (!internal || !external) return displays
+    var list = []
+    for (var j = 0; j < displays.length; j++) {
+      var entry = displays[j]
+      if (entry && entry.name === external) {
+        var copy = {}
+        for (var key in entry) copy[key] = entry[key]
+        copy.mirrorOf = internal
+        entry = copy
+      }
+      list.push(entry)
+    }
+    return list
+  }
+
+  readonly property var layoutRects: {
+    var list = []
+    for (var i = 0; i < layoutDisplays.length; i++) {
+      var display = layoutDisplays[i]
       if (!display || !display.enabled || !(display.width > 0)) continue
       if (display.mirrorOf && display.mirrorOf !== "none") continue
       list.push(Model.logicalRect(display))
@@ -119,8 +151,8 @@ Panel {
   // The displays showing each layout rect's picture, keyed by the rect's name.
   readonly property var mirroredBy: {
     var map = {}
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
+    for (var i = 0; i < layoutDisplays.length; i++) {
+      var display = layoutDisplays[i]
       if (!display || !display.enabled || !display.mirrorOf || display.mirrorOf === "none") continue
       if (!map[display.mirrorOf]) map[display.mirrorOf] = []
       map[display.mirrorOf].push(display.name)
@@ -128,12 +160,19 @@ Panel {
     return map
   }
 
-  // Some display is showing another's picture.
-  readonly property bool mirrorEnabled: Object.keys(mirroredBy).length > 0
+  // Some display is showing another's picture, or is about to.
+  readonly property bool mirroredNow: {
+    for (var i = 0; i < displays.length; i++) {
+      var display = displays[i]
+      if (display && display.enabled && display.mirrorOf && display.mirrorOf !== "none") return true
+    }
+    return false
+  }
+  readonly property bool mirrorEnabled: pendingMirror !== "" ? pendingMirror === "on" : mirroredNow
   // omarchy-hyprland-monitor-internal-mirror puts the built-in display's
   // picture on the first external one, so it needs both. A mirror set up in
   // the user's own monitors.lua is theirs to undo, so Extend isn't offered.
-  readonly property bool mirrorAvailable: internalMonitor !== "" && externalMonitor !== "" && (!mirrorEnabled || mirrorManaged)
+  readonly property bool mirrorAvailable: internalMonitor !== "" && externalMonitor !== "" && (!mirrorEnabled || mirrorManaged || pendingMirror !== "")
   readonly property var mirrorModes: ["extend", "mirror"]
 
   function displayGlyph(entry) {
@@ -429,6 +468,8 @@ Panel {
 
   function setMirror(enabled) {
     if (enabled === mirrorEnabled) return
+    pendingMirror = enabled ? "on" : "off"
+    mirrorSettle.restart()
     actionProc.command = ["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"]
     if (!actionProc.running) actionProc.running = true
   }
@@ -574,6 +615,12 @@ Panel {
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
+        // A mirror switch has landed once a read shows it; until then, look
+        // again shortly instead of waiting for the next regular read.
+        if (root.pendingMirror !== "" && !actionProc.running) {
+          if (root.mirroredNow === (root.pendingMirror === "on")) root.pendingMirror = ""
+          else mirrorRecheck.restart()
+        }
         // The move has landed once a read after it comes back.
         if (!layoutDelay.running && !actionProc.running) {
           root.pendingRects = null
@@ -607,6 +654,19 @@ Panel {
         root.setDisplayBrightness(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
       }
     }
+  }
+
+  Timer {
+    id: mirrorRecheck
+    interval: 400
+    onTriggered: root.refresh()
+  }
+
+  // Never hold a mirror switch that didn't happen.
+  Timer {
+    id: mirrorSettle
+    interval: 6000
+    onTriggered: root.pendingMirror = ""
   }
 
   Timer {
