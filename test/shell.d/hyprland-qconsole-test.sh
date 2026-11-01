@@ -57,7 +57,11 @@ handlers["workspace.created"]({ name = "special:qconsole", is_empty = false })
 handlers["workspace.created"]({ name = "special:scratchpad", is_empty = true })
 assert(#spawned == 0, "only an empty console is seeded")
 handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
-assert(#spawned == 1 and spawned[1].cmd == "omarchy-agent", "console is seeded with the default agent")
+assert(#spawned == 1, "an empty console is seeded, once")
+assert(spawned[1].cmd:find("herdr %-%-session qconsole"),
+  "console is seeded with its dedicated Herdr session")
+assert(spawned[1].cmd:find("herdr/qconsole%.toml"),
+  "the seed points Herdr at the qconsole profile")
 assert(spawned[1].rules.workspace == "special:qconsole silent",
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
 

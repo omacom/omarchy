@@ -14,17 +14,23 @@ local box = 2
 
 local CONSOLE = "special:qconsole"
 
--- Seed the console with the default agent the first time it opens, rather than
--- at boot, so nothing is running until it is wanted. The exec rule has to pin
--- the workspace itself: Hyprland only tags a spawn with the workspace it came
--- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
--- Omarchy ships without a default agent, and omarchy-agent exits without
--- opening anything when none is set, so until one is picked this just opens an
--- empty console. A console created by moving a window onto it is not empty, and
--- is left alone.
+-- Seed the console with a dedicated Herdr session the first time it opens,
+-- rather than at boot, so nothing is running until it is wanted. The exec rule
+-- has to pin the workspace itself: Hyprland only tags a spawn with the workspace
+-- it came from while misc.initial_workspace_tracking is on, and looknfeel turns
+-- it off. A console created by moving a window onto it is not empty, and is left
+-- alone. Herdr's profile points its new panes at omarchy-qconsole-agent, which
+-- starts the configured Omarchy agent. The profile path rides with the command,
+-- not the launch: terminals started through uwsm do not inherit the invoker's
+-- environment, so a setting exported around omarchy-launch-tui would not survive
+-- to Herdr.
+local seed = 'omarchy-launch-tui --app-id=org.omarchy.qconsole '
+  .. 'env HERDR_CONFIG_PATH="$HOME/.config/herdr/qconsole.toml" '
+  .. 'herdr --session qconsole'
+
 hl.on("workspace.created", function(ws)
   if ws and ws.name == CONSOLE and ws.is_empty then
-    hl.exec_cmd("omarchy-agent", { workspace = CONSOLE .. " silent" })
+    hl.exec_cmd(seed, { workspace = CONSOLE .. " silent" })
   end
 end)
 
