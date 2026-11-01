@@ -1,0 +1,282 @@
+#!/bin/bash
+
+# omarchy:summary=Install rtkit and repair realtime budgets left at zero without it
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Without rtkit, xdg-desktop-portal reports a realtime budget of 0, and
+# PipeWire's client module-rt applies it as a hard RLIMIT_RTTIME of 0. The
+# shell is such a client, so everything it launches inherits the zero. Once
+# rtkit is installed it accepts any hard limit at or below its own budget, 0
+# included, so a thread of such a process can be made realtime, and the kernel
+# then kills the process at its first RT watchdog check.
+#
+# The machine-wide repair runs once, as root: raise every logged-in user's
+# hard zero to rtkit's default budget of 200 ms, install rtkit, then raise the
+# zeros to its live budget, restart each logged-in user's portal that still
+# reports a zero budget, and raise the zeros that appeared meanwhile. The
+# raise has to come before the install: dbus-broker watches its service
+# directories, so rtkit can be activated as soon as pacman extracts it, before
+# any install script or hook runs. A root-owned marker, written before the
+# install and removed once the repair has finished, makes an interrupted repair
+# run again. A machine that got rtkit any other way, such as a fresh install,
+# never has one, so later runs, and other users' runs, need no sudo.
+#
+# Every run then repairs the caller's own session: it raises the caller's own
+# zeros, which needs sudo only when there are any, restarts the caller's
+# portal if it reports a zero budget, raises the zeros that appeared
+# meanwhile, and restarts the caller's audio units if the PipeWire server is
+# not realtime yet, since PipeWire only asks rtkit for priority at startup.
+#
+# This never prompts: without cached sudo the machine-wide repair stops, and
+# the caller stays pending until a run that has it, such as omarchy update.
+# Anything it cannot inspect is a failure, never "nothing to do".
+
+proc_root=${OMARCHY_PROC_ROOT:-/proc}
+pending=${OMARCHY_REALTIME_REPAIR_PENDING:-/var/lib/omarchy/realtime-repair-pending}
+lock=${OMARCHY_REALTIME_REPAIR_LOCK:-/run/omarchy-realtime-repair.lock}
+
+fail() {
+  echo "$1" >&2
+  exit 1
+}
+
+need_sudo() {
+  sudo -n true 2>/dev/null ||
+    fail "Repairing realtime budgets needs sudo without a prompt; the next omarchy update finishes it."
+}
+
+hard_rttime() {
+  awk '/^Max realtime timeout/ { print $5; found = 1 } END { exit !found }' "$1/limits" 2>/dev/null
+}
+
+# Field 22 of /proc/<pid>/stat, counted after the command name, which can
+# hold spaces, parentheses and newlines of its own.
+start_time() {
+  local stat fields
+
+  { stat=$(<"$1/stat"); } 2>/dev/null || return 1
+  read -ra fields <<<"${stat##*) }"
+  [[ -n ${fields[19]} ]] && echo "${fields[19]}"
+}
+
+# Lines of "pid starttime uid" for logged-in users' processes with a hard
+# zero. The start time is read before and after, so a PID reused meanwhile is
+# not mistaken for the process whose owner was read.
+scan_zero_rttime() {
+  local dir start uid hard again
+
+  for dir in "$proc_root"/[0-9]*; do
+    # A user's own scan skips other users' processes, which hidepid=1 shows
+    # but does not let it read.
+    [[ -z ${own_only:-} || -O $dir ]] || continue
+    if ! start=$(start_time "$dir") ||
+      ! uid=$(awk '/^Uid:/ { print $2; found = 1 } END { exit !found }' "$dir/status" 2>/dev/null) ||
+      ! hard=$(hard_rttime "$dir") || ! again=$(start_time "$dir"); then
+      # Under hidepid=1 a user cannot read every entry it sees; only root's
+      # scan, which reads them all, treats that as a failure.
+      [[ -d $dir && -z ${own_only:-} ]] && fail "Could not read the stat, status or limits of process ${dir##*/}"
+      continue
+    fi
+    [[ $uids == *" $uid "* && $hard == "0" && $again == $start ]] && echo "${dir##*/} $start $uid"
+  done
+  return 0
+}
+
+# The scan runs as root: with /proc mounted hidepid, a user cannot read other
+# users' processes, so their zeros would be missed (hidepid=2) or every run
+# would fail on them (hidepid=1). The UID filter still keeps it to logged-in
+# users.
+zero_rttime_processes() {
+  sudo -n env SCAN_ROOT="$proc_root" SCAN_UIDS="$uids" bash -c \
+    "$(declare -f fail start_time hard_rttime scan_zero_rttime)"'; proc_root=$SCAN_ROOT uids=$SCAN_UIDS scan_zero_rttime'
+}
+
+# Processes keep forking while a pass runs, so repeat until a pass finds no
+# zero. Each target is checked again just before prlimit: the same process
+# (start time and owner unchanged) still at a hard zero, so neither a reused
+# PID nor a limit someone else has just set is overwritten.
+raise_zero_budgets() {
+  local budget=$1 targets
+
+  for _ in {1..10}; do
+    targets=$(zero_rttime_processes) || exit 1
+    [[ -z $targets ]] && return 0
+
+    sudo -n env PROC_ROOT="$proc_root" BUDGET="$budget" bash -c "$(declare -f start_time)"'
+      while read -r pid start uid; do
+        dir=$PROC_ROOT/$pid
+        [[ $(start_time "$dir") == $start ]] || continue
+        [[ $(awk "/^Uid:/ { print \$2 }" "$dir/status" 2>/dev/null) == $uid ]] || continue
+        [[ $(awk "/^Max realtime timeout/ { print \$5 }" "$dir/limits" 2>/dev/null) == "0" ]] || continue
+        prlimit --pid "$pid" --rttime="$BUDGET:$BUDGET" || [[ ! -d $dir ]] || exit 1
+      done' <<<"$targets" || fail "Could not raise the realtime budget of every process"
+  done
+
+  fail "Processes keep starting with a zero realtime budget (PIDs $(zero_rttime_processes | awk '{ printf "%s ", $1 }')); close the apps that keep starting them, then run the update again."
+}
+
+as_user() {
+  local user=$1 command=$2
+  shift 2
+
+  if [[ $user == $(id -un) ]]; then
+    "$command" --user "$@"
+  else
+    sudo -n "$command" --user --machine="$user@" "$@"
+  fi
+}
+
+portal_budget() {
+  as_user "$1" busctl get-property org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \
+    org.freedesktop.portal.Realtime RTTimeUSecMax 2>/dev/null | awk '{ print $2 }'
+}
+
+# The portal reads rtkit's budget once, when it starts, so one started before
+# rtkit was installed keeps reporting zero. One that is not running reads it
+# when it next starts. A portal that already reports a budget is left alone.
+repair_portal() {
+  local user=$1 state
+
+  state=$(as_user "$user" systemctl show -p ActiveState --value xdg-desktop-portal.service) ||
+    fail "Could not read the state of $user's portal"
+
+  case $state in
+    inactive | failed) return 0 ;;
+    active) ;;
+    *) fail "$user's portal is $state; the next run repairs it" ;;
+  esac
+
+  [[ $(portal_budget "$user") =~ ^[1-9][0-9]*$ ]] && return 0
+
+  # A failed restart leaves the zero in place, which the check below catches.
+  as_user "$user" systemctl restart xdg-desktop-portal.service
+  [[ $(portal_budget "$user") =~ ^[1-9][0-9]*$ ]] ||
+    fail "$user's portal still reports a zero realtime budget"
+}
+
+rtkit_budget() {
+  local budget
+
+  budget=$(busctl get-property org.freedesktop.RealtimeKit1 /org/freedesktop/RealtimeKit1 \
+    org.freedesktop.RealtimeKit1 RTTimeUSecMax 2>/dev/null | awk '{ print $2 }')
+  [[ $budget =~ ^[1-9][0-9]*$ ]] || fail "rtkit reports no realtime budget"
+  echo "$budget"
+}
+
+repair_machine() {
+  local budget user failed=0
+
+  need_sudo
+
+  # Each user's update holds only its own lock, so two users can update at
+  # once. Without this one, a run whose install fails on pacman's lock would
+  # unmask rtkit in the middle of the other run's install. The file is root's,
+  # in a directory only root can write, and every user can open it to lock.
+  # sudo keeps the caller's umask, so the mode is set and the inode kept.
+  sudo -n touch "$lock" && sudo -n chmod 644 "$lock" || fail "Could not create the realtime repair lock"
+  exec {lock_fd}<"$lock" || fail "Could not open the realtime repair lock"
+  if ! flock -n "$lock_fd"; then
+    echo "Waiting for another realtime repair to finish..."
+    flock "$lock_fd" || fail "Could not take the realtime repair lock"
+  fi
+
+  # Regular users only: root and system accounts can log in too, but their
+  # processes are services, and a zero limit there may be deliberate.
+  users=$(loginctl list-users --no-legend) || fail "Could not list the logged-in users"
+  users=$(awk '$1 >= 1000' <<<"$users")
+  uids=" $(awk '{ printf "%s ", $1 }' <<<"$users")"
+
+  if omarchy-pkg-missing rtkit; then
+    sudo -n install -Dm644 /dev/null "$pending" || fail "Could not record the realtime repair"
+    raise_zero_budgets 200000
+
+    # dbus-broker reloads its service directories as soon as pacman extracts
+    # rtkit, so any client could activate it mid-transaction: before the
+    # portals are repaired, and before the rtkit user exists, which makes it
+    # fail into systemd's start limit. Keep it masked until the transaction is
+    # done; a client that asks meanwhile stays at normal priority.
+    # Left masked, as when sudo expires mid-install, nothing is made realtime
+    # and nothing is killed; the next run with sudo, or a reboot, releases it.
+    trap 'sudo -n systemctl unmask --runtime rtkit-daemon.service >/dev/null 2>&1 ||
+      echo "rtkit stays masked until the next omarchy update or a reboot" >&2' EXIT
+    sudo -n systemctl mask --runtime rtkit-daemon.service >/dev/null || fail "Could not hold rtkit back during its install"
+    sudo -n pacman -S --needed --noconfirm -- rtkit || fail "Could not install rtkit"
+    raise_zero_budgets 200000
+  fi
+
+  sudo -n systemctl unmask --runtime rtkit-daemon.service >/dev/null || fail "Could not release rtkit"
+  sudo -n systemctl reset-failed rtkit-daemon.service >/dev/null 2>&1
+  for _ in {1..20}; do
+    budget=$(rtkit_budget 2>/dev/null) && break
+    sleep 0.5
+  done
+  [[ -n $budget ]] || fail "rtkit reports no realtime budget"
+
+  # A client can read a portal's old zero just before it restarts, so the
+  # zeros are raised again after the portals, even when one of them failed.
+  raise_zero_budgets "$budget"
+  while read -r _ user _; do
+    [[ -n $user ]] || continue
+    (repair_portal "$user") || failed=1
+  done <<<"$users"
+  raise_zero_budgets "$budget"
+  (( ! failed )) || exit 1
+
+  sudo -n rm -f "$pending" || fail "Could not record the realtime repair"
+}
+
+# A portal whose one read of rtkit failed hands out zeros with rtkit
+# installed too, and Flatpak apps still take them from it.
+raise_own_zero_budgets() {
+  local zeros budget
+
+  uids=" $(id -u) "
+  zeros=$(own_only=1 scan_zero_rttime) || exit 1
+  [[ -n $zeros ]] || return 0
+
+  need_sudo
+  budget=$(rtkit_budget) || exit 1
+  raise_zero_budgets "$budget"
+}
+
+# The caller's own session: its zeros, its portal, and its audio units. A
+# caller with no session bus is not logged in and has none of the last two;
+# omarchy-upgrade-to-quattro runs its migrations without the user's session
+# environment, so the bus is looked for where the session puts it.
+repair_own_session() {
+  local pipewire portal_failed=0
+
+  raise_own_zero_budgets
+
+  export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+  export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
+  if [[ ! -S $XDG_RUNTIME_DIR/bus ]]; then
+    return 0
+  fi
+
+  (repair_portal "$(id -un)") || portal_failed=1
+  raise_own_zero_budgets
+  (( ! portal_failed )) || exit 1
+
+  # The server is pipewire.service's main process: a filter-chain host, such
+  # as the speaker tuning, is also named pipewire and may already be realtime.
+  pipewire=$(systemctl --user show -p MainPID --value pipewire.service) ||
+    fail "Could not read PipeWire's main process"
+  if [[ $pipewire =~ ^[1-9][0-9]*$ && ! $(ps -L -o cls= -p "$pipewire") =~ RR|FF ]]; then
+    systemctl --user try-restart pipewire.service pipewire-pulse.service wireplumber.service ||
+      fail "Could not restart the audio units"
+  fi
+}
+
+# Root needs no prompt, so it always does the machine-wide part, and the
+# users' own runs then find nothing that needs sudo.
+if omarchy-pkg-missing rtkit || [[ -e $pending ]] || [[ $(id -u) == "0" ]]; then
+  repair_machine
+fi
+
+# Root has no desktop session of its own; omarchy-upgrade-to-quattro runs
+# this as root for the machine-wide repair alone.
+if [[ $(id -u) != "0" ]]; then
+  repair_own_session
+fi

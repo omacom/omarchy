@@ -20,6 +20,15 @@ export OMARCHY_WINDOWS_DIR="$TMPDIR/win"
 export HOME="$TMPDIR/home"
 mkdir -p "$HOME"
 
+# The command refuses any CPU but x86_64 before defining anything, and sourcing
+# it there would exit this test with it. What is under test is the x86_64 path,
+# so omarchy-hw-x86 answers as one.
+STUB_BIN="$TMPDIR/bin"
+mkdir -p "$STUB_BIN"
+printf '#!/bin/bash\nexit 0\n' >"$STUB_BIN/omarchy-hw-x86"
+chmod +x "$STUB_BIN/omarchy-hw-x86"
+PATH="$STUB_BIN:$PATH"
+
 set -- help
 source "$ROOT/bin/omarchy-windows-vm" >/dev/null 2>&1
 COMPOSE="$OMARCHY_WINDOWS_DIR/docker-compose.yml"
@@ -44,7 +53,13 @@ write() { # RAM CORES DISK USER PASS TZ
     "$@" | __priv_write_compose
 }
 
-fd_count() { find "/proc/$$/fd" -mindepth 1 -maxdepth 1 -printf x | wc -c; }
+# Counted by this shell itself. A command substitution would read the table
+# while this shell may still hold the write end of the substitution's pipe,
+# which bash closes only after the fork, and count it one time in a few.
+fd_count() {
+  local fds=("/proc/$$/fd"/*)
+  FD_COUNT=${#fds[@]}
+}
 
 reset_case() {
   unmount_all
@@ -126,7 +141,7 @@ services:
       CPU_CORES: "6"
       DISK_SIZE: "128G"
       USERNAME: "legacyuser"
-      PASSWORD: "legacypass"
+      PASSWORD: "legacy\\pa\"ss$$1"
       TZ: "America/New_York"
     volumes:
       - /./:/storage
@@ -137,6 +152,8 @@ migrate_legacy_compose
 resolve_caller
 [[ -f $COMPOSE ]] || fail "migration did not write compose"
 grep -q 'USERNAME: "legacyuser"' "$COMPOSE" || fail "migration lost settings"
+[[ $(read_credential PASSWORD) == 'legacy\pa"ss$1' ]] || fail "migration kept the legacy compose escaping in the RDP password"
+[[ $(unescape "$(read_compose_value PASSWORD "$COMPOSE")") == 'legacy\pa"ss$1' ]] || fail "migration changed the guest password"
 [[ -f $HOME/.windows/existing-disk && -f $external_shared/existing-shared-file ]] || fail "migration lost data"
 [[ ! -L $HOME/.windows && $(readlink "$HOME/Windows") == "$external_shared" ]] || fail "migration consumed source path"
 [[ $(stat -Lc '%a' "$HOME/.windows") == 700 && $(stat -Lc '%a' "$external_shared") == 700 ]] || fail "migration did not harden legacy directories"
@@ -168,13 +185,13 @@ pass "bring-up rejects tampered, duplicate, unprotected, and writable compose in
 reset_case
 mkdir -p "$HOME/.windows"
 ln -s / "$HOME/Windows"
-before_fds=$(fd_count)
+fd_count; before_fds=$FD_COUNT
 prepare_user_mount_sources 2>/dev/null && fail "root symlink passed user preflight"
 [[ -L $HOME/Windows && $(readlink "$HOME/Windows") == / ]] || fail "rejected symlink consumed"
 printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\n' | __priv_write_compose 2>/dev/null && fail "root symlink passed privileged preflight"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "one source mounted before other failed"
-[[ $(fd_count) == "$before_fds" ]] || fail "source preflight leaked FD"
+fd_count; (( FD_COUNT == before_fds )) || fail "source preflight leaked FD"
 find "$CALLER_DATA_ROOT" -name 'rejected-*' -print -quit | grep -q . && fail "source was quarantined"
 pass "invalid second source leaves paths and anchors untouched and leaks no FD"
 
@@ -280,12 +297,12 @@ same="$TMPDIR/same-source"
 mkdir -p "$same"
 ln -s "$same" "$HOME/.windows"
 ln -s "$same" "$HOME/Windows"
-before_fds=$(fd_count)
+fd_count; before_fds=$FD_COUNT
 prepare_user_mount_sources 2>/dev/null && fail "same source passed user preflight"
 printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\n' | __priv_write_compose 2>/dev/null && fail "same source passed root preflight"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "same source left mount"
-[[ $(fd_count) == "$before_fds" ]] || fail "same source leaked FDs"
+fd_count; (( FD_COUNT == before_fds )) || fail "same source leaked FDs"
 pass "storage and shared must differ and failure closes FDs"
 
 # Ancestor/descendant aliases are just as destructive as same-inode aliases:
@@ -296,11 +313,11 @@ mkdir -p "$shared_inside/storage/shared"
 ln -s "$shared_inside/storage" "$HOME/.windows"
 ln -s "$shared_inside/storage/shared" "$HOME/Windows"
 prepare_user_mount_sources
-before_fds=$(fd_count)
+fd_count; before_fds=$FD_COUNT
 write 4G 2 64G nested pw UTC 2>/dev/null && fail "shared-inside-storage sources were accepted"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "shared-inside-storage failure left a mount"
-[[ $(fd_count) == "$before_fds" ]] || fail "shared-inside-storage failure leaked FDs"
+fd_count; (( FD_COUNT == before_fds )) || fail "shared-inside-storage failure leaked FDs"
 
 reset_case
 storage_inside="$TMPDIR/storage-inside-shared"
@@ -308,11 +325,11 @@ mkdir -p "$storage_inside/shared/storage"
 ln -s "$storage_inside/shared/storage" "$HOME/.windows"
 ln -s "$storage_inside/shared" "$HOME/Windows"
 prepare_user_mount_sources
-before_fds=$(fd_count)
+fd_count; before_fds=$FD_COUNT
 write 4G 2 64G nested pw UTC 2>/dev/null && fail "storage-inside-shared sources were accepted"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "storage-inside-shared failure left a mount"
-[[ $(fd_count) == "$before_fds" ]] || fail "storage-inside-shared failure leaked FDs"
+fd_count; (( FD_COUNT == before_fds )) || fail "storage-inside-shared failure leaked FDs"
 pass "pinned-FD ancestry checks reject overlap in both directions before mounting"
 
 # Exact bind-alias bypass regression: the shared FD's visible parent is the
@@ -325,7 +342,7 @@ mount --no-canonicalize --bind "$alias_under/storage/shared" "$alias_shared"
 ln -s "$alias_under/storage" "$HOME/.windows"
 ln -s "$alias_shared" "$HOME/Windows"
 prepare_user_mount_sources
-before_fds=$(fd_count)
+fd_count; before_fds=$FD_COUNT
 resolve_caller
 open_mount_source "$LEGACY_STORAGE" storage
 alias_storage_fd=$OPENED_MOUNT_FD
@@ -344,7 +361,7 @@ docker() { [[ $1 == inspect ]] && return 1; :; }
 __priv_remove 2>/dev/null && fail "removal accepted a shared bind alias into storage"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "bind-alias removal refusal changed state"
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 1 && $(mount_layer_count "$EXPECTED_SHARED") == 1 ]] || fail "bind-alias removal refusal changed mounts"
-[[ $(fd_count) == "$before_fds" ]] || fail "bind-alias removal refusal leaked FDs"
+fd_count; (( FD_COUNT == before_fds )) || fail "bind-alias removal refusal leaked FDs"
 unmount_all
 umount -- "$alias_shared"
 pass "cheap startup permits a bind alias, but bounded removal discovery refuses it"

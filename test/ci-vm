@@ -1,0 +1,153 @@
+#!/bin/bash
+
+# Runs ./test/all on a real Omarchy install: a throwaway copy of an installed
+# VM image, booted for this run, the checkouts copied in, the tests run in the
+# desktop session as the logged-in user. Nothing is left behind.
+#
+#   test/ci-vm <image_dir> <sources_dir> <out_dir>
+#
+#   image_dir    base.qcow2 with vmlinuz, initrd and cmdline beside it: a VM
+#                image omarchy-iso publishes, and its unpacked/ files
+#   sources_dir  holds omarchy/ (what is tested) and omarchy-pkgs/
+#   out_dir      gets run.log (every test file's output, whole) and the boot analysis
+#
+# Env: SMP (default 4), MEM (default 8G), VM_STATE_DIR (where the run's disk
+# and sockets go, default /var/tmp).
+
+set -euo pipefail
+
+image=$1 sources=$2 out=$3
+state=$(mktemp -d "${VM_STATE_DIR:-/var/tmp}/ci-vm.XXXXXX") # the socket's path has to stay under 108 bytes
+port=$(( 20000 + RANDOM % 10000 ))
+mkdir -p "$out"
+
+ssh_vm() {
+  ssh -i "$state/id_ed25519" -p "$port" -o BatchMode=yes -o IdentitiesOnly=yes \
+    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o ConnectTimeout="${CONNECT_TIMEOUT:-5}" -o LogLevel=ERROR \
+    -o ControlMaster=auto -o ControlPath="$state/ssh.sock" -o ControlPersist=600 omarchy@127.0.0.1 "$@"
+}
+seconds() { echo $(( SECONDS - started )); }
+# Every test file's log. test/shell prints them into run.log only once all
+# files have finished, so after a hang these are the only output there is.
+pull_shell_logs() {
+  ssh_vm 'mkdir -p ~/shell-logs && find /tmp -maxdepth 1 -name "omarchy-test-shell.*" -newer ~/started -exec cp -r {} ~/shell-logs/ \; && tar cf - -C ~ shell-logs' |
+    tar xf - --no-same-owner -C "$out" || true
+}
+# test/shell prints each file's output only once every file has finished, so
+# meanwhile report from its log directory, where each file leaves a .code file
+# the moment it ends: how many are done, and which have failed so far.
+shell_progress() {
+  ssh_vm 'total=$(( $(ls ~/src/omarchy/test/shell.d/*-test.sh | wc -l) - 1 ))
+    dir=$(for d in $(find /tmp -maxdepth 1 -name "omarchy-test-shell.*" -newer ~/started); do
+      echo "$(find "$d" -maxdepth 1 -name "*.code" | wc -l) $d"
+    done | sort -rn | head -n 1 | cut -d" " -f2)
+    if [[ -n $dir ]]; then
+      finished=$(find "$dir" -maxdepth 1 -name "*.code" | wc -l)
+      failed=$(grep -Lx 0 "$dir"/*.code 2>/dev/null | xargs -r -n 1 basename | sed "s/\.code$//" | tr "\n" " " | sed "s/ $//")
+      echo "$finished of $total test files done${failed:+; failed so far: $failed}"
+    fi'
+}
+cleanup() {
+  ssh -o ControlPath="$state/ssh.sock" -O exit omarchy@127.0.0.1 2>/dev/null || true
+  if [[ -f $state/qemu.pid ]]; then
+    kill "$(cat "$state/qemu.pid")" 2>/dev/null || true
+  fi
+  rm -rf "$state"
+}
+trap cleanup EXIT
+
+# A key made for this run only, handed in through the firmware tables as a
+# systemd credential: the image holds no key, and no run can reuse another's.
+ssh-keygen -q -t ed25519 -N '' -C ci-vm -f "$state/id_ed25519"
+keys=$(printf 'd /home/omarchy/.ssh 0700 omarchy omarchy -\nf+ /home/omarchy/.ssh/authorized_keys 0600 omarchy omarchy - %s\n' \
+  "$(cat "$state/id_ed25519.pub")" | base64 -w0)
+
+qemu-img create -qf qcow2 -b "$(realpath "$image/base.qcow2")" -F qcow2 "$state/run.qcow2"
+started=$SECONDS
+# Straight into the kernel: no firmware, no boot loader. The image takes its
+# machine ID from -uuid, so every run is a machine of its own. The console
+# argument keeps systemd from waiting on a terminal that never answers.
+qemu-system-x86_64 -cpu host -enable-kvm -machine q35,accel=kvm -smp "${SMP:-4}" -m "${MEM:-8G}" \
+  -kernel "$image/vmlinuz" -initrd "$image/initrd" \
+  -append "$(cat "$image/cmdline") systemd.tty.term.console=dumb" \
+  -uuid "$(cat /proc/sys/kernel/random/uuid)" \
+  -drive "file=$state/run.qcow2,format=qcow2,if=none,id=d0" -device virtio-blk-pci,drive=d0 \
+  -smbios "type=11,value=io.systemd.credential.binary:tmpfiles.extra=$keys" \
+  -device virtio-vga -device virtio-rng-pci -display none \
+  -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$port-:22" -device virtio-net-pci,netdev=n0 \
+  -pidfile "$state/qemu.pid" -daemonize
+
+until CONNECT_TIMEOUT=1 ssh_vm true 2>/dev/null; do
+  if (( $(seconds) >= 300 )); then
+    echo "test/ci-vm: no SSH after 300 s" >&2
+    exit 1
+  else
+    sleep 0.3
+  fi
+done
+echo "test/ci-vm: SSH after $(seconds) s"
+
+(cd "$sources" && tar cf - --exclude=.git/objects/pack/tmp_* omarchy omarchy-pkgs) |
+  ssh_vm 'mkdir -p ~/src && tar xf - -C ~/src'
+
+# The tests keep the environment they start with, so wait for the session to
+# publish its compositor.
+until ssh_vm 'systemctl --user show-environment | grep -q ^HYPRLAND_INSTANCE_SIGNATURE='; do
+  if (( $(seconds) >= 300 )); then
+    echo "test/ci-vm: no desktop session after 300 s" >&2
+    exit 1
+  else
+    sleep 0.3
+  fi
+done
+echo "test/ci-vm: sources copied and desktop up after $(seconds) s"
+
+# Nobody touches this machine, and after a few minutes without input Omarchy
+# turns the screen off. The tests that read the screen then read black.
+if ! ssh_vm 'systemd-run --user --quiet --collect --wait omarchy-toggle-idle stay-awake' >/dev/null; then
+  echo "test/ci-vm: could not keep the session awake" >&2
+  exit 1
+fi
+
+# From the user manager: what an Omarchy terminal sees, with default signals.
+# A session whose OMARCHY_PATH is this checkout, with its bin/ first as
+# default/bash/env-bootstrap puts it: the tests call commands by name, and the
+# commands read their files from OMARCHY_PATH. The installed release has
+# neither the commands nor the files added since.
+# The exit status goes to a file of its own, renamed into place whole: the
+# tests print lines like "rc=0" themselves, so the log cannot carry it.
+command='export OMARCHY_PATH=~/src/omarchy PATH=~/src/omarchy/bin:$PATH; cd ~/src/omarchy && date +%s.%N >~/started && ./test/all >~/run.log 2>&1; echo "$?" >~/rc.next && mv ~/rc.next ~/rc'
+ssh_vm "systemd-run --user --quiet --collect --same-dir \
+  -E OMARCHY_PKGS_PATH=\$HOME/src/omarchy-pkgs bash -c $(printf %q "$command")"
+last_report="" next_report=0
+until ssh_vm '[[ -s ~/rc ]]' 2>/dev/null; do
+  if (( $(seconds) >= ${CI_VM_TIMEOUT:-1500} )); then
+    echo "test/ci-vm: the tests did not finish in ${CI_VM_TIMEOUT:-1500} s" >&2
+    ssh_vm 'cat ~/run.log' >"$out/run.log" || true
+    pull_shell_logs
+    exit 1
+  else
+    if (( $(seconds) >= next_report )); then
+      report=$(shell_progress 2>/dev/null || true)
+      if [[ -n $report && $report != "$last_report" ]]; then
+        echo "test/ci-vm: $report after $(seconds) s"
+        last_report=$report
+      fi
+      next_report=$(( $(seconds) + 15 ))
+    fi
+    sleep 2
+  fi
+done
+echo "test/ci-vm: tests done after $(seconds) s"
+
+rc=$(ssh_vm 'cat ~/rc')
+ssh_vm 'cat ~/run.log' >"$out/run.log"
+echo "rc=$rc" >>"$out/run.log"
+ssh_vm 'systemd-analyze; systemd-analyze blame | head -25' >"$out/boot.txt" 2>&1 || true
+ssh_vm 'echo "source tree: $(cd ~/src/omarchy && git status --porcelain | wc -l) changed files"'
+pull_shell_logs
+
+sed -n '/^Skipped checks in/,$p' "$out/run.log"
+# The tests' verdict is the run's verdict.
+[[ $rc == "0" ]]
