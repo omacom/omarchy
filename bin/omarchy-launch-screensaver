@@ -3,4 +3,13 @@
 # omarchy:summary=Launch the Omarchy screensaver on every display.
 # omarchy:args=[force] [options]
 
+# The selected Amiga screensaver comes from omarchy-ambient. It draws its own
+# layers on every monitor, hides the cursor, ends on the first activity or when
+# the session locks, and keeps one running at a time. "text" forces the stock one.
+if [[ ${2:-} != "text" ]] &&
+  [[ $(omarchy-ambient screensaver --get 2>/dev/null) != "text" ]]; then
+  omarchy-toggle-enabled screensaver-off && [[ ${1:-} != force ]] && exit 1
+  exec omarchy-ambient screensaver
+fi
+
 exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"

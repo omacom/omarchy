@@ -45,6 +45,7 @@ ffmpeg
 ffmpegthumbnailer
 fontconfig
 foot
+fs-uae
 fzf
 git
 gliff
@@ -68,6 +69,7 @@ imv
 inetutils
 inotify-tools
 inxi
+kitty
 networkmanager
 jq
 kernel-modules-hook
@@ -99,6 +101,7 @@ obsidian
 omacalc
 omacut
 omawrite
+omarchy-ambient
 omarchy-nvim
 omarchy-hyprland-titlebars
 # Local model recipes and their engine; Podman comes when a model is set up.

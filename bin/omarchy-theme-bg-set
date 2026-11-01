@@ -21,6 +21,9 @@ fi
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 flock 9
 
+# Return to the theme even when the same background is selected again.
+omarchy-ambient stop
+
 INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
 
 # The shell sequences the change, with the intro or the ordinary transition,
