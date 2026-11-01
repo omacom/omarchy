@@ -182,8 +182,8 @@ rendered=$(keybindings)
 pass "a refused chord does not let the next one jump the queue"
 
 # Sharing a row is something Omarchy names an action for, not something two
-# chords earn by looking alike. Alt + Tab and Shift + Alt + Tab both read
-# "Reveal active window on top" and cycle opposite ways.
+# chords earn by looking alike: two chords can read the same and do opposite
+# things.
 stub_hyprctl <<BINDS
 $(exec_bind 64 "SUPER + Y" "Zoom in" "omarchy-zoom in")
 $(exec_bind 64 "SUPER + Z" "Zoom in" "omarchy-zoom in")
