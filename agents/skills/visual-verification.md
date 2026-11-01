@@ -34,17 +34,19 @@ on the changed behavior.
 
 Motion goes wrong in a frame or two, too fast to see at full speed: two texts showing at once in a crossfade, a blank frame between two panels, a card that jumps instead of morphing, a panel growing from the wrong point. Record the change and read it a frame at a time. Follow [`motion.md`](motion.md) for what the motion should be.
 
-Run the branch's shell, not the installed one. The running shell loads plugins from `$OMARCHY_PATH`, and its launcher relaunches it if killed, so stop it and start the worktree's through Hyprland. This takes over the desktop, so tell whoever is at it first with `omarchy-notification-send` and wait a few seconds.
+Run the branch's shell, not the installed one. The running shell loads plugins from `$OMARCHY_PATH`, and its launcher relaunches it if killed, so stop it and start the worktree's through Hyprland. Put the worktree's `bin/` first on `PATH` too: the shell runs `omarchy-*` commands, and an installed copy older than the branch can misread a flag it doesn't know yet — an installed `omarchy-capture-screenrecording` without `--status` starts an interactive region capture every time the bar polls it, freezing the screen. This takes over the desktop, so tell whoever is at it first with `omarchy-notification-send` and wait a few seconds.
 
 Put their shell back with `omarchy-restart-shell` as soon as the check is done, before you turn to anything else, and never end a turn with the worktree's shell running. While it runs, `omarchy-shell` cannot reach the desktop, so theme switches and updates fail without a word, and the user cannot tell why. `omarchy-restart-shell` stops every Omarchy shell, the worktree's included, and starts the session's own. A check usually spans several tool calls, so a `trap` in one of them does not cover it; relaunching between edits is fine, but the restore is yours to run.
 
 ```bash
 WT=/path/to/worktree
 while timeout 30 quickshell kill -p "$OMARCHY_PATH/shell" --any-display >/dev/null 2>&1; do :; done
-hyprctl dispatch "hl.dsp.exec_cmd(\"env OMARCHY_PATH=$WT omarchy-launch-shell\")"
+# A Lua long string lets the command keep its own quotes; Hyprland's shell
+# expands $PATH, so a PATH entry with spaces stays one value.
+hyprctl dispatch "hl.dsp.exec_cmd([[env OMARCHY_PATH=\"$WT\" PATH=\"$WT/bin:\$PATH\" omarchy-launch-shell]])"
 # A starting shell answers one ping and then drops calls while plugins load:
 # wait for several answers in a row, a second apart.
-OMARCHY_PATH=$WT omarchy-shell shell ping
+OMARCHY_PATH=$WT PATH=$WT/bin:$PATH omarchy-shell shell ping
 # ... record ...
 omarchy-restart-shell
 ```
