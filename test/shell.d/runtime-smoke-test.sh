@@ -651,6 +651,16 @@ pass "bar put leaves a widget already on the bar alone"
 # only, leaving the file as the user left it until they fix it.
 config="$SCRATCH_HOME/.config/omarchy/shell.json"
 wait_for_elsewhen_cities
+# The shell has to say the file is not being used, not only log it. The stub
+# keeps the notice in the scratch directory, off the session's notifier.
+notice_log="$SCRATCH_DIR/unreadable-config-notices"
+cat >"$SCRATCH_BIN/omarchy-notification-send" <<SH
+#!/bin/bash
+echo "\$*" >>"$notice_log"
+SH
+chmod +x "$SCRATCH_BIN/omarchy-notification-send"
+notice_title=$(jq -r '."shell.configUnreadableTitle"' "$ROOT/default/i18n/en/shell.json")
+[[ ! -s $notice_log ]] || fail "a readable shell.json raises no notification" "$(cat "$notice_log")"
 sed -i '$ d' "$config"
 cp "$config" "$SCRATCH_DIR/broken.json"
 for _ in {1..80}; do
@@ -659,6 +669,15 @@ for _ in {1..80}; do
   sleep 0.1
 done
 [[ $(center_ids) != *omarchy.microphone* ]] || fail_with_log "shell falls back to defaults on an unreadable shell.json"
+# The notice waits for the saves to settle, so give it the debounce plus room.
+for _ in {1..30}; do
+  grep -qF -- "$notice_title" "$notice_log" 2>/dev/null && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while warning about an unreadable shell.json"
+  sleep 0.1
+done
+grep -qF -- "$notice_title" "$notice_log" 2>/dev/null ||
+  fail "the shell notifies that an unreadable shell.json is not being used" "$(cat "$notice_log" 2>/dev/null)"
+pass "the shell notifies that an unreadable shell.json is not being used"
 [[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
   fail_with_log "bar widget setting is applied while shell.json is unreadable"
 jq -e 'any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")' \

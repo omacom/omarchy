@@ -64,6 +64,9 @@ ShellRoot {
   property var shellConfig: builtinShellConfig
   // shell.json has text the shell could not use; persisting would replace it with defaults.
   property bool userConfigUnreadable: false
+  // Set once the user has been told the file is unreadable, so the saves that
+  // keep it broken stay quiet until it reads again.
+  property bool unreadableConfigNotified: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -71,6 +74,20 @@ ShellRoot {
     id: localPluginReloadTimer
     interval: 150
     onTriggered: shell.reloadPlugins()
+  }
+
+  // A broken shell.json is otherwise invisible: the bar quietly drops to the
+  // defaults and the console warning goes nowhere. applyShellConfig() restarts
+  // this timer on every read that fails, so an editor's burst of half-written
+  // saves settles before the user is told, and fixing the file stops it.
+  Timer {
+    id: unreadableConfigNotice
+    interval: 1500
+    onTriggered: {
+      if (!shell.userConfigUnreadable || shell.unreadableConfigNotified) return
+      shell.unreadableConfigNotified = true
+      Util.execArgv(["omarchy-notification-send", I18n.t("shell.configUnreadableTitle"), I18n.t("shell.configUnreadableBody")])
+    }
   }
 
   onShellConfigChanged: {
@@ -95,6 +112,14 @@ ShellRoot {
       }
     }
     userConfigUnreadable = !!userText.trim() && !user
+    // Wait for the writes to settle before saying anything, and re-arm the
+    // notice when the file reads again so a later break is reported too.
+    if (userConfigUnreadable) {
+      unreadableConfigNotice.restart()
+    } else {
+      unreadableConfigNotice.stop()
+      unreadableConfigNotified = false
+    }
     shellConfig = user || defaults
   }
 
