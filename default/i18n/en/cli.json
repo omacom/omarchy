@@ -14,6 +14,8 @@
   "agents.added": "Added %1.",
   "agents.allOver": "All %1 accounts are over %2%",
   "agents.atLimit": "%1 is at %2% of a %3 limit",
+  "agents.desktopInstallHint": "Install it with: omarchy install ai chatgpt",
+  "agents.desktopMissing": "Codex desktop is not installed",
   "agents.durationDaysHours": "%1d %2h",
   "agents.homeFailed": "Couldn't set up a home for the new account.",
   "agents.installCliFailed": "Installing the %1 CLI didn't finish.",

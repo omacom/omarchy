@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# omarchy:summary=Launch the default coding agent in a terminal
+# omarchy:summary=Launch the default coding agent in its preferred interface
 # omarchy:args=[--inline] [--pick]
 # omarchy:examples=omarchy agent | omarchy agent --inline
 
 inline=false
 pick=false
+prompted=false
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -20,7 +21,8 @@ while (($#)); do
       shift
       ;;
     --prompt)
-      prompt=${2:?--prompt needs a value}
+      prompted=true
+      prompt=${2?--prompt needs a value}
       shift 2
       ;;
     *)
@@ -44,6 +46,30 @@ if [[ -z $agent ]]; then
   [[ $pick == "true" ]] && exec omarchy-menu summon setup.default.agent
   echo "Choose default agent with: omarchy default agent <name>" >&2
   exit 1
+fi
+
+# Desktop opens its own signed-in account, before CLI installation, flags,
+# mise resolution, and Omarchy's per-session account selection. Inline and
+# prompted workflows keep their terminal contract, even for an empty prompt.
+if [[ $agent == "codex" && $inline == "false" && $prompted == "false" ]] &&
+  [[ $(omarchy-default-agent-interface) == "desktop" ]]; then
+  if omarchy-cmd-missing chatgpt; then
+    echo "Codex desktop is not installed. Run: omarchy install ai chatgpt" >&2
+    omarchy-notification-send -u critical "$(omarchy-i18n agents.desktopMissing)" \
+      "$(omarchy-i18n agents.desktopInstallHint)"
+    exit 1
+  fi
+  # An argv URL avoids changing the default protocol handler. Quote the whole
+  # path as a query value so spaces, ampersands, and non-ASCII directories work.
+  url=$(python -c 'import os, urllib.parse; print("codex://threads/new?" + urllib.parse.urlencode({"path": os.getcwd()}))') || exit 1
+  desktop_env=()
+  if [[ -v OMARCHY_AGENT_CODEX_HOME ]]; then
+    desktop_env=(env -u OMARCHY_AGENT_CODEX_HOME)
+    if [[ ${CODEX_HOME:-} == "$OMARCHY_AGENT_CODEX_HOME" ]]; then
+      desktop_env+=(-u CODEX_HOME)
+    fi
+  fi
+  exec uwsm-app -- "${desktop_env[@]}" chatgpt "$url"
 fi
 
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before

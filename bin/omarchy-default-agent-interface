@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Choose whether Codex opens in a terminal or the desktop app
+# omarchy:args=[terminal|desktop]
+# omarchy:examples=omarchy default agent interface desktop
+
+set -euo pipefail
+
+preference="$HOME/.config/omarchy/defaults/agent-interface-codex"
+
+if (($# == 0)); then
+  interface="terminal"
+  if [[ -f $preference ]]; then
+    read -r saved <"$preference" || true
+    [[ ${saved:-} == "desktop" ]] && interface="desktop"
+  fi
+  printf '%s\n' "$interface"
+  exit 0
+fi
+
+if (($# != 1)) || [[ $1 != "terminal" && $1 != "desktop" ]]; then
+  echo "Usage: omarchy default agent interface [terminal|desktop]" >&2
+  exit 1
+fi
+
+mkdir -p "${preference%/*}"
+temporary=$(mktemp "${preference}.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
+printf '%s\n' "$1" >"$temporary"
+mv -f -- "$temporary" "$preference"
