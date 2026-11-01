@@ -333,6 +333,8 @@
   "theme.removeExtraTitle": "Remove extra theme",
   "theme.removed": "Theme removed",
   "theme.repoPlaceholder": "Git repo URL (https or git@host:org/repo.git)",
+  "theme.telegramActivate": "Telegram can follow this theme",
+  "theme.telegramActivateBody": "In Settings, type loadcolors, choose %1, and keep the changes. Under Chat settings, set Font family to Monospace.",
   "themeSync.disabled": "Herdr theme sync disabled",
   "themeSync.enabled": "Herdr theme sync enabled",
   "time.now": "%1  ·  %2  ·  Week %3",
