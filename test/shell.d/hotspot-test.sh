@@ -411,6 +411,19 @@ limit_status=$(awk -F'\t' '$1 == "max_clients" { print $2 }' "$TEST_TMP/limit-st
 [[ -z $(<"$TEST_TMP/limit-status.err") ]] || fail "limit status keeps stderr empty" "$(<"$TEST_TMP/limit-status.err")"
 pass "status reports the participant limit from the profile"
 
+# A limit apply refuses must not have changed the profile on the way.
+touch "$PROFILE_STATE"
+: >"$NMCLI_LOG"
+set +e
+printf '%s\n' newpassword | PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" apply NewName 2.4 0 >/dev/null 2>"$TEST_TMP/rejected-limit.err"
+rejected_limit_status=$?
+set -e
+(( rejected_limit_status != 0 )) || fail "apply refuses a zero participant limit"
+grep -q "participant limit" "$TEST_TMP/rejected-limit.err" || fail "a refused limit says why" "$(<"$TEST_TMP/rejected-limit.err")"
+! grep -Eq '^connection (modify|add|edit)' "$NMCLI_LOG" || fail "a refused limit leaves the profile untouched" "$(<"$NMCLI_LOG")"
+pass "a refused participant limit changes nothing"
+
 # Connected clients must survive the status protocol: one key per line, so the
 # clients JSON has to stay on its own line all the way into the panel model.
 cat >"$STUB_BIN/iw" <<'STUB'

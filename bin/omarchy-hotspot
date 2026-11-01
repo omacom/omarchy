@@ -1221,6 +1221,14 @@ apply() {
   [[ -n $ssid ]] || fail "SSID required"
   (( ${#password} >= 8 && ${#password} <= 63 )) ||
     fail "password must be 8-63 characters"
+  # A limit that cannot be applied fails before the profile changes at all,
+  # so a rejected limit never leaves new credentials behind.
+  if (( limit_given )); then
+    case "$limit" in
+      "" | unlimited) ;;
+      *) dhcp_range_for "$limit" >/dev/null ;;
+    esac
+  fi
   nm_band=$(nm_band_for "$band") || fail "unknown band '$band' (use 2.4, 5 or 6)"
   nm_channel=$(nm_channel_for "$band")
 
