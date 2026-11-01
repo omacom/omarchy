@@ -1,11 +1,57 @@
 #!/bin/bash
 
 # omarchy:summary=Update Omarchy and system packages
+# omarchy:alias=omarchy up
 # omarchy:args=[-y]
 # omarchy:examples=omarchy update | omarchy update -y
 # omarchy:requires-sudo=true
 
 set -e
+
+update_stay_awake_stopped=0
+sudo_keepalive_pid=""
+
+# Ask for the password once, then keep sudo's timestamp fresh so long package
+# downloads, migrations, hooks, and mise never outlast it and prompt again.
+# Authorize by running a command rather than sudo -v: under the default
+# verifypw=all, -v prompts even when passwordless sudo is enabled.
+authorize_update() {
+  sudo true || return 1
+
+  local update_pid=$$
+  (
+    [[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
+    sleep_pid=""
+    trap - EXIT HUP INT
+    trap '[[ -z $sleep_pid ]] || kill "$sleep_pid" 2>/dev/null; exit 0' TERM
+    while :; do
+      sleep 60 &
+      sleep_pid=$!
+      wait "$sleep_pid"
+      kill -0 "$update_pid" 2>/dev/null || exit 0
+      sudo -n true 2>/dev/null || exit 0
+    done
+  ) &
+  sudo_keepalive_pid=$!
+}
+
+end_update_authorization() {
+  if [[ -n $sudo_keepalive_pid ]]; then
+    kill "$sudo_keepalive_pid" 2>/dev/null || true
+    wait "$sudo_keepalive_pid" 2>/dev/null || true
+    sudo_keepalive_pid=""
+  fi
+}
+
+cleanup_update() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  end_update_authorization
+  if (( update_stay_awake_stopped == 0 )); then
+    omarchy-update-stay-awake stop || status=1
+  fi
+  exit "$status"
+}
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
@@ -17,15 +63,20 @@ if ! omarchy-update-lock held; then
 fi
 
 trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPlease review the output above carefully, correct the error, and retry the update.\n\nIf you need assistance, get help from the community at https://omarchy.org/discord\033[0m"' ERR
-trap 'omarchy-update-stay-awake stop' EXIT
+trap cleanup_update EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 omarchy-update-requires-free-space
 
-# -y is a promise not to ask anything. Steps that would need an answer report
-# and move on instead of waiting on a prompt nobody is here to give.
+# -y suppresses Omarchy confirmation prompts; sudo authorization is still
+# required. Interactive review steps report and move on instead of waiting.
 [[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
 
 if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
+  authorize_update
+
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
   # after it frees nothing until that snapshot ages out.
   omarchy-update-pkg-prune
@@ -38,6 +89,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
 
   omarchy-update-stay-awake start
 
+  # Preserve the established development-checkout update ordering.
   omarchy-update-dev
   omarchy-update-keyring
 
@@ -45,20 +97,53 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # them, so everything below waits on this finishing. An upgrade that stopped
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
+
   omarchy-migrate
-  omarchy-hook post-update
-  omarchy-update-aur-pkgs
-  omarchy-update-mise
-  omarchy-update-orphan-pkgs
+  omarchy-update-orphan-pkgs -y
 
   omarchy-update-analyze-logs
-  omarchy-update-status
 
-  # Release update-owned inhibitors before offering a reboot. A confirmed
-  # reboot can terminate this process before its EXIT trap gets a chance to
-  # remove the persistent Stay Awake marker.
+  # The dev checkout was fast-forwarded and the full upgrade went through, so
+  # there is no Omarchy update left to show. Rechecking would download every
+  # sync database again and refetch the checkout only to hear the same.
+  omarchy-shell -q omarchy.system-update clear
+
+  # Service restart helpers can need sudo. The reboot-only phase below
+  # performs no privileged work.
+  omarchy-update-restart --services-only
+
+  omarchy-hook post-update
+  # Optional tool downloads must not skip boot verification or the reboot
+  # prompt after system packages have already been upgraded.
+  mise_updated=1
+  omarchy-update-mise || mise_updated=0
+
+  # AUR packages build against the upgraded system, so they go after it, and
+  # share the update's one authorization like every step before them.
+  omarchy-update-aur-pkgs
+
+  # The last sudo-capable step: the boot files every package step left, AUR
+  # packages' initramfs rebuilds included, must be shown to boot the updated
+  # system. Until it passes, the update neither finishes nor offers a reboot.
+  boot_verified=1
+  omarchy-update-boot || boot_verified=0
+  end_update_authorization
+
+  # The sleep inhibitor covers AUR builds, hooks and mise as well. Release it
+  # before offering a reboot: a confirmed reboot can terminate this
+  # process before its EXIT trap gets a chance to remove the persistent Stay
+  # Awake marker.
   omarchy-update-stay-awake stop
-  trap - EXIT
+  update_stay_awake_stopped=1
 
-  omarchy-update-restart
+  if (( mise_updated == 0 )); then
+    echo -e "\e[33m\nSome mise tools could not be updated. Review the errors above and run 'omarchy update mise' to retry.\e[0m" >&2
+  fi
+
+  if (( boot_verified )); then
+    "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
+  else
+    echo -e "\e[31m\nThe update is not finished: its boot files did not pass verification (see above). Do not reboot until omarchy update completes.\e[0m" >&2
+    exit 1
+  fi
 fi

@@ -231,10 +231,17 @@ function lifeProgressPercent(age, expectancy) {
 // Always six rows of seven days. A fixed grid keeps the popup exactly the
 // same height in every month, so stepping through the year never makes the
 // panel jump under the pointer.
+//
+// Walked in UTC, where every day is 24 hours long. A local-midnight cursor has
+// to be resolved by the engine in zones that start DST at 00:00 -- Chile every
+// September, Cuba every March -- and V4 resolves the missing midnight backward
+// onto the previous day while V8 resolves it forward, so the local walk repeats
+// a date in the shell and not under the tests. A grid of civil dates never
+// needed a wall clock in the first place.
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
-  var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
-  var cursor = new Date(year, month, 1 - leading)
+  var leading = (new Date(Date.UTC(year, month, 1)).getUTCDay() - start + 7) % 7
+  var cursor = new Date(Date.UTC(year, month, 1 - leading))
   var today = String(todayKey || "")
   var weeks = []
 
@@ -242,10 +249,10 @@ function monthGrid(year, month, weekStart, todayKey) {
     var days = []
     var thursday = null
     for (var d = 0; d < 7; d++) {
-      var cellYear = cursor.getFullYear()
-      var cellMonth = cursor.getMonth()
-      var cellDay = cursor.getDate()
-      var weekday = cursor.getDay()
+      var cellYear = cursor.getUTCFullYear()
+      var cellMonth = cursor.getUTCMonth()
+      var cellDay = cursor.getUTCDate()
+      var weekday = cursor.getUTCDay()
       var key = dateKey(cellYear, cellMonth, cellDay)
       if (weekday === 4) thursday = { year: cellYear, month: cellMonth, day: cellDay }
       days.push({
@@ -258,7 +265,7 @@ function monthGrid(year, month, weekStart, todayKey) {
         weekend: weekday === 0 || weekday === 6,
         today: key === today
       })
-      cursor.setDate(cursor.getDate() + 1)
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
     }
     // Number every row by the ISO week owning its Thursday. That is the
     // definition itself for Monday-start weeks, and the only answer that
@@ -273,9 +280,11 @@ function monthGrid(year, month, weekStart, todayKey) {
   return weeks
 }
 
+// UTC for the same reason as the grid: the month is read back off the date, so
+// a first of the month that has no local midnight would step into the wrong one.
 function stepMonth(year, month, delta) {
-  var target = new Date(year, Number(month) + Number(delta), 1)
-  return { year: target.getFullYear(), month: target.getMonth() }
+  var target = new Date(Date.UTC(year, Number(month) + Number(delta), 1))
+  return { year: target.getUTCFullYear(), month: target.getUTCMonth() }
 }
 
 if (typeof module !== "undefined") {

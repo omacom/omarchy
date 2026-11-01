@@ -2,6 +2,7 @@
 Version=1.0
 Name=Google Photos
 Exec=omarchy-launch-webapp https://photos.google.com/
+StartupWMClass=chrome-photos.google.com__-Default
 Terminal=false
 Type=Application
 Icon=google-photos
