@@ -1247,3 +1247,24 @@ hotspot_release
 DRIVER
 run_isolated "$TEST_TMP/release-inactive-driver.sh"
 pass "releasing the hotspot removes its rules while UFW is disabled"
+
+# With the ownership records lost, stop still hands rules that carry the
+# hotspot's owner comment to the privileged release.
+reset_firewall_fixture
+touch "$PROFILE_STATE"
+cat >"$TEST_TMP/stop-lost-records-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+(
+  require_privileged() { :; }
+  export UFW_SHOW_ALLOWED=1
+  firewall_apply wlan2 10.55.0.0/24 >/dev/null
+)
+rm -f "$FIREWALL_STATE_FILE"
+stop
+[[ ! -s $UFW_STATE ]] || { echo "stop skipped owner-tagged rules: $(<"$UFW_STATE")" >&2; exit 1; }
+DRIVER
+SAVED_INTERFACE=wlan2 write_user_rules "$UFW_RULES_FILE" wlan2 10.55.0.0/24
+SAVED_INTERFACE=wlan2 run_isolated "$TEST_TMP/stop-lost-records-driver.sh"
+pass "stop releases owner-tagged rules whose ownership records were lost"

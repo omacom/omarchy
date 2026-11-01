@@ -1031,7 +1031,25 @@ ap_down() {
 }
 
 hotspot_host_state_owned() {
-  [[ -e $FORWARDING_STATE_FILE || -L $FORWARDING_STATE_FILE || -s $FIREWALL_STATE_FILE ]]
+  [[ -e $FORWARDING_STATE_FILE || -L $FORWARDING_STATE_FILE || -s $FIREWALL_STATE_FILE ]] ||
+    firewall_owner_rules_present
+}
+
+# Rules under the hotspot's owner comment for the profile's interface, read
+# from UFW's world-readable rules file. They outlive lost ownership records,
+# and firewall_remove recovers them by that comment, so stop() must still
+# hand them to it rather than skip the privileged step.
+firewall_owner_rules_present() {
+  local rules iface subnet tag
+  rules=$(firewall_rules_file) || return 1
+  iface=$(recorded_iface)
+  [[ -n $iface ]] || return 1
+  subnet=$(shared_subnet) || return 1
+  firewall_scope_valid "$iface" "$subnet" || return 1
+  for tag in "${FIREWALL_TAGS[@]}"; do
+    firewall_rules_file_tag_present "$rules" "$iface" "$subnet" "$tag" && return 0
+  done
+  return 1
 }
 
 # Undo what start() turned on for the hotspot: global IPv4 forwarding and the
