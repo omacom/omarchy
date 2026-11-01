@@ -12,7 +12,7 @@ ShellRoot {
     property string name: "stub-node"
     property var audio: QtObject {
       property var channels: [4096, 4097]
-      property real volume: 1
+      property var volumes: [1, 1]
     }
   }
 

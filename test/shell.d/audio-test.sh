@@ -176,11 +176,11 @@ node -e '
 STUB
 chmod +x "$stub_dir/pw-record"
 
-peaks=$(PATH="$stub_dir:$PATH" bash "$ROOT/shell/plugins/panels/audio/input-peak" stub-node 2 | tr '\n' ' ')
-if [[ $peaks == "0.5 0.25 1e-06 " ]]; then
-  pass "input-peak reports the largest magnitude per window across channels"
+peaks=$(PATH="$stub_dir:$PATH" bash "$ROOT/shell/plugins/panels/audio/input-peak" stub-node 2 | tr '\n' '|')
+if [[ $peaks == "0.5 0|0 0.25|1e-06 0|" ]]; then
+  pass "input-peak reports the largest magnitude per window for each channel"
 else
-  fail "input-peak reports the largest magnitude per window across channels" "got: $peaks"
+  fail "input-peak reports the largest magnitude per window for each channel" "got: $peaks"
 fi
 
 peaks=$(PATH="$stub_dir:$PATH" bash "$ROOT/shell/plugins/panels/audio/input-peak" stub-node 0 | tr '\n' ' ')

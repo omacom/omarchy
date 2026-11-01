@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Streams the peak level of a PipeWire source to stdout, one line per window,
-# as a plain sample magnitude: 0..1, or above if the source is boosted past
-# unity. Used by InputMeter.qml for sources that Quickshell's built-in
-# PwNodePeakMonitor cannot meter.
+# Streams the peak level of each channel of a PipeWire source to stdout, one
+# line per window with one plain sample magnitude per channel: 0..1, or above
+# if the source is boosted past unity. Used by InputMeter.qml for sources that
+# Quickshell's built-in PwNodePeakMonitor cannot meter.
 #
 #   input-peak <node.name> [channels]
 #
 # pw-record captures the source at a low rate, od turns the raw f32 samples
-# into one number per line, and awk keeps the largest magnitude seen in each
-# window, across all channels. Everything downstream of pw-record is
+# into one number per line, and awk keeps the largest magnitude each channel
+# reaches in each window. Everything downstream of pw-record is
 # coreutils; there is nothing to install.
 #
 # The pipeline runs as its own process group so that it can be torn down
@@ -39,14 +39,18 @@ pw-record \
   --latency "${window_ms}ms" \
   - 2>/dev/null |
   od -An -tf4 -w4 -v |
-  awk -v samples="$window_samples" '
+  awk -v samples="$window_samples" -v channels="$channels" '
     {
       v = ($1 < 0) ? -$1 : $1
-      if (v > peak) peak = v
+      channel = count % channels
+      if (v > peak[channel]) peak[channel] = v
       if (++count >= samples) {
-        printf "%g\n", peak
+        for (i = 0; i < channels; i++) {
+          printf "%s%g", (i ? " " : ""), peak[i] + 0
+          peak[i] = 0
+        }
+        printf "\n"
         fflush()
-        peak = 0
         count = 0
       }
     }' &
