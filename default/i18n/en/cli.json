@@ -22,8 +22,6 @@
   "agents.newSessionsUse": "New %1 sessions now use %2",
   "agents.noAccountNamed": "No %1 account named %2.",
   "agents.offerSwitch": "%1 is at %2%. Click to switch new sessions to it.",
-  "agents.localFallback": "Opening %1 on the local model",
-  "agents.localFallbackBody": "%1 can't use a local model yet.",
   "agents.localSwitchFailed": "Couldn't switch to %1",
   "agents.localSwitchFailedBody": "Run omarchy agent local status to see why.",
   "agents.localUnsupported": "No agent can use the local model",

@@ -59,8 +59,7 @@ if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg
 fi
 
 # Only agents with a launch-time overlay can be pointed at the local model. When
-# the default can't, open the first one installed that can, and say so, rather
-# than a launch from the panel opening nothing.
+# the default can't, the local model opens in pi, or OpenCode without pi.
 if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
   local_agent=""
   for candidate in pi opencode; do
@@ -73,7 +72,6 @@ if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
     omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
     exit 1
   fi
-  omarchy-notification-send "$(omarchy-i18n agents.localFallback "$local_agent")" "$(omarchy-i18n agents.localFallbackBody "$agent")"
   agent=$local_agent
 fi
 
