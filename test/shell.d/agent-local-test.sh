@@ -172,6 +172,40 @@ ports.pop("model-a")
 a.write_atomic(a.ports_path(), json.dumps(ports))
 check("a removed model's port is reused before a new one", a.port_for("model-c") == first and a.port_for("model-b") == second)
 
+# Run manifests are matched to their recipe whole: removing "bar" must not
+# take "foo-bar"'s history with it.
+check("a run file name yields its whole recipe id", a.run_recipe_id("20261101T120000-foo-bar.json") == "foo-bar")
+check("a run of foo-bar is not a run of bar", a.run_recipe_id("20261101T120000-foo-bar.json") != "bar")
+
+# A replayed manifest is user-editable, so its file list is validated before
+# anything is written: no escaping destinations, only real hashes.
+good = {"dest": "w/model.gguf", "size": 3, "sha256": "a" * 64}
+for name, record, roles in (
+  ("an escaping destination", {**good, "dest": "../../.bashrc"}, {}),
+  ("a malformed hash", {**good, "sha256": "../x"}, {}),
+  ("a role naming no file", good, {"model": "other.gguf"}),
+):
+  try:
+    a.validate_files([record], roles)
+  except a.LocalError:
+    check(f"a manifest with {name} is refused", True)
+  else:
+    check(f"a manifest with {name} is refused", False)
+
+# A new file set never touches the one a running or previous unit mounts.
+def plant(record, body):
+  path = a.blob_path(record)
+  os.makedirs(os.path.dirname(path), exist_ok=True)
+  Path(path).write_bytes(body)
+old = {"dest": "w/model.gguf", "size": 3, "sha256": hashlib.sha256(b"old").hexdigest()}
+new = {"dest": "w/model.gguf", "size": 3, "sha256": hashlib.sha256(b"new").hexdigest()}
+plant(old, b"old")
+plant(new, b"new")
+first_set = a.materialize("swap", [old], {"model": "w/model.gguf"})
+second_set = a.materialize("swap", [new], {"model": "w/model.gguf"})
+check("each file set gets its own directory", first_set != second_set)
+check("setting up a new file set leaves the previous one intact", Path(a.fileset_dir("swap", first_set), "w/model.gguf").read_bytes() == b"old")
+
 # Exercise typed unit generation, then the real Quadlet parser without starting services.
 hostile = '50% $HOME "quoted space" \\tail'
 changed = copy.deepcopy(recipe)

@@ -418,7 +418,7 @@ A named recipe normally uses the same compatibility checks. `--unqualified` can 
 
 Hugging Face tree metadata at each pinned revision expands the file patterns. Each manifest file record contains repo, revision, original path, destination, size, license and either LFS `sha256` or regular-file `git_oid`. Git blob verification uses SHA-1 over `blob <size>\0` followed by contents, not SHA-1 of contents alone. Each pattern must match; unsafe returned paths and conflicting destinations are refused. Repeated destinations from the same repo/path are deduplicated.
 
-The content-addressed store is `~/.local/share/omarchy/agent-local/blobs/{sha256,git}/<hash>`. Recipe trees under `models/<recipe>/` hard-link blobs into their expected paths. Existing blobs are reused by presence without rehashing. `--seed <directory>` verifies candidate files at their destination paths, then hard-links them into the blob store or copies across filesystems; a bad seed falls back to download.
+The content-addressed store is `~/.local/share/omarchy/agent-local/blobs/{sha256,git}/<hash>`. Each run's files are hard-linked from the blobs into their own immutable file-set directory, `models/<recipe>/<fileset>/`, named by a hash of the destinations and file hashes, built in a staging directory and renamed into place; the unit mounts that directory. A new setup never touches the set a running or previous unit mounts, and older sets are pruned only after the new run commits. Replayed manifests are validated first (safe relative destinations, 64-hex SHA-256 or 40-hex git blob ids, non-negative sizes, roles naming real files), and every link is checked to stay inside its set. Existing blobs are reused by presence without rehashing. `--seed <directory>` verifies candidate files at their destination paths, then hard-links them into the blob store or copies across filesystems; a bad seed falls back to download.
 
 Missing downloads require their full combined size plus 2 GiB free disk space. Four workers download into `staging/<hash>.part`, resuming with HTTP Range, restarting if a server ignores Range, and retrying up to five attempts. Size and hash must match before atomic rename into the blob store. Failed hashes are discarded. Existing staging sizes are not subtracted from the free-space requirement. Credentials come from `HF_TOKEN` or `~/.cache/huggingface/token` for Hugging Face access.
 
@@ -461,7 +461,7 @@ Image=ghcr.io/gufo-org/toolboxes/gufo-runtime@sha256:ec8c3f0bf06100304f5105590cf
 Label=org.omarchy.agent-local.recipe=qwen3.8-27b-gufo
 Network=omarchy-agent-local.network
 PublishPort=127.0.0.1:11436:8080
-Volume=%h/.local/share/omarchy/agent-local/models/qwen3.8-27b-gufo:/models:ro
+Volume=%h/.local/share/omarchy/agent-local/models/qwen3.8-27b-gufo/9c0cd5c76efe95d4:/models:ro
 Secret=omarchy-agent-local-key,type=env,target=OMARCHY_LOCAL_KEY
 AddDevice=/dev/dri/renderD128
 AddDevice=/dev/kfd
@@ -488,13 +488,13 @@ Notify=healthy
 TimeoutStartSec=12m
 Restart=on-failure
 RestartSec=10s
-ExecStartPost=-/usr/bin/env omarchy-agent-local-status --write
-ExecStopPost=-/usr/bin/env omarchy-agent-local-status --write
+ExecStartPost=-/usr/bin/env omarchy-agent-local-status --write --started qwen3.8-27b-gufo
+ExecStopPost=-/usr/bin/env omarchy-agent-local-status --write --stopped qwen3.8-27b-gufo
 ```
 
 `write_unit_files()` writes both Quadlets and reloads the user manager. `Notify=healthy` keeps activation pending until the container health check passes. While loading, a startup check runs the same probe every 2 seconds (up to 300 tries, the ten-minute load budget), so the unit goes active within seconds of the model being ready rather than at the first 30-second regular probe: Gufo's 27B goes from start to active in about 6 seconds. Once it passes, regular probes run every 30 seconds, time out after five seconds, allow three failures and have a ten-minute startup grace period. Startup times out at twelve minutes. Health failure kills the container; systemd restarts failures after ten seconds, with three starts allowed per ten minutes. Logs are available through `journalctl --user -u omarchy-agent-local-model-<recipe>.service`.
 
-`ExecStartPost` and `ExecStopPost` run `/usr/bin/env omarchy-agent-local-status --write` with failure ignored. systemd does not search PATH for Exec* command names, so `/usr/bin/env` resolves the Omarchy command. Hooks update the panel on starts, stops and crashes without a lifecycle polling timer. Commands also write `activating` or `deactivating` with `since_ms` before waiting on systemd, making transitions visible immediately. During first setup, the activating record includes the pending manifest; `use` writes status again after saving the successful run.
+`ExecStartPost` and `ExecStopPost` run `/usr/bin/env omarchy-agent-local-status --write --started <recipe>` and `--stopped <recipe>` with failure ignored. systemd still reports the unit as activating or deactivating while its Post commands run, so each hook passes the outcome: started is active, stopped is inactive, or failed when `$SERVICE_RESULT` isn't `success` (recording "Stopped unexpectedly"); a successful start clears it. Status writes collect and replace under one lock, so an older snapshot never lands over a newer one; `start` is serialized with `use` and `remove` under the lifecycle lock. systemd does not search PATH for Exec* command names, so `/usr/bin/env` resolves the Omarchy command. Hooks update the panel on starts, stops and crashes without a lifecycle polling timer. Commands also write `activating` or `deactivating` with `since_ms` before waiting on systemd, making transitions visible immediately. During first setup, the activating record includes the pending manifest; `use` writes status again after saving the successful run.
 
 Setup holds an advisory flock in the state directory. Downloads and image preparation precede stopping the target recipe, if running, with a warning that its requests are interrupted. Activation checks live headroom, writes that recipe's unit, resets failures, starts it and verifies auth/model id. On handled startup or headroom failure it stops the candidate, restores only that recipe's previous unit and restarts it if necessary. Other models keep running. A successful run records observed load duration and before/after memory deltas, then saves manifests. `stop` keeps setups and downloads.
 

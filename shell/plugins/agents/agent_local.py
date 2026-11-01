@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -892,12 +893,22 @@ def recipe_listing(catalog, profile, running=()):
   return rows
 
 
+RUN_NAME_RE = re.compile(r"^\d{8}T\d{6}-(.+)\.json$")
+
+
+def run_recipe_id(name):
+  """The recipe a run manifest's file name belongs to, matched whole: removing
+  `bar` must not touch `foo-bar`'s runs."""
+  match = RUN_NAME_RE.match(name)
+  return match.group(1) if match else None
+
+
 def recipe_installed(rid):
   """Whether a recipe has run here and its weights are still on disk, so switching to it is quick."""
   if not os.path.isdir(os.path.join(data_dir(), "models", rid)):
     return False
   runs = runs_dir()
-  return os.path.isdir(runs) and any(name.endswith(f"-{rid}.json") for name in os.listdir(runs))
+  return os.path.isdir(runs) and any(run_recipe_id(name) == rid for name in os.listdir(runs))
 
 
 def load_review(catalog, runtime):
@@ -1092,7 +1103,74 @@ def adopt_seed(record, seed_dir):
   return True
 
 
-def materialize(rid, files, seed_dir=None):
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+FILESET_RE = re.compile(r"^[0-9a-f]{16}$")
+
+
+def validate_files(files, roles):
+  """Refuse a file list that could write outside its model directory or name
+  a blob by anything but its hash. A replayed manifest is user-editable."""
+  errors = []
+  if not isinstance(files, list) or not files:
+    raise LocalError("Manifest has no files")
+  dests = set()
+  for index, record in enumerate(files):
+    where = f"files[{index}]"
+    if not isinstance(record, dict):
+      raise LocalError(f"Manifest {where} is not a table")
+    _safe_relpath(record.get("dest"), f"{where}.dest", errors)
+    if not isinstance(record.get("size"), int) or record["size"] < 0:
+      errors.append(f"{where}.size: must be a non-negative integer")
+    if "sha256" in record:
+      if not SHA256_RE.match(str(record["sha256"])):
+        errors.append(f"{where}.sha256: must be 64 hex characters")
+    elif not SHA_RE.match(str(record.get("git_oid", ""))):
+      errors.append(f"{where}: needs sha256 or a 40-hex git_oid")
+    dests.add(record.get("dest"))
+  if len(dests) != len(files):
+    errors.append("files: two records share a destination")
+  for role, path in (roles or {}).items():
+    if role not in ("model", "draft") or path not in dests:
+      errors.append(f"roles.{role}: must name one of the files")
+  if errors:
+    raise LocalError("Manifest is invalid:\n  " + "\n  ".join(errors))
+
+
+def fileset_id(files):
+  digest = hashlib.sha256()
+  for record in sorted(files, key=lambda r: r["dest"]):
+    digest.update(f"{record['dest']}\0{record.get('sha256') or record.get('git_oid')}\n".encode())
+  return digest.hexdigest()[:16]
+
+
+def fileset_dir(rid, fileset=None):
+  """Where a run's files live: one immutable directory per exact file set, so
+  setting up a new one never touches the files a running or previous unit
+  mounts. Manifests from before file sets mount the recipe directory itself."""
+  base = os.path.join(data_dir(), "models", rid)
+  return os.path.join(base, fileset) if fileset else base
+
+
+def prune_filesets(rid, keep):
+  """After a run commits, drop this recipe's other file sets and any files
+  from the layout before file sets."""
+  base = os.path.join(data_dir(), "models", rid)
+  if not os.path.isdir(base) or not FILESET_RE.match(keep or ""):
+    return
+  for name in os.listdir(base):
+    if name == keep:
+      continue
+    path = os.path.join(base, name)
+    if os.path.isdir(path) and not os.path.islink(path):
+      shutil.rmtree(path, ignore_errors=True)
+    else:
+      os.unlink(path)
+
+
+def materialize(rid, files, roles, seed_dir=None):
+  """Fetch a run's files and link them into their own file-set directory.
+  Returns the file set id the unit mounts."""
+  validate_files(files, roles)
   missing = [record for record in files if not os.path.isfile(blob_path(record))]
   missing = [record for record in missing if not adopt_seed(record, seed_dir)]
   need = sum(record["size"] for record in missing)
@@ -1106,24 +1184,24 @@ def materialize(rid, files, seed_dir=None):
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
       for future in [pool.submit(download, record, progress) for record in missing]:
         future.result()
-  model_root = os.path.join(data_dir(), "models", rid)
-  wanted = set()
+  fileset = fileset_id(files)
+  target = fileset_dir(rid, fileset)
+  if os.path.isdir(target):
+    return fileset
+  staging = target + ".partial"
+  shutil.rmtree(staging, ignore_errors=True)
+  ensure_dir(staging)
+  root = os.path.realpath(staging)
   for record in files:
-    dest = os.path.join(model_root, record["dest"])
-    wanted.add(os.path.normpath(dest))
+    dest = os.path.normpath(os.path.join(staging, record["dest"]))
+    if not os.path.realpath(os.path.dirname(dest) or staging).startswith(root) or not dest.startswith(root + os.sep):
+      raise LocalError(f"Refusing a file outside the model directory: {record['dest']}")
     ensure_dir(os.path.dirname(dest))
-    source = blob_path(record)
-    if os.path.exists(dest) and os.path.samefile(dest, source):
-      continue
-    if os.path.lexists(dest):
-      os.unlink(dest)
-    os.link(source, dest)
-  for directory, _, names in os.walk(model_root):
-    for name in names:
-      path = os.path.normpath(os.path.join(directory, name))
-      if path not in wanted:
-        os.unlink(path)
-  return model_root
+    if not os.path.realpath(os.path.dirname(dest)).startswith(root):
+      raise LocalError(f"Refusing a file outside the model directory: {record['dest']}")
+    os.link(blob_path(record), dest)
+  os.replace(staging, target)
+  return fileset
 
 
 # ---------------------------------------------------------------- unit generation
@@ -1203,11 +1281,11 @@ def render_network():
   return "\n".join(QUADLET_SECTION + ["", "[Network]", f"NetworkName={NETWORK_NAME}", "Internal=true"]) + "\n"
 
 
-def render_container(rid, recipe, runtime, variant, roles, gpu, autostart=False):
+def render_container(rid, recipe, runtime, variant, roles, gpu, autostart=False, fileset=None):
   for value in (rid, recipe.get("name", "")):
     if CONTROL_RE.search(value):
       raise LocalError("Refusing a recipe name with control characters")
-  if not ID_RE.match(rid) or not IMAGE_RE.match(runtime["image"]):
+  if not ID_RE.match(rid) or not IMAGE_RE.match(runtime["image"]) or (fileset and not FILESET_RE.match(fileset)):
     raise LocalError("Refusing an invalid recipe id or image reference")
   entrypoint, argv, env, _ = server_invocation(runtime, recipe, variant, roles, rid)
   run = runtime.get("run", {})
@@ -1229,7 +1307,7 @@ def render_container(rid, recipe, runtime, variant, roles, gpu, autostart=False)
     f"Label=org.omarchy.agent-local.recipe={rid}",
     f"Network={NETWORK_UNIT}",
     f"PublishPort=127.0.0.1:{port_for(rid)}:{runtime['port']}",
-    f"Volume=%h/.local/share/omarchy/agent-local/models/{rid}:/models:ro",
+    f"Volume=%h/.local/share/omarchy/agent-local/models/{rid}{'/' + fileset if fileset else ''}:/models:ro",
     f"Secret={SECRET},type=env,target={KEY_ENV}",
   ]
   if "env" in key_mapping:
@@ -1274,8 +1352,10 @@ def render_container(rid, recipe, runtime, variant, roles, gpu, autostart=False)
     # The agents panel watches status.json; every start, stop and crash rewrites it.
     # systemd resolves a bare name in its own search path, not PATH; env uses the
     # unit's PATH, which holds Omarchy's bin.
-    "ExecStartPost=-/usr/bin/env omarchy-agent-local-status --write",
-    "ExecStopPost=-/usr/bin/env omarchy-agent-local-status --write",
+    # Each hook says how the transition ended: systemd still reports it as
+    # activating or deactivating while its Post commands run.
+    f"ExecStartPost=-/usr/bin/env omarchy-agent-local-status --write --started {rid}",
+    f"ExecStopPost=-/usr/bin/env omarchy-agent-local-status --write --stopped {rid}",
   ]
   if autostart:
     lines += ["", "[Install]", "WantedBy=graphical-session.target"]
@@ -1662,7 +1742,7 @@ def activate(manifest, recipe, runtime, gpu, key):
   rid = manifest["recipe_id"]
   previous_text = open(quadlet_path(rid)).read() if os.path.isfile(quadlet_path(rid)) else None
   was_running = unit_active(rid)
-  container_text = render_container(rid, recipe, runtime, manifest["variant"], manifest["roles"], gpu, autostart_enabled(rid))
+  container_text = render_container(rid, recipe, runtime, manifest["variant"], manifest["roles"], gpu, autostart_enabled(rid), manifest.get("fileset"))
   if was_running:
     say(f"Restarting {rid} with the new setup (its in-flight requests are interrupted)")
     write_status({rid: "deactivating"})
@@ -1765,7 +1845,7 @@ def cmd_use(argv):
     say(f"Recipe {rid}: {len(files)} file(s), {gib(sum(f['size'] for f in files)):.1f} GiB, context {variant['ctx']}")
     for license_name in sorted({f"{f['repo']} ({f['license']})" for f in files}):
       say(f"  weights: {license_name}")
-    materialize(rid, files, args.seed)
+    fileset = materialize(rid, files, roles, args.seed)
     ensure_image(runtime["image"])
     key = ensure_key()
     manifest = {
@@ -1781,6 +1861,7 @@ def cmd_use(argv):
       "image": runtime["image"],
       "files": files,
       "roles": roles,
+      "fileset": fileset,
       "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }
     _, argv_out, env_out, skipped = server_invocation(runtime, recipe, variant, roles, rid)
@@ -1789,6 +1870,7 @@ def cmd_use(argv):
       say(f"Note: runtime {recipe['runtime']} takes no {', '.join(skipped)} default; clients choose their own")
     activate(manifest, recipe, runtime, gpu, key)
     path = save_run(manifest)
+    prune_filesets(rid, fileset)
     refresh_list_cache(profile)
     write_status()
     say("")
@@ -1854,7 +1936,7 @@ def latest_run(rid):
   runs = runs_dir()
   if not os.path.isdir(runs):
     return None
-  names = sorted(name for name in os.listdir(runs) if name.endswith(f"-{rid}.json"))
+  names = sorted(name for name in os.listdir(runs) if run_recipe_id(name) == rid)
   if not names:
     return None
   try:
@@ -1947,27 +2029,50 @@ def status_record():
 def write_status(transitions=None, pending=None):
   """Rewrite status.json, which the agents panel watches. `transitions` reports
   a start or stop before systemd reaches it, so a click shows at once;
-  `pending` describes a model being set up before its manifest is saved."""
-  record = status_record()
-  now = int(time.time() * 1000)
-  for rid, (recipe, manifest) in (pending or {}).items():
-    run = latest_run(rid) or {}
-    record["models"][rid] = model_record(rid, {**manifest, "observed": run.get("observed")})
-  for rid, unit in (transitions or {}).items():
-    if rid in record["models"]:
-      record["models"][rid]["unit"] = unit
-      record["models"][rid]["since_ms"] = now
-  write_atomic(os.path.join(state_dir(), "status.json"), json.dumps(record, indent=2) + "\n")
-  return record
+  `pending` describes a model being set up before its manifest is saved.
+
+  Collecting and replacing happen under one lock, so a writer that started
+  earlier can't land its older snapshot over a newer one."""
+  ensure_dir(state_dir())
+  with open(os.path.join(state_dir(), "status.lock"), "w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    record = status_record()
+    now = int(time.time() * 1000)
+    for rid, (recipe, manifest) in (pending or {}).items():
+      run = latest_run(rid) or {}
+      record["models"][rid] = model_record(rid, {**manifest, "observed": run.get("observed")})
+    for rid, unit in (transitions or {}).items():
+      if rid in record["models"]:
+        record["models"][rid]["unit"] = unit
+        record["models"][rid]["since_ms"] = now if unit in ("activating", "deactivating") else None
+        if unit == "active":
+          record["models"][rid]["error"] = ""
+    write_atomic(os.path.join(state_dir(), "status.json"), json.dumps(record, indent=2) + "\n")
+    return record
 
 
 def cmd_status(argv):
   parser = argparse.ArgumentParser(prog="omarchy agent local status")
   parser.add_argument("--json", action="store_true")
   parser.add_argument("--write", action="store_true", help=argparse.SUPPRESS)
+  parser.add_argument("--started", metavar="RECIPE", help=argparse.SUPPRESS)
+  parser.add_argument("--stopped", metavar="RECIPE", help=argparse.SUPPRESS)
   args = parser.parse_args(argv)
   if args.write:
-    write_status()
+    # From the units' hooks, which run before systemd finishes the transition
+    # they report, so the outcome is passed in rather than read back.
+    transitions = {}
+    if args.started and ID_RE.match(args.started):
+      clear_error(args.started)
+      transitions[args.started] = "active"
+    if args.stopped and ID_RE.match(args.stopped):
+      result = os.environ.get("SERVICE_RESULT", "success")
+      if result == "success":
+        transitions[args.stopped] = "inactive"
+      else:
+        record_error(args.stopped, f"Stopped unexpectedly ({result})")
+        transitions[args.stopped] = "failed"
+    write_status(transitions)
     return 0
   record = status_record()
   if args.json:
@@ -2023,6 +2128,13 @@ def cmd_start(argv):
   args = parser.parse_args(argv)
   if args.setup and args.recipe and ID_RE.match(args.recipe) and not load_model(args.recipe):
     return cmd_use([args.recipe])
+  # Admission is serialized with use and remove: two starts checking the same
+  # free memory at once would both pass and together overcommit it.
+  with Lock():
+    return _start(args)
+
+
+def _start(args):
   manifest = resolve_model(args.recipe)
   rid = manifest["recipe_id"]
   if unit_active(rid):
@@ -2069,7 +2181,7 @@ def cmd_autostart(argv):
     elif os.path.exists(flag):
       os.unlink(flag)
     gpu = choose_gpu(machine_profile(), manifest["gpu"])
-    text = render_container(rid, manifest["recipe"], manifest["runtime"], manifest["variant"], manifest["roles"], gpu, args.mode == "on")
+    text = render_container(rid, manifest["recipe"], manifest["runtime"], manifest["variant"], manifest["roles"], gpu, args.mode == "on", manifest.get("fileset"))
     write_unit_files(rid, text)
     write_status()
   say(f"Autostart {args.mode}: {rid} {'starts' if args.mode == 'on' else 'no longer starts'} with your session")
@@ -2100,7 +2212,7 @@ def cmd_remove(argv):
     removed_runs = 0
     removed_images = set()
     for name in os.listdir(runs_dir()) if os.path.isdir(runs_dir()) else []:
-      if name.endswith(f"-{rid}.json"):
+      if run_recipe_id(name) == rid:
         path = os.path.join(runs_dir(), name)
         try:
           with open(path) as handle:
@@ -2191,7 +2303,7 @@ def pi_overlay(rid=None):
   provider = {
     "name": "Omarchy local model",
     "baseUrl": endpoint(rid),
-    "apiKey": f"!cat {json.dumps(key_path())[1:-1]}",
+    "apiKey": "!cat -- " + shlex.quote(key_path()),
     "api": "openai-completions",
     "models": [{
       "type": "chat",

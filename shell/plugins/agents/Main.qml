@@ -29,6 +29,25 @@ Item {
     onLoaded: root.parseLocalModel(text())
   }
 
+  // The catalog's recipes as this machine sees them (fits, best, installed),
+  // which Add another › Local AI offers from.
+  property var localRecipes: []
+
+  FileView {
+    path: root.home + "/.local/state/omarchy/agent-local/list.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        var parsed = JSON.parse(text())
+        if (Array.isArray(parsed)) root.localRecipes = parsed
+      } catch (e) {
+        // A half-written listing keeps the last good one.
+      }
+    }
+  }
+
   function parseLocalModel(content) {
     try {
       var parsed = JSON.parse(content)
