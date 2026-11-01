@@ -32,9 +32,16 @@ case ${provider_hash%% *} in
     ;;
 esac
 
+# omarchy-nvim is optional. A removed package can leave this config behind.
+# There is no corrected provider to install, so leave the file alone instead
+# of stopping every later migration.
+if ! nvim_package=$(pacman -Q omarchy-nvim 2>/dev/null); then
+  echo "Skipping Neovim provider repair: omarchy-nvim is not installed."
+  exit 0
+fi
+
 # Updates install packages before migrations. Refuse an older package so this
 # migration remains pending instead of installing the provider it must repair.
-nvim_package=$(pacman -Q omarchy-nvim)
 if [[ $(vercmp "${nvim_package#* }" "2026.9.21-2") == -* ]] || [[ ! -f $provider_source ]]; then
   echo "Update omarchy-nvim to 2026.9.21-2 or newer before rerunning this migration." >&2
   exit 1
