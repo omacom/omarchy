@@ -799,7 +799,7 @@ Panel {
         anchors.fill: parent
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        ScrollBar.vertical.policy: panelColumn.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: panelColumn.implicitHeight > height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
         Binding {
           target: scrollArea.contentItem
           property: "interactive"
@@ -808,7 +808,9 @@ Panel {
 
         Column {
           id: panelColumn
-          width: scrollArea.availableWidth
+          // Keep the always-on bar off the rows when the panel overflows; mirrored, the bar is on the left.
+          width: scrollArea.availableWidth - (scrollArea.ScrollBar.vertical.policy === ScrollBar.AlwaysOn ? scrollArea.ScrollBar.vertical.width : 0)
+          x: scrollArea.mirrored ? scrollArea.availableWidth - width : 0
           spacing: Style.space(14)
 
           // ---------- Hero: speaker icon · title/status ----------
