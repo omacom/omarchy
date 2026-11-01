@@ -39,8 +39,8 @@ chmod +x "$tmp_dir/bin/gum"
 export TEST_GUM_LOG="$tmp_dir/gum-log"
 touch "$TEST_GUM_LOG"
 
-export TEST_LOG="$tmp_dir/log"
-export PATH="$tmp_dir/bin:$PATH"
+export TEST_LOG="$tmp_dir/log" OMARCHY_PATH="$ROOT"
+export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 
 fresh_home() {
   rm -rf "$tmp_dir/home"
@@ -228,6 +228,58 @@ if env -u HOME "$ROOT/bin/omarchy-remove-ai-perplexity" </dev/null >/dev/null 2>
   fail "Perplexity removal refuses to run without HOME"
 fi
 pass "Perplexity removal refuses to run without HOME"
+
+# REA unregisters itself from agents before mise removes it. A broken REA
+# needs explicit consent to leave those registrations behind; reuse the gum
+# stub and pty setup above to exercise both answers without touching agents.
+for command in mise rea; do
+  cat >"$tmp_dir/bin/$command" <<'SCRIPT'
+#!/bin/bash
+call="${0##*/}:$*"
+printf '%s\n' "$call" >>"$TEST_LOG"
+[[ $call != "${TEST_REA_FAIL:-}" ]]
+SCRIPT
+  chmod +x "$tmp_dir/bin/$command"
+done
+
+fresh_home
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-remove-ai-rea" </dev/null >"$tmp_dir/rea-output" 2>&1 ||
+  fail "removing REA succeeds" "$(cat "$tmp_dir/rea-output")"
+[[ $(paste -sd '|' "$TEST_LOG") == "rea:uninstall --purge-data|mise:uninstall npm:rea-agents --all|mise:rm -g npm:rea-agents" ]] ||
+  fail "REA removal unregisters agents before mise removes it" "$(cat "$TEST_LOG")"
+pass "REA removal unregisters agents, then uninstalls it and drops it from mise"
+
+fresh_home
+: >"$TEST_LOG"
+: >"$TEST_GUM_LOG"
+if TEST_REA_FAIL="rea:uninstall --purge-data" "$ROOT/bin/omarchy-remove-ai-rea" </dev/null >"$tmp_dir/rea-output" 2>&1; then
+  fail "a failed unregistration fails REA removal without a terminal"
+fi
+[[ $(cat "$TEST_LOG") == "rea:uninstall --purge-data" ]] ||
+  fail "REA stays installed when nobody can be asked" "$(cat "$TEST_LOG")"
+[[ ! -s $TEST_GUM_LOG ]] || fail "REA removal asks nobody without a terminal"
+pass "REA removal keeps it installed after failed unregistration without a terminal"
+
+fresh_home
+: >"$TEST_LOG"
+if TEST_REA_FAIL="rea:uninstall --purge-data" script -qec "'$ROOT/bin/omarchy-remove-ai-rea'" /dev/null >"$tmp_dir/rea-output" 2>&1; then
+  fail "declining to go on keeps REA removal failed"
+fi
+grep -q '^gum:confirm --default=false ' "$TEST_GUM_LOG" ||
+  fail "REA removal asks after failed unregistration, defaulting to no" "$(cat "$TEST_GUM_LOG")"
+[[ $(cat "$TEST_LOG") == "rea:uninstall --purge-data" ]] ||
+  fail "declining keeps REA installed" "$(cat "$TEST_LOG")"
+pass "REA removal asks after failed unregistration, and declining keeps it installed"
+
+fresh_home
+: >"$TEST_LOG"
+TEST_REA_FAIL="rea:uninstall --purge-data" TEST_GUM_STATUS=0 script -qec "'$ROOT/bin/omarchy-remove-ai-rea'" /dev/null >"$tmp_dir/rea-output" 2>&1 ||
+  fail "agreeing to go on removes REA" "$(cat "$tmp_dir/rea-output")"
+[[ $(paste -sd '|' "$TEST_LOG") == "rea:uninstall --purge-data|mise:uninstall npm:rea-agents --all|mise:rm -g npm:rea-agents" ]] ||
+  fail "agreeing removes REA from mise anyway" "$(cat "$TEST_LOG")"
+grep -q 'server named rea' "$tmp_dir/rea-output" || fail "REA removal says which agent entries to check by hand"
+pass "REA removal can continue after failed unregistration when the user agrees"
 
 # ~/.grok belongs to the Grok CLI that omarchy-default-agent installs.
 fresh_home
