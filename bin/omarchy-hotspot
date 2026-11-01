@@ -1085,28 +1085,47 @@ start() {
 # other back. Privileged helper re-execs run inside a held lock and never take
 # it themselves; teardown and setup take it in their root instance, after
 # require_root, so the unprivileged process never holds it across the exec.
-# The profile, firewall rules and forwarding are machine-wide, so every user
-# takes one lock: a root-owned file in the root-owned state directory, which
-# root creates and everyone else opens read-only (flock works on a read-only
-# descriptor). Until a root step has ever run there is no such file, and no
-# firewall or forwarding state to fight over either, so an unprivileged
-# caller falls back to a lock in its own runtime directory.
-hotspot_lock_path() {
-  local shared="$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
-  if [[ -n $HOTSPOT_LOCK_FILE ]]; then
-    printf '%s\n' "$HOTSPOT_LOCK_FILE"
-  elif (( EUID == 0 )) || [[ -e $shared || -L $shared ]]; then
-    printf '%s\n' "$shared"
-  else
+# Two locks, always taken in this order so two actions can never wait on each
+# other. The invoking user's lock, in their runtime directory, serializes
+# every action that user starts (panel, menu, terminal, and the root instance
+# of their teardown or setup). The shared lock, a root-owned file in the
+# root-owned state directory, serializes actions across users: root creates
+# it, and everyone else opens it read-only, which is enough for flock. It
+# exists from the first privileged step on; before that there is no firewall
+# or forwarding state for two users to contend over.
+hotspot_user_lock_path() {
+  local uid
+  if (( EUID != 0 )); then
     printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$EUID}/omarchy-hotspot.lock"
+    return
+  fi
+  uid=${PKEXEC_UID:-${SUDO_UID:-}}
+  if [[ $uid =~ ^[1-9][0-9]*$ && -d /run/user/$uid ]]; then
+    printf '%s\n' "/run/user/$uid/omarchy-hotspot.lock"
   fi
 }
 
-hotspot_lock() {
-  local fd lock shared="$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
-  (( HOTSPOT_LOCK_HELD == 0 )) || return 0
-  lock=$(hotspot_lock_path)
-  if [[ $lock == "$shared" ]]; then
+hotspot_shared_lock_path() {
+  printf '%s\n' "$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
+}
+
+# The locks this action takes, in order, one per line.
+hotspot_lock_paths() {
+  local shared
+  if [[ -n $HOTSPOT_LOCK_FILE ]]; then
+    printf '%s\n' "$HOTSPOT_LOCK_FILE"
+    return
+  fi
+  hotspot_user_lock_path
+  shared=$(hotspot_shared_lock_path)
+  if (( EUID == 0 )) || [[ -e $shared || -L $shared ]]; then
+    printf '%s\n' "$shared"
+  fi
+}
+
+hotspot_take_lock() {
+  local lock=$1 fd
+  if [[ $lock == "$(hotspot_shared_lock_path)" && -z $HOTSPOT_LOCK_FILE ]]; then
     (( EUID != 0 )) || hotspot_state_prepare
     hotspot_state_dir_usable "invalid hotspot state directory"
   fi
@@ -1114,11 +1133,20 @@ hotspot_lock() {
   # place of the lock; an existing lock is then only opened read-only.
   [[ -e $lock || -L $lock ]] || (set -C; umask 022; : >"$lock") 2>/dev/null || true
   [[ -f $lock && ! -L $lock ]] || fail "unsafe hotspot lock: $lock"
-  if [[ $lock == "$shared" && -z $HOTSPOT_LOCK_FILE ]]; then
+  if [[ $lock == "$(hotspot_shared_lock_path)" && -z $HOTSPOT_LOCK_FILE ]]; then
     [[ $(stat -c %u -- "$lock") == "0" ]] || fail "unsafe hotspot lock: $lock"
   fi
   exec {fd}<"$lock" || fail "could not open the hotspot lock"
   flock -w "$HOTSPOT_LOCK_WAIT" "$fd" || fail "another hotspot action is still running"
+}
+
+hotspot_lock() {
+  local lock
+  (( HOTSPOT_LOCK_HELD == 0 )) || return 0
+  while IFS= read -r lock; do
+    [[ -n $lock ]] || continue
+    hotspot_take_lock "$lock"
+  done < <(hotspot_lock_paths)
   HOTSPOT_LOCK_HELD=1
 }
 
