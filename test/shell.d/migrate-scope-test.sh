@@ -36,7 +36,7 @@ run_migrate() {
   shift 2
   HOME="$home" \
   OMARCHY_PATH="$root" \
-  PATH="$stub_bin:$ROOT/bin:$PATH" \
+  PATH="$root/bin:$stub_bin:$ROOT/bin:$PATH" \
   TEST_EXPECTED_OMARCHY_PATH="$root" \
   TEST_CALLS="${TEST_CALLS:-$calls}" \
   TEST_DISMISSALS="$dismissals" \
@@ -114,3 +114,126 @@ grep -q '^after-reader$' "$stdin_calls" ||
   -f $stdin_home/.local/state/omarchy/migrations/200-after.sh ]] ||
   fail "migration runner marks both stdin-isolated migrations complete"
 pass "migration queue uses a private file descriptor instead of migration stdin"
+
+pacman_root="$test_tmp/pacman-omarchy"
+pacman_home="$test_tmp/pacman-home"
+pacman_calls="$test_tmp/pacman-calls"
+pacman_lock="$test_tmp/db.lck"
+touch "$pacman_lock"
+mkdir -p "$pacman_root/migrations" "$pacman_root/bin" "$pacman_home"
+
+cat >"$pacman_root/bin/omarchy-install-dummy-config" <<'SH'
+#!/bin/bash
+echo dummy >/dev/null
+SH
+cat >"$pacman_root/bin/omarchy-install-dummy-pkg" <<'SH'
+#!/bin/bash
+omarchy-pkg-add some-pkg
+SH
+chmod +x "$pacman_root/bin/omarchy-install-dummy-config" "$pacman_root/bin/omarchy-install-dummy-pkg"
+
+cat >"$pacman_root/migrations/100-dotfile.sh" <<'SH'
+echo dotfile-ran >>"$TEST_CALLS"
+SH
+
+cat >"$pacman_root/migrations/150-readonly.sh" <<'SH'
+if omarchy-pkg-present dummy 2>/dev/null; then :; fi
+echo readonly-ran >>"$TEST_CALLS"
+SH
+
+cat >"$pacman_root/migrations/175-commented-pkg.sh" <<'SH'
+# Historical note: omarchy-install-tailscale ran previously
+# sudo pacman -S --noconfirm old-package
+echo commented-pkg-ran >>"$TEST_CALLS"
+SH
+
+cat >"$pacman_root/migrations/180-install-config.sh" <<'SH'
+omarchy-install-dummy-config
+echo install-config-ran >>"$TEST_CALLS"
+SH
+
+cat >"$pacman_root/migrations/190-install-pkg.sh" <<'SH'
+omarchy-install-dummy-pkg
+echo install-pkg-ran >>"$TEST_CALLS"
+SH
+
+cat >"$pacman_root/migrations/200-pkg.sh" <<'SH'
+omarchy-pkg-add dummy-package
+echo pkg-ran >>"$TEST_CALLS"
+SH
+
+cat >"$pacman_root/migrations/300-after-pkg.sh" <<'SH'
+echo after-pkg-dotfile >>"$TEST_CALLS"
+SH
+
+# While pacman is locked:
+# 100-dotfile.sh does not use pacman and runs immediately.
+# 150-readonly.sh uses read-only omarchy-pkg-present and runs immediately without waiting.
+# 200-pkg.sh uses omarchy-pkg-add, detects the locked db.lck, times out, and stops the queue.
+# 300-after-pkg.sh is not run, preserving strict queue ordering.
+OMARCHY_PACMAN_LOCK_FILE="$pacman_lock" \
+OMARCHY_MIGRATION_PACMAN_TIMEOUT=0 \
+TEST_CALLS="$pacman_calls" \
+  run_migrate "$pacman_home" "$pacman_root" >"$test_tmp/pacman-locked.out" 2>&1
+
+grep -q '^dotfile-ran$' "$pacman_calls" || fail "dotfile migration runs while pacman is locked"
+grep -q '^readonly-ran$' "$pacman_calls" || fail "read-only package check migration runs while pacman is locked"
+grep -q '^commented-pkg-ran$' "$pacman_calls" || fail "migration with commented package command runs while pacman is locked"
+grep -q '^install-config-ran$' "$pacman_calls" || fail "package-free install helper migration runs while pacman is locked"
+! grep -q '^install-pkg-ran$' "$pacman_calls" || fail "install helper with package command was not stopped while pacman is locked"
+! grep -q '^pkg-ran$' "$pacman_calls" || fail "package migration was not stopped while pacman is locked"
+! grep -q '^after-pkg-dotfile$' "$pacman_calls" || fail "queue was not stopped when package migration timed out"
+[[ -f $pacman_home/.local/state/omarchy/migrations/100-dotfile.sh ]] || fail "dotfile migration marker was written"
+[[ -f $pacman_home/.local/state/omarchy/migrations/150-readonly.sh ]] || fail "read-only check migration marker was written"
+[[ -f $pacman_home/.local/state/omarchy/migrations/175-commented-pkg.sh ]] || fail "commented package migration marker was written"
+[[ -f $pacman_home/.local/state/omarchy/migrations/180-install-config.sh ]] || fail "package-free install helper migration marker was written"
+[[ ! -f $pacman_home/.local/state/omarchy/migrations/190-install-pkg.sh ]] || fail "timed out install helper package migration marker was not written"
+[[ ! -f $pacman_home/.local/state/omarchy/migrations/200-pkg.sh ]] || fail "timed out package migration marker was not written"
+[[ ! -f $pacman_home/.local/state/omarchy/migrations/300-after-pkg.sh ]] || fail "subsequent migration marker was not written"
+pass "pacman lock stops only package migrations and preserves strict queue ordering"
+
+sourced_root="$test_tmp/sourced-omarchy"
+sourced_home="$test_tmp/sourced-home"
+sourced_calls="$test_tmp/sourced-calls"
+sourced_lock="$test_tmp/sourced-db.lck"
+touch "$sourced_lock" "$sourced_calls"
+mkdir -p "$sourced_root/migrations" "$sourced_root/install/hardware/qualcomm" "$sourced_home"
+
+cat >"$sourced_root/install/hardware/qualcomm/camera.sh" <<'SH'
+omarchy-pkg-add pipewire-libcamera
+SH
+
+cat >"$sourced_root/migrations/100-sourced-pkg.sh" <<'SH'
+source "$OMARCHY_PATH/install/hardware/qualcomm/camera.sh"
+echo sourced-pkg-ran >>"$TEST_CALLS"
+SH
+
+OMARCHY_PACMAN_LOCK_FILE="$sourced_lock" \
+OMARCHY_MIGRATION_PACMAN_TIMEOUT=0 \
+TEST_CALLS="$sourced_calls" \
+  run_migrate "$sourced_home" "$sourced_root" >"$test_tmp/sourced-locked.out" 2>&1
+
+! grep -q '^sourced-pkg-ran$' "$sourced_calls" || fail "sourced package migration was not stopped while pacman is locked"
+[[ ! -f $sourced_home/.local/state/omarchy/migrations/100-sourced-pkg.sh ]] || fail "sourced package migration marker was not written"
+pass "pacman lock stops migrations that indirectly invoke package managers via sourced scripts"
+
+db_root="$test_tmp/db-omarchy"
+db_home="$test_tmp/db-home"
+db_calls="$test_tmp/db-calls"
+db_lock="$test_tmp/db-db.lck"
+touch "$db_lock" "$db_calls"
+mkdir -p "$db_root/migrations" "$db_home"
+
+cat >"$db_root/migrations/100-db-pkg.sh" <<'SH'
+sudo pacman -D --asexplicit dummy-package
+echo db-pkg-ran >>"$TEST_CALLS"
+SH
+
+OMARCHY_PACMAN_LOCK_FILE="$db_lock" \
+OMARCHY_MIGRATION_PACMAN_TIMEOUT=0 \
+TEST_CALLS="$db_calls" \
+  run_migrate "$db_home" "$db_root" >"$test_tmp/db-locked.out" 2>&1
+
+! grep -q '^db-pkg-ran$' "$db_calls" || fail "database modification migration was not stopped while pacman is locked"
+[[ ! -f $db_home/.local/state/omarchy/migrations/100-db-pkg.sh ]] || fail "database modification migration marker was not written"
+pass "pacman lock stops database modification migrations (pacman -D)"

@@ -65,22 +65,77 @@ if [[ $mode == "pending" ]]; then
   fi
 fi
 
+migration_needs_pacman_write() {
+  local file=$1 visited=${2:-}
+  local line sourced helper helper_path
+
+  [[ -f $file ]] || return 1
+  [[ " $visited " == *" $file "* ]] && return 1
+  visited="$visited $file"
+
+  if sed -e 's/^[[:space:]]*#.*//' -e 's/[[:space:]]#.*//' "$file" 2>/dev/null |
+     grep -q -E '(omarchy-pkg-(add|drop|aur-add)|pacman +.*(-[A-Za-z0-9]*[SRUD]|--(database|sync|remove|upgrade)))'; then
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    if [[ $line == source\ * ]]; then
+      line="${line#source }"
+    elif [[ $line == .\ * ]]; then
+      line="${line#. }"
+    else
+      continue
+    fi
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line#\"}"
+    line="${line#\'}"
+    if [[ $line =~ ^([^\"\'[:space:]]+) ]]; then
+      sourced="${BASH_REMATCH[1]}"
+    else
+      continue
+    fi
+    sourced="${sourced#\$OMARCHY_PATH/}"
+    sourced="${sourced#\$\{OMARCHY_PATH\}/}"
+    sourced="${sourced#/usr/share/omarchy/}"
+    if [[ $sourced == ./* || $sourced == ../* ]]; then
+      sourced="$(dirname "$file")/$sourced"
+    elif [[ $sourced != /* ]]; then
+      sourced="${OMARCHY_PATH:-/usr/share/omarchy}/$sourced"
+    fi
+    if [[ -f $sourced ]] && migration_needs_pacman_write "$sourced" "$visited"; then
+      return 0
+    fi
+  done < <(grep -E '^[[:space:]]*(source|\.)[[:space:]]+' "$file" 2>/dev/null)
+
+  while IFS= read -r helper; do
+    [[ -n $helper ]] || continue
+    helper_path="${OMARCHY_PATH:-/usr/share/omarchy}/bin/$helper"
+    if [[ -f $helper_path ]] && migration_needs_pacman_write "$helper_path" "$visited"; then
+      return 0
+    fi
+  done < <(sed -e 's/^[[:space:]]*#.*//' -e 's/[[:space:]]#.*//' "$file" 2>/dev/null | grep -o -E '\bomarchy-install-[a-zA-Z0-9_-]+' | sort -u)
+
+  return 1
+}
+
 wait_for_pacman_transaction() {
-  local lock_file=/var/lib/pacman/db.lck
+  local lock_file="${OMARCHY_PACMAN_LOCK_FILE:-/var/lib/pacman/db.lck}"
+  local timeout="${OMARCHY_MIGRATION_PACMAN_TIMEOUT:-900}"
 
   [[ -e $lock_file ]] || return 0
   echo "Waiting for pacman transaction to finish before running Omarchy migrations..."
 
-  for _ in {1..900}; do
+  local i
+  for (( i = 0; i < timeout; i++ )); do
     [[ -e $lock_file ]] || return 0
     sleep 1
   done
 
+  [[ -e $lock_file ]] || return 0
   echo "Pacman transaction is still running; Omarchy migrations will retry on next login."
-  exit 0
+  return 1
 }
-
-wait_for_pacman_transaction
 
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
@@ -89,6 +144,12 @@ while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
   if [[ ! -f $marker ]]; then
+    if migration_needs_pacman_write "$file"; then
+      if ! wait_for_pacman_transaction; then
+        exit 0
+      fi
+    fi
+
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
     OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
     mkdir -p "$(dirname "$marker")"
@@ -96,7 +157,8 @@ while IFS=$'\t' read -r name file marker <&3; do
   fi
 done 3< <(migration_entries)
 
-# Clear a login-time notification the user left sitting there and then resolved
-# by running migrations some other way. The substring matches both the current
-# and legacy notification titles.
-omarchy-notification-dismiss "Omarchy Migrations" >/dev/null 2>&1 || true
+# Clear a login-time notification once all migrations have completed. The
+# substring matches both the current and legacy notification titles.
+if [[ -z $(pending_migrations) ]]; then
+  omarchy-notification-dismiss "Omarchy Migrations" >/dev/null 2>&1 || true
+fi
