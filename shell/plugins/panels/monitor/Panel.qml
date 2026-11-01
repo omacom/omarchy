@@ -744,35 +744,50 @@ Panel {
               }
             }
 
-            // One button per display, named in its tooltip; the shown one is in the accent.
+            // One icon per display, named in its tooltip. Plain glyphs like
+            // Extend | Mirror: the shown one in the accent, the rest dim until
+            // hovered or picked, and no box either way.
             Row {
               id: picker
               visible: root.segments.length > 1
-              spacing: Style.spacing.xs
+              spacing: Style.space(14)
               anchors.right: parent.right
+              anchors.rightMargin: Style.space(6)
               anchors.verticalCenter: parent.verticalCenter
 
               Repeater {
                 model: root.segments
 
-                Button {
+                Text {
                   id: pick
                   required property var modelData
                   required property int index
 
-                  iconText: root.displayGlyph(modelData)
-                  tooltipText: modelData.title + " · " + modelData.name
-                  // The shown one's icon takes the accent, like Extend | Mirror.
-                  foreground: root.currentIndex === index ? Commons.Color.accent : root.bar.foreground
-                  fontFamily: root.bar.fontFamily
-                  horizontalPadding: Style.spacing.sm
-                  verticalPadding: Style.spacing.controlPaddingY
+                  readonly property bool current: root.currentIndex === index
+                  readonly property bool picked: root.cursorActive && root.focusSection === "displays" && root.selectedIndex === index
+                  readonly property bool hot: pickMouse.containsMouse || picked
+                  onPickedChanged: if (picked) root.ensureCursorVisible(pick)
 
-                  hasCursor: root.cursorActive && root.focusSection === "displays" && root.selectedIndex === index
-                  onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pick)
+                  text: root.displayGlyph(modelData)
+                  textFormat: Text.PlainText
+                  color: current ? Commons.Color.accent : (hot ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.55))
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.icon
 
-                  onClicked: root.selectDisplay(modelData.name)
-                  onHovered: function(isHovered) { if (isHovered) root.pointAt("displays", pick.index) }
+                  MouseArea {
+                    id: pickMouse
+                    anchors.fill: parent
+                    anchors.margins: -Style.space(6)
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.selectDisplay(pick.modelData.name)
+                    onContainsMouseChanged: if (containsMouse) root.pointAt("displays", pick.index)
+                  }
+
+                  PanelToolTip {
+                    visible: pickMouse.containsMouse
+                    text: pick.modelData.title + " · " + pick.modelData.name
+                  }
                 }
               }
             }
