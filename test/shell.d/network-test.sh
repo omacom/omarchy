@@ -475,10 +475,36 @@ if (hotspotStatusOnExited) {
   assertEqual(completions[0][3], '', 'network reports stderr captured when the run exited')
 }
 
-assert(/command = \[hotspotCommand, "alias-set", hotspotAliasMac\]/.test(panelSource), 'network saves a client alias by MAC only')
-assert(/command = \[hotspotCommand, "alias-remove", hotspotAliasMac\]/.test(panelSource), 'network removes a client alias by MAC only')
-assert(/hotspotAliasProc\.secret = label/.test(panelSource), 'network sends the alias text over stdin, not argv')
-assert(/onClicked: root\.beginHotspotAlias\(clientRow\.modelData\)/.test(panelSource), 'network opens the alias editor from a client row')
-assert(/hotspotAliasDraft = String\(\(client \|\| \{\}\)\.alias \|\| ""\)/.test(panelSource), 'network seeds the editor with the current alias')
-assert(/id: hotspotAliasProc/.test(panelSource) && /root\.refreshHotspot\(\)/.test(panelSource), 'network refreshes the client list after an alias write')
+// The alias editor: the label rides stdin (the process's secret), only the
+// MAC rides argv, an empty label removes, and a finished write closes the
+// editor and refreshes the client list.
+{
+  const fn = name => panelSource.match(new RegExp('function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n {2}\\}'))[0]
+  const aliasSource = ['beginHotspotAlias', 'saveHotspotAlias', 'removeHotspotAlias'].map(fn).join('\n')
+  const state = {
+    hotspotAliasBusy: false, hotspotAliasMac: '', hotspotAliasDraft: '', hotspotError: '',
+    hotspotCommand: 'omarchy-hotspot', hotspotAliasProc: {}, Commons: englishCommons,
+  }
+  state.Commons = { I18n: { t: key => englishShell[key] || key, formatNumber: String } }
+  const run = code => new Function('state', 'with (state) {\n' + aliasSource + '\n' + code + '\n}')(state)
+  run("beginHotspotAlias({ mac: 'aa:bb:cc:dd:ee:01', alias: 'Bedroom Pixel' })")
+  assert(state.hotspotAliasMac === 'aa:bb:cc:dd:ee:01' && state.hotspotAliasDraft === 'Bedroom Pixel', 'network seeds the alias editor with the current name')
+  state.hotspotAliasDraft = '  Kitchen Tablet '
+  run('saveHotspotAlias()')
+  assertEqual(JSON.stringify(state.hotspotAliasProc.command), JSON.stringify(['omarchy-hotspot', 'alias-set', 'aa:bb:cc:dd:ee:01']), 'network saves a client name by MAC only')
+  assertEqual(state.hotspotAliasProc.secret, 'Kitchen Tablet', 'network sends the client name over stdin')
+  state.hotspotAliasBusy = false
+  state.hotspotAliasDraft = '   '
+  run('saveHotspotAlias()')
+  assertEqual(JSON.stringify(state.hotspotAliasProc.command), JSON.stringify(['omarchy-hotspot', 'alias-remove', 'aa:bb:cc:dd:ee:01']), 'network removes a client name saved empty')
+  assertEqual(state.hotspotAliasProc.secret, '', 'network sends nothing on stdin for a removal')
+
+  const exited = panelSource.match(/id: hotspotAliasProc[\s\S]*?onExited: function\(exitCode\) \{([\s\S]*?)\n {4}\}/)
+  assert(exited, 'network handles a finished client name write')
+  if (exited) {
+    const root = { hotspotAliasBusy: true, hotspotAliasMac: 'aa:bb:cc:dd:ee:01', hotspotAliasDraft: 'x', refreshed: 0, refreshHotspot() { this.refreshed++ } }
+    new Function('root', 'Commons', 'Qt', 'hotspotAliasErr', 'exitCode', exited[1])(root, state.Commons, { callLater: f => f() }, { text: '' }, 0)
+    assert(!root.hotspotAliasBusy && root.hotspotAliasMac === '' && root.refreshed === 1, 'network closes the editor and refreshes the clients after a name is saved')
+  }
+}
 JS
