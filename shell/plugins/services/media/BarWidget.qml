@@ -73,7 +73,7 @@ BarWidget {
           // Stopped, the title reads from its start again.
           onRunningChanged: if (!running) labelText.x = 0
           loops: Animation.Infinite
-          duration: Math.max(6000, labelText.implicitWidth * 25)
+          duration: Style.duration(Math.max(6000, labelText.implicitWidth * 25))
           from: scrollClip.width
           to: -labelText.implicitWidth
           easing.type: Easing.Linear

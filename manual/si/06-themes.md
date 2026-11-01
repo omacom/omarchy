@@ -1,12 +1,12 @@
 # තේමා
 
-Omarchy ලස්සන තේමා විසි දෙකක් සමඟ එයි. ඔබට Omarchy මෙනුවේ (`Super + Space`) _විලාසය > තේමාව_ හරහා ඒවා අතර තෝරාගත හැකිය නැතහොත් `Super + Ctrl + Shift + Space` භාවිතයෙන් කෙලින්ම තේමා තේරීමට පැනිය හැකිය.
+Omarchy සමඟ ලස්සන තේමා විසි දෙකක් ලැබේ. Omarchy Menu එකේ _පෙනුම > තේමාව_ හරහා ඔබට ඒවා අතරින් තෝරා ගත හැක (`Super + Space`), නැතහොත් `Super + Ctrl + T` භාවිතයෙන් තේමා තේරීම වෙත කෙලින්ම යා හැක.
 
-සෑම තේමාවක්ම ඩෙස්ක්ටොප් එක, ටර්මිනලය, neovim, ක්‍රියාකාරී තිරය (btop), Chromium, සහ සම්පූර්ණ Omarchy shell එක විලාසිතා කරයි: ඉහළ තීරුව, මෙනුව, දැනුම්දීම්, OSD, සහ අගුලු තිරය. (Obsidian සඳහා, ඔබ යෙදුම තුළ _පෙනුම > තේමා_ හරහා Omarchy තේමාව අතින් තෝරාගත යුතුය).
+එක් එක් තේමාව desktop එක, terminal එක, neovim, activity screen එක (btop), Chromium, සහ සම්පූර්ණ Omarchy shell එකම හැඩගස්වයි: top bar එක, menu එක, notifications, OSD, සහ lock screen එක. (Obsidian සඳහා, app එක ඇතුළත _පෙනුම > තේමා_ හරහා ඔබ අතින්ම Omarchy තේමාව තෝරා ගත යුතුය).
 
-තේමාවලට `Super + Ctrl + Space` භාවිතයෙන් ඔබට තෝරාගත හැකි පසුබිම් රූප කට්ටලයක් ඇත.
+තේමාවලට background images කට්ටලයක් ඇති අතර, `Super + Ctrl + W` භාවිතයෙන් ඔබට ඒවා අතරින් තෝරා ගත හැක.
 
-ඔබට [අමතර තේමා පිටුවේ](https://omarchy.org/themes/) තවත් තේමා සොයාගත හැකිය නැතහොත් [ඔබේම තේමාවක් සාදාගත හැකිය](43-making-your-own-theme.md).
+[අමතර තේමා පිටුවේ](https://omarchy.org/themes/) ඔබට තවත් තේමා සොයා ගත හැක, නැතහොත් [ඔබේම තේමාවක් සාදා ගන්න](43-making-your-own-theme.md) පවා හැක.
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### අගුලු ඇරීම්
+### අගුළු ඇරීම්
 
-තේමාවලට boot විකේතන ක්‍රියාවලිය සඳහා භාවිත කරන අභිරුචි අගුලු ඇරීමේ සැලසුමක් ද තිබිය හැකිය. ඔබට _විලාසය > අගුලු හරින්න_ යටතේ මේවායින් එකක් තෝරාගත හැකිය. ඒවා මේ වගේ පෙනේ:
+තේමාවලට boot decryption ක්‍රියාවලිය සඳහා භාවිතා කරන custom unlock design එකක් ද තිබිය හැක. _පෙනුම > අගුළු ඇරීම_ යටතේ ඔබට ඒවායින් එකක් තෝරා ගත හැක. ඒවා මේ වගේ පෙනේ:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
