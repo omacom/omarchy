@@ -253,8 +253,10 @@ ShellRoot {
         wakePhaseTimer.start()
         return
       }
-    } finally {
-      if (root.wakePhase < 0) root.finish()
+      root.finish()
+    } catch (error) {
+      root.failures.push(String(error))
+      root.finish()
     }
   }
 
