@@ -18,20 +18,47 @@ The majority of these environments are managed by [Mise](https://mise.jdx.dev/).
 
 To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Ruby and set it as the global default. Or, if your project has a .ruby-version file, you can just run `mise i` in the root of that project.
 
+## Preinstalled CLI tools
+
+Omarchy makes tools such as `gh`, `uv`, and most [coding agents](17-ai.md) available through [mise's lazy installation](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). The first time you run one, mise installs it. Later runs reuse the installed version; they do not check for an update on every launch.
+
+You can also inspect the defaults or install them ahead of time:
+
+```bash
+mise ls --current              # List the tools configured for this directory
+mise install gh               # Install one tool now
+mise install --include-lazy    # Install all configured tools, including lazy tools
+```
+
+Run `omarchy update` to update installed tools with the rest of Omarchy. The `mup` alias updates mise-managed tools only. To add another tool to your own configuration, use `mise use -g <tool>`.
+
+Python setup also installs `uv` through mise. Removing the Python development environment leaves `uv` available as an independent tool.
+
+### Using your own installation
+
+mise's commands come before `~/.local/bin` on `PATH`, so a tool you installed yourself, for example with Claude Code's or Cursor's own installer, still runs mise's copy. Apps launched from the desktop also find mise's commands before system packages, so an app that runs `gh` gets mise's copy even if you installed `github-cli` with pacman, and mise installs that copy the first time. To use yours instead, disable mise's copy in `~/.config/mise/config.toml`. For example, if you installed Cursor CLI yourself:
+
+```toml
+[settings]
+disable_tools = ["cursor-agent"]
+```
+
+If you already have a `[settings]` table, add the entry there; extend an existing `disable_tools` list rather than replacing it. Make sure your installation is on `PATH`. Use the mise tool name, which can differ from its command: `oh-my-pi` provides `omp`, for example. The default-agent launcher also prefers a user-installed Cursor or Muse in `~/.local/bin`.
+
+### Removing and restoring defaults
+
+_Remove Preinstalls_ has mise skip Omarchy's tool declarations for your user, by adding them to `ignored_config_paths` in `~/.config/mise/miserc.toml`. _Restore Preinstalls_ removes that line again. Tools you declare yourself, in your own config or in a project's `mise.toml`, keep working either way. If you choose a default agent or set up Python after removing the preinstalls, that tool is added to your own config. Both apply only to your user; other users on the machine keep their own choice.
+
 ## Docker
 
 [Docker](https://www.docker.com/) hardly needs any introduction. It allows you to run isolated containers, and Omarchy installs everything needed to run it well, including Docker itself and [Docker Compose](https://docs.docker.com/compose/).
 
-By default your user is *not* in the `docker` group. That group is effectively passwordless root — anything in it can `docker run -v /:/host` and take over the machine — so a single rogue script or dependency running as you would otherwise be one command away from root. So on the command line you run Docker with `sudo` (`sudo docker ps`, `sudo docker compose up`), and the graphical tools that talk to the daemon — the Docker TUI on `Super + Shift + D` and the Windows VM — ask for authorization when they need it. If you want the convenience of a groupless setup back and understand the tradeoff, enable it from **Setup > Security > Sudoless Docker** (or run `omarchy-setup-security-sudoless-docker`), which adds you to the `docker` group after a warning; then plain `docker` and the `d` alias work without `sudo` again.
-
-Remember to checkout the Lazydocker command to manage your containers in a cool TUI using `Super + Shift + D`; it asks for authorization the first time unless you have enabled sudoless Docker.
+By default your user is *not* in the `docker` group. That group is effectively passwordless root — anything in it can `docker run -v /:/host` and take over the machine — so a single rogue script or dependency running as you would otherwise be one command away from root. So on the command line you run Docker with `sudo` (`sudo docker ps`, `sudo docker compose up`), and the graphical tools that talk to the daemon — the Windows VM — ask for authorization when they need it. If you want the convenience of a groupless setup back and understand the tradeoff, enable it from **Setup > Security > Sudoless Docker** (or run `omarchy-setup-security-sudoless-docker`), which adds you to the `docker` group after a warning; then plain `docker` and the `d` alias work without `sudo` again.
 
 You can setup the common databases for local development in Docker using _Install > Development > Docker DB_ in the Omarchy menu.
 
 ## GitHub CLI
 
-[The GitHub CLI](https://cli.github.com/) let's you authenticate with your GitHub account and clone private repositories using it. It's wired up as one of the lazy-loading mise stubs, so the first time you run `gh`, it installs itself. To authenticate, run `gh auth login`. Then you can checkout private repositories using `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) is available as `gh` for working with repositories, issues, and pull requests from the terminal. Run `gh auth login` to install it on first use and authenticate, then `gh repo clone org/repo` to clone a repository. Run `gh --help` to explore its commands.
 
-You can also perform a bunch of other GitHub operations using this command. Just run `gh` to see everything that's possible.
-
-There's a lazy-installing stub for `ghui` for managing your pull requests in a TUI too. And [lazygit](https://github.com/jesseduffield/lazygit) is preinstalled, if you'd like to drive git itself from a TUI as well.
+For a terminal interface to pull requests, run `ghui`; mise installs it on first use too. [Lazygit](https://github.com/jesseduffield/lazygit) is preinstalled for working with Git itself.
