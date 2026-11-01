@@ -232,6 +232,7 @@ function window(address, workspace, options)
   options = options or {}
   local created = {
     address = address,
+    mapped = true,
     floating = options.floating or false,
     fullscreen = options.fullscreen or 0,
     pinned = false,
@@ -283,6 +284,7 @@ hl = {
   end,
   dispatch = function(action)
     local target = action.window
+    assert(target.address, "a dispatcher was handed a destroyed window")
     if action.kind == "place" then
       placed[target.address] = true
     elseif action.kind == "fullscreen" then
@@ -669,6 +671,19 @@ assert(not moving.floating, "a window carried to a tiled workspace kept floating
   fail "the mode leaves windows on their way to a special workspace alone"
 fi
 pass "the mode leaves windows on their way to a special workspace alone"
+
+# A window can be destroyed before the timer after its move fires. Hyprland
+# answers nil for every field of the object left behind, reports an error for a
+# dispatcher handed one, and then runs that dispatcher on the focused window.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local moved = state().subscriptions["window.move_to_workspace"][1]
+moved({}, { id = 1 })
+moved({}, { id = 2 })
+'; then
+  fail "a window destroyed before its move lands is left alone"
+fi
+pass "a window destroyed before its move lands is left alone"
 
 # Titlebars: asked for only when installed, and themed once loaded.
 if ! run_lua '
