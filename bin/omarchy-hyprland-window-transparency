@@ -62,3 +62,4 @@ hyprctl reload >/dev/null || exit 1
 omarchy-restart-terminal
 omarchy-theme-set-foot
 omarchy-restart-btop
+omarchy-theme-set-zen

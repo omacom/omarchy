@@ -13,7 +13,7 @@ state_home="$tmpdir/state"
 toggles_dir="$state_home/omarchy/toggles/hypr"
 mkdir -p "$stub_dir" "$home_dir"
 
-for command in hyprctl omarchy-notification-send omarchy-restart-terminal omarchy-theme-set-foot omarchy-restart-btop; do
+for command in hyprctl omarchy-notification-send omarchy-restart-terminal omarchy-theme-set-foot omarchy-restart-btop omarchy-theme-set-zen; do
   printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/commands.log"\n' "$command" "$tmpdir" >"$stub_dir/$command"
 done
 chmod +x "$stub_dir"/*

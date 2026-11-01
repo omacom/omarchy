@@ -1,0 +1,156 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the Omarchy theme to every Zen Browser profile
+# omarchy:args=[--remove]
+# omarchy:hidden=true
+
+# Each Zen profile gets the rendered theme as chrome/omarchy.css, an import of
+# it at the top of userChrome.css, and the prefs that let Zen load it and draw
+# see-through. The import and the prefs sit between markers, so --remove gives
+# those files back as they were. Zen reads userChrome.css only when it starts,
+# so a running Zen shows a new theme or transparency mode when next opened.
+
+THEME_FILE="$HOME/.local/state/omarchy/current/theme/zen.css"
+TOGGLES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
+
+# Zen keeps profiles in ~/.zen on older installs, ~/.config/zen on newer ones,
+# and under ~/.var for the Flatpak.
+zen_profiles() {
+  local root ini
+
+  for root in "$HOME/.zen" "${XDG_CONFIG_HOME:-$HOME/.config}/zen" "$HOME/.var/app/app.zen_browser.zen/.zen"; do
+    ini="$root/profiles.ini"
+    [[ -f $ini ]] || continue
+
+    awk -F= '
+      /^\[/ { if (path != "") print relative "\t" path; path = ""; relative = 1 }
+      $1 == "Path" { path = substr($0, 6) }
+      $1 == "IsRelative" { relative = $2 }
+      END { if (path != "") print relative "\t" path }
+    ' "$ini" | while IFS=$'\t' read -r relative path; do
+      [[ $relative == "1" ]] && path="$root/$path"
+      [[ -d $path ]] && printf '%s\n' "$path"
+    done
+  done
+}
+
+# Read as omarchy-hyprland-window-transparency reads it.
+transparency_mode() {
+  if [[ -f $TOGGLES_DIR/window-opaque.lua ]]; then
+    echo "opaque"
+  elif [[ -f $TOGGLES_DIR/window-glassy.lua ]]; then
+    echo "glassy"
+  else
+    echo "transparent"
+  fi
+}
+
+# How see-through the window background is. Transparent is the 0.985 Omarchy
+# gives its windows and glassy the terminals' 0.65. Zen looks the same focused
+# or not, and pages never fade.
+glass_value() {
+  case $1 in
+    opaque) echo "1" ;;
+    glassy) echo "0.65" ;;
+    *) echo "0.985" ;;
+  esac
+}
+
+# A literal for a sed address, whose delimiter is /.
+regex() {
+  sed 's/[][\\.*^$/]/\\&/g' <<<"$1"
+}
+
+remove_block() {
+  local file="$1" open="$2" close="$3"
+  local begin end added_newline=false created_file=false
+
+  [[ -f $file ]] && grep -qF "$open omarchy-zen begin" "$file" || return 0
+  # Edit the target of a linked dotfile, leaving the profile's link in place.
+  file=$(readlink -f "$file") || return 1
+  begin=$(regex "$open omarchy-zen begin")
+  end=$(regex "$open omarchy-zen end$close")
+  grep -qxF "$open omarchy-zen begin after a line without a newline$close" "$file" && added_newline=true
+  grep -qxF "$open omarchy-zen begin in a new file$close" "$file" && created_file=true
+  sed -i "/^$begin/,/^$end\$/d" "$file" || return 1
+  if [[ $added_newline == "true" && -s $file && -z $(tail -c 1 "$file") ]]; then
+    truncate -s -1 "$file" || return 1
+  fi
+  if [[ $created_file == "true" && ! -s $file ]]; then
+    rm -f "$file"
+  fi
+}
+
+write_theme() {
+  local profile="$1" mode="$2" tmp
+
+  mkdir -p "$profile/chrome"
+  tmp=$(mktemp "$profile/chrome/omarchy.css.XXXXXX") || return 1
+  {
+    cat "$THEME_FILE"
+    printf '\n/* Window transparency: %s */\n:root {\n  --omarchy-zen-glass: %s;\n}\n' "$mode" "$(glass_value "$mode")"
+  } >"$tmp" && mv "$tmp" "$profile/chrome/omarchy.css"
+}
+
+# @import only works ahead of every other rule, so the block goes first.
+add_import() {
+  local file tmp begin="/* omarchy-zen begin */"
+
+  file=$(readlink -f "$1/chrome/userChrome.css") || return 1
+  remove_block "$file" "/*" " */" || return 1
+  [[ -f $file ]] || begin="/* omarchy-zen begin in a new file */"
+  tmp=$(mktemp "$file.XXXXXX") || return 1
+  {
+    printf '%s\n%s\n%s\n' "$begin" '@import url("omarchy.css");' "/* omarchy-zen end */"
+    if [[ -f $file ]]; then
+      cat "$file"
+    fi
+  } >"$tmp" && mv "$tmp" "$file"
+}
+
+# Zen draws see-through only with its Linux transparency pref, which opaque
+# leaves off.
+add_prefs() {
+  local file transparency="true" begin="// omarchy-zen begin"
+
+  file=$(readlink -f "$1/user.js") || return 1
+  [[ $2 == "opaque" ]] && transparency="false"
+  remove_block "$file" "//" "" || return 1
+  # Record the file or newline we add, so --remove can undo only our changes.
+  if [[ ! -f $file ]]; then
+    begin="// omarchy-zen begin in a new file"
+  elif [[ -s $file && -n $(tail -c 1 "$file") ]]; then
+    begin="// omarchy-zen begin after a line without a newline"
+    echo >>"$file"
+  fi
+  printf '%s\n%s\n%s\n%s\n' \
+    "$begin" \
+    'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' \
+    "user_pref(\"zen.widget.linux.transparency\", $transparency);" \
+    "// omarchy-zen end" >>"$file"
+}
+
+# Markers distinguish files we created from existing empty user files.
+remove_profile() {
+  remove_block "$1/chrome/userChrome.css" "/*" " */"
+  remove_block "$1/user.js" "//" ""
+  rm -f "$1/chrome/omarchy.css"
+  rmdir "$1/chrome" 2>/dev/null || true
+}
+
+if [[ ${1:-} == "--remove" ]]; then
+  while IFS= read -r profile; do
+    remove_profile "$profile"
+  done < <(zen_profiles)
+elif [[ ! -f $THEME_FILE ]]; then
+  : # A theme without a rendered zen.css leaves the profiles as they are.
+elif grep -q '{{' "$THEME_FILE"; then
+  # A theme missing a color leaves its placeholder unresolved; keep the
+  # previous palette rather than hand Zen a broken stylesheet.
+  echo "Skipping Zen theme: $(basename "$THEME_FILE") has unresolved colors." >&2
+else
+  mode=$(transparency_mode)
+  while IFS= read -r profile; do
+    write_theme "$profile" "$mode" && add_import "$profile" && add_prefs "$profile" "$mode"
+  done < <(zen_profiles)
+fi
