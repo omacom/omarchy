@@ -319,7 +319,7 @@
   "monitor.extend": "Extend",
   "monitor.fixedBrightness": "FIXED BRIGHTNESS",
   "monitor.layout": "LAYOUT",
-  "monitor.layoutHint": "ctrl+h/j/k/l or drag to arrange · r to rotate",
+  "monitor.layoutHint": "ctrl+arrows or drag to arrange · r to rotate",
   "monitor.level.candlelit": "Candlelit",
   "monitor.level.evenDay": "Even day",
   "monitor.level.goldenHour": "Golden hour",
