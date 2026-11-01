@@ -1043,3 +1043,54 @@ mapfile -d '' -t launch_args <"$launch_log"
 printf 'corrupt\n' >"$interface_file"
 [[ $(omarchy-default-agent-interface) == "terminal" ]] || fail "invalid saved preference uses terminal"
 pass "Codex desktop preference preserves prompted, inline, and other-agent terminal workflows"
+
+# Exercise the installer guard without installing packages or opening windows.
+(
+  installer_bin="$test_tmp/installer-bin"
+  mkdir -p "$installer_bin"
+  export OMARCHY_TEST_INSTALL_LOG="$test_tmp/desktop-install"
+  export OMARCHY_TEST_GUM_LOG="$test_tmp/desktop-confirm"
+  cat >"$installer_bin/awk" <<'SH'
+#!/bin/bash
+if [[ ${!#} == "/proc/meminfo" ]]; then
+  printf '%s\n' "$OMARCHY_TEST_MEMORY" | /usr/bin/awk "${@:1:$#-1}"
+else
+  exec /usr/bin/awk "$@"
+fi
+SH
+  cat >"$installer_bin/gum" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_TEST_GUM_LOG"
+exit "$OMARCHY_TEST_CONFIRM_STATUS"
+SH
+  cat >"$installer_bin/omarchy-pkg-add" <<'SH'
+#!/bin/bash
+printf 'install %s\n' "$*" >>"$OMARCHY_TEST_INSTALL_LOG"
+SH
+  cat >"$installer_bin/setsid" <<'SH'
+#!/bin/bash
+printf 'launch %s\n' "$*" >>"$OMARCHY_TEST_INSTALL_LOG"
+SH
+  chmod +x "$installer_bin"/*
+  export PATH="$installer_bin:$PATH"
+
+  for scenario in '3900000 1 no' '4194304 130 no' '4194304 0 yes' '4194305 1 yes' 'unknown 1 yes'; do
+    read -r memory status install <<<"$scenario"
+    export OMARCHY_TEST_MEMORY="MemTotal: $memory kB"
+    export OMARCHY_TEST_CONFIRM_STATUS="$status"
+    : >"$OMARCHY_TEST_INSTALL_LOG"
+    : >"$OMARCHY_TEST_GUM_LOG"
+    bash -c 'source "$1"; wait' bash "$ROOT/bin/omarchy-install-ai-chatgpt" >"$test_tmp/desktop-install-output" 2>&1
+    if [[ $install == "yes" ]]; then
+      [[ $(<"$OMARCHY_TEST_INSTALL_LOG") == $'install openai-codex-desktop\nlaunch uwsm-app -- /usr/bin/chatgpt' ]] || fail "desktop installer proceeds for $scenario"
+    else
+      [[ ! -s $OMARCHY_TEST_INSTALL_LOG ]] || fail "desktop installer skips package and launch after decline or cancellation"
+    fi
+    if [[ $memory != "unknown" ]] && (( memory <= 4194304 )); then
+      grep -Fxq -- '--default=false' "$OMARCHY_TEST_GUM_LOG" || fail "low-memory installer confirmation defaults to No"
+    else
+      [[ ! -s $OMARCHY_TEST_GUM_LOG ]] || fail "desktop installer avoids warning for larger or unknown memory"
+    fi
+  done
+)
+pass "desktop installation warns on low RAM and respects confirmation and cancellation"

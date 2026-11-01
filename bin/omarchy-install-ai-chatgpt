@@ -5,6 +5,15 @@
 
 set -e
 
+# A precaution for small machines, not a minimum hardware requirement.
+memory_kib=$(awk '/^MemTotal:/ && $2 ~ /^[0-9]+$/ { print $2; exit }' /proc/meminfo) || memory_kib=""
+if [[ $memory_kib =~ ^[0-9]+$ ]] && (( memory_kib > 0 && memory_kib <= 4 * 1024 * 1024 )); then
+  echo "$(omarchy-i18n agents.desktopMemoryWarning)"
+  if ! gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n agents.desktopContinueInstall)"; then
+    exit 0
+  fi
+fi
+
 echo "Installing ChatGPT..."
 omarchy-pkg-add openai-codex-desktop
 
