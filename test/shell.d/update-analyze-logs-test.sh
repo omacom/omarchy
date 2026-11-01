@@ -10,10 +10,8 @@ trap 'rm -rf "$test_tmp"' EXIT
 script="$ROOT/bin/omarchy-update-analyze-logs"
 missing_log="$test_tmp/omarchy-update.log"
 
-# The production path is /tmp/omarchy-update.log. Isolate this run from a
-# leftover host transcript by pointing TMPDIR away and relying on the script's
-# missing-file branch (it hardcodes /tmp). We only assert missing-file behavior
-# by copying the script into a wrapper that substitutes the log path.
+# The script hardcodes /tmp/omarchy-update.log, so run a copy pointed at a
+# temporary path to keep the host's own update log out of every case.
 
 wrapper="$test_tmp/analyze"
 sed "s|/tmp/omarchy-update.log|$missing_log|" "$script" >"$wrapper"
