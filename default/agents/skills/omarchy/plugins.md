@@ -36,6 +36,34 @@ Text {
 - Keep network access explicit. Use fixed HTTPS sources, timeouts, response-size limits, and validation. For periodic background refreshes, disclose the behavior and let users enable or disable it. Never execute downloaded content or interpolate untrusted values into shell commands.
 - Add regression coverage for markup-shaped input and every shared tooltip or notification sink that receives dynamic text.
 
+## Plugin Motion
+
+Motion in a plugin should feel like the rest of the shell. Most of it comes free from Omarchy's kit in `qs.Ui`: a `KeyboardPanel` grows out of its bar icon and fades, morphs into a neighbouring panel in the same bar section, and grows to fit content that arrives late; a `PopupCard` grows and fades; a `Button` gives a little when pressed. Build on those rather than animating your own open and close.
+
+For anything the plugin animates itself, `import qs.Commons` and:
+
+- Give every duration as `Style.duration(ms)`, never a bare number. It returns 0 when the user has turned animations off with `omarchy toggle animations`.
+- Ease movement and entrances with `Style.easeOut` (`easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut`) or `Easing.OutCubic`. Never an ease-in curve, no bounce, and linear only for constant motion such as a spinner.
+- Keep it under 300ms, with exits shorter than entrances: about 180ms in, 120ms out.
+- Never scale from 0; start at 0.95–0.97 with opacity 0.
+- Don't animate what a single keystroke opens or dismisses many times a day; it should just appear or go.
+- Animate only for a reason: showing where something came from or went, confirming an input, or keeping a change from jumping.
+
+```qml
+import QtQuick
+import qs.Commons
+
+Item {
+  property bool shown: false
+  opacity: shown ? 1 : 0
+  scale: shown ? 1 : 0.97
+  Behavior on opacity { NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic } }
+  Behavior on scale {
+    NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+  }
+}
+```
+
 ## Translations
 
 Omarchy runs in 50 languages, and a plugin should follow the one picked under Setup > Language the way the built-in plugins do: live, without a shell restart. Ship the plugin's strings as flat JSON catalogs in an `i18n/` directory beside its QML, one file per Omarchy language code (`en.json`, `da.json`, `pt-BR.json`; `$OMARCHY_PATH/default/i18n/locales.json` lists all 50), and read them through `Commons.Translations`:
