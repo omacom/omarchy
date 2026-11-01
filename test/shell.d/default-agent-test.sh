@@ -958,3 +958,98 @@ for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
   rm "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
 done
 pass "agent launcher runs user-installed agents ahead of native lazy shims"
+
+# Persistence wraps the chosen argv, not a retokenized shell command.
+cat >"$mock_bin/tmux" <<'SH'
+#!/bin/bash
+if [[ $1 == "has-session" ]]; then
+  [[ ${OMARCHY_TEST_SESSION_EXISTS:-0} == "1" ]]
+else
+  printf '%s\0' "$@" >"$OMARCHY_TEST_TMUX_ARGS"
+fi
+SH
+chmod +x "$mock_bin/tmux"
+export OMARCHY_TEST_TMUX_ARGS="$test_tmp/tmux-args"
+printf 'codex\n' >"$agent_file"
+persist_prompt='Review $(touch '"$test_tmp"'/not-executed); "$HOME"'
+export OMARCHY_TEST_PERSIST_HOME="$test_home/provider with spaces"
+CODEX_HOME="$OMARCHY_TEST_PERSIST_HOME" omarchy-agent-prompt --session review-work -- "$persist_prompt"
+export OMARCHY_TEST_PERSIST_PROMPT="$persist_prompt"
+export OMARCHY_TEST_PERSIST_LAUNCH="$launch_log"
+python3 - <<'PYTEST' || fail "persistent argv preserves prompt and account paths"
+import os,pathlib
+args=pathlib.Path(os.environ['OMARCHY_TEST_PERSIST_LAUNCH']).read_bytes().split(b'\0')
+assert b'new-session' in args and b'review-work' in args
+assert os.fsencode(os.environ['OMARCHY_TEST_PERSIST_PROMPT']) in args
+assert os.fsencode('CODEX_HOME='+os.environ['OMARCHY_TEST_PERSIST_HOME']) in args
+assert b'--approve-for-me' in args
+PYTEST
+[[ ! -e $test_tmp/not-executed ]] || fail "persistent prompts remain literal"
+pass "persistent argv preserves prompt, account selection and config paths"
+
+: >"$launch_log"
+if OMARCHY_TEST_SESSION_EXISTS=1 omarchy-agent --session review-work >/dev/null 2>&1; then
+  fail "existing named sessions must not discard a new launch"
+fi
+[[ ! -s $launch_log ]] || fail "a name collision must not open a terminal"
+if TMUX=existing omarchy-agent --persist --inline >/dev/null 2>&1; then
+  fail "inline persistence refuses accidental nesting"
+fi
+if omarchy-agent --session 'bad:name' >/dev/null 2>&1; then
+  fail "invalid session targets are rejected"
+fi
+pass "persistent name collisions and invalid/nested requests fail before launching"
+omarchy-agent --persist
+mapfile -d '' -t persist_args <"$launch_log"
+[[ ${persist_args[*]} =~ agent-codex-[0-9]+-[0-9]+ ]] || fail "unnamed persistent launches use a fresh session name"
+# Restore the named launch for an isolated real tmux integration check below.
+CODEX_HOME="$OMARCHY_TEST_PERSIST_HOME" omarchy-agent-prompt --session review-work -- "$persist_prompt"
+
+# Use a private tmux socket/config and a temporary fake agent. Seed a stale
+# server environment first, then execute the production launch argv detached.
+cat >"$mock_bin/codex" <<'PYTEST'
+#!/usr/bin/python3
+import json,os,pathlib,signal,sys
+pathlib.Path(os.environ['OMARCHY_TEST_PERSIST_RESULT']).write_text(json.dumps({'args':sys.argv[1:],'home':os.environ.get('CODEX_HOME'),'path':os.environ['PATH'],'cwd':os.getcwd()}))
+while True: signal.pause()
+PYTEST
+chmod +x "$mock_bin/codex"
+export OMARCHY_TEST_PERSIST_RESULT="$test_tmp/persist-result.json"
+python3 - <<'PYTEST' || fail "persistent agent runs independently with the selected environment"
+import json,os,pathlib,subprocess,tempfile,time
+launch=pathlib.Path(os.environ['OMARCHY_TEST_PERSIST_LAUNCH'])
+result=pathlib.Path(os.environ['OMARCHY_TEST_PERSIST_RESULT'])
+with tempfile.TemporaryDirectory(prefix='omarchy-agent-tmux.') as runtime:
+  env={**os.environ,'TMUX_TMPDIR':runtime}
+  tmux=['/usr/bin/tmux','-L','agent-test','-f','/dev/null']
+  def execute_launch():
+    args=[os.fsdecode(a) for a in launch.read_bytes().split(b'\0') if a][1:]
+    index=args.index('tmux');args[index:index+1]=tmux
+    index=args.index('new-session');args.insert(index+1,'-d')
+    subprocess.run(args,env=env,check=True)
+    deadline=time.monotonic()+5
+    while time.monotonic()<deadline:
+      try:return json.loads(result.read_text())
+      except (FileNotFoundError,json.JSONDecodeError):time.sleep(.02)
+    raise AssertionError('agent did not start')
+  try:
+    subprocess.run(tmux+['new-session','-d','-s','stale','/usr/bin/sleep','60'],env={**env,'CODEX_HOME':'/stale-home','PATH':'/usr/bin:/bin'},check=True)
+    data=execute_launch()
+    assert data['home']==os.environ['OMARCHY_TEST_PERSIST_HOME'],data
+    assert os.environ['OMARCHY_TEST_PERSIST_PROMPT'] in data['args'],data
+    assert data['path']==os.environ['PATH'],data
+    attached=subprocess.check_output(tmux+['list-clients','-F','#{client_session}'],env=env,text=True).splitlines()
+    assert 'review-work' not in attached,attached
+    cwd=pathlib.Path(runtime)/'cwd-#{session_name}-#{HOME}-##;';cwd.mkdir()
+    for index,prompt in enumerate([';', 'ends with ;', r'ends with \;', 'literal #{session_name};']):
+      result.unlink()
+      provider=os.environ['OMARCHY_TEST_PERSIST_HOME']+'#{session_name}##;'
+      subprocess.run([str(pathlib.Path(os.environ['ROOT'])/'bin/omarchy-agent-prompt'),'--session','literal-'+str(index),'--',prompt],env={**env,'CODEX_HOME':provider},cwd=cwd,check=True)
+      data=execute_launch()
+      assert prompt in data['args'],(prompt,data)
+      assert data['home']==provider,data
+      assert data['cwd']==str(cwd),data
+  finally:
+    subprocess.run(tmux+['kill-server'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+PYTEST
+pass "private tmux session survives without a client and overrides stale provider paths"

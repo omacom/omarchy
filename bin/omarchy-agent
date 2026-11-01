@@ -1,16 +1,31 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
+# omarchy:args=[--inline] [--pick] [--persist | --session <name>]
 # omarchy:examples=omarchy agent | omarchy agent --inline
 
 inline=false
 pick=false
+persist=false
+persist_name=""
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
 while (($#)); do
   case "$1" in
+    --persist)
+      persist=true
+      shift
+      ;;
+    --session)
+      persist_name=${2:-}
+      if [[ ! $persist_name =~ ^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$ ]]; then
+        omarchy-i18n agents.invalidSessionName >&2
+        exit 2
+      fi
+      persist=true
+      shift 2
+      ;;
     --inline)
       inline=true
       shift
@@ -30,6 +45,11 @@ while (($#)); do
       ;;
   esac
 done
+
+if [[ $persist == "true" && $inline == "true" && -n ${TMUX:-} ]]; then
+  omarchy-i18n agents.alreadyTmux >&2
+  exit 2
+fi
 
 # Agents refuse to remember trust for $HOME, so launches from the keybinding or
 # menu start in the work directory instead of re-asking on every session.
@@ -256,6 +276,38 @@ if [[ -n $home_env ]]; then
     [[ -n $home ]] && account_env+=("$home_env=$home")
     command=("${account_env[@]}" "${command[@]}")
   fi
+fi
+
+if [[ $persist == "true" ]]; then
+  [[ -n $persist_name ]] || persist_name="agent-$agent-$BASHPID-$EPOCHSECONDS"
+  if tmux has-session -t "=$persist_name" 2>/dev/null; then
+    omarchy-i18n agents.sessionExists "$persist_name" >&2
+    exit 1
+  fi
+  # Existing tmux servers can retain stale account/config paths. Preserve the
+  # caller's selected homes without placing prompt text in a shell command string.
+  # Inner account-selection argv still takes precedence.
+  persist_unset=()
+  persist_set=()
+  for variable in HOME PATH OMARCHY_PATH XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME \
+    CODEX_HOME CLAUDE_CONFIG_DIR GROK_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_GROK_HOME; do
+    if [[ -v $variable ]]; then
+      persist_set+=("$variable=${!variable}")
+    else
+      persist_unset+=(-u "$variable")
+    fi
+  done
+  # -c is a tmux format, while the command/environment argv is not.
+  persist_cwd=${PWD//#/##}
+  persist_args=(new-session -s "$persist_name" -c "$persist_cwd" -- env "${persist_unset[@]}" "${persist_set[@]}" "${command[@]}")
+  # tmux parses standalone/trailing semicolons even in an argv vector. Add its
+  # extra escape layer to every token, including cwd and environment values.
+  for index in "${!persist_args[@]}"; do
+    if [[ ${persist_args[index]} == *';' ]]; then
+      persist_args[index]="${persist_args[index]%;}\\;"
+    fi
+  done
+  command=(env -u TMUX tmux "${persist_args[@]}")
 fi
 
 if [[ $inline == "true" ]]; then
