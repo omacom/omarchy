@@ -30,9 +30,8 @@ Item {
   }
 
   // The catalog's recipes as this machine sees them (fits, best, installed),
-  // which Add another › Local AI offers from. Null until the omarchy-local-ai
-  // package has listed them, which is how the panel knows it isn't set up.
-  property var localRecipes: null
+  // which Add another › Local AI offers from.
+  property var localRecipes: []
 
   FileView {
     path: root.home + "/.local/state/omarchy/agent-local/list.json"

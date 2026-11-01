@@ -4,16 +4,11 @@
 # omarchy:args=<use|list|status|start|stop|remove> [args]
 # omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
 
-# The engine, the recipe catalog and Podman come in the omarchy-local-ai
-# package, which only machines that use local models install. Setting one up
-# from a terminal installs it first; everything else needs it already there.
-if omarchy-cmd-missing omarchy-local-ai; then
-  if [[ ${1:-} == "use" && -t 0 ]]; then
-    omarchy-pkg-add omarchy-local-ai || exit 1
-  else
-    echo "Local models aren't set up yet. Set one up with: omarchy agent local use best" >&2
-    exit 1
-  fi
+# The engine and its recipes come in omarchy-local-ai, on every machine so the
+# agents panel knows which models fit. Podman, which runs them, only comes when
+# a model is first set up, from the terminal that setup runs in.
+if [[ ${1:-} == "use" ]] && omarchy-cmd-missing podman crun; then
+  omarchy-pkg-add podman crun || exit 1
 fi
 
 exec omarchy-local-ai "$@"

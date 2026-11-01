@@ -1,16 +1,17 @@
 # Local models
 
-Local models run open models on the machine for the coding agents. The work happens in the `omarchy-local-ai` package, built from [omacom/omarchy-local-ai](https://github.com/omacom/omarchy-local-ai): its engine, the curated recipe catalog it reads from its own install directory, and their reference (`docs/engine.md` there, `/usr/share/doc/omarchy-local-ai/` once installed). The package depends on Podman and crun, so only machines that use local models get them. A recipe or engine change is a release of that repository, which the omarchy-pkgs recipe builds from its tag.
+Local models run open models on the machine for the coding agents. The work happens in the `omarchy-local-ai` package, built from [omacom/omarchy-local-ai](https://github.com/omacom/omarchy-local-ai): its engine, the curated recipe catalog it reads from its own install directory, and their reference (`docs/engine.md` there, `/usr/share/doc/omarchy-local-ai/` once installed). It is a base package, so the panel can tell on every machine whether a recipe fits; Podman and crun, which run the models, are only optional dependencies, installed the first time a model is set up. A recipe or engine change is a GitHub release of that repository, which the omarchy-pkgs recipe follows and builds from its tag.
 
 ## What stays in Omarchy
 
 | Path | Role |
 |---|---|
-| `bin/omarchy-agent-local` | The routed command (`omarchy agent local <command>`). Runs `omarchy-local-ai`; when the package is missing, `use` from a terminal installs it with `omarchy-pkg-add` first, and anything else says how to set one up |
-| `shell/plugins/agents/Main.qml` | Watches the engine's `status.json` (`localModel`) and `list.json` (`localRecipes`, null until the package has listed recipes) |
-| `shell/plugins/agents/Panel.qml` | Model lines (play/pause, terminal, memory meter, loading, stopping and removing bars, errors, Delete to remove) and Add another › Local AI. Before the package is set up, Local AI opens a terminal running `omarchy-agent-local use best` |
+| `bin/omarchy-agent-local` | The routed command (`omarchy agent local <command>`). Runs `omarchy-local-ai`; `use` installs Podman and crun with `omarchy-pkg-add` first when they're missing |
+| `shell/plugins/agents/Main.qml` | Watches the engine's `status.json` (`localModel`) and `list.json` (`localRecipes`) |
+| `shell/plugins/agents/Panel.qml` | Model lines (play/pause, terminal, memory meter, loading, stopping and removing bars, errors, Delete to remove) and Add another › Local AI, offered only when `list.json` has a recipe that fits this machine, and greyed out once every fitting recipe is set up |
 | `bin/omarchy-agent` | `--local` and `--local-model <recipe>` ask `omarchy-agent-local overlay` for the agent's launch overlay |
-| `shell/plugins/agents/Panel.qml` (Add another) | Runs `omarchy-agent-local refresh --quiet` when the add view opens, so Local AI lists what an upgraded package brought |
+| `shell/plugins/agents/Panel.qml` (Add another) | Runs `omarchy-agent-local refresh --quiet` whenever the picker shows, so Local AI lists what an upgraded package brought |
+| `install/omarchy-base.packages`, `migrations/1793563475.sh` | Install `omarchy-local-ai` on every machine |
 | `manual/17-ai.md` | The user-facing guide |
 
 ## The contract with the package
