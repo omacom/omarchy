@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "בדיקת מהירות דיסק"
   },
-  "setup.monitors": {
-    "label": "מסכים"
-  },
   "setup.keybindings": {
     "label": "קיצורי מקלדת"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "ליבה"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

@@ -804,6 +804,17 @@ install_omarchy_quattro_packages() {
   as_root env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --needed --noconfirm --ask 4 --overwrite='*' "${core_packages[@]}"
   mark_packages_explicit "${core_packages[@]}"
 
+  # The base list carries rtkit, which can make a running app realtime under the
+  # zero realtime budget it took without rtkit, and the kernel kills it. The
+  # repair raises those budgets, then installs rtkit itself. A released package
+  # older than the repair has no rtkit in its base list either, so it skips it.
+  if PATH="$root_path" command -v omarchy-realtime-repair >/dev/null; then
+    as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" omarchy-realtime-repair ||
+      fail "Could not install rtkit without killing running apps. Fix the error above and rerun the upgrade."
+  else
+    warn "This omarchy package predates the realtime repair; skipping it."
+  fi
+
   if [[ -f /usr/share/omarchy/install/omarchy-base.packages ]]; then
     log "Installing Omarchy quattro default package set"
     mapfile -t base_packages < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' /usr/share/omarchy/install/omarchy-base.packages)
@@ -1995,7 +2006,7 @@ legacy_omarchy_backup="$HOME/.local/share/omarchy.omarchy-upgrade-to-quattro.$BA
 if [[ -d $legacy_omarchy_backup/themes && -d $legacy_omarchy_backup/.git ]]; then
   (
     cd "$legacy_omarchy_backup"
-    git ls-files --others -- 'themes/*/backgrounds/*' 2>/dev/null | while IFS= read -r bg_file; do
+    git ls-files -z --others -- 'themes/*/backgrounds/*' 2>/dev/null | while IFS= read -r -d '' bg_file; do
       theme_name=${bg_file#themes/}
       theme_name=${theme_name%%/*}
       mkdir -p "$HOME/.config/omarchy/backgrounds/$theme_name"
@@ -2299,7 +2310,10 @@ fi
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 fi
-if command -v xdg-settings >/dev/null 2>&1; then
+# A browser chosen on 3.x survives in the mimeapps.list the retire step kept, so
+# fill in Chromium only when that list resolves no browser at all.
+if command -v xdg-settings >/dev/null 2>&1 &&
+  [[ -z $(env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings get default-web-browser 2>/dev/null) ]]; then
   env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop || true
 fi
 if command -v xdg-mime >/dev/null 2>&1; then

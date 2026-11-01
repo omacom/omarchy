@@ -20,8 +20,8 @@ omarchy_pacman_templates() {
 }
 
 # The channel a machine takes when none is named: stable, except on Apple
-# Silicon, which has edge templates only: its Omarchy packages and Asahi ALARM
-# are published for edge alone so far.
+# Silicon, which has no stable template yet (edge and rc only): it stays on
+# edge until the first Mac stable release.
 omarchy_pacman_default_channel() {
   case ${1:-} in
     x86 | aarch64 | aarch64-qualcomm | aarch64-n1x | aarch64-gb10) echo stable ;;

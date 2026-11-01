@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Hitrost diska"
   },
-  "setup.monitors": {
-    "label": "Zasloni"
-  },
   "setup.keybindings": {
     "label": "Bližnjice"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "Jedro"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }
