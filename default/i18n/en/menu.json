@@ -447,23 +447,20 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
-  "setup.monitors": {
-    "label": "Monitors"
+  "setup.keyboard": {
+    "label": "Keyboard"
   },
-  "setup.keybindings": {
+  "setup.keyboard.keybindings": {
     "label": "Keybindings"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Keyboard Inputs"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Input Methods"
   },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Typing"
-  },
-  "setup.typing.keyboard": {
-    "label": "Keyboard Layouts"
-  },
-  "setup.typing.input": {
-    "label": "Input Methods"
   },
   "setup.language": {
     "label": "Language"
@@ -596,6 +593,9 @@
   "setup.default.dictation": {
     "label": "Dictation",
     "title": "Default Dictation"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
   },
   "setup.default.dictation.superwhisper": {
     "label": "Superwhisper"
@@ -1081,6 +1081,9 @@
   },
   "remove.ai.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"

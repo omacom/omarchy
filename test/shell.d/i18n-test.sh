@@ -15,7 +15,6 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(i18nDir, rel), 'u
 
 const registry = readJson('locales.json')
 const codes = Object.keys(registry)
-assertEqual(codes.length, 50, 'i18n registry holds 50 languages')
 assert(codes[0] === 'en', 'i18n registry lists English first (the default)')
 const badRegistry = codes.filter((code) => !/^[a-z]{2,3}(-[A-Za-z]{2})?$/.test(code)
   || ['name', 'englishName', 'formatLocale', 'locale'].some((f) => typeof registry[code][f] !== 'string' || registry[code][f].length === 0)
@@ -291,12 +290,17 @@ export XDG_CONFIG_HOME=$work/config
 session_env=$XDG_CONFIG_HOME/uwsm/env.d/50-omarchy-language
 printf '#da_DK.UTF-8 UTF-8\n' >"$OMARCHY_LOCALE_GEN"
 
-# Stub the outside world: locale-gen records its argument, notifications
-# record their text, and omarchy-language itself is the real one via PATH.
+# Stub the outside world: localedef records the locale it adds and lists those
+# as its archive, notifications record their text, and omarchy-language itself
+# is the real one via PATH.
 mkdir -p "$work/stubs"
-cat >"$work/stubs/locale-gen" <<'STUB'
+cat >"$work/stubs/localedef" <<'STUB'
 #!/bin/bash
-echo "$@" >>"$LOCALE_GEN_LOG"
+if [[ $1 == "--list-archive" ]]; then
+  sed 's/\.UTF-8$/.utf8/' "$LOCALE_GEN_LOG"
+  exit
+fi
+echo "${@: -1}" >>"$LOCALE_GEN_LOG"
 STUB
 cat >"$work/stubs/omarchy-notification-send" <<'STUB'
 #!/bin/bash
@@ -316,9 +320,11 @@ cat >"$work/stubs/omarchy-restart-shell" <<'STUB'
 #!/bin/bash
 echo "restart" >>"$SESSION_ENV_LOG"
 STUB
-# sudo and pkexec record which one elevated and what it ran, then run it
-# as-is. sudo answers the long listing (`sudo -n -l -l`) with the
-# passwordless grant only when TEST_SUDO_GRANT is set, the way a machine with
+# sudo and pkexec record which one elevated and what it ran, then run this
+# checkout's copy of it: omarchy-language asks for /usr/bin's, which is the
+# installed package's helper wherever Omarchy is installed. sudo answers the
+# long listing (`sudo -n -l -l`) with the passwordless grant only when
+# TEST_SUDO_GRANT is set, the way a machine with
 # etc/sudoers.d/omarchy-locale-generate installed does.
 cat >"$work/stubs/sudo" <<'STUB'
 #!/bin/bash
@@ -329,12 +335,12 @@ fi
 flag=""
 if [[ $1 == "-n" ]]; then flag=" -n"; shift; fi
 echo "sudo$flag $(basename "$1") $2" >>"$ELEVATE_LOG"
-exec "$@"
+exec "$OMARCHY_PATH/bin/$(basename "$1")" "${@:2}"
 STUB
 cat >"$work/stubs/pkexec" <<'STUB'
 #!/bin/bash
 echo "pkexec $(basename "$1") $2" >>"$ELEVATE_LOG"
-exec "$@"
+exec "$OMARCHY_PATH/bin/$(basename "$1")" "${@:2}"
 STUB
 chmod +x "$work/stubs/"*
 export PATH="$work/stubs:$PATH"
@@ -355,7 +361,7 @@ assert_bash_equal "$(omarchy-language)" "en" "omarchy-language falls back to Eng
 rm -f "$OMARCHY_LANGUAGE_FILE"
 
 list=$(omarchy-language list)
-assert_bash_equal "$(printf '%s\n' "$list" | wc -l)" "50" "omarchy-language list prints 50 rows"
+assert_bash_equal "$(printf '%s\n' "$list" | wc -l)" "$(jq length "$ROOT/default/i18n/locales.json")" "omarchy-language list prints a row for every registered language"
 assert_bash_equal "$(printf '%s\n' "$list" | head -n 1 | cut -f2)" "en" "omarchy-language list puts English first"
 assert_bash_equal "$(omarchy-language locale da)" "da_DK.UTF-8" "omarchy-language locale maps da to its glibc locale"
 
@@ -413,7 +419,7 @@ da_changed_raw=$(jq -r '."language.changed"' "$ROOT/default/i18n/da/cli.json")
 assert_bash_equal "$(omarchy-i18n language.changed 'Research & Development')" "${da_changed_raw//%1/"Research & Development"}" "omarchy-i18n keeps ampersands in arguments literal"
 
 # With the locale already generated, picking the language needs no
-# privilege at all: no password prompt, no locale-gen.
+# privilege at all: no password prompt, no localedef.
 cat >"$work/stubs/locale" <<'STUB'
 #!/bin/bash
 if [[ $1 == "-a" ]]; then printf 'en_US.utf8\nda_DK.utf8\n'; else echo "LANG=da_DK.UTF-8"; fi
@@ -457,7 +463,7 @@ cp "$work/stubs/busctl" "$work/stubs/fcitx5-remote"
 chmod +x "$work/stubs/busctl" "$work/stubs/fcitx5-remote"
 cjk_output=$(TEST_SUDO_GRANT=1 omarchy-language ja </dev/null 2>&1) || fail "a CJK language switches without a reachable Fcitx" "$cjk_output"
 assert_bash_equal "$(cat "$OMARCHY_LANGUAGE_FILE")" "ja" "a CJK language switches without a reachable Fcitx"
-[[ $cjk_output == *"Setup > Typing > Input Methods"* ]] && pass "an input method that could not be added is named with where to add it" || fail "an input method that could not be added is named with where to add it" "$cjk_output"
+[[ $cjk_output == *"Setup > Keyboard > Input Methods"* ]] && pass "an input method that could not be added is named with where to add it" || fail "an input method that could not be added is named with where to add it" "$cjk_output"
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "Japanese seeds Japanese glyph forms" || fail "Japanese seeds Japanese glyph forms"
 TEST_SUDO_GRANT=1 omarchy-language ko </dev/null 2>/dev/null
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "a second CJK language keeps the glyph forms already chosen" || fail "a second CJK language keeps the glyph forms already chosen"

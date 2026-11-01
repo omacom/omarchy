@@ -853,7 +853,7 @@ fixture_flags() {
 
   ((${#FINDINGS[@]} > 0)) || fail "$description" "$fixture produced no finding"
   if [[ -n $expected ]]; then
-    printf '%s\n' "${FINDINGS[@]}" | grep -qF -- "$expected" ||
+    grep -qF -- "$expected" <<<"$(printf '%s\n' "${FINDINGS[@]}")" ||
       fail "$description" "expected \"$expected\" in:$(printf '\n%s' "${FINDINGS[@]}")"
   fi
   pass "$description"

@@ -2425,6 +2425,26 @@ def _codex_resume(handle: Any, previous: dict[str, Any]) -> dict[str, Any] | Non
     return None
 
 
+def _codex_rollout_files(root: Path) -> list[Path]:
+  """Every rollout under `root`, plain or compressed. Codex compresses a
+  finished rollout to .jsonl.zst and decompresses it again to append, so for
+  a moment both exist; the plain one is what Codex reads."""
+  paths = {path for path in root.rglob("*.jsonl*") if path.name.endswith((".jsonl", ".jsonl.zst"))}
+  return [path for path in paths if not (path.name.endswith(".zst") and path.with_suffix("") in paths)]
+
+
+# What reading a rollout can fail with: a truncated or damaged .zst too.
+_CODEX_READ_ERRORS = (OSError, EOFError) + (() if zstd is None else (zstd.ZstdError,))
+
+
+def _codex_open(path: Path) -> Any:
+  if not path.name.endswith(".zst"):
+    return path.open("rb")
+  if zstd is None:
+    raise OSError(f"no zstd support in this Python to read {path}")
+  return zstd.open(path, "rb")
+
+
 def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[str, Any] | None = None, native: bool = False) -> dict[str, Any]:
   """One rollout's provider, session (codex_rollout_session) and day ->
   model -> [input, output, cacheRead, cacheWrite, prompts]. A rollout on the
@@ -2456,15 +2476,17 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
   seen_responses: set[str] = set()
   offset = 0
   done = False
-  resumable = True
+  # A compressed rollout never grows in place, so it is always read whole.
+  compressed = path.name.endswith(".zst")
+  resumable = not compressed
   resume: dict[str, Any] = {}
 
   def bucket(day: str, model: str) -> list[int]:
     return record["days"].setdefault(day, {}).setdefault(model, [0, 0, 0, 0, 0])
 
   try:
-    with path.open("rb") as handle:
-      state = _codex_resume(handle, previous) if previous else None
+    with _codex_open(path) as handle:
+      state = _codex_resume(handle, previous) if previous and not compressed else None
       if previous and state is not None:
         record["provider"] = previous["provider"]
         record["session"] = previous["session"]
@@ -2614,7 +2636,7 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
           "model": current_model, "meta": seen_meta, "typed": typed, "pending": list(pending_prompts),
           "total": previous_total_usage, "records": seen_records, "responses": sorted(seen_responses), "done": done,
         }
-  except OSError:
+  except _CODEX_READ_ERRORS:
     record["mtime"] = None
     resumable = False
   # A prompt no request answered yet, or ever, was put to the last model.
@@ -2683,7 +2705,7 @@ def codex_rollouts(cache_file: Path | None, reuse: bool = True, native: bool = F
     for root in (codex_home() / "sessions", codex_home() / "archived_sessions"):
       if not root.is_dir():
         continue
-      for path in root.rglob("*.jsonl"):
+      for path in _codex_rollout_files(root):
         try:
           stat_result = path.stat()
         except OSError:

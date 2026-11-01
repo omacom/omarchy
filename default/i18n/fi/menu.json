@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Levyn nopeustesti"
   },
-  "setup.monitors": {
-    "label": "Näytöt"
-  },
-  "setup.keybindings": {
-    "label": "Pikanäppäimet"
-  },
   "setup.input": {
     "label": "Syöttö"
-  },
-  "setup.typing": {
-    "label": "Kirjoittaminen"
-  },
-  "setup.typing.keyboard": {
-    "label": "Näppäinasettelut"
-  },
-  "setup.typing.input": {
-    "label": "Syöttömenetelmät"
   },
   "setup.language": {
     "label": "Kieli"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Ydin"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Näppäimistö"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Pikanäppäimet"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Näppäimistösyötteet"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Syöttömenetelmät"
   }
 }

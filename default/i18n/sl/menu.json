@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Hitrost diska"
   },
-  "setup.monitors": {
-    "label": "Zasloni"
-  },
-  "setup.keybindings": {
-    "label": "Bližnjice"
-  },
   "setup.input": {
     "label": "Vnos"
-  },
-  "setup.typing": {
-    "label": "Tipkanje"
-  },
-  "setup.typing.keyboard": {
-    "label": "Razporedi tipkovnic"
-  },
-  "setup.typing.input": {
-    "label": "Načini vnosa"
   },
   "setup.language": {
     "label": "Jezik"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Jedro"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tipkovnica"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Bližnjice"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Vnosi tipkovnice"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metode vnosa"
   }
 }

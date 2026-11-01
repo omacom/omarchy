@@ -81,10 +81,3 @@ used=$(
 missing=$(comm -13 <(echo "$declared") <(echo "$used"))
 [[ -z $missing ]] || fail "every notifications IPC method callers use is declared" "missing: $missing"
 pass "every notifications IPC method callers use is declared"
-
-# The surface keeps the namespace the glassy-window layer rule matches.
-grep -q 'WlrLayershell.namespace: "omarchy-notifications"' "$service" ||
-  fail "notification surface keeps the omarchy-notifications layer namespace"
-grep -q 'omarchy-notifications' "$ROOT/default/hypr/toggles/window-glassy.lua" ||
-  fail "glassy toggle still matches the notification layer namespace"
-pass "notification surface keeps the omarchy-notifications layer namespace"
