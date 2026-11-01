@@ -1,46 +1,46 @@
 # Augšējā josla
 
-Josla gar tava ekrāna augšpusi ir Omarchy josla. Tā nav pieskrūvēta statusa josla, bet Omarchy čaulas daļa — viens ilgstoši strādājošs Quickshell process, kas zīmē arī izvēlni, paziņojumus, OSD uznirstošos logus un bloķēšanas ekrānu. Tāpēc tā lieliski saskan ar visu pārējo un tāpēc panelis atveras uzreiz, nevis palaiž jaunu lietotni.
+Josla gar ekrāna augšpusi ir Omarchy josla. Tā nav pieskrūvēta statusa josla, bet gan daļa no Omarchy čaulas — viena ilgstoši darbojoša Quickshell procesa, kas arī uzzīmē izvēlni, paziņojumus, OSD uznirstošos logus un bloķēšanas ekrānu. Tāpēc tā tematiski perfekti sader ar visu pārējo un tāpēc panelis atveras acumirklī, nevis palaiž jaunu lietotni.
 
-Tā ir arī vienīgā darbvirsmas daļa, kas vienmēr ir ekrānā, tāpēc ir vērts zināt, ko dara visas tās mazās zīmes.
+Tā ir arī vienīgā darbvirsmas daļa, kas vienmēr atrodas uz ekrāna, tāpēc ir vērts zināt, ko dara visas tās mazās zīmes.
 
 ## Kas tajā ir pēc noklusējuma
 
-Joslai ir trīs sadaļas. Kreisajā pusē sēž Omarchy logo (izvēlnes palaidējs) un darbvietu rādītāji. Centrā tu iegūsti statusa rādītājus, pulksteni, Elsewhen (pasaules pulksteni), laikapstākļus un Omarchy atjauninājuma nozīmīti. Labajā pusē: tastatūras izkārtojums (kad konfigurēts vairāk nekā viens), sistēmas tekne, aģenti, bluetooth, tīkls, audio, displejs un barošana.
+Joslai ir trīs sadaļas. Kreisajā pusē atrodas Omarchy logotips (izvēlnes palaidējs) un darbvietu indikatori. Centrā jūs iegūstat statusa indikatorus, pulksteni, Elsewhen (pasaules pulksteni), laikapstākļus un Omarchy atjauninājuma nozīmīti. Labajā pusē: sistēmas paplāte, tastatūras izkārtojums (kad ir konfigurēts vairāk nekā viens), aģenti, Bluetooth, tīkls, audio, displejs un barošana.
 
-Daži no tiem parādās tikai tad, kad tiem ir ko teikt. Tastatūras izkārtojums parādās tikai tad, ja esi konfigurējis vairāk nekā vienu izkārtojumu. Atjauninājuma nozīmīte parādās tikai tad, kad gaida Omarchy atjauninājums. Un aģentu ikona parādās pirmo reizi, kad Omarchy iekārtā atrod AI kodēšanas lietojumu (skat. [AI](17-ai.md)).
+Daži no tiem parādās tikai tad, kad tiem ir ko teikt. Tastatūras izkārtojums parādās tikai tad, ja esat konfigurējis vairāk nekā vienu izkārtojumu. Atjauninājuma nozīmīte parādās tikai tad, kad gaida kāds Omarchy atjauninājums. Un aģentu ikona parādās pirmo reizi, kad Omarchy atrod datorā AI kodēšanas lietojumu (skatiet [AI](17-ai.md)).
 
-## Klikšķināšana apkārt
+## Klikšķināšana
 
-Gandrīz katrs logrīks kaut ko dara ar kreiso, labo un vidējo klikšķi, un vairāki reaģē uz ritināšanu. Šī ir daļa, ko cilvēki palaiž garām — labā un vidējā poga ir vieta, kur slēpjas daudz labu lietu.
+Gandrīz katrs logrīks kaut ko dara ar kreiso, labo un vidējo klikšķi, un vairāki reaģē uz ritināšanu. Šī ir daļa, ko cilvēki palaiž garām — labajā un vidējā pogā slēpjas daudz labumu.
 
-| Logrīks | Kreisi | Labi | Vidus / ritināšana |
+| Logrīks | Kreisais klikšķis | Labais klikšķis | Vidējais klikšķis / ritināšana |
 | --- | --- | --- | --- |
 | Izvēlne | Omarchy izvēlne | Jauns terminālis | — |
-| Darbvietas | Fokusēt šo darbvietu | — | Ritināšana: nākamā/iepriekšējā darbvieta |
-| Pulkstenis | Kalendāra uznirstošais logs | Ciklēt etiķetes formātu | Vidus: laika joslas atlasītājs |
-| Laikapstākļi | Prognozes uznirstošais logs | Pilni laikapstākļi kā paziņojums | Vidus: atsvaidzināt |
-| Audio | Audio panelis | Izslēgt skaņu | Vidus: panelis · ritināšana: skaļums |
-| Mikrofons | Izslēgt mikrofonu | — | Vidus: audio panelis · ritināšana: ievades skaļums |
+| Darbvietas | Fokusēt šo darbvietu šajā monitorā | — | Ritināt: nākamā/iepriekšējā darbvieta |
+| Pulkstenis | Kalendāra uznirstošais logs | Cikliski mainīt etiķetes formātu | Vidējais klikšķis: laika joslu izvēle |
+| Laikapstākļi | Prognozes uznirstošais logs | Pilni laikapstākļi kā paziņojums | Vidējais klikšķis: atsvaidzināt |
+| Audio | Audio panelis | Izslēgt skaņu | Vidējais klikšķis: panelis · ritināt: skaļums |
+| Mikrofons | Izslēgt mikrofonu | — | Vidējais klikšķis: audio panelis · ritināt: ievades skaļums |
 | Tīkls | Tīkla panelis | — | — |
 | Bluetooth | Bluetooth panelis | Pārslēgt radio | — |
-| Displejs | Displeja panelis | — | Ritināšana: spilgtums |
-| Barošana | Barošanas panelis | Pārslēgt baterijas procentus | — |
-| Multivide | Atskaņot/pauzēt | Vāka noformējuma uznirstošais logs | Vidus: nākamais · ritināšana: iepriekšējais/nākamais |
-| Aģenti | Aģentu panelis | Palaist savu aģentu | Vidus: nākamais abonements |
-| Tekne | Novieto kursoru, lai atklātu atvilktni | Labais klikšķis uz ševrona, lai pārvaldītu | — |
+| Displejs | Displeja panelis | — | Ritināt: spilgtums |
+| Barošana | Barošanas panelis | Pārslēgt akumulatora procentus | — |
+| Multivide | Atskaņot/pauzēt | Vāka noformējuma uznirstošais logs | Vidējais klikšķis: nākamais · ritināt: iepriekšējais/nākamais |
+| Aģenti | Aģentu panelis | Palaist jūsu aģentu | Vidējais klikšķis: nākamais abonements |
+| Paplāte | Uzturēt kursoru virs tās, lai atklātu atvilktni | Labais klikšķis uz bultiņas, lai pārvaldītu | — |
 | Omarchy atjauninājums | Palaist atjauninājumu | — | — |
 
-Ne viss šajā tabulā pēc noklusējuma ir tavā joslā. Multivides logrīks (MPRIS pašlaik atskaņotais ar ritinošu ierakstu un izpildītāju) un mikrofona logrīks abi ir iebūvēti, bet pēc noklusējuma izslēgti — pievieno tos, ja vēlies, kā aprakstīts zemāk.
+Ne viss šajā tabulā sākotnēji ir jūsu joslā. Gan multivides logrīks (MPRIS pašlaik atskaņotais ieraksts ar ritinošu ieraksta nosaukumu un izpildītāju), gan mikrofona logrīks ir iebūvēti, bet pēc noklusējuma izslēgti — pievienojiet tos, ja vēlaties, kā aprakstīts tālāk.
 
 ## Paneļi
 
-Noklikšķinot uz joslas ikonas, atveras panelis, kas ir īsts uznirstošais logs ar slīdņiem, sarakstiem un tastatūras navigāciju, nevis rīka padoms. Katram ir arī karstā taustiņa kombinācija, tāpēc tev nekad nav jātēmē uz 16 pikseļu zīmi:
+Noklikšķinot uz joslas ikonas, tiek atvērts panelis, kas ir īsts uznirstošais logs ar slīdņiem, sarakstiem un tastatūras navigāciju, nevis rīka padoms. Katram ir arī karstais taustiņš, tāpēc jums nekad nav jāmērķē uz 16 pikseļu zīmi:
 
-| Karstā taustiņa kombinācija | Panelis |
+| Karstais taustiņš | Panelis |
 | --- | --- |
 | `Super + Ctrl + A` | Audio |
-| `Super + Ctrl + W` | Tīkls |
+| `Super + Ctrl + N` | Tīkls |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Displejs |
 | `Super + Ctrl + P` | Barošana |
@@ -48,70 +48,73 @@ Noklikšķinot uz joslas ikonas, atveras panelis, kas ir īsts uznirstošais log
 | `Super + Ctrl + Alt + E` | Pasaules pulkstenis |
 | `Super + Ctrl + 1-9` | Pārslēgt n-to paneli labajā sadaļā |
 
-Paneļi nav rādījumi. Tajos tu patiešām dari lietu:
+Paneļi nav tikai rādījumi. Tajos jūs faktiski paveicat attiecīgo darbu:
 
-- **Audio** ir galvenā skaļuma slīdnis, izvades ierīces atlasītājs un katras lietotnes mikseris, tāpēc tu vari pieklusināt vienu pārlūka cilni, neaizskarot visu pārējo.
-- **Tīkls** skenē Wi-Fi, rāda signāla stiprumu, savienojas un ļauj tev izvēlēties DNS nodrošinātāju.
-- **Bluetooth** uzskaita tavas ierīces ar savienošanu/atvienošanu un baterijas līmeņiem.
-- **Barošana** rāda baterijas statistiku, pārslēdz barošanas profilus (tā atceras atsevišķu izvēli baterijai un maiņstrāvai) un izdrukā kādu sistēmas informāciju.
-- **Displejs** satur spilgtuma slīdni, teksta izmēru, monitora mērogošanas priekšiestatījumus un —, kad tev ir vairāk nekā viens ekrāns —, katra monitora vadīklas. Skat. [monitori](33-monitors.md) dziļākam stāstam.
-- **Pulkstenis** atver mēneša režģi ar ISO nedēļu numuriem un mēneša soļošanu.
+- **Audio** piedāvā galvenā skaļuma slīdni, izvades ierīces izvēli un mikseri katrai lietotnei, lai jūs varētu pieklusināt vienu pārlūka cilni, neaizskarot visu pārējo.
+- **Tīkls** meklē Wi-Fi, rāda signāla stiprumu, izveido savienojumus un ļauj izvēlēties DNS pakalpojumu sniedzēju.
+- **Bluetooth** uzskaita jūsu ierīces ar savienošanu/atvienošanu un akumulatora līmeņiem.
+- **Barošana** rāda akumulatora statistiku, pārslēdz barošanas profilus (tas atceras atsevišķu izvēli akumulatoram un AC) un izdrukā daļu sistēmas informācijas.
+- **Displejs** piedāvā spilgtuma slīdni, teksta izmēru, monitora mērogošanas priekšiestatījumus un — ja jums ir vairāk nekā viens ekrāns — vadīklas katram monitoram. Padziļinātu stāstu skatiet sadaļā [monitoriem](33-monitors.md).
+- **Pulkstenis** atver mēneša režģi ar ISO nedēļu numuriem un mēnešu pārslēgšanu.
+- **Pasaules pulkstenis** katrai pilsētai uztur vienu rindu ar tās laikapstākļiem un to, kā rit tās diena. Meklēšana atrod gan mazpilsētas, gan laika joslas, tāpēc Fort Lauderdale ir Fort Lauderdale, nevis Ņujorka. Ja augšējā rindā ir nosaukta nepareizā pilsēta, noklikšķiniet uz tās un norādiet, kur atrodaties; izvēlieties vietu citā laika joslā, un sistēmas pulkstenis arī pārcelsies tur, kas ir noderīgi ceļojot. Novietojiet kursoru virs pilsētas un noklikšķiniet uz personas pogas, lai norādītu, kas tur dzīvo — vienkāršus vārdus vai `@` GitHub lietotājvārdus, lai līdzi paņemtu arī viņu sejas.
 
-Katrs panelis pieņem gan tastatūru, gan peli: bultiņas pārvieto, Return aktivizē, Tab soļo uz kaimiņu paneli, un Escape aizver.
+Katrs panelis izmanto gan tastatūru, gan peli: bulttaustiņi pārvieto, Return aktivizē, Tab pāriet uz blakus esošo paneli, bet Escape aizver.
 
-`Super + Ctrl + 1-9` skaita paneļus no kreisās uz labo labajā sadaļā, izlaižot tekni, jo tai nav sava paneļa. Tāpēc numurs atbilst ikonai, uz kuru tu norādītu.
+`Super + Ctrl + 1-9` skaita paneļus no kreisās uz labo pusi labajā sadaļā, izlaižot paplāti, jo tai nav sava paneļa. Tāpēc numurs atbilst ikonai, uz kuru jūs mērķētu.
 
 ### Tailscale un Dropbox
 
-Divus papildu logrīkus joslā parādās tikai tad, kad instalē atbilstošo pakalpojumu no **Instalēt → Pakalpojums**, un abus ir vērts zināt, jo tie dara vairāk nekā ziņo statusu.
+Vēl divi logrīki parādās joslā tikai tad, kad instalējat attiecīgo pakalpojumu no **Instalēt → Pakalpojums**, un abus ir vērts zināt, jo tie dara vairāk nekā tikai ziņo par statusu.
 
-**Tailscale** panelis savieno un atvieno tailnet, pārslēdzas starp kontiem un izvēlas izejas mezglu (tavas ierīces un Mullvad reģioni abi parādās šajā sarakstā). Tas arī pārlūko tavas ierīces — un ar vienu atlasītu `s` nosūta tai failus, izmantojot Taildrop, kas ir ātrākais veids, kā pārvietot failu uz tavu tālruni vai citu klēpjdatoru. `c` kopē ierīces IP, `n` tās nosaukumu un `d` tās pilnu DNS nosaukumu. Katrā ierīces rindā ir arī sūtīšanas poga, ja tev labāk patīk klikšķināt. Tas pats no termināla ir `omarchy tailscale send <machine> [file...]`.
+**Tailscale** panelis savieno un atvieno tailnet, pārslēdzas starp kontiem un izvēlas izejas mezglu (šajā sarakstā parādās gan jūsu pašu datori, gan Mullvad reģioni). Tas arī pārlūko jūsu datorus, un, kad viens ir atlasīts, `s` nosūta tam failus, izmantojot Taildrop, kas ir ātrākais veids, kā pārvietot failu uz tālruni vai citu klēpjdatoru. `c` kopē datora IP, `n` — tā nosaukumu, bet `d` — tā pilno DNS nosaukumu. Katrā datora rindā ir arī nosūtīšanas poga, ja labprātāk klikšķināt. No termināļa tas pats ir `omarchy tailscale send <machine> [file...]`.
 
-**Dropbox** panelis apstrādā pieteikšanos, rāda, cik daudz krātuves esi izmantojis, un uzskaita nesen sinhronizētos failus.
+**Dropbox** panelis apstrādā pieteikšanos, parāda, cik daudz krātuves esat izmantojis, un uzskaita nesen sinhronizētos failus.
 
-Noņemot jebkuru pakalpojumu, tā logrīks tiek noņemts no joslas.
+Jebkura šī pakalpojuma noņemšana noņem arī tā logrīku no joslas.
 
-## Rādītāji
+## Indikatori
 
-Mazā kopa centrā ir rādītāju logrīks. Tās ir statusa zīmes režīmiem, ko esi ieslēdzis: netraucēt, nakts apgaismojums, rindā esošs [atgādinājums](09-reminders.md), aktīvs ekrāna ieraksts, palikt nomodā un [diktēšana](11-text-extraction-dictation.md). Tie iedegas, kad režīms ir aktīvs, un citādi netraucē — novieto kursoru pa kreisi no pulksteņa (virs tā vertikālā joslā), lai palūrētu uz neaktīvajiem. Noklikšķinot uz rādītāja, šis režīms tiek pārslēgts. Vēl viens ir tikai statusam: attālā sesija iedegas sarkana, kamēr kāds ir savienots ar šo iekārtu caur gliff.
+Mazā kopa centrā ir indikatoru logrīks. Tās ir statusa zīmes jūsu ieslēgtajiem režīmiem: netraucēt, nakts gaisma, rindā ievietots [atgādinājums](09-reminders.md), aktīva ekrāna ierakstīšana, palikšana nomodā un [diktēšana](11-text-extraction-dictation.md). Tās iedegas, kad režīms ir aktīvs, un citādi paliek malā — novietojiet kursoru jebkurā vietā uz joslas, lai ielūkotos neaktīvajās. Noklikšķinot uz indikatora, tiek pārslēgts attiecīgais režīms. Vēl viens ir tikai statusam: attālinātā sesija iedegas sarkanā krāsā, kamēr kāds ir savienots ar šo datoru, izmantojot gliff.
 
-Ja tu labāk vēlētos, lai tie vienmēr būtu redzami, iestati `alwaysShow` uz `true` logrīkā. Un, ja tev rūp tikai daži no tiem, uzskaiti tos, kurus vēlies, sarakstā `items`: `["Dnd", "Reminder", "NightLight"]`. Tev var būt vairāk nekā viens rādītāju logrīks, tāpēc dažādas sadaļas var rādīt dažādas apakškopas.
+Ja vēlaties, lai tie vienmēr būtu redzami, logrīkā iestatiet `alwaysShow` uz `true`. Un, ja jums rūp tikai daži no tiem, parametrā `items` norādiet vēlamos: `["Dnd", "Reminder", "NightLight"]`. Jums var būt vairāk nekā viens indikatoru logrīks, tāpēc dažādas sadaļas var rādīt dažādas apakškopas.
 
 ## Joslas pārkārtošana
 
-Josla konfigurējas pati. Tev nav jāatver konfigurācijas fails, lai pārvietotu lietas.
+Josla konfigurējas pati. Jums nav jāatver konfigurācijas fails, lai pārvietotu lietas.
 
-Satver tukšu joslas daļu ap centru un velc to uz citu ekrāna malu, un josla pārvietojas turp — kreisi, labi, augšā vai apakšā viss darbojas, un katrs logrīks pielāgojas (vertikālās joslas atkāpjas uz kompaktām tikai ikonu formām). Klikšķis un turēšana sāk to pašu vilkšanu. Veic dubultu kreiso klikšķi tajā pašā tukšajā vietā, lai ciklētu joslas fonu no caurspīdīga uz stikla uz necaurspīdīgu. Un velc jebkuru logrīku, lai to pārkārtotu vai iemestu citā sadaļā.
+Satveriet tukšu joslas vietu ap centru un velciet to uz citu ekrāna malu, un josla pārvietosies tur — der kreisā, labā, augšējā vai apakšējā mala, un katrs logrīks pielāgojas (vertikālās joslas atgriežas pie kompaktām, tikai ar ikonām, formām). Klikšķis un pieturēšana sāk to pašu vilkšanu. Veiciet dubultklikšķi ar kreiso pogu uz tās pašas tukšās vietas, lai cikliski mainītu joslas fonu no caurspīdīga uz stiklainu un necaurspīdīgu. Velciet jebkuru logrīku, lai to pārkārtotu vai iemestu citā sadaļā; pārējie logrīki pašķiras, lai atbrīvotu vietu tur, kur tas nolaidīsies.
 
-Logrīku, kuru vēlies turēt pa rokai, bet ne vienmēr acu priekšā, vari likt teknes atvilktnē: velc to uz tekni, un atvilktne atvērsies, lai to uzņemtu. Tur tas sēž aiz lietotņu ikonām, parādās katru reizi, kad parādās atvilktne, un tur atvilktni vaļā, kamēr ir atvērts tā panelis. Velc to atpakaļ ārā uz joslu, lai noliktu to atpakaļ.
+Joslas vidus ir kaste: viss, kas tajā atrodas, paliek centrēts kā viena grupa, un logrīki abās tās pusēs karājas pie tās malām. Kamēr velkat logrīku, kaste parādās kā kontūra vai, kad tā ir tukša, kā līnija pāri joslai, un jūs varat nomest logrīku tajā vai tai blakus. Kad nomešana notiktu kastē, kaste paplašinās, lai uzņemtu logrīku.
 
-Ja tu labāk izvēlētos no izvēlnes, **Palaist → Izskats → Izvēlņu josla** ir pozīcija, un **Joslas fons** izvēlas, kā josla tiek zīmēta: **Necaurspīdīga josla**, **Stikla josla** (caurspīdīga, ar to, kas aiz tās, izplūdušu) vai **Caurspīdīga josla**.
+Logrīks, ko vēlaties turēt tuvumā, bet ne vienmēr redzeslokā, var nonākt paplātes atvilktnē: velciet to uz paplāti, un atvilktne atvērsies, lai to uzņemtu. Tur tas atrodas aiz lietotņu ikonām, parādās ikreiz, kad parādās atvilktne, un, kamēr tā panelis ir atvērts, tur savu atvilktni atvērtu. Velciet to atpakaļ uz joslu, lai to atgrieztu.
 
-Tām pašām lietām ir komandas, kas ir tas, ko tu vēlies [dotfailu](31-dotfiles.md) iestatīšanai:
+Ja labprātāk izvēlaties no izvēlnes, sadaļā **Izskats → Izvēlņu josla** ir pieejams novietojums, bet **Joslas fons** izvēlas, kā josla tiek zīmēta: **Necaurspīdīga josla**, **Stiklaina josla** (caurredzama, ar izpludinātu fonu aiz tās) vai **Caurspīdīga josla**.
+
+Tām pašām lietām ir arī komandas, kas ir vajadzīgas [dotfiles](31-dotfiles.md) iestatījumam:
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Lai logrīku pievienotu vai noņemtu pilnībā, izmanto spraudņu komandas. `omarchy plugin list` izdrukā katru logrīku, ko čaula zina, ar tā id, un pēc tam:
+Lai pievienotu vai pilnībā noņemtu logrīku, izmantojiet spraudņu komandas. `omarchy plugin list` izdrukā katru čaulai zināmo logrīku kopā ar tā id, un pēc tam:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
-## Joslas paslēpšana
+## Joslas slēpšana
 
-`Super + Shift + Space` pārslēdz joslu izslēgtu un atkal ieslēgtu, nenogalinot čaulu — paneļi un karstās taustiņu kombinācijas turpina darboties, tu vienkārši iegūsti pikseļus atpakaļ. Tas ir arī izvēlnē zem **Palaist → Izskats → Izvēlņu josla → Paslēpt joslu**.
+`Super + Shift + Space` izslēdz joslu un ieslēdz to atpakaļ, nenogalinot čaulu — paneļi un karstie taustiņi turpina darboties, jūs vienkārši atgūstat pikseļus. Tas ir pieejams arī izvēlnē sadaļā **Izskats → Izvēlņu josla → Paslēpt joslu**.
 
 ## Konfigurācijas fails
 
-Viss tas tiek glabāts `~/.config/omarchy/shell.json` zem atslēgas `bar`. Šeit ir saīsināta versija:
+Viss tiek glabāts failā `~/.config/omarchy/shell.json` zem atslēgas `bar`. Šeit ir saīsināta versija:
 
 ```json
 {
@@ -119,20 +122,21 @@ Viss tas tiek glabāts `~/.config/omarchy/shell.json` zem atslēgas `bar`. Šeit
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Katrs logrīks ir viens ieraksts vienā no trim izkārtojuma masīviem, un tā iestatījumi atrodas tieši šajā ierakstā — nav atsevišķa iestatījumu faila un nav `config` apakšobjekta. Pulksteņa `format`, `formatAlt` (uz ko ciklē labais klikšķis) un `verticalFormat` visi dzīvo tieši tur uz `{ "id": "omarchy.clock" }`.
+Katrs logrīks ir viens ieraksts vienā no pieciem izkārtojuma masīviem, un tā iestatījumi atrodas tieši šajā ierakstā — nav atsevišķa iestatījumu faila un nav `config` apakšobjekta. Pulksteņa `format`, `formatAlt` (tas, uz ko cikliski pārslēdz labais klikšķis) un `verticalFormat` visi atrodas tieši tur — uz `{ "id": "omarchy.clock" }`.
 
-`centerAnchor` nosauc vienu centra logrīku, kas tiek piesprausts precīzā ekrāna centrā, ar pārējiem tam blakus. Tā pulkstenis paliek pašā centrā pat tad, kad laikapstākļi un atjauninājuma nozīmīte nāk un iet. Iestati to uz tukšu virkni, un centra saraksts tā vietā vienkārši tiek centrēts kā grupa.
+`center` ir kaste joslas vidū: viss tajā tiek centrēts uz ekrāna kā viena grupa. `centerBegin` un `centerEnd` karājas abās kastes pusēs, un tāpēc pulkstenis paliek precīzi centrā pat tad, kad laikapstākļi un atjauninājuma nozīmīte parādās un pazūd. Ievietojiet `center` vairāk nekā vienu logrīku, un tie tiks centrēti kopā; atstājiet to tukšu, un `centerBegin` un `centerEnd` satiksies joslas vidū.
 
-Viens noteikums, ko ir vērts internalizēt: **kad tev ir savs `shell.json`, tas ir kanonisks**. Kamēr tu neko nepielāgo, čaula lasa Omarchy noklusējuma failu. Tiklīdz tu velc logrīku, palaiž `omarchy bar` vai rediģē failu pats, tas pieder tev — nav dziļas sapludināšanas, tāpēc jauni noklusējuma logrīki nākotnes Omarchy laidienos tavā joslā automātiski neparādīsies. `omarchy bar defaults` atjauno piegādāto izkārtojumu, kad vien vēlies tīru lapu.
+Viens noteikums, ko ir vērts iegaumēt: **kad jums ir savs `shell.json`, tas ir kanonisks**. Kamēr neko nepielāgojat, čaula lasa Omarchy noklusējuma failu. Brīdī, kad pavelkat logrīku, palaižat `omarchy bar` vai pats rediģējat failu, tas pieder jums — dziļas sapludināšanas nav, tāpēc jauni noklusējuma logrīki turpmākajos Omarchy laidienos jūsu joslā automātiski neparādīsies. `omarchy bar defaults` atjauno komplektā iekļauto izkārtojumu ikreiz, kad vēlaties sākt no tīras lapas.
 
-Tajā pašā failā augstākajā līmenī, ārpus atslēgas `bar`, atrodas arī tavi dīkstāves laiki: `idle.screensaver` un `idle.lock`, abi sekundēs kopš tu kļuvi dīkstāvē. Tāpēc noklusējuma ekrānsaudzētājs ieslēdzas pēc 150 sekundēm un bloķēšana pēc 300.
+Tas pats fails augšējā līmenī, ārpus atslēgas `bar`, glabā arī jūsu dīkstāves laikus: `idle.screensaver` un `idle.lock`, abus sekundēs kopš brīža, kad kļuvāt neaktīvs. Tāpēc noklusējuma ekrānsaudzētājs iedarbojas pēc 150 sekundēm, bet bloķēšana — pēc 300.
