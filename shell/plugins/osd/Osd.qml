@@ -56,7 +56,7 @@ Item {
   }
 
   function show(iconName, rawMessage, rawValue, rawMax, rawProgressText, rawDuration) {
-    var next = OsdModel.stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, rawDuration)
+    var next = OsdModel.stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, rawDuration, Commons.I18n.formatNumber)
     // Update before opening so a fresh OSD starts at its new value; only
     // subsequent updates while it remains open animate the progress bar.
     iconKey = next.iconKey
@@ -97,7 +97,7 @@ Item {
   TextMetrics {
     id: valueMetrics
     font: messageMetrics.font
-    text: "100%"
+    text: Commons.I18n.formatNumber(100) + "%"
   }
 
   TextMetrics {
@@ -173,6 +173,8 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           color: Util.alpha(Commons.Color.popups.text, 0.45)
           Rectangle {
+            // Anchored so a right-to-left layout fills from the right.
+            anchors.left: parent.left
             height: parent.height
             width: parent.width * (root.hasProgress ? root.value / root.maxValue : 0)
             color: Commons.Color.accent
