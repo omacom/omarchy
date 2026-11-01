@@ -164,6 +164,18 @@ grep -F -- '-- env DRI_PRIME=0 vivaldi --app=https://example.test/app-env' "$lau
   fail "a web app in a browser behind an env prefix launches with its variables" "$(cat "$launch_log")"
 pass "a web app in a browser behind an env prefix launches with its variables"
 
+# A value with spaces is quoted in Exec=; splitting on spaces took its second
+# half for the browser.
+cat >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env "CHROME_CONFIG_HOME=/home/alex/Browser Profiles" vivaldi %U
+EOF
+rm -f "$launch_log"
+launch "https://example.test/quoted"
+grep -F -- ' -- env CHROME_CONFIG_HOME=/home/alex/Browser Profiles vivaldi https://example.test/quoted' "$launch_log" >/dev/null ||
+  fail "a quoted variable in an env prefix launches unquoted, with its browser" "$(cat "$launch_log")"
+pass "a quoted variable in an env prefix launches unquoted, with its browser"
+
 # With nothing to launch, the failure has to be visible from a keybinding,
 # where stderr goes nowhere, and must never reach uwsm-app as an empty command.
 rm -f "$XDG_CONFIG_HOME/mimeapps.list" "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
