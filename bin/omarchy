@@ -331,7 +331,44 @@ load_commands() {
     [[ -f $file && -x $file ]] || continue
     register_command "$file"
   done
+  build_candidate_cache 2>/dev/null || true
+}
 
+build_candidate_cache() {
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
+  local dir_hash=""
+  dir_hash=$(echo -n "$OMARCHY_BIN_DIR" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")
+  local cache_file="$cache_dir/cli-candidates-$dir_hash.idx"
+  local tmp_cache="$cache_dir/cli-candidates-$dir_hash.$$.tmp"
+
+  mkdir -p "$cache_dir" 2>/dev/null || return 1
+
+  grep -H -E "^[[:space:]]*#[[:space:]]*omarchy:(group|alias)" "$OMARCHY_BIN_DIR"/omarchy-* 2>/dev/null | awk -F: '
+    /#[[:space:]]*omarchy:(group|alias)/ {
+      line = $0
+      sub(/\r$/, "", line)
+      gsub(/\t/, " ", line)
+      filepath = $1
+      sub(/.*\//, "", filepath)
+
+      if (match(line, /omarchy:group=([a-zA-Z0-9_-]+)/, m)) {
+        if (m[1] != "") print m[1] "\t" filepath
+      }
+
+      if (match(line, /omarchy:alias(es)?=(.*)/, m)) {
+        n_routes = split(m[2], routes, "|")
+        for (r = 1; r <= n_routes; r++) {
+          route = routes[r]
+          sub(/^[[:space:]]+/, "", route)
+          sub(/[[:space:]]+$/, "", route)
+          n_words = split(route, words, /[[:space:]]+/)
+          if (words[1] == "omarchy" && n_words >= 2) {
+            if (words[2] != "") print words[2] "\t" filepath
+          }
+        }
+      }
+    }
+  ' > "$tmp_cache" 2>/dev/null && mv -f "$tmp_cache" "$cache_file" 2>/dev/null || rm -f "$tmp_cache"
 }
 
 # Only a command whose route starts with "omarchy <first>" can resolve a route
@@ -343,19 +380,40 @@ load_route_candidates() {
   local first="$1"
   local -A seen=()
   local file=""
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
+  local dir_hash=""
+  dir_hash=$(echo -n "$OMARCHY_BIN_DIR" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")
+  local cache_file="$cache_dir/cli-candidates-$dir_hash.idx"
 
   [[ $first =~ ^[[:alnum:]][[:alnum:]_-]*$ ]] || return 1
 
   for file in "$OMARCHY_BIN_DIR/omarchy-$first"-*; do
-    seen["$file"]=1
+    [[ -e $file ]] && seen["$file"]=1
   done
-  while IFS= read -r file; do
-    seen["$file"]=1
-  done < <(grep -l -E -e "omarchy:group=$first([^[:alnum:]_-]|$)" -e "omarchy:alias(es)?=.*omarchy[[:space:]]+$first([[:space:]]|\||$)" "$OMARCHY_BIN_DIR"/omarchy-* 2>/dev/null)
+
+  local is_fresh=false
+  if [[ -f $cache_file && $cache_file -nt $OMARCHY_BIN_DIR ]]; then
+    if [[ -z $(find "$OMARCHY_BIN_DIR" -maxdepth 1 -name "omarchy-*" -newer "$cache_file" -print -quit 2>/dev/null) ]]; then
+      is_fresh=true
+    fi
+  fi
+
+  if [[ $is_fresh == "true" ]]; then
+    local prefix cfilename
+    while IFS=$'\t' read -r prefix cfilename; do
+      [[ $prefix == "$first" && -n $cfilename ]] && seen["$OMARCHY_BIN_DIR/$cfilename"]=1
+    done < "$cache_file"
+  else
+    while IFS= read -r file; do
+      seen["$file"]=1
+    done < <(grep -l -E -e "omarchy:group=$first([^[:alnum:]_-]|$)" -e "omarchy:alias(es)?=.*omarchy[[:space:]]+$first([[:space:]]|\||$)" "$OMARCHY_BIN_DIR"/omarchy-* 2>/dev/null)
+
+    build_candidate_cache 2>/dev/null || true
+  fi
 
   # The full load's own glob, so colliding routes register in the same order.
   for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
-    [[ -n ${seen[$file]} && -f $file && -x $file ]] || continue
+    [[ -n ${seen[$file]:-} && -f $file && -x $file ]] || continue
     register_command "$file"
   done
 }

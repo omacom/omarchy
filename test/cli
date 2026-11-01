@@ -473,7 +473,9 @@ if rg -q '\{\{[^}]+\}\}' "$LEGACY_NEXT_THEME"; then
 fi
 pass "legacy short palette renders the complete generated theme"
 
-osc_summary=$("$ROOT/bin/omarchy-theme-osc" "$NEXT_THEME/colors.toml" | python -c 'import sys; data = sys.stdin.buffer.read(); print(data.count(b"]4;"), b"]4;1;#ff0000" in data, b"]4;7;#ffffff" in data, b"]4;15;#eeeeee" in data, b"]12;#eeeeee" in data, b"]17;#808080" in data, b"]19;#eeeeee" in data)')
+python_cmd=$(command -v python3 || command -v python || true)
+[[ -n $python_cmd ]] || fail "python is required to verify theme OSC output"
+osc_summary=$("$ROOT/bin/omarchy-theme-osc" "$NEXT_THEME/colors.toml" | "$python_cmd" -c 'import sys; data = sys.stdin.buffer.read(); print(data.count(b"]4;"), b"]4;1;#ff0000" in data, b"]4;7;#ffffff" in data, b"]4;15;#eeeeee" in data, b"]12;#eeeeee" in data, b"]17;#808080" in data, b"]19;#eeeeee" in data)')
 [[ $osc_summary == "16 True True True True True True" ]] || fail "theme OSC aliases semantic colors to ANSI palette"
 pass "theme OSC aliases semantic colors to ANSI palette"
 
@@ -914,3 +916,51 @@ if (( alias_ms * 4 > full_ms )); then
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+# Warm cache preserves pipe-separated, indented, and tabbed aliases (#15041)
+make_tmpdir WARM_TEST_BIN
+cp -a "$ROUTER_BIN/omarchy" "$WARM_TEST_BIN/"
+cat >"$WARM_TEST_BIN/omarchy-cmd-short" <<'SH'
+#!/bin/bash
+  # omarchy:alias=omarchy probe
+printf 'short:%s\n' "$*"
+SH
+chmod +x "$WARM_TEST_BIN/omarchy-cmd-short"
+
+cat >"$WARM_TEST_BIN/omarchy-cmd-long" <<'SH'
+#!/bin/bash
+# omarchy:alias=omarchy other|omarchy	probe deep
+printf 'long:%s\n' "$*"
+SH
+chmod +x "$WARM_TEST_BIN/omarchy-cmd-long"
+
+# Cold run warms the candidate cache
+[[ $("$WARM_TEST_BIN/omarchy" other) == "long:" ]] || fail "cold run resolves first pipe-separated alias"
+
+# Warm run must resolve the second pipe-separated alias to the longer command, not short with argument
+[[ $("$WARM_TEST_BIN/omarchy" probe deep) == "long:" ]] || fail "warm cache resolves pipe-separated alias and picks longest route"
+pass "warm cache resolves pipe-separated and tab-separated aliases"
+
+# In-place file edits invalidate stale candidate cache
+cat >"$WARM_TEST_BIN/omarchy-cmd-unrelated" <<'SH'
+#!/bin/bash
+# omarchy:alias=omarchy unrelated
+printf 'unrelated:%s\n' "$*"
+SH
+chmod +x "$WARM_TEST_BIN/omarchy-cmd-unrelated"
+
+# Ensure the cache is warm without omarchy-cmd-unrelated under probe
+[[ $("$WARM_TEST_BIN/omarchy" other) == "long:" ]] || fail "warm cache before in-place edit"
+
+sleep 0.05
+# Edit the unrelated command in place to claim the probe deep winner route
+cat >"$WARM_TEST_BIN/omarchy-cmd-unrelated" <<'SH'
+#!/bin/bash
+# omarchy:alias=omarchy unrelated|omarchy probe deep winner
+printf 'unrelated-winner:%s\n' "$*"
+SH
+chmod +x "$WARM_TEST_BIN/omarchy-cmd-unrelated"
+
+# Stale candidate cache would miss omarchy-cmd-unrelated and dispatch to short with args
+[[ $("$WARM_TEST_BIN/omarchy" probe deep winner) == "unrelated-winner:" ]] || fail "in-place command edit updates candidate index"
+pass "in-place command edit invalidates stale candidate cache"
