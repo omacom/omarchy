@@ -47,6 +47,31 @@ for (const file of users) {
 pass('first-party keyboard panels build their content on first open')
 JS
 
+# The panel surface spans the screen, but the bar is laid out inside the
+# monitor's reserved area. Whatever was reserved before it (Hyprland's config
+# error banner, a reserved_area rule) moves the bar in, along it as well as
+# across it, and the card and the clicks forwarded to the bar have to follow.
+run_node_test <<'JS'
+const area = requireFromRoot('shell/Commons/ReservedArea.js')
+const W = 2400, H = 1350, bar = 28
+
+const insets = (reserved, position, zone = bar) => area.barInsets(reserved, position, zone)
+const origin = (reserved, position, w, h, zone = bar) => area.barWindowOrigin(insets(reserved, position, zone), position, W, H, w, h)
+
+assertDeepEqual(insets([0, 28, 0, 0], 'top'), { left: 0, top: 0, right: 0, bottom: 0 }, 'a bar reserving only its own edge sits at the screen edge')
+assertDeepEqual(insets([0, 223, 0, 0], 'top'), { left: 0, top: 195, right: 0, bottom: 0 }, 'a band reserved above a top bar moves it down by the band')
+assertDeepEqual(insets([0, 195, 0, 0], 'top', 0), { left: 0, top: 195, right: 0, bottom: 0 }, 'a hidden bar claims no zone of its own')
+assertDeepEqual(insets(null, 'top'), { left: 0, top: 0, right: 0, bottom: 0 }, 'an unknown reserved area leaves the bar at its edge')
+
+assertDeepEqual(origin([0, 28, 0, 0], 'top', W, H), { x: 0, y: 0 }, 'a top bar window sits at the screen corner')
+assertDeepEqual(origin([0, 223, 0, 0], 'top', W, H), { x: 0, y: 195 }, 'a top bar window starts below the banner')
+assertDeepEqual(origin([0, 0, 0, 28], 'bottom', W, H), { x: 0, y: 0 }, 'a full-screen bottom bar window covers the screen')
+assertDeepEqual(origin([0, 195, 0, 60], 'bottom', W, H), { x: 0, y: -32 }, 'a bottom bar window moves up by what was reserved below it')
+assertDeepEqual(origin([28, 195, 0, 0], 'left', W, H - 195), { x: 0, y: 195 }, 'a left bar window starts below the banner')
+assertDeepEqual(origin([0, 195, 40, 0], 'right', W, H - 195), { x: -12, y: 195 }, 'a right bar window moves in along both axes')
+assertDeepEqual(origin([100, 28, 0, 0], 'top', W - 100, H), { x: 100, y: 0 }, 'a top bar window moves along by a band reserved beside it')
+JS
+
 require_compositor "keyboard panel lazy content runtime test"
 require_command quickshell
 
