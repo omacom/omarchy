@@ -28,7 +28,8 @@ Panel {
   property string externalMonitor: ""
   property string focusedMonitor: ""
   property bool internalEnabled: false
-  property bool mirrorEnabled: false
+  // Omarchy's mirror toggle is on, so Extend can turn it back off.
+  property bool mirrorManaged: false
   property string monitorScale: ""
   property string displaysJson: ""
   property var displays: []
@@ -52,6 +53,8 @@ Panel {
   //                  to offer.
   //   "refresh"    - the refresh rates its resolution offers, when one is
   //                  faster than 60Hz.
+  //   "mirror"     - Extend or Mirror, when there's a built-in display and an
+  //                  external one to mirror it on.
   //   "layout"     - the arrangement of the displays; h/l moves the shown one
   //                  to the left or right of the rest.
   // Every section is one row: j/k steps between them, h/l moves a slider or
@@ -113,6 +116,26 @@ Panel {
     return list
   }
 
+  // The displays showing each layout rect's picture, keyed by the rect's name.
+  readonly property var mirroredBy: {
+    var map = {}
+    for (var i = 0; i < displays.length; i++) {
+      var display = displays[i]
+      if (!display || !display.enabled || !display.mirrorOf || display.mirrorOf === "none") continue
+      if (!map[display.mirrorOf]) map[display.mirrorOf] = []
+      map[display.mirrorOf].push(display.name)
+    }
+    return map
+  }
+
+  // Some display is showing another's picture.
+  readonly property bool mirrorEnabled: Object.keys(mirroredBy).length > 0
+  // omarchy-hyprland-monitor-internal-mirror puts the built-in display's
+  // picture on the first external one, so it needs both. A mirror set up in
+  // the user's own monitors.lua is theirs to undo, so Extend isn't offered.
+  readonly property bool mirrorAvailable: internalMonitor !== "" && externalMonitor !== "" && (!mirrorEnabled || mirrorManaged)
+  readonly property var mirrorModes: ["extend", "mirror"]
+
   function displayGlyph(entry) {
     return entry && entry.builtIn ? "󰌢" : "󰍹"
   }
@@ -169,6 +192,7 @@ Panel {
     if (current && current.scales.length > 0) list.push("scale")
     if (current && current.resolutions.length > 0) list.push("resolution")
     if (current && current.refreshes.length > 0) list.push("refresh")
+    if (mirrorAvailable) list.push("mirror")
     if (layoutRects.length > 0) list.push("layout")
     return list
   }
@@ -178,6 +202,7 @@ Panel {
     if (section === "scale") return current ? current.scales.length : 0
     if (section === "resolution") return current ? current.resolutions.length : 0
     if (section === "refresh") return current ? current.refreshes.length : 0
+    if (section === "mirror") return mirrorModes.length
     if (section === "layout") return 1
     return 0  // sliders: only the sentinel at -1
   }
@@ -185,6 +210,7 @@ Panel {
   function sectionFirstIndex(section) {
     if (isSliderSection(section)) return -1
     if (section === "displays") return Math.max(0, currentIndex)
+    if (section === "mirror") return mirrorEnabled ? 1 : 0
     return 0
   }
 
@@ -219,7 +245,7 @@ Panel {
       var next = Math.max(0, Math.min(segments.length - 1, currentIndex + delta))
       selectDisplay(segments[next].name)
       selectedIndex = next
-    } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh") {
+    } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh" || focusSection === "mirror") {
       selectedIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, selectedIndex + delta))
     } else if (focusSection === "layout" && current) {
       applyLayout(Model.placeDisplay(layoutRects, current.name, delta < 0 ? "left" : "right"))
@@ -227,6 +253,10 @@ Panel {
   }
 
   function activateCursor() {
+    if (focusSection === "mirror" && selectedIndex >= 0 && selectedIndex < mirrorModes.length) {
+      setMirror(mirrorModes[selectedIndex] === "mirror")
+      return
+    }
     if (!current) return
     if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < current.scales.length)
       setScale(current.name, current.scales[selectedIndex])
@@ -397,6 +427,12 @@ Panel {
     if (!actionProc.running) actionProc.running = true
   }
 
+  function setMirror(enabled) {
+    if (enabled === mirrorEnabled) return
+    actionProc.command = ["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"]
+    if (!actionProc.running) actionProc.running = true
+  }
+
   function setRotation(name, degrees) {
     actionProc.command = ["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)]
     if (!actionProc.running) actionProc.running = true
@@ -519,10 +555,10 @@ Panel {
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
-        root.mirrorEnabled = String(lines[4] || "").trim() === root.externalMonitor && root.externalMonitor !== ""
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
+        root.mirrorManaged = String(lines[8] || "").trim() === "on"
       }
     }
   }
@@ -708,7 +744,7 @@ Panel {
               }
             }
 
-            // One button per display, named in its tooltip; the shown one is lit.
+            // One button per display, named in its tooltip; the shown one is in the accent.
             Row {
               id: picker
               visible: root.segments.length > 1
@@ -726,12 +762,12 @@ Panel {
 
                   iconText: root.displayGlyph(modelData)
                   tooltipText: modelData.title + " · " + modelData.name
-                  foreground: root.bar.foreground
+                  // The shown one's icon takes the accent, like Extend | Mirror.
+                  foreground: root.currentIndex === index ? Commons.Color.accent : root.bar.foreground
                   fontFamily: root.bar.fontFamily
                   horizontalPadding: Style.spacing.sm
                   verticalPadding: Style.spacing.controlPaddingY
 
-                  active: root.currentIndex === index
                   hasCursor: root.cursorActive && root.focusSection === "displays" && root.selectedIndex === index
                   onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pick)
 
@@ -1059,10 +1095,39 @@ Panel {
             width: parent.width
             spacing: Style.space(6)
 
-            PanelSectionHeader {
-              text: Commons.I18n.t("monitor.layout")
-              foreground: root.bar.foreground
-              fontFamily: root.bar.fontFamily
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(layoutHeader.implicitHeight, mirrorRow.visible ? mirrorRow.implicitHeight : 0)
+
+              PanelSectionHeader {
+                id: layoutHeader
+                text: Commons.I18n.t("monitor.layout")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Row {
+                id: mirrorRow
+                visible: root.mirrorAvailable
+                spacing: Style.space(8)
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+
+                MirrorLink { mode: "extend"; modeIndex: 0 }
+
+                Text {
+                  text: "|"
+                  textFormat: Text.PlainText
+                  color: Qt.darker(root.bar.foreground, 1.55)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
+                MirrorLink { mode: "mirror"; modeIndex: 1 }
+              }
             }
 
             // Padded like a slider's track, around a map as tall as the arrangement.
@@ -1214,6 +1279,38 @@ Panel {
   // The displays drawn where they sit, at their relative sizes. Drag one
   // against another's side to move it there; it lines up with that display's
   // start, center or end when dropped near one. Clicking one shows it above.
+  // Extend puts each display beside the others; Mirror shows the built-in
+  // display's picture on the external one too. Plain text like the agents
+  // panel's Autoswitch: dim until hovered or picked, bold accent when it's
+  // the current choice.
+  component MirrorLink: Text {
+    id: mirrorLink
+    property string mode: ""
+    property int modeIndex: 0
+    readonly property bool current: root.mirrorEnabled === (mode === "mirror")
+    readonly property bool picked: root.cursorActive && root.focusSection === "mirror" && root.selectedIndex === modeIndex
+    readonly property bool hot: linkMouse.containsMouse || picked
+    onPickedChanged: if (picked) root.ensureCursorVisible(mirrorLink)
+
+    text: mode === "mirror" ? Commons.I18n.t("monitor.mirror") : Commons.I18n.t("monitor.extend")
+    textFormat: Text.PlainText
+    color: current ? Commons.Color.accent : (hot ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.55))
+    font.family: root.bar.fontFamily
+    font.pixelSize: Style.font.caption
+    font.bold: current
+    font.underline: hot && !current
+
+    MouseArea {
+      id: linkMouse
+      anchors.fill: parent
+      anchors.margins: -Style.space(4)
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: root.setMirror(mirrorLink.mode === "mirror")
+      onContainsMouseChanged: if (containsMouse) root.pointAt("mirror", mirrorLink.modeIndex)
+    }
+  }
+
   component LayoutMap: Item {
     id: map
     // The keyboard is on the map: h/l moves the shown display.
@@ -1240,9 +1337,18 @@ Panel {
     // Room either side for a display dragged past the arrangement's edge, and
     // no taller than a slider row or two.
     readonly property real ratio: Math.min(width * 0.8 / bounds.w, Style.space(100) / bounds.h)
-    implicitHeight: bounds.h * ratio
-    readonly property real offsetX: (width - bounds.w * ratio) / 2
-    readonly property real offsetY: (height - bounds.h * ratio) / 2
+    // A display that others mirror is drawn as a stack: one card behind it,
+    // up and to the right, per display showing the same picture.
+    readonly property real stackStep: Style.space(6)
+    readonly property int stackDepth: {
+      var depth = 0
+      for (var i = 0; i < root.layoutRects.length; i++)
+        depth = Math.max(depth, (root.mirroredBy[root.layoutRects[i].name] || []).length)
+      return depth
+    }
+    implicitHeight: bounds.h * ratio + stackDepth * stackStep
+    readonly property real offsetX: (width - bounds.w * ratio - stackDepth * stackStep) / 2
+    readonly property real offsetY: (height - bounds.h * ratio + stackDepth * stackStep) / 2
 
     Repeater {
       model: root.layoutRects
@@ -1270,12 +1376,45 @@ Panel {
         border.width: isCurrent && map.hasCursor ? 2 : 1
         border.color: isCurrent ? Commons.Color.accent : Qt.darker(root.bar.foreground, 1.6)
 
+        // The fill is translucent, so back it with the panel's own surface
+        // to keep the cards behind from showing through.
+        Rectangle {
+          anchors.fill: parent
+          z: -1
+          radius: parent.radius
+          color: Commons.Color.popups.background
+        }
+
+        // The displays mirroring this one, stacked behind it.
+        Repeater {
+          model: root.mirroredBy[screenRect.modelData.name] || []
+
+          Rectangle {
+            required property int index
+            x: (index + 1) * map.stackStep
+            y: -(index + 1) * map.stackStep
+            z: -2 - index
+            width: screenRect.width
+            height: screenRect.height
+            radius: screenRect.radius
+            color: Commons.Color.popups.background
+            border.width: 1
+            border.color: Qt.darker(root.bar.foreground, 1.6)
+
+            Rectangle {
+              anchors.fill: parent
+              radius: parent.radius
+              color: Style.hoverFillFor(root.bar.foreground, Commons.Color.accent)
+            }
+          }
+        }
+
         Text {
           anchors.centerIn: parent
           width: parent.width - Style.space(6)
           horizontalAlignment: Text.AlignHCenter
           textFormat: Text.PlainText
-          text: screenRect.modelData.name
+          text: [screenRect.modelData.name].concat(root.mirroredBy[screenRect.modelData.name] || []).join(" + ")
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
