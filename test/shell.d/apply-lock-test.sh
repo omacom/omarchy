@@ -147,19 +147,27 @@ prepare_helper() {
         }
         next
       }
-      if (line == "resume_hook_src=\"$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume\"") {
+      if (index(line, "resume_hook_src=\"$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume\"")) {
         print "resume_hook_src=\"" hook_src "\""
         next
       }
-      if (line == "resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume") {
+      if (index(line, "resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume")) {
         print "resume_hook_dst=\"" hook_dst "\""
         next
       }
-      if (line == "stop_timeout_src=\"$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf\"") {
+      if (line == "elif [[ -f /etc/systemd/system/python3-validity.service || -f /etc/udev/rules.d/60-python-validity.rules ]]; then") {
+        print "elif [[ -f \"" test_tmp "/python3-validity.service\" || -f \"" test_tmp "/60-python-validity.rules\" ]]; then"
+        next
+      }
+      if (index(line, "stop_timeout_src=\"$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf\"")) {
         print "stop_timeout_src=\"" timeout_src "\""
         next
       }
-      if (line == "stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf") {
+      if (index(line, "stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf")) {
+        print "stop_timeout_dst=\"" timeout_dst "\""
+        next
+      }
+      if (index(line, "stop_timeout_dst=/etc/systemd/system/open-fprintd.service.d/10-stop-timeout.conf")) {
         print "stop_timeout_dst=\"" timeout_dst "\""
         next
       }

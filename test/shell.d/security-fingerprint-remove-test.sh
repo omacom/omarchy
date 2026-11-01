@@ -50,6 +50,9 @@ fi
 if [[ $* == "omarchy-lifecycle-dispatch disable-fingerprint" ]]; then
   exit "${TEST_HOOK_FAIL:-0}"
 fi
+if [[ $1 == systemctl ]]; then
+  exit 0
+fi
 [[ $# == 4 && $1 == rm && $2 == -rf && $3 == -- && $4 == "$TEST_FPRINT/$TEST_EXPECTED_USER" ]] || exit 91
 [[ ${TEST_DELETE_FAIL:-0} == 0 ]] || exit 92
 exec /usr/bin/rm -rf -- "$4"
