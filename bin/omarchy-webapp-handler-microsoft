@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# omarchy:summary=Open Microsoft Office web apps or upload local documents to OneDrive
+# omarchy:args=<word|excel|powerpoint> [files...]
+
+set -euo pipefail
+
+app=${1:-}
+case $app in
+word | excel | powerpoint) shift ;;
+*) echo "Usage: omarchy-webapp-handler-microsoft <word|excel|powerpoint> [files...]" >&2; exit 1 ;;
+esac
+
+if (( $# == 0 )); then
+  omarchy-launch-webapp "https://$app.cloud.microsoft/"
+else
+  config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/microsoft-office/rclone.conf"
+  fail() {
+    echo "$1" >&2
+    omarchy-notification-send "Microsoft Office" "$1"
+    exit 1
+  }
+
+  if omarchy-cmd-missing rclone || [[ ! -f $config ]]; then
+    fail "Run omarchy setup microsoft-office in a terminal to connect OneDrive before opening local documents."
+  fi
+
+  # Validate the entire selection before sending any of it to OneDrive.
+  for file in "$@"; do
+    [[ -f $file && -r $file ]] || fail "Cannot read document: $file"
+    extension=${file##*.}
+    case "$app:${extension,,}" in
+    word:doc | word:docx | excel:xls | excel:xlsx | powerpoint:ppt | powerpoint:pptx) ;;
+    *) fail "Unsupported document for Microsoft $app: $file" ;;
+    esac
+  done
+
+  rclone=(rclone --config "$config")
+  # This integration uses the commercial Graph endpoint, like the launchers.
+  "${rclone[@]}" config dump | jq -e '.office.type == "onedrive" and ((.office.region // "global") == "global") and ((.office.tenant_url // "") == "")' >/dev/null ||
+    fail "Reconnect OneDrive with omarchy setup microsoft-office. Only the commercial Microsoft cloud is supported."
+
+  destination="Omarchy Uploads"
+  trap 'fail "Could not open the document. Any uploaded copies remain in OneDrive under $destination. Check your connection or run omarchy setup microsoft-office to reconnect."' ERR
+
+  for file in "$@"; do
+    destination="Omarchy Uploads/$(cat /proc/sys/kernel/random/uuid)"
+    remote="office:$destination/$(basename -- "$file")"
+    omarchy-notification-send "Microsoft Office" "Uploading $(basename -- "$file") to OneDrive…"
+    # A fresh folder per document preserves edits and handles duplicate names.
+    "${rclone[@]}" copyto -- "$(realpath -- "$file")" "$remote"
+    id=$("${rclone[@]}" lsjson "$remote" --stat | jq -er '.ID | select(type == "string" and length > 0)')
+    credentials=$("${rclone[@]}" config dump)
+    if [[ $id == *"#"* ]]; then
+      drive=${id%%#*}
+      id=${id#*#}
+    else
+      drive=$(jq -er '.office.drive_id' <<<"$credentials")
+    fi
+    drive=$(jq -rn --arg value "$drive" '$value | @uri')
+    id=$(jq -rn --arg value "$id" '$value | @uri')
+
+    # rclone refreshes the token during upload/stat. Pass it through stdin so
+    # it never appears in curl's argv. Fetch the private webUrl, not a share link.
+    url=$(jq -er '.office.token | fromjson | .access_token | select(type == "string" and test("^[A-Za-z0-9._~-]+$")) | "Authorization: Bearer " + .' <<<"$credentials" |
+      curl --fail --silent --show-error --max-time 30 --proto '=https' --header @- \
+        "https://graph.microsoft.com/v1.0/drives/$drive/items/$id?\$select=webUrl" |
+      jq -er '.webUrl | select(type == "string" and startswith("https://") and (test("\\s") | not))')
+    unset credentials
+    omarchy-launch-webapp "$url"
+  done
+fi
