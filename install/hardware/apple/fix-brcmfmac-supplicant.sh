@@ -21,12 +21,16 @@
 # 1. BCM4364 (14e4:4464, in the T2 Macs and iMac19,x): disabling SAE offload
 #    prevents connecting to WPA3-only networks (#9802).
 # 2. Apple Silicon (14e4:4425 / 4433): brcmfmac wedges completely with this
-#    quirk (#7439).
+#    quirk (#7439), so it returns before any of this.
 #
 # Therefore, only apply to legacy pre-T2 Broadcom hardware with known-affected parts:
 # BCM43602 (43ba, 43bb, 43bc) and BCM4350 (43a3). BCM4355 (43dc) and BCM4377
 # (4488) are deliberately absent: Linux documents both only on T2 Macs, which
 # the T2 check below already excludes.
+if omarchy-hw-aarch64-apple; then
+  return 0
+fi
+
 sys_vendor="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)"
 
 if [[ $sys_vendor == Apple* ]] &&

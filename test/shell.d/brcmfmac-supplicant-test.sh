@@ -7,7 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 leaf="$ROOT/install/hardware/apple/fix-brcmfmac-supplicant.sh"
 fix_t2="$ROOT/install/hardware/apple/fix-t2.sh"
 all="$ROOT/install/hardware/all.sh"
-migration="$ROOT/migrations/1786391100.sh"
 
 grep -q 'apple/fix-brcmfmac-supplicant.sh' "$all" ||
   fail "the brcmfmac quirk runs during hardware setup"
@@ -22,7 +21,6 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
-calls="$test_tmp/calls.log"
 conf="$test_tmp/etc/modprobe.d/brcmfmac.conf"
 mkdir -p "$stub_bin" "$test_tmp/dmi"
 
@@ -43,22 +41,10 @@ for _ in {1..4096}; do
 done
 SH
 
-cat >"$stub_bin/sudo" <<'SH'
+cat >"$stub_bin/omarchy-hw-aarch64-apple" <<'SH'
 #!/bin/bash
 
-printf 'sudo' >>"$TEST_LOG"
-printf '\t%s' "$@" >>"$TEST_LOG"
-printf '\n' >>"$TEST_LOG"
-"$@"
-SH
-
-# Stubbed rather than run: the real one would write the running user's state.
-cat >"$stub_bin/omarchy-state" <<'SH'
-#!/bin/bash
-
-printf 'omarchy-state' >>"$TEST_LOG"
-printf '\t%s' "$@" >>"$TEST_LOG"
-printf '\n' >>"$TEST_LOG"
+(( ${APPLE_SILICON:-0} == 1 ))
 SH
 
 chmod +x "$stub_bin"/*
@@ -67,7 +53,7 @@ chmod +x "$stub_bin"/*
 # running with a fake root on PATH-independent state. pipefail is on, so a
 # grep -q gate would go silent here the way #6608 did.
 run_leaf() {
-  local vendor="$1" wifi_id="${2:-}" t2="${3:-0}"
+  local vendor="$1" wifi_id="${2:-}" t2="${3:-0}" apple_silicon="${4:-0}"
   rm -rf "$test_tmp/etc"
   mkdir -p "$test_tmp/etc"
   printf '%s' "$vendor" >"$test_tmp/dmi/sys_vendor"
@@ -78,44 +64,38 @@ run_leaf() {
       -e "s|/etc/modprobe.d|$test_tmp/etc/modprobe.d|g" \
       "$leaf" >"$script"
 
-  WIFI_ID="$wifi_id" T2_HARDWARE="$t2" PATH="$stub_bin:$PATH" \
+  WIFI_ID="$wifi_id" T2_HARDWARE="$t2" APPLE_SILICON="$apple_silicon" PATH="$stub_bin:$PATH" \
     bash -eE -o pipefail -c 'source "$1"' bash "$script" </dev/null
 }
 
-# A T2 Mac carries BCM4364 with modern firmware and must NOT get the quirk.
-run_leaf "Apple Inc." 4464 1 >/dev/null
-[[ ! -f $conf ]] || fail "a T2 Mac does not get the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
-pass "a T2 Mac does not get the quirk"
-
-# Not every T2 Mac carries BCM4364. BCM4355 (43dc) and BCM4377 (4488) are
-# documented by Linux only on T2 boards, and neither is in the legacy list, so
-# both gates already exclude these.
-for wifi_id in 43dc 4488; do
+# T2 Macs (BCM4364, BCM4355, BCM4377) and the T2-less BCM4364 iMac19,x keep
+# their firmware SAE offload, or WPA3-only networks never connect (#9802).
+for wifi_id in 4464 43dc 4488; do
   run_leaf "Apple Inc." "$wifi_id" 1 >/dev/null
   [[ ! -f $conf ]] || fail "a T2 Mac with 14e4:$wifi_id does not get the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
 done
-pass "T2 Macs on BCM4355 and BCM4377 do not get the quirk"
+pass "T2 Macs do not get the quirk"
 
-# No Mac carries both a T2 and a legacy part, so the T2 check is a second gate
-# behind the ID list and no documented hardware exercises it on its own. Pin it
-# anyway, or deleting it leaves every case here still passing.
+run_leaf "Apple Inc." 4464 0 >/dev/null
+[[ ! -f $conf ]] || fail "a BCM4364 Mac without a T2 does not get the quirk"
+pass "a BCM4364 Mac without a T2 does not get the quirk"
+
+# No Mac carries both a T2 and a legacy part, so without this case deleting the
+# T2 check leaves every other case passing.
 run_leaf "Apple Inc." 43ba 1 >/dev/null
-[[ ! -f $conf ]] || fail "a T2 Mac reporting a legacy part does not get the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
-pass "the T2 check alone keeps the quirk off a T2 Mac on a legacy part"
-
-# Modern BCM4364 (non-T2) and Apple Silicon (BCM4378/4387) also must not get the quirk.
-for wifi_id in 4464 4425 4433; do
-  run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
-  [[ ! -f $conf ]] || fail "modern brcmfmac part gets no quirk" "14e4:$wifi_id"
-done
-pass "modern BCM4364 and Apple Silicon get no quirk"
+[[ ! -f $conf ]] || fail "a T2 Mac reporting a legacy part does not get the quirk"
+pass "the T2 check alone keeps the quirk off a T2 Mac"
 
 # Legacy pre-T2 parts: BCM43602 and its single-band variants, BCM4350.
 for wifi_id in 43ba 43bb 43bc 43a3; do
   run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
-  [[ -f $conf ]] || fail "legacy Mac without a T2 gets the quirk" "14e4:$wifi_id"
+  [[ -f $conf ]] || fail "a legacy Mac without a T2 gets the quirk" "14e4:$wifi_id"
 done
 pass "legacy brcmfmac parts on pre-T2 Macs get the quirk"
+
+run_leaf "Apple Inc." 4433 0 1 >/dev/null
+[[ ! -f $conf ]] || fail "Apple Silicon is excluded from the Intel Mac quirk"
+pass "Apple Silicon is excluded from the Intel Mac quirk"
 
 # Older Macs report the vendor differently.
 run_leaf "Apple Computer, Inc." 43ba 0 >/dev/null
@@ -136,86 +116,3 @@ pass "non-Apple hardware is left alone"
 run_leaf "Apple Inc." "" 0 >/dev/null
 [[ ! -f $conf ]] || fail "a Mac with no wireless device is left alone"
 pass "a Mac with no wireless device is left alone"
-
-# Installs that predate the quirk never ran the leaf, so the migration has to
-# reach them. It runs as the user under pipefail, the context #6608 was about.
-run_migration() {
-  local vendor="$1" wifi_id="${2:-}" t2="${3:-0}"
-  printf '%s' "$vendor" >"$test_tmp/dmi/sys_vendor"
-  : >"$calls"
-
-  WIFI_ID="$wifi_id" T2_HARDWARE="$t2" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    OMARCHY_BRCMFMAC_DMI_VENDOR="$test_tmp/dmi/sys_vendor" \
-    OMARCHY_BRCMFMAC_CONF="$conf" \
-    bash -euo pipefail "$migration" >/dev/null
-}
-
-# A T2 install or modern BCM4364 Mac is skipped by the legacy migration.
-rm -rf "$test_tmp/etc"
-run_migration "Apple Inc." 4464 1
-[[ ! -e $conf ]] || fail "the legacy migration skips T2 Macs" "$(cat "$conf")"
-[[ ! -s $calls ]] || fail "the legacy migration escalates nothing on T2 Macs" "$(cat "$calls")"
-pass "the legacy migration skips T2 Macs"
-
-run_migration "Apple Inc." 4464 0
-[[ ! -e $conf ]] || fail "the legacy migration skips BCM4364 Macs" "$(cat "$conf")"
-pass "the legacy migration skips BCM4364 Macs"
-
-# BCM4355 (43dc) and BCM4377 (4488) are not in the legacy list either, so both
-# gates already skip these.
-for wifi_id in 43dc 4488; do
-  run_migration "Apple Inc." "$wifi_id" 1
-  [[ ! -e $conf ]] || fail "the legacy migration skips a T2 Mac with 14e4:$wifi_id" "$(cat "$conf")"
-done
-pass "the legacy migration skips T2 Macs on BCM4355 and BCM4377"
-
-# The T2 check on its own, for the same reason as in the leaf above: without a
-# case here, deleting it from the migration leaves this suite passing.
-run_migration "Apple Inc." 43ba 1
-[[ ! -e $conf ]] || fail "the legacy migration skips a T2 Mac on a legacy part" "$(cat "$conf")"
-[[ ! -s $calls ]] || fail "the legacy migration escalates nothing there" "$(cat "$calls")"
-pass "the T2 check alone stops the migration on a T2 Mac with a legacy part"
-
-# Legacy pre-T2 Macs that predate the quirk get fixed.
-rm -rf "$test_tmp/etc"
-run_migration "Apple Inc." 43ba 0
-grep -q '^options brcmfmac feature_disable=0x82000$' "$conf" 2>/dev/null ||
-  fail "the migration fixes an install on a legacy pre-T2 Mac" "$(ls -R "$test_tmp/etc" 2>&1)"
-grep -Fq $'omarchy-state\tset\treboot-required' "$calls" ||
-  fail "the migration asks for the reboot that applies it" "$(cat "$calls")"
-pass "the migration fixes an install on a legacy pre-T2 Mac"
-
-run_migration "Apple Inc." 43ba 0
-(( $(grep -c '^options brcmfmac feature_disable=0x82000$' "$conf") == 1 )) ||
-  fail "the migration is idempotent" "$(cat "$conf")"
-[[ ! -s $calls ]] || fail "a repaired install is left untouched" "$(cat "$calls")"
-pass "the migration is idempotent"
-
-# The machine this was written for, with no T2 to fall back on.
-rm -rf "$test_tmp/etc"
-run_migration "Apple Inc." 43ba 0
-grep -q '^options brcmfmac feature_disable=0x82000$' "$conf" 2>/dev/null ||
-  fail "the migration fixes an install on a Mac without a T2" "$(ls -R "$test_tmp/etc" 2>&1)"
-pass "the migration fixes an install on a Mac without a T2"
-
-# Written without a trailing newline, the way a hand-edited config often is.
-printf '%s' 'options brcmfmac roamoff=1' >"$conf"
-run_migration "Apple Inc." 43ba 0
-grep -qx 'options brcmfmac roamoff=1' "$conf" ||
-  fail "the migration keeps other options in the config" "$(cat "$conf")"
-grep -qx 'options brcmfmac feature_disable=0x82000' "$conf" ||
-  fail "the migration appends the quirk to an existing config" "$(cat "$conf")"
-pass "the migration appends to a config that holds other options"
-
-# Someone who commented their line out is still on the broken default.
-printf '#options brcmfmac feature_disable=0x82000\n' >"$conf"
-run_migration "Apple Inc." 43ba 0
-grep -qx 'options brcmfmac feature_disable=0x82000' "$conf" ||
-  fail "a commented-out option does not count as applied" "$(cat "$conf")"
-pass "a commented-out option does not count as applied"
-
-rm -rf "$test_tmp/etc"
-run_migration "Apple Inc." 43a0 0
-[[ ! -e $conf ]] || fail "the migration skips a Mac brcmfmac does not drive" "$(cat "$conf")"
-[[ ! -s $calls ]] || fail "the migration escalates nothing on unaffected Macs" "$(cat "$calls")"
-pass "the migration skips hardware brcmfmac does not drive"

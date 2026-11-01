@@ -10,6 +10,7 @@ sync_clamshell() {
   (
     flock -n 9 || exit 0
     omarchy-hyprland-monitor-clamshell
+    omarchy-system-lid-inhibit
   ) 9>"$LOCK"
 }
 
