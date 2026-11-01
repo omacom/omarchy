@@ -56,9 +56,11 @@ Panel {
   //   "mirror"     - Extend or Mirror, when there's a built-in display and an
   //                  external one to mirror it on.
   //   "layout"     - the arrangement of the displays; h/l moves the shown one
-  //                  to the left or right of the rest.
+  //                  to the left or right of the rest, ctrl+j/k above or
+  //                  below them.
   // Every section is one row: j/k steps between them, h/l moves a slider or
-  // walks a row of pills, identical to bluetooth's header.
+  // walks a row of pills, identical to bluetooth's header. r opens the shown
+  // display's rotate menu from anywhere, which j/k and Enter then walk.
   // Mouse hover on a target updates root state via the components' `hovered`
   // signal so keyboard cursor and pointer share one highlight.
   readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
@@ -487,6 +489,8 @@ Panel {
   // The layout map's right-click menu: the display it's for, where it opened
   // within the panel, and that display's quarter turn now.
   property string rotateMenuName: ""
+  // The keyboard's row in the rotate menu, a quarter turn each.
+  property int rotateMenuIndex: 0
   property real rotateMenuX: 0
   property real rotateMenuY: 0
   readonly property int rotateMenuTransform: {
@@ -501,6 +505,25 @@ Panel {
     rotateMenuName = name
     rotateMenuX = spot.x
     rotateMenuY = spot.y
+    rotateMenuIndex = rotateMenuTransform % 4
+  }
+
+  // r: the shown display's rotate menu, opened over the middle of the map.
+  function openRotateMenuForShown() {
+    var map = panel.loadedContent ? panel.loadedContent.layoutMap : null
+    if (!current || !map || !map.visible) return
+    openRotateMenu(current.name, map, map.width / 2, map.height / 2)
+  }
+
+  function applyRotateMenu() {
+    setRotation(rotateMenuName, rotateMenuIndex * 90)
+    closeRotateMenu()
+  }
+
+  // ctrl+j/k on the layout: the shown display above or below the rest.
+  function moveLayoutVertical(dy) {
+    if (!current || !layoutMovable) return
+    applyLayout(Model.placeDisplay(layoutRects, current.name, dy < 0 ? "above" : "below"), current.name)
   }
 
   function closeRotateMenu() {
@@ -745,14 +768,28 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias scrollArea: scrollArea
+      property alias layoutMap: layoutMap
+      reorderable: root.rotateMenuName === "" && root.cursorActive && root.focusSection === "layout"
+      onReorderRequested: function(dy) { root.moveLayoutVertical(dy) }
+      onTextKey: function(t) {
+        if ((t === "r" || t === "R") && root.rotateMenuName === "") root.openRotateMenuForShown()
+      }
       implicitHeight: panelColumn.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
+        // An open rotate menu takes j/k.
+        if (root.rotateMenuName !== "") {
+          if (dy !== 0) root.rotateMenuIndex = Math.max(0, Math.min(3, root.rotateMenuIndex + dy))
+          return
+        }
         if (!root.cursorActive) { root.cursorActive = true; return }
         if (dy !== 0) root.moveCursor(dy)
         else if (dx !== 0) root.moveCursorH(dx)
       }
-      onActivateRequested: if (root.cursorActive) root.activateCursor()
+      onActivateRequested: {
+        if (root.rotateMenuName !== "") root.applyRotateMenu()
+        else if (root.cursorActive) root.activateCursor()
+      }
       // Esc closes the rotate menu first, then the panel.
       onCloseRequested: {
         if (root.rotateMenuName !== "") root.closeRotateMenu()
@@ -1297,9 +1334,13 @@ Panel {
 
             delegate: PopupMenuRow {
               required property var modelData
+              required property int index
 
               text: modelData[1]
               checked: root.rotateMenuTransform === modelData[0] / 90
+              // Hover and the keyboard share one lit row.
+              highlighted: root.rotateMenuIndex === index
+              HoverHandler { onHoveredChanged: if (hovered) root.rotateMenuIndex = index }
               onTriggered: {
                 root.setRotation(root.rotateMenuName, modelData[0])
                 root.closeRotateMenu()
