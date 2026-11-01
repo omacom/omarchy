@@ -22,6 +22,7 @@
 
 FULLSCREEN_MARKER="${XDG_RUNTIME_DIR:-/tmp}/omarchy-capture-region-fullscreen"
 WINDOW_MARKER="${XDG_RUNTIME_DIR:-/tmp}/omarchy-capture-region-window"
+PICKER_ENV="OMARCHY_CAPTURE_REGION_PICKER=1"
 
 # accounting for portrait/transformed displays
 JQ_MONITOR_GEO='
@@ -131,27 +132,48 @@ geo_at_cursor() {
   fi
 }
 
+# Only slurp processes launched by this command carry the picker marker. Other
+# Omarchy features and third-party tools also use slurp, so process name alone
+# is not enough to decide which picker these keyboard controls belong to.
+capture_region_picker_pids() {
+  local pid variable
+
+  while IFS= read -r pid; do
+    [[ $pid =~ ^[0-9]+$ && -r /proc/$pid/environ ]] || continue
+
+    while IFS= read -r -d '' variable; do
+      if [[ $variable == "$PICKER_ENV" ]]; then
+        printf '%s\n' "$pid"
+        break
+      fi
+    done <"/proc/$pid/environ" 2>/dev/null
+  done < <(pgrep -x slurp)
+}
+
 # Keyboard control while slurp is open: binds scoped to slurp's layer
 # surface (default/hypr/bindings/utilities.lua) invoke these modes. The
 # --take-* modes flag the intent with a marker file and dismiss slurp.
 if [[ ${1:-} == "--take-fullscreen" ]]; then
-  pgrep -x slurp >/dev/null || exit 0
+  mapfile -t picker_pids < <(capture_region_picker_pids)
+  (( ${#picker_pids[@]} > 0 )) || exit 0
   touch "$FULLSCREEN_MARKER"
-  pkill -x slurp
+  kill "${picker_pids[@]}" 2>/dev/null
   exit 0
 fi
 
 if [[ ${1:-} == "--take-window" ]]; then
-  pgrep -x slurp >/dev/null || exit 0
+  mapfile -t picker_pids < <(capture_region_picker_pids)
+  (( ${#picker_pids[@]} > 0 )) || exit 0
   touch "$WINDOW_MARKER"
-  pkill -x slurp
+  kill "${picker_pids[@]}" 2>/dev/null
   exit 0
 fi
 
 # Warps the cursor to another window's center, so slurp's own hover
 # highlight tracks the selection.
 if [[ ${1:-} == "--select-window" ]]; then
-  pgrep -x slurp >/dev/null || exit 0
+  mapfile -t picker_pids < <(capture_region_picker_pids)
+  (( ${#picker_pids[@]} > 0 )) || exit 0
 
   direction=${2:-}
   pos=$(hyprctl cursorpos)
@@ -289,7 +311,7 @@ done
 pick() {
   local selection
   rm -f "$FULLSCREEN_MARKER" "$WINDOW_MARKER"
-  selection=$(slurp "$@" 2>/dev/null)
+  selection=$(OMARCHY_CAPTURE_REGION_PICKER=1 slurp "$@" 2>/dev/null)
 
   if [[ -z $selection && -e $FULLSCREEN_MARKER ]]; then
     rm -f "$FULLSCREEN_MARKER"
