@@ -1,28 +1,9 @@
-#!/bin/bash -p
+#!/bin/bash
 
 # omarchy:summary=Overwrite the package configuration for /etc/pacman with the Omarchy default of using its dedicated mirrors and repositories, then update all packages.
 # omarchy:requires-sudo=true
 
-if [[ $- != *p* ]]; then
-  echo "Refusing an unsafe Bash startup." >&2
-  exit 126
-fi
-
-security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
-source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
-omarchy_security_require_privileged_bash_startup || exit 126
 set -e
-omarchy_security_sanitize_bash_environment "$0" "$@"
-omarchy_security_require_source_root "$0"
-# Channel switching calls this behind its own sanitized PATH and hands the
-# caller's original path over the same way the updater receives it.
-user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
-unset OMARCHY_UPDATE_USER_PATH
-# Traps first, so a signal or failure during the entry revocation still
-# exits through the cleanup path.
-omarchy_security_install_sudo_cleanup_traps
-omarchy_security_revoke_sudo_timestamp || exit 1
-omarchy_security_enable_no_update_sudo
 
 channel="${1:-}"
 if [[ -n $channel && $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
@@ -56,15 +37,9 @@ fi
 
 # Render the channel templates plus this machine's regional additions as the
 # caller, so root only copies finished files. The scratch directory goes on
-# every exit, including a failed render, a refused sudo prompt, or a signal;
-# revoking the sudo timestamp stays the last thing the exit path does.
+# every exit, including a failed render, a refused sudo prompt, or a signal.
 rendered=$(mktemp -d)
-cleanup_refresh() {
-  local status=$?
-  rm -rf "$rendered"
-  omarchy_security_exit_with_revoked_sudo "$status"
-}
-trap cleanup_refresh EXIT
+trap 'rm -rf "$rendered"' EXIT
 "$OMARCHY_PATH/bin/omarchy-apply-pacman" --render "$channel" "$rendered"
 
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
@@ -76,20 +51,14 @@ rm -rf "$rendered"
 
 # Allow user customization of /etc/pacman.conf before the upgrade runs, so
 # custom repositories and IgnorePkg entries shape the downgrade-capable
-# transaction below. The hook is user code: it runs cold behind the no-update
-# wrapper, and the timestamp is revoked again afterwards so any authorization
-# the hook obtained for itself cannot carry into the transaction.
-omarchy_security_revoke_sudo_timestamp
-PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
-  "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
-omarchy_security_revoke_sudo_timestamp
+# transaction below.
+omarchy-hook pre-refresh-pacman
 
 # Stable and rc publish omarchy and omarchy-settings; the -dev pair is edge's.
 # A stable or rc repository can still list an old -dev build (stable's listed
 # 4.0.0.r1832 from August to October 2026), and -uu would move an edge machine
-# onto it here, before omarchy-channel-set swaps the pair. That build predates
-# command-scoped sudo, so the switch would stop short of its swap and leave the
-# machine there. The -dev pair is left to the swap.
+# onto it here, before omarchy-channel-set swaps the pair, and leave the
+# machine on that old build. The -dev pair is left to the swap.
 ignore=()
 if [[ $channel == "stable" || $channel == "rc" ]]; then
   ignore=(--ignore omarchy-dev,omarchy-settings-dev)
