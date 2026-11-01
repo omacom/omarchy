@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.wifi-hotspot-on": {
+    "label": "Wi-Fi Hotspot On"
+  },
+  "trigger.toggle.wifi-hotspot-off": {
+    "label": "Wi-Fi Hotspot Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
@@ -485,6 +491,9 @@
   },
   "setup.network.qr": {
     "label": "QR Code"
+  },
+  "setup.network.hotspot": {
+    "label": "Hotspot"
   },
   "setup.default": {
     "label": "Defaults"

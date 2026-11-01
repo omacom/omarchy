@@ -1,0 +1,843 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+TEST_TMP=$(mktemp -d)
+trap 'rm -rf "$TEST_TMP"' EXIT
+export OMARCHY_HOTSPOT_LOCK_FILE="$TEST_TMP/hotspot.lock"
+STUB_BIN="$TEST_TMP/bin"
+mkdir -p "$STUB_BIN"
+
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "phy" && -n ${2:-} && ${3:-} != "info" ]]; then
+  printf '%s\n' 'Usage:	iw [options] command'
+  exit 0
+fi
+if [[ ${1:-} == "dev" ]]; then
+  printf '%s\n' "Interface ${2:-}" '  type managed' '  wiphy 0'
+  exit 0
+fi
+if [[ ${1:-} == "phy" ]]; then
+  printf '%s\n' 'Wiphy phy0' '    * AP'
+  exit 0
+fi
+exit 0
+STUB
+
+cat >"$STUB_BIN/nmcli" <<'STUB'
+#!/bin/bash
+case "$*" in
+  '-t -f DEVICE,TYPE device status') printf '%s\n' 'wlan1:wifi' ;;
+  '-e no -g NAME connection show') printf '%s\n' 'omarchy-hotspot' ;;
+  '-e no -g GENERAL.DEVICE connection show omarchy-hotspot') printf '%s\n' 'wlan1' ;;
+  '-e no -g 802-11-wireless.ssid connection show omarchy-hotspot') printf '%s\n' 'Saved Hotspot' ;;
+  '-e no -g 802-11-wireless.band connection show omarchy-hotspot') printf '%s\n' 'bg' ;;
+  '-e no -g ipv4.shared-dhcp-range connection show omarchy-hotspot') printf '%s\n' "${SHARED_RANGE:-}" ;;
+  '-e no -g ipv4.addresses connection show omarchy-hotspot') printf '%s\n' "${SHARED_ADDRESS:-10.42.0.1/24}" ;;
+  '--show-secrets --escape no --get-values 802-11-wireless-security.psk connection show omarchy-hotspot') printf '%s\n' 'savedpassword' ;;
+  '-e no -g connection.metered connection show omarchy-hotspot') printf '%s\n' 'yes' ;;
+  '-e no -g 802-11-wireless-security.key-mgmt connection show omarchy-hotspot') printf '%s\n' 'sae' ;;
+  *) exit 1 ;;
+esac
+STUB
+
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+printf '%s\n' 'RTNETLINK answers: Network is unreachable' >&2
+exit 2
+STUB
+
+chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli" "$STUB_BIN/ip"
+
+UPSTREAM_FUNCTION="$TEST_TMP/upstream-type.sh"
+in_function=0
+while IFS= read -r line; do
+  if [[ $line == "upstream_type() {" ]]; then
+    in_function=1
+  fi
+  if (( in_function )); then
+    printf '%s\n' "$line" >>"$UPSTREAM_FUNCTION"
+    [[ $line != "}" ]] || break
+  fi
+done <"$ROOT/bin/omarchy-hotspot"
+printf '%s\n' 'upstream_type' >>"$UPSTREAM_FUNCTION"
+
+set +e
+PATH="$STUB_BIN:$PATH" bash -euo pipefail "$UPSTREAM_FUNCTION" >"$TEST_TMP/upstream.out" 2>"$TEST_TMP/upstream.err"
+upstream_status=$?
+set -e
+(( upstream_status == 0 )) || fail "upstream_type handles a missing default route under errexit" "exit: $upstream_status
+stderr: $(<"$TEST_TMP/upstream.err")"
+[[ $(<"$TEST_TMP/upstream.out") == "none" ]] || fail "upstream_type returns none for a missing default route" "$(<"$TEST_TMP/upstream.out")"
+pass "upstream_type survives a missing default route under errexit"
+
+set +e
+PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/status.out" 2>"$TEST_TMP/status.err"
+status=$?
+set -e
+
+(( status == 0 )) || fail "no-route status exits successfully" "exit: $status
+stderr: $(<"$TEST_TMP/status.err")"
+
+declare -A values=()
+declare -A seen=()
+expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients upstream save_data security)
+index=0
+while IFS=$'\t' read -r key value; do
+  [[ -n $key ]] || continue
+  (( index < ${#expected[@]} )) || fail "no-route status preserves protocol order" "unexpected key after index $index: $key"
+  [[ $key == "${expected[$index]}" ]] || fail "no-route status preserves protocol order" "expected ${expected[$index]}, got $key"
+  values[$key]=$value
+  seen[$key]=1
+  (( index += 1 ))
+done <"$TEST_TMP/status.out"
+(( index == ${#expected[@]} )) || fail "no-route status emits the complete protocol" "emitted $index of ${#expected[@]} keys"
+[[ -z $(<"$TEST_TMP/status.err") ]] || fail "no-route status keeps stderr empty" "$(<"$TEST_TMP/status.err")"
+(( seen[ap_capable] == 1 )) || fail "no-route status reports AP capability"
+(( seen[ap_bands] == 1 )) || fail "no-route status reports AP bands"
+(( seen[active] == 1 )) || fail "no-route status reports activity"
+(( seen[configured] == 1 )) || fail "no-route status reports configuration"
+(( seen[iface] == 1 )) || fail "no-route status reports the interface"
+(( seen[ssid] == 1 )) || fail "no-route status reports the SSID"
+(( seen[band] == 1 )) || fail "no-route status reports the band"
+(( seen[password] == 1 )) || fail "no-route status reports the saved password"
+(( seen[freq] == 1 )) || fail "no-route status reports frequency"
+(( seen[ip] == 1 )) || fail "no-route status reports IP"
+(( seen[client_count] == 1 )) || fail "no-route status reports client count"
+(( seen[clients] == 1 )) || fail "no-route status reports clients"
+(( seen[max_clients] == 1 )) || fail "no-route status reports the participant limit"
+(( seen[upstream] == 1 )) || fail "no-route status reports upstream"
+[[ ${values[upstream]} == "none" ]] || fail "no-route status reports upstream none" "${values[upstream]}"
+[[ ${values[save_data]} == "always" ]] || fail "status reads the save-data choice from connection.metered" "${values[save_data]}"
+[[ ${values[security]} == "wpa3" ]] || fail "status reads WPA3 from an SAE profile" "${values[security]}"
+[[ ${values[ap_capable]} == "1" ]] || fail "no-route status remains AP-capable" "${values[ap_capable]}"
+[[ ${values[active]} == "0" ]] || fail "no-route status remains inactive" "${values[active]}"
+[[ ${values[configured]} == "1" ]] || fail "no-route status remains configured" "${values[configured]}"
+[[ ${values[iface]} == "wlan1" ]] || fail "no-route status preserves the profile interface" "${values[iface]}"
+[[ ${values[ssid]} == "Saved Hotspot" ]] || fail "no-route status preserves the profile SSID" "${values[ssid]}"
+[[ ${values[band]} == "2.4" ]] || fail "no-route status preserves the profile band" "${values[band]}"
+[[ ${values[password]} == "savedpassword" ]] || fail "no-route status preserves the profile password" "${values[password]}"
+
+pass "no-route status returns a complete upstream=none response"
+
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "phy" && -n ${2:-} && ${3:-} != "info" ]]; then
+  printf '%s\n' 'Usage:	iw [options] command'
+  exit 0
+fi
+if [[ ${1:-} == "dev" ]]; then
+  case ${2:-} in
+    wlan0) printf '%s\n' 'Interface wlan0' '  type managed' '  wiphy 0' ;;
+    wlan1) printf '%s\n' 'Interface wlan1' '  type managed' '  wiphy 1' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+if [[ ${1:-} == "phy" ]]; then
+  case ${2:-} in
+    phy0)
+      printf '%s\n' 'Wiphy phy0' '  Band 1:' '  Band 2:' '    * AP'
+      ;;
+    phy1)
+      printf '%s\n' 'Wiphy phy1' '  Band 3:' '    * AP'
+      ;;
+    '')
+      printf '%s\n' 'Wiphy phy0' '  Band 1:' '  Band 2:' '    * AP' 'Wiphy phy1' '  Band 3:' '    * AP'
+      ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+exit 1
+STUB
+
+cat >"$STUB_BIN/nmcli" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$NMCLI_LOG"
+if [[ ${1:-} == "-t" && ${2:-} == "-f" && ${3:-} == "DEVICE,TYPE" ]]; then
+  printf '%s\n' 'p2p-dev-wlan9:wifi' 'wlan0:wifi' 'wlan1:wifi'
+  exit 0
+fi
+if [[ ${1:-} == "--show-secrets" ]]; then
+  if [[ -e $PROFILE_STATE ]]; then
+    printf '%s\n' 'savedpassword'
+  fi
+  exit 0
+fi
+case "$*" in
+  '-e no -g NAME connection show')
+    [[ -e $PROFILE_STATE ]] && printf '%s\n' 'omarchy-hotspot'
+    ;;
+  '-t -f NAME connection show --active')
+    [[ ${HOTSPOT_ACTIVE:-0} == 1 ]] && printf '%s\n' 'omarchy-hotspot'
+    ;;
+  '-e no -g GENERAL.DEVICE connection show omarchy-hotspot')
+    [[ -n ${GENERAL_DEVICE:-} ]] && printf '%s\n' "$GENERAL_DEVICE"
+    ;;
+  '-e no -g connection.interface-name connection show omarchy-hotspot')
+    [[ -e $PROFILE_STATE ]] && printf '%s\n' "${SAVED_INTERFACE:-wlan0}"
+    ;;
+  '-e no -g 802-11-wireless.ssid connection show omarchy-hotspot')
+    [[ -e $PROFILE_STATE ]] && printf '%s\n' 'Shared Hotspot'
+    ;;
+  '-e no -g 802-11-wireless.band connection show omarchy-hotspot')
+    [[ -e $PROFILE_STATE ]] && printf '%s\n' 'bg'
+    ;;
+  '-e no -g ipv4.shared-dhcp-range connection show omarchy-hotspot')
+    printf '%s\n' "${SHARED_RANGE:-}"
+    ;;
+  '-e no -g ipv4.addresses connection show omarchy-hotspot')
+    printf '%s\n' "${SHARED_ADDRESS:-10.42.0.1/24}"
+    ;;
+  'connection add type wifi ifname wlan0 con-name omarchy-hotspot ssid Shared mode ap 802-11-wireless.band a 802-11-wireless.channel 36 wifi-sec.key-mgmt wpa-psk ipv4.method shared ipv4.addresses 10.42.0.1/24 autoconnect no') touch "$PROFILE_STATE" ;;
+  'connection edit omarchy-hotspot')
+    while IFS= read -r line; do
+      :
+    done
+    ;;
+esac
+exit 0
+STUB
+
+chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli"
+
+NMCLI_LOG="$TEST_TMP/nmcli.log"
+PROFILE_STATE="$TEST_TMP/profile"
+SAVED_INTERFACE=wlan0
+GENERAL_DEVICE=
+export NMCLI_LOG PROFILE_STATE SAVED_INTERFACE GENERAL_DEVICE
+PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/radio-status.out" 2>"$TEST_TMP/radio-status.err"
+
+declare -A radio_status=()
+while IFS=$'\t' read -r key value; do
+  [[ -n $key ]] || continue
+  radio_status[$key]=$value
+done <"$TEST_TMP/radio-status.out"
+[[ ${radio_status[iface]} == "wlan0" ]] || fail "multi-radio status selects the first Wi-Fi interface" "${radio_status[iface]}"
+[[ ${radio_status[ap_capable]} == "1" ]] || fail "selected radio reports its own AP capability" "${radio_status[ap_capable]}"
+[[ ${radio_status[ap_bands]} == "2.4,5" ]] || fail "status bands stay scoped to the selected PHY" "${radio_status[ap_bands]}"
+[[ ${radio_status[ap_bands]} != *"6"* ]] || fail "status does not aggregate bands from another PHY" "${radio_status[ap_bands]}"
+pass "status derives capability and bands from one selected PHY"
+
+# apply takes the hotspot lock, and a root process ignores the test lock
+# override, so these would contend with the host lock under sudo.
+if (( EUID != 0 )); then
+  set +e
+  printf '%s\n' savedpassword | PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" apply Shared 6 >"$TEST_TMP/band6.out" 2>"$TEST_TMP/band6.err"
+  band6_status=$?
+  set -e
+  (( band6_status != 0 )) || fail "band validation rejects another radio's 6 GHz band"
+  [[ $(<"$TEST_TMP/band6.err") == *"band '6' is not available"* ]] || fail "band validation identifies the unsupported selected-radio band" "$(<"$TEST_TMP/band6.err")"
+  [[ ! -e $PROFILE_STATE ]] || fail "rejected band does not create a profile"
+  pass "band validation uses the selected radio"
+
+  printf '%s\n' savedpassword | PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" apply Shared 5 >"$TEST_TMP/band5.out" 2>"$TEST_TMP/band5.err"
+  printf '%s\n' savedpassword | PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" apply Shared 2.4 >"$TEST_TMP/reuse.out" 2>"$TEST_TMP/reuse.err"
+
+  add_bound=0
+  modify_bound=0
+  band_channel_split=0
+  while IFS= read -r call; do
+    if [[ $call == 'connection add type wifi ifname wlan0 '* ]]; then
+      add_bound=1
+    fi
+    if [[ $call == 'connection modify omarchy-hotspot ssid Shared '* && $call == *' connection.interface-name wlan0' ]]; then
+      modify_bound=1
+      # The reuse applies 2.4 GHz to a profile saved on 5 GHz; its channel and
+      # width have to change in the same call or NM rejects bg with a 5 GHz
+      # channel or an 80 MHz width.
+      [[ $call == *' 802-11-wireless.band bg 802-11-wireless.channel 6 802-11-wireless.channel-width auto '* ]] || band_channel_split=1
+    fi
+    [[ $call != 'connection modify omarchy-hotspot 802-11-wireless.channel '* ]] || band_channel_split=1
+  done <"$NMCLI_LOG"
+  (( add_bound == 1 )) || fail "new profile binds to the selected Wi-Fi interface"
+  (( modify_bound == 1 )) || fail "existing profile is rebound to the selected Wi-Fi interface"
+  (( band_channel_split == 0 )) || fail "band, channel and width are saved in one NetworkManager call" "$(<"$NMCLI_LOG")"
+  nmcli_log=$(<"$NMCLI_LOG")
+  [[ $nmcli_log != *"ifname p2p-dev-wlan9"* && $nmcli_log != *"connection.interface-name p2p-dev-wlan9"* ]] || fail "Wi-Fi selection never falls back to a P2P device"
+  pass "NM profile create and reuse follow the selected Wi-Fi interface"
+  # The PSK reaches nmcli on stdin only: argv shows in ps to every user.
+  [[ $nmcli_log != *savedpassword* ]] || fail "the hotspot PSK never appears on nmcli's argv" "$nmcli_log"
+  pass "the hotspot PSK never appears on nmcli's argv"
+else
+  skip "running as root; apply would take the host hotspot lock"
+  # Stand in for the profile apply would have saved; later tests read it.
+  touch "$PROFILE_STATE"
+fi
+
+SAVED_INTERFACE=wlan9 GENERAL_DEVICE= PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/healed-status.out" 2>"$TEST_TMP/healed-status.err"
+declare -A healed_status=()
+while IFS=$'\t' read -r key value; do
+  [[ -n $key ]] || continue
+  healed_status[$key]=$value
+done <"$TEST_TMP/healed-status.out"
+[[ ${healed_status[iface]} == "wlan0" ]] || fail "stale profile interface heals to a present AP-capable Wi-Fi device" "${healed_status[iface]}"
+[[ ${healed_status[ap_capable]} == "1" ]] || fail "healed interface retains AP capability" "${healed_status[ap_capable]}"
+pass "stale profile interface heals to a present AP-capable Wi-Fi device"
+
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "phy" && -n ${2:-} && ${3:-} != "info" ]]; then
+  printf '%s\n' 'Usage:	iw [options] command'
+  exit 0
+fi
+exit 1
+STUB
+chmod +x "$STUB_BIN/iw"
+
+set +e
+SAVED_INTERFACE=wlan0 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/missing-phy-status.out" 2>"$TEST_TMP/missing-phy-status.err"
+missing_phy_status=$?
+set -e
+(( missing_phy_status == 0 )) || fail "missing PHY information still exits successfully" "exit: $missing_phy_status
+stderr: $(<"$TEST_TMP/missing-phy-status.err")"
+[[ -z $(<"$TEST_TMP/missing-phy-status.err") ]] || fail "missing PHY status keeps stderr empty" "$(<"$TEST_TMP/missing-phy-status.err")"
+
+declare -A missing_phy=()
+missing_phy_index=0
+while IFS=$'\t' read -r key value; do
+  [[ -n $key ]] || continue
+  (( missing_phy_index < ${#expected[@]} )) || fail "missing PHY status preserves protocol order" "unexpected key after index $missing_phy_index: $key"
+  [[ $key == "${expected[$missing_phy_index]}" ]] || fail "missing PHY status preserves protocol order" "expected ${expected[$missing_phy_index]}, got $key"
+  missing_phy[$key]=$value
+  (( missing_phy_index += 1 ))
+done <"$TEST_TMP/missing-phy-status.out"
+(( missing_phy_index == ${#expected[@]} )) || fail "missing PHY status emits the complete protocol" "emitted $missing_phy_index of ${#expected[@]} keys"
+[[ ${missing_phy[iface]} == "wlan0" ]] || fail "missing PHY status still names the interface" "${missing_phy[iface]}"
+[[ ${missing_phy[ap_capable]} == "0" ]] || fail "missing PHY status never claims AP capability" "${missing_phy[ap_capable]}"
+[[ ${missing_phy[ap_bands]} == "" ]] || fail "missing PHY status claims no bands" "${missing_phy[ap_bands]}"
+[[ ${missing_phy[active]} == "0" ]] || fail "missing PHY status never claims an active AP" "${missing_phy[active]}"
+[[ ${missing_phy[configured]} == "1" ]] || fail "missing PHY status still reports the configured profile" "${missing_phy[configured]}"
+[[ ${missing_phy[clients]} == "[]" ]] || fail "missing PHY status reports an empty client list" "${missing_phy[clients]}"
+[[ ${missing_phy[client_count]} == "0" ]] || fail "missing PHY status reports no clients" "${missing_phy[client_count]}"
+[[ ${missing_phy[upstream]} == "none" ]] || fail "missing PHY status reports upstream none" "${missing_phy[upstream]}"
+
+SAVED_INTERFACE=wlan0 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" diagnose >"$TEST_TMP/missing-phy-diagnose.out" 2>"$TEST_TMP/missing-phy-diagnose.err"
+[[ $(<"$TEST_TMP/missing-phy-diagnose.out") == *"ap capable: unknown (could not determine Wi-Fi PHY for wlan0)"* ]] || fail "diagnose distinguishes missing PHY data from an incapable adapter" "$(<"$TEST_TMP/missing-phy-diagnose.out")"
+pass "missing PHY information degrades status instead of failing it"
+pass "missing PHY information stays diagnosable"
+
+# Participant limit: the profile's shared DHCP range is the contract, so the
+# range arithmetic and the read-back are tested directly, then end to end.
+extract_hotspot_function() {
+  local name=$1 out="$TEST_TMP/$1.sh" in_function=0
+  : >"$out"
+  while IFS= read -r line; do
+    if [[ $line == "$name() {" ]]; then
+      in_function=1
+    fi
+    if (( in_function )); then
+      printf '%s\n' "$line" >>"$out"
+      [[ $line != "}" ]] || break
+    fi
+  done <"$ROOT/bin/omarchy-hotspot"
+}
+
+extract_hotspot_function profile_shared_address
+extract_hotspot_function shared_base
+extract_hotspot_function profile_max_clients
+extract_hotspot_function shared_gateway_host
+extract_hotspot_function dhcp_range_for
+cat >"$TEST_TMP/limit-drivers.sh" <<'DRIVER'
+PROFILE=omarchy-hotspot
+fail() { echo "hotspot: $*" >&2; exit 1; }
+declare -A PROPERTY_VALUES=(
+  ["ipv4.addresses"]="10.42.0.1/24"
+  ["ipv4.shared-dhcp-range"]="10.42.0.2,10.42.0.5"
+)
+nm_get() { printf '%s\n' "${PROPERTY_VALUES[$1]:-}"; }
+source "$TEST_TMP/profile_shared_address.sh"
+source "$TEST_TMP/shared_base.sh"
+source "$TEST_TMP/profile_max_clients.sh"
+source "$TEST_TMP/shared_gateway_host.sh"
+source "$TEST_TMP/dhcp_range_for.sh"
+[[ $(shared_base) == "10.42.0" ]] || fail "shared_base keeps the profile subnet"
+[[ $(dhcp_range_for 4) == "10.42.0.2,10.42.0.5" ]] || fail "a four-device limit hands out four leases"
+[[ $(dhcp_range_for 1) == "10.42.0.2,10.42.0.2" ]] || fail "a one-device limit hands out a single lease"
+[[ $(profile_max_clients) == "4" ]] || fail "a bounded range reads back as its device count"
+
+for bad in 0 254 999 abc ""; do
+  if (dhcp_range_for "$bad") >/dev/null 2>&1; then
+    fail "an out-of-range participant limit is refused" "$bad"
+  fi
+done
+
+PROPERTY_VALUES[ipv4.shared-dhcp-range]="10.42.0.2,10.43.0.5"
+[[ -z $(profile_max_clients) ]] || fail "a cross-subnet range reads back as unlimited"
+PROPERTY_VALUES[ipv4.shared-dhcp-range]="10.42.0.9,10.42.0.4"
+[[ -z $(profile_max_clients) ]] || fail "an inverted range reads back as unlimited"
+PROPERTY_VALUES[ipv4.shared-dhcp-range]="nonsense"
+[[ -z $(profile_max_clients) ]] || fail "an unparseable range reads back as unlimited"
+PROPERTY_VALUES[ipv4.shared-dhcp-range]=""
+[[ -z $(profile_max_clients) ]] || fail "an absent range reads back as unlimited"
+
+# A kept address that is not .1 never ends up inside its own lease range.
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.2/24"
+[[ $(dhcp_range_for 1) == "10.42.0.3,10.42.0.3" ]] || fail "leases follow a .2 gateway rather than include it"
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.254/24"
+[[ $(dhcp_range_for 4) == "10.42.0.250,10.42.0.253" ]] || fail "leases sit below a gateway at the top of the subnet"
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.100/24"
+if (dhcp_range_for 200) >/dev/null 2>&1; then
+  fail "a limit that cannot fit beside the gateway is refused"
+fi
+
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.1/16"
+if (shared_base) >/dev/null 2>&1; then
+  fail "a non-/24 hotspot subnet is refused a hand-written DHCP range"
+fi
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.1/24"
+DRIVER
+set +e
+PATH="$STUB_BIN:$PATH" TEST_TMP="$TEST_TMP" bash -euo pipefail "$TEST_TMP/limit-drivers.sh" >"$TEST_TMP/limit-drivers.out" 2>"$TEST_TMP/limit-drivers.err"
+limit_drivers_status=$?
+set -e
+(( limit_drivers_status == 0 )) || fail "participant limit arithmetic behaves" "exit: $limit_drivers_status
+stderr: $(<"$TEST_TMP/limit-drivers.err")"
+pass "the participant limit is a bounded DHCP range on the profile subnet"
+
+# Status reports the limit the profile carries. The capability stub is restored
+# first: the limit is only reported for an adapter that can host the AP.
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "dev" ]]; then
+  case ${2:-} in
+    wlan0) printf '%s\n' 'Interface wlan0' '  type managed' '  wiphy 0' ;;
+    wlan1) printf '%s\n' 'Interface wlan1' '  type managed' '  wiphy 1' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+if [[ ${1:-} == "phy" ]]; then
+  case ${2:-} in
+    phy0) printf '%s\n' 'Wiphy phy0' '  Band 1:' '  Band 2:' '    * AP' ;;
+    phy1) printf '%s\n' 'Wiphy phy1' '  Band 3:' '    * AP' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+exit 1
+STUB
+chmod +x "$STUB_BIN/iw"
+: >"$NMCLI_LOG"
+SHARED_RANGE=10.42.0.2,10.42.0.5 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/limit-status.out" 2>"$TEST_TMP/limit-status.err"
+limit_status=$(awk -F'\t' '$1 == "max_clients" { print $2 }' "$TEST_TMP/limit-status.out")
+[[ $limit_status == "4" ]] || fail "status reports the profile participant limit" "$limit_status"
+[[ -z $(<"$TEST_TMP/limit-status.err") ]] || fail "limit status keeps stderr empty" "$(<"$TEST_TMP/limit-status.err")"
+pass "status reports the participant limit from the profile"
+
+# Client names come from the neighbour table and the system resolver, both of
+# which an unprivileged status poll can read, unlike dnsmasq's lease file.
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "dev" && ${3:-} == "station" && ${4:-} == "dump" ]]; then
+  printf '%s\n' \
+    'Station aa:bb:cc:dd:ee:01 (on wlan0)' \
+    '	inactive time:	10 ms' \
+    '	signal:  	-40 dBm' \
+    'Station aa:bb:cc:dd:ee:02 (on wlan0)' \
+    '	signal:  	-71 dBm'
+  exit 0
+fi
+if [[ ${1:-} == "dev" && ${3:-} == "link" ]]; then
+  printf '%s\n' '  freq: 5.18 GHz'
+  exit 0
+fi
+if [[ ${1:-} == "dev" ]]; then
+  printf '%s\n' "Interface ${2:-}" '  type managed' '  wiphy 0'
+  exit 0
+fi
+if [[ ${1:-} == "phy" ]]; then
+  printf '%s\n' "Wiphy ${2:-phy0}" '  Band 1:' '    * AP'
+  exit 0
+fi
+exit 1
+STUB
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "-j" && ${2:-} == "addr" ]]; then
+  printf '%s\n' '[{"addr_info":[{"family":"inet","local":"10.42.0.1"}]}]'
+  exit 0
+fi
+# As `ip -j neigh show dev wlan0` prints it: filtering by device drops the
+# dev field from every entry.
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01","state":["REACHABLE"]},{"dst":"10.42.0.6","lladdr":"AA:BB:CC:DD:EE:02","state":["STALE"]},{"dst":"fe80::1","lladdr":"aa:bb:cc:dd:ee:03","state":["REACHABLE"]}]'
+  exit 0
+fi
+exit 2
+STUB
+cat >"$STUB_BIN/getent" <<'STUB'
+#!/bin/bash
+case "${1:-}:${2:-}" in
+  hosts:10.42.0.5) printf '%s\n' '10.42.0.5       pixel-8.lan pixel-8' ;;
+  hosts:10.42.0.6) printf '%s\n' '10.42.0.6       bad;name.lan' ;;
+  *) exit 2 ;;
+esac
+STUB
+chmod +x "$STUB_BIN/iw" "$STUB_BIN/ip" "$STUB_BIN/getent"
+
+: >"$NMCLI_LOG"
+touch "$PROFILE_STATE"
+HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/client-status.out" 2>"$TEST_TMP/client-status.err"
+[[ -z $(<"$TEST_TMP/client-status.err") ]] || fail "client status keeps stderr empty" "$(<"$TEST_TMP/client-status.err")"
+client_line_count=$(wc -l <"$TEST_TMP/client-status.out")
+expected_lines=$(grep -c '	' "$TEST_TMP/client-status.out")
+(( client_line_count == expected_lines )) || fail "a client list keeps the status one key per line" "$client_line_count lines, $expected_lines keyed"
+clients_json=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/client-status.out")
+clients_count=$(awk -F'\t' '$1 == "client_count" { print $2 }' "$TEST_TMP/client-status.out")
+[[ $clients_count == "2" ]] || fail "client status counts every station" "$clients_count"
+resolved=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .hostname')
+[[ $resolved == "pixel-8" ]] || fail "a resolvable station reports its short hostname" "$resolved"
+resolved_address=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .address')
+[[ $resolved_address == "10.42.0.5" ]] || fail "a station reports its neighbour address" "$resolved_address"
+rejected=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .hostname')
+[[ -z $rejected ]] || fail "a name the resolver cannot vouch for is dropped" "$rejected"
+kept_address=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .address')
+[[ $kept_address == "10.42.0.6" ]] || fail "a station without a usable name still reports its address" "$kept_address"
+signals=$(printf '%s' "$clients_json" | jq -r '[.[].signal] | sort | join(",")')
+[[ $signals == "-71,-40" ]] || fail "station signal survives the new fields" "$signals"
+pass "status names clients from the neighbour table and the system resolver"
+
+# A hostile neighbour table must not widen the status contract.
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01"},{"dst":"not-an-address","lladdr":"aa:bb:cc:dd:ee:02"},{"dst":"10.42.0.9","lladdr":"aa:bb:cc:dd:ee:09"},{"dst":["10.42.0.7"],"lladdr":"aa:bb:cc:dd:ee:02"}]'
+  exit 0
+fi
+exit 2
+STUB
+cat >"$STUB_BIN/getent" <<'STUB'
+#!/bin/bash
+case "${2:-}" in
+  10.42.0.5) printf '%s\n' "10.42.0.5 $(printf 'a;b\nc')" ;;
+  10.42.0.9) printf '%s\n' '10.42.0.9 has spaces' ;;
+  *) exit 2 ;;
+esac
+STUB
+chmod +x "$STUB_BIN/ip" "$STUB_BIN/getent"
+: >"$NMCLI_LOG"
+HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/hostile-status.out" 2>"$TEST_TMP/hostile-status.err"
+[[ -z $(<"$TEST_TMP/hostile-status.err") ]] || fail "a hostile neighbour table keeps stderr empty" "$(<"$TEST_TMP/hostile-status.err")"
+hostile_clients=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/hostile-status.out")
+printf '%s' "$hostile_clients" | jq -e 'all(.[]; (.hostname | test("^[A-Za-z0-9._-]*$")) and (.address | test("^[0-9.]*$")))' >/dev/null ||
+  fail "status only reports plain hostnames and addresses" "$hostile_clients"
+foreign=$(printf '%s' "$hostile_clients" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .address')
+[[ -z $foreign ]] || fail "a malformed neighbour entry is dropped" "$foreign"
+unrelated=$(printf '%s' "$hostile_clients" | jq -r '[.[] | select(.mac == "aa:bb:cc:dd:ee:09")] | length')
+[[ $unrelated == "0" ]] || fail "a station that is not associated is not reported" "$unrelated"
+pass "a hostile neighbour table cannot widen the status contract"
+
+# Client aliases are user text in a user-owned file: the store has to survive a
+# hostile or truncated file, and status must still answer when it is unreadable.
+ALIAS_ROOT="$TEST_TMP/state"
+mkdir -p "$ALIAS_ROOT"
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:01 <<<"Bedroom Pixel"
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set AA:BB:CC:DD:EE:02 <<<"Wifi Printer"
+alias_store="$ALIAS_ROOT/omarchy/hotspot-aliases.tsv"
+[[ -f $alias_store ]] || fail "a client alias is stored"
+[[ $(stat -c %a "$alias_store") == "600" ]] || fail "the alias store is not private" "$(stat -c %a "$alias_store")"
+[[ $(cut -f1 <"$alias_store" | tr '\n' ' ') == "aa:bb:cc:dd:ee:01 aa:bb:cc:dd:ee:02 " ]] || fail "aliases keep a normalized MAC key" "$(<"$alias_store")"
+
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:01 <<<"Kitchen Tablet"
+[[ $(wc -l <"$alias_store") == 2 ]] || fail "re-aliasing replaces instead of appending" "$(<"$alias_store")"
+grep -Fq $'aa:bb:cc:dd:ee:01\tKitchen Tablet' "$alias_store" || fail "the newest alias wins" "$(<"$alias_store")"
+
+set +e
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set not-a-mac <<<"x" >/dev/null 2>&1
+bad_mac_status=$?
+printf 'bad\tname\n' | XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:03 >/dev/null 2>&1
+bad_alias_status=$?
+printf '' | XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:03 >/dev/null 2>&1
+empty_alias_status=$?
+set -e
+(( bad_mac_status != 0 )) || fail "an invalid MAC is refused"
+(( bad_alias_status != 0 )) || fail "an alias carrying the field separator is refused"
+(( empty_alias_status != 0 )) || fail "an empty alias is refused"
+[[ $(wc -l <"$alias_store") == 2 ]] || fail "a refused alias leaves the store untouched" "$(<"$alias_store")"
+pass "a client alias is validated before it is stored"
+
+# A hand-edited store must not widen what status reports.
+printf '%s\n' \
+  $'aa:bb:cc:dd:ee:01\tKitchen Tablet' \
+  $'not-a-mac\tInjected' \
+  $'aa:bb:cc:dd:ee:04' \
+  $'aa:bb:cc:dd:ee:05\tbad\tname' \
+  >"$alias_store"
+HOTSPOT_ACTIVE=1 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/alias-status.out" 2>"$TEST_TMP/alias-status.err"
+[[ -z $(<"$TEST_TMP/alias-status.err") ]] || fail "a hand-edited alias store keeps status stderr empty" "$(<"$TEST_TMP/alias-status.err")"
+alias_clients=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/alias-status.out")
+applied=$(printf '%s' "$alias_clients" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .alias')
+[[ $applied == "Kitchen Tablet" ]] || fail "a stored alias reaches the client" "$applied"
+unnamed=$(printf '%s' "$alias_clients" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .alias')
+[[ -z $unnamed ]] || fail "a removed alias stops reaching the client" "$unnamed"
+printf '%s' "$alias_clients" | jq -e 'all(.[]; (.alias | type) == "string")' >/dev/null ||
+  fail "a malformed alias record cannot change the client shape" "$alias_clients"
+pass "a hand-edited alias store cannot widen the status contract"
+
+# Client names stay off argv, which any user can read through /proc: jq gets
+# them on stdin or from a descriptor, never as an argument.
+JQ_SPY_BIN="$TEST_TMP/jq-spy"
+mkdir -p "$JQ_SPY_BIN"
+real_jq=$(command -v jq)
+cat >"$JQ_SPY_BIN/jq" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >>"$TEST_TMP/jq-argv"
+exec "$real_jq" "\$@"
+STUB
+chmod +x "$JQ_SPY_BIN/jq"
+: >"$TEST_TMP/jq-argv"
+HOTSPOT_ACTIVE=1 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$JQ_SPY_BIN:$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/spy-status.out" 2>/dev/null
+[[ $(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/spy-status.out" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .alias') == "Kitchen Tablet" ]] ||
+  fail "a client name still reaches status through stdin"
+[[ -s $TEST_TMP/jq-argv ]] || fail "the jq spy saw the status run"
+! grep -q "Kitchen Tablet" "$TEST_TMP/jq-argv" || fail "a client name never rides jq's arguments" "$(<"$TEST_TMP/jq-argv")"
+pass "client names never reach process arguments"
+
+# A store that cannot be read is left alone rather than rewritten from nothing.
+if (( $(id -u) != 0 )); then
+  cp "$alias_store" "$TEST_TMP/alias-before"
+  chmod 000 "$alias_store"
+  set +e
+  XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:07 <<<"New Name" >/dev/null 2>&1
+  unreadable_status=$?
+  set -e
+  chmod 600 "$alias_store"
+  (( unreadable_status != 0 )) || fail "saving into an unreadable alias store fails"
+  cmp -s "$alias_store" "$TEST_TMP/alias-before" || fail "an unreadable alias store keeps every name" "$(<"$alias_store")"
+fi
+pass "an unreadable alias store is never rewritten"
+
+# Overlapping saves take turns, so none of them is lost.
+CONCURRENT_ROOT="$TEST_TMP/concurrent-state"
+mkdir -p "$CONCURRENT_ROOT"
+for i in $(seq 10 29); do
+  XDG_STATE_HOME="$CONCURRENT_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-hotspot" alias-set "aa:bb:cc:dd:ee:$i" <<<"Device $i" &
+done
+wait
+concurrent_store="$CONCURRENT_ROOT/omarchy/hotspot-aliases.tsv"
+[[ $(wc -l <"$concurrent_store") == 20 ]] || fail "overlapping alias saves keep every name" "$(wc -l <"$concurrent_store") of 20"
+pass "overlapping alias saves keep every name"
+
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
+[[ -z $(cut -f1 <"$alias_store" | grep -F 'aa:bb:cc:dd:ee:01' || true) ]] || fail "a removed alias is gone" "$(<"$alias_store")"
+XDG_STATE_HOME="$TEST_TMP/absent-state" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
+pass "removing an alias works and is a no-op when there is no store"
+
+# A limit apply refuses must not have changed the profile on the way.
+touch "$PROFILE_STATE"
+: >"$NMCLI_LOG"
+set +e
+printf '%s\n' newpassword | PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" apply NewName 2.4 0 >/dev/null 2>"$TEST_TMP/rejected-limit.err"
+rejected_limit_status=$?
+set -e
+(( rejected_limit_status != 0 )) || fail "apply refuses a zero participant limit"
+grep -q "participant limit" "$TEST_TMP/rejected-limit.err" || fail "a refused limit says why" "$(<"$TEST_TMP/rejected-limit.err")"
+! grep -Eq '^connection (modify|add|edit)' "$NMCLI_LOG" || fail "a refused limit leaves the profile untouched" "$(<"$NMCLI_LOG")"
+pass "a refused participant limit changes nothing"
+
+# A resolver that hangs (slow DNS, or a hotspot with no upstream) can't hold
+# status up: lookups are bounded and the clients keep their addresses.
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01"},{"dst":"10.42.0.6","lladdr":"aa:bb:cc:dd:ee:02"}]'
+  exit 0
+fi
+exit 2
+STUB
+cat >"$STUB_BIN/getent" <<'STUB'
+#!/bin/bash
+sleep 5
+printf '%s\n' "${2:-} slow-name"
+STUB
+chmod +x "$STUB_BIN/ip" "$STUB_BIN/getent"
+slow_started=$SECONDS
+HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/slow-status.out" 2>/dev/null
+slow_seconds=$(( SECONDS - slow_started ))
+(( slow_seconds <= 3 )) || fail "a hanging resolver holds status up" "${slow_seconds}s"
+slow_clients=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/slow-status.out")
+[[ $(printf '%s' "$slow_clients" | jq -r '[.[].address] | sort | join(",")') == "10.42.0.5,10.42.0.6" ]] ||
+  fail "clients keep their addresses when names time out" "$slow_clients"
+[[ $(printf '%s' "$slow_clients" | jq -r '[.[].hostname] | join("")') == "" ]] ||
+  fail "a timed-out lookup reports no name" "$slow_clients"
+pass "a hanging resolver cannot hold up status"
+
+# Connected clients must survive the status protocol: one key per line, so the
+# clients JSON has to stay on its own line all the way into the panel model.
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "phy" && -n ${2:-} && ${3:-} != "info" ]]; then
+  printf '%s\n' 'Usage:	iw [options] command'
+  exit 0
+fi
+if [[ ${1:-} == "dev" && ${2:-} == "wlan0" ]]; then
+  case ${3:-} in
+    info) printf '%s\n' 'Interface wlan0' '  type AP' '  wiphy 0' ;;
+    link) printf '%s\n' 'Connected to aa:bb:cc:dd:ee:00' '  freq: 2437' ;;
+    station)
+      printf '%s\n' \
+        'Station aa:bb:cc:dd:ee:01 (on wlan0)' '  inactive time:  10 ms' '  signal:   -42 [-42] dBm' \
+        'Station aa:bb:cc:dd:ee:02 (on wlan0)' '  inactive time:  20 ms' '  signal:   -67 [-67] dBm'
+      ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+if [[ ${1:-} == "phy" ]]; then
+  printf '%s\n' 'Wiphy phy0' '  Band 1:' '    * AP'
+  exit 0
+fi
+exit 1
+STUB
+
+cat >"$STUB_BIN/nmcli" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "--show-secrets" ]]; then
+  printf '%s\n' 'savedpassword'
+  exit 0
+fi
+case "$*" in
+  '-t -f DEVICE,TYPE device status') printf '%s\n' 'wlan0:wifi' ;;
+  '-t -f NAME connection show --active') printf '%s\n' 'omarchy-hotspot' ;;
+  '-e no -g NAME connection show') printf '%s\n' 'omarchy-hotspot' ;;
+  '-e no -g GENERAL.DEVICE connection show omarchy-hotspot') printf '%s\n' 'wlan0' ;;
+  '-e no -g 802-11-wireless.ssid connection show omarchy-hotspot') printf '%s\n' 'Shared Hotspot' ;;
+  '-e no -g 802-11-wireless.band connection show omarchy-hotspot') printf '%s\n' 'bg' ;;
+  *) exit 1 ;;
+esac
+STUB
+
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+if [[ $* == '-j addr show dev wlan0' ]]; then
+  printf '%s\n' '[{"addr_info":[{"family":"inet","local":"10.42.0.1"}]}]'
+  exit 0
+fi
+exit 2
+STUB
+chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli" "$STUB_BIN/ip"
+
+PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/clients-status.out" 2>"$TEST_TMP/clients-status.err"
+grep -Fxq $'client_count\t2' "$TEST_TMP/clients-status.out" || fail "status counts connected clients" "$(<"$TEST_TMP/clients-status.out")"
+while IFS= read -r line; do
+  [[ $line == *$'\t'* ]] || fail "every status line carries a key" "$(<"$TEST_TMP/clients-status.out")"
+done <"$TEST_TMP/clients-status.out"
+
+export HOTSPOT_STATUS_FILE="$TEST_TMP/clients-status.out"
+run_node_test <<'JS'
+const fs = require('fs')
+const network = requireFromRoot('shell/plugins/panels/network/Model.js')
+const status = network.parseHotspotStatus(fs.readFileSync(process.env.HOTSPOT_STATUS_FILE, 'utf8'))
+const clients = network.hotspotClients(status)
+if (clients.length !== 2) fail('the panel renders a row for every connected client', JSON.stringify(status))
+if (clients[0].mac !== 'aa:bb:cc:dd:ee:01' || clients[1].signal !== -67) fail('client rows keep their MAC and signal', JSON.stringify(clients))
+pass('connected clients reach the panel model through real status output')
+JS
+# apply writes the save-data choice into the profile's connection.metered, which
+# NetworkManager turns into DHCP option 43 ANDROID_METERED for joining devices.
+# The choice rides a --save-data option, so an operand slot (SSID, band, and a
+# later participant limit) can never be read as the choice.
+APPLY_BIN="$TEST_TMP/apply-bin"
+mkdir -p "$APPLY_BIN"
+cat >"$APPLY_BIN/iw" <<'STUB'
+#!/bin/bash
+case "$*" in
+  "dev wlan1 info") printf '%s\n' 'Interface wlan1' '  wiphy 0' ;;
+  "phy phy0 info") printf '%s\n' 'Wiphy phy0' '  Band 1:' '    * AP' ;;
+esac
+STUB
+cat >"$APPLY_BIN/nmcli" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$NMCLI_LOG"
+case "$*" in
+  '-t -f DEVICE,TYPE device status') printf '%s\n' 'wlan1:wifi' ;;
+  '-e no -g NAME connection show') printf '%s\n' 'omarchy-hotspot' ;;
+  '-e no -g GENERAL.DEVICE connection show omarchy-hotspot') printf '%s\n' 'wlan1' ;;
+  '-e no -g ipv4.addresses connection show omarchy-hotspot') printf '%s\n' '10.42.0.1/24' ;;
+esac
+exit 0
+STUB
+chmod +x "$APPLY_BIN/iw" "$APPLY_BIN/nmcli"
+
+hotspot_apply() {
+  : >"$TEST_TMP/nmcli.log"
+  printf '%s\n' 'hotspotpass' |
+    NMCLI_LOG="$TEST_TMP/nmcli.log" PATH="$APPLY_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+      bash "$ROOT/bin/omarchy-hotspot" apply "Laptop" 2.4 "$@" >"$TEST_TMP/apply.out" 2>&1
+}
+
+for pair in auto:unknown always:yes never:no; do
+  hotspot_apply "--save-data=${pair%%:*}" || fail "apply accepts save-data ${pair%%:*}" "$(<"$TEST_TMP/apply.out")"
+  grep -qx "connection modify omarchy-hotspot connection.metered ${pair##*:}" "$TEST_TMP/nmcli.log" ||
+    fail "apply writes connection.metered ${pair##*:} for ${pair%%:*}" "$(<"$TEST_TMP/nmcli.log")"
+done
+pass "apply maps auto, always and never onto connection.metered"
+
+hotspot_apply --save-data never || fail "apply accepts --save-data with a separate value" "$(<"$TEST_TMP/apply.out")"
+grep -qx "connection modify omarchy-hotspot connection.metered no" "$TEST_TMP/nmcli.log" ||
+  fail "apply reads a separate --save-data value" "$(<"$TEST_TMP/nmcli.log")"
+pass "apply takes --save-data after its operands"
+
+hotspot_apply || fail "apply without a save-data choice still succeeds" "$(<"$TEST_TMP/apply.out")"
+! grep -q "connection.metered" "$TEST_TMP/nmcli.log" || fail "apply without a choice overwrites the saved one"
+pass "apply without a save-data choice keeps the saved one"
+
+if hotspot_apply --save-data=sometimes; then
+  fail "apply accepts an unknown save-data choice"
+fi
+grep -q "unknown save-data choice 'sometimes'" "$TEST_TMP/apply.out" || fail "apply names the bad save-data choice" "$(<"$TEST_TMP/apply.out")"
+! grep -q "connection modify" "$TEST_TMP/nmcli.log" || fail "a bad save-data choice still modifies the profile"
+pass "apply rejects an unknown save-data choice before touching the profile"
+
+# apply writes key management, PMF and RSN/CCMP in one call. The ciphers are
+# pinned in every mode: unpinned, the AP picks a TKIP group cipher that Android's
+# upgraded WPA3 profile rejects, and an SAE-only AP does not start at all.
+pinned="wifi-sec.proto rsn wifi-sec.pairwise ccmp wifi-sec.group ccmp"
+for pair in "wpa2:wpa-psk wifi-sec.pmf disable" "mixed:wpa-psk wifi-sec.pmf optional" "wpa3:sae wifi-sec.pmf required"; do
+  hotspot_apply "--security=${pair%%:*}" || fail "apply accepts security ${pair%%:*}" "$(<"$TEST_TMP/apply.out")"
+  grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt ${pair#*:} $pinned" "$TEST_TMP/nmcli.log" ||
+    fail "apply writes ${pair%%:*} with RSN/CCMP pinned" "$(<"$TEST_TMP/nmcli.log")"
+done
+pass "apply maps wpa2, mixed and wpa3 onto key management with RSN/CCMP pinned"
+
+hotspot_apply --security wpa3 || fail "apply accepts --security with a separate value" "$(<"$TEST_TMP/apply.out")"
+grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt sae wifi-sec.pmf required $pinned" "$TEST_TMP/nmcli.log" ||
+  fail "apply reads a separate --security value" "$(<"$TEST_TMP/nmcli.log")"
+pass "apply takes --security after its operands"
+
+hotspot_apply || fail "apply without a security choice still succeeds" "$(<"$TEST_TMP/apply.out")"
+grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt wpa-psk wifi-sec.pmf optional $pinned" "$TEST_TMP/nmcli.log" ||
+  fail "apply without a choice re-pins the saved mode" "$(<"$TEST_TMP/nmcli.log")"
+pass "apply without a security choice rewrites the saved mode with RSN/CCMP pinned"
+
+if hotspot_apply --security=wep; then
+  fail "apply accepts an unknown security choice"
+fi
+grep -q "unknown security 'wep'" "$TEST_TMP/apply.out" || fail "apply names the bad security choice" "$(<"$TEST_TMP/apply.out")"
+! grep -q "connection modify" "$TEST_TMP/nmcli.log" || fail "a bad security choice still modifies the profile"
+pass "apply rejects an unknown security choice before touching the profile"
+
+if hotspot_apply --bogus; then
+  fail "apply accepts an unknown option"
+fi
+grep -q "unknown option: --bogus" "$TEST_TMP/apply.out" || fail "apply rejects an unknown option by name" "$(<"$TEST_TMP/apply.out")"
+pass "apply rejects an unknown option"
