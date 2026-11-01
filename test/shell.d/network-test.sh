@@ -485,10 +485,21 @@ if (hotspotStatusOnExited) {
   assertEqual(completions[0][3], '', 'network reports stderr captured when the run exited')
 }
 
-assert(/required property var modelData[\s\S]*?HotspotBandPill/.test(panelSource), 'network declares the injected repeater property on the band pills')
-assert(/readonly property string hotspotLimitArgument: hotspotMaxClients === "" \? "unlimited" : hotspotMaxClients/.test(panelSource), 'network always passes an explicit participant limit')
-assert(/hotspotMaxClients = Model\.hotspotMaxClients\(next\)/.test(panelSource), 'network seeds the participant limit from the profile once')
-assert(/"start", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument/.test(panelSource), 'hotspot start applies the chosen participant limit')
-assert(/"apply", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument/.test(panelSource), 'hotspot apply applies the chosen participant limit')
-assert(/component HotspotLimitPill: Button/.test(panelSource), 'network renders the participant limit as a pill')
+// The panel always names a limit, so unlimited clears a saved range rather
+// than keeping it, and start and save both carry the chosen one.
+const hotspotLimitArgument = panelBinding('hotspotLimitArgument')
+assertEqual(hotspotLimitArgument({ hotspotMaxClients: '' }), 'unlimited', 'network passes unlimited when no limit is chosen')
+assertEqual(hotspotLimitArgument({ hotspotMaxClients: '4' }), '4', 'network passes the chosen participant limit')
+for (const [name, verb] of [['startHotspot', 'start'], ['applyHotspot', 'apply']]) {
+  const source = panelSource.match(new RegExp('function ' + name + '\\(\\) \\{[\\s\\S]*?\\n {2}\\}'))
+  assert(source, 'network has ' + name)
+  if (!source) continue
+  const state = {
+    hotspotBusy: false, hotspotSsid: ' Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4',
+    hotspotCommand: 'omarchy-hotspot', hotspotError: '', hotspotActionKind: '',
+    hotspotActionProc: {}, Model: network, Commons: englishCommons,
+  }
+  new Function('state', 'with (state) {\n' + source[0] + '\n' + name + '()\n}')(state)
+  assertEqual(JSON.stringify(state.hotspotActionProc.command), JSON.stringify(['omarchy-hotspot', verb, 'Cafe', '5', '4']), 'hotspot ' + verb + ' passes the chosen participant limit')
+}
 JS

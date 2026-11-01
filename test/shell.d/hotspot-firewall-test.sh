@@ -1311,3 +1311,19 @@ grep -q "unsafe hotspot lock" "$TEST_TMP/shared-lock-err" || { cat "$TEST_TMP/sh
 DRIVER
 run_isolated "$TEST_TMP/shared-lock-driver.sh"
 pass "hotspot actions share one machine-wide lock once root has created it"
+
+# start hands the chosen participant limit to apply, and leaves the saved
+# range alone when no limit is given.
+reset_firewall_fixture
+cat >"$TEST_TMP/start-limit-driver.sh" <<'DRIVER'
+apply() { printf '%s\n' "$#" "$@" >"$TEST_TMP/apply-args"; }
+firewall_ensure() { :; }
+forwarding_ensure() { :; }
+ipv4_forwarding_enabled() { :; }
+start Hotspot 2.4 4
+[[ $(<"$TEST_TMP/apply-args") == $'3\nHotspot\n2.4\n4' ]] || { echo "start passed: $(<"$TEST_TMP/apply-args")" >&2; exit 1; }
+start Hotspot 2.4
+[[ $(<"$TEST_TMP/apply-args") == $'2\nHotspot\n2.4' ]] || { echo "start without a limit passed: $(<"$TEST_TMP/apply-args")" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/start-limit-driver.sh"
+pass "start applies the chosen participant limit"

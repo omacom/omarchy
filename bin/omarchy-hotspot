@@ -1033,7 +1033,13 @@ start() {
   local ssid=$1 band=${2:-2.4} nm_up_error=""
   hotspot_lock
 
-  apply "$ssid" "$band"
+  # The limit rides along only when given, so a start without one keeps the
+  # profile's saved range.
+  if (( $# >= 3 )); then
+    apply "$ssid" "$band" "$3"
+  else
+    apply "$ssid" "$band"
+  fi
   firewall_ensure
   if ! forwarding_ensure; then
     rollback_start "could not enable IPv4 forwarding for hotspot" 0
