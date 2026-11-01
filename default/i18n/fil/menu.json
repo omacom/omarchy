@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test ng Bilis ng Disk"
   },
-  "setup.monitors": {
-    "label": "Mga Monitor"
-  },
   "setup.keybindings": {
     "label": "Mga Keybinding"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "Kernel"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

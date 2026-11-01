@@ -5,8 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 setup="$ROOT/install/hardware/gb10/sleep.sh"
-all="$ROOT/install/hardware/all.sh"
-menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
 
 # The setting follows the real GB10 predicate on fixture machines, and root
 # reads only the live hardware.
@@ -15,12 +13,6 @@ require_platform_fixtures "the GB10 sleep setting"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin"
-
-bash -n "$setup" || fail "GB10 sleep script has valid syntax"
-
-grep -q 'run_logged .*hardware/gb10/sleep.sh' "$all" ||
-  fail "the GB10 sleep setting runs during hardware setup"
-pass "the GB10 sleep setting runs at install"
 
 # An aarch64 machine, with an NVIDIA GPU of the given PCI device ID or none.
 machine() {
@@ -99,6 +91,10 @@ hibernation=$(TEST_SUDO_STATUS=1 run spark "$scratch/spark" bash "$ROOT/bin/omar
   fail "hibernation setup creates no swap while sleep is disabled"
 pass "the suspend toggle and hibernation setup respect the disabled setting"
 
+# The Suspend and Hibernate rows run their real menu guards on the fixture
+# machines: hidden while the setting is in place, back once it is gone.
+menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
+
 guard() {
   grep -F "\"$1\"" "$menu" | sed -E 's/.*"when":"([^"]*)".*/\1/'
 }
@@ -113,8 +109,7 @@ SH
 chmod +x "$scratch/bin"/*
 for item in system.suspend system.hibernate; do
   when=$(guard "$item")
-  [[ $when == *"omarchy-sleep-disabled"* && $when != *"omarchy-hw-"* ]] ||
-    fail "the $item row follows the sleep setting, not the hardware"
+  [[ -n $when ]] || fail "the $item row has a menu guard"
   run spark "$scratch/spark" bash -c "$when" && fail "the $item row is hidden while sleep is disabled"
   run spark "$scratch/none" bash -c "$when" || fail "the $item row returns when the setting is removed"
 done

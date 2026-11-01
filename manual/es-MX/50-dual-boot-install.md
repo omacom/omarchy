@@ -1,44 +1,44 @@
-# Instalación en arranque dual
+# Instalación con arranque dual
 
 Puedes instalar Omarchy en una sola partición junto a Windows u otras instalaciones.
 
-Este método de instalación también trae cifrado LUKS para la partición por defecto, así que en la práctica no hay diferencia con respecto a la unidad completa y simplemente requiere espacio libre disponible en el disco.
+Este método de instalación sigue incluyendo cifrado LUKS para la partición de forma predeterminada, así que en la práctica no es diferente a usar todo el disco y simplemente requiere que haya espacio libre disponible en el disco.
 
 ## Hacer espacio en Windows
 
-Para instalar junto a Windows, escribe `disk management` en el menú de inicio y selecciona la opción **Create and format hard disk partitions**.
+Para instalarlo junto a Windows, escribe `disk management` en el menú Inicio y selecciona la opción **Crear y formatear particiones del disco duro**.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Encuentra la partición adecuada, haz clic derecho y elige **Shrink Volume**.
+Encuentra la partición adecuada, haz clic derecho y elige **Reducir volumen**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Ingresa la cantidad en que quieres reducir el volumen. Ten en cuenta que este será el tamaño de tu futura instalación de Omarchy, incluida la partición de arranque.
+ Escribe la cantidad que quieres reducir del volumen. Ten en cuenta que ese será el tamaño de tu futura instalación de Omarchy, incluida la partición de arranque.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Cuando termines, deberías ver algo como esto, donde la sección de 50 GB es donde instalaremos Omarchy en este ejemplo.
+Cuando termines, deberías ver algo como esto, donde la sección de 50GB es donde instalaremos Omarchy en este ejemplo.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Instalar Omarchy
 
-El proceso de instalación de Omarchy es en la práctica igual al normal. Después de seleccionar tu disco, se te dará la opción **Free space install**. Selecciona esa opción para evitar borrar el disco completo.
+El proceso de instalación de Omarchy es en la práctica el mismo de siempre. Después de seleccionar tu disco, se te dará la opción **Instalación en espacio libre**. Selecciona esa opción para evitar borrar todo el disco.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Confirma que todo se vea bien y espera a que termine la instalación como siempre. Aquí también es donde podrías elegir instalar sin cifrado (no recomendado), igual que en una instalación de unidad completa.
+Confirma que todo se ve bien y espera a que la instalación termine como de costumbre. Aquí también puedes elegir instalar sin cifrado (no recomendado), igual que en una instalación en todo el disco.
  ![dual-boot-6](images/dual-boot-6.webp)
 
-## Agregar otras instalaciones al cargador de arranque
+## Agregar otras instalaciones al gestor de arranque
 
-Al terminar tu instalación de Omarchy, notarás que el cargador de arranque Limine es ahora el predeterminado. Con esto, también puedes agregar opciones a Limine para tus otras instalaciones, como Windows.
+Cuando termines de instalar Omarchy, notarás que ahora el gestor de arranque predeterminado es Limine. Con esto, también puedes agregar a Limine opciones para tus otras instalaciones, como Windows.
 
-Para hacerlo, ejecuta `limine-scan` y sigue las instrucciones para agregar lo que quieras a tu configuración de limine. Entonces, al arrancar, verás tus opciones normales de Omarchy, además del Administrador de arranque de Windows y otros.
+Para agregar otros sistemas operativos, ejecuta `limine-scan` y sigue las indicaciones para agregar las entradas que quieras a tu configuración de Limine. El menú de arranque permanece oculto de forma predeterminada e inicia Omarchy después de un segundo. Para elegir Windows u otra entrada, presiona cualquier tecla en cuanto inicie Limine; cuando aparezca el menú, usa las teclas de flecha para seleccionar una entrada y presiona Enter. Si Omarchy inicia antes de que presiones una tecla, reinicia e inténtalo de nuevo. Si activaste _Setup > Direct Boot_, el firmware omite Limine por completo, así que elige Limine desde el menú de arranque de tu BIOS o ejecuta _Setup > Direct Boot_ de nuevo para eliminar la entrada.
 
 ## Bitlocker
 
-Es importante tener en cuenta que este método de instalación no es compatible con Bitlocker, ya que cifra toda la unidad, no solo la partición. Si te encuentras con un error que indica que Bitlocker está activado, arranca en Windows, entra a **Settings -> Privacy & Security -> Device encryption** y desactiva Bitlocker. Descifrar la unidad puede tardar un rato.
+Es importante tener en cuenta que este método de instalación no es compatible con Bitlocker, ya que cifra todo el disco, no solo la partición. Si te aparece un error que indica que Bitlocker está activado, arranca en Windows, ve a **Configuración -> Privacidad y seguridad -> Cifrado del dispositivo** y desactiva Bitlocker. Puede tardar un tiempo en descifrar el disco.
 
  ![dual-boot-7](images/dual-boot-7.webp)

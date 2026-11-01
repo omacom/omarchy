@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk tezligi testi"
   },
-  "setup.monitors": {
-    "label": "Monitorlar"
-  },
   "setup.keybindings": {
     "label": "Tugmalar birikmasi"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "Yadro"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }
