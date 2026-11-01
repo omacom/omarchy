@@ -4,11 +4,11 @@ The `aarch64-gb10` platform covers aarch64 desktops with NVIDIA GPU PCI ID `10de
 
 ## Installation and upgrades
 
-`install/omarchy-aarch64-gb10.packages` adds `rdma-core`, `fwupd` and `ethtool` to the default set, so the ISO caches them for offline installation. Existing installations receive them through migration `1793239437.sh`. RDMA module loading uses the upstream package's udev rules and `rdma-load-modules@rdma.service`; there is no separate Omarchy module policy or hard-coded fabric addressing.
+`install/omarchy-aarch64-gb10.packages` adds `rdma-core` and `ethtool` to the default set, so the ISO caches them for offline installation. Existing installations receive them through migration `1793239437.sh`. RDMA module loading uses the upstream package's udev rules and `rdma-load-modules@rdma.service`; there is no separate Omarchy module policy or hard-coded fabric addressing.
 
 System sleep is off, as on DGX OS (`install/hardware/gb10/sleep.sh`). The DGX Spark boots without a UKI to skip a 20-second firmware delay (`install/hardware/nvidia/dgx-spark-boot.sh`).
 
-Firmware installation is deliberately separate from OS installation. Run `sudo fwupdmgr refresh` and `fwupdmgr get-updates`, check that the device GUID, vendor and model match the machine, then follow the vendor's update procedure with stable power and local boot recovery available. A Founders Edition release table does not describe every OEM system. [Dell's FCM1253 firmware procedure](https://www.dell.com/support/kbdoc/en-us/000379162/how-to-upgrade-the-bios-and-the-firmware-on-a-dell-pro-max-with-the-grace-blackwell-system) covers BIOS, EC, PD and TPM; do not force-install an unmatched capsule.
+Firmware installation is deliberately separate from OS installation, and `fwupd` isn't preinstalled: `omarchy update firmware` installs it on first use. Run `sudo fwupdmgr refresh` and `fwupdmgr get-updates`, check that the device GUID, vendor and model match the machine, then follow the vendor's update procedure with stable power and local boot recovery available. A Founders Edition release table does not describe every OEM system. [Dell's FCM1253 firmware procedure](https://www.dell.com/support/kbdoc/en-us/000379162/how-to-upgrade-the-bios-and-the-firmware-on-a-dell-pro-max-with-the-grace-blackwell-system) covers BIOS, EC, PD and TPM; do not force-install an unmatched capsule.
 
 ## Kernel coverage
 
