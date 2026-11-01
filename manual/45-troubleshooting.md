@@ -53,6 +53,14 @@ UWSM skips a file with a syntax error, but a fatal error that only shows up whil
 
 Once you can log in, fix the saved copy before moving it back. `sh -n` catches syntax errors without running the file, but cannot catch every error that occurs when it is sourced. Keep a working terminal open while testing changes.
 
+### My hotspot won't start, or clients connect but get no internet
+
+`omarchy hotspot diagnose` prints one report covering AP support, the bands your adapter can serve, the interface, NetworkManager state, the firewall, and the driver's allowed interface combinations. Most hotspot problems are one of these:
+
+- The adapter's driver doesn't allow AP mode on the band you picked — switch to the other band in the panel's HOTSPOT section.
+- No upstream. The hotspot borrows the Wi-Fi radio, so clients can only reach the internet if something else — ethernet or a phone tether — is providing it.
+- `dnsmasq` is missing, which NetworkManager needs for sharing. Run `omarchy migrate` to install it.
+
 ### Why isn't my 1Password authorization prompts for 1Password SSH Agent / CLI appearing?
 
 This can happen for 2 reasons:
