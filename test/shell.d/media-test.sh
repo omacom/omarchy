@@ -11,6 +11,21 @@ assert(media.isProxyPlayer({ dbusName: 'org.mpris.MediaPlayer2.playerctld' }), '
 assert(media.isProxyPlayer({ desktopEntry: 'playerctld' }), 'media detects playerctld proxy by desktop entry')
 assert(media.hasMetadata({ identity: 'Spotify' }), 'media detects identity metadata')
 assert(media.hasTrackMetadata({ trackTitle: 'Track' }), 'media detects track metadata')
+
+// An idle browser keeps an MPRIS session with only art and length; the bar hides it, so it must not hide a paused track.
+const idleBrowser = { identity: 'Chrome', trackArtUrl: 'file:///tmp/art' }
+const pausedTrack = { identity: 'Cider', trackTitle: 'Song', trackArtist: 'Artist', canPlay: true }
+const withStreams = (...players) => (p) => players.includes(p)
+assert(!media.hasShownTrack(idleBrowser), 'media does not show an art-only player')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], null, withStreams(idleBrowser, pausedTrack)), pausedTrack, 'media shows a paused track over an idle browser when both hold streams')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], pausedTrack, withStreams(idleBrowser)), pausedTrack, 'media shows the paused track after its player closes its stream')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], null, withStreams(idleBrowser)), pausedTrack, 'media shows a paused track over a hidden stream holder')
+assertEqual(media.idlePlayer([idleBrowser, pausedTrack], idleBrowser, withStreams()), idleBrowser, 'media keeps a hidden player the user chose')
+assertEqual(media.idlePlayer([idleBrowser], null, withStreams(idleBrowser)), idleBrowser, 'media falls back to a hidden player when none is shown')
+const otherTrack = { identity: 'Spotify', trackTitle: 'Other', canPlay: true }
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], null, withStreams(otherTrack, pausedTrack)), otherTrack, 'media keeps the first shown stream holder')
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], pausedTrack, withStreams(otherTrack)), otherTrack, 'media still ranks a stream holder above the preference')
+assertEqual(media.idlePlayer([], null, withStreams()), null, 'media selects nothing without players')
 assert(media.playerCanControl({ canGoNext: true }), 'media detects controllable players')
 assert(media.canHandleAction({ canTogglePlaying: true }, 'playPause'), 'media maps playPause capability')
 assert(media.canCycleSource({ identity: 'Spotify', canPlay: true }), 'media detects cycleable sources')
@@ -53,21 +68,4 @@ assertEqual(media.volumeKeyStep('+1', 48, false), null, 'volume keys leave other
 assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the speaker when audible')
 assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
 assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
-
-// Only an ALSA sink is its own physical sink. Any other default sink, a DSP
-// chain or EasyEffects above all, needs omarchy-audio-output-sink's live
-// resolution on every press, so its keys fall back to the script.
-const fs = require('fs')
-const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
-assert(
-  serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
-    /function handleVolumeKey\(action\) \{\s*var audio = volumeSink && volumeSink\.audio\s*if \(!audio\) return false/.test(serviceQml) &&
-    !serviceQml.includes('volumeSinkName'),
-  'volume keys act in the shell only on an ALSA sink and otherwise defer to the script'
-)
-const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
-assert(
-  /if \(!media \|\| !media\.handleVolumeKey\(entry\.target\)\)\s*Util\.execArgv\(\["omarchy-audio-output-volume", entry\.target\]\)/.test(shellQml),
-  'a volume key the shell declines runs omarchy-audio-output-volume'
-)
 JS

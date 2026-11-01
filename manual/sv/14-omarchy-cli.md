@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy styrs vanligtvis via snabbtangenterna och Omarchy-menyn (`Super + Space`). Men du kan också styra det via `omarchy` CLI. Detta är särskilt hjälpsamt när du låter en AI-agent arbeta med dig på anpassning eller konfiguration.
+Omarchy styrs vanligtvis via snabbtangenterna och Omarchy-menyn (`Super + Space`). Men du kan också styra det via `omarchy` CLI. Det är särskilt hjälpsamt när du låter en AI-agent arbeta tillsammans med dig med anpassning eller konfiguration.
 
-CLI:t har åtkomst till alla interna verktyg som används både via menyn och annars. Du kan se allt som är tillgängligt genom att köra `omarchy` i terminalen.
+CLI:t har tillgång till alla interna verktyg som används både via menyn och på andra sätt. Du kan se allt som finns tillgängligt genom att köra `omarchy` i terminalen.
 
 Det ser ut ungefär så här:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-Och du kan dyka djupare i varje grupp:
+Och du kan gå djupare i varje grupp:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Varje kommando tar också `--help`, oavsett om du frågar en hel grupp (`omarchy capture --help`) eller ett enskilt kommando (`omarchy capture screenshot --help`).
+Varje kommando tar också `--help`, vare sig du frågar om en hel grupp (`omarchy capture --help`) eller ett enda kommando (`omarchy capture screenshot --help`).
 
 ### Öppna menyn från terminalen
 
-Omarchy-menyn är också skriptbar, vilket är praktiskt för dina egna tangentbindningar. `omarchy menu` öppnar den vid roten, och du kan hoppa direkt till valfri punkt i trädet genom att namnge den: `omarchy menu summon style.theme` går rakt till temaväljaren, `omarchy menu toggle system` öppnar systemmenyn och stänger den igen om den redan är uppe, och `omarchy menu close` lägger undan den.
+Omarchy-menyn går också att skripta, vilket är praktiskt för dina egna tangentbindningar. `omarchy menu` öppnar den vid roten, och du kan hoppa direkt till vilken punkt som helst i trädet genom att namnge den: `omarchy menu summon appearance.theme` går rakt till temaväljaren, `omarchy menu toggle system` öppnar systemmenyn och stänger den igen om den redan är uppe, och `omarchy menu close` stänger den.

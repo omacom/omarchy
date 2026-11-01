@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Karaniwang kinokontrol ang Omarchy sa pamamagitan ng mga hotkey at ng menu ng Omarchy (`Super + Space`). Ngunit maaari mo rin itong kontrolin sa pamamagitan ng `omarchy` CLI. Partikular itong nakakatulong kapag mayroon kang isang AI agent na nakikipagtulungan sa iyo sa pag-customize o configuration.
+Karaniwang kinokontrol ang Omarchy sa pamamagitan ng mga hotkey at ng menu ng Omarchy (`Super + Space`). Ngunit maaari mo rin itong kontrolin sa pamamagitan ng `omarchy` CLI. Partikular itong nakakatulong kapag may AI agent kang katrabaho sa pag-customize o pag-configure.
 
-Ang CLI ay may access sa lahat ng internal tooling na ginagamit parehong sa pamamagitan ng menu at kung hindi man. Makikita mo ang lahat ng available sa pamamagitan ng pagpapatakbo ng `omarchy` sa terminal.
+May access ang CLI sa lahat ng internal tooling na ginagamit kapwa sa pamamagitan ng menu at sa iba pang paraan. Makikita mo ang lahat ng available sa pagpapatakbo ng `omarchy` sa terminal.
 
-Mukha itong ganito:
+Ganito ang hitsura nito nang halos:
 
 ```
 ~ ❯ omarchy
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Tumatanggap din ang bawat command ng `--help`, magtanong ka man sa isang buong grupo (`omarchy capture --help`) o sa isang nag-iisang command (`omarchy capture screenshot --help`).
+Tumatanggap din ang bawat command ng `--help`, tanungin mo man ang buong grupo (`omarchy capture --help`) o isang command lang (`omarchy capture screenshot --help`).
 
 ### Pagbubukas ng menu mula sa terminal
 
-Ang menu ng Omarchy ay scriptable din, na madaling gamitin para sa sarili mong mga keybinding. Binubuksan ito ng `omarchy menu` sa root, at maaari kang tumalon nang diretso sa anumang punto sa tree sa pamamagitan ng pagpapangalan dito: ang `omarchy menu summon style.theme` ay dumidiretso sa tagapili ng tema, ang `omarchy menu toggle system` ay binubuksan ang menu ng sistema at isinasara ito ulit kung nakataas na ito, at ang `omarchy menu close` ay inaalis ito.
+Maaari ring i-script ang menu ng Omarchy, na madaling gamitin para sa sarili mong mga keybinding. Binubuksan ito ng `omarchy menu` sa root, at maaari kang dumiretso sa anumang punto sa tree sa pagbanggit nito: dumidiretso ang `omarchy menu summon appearance.theme` sa theme picker, binubuksan ng `omarchy menu toggle system` ang system menu at isinasara itong muli kung nakabukas na ito, at itinatago ito ng `omarchy menu close`.
