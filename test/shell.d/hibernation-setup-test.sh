@@ -23,7 +23,7 @@ for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled omarchy-cmd-missi
 done
 printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
 printf '#!/bin/bash\n[[ $1 == --show ]] && echo "$SWAP_FILE_PATH"\nexit 0\n' >"$rtmp/bin/swapon"
-printf '#!/bin/bash\n[[ $1 == inspect-internal ]] && echo 4242\nexit 0\n' >"$rtmp/bin/btrfs"
+printf '#!/bin/bash\nif [[ $1 == inspect-internal ]]; then [[ ${LOOKUP:-} == fail ]] && exit 1; echo 4242; fi\nexit 0\n' >"$rtmp/bin/btrfs"
 printf '#!/bin/bash\n[[ $2 == SOURCE ]] && echo "$SWAP_SOURCE"\n[[ $2 == UUID ]] && echo "$SWAP_UUID"\nexit 0\n' >"$rtmp/bin/findmnt"
 
 # Root ownership is not the test's to give.
@@ -99,6 +99,20 @@ printf '%s\n' 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=
 SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "setup over a leftover drop-in" "$(<"$rtmp/out")"
 [[ $(<"$drop_in") == "$uuid_line" ]] || fail "setup rewrites a drop-in left by an earlier setup" "$(<"$drop_in")"
 pass "setup rewrites a drop-in left by an earlier setup"
+
+# A failed offset lookup must leave setup retryable: no hook, no rebuild, and
+# the drop-in it found left as it was.
+machine
+mkdir -p "$rtmp/limine-entry-tool.d"
+printf '%s\n' "$uuid_line" >"$drop_in"
+if SWAP_SOURCE="/dev/nvme0n1p2[/@]" LOOKUP=fail setup --force; then
+  fail "setup reports success without a resume offset"
+fi
+[[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -s $rtmp/rebuilds && $(<"$drop_in") == "$uuid_line" ]] ||
+  fail "a failed offset lookup leaves no hook, no rebuild and the drop-in as it was" "$(<"$rtmp/out")"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force || fail "setup after the lookup recovers" "$(<"$rtmp/out")"
+[[ $(tail -n1 "$rtmp/rebuilds") == "$uuid_line" ]] || fail "the retry rebuilds with the resume parameters" "$(<"$rtmp/rebuilds")"
+pass "a failed offset lookup leaves setup retryable"
 
 # A machine set up before: a rerun renames the device and rebuilds from the
 # renamed drop-in, once. An empty offset is filled in first.
