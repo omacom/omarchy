@@ -14,23 +14,27 @@ modules_dir="${OMARCHY_KERNEL_MODULES_DIR:-/usr/lib/modules}"
 limine_functions="${OMARCHY_LIMINE_FUNCTIONS:-/usr/lib/limine/limine-common-functions}"
 param="usbcore.autosuspend=-1"
 
-# Whether a command line carries the parameter as the kernel reads it: split on
-# whitespace outside double quotes, which it drops, the last assignment winning.
-carries_param() {
-  local cmdline=$1 word="" last="" quoted=0 char i
+# The last usbcore.autosuspend= value on a command line, which the kernel uses:
+# split on whitespace outside double quotes, which it drops.
+autosuspend_value() {
+  local cmdline=$1 word="" value="" quoted=0 char i
   for ((i = 0; i < ${#cmdline}; i++)); do
     char=${cmdline:i:1}
     if [[ $char == '"' ]]; then
       quoted=$((!quoted))
     elif ((!quoted)) && [[ $' \t\n\r' == *"$char"* ]]; then
-      [[ $word != "${param%%=*}="* ]] || last=$word
+      [[ $word != usbcore.autosuspend=* ]] || value=${word#usbcore.autosuspend=}
       word=""
     else
       word+=$char
     fi
   done
-  [[ $word != "${param%%=*}="* ]] || last=$word
-  [[ $last == "$param" ]]
+  [[ $word != usbcore.autosuspend=* ]] || value=${word#usbcore.autosuspend=}
+  printf '%s\n' "$value"
+}
+
+carries_param() {
+  [[ $(autosuspend_value "$1") == "-1" ]]
 }
 
 omarchy-cmd-present limine-mkinitcpio || exit 0
@@ -42,19 +46,9 @@ omarchy-cmd-present limine-mkinitcpio || exit 0
 [[ ! -e $rebuild_marker ]] || exit 0
 ! carries_param "$(<"$running_cmdline")" || exit 0
 
-# The last usbcore.autosuspend= value on a command line, which the kernel uses.
-# limine-entry-tool decides which value comes last, and every later rebuild
-# (a kernel update) follows the same order, so the migration only applies it.
-autosuspend_value() {
-  local word value=""
-
-  for word in $1; do
-    word=${word//\"/}
-    [[ $word == usbcore.autosuspend=* ]] && value=${word#usbcore.autosuspend=}
-  done
-  printf '%s\n' "$value"
-}
-
+# The command line the boot entries get. limine-entry-tool decides which value
+# comes last, and every later rebuild follows the same order, so the migration
+# only applies it.
 effective=$(sudo limine-entry-tool --get-cmdline default)
 
 # omarchy-defaults.conf is a backup file, so where it was edited (1784917531
