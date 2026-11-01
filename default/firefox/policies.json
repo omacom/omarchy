@@ -1,5 +1,6 @@
 {
   "policies": {
+    "DontCheckDefaultBrowser": true,
     "Preferences": {
       "apz.overscroll.enabled": {
         "Value": true,

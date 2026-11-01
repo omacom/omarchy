@@ -1,0 +1,319 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the self-hosted model usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect self-hosted model usage into one display-ready JSON record.
+
+Every other collector counts what a subscription or a provider bills. This
+one counts the turns that ran on hardware you own: Codex CLI pointed at
+Ollama, opencode on a local gateway, pi on llama.cpp, Kimi Code, Qwen Code,
+Hermes or Mistral Vibe on a server of your own, whether the endpoint is this
+machine or a box down the hall. It is the exact complement of the
+provider collectors: a provider id another collector counts is never counted
+here, and the Codex collector's own `openai` rollouts never are either.
+
+A provider is self-hosted when it is a well-known local runtime, an id named
+in ~/.config/omarchy/agents/local.json, or a Codex model_providers entry whose
+base_url is on a loopback, private, link-local or LAN address:
+
+    {"providers": ["homelab", "my-gateway"]}
+
+Ollama's cloud models (a `:cloud` or `-cloud` tag) run on Ollama's servers
+even when the local daemon fronts them, so they are never counted here, and
+nor are opencode's google rows on antigravity- models, which the agy
+collector counts. There
+are no limits and no balance: the meter on self-hosted work is the
+electricity bill. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  Stats,
+  base_record,
+  cached_scan,
+  cloud_model,
+  codex_home,
+  codex_native_key,
+  codex_native_routed,
+  codex_rollout_cache,
+  codex_provider_urls,
+  codex_route_owner,
+  codex_rollouts,
+  config_home,
+  emit,
+  number,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  self_hosted,
+  warn,
+)
+
+AGENT_ID = "local"
+AGENT_NAME = "Local models"
+
+# Runtimes that serve models from your own hardware, for provider ids with no
+# URL to classify: opencode and pi record the id but not the endpoint, and
+# Codex's built-in `--oss` providers have no config.toml entry.
+KNOWN_LOCAL_PROVIDERS = {
+  "gpt4all", "jan", "koboldcpp", "llama-cpp", "llamacpp", "llamafile",
+  "lm-studio", "lmstudio", "local", "localai", "mlx", "ollama",
+  "openai-local", "oss", "sglang", "tabby", "text-generation-webui", "vllm",
+}
+
+# Provider ids the provider collectors count whole, from pi, omp and opencode,
+# each the exact id that collector's filter matches. A local.json naming one
+# of them would count its tokens twice, so they are never local, whatever the
+# configuration says: the claiming collector wins. Each collector's own
+# provider list must be a subset of this one; agent-usage-partition-test.sh
+# fails when an id is added there and not here. Two more are claimed only for some models, and only
+# those rows are left out: Ollama's cloud-tagged models (cloud_model) and
+# opencode's Antigravity plugin (antigravity_row).
+CLAIMED_PROVIDERS = {
+  "anthropic",  # claude
+  "deepseek",  # deepseek
+  "devin",  # devin
+  "fireworks", "fireworks-ai",  # fireworks, which counts the whole account
+  "kimi-coding", "kimi-code", "kimi-code-plan-global", "kimi-code-plan-cn",  # kimi
+  "moonshotai", "moonshotai-cn", "moonshot",  # kimi
+  "google-antigravity",  # agy, pi's Antigravity sign-in
+  "kimchi", "kimchi-dev", "kimchi-experimental",  # kimchi
+  "meta", "muse-code",  # muse
+  "minimax", "minimax-cn", "minimax-coding-plan", "minimax-cn-coding-plan",  # minimax
+  "mistral",  # vibe
+  "ollama-cloud",  # ollama
+  "openai", "openai-codex",  # codex
+  "opencode", "opencode-go",  # opencode
+  "openrouter",  # openrouter
+  "alibaba-coding-plan", "alibaba-coding-plan-cn", "alibaba-token-plan", "alibaba-token-plan-cn",  # qwen
+  "qwen-token-plan", "qwen-token-plan-cn", "qwen-token-plan-individual", "qwen-portal",  # qwen
+  "synthetic",  # synthetic
+  "zai", "zhipu", "zai-coding-cn", "zai-coding-plan",  # zai
+  "zhipu-coding-plan", "zhipuai", "zhipuai-coding-plan",  # zai
+}
+
+# Ids a collector claims by prefix rather than whole: Kimchi 1.18 names each
+# gateway route kimchi-dev/<upstream>, and kimchi counts every one.
+CLAIMED_PREFIXES = ("kimchi-dev/",)  # kimchi
+
+def model_name(raw):
+  return str(raw or "").strip() or AGENT_ID
+
+
+# --------------------------------------------------------- classification
+
+
+def config_path():
+  return config_home() / "omarchy" / "agents" / "local.json"
+
+
+def configured_providers():
+  names = read_json(config_path()).get("providers")
+  if not isinstance(names, list):
+    return set()
+  return {str(name).strip().lower() for name in names if isinstance(name, str) and name.strip()}
+
+
+def antigravity_row(provider, model):
+  # opencode's Antigravity plugin runs under a "google" provider with model
+  # ids it prefixes with antigravity-; the agy collector counts exactly
+  # those opencode rows, and every other google model stays local's to count
+  # when local.json names it.
+  return str(provider or "").strip().lower().startswith("google") and str(model or "").startswith("antigravity-")
+
+
+class Classifier:
+  def __init__(self):
+    self.configured = configured_providers()
+    # Every Codex provider's base_url, remembered past config.toml
+    # dropping it.
+    self.endpoints = codex_provider_urls()
+    ids = set(KNOWN_LOCAL_PROVIDERS) | self.configured
+    ids |= {pid for pid, url in self.endpoints.items() if url and self_hosted(url) and not codex_native_key(pid)}
+    self.local_ids = {pid for pid in ids - CLAIMED_PROVIDERS if not pid.startswith(CLAIMED_PREFIXES)}
+
+  def provider_is_local(self, provider):
+    return str(provider or "").strip().lower() in self.local_ids
+
+  def accepts(self, provider, model):
+    return self.provider_is_local(provider) and not cloud_model(model)
+
+  def fingerprint(self):
+    return sorted(self.local_ids)
+
+
+CLASSIFIER = None
+
+
+def classifier():
+  global CLASSIFIER
+  if CLASSIFIER is None:
+    CLASSIFIER = Classifier()
+  return CLASSIFIER
+
+
+def pi_pattern():
+  ids = "|".join(re.escape(pid) for pid in sorted(classifier().local_ids))
+  return r'(?i)"provider"\s*:\s*"(?:' + ids + ')"'
+
+
+def accept_pi(provider, model, message):
+  # The Codex collector also counts any message on its openai-codex API,
+  # whatever the provider id says.
+  if str(message.get("api") or "").startswith("openai-codex"):
+    return False
+  return classifier().accepts(provider, model)
+
+
+def accept_opencode(provider, model, entry):
+  return classifier().accepts(provider, model) and not antigravity_row(provider, model)
+
+
+# --------------------------------------------------- harnesses of their own
+
+# Kimi Code, Qwen Code, Hermes and Mistral Vibe keep their sessions in stores
+# of their own. Each one's collector reads its store and says who bills each
+# row (harness_rows), from the route Hermes and older Vibe sessions record
+# or, for Kimi Code, Qwen Code and Vibe's Unified Harness, from the current
+# config, so this one takes the rows a server you run answered from the same
+# reader.
+HARNESSES = ("hermes", "kimi", "qwen", "vibe")
+
+
+def harness(name):
+  path = os.path.join(os.environ["OMARCHY_PATH"], "bin", f"omarchy-agent-usage-{name}")
+  loader = importlib.machinery.SourceFileLoader(f"omarchy_agent_usage_{name}", path)
+  module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+  loader.exec_module(module)
+  return module
+
+
+HARNESS_MODULES = {}
+
+
+def harness_modules():
+  if not HARNESS_MODULES:
+    HARNESS_MODULES.update((name, harness(name)) for name in HARNESSES)
+  return HARNESS_MODULES
+
+
+def scan_harnesses(stats):
+  complete = True
+  for name, module in harness_modules().items():
+    try:
+      rows, read = module.harness_rows(AGENT_ID)
+    except Exception as exc:
+      # One harness's reader failing costs only its rows.
+      warn(f"could not read {name} sessions ({type(exc).__name__}: {exc})")
+      complete = False
+      continue
+    complete = complete and read
+    for row in rows:
+      stats.add_row(row, model_name(row.model))
+  return complete
+
+
+def harness_sources():
+  return [source for module in harness_modules().values() for source in module.harness_sources()]
+
+
+# Each harness's route config decides which of its rows are self-hosted, and
+# can change without its store changing, so a scan is kept only while every
+# harness still classifies the way it did.
+def harness_match():
+  match = {}
+  for name, module in harness_modules().items():
+    try:
+      match.update(module.harness_match())
+    except Exception as exc:
+      warn(f"could not read {name}'s routes ({exc})")
+      match[f"{name}Routes"] = "unreadable"
+  return match
+
+
+# ------------------------------------------------------------------- Codex
+
+
+
+def scan_codex(stats, use_file_cache):
+  endpoints = classifier().endpoints
+  records, complete = codex_rollouts(codex_rollout_cache(), reuse=use_file_cache, native=codex_native_routed(endpoints))
+  for record in records.values():
+    for day, models in record["days"].items():
+      for model, (input_tokens, output_tokens, cache_read, cache_write, prompts) in models.items():
+        # A provider's host, or Ollama Cloud, bills the rollouts
+        # codex_route_owner() places, whatever the provider's id, and it
+        # gives the built-in provider's to this one while openai_base_url
+        # is self-hosted.
+        owner = codex_route_owner(record["provider"], model, endpoints)
+        if owner == "local" or (owner is None and classifier().provider_is_local(record["provider"]) and not cloud_model(model)):
+          # A Codex rollout's totals arrive per day and model, prompts
+          # counted, under the session that started it.
+          stats.add(day, record["session"], model, input_tokens, output_tokens, cache_read, cache_write, prompts=prompts)
+  return complete
+
+
+# -------------------------------------------------------------- scan cache
+
+
+def scan_sources():
+  # Every path the scan reads, and which providers it counts as local, so a
+  # changed local.json or Codex config is a new scan rather than a stale one.
+  return [Path.home(), codex_home(), opencode_db(), *pi_session_roots(), *routed_sources(), *harness_sources(), json.dumps(classifier().fingerprint())]
+
+
+def run_local_scans(max_age):
+  stats = Stats()
+  complete = scan_codex(stats, use_file_cache=max_age > 0)
+  pi_rows, pi_complete = scan_pi_sessions(pi_pattern(), accept_pi)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([pid + '"' for pid in sorted(classifier().local_ids)], accept_opencode)
+  # Claude Code pointed at a self-hosted endpoint, for the models that ran
+  # there, and MiniMax Code's custom providers on one.
+  routed_rows, routed_complete = scan_routed(AGENT_ID)
+  for row in pi_rows + db_rows + routed_rows:
+    stats.add_row(row, model_name(row.model))
+  harnesses_complete = scan_harnesses(stats)
+  return stats.snapshot(), complete and pi_complete and db_complete and routed_complete and harnesses_complete
+
+
+# ------------------------------------------------------------------ record
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the self-hosted model usage record as JSON")
+  # There are no limits to fetch, so --limits-only only means a redraw may
+  # reuse an older scan.
+  parser.add_argument("--force", action="store_true", help="rescan every session, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse a recent scan")
+  args = parser.parse_args()
+
+  max_age = scan_max_age(args.force, args.limits_only)
+  stats = cached_scan(AGENT_ID, scan_sources(), max_age, lambda: run_local_scans(max_age), match={**routed_match(), **harness_match()})
+  # Self-hosted work has no plan, no limits and no balance.
+  in_use = number(stats.get("totalSessions")) > 0
+  record = base_record(AGENT_ID, AGENT_NAME, ready=in_use, hasLocalStats=in_use)
+  record.update(stats)
+  emit(record, sort_keys=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
