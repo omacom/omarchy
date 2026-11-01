@@ -25,33 +25,36 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
-# Marker tracks whether this command actually turned the backlight off, so a
-# later restore without a preceding off (e.g. screensaver dismiss, which wakes
-# via omarchy-system-wake without ever blanking the keyboard) is a no-op
-# instead of restoring a stale brightnessctl save.
-state_marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-keyboard-backlight-off"
+# The level from before the first "off" since the last "restore", so the lock
+# blanking again after a resume cannot save its own 0 over it.
+saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
+
+if [[ $direction == "off" || $direction == "restore" ]]; then
+  # The lock runs blank and wake as separate processes that can overlap.
+  exec {lock_fd}>"$saved.lock" || exit 1
+  flock "$lock_fd" || exit 1
+fi
 
 if [[ $direction == "off" ]]; then
-  current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
-  if (( current_brightness == 0 )); then
-    brightnessctl -d "$device" set 0 >/dev/null
-  else
-    brightnessctl -sd "$device" set 0 >/dev/null
-    touch "$state_marker"
+  if [[ ! -s $saved ]]; then
+    level="$(brightnessctl -d "$device" get)"
+    if [[ $level =~ ^[0-9]+$ ]] && ! echo "$level" >"$saved"; then
+      rm -f "$saved"
+    fi
   fi
+  # Never blank a level there is no record of to restore.
+  [[ -s $saved ]] && brightnessctl -d "$device" set 0 >/dev/null
   exit 0
 elif [[ $direction == "restore" ]]; then
-  if [[ ! -f $state_marker ]]; then
-    exit 0
-  fi
-  current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
-  if (( current_brightness == 0 )); then
-    brightnessctl -rd "$device" >/dev/null
-    # brightnessctl -r exits 0 even when the write fails, so read back whether it landed.
-    current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
-  fi
-  if (( current_brightness != 0 )); then
-    rm -f "$state_marker"
+  if [[ -f $saved ]]; then
+    level="$(<"$saved")"
+    current="$(brightnessctl -d "$device" get 2>/dev/null)"
+    # A backlight lit again since the blank, as a firmware key does, keeps its level.
+    if [[ $current =~ ^[0-9]+$ ]] && (( current > 0 )); then
+      rm -f "$saved"
+    elif [[ ! $level =~ ^[0-9]+$ ]] || brightnessctl -d "$device" set "$level" >/dev/null; then
+      rm -f "$saved"
+    fi
   fi
   exit 0
 fi
@@ -76,9 +79,9 @@ else
   (( new_brightness < 0 )) && new_brightness=0
 fi
 
-# Set the new brightness. A level chosen by hand, even 0, replaces the one a
-# blank saved for restore.
-if brightnessctl -d "$device" set "$new_brightness" >/dev/null; then
-  rm -f "$state_marker"
+# A level chosen by hand, even 0, replaces the one a blank saved for restore; a
+# key that changes nothing, like down while blanked, leaves it.
+if brightnessctl -d "$device" set "$new_brightness" >/dev/null && (( new_brightness != current_brightness )); then
+  rm -f "$saved"
 fi
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"

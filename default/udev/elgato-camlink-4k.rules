@@ -1,0 +1,6 @@
+# Keep the Elgato Cam Link 4K's raw capture node away from users and hand it to
+# the v4l2-relayd instance that re-exposes it as a 16:9 virtual camera.
+# Sorted after 70-uaccess adds the tag and before 73-seat-late applies its ACL.
+SUBSYSTEM=="video4linux", ENV{ID_VENDOR_ID}=="0fd9", ENV{ID_MODEL}=="Cam_Link_4K", ENV{ID_V4L_CAPABILITIES}==":capture:", \
+  TAG-="uaccess", OWNER="root", GROUP="root", MODE="0600", SYMLINK+="camlink4k", \
+  TAG+="systemd", ENV{SYSTEMD_ALIAS}="/dev/camlink4k", ENV{SYSTEMD_WANTS}="v4l2-relayd@camlink.service"
