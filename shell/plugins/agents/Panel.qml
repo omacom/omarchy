@@ -49,7 +49,7 @@ Panel {
       if (!running && localStartBlocked(model)) return
       // The panel has no terminal: a start that fails records its reason,
       // which the model's line shows.
-      Util.execArgv(running ? ["omarchy-agent-local", "stop", model.recipe] : ["omarchy-agent-local", "start", "--setup", model.recipe])
+      Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
     }
   }
 

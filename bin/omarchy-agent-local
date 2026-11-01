@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Run open models on this machine for your agents
-# omarchy:args=<use|list|status|start|stop|autostart|remove|bench> [args]
-# omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy agent local autostart on | omarchy-agent-local use --help
+# omarchy:args=<use|list|status|start|stop|remove> [args]
+# omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
 
 # The engine, the recipe catalog and Podman come in the omarchy-local-ai
 # package, which only machines that use local models install. Setting one up
