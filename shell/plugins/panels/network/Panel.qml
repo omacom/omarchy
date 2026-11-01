@@ -2187,6 +2187,8 @@ Panel {
               root.markHotspotEdited("ssid")
               root.hotspotSsid = text
             }
+            // Hand keys back to the panel, so a second Escape closes it.
+            Keys.onEscapePressed: keyCatcher.forceActiveFocus()
           }
 
           Row {
@@ -2209,6 +2211,7 @@ Panel {
                 root.markHotspotEdited("password")
                 root.hotspotPassword = text
               }
+              Keys.onEscapePressed: keyCatcher.forceActiveFocus()
             }
 
             Button {
