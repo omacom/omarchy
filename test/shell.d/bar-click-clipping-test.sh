@@ -54,6 +54,8 @@ const rightWindow = {}
 const leftButton = surfaceButton(leftWindow)
 const rightButton = surfaceButton(rightWindow)
 const resolve = clickTargetAt([leftButton, rightButton], { itemContainsPoint: hit })
-assertEqual(resolve({ activeItem: leftButton }, 210, 12), leftButton, 'a click resolves to the button on its own bar surface')
-assertEqual(resolve({ activeItem: rightButton }, 210, 12), rightButton, 'a click on the later surface still resolves to its own button')
+// The slot's widget root is not itself clickable, so only the scan can find a button.
+const slotOn = window => ({ activeItem: { QsWindow: { window } } })
+assertEqual(resolve(slotOn(leftWindow), 210, 12), leftButton, 'a click resolves to the button on its own bar surface')
+assertEqual(resolve(slotOn(rightWindow), 210, 12), rightButton, 'a click on the later surface still resolves to its own button')
 JS
