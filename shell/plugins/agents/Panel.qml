@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "../panels/elsewhen/Model.js" as Reorder
 
 Panel {
   id: root
@@ -28,7 +29,7 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: usage.panelProviders
+  readonly property var providers: dragProviders !== null ? dragProviders : usage.panelProviders
 
   function localActions(model) {
     var actions = []
@@ -222,6 +223,7 @@ Panel {
   // Ctrl+Up/Down carries the agent the cursor is in up or down the page, and
   // the cursor along with it.
   function reorderProvider(dy) {
+    if (dragIndex >= 0) return
     var from = providerIndexOfKey()
     if (from < 0) return
     var to = clamp(from + dy, 0, providers.length - 1)
@@ -230,34 +232,87 @@ Panel {
     Qt.callLater(function() { pointAt(providers[to].localModel ? (localActions(providers[to].localModel).length ? "modelToggle" : "modelHeader") : "provider", to) })
   }
 
-  // Dragging an agent by its mark lights the header it would land on, and
-  // moves it there on release: the sections are rebuilt when the order
-  // changes, which would drop a drag still in progress.
+  // As in Elsewhen, keep the layout fixed until the lifted section settles.
+  property var dragProviders: null
   property string dragProviderId: ""
+  property int dragIndex: -1
   property int dragTarget: -1
-  // An account name being edited keeps Ctrl+Up/Down: moving its agent would
-  // rebuild the section and drop the unfinished name.
+  property real dragOffset: 0
+  property real dragPressY: 0
+  property var rowPitches: []
+  property bool settling: false
   property bool renaming: false
 
+  function beginProviderDrag(index, y) {
+    if (dragIndex >= 0 || !providerSections) return
+    var pitches = []
+    for (var i = 0; i < providerSections.count; i++)
+      pitches.push(providerSections.itemAt(i).height + column.spacing)
+    rowPitches = pitches
+    // Keep the same model object so grabbing does not rebuild the delegates.
+    dragProviders = providers
+    dragProviderId = providers[index].providerId
+    dragPressY = y
+    dragOffset = 0
+    dragTarget = index
+    dragIndex = index
+  }
+
   function dragProviderOver(y) {
-    if (!providerSections) return
-    for (var i = 0; i < providerSections.count; i++) {
-      var item = providerSections.itemAt(i)
-      if (item && y >= item.y && y < item.y + item.height) {
-        dragTarget = i
-        return
-      }
+    if (dragIndex < 0 || settling) return
+    dragOffset = y - dragPressY
+    dragTarget = Reorder.dragTargetFor(dragIndex, dragOffset, rowPitches[dragIndex],
+                                      dragTarget, providers.length, rowPitches)
+  }
+
+  function resetProviderDrag() {
+    dropAnimation.stop()
+    dragIndex = -1
+    dragTarget = -1
+    dragProviderId = ""
+    dragOffset = 0
+    settling = false
+    dragProviders = null
+  }
+
+  function finishProviderDrag() {
+    var id = dragProviderId
+    var to = dragTarget
+    var moved = dragIndex >= 0 && to !== dragIndex
+    // Disable slot motion before replacing the model: it already matches the preview.
+    dragIndex = -1
+    if (moved) usage.moveProvider(id, to)
+    resetProviderDrag()
+    if (moved) Qt.callLater(function() { pointAt(providers[to].localModel ? (localActions(providers[to].localModel).length ? "modelToggle" : "modelHeader") : "provider", to) })
+  }
+
+  function settleProviderDrag(cancel) {
+    if (dragIndex < 0) return
+    dropAnimation.stop()
+    settling = true
+    if (cancel) dragTarget = dragIndex
+    var offset = Reorder.dropOffset(dragIndex, dragTarget, rowPitches[dragIndex], rowPitches)
+    if (Style.duration(150) === 0) {
+      dragOffset = offset
+      finishProviderDrag()
+    } else {
+      dropAnimation.to = offset
+      dropAnimation.restart()
     }
   }
 
   function dropProvider() {
-    var id = dragProviderId
-    var to = dragTarget
-    dragProviderId = ""
-    dragTarget = -1
-    if (id === "" || to < 0) return
-    usage.moveProvider(id, to)
-    Qt.callLater(function() { pointAt(providers[to].localModel ? (localActions(providers[to].localModel).length ? "modelToggle" : "modelHeader") : "provider", to) })
+    if (!settling) settleProviderDrag(false)
+  }
+
+  NumberAnimation {
+    id: dropAnimation
+    target: root
+    property: "dragOffset"
+    duration: Style.duration(150)
+    easing.type: Easing.Bezier
+    easing.bezierCurve: Style.easeOut
+    onFinished: root.finishProviderDrag()
   }
 
   // Keeps whatever the cursor lands on inside the scrolled view.
@@ -968,7 +1023,9 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  onOpenedChanged: if (opened) {
+  onOpenedChanged: if (!opened) {
+    resetProviderDrag()
+  } else {
     deleteTarget = null
     if (addStage !== "running") addStage = ""
     resetKeys()
@@ -1130,7 +1187,8 @@ Panel {
       blocked: root.renaming || root.deleteTarget !== null
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
-        if (root.addStage !== "") root.cancelAdd()
+        if (root.dragIndex >= 0) root.settleProviderDrag(true)
+        else if (root.addStage !== "") root.cancelAdd()
         else root.close()
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
@@ -1489,7 +1547,21 @@ Panel {
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     spacing: Style.space(16)
-    opacity: root.dragProviderId !== "" && provider && root.dragProviderId === provider.providerId ? 0.5 : 1.0
+    readonly property bool dragged: root.dragIndex === providerIndex
+    z: dragged ? 2 : 0
+    opacity: dragged ? 0.9 : 1
+    transform: Translate {
+      y: Reorder.rowShift(section.providerIndex, root.dragIndex, root.dragTarget,
+                          root.dragOffset, root.rowPitches[root.dragIndex] || 0)
+      Behavior on y {
+        enabled: root.dragIndex >= 0 && !section.dragged
+        NumberAnimation {
+          duration: Style.duration(150)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
+        }
+      }
+    }
 
     PanelSeparator { foreground: root.foreground }
 
@@ -1523,15 +1595,14 @@ Panel {
           hoverEnabled: true
           preventStealing: true
           cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-          onPressed: {
-            root.dragProviderId = section.provider ? section.provider.providerId : ""
-            root.dragTarget = section.providerIndex
+          onPressed: function(mouse) {
+            root.beginProviderDrag(section.providerIndex, mapToItem(root.column, mouse.x, mouse.y).y)
           }
           onPositionChanged: function(mouse) {
             if (pressed) root.dragProviderOver(mapToItem(root.column, mouse.x, mouse.y).y)
           }
           onReleased: root.dropProvider()
-          onCanceled: { root.dragProviderId = ""; root.dragTarget = -1 }
+          onCanceled: root.settleProviderDrag(true)
         }
       }
 
