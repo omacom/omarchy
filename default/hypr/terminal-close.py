@@ -181,7 +181,20 @@ def close_window(address, policy="conditional"):
   confirm = foot and policy != "never" and (policy == "always" or not idle_shell(pid))
   if not confirm:
     # An unreadable /proc entry must not disable closing ordinary GUI apps.
-    # No confirmation is pending, so preserve the direct-close behavior.
+    # A job may finish while its confirmation is still unanswered.
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if foot and policy == "conditional" and started is not None and runtime_dir:
+      identity = f"{os.environ.get('HYPRLAND_INSTANCE_SIGNATURE', '')}:{address}:{pid}:{started}"
+      digest = hashlib.sha256(identity.encode()).hexdigest()[:24]
+      lock_path = Path(runtime_dir) / f"omarchy-terminal-close-{digest}.lock"
+      with lock_path.open("w") as lock:
+        try:
+          fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+          return
+        if same_window(address, pid, started):
+          dispatch_close(address)
+      return
     if same_window(address, pid, started):
       dispatch_close(address)
     return

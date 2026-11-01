@@ -118,6 +118,7 @@ selection_file="$request_dir/selection"
 done_file="$request_dir/done"
 cancel_payload=$(jq -nc --arg doneFile "$done_file" '{doneFile: $doneFile}')
 cleanup() {
+  timeout --kill-after=1s 2s omarchy-shell -q shell cancelQueued omarchy.menu "$done_file" >/dev/null 2>&1 || true
   # A stale cancellation must not dismiss a picker that replaced this one.
   timeout --kill-after=1s 2s omarchy-shell -q shell call omarchy.menu cancelRequest "$cancel_payload" >/dev/null 2>&1 || true
   rm -rf "$request_dir"

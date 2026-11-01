@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory() as scratch:
   stub = scratch / "omarchy-shell"
   stub.write_text("""#!/usr/bin/python3
 import json,os,pathlib,sys
-payload=json.loads(sys.argv[-1])
+payload = {'doneFile':sys.argv[-1]} if 'cancelQueued' in sys.argv else json.loads(sys.argv[-1])
 with open(os.environ['MENU_TEST_LOG'],'a') as log:
  log.write(json.dumps({'args':sys.argv[1:],'payload':payload})+'\\n')
 if 'summon' in sys.argv and os.environ.get('MENU_TEST_ACCEPT') == '1':
@@ -27,7 +27,10 @@ if 'summon' in sys.argv and os.environ.get('MENU_TEST_ACCEPT') == '1':
   assert result.returncode == 124 and not result.stdout, result
   rows = [json.loads(line) for line in log.read_text().splitlines()]
   request = rows[0]['payload']
-  assert rows[-1]['payload']['doneFile'] == request['doneFile']
+  assert [row['args'][2:5] for row in rows[1:]] == [
+    ['cancelQueued','omarchy.menu',request['doneFile']],
+    ['call','omarchy.menu','cancelRequest']]
+  assert all(row['payload']['doneFile'] == request['doneFile'] for row in rows[1:])
   assert not pathlib.Path(request['doneFile']).parent.exists()
   result = subprocess.run(command,env={**env,'MENU_TEST_ACCEPT':'1'},capture_output=True,text=True,timeout=6)
   assert result.returncode == 0 and result.stdout.strip() == 'Keep', result
@@ -42,11 +45,53 @@ if 'summon' in sys.argv and os.environ.get('MENU_TEST_ACCEPT') == '1':
     output,error = proc.communicate(timeout=6)
     assert proc.returncode == 143 and not output, (proc.returncode,error)
     rows = [json.loads(line) for line in log.read_text().splitlines()]
+    assert rows[1]['args'][2:] == ['cancelQueued','omarchy.menu',rows[0]['payload']['doneFile']]
+    assert rows[2]['args'][2:5] == ['call','omarchy.menu','cancelRequest']
     assert not pathlib.Path(rows[0]['payload']['doneFile']).parent.exists()
   finally:
     if proc.poll() is None: proc.kill();proc.wait()
 print('ok - selector timeout, acceptance, later requests, and signal cleanup use their own request identity')
 PYTEST
+
+# Exercise the shell queue before the plugin has loaded.
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const source = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const ctx = {
+  pendingPayloads: {}, openPanelIds: {}, panelLoaders: {},
+  pluginRegistry: {
+    resolveEnabledId: id => id, installedPlugins: {'omarchy.menu': {}}, isEnabled: () => true,
+  },
+  isBarWidgetPanelPlugin: () => false,
+}
+ctx.shell = ctx
+vm.createContext(ctx)
+for (const name of ['summon', 'cancelQueued', 'deliverIfLoaded', 'registerPanelLoader']) {
+  const start = source.indexOf('  function ' + name + '(')
+  const end = source.indexOf('\n  }', start)
+  assert(start >= 0 && end > start, 'shell function exists: ' + name)
+  vm.runInContext(source.slice(start, end + 4), ctx)
+}
+const a = JSON.stringify({doneFile: '/a/done'})
+const b = JSON.stringify({doneFile: '/b/done'})
+ctx.summon('omarchy.menu', a)
+ctx.summon('omarchy.menu', b)
+ctx.pendingPayloads.other = [a]
+ctx.openPanelIds.other = true
+ctx.cancelQueued('omarchy.menu', '/a/done')
+assertEqual(ctx.pendingPayloads['omarchy.menu'].length, 1, 'replacement stays queued')
+assert(ctx.openPanelIds['omarchy.menu'], 'replacement stays scheduled to load')
+ctx.cancelQueued('omarchy.menu', '/b/done')
+assert(!ctx.openPanelIds['omarchy.menu'], 'empty queue clears open state')
+assertEqual(ctx.pendingPayloads.other.length, 1, 'other targets keep their queue')
+assert(ctx.openPanelIds.other, 'other targets keep their open state')
+const delivered = []
+ctx.registerPanelLoader('omarchy.menu', {item: {open: payload => delivered.push(payload)}})
+assertEqual(delivered.length, 0, 'cancelled requests cannot open on later load')
+ctx.summon('omarchy.menu', b)
+assertEqual(delivered[0], b, 'later legitimate requests still open')
+JS
 
 # Run the actual QML lifecycle functions; receipts use real filesystem writes.
 run_node_test <<'JS'

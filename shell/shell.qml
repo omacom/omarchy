@@ -1219,6 +1219,25 @@ ShellRoot {
     return true
   }
 
+  function cancelQueued(pluginId, doneFile) {
+    var id = shell.pluginRegistry.resolveEnabledId(pluginId)
+    var queue = pendingPayloads[id]
+    if (!doneFile || !Array.isArray(queue)) return
+    var remaining = queue.filter(function(payload) {
+      try { return JSON.parse(payload).doneFile !== doneFile } catch (e) { return true }
+    })
+    if (remaining.length === queue.length) return
+    var pending = ({})
+    for (var p in pendingPayloads) if (p !== id) pending[p] = pendingPayloads[p].slice()
+    if (remaining.length > 0) pending[id] = remaining
+    pendingPayloads = pending
+    if (remaining.length === 0) {
+      var next = ({})
+      for (var k in openPanelIds) if (k !== id) next[k] = openPanelIds[k]
+      openPanelIds = next
+    }
+  }
+
   function hide(pluginId) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
     if (!id) return false
@@ -1929,6 +1948,10 @@ ShellRoot {
 
     function summon(id: string, payloadJson: string): string {
       return shell.summon(id, payloadJson) ? "ok" : "unknown"
+    }
+
+    function cancelQueued(id: string, doneFile: string): void {
+      shell.cancelQueued(id, doneFile)
     }
 
     function hide(id: string): void {

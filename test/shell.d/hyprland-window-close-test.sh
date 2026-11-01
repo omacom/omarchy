@@ -178,6 +178,9 @@ with patch.object(guard, "process_stat", side_effect=[original, original, reused
 assert len(attempt(selection, policy="always", idle=True)) == 2, "always policy confirms even a shell with no child jobs"
 assert len(attempt(selection, policy="never")) == 1, "never policy dispatches without a menu"
 assert len(attempt(selection, idle=True)) == 1, "conditional policy exempts the recognizable shell"
+with patch.dict(os.environ):
+  os.environ.pop("XDG_RUNTIME_DIR", None)
+  assert len(attempt(selection, idle=True)) == 1, "missing runtime directory preserves idle close behavior"
 with patch.object(guard, "find_window", side_effect=[window, window]), \
      patch.object(guard.os, "readlink", return_value="/usr/bin/ghostty"), \
      patch.object(guard.subprocess, "run") as run:
@@ -199,6 +202,8 @@ def pending_menu(args, **kwargs):
   menus.append(args)
   if len(menus) == 1:
     guard.close_window("0xabc", "always")
+    with patch.object(guard, "idle_shell", return_value=True):
+      guard.close_window("0xabc")
     guard.close_window("0xdef", "always")
   return SimpleNamespace(returncode=124, stdout="")
 with patch.object(guard, "find_window", side_effect=lambda address: windows.get(address)), \
