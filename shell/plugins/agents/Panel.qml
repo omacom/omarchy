@@ -48,6 +48,14 @@ Panel {
     }
   }
 
+  // A start or stop runs steadily to 90% at the time the last one took, then
+  // keeps creeping toward 98%, so one that runs long reads as slow, not stuck.
+  function phaseProgress(elapsed, expected) {
+    if (!(expected > 0)) return 0
+    if (elapsed <= expected) return 0.9 * elapsed / expected
+    return 0.9 + 0.08 * (1 - Math.exp(-(elapsed - expected) / expected))
+  }
+
   property double loadNowMs: Date.now()
   readonly property bool localLoading: providers.some(function(p) { return p.localModel && (p.localModel.unit === "activating" || p.localModel.unit === "deactivating") })
   Timer {
@@ -1700,7 +1708,7 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.loading || section.stopping ? Math.min(0.95, section.elapsed / section.phaseSeconds)
+        value: section.loading || section.stopping ? root.phaseProgress(section.elapsed, section.phaseSeconds)
           : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
       }
       Text {
@@ -1709,8 +1717,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.loading || section.stopping
-          ? (section.elapsed < section.phaseSeconds ? Commons.I18n.t("agents.localSecondsLeft").arg(Commons.I18n.formatNumber(Math.ceil(section.phaseSeconds - section.elapsed))) : "")
+        text: section.loading || section.stopping ? ""
           : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
         color: root.dim
         font.family: root.fontFamily

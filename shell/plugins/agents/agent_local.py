@@ -1579,6 +1579,20 @@ def expected_stop_seconds(rid):
     return None
 
 
+def load_seconds_path(rid):
+  return os.path.join(state_dir(), "loads", rid)
+
+
+def expected_load_seconds(rid, manifest):
+  """How long this model's last start took, which the panel's loading bar
+  runs against. Every start reads weights cold (stops evict them), so the
+  last start predicts the next far better than the setup run did."""
+  try:
+    return float(_read(load_seconds_path(rid)))
+  except ValueError:
+    return (manifest.get("observed") or {}).get("load_seconds")
+
+
 def error_path(rid):
   return os.path.join(state_dir(), "errors", rid)
 
@@ -1902,7 +1916,7 @@ def model_record(rid, manifest, catalog=None, profile=None):
     # When the current start or stop began, and how long the last load took:
     # the panel's progress bar measures the one against the other.
     "since_ms": _unix_ms(props.get("InactiveExitTimestamp") if unit == "activating" else props.get("ActiveExitTimestamp") if unit == "deactivating" else ""),
-    "expected_load_seconds": observed.get("load_seconds"),
+    "expected_load_seconds": expected_load_seconds(rid, manifest),
     "expected_stop_seconds": expected_stop_seconds(rid),
   }
 
@@ -2016,6 +2030,7 @@ def cmd_start(argv):
   gpu = choose_gpu(machine_profile(), manifest["gpu"])
   # Shown as loading from the click on; the memory checks below take seconds.
   clear_error(rid)
+  started = time.time()
   write_status({rid: "activating"})
   evict_idle_weights(keep=[rid])
   try:
@@ -2029,6 +2044,9 @@ def cmd_start(argv):
   write_atomic(os.path.join(state_dir(), "last"), rid + "\n")
   if result.returncode != 0:
     record_error(rid, "Didn't start: omarchy agent local status shows why")
+  else:
+    # Timed from the same moment the panel's bar starts from, the click.
+    write_atomic(load_seconds_path(rid), f"{time.time() - started:.1f}\n")
   write_status()
   if result.returncode != 0:
     raise LocalError(f"{rid} didn't start: {result.stderr.strip()}\n{journal_tail(rid)}")
@@ -2070,7 +2088,7 @@ def cmd_remove(argv):
       write_status({rid: "deactivating"})
       systemctl("stop", unit_name(rid))
     write_unit_files(rid, None)
-    for path in (model_manifest_path(rid), autostart_flag(rid), error_path(rid), stop_seconds_path(rid)):
+    for path in (model_manifest_path(rid), autostart_flag(rid), error_path(rid), stop_seconds_path(rid), load_seconds_path(rid)):
       if os.path.exists(path):
         os.unlink(path)
     if _read(os.path.join(state_dir(), "last")) == rid:

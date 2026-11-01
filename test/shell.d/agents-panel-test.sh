@@ -176,3 +176,13 @@ state.settleProviderDrag(true)
 assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
 JS
+
+# A start that runs past its last duration must keep moving, never fill up.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const progress = new Function(source.match(/function phaseProgress\([^]*?\n  \}/)[0] + '\nreturn phaseProgress')()
+assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one took')
+assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
+assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
+JS
