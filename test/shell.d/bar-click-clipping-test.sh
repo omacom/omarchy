@@ -37,4 +37,23 @@ assert(!hit(hiddenButton, null, 170, 12), 'hidden ancestors prevent forwarded cl
 drawer.visible = true
 drawer.enabled = false
 assert(!hit(hiddenButton, null, 170, 12), 'disabled ancestors prevent forwarded clicks')
+
+// Every bar surface registers into one clickTargets list, so a click must
+// resolve against its own surface even when another output's bar overlaps it.
+const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+const barFunctions = ['moduleTargetClickable', 'targetWindow', 'targetBelongsToWindow', 'slotWindow', 'moduleClickTargetAt']
+  .map(name => barSource.match(new RegExp('  function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}'))[0])
+const clickTargetAt = new Function('clickTargets', 'Util', barFunctions.join('\n') + '\nreturn moduleClickTargetAt')
+
+function surfaceButton(window) {
+  return Object.assign(item(200, 25), { QsWindow: { window }, triggerPress() {} })
+}
+
+const leftWindow = {}
+const rightWindow = {}
+const leftButton = surfaceButton(leftWindow)
+const rightButton = surfaceButton(rightWindow)
+const resolve = clickTargetAt([leftButton, rightButton], { itemContainsPoint: hit })
+assertEqual(resolve({ activeItem: leftButton }, 210, 12), leftButton, 'a click resolves to the button on its own bar surface')
+assertEqual(resolve({ activeItem: rightButton }, 210, 12), rightButton, 'a click on the later surface still resolves to its own button')
 JS
