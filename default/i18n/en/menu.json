@@ -878,6 +878,14 @@
   "install.ai.ollama": {
     "label": "Ollama"
   },
+  "install.ai.local-best": {
+    "label": "Local model (best for this machine)",
+    "description": "Download and run the recommended local AI model for this machine"
+  },
+  "install.ai.local-models": {
+    "label": "Choose local model…",
+    "description": "Browse local AI models and their machine requirements"
+  },
   "install.ai.openclaw": {
     "label": "OpenClaw"
   },

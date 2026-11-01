@@ -133,6 +133,7 @@ assertDeepEqual(
   {
     itemId: 'style.theme',
     disabled: false,
+    unavailable: false,
     kind: 'action',
     icon: '',
     iconFont: '',
@@ -220,6 +221,20 @@ assert(
   defaultItems.filter(item => item.id.startsWith('remove.')).every(item => !item.disabled),
   'menu hides Remove rows rather than dimming them'
 )
+
+// A compatibility failure must block selection without claiming installation.
+const recipeSpec = { icon: 'model', actionFor: value => 'use ' + value }
+const unavailable = menu.parseProviderRows('Large model\tlarge\tlarge\tGPU\tneeds 72 GiB GPU memory', 'models', recipeSpec)[0]
+const unavailableDisplay = menu.displayRow({ [unavailable.id]: unavailable }, [unavailable.id], {}, {}, unavailable, '', 0)
+assert(unavailableDisplay.disabled, 'unavailable provider rows cannot be selected')
+assertEqual(unavailableDisplay.detail, 'needs 72 GiB GPU memory', 'unavailable rows show the compatibility reason')
+assertEqual(unavailableDisplay.label, 'Large model', 'unavailable rows do not append an installed checkmark')
+assertEqual(unavailableDisplay.icon, 'model', 'unavailable active rows do not get the current checkmark')
+const available = menu.parseProviderRows('Small model\tsmall\tsmall\tGPU', 'models', recipeSpec)[0]
+assert(!menu.isDisabled({}, available), 'four-field provider rows remain selectable')
+assertEqual(available.icon, '✓', 'four-field provider rows retain the current checkmark')
+assertDeepEqual(available.searchTerms, ['GPU'], 'four-field provider rows retain search terms')
+assertEqual(menu.displayRow({ [available.id]: available }, [available.id], {}, {}, available, '', 0).detail, '', 'four-field provider rows have no unavailable detail')
 
 // Exactly the bar's current background is checked. Ask bash, against a
 // shell.json in each state, which rows it checks.

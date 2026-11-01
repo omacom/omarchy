@@ -159,6 +159,51 @@ function mergeAppRows(items, itemOrder, appRows) {
   return { items: nextItems, itemOrder: nextOrder }
 }
 
+function parseProviderRows(rows, menuId, spec) {
+  var lines = String(rows || "").split("\n")
+  var providerRows = []
+  var takenIds = ({})
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (!line) continue
+    var parts = line.split("\t")
+    var rawLabel = parts[0] || ""
+    var label = spec.labelFor ? spec.labelFor(rawLabel) : rawLabel
+    var value = parts[1] || parts[0] || ""
+    var current = parts[2] || ""
+    var unavailableReason = parts[4] || ""
+    if (!label) continue
+    // Distinct values can slugify alike — Fira Code and Fira-Code both give
+    // fira-code — and a repeated id is dropped, which would silently lose a
+    // row from the list. Nudge it until it is the row's own.
+    var rowId = menuId + "." + slugify(value)
+    while (takenIds[rowId]) rowId += "-"
+    takenIds[rowId] = true
+
+    var row = {
+      id: rowId,
+      parent: menuId,
+      kind: "action",
+      icon: (!unavailableReason && value === current) ? "✓" : (spec.icon || ""),
+      label: label,
+      title: "",
+      target: "",
+      description: "",
+      action: spec.actionFor(value),
+      provider: "",
+      aliases: [],
+      searchTerms: (parts[3] ? [parts[3]] : []).concat(label !== rawLabel ? [rawLabel] : []),
+      when: "",
+      checked: "",
+      disabled: "",
+      order: 0
+    }
+    if (unavailableReason) row.unavailableReason = unavailableReason
+    providerRows.push(row)
+  }
+  return providerRows
+}
+
 // Swaps the rows one provider contributed, leaving every other item untouched.
 // Rows carry the id of the submenu that produced them, so a provider that runs
 // again drops its previous batch — a plugin that was just enabled disappears
@@ -301,6 +346,7 @@ function isVisible(items, itemOrder, whenResults, entry, depth) {
 // Install submenus use it so software already on the machine reads as
 // installed rather than disappearing from the list it was installed from.
 function isDisabled(disabledResults, entry) {
+  if (entry && entry.unavailableReason) return true
   if (!entry || !entry.disabled) return false
   return !!(disabledResults && disabledResults[entry.id])
 }
@@ -309,7 +355,7 @@ function isDisabled(disabledResults, entry) {
 // says everywhere else in the menu, so it earns the same marker.
 function labelFor(entry, checkedResults, disabledResults) {
   if (!entry) return ""
-  var marked = (entry.checked && checkedResults && checkedResults[entry.id]) || isDisabled(disabledResults, entry)
+  var marked = !entry.unavailableReason && ((entry.checked && checkedResults && checkedResults[entry.id]) || isDisabled(disabledResults, entry))
   return marked ? entry.label + " ✓" : entry.label
 }
 
@@ -393,6 +439,7 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
   return {
     itemId: entry.id,
     disabled: isDisabled(disabledResults, entry),
+    unavailable: !!entry.unavailableReason,
     kind: entry.kind,
     icon: entry.icon,
     iconFont: entry.iconFont || "",
@@ -400,7 +447,7 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
     appId: entry.appId || "",
     label: labelFor(entry, checkedResults, disabledResults),
     target: target,
-    detail: detail || "",
+    detail: entry.unavailableReason || detail || "",
     path: pathFor(items, entry.id),
     childCount: (entry.kind === "menu" || entry.kind === "link") ? childCount(items, itemOrder, target) : 0,
     action: entry.action || "",
@@ -697,6 +744,7 @@ if (typeof module !== "undefined") {
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,
+    parseProviderRows: parseProviderRows,
     item: item,
     resolveRoute: resolveRoute,
     slugify: slugify,
