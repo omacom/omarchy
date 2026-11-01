@@ -320,9 +320,11 @@ cat >"$work/stubs/omarchy-restart-shell" <<'STUB'
 #!/bin/bash
 echo "restart" >>"$SESSION_ENV_LOG"
 STUB
-# sudo and pkexec record which one elevated and what it ran, then run it
-# as-is. sudo answers the long listing (`sudo -n -l -l`) with the
-# passwordless grant only when TEST_SUDO_GRANT is set, the way a machine with
+# sudo and pkexec record which one elevated and what it ran, then run this
+# checkout's copy of it: omarchy-language asks for /usr/bin's, which is the
+# installed package's helper wherever Omarchy is installed. sudo answers the
+# long listing (`sudo -n -l -l`) with the passwordless grant only when
+# TEST_SUDO_GRANT is set, the way a machine with
 # etc/sudoers.d/omarchy-locale-generate installed does.
 cat >"$work/stubs/sudo" <<'STUB'
 #!/bin/bash
@@ -333,12 +335,12 @@ fi
 flag=""
 if [[ $1 == "-n" ]]; then flag=" -n"; shift; fi
 echo "sudo$flag $(basename "$1") $2" >>"$ELEVATE_LOG"
-exec "$@"
+exec "$OMARCHY_PATH/bin/$(basename "$1")" "${@:2}"
 STUB
 cat >"$work/stubs/pkexec" <<'STUB'
 #!/bin/bash
 echo "pkexec $(basename "$1") $2" >>"$ELEVATE_LOG"
-exec "$@"
+exec "$OMARCHY_PATH/bin/$(basename "$1")" "${@:2}"
 STUB
 chmod +x "$work/stubs/"*
 export PATH="$work/stubs:$PATH"
