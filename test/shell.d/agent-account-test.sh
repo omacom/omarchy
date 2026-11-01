@@ -38,6 +38,10 @@ if [[ ${1:-} == "auth" && ${2:-} == "login" ]]; then
   echo '{"claudeAiOauth":{"rateLimitTier":"default_claude_max_5x","subscriptionType":"max"}}' >"$home/.credentials.json"
   exit 0
 fi
+if [[ -n ${OMARCHY_TEST_SHOW_PATH:-} ]]; then
+  echo "$PATH"
+  exit 0
+fi
 echo "claude home=${CLAUDE_CONFIG_DIR:-default} args=$*"
 SH
 
@@ -119,8 +123,14 @@ pass "the existing login is listed as the primary account"
 
 # ------------------------------------------------------------------------- add
 
+# A shared folder can be the person's own symlink that points nowhere yet, such
+# as a dotfiles link whose target hasn't synced. Adding an account must leave it
+# alone rather than fail on it.
+ln -s "$test_tmp/dotfiles/claude-skills" "$HOME/.claude/skills"
+
 OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
-  omarchy-agent-account-add claude Work </dev/null >"$test_tmp/add-output"
+  omarchy-agent-account-add claude Work </dev/null >"$test_tmp/add-output" 2>&1 ||
+  fail "adding an account works when a shared folder is a dangling symlink" "$(cat "$test_tmp/add-output")"
 grep -q "Added Work (work@example.com)" "$test_tmp/add-output" || fail "adding an account reports who signed in" "$(cat "$test_tmp/add-output")"
 grep -q "private window that opens" "$test_tmp/add-output" || fail "adding an account says to sign in within the private window"
 [[ $(head -1 "$OMARCHY_TEST_BROWSER_LOG") == "--private https://claude.com/oauth/authorize" ]] ||
@@ -135,7 +145,28 @@ work="$accounts/claude/work"
   fail "a shared file the primary doesn't have yet is linked, so it's written there when it is"
 [[ $(jq -c .mcpServers "$work/.claude.json") == '{"docs":{"command":"docs-mcp"}}' ]] || fail "an added account carries the primary's MCP servers"
 [[ $(stat -c %a "$work") == 700 && $(stat -c %a "$accounts/claude.json") == 600 ]] || fail "account homes and the registry are private"
+[[ $(readlink "$HOME/.claude/skills") == "$test_tmp/dotfiles/claude-skills" && $(readlink "$work/skills") == "$HOME/.claude/skills" ]] ||
+  fail "a dangling shared symlink is left alone and still shared"
+[[ -z $(find "$accounts/claude/.pending" -mindepth 1 -print -quit 2>/dev/null) ]] || fail "adding an account leaves no pending login behind"
 pass "an added account shares everything but its login with the primary"
+
+# A shared folder that isn't a folder at all (here a regular file) is still an
+# error, and the half-made login home is cleaned up rather than left behind.
+mv "$HOME/.claude/commands" "$test_tmp/commands-dir" 2>/dev/null || true
+touch "$HOME/.claude/commands"
+if OMARCHY_TEST_LOGIN_UUID=u-broken OMARCHY_TEST_LOGIN_EMAIL=broken@example.com \
+  omarchy-agent-account-add claude Broken </dev/null >"$test_tmp/broken-output" 2>&1; then
+  fail "a shared folder that is a file stops the add"
+fi
+grep -Fq "Couldn't set up a home for the new account." "$test_tmp/broken-output" ||
+  fail "the failed add reports the shared-folder setup error" "$(cat "$test_tmp/broken-output")"
+[[ -z $(find "$accounts/claude/.pending" -mindepth 1 -print -quit 2>/dev/null) ]] ||
+  fail "a failed account setup leaves no pending login behind" "$(ls -A "$accounts/claude/.pending")"
+rm "$HOME/.claude/commands"
+if [[ -d $test_tmp/commands-dir ]]; then
+  mv "$test_tmp/commands-dir" "$HOME/.claude/commands"
+fi
+pass "a failed account setup is refused and cleans up after itself"
 
 if OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
   omarchy-agent-account-add claude Again </dev/null >"$test_tmp/dup-output" 2>&1; then
@@ -218,6 +249,10 @@ pass "use makes an account active and says so"
 [[ $(omarchy-agent-account-exec claude --version) == "claude home=$work args=--version" ]] || fail "claude at a prompt starts as the active account"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
+# mise strips its shims before running a wrapper, so the agent would only see
+# tools installed before it started.
+[[ :$(MISE_DATA_DIR="$test_tmp/mise" OMARCHY_TEST_SHOW_PATH=1 omarchy-agent-account-exec claude): == *":$test_tmp/mise/shims:"* ]] ||
+  fail "an agent finds mise tools installed after it started"
 pass "account dispatch follows the active account"
 
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
@@ -246,7 +281,10 @@ pass "the provider defaults to your default agent"
 # ----------------------------------------------------------------------- rename
 
 omarchy-agent-account-use claude work >/dev/null
-omarchy-agent-account-rename claude work Day job >/dev/null
+rename_output=$(omarchy-agent-account-rename claude work Day job)
+# The suggested command names the provider, so it works whatever the default agent is.
+[[ $rename_output == *"Switch to it with: omarchy agent account use claude day-job" ]] ||
+  fail "rename suggests a use command that names the provider" "$rename_output"
 [[ $(omarchy-agent-account-list claude --json | jq -c '.[0] | {active, renamed: (.accounts[] | select(.id == "day-job") | .label)}') == '{"active":"day-job","renamed":"Day job"}' ]] ||
   fail "renaming changes the label and the id it answers to, and the active account follows"
 [[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "renaming leaves the account's home where running sessions expect it"
@@ -324,6 +362,23 @@ shutil.rmtree(pending)
 PY
 pass "a failed registration rolls the new home back to pending"
 
+# A settings cache whose settings aren't an object costs only the plan.
+STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY' || fail "a Grok settings cache of the wrong shape reads as no plan"
+import importlib.machinery, importlib.util, json, os, tempfile
+from pathlib import Path
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+
+home = Path(tempfile.mkdtemp(dir=os.environ["HOME"]))
+(home / "auth.json").write_text(json.dumps({"https://auth.x.ai::client": {"user_id": "u-odd", "email": "odd@example.com"}}))
+(home / "settings_cache.json").write_text(json.dumps({"payload": json.dumps({"settings": "x"})}))
+found = state.grok_identity(home)
+assert found["plan"] == "" and found["email"] == "odd@example.com", found
+PY
+pass "a Grok settings cache of the wrong shape reads as no plan"
+
 # ------------------------------------------------------------ panel add flow
 
 [[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
@@ -356,6 +411,20 @@ grep -qx "@@omarchy done Signed in to Claude again." "$test_tmp/reauth-output" |
 [[ -s $accounts/claude/events/.credentials.json ]] || fail "--reauth signs in to the account's own home"
 [[ $(omarchy-agent-account-list claude --json | jq '.[0].accounts | length') == "$before" ]] || fail "--reauth adds no account"
 grep -qx -- "--private https://claude.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" || fail "--reauth of an added account uses a private window"
+
+# --reauth without an account is a mistake, not a request to add one.
+: >"$OMARCHY_TEST_BROWSER_LOG"
+before=$(omarchy-agent-account-list claude --json | jq '.[0].accounts | length')
+for args in "--reauth" "--reauth --events"; do
+  # shellcheck disable=SC2086
+  if OMARCHY_TEST_LOGIN_UUID=u-stray OMARCHY_TEST_LOGIN_EMAIL=stray@example.com \
+    omarchy-agent-account-add $args </dev/null >/dev/null 2>&1; then
+    fail "--reauth needs an account: $args"
+  fi
+done
+[[ $(omarchy-agent-account-list claude --json | jq '.[0].accounts | length') == "$before" && ! -s $OMARCHY_TEST_BROWSER_LOG ]] ||
+  fail "--reauth without an account adds nothing and opens no sign-in"
+pass "--reauth without an account is refused"
 
 : >"$OMARCHY_TEST_BROWSER_LOG"
 OMARCHY_TEST_LOGIN_UUID=u-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com \

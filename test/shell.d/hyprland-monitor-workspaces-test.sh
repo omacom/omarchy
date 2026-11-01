@@ -271,7 +271,7 @@ function shows(name)
 end
 
 function state_file()
-  local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitor-workspaces")
+  local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/workspaces")
   local content = file and file:read("a") or ""
   if file then file:close() end
   return content
@@ -461,6 +461,70 @@ check(world.windows["0xf"].workspace == 7 and on(7) == "eDP-1", "the new workspa
 ' || fail "an unplugged monitor's workspaces join another's after its own until it returns"
 pass "an unplugged monitor's workspaces join another's after its own until it returns"
 
+run_lua twins '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "LG", 21)
+world.focused = "DP-2"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 11)
+window("0xb", 22)
+monitor_named("DP-2").active = 22
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+check(m.workspace_id(hl.get_monitor("DP-2"), 1) == 21, "the remaining twin took the unplugged one'"'"'s block")
+check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the remaining twin'"'"'s workspace moved to " .. world.windows["0xb"].workspace)
+check(world.windows["0xa"].workspace == 2 and on(2) == "eDP-1", "the unplugged twin'"'"'s workspace joined the laptop'"'"'s")
+
+m = load_module()
+world.handlers["config.reloaded"]()
+check(m.workspace_id(hl.get_monitor("DP-2"), 1) == 21, "a reload handed the remaining twin the other'"'"'s block")
+
+plug("DP-3", 3, "LG", 3)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xa"].workspace == 11 and on(11) == "DP-3", "the workspace went home to its own twin")
+check(world.windows["0xb"].workspace == 22 and on(22) == "DP-2", "the other twin kept its workspace")
+' || fail "a monitor keeps its block when its identical twin is unplugged"
+pass "a monitor keeps its block when its identical twin is unplugged"
+
+run_lua reused '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("DP-2", 2, "XENEON", 21)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 12)
+world.focused = "DP-2"
+window("0xc", 21)
+window("0xd", 22)
+monitor_named("DP-2").active = 22
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+check(world.windows["0xb"].workspace == 2, "the workspace joined the laptop'"'"'s")
+world.windows["0xb"] = nil
+hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+check(on(2) == nil, "the emptied workspace went away")
+
+-- Another workspace takes the number over without Hyprland creating it.
+world.focused = "DP-2"
+world.neighbours = { ["DP-2"] = { d = "eDP-1" } }
+hl.dispatch(m.move_to_monitor("d"))
+check(world.windows["0xd"].workspace == 2 and on(2) == "eDP-1", "the moved workspace took the free number")
+
+plug("DP-3", 3, "LG", 3)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xd"].workspace == 2 and on(2) == "eDP-1", "a stranger was sent to the returning monitor as " .. world.windows["0xd"].workspace)
+' || fail "a number taken over by another workspace forgets where the old one came from"
+pass "a number taken over by another workspace forgets where the old one came from"
+
 run_lua full '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
@@ -485,7 +549,7 @@ unplug("DP-3")
 world.handlers["monitor.removed"]({ name = "DP-3" })
 load_module()
 world.handlers["hyprland.start"]()
-local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitor-workspaces-merged")
+local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/workspaces-merged")
 check(file:read("a") == "", "a new session forgot where workspaces came from")
 file:close()
 ' || fail "a workspace with no room to join waits as a guest"
