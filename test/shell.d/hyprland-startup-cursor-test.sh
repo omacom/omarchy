@@ -150,3 +150,13 @@ io.popen = popen
 LUA
 lua "$fixture" || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"
+
+# A completed startup stays completed when every monitor disappears and a
+# reload drops the Lua state. Keep a private runtime directory so the fixture
+# cannot reach the running session's sockets.
+export XDG_RUNTIME_DIR
+XDG_RUNTIME_DIR=$(mktemp -d)
+trap 'rm -f "$fixture"; rm -rf "$XDG_RUNTIME_DIR"' EXIT
+lua "$ROOT/test/shell.d/fixtures/startup-cursor/monitorless.lua" ||
+  fail "completed startup stays completed across a monitorless reload"
+pass "completed startup stays completed across a monitorless reload"
