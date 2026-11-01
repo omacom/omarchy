@@ -1700,14 +1700,15 @@ def resolve_model(rid=None, running_only=False):
   return manifest
 
 
-def save_run(manifest):
+def save_run(manifest, started=True):
   stamp = time.strftime("%Y%m%dT%H%M%S")
   rid = manifest["recipe_id"]
   path = os.path.join(runs_dir(), f"{stamp}-{rid}.json")
   text = json.dumps(manifest, indent=2) + "\n"
   write_atomic(path, text)
   write_atomic(model_manifest_path(rid), text)
-  write_atomic(os.path.join(state_dir(), "last"), rid + "\n")
+  if started:
+    write_atomic(os.path.join(state_dir(), "last"), rid + "\n")
   return path
 
 
@@ -1929,6 +1930,23 @@ def cmd_use(argv):
     manifest["launch"] = {"argv": argv_out, "env": env_out}
     if skipped:
       say(f"Note: runtime {recipe['runtime']} takes no {', '.join(skipped)} default; clients choose their own")
+    # Downloaded is installed: when other models hold the memory it needs,
+    # the setup is kept, stopped, and starts later from the panel's play.
+    if not unit_active(rid):
+      try:
+        check_headroom(variant, gpu)
+      except LocalError as error:
+        write_unit_files(rid, render_container(rid, recipe, runtime, variant, roles, gpu, autostart_enabled(rid), fileset))
+        clear_error(rid)
+        path = save_run(manifest, started=False)
+        prune_filesets(rid, fileset)
+        refresh_list_cache(profile)
+        write_status()
+        say("")
+        say(f"Installed {rid}, but it can't start now: {error}")
+        say(f"Stop another model, then press play in the agents panel or run: omarchy agent local start {rid}")
+        say(f"Manifest: {path}")
+        return 0
     activate(manifest, recipe, runtime, gpu, key)
     path = save_run(manifest)
     prune_filesets(rid, fileset)
