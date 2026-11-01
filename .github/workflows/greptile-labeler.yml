@@ -7,6 +7,10 @@ on:
   issue_comment:
     types: [created, edited]
 
+concurrency:
+  group: greptile-labeler-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 permissions:
   pull-requests: write
   issues: write
@@ -16,6 +20,7 @@ jobs:
   label:
     if: |
       github.event.issue.pull_request &&
+      (github.event.comment.user.login == 'greptile-apps' || github.event.comment.user.login == 'greptile-apps[bot]') &&
       contains(github.event.comment.body, 'greptile_summary')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -87,15 +92,15 @@ jobs:
             gh label create "$lbl" --repo "$GH_REPO" --color "$color" --description "$desc" --force 2>/dev/null || true
           done
 
-          # Fetch current labels on PR
-          current_labels=$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json labels --jq '.labels[].name' || true)
+          # Fetch current labels on PR - must succeed
+          current_labels=$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json labels --jq '.labels[].name')
 
           # Remove obsolete greptile score labels
           while IFS= read -r old; do
             [[ -n $old ]] || continue
             if [[ -n $target_score_label && $old != "$target_score_label" ]]; then
               echo "Removing stale score label: $old"
-              gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --remove-label "$old" || true
+              gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --remove-label "$old"
             fi
           done < <(echo "$current_labels" | grep -E '^greptile:' || true)
 
@@ -104,7 +109,7 @@ jobs:
             [[ -n $old ]] || continue
             if [[ -n $target_impact_label && $old != "$target_impact_label" ]]; then
               echo "Removing stale impact label: $old"
-              gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --remove-label "$old" || true
+              gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --remove-label "$old"
             fi
           done < <(echo "$current_labels" | grep -E '^impact:' || true)
 
@@ -112,5 +117,5 @@ jobs:
           for new_lbl in "$target_score_label" "$target_impact_label"; do
             [[ -n $new_lbl ]] || continue
             echo "Applying label: $new_lbl"
-            gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --add-label "$new_lbl" || true
+            gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --add-label "$new_lbl"
           done
