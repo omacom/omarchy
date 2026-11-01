@@ -1,12 +1,21 @@
+local function terminal_close_policy()
+  local policy = _G.omarchy_terminal_close_confirmation
+  if policy == false or policy == "never" then
+    return "never"
+  elseif policy == "always" then
+    return "always"
+  end
+  return "conditional"
+end
+
 local function close_window()
   local window = hl.get_active_window()
   if not window then return end
 
-  local policy = _G.omarchy_terminal_close_confirmation
-  if policy == false or policy == "never" then
+  local policy = terminal_close_policy()
+  if policy == "never" then
     hl.dispatch(hl.dsp.window.close({ window = "address:" .. window.address }))
   else
-    if policy ~= "always" and policy ~= "conditional" then policy = "conditional" end
     -- App-ids are user-controlled; a custom Foot app-id may lack a terminal tag.
     hl.dispatch(hl.dsp.exec_cmd("omarchy-hyprland-window-close --policy " .. o.shell_quote(policy)
       .. " " .. o.shell_quote(window.address)))
@@ -21,7 +30,9 @@ o.bind_expressions[close_window] = "o.close_window()"
 
 o.bind("SUPER + W", "Close window", close_window)
 o.bind("SUPER + Q", "Close window", close_window)
-o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
+o.bind("CTRL + ALT + DELETE", "Close all windows", function()
+  hl.dispatch(hl.dsp.exec_cmd("omarchy-hyprland-window-close-all --policy " .. o.shell_quote(terminal_close_policy())))
+end)
 
 o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
 o.bind("SUPER + P", "Pseudo window", hl.dsp.window.pseudo())

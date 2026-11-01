@@ -34,7 +34,9 @@ Set `omarchy_terminal_close_confirmation` in `~/.config/hypr/bindings.lua` to ch
 - `"always"` confirms every Foot terminal close, including idle shells. Use this for stronger protection without relying on process detection.
 - `"never"` closes directly. `false` is also accepted; `true` selects the conditional policy.
 
-This protection applies to `Super + W` and `Super + Q`, not closing all windows, logging out, or terminating a process. Other applications and terminals retain their own close behavior. Shared Foot server windows omit program names when those cannot be attributed to the selected window.
+`Ctrl + Alt + Delete` asks once when closing all windows would interrupt protected Foot sessions, using the same policy. Cancelling leaves every window and the workspace alone. Confirming closes only the windows captured for that request; windows opened later are left alone. Other applications and terminals retain their own close behavior. Shared Foot server windows omit program names when those cannot be attributed to the selected window.
+
+Logout, reboot, and shutdown also ask once about protected Foot sessions before starting exit preparation. Approving these actions ends the whole session, including windows opened after the warning. The command-line forms `omarchy system logout`, `omarchy system reboot`, `omarchy system shutdown`, and `omarchy hyprland window close all` accept `--policy always|conditional|never`; their default is conditional. The Lua setting above applies to keyboard shortcuts. Terminating a process directly is not guarded.
 
 You can also go full screen with `Super + F` or even just full-width (keeping the top bar) with `Super + Alt + F` or full-screen within a window with `Super + Ctrl + F` (good for YouTube!).
 

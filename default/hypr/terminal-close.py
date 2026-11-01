@@ -167,6 +167,12 @@ def dispatch_close(address):
   )
 
 
+def needs_confirmation(window, executable, policy):
+  foot = executable in {"foot", "footclient"} or (
+    executable is None and window.get("class") in {"foot", "org.codeberg.dnkl.foot"})
+  return foot and policy != "never" and (policy == "always" or not idle_shell(window.get("pid")))
+
+
 def close_window(address, policy="conditional"):
   window = find_window(address)
   if not window:
@@ -176,9 +182,7 @@ def close_window(address, policy="conditional"):
 
   # Leave other terminals' native close policies alone. App-ids may be renamed
   # by the agent launcher, so identify Foot through its owning executable.
-  foot = executable in {"foot", "footclient"} or (
-    executable is None and window.get("class") in {"foot", "org.codeberg.dnkl.foot"})
-  confirm = foot and policy != "never" and (policy == "always" or not idle_shell(pid))
+  confirm = needs_confirmation(window, executable, policy)
   if not confirm:
     # An unreadable /proc entry must not disable closing ordinary GUI apps.
     # No confirmation is pending, so preserve the direct-close behavior.
@@ -220,11 +224,97 @@ def close_window(address, policy="conditional"):
       dispatch_close(address)
 
 
+def window_snapshot():
+  return [(window, *process_identity(window.get("pid"))) for window in hypr_json("clients")
+          if re.fullmatch(r"0x[0-9a-fA-F]+", window.get("address", ""))]
+
+
+def confirm_exit(snapshot, policy, action="close-all"):
+  risks = [(window, started) for window, started, executable in snapshot
+           if needs_confirmation(window, executable, policy)]
+  if not risks:
+    return True
+  if any(started is None for _, started in risks):
+    return False
+  phrases = {
+    "close-all": ("omarchy-i18n window.confirmAllClose", "omarchy-i18n window.closeAll"),
+    "logout": ("omarchy-i18n system.confirmLogout", "omarchy-i18n system.logoutAction"),
+    "reboot": ("omarchy-i18n system.confirmReboot", "omarchy-i18n system.rebootAction"),
+    "shutdown": ("omarchy-i18n system.confirmShutdown", "omarchy-i18n system.shutdownAction"),
+  }
+  prompt, proceed = [translate(command) for command in phrases[action]]
+  keep = translate("omarchy-i18n window.keepAll")
+  titles = [" ".join(window.get("title", "").split())[:80] or window["address"] for window, _ in risks]
+  summary = "; ".join(titles[:3]) + ("; …" if len(titles) > 3 else "")
+  detail = translate("omarchy-i18n window.exitTerminals", str(len(risks)), summary)
+  programs = "; ".join(filter(None, (program_names(window["pid"]) for window, _ in risks)))[:180]
+  if programs:
+    programs = translate("omarchy-i18n window.terminalPrograms", programs)
+  else:
+    programs = translate("omarchy-i18n window.terminalProgramsUnknown")
+  key = hashlib.sha256(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "").encode()).hexdigest()[:16]
+  with (Path(os.environ["XDG_RUNTIME_DIR"]) / f"omarchy-terminal-exit-{key}.lock").open("w") as lock:
+    try:
+      fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+      return False
+    result = subprocess.run(
+      ["omarchy-menu-select", prompt, f"\t{keep}\t{detail}", f"\t{proceed}\t{programs}",
+       "--", "--width", "700", "--timeout", "60"], capture_output=True, text=True,
+    )
+    return result.returncode == 0 and result.stdout.strip() == f"{proceed}\t{programs}"
+
+
+def close_all(policy="conditional", wait=False):
+  snapshot = window_snapshot()
+  if not confirm_exit(snapshot, policy):
+    return 1
+  # A prompt can outlive an application. Do not attach a waiter to a PID that
+  # now belongs to an unrelated process, even though dispatch would skip it.
+  snapshot = [(window, started, executable) for window, started, executable in snapshot
+              if same_window(window["address"], window.get("pid"), started)]
+  pids = sorted({window["pid"] for window, started, _ in snapshot
+                 if started is not None and isinstance(window.get("pid"), int) and window["pid"] > 0})
+  waiter = None
+  try:
+    if wait and pids:
+      waiter = subprocess.Popen(["pidwait", "--euid", str(os.getuid()), "--pid", ",".join(map(str, pids))])
+    for window, started, _ in snapshot:
+      if same_window(window["address"], window.get("pid"), started):
+        dispatch_close(window["address"])
+    focused = subprocess.run(["hyprctl", "dispatch", "o.workspaces.focus(1)"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if focused.returncode:
+      subprocess.run(["hyprctl", "dispatch", "workspace", "1"], check=True, stdout=subprocess.DEVNULL)
+    if waiter:
+      status = waiter.wait()
+      if status not in (0, 1):
+        return status
+    return 0
+  finally:
+    if waiter and waiter.poll() is None:
+      waiter.terminate()
+      waiter.wait()
+
+
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("address", nargs="?", help="Hyprland window address (defaults to the active window)")
   parser.add_argument("--policy", choices=("always", "conditional", "never"), default="conditional")
+  actions = parser.add_mutually_exclusive_group()
+  actions.add_argument("--all", action="store_true", help="confirm once, then close the captured windows")
+  actions.add_argument("--confirm-exit", choices=("logout", "reboot", "shutdown"), help="confirm session exit without closing anything")
+  parser.add_argument("--wait", action="store_true", help="wait for captured application processes to exit")
   args = parser.parse_args()
+  if (args.all or args.confirm_exit) and args.address:
+    parser.error("an address cannot be combined with a session-wide action")
+  if args.wait and not args.all:
+    parser.error("--wait requires --all")
+  if args.all:
+    return close_all(args.policy, args.wait)
+  if args.confirm_exit:
+    if args.policy == "never":
+      return 0
+    return 0 if confirm_exit(window_snapshot(), args.policy, args.confirm_exit) else 1
   address = args.address or hypr_json("activewindow").get("address", "")
   if not re.fullmatch(r"0x[0-9a-fA-F]+", address):
     return
@@ -232,4 +322,4 @@ def main():
 
 
 if __name__ == "__main__":
-  main()
+  raise SystemExit(main())
