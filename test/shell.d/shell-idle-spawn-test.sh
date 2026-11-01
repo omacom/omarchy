@@ -249,7 +249,9 @@ allow() {
 # Which ones count is the widget's own call, so ask its model.
 keyboard_widget_polls() {
   hyprctl -j devices 2>/dev/null | ROOT="$ROOT" node -e '
-    const model = require(require("path").join(process.env.ROOT, "shell/plugins/bar/widgets/KeyboardLayoutModel.js"))
+    const path = require("path")
+    const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+    const model = requireFromRoot(process.env.ROOT, "shell/plugins/bar/widgets/KeyboardLayoutModel.js")
     let devices = {}
     try { devices = JSON.parse(require("fs").readFileSync(0, "utf8")) } catch (e) {}
     const typed = (devices.keyboards || []).filter(keyboard => model.isTypedKeyboard(keyboard.name))

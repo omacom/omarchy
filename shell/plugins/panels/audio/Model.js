@@ -272,33 +272,3 @@ function isUntypedSource(node, sourceAvailability) {
   var name = String(node.name || "")
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    isPlaybackStream: isPlaybackStream,
-    isAudioSource: isAudioSource,
-    nodeRow: nodeRow,
-    rowSnapshot: rowSnapshot,
-    outputVolumeName: outputVolumeName,
-    parseSinkAvailability: parseSinkAvailability,
-    friendlyDeviceLabel: friendlyDeviceLabel,
-    nodeProps: nodeProps,
-    nodeLabel: nodeLabel,
-    isHeadphones: isHeadphones,
-    sinkGlyph: sinkGlyph,
-    sourceGlyph: sourceGlyph,
-    friendlyStreamLabel: friendlyStreamLabel,
-    streamLabelKey: streamLabelKey,
-    streamLabelIsGeneric: streamLabelIsGeneric,
-    rawStreamLabel: rawStreamLabel,
-    mprisPlayerLabel: mprisPlayerLabel,
-    mprisPlayerIsProxy: mprisPlayerIsProxy,
-    streamRepresentsMprisPlayer: streamRepresentsMprisPlayer,
-    mprisLabelsFor: mprisLabelsFor,
-    matchingMprisStreamLabel: matchingMprisStreamLabel,
-    unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
-    streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer,
-    isUntypedSource: isUntypedSource
-  }
-}

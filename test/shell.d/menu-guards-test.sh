@@ -14,7 +14,7 @@ const items = {
   'plain': { id: 'plain', label: 'No guards' }
 }
 const script = menu.guardScript(items)
-const browserSlot = `\${__omarchy_read_${menu.guardReaders.indexOf('omarchy-default-browser')}}`
+const browserSlot = `\${__omarchy_read_${menu.GUARD_READERS.indexOf('omarchy-default-browser')}}`
 
 // Each guard answers as <id>:<w|c|d>:<0|1>, and an item with nothing to
 // evaluate gives no row at all.
@@ -74,7 +74,7 @@ const repeated = [...new Set(
   (guardText.match(/\$\((omarchy-[a-z0-9-]+(?: [a-z0-9-]+)*)\)/g) || []).map(match => match.slice(2, -1))
 )].filter(command => guardText.split(`$(${command})`).length > 2)
 assertDeepEqual(
-  repeated.filter(command => !menu.guardReaders.includes(command)),
+  repeated.filter(command => !menu.GUARD_READERS.includes(command)),
   [],
   'guard readers cover every command the shipped menu reads from more than one row'
 )
@@ -86,7 +86,8 @@ menu_js() {
   node -e '
     const fs = require("fs")
     const path = require("path")
-    const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+    const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+    const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
     process.stdout.write(String(new Function("menu", "fs", "path", process.argv[1])(menu, fs, path)))
   ' "$1"
 }

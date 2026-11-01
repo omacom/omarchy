@@ -48,5 +48,3 @@ function layout(widths, rise, smile) {
 
   return { width: right - left, height: maxDrop, chars: chars }
 }
-
-if (typeof module !== "undefined") module.exports = { layout: layout }

@@ -55,11 +55,3 @@ function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, r
     duration: isNaN(parsedDuration) ? 1200 : Math.max(0, parsedDuration)
   }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    widestIcon: widestIcon,
-    iconFor: iconFor,
-    stateForShow: stateForShow
-  }
-}

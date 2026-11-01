@@ -218,22 +218,3 @@ function displayRows(history, query, limit, tr, trn, fmt) {
 
   return rows
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    normalizeEntry: normalizeEntry,
-    entryKey: entryKey,
-    parseHistory: parseHistory,
-    addEntry: addEntry,
-    removeEntryAt: removeEntryAt,
-    clearHistory: clearHistory,
-    parseEntryJson: parseEntryJson,
-    searchableText: searchableText,
-    previewText: previewText,
-    imagePreviewText: imagePreviewText,
-    filePaths: filePaths,
-    fileEntryText: fileEntryText,
-    fullText: fullText,
-    displayRows: displayRows
-  }
-}
