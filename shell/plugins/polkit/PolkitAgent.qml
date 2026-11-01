@@ -55,6 +55,16 @@ Item {
     return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
   }
 
+  function insertKeypadDigit(event) {
+    if (fingerprintMode || passwordInput.readOnly || !responseRequired) return false
+    if (!(event.modifiers & Qt.KeypadModifier)) return false
+    var digit = PolkitModel.keypadDigit(event.key)
+    if (digit === "") return false
+    passwordInput.remove(passwordInput.selectionStart, passwordInput.selectionEnd)
+    passwordInput.insert(passwordInput.cursorPosition, digit)
+    return true
+  }
+
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
   }
@@ -269,6 +279,8 @@ Item {
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (root.responseRequired) root.submitResponse()
             event.accepted = true
+          } else if (root.insertKeypadDigit(event)) {
+            event.accepted = true
           }
         }
       }
@@ -331,6 +343,8 @@ Item {
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Escape) {
                 root.cancelRequest()
+                event.accepted = true
+              } else if (root.insertKeypadDigit(event)) {
                 event.accepted = true
               }
             }
