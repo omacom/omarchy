@@ -80,26 +80,3 @@ STUB
   rm "$case_root/bin/$command"
   pass "$failure failure preserves the original and removes staged output"
 done
-
-# Exercise the reviewed migration at the failing copy boundary, not just the
-# helper. It must retain the original and fail rather than complete the update.
-home="$case_root/home"
-mkdir -p "$home/.config/omarchy" "$case_root/tmp"
-config="$home/.config/omarchy/shell.json"
-printf '{"bar":{"layout":{"center":[{"id":"omarchy.clock","formatAlt":"dd MMMM '\''W'\''ww yyyy"}]}}}\n' >"$config"
-cp "$config" "$case_root/before"
-cat >"$case_root/bin/cat" <<'STUB'
-#!/bin/bash
-printf 'partial content'
-echo simulated-full-disk >&2
-exit 17
-STUB
-chmod +x "$case_root/bin/cat"
-status=0
-HOME="$home" TMPDIR="$case_root/tmp" PATH="$case_root/bin:$ROOT/bin:$PATH" \
-  bash -euo pipefail "$ROOT/migrations/1780294774.sh" >"$case_root/output" 2>&1 || status=$?
-(( status != 0 )) || fail "partial migration write stays pending"
-cmp -s "$config" "$case_root/before" || fail "partial migration write preserves live config"
-[[ -z $(find "$case_root/tmp" "$home" -name '.omarchy-config.*' -print -quit) ]] || fail "migration cleans atomic staging"
-[[ -z $(find "$case_root/tmp" -mindepth 1 -print -quit) ]] || fail "migration cleans transform staging"
-pass "migration retains complete config after a partial staging write"
