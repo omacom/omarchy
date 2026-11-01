@@ -191,13 +191,23 @@ lock_dns_changes() {
 # on Wi-Fi/Ethernet ones; VPNs keep the DNS they push.
 pin_connection() {
   local uuid="$1" device="$2" dns type ipv4_method ipv4_ignore ipv6_method ipv6_ignore pinned=yes
-  local settings=()
+  local info fields=() settings=()
 
   dns=$(resolved_dns)
   [[ -n $uuid && -n ${dns//[[:space:]]/} ]] || return 0
 
-  { read -r type; read -r ipv4_method; read -r ipv4_ignore; read -r ipv6_method; read -r ipv6_ignore; } < <(nmcli -g connection.type,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "$uuid")
+  info=$(nmcli -g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "$uuid")
+  mapfile -t fields <<<"$info"
+  type=${fields[0]:-}
   networkmanager_dns_connection "$type" || return 0
+
+  # A bridge or bond port is Ethernet too, but has no IP settings to pin: its
+  # controller carries them, and nmcli prints none of the fields below.
+  [[ -z ${fields[1]:-} ]] || return 0
+  ipv4_method=${fields[2]:-}
+  ipv4_ignore=${fields[3]:-}
+  ipv6_method=${fields[4]:-}
+  ipv6_ignore=${fields[5]:-}
 
   # nmcli rejects ipvN.dns for a method that takes no DNS (IPv6 disabled, say)
   # and fails the whole modify, so pin only the families that can carry servers.
