@@ -1,5 +1,21 @@
-o.bind("SUPER + W", "Close window", hl.dsp.window.close())
-o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
+local function close_window()
+  local window = hl.get_active_window()
+  if not window then return end
+
+  if _G.omarchy_terminal_close_confirmation ~= false then
+    for _, tag in ipairs(window.tags or {}) do
+      if tag:gsub("%*$", "") == "terminal" then
+        hl.dispatch(hl.dsp.exec_cmd("omarchy-hyprland-window-close " .. o.shell_quote(window.address)))
+        return
+      end
+    end
+  end
+
+  hl.dispatch(hl.dsp.window.close({ window = "address:" .. window.address }))
+end
+
+o.bind("SUPER + W", "Close window", close_window)
+o.bind("SUPER + Q", "Close window", close_window)
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
 
 o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
