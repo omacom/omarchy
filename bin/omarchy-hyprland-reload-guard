@@ -19,7 +19,7 @@ state_dir="${OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR:-/run/omarchy/hyprland-relo
 hyprctl_bin="${HYPRCTL:-/usr/bin/hyprctl}"
 
 valid_bool() {
-  [[ $1 == true || $1 == false ]]
+  [[ $1 == "true" || $1 == "false" ]]
 }
 
 # This name identifies a Hyprland instance only if the socket it names is
@@ -40,7 +40,7 @@ verify_socket_owner() {
   # Unfollowed stat: a symlink standing in for the socket must be rejected
   # outright, not resolved and checked against its target's owner.
   read -r type owner < <(stat -c '%F %u' -- "$socket" 2>/dev/null) || return 1
-  [[ $type == socket && $owner == "$uid" ]]
+  [[ $type == "socket" && $owner == $uid ]]
 }
 
 hyprctl_instance() {
@@ -84,11 +84,11 @@ instances() {
     # another user's instance, but that the calling uid actually owns, is a
     # forged one.
     read -r owner < <(stat -c '%u' -- "$runtime_dir" 2>/dev/null) || continue
-    [[ $owner == "$uid" ]] || continue
+    [[ $owner == $uid ]] || continue
     read -r owner < <(stat -c '%u' -- "$hypr_dir" 2>/dev/null) || continue
-    [[ $owner == "$uid" ]] || continue
+    [[ $owner == $uid ]] || continue
     read -r owner < <(stat -c '%u' -- "$instance_dir" 2>/dev/null) || continue
-    [[ $owner == "$uid" ]] || continue
+    [[ $owner == $uid ]] || continue
 
     printf '%s\t%s\n' "$runtime_dir" "$signature"
   done
