@@ -205,13 +205,7 @@ The `notifications` IPC target also answers `ping` (used by `omarchy-notificatio
 Everything goes through the same sender contract, so the pieces are small:
 
 - **Low battery** — `omarchy-battery-low` sends a normal toast that expires after 30 seconds (paused, like any card, while the deck is open) and runs the `battery-low` hook. Not critical: a critical toast never expires and comes back on every shell start, so the warning would outlive the charger going in. As an `omarchy-action` toast it still gets through Do Not Disturb.
-- **Crash capture** — `omarchy-crash-watch` watches `/run/omarchy-crash-events`
-  with inotify for coredump completion events and announces
-  each crashed program (deduped per minute) as a critical toast whose click
-  runs `omarchy-agent-crash` (via `--exec`, so a hostile process name stays
-  a discrete argument). It waits for the server first: a shell crash takes
-  the notification server down with it, and that crash is the one most
-  worth reporting.
+- **Crash capture** — `omarchy-crash-watch` watches `/run/omarchy-crash-events` with inotify for coredump completion events and announces each crashed program (deduped per minute) as a critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a hostile process name stays a discrete argument). It waits for the server first: a shell crash takes the notification server down with it, and that crash is the one most worth reporting.
 
   The package-owned `systemd-coredump@.service` drop-in emits its unique `InvocationID` through an ephemeral, root-owned marker in `ExecStopPost`. Tmpfiles creates the directory before user sessions start; only root can write it. The marker is immediately removed, but inotify retains its name. This does not depend on retaining a core file, so the event also arrives with `Storage=journal`, `Storage=none` (including `ProcessSizeMax=0`), or when a core exceeds `ExternalSizeMax`.
 
