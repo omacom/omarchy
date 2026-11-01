@@ -2,7 +2,7 @@
 
 # omarchy:summary=Sign in to a Claude, Codex, Grok, or OpenCode Go subscription
 # omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok|opencode] [label]
-# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side | omarchy agent account add opencode oc_sk_…
+# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side
 
 set -uo pipefail
 
@@ -162,9 +162,13 @@ if [[ $provider == "opencode" ]]; then
   echo "$console_url"
   omarchy-launch-browser "$console_url" >/dev/null 2>&1 &
 
-  # The key may be passed as the argument (`account add opencode oc_sk_…`);
-  # otherwise it is asked for. The panel's paste field writes it to stdin.
-  key="$label"
+  # The old `account add opencode oc_sk_…` form passed the key as an argument;
+  # refuse it loudly rather than silently ignoring a secret someone typed.
+  [[ -z $label ]] || fail "$(omarchy-i18n agents.goKeyNotArg)"
+  # The key is never taken as an argument: it would sit in this script's own
+  # process arguments, readable by another local user, for the whole sign-in.
+  # The panel's paste field writes it to stdin; a terminal asks for it.
+  key=""
   if [[ -z $key ]]; then
     if [[ $events == "true" ]]; then
       read -r key || fail "$(omarchy-i18n agents.loginUnfinished)"
@@ -199,11 +203,14 @@ if [[ $provider == "opencode" ]]; then
   *) fail "$(omarchy-i18n agents.goKeyUnreachable)" ;;
   esac
 
-  # Merge the key into opencode's auth.json, keeping the other providers, and
-  # write it the way a credential file is written: private, one atomic rename.
+  # The key lands in both credential stores opencode reads. The collector
+  # asks the V2 database's active `opencode-go` key first and only then
+  # auth.json, so writing auth.json alone would leave a replaced key showing
+  # the old workspace until the stored one lapsed. Both writes are private,
+  # atomic renames; either store missing or unreadable starts fresh.
   auth_dir="${XDG_DATA_HOME:-$HOME/.local/share}/opencode"
   mkdir -p "$auth_dir" || fail "$(omarchy-i18n agents.homeFailed)"
-  OPENCODE_AUTH_DIR="$auth_dir" OPENCODE_GO_KEY="$key" python3 - <<'EOF' || fail "$(omarchy-i18n agents.homeFailed)"
+  OPENCODE_AUTH_DIR="$auth_dir" OPENCODE_GO_KEY="$key" OPENCODE_DB_NAME="${OPENCODE_DB:-}" python3 - <<'EOF' || fail "$(omarchy-i18n agents.homeFailed)"
 import json, os, tempfile
 from pathlib import Path
 
@@ -227,6 +234,30 @@ try:
     os.replace(tmp, auth_file)
 finally:
     Path(tmp).unlink(missing_ok=True)
+
+store_name = os.environ.get("OPENCODE_DB_NAME", "").strip()
+store_path = Path(store_name).expanduser() if store_name else None
+if store_path is not None and not store_path.is_absolute():
+    store_path = auth_dir / store_path.name
+if store_path is None:
+    normal, legacy = auth_dir / "opencode.db", auth_dir / "opencode-v2.db"
+    store_path = legacy if not normal.is_file() and legacy.is_file() else normal
+import sqlite3, time
+fresh = not store_path.is_file()
+conn = sqlite3.connect(store_path)
+try:
+    conn.execute("CREATE TABLE IF NOT EXISTS credential (id text, integration_id text, active integer, time_updated integer, value text)")
+    now_ms = int(time.time() * 1000)
+    conn.execute("UPDATE credential SET active = 0 WHERE integration_id = 'opencode-go' AND active = 1")
+    conn.execute(
+        "INSERT INTO credential (id, integration_id, active, time_updated, value) VALUES (?, 'opencode-go', 1, ?, ?)",
+        ("omarchy-go-%d" % now_ms, now_ms, json.dumps({"type": "key", "key": os.environ["OPENCODE_GO_KEY"]})),
+    )
+    conn.commit()
+finally:
+    conn.close()
+if fresh:
+    os.chmod(store_path, 0o600)
 EOF
 
   # The first agent signed in on a machine with none chosen becomes the
