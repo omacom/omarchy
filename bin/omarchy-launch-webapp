@@ -15,8 +15,8 @@ esac
 # its full command line instead of collapsing to its first token.
 desktop_exec_tokens() {
   local raw="$1" line=""
-  local token="" ch=""
-  local quoted=false
+  local token="" ch="" next=""
+  local quoted=false started=false
   local i
 
   exec_tokens=()
@@ -42,17 +42,16 @@ desktop_exec_tokens() {
 
   for (( i = 0; i < ${#line}; i++ )); do
     ch="${line:i:1}"
+    next="${line:i+1:1}"
 
+    # Inside quotes a backslash escapes only " ` $ and \; before anything
+    # else it is a literal backslash.
     if [[ $quoted == true ]]; then
       if [[ $ch == '"' ]]; then
         quoted=false
-      elif [[ $ch == '\' ]]; then
-        if (( i + 1 < ${#line} )); then
-          token+="${line:i+1:1}"
-          (( i++ ))
-        else
-          token+="$ch"
-        fi
+      elif [[ $ch == '\' && ( $next == '"' || $next == '`' || $next == '$' || $next == '\' ) ]]; then
+        token+="$next"
+        (( i++ ))
       else
         token+="$ch"
       fi
@@ -62,28 +61,34 @@ desktop_exec_tokens() {
     case "$ch" in
       '"')
         quoted=true
+        started=true
         ;;
       '\')
         if (( i + 1 < ${#line} )); then
-          token+="${line:i+1:1}"
+          token+="$next"
           (( i++ ))
         else
           token+="$ch"
         fi
+        started=true
         ;;
       ' ' | $'\t')
-        if [[ -n $token ]]; then
+        if [[ $started == true ]]; then
           exec_tokens+=("$token")
           token=""
+          started=false
         fi
         ;;
       *)
         token+="$ch"
+        started=true
         ;;
     esac
   done
 
-  [[ -n $token ]] && exec_tokens+=("$token")
+  if [[ $started == true ]]; then
+    exec_tokens+=("$token")
+  fi
 }
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
