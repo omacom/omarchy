@@ -333,7 +333,7 @@ function runIn(scope, ...names) {
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'replayKey', 'actionsOf', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
@@ -813,6 +813,24 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
   s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
   s.drainCallLater()
   assert.deepEqual(summaries(s.toasts.rows), ['Original'])
+}
+
+{ // A muted replacement saved under its shown card's key replays beside it.
+  const s = newCapacityScope()
+  s.admit(s.fakeNotification(1, 'Shown'))
+  s.toasts.get(0).ts -= 5 // the card on screen predates its saved update
+  s.doNotDisturb = true
+  s.handleNotification(s.fakeNotification(1, 'Muted update'))
+  assert.deepEqual(summaries(s.toasts.rows), ['Shown'], 'the muted update leaves the shown card alone')
+  assert.equal(s.historyEntries.length, 1, 'the muted update is saved to history')
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Muted update', 'Shown'])
+  assert.equal(s.liveCount(), 2)
+  // Pressing the shortcut again stacks nothing: the saved update is already on screen.
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.equal(s.liveCount(), 2)
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.

@@ -1325,6 +1325,14 @@ Item {
   // A reload or a clean exit inside the save delay still writes.
   Component.onDestruction: flushStore()
 
+  // The replay of an update saved under its shown card's key sits beside
+  // that card under this key instead. It is stable across replays, so
+  // pressing the shortcut again never stacks a second copy, and a sender's
+  // key never carries a hyphen, so it cannot collide with a live arrival.
+  function replayKey(key) {
+    return (key.length > 118 ? key.slice(0, 118) : key) + "-r"
+  }
+
   function restoreRows(rows, replay) {
     // Restore is oldest first; history is newest first. Both insert at zero.
     for (var i = replay ? rows.length - 1 : 0;
@@ -1334,8 +1342,13 @@ Item {
       if (liveKeys[row.key]) {
         // A live key never yields: startup must not overwrite a newer live
         // arrival, and a replay must not stack a second copy of an entry
-        // that is already on screen.
-        continue
+        // that is already on screen. A muted replacement saves a different
+        // update under its card's key; that entry replays beside the card.
+        var at = rowIndexFor(row.key)
+        if (!replay || at < 0 || toasts.get(at).ts === row.ts) continue
+        row.key = replayKey(row.key)
+        if (liveKeys[row.key]) continue
+        row.groupKey = Markup.regroup(row)
       }
       if (!reserveLive(row.key)) break
       showRow(row)
