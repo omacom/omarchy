@@ -203,7 +203,7 @@ ShellRoot {
       // The blank countdown would drive the real displays, so it is stopped
       // whenever the resume path arms it.
       var resumeTimer = resumeWatch(service)
-      var blankTimer = timer(service, 5000, false)
+      var blankTimer = timer(service, (service.blankTimeoutSeconds || 30) * 1000, false)
       retry.stop()
       service.pauseFingerprint()
       service.noteSleepRequested()
