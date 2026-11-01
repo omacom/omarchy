@@ -29,20 +29,24 @@ raise SystemExit(int(os.environ.get('NOTIFY_TEST_FAIL','0')))
   assert proc.stderr.strip()=='stderr',proc
   assert not (scratch/'should-not-exist').exists()
   notification=json.loads(result.read_text())
-  assert notification[0]=='Build' and 'python3' in notification[1] and 'exit 0' in notification[1],notification
+  assert notification[:2]==['--','Build'] and 'python3' in notification[2] and 'exit 0' in notification[2],notification
   assert literal not in str(notification),'arguments must not appear in automatic notification text'
+  for title in ('--glyph','-p'):
+    proc=run(['--title='+title,'--','python3','-c','pass'])
+    assert proc.returncode==0 and proc.stdout=='',proc
+    assert json.loads(result.read_text())[:2]==['--',title]
   proc=run(['--','python3','-c','raise SystemExit(7)'])
-  assert proc.returncode==7 and 'exit 7' in json.loads(result.read_text())[1],proc
+  assert proc.returncode==7 and 'exit 7' in json.loads(result.read_text())[2],proc
   proc=run(['--','python3','-c','raise SystemExit(9)'],env={**env,'NOTIFY_TEST_FAIL':'42'})
   assert proc.returncode==9,'notification failure must preserve command status'
   proc=run(['--','python3','-c','pass'],env={**env,'NOTIFY_TEST_FAIL':'42'})
   assert proc.returncode==0,'notification failure must preserve command success'
   proc=run(['--',str(scratch/'missing-command')])
   assert proc.returncode==127,proc
-  assert 'exit 127' in json.loads(result.read_text())[1]
+  assert 'exit 127' in json.loads(result.read_text())[2]
   result.unlink()
   marker=scratch/'running'
-  proc=subprocess.Popen(wrapper+['--','python3','-c','import pathlib,signal,sys;pathlib.Path(sys.argv[1]).touch();signal.pause()',str(marker)],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
+  proc=subprocess.Popen(wrapper+['--','python3','-c','import pathlib,signal,sys,time\ncount=0\ndef interrupt(signum,frame):\n  global count\n  count+=1\nsignal.signal(signal.SIGINT,interrupt)\npathlib.Path(sys.argv[1]).touch()\nwhile not count:time.sleep(.01)\ntime.sleep(.2)\nraise SystemExit(130 if count==1 else 99)',str(marker)],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
   try:
     deadline=time.monotonic()+5
     while not marker.exists():
@@ -54,6 +58,19 @@ raise SystemExit(int(os.environ.get('NOTIFY_TEST_FAIL','0')))
     output,error=proc.communicate(timeout=5)
     assert proc.returncode==130,(proc.returncode,output,error)
     assert not result.exists(),'Ctrl+C must not emit a completion alert'
+  finally:
+    if proc.poll() is None:os.killpg(proc.pid,signal.SIGKILL);proc.wait()
+  result.unlink(missing_ok=True)
+  marker.unlink()
+  proc=subprocess.Popen(wrapper+['--','python3','-c','import pathlib,signal,sys;pathlib.Path(sys.argv[1]).touch();signal.pause()',str(marker)],env=env,start_new_session=True)
+  try:
+    deadline=time.monotonic()+5
+    while not marker.exists():
+      assert time.monotonic()<deadline
+      time.sleep(.02)
+    proc.terminate()
+    assert proc.wait(timeout=5)==143,'wrapper-only SIGTERM must terminate the child'
+    assert not result.exists(),'SIGTERM must not emit a completion alert'
   finally:
     if proc.poll() is None:os.killpg(proc.pid,signal.SIGKILL);proc.wait()
 spec=importlib.util.spec_from_file_location('notify_run',root/'default/notification-run.py')
@@ -68,6 +85,6 @@ for sig in (signal.SIGINT,signal.SIGTERM):
        patch.object(module.subprocess,'run') as deliver:
     assert module.main()==0,'post-command cancellation must preserve the completed status'
     assert not deliver.called,'interruption during localization must suppress delivery'
-print('ok - literal argv, inherited streams, command status, notification failure, Ctrl+C and localization cancellation')
+print('ok - literal argv, inherited streams, command status, notification failure, single-delivery Ctrl+C, wrapper-only SIGTERM and localization cancellation')
 PYTEST
 pass "command completion notifications"

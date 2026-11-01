@@ -243,3 +243,21 @@ send "Timed" -t 3000 >/dev/null
 load
 [[ ${args[12]} == "" && ${args[-1]} == "3000" ]] || fail "notification wrapper still parses a flag after the headline" "body=${args[12]} timeout=${args[-1]}"
 pass "notification wrapper still treats a known flag after the headline as an option"
+
+# Strict text mode preserves recognized flags as both headline and body.
+for title in --glyph -p; do
+  : >"$args_file"
+  output=$(send -- "$title" --glyph)
+  load
+  [[ ${args[6]} == "Notify" ]] || fail "strict text still sends a notification"
+  [[ ${args[11]} == "$title" && ${args[12]} == "--glyph" ]] || fail "strict text preserves headline and body"
+  ! has_hint omarchy-glyph || fail "strict text must not consume a glyph"
+  [[ -z $output ]] || fail "strict text must not print an id" "$output"
+done
+send -u critical -g K -- -p --glyph
+load
+[[ $(hint_value urgency) == "2" && $(hint_value omarchy-glyph) == "K" ]] || fail "options before -- still apply"
+if send -- Head Body -p 2>/dev/null; then
+  fail "strict text rejects trailing options"
+fi
+pass "notification wrapper treats flags after -- strictly as text"

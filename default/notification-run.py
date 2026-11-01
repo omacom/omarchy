@@ -28,7 +28,9 @@ def main():
   def forward(signum, _frame):
     nonlocal interrupted
     interrupted = signum
-    if child is not None:
+    # SIGINT already reaches the child through the foreground process group.
+    # SIGTERM is normally addressed only to the wrapper and must be relayed.
+    if child is not None and signum == signal.SIGTERM:
       try:
         child.send_signal(signum)
       except ProcessLookupError:
@@ -57,7 +59,7 @@ def main():
                                         else "omarchy-i18n notification.commandFailed")
         body = translate("omarchy-i18n notification.commandResult", Path(command[0]).name, str(status))
         if interrupted is None:
-          subprocess.run(["omarchy-notification-send", title, body], check=False, timeout=5)
+          subprocess.run(["omarchy-notification-send", "--", title, body], check=False, timeout=5)
       except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         pass
     return status
