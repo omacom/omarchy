@@ -1,6 +1,10 @@
 # Plan: Local models — `omarchy agent local use <recipe>`
 
-Revision 3. Revision 2 tightened lifecycle, endpoint security, client selection, memory checks, supply chain and config ownership after a review pass. Revision 3 generalizes the container contract after running halogen, a closed-source third-party engine, through it: backends are described by runtime definitions that map the standard inputs onto each image's own interface, declare allowlisted run options and their health probe, and carry a trust tier.
+Revision 4.
+
+- Revision 2 tightened lifecycle, endpoint security, client selection, memory checks, supply chain and config ownership after a review pass.
+- Revision 3 generalized the container contract after running halogen, a closed-source third-party engine, through it: backends are described by runtime definitions that map the standard inputs onto each image's own interface, declare allowlisted run options and their health probe, and carry a trust tier.
+- Revision 4 adds `use best`, a curated per-machine-class recommendation; moves recipes, runtimes and the recommendation into a separately updated, signed catalog repo, `basecamp/omarchy-local-ai`; keeps weights on Hugging Face rather than hosting them; records the hand-measured llama.cpp vs halogen comparison; and moves phase 1 onto the halogen runtime.
 
 ## Problem
 
@@ -10,7 +14,8 @@ The work that makes these models fast already exists as recipes: curated quant +
 
 ## Shape
 
-- `omarchy agent local use <recipe>` checks the machine can hold the model right now, pulls a pinned and signed backend container image, downloads pinned and verified model weights, and starts the model as a rootless Podman container under a systemd user unit.
+- `omarchy agent local use best` picks the recipe Omarchy recommends for this exact machine — GPU family, memory, platform — and runs it. `use <recipe>` runs a specific one.
+- `omarchy agent local use <recipe>` checks the machine can hold the model right now, pulls the runtime's container image pinned by digest, downloads pinned and verified model weights from Hugging Face, and starts the model as a rootless Podman container under a systemd user unit.
 - Every backend (llama.cpp Vulkan/ROCm/CUDA, halogen, vLLM, SGLang, …) is a container image with the same shape, so the framework only ever starts and stops containers. Swapping backend is one line in a recipe.
 - The active model is served at `127.0.0.1:11435` with an OpenAI-compatible API behind a per-user key.
 - Launching an agent in local mode points it at that endpoint and the active recipe's model, through launch-time config Omarchy owns, never by rewriting the agent's own config files. OpenCode first; other clients once each has a supported overlay.
@@ -22,6 +27,9 @@ The work that makes these models fast already exists as recipes: curated quant +
 - **Distro packages per backend** (`llama.cpp-vulkan` in the Omarchy repo): solves llama.cpp only. Halogen, EngramHalo.cpp, ROCm forks and unmerged PR branches are exactly what the best recipes depend on, and they will never all be packaged. A package also pins one version system-wide, while recipes need different runtime revisions side by side.
 - **Docker**: in base already, but needs a root daemon and the docker group or sudo for a per-user model server. Podman runs rootless and Quadlet turns a container into an ordinary systemd user unit.
 - **Ollama / LM Studio as the runtime**: both stay installable from the menu, but they lag on new architectures and don't expose the flags (speculative-decoding drafts, KV cache types, tensor placement) that recipes are made of.
+- **Hosting weights ourselves as OCI artifacts**: Podman 6 can pull and mount model artifacts natively through Quadlet `.artifact` units, which would make a recipe a single registry reference. Not worth it: Hugging Face at a pinned revision with hash verification is already repeatable, while hosting means ~95GB per model variant, re-splitting 50GB shards to suit registry blob limits, and a redistribution review for every model's weights. Recipes reference Hugging Face; only runtime images come from a container registry.
+- **Recipes shipped inside the Omarchy repo**: the best recipe for a machine changes weekly; tying it to Omarchy releases would leave every user on a stale recommendation. The catalog is a separate, signed, frequently updated repo; Omarchy keeps the mechanism and the security boundary.
+- **Computing "best" from a score**: which model is best on a machine is a judgment about quality and speed tradeoffs (a C-tier model at 2 bits vs a D-tier model at 4 bits), not something derivable from parameter counts. `best` resolves through a curated, ordered list.
 - **A model zoo UI that browses Hugging Face**: thousands of quants, most broken or untested on a given chip. A recipe is a curated, measured claim — "this runs on this hardware at this speed" — which is the actual value.
 - **Merging provider blocks into agents' config files**: even a "merge" rewrites the file, loses JSONC comments and TOML formatting, races the client's own writes, collides with user-owned `llamacpp` entries, and misses Codex's per-account homes (`bin/omarchy-agent` sets `CODEX_HOME` per account). Launch-time overlays avoid all of it.
 
@@ -29,34 +37,36 @@ The work that makes these models fast already exists as recipes: curated quant +
 
 ### Recipes
 
-A recipe is data, one TOML file per model setup: shipped recipes in `default/omarchy/agent-local/`, user recipes in `~/.config/omarchy/agent-local/` (same id overrides). Recipe ids match `^[a-z0-9][a-z0-9.-]*$`; anything else is rejected before it reaches a path, a unit name or a Quadlet specifier.
+A recipe is data, one TOML file per model setup: recipes come from the catalog (see Recipe catalog), user recipes from `~/.config/omarchy/agent-local/recipes/` (same id overrides). Recipe ids match `^[a-z0-9][a-z0-9.-]*$`; anything else is rejected before it reaches a path, a unit name or a Quadlet specifier.
 
 ```toml
 name = "Qwen3.8 Flash Next"
 summary = "125B MoE, ~6B active, 4-bit, MTP drafting."
 
+runtime = "halogen"                   # a runtime definition, see below
+
 [[hardware]]                          # tested qualifications, not guesses
 platform = "x86"
 gpu = "amd-strix-halo"
-backend = "vulkan"
-measured = "measurements/qwen3.8-flash-next-strix-halo.toml"
-
-runtime = "llama.cpp-vulkan"          # a runtime definition, see below
+memory_gib = 128                      # the machine class it was measured on
+measured = "measurements/qwen3.8-flash-next-halogen-strix-halo-128.toml"
 
 [model]
 repo = "unsloth/Qwen3.8-Flash-Next-GGUF"
 revision = "<commit sha>"
-include = ["UD-IQ4_XS/*", "mtp-Qwen3.8-Flash-Next-Q8_0.gguf"]
+include = ["UD-IQ4_XS/*"]
 main = "UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf"
-draft = "mtp-Qwen3.8-Flash-Next-Q8_0.gguf"
+
+[[model.extra]]                       # artifacts the runtime needs beside the weights
+repo = "peonist-ai/halogen-qwen3.8-flash-next"
+revision = "<commit sha>"
+include = ["qwen38-flash-next-mtp.hgn", "tokenizer/*"]
+draft = "qwen38-flash-next-mtp.hgn"
 
 [[variant]]                           # validated context sizes with measured peak memory
 ctx = 131072
-peak_gpu_gib = 72
-peak_host_gib = 6
-
-[server]
-args = ["-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", "--spec-type", "draft-mtp", "--spec-draft-n-max", "4", "--jinja"]
+peak_gpu_gib = 72                     # locked: halogen pins its weights
+peak_host_gib = 13
 
 [sampling]                            # server-side defaults; a client's explicit values win
 temperature = 1.0
@@ -65,11 +75,86 @@ top_k = 20
 ```
 
 - Reproducibility comes from three pins: image digest, model revision, flags. Two qualified machines running the same recipe run the same bytes with the same arguments.
-- `hardware` replaces a bare platform list: `x86` alone admits machines with no usable GPU. Each entry names the platform (`omarchy-hw-platform` names), the GPU family and backend, and points at a measurement record. A recipe only claims hardware someone measured.
+- `hardware` replaces a bare platform list: `x86` alone admits machines with no usable GPU. Each entry names the platform (`omarchy-hw-platform` names), the GPU family, the memory class it was measured on, and a measurement record. A recipe only claims hardware someone measured. The same runtime image runs on every machine of a GPU family; whether a recipe fits is a question of memory, so the same model on a 64GB machine of the same family is a different qualification (and usually a different recipe).
 - A measurement record captures exact artifacts, peak GPU and host memory, prefill and decode speed at stated context depths, and the llama-bench or equivalent command that produced them. Performance numbers in recipes, menus and docs come from these records, not from gists.
 - `sampling` is passed to the server as its defaults through the runtime's input mapping (`--temp`, `--top-p`, `--top-k` for llama.cpp), so every client gets sane values without client config. A runtime without a mapping for sampling defaults leaves them to the client.
 - `[server] args` are runtime-specific extras appended after the mapped inputs; a recipe for a runtime that takes no arguments has none.
 - Generated server arguments are built as an argument array and escaped for Quadlet; a test feeds hostile values (spaces, `%`, quotes) through the generator.
+
+### Recipe catalog: `basecamp/omarchy-local-ai`
+
+The recommendation for a machine changes far faster than Omarchy releases: a new quant lands, a runtime gets 30% faster, a new model beats the old best. So recipes, runtime definitions, `best.toml` and measurement records live in their own repo, `basecamp/omarchy-local-ai`, and Omarchy fetches it.
+
+The split keeps trust where it is today:
+
+- **Omarchy owns the mechanism**: the commands, the machine profile, Quadlet generation, the run-option allowlist, the security defaults every container gets (read-only root, dropped capabilities, loopback-only port, key as a secret), and the catalog schema it understands. A catalog entry can never get more than this allows: a runtime definition asking for an option outside the allowlist is refused by Omarchy, whatever the catalog says.
+- **The catalog owns data and evidence**: `recipes/`, `runtimes/`, `best.toml`, `measurements/`, plus the Containerfiles and CI for `omarchy`-tier images.
+
+```
+omarchy-local-ai/
+  catalog.toml          # schema version
+  best.toml
+  recipes/qwen3.8-flash-next-halogen.toml
+  runtimes/halogen.toml
+  runtimes/llama.cpp-vulkan.toml
+  measurements/qwen3.8-flash-next-halogen-strix-halo-128.toml
+  images/llama.cpp-vulkan/Containerfile
+```
+
+**Fetching.**
+
+- `use`, `list` and `status` refresh the catalog when the cached copy is older than a few hours, and `omarchy-update` refreshes it too. There is no timer of its own. Offline, the cached catalog is used and the command says how old it is.
+- The fetch is a shallow git fetch of the branch for the schema this Omarchy understands (`schema-1`, …), into `~/.local/state/omarchy/agent-local/catalog/<commit>/`, with a `current` pointer switched only after verification. A schema change gets a new branch, so older Omarchy installs keep receiving updates in the schema they can read.
+- The fetched commit must be signed by a key in an allowed-signers file shipped with Omarchy (`git verify-commit` with SSH signatures). An unsigned commit or unknown signer is refused and the previous catalog stays current. Merging to the catalog is therefore a release, and the catalog cannot be changed by anyone who can only push to GitHub.
+
+**Repeatability.**
+
+- Everything a recipe runs is pinned (image digest, Hugging Face revision, flags), and the catalog itself is pinned by commit. `use` records both the concrete recipe id and the catalog commit it came from. `status` shows them, and `use <recipe> --catalog <commit>` reproduces any earlier run exactly, on any machine of that class.
+- `use best` on the same machine against the same catalog commit always resolves the same way. A newer catalog may resolve differently; that change is visible, never automatic (see below).
+- A user can point at a fork or a pinned commit in `~/.config/omarchy/agent-local/catalog.toml` (`url`, `ref`). A non-default source skips signature verification, says so on every `use`, and is the way to test a catalog change before proposing it.
+
+**Contributing.** A recipe or a new hardware class comes in as a pull request with its measurement record. `omarchy agent local bench` produces one: it runs a fixed prompt set (a short prompt and a ~32K-token prompt of real code, greedy, thinking off) against the running model and records artifacts, digests, catalog commit, machine profile, peak memory, time to first token, prefill and decode. Catalog CI checks every change:
+
+- schema validity, and runtime definitions using only allowlisted run options
+- that every image digest, Hugging Face revision and file exists
+- that every recipe named in `best.toml` for a class has a measurement record from that class
+- that third-party runtimes carry a license review
+
+### Choosing for the machine: `best`
+
+`omarchy agent local use best` resolves to one concrete recipe for this machine.
+
+The machine profile comes from `omarchy-agent-local-profile`, built on the existing helpers:
+
+- platform from `omarchy-hw-platform`
+- GPU family from the GPU itself (gfx target for AMD, e.g. `gfx1151` → `amd-strix-halo`; GB10 from its platform)
+- GPU-addressable memory (on AMD, `mem_info_gtt_total`) and total RAM, rounded to a memory class (64, 96, 128, …)
+
+The recommendation is a curated, ordered list in the catalog's `best.toml`, one entry per hardware class:
+
+```toml
+[[class]]
+gpu = "amd-strix-halo"
+memory_gib = 128
+recipes = ["qwen3.8-flash-next-halogen", "qwen3.8-flash-next-llama.cpp"]
+
+[[class]]
+gpu = "amd-strix-halo"
+memory_gib = 64
+recipes = ["qwen3.8-27b-halogen", "qwen3.6-35b-a3b-llama.cpp"]
+
+[[class]]
+platform = "aarch64-gb10"
+memory_gib = 128
+recipes = ["…"]
+```
+
+- Resolution takes the most specific class matching the profile, then the first recipe in its list that is compatible with this machine (qualified hardware, measured peaks within the GPU-addressable memory). Later entries are fallbacks for a reason that's static: a runtime that can't run on this GPU, a GTT limit set lower than the default.
+- Headroom is not a reason to fall back. If the best recipe is compatible but memory is busy right now, `use best` says what's holding memory instead of quietly starting a worse model.
+- `use best` prints what it resolved to and why, and records the concrete recipe id as active, never `best`. Repeatability follows: the same machine against the same catalog commit resolves to the same recipe, which pins the same image digest, Hugging Face revision and flags.
+- A newer catalog may change the recommendation. `status` shows when the active recipe is no longer the current `best`, and running `use best` again moves to it; nothing switches models on its own.
+- No class or no compatible recipe: `use best` names the machine profile it saw and lists the recipes that come closest, so a missing class is visible and easy to report.
+- Adding a class is curation work backed by measurement records. The list only names recipes measured on that class.
 
 ### The backend container contract
 
@@ -87,7 +172,7 @@ The contract is the container's outside shape, not its insides. Omarchy must not
 
 ### Runtime definitions
 
-A runtime definition describes one backend image and how to drive it, so many recipes share it. Shipped runtimes live in `default/omarchy/agent-local/runtimes/`, user runtimes in `~/.config/omarchy/agent-local/runtimes/`. Omarchy generates the Quadlet unit from recipe plus runtime.
+A runtime definition describes one backend image and how to drive it, so many recipes share it. Runtimes come from the catalog's `runtimes/`, user runtimes from `~/.config/omarchy/agent-local/runtimes/`. Omarchy generates the Quadlet unit from recipe plus runtime.
 
 ```toml
 # runtimes/llama.cpp-vulkan.toml — built by Omarchy
@@ -162,7 +247,7 @@ Runtimes come in two trust tiers, recorded in the runtime definition and shown w
 For both tiers:
 
 - Recipes pin per-architecture digests, not a multi-arch index, so the digest names the same bytes on every machine that uses it.
-- Security and Mesa updates produce new images; they reach users only when the shipped recipe's digest is updated through a normal Omarchy update. Installed recipes never float. Mesa updates matter: Vulkan and ROCm images carry their userspace driver and only the kernel driver comes from the host, and Strix Halo performance still moves with Mesa.
+- Security and Mesa updates produce new images; they reach users only when the runtime definition's digest is updated in the catalog and the user runs `use` again. Running models never float. Mesa updates matter: Vulkan and ROCm images carry their userspace driver and only the kernel driver comes from the host, and Strix Halo performance still moves with Mesa.
 - Containers run with a read-only root, all capabilities dropped, `no-new-privileges`, and no outbound network beyond the published port where the network mode allows it.
 - User-supplied Containerfiles are out of scope until this pipeline exists.
 
@@ -229,8 +314,9 @@ The endpoint receives source code and its output drives agents launched with per
 
 All `omarchy-agent-local-*`, routed as `omarchy agent local …`:
 
+- `use best` — resolve the recommended recipe for this machine (see above), then `use` it.
 - `use <recipe> [--ctx <variant>]` — validate the recipe, check compatibility and headroom, preflight the GPU, pull and verify the image, download and verify the model, generate the unit, switch, verify the endpoint.
-- `list` — recipes, marking which are qualified for this machine and which is active.
+- `list` — recipes, marking which are qualified for this machine, which is `best`, and which is active.
 - `status` — active recipe, unit state, endpoint, last failure reason.
 - `stop` — stop the unit; keeps weights and image.
 - `autostart on|off` — regenerate the unit with or without starting at login.
@@ -273,13 +359,24 @@ Server lifecycle and usage history are different data with different owners and 
 
 ### Menu
 
-Static entries in `default/omarchy/omarchy-menu.jsonc` for shipped recipes (`install.ai.local-model.<recipe>`), next to Ollama and LM Studio. Guards read the cached compatibility result `list` writes rather than probing hardware on every menu open, keeping within the menu guard budgets in `docs/menu.md`. Recipes not qualified for this machine are shown disabled with the reason, not hidden.
+Recipes change with the catalog, so the menu doesn't list them statically. `default/omarchy/omarchy-menu.jsonc` gets two entries next to Ollama and LM Studio: "Local model (best for this machine)", running `omarchy-agent-local-use best`, and "Choose local model…", a picker fed by a menu provider that reads the cached catalog and compatibility result `list` writes. Neither probes hardware or the network on menu open, keeping within the menu guard budgets in `docs/menu.md`. In the picker, recipes not qualified for this machine are shown disabled with the reason, not hidden.
 
 ## First recipes
 
 Survey for a 128GB Strix Halo, November 2026. Every number here is a community report and becomes a recipe only after our own measurement record reproduces it:
 
-- **Qwen3.8 Flash Next, UD-IQ4_XS** — 125B MoE, ~6B active. Reported ~70 GiB GTT at 128K context and 17–28 tok/s sustained decode with MTP drafting ([gist](https://gist.github.com/chm123/b0b3eec2b7f68e09e5855e23fef44dba), [Unsloth discussion](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/discussions/45)). Leaves ~35GB for the desktop. The phase 1 recipe.
+- **Qwen3.8 Flash Next, UD-IQ4_XS** — 125B MoE, ~6B active. The phase 1 recipe and the 128GB Strix Halo `best`. Measured by hand on a Ryzen AI Max+ 395 / 128GB on 2026-11-01 with the same GGUF and the same prompts (greedy, thinking off; a 41-token prompt and a 31,705-token prompt of shell scripts, 512 tokens out):
+
+  | 31,705-token prompt | llama.cpp Vulkan (`-lm mmap`, MTP draft) | halogen 0.18.22 (GGUF + its MTP head) |
+  |---|---|---|
+  | Time to first token | 131.5 s | 26.6 s |
+  | Prefill | 241 tok/s | 1,194 tok/s |
+  | Decode | 19.9 tok/s | 36.5 tok/s |
+  | Whole turn | 157 s | 40.5 s |
+  | Load | 32 s | 12 s |
+  | Memory | 67 GiB GTT; ~48 GB left available, Engram table as reclaimable cache | ~72 GiB locked; ~24 GiB truly available |
+
+  Short-prompt decode was close (40.4 vs 44.7 tok/s). halogen is the recipe's runtime; llama.cpp is its fallback for machines where halogen can't run. These become the measurement record once repeated through the generated units with recorded digests. Halogen's own published numbers on its native checkpoint are higher (1,740 tok/s prefill at 32K) and point to a later variant of this recipe.
 - **GLM-5.3-Flash, AJ-IQ2_XXS** — 320B / 18B active, 87GB; long context is cheap (131K adds ~1.5GB). Stronger model, heavy compression (1.88× perplexity vs BF16); needs llama.cpp from unmerged PR #27752 ([model card](https://huggingface.co/aj9o9/GLM-5.3-Flash-GGUF)). A good second recipe: proves an image pinned to an unmerged branch.
 - **DeepSeek V4.1 Flash** — only fits as a pruned 1–2 bit community build on a fork, untested on Strix Halo ([model card](https://huggingface.co/Harsha001/DeepSeek-V4.1-Flash-1017-StrixHalo-GGUF)). Not shipped.
 
@@ -287,18 +384,22 @@ Mia's recipes ([mia-ai.net/models](https://mia-ai.net/models)) are EXL3 + Tensor
 
 ## Rollout
 
-- **Phase 1** — one Strix Halo recipe end to end:
+- **Phase 1** — one Strix Halo recipe end to end, on the halogen runtime so no image pipeline of our own is needed yet:
   - podman and crun in base, plus the install migration
-  - the container contract and one signed, digest-pinned llama.cpp-Vulkan image, with the CI and signing pipeline behind it
-  - a measurement record for Qwen3.8 Flash Next, made first on a native build with the recipe's exact flags, then reproduced through the image
+  - the container contract, runtime definitions with the run-option allowlist, and the halogen definition as the first third-party-tier runtime
+  - the `basecamp/omarchy-local-ai` catalog repo with its `schema-1` branch, CI checks and commit signing; catalog fetch and signature verification in Omarchy
+  - machine profile, `best.toml` with the 128GB Strix Halo class, and `use best`
+  - the measurement record for Qwen3.8 Flash Next on halogen, reproducing the hand-measured numbers through the generated unit
   - rootless preflight and GPU self-test
   - Quadlet generation with explicit autostart, health and restart behavior
   - per-user key and endpoint verification
   - staged, verified downloads and transactional switching
   - `use`, `stop`, `status`, `list`, `autostart`
   - OpenCode local launch through `OPENCODE_CONFIG`
-- **Phase 2** — the panel's Local card with lifecycle state and actions, menu entries, `remove`, GLM-5.3-Flash as the second recipe.
-- **Phase 3** — ROCm and CUDA images, the privileged GPU setup command, GB10 recipes adapted from Mia's, the halogen runtime as the first third-party-tier definition (its fit is already proven by hand: it runs from the generated Quadlet with a read-only model mount, the key as a Podman secret, read-only root, dropped capabilities and `Notify=healthy`), more clients as overlays allow, live metrics.
+- **Phase 2** — `omarchy agent local bench` for contributed measurement records; the `omarchy`-tier image pipeline (CI, pinned Containerfiles, signing) with a llama.cpp-Vulkan image as the first, so the 128GB class gets its fallback and recipes can use quants halogen refuses; the 64GB Strix Halo class; the panel's Local card with lifecycle state and actions; menu entries; `remove`; GLM-5.3-Flash as a further recipe.
+- **Phase 3** — ROCm and CUDA images, the privileged GPU setup command, GB10 classes with recipes adapted from Mia's, more clients as overlays allow, live metrics.
+
+halogen's fit with the design is already proven by hand: it runs from the generated Quadlet with a read-only model mount, the key as a Podman secret, read-only root, dropped capabilities, loopback-only port and `Notify=healthy`, and pi uses it through a provider entry.
 - **Docs** — a manual page for running local models; `docs/` reference for the recipe format, the measurement record and the container contract.
 - **Tests** — extending existing area tests where they exist, covering real logic only:
   - recipe parsing and id validation
@@ -312,7 +413,7 @@ Mia's recipes ([mia-ai.net/models](https://mia-ai.net/models)) are EXL3 + Tensor
 
 ## Open questions
 
-1. Which repo owns the image Containerfiles and CI, and which signing scheme Podman verifies (sigstore signatures vs GPG).
+1. Which signing scheme Podman verifies for `omarchy`-tier images (sigstore signatures vs GPG); the Containerfiles and CI live in the catalog repo.
 2. Is one managed active model the right limit long term? A small fast model next to a big one (completion vs agent) is plausible on 128GB once headroom checks exist.
 3. Should the model store share Hugging Face's cache (`~/.cache/huggingface`) so weights downloaded for other tools are reused, at the cost of Omarchy not owning deletion?
 4. Should a recipe's `ctx` variants grow automatically as measurements come in for machines with less memory (64GB Strix Halo), or stay hand-curated?
