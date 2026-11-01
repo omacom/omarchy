@@ -2033,20 +2033,42 @@ def _claude_code_read_transcripts(files: list[Path], previous: dict[str, Any]) -
 
 
 def claude_code_transcripts(projects: Path) -> Iterator[Path]:
-  """Every transcript under `projects`, in directory order, by its real path.
-  A project folder can be a symlink, several to one shared directory, so the
-  walk follows links and enters each real directory once, which also ends a
-  link back to an ancestor."""
+  """Every transcript under `projects`, by its real path, in the order
+  rglob("*.jsonl") gives (a directory's files as it is found, then depth
+  first), since the last one read wins a tie. Unlike rglob it follows a
+  symlinked project folder, entering each real directory once, so a directory
+  behind several links is read once and a link back to an ancestor ends."""
   entered: set[str] = set()
-  for directory, subdirectories, names in os.walk(projects, followlinks=True):
+  stack: list[str] = []
+
+  def entries(directory: str) -> list[os.DirEntry]:
+    try:
+      with os.scandir(directory) as found:
+        return list(found)
+    except OSError:
+      return []
+
+  def is_dir(entry: os.DirEntry) -> bool:
+    try:
+      return entry.is_dir()
+    except OSError:
+      return False
+
+  def enter(directory: str) -> Iterator[Path]:
     real_directory = os.path.realpath(directory)
     if real_directory in entered:
-      subdirectories[:] = []
-      continue
+      return
     entered.add(real_directory)
-    for name in names:
-      if name.endswith(".jsonl"):
-        yield Path(real_directory) / name
+    stack.append(directory)
+    for entry in entries(directory):
+      if entry.name.endswith(".jsonl") and not is_dir(entry):
+        yield Path(real_directory) / entry.name
+
+  yield from enter(str(projects))
+  while stack:
+    for entry in entries(stack.pop()):
+      if is_dir(entry):
+        yield from enter(entry.path)
 
 
 _DEFAULT_INDEX = object()
