@@ -26,7 +26,8 @@ power_on() {
 }
 
 trust_device() {
-  if ! bluetoothctl trust "$address" >/dev/null 2>&1; then
+  # bluetoothctl waits forever for a bluetoothd that is down, and the panel holds discovery until this exits.
+  if ! timeout 10s bluetoothctl trust "$address" >/dev/null 2>&1; then
     echo "Could not trust the Bluetooth device" >&2
     return 1
   fi
