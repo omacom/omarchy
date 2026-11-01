@@ -414,6 +414,104 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
 
+// --- Hotspot (AP-mode internet sharing) helpers ---
+
+// Parses `omarchy-hotspot status` output: "key\tvalue" lines. Values that may
+// contain tabs (ssid) are preserved; clients arrives as a JSON array string.
+function parseHotspotStatus(raw) {
+  var next = {}
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    if (!line) continue
+    var idx = line.indexOf("\t")
+    if (idx === -1) continue
+    next[line.substring(0, idx)] = line.substring(idx + 1)
+  }
+  return next
+}
+
+// AP bands the adapter reports, e.g. ["2.4"] or ["2.4", "5"]. Derived from
+// `iw phy` band presence, which over-approximates AP support, so this is a
+// best-effort hint; a card that cannot actually serve a reported band just
+// surfaces the real NetworkManager reason when the AP fails.
+function hotspotBands(status) {
+  var raw = (status && status.ap_bands) || ""
+  var bands = String(raw).split(",").map(function(b) { return b.trim() })
+  return bands.filter(function(b) { return b !== "" })
+}
+
+// The band the panel should select: the profile's current band when the card
+// still supports it, else the first supported band (2.4 preferred).
+function hotspotDefaultBand(status) {
+  var bands = hotspotBands(status)
+  if (bands.length === 0) return ""
+  var current = (status && status.band) || ""
+  if (current !== "" && bands.indexOf(current) !== -1) return current
+  if (bands.indexOf("2.4") !== -1) return "2.4"
+  return bands[0]
+}
+
+function hotspotClients(status) {
+  var value = (status && status.clients) || "[]"
+  try {
+    var parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (e) {
+    return []
+  }
+}
+
+// The participant limit the profile carries, as a plain digit string, or ""
+// when the hotspot is unlimited. Anything unexpected reads as unlimited so a
+// malformed status can never invent a cap the user did not set.
+function hotspotMaxClients(status) {
+  var raw = String((status && status.max_clients) || "").trim()
+  if (!/^[0-9]{1,3}$/.test(raw)) return ""
+  var clients = parseInt(raw, 10)
+  if (!(clients >= 1 && clients <= 253)) return ""
+  return String(clients)
+}
+
+function hotspotLimitLabel(limit, tr, trn, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var tn = typeof trn === "function" ? trn : function(key, count, english) { return count === 1 ? english.one : english.other }
+  if (String(limit || "") === "") return t("network.hotspotUnlimited", "Unlimited")
+  var count = Number(limit)
+  return tn("network.hotspotDevices", count, { one: "%1 device", other: "%1 devices" }).replace("%1", formatter(fmt)(count))
+}
+
+// True once the AP is serving as many clients as its limit allows, so the
+// panel can say so instead of letting the next joiner silently fail to get an
+// address.
+function hotspotAtCapacity(status) {
+  var limit = hotspotMaxClients(status)
+  if (limit === "") return false
+  var clients = parseInt((status && status.client_count) || "0", 10)
+  if (!isFinite(clients)) return false
+  return clients >= parseInt(limit, 10)
+}
+
+// formatNumber writes the signal in the language's digits (I18n.formatNumber).
+function hotspotClientLabel(client, formatNumber) {
+  var c = client || {}
+  var mac = String(c.mac || "").toUpperCase()
+  var signal = parseInt(c.signal, 10)
+  var format = typeof formatNumber === "function" ? formatNumber : String
+  if (!mac) return ""
+  if (isFinite(signal)) return mac + " \u00b7 " + format(signal) + " dBm"
+  return mac
+}
+
+function hotspotCredentialsError(ssid, password, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (String(ssid || "").trim() === "") return t("network.hotspotNameRequired", "Enter a hotspot name")
+  var length = String(password || "").length
+  if (length < 8) return t("network.hotspotPasswordTooShort", "Password needs 8+ characters")
+  if (length > 63) return t("network.hotspotPasswordTooLong", "Password can't exceed 63 characters")
+  return ""
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseNetworkStatus: parseNetworkStatus,
@@ -447,6 +545,15 @@ if (typeof module !== "undefined") {
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
-    shouldRepromptPassphrase: shouldRepromptPassphrase
+    shouldRepromptPassphrase: shouldRepromptPassphrase,
+    parseHotspotStatus: parseHotspotStatus,
+    hotspotBands: hotspotBands,
+    hotspotDefaultBand: hotspotDefaultBand,
+    hotspotClients: hotspotClients,
+    hotspotMaxClients: hotspotMaxClients,
+    hotspotLimitLabel: hotspotLimitLabel,
+    hotspotAtCapacity: hotspotAtCapacity,
+    hotspotClientLabel: hotspotClientLabel,
+    hotspotCredentialsError: hotspotCredentialsError
   }
 }
