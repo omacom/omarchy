@@ -418,9 +418,25 @@ command_takes_only_flags() {
   local args="${COMMAND_ARGS[$key]}"
   local token=""
 
+  local in_option=false
+
   [[ -n $args ]] || return 1
+  # An optional flag may name its value, as in [--model <name>]; the value
+  # placeholder belongs to the flag and isn't a positional argument.
   for token in $args; do
-    [[ $token == -* || $token == "[-"* ]] || return 1
+    if [[ $token == -* || $token == "[-"* ]]; then
+      if [[ $token == "[-"* && $token != *"]" ]]; then
+        in_option=true
+      else
+        in_option=false
+      fi
+    elif [[ $in_option == true ]]; then
+      if [[ $token == *"]" ]]; then
+        in_option=false
+      fi
+    else
+      return 1
+    fi
   done
 }
 

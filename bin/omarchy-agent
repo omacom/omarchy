@@ -1,11 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
-# omarchy:examples=omarchy agent | omarchy agent --inline
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--agent <id>]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
 pick=false
+use_local=false
+local_model=""
+agent_override=""
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -18,6 +21,19 @@ while (($#)); do
     --pick)
       pick=true
       shift
+      ;;
+    --local)
+      use_local=true
+      shift
+      ;;
+    --local-model)
+      use_local=true
+      local_model=${2:?--local-model needs a recipe id}
+      shift 2
+      ;;
+    --agent)
+      agent_override=${2:?--agent needs an agent id}
+      shift 2
       ;;
     --prompt)
       prompt=${2:?--prompt needs a value}
@@ -35,7 +51,17 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
-agent=$(omarchy-default-agent)
+# --agent launches a given agent instead of the default: the panel's terminal
+# button on each subscription opens the harness made for it, Codex for OpenAI.
+if [[ -n $agent_override ]]; then
+  agent=$agent_override
+  if omarchy-cmd-missing "$agent"; then
+    omarchy-notification-send "$(omarchy-i18n agents.harnessMissing "$agent")" "$(omarchy-i18n agents.harnessMissingBody "$agent")"
+    exit 1
+  fi
+else
+  agent=$(omarchy-default-agent)
+fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
@@ -51,6 +77,23 @@ fi
 if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
+fi
+
+# Only agents with a launch-time overlay can be pointed at the local model. When
+# the default can't, the local model opens in pi, or OpenCode without pi.
+if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
+  local_agent=""
+  for candidate in pi opencode; do
+    if omarchy-cmd-present "$candidate"; then
+      local_agent=$candidate
+      break
+    fi
+  done
+  if [[ -z $local_agent ]]; then
+    omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
+    exit 1
+  fi
+  agent=$local_agent
 fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts
@@ -202,6 +245,22 @@ commandcode)
   exit 1
   ;;
 esac
+
+# --local points the agent at the model `omarchy agent local use` runs, through
+# a launch-time overlay Omarchy owns, never by editing the agent's own config.
+# Only agents with such an overlay can be pointed there.
+if [[ $use_local == "true" ]]; then
+  mapfile -t overlay < <(omarchy-agent-local overlay "$agent" ${local_model:+"$local_model"})
+  (( ${#overlay[@]} == 3 )) || exit 1
+  case "$agent" in
+  opencode)
+    command=(env "OPENCODE_CONFIG=${overlay[0]}" "${command[@]}" --model "${overlay[1]}/${overlay[2]}")
+    ;;
+  pi)
+    command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
+    ;;
+  esac
+fi
 
 # An agent with no way to take a starting prompt still opens, with the prompt
 # on the clipboard to paste as its first message, so a prompted launch from the

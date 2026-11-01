@@ -101,6 +101,8 @@ omacut
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars
+# Local model recipes and their engine; Podman comes when a model is set up.
+omarchy-local-ai
 # Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
 omarchy-power-profiles-daemon
