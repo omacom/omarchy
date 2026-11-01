@@ -17,11 +17,17 @@ hl = {
   dispatch = function(value) dispatched = value end,
 }
 o = {
+  bind_expressions = {},
   bind = function(key, _, action) binds[key] = action end,
   shell_quote = function(value) return "'" .. value .. "'" end,
   workspaces = dispatcher,
 }
 dofile(os.getenv("ROOT") .. "/default/hypr/bindings/tiling.lua")
+local replay = assert(load("return " .. o.bind_expressions[binds["SUPER + W"]]))()
+assert(dispatched == nil, "evaluating the menu expression does not dispatch")
+assert(replay == binds["SUPER + W"], "menu factory returns the same dispatcher")
+assert(o.bind_expressions[binds["SUPER + W"]] == "o.close_window()", "menu can replay the close callback")
+assert(binds["SUPER + W"] == binds["SUPER + Q"], "alternative chords share a dispatcher")
 binds["SUPER + W"]()
 assert(dispatched == nil, "an empty workspace does not try to close a window")
 active = { address = "0xabc", tags = { "terminal*" } }
@@ -30,7 +36,7 @@ assert(dispatched == "omarchy-hyprland-window-close --policy 'conditional' '0xab
 binds["SUPER + Q"]()
 assert(dispatched == "omarchy-hyprland-window-close --policy 'conditional' '0xabc'", "the other close shortcut uses the same guard")
 omarchy_terminal_close_confirmation = "always"
-binds["SUPER + W"]()
+assert(load("return " .. o.bind_expressions[binds["SUPER + W"]]))()()
 assert(dispatched == "omarchy-hyprland-window-close --policy 'always' '0xabc'", "always policy reaches the guard")
 omarchy_terminal_close_confirmation = false
 binds["SUPER + W"]()

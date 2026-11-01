@@ -13,6 +13,12 @@ local function close_window()
   end
 end
 
+-- Return the dispatcher for the shortcuts menu, just like workspace actions.
+function o.close_window()
+  return close_window
+end
+o.bind_expressions[close_window] = "o.close_window()"
+
 o.bind("SUPER + W", "Close window", close_window)
 o.bind("SUPER + Q", "Close window", close_window)
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
