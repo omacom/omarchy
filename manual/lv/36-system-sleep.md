@@ -1,19 +1,21 @@
 # Sistēmas miegs
 
-Omarchy pēc noklusējuma iespējo apturēšanu un ziemas miegu, bet, ja jūsu iekārtā ar kādu no tiem ir problēmas, varat tos izslēgt.
+Omarchy pēc noklusējuma iespējo apturēšanu un hibernāciju, bet, ja ar kādu no tiem tavā datorā rodas problēmas, vari tos izslēgt.
 
-### Jaudas profili
+NVIDIA GB10 datoros, piemēram, DGX Spark un ASUS Ascent GX10, apturēšana un hibernācija ir izslēgtas, tāpat kā NVIDIA DGX OS, jo vēl nav pierādīts, ka miega režīms uz šīs aparatūras darbojas. Apturēšanas pārslēgšana un hibernācijas iestatīšana tur neattiecas. Lai miega režīmu ieslēgtu atpakaļ, izdzēs `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` ar `sudo rm`; pēc tam izvēlnē atkal parādīsies apturēšana, un hibernāciju varēs iestatīt tāpat kā citos datoros. Palaižot `sudo omarchy apply hardware --install-user "$USER"`, fails tiks atjaunots.
 
-Klēpjdatorā Omarchy atsevišķi atceras jūsu jaudas profilu pie strāvas un uz akumulatora un pārslēdzas starp tiem, kad pievienojat un atvienojat lādētāju. Pēc noklusējuma tas nozīmē veiktspēju pie maiņstrāvas un līdzsvarotu režīmu uz akumulatora.
+### Enerģijas profili
 
-Ar `omarchy powerprofiles list` varat redzēt, ko jūsu iekārta piedāvā, un ar `omarchy powerprofiles set autodetect power-saver` iestatīt vēlamo pašreizējam stāvoklim. Lai iestatītu otru stāvokli, neko neatvienojot, nosauciet to tieši: `omarchy powerprofiles set battery power-saver`. Ko izvēlēsieties, to arī saņemsiet nākamreiz, kad būsiet šajā stāvoklī.
+Klēpjdatorā Omarchy atceras tavu enerģijas profilu atsevišķi pieslēgtam tīklam un darbam uz akumulatora, un pārslēdzas starp abiem, kad pieslēdz vai atvieno barošanu. Pēc noklusējuma tas nozīmē veiktspēju uz maiņstrāvas un līdzsvaroto režīmu uz akumulatora.
+
+Ar `omarchy powerprofiles list` vari apskatīt, ko piedāvā tavs dators, un ar `omarchy powerprofiles set autodetect power-saver` iestatīt vajadzīgo profilu stāvoklim, kurā pašlaik atrodies. Lai iestatītu otru stāvokli, neko neatvienojot, nosauc to tieši: `omarchy powerprofiles set battery power-saver`. Ko izvēlēsies, to arī saņemsi atpakaļ nākamreiz, kad būsi šajā stāvoklī.
 
 ### Apturēšanas pārslēgšana
 
-Apturēšanu pārslēdzat, terminālī palaižot `omarchy toggle suspend`. Tas vienkārši parāda vai paslēpj opciju sadaļā _Sistēma_ (vai `Super + Esc`), un tad varat pārbaudīt, vai tā jūsu sistēmā darbojas stabili. Ja nē, varat to atkal paslēpt ar to pašu komandu.
+Apturēšanu pārslēdz, terminālī palaižot `omarchy toggle suspend`. Tas vienkārši parāda/paslēpj opciju sadaļā _System_ (vai ar `Super + Esc`), un tad vari pārbaudīt, vai tā tavā sistēmā darbojas konsekventi. Ja nedarbojas, ar to pašu komandu vari to atkal paslēpt.
 
-### Ziemas miega pārslēgšana
+### Hibernācijas pārslēgšana
 
-Ziemas miegu iestatāt, terminālī palaižot `omarchy hibernation setup`. Ziemas miegs jūsu sāknēšanas diskā izveido /swap apakšsējumu jūsu fiziskās RAM lielumā, tāpēc pārliecinieties, ka jums ir daudz brīvas vietas. 32GB iekārtā šim sējumam vienmēr vajadzēs 32GB+ brīvas vietas. Ziemas miegam vajadzīgs arī noklusējuma Limine sāknēšanas lādētājs.
+Hibernāciju iestata, terminālī palaižot `omarchy hibernation setup`. Hibernācija izveido /swap apakšsējumu tavā sāknēšanas diskā tavas fiziskās RAM atmiņas lielumā, tāpēc pārliecinies, ka tev ir pietiekami daudz brīvas vietas. Datorā ar 32GB tev šim sējumam vienmēr vajadzēs 32GB+ brīvas vietas. Hibernācijai nepieciešams arī noklusējuma Limine sāknēšanas ielādētājs.
 
-Kad tas ir iestatīts, ziemas miega opciju redzēsiet sadaļā _Sistēma_ (vai `Super + Esc`), un tad varat pārbaudīt, vai tā jūsu sistēmā darbojas stabili. Ja nē, varat to atkal noņemt, palaižot `omarchy hibernation remove`.
+Kad tā būs iestatīta, sadaļā _System_ (vai ar `Super + Esc`) redzēsi hibernācijas opciju, un tad vari pārbaudīt, vai tā tavā sistēmā darbojas konsekventi. Ja nedarbojas, vari to atkal noņemt, palaižot `omarchy hibernation remove`.

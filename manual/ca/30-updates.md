@@ -1,37 +1,41 @@
 # Actualitzacions
 
-Omarchy i els teus paquets es mantenen al dia mitjançant _Actualitza > Omarchy_ al menú d'Omarchy (`Super + Space`).
+Omarchy i els teus paquets es mantenen actualitzats mitjançant _Actualitza > Omarchy_ al menú d'Omarchy (`Super + Space`).
 
-El mateix Omarchy s'instal·la com a paquets pacman normals des de l'[Omarchy Package Repository](https://github.com/omacom-io/omarchy-pkgs), de manera que una actualització instal·la [la darrera versió d'Omarchy](https://github.com/omacom/omarchy/releases), executa qualsevol migració pendent per posar el sistema en sincronia amb el més recent i actualitza tots els paquets del sistema des de l'[Omarchy Arch Mirror](https://github.com/omacom-io/omarchy-mirror) i l'[AUR](https://aur.archlinux.org/) (si has instal·lat cap paquet de l'AUR).
+El propi Omarchy s'instal·la com a paquets normals de pacman des del [repositori de paquets d'Omarchy](https://github.com/omacom-io/omarchy-pkgs), de manera que una actualització instal·la [l'última versió d'Omarchy](https://github.com/omacom/omarchy/releases), executa qualsevol migració pendent per deixar el teu sistema sincronitzat amb l'última versió i actualitza tots els paquets del sistema des del [mirall d'Arch d'Omarchy](https://github.com/omacom-io/omarchy-mirror) i l'[AUR](https://aur.archlinux.org/) (si has instal·lat cap paquet de l'AUR).
 
-Quan es publiquen versions noves, apareixerà una icona de fletxa circular a la dreta del teu rellotge. Fes-hi clic i començarà el procés d'actualització.
+Quan es publiquin noves versions, apareixerà una icona de fletxa circular a la dreta del teu rellotge. Fes-hi clic i el procés d'actualització començarà.
 
 ![update-available](images/update-available.webp)
 
 ### Quatre canals
 
-Omarchy s'actualitza seguint quatre canals: stable, RC, edge i dev. Les instal·lacions noves comencen al canal stable, que segueix les [versions oficials](https://github.com/omacom/omarchy/releases/), així com el [mirall stable d'Omarchy Arch](https://github.com/omacom-io/omarchy-mirror), que va un mes per darrere del més recent, perquè puguem detectar qualsevol incompatibilitat nova que requereixi canvis de configuració abans que causi problemes a la gent.
+Omarchy s'actualitza a través de quatre canals: stable, RC, edge i dev. Les instal·lacions noves comencen al canal stable, que segueix les [versions oficials](https://github.com/omacom/omarchy/releases/), així com el [mirall d'Arch estable d'Omarchy](https://github.com/omacom-io/omarchy-mirror) que va un mes per darrere de l'últim, perquè puguem detectar qualsevol incompatibilitat nova que requereixi canvis de configuració abans que causi problemes a la gent.
 
-Però si vols ajudar a detectar aquests possibles problemes, pots funcionar amb el canal edge. Això farà que els teus paquets d'Omarchy segueixin les darreres versions de desenvolupament i et permetrà actualitzar als paquets d'Arch més recents tan bon punt estiguin disponibles. Només ho hauries de fer si tens experiència amb Linux i saps com recuperar un sistema que tingui problemes.
+Però si vols ajudar a detectar aquests possibles problemes, pots fer servir el canal edge. Això farà que els teus paquets d'Omarchy segueixin les últimes compilacions de desenvolupament i et permetrà actualitzar als últims paquets d'Arch tan aviat com estiguin disponibles. Només ho hauries de fer si tens experiència amb Linux i saps com recuperar un sistema que té problemes.
 
-Abans de qualsevol versió major nova, farem la validació final fent servir el canal RC. Si t'interessa ajudar amb el poliment final, vine a passar l'estona a #omarchy-release-candidates al Discord.
+Abans de qualsevol nova versió important, farem la validació final utilitzant el canal RC. Si t'interessa ajudar amb el poliment final, vine a passar l'estona a #omarchy-release-candidates al Discord.
 
-Finalment, hi ha el canal dev, que enllaça Omarchy directament a una còpia git del codi font a `~/omarchy`, combinada amb els paquets edge. Només hauries de fer servir aquest canal si ets un usuari experimentat de Linux, treballes directament a Omarchy i estàs disposat a tolerar trencaments.
+Finalment, hi ha el canal dev, que enllaça Omarchy directament amb un checkout de git del codi font a `~/omarchy`, combinat amb els paquets edge. Només hauries d'utilitzar aquest canal si ets un usuari experimentat de Linux, treballes directament a Omarchy i estàs disposat a tolerar trencaments.
 
-Pots canviar entre canals amb _Actualitza > Canal_ des del menú d'Omarchy (o `omarchy-channel-set` al terminal).
+Pots canviar entre canals utilitzant _Actualitza > Canal_ des del menú d'Omarchy (o `omarchy-channel-set` al terminal).
 
-### Actualitzacions de microprogramari
+### Canviar de nucli
 
-Els teus paquets no són l'única cosa que es queda rància. Molts portàtils i perifèrics distribueixen microprogramari de BIOS, SSD i estacions d'acoblament mitjançant el Linux Vendor Firmware Service, i _Actualitza > Microprogramari_ al menú d'Omarchy obtindrà i instal·larà el que el teu maquinari tingui pendent. Instal·la `fwupd` la primera vegada que l'executes. Una bona part del microprogramari només es pot escriure durant un reinici, de manera que no et sorprenguis si te'n demana un.
+Omarchy arrenca amb el seu propi nucli `linux-omarchy`, però pots mantenir-ne d'altres instal·lats al seu costat, com el nucli `linux` estàndard d'Arch o una compilació experimental que estiguis provant. Quan n'hi ha més d'un, _Actualitza > Nucli_ al menú d'Omarchy els enumera amb una marca al costat del que arrenca per defecte. Tria'n un altre, introdueix la teva contrasenya una vegada, i arrencarà després del proper reinici. Els altres nuclis es queden al menú d'arrencada, de manera que encara en pots triar un manualment si el nou per defecte et dona problemes. Al terminal, és `omarchy-kernel` per veure el per defecte actual, `omarchy-kernel list` per veure què hi ha instal·lat, i `omarchy-kernel set <kernel>` per canviar.
 
-### Avís sobre les actualitzacions directes amb pacman/yay
+### Actualitzacions de firmware
 
-Si ja coneixes Arch, potser tindràs la temptació d'executar simplement `pacman -Syu` o `yay -Syu` pel teu compte, però si ho fas et perdràs la instantània, les migracions i les actualitzacions de configuració que Omarchy executa juntament amb els paquets nous. Per això Omarchy en realitat aturarà una actualització directa del sistema i t'assenyalarà cap a `omarchy update` en el seu lloc. (Si realment saps el que fas, la guarda et dirà com saltar-te-la per a una sola transacció.)
+Els teus paquets no són l'única cosa que queda obsoleta. Molts portàtils i perifèrics distribueixen firmware de BIOS, SSD i de base d'acoblament a través del Linux Vendor Firmware Service, i _Actualitza > Firmware_ al menú d'Omarchy baixarà i instal·larà tot el que el teu maquinari tingui pendent. Instal·la `fwupd` la primera vegada que l'executes. Bona part del firmware només es pot escriure durant un reinici, així que no t'estranyi que te'n demani un.
 
-### Fer marxa enrere d'actualitzacions dolentes
+### Advertiment sobre les actualitzacions directes amb pacman/yay
 
-Si mai tens un problema després de fer una actualització, pots fer marxa enrere del sistema fins a la instantània presa abans de l'actualització. Reinicia simplement i tria la instantània al menú de càrrega d'arrencada d'abans que comencessis l'actualització.
+Si ja coneixes Arch, potser tindràs la temptació d'executar simplement `pacman -Syu` o `yay -Syu` pel teu compte, però si ho fas, et saltaràs la instantània, les migracions i les actualitzacions de configuració que Omarchy executa juntament amb els paquets nous. Per això Omarchy aturarà de fet una actualització directa del sistema i t'indicarà que utilitzis `omarchy update` en el seu lloc. (Si realment saps el que fas, la protecció t'indicarà com ometre-la per a una sola transacció.)
+
+### Revertir actualitzacions dolentes
+
+Si alguna vegada tens un problema després de fer una actualització, pots revertir el teu sistema a la instantània feta abans de l'actualització. Només cal que reiniciïs i triïs al menú de càrrega d'arrencada la instantània d'abans que comencessis l'actualització.
 
 ![bootloader](images/bootloader.webp)
 
-Si d'alguna manera els teus fitxers de configuració s'han corromput, també pots fer una reinstal·lació d'Omarchy amb `omarchy reinstall` al terminal. Això reinstal·larà tots els paquets per defecte d'Omarchy, et posarà a stable i baixarà de versió qualsevol paquet que sigui massa nou, i restablirà tots els fitxers de configuració. Tingues en compte que tots els canvis de configuració d'usuari que hagis fet als valors per defecte d'Omarchy se sobreescriuran en fer això!
+Si d'alguna manera els teus fitxers de configuració s'han malmès, també pots fer una reinstal·lació d'Omarchy utilitzant `omarchy reinstall` al terminal. Això reinstal·larà tots els paquets per defecte d'Omarchy, et posarà a stable i rebaixarà la versió de qualsevol paquet que sigui massa nou, i restablirà tots els fitxers de configuració. Tingues en compte que, en fer això, se sobreescriuran tots els canvis de configuració d'usuari que hagis fet als valors per defecte d'Omarchy!
