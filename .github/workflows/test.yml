@@ -35,6 +35,13 @@ jobs:
           path: src/omarchy-pkgs
           persist-credentials: false
 
+      - name: Pre-flight syntax and routing checks
+        working-directory: src/omarchy
+        run: |
+          find bin -maxdepth 1 -type f -exec bash -n {} +
+          find install migrations -type f -name '*.sh' -exec bash -n {} +
+          ./test/cli
+
       - name: Install the fetch tools
         run: |
           sudo apt-get update -qq

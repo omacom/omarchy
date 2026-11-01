@@ -473,7 +473,9 @@ if rg -q '\{\{[^}]+\}\}' "$LEGACY_NEXT_THEME"; then
 fi
 pass "legacy short palette renders the complete generated theme"
 
-osc_summary=$("$ROOT/bin/omarchy-theme-osc" "$NEXT_THEME/colors.toml" | python -c 'import sys; data = sys.stdin.buffer.read(); print(data.count(b"]4;"), b"]4;1;#ff0000" in data, b"]4;7;#ffffff" in data, b"]4;15;#eeeeee" in data, b"]12;#eeeeee" in data, b"]17;#808080" in data, b"]19;#eeeeee" in data)')
+python_cmd=$(command -v python3 || command -v python || true)
+[[ -n $python_cmd ]] || fail "python is required to verify theme OSC output"
+osc_summary=$("$ROOT/bin/omarchy-theme-osc" "$NEXT_THEME/colors.toml" | "$python_cmd" -c 'import sys; data = sys.stdin.buffer.read(); print(data.count(b"]4;"), b"]4;1;#ff0000" in data, b"]4;7;#ffffff" in data, b"]4;15;#eeeeee" in data, b"]12;#eeeeee" in data, b"]17;#808080" in data, b"]19;#eeeeee" in data)')
 [[ $osc_summary == "16 True True True True True True" ]] || fail "theme OSC aliases semantic colors to ANSI palette"
 pass "theme OSC aliases semantic colors to ANSI palette"
 
