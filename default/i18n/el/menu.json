@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Δοκιμή ταχύτητας δίσκου"
   },
-  "setup.monitors": {
-    "label": "Οθόνες"
-  },
   "setup.keybindings": {
     "label": "Συντομεύσεις"
   },
@@ -1285,5 +1282,11 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Καταγραφή σφαλμάτων ενεργή"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

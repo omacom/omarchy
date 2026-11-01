@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disko greičio testas"
   },
-  "setup.monitors": {
-    "label": "Monitoriai"
-  },
   "setup.keybindings": {
     "label": "Spartieji klavišai"
   },
@@ -1285,5 +1282,11 @@
   },
   "setup.default.agent.qwen": {
     "label": "Qwen Code"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }
