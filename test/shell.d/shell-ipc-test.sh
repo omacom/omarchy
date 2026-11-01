@@ -229,3 +229,20 @@ handlers.splice(0, 1)
 assert(leads(second, 0), 'the next handler takes over when the leader goes')
 assert(!leads(first, 0), 'a handler the registry no longer knows does not lead')
 JS
+
+# The same takeover in a real Quickshell: two ShellIpc handlers for one
+# target, as two bars build, where only the first answers, the second takes
+# over once the first is gone, and Quickshell never warns about the second.
+if compositor_reachable && command -v quickshell >/dev/null; then
+  ulimit -c 0 2>/dev/null || true
+  takeover=$(mktemp -d)
+  ln -s "$ROOT/shell/Commons" "$takeover/Commons"
+  cp "$SHELL_TEST_DIR/fixtures/shell-ipc-takeover/shell.qml" "$takeover/shell.qml"
+  output=$(timeout 10 quickshell -p "$takeover" --no-color 2>&1) || true
+  rm -rf "$takeover"
+  [[ $output == *"RESULT pass"* ]] || fail "a second ShellIpc for a target takes over when the first goes" "$output"
+  [[ $output != *"will not be used"* ]] || fail "Quickshell does not warn about a second ShellIpc for a target" "$output"
+  pass "a second ShellIpc for a target takes over when the first goes"
+else
+  skip "a second ShellIpc for a target takes over when the first goes (no compositor)"
+fi
