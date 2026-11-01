@@ -308,7 +308,13 @@ alias_store_rewrite() {
     rm -f "$temporary"
     return 1
   fi
-  if [[ -f $(alias_file) ]]; then
+  if [[ -e $(alias_file) ]]; then
+    # A store that cannot be read is left as it is: rewriting it from nothing
+    # would drop every other name and still report success.
+    if [[ ! -f $(alias_file) || ! -r $(alias_file) ]]; then
+      rm -f "$temporary"
+      return 1
+    fi
     while IFS=$'\t' read -r existing_mac existing_alias || [[ -n ${existing_mac:-} ]]; do
       existing_mac=${existing_mac,,}
       valid_client_alias "${existing_alias:-}" || continue
@@ -318,7 +324,10 @@ alias_store_rewrite() {
         rm -f "$temporary"
         return 1
       }
-    done <"$(alias_file)"
+    done <"$(alias_file)" || {
+      rm -f "$temporary"
+      return 1
+    }
   fi
   if [[ -n $alias ]]; then
     printf '%s\t%s\n' "$skip" "$alias" >>"$temporary" || {

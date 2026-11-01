@@ -485,6 +485,21 @@ HOTSPOT_ACTIVE=1 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$JQ_SPY_BIN:$STUB_BIN:$PATH"
 ! grep -q "Kitchen Tablet" "$TEST_TMP/jq-argv" || fail "a client name never rides jq's arguments" "$(<"$TEST_TMP/jq-argv")"
 pass "client names never reach process arguments"
 
+# A store that cannot be read is left alone rather than rewritten from nothing.
+if (( $(id -u) != 0 )); then
+  cp "$alias_store" "$TEST_TMP/alias-before"
+  chmod 000 "$alias_store"
+  set +e
+  XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:07 <<<"New Name" >/dev/null 2>&1
+  unreadable_status=$?
+  set -e
+  chmod 600 "$alias_store"
+  (( unreadable_status != 0 )) || fail "saving into an unreadable alias store fails"
+  cmp -s "$alias_store" "$TEST_TMP/alias-before" || fail "an unreadable alias store keeps every name" "$(<"$alias_store")"
+fi
+pass "an unreadable alias store is never rewritten"
+
 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
   bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
 [[ -z $(cut -f1 <"$alias_store" | grep -F 'aa:bb:cc:dd:ee:01' || true) ]] || fail "a removed alias is gone" "$(<"$alias_store")"
