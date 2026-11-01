@@ -1288,5 +1288,15 @@
   },
   "update.password.user": {
     "label": "User"
+  },
+  "setup.default.agent-interface": {
+    "label": "Codex Interface",
+    "title": "Open Codex In"
+  },
+  "setup.default.agent-interface.terminal": {
+    "label": "Terminal"
+  },
+  "setup.default.agent-interface.desktop": {
+    "label": "Desktop"
   }
 }

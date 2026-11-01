@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import qs.Ui as Ui
 
 Panel {
   id: root
@@ -31,6 +32,53 @@ Panel {
   readonly property var providers: usage.subscribedProviders
 
   property bool cursorActive: false
+
+  property string defaultAgent: ""
+  property string codexInterface: "terminal"
+  property bool interfaceSaveFailed: false
+  readonly property bool showCodexLauncher: defaultAgent === "codex" && addStage === ""
+
+  function reloadLaunchPreferences() {
+    defaultAgentFile.reload()
+    interfaceFile.reload()
+  }
+
+  function setCodexInterface(value) {
+    if (interfaceProcess.running) return
+    interfaceSaveFailed = false
+    interfaceProcess.command = ["omarchy-default-agent-interface", value]
+    interfaceProcess.running = true
+  }
+
+  FileView {
+    id: defaultAgentFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.defaultAgent = String(text()).trim()
+    onLoadFailed: root.defaultAgent = ""
+  }
+
+  FileView {
+    id: interfaceFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/defaults/agent-interface-codex"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.codexInterface = String(text()).trim() === "desktop" ? "desktop" : "terminal"
+    onLoadFailed: root.codexInterface = "terminal"
+  }
+
+  Process {
+    id: interfaceProcess
+    onExited: function(exitCode, exitStatus) {
+      root.interfaceSaveFailed = exitCode !== 0 || exitStatus !== 0
+      root.reloadLaunchPreferences()
+    }
+  }
+
+  onDefaultAgentChanged: resetKeys()
 
   // Countdowns and "last updated" ages read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
@@ -61,8 +109,13 @@ Panel {
     var rows = []
     var hero = []
     if (addButtonShown) hero.push({ kind: "add", index: 0 })
-    if (addStage === "") hero.push({ kind: "launch", index: 0 })
+    if (addStage === "") hero.push({ kind: "settings", index: 0 })
+    if (addStage === "" && !showCodexLauncher) hero.push({ kind: "launch", index: 0 })
     if (hero.length > 0) rows.push(hero)
+    if (showCodexLauncher) {
+      rows.push([{ kind: "interface", index: 0 }, { kind: "interface", index: 1 }])
+      rows.push([{ kind: "launch", index: 0 }])
+    }
     if (picking) {
       var choices = []
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
@@ -394,6 +447,8 @@ Panel {
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "launch") launchAgent()
+    else if (target.kind === "settings") chooseDefaultAgent()
+    else if (target.kind === "interface") setCodexInterface(target.index === 0 ? "terminal" : "desktop")
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
@@ -487,7 +542,13 @@ Panel {
     return tier === "" ? "" : tier.charAt(0).toUpperCase() + tier.slice(1)
   }
 
+  function chooseDefaultAgent() {
+    root.close()
+    if (root.bar) root.bar.shell.summon("omarchy.menu", JSON.stringify({ menu: "setup.default.agent" }))
+  }
+
   function launchAgent() {
+    if (interfaceProcess.running) return
     if (root.bar) root.bar.run("omarchy-agent --pick")
     root.close()
   }
@@ -874,6 +935,7 @@ Panel {
   implicitHeight: button.implicitHeight
 
   onOpenedChanged: if (opened) {
+    reloadLaunchPreferences()
     if (addStage !== "running") addStage = ""
     resetKeys()
     if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
@@ -1084,6 +1146,15 @@ Panel {
 
                 HeroButton {
                   visible: root.addStage === ""
+                  hasCursor: root.hasKey("settings")
+                  onHovered: root.pointAt("settings")
+                  glyph: "󰒓"
+                  tooltip: Commons.I18n.t("agents.chooseDefaultAgent")
+                  onClicked: root.chooseDefaultAgent()
+                }
+
+                HeroButton {
+                  visible: root.addStage === "" && !root.showCodexLauncher
                   hasCursor: root.hasKey("launch")
                   onHovered: root.pointAt("launch")
                   glyph: "󰞷"
@@ -1091,6 +1162,81 @@ Panel {
                   onClicked: root.launchAgent()
                 }
               }
+            }
+          }
+
+          Column {
+            visible: root.showCodexLauncher
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              width: parent.width
+              text: Commons.I18n.t("agents.openIn")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            Row {
+              id: interfaceChoices
+              width: parent.width
+              spacing: Style.space(6)
+
+              Repeater {
+                model: ["terminal", "desktop"]
+
+                Ui.Button {
+                  id: interfaceChoice
+                  required property string modelData
+                  required property int index
+                  width: (interfaceChoices.width - interfaceChoices.spacing) / 2
+                  text: modelData === "terminal" ? Commons.I18n.t("agents.interfaceTerminal") : Commons.I18n.t("agents.interfaceDesktop")
+                  iconText: modelData === "terminal" ? "󰞷" : "󰍹"
+                  selected: root.codexInterface === modelData
+                  hasCursor: root.hasKey("interface", index)
+                  enabled: !interfaceProcess.running
+                  onHasCursorChanged: if (hasCursor) root.revealItem(interfaceChoice)
+                  onHovered: function(over) { if (over) root.pointAt("interface", index) }
+                  onClicked: root.setCodexInterface(modelData)
+                }
+              }
+            }
+
+            Text {
+              visible: root.interfaceSaveFailed
+              width: parent.width
+              text: Commons.I18n.t("agents.interfaceSaveFailed")
+              textFormat: Text.PlainText
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            Text {
+              visible: root.codexInterface === "desktop"
+              width: parent.width
+              text: Commons.I18n.t("agents.desktopAccount")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            Ui.Button {
+              id: codexLaunch
+              width: parent.width
+              text: root.codexInterface === "desktop" ? Commons.I18n.t("agents.openCodexDesktop") : Commons.I18n.t("agents.openCodexTerminal")
+              iconText: root.codexInterface === "desktop" ? "󰍹" : "󰞷"
+              hasCursor: root.hasKey("launch")
+              enabled: !interfaceProcess.running
+              onHasCursorChanged: if (hasCursor) root.revealItem(codexLaunch)
+              onHovered: function(over) { if (over) root.pointAt("launch") }
+              onClicked: root.launchAgent()
             }
           }
 

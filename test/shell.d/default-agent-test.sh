@@ -958,3 +958,139 @@ for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
   rm "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
 done
 pass "agent launcher runs user-installed agents ahead of native lazy shims"
+
+# Choosing an interface is independent of CLI installation and never launches
+# anything. Invalid values must not replace the user's saved selection.
+interface_file="$test_home/.config/omarchy/defaults/agent-interface-codex"
+[[ $(omarchy-default-agent-interface) == "terminal" ]] || fail "Codex defaults to a terminal"
+omarchy-default-agent-interface desktop
+[[ $(omarchy-default-agent-interface) == "desktop" ]] || fail "Codex desktop preference persists"
+if omarchy-default-agent-interface invalid >/dev/null 2>&1; then
+  fail "interface selection rejects unsupported values"
+fi
+[[ $(cat "$interface_file") == "desktop" ]] || fail "invalid interface preserves the saved preference"
+if omarchy-default-agent-interface terminal extra >/dev/null 2>&1; then
+  fail "interface selection rejects extra arguments"
+fi
+[[ $(cat "$interface_file") == "desktop" ]] || fail "extra arguments preserve the saved preference"
+pass "Codex interface selection validates and persists without launching"
+
+cat >"$mock_bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_AGENT_OPEN_LOG"
+SH
+cat >"$mock_bin/codex" <<'SH'
+#!/bin/bash
+printf '%s\0' codex "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+SH
+chmod +x "$mock_bin/uwsm-app" "$mock_bin/codex"
+printf 'codex\n' >"$agent_file"
+project="$test_home/Work/a & b #雪"
+mkdir -p "$project"
+: >"$launch_log"
+(cd "$project"; OMARCHY_TEST_MISSING_COMMAND=codex omarchy-agent)
+mapfile -d '' -t desktop_args <"$agent_open_log"
+[[ ${desktop_args[0]} == "--" && ${desktop_args[1]} == "chatgpt" && ${#desktop_args[@]} == 3 ]] ||
+  fail "desktop dispatch needs neither the CLI nor a terminal" "argv: ${desktop_args[*]}"
+python - "${desktop_args[2]}" "$project" <<'PYTHON'
+import sys
+from urllib.parse import urlparse, parse_qs
+url = urlparse(sys.argv[1])
+assert (url.scheme, url.netloc, url.path) == ('codex', 'threads', '/new')
+assert parse_qs(url.query) == {'path': [sys.argv[2]]}
+PYTHON
+[[ ! -s $launch_log ]] || fail "desktop does not open a terminal"
+pass "Codex desktop opens the local project with an encoded path, without the CLI"
+
+CODEX_HOME="$test_home/pinned" OMARCHY_AGENT_CODEX_HOME="$test_home/pinned" omarchy-agent
+mapfile -d '' -t desktop_args <"$agent_open_log"
+[[ ${desktop_args[1]} == "env" && ${desktop_args[2]} == "-u" && ${desktop_args[3]} == "OMARCHY_AGENT_CODEX_HOME" && ${desktop_args[4]} == "-u" && ${desktop_args[5]} == "CODEX_HOME" && ${desktop_args[6]} == "chatgpt" ]] ||
+  fail "desktop clears a parent CLI session's account pin in the launched environment"
+CODEX_HOME="$test_home/explicit" OMARCHY_AGENT_CODEX_HOME="$test_home/pinned" omarchy-agent
+mapfile -d '' -t desktop_args <"$agent_open_log"
+[[ ${desktop_args[1]} == "env" && ${desktop_args[2]} == "-u" && ${desktop_args[3]} == "OMARCHY_AGENT_CODEX_HOME" && ${desktop_args[4]} == "chatgpt" ]] ||
+  fail "desktop retains a deliberately supplied CODEX_HOME while removing the parent pin"
+pass "desktop avoids inheriting Omarchy CLI account selection and preserves explicit configuration"
+
+: >"$agent_open_log"
+: >"$notification_history"
+if OMARCHY_TEST_MISSING_COMMAND=chatgpt omarchy-agent >/dev/null 2>&1; then
+  fail "missing desktop app fails visibly"
+fi
+[[ ! -s $agent_open_log && ! -s $launch_log ]] || fail "missing desktop app never falls back"
+[[ -s $notification_history ]] || fail "missing desktop app notifies the user"
+pass "missing desktop app reports installation instructions without fallback"
+
+omarchy-agent --inline
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${inline_args[0]} == "codex" && ${inline_args[1]} == "--approve-for-me" ]] || fail "inline Codex keeps the terminal contract"
+for prompt in 'Review this project' ''; do
+  : >"$launch_log"
+  omarchy-agent --prompt "$prompt"
+  mapfile -d '' -t launch_args <"$launch_log"
+  [[ ${launch_args[0]} == "--app-id=org.omarchy.agent" ]] || fail "prompted Codex remains in a terminal, even for an empty prompt"
+done
+[[ ! -s $agent_open_log ]] || fail "inline and prompted launches never dispatch desktop"
+printf 'opencode\n' >"$agent_file"
+omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[1]} == "opencode" ]] || fail "other agents ignore the Codex preference"
+printf 'codex\n' >"$agent_file"
+omarchy-default-agent-interface terminal
+omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[0]} == "--app-id=org.omarchy.agent" ]] || fail "switching back restores Codex terminal dispatch"
+printf 'corrupt\n' >"$interface_file"
+[[ $(omarchy-default-agent-interface) == "terminal" ]] || fail "invalid saved preference uses terminal"
+pass "Codex desktop preference preserves prompted, inline, and other-agent terminal workflows"
+
+# Exercise the installer guard without installing packages or opening windows.
+(
+  installer_bin="$test_tmp/installer-bin"
+  mkdir -p "$installer_bin"
+  export OMARCHY_TEST_INSTALL_LOG="$test_tmp/desktop-install"
+  export OMARCHY_TEST_GUM_LOG="$test_tmp/desktop-confirm"
+  cat >"$installer_bin/awk" <<'SH'
+#!/bin/bash
+if [[ ${!#} == "/proc/meminfo" ]]; then
+  printf '%s\n' "$OMARCHY_TEST_MEMORY" | /usr/bin/awk "${@:1:$#-1}"
+else
+  exec /usr/bin/awk "$@"
+fi
+SH
+  cat >"$installer_bin/gum" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_TEST_GUM_LOG"
+exit "$OMARCHY_TEST_CONFIRM_STATUS"
+SH
+  cat >"$installer_bin/omarchy-pkg-add" <<'SH'
+#!/bin/bash
+printf 'install %s\n' "$*" >>"$OMARCHY_TEST_INSTALL_LOG"
+SH
+  cat >"$installer_bin/setsid" <<'SH'
+#!/bin/bash
+printf 'launch %s\n' "$*" >>"$OMARCHY_TEST_INSTALL_LOG"
+SH
+  chmod +x "$installer_bin"/*
+  export PATH="$installer_bin:$PATH"
+
+  for scenario in '3900000 1 no' '4194304 130 no' '4194304 0 yes' '4194305 1 yes' 'unknown 1 yes'; do
+    read -r memory status install <<<"$scenario"
+    export OMARCHY_TEST_MEMORY="MemTotal: $memory kB"
+    export OMARCHY_TEST_CONFIRM_STATUS="$status"
+    : >"$OMARCHY_TEST_INSTALL_LOG"
+    : >"$OMARCHY_TEST_GUM_LOG"
+    bash -c 'source "$1"; wait' bash "$ROOT/bin/omarchy-install-ai-chatgpt" >"$test_tmp/desktop-install-output" 2>&1
+    if [[ $install == "yes" ]]; then
+      [[ $(<"$OMARCHY_TEST_INSTALL_LOG") == $'install openai-codex-desktop\nlaunch uwsm-app -- /usr/bin/chatgpt' ]] || fail "desktop installer proceeds for $scenario"
+    else
+      [[ ! -s $OMARCHY_TEST_INSTALL_LOG ]] || fail "desktop installer skips package and launch after decline or cancellation"
+    fi
+    if [[ $memory != "unknown" ]] && (( memory <= 4194304 )); then
+      grep -Fxq -- '--default=false' "$OMARCHY_TEST_GUM_LOG" || fail "low-memory installer confirmation defaults to No"
+    else
+      [[ ! -s $OMARCHY_TEST_GUM_LOG ]] || fail "desktop installer avoids warning for larger or unknown memory"
+    fi
+  done
+)
+pass "desktop installation warns on low RAM and respects confirmation and cancellation"
