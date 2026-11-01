@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# sudo, pacman and yay link here. The update window reads what they and the
+# PAM modules behind sudo print, so they run in English whatever the session
+# language, the way omarchy-update-system-pkgs pins pacman. Pinning only these
+# leaves apps an installer opens afterwards in the language the user chose.
+LC_ALL=C.UTF-8 exec "/usr/bin/${0##*/}" "$@"
