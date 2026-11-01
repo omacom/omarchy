@@ -241,12 +241,14 @@ probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
   fail "an override in another modifier order replaces the default" "$probe"
 pass "an override replaces a default regardless of modifier order"
 
-# Overriding only the release half of a push-to-talk key must keep the press
-# half, which a key-wide unbind would take with it.
+# Overriding only the release half of the push-to-talk key (Right Alt) must keep
+# the press half, which a key-wide unbind would take with it.
 probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
-  'o.bind("F9", "Dictation off", "omarchy-dictation stop", { release = true })' | \
-  awk -F'\t' '$2 == "F9"')
-[[ $probe == $'F9\tF9\tStart dictation (push-to-talk)\nF9 (release)\tF9\tDictation off' ]] ||
+  'o.bind("ALT + Alt_R", "Dictation off", "omarchy-dictation stop", { release = true })' | \
+  awk -F'\t' '$2 == "ALT + Alt_R"')
+expected=$'ALT+ALT_R\tALT + Alt_R\tStart dictation (push-to-talk)\n'
+expected+=$'ALT+ALT_R (release)\tALT + Alt_R\tDictation off'
+[[ $probe == "$expected" ]] ||
   fail "overriding the release half keeps the press half" "$probe"
 pass "overriding one event keeps the other event on the same key"
 

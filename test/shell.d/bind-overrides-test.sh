@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 require_command lua
 
-lua <<'LUA'
+lua - <<'LUA'
 local root = os.getenv("ROOT")
 package.loaded["default.hypr.paths"] = { omarchy_path = root }
 local bindings
