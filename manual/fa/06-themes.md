@@ -1,12 +1,12 @@
 # تم‌ها
 
-Omarchy با بیست‌ودو تم زیبا عرضه می‌شود. می‌توانید از طریق _ظاهر > تم_ در منوی Omarchy (`Super + Space`) بین آن‌ها انتخاب کنید یا با `Super + Ctrl + Shift + Space` مستقیماً به انتخاب‌گر تم بروید.
+Omarchy با بیست‌ودو تم زیبا همراه است. می‌توانید از طریق _ظاهر > تم_ در منوی Omarchy (`Super + Space`) بین آن‌ها انتخاب کنید یا با استفاده از `Super + Ctrl + T` مستقیم به انتخاب‌گر تم بروید.
 
-هر تم دسکتاپ، ترمینال، neovim، صفحهٔ فعالیت (btop)، Chromium و کل پوستهٔ Omarchy را سبک‌دهی می‌کند: نوار بالا، منو، اعلان‌ها، OSD و صفحهٔ قفل. (برای Obsidian، باید تم Omarchy را از طریق _Appearance > Themes_ در داخل برنامه به‌صورت دستی انتخاب کنید).
+هر تم به دسکتاپ، ترمینال، neovim، صفحه فعالیت (btop)، Chromium و کل پوسته Omarchy استایل می‌دهد: نوار بالا، منو، اعلان‌ها، OSD و صفحه قفل. (برای Obsidian، باید تم Omarchy را به‌صورت دستی از طریق _ظاهر > تم‌ها_ در داخل برنامه انتخاب کنید).
 
-تم‌ها مجموعه‌ای از تصاویر پس‌زمینه دارند که می‌توانید با `Super + Ctrl + Space` بین آن‌ها انتخاب کنید.
+تم‌ها مجموعه‌ای از تصاویر پس‌زمینه دارند که می‌توانید با استفاده از `Super + Ctrl + W` بین آن‌ها انتخاب کنید.
 
-می‌توانید تم‌های بیشتری را در [صفحهٔ تم‌های اضافی](https://omarchy.org/themes/) پیدا کنید یا حتی [تم خودتان را بسازید](43-making-your-own-theme.md).
+می‌توانید تم‌های بیشتری را در [صفحه تم‌های اضافی](https://omarchy.org/themes/) پیدا کنید یا حتی [تم خودتان را بسازید](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### باز کردن قفل‌ها
+### طرح‌های بازکردن قفل
 
-تم‌ها همچنین می‌توانند طرح سفارشی باز کردن قفل داشته باشند که برای فرایند رمزگشایی هنگام بوت استفاده می‌شود. می‌توانید یکی از آن‌ها را زیر _ظاهر > باز کردن قفل_ انتخاب کنید. آن‌ها این‌گونه به نظر می‌رسند:
+تم‌ها همچنین می‌توانند یک طرح بازکردن قفل سفارشی داشته باشند که برای فرایند رمزگشایی هنگام بوت استفاده می‌شود. می‌توانید یکی از این‌ها را در بخش _ظاهر > بازکردن قفل_ انتخاب کنید. آن‌ها این شکلی هستند:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

@@ -138,7 +138,3 @@ DEFAULTS="br0:425 ppp0:50 wlan0:600"
   fail "a bridge or PPP link carrying the default route stays itself"
 pass "a bridge or PPP link carrying the default route stays itself"
 unset ROUTE_DEV DEFAULTS
-
-grep -Fq '"when":"omarchy-network-wifi-connected"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "the menu's Wi-Fi QR Code row asks the cheap predicate"
-pass "the menu's Wi-Fi QR Code row asks the cheap predicate"

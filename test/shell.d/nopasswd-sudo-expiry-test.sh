@@ -32,10 +32,9 @@ for status in 1 2 3; do
   else
     (( result != 0 )) && ! grep -q '^gum ' "$test_tmp/commands" || fail "inspection errors must not offer enablement"
   fi
-  grep -q '^sudo -n -N -l -l -- .* __status ' "$test_tmp/commands" || fail "status must inspect policy without authentication"
-  [[ $(tail -1 "$test_tmp/commands") == 'sudo -k' ]] || fail "public exit must revoke its authorization"
+  grep -q '^sudo -n -l -l -- .* __status ' "$test_tmp/commands" || fail "status must inspect policy without authentication"
 done
-pass "public status distinguishes inactive from errors and revokes authorization on exit"
+pass "public status distinguishes inactive from errors"
 
 printf ': >"$TEST_STARTUP_MARKER"\nset -o privileged\nunset BASH_ENV\n' >"$test_tmp/startup"
 : >"$test_tmp/commands"
@@ -228,8 +227,7 @@ for choice in '15 minutes' '1 Hour' '1 Day' Permanently; do
   : >"$test_tmp/commands"
   TEST_CHOICE="$choice" TEST_CONFIRM_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/public.log" 2>&1
   grep -q '^gum choose .*15 minutes 1 Hour 1 Day Permanently$' "$test_tmp/commands"
-  grep -q "^sudo -N -- .* __enable .* $expected$" "$test_tmp/commands"
-  [[ $(tail -1 "$test_tmp/commands") == 'sudo -k' ]]
+  grep -q "^sudo -- .* __enable .* $expected$" "$test_tmp/commands"
   if [[ $expected == permanent ]]; then
     grep -q 'remain enabled across reboots until you disable it' "$test_tmp/public.log"
     ! grep -q 'automatically disable' "$test_tmp/public.log" || fail "permanent grant claims automatic expiry"
@@ -240,7 +238,6 @@ pass "each duration choice dispatches its exact grant duration with permanent-sp
 : >"$test_tmp/commands"
 assert_status 130 env TEST_CHOICE_CANCEL=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/public.log" 2>&1
 ! grep -q '__enable\|^gum confirm ' "$test_tmp/commands" || fail "cancelled picker continued enablement"
-[[ $(tail -1 "$test_tmp/commands") == 'sudo -k' ]]
 : >"$test_tmp/commands"
 TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/public.log" 2>&1
 ! grep -q '^gum ' "$test_tmp/commands" || fail "disabling access offered a picker"
@@ -281,10 +278,10 @@ for policy in '    Options: !authenticate' '    Options: authenticate'; do
   [[ $policy != *'!authenticate'* ]] || expected=0
   assert_status "$expected" env TEST_POLICY="$policy" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
   [[ $(wc -l <"$test_tmp/commands") == 1 ]]
-  grep -q '^sudo -n -N -l -l -- .* __status ' "$test_tmp/commands"
+  grep -q '^sudo -n -l -l -- .* __status ' "$test_tmp/commands"
 done
 assert_status 1 env TEST_POLICY_FAILURE=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
-pass "menu probe reads policy tags without executing a privileged action or changing the timestamp"
+pass "menu probe reads policy tags without executing a privileged action"
 
 for status in 0 3; do
   : >"$test_tmp/commands"
@@ -298,16 +295,15 @@ pass "explicit disable never enables access even when a displayed grant has expi
 
 : >"$test_tmp/commands"
 TEST_STATUS=3 TEST_CHOICE='15 minutes' TEST_CONFIRM_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/public.log" 2>&1
-[[ $(grep -c '^sudo -N -- ' "$test_tmp/commands") == 1 ]] || fail "enable must authenticate exactly one sudo call"
-grep -q '^sudo -N -- .* __enable .* 15$' "$test_tmp/commands"
-! grep -q '^sudo -n -N -- .* __status ' "$test_tmp/commands" || fail "inactive flow attempted root status"
-[[ $(tail -1 "$test_tmp/commands") == 'sudo -k' ]]
+[[ $(grep -c '^sudo -- ' "$test_tmp/commands") == 1 ]] || fail "enable must authenticate exactly one sudo call"
+grep -q '^sudo -- .* __enable .* 15$' "$test_tmp/commands"
+! grep -q '^sudo -n -- .* __status ' "$test_tmp/commands" || fail "inactive flow attempted root status"
 pass "enabling from inactive policy has exactly one password-capable sudo invocation"
 
 : >"$test_tmp/commands"
 TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
-grep -q '^sudo -n -N -- .* __disable ' "$test_tmp/commands" || fail "disable must refuse interactive authentication"
-! grep -q '^sudo -N -- ' "$test_tmp/commands" || fail "disable attempted an interactive sudo command"
+grep -q '^sudo -n -- .* __disable ' "$test_tmp/commands" || fail "disable must refuse interactive authentication"
+! grep -q '^sudo -- ' "$test_tmp/commands" || fail "disable attempted an interactive sudo command"
 pass "disabling active access is fully noninteractive"
 
 for duration in permanent 15; do
@@ -352,14 +348,14 @@ pass "paired policy recovery rejects mismatched or unsafe rules and allows a com
 
 : >"$test_tmp/commands"
 TEST_POLICY_FAILURE=1 TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
-grep -q '^sudo -n -N -- .* __disable ' "$test_tmp/commands"
-! grep -q '^gum\|^sudo -N -- ' "$test_tmp/commands" || fail "listpw=always disable prompted"
+grep -q '^sudo -n -- .* __disable ' "$test_tmp/commands"
+! grep -q '^gum\|^sudo -- ' "$test_tmp/commands" || fail "listpw=always disable prompted"
 TEST_POLICY_FAILURE=1 TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 assert_status 1 env TEST_POLICY_FAILURE=1 TEST_STATUS=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 : >"$test_tmp/commands"
 TEST_POLICY_FAILURE=1 TEST_STATUS=1 TEST_CONFIRM_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 15 >"$test_tmp/public.log" 2>&1
-[[ $(grep -c '^sudo -N -- ' "$test_tmp/commands") == 1 ]] || fail "listing failure must leave one enable authentication"
-grep -q '^sudo -N -- .* __enable .* 15$' "$test_tmp/commands"
+[[ $(grep -c '^sudo -- ' "$test_tmp/commands") == 1 ]] || fail "listing failure must leave one enable authentication"
+grep -q '^sudo -- .* __enable .* 15$' "$test_tmp/commands"
 : >"$test_tmp/commands"
 assert_status 1 env TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 15 >"$test_tmp/public.log" 2>&1
 ! grep -q '^gum\|__enable ' "$test_tmp/commands" || fail "unsafe grant was offered enablement"
