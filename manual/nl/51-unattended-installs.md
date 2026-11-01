@@ -1,32 +1,32 @@
-# Onbeheerde installaties
+# Installaties zonder toezicht
 
-De Omarchy-ISO kan zichzelf installeren met niemand achter het toetsenbord. Als het installatieprogramma een tweede schijf vindt met het label `cidata` die zijn configuratiebestanden draagt, kopieert het ze eraf, slaat het de setupwizard volledig over en herstart het uit zichzelf in het voltooide systeem. Geen speciale ISO-build, geen extra opstartmenu-item — zonder zo'n schijf aangesloten verandert er niets en krijg je de normale wizard.
+De Omarchy ISO kan zichzelf installeren zonder dat er iemand achter het toetsenbord zit. Als het installatieprogramma een tweede schijf vindt met het label `cidata` waarop de configuratiebestanden staan, kopieert het die eraf, slaat het de installatiewizard volledig over en start het zelf opnieuw op in het voltooide systeem. Geen speciale ISO-build, geen extra opstartmenu-item — zonder zo'n schijf verandert er niets en krijg je de normale wizard.
 
-Dit maakt Omarchy geweldig als basisimage voor wegwerpbare dev-omgevingen: maak een VM in Proxmox of met Packer, start hem op, loop weg, SSH erin. `cidata` is het cloud-init `NoCloud`-label, dus alle gangbare virtualisatietooling weet al hoe zo'n schijf moet worden aangesloten.
+Hierdoor is Omarchy uitstekend als basisimage voor wegwerp-ontwikkelomgevingen: maak een VM in Proxmox of met Packer, start hem op, loop weg, log in via SSH. `cidata` is het cloud-init `NoCloud`-label, dus alle gangbare virtualisatietools weten al hoe ze zo'n schijf moeten koppelen.
 
 ## De configuratiebestanden
 
-De bestanden zijn precies wat de wizard van het installatieprogramma zelf schrijft, dus de makkelijkste manier om een startset te krijgen is een interactieve installatie uitvoeren (in een VM, bijvoorbeeld) en kopiëren wat hij in `/root` schreef:
+De bestanden zijn precies wat de wizard van het installatieprogramma zelf wegschrijft, dus de makkelijkste manier om een startset te krijgen is één interactieve installatie uitvoeren (in een VM, bijvoorbeeld) en kopiëren wat die naar `/root` heeft geschreven:
 
 | Bestand | Vereist | Doel |
 |------|----------|---------|
 | `user_configuration.json` | Ja | Schijf, hostnaam, tijdzone, toetsenbord |
-| `user_credentials.json` | Ja | Gebruikersnaam en wachtwoord-hash |
-| `user_full_name.txt` | Nee | Volledige naam voor Git |
-| `user_email_address.txt` | Nee | E-mailadres voor Git |
-| `user_encrypt_installation.txt` | Nee | `true` wanneer de configuratie een `disk_encryption`-blok draagt |
-| `authorized_keys` | Nee | Openbare SSH-sleutels, één per regel |
-| `tailscale_authkey` | Nee | Tailscale-authsleutel om bij de eerste opstart lid te worden van je tailnet |
+| `user_credentials.json` | Ja | Gebruikersnaam en wachtwoordhash |
+| `user_encrypt_installation.txt` | Nee | `true` wanneer de configuratie een `disk_encryption`-blok bevat |
+| `authorized_keys` | Nee | Publieke SSH-sleutels, één per regel |
+| `tailscale_authkey` | Nee | Tailscale-authkey om bij de eerste start lid te worden van je tailnet |
 
-Genereer de wachtwoord-hash voor `user_credentials.json` met `openssl passwd -6 "yourpassword"`.
+Genereer de wachtwoordhash voor `user_credentials.json` met `openssl passwd -6 "yourpassword"`.
 
-Je kunt ook een leeg bestand met de naam `defer-provisioning` plaatsen in plaats van `user_credentials.json`. Dat voert dezelfde [installatie voorbereiden-voor-een-andere-eigenaar](02-getting-started.md) uit die je interactief kunt activeren: de machine installeert zonder persoonlijke details, en wie hem als eerste opstart kiest zijn toetsenbord en maakt zijn gebruiker aan. Dat is de modus voor imaging-rigs, waarbij de schijf helemaal niemands inloggegevens mag dragen.
+De naam en het e-mailadres voor git-commits maken geen deel uit van de installatie. Stel ze in zodra de machine draait, via SSH bijvoorbeeld, met `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+Je kunt ook een leeg bestand met de naam `defer-provisioning` neerzetten in plaats van `user_credentials.json`. Dat voert dezelfde [installatie voorbereiden voor een andere eigenaar](02-getting-started.md) uit die je interactief kunt starten: de machine installeert zonder persoonlijke gegevens, en wie hem als eerste opstart, kiest zijn toetsenbord en maakt zijn gebruiker aan. Dat is de modus voor imaging-rigs, waarbij de schijf helemaal geen inloggegevens van iemand mag bevatten.
 
 ## SSH-toegang
 
-Wanneer `authorized_keys` aanwezig is, stelt de installatie de sleutels in als de `~/.ssh/authorized_keys` van de gebruiker, schakelt hij `sshd` in en opent hij de firewall ervoor. (Een standaard Omarchy-installatie levert openssh met de service uitgeschakeld en de poort gesloten, dus een onbeheerde machine zou anders onbereikbaar zijn.) De installatie voegt alleen je sleutels toe — hij versoepelt geen van de andere authenticatie-instellingen van de SSH-daemon.
+Als `authorized_keys` aanwezig is, stelt de installatie de sleutels in als de `~/.ssh/authorized_keys` van de gebruiker, schakelt ze `sshd` in en opent ze de firewall ervoor. (Een standaard Omarchy-installatie levert openssh met de service uitgeschakeld en de poort gesloten, dus een machine zonder toezicht zou anders onbereikbaar zijn.) De installatie voegt alleen je sleutels toe — ze versoepelt geen van de andere authenticatie-instellingen van de SSH-daemon.
 
-Wanneer `tailscale_authkey` aanwezig is, voegt de machine zich in plaats daarvan bij de eerste opstart bij je tailnet: Tailscale wordt geïnstalleerd uit de meegeleverde pakketten van de ISO, de firewall staat de tailnet-interface toe, en een achtergrondtaak voert de join uit zodra de machine daadwerkelijk netwerk heeft, en blijft het proberen totdat het lukt. Gebruik een herbruikbare, vooraf geautoriseerde sleutel zodat één schijfimage veel machines kan bedienen.
+Als `tailscale_authkey` aanwezig is, wordt de machine in plaats daarvan bij de eerste start lid van je tailnet: Tailscale wordt geïnstalleerd vanaf de meegeleverde pakketten op de ISO, de firewall staat de tailnet-interface toe, en een achtergrondtaak voert de aanmelding uit zodra de machine echt netwerk heeft, en blijft het proberen tot het lukt. Gebruik een herbruikbare, vooraf geautoriseerde sleutel, zodat één schijfimage veel machines kan bedienen.
 
 ## De cidata-schijf bouwen
 
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Sluit hem vervolgens aan op de VM naast de Omarchy-ISO. Hier is een volledig Proxmox-voorbeeld:
+Koppel hem vervolgens naast de Omarchy ISO aan de VM. Hier is een volledig Proxmox-voorbeeld:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-De opstartvolgorde vermeldt de schijf met opzet als eerste: de lege schijf valt door naar de ISO bij de eerste opstart, en het geïnstalleerde systeem start daarna altijd op vanaf de schijf.
+De opstartvolgorde zet de schijf bewust op de eerste plaats: de lege schijf valt bij de eerste start door naar de ISO, en daarna start het geïnstalleerde systeem voor altijd vanaf schijf.
 
 ## Twee kanttekeningen
 
-Versleutelde onbeheerde installaties zijn niet volledig onbeheerd — iemand moet bij de eerste opstart nog steeds de LUKS-wachtzin typen. En het `disk_encryption`-blok in `user_configuration.json` draagt die wachtzin in platte tekst, dus behandel een cidata-schijf die is gebouwd uit een versleutelde installatie als het geheim dat hij is.
+Versleutelde installaties zonder toezicht zijn niet volledig zonder toezicht — iemand moet bij de eerste start nog steeds de LUKS-wachtwoordzin typen. En het `disk_encryption`-blok in `user_configuration.json` bevat die wachtwoordzin in platte tekst, dus behandel een cidata-schijf die is gebouwd vanaf een versleutelde installatie als het geheim dat het is.

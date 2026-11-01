@@ -28,7 +28,7 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: usage.enabledProviders
+  readonly property var providers: usage.subscribedProviders
 
   property bool cursorActive: false
 
@@ -325,7 +325,7 @@ Panel {
           usage.refreshLimits()
           addDoneTimer.restart()
           // Nothing to show yet means the sign-in is what counts as set up.
-          if (providers.length === 0 && !checkProcess.running) {
+          if (usage.enabledProviders.length === 0 && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
@@ -419,26 +419,37 @@ Panel {
     return parts.join(" · ")
   }
 
+  // Only the agents `omarchy-agent-account-add` signs in get the link; any
+  // other agent's sign-in trouble stays text, with its own help to follow.
+  function supportsSignIn(p) {
+    for (var i = 0; i < addProviders.length; i++)
+      if (p && addProviders[i].providerId === p.providerId) return true
+    return false
+  }
+
   // A lapsed or missing sign-in is something you can fix from here; any other
   // trouble is only reported.
   function needsSignIn(item) {
+    if (item && item.providerId && !supportsSignIn(item)) return false
     var status = String(item && item.usageStatusText || "")
     return status === "Sign-in expired" || status === "Waiting for auth"
   }
 
-  function otherTrouble(item) {
-    var status = String(item && item.usageStatusText || "")
-    return status !== "" && status !== "Limits paused" && !needsSignIn(item) ? status : ""
-  }
-
-  function pausedWithoutLimits(item) {
-    return !!item && item.usageStatusText === "Limits paused" && limitWindows(item).length === 0
+  // Whatever keeps the numbers from being current, said beside the last ones
+  // known: they stay on show until a check succeeds again. A failed refresh
+  // with numbers kept may leave the status empty and say why only in its help.
+  function usageNote(item) {
+    if (!item || needsSignIn(item)) return ""
+    var status = String(item.usageStatusText || "")
+    var stale = item.limitsStale === true || item.stale === true
+    if (status === "" && !(stale && String(item.authHelpText || "") !== "")) return ""
+    return helpDisplayText(item.authHelpText) || statusDisplayText(status)
   }
 
   // Sign an account that's already here in again, following along in the
   // add view just like adding one.
   function signInAgain(p, account) {
-    if (!p || addStage === "running") return
+    if (!supportsSignIn(p) || addStage === "running") return
     addProvider = p.providerId
     addPrivate = !!account && account.primary !== true
     addStatus = Commons.I18n.t("agents.starting")
@@ -630,6 +641,7 @@ Panel {
   function statusDisplayText(status) {
     var value = String(status || "")
     if (value === "Balance unavailable") return Commons.I18n.t("agents.balanceUnavailable")
+    if (value === "Out of credits") return Commons.I18n.t("agents.outOfCredits")
     var limits = value.match(/^(.+) limits unavailable$/)
     if (limits) return Commons.I18n.t("agents.providerLimitsUnavailable").arg(limits[1])
     var provider = value.match(/^(.+) unavailable$/)
@@ -713,6 +725,7 @@ Panel {
     var sessions = 0
     var byDay = {}
     var byModel = {}
+    var providers = usage.enabledProviders
     for (var i = 0; i < providers.length; i++) {
       var p = providers[i]
       var days = p.recentDays || []
@@ -781,6 +794,7 @@ Panel {
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
     if (usage.syncStatusText !== "") return usage.syncStatusText
+    var providers = usage.enabledProviders
     for (var i = 0; i < providers.length; i++) {
       var count = Number(providers[i].syncDeviceCount || 0)
       if (providers[i].syncEnabled && count > 0)
@@ -823,7 +837,9 @@ Panel {
       if (addChecks[id] !== "first") return true
     return false
   }
-  readonly property bool blankSlate: providers.length === 0 && !anySignedIn
+  // Local history counts as set up, so a machine with no subscription still
+  // gets its summary rather than the picker.
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -860,7 +876,7 @@ Panel {
   onOpenedChanged: if (opened) {
     if (addStage !== "running") addStage = ""
     resetKeys()
-    if (providers.length === 0 && !checkProcess.running) checkProcess.running = true
+    if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
@@ -926,7 +942,7 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: {
@@ -936,7 +952,7 @@ Panel {
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -1414,6 +1430,14 @@ Panel {
         font.bold: true
       }
 
+      UsageNote {
+        anchors.left: sectionName.right
+        anchors.leftMargin: Style.space(8)
+        anchors.verticalCenter: sectionName.verticalCenter
+        visible: !section.multi && message !== ""
+        record: section.provider
+      }
+
       Text {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
@@ -1426,8 +1450,8 @@ Panel {
       }
     }
 
-    // Sign-in and endpoint trouble for a single-account provider; with
-    // several, each account says so on its own line.
+    // A sign-in to redo for a single-account provider; with several, each
+    // account says so on its own line.
     TextLink {
       visible: !section.multi && root.needsSignIn(section.provider)
       picked: root.hasKey("providerSignin", section.providerIndex)
@@ -1437,23 +1461,6 @@ Panel {
       onClicked: root.signInAgain(section.provider, null)
     }
 
-    Text {
-      visible: !section.multi && root.otherTrouble(section.provider) !== ""
-      width: parent.width
-      textFormat: Text.PlainText
-      // Shown for the status, so a record with no help to offer says the status rather than nothing.
-      text: section.provider ? (root.helpDisplayText(section.provider.authHelpText) || root.statusDisplayText(section.provider.usageStatusText) || "") : ""
-      color: root.urgent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.WordWrap
-    }
-
-    UnavailableUsage {
-      visible: !section.multi && root.pausedWithoutLimits(section.provider)
-      width: parent.width
-      record: section.provider
-    }
 
     Column {
       visible: !section.multi && section.windows.length > 0
@@ -1560,11 +1567,6 @@ Panel {
         Column {
           width: parent.width
           spacing: Style.space(12)
-
-          UnavailableUsage {
-            width: parent.width
-            record: accountBlock.modelData
-          }
 
           Repeater {
             model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
@@ -1828,8 +1830,8 @@ Panel {
         }
       }
 
-      // Bounded by the actions on the right: the plan and any trouble shorten
-      // first, and the Sign-in required link keeps its whole width.
+      // Bounded by the actions on the right: the plan shortens first, and the
+      // Sign-in required link keeps its whole width.
       Row {
         id: detailRow
         visible: !head.editing
@@ -1843,20 +1845,22 @@ Panel {
           textFormat: Text.PlainText
           visible: text !== ""
           width: Math.max(0, Math.min(implicitWidth, detailRow.width
+            - (accountNote.visible ? accountNote.implicitWidth + detailRow.spacing : 0)
             - (signInDot.visible ? signInDot.implicitWidth + detailRow.spacing : 0)
             - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
           elide: Text.ElideRight
           text: {
-            var parts = []
             var detail = root.accountDetail(head.account)
-            if (detail !== "") parts.push(detail)
-            var trouble = root.otherTrouble(head.account)
-            if (trouble !== "") parts.push(root.statusDisplayText(trouble))
-            return parts.length > 0 ? "· " + parts.join(" · ") : ""
+            return detail !== "" ? "· " + detail : ""
           }
-          color: root.otherTrouble(head.account) !== "" ? root.urgent : root.dim
+          color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
+        }
+
+        UsageNote {
+          id: accountNote
+          record: head.account
         }
 
         // The dot is punctuation, not part of the link.
@@ -1951,27 +1955,26 @@ Panel {
     }
   }
 
-  // With no measured windows, leave a place to discover how to get usage.
-  component UnavailableUsage: Item {
-    id: unavailable
+  // A mark beside the name when the numbers aren't current, with why and
+  // what to do on hover.
+  component UsageNote: Text {
+    id: noteMark
     property var record: null
-    visible: root.pausedWithoutLimits(record)
-    implicitHeight: unavailableLabel.implicitHeight
+    readonly property string message: root.usageNote(record)
+    visible: message !== ""
+    text: "󰋽"
+    textFormat: Text.PlainText
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
 
-    Text {
-      id: unavailableLabel
-      text: Commons.I18n.t("agents.usageUnavailable")
-      textFormat: Text.PlainText
-      color: root.dim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-    }
-
-    HoverHandler { id: unavailableHover }
+    HoverHandler { id: noteHover }
 
     PanelToolTip {
-      visible: unavailableHover.hovered && unavailable.visible
-      text: unavailable.record ? (root.helpDisplayText(unavailable.record.authHelpText) || Commons.I18n.t("agents.usageNotUpdated")) : ""
+      visible: noteHover.hovered && noteMark.visible
+      // Capped through implicitWidth, which the tooltip centers itself by.
+      implicitWidth: Math.min(implicitContentWidth + leftPadding + rightPadding, Style.space(320))
+      text: noteMark.message
     }
   }
 
