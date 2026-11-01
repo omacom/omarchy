@@ -106,56 +106,49 @@ That last one is the reason this matters rather than being tidiness: `systemctl 
 
 ## Remote LUKS unlock
 
-The server edition can unlock an encrypted root via SSH during boot through dropbear in the initramfs. This is opt-in: `omarchy-server-remote-unlock enable` installs the packages, configures the initramfs, and regenerates the boot image.
+`omarchy server remote-unlock enable` configures SSH access to the LUKS passphrase prompt in a busybox initramfs. This is opt-in and has not yet been verified by booting an encrypted Omarchy VM. Keep console access until the boot checks below pass.
 
 Requirements:
-- Server edition
-- Encrypted root filesystem
-- At least one SSH key in `~/.ssh/authorized_keys`
 
-The initramfs SSH server uses your authorized keys. To unlock remotely:
+- Server edition, encrypted root filesystem, and a nonempty `~/.ssh/authorized_keys` belonging to the invoking user. Run as that user; the command uses `sudo` for system writes.
+- A Limine boot chain with `cryptdevice=` and `root=` in its default command line, and an effective busybox `encrypt` hook. Systemd initramfs and platform-owned boot chains, including Apple Silicon's lifecycle implementation, are rejected before installation or writes.
+- A single default Limine command line. Per-kernel/fallback overrides, conflicting existing `ip=` parameters, and replacement assignments in `/etc/default/limine` require manual integration and are rejected. Use `KERNEL_CMDLINE[default]+=` in `/etc/default/limine` to preserve drop-in parameters.
+- Networking supported by the initramfs drivers and netconf. Interface names must match early boot; wireless authentication, VLANs, bonds, bridges, and IPv6 are outside this helper's scope.
 
-```bash
-ssh -p 2222 root@<server-ip> cryptroot-unlock
-```
-
-The default port is 2222 (avoids conflict with the main sshd). The dropbear host key persists so its fingerprint stays stable across reboots.
-
-### Commands
+### Commands and connection
 
 ```bash
-omarchy-server-remote-unlock enable                           # Enable with DHCP
-omarchy-server-remote-unlock enable --static-ip=192.168.1.100/24  # Enable with static IP
-omarchy-server-remote-unlock enable --port=2323                # Custom SSH port
-omarchy-server-remote-unlock disable                          # Disable
-omarchy-server-remote-unlock status                           # Check status
+omarchy server remote-unlock enable
+omarchy server remote-unlock enable --interface=enp1s0
+omarchy server remote-unlock enable --static-ip=192.168.1.100/24 --interface=enp1s0 --gateway=192.168.1.1
+omarchy server remote-unlock disable
+omarchy server remote-unlock status
 ```
 
-### Implementation
+DHCP is the default. Static IPv4 requires an interface and a prefix from 1 to 32; the gateway is optional for same-subnet access and required for off-subnet access. Addresses, prefixes, and interface syntax are validated before any package installation or writes. The static example becomes `ip=192.168.1.100::192.168.1.1:255.255.255.0::enp1s0:none`: client, empty boot server, gateway, dotted netmask, empty hostname, interface, and no autoconfiguration. Pinned DHCP uses `ip=:::::enp1s0:dhcp`.
 
-The `enable` command:
+Connect during the unlock prompt:
 
-1. Installs `mkinitcpio-dropbear`, `mkinitcpio-netconf`, and `mkinitcpio-utils`
-2. Copies `~/.ssh/authorized_keys` to `/etc/initcpio/dropbear/`
-3. Generates or reuses a persistent dropbear host key in `/etc/dropbear/`
-4. Adds a `mkinitcpio.conf.d` drop-in that inserts `netconf`, `dropbear`, and `encryptssh` hooks before the `encrypt` hook
-5. Configures network via kernel command line (`ip=dhcp` or `ip=<static>`)
-6. Rebuilds the initramfs and updates the bootloader
+```bash
+ssh -t root@<server-ip>
+```
 
-The `disable` command removes the drop-in and network config, then rebuilds the initramfs. The packages stay installed (safe to remove manually).
+The packaged `encryptssh` hook sets root's login shell to `cryptsetup_shell`, which prompts for the LUKS passphrase. There is no `cryptroot-unlock` command. The packaged Dropbear hook starts `dropbear -E -s -j -k`, so it listens on port **22** with password authentication and forwarding disabled. `--port` is rejected; `/etc/dropbear/dropbear.conf` does not configure this hook. Dropbear runs before the installed system's sshd, so their listeners do not overlap. Verify the fingerprints printed by the build hook through your trusted console before connecting. If initramfs and installed-system host identities differ, use a separate SSH `UserKnownHostsFile` for unlock access.
 
-### Testing notes
+### Implementation and source verification
 
-The test suite (`test/shell.d/server-remote-unlock-test.sh`) covers:
-- Edition gating (desktop rejected)
-- SSH key requirement (enable without keys rejected)
-- Encrypted root requirement (enable on unencrypted rejected)
-- Argument parsing (--port, --static-ip)
-- Status reporting
+The helper installs `mkinitcpio-dropbear`, `mkinitcpio-netconf`, and `mkinitcpio-utils`. It copies the invoking user's authorized keys to `/etc/dropbear/root_key` with mode 0600, the input consumed by the packaged Dropbear install hook to create `/root/.ssh/authorized_keys` in the image. Host-key conversion, generation, inclusion, and fingerprint output are left to that package; the helper creates no extra host-key layout or configuration.
 
-The test cannot validate the actual initramfs hooks or boot-time network configuration without real hardware. **Untested and requiring bare-metal verification:**
-- Actual SSH connectivity in the initramfs
-- Network configuration (DHCP and static IP)
-- Passphrase unlock flow
-- Host key persistence across reboots
-- Interaction with Limine/UKI boot
+`/etc/mkinitcpio.conf.d/zz-omarchy-remote-unlock.conf` sorts after the platform baseline `00-omarchy-hooks.conf` and `omarchy_hooks.conf`. It replaces `encrypt` with `netconf dropbear encryptssh`, preserving the other hooks. `encryptssh` is a replacement for `encrypt`, rather than another hook to run before it. Repeated enable replaces the same files and does not duplicate hooks or network parameters.
+
+Networking is a literal `KERNEL_CMDLINE[default]+=" ip=..."` assignment in `/etc/limine-entry-tool.d/zz-omarchy-remote-unlock.conf`. Omarchy's `etc/limine-entry-tool.d/omarchy-defaults.conf` already defines the default command line; Limine then ignores `/etc/kernel/cmdline`. Limine reads drop-ins in filename order and `/etc/default/limine` last. Its configuration parser reads assignments, not shell programs. The helper rebuilds through `sudo limine-mkinitcpio`, which builds the images and updates boot entries, and detects the tool's reported kernel-build failure even if its exit code is zero.
+
+Disable removes only the two helper-owned drop-ins and rebuilds. Authorized keys, package-managed host keys, installed packages, and unrelated configuration remain. A rebuild failure leaves configuration available for a retry and is reported as an error; do not reboot until a retry succeeds. Status reports configuration presence, not successful boot verification.
+
+Verified against the downloaded Arch package contents: [mkinitcpio-dropbear 0.0.3-9](https://archlinux.org/packages/extra/any/mkinitcpio-dropbear/), [mkinitcpio-netconf 0.0.5-4](https://archlinux.org/packages/extra/any/mkinitcpio-netconf/), and [mkinitcpio-utils 0.0.6-1](https://archlinux.org/packages/extra/any/mkinitcpio-utils/). The shipped Dropbear hook differs from upstream HEAD's host-key list, so the package contents are the authority. The seven-field IP syntax and `none` protocol are confirmed by [Arch's ipconfig parser](https://gitlab.archlinux.org/archlinux/mkinitcpio/mkinitcpio-nfs-utils/-/blob/master/ipconfig/main.c). Command-line precedence and assignment syntax are confirmed by [Limine's configuration parser](https://gitlab.com/Zesko/limine-entry-tool/-/blob/master/src/main/java/org/limine/entry/tool/processes/ConfigReader.java) and [configuration reference](https://gitlab.com/Zesko/limine-entry-tool/-/blob/master/README.md). Omarchy's boot-chain separation is described in [lifecycle-dispatch.md](lifecycle-dispatch.md).
+
+### Verification limits
+
+`bash test/shell.d/server-remote-unlock-test.sh` runs a copy with fixed paths rewritten into scratch space. Its privilege fixture rejects paths outside scratch and commands outside an allowlist. It exercises prerequisite and input rejection before installation or writes, key installation permissions, actual generated configuration composed with this checkout's Omarchy hook files, repeated enable/disable, status, and rebuild failure reporting. Package installation, device discovery, lifecycle resolution, and image rebuilding are stubbed; the test does not prove a boot works.
+
+QEMU verification still needs an encrypted server image and a reachable virtual NIC: inspect the resulting UKI command line and initramfs keys/hooks, boot with DHCP and static networking, authenticate with an authorized key, complete the passphrase prompt, confirm the installed system continues booting, compare host fingerprints across rebuilds, and boot again after disable. Neither a QEMU boot nor a real package install/image build was performed in this macOS workspace.
