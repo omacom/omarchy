@@ -12,6 +12,9 @@ fi
 test_home=$(mktemp -d)
 trap 'rm -rf -- "$test_home"' EXIT
 export HOME=$test_home
+# Each override points an agent's home outside HOME, at the developer's own.
+unset PI_CODING_AGENT_DIR PI_CONFIG_DIR COPILOT_HOME KIMI_CODE_HOME OPENCODE_CONFIG_DIR QWEN_HOME \
+  CURSOR_CONFIG_DIR ANTIGRAVITY_CLI_CONFIG_DIR GROK_CONFIG_DIR QODER_CONFIG_DIR HERMES_HOME
 
 integration_state() {
   herdr integration status | awk -v target="$1" -F ': ' '$1 == target { split($2, state, " "); print state[1] }'
@@ -34,3 +37,10 @@ mkdir -p "$test_home/.qwen"
 [[ $(integration_state qwen) == "current" ]] || fail "--existing integrates an agent that has run"
 [[ ! -e $test_home/.copilot ]] || fail "--existing leaves agents that never ran alone"
 pass "--existing integrates only agents that have run"
+
+# A migration runs --existing, and must stay pending when an install fails.
+printf 'not json' >"$test_home/.qwen/settings.json"
+if "$ROOT/bin/omarchy-agent-integrate-herdr" --existing 2>/dev/null; then
+  fail "--existing reports a failed install"
+fi
+pass "--existing reports a failed install"
