@@ -17,18 +17,23 @@ esac
 run_root="${OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT:-/run/user}"
 state_dir="${OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR:-/run/omarchy/hyprland-reload-guard}"
 hyprctl_bin="${HYPRCTL:-/usr/bin/hyprctl}"
+setpriv_bin="${SETPRIV:-/usr/bin/setpriv}"
+# Exists only so tests can exercise the privileged (EUID 0) code path without
+# actually running as root. Overriding it can only make this script *more*
+# restrictive (it forces the privilege-drop branch on), never less, so it is
+# not a usable bypass.
+effective_uid="${OMARCHY_HYPRLAND_RELOAD_GUARD_EFFECTIVE_UID:-$EUID}"
 
 valid_bool() {
   [[ $1 == "true" || $1 == "false" ]]
 }
 
-# This name identifies a Hyprland instance only if the socket it names is
-# still a real socket owned by the uid encoded in runtime_dir. Rechecked
-# immediately before every connection: between pause (PreTransaction) and
-# resume (PostTransaction) a user who controls this path could otherwise swap
-# it for a symlink into another user's instance, and have root's unchecked
-# connection (DAC_OVERRIDE bypasses the target socket's permissions) carry a
-# pause-time-injected eval payload into that other session.
+# Fast, early rejection of a path that is obviously wrong (no socket there at
+# all, or one plainly owned by someone else) before spending a subprocess on
+# it. This alone cannot be the real boundary -- it is a stat(), and a user
+# who controls this path can swap it for a symlink after this check returns
+# true but before hyprctl_instance's connection actually happens. Closing
+# that race is hyprctl_instance's job, not this function's.
 verify_socket_owner() {
   local runtime_dir="$1"
   local signature="$2"
@@ -50,7 +55,25 @@ hyprctl_instance() {
 
   verify_socket_owner "$runtime_dir" "$signature" || return 1
 
-  XDG_RUNTIME_DIR="$runtime_dir" "$hyprctl_bin" --instance "$signature" "$@"
+  # verify_socket_owner only proves the socket looked right at the moment of
+  # its stat() above; a user who controls this path can still swap it for a
+  # symlink into another user's socket between that stat and the connect()
+  # hyprctl performs next -- a stat-then-connect race no amount of rechecking
+  # beforehand can close. What makes that race worth anything to an attacker
+  # is that root's connect() bypasses the target socket's own permissions
+  # (DAC_OVERRIDE). So when running as root, drop to the uid this path claims
+  # before connecting: the kernel's own socket permission check at connect()
+  # time becomes the actual boundary, and a raced swap can then only ever
+  # reach a socket that uid could already connect to on its own.
+  if (( effective_uid == 0 )); then
+    local uid="${runtime_dir##*/}" gid
+    gid=$(id -g "$uid" 2>/dev/null) || return 1
+    XDG_RUNTIME_DIR="$runtime_dir" "$setpriv_bin" \
+      --reuid="$uid" --regid="$gid" --clear-groups --no-new-privs \
+      -- "$hyprctl_bin" --instance "$signature" "$@"
+  else
+    XDG_RUNTIME_DIR="$runtime_dir" "$hyprctl_bin" --instance "$signature" "$@"
+  fi
 }
 
 option_bool() {

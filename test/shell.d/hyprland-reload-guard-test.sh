@@ -15,12 +15,15 @@ trap 'rm -rf "$test_tmp"' EXIT
 run_root="$test_tmp/run-user"
 state_dir="$test_tmp/state"
 hyprctl_log="$test_tmp/hyprctl.log"
+setpriv_log="$test_tmp/setpriv.log"
 fake_hyprctl="$test_tmp/hyprctl"
+fake_setpriv="$test_tmp/setpriv"
 signature="test-signature"
 # The uid verify_socket_owner checks against comes from the runtime_dir path
 # itself, so it has to be this process's real uid: that's who ends up owning
 # the sockets bound below.
 own_uid=$(id -u)
+own_gid=$(id -g "$own_uid")
 runtime_dir="$run_root/$own_uid"
 
 dead_signature="dead-signature"
@@ -56,8 +59,28 @@ esac
 BASH
 chmod 0755 "$fake_hyprctl"
 
+# Stands in for setpriv so the test can run unprivileged: it records the
+# privilege-drop request it was given, then execs straight through to the
+# (fake) hyprctl without actually dropping anything. Proving the real
+# kernel-enforced connect()-time permission check this fix relies on would
+# require genuinely being root; what this test can and does prove is that
+# hyprctl_instance asks to drop to the correct uid/gid before every
+# connection, which is the half of the fix under this script's own control.
+cat >"$fake_setpriv" <<'BASH'
+#!/bin/bash
+
+printf '%s\n' "$*" >>"$FAKE_SETPRIV_LOG"
+while [[ $# -gt 0 && $1 != "--" ]]; do shift; done
+shift
+exec "$@"
+BASH
+chmod 0755 "$fake_setpriv"
+
 FAKE_HYPRCTL_LOG="$hyprctl_log" \
+  FAKE_SETPRIV_LOG="$setpriv_log" \
   HYPRCTL="$fake_hyprctl" \
+  SETPRIV="$fake_setpriv" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_EFFECTIVE_UID=0 \
   OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
   OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
   "$ROOT/bin/omarchy-hyprland-reload-guard" pause 2>"$test_tmp/pause-stderr"
@@ -69,13 +92,21 @@ grep -Fx "$expected_state" "$state_file" >/dev/null || fail "reload guard record
 grep -F 'hl.config({ misc = { disable_autoreload = true }, debug = { suppress_errors = true } })' "$hyprctl_log" >/dev/null || fail "reload guard pauses autoreload with hyprctl eval"
 pass "reload guard pauses live Hyprland reloads"
 
+grep -F -- "--reuid=$own_uid --regid=$own_gid --clear-groups --no-new-privs -- $fake_hyprctl --instance $signature" "$setpriv_log" >/dev/null ||
+  fail "reload guard drops root to the socket owner's uid/gid before connecting" "$(cat "$setpriv_log")"
+pass "reload guard runs hyprctl as the claimed socket owner, not as root"
+
 [[ ! -e $state_dir/$dead_signature ]] || fail "reload guard skips instances hyprctl cannot reach"
 [[ ! -s $test_tmp/pause-stderr ]] || fail "reload guard pauses dead Hyprland instances quietly" "$(cat "$test_tmp/pause-stderr")"
 pass "reload guard skips dead Hyprland instances quietly"
 
 : >"$hyprctl_log"
+: >"$setpriv_log"
 FAKE_HYPRCTL_LOG="$hyprctl_log" \
+  FAKE_SETPRIV_LOG="$setpriv_log" \
   HYPRCTL="$fake_hyprctl" \
+  SETPRIV="$fake_setpriv" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_EFFECTIVE_UID=0 \
   OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
   OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
   "$ROOT/bin/omarchy-hyprland-reload-guard" resume
@@ -101,8 +132,12 @@ bind_socket "$runtime_dir/hypr/$toctou_signature/.socket.sock"
 bind_socket "$victim_socket"
 
 : >"$hyprctl_log"
+: >"$setpriv_log"
 FAKE_HYPRCTL_LOG="$hyprctl_log" \
+  FAKE_SETPRIV_LOG="$setpriv_log" \
   HYPRCTL="$fake_hyprctl" \
+  SETPRIV="$fake_setpriv" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_EFFECTIVE_UID=0 \
   OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
   OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
   "$ROOT/bin/omarchy-hyprland-reload-guard" pause
@@ -117,13 +152,18 @@ rm -f "$runtime_dir/hypr/$toctou_signature/.socket.sock"
 ln -s "$victim_socket" "$runtime_dir/hypr/$toctou_signature/.socket.sock"
 
 : >"$hyprctl_log"
+: >"$setpriv_log"
 FAKE_HYPRCTL_LOG="$hyprctl_log" \
+  FAKE_SETPRIV_LOG="$setpriv_log" \
   HYPRCTL="$fake_hyprctl" \
+  SETPRIV="$fake_setpriv" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_EFFECTIVE_UID=0 \
   OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
   OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
   "$ROOT/bin/omarchy-hyprland-reload-guard" resume 2>"$test_tmp/resume-stderr"
 
 [[ ! -s $hyprctl_log ]] || fail "reload guard must not connect through a socket path swapped after pause" "$(cat "$hyprctl_log")"
+[[ ! -s $setpriv_log ]] || fail "reload guard must not even attempt a privilege drop for a swapped socket path" "$(cat "$setpriv_log")"
 [[ ! -e $toctou_state_file ]] || fail "reload guard clears state even for a rejected swap"
 [[ ! -s $test_tmp/resume-stderr ]] || fail "reload guard rejects a swapped socket quietly" "$(cat "$test_tmp/resume-stderr")"
 pass "reload guard refuses to connect through a socket path swapped after pause"
