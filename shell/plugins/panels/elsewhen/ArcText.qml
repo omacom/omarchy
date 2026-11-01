@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import "Arc.js" as Arc
 
 // One line of text arched over what sits below it, each character turned to
@@ -13,7 +14,7 @@ Item {
   property real rise: 6
   property string fontFamily: Style.font.family
   property int pixelSize: Style.font.caption
-  property color color: Color.foreground
+  property color color: Commons.Color.foreground
 
   FontMetrics {
     id: metrics
@@ -21,7 +22,13 @@ Item {
     font.pixelSize: root.pixelSize
   }
 
-  readonly property var glyphs: text.split("")
+  // Right-to-left scripts and scripts whose letters join or stack (Arabic,
+  // Hebrew, Indic, Thai, combining accents) cannot be set one code unit at a
+  // time: they would come apart or run backwards. Those lines are set flat,
+  // as one Text that shapes and orders them properly.
+  readonly property bool flat: /[\u0300-\u036F\u0590-\u08FF\u0900-\u0DFF\u0E00-\u0EFF\u1000-\u109F\u1780-\u17FF\uFB1D-\uFDFF\uFE70-\uFEFF\uD800-\uDFFF]/.test(text)
+
+  readonly property var glyphs: flat ? [] : text.split("")
 
   readonly property var placed: {
     // advanceWidth does not register the font as a dependency.
@@ -34,10 +41,21 @@ Item {
   // Room for the end characters' corners once they are turned.
   readonly property real slack: Math.round(metrics.height / 2)
 
-  implicitWidth: Math.ceil(placed.width) + 2 * slack
-  implicitHeight: Math.ceil(placed.height + metrics.height)
+  implicitWidth: flat ? Math.ceil(flatText.implicitWidth) + 2 * slack : Math.ceil(placed.width) + 2 * slack
+  implicitHeight: flat ? Math.ceil(flatText.implicitHeight) : Math.ceil(placed.height + metrics.height)
 
   readonly property real originX: (width - placed.width) / 2
+
+  Text {
+    id: flatText
+    visible: root.flat
+    anchors.horizontalCenter: parent.horizontalCenter
+    textFormat: Text.PlainText
+    text: root.flat ? root.text : ""
+    color: root.color
+    font.family: root.fontFamily
+    font.pixelSize: root.pixelSize
+  }
 
   Repeater {
     model: root.glyphs.length

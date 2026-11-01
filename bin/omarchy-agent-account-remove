@@ -1,20 +1,20 @@
 #!/bin/bash
 
-# omarchy:summary=Forget an added Claude or Codex account
-# omarchy:args=[claude|codex] <account>
+# omarchy:summary=Forget an added Claude, Codex, or Grok account
+# omarchy:args=[claude|codex|grok] <account>
 # omarchy:examples=omarchy agent account remove work | omarchy agent account remove codex side
 
 set -uo pipefail
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account use work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" ]]; then
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
   default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" ]] && set -- "$default" "$@"
+  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
 fi
 
-if [[ ${1:-} != "claude" && ${1:-} != "codex" ]] || [[ -z ${2:-} ]]; then
-  echo "Usage: omarchy-agent-account-remove [claude|codex] <account>" >&2
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]] || [[ -z ${2:-} ]]; then
+  echo "Usage: omarchy-agent-account-remove [claude|codex|grok] <account>" >&2
   exit 1
 fi
 

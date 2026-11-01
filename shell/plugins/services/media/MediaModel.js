@@ -12,6 +12,48 @@ function hasTrackMetadata(player) {
   return !!(player && (player.trackTitle || player.trackArtist || player.trackAlbum || player.trackArtUrl))
 }
 
+// What the bar widget needs before it shows a player at all.
+function hasShownTrack(player) {
+  return !!(player && (player.trackTitle || player.trackArtist))
+}
+
+// A selection slot keeps its first player unless that one would hide the bar and this one would not.
+function prefersShown(current, candidate) {
+  return !current || (!hasShownTrack(current) && hasShownTrack(candidate))
+}
+
+// The player to show when nothing is playing. One the bar would hide, like an idle browser holding
+// art-only metadata, loses to one it would show, unless it is the player the user last chose.
+// `first` (the preference by default) goes ahead of every stream holder: a paused player's stream can
+// linger indefinitely, as Spotify's does, so holding one says nothing about who was used last.
+function idlePlayer(players, preferred, hasPlaybackStream, first) {
+  var slots = {}
+  for (var i = 0; i < players.length; i++) {
+    var p = players[i]
+    if (!p) continue
+
+    var bucket = hasPlaybackStream(p) ? "stream"
+      : hasTrackMetadata(p) ? "track"
+      : playerCanControl(p) ? "controllable"
+      : hasMetadata(p) ? "identity"
+      : ""
+    if (!bucket) continue
+
+    var slot = bucket + (isProxyPlayer(p) ? "Proxy" : "Player")
+    if (prefersShown(slots[slot], p)) slots[slot] = p
+  }
+
+  var candidates = (first || [preferred]).concat([slots.streamPlayer, slots.streamProxy, slots.trackPlayer, slots.trackProxy, slots.controllablePlayer, slots.controllableProxy, slots.identityPlayer, slots.identityProxy])
+  var fallback = null
+  for (var j = 0; j < candidates.length; j++) {
+    var candidate = candidates[j]
+    if (!candidate) continue
+    if (candidate === preferred || hasShownTrack(candidate)) return candidate
+    if (!fallback) fallback = candidate
+  }
+  return fallback
+}
+
 function playerCanControl(player) {
   return !!(player && (player.canTogglePlaying || player.canPlay || player.canPause || player.canGoNext || player.canGoPrevious))
 }
@@ -215,6 +257,8 @@ if (typeof module !== "undefined") {
     isProxyPlayer: isProxyPlayer,
     hasMetadata: hasMetadata,
     hasTrackMetadata: hasTrackMetadata,
+    hasShownTrack: hasShownTrack,
+    idlePlayer: idlePlayer,
     playerCanControl: playerCanControl,
     canHandleAction: canHandleAction,
     canCycleSource: canCycleSource,
