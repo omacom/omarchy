@@ -1270,6 +1270,26 @@ Panel {
                 enabled: root.layoutMovable
                 onHoveredChanged: if (hovered) root.pointAt("layout", 0)
               }
+
+              HoverHandler { id: layoutHover }
+            }
+
+            // The keys the map takes, while it's hovered or the keyboard is on
+            // it; a lone or mirrored map isn't a stop, so the row above shows
+            // its hint instead. Its room stays reserved and it appears without
+            // a fade, so nothing shifts as the pointer crosses the map.
+            Text {
+              readonly property bool shown: layoutHover.hovered || (root.cursorActive &&
+                (root.focusSection === "layout" || (!root.layoutMovable && root.focusSection === "mirror")))
+              width: parent.width
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              textFormat: Text.PlainText
+              text: root.layoutMovable ? Commons.I18n.t("monitor.layoutHint") : Commons.I18n.t("monitor.rotateHint")
+              color: Qt.darker(root.bar.foreground, 1.55)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              opacity: shown ? 1 : 0
             }
           }
         }
