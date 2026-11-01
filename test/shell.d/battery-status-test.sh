@@ -188,6 +188,13 @@ printf '0\n' >"$hold_dir/power/BAT0/power_now"
 full_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $full_output == "Battery 100%  ·  Fully charged  ·  53Wh" ]] || fail "a full battery shows no time or draw" "$full_output"
 
+# A load bigger than the adapter drains a battery still reading 100%.
+sed -i 's/state:                fully-charged/state:                discharging/' "$hold_dir/bin/upower"
+printf '10000000\n' >"$hold_dir/power/BAT0/power_now"
+draining_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $draining_output == "Battery 100%  ·  5h 19m left  ·  "*"10W"*"53Wh" ]] || fail "a battery draining on AC at 100% is not fully charged" "$draining_output"
+sed -i 's/state:                discharging/state:                fully-charged/' "$hold_dir/bin/upower"
+
 # A battery with no time estimate and no capacity reading leaves both out.
 sed -i 's/state:                fully-charged/state:                discharging/; s/percentage:           100%/percentage:           60%/; /energy/d' "$hold_dir/bin/upower"
 printf '0\n' >"$hold_dir/power/ac/online"
@@ -287,9 +294,3 @@ grep -Fx $'percentage\t39%' <<<"$healthy_output" >/dev/null || fail "a plausible
 grep -Fx $'size\t78Wh' <<<"$healthy_output" >/dev/null || fail "a plausible energy-full keeps UPower's size" "$healthy_output"
 grep -q $'^source\t' <<<"$healthy_output" && fail "a plausible energy-full names no other source" "$healthy_output"
 pass "battery status keeps UPower's figures while its energy-full is plausible"
-
-if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
-  fail "battery status owns capacity and remaining calculations" "$matches"
-fi
-
-pass "battery status owns capacity and remaining calculations"

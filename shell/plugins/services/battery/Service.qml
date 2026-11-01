@@ -33,7 +33,6 @@ Item {
   property bool powerProfileReadPending: false
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
-  readonly property bool powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)
 
   PersistentProperties {
     id: persisted
