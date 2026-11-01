@@ -2,8 +2,8 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position <top|bottom|left|right> | transparent <true|false|toggle> | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement]
-# omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.clock --section center --index 0 | omarchy bar set omarchy.clock format HH:mm
+# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
+# omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail
 
@@ -16,21 +16,32 @@ Usage: omarchy bar <command> [args...]
   use <id>                             Use a bar option as the active bar
   reset                                Return to the built-in Omarchy bar
   defaults                             Restore the default bar and service widgets
-  position <top|bottom|left|right>     Bar position
-  transparent <true|false|toggle>      Bar transparency
+  position [top|bottom|left|right]     Bar position; prints the current one
+                                       when given none
+  background [opaque|glassy|none|cycle]
+                                       Bar background: glassy shows what is
+                                       behind the bar blurred, cycle steps
+                                       none, glassy, opaque; prints the
+                                       current one when given none
   put <id> [placement]                 Put a widget on the bar, leaving one
                                        that is already there where it is
   move <id> [placement]                Move a widget within or between sections
   set <id> <key> <value> [--json] [placement]
                                        Set a per-widget option
+  get <id> <key>                       Print a per-widget option
 
 Placement:
-  --section <left|center|right>        Target section
+  --section <section>                  Target section: left, centerBegin,
+                                       center, centerEnd, tray, or right;
+                                       tray is the tray's drawer
   --index <n>                          Target index
   --before <id>                        Insert before a widget
   --after <id>                         Insert after a widget
   --from-section <section>             Source section
   --from-index <n>                     Source index
+
+The center section is the box in the middle of the bar: its widgets are
+centered as one group. centerBegin and centerEnd hang off the box's two edges.
 
 Enable and disable widgets with 'omarchy plugin enable' and
 'omarchy plugin disable'.
@@ -43,7 +54,7 @@ Examples:
   omarchy bar use local.neon-bar
   omarchy bar put omarchy.keyboard-layout --after omarchy.clock
   omarchy bar move omarchy.media left
-  omarchy bar move omarchy.clock --section center --index 0
+  omarchy bar move omarchy.weather --section centerBegin --index 0
   omarchy bar set omarchy.clock format HH:mm
 USAGE
 }
@@ -57,7 +68,8 @@ bar_option_exists() {
 }
 
 validate_section() {
-  [[ $1 =~ ^(left|center|right)$ ]] || fail "section must be left, center, or right"
+  [[ $1 =~ ^(left|centerBegin|center|centerEnd|tray|right)$ ]] ||
+    fail "section must be left, centerBegin, center, centerEnd, tray, or right"
 }
 
 validate_index() {
@@ -176,11 +188,9 @@ cmd_defaults() {
   commit "$NORMALIZE
     | .bar = \$defaults[0].bar
     | def entry_id: if type == \"object\" then (.id // \"\" | tostring) else tostring end;
-      def anchor_for(\$section): { left: \"omarchy.workspaces\", center: \"omarchy.weather\", right: \"omarchy.tray\" }[\$section];
+      def anchor_for(\$section): { left: \"omarchy.workspaces\", centerEnd: \"omarchy.weather\", right: \"omarchy.tray\" }[\$section];
       reduce \$widgets[] as \$widget (.;
-        .bar.layout.left = (.bar.layout.left | map(select(entry_id != \$widget.id)))
-        | .bar.layout.center = (.bar.layout.center | map(select(entry_id != \$widget.id)))
-        | .bar.layout.right = (.bar.layout.right | map(select(entry_id != \$widget.id)))
+        .bar.layout |= map_values(if type == \"array\" then map(select(entry_id != \$widget.id)) end)
         | (.bar.layout[\$widget.section] | map(entry_id) | index(anchor_for(\$widget.section))) as \$anchor
         | (\$anchor | if . == null then (.bar.layout[\$widget.section] | length) else . + 1 end) as \$index
         | .bar.layout[\$widget.section] = (
@@ -192,41 +202,104 @@ cmd_defaults() {
   " \
     --slurpfile defaults "$DEFAULTS_FILE" \
     --argjson widgets "$optional_widgets"
+  sync_glass || fail "could not change the blur behind the bar"
   echo "Restored the default Omarchy bar"
 }
 
 cmd_position() {
-  local position="${1:-}"
-  [[ -n $position ]] || fail "position is required"
+  if (( $# == 0 )); then
+    jq -r '.bar.position // "top"' "$(source_file)"
+    return
+  fi
+
+  local position="$1"
   (( $# == 1 )) || fail "position takes a single value"
   [[ $position =~ ^(top|bottom|left|right)$ ]] || fail "position must be top, bottom, left, or right"
   commit "$NORMALIZE | .bar.position = \$position" --arg position "$position"
   echo "Bar position set to $position"
 }
 
+# The bar background is opaque, glassy, or none. A shell.json from before it
+# had one says transparent instead, which is none, and setting a background
+# drops it.
+current_background() {
+  jq -r '.bar.background // (if .bar.transparent == true then "none" else "opaque" end)' "$(source_file)"
+}
+
+cmd_background() {
+  if (( $# == 0 )); then
+    current_background
+    return
+  fi
+
+  local background="$1"
+  (( $# == 1 )) || fail "background takes a single value"
+  [[ $background =~ ^(opaque|glassy|none|cycle)$ ]] || fail "background must be opaque, glassy, none, or cycle"
+
+  if [[ $background == "cycle" ]]; then
+    # Each step changes the bar by one degree: clear, then glassy, then opaque.
+    case $(current_background) in
+      none) background="glassy" ;;
+      glassy) background="opaque" ;;
+      *) background="none" ;;
+    esac
+  fi
+
+  local previous
+  previous=$(current_background)
+  commit "$NORMALIZE | .bar.background = \$background | del(.bar.transparent)" --arg background "$background"
+  if ! sync_glass; then
+    commit "$NORMALIZE | .bar.background = \$background | del(.bar.transparent)" --arg background "$previous"
+    fail "could not change the blur behind the bar"
+  fi
+  echo "Bar background set to $background"
+}
+
+# The older on/off form of the background, kept for scripts and dotfiles:
+# transparent is none, and not transparent is opaque.
 cmd_transparent() {
   local transparent="${1:-}"
   [[ -n $transparent ]] || fail "transparent is required"
   (( $# == 1 )) || fail "transparent takes a single value"
   [[ $transparent =~ ^(true|false|toggle)$ ]] || fail "transparent must be true, false, or toggle"
   if [[ $transparent == "toggle" ]]; then
-    commit "$NORMALIZE | .bar.transparent = (.bar.transparent != true)"
-    echo "Bar transparency toggled"
-  else
-    commit "$NORMALIZE | .bar.transparent = \$transparent" --argjson transparent "$transparent"
-    echo "Bar transparency set to $transparent"
+    [[ $(current_background) == "none" ]] && transparent="false" || transparent="true"
   fi
+  if [[ $transparent == "true" ]]; then
+    cmd_background none
+  else
+    cmd_background opaque
+  fi
+}
+
+# Hyprland blurs behind the bar only while the bar-glassy toggle is on, so it
+# follows the bar background, reloading Hyprland only when it changes. The
+# toggle sits where Hyprland reads it, under XDG_STATE_HOME.
+sync_glass() {
+  local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
+  local flag="$dir/bar-glassy.lua"
+
+  if [[ $(current_background) == "glassy" ]]; then
+    [[ ! -f $flag ]] || return 0
+    mkdir -p "$dir" && cp "$OMARCHY_PATH/default/hypr/toggles/bar-glassy.lua" "$flag" || return 1
+  else
+    [[ -f $flag ]] || return 0
+    rm -f "$flag" || return 1
+  fi
+
+  hyprctl reload >/dev/null 2>&1 || true
 }
 
 bar_widget_default_section() {
   local catalog
   catalog=$(omarchy-plugin-catalog 2>/dev/null) || {
-    echo "center"
+    echo "centerEnd"
     return 0
   }
+  # A manifest's center means beside the clock, which is centerEnd.
   jq -r --arg id "$1" '
-    map(select(.id == $id))[0].barWidget.defaultSection // "center"
-    | if IN("left", "center", "right") then . else "center" end
+    map(select(.id == $id))[0].barWidget.defaultSection // "centerEnd"
+    | if IN("left", "centerBegin", "centerEnd", "tray", "right") then . else "centerEnd" end
   ' <<<"$catalog"
 }
 
@@ -363,6 +436,21 @@ cmd_set() {
   echo "Set $key on $id"
 }
 
+# Prints the option from the first instance of the widget on the bar, raw for a
+# string and as JSON otherwise, and fails when no instance sets it.
+cmd_get() {
+  local id="${1:-}"
+  local key="${2:-}"
+  [[ -n $id ]] || fail "get requires a widget id"
+  [[ -n $key ]] || fail "get requires a setting key"
+  (( $# == 2 )) || fail "get takes a widget id and a setting key"
+
+  jq -e -r --arg id "$id" --arg key "$key" '
+    first(.bar.layout[]?[]? | select(.id == $id) | .[$key] | select(. != null))
+    | if type == "string" then . else tojson end
+  ' "$(source_file)" 2>/dev/null || exit 1
+}
+
 # --------------------------------------------------------------------- dispatch
 
 command="${1:-}"
@@ -385,6 +473,14 @@ case "$command" in
   transparent)
     cmd_transparent "$@"
     ;;
+  background)
+    cmd_background "$@"
+    ;;
+  # Internal: the shell runs this when it loads a bar background, so one set
+  # by editing shell.json gets its blur too.
+  sync-glass)
+    sync_glass || fail "could not change the blur behind the bar"
+    ;;
   put)
     cmd_put "$@"
     ;;
@@ -393,6 +489,9 @@ case "$command" in
     ;;
   set)
     cmd_set "$@"
+    ;;
+  get)
+    cmd_get "$@"
     ;;
   -h | --help | help | "")
     usage
