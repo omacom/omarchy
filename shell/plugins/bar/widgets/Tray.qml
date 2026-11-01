@@ -141,10 +141,11 @@ BarWidget {
     trayMenuOpen = false
   }
 
-  function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
-      var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
-      item.display(anchorItem.QsWindow.window, point.x, point.y)
+  function openTrayMenu(item, anchorItem) {
+    if (!item) return
+    if (!item.menu) {
+      // display() only shows D-Bus menus; an item without one draws its own menu through ContextMenu.
+      Quickshell.execDetached(["omarchy-tray-context-menu", String(item.id), String(item.title || "")])
       return
     }
 
@@ -880,8 +881,8 @@ BarWidget {
     implicitWidth: visible ? root.trayItemExtent : 0
     implicitHeight: visible ? root.trayItemExtent : 0
 
-    function displayMenu(mouse) {
-      root.openTrayMenu(trayItemRoot.modelData, trayItemRoot, mouse)
+    function displayMenu() {
+      root.openTrayMenu(trayItemRoot.modelData, trayItemRoot)
     }
 
     TrayIcon {
@@ -902,7 +903,7 @@ BarWidget {
       onExited: if (root.bar) root.bar.hideTooltip(trayItemRoot)
       onPressed: function(mouse) {
         if (mouse.button === Qt.RightButton) {
-          trayItemRoot.displayMenu(mouse)
+          trayItemRoot.displayMenu()
           mouse.accepted = true
         }
       }
@@ -912,7 +913,7 @@ BarWidget {
         } else if (mouse.button === Qt.MiddleButton) {
           trayItemRoot.modelData.secondaryActivate()
         } else if (trayItemRoot.modelData.onlyMenu) {
-          trayItemRoot.displayMenu(mouse)
+          trayItemRoot.displayMenu()
         } else {
           trayItemRoot.modelData.activate()
         }
