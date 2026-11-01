@@ -500,6 +500,12 @@ fi
 # Store theme name for reference
 echo "$THEME_NAME" >"$CURRENT_THEME_NAME_PATH"
 
+# The server edition's pre-login banner is themed too. It sits here rather than
+# in post_theme_commands because those are skipped when headless, and ISO
+# finalization is exactly when a server's first banner needs writing. No-ops on
+# the desktop edition.
+omarchy-server-issue || true
+
 # Make the running shell pick up the new palette immediately while the rest of
 # the theme hooks run.
 colors_payload=$([[ -f $CURRENT_THEME_PATH/colors.toml ]] && base64 -w 0 "$CURRENT_THEME_PATH/colors.toml")
