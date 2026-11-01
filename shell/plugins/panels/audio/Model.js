@@ -92,9 +92,22 @@ function nodeLabel(node, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   if (!node) return t("audio.unknownDevice", "Unknown")
   var p = nodeProps(node)
-  var nickname = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || p["device.profile.description"] || "")
-  if (nickname) return nickname
-  return friendlyDeviceLabel(node.description || p["node.description"] || node.name || t("audio.unknownDevice", "Unknown"))
+  var candidates = [
+    node.nickname, node.nick, p["node.nick"], p["device.profile.description"],
+    node.description, p["node.description"], p["device.nick"],
+    p["device.product.name"], p["device.description"],
+    p["alsa.card_name"], p["api.alsa.card.name"]
+  ]
+  var fallback = ""
+  for (var i = 0; i < candidates.length; i++) {
+    var label = friendlyDeviceLabel(candidates[i])
+    if (!label) continue
+    if (!fallback) fallback = label
+    // Channel-only fallback profiles do not identify a device. Prefer its
+    // descriptive metadata when available, without guessing its active route.
+    if (!/^(?:(?:(?:analog|digital)\s+)?(?:mono|stereo)|built-?in audio|audio)$/i.test(label)) return label
+  }
+  return fallback || node.name || t("audio.unknownDevice", "Unknown")
 }
 
 function isHeadphones(node) {

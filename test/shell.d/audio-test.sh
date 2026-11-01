@@ -36,6 +36,25 @@ assertEqual(
   'audio chooses friendly node labels'
 )
 
+for (const card of ['AVS HDMI', 'AVS I2S MAX98357A', 'AVS I2S DA7219', 'AVS DMIC']) {
+  assertEqual(audio.nodeLabel({ ready: true, nickname: 'Stereo', description: 'Built-in Audio Stereo', properties: {
+    'node.nick': 'Stereo', 'device.profile.description': 'Stereo', 'device.description': 'Built-in Audio', 'alsa.card_name': card
+  } }), card, 'audio identifies a generic stereo device by its card: ' + card)
+}
+assertEqual(audio.nodeLabel({ ready: true, nickname: 'Analog Stereo', description: 'USB Audio Headset', properties: {
+  'device.nick': 'USB Codec'
+} }), 'USB Audio Headset', 'audio prefers an informative description over a generic profile')
+for (const nickname of ['Headphones', 'Stereo Headset', 'Digital Stereo (HDMI)']) {
+  assertEqual(audio.nodeLabel({ ready: true, nickname, properties: { 'device.nick': 'Other device' } }), nickname,
+    'audio preserves an informative nickname: ' + nickname)
+}
+assertEqual(audio.nodeLabel({ ready: true, nickname: 'Mono', properties: { 'device.description': 'Conference Microphone' } }),
+  'Conference Microphone', 'audio uses descriptive device metadata for a generic mono input')
+assertEqual(audio.nodeLabel({ nickname: 'Stereo', name: 'alsa_output' }), 'Stereo', 'audio retains a generic label without richer metadata')
+assertEqual(audio.nodeLabel({ ready: false, name: 'unbound', properties: { 'device.nick': 'Not ready' } }),
+  'unbound', 'audio avoids metadata on an unbound node')
+assertEqual(audio.nodeLabel(null, () => 'Translated unknown'), 'Translated unknown', 'audio translates the missing-device fallback')
+
 const headphones = { ready: true, name: 'bluez_output.airpods', properties: { 'device.product.name': 'AirPods Headphones' } }
 assert(audio.isHeadphones(headphones), 'audio detects headphone devices')
 assertEqual(audio.sinkGlyph(headphones), '󰋋', 'audio uses headphone sink glyph')
