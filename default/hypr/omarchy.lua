@@ -5,6 +5,7 @@ local require_optional = require("default.hypr.require_optional")
 
 -- Use Omarchy defaults, but don't edit these directly.
 require("default.hypr.autostart")
+require("default.hypr.monitors")
 require("default.hypr.monitor-workspaces")
 if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.media")
@@ -16,11 +17,15 @@ if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.dictation")
   require_optional.module("default.hypr.bindings.applications")
 end
+if _G.omarchy_default_gestures ~= false then
+  require("default.hypr.gestures")
+end
 require("default.hypr.envs")
 require("default.hypr.looknfeel")
 require("default.hypr.qconsole")
 require("default.hypr.input")
 require("default.hypr.windows")
+require("default.hypr.pop")
 require("default.hypr.dictation-backend")
 
 -- Current theme overrides.

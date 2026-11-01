@@ -1,6 +1,6 @@
 # Näppäimistö, hiiri, kosketuslevy
 
-Hyprland antaa sinun määrittää kaikki syöttölaitteesi erittäin yksityiskohtaisesti. Voit asettaa näppäimistön toiston yliääninopeaksi tai saada kosketuslevyn käyttämään luonnollista vieritystä. Muutat kaiken tämän tiedostossa `~/.config/hypr/input.lua`, johon pääset myös Omarchy-valikon kautta kohdasta _Setup > Input_ (`Super + Space`). Kaikki, mitä asetat sinne, korvaa Omarchyn oletusarvot.
+Hyprlandin avulla voit määrittää kaikki syöttölaitteesi yksityiskohtaisesti. Voit asettaa näppäimistön toiston yliääninopeaksi tai saada kosketuslevyn käyttämään luonnollista vieritystä. Muutat kaiken tämän tiedostossa `~/.config/hypr/input.lua`, johon pääset myös Omarchy-valikon kohdasta _Setup > Input_ (`Super + Space`). Kaikki, mitä asetat sinne, korvaa Omarchyn oletukset.
 
 Tässä on esimerkki:
 
@@ -35,7 +35,7 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Voit [nähdä kaikki syöttöasetukset](https://wiki.hypr.land/Configuring/Basics/Variables/#input) syöttölaitteita koskevassa Hyprland-wikissä.
+Näet [kaikki syöttöasetukset](https://wiki.hypr.land/Configuring/Basics/Variables/#input) Hyprlandin wikissä syöttölaitteista.
 
 CapsLock toimii tavallisena Caps Lockina, ja `Shift + CapsLock` on compose-näppäin [pikaemojeille](07-hotkeys.md#quick-emojis) ja [muille täydennyksille](07-hotkeys.md#quick-completions). Jos haluat compose-näppäimen mieluummin muualle, korvaa `omarchy:shift_caps_compose` kohdassa `kb_options`. Tämä esimerkiksi siirtää compose-näppäimen Right Alt -näppäimeen:
 
@@ -49,31 +49,44 @@ hl.config({
 
 ### Kosketuslevyn eleet
 
-Voit ottaa käyttöön myös [kosketuslevyn eleet](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), kuten pyyhkäisyn kolmella sormella työtilojen vaihtamiseksi:
+Liiku työpöydällä pyyhkäisemällä kosketuslevyä:
+
+| Ele | Toiminto |
+| --- | --- |
+| Kolme sormea vasemmalle / oikealle | Edellinen / seuraava työtila, myös tyhjät |
+| Kolme sormea ylös | AI-konsoli päälle/pois |
+| Kolme sormea alas | Avaa Omarchy-valikko |
+| Neljä sormea vasemmalle / oikealle | Siirrä aktiivinen ikkuna edelliseen / seuraavaan työtilaan |
+| Neljä sormea alas | Koko näyttö päälle/pois |
+
+Jos haluat muuttaa yhtä, poista se käytöstä tiedostossa `~/.config/hypr/input.lua` ennen kuin lisäät oman [kosketuslevyeleesi](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), sillä Hyprland ei hyväksy kahta elettä samoille sormille ja suunnalle:
 
 ```lua
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "up", action = "unset" })
+hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
+
+Jos haluat poistaa kaikki Omarchyn eleet käytöstä, aseta `omarchy_default_gestures = false` tiedoston `~/.config/hypr/hyprland.lua` alkupuolelle, ennen kuin Omarchyn oletukset latautuvat.
 
 Dell XPS -kannettavissa, joissa on haptinen kosketuslevy, voit myös asettaa napsautuksen voimakkuuden matalaksi, keskitasoiseksi tai korkeaksi kohdassa _Trigger > Hardware > Touchpad Haptics_.
 
 ### Kirjoittaminen kiinaksi, japaniksi ja muilla kielillä
 
-Valitse japani, korea, kiina (yksinkertaistettu, Pinyin), Taiwan (Zhuyin) tai Hongkong (Cangjie), kun asennusohjelma kysyy näppäimistöäsi. Omarchy määrittää näppäimistön ja sitä vastaavan syöttömoottorin automaattisesti, myös offline-tilassa tapahtuvan ensimmäisen käynnistyksen asennuksen aikana. Japani käyttää Mozcia, korea tavallista kaksijakoista Hangulia, yksinkertaistettu kiina Pinyiniä, Taiwan Chewingin tavallista Zhuyin-asettelua ja Hongkong Cangjieta Hongkongin merkkimuodoilla. Japani (US-näppäimistö) tarjoaa Mozcin US-näppäimistöasettelulla. Hangul-, Zhuyin- ja Cangjie-näppäimet pysyvät vakioasemissaan, vaikka kirjoittaisit latinalaisia kirjaimia Dvorakilla, Colemakilla tai AZERTYllä. Jos lisäsit Hangulin tai Chewingin ennen tätä, poista sen valinta ja valitse se uudelleen kohdassa _Setup > Typing > Input Methods_ siirtääksesi sen näppäimet sinne; Omarchy jättää rauhaan moottorin, jolla jo kirjoitat.
+Valitse japani, korea, kiina (yksinkertaistettu, Pinyin), Taiwan (Zhuyin) tai Hongkong (Cangjie), kun asennusohjelma kysyy näppäimistöäsi. Omarchy määrittää näppäimistön ja sitä vastaavan syöttömoottorin automaattisesti, myös offline-tilassa tapahtuvan ensimmäisen käynnistyksen asennuksen aikana. Japanissa käytetään Mozcia, koreassa vakiomuotoista kaksisarjaista Hangulia, yksinkertaistetussa kiinassa käytetään Pinyiniä, Taiwanissa Chewingin vakiomuotoista Zhuyin-asettelua ja Hongkongissa Cangjieta Hongkongin merkkimuodoilla. Japani (US-näppäimistö) tarjoaa Mozcin US-näppäimistöasettelulla. Hangul-, Zhuyin- ja Cangjie-näppäimet pysyvät vakioasemissaan, vaikka kirjoittaisit latinalaisia kirjaimia Dvorakilla, Colemakilla tai AZERTYllä. Jos lisäsit Hangulin tai Chewingin ennen tätä, poista sen valinta ja valitse se uudelleen kohdassa _Setup > Typing > Input Methods_, jotta sen näppäimet siirtyvät sinne; Omarchy jättää moottorin, jolla jo kirjoitat, rauhaan.
 
-Kirjoittaminen alkaa latinalaisessa tilassa. Paina `Super + I` selataksesi määritettyjä syöttötapoja ja `Super + Shift + I` selataksesi taaksepäin. Napauta pelkkää `Shift`-näppäintä astuaksesi ulos syöttötavasta, kuten Pinyinistä, latinalaisiin kirjaimiin, ja napauta sitä uudelleen palataksesi takaisin samalla tavalla kuin Sogou, Microsoft Pinyin ja macOS toimivat; `Shift` yhdessä kirjaimen kanssa kirjoittaa silti ison kirjaimen. Japanilaisilla näppäimistöillä 全角/半角 vaihtaa syöttöä, 変換 kytkee sen päälle ja 無変換 kytkee sen pois. Korean kanssa 한/영 vaihtaa Hangulin ja 한자 muuntaa Hanjaksi riippumatta siitä, onko näppäimistössäsi omat näppäimet niille tai lähettääkö se niitä varten Right Alt- ja Right Ctrl -näppäimiä, kuten monet kannettavat tekevät, joten Right Alt ja Right Ctrl eivät ole siellä tavallisia muokkausnäppäimiä; sanelun push-to-talk pysyy F9-näppäimessä. `Ctrl + Space` pysyy käytettävissä Tmuxille ja Herdrille; `Shift + CapsLock` pysyy compose-näppäimenä.
+Kirjoittaminen alkaa latinalaisessa tilassa. Selaa määritettyjä syöttömenetelmiä painamalla `Super + I` ja selaa takaisinpäin painamalla `Super + Shift + I`. Napauta `Shift`-näppäintä yksinään poistuaksesi Pinyinin kaltaisesta syöttömenetelmästä latinalaisiin kirjaimiin ja napauta sitä uudelleen palataksesi takaisin, samalla tavalla kuin Sogou, Microsoft Pinyin ja macOS toimivat; `Shift` ja kirjain kirjoittavat silti ison kirjaimen. Japanilaisilla näppäimistöillä 全角/半角 vaihtaa syöttöä, 変換 ottaa sen käyttöön ja 無変換 poistaa sen käytöstä. Koreassa 한/영 vaihtaa Hanguliin ja 한자 muuntaa Hanjaksi riippumatta siitä, onko näppäimistössäsi niille omat näppäimet vai lähettääkö se niille Right Alt- ja Right Ctrl -näppäimiä, kuten monet kannettavat tekevät, joten Right Alt ja Right Ctrl eivät ole siellä tavallisia muokkausnäppäimiä; sanelu vaihdetaan sen sijaan näppäimillä Alt + Space. `Ctrl + Space` pysyy käytettävissä Tmuxille ja Herdrille; `Shift + CapsLock` pysyy compose-näppäimenä.
 
-Näppäimistön ilmaisin ilmestyy palkin oikealle puolelle, kun sinulla on useita näppäimistöasetteluja tai syöttötapoja. Napsauta sitä vaihtaaksesi syöttökieliä; japani näyttää merkin あ hiraganalle. Japanilaisten merkkien valintoja varten vaihda japaniin, kirjoita sana, kuten `nihongo`, ja paina sitten Space kahdesti. Paina Enter hyväksyäksesi valintasi. Jos sinulla on myös useita näppäimistöasetteluja, napsauta ilmaisinta hiiren oikealla painikkeella selataksesi niitä.
+Näppäimistön ilmaisin näkyy palkin oikealla puolella, kun sinulla on useita näppäimistöasetteluja tai syöttömenetelmiä. Vaihda syöttökieltä napsauttamalla sitä; japani näyttää merkkiä あ hiraganalle. Japanilaisten merkkien vaihtoehtoja varten vaihda japaniin, kirjoita sana, kuten `nihongo`, ja paina sitten Space kahdesti. Hyväksy valintasi painamalla Enter. Jos sinulla on myös useita näppäimistöasetteluja, selaa niitä napsauttamalla ilmaisinta hiiren oikealla painikkeella.
 
-Käytä kohtaa _Setup > Typing > Keyboard Layouts_ valitaksesi asetteluja, kuten englanti ja ranska, samoista vaihtoehdoista, joita tarjotaan asennuksen aikana. Käytä kohtaa _Setup > Typing > Input Methods_ valitaksesi, mitkä syöttömoottorit ovat aktiivisia. Molemmat valitsimet avautuvat Omarchy-valikon sisällä niin, että nykyiset valintasi on merkitty valituiksi. Napsauta tai paina Enter vaihtaaksesi valinnan; jokainen muutos tulee voimaan välittömästi. Syöttötavan valinnan poistaminen poistaa sen kierrosta poistamatta sitä; näppäimistö pysyy käytettävissä.
+Valitse asettelut, kuten englanti ja ranska, kohdassa _Setup > Typing > Keyboard Layouts_ samoista vaihtoehdoista, joita tarjottiin asennuksen aikana. Valitse aktiiviset koostamusmoottorit kohdassa _Setup > Typing > Input Methods_. Molemmat valitsimet avautuvat Omarchy-valikon sisällä niin, että nykyiset valintasi on merkitty valituiksi. Vaihda valinta napsauttamalla tai painamalla Enter; jokainen muutos tulee voimaan välittömästi. Syöttömenetelmän valinnan poistaminen poistaa sen kierrosta poistamatta sen asennusta; näppäimistö pysyy käytettävissä.
 
-Aja `omarchy setup keyboard` tai `omarchy setup input` avataksesi samat valitsimet. Lisätäksesi yhden kielen komentoriviltä käytä komentoa `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` tai `cangjie5`. Quick, Boshiamy ja Array tulevat samassa paketissa Cangjien kanssa ja näkyvät Input Methods -valitsimessa. Mukautetut vaihtonäppäimesi säilytetään. Vaihtoehtoisia moottorin asetteluja tai näppäimiä varten asenna `fcitx5-configtool` komennolla `omarchy pkg add fcitx5-configtool` ja käynnistä se terminaalista. Syöttökielen valitseminen ei muuta työpöydän kieltä. Japanin, korean tai kiinan valitseminen kohdassa _Setup > Language_ lisää sen syöttötavan, kun sinulla ei vielä ole sellaista.
+Avaa samat valitsimet suorittamalla `omarchy setup keyboard` tai `omarchy setup input`. Lisää yksi kieli komentoriviltä käyttämällä komentoa `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` tai `cangjie5`. Quick, Boshiamy ja Array tulevat samassa paketissa kuin Cangjie ja näkyvät Input Methods -valitsimessa. Mukautetut vaihtamisnäppäimesi säilytetään. Vaihtoehtoisia moottorin asetteluja tai näppäimiä varten asenna `fcitx5-configtool` komennolla `omarchy pkg add fcitx5-configtool` ja käynnistä se terminaalista. Syöttökielen valitseminen ei muuta työpöydän kieltä. Japanin, korean tai kiinan valitseminen kohdassa _Setup > Language_ lisää sen syöttömenetelmän, kun sinulla ei vielä ole sellaista.
 
-Käytä `Super + I` selataksesi syöttötapoja tai näppäimistöasetteluja ja `Super + Shift + I` mennäksesi takaisin toiseen suuntaan, joten kolmen määritetyn kanssa voit liikkua kahden naapurin välillä. Syöttöilmaisin ilmestyy palkin oikealle puolelle vain, kun määritettynä on useampi kuin yksi syöttötapa tai asettelu. Tämä työpöydän pikanäppäin toimii olemassa olevien Fcitx-vaihtonäppäintesi rinnalla; voit ohittaa sen tiedostossa `~/.config/hypr/bindings.lua`. Syöttömoottorit ja compose-sekvenssit käyttävät [Fcitx5](https://fcitx-im.org/) -palvelua, joka on jo käynnissä jokaisessa istunnossa.
+Selaa syöttömenetelmiä tai näppäimistöasetteluja painamalla `Super + I` ja palaa toiseen suuntaan painamalla `Super + Shift + I`, joten kolmen määritetyn asetuksen kanssa voit liikkua kahden naapurin välillä. Syöttöilmaisin näkyy palkin oikealla puolella vain, kun määritettynä on useampi kuin yksi syöttömenetelmä tai asettelu. Tämä työpöytäsidos toimii olemassa olevien Fcitx-vaihtamisnäppäintesi rinnalla; voit ohittaa sen tiedostossa `~/.config/hypr/bindings.lua`. Syöttömoottorit ja compose-sekvenssit käyttävät [Fcitx5](https://fcitx-im.org/)-palvelua, joka on jo käynnissä jokaisessa istunnossa.
 
-### Käytä ALT-näppäintä SUPER-näppäimenä
+### Käytä ALTia SUPERina
 
-Joillakin näppäimistöillä ensisijaisen meta-näppäimen (Windows/cmd-näppäimen) käyttäminen SUPER-näppäimenä ei ole kätevää. Voit vaihtaa tämän sen sijaan ALT-näppäimeksi tällä muutoksella:
+Joillakin näppäimistöillä ensisijaista meta-näppäintä (Windows/cmd-näppäintä) ei ole kätevää käyttää SUPERina. Voit vaihtaa sen sijaan ALTiksi tällä muutoksella:
 
 ```lua
 hl.config({

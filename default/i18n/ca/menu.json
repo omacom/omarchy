@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Prova de velocitat de disc"
   },
-  "setup.monitors": {
-    "label": "Monitors"
-  },
   "setup.keybindings": {
     "label": "Dreceres de teclat"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "Nucli"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }
