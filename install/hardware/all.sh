@@ -63,6 +63,7 @@ run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-sleep.sh"
 run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-panel.sh"
+run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-wake.sh"
 run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-bcm43xx.sh"
