@@ -116,7 +116,7 @@ Panel {
   readonly property var accountEntries: {
     var out = []
     for (var i = 0; i < providers.length; i++) {
-      if (providerAccounts(providers[i]).length < 2) continue
+      if (!listsAccounts(providers[i])) continue
       var list = shownAccounts(providers[i])
       for (var j = 0; j < list.length; j++) out.push({ provider: providers[i], account: list[j] })
     }
@@ -161,7 +161,7 @@ Panel {
         // terminal button when it has a harness of its own, else its mark.
         rows.push([{ kind: lineStop(p), index: p }])
         var accounts = providerAccounts(providers[p])
-        if (accounts.length < 2) {
+        if (!listsAccounts(providers[p])) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
           continue
         }
@@ -255,8 +255,8 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(target.kind) >= 0) return target.index
-    if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "showHidden"].indexOf(target.kind) >= 0) return target.index
+    if (["account", "autoswitch", "signin", "hide", "remove"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
   }
@@ -386,6 +386,14 @@ Panel {
   // judged by its length.
   function providerAccounts(p) {
     return p && p.accounts && p.accounts.length > 0 ? p.accounts : []
+  }
+
+  // Whether a section lists its accounts by name: an agent's own once it has
+  // several, a proxy's even when it has one, since which account the proxy
+  // holds is the point and it can be hidden or removed.
+  function listsAccounts(p) {
+    var count = providerAccounts(p).length
+    return count > 1 || (count === 1 && !supportsSignIn(p))
   }
 
   // Accounts someone hid stay out of the page, kept per agent in the panel's
@@ -755,19 +763,13 @@ Panel {
   function signInAgain(p, account) {
     if (!supportsSignIn(p) || addStage === "running") return
     addProvider = p.providerId
-    addPrivate = !!account && account.primary !== true
-    addStatus = Commons.I18n.t("agents.starting")
-    addCode = ""
-    addUrl = ""
     // Claude's login offers pasting a code back whenever its page shows one,
     // and its prompt for it has no newline to read it by, so the field is
     // there from the start.
     addNeedsPaste = addProvider === "claude"
-    addResult = ""
-    addStage = "running"
-    addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
-      account && account.primary !== true ? String(account.id) : ":primary", p.providerId]
-    addProcess.running = true
+    beginAddRun(["omarchy-agent-account-add", "--events", "--reauth",
+      account && account.primary !== true ? String(account.id) : ":primary", p.providerId],
+      !!account && account.primary !== true)
   }
 
   function resetCreditsText(credits) {
@@ -1906,7 +1908,7 @@ Panel {
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
     readonly property var accounts: root.providerAccounts(provider)
-    readonly property bool multi: accounts.length > 1
+    readonly property bool multi: root.listsAccounts(provider)
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     spacing: Style.space(16)

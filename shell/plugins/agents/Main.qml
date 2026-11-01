@@ -322,7 +322,7 @@ Item {
 
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
-      || !!p.balance || p.tierLabel !== ""
+      || !!p.balance || p.tierLabel !== "" || providerNeedsAttention(p)
   }
 
   // ----------------------------------------------------------------- order
@@ -392,7 +392,15 @@ Item {
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
       || (p.accounts && p.accounts.length > 0) || !!p.balance
-      || (p.ready === true && p.tierLabel !== "")
+      || (p.ready === true && p.tierLabel !== "") || providerNeedsAttention(p)
+  }
+
+  // An agent in use whose check failed with nothing kept to show still gets
+  // its section, so the trouble and what to do about it are seen (a refused
+  // key, an unreachable endpoint). Waiting for a first sign-in isn't trouble
+  // of that kind, and stays out of the way.
+  function providerNeedsAttention(p) {
+    return p.ready === true && p.usageStatusText !== "" && p.usageStatusText !== "Waiting for auth" && p.authHelpText !== ""
   }
 
   // A prepaid agent's credit ledger. Like rate limits, the balance is

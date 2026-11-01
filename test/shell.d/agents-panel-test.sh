@@ -34,11 +34,18 @@ assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'E
 
 // Local history alone feeds the summary; a section needs a subscription to show.
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const subscribed = new Function(mainSource.match(/function providerHasSubscription\([^]*?\n  \}/)[0] + '\nreturn providerHasSubscription')()
-const historyOnly = { limits: [], accounts: [], balance: null, tierLabel: '', totalPrompts: 1 }
+const subscribed = new Function(['providerHasSubscription', 'providerNeedsAttention']
+  .map(name => mainSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n') + '\nreturn providerHasSubscription')()
+const historyOnly = { limits: [], accounts: [], balance: null, tierLabel: '', totalPrompts: 1, ready: true, usageStatusText: '', authHelpText: '' }
 assertEqual(subscribed(historyOnly), false, 'an agent with only local history gets no section')
 assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a plan earns a section before its limits arrive')
 assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
+// A failed check with nothing kept shows its trouble; a first sign-in still to
+// come doesn't.
+const failed = { ...historyOnly, usageStatusText: 'CLIProxyAPI limits unavailable', authHelpText: "Couldn't reach CLIProxyAPI." }
+assertEqual(subscribed(failed), true, 'a failed check with nothing kept earns a section that says why')
+assertEqual(subscribed({ ...failed, ready: false }), false, 'an agent not in use stays out even with trouble')
+assertEqual(subscribed({ ...failed, usageStatusText: 'Waiting for auth' }), false, 'waiting for a first sign-in earns no section')
 
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.

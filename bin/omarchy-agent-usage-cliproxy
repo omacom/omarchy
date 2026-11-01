@@ -131,29 +131,30 @@ def own_windows(windows: list[dict[str, Any]], account_id: str) -> list[dict[str
 
 
 def fill(record: dict[str, Any], accounts: list[dict[str, Any]], windows: list[dict[str, Any]], fetched_at: int, stale: bool) -> None:
-  """One account reads as the agent's own plan and limits; several are listed
-  in `accounts`, each with its own. The proxy picks the account for every
-  request, so none is the active one and none can be switched to here. A
+  """Every account is listed in `accounts` with its own plan and limits, one
+  included: which account the proxy holds is the point, and the panel offers
+  to hide or remove it. The proxy picks the account for every request, so
+  none is the active one and none can be switched to here. A lone account's
+  windows are the record's own limits too, for the bar's near-limit alarm. A
   configured proxy is in use even with no Claude or Codex account yet: the
   panel shows no section for it, but offers to add one to it."""
   record.update(ready=True, limitsStale=stale, limitsFetchedAt=fetched_at if accounts else 0)
   if len(accounts) == 1:
-    record.update(tierLabel=accounts[0]["plan"], limits=own_windows(windows, accounts[0]["id"]))
-  elif accounts:
-    record["accounts"] = [
-      dict(
-        account,
-        active=False,
-        primary=False,
-        limits=(limits := own_windows(windows, account["id"])),
-        stale=stale and bool(limits),
-        fetchedAt=fetched_at,
-        usageStatusText="",
-        authHelpText="",
-        retryAdvised=False,
-      )
-      for account in accounts
-    ]
+    record["limits"] = own_windows(windows, accounts[0]["id"])
+  record["accounts"] = [
+    dict(
+      account,
+      active=False,
+      primary=False,
+      limits=(limits := own_windows(windows, account["id"])),
+      stale=stale and bool(limits),
+      fetchedAt=fetched_at,
+      usageStatusText="",
+      authHelpText="",
+      retryAdvised=False,
+    )
+    for account in accounts
+  ]
 
 
 def collect(force: bool = False) -> dict[str, Any]:

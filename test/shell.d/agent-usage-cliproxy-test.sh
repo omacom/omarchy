@@ -66,9 +66,9 @@ def windows(limits):
 
 sandbox()
 fresh = check_limits_contract(Adapter("cliproxy", plant=configured, answer=ROUTES))
-expect("one Claude account reads as the section's own session and weekly windows",
-       [fresh["tierLabel"], windows(fresh["limits"]), fresh["hasPromptStats"], fresh["hasLocalStats"], "accounts" in fresh],
-       ["Claude", [["Session", 0.42], ["Weekly", 0.17]], False, False, False], fresh)
+expect("one Claude account is listed by name, and its windows are the record's own too",
+       [[(account["label"], account["plan"]) for account in fresh["accounts"]], windows(fresh["limits"]), fresh["tierLabel"], fresh["hasPromptStats"], fresh["hasLocalStats"]],
+       [[("a@example.com", "Claude")], [["Session", 0.42], ["Weekly", 0.17]], "", False, False], fresh)
 expect("the windows reset when Anthropic said they would",
        [entry["resetsAt"] for entry in fresh["limits"]],
        [datetime.fromtimestamp(SESSION_RESET, timezone.utc).isoformat(), datetime.fromtimestamp(WEEKLY_RESET, timezone.utc).isoformat()], fresh)
@@ -104,7 +104,7 @@ expect("an unreadable utilization reads 0 and one past full reads full", windows
 service["files"] = [{"id": "gemini-c.json", "provider": "gemini"}]
 record = cliproxy()
 expect("a proxy without Claude or Codex accounts is in use with nothing to show",
-       [record["ready"], record["limits"], "accounts" in record, record["tierLabel"]], [True, [], False, ""], record)
+       [record["ready"], record["limits"], record["accounts"], record["tierLabel"]], [True, [], [], ""], record)
 service["files"] = [claude_file()]
 
 # ---------------------------------------------------------------- the key
