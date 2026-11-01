@@ -335,6 +335,31 @@ jq -e '
 }
 pass "shell IPC lists plugin metadata"
 
+# Snapshot the log once startup registration has settled, so the collision
+# check below sees only that pass and none of the deliberate reloads after it.
+# Widgets and panels load asynchronously after listPlugins answers, so wait
+# for the bar to hold every default widget and the collisions to stop coming.
+default_layout=$(jq -c '.bar.layout' "$ROOT/config/omarchy/shell.json")
+for _ in {1..80}; do
+  scratch_ipc shell debugBarGeometry 2>/dev/null | jq -e --argjson layout "$default_layout" '
+    . as $rows | all([$layout[]] | add | .[]; (.id // .) as $id | any($rows[]; .id == $id))
+  ' >/dev/null 2>&1 && break
+  sleep 0.1
+done
+collisions=-1
+quiet=0
+for _ in {1..80}; do
+  seen=$(grep -c "another handler is registered for target" "$SCRATCH_LOG" || true)
+  if (( seen == collisions )); then
+    (( ++quiet >= 10 )) && break
+  else
+    collisions=$seen
+    quiet=0
+  fi
+  sleep 0.1
+done
+startup_log_lines=$(wc -l <"$SCRATCH_LOG")
+
 # Plugins save their own state beside current/. That must not make the
 # transparent bar sample the wallpaper again; repointing the background must.
 text_color_count() {
@@ -499,8 +524,6 @@ done
   fail_with_log "kept service is dropped when its plugin stops declaring a service"
 pass "kept service is dropped when its plugin stops declaring a service"
 
-default_layout=$(jq -c '.bar.layout' "$ROOT/config/omarchy/shell.json")
-
 geometry=""
 for _ in {1..80}; do
   geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
@@ -546,15 +569,21 @@ pass "direct panel IPC opens and closes default panels"
 # past the first. Anything beyond that is two instances on the same screen —
 # the shape duplicate component loads produced, where a sync pass that ran
 # while a widget's asynchronous load was still in flight started a second one.
-# Checked before the reload below, which rebuilds widgets by design.
+# Restricted to the startup portion of the log captured above: everything
+# after it is one or more deliberate reloads (hot-reload rename, plugin
+# enable/disable, rescanPlugins, keepLoaded manifest change), each of which
+# legitimately reproduces the same one-collision-per-screen pattern and would
+# otherwise inflate the count with duplicates unrelated to this check.
 screens=$(hyprctl -j monitors 2>/dev/null | jq 'length' 2>/dev/null || true)
 [[ $screens =~ ^[0-9]+$ ]] && (( screens > 0 )) || screens=1
 # No matches is the good case, and pipefail would otherwise abort the run.
-worst=$(grep -oE "another handler is registered for target [a-z.-]+" "$SCRATCH_LOG" |
+worst=$(head -n "$startup_log_lines" "$SCRATCH_LOG" |
+  grep -oE "another handler is registered for target [a-z.-]+" |
   sort | uniq -c | sort -rn | head -1 | awk '{print $1}' || true)
 worst=${worst:-0}
 if (( worst > screens - 1 )); then
-  { grep "another handler is registered for target" "$SCRATCH_LOG" | sed 's/^/  /' | head -20 >&2; } || true
+  { head -n "$startup_log_lines" "$SCRATCH_LOG" |
+    grep "another handler is registered for target" | sed 's/^/  /' | head -20 >&2; } || true
   fail_with_log "each widget registers its IPC handler once per screen (saw $worst for $screens screen(s))"
 fi
 pass "each widget registers its IPC handler once per screen"
