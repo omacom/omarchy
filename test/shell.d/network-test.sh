@@ -246,6 +246,8 @@ assertDeepEqual(
 )
 assertDeepEqual(network.hotspotClients({ clients: 'garbage' }), [], 'network ignores malformed hotspot clients')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }), 'AA:BB:CC · -42 dBm', 'network labels a hotspot client with signal')
+const persianDigits = n => String(n).replace(/[0-9]/g, d => String.fromCharCode(0x06f0 + Number(d)))
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }, persianDigits), 'AA:BB:CC · -۴۲ dBm', 'network writes a hotspot client signal in the language digits')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc' }), 'AA:BB:CC', 'network labels a hotspot client without signal')
 assertEqual(network.hotspotClientLabel({}), '', 'network labels an empty hotspot client')
 assertEqual(network.hotspotCredentialsError('', 'abcdefgh'), 'Enter a hotspot name', 'network requires a hotspot ssid')

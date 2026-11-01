@@ -2272,7 +2272,7 @@ Panel {
             required property var modelData
             textFormat: Text.PlainText
             width: parent.width
-            text: Model.hotspotClientLabel(modelData)
+            text: Model.hotspotClientLabel(modelData, Commons.I18n.formatNumber)
             color: Qt.darker(root.bar.foreground, 1.35)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
