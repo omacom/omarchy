@@ -12,6 +12,7 @@ ShellRoot {
   property int checks: 0
   property var serviceRef: null
   property int wakePhase: -1
+  property bool finished: false
 
   Item { id: host }
 
@@ -262,6 +263,9 @@ ShellRoot {
   }
 
   function finish() {
+    if (root.finished) return
+    root.finished = true
+    wakePhaseTimer.stop()
     if (root.serviceRef) {
       root.serviceRef.lockRequested = false
       root.serviceRef.resetAuthenticationState()

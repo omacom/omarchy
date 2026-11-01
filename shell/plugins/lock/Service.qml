@@ -258,8 +258,12 @@ Item {
     // The blank grace only counts from what the user can see: a monitor that
     // is still waking is blanked by the countdown before it ever shows the
     // lock, so it starts once the displays report themselves on, not at the
-    // keypress.
-    if (lockRequested && !displayOnWatch.running) displayOnWatch.running = true
+    // keypress. An already running countdown means they are lit, and input
+    // just takes a fresh run-up.
+    if (lockRequested) {
+      if (idleBlankTimer.running) armBlankTimer()
+      else if (!displayOnWatch.running) displayOnWatch.running = true
+    }
     resumeFingerprint()
     nudgeFingerprint()
   }
