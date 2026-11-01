@@ -1,0 +1,17 @@
+[Unit]
+Description=Set the timezone from nearby Wi-Fi networks
+# Needs the session bus to notify, which is up only after graphical-session.target.
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+# Set by omarchy-toggle-timezone-auto, which also enables this unit.
+ConditionPathExists=%h/.local/state/omarchy/toggles/timezone-auto
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-timezone-watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
