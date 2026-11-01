@@ -8,7 +8,9 @@ The plan, prepaid credits, and spend budgets come from the gateway endpoints
 Kimchi's own status line reads (<llm base>/v1/credits and /v1/budget), asked
 with the API key Kimchi signs in with. Tokens and prompts come from its pi
 session files: one line per message, each assistant reply carrying its model
-and token usage. The agents panel only ever reads the JSON this prints.
+and token usage. pi and omp sessions on Kimchi's provider ids count too, and
+so do the opencode, Claude Code and Codex setups Kimchi writes, which send
+to its gateway. The agents panel only ever reads the JSON this prints.
 """
 
 from __future__ import annotations
@@ -33,9 +35,15 @@ from collectors import (  # noqa: E402
   emit,
   kimchi_sessions_root,
   open_json,
+  opencode_db,
+  pi_session_roots,
   read_json,
+  routed_match,
+  routed_sources,
   scan_max_age,
+  scan_opencode,
   scan_pi_sessions,
+  scan_routed,
   stamp,
   trusted_endpoint,
 )
@@ -86,23 +94,40 @@ def parse_time(value):
 
 
 # Kimchi's own gateway routes, as its isKimchiProvider names them: kimchi-dev,
-# kimchi-dev/<upstream> and kimchi-experimental. `--provider` runs a session on
-# any other pi provider (OpenRouter, a custom one in harness/models.json),
-# which that provider bills: the openrouter collector reads these sessions for
-# its own, and a custom provider's count nowhere.
-def billed_here(provider, model, entry):
-  return provider in ("", "kimchi-dev", "kimchi-experimental") or provider.startswith("kimchi-dev/")
+# kimchi-dev/<upstream> and kimchi-experimental, and `kimchi`, the provider id
+# its setup commands write into opencode and other agents and a pi or omp
+# models.json names it by. `--provider` runs a session on any other pi
+# provider (OpenRouter, a custom one in harness/models.json), which that
+# provider bills: the openrouter collector reads these sessions for its own,
+# and a custom provider's count nowhere.
+def kimchi_route(provider, model, entry):
+  name = provider.lower()
+  return name in ("kimchi", "kimchi-dev", "kimchi-experimental") or name.startswith("kimchi-dev/")
 
 
-# Every session file under <harness>/sessions, in pi's format, read the way
-# the shared reader reads pi's own: every assistant reply with usage on a
-# Kimchi route counts, and a message a fork or resumed session repeats counts
-# once. Returns the stats and whether every source was read.
-def local_stats(sessions_root):
-  rows, complete = scan_pi_sessions(r'"usage"', billed_here, [sessions_root])
+# Kimchi's harness also wrote replies naming no provider, which only it can
+# have sent: those are its own there, and no one's anywhere else.
+def unnamed(provider, model, entry):
+  return provider == ""
+
+
+# Every pi-format session on a Kimchi route, in Kimchi's harness and in pi's
+# and omp's trees, read in one pass so a root inside another counts once and
+# a message a fork or resumed session repeats counts once; the harness's
+# replies naming no provider; opencode replies on Kimchi's provider; and the
+# Claude Code, MiniMax Code and Codex turns sent to Kimchi's gateway. Returns
+# the stats and whether every source was read.
+def local_stats(sessions_root, reuse=True):
   stats = Stats()
-  for row in rows:
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"kimchi', kimchi_route, [*pi_session_roots(), sessions_root])
+  harness_rows, harness_complete = scan_pi_sessions(r'"usage"', unnamed, [sessions_root])
+  # Every id starting kimchi gets past the database's prefilter; the accept
+  # keeps Kimchi's own.
+  db_rows, db_complete = scan_opencode(["kimchi"], kimchi_route)
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in pi_rows + harness_rows + db_rows + routed_rows:
     stats.add_row(row, row.model or AGENT_ID)
+  complete = pi_complete and harness_complete and db_complete and routed_complete
   return {"hasLocalStats": bool(stats.sessions), **stats.snapshot()}, complete
 
 
@@ -351,9 +376,14 @@ def main():
 
   # A scan is reused on the day it was made only, since one from before
   # midnight would count yesterday's sessions as today's. A limits-only
-  # refresh needs fresh credits, not a fresh history scan.
+  # refresh needs fresh credits, not a fresh history scan. The digest covers
+  # every source the scan reads, and the match where Claude Code, MiniMax
+  # Code and Codex are sent, which decides whose their turns are. A forced
+  # scan reads every Codex rollout again too.
   sessions_root = kimchi_sessions_root()
-  stats = cached_scan(AGENT_ID, [sessions_root], scan_max_age(args.force, args.limits_only), lambda: local_stats(sessions_root))
+  sources = [sessions_root, *pi_session_roots(), opencode_db(), *routed_sources()]
+  max_age = scan_max_age(args.force, args.limits_only)
+  stats = cached_scan(AGENT_ID, sources, max_age, lambda: local_stats(sessions_root, reuse=max_age > 0), match=routed_match())
   billing = collect_billing(args.force)
   signed_in = billing.pop("signedIn")
   # Sessions on disk with no key to ask the gateway with: Kimchi is in use

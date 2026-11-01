@@ -344,4 +344,76 @@ record = kimchi()
 expect("local sessions without a key wait for auth",
        {key: record[key] for key in ("ready", "usageStatusText", "authHelpText", "hasLocalStats")},
        {"ready": True, "usageStatusText": "Waiting for auth", "authHelpText": "Start Kimchi and log in, or set KIMCHI_API_KEY.", "hasLocalStats": True}, record)
+
+# ------------------------------------------------- Kimchi's gateway elsewhere
+
+# Kimchi's gateway bills whatever reaches it, through whichever agent: pi and
+# omp sessions on its provider ids wherever they live (a models.json
+# provider named kimchi, as pi 1.4.0 and omp 18.12.6 write them), harness
+# sessions on plain `kimchi`, and the setups `kimchi claudecode`, `kimchi
+# codex` and its opencode integration write, which point Claude Code, Codex
+# and opencode at llm.kimchi.dev or llm.eu.kimchi.dev. A Claude or kimi-*
+# model through the gateway is Kimchi's, not Anthropic's or Kimi's.
+sandbox()
+STAMP = today_stamp()
+NOW_MS = ms_in(0)
+
+
+def pi_turns(path, provider, model, tokens, omp=False):
+  switch = {"type": "model_change", "id": "m0", "parentId": None, "timestamp": STAMP}
+  switch.update({"runtime": {"version": "18.12.6"}, "model": f"{provider}/{model}"} if omp else {"provider": provider, "modelId": model})
+  user = {"role": "user", "content": [{"type": "text", "text": "Say hi"}], "timestamp": NOW_MS}
+  if omp:
+    user["attribution"] = "user"
+  write_pi_session(path, [
+    {"type": "session", "version": 3, "id": path.stem, "timestamp": STAMP, "cwd": "/home/me"},
+    switch,
+    {"type": "message", "id": f"u-{path.stem}", "parentId": "m0", "timestamp": STAMP, "message": user},
+    {"type": "message", "id": f"a-{path.stem}", "parentId": f"u-{path.stem}", "timestamp": STAMP, "message": {
+      "role": "assistant", "content": [{"type": "text", "text": "hi"}], "api": "openai-completions", "provider": provider, "model": model,
+      "usage": {"input": tokens, "output": 82, "cacheRead": 102, "cacheWrite": 0, "totalTokens": tokens + 184, "cost": {"total": 0}},
+      "stopReason": "stop", "timestamp": NOW_MS}},
+  ])
+
+
+pi_turns(home() / ".pi/agent/sessions/--home-me--/pi-kimchi.jsonl", "kimchi", "minimax-m3", 4201)
+pi_turns(home() / ".pi/agent/sessions/--home-me--/pi-kimchi-dev.jsonl", "kimchi-dev", "kimi-k2.6", 5201)
+pi_turns(home() / ".omp/agent/sessions/-/omp-kimchi.jsonl", "kimchi", "kimi-k2.5", 6201, omp=True)
+pi_turns(home() / ".omp/agent/sessions/-/omp-upstream.jsonl", "kimchi-dev/zai", "glm-5.2", 7201, omp=True)
+pi_turns(harness() / "sessions/--home-me--/harness-kimchi.jsonl", "kimchi", "glm-5.2", 8201)
+# Someone else's gateway that only shares the name is not Kimchi's.
+pi_turns(home() / ".pi/agent/sessions/--home-me--/pi-lookalike.jsonl", "kimchi-proxy", "minimax-m3", 999)
+# opencode rows as opencode 1.19.3 writes them for the provider Kimchi's
+# opencode setup adds.
+opencode_db(message=[
+  ("msg_u1", "ses_k", json.dumps({"role": "user", "time": {"created": NOW_MS}, "agent": "build", "model": {"providerID": "kimchi", "modelID": "minimax-m3"}})),
+  ("msg_a1", "ses_k", json.dumps({"parentID": "msg_u1", "role": "assistant", "mode": "build", "agent": "build", "cost": 0, "modelID": "minimax-m3", "providerID": "kimchi",
+                                  "tokens": {"total": 9201, "input": 9201, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+                                  "time": {"created": NOW_MS + 1, "completed": NOW_MS + 2}, "finish": "stop"})),
+])
+claude_code_session("kc", [("claude-sonnet-4-5", 3000), ("kimi-k2.6", 2387), ("deepseek-v4-flash", 3390)], base_url="https://llm.eu.kimchi.dev/anthropic")
+os.environ["CODEX_HOME"] = str(home() / ".codex")
+(home() / ".codex").mkdir()
+(home() / ".codex/config.toml").write_text('model_provider = "kimchi"\nmodel = "minimax-m3"\n\n[model_providers.kimchi]\nname = "Kimchi Gateway"\nbase_url = "https://llm.kimchi.dev/openai/v1"\nwire_api = "responses"\n')
+rollouts = home() / ".codex/sessions" / datetime.now().strftime("%Y/%m/%d")
+rollouts.mkdir(parents=True)
+(rollouts / "rollout-kimchi.jsonl").write_text("".join(json.dumps(line) + "\n" for line in (
+  {"timestamp": STAMP, "type": "session_meta", "payload": {"model_provider": "kimchi"}},
+  {"timestamp": STAMP, "type": "turn_context", "payload": {"model": "minimax-m3"}},
+  {"timestamp": STAMP, "type": "event_msg", "payload": {"type": "user_message", "message": "go"}},
+  {"timestamp": STAMP, "type": "event_msg", "payload": {"type": "token_count", "info": {
+    "last_token_usage": {"input_tokens": 1000, "cached_input_tokens": 0, "output_tokens": 10}, "total_token_usage": {"input_tokens": 1000}}}},
+)))
+record = kimchi()
+os.environ.pop("CODEX_HOME")
+expect("Kimchi counts its gateway's usage from pi, omp, opencode, Claude Code and Codex",
+       {key: record[key] for key in ("todayTotalTokens", "todayPrompts", "todaySessions", "todayTokensByModel")},
+       {"todayTotalTokens": 4385 + 5385 + 6385 + 7385 + 8385 + 9201 + 3000 + 2387 + 3390 + 1010, "todayPrompts": 10, "todaySessions": 8,
+        "todayTokensByModel": {"minimax-m3": 4385 + 9201 + 1010, "kimi-k2.6": 5385 + 2387, "kimi-k2.5": 6385, "glm-5.2": 7385 + 8385,
+                               "claude-sonnet-4-5": 3000, "deepseek-v4-flash": 3390}}, record)
+for other in ("claude", "kimi", "deepseek", "zai", "minimax", "local"):
+  os.environ["CODEX_HOME"] = str(home() / ".codex")
+  counted = collect(other, "--force")
+  os.environ.pop("CODEX_HOME")
+  expect(f"{other} counts none of Kimchi's gateway usage", [counted.get("todayTotalTokens") or 0, counted.get("todayPrompts") or 0], [0, 0], counted)
 PY

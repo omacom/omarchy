@@ -22,6 +22,7 @@ fake_codex "$HOME"
 python3 - <<'PY'
 import shutil
 import tempfile
+from compression import zstd
 
 from agent_usage_fixtures import *
 
@@ -284,7 +285,7 @@ pi = write_pi_session(home() / ".pi" / "agent" / "sessions" / "session.jsonl", [
 
 
 def file_cache():
-  return json.loads(next(cache_root().glob("codex-files-*.json")).read_text())
+  return json.loads(next(cache_root().glob("codex-rollouts-*.json")).read_text())
 
 
 def incremental(*args):
@@ -315,6 +316,19 @@ if os.geteuid() != 0:
 rollout("rollout.jsonl", tokens(30, 2, 10), stamp=early, mode="a")
 record = incremental()
 expect("Codex rereads a rollout that grew", record["todayTotalTokens"], 52, record)
+
+# A long session's rollout that grew is read on from where the last read
+# stopped, through the reader every collector shares, not again from the
+# start: a request rewritten in the middle of what was read, the same size,
+# still counts as it was read.
+padding = {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "x" * 6000}]}}
+grown = rollout("rollout-grown.jsonl", meta(model_provider="openai", source="exec", id="t-grown"), context("gpt-grown"), typed(), tokens(10, 5),
+                padding, padding, tokens(100, 0), padding, padding, tokens(1, 0), stamp=early)
+incremental()
+grown.write_text(grown.read_text().replace('"input_tokens": 100,', '"input_tokens": 900,'))
+rollout("rollout-grown.jsonl", typed(), tokens(30, 2), stamp=early, mode="a")
+record = incremental()
+expect("Codex reads a grown rollout on from where it stopped", record["todayTokensByModel"].get("gpt-grown"), 148, record)
 
 # Per-file totals are bucketed by local day, so a new timezone reads them again.
 zone_stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT02:00:00Z")
@@ -354,6 +368,22 @@ if os.geteuid() != 0:
   record = codex("--limits-only")
   expect("Codex never caches a scan that couldn't read a rollout",
          [partial["todayTotalTokens"], record["todayTotalTokens"]], [0, 7], record)
+
+# Codex compresses a finished rollout to .jsonl.zst and decompresses it again
+# to append, so a compressed rollout counts, one caught mid-swap counts once,
+# and a damaged one costs only itself.
+new_home()
+plain = rollout("rollout-compressed.jsonl", context("gpt-compressed"), tokens(7, 2))
+packed = plain.with_name(plain.name + ".zst")
+packed.write_bytes(zstd.compress(plain.read_bytes()))
+plain.unlink()
+(sessions() / "rollout-damaged.jsonl.zst").write_bytes(zstd.compress(plain.name.encode() * 100)[:20])
+compressed = codex()
+plain.write_bytes(zstd.decompress(packed.read_bytes()))
+swapping = codex()
+expect("Codex counts a compressed rollout, once while Codex swaps its compression, past a damaged one",
+       [[record["modelUsage"].get("gpt-compressed", {}).get(key) for key in ("inputTokens", "outputTokens")] for record in (compressed, swapping)],
+       [[7, 2], [7, 2]], swapping)
 
 # ------------------------------------------------------- pi and opencode
 
@@ -627,6 +657,23 @@ expect("Codex explains a failed app-server in its own words", {
   "noisy": "Codex app-server did not answer account/rateLimits/read",
   "chatty": True,
 }, help_texts)
+
+# ------------------------------------------------ openai_base_url's owner
+
+# A built-in rollout answered by a model not OpenAI's is Codex's on OpenAI's
+# API and nobody's behind a gateway nothing can place, so switching
+# openai_base_url between the two must not leave a reused scan counting it,
+# as a real rollout with its model renamed showed.
+new_home()
+rollout("rollout-2026-10-22T11-00-00-01a1647f-6fb5-7081-a481-257bbb530940.jsonl",
+        meta(id="01a1647f-6fb5-7081-a481-257bbb530940", originator="codex_exec", source="exec", model_provider="openai", cli_version="0.163.0"),
+        context("qwen3-coder"), typed(), tokens(65105, 3250, cached=566656))
+(home() / ".codex" / "config.toml").write_text('openai_base_url = "https://api.openai.com/v1"\n')
+on_openai = codex("--limits-only")["todayTokensByModel"]
+(home() / ".codex" / "config.toml").write_text('openai_base_url = "https://gateway.example.com/v1"\n')
+on_gateway = codex("--limits-only")["todayTokensByModel"]
+expect("a reused scan stops counting a non-OpenAI model once openai_base_url moves from OpenAI's API to a gateway",
+       ["qwen3-coder" in on_openai, "qwen3-coder" in on_gateway], [True, False], [on_openai, on_gateway])
 
 # ---------------------------------------------------------------- contract
 

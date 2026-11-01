@@ -27,7 +27,6 @@ electricity bill. The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
-import hashlib
 import importlib.machinery
 import importlib.util
 import json
@@ -42,10 +41,12 @@ sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", 
 from collectors import (  # noqa: E402
   Stats,
   base_record,
-  cache_root,
   cached_scan,
   cloud_model,
   codex_home,
+  codex_native_key,
+  codex_native_routed,
+  codex_rollout_cache,
   codex_provider_urls,
   codex_route_owner,
   codex_rollouts,
@@ -93,6 +94,7 @@ CLAIMED_PROVIDERS = {
   "kimi-coding", "kimi-code", "kimi-code-plan-global", "kimi-code-plan-cn",  # kimi
   "moonshotai", "moonshotai-cn", "moonshot",  # kimi
   "google-antigravity",  # agy, pi's Antigravity sign-in
+  "kimchi", "kimchi-dev", "kimchi-experimental",  # kimchi
   "meta", "muse-code",  # muse
   "minimax", "minimax-cn", "minimax-coding-plan", "minimax-cn-coding-plan",  # minimax
   "mistral",  # vibe
@@ -106,6 +108,10 @@ CLAIMED_PROVIDERS = {
   "zai", "zhipu", "zai-coding-cn", "zai-coding-plan",  # zai
   "zhipu-coding-plan", "zhipuai", "zhipuai-coding-plan",  # zai
 }
+
+# Ids a collector claims by prefix rather than whole: Kimchi 1.18 names each
+# gateway route kimchi-dev/<upstream>, and kimchi counts every one.
+CLAIMED_PREFIXES = ("kimchi-dev/",)  # kimchi
 
 def model_name(raw):
   return str(raw or "").strip() or AGENT_ID
@@ -140,8 +146,8 @@ class Classifier:
     # dropping it.
     self.endpoints = codex_provider_urls()
     ids = set(KNOWN_LOCAL_PROVIDERS) | self.configured
-    ids |= {pid for pid, url in self.endpoints.items() if url and self_hosted(url)}
-    self.local_ids = ids - CLAIMED_PROVIDERS
+    ids |= {pid for pid, url in self.endpoints.items() if url and self_hosted(url) and not codex_native_key(pid)}
+    self.local_ids = {pid for pid in ids - CLAIMED_PROVIDERS if not pid.startswith(CLAIMED_PREFIXES)}
 
   def provider_is_local(self, provider):
     return str(provider or "").strip().lower() in self.local_ids
@@ -183,9 +189,11 @@ def accept_opencode(provider, model, entry):
 # --------------------------------------------------- harnesses of their own
 
 # Kimi Code, Qwen Code, Hermes and Mistral Vibe keep their sessions in stores
-# of their own, and record where each request went. Each one's collector
-# reads its store and says who bills each row (harness_rows), so this one
-# takes the rows a server you run answered from the same reader.
+# of their own. Each one's collector reads its store and says who bills each
+# row (harness_rows), from the route Hermes and older Vibe sessions record
+# or, for Kimi Code, Qwen Code and Vibe's Unified Harness, from the current
+# config, so this one takes the rows a server you run answered from the same
+# reader.
 HARNESSES = ("hermes", "kimi", "qwen", "vibe")
 
 
@@ -243,28 +251,22 @@ def harness_match():
 # ------------------------------------------------------------------- Codex
 
 
-# Per-file totals of Codex rollouts, kept for the providers this scan counts
-# as local, so a changed local.json or Codex config reads them afresh. An
-# unusable cache root costs the reuse, never the scan.
-def file_cache_path():
-  try:
-    return cache_root() / f"local-codex-files-{scan_digest()}.json"
-  except OSError:
-    return None
-
 
 def scan_codex(stats, use_file_cache):
-  records, complete = codex_rollouts(file_cache_path(), reuse=use_file_cache)
-  for key, record in records.items():
-    if not classifier().provider_is_local(record["provider"]):
-      continue
+  endpoints = classifier().endpoints
+  records, complete = codex_rollouts(codex_rollout_cache(), reuse=use_file_cache, native=codex_native_routed(endpoints))
+  for record in records.values():
     for day, models in record["days"].items():
       for model, (input_tokens, output_tokens, cache_read, cache_write, prompts) in models.items():
         # A provider's host, or Ollama Cloud, bills the rollouts
-        # codex_route_owner() places, whatever the provider's id.
-        if not cloud_model(model) and codex_route_owner(record["provider"], model, classifier().endpoints) is None:
-          # A Codex rollout's totals arrive per day and model, prompts counted.
-          stats.add(day, key, model, input_tokens, output_tokens, cache_read, cache_write, prompts=prompts)
+        # codex_route_owner() places, whatever the provider's id, and it
+        # gives the built-in provider's to this one while openai_base_url
+        # is self-hosted.
+        owner = codex_route_owner(record["provider"], model, endpoints)
+        if owner == "local" or (owner is None and classifier().provider_is_local(record["provider"]) and not cloud_model(model)):
+          # A Codex rollout's totals arrive per day and model, prompts
+          # counted, under the session that started it.
+          stats.add(day, record["session"], model, input_tokens, output_tokens, cache_read, cache_write, prompts=prompts)
   return complete
 
 
@@ -275,10 +277,6 @@ def scan_sources():
   # Every path the scan reads, and which providers it counts as local, so a
   # changed local.json or Codex config is a new scan rather than a stale one.
   return [Path.home(), codex_home(), opencode_db(), *pi_session_roots(), *routed_sources(), *harness_sources(), json.dumps(classifier().fingerprint())]
-
-
-def scan_digest():
-  return hashlib.sha1("\n".join(map(str, scan_sources())).encode("utf-8")).hexdigest()[:16]
 
 
 def run_local_scans(max_age):

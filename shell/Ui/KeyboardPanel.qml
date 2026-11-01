@@ -24,12 +24,12 @@ import qs.Commons as Commons
 // Missing on purpose (for now): triggerMode ("hover"), containsMouse.
 //
 // Positioning: full-screen layer-shell with the card placed inside at
-// `cardOrigin`. We use the bar window's height/width for the perpendicular
+// `cardOrigin`. We use the bar strip's thickness for the perpendicular
 // axis (away-from-bar) because mapToItem on the anchor returns
 // bar-content-relative coords with internal layout offsets baked in
 // (e.g. ~13px from the bar's vertical centering of its widget row). The
 // parallel axis (along-the-bar) uses the anchor's content x/y since the
-// bar spans full screen on that axis.
+// bar window spans the full screen on that axis.
 //
 // Outside-click dismissal: an overlay MouseArea catches clicks, with the
 // QsWindow.mask subtracting the bar strip so clicks on the bar still
@@ -45,6 +45,27 @@ PanelWindow {
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)
+
+  // The card's height on screen. Content that arrives after the panel is up
+  // (a Wi-Fi scan, Bluetooth devices turning up) grows the card toward it
+  // rather than snapping it taller, cropping the new rows as it goes. Just
+  // after opening it snaps, while freshly built content first measures itself.
+  property real drawnHeight: contentHeight
+  property bool heightLive: false
+  Behavior on drawnHeight {
+    enabled: root.heightLive && root.morph >= 1
+    NumberAnimation {
+      duration: Style.duration(200)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+
+  Timer {
+    id: heightSettle
+    interval: 60
+    onTriggered: root.heightLive = root.open
+  }
   property var borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
   property bool centerOnBar: false
   property bool open: false
@@ -110,7 +131,7 @@ PanelWindow {
   // Keyboard focus follows `open` (NOT `visible`). The window remains
   // mapped during the fade-out so the opacity animation has something to
   // animate, but keyboard/click ownership must release the moment the
-  // logical close fires — otherwise the user is locked out for 140ms.
+  // logical close fires — otherwise the user is locked out until it ends.
   //
   // Prime with Exclusive on every open, then settle on OnDemand. Hyprland
   // focuses OnDemand when a surface first maps, but not when an already-mapped
@@ -139,11 +160,7 @@ PanelWindow {
   // Clickable region is the whole screen. Clicks in the bar strip are
   // forwarded to registered bar buttons so switching between panel icons
   // works in one click even when the overlay surface is above the bar.
-  readonly property real _barStripSize: {
-    if (!bar) return 0
-    var actual = (root.barPos === "top" || root.barPos === "bottom") ? root.barH : root.barW
-    return Math.max(bar.barSize, actual) + root.gap
-  }
+  readonly property real _barStripSize: bar ? barThickness + gap : 0
   mask: Region {
     width: root.screenW
     height: root.screenH
@@ -163,7 +180,7 @@ PanelWindow {
   // full-width top bar, the content x maps directly to screen x; the y
   // returned here has the bar's internal padding baked in (e.g. ~13px
   // from vertical centering of the widget row), which is why `cardOrigin`
-  // below uses `barH` for the perpendicular axis instead of this y.
+  // below uses `barThickness` for the perpendicular axis instead of this y.
   readonly property point anchorScreenPos: {
     anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
@@ -174,10 +191,10 @@ PanelWindow {
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barW + gap + margin : margin * 2))
+    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barThickness + gap + margin : margin * 2))
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barH + gap + margin : margin * 2))
+    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barThickness + gap + margin : margin * 2))
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -202,16 +219,22 @@ PanelWindow {
   }
 
   // Desired top-left of the card in screen coordinates. For the
-  // perpendicular axis (away-from-bar) we anchor to the bar window's edge
+  // perpendicular axis (away-from-bar) we anchor to the bar strip's edge
   // directly — not the anchor item's y/x — because mapToItem(barContent)
   // returns coordinates in the bar's content space, which can be offset
-  // from the bar surface's screen-anchored corner by internal layout
-  // (centering wrappers, padding). The bar's surface IS aligned to its
-  // anchored screen edge, so using `barW`/`barH` gives the right edge
+  // from the strip's screen-anchored corner by internal layout (centering
+  // wrappers, padding). The bar window spans its whole screen, so its
+  // dimensions say nothing about the strip; the painted strip hugs the
+  // bar's anchored screen edge at the bar's thickness for this screen
+  // (notch floor included), so `barThickness` gives the strip's inner edge
   // regardless of how the bar's internal widgets are positioned. For the
   // parallel axis (along the bar) the anchor item's reported position is
   // still consistent with the bar content origin, so it's accurate for
   // centering the card under the icon.
+  readonly property real barThickness: !bar ? 0
+    : (typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize)
+  // Bar window dimensions, only for mapping overlay coordinates into
+  // bar-window content coordinates in barPoint() below.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
   readonly property point cardOrigin: {
@@ -219,26 +242,37 @@ PanelWindow {
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
       x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barH - contentHeight - gap : barH + gap
+      y = barPos === "bottom" ? screenH - barThickness - drawnHeight - gap : barThickness + gap
     } else if (centerOnBar) {
-      x = barPos === "left" ? barW + gap : screenW - barW - contentWidth - gap
-      y = screenH / 2 - contentHeight / 2
+      x = barPos === "left" ? barThickness + gap : screenW - barThickness - contentWidth - gap
+      y = screenH / 2 - drawnHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barH - contentHeight - gap
+      y = screenH - barThickness - drawnHeight - gap
     } else if (barPos === "left") {
-      x = barW + gap
-      y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
+      x = barThickness + gap
+      y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else if (barPos === "right") {
-      x = screenW - barW - contentWidth - gap
-      y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
+      x = screenW - barThickness - contentWidth - gap
+      y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barH + gap
+      y = barThickness + gap
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
-    y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
+    y = Math.max(margin, Math.min(y, screenH - drawnHeight - margin))
     return Qt.point(Math.round(x), Math.round(y))
+  }
+
+  // Where the card grows from, in its own coordinates: the point on its
+  // bar-facing edge nearest the icon it hangs from.
+  readonly property point growOrigin: {
+    var x = Math.max(0, Math.min(anchorScreenPos.x + anchorW / 2 - cardOrigin.x, contentWidth))
+    var y = Math.max(0, Math.min(anchorScreenPos.y + anchorH / 2 - cardOrigin.y, drawnHeight))
+    if (barPos === "bottom") return Qt.point(x, drawnHeight)
+    if (barPos === "left") return Qt.point(0, y)
+    if (barPos === "right") return Qt.point(contentWidth, y)
+    return Qt.point(x, 0)
   }
 
 
@@ -247,7 +281,9 @@ PanelWindow {
   // Coordinate on `open`, not `visible`. `visible` lags into the fade-out
   // animation, which made ownership transfer to a sibling popup race.
   onOpenChanged: {
+    heightLive = false
     if (open) {
+      heightSettle.restart()
       if (content) contentRequested = true
       focusPrimed = false
       beginFocusPrime()
@@ -262,7 +298,9 @@ PanelWindow {
     if (open) {
       popoutSwitchClosing = false
       popoutSwitching = bar.activePopout && bar.activePopout !== coordinatorKey
+      if (popoutSwitching) morphFromLastCard()
       bar.requestPopout(coordinatorKey)
+      publishCard()
       if (popoutSwitching) popoutSwitchTimer.restart()
     } else {
       popoutSwitchClosing = !!(owner && owner.popoutSwitchClosing)
@@ -284,8 +322,54 @@ PanelWindow {
 
   Timer {
     id: popoutSwitchTimer
-    interval: 150
+    // Outlasts the morph, so the card stays shown until it has landed.
+    interval: 250
     onTriggered: root.popoutSwitching = false
+  }
+
+  // --- switching between panels --------------------------------------------
+
+  // One card, not two: a panel taking over from another in the same section of
+  // the bar starts its card where the last one stood, at its size, and morphs
+  // it into its own place while the new content fades in. Each panel tells the
+  // bar where its card is, at the height it's drawn, so a switch while it's
+  // still growing starts from what's on screen. Across sections the new panel
+  // opens fresh.
+  readonly property rect cardTarget: Qt.rect(cardOrigin.x, cardOrigin.y, contentWidth, drawnHeight)
+  onCardTargetChanged: publishCard()
+
+  function publishCard() {
+    if (!open || !bar || !screen || typeof bar.notePopoutCard !== "function") return
+    bar.notePopoutCard({ screen: screen.name, x: cardTarget.x, y: cardTarget.y,
+                         width: cardTarget.width, height: cardTarget.height })
+  }
+
+  // Already true as `open` flips, before onOpenChanged marks the switch, so
+  // the card never starts growing in on top of the morph. Only a takeover in
+  // the same section morphs; across sections the card grows in as usual.
+  readonly property bool takingOver: !!bar && !!bar.activePopout && bar.activePopout !== coordinatorKey
+    && typeof bar.popoutCardFor === "function" && !!bar.popoutCardFor(coordinatorKey)
+
+  property rect morphFrom: Qt.rect(0, 0, 0, 0)
+  property real morph: 1
+
+  function morphFromLastCard() {
+    var last = bar && typeof bar.popoutCardFor === "function" ? bar.popoutCardFor(coordinatorKey) : null
+    if (!last || !screen || last.screen !== screen.name) return
+    morphFrom = Qt.rect(last.x, last.y, last.width, last.height)
+    morphRun.restart()
+  }
+
+  NumberAnimation {
+    id: morphRun
+    target: root; property: "morph"; from: 0; to: 1
+    duration: Style.duration(220)
+    easing.type: Easing.Bezier
+    easing.bezierCurve: Style.easeOut
+  }
+
+  function morphed(from, to) {
+    return morph >= 1 ? to : from + (to - from) * morph
   }
 
   Timer {
@@ -344,6 +428,25 @@ PanelWindow {
       return true
     }
 
+    // This overlay takes presses on the bar strip too, so the bar button under
+    // the pointer never sees itself held; it's told, for its press feedback,
+    // the way the bar's own press handler tells it.
+    property var heldTarget: null
+    function hold(target, button) {
+      if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
+      heldTarget = target && "heldButtons" in target ? target : null
+      if (heldTarget) heldTarget.heldButtons = button
+    }
+
+    // Every button still down, so a second button pressed or let go mid-hold
+    // leaves the first one's feedback alone.
+    onPressed: function(mouse) {
+      hold(root.focusPrimed && inBarRegion(mouse.x, mouse.y) ? pressTargetAt(mouse.x, mouse.y) : null, mouse.buttons)
+    }
+    onReleased: function(mouse) { hold(mouse.buttons ? heldTarget : null, mouse.buttons) }
+    onCanceled: hold(null)
+    onEnabledChanged: if (!enabled) hold(null)
+
     onPositionChanged: function(mouse) { hoveringBar = inBarRegion(mouse.x, mouse.y) }
     onExited: hoveringBar = false
     onClicked: function(mouse) {
@@ -401,19 +504,40 @@ PanelWindow {
 
   BorderSurface {
     id: card
-    x: root.cardOrigin.x
-    y: root.cardOrigin.y
-    width: root.contentWidth
-    height: root.contentHeight
+    x: root.morphed(root.morphFrom.x, root.cardOrigin.x)
+    y: root.morphed(root.morphFrom.y, root.cardOrigin.y)
+    width: root.morphed(root.morphFrom.width, root.contentWidth)
+    height: root.morphed(root.morphFrom.height, root.drawnHeight)
+    // While it morphs or grows, the content keeps its own size and the card
+    // crops it.
+    clip: root.morph < 1 || root.drawnHeight < root.contentHeight - 0.5
     color: Commons.Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius
-    opacity: root.open || root.popoutSwitching ? 1.0 : 0
 
-    Behavior on opacity {
-      enabled: !root.popoutSwitching && !root.popoutSwitchClosing
-      NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+    // The card fades in as it grows out of the bar from just under full size,
+    // toward the icon it hangs from, and goes in two thirds of the time. On a
+    // switch within a section of the bar it doesn't: the card morphs over from
+    // the last one.
+    property real shown: root.open || root.popoutSwitching ? 1 : 0
+    Behavior on shown {
+      id: showing
+      // The card giving way on a switch still fades out, briefly over the one
+      // taking its place, so there's no empty frame while that one maps.
+      enabled: !root.takingOver && !(root.popoutSwitching && root.morph < 1)
+      NumberAnimation {
+        duration: Style.duration(showing.targetValue > 0 ? 180 : 120)
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Style.easeOut
+      }
+    }
+    opacity: shown
+    transform: Scale {
+      origin.x: root.growOrigin.x
+      origin.y: root.growOrigin.y
+      xScale: 0.97 + 0.03 * card.shown
+      yScale: 0.97 + 0.03 * card.shown
     }
 
     // Swallow clicks on the card so they don't bubble to the dismissal
@@ -425,16 +549,18 @@ PanelWindow {
 
     Item {
       id: contentHolder
-      anchors.fill: parent
+      anchors.top: parent.top
+      anchors.left: parent.left
+      width: root.contentWidth - card.contentLeftInset - card.contentRightInset
+      height: root.contentHeight - card.contentTopInset - card.contentBottomInset
       // Right-to-left languages read the card mirrored; the card itself
       // stays where the bar puts it.
       LayoutMirroring.enabled: Commons.I18n.rightToLeft
       LayoutMirroring.childrenInherit: true
       anchors.topMargin: card.contentTopInset
-      anchors.rightMargin: card.contentRightInset
-      anchors.bottomMargin: card.contentBottomInset
       anchors.leftMargin: card.contentLeftInset
-      opacity: root.popoutSwitching ? (root.open ? 1.0 : 0) : 1.0
+      // Fades in with the morph, done by the time the card has mostly landed.
+      opacity: Math.min(1, root.morph * 1.6)
 
       Loader {
         id: contentLoader
@@ -444,10 +570,6 @@ PanelWindow {
         sourceComponent: root.content
       }
 
-      Behavior on opacity {
-        enabled: root.popoutSwitching
-        NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
-      }
     }
   }
 }

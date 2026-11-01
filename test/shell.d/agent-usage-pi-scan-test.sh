@@ -4,9 +4,8 @@
 # each for its own providers, so what one scan parses is paid once per
 # collector on every refresh. A file holding none of a collector's lines
 # must cost it nothing beyond rg's search: its prompts, tool results and
-# compactions are never parsed, and the file is never read again for the
-# model a summary ran on. A count, the same on every machine, rather than a
-# time.
+# compactions are never parsed, and no file is read again for the model a
+# summary ran on. A count, the same on every machine, rather than a time.
 
 set -euo pipefail
 
@@ -90,8 +89,8 @@ write(home / ".omp" / "agent" / "sessions" / "-" / "omp-compacted.jsonl", [
   {"type": "compaction", "id": "ocp", "timestamp": stamp, "runtime": runtime, "summary": "s", "firstKeptEntryId": "ou", "tokensBefore": 900, "usage": usage(700)},
 ])
 
-parsed = {"files": set(), "lines": 0, "reread": set()}
-pi_rows, pi_contexts = collectors._pi_rows, collectors._pi_contexts
+parsed = {"files": set(), "lines": 0}
+pi_rows = collectors._pi_rows
 
 
 def counting_rows(path, lines, accept):
@@ -100,13 +99,7 @@ def counting_rows(path, lines, accept):
   return pi_rows(path, lines, accept)
 
 
-def counting_contexts(path, lines):
-  parsed["reread"].add(Path(path).name)
-  return pi_contexts(path, lines)
-
-
 collectors._pi_rows = counting_rows
-collectors._pi_contexts = counting_contexts
 
 
 def scan(provider):
@@ -117,16 +110,16 @@ def scan(provider):
 
 
 rows, complete = scan("nobody")
-check("a scan for a provider with no sessions parses no line and rereads no file",
-      complete and not rows and not parsed["files"] and not parsed["reread"] and parsed["lines"] == 0, json.dumps({**parsed, "files": sorted(parsed["files"]), "reread": sorted(parsed["reread"])}))
+check("a scan for a provider with no sessions parses no line",
+      complete and not rows and not parsed["files"] and parsed["lines"] == 0, json.dumps({**parsed, "files": sorted(parsed["files"])}))
 
 rows, complete = scan("demo")
 check("a scan parses only the files holding its own lines, the omp switch's included",
-      complete and parsed["files"] == {"mine.jsonl", "omp-compacted.jsonl"} and parsed["reread"] <= {"mine.jsonl", "omp-compacted.jsonl"},
-      json.dumps({"files": sorted(parsed["files"]), "reread": sorted(parsed["reread"])}))
+      complete and parsed["files"] == {"mine.jsonl", "omp-compacted.jsonl"}, json.dumps(sorted(parsed["files"])))
+# The omp prompt no reply answered counts on the switch's model.
 check("its own replies, prompts and compactions still count",
       sorted((row.model, row.input_tokens, row.prompts) for row in rows)
-      == [("demo-model", 1000, 1), ("demo-model", 1001, 0), ("demo-model", 1002, 0), ("omp-model", 700, 0)],
+      == [("demo-model", 1000, 1), ("demo-model", 1001, 0), ("demo-model", 1002, 0), ("omp-model", 0, 1), ("omp-model", 700, 0)],
       json.dumps([row._asdict() for row in rows]))
 
 rows, complete = scan("other1")
@@ -164,4 +157,59 @@ check("a prompt counts on its own day, and an untimed one not at all",
       sorted((row.day, row.input_tokens, row.prompts) for row in rows)
       == sorted([(collectors.local_day(yesterday), 0, 1), (today, 40, 0), (today, 50, 0)]),
       json.dumps([row._asdict() for row in rows]))
+
+
+def turn(n, provider, model):
+  return [{"type": "message", "id": f"fu{n}", "timestamp": stamp, "message": {"role": "user", "content": "go", "timestamp": 1}},
+          {"type": "message", "id": f"fa{n}", "timestamp": stamp, "message": {"role": "assistant", "provider": provider, "model": model, "usage": usage(100), "timestamp": 2}}]
+
+
+# A fork copies its parent's whole history, as pi --fork does. A collector
+# that owns one fork's own reply reads the other files of the fork tree
+# only when they hold a copy of a prompt it booked: here none does.
+forks = work / "forks"
+history = [{"type": "model_change", "id": "fm", "timestamp": stamp, "provider": "busy", "modelId": "busy-model"}]
+for n in range(20):
+  history += turn(n, "busy", "busy-model")
+write(forks / "parent.jsonl", [{"type": "session", "version": 3, "id": "fp", "timestamp": stamp, "cwd": "/proj"}, *history])
+for n in range(6):
+  extra = []
+  if n == 5:
+    extra = [{"type": "model_change", "id": "fk", "timestamp": stamp, "provider": "late", "modelId": "late-model"}, *turn("k", "late", "late-model")]
+  write(forks / f"fork-{n}.jsonl", [{"type": "session", "version": 3, "id": f"ff{n}", "timestamp": stamp, "cwd": "/proj", "parentSession": str(forks / "parent.jsonl")}, *history, *extra])
+for key in parsed:
+  parsed[key] = set() if key != "lines" else 0
+rows, complete = collectors.scan_pi_sessions(r'"provider"\s*:\s*"late"', lambda name, model, entry: name == "late", roots=[forks])
+check("a fork's own reply parses no other file of its fork tree that holds none of its prompts",
+      complete and parsed["files"] == {"fork-5.jsonl"} and [(row.input_tokens, row.prompts) for row in rows] == [(100, 1)],
+      json.dumps({"files": sorted(parsed["files"]), "rows": [row._asdict() for row in rows]}))
+
+# pi deletes a session from /resume and leaves its forks naming it. The
+# fork's copies then count under the fork, and the scan is complete.
+orphan = work / "orphan"
+write(orphan / "fork.jsonl", [{"type": "session", "version": 3, "id": "of", "timestamp": stamp, "cwd": "/proj", "parentSession": str(orphan / "deleted.jsonl")},
+                              *history, {"type": "model_change", "id": "ok", "timestamp": stamp, "provider": "late", "modelId": "late-model"}, *turn("k", "late", "late-model")])
+for provider, want in (("busy", (2000, 20)), ("late", (100, 1))):
+  rows, complete = collectors.scan_pi_sessions(r'"provider"\s*:\s*"' + provider + '"', lambda name, model, entry: name == provider, roots=[orphan])
+  check(f"a fork whose parent was deleted is read in full for {provider}",
+        complete and (sum(row.input_tokens for row in rows), sum(row.prompts for row in rows)) == want,
+        json.dumps({"complete": complete, "rows": [row._asdict() for row in rows]}))
+
+# Two forks of that deleted session copied its last prompt, still
+# unanswered, and answered it on different providers: the gone parent still
+# ties them, so the prompt counts once, under one collector.
+siblings = work / "siblings"
+copied = [{"type": "model_change", "id": "sm", "timestamp": stamp, "provider": "busy", "modelId": "busy-model"},
+          {"type": "message", "id": "sq", "timestamp": stamp, "message": {"role": "user", "content": "go", "timestamp": 1}}]
+for name, provider in (("a", "alpha"), ("b", "beta")):
+  write(siblings / f"fork-{name}.jsonl", [{"type": "session", "version": 3, "id": f"s{name}", "timestamp": stamp, "cwd": "/proj", "parentSession": str(siblings / "deleted.jsonl")},
+                                         *copied, {"type": "model_change", "id": f"sc{name}", "timestamp": stamp, "provider": provider, "modelId": f"{provider}-model"},
+                                         {"type": "message", "id": f"sr{name}", "timestamp": stamp, "message": {"role": "assistant", "provider": provider, "model": f"{provider}-model", "usage": usage(100), "timestamp": 2}}])
+prompts, completes = 0, []
+for provider in ("alpha", "beta"):
+  rows, complete = collectors.scan_pi_sessions(r'"provider"\s*:\s*"' + provider + '"', lambda name, model, entry, provider=provider: name == provider, roots=[siblings])
+  prompts += sum(row.prompts for row in rows)
+  completes.append(complete)
+check("a prompt two forks of a deleted session copied and answered on different providers counts once",
+      all(completes) and prompts == 1, json.dumps({"prompts": prompts, "complete": completes}))
 PY

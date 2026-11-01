@@ -177,7 +177,8 @@ expect("Local still prints its record when the cache can't be written", models(r
 # model that answered it even when a legacy rollout writes it before the
 # turn_context: a tool call's two requests are one prompt, Codex's own context
 # and a subagent's messages are none, and a cloud model's prompt is no more
-# local than its tokens.
+# local than its tokens. A subagent naming no thread that started it starts no
+# session of its own either.
 use_home()
 rollout("paginated", meta("ollama"), context("qwen-tools"), typed("run ls"), token_count(1000),
         {"timestamp": STAMP, "type": "event_msg", "payload": {"type": "item_completed", "item": {"type": "CommandExecution", "id": "c1"}}},
@@ -190,7 +191,7 @@ rollout("subagent", {"timestamp": STAMP, "type": "session_meta", "payload": {"mo
 record = local()
 expect("Local counts the prompts typed, under the model that answered them", {
   "prompts": record["todayPrompts"], "sessions": record["totalSessions"], "models": models(record), "ready": record["ready"],
-}, {"prompts": 2, "sessions": 3, "models": ["qwen-legacy", "qwen-review", "qwen-tools"], "ready": True}, record)
+}, {"prompts": 2, "sessions": 2, "models": ["qwen-legacy", "qwen-review", "qwen-tools"], "ready": True}, record)
 
 # A rollout records its provider's id, never the URL it reached, so a custom
 # provider's endpoint is remembered from config.toml: its history stays local
@@ -213,6 +214,22 @@ codex_config.write_text('model = "gpt-5.1-codex"\n\n[model_providers.boxed]\nbas
 after = local()
 expect("Local keeps a custom Codex provider's history after it leaves config.toml", [models(before), models(after)],
        [["gpt-5.1-codex", "qwen-boxed", "qwen-profiled"], ["gpt-5.1-codex", "qwen-profiled"]], after)
+
+# The base URL decides, not the id: a Codex entry under an id another
+# collector claims is local's on this machine, as `kimchi codex` writes one
+# for a self-hosted Kimchi gateway, and still the claiming collector's
+# nowhere else (a real Codex 0.163 run served 10074 tokens there).
+use_home()
+codex_config = Path(os.environ["CODEX_HOME"]) / "config.toml"
+codex_config.parent.mkdir(parents=True, exist_ok=True)
+codex_config.write_text('model_provider = "kimchi"\nmodel = "kimi-k2-mock"\n\n[model_providers.kimchi]\nname = "Kimchi Gateway"\n'
+                        'base_url = "http://127.0.0.1:18491/openai/v1"\nwire_api = "responses"\n')
+turn("kimchi-here", "kimchi", "kimi-k2-mock")
+turn("kimchi-cloud", "kimchi", "glm-4.6:cloud")
+record = local()
+expect("Local counts a Codex entry on this machine whatever collector claims its id, but not a cloud-tagged model",
+       models(record), ["kimi-k2-mock"], record)
+expect("and the claiming collector doesn't count it too", collect("kimchi", "--force").get("modelUsage") or {}, {})
 
 # Only a turn with no time at all takes the file's day; a time of 0, false or
 # "" can't be trusted, so that turn counts nowhere, as in the Codex collector.

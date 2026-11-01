@@ -138,6 +138,23 @@ keyring = codex("backend")
 (home() / ".codex" / "config.toml").unlink()
 expect("a keyring login, which can't be told apart, keeps no limits", keyring["limits"], [], keyring)
 
+# An API-key login has no plan limits, so no app-server is started to ask and
+# there is no sign-in to ask for: Codex's own auth_mode, or a key without
+# ChatGPT tokens. A ChatGPT auth_mode beside a key still asks Codex.
+for shape in ({"auth_mode": "apikey", "OPENAI_API_KEY": "sk-test"}, {"OPENAI_API_KEY": "sk-test"}, {"OPENAI_API_KEY": "sk-test", "tokens": None},
+              {"OPENAI_API_KEY": "sk-test", "tokens": {"id_token": "x", "access_token": "y", "refresh_token": "z"}}):
+  write_json(home() / ".codex" / "auth.json", shape)
+  before_starts = starts()
+  keyed = [codex("ok"), codex("ok", "--limits-only")]
+  expect(f"an API-key Codex login starts no app-server and waits for no auth ({json.dumps(sorted(shape))})",
+         [[(run["limits"], run["usageStatusText"], run["authHelpText"], run["limitsStale"]) for run in keyed], starts() - before_starts],
+         [[([], "", "Signed in with an API key, which has no plan limits.", False)] * 2, 0], keyed)
+write_json(home() / ".codex" / "auth.json", {"auth_mode": "chatgpt", "OPENAI_API_KEY": "sk-test"})
+before_starts = starts()
+chatgpt = codex("ok")
+expect("a ChatGPT auth_mode beside an API key still asks the app-server", [bool(chatgpt["limits"]), starts() - before_starts], [True, 1], chatgpt)
+login("ws-one", "user-a")
+
 own = codex("backend")
 expect("the file store's own account keeps its limits", [own["limitsStale"], own["limits"] == good["limits"]], [True, True], own)
 

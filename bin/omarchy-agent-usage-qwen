@@ -88,8 +88,11 @@ PROMPT_SUBTYPES = (None, "mid_turn_user_message")
 # Version 3 counted a reply's thinking twice where its output held it.
 # Version 4 kept no reply's auth type and model id, which say where it was
 # sent. Version 5 kept no failed request, which says where a prompt went that
-# no reply answered.
-INDEX_VERSION = 6
+# no reply answered. Version 6 keyed a reply by its response id, which a
+# server that recycles ids gives different replies. Version 7 kept no mark on
+# a fork's copied records, so a fork whose file sorted first took its
+# source's records and session.
+INDEX_VERSION = 8
 INDEX_HEAD_BYTES = 4096
 
 MAX_MODEL_NAME_LEN = 120
@@ -187,10 +190,12 @@ def trusted_time(*values):
 def parse_line(raw, session):
   """One transcript line as an index row, or None.
 
-  A prompt is ["p", key, time, session]; a billed response is
+  A prompt is ["p", key, time, session, copy]; a billed response is
   ["r", key, time, session, model, input, output, cacheRead, authType,
-  modelId]; a failed request is ["e", key, time, session, authType, modelId].
-  The key dedups a record a resumed or branched session carries again.
+  modelId, copy]; a failed request is ["e", key, time, session, authType,
+  modelId, copy]. The key, the record's uuid, dedups a record a forked
+  session carries again, and copy (1 or 0) says the record is such a copy:
+  Qwen Code's forkSession marks every record it copies with a forkedFrom.
   """
   if b'"user"' not in raw and API_RESPONSE_EVENT.encode() not in raw and API_ERROR_EVENT.encode() not in raw:
     return None
@@ -203,6 +208,7 @@ def parse_line(raw, session):
     return None
   session = str(record.get("sessionId") or session)
   uuid = str(record.get("uuid") or "")
+  copy = 1 if record.get("forkedFrom") is not None else 0
 
   if record.get("type") == "user":
     if record.get("subtype") not in PROMPT_SUBTYPES:
@@ -210,14 +216,14 @@ def parse_line(raw, session):
     stamp, ok = trusted_time(record.get("timestamp"))
     if not ok or not uuid:
       return None
-    return ["p", uuid, stamp, session]
+    return ["p", uuid, stamp, session, copy]
 
   if record.get("type") != "system" or record.get("subtype") != "ui_telemetry":
     return None
   event = obj(obj(record.get("systemPayload")).get("uiEvent"))
   if event.get("event.name") == API_ERROR_EVENT and uuid:
     stamp, _ = trusted_time(event.get("event.timestamp"), record.get("timestamp"))
-    return ["e", uuid, stamp, session, str(event.get("auth_type") or ""), str(event.get("model") or "")]
+    return ["e", uuid, stamp, session, str(event.get("auth_type") or ""), str(event.get("model") or ""), copy]
   if event.get("event.name") != API_RESPONSE_EVENT:
     return None
   stamp, ok = trusted_time(event.get("event.timestamp"), record.get("timestamp"))
@@ -238,10 +244,14 @@ def parse_line(raw, session):
     output += thoughts
   if prompt + output <= 0:
     return None
-  key = str(event.get("response_id") or "") or uuid
+  # A fork copies each record verbatim, its uuid included, and a resumed
+  # session appends to its own transcript, so the uuid is what a copy shares.
+  # A server's response id is not: one that recycles short ids gives
+  # different replies the same one.
+  key = uuid or str(event.get("response_id") or "")
   if not key:
     return None
-  return ["r", key, stamp, session, model, prompt - cached, output, cached, str(event.get("auth_type") or ""), str(event.get("model"))]
+  return ["r", key, stamp, session, model, prompt - cached, output, cached, str(event.get("auth_type") or ""), str(event.get("model")), copy]
 
 
 def read_digest(path, length):
@@ -427,12 +437,17 @@ def route_owner(auth_type, model, routes, urls=None):
   return AGENT_ID if auth_type == "" else None
 
 
+# Where parse_line() keeps each kind of row's copy mark.
+COPY_FIELD = {"p": 4, "e": 6, "r": 10}
+
+
 def summarize(rows, owner):
   """The usage rows `owner` bills from a transcript's index rows, in file
   order. Qwen Code's prompts are its user records, not its replies: a reply
   adds its tokens, and a prompt only its session and day, billed with the
   next request sent for it, answered or not, else with the route settings.json
-  selects."""
+  selects. Beside them, each row's (kind, key) and whether it is a fork's
+  copy."""
   routes, urls, selected = route_config(qwen_home())
   parsed = []
   for row in rows:
@@ -449,9 +464,10 @@ def summarize(rows, owner):
         model, counts, billed = "", [0, 0, 0], None
       else:
         continue
+      copy = bool(row[COPY_FIELD[kind]])
     except (TypeError, ValueError, IndexError, OverflowError, OSError):
       continue
-    parsed.append([kind, key, day, str(session), model, counts, billed])
+    parsed.append([kind, key, day, str(session), model, counts, billed, copy])
   answered = route_owner(*selected, routes, urls)
   for entry in reversed(parsed):
     if entry[0] in ("r", "e"):
@@ -459,11 +475,11 @@ def summarize(rows, owner):
     else:
       entry[6] = answered
   parsed = [entry for entry in parsed if entry[0] != "e"]
+  kept = [entry for entry in parsed if entry[2] is not None and entry[6] == owner]
   return [
     UsageRow(day, session, "", model, *counts, 0, prompts=0 if kind == "r" else 1)
-    for kind, key, day, session, model, counts, billed in parsed
-    if day is not None and billed == owner
-  ], [(kind, key) for kind, key, day, session, model, counts, billed in parsed if day is not None and billed == owner]
+    for kind, key, day, session, model, counts, billed, copy in kept
+  ], [((kind, key), copy) for kind, key, day, session, model, counts, billed, copy in kept]
 
 
 def index_path():
@@ -488,7 +504,7 @@ def harness_rows(owner):
   previous = load_index(index_file) if index_file else {}
   current = {}
   complete = True
-  found, seen = [], set()
+  originals, copies = [], []
   for path in chat_files():
     key = str(path)
     try:
@@ -498,10 +514,15 @@ def harness_rows(owner):
       complete = False
       continue
     rows, keys = summarize(current[key].get("rows") or [], owner)
-    for row, row_key in zip(rows, keys):
-      if row_key not in seen:
-        seen.add(row_key)
-        found.append(row)
+    for row, (row_key, copy) in zip(rows, keys):
+      (copies if copy else originals).append((row_key, row))
+  # A fork's copy counts only where its source's record is gone, whichever
+  # file name sorts first, so the record stays the session's that wrote it.
+  found, seen = [], set()
+  for row_key, row in originals + copies:
+    if row_key not in seen:
+      seen.add(row_key)
+      found.append(row)
   if index_file and current != previous:
     try:
       write_json(index_file, {"version": INDEX_VERSION, "files": current})

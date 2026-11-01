@@ -66,7 +66,24 @@ def turn(text, prompt_id, at, input_other, output, cache_read, message_id):
   ]
 
 
+# Where the runs below sent mock/kimi-k2, unless a test says otherwise: a
+# provider of Kimi's type with no base_url, Moonshot's own API.
+MOCK_CONFIG = """[providers.mock]
+type = "kimi"
+api_key = "sk-test-dummy"
+
+[models."mock/kimi-k2"]
+provider = "mock"
+model = "kimi-k2"
+max_context_size = 131072
+"""
+
+
 def wire(session, lines, agent="main", root=None):
+  config = (root or home() / ".kimi-code") / "config.toml"
+  if not config.exists():
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(MOCK_CONFIG)
   path = (root or home() / ".kimi-code") / "sessions" / WORKSPACE / session / "agents" / agent / "wire.jsonl"
   path.parent.mkdir(parents=True, exist_ok=True)
   with path.open("a") as handle:
@@ -243,6 +260,26 @@ expect("a Kimi Code prompt no request answered counts where its route goes",
        {cid: [record["todayPrompts"], record["todaySessions"], record["todayTotalTokens"]] for cid, record in records.items()},
        {"kimi": [1, 1, 0], "local": [2, 2, 0]}, records)
 
+# Kimi Code sends nothing on an alias config.toml doesn't name, so one
+# missing from it was removed since: a provider's, which nothing can place
+# any more and counts nowhere, prompts included, or one of the plan's
+# kimi-code/ models, which stays Kimi's. KIMI_MODEL_NAME's alias, never
+# saved, is Kimi's too. Shaped as Kimi Code 2.3.0 wrote `kimi -m
+# dead/kimi-dead -p` against a dead port and a tool loop on mock2/kimi-tool,
+# both providers then deleted from config.toml.
+sandbox()
+(home() / ".kimi-code").mkdir()
+(home() / ".kimi-code" / "config.toml").write_text('default_model = "kimi-code/kimi-for-coding"\n')
+wire("session_dead", failed_turn("dead/kimi-dead", "msg_01M5J2C56CQXYMM9KX3ABF4D0H", NOW_MS))
+wire("session_bound", failed_turn("dead/kimi-dead", "msg_b", NOW_MS, attempts=0))
+wire("session_tool", [prompt("TOOLLOOP read note.txt", "msg_t1", NOW_MS), usage(NOW_MS + 10, 24702, 120, 0, model="mock2/kimi-tool")])
+wire("session_plan", [prompt("plan", "msg_p1", NOW_MS), usage(NOW_MS + 10, 1000, 10, 0, model="kimi-code/kimi-k2.5")])
+wire("session_env", [prompt("env", "msg_e1", NOW_MS), usage(NOW_MS + 10, 100, 1, 0, model="__kimi_env_model__")])
+records = {cid: collect(cid, "--force") for cid in ("kimi", "local")}
+expect("a removed Kimi Code provider counts nowhere, while the plan's dropped models and KIMI_MODEL_NAME's stay Kimi's",
+       {cid: [record["todayPrompts"], record["todaySessions"], record["todayTokensByModel"]] for cid, record in records.items()},
+       {"kimi": [2, 2, {"kimi-code/kimi-k2.5": 1010, "__kimi_env_model__": 101}], "local": [0, 0, {}]}, records)
+
 # A fork copies its source's wire, then marks it forked; the copies count
 # once, under the source's session, while what the fork did after counts too.
 # A fork with nothing of its own is no session of its own.
@@ -336,11 +373,12 @@ expect("Kimi counts pi and opencode on the Kimi Code plan ids and Moonshot's pay
 
 # A route change reaches the cached scan at once, even on the panel's
 # --limits-only refresh that otherwise reuses a scan for minutes: the request
-# config.toml didn't name was Kimi's, and once it names a server you run, it
-# is not. Shaped as Kimi Code 2.3.0 wrote a tool loop on that alias.
+# on Moonshot's API was Kimi's, and once config.toml sends its alias to a
+# server you run, it is not. Shaped as Kimi Code 2.3.0 wrote a tool loop on
+# that alias.
 sandbox()
 (home() / ".kimi-code").mkdir()
-(home() / ".kimi-code" / "config.toml").write_text('default_model = "x"\n')
+(home() / ".kimi-code" / "config.toml").write_text('[providers.mock2]\ntype = "kimi"\n\n[models."mock2/kimi-tool"]\nprovider = "mock2"\nmodel = "kimi-tool"\n')
 wire("session_tool", [prompt("TOOLLOOP read note.txt", "msg_t1", NOW_MS), usage(NOW_MS + 10, 24702, 120, 0, model="mock2/kimi-tool")])
 before = kimi("--limits-only")
 (home() / ".kimi-code" / "config.toml").write_text("""[providers.mock2]

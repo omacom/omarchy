@@ -601,7 +601,7 @@ expect("Claude asks a signed-out Claude Code home to sign in", [record["ready"],
 
 # ------------------------------------------------------------- cost-state
 
-# Claude Code 2.1.308 writes a cost-state line when a process saves its
+# Claude Code 2.1.278 and later write a cost-state line when a process saves its
 # cost: the lineage's startTime, carried through a resume and a
 # --fork-session, and what each model has used in it so far, the requests no
 # reply line records (a /compact, the session title, a side query)
@@ -692,6 +692,20 @@ transcript(typed("gw", "u-g1", STAMP), reply("gw", "msg_g1", (500, 5, 0, 0), STA
            cost_state("gw", 1792681376828, {"anthropic/claude-sonnet-4.5": (500, 5, 0, 0)}), name="gw.jsonl")
 expect("Claude counts nothing more for a cost-state that names the replies' model another way", claude_code_days(),
        {today_day: {"claude-sonnet-4-5-20250929": 505}})
+
+# Claude Code 2.1.282 can write a subagent's reply with only its
+# message_start usage (stop_reason null, a few output tokens) and never its
+# real output. The cost-state's totals make up the difference, on the day of
+# the cost-state, not the day the subagent ran.
+sandbox()
+snapshot = {**reply("snap", "msg_s1", (3, 10, 40000, 2000), YESTERDAY, model="claude-opus-4-5", sidechain=True)}
+snapshot["message"] = {**snapshot["message"], "stop_reason": None, "content": [{"type": "tool_use", "id": "toolu_1", "name": "Read", "input": {}}]}
+transcript(snapshot, name="snap/subagents/agent-a1.jsonl")
+transcript(typed("snap", "u-n1", YESTERDAY), reply("snap", "msg_n1", (100, 50, 0, 0), YESTERDAY, model="claude-opus-4-5"),
+           typed("snap", "u-n2", STAMP), reply("snap", "msg_n2", (10, 1, 0, 0), STAMP, model="claude-opus-4-5"),
+           cost_state("snap", 1790338485827, {"claude-opus-4-5": (113, 2461, 40000, 2000)}), name="snap.jsonl")
+expect("Claude counts the output a cost-state holds beyond a subagent's message_start snapshot, on the cost-state's day", claude_code_days(),
+       {yesterday: {"claude-opus-4-5": 42163}, today_day: {"claude-opus-4-5": 2411}})
 
 # ---------------------------------------------------------------- contract
 

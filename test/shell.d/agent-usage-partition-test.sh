@@ -1545,3 +1545,1112 @@ PY
 else
   fail "--force rereads a Codex rollout rewritten to the same size and mtime in every collector that bills one" "$codex_forced"
 fi
+
+# ------------------------------------- Claude Code and Codex sent to Synthetic
+
+# Synthetic documents Claude Code on its Anthropic-compatible API
+# (ANTHROPIC_BASE_URL=https://api.synthetic.new/anthropic, with hf:org/model
+# ids and syn: aliases as the models) and an OpenAI-compatible one at
+# /openai/v1. Behind that base URL every reply is synthetic's, a Claude-named
+# one too; with no override an hf: or syn: model still is, and a Codex
+# model_providers entry at the host is, whatever its id. The lines are shaped
+# as Claude Code 2.1.308 and Codex 0.163 write them.
+SYNTHETIC_HOME="$WORK/synthetic-routes"
+mkdir -p "$SYNTHETIC_HOME/.codex"
+cat >"$SYNTHETIC_HOME/.codex/config.toml" <<'TOML'
+[model_providers.syn]
+name = "syn"
+base_url = "https://api.synthetic.new/openai/v1"
+TOML
+python3 - "$SYNTHETIC_HOME" "$WORK/synthetic-cells.json" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+# (model, owner with no override, owner behind Synthetic's base URL).
+MODELS = [
+  ("hf:moonshotai/Kimi-K2.5-zs900", "synthetic", "synthetic"),
+  ("syn:large:text-zs901", "synthetic", "synthetic"),
+  ("hf:zai-org/GLM-4.7-Flash-zs902", "synthetic", "synthetic"),
+  ("claude-sonnet-4-5-zs903", "claude", "synthetic"),
+  ("glm-4.6-zs904", "zai", "synthetic"),
+]
+session = "1baa699a-5508-4dc9-bbe8-9b8b236c5300"
+lines, cells = [], []
+for n, (model, bare, routed) in enumerate(MODELS):
+  tokens = 8001234 + 1000 * n
+  prompt = f"894c905e-cd07-4593-946b-c63e9a80{n:04d}"
+  lines.append({"parentUuid": None, "isSidechain": False, "promptId": f"dcabb8e9-c1ea-4e48-a2ce-7a27caa1{n:04d}", "type": "user", "uuid": prompt,
+                "timestamp": stamp, "origin": {"kind": "human"}, "promptSource": "typed", "userType": "external", "entrypoint": "cli",
+                "sessionId": session, "version": "2.1.308", "message": {"role": "user", "content": "go"}})
+  lines.append({"parentUuid": prompt, "isSidechain": False, "requestRef": f"78b6e39e-b112-4b92-a1cb-2489e2f2{n:04d}", "requestedModel": model,
+                "type": "assistant", "uuid": f"da577048-3a3d-4f5e-aed2-0df4c92b{n:04d}", "timestamp": stamp, "userType": "external",
+                "entrypoint": "cli", "sessionId": session, "version": "2.1.308",
+                "message": {"id": f"msg_syn_{n:04d}", "type": "message", "role": "assistant", "model": model, "content": [{"type": "text", "text": "ok"}],
+                            "stop_reason": "end_turn", "usage": {"input_tokens": tokens, "cache_creation_input_tokens": 31, "cache_read_input_tokens": 71,
+                                                                 "output_tokens": 51, "service_tier": "standard"}}})
+  cells.append({"tag": f"zs{900 + n}", "tokens": tokens + 31 + 71 + 51, "owners": [bare, routed]})
+projects = home / ".claude/projects/-home-dhh-proj"
+projects.mkdir(parents=True)
+(projects / f"{session}.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+thread = "01a16375-5c70-7982-8b22-06dc854c1a00"
+usage = {"input_tokens": 8234, "cached_input_tokens": 71, "cache_write_input_tokens": 31, "output_tokens": 51, "reasoning_output_tokens": 0, "total_tokens": 8285}
+rollouts = home / ".codex/sessions" / datetime.now().strftime("%Y/%m/%d")
+rollouts.mkdir(parents=True)
+(rollouts / f"rollout-zs910-{thread}.jsonl").write_text("".join(json.dumps(line) + "\n" for line in [
+  {"timestamp": stamp, "type": "session_meta", "payload": {"session_id": thread, "id": thread, "originator": "codex_exec", "cli_version": "0.163.0", "source": "exec", "thread_source": "user", "model_provider": "syn"}},
+  {"timestamp": stamp, "type": "turn_context", "payload": {"model": "hf:zai-org/GLM-5.3-zs910"}},
+  {"timestamp": stamp, "type": "event_msg", "payload": {"type": "item_completed", "thread_id": thread, "item": {"type": "UserMessage", "id": "u0", "content": [{"type": "text", "text": "go"}]}}},
+  {"timestamp": stamp, "type": "token_usage_record", "payload": {"thread_id": thread, "response_id": "resp_syn_0001", "usage": usage, "thread_token_usage": usage}},
+  {"timestamp": stamp, "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": usage, "last_token_usage": usage}}},
+]))
+cells.append({"tag": "zs910", "tokens": usage["input_tokens"] + usage["output_tokens"], "owners": ["synthetic", "synthetic"]})
+json.dump(cells, open(sys.argv[2], "w"))
+PY
+run_all "$SYNTHETIC_HOME" "$WORK/synthetic-results-0"
+run_all "$SYNTHETIC_HOME" "$WORK/synthetic-results-1" ANTHROPIC_BASE_URL="https://api.synthetic.new/anthropic"
+
+synthetic_report=$(python3 - "$WORK" "${collectors[@]}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+work = Path(sys.argv[1])
+cells = json.load(open(work / "synthetic-cells.json"))
+for run, label in enumerate(("with no override", "sent to https://api.synthetic.new/anthropic")):
+  seen = {cell["tag"]: {} for cell in cells}
+  for cid in sys.argv[2:]:
+    try:
+      record = json.loads((work / f"synthetic-results-{run}" / f"{cid}.json").read_text())
+    except ValueError:
+      print(f"{label}: {cid} printed no JSON record")
+      continue
+    for model, bucket in (record.get("modelUsage") or {}).items():
+      total = sum(bucket.get(key) or 0 for key in ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"))
+      for tag in re.findall(r"zs9\d\d", model):
+        if tag in seen and total:
+          seen[tag][cid] = seen[tag].get(cid, 0) + total
+  for cell in cells:
+    tag, owner, tokens = cell["tag"], cell["owners"][run], cell["tokens"]
+    wrong = [f"{cid} counted it {total / tokens:g}x" for cid, total in sorted(seen[tag].items()) if cid != owner or total != tokens]
+    if owner not in seen[tag]:
+      wrong.insert(0, f"{owner} missed it")
+    if wrong:
+      print(f"{tag} {label}, expected {owner}: {'; '.join(wrong)}")
+PY
+)
+if [[ -z $synthetic_report ]]; then
+  pass "Claude Code and Codex set up as Synthetic documents count once, under synthetic"
+else
+  fail "Claude Code and Codex set up as Synthetic documents count once, under synthetic" "$synthetic_report"
+fi
+
+# ----------------------------------------------- prompts no reply answered
+
+# A typed prompt whose request failed, or that got no reply at all, still
+# counts once, under the collector billing the model the session was set to
+# use for it, and holds its session in use: pi and omp write the failed reply
+# with its provider and no usage, opencode the user row with its model. The
+# lines are shaped as pi 1.4.0, omp 18.12.6 and opencode 1.19.3 wrote them
+# against a server refusing the request with a 400. A prompt typed at an
+# untrusted time counts nowhere.
+UNANSWERED_HOME="$WORK/unanswered"
+python3 - "$UNANSWERED_HOME" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+now_ms = int(time.time() * 1000) - 1000
+runtime = {"version": "18.12.6"}
+zero = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0, "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0}}
+
+
+def spent(n):
+  return {"input": 121101 + n, "output": 1251, "cacheRead": 1271, "cacheWrite": 0, "reasoning": 1204, "totalTokens": 123623 + n, "cost": zero["cost"]}
+
+
+def user(n, text, at=None, omp=False):
+  message = {"role": "user", "content": [{"type": "text", "text": text}], "timestamp": now_ms if at is None else at}
+  if omp:
+    message["attribution"] = "user"
+  return {"type": "message", "id": f"u{n}", "timestamp": stamp if at is None else at, "message": message}
+
+
+def reply(n, provider, model, usage):
+  message = {"role": "assistant", "content": [{"type": "text", "text": "" if usage is zero else "hi"}], "api": "openai-completions",
+             "provider": provider, "model": model, "usage": usage, "stopReason": "error" if usage is zero else "stop", "timestamp": now_ms}
+  if usage is zero:
+    message["errorMessage"] = '400: {"message":"refused","type":"invalid_request_error"}'
+  return {"type": "message", "id": f"a{n}", "timestamp": stamp, "message": message}
+
+
+def write(path, lines):
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+
+pi = home / ".pi/agent/sessions/--home-me--"
+omp = home / ".omp/agent/sessions/-"
+# pi: a failed prompt, then an answered one, on Synthetic.
+write(pi / "failed-then-answered.jsonl", [
+  {"type": "session", "version": 3, "id": "s1", "timestamp": stamp, "cwd": "/home/me"},
+  {"type": "model_change", "id": "m1", "parentId": None, "timestamp": stamp, "provider": "synthetic", "modelId": "e2e-failpi"},
+  user(11, "FAILME"), reply(11, "synthetic", "e2e-failpi", zero),
+  user(12, "Say hi"), reply(12, "synthetic", "e2e-failpi", spent(1)),
+])
+# pi: a prompt failed on Z.ai, then the session switched to DeepSeek, which
+# answered the next one: one prompt each.
+write(pi / "failed-then-switched.jsonl", [
+  {"type": "session", "version": 3, "id": "s2", "timestamp": stamp, "cwd": "/home/me"},
+  {"type": "model_change", "id": "m2", "parentId": None, "timestamp": stamp, "provider": "zai", "modelId": "e2e-failzai"},
+  user(21, "FAILME"), reply(21, "zai", "e2e-failzai", zero),
+  {"type": "model_change", "id": "m2b", "parentId": "a21", "timestamp": stamp, "provider": "deepseek", "modelId": "e2e-failswitch"},
+  user(22, "Say hi"), reply(22, "deepseek", "e2e-failswitch", spent(2)),
+])
+# pi: a failed prompt typed at an untrusted time, the session's only one.
+write(pi / "untimed.jsonl", [
+  {"type": "session", "version": 3, "id": "s3", "timestamp": stamp, "cwd": "/home/me"},
+  {"type": "model_change", "id": "m3", "parentId": None, "timestamp": stamp, "provider": "zai", "modelId": "e2e-untimed"},
+  user(31, "FAILME", at=0), reply(31, "zai", "e2e-untimed", zero),
+])
+# omp: a failed prompt, then an answered one, on Z.ai, with a handoff
+# compaction that records no usage.
+write(omp / "failed-then-answered.jsonl", [
+  {"type": "session", "version": 3, "id": "s4", "timestamp": stamp, "cwd": "/home/me"},
+  {"type": "model_change", "id": "m4", "parentId": None, "timestamp": stamp, "runtime": runtime, "model": "zai/e2e-failomp", "resolvedModelIsFallback": False},
+  user(41, "FAILME", omp=True), reply(41, "zai", "e2e-failomp", zero),
+  user(42, "Say hi", omp=True), reply(42, "zai", "e2e-failomp", spent(4)),
+  {"type": "compaction", "id": "c4", "parentId": "a42", "timestamp": stamp, "runtime": runtime, "summary": "s", "firstKeptEntryId": "a42", "tokensBefore": 123929, "tokensAfter": 2054, "method": "handoff"},
+])
+# omp: a prompt on DeepSeek that got no reply at all (the process died), so
+# only the model switch says where it was going.
+write(omp / "no-reply.jsonl", [
+  {"type": "session", "version": 3, "id": "s5", "timestamp": stamp, "cwd": "/home/me"},
+  {"type": "model_change", "id": "m5", "parentId": None, "timestamp": stamp, "runtime": runtime, "model": "deepseek/e2e-noreply", "resolvedModelIsFallback": False},
+  user(51, "hello?", omp=True),
+])
+
+db = home / ".local/share/opencode/opencode.db"
+db.parent.mkdir(parents=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE TABLE session (id text PRIMARY KEY, parent_id text, title text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL)")
+rows = []
+
+
+def oc_user(session, n, provider, model):
+  rows.append((f"msg_{session}_u{n}", session, now_ms + n, {"role": "user", "time": {"created": now_ms + n}, "agent": "build", "model": {"providerID": provider, "modelID": model}, "summary": {"diffs": []}}))
+
+
+def oc_step(session, n, provider, model, tokens):
+  data = {"parentID": f"msg_{session}_u{n}", "role": "assistant", "mode": "build", "agent": "build", "path": {"cwd": "/home/me", "root": "/"}, "cost": 0,
+          "tokens": tokens, "modelID": model, "providerID": provider, "time": {"created": now_ms + n + 1, "completed": now_ms + n + 2}}
+  if tokens["input"]:
+    data["finish"] = "stop"
+  else:
+    data["error"] = {"name": "APIError", "data": {"message": "refused", "statusCode": 400, "isRetryable": False}}
+  rows.append((f"msg_{session}_a{n}", session, now_ms + n + 1, data))
+
+
+failed = {"input": 0, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}}
+answered = {"total": 123827, "input": 121301, "output": 47, "reasoning": 1206, "cache": {"write": 0, "read": 1273}}
+# A failed prompt, then `-c` and an answered one, on Synthetic.
+oc_user("ses_failoc", 1, "synthetic", "oc-failoc")
+oc_step("ses_failoc", 1, "synthetic", "oc-failoc", failed)
+oc_user("ses_failoc", 3, "synthetic", "oc-failoc")
+oc_step("ses_failoc", 3, "synthetic", "oc-failoc", answered)
+# A session holding only a failed prompt, on Z.ai.
+oc_user("ses_failzai", 1, "zai", "oc-failzai")
+oc_step("ses_failzai", 1, "zai", "oc-failzai", failed)
+for session in ("ses_failoc", "ses_failzai"):
+  conn.execute("INSERT INTO session VALUES (?, NULL, 'FAILME', ?, ?)", (session, now_ms - 1000, now_ms - 1000))
+conn.executemany("INSERT INTO message VALUES (?, ?, ?, ?, ?)", [(mid, session, at, at, json.dumps(data)) for mid, session, at, data in rows])
+conn.commit()
+conn.close()
+PY
+run_all "$UNANSWERED_HOME" "$WORK/unanswered-results"
+
+unanswered_report=$(python3 - "$WORK/unanswered-results" "${collectors[@]}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+results = Path(sys.argv[1])
+# (prompts, sessions) each collector must count; every other one counts none.
+expected = {"synthetic": (4, 2), "zai": (4, 3), "deepseek": (2, 2)}
+for cid in sys.argv[2:]:
+  try:
+    record = json.loads((results / f"{cid}.json").read_text())
+  except ValueError:
+    print(f"{cid} printed no JSON record")
+    continue
+  want = expected.get(cid, (0, 0))
+  got = (record.get("totalPrompts"), record.get("totalSessions"))
+  today = (record.get("todayPrompts"), record.get("todaySessions"))
+  if got != want or today != want:
+    print(f"{cid}: prompts and sessions {got} (today {today}), expected {want}")
+PY
+)
+if [[ -z $unanswered_report ]]; then
+  pass "a prompt no reply answered in pi, omp or opencode counts once, under the model its session was set to use"
+else
+  fail "a prompt no reply answered in pi, omp or opencode counts once, under the model its session was set to use" "$unanswered_report"
+fi
+
+# ------------------------------ Codex's built-in provider and its own threads
+
+# Codex 0.163 sends its built-in `openai` provider wherever config.toml's
+# openai_base_url says (OPENAI_BASE_URL does nothing), and its rollouts still
+# record only `"model_provider":"openai"`. Behind a provider's host every
+# built-in rollout is that provider's; behind a self-hosted URL a model not
+# OpenAI's is local's; behind a host nothing can place it counts nowhere,
+# and OpenAI's own models stay codex's behind either. Dropping the key puts
+# them back under codex. A guardian thread counts under the session that
+# started it, in every collector. The lines are shaped as Codex 0.160 and
+# 0.163 write them.
+CODEX_NATIVE_HOME="$WORK/codex-native-routes"
+mkdir -p "$CODEX_NATIVE_HOME/.codex"
+python3 - "$CODEX_NATIVE_HOME" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+rollouts = home / ".codex/sessions" / datetime.now().strftime("%Y/%m/%d")
+rollouts.mkdir(parents=True)
+
+
+def rollout(tag, thread, meta, model, n, typed=True):
+  usage = {"input_tokens": 9234 + n, "cached_input_tokens": 71, "cache_write_input_tokens": 31, "output_tokens": 51, "reasoning_output_tokens": 0, "total_tokens": 9285 + n}
+  turn = f"01a1647f-6fd1-7341-86cf-b00a9315{n:04d}"
+  item = {"type": "UserMessage", "id": f"01a1647f-7085-7231-a532-dda74a01{n:04d}", "content": [{"type": "text", "text": "go", "text_elements": []}]} if typed else {"type": "Reasoning", "id": f"rs_{n:04d}", "summary_text": [], "raw_content": []}
+  lines = [
+    {"timestamp": stamp, "ordinal": 0, "type": "session_meta", "payload": {"session_id": thread, "id": thread, "cli_version": "0.163.0", "history_mode": "paginated", **meta}},
+    {"timestamp": stamp, "ordinal": 5, "type": "turn_context", "payload": {"model": model, "turn_id": turn}},
+    {"timestamp": stamp, "ordinal": 8, "type": "event_msg", "payload": {"type": "item_completed", "thread_id": thread, "turn_id": turn, "item": item}},
+    {"timestamp": stamp, "ordinal": 10, "type": "token_usage_record", "payload": {"thread_id": thread, "turn_id": turn, "session_id": meta.get("session_id", thread), "response_id": f"resp_zo_{n:04d}", "usage": usage, "turn_token_usage": usage, "thread_token_usage": usage}},
+    {"timestamp": stamp, "ordinal": 13, "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": usage, "last_token_usage": usage, "model_context_window": 258400}}},
+  ]
+  (rollouts / f"rollout-{tag}-{thread}.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+
+exec_meta = {"originator": "codex_exec", "source": "exec", "thread_source": "user", "model_provider": "openai"}
+rollout("zo920", "01a1647f-6fb5-7081-a481-257bbb530920", exec_meta, "hf:zai-org/GLM-4.6-zo920", 0)
+rollout("zo921", "01a1647f-6fb5-7081-a481-257bbb530921", exec_meta, "gpt-5.1-codex-zo921", 1)
+parent = "01a116c6-3c98-7931-bbd3-71e4e2ed0922"
+rollout("zo922", parent, {"originator": "codex-tui", "source": "cli", "thread_source": "user", "model_provider": "syn"}, "gpt-6.1-sol-zo922", 2)
+rollout("zo923", "01a1284c-6fa4-7c13-8d29-e2d8b5660923",
+        {"session_id": parent, "parent_thread_id": parent, "originator": "codex-tui", "source": {"subagent": {"other": "guardian"}}, "thread_source": "guardian_review", "model_provider": "syn"},
+        "codex-auto-review-zo923", 3, typed=False)
+PY
+# (openai_base_url, then each tag's owner, then collector=prompts/sessions).
+CODEX_NATIVE_RUNS=(
+  "https://api.synthetic.new/openai/v1|zo920=synthetic zo921=synthetic zo922=synthetic zo923=synthetic|synthetic=3/3 codex=0/0 local=0/0"
+  "http://127.0.0.1:18493/v1|zo920=local zo921=codex zo922=synthetic zo923=synthetic|synthetic=1/1 codex=1/1 local=1/1"
+  "https://llm-proxy.example.com/v1|zo920= zo921=codex zo922=synthetic zo923=synthetic|synthetic=1/1 codex=1/1 local=0/0"
+  "|zo920=codex zo921=codex zo922=synthetic zo923=synthetic|synthetic=1/1 codex=2/2 local=0/0"
+)
+codex_native_report=""
+for run in "${!CODEX_NATIVE_RUNS[@]}"; do
+  IFS='|' read -r base owners counts <<<"${CODEX_NATIVE_RUNS[$run]}"
+  {
+    if [[ -n $base ]]; then
+      printf 'openai_base_url = "%s"\n\n' "$base"
+    fi
+    printf '[model_providers.syn]\nname = "syn"\nbase_url = "https://api.synthetic.new/openai/v1"\n'
+  } >"$CODEX_NATIVE_HOME/.codex/config.toml"
+  run_all "$CODEX_NATIVE_HOME" "$WORK/codex-native-results-$run"
+  report=$(python3 - "$WORK/codex-native-results-$run" "${base:-no openai_base_url}" "$owners" "$counts" "${collectors[@]}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+results, label = Path(sys.argv[1]), sys.argv[2]
+owners = dict(pair.split("=") for pair in sys.argv[3].split())
+counts = {cid: tuple(int(n) for n in want.split("/")) for cid, want in (pair.split("=") for pair in sys.argv[4].split())}
+seen = {tag: {} for tag in owners}
+for cid in sys.argv[5:]:
+  try:
+    record = json.loads((results / f"{cid}.json").read_text())
+  except ValueError:
+    print(f"{label}: {cid} printed no JSON record")
+    continue
+  if cid in counts and (record.get("totalPrompts"), record.get("totalSessions")) != counts[cid]:
+    print(f"{label}: {cid} counted prompts and sessions {(record.get('totalPrompts'), record.get('totalSessions'))}, expected {counts[cid]}")
+  for model, bucket in (record.get("modelUsage") or {}).items():
+    total = sum(bucket.get(key) or 0 for key in ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"))
+    for tag in re.findall(r"zo92\d", model):
+      if tag in seen and total:
+        seen[tag][cid] = seen[tag].get(cid, 0) + total
+for tag, owner in owners.items():
+  wrong = [f"{cid} counted it" for cid in sorted(seen[tag]) if cid != owner]
+  if owner and owner not in seen[tag]:
+    wrong.insert(0, f"{owner} missed it")
+  if wrong:
+    print(f"{label}: {tag}, expected {owner or 'nobody'}: {'; '.join(wrong)}")
+PY
+)
+  if [[ -n $report ]]; then
+    codex_native_report+="$report"$'\n'
+  fi
+done
+if [[ -z $codex_native_report ]]; then
+  pass "Codex's built-in provider counts where openai_base_url sends it, and a guardian thread under its parent's session"
+else
+  fail "Codex's built-in provider counts where openai_base_url sends it, and a guardian thread under its parent's session" "$codex_native_report"
+fi
+
+# Kimchi's gateway bills what reaches it through any agent, so its usage is
+# Kimchi's alone: pi and omp sessions on its provider ids (kimchi, kimchi-dev,
+# kimchi-dev/<upstream>, kimchi-experimental) in pi's and omp's trees and its
+# own harness, opencode's `kimchi` provider, and the Claude Code and Codex
+# setups `kimchi claudecode` and `kimchi codex` write, sent to llm.kimchi.dev
+# and llm.eu.kimchi.dev. Model names that would otherwise say Kimi, Z.ai,
+# MiniMax, DeepSeek or Anthropic never take a turn the gateway served, and a
+# lookalike id (kimchi-proxy) counts nowhere.
+KIMCHI_HOME="$WORK/kimchi-gateway"
+python3 - "$KIMCHI_HOME" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+now_ms = int(time.time() * 1000) - 1000
+
+
+def write(path, lines):
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+
+# pi 1.4.0 and omp 18.12.6 lines: a model switch, a typed prompt, its reply.
+def pi_session(path, provider, model, tokens, omp=False):
+  switch = {"type": "model_change", "id": "m0", "parentId": None, "timestamp": stamp}
+  switch.update({"runtime": {"version": "18.12.6"}, "model": f"{provider}/{model}"} if omp else {"provider": provider, "modelId": model})
+  user = {"role": "user", "content": [{"type": "text", "text": "Say hi"}], "timestamp": now_ms}
+  if omp:
+    user["attribution"] = "user"
+  write(path, [
+    {"type": "session", "version": 3, "id": path.stem, "timestamp": stamp, "cwd": "/home/me"},
+    switch,
+    {"type": "message", "id": f"u-{path.stem}", "parentId": "m0", "timestamp": stamp, "message": user},
+    {"type": "message", "id": f"a-{path.stem}", "parentId": f"u-{path.stem}", "timestamp": stamp, "message": {
+      "role": "assistant", "content": [{"type": "text", "text": "hi"}], "api": "openai-completions", "provider": provider, "model": model,
+      "usage": {"input": tokens, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": tokens}, "stopReason": "stop", "timestamp": now_ms}},
+  ])
+
+
+pi = home / ".pi/agent/sessions/--home-me--"
+omp = home / ".omp/agent/sessions/-"
+harness = home / ".config/kimchi/harness/sessions/--home-me--"
+pi_session(pi / "pi-kimchi.jsonl", "kimchi", "zqk01-minimax-m3", 101)
+pi_session(pi / "pi-kimchi-dev.jsonl", "kimchi-dev", "zqk02-kimi-k2.6", 102)
+pi_session(pi / "pi-lookalike.jsonl", "kimchi-proxy", "zqk00-glm-5", 999)
+pi_session(omp / "omp-kimchi.jsonl", "kimchi", "zqk03-kimi-k2.5", 103, omp=True)
+pi_session(omp / "omp-upstream.jsonl", "kimchi-dev/zai", "zqk04-glm-5.2", 104, omp=True)
+pi_session(omp / "omp-experimental.jsonl", "kimchi-experimental", "zqk05-deepseek-v4", 105, omp=True)
+pi_session(harness / "harness-kimchi.jsonl", "kimchi", "zqk06-glm-5.2", 106)
+
+# opencode 1.19.3 rows on the provider Kimchi's opencode setup adds.
+db = home / ".local/share/opencode/opencode.db"
+db.parent.mkdir(parents=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+user = {"role": "user", "time": {"created": now_ms}, "agent": "build", "model": {"providerID": "kimchi", "modelID": "zqk07-minimax-m3"}}
+reply = {"parentID": "msg_k_u", "role": "assistant", "mode": "build", "agent": "build", "cost": 0, "modelID": "zqk07-minimax-m3", "providerID": "kimchi",
+         "tokens": {"total": 107, "input": 107, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}}, "time": {"created": now_ms + 1, "completed": now_ms + 2}, "finish": "stop"}
+conn.executemany("INSERT INTO message VALUES (?, ?, ?, ?, ?)", [("msg_k_u", "ses_k", now_ms, now_ms, json.dumps(user)), ("msg_k_a", "ses_k", now_ms + 1, now_ms + 1, json.dumps(reply))])
+conn.commit()
+conn.close()
+
+# Claude Code with the settings.json env `kimchi claudecode` writes, its
+# replies on a Claude model and on models whose names say another provider.
+lines = []
+for n, (model, tokens) in enumerate((("claude-sonnet-4-5-zqk08", 108), ("kimi-k2.6-zqk09", 109), ("glm-5.2-zqk10", 110), ("MiniMax-M3-zqk11", 111), ("deepseek-v4-flash-zqk12", 112))):
+  lines.append({"type": "user", "uuid": f"kc-prompt-{n}", "sessionId": "kc", "timestamp": stamp, "message": {"role": "user", "content": "go"}})
+  lines.append({"type": "assistant", "sessionId": "kc", "timestamp": stamp, "requestId": f"kc-req-{n}",
+                "message": {"id": f"kc-msg-{n}", "role": "assistant", "model": model, "usage": {"input_tokens": tokens, "output_tokens": 0}}})
+write(home / ".claude/projects/project/kc.jsonl", lines)
+(home / ".claude/settings.json").write_text(json.dumps({"env": {"ANTHROPIC_BASE_URL": "https://llm.eu.kimchi.dev/anthropic", "ANTHROPIC_API_KEY": ""}}))
+
+# Codex as `kimchi codex` configures it.
+(home / ".codex").mkdir()
+(home / ".codex/config.toml").write_text('model_provider = "kimchi"\nmodel = "zqk13-minimax-m3"\n\n[model_providers.kimchi]\nname = "Kimchi Gateway"\nbase_url = "https://llm.kimchi.dev/openai/v1"\nwire_api = "responses"\n')
+write(home / ".codex/sessions" / datetime.now().strftime("%Y/%m/%d") / "rollout-kimchi.jsonl", [
+  {"timestamp": stamp, "type": "session_meta", "payload": {"model_provider": "kimchi"}},
+  {"timestamp": stamp, "type": "turn_context", "payload": {"model": "zqk13-minimax-m3"}},
+  {"timestamp": stamp, "type": "event_msg", "payload": {"type": "user_message", "message": "go"}},
+  {"timestamp": stamp, "type": "event_msg", "payload": {"type": "token_count", "info": {
+    "last_token_usage": {"input_tokens": 113, "cached_input_tokens": 0, "output_tokens": 0}, "total_token_usage": {"input_tokens": 113}}}},
+])
+PY
+run_all "$KIMCHI_HOME" "$WORK/kimchi-gateway-results"
+
+kimchi_gateway_report=$(python3 - "$WORK/kimchi-gateway-results" "${collectors[@]}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+results = Path(sys.argv[1])
+# Every zqkNN row once, under kimchi, and zqk00 under nobody: seven pi-format
+# sessions, opencode's, Claude Code's and Codex's, one prompt per reply.
+expected = {f"zqk{n:02d}": 100 + n for n in range(1, 14)}
+seen = {}
+for cid in sys.argv[2:]:
+  try:
+    record = json.loads((results / f"{cid}.json").read_text())
+  except ValueError:
+    print(f"{cid} printed no JSON record")
+    continue
+  for model, tokens in (record.get("todayTokensByModel") or {}).items():
+    tag = re.search(r"zqk\d\d", model)
+    if tag:
+      seen.setdefault(tag.group(0), []).append((cid, tokens))
+  if cid != "kimchi" and record.get("todayPrompts"):
+    print(f"{cid} counted {record['todayPrompts']} of Kimchi's prompts")
+  if cid == "kimchi" and (record.get("todayPrompts"), record.get("todaySessions")) != (13, 9):
+    print(f"kimchi: prompts and sessions {(record.get('todayPrompts'), record.get('todaySessions'))}, expected (13, 9)")
+for tag in sorted(set(expected) | set(seen)):
+  want = [("kimchi", expected[tag])] if tag in expected else []
+  if seen.get(tag, []) != want:
+    print(f"{tag}: counted {seen.get(tag, [])}, expected {want}")
+PY
+)
+if [[ -z $kimchi_gateway_report ]]; then
+  pass "usage Kimchi's gateway billed through pi, omp, opencode, Claude Code or Codex counts once, under kimchi"
+else
+  fail "usage Kimchi's gateway billed through pi, omp, opencode, Claude Code or Codex counts once, under kimchi" "$kimchi_gateway_report"
+fi
+
+# ------------------------------------------- requests that never got a reply
+
+# Shapes pi 1.4.0 and omp 18.12.6 wrote against a mock server. A prompt
+# whose agent was killed mid-request leaves no assistant line, so it books
+# on the model the session was on, never on the next provider's reply, and a
+# fork copying it books it once. omp writes a reply that overflowed the
+# model's context window twice under new ids, one response served once. A
+# prompt omp refused before sending (Muse Code's invalid credential, an
+# errorId and no duration) counts nowhere; one a server refused (a duration
+# and a 400) counts.
+STRANDED_HOME="$WORK/stranded"
+python3 - "$STRANDED_HOME" <<'PY'
+import json
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+now_ms = int(time.time() * 1000) - 1000
+cost = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0}
+zero = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0, "cost": cost}
+
+
+def spent(n):
+  return {"input": 141601 + n, "output": 1456, "cacheRead": 1476, "cacheWrite": 0, "totalTokens": 144533 + n, "reasoningTokens": 1409, "cost": cost}
+
+
+def user(n, omp=False):
+  message = {"role": "user", "content": [{"type": "text", "text": "Say hi"}], "timestamp": now_ms}
+  if omp:
+    message["attribution"] = "user"
+  return {"type": "message", "id": f"u{n}", "parentId": None, "timestamp": stamp, "message": message}
+
+
+def reply(n, provider, model, usage, **extra):
+  message = {"role": "assistant", "content": [{"type": "text", "text": "hi"}], "api": "openai-completions", "provider": provider, "model": model,
+             "usage": usage, "stopReason": "stop", "timestamp": now_ms, **extra}
+  return {"type": "message", "id": f"a{n}", "parentId": f"u{n}", "timestamp": stamp, "message": message}
+
+
+def switch(n, provider, model, omp=False):
+  if omp:
+    return {"type": "model_change", "id": f"m{n}", "timestamp": stamp, "model": f"{provider}/{model}"}
+  return {"type": "model_change", "id": f"m{n}", "timestamp": stamp, "provider": provider, "modelId": model}
+
+
+def write(path, lines):
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+
+pi = home / ".pi/agent/sessions/--home-me--"
+omp = home / ".omp/agent/sessions/-"
+# pi: killed waiting on Z.ai, then switched to DeepSeek, which answered.
+write(pi / "hang-then-switched.jsonl", [
+  {"type": "session", "version": 3, "id": "s1", "timestamp": stamp, "cwd": "/home/me"},
+  switch(1, "zai", "e2e-hangpi2"), user(11),
+  switch(12, "deepseek", "e2e-hangpi2ds"), user(12), reply(12, "deepseek", "e2e-hangpi2ds", spent(12), responseId="chatcmpl-12"),
+])
+# pi: killed waiting on Z.ai, then `--fork` onto DeepSeek, which answered.
+parent = [
+  {"type": "session", "version": 3, "id": "s2", "timestamp": stamp, "cwd": "/home/me"},
+  switch(2, "zai", "e2e-hangfork"), user(21),
+]
+write(pi / "hang-parent.jsonl", parent)
+write(pi / "hang-fork.jsonl", [
+  {"type": "session", "version": 3, "id": "s3", "timestamp": stamp, "cwd": "/home/me", "parentSession": str(pi / "hang-parent.jsonl")},
+  *parent[1:],
+  switch(22, "deepseek", "e2e-hangforkds"), user(22), reply(22, "deepseek", "e2e-hangforkds", spent(22), responseId="chatcmpl-22"),
+])
+# omp: one response past the declared context window, written twice.
+twice = reply(31, "deepseek", "e2e-dupb", spent(31), responseId="chatcmpl-31", duration=3.1, ttft=1.2, completedAt=now_ms)
+again = json.loads(json.dumps(twice))
+again["id"] = "a31b"
+again["message"]["errorId"] = 0
+write(omp / "overflow.jsonl", [
+  {"type": "session", "id": "s4", "timestamp": stamp, "cwd": "/home/me"},
+  switch(3, "deepseek", "e2e-dupb", omp=True), user(31, omp=True), twice, again,
+])
+# omp: Muse Code's credential refused before sending, twice.
+refusal = {"stopReason": "error", "errorMessage": "Muse Code credential is invalid; sign in again", "errorId": 0, "completedAt": now_ms}
+muse = [reply(n, "muse-code", "e2e-musecode-omp", zero) for n in (41, 42)]
+for line in muse:
+  line["message"].update(refusal)
+write(omp / "refused-locally.jsonl", [
+  {"type": "session", "id": "s5", "timestamp": stamp, "cwd": "/home/me"},
+  switch(4, "muse-code", "e2e-musecode-omp", omp=True), user(41, omp=True), muse[0], user(42, omp=True), muse[1],
+])
+# omp: a 400 from Z.ai's server.
+served = reply(51, "zai", "e2e-failomp", zero)
+served["message"].update({"stopReason": "error", "errorMessage": "400 mock refused FAILME", "errorStatus": 400, "errorId": 400, "duration": 3.2, "completedAt": now_ms})
+write(omp / "refused-by-server.jsonl", [
+  {"type": "session", "id": "s6", "timestamp": stamp, "cwd": "/home/me"},
+  switch(5, "zai", "e2e-failomp", omp=True), user(51, omp=True), served,
+])
+PY
+run_all "$STRANDED_HOME" "$WORK/stranded-results"
+
+stranded_report=$(python3 - "$WORK/stranded-results" "${collectors[@]}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+results = Path(sys.argv[1])
+# (prompts, sessions, tokens) each collector must count; every other one none.
+expected = {"zai": (3, 3, 0), "deepseek": (3, 3, (144533 + 12) + (144533 + 22) + (144533 + 31))}
+for cid in sys.argv[2:]:
+  try:
+    record = json.loads((results / f"{cid}.json").read_text())
+  except ValueError:
+    print(f"{cid} printed no JSON record")
+    continue
+  want = expected.get(cid, (0, 0, 0))
+  got = (record.get("todayPrompts"), record.get("todaySessions"), record.get("todayTotalTokens"))
+  if got != want:
+    print(f"{cid}: prompts, sessions and tokens {got}, expected {want}")
+  if cid == "muse" and record.get("hasLocalStats"):
+    print("muse: in use for prompts that never left the machine")
+PY
+)
+if [[ -z $stranded_report ]]; then
+  pass "a prompt killed mid-request, a reply omp wrote twice and a request omp never sent each count once or nowhere"
+else
+  fail "a prompt killed mid-request, a reply omp wrote twice and a request omp never sent each count once or nowhere" "$stranded_report"
+fi
+
+# A collector reads only its own share of opencode's `message` store. Finding
+# the first step answering each prompt across providers once read every
+# assistant row in the database on each collector's rebuild, so a collector
+# with no rows there paid for everyone's history. Counted in SQLite VM steps,
+# not seconds, so a slow machine can't flake it: a collector with one session
+# among a thousand others' costs no more than a few gated scans of the table,
+# and still books its prompt only where the first step is its own.
+OC_SCALE_HOME="$WORK/oc-scale-home"
+mkdir -p "$OC_SCALE_HOME"
+oc_scale_report=$(python3 - "$ROOT" "$OC_SCALE_HOME" <<'PY'
+import json
+import os
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+root, home = Path(sys.argv[1]), Path(sys.argv[2])
+os.environ["HOME"] = str(home)
+os.environ["XDG_DATA_HOME"] = str(home / ".local/share")
+os.environ.pop("OPENCODE_DB", None)
+sys.path.insert(0, str(root / "shell" / "plugins" / "agents"))
+import collectors
+
+db = home / ".local/share/opencode/opencode.db"
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(db)
+# The schema opencode 1.x creates, its session index included.
+conn.execute("CREATE TABLE session (id text PRIMARY KEY, parent_id text, title text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL)")
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE INDEX message_session_time_created_id_idx ON message (session_id, time_created, id)")
+now_ms = int(time.time() * 1000) - 60000
+tokens = {"total": 1320, "input": 1200, "output": 20, "reasoning": 0, "cache": {"write": 0, "read": 100}}
+rows = []
+
+
+def prompt(session, n, providers):
+  # A typed prompt and the tool loop answering it, one step per provider.
+  at = now_ms + n * 100
+  rows.append((f"msg_{session}_u{n}", session, at, {"role": "user", "time": {"created": at}, "agent": "build", "model": {"providerID": providers[0], "modelID": "m"}, "summary": {"diffs": []}}))
+  for step, provider in enumerate(providers, 1):
+    rows.append((f"msg_{session}_a{n}_{step}", session, at + step, {"parentID": f"msg_{session}_u{n}", "role": "assistant", "mode": "build", "agent": "build", "path": {"cwd": "/home/me", "root": "/"}, "cost": 0, "tokens": tokens, "modelID": "m", "providerID": provider, "time": {"created": at + step, "completed": at + step + 1}, "finish": "tool-calls"}))
+
+
+sessions = [f"ses_other{s:04d}" for s in range(1000)]
+for session in sessions:
+  for n in range(3):
+    prompt(session, n, ["anthropic"] * 4)
+# The collector's one session: a prompt it answered first, and one whose
+# first step was another provider's.
+sessions.append("ses_mine")
+prompt("ses_mine", 0, ["devin", "devin"])
+prompt("ses_mine", 1, ["anthropic", "devin"])
+for session in sessions:
+  conn.execute("INSERT INTO session VALUES (?, NULL, 't', ?, ?)", (session, now_ms - 1000, now_ms - 1000))
+conn.executemany("INSERT INTO message VALUES (?, ?, ?, ?, ?)", [(mid, session, at, at, json.dumps(data)) for mid, session, at, data in rows])
+conn.commit()
+conn.close()
+
+steps = [0]
+connect = sqlite3.connect
+
+
+def counted(*args, **kwargs):
+  handle = connect(*args, **kwargs)
+  handle.set_progress_handler(lambda: steps.__setitem__(0, steps[0] + 1), 100)
+  return handle
+
+
+def cost(run):
+  steps[0] = 0
+  sqlite3.connect = counted
+  try:
+    result = run()
+  finally:
+    sqlite3.connect = connect
+  return steps[0], result
+
+
+def gated_scan():
+  handle = sqlite3.connect(db.as_uri() + "?mode=ro", uri=True)
+  try:
+    return handle.execute("SELECT m.id, m.data FROM message m WHERE m.data LIKE '%\"role\"%:%\"assistant\"%' AND m.data LIKE ?", ('%"providerID"%:%"devin"%',)).fetchall()
+  finally:
+    handle.close()
+
+
+scan_cost, (found, complete) = cost(lambda: collectors.scan_opencode(['devin"'], lambda provider, model, entry: provider == "devin"))
+gate_cost, _ = cost(gated_scan)
+problems = []
+if not complete:
+  problems.append("the scan did not complete")
+if (len(found), sum(row.prompts for row in found)) != (3, 1):
+  problems.append(f"devin's rows {len(found)} with {sum(row.prompts for row in found)} prompts, expected 3 with 1")
+if scan_cost > 6 * gate_cost:
+  problems.append(f"scan_opencode took {scan_cost} progress ticks, over 6x the {gate_cost} of one gated scan")
+print("\n".join(problems))
+PY
+)
+if [[ -z $oc_scale_report ]]; then
+  pass "a collector's opencode scan costs a few gated scans of the store, not a pass over every provider's steps"
+else
+  fail "a collector's opencode scan costs a few gated scans of the store, not a pass over every provider's steps" "$oc_scale_report"
+fi
+
+# ------------------- Codex profiles and a claimed id on the user's own hardware
+
+# Codex 0.163 applies a <name>.config.toml profile only to a run given
+# --profile, and that run's rollout still records only
+# `"model_provider":"openai"`, so a profile's openai_base_url says nothing
+# about plain `codex` runs: here it moves only the rollouts on the model the
+# profile sets (zp941), while ChatGPT-plan rollouts (zp940), and a model no
+# profile ties (zp943), stay codex's. A profile setting an OpenAI model can't
+# be told from a plain run and moves nothing. A model_providers entry whose
+# id another collector claims but whose base_url is this machine, as a
+# self-hosted Kimchi gateway's `kimchi codex` setup writes it, is local's:
+# the base URL decides (zp942). The lines are shaped as Codex 0.163 wrote
+# them in real `codex exec` runs.
+CODEX_PROFILE_HOME="$WORK/codex-profiles"
+mkdir -p "$CODEX_PROFILE_HOME/.codex"
+python3 - "$CODEX_PROFILE_HOME" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+rollouts = home / ".codex/sessions" / datetime.now().strftime("%Y/%m/%d")
+rollouts.mkdir(parents=True)
+
+
+def rollout(tag, provider, model, n):
+  thread = f"01a164a4-8b38-7013-9a23-709319c3{n:04d}"
+  turn = f"01a164a4-8b8b-71f1-b648-20be1fa2{n:04d}"
+  usage = {"input_tokens": 18234 + n, "cached_input_tokens": 71, "cache_write_input_tokens": 31, "output_tokens": 51, "reasoning_output_tokens": 0, "total_tokens": 18285 + n}
+  item = {"type": "UserMessage", "id": f"01a164a4-8c01-7231-a532-dda74a01{n:04d}", "content": [{"type": "text", "text": "go", "text_elements": []}]}
+  lines = [
+    {"timestamp": stamp, "ordinal": 0, "type": "session_meta", "payload": {"session_id": thread, "id": thread, "cli_version": "0.163.0", "history_mode": "paginated", "originator": "codex_exec", "source": "exec", "thread_source": "user", "model_provider": provider}},
+    {"timestamp": stamp, "ordinal": 5, "type": "turn_context", "payload": {"model": model, "turn_id": turn}},
+    {"timestamp": stamp, "ordinal": 8, "type": "event_msg", "payload": {"type": "item_completed", "thread_id": thread, "turn_id": turn, "item": item}},
+    {"timestamp": stamp, "ordinal": 10, "type": "token_usage_record", "payload": {"thread_id": thread, "turn_id": turn, "session_id": thread, "response_id": f"resp_zp_{n:04d}", "usage": usage, "turn_token_usage": usage, "thread_token_usage": usage}},
+  ]
+  (rollouts / f"rollout-2026-10-22T13-24-27-{thread}.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+
+rollout("zp940", "openai", "gpt-5.1-codex-zp940", 940)
+rollout("zp941", "openai", "hf:zai-org/GLM-4.6-zp941", 941)
+rollout("zp942", "kimchi", "kimi-k2-zp942", 942)
+rollout("zp943", "openai", "qwen3-coder-zp943", 943)
+codex = home / ".codex"
+(codex / "config.toml").write_text(
+  'model = "gpt-5.1-codex-zp940"\n\n'
+  '[model_providers.kimchi]\nname = "Kimchi Gateway"\nbase_url = "http://127.0.0.1:18491/openai/v1"\nwire_api = "responses"\n'
+)
+(codex / "syn.config.toml").write_text('model = "hf:zai-org/GLM-4.6-zp941"\nopenai_base_url = "https://api.synthetic.new/openai/v1"\n')
+(codex / "or.config.toml").write_text('model = "gpt-5.1-codex-zp940"\nopenai_base_url = "https://openrouter.ai/api/v1"\n')
+PY
+run_all "$CODEX_PROFILE_HOME" "$WORK/codex-profile-results"
+codex_profile_report=$(python3 - "$WORK/codex-profile-results" "${collectors[@]}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+results = Path(sys.argv[1])
+owners = {"zp940": "codex", "zp941": "synthetic", "zp942": "local", "zp943": "codex"}
+counts = {"codex": (2, 2), "synthetic": (1, 1), "local": (1, 1), "openrouter": (0, 0), "kimchi": (0, 0)}
+seen = {tag: set() for tag in owners}
+for cid in sys.argv[2:]:
+  try:
+    record = json.loads((results / f"{cid}.json").read_text())
+  except ValueError:
+    print(f"{cid} printed no JSON record")
+    continue
+  if cid in counts and (record.get("totalPrompts"), record.get("totalSessions")) != counts[cid]:
+    print(f"{cid} counted prompts and sessions {(record.get('totalPrompts'), record.get('totalSessions'))}, expected {counts[cid]}")
+  for model, bucket in (record.get("modelUsage") or {}).items():
+    if any(bucket.get(key) for key in ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")):
+      for tag in re.findall(r"zp94\d", model):
+        seen[tag].add(cid)
+for tag, owner in owners.items():
+  if seen[tag] != {owner}:
+    print(f"{tag}: counted by {sorted(seen[tag]) or 'nobody'}, expected {owner}")
+PY
+)
+if [[ -z $codex_profile_report ]]; then
+  pass "a Codex profile's openai_base_url moves only the rollouts on its model, and a claimed id on this machine is local's"
+else
+  fail "a Codex profile's openai_base_url moves only the rollouts on its model, and a claimed id on this machine is local's" "$codex_profile_report"
+fi
+
+# Kimchi 1.18 names each gateway route kimchi-dev/<upstream>, and the kimchi
+# collector claims every such id by its prefix. A local.json naming one must
+# not make local count those rows as well, while a self-hosted id beside it
+# still counts. The replies are pi's own shape on Kimchi's gateway.
+PREFIX_HOME="$WORK/kimchi-prefix"
+mkdir -p "$PREFIX_HOME/.config/omarchy/agents" "$PREFIX_HOME/.pi/agent/sessions/-" "$PREFIX_HOME/.cache" "$PREFIX_HOME/.run"
+echo '{"providers": ["Kimchi-Dev/MoonshotAI", "my-llama"]}' >"$PREFIX_HOME/.config/omarchy/agents/local.json"
+python3 - "$PREFIX_HOME/.pi/agent/sessions/-/session.jsonl" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+now = datetime.now(timezone.utc)
+stamp = now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+ms = int(now.timestamp() * 1000)
+lines = [
+  {"type": "session", "version": 3, "id": "01a16377-aaaa-72fe-95e0-9faf99826e64", "timestamp": stamp, "cwd": "/home/me"},
+  {"type": "model_change", "id": "29d6576e", "parentId": None, "timestamp": stamp, "model": "kimchi/kimi-k2.5"},
+]
+for index, (provider, model, tokens) in enumerate((("kimchi-dev/moonshotai", "kimi-k2.5", 4201), ("my-llama", "llama-3.3", 3101))):
+  lines.append({"type": "message", "id": f"u{index}", "timestamp": stamp, "message": {"role": "user", "content": [{"type": "text", "text": "Say hi"}], "attribution": "user", "timestamp": ms}})
+  usage = {"input": tokens, "output": 82, "cacheRead": 102, "cacheWrite": 0, "totalTokens": tokens + 184, "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0}}
+  lines.append({"type": "message", "id": f"a{index}", "parentId": f"u{index}", "timestamp": stamp, "message": {"role": "assistant", "content": [{"type": "text", "text": "Hi."}], "api": "openai-completions", "provider": provider, "model": model, "usage": usage, "stopReason": "stop", "timestamp": ms, "responseId": f"chatcmpl-{index}"}})
+with open(sys.argv[1], "w") as handle:
+  handle.writelines(json.dumps(line) + "\n" for line in lines)
+PY
+run_collector "$PREFIX_HOME" local "$WORK/prefix-local"
+run_collector "$PREFIX_HOME" kimchi "$WORK/prefix-kimchi"
+prefix_report=$(python3 - "$WORK/prefix-local.json" "$WORK/prefix-kimchi.json" <<'PY'
+import json
+import sys
+
+problems = []
+for path, expected in zip(sys.argv[1:], ({"llama-3.3"}, {"kimi-k2.5"})):
+  try:
+    models = set(json.load(open(path)).get("todayTokensByModel") or {})
+  except (OSError, ValueError) as error:
+    models = {f"unreadable: {error}"}
+  if models != expected:
+    problems.append(f"{path.rsplit('/', 1)[-1]} counts {sorted(models)}, expected {sorted(expected)}")
+print("\n".join(problems))
+PY
+)
+if [[ -z $prefix_report ]]; then
+  pass "local leaves a configured kimchi-dev/<upstream> id to the kimchi collector"
+else
+  fail "local leaves a configured kimchi-dev/<upstream> id to the kimchi collector" "$prefix_report"
+fi
+
+# ------------------------------- A Codex rollout switching models mid-thread
+
+# Behind a self-hosted openai_base_url, one built-in rollout can switch from
+# an OpenAI model to a local one between turns (`/model`). Each typed prompt
+# goes with the model that answered it, so codex books the first and local
+# the second, and neither books the other's.
+CODEX_MIXED_HOME="$WORK/codex-mixed-models"
+mkdir -p "$CODEX_MIXED_HOME/.codex"
+printf 'openai_base_url = "http://127.0.0.1:18495/v1"\n' >"$CODEX_MIXED_HOME/.codex/config.toml"
+python3 - "$CODEX_MIXED_HOME" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+rollouts = home / ".codex/sessions" / datetime.now().strftime("%Y/%m/%d")
+rollouts.mkdir(parents=True)
+thread = "01a164b2-4c11-7a20-9d31-5e6f7a8b0950"
+lines = [{"timestamp": stamp, "ordinal": 0, "type": "session_meta", "payload": {"session_id": thread, "id": thread, "cli_version": "0.163.0", "history_mode": "paginated", "originator": "codex-tui", "source": "cli", "thread_source": "user", "model_provider": "openai"}}]
+total = {"input_tokens": 0, "cached_input_tokens": 0, "cache_write_input_tokens": 0, "output_tokens": 0, "reasoning_output_tokens": 0, "total_tokens": 0}
+for n, model in enumerate(("gpt-5.1-codex-zm950", "qwen3-coder-zm951")):
+  turn = f"01a164b2-4c8b-71f1-b648-20be1fa2{n:04d}"
+  usage = {"input_tokens": 12234 + n, "cached_input_tokens": 71, "cache_write_input_tokens": 31, "output_tokens": 51, "reasoning_output_tokens": 0, "total_tokens": 12285 + n}
+  total = {key: total[key] + usage[key] for key in total}
+  item = {"type": "UserMessage", "id": f"01a164b2-4d01-7231-a532-dda74a01{n:04d}", "content": [{"type": "text", "text": "go", "text_elements": []}]}
+  lines += [
+    {"timestamp": stamp, "ordinal": 10 * n + 1, "type": "turn_context", "payload": {"model": model, "turn_id": turn}},
+    {"timestamp": stamp, "ordinal": 10 * n + 2, "type": "event_msg", "payload": {"type": "item_completed", "thread_id": thread, "turn_id": turn, "item": item}},
+    {"timestamp": stamp, "ordinal": 10 * n + 3, "type": "token_usage_record", "payload": {"thread_id": thread, "turn_id": turn, "session_id": thread, "response_id": f"resp_zm_{n:04d}", "usage": usage, "turn_token_usage": usage, "thread_token_usage": total}},
+    {"timestamp": stamp, "ordinal": 10 * n + 4, "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": total, "last_token_usage": usage, "model_context_window": 258400}}},
+  ]
+(rollouts / f"rollout-2026-10-22T14-02-11-{thread}.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines))
+PY
+run_collector "$CODEX_MIXED_HOME" codex "$WORK/codex-mixed-codex"
+run_collector "$CODEX_MIXED_HOME" local "$WORK/codex-mixed-local"
+codex_mixed_report=$(python3 - "$WORK/codex-mixed-codex.json" "$WORK/codex-mixed-local.json" <<'PY'
+import json
+import sys
+
+problems = []
+for path, model in zip(sys.argv[1:], ("gpt-5.1-codex-zm950", "qwen3-coder-zm951")):
+  name = path.rsplit("/", 1)[-1]
+  try:
+    record = json.load(open(path))
+  except (OSError, ValueError) as error:
+    problems.append(f"{name} is unreadable: {error}")
+    continue
+  models = set(record.get("todayTokensByModel") or {})
+  if models != {model}:
+    problems.append(f"{name} counts {sorted(models)}, expected {[model]}")
+  if (record.get("totalPrompts"), record.get("totalSessions")) != (1, 1):
+    problems.append(f"{name} counted prompts and sessions {(record.get('totalPrompts'), record.get('totalSessions'))}, expected (1, 1)")
+print("\n".join(problems))
+PY
+)
+if [[ -z $codex_mixed_report ]]; then
+  pass "a Codex rollout switching from an OpenAI model to a local one books each prompt once, with the model that answered it"
+else
+  fail "a Codex rollout switching from an OpenAI model to a local one books each prompt once, with the model that answered it" "$codex_mixed_report"
+fi
+
+# `codex exec -m <model> resume` and /model switch a thread's model with a
+# thread_settings_applied event, as Codex 0.163 writes it, and the request a
+# switch-time compaction sends goes out on the new model before that turn's
+# turn_context names it. Behind a self-hosted openai_base_url the compaction
+# is local's, as is a prompt typed after the switch that no request answered.
+CODEX_SWITCH_HOME="$WORK/codex-switched-models"
+mkdir -p "$CODEX_SWITCH_HOME/.codex"
+printf 'openai_base_url = "http://127.0.0.1:18496/v1"\n' >"$CODEX_SWITCH_HOME/.codex/config.toml"
+python3 - "$CODEX_SWITCH_HOME" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+rollouts = home / ".codex/sessions" / datetime.now().strftime("%Y/%m/%d")
+rollouts.mkdir(parents=True)
+
+
+def context(model):
+  return lambda thread, n: {"type": "turn_context", "payload": {"model": model, "turn_id": f"turn{n}"}}
+
+
+def switch(model):
+  return lambda thread, n: {"type": "event_msg", "payload": {"type": "thread_settings_applied", "thread_id": thread, "thread_settings": {
+    "model": model, "model_provider_id": "openai", "approval_policy": "never", "approvals_reviewer": "auto_review",
+    "collaboration_mode": {"mode": "default", "settings": {"model": model, "reasoning_effort": None, "developer_instructions": None}},
+    "cwd": str(home), "disabled_plugin_ids": [], "runtime_workspace_roots": [str(home)]}}}
+
+
+def typed(thread, n):
+  item = {"type": "UserMessage", "id": f"01a164cc-7301-7231-a532-dda74a01{n:04d}", "content": [{"type": "text", "text": "go", "text_elements": []}]}
+  return {"type": "event_msg", "payload": {"type": "item_completed", "thread_id": thread, "turn_id": f"turn{n}", "item": item}}
+
+
+def compacted(thread, n):
+  return {"type": "compacted", "payload": {"message": "", "replacement_history": []}}
+
+
+def write(thread, steps):
+  """A rollout of `steps`: line makers, and the input tokens of each request
+  a token_usage_record names."""
+  total = {"input_tokens": 0, "cached_input_tokens": 0, "cache_write_input_tokens": 0, "output_tokens": 0, "reasoning_output_tokens": 0, "total_tokens": 0}
+  lines = [{"type": "session_meta", "payload": {"session_id": thread, "id": thread, "cli_version": "0.163.0", "history_mode": "paginated", "originator": "codex_exec", "source": "exec", "thread_source": "user", "model_provider": "openai"}}]
+  for n, step in enumerate(steps):
+    if isinstance(step, int):
+      usage = {"input_tokens": step, "cached_input_tokens": 71, "cache_write_input_tokens": 31, "output_tokens": 51, "reasoning_output_tokens": 0, "total_tokens": step + 51}
+      total = {key: total[key] + usage[key] for key in total}
+      lines.append({"type": "token_usage_record", "payload": {"thread_id": thread, "turn_id": f"turn{n}", "session_id": thread, "response_id": f"resp_zs_{n:04d}", "usage": usage, "turn_token_usage": usage, "thread_token_usage": total}})
+    else:
+      lines.append(step(thread, n))
+  (rollouts / f"rollout-2026-10-22T14-07-55-{thread}.jsonl").write_text("".join(json.dumps({"timestamp": stamp, **line}) + "\n" for line in lines))
+
+
+local = "hf:zai-org/GLM-4.6-zs961"
+write("01a164cc-54d9-7f81-80d2-0cbf0cd6a960", [
+  context("gpt-5.1-codex-zs960"), switch("gpt-5.1-codex-zs960"), typed, 301234,
+  switch(local), switch(local), 2234, compacted, context(local), switch(local), typed, 3234,
+])
+write("01a164cc-54d9-7f81-80d2-0cbf0cd6a962", [context("gpt-5.1-codex-zs962"), typed, 1234, switch(local), typed])
+PY
+run_collector "$CODEX_SWITCH_HOME" codex "$WORK/codex-switched-codex"
+run_collector "$CODEX_SWITCH_HOME" local "$WORK/codex-switched-local"
+codex_switched_report=$(python3 - "$WORK/codex-switched-codex.json" "$WORK/codex-switched-local.json" <<'PY'
+import json
+import sys
+
+expected = {
+  "codex-switched-codex.json": ({"gpt-5.1-codex-zs960": 301285, "gpt-5.1-codex-zs962": 1285}, 2, 2),
+  "codex-switched-local.json": ({"hf:zai-org/GLM-4.6-zs961": 2285 + 3285}, 2, 2),
+}
+problems = []
+for path in sys.argv[1:]:
+  name = path.rsplit("/", 1)[-1]
+  try:
+    record = json.load(open(path))
+  except (OSError, ValueError) as error:
+    problems.append(f"{name} is unreadable: {error}")
+    continue
+  got = (record.get("todayTokensByModel"), record.get("totalPrompts"), record.get("totalSessions"))
+  if got != expected[name]:
+    problems.append(f"{name} counts tokens, prompts and sessions {got}, expected {expected[name]}")
+print("\n".join(problems))
+PY
+)
+if [[ -z $codex_switched_report ]]; then
+  pass "a Codex model switch books the requests and prompts after thread_settings_applied to the model switched to"
+else
+  fail "a Codex model switch books the requests and prompts after thread_settings_applied to the model switched to" "$codex_switched_report"
+fi
+
+# --------------------- A pi or omp prompt a fork answered on another provider
+
+# A fork copies its parent's messages with their ids and timestamps, so a
+# prompt the parent's provider failed on and a fork answered after switching
+# provider (`/model`) is one typed message. It counts once, under the
+# collector of the reply that answered it, never also under the parent's
+# provider, even when the fork holds no line of the parent's provider at all.
+FORKED_HOME="$WORK/pi-forked-provider"
+python3 - "$FORKED_HOME" <<'PY'
+import json
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+home = Path(sys.argv[1])
+now = datetime.now(timezone.utc)
+
+
+def stamp(offset):
+  return (now + timedelta(seconds=offset)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def millis(offset):
+  return int((now + timedelta(seconds=offset)).timestamp() * 1000)
+
+
+def user(entry_id, offset):
+  return {"type": "message", "id": entry_id, "parentId": None, "timestamp": stamp(offset),
+          "message": {"role": "user", "content": [{"type": "text", "text": "go"}], "timestamp": millis(offset)}}
+
+
+def reply(entry_id, provider, model, offset, tokens, **extra):
+  usage = {"input": tokens, "output": 1 if tokens else 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": tokens + 1 if tokens else 0,
+           "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0}}
+  message = {"role": "assistant", "content": [], "api": "openai-completions", "provider": provider, "model": model, "usage": usage,
+             "stopReason": "stop" if tokens else "error", "timestamp": millis(offset), **extra}
+  if not tokens:
+    message["errorMessage"] = "400 status code (no body)"
+  return {"type": "message", "id": entry_id, "parentId": None, "timestamp": stamp(offset), "message": message}
+
+
+def write(path, header, lines):
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text("".join(json.dumps(line) + "\n" for line in [header, *lines]))
+
+
+# pi 1.4.0: kimchi failed on the prompt, and the fork answered it on openrouter.
+pi = home / ".pi/agent/sessions/--home-me--"
+parent = [{"type": "model_change", "id": "zf1", "parentId": None, "timestamp": stamp(0), "provider": "kimchi", "modelId": "kimi-k2.5-zf950"},
+          user("zf2", 1), reply("zf3", "kimchi", "kimi-k2.5-zf950", 2, 0)]
+write(pi / "parent.jsonl", {"type": "session", "version": 3, "id": "zf-parent", "timestamp": stamp(0), "cwd": "/home/me"}, parent)
+write(pi / "fork.jsonl", {"type": "session", "version": 3, "id": "zf-fork", "timestamp": stamp(3), "cwd": "/home/me", "parentSession": str(pi / "parent.jsonl")},
+      parent + [{"type": "model_change", "id": "zf4", "parentId": None, "timestamp": stamp(3), "provider": "openrouter", "modelId": "z-ai/glm-zf951"},
+                reply("zf5", "openrouter", "z-ai/glm-zf951", 4, 40)])
+# omp 18.12: zai failed on the prompt, and a fork cut before that reply
+# answered it on synthetic, so the fork holds no zai line.
+omp = home / ".omp/agent/sessions/--home-me--"
+prompt = user("zf6", 1)
+write(omp / "parent.jsonl", {"type": "session", "version": 3, "id": "zf-oparent", "timestamp": stamp(0), "cwd": "/home/me"},
+      [prompt, reply("zf7", "zai", "glm-zf952", 2, 0, errorStatus=400, duration=310)])
+write(omp / "fork.jsonl", {"type": "session", "version": 3, "id": "zf-ofork", "timestamp": stamp(3), "cwd": "/home/me", "parentSession": str(omp / "parent.jsonl")},
+      [prompt, {"type": "model_change", "id": "zf8", "parentId": None, "timestamp": stamp(3), "model": "synthetic/hf:zai-org/GLM-zf953"},
+       reply("zf9", "synthetic", "hf:zai-org/GLM-zf953", 4, 50, duration=820)])
+PY
+for id in kimchi openrouter zai synthetic; do
+  run_collector "$FORKED_HOME" "$id" "$WORK/pi-forked-$id"
+done
+forked_report=$(python3 - "$WORK" <<'PY'
+import json
+import sys
+
+expected = {"kimchi": (0, 0), "openrouter": (1, 41), "zai": (0, 0), "synthetic": (1, 51)}
+problems = []
+for id, want in expected.items():
+  try:
+    record = json.load(open(f"{sys.argv[1]}/pi-forked-{id}.json"))
+  except (OSError, ValueError) as error:
+    problems.append(f"{id} is unreadable: {error}")
+    continue
+  got = (record.get("totalPrompts") or 0, record.get("todayTotalTokens") or 0)
+  if got != want:
+    problems.append(f"{id} counted (prompts, tokens) {got}, expected {want}")
+print("\n".join(problems))
+PY
+)
+if [[ -z $forked_report ]]; then
+  pass "a pi or omp prompt a fork answered on another provider counts once, under the provider that answered it"
+else
+  fail "a pi or omp prompt a fork answered on another provider counts once, under the provider that answered it" "$forked_report"
+fi

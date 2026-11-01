@@ -5,7 +5,8 @@
 """Collect Synthetic usage into one display-ready JSON record.
 
 Local stats come from pi/omp sessions and opencode messages that ran on the
-synthetic provider. The account's allowances (the rolling five-hour request
+synthetic provider, and from Claude Code, MiniMax Code and Codex sessions sent
+to Synthetic's API. The account's allowances (the rolling five-hour request
 limit, the weekly credits, search and free tool calls) come from Synthetic's
 documented GET https://api.synthetic.new/v2/quotas, which doesn't count
 against them. The agents panel only ever reads the JSON this prints.
@@ -37,9 +38,12 @@ from collectors import (  # noqa: E402
   opencode_db,
   pi_session_roots,
   read_json,
+  routed_match,
+  routed_sources,
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
+  scan_routed,
   trusted_endpoint,
 )
 
@@ -59,7 +63,7 @@ def finite(value):
 
 def model_name(raw):
   # Synthetic serves Hugging Face models as "hf:org/model"; the model is the
-  # last part.
+  # last part. An alias (syn:large:text) is kept whole.
   value = str(raw or "").strip().removeprefix("hf:").rstrip("/").split("/")[-1]
   return value or AGENT_ID
 
@@ -86,20 +90,26 @@ def billed_here(provider, model, entry):
   return provider == PROVIDER
 
 
-def run_local_scans():
+def run_local_scans(reuse=True):
   stats = Stats()
   pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"synthetic"', billed_here)
   # The closing quote makes the database's prefilter match the whole id.
   db_rows, db_complete = scan_opencode([PROVIDER + '"'], billed_here)
-  for row in pi_rows + db_rows:
+  # Claude Code, MiniMax Code and Codex sent to Synthetic's host, or Claude
+  # Code answered by an hf:/syn: model.
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in pi_rows + db_rows + routed_rows:
     stats.add_row(row, model_name(row.model))
-  return stats.snapshot(), pi_complete and db_complete
+  return stats.snapshot(), pi_complete and db_complete and routed_complete
 
 
 def cached_local_stats(max_age):
   # The digest covers every data path the scan reads: the pi/omp session
-  # roots and the opencode DB.
-  return cached_scan(AGENT_ID, [Path.home(), opencode_db(), *pi_session_roots()], max_age, run_local_scans)
+  # roots, the opencode DB, and Claude Code's, MiniMax Code's and Codex's
+  # sessions, whose owner depends on where they are sent. A forced scan reads
+  # every Codex rollout again too.
+  sources = [Path.home(), opencode_db(), *pi_session_roots(), *routed_sources()]
+  return cached_scan(AGENT_ID, sources, max_age, lambda: run_local_scans(reuse=max_age > 0), match=routed_match())
 
 
 # ------------------------------------------------------------- credentials

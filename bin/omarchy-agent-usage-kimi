@@ -578,17 +578,23 @@ def code_routes() -> dict[str, tuple[str, str, str]]:
   return routes
 
 
+# The prefix of the aliases /login provisions for the Kimi Code plan
+# (managedModelKey).
+MANAGED_PREFIX = "kimi-code/"
+
+
 def route_owner(alias: str, routes: dict[str, tuple[str, str, str]]) -> str | None:
   """The collector that bills a request on `alias`, or None for one nothing
   here can place. A base URL is read the way every collector reads Claude
   Code's (claude_code_owner): a provider's host is that provider's, and a
   server you run is local's, unless the model is a Claude or an Ollama cloud
-  one it only forwards. An alias config.toml doesn't name (one
-  KIMI_MODEL_NAME made up for a run, or one since removed) ran on Kimi
-  Code's own service, as every request was read before the config said
-  otherwise."""
+  one it only forwards. Kimi Code sends nothing on an alias config.toml
+  doesn't name, so one missing from it is either Kimi's own, the alias
+  KIMI_MODEL_NAME makes up for a run (no provider prefix) or one of the
+  plan's `kimi-code/` models /logout or a catalog refresh dropped, or a
+  provider's since removed, which nothing here can place."""
   if alias not in routes:
-    return AGENT_ID
+    return AGENT_ID if "/" not in alias or alias.startswith(MANAGED_PREFIX) else None
   kind, url, model = routes[alias]
   if url:
     return claude_code_owner(model, url)

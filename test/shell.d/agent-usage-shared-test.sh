@@ -460,7 +460,7 @@ except collectors.HttpError as error:
 check("a body short of its Content-Length over a socket is cut short", short is not None and (short.transport, short.invalid, short.cut_short) == (False, True, True), repr(short and vars(short)))
 
 
-def drip_server():
+def drip_server(status=b"200 OK"):
   listener = socket.socket()
   listener.bind(("127.0.0.1", 0))
   listener.listen(1)
@@ -469,7 +469,7 @@ def drip_server():
     conn, _ = listener.accept()
     with conn:
       conn.recv(65536)
-      conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n')
+      conn.sendall(b'HTTP/1.1 ' + status + b'\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n')
       with contextlib.suppress(OSError):
         for _ in range(100):
           conn.sendall(b" ")
@@ -489,6 +489,17 @@ except collectors.HttpError as error:
 check(
   "a reply dripping a byte at a time runs out of time as one cut short instead of holding the collector",
   dripped is not None and dripped.cut_short and not dripped.transport and time.monotonic() - began < 5,
+  repr(dripped and vars(dripped)),
+)
+began = time.monotonic()
+try:
+  collectors.open_json(urllib.request.Request(drip_server(b"500 Internal Server Error")), timeout=0.3)
+  dripped = None
+except collectors.HttpError as error:
+  dripped = error
+check(
+  "an error reply dripping its body still answers with its status by the deadline",
+  dripped is not None and dripped.status == 500 and time.monotonic() - began < 5,
   repr(dripped and vars(dripped)),
 )
 bad_key = urllib.request.Request("https://example.invalid", headers={"Authorization": "Bearer sk-secret\nX: y"})
@@ -949,6 +960,178 @@ check(
   json.dumps(by_provider),
 )
 
+# A typed prompt no step answered, its request refused as opencode 1.19.3
+# records one (an assistant row with an APIError and no tokens), books
+# itself without tokens on the model its user row names, so a session
+# holding only that still counts. In V2 it books on the failed reply after
+# it, and a message migrated into both stores books once. A compaction's
+# marker, a subagent's prompt, a fork's copy and an untrusted time book none,
+# and so does a prompt opencode 1.19.3 refused before sending it (an unknown
+# model or provider): it writes the user row alone, with no step at all.
+failed_db = work / "failed.db"
+conn = sqlite3.connect(failed_db)
+conn.execute("CREATE TABLE session (id text PRIMARY KEY, parent_id text, time_created integer NOT NULL)")
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL, type text NOT NULL,"
+             " seq integer NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.executemany("INSERT INTO session VALUES (?, ?, ?)", [("ses_fail", None, fork_ms), ("ses_only", None, fork_ms), ("ses_kid", "ses_fail", fork_ms), ("ses_copy", None, now_ms + 50), ("ses_unsent", None, fork_ms)])
+
+
+def asked(created, provider="demo", **extra):
+  return json.dumps({"role": "user", "time": {"created": created}, "agent": "build", "model": {"providerID": provider, "modelID": "oc-failoc"}, "summary": {"diffs": []}, **extra})
+
+
+def refused(parent, created, **extra):
+  return json.dumps(json.loads(step(parent, 0, created)) | {"error": {"name": "APIError", "data": {"message": "refused", "statusCode": 400}}, **extra})
+
+
+conn.executemany("INSERT INTO message VALUES (?, ?, ?, ?, ?)", [
+  # Refused, then `-c` and answered.
+  ("msg_fu1", "ses_fail", now_ms, now_ms, asked(now_ms)),
+  ("msg_fa1", "ses_fail", now_ms + 1, now_ms + 1, refused("msg_fu1", now_ms + 1)),
+  ("msg_fu2", "ses_fail", now_ms + 2, now_ms + 2, asked(now_ms + 2)),
+  ("msg_fa2", "ses_fail", now_ms + 3, now_ms + 3, step("msg_fu2", 900, now_ms + 3, finish="stop")),
+  # A compaction that failed answers its marker all the same.
+  ("msg_fu3", "ses_fail", now_ms + 4, now_ms + 4, asked(now_ms + 4)),
+  ("msg_fc3", "ses_fail", now_ms + 5, now_ms + 5, refused("msg_fu3", now_ms + 5, mode="compaction", agent="compaction", summary=True)),
+  # A session holding only a refused prompt, and one never sent.
+  ("msg_ou1", "ses_only", now_ms, now_ms, asked(now_ms)),
+  ("msg_oa1", "ses_only", now_ms + 1, now_ms + 1, refused("msg_ou1", now_ms + 1)),
+  ("msg_ou2", "ses_only", now_ms + 2, now_ms + 2, asked(now_ms + 2)),
+  # A session holding only a prompt never sent, as `opencode run -m` on an
+  # unknown model leaves it (no `summary` yet).
+  ("msg_nu1", "ses_unsent", now_ms, now_ms, json.dumps({k: v for k, v in json.loads(asked(now_ms)).items() if k != "summary"})),
+  # Another provider's, a subagent's, a fork's copy, and an untrusted time.
+  ("msg_xu1", "ses_only", now_ms + 3, now_ms + 3, asked(now_ms + 3, provider="other")),
+  ("msg_ku1", "ses_kid", now_ms, now_ms, asked(now_ms)),
+  ("msg_cu1", "ses_copy", now_ms, now_ms, asked(now_ms)),
+  ("msg_zu1", "ses_only", now_ms, now_ms, asked(0)),
+  # Migrated into V2 below under the same ids.
+  ("v2_mu", "ses_moved", now_ms, now_ms, asked(now_ms)),
+  ("v2_ma", "ses_moved", now_ms + 1, now_ms + 1, refused("v2_mu", now_ms + 1)),
+])
+conn.executemany("INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)", [
+  ("v2_mu", "ses_moved", "user", 1, now_ms, now_ms, json.dumps({"text": "hi", "time": {"created": now_ms}})),
+  ("v2_ma", "ses_moved", "assistant", 2, now_ms, now_ms, v2("demo", {"input": 0})),
+  ("v2_fu", "ses_v2_fail", "user", 1, now_ms, now_ms, json.dumps({"text": "hi", "time": {"created": now_ms}})),
+  ("v2_fa", "ses_v2_fail", "assistant", 2, now_ms, now_ms, v2("demo", {"input": 0})),
+])
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(failed_db)
+rows, complete = collectors.scan_opencode(["demo"], accept_demo)
+os.environ.pop("OPENCODE_DB")
+booked = sorted((row.session, row.input_tokens, row.prompts) for row in rows if row.prompts or row.input_tokens)
+check(
+  "an opencode prompt no step answered books once, on its user row's model, its session with it, and one never sent nowhere",
+  complete and booked == [("opencode:ses_fail", 0, 1), ("opencode:ses_fail", 900, 1), ("opencode:ses_moved", 0, 1), ("opencode:ses_only", 0, 1), ("opencode:ses_v2_fail", 0, 1)],
+  json.dumps([row._asdict() for row in rows]),
+)
+
+# pi and omp write a refused request as a reply with its provider and no
+# usage (pi 1.4.0's stopReason "error"), so the prompt books there, without
+# tokens; one no reply came for at all books on the model switch before it.
+failed_root = work / "failed-pi"
+failed_root.mkdir()
+failed_stamp = datetime.fromtimestamp(now_ms / 1000, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+zero_usage = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0}
+
+
+def pi_reply(n, provider, usage):
+  return {"type": "message", "id": f"a{n}", "timestamp": failed_stamp, "message": {"role": "assistant", "provider": provider, "model": "e2e-failpi", "usage": usage,
+                                                                           "stopReason": "error" if usage is zero_usage else "stop"}}
+
+
+def pi_user(n):
+  return {"type": "message", "id": f"u{n}", "timestamp": failed_stamp, "message": {"role": "user", "content": [{"type": "text", "text": "go"}]}}
+
+
+(failed_root / "failed.jsonl").write_text("".join(json.dumps(line) + "\n" for line in [
+  {"type": "model_change", "id": "m1", "timestamp": failed_stamp, "provider": "demo", "modelId": "e2e-failpi"},
+  pi_user(1), pi_reply(1, "other", zero_usage),
+  pi_user(2), pi_reply(2, "demo", zero_usage),
+  pi_user(3), pi_reply(3, "other", {"input": 40, "output": 1}),
+  {"type": "model_change", "id": "m2", "timestamp": failed_stamp, "provider": "demo", "modelId": "e2e-failpi"},
+  pi_user(4),
+]))
+by_provider = {
+  provider: sorted((row.input_tokens, row.prompts) for row in collectors.scan_pi_sessions(r'"provider"\s*:\s*"' + provider + '"', lambda p, m, e, provider=provider: p == provider, [failed_root])[0])
+  for provider in ("demo", "other")
+}
+check(
+  "a pi prompt no reply answered books on the refused reply, else on the model switch, once",
+  by_provider == {"demo": [(0, 1), (0, 1)], "other": [(0, 1), (40, 1)]},
+  json.dumps(by_provider),
+)
+
+# A damaged step the reader rejects (a boolean token count, an untrusted
+# time) is never an opencode prompt's first step, so the valid step after it
+# with the same parentID still books the prompt.
+damaged_db = work / "damaged.db"
+conn = sqlite3.connect(damaged_db)
+conn.execute("CREATE TABLE session (id text PRIMARY KEY, parent_id text, time_created integer NOT NULL)")
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+# ses_when has no session row, so no fork time bounds its steps.
+conn.execute("INSERT INTO session VALUES ('ses_bool', NULL, ?)", (fork_ms,))
+conn.executemany("INSERT INTO message VALUES (?, ?, ?, ?, ?)", [
+  ("msg_bu", "ses_bool", now_ms, now_ms, asked(now_ms)),
+  ("msg_b1", "ses_bool", now_ms + 1, now_ms + 1, json.dumps(json.loads(step("msg_bu", 0, now_ms + 1, finish="tool-calls")) | {"tokens": {"input": True, "output": 0}})),
+  ("msg_b2", "ses_bool", now_ms + 2, now_ms + 2, step("msg_bu", 610, now_ms + 2, finish="stop")),
+  ("msg_wu", "ses_when", now_ms, now_ms, asked(now_ms)),
+  ("msg_w1", "ses_when", now_ms + 1, now_ms + 1, json.dumps(json.loads(step("msg_wu", 50, now_ms + 1, finish="tool-calls")) | {"time": {"created": True}})),
+  ("msg_w2", "ses_when", now_ms + 2, now_ms + 2, step("msg_wu", 620, now_ms + 2, finish="stop")),
+])
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(damaged_db)
+rows, complete = collectors.scan_opencode(["demo"], accept_demo)
+os.environ.pop("OPENCODE_DB")
+check(
+  "a step the reader rejects never takes an opencode prompt from the valid step after it",
+  complete and sorted((row.input_tokens, row.prompts) for row in rows) == [(610, 1), (620, 1)],
+  json.dumps([row._asdict() for row in rows]),
+)
+
+# A prompt left unanswered in a pi session (its request failed) and answered
+# in a fork that copied it, as pi 1.4.0 and omp 18.12.6 copy a message with
+# its id and timestamp, is one prompt, counted once.
+retried_root = work / "retried-pi"
+retried_root.mkdir()
+retried = [{"type": "model_change", "id": "m1", "timestamp": failed_stamp, "provider": "demo", "modelId": "e2e-failpi"}, pi_user(1), pi_reply(1, "demo", zero_usage)]
+write_session(retried_root / "parent.jsonl", retried, header={"type": "session", "version": 3, "id": "s-parent", "timestamp": failed_stamp})
+write_session(retried_root / "fork.jsonl", retried + [pi_reply(2, "demo", {"input": 40, "output": 1})],
+              header={"type": "session", "version": 3, "id": "s-fork", "timestamp": failed_stamp, "parentSession": str(retried_root / "parent.jsonl")})
+rows, complete = collectors.scan_pi_sessions(r'"provider"\s*:\s*"demo"', lambda *_: True, [retried_root])
+check(
+  "a pi prompt unanswered in its session and answered in a fork counts once",
+  complete and sum(row.prompts for row in rows) == 1 and sum(row.input_tokens for row in rows) == 40,
+  json.dumps([row._asdict() for row in rows]),
+)
+
+# A V2 prompt whose request failed books on its own user row's day, not the
+# failed reply's, and one typed at an untrusted time counts nowhere.
+late_db = work / "late.db"
+yesterday_ms = now_ms - 86_400_000
+conn = sqlite3.connect(late_db)
+conn.execute("CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL, type text NOT NULL,"
+             " seq integer NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+conn.executemany("INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)", [
+  ("v2_lu", "ses_v2_late", "user", 1, yesterday_ms, yesterday_ms, json.dumps({"text": "hi", "time": {"created": yesterday_ms}})),
+  ("v2_la", "ses_v2_late", "assistant", 2, now_ms, now_ms, v2("demo", {"input": 0})),
+  ("v2_zu", "ses_v2_untimed", "user", 1, now_ms, now_ms, json.dumps({"text": "hi", "time": {"created": 0}})),
+  ("v2_za", "ses_v2_untimed", "assistant", 2, now_ms, now_ms, v2("demo", {"input": 0})),
+])
+conn.commit()
+conn.close()
+os.environ["OPENCODE_DB"] = str(late_db)
+rows, complete = collectors.scan_opencode(["demo"], accept_demo)
+os.environ.pop("OPENCODE_DB")
+check(
+  "a V2 prompt whose request failed books on the day it was typed, an untrusted one nowhere",
+  complete and sorted((row.session, row.day, row.prompts) for row in rows if row.prompts) == [("opencode:ses_v2_late", collectors.local_day(yesterday_ms), 1)],
+  json.dumps([row._asdict() for row in rows]),
+)
+
 # ------------------------------------------------------------- endpoints
 
 # A base URL's host says who bills what it serves: a provider's own host or
@@ -1130,6 +1313,11 @@ check(
 )
 for name in ("CURSOR_API_KEY", "CURSOR_AUTH_PATH"):
   os.environ.pop(name)
+
+deep_header = work / "deep-header.jsonl"
+deep_header.write_text("[" * 200_000 + "\n")
+check("a session header nested deeper than the parser goes names no parent instead of stopping the scan",
+      collectors.pi_parent_session(str(deep_header)) is None)
 
 # --------------------------------------------------------------- accounts
 

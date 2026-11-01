@@ -686,10 +686,16 @@ def pi_parent_session(path: str) -> str | None:
       return None
     with open(path, encoding="utf-8", errors="replace") as handle:
       header = json.loads(handle.readline())
-  except (OSError, ValueError):
+  except (OSError, ValueError, RecursionError):
+    # RecursionError: a damaged header nested deeper than the parser goes.
     return None
   parent = header.get("parentSession") if isinstance(header, dict) else None
-  return os.path.realpath(os.path.expanduser(parent)) if isinstance(parent, str) and parent else None
+  if not isinstance(parent, str) or not parent:
+    return None
+  # pi deletes a session from /resume, leaving its forks naming it. A parent
+  # that is gone still ties its forks together, so a prompt they both copied
+  # counts once; only reading it is skipped.
+  return os.path.realpath(os.path.expanduser(parent))
 
 
 def _rg_text(field: Any) -> str:
@@ -747,6 +753,41 @@ def _pi_line(entry: Any) -> tuple | None:
   return None
 
 
+def _pi_unsent(message: dict) -> bool:
+  """Whether a failed omp reply never reached its provider.
+
+  omp times every request it makes, a failed one included (`duration`, and
+  `errorStatus` for an HTTP answer), so an error it writes with its
+  `errorId` and neither, like a refused local credential, was raised before
+  sending. pi writes no `errorId`, and an aborted request may have gone out.
+  """
+  return message.get("stopReason") == "error" and "errorId" in message and not any(key in message for key in ("duration", "errorStatus", "responseId"))
+
+
+def _pi_key(entry: dict, timestamp: Any, path: str) -> tuple:
+  """The dedup key of one session line.
+
+  A reply with a response id is that response, at the time it came. A
+  fork copies its parent's entries with their id and timestamp, so the
+  pair names a message across files; an id alone only within its file. A
+  line without an id has nothing tying it to a copy elsewhere, so it is its
+  own and always counts.
+  """
+  message = obj(entry.get("message"))
+  response = message.get("responseId")
+  if message.get("role") == "assistant" and isinstance(response, str) and response and message.get("timestamp") is not None:
+    # omp writes a reply that overflowed the model's context window twice,
+    # as siblings with new ids; the response they repeat, and a fork's copy
+    # of it, is the one request the provider served.
+    return ("response", str(message.get("provider") or ""), response, str(message["timestamp"]))
+  message_id = str(entry.get("id") or "")
+  if message_id and timestamp:
+    return ("entry", message_id, str(timestamp))
+  if message_id:
+    return ("path", path, message_id)
+  return ("line", path, object())
+
+
 def _pi_row(entry: dict, timestamp: Any, path: str, provider: str, model: str, usage: dict, prompts: int) -> tuple[tuple, UsageRow] | None:
   """(dedup key, row) for usage one session line spent, or None."""
   input_tokens = usage_tokens(usage, "input", "inputTokens", "input_tokens")
@@ -765,111 +806,111 @@ def _pi_row(entry: dict, timestamp: Any, path: str, provider: str, model: str, u
   day = local_day(timestamp)
   if day is None:
     return None
-  # A fork copies its parent's entries with their id and timestamp, so the
-  # pair names a message across files; an id alone only within its file. A
-  # line without an id has nothing tying it to a copy elsewhere, so it is
-  # its own and always counts.
-  message_id = str(entry.get("id") or "")
-  if message_id and timestamp:
-    key: tuple = ("entry", message_id, str(timestamp))
-  elif message_id:
-    key = ("path", path, message_id)
-  else:
-    key = ("line", path, object())
-  return key, UsageRow(day, path, provider, model, input_tokens, output_tokens, cache_read, cache_write, prompts)
+  return _pi_key(entry, timestamp, path), UsageRow(day, path, provider, model, input_tokens, output_tokens, cache_read, cache_write, prompts)
 
 
-def _pi_contexts(path: str, lines: list[tuple[int, Any]]) -> list[tuple[int, tuple[str, str, dict]]]:
-  """(line number, (provider, model, reference)) for every model switch and
-  reply in a session file, in order.
+def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterator[tuple[int, tuple, UsageRow, tuple, bool]]:
+  """(line number, dedup key, row, prompt keys, whether `accept` takes it)
+  for each (line number, entry) of one session file, in order, whoever's,
+  the prompt keys naming the typed prompts the row's `prompts` count.
 
-  rg handed over only the lines on the collector's providers, and a switch
-  to another one would go unseen, so the file itself is read again; it is
-  only needed where a summary is, and those are rare. When it can't be read,
-  the lines rg handed over stand in.
-  """
-  contexts = []
-  try:
-    if not stat.S_ISREG(os.stat(path).st_mode):
-      raise OSError(path)
-    with open(path, encoding="utf-8", errors="replace", newline="\n") as handle:
-      for line_number, raw in enumerate(handle, 1):
-        if '"model_change"' not in raw and '"assistant"' not in raw:
-          continue
-        try:
-          line = _pi_line(json.loads(raw))
-        except ValueError:
-          continue
-        if line is not None and line[0] in ("model", "reply"):
-          contexts.append((line_number, tuple(line[1:4])))
-    return contexts
-  except OSError:
-    pass
-  for line_number, entry in lines:
-    line = _pi_line(entry)
-    if line is not None and line[0] in ("model", "reply"):
-      contexts.append((line_number, tuple(line[1:4])))
-  return contexts
-
-
-def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterator[tuple[int, tuple, UsageRow]]:
-  """(line number, dedup key, row) for each (line number, entry) of one
-  session file, in order, that `accept` takes.
-
+  `lines` hold every model switch, user and assistant message in the file.
   Usage with no provider of its own bills the model the session was on: the
   last model switch or reply before it. With neither, nothing says who
   billed it, and it is skipped. A typed prompt is booked on the first reply
   that spent tokens answering it, so tool steps and summaries answer none,
-  and a prompt another provider answered stays with that one. It counts on
-  its own day, not the reply's, and one whose time can't be trusted doesn't
-  count. A file with no user messages at all, as only a writer copying pi's
-  format leaves, keeps a prompt per reply.
+  and a prompt another provider answered stays with that one. One that no
+  reply answered before the next prompt or the file's end (its request
+  failed, or none came) is a row of its own without tokens, on the model
+  the session was set to use for it: the failed reply, which pi and omp
+  write with its provider and no usage, else the last model switch or reply
+  before it; with neither, or when omp refused the request before sending
+  it, it counts nowhere. A prompt counts on its own day,
+  not the reply's, and one whose time can't be trusted doesn't count. A file
+  with no user messages at all, as only a writer copying pi's format leaves,
+  keeps a prompt per reply.
   """
   parsed = [(line_number, entry, _pi_line(entry)) for line_number, entry in lines]
   typed = any(line == ("prompt",) for _, _, line in parsed)
-  # The day of each typed prompt no reply has answered yet, None for one
-  # whose time can't be trusted.
-  asked: list[str | None] = []
-  contexts = _pi_contexts(path, lines) if any(line and line[0] == "summary" for _, _, line in parsed) else []
+  # The model the session is on, from the last switch or reply.
+  context: tuple | None = None
+  # Each typed prompt no reply has answered yet: (line number, dedup key,
+  # day or None for an untrusted time, the model the session was on).
+  asked: list[tuple[int, tuple, str | None, tuple | None]] = []
+  # The first reply since those prompts that spent nothing: a failed request,
+  # or () for one omp refused before sending it.
+  failed: tuple | None = None
+
+  def takes(provider: str, model: str, reference: dict) -> bool:
+    try:
+      return bool(accept(provider, model, reference))
+    except Exception:
+      return False
+
+  def unanswered() -> Iterator[tuple[int, tuple, UsageRow, tuple, bool]]:
+    for line_number, key, day, before in asked:
+      target = before if failed is None else failed
+      if day is None or not target:
+        continue
+      provider, model, reference = target
+      yield line_number, ("asked", *key), UsageRow(day, path, provider, model, 0, 0, 0, 0, 1), (key,), takes(provider, model, reference)
+
   for line_number, entry, line in parsed:
     try:
-      if line is None or line[0] == "model":
+      if line is None:
         continue
       kind = line[0]
+      if kind == "model":
+        context = tuple(line[1:4])
+        continue
       # The entry's own time, else the message's.
       timestamp = entry.get("timestamp")
       if timestamp is None:
         timestamp = obj(entry.get("message")).get("timestamp")
       if kind == "prompt":
-        asked.append(local_day(timestamp))
+        # Only a prompt no reply answered is still asked: it is its own row,
+        # so a fork that copies it books it under the same key. One with no
+        # model known yet rides on the next reply, as before.
+        if asked:
+          yield from unanswered()
+          asked = [prompt for prompt in asked if failed is None and prompt[3] is None]
+          failed = None
+        asked.append((line_number, _pi_key(entry, timestamp, path), local_day(timestamp), context))
         continue
       if kind == "summary":
-        before = [context for number_at, context in contexts if number_at < line_number]
-        if not before:
+        if context is None:
           continue
-        provider, model, reference = before[-1]
+        provider, model, reference = context
         usage = line[1]
       else:
         provider, model, reference, usage = line[1:]
+        if kind == "reply":
+          context = (provider, model, reference)
       counted = _pi_row(entry, timestamp, path, provider, model, obj(usage), int(kind == "reply" and not typed))
-      answered: list[str | None] = []
-      if kind == "reply" and counted is not None:
-        answered, asked = asked, []
-      if not accept(provider, model, reference):
-        continue
+      answered: list[tuple] = []
+      if kind == "reply":
+        if counted is not None:
+          answered, asked, failed = asked, [], None
+        elif asked and failed is None:
+          failed = () if _pi_unsent(reference) else (provider, model, reference)
     except Exception:
       # One odd line costs that line, never the scan.
       continue
     if counted is None:
       continue
+    taken = takes(provider, model, reference)
     key, row = counted
     # Prompts typed on the reply's day ride on its row; one typed on another
     # day is a row of its own there, keyed by the reply that answered it.
-    days = Counter(day for day in answered if day is not None)
-    row = row._replace(prompts=row.prompts + days.pop(row.day, 0))
-    yield line_number, key, row
-    for day, prompts in sorted(days.items()):
-      yield line_number, ("prompt", day, *key), UsageRow(day, path, provider, model, 0, 0, 0, 0, prompts)
+    days: dict[str, list[tuple]] = {}
+    for _, prompt, day, _ in answered:
+      if day is not None:
+        days.setdefault(day, []).append(prompt)
+    asks = days.pop(row.day, [])
+    yield line_number, key, row._replace(prompts=row.prompts + len(asks)), tuple(asks), taken
+    for day, asks in sorted(days.items()):
+      yield line_number, ("prompt", day, *key), UsageRow(day, path, provider, model, 0, 0, 0, 0, len(asks)), tuple(asks), taken
+  yield from unanswered()
 
 
 def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None = None) -> tuple[list[UsageRow], bool]:
@@ -897,22 +938,43 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
     return [], False
 
   # Usage that names no provider of its own, spent on the session's model,
-  # the prompts the replies answer, and every reply, since one another
-  # provider gave still answers the prompt before it.
-  summary = r'"type"\s*:\s*"(compaction|branch_summary)"|"role"\s*:\s*"toolResult".*"usage"\s*:\s*\{'
-  context = summary + r'|"role"\s*:\s*"(user|assistant)"'
+  # the prompts the replies answer, every reply, since one another provider
+  # gave still answers the prompt before it, and every model switch, which
+  # says whose a summary or a prompt no reply answered is.
+  switch = r'"type"\s*:\s*"model_change"'
+  context = r'"type"\s*:\s*"(compaction|branch_summary)"|"role"\s*:\s*"toolResult".*"usage"\s*:\s*\{|"role"\s*:\s*"(user|assistant)"|' + switch
 
   # (root, path, line) of every counted line, so the rows come back in one
   # order however rg's threads interleave the files.
-  found: list[tuple[int, str, int, tuple, UsageRow]] = []
+  found: list[tuple[int, str, int, tuple, UsageRow, tuple]] = []
   complete = True
   # Each file's lines, folded in order when rg finishes the file.
   pending: dict[str, list[tuple[int, Any]]] = {}
+  # Every booking of each typed prompt, whichever provider took it, so one a
+  # fork answered on another provider books under one collector alone.
+  bookings: dict[tuple, list[tuple]] = {}
+  read: set[str] = set()
+  parents: dict[str, str | None] = {}
 
-  def fold(index: int, path: str) -> None:
-    lines = sorted(pending.pop(path, []), key=lambda line: line[0])
-    for line_number, key, row in _pi_rows(path, lines, accept):
-      found.append((index, path, line_number, key, row))
+  def ancestors(path: str) -> set[str]:
+    found: set[str] = set()
+    parent = parents.setdefault(path, pi_parent_session(path))
+    while parent and parent not in found and parent != path:
+      found.add(parent)
+      parent = parents.setdefault(parent, pi_parent_session(parent))
+    return found
+
+  def fold(index: int | None, path: str) -> None:
+    # `index` None reads a file for its bookings alone.
+    read.add(path)
+    depth = len(ancestors(path))
+    for line_number, key, row, asks, taken in _pi_rows(path, sorted(pending.pop(path, []), key=lambda line: line[0]), accept):
+      for ask in asks:
+        # An answer before a prompt no reply answered, the oldest session's
+        # first, as a fork copies its parent's.
+        bookings.setdefault(ask, []).append((key[0] == "asked", depth, path, line_number, (key, row.provider, row.model)))
+      if taken and index is not None:
+        found.append((index, path, line_number, key, row, asks))
 
   def run_rg(args: list[str], targets: list[bytes]) -> Iterator[bytes]:
     """rg's output lines for `args` over `targets`, a batch of them at a time
@@ -972,13 +1034,13 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
   for index, root in enumerate(roots):
     # Only a file holding this collector's lines can hold its rows, so the
     # files are picked first: those with a line `pattern` matches, and those
-    # with usage naming no provider where a model switch `accept` takes says
-    # whose it was (omp names the switch's provider/model, which `pattern`
-    # doesn't see). Every other file's prompts and summaries belong to
-    # another collector, and are never parsed here.
+    # with a model switch `accept` takes, which says whose a summary or an
+    # unanswered prompt there is (omp names the switch's provider/model,
+    # which `pattern` doesn't see). Every other file's prompts and summaries
+    # belong to another collector, and are never parsed here.
     owned = matching_files([os.fsencode(root)], [pattern])
-    summarized = set(matching_files([os.fsencode(root)], [summary])) - set(owned)
-    for _, path, _, entry in match_events(sorted(summarized), [r'"type"\s*:\s*"model_change"']):
+    switched = set(matching_files([os.fsencode(root)], [switch])) - set(owned)
+    for _, path, _, entry in match_events(sorted(switched), [switch]):
       line = _pi_line(entry)
       try:
         if line is not None and line[0] == "model" and accept(*line[1:4]):
@@ -993,27 +1055,67 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
     for path in list(pending):
       fold(index, path)
 
+  # A prompt's copies live in the forks of the session it was typed in, so
+  # the other files of those fork trees holding a prompt this collector
+  # booked are read for their bookings alone: each collector then picks the
+  # same one among them. Only a prompt with an entry id has copies elsewhere.
+  ids = {ask[1] for *_, asks in found for ask in asks if ask[0] == "entry"}
+  children: dict[str, list[str]] = {}
+  for name in matching_files([os.fsencode(root) for root in roots], [r'"parentSession"']) if ids else ():
+    path = os.fsdecode(name)
+    parent = parents.setdefault(path, pi_parent_session(path))
+    if parent:
+      children.setdefault(parent, []).append(path)
+  family: set[str] = set()
+  queue = list(read) if ids else []
+  while queue:
+    path = queue.pop()
+    if path in family:
+      continue
+    family.add(path)
+    queue.extend(ancestors(path) | set(children.get(path, ())))
+  others = sorted(os.fsencode(path) for path in family - read if os.path.isfile(path) and any(Path(path).is_relative_to(root) for root in roots))
+  if others and all(re.fullmatch(r"[A-Za-z0-9_.:-]+", key) for key in ids):
+    # Such an id is written as itself, quoted, so a file holding none of
+    # them quoted holds no copy, and is never parsed.
+    try:
+      with tempfile.NamedTemporaryFile("w", suffix=".ids") as quoted:
+        quoted.write("".join(f'"{key}"\n' for key in sorted(ids)))
+        quoted.flush()
+        others = sorted({os.fsencode(os.path.realpath(os.fsdecode(name))) for name in b"".join(run_rg(["--files-with-matches", "--null", "--fixed-strings", "-f", quoted.name], others)).split(b"\0") if name})
+    except OSError:
+      # With nowhere to write the ids, every file of the family is read.
+      pass
+  for kind, path, line_number, entry in match_events(others, [context]):
+    if kind == "end":
+      fold(None, path)
+    else:
+      pending.setdefault(path, []).append((line_number, entry))
+  for path in list(pending):
+    fold(None, path)
+  owner = {ask: min(candidates, key=lambda candidate: candidate[:4])[-1] for ask, candidates in bookings.items()}
+
   first: dict[tuple, UsageRow] = {}
   holders: dict[tuple, list[str]] = {}
-  for _, path, _, key, row in sorted(found, key=lambda item: item[:3]):
-    first.setdefault(key, row)
+  for _, path, _, key, row, asks in sorted(found, key=lambda item: item[:3]):
+    if key not in first:
+      # A typed prompt is its own message, so it counts once by its own key
+      # however it was booked: a fork can copy one its parent left
+      # unanswered and answer it, on a reply the parent never had and on
+      # another provider too. The oldest session's answer books it, else
+      # its booking unanswered, whichever collector that is.
+      repeated = sum(1 for ask in asks if owner.get(ask) != (key, row.provider, row.model))
+      row = row._replace(prompts=row.prompts - repeated)
+      first[key] = row
     if path not in holders.setdefault(key, []):
       holders[key].append(path)
 
   # Resolved after the scan, so rg's file order cannot decide which copy of
   # a forked message counts toward which session.
-  parents: dict[str, str | None] = {}
-
-  def ancestors(path: str) -> set[str]:
-    found: set[str] = set()
-    parent = parents.setdefault(path, pi_parent_session(path))
-    while parent and parent not in found and parent != path:
-      found.add(parent)
-      parent = parents.setdefault(parent, pi_parent_session(parent))
-    return found
-
   rows = []
   for key, row in first.items():
+    if not (row.prompts or row.input_tokens or row.output_tokens or row.cache_read or row.cache_write):
+      continue
     paths = holders[key]
     if len(paths) > 1:
       roots_of_copy = [path for path in paths if not ancestors(path) & set(paths)]
@@ -1050,26 +1152,31 @@ def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
     return set()
 
 
-def _opencode_row(session_id: Any, entry: Any, row_type: str, created: Any, accept: Accept) -> UsageRow | None:
+def _opencode_tokens(value: Any) -> tuple[int, int, int, int]:
+  """(input, output, cache read, cache write) of an opencode `tokens`
+  object, each count one token_count() trusts."""
+  tokens = obj(value)
+  cache = obj(tokens.get("cache"))
+  # opencode keeps thinking tokens out of output; both are generated.
+  return token_count(tokens.get("input")), token_count(tokens.get("output")) + token_count(tokens.get("reasoning")), token_count(cache.get("read")), token_count(cache.get("write"))
+
+
+def _opencode_row(session_id: Any, entry: Any, row_type: str, created: Any, accept: Accept, empty: bool = False) -> UsageRow | None:
   # Shared by both message stores. The original `message` table keeps the
   # provider and model at the top level; the V2 `session_message` table nests
   # them under `model` and keeps the role in its `type` column, with a
-  # compaction's tokens spent like any reply's.
-  if not isinstance(entry, dict) or (entry.get("role") or row_type) not in ("assistant", "compaction"):
+  # compaction's tokens spent like any reply's. `empty` keeps a row that
+  # spent nothing, for the prompt it books; a user row is one such.
+  if not isinstance(entry, dict) or (entry.get("role") or row_type) not in (("assistant", "compaction", "user") if empty else ("assistant", "compaction")):
     return None
   nested = obj(entry.get("model"))
   provider = str(entry.get("providerID") or nested.get("providerID") or "")
   model = str(entry.get("modelID") or nested.get("id") or nested.get("modelID") or "")
   if not accept(provider, model, entry):
     return None
-  tokens = obj(entry.get("tokens"))
-  cache = obj(tokens.get("cache"))
-  input_tokens = token_count(tokens.get("input"))
-  # opencode keeps thinking tokens out of output; both are generated.
-  output_tokens = token_count(tokens.get("output")) + token_count(tokens.get("reasoning"))
-  cache_read = token_count(cache.get("read"))
-  cache_write = token_count(cache.get("write"))
-  if not (input_tokens or output_tokens or cache_read or cache_write):
+  # A user row spent nothing, whatever it claims.
+  input_tokens, output_tokens, cache_read, cache_write = _opencode_tokens(entry.get("tokens") if entry.get("role") != "user" else {})
+  if not (input_tokens or output_tokens or cache_read or cache_write or empty):
     return None
   # The message's own time, else the row's: none at all is today's, and an
   # untrusted one, zero included, skips only this row.
@@ -1115,23 +1222,29 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
   # provider took it, by (session, parentID).
   firsts: dict[tuple[str, str], str] = {}
 
-  def take(message_id: Any, session_id: Any, raw: Any, row_type: str, created: Any, since: Any = None, turn: Any = "") -> None:
+  def take(message_id: Any, session_id: Any, raw: Any, row_type: str, created: Any, since: Any = None, turn: Any = "", empty: bool = False, typed: str | None = None) -> None:
     # `turn` is the prompt the row answers, None for none, or "" to read it
-    # from the row. One row that still fails must not take the scan down
-    # with it.
+    # from the row; `empty` keeps a row that spent nothing, for that prompt,
+    # dated `typed`, the day it was typed (None when that can't be trusted).
+    # One row that still fails must not take the scan down with it.
     try:
       entry = json.loads(raw)
       # A copy a fork made predates the session holding it.
       spent_at = number(obj(obj(entry).get("time")).get("created"))
       if spent_at and spent_at < number(since):
         return
-      row = _opencode_row(session_id, entry, row_type, created, accept)
+      row = _opencode_row(session_id, entry, row_type, created, accept, empty)
     except Exception:
       return
     # A migrated message can sit in both stores under the same id.
     if row is None or str(message_id) in seen:
       return
     seen.add(str(message_id))
+    if empty and not (row.input_tokens or row.output_tokens or row.cache_read or row.cache_write):
+      # A failed reply is only its prompt, which counts on its own day.
+      if typed is None:
+        return
+      row = row._replace(day=typed)
     if turn == "":
       # The original store's steps name the user message they answer; a
       # compaction's summary answers the marker opencode adds, no prompt.
@@ -1165,21 +1278,25 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
     columns = _table_columns(conn, "session_message") if "session_message" in tables else set()
     if {"id", "session_id", "type", "data"} <= columns and patterns:
       # V2 keeps typed prompts as `user` rows without a model, so each books
-      # the first reply after it in its session; `synthetic` rows are the
-      # ones opencode adds itself. A session without any keeps a prompt per
-      # reply.
+      # the first reply after it in its session, one whose request failed
+      # and spent nothing too; `synthetic` rows are the ones opencode adds
+      # itself. A session without any keeps a prompt per reply.
       asked: set[str] = set()
-      replies: set[str] = set()
+      # Each reply booking a prompt, and the day its first user row was typed.
+      replies: dict[str, str | None] = {}
       order = "seq" if "seq" in columns else "time_created" if "time_created" in columns else ""
       if order:
-        for session_id, reply_id in conn.execute(
+        for session_id, reply_id, created_at, typed_at in conn.execute(
           "SELECT u.session_id, (SELECT a.id FROM session_message a WHERE a.session_id = u.session_id AND a.type = 'assistant'"
-          f" AND (a.{order} > u.{order} OR (a.{order} = u.{order} AND a.id > u.id)) ORDER BY a.{order}, a.id LIMIT 1)"
-          " FROM session_message u WHERE u.type = 'user'"
+          f" AND (a.{order} > u.{order} OR (a.{order} = u.{order} AND a.id > u.id)) ORDER BY a.{order}, a.id LIMIT 1),"
+          " CASE WHEN json_valid(u.data) THEN json_extract(u.data, '$.time.created') END,"
+          f" {'u.time_created' if 'time_created' in columns else 'NULL'}"
+          f" FROM session_message u WHERE u.type = 'user' ORDER BY u.{order}, u.id"
         ):
           asked.add(str(session_id))
-          if reply_id is not None:
-            replies.add(str(reply_id))
+          if reply_id is not None and str(reply_id) not in replies:
+            # The user row's own time, else the row's, as _opencode_row reads it.
+            replies[str(reply_id)] = local_day(typed_at if created_at is None else created_at)
       created = "m.time_created" if "time_created" in columns else "NULL"
       source = "session_message m"
       fork_filter = ""
@@ -1198,7 +1315,7 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
           turn = None
         else:
           turn = ("message", str(message_id))
-        take(message_id, session_id, raw, str(row_type or ""), time_created, turn=turn)
+        take(message_id, session_id, raw, str(row_type or ""), time_created, turn=turn, empty=turn is not None and str(session_id) in asked, typed=replies.get(str(message_id)))
     columns = _table_columns(conn, "message") if "message" in tables else set()
     if {"session_id", "data"} <= columns and patterns:
       row_id = "m.id" if "id" in columns else "m.rowid"
@@ -1210,30 +1327,107 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
         # a message older than its session was spent in the source.
         source += " LEFT JOIN session s ON s.id = m.session_id"
         session_created = "s.time_created"
-      # The first step that spent tokens on each user message across every
-      # provider, so a tool loop that switches providers books its prompt
-      # once, on whichever collector took that step. Only valid JSON is read,
-      # so one odd row can't fail the query.
-      spent = " + ".join(f"COALESCE(json_extract(j, '$.tokens.{key}'), 0)" for key in ("input", "output", "reasoning", "cache.read", "cache.write"))
-      for session_id, parent, first_id in conn.execute(
-        "SELECT session_id, parent, id FROM (SELECT session_id, parent, id,"
-        " ROW_NUMBER() OVER (PARTITION BY session_id, parent ORDER BY created, CAST(id AS TEXT)) AS n"
-        " FROM (SELECT id, session_id, j, since, json_extract(j, '$.parentID') AS parent, json_extract(j, '$.time.created') AS created"
-        f" FROM (SELECT {row_id} AS id, m.session_id, CASE WHEN json_valid(m.data) THEN m.data END AS j, {session_created} AS since"
-        f" FROM {source} WHERE m.data LIKE '%\"parentID\"%' AND m.data LIKE '%\"role\"%:%\"assistant\"%'))"
-        " WHERE typeof(parent) = 'text' AND parent != '' AND (created IS NULL OR created > 0)"
-        " AND (since IS NULL OR created IS NULL OR created >= since)"
-        " AND json_extract(j, '$.summary') IS NOT 1 AND json_extract(j, '$.mode') IS NOT 'compaction'"
-        f" AND {spent} > 0) WHERE n = 1"
-      ):
-        firsts[(str(session_id), str(parent))] = str(first_id)
       gate = " OR ".join("m.data LIKE ?" for _ in patterns)
-      for message_id, session_id, raw, since in conn.execute(
+      # This collector's own steps and prompts, read before the first steps
+      # they need, which are looked up for their sessions alone.
+      own_steps = list(conn.execute(
         f"SELECT {row_id}, m.session_id, m.data, {session_created} FROM {source}"
         f" WHERE m.data LIKE '%\"role\"%:%\"assistant\"%' AND ({gate})",
         patterns,
-      ):
+      ))
+      own_prompts = list(conn.execute(
+        f"SELECT {row_id}, m.session_id, m.data, {session_created} FROM {source}"
+        f" WHERE m.data LIKE '%\"role\"%:%\"user\"%' AND ({gate})",
+        patterns,
+      ))
+      # The first step that spent tokens on each user message across every
+      # provider, so a tool loop that switches providers books its prompt
+      # once, on whichever collector took that step. Only valid JSON is read,
+      # so one odd row can't fail the query, and a step counts as first only
+      # if take() would keep it: its tokens and time pass the same checks,
+      # so a damaged step never takes the prompt from a valid one after it.
+      # A session's first steps are its own, so only the sessions above are
+      # read, through opencode's index on session_id, each id as stored.
+      sessions = list(dict.fromkeys(session_id for _, session_id, _, _ in own_steps + own_prompts))
+      for session_id, parent, first_id, created, tokens, since in conn.execute(
+        "SELECT session_id, parent, id, created, tokens, since"
+        " FROM (SELECT id, session_id, j, since, json_extract(j, '$.parentID') AS parent, json_extract(j, '$.time.created') AS created,"
+        " json_extract(j, '$.tokens') AS tokens"
+        f" FROM (SELECT {row_id} AS id, m.session_id, CASE WHEN json_valid(m.data) THEN m.data END AS j, {session_created} AS since"
+        f" FROM {source} WHERE m.session_id IN (SELECT value FROM json_each(?))"
+        " AND m.data LIKE '%\"parentID\"%' AND m.data LIKE '%\"role\"%:%\"assistant\"%'))"
+        " WHERE typeof(parent) = 'text' AND parent != '' AND typeof(tokens) = 'text'"
+        " AND json_extract(j, '$.summary') IS NOT 1 AND json_extract(j, '$.mode') IS NOT 'compaction'"
+        " ORDER BY session_id, parent, created, CAST(id AS TEXT)",
+        (json.dumps(sessions, default=str),),
+      ) if sessions else ():
+        turn = (str(session_id), str(parent))
+        if turn in firsts:
+          continue
+        try:
+          spent_at = number(created)
+          if not any(_opencode_tokens(json.loads(tokens))) or local_day(created) is None or (spent_at and spent_at < number(since)):
+            continue
+        except Exception:
+          continue
+        firsts[turn] = str(first_id)
+      for message_id, session_id, raw, since in own_steps:
         take(message_id, session_id, raw, "", None, since)
+      # A typed prompt no step answered (its request failed or was cut off)
+      # books itself, without tokens, on the model the user row names, the
+      # one opencode sent it to. A compaction's marker is answered by its
+      # summary, and one in a subagent's session isn't typed.
+      waiting: list[tuple[Any, str, dict]] = []
+      for message_id, session_id, raw, since in own_prompts:
+        try:
+          entry = json.loads(raw)
+          if not isinstance(entry, dict) or entry.get("role") != "user" or str(session_id) in children or (str(session_id), str(message_id)) in firsts:
+            continue
+          typed_at = number(obj(entry.get("time")).get("created"))
+          if typed_at and typed_at < number(since):
+            continue
+        except Exception:
+          continue
+        waiting.append((message_id, str(session_id), entry))
+      if waiting:
+        # The steps that did answer them: a compaction's summary, or a failed
+        # request, whose id V2 may have booked the prompt under already.
+        sessions = sorted({session_id for _, session_id, _ in waiting})
+        steps: dict[tuple[str, str], str] = {}
+        compacted: set[tuple[str, str]] = set()
+        for start in range(0, len(sessions), 500):
+          batch = sessions[start:start + 500]
+          for step_id, session_id, raw in conn.execute(
+            f"SELECT {row_id}, m.session_id, m.data FROM message m WHERE m.session_id IN ({', '.join('?' for _ in batch)})"
+            " AND m.data LIKE '%\"parentID\"%' AND m.data LIKE '%\"role\"%:%\"assistant\"%'"
+            f" ORDER BY {'m.time_created, ' if 'time_created' in columns else ''}CAST({row_id} AS TEXT)",
+            batch,
+          ):
+            try:
+              step = json.loads(raw)
+              key = (str(session_id), str(step.get("parentID")))
+              if step.get("summary") is True or step.get("mode") == "compaction":
+                compacted.add(key)
+              steps.setdefault(key, str(step_id))
+            except Exception:
+              continue
+        for message_id, session_id, entry in waiting:
+          key = (session_id, str(message_id))
+          # opencode writes the step before it sends the request, so a user
+          # row no step names was refused before sending (an unknown model or
+          # provider) and counts nowhere.
+          step_id = steps.get(key)
+          if step_id is None or key in compacted or step_id in seen:
+            continue
+          try:
+            row = _opencode_row(session_id, entry, "user", None, accept, empty=True)
+          except Exception:
+            continue
+          if row is None:
+            continue
+          seen.add(step_id)
+          rows.append(row)
+          turns.append((("asked", session_id, str(message_id)), (0, str(message_id))))
   except sqlite3.Error:
     # Transient lock, schema migration, corruption: the numbers stop here,
     # incomplete.
@@ -1248,9 +1442,9 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
 # Some harnesses send to whatever base URL they are given and record only the
 # model that answered, or a route's name: Claude Code fronts any endpoint
 # ANTHROPIC_BASE_URL names, and a MiniMax Code custom provider any baseURL.
-# Z.ai, Ollama, MiniMax, DeepSeek, Kimi, Alibaba's Model Studio and
-# OpenRouter each document pointing them at their own APIs, so the host says
-# whose tokens those turns are.
+# Z.ai, Ollama, MiniMax, DeepSeek, Kimi, Alibaba's Model Studio, OpenRouter,
+# Synthetic and Kimchi each document pointing them at their own APIs, so the
+# host says whose tokens those turns are.
 
 # The hosts a harness is pointed at in place of its own service, by the
 # collector that bills them. A subdomain of one is the same service.
@@ -1271,6 +1465,13 @@ PROVIDER_HOSTS = {
   "alibabacloud.com": "qwen",
   "qwen.ai": "qwen",
   "openrouter.ai": "openrouter",
+  # Synthetic's Anthropic- and OpenAI-compatible APIs (/anthropic, /openai/v1).
+  "api.synthetic.new": "synthetic",
+  # Kimchi's gateway in each region (llm.kimchi.dev, llm.eu.kimchi.dev), at
+  # the /anthropic and /openai/v1 routes `kimchi claudecode`, `kimchi codex`
+  # and its opencode setup write. It bills every model it serves, Claude,
+  # Kimi, GLM and MiniMax ones too.
+  "kimchi.dev": "kimchi",
 }
 
 
@@ -1340,6 +1541,10 @@ CLAUDE_CODE_MODEL_OWNERS = (
   ("deepseek-", "deepseek"),
   ("kimi-", "kimi"),
   ("moonshot", "kimi"),
+  # Synthetic's own naming: Hugging Face ids (hf:org/model) and its aliases
+  # (syn:large:text).
+  ("hf:", "synthetic"),
+  ("syn:", "synthetic"),
 )
 
 
@@ -1371,12 +1576,15 @@ def claude_code_owner(model: Any, base_url: str = "") -> str | None:
   or None when nothing here can say who billed it.
 
   A transcript doesn't say where it was sent, so while ANTHROPIC_BASE_URL
-  names a provider's host every reply is read as that provider's. Otherwise
-  an Ollama cloud tag is Ollama's, wherever it was sent, and a Claude model
+  names a provider's host every reply is read as that provider's, whatever
+  its model: a Claude or kimi-* reply through Kimchi's gateway is Kimchi's,
+  never Anthropic's or Kimi's. Otherwise an Ollama cloud tag is Ollama's,
+  wherever it was sent, and a Claude model
   is Anthropic's, through a proxy that may forward to it too. Behind a
   self-hosted base URL anything else ran on the user's own hardware. With no
   override the model's name says whose it was (glm-* is Z.ai's, MiniMax-*
-  MiniMax's, deepseek-* DeepSeek's, kimi-* and moonshot* Kimi's); behind a
+  MiniMax's, deepseek-* DeepSeek's, kimi-* and moonshot* Kimi's, hf:* and
+  syn:* Synthetic's); behind a
   gateway nothing here can place, it could be anyone's, and counts nowhere.
   """
   endpoint = claude_code_endpoint(base_url)
@@ -2053,13 +2261,14 @@ def claude_code_scan_match(claude_dir: Path | None = None) -> dict[str, str]:
 # ------------------------------------------------------- Codex rollouts
 #
 # Codex writes one JSONL rollout per session under $CODEX_HOME/sessions (and
-# archived_sessions), naming the model provider it ran on. The Codex
-# collector reads its own `openai` rollouts with a reader of its own; the
-# rest (`--oss` on a local daemon, a custom model_providers entry) are read
-# here for the collectors that bill them: the local collector for a
-# self-hosted provider, Ollama Cloud for a cloud-tagged model the local
-# daemon forwarded, and a provider's collector for a model_providers entry
-# whose base_url is that provider's host (codex_route_owner).
+# archived_sessions), naming the model provider it ran on. Every rollout is
+# read here, once for every collector that bills one: the Codex collector its
+# own `openai` rollouts, and the rest (`--oss` on a local daemon, a custom
+# model_providers entry) the local collector for a self-hosted provider,
+# Ollama Cloud for a cloud-tagged model the local daemon forwarded, and a
+# provider's collector for a model_providers entry whose base_url is that
+# provider's host (codex_route_owner). While openai_base_url sends the
+# built-in provider elsewhere, its models are split the same way.
 
 # The Codex collector counts rollouts on the built-in provider, and ones too
 # old to name a provider at all.
@@ -2071,11 +2280,17 @@ CODEX_WINDOW_DAYS = 30
 # Per-file totals of Codex rollouts survive between runs, so a rescan only
 # reads the files that changed. Bumping it retires every older record; version
 # 2 drops totals cached while an untrusted time still counted on the file's day,
-# version 3 those that counted every request as a prompt, and version 4 those
-# that missed the responses only Codex 0.163's token_usage_record lines name.
-CODEX_ROLLOUT_SCHEMA = 4
+# version 3 those that counted every request as a prompt, version 4 those
+# that missed the responses only Codex 0.163's token_usage_record lines name,
+# version 5 those with no session, version 6 those that left a built-in
+# rollout unread without saying so, version 7 those that booked a
+# switched-to model's first requests to the model before it, and version 8
+# those that read no turns from a rollout naming no session_meta.
+CODEX_ROLLOUT_SCHEMA = 8
 
-_CODEX_MARKERS = ('"token_count"', '"token_usage_record"', '"turn_context"', '"session_meta"', '"user_message"', '"UserMessage"')
+_CODEX_MARKERS = (
+  '"token_count"', '"token_usage_record"', '"turn_context"', '"thread_settings_applied"', '"session_meta"', '"user_message"', '"UserMessage"',
+)
 
 # What a token_usage_record's running total is compared by.
 _CODEX_USAGE_FIELDS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
@@ -2096,6 +2311,7 @@ def _codex_record_valid(value: Any) -> bool:
     counts = [totals for models in value["days"].values() for totals in models.values()]
     return (
       type(value["mtime"]) in (int, float) and type(value["size"]) is int and isinstance(value["provider"], str)
+      and (value["session"] is None or type(value["session"]) is str)
       and all(len(totals) == 5 and all(type(n) is int for n in totals) for totals in counts)
     )
   except Exception:
@@ -2114,23 +2330,139 @@ def _codex_typed_prompt(entry: dict[str, Any]) -> bool:
   return payload.get("type") == "item_completed" and obj(payload.get("item")).get("type") == "UserMessage"
 
 
+def _codex_settings_model(entry: dict[str, Any]) -> str:
+  """The model a thread_settings_applied event switches the thread to, or "".
+  Codex 0.163 writes one when `-m` on a resume or /model picks another model,
+  ahead of any request on it: a compaction the switch sends goes out on the
+  new model before that turn's turn_context names it."""
+  payload = obj(entry.get("payload"))
+  if entry.get("type") != "event_msg" or payload.get("type") != "thread_settings_applied":
+    return ""
+  settings = obj(payload.get("thread_settings"))
+  return str(settings.get("model") or obj(obj(settings.get("collaboration_mode")).get("settings")).get("model") or "")
+
+
 def _codex_typed_session(meta: dict[str, Any]) -> bool:
-  # A subagent's or Codex's own internal thread is prompted by Codex itself.
+  # A subagent's thread, or one of Codex's own (a guardian review, memory
+  # consolidation), is prompted by Codex, not by anyone typing: its requests
+  # still spend tokens, but its messages are no prompts.
   source = meta.get("source")
   return not (isinstance(source, dict) and ("subagent" in source or "internal" in source))
 
 
-def read_codex_rollout(path: Path, stat_result: os.stat_result) -> dict[str, Any]:
-  """One rollout's provider and day -> model -> [input, output, cacheRead,
-  cacheWrite, prompts], counted the way the Codex collector counts its own.
-  A rollout on the built-in provider, or naming none, is left unread.
+def codex_rollout_session(meta: dict[str, Any], typed: bool, path: Any) -> str | None:
+  """The session a rollout's tokens count under. A thread someone started is
+  its own, by its thread id. Codex's own threads (a review, a guardian check,
+  a spawned agent) name the root thread that started them in session_id, or
+  their parent in parent_thread_id, and count under it, as a Claude Code
+  sidechain counts under its parent's sessionId: they spend tokens but start
+  no session. One that names no thread but its own, such as a memory
+  consolidation, counts under none."""
+  thread = meta.get("id")
+  if typed:
+    return str(thread or path)
+  for starter in (meta.get("session_id"), meta.get("parent_thread_id")):
+    if starter and starter != thread:
+      return str(starter)
+  return None
+
+
+# A rollout that only grew is read on from where the last read stopped,
+# with the reader's state as it was there, when the first and last few
+# kilobytes of what was read are still in place.
+CODEX_ROLLOUT_HEAD_BYTES = 4096
+
+_CODEX_MARKER_BYTES = tuple(marker.encode() for marker in _CODEX_MARKERS)
+
+# The line ends a text-mode read splits a rollout on.
+_CODEX_LINE_ENDS = re.compile(r"\r\n|\r|\n")
+
+
+def _codex_digest(handle: Any, length: int) -> str:
+  digest = hashlib.sha1()
+  handle.seek(0)
+  digest.update(handle.read(min(length, CODEX_ROLLOUT_HEAD_BYTES)))
+  handle.seek(max(0, length - CODEX_ROLLOUT_HEAD_BYTES))
+  digest.update(handle.read(min(length, CODEX_ROLLOUT_HEAD_BYTES)))
+  return digest.hexdigest()
+
+
+def _codex_response_key(response: tuple[Any, ...]) -> str:
+  return hashlib.blake2b(json.dumps(response).encode(), digest_size=8).hexdigest()
+
+
+def _codex_resume(handle: Any, previous: dict[str, Any]) -> dict[str, Any] | None:
+  """The reader state a cached record stopped in, when the open rollout is
+  that same file, grown past it with what was read still in place, else
+  None. The record's days have the prompts no request had answered yet
+  taken back out, since the read goes on to find who answers them."""
+  try:
+    state = dict(previous["resume"])
+    info = os.fstat(handle.fileno())
+    offset = state["offset"]
+    if not (
+      type(offset) is int and info.st_size > previous["size"] and info.st_size >= offset
+      and state["file"] == [info.st_dev, info.st_ino]
+      and isinstance(state["model"], str) and all(type(state[flag]) is bool for flag in ("meta", "typed", "records", "done"))
+      and all(isinstance(day, str) for day in state["pending"]) and all(isinstance(key, str) for key in state["responses"])
+      and state["head"] == _codex_digest(handle, offset)
+    ):
+      return None
+    days = {day: {model: list(totals) for model, totals in models.items()} for day, models in previous["days"].items()}
+    for day in state["pending"]:
+      totals = days[day][state["model"]]
+      totals[4] -= 1
+      if totals[4] < 0:
+        return None
+      # A prompt's bucket holds nothing else until a request lands in it.
+      if not any(totals):
+        del days[day][state["model"]]
+        if not days[day]:
+          del days[day]
+    state["days"] = days
+    return state
+  except Exception:
+    return None
+
+
+def _codex_rollout_files(root: Path) -> list[Path]:
+  """Every rollout under `root`, plain or compressed. Codex compresses a
+  finished rollout to .jsonl.zst and decompresses it again to append, so for
+  a moment both exist; the plain one is what Codex reads."""
+  paths = {path for path in root.rglob("*.jsonl*") if path.name.endswith((".jsonl", ".jsonl.zst"))}
+  return [path for path in paths if not (path.name.endswith(".zst") and path.with_suffix("") in paths)]
+
+
+# What reading a rollout can fail with: a truncated or damaged .zst too.
+_CODEX_READ_ERRORS = (OSError, EOFError) + (() if zstd is None else (zstd.ZstdError,))
+
+
+def _codex_open(path: Path) -> Any:
+  if not path.name.endswith(".zst"):
+    return path.open("rb")
+  if zstd is None:
+    raise OSError(f"no zstd support in this Python to read {path}")
+  return zstd.open(path, "rb")
+
+
+def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[str, Any] | None = None, native: bool = False) -> dict[str, Any]:
+  """One rollout's provider, session (codex_rollout_session) and day ->
+  model -> [input, output, cacheRead, cacheWrite, prompts]. A rollout on the
+  built-in provider, or naming none, is left unread and marked `skipped`,
+  unless `native` asks for it, as the Codex collector does and
+  openai_base_url can.
 
   A prompt counts on its own day, under the model that answered it: the one
   in effect at the next request, since a legacy rollout can write the prompt
   before the turn_context naming its model. A partial read has an mtime of
   None, so it is never cached as the file's whole story.
+
+  `previous`, the file's last record, is read on from where it stopped when
+  the file only grew; the record's `resume` holds what that takes. A
+  rollout dated by its mtime, or ending in a line still being written, is
+  read whole next time.
   """
-  record: dict[str, Any] = {"mtime": stat_result.st_mtime, "size": stat_result.st_size, "provider": "", "days": {}}
+  record: dict[str, Any] = {"mtime": stat_result.st_mtime, "size": stat_result.st_size, "provider": "", "session": str(path), "days": {}}
   current_model = "local"
   seen_meta = False
   typed = True
@@ -2141,195 +2473,361 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result) -> dict[str, Any
   # request. Once one appears, the records are the usage and the token_count
   # lines after it repeat them; those before it still count.
   seen_records = False
-  seen_responses: set[tuple[Any, ...]] = set()
+  seen_responses: set[str] = set()
+  offset = 0
+  done = False
+  # A compressed rollout never grows in place, so it is always read whole.
+  compressed = path.name.endswith(".zst")
+  resumable = not compressed
+  resume: dict[str, Any] = {}
 
   def bucket(day: str, model: str) -> list[int]:
     return record["days"].setdefault(day, {}).setdefault(model, [0, 0, 0, 0, 0])
 
   try:
-    with path.open(errors="replace") as handle:
-      for raw in handle:
-        if not any(marker in raw for marker in _CODEX_MARKERS):
+    with _codex_open(path) as handle:
+      state = _codex_resume(handle, previous) if previous and not compressed else None
+      if previous and state is not None:
+        record["provider"] = previous["provider"]
+        record["session"] = previous["session"]
+        record["days"] = state["days"]
+        current_model = state["model"]
+        seen_meta = state["meta"]
+        typed = state["typed"]
+        pending_prompts = list(state["pending"])
+        previous_total_usage = state["total"]
+        seen_records = state["records"]
+        seen_responses = set(state["responses"])
+        offset = state["offset"]
+        done = state["done"]
+      handle.seek(offset)
+      for raw in [] if done else handle:
+        # A line still being written is read again once it is whole.
+        whole = raw.endswith(b"\n")
+        if whole:
+          offset += len(raw)
+        if not any(marker in raw for marker in _CODEX_MARKER_BYTES):
           continue
-        try:
-          entry = json.loads(raw)
-        except Exception:
-          # A line nested too deep to parse is a RecursionError, not a
-          # ValueError; either way only that line is lost.
-          continue
-        if not isinstance(entry, dict):
-          continue
-        if entry.get("type") == "session_meta":
-          # A forked rollout copies its parent's session_meta after its own,
-          # so only the first one, as Codex reads it, says who served this.
-          if seen_meta:
+        text = raw.decode("utf-8", errors="replace")
+        for line in _CODEX_LINE_ENDS.split(text) if "\r" in text else (text,):
+          if not any(marker in line for marker in _CODEX_MARKERS):
             continue
-          seen_meta = True
-          record["provider"] = str(obj(entry.get("payload")).get("model_provider") or "").strip().lower()
-          # The built-in provider, or none recorded, is the Codex
-          # collector's: nothing here can count it.
-          if record["provider"] in ("", CODEX_NATIVE_PROVIDER):
-            break
-          typed = _codex_typed_session(obj(entry.get("payload")))
-          continue
-        if not seen_meta:
-          continue
-        if _codex_typed_prompt(entry):
-          # A prompt with no time is the file's; one whose time can't be
-          # trusted counts nowhere.
+          try:
+            entry = json.loads(line)
+          except Exception:
+            # A line nested too deep to parse is a RecursionError, not a
+            # ValueError; either way only that line is lost.
+            continue
+          if not isinstance(entry, dict):
+            continue
+          if not whole:
+            resumable = False
+          if entry.get("type") == "session_meta":
+            # A forked rollout copies its parent's session_meta after its own,
+            # so only the first one, as Codex reads it, says who served this.
+            if seen_meta:
+              continue
+            seen_meta = True
+            meta = obj(entry.get("payload"))
+            record["provider"] = str(meta.get("model_provider") or "").strip().lower()
+            # The built-in provider, or none recorded, is the Codex
+            # collector's unless openai_base_url sends it elsewhere.
+            if record["provider"] in ("", CODEX_NATIVE_PROVIDER):
+              if not native:
+                record["skipped"] = True
+                done = True
+                break
+              # A turn naming no model is Codex's own, as the Codex
+              # collector reads it.
+              current_model = "codex"
+            typed = _codex_typed_session(meta)
+            record["session"] = codex_rollout_session(meta, typed, path)
+            continue
+          if not seen_meta:
+            # A rollout from before Codex wrote session_meta names no
+            # provider, so its turns are the built-in provider's.
+            if not native:
+              record["skipped"] = True
+              done = True
+              break
+            seen_meta = True
+            current_model = "codex"
+          if _codex_typed_prompt(entry):
+            # A prompt with no time is the file's; one whose time can't be
+            # trusted counts nowhere.
+            timestamp = entry.get("timestamp")
+            if timestamp is None:
+              resumable = False
+            day = local_day(stat_result.st_mtime if timestamp is None else timestamp)
+            if typed and day is not None:
+              pending_prompts.append(day)
+            continue
+          if entry.get("type") == "turn_context":
+            payload = obj(entry.get("payload"))
+            current_model = str(payload.get("model") or payload.get("model_slug") or current_model)
+            continue
+          switched = _codex_settings_model(entry)
+          if switched:
+            current_model = switched
+            continue
+          if entry.get("type") == "token_usage_record":
+            seen_records = True
+            payload = obj(entry.get("payload"))
+            # One response, with the thread's running total after it. Only the
+            # same response id under an unchanged total is a repeat: a backend
+            # may reuse an id from turn to turn.
+            thread_usage = obj(payload.get("thread_token_usage"))
+            response = _codex_response_key((str(payload.get("response_id") or ""), *(token_count(thread_usage.get(field)) for field in _CODEX_USAGE_FIELDS)))
+            if response in seen_responses:
+              continue
+            seen_responses.add(response)
+            usage = obj(payload.get("usage"))
+            total_usage = None
+          else:
+            payload = entry.get("payload") or entry
+            if entry.get("type") == "response_item" and isinstance(payload, dict):
+              payload = payload.get("payload") or payload
+            if not isinstance(payload, dict) or payload.get("type") != "token_count" or seen_records:
+              continue
+            info = obj(payload.get("info"))
+            # total_token_usage is cumulative for the session; the last turn is
+            # what this one spent.
+            usage = obj(info.get("last_token_usage"))
+            total_usage = info.get("total_token_usage")
+          cache_read = token_count(usage.get("cached_input_tokens"))
+          cache_write = token_count(usage.get("cache_write_input_tokens"))
+          # Cached tokens are inside input_tokens, and reasoning inside
+          # output_tokens.
+          input_tokens = max(0, token_count(usage.get("input_tokens")) - cache_read - cache_write)
+          output_tokens = token_count(usage.get("output_tokens"))
+          if not (input_tokens or output_tokens or cache_read or cache_write):
+            continue
+          # Quota updates can repeat the previous request's last_token_usage.
+          # Only an unchanged cumulative snapshot proves this is a repeat:
+          # separate requests may spend identical counts.
+          if isinstance(total_usage, dict) and total_usage:
+            if total_usage == previous_total_usage:
+              continue
+            previous_total_usage = total_usage
+          # A turn with no time is dated by the file; one whose time can't be
+          # trusted counts nowhere, as in the Codex collector.
           timestamp = entry.get("timestamp")
+          if timestamp is None:
+            resumable = False
           day = local_day(stat_result.st_mtime if timestamp is None else timestamp)
-          if typed and day is not None:
-            pending_prompts.append(day)
-          continue
-        if entry.get("type") == "turn_context":
-          payload = obj(entry.get("payload"))
-          current_model = str(payload.get("model") or payload.get("model_slug") or current_model)
-          continue
-        if entry.get("type") == "token_usage_record":
-          seen_records = True
-          payload = obj(entry.get("payload"))
-          # One response, with the thread's running total after it. Only the
-          # same response id under an unchanged total is a repeat: a backend
-          # may reuse an id from turn to turn.
-          thread_usage = obj(payload.get("thread_token_usage"))
-          response = (str(payload.get("response_id") or ""), *(token_count(thread_usage.get(field)) for field in _CODEX_USAGE_FIELDS))
-          if response in seen_responses:
+          if day is None:
             continue
-          seen_responses.add(response)
-          usage = obj(payload.get("usage"))
-          total_usage = None
-        else:
-          payload = entry.get("payload") or entry
-          if entry.get("type") == "response_item" and isinstance(payload, dict):
-            payload = payload.get("payload") or payload
-          if not isinstance(payload, dict) or payload.get("type") != "token_count" or seen_records:
-            continue
-          info = obj(payload.get("info"))
-          # total_token_usage is cumulative for the session; the last turn is
-          # what this one spent.
-          usage = obj(info.get("last_token_usage"))
-          total_usage = info.get("total_token_usage")
-        cache_read = token_count(usage.get("cached_input_tokens"))
-        cache_write = token_count(usage.get("cache_write_input_tokens"))
-        # Cached tokens are inside input_tokens, and reasoning inside
-        # output_tokens.
-        input_tokens = max(0, token_count(usage.get("input_tokens")) - cache_read - cache_write)
-        output_tokens = token_count(usage.get("output_tokens"))
-        if not (input_tokens or output_tokens or cache_read or cache_write):
-          continue
-        # Quota updates can repeat the previous request's last_token_usage.
-        # Only an unchanged cumulative snapshot proves this is a repeat:
-        # separate requests may spend identical counts.
-        if isinstance(total_usage, dict) and total_usage:
-          if total_usage == previous_total_usage:
-            continue
-          previous_total_usage = total_usage
-        # A turn with no time is dated by the file; one whose time can't be
-        # trusted counts nowhere, as in the Codex collector.
-        timestamp = entry.get("timestamp")
-        day = local_day(stat_result.st_mtime if timestamp is None else timestamp)
-        if day is None:
-          continue
-        totals = bucket(day, current_model)
-        totals[0] += input_tokens
-        totals[1] += output_tokens
-        totals[2] += cache_read
-        totals[3] += cache_write
-        # One prompt can take many requests, one per tool call it makes; the
-        # requests count no prompts of their own.
-        for prompt_day in pending_prompts:
-          bucket(prompt_day, current_model)[4] += 1
-        pending_prompts = []
-  except OSError:
+          totals = bucket(day, current_model)
+          totals[0] += input_tokens
+          totals[1] += output_tokens
+          totals[2] += cache_read
+          totals[3] += cache_write
+          # One prompt can take many requests, one per tool call it makes; the
+          # requests count no prompts of their own.
+          for prompt_day in pending_prompts:
+            bucket(prompt_day, current_model)[4] += 1
+          pending_prompts = []
+        if done:
+          break
+      if resumable:
+        opened = os.fstat(handle.fileno())
+        resume = {
+          "file": [opened.st_dev, opened.st_ino], "offset": offset, "head": _codex_digest(handle, offset),
+          "model": current_model, "meta": seen_meta, "typed": typed, "pending": list(pending_prompts),
+          "total": previous_total_usage, "records": seen_records, "responses": sorted(seen_responses), "done": done,
+        }
+  except _CODEX_READ_ERRORS:
     record["mtime"] = None
+    resumable = False
   # A prompt no request answered yet, or ever, was put to the last model.
   for prompt_day in pending_prompts:
     bucket(prompt_day, current_model)[4] += 1
+  if resumable:
+    record["resume"] = resume
   return record
 
 
-def codex_rollout_cache(agent_id: str) -> Path | None:
-  """Where a collector keeps its per-file Codex totals, for this Codex home,
-  or None when the cache root is unusable: that costs the reuse, never the
-  scan."""
+# How long a refresh's start, as omarchy-agent-usage-update hands it to the
+# collectors it runs, speaks for a forced read: longer than any refresh takes,
+# so a stamp inherited from elsewhere soon stops standing in for --force.
+CODEX_REFRESH_SECONDS = 300
+
+
+def _codex_refresh_started(now: float) -> float:
+  """When the refresh this collector runs in began, or `now` outside one."""
+  try:
+    started = float(os.environ.get("OMARCHY_AGENT_USAGE_REFRESH_AT", ""))
+  except ValueError:
+    return now
+  return started if now - CODEX_REFRESH_SECONDS <= started <= now else now
+
+
+def codex_rollout_cache(agent_id: str | None = None) -> Path | None:
+  """Where the Codex rollout records of this Codex home are kept, or None
+  when the cache root is unusable: that costs the reuse, never the scan.
+  A record keeps every turn whatever its provider, so every collector shares
+  the one file; `agent_id` names nothing, for callers from before that."""
   digest = hashlib.sha1(str(codex_home()).encode("utf-8", "surrogatepass")).hexdigest()[:16]
   try:
-    return cache_root() / f"{agent_id}-codex-files-{digest}.json"
+    return cache_root() / f"codex-rollouts-{digest}.json"
   except OSError:
     return None
 
 
-def codex_rollouts(cache_file: Path | None, reuse: bool = True) -> tuple[dict[str, dict[str, Any]], bool]:
-  """Every Codex rollout of the last CODEX_WINDOW_DAYS not on the built-in
-  provider, as read_codex_rollout() reads it, keyed by path, and whether
-  every one was read in full.
+def codex_rollouts(cache_file: Path | None, reuse: bool = True, native: bool = False) -> tuple[dict[str, dict[str, Any]], bool]:
+  """Every Codex rollout of the last CODEX_WINDOW_DAYS, as
+  read_codex_rollout() reads it, keyed by path, and whether every one was
+  read in full. Those on the built-in provider are read only with `native`,
+  while openai_base_url sends it elsewhere (codex_native_endpoint), and a
+  record that skipped one is read again once they are.
 
   Rollouts are append-only, so a file whose mtime and size both match its
-  cached record cannot have grown a turn since; `reuse=False` reads them all
-  again. A record keeps every turn whatever its provider, so the caller
-  decides which providers and models are its own. Only the files this scan
+  cached record cannot have grown a turn since, and one that grew is read on
+  from where its record stopped; `reuse=False` reads them all again, but
+  takes what another forced read wrote since this one or its refresh
+  (OMARCHY_AGENT_USAGE_REFRESH_AT) began, so the collectors one refresh
+  forces read every rollout once between them, whenever each starts. A
+  record keeps every turn whatever its provider, so the caller decides which
+  providers and models are its own, and every caller shares the cache
+  codex_rollout_cache() names: any `cache_file` stands for it, and None
+  reads with no cache at all. Every collector reading Codex runs at once,
+  so one of them brings the cache up to date under its `.lock` while the
+  others wait and then find nothing left to read; a cache that already
+  answers for every rollout is read without waiting. Only the files a scan
   saw are written back, so deleted rollouts and ones past the window leave
   the cache.
   """
-  cached: dict[str, Any] = {}
-  if cache_file is not None and reuse:
+  shared = None if cache_file is None else codex_rollout_cache()
+
+  def rollouts() -> list[tuple[str, Path, os.stat_result]]:
+    found = []
+    cutoff = time.time() - CODEX_WINDOW_DAYS * 24 * 60 * 60
+    for root in (codex_home() / "sessions", codex_home() / "archived_sessions"):
+      if not root.is_dir():
+        continue
+      for path in _codex_rollout_files(root):
+        try:
+          stat_result = path.stat()
+        except OSError:
+          continue
+        if stat_result.st_mtime >= cutoff:
+          found.append((str(path), path, stat_result))
+    return found
+
+  started = _codex_refresh_started(time.time())
+  # When a forced read last wrote the cache: every record in it was read
+  # afresh since, replayed from that read or read since.
+  forced_at: list[float | None] = [None]
+
+  def load() -> dict[str, Any]:
+    forced_at[0] = None
+    if shared is None:
+      return {}
     try:
-      payload = read_json(cache_file)
+      payload = read_json(shared)
     except OSError:
       payload = {}
-    if payload.get("schemaVersion") == CODEX_ROLLOUT_SCHEMA and payload.get("zone") == _codex_cache_zone():
-      cached = {path: record for path, record in obj(payload.get("files")).items() if _codex_record_valid(record)}
-  records: dict[str, dict[str, Any]] = {}
-  kept: dict[str, dict[str, Any]] = {}
-  cutoff = time.time() - CODEX_WINDOW_DAYS * 24 * 60 * 60
-  complete = True
-  for root in (codex_home() / "sessions", codex_home() / "archived_sessions"):
-    if not root.is_dir():
-      continue
-    for path in root.rglob("*.jsonl"):
-      try:
-        stat_result = path.stat()
-      except OSError:
-        continue
-      if stat_result.st_mtime < cutoff:
-        continue
-      key = str(path)
+    if payload.get("schemaVersion") != CODEX_ROLLOUT_SCHEMA or payload.get("zone") != _codex_cache_zone():
+      return {}
+    stamp = payload.get("forcedAt")
+    stamp = stamp if type(stamp) in (int, float) else None
+    # A forced read reuses only what another forced read of the same refresh
+    # wrote, so a refresh rereads every rollout once, whichever collector gets
+    # to the lock first, and never replays an older cache.
+    if not reuse and (stamp is None or stamp < started):
+      return {}
+    forced_at[0] = stamp
+    return {path: record for path, record in obj(payload.get("files")).items() if _codex_record_valid(record)}
+
+  def current(record: dict[str, Any] | None, stat_result: os.stat_result) -> bool:
+    return (
+      record is not None and record["mtime"] == stat_result.st_mtime and record["size"] == stat_result.st_size
+      and not (native and record.get("skipped"))
+    )
+
+  def scan(files: list[tuple[str, Path, os.stat_result]], cached: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], bool]:
+    records: dict[str, dict[str, Any]] = {}
+    kept: dict[str, dict[str, Any]] = {}
+    complete = True
+    for key, path, stat_result in files:
       record = cached.get(key)
-      if record is None or record["mtime"] != stat_result.st_mtime or record["size"] != stat_result.st_size:
-        record = read_codex_rollout(path, stat_result)
+      if not current(record, stat_result):
+        # A built-in rollout once skipped is read from the start.
+        record = read_codex_rollout(path, stat_result, None if record and record.get("skipped") else record, native)
       if record["mtime"] is None:
         complete = False
       else:
         kept[key] = record
       records[key] = record
-  if cache_file is not None:
-    try:
-      write_json(cache_file, {"schemaVersion": CODEX_ROLLOUT_SCHEMA, "zone": _codex_cache_zone(), "files": kept})
-    except OSError as exc:
-      warn(f"could not write file cache ({exc})")
-  return records, complete
+    if shared is not None and kept != cached:
+      try:
+        stamp = forced_at[0] if reuse else time.time()
+        write_json(shared, {"schemaVersion": CODEX_ROLLOUT_SCHEMA, "zone": _codex_cache_zone(), "forcedAt": stamp, "files": kept})
+      except OSError as exc:
+        warn(f"could not write file cache ({exc})")
+    return records, complete
 
-def _codex_config_urls(path: Path) -> dict[str, str]:
+  if shared is None:
+    return scan(rollouts(), {})
+  files = rollouts()
+  cached = load()
+  if reuse and len(cached) == len(files) and all(current(cached.get(key), stat_result) for key, _, stat_result in files):
+    return {key: cached[key] for key, _, _ in files}, True
+  with exclusive_lock(shared.with_name(shared.name + ".lock")):
+    # Whoever held the lock meanwhile most likely read what this scan is after.
+    return scan(rollouts(), load())
+
+
+def _codex_config(path: Path) -> dict[str, Any]:
   try:
     with path.open("rb") as handle:
-      config = tomllib.load(handle)
+      return tomllib.load(handle)
   except (OSError, UnicodeError, tomllib.TOMLDecodeError):
     return {}
-  providers = config.get("model_providers")
-  if not isinstance(providers, dict):
-    return {}
-  return {str(name).lower(): str(entry.get("base_url") or "") for name, entry in providers.items() if isinstance(entry, dict)}
+
+
+def codex_native_key(pid: Any) -> bool:
+  """Whether a codex_config_urls() key is the built-in provider's
+  openai_base_url, plain or a profile's (`openai@<model>`)."""
+  return pid == CODEX_NATIVE_PROVIDER or str(pid).startswith(CODEX_NATIVE_PROVIDER + "@")
 
 
 def codex_config_urls() -> dict[str, str]:
   """provider id -> base_url, from the Codex CLI's own config: the system
   layer, the user's config.toml over it, and the profiles
-  (<name>.config.toml) Codex layers over that when one is selected."""
+  (<name>.config.toml) Codex layers over that when one is selected. The
+  built-in `openai` provider's is its openai_base_url.
+
+  Codex 0.163 applies a profile only to a run given --profile, and its
+  rollouts still name only `openai`, so only the system layer and
+  config.toml say where the built-in provider goes. A profile's
+  openai_base_url is kept as `openai@<model>` for the model it sets, the one
+  thing its rollouts can be told apart by: never an OpenAI model, which
+  plain `codex` runs too, nor the one the plain config sets, and none when
+  two profiles send that model to different places."""
   home = codex_home()
   urls: dict[str, str] = {}
+  profiles: dict[str, str | None] = {}
+  plain_model = ""
   for path in (Path("/etc/codex/config.toml"), home / "config.toml", *sorted(home.glob("*.config.toml"))):
-    urls.update(_codex_config_urls(path))
+    config = _codex_config(path)
+    providers = config.get("model_providers")
+    if isinstance(providers, dict):
+      urls.update((str(name).lower(), str(entry.get("base_url") or "")) for name, entry in providers.items() if isinstance(entry, dict))
+    model = config.get("model").strip().lower() if isinstance(config.get("model"), str) else ""
+    base = config.get("openai_base_url")
+    if path.name != "config.toml":
+      if model and isinstance(base, str) and not codex_openai_model(model):
+        profiles[model] = base if profiles.get(model, base) == base else None
+      continue
+    # Where the built-in provider goes in place of OpenAI's API. Codex 0.163
+    # reads it from the config only, never from OPENAI_BASE_URL.
+    if isinstance(base, str):
+      urls[CODEX_NATIVE_PROVIDER] = base
+    plain_model = model or plain_model
+  for model, base in profiles.items():
+    if base is not None and model != plain_model:
+      urls[f"{CODEX_NATIVE_PROVIDER}@{model}"] = base
   return urls
 
 
@@ -2346,16 +2844,19 @@ def codex_provider_urls() -> dict[str, str]:
   provider the config no longer has keeps the last one it had. The current
   config always wins. A provider only ever given on the command line (`-c
   model_providers...`) or in a project's .codex/config.toml is never seen
-  here: local.json names those for the local collector.
+  here: local.json names those for the local collector. The built-in
+  provider's openai_base_url is never remembered: once the config drops it,
+  Codex is back on OpenAI's API, as Claude Code is once ANTHROPIC_BASE_URL
+  goes.
   """
   path = codex_providers_path()
   homes = read_json(path).get("homes")
   homes = homes if isinstance(homes, dict) else {}
   key = str(codex_home())
   known = homes.get(key)
-  known = {str(pid): url for pid, url in known.items() if isinstance(url, str) and url} if isinstance(known, dict) else {}
+  known = {str(pid): url for pid, url in known.items() if isinstance(url, str) and url and not codex_native_key(pid)} if isinstance(known, dict) else {}
   urls = {**known, **codex_config_urls()}
-  remembered = {pid: url for pid, url in urls.items() if url}
+  remembered = {pid: url for pid, url in urls.items() if url and not codex_native_key(pid)}
   if remembered != known:
     try:
       path.parent.mkdir(parents=True, exist_ok=True)
@@ -2367,31 +2868,84 @@ def codex_provider_urls() -> dict[str, str]:
   return urls
 
 
+def codex_openai_model(model: Any) -> bool:
+  """Whether a model is one OpenAI serves Codex (gpt-5.1-codex,
+  codex-auto-review, o3), or none is named; gpt-oss is open weights anyone
+  runs."""
+  name = str(model or "").strip().lower().rpartition("/")[2]
+  if name.startswith("gpt-oss"):
+    return False
+  return not name or name.startswith(("gpt-", "chatgpt-")) or "codex" in name or re.fullmatch(r"o[1-9](-.*)?", name) is not None
+
+
+def codex_native_class(base: Any) -> str:
+  """Where an openai_base_url sends the built-in provider: "" for OpenAI's
+  own API (no override), a provider collector's id, `local`, or `other` for
+  a host nothing here can place."""
+  host = url_host(base)
+  if not host or host in ("openai.com", "chatgpt.com") or host.endswith((".openai.com", ".chatgpt.com")):
+    return ""
+  return endpoint_owner(base) or "other"
+
+
+def codex_native_endpoint(urls: dict[str, str], model: Any = None) -> str:
+  """codex_native_class() of the openai_base_url a built-in turn on `model`
+  went to: the profile's that sets that model, else the plain config's."""
+  profile = f"{CODEX_NATIVE_PROVIDER}@{str(model or '').strip().lower()}"
+  return codex_native_class(urls[profile] if profile in urls else urls.get(CODEX_NATIVE_PROVIDER, ""))
+
+
+def codex_native_routed(urls: dict[str, str]) -> bool:
+  """Whether any built-in rollout may be another collector's, so
+  codex_rollouts() has to read them (its `native`)."""
+  return any(codex_native_class(url) for pid, url in urls.items() if codex_native_key(pid))
+
+
 def codex_route_owner(provider: Any, model: Any, urls: dict[str, str]) -> str | None:
-  """The provider collector that bills a Codex rollout on `provider`, with
-  the model that answered, or None for one no provider's collector counts
-  (the local collector decides which of those it ran itself). The built-in
-  provider is `codex`'s. A model_providers entry whose base_url is a
-  provider's host is that provider's, whatever its id; one on the user's own
-  hardware or a host nothing here can place is no provider's. Past that,
-  `ollama-cloud`, and a cloud-tagged model through the local daemon's
-  `ollama`, are Ollama Cloud's."""
+  """The collector that bills a Codex rollout on `provider`, with the model
+  that answered, or None for one no provider's collector counts (the local
+  collector decides which of those `--oss` and local.json ran itself).
+
+  The built-in provider is `codex`'s until openai_base_url (the profile's
+  for the model a profile sets, else the plain config's) sends it
+  elsewhere. A provider's host there bills all of it. Otherwise an Ollama
+  cloud tag is Ollama's, and OpenAI's own models stay `codex`'s through a
+  proxy that may forward to it; a self-hosted URL makes any other model
+  `local`'s, and a host nothing here can place counts it nowhere, as
+  claude_code_owner() reads ANTHROPIC_BASE_URL.
+
+  A model_providers entry whose base_url is a provider's host is that
+  provider's, whatever its id; one at a host nothing here can place is no
+  provider's. Past that, `ollama-cloud`, and a cloud-tagged model through
+  the local daemon's `ollama`, are Ollama Cloud's, and any other model on
+  the user's own hardware is `local`'s, whatever the entry's id: the base
+  URL decides, not an id another collector claims elsewhere."""
   name = str(provider or "").strip().lower()
   if name in ("", CODEX_NATIVE_PROVIDER):
-    return "codex"
+    endpoint = codex_native_endpoint(urls, model)
+    if endpoint not in ("", "local", "other"):
+      return endpoint
+    if endpoint and cloud_model(model):
+      return "ollama"
+    if not endpoint or codex_openai_model(model):
+      return "codex"
+    return "local" if endpoint == "local" else None
   owner = endpoint_owner(urls.get(name))
   if owner and owner != "local":
     return owner
   if name == "ollama-cloud" or (name == "ollama" and cloud_model(model)):
     return "ollama"
-  return None
+  return "local" if owner == "local" and not cloud_model(model) else None
 
 
 def codex_scan_match() -> dict[str, Any]:
   """For a collector's cached_scan(match=...): which collector each Codex
   provider's base_url bills, which the config can change without a rollout
-  changing."""
-  return {"codexRoutes": [[pid, endpoint_owner(url)] for pid, url in sorted(codex_provider_urls().items())]}
+  changing. The built-in provider's is read as codex_route_owner() reads
+  it, which tells OpenAI's own API from a host nothing can place."""
+  return {"codexRoutes": [
+    [pid, codex_native_class(url) if codex_native_key(pid) else endpoint_owner(url)] for pid, url in sorted(codex_provider_urls().items())
+  ]}
 
 
 def scan_codex_routed(owner: str, reuse: bool = True) -> tuple[list[UsageRow], bool]:
@@ -2402,10 +2956,10 @@ def scan_codex_routed(owner: str, reuse: bool = True) -> tuple[list[UsageRow], b
   urls = codex_provider_urls()
   if owner != "ollama" and not any(endpoint_owner(url) == owner for url in urls.values()):
     return [], True
-  records, complete = codex_rollouts(codex_rollout_cache(owner), reuse=reuse)
+  records, complete = codex_rollouts(codex_rollout_cache(), reuse=reuse, native=codex_native_routed(urls))
   rows = [
-    UsageRow(day, key, owner, model, *totals[:4], prompts=totals[4])
-    for key, record in records.items()
+    UsageRow(day, record["session"], owner, model, *totals[:4], prompts=totals[4])
+    for record in records.values()
     for day, models in record["days"].items()
     for model, totals in models.items()
     if codex_route_owner(record["provider"], model, urls) == owner
@@ -2420,8 +2974,10 @@ def kimchi_sessions_root() -> Path:
   """Where Kimchi's harness keeps its pi-format sessions: under
   KIMCHI_CODING_AGENT_DIR when set, as the CLI itself reads it, else
   ~/.config/kimchi/harness. Kimchi has no profiles that move it. Its own
-  gateway routes are the kimchi collector's; a session `--provider` sent
-  elsewhere (OpenRouter) is that provider's."""
+  gateway routes (kimchi, kimchi-dev, kimchi-dev/<upstream>,
+  kimchi-experimental) are the kimchi collector's here and in pi's and omp's
+  trees alike; a session `--provider` sent elsewhere (OpenRouter) is that
+  provider's."""
   return Path(os.environ.get("KIMCHI_CODING_AGENT_DIR") or (Path.home() / ".config" / "kimchi" / "harness")) / "sessions"
 
 
@@ -3042,8 +3598,9 @@ def open_json(request: urllib.request.Request, timeout: float = 10, limit: int =
       # its Content-Length, with the rest still owed.
       owed = getattr(response, "length", None)
   except urllib.error.HTTPError as error:
+    # An error's body drips like any other; past the deadline it is left out.
     try:
-      body = error.read(limit) or b""
+      body = _read_by(error.fp, limit, deadline) if error.fp else b""
     except Exception:
       body = b""
     raise HttpError(status=error.code, body=body, headers=error.headers) from error

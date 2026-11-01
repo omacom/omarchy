@@ -125,6 +125,36 @@ expect("Qwen counts a Responses API reply's reasoning once, and other thinking o
   model: usage["outputTokens"] for model, usage in record["modelUsage"].items()
 }, {"qwen-resp-model": 111, "qwen3-coder-plus": 90}, record)
 
+# Qwen Code 0.26.0's records from two sessions against a server that recycles
+# response ids: each got chatcmpl-mock1208 and chatcmpl-mock1209 for replies
+# of the same size, a minute apart. Both count. --fork-session copies a
+# record verbatim, its uuid included, under the new session with a
+# forkedFrom, and that copy counts once, in the session that wrote it, though
+# the fork's file name sorts first; the fork counts for the prompt typed into
+# it.
+studio()
+first = [
+  prompt("8b0e5c1a-6f4d-4a0e-9a51-3c0f1b6c2d10", "f73baca5-d3d4-4eb9-8008-20dc4951f613", NOW),
+  response("8f4c3a4e-5876-4c73-9356-6507b21f70ea", "f73baca5-d3d4-4eb9-8008-20dc4951f613", NOW, "qwen-sp-model", "openai", 9312, 58, 78, 0, "chatcmpl-mock1208", total=9370),
+  response("28ac483b-350e-45aa-9286-486a3964925a", "f73baca5-d3d4-4eb9-8008-20dc4951f613", NOW, "qwen-sp-model", "openai", 10313, 59, 79, 0, "chatcmpl-mock1209", total=10372),
+]
+transcript(chats("-home-me-proj-qwen10") / "f73baca5-d3d4-4eb9-8008-20dc4951f613.jsonl", first)
+transcript(chats("-home-me-proj-qwen11") / "61cea1b3-8fa7-433b-b69c-cce255da2433.jsonl", [
+  prompt("4e2b7d90-1c3a-4f55-8e6b-7a9d0c1e2f34", "61cea1b3-8fa7-433b-b69c-cce255da2433", NOW),
+  response("0c2fb936-82a9-4a54-9d94-7c043a11b674", "61cea1b3-8fa7-433b-b69c-cce255da2433", NOW, "qwen-sp-model", "openai", 9312, 58, 78, 0, "chatcmpl-mock1208", total=9370),
+  response("d7f750d2-72ec-47ef-82a1-9e1400e2c289", "61cea1b3-8fa7-433b-b69c-cce255da2433", NOW, "qwen-sp-model", "openai", 10313, 59, 79, 0, "chatcmpl-mock1209", total=10372),
+])
+branched = [{**line, "sessionId": "9d1e4b27-3f6a-4c08-b5e2-0a7c8d9e1f23", "forkedFrom": {"sessionId": line["sessionId"], "messageUuid": line["uuid"]}} for line in first]
+transcript(chats("-home-me-proj-qwen10") / "9d1e4b27-3f6a-4c08-b5e2-0a7c8d9e1f23.jsonl", [
+  *branched,
+  prompt("6bcf502c-f7ae-46ec-882c-721ccc6ca9a3", "9d1e4b27-3f6a-4c08-b5e2-0a7c8d9e1f23", NOW),
+  response("4b804879-1b4d-45b5-a2d6-81ef1ee79f4b", "9d1e4b27-3f6a-4c08-b5e2-0a7c8d9e1f23", NOW, "qwen-sp-model", "openai", 4314, 46, 0, 0, "chatcmpl-mock1210", total=4360),
+])
+record = qwen()
+expect("Qwen counts different replies a server gave the same response id, and a forked copy once, in its source session", {
+  key: record[key] for key in ("todayTotalTokens", "todayPrompts", "todaySessions")
+}, {"todayTotalTokens": 2 * (9370 + 10372) + 4360, "todayPrompts": 3, "todaySessions": 3}, record)
+
 # ------------------------------------------------------------------ routes
 
 # A reply counts where it was billed. Qwen Code records only its auth type,
