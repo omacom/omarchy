@@ -9,9 +9,10 @@
 # that is an agent's first use, and every later upgrade refreshes its hooks.
 # herdr only installs into a config directory the agent already made, and the
 # agent makes it on its first run, after this hook, so it is created here.
-# --existing integrates every agent that already has its config directory, and
-# exits non-zero if any fails, so a migration running it stays pending. As a
-# hook it always succeeds: mise only warns, and the agent should still start.
+# --existing integrates every agent that already has its config directory.
+# A failed install only warns, in either mode: the agent should still start, and
+# one agent's broken config shouldn't hold a migration, and every one after it,
+# pending until the user fixes it.
 
 config_home=${XDG_CONFIG_HOME:-$HOME/.config}
 targets=(pi omp claude codex copilot devin kimi opencode kilo qwen cursor antigravity-cli grok)
@@ -50,22 +51,17 @@ herdr_target() {
 
 # Its report goes to stdout, which would land in the agent's first screen.
 integrate() {
-  if mkdir -p "$(config_dir "$1")" && herdr integration install "$1" >/dev/null; then
-    return 0
-  else
+  if ! mkdir -p "$(config_dir "$1")" || ! herdr integration install "$1" >/dev/null; then
     echo "Could not install the herdr integration for $1" >&2
-    return 1
   fi
 }
 
 if [[ ${1:-} == "--existing" ]]; then
-  failed=0
   for target in "${targets[@]}"; do
-    if [[ -d $(config_dir "$target") ]] && ! integrate "$target"; then
-      failed=1
+    if [[ -d $(config_dir "$target") ]]; then
+      integrate "$target"
     fi
   done
-  exit "$failed"
 else
   while IFS= read -r tool; do
     target=$(herdr_target "$tool")
@@ -73,5 +69,6 @@ else
       integrate "$target"
     fi
   done < <(jq -r '.[].name' <<<"${MISE_INSTALLED_TOOLS:-[]}" 2>/dev/null)
-  exit 0
 fi
+
+exit 0

@@ -38,9 +38,10 @@ mkdir -p "$test_home/.qwen"
 [[ ! -e $test_home/.copilot ]] || fail "--existing leaves agents that never ran alone"
 pass "--existing integrates only agents that have run"
 
-# A migration runs --existing, and must stay pending when an install fails.
+# One agent's broken config warns and moves on, so the migration doesn't stall.
 printf 'not json' >"$test_home/.qwen/settings.json"
-if "$ROOT/bin/omarchy-agent-integrate-herdr" --existing 2>/dev/null; then
-  fail "--existing reports a failed install"
-fi
-pass "--existing reports a failed install"
+rm -rf "$test_home/.grok/hooks"
+"$ROOT/bin/omarchy-agent-integrate-herdr" --existing 2>"$test_home/err.log" || fail "--existing succeeds past a failed agent"
+grep -q "qwen" "$test_home/err.log" || fail "--existing warns about the failed agent" "$(cat "$test_home/err.log")"
+[[ $(integration_state grok) == "current" ]] || fail "--existing still integrates the agents after a failed one"
+pass "--existing warns about a failed agent and integrates the rest"
