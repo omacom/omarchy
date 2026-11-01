@@ -414,6 +414,9 @@ def validate_runtime(rid, runtime, root=None):
   return errors
 
 
+ARCHITECTURES = ("dense", "moe")
+
+
 def validate_recipe(rid, recipe, runtimes, root=None):
   errors = []
   where = f"recipes/{rid}"
@@ -424,6 +427,9 @@ def validate_recipe(rid, recipe, runtimes, root=None):
   # The model maker, naming the logo the agents panel shows (assets/<vendor>.svg).
   if "vendor" in recipe and not (isinstance(recipe["vendor"], str) and ID_RE.match(recipe["vendor"])):
     errors.append(f"{where}.vendor: must match {ID_RE.pattern}")
+  # Dense or mixture of experts, shown on the recipe's card.
+  if "architecture" in recipe and recipe["architecture"] not in ARCHITECTURES:
+    errors.append(f"{where}.architecture: must be one of {', '.join(ARCHITECTURES)}")
   runtime_id = recipe.get("runtime")
   runtime = runtimes.get(runtime_id)
   if runtime is None:
@@ -864,6 +870,7 @@ def recipe_listing(catalog, profile, running=()):
       "tier": runtime.get("tier", ""),
       "publisher": review.get("publisher", ""),
       "vendor": recipe.get("vendor", ""),
+      "architecture": recipe.get("architecture", ""),
       "installed": recipe_installed(rid),
       "available": variant is not None,
       "reason": "" if variant else reason,

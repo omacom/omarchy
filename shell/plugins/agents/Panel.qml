@@ -402,6 +402,16 @@ Panel {
     return recipes
   }
 
+  function recipeFacts(recipe) {
+    var facts = []
+    if (recipe.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
+    else if (recipe.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
+    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("agents.localMemoryFact").arg(recipe.memory_gib))
+    if (recipe.context != null) facts.push(Commons.I18n.t("agents.localContextFact").arg(Math.round(recipe.context / 1024)))
+    if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Math.round(recipe.decode_tok_s)))
+    return facts.join(" · ")
+  }
+
   function setUpLocal(recipe) {
     if (!recipe) return
     Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local-use " + Util.shellQuote(String(recipe.id))])
@@ -1546,30 +1556,17 @@ Panel {
               }
             }
 
+            // Measured on this machine class, so the speed holds here; a
+            // fact the catalog doesn't have is left out.
             Text {
               width: parent.width
               leftPadding: recipeMark.width + Style.space(10)
               textFormat: Text.PlainText
-              text: String(recipeRow.modelData.summary || "")
+              text: root.recipeFacts(recipeRow.modelData)
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               wrapMode: Text.WordWrap
-            }
-
-            // Measured on this machine class: footprint, context, and decode
-            // speed with a long prompt.
-            Text {
-              readonly property var recipe: recipeRow.modelData
-              visible: recipe.memory_gib != null && recipe.context != null && recipe.decode_tok_s != null
-              width: parent.width
-              leftPadding: recipeMark.width + Style.space(10)
-              textFormat: Text.PlainText
-              text: visible ? Commons.I18n.t("agents.localFacts").arg(recipe.memory_gib).arg(Math.round(recipe.context / 1024)).arg(Math.round(recipe.decode_tok_s)) : ""
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
             }
           }
 
