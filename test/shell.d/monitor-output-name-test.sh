@@ -140,6 +140,10 @@ if turkish_locale "$tmpdir/locales"; then
   in_turkish run_monitor omarchy-hyprland-monitor-scaling 1.6 >/dev/null 2>&1 &&
     grep -F 'hl.monitor({ output = "HDMI-A-1"' "$eval_log" >/dev/null ||
     fail "scaling accepts an HDMI connector under tr_TR.UTF-8"
+  in_turkish run_monitor omarchy-hyprland-monitor-rotate 90 >/dev/null 2>&1 &&
+    grep -F 'hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60.0", position = "auto", scale = 1.0, transform = 1 })' "$eval_log" >/dev/null &&
+    awk -F'\t' '$NF == "HDMI-A-1" && $4 == 1 { found = 1 } END { exit !found }' "$home_dir/.local/state/omarchy/monitors/settings" ||
+    fail "rotate saves and applies an HDMI connector under tr_TR.UTF-8"
   pass "the connector allowlists read an HDMI name the same under tr_TR.UTF-8"
 else
   skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
