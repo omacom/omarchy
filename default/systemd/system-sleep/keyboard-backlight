@@ -30,7 +30,8 @@ for candidate in /sys/class/leds/*kbd_backlight*; do
   fi
 done
 
-if [[ -z $device || $sleep_action != "hibernate" ]]; then
+# Post goes by the record alone, so a keyboard gone by then still consumes it.
+if [[ $sleep_action != "hibernate" || ( $1 == "pre" && -z $device ) ]]; then
   exit 0
 fi
 

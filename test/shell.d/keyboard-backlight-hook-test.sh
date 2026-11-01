@@ -84,3 +84,11 @@ SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" post hibernate
 [[ $(<"$led") == 3 ]] || fail "post hibernate restores the recorded keyboard when another sorts first" "LED reads $(<"$led")"
 [[ $(<"$first_led") == 0 ]] || fail "post hibernate leaves the keyboard that sorts first dark" "LED reads $(<"$first_led")"
 pass "post hibernate restores the recorded keyboard when another sorts first"
+
+# With no keyboard left at all the record is still consumed, so a later resume
+# cannot apply a level from a cycle that keyboard never took part in.
+SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" pre hibernate
+rm -rf "$leds"/*
+SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" post hibernate
+[[ ! -e $record ]] || fail "post hibernate consumes the record with no keyboard present"
+pass "post hibernate consumes the record with no keyboard present"
