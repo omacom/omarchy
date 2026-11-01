@@ -362,7 +362,7 @@ assert(updateHotspotSource, 'network accepts a hotspot process result')
 if (updateHotspotSource) {
   let hotspot = {}
   let hotspotLoaded = false
-  let hotspotEdited = false
+  let hotspotEditedFields = {}
   let hotspotMaxClients = ''
   let hotspotSaveData = ''
   let hotspotSaveDataOnAir = ''
@@ -379,15 +379,28 @@ if (updateHotspotSource) {
   function syncWifiNetworks() { syncs++ }
   eval(updateHotspotSource[0])
 
-  // What the user typed while the first status was still running stays.
-  hotspotEdited = true
+  // A field the user typed in while the first status was still running
+  // stays; the fields they didn't touch still load what the profile holds.
+  hotspotEditedFields = { ssid: true }
   hotspotSsid = 'Typed Name'
-  hotspotPassword = 'typedpassword'
+  hotspotPassword = 'stalepassword'
   hotspotBand = '2.4'
   updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
-  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4' && hotspotMaxClients === '', 'a late first status keeps hotspot fields the user already edited')
+  assert(hotspotLoaded && hotspotSsid === 'Typed Name', 'a late first status keeps the field the user already edited')
+  assert(hotspotPassword === 'savedpassword' && hotspotBand === '5', 'a late first status still loads the fields the user did not touch')
+  assertEqual(hotspotMaxClients, '4', 'a late first status loads an untouched participant limit')
   hotspotLoaded = false
-  hotspotEdited = false
+  hotspotEditedFields = { limit: true }
+  hotspotMaxClients = '2'
+  updateHotspot('ap_capable\t1\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\nmax_clients\t4\n', 0, '')
+  assertEqual(hotspotMaxClients, '2', 'a late first status keeps a participant limit the user already picked')
+  hotspotLoaded = false
+  hotspotEditedFields = { saveData: true }
+  hotspotSaveData = 'never'
+  updateHotspot('ap_capable\t1\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\nsave_data\talways\n', 0, '')
+  assertEqual(hotspotSaveData, 'never', 'a late first status keeps a data choice the user already picked')
+  hotspotLoaded = false
+  hotspotEditedFields = {}
   hotspotSsid = ''
   hotspotPassword = ''
   hotspotBand = ''

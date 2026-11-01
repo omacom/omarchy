@@ -208,9 +208,16 @@ Panel {
   // prefill the editable fields once per open; after that the poll must leave
   // them alone so it doesn't fight the user's typing and revert the values.
   property bool hotspotLoaded: false
-  // Set once the user changes a hotspot field, so the saved settings a status
-  // read brings back never overwrite what they have typed since opening.
-  property bool hotspotEdited: false
+  // The hotspot fields the user has changed since opening the panel, by name.
+  // The first status read fills only the others, so a late read never
+  // overwrites an edit, and an edit to one field never stops the rest from
+  // loading what the profile holds now.
+  property var hotspotEditedFields: ({})
+  function markHotspotEdited(field) {
+    var next = Object.assign({}, hotspotEditedFields)
+    next[field] = true
+    hotspotEditedFields = next
+  }
   // The save-data choice the running AP started with. Saving a new one
   // while on air changes the profile, not the AP, so the notice that it waits
   // for the next start compares against this, not the saved value.
@@ -412,7 +419,7 @@ Panel {
       refreshHotspot()
       hotspotFocusIndex = 0
       hotspotLoaded = false
-      hotspotEdited = false
+      hotspotEditedFields = ({})
       resetHotspotErrors()
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
@@ -1078,14 +1085,12 @@ Panel {
     if (bands.length > 0 && hotspotBands.join(",") !== bands.join(",")) hotspotBands = bands
     if (!hotspotLoaded) {
       hotspotLoaded = true
-      if (!hotspotEdited) {
-        if (next.ssid) hotspotSsid = next.ssid
-        if (next.password) hotspotPassword = next.password
-        hotspotBand = Model.hotspotDefaultBand(next)
-        hotspotSaveData = Model.hotspotSaveData(next)
-        hotspotSecurity = Model.hotspotSecurity(next)
-        hotspotMaxClients = Model.hotspotMaxClients(next)
-      }
+      if (!hotspotEditedFields.ssid && next.ssid) hotspotSsid = next.ssid
+      if (!hotspotEditedFields.password && next.password) hotspotPassword = next.password
+      if (!hotspotEditedFields.band) hotspotBand = Model.hotspotDefaultBand(next)
+      if (!hotspotEditedFields.saveData) hotspotSaveData = Model.hotspotSaveData(next)
+      if (!hotspotEditedFields.security) hotspotSecurity = Model.hotspotSecurity(next)
+      if (!hotspotEditedFields.limit) hotspotMaxClients = Model.hotspotMaxClients(next)
     }
     if ((next.active === "1") !== wasActive) syncWifiNetworks()
   }
@@ -1372,7 +1377,7 @@ Panel {
       onStreamFinished: {
         var pw = String(text || "").replace(/\s+/g, "").trim()
         if (pw !== "") {
-          root.hotspotEdited = true
+          root.markHotspotEdited("password")
           root.hotspotPassword = pw
         }
       }
@@ -2298,9 +2303,11 @@ Panel {
             verticalPadding: Style.spacing.controlPaddingY
             text: root.hotspotSsid
             onTextChanged: if (text !== root.hotspotSsid) {
-              root.hotspotEdited = true
+              root.markHotspotEdited("ssid")
               root.hotspotSsid = text
             }
+            // Hand keys back to the panel, so a second Escape closes it.
+            Keys.onEscapePressed: keyCatcher.forceActiveFocus()
           }
 
           // Participant limit. NetworkManager enforces it as the shared DHCP
@@ -2338,9 +2345,10 @@ Panel {
               verticalPadding: Style.spacing.controlPaddingY
               text: root.hotspotPassword
               onTextChanged: if (text !== root.hotspotPassword) {
-                root.hotspotEdited = true
+                root.markHotspotEdited("password")
                 root.hotspotPassword = text
               }
+              Keys.onEscapePressed: keyCatcher.forceActiveFocus()
             }
 
             Button {
@@ -2474,6 +2482,12 @@ Panel {
             text: root.hotspotAliasDraft
             onTextChanged: if (text !== root.hotspotAliasDraft) root.hotspotAliasDraft = text
             onAccepted: root.saveHotspotAlias()
+            // Drop the rename and hand keys back to the panel, so a second
+            // Escape closes it.
+            Keys.onEscapePressed: {
+              root.cancelHotspotAlias()
+              keyCatcher.forceActiveFocus()
+            }
           }
 
           Row {
@@ -2677,7 +2691,7 @@ Panel {
     selected: root.hotspotMaxClients === limit
 
     onClicked: {
-      root.hotspotEdited = true
+      root.markHotspotEdited("limit")
       root.hotspotMaxClients = limit
     }
   }
@@ -2699,7 +2713,7 @@ Panel {
     selected: root.hotspotBand === band
 
     onClicked: {
-      root.hotspotEdited = true
+      root.markHotspotEdited("band")
       root.hotspotBand = band
     }
   }
@@ -2723,7 +2737,7 @@ Panel {
     enabled: !root.hotspotBusy
 
     onClicked: {
-      root.hotspotEdited = true
+      root.markHotspotEdited("saveData")
       root.hotspotSaveData = choice
     }
   }
@@ -2746,7 +2760,7 @@ Panel {
     enabled: !root.hotspotBusy
 
     onClicked: {
-      root.hotspotEdited = true
+      root.markHotspotEdited("security")
       root.hotspotSecurity = choice
     }
   }
