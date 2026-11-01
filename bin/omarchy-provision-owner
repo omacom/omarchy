@@ -7,11 +7,11 @@
 # Runs on tty1 via omarchy-provision-owner.service when /var/lib/omarchy/provisioning/pending
 # exists — the state a deferred-provisioning ISO install or omarchy-system-factory-reset leaves
 # behind. Asks for the user (the configurator's Step 2), creates it with the
-# groups system setup recorded, finalizes it offline from the stashed Node
-# tarball, re-keys LUKS from the throwaway install passphrase to the user's
-# password, and hands off to SDDM. A platform whose boot package owns its boot
-# chain prepares it, drops the install key's unlock from it and records the
-# kept key slot through omarchy-lifecycle-dispatch.
+# groups system setup recorded, finalizes it offline, re-keys LUKS from the
+# throwaway install passphrase to the user's password, and hands off to SDDM.
+# A platform whose boot package owns its boot chain prepares it, drops the
+# install key's unlock from it and records the kept key slot through
+# omarchy-lifecycle-dispatch.
 
 set -euo pipefail
 
@@ -157,11 +157,12 @@ log_step() {
 
 # ── Setup progress screen ────────────────────────────────────────────────────
 #
-# A port of the ISO install dashboard's renderer, so first-boot account setup
-# looks like a continuation of the install: same logo header, same 34-cell
-# bar, same rotating tips. Position = max(floor, work) in
-# per-mille, monotonic; the floor is asymptotic per phase band and the work
-# signal counts finalize-user's run_logged scripts in the log.
+# The ISO install dashboard's own screen, drawn by the file it vendors from this
+# package, so first-boot account setup continues the install on the screen it
+# started on: the same traced icon, percentage and rotating tips. Position =
+# max(floor, work) in per-mille, monotonic; the floor is asymptotic per phase
+# band and the work signal counts finalize-user's run_logged scripts in the log.
+source "$OMARCHY_PATH/install/provisioning/progress-icon.sh"
 
 CSI=$'\033['
 RESET="${CSI}0m"
@@ -169,25 +170,16 @@ DIM="${CSI}2m"
 HIDE_CURSOR="${CSI}?25l"
 SHOW_CURSOR="${CSI}?25h"
 CLEAR="${CSI}2J${CSI}H"
-CLEAR_LINE="${CSI}2K"
-CLEAR_TO_END="${CSI}J"
 GREEN="${CSI}32m"
-WHITE="${CSI}37m"
-DARK="${CSI}90m"
 
 STATE_FILE=/run/omarchy-provision-owner.state
 FINALIZE_WARNING_FLAG=/run/omarchy-provision-owner.finalize-warning
-# Rows the setup screen occupies: logo, blank, title, blank, bar, blank, tip.
-SETUP_HEIGHT=$((LOGO_HEIGHT + 6))
-SETUP_TOP_ROW=1
-DYNAMIC_ROW=$((LOGO_HEIGHT + 3))
-LAST_SETUP_SIZE=""
 
 tips=(
   "Super + Space opens the Omarchy menu for apps, settings, and more"
   "Super + K shows all the key bindings"
   "Super is the Windows or command key on your keyboard"
-  "Use Xournal++ to sign PDFs"
+  "Sign PDFs and fill them in with Signed"
   "Share files with phones and laptops using LocalSend"
   "Turn any website into an app with Install > Web App in the menu"
   "Super + Return opens a terminal, Super + Shift + Return the browser"
@@ -195,7 +187,7 @@ tips=(
   "Super + Ctrl + Print grabs text off the screen with OCR"
   "Print takes a screenshot, Alt + Print records the screen"
   "Set a reminder with Super + Ctrl + R"
-  "Switch themes from Style > Theme in the Omarchy menu"
+  "Switch themes from Appearance > Theme in the Omarchy menu"
   "Double-click the menu bar to make it transparent"
   "Run a full Windows VM via Install > Windows in the menu"
   "Super + Ctrl + V opens the clipboard manager"
@@ -210,8 +202,6 @@ term_cols() {
   [[ $cols =~ ^[0-9]+$ ]] && (( cols > 0 )) || cols=${COLUMNS:-80}
   printf '%s' "$cols"
 }
-
-term_size() { stty size 2>/dev/null </dev/tty || printf '24 80\n'; }
 
 # A fingerprint of the console geometry: the VT size plus the framebuffer's
 # identity and pixel size. On a fresh first boot the VT can come up in a
@@ -248,12 +238,6 @@ wait_console_stable() {
   return 1
 }
 
-repeat() {
-  local char="$1" count="$2" out="" i
-  for ((i = 0; i < count; i++)); do out+="$char"; done
-  printf '%s' "$out"
-}
-
 left_padding() {
   local width="${1:-$LOGO_WIDTH}" cols pad
   cols=$(term_cols)
@@ -262,47 +246,7 @@ left_padding() {
   printf '%*s' "$pad" ''
 }
 
-visible_len() {
-  local text="$1"
-  text="$(printf '%b' "$text" | sed -E $'s/\x1b\\[[0-9;?]*[A-Za-z]//g')"
-  printf '%s' "${#text}"
-}
-
-blank_line() { printf '\r%s\n' "$CLEAR_LINE"; }
-
-line_at() {
-  local width="${1:-$LOGO_WIDTH}" indent="${2:-0}"
-  shift 2
-  printf '\r%s%s%*s' "$CLEAR_LINE" "$(left_padding "$width")" "$indent" ''
-  printf '%b' "$*"
-}
-
-center() {
-  local text="$1" width="${2:-$LOGO_WIDTH}" len inner_pad
-  len="$(visible_len "$text")"
-  inner_pad=$(((width - len) / 2))
-  (( inner_pad < 0 )) && inner_pad=0
-  printf '\r%s%s%*s%b%s\n' "$CLEAR_LINE" "$(left_padding "$width")" "$inner_pad" '' "$text" "$RESET"
-}
-
-render_logo() {
-  local pad line
-  pad="$(left_padding "$LOGO_WIDTH")"
-  while IFS= read -r line; do
-    printf '\r%s%s%b%s%b\n' "$CLEAR_LINE" "$pad" "$GREEN" "$line" "$RESET"
-  done <"$LOGO_PATH"
-}
-
-progress_bar() {
-  local pm="$1" width="${2:-34}" filled empty
-  (( pm < 0 )) && pm=0
-  (( pm > 1000 )) && pm=1000
-  filled=$((pm * width / 1000))
-  empty=$((width - filled))
-  printf '%s%s%s%s%s' "$WHITE" "$(repeat █ "$filled")" "$DARK" "$(repeat ░ "$empty")" "$RESET"
-}
-
-# Monotonic clock so an NTP step during setup cannot jump the bar.
+# Monotonic clock so an NTP step during setup cannot jump the progress.
 set_now() {
   local up rest
   if read -r up rest </proc/uptime 2>/dev/null && [[ $up == [0-9]* ]]; then
@@ -338,7 +282,7 @@ REKEY_PENDING=false
 phase_band() {
   if $REKEY_PENDING; then
     # Encrypted: finalize is quick, the LUKS re-key (UKI rebuild) is the long
-    # pole — give it nearly half the bar so it keeps moving while it works.
+    # pole — give it nearly half the drawing so it keeps moving while it works.
     case $1 in
       finalize) echo "80 480 40" ;;
       rekey)    echo "480 950 30" ;;
@@ -393,44 +337,26 @@ setup_progress() {
   return 0
 }
 
-# Vertically center the setup block the way greeter_screen centers its splash,
-# so the screen the owner watches through finalization is composed rather than
-# stacked from row one — and first boot bookends the install identically.
-measure_setup_layout() {
-  local rows
-  LAST_SETUP_SIZE=$(term_size)
-  rows=${LAST_SETUP_SIZE%% *}
-  [[ $rows =~ ^[0-9]+$ ]] || rows=24
-  SETUP_TOP_ROW=$(((rows - SETUP_HEIGHT) / 2))
-  (( SETUP_TOP_ROW < 0 )) && SETUP_TOP_ROW=0
-  SETUP_TOP_ROW=$((SETUP_TOP_ROW + 1))
-  DYNAMIC_ROW=$((SETUP_TOP_ROW + LOGO_HEIGHT + 1))
-}
-
 render_setup_static() {
-  measure_setup_layout
-  printf '%s%s%s%d;1H' "$HIDE_CURSOR" "$CLEAR" "$CSI" "$SETUP_TOP_ROW"
-  render_logo
-  blank_line
+  printf '%s' "$HIDE_CURSOR"
+  progress_icon_layout /dev/tty "$LOGO_WIDTH"
+  progress_icon_static
 }
 
+# The VT can still resize under us (the same virtio-gpu KMS handoff the greeter
+# watches for); progress_icon_frame redraws at the new size when it does. Only
+# the worker's successful exit completes the drawing (render_setup_finish).
 render_setup_dynamic() {
-  # The VT can still resize under us — the same virtio-gpu KMS handoff the
-  # greeter watches for. left_padding recomputes every frame, but the logo is
-  # drawn once, so repaint it at the new center rather than leaving the centered
-  # block stranded against a stale geometry.
-  [[ $(term_size) == "$LAST_SETUP_SIZE" ]] || render_setup_static
+  local poll="${1:-1}" pm
   set_now
-  setup_progress
-  printf '%s%d;1H' "$CSI" "$DYNAMIC_ROW"
-  center "Setting up your machine" "$LOGO_WIDTH"
-  blank_line
-  line_at "$LOGO_WIDTH" $(((LOGO_WIDTH - 34) / 2)) ""
-  progress_bar "$SETUP_POS" 34
-  printf '\n'
-  blank_line
-  center "${DIM}Tip:${RESET} ${GREEN}$(current_tip)${RESET}" "$LOGO_WIDTH"
-  printf '%s' "$CLEAR_TO_END"
+  (( poll )) && setup_progress
+  pm=$SETUP_POS
+  (( pm > 999 )) && pm=999
+  progress_icon_frame "$pm" "Setting up your machine" "Tip: $(current_tip)"
+}
+
+render_setup_finish() {
+  progress_icon_finish "Setting up your machine" "Tip: $(current_tip)"
 }
 
 # The first thing a new owner sees, shown once before the keyboard step:
@@ -697,7 +623,7 @@ apply_keyboard() {
   fi
 }
 
-# The same username/password/name/email form as the ISO configurator's Step 2.
+# The same username/password form as the ISO configurator's Step 2.
 user_form() {
   step "Let's setup your user account..."
 
@@ -712,7 +638,6 @@ user_form() {
   fi
 
   omarchy_prompt_password || return $?
-  omarchy_prompt_identity || return $?
 
   # Hostname and timezone are deferred to first boot with the rest of the user
   # step: the deferred install seeds neutral placeholders (omarchy/UTC) and the
@@ -730,8 +655,6 @@ confirm_form() {
 Keyboard,${keyboard_label:-English (US)}
 Username,$username
 Password,$(printf "%${#password}s" | tr ' ' '*')
-Full name,${full_name:-[Skipped]}
-Email address,${email_address:-[Skipped]}
 Hostname,${hostname:-omarchy}
 Timezone,${timezone:-UTC}" |
     gum table -s "," -p | sed "s/^/${PADDING_LEFT_SPACES}/"
@@ -801,10 +724,9 @@ create_user() {
   if getent passwd "$username" >/dev/null; then
     # Resuming a partially-completed earlier attempt: refresh what the form
     # collected this time around.
-    usermod -aG "$(user_groups)" ${full_name:+-c "$full_name"} "$username"
+    usermod -aG "$(user_groups)" "$username"
   else
-    useradd -m -G "$(user_groups)" -s /bin/bash \
-      ${full_name:+-c "$full_name"} "$username"
+    useradd -m -G "$(user_groups)" -s /bin/bash "$username"
   fi
 
   printf '%s:%s\n' "$username" "$password" | chpasswd
@@ -899,6 +821,43 @@ configure_timezone() {
       ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime 2>&1 || true
   fi
   configure_wireless_regdom
+  configure_region
+}
+
+# A deferred install from one market's media took that market's region before
+# anyone chose a timezone, and left it as REGION in the form defaults. Settle it
+# against the owner's choice: a timezone a region profile lists picks that
+# region, Hong Kong, Macau and Taiwan are always World, and any other timezone
+# keeps the media's region.
+configure_region() {
+  local defaults=${OMARCHY_FORM_DEFAULTS:-/etc/omarchy/form-defaults} marker=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
+  local pacman_conf=${OMARCHY_PACMAN_CONF:-/etc/pacman.conf} key value fallback="" region current=global profile channel
+  [[ -r $defaults && -n ${timezone:-} ]] || return 0
+  while IFS='=' read -r key value; do
+    [[ $key == "REGION" ]] && fallback=$value
+  done <"$defaults"
+  [[ $fallback =~ ^[a-z]{2}$ ]] || return 0
+  case "$timezone" in
+    Asia/Hong_Kong | Hongkong | Asia/Macau | Asia/Macao | Asia/Taipei | ROC) region=global ;;
+    *)
+      region=$fallback
+      for profile in "$OMARCHY_PATH"/default/regions/*/; do
+        [[ -r $profile/timezones ]] && grep -qxF -- "$timezone" "$profile/timezones" && region=$(basename "$profile")
+      done
+      ;;
+  esac
+  [[ -r $marker ]] && read -r current <"$marker"
+  [[ $region == "$current" ]] && return 0
+  if [[ $region == "global" ]]; then
+    rm -f "$marker"
+  else
+    printf '%s\n' "$region" >"$marker"
+  fi
+  # Re-render pacman for the region with the channel this machine installed.
+  channel=$(sed -n 's|^Server = https://pkgs\.omarchy\.[a-z]*/\([a-z]*\)/.*|\1|p' "$pacman_conf" | head -1)
+  if [[ -n $channel && -x $OMARCHY_PATH/bin/omarchy-apply-pacman ]]; then
+    "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel" "${OMARCHY_REGION_TARGET:-/}" 2>&1 || true
+  fi
 }
 
 # The install's hardware step found only the UTC placeholder, which names no
@@ -925,8 +884,6 @@ finalize_user() {
     OMARCHY_PATH="$OMARCHY_PATH" \
     OMARCHY_INSTALL="$OMARCHY_PATH/install" \
     OMARCHY_SETUP_CONTEXT=provision-owner \
-    OMARCHY_USER_NAME="$full_name" \
-    OMARCHY_USER_EMAIL="$email_address" \
     OMARCHY_INSTALL_LOG_FILE="$LOG_FILE" \
     OMARCHY_LOG_TO_STDOUT=1 \
     "$OMARCHY_PATH/bin/omarchy-provision-user" --force --first-install
@@ -1061,11 +1018,10 @@ rekey_accepts_password() {
   luks_rekey_accepts_password "$device"
 }
 
-# Start the ESP's limine.conf over from the shipped template and drop foreign
-# machine-id state before rebuilding. limine-entry-tool keys OS entries by
-# machine-id: after a factory reset gave this machine a fresh identity, the
-# previous system's entry would survive the rebuild with a stale UKI hash,
-# sort first, and make Limine stop at a hash-mismatch warning.
+# Start the ESP's limine.conf settings over from the shipped template before
+# rebuilding this machine's boot entry. limine-entry-tool keys OS entries by
+# machine-id, and an entry rebuilt on top of stale kernel entries would keep a
+# stale UKI hash and make Limine stop at a hash-mismatch warning.
 esp_path() {
   local esp=""
   if [[ -f /etc/default/limine ]]; then
@@ -1074,57 +1030,72 @@ esp_path() {
   echo "${esp:-/boot}"
 }
 
-# A factory reset gives the machine a fresh machine-id, but limine-entry-tool
-# keys its limine.conf entries by machine-id — entries from the previous
-# identity would linger and go hash-stale on the first UKI rebuild.
+# Stale only if this machine has no bootable entry of its own: none at all,
+# or the bare header reset_limine_config leaves when the rebuild after it
+# failed. Other machine-ids are not stale: a shared ESP holds other systems'
+# entries, and the factory reset already re-keyed this system's entry to the
+# identity it boots with.
 limine_entries_stale() {
   local esp machine_id
   esp=$(esp_path)
   machine_id=$(cat /etc/machine-id 2>/dev/null || true)
   [[ -f $esp/limine.conf && -n $machine_id ]] || return 1
-  # Stale if any foreign machine-id entry lingers, OR if this machine has no
-  # entry at all (e.g. a failed earlier rebuild left the entry-less template).
-  grep -o 'machine-id=[0-9a-f]*' "$esp/limine.conf" 2>/dev/null |
-    grep -qv "machine-id=$machine_id" && return 0
-  ! grep -q "machine-id=$machine_id" "$esp/limine.conf"
+  ! awk -v id="$machine_id" '
+    /^\/[^\/]/ { mine = 0 }
+    $0 ~ ("^comment: machine-id=" id "([[:space:]]|$)") { mine = 1 }
+    mine && /^[[:space:]]*[a-z_]*path:/ { bootable = 1 }
+    END { exit !bootable }
+  ' "$esp/limine.conf"
 }
 
+# Only this machine's own entry is emptied for limine-update to rebuild in
+# place, where default_entry points. Every other entry and machine-id
+# directory stays: on a shared ESP they belong to other systems (Windows,
+# other Linux installs), and nothing here can tell them from our own leftovers.
 reset_limine_config() {
-  local esp template found="" machine_id old_id old_ids=""
+  local esp template="" candidate machine_id entries=""
   esp=$(esp_path)
 
-  # Only remove machine-ids the old (Omarchy-managed) limine.conf referenced;
-  # a shared ESP may hold other installations' machine-id directories.
-  if [[ -f $esp/limine.conf ]]; then
-    # `|| true`: an entry-less limine.conf (left by a failed earlier rebuild)
-    # has no machine-id lines, so grep exits 1 and pipefail would abort the
-    # assignment under `set -e` — turning a recoverable retry into a dead loop.
-    old_ids=$(grep -o 'machine-id=[0-9a-f]\{32\}' "$esp/limine.conf" | cut -d= -f2 | sort -u || true)
-  fi
-
-  for template in "$OMARCHY_PATH/install/assets/limine/limine.conf" \
-                  "$OMARCHY_PATH/default/limine/limine.conf"; do
-    if [[ -f $template ]]; then
-      cp "$template" "$esp/limine.conf"
-      found=1
+  for candidate in "$OMARCHY_PATH/install/assets/limine/limine.conf" \
+                   "$OMARCHY_PATH/default/limine/limine.conf"; do
+    if [[ -f $candidate ]]; then
+      template=$candidate
       break
     fi
   done
-  if [[ -z $found ]]; then
+  if [[ -z $template ]]; then
     log_step "no limine.conf template found; keeping the existing config"
     return 0
   fi
 
   machine_id=$(cat /etc/machine-id 2>/dev/null || true)
-  for old_id in $old_ids; do
-    [[ $old_id == "$machine_id" ]] && continue
-    rm -rf "${esp:?}/$old_id"
-  done
+  if [[ -f $esp/limine.conf ]]; then
+    # Same rewrite as omarchy-system-factory-reset, keyed to this identity:
+    # this machine's entry keeps only its header, and any copy after the first
+    # is dropped. An entry-less config passes through as is.
+    entries=$(awk -v id="$machine_id" '
+      function flush() {
+        if (is_ours && !kept) { printf "%s\n", header; kept = 1 }
+        else if (!is_ours) printf "%s", block
+        block = header = ""; is_ours = nested = 0
+      }
+      /^\/[^\/]/ { flush(); in_entry = 1 }
+      !in_entry { next }
+      {
+        if (id != "" && /^comment: machine-id=/ && $0 ~ ("machine-id=" id "([[:space:]]|$)")) is_ours = 1
+        if (/^[[:space:]]*\/\//) nested = 1
+        block = block $0 "\n"
+        if (!nested) header = header $0 "\n"
+      }
+      END { flush() }
+    ' "$esp/limine.conf")
+  fi
+
+  { cat "$template"; [[ -z $entries ]] || printf '%s\n' "$entries"; } >"$esp/limine.conf.new"
+  mv "$esp/limine.conf.new" "$esp/limine.conf"
 }
 
 cleanup_oem_state() {
-  # Keep groups + packages: omarchy-system-factory-reset stages the bundled Node
-  # tarball from these live copies when the factory snapshot predates it.
   rm -f "$PROVISIONING_DIR/pending" "$PROVISIONING_DIR/authorized_keys" "$PROVISIONING_DIR/setup-user" "$REKEY_STATE"
 
   rm -f /etc/systemd/system/multi-user.target.wants/omarchy-provision-owner.service
@@ -1132,7 +1103,7 @@ cleanup_oem_state() {
 }
 
 # The provisioning work, backgrounded under the progress screen. Phase writes
-# to STATE_FILE drive the bar; all output lands in the log.
+# to STATE_FILE drive the progress; all output lands in the log.
 run_provisioning() {
   log_step "creating user $username"
   create_user
@@ -1159,9 +1130,9 @@ run_provisioning() {
     log_step "LUKS re-key complete"
   fi
 
-  # After a factory reset on an unencrypted machine nothing above rebuilds the
-  # boot entries, so entries keyed to the previous machine identity would
-  # linger and go hash-stale on the first UKI rebuild. Refresh them now.
+  # On an unencrypted machine nothing above rebuilds the boot entries. The
+  # factory reset already keyed them to this identity, so this only repairs a
+  # machine left without an entry of its own.
   if limine_entries_stale; then
     log_step "refreshing boot entries for the new machine identity"
     echo boot >"$STATE_FILE"
@@ -1173,15 +1144,6 @@ run_provisioning() {
     log_step "refusing to finish setup while the staged LUKS key or its auto-unlock remains"
     return 1
   fi
-
-  if omarchy-pkg-present usbguard; then
-    log_step "enrolling the owner's USB devices"
-    source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
-    usb_authorization_provision_owner "$username"
-  fi
-
-  log_step "enrolling the owner's Thunderbolt accessories"
-  /usr/bin/omarchy-thunderbolt-authorization-admin owner
 
   log_step "cleaning up provisioning state"
   cleanup_oem_state
@@ -1243,9 +1205,13 @@ run_setup() {
   SETUP_PHASE_T0=$NOW
 
   render_setup_static
+  # Read the phase and the log at 2 Hz; animate the trace at 10 Hz, as the ISO
+  # install dashboard does.
+  local frame=0
   while kill -0 "$worker" 2>/dev/null; do
-    render_setup_dynamic
-    sleep 0.5
+    render_setup_dynamic "$((frame % 5 == 0))"
+    frame=$((frame + 1))
+    sleep 0.1
   done
 
   # The cursor comes back only on the failure path, where the retry prompt needs
@@ -1257,9 +1223,10 @@ run_setup() {
     return "$status"
   fi
 
-  # One full-bar frame so the finish doesn't cut in mid-progress.
+  # Finish the trace and show the solid icon, so the handoff doesn't cut in
+  # mid-progress.
   echo done >"$STATE_FILE"
-  render_setup_dynamic
+  render_setup_finish
   sleep 1
 
   if [[ -f $FINALIZE_WARNING_FLAG ]]; then
