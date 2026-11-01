@@ -121,7 +121,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # A machine that has run a local model gets the latest catalog, so its status
   # can say when a better recipe is recommended. It never fails the update.
   if [[ -d $HOME/.local/state/omarchy/agent-local/catalog ]]; then
-    omarchy-agent-local-refresh --quiet || echo -e "\e[33mThe local model catalog could not be refreshed.\e[0m" >&2
+    omarchy-agent-local refresh --quiet || echo -e "\e[33mThe local model catalog could not be refreshed.\e[0m" >&2
   fi
 
   # AUR packages build against the upgraded system, so they go after it, and

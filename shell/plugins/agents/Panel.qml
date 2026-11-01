@@ -47,7 +47,9 @@ Panel {
       var running = model.unit === "active" || model.unit === "activating"
       // Greyed out means not startable by any route: click, Return or Enter.
       if (!running && localStartBlocked(model)) return
-      Util.execArgv([running ? "omarchy-agent-local-stop" : "omarchy-agent-local-switch", model.recipe])
+      // The panel has no terminal: a start that fails records its reason,
+      // which the model's line shows.
+      Util.execArgv(running ? ["omarchy-agent-local", "stop", model.recipe] : ["omarchy-agent-local", "start", "--setup", model.recipe])
     }
   }
 
@@ -85,7 +87,7 @@ Panel {
     deleteTarget = null
     if (!target) return
     if (target.localModel) {
-      Util.execArgv(["omarchy-agent-local-remove", target.localModel.recipe])
+      Util.execArgv(["omarchy-agent-local", "remove", target.localModel.recipe])
     } else if (bar && bar.shell) {
       var next = JSON.parse(JSON.stringify(settings || {}))
       if (!next.providers) next.providers = {}
@@ -414,7 +416,7 @@ Panel {
 
   function setUpLocal(recipe) {
     if (!recipe) return
-    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local-use " + Util.shellQuote(String(recipe.id))])
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local use " + Util.shellQuote(String(recipe.id))])
     cancelAdd()
     root.close()
   }
@@ -1097,7 +1099,7 @@ Panel {
     usage.refreshLimits()
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
-    if (localBlocked) Util.execArgv(["omarchy-agent-local-status", "--write"])
+    if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 

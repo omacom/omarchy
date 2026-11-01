@@ -250,7 +250,7 @@ esac
 # a launch-time overlay Omarchy owns, never by editing the agent's own config.
 # Only agents with such an overlay can be pointed there.
 if [[ $use_local == "true" ]]; then
-  mapfile -t overlay < <(omarchy-agent-local-overlay "$agent" ${local_model:+"$local_model"})
+  mapfile -t overlay < <(omarchy-agent-local overlay "$agent" ${local_model:+"$local_model"})
   (( ${#overlay[@]} == 3 )) || exit 1
   case "$agent" in
   opencode)

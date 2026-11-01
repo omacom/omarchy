@@ -171,7 +171,7 @@ Omarchy owns the mechanism and the boundary in the trust model; the catalog owns
 
 ### Choosing for the machine: `best`
 
-`omarchy-agent-local-profile` reads the machine once per command, from sysfs and the existing helpers, with no network:
+`omarchy-agent-local profile` reads the machine once per command, from sysfs and the existing helpers, with no network:
 
 - `platform` from `omarchy-hw-platform`
 - `gpu`: the GPU family of each GPU, from its gfx target on AMD (`gfx1151` → `amd-strix-halo`) or the platform for GB10. With several GPUs, the one with the most addressable memory is used; a tie between different families requires `use best --gpu <family>`.
@@ -445,7 +445,7 @@ Server lifecycle and usage history are different data with different owners and 
 
 Recipes change with the catalog, so the menu doesn't list them statically. `default/omarchy/omarchy-menu.jsonc` gets two entries next to Ollama and LM Studio:
 
-- "Local model (best for this machine)", running `omarchy-agent-local-use best`.
+- "Local model (best for this machine)", running `omarchy-agent-local use best`.
 - "Choose local model…", a picker fed by a menu provider that reads the cached catalog and the cached machine profile. Profile and compatibility are written by any `omarchy-agent-local-*` command and by the migration that installs Podman, so the cache exists before the first menu open; if it's missing anyway, the picker shows one "Refresh local models" row running `list`. Nothing probes hardware or the network on menu open, keeping within the guard budgets in `docs/menu.md`.
 
 Today's provider rows carry only `label`, `value`, `current` and search text (`docs/menu.md`), and generated rows are never disabled (`shell/plugins/menu/Menu.qml`), where "disabled" otherwise means "already installed" and gets a checkmark. So this needs a provider-row extension: an `available` flag and a `reason`, rendered as a dimmed row with the reason as its secondary text, distinct from the installed style. Recipes not qualified for this machine are shown that way, not hidden.

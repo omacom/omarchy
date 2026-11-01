@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Run open models on this machine for your agents
+# omarchy:args=<use|list|status|start|stop|autostart|remove|bench> [args]
+# omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy agent local autostart on
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+
+import agent_local  # noqa: E402
+
+sys.exit(agent_local.main(sys.argv[1:]))
