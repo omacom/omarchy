@@ -38,8 +38,8 @@ Panel {
     return actions
   }
 
+  // Loading has its progress bar under the line; only stopping and failure need words.
   function localStateText(model) {
-    if (model.unit === "activating") return Commons.I18n.t("agents.localLoading")
     if (model.unit === "deactivating") return Commons.I18n.t("agents.localStopping")
     if (model.unit === "failed") return model.result && model.result !== "success"
       ? Commons.I18n.t("agents.localFailedResult").arg(String(model.result))
