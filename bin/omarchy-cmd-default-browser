@@ -18,7 +18,7 @@ source omarchy-cmd-browser-exec
 # it launched. An env prefix is skipped, so env itself never counts as one, and
 # its PATH is where the browser is looked up, as env would launch it.
 installed() {
-  local data_dir assignment path=$PATH browser_exec
+  local data_dir assignment path=$PATH browser_exec handoff_browser
   local -a browser_env browser_command handoff_env
 
   for data_dir in "${data_dirs[@]}"; do

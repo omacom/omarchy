@@ -43,8 +43,9 @@ if [[ " $* " == *" --private "* ]]; then
 fi
 
 # The handoff sees the entry's variables too, so it leaves a browser pointed at
-# another profile to the launch instead of giving the URL to the running one.
-if ! env "${handoff_env[@]}" omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+# another profile to the launch instead of giving the URL to the running one,
+# and checks the executable the entry's PATH selects, so a wrapper there runs.
+if ! env "${handoff_env[@]}" omarchy-cmd-browser-handoff "$handoff_browser" "${@/--private/$private_flag}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
     uwsm-app -- "${browser_command[@]}" "${@/--private/$private_flag}"

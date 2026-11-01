@@ -176,6 +176,25 @@ grep -F -- ' -- env CHROME_CONFIG_HOME=/home/alex/Browser Profiles vivaldi https
   fail "a quoted variable in an env prefix launches unquoted, with its browser" "$(cat "$launch_log")"
 pass "a quoted variable in an env prefix launches unquoted, with its browser"
 
+# A PATH in the prefix picks the browser, so the handoff checks that one: a
+# wrapper there must not be bypassed for a same-named browser on the session's.
+mkdir -p "$test_tmp/opt/bin"
+printf '#!/bin/bash\n' >"$test_tmp/opt/bin/vivaldi"
+chmod +x "$test_tmp/opt/bin/vivaldi"
+printf '[Desktop Entry]\nExec=env PATH=%s:/usr/bin vivaldi %%U\n' "$test_tmp/opt/bin" >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop"
+cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >"$OMARCHY_TEST_HANDOFF"
+exit 1
+SH
+chmod +x "$mock_bin/omarchy-cmd-browser-handoff"
+export OMARCHY_TEST_HANDOFF="$test_tmp/handoff"
+launch "https://example.test/wrapper"
+[[ $(<"$OMARCHY_TEST_HANDOFF") == "$test_tmp/opt/bin/vivaldi" ]] ||
+  fail "the handoff checks the browser the entry's PATH selects" "$(cat "$OMARCHY_TEST_HANDOFF")"
+rm -f "$mock_bin/omarchy-cmd-browser-handoff"
+pass "the handoff checks the browser the entry's PATH selects"
+
 # With nothing to launch, the failure has to be visible from a keybinding,
 # where stderr goes nowhere, and must never reach uwsm-app as an empty command.
 rm -f "$XDG_CONFIG_HOME/mimeapps.list" "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
