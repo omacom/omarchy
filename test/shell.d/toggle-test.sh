@@ -105,6 +105,7 @@ for virt in vm none; do
   chmod +x "$stub_bin/omarchy-hw-vm"
   # Theme setup runs first and imports the GTK backdrop blur for see-through windows.
   HOME="$test_home" XDG_STATE_HOME="" XDG_CONFIG_HOME="" OMARCHY_PATH="$ROOT" omarchy-theme-set-glass
+  grep -qF 'glass.css' "$test_home/.config/gtk-4.0/gtk.css" || fail "theme setup imports the GTK backdrop blur for see-through windows"
   HOME="$test_home" XDG_STATE_HOME="" XDG_CONFIG_HOME="" OMARCHY_PATH="$ROOT" bash "$ROOT/install/user/hardware/vm-no-animations.sh" >/dev/null
   if [[ $virt == "vm" ]]; then
     [[ -f $animations_flag ]] || fail "a VM install turns animations off"
