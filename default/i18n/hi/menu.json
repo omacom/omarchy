@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "डिस्क गति परीक्षण"
   },
-  "setup.keybindings": {
-    "label": "कीबोर्ड शॉर्टकट"
-  },
   "setup.input": {
     "label": "इनपुट"
-  },
-  "setup.typing": {
-    "label": "टाइपिंग"
-  },
-  "setup.typing.keyboard": {
-    "label": "कीबोर्ड लेआउट"
-  },
-  "setup.typing.input": {
-    "label": "इनपुट पद्धतियाँ"
   },
   "setup.language": {
     "label": "भाषा"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "कीबोर्ड"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "कीबाइंडिंग्स"
+  },
+  "setup.keyboard.inputs": {
+    "label": "कीबोर्ड इनपुट"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "इनपुट विधियाँ"
   }
 }

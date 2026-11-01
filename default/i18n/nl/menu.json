@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Schijfsnelheidstest"
   },
-  "setup.keybindings": {
-    "label": "Sneltoetsen"
-  },
   "setup.input": {
     "label": "Invoer"
-  },
-  "setup.typing": {
-    "label": "Typen"
-  },
-  "setup.typing.keyboard": {
-    "label": "Toetsenbordindelingen"
-  },
-  "setup.typing.input": {
-    "label": "Invoermethoden"
   },
   "setup.language": {
     "label": "Taal"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Toetsenbord"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Sneltoetsen"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Toetsenbordinvoer"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Invoermethoden"
   }
 }

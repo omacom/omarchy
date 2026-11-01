@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "வட்டு வேக சோதனை"
   },
-  "setup.keybindings": {
-    "label": "விசைப்பிணைப்புகள்"
-  },
   "setup.input": {
     "label": "உள்ளீடு"
-  },
-  "setup.typing": {
-    "label": "தட்டச்சு"
-  },
-  "setup.typing.keyboard": {
-    "label": "விசைப்பலகை அமைப்புகள்"
-  },
-  "setup.typing.input": {
-    "label": "உள்ளீட்டு முறைகள்"
   },
   "setup.language": {
     "label": "மொழி"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "விசைப்பலகை"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "விசைப் பிணைப்புகள்"
+  },
+  "setup.keyboard.inputs": {
+    "label": "விசைப்பலகை உள்ளீடுகள்"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "உள்ளீட்டு முறைகள்"
   }
 }

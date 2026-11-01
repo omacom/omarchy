@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test velocità disco"
   },
-  "setup.keybindings": {
-    "label": "Scorciatoie"
-  },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Digitazione"
-  },
-  "setup.typing.keyboard": {
-    "label": "Layout tastiera"
-  },
-  "setup.typing.input": {
-    "label": "Metodi di input"
   },
   "setup.language": {
     "label": "Lingua"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastiera"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Scorciatoie"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Input tastiera"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metodi di input"
   }
 }

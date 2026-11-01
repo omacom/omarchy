@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Kettakiiruse test"
   },
-  "setup.keybindings": {
-    "label": "Kiirklahvid"
-  },
   "setup.input": {
     "label": "Sisend"
-  },
-  "setup.typing": {
-    "label": "Trükkimine"
-  },
-  "setup.typing.keyboard": {
-    "label": "Klaviatuuri paigutused"
-  },
-  "setup.typing.input": {
-    "label": "Sisestusmeetodid"
   },
   "setup.language": {
     "label": "Keel"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klaviatuur"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Klahviseaded"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Klaviatuuri sisendid"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Sisestusmeetodid"
   }
 }
