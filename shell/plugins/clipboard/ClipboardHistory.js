@@ -127,6 +127,23 @@ function isImagePath(path) {
   return /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(String(path || ""))
 }
 
+// A text entry that is a single image path (absolute or ~/) or an http(s) link
+// to an image can be previewed as that image. Returns { src, remote } or null.
+// The file is not checked here; the preview falls back to the text when the
+// image fails to load.
+function textImage(entry, home) {
+  if (!entry || entry.type !== "text") return null
+  var t = String(entry.text || "").trim()
+  if (!t || t.length > 2048 || /[\r\n]/.test(t)) return null
+  t = t.replace(/^(["'])(.*)\1$/, "$2")
+  if (/^https?:\/\/[^\s]+$/i.test(t)) {
+    return isImagePath(t.replace(/[?#].*$/, "")) ? { src: t, remote: true } : null
+  }
+  if (t.indexOf("~/") === 0 && home) t = String(home).replace(/\/$/, "") + t.substring(1)
+  if (t.charAt(0) !== "/" || !isImagePath(t)) return null
+  return { src: t, remote: false }
+}
+
 function fileEntryText(entry) {
   var paths = filePaths(entry)
   if (paths.length === 0) return ""
@@ -171,7 +188,7 @@ function cappedEntry(entry) {
   return { type: "text", text: entry.text.slice(0, cut > 0 ? cut : displayTextLimit) }
 }
 
-function displayRows(history, query, limit) {
+function displayRows(history, query, limit, home) {
   var values = Array.isArray(history) ? history : []
   var needle = String(query || "").trim().toLowerCase()
   var max = limit === undefined || limit === null ? 50 : Number(limit)
@@ -190,7 +207,8 @@ function displayRows(history, query, limit) {
     var isFile = paths.length > 0
     var isImage = entry.type === "image"
     var previewPath = isImage ? String(entry.path || "") : (isFile && paths.length === 1 && isImagePath(paths[0]) ? paths[0] : "")
-    rows.push({
+    var textImg = isImage || isFile ? null : textImage(entry, home)
+    var row = {
       entryType: isFile ? "file" : entry.type,
       fullText: isImage ? "" : fullText(entry),
       previewText: previewText(entry),
@@ -198,7 +216,12 @@ function displayRows(history, query, limit) {
       path: isImage ? String(entry.path || "") : (isFile && paths.length === 1 ? paths[0] : ""),
       mime: isImage ? String(entry.mime || "image/png") : "text/plain",
       index: i
-    })
+    }
+    if (textImg) {
+      row.textImage = textImg.src
+      row.textImageRemote = textImg.remote
+    }
+    rows.push(row)
     if (rows.length >= max) break
   }
 
@@ -218,6 +241,7 @@ if (typeof module !== "undefined") {
     previewText: previewText,
     imagePreviewText: imagePreviewText,
     filePaths: filePaths,
+    textImage: textImage,
     fileEntryText: fileEntryText,
     fullText: fullText,
     displayRows: displayRows

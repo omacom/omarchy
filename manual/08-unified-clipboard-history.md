@@ -19,6 +19,8 @@ The clipboard history is provided by the Omarchy shell and works for both text a
 
  ![clipboard-history](images/clipboard-history.webp)
 
+When the highlighted entry is a path to an image (like `~/Pictures/photo.png`) or a link to one (like `https://example.com/photo.png`), the preview shows the image itself. A link is only fetched once you highlight it.
+
 You can also search the history just by starting to type:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

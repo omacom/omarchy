@@ -123,6 +123,21 @@ assertDeepEqual(
   'clipboard display rows do not preview video file uri entries inline'
 )
 
+const textImg = text => clipboard.textImage({ type: 'text', text: text }, '/home/dhh')
+
+assertDeepEqual(textImg('/home/dhh/Pictures/a.PNG\n'), { src: '/home/dhh/Pictures/a.PNG', remote: false }, 'clipboard previews an absolute image path in text')
+assertDeepEqual(textImg('~/Pictures/a.jpg'), { src: '/home/dhh/Pictures/a.jpg', remote: false }, 'clipboard expands ~/ in an image path')
+assertDeepEqual(textImg('"/tmp/a b.png"'), { src: '/tmp/a b.png', remote: false }, 'clipboard strips quotes around an image path')
+assertDeepEqual(textImg('https://example.com/a.webp?v=1'), { src: 'https://example.com/a.webp?v=1', remote: true }, 'clipboard previews an http image link')
+assertDeepEqual(textImg('https://example.com/page'), null, 'clipboard ignores links that are not images')
+assertDeepEqual(textImg('/etc/passwd'), null, 'clipboard ignores paths that are not images')
+assertDeepEqual(textImg('/tmp/a.png\n/tmp/b.png'), null, 'clipboard ignores multi-line text')
+assertDeepEqual(
+  clipboard.displayRows([{ type: 'text', text: '~/a.png' }], '', 50, '/home/dhh')[0].textImage,
+  '/home/dhh/a.png',
+  'clipboard display rows carry the text image candidate'
+)
+
 assertDeepEqual(clipboard.displayRows(history, '', 0), [], 'clipboard display rows supports zero result limit')
 assertDeepEqual(clipboard.addEntry(history, 'next', 0), [], 'clipboard addEntry supports zero history limit')
 

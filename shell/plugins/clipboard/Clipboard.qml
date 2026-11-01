@@ -132,7 +132,7 @@ Item {
   }
 
   function rebuildDisplay() {
-    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50)
+    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Quickshell.env("HOME"))
 
     displayModel.clear()
     for (var i = 0; i < rows.length; i++) {
@@ -142,6 +142,7 @@ Item {
         fullText: row.fullText,
         previewText: row.previewText,
         previewImage: row.previewImage ? Util.fileUrl(row.previewImage) : "",
+        textImage: row.textImage ? (row.textImageRemote ? row.textImage : String(Util.fileUrl(row.textImage))) : "",
         path: row.path,
         mime: row.mime,
         historyIndex: row.index
@@ -545,7 +546,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                visible: parent.activeRow && !parent.activeRow.previewImage
+                visible: parent.activeRow && !parent.activeRow.previewImage && !textImagePreview.shown
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
                 anchors.rightMargin: 0
@@ -558,6 +559,23 @@ Item {
                 wrapMode: Text.WrapAnywhere
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignTop
+              }
+
+              // Text that is an image path or link: show the image once it
+              // loads, otherwise the text above stays visible. Only the active
+              // row is loaded, so a remote link is fetched when selected.
+              Image {
+                id: textImagePreview
+                readonly property bool shown: parent.activeRow && !parent.activeRow.previewImage
+                  && parent.activeRow.textImage !== "" && status === Image.Ready
+                visible: shown
+                anchors.fill: parent
+                anchors.leftMargin: root.contentMargin
+                source: parent.activeRow && !parent.activeRow.previewImage ? parent.activeRow.textImage : ""
+                fillMode: Image.PreserveAspectFit
+                verticalAlignment: Image.AlignTop
+                asynchronous: true
+                smooth: true
               }
 
               Image {
