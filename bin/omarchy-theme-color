@@ -139,8 +139,8 @@ parse_colors_file() {
 
   [[ -f $COLORS_FILE ]] || return 0
 
-  while IFS='=' read -r key value; do
-    key="${key//[\"\' ]/}"                # strip quotes and spaces from key
+  while IFS='=' read -r key value || [[ -n $key ]]; do
+    key="${key//[\"\'[:space:]]/}"        # strip quotes and whitespace from key
     [[ $key && $key != \#* ]] || continue # skip empty lines and comments
 
     if [[ $value == *[\"\']* ]]; then
