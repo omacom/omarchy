@@ -292,7 +292,7 @@ Panel {
     } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh" || focusSection === "mirror") {
       selectedIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, selectedIndex + delta))
     } else if (focusSection === "layout" && current) {
-      applyLayout(Model.placeDisplay(layoutRects, current.name, delta < 0 ? "left" : "right"), current.name)
+      applyLayout(Model.placeDisplay(layoutRects, current.name, delta < 0 ? "left" : "right"))
     }
   }
 
@@ -462,20 +462,17 @@ Panel {
   }
 
   function setScale(name, scale) {
-    cancelLayout()
     actionProc.command = ["omarchy-hyprland-monitor-scaling", "--monitor", name, scale]
     if (!actionProc.running) actionProc.running = true
   }
 
   function setResolution(name, resolution) {
-    cancelLayout()
     actionProc.command = ["omarchy-hyprland-monitor-resolution", "--monitor", name, resolution]
     if (!actionProc.running) actionProc.running = true
   }
 
   function setMirror(enabled) {
     if (enabled === mirrorEnabled) return
-    cancelLayout()
     pendingMirror = enabled ? "on" : "off"
     mirrorSettle.restart()
     actionProc.command = ["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"]
@@ -483,7 +480,6 @@ Panel {
   }
 
   function setRotation(name, degrees) {
-    cancelLayout()
     actionProc.command = ["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)]
     if (!actionProc.running) actionProc.running = true
   }
@@ -525,45 +521,22 @@ Panel {
   // ctrl+j/k on the layout: the shown display above or below the rest.
   function moveLayoutVertical(dy) {
     if (!current || !layoutMovable) return
-    applyLayout(Model.placeDisplay(layoutRects, current.name, dy < 0 ? "above" : "below"), current.name)
+    applyLayout(Model.placeDisplay(layoutRects, current.name, dy < 0 ? "above" : "below"))
   }
 
   function closeRotateMenu() {
     rotateMenuName = ""
   }
 
-  // A move first shows in the map, the display reading "Moving…" where it
-  // lands, and is applied a beat later, so the blink while Hyprland moves the
-  // outputs doesn't come out of nowhere. The map draws shownRects until the
-  // state read after the move catches up.
+  // A moved display stays where it was put in the map until the state read
+  // after the move catches up, instead of snapping back for a moment.
   property var pendingRects: null
-  property string pendingName: ""
   readonly property var shownRects: pendingRects || layoutRects
 
   // Apply a whole arrangement, unless it leaves everything where it was.
-  // A move back to where everything is, like right then left, calls off the
-  // one still waiting.
-  function applyLayout(rects, name) {
-    if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) {
-      cancelLayout()
-      return
-    }
+  function applyLayout(rects) {
+    if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) return
     pendingRects = rects
-    pendingName = name || ""
-    layoutDelay.restart()
-  }
-
-  // A scale, mode, rotation or mirror change resizes the displays the
-  // waiting move was worked out from, so it no longer fits: drop it.
-  function cancelLayout() {
-    layoutDelay.stop()
-    pendingRects = null
-    pendingName = ""
-  }
-
-  function commitLayout() {
-    var rects = pendingRects
-    if (!rects) return
     var args = ["omarchy-hyprland-monitor-layout"]
     for (var i = 0; i < rects.length; i++)
       args.push(rects[i].name + "=" + rects[i].x + "x" + rects[i].y)
@@ -665,10 +638,7 @@ Panel {
           else mirrorRecheck.restart()
         }
         // The move has landed once a read after it comes back.
-        if (!layoutDelay.running && !actionProc.running) {
-          root.pendingRects = null
-          root.pendingName = ""
-        }
+        if (!actionProc.running) root.pendingRects = null
         root.mirrorManaged = String(lines[8] || "").trim() === "on"
       }
     }
@@ -710,12 +680,6 @@ Panel {
     id: mirrorSettle
     interval: 6000
     onTriggered: root.pendingMirror = ""
-  }
-
-  Timer {
-    id: layoutDelay
-    interval: 500
-    onTriggered: root.commitLayout()
   }
 
   Process {
@@ -1569,9 +1533,7 @@ Panel {
           width: parent.width - Style.space(6)
           horizontalAlignment: Text.AlignHCenter
           textFormat: Text.PlainText
-          text: root.pendingRects && root.pendingName === screenRect.modelData.name
-            ? Commons.I18n.t("monitor.moving")
-            : [screenRect.modelData.name].concat(root.mirroredBy[screenRect.modelData.name] || []).join(" + ")
+          text: [screenRect.modelData.name].concat(root.mirroredBy[screenRect.modelData.name] || []).join(" + ")
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
@@ -1610,10 +1572,10 @@ Panel {
             // Back into layout space; snap within about 8 map pixels.
             var x = map.bounds.x + (screenRect.x - map.offsetX) / map.ratio
             var y = map.bounds.y + (screenRect.y - map.offsetY) / map.ratio
-            // Reset first: staging the move redraws the map, this box included.
+            // Reset first: applying the move redraws the map, this box included.
             screenRect.dragX = 0
             screenRect.dragY = 0
-            if (moved) root.applyLayout(Model.dropDisplay(root.layoutRects, name, x, y, Style.space(8) / map.ratio), name)
+            if (moved) root.applyLayout(Model.dropDisplay(root.layoutRects, name, x, y, Style.space(8) / map.ratio))
             else root.selectDisplay(name)
           }
           onCanceled: {
