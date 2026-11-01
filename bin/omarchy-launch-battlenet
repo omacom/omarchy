@@ -69,7 +69,7 @@ else
     # Do not tell the user to kill the tree: umu-run exists before any window
     # while GE-Proton is downloading, and #13344 often has no tray icon.
     omarchy-notification-send -u normal -g "🎮" "$(omarchy-i18n battlenet.alreadyRunning)" \
-      "A copy is already running or still starting, with no window yet. Wait for it, or stop the hidden copy with: pkill -f 'umu-run $HOME/Games/battlenet/'" \
+      "$(omarchy-i18n battlenet.alreadyRunningBody "pkill -f 'umu-run $HOME/Games/battlenet/'")" \
       2>/dev/null || true
   else
     env_args=(

@@ -53,6 +53,7 @@
   "battery.timeLeft": "%1 left",
   "battery.toFull": "%1 to full",
   "battlenet.alreadyRunning": "Battle.net already running",
+  "battlenet.alreadyRunningBody": "A copy is already running or still starting, with no window yet. Wait for it, or stop the hidden copy with: %1",
   "battlenet.removeProton": "Also remove GE-Proton runtimes downloaded by umu?",
   "battlenet.removeUmu": "Also remove umu-launcher? It's only used by this command.",
   "battlenet.wipePartial": "Wipe the partial prefix and start fresh?",
