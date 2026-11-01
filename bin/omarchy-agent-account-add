@@ -206,8 +206,8 @@ if [[ $provider == "opencode" ]]; then
   # The key lands in both credential stores opencode reads. The collector
   # asks the V2 database's active `opencode-go` key first and only then
   # auth.json, so writing auth.json alone would leave a replaced key showing
-  # the old workspace until the stored one lapsed. Both writes are private,
-  # atomic renames; either store missing or unreadable starts fresh.
+  # the old workspace until the stored one lapsed. auth.json is replaced
+  # atomically; the database is made private before the key's transaction.
   auth_dir="${XDG_DATA_HOME:-$HOME/.local/share}/opencode"
   mkdir -p "$auth_dir" || fail "$(omarchy-i18n agents.homeFailed)"
   OPENCODE_AUTH_DIR="$auth_dir" OPENCODE_GO_KEY="$key" OPENCODE_DB_NAME="${OPENCODE_DB:-}" python3 - <<'EOF' || fail "$(omarchy-i18n agents.homeFailed)"
@@ -243,7 +243,13 @@ if store_path is None:
     normal, legacy = auth_dir / "opencode.db", auth_dir / "opencode-v2.db"
     store_path = legacy if not normal.is_file() and legacy.is_file() else normal
 import sqlite3, time
-fresh = not store_path.is_file()
+# Secure existing databases too, and create new ones privately before SQLite
+# opens them. A permissions failure must abort before any key is inserted.
+store_fd = os.open(store_path, os.O_RDWR | os.O_CREAT, 0o600)
+try:
+    os.fchmod(store_fd, 0o600)
+finally:
+    os.close(store_fd)
 conn = sqlite3.connect(store_path)
 try:
     conn.execute("CREATE TABLE IF NOT EXISTS credential (id text, integration_id text, active integer, time_updated integer, value text)")
@@ -256,8 +262,6 @@ try:
     conn.commit()
 finally:
     conn.close()
-if fresh:
-    os.chmod(store_path, 0o600)
 EOF
 
   # The first agent signed in on a machine with none chosen becomes the
