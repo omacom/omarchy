@@ -2273,6 +2273,10 @@ def cmd_autostart(argv):
     manifest = resolve_model(args.recipe)
     rid = manifest["recipe_id"]
     flag = autostart_flag(rid)
+    # Session autostart runs the unit directly, past the checks a setup that
+    # was never started still owes; its first start has to come from start.
+    if args.mode == "on" and manifest.get("unchecked"):
+      raise LocalError(f"{rid} hasn't been started yet. Start it once first: omarchy agent local start {rid}")
     if args.mode == "on":
       write_atomic(flag, "on\n")
     elif os.path.exists(flag):
@@ -2318,6 +2322,8 @@ def cmd_remove(argv):
     finally:
       if os.path.exists(removing_path(rid)):
         os.unlink(removing_path(rid))
+        # Also when interrupted: the panel would otherwise stay on Removing.
+        write_status()
   refresh_list_cache()
   write_status()
   removed_runs, freed, images = result
