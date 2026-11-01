@@ -30,6 +30,7 @@ SH
 
 printf '#!/bin/bash\n' >"$stub_bin/sleep"
 printf '#!/bin/bash\n' >"$stub_bin/lsmod"
+printf '#!/bin/bash\n' >"$stub_bin/omarchy-toggle-input-device"
 chmod +x "$stub_bin"/*
 
 # An I2C HID device bound to i2c_hid_acpi, with one input device and what udev

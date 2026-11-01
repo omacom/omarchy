@@ -31,7 +31,7 @@ Panel {
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
 
-  // ---- Today. SystemClock keeps this honest across midnight so the
+  // ---- Today. The wall clock keeps this honest across midnight so the
   //      highlight rolls over without the panel being reopened.
   property date today: new Date()
   readonly property string todayKey: Model.keyForDate(today)
@@ -240,9 +240,8 @@ Panel {
     return String(labelLocale.dayName(weekday, Locale.ShortFormat)).toUpperCase()
   }
 
-  SystemClock {
+  WallClock {
     id: clock
-    precision: SystemClock.Minutes
     onDateChanged: {
       if (Model.keyForDate(clock.date) === String(root.todayKey)) return
       var followToday = root.viewingCurrentMonth

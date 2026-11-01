@@ -17,6 +17,9 @@ is_touchpad() {
   return 1
 }
 
+echo "Releasing the trackpad in Hyprland..."
+omarchy-toggle-input-device touchpad cycle
+
 driver="${OMARCHY_I2C_HID_DRIVER_PATH:-/sys/bus/i2c/drivers/i2c_hid_acpi}"
 
 for dev in "$driver"/i2c-*; do
