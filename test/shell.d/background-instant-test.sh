@@ -22,6 +22,7 @@ function state(displayed = 'a.png') {
     failedBackground: '', recoverVersion: -1, recoverProc: { running: false },
     preparedBackgroundTimer: { stop() {}, restart() {} },
     revealAnimation: { stop() {} },
+    revealGraceTimer: { stop() {} },
     Util: { isVideoPath: value => /\.(mp4|m4v|mov|webm|mkv|avi)$/i.test(value) },
   }
   ctx.root = ctx
