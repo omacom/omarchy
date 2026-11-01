@@ -550,7 +550,7 @@ end
 -- What floating workspaces need on top of the rest of the config: shadows,
 -- opaque windows, and titlebars. Run while the config loads when something
 -- floats already, and otherwise the moment a workspace starts floating, so
--- Super + L brings titlebars without reloading Hyprland.
+-- Super + N brings titlebars without reloading Hyprland.
 set_up_floating = function()
   if floating_ready then
     return
