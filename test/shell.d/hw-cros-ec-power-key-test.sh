@@ -29,7 +29,7 @@ while IFS='|' read -r description expected_status expected_disabled devices; do
   [[ $status == "$expected_status" ]] || fail "$description: detector" "expected $expected_status, got $status"
 
   # Run the real Lua config; capture only the devices it disables.
-  actual_disabled=$(lua <<'LUA'
+  actual_disabled=$(lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 local disabled = {}
 hl = setmetatable({
