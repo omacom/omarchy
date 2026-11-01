@@ -200,3 +200,15 @@ jq -nc --arg later "$later" '{
 autoswitch >/dev/null
 [[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
 pass "a stale account with room wins over a fresh one near the limit"
+
+# A numeric account label is text, even beside localized numeric readings.
+printf 'fa\n' >"$test_tmp/language"
+OMARCHY_PATH=$ROOT OMARCHY_LANGUAGE_FILE=$test_tmp/language python3 - "$ROOT" <<'PYTEST'
+import runpy, sys
+from pathlib import Path
+state = runpy.run_path(str(Path(sys.argv[1]) / "bin/omarchy-agent-account-state"))
+actual = state["tr"]("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", "13.1", 97, "Claude")
+assert "13.1" in actual and "۹۷" in actual, actual
+assert "۱۳٫۱" not in actual, actual
+PYTEST
+pass "numeric account labels stay literal beside localized usage readings"

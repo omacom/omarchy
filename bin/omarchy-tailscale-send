@@ -39,7 +39,7 @@ fi
 if ((${#files[@]} == 1)); then
   what=$(basename "${files[0]}")
 else
-  what=$(omarchy-i18n --count "${#files[@]}" tailscale.fileCount "${#files[@]}")
+  what=$(omarchy-i18n --count "${#files[@]}" tailscale.fileCount "$(omarchy-i18n --number "${#files[@]}")")
 fi
 
 if error=$(tailscale file cp --update-interval=0 -- "${files[@]}" "$machine:" 2>&1); then
