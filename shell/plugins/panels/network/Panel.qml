@@ -1543,8 +1543,10 @@ Panel {
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open;
-      // the TextField inside owns input until Esc/Enter/Cancel.
-      blocked: root.passwordSsid !== ""
+      // the TextField inside owns input until Esc/Enter/Cancel. The hotspot
+      // fields own it while focused, or letters like j/k/x and Space would
+      // move the cursor instead of reaching the field.
+      blocked: root.passwordSsid !== "" || hotspotSsidField.activeFocus || hotspotPwField.activeFocus
 
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) {
