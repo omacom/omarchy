@@ -44,6 +44,7 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
+  readonly property real testDesignWidth: panel.contentWidth
   property alias testPoll: connectivityPoll
   property alias testApPoll: activeApSignalPoll
   property alias testBarButton: button`)
