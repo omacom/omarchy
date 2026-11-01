@@ -312,8 +312,16 @@ if (syncWifiSource) {
 const menuSource = fs.readFileSync(root + '/default/omarchy/omarchy-menu.jsonc', 'utf8')
 const menuNetworkCalls = [...menuSource.matchAll(/shell call omarchy\.network (\w+)/g)].map(m => m[1])
 assert(menuNetworkCalls.length > 0, 'the menu calls the network panel')
+const ipcHandler = panelSource.match(/ShellIpc \{[\s\S]*?target: "omarchy\.network"([\s\S]*?)\n  \}/)
+assert(ipcHandler, 'the network panel has an IPC handler')
 for (const method of menuNetworkCalls) {
-  assert(new RegExp('function ' + method + '\\(\\) \\{ root\\.' + method + '\\(\\) \\}').test(panelSource), 'the network panel answers the menu call ' + method)
+  const wrapper = ipcHandler && ipcHandler[1].match(new RegExp('function ' + method + '\\([^)]*\\) \\{[^\\n]*\\}'))
+  assert(wrapper, 'the network panel answers the menu call ' + method)
+  if (!wrapper) continue
+  const calls = []
+  const root = new Proxy({}, { get: (_, name) => (...args) => calls.push(name) })
+  new Function('root', wrapper[0] + '\nreturn ' + method)(root)()
+  assertEqual(calls.join(','), method, 'the menu call ' + method + ' reaches the panel method of that name')
 }
 
 const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
