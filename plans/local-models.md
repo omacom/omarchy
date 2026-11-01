@@ -26,10 +26,11 @@ Learned while building, now in the code:
 - The panel follows `status.json`, rewritten by the units' `ExecStartPost`/`ExecStopPost` hooks (through `/usr/bin/env`, since systemd doesn't search `PATH` for them) and by every command, instead of a D-Bus subscription. `start` and `stop` write the transition before waiting on systemd, so a click shows at once.
 - Several models can run at once (answering open question 2): every recipe is its own unit, `omarchy-agent-local-model-<recipe>.service`, on its own stable loopback port from `ports.json`. Headroom counts the models already running and names them when one doesn't fit. Manifests are JSON: `models/<recipe>.json` per recipe and `runs/*.json`; `last` names the default for launches and `bench`.
 - The agents panel shows every set-up model as its own line, styled like a subscription: the maker's logo (recipe `vendor`), play/pause, a terminal button opening the default agent on it (pi when the default agent has no overlay), a memory meter, and a loading bar measured against the last load time. Local lines and subscriptions share one drag order (`local:<recipe>` ids in `order.json`), and Delete on a selected line confirms before removing a model or hiding a subscription. Each subscription also gained a terminal button opening its own harness (`omarchy agent --agent <id>`: Codex for OpenAI, Claude Code for Anthropic).
+- No catalog signing: `omacom/omarchy-local-ai` is access-controlled on GitHub, so who may change it is the repository's permissions. Omarchy fetches the `schema-1` branch, validates it, and keeps the previous catalog on a failure; the commit-signature and no-rollback checks of the design below were dropped, and `allowed_signers` with them.
+- No menu entries: local models are set up and run from the agents panel (Add another › Local AI, per-model lines) and the `omarchy agent local` CLI; the Install › AI entries of the design below were dropped.
 
 Not done:
 
-- `omacom/omarchy-local-ai` on GitHub, its signing keys and `default/omarchy/agent-local/allowed_signers` (empty; official trust refuses every catalog until keys exist). This machine uses `trust = "unsigned-dev"` against the local checkout.
 - Visual verification of the menu and panel in the running shell.
 - The `omarchy`-tier image pipeline and signature policy, ROCm/CUDA images, GB10 and 64 GB classes, the privileged GPU setup command, a throwaway-container GPU preflight, pi and Codex overlays, live metrics.
 
@@ -510,4 +511,4 @@ halogen's fit with this design is already proven by hand: it runs from a Quadlet
 2. ~~Is one managed active model the right limit long term?~~ Answered: several run at once, each its own unit and port, within headroom.
 3. Should the model store share Hugging Face's cache (`~/.cache/huggingface`) so weights downloaded for other tools are reused, at the cost of Omarchy not owning deletion?
 4. Should a recipe's `ctx` variants grow automatically as measurements come in for smaller machines, or stay hand-curated?
-5. Who holds catalog signing keys, and is one maintainer's signature enough for a `best.toml` change, or should changes that select a new third-party runtime need two?
+5. ~~Who holds catalog signing keys?~~ Answered: none; the catalog repository's access control decides who may change it.

@@ -11,19 +11,15 @@ Omarchy manages rootless Podman model servers, each exposed as an OpenAI-compati
 | `shell/plugins/agents/agent_local.py` | Profile, validation, catalog acceptance, artifact storage, units, lifecycle, manifests, overlays and benchmarks |
 | `bin/omarchy-agent-local-*` | Python entry points importing the module through `$OMARCHY_PATH`, plus the hidden shell `switch` notification wrapper |
 | `bin/omarchy-agent` | `--local` / `--local-model <recipe>` launch with a pi or OpenCode overlay; `--agent <id>` selects a harness explicitly |
-| `default/omarchy/omarchy-menu.jsonc` | Best-model action and recipe submenu under Install > AI |
-| `shell/plugins/menu/Menu.qml`, `MenuModel.js` | `local-models` provider and unavailable-row presentation; see [Menu providers](menu.md#providers) |
 | `shell/plugins/agents/Main.qml`, `Panel.qml` | Watch lifecycle status and cached recipes and display per-model lines alongside subscriptions |
 | `bin/omarchy-agent-usage-local` | Count historical usage separately from server lifecycle |
 | `install/omarchy-base.packages`, `migrations/1793534376.sh` | Install Podman and crun; migration calls `omarchy-pkg-add podman crun` |
-| `default/omarchy/agent-local/allowed_signers` | SSH catalog signing trust anchors; currently comments only, with no shipped signing key |
 | `bin/omarchy-update` | Best-effort `omarchy-agent-local-refresh --quiet` when the user's catalog directory exists; failure warns without failing the update |
 
 Visible commands are `use`, `start`, `list`, `status`, `stop`, `autostart`, `remove` and `bench`, routed under `omarchy agent local`. Hidden commands are `profile`, `refresh`, `validate`, `overlay` and `switch`. `use <recipe|best>` sets up and starts that recipe without stopping other models; it accepts `--ctx`, `--gpu`, `--catalog <commit>`, `--manifest <file>`, `--seed <directory>` and `--unqualified`. `start [recipe] [--setup]` starts an existing setup, or delegates to `use` for a named recipe not yet set up when `--setup` is given. `stop [recipe]` stops one recipe, or all running models when omitted. `autostart on|off [recipe]` changes one recipe's session startup flag. `bench [recipe]` supports `--output <file>`; `overlay <opencode|pi> [recipe]` generates a launch overlay. The optional recipe defaults to the last started model for start, autostart, bench and overlays; commands needing a running model fall back to another running setup if necessary. Hidden `switch <recipe>` is the panel wrapper around `start --setup`, with an error notification on failure.
 
 `list` supports `--json` and `--offline`; `status` supports `--json` and the internal `--write`; `refresh` supports `--quiet`; `validate <directory>` supports `--online`.
 
-The menu provider reads only cached `list.json`, with no hardware probe or catalog fetch. Its tab-delimited rows are `label`, `value`, `current`, optional search text and optional unavailable reason. Recommended rows get “ · best”, third-party rows name their publisher, and unavailable rows stay visible but cannot be selected. Without the cache, a refresh row runs `list` in a visible floating terminal. Selecting a recipe runs `use <id>` there.
 
 The panel shows one line per set-up local model, independently of usage history, with a logo named by the recipe's `vendor` (falling back to the Ollama logo), play/pause, a terminal action while running, and a memory meter based on observed load-time RAM usage. While loading, the meter becomes a progress bar measured against the previous load duration (60 seconds when unknown). Starting uses the hidden `switch` wrapper; stopping names the recipe; the terminal launches `omarchy-agent --local-model <recipe>`.
 
@@ -31,7 +27,7 @@ Local lines share the subscriptions' drag order through `local:<recipe>` ids in 
 
 ## Trust model
 
-Catalog signers choose executable software: images, commands and health probes. Runtime `command` is an arbitrary string argv list and a probe executes inside the container; these are trusted release inputs, not a sandboxed recipe language. Image references must include a registry/path and a SHA-256 digest. The module does not verify image publisher signatures or distinguish image execution policy by tier.
+Catalog maintainers choose executable software: images, commands and health probes. Runtime `command` is an arbitrary string argv list and a probe executes inside the container; these are trusted release inputs, not a sandboxed recipe language. Image references must include a registry/path and a SHA-256 digest. The module does not verify image publisher signatures or distinguish image execution policy by tier.
 
 Every generated container uses the internal `omarchy-agent-local` network, publishes only the loopback port, mounts only its recipe's model directory read-only at `/models`, sets a read-only root, drops all capabilities and enables no-new-privileges. Host networking, host IPC, privilege flags and arbitrary mounts are not configurable run options. Network restrictions apply to model containers; Git, Hugging Face downloads and image pulls happen on the host.
 
@@ -56,30 +52,27 @@ After health readiness, `use` checks `/v1/models`: without a key it must return 
 
 ## Catalog acceptance and refresh
 
-Settings are in `~/.config/omarchy/agent-local/catalog.toml`:
+Settings are in `~/.config/omarchy/agent-local/catalog.toml`, for testing a fork or pinning a commit; without the file the defaults apply:
 
 ```toml
 url = "https://github.com/omacom/omarchy-local-ai"
 ref = "schema-1"
-trust = "official"
-allowed_signers = ""
 ```
 
-`official` requires an SSH signature allowed by the configured signers file, or by `$OMARCHY_PATH/default/omarchy/agent-local/allowed_signers` when empty. The shipped file currently has no keys, so a fresh official fetch fails closed until a key is supplied. `unsigned-dev` explicitly skips signature verification; `use` warns for this trust mode on the normal catalog path. A mirror or custom ref does not disable verification. Schema 1 is the only supported schema; `schema-<n>` branches let older readers remain on their supported format.
+Who may change the catalog is the repository's own access control on GitHub; Omarchy doesn't add commit signing on top. What a catalog entry can make a container do is still bounded by the trust model above, whoever wrote it. Schema 1 is the only supported schema; `schema-<n>` branches let older readers remain on their supported format.
 
-State lives in `~/.local/state/omarchy/agent-local/catalog/`: `repo.git` is the bare fetched repository, `trees/<commit>/` contains archived trees, and `state.json` records `current`, `url`, `trust` and `fetched_at`. Archives are extracted with Python's `data` filter through a `.partial` directory and renamed. Git runs without system/global config, hooks, credential helpers or interactive authentication; file transport is permitted for local development repositories.
+State lives in `~/.local/state/omarchy/agent-local/catalog/`: `repo.git` is the bare fetched repository, `trees/<commit>/` contains archived trees, and `state.json` records `current`, `url` and `fetched_at`. Archives are extracted with Python's `data` filter through a `.partial` directory and renamed. Git runs without system/global config, hooks, credential helpers or interactive authentication; file transport is permitted for local development repositories.
 
-`use` and normal `list` refresh after four hours, on a changed URL/trust setting, for a pin, or without a current catalog. Hidden `refresh` forces a refresh; the update hook invokes it. `list --offline`, `status`, the menu and panel do not fetch. Ref and signer changes alone do not trigger the source-changed branch of the freshness check.
+`use` and normal `list` refresh after four hours, on a changed URL, for a pin, or without a current catalog. Hidden `refresh` forces a refresh; the update hook invokes it. `list --offline`, `status` and the panel do not fetch.
 
 Acceptance proceeds as follows:
 
 1. Fetch the configured ref to `refs/omarchy/fetched`, or fetch an explicit 40-hex commit from `--catalog` or `ref`.
-2. Require the object to be a commit and verify its SSH signature unless trust is `unsigned-dev`.
-3. Unless pinned or URL/trust changed, require the candidate to descend from the accepted commit.
-4. Export the tree and validate schema, runtimes, recipes and recommendations. Only then advance `current`.
-5. Apply whole-file user overrides from `~/.config/omarchy/agent-local/{recipes,runtimes}/<id>.toml` and validate them on the ordinary non-pinned refresh return path. Overrides are recorded in manifests and recipe overrides marked in listings. There is no user `best.toml` override.
+2. Require the object to be a commit.
+3. Export the tree and validate schema, runtimes, recipes and recommendations. Only then advance `current`.
+4. Apply whole-file user overrides from `~/.config/omarchy/agent-local/{recipes,runtimes}/<id>.toml` and validate them on the ordinary non-pinned refresh return path. Overrides are recorded in manifests and recipe overrides marked in listings. There is no user `best.toml` override.
 
-Fetch failure keeps an existing cached catalog with a note. Verification, ancestry or validation failure keeps the previous catalog when it is the same source and the request is not pinned; otherwise it raises. Explicit pins bypass ancestry and return the chosen catalog without replacing `current`, though they update `fetched_at`. Cached reads do not reverify signatures. `cached_catalog()` applies overrides without revalidating, and the pinned return path also omits validation after applying overrides; accepted base trees are validated before overrides in both cases.
+Fetch failure keeps an existing cached catalog with a note. Validation failure keeps the previous catalog when it is the same source and the request is not pinned; otherwise it raises. Explicit pins return the chosen catalog without replacing `current`, though they update `fetched_at`. `cached_catalog()` applies overrides without revalidating, and the pinned return path also omits validation after applying overrides; accepted base trees are validated before overrides in both cases.
 
 ## Catalog formats and examples
 
@@ -507,8 +500,8 @@ Paths below are relative to `~/.local/state/omarchy/agent-local/`. These lifecyc
 | File | Writer | Readers and contents |
 |---|---|---|
 | `status.json` | `status --write` hooks and lifecycle commands, `refresh`, `remove` | `Main.qml` FileView watches it and feeds `Panel.qml`; per-recipe lifecycle records plus last, total RAM, best and catalog metadata |
-| `list.json` | `list`, successful `use`, `refresh`, `remove` | Menu and panel; recipe id/name/summary/vendor/runtime/tier/publisher, static availability/reason, best/active/installed/override markers (`active` means running) |
-| `profile.json` | `profile`, `list`, `use` | Persisted platform/RAM/GPU diagnostic snapshot; the current menu reads list cache instead, and commands recompute profiles |
+| `list.json` | `list`, successful `use`, `refresh`, `remove` | Panel (Add another › Local AI); recipe id/name/summary/vendor/runtime/tier/publisher, static availability/reason, best/active/installed/override markers (`active` means running) |
+| `profile.json` | `profile`, `list`, `use` | Persisted platform/RAM/GPU diagnostic snapshot; the panel reads the list cache instead, and commands recompute profiles |
 | `models/<recipe>.json` | `save_run()` after successful `use` | Each recipe's current full resolved manifest, replacing the former `active.json`; lifecycle commands, overlays and benchmark |
 | `last` | Successful `use` and `start`; cleared when that recipe is removed | Last started recipe; default for start, autostart, bench, overlays and `omarchy agent --local`, with fallback to another eligible setup |
 | `ports.json` | Port allocation and `remove` | Recipe-to-loopback-port assignments, stable until removal |
@@ -524,20 +517,20 @@ OpenCode local launches generate `~/.config/omarchy/agent-local/opencode.json` w
 
 ## Tests
 
-`test/shell.d/agent-local-test.sh` uses temporary home directories and fixtures. It covers recipe/runtime ids, reserved and conflicting mappings, forbidden run options, argument-key opt-in, path traversal and duplicate roles; recommendation qualification, duplicate selectors, ranking, ambiguity, largest fitting context, static fallback and multi-GPU ties; RAM/GPU capacity and busy-memory diagnostics; Hugging Face manifest expansion, destination conflicts and Git blob integrity; benchmark-shaped TOML round trips; hostile argv/environment/probe values through unit serialization; and local Git repositories exercising unsigned-dev, allowed SSH signatures, unknown/unsigned tips, invalid schema and rollback refusal without advancing current.
+`test/shell.d/agent-local-test.sh` uses temporary home directories and fixtures. It covers recipe/runtime ids, reserved and conflicting mappings, forbidden run options, argument-key opt-in, path traversal and duplicate roles; recommendation qualification, duplicate selectors, ranking, ambiguity, largest fitting context, static fallback and multi-GPU ties; RAM/GPU capacity and busy-memory diagnostics; Hugging Face manifest expansion, destination conflicts and Git blob integrity; benchmark-shaped TOML round trips; hostile argv/environment/probe values through unit serialization; and local Git repositories exercising catalog acceptance and an invalid schema that never replaces the accepted catalog.
 
-When installed, the real Podman Quadlet generator parses the fixture units in dry-run mode, checking restrictions, loopback publication and argument preservation; otherwise that part skips. This test does not start a model, test container egress, exercise transactional rollback/auth checks end to end, verify sysfs discovery, or test overlays. Menu and panel integration also have assertions in their existing area tests. Documentation-only edits do not require running these suites.
+When installed, the real Podman Quadlet generator parses the fixture units in dry-run mode, checking restrictions, loopback publication and argument preservation; otherwise that part skips. This test does not start a model, test container egress, exercise transactional rollback/auth checks end to end, verify sysfs discovery, or test overlays. Panel integration also has assertions in its existing area test. Documentation-only edits do not require running these suites.
 
 ## Differs from the plan
 
 - Multiple models can run concurrently, answering the plan's open question about one active model. Each recipe has its own unit and stable loopback port from `ports.json`; live headroom includes memory occupied by other running models.
 - The panel watches `status.json` and `list.json` rather than subscribing to systemd D-Bus `PropertiesChanged`, and shows one line per setup alongside subscriptions. Commands publish start/stop transitions before waiting; unit hooks publish completion and failure. The hooks use `/usr/bin/env` because systemd does not search PATH for Exec* commands.
-- `status` never refreshes the catalog. The migration installs Podman/crun only; it does not populate profile or compatibility caches. The menu consumes prepared `list.json`, rather than combining a cached catalog and profile. Provider rows carry a fifth unavailable-reason field rather than an explicit availability flag.
+- `status` never refreshes the catalog. The migration installs Podman/crun only; it does not populate profile or compatibility caches. The plan's Install › AI menu entries were left out: setup goes through the agents panel (Add another › Local AI) and the CLI.
 - Headroom uses raw `MemAvailable` without subtracting locked/unevictable memory; `pins_memory` is informational. GPU free memory subtracts used VRAM and GTT from their combined total. The real recipe field is `peak_ram_gib`, not the proposal example's `peak_host_gib`.
 - GPU preflight checks subordinate-ID entries and the invoking user's device access only. It does not start a throwaway container, inspect the user manager's group access, or configure groups/CDI; no privileged GPU setup command exists here.
-- The official allowed-signers file currently has no keys. Image digest pinning is implemented, but publisher image-signature verification and the Omarchy-tier image build pipeline are not. Cached catalogs are not reverified; pinned catalogs bypass ancestry, and override validation has the gaps described above.
+- Catalog commits aren't signed: who may change the catalog is the repository's access control, and the plan's signature and no-rollback checks were dropped. Image digest pinning is implemented, but publisher image-signature verification and the Omarchy-tier image build pipeline are not. Override validation has the gaps described above.
 - Post-start auth accepts 401 or 403 and checks only `/v1/models`. It runs during `use`, not every systemd restart, and is not a full route or network-egress test.
 - Manifests are timestamped JSON run files plus per-recipe `models/<recipe>.json` current copies and a `last` recipe id, not TOML plus a single active pointer. Replay uses the current GPU profile and embedded resolution without repeating static compatibility checks.
-- `bench`, `remove`, panel controls and the menu provider are already implemented despite their phase-2 placement. The second recipe is open-source Gufo with Qwen3.8 27B, not a llama.cpp Flash Next fallback. Gufo's measurement is explicitly provisional publisher data for a different quant; validation checks measurement existence, not its evidence.
+- `bench`, `remove`, and panel controls are already implemented despite their phase-2 placement. The second recipe is open-source Gufo with Qwen3.8 27B, not a llama.cpp Flash Next fallback. Gufo's measurement is explicitly provisional publisher data for a different quant; validation checks measurement existence, not its evidence.
 - Missing exact `--ctx` variants raise before trying later recommendations. General equally ranked class ambiguity is detected during resolution, while validation rejects identical selector triples only. Unmapped sampling defaults are reported during `use`, not in `status`.
 - Existing blobs are reused without rehashing; artifact integrity includes Git blob OIDs for non-LFS files, rather than SHA-256 for every file. The focused suite covers validation, resolution, hashing, serialization and catalog trust, but not the proposed disposable-VM lifecycle/egress checks, rollback integration, locked-memory accounting or overlay generation.

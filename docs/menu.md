@@ -118,9 +118,14 @@ can point a submenu at an existing provider but cannot declare a new one:
   the launcher. App rows are searchable by their desktop Keywords but never
   routable, so an installed app cannot capture a menu route (htop ships
   `Keywords=system;...`, and SUPER+ESCAPE must still open the system menu).
-- `fonts`, `power-profiles`, `kernels`, `languages`, and `local-models` are bash one-liners in the `providers` map in `Menu.qml`. The contract is one tab-delimited line per row: `label\tvalue\tcurrent[\tsearch[\tunavailable-reason]]`. The optional fourth field is a search-only term (the languages provider passes each language's English name, so searching "danish" finds "Dansk" without making "danish" a routable command). The row whose value equals `current` gets the ✓ icon, and selection runs the spec's `actionFor(value)`. Row ids are `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values that slugify alike cannot silently drop a row.
-- A non-empty fifth field keeps the row listed but dimmed and unselectable, with the unavailable reason always visible as secondary text. It receives no ✓, even if its value equals `current`; this differs from the already-installed `disabled` guard. Leave the fourth field empty when supplying a reason without a search term. Existing providers emitting three or four fields retain their behavior.
-- `local-models` reads only `$HOME/.local/state/omarchy/agent-local/list.json`, the cached recipe array written by `omarchy-agent-local-*` commands. It labels recommended recipes with " · best" and third-party recipes with their publisher, marks the active recipe as current, and supplies compatibility failures as unavailable reasons. Selection runs `omarchy-agent-local-use <id>` in a visible floating terminal. If the cache is missing, a single "Refresh local models" row runs `omarchy-agent-local-list` in the same terminal. Opening the menu performs no catalog refresh, network access, or hardware probing.
+- `fonts`, `power-profiles`, `kernels`, and `languages` are bash one-liners in the `providers` map in
+  `Menu.qml`. The contract is one tab-delimited line per row:
+  `label\tvalue\tcurrent`, with an optional fourth field that becomes a search-only
+  term for the row (the languages provider passes each language's English name, so
+  searching "danish" finds the row labeled "Dansk", without making "danish" a routable command). The row whose value equals `current` gets the ✓
+  icon, and selection runs the spec's `actionFor(value)`. Row ids are
+  `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values
+  that slugify alike cannot silently drop a row.
 
 A provider marked `volatile` re-runs every time its submenu is entered — a
 font installed since the shell started shows up without a restart — but not

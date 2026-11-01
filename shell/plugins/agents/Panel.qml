@@ -362,6 +362,8 @@ Panel {
     return p && p.accounts && p.accounts.length > 0 ? p.accounts : []
   }
 
+  readonly property bool localBlocked: providers.some(function(p) { return p.localModel && p.localModel.fits === false })
+
   function refreshNow() {
     usage.refreshAll(true)
   }
@@ -1073,6 +1075,9 @@ Panel {
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
+    // "Doesn't fit" was true when a model last started or stopped; memory an
+    // app has since let go of only shows after a fresh look, once per open.
+    if (localBlocked) Util.execArgv(["omarchy-agent-local-status", "--write"])
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 

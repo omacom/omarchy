@@ -568,11 +568,10 @@ def _load_toml_dir(root, sub):
 
 
 class Catalog:
-  def __init__(self, root, commit="", source="", trust=""):
+  def __init__(self, root, commit="", source=""):
     self.root = root
     self.commit = commit
     self.source = source
-    self.trust = trust
     with open(os.path.join(root, "catalog.toml"), "rb") as handle:
       self.meta = tomllib.load(handle)
     self.runtimes = _load_toml_dir(root, "runtimes")
@@ -610,7 +609,9 @@ def load_catalog_dir(root):
 
 
 def catalog_settings():
-  settings = {"url": DEFAULT_CATALOG_URL, "ref": f"schema-{SCHEMA}", "trust": "official", "allowed_signers": ""}
+  """Where the catalog comes from. Who may change it is the repository's own
+  access control; a fork or a pinned commit can be set for testing."""
+  settings = {"url": DEFAULT_CATALOG_URL, "ref": f"schema-{SCHEMA}"}
   path = os.path.join(config_dir(), "catalog.toml")
   if os.path.isfile(path):
     with open(path, "rb") as handle:
@@ -618,13 +619,7 @@ def catalog_settings():
     for key in settings:
       if key in user:
         settings[key] = str(user[key])
-  if settings["trust"] not in ("official", "unsigned-dev"):
-    raise LocalError(f"{path}: trust must be 'official' or 'unsigned-dev'")
   return settings
-
-
-def official_signers():
-  return os.path.join(omarchy_path(), "default", "omarchy", "agent-local", "allowed_signers")
 
 
 def git(args, repo, check=True, capture=True, input_bytes=None):
@@ -643,17 +638,6 @@ def git(args, repo, check=True, capture=True, input_bytes=None):
     detail = (result.stderr or b"").decode(errors="replace").strip() if capture else ""
     raise LocalError(f"git {' '.join(args[:2])} failed: {detail}")
   return result
-
-
-def verify_commit(repo, commit, settings):
-  if settings["trust"] == "unsigned-dev":
-    return
-  signers = settings["allowed_signers"] or official_signers()
-  if not os.path.isfile(signers) or not any(line.strip() and not line.startswith("#") for line in open(signers)):
-    raise LocalError(f"No catalog signing keys in {signers}; refusing an unverifiable catalog")
-  result = git(["-c", "gpg.format=ssh", "-c", f"gpg.ssh.allowedSignersFile={signers}", "verify-commit", commit], repo, check=False)
-  if result.returncode != 0:
-    raise LocalError(f"Catalog commit {commit[:12]} is not signed by an allowed key")
 
 
 def catalog_state():
@@ -688,7 +672,7 @@ def export_tree(repo, commit):
 
 
 def refresh_catalog(force=False, pin=None):
-  """Fetch, verify and accept the catalog. Returns (Catalog, note)."""
+  """Fetch, validate and accept the catalog. Returns (Catalog, note)."""
   settings = catalog_settings()
   state = catalog_state()
   repo = os.path.join(state_dir(), "catalog", "repo.git")
@@ -697,7 +681,7 @@ def refresh_catalog(force=False, pin=None):
     subprocess.run(["git", "init", "--bare", "--quiet", repo], check=True, env={"PATH": os.environ.get("PATH", ""), "HOME": home(), "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"})
   note = ""
   pinned = pin or (settings["ref"] if SHA_RE.match(settings["ref"]) else None)
-  source_changed = state.get("url") != settings["url"] or state.get("trust") != settings["trust"]
+  source_changed = state.get("url") != settings["url"]
   fresh = time.time() - state.get("fetched_at", 0) < CATALOG_MAX_AGE
   if force or source_changed or pinned or not fresh or not state.get("current"):
     ref = pinned or settings["ref"]
@@ -712,10 +696,6 @@ def refresh_catalog(force=False, pin=None):
         raise LocalError(f"Catalog commit {new} not found at {settings['url']}")
       current = state.get("current") if not source_changed else None
       try:
-        verify_commit(repo, new, settings)
-        if current and new != current and not pinned:
-          if git(["merge-base", "--is-ancestor", current, new], repo, check=False).returncode != 0:
-            raise LocalError(f"Catalog {new[:12]} does not descend from the accepted {current[:12]}; refusing a rollback")
         tree = export_tree(repo, new)
         catalog = load_catalog_dir(tree)
         errors = catalog.errors()
@@ -728,16 +708,16 @@ def refresh_catalog(force=False, pin=None):
           raise
       else:
         if not pinned:
-          state.update({"current": new, "url": settings["url"], "trust": settings["trust"]})
+          state.update({"current": new, "url": settings["url"]})
         state["fetched_at"] = time.time()
         save_catalog_state(state)
         if pinned:
-          catalog.commit, catalog.source, catalog.trust = new, settings["url"], settings["trust"]
+          catalog.commit, catalog.source = new, settings["url"]
           catalog.apply_user_overrides()
           return catalog, note
   commit = state["current"]
   catalog = load_catalog_dir(export_tree(repo, commit))
-  catalog.commit, catalog.source, catalog.trust = commit, state.get("url", settings["url"]), state.get("trust", settings["trust"])
+  catalog.commit, catalog.source = commit, state.get("url", settings["url"])
   catalog.apply_user_overrides()
   if catalog.overrides:
     errors = catalog.errors()
@@ -757,7 +737,7 @@ def cached_catalog():
   if not os.path.isdir(tree):
     return None
   catalog = load_catalog_dir(tree)
-  catalog.commit, catalog.source, catalog.trust = state["current"], state.get("url", ""), state.get("trust", "")
+  catalog.commit, catalog.source = state["current"], state.get("url", "")
   catalog.apply_user_overrides()
   return catalog
 
@@ -1191,13 +1171,15 @@ def materialize(rid, files, roles, seed_dir=None):
   staging = target + ".partial"
   shutil.rmtree(staging, ignore_errors=True)
   ensure_dir(staging)
+  # Paths are built from the resolved staging directory, so a model store
+  # moved to another disk through a symlink still passes the containment check.
   root = os.path.realpath(staging)
   for record in files:
-    dest = os.path.normpath(os.path.join(staging, record["dest"]))
-    if not os.path.realpath(os.path.dirname(dest) or staging).startswith(root) or not dest.startswith(root + os.sep):
+    dest = os.path.normpath(os.path.join(root, record["dest"]))
+    if not dest.startswith(root + os.sep):
       raise LocalError(f"Refusing a file outside the model directory: {record['dest']}")
     ensure_dir(os.path.dirname(dest))
-    if not os.path.realpath(os.path.dirname(dest)).startswith(root):
+    if not (os.path.realpath(os.path.dirname(dest)) + os.sep).startswith(root + os.sep):
       raise LocalError(f"Refusing a file outside the model directory: {record['dest']}")
     os.link(blob_path(record), dest)
   os.replace(staging, target)
@@ -1832,9 +1814,7 @@ def cmd_use(argv):
           say(f"Warning: {reason}")
       recipe = catalog.recipes[rid]
       runtime = catalog.runtimes[recipe["runtime"]]
-      catalog_info = {"url": catalog.source, "commit": catalog.commit, "trust": catalog.trust, "overrides": sorted(catalog.overrides)}
-      if catalog.trust == "unsigned-dev":
-        say(f"Warning: catalog {catalog.source} is unsigned (trust = unsigned-dev)")
+      catalog_info = {"url": catalog.source, "commit": catalog.commit, "overrides": sorted(catalog.overrides)}
       if runtime.get("tier") == "third-party":
         review = load_review(catalog, runtime)
         say(f"Runtime {recipe['runtime']} is third-party: {review.get('publisher', 'unknown publisher')}, license {review.get('license_url', 'unknown')}")
@@ -2322,7 +2302,9 @@ def pi_overlay(rid=None):
     f"  pi.registerProvider({json.dumps(OVERLAY_PROVIDER)}, {json.dumps(provider, indent=2)});\n"
     "}\n"
   )
-  path = os.path.join(config_dir(), "pi-local-model.ts")
+  # One file per recipe: launches of two models close together must not
+  # swap each other's overlay before their agents read it.
+  path = os.path.join(config_dir(), "overlays", f"pi-{rid}.ts")
   write_atomic(path, source)
   return path, OVERLAY_PROVIDER, rid
 
@@ -2341,7 +2323,7 @@ def opencode_overlay(rid=None):
       }
     },
   }
-  path = os.path.join(config_dir(), "opencode.json")
+  path = os.path.join(config_dir(), "overlays", f"opencode-{rid}.json")
   write_atomic(path, json.dumps(overlay, indent=2) + "\n")
   return path, OVERLAY_PROVIDER, rid
 

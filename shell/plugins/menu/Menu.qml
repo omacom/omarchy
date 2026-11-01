@@ -173,8 +173,8 @@ Item {
 
   // Menu rows only surface their detail while a search is narrowing them;
   // dmenu rows carry caller-supplied subtext that must always be visible.
-  function rowHeightForDetail(detail, unavailable) {
-    return (root.filterText || root.dmenuActive || unavailable) && detail ? root.detailRowHeight : root.baseRowHeight
+  function rowHeightForDetail(detail) {
+    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
   }
 
   // Height the card can devote to rows before running off the screen — or
@@ -219,7 +219,7 @@ Item {
       var row = displayModel.get(i)
       if (i > 0) total += root.rowSpacing
       if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
-      total += root.rowHeightForDetail(row.detail, row.unavailable)
+      total += root.rowHeightForDetail(row.detail)
       previousSection = row.section
       totals.push(total)
     }
@@ -238,7 +238,7 @@ Item {
     var total = 0
     for (var i = 0; i < displayModel.count; i++) {
       if (i > 0) total += root.rowSpacing
-      total += root.rowHeightForDetail(displayModel.get(i).detail, displayModel.get(i).unavailable)
+      total += root.rowHeightForDetail(displayModel.get(i).detail)
       totals.push(total)
     }
 
@@ -321,15 +321,6 @@ Item {
   // re-runs every time its submenu is entered, so a font installed since the
   // shell started shows up without restarting it.
   readonly property var providers: ({
-    "local-models": {
-      script: "if [[ -f $HOME/.local/state/omarchy/agent-local/list.json ]]; then jq -r '(map(select(.active) | .id) | first // \"\") as $current | .[] | [.name + (if .best then \" · best\" else \"\" end) + (if .tier == \"third-party\" then \" · third-party (\" + .publisher + \")\" else \"\" end), .id, $current, .runtime, (if .available then \"\" else .reason end)] | join(\"\\t\")' \"$HOME/.local/state/omarchy/agent-local/list.json\"; else printf 'Refresh local models\\t__refresh__\\t\\n'; fi",
-      icon: "󱚤",
-      volatile: true,
-      actionFor: function(value) {
-        var command = value === "__refresh__" ? "omarchy-agent-local-list" : "omarchy-agent-local-use " + Util.shellQuote(value)
-        return "omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(command)
-      }
-    },
     "fonts": {
       script: "current=$(omarchy-font-current 2>/dev/null); omarchy-font-list 2>/dev/null | while read -r f; do [[ -z $f ]] && continue; printf '%s\\t%s\\t%s\\n' \"$f\" \"$f\" \"$current\"; done",
       icon: "",
@@ -439,7 +430,44 @@ Item {
   function mergeProviderRows(rows, menuId, providerKey) {
     var spec = root.providers[providerKey]
     if (!spec) return
-    var providerRows = MenuModel.parseProviderRows(rows, menuId, spec)
+    var lines = String(rows || "").split("\n")
+    var providerRows = []
+    var takenIds = ({})
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim()
+      if (!line) continue
+      var parts = line.split("\t")
+      var rawLabel = parts[0] || ""
+      var label = spec.labelFor ? spec.labelFor(rawLabel) : rawLabel
+      var value = parts[1] || parts[0] || ""
+      var current = parts[2] || ""
+      if (!label) continue
+      // Distinct values can slugify alike — Fira Code and Fira-Code both give
+      // fira-code — and a repeated id is dropped, which would silently lose a
+      // row from the list. Nudge it until it is the row's own.
+      var rowId = menuId + "." + root.slugify(value)
+      while (takenIds[rowId]) rowId += "-"
+      takenIds[rowId] = true
+
+      providerRows.push({
+        id: rowId,
+        parent: menuId,
+        kind: "action",
+        icon: (value === current) ? "✓" : (spec.icon || ""),
+        label: label,
+        title: "",
+        target: "",
+        description: "",
+        action: spec.actionFor(value),
+        provider: "",
+        aliases: [],
+        searchTerms: (parts[3] ? [parts[3]] : []).concat(label !== rawLabel ? [rawLabel] : []),
+        when: "",
+        checked: "",
+        disabled: "",
+        order: 0
+      })
+    }
     var merged = MenuModel.swapProviderRows(root.items, root.itemOrder, menuId, providerRows)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
@@ -1465,7 +1493,7 @@ Item {
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
 
               width: ListView.view.width
-              height: root.rowHeightForDetail(row.detail, row.unavailable)
+              height: root.rowHeightForDetail(row.detail)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
@@ -1543,7 +1571,7 @@ Item {
                   width: parent.width
                   // A parent path's separator points along the reading direction.
                   text: Commons.I18n.rightToLeft && row.kind !== "dmenu" ? row.detail.replace(/ › /g, " ‹ ") : row.detail
-                  visible: (root.filterText || row.kind === "dmenu" || row.unavailable) && row.detail.length > 0
+                  visible: (root.filterText || row.kind === "dmenu") && row.detail.length > 0
                   color: root.foreground
                   opacity: 0.52
                   font.family: root.fontFamily

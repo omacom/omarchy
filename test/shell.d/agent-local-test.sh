@@ -6,7 +6,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command python3
 require_command git
-require_command ssh-keygen
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 export HOME="$scratch" OMARCHY_PATH="$ROOT" PYTHONDONTWRITEBYTECODE=1
@@ -263,12 +262,13 @@ if generator:
 else:
   skip("Quadlet parser unavailable: Podman generator is not installed")
 
-# Local repositories exercise fetch, export, validation, ancestry and SSH verification.
+# Local repositories exercise fetch, export and validation; who may change
+# the catalog is the repository's own access control.
 root = Path(os.environ["HOME"])
 repo = root / "catalog-source"
 repo.mkdir()
 def git(*args):
-  result = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-C", str(repo), *args], capture_output=True, text=True)
+  result = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "-C", str(repo), *args], capture_output=True, text=True)
   if result.returncode:
     raise RuntimeError(result.stderr)
   return result.stdout.strip()
@@ -285,43 +285,17 @@ write_toml(repo / "runtimes/server.toml", runtime)
 write_toml(repo / "recipes/model.toml", recipe)
 write_toml(repo / "reviews/server.toml", {"image": runtime["image"], "publisher": "Fixture", "reviewer": "Tester", "date": "2026-01-01", "license_url": "https://example.test/license", "license_sha256": "a" * 64, "checked": ["key", "network"]})
 write_toml(repo / "measurements/model.toml", {"ctx": 4096})
-def commit(message, key=None):
+def commit(message):
   git("add", ".")
-  flags = ["-c", "gpg.format=ssh", "-c", f"user.signingkey={key}"] if key else ["-c", "commit.gpgsign=false"]
-  git(*flags, "commit", "--allow-empty", "-qm", message, *(["-S"] if key else []))
+  git("commit", "--allow-empty", "-qm", message)
   return git("rev-parse", "HEAD")
-def settings(trust, signers=""):
-  write_toml(Path(a.config_dir()) / "catalog.toml", {"url": str(repo), "ref": "schema-1", "trust": trust, "allowed_signers": str(signers)})
-def refused(name, accepted, fragment):
-  catalog, note = a.refresh_catalog(force=True)
-  check(name, catalog.commit == accepted and a.catalog_state()["current"] == accepted and fragment in note, note)
+write_toml(Path(a.config_dir()) / "catalog.toml", {"url": str(repo), "ref": "schema-1"})
 
-accepted = commit("valid unsigned catalog")
-settings("unsigned-dev")
+accepted = commit("valid catalog")
 catalog, note = a.refresh_catalog(force=True)
-check("unsigned-dev accepts valid catalog and records commit", catalog.commit == accepted and a.catalog_state()["current"] == accepted and not note)
+check("a valid catalog is accepted and recorded", catalog.commit == accepted and a.catalog_state()["current"] == accepted and not note)
 write_toml(repo / "catalog.toml", {"schema": 999})
 commit("invalid schema")
-refused("invalid schema cannot advance accepted catalog", accepted, "failed validation")
-git("checkout", "--orphan", "replacement")
-write_toml(repo / "catalog.toml", {"schema": 1})
-commit("unrelated valid history")
-git("branch", "-f", "schema-1", "HEAD")
-refused("force-pushed unrelated branch is refused as rollback", accepted, "refusing a rollback")
-git("checkout", "schema-1")
-keys = []
-for name in ("trusted", "unknown"):
-  key = root / name
-  subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True, capture_output=True)
-  keys.append(key)
-signers = root / "allowed_signers"
-signers.write_text("fixture@example.test " + keys[0].with_suffix(".pub").read_text())
-accepted = commit("trusted signed catalog", keys[0])
-settings("official", signers)
 catalog, note = a.refresh_catalog(force=True)
-check("official accepts allowed SSH signer and records commit", catalog.commit == accepted and a.catalog_state()["current"] == accepted and not note)
-commit("unsigned official update")
-refused("official refuses unsigned commit without moving current", accepted, "not signed by an allowed key")
-commit("unknown signed update", keys[1])
-refused("official refuses unknown signer without moving current", accepted, "not signed by an allowed key")
+check("an invalid catalog never replaces the accepted one", catalog.commit == accepted and a.catalog_state()["current"] == accepted and "failed validation" in note, note)
 PY
