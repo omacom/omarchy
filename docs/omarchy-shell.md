@@ -17,7 +17,7 @@ The service does not replace or queue behind another public owner. Failure to ac
 
 The lock plugin's `SessionLockBridge.qml` forwards `WlSessionLock.secure` to its Python child over stdin. The child owns only the private `org.omarchy.SessionLock` interface. The shared service subscribes to that publisher and queries its current state on startup or reconnection, so either service can start first or restart independently. Pending queries cannot overwrite newer lock events. Losing the publisher preserves the last lock state rather than announcing an unlock while Wayland's failsafe may still hold the session locked.
 
-Desktop applications such as 1Password receive the public lock notification and apply their own preferences. The integration tests in `test/shell.d/session-lock-bridge-test.sh` exercise the two processes together on an isolated session bus, including inhibitor calls and offscreen Quickshell lifecycle coverage when available.
+Desktop applications such as 1Password receive the public lock notification and apply their own preferences. Omarchy does not invoke `1password --lock`. The integration tests in `test/shell.d/session-lock-bridge-test.sh` exercise the two processes together on an isolated session bus, including inhibitor calls and offscreen Quickshell lifecycle coverage when available.
 
 ## Plugin manifest
 

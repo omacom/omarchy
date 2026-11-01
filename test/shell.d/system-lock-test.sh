@@ -24,11 +24,6 @@ cat >"$mock_bin/timeout" <<'SH'
 printf '%s %s\n' "$(basename "$0")" "$*" >>"$CALL_LOG"
 exit 124
 SH
-
-cat >"$mock_bin/pgrep" <<'SH'
-#!/bin/bash
-exit 1
-SH
 chmod +x "$mock_bin"/*
 
 PATH="$mock_bin:$PATH" CALL_LOG="$call_log" "$ROOT/bin/omarchy-system-lock"
