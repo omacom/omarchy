@@ -113,6 +113,8 @@ Keep production test-path overrides out of privileged commands where an isolated
 
 Exit: findings 1–7 have reviewed fixes and focused checks. This gate proves runtime repairs, not an installable server release or working network unlock on hardware.
 
+Runtime repair status: fixes for findings 1–7 are integrated on `sysrex/server-edition-plan-fixes` and tracked in [upstream draft #17279](https://github.com/omacom/omarchy/pull/17279). Focused regression checks pass on macOS, with GNU df validation skipped there. The unlock helper uses the packaged Dropbear hook's fixed port 22 and rejects custom ports; scratch configuration and test isolation are checked. Full Linux/Bash 5 suite execution, encrypted VM boot, SSH unlock, host-key persistence, and console visual checks remain outstanding. Existing autologin files and the companion ISO's separate login path still require follow-up.
+
 ### 2. Remove desktop dependencies at the package boundary
 
 Owner: coordinated work in `omarchy-pkgs` and this runtime repository. Do this before claiming any server package-list audit proves headlessness.
