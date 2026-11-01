@@ -23,13 +23,16 @@ fail() {
   step=${step//[^a-z0-9-]/}
 
   [[ -n $detail ]] && printf '%s\n' "$detail" >&2
-  screenshot "failure-$step"
+  screenshot "failure-$step" || true
   printf 'not ok - %s\n' "$description" >&2
   exit 1
 }
 
 screenshot() {
-  timeout 10 grim "$ARTIFACTS/$1.png" 2>/dev/null || true
+  if ! timeout 10 grim "$ARTIFACTS/$1.png" 2>/dev/null; then
+    printf 'could not capture screenshot %s.png\n' "$1" >&2
+    return 1
+  fi
 }
 
 screen_contains() {
@@ -40,6 +43,7 @@ screen_contains() {
   # native resolution (the weather panel's detail labels, for one).
   if ! timeout 10 grim -s 2 "$snapshot" 2>/dev/null; then
     rm -f "$snapshot"
+    echo "screen_contains: grim failed to capture" >&2
     return 1
   fi
   tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null
@@ -53,11 +57,11 @@ wait_until() {
   local description="$1" timeout="$2"
   shift 2
 
-  local deadline=$((SECONDS + timeout))
+  local deadline=$((SECONDS + timeout)) error
 
-  until "$@" >/dev/null 2>&1; do
+  until error=$("$@" 2>&1 >/dev/null); do
     if ((SECONDS >= deadline)); then
-      fail "$description" "timed out after ${timeout}s waiting for: $*"
+      fail "$description" "timed out after ${timeout}s waiting for: $*${error:+$'\n'$error}"
     fi
     sleep 1
   done
