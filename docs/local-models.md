@@ -55,7 +55,7 @@ After health readiness, `use` checks `/v1/models`: without a key it must return 
 Settings are in `~/.config/omarchy/agent-local/catalog.toml`:
 
 ```toml
-url = "https://github.com/basecamp/omarchy-local-ai"
+url = "https://github.com/omacom/omarchy-local-ai"
 ref = "schema-1"
 trust = "official"
 allowed_signers = ""

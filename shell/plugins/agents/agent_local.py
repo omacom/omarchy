@@ -1,6 +1,6 @@
 """Local models for Omarchy agents: recipes from a signed catalog, run as Podman Quadlet units.
 
-The catalog (basecamp/omarchy-local-ai) chooses what runs: recipes, runtime definitions and the
+The catalog (omacom/omarchy-local-ai) chooses what runs: recipes, runtime definitions and the
 per-machine recommendation in best.toml. This module owns the boundary every choice runs inside:
 an internal network with no egress, a read-only root, dropped capabilities, allowlisted devices
 and limits, the key as a Podman secret, typed unit generation, and post-start checks that the
@@ -35,7 +35,7 @@ NETWORK_NAME = "omarchy-agent-local"
 SECRET = "omarchy-agent-local-key"
 KEY_ENV = "OMARCHY_LOCAL_KEY"
 KEY_PLACEHOLDER = "@OMARCHY_LOCAL_KEY@"
-DEFAULT_CATALOG_URL = "https://github.com/basecamp/omarchy-local-ai"
+DEFAULT_CATALOG_URL = "https://github.com/omacom/omarchy-local-ai"
 CATALOG_MAX_AGE = 4 * 3600
 RESERVE_GIB = 8
 RAM_CLASSES = (32, 64, 96, 128, 192, 256, 512)

@@ -28,13 +28,13 @@ Learned while building, now in the code:
 
 Not done:
 
-- `basecamp/omarchy-local-ai` on GitHub, its signing keys and `default/omarchy/agent-local/allowed_signers` (empty; official trust refuses every catalog until keys exist). This machine uses `trust = "unsigned-dev"` against the local checkout.
+- `omacom/omarchy-local-ai` on GitHub, its signing keys and `default/omarchy/agent-local/allowed_signers` (empty; official trust refuses every catalog until keys exist). This machine uses `trust = "unsigned-dev"` against the local checkout.
 - Visual verification of the menu and panel in the running shell.
 - The `omarchy`-tier image pipeline and signature policy, ROCm/CUDA images, GB10 and 64 GB classes, the privileged GPU setup command, a throwaway-container GPU preflight, pi and Codex overlays, live metrics.
 
 - Revision 2 tightened lifecycle, endpoint security, client selection, memory checks, supply chain and config ownership after a review pass.
 - Revision 3 generalized the container contract after running halogen, a closed-source third-party engine, through it: backends are described by runtime definitions that map the standard inputs onto each image's own interface, declare allowlisted run options and their health probe, and carry a trust tier.
-- Revision 4 added `use best`, a curated per-machine-class recommendation; moved recipes, runtimes and the recommendation into a separately updated, signed catalog repo, `basecamp/omarchy-local-ai`; kept weights on Hugging Face; recorded the hand-measured llama.cpp vs halogen comparison; and moved phase 1 onto the halogen runtime.
+- Revision 4 added `use best`, a curated per-machine-class recommendation; moved recipes, runtimes and the recommendation into a separately updated, signed catalog repo, `omacom/omarchy-local-ai`; kept weights on Hugging Face; recorded the hand-measured llama.cpp vs halogen comparison; and moved phase 1 onto the halogen runtime.
 - Revision 5 answers a second review pass. The catalog is treated as a software release channel, not data, and Omarchy enforces outcomes instead of trusting inputs: an internal network with no egress (tested), a post-start auth check, typed field serialization, a per-file hash manifest, signed-catalog rollback protection, and a resolved manifest per run. `ipc=host` is gone after halogen ran without it at the same speed. `best` gets deterministic class rules.
 
 ## Problem
@@ -46,7 +46,7 @@ The work that makes these models fast already exists as recipes: curated quant +
 ## Shape
 
 - `omarchy agent local use best` picks the recipe recommended for this exact machine — GPU family, memory, platform — and runs it. `use <recipe>` runs a specific one.
-- Recipes, runtime definitions and the recommendation come from a signed catalog repo, `basecamp/omarchy-local-ai`, updated far more often than Omarchy itself.
+- Recipes, runtime definitions and the recommendation come from a signed catalog repo, `omacom/omarchy-local-ai`, updated far more often than Omarchy itself.
 - `use` checks the machine can hold the model right now, pulls the runtime's container image pinned by digest, downloads pinned, hash-verified weights from Hugging Face, and starts the model as a rootless Podman container under a systemd user unit.
 - Every backend (llama.cpp Vulkan/ROCm/CUDA, halogen, vLLM, SGLang, …) is a container with the same outside shape, so the framework only ever starts and stops containers.
 - The active model is served at `127.0.0.1:11435` with an OpenAI-compatible API behind a per-user key. The container has no network access beyond answering on that port.
@@ -127,9 +127,9 @@ top_k = 20
 - **Sampling** is optional. Each key is passed as a server default if the runtime maps it, and otherwise skipped with a note in `status`, leaving it to the client. Every other standard input the recipe needs (`model`, `ctx`, `alias`, `key`, and `draft` when set) must be mapped by the runtime, or the recipe is invalid.
 - **Measurement records** capture exact artifacts, digests, catalog commit, machine profile, peak GPU and host memory, time to first token, prefill and decode at stated context depths, and the command that produced them. Performance numbers in recipes, menus and docs come from these records, not from gists.
 
-### Recipe catalog: `basecamp/omarchy-local-ai`
+### Recipe catalog: `omacom/omarchy-local-ai`
 
-The recommendation for a machine changes far faster than Omarchy releases: a new quant lands, a runtime gets 30% faster, a new model beats the old best. So recipes, runtime definitions, `best.toml` and measurement records live in their own repo, `basecamp/omarchy-local-ai`.
+The recommendation for a machine changes far faster than Omarchy releases: a new quant lands, a runtime gets 30% faster, a new model beats the old best. So recipes, runtime definitions, `best.toml` and measurement records live in their own repo, `omacom/omarchy-local-ai`.
 
 ```
 omarchy-local-ai/
@@ -147,7 +147,7 @@ Omarchy owns the mechanism and the boundary in the trust model; the catalog owns
 
 **Source, ref and trust are separate settings** in `~/.config/omarchy/agent-local/catalog.toml`:
 
-- `url` — default `https://github.com/basecamp/omarchy-local-ai`; a mirror is fine.
+- `url` — default `https://github.com/omacom/omarchy-local-ai`; a mirror is fine.
 - `ref` — default the branch for the schema this Omarchy reads (`schema-1`, …); or a pinned commit.
 - `trust` — default `official`: every accepted commit must carry an SSH signature from a key in the allowed-signers file shipped with Omarchy, whatever the URL or ref. A fork can add its own allowed-signers file, or set `trust = "unsigned-dev"`, which every command then announces. Pinning or mirroring never turns verification off.
 
@@ -478,7 +478,7 @@ Phase 1 depends on a closed-source runtime and has no open-source fallback: if h
   - podman and crun in base, plus the install migration
   - the trust model's enforcement: internal network, post-start auth check, reserved names, typed unit generation
   - runtime definitions with the run-option allowlist, and the halogen definition with its review record
-  - the `basecamp/omarchy-local-ai` catalog repo with its `schema-1` branch, CI checks and commit signing; catalog fetch with signature, ancestry and schema verification in Omarchy
+  - the `omacom/omarchy-local-ai` catalog repo with its `schema-1` branch, CI checks and commit signing; catalog fetch with signature, ancestry and schema verification in Omarchy
   - machine profile, `best.toml` with the 128GB Strix Halo class, and `use best`
   - artifact manifests from Hugging Face metadata, staged and verified downloads, resolved manifests, transactional switching
   - rootless preflight

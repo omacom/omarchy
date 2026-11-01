@@ -1,4 +1,4 @@
-# SSH keys allowed to sign the local model catalog (basecamp/omarchy-local-ai).
+# SSH keys allowed to sign the local model catalog (omacom/omarchy-local-ai).
 # `omarchy agent local` accepts a catalog commit only when `git verify-commit` finds its signature
 # here, so anyone listed is a software publisher for every machine running a local model.
 # Format (ssh-keygen ALLOWED SIGNERS): <principal> namespaces="git" <key type> <public key>
