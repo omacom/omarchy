@@ -2373,6 +2373,12 @@ Panel {
             text: root.hotspotAliasDraft
             onTextChanged: if (text !== root.hotspotAliasDraft) root.hotspotAliasDraft = text
             onAccepted: root.saveHotspotAlias()
+            // Drop the rename and hand keys back to the panel, so a second
+            // Escape closes it.
+            Keys.onEscapePressed: {
+              root.cancelHotspotAlias()
+              keyCatcher.forceActiveFocus()
+            }
           }
 
           Row {
