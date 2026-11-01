@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Tástáil luais diosca"
   },
-  "setup.monitors": {
-    "label": "Monatóirí"
-  },
   "setup.keybindings": {
     "label": "Naisc eochrach"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "Eithne"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

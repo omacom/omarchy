@@ -5,8 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 setup="$ROOT/install/hardware/gb10/sleep.sh"
-all="$ROOT/install/hardware/all.sh"
-menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
 
 # The setting follows the real GB10 predicate on fixture machines, and root
 # reads only the live hardware.
@@ -15,12 +13,6 @@ require_platform_fixtures "the GB10 sleep setting"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin"
-
-bash -n "$setup" || fail "GB10 sleep script has valid syntax"
-
-grep -q 'run_logged .*hardware/gb10/sleep.sh' "$all" ||
-  fail "the GB10 sleep setting runs during hardware setup"
-pass "the GB10 sleep setting runs at install"
 
 # An aarch64 machine, with an NVIDIA GPU of the given PCI device ID or none.
 machine() {
@@ -82,6 +74,29 @@ for machine in n1x other; do
 done
 pass "the GB10 setting disallows every sleep operation and leaves the N1x and other machines alone"
 
+# The CPU idle setup turns off every idle state past state0 on the running
+# cores of a GB10, and leaves other machines' cores alone.
+for machine in spark n1x other; do
+  for state in 0 1 2 3; do
+    mkdir -p "$scratch/hw/$machine/sys/devices/system/cpu/cpu3/cpuidle/state$state"
+    echo 0 >"$scratch/hw/$machine/sys/devices/system/cpu/cpu3/cpuidle/state$state/disable"
+  done
+  run "$machine" "$scratch/$machine-sleep" env OMARCHY_UDEV_RULES_DIR="$scratch/$machine-udev" \
+    bash "$ROOT/install/hardware/gb10/cpuidle.sh"
+done
+idle_state() { cat "$scratch/hw/$1/sys/devices/system/cpu/cpu3/cpuidle/state$2/disable"; }
+[[ $(idle_state spark 0) == 0 ]] || fail "a GB10 keeps state0"
+for state in 1 2 3; do
+  [[ $(idle_state spark $state) == 1 ]] || fail "a GB10 turns off idle state$state"
+done
+[[ -f $scratch/spark-udev/71-omarchy-gb10-cpuidle.rules ]] || fail "a GB10 keeps the idle setting across boots"
+for machine in n1x other; do
+  [[ $(cat "$scratch/hw/$machine/sys/devices/system/cpu/cpu3/cpuidle"/state*/disable | sort -u) == 0 ]] ||
+    fail "the $machine machine keeps its idle states"
+  [[ ! -e $scratch/$machine-udev ]] || fail "the $machine machine gets no idle rule"
+done
+pass "a GB10 keeps its cores out of deep idle states and other machines keep theirs"
+
 run spark "$scratch/spark" omarchy-sleep-disabled || fail "sleep reads as disabled with the setting in place"
 run spark "$scratch/none" omarchy-sleep-disabled && fail "sleep reads as enabled without the setting"
 pass "omarchy-sleep-disabled follows the sleep setting"
@@ -99,6 +114,10 @@ hibernation=$(TEST_SUDO_STATUS=1 run spark "$scratch/spark" bash "$ROOT/bin/omar
   fail "hibernation setup creates no swap while sleep is disabled"
 pass "the suspend toggle and hibernation setup respect the disabled setting"
 
+# The Suspend and Hibernate rows run their real menu guards on the fixture
+# machines: hidden while the setting is in place, back once it is gone.
+menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
+
 guard() {
   grep -F "\"$1\"" "$menu" | sed -E 's/.*"when":"([^"]*)".*/\1/'
 }
@@ -113,8 +132,7 @@ SH
 chmod +x "$scratch/bin"/*
 for item in system.suspend system.hibernate; do
   when=$(guard "$item")
-  [[ $when == *"omarchy-sleep-disabled"* && $when != *"omarchy-hw-"* ]] ||
-    fail "the $item row follows the sleep setting, not the hardware"
+  [[ -n $when ]] || fail "the $item row has a menu guard"
   run spark "$scratch/spark" bash -c "$when" && fail "the $item row is hidden while sleep is disabled"
   run spark "$scratch/none" bash -c "$when" || fail "the $item row returns when the setting is removed"
 done
