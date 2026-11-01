@@ -127,6 +127,7 @@ New migration format:
 - Use `$OMARCHY_PATH` to reference the Omarchy directory.
 - Be idempotent. Check existing state before changing it.
 - Migrations are strictly ordered and synchronous. A migration that cannot finish must exit non-zero, remain pending, and stop the queue; never mark later migrations complete against state an earlier migration has not established.
+- Any package other than `omarchy` may have been removed, even a default one. A migration that depends on one checks it is installed and, when it is not, skips the work that needs it and exits 0; checking for the user's config is not enough, since it might outlive the package.
 - Use helper commands such as `omarchy-cmd-present`, `omarchy-cmd-missing`,
   `omarchy-pkg-add`, `omarchy-pkg-drop`, `omarchy-pkg-present`, and
   `omarchy-pkg-missing` when appropriate.
@@ -155,6 +156,8 @@ Run a migration against a temporary home when possible:
 ```bash
 HOME=$(mktemp -d) bash -euo pipefail migrations/<timestamp>.sh
 ```
+
+If it depends on a package other than `omarchy`, also run it with that package removed and the user's config left behind: it must exit 0 and leave that config alone.
 
 To rerun a migration locally, remove its marker and run the migrator:
 
