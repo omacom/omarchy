@@ -42,6 +42,7 @@ Panel {
     var actions = []
     if (!hasLocalModel) return actions
     if (!localStopping) actions.push("toggle")
+    if (localChoices.length > 0) actions.push("switch")
     if (localRunning) actions.push("launch")
     return actions
   }
@@ -62,8 +63,14 @@ Panel {
 
   // A recipe already on disk switches in place, in seconds; one that still
   // has to download opens a terminal to show its progress.
+  // The switch button opens the other models under the header; picking one
+  // closes them again.
+  property bool localPicking: false
+  onLocalChoicesChanged: if (localChoices.length === 0) localPicking = false
+
   function switchLocal(recipe) {
     if (!recipe) return
+    localPicking = false
     if (recipe.installed) {
       Util.execArgv(["omarchy-agent-local-switch", String(recipe.id)])
     } else {
@@ -102,6 +109,7 @@ Panel {
   function runLocalAction(action) {
     switch (action) {
     case "toggle": toggleLocal(); break
+    case "switch": localPicking = !localPicking; break
     case "launch": Util.execArgv(["omarchy-agent", "--local"]); root.close(); break
     }
   }
@@ -144,7 +152,7 @@ Panel {
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
       if (addStage === "" && localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
-      if (addStage === "") for (var lc = 0; lc < localChoices.length; lc++) rows.push([{ kind: "localChoice", index: lc }])
+      if (addStage === "" && localPicking) for (var lc = 0; lc < localChoices.length; lc++) rows.push([{ kind: "localChoice", index: lc }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -170,7 +178,7 @@ Panel {
         }
       }
       if (localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
-      for (var c = 0; c < localChoices.length; c++) rows.push([{ kind: "localChoice", index: c }])
+      if (localPicking) for (var c = 0; c < localChoices.length; c++) rows.push([{ kind: "localChoice", index: c }])
       if (!blankSlate) {
         var tiles = []
         for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
@@ -1220,7 +1228,7 @@ Panel {
                 anchors.left: localMark.right
                 anchors.leftMargin: Style.space(10)
                 anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, parent.width - localMark.width - localState.implicitWidth - localMeta.implicitWidth - localToggle.width - Style.space(50))
+                width: Math.min(implicitWidth, parent.width - localMark.width - localState.implicitWidth - localMeta.implicitWidth - localToggle.width - (localSwitch.visible ? localSwitch.width : 0) - Style.space(54))
                 textFormat: Text.PlainText
                 text: String(root.localModel.name || root.localModel.recipe || "")
                 color: root.foreground
@@ -1254,7 +1262,7 @@ Panel {
               // Where a provider shows its plan: what the model runs on.
               Text {
                 id: localMeta
-                anchors.right: localToggle.left
+                anchors.right: localSwitch.visible ? localSwitch.left : localToggle.left
                 anchors.rightMargin: Style.space(10)
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
@@ -1262,6 +1270,21 @@ Panel {
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
+              }
+
+              // Opens the other models this machine can run, under the header.
+              PanelActionButton {
+                id: localSwitch
+                anchors.right: localToggle.left
+                anchors.rightMargin: Style.space(4)
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.localChoices.length > 0
+                iconText: "󰓡"
+                tooltipText: Commons.I18n.t("agents.localSwitchModel")
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                hasCursor: root.localPicking || root.hasKey("local", root.localActions.indexOf("switch"))
+                onClicked: root.localPicking = !root.localPicking
               }
 
               // Play to start it, pause to stop it and free its memory.
@@ -1279,57 +1302,10 @@ Panel {
               }
             }
 
-            // How much of the machine the model holds: it's the cost of running
-            // one, the way a limit is the cost of a subscription.
-            Item {
-              visible: root.localRunning && root.localMemoryShare >= 0
-              width: parent.width
-              implicitHeight: Math.max(localMemoryTitle.implicitHeight, localMemoryValue.implicitHeight)
-
-              Text {
-                id: localMemoryTitle
-                width: parent.width * 0.3
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: Commons.I18n.t("agents.localMemory")
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-
-              Meter {
-                anchors.left: localMemoryTitle.right
-                anchors.right: localMemoryValue.left
-                anchors.rightMargin: Style.space(20)
-                anchors.verticalCenter: parent.verticalCenter
-                value: root.localMemoryShare
-              }
-
-              Text {
-                id: localMemoryValue
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                horizontalAlignment: Text.AlignRight
-                text: Commons.I18n.t("agents.localMemoryValue")
-                  .arg(Commons.I18n.formatNumber(Math.round(Number(root.localModel.observed ? root.localModel.observed.ram_used_gib : 0))))
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-            }
-
-            TextLink {
-              visible: root.localRunning
-              picked: root.hasKey("local", root.localActions.indexOf("launch"))
-              text: Commons.I18n.t("agents.localLaunch")
-              onClicked: root.runLocalAction("launch")
-            }
-
-            // The other models this machine can run, switched to in place. The
-            // recommended one comes first and says so.
+            // The other models this machine can run, opened by the switch button
+            // and switched to in place. The recommended one comes first and says so.
             Column {
-              visible: root.localChoices.length > 0
+              visible: root.localPicking && root.localChoices.length > 0
               width: parent.width
               spacing: Style.space(10)
 
@@ -1389,6 +1365,54 @@ Panel {
                 }
               }
             }
+
+            // How much of the machine the model holds: it's the cost of running
+            // one, the way a limit is the cost of a subscription.
+            Item {
+              visible: root.localRunning && root.localMemoryShare >= 0
+              width: parent.width
+              implicitHeight: Math.max(localMemoryTitle.implicitHeight, localMemoryValue.implicitHeight)
+
+              Text {
+                id: localMemoryTitle
+                width: parent.width * 0.3
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: Commons.I18n.t("agents.localMemory")
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              Meter {
+                anchors.left: localMemoryTitle.right
+                anchors.right: localMemoryValue.left
+                anchors.rightMargin: Style.space(20)
+                anchors.verticalCenter: parent.verticalCenter
+                value: root.localMemoryShare
+              }
+
+              Text {
+                id: localMemoryValue
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                horizontalAlignment: Text.AlignRight
+                text: Commons.I18n.t("agents.localMemoryValue")
+                  .arg(Commons.I18n.formatNumber(Math.round(Number(root.localModel.observed ? root.localModel.observed.ram_used_gib : 0))))
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+
+            TextLink {
+              visible: root.localRunning
+              picked: root.hasKey("local", root.localActions.indexOf("launch"))
+              text: Commons.I18n.t("agents.localLaunch")
+              onClicked: root.runLocalAction("launch")
+            }
+
           }
 
           // ---------- Make something ----------

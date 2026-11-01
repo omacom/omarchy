@@ -78,6 +78,7 @@
   "agents.localStop": "Stop",
   "agents.localLaunch": "Launch agent",
   "agents.localSwitch": "Switch",
+  "agents.localSwitchModel": "Switch model",
   "agents.localDownload": "Download",
   "agents.localChoiceBest": "recommended",
   "agents.localLoading": "Loading…",
