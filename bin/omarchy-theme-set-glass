@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Give terminals, btop, and GTK apps a see-through background while windows are glassy
+# omarchy:summary=Give terminals and btop a see-through background while windows are glassy, and GTK apps a backdrop blur while they are see-through
 # omarchy:args=[theme-dir]
 # omarchy:hidden=true
 

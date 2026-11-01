@@ -4,7 +4,7 @@
 require("default.hypr.glass")()
 
 -- GTK apps fade as a whole, since GTK draws their backgrounds solid, and get
--- their blur from the backdrop-filter Glassy adds to the user's gtk.css.
+-- their blur from the backdrop-filter see-through windows add to the user's gtk.css.
 o.window("org\\.gnome\\.Nautilus", { opacity = "0.75 0.75" })
 
 hl.layer_rule({
