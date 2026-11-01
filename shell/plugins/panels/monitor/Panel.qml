@@ -462,17 +462,20 @@ Panel {
   }
 
   function setScale(name, scale) {
+    cancelLayout()
     actionProc.command = ["omarchy-hyprland-monitor-scaling", "--monitor", name, scale]
     if (!actionProc.running) actionProc.running = true
   }
 
   function setResolution(name, resolution) {
+    cancelLayout()
     actionProc.command = ["omarchy-hyprland-monitor-resolution", "--monitor", name, resolution]
     if (!actionProc.running) actionProc.running = true
   }
 
   function setMirror(enabled) {
     if (enabled === mirrorEnabled) return
+    cancelLayout()
     pendingMirror = enabled ? "on" : "off"
     mirrorSettle.restart()
     actionProc.command = ["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"]
@@ -480,6 +483,7 @@ Panel {
   }
 
   function setRotation(name, degrees) {
+    cancelLayout()
     actionProc.command = ["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)]
     if (!actionProc.running) actionProc.running = true
   }
@@ -537,11 +541,24 @@ Panel {
   readonly property var shownRects: pendingRects || layoutRects
 
   // Apply a whole arrangement, unless it leaves everything where it was.
+  // A move back to where everything is, like right then left, calls off the
+  // one still waiting.
   function applyLayout(rects, name) {
-    if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) return
+    if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) {
+      cancelLayout()
+      return
+    }
     pendingRects = rects
     pendingName = name || ""
     layoutDelay.restart()
+  }
+
+  // A scale, mode, rotation or mirror change resizes the displays the
+  // waiting move was worked out from, so it no longer fits: drop it.
+  function cancelLayout() {
+    layoutDelay.stop()
+    pendingRects = null
+    pendingName = ""
   }
 
   function commitLayout() {
