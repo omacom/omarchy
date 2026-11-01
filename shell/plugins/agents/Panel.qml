@@ -28,84 +28,62 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: usage.subscribedProviders
+  readonly property var providers: usage.panelProviders
 
-  readonly property var localModel: usage.localModel
-  readonly property bool hasLocalModel: typeof localModel.recipe === "string" && localModel.recipe !== ""
-  readonly property bool localRunning: hasLocalModel && localModel.unit === "active"
-  readonly property bool localStopping: localModel.unit === "deactivating"
-  readonly property bool localCanStop: localRunning || localModel.unit === "activating"
-  // The card's keyboard stops: the play/pause button, then launching an agent.
-  // Setting one up starts from Install › AI in the menu, where recipes that
-  // can't run on this machine say why; the panel only follows one that exists.
-  readonly property var localActions: {
+  function localActions(model) {
     var actions = []
-    if (!hasLocalModel) return actions
-    if (localChoices.length > 0) actions.push("switch")
-    if (!localStopping) actions.push("toggle")
-    if (localRunning) actions.push("launch")
+    if (model.unit !== "deactivating") actions.push("toggle")
+    if (model.unit === "active") actions.push("launch")
     return actions
   }
 
-  // The other recipes that fit this machine, recommended first: switching is
-  // done right here rather than from a menu.
-  readonly property var localChoices: {
-    if (!hasLocalModel) return []
-    var recipes = usage.localRecipes || []
-    var choices = []
-    for (var i = 0; i < recipes.length; i++) {
-      var recipe = recipes[i]
-      if (recipe && recipe.available && recipe.id !== localModel.recipe) choices.push(recipe)
-    }
-    choices.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
-    return choices
-  }
-
-  // A recipe already on disk switches in place, in seconds; one that still
-  // has to download opens a terminal to show its progress.
-  // The switch button opens the other models under the header; picking one
-  // closes them again.
-  property bool localPicking: false
-  onLocalChoicesChanged: if (localChoices.length === 0) localPicking = false
-
-  function switchLocal(recipe) {
-    if (!recipe) return
-    localPicking = false
-    if (recipe.installed) {
-      Util.execArgv(["omarchy-agent-local-switch", String(recipe.id)])
-    } else {
-      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local-use " + Util.shellQuote(String(recipe.id))])
-      root.close()
-    }
-  }
-
-  readonly property real localMemoryShare: {
-    var used = Number(localModel.observed ? localModel.observed.ram_used_gib : 0)
-    var total = Number(localModel.ram_total_gib || 0)
-    return used > 0 && total > 0 ? Math.min(used / total, 1) : -1
-  }
-
-  // Running and stopped are what the play/pause button already says; only the
-  // states in between, and a failure, need words.
-  function localStateText() {
-    if (localModel.unit === "activating") return Commons.I18n.t("agents.localLoading")
-    if (localStopping) return Commons.I18n.t("agents.localStopping")
-    if (localModel.unit === "failed") return localModel.result && localModel.result !== "success"
-      ? Commons.I18n.t("agents.localFailedResult").arg(String(localModel.result))
+  function localStateText(model) {
+    if (model.unit === "activating") return Commons.I18n.t("agents.localLoading")
+    if (model.unit === "deactivating") return Commons.I18n.t("agents.localStopping")
+    if (model.unit === "failed") return model.result && model.result !== "success"
+      ? Commons.I18n.t("agents.localFailedResult").arg(String(model.result))
       : Commons.I18n.t("agents.localFailed")
     return ""
   }
 
-  function toggleLocal() {
-    if (localCanStop) Util.execArgv(["omarchy-agent-local-stop"])
-    else Util.execArgv(["systemctl", "--user", "start", "omarchy-agent-local"])
+  function runLocalAction(model, action) {
+    if (action === "launch") {
+      Util.execArgv(["omarchy-agent", "--local-model", model.recipe])
+      root.close()
+    } else if (action === "toggle") {
+      Util.execArgv([model.unit === "active" || model.unit === "activating"
+        ? "omarchy-agent-local-stop" : "omarchy-agent-local-switch", model.recipe])
+    }
   }
 
-  function runLocalAction(action) {
-    switch (action) {
-    case "toggle": toggleLocal(); break
-    case "switch": localPicking = !localPicking; break
-    case "launch": Util.execArgv(["omarchy-agent", "--local"]); root.close(); break
+  property double loadNowMs: Date.now()
+  readonly property bool localLoading: providers.some(function(p) { return p.localModel && p.localModel.unit === "activating" })
+  Timer {
+    interval: 250
+    running: root.opened && root.localLoading
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.loadNowMs = Date.now()
+  }
+
+  property var deleteTarget: null
+  function deleteSelected() {
+    var target = keyTarget
+    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(target.kind) < 0) return
+    deleteTarget = providers[target.index]
+  }
+
+  function confirmDelete() {
+    var target = deleteTarget
+    deleteTarget = null
+    if (!target) return
+    if (target.localModel) {
+      Util.execArgv(["omarchy-agent-local-remove", target.localModel.recipe])
+    } else if (bar && bar.shell) {
+      var next = JSON.parse(JSON.stringify(settings || {}))
+      if (!next.providers) next.providers = {}
+      next.providers[target.providerId] = Object.assign({}, next.providers[target.providerId] || {}, { enabled: false })
+      bar.shell.updateEntryInline(moduleName, next)
     }
   }
 
@@ -145,8 +123,6 @@ Panel {
       var choices = []
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
-      if (addStage === "" && localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
-      if (addStage === "" && localPicking) for (var lc = 0; lc < localChoices.length; lc++) rows.push([{ kind: "localChoice", index: lc }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -154,6 +130,11 @@ Panel {
       // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
+        if (providers[p].localModel) {
+          var actions = localActions(providers[p].localModel)
+          rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: action === "toggle" ? "modelToggle" : "modelLaunch", index: p } }) : [{ kind: "modelHeader", index: p }])
+          continue
+        }
         // Every agent's header is a stop, so Ctrl+Up/Down can move it, with its
         // terminal button beside it when the provider has a harness of its own.
         var head = [{ kind: "provider", index: p }]
@@ -174,8 +155,6 @@ Panel {
           if (row.length > 0) rows.push(row)
         }
       }
-      if (localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
-      if (localPicking) for (var c = 0; c < localChoices.length; c++) rows.push([{ kind: "localChoice", index: c }])
       if (!blankSlate) {
         var tiles = []
         for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
@@ -234,7 +213,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (target.kind === "provider" || target.kind === "providerSignin") return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -248,7 +227,7 @@ Panel {
     var to = clamp(from + dy, 0, providers.length - 1)
     if (to === from) return
     usage.moveProvider(providers[from].providerId, to)
-    Qt.callLater(function() { pointAt("provider", to) })
+    Qt.callLater(function() { pointAt(providers[to].localModel ? (localActions(providers[to].localModel).length ? "modelToggle" : "modelHeader") : "provider", to) })
   }
 
   // Dragging an agent by its mark lights the header it would land on, and
@@ -278,7 +257,7 @@ Panel {
     dragTarget = -1
     if (id === "" || to < 0) return
     usage.moveProvider(id, to)
-    Qt.callLater(function() { pointAt("provider", to) })
+    Qt.callLater(function() { pointAt(providers[to].localModel ? (localActions(providers[to].localModel).length ? "modelToggle" : "modelHeader") : "provider", to) })
   }
 
   // Keeps whatever the cursor lands on inside the scrolled view.
@@ -478,8 +457,7 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
-    else if (target.kind === "local") runLocalAction(localActions[target.index])
-    else if (target.kind === "localChoice") switchLocal(localChoices[target.index])
+    else if (target.kind === "modelToggle" || target.kind === "modelLaunch") runLocalAction(providers[target.index].localModel, target.kind === "modelToggle" ? "toggle" : "launch")
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
@@ -956,7 +934,7 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !hasLocalModel
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !providers.some(function(p) { return !!p.localModel })
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -991,6 +969,7 @@ Panel {
   implicitHeight: button.implicitHeight
 
   onOpenedChanged: if (opened) {
+    deleteTarget = null
     if (addStage !== "running") addStage = ""
     resetKeys()
     if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
@@ -1112,6 +1091,29 @@ Panel {
       property alias hero: hero
       property alias column: column
       property alias providerSections: providerSections
+      ConfirmDialog {
+        id: deleteConfirm
+        anchors.fill: parent
+        z: 20
+        opened: root.deleteTarget !== null
+        onOpenedChanged: {
+          selectedIndex = 0
+          if (opened) forceActiveFocus()
+          else root.focusKeys()
+        }
+        Keys.onPressed: function(event) {
+          handleKey(event)
+          event.accepted = true
+        }
+        message: !root.deleteTarget ? "" : root.deleteTarget.localModel
+          ? Commons.I18n.t("agents.localRemoveConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
+          : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
+        foreground: root.foreground
+        background: root.surface
+        fontFamily: root.fontFamily
+        onCanceled: root.deleteTarget = null
+        onConfirmed: root.confirmDelete()
+      }
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       reorderable: root.addStage === "" && !root.renaming
@@ -1124,6 +1126,8 @@ Panel {
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
       }
+      onDeleteRequested: root.deleteSelected()
+      blocked: root.renaming || root.deleteTarget !== null
       onActivateRequested: root.activateSelection()
       onCloseRequested: {
         if (root.addStage !== "") root.cancelAdd()
@@ -1218,215 +1222,6 @@ Panel {
               provider: modelData
               providerIndex: index
             }
-          }
-
-          Column {
-            visible: root.addStage === "" && root.hasLocalModel
-            width: parent.width
-            spacing: Style.space(16)
-
-            PanelSeparator { foreground: root.foreground }
-
-            // Laid out like a provider: mark, name and state on one line, then
-            // what it runs on, then how much of the machine it holds.
-            Item {
-              width: parent.width
-              implicitHeight: Math.max(localMark.implicitHeight, localName.implicitHeight)
-
-              // The model maker's mark, as a provider shows its own.
-              ProviderIcon {
-                id: localMark
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                provider: ({ providerId: String(root.localModel.vendor || "ollama") })
-              }
-
-              Text {
-                id: localName
-                anchors.left: localMark.right
-                anchors.leftMargin: Style.space(10)
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, parent.width - localMark.width - localState.implicitWidth - localToggle.width - (localSwitch.visible ? localSwitch.width : 0) - (localLaunch.visible ? localLaunch.width : 0) - Style.space(40))
-                textFormat: Text.PlainText
-                text: String(root.localModel.name || root.localModel.recipe || "")
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                font.bold: true
-                elide: Text.ElideRight
-
-                HoverHandler { id: localNameHover }
-
-                PanelToolTip {
-                  visible: localNameHover.hovered && root.localRunning
-                  text: Commons.I18n.t("agents.localEndpoint").arg(String(root.localModel.endpoint || "")).arg(String(root.localModel.recipe || ""))
-                }
-              }
-
-              // Where a provider notes its usage status: loading, or a failure.
-              Text {
-                id: localState
-                anchors.left: localName.right
-                anchors.leftMargin: Style.space(8)
-                anchors.verticalCenter: localName.verticalCenter
-                visible: text !== ""
-                textFormat: Text.PlainText
-                text: root.localStateText()
-                color: root.localModel.unit === "failed" ? root.urgent : root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-
-              // Opens the other models this machine can run, under the header.
-              PanelActionButton {
-                id: localSwitch
-                anchors.right: localToggle.left
-                anchors.rightMargin: Style.space(4)
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.localChoices.length > 0
-                iconText: "󰓡"
-                tooltipText: Commons.I18n.t("agents.localSwitchModel")
-                foreground: root.foreground
-                fontFamily: root.fontFamily
-                hasCursor: root.localPicking || root.hasKey("local", root.localActions.indexOf("switch"))
-                onClicked: root.localPicking = !root.localPicking
-              }
-
-              // Play to start it, pause to stop it and free its memory.
-              PanelActionButton {
-                id: localToggle
-                anchors.right: localLaunch.visible ? localLaunch.left : parent.right
-                anchors.rightMargin: localLaunch.visible ? Style.space(4) : 0
-                anchors.verticalCenter: parent.verticalCenter
-                visible: !root.localStopping
-                iconText: root.localCanStop ? "󰏤" : "󰐊"
-                tooltipText: root.localCanStop ? Commons.I18n.t("agents.localStop") : Commons.I18n.t("agents.localStart")
-                foreground: root.foreground
-                fontFamily: root.fontFamily
-                hasCursor: root.hasKey("local", root.localActions.indexOf("toggle"))
-                onClicked: root.toggleLocal()
-              }
-
-              // Opens your agent on this model, as the panel's own terminal
-              // button opens it on your subscription.
-              PanelActionButton {
-                id: localLaunch
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.localRunning
-                iconText: "󰞷"
-                tooltipText: Commons.I18n.t("agents.localLaunch")
-                foreground: root.foreground
-                fontFamily: root.fontFamily
-                hasCursor: root.hasKey("local", root.localActions.indexOf("launch"))
-                onClicked: root.runLocalAction("launch")
-              }
-            }
-
-            // The other models this machine can run, opened by the switch button
-            // and switched to in place. The recommended one comes first and says so.
-            Column {
-              visible: root.localPicking && root.localChoices.length > 0
-              width: parent.width
-              spacing: Style.space(10)
-
-              Repeater {
-                model: root.localChoices
-
-                Item {
-                  id: choiceRow
-                  required property var modelData
-                  required property int index
-                  width: parent.width
-                  implicitHeight: Math.max(choiceMark.height, choiceName.implicitHeight, choiceLink.implicitHeight)
-
-                  ProviderIcon {
-                    id: choiceMark
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    size: Style.font.body
-                    provider: ({ providerId: String(choiceRow.modelData.vendor || "ollama") })
-                  }
-
-                  Text {
-                    id: choiceName
-                    anchors.left: choiceMark.right
-                    anchors.leftMargin: Style.space(10)
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, parent.width - choiceMark.width - choiceNote.implicitWidth - choiceLink.implicitWidth - Style.space(40))
-                    textFormat: Text.PlainText
-                    text: String(choiceRow.modelData.name || choiceRow.modelData.id)
-                    color: root.foreground
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.bodySmall
-                    elide: Text.ElideRight
-                  }
-
-                  Text {
-                    id: choiceNote
-                    anchors.left: choiceName.right
-                    anchors.leftMargin: Style.space(8)
-                    anchors.verticalCenter: choiceName.verticalCenter
-                    visible: choiceRow.modelData.best === true
-                    textFormat: Text.PlainText
-                    text: Commons.I18n.t("agents.localChoiceBest")
-                    color: root.dim
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.caption
-                  }
-
-                  TextLink {
-                    id: choiceLink
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    picked: root.hasKey("localChoice", choiceRow.index)
-                    text: choiceRow.modelData.installed ? Commons.I18n.t("agents.localSwitch") : Commons.I18n.t("agents.localDownload")
-                    onClicked: root.switchLocal(choiceRow.modelData)
-                  }
-                }
-              }
-            }
-
-            // How much of the machine the model holds: it's the cost of running
-            // one, the way a limit is the cost of a subscription.
-            Item {
-              visible: root.localRunning && root.localMemoryShare >= 0
-              width: parent.width
-              implicitHeight: Math.max(localMemoryTitle.implicitHeight, localMemoryValue.implicitHeight)
-
-              Text {
-                id: localMemoryTitle
-                width: parent.width * 0.3
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: Commons.I18n.t("agents.localMemory")
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-
-              Meter {
-                anchors.left: localMemoryTitle.right
-                anchors.right: localMemoryValue.left
-                anchors.rightMargin: Style.space(20)
-                anchors.verticalCenter: parent.verticalCenter
-                value: root.localMemoryShare
-              }
-
-              Text {
-                id: localMemoryValue
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                horizontalAlignment: Text.AlignRight
-                text: Commons.I18n.t("agents.localMemoryValue")
-                  .arg(Commons.I18n.formatNumber(Math.round(Number(root.localModel.observed ? root.localModel.observed.ram_used_gib : 0))))
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-            }
-
           }
 
           // ---------- Make something ----------
@@ -1683,6 +1478,12 @@ Panel {
     id: section
     property var provider: null
     property int providerIndex: -1
+    readonly property var model: provider ? (provider.localModel || null) : null
+    readonly property bool loading: !!model && model.unit === "activating"
+    readonly property bool running: !!model && model.unit === "active"
+    readonly property real loadSeconds: model && Number(model.expected_load_seconds) > 0 ? Number(model.expected_load_seconds) : 60
+    readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
+    readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -1697,7 +1498,7 @@ Panel {
       width: parent.width
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
-      readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
+      readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : (root.hasKey("provider", section.providerIndex) || root.hasKey("modelToggle", section.providerIndex) || root.hasKey("modelLaunch", section.providerIndex) || root.hasKey("modelHeader", section.providerIndex))
       onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
 
       // Only the mark is lit: it's the handle the agent moves by.
@@ -1713,7 +1514,7 @@ Panel {
         id: sectionMark
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        provider: section.provider
+        provider: section.model ? ({ providerId: section.model.vendor || "ollama" }) : section.provider
 
         // The mark is the handle for dragging the agent up or down the page.
         MouseArea {
@@ -1740,7 +1541,14 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.provider ? section.provider.providerName : ""
+        width: section.model ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(40))) : implicitWidth
+        elide: Text.ElideRight
+        text: section.model ? (section.model.name || section.model.recipe) : section.provider ? section.provider.providerName : ""
+        HoverHandler { id: localNameHover }
+        PanelToolTip {
+          visible: !!section.model && localNameHover.hovered
+          text: section.model ? Commons.I18n.t("agents.localEndpoint").arg(section.model.endpoint || "").arg(section.model.recipe) : ""
+        }
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -1755,8 +1563,8 @@ Panel {
         anchors.baseline: sectionName.baseline
         visible: !section.multi && text !== ""
         textFormat: Text.PlainText
-        text: root.planLabel(section.provider)
-        color: root.dim
+        text: section.model ? root.localStateText(section.model) : root.planLabel(section.provider)
+        color: section.model && section.model.unit === "failed" ? root.urgent : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -1769,19 +1577,71 @@ Panel {
         record: section.provider
       }
 
+      PanelActionButton {
+        id: localToggle
+        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        visible: !!section.model && section.model.unit !== "deactivating"
+        iconText: section.running || section.loading ? "󰏤" : "󰐊"
+        tooltipText: section.running || section.loading ? Commons.I18n.t("agents.localStop") : Commons.I18n.t("agents.localStart")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelToggle", section.providerIndex)
+        onClicked: root.runLocalAction(section.model, "toggle")
+      }
+
       // Opens the coding agent made for this subscription: Codex for OpenAI,
       // Claude Code for Anthropic.
       PanelActionButton {
         id: sectionLaunch
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.harnessFor(section.provider) !== ""
+        visible: section.model ? section.running : root.harnessFor(section.provider) !== ""
         iconText: "󰞷"
-        tooltipText: Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
+        tooltipText: section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
         fontFamily: root.fontFamily
-        hasCursor: root.hasKey("providerLaunch", section.providerIndex)
-        onClicked: root.launchHarness(section.provider)
+        hasCursor: root.hasKey(section.model ? "modelLaunch" : "providerLaunch", section.providerIndex)
+        onClicked: section.model ? root.runLocalAction(section.model, "launch") : root.launchHarness(section.provider)
+      }
+    }
+
+    Item {
+      visible: section.running || section.loading
+      width: parent.width
+      implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
+
+      Text {
+        id: localMeterTitle
+        width: parent.width * 0.3
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: section.loading ? Commons.I18n.t("agents.localLoadingMeter") : Commons.I18n.t("agents.localMemory")
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+      Meter {
+        anchors.left: localMeterTitle.right
+        anchors.right: localMeterValue.left
+        anchors.rightMargin: Style.space(20)
+        anchors.verticalCenter: parent.verticalCenter
+        value: section.loading ? Math.min(0.95, section.elapsed / section.loadSeconds)
+          : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
+      }
+      Text {
+        id: localMeterValue
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        horizontalAlignment: Text.AlignRight
+        text: section.loading
+          ? (section.elapsed < section.loadSeconds ? Commons.I18n.t("agents.localSecondsLeft").arg(Commons.I18n.formatNumber(Math.ceil(section.loadSeconds - section.elapsed))) : "")
+          : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
       }
     }
 

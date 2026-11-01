@@ -110,15 +110,31 @@ const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 const state = { localModel: {} }
 const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
-const running = { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }
+const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
 parse(JSON.stringify(running))
 assertDeepEqual(state.localModel, running, 'lifecycle state loads without any usage record')
-for (const raw of ['{', 'null', '[]', '{}', '{"recipe":false,"unit":"active"}']) {
+for (const raw of ['{', 'null', '[]', '{}', '{"models":[]}', '{"models":{"model-a":{"recipe":false,"unit":"active"}}}', '{"models":{"model-a":{"recipe":"model-a","unit":"unknown"}}}']) {
   parse(raw)
   assertDeepEqual(state.localModel, running, 'invalid lifecycle state keeps the last good value: ' + raw)
 }
-parse('{"recipe":"model-a","unit":"failed","result":"exit-code"}')
-assertEqual(state.localModel.result, 'exit-code', 'a server failure replaces the running state')
-parse('{"recipe":null,"unit":"inactive"}')
-assertEqual(state.localModel.recipe, null, 'an explicit unset recipe clears the card')
+parse('{"models":{"model-a":{"recipe":"model-a","unit":"failed","result":"exit-code"}}}')
+assertEqual(state.localModel.models['model-a'].result, 'exit-code', 'a server failure replaces the running state')
+parse('{"models":{}}')
+assertDeepEqual(state.localModel.models, {}, 'an empty models map clears the local lines')
+JS
+
+# Hosted and local rows share ordering, including positions saved while hidden.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const functions = ['orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+let providerOrder = ['codex', 'local:a', 'claude', 'hidden']
+let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'local:b'}]
+let saved = ''
+const orderFile = {setText: text => { saved = text }}
+eval(functions)
+panelProviders = orderedProviders(panelProviders)
+assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'local:a', 'claude', 'local:b'], 'saved order interleaves local models and puts new models last')
+moveProvider('local:b', 0)
+assertDeepEqual(JSON.parse(saved), ['local:b', 'codex', 'local:a', 'claude', 'hidden'], 'moving a local model saves the shared order and retains hidden ids')
 JS

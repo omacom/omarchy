@@ -29,31 +29,16 @@ Item {
     onLoaded: root.parseLocalModel(text())
   }
 
-  // The recipes this machine can switch between, from the listing every
-  // omarchy-agent-local command rewrites; the card offers the ones that fit.
-  property var localRecipes: []
-
-  FileView {
-    path: root.home + "/.local/state/omarchy/agent-local/list.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      try {
-        var parsed = JSON.parse(text())
-        if (Array.isArray(parsed)) root.localRecipes = parsed
-      } catch (e) {
-        // A half-written listing keeps the last good one.
-      }
-    }
-  }
-
   function parseLocalModel(content) {
     try {
       var parsed = JSON.parse(content)
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
-      if (parsed.recipe !== null && (typeof parsed.recipe !== "string" || parsed.recipe === "")) return
-      if (["active", "activating", "inactive", "failed", "deactivating"].indexOf(parsed.unit) < 0) return
+      if (!parsed.models || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
+      for (var id in parsed.models) {
+        var model = parsed.models[id]
+        if (!model || model.recipe !== id || id === "") return
+        if (["active", "activating", "inactive", "failed", "deactivating"].indexOf(model.unit) < 0) return
+      }
       root.localModel = parsed
     } catch (e) {
       // A missing or partially written file leaves the last good state intact.
@@ -300,6 +285,14 @@ Item {
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
 
+  readonly property var panelProviders: {
+    var list = subscribedProviders.slice()
+    var models = localModel.models || {}
+    for (var id in models)
+      list.push({ providerId: "local:" + id, localModel: models[id] })
+    return orderedProviders(list)
+  }
+
   function orderedProviders(list) {
     var order = providerOrder
     var rank = function(p) {
@@ -311,7 +304,7 @@ Item {
 
   // Moves one agent to a position among the ones shown, and saves the result.
   function moveProvider(id, to) {
-    var ids = subscribedProviders.map(function(p) { return p.providerId })
+    var ids = panelProviders.map(function(p) { return p.providerId })
     var from = ids.indexOf(id)
     if (from < 0) return
     to = Math.max(0, Math.min(ids.length - 1, to))
