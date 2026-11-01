@@ -7,17 +7,17 @@ source "$(dirname "$0")/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf -- "$test_tmp"' EXIT
 
-scratchpad_config="$ROOT/config/herdr/scratchpad.toml"
-launcher="$ROOT/bin/omarchy-scratchpad-agent"
+qconsole_config="$ROOT/config/herdr/qconsole.toml"
+launcher="$ROOT/bin/omarchy-qconsole-agent"
 
 # resume_agents_on_restore is off, so the launcher has no resume state to read.
 launcher_source=$(<"$launcher")
 [[ $launcher_source != *"agent_session"* ]] ||
   fail "the launcher does not read Herdr resume state"
 
-config_source=$(<"$scratchpad_config")
+config_source=$(<"$qconsole_config")
 for setting in \
-  'default_shell = "omarchy-scratchpad-agent"' \
+  'default_shell = "omarchy-qconsole-agent"' \
   'shell_mode = "non_login"' \
   'sidebar_collapsed_mode = "hidden"' \
   'hide_tab_bar_when_single_tab = true' \
@@ -29,22 +29,22 @@ for setting in \
   'delay_seconds = 1' \
   'enabled = true' \
   'resume_agents_on_restore = false'; do
-  [[ $config_source == *"$setting"* ]] || fail "scratchpad profile sets $setting"
+  [[ $config_source == *"$setting"* ]] || fail "qconsole profile sets $setting"
 done
-pass "scratchpad profile configures a minimal UI, notifications, sound, and fresh panes"
+pass "qconsole profile configures a minimal UI, notifications, sound, and fresh panes"
 
 test_home="$test_tmp/home"
 mkdir -p "$test_home"
 HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
   bash -euo pipefail "$ROOT/migrations/1788016185.sh" >/dev/null
-[[ -f $test_home/.config/herdr/scratchpad.toml ]] ||
-  fail "migration seeds the scratchpad profile"
+[[ -f $test_home/.config/herdr/qconsole.toml ]] ||
+  fail "migration seeds the qconsole profile"
 
-printf '%s\n' custom >"$test_home/.config/herdr/scratchpad.toml"
+printf '%s\n' custom >"$test_home/.config/herdr/qconsole.toml"
 HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
   bash -euo pipefail "$ROOT/migrations/1788016185.sh" >/dev/null
-[[ $(<"$test_home/.config/herdr/scratchpad.toml") == custom ]] ||
-  fail "migration preserves an existing scratchpad profile"
+[[ $(<"$test_home/.config/herdr/qconsole.toml") == custom ]] ||
+  fail "migration preserves an existing qconsole profile"
 pass "migration seeds the profile without replacing customization"
 
 mock_bin="$test_tmp/bin"
@@ -86,15 +86,15 @@ rm -f "$shell_log"
 run_launcher
 mapfile -d '' -t agent_args <"$agent_log"
 [[ ${agent_args[*]} == "--inline" ]] ||
-  fail "scratchpad panes launch the default agent inline"
-[[ $(<"$rename_log") == "workspace scratchpad" ]] ||
-  fail "scratchpad panes rename the Herdr workspace"
+  fail "qconsole panes launch the default agent inline"
+[[ $(<"$rename_log") == "workspace qconsole" ]] ||
+  fail "qconsole panes rename the Herdr workspace"
 [[ ! -f $shell_log ]] ||
-  fail "a successful agent launch leaves no shell in the scratchpad"
-pass "scratchpad panes start a fresh agent and name their workspace"
+  fail "a successful agent launch leaves no shell in the qconsole"
+pass "qconsole panes start a fresh agent and name their workspace"
 
 : >"$agent_log"
 rm -f "$shell_log"
 OMARCHY_TEST_AGENT_FAILS=true run_launcher
-[[ -f $shell_log ]] || fail "a failed agent leaves a shell in the scratchpad"
+[[ -f $shell_log ]] || fail "a failed agent leaves a shell in the qconsole"
 pass "a failed agent falls back to a shell"
