@@ -11,15 +11,32 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 original_monitors=$(hyprctl -j monitors)
 primary=$(jq -r 'map(select(.focused))[0].name // .[0].name' <<<"$original_monitors")
 primary_position=$(jq -r --arg name "$primary" '.[] | select(.name == $name) | "\(.x)x\(.y)"' <<<"$original_monitors")
+primary_degrees=$(jq -r --arg name "$primary" '.[] | select(.name == $name) | (.transform // 0) % 4 * 90' <<<"$original_monitors")
 virtual_monitor=""
+
+# The layout and rotate commands save what they set for the next config load,
+# so put the saved settings back too, not just the live arrangement.
+settings="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/monitors/settings"
+settings_backup=""
+if [[ -f $settings ]]; then
+  settings_backup=$(mktemp)
+  cp "$settings" "$settings_backup"
+fi
 
 cleanup() {
   omarchy-shell shell hide omarchy.monitor >/dev/null 2>&1 || true
   if [[ -n $virtual_monitor ]]; then
     hyprctl output remove "$virtual_monitor" >/dev/null 2>&1 || true
   fi
-  omarchy-hyprland-monitor-rotate --monitor "$primary" 0 >/dev/null 2>&1 || true
+  omarchy-hyprland-monitor-rotate --monitor "$primary" "$primary_degrees" >/dev/null 2>&1 || true
   hyprctl eval "hl.monitor({ output = \"$primary\", position = \"$primary_position\" })" >/dev/null 2>&1 || true
+  # Last, since the rotate above saves settings of its own.
+  if [[ -n $settings_backup ]]; then
+    cp "$settings_backup" "$settings"
+    rm -f "$settings_backup"
+  else
+    rm -f "$settings"
+  fi
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$primary\" })" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
