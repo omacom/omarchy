@@ -18,6 +18,17 @@ Item {
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
 
+  readonly property var lockConfig: shell && shell.shellConfig && shell.shellConfig.lock
+    ? shell.shellConfig.lock : ({})
+  readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
+    ? shell.shellConfig.idle : ({})
+  readonly property int blankTimeoutSeconds: {
+    var configured = (lockConfig && (lockConfig.blankAfter ?? lockConfig.blankTimeout)) ??
+                     (idleConfig && (idleConfig.blankAfter ?? idleConfig.blankTimeout))
+    var seconds = Number(configured)
+    return (!isNaN(seconds) && seconds > 0) ? seconds : 30
+  }
+
   property bool lockRequested: false
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
@@ -225,6 +236,7 @@ Item {
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
+    setMouseDpmsWake(false)
 
     Qt.callLater(function() {
       root.refreshBackground()
@@ -245,6 +257,7 @@ Item {
     idleBlankTimer.stop()
     sessionLock.locked = false
     logEvent("unlocked")
+    setMouseDpmsWake(true)
     runWake()
   }
 
@@ -763,9 +776,19 @@ Item {
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
   }
 
+  Process {
+    id: lockDpmsProcess
+  }
+
+  function setMouseDpmsWake(enabled) {
+    var val = enabled ? "true" : "false"
+    lockDpmsProcess.command = ["bash", "-c", "hyprctl keyword misc:mouse_move_enables_dpms " + val + " >/dev/null 2>&1 || true"]
+    lockDpmsProcess.running = true
+  }
+
   Timer {
     id: idleBlankTimer
-    interval: 5000
+    interval: root.blankTimeoutSeconds * 1000
     repeat: false
     property double armedAt: 0
     onTriggered: {
