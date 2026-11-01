@@ -23,7 +23,11 @@ if [[ ! -f $hook_destination || -L $hook_destination ]]; then
   exit 0
 fi
 
-installed_sha256=$(as_root sha256sum "$hook_destination" | cut -d' ' -f1)
+if [[ -r $hook_destination ]]; then
+  installed_sha256=$(sha256sum "$hook_destination" | cut -d' ' -f1)
+else
+  installed_sha256=$(as_root sha256sum "$hook_destination" | cut -d' ' -f1)
+fi
 
 if [[ $installed_sha256 != "$previous_hook_sha256" ]]; then
   echo "Keyboard backlight hook is not the one this release replaces; leaving it alone"
