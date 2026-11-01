@@ -9,8 +9,9 @@ restart_pid_one=""
 restart_pid_two=""
 
 cleanup() {
-  [[ -n $restart_pid_one ]] && kill "$restart_pid_one" 2>/dev/null || true
-  [[ -n $restart_pid_two ]] && kill "$restart_pid_two" 2>/dev/null || true
+  [[ -n $restart_pid_one ]] && kill -9 "$restart_pid_one" 2>/dev/null || true
+  [[ -n $restart_pid_two ]] && kill -9 "$restart_pid_two" 2>/dev/null || true
+  [[ -n ${stubborn_pid:-} ]] && kill -9 "$stubborn_pid" 2>/dev/null || true
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -185,7 +186,10 @@ if [[ $1 == "-af" && -n ${OMARCHY_TEST_PGREP_SHELLS:-} && -f $OMARCHY_TEST_PGREP
       entry_owner=${rest%% *}
     fi
     [[ -n $owner && -n $entry_owner && $entry_owner != "$owner" ]] && continue
-    kill -0 "$pid" 2>/dev/null && printf '%s\n' "$entry"
+    cmd=$rest
+    [[ -n $entry_owner ]] && cmd=${rest#"$entry_owner "}
+    # Like the real pgrep -af, print "pid command line" and nothing else.
+    kill -0 "$pid" 2>/dev/null && printf '%s %s\n' "$pid" "$cmd"
   done <"$OMARCHY_TEST_PGREP_SHELLS"
 fi
 exit 0
@@ -399,7 +403,7 @@ pass "restart stops an unregistered shell instance and starts its replacement"
 # user — whose kill would fail anyway — cannot stop the restart.
 bash -c 'trap "" TERM; sleep 30' &
 restart_pid_one=$!
-printf '%s 4242 quickshell -n -p %s/shell\n' "$restart_pid_one" "$restart_root" >"$test_tmp/pgrep-shells"
+printf '%s %d quickshell -n -p %s/shell\n' "$restart_pid_one" "$(( UID + 4242 ))" "$restart_root" >"$test_tmp/pgrep-shells"
 : >"$restart_state"
 rm -f "$restart_state.locked" "$test_tmp/notification-checks"
 : >"$restart_log"
@@ -418,8 +422,8 @@ OMARCHY_TEST_SESSION_PATH="$restart_root" \
 OMARCHY_TEST_PGREP_SHELLS="$test_tmp/pgrep-shells" \
   timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart ignores a shell Quickshell cannot see that belongs to another account"
 
-[[ $(<"$restart_state") == 303 ]] || fail "another account's shell still lets the restart start one fresh shell"
-[[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "another account's shell still lets the restart launch exactly once"
+[[ $(<"$restart_state") == "303" ]] || fail "another account's shell still lets the restart start one fresh shell"
+[[ $(grep -c '^-n -p ' "$restart_log") -eq 1 ]] || fail "another account's shell still lets the restart launch exactly once"
 kill -9 "$restart_pid_one" 2>/dev/null || true
 wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
@@ -452,7 +456,7 @@ OMARCHY_TEST_PGREP_SHELLS="$test_tmp/pgrep-shells" \
   fail "restart refuses a shell Quickshell cannot see that will not exit"
 fi
 kill -0 "$stubborn_pid" 2>/dev/null || fail "the test's stubborn shell should have survived SIGTERM"
-[[ $(grep -c '^-n -p ' "$restart_log") == 0 ]] || fail "a refused restart launches no replacement shell"
+[[ $(grep -c '^-n -p ' "$restart_log") -eq 0 ]] || fail "a refused restart launches no replacement shell"
 if [[ -s "$restart_state" ]]; then
   fail "a refused restart leaves no fresh shell state"
 fi
