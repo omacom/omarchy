@@ -53,7 +53,7 @@ Panel {
   //                  to offer.
   //   "refresh"    - the refresh rates its resolution offers, when one is
   //                  faster than 60Hz.
-  //   "mirror"     - Extend or Mirror, when there's a built-in display and an
+  //   "mirror"     - Mirror or Extend, when there's a built-in display and an
   //                  external one to mirror it on.
   //   "layout"     - the arrangement of the displays; h/l moves the shown one
   //                  to the left or right of the rest, ctrl+j/k above or
@@ -178,7 +178,7 @@ Panel {
   // shut in clamshell, and an external one. A mirror set up in
   // the user's own monitors.lua is theirs to undo, so Extend isn't offered.
   readonly property bool mirrorAvailable: internalEnabled && externalMonitor !== "" && (!mirrorEnabled || mirrorManaged || pendingMirror !== "")
-  readonly property var mirrorModes: ["extend", "mirror"]
+  readonly property var mirrorModes: ["mirror", "extend"]
 
   function displayGlyph(entry) {
     return entry && entry.builtIn ? "󰌢" : "󰍹"
@@ -254,7 +254,7 @@ Panel {
   function sectionFirstIndex(section) {
     if (isSliderSection(section)) return -1
     if (section === "displays") return Math.max(0, currentIndex)
-    if (section === "mirror") return mirrorEnabled ? 1 : 0
+    if (section === "mirror") return mirrorEnabled ? 0 : 1
     return 0
   }
 
@@ -853,7 +853,7 @@ Panel {
             }
 
             // One icon per display, named in its tooltip. Plain glyphs like
-            // Extend and Mirror: the shown one in the accent, the rest dim until
+            // Mirror and Extend: the shown one in the accent, the rest dim until
             // hovered or picked, and no box either way.
             Row {
               id: picker
@@ -1239,8 +1239,8 @@ Panel {
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
 
-                MirrorLink { mode: "extend"; modeIndex: 0 }
-                MirrorLink { mode: "mirror"; modeIndex: 1 }
+                MirrorLink { mode: "mirror"; modeIndex: 0 }
+                MirrorLink { mode: "extend"; modeIndex: 1 }
               }
             }
 
