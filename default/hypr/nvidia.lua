@@ -9,14 +9,8 @@ local nvidia_without_gsp = paths.omarchy_path .. "/bin/omarchy-hw-nvidia-without
 -- lspci reads PCI config space, which resumes a runtime-suspended GPU, and on a
 -- hybrid laptop that wake alone outlasts Hyprland's 1.5s config reload budget.
 --
--- WebKitGTK's DMA-BUF renderer does not work against NVIDIA's EGL driver on
--- Wayland, which is the backend envs.lua selects. GTK apps on the system
--- WebKitGTK die with "Error 71 (Protocol error) dispatching to Wayland
--- display"; apps bundling their own WebKit (Tauri apps, AppImages) abort with
--- "Could not create GBM EGL display". The fallback renderer costs some
--- compositing performance, but is what makes these apps run at all. Set only
--- where we have already committed to NVIDIA's driver stack, so nouveau cards
--- keep the accelerated path -- they render through Mesa, which is unaffected.
+-- WebKitGTK's DMA-BUF renderer fails on NVIDIA's EGL (Wayland protocol error 71,
+-- or a blank page under XWayland); Mesa is unaffected, so older nouveau cards keep it.
 if o.shell_succeeds(o.shell_quote(nvidia)) then
   -- On hybrid laptops the display is wired to the iGPU, so forcing NVIDIA's
   -- VA-API/GLX drivers globally breaks Chromium-based browsers (black video).
