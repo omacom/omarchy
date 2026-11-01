@@ -183,7 +183,7 @@
   "setup.keyboard.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
   "setup.keyboard.inputs": {"icon":"","label":"Keyboard Inputs","action":"omarchy-setup-keyboard"},
   "setup.keyboard.input-methods": {"icon":"","label":"Input Methods","action":"omarchy-setup-input"},
-  "setup.keyboard.toprow": {"icon":"󰊕","label":"Top Row","when":"! omarchy-hw-aarch64-apple"},
+  "setup.keyboard.toprow": {"icon":"󰊕","label":"Top Row","when":"[[ $(omarchy-keyboard-toprow) != \"unsupported\" ]]"},
   "setup.keyboard.toprow.media": {"icon":"󰐎","label":"Media Keys","checked":"[[ $(omarchy-keyboard-toprow) == \"media\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-keyboard-toprow media'"},
   "setup.keyboard.toprow.function": {"icon":"󰊕","label":"Function Keys","checked":"[[ $(omarchy-keyboard-toprow) == \"function\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-keyboard-toprow function'"},
   "setup.input": {"icon":"","label":"Input","when":"[[ -f ~/.config/hypr/input.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/input.lua\""},

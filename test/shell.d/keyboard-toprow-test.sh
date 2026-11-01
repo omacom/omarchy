@@ -39,6 +39,18 @@ toprow() {
     bash "$ROOT/bin/omarchy-keyboard-toprow" "$@"
 }
 
+# Before anything is chosen, the top row reports what the loaded driver booted
+# with, and unsupported when no driver leaves Fn-lock to Linux.
+bare="$test_tmp/bare-sys-module"
+mkdir -p "$bare"
+[[ $(sys_module="$bare" toprow) == "unsupported" ]] || fail "toprow is unsupported without a host-kept Fn-lock"
+mkdir -p "$bare/hid_asus/parameters"
+printf 'Y\n' >"$bare/hid_asus/parameters/fnlock_default"
+[[ $(sys_module="$bare" toprow) == "function" ]] || fail "toprow reports the booted hid_asus Fn-lock"
+printf 'N\n' >"$bare/hid_asus/parameters/fnlock_default"
+[[ $(sys_module="$bare" toprow) == "media" ]] || fail "toprow reports hid_asus media keys"
+pass "toprow reports the booted mode before anything is chosen"
+
 # Omarchy's own earlier file goes; an administrator's own stays and is overridden.
 printf 'options hid_apple fnmode=2\n' >"$modprobe_dir/hid_apple.conf"
 printf 'options hid_asus fnlock_default=1\n' >"$modprobe_dir/hid_asus.conf"

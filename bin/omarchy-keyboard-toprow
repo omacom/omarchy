@@ -40,13 +40,28 @@ for arg in "$@"; do
   esac
 done
 
+param() {
+  cat "$sys_module/$1/parameters/$2" 2>/dev/null
+}
+
+# Without an argument, print what the top row sends by default: the chosen
+# setting once there is one, otherwise what the loaded driver booted with.
+# Prints unsupported where Linux can't set it: Apple Silicon, or a keyboard
+# that keeps Fn-lock in its own firmware.
 if [[ -z $state ]]; then
-  if grep -qx 'options hid_asus fnlock_default=1' "$conf" 2>/dev/null; then
+  if omarchy-hw-aarch64-apple || [[ ! -d $sys_module/hid_asus && ! -d $sys_module/asus_wmi && ! -d $sys_module/hid_apple ]]; then
+    echo unsupported
+  elif grep -qx 'options hid_asus fnlock_default=1' "$conf" 2>/dev/null; then
     echo function
   elif grep -qx 'options hid_asus fnlock_default=0' "$conf" 2>/dev/null; then
     echo media
   else
-    echo unset
+    fnlock=$(param hid_asus fnlock_default || param asus_wmi fnlock_default)
+    case $fnlock:$(param hid_apple fnmode) in
+      Y:* | 1:* | :0 | :2) echo function ;;
+      N:* | 0:* | :1) echo media ;;
+      *) echo unset ;;
+    esac
   fi
   exit 0
 fi
