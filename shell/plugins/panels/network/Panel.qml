@@ -2745,7 +2745,10 @@ Panel {
     selected: root.hotspotSecurity === choice
     enabled: !root.hotspotBusy
 
-    onClicked: root.hotspotSecurity = choice
+    onClicked: {
+      root.hotspotEdited = true
+      root.hotspotSecurity = choice
+    }
   }
 
   // One DNS provider pill. The cursor + current visuals come entirely from
