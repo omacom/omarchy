@@ -40,6 +40,8 @@ cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 if [[ $1 == "-Qqo" && $2 == */native.desktop ]]; then
   printf 'native-pkg\n'
+elif [[ $1 == "-Qqo" && $2 == */kitty.desktop ]]; then
+  printf 'kitty\n'
 fi
 SCRIPT
 chmod +x "$tmp_dir/bin/pacman"
@@ -94,3 +96,57 @@ pass "launcher remove deletes user-owned desktop files"
 
 (( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
+
+cat >"$tmp_dir/data/applications/kitty.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=kitty
+Exec=kitty --single-instance
+DESKTOP
+cat >"$tmp_dir/system/applications/kitty.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=kitty
+Exec=kitty
+DESKTOP
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-remove-launcher-entry" kitty.desktop Kitty
+kitty_desktop="$tmp_dir/data/applications/kitty.desktop"
+[[ -e $kitty_desktop ]] || fail "launcher remove deletes the user Kitty desktop file before uninstall"
+quoted_desktop="$(printf '%q' "$kitty_desktop")"
+quoted_desktop_dir="$(printf '%q' "${kitty_desktop%/*}")"
+mapfile -t lines <"$TEST_LOG"
+[[ ${lines[0]} == "terminal::echo Uninstalling Kitty...; sudo pacman -Rns kitty && rm -f $quoted_desktop && { update-desktop-database $quoted_desktop_dir >/dev/null || true; }" ]] ||
+  fail "launcher remove uninstalls Kitty when the user desktop file hid the package" "${lines[0]}"
+pass "launcher remove uninstalls Kitty behind its user desktop file"
+
+cat >"$tmp_dir/bin/sudo" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$tmp_dir/bin/sudo"
+uninstall_cmd="${lines[0]#terminal::}"
+if PATH="$tmp_dir/bin:$PATH" bash -c "$uninstall_cmd"; then
+  fail "cancelled Kitty uninstall reports success"
+fi
+[[ -e $kitty_desktop ]] || fail "cancelled Kitty uninstall removes the user desktop file"
+pass "cancelled Kitty uninstall leaves the user desktop file"
+
+cat >"$tmp_dir/bin/sudo" <<'SH'
+#!/bin/bash
+"$@"
+SH
+chmod +x "$tmp_dir/bin/sudo"
+PATH="$tmp_dir/bin:$PATH" bash -c "$uninstall_cmd" || fail "successful Kitty uninstall command failed"
+[[ ! -e $kitty_desktop ]] || fail "successful Kitty uninstall leaves the user desktop file"
+pass "successful Kitty uninstall removes the user desktop file"
+
+rm -f "$tmp_dir/system/applications/kitty.desktop"
+cat >"$tmp_dir/data/applications/kitty.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=kitty
+Exec=kitty
+DESKTOP
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-remove-launcher-entry" kitty.desktop Kitty
+[[ ! -e $tmp_dir/data/applications/kitty.desktop ]] || fail "launcher remove deletes a user Kitty desktop file with no package"
+[[ ! -s $TEST_LOG ]] || fail "launcher remove does not uninstall Kitty when no package owns it" "$(<"$TEST_LOG")"
+pass "launcher remove deletes a user Kitty desktop file with no package"
