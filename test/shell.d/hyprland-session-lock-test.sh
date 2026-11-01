@@ -47,6 +47,9 @@ locker 202 qs -p /usr/share/voxtype/quickshell-locker
 locker 300 qs -p /usr/share/voxtype/quickshell
 locker 301 qs -d -p "/home/me/User Data/voxtype/quickshell/"
 locker 400 hyprlock -c /usr/share/voxtype/quickshell/lock.conf
+mkdir -p "$proc/500"
+: >"$proc/500/cmdline"
+printf '500 (quickshell) Z 100 500 500 0 -1\n' >"$proc/500/stat"
 
 LOCKED=0
 UNLOCKED=1
@@ -142,4 +145,5 @@ assert_stranded 0 "$locked_monitors" "100 301" "nor does voxtype's OSD from a us
 assert_stranded 2 "$locked_monitors" "300 200" "voxtype's OSD does not hide another shell"
 assert_stranded 2 "$locked_monitors" "100 202" "a shell beside voxtype's config is still a locker"
 assert_stranded 2 "$locked_monitors" "100 201" "a shell whose path only contains voxtype's config, after a space, is still a locker"
-assert_stranded 2 "$locked_monitors" "100 500" "a locker gone before its arguments are read is still counted"
+assert_stranded 0 "$locked_monitors" "100 500" "a crashed shell left as a zombie does not count as a locker"
+assert_stranded 2 "$locked_monitors" "100 600" "a locker gone before its arguments are read is still counted"

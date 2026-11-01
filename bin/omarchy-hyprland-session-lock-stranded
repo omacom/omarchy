@@ -20,6 +20,14 @@ omarchy-hyprland-session-locked || exit
 
 proc_root=${OMARCHY_PROC_ROOT:-/proc}
 
+# A shell that crashed can linger as an unreaped zombie, which holds no lock.
+is_zombie() {
+  local stat
+
+  read -r stat 2>/dev/null <"$proc_root/$1/stat" || return 1
+  [[ ${stat##*) } == Z* ]]
+}
+
 # Read from cmdline rather than pgrep -a, which joins arguments with spaces and
 # so lets a path with a space in it pass for voxtype's.
 is_voxtype_osd() {
@@ -36,5 +44,5 @@ is_voxtype_osd() {
 }
 
 while read -r pid; do
-  [[ $pid == "$1" ]] || is_voxtype_osd "$pid" || exit 2
+  [[ $pid == "$1" ]] || is_zombie "$pid" || is_voxtype_osd "$pid" || exit 2
 done < <(pgrep -u "$UID" -x 'quickshell|qs|hyprlock')
