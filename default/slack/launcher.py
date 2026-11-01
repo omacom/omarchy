@@ -79,10 +79,14 @@ class Slack:
             self.buffer += data
             while b'\0' in self.buffer:
                 message, self.buffer = self.buffer.split(b'\0', 1)
-                self.dispatch(json.loads(message))
+                try:
+                    self.dispatch(json.loads(message))
+                except (KeyError, ValueError) as error:
+                    # Stop reading and Slack queues every later message in memory.
+                    print('Slack theme pipe:', repr(error), file=sys.stderr)
             stream.read_bytes_async(65536, 0, None, self.received)
-        except (GLib.Error, ValueError) as error:
-            print('Slack theme pipe:', str(error), file=sys.stderr)
+        except GLib.Error as error:
+            print('Slack theme pipe:', error.message, file=sys.stderr)
 
     def dispatch(self, message):
         callback = self.callbacks.pop(message.get('id'), None)
@@ -92,12 +96,15 @@ class Slack:
         if message.get('method') == 'Target.attachedToTarget':
             session = params['sessionId']
             self.sessions.add(session)
-            self.send('Runtime.enable', session=session)
+            # Page events mark each new document of the window. Runtime.enable
+            # would also stream all of Slack's console output, about 7 MB at
+            # startup and a message a second after.
+            self.send('Page.enable', session=session)
+            self.apply(session)
         elif message.get('method') == 'Target.detachedFromTarget':
             self.sessions.discard(params['sessionId'])
-        elif message.get('method') == 'Runtime.executionContextCreated':
-            if params['context'].get('auxData', {}).get('isDefault'):
-                self.apply(session)
+        elif message.get('method') == 'Page.domContentEventFired':
+            self.apply(session)
 
     def apply(self, session):
         if self.theme and session in self.sessions:

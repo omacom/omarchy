@@ -43,9 +43,6 @@ while True:
         result={};session=m.get('sessionId');method=m['method']
         emit({'id':m['id'],'result':result})
         if method=='Target.setAutoAttach':attach('one')
-        if method=='Runtime.enable':
-            emit({'method':'Runtime.executionContextCreated','sessionId':session,
-                  'params':{'context':{'auxData':{'isDefault':True}}}})
         if method=='Runtime.evaluate':
             expression=m['params']['expression']
             theme=json.loads(expression[expression.rfind(')(')+2:-1])
@@ -56,8 +53,7 @@ while True:
                 assert theme['mode']=='light';stage=2;attach('two')
             elif stage==2 and session=='two':
                 assert theme['mode']=='light';stage=3
-                emit({'method':'Runtime.executionContextCreated','sessionId':'one',
-                      'params':{'context':{'auxData':{'isDefault':True}}}})
+                emit({'method':'Page.domContentEventFired','sessionId':'one','params':{}})
             elif stage==3 and session=='one':
                 assert theme['mode']=='light';(root/'complete').touch();raise SystemExit(0)
 ''')
