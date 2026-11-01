@@ -41,10 +41,8 @@ export OMARCHY_HOTSPOT_UFW_RULES="$UFW_RULES_FILE"
 cat >"$STUB_BIN/omarchy-cmd-present" <<'STUB'
 #!/bin/bash
 case "${1:-}" in
-  ufw) (( ${UFW_PRESENT:-0} == 1 )) ;;
   firewalld) (( ${FIREWALLD_PRESENT:-0} == 1 )) ;;
   nft) (( ${NFT_PRESENT:-0} == 1 )) ;;
-  dnsmasq) (( ${DNSMASQ_PRESENT:-1} == 1 )) ;;
   *) exit 1 ;;
 esac
 STUB
@@ -310,8 +308,7 @@ run_isolated() {
 }
 
 cat >"$TEST_TMP/backend-driver.sh" <<'DRIVER'
-export UFW_PRESENT UFW_ACTIVE FIREWALLD_PRESENT FIREWALLD_ACTIVE NFT_PRESENT NFT_ACTIVE NFT_SERVICE_ACTIVE NFT_RULESET
-UFW_PRESENT=1
+export UFW_ACTIVE FIREWALLD_PRESENT FIREWALLD_ACTIVE NFT_PRESENT NFT_ACTIVE NFT_SERVICE_ACTIVE NFT_RULESET
 UFW_ACTIVE=0
 NFT_PRESENT=1
 NFT_ACTIVE=0
@@ -392,7 +389,6 @@ run_isolated "$TEST_TMP/apply-driver.sh"
 # choice has to survive the process boundary: export, not assign. With the
 # readable rules fixture in place the presence check reads the file instead
 # of privileged UFW state, so both checks below bite.
-export UFW_PRESENT=1
 export UFW_ACTIVE=1
 write_user_rules "$UFW_RULES_FILE" wlan2 10.55.0.0/24
 cat >"$TEST_TMP/idempotent-driver.sh" <<'DRIVER'
@@ -463,9 +459,9 @@ pass "privileged firewall functions enforce EUID and dispatch argument contracts
 
 for backend in firewalld nftables; do
   if [[ $backend == firewalld ]]; then
-    export UFW_PRESENT=0 FIREWALLD_PRESENT=1 FIREWALLD_ACTIVE=1 NFT_PRESENT=0 NFT_ACTIVE=0
+    export UFW_ACTIVE=0 FIREWALLD_PRESENT=1 FIREWALLD_ACTIVE=1 NFT_PRESENT=0 NFT_ACTIVE=0
   else
-    export UFW_PRESENT=0 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=1 NFT_ACTIVE=1 NFT_RULESET=$'table inet filter\n  chain input { type filter hook input priority filter; }'
+    export UFW_ACTIVE=0 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=1 NFT_ACTIVE=1 NFT_RULESET=$'table inet filter\n  chain input { type filter hook input priority filter; }'
   fi
   cat >"$TEST_TMP/start-unsupported-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
@@ -526,7 +522,7 @@ done
 pass "unsupported firewalls warn on setup and teardown but block start"
 
 reset_firewall_fixture() {
-  export UFW_PRESENT=1 UFW_ACTIVE=1 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=0 NFT_ACTIVE=0 NFT_SERVICE_ACTIVE=0 NFT_RULESET=""
+  export UFW_ACTIVE=1 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=0 NFT_ACTIVE=0 NFT_SERVICE_ACTIVE=0 NFT_RULESET=""
   : >"$UFW_STATE"
   : >"$UFW_LOG"
   rm -f "$FIREWALL_STATE" "$FORWARDING_STATE" "$PROFILE_STATE" "$TEST_TMP/nmcli-active" "$UFW_RULES_FILE"
@@ -726,7 +722,6 @@ cat >"$TEST_TMP/reconcile-present-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-UFW_PRESENT=1
 UFW_ACTIVE=1
 firewall_rules_present wlan2 10.55.0.0/24
 firewall_ensure
@@ -744,7 +739,6 @@ cat >"$TEST_TMP/reconcile-absent-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-UFW_PRESENT=1
 UFW_ACTIVE=1
 if firewall_rules_present wlan2 10.55.0.0/24; then
   echo "a rule deleted out of band still reads as installed" >&2

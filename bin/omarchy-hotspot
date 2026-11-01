@@ -325,7 +325,7 @@ nft_firewall_active() {
 }
 
 firewall_backend() {
-  if omarchy-cmd-present ufw && systemctl is-active ufw >/dev/null 2>&1; then
+  if systemctl is-active ufw >/dev/null 2>&1; then
     echo ufw
   elif omarchy-cmd-present firewalld && systemctl is-active firewalld >/dev/null 2>&1; then
     echo firewalld
@@ -1208,11 +1208,7 @@ diagnose() {
   printf 'iw: %s\n' "$(iw --version 2>/dev/null || echo missing)"
   printf 'jq: %s\n' "$(jq --version 2>/dev/null || echo missing)"
   printf 'qrencode: %s\n' "$(qrencode --version 2>/dev/null || echo missing)"
-  if omarchy-cmd-present dnsmasq; then
-    echo "dnsmasq: present"
-  else
-    echo "dnsmasq: missing"
-  fi
+  printf 'dnsmasq: %s\n' "$(dnsmasq --version 2>/dev/null | head -n 1 || echo missing)"
   echo "firewall: $(firewall_backend)"
   if ipv4_forwarding_enabled; then
     echo "ipv4 forwarding: yes"
