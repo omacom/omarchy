@@ -106,7 +106,7 @@ JS
 
 # Each monitor builds its own panel; the usage poll must not come with it.
 # Real Main.qml and Panel.qml in a bare shell, with a stand-in collector that
-# logs every run between the fixture's own marks.
+# logs every run under the step the fixture was on when it started.
 if ! compositor_reachable || ! command -v quickshell >/dev/null 2>&1; then
   skip "agents usage poll lifecycle needs a compositor and quickshell"
   exit 0
@@ -121,7 +121,7 @@ ln -s "$ROOT/shell/Ui" "$stage/Ui"
 ln -s "$ROOT/shell/plugins/agents" "$stage/agents"
 cat >"$stage/bin/omarchy-agent-usage-update" <<'SH'
 #!/bin/bash
-printf 'poll\n' >>"$AGENTS_POLL_LOG"
+printf 'poll during %s\n' "$(<"$AGENTS_POLL_STEP")" >>"$AGENTS_POLL_LOG"
 SH
 chmod +x "$stage/bin/omarchy-agent-usage-update"
 
@@ -133,10 +133,11 @@ import "agents" as Agents
 
 ShellRoot {
   id: test
-  readonly property string log: Quickshell.env("AGENTS_POLL_LOG")
   property var services: ({})
   function firstPartyServiceFor(id) { return services[id] || null }
-  function mark(name) { Quickshell.execDetached(["sh", "-c", 'printf "%s\\n" "$1" >>"$2"', "sh", name, log]) }
+  // Written before the step acts, so any run it starts reads its name.
+  FileView { id: stepFile; path: Quickshell.env("AGENTS_POLL_STEP"); blockWrites: true }
+  function mark(name) { stepFile.setText(name) }
 
   Agents.Main { id: usage }
   Component.onCompleted: services = ({ "omarchy.agents": usage })
@@ -192,11 +193,12 @@ ShellRoot {
 QML
 
 : >"$stage/polls"
-output=$(HOME="$stage/home" XDG_STATE_HOME="$stage/home/state" PATH="$stage/bin:$PATH" AGENTS_POLL_LOG="$stage/polls" \
+: >"$stage/step"
+output=$(HOME="$stage/home" XDG_STATE_HOME="$stage/home/state" PATH="$stage/bin:$PATH" AGENTS_POLL_LOG="$stage/polls" AGENTS_POLL_STEP="$stage/step" \
   timeout 20 quickshell -p "$stage" --no-color 2>&1) || fail "agents poll fixture exits cleanly" "$output"
 if rg -q 'agents/(Main|Panel)\.qml.*(ReferenceError|TypeError|Unable to assign|Binding loop)|is not a type' <<<"$output"; then
   fail "agents poll fixture has no QML errors" "$output"
 fi
-expected=$'no bar\ntwo bars\npoll\nwidget off every bar\nrefresh with no widget\nwidget back on a bar\npoll'
+expected=$'poll during two bars\npoll during widget back on a bar'
 [[ $(cat "$stage/polls") == "$expected" ]] || fail "agents usage polls once per shell and only while the widget is on a bar" "$(cat "$stage/polls")"
 pass "agents usage polls once per shell, waits for a bar, and stops when the widget leaves the last bar"
