@@ -311,9 +311,16 @@ if grep -nE 'chmod a\+rwx\b|chmod a\+rw\b|chmod a\+w\b|chmod o\+w|chmod ugo\+w|c
 fi
 pass "browser policy setup is not world-writable"
 
-grep -F '/opt/zen-browser/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
+grep -F '/opt/zen-browser-bin/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
   fail "the shared helper names the Zen distribution directory"
 pass "the shared helper names the Zen distribution directory"
+
+# Zen ships its own copy so the package's keys survive; it must not fall behind the stock file.
+jq -e '.policies.DisableAppUpdate == true and .policies.DefaultSerialGuardSetting == 3' "$ROOT/default/firefox/zen-policies.json" >/dev/null ||
+  fail "Zen's policies keep the package's own keys"
+[[ $(jq -cS '.policies | del(.DisableAppUpdate, .DefaultSerialGuardSetting)' "$ROOT/default/firefox/zen-policies.json") == $(jq -cS '.policies' "$ROOT/default/firefox/policies.json") ]] ||
+  fail "Zen's policies carry every policy Firefox gets"
+pass "Zen's policies carry every policy Firefox gets"
 
 fx_merge=$test_tmp/fx-merge
 mkdir -p "$fx_merge"
