@@ -808,8 +808,9 @@ Panel {
 
         Column {
           id: panelColumn
-          // Keep the always-on bar off the rows when the panel overflows.
+          // Keep the always-on bar off the rows when the panel overflows; mirrored, the bar is on the left.
           width: scrollArea.availableWidth - (scrollArea.ScrollBar.vertical.policy === ScrollBar.AlwaysOn ? scrollArea.ScrollBar.vertical.width : 0)
+          x: scrollArea.mirrored ? scrollArea.availableWidth - width : 0
           spacing: Style.space(14)
 
           // ---------- Hero: speaker icon · title/status ----------
