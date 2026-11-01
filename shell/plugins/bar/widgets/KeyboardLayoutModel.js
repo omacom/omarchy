@@ -88,7 +88,7 @@ function eventKeyboardName(event) {
 //
 // Missing a name here costs the accuracy the seat had before, never a keyboard:
 // anything unrecognised stays in the list.
-var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus|intel-hid-events|dell-wmi-hotkeys)|avrcp|consumer-control/
+var UNTYPED_KEYBOARDS = /^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus|intel-hid-events|dell-wmi-hotkeys)|avrcp|consumer-control|(-wmi-hotkeys|-wireless-radio-control)(-\d+)?$/
 
 function isTypedKeyboard(name) {
   return !UNTYPED_KEYBOARDS.test(String(name || ""))
@@ -118,7 +118,7 @@ function selectKeyboard(typed, namedByEvent) {
 function inputLabel(state, fallback) {
   if (!state || !state.current || state.current.indexOf("keyboard-") === 0) return fallback
   if (state.label) return String(state.label).substring(0, 3)
-  var labels = { mozc: "あ", hangul: "한", pinyin: "拼", chewing: "注" }
+  var labels = { mozc: "あ", hangul: "한", pinyin: "拼", chewing: "注", cangjie5: "倉" }
   return labels[state.current] || shortLabel(state.language || state.name, {})
 }
 

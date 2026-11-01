@@ -145,6 +145,11 @@ assertEqual(model.isTypedKeyboard('wh-1000xm4-(avrcp)'), false, 'a Bluetooth rem
 assertEqual(model.isTypedKeyboard('logitech-g502-hero-consumer-control'), false, 'a split-out consumer-control interface is not')
 assertEqual(model.isTypedKeyboard('intel-hid-events'), false, 'a vendor hotkey block is not')
 assertEqual(model.isTypedKeyboard('dell-wmi-hotkeys'), false, 'a WMI hotkey block is not')
+assertEqual(model.isTypedKeyboard('acer-wmi-hotkeys'), false, 'vendor WMI hotkeys are not a keyboard')
+assertEqual(model.isTypedKeyboard('acer-wireless-radio-control'), false, 'vendor radio controls are not a keyboard')
+assertEqual(model.isTypedKeyboard('asus-wmi-hotkeys-1'), false, 'a duplicate vendor hotkey device is not a keyboard')
+assertEqual(model.isTypedKeyboard('dell-wmi'), true, 'an unrecognized device stays available')
+assertEqual(model.isTypedKeyboard('logitech-k380'), true, 'an external keyboard stays available')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
 
 // The seat as the widget composes it: filter, then pick. A remote that drifted
@@ -169,6 +174,8 @@ assertEqual(model.eventKeyboardName(rawEvent('wh-1000xm4-(avrcp),English (US)'))
 assertEqual(model.eventKeyboardName(rawEvent('power-button,English (US)')), '', 'a button announcing a seat-wide switch names no keyboard')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
+assertEqual(model.eventKeyboardName(rawEvent('asus-wmi-hotkeys,French')), '', 'vendor hotkeys cannot replace the last typed keyboard')
+assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,English (US)')), '', 'radio events are excluded from keyboard selection')
 {
   const widget = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/KeyboardLayout.qml'), 'utf8')
   assert(!/Component\.onCompleted: \{[\s\S]*?briefsProc\.running = true/.test(widget), 'the xkb layout table is not read at startup')
