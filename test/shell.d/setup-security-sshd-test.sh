@@ -30,6 +30,7 @@ printf 'systemctl %s\n' "$*" >>"${CALL_LOG:?}"
 STUB
 cat >"$stub_bin/gum" <<'STUB'
 #!/bin/bash
+printf 'gum %s\n' "$1" >>"${CALL_LOG:?}"
 # Esc at the first prompt.
 exit 130
 STUB
@@ -155,8 +156,9 @@ pass "SSH setup starts nothing and opens nothing when no key is authorized"
 mkdir -p "$test_dir/cancelled/home" "$test_dir/cancelled/root"
 : >"$test_dir/cancelled.calls"
 if HOME="$test_dir/cancelled/home" TEST_ROOT="$test_dir/cancelled/root" CALL_LOG="$test_dir/cancelled.calls" \
-  PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-setup-security-sshd" >/dev/null 2>&1; then
+  PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-setup-security-sshd" >/dev/null 2>&1; then
   fail "SSH setup must fail when the key prompt is cancelled"
 fi
+grep -q "^gum choose" "$test_dir/cancelled.calls" || fail "SSH setup reaches the key prompt"
 assert_nothing_exposed cancelled
 pass "SSH setup starts nothing and opens nothing when the key prompt is cancelled"
