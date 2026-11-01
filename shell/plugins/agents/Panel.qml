@@ -1506,39 +1506,41 @@ Panel {
           required property int index
           readonly property bool hasCursor: root.hasKey("localAdd", index)
           width: parent.width
-          implicitHeight: recipeBody.implicitHeight
+          implicitHeight: Math.max(recipeMark.height, recipeBody.implicitHeight)
           onHasCursorChanged: if (hasCursor) root.revealItem(recipeRow)
+
+          // The mark sits beside the name and details together, centred on
+          // both, and only it is lit, as on an agent's line.
+          CursorSurface {
+            anchors.fill: recipeMark
+            anchors.margins: -Style.space(5)
+            z: -1
+            hasCursor: recipeRow.hasCursor
+            foreground: root.foreground
+          }
+
+          ProviderIcon {
+            id: recipeMark
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            provider: ({ providerId: String(recipeRow.modelData.vendor || "local") })
+          }
 
           Column {
             id: recipeBody
-            width: parent.width
+            anchors.left: recipeMark.right
+            anchors.leftMargin: Style.space(10)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(4)
 
             Item {
               width: parent.width
-              implicitHeight: Math.max(recipeMark.height, recipeName.implicitHeight)
-
-              // Only the mark is lit, as on an agent's line.
-              CursorSurface {
-                anchors.fill: recipeMark
-                anchors.margins: -Style.space(5)
-                z: -1
-                hasCursor: recipeRow.hasCursor
-                foreground: root.foreground
-              }
-
-              ProviderIcon {
-                id: recipeMark
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                provider: ({ providerId: String(recipeRow.modelData.vendor || "local") })
-              }
+              implicitHeight: recipeName.implicitHeight
 
               Text {
                 id: recipeName
-                anchors.left: recipeMark.right
-                anchors.leftMargin: Style.space(10)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
                 textFormat: Text.PlainText
                 text: String(recipeRow.modelData.name || recipeRow.modelData.id)
                 color: recipeRow.hasCursor ? Commons.Color.accent : root.foreground
@@ -1564,7 +1566,6 @@ Panel {
             // fact the catalog doesn't have is left out.
             Text {
               width: parent.width
-              leftPadding: recipeMark.width + Style.space(10)
               textFormat: Text.PlainText
               text: root.recipeFacts(recipeRow.modelData)
               color: root.dim
