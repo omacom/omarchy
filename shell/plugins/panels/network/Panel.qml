@@ -1744,6 +1744,7 @@ Panel {
         function() {
           root.cursorActive = true
           root.focusSection = "band"
+          root.bandAutoFocused = false
           root.bandIndex = pill.slot
         },
         function() { root.cursorActive = false }

@@ -62,4 +62,8 @@ for (const panel of panels) {
   assert(src.includes('Cursor.applyHover'), panel + ' uses Cursor.applyHover')
   assert(src.includes('root.cursorActive = false') || src.includes('mullvadRegionIndex = -1'), panel + ' releases the cursor on pointer leave')
 }
+
+const network = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
+const bandPill = network.slice(network.indexOf('component BandPill'))
+assert(/root\.bandAutoFocused = false\s*root\.bandIndex = pill\.slot/.test(bandPill), 'a band pill claim clears Automatic so leave can release the cursor')
 JS
