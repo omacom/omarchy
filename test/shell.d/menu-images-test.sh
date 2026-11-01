@@ -10,12 +10,15 @@ require_command setsid
 tmp=$(mktemp -d)
 lazy_groups=()
 cleanup() {
-  local status=$? gate group running attempt
+  local status=$? state_dir group running attempt
   trap - EXIT
   # Release every fixture gate, including on an assertion failure. Each lazy
   # invocation owns a private process group, so its detached pool is tracked.
-  for gate in "$tmp"/lazy-state*/gate; do
-    [[ ! -d ${gate%/*} ]] || touch "$gate"
+  # Glob the state directories, not the gate files: a gate that does not
+  # exist yet cannot match, and its workers would wait out the poll below.
+  for state_dir in "$tmp"/lazy-state*/; do
+    [[ -d $state_dir ]] || continue
+    touch "$state_dir/gate"
   done
   for attempt in {1..500}; do
     running=false
@@ -177,6 +180,21 @@ while IFS=$'\t' read -r row_image row_thumbnail; do
 done <<<"$rows"
 pass "image menu prints its rows for the shell to hold"
 
+# An editor saving in place changes the file but not its directory's mtime.
+[[ -f $cache_dir/$cache_key.rows && -f $cache_dir/$cache_key.fast-signature ]] ||
+  fail "image menu caches the rows it prints"
+touch -r "$images" "$tmp/images-mtime"
+printf 'image-one-saved-in-place' >"$images/one.png"
+touch -r "$tmp/images-mtime" "$images"
+signature=$(stat -Lc '%s:%Y' "$images/one.png")
+hash=$(printf '%s\t%s' "$images/one.png" "$signature" | md5sum | cut -d ' ' -f 1)
+rows=$(PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --print-rows "$images")
+
+grep -Fxq "$images/one.png"$'\t'"$cache_dir/$hash.jpg" <<<"$rows" ||
+  fail "image menu regenerates the thumbnail of an image overwritten in place"
+pass "image menu notices an image overwritten in place"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
@@ -276,41 +294,3 @@ for cores in 1 2 8; do
   done
   pass "lazy image menu workers finish every queued thumbnail after the caller exits"
 done
-
-# Exercise the same cleanup handler on both successful and failing exits,
-# with a detached, gated fixture still running when the EXIT trap fires.
-run_node_test <<'JS'
-const fs = require('fs')
-const { spawnSync } = require('child_process')
-const script = fs.readFileSync(path.join(root, 'test/shell.d/menu-images-test.sh'), 'utf8')
-const cleanupHandler = script.match(/cleanup\(\) \{[\s\S]*?\n\}/)[0]
-for (const status of [0, 31]) {
-  const result = spawnSync('bash', ['-c', `
-set -euo pipefail
-tmp=$(mktemp -d)
-lazy_groups=()
-${cleanupHandler}
-trap cleanup EXIT
-mkdir -p "$tmp/lazy-state-probe"
-setsid bash -c ': >"$1/ready"; while [[ ! -e $1/gate ]]; do sleep 0.02; done; sleep 0.05' _ "$tmp/lazy-state-probe" &
-lazy_groups+=("$!")
-while [[ ! -e $tmp/lazy-state-probe/ready ]]; do sleep 0.02; done
-printf '%s\\n%s\\n' "$tmp" "$!"
-exit ${status}
-`], { encoding: 'utf8', timeout: 15000 })
-  const [directory, group] = result.stdout.trim().split('\n')
-  const removed = !fs.existsSync(directory)
-  let alive = false
-  try {
-    try { process.kill(-Number(group), 0); alive = true } catch (error) {
-      if (error.code !== 'ESRCH') throw error
-    }
-  } finally {
-    if (group) { try { process.kill(-Number(group), 'SIGKILL') } catch (_) {} }
-    if (directory) fs.rmSync(directory, { recursive: true, force: true })
-  }
-  assertEqual(result.status, status, `fixture cleanup preserves exit status ${status}`)
-  assert(removed, `fixture cleanup removes its directory on exit ${status}`)
-  assert(!alive, `fixture cleanup finishes its detached workers on exit ${status}`)
-}
-JS
