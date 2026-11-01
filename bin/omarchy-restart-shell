@@ -112,9 +112,10 @@ done
 # alive holding the notification server and the polkit agent while a fresh
 # shell starts next to it, and every later restart removes only the fresh
 # one. Stop a live quickshell process whose config is an Omarchy tree by
-# pid, under the same ownership rule omarchy_shell_dirs applies.
+# pid, under the same ownership rule omarchy_shell_dirs applies: only the
+# caller's own instances, never another account's.
 omarchy_tree_shell_pids() {
-  pgrep -af "quickshell -n -p .*/shell" 2>/dev/null |
+  pgrep -u "$UID" -af "quickshell -n -p .*/shell" 2>/dev/null |
     while IFS= read -r line; do
       pid=${line%% *}
       dir=${line#*quickshell -n -p }
