@@ -10,6 +10,8 @@
 # agent makes it on its first run, after this hook, so it is created here.
 # A failure only warns: the agent should still start.
 
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+
 while IFS= read -r tool; do
   case $tool in
   pi) target=pi dir=$HOME/.pi/agent ;;
@@ -19,11 +21,11 @@ while IFS= read -r tool; do
   grok) target=grok dir=${GROK_HOME:-$HOME/.grok} ;;
   copilot) target=copilot dir=$HOME/.copilot ;;
   qwen) target=qwen dir=$HOME/.qwen ;;
-  opencode) target=opencode dir=$HOME/.config/opencode ;;
+  opencode) target=opencode dir=$config/opencode ;;
   antigravity-cli) target=antigravity-cli dir=$HOME/.gemini/config ;;
   cursor-agent | http:cursor-agent) target=cursor dir=$HOME/.cursor ;;
-  http:devin) target=devin dir=$HOME/.config/devin ;;
-  npm:@kilocode/cli) target=kilo dir=$HOME/.config/kilo ;;
+  http:devin) target=devin dir=$config/devin ;;
+  npm:@kilocode/cli) target=kilo dir=$config/kilo ;;
   npm:@moonshot-ai/kimi-code) target=kimi dir=$HOME/.kimi-code ;;
   *) continue ;;
   esac
