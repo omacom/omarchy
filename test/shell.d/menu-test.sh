@@ -4,6 +4,167 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Exercise the real selector's timeout and signal cleanup against an IPC boundary.
+python3 - <<'PYTEST'
+import json, os, pathlib, signal, subprocess, tempfile, time
+with tempfile.TemporaryDirectory() as scratch:
+  scratch = pathlib.Path(scratch)
+  stub = scratch / "omarchy-shell"
+  stub.write_text("""#!/usr/bin/python3
+import json,os,pathlib,sys
+payload={'doneFile':sys.argv[-1]} if 'cancelQueued' in sys.argv else json.loads(sys.argv[-1])
+with open(os.environ['MENU_TEST_LOG'],'a') as log:
+ log.write(json.dumps({'args':sys.argv[1:],'payload':payload})+'\\n')
+if 'summon' in sys.argv and os.environ.get('MENU_TEST_ACCEPT') == '1':
+ pathlib.Path(payload['selectionFile']).write_text('Keep\\n')
+ pathlib.Path(payload['doneFile']).touch()
+""")
+  stub.chmod(0o755)
+  log = scratch / "log"
+  env = {**os.environ, 'PATH': str(scratch)+':'+os.environ['PATH'], 'MENU_TEST_LOG':str(log)}
+  command = [os.environ['ROOT']+'/bin/omarchy-menu-select','Test','Keep','Close','--','--timeout','1']
+  result = subprocess.run(command,env=env,capture_output=True,text=True,timeout=6)
+  assert result.returncode == 124 and not result.stdout, result
+  rows = [json.loads(line) for line in log.read_text().splitlines()]
+  request = rows[0]['payload']
+  assert rows[-1]['payload']['doneFile'] == request['doneFile']
+  assert not pathlib.Path(request['doneFile']).parent.exists()
+  # Replay the real caller's IPC sequence through the actual shell queue functions.
+  subprocess.run(['node', '-e', r"""
+const fs = require('fs'), vm = require('vm'), assert = require('assert')
+const source = fs.readFileSync(process.env.ROOT+'/shell/shell.qml', 'utf8')
+const ctx = {pendingPayloads: {}, openPanelIds: {}, panelLoaders: {},
+  pluginRegistry: {resolveEnabledId: id => id, installedPlugins: {'omarchy.menu': {}}, isEnabled: () => true},
+  isBarWidgetPanelPlugin: () => false}
+ctx.shell = ctx
+vm.createContext(ctx)
+for (const name of ['summon', 'cancelQueued', 'callIfLoaded', 'deliverIfLoaded']) {
+  const start = source.indexOf('  function '+name+'(')
+  assert(start >= 0, name+' exists')
+  vm.runInContext(source.slice(start, source.indexOf('\n  }', start)+4), ctx)
+}
+const rows = JSON.parse(fs.readFileSync(0, 'utf8'))
+assert.deepStrictEqual(rows.map(row => row.args.includes('summon') ? 'summon' : row.args[2]), ['summon', 'cancelQueued', 'call'])
+for (const row of rows) {
+  if (row.args.includes('summon')) ctx.summon('omarchy.menu', JSON.stringify(row.payload))
+  if (row.args[2] === 'cancelQueued') ctx.cancelQueued('omarchy.menu', row.payload.doneFile)
+  if (row.args[2] === 'call') assert.strictEqual(ctx.callIfLoaded('omarchy.menu', 'cancelRequest', JSON.stringify(row.payload)), 'unknown')
+}
+assert(!fs.existsSync(rows[0].payload.doneFile.replace(/\/done$/, '')))
+let opened = 0
+ctx.panelLoaders['omarchy.menu'] = {item: {open() {opened++}}}
+ctx.deliverIfLoaded('omarchy.menu')
+assert.strictEqual(opened, 0)
+assert.strictEqual(ctx.openPanelIds['omarchy.menu'], undefined)
+// Removing one queued caller preserves its replacement and other plugins.
+ctx.panelLoaders = {}
+ctx.summon('omarchy.menu', JSON.stringify({doneFile: 'old'}))
+ctx.summon('omarchy.menu', JSON.stringify({doneFile: 'new'}))
+ctx.pendingPayloads.other = ['{}']; ctx.openPanelIds.other = true
+assert(ctx.cancelQueued('omarchy.menu', 'old'))
+assert(ctx.openPanelIds['omarchy.menu'])
+assert.strictEqual(ctx.pendingPayloads.other.length, 1)
+ctx.panelLoaders['omarchy.menu'] = {item: {open(payload) {assert.strictEqual(JSON.parse(payload).doneFile, 'new'); opened++}}}
+ctx.deliverIfLoaded('omarchy.menu')
+assert.strictEqual(opened, 1)
+console.log('ok - expired queued picker never opens after caller exit; replacements remain queued')
+"""], input=json.dumps(rows), text=True, env=env, check=True, timeout=6)
+  result = subprocess.run(command,env={**env,'MENU_TEST_ACCEPT':'1'},capture_output=True,text=True,timeout=6)
+  assert result.returncode == 0 and result.stdout.strip() == 'Keep', result
+  log.unlink()
+  proc = subprocess.Popen(command[:-2],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+  try:
+    deadline = time.monotonic()+5
+    while not log.exists():
+      assert time.monotonic() < deadline
+      time.sleep(.02)
+    proc.send_signal(signal.SIGTERM)
+    output,error = proc.communicate(timeout=6)
+    assert proc.returncode == 143 and not output, (proc.returncode,error)
+    rows = [json.loads(line) for line in log.read_text().splitlines()]
+    assert not pathlib.Path(rows[0]['payload']['doneFile']).parent.exists()
+  finally:
+    if proc.poll() is None: proc.kill();proc.wait()
+print('ok - selector timeout, acceptance, later requests, and signal cleanup use their own request identity')
+PYTEST
+
+# Run the actual QML lifecycle functions; receipts use real filesystem writes.
+run_node_test <<'JS'
+const fs = require('fs')
+const os = require('os')
+const vm = require('vm')
+const cp = require('child_process')
+const source = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+function extract(name) {
+  const start = source.indexOf('  function ' + name + '(')
+  const end = source.indexOf('\n  }', start)
+  assert(start >= 0 && end > start, 'lifecycle function exists: ' + name)
+  return source.slice(start, end + 4)
+}
+const writers = []
+const ctx = {
+  requestActive: false, doneFile: '', selectionFile: '', opened: false,
+  requestSerial: 0, mode: 'menu', appLibrary: null,
+  items: {}, itemOrder: [], checkedResults: {}, disabledResults: {},
+  Qt: { callLater() {} },
+  Commons: { I18n: { t: key => key } },
+  MenuModel: requireFromRoot('shell/plugins/menu/MenuModel.js'),
+  Quickshell: { execDetached: argv => writers.push([...argv]) },
+  item() { return null }, disarmPointer() {}, evaluateGuards() {}, rebuildDisplay() {},
+  invalidateVolatileProvider() {}, loadProviderForMenu() {},
+}
+ctx.root = ctx
+Object.defineProperty(ctx, 'dmenuActive', { get() { return this.mode !== 'menu' } })
+vm.createContext(ctx)
+for (const name of ['finishRequest', 'cancelRequest', 'cancel', 'openDmenu', 'openExistingMenu'])
+  vm.runInContext(extract(name), ctx)
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-menu-lifecycle.'))
+try {
+  function request(id) {
+    return {mode: 'select', options: ['Keep', 'Close'], selectionFile: path.join(dir, id + '-selection'), doneFile: path.join(dir, id + '-done')}
+  }
+  const a = request('a'), b = request('b'), c = request('c')
+  ctx.openDmenu(a)
+  ctx.openDmenu(b)
+  ctx.openDmenu(c)
+  assertEqual(writers.length, 2, 'rapid replacement retains both cancellation receipts')
+  assertEqual(ctx.cancelRequest(JSON.stringify({doneFile: a.doneFile})), 'stale', 'old caller cannot cancel a replacement')
+  assert(ctx.opened && ctx.doneFile === c.doneFile, 'replacement remains visible')
+  ctx.openExistingMenu('root')
+  assertEqual(writers.length, 3, 'opening an ordinary menu cancels the active picker')
+  for (const argv of writers.splice(0)) cp.execFileSync(argv[0], argv.slice(1))
+  for (const req of [a,b,c]) {
+    assert(fs.existsSync(req.doneFile), 'old caller receives cancellation')
+    assert(!fs.existsSync(req.selectionFile), 'cancellation does not return a selection')
+  }
+  assert(ctx.opened && ctx.mode === 'menu', 'delayed receipts do not hide the new menu')
+  ctx.openDmenu(a)
+  ctx.finishRequest('literal $(touch nope)\tvalue')
+  const accepted = writers.shift()
+  cp.execFileSync(accepted[0], accepted.slice(1))
+  assertEqual(fs.readFileSync(a.selectionFile,'utf8').trim(), 'literal $(touch nope)\tvalue', 'selection is written literally')
+  assert(!fs.existsSync('nope'), 'selection is never evaluated as a command')
+  const failed = request('failed')
+  ctx.openDmenu(failed)
+  ctx.finishRequest('x'.repeat(8192))
+  const failedWriter = writers.shift()
+  // A real file-size limit forces printf to leave a partial file before failing.
+  const failure = cp.spawnSync('bash', ['-c', 'ulimit -f 1; trap "" XFSZ; exec "$@"', 'limited-writer', ...failedWriter])
+  assertEqual(failure.status, 0, 'failed selection writer still completes its receipt')
+  assert(fs.existsSync(failed.doneFile), 'failed selection write produces doneFile')
+  assert(!fs.existsSync(failed.selectionFile), 'failed selection write discards partial output')
+  assertEqual(fs.statSync(failed.doneFile).size, 0, 'failure receipt is empty')
+  ctx.openDmenu(b)
+  assertEqual(ctx.cancelRequest(JSON.stringify({doneFile: b.doneFile})), 'ok', 'current caller can cancel its own request')
+  assert(!ctx.opened && !ctx.requestActive, 'request-specific cancellation closes its own menu')
+  fs.rmSync(dir, {recursive: true})
+  for (const argv of writers) cp.spawnSync(argv[0], argv.slice(1))
+  assert(!fs.existsSync(dir), 'late receipts do not recreate a cleaned request directory')
+} finally {
+  fs.rmSync(dir, {recursive: true, force: true})
+}
+JS
+
 run_node_test <<'JS'
 const fs = require('fs')
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
