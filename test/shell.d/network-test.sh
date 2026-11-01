@@ -8,7 +8,6 @@ run_node_test <<'JS'
 const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
-const hotspotSource = fs.readFileSync(root + '/bin/omarchy-hotspot', 'utf8')
 
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
@@ -249,8 +248,6 @@ assert(/only when this computer's connection is metered/.test(network.hotspotSav
 assert(!/next start/.test(network.hotspotSaveDataTooltip('always', true, 'always')), 'network does not defer the choice the running hotspot already uses')
 assert(/\(from the next start\)$/.test(network.hotspotSaveDataTooltip('never', true, 'always')), 'network says a new choice waits for the next start while on air')
 assert(!/next start/.test(network.hotspotSaveDataTooltip('never', false, 'always')), 'network does not defer a choice while the hotspot is off')
-assert(/"start", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument, "--save-data=" \+ hotspotSaveData, "--security=" \+ hotspotSecurity\]/.test(panelSource), 'network starts the hotspot with the data and security choices')
-assert(/"apply", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument, "--save-data=" \+ hotspotSaveData, "--security=" \+ hotspotSecurity\]/.test(panelSource), 'network saves the data and security choices with the credentials')
 assertDeepEqual(network.hotspotSecurityChoices, ['wpa2', 'mixed', 'wpa3'], 'network offers wpa2, mixed and wpa3 hotspot security')
 assertEqual(network.hotspotSecurity({ security: 'wpa3' }), 'wpa3', 'network reads the saved hotspot security')
 assertEqual(network.hotspotSecurity({ security: 'wep' }), 'mixed', 'network falls back to mixed for an unknown security')
@@ -267,6 +264,8 @@ assertDeepEqual(
 )
 assertDeepEqual(network.hotspotClients({ clients: 'garbage' }), [], 'network ignores malformed hotspot clients')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }), 'AA:BB:CC · -42 dBm', 'network labels a hotspot client with signal')
+const persianDigits = n => String(n).replace(/[0-9]/g, d => String.fromCharCode(0x06f0 + Number(d)))
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }, persianDigits), 'AA:BB:CC · -۴۲ dBm', 'network writes a hotspot client signal in the language digits')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc' }), 'AA:BB:CC', 'network labels a hotspot client without signal')
 assertEqual(network.hotspotClientLabel({}), '', 'network labels an empty hotspot client')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5', hostname: 'pixel-8' }), 'pixel-8 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network leads a named client with its name')
@@ -346,8 +345,16 @@ if (syncWifiSource) {
 const menuSource = fs.readFileSync(root + '/default/omarchy/omarchy-menu.jsonc', 'utf8')
 const menuNetworkCalls = [...menuSource.matchAll(/shell call omarchy\.network (\w+)/g)].map(m => m[1])
 assert(menuNetworkCalls.length > 0, 'the menu calls the network panel')
+const ipcHandler = panelSource.match(/ShellIpc \{[\s\S]*?target: "omarchy\.network"([\s\S]*?)\n  \}/)
+assert(ipcHandler, 'the network panel has an IPC handler')
 for (const method of menuNetworkCalls) {
-  assert(new RegExp('function ' + method + '\\(\\) \\{ root\\.' + method + '\\(\\) \\}').test(panelSource), 'the network panel answers the menu call ' + method)
+  const wrapper = ipcHandler && ipcHandler[1].match(new RegExp('function ' + method + '\\([^)]*\\) \\{[^\\n]*\\}'))
+  assert(wrapper, 'the network panel answers the menu call ' + method)
+  if (!wrapper) continue
+  const calls = []
+  const root = new Proxy({}, { get: (_, name) => (...args) => calls.push(name) })
+  new Function('root', wrapper[0] + '\nreturn ' + method)(root)()
+  assertEqual(calls.join(','), method, 'the menu call ' + method + ' reaches the panel method of that name')
 }
 
 const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
@@ -355,6 +362,10 @@ assert(updateHotspotSource, 'network accepts a hotspot process result')
 if (updateHotspotSource) {
   let hotspot = {}
   let hotspotLoaded = false
+  let hotspotEdited = false
+  let hotspotMaxClients = ''
+  let hotspotSaveData = ''
+  let hotspotSaveDataOnAir = ''
   let hotspotBands = []
   let hotspotSsid = ''
   let hotspotPassword = ''
@@ -366,8 +377,22 @@ if (updateHotspotSource) {
   function syncWifiNetworks() { syncs++ }
   eval(updateHotspotSource[0])
 
-  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
+  // What the user typed while the first status was still running stays.
+  hotspotEdited = true
+  hotspotSsid = 'Typed Name'
+  hotspotPassword = 'typedpassword'
+  hotspotBand = '2.4'
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
+  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4' && hotspotMaxClients === '', 'a late first status keeps hotspot fields the user already edited')
+  hotspotLoaded = false
+  hotspotEdited = false
+  hotspotSsid = ''
+  hotspotPassword = ''
+  hotspotBand = ''
+
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
   assert(hotspot.ssid === 'Saved Hotspot' && hotspotLoaded && hotspotSsid === 'Saved Hotspot' && hotspotPassword === 'savedpassword' && hotspotBand === '5', 'network loads saved hotspot state only from successful output')
+  assertEqual(hotspotMaxClients, '4', 'network seeds the participant limit from the profile')
   let lastGood = hotspot
   const lastSsid = hotspotSsid
   const lastPassword = hotspotPassword
@@ -383,6 +408,18 @@ if (updateHotspotSource) {
   updateHotspot('  \n', 0, '')
   assert(hotspot === lastGood && hotspotSsid === lastSsid, 'network preserves hotspot state after empty status')
   assertEqual(hotspotStatusError, 'Hotspot status returned no data', 'network reports empty hotspot status')
+
+  // A save while on air changes the profile, not the running AP: the on-air
+  // choice holds until the hotspot goes off and comes back.
+  updateHotspot('active\t0\nsave_data\tnever\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, '', 'network has no on-air data choice while the hotspot is off')
+  updateHotspot('active\t1\nsave_data\tnever\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'never', 'network records the data choice the hotspot came on air with')
+  updateHotspot('active\t1\nsave_data\talways\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'never', 'network keeps the on-air data choice after a save while running')
+  updateHotspot('active\t0\nsave_data\talways\n', 0, '')
+  updateHotspot('active\t1\nsave_data\talways\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'always', 'network takes the saved choice at the next start')
 }
 
 const hotspotActionFailureSource = panelSource.match(/function hotspotActionFailure\(kind, reason\) \{[\s\S]*?\n {2}\}/)
@@ -484,20 +521,53 @@ if (hotspotStatusOnExited) {
   assertEqual(completions[0][3], '', 'network reports stderr captured when the run exited')
 }
 
-assert(/command = \[hotspotCommand, "alias-set", hotspotAliasMac\]/.test(panelSource), 'network saves a client alias by MAC only')
-assert(/command = \[hotspotCommand, "alias-remove", hotspotAliasMac\]/.test(panelSource), 'network removes a client alias by MAC only')
-assert(/hotspotAliasProc\.secret = label/.test(panelSource), 'network sends the alias text over stdin, not argv')
-assert(/onClicked: root\.beginHotspotAlias\(clientRow\.modelData\)/.test(panelSource), 'network opens the alias editor from a client row')
-assert(/hotspotAliasDraft = String\(\(client \|\| \{\}\)\.alias \|\| ""\)/.test(panelSource), 'network seeds the editor with the current alias')
-assert(/id: hotspotAliasProc/.test(panelSource) && /root\.refreshHotspot\(\)/.test(panelSource), 'network refreshes the client list after an alias write')
-assert(/required property var modelData[\s\S]*?HotspotBandPill/.test(panelSource), 'network declares the injected repeater property on the band pills')
-assert(/readonly property string hotspotLimitArgument: hotspotMaxClients === "" \? "unlimited" : hotspotMaxClients/.test(panelSource), 'network always passes an explicit participant limit')
-assert(/hotspotMaxClients = Model\.hotspotMaxClients\(next\)/.test(panelSource), 'network seeds the participant limit from the profile once')
-assert(/"start", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument/.test(panelSource), 'hotspot start applies the chosen participant limit')
-assert(/"apply", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument/.test(panelSource), 'hotspot apply applies the chosen participant limit')
-assert(/component HotspotLimitPill: Button/.test(panelSource), 'network renders the participant limit as a pill')
-assert(/delegate: HotspotSaveDataPill \{\n\s*required property var modelData\n\s*choice: modelData/.test(panelSource), 'network declares the injected repeater property on the save-data pills')
-assert(/delegate: HotspotSecurityPill \{\n\s*required property var modelData\n\s*choice: modelData/.test(panelSource), 'network declares the injected repeater property on the security pills')
-assert(/apply_args\+=\("--save-data=\$save_data"\)/.test(hotspotSource), 'hotspot start forwards the data choice to apply')
-assert(/apply_args\+=\("--security=\$security"\)/.test(hotspotSource), 'hotspot start forwards the security choice to apply')
+// The alias editor: the label rides stdin (the process's secret), only the
+// MAC rides argv, an empty label removes, and a finished write closes the
+// editor and refreshes the client list.
+{
+  const fn = name => panelSource.match(new RegExp('function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n {2}\\}'))[0]
+  const aliasSource = ['beginHotspotAlias', 'saveHotspotAlias', 'removeHotspotAlias'].map(fn).join('\n')
+  const state = {
+    hotspotAliasBusy: false, hotspotAliasMac: '', hotspotAliasDraft: '', hotspotError: '',
+    hotspotCommand: 'omarchy-hotspot', hotspotAliasProc: {}, Commons: englishCommons,
+  }
+  state.Commons = { I18n: { t: key => englishShell[key] || key, formatNumber: String } }
+  const run = code => new Function('state', 'with (state) {\n' + aliasSource + '\n' + code + '\n}')(state)
+  run("beginHotspotAlias({ mac: 'aa:bb:cc:dd:ee:01', alias: 'Bedroom Pixel' })")
+  assert(state.hotspotAliasMac === 'aa:bb:cc:dd:ee:01' && state.hotspotAliasDraft === 'Bedroom Pixel', 'network seeds the alias editor with the current name')
+  state.hotspotAliasDraft = '  Kitchen Tablet '
+  run('saveHotspotAlias()')
+  assertEqual(JSON.stringify(state.hotspotAliasProc.command), JSON.stringify(['omarchy-hotspot', 'alias-set', 'aa:bb:cc:dd:ee:01']), 'network saves a client name by MAC only')
+  assertEqual(state.hotspotAliasProc.secret, 'Kitchen Tablet', 'network sends the client name over stdin')
+  state.hotspotAliasBusy = false
+  state.hotspotAliasDraft = '   '
+  run('saveHotspotAlias()')
+  assertEqual(JSON.stringify(state.hotspotAliasProc.command), JSON.stringify(['omarchy-hotspot', 'alias-remove', 'aa:bb:cc:dd:ee:01']), 'network removes a client name saved empty')
+  assertEqual(state.hotspotAliasProc.secret, '', 'network sends nothing on stdin for a removal')
+
+  const exited = panelSource.match(/id: hotspotAliasProc[\s\S]*?onExited: function\(exitCode\) \{([\s\S]*?)\n {4}\}/)
+  assert(exited, 'network handles a finished client name write')
+  if (exited) {
+    const root = { hotspotAliasBusy: true, hotspotAliasMac: 'aa:bb:cc:dd:ee:01', hotspotAliasDraft: 'x', refreshed: 0, refreshHotspot() { this.refreshed++ } }
+    new Function('root', 'Commons', 'Qt', 'hotspotAliasErr', 'exitCode', exited[1])(root, state.Commons, { callLater: f => f() }, { text: '' }, 0)
+    assert(!root.hotspotAliasBusy && root.hotspotAliasMac === '' && root.refreshed === 1, 'network closes the editor and refreshes the clients after a name is saved')
+  }
+}
+// The panel always names a limit, so unlimited clears a saved range rather
+// than keeping it, and start and save both carry the chosen one.
+const hotspotLimitArgument = panelBinding('hotspotLimitArgument')
+assertEqual(hotspotLimitArgument({ hotspotMaxClients: '' }), 'unlimited', 'network passes unlimited when no limit is chosen')
+assertEqual(hotspotLimitArgument({ hotspotMaxClients: '4' }), '4', 'network passes the chosen participant limit')
+for (const [name, verb] of [['startHotspot', 'start'], ['applyHotspot', 'apply']]) {
+  const source = panelSource.match(new RegExp('function ' + name + '\\(\\) \\{[\\s\\S]*?\\n {2}\\}'))
+  assert(source, 'network has ' + name)
+  if (!source) continue
+  const state = {
+    hotspotBusy: false, hotspotSsid: ' -Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4', hotspotSaveData: 'never', hotspotSecurity: 'wpa3',
+    hotspotCommand: 'omarchy-hotspot', hotspotError: '', hotspotActionKind: '',
+    hotspotActionProc: {}, Model: network, Commons: englishCommons,
+  }
+  new Function('state', 'with (state) {\n' + source[0] + '\n' + name + '()\n}')(state)
+  assertEqual(JSON.stringify(state.hotspotActionProc.command), JSON.stringify(['omarchy-hotspot', verb, '--save-data=never', '--security=wpa3', '--', '-Cafe', '5', '4']), 'hotspot ' + verb + ' passes the chosen participant limit, data and security choices')
+}
 JS

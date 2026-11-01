@@ -208,6 +208,13 @@ Panel {
   // prefill the editable fields once per open; after that the poll must leave
   // them alone so it doesn't fight the user's typing and revert the values.
   property bool hotspotLoaded: false
+  // Set once the user changes a hotspot field, so the saved settings a status
+  // read brings back never overwrite what they have typed since opening.
+  property bool hotspotEdited: false
+  // The save-data choice the running AP started with. Saving a new one
+  // while on air changes the profile, not the AP, so the notice that it waits
+  // for the next start compares against this, not the saved value.
+  property string hotspotSaveDataOnAir: ""
   property bool hotspotRefreshPending: false
   property int hotspotStatusGeneration: 0
   readonly property string hotspotCommand: "omarchy-hotspot"
@@ -404,6 +411,7 @@ Panel {
       refreshHotspot()
       hotspotFocusIndex = 0
       hotspotLoaded = false
+      hotspotEdited = false
       resetHotspotErrors()
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
@@ -1058,16 +1066,20 @@ Panel {
     if (next.ap_capable !== "1" && hotspot.ap_capable === "1") next.ap_capable = "1"
     var wasActive = hotspot.active === "1"
     hotspot = next
+    if (next.active !== "1") hotspotSaveDataOnAir = ""
+    else if (!wasActive || hotspotSaveDataOnAir === "") hotspotSaveDataOnAir = Model.hotspotSaveData(next)
     var bands = Model.hotspotBands(next)
     if (bands.length > 0 && hotspotBands.join(",") !== bands.join(",")) hotspotBands = bands
     if (!hotspotLoaded) {
       hotspotLoaded = true
-      if (next.ssid) hotspotSsid = next.ssid
-      if (next.password) hotspotPassword = next.password
-      hotspotBand = Model.hotspotDefaultBand(next)
-      hotspotSaveData = Model.hotspotSaveData(next)
-      hotspotSecurity = Model.hotspotSecurity(next)
-      hotspotMaxClients = Model.hotspotMaxClients(next)
+      if (!hotspotEdited) {
+        if (next.ssid) hotspotSsid = next.ssid
+        if (next.password) hotspotPassword = next.password
+        hotspotBand = Model.hotspotDefaultBand(next)
+        hotspotSaveData = Model.hotspotSaveData(next)
+        hotspotSecurity = Model.hotspotSecurity(next)
+        hotspotMaxClients = Model.hotspotMaxClients(next)
+      }
     }
     if ((next.active === "1") !== wasActive) syncWifiNetworks()
   }
@@ -1080,7 +1092,8 @@ Panel {
     hotspotBusy = true
     hotspotError = ""
     hotspotActionProc.secret = hotspotPassword
-    hotspotActionProc.command = [hotspotCommand, "start", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData, "--security=" + hotspotSecurity]
+    // Options first, then `--`, so a name starting with a dash stays a name.
+    hotspotActionProc.command = [hotspotCommand, "start", "--save-data=" + hotspotSaveData, "--security=" + hotspotSecurity, "--", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument]
     hotspotActionProc.running = true
   }
 
@@ -1121,7 +1134,7 @@ Panel {
     hotspotBusy = true
     hotspotError = ""
     hotspotActionProc.secret = hotspotPassword
-    hotspotActionProc.command = [hotspotCommand, "apply", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument, "--save-data=" + hotspotSaveData, "--security=" + hotspotSecurity]
+    hotspotActionProc.command = [hotspotCommand, "apply", "--save-data=" + hotspotSaveData, "--security=" + hotspotSecurity, "--", hotspotSsid.trim(), hotspotBand, hotspotLimitArgument]
     hotspotActionProc.running = true
   }
 
@@ -1352,7 +1365,10 @@ Panel {
       waitForEnd: true
       onStreamFinished: {
         var pw = String(text || "").replace(/\s+/g, "").trim()
-        if (pw !== "") root.hotspotPassword = pw
+        if (pw !== "") {
+          root.hotspotEdited = true
+          root.hotspotPassword = pw
+        }
       }
     }
   }
@@ -1523,8 +1539,11 @@ Panel {
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open;
-      // the TextField inside owns input until Esc/Enter/Cancel.
-      blocked: root.passwordSsid !== ""
+      // the TextField inside owns input until Esc/Enter/Cancel. The hotspot
+      // fields own it while focused, or letters like j/k/x and Space would
+      // move the cursor instead of reaching the field.
+      blocked: root.passwordSsid !== "" || hotspotSsidField.activeFocus || hotspotPwField.activeFocus
+        || hotspotAliasField.activeFocus
 
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) {
@@ -2086,16 +2105,19 @@ Panel {
                 var bandNumber = Number(band)
                 if (band !== "" && isFinite(bandNumber)) band = Commons.I18n.formatNumber(bandNumber)
                 var count = root.hotspotClients.length
-                if (count === 0) return Commons.I18n.t("network.hotspotOnAir").arg(root.hotspotSsid).arg(band)
+                // What is on air, from status: the editor's draft is not
+                // broadcast until it is saved.
+                var liveSsid = String(root.hotspot.ssid || "")
+                if (count === 0) return Commons.I18n.t("network.hotspotOnAir").arg(liveSsid).arg(band)
                 var limit = Model.hotspotMaxClients(root.hotspot)
                 if (limit === "") {
                   return Commons.I18n.tn("network.hotspotOnAirClients", count)
-                    .arg(root.hotspotSsid).arg(band).arg(Commons.I18n.formatNumber(count))
+                    .arg(liveSsid).arg(band).arg(Commons.I18n.formatNumber(count))
                 }
                 // A full hotspot always has a limit to be full against.
                 var line = root.hotspotFull ? Commons.I18n.tn("network.hotspotOnAirClientsFull", count)
                   : Commons.I18n.tn("network.hotspotOnAirClientsLimit", count)
-                return line.arg(root.hotspotSsid).arg(band).arg(Commons.I18n.formatNumber(count))
+                return line.arg(liveSsid).arg(band).arg(Commons.I18n.formatNumber(count))
                   .arg(Commons.I18n.formatNumber(Number(limit)))
               }
               return root.hotspotConfigured ? Commons.I18n.t("network.hotspotOff") : Commons.I18n.t("network.hotspotNotConfigured")
@@ -2269,7 +2291,10 @@ Panel {
             horizontalPadding: Style.spacing.controlGap
             verticalPadding: Style.spacing.controlPaddingY
             text: root.hotspotSsid
-            onTextChanged: if (text !== root.hotspotSsid) root.hotspotSsid = text
+            onTextChanged: if (text !== root.hotspotSsid) {
+              root.hotspotEdited = true
+              root.hotspotSsid = text
+            }
           }
 
           // Participant limit. NetworkManager enforces it as the shared DHCP
@@ -2306,7 +2331,10 @@ Panel {
               horizontalPadding: Style.spacing.controlGap
               verticalPadding: Style.spacing.controlPaddingY
               text: root.hotspotPassword
-              onTextChanged: if (text !== root.hotspotPassword) root.hotspotPassword = text
+              onTextChanged: if (text !== root.hotspotPassword) {
+                root.hotspotEdited = true
+                root.hotspotPassword = text
+              }
             }
 
             Button {
@@ -2501,7 +2529,7 @@ Panel {
             required property var modelData
             textFormat: Text.PlainText
             width: parent.width
-            text: (root.hotspotAliasMac === String(modelData.mac || "") ? "\u270e " : "") + Model.hotspotClientLabel(modelData)
+            text: (root.hotspotAliasMac === String(modelData.mac || "") ? "\u270e " : "") + Model.hotspotClientLabel(modelData, Commons.I18n.formatNumber)
             color: Qt.darker(root.bar.foreground, 1.35)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
@@ -2642,7 +2670,10 @@ Panel {
     active: root.hotspotActive && Model.hotspotMaxClients(root.hotspot) === limit
     selected: root.hotspotMaxClients === limit
 
-    onClicked: root.hotspotMaxClients = limit
+    onClicked: {
+      root.hotspotEdited = true
+      root.hotspotMaxClients = limit
+    }
   }
 
   component HotspotBandPill: Button {
@@ -2661,7 +2692,10 @@ Panel {
     active: root.hotspotActive && root.hotspot.band === band
     selected: root.hotspotBand === band
 
-    onClicked: root.hotspotBand = band
+    onClicked: {
+      root.hotspotEdited = true
+      root.hotspotBand = band
+    }
   }
 
   // One save-data choice. `selected` is what the next apply or start writes;
@@ -2670,7 +2704,7 @@ Panel {
     required property string choice
 
     text: Model.hotspotSaveDataLabel(choice, Commons.I18n.t)
-    tooltipText: Model.hotspotSaveDataTooltip(choice, root.hotspotActive, Model.hotspotSaveData(root.hotspot), Commons.I18n.t)
+    tooltipText: Model.hotspotSaveDataTooltip(choice, root.hotspotActive, root.hotspotSaveDataOnAir, Commons.I18n.t)
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily
@@ -2682,7 +2716,10 @@ Panel {
     selected: root.hotspotSaveData === choice
     enabled: !root.hotspotBusy
 
-    onClicked: root.hotspotSaveData = choice
+    onClicked: {
+      root.hotspotEdited = true
+      root.hotspotSaveData = choice
+    }
   }
 
   // One security choice, with the same selected/active split as save-data.

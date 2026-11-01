@@ -12,7 +12,7 @@ If you actually need the password itself, `omarchy network password <interface>`
 
 ## Hosting a hotspot
 
-You can turn this machine into a Wi-Fi access point that other devices join and route through your internet. Open the network panel (_Super + Ctrl + W_), scroll to the **HOTSPOT** section, and flip the switch. The first time it asks for your permission once — through the system password prompt — to open the firewall rules a shared connection needs.
+You can turn this machine into a Wi-Fi access point that other devices join and route through your internet. Open the network panel (`Super + Ctrl + N`), scroll to the **HOTSPOT** section, and flip the switch. The first time it asks for your permission once — through the system password prompt — to open the firewall rules a shared connection needs.
 
 Give the hotspot a name and a password by pressing the gear next to the toggle. The checkmark saves them without starting, the eye reveals the password, and the dice rolls you a random one. Credentials live in NetworkManager, not in a config file. Most adapters serve a single band and get no choice; when yours can do several, a band row appears next to the toggle.
 

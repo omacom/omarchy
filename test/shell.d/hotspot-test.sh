@@ -340,6 +340,7 @@ extract_hotspot_function() {
 extract_hotspot_function profile_shared_address
 extract_hotspot_function shared_base
 extract_hotspot_function profile_max_clients
+extract_hotspot_function shared_gateway_host
 extract_hotspot_function dhcp_range_for
 cat >"$TEST_TMP/limit-drivers.sh" <<'DRIVER'
 PROFILE=omarchy-hotspot
@@ -352,6 +353,7 @@ nm_get() { printf '%s\n' "${PROPERTY_VALUES[$1]:-}"; }
 source "$TEST_TMP/profile_shared_address.sh"
 source "$TEST_TMP/shared_base.sh"
 source "$TEST_TMP/profile_max_clients.sh"
+source "$TEST_TMP/shared_gateway_host.sh"
 source "$TEST_TMP/dhcp_range_for.sh"
 [[ $(shared_base) == "10.42.0" ]] || fail "shared_base keeps the profile subnet"
 [[ $(dhcp_range_for 4) == "10.42.0.2,10.42.0.5" ]] || fail "a four-device limit hands out four leases"
@@ -372,6 +374,16 @@ PROPERTY_VALUES[ipv4.shared-dhcp-range]="nonsense"
 [[ -z $(profile_max_clients) ]] || fail "an unparseable range reads back as unlimited"
 PROPERTY_VALUES[ipv4.shared-dhcp-range]=""
 [[ -z $(profile_max_clients) ]] || fail "an absent range reads back as unlimited"
+
+# A kept address that is not .1 never ends up inside its own lease range.
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.2/24"
+[[ $(dhcp_range_for 1) == "10.42.0.3,10.42.0.3" ]] || fail "leases follow a .2 gateway rather than include it"
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.254/24"
+[[ $(dhcp_range_for 4) == "10.42.0.250,10.42.0.253" ]] || fail "leases sit below a gateway at the top of the subnet"
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.100/24"
+if (dhcp_range_for 200) >/dev/null 2>&1; then
+  fail "a limit that cannot fit beside the gateway is refused"
+fi
 
 PROPERTY_VALUES[ipv4.addresses]="10.42.0.1/16"
 if (shared_base) >/dev/null 2>&1; then
@@ -405,6 +417,10 @@ if [[ ${1:-} == "phy" ]]; then
     phy1) printf '%s\n' 'Wiphy phy1' '  Band 3:' '    * AP' ;;
     *) exit 1 ;;
   esac
+  exit 0
+fi
+exit 1
+STUB
 chmod +x "$STUB_BIN/iw"
 : >"$NMCLI_LOG"
 SHARED_RANGE=10.42.0.2,10.42.0.5 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
@@ -413,10 +429,7 @@ limit_status=$(awk -F'\t' '$1 == "max_clients" { print $2 }' "$TEST_TMP/limit-st
 [[ $limit_status == "4" ]] || fail "status reports the profile participant limit" "$limit_status"
 [[ -z $(<"$TEST_TMP/limit-status.err") ]] || fail "limit status keeps stderr empty" "$(<"$TEST_TMP/limit-status.err")"
 pass "status reports the participant limit from the profile"
-  exit 0
-fi
-exit 1
-STUB
+
 # Client names come from the neighbour table and the system resolver, both of
 # which an unprivileged status poll can read, unlike dnsmasq's lease file.
 cat >"$STUB_BIN/iw" <<'STUB'
@@ -450,11 +463,10 @@ if [[ ${1:-} == "-j" && ${2:-} == "addr" ]]; then
   printf '%s\n' '[{"addr_info":[{"family":"inet","local":"10.42.0.1"}]}]'
   exit 0
 fi
-if [[ ${1:-} == "neigh" ]]; then
-  printf '%s\n' \
-    '10.42.0.5 dev wlan0 lladdr aa:bb:cc:dd:ee:01 REACHABLE' \
-    '10.42.0.6 dev wlan0 lladdr aa:bb:cc:dd:ee:02 STALE' \
-    'fe80::1 dev wlan0 lladdr aa:bb:cc:dd:ee:03 REACHABLE'
+# As `ip -j neigh show dev wlan0` prints it: filtering by device drops the
+# dev field from every entry.
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01","state":["REACHABLE"]},{"dst":"10.42.0.6","lladdr":"AA:BB:CC:DD:EE:02","state":["STALE"]},{"dst":"fe80::1","lladdr":"aa:bb:cc:dd:ee:03","state":["REACHABLE"]}]'
   exit 0
 fi
 exit 2
@@ -462,8 +474,8 @@ STUB
 cat >"$STUB_BIN/getent" <<'STUB'
 #!/bin/bash
 case "${1:-}:${2:-}" in
-  hosts:10.42.0.5) printf '%s\n' 'pixel-8.lan 10.42.0.5' ;;
-  hosts:10.42.0.6) printf '%s\n' 'bad;name.lan 10.42.0.6' ;;
+  hosts:10.42.0.5) printf '%s\n' '10.42.0.5       pixel-8.lan pixel-8' ;;
+  hosts:10.42.0.6) printf '%s\n' '10.42.0.6       bad;name.lan' ;;
   *) exit 2 ;;
 esac
 STUB
@@ -494,11 +506,8 @@ pass "status names clients from the neighbour table and the system resolver"
 # A hostile neighbour table must not widen the status contract.
 cat >"$STUB_BIN/ip" <<'STUB'
 #!/bin/bash
-if [[ ${1:-} == "neigh" ]]; then
-  printf '%s\n' \
-    '10.42.0.5 dev wlan0 lladdr aa:bb:cc:dd:ee:01 REACHABLE' \
-    'not-an-address dev wlan0 lladdr aa:bb:cc:dd:ee:02 STALE' \
-    '10.42.0.9 dev wlan0 lladdr aa:bb:cc:dd:ee:09 REACHABLE'
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01"},{"dst":"not-an-address","lladdr":"aa:bb:cc:dd:ee:02"},{"dst":"10.42.0.9","lladdr":"aa:bb:cc:dd:ee:09"},{"dst":["10.42.0.7"],"lladdr":"aa:bb:cc:dd:ee:02"}]'
   exit 0
 fi
 exit 2
@@ -506,8 +515,8 @@ STUB
 cat >"$STUB_BIN/getent" <<'STUB'
 #!/bin/bash
 case "${2:-}" in
-  10.42.0.5) printf '%s\n' "$(printf 'a\tb\nc') 10.42.0.5" ;;
-  10.42.0.9) printf '%s\n' 'has spaces 10.42.0.9' ;;
+  10.42.0.5) printf '%s\n' "10.42.0.5 $(printf 'a;b\nc')" ;;
+  10.42.0.9) printf '%s\n' '10.42.0.9 has spaces' ;;
   *) exit 2 ;;
 esac
 STUB
@@ -578,12 +587,72 @@ printf '%s' "$alias_clients" | jq -e 'all(.[]; (.alias | type) == "string")' >/d
   fail "a malformed alias record cannot change the client shape" "$alias_clients"
 pass "a hand-edited alias store cannot widen the status contract"
 
+# Client names stay off argv, which any user can read through /proc: jq gets
+# them on stdin or from a descriptor, never as an argument.
+JQ_SPY_BIN="$TEST_TMP/jq-spy"
+mkdir -p "$JQ_SPY_BIN"
+real_jq=$(command -v jq)
+cat >"$JQ_SPY_BIN/jq" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >>"$TEST_TMP/jq-argv"
+exec "$real_jq" "\$@"
+STUB
+chmod +x "$JQ_SPY_BIN/jq"
+: >"$TEST_TMP/jq-argv"
+HOTSPOT_ACTIVE=1 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$JQ_SPY_BIN:$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/spy-status.out" 2>/dev/null
+[[ $(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/spy-status.out" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .alias') == "Kitchen Tablet" ]] ||
+  fail "a client name still reaches status through stdin"
+[[ -s $TEST_TMP/jq-argv ]] || fail "the jq spy saw the status run"
+! grep -q "Kitchen Tablet" "$TEST_TMP/jq-argv" || fail "a client name never rides jq's arguments" "$(<"$TEST_TMP/jq-argv")"
+pass "client names never reach process arguments"
+
+# A store that cannot be read is left alone rather than rewritten from nothing.
+if (( $(id -u) != 0 )); then
+  cp "$alias_store" "$TEST_TMP/alias-before"
+  chmod 000 "$alias_store"
+  set +e
+  XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:07 <<<"New Name" >/dev/null 2>&1
+  unreadable_status=$?
+  set -e
+  chmod 600 "$alias_store"
+  (( unreadable_status != 0 )) || fail "saving into an unreadable alias store fails"
+  cmp -s "$alias_store" "$TEST_TMP/alias-before" || fail "an unreadable alias store keeps every name" "$(<"$alias_store")"
+fi
+pass "an unreadable alias store is never rewritten"
+
+# Overlapping saves take turns, so none of them is lost.
+CONCURRENT_ROOT="$TEST_TMP/concurrent-state"
+mkdir -p "$CONCURRENT_ROOT"
+for i in $(seq 10 29); do
+  XDG_STATE_HOME="$CONCURRENT_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-hotspot" alias-set "aa:bb:cc:dd:ee:$i" <<<"Device $i" &
+done
+wait
+concurrent_store="$CONCURRENT_ROOT/omarchy/hotspot-aliases.tsv"
+[[ $(wc -l <"$concurrent_store") == 20 ]] || fail "overlapping alias saves keep every name" "$(wc -l <"$concurrent_store") of 20"
+pass "overlapping alias saves keep every name"
+
 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
   bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
 [[ -z $(cut -f1 <"$alias_store" | grep -F 'aa:bb:cc:dd:ee:01' || true) ]] || fail "a removed alias is gone" "$(<"$alias_store")"
 XDG_STATE_HOME="$TEST_TMP/absent-state" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
   bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
 pass "removing an alias works and is a no-op when there is no store"
+
+# A limit apply refuses must not have changed the profile on the way.
+touch "$PROFILE_STATE"
+: >"$NMCLI_LOG"
+set +e
+printf '%s\n' newpassword | PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" apply NewName 2.4 0 >/dev/null 2>"$TEST_TMP/rejected-limit.err"
+rejected_limit_status=$?
+set -e
+(( rejected_limit_status != 0 )) || fail "apply refuses a zero participant limit"
+grep -q "participant limit" "$TEST_TMP/rejected-limit.err" || fail "a refused limit says why" "$(<"$TEST_TMP/rejected-limit.err")"
+! grep -Eq '^connection (modify|add|edit)' "$NMCLI_LOG" || fail "a refused limit leaves the profile untouched" "$(<"$NMCLI_LOG")"
+pass "a refused participant limit changes nothing"
 
 # Connected clients must survive the status protocol: one key per line, so the
 # clients JSON has to stay on its own line all the way into the panel model.
