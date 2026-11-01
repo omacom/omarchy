@@ -300,12 +300,12 @@ Item {
     return true
   }
 
-  function startKeyboard() {
+  function startKeyboard(key) {
     var order = keyboardOrder()
     if (!order.length) return false
     keyboardMode = true
     keyboardRejected = ({})
-    selectCard(order[0])
+    selectCard(order.indexOf(key) >= 0 ? key : order[0])
     keyboardIdle.restart()
     return true
   }
@@ -853,6 +853,36 @@ Item {
     return true
   }
 
+  // The newest card, by what it offers, its click counting as one: with
+  // nothing it is dismissed, with one thing that is done, and with more it
+  // takes the keyboard so you can pick.
+  function actOnNewest() {
+    var key = newestLive()
+    if (!key) return false
+    var deeds = deedsFor(key).length
+    var click = clickable(key)
+    if (deeds + (click ? 1 : 0) > 1) startKeyboard(key)
+    else if (click) activate(key, true)
+    else if (deeds) runDeed(key, 0)
+    else closeToast(key, "dismissed", true)
+    return true
+  }
+
+  // Whether a click does something of the card's own: Omarchy's --exec
+  // command, the sender's default action, the sender's own window, or a site
+  // to go to. Focusing an app by its name alone does not count.
+  function clickable(key) {
+    var at = rowIndexFor(key)
+    if (at < 0) return false
+    var row = toasts.get(at)
+    if (Security.parseExecArgv(row.execArgv)) return true
+    var ref = refs[key]
+    var actions = (ref && ref.actions) || []
+    for (var i = 0; i < Math.min(actions.length, Security.MAX_ACTIONS); i++)
+      if (String(actions[i].identifier) === "default") return true
+    return !!(windowForPid(row.senderPid) || Markup.hostname(row.source) || String(row.link || ""))
+  }
+
   // What the sender said can be done with this notification. A restored row
   // has no live sender, so it has none of these.
   function actionsOf(key, revision) {
@@ -1011,10 +1041,16 @@ Item {
     // labels and native classes, never shorter than four characters.
     var slug = name.replace(/[^a-z0-9]+/g, "")
     if (slug.length < 4) return null
+    // Several words also match a class ending in them: "Telegram Desktop" is
+    // org.telegram.desktop, "Brave Browser" brave-browser.
+    var words = name.split(/[^a-z0-9]+/).filter(function(w) { return w })
+    var tail = words.length > 1 ? "." + words.join(".") : ""
     found = []
     for (i = 0; i < windows.length; i++) {
       var lower = windows[i].wmClass.toLowerCase()
       if (lower === slug) { found.push(windows[i]); continue }
+      var dotted = "." + lower.replace(/[^a-z0-9]+/g, ".")
+      if (tail && dotted.slice(-tail.length) === tail) { found.push(windows[i]); continue }
       if (lower.indexOf("chrome-") !== 0) continue
       var labels = lower.substring(7).split("__")[0].split(".")
       for (var l = 0; l < labels.length; l++)
@@ -1141,6 +1177,14 @@ Item {
   property var unsaved: ({})
 
   function storePut(row) {
+    // The transient hint asks to by-pass persistence: such a card is not
+    // restored after a restart or kept in history, and its sender sends it
+    // again when it still applies. An update that turns a card transient takes
+    // its stored row out.
+    if (row.transient) {
+      storeDrop(row.key)
+      return
+    }
     liveEntries = Store.putLive(liveEntries, Store.persistable(row))
     saveSoon("live")
   }
@@ -1368,8 +1412,12 @@ Item {
       return isDnd()
     }
 
-    // Dismiss the newest card on screen. These three are what the keybindings
-    // run, and a keypress is answered at once, without motion.
+    // Dismiss, press the one button on, or focus the newest card on screen.
+    // These are what the keybindings run, and a keypress is answered at once,
+    // without motion.
+    function act(): string { return service.actOnNewest() ? "ok" : "none" }
+
+    // Dismiss the newest card on screen.
     function dismissOne(): string { return service.dismissNewest(true) ? "ok" : "none" }
 
     // Every card, every stack.

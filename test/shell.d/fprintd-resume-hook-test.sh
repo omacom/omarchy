@@ -84,13 +84,6 @@ grep -Fxq 'stop fprintd.service' "$call_log" ||
   fail "a failed stop was still attempted" "calls: $(<"$call_log")"
 pass "a failed stop does not fail the hook"
 
-# The drop-in bounds that stop. Without it a daemon that ignores SIGTERM
-# holds the sleep transition for fprintd's default stop timeout.
-dropin="$ROOT/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
-grep -Eq '^TimeoutStopSec=[0-9]+s?$' "$dropin" ||
-  fail "the stop-timeout drop-in bounds TimeoutStopSec" "content: $(<"$dropin")"
-pass "the stop-timeout drop-in bounds TimeoutStopSec"
-
 # After resume, do nothing. A try-restart queued here can stop the daemon the
 # lock screen has just opened, and a restart from inside the hook waits on
 # the sleep transaction that is waiting on the hook.

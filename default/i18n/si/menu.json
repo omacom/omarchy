@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "තැටි වේග පරීක්ෂණය"
   },
-  "setup.monitors": {
-    "label": "මොනිටර"
-  },
   "setup.keybindings": {
     "label": "යතුරු බන්ධන"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "කර්නලය"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

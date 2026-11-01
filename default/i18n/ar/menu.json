@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "اختبار سرعة القرص"
   },
-  "setup.monitors": {
-    "label": "الشاشات"
-  },
   "setup.keybindings": {
     "label": "اختصارات المفاتيح"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "النواة"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }
