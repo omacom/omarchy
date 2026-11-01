@@ -47,7 +47,7 @@ if (( snapshot_exists )); then
   # too, in a deterministic order.
   while IFS= read -r name; do
     [[ -n $name ]] || continue
-    if [[ ${new_hashes[$name]:-} != "${old_hashes[$name]:-}" ]]; then
+    if [[ ${new_hashes[$name]:-} != ${old_hashes[$name]:-} ]]; then
       changed+=("${name%.lua}")
     fi
   done < <(printf '%s\n' "${!old_hashes[@]}" "${!new_hashes[@]}" | sort -u)
