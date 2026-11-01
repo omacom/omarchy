@@ -59,6 +59,15 @@ shell_ipc_socket() {
   printf '%s/omarchy-shell-%s.sock\n' "${XDG_RUNTIME_DIR:-/run/user/$UID}" "${id:0:16}"
 }
 
+# Quickshell exits on SIGTERM without reaping its children, so a test starts it
+# under setsid and stops the whole group, or its inotifywait outlives the test.
+stop_process_group() {
+  local pid="$1"
+
+  kill -- "-$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
+
 require_command() {
   local command="$1"
 
@@ -131,10 +140,7 @@ QML_FIXTURE_PID=""
 QML_FIXTURE_LOG=""
 
 qml_fixture_cleanup() {
-  if [[ -n $QML_FIXTURE_PID ]] && kill -0 "$QML_FIXTURE_PID" 2>/dev/null; then
-    kill "$QML_FIXTURE_PID" 2>/dev/null || true
-    wait "$QML_FIXTURE_PID" 2>/dev/null || true
-  fi
+  [[ -n $QML_FIXTURE_PID ]] && stop_process_group "$QML_FIXTURE_PID"
   QML_FIXTURE_PID=""
   [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]] && rm -rf "$QML_FIXTURE_TMP"
   return 0
@@ -164,10 +170,7 @@ run_qml_fixture() {
 
   qml_fixture_scratch
   # A second fixture in the same file must not read the first one's result.
-  if [[ -n $QML_FIXTURE_PID ]] && kill -0 "$QML_FIXTURE_PID" 2>/dev/null; then
-    kill "$QML_FIXTURE_PID" 2>/dev/null || true
-    wait "$QML_FIXTURE_PID" 2>/dev/null || true
-  fi
+  [[ -n $QML_FIXTURE_PID ]] && stop_process_group "$QML_FIXTURE_PID"
   config_dir="$QML_FIXTURE_TMP/$fixture"
   result="$QML_FIXTURE_TMP/result.json"
   QML_FIXTURE_LOG="$QML_FIXTURE_TMP/quickshell.log"
@@ -187,7 +190,7 @@ run_qml_fixture() {
   QML2_IMPORT_PATH="$ROOT/shell${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}" \
   QML_IMPORT_PATH="$ROOT/shell${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
   PATH="$QML_FIXTURE_TMP/bin:$ROOT/bin:$PATH" \
-    quickshell -p "$config_dir" --no-color >"$QML_FIXTURE_LOG" 2>&1 &
+    setsid quickshell -p "$config_dir" --no-color >"$QML_FIXTURE_LOG" 2>&1 &
   QML_FIXTURE_PID=$!
 
   for _ in {1..150}; do
