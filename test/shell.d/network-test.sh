@@ -356,6 +356,8 @@ if (updateHotspotSource) {
   let hotspotLoaded = false
   let hotspotEdited = false
   let hotspotMaxClients = ''
+  let hotspotSaveData = ''
+  let hotspotSaveDataOnAir = ''
   let hotspotBands = []
   let hotspotSsid = ''
   let hotspotPassword = ''
@@ -398,6 +400,18 @@ if (updateHotspotSource) {
   updateHotspot('  \n', 0, '')
   assert(hotspot === lastGood && hotspotSsid === lastSsid, 'network preserves hotspot state after empty status')
   assertEqual(hotspotStatusError, 'Hotspot status returned no data', 'network reports empty hotspot status')
+
+  // A save while on air changes the profile, not the running AP: the on-air
+  // choice holds until the hotspot goes off and comes back.
+  updateHotspot('active\t0\nsave_data\tnever\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, '', 'network has no on-air data choice while the hotspot is off')
+  updateHotspot('active\t1\nsave_data\tnever\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'never', 'network records the data choice the hotspot came on air with')
+  updateHotspot('active\t1\nsave_data\talways\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'never', 'network keeps the on-air data choice after a save while running')
+  updateHotspot('active\t0\nsave_data\talways\n', 0, '')
+  updateHotspot('active\t1\nsave_data\talways\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'always', 'network takes the saved choice at the next start')
 }
 
 const hotspotActionFailureSource = panelSource.match(/function hotspotActionFailure\(kind, reason\) \{[\s\S]*?\n {2}\}/)
