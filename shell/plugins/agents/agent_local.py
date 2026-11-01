@@ -1436,6 +1436,38 @@ def top_memory_users(count=3):
   return ", ".join(users)
 
 
+def evict_idle_weights(keep=()):
+  """Drop the page cache of weights no running model needs.
+
+  A model that just stopped leaves its weights in the page cache. The kernel
+  would reclaim them on demand, but only page by page, so a runtime pinning
+  tens of GiB in large contiguous blocks (halogen's KV pool) stalls on memory
+  that is free in total but fragmented. POSIX_FADV_DONTNEED on files we own
+  frees those pages at once, unprivileged, and the freed runs coalesce: on a
+  128 GB Strix Halo, reading a 29 GiB model left 165 free 2 MiB blocks and
+  evicting it brought back 5,301. Weights of `keep` recipes and of models
+  still running are left alone; their runtimes may be reading them."""
+  keep = set(keep) | running_models()
+  wanted = set()
+  for rid in keep:
+    manifest = load_model(rid)
+    if manifest:
+      wanted.update(blob_path(record) for record in manifest["files"])
+  for directory, _, names in os.walk(os.path.join(data_dir(), "blobs")):
+    for name in names:
+      path = os.path.join(directory, name)
+      if path in wanted:
+        continue
+      try:
+        fd = os.open(path, os.O_RDONLY)
+      except OSError:
+        continue
+      try:
+        os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+      finally:
+        os.close(fd)
+
+
 def check_headroom(variant, gpu):
   for _ in range(15):
     available, gpu_free = free_memory(gpu)
@@ -1587,6 +1619,7 @@ def activate(manifest, recipe, runtime, gpu, key):
     write_status({rid: "deactivating"})
     systemctl("stop", unit_name(rid))
   try:
+    evict_idle_weights(keep=[rid])
     before_ram, before_gpu = check_headroom(manifest["variant"], gpu)
     write_unit_files(rid, container_text)
     systemctl("reset-failed", unit_name(rid))
@@ -1890,6 +1923,9 @@ def cmd_stop(argv):
   write_status({rid: "deactivating" for rid in targets})
   for rid in targets:
     systemctl("stop", unit_name(rid))
+  # Give the memory back whole, not as cached weights the next model has to
+  # fight the kernel for.
+  evict_idle_weights()
   write_status()
   say(f"Stopped {', '.join(targets)}")
   return 0
@@ -1908,8 +1944,14 @@ def cmd_start(argv):
     say(f"{rid} is already running at {endpoint(rid)}")
     return 0
   gpu = choose_gpu(machine_profile(), manifest["gpu"])
-  check_headroom(manifest["variant"], gpu)
+  # Shown as loading from the click on; the memory checks below take seconds.
   write_status({rid: "activating"})
+  evict_idle_weights(keep=[rid])
+  try:
+    check_headroom(manifest["variant"], gpu)
+  except LocalError:
+    write_status()
+    raise
   systemctl("reset-failed", unit_name(rid))
   result = systemctl("start", unit_name(rid))
   write_atomic(os.path.join(state_dir(), "last"), rid + "\n")
