@@ -5,12 +5,29 @@
 
 set -e
 
-omarchy-pkg-drop t3code-bin
+# Installs from before the AppImage came from these packages.
+omarchy-pkg-drop t3code-bin t3code-nightly-bin
+
+# A `t3` link to one of T3 Code's launchers would only dangle once it is gone.
+case $(readlink "$HOME/.local/bin/t3" || true) in
+"$HOME/.t3/bin/t3" | /usr/bin/t3 | /usr/bin/t3-nightly) rm -f "$HOME/.local/bin/t3" ;;
+esac
+
+# The app registers its own hidden link handler next to Omarchy's launcher.
+rm -f \
+  "$HOME/.local/share/applications/t3code.desktop" \
+  "$HOME/.local/share/applications/com.t3tools.T3Code.desktop" \
+  "$HOME/.local/share/icons/com.t3tools.T3Code.desktop.png" \
+  "$HOME"/.local/share/icons/hicolor/*/apps/t3code.png
+update-desktop-database "$HOME/.local/share/applications" &>/dev/null || true
 
 # T3 Code drives agents that keep their own state -- ~/.claude.json, ~/.grok,
 # ~/.local/share/opencode -- and those outlive it, so only its own goes.
 rm -rf \
+  "$HOME/.local/share/t3code" \
+  "$HOME/.cache/t3code-updater" \
   "$HOME/.config/t3code" \
+  "$HOME/.config/t3code-v2" \
   "$HOME/.t3"
 rm -f "$HOME/.config/t3code-flags.conf"
 

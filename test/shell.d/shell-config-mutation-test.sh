@@ -35,7 +35,7 @@ const bar = {
   widgetMemo: {}
 }
 vm.createContext(bar)
-for (const name of ['setBarPosition', 'landBarDrag']) {
+for (const name of ['setBarPosition', 'landBarDrag', 'writeLayout']) {
   vm.runInContext(barSource.match(new RegExp('  function ' + name + '\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}'))[0], bar)
 }
 assertEqual(bar.setBarPosition('bottom'), false, 'bar position returns persistence failure')

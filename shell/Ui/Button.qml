@@ -106,8 +106,10 @@ BorderSurface {
     Border.left(_selectedBorderSpec),
     bordered ? Border.left(_normalBorderSpec) : 0)
   readonly property real _reservedContentLeftInset: _reservedBorderLeft + leftPadding
-  readonly property real _iconRoom: iconGlyph.visible ? iconGlyph.implicitWidth + (label.visible ? row.spacing : 0) : 0
-  readonly property real _contentNaturalWidth: _iconRoom + (label.visible ? label.implicitWidth : 0)
+  // Keyed on the text, not the Texts' visible: a hidden button (a width probe)
+  // reports its children invisible too, which would collapse it to padding.
+  readonly property real _iconRoom: root.iconText !== "" ? iconGlyph.implicitWidth + (root.text !== "" ? row.spacing : 0) : 0
+  readonly property real _contentNaturalWidth: _iconRoom + (root.text !== "" ? label.implicitWidth : 0)
   // A translated label can outgrow a button laid out at a fixed width (a
   // grid of equal pills): it first spends half the padding, then shrinks to
   // fit, and elides only when even the smallest size does not.
@@ -135,6 +137,16 @@ BorderSurface {
   borderSpec: _borderSpec
 
   Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+
+  // Held down, the button gives a little, so a click is felt as well as seen.
+  scale: mouseArea.pressed ? 0.97 : 1
+  Behavior on scale {
+    NumberAnimation {
+      duration: Style.duration(160)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
 
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
@@ -182,7 +194,7 @@ BorderSurface {
       RotationAnimation on rotation {
         from: 0
         to: 360
-        duration: 900
+        duration: Style.duration(900)
         loops: Animation.Infinite
         running: root.iconSpinning && !Style.reduceMotion
       }
@@ -208,6 +220,9 @@ BorderSurface {
   MouseArea {
     id: mouseArea
     anchors.fill: parent
+    // Undoes the press scale, so the button only looks smaller: a press near
+    // its edge still counts as a click when it's let go there.
+    scale: 1 / root.scale
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     acceptedButtons: Qt.LeftButton | Qt.RightButton
