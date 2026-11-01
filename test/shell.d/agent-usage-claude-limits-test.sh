@@ -220,13 +220,17 @@ signed_in(expires=1000, refresh_expires=ms_in(30 * 86400))
 record, _ = claude()
 check("Claude collector keeps a refreshable subscription beside an API key", record["usageStatusText"] == "Limits paused" and record["tierLabel"] != "", record)
 
-# A key exported to the CLI counts too, unless its settings' env block empties
-# it, as Claude Code applies that block over the environment.
+# A key exported to the CLI counts too once Claude Code has approved it, unless
+# its settings' env block empties it, as Claude Code applies that block over the
+# environment.
 (home() / ".claude.json").unlink()
 signed_in(expires=1000, refresh_expires=1000)
 os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test"
 record, _ = claude()
-check("Claude collector takes an exported API key", record["usageStatusText"] == "", record)
+check("Claude collector ignores an exported key Claude Code hasn't approved", record["usageStatusText"] == "Sign-in expired", record)
+write_json(home() / ".claude.json", {"customApiKeyResponses": {"approved": ["sk-ant-test"[-20:]], "rejected": []}})
+record, _ = claude()
+check("Claude collector takes an exported API key Claude Code approved", record["usageStatusText"] == "", record)
 write_json(home() / ".claude" / "settings.json", {"env": {"ANTHROPIC_API_KEY": ""}})
 record, _ = claude()
 check("Claude collector ignores an exported key its settings empty", record["usageStatusText"] == "Sign-in expired", record)

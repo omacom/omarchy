@@ -681,7 +681,7 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
 # Console) has no plan limits, and isn't waiting for a sign-in. The key is the
 # CLI's own (primaryApiKey in its profile), supplied by its user settings (an
 # apiKeyHelper, or a key in their env block), or set in the environment it
-# starts with; settings.local.json beside them is a project's, which it doesn't
+# starts with, once approved; settings.local.json beside them is a project's, which it doesn't
 # sign in from. Only whether a key is configured is checked; the key itself is
 # never recorded.
 API_KEY_HELP = "Signed in with an API key, which has no plan limits."
@@ -703,11 +703,11 @@ def api_key_login(claude_dir: Path) -> bool:
   if isinstance(overrides, dict):
     env.update({name: overrides[name] for name in API_KEY_VARIABLES if name in overrides})
   # The CLI asks once whether to use an ANTHROPIC_API_KEY it finds, and keeps a
-  # no as the key's ending in its profile; a key turned down there doesn't count.
+  # yes as the key's ending in its profile; only a key approved there counts.
   responses = profile.get("customApiKeyResponses")
-  rejected = responses.get("rejected") if isinstance(responses, dict) else None
+  approved = responses.get("approved") if isinstance(responses, dict) else None
   key = env.get("ANTHROPIC_API_KEY")
-  if isinstance(key, str) and isinstance(rejected, list) and any(isinstance(end, str) and end and key.endswith(end) for end in rejected):
+  if not (isinstance(key, str) and isinstance(approved, list) and any(isinstance(end, str) and end and key.endswith(end) for end in approved)):
     env["ANTHROPIC_API_KEY"] = None
   return any(env.values())
 
