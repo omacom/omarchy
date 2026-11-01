@@ -24,6 +24,9 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
+    // A shell that started mid-update may never have read the shipped menu
+    // whole; reading it again here keeps the menu from opening empty.
+    if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
 
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
@@ -86,6 +89,8 @@ Item {
   property bool rowsLoaded: false
   property string activeMenu: "root"
   property string filterText: ""
+  // Resets of filterText reach the search line; its edits come back through setFilter.
+  onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
   property bool cursorActive: false
   property int requestSerial: 0
@@ -130,7 +135,7 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -334,6 +339,13 @@ Item {
         return value
       },
       actionFor: function(value) { return "omarchy-powerprofiles-set autodetect " + Util.shellQuote(value) }
+    },
+    // Kernel names are package names, the same in every language.
+    "kernels": {
+      script: "current=$(omarchy-kernel get 2>/dev/null); omarchy-kernel list 2>/dev/null | while read -r k; do [[ -z $k ]] && continue; printf '%s\\t%s\\t%s\\n' \"$k\" \"$k\" \"$current\"; done",
+      icon: "\uf17c",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-kernel set " + Util.shellQuote(value) }
     },
     // Rows carry a fourth field (the English name) so searching "danish"
     // finds the row labeled with its native name; mergeProviderRows turns
@@ -904,7 +916,7 @@ Item {
     root.deleteTarget = null
     deleteConfirm.selectedIndex = 1
     root.disarmPointer()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function confirmDelete() {
@@ -959,7 +971,7 @@ Item {
     // their icons. Refresh here even when the desktop entry list did not change.
     if (root.appLibrary) root.appLibrary.refreshIcons()
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function openDmenu(payload) {
@@ -989,7 +1001,7 @@ Item {
     opened = true
     rebuildDisplay()
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
   ListModel { id: displayModel }
 
@@ -1139,7 +1151,7 @@ Item {
     path: root.defaultMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.defaultMenuItems = root.parseMenuJsonc(text()); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
+    onLoaded: { root.defaultMenuItems = MenuModel.keepMenuRows(root.defaultMenuItems, text(), true); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
     // A user file that loaded first held its evaluation for this one.
     onLoadFailed: { root.defaultMenuSettled = true; if (root.userMenuSettled) root.evaluateGuards() }
     onFileChanged: reload()
@@ -1150,7 +1162,7 @@ Item {
     path: root.userMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.userMenuItems = root.parseMenuJsonc(text()); root.userMenuSettled = true; root.rebuildItemsFromSources() }
+    onLoaded: { root.userMenuItems = MenuModel.keepMenuRows(root.userMenuItems, text(), false); root.userMenuSettled = true; root.rebuildItemsFromSources() }
     onLoadFailed: { root.userMenuItems = []; root.userMenuSettled = true; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
@@ -1309,12 +1321,13 @@ Item {
         id: keyCatcher
         anchors.fill: parent
         z: root.deleteConfirmOpen ? 20 : 0
-        focus: true
 
-        Keys.priority: Keys.BeforeItem
+        // Focus is on filterInput, which forwards every key here first.
         Keys.onPressed: function(event) {
           if (root.deleteConfirmOpen) {
-            if (deleteConfirm.handleKey(event)) event.accepted = true
+            // Swallow the rest too, or it would type into the search line behind the dialog.
+            deleteConfirm.handleKey(event)
+            event.accepted = true
             return
           }
 
@@ -1349,9 +1362,6 @@ Item {
               else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
             else root.settleCursor()
-            event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
-            root.setFilter(root.filterText + event.text)
             event.accepted = true
           }
         }
@@ -1390,14 +1400,28 @@ Item {
           radius: root.cornerRadius
           color: "transparent"
 
-          Text {
-            textFormat: Text.PlainText
+          FilterInput {
+            id: filterInput
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
+            keyHandler: keyCatcher
+            // Input-method commits bypass key handling, so the dialog has to refuse them here.
+            readOnly: root.deleteConfirmOpen
             color: root.foreground
-            opacity: root.filterText ? 1 : 0.58
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
+            onTextChanged: if (text !== root.filterText) root.setFilter(text)
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.fill: filterInput
+            verticalAlignment: Text.AlignVCenter
+            visible: !root.filterText && !filterInput.preeditText
+            text: root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…")
+            color: root.foreground
+            opacity: 0.58
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight

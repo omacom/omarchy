@@ -1,12 +1,12 @@
-# Tēmas
+# Motīvi
 
-Omarchy nāk ar divdesmit divām skaistām tēmām. Tu vari izvēlēties starp tām, izmantojot _Stils > Tēma_ Omarchy izvēlnē (`Super + Space`) vai lekt tieši uz tēmu atlasītāju, izmantojot `Super + Ctrl + Shift + Space`.
+Omarchy komplektā ir divdesmit divi skaisti motīvi. Varat izvēlēties starp tiem Omarchy izvēlnē (`Super + Space`) sadaļā _Izskats > Motīvs_ vai pāriet tieši uz motīvu atlasītāju ar `Super + Ctrl + T`.
 
-Katra tēma veido darbvirsmu, termināli, neovim, aktivitāšu ekrānu (btop), Chromium un visu Omarchy čaulu: augšējo joslu, izvēlni, paziņojumus, OSD un bloķēšanas ekrānu. (Obsidian gadījumā tev pašam jāatlasa Omarchy tēma, izmantojot _Appearance > Themes_ lietotnes iekšpusē).
+Katrs motīvs noformē darbvirsmu, termināli, neovim, aktivitāšu ekrānu (btop), Chromium un visu Omarchy apvalku: augšējo joslu, izvēlni, paziņojumus, OSD un bloķēšanas ekrānu. (Obsidian gadījumā Omarchy motīvs lietotnē jāizvēlas manuāli sadaļā _Izskats > Motīvi_).
 
-Tēmām ir fona attēlu kopa, starp kurām vari izvēlēties, izmantojot `Super + Ctrl + Space`.
+Motīviem ir fona attēlu kopa, no kuras varat izvēlēties ar `Super + Ctrl + W`.
 
-Vēl vairāk tēmu vari atrast [papildu tēmu lapā](https://omarchy.org/themes/) vai pat [izveidot savu tēmu](43-making-your-own-theme.md).
+Vēl vairāk motīvu atradīsiet [papildu motīvu lapā](https://omarchy.org/themes/) vai pat varat [izveidot savu motīvu](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Atbloķēšanas ekrāni
 
-Tēmām var būt arī pielāgots atbloķēšanas dizains, ko izmanto sāknēšanas atšifrēšanas procesā. Tu vari atlasīt vienu no tiem zem _Stils > Atbloķēt_. Tie izskatās šādi:
+Motīviem var būt arī pielāgots atbloķēšanas dizains, ko izmanto sāknēšanas atšifrēšanas procesā. Tādu varat izvēlēties sadaļā _Izskats > Atbloķēšana_. Tie izskatās šādi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

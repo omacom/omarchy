@@ -20,23 +20,28 @@ QtObject {
   readonly property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   readonly property string configHome: Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")
 
-  property string language: "en"
-  property string formatLocale: "en-US"
+  readonly property string language: languageCode(languageFile.text())
+  readonly property var localeSettings: parseCatalog(registryFile.text())[root.language] || ({})
+  readonly property string formatLocale: localeSettings.formatLocale || "en-US"
   // From the registry: how numbers are written and which way text runs.
-  property string decimal: "."
-  property string zeroDigit: "0"
-  property bool rightToLeft: false
+  readonly property string decimal: localeSettings.decimal || "."
+  readonly property string zeroDigit: localeSettings.zeroDigit || "0"
+  readonly property bool rightToLeft: localeSettings.direction === "rtl"
 
-  // Merged English + current-language strings. Reassigned whole on every
-  // catalog load (never mutated in place) so bindings that called t()
-  // re-evaluate when the language changes.
-  property var strings: ({})
-  property var englishStrings: ({})
-  property var languageStrings: ({})
+  // Reading text() makes blockLoading take effect on the first lookup.
+  // These bindings also rebuild the maps when a watched catalog changes.
+  readonly property var englishStrings: parseCatalog(englishCatalogFile.text())
+  readonly property var languageStrings: parseCatalog(languageCatalogFile.text())
+  readonly property var strings: {
+    var merged = ({})
+    for (var k in root.englishStrings) merged[k] = root.englishStrings[k]
+    for (var k2 in root.languageStrings) merged[k2] = root.languageStrings[k2]
+    return merged
+  }
 
   // The optional fallback is what imperative callers (the JS models) pass
-  // as their English text: before the catalogs load, or for a key the
-  // catalogs do not carry, they keep sensible English instead of a raw key.
+  // as their English text: for a key the catalogs do not carry, they keep
+  // sensible English instead of a raw key.
   function t(key, fallback) {
     var value = root.strings[key]
     if (value && typeof value === "object") value = value.other
@@ -69,28 +74,10 @@ QtObject {
     }
   }
 
-  function rebuildStrings() {
-    var merged = ({})
-    for (var k in root.englishStrings) merged[k] = root.englishStrings[k]
-    for (var k2 in root.languageStrings) merged[k2] = root.languageStrings[k2]
-    root.strings = merged
-  }
-
-  function applyRegistry(raw) {
-    var entry = parseCatalog(raw)[root.language] || ({})
-    root.formatLocale = entry.formatLocale || "en-US"
-    root.decimal = entry.decimal || "."
-    root.zeroDigit = entry.zeroDigit || "0"
-    root.rightToLeft = entry.direction === "rtl"
-  }
-
-  function setLanguage(raw) {
+  function languageCode(raw) {
     var code = String(raw || "").trim()
     if (!/^[a-z]{2,3}(-[A-Za-z]{2})?$/.test(code)) code = "en"
-    if (root.language === code) return
-    root.language = code
-    languageCatalogFile.reload()
-    registryFile.reload()
+    return code
   }
 
   // The catalogs are small local files, read synchronously so the first
@@ -102,8 +89,6 @@ QtObject {
     watchChanges: true
     printErrors: false
     blockLoading: true
-    onLoaded: root.setLanguage(text())
-    onLoadFailed: root.setLanguage("")
     onFileChanged: reload()
   }
 
@@ -112,28 +97,22 @@ QtObject {
     watchChanges: true
     printErrors: false
     blockLoading: true
-    onLoaded: { root.englishStrings = root.parseCatalog(text()); root.rebuildStrings() }
     onFileChanged: reload()
   }
 
   property FileView languageCatalogFile: FileView {
-    id: languageCatalogFile
     path: root.omarchyPath + "/default/i18n/" + root.language + "/shell.json"
     watchChanges: true
     printErrors: false
     blockLoading: true
-    onLoaded: { root.languageStrings = root.parseCatalog(text()); root.rebuildStrings() }
-    onLoadFailed: { root.languageStrings = ({}); root.rebuildStrings() }
     onFileChanged: reload()
   }
 
   property FileView registryFile: FileView {
-    id: registryFile
     path: root.omarchyPath + "/default/i18n/locales.json"
     watchChanges: true
     printErrors: false
     blockLoading: true
-    onLoaded: root.applyRegistry(text())
     onFileChanged: reload()
   }
 }

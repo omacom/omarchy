@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy sa zvyčajne ovláda cez klávesové skratky a menu Omarchy (`Super + Space`). Ale môžete ho ovládať aj cez `omarchy` CLI. To je obzvlášť užitočné, keď s vami AI agent pracuje na prispôsobení alebo konfigurácii.
+Omarchy sa zvyčajne ovláda pomocou klávesových skratiek a ponuky Omarchy (`Super + Space`). Môžete ho však ovládať aj cez `omarchy` CLI. To je obzvlášť užitočné, keď s vami na prispôsobení alebo konfigurácii spolupracuje AI agent.
 
-CLI má prístup ku všetkým interným nástrojom, ktoré sa používajú cez menu aj inak. Všetko, čo je k dispozícii, uvidíte spustením `omarchy` v termináli.
+CLI má prístup ku všetkým interným nástrojom, ktoré sa používajú cez ponuku aj inak. Všetko, čo je k dispozícii, si môžete pozrieť spustením príkazu `omarchy` v termináli.
 
-Vyzerá to asi takto:
+Vyzerá to približne takto:
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-A môžete sa ponoriť hlbšie do každej skupiny:
+A do každej skupiny sa môžete ponoriť hlbšie:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Každý príkaz tiež prijíma `--help`, či už sa pýtate celej skupiny (`omarchy capture --help`) alebo jedného príkazu (`omarchy capture screenshot --help`).
+Každý príkaz podporuje aj `--help`, či už sa pýtate na celú skupinu (`omarchy capture --help`) alebo na jeden príkaz (`omarchy capture screenshot --help`).
 
-### Otvorenie menu z terminálu
+### Otvorenie ponuky z terminálu
 
-Menu Omarchy je tiež skriptovateľné, čo je šikovné pre vaše vlastné klávesové väzby. `omarchy menu` ho otvára v koreni a môžete skočiť priamo do ktoréhokoľvek bodu v strome tým, že ho pomenujete: `omarchy menu summon style.theme` ide priamo na výber tém, `omarchy menu toggle system` otvára systémové menu a znova ho zatvorí, ak je už otvorené, a `omarchy menu close` ho odloží.
+Ponuka Omarchy sa dá ovládať aj skriptami, čo sa hodí pre vaše vlastné klávesové skratky. Príkaz `omarchy menu` ju otvorí v koreňovom zobrazení a pomenovaním môžete prejsť rovno na ľubovoľné miesto v strome: `omarchy menu summon appearance.theme` prejde priamo do výberu témy, `omarchy menu toggle system` otvorí systémovú ponuku a znova ju zatvorí, ak už je otvorená, a `omarchy menu close` ju skryje.
