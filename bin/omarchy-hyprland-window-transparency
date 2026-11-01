@@ -44,7 +44,13 @@ fi
 # A theme switch renders the next theme's terminal files from the saved choice
 # and then replaces the current theme, so the choice and the glass written into
 # the current theme are changed under its lock, or the switch could drop them.
-exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+# The lock is where omarchy-theme-set keeps it, private when out of the runtime dir.
+lock_dir="${XDG_RUNTIME_DIR:-$HOME/.local/state/omarchy}"
+mkdir -p "$lock_dir" || exit 1
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$lock_dir" || exit 1
+fi
+exec 9>"$lock_dir/omarchy-theme-set.lock"
 flock 9
 
 # A choice whose glass cannot be written is taken back, so the saved choice
