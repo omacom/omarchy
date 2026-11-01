@@ -395,6 +395,9 @@ Panel {
   // Local AI offers the catalog's recipes that fit this machine and aren't
   // set up yet, recommended first. Each downloads tens of GB, so setting one
   // up runs in a terminal that shows its progress.
+  // Before the omarchy-local-ai package is set up there's nothing to list;
+  // Local AI then sets up the best model, installing the package first.
+  readonly property bool localSetUp: usage.localRecipes !== null && usage.localRecipes !== undefined
   readonly property var localAddRecipes: {
     var models = usage.localModel && usage.localModel.models ? usage.localModel.models : {}
     var recipes = (usage.localRecipes || []).filter(function(recipe) {
@@ -447,7 +450,8 @@ Panel {
 
   function chooseAddProvider(id) {
     if (id === "local") {
-      if (localAddRecipes.length > 0) addStage = "local"
+      if (!localSetUp) setUpLocal({ id: "best" })
+      else if (localAddRecipes.length > 0) addStage = "local"
       return
     }
     var state = addChecks[id] || ""
@@ -1441,7 +1445,7 @@ Panel {
           required property int index
           readonly property string state: root.addChecks[modelData.providerId] || ""
           readonly property bool local: modelData.providerId === "local"
-          readonly property bool available: local ? root.localAddRecipes.length > 0 : state === "first" || state === "additional"
+          readonly property bool available: local ? !root.localSetUp || root.localAddRecipes.length > 0 : state === "first" || state === "additional"
           // Local AI stays offered once everything that fits is installed,
           // greyed out and saying so.
           opacity: local && !available ? 0.4 : 1
