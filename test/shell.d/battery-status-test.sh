@@ -210,6 +210,7 @@ trap 'rm -rf "$tmp_dir" "$hold_dir" "$sysfs_dir"' EXIT
 mkdir -p "$sysfs_dir/bin" "$sysfs_dir/power/BAT0"
 printf '45\n' >"$sysfs_dir/power/BAT0/charge_control_start_threshold"
 printf '65\n' >"$sysfs_dir/power/BAT0/charge_control_end_threshold"
+printf '20000000\n' >"$sysfs_dir/power/BAT0/power_now"
 cat >"$sysfs_dir/bin/upower" <<'STUB'
 #!/bin/bash
 
@@ -222,8 +223,10 @@ if [[ $1 == "-i" ]]; then
   cat <<'INFO'
   native-path:          BAT0
   power supply:         yes
-  state:                discharging
-  percentage:           64%
+  state:                charging
+  energy:               20 Wh
+  energy-full:          50 Wh
+  percentage:           40%
   charge-start-threshold: 75%
   charge-end-threshold:   80%
   charge-threshold-enabled: no
@@ -237,10 +240,13 @@ chmod +x "$sysfs_dir/bin/upower"
 
 sysfs_output=$(OMARCHY_POWER_SUPPLY_PATH="$sysfs_dir/power" PATH="$sysfs_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 grep -Fx $'threshold\t45-65%' <<<"$sysfs_output" >/dev/null || fail "sysfs charge thresholds win over UPower's defaults" "$sysfs_output"
+grep -Fx $'time\t38m' <<<"$sysfs_output" >/dev/null || fail "time to full counts up to the sysfs limit" "$sysfs_output"
 
-# An end-only limit (ASUS) is not paired with UPower's start.
+# An end-only limit (ASUS) is not paired with UPower's or another battery's start.
 rm "$sysfs_dir/power/BAT0/charge_control_start_threshold"
 printf '60\n' >"$sysfs_dir/power/BAT0/charge_control_end_threshold"
+mkdir -p "$sysfs_dir/power/BAT1"
+printf '75\n' >"$sysfs_dir/power/BAT1/charge_control_start_threshold"
 sysfs_output=$(OMARCHY_POWER_SUPPLY_PATH="$sysfs_dir/power" PATH="$sysfs_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 grep -Fx $'threshold\t60%' <<<"$sysfs_output" >/dev/null || fail "an end-only sysfs limit is not paired with UPower's start" "$sysfs_output"
 
