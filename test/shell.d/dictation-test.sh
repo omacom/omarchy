@@ -394,3 +394,27 @@ printf '%s\n' voxtype > "$config"
 omarchy-remove-dictation-hex
 [[ $(cat "$config") == "voxtype" ]] || fail "removing Hex preserves another selected backend"
 pass "Hex installer selects Hex only after setup succeeds, and removal clears only its own selection"
+
+cat > "$test_tmp/bin/omarchy-dictation-slow-backend" <<'SH'
+#!/bin/bash
+if [[ $1 == "start" ]]; then
+  touch "$DICTATION_LOG.starting"
+  sleep 6
+fi
+printf '%s\n' "$1" >> "$DICTATION_LOG"
+SH
+chmod +x "$test_tmp/bin/omarchy-dictation-slow-backend"
+printf '%s\n' slow-backend > "$config"
+: > "$DICTATION_LOG"
+omarchy-dictation start &
+start=$!
+# The stop must arrive while the start holds the lock.
+for ((i = 0; i < 100; i++)); do
+  [[ -e $DICTATION_LOG.starting ]] && break
+  sleep 0.05
+done
+[[ -e $DICTATION_LOG.starting ]] || fail "the slow start did not begin"
+omarchy-dictation stop || fail "a stop waits for a slow start instead of giving up"
+wait "$start" || fail "the slow start succeeds"
+[[ $(cat "$DICTATION_LOG") == $'start\nstop' ]] || fail "a stop runs after the start it waited for"
+pass "push-to-talk stops even when its start is slow"
