@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "ディスク速度テスト"
   },
-  "setup.keybindings": {
-    "label": "キーバインド"
-  },
   "setup.input": {
     "label": "入力"
-  },
-  "setup.typing": {
-    "label": "タイピング"
-  },
-  "setup.typing.keyboard": {
-    "label": "キーボード配列"
-  },
-  "setup.typing.input": {
-    "label": "入力方法"
   },
   "setup.language": {
     "label": "言語"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "キーボード"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "キーバインド"
+  },
+  "setup.keyboard.inputs": {
+    "label": "キーボード入力"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "入力メソッド"
   }
 }
