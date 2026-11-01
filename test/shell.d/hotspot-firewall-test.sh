@@ -1288,3 +1288,26 @@ if (( $(id -u) != 0 )); then
   [[ $(head -n 1 "$PRIVILEGED_LOG") == "pkexec "* ]] || fail "no terminal at all uses pkexec" "$(<"$PRIVILEGED_LOG")"
 fi
 pass "privileged steps prompt with sudo whenever a terminal is attached"
+
+# Every user shares one lock once root has left it in the state directory;
+# before that an unprivileged caller uses its own.
+reset_firewall_fixture
+cat >"$TEST_TMP/shared-lock-driver.sh" <<'DRIVER'
+(( $(id -u) != 0 )) || exit 0
+HOTSPOT_LOCK_FILE=""
+HOTSPOT_STATE_DIR="$TEST_TMP/shared-lock-state"
+XDG_RUNTIME_DIR="$TEST_TMP/runtime"
+mkdir -p "$HOTSPOT_STATE_DIR" "$XDG_RUNTIME_DIR"
+[[ $(hotspot_lock_path) == "$XDG_RUNTIME_DIR/omarchy-hotspot.lock" ]] ||
+  { echo "without a shared lock: $(hotspot_lock_path)" >&2; exit 1; }
+: >"$HOTSPOT_STATE_DIR/lock"
+[[ $(hotspot_lock_path) == "$HOTSPOT_STATE_DIR/lock" ]] ||
+  { echo "with a shared lock: $(hotspot_lock_path)" >&2; exit 1; }
+# A lock in the shared spot that root did not create is refused.
+if (hotspot_lock) 2>"$TEST_TMP/shared-lock-err"; then
+  echo "a user-owned shared lock was accepted" >&2; exit 1
+fi
+grep -q "unsafe hotspot lock" "$TEST_TMP/shared-lock-err" || { cat "$TEST_TMP/shared-lock-err" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/shared-lock-driver.sh"
+pass "hotspot actions share one machine-wide lock once root has created it"
