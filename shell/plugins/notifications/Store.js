@@ -4,6 +4,7 @@
 .import "Security.js" as Security
 .import "Markup.js" as Markup
 .import "Detect.js" as Detect
+.import "Delivery.js" as Delivery
 
 var QSIMAGE = /^image:\/\/qsimage\/[0-9]+\/[0-9]+$/
 
@@ -79,7 +80,9 @@ function applyTo(model, index, row) {
 }
 
 // A restored row has no live sender, and its original timeout has long run
-// out. It gets a short grace instead; critical still waits for you.
+// out. It gets a short grace instead; critical still waits for you — but a
+// browser's counts as normal (Delivery.expiryUrgency), since it only
+// vouches for a web push.
 var RESTORE_GRACE = 20000
 
 // Every field a row can have, with its default. A ListModel fixes its roles
@@ -132,7 +135,7 @@ function restored(entry) {
   var found = Detect.scan(row.summary, row.body)
   row.link = found.link
   row = normalise(row)
-  row.duration = row.urgency === 2 ? 0 : RESTORE_GRACE
+  row.duration = Delivery.expiryUrgency(row, row.urgency) === 2 ? 0 : RESTORE_GRACE
   row.restored = true
   return row
 }
