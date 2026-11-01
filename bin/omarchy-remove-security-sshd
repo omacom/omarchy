@@ -26,7 +26,7 @@ fi
 
 if [[ -s $AUTHORIZED_KEYS ]]; then
   echo
-  if gum confirm "Also remove all authorized SSH keys ($AUTHORIZED_KEYS)?"; then
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n sshd.removeAuthorizedKeys "$AUTHORIZED_KEYS")"; then
     rm -f "$AUTHORIZED_KEYS"
     echo "Authorized keys removed."
   else

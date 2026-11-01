@@ -2,6 +2,7 @@
 Version=1.0
 Name=YouTube
 Exec=omarchy-launch-webapp https://youtube.com/
+StartupWMClass=chrome-youtube.com__-Default
 Terminal=false
 Type=Application
 Icon=youtube
