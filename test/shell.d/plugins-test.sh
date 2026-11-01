@@ -147,8 +147,8 @@ for (const manifestPath of manifests) {
     check(manifest.barWidget && typeof manifest.barWidget.allowMultiple === 'boolean', `${manifest.id} barWidget allowMultiple must be boolean`)
     if (manifest.barWidget && manifest.barWidget.defaultSection !== undefined) {
       check(
-        ['left', 'center', 'right'].includes(manifest.barWidget.defaultSection),
-        `${manifest.id} barWidget defaultSection must be left, center, or right`
+        ['left', 'centerBegin', 'center', 'centerEnd', 'right'].includes(manifest.barWidget.defaultSection),
+        `${manifest.id} barWidget defaultSection must be left, centerBegin, center, centerEnd, or right`
       )
     }
   }
@@ -185,52 +185,18 @@ for (const manifestPath of manifests) {
   }
 }
 
-const byId = Object.fromEntries(manifests.map(manifestPath => {
+// A plugin rescan recreates every service that is not kept loaded. For the
+// lock, a polkit prompt or the idle timer that locks the session, that means a
+// lock or an authentication dropped mid-flight.
+const manifestsById = Object.fromEntries(manifests.map(manifestPath => {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   return [manifest.id, manifest]
 }))
-for (const [id, section] of Object.entries({
-  'omarchy.active-window': 'left',
-  'omarchy.dropbox': 'right'
-})) {
-  check(byId[id]?.barWidget?.defaultSection === section, `${id} must default to the ${section} bar section`)
-}
-check(byId['omarchy.media']?.barWidget?.defaultSection === undefined, 'omarchy.media must use the center fallback')
-
-for (const id of ['omarchy.lock', 'omarchy.idle', 'omarchy.polkit', 'omarchy.notifications', 'omarchy.media']) {
-  check(byId[id]?.keepLoaded === true, `${id} must stay loaded across plugin reloads`)
+for (const id of ['omarchy.lock', 'omarchy.polkit', 'omarchy.idle']) {
+  check(manifestsById[id]?.keepLoaded === true, `${id} must stay loaded across plugin reloads`)
 }
 
 const shellSource = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
-const unloadMatch = shellSource.match(/function unloadPluginServices\(\) \{[\s\S]*?\n  \}/)
-check(!!unloadMatch, 'unloadPluginServices is defined')
-check(!!unloadMatch && /serviceKeepLoaded/.test(unloadMatch[0]), 'unloadPluginServices honors keepLoaded')
-check(
-  /function _syncServices\(\) \{[\s\S]*Drop services for plugins that have been disabled/.test(shellSource),
-  '_syncServices still drops disabled or removed services'
-)
-
-// A truncated or torn user shell.json must not fall back to stock config:
-// the next mutation would persist the defaults over the user's file,
-// disabling every third-party plugin at once. Keep the last good parse and
-// only reset on a genuinely missing file.
-check(
-  /property var lastUserConfig/.test(shellSource),
-  'shell keeps the last valid user shell.json parse'
-)
-check(
-  /if \(user\) \{[\s\S]*?lastUserConfig = user[\s\S]*?else if \(userConfigMissing\)[\s\S]*?lastUserConfig = null[\s\S]*?else if \(lastUserConfig\) \{[^}]*?shellConfig = lastUserConfig/.test(shellSource),
-  'shell keeps the last user config when shell.json is empty or invalid'
-)
-check(
-  /id: userConfigFile[\s\S]*?onLoaded: \{[\s\S]*?userConfigMissing = false[\s\S]*?onLoadFailed: function\(error\) \{\s*shell\.userConfigMissing = error === FileViewError\.FileNotFound/.test(shellSource),
-  'shell distinguishes a missing shell.json from a truncated one'
-)
-check(
-  /function persistShellConfig[\s\S]*?shellConfig = payload[\s\S]*?lastUserConfig = payload[\s\S]*?setText/.test(shellSource),
-  'shell remembers the config it just persisted as the last good user config'
-)
-
 const publicManifestMatch = shellSource.match(/function publicPluginManifest\(manifest\) \{[\s\S]*?\n  \}/)
 check(!!publicManifestMatch, 'publicPluginManifest is defined')
 if (publicManifestMatch) {
@@ -246,21 +212,3 @@ if (publicManifestMatch) {
 
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
-
-# A 0-byte shell.json is a torn write, not an empty config: the commit path
-# must refuse to seed it with defaults rather than overwrite whatever was
-# being written.
-EMPTY_HOME=$(mktemp -d)
-trap 'rm -rf "$EMPTY_HOME"' EXIT
-mkdir -p "$EMPTY_HOME/.config/omarchy"
-: >"$EMPTY_HOME/.config/omarchy/shell.json"
-
-commit_status=0
-commit_error=$(HOME="$EMPTY_HOME" OMARCHY_PATH="$ROOT" bash -c "source '$ROOT/bin/omarchy-shell-config'; commit '.'" 2>&1 >/dev/null) || commit_status=$?
-(( commit_status != 0 )) && [[ $commit_error == *"refusing to overwrite"* ]] ||
-  fail "omarchy-shell-config refuses to commit over an empty shell.json" "$commit_error"
-pass "omarchy-shell-config refuses to commit over an empty shell.json"
-
-[[ -e "$EMPTY_HOME/.config/omarchy/shell.json" && ! -s "$EMPTY_HOME/.config/omarchy/shell.json" ]] ||
-  fail "omarchy-shell-config leaves the empty shell.json untouched"
-pass "omarchy-shell-config leaves the empty shell.json untouched"

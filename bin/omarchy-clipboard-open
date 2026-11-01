@@ -30,7 +30,7 @@ open_image() {
   local path="$1"
 
   [[ -r $path ]] || exit 1
-  exec omasnap "$path"
+  exec omasnap --notify "$path"
 }
 
 open_text() {
