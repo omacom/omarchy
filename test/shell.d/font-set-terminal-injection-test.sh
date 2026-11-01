@@ -18,7 +18,7 @@ mkdir -p "$mock_bin" \
 
 cat >"$mock_bin/fc-list" <<'SH'
 #!/bin/bash
-printf '%s\n' "CaskaydiaMono Nerd Font" "Test Font" 'Evil"; command = "id' 'Foo$HOME'
+printf '%s\n' "CaskaydiaMono Nerd Font" "Test Font" 'Evil"; command = "id' 'Foo$HOME' 'Fake/Font & <Friends>'
 printf 'Two\nFamily\n'
 SH
 for stub in omarchy-restart-shell omarchy-hook omarchy-notification-send pkill; do
@@ -65,6 +65,22 @@ grep -Fxq 'font_family CaskaydiaMono Nerd Font' "$test_home/.config/kitty/kitty.
 grep -Fq '<string>CaskaydiaMono Nerd Font</string>' "$test_home/.config/fontconfig/fonts.conf" ||
   fail "font-set writes the family into fonts.conf" "$(cat "$test_home/.config/fontconfig/fonts.conf")"
 pass "font-set writes a normal family into terminal configs and fonts.conf"
+
+run_font_set 'Fake/Font & <Friends>'
+
+grep -Fq 'family = "Fake/Font & <Friends>"' "$test_home/.config/alacritty/alacritty.toml" ||
+  fail "font-set keeps / & < > in the Alacritty family" "$(cat "$test_home/.config/alacritty/alacritty.toml")"
+grep -Fq 'font-family = "Fake/Font & <Friends>"' "$test_home/.config/ghostty/config" ||
+  fail "font-set keeps / & < > in the Ghostty family" "$(cat "$test_home/.config/ghostty/config")"
+grep -Fq 'font=Fake/Font & <Friends>:size=11' "$test_home/.config/foot/foot.ini" ||
+  fail "font-set keeps / & < > in the Foot font" "$(cat "$test_home/.config/foot/foot.ini")"
+grep -Fxq 'font_family Fake/Font & <Friends>' "$test_home/.config/kitty/kitty.conf" ||
+  fail "font-set keeps / & < > in the Kitty family" "$(cat "$test_home/.config/kitty/kitty.conf")"
+grep -Fq '<string>Fake/Font &amp; &lt;Friends&gt;</string>' "$test_home/.config/fontconfig/fonts.conf" ||
+  fail "font-set escapes & < > in fonts.conf" "$(cat "$test_home/.config/fontconfig/fonts.conf")"
+pass "font-set escapes sed and XML metacharacters instead of refusing them"
+
+run_font_set "CaskaydiaMono Nerd Font"
 
 if run_font_set 'Evil"; command = "id' 2>"$test_tmp/err"; then
   fail "font-set refuses a family name that would close a TOML string"

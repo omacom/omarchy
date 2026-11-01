@@ -21,11 +21,9 @@ case "$font_name" in
     ;;
 esac
 
-# Terminal configs and sed rewrites treat the family as literal text. A font
-# whose name carries quotes, dollars, or XML metacharacters can close a
-# string and inject a second setting; refuse those rather than try to round
-# trip them through every format.
-if [[ $font_name == *$'\n'* || $font_name == *$'\r'* || $font_name == *['"\\`$<>;&']* ]]; then
+# Terminal configs treat the family as literal text, so a quote, backslash,
+# dollar or line break could close a string and inject a second setting.
+if [[ $font_name == *$'\n'* || $font_name == *$'\r'* || $font_name == *['"\\`$;']* ]]; then
   echo "Font name contains characters that cannot be written into terminal configs." >&2
   exit 1
 fi
@@ -41,6 +39,7 @@ if ! fc-list -f '%{family}\n' ":family=$fontconfig_family" | grep -Fqi -- "$font
 fi
 
 sed_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
+xml_font_name=$(printf '%s' "$font_name" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 
 if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
   sed -i "s/family = \".*\"/family = \"$sed_font_name\"/g" ~/.config/alacritty/alacritty.toml
@@ -88,7 +87,7 @@ cat >"$fontconfig_file" <<XML
       <string>monospace</string>
     </test>
     <edit name="family" mode="prepend_first" binding="strong">
-      <string>$font_name</string>
+      <string>$xml_font_name</string>
     </edit>
   </match>
 </fontconfig>
