@@ -29,8 +29,13 @@ mkdir -p "$work/bin"
 cat >"$work/bin/nmcli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$STUB_LOG"
-if [[ $* == "-g connection.type,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "* ]]; then
-  printf '%s\n%s\n%s\n%s\n%s\n' "$STUB_TYPE" "${STUB_METHOD4:-auto}" "$STUB_IGNORE4" "${STUB_METHOD6:-auto}" "$STUB_IGNORE6"
+if [[ $* == "-g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "* ]]; then
+  # nmcli prints nothing for a port's ip settings, since it has none.
+  if [[ -n ${STUB_CONTROLLER:-} ]]; then
+    printf '%s\n%s\n' "$STUB_TYPE" "$STUB_CONTROLLER"
+  else
+    printf '%s\n\n%s\n%s\n%s\n%s\n' "$STUB_TYPE" "${STUB_METHOD4:-auto}" "$STUB_IGNORE4" "${STUB_METHOD6:-auto}" "$STUB_IGNORE6"
+  fi
 fi
 SH
 cat >"$work/bin/systemctl" <<'SH'
@@ -90,6 +95,10 @@ pass "dispatcher pins a profile whose IPv6 DNS is still automatic"
 
 pin "$cloudflare" 802-11-wireless yes
 refute_modify "dispatcher leaves an already pinned profile alone"
+
+STUB_CONTROLLER=br0 pin "$cloudflare" 802-3-ethernet no ||
+  fail "dispatcher succeeds on a bridge port" "log: $(cat "$work/log")"
+refute_modify "dispatcher leaves a bridge port to its controller"
 
 # nmcli refuses ipv6.dns on a profile with IPv6 disabled and fails the whole
 # modify, which would leave IPv4 on DHCP DNS too.
