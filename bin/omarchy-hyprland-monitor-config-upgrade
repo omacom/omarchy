@@ -89,7 +89,8 @@ used_elsewhere() {
   for line in "${lines[@]}"; do
     line="${line%"${line##*[![:space:]]}"}"
     [[ $line == "$default" || $line == "$use" ]] && continue
-    [[ $line =~ (^|[^A-Za-z0-9_])$name([^A-Za-z0-9_]|$) ]] && return 0
+    # Classes, not ranges: a range follows the locale's collation, not ASCII.
+    [[ $line =~ (^|[^[:alnum:]_])$name([^[:alnum:]_]|$) ]] && return 0
   done
   return 1
 }

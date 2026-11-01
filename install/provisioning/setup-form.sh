@@ -122,7 +122,8 @@ omarchy_form_i18n=${OMARCHY_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." &&
 omarchy_form_text() {
   local language=${OMARCHY_FORM_LANGUAGE:-en} text
   local -a catalogs=("$omarchy_form_i18n/en/cli.json")
-  [[ $language =~ ^[a-z]{2,3}(-[A-Z]{2})?$ && -r $omarchy_form_i18n/$language/cli.json ]] &&
+  # Classes, not ranges: a range follows the locale's collation, not ASCII.
+  [[ $language =~ ^[[:lower:]]{2,3}(-[[:upper:]]{2})?$ && -r $omarchy_form_i18n/$language/cli.json ]] &&
     catalogs=("$omarchy_form_i18n/$language/cli.json" "${catalogs[@]}")
   text=$(jq -rn --arg key "$1" 'first(inputs | .[$key] // empty) // empty' "${catalogs[@]}" 2>/dev/null) || text=""
   printf '%s' "${text:-$1}"
@@ -159,7 +160,8 @@ omarchy_prompt_username() {
     username=$(gum input --placeholder "$(omarchy_form_text setupForm.usernamePlaceholder)" --prompt.foreground="#845DF9" --prompt "$(omarchy_form_text setupForm.usernamePrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
-    if [[ "$username" =~ $OMARCHY_USERNAME_PATTERN ]]; then
+    # A bracket range follows the locale's collation, not ASCII; compare in C.
+    if (LC_ALL=C; [[ "$username" =~ $OMARCHY_USERNAME_PATTERN ]]); then
       if [[ "$username" =~ $OMARCHY_RESERVED_USERNAMES ]]; then
         notice "$(omarchy_form_text setupForm.usernameReserved)" 1
       elif omarchy_username_taken "$username"; then
@@ -211,7 +213,8 @@ omarchy_prompt_hostname() {
     if [[ -z $hostname ]]; then
       hostname="$OMARCHY_HOSTNAME_DEFAULT"
       return 0
-    elif [[ "$hostname" =~ $OMARCHY_HOSTNAME_PATTERN ]]; then
+    # A bracket range follows the locale's collation, not ASCII; compare in C.
+    elif (LC_ALL=C; [[ "$hostname" =~ $OMARCHY_HOSTNAME_PATTERN ]]); then
       return 0
     else
       notice "$(omarchy_form_text setupForm.hostnameInvalid)" 1

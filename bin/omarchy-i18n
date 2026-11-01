@@ -52,7 +52,10 @@ if [[ -f $language_file ]]; then
   candidate=
   read -r candidate <"$language_file" || true
   candidate=${candidate//[[:space:]]/}
-  if [[ $candidate =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ && -f $i18n/$candidate/cli.json ]]; then
+  # Classes, not ranges: a range follows the locale's collation and misses i
+  # under tr_TR.UTF-8, and a subshell pinning C would cost the process start
+  # avoided above. Whatever a class lets through still needs its catalog.
+  if [[ $candidate =~ ^[[:lower:]]{2,3}(-[[:alpha:]]{2})?$ && -f $i18n/$candidate/cli.json ]]; then
     language=$candidate
   fi
 fi

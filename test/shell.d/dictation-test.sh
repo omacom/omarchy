@@ -2,6 +2,7 @@
 
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -144,6 +145,17 @@ omarchy-dictation-hex stop || fail "stopping Hex succeeds when it is not running
 omarchy-dictation-hex start
 [[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex start\nhex dictation start' ]] || fail "starting launches a stopped Hex, then records"
 pass "Hex types its transcript itself, stops quietly when idle, and starts Hex to record"
+
+# The backend-name check is a bracket range, which follows the locale's
+# collation, so it is pinned to C: under tr_TR.UTF-8 an unpinned `[a-z]` misses
+# `i` and `I`, and a backend such as superwhisper can neither be saved nor read back.
+if turkish_locale "$test_tmp/locales"; then
+  in_turkish omarchy-dictation-use superwhisper || fail "omarchy-dictation-use accepts a backend under tr_TR.UTF-8"
+  [[ $(in_turkish omarchy-default-dictation) == "superwhisper" ]] || fail "omarchy-default-dictation reads the saved backend under tr_TR.UTF-8"
+  pass "a backend name is saved and read back the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi
 
 cat > "$test_tmp/bin/omarchy-dictation-future-backend" <<'SH'
 #!/bin/bash
