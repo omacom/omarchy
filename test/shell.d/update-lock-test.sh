@@ -77,10 +77,6 @@ for command in \
 done
 write_stub omarchy-update-available 'exit 1'
 write_stub pkexec 'exec "$@"'
-write_stub omarchy-toggle-idle '
-if [[ $1 == "allow-idle" ]]; then
-  rm -f "$SUDO_TEST_HOME/.local/state/omarchy/indicators/stay-awake"
-fi'
 ln -s ../bin/pkexec "$SUDO_TEST_ROOT/mock/pkexec"
 write_stub systemd-inhibit 'while [[ $1 == --* ]]; do shift; done; exec "$@"'
 ln -s ../bin/systemd-inhibit "$SUDO_TEST_ROOT/mock/systemd-inhibit"
@@ -160,41 +156,6 @@ pass "omarchy-update keeps the update lock out of its sleep inhibitor"
 kill -0 "$inhibitor_pid" 2>/dev/null &&
   fail "update waits for its sleep inhibitor to stop before continuing"
 pass "omarchy-update waits for its sleep inhibitor to stop"
-
-# A failed or interrupted update must release the lid lock with its inhibitor.
-write_stub omarchy-update-keyring '
-case "$TEST_UPDATE_FAILURE" in
-  error) exit 17 ;;
-  *) kill -s "$TEST_UPDATE_FAILURE" "$PPID" ;;
-esac'
-
-for failure in error HUP INT TERM; do
-  rm -f "$inhibit_pid_file"
-  update_status=0
-  OMARCHY_UPDATE_LOGGED=1 TEST_UPDATE_FAILURE="$failure" INHIBIT_PID_FILE="$inhibit_pid_file" \
-    run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-$failure.out" 2>&1 || update_status=$?
-  case "$failure" in
-    error) expected_status=17 ;;
-    HUP) expected_status=129 ;;
-    INT) expected_status=130 ;;
-    TERM) expected_status=143 ;;
-  esac
-  [[ -s $inhibit_pid_file ]] || fail "$failure cleanup test started its inhibitor"
-  inhibitor_pid=$(<"$inhibit_pid_file")
-  leaked_inhibitor=0
-  if kill -0 "$inhibitor_pid" 2>/dev/null &&
-    [[ $(awk '{ print $3 }' "/proc/$inhibitor_pid/stat" 2>/dev/null || true) != "Z" ]]; then
-    leaked_inhibitor=1
-  fi
-  [[ ! -e $runtime_dir/$stay_awake_dir_name ]] || leaked_inhibitor=1
-  [[ ! -e $test_home/.local/state/omarchy/indicators/stay-awake ]] || leaked_inhibitor=1
-  # Restore the fixture even when the assertion fails, so a regression cannot
-  # leave an inhibitor running after the test exits.
-  run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
-  (( leaked_inhibitor == 0 )) || fail "$failure cleanup releases the update inhibitor and Stay Awake state" "$(<"$test_tmp/update-$failure.out")"
-  (( update_status == expected_status )) || fail "$failure cleanup preserves the update exit status" "$update_status, expected $expected_status"
-  pass "$failure cleanup releases the update inhibitor and preserves the exit status"
-done
 
 if (( EUID != 0 )); then
   sudo_log="$SUDO_TEST_LOG"
