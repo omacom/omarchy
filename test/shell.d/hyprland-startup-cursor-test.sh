@@ -8,11 +8,16 @@ fixture=$(mktemp)
 trap 'rm -f "$fixture"' EXIT
 cat > "$fixture" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command, imported = {}, nil, nil, false
+local events, recovery, command, imported, commands = {}, nil, nil, false, {}
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
-os.getenv = function(name) return env[name] or getenv(name) end
+-- The fake environment owns every cursor variable, unset ones included, so
+-- the session running the test cannot leak its own cursor into it.
+os.getenv = function(name)
+  if name:match("CURSOR") or name == "HYPRLAND_INSTANCE_SIGNATURE" then return env[name] end
+  return env[name] or getenv(name)
+end
 local monitors = {}
 hl = {
   on = function(event, callback) events[event] = callback end,
@@ -35,6 +40,7 @@ hl = {
       assert(config.invisible and env.XCURSOR_THEME == "my-xcursor", "hide the compositor cursor while restoring application settings before launch")
     end
     command = value
+    table.insert(commands, value)
   end,
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
@@ -65,7 +71,12 @@ assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback b
 assert(config.invisible, "wait for the normal theme before restoring visibility")
 omarchy_startup_cursor_restore(true)
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
-assert(command:match("setcursor 'my%-hyprcursor'"), "restore the user's Hyprcursor theme")
+assert(command:match("xsetroot %-cursor_name left_ptr"), "restore the X11/XWayland root cursor")
+local hyprcursor_restored = false
+for _, c in ipairs(commands) do
+  if c:match("setcursor 'my%-hyprcursor'") then hyprcursor_restored = true end
+end
+assert(hyprcursor_restored, "restore the user's Hyprcursor theme")
 local previous_command = command
 previous_recovery()
 assert(command == previous_command, "recovery must not change a revealed cursor")
@@ -137,5 +148,5 @@ events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
 io.popen = popen
 LUA
-lua "$fixture"
+lua "$fixture" || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"

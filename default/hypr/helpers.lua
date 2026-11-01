@@ -275,8 +275,11 @@ end
 -- leave their floating to them: the class and title patterns of rules that
 -- float them, the tags rules float, and the patterns of rules that tag them.
 o.floating_apps = { class = {}, title = {}, tags = {}, tagged = {} }
+-- Helpers reload before workspace modes, so discard the previous config's hook.
+o.floating_apps_changed = nil
 
 function o.window(match, rules)
+  local floating_changed = false
   rules.match = rules.match or {}
 
   if type(match) == "string" then
@@ -292,10 +295,12 @@ function o.window(match, rules)
     -- that also names a class or title floats just those, recorded below.
     if type(rules.match.tag) == "string" and rules.match.class == nil and rules.match.title == nil then
       o.floating_apps.tags[rules.match.tag] = true
+      floating_changed = true
     end
     for _, key in ipairs({ "class", "title" }) do
       if type(rules.match[key]) == "string" then
         table.insert(o.floating_apps[key], rules.match[key])
+        floating_changed = true
       end
     end
   end
@@ -306,15 +311,19 @@ function o.window(match, rules)
     for _, key in ipairs({ "class", "title" }) do
       if type(rules.match[key]) == "string" then
         table.insert(o.floating_apps.tagged[tag], { key = key, pattern = rules.match[key] })
+        floating_changed = true
       end
     end
   end
 
   hl.window_rule(rules)
+  if floating_changed and o.floating_apps_changed then
+    o.floating_apps_changed()
+  end
 end
 
 -- Opt a window in to Omarchy's standard active/inactive transparency. The tag
--- lets Appearance > Window Opacity turn these windows opaque or glassy.
+-- lets Appearance > Windows > Window Opacity turn these windows opaque or glassy.
 function o.transparent_window(match, opacity)
   o.window(match, { opacity = opacity or "0.985 0.96", tag = "+transparent-window" })
 end
