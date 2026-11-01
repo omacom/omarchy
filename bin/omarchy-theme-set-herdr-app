@@ -16,70 +16,72 @@ esac
 (( $# <= 1 )) || exit 1
 
 source_path="$HOME/.local/state/omarchy/current/theme/herdr-app.json"
-app_home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
-settings_path="$app_home/settings.json"
+app_home="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
 theme_path="$app_home/themes/omarchy.json"
 
 # Do not create state for an app the person has never opened.
-[[ -d $app_home ]] || exit 0
-
-# Theme setters release this lock before running app helpers. Hold it through
-# publication so another setter cannot swap the source directory mid-read,
-# and an older helper cannot publish after a newer helper. Queued helpers
-# always read the palette that is current when they acquire the lock.
-exec {theme_lock}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
-flock "$theme_lock"
-[[ -f $source_path ]] || exit 0
-palette=$(cat "$source_path")
-
-# Validate before publishing: unresolved template values and malformed custom
-# overrides must leave the last good theme and settings intact.
-jq -e '
-  def rgb: type == "string" and test("^#[0-9a-fA-F]{6}$");
-  (.background | rgb) and (.foreground | rgb) and
-  (.selection | rgb) and (.cursor | rgb) and
-  (.ansi | type == "array" and length == 16 and all(.[]; rgb)) and
-  ((.colors // {}) | type == "object" and all(.[]; rgb))
-' <<<"$palette" >/dev/null
-
-settings='{}'
-if [[ -f $settings_path ]]; then
-  settings=$(jq -e '
-    if type != "object" then error("settings must be an object")
-    elif has("colors") and (.colors | type != "object") then error("settings.colors must be an object")
-    else . end
-  ' "$settings_path")
+if [[ ! -d $app_home ]]; then
+  if (( activate == 1 )); then
+    echo "Open Herdr before activating its Omarchy theme." >&2
+    exit 1
+  fi
+  exit 0
 fi
 
-mode=$(omarchy-theme-color mode)
-[[ $mode == "dark" || $mode == "light" ]] || exit 1
+if (( activate == 1 )); then
+  if ! omarchy-cmd-present herdr-app; then
+    echo "Install Herdr 0.1.11 or newer before activating its Omarchy theme." >&2
+    exit 1
+  fi
+  version=$(herdr-app --version)
+  if [[ ! $version =~ ^herdr-app\ ([0-9]+\.[0-9]+\.[0-9]+)$ ]] ||
+    [[ $(printf '%s\n' "0.1.11" "${BASH_REMATCH[1]:-0}" | sort -V | head -1) != "0.1.11" ]]; then
+    echo "Herdr 0.1.11 or newer is required for live custom-theme reloading." >&2
+    exit 1
+  fi
+fi
+
+# Theme setters release this lock before running app helpers. Hold it through
+# publication so a setter cannot swap the source directory mid-read and an
+# older helper cannot publish after a newer helper.
+exec {theme_lock}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+flock "$theme_lock"
+if [[ ! -f $source_path ]]; then
+  echo "Skipping Herdr theme: refresh the current Omarchy theme to generate its palette." >&2
+  if (( activate == 1 )); then exit 1; fi
+  exit 0
+fi
+palette=$(cat "$source_path")
+
+if ! jq -e '
+  def rgb: type == "string" and test("^#[0-9a-fA-F]{6}$");
+  def color: type == "string" and test("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$");
+  type == "object" and
+  ((keys - ["background", "foreground", "selection", "cursor", "ansi", "colors"]) | length == 0) and
+  (.background | rgb) and (.foreground | rgb) and (.selection | rgb) and
+  ((.cursor // .foreground) | rgb) and
+  (.ansi | type == "array" and length == 16 and all(.[]; rgb)) and
+  (if has("colors") then (.colors | type == "object" and all(.[]; color)) else true end)
+' <<<"$palette" >/dev/null 2>&1; then
+  echo "Skipping Herdr theme: generated colors are invalid or unresolved." >&2
+  if (( activate == 1 )); then exit 1; fi
+  exit 0
+fi
 
 mkdir -p "${theme_path%/*}"
 theme_tmp=$(mktemp "$theme_path.XXXXXX")
-settings_tmp=""
-trap 'rm -f "$theme_tmp" ${settings_tmp:+"$settings_tmp"}' EXIT
+trap 'rm -f "$theme_tmp"' EXIT
 printf '%s\n' "$palette" >"$theme_tmp"
-
-# Publish for the picker without replacing a personally chosen theme. Opt in
-# with --activate; subsequent switches update only that opted-in configuration.
-if (( activate == 1 )) || jq -e '.theme == "omarchy"' <<<"$settings" >/dev/null; then
-  settings_tmp=$(mktemp "$settings_path.XXXXXX")
-  jq --slurpfile theme "$theme_tmp" --arg mode "$mode" '
-    .theme = "omarchy" | .appearance = $mode |
-    .colors = ((.colors // {}) + ($theme[0] | {
-      background, terminal_foreground: .foreground, selection, cursor
-    }) + ($theme[0].ansi | to_entries | map({key: ("ansi" + (.key | tostring)), value}) | from_entries) + ($theme[0].colors // {}))
-  ' <<<"$settings" >"$settings_tmp"
-  # Palette tokens make Herdr <=0.1.10 reload an edited theme under the same
-  # name (herdrdev/herdr-app#193), and explicit appearance avoids a light frame
-  # while Linux's asynchronous desktop portal is still reporting its mode.
-fi
-
-# Finish preparing both files before publishing either: malformed settings
-# must not leave the theme changed with the old settings still in place.
 if ! cmp -s "$theme_tmp" "$theme_path"; then
   mv "$theme_tmp" "$theme_path"
 fi
-if [[ -n $settings_tmp ]] && ! cmp -s "$settings_tmp" "$settings_path"; then
-  mv "$settings_tmp" "$settings_path"
+
+# The app command can wait for a busy window. Do not hold up desktop theme
+# staging while it does; it selects whichever palette is current at that time.
+flock -u "$theme_lock"
+if (( activate == 1 )); then
+  if ! HERDR_APP_HOME="$app_home" herdr-app do app.theme --name omarchy; then
+    echo "Omarchy was published. Open Herdr and rerun with --activate to select it." >&2
+    exit 1
+  fi
 fi

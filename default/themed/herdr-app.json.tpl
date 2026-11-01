@@ -9,5 +9,10 @@
     "{{ muted }}", "{{ bright_red }}", "{{ bright_green }}", "{{ bright_yellow }}",
     "{{ bright_blue }}", "{{ bright_magenta }}", "{{ bright_cyan }}", "{{ bright_foreground }}"
   ],
-  "colors": { "accent": "{{ accent }}" }
+  "colors": {
+    "accent": "{{ accent }}",
+    "accent_foreground": "{{ background }}",
+    "solid": "{{ accent }}",
+    "solid_foreground": "{{ background }}"
+  }
 }
