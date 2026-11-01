@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Plattentest"
   },
-  "setup.monitors": {
-    "label": "Monitore"
-  },
   "setup.keybindings": {
     "label": "Tastenkürzel"
   },
@@ -1285,5 +1282,11 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Absturzerfassung an"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

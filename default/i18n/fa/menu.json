@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "تست سرعت دیسک"
   },
-  "setup.monitors": {
-    "label": "مانیتورها"
-  },
   "setup.keybindings": {
     "label": "میانبرها"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "کرنل"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

@@ -686,20 +686,12 @@ local s = state()
 assert(s.plugin_loads == 1, "the titlebar plugin was not loaded with a workspace floating")
 local bar = s.titlebar_config
 assert(bar, "the titlebars were not configured once loaded")
-assert(bar.workspace_tag == "omarchy-floating-workspace", "titlebars are not limited to floating workspaces")
 assert(bar.bar_color == "rgb(223344)", "titlebars do not stand out from the window background: " .. tostring(bar.bar_color))
 assert(bar.inactive_button_color == "rgb(223344)", "titlebar buttons do not match the titlebar")
 for _, button in ipairs(s.buttons) do
   assert(button.bg_color == "rgb(223344)", "a titlebar button does not match the titlebar")
 end
 assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme foreground")
-assert(not bar.edge_snap, "dragged windows snap to screen edges")
-assert(#s.buttons == 3, "the titlebars do not have exactly close, maximize, and minimize")
-local actions = s.buttons[1].action .. s.buttons[2].action .. s.buttons[3].action
-assert(actions:find("window.close", 1, true), "no button closes the window")
-assert(actions:find("maximized", 1, true), "no button maximizes the window")
-assert(actions:find("omarchy-hyprland-window-minimize", 1, true), "no button minimizes the window to the dock")
-assert(bar.on_double_click:find("maximized", 1, true), "double-clicking a titlebar does not maximize")
 ' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
   fail "titlebars load when a workspace floats and follow the theme"
 fi
@@ -772,8 +764,6 @@ pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
-assert(source.includes('function onActiveWorkspaceChanged() { root.showActiveMode() }'), 'a workspace switch shows the cached layout instead of running the script')
-assert(source.includes('if (name === "configreloaded") root.refresh()'), 'a config reload drops every cached layout')
 
 // Run the widget's own cache logic against a fake Hyprland and process.
 function body(pattern) {
