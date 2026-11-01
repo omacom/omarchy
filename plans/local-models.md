@@ -1,6 +1,6 @@
 # Plan: Local models — `omarchy agent local use <recipe>`
 
-Revision 2. Revised after a review pass: lifecycle, endpoint security, client selection, memory checks, supply chain and config ownership tightened; phase 1 cut down.
+Revision 3. Revision 2 tightened lifecycle, endpoint security, client selection, memory checks, supply chain and config ownership after a review pass. Revision 3 generalizes the container contract after running halogen, a closed-source third-party engine, through it: backends are described by runtime definitions that map the standard inputs onto each image's own interface, declare allowlisted run options and their health probe, and carry a trust tier.
 
 ## Problem
 
@@ -41,8 +41,7 @@ gpu = "amd-strix-halo"
 backend = "vulkan"
 measured = "measurements/qwen3.8-flash-next-strix-halo.toml"
 
-[runtime]
-image = "ghcr.io/omarchy/llama.cpp-vulkan@sha256:…"   # per-arch digest, never an index
+runtime = "llama.cpp-vulkan"          # a runtime definition, see below
 
 [model]
 repo = "unsloth/Qwen3.8-Flash-Next-GGUF"
@@ -68,29 +67,100 @@ top_k = 20
 - Reproducibility comes from three pins: image digest, model revision, flags. Two qualified machines running the same recipe run the same bytes with the same arguments.
 - `hardware` replaces a bare platform list: `x86` alone admits machines with no usable GPU. Each entry names the platform (`omarchy-hw-platform` names), the GPU family and backend, and points at a measurement record. A recipe only claims hardware someone measured.
 - A measurement record captures exact artifacts, peak GPU and host memory, prefill and decode speed at stated context depths, and the llama-bench or equivalent command that produced them. Performance numbers in recipes, menus and docs come from these records, not from gists.
-- `sampling` is passed to the server as its defaults (`--temp`, `--top-p`, `--top-k` for llama.cpp, mapped by the image adapter), so every client gets sane values without client config.
+- `sampling` is passed to the server as its defaults through the runtime's input mapping (`--temp`, `--top-p`, `--top-k` for llama.cpp), so every client gets sane values without client config. A runtime without a mapping for sampling defaults leaves them to the client.
+- `[server] args` are runtime-specific extras appended after the mapped inputs; a recipe for a runtime that takes no arguments has none.
 - Generated server arguments are built as an argument array and escaped for Quadlet; a test feeds hostile values (spaces, `%`, quotes) through the generator.
 
 ### The backend container contract
 
-Every backend image provides:
+The contract is the container's outside shape, not its insides. Omarchy must not need to rebuild a third-party image to wrap it, so everything an image does differently is described by its runtime definition instead of required of the image. Every backend image provides:
 
 | | Contract |
 |---|---|
-| API | OpenAI-compatible on `:8080`: `/v1/models`, `/v1/chat/completions` with streaming and tool calls through the model's chat template. Admin and web UI routes are disabled |
-| Auth | Requires a bearer key, read from a Podman secret; unauthenticated requests are rejected |
-| Health | `/health` returns 200 only once the model is loaded; the image ships its own health-check executable |
-| Models | Read-only mount of only the selected recipe's model directory at `/models` |
-| Entrypoint | Accepts `--model`, `--draft`, `--ctx`, `--alias`, sampling defaults, then passes remaining recipe args through; a thin adapter maps these onto the backend's own CLI |
-| GPU | Declares its backend; Omarchy maps it to the minimal devices (see Rootless GPU) |
-| Smoke test | A `--self-test` entrypoint that lists the GPU device it sees and exits, used by preflight |
+| API | OpenAI-compatible on one container port: `/v1/models`, `/v1/chat/completions` with streaming and tool calls through the model's chat template. Admin and web UI routes are disabled or unpublished |
+| Auth | Requires a bearer key that it can read from an environment variable or a file; unauthenticated requests are rejected |
+| Health | An HTTP endpoint that returns 200 only once the model is loaded; it may stay open without the key |
+| Models | Works from a read-only mount of only the selected recipe's model directory; nothing is written into it |
+| Inputs | Takes the model path, draft path, context size, served model id and key in some form, CLI arguments or environment variables |
 
-"OpenAI-compatible" is defined by an acceptance check rather than assumed: a streamed completion, a tool call round trip, and a chat-template sanity check run against every image and recipe before either is published.
+"OpenAI-compatible" is defined by an acceptance check rather than assumed: a streamed completion, a tool call round trip, and a chat-template sanity check run against every runtime and recipe before either is published.
+
+### Runtime definitions
+
+A runtime definition describes one backend image and how to drive it, so many recipes share it. Shipped runtimes live in `default/omarchy/agent-local/runtimes/`, user runtimes in `~/.config/omarchy/agent-local/runtimes/`. Omarchy generates the Quadlet unit from recipe plus runtime.
+
+```toml
+# runtimes/llama.cpp-vulkan.toml — built by Omarchy
+image = "ghcr.io/omarchy/llama.cpp-vulkan@sha256:…"   # per-arch digest, never an index
+tier = "omarchy"
+port = 8080
+health = { path = "/health", probe = ["/usr/local/bin/omarchy-health"] }
+run = { devices = ["render"] }
+
+[inputs]                              # standard input → how this image takes it
+model = { arg = "--model" }
+draft = { arg = "--model-draft" }
+ctx = { arg = "--ctx-size" }
+alias = { arg = "--alias" }
+key = { env = "LLAMA_API_KEY" }
+temperature = { arg = "--temp" }
+top_p = { arg = "--top-p" }
+top_k = { arg = "--top-k" }
+```
+
+```toml
+# runtimes/halogen.toml — third-party, closed source
+image = "ghcr.io/peonist-ai/halogen-flash-server@sha256:273714cc…"
+tier = "third-party"
+publisher = "Peonist, LLC"
+license = "https://github.com/peonist-ai/halogen-flash-server/blob/main/LICENSE.md"
+license_reviewed = "2026-11-01: free for any use, no telemetry, no network calls unless HALOGEN_DOWNLOAD is set, benchmarking permitted"
+port = 8731
+health = { path = "/health", probe = ["/usr/local/bin/python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8731/health', timeout=4)"] }
+run = { devices = ["render", "kfd"], group_add = "keep-groups", ipc = "host", memlock = "unlimited" }
+
+[inputs]
+model = { env = "HALOGEN_CHECKPOINT" }
+draft = { env = "HALOGEN_MTP_HEAD" }
+ctx = { env = "HALOGEN_CTX" }
+alias = { env = "HALOGEN_MODEL_ID" }
+key = { env = "HALOGEN_API_KEY" }
+```
+
+- **Inputs** map each standard input to a CLI argument or an environment variable. Paths are rewritten to their location under `/models`. The key is always delivered from the Podman secret, as an environment variable or a mounted file, never on the command line where `ps` would show it. A standard input the runtime has no mapping for is an error if the recipe sets it.
+- **Health** names the endpoint the contract requires and the probe command that runs inside the container, since images don't ship the same tools: halogen has no `curl`, only `python3`. The probe is what `HealthCmd` runs; `Notify=healthy` and `HealthOnFailure=kill` work the same for every runtime.
+- **Run options** come from a fixed allowlist, each mapped to one Quadlet key, so a runtime file can't smuggle in arbitrary `podman run` flags:
+
+| Option | Values | Quadlet |
+|---|---|---|
+| `devices` | `render` (the GPU's own render node), `kfd`, `cdi-nvidia` | `AddDevice=` |
+| `group_add` | `keep-groups` | `GroupAdd=keep-groups` |
+| `ipc` | `host` | `PodmanArgs=--ipc=host` |
+| `memlock` | `unlimited` | `Ulimit=memlock=-1:-1` |
+| `shm_size` | size | `ShmSize=` |
+
+  `ipc = "host"` shares the host's IPC namespace with the container and weakens isolation; it's allowed because ROCm engines use it for large shared allocations, and the definition review notes why each runtime needs it. Read-only root, dropped capabilities, `no-new-privileges` and the loopback-only port aren't options; every runtime gets them. Anything not on the allowlist goes through review as an addition to the allowlist, not as a one-off in a runtime file.
+- **Extra artifacts** a runtime needs beside the weights (halogen's own MTP head and tokenizer, 1.4 GiB, when serving a GGUF) are listed in the recipe's `[model]` include patterns and downloaded by `use` like any other weights, because the model mount is read-only and images must not fetch at startup. A runtime whose image downloads on first start has that switched off (`HALOGEN_DOWNLOAD` stays unset).
 
 ### Images and supply chain
 
-- Images are built in CI in a dedicated repo from Containerfiles that pin the base image by digest, the backend by upstream commit, and Mesa/ROCm/CUDA by version. One image per backend × GPU flavor × architecture.
-- Images are signed and carry build provenance. A Podman `policy.json` scoped to `ghcr.io/omarchy` requires the signature, so a digest is both the exact bytes and proof of who built them.
+Runtimes come in two trust tiers, recorded in the runtime definition and shown wherever a recipe is chosen.
+
+**`omarchy` tier** — images Omarchy builds:
+
+- Built in CI in a dedicated repo from Containerfiles that pin the base image by digest, the backend by upstream commit, and Mesa/ROCm/CUDA by version. One image per backend × GPU flavor × architecture.
+- Signed with build provenance. A Podman `policy.json` scoped to `ghcr.io/omarchy` requires the signature, so a digest is both the exact bytes and proof of who built them.
+
+**`third-party` tier** — vetted images published by someone else, like halogen. Some of the fastest engines are closed source or ship only as their author's container, and rebuilding them isn't possible or allowed:
+
+- Pinned by digest exactly like Omarchy's own images, so the bytes never change under a recipe.
+- Admitted by review, not by publishing: the definition records the publisher, the license URL, and a dated summary of what the review checked — permitted use, telemetry and network calls, redistribution. A license change seen at a digest bump is re-reviewed before the new digest ships.
+- Signatures are verified when the publisher signs; otherwise the reviewed digest is the trust anchor, and the definition says so.
+- Third-party runtimes get the same read-only root, dropped capabilities, loopback-only port and allowlisted run options as Omarchy's own; review is about who wrote the code inside, not a looser sandbox.
+- `list` and the menu label third-party runtimes with their publisher, and the first `use` of one names the publisher and license before pulling it.
+
+For both tiers:
+
 - Recipes pin per-architecture digests, not a multi-arch index, so the digest names the same bytes on every machine that uses it.
 - Security and Mesa updates produce new images; they reach users only when the shipped recipe's digest is updated through a normal Omarchy update. Installed recipes never float. Mesa updates matter: Vulkan and ROCm images carry their userspace driver and only the kernel driver comes from the host, and Strix Halo performance still moves with Mesa.
 - Containers run with a read-only root, all capabilities dropped, `no-new-privileges`, and no outbound network beyond the published port where the network mode allows it.
@@ -99,13 +169,13 @@ Every backend image provides:
 ### Rootless GPU
 
 - Podman and crun join `omarchy-base.packages`, with a migration (via the migration helper, using `omarchy-pkg-add`, idempotent, failing synchronously) that installs them on existing machines. Commands then treat Podman as a runtime invariant and never check for it. Cost is about 107 MiB installed: podman 83 MiB, netavark and aardvark-dns 13 MiB, crun and its checkpoint/restore dependencies 9 MiB, the rest under 2 MiB; everything else in its tree is already on the base system.
-- Devices are minimal: the GPU's own render node (not all of `/dev/dri`), plus `/dev/kfd` for ROCm, plus CDI `nvidia.com/gpu=all` for CUDA. Where a node is group-owned rather than world-accessible, the unit uses `GroupAdd=keep-groups`, which requires the user systemd manager to hold that group.
-- `use` runs a preflight before downloading anything: subordinate ID ranges exist, the render node is accessible to the user manager, and the image's `--self-test` sees the GPU from inside a container. Failures say what to fix. `use` never changes device permissions or groups itself.
+- Devices are minimal and come from the runtime's `devices` option: the GPU's own render node (not all of `/dev/dri`), plus `/dev/kfd` for ROCm engines, plus CDI `nvidia.com/gpu=all` for CUDA. Where a node is group-owned rather than world-accessible, the runtime needs `group_add = "keep-groups"`, which requires the user systemd manager to hold that group.
+- `use` runs a preflight before downloading anything: subordinate ID ranges exist, every device the runtime asks for is accessible to the user manager, and a throwaway container from the runtime's image with the same devices and options can open them. Failures say what to fix. `use` never changes device permissions or groups itself.
 - Privileged one-time setup lives in its own command, `omarchy-setup-agent-local-gpu`, run with sudo from a terminal: group membership where needed, and on CUDA platforms CDI spec generation into `/etc/cdi` plus a pacman hook that regenerates it when the NVIDIA driver changes.
 
 ### Running it: Podman Quadlet
 
-`use` generates one Quadlet file and restarts one unit:
+`use` generates one Quadlet file from recipe plus runtime definition and restarts one unit. For the llama.cpp-Vulkan runtime it looks like this; the halogen runtime differs only in the image, the environment variables its inputs map to, its probe, and its allowlisted run options:
 
 ```ini
 # ~/.config/containers/systemd/omarchy-agent-local.container
@@ -179,6 +249,8 @@ Two separate questions, never conflated:
 - **Compatibility** (static, cheap, cached): a `[[hardware]]` entry matches this machine, and the variant's measured peak fits the machine's GPU-addressable memory (on AMD, `mem_info_gtt_total` in sysfs, not a quoted default) and total RAM minus a desktop reserve. Used by `list` and menu guards.
 - **Headroom** (at start time): after stopping the previous managed model, current `MemAvailable` and free GTT (`mem_info_gtt_total` − `mem_info_gtt_used`) must cover the variant's measured peaks plus the reserve. Ollama, LM Studio or anything else already holding memory counts against it; `use` names what's using it rather than starting a model that would OOM the desktop.
 
+Pinned memory isn't reclaimable even when the kernel reports it as cache. halogen locks its weights (hence its `memlock = "unlimited"`) and warns that `free` and `MemAvailable` overstate what's left: about 72 GiB pinned, 23.7 GiB truly available, on the measured run. Headroom checks for the running model use the runtime's own reported figures or `Mlocked`/cgroup accounting for the unit, never `MemAvailable` alone; measurement records note whether a runtime pins its weights.
+
 Estimates are reported as estimates. Automatic context sizing and changing kernel parameters (GTT limits) are out of scope; a recipe that needs a bigger GTT limit says so and links the manual page.
 
 ### Launching agents against it
@@ -226,7 +298,7 @@ Mia's recipes ([mia-ai.net/models](https://mia-ai.net/models)) are EXL3 + Tensor
   - `use`, `stop`, `status`, `list`, `autostart`
   - OpenCode local launch through `OPENCODE_CONFIG`
 - **Phase 2** — the panel's Local card with lifecycle state and actions, menu entries, `remove`, GLM-5.3-Flash as the second recipe.
-- **Phase 3** — ROCm and CUDA images, the privileged GPU setup command, GB10 recipes adapted from Mia's, a halogen image, more clients as overlays allow, live metrics.
+- **Phase 3** — ROCm and CUDA images, the privileged GPU setup command, GB10 recipes adapted from Mia's, the halogen runtime as the first third-party-tier definition (its fit is already proven by hand: it runs from the generated Quadlet with a read-only model mount, the key as a Podman secret, read-only root, dropped capabilities and `Notify=healthy`), more clients as overlays allow, live metrics.
 - **Docs** — a manual page for running local models; `docs/` reference for the recipe format, the measurement record and the container contract.
 - **Tests** — extending existing area tests where they exist, covering real logic only:
   - recipe parsing and id validation
