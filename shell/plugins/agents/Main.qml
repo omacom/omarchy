@@ -238,6 +238,16 @@ Item {
     return orderedProviders(result)
   }
 
+  // The panel gives a section only to an agent with a subscription to show:
+  // limits, a balance, a plan, or accounts. Local history alone still counts
+  // toward the summary, but would leave an empty section.
+  readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
+
+  function providerHasSubscription(p) {
+    return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
+      || !!p.balance || p.tierLabel !== ""
+  }
+
   // ----------------------------------------------------------------- order
   //
   // The panel's agents in the order someone dragged them into, kept beside the
@@ -257,7 +267,7 @@ Item {
 
   // Moves one agent to a position among the ones shown, and saves the result.
   function moveProvider(id, to) {
-    var ids = enabledProviders.map(function(p) { return p.providerId })
+    var ids = subscribedProviders.map(function(p) { return p.providerId })
     var from = ids.indexOf(id)
     if (from < 0) return
     to = Math.max(0, Math.min(ids.length - 1, to))
