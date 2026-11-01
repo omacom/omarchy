@@ -204,6 +204,16 @@ ShellRoot {
       // whenever the resume path arms it.
       var resumeTimer = resumeWatch(service)
       var blankTimer = timer(service, 5000, false)
+      // Lid opening restores the panel without input, suspend or a new screen.
+      service.pauseFingerprint()
+      service.fingerprintRetryDueMs = Date.now() - 60000
+      service.fingerprintLastSettleMs = Date.now() - 60000
+      var wake = IpcRegistry.call("lock", "wake", [])
+      check(wake.ran && wake.output === "ok", "lid-open IPC reaches the lock wake handler")
+      check(!service.fingerprintPaused && retry.running && retry.interval === 250, "lid opening restarts an overdue paused retry without input or suspend")
+      check(service.lockRequested && service.fingerprintUnavailable, "lid opening neither unlocks nor claims the reader recovered before a prompt")
+      check(blankTimer.running, "lid opening rearms the blank countdown")
+      blankTimer.stop()
       retry.stop()
       service.pauseFingerprint()
       service.noteSleepRequested()
@@ -235,6 +245,8 @@ ShellRoot {
       service.resetAuthenticationState()
       check(!retry.running && !reach.running && !recheck.running, "unlock reset stops every fingerprint timer")
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
+      wake = IpcRegistry.call("lock", "wake", [])
+      check(wake.ran && wake.output === "unlocked" && !retry.running && !blankTimer.running, "lid opening outside a lock does not arm authentication or blank the display")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
     } finally {
