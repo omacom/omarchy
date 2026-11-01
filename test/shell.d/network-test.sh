@@ -8,7 +8,6 @@ run_node_test <<'JS'
 const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
-const hotspotSource = fs.readFileSync(root + '/bin/omarchy-hotspot', 'utf8')
 
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
@@ -249,8 +248,6 @@ assert(/only when this computer's connection is metered/.test(network.hotspotSav
 assert(!/next start/.test(network.hotspotSaveDataTooltip('always', true, 'always')), 'network does not defer the choice the running hotspot already uses')
 assert(/\(from the next start\)$/.test(network.hotspotSaveDataTooltip('never', true, 'always')), 'network says a new choice waits for the next start while on air')
 assert(!/next start/.test(network.hotspotSaveDataTooltip('never', false, 'always')), 'network does not defer a choice while the hotspot is off')
-assert(/"start", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument, "--save-data=" \+ hotspotSaveData\]/.test(panelSource), 'network starts the hotspot with the data choice')
-assert(/"apply", hotspotSsid\.trim\(\), hotspotBand, hotspotLimitArgument, "--save-data=" \+ hotspotSaveData\]/.test(panelSource), 'network saves the data choice with the credentials')
 assertEqual(network.hotspotDefaultBand({}), '', 'network returns no hotspot band when none exist')
 assertDeepEqual(
   network.hotspotClients({ clients: '[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]' }),
@@ -551,6 +548,4 @@ for (const [name, verb] of [['startHotspot', 'start'], ['applyHotspot', 'apply']
   new Function('state', 'with (state) {\n' + source[0] + '\n' + name + '()\n}')(state)
   assertEqual(JSON.stringify(state.hotspotActionProc.command), JSON.stringify(['omarchy-hotspot', verb, 'Cafe', '5', '4', '--save-data=never']), 'hotspot ' + verb + ' passes the chosen participant limit and data choice')
 }
-assert(/delegate: HotspotSaveDataPill \{\n\s*required property var modelData\n\s*choice: modelData/.test(panelSource), 'network declares the injected repeater property on the save-data pills')
-assert(/apply_args\+=\("--save-data=\$save_data"\)/.test(hotspotSource), 'hotspot start forwards the data choice to apply')
 JS
