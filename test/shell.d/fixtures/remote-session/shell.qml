@@ -31,8 +31,11 @@ ShellRoot {
     Quickshell.execDetached(["bash", "-lc", "printf '%s' " + shellQuote(payload) + " > " + shellQuote(resultPath)])
   }
 
+  // One pixel of the first output: outputs need not start at 0,0.
   function captureFrame() {
-    Quickshell.execDetached(["grim", "-g", "0,0 1x1", Quickshell.env("OMARCHY_QML_TEST_FRAME")])
+    var screen = Quickshell.screens[0]
+    var at = screen ? screen.x + "," + screen.y : "0,0"
+    Quickshell.execDetached(["grim", "-g", at + " 1x1", Quickshell.env("OMARCHY_QML_TEST_FRAME")])
   }
 
   // Polls `condition` every 100 ms for up to `timeout` ms, then continues with
