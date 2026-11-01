@@ -45,6 +45,8 @@
   "animations.enabled": "Animations enabled",
   "audio.micMuted": "Microphone muted",
   "audio.micOn": "Microphone on",
+  "rotation.locked": "Rotation locked",
+  "rotation.unlocked": "Rotation unlocked",
   "audio.noDevices": "No audio devices found",
   "battery.durationHours": "%1h",
   "battery.durationHoursMinutes": "%1h %2m",

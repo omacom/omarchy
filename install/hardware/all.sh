@@ -59,6 +59,12 @@ run_logged "$OMARCHY_INSTALL/hardware/qualcomm/camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-yoga-pro7-bass-speakers.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/yoga-slim7x.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
+
+run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-touchpad.sh"
+run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-sleep.sh"
+run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-panel.sh"
+run_logged "$OMARCHY_INSTALL/hardware/chuwi/fix-minibook-x-wake.sh"
+run_logged "$OMARCHY_INSTALL/hardware/chuwi/minibook-x-sensors.sh"
 run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-bcm43xx.sh"
