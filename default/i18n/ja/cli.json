@@ -188,10 +188,8 @@
     "other": "クリックして %1 件の保留中のマイグレーションを実行。"
   },
   "migrate.pending": "保留中のOmarchyマイグレーション",
-  "monitor.extendedRestored": "拡張モードに戻りました",
   "monitor.laptopDisabled": "ノートPC画面を無効にしました",
   "monitor.laptopEnabled": "ノートPC画面を有効にしました",
-  "monitor.mirroringEnabled": "ミラーリングを有効にしました（%1）",
   "monitor.noExternalForMirror": "ミラーリング用の外部ディスプレイが見つかりません",
   "monitor.noLaptopDisplay": "ノートPC画面が見つかりません",
   "monitor.noLaptopToMirror": "ミラーリングできるノートPC画面が見つかりません",

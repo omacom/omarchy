@@ -190,10 +190,8 @@
     "other": "Smelltu til að keyra %1 flutninga í bið."
   },
   "migrate.pending": "Omarchy-flutningar í bið",
-  "monitor.extendedRestored": "Útvíkkaður hamur endurheimtur",
   "monitor.laptopDisabled": "Fartölvuskjár óvirkur",
   "monitor.laptopEnabled": "Fartölvuskjár virkjaður",
-  "monitor.mirroringEnabled": "Speglun virkjuð (%1)",
   "monitor.noExternalForMirror": "Engir ytri skjár fundust til speglunar",
   "monitor.noLaptopDisplay": "Enginn fartölvuskjár fannst",
   "monitor.noLaptopToMirror": "Enginn fartölvuskjár fannst til að spegla",

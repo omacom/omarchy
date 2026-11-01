@@ -192,10 +192,8 @@
     "other": "Haz clic para ejecutar %1 migraciones pendientes."
   },
   "migrate.pending": "Migraciones pendientes de Omarchy",
-  "monitor.extendedRestored": "Modo extendido restablecido",
   "monitor.laptopDisabled": "Pantalla de la laptop desactivada",
   "monitor.laptopEnabled": "Pantalla de la laptop activada",
-  "monitor.mirroringEnabled": "Duplicación activada (%1)",
   "monitor.noExternalForMirror": "No se encontraron monitores externos para duplicar",
   "monitor.noLaptopDisplay": "No se encontró la pantalla de la laptop",
   "monitor.noLaptopToMirror": "No se encontró la pantalla de la laptop para duplicar",

@@ -399,13 +399,9 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping && !root.suspended
+      visible: !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
 
-      ScreenMoveRemap {
-        id: remapGuard
-        window: panel
-      }
       color: "transparent"
       // Keep render updates enabled. The background layer has been observed to
       // lose its committed buffer while parked with updatesEnabled=false,

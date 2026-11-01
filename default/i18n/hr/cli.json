@@ -192,10 +192,8 @@
     "other": "Kliknite za pokretanje %1 migracija na čekanju."
   },
   "migrate.pending": "Omarchy migracije na čekanju",
-  "monitor.extendedRestored": "Prošireni način vraćen",
   "monitor.laptopDisabled": "Zaslon prijenosnika onemogućen",
   "monitor.laptopEnabled": "Zaslon prijenosnika omogućen",
-  "monitor.mirroringEnabled": "Zrcaljenje omogućeno (%1)",
   "monitor.noExternalForMirror": "Nisu pronađeni vanjski monitori za zrcaljenje",
   "monitor.noLaptopDisplay": "Zaslon prijenosnika nije pronađen",
   "monitor.noLaptopToMirror": "Monitor prijenosnika za zrcaljenje nije pronađen",

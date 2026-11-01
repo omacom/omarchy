@@ -190,10 +190,8 @@
     "other": "Klicka för att köra %1 väntande migreringar."
   },
   "migrate.pending": "Väntande Omarchy-migreringar",
-  "monitor.extendedRestored": "Utökat läge återställt",
   "monitor.laptopDisabled": "Bärbar skärm inaktiverad",
   "monitor.laptopEnabled": "Bärbar skärm aktiverad",
-  "monitor.mirroringEnabled": "Spegling aktiverad (%1)",
   "monitor.noExternalForMirror": "Inga externa skärmar hittades för spegling",
   "monitor.noLaptopDisplay": "Ingen bärbar skärm hittades",
   "monitor.noLaptopToMirror": "Ingen bärbar skärm hittades att spegla",

@@ -190,10 +190,8 @@
     "other": "Click to run %1 pending migrations."
   },
   "migrate.pending": "Pending Omarchy Migrations",
-  "monitor.extendedRestored": "Extended mode restored",
   "monitor.laptopDisabled": "Laptop display disabled",
   "monitor.laptopEnabled": "Laptop display enabled",
-  "monitor.mirroringEnabled": "Mirroring enabled (%1)",
   "monitor.noExternalForMirror": "No external monitors found for mirror",
   "monitor.noLaptopDisplay": "No laptop display found",
   "monitor.noLaptopToMirror": "No laptop monitor found to mirror",

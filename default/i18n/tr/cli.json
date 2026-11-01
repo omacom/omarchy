@@ -190,10 +190,8 @@
     "other": "Bekleyen %1 geçişi çalıştırmak için tıklayın."
   },
   "migrate.pending": "Bekleyen Omarchy Geçişleri",
-  "monitor.extendedRestored": "Genişletilmiş mod geri yüklendi",
   "monitor.laptopDisabled": "Dizüstü ekranı devre dışı",
   "monitor.laptopEnabled": "Dizüstü ekranı etkin",
-  "monitor.mirroringEnabled": "Yansıtma etkin (%1)",
   "monitor.noExternalForMirror": "Yansıtma için harici monitör bulunamadı",
   "monitor.noLaptopDisplay": "Dizüstü ekranı bulunamadı",
   "monitor.noLaptopToMirror": "Yansıtılacak dizüstü monitörü bulunamadı",

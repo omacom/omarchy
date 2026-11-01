@@ -190,10 +190,8 @@
     "other": "%1 ta kutilayotgan migratsiyani ishga tushirish uchun bosing."
   },
   "migrate.pending": "Kutilayotgan Omarchy migratsiyalari",
-  "monitor.extendedRestored": "Kengaytirilgan rejim tiklandi",
   "monitor.laptopDisabled": "Noutbuk ekrani oʻchirildi",
   "monitor.laptopEnabled": "Noutbuk ekrani yoqildi",
-  "monitor.mirroringEnabled": "Aks ettirish yoqildi (%1)",
   "monitor.noExternalForMirror": "Aks ettirish uchun tashqi monitorlar topilmadi",
   "monitor.noLaptopDisplay": "Noutbuk ekrani topilmadi",
   "monitor.noLaptopToMirror": "Aks ettirish uchun noutbuk monitori topilmadi",

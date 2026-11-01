@@ -190,10 +190,8 @@
     "other": "برای اجرای %1 مهاجرت در انتظار کلیک کنید."
   },
   "migrate.pending": "مهاجرت‌های در انتظار Omarchy",
-  "monitor.extendedRestored": "حالت گسترده بازیابی شد",
   "monitor.laptopDisabled": "نمایشگر لپ‌تاپ غیرفعال شد",
   "monitor.laptopEnabled": "نمایشگر لپ‌تاپ فعال شد",
-  "monitor.mirroringEnabled": "آینه‌ای فعال شد (%1)",
   "monitor.noExternalForMirror": "مانیتور خارجی برای آینه‌ای یافت نشد",
   "monitor.noLaptopDisplay": "نمایشگر لپ‌تاپ یافت نشد",
   "monitor.noLaptopToMirror": "مانیتور لپ‌تاپ برای آینه‌ای یافت نشد",

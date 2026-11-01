@@ -188,10 +188,8 @@
     "other": "คลิกเพื่อรันการย้ายที่รอดำเนินการ %1 รายการ"
   },
   "migrate.pending": "การย้าย Omarchy ที่รอดำเนินการ",
-  "monitor.extendedRestored": "คืนค่าโหมดขยายแล้ว",
   "monitor.laptopDisabled": "ปิดจอแล็ปท็อปแล้ว",
   "monitor.laptopEnabled": "เปิดจอแล็ปท็อปแล้ว",
-  "monitor.mirroringEnabled": "เปิดการสะท้อนจอแล้ว (%1)",
   "monitor.noExternalForMirror": "ไม่พบจอภายนอกสำหรับสะท้อน",
   "monitor.noLaptopDisplay": "ไม่พบจอแล็ปท็อป",
   "monitor.noLaptopToMirror": "ไม่พบจอแล็ปท็อปสำหรับสะท้อน",

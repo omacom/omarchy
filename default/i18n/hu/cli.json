@@ -190,10 +190,8 @@
     "other": "Kattints %1 függő migráció futtatásához."
   },
   "migrate.pending": "Függő Omarchy-migrációk",
-  "monitor.extendedRestored": "Kiterjesztett mód visszaállítva",
   "monitor.laptopDisabled": "Laptopkijelző kikapcsolva",
   "monitor.laptopEnabled": "Laptopkijelző bekapcsolva",
-  "monitor.mirroringEnabled": "Tükrözés bekapcsolva (%1)",
   "monitor.noExternalForMirror": "Nem található külső monitor a tükrözéshez",
   "monitor.noLaptopDisplay": "Nem található laptopkijelző",
   "monitor.noLaptopToMirror": "Nem található tükrözhető laptopkijelző",

@@ -194,10 +194,8 @@
     "two": "Kliknite, da zaženete %1 čakajoči migraciji."
   },
   "migrate.pending": "Čakajoče migracije Omarchy",
-  "monitor.extendedRestored": "Razširjeni način obnovljen",
   "monitor.laptopDisabled": "Zaslon prenosnika onemogočen",
   "monitor.laptopEnabled": "Zaslon prenosnika omogočen",
-  "monitor.mirroringEnabled": "Zrcaljenje omogočeno (%1)",
   "monitor.noExternalForMirror": "Ni zunanjih zaslonov za zrcaljenje",
   "monitor.noLaptopDisplay": "Ni najdenega zaslona prenosnika",
   "monitor.noLaptopToMirror": "Ni zaslona prenosnika za zrcaljenje",

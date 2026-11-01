@@ -192,10 +192,8 @@
     "other": "Fes clic per executar %1 migracions pendents."
   },
   "migrate.pending": "Migracions pendents d'Omarchy",
-  "monitor.extendedRestored": "Mode estès restablit",
   "monitor.laptopDisabled": "Pantalla del portàtil desactivada",
   "monitor.laptopEnabled": "Pantalla del portàtil activada",
-  "monitor.mirroringEnabled": "Duplicació activada (%1)",
   "monitor.noExternalForMirror": "No s'ha trobat cap monitor extern per duplicar",
   "monitor.noLaptopDisplay": "No s'ha trobat cap pantalla de portàtil",
   "monitor.noLaptopToMirror": "No s'ha trobat cap monitor de portàtil per duplicar",

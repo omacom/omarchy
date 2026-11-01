@@ -190,10 +190,8 @@
     "other": "Klik for at køre %1 ventende migrationer."
   },
   "migrate.pending": "Ventende Omarchy-migrationer",
-  "monitor.extendedRestored": "Udvidet tilstand gendannet",
   "monitor.laptopDisabled": "Bærbar skærm deaktiveret",
   "monitor.laptopEnabled": "Bærbar skærm aktiveret",
-  "monitor.mirroringEnabled": "Spejling aktiveret (%1)",
   "monitor.noExternalForMirror": "Ingen eksterne skærme fundet til spejling",
   "monitor.noLaptopDisplay": "Ingen bærbar skærm fundet",
   "monitor.noLaptopToMirror": "Ingen bærbar skærm fundet at spejle",

@@ -3,7 +3,12 @@
 # omarchy:summary=Print monitor panel state for the shell
 # omarchy:group=monitor
 
-monitors_json=$(hyprctl monitors all -j)
+# Hyprland reports `mirrorOf` as the mirrored monitor's id, so name it here
+# for everything below and for the panel.
+monitors_json=$(hyprctl monitors all -j | jq '
+  (map({key: (.id | tostring), value: .name}) | from_entries) as $names
+  | map(.mirrorOf = (if (.mirrorOf // "none") == "none" then "none" else ($names[.mirrorOf | tostring] // .mirrorOf) end))
+')
 focused_monitor=$(printf '%s\n' "$monitors_json" | jq -r '[.[] | select(.focused == true)][0].name // ""')
 
 # Read every enabled display's brightness at once: a DDC read takes a moment
@@ -39,3 +44,10 @@ done | jq -R -n '[inputs | split("\t") | select(.[1] | test("^[0-9]+$")) | {(.[0
 
 printf '%s\n' "$monitors_json" | jq -c --argjson brightness "$brightness_json" \
   '[.[] | {name, make, model, enabled:(.disabled != true), focused:(.focused == true), width, height, refreshRate, scale, x, y, transform, mirrorOf, availableModes:(.availableModes // []), brightness:($brightness[.name] // null)}]'
+
+# Whether the mirror is Omarchy's own, which the panel can turn back off.
+if omarchy-hyprland-toggle-enabled internal-monitor-mirror; then
+  echo on
+else
+  echo
+fi

@@ -192,10 +192,8 @@
     "two": "לחצו להפעלת שתי העברות ממתינות."
   },
   "migrate.pending": "העברות Omarchy ממתינות",
-  "monitor.extendedRestored": "מצב מורחב שוחזר",
   "monitor.laptopDisabled": "תצוגת המחשב הנייד כובתה",
   "monitor.laptopEnabled": "תצוגת המחשב הנייד הופעלה",
-  "monitor.mirroringEnabled": "שיקוף הופעל (%1)",
   "monitor.noExternalForMirror": "לא נמצאו מסכים חיצוניים לשיקוף",
   "monitor.noLaptopDisplay": "לא נמצאה תצוגת מחשב נייד",
   "monitor.noLaptopToMirror": "לא נמצא מסך מחשב נייד לשיקוף",

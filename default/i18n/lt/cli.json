@@ -192,10 +192,8 @@
     "other": "Spustelėkite, kad paleistumėte %1 laukiančių perkėlimų."
   },
   "migrate.pending": "Laukiantys Omarchy perkėlimai",
-  "monitor.extendedRestored": "Išplėstinis režimas atkurtas",
   "monitor.laptopDisabled": "Nešiojamojo ekranas išjungtas",
   "monitor.laptopEnabled": "Nešiojamojo ekranas įjungtas",
-  "monitor.mirroringEnabled": "Dubliavimas įjungtas (%1)",
   "monitor.noExternalForMirror": "Išorinių monitorių dubliavimui nerasta",
   "monitor.noLaptopDisplay": "Nešiojamojo ekrano nerasta",
   "monitor.noLaptopToMirror": "Nešiojamojo monitoriaus dubliavimui nerasta",

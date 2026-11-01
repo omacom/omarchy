@@ -190,10 +190,8 @@
     "other": "%1 زیر التوا مائیگریشنز چلانے کے لیے کلک کریں۔"
   },
   "migrate.pending": "زیر التوا Omarchy مائیگریشنز",
-  "monitor.extendedRestored": "توسیعی موڈ بحال ہو گیا",
   "monitor.laptopDisabled": "لیپ ٹاپ ڈسپلے بند",
   "monitor.laptopEnabled": "لیپ ٹاپ ڈسپلے آن",
-  "monitor.mirroringEnabled": "عکس بندی آن (%1)",
   "monitor.noExternalForMirror": "عکس کے لیے کوئی بیرونی مانیٹر نہیں ملا",
   "monitor.noLaptopDisplay": "کوئی لیپ ٹاپ ڈسپلے نہیں ملا",
   "monitor.noLaptopToMirror": "عکس کے لیے کوئی لیپ ٹاپ مانیٹر نہیں ملا",

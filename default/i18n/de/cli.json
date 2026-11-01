@@ -190,10 +190,8 @@
     "other": "Klicke, um %1 ausstehende Migrationen auszuführen."
   },
   "migrate.pending": "Ausstehende Omarchy-Migrationen",
-  "monitor.extendedRestored": "Erweiterter Modus wiederhergestellt",
   "monitor.laptopDisabled": "Laptop-Display deaktiviert",
   "monitor.laptopEnabled": "Laptop-Display aktiviert",
-  "monitor.mirroringEnabled": "Spiegelung aktiviert (%1)",
   "monitor.noExternalForMirror": "Keine externen Monitore zum Spiegeln gefunden",
   "monitor.noLaptopDisplay": "Kein Laptop-Display gefunden",
   "monitor.noLaptopToMirror": "Kein Laptop-Monitor zum Spiegeln gefunden",

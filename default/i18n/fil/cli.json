@@ -190,10 +190,8 @@
     "other": "I-click para patakbuhin ang %1 nakabinbing migration."
   },
   "migrate.pending": "Mga Nakabinbing Migration ng Omarchy",
-  "monitor.extendedRestored": "Naibalik ang extended mode",
   "monitor.laptopDisabled": "Naka-disable ang display ng laptop",
   "monitor.laptopEnabled": "Naka-enable ang display ng laptop",
-  "monitor.mirroringEnabled": "Naka-enable ang pag-mirror (%1)",
   "monitor.noExternalForMirror": "Walang nakitang panlabas na monitor para sa pag-mirror",
   "monitor.noLaptopDisplay": "Walang nakitang display ng laptop",
   "monitor.noLaptopToMirror": "Walang nakitang monitor ng laptop para i-mirror",

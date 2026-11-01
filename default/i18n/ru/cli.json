@@ -194,10 +194,8 @@
     "other": "Нажмите, чтобы запустить %1 ожидающие миграции."
   },
   "migrate.pending": "Ожидающие миграции Omarchy",
-  "monitor.extendedRestored": "Расширенный режим восстановлен",
   "monitor.laptopDisabled": "Дисплей ноутбука выключен",
   "monitor.laptopEnabled": "Дисплей ноутбука включён",
-  "monitor.mirroringEnabled": "Дублирование включено (%1)",
   "monitor.noExternalForMirror": "Внешние мониторы для дублирования не найдены",
   "monitor.noLaptopDisplay": "Дисплей ноутбука не найден",
   "monitor.noLaptopToMirror": "Монитор ноутбука для дублирования не найден",

@@ -188,10 +188,8 @@
     "other": "點擊執行 %1 項待處理的遷移。"
   },
   "migrate.pending": "待處理的 Omarchy 遷移",
-  "monitor.extendedRestored": "已還原延伸模式",
   "monitor.laptopDisabled": "筆電螢幕已停用",
   "monitor.laptopEnabled": "筆電螢幕已啟用",
-  "monitor.mirroringEnabled": "已啟用鏡像（%1）",
   "monitor.noExternalForMirror": "找不到可鏡像的外接顯示器",
   "monitor.noLaptopDisplay": "找不到筆電螢幕",
   "monitor.noLaptopToMirror": "找不到可鏡像的筆電顯示器",
