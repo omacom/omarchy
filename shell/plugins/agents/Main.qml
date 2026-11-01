@@ -16,6 +16,31 @@ Item {
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
 
+  // Server lifecycle is independent of the local usage collector. Keep the
+  // watch alive even before the panel's content has been built.
+  property var localModel: ({})
+
+  FileView {
+    id: localModelFile
+    path: root.home + "/.local/state/omarchy/agent-local/status.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.parseLocalModel(text())
+  }
+
+  function parseLocalModel(content) {
+    try {
+      var parsed = JSON.parse(content)
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
+      if (parsed.recipe !== null && (typeof parsed.recipe !== "string" || parsed.recipe === "")) return
+      if (["active", "activating", "inactive", "failed", "deactivating"].indexOf(parsed.unit) < 0) return
+      root.localModel = parsed
+    } catch (e) {
+      // A missing or partially written file leaves the last good state intact.
+    }
+  }
+
   // ------------------------------------------------------------- discovery
 
   property var agentIds: []

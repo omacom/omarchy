@@ -103,3 +103,22 @@ assertDeepEqual(
   'agents panel shows a model-scoped window under the window it runs on'
 )
 JS
+
+# A rewrite may briefly leave an incomplete file; lifecycle state must survive it.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const state = { localModel: {} }
+const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
+const running = { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }
+parse(JSON.stringify(running))
+assertDeepEqual(state.localModel, running, 'lifecycle state loads without any usage record')
+for (const raw of ['{', 'null', '[]', '{}', '{"recipe":false,"unit":"active"}']) {
+  parse(raw)
+  assertDeepEqual(state.localModel, running, 'invalid lifecycle state keeps the last good value: ' + raw)
+}
+parse('{"recipe":"model-a","unit":"failed","result":"exit-code"}')
+assertEqual(state.localModel.result, 'exit-code', 'a server failure replaces the running state')
+parse('{"recipe":null,"unit":"inactive"}')
+assertEqual(state.localModel.recipe, null, 'an explicit unset recipe clears the card')
+JS

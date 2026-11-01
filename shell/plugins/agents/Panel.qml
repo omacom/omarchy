@@ -30,6 +30,44 @@ Panel {
   // answers is how much room is left, and where.
   readonly property var providers: usage.subscribedProviders
 
+  readonly property var localModel: usage.localModel
+  readonly property bool hasLocalModel: typeof localModel.recipe === "string" && localModel.recipe !== ""
+  readonly property bool localRunning: hasLocalModel && localModel.unit === "active"
+  readonly property bool localStopping: localModel.unit === "deactivating"
+  readonly property bool localCanStop: localRunning || localModel.unit === "activating"
+  readonly property bool localBestAvailable: !!localModel.best && localModel.best !== localModel.recipe
+  readonly property var localActions: {
+    var actions = []
+    // Setting one up starts from Install › AI in the menu, where recipes that
+    // can't run on this machine say why; the panel only follows one that exists.
+    if (!hasLocalModel) return actions
+    if (!localStopping) actions.push(localCanStop ? "stop" : "start")
+    if (localRunning) actions.push("launch")
+    actions.push("switch")
+    if (localBestAvailable) actions.push("setup")
+    return actions
+  }
+
+  function localActionLabel(action) {
+    switch (action) {
+    case "start": return Commons.I18n.t("agents.localStart")
+    case "stop": return Commons.I18n.t("agents.localStop")
+    case "launch": return Commons.I18n.t("agents.localLaunch")
+    case "switch": return Commons.I18n.t("agents.localSwitch")
+    default: return Commons.I18n.t("agents.localSetup")
+    }
+  }
+
+  function runLocalAction(action) {
+    switch (action) {
+    case "start": Util.execArgv(["systemctl", "--user", "start", "omarchy-agent-local"]); break
+    case "stop": Util.execArgv(["omarchy-agent-local-stop"]); break
+    case "launch": Util.execArgv(["omarchy-agent", "--local"]); root.close(); break
+    case "switch": Util.execArgv(["omarchy-menu", "summon", "install.ai.local-models"]); root.close(); break
+    case "setup": Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local-use best"]); root.close(); break
+    }
+  }
+
   property bool cursorActive: false
 
   // Countdowns and "last updated" ages read this instead of Date.now() so the
@@ -67,6 +105,7 @@ Panel {
       var choices = []
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
+      if (addStage === "" && localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -91,6 +130,7 @@ Panel {
           if (row.length > 0) rows.push(row)
         }
       }
+      if (localActions.length > 0) rows.push(localActions.map(function(action, index) { return { kind: "local", index: index } }))
       if (!blankSlate) {
         var tiles = []
         for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
@@ -393,6 +433,7 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
+    else if (target.kind === "local") runLocalAction(localActions[target.index])
     else if (target.kind === "launch") launchAgent()
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
@@ -839,7 +880,7 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn
+  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !hasLocalModel
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -1109,6 +1150,114 @@ Panel {
               width: column.width
               provider: modelData
               providerIndex: index
+            }
+          }
+
+          Column {
+            visible: root.addStage === "" && root.hasLocalModel
+            width: parent.width
+            spacing: Style.space(16)
+
+            PanelSeparator { foreground: root.foreground }
+
+            PanelSectionHeader {
+              text: Commons.I18n.t("agents.localTitle")
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+            }
+
+            Column {
+              visible: root.hasLocalModel
+              width: parent.width
+              spacing: Style.space(6)
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: String(root.localModel.name || root.localModel.recipe || "")
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                wrapMode: Text.Wrap
+              }
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: String(root.localModel.runtime || "")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+              }
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: {
+                  if (root.localRunning) return Commons.I18n.t("agents.localRunning")
+                  if (root.localModel.unit === "activating") return Commons.I18n.t("agents.localLoading")
+                  if (root.localStopping) return Commons.I18n.t("agents.localStopping")
+                  if (root.localModel.unit === "failed") return root.localModel.result
+                    ? Commons.I18n.t("agents.localFailedResult").arg(String(root.localModel.result))
+                    : Commons.I18n.t("agents.localFailed")
+                  return Commons.I18n.t("agents.localStopped")
+                }
+                color: root.localModel.unit === "failed" ? root.urgent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                wrapMode: Text.Wrap
+              }
+
+              Text {
+                visible: root.localRunning
+                width: parent.width
+                textFormat: Text.PlainText
+                text: String(root.localModel.endpoint || "")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WrapAnywhere
+              }
+
+              Text {
+                visible: root.localRunning && Number(root.localModel.ctx) > 0
+                width: parent.width
+                textFormat: Text.PlainText
+                text: Commons.I18n.t("agents.localContext").arg(Commons.I18n.formatNumber(Number(root.localModel.ctx) || 0))
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+              }
+
+              Text {
+                visible: root.localBestAvailable
+                width: parent.width
+                textFormat: Text.PlainText
+                text: Commons.I18n.t("agents.localBetter")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+              }
+            }
+
+            Flow {
+              width: parent.width
+              spacing: Style.space(16)
+
+              Repeater {
+                model: root.localActions
+                TextLink {
+                  required property string modelData
+                  required property int index
+                  picked: root.hasKey("local", index)
+                  text: root.localActionLabel(modelData)
+                  onClicked: root.runLocalAction(modelData)
+                }
+              }
             }
           }
 
