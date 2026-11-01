@@ -1438,9 +1438,11 @@ Panel {
         }
 
         MouseArea {
+          // A lone display, or a mirrored stack, has nothing to move against.
+          readonly property bool canDrag: root.layoutRects.length > 1
           anchors.fill: parent
           hoverEnabled: true
-          cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+          cursorShape: !canDrag ? Qt.ArrowCursor : (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
           preventStealing: true
           acceptedButtons: Qt.LeftButton | Qt.RightButton
           onPressed: function(mouse) {
@@ -1454,7 +1456,7 @@ Panel {
             screenRect.pressY = point.y
           }
           onPositionChanged: function(mouse) {
-            if (!(pressedButtons & Qt.LeftButton)) return
+            if (!canDrag || !(pressedButtons & Qt.LeftButton)) return
             var point = mapToItem(map, mouse.x, mouse.y)
             screenRect.dragX = point.x - screenRect.pressX
             screenRect.dragY = point.y - screenRect.pressY
