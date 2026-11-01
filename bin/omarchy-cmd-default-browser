@@ -11,23 +11,25 @@ IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIR
 IFS=: read -ra config_dirs <<<"${XDG_CONFIG_HOME:-$HOME/.config}:${XDG_CONFIG_DIRS:-/etc/xdg}"
 IFS=: read -ra desktops <<<"${XDG_CURRENT_DESKTOP:-}"
 
+source omarchy-cmd-browser-exec
+
 # Installed means the command of the entry the launchers will read, the first
 # one found, still resolves: an entry of Omarchy's own can outlive the browser
-# it launched. An env prefix is skipped, so env itself never counts as one.
+# it launched. An env prefix is skipped, so env itself never counts as one, and
+# its PATH is where the browser is looked up, as env would launch it.
 installed() {
-  local data_dir
-  local -a words
+  local data_dir assignment path=$PATH browser_exec
+  local -a browser_env browser_command handoff_env
 
   for data_dir in "${data_dirs[@]}"; do
     [[ -r $data_dir/applications/$1 ]] || continue
-    read -ra words <<<"$(sed -n 's/^Exec=//p' "$data_dir/applications/$1" | head -1)"
-    if [[ ${words[0]:-} == "env" || ${words[0]:-} == "/usr/bin/env" ]]; then
-      words=("${words[@]:1}")
-      while [[ ${words[0]:-} == *=* ]]; do
-        words=("${words[@]:1}")
-      done
-    fi
-    [[ -n ${words[0]:-} ]] && command -v "${words[0]}" >/dev/null
+    browser_from_desktop_entry "$data_dir/applications/$1"
+    for assignment in "${browser_env[@]}"; do
+      if [[ $assignment == PATH=* ]]; then
+        path=${assignment#PATH=}
+      fi
+    done
+    [[ -n $browser_exec ]] && PATH=$path command -v "$browser_exec" >/dev/null
     return
   done
 

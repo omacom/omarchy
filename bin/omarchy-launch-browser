@@ -11,20 +11,12 @@ IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIR
 # An entry may set variables for its browser with an env prefix, as in
 # Exec=env DRI_PRIME=0 chromium %U: keep them for the launch, and take the
 # browser from the word after them, not env itself.
+source omarchy-cmd-browser-exec
 browser_exec=""
-browser_env=()
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$default_browser"
   [[ -f $entry ]] || continue
-  read -ra exec_words <<<"$(sed -n 's/^Exec=//p' "$entry" | head -1)"
-  if [[ ${exec_words[0]:-} == "env" || ${exec_words[0]:-} == "/usr/bin/env" ]]; then
-    exec_words=("${exec_words[@]:1}")
-    while [[ ${exec_words[0]:-} == *=* ]]; do
-      browser_env+=("${exec_words[0]}")
-      exec_words=("${exec_words[@]:1}")
-    done
-  fi
-  browser_exec=${exec_words[0]:-}
+  browser_from_desktop_entry "$entry"
   break
 done
 
@@ -50,18 +42,12 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
-if (( ${#browser_env[@]} > 0 )); then
-  launch_command=(env "${browser_env[@]}" "$browser_exec")
-else
-  launch_command=("$browser_exec")
-fi
-
 # The handoff sees the entry's variables too, so it leaves a browser pointed at
 # another profile to the launch instead of giving the URL to the running one.
-if ! env "${browser_env[@]}" omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+if ! env "${handoff_env[@]}" omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "${launch_command[@]}" "${@/--private/$private_flag}"
+    uwsm-app -- "${browser_command[@]}" "${@/--private/$private_flag}"
 fi
 
 url=""

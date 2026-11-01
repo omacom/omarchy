@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# omarchy:summary=Shared desktop-entry Exec= parsing for the browser launchers (source this, don't run it).
+# omarchy:hidden=true
+
+# Read the first Exec= line of desktop entry $1 into:
+#   browser_exec    the browser command
+#   browser_env     VAR=VALUE words of a leading env or /usr/bin/env, as in
+#                   Exec=env DRI_PRIME=0 chromium %U
+#   browser_command the command to launch the browser with those variables
+#   handoff_env     browser_env without PATH, for omarchy-cmd-browser-handoff,
+#                   which needs the session's PATH to find its own helpers
+#
+# Arguments are split the way the Desktop Entry spec quotes them, without shell
+# evaluation, so a quoted VAR=VALUE may hold spaces.
+browser_from_desktop_entry() {
+  local line value="" word="" char next assignment i
+  local in_word=0 quoted=0
+  local -a words=()
+
+  line=$(sed -n 's/^Exec=//p' "$1" | head -1)
+
+  # The desktop file's own string escapes come first: \s \n \t \r \\.
+  for (( i = 0; i < ${#line}; i++ )); do
+    char=${line:i:1}
+    if [[ $char == "\\" ]] && (( i + 1 < ${#line} )); then
+      next=${line:i+1:1}
+      case $next in
+      s) value+=" " ;;
+      n) value+=$'\n' ;;
+      t) value+=$'\t' ;;
+      r) value+=$'\r' ;;
+      "\\") value+="\\" ;;
+      *) value+="\\$next" ;;
+      esac
+      (( i += 1 ))
+    else
+      value+=$char
+    fi
+  done
+
+  # Then Exec= quoting: inside double quotes, a backslash escapes " ` $ and \.
+  for (( i = 0; i < ${#value}; i++ )); do
+    char=${value:i:1}
+    if (( quoted )); then
+      next=${value:i+1:1}
+      if [[ $char == "\\" ]] && [[ $next == '"' || $next == '`' || $next == '$' || $next == "\\" ]]; then
+        word+=$next
+        (( i += 1 ))
+      elif [[ $char == '"' ]]; then
+        quoted=0
+      else
+        word+=$char
+      fi
+    elif [[ $char == " " ]]; then
+      if (( in_word )); then
+        words+=("$word")
+        word=""
+        in_word=0
+      fi
+    elif [[ $char == '"' ]]; then
+      quoted=1
+      in_word=1
+    else
+      word+=$char
+      in_word=1
+    fi
+  done
+  if (( in_word )); then
+    words+=("$word")
+  fi
+
+  browser_env=()
+  if [[ ${words[0]:-} == "env" || ${words[0]:-} == "/usr/bin/env" ]]; then
+    words=("${words[@]:1}")
+    while [[ ${words[0]:-} == *=* ]]; do
+      browser_env+=("${words[0]}")
+      words=("${words[@]:1}")
+    done
+  fi
+  browser_exec=${words[0]:-}
+
+  if (( ${#browser_env[@]} > 0 )); then
+    browser_command=(env "${browser_env[@]}" "$browser_exec")
+  else
+    browser_command=("$browser_exec")
+  fi
+
+  handoff_env=()
+  for assignment in "${browser_env[@]}"; do
+    if [[ $assignment != PATH=* ]]; then
+      handoff_env+=("$assignment")
+    fi
+  done
+}

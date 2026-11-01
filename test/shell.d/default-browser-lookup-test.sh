@@ -110,3 +110,19 @@ chmod +x "$mock_bin/xdg-settings" "$mock_bin/xdg-mime"
   fail "default browser skips an xdg-settings answer that is not installed" "$(omarchy-cmd-default-browser)"
 
 pass "default browser checks that fallback answers are installed"
+
+# An env prefix may quote a value that holds spaces, and may set the PATH its
+# browser is found on, as env would launch it.
+mkdir -p "$test_tmp/opt/bin"
+printf '#!/bin/bash\n' >"$test_tmp/opt/bin/custom-browser"
+chmod +x "$test_tmp/opt/bin/custom-browser"
+echo 'Exec=env "CHROME_CONFIG_HOME=/home/alex/Browser Profiles" chromium %U' >"$XDG_DATA_HOME/applications/quoted.desktop"
+echo "Exec=env PATH=$test_tmp/opt/bin:/usr/bin custom-browser %U" >"$XDG_DATA_HOME/applications/custom-path.desktop"
+
+for entry in quoted.desktop custom-path.desktop; do
+  printf '[Default Applications]\nx-scheme-handler/http=%s\n' "$entry" >"$XDG_CONFIG_HOME/mimeapps.list"
+  [[ $(omarchy-cmd-default-browser) == "$entry" ]] ||
+    fail "default browser accepts the env-prefixed $entry" "$(omarchy-cmd-default-browser)"
+done
+
+pass "default browser reads a quoted env prefix and the PATH it sets"
