@@ -12,14 +12,21 @@ Both installation finalization and `omarchy-refresh-pacman` use this command. Ex
 
 Refresh renders both files as the calling user and gives root only the finished copies,. That does not defend against other code already running as the same user: such code could change the rendered files while refresh waits for the password, as it could alter that user's own environment in other ways.
 
-The China profile changes only where packages come from, never which repositories or keys are trusted. It puts Omarchy's China replica of the channel's Arch mirror first (`stable-mirror.omarchy.cn`, `rc-mirror.omarchy.cn`, or `mirror.omarchy.cn` for edge and dev) and Omarchy's China replica of the `[omarchy]` repository first (`pkgs.omarchy.cn/<channel>`), keeping the `.org` servers as the fallback. Both replicas serve the same signed packages as `.org`, so package signatures are checked against the same keys as everywhere else. pacman tries servers in order and moves to the next one when a download fails, including a 404. After three failed downloads from one server, it skips that server for the rest of the transaction. It also takes the package databases from the first server that answers, without comparing them, so the China replicas must carry complete, current metadata; they sync from `.org` within minutes.
+For package downloads, the China profile changes only where packages come from, never which repositories or keys are trusted. It puts Omarchy's China replica of the channel's Arch mirror first (`stable-mirror.omarchy.cn`, `rc-mirror.omarchy.cn`, or `mirror.omarchy.cn` for edge and dev) and Omarchy's China replica of the `[omarchy]` repository first (`pkgs.omarchy.cn/<channel>`), keeping the `.org` servers as the fallback. Both replicas serve the same signed packages as `.org`, so package signatures are checked against the same keys as everywhere else. pacman tries servers in order and moves to the next one when a download fails, including a 404. After three failed downloads from one server, it skips that server for the rest of the transaction. It also takes the package databases from the first server that answers, without comparing them, so the China replicas must carry complete, current metadata; they sync from `.org` within minutes.
 
 Installs from before regions have no marker and stay global; nothing changes their pacman files on update. An existing machine in mainland China opts in by writing the marker and refreshing: `echo cn | sudo tee /etc/omarchy/region` then `omarchy-refresh-pacman`, which backs up both files first.
+
+## Regional default fonts
+
+A profile's optional `font` file contains one installed monospace family name. During user finalization, `omarchy-region-font` applies it through `omarchy-font-set` only when that exact family is available; a missing profile or font leaves the user's settings unchanged. China names `Maple Mono NF CN` (the `maplemono-nf-cn` package). Font selection does not install that package: image builders or users must supply it separately, and it does not depend on a China-specific ISO preset.
+
+The ISO chroot and first-boot owner setup pass `OMARCHY_FONT_HEADLESS=1`, so the setter writes terminal settings and the fontconfig monospace default without signalling Kitty or Ghostty, restarting the shell, or sending notifications to the host session. Interactive font changes keep those refreshes. A region switch does not run user finalization and therefore does not change an existing user's font. Explicitly forcing user finalization reapplies bootstrap defaults.
 
 ## Profile layout
 
 Each profile lives in `default/regions/<code>/`:
 
+- `font`: an optional installed monospace family to select during user finalization. Font selection does not install its package.
 - `timezones`: the timezones that select this region, one per line, with blank lines and `#` comments allowed. List tzdata's backward-compatible names too, since the installer's timezone list includes them. A timezone may belong to at most one profile.
 - `pacman/`: per channel (`stable`, `rc`, `edge`), `omarchy-<channel>.prepend`, placed first in the `[omarchy]` section of `pacman.conf`, and `mirrorlist-<channel>.prepend`, placed ahead of the channel's mirrorlist, so the regional mirrors are tried first.
 
@@ -36,7 +43,7 @@ There is one ISO for every region. The companion `omarchy-iso` repository reads 
 
 ## Scope of the China profile
 
-The China profile provides repository defaults only. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
+The China profile provides repository defaults and optional per-user bootstrap defaults. Language is a separate installer choice, not part of a region: a Chinese speaker outside China keeps global mirrors, and a China install in English still gets the regional ones.
 
 ## Remaining release validation
 
