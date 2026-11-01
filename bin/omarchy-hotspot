@@ -341,19 +341,31 @@ alias_store_rewrite() {
   fi
 }
 
+# The store is rewritten whole, so two writers (two panels, a panel and a
+# terminal) take turns: each reads the file the last one left.
+alias_store_lock() {
+  local directory fd
+  directory=$(dirname "$(alias_file)")
+  mkdir -p "$directory" || fail "could not create the hotspot alias directory"
+  exec {fd}>>"$(alias_file).lock" || fail "could not open the hotspot alias lock"
+  flock -w 10 "$fd" || fail "another hotspot alias change is still running"
+}
+
 set_client_alias() {
   local mac alias
   mac=$(normalize_client_mac "${1:-}") || fail "invalid hotspot client MAC"
   IFS= read -r alias || true
   alias=$(trim_client_alias "$alias")
   valid_client_alias "$alias" || fail "hotspot alias must be 1-64 characters without control characters"
+  alias_store_lock
   alias_store_rewrite "$mac" "$alias" || fail "could not save the hotspot alias"
 }
 
 remove_client_alias() {
   local mac
   mac=$(normalize_client_mac "${1:-}") || fail "invalid hotspot client MAC"
-  [[ -f $(alias_file) ]] || return 0
+  [[ -e $(alias_file) ]] || return 0
+  alias_store_lock
   alias_store_rewrite "$mac" "" || fail "could not remove the hotspot alias"
 }
 

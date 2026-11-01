@@ -500,6 +500,18 @@ if (( $(id -u) != 0 )); then
 fi
 pass "an unreadable alias store is never rewritten"
 
+# Overlapping saves take turns, so none of them is lost.
+CONCURRENT_ROOT="$TEST_TMP/concurrent-state"
+mkdir -p "$CONCURRENT_ROOT"
+for i in $(seq 10 29); do
+  XDG_STATE_HOME="$CONCURRENT_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-hotspot" alias-set "aa:bb:cc:dd:ee:$i" <<<"Device $i" &
+done
+wait
+concurrent_store="$CONCURRENT_ROOT/omarchy/hotspot-aliases.tsv"
+[[ $(wc -l <"$concurrent_store") == 20 ]] || fail "overlapping alias saves keep every name" "$(wc -l <"$concurrent_store") of 20"
+pass "overlapping alias saves keep every name"
+
 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
   bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
 [[ -z $(cut -f1 <"$alias_store" | grep -F 'aa:bb:cc:dd:ee:01' || true) ]] || fail "a removed alias is gone" "$(<"$alias_store")"
