@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Install and configure Hex dictation
+# omarchy:requires-sudo=true
+
+set -e
+
+omarchy-pkg-add hex-bin
+# Download the speech model here, with progress, instead of silently on first launch.
+hex model install
+systemctl --user enable hex.service
+# Launching through the CLI saves this session's display environment for the unit before starting it.
+hex start
+omarchy-dictation-use hex
+hyprctl reload >/dev/null
+omarchy-notification-send -g  "$(omarchy-i18n dictation.hexReady)" "$(omarchy-i18n dictation.hint)" -t 10000
