@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Item {
@@ -16,15 +17,10 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
-  // A locked session blanks the displays after a few seconds. Nothing is
-  // visible from then until the user wakes it, so a video must not keep
-  // decoding through what is usually the longest part of a lock.
-  property bool displaysBlank: false
-  property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
-  readonly property string placeholderText: "Enter Password"
+  readonly property string placeholderText: Commons.I18n.t("lock.enterPassword")
   readonly property int fieldWidth: 381
   readonly property int fieldHeight: 67
   readonly property int outlineThickness: 3
@@ -42,11 +38,11 @@ Item {
   readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
   readonly property bool errorState: failureMessage.length > 0
   readonly property var inputBorderSpec: errorState
-    ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
-    : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
+    ? Border.surfaceSpec("lock", "border-error", Commons.Color.lock.borderError, root.outlineThickness, "border-alpha")
+    : Border.surfaceSpec("lock", "border-active", Commons.Color.lock.borderActive, root.outlineThickness, "border-alpha")
 
+  // A video wallpaper shows its still poster: nothing plays behind the lock.
   readonly property bool video: Util.isVideoPath(root.backgroundPath)
-  readonly property bool feedActive: root.video && root.loadBackground && !root.displaysBlank && !root.powerSaverActive
 
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
@@ -97,7 +93,7 @@ Item {
 
   Rectangle {
     anchors.fill: parent
-    color: Color.background
+    color: Commons.Color.background
 
     BackgroundMedia {
       id: wallpaper
@@ -125,25 +121,6 @@ Item {
       contrast: -0.08
     }
 
-    // The cached poster stays behind the feed when policy pauses playback,
-    // the module is unavailable, or a new connection has not received a frame.
-    Loader {
-      id: feedLoader
-      objectName: "lockFeedLoader"
-      anchors.fill: parent
-      active: root.feedActive
-      source: "LockFeedSurface.qml"
-      visible: status === Loader.Ready
-    }
-
-    // The feed item cannot be sampled by MultiEffect on every renderer.
-    // Keep video wallpapers visible and darken them slightly for legibility.
-    Rectangle {
-      anchors.fill: feedLoader
-      visible: root.video
-      color: "#22000000"
-    }
-
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
@@ -156,7 +133,7 @@ Item {
       width: root.fieldWidth
       height: root.fieldHeight
       anchors.centerIn: parent
-      color: Color.lock.background
+      color: Commons.Color.lock.background
       borderSpec: root.inputBorderSpec
       radius: Style.cornerRadius
       clip: true
@@ -179,16 +156,16 @@ Item {
         echoMode: TextInput.Password
         passwordCharacter: "\u25CF"
         passwordMaskDelay: 0
-        color: Color.lock.text
-        selectionColor: Color.lock.selection
-        selectedTextColor: Color.lock.text
+        color: Commons.Color.lock.text
+        selectionColor: Commons.Color.lock.selection
+        selectedTextColor: Commons.Color.lock.text
         font.family: Style.font.family
         font.pixelSize: text.length > 0 ? Math.max(1, Math.floor(root.passwordDotFontSize * root.passwordDotScale)) : root.fieldFontSize
         font.letterSpacing: text.length > 0 ? root.passwordDotLetterSpacing * root.passwordDotScale : 0
         cursorVisible: activeFocus && root.showPasswordCursor && text.length > 0
         cursorDelegate: Rectangle {
           width: 2
-          color: Color.lock.text
+          color: Commons.Color.lock.text
           visible: passwordInput.cursorVisible
         }
 
@@ -222,9 +199,9 @@ Item {
       Text {
         textFormat: Text.PlainText
         anchors.fill: passwordInput
-        text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+        text: root.authenticatingPassword ? Commons.I18n.t("lock.checking") : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
         visible: passwordInput.text.length === 0
-        color: root.authenticatingPassword ? Color.lock.text : (root.failureMessage.length > 0 ? Color.lock.textError : Color.lock.placeholder)
+        color: root.authenticatingPassword ? Commons.Color.lock.text : (root.failureMessage.length > 0 ? Commons.Color.lock.textError : Commons.Color.lock.placeholder)
         font.family: Style.font.family
         font.pixelSize: root.fieldFontSize
         font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
@@ -247,7 +224,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
-        color: root.fingerprintUnavailable ? Color.lock.textError : Color.lock.placeholder
+        color: root.fingerprintUnavailable ? Commons.Color.lock.textError : Commons.Color.lock.placeholder
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
@@ -265,8 +242,8 @@ Item {
       anchors.topMargin: 18
       anchors.horizontalCenter: inputField.horizontalCenter
       visible: root.fingerprintConfigured && root.fingerprintUnavailable
-      text: "Fingerprint reader unavailable"
-      color: Color.lock.textError
+      text: Commons.I18n.t("lock.fingerprintUnavailable")
+      color: Commons.Color.lock.textError
       font.family: Style.font.family
       font.pixelSize: Style.font.heading
       font.italic: true

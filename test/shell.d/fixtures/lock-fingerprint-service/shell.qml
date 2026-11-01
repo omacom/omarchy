@@ -21,9 +21,17 @@ ShellRoot {
   function timer(service, interval, repeat) {
     var objects = service.data || []
     for (var i = 0; i < objects.length; i++) {
-      if (objects[i].interval === interval && objects[i].repeat === repeat) return objects[i]
+      if (objects[i].interval === interval && objects[i].repeat === repeat && objects[i].ticksLeft === undefined) return objects[i]
     }
     throw new Error("Missing timer: " + interval + ", repeat=" + repeat)
+  }
+
+  function resumeWatch(service) {
+    var objects = service.data || []
+    for (var i = 0; i < objects.length; i++) {
+      if (objects[i].ticksLeft !== undefined) return objects[i]
+    }
+    throw new Error("Missing resume watch")
   }
 
   function run() {
@@ -149,9 +157,84 @@ ShellRoot {
       check(!service.fingerprintAuthenticating && !reach.running, "the reach bound closes a stuck attempt")
       check(service.lockRequested, "a timeout never unlocks")
 
+      // runBlank and runWake would drive the real displays, so the pause they
+      // call is exercised directly.
+      var sleepWatch = timer(service, 1000, true)
+      service.fingerprintConfigured = true
+      service.fingerprintUnreachedStreak = 0
+      // Close the resume grace an earlier check opened, so misses count again.
+      service.fingerprintResumedAtMs = 0
+      service.fingerprintAuthenticating = true
+      service.fingerprintAttemptReachedDevice = false
+      reach.start()
+      service.pauseFingerprint()
+      check(service.fingerprintAuthenticating && reach.running, "blanking lets a claim in progress finish under its reach bound")
+      check(sleepWatch.running, "the sleep watch covers an attempt still running while blank")
+      service.fingerprintAttemptReachedDevice = true
+      service.settleFingerprintAttempt()
+      check(!retry.running && !sleepWatch.running, "once that attempt ends nothing runs while the displays are off")
+      service.resumeFingerprint()
+      check(retry.running && retry.interval === 250 && sleepWatch.running, "a wake arms the next attempt and the sleep watch")
+      retry.stop()
+
+      for (var j = 0; j < 8; j++) {
+        service.fingerprintAuthenticating = true
+        service.fingerprintAttemptReachedDevice = false
+        service.settleFingerprintAttempt()
+      }
+      check(retry.interval === 40000, "a failing reader is at its capped wait")
+      var streak = service.fingerprintUnreachedStreak
+      service.pauseFingerprint()
+      check(!retry.running, "blanking stops the backed-off retry")
+      service.resumeFingerprint()
+      check(retry.running && retry.interval > 39000, "a wake keeps the capped wait so fprintd still gets its idle window")
+      check(service.fingerprintUnreachedStreak === streak && streak > 0, "pause and wake keep the miss history")
+      service.pauseFingerprint()
+      service.fingerprintRetryDueMs = Date.now() + 5000
+      service.resumeFingerprint()
+      service.fingerprintLastNudgeMs = 0
+      service.nudgeFingerprint()
+      check(retry.running && retry.interval > 4000, "input after a wake keeps the capped retry's idle window")
+      service.pauseFingerprint()
+      service.fingerprintRetryDueMs = Date.now() - 1000
+      service.resumeFingerprint()
+      check(retry.running && retry.interval === 250, "a wait that ran out while blank retries at once on wake")
+
+      // The blank countdown would drive the real displays, so it is stopped
+      // whenever the resume path arms it.
+      var resumeTimer = resumeWatch(service)
+      var blankTimer = timer(service, 5000, false)
+      retry.stop()
+      service.pauseFingerprint()
+      service.noteSleepRequested()
+      check(resumeTimer.running, "a lock request while blank watches for a sleep")
+      for (var k = 0; k < 20; k++) {
+        resumeTimer.lastTickMs = Date.now()
+        resumeTimer.triggered()
+      }
+      check(!resumeTimer.running && service.fingerprintPaused && !retry.running, "a repeated lock with no sleep, as the idle service makes, leaves the reader paused")
+
+      service.noteSleepRequested()
+      resumeTimer.lastTickMs = Date.now() - 60000
+      resumeTimer.triggered()
+      blankTimer.stop()
+      check(!resumeTimer.running, "the watch ends once it sees the sleep")
+      check(!service.fingerprintPaused, "a resume with no input still brings the reader back")
+      check(retry.running && retry.interval === 250, "a wake after a sleep while blank recovers at once")
+      check(service.fingerprintUnreachedStreak === 0, "a sleep while blank opens the resume grace")
+      retry.stop()
+      service.pauseFingerprint()
+      service.noteSleepRequested()
+      service.resetAuthenticationState()
+      check(!resumeTimer.running, "unlock reset drops a pending resume")
+      service.lockRequested = true
+      service.fingerprintConfigured = true
+      service.pauseFingerprint()
+
       service.lockRequested = false
       service.resetAuthenticationState()
       check(!retry.running && !reach.running && !recheck.running, "unlock reset stops every fingerprint timer")
+      check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
     } finally {
