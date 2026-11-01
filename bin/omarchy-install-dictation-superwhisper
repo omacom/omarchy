@@ -1,9 +1,20 @@
 #!/bin/bash
 
 # omarchy:summary=Install and configure Superwhisper dictation
+# omarchy:args=[--background]
 # omarchy:requires-sudo=true
 
 set -e
+
+# First run configures the preinstalled package unattended, so it must not
+# open settings or announce itself.
+background=false
+if [[ ${1:-} == "--background" ]]; then
+  background=true
+elif (($# > 0)); then
+  echo "Usage: omarchy install dictation superwhisper [--background]" >&2
+  exit 1
+fi
 
 omarchy-pkg-add superwhisper-bin
 bash /usr/share/superwhisper/setup-user
@@ -23,5 +34,7 @@ superwhisper shortcuts set toggle "Ctrl+Alt+Space" >/dev/null
 superwhisper shortcuts set hold none >/dev/null
 omarchy-dictation-use superwhisper
 hyprctl reload >/dev/null
-omarchy-notification-send -g  "$(omarchy-i18n dictation.superwhisperReady)" "$(omarchy-i18n dictation.hint)" -t 10000
-superwhisper settings
+if [[ $background == "false" ]]; then
+  omarchy-notification-send -g  "$(omarchy-i18n dictation.superwhisperReady)" "$(omarchy-i18n dictation.hint)" -t 10000
+  superwhisper settings
+fi
