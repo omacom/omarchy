@@ -844,9 +844,10 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
   const s = newCapacityScope()
   s.admit(s.fakeNotification(1, 'Original'))
   const key = s.keyForOriginal(1)
-  s.toasts.get(0).ts -= 5
   s.doNotDisturb = true
   s.handleNotification(s.fakeNotification(1, 'Update'))
+  // The closed original predates the update that was saved under its key.
+  s.liveEntries[0].ts -= 5
   s.finishClose(key, 'dismissed')
   s.drainCallLater()
   // History now holds the dismissed original and, newer, its muted update.
