@@ -74,12 +74,16 @@ Item {
   // Password mode is a wide field; fingerprint mode collapses to a square that
   // just frames the centered sensor icon; the security key prompt widens to
   // fit its instruction, which is longer in some languages ("Toque na sua
-  // chave de segurança"), up to the screen's width.
-  readonly property int securityKeyCardWidth: Math.ceil(touchMetrics.advanceWidth + Style.space(40) + card.contentLeftInset + card.contentRightInset)
+  // chave de segurança"), up to the screen's width. The instruction is
+  // measured by a hidden Text laid out like the shown one: TextMetrics'
+  // advanceWidth can fall short of the width a Text needs to not elide.
+  readonly property int securityKeyCardWidth: Math.ceil(touchMeasure.implicitWidth + Style.space(40) + card.contentLeftInset + card.contentRightInset)
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(securityKeyMode ? Math.max(Style.space(400), securityKeyCardWidth) : Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
-  TextMetrics {
-    id: touchMetrics
+  Text {
+    id: touchMeasure
+    visible: false
+    textFormat: Text.PlainText
     font.family: root.fontFamily
     font.pixelSize: Style.font.iconLarge
     text: I18n.t("polkit.touchSecurityKey")
