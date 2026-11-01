@@ -12,7 +12,10 @@ import "AudioNodesModel.js" as Model
 Singleton {
   id: root
 
-  readonly property var hints: Model.parsePlatformAudio(hintsFile.missing ? "" : hintsFile.text())
+  // Read synchronously at startup (the FileView blocks loading), then kept
+  // current by its load handlers below. Binding this to the missing flag
+  // the handlers write — as it was — loops on every shell start.
+  property var hints: Model.parsePlatformAudio(hintsFile.text())
 
   // Whether the platform's hints hide a node, given the names of every node
   // now in the graph (for a "replaced" node).
@@ -34,8 +37,14 @@ Singleton {
     blockLoading: true
     watchChanges: true
     printErrors: false
-    onLoaded: missing = false
-    onLoadFailed: missing = true
+    onLoaded: {
+      missing = false
+      root.hints = Model.parsePlatformAudio(text())
+    }
+    onLoadFailed: {
+      missing = true
+      root.hints = Model.parsePlatformAudio("")
+    }
     onFileChanged: reload()
   }
 }
