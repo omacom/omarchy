@@ -18,12 +18,14 @@ TEMPLATE = app
 
 HEADERS += \
     src/backend.h \
-    src/theme.h
+    src/theme.h \
+    src/translator.h
 
 SOURCES += \
     src/main.cpp \
     src/backend.cpp \
-    src/theme.cpp
+    src/theme.cpp \
+    src/translator.cpp
 
 RESOURCES += src/resources.qrc
 ```
@@ -85,6 +87,7 @@ exec makepkg -fsi "$@"
 
 #include "backend.h"
 #include "theme.h"
+#include "translator.h"
 
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
@@ -98,10 +101,17 @@ int main(int argc, char *argv[]) {
 
     QQuickStyle::setStyle("Material");
 
+    // Installed before anything is translated, and every qsTr() binding is
+    // re-evaluated when the Omarchy language changes.
+    Translator translator;
+    app.installTranslator(&translator);
+
     Theme theme;
     Backend backend;
 
     QQmlApplicationEngine engine;
+    QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
+    engine.rootContext()->setContextProperty("translator", &translator);
     engine.rootContext()->setContextProperty("theme", &theme);
     engine.rootContext()->setContextProperty("backend", &backend);
     engine.load(QUrl("qrc:/Main.qml"));
@@ -271,6 +281,204 @@ void Theme::reload() {
 }
 ```
 
+## `src/translator.h` and `src/translator.cpp`
+
+Follows the language picked under Omarchy's Setup > Language, live. QML
+writes `qsTr("Save")` and C++ writes `tr("Save")`; the English text is the
+key, so an untranslated string simply shows in English. A counted string is
+`qsTr("%n clips", "", count)`, its forms picked by the language's plural
+rules. It also sets the default locale and layout direction, so numbers,
+dates, and right-to-left mirroring follow the language. Tests construct it
+with a temp language file and catalog directory.
+
+```cpp
+#pragma once
+
+#include <QFileSystemWatcher>
+#include <QHash>
+#include <QJsonValue>
+#include <QLocale>
+#include <QTimer>
+#include <QTranslator>
+
+// Follows the language picked under Omarchy's Setup > Language. Catalogs are
+// flat JSON objects from English source text to translation, one per Omarchy
+// language code (i18n/da.json, i18n/pt-BR.json), so QML keeps plain
+// qsTr("Save") and C++ keeps tr("Save"). A counted string,
+// qsTr("%n clips", "", count), maps to an object of plural forms keyed by
+// CLDR category ({"one": "%n klip", "other": "%n klip"}).
+class Translator : public QTranslator {
+    Q_OBJECT
+    Q_PROPERTY(QString language READ language NOTIFY changed)
+
+public:
+    explicit Translator(const QString &languageFile = {}, const QString &catalogDirectory = ":/i18n",
+                        QObject *parent = nullptr);
+
+    QString language() const { return m_language; }
+    bool isEmpty() const override { return m_strings.isEmpty(); }
+    QString translate(const char *context, const char *sourceText, const char *disambiguation = nullptr,
+                      int n = -1) const override;
+
+    static QString readLanguage(const QString &path);
+    static QString pluralCategory(const QString &language, long long count);
+    static QLocale formatLocale(const QString &language);
+
+signals:
+    void changed();
+
+private:
+    void reload();
+
+    QString m_languageFile;
+    QString m_catalogDirectory;
+    QString m_language;
+    QHash<QString, QJsonValue> m_strings;
+    QFileSystemWatcher m_watcher;
+    QTimer m_debounce;
+};
+```
+
+```cpp
+#include "translator.h"
+
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QGuiApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLocale>
+#include <QRegularExpression>
+
+Translator::Translator(const QString &languageFile, const QString &catalogDirectory, QObject *parent)
+    : QTranslator(parent),
+      m_languageFile(languageFile.isEmpty() ? QDir::homePath() + "/.config/omarchy/language" : languageFile),
+      m_catalogDirectory(catalogDirectory) {
+    m_debounce.setSingleShot(true);
+    m_debounce.setInterval(80);
+    connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this] { m_debounce.start(); });
+    connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, [this] { m_debounce.start(); });
+    connect(&m_debounce, &QTimer::timeout, this, &Translator::reload);
+    reload();
+}
+
+// One registry code on the first line; anything else, or no file, is English.
+QString Translator::readLanguage(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return "en";
+    const QString code = QString::fromUtf8(file.readLine()).trimmed();
+    static const QRegularExpression valid("^[a-z]{2,3}(-[A-Za-z]{2})?$");
+    return valid.match(code).hasMatch() ? code : "en";
+}
+
+// CLDR cardinal plural categories for whole counts, for Omarchy's languages
+// (the same rules as Omarchy's shell/Commons/Plural.js).
+QString Translator::pluralCategory(const QString &language, long long count) {
+    const long long n = count < 0 ? -count : count, n10 = n % 10, n100 = n % 100;
+    const bool millions = n != 0 && n % 1000000 == 0;
+    const bool teens = n100 >= 12 && n100 <= 14;
+    const QString code = language;
+    auto in = [&](std::initializer_list<const char *> codes) {
+        for (const char *c : codes) if (code == QLatin1String(c)) return true;
+        return false;
+    };
+    if (in({"ja", "ko", "zh-CN", "zh-TW", "th", "vi", "id", "ms"})) return "other";
+    if (in({"hi", "bn", "fa", "si"})) return n <= 1 ? "one" : "other";
+    if (in({"fr", "pt-BR"})) return n <= 1 ? "one" : millions ? "many" : "other";
+    if (in({"ca", "es-MX", "it", "pt"})) return n == 1 ? "one" : millions ? "many" : "other";
+    if (code == "fil") return (n10 == 4 || n10 == 6 || n10 == 9) ? "other" : "one";
+    if (code == "is") return n10 == 1 && n100 != 11 ? "one" : "other";
+    if (in({"cs", "sk"})) return n == 1 ? "one" : n >= 2 && n <= 4 ? "few" : "other";
+    if (code == "pl") return n == 1 ? "one" : n10 >= 2 && n10 <= 4 && !teens ? "few" : "many";
+    if (in({"ru", "uk"})) return n10 == 1 && n100 != 11 ? "one" : n10 >= 2 && n10 <= 4 && !teens ? "few" : "many";
+    if (in({"hr", "sr"})) return n10 == 1 && n100 != 11 ? "one" : n10 >= 2 && n10 <= 4 && !teens ? "few" : "other";
+    if (code == "sl") return n100 == 1 ? "one" : n100 == 2 ? "two" : n100 >= 3 && n100 <= 4 ? "few" : "other";
+    if (code == "lt") return n100 >= 11 && n100 <= 19 ? "other" : n10 == 1 ? "one" : n10 >= 2 ? "few" : "other";
+    if (code == "lv") return n10 == 0 || (n100 >= 11 && n100 <= 19) ? "zero" : n10 == 1 ? "one" : "other";
+    if (code == "ro") return n == 1 ? "one" : n == 0 || (n100 >= 1 && n100 <= 19) ? "few" : "other";
+    if (code == "ar") {
+        if (n <= 2) return n == 0 ? "zero" : n == 1 ? "one" : "two";
+        return n100 >= 3 && n100 <= 10 ? "few" : n100 >= 11 ? "many" : "other";
+    }
+    if (code == "he") return n == 1 ? "one" : n == 2 ? "two" : "other";
+    if (code == "ga") return n == 1 ? "one" : n == 2 ? "two" : n >= 3 && n <= 6 ? "few" : n >= 7 && n <= 10 ? "many" : "other";
+    return n == 1 ? "one" : "other";
+}
+
+// The locale Omarchy formats this language with, from its registry, so the
+// app's numbers and dates match the desktop's (Arabic there uses Western
+// digits); without Omarchy, Qt's own locale for the code.
+QLocale Translator::formatLocale(const QString &language) {
+    QFile registry(qEnvironmentVariable("OMARCHY_PATH") + "/default/i18n/locales.json");
+    if (registry.open(QIODevice::ReadOnly)) {
+        const QString name = QJsonDocument::fromJson(registry.readAll()).object()
+                                 .value(language).toObject().value("formatLocale").toString();
+        if (!name.isEmpty())
+            return QLocale(name);
+    }
+    return QLocale(language);
+}
+
+QString Translator::translate(const char *, const char *sourceText, const char *, int n) const {
+    // A null string tells Qt there is no translation, so it shows the English.
+    const QJsonValue value = m_strings.value(QString::fromUtf8(sourceText));
+    if (value.isString())
+        return value.toString();
+    if (value.isObject()) {
+        const QJsonObject forms = value.toObject();
+        const QString form = forms.value(n < 0 ? "other" : pluralCategory(m_language, n)).toString();
+        return form.isEmpty() ? forms.value("other").toString() : form;
+    }
+    return {};
+}
+
+void Translator::reload() {
+    const auto paths = m_watcher.files() + m_watcher.directories();
+    if (!paths.isEmpty())
+        m_watcher.removePaths(paths);
+
+    // omarchy-language replaces the file, which drops it from the watch, and a
+    // first pick creates it; watch its directory too and re-arm every time.
+    const QString directory = QFileInfo(m_languageFile).absolutePath();
+    if (QFileInfo::exists(directory))
+        m_watcher.addPath(directory);
+    if (QFileInfo::exists(m_languageFile))
+        m_watcher.addPath(m_languageFile);
+
+    // Catalogs are compiled in, so only a different language needs a reload.
+    const QString language = readLanguage(m_languageFile);
+    if (language == m_language)
+        return;
+
+    // English first (it carries the plural forms of counted strings), then
+    // the base language and the regional file over it (pt, then pt-BR), so a
+    // missing string falls back toward English one step at a time.
+    QHash<QString, QJsonValue> strings;
+    QStringList codes{"en", language.section('-', 0, 0), language};
+    codes.removeDuplicates();
+    for (const auto &code : codes) {
+        QFile catalog(m_catalogDirectory + "/" + code + ".json");
+        if (!catalog.open(QIODevice::ReadOnly))
+            continue;
+        const QJsonObject object = QJsonDocument::fromJson(catalog.readAll()).object();
+        for (auto it = object.begin(); it != object.end(); ++it)
+            if ((it.value().isString() && !it.value().toString().isEmpty()) || it.value().isObject())
+                strings.insert(it.key(), it.value());
+    }
+
+    m_language = language;
+    m_strings = strings;
+    // Dates, numbers, and Qt's own day and month names follow the language
+    // too, and right-to-left languages mirror the window.
+    const QLocale locale = formatLocale(language);
+    QLocale::setDefault(locale);
+    QGuiApplication::setLayoutDirection(locale.textDirection());
+    emit changed();
+}
+```
+
 ## `src/backend.h` and `src/backend.cpp`
 
 The C++ side of the app's one job, exposed to QML as `backend`. Start with
@@ -324,7 +532,7 @@ ApplicationWindow {
     minimumWidth: 640
     minimumHeight: 460
     visible: true
-    title: "<name>"
+    title: "<Name>"
     color: "#0e0e10"
 
     Material.theme: Material.Dark
@@ -337,7 +545,15 @@ ApplicationWindow {
     Shortcut { sequence: "Q"; context: Qt.ApplicationShortcut; onActivated: Qt.quit() }
     Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; onActivated: backend.primaryAction() }
 
-    // The app's one job goes here.
+    // Right-to-left languages mirror the window; the Translator sets the
+    // application's layout direction.
+    Item {
+        anchors.fill: parent
+        LayoutMirroring.enabled: Qt.application.layoutDirection === Qt.RightToLeft
+        LayoutMirroring.childrenInherit: true
+
+        // The app's one job goes here.
+    }
 }
 ```
 
@@ -347,8 +563,31 @@ ApplicationWindow {
 <RCC>
     <qresource prefix="/">
         <file alias="Main.qml">Main.qml</file>
+        <file alias="i18n/en.json">i18n/en.json</file>
+        <file alias="i18n/da.json">i18n/da.json</file>
     </qresource>
 </RCC>
+```
+
+List one `<file>` line per catalog in `src/i18n/`. English needs a file only
+for the plural forms of counted strings.
+
+## `src/i18n/<code>.json`
+
+One flat JSON object per language, keyed by the English exactly as it appears
+in `qsTr()`, with Omarchy's language codes as file names
+(`$OMARCHY_PATH/default/i18n/locales.json` lists all 50: `da`, `de`, `pt-BR`,
+`zh-CN`, ...). Keep `%1` placeholders, which `.arg()` fills, so a translation
+can reorder them. A counted string's value is an object of plural forms keyed
+by CLDR category: English gives `one` and `other` in `en.json`, and each
+language the categories it uses (Russian `one`, `few`, `many`, `other`;
+Arabic six; Japanese only `other`; `Translator::pluralCategory` lists them).
+
+```json
+{
+  "Save": "Gem",
+  "%n clips": { "one": "%n klip", "other": "%n klip" }
+}
 ```
 
 ## `tests/<name>_tests.pro`
@@ -361,14 +600,13 @@ TEMPLATE = app
 
 INCLUDEPATH += ../src
 
-HEADERS += ../src/backend.h ../src/theme.h
-SOURCES += <name>_tests.cpp ../src/backend.cpp ../src/theme.cpp
+HEADERS += ../src/backend.h ../src/theme.h ../src/translator.h
+SOURCES += <name>_tests.cpp ../src/backend.cpp ../src/theme.cpp ../src/translator.cpp
 ```
 
 ## `tests/<name>_tests.cpp`
 
-One `private slots:` case per behavior. These cover the backend and the
-theme's accent and rounding, so a broken theme shows up in `bin/test`.
+One `private slots:` case per behavior. These cover the backend, the theme fallback, accent and rounding, and the translator's language file and fallbacks, so a broken theme or catalog shows up in `bin/test`.
 
 ```cpp
 #include <QDir>
@@ -378,6 +616,7 @@ theme's accent and rounding, so a broken theme shows up in `bin/test`.
 
 #include "backend.h"
 #include "theme.h"
+#include "translator.h"
 
 class <Name>Tests : public QObject {
     Q_OBJECT
@@ -428,6 +667,51 @@ private slots:
         QCOMPARE(theme.radius(), 0);
         QVERIFY(write(response, "{\"int\":6}"));
         QTRY_COMPARE(theme.radius(), 6);
+    }
+
+    void translatorFallsBackToEnglish()
+    {
+        QTemporaryDir dir;
+        Translator translator(dir.path() + "/language", dir.path());
+        QCOMPARE(translator.language(), QString("en"));
+        QVERIFY(translator.translate("Main", "Save").isNull());
+    }
+
+    void translatorFollowsTheLanguageFile()
+    {
+        QTemporaryDir dir;
+        write(dir.path() + "/language", "pt-BR\n");
+        write(dir.path() + "/pt.json", R"({"Save": "Guardar", "Open": "Abrir"})");
+        write(dir.path() + "/pt-BR.json", R"({"Save": "Salvar"})");
+
+        Translator translator(dir.path() + "/language", dir.path());
+        QCOMPARE(translator.language(), QString("pt-BR"));
+        QCOMPARE(translator.translate("Main", "Save"), QString("Salvar"));
+        QCOMPARE(translator.translate("Main", "Open"), QString("Abrir"));
+        QVERIFY(translator.translate("Main", "Quit").isNull());
+    }
+
+    void translatorPicksPluralForms()
+    {
+        QTemporaryDir dir;
+        write(dir.path() + "/language", "ru\n");
+        write(dir.path() + "/en.json", R"({"%n clips": {"one": "%n clip", "other": "%n clips"}})");
+        write(dir.path() + "/ru.json", R"({"%n clips": {"one": "%n клип", "few": "%n клипа", "many": "%n клипов", "other": "%n клипа"}})");
+
+        Translator translator(dir.path() + "/language", dir.path());
+        QCOMPARE(translator.translate("Main", "%n clips", nullptr, 21), QString("%n клип"));
+        QCOMPARE(translator.translate("Main", "%n clips", nullptr, 22), QString("%n клипа"));
+        QCOMPARE(translator.translate("Main", "%n clips", nullptr, 25), QString("%n клипов"));
+        QCOMPARE(Translator::pluralCategory("ar", 11), QString("many"));
+        QCOMPARE(Translator::pluralCategory("ja", 1), QString("other"));
+    }
+
+private:
+    static void write(const QString &path, const QByteArray &contents)
+    {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(contents);
     }
 };
 
@@ -481,6 +765,10 @@ Terminal=false
 Categories=Utility;
 StartupWMClass=<name>
 ```
+
+Add `Name[<code>]=` and `Comment[<code>]=` lines for each language the app
+ships, so the launcher shows the translated name (`Name[da]=…`,
+`Comment[pt_BR]=…`; desktop files spell regions with an underscore).
 
 ## `pkgbuild/<name>.svg`
 

@@ -82,6 +82,23 @@ files committed.
   switch replaces files and symlinks, so re-arm the watcher on every change.
   Fall back to `#FFD60A` when Omarchy isn't there. `templates.md` has the
   `Theme` class. Never change Omarchy's config.
+- **Speak the user's language.** Omarchy runs in 50 languages, and the app
+  follows the one picked under Setup > Language, live, like the theme. Write
+  every visible string as `qsTr("Save")` in QML or `tr("Save")` in C++, with
+  `%1` placeholders filled by `.arg()` rather than sentences glued together,
+  and a counted string as `qsTr("%n clips", "", count)` so each language gets
+  its own plural forms. Ship translations as `src/i18n/<code>.json` (English
+  text to translation) compiled into the binary. The `Translator` in
+  `templates.md` reads `~/.config/omarchy/language`, falls back from `pt-BR`
+  to `pt` to English per string, and sets the default `QLocale` and layout
+  direction from Omarchy's registry: write numbers and dates through
+  `Qt.locale()` (`value.toLocaleString(Qt.locale(), 'f', 1)`) so they take
+  the language's separators and digits, and keep the window's content under
+  the template's mirrored root so Arabic, Hebrew, Persian, and Urdu read
+  right to left. A binding that formats a date or number should read
+  `translator.language` so it re-renders on a switch. Translate the
+  `.desktop` file's `Name` and `Comment` too (`Name[da]=…`). Keep brand
+  names, units, and keyboard keys as they are.
 - **Corners match the windows.** Hyprland's `decoration:rounding` is 0 on
   Omarchy's default, so corners are sharp unless the theme or the user rounds
   windows. The template `Theme` asks `hyprctl` for the effective value and
@@ -118,6 +135,8 @@ files committed.
    reads the disk (the `Theme` takes the theme directory as an argument).
 3. Look at it. Take a screenshot with `omarchy capture screenshot fullscreen
    save` and check the window against the theme before calling it done.
+   Switch the language once (`omarchy language da`) and look again: longer
+   words must not clip, and nothing should still be in English.
 4. Drive the real QML offscreen when a change is about interaction. A small
    harness in the scratchpad that loads `qrc:/Main.qml` with
    `QT_QPA_PLATFORM=offscreen`, sends mouse and key events, and saves
@@ -160,4 +179,3 @@ files committed.
   releases sync on their own. Only once that package is published can
   Omarchy install it: `install/omarchy-base.packages`, the preinstall
   scripts, and a migration for existing machines.
-

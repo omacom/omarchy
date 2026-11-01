@@ -28,8 +28,9 @@ if (( $# == 0 )); then
 fi
 
 case $1 in
-  dwindle) LABEL=tiling ;;
-  scrolling | floating) LABEL=$1 ;;
+  dwindle) MESSAGE=$(omarchy-i18n layout.defaultTiling) ;;
+  scrolling) MESSAGE=$(omarchy-i18n layout.defaultScrolling) ;;
+  floating) MESSAGE=$(omarchy-i18n layout.defaultFloating) ;;
   *)
     echo "Usage: omarchy-hyprland-workspace-layout-default [dwindle|scrolling|floating]" >&2
     exit 1
@@ -93,4 +94,4 @@ printf 'o.workspace_mode({ default = "%s" })\n' "$1" >"$DEFAULT_FILE"
 hyprctl reload >/dev/null
 omarchy-shell -q omarchy.workspaces refresh
 omarchy-shell -q omarchy.dock refresh
-notify_layout "Default layout set to $LABEL"
+notify_layout "$MESSAGE"
