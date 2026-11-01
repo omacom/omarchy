@@ -1,0 +1,5 @@
+# nvidia-utils' 60-nvidia.rules never runs nvidia-modprobe -m, so /dev/nvidia-modeset can be missing on hybrid laptops,
+# and Steam Runtime and Flatpak containers can neither create it nor see one made after they started.
+ACTION=="add|bind", ATTR{vendor}=="0x10de", ATTR{class}=="0x03[0-9]*", \
+  DRIVER=="nvidia", TEST!="/dev/nvidia-modeset", \
+  RUN+="/usr/bin/nvidia-modprobe -m"
