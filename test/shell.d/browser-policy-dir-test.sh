@@ -315,6 +315,11 @@ grep -F '/opt/zen-browser-bin/distribution' "$ROOT/install/helpers/browser-polic
   fail "the shared helper names the Zen distribution directory"
 pass "the shared helper names the Zen distribution directory"
 
+# Zen ships its own copy so the package's keys survive; it must not fall behind the stock file.
+[[ $(jq -c '.policies | del(.DisableAppUpdate, .DefaultSerialGuardSetting)' "$ROOT/default/firefox/zen-policies.json") == $(jq -c '.policies' "$ROOT/default/firefox/policies.json") ]] ||
+  fail "Zen's policies carry every policy Firefox gets"
+pass "Zen's policies carry every policy Firefox gets"
+
 fx_merge=$test_tmp/fx-merge
 mkdir -p "$fx_merge"
 printf '{"policies": {"DisableTelemetry": true}}\n' >"$fx_merge/policies.json"

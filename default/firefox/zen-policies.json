@@ -2,6 +2,7 @@
   "policies": {
     "DisableAppUpdate": true,
     "DefaultSerialGuardSetting": 3,
+    "DontCheckDefaultBrowser": true,
     "Preferences": {
       "apz.overscroll.enabled": {
         "Value": true,
