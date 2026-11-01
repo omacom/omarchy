@@ -8,6 +8,8 @@ QtObject {
 
   property string path
   property string lastError: ""
+  // The last mutate() found shell.json present but not a usable config, before running the mutator.
+  property bool unusable: false
   property int loadError: 0
   property int saveError: 0
   property FileView file: FileView {
@@ -38,6 +40,7 @@ QtObject {
 
   function mutate(mutator, defaults) {
     lastError = ""
+    unusable = false
     var source = read()
     var config
     if (source.error === FileViewError.FileNotFound) {
@@ -48,10 +51,13 @@ QtObject {
       try {
         config = JSON.parse(source.text)
       } catch (e) {
+        unusable = true
         return reject("invalid JSON: " + e)
       }
-      if (!config || typeof config !== "object" || Array.isArray(config) || config.version !== 1)
+      if (!config || typeof config !== "object" || Array.isArray(config) || config.version !== 1) {
+        unusable = true
         return reject("expected a config object with version: 1")
+      }
     }
 
     try {

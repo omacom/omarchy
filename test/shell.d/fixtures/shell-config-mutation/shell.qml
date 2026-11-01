@@ -9,7 +9,6 @@ ShellRoot {
   property var builtinShellConfig: ({ version: 1, plugins: [] })
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
-  property bool userConfigUnreadable: false
   property var pluginRegistry: fixtureRegistry
   property var util: ({
     barSections: ["left", "centerBegin", "center", "centerEnd", "right", "tray"],

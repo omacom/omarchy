@@ -1400,13 +1400,16 @@ Item {
   function commitBarRemoval() {
     var removal = barRemoval
     barRemoval = null
-    if (!removal) return
+    if (!removal) return false
     var expected = JSON.parse(JSON.stringify(layoutWidgets.sections))
     var list = expected[removal.region] || []
     var index = list.indexOf(removal.key)
-    if (index < 0) return
+    if (index < 0) return false
     list.splice(index, 1)
-    writeLayout(expected, function(config) {
+    var layout = JSON.stringify(layoutConfig)
+    return writeLayout(expected, function(config) {
+      // An index can name the wrong one of two same-id widgets once the layout on disk has moved.
+      if (JSON.stringify(normalizeLayout(config.bar ? config.bar.layout : null)) !== layout) return false
       return BarModel.removeEntry(config, { region: removal.region, index: index, id: removal.id }, function(entry) { return Util.normalizeLayoutEntry(entry) })
     })
   }

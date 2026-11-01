@@ -35,7 +35,7 @@ const bar = {
   widgetMemo: {}
 }
 vm.createContext(bar)
-for (const name of ['setBarPosition', 'landBarDrag', 'writeLayout']) {
+for (const name of ['setBarPosition', 'landBarDrag', 'writeLayout', 'commitBarRemoval']) {
   vm.runInContext(barSource.match(new RegExp('  function ' + name + '\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}'))[0], bar)
 }
 assertEqual(bar.setBarPosition('bottom'), false, 'bar position returns persistence failure')
@@ -61,6 +61,17 @@ assertEqual(bar.landBarDrag(move), false, 'destination edit before watcher refre
 fresh.bar.layout = JSON.parse(move.layout)
 assertEqual(bar.landBarDrag(move), true, 'unchanged fresh layout still accepts the drag')
 assertEqual(fresh.bar.layout.right[0].value, 'one', 'the captured source widget moves')
+bar.layoutWidgets = { sections: { left: ['first', 'second'], right: [] } }
+bar.layoutConfig = JSON.parse(move.layout)
+bar.barRemoval = { key: 'first', region: 'left', id: 'example.widget' }
+fresh.bar.layout = JSON.parse(move.layout)
+fresh.bar.layout.left.reverse()
+assertEqual(bar.commitBarRemoval(), false, 'same-id widgets swapped on disk cancel a removal')
+assertEqual(fresh.bar.layout.left.length, 2, 'refused removal keeps both widgets')
+bar.barRemoval = { key: 'first', region: 'left', id: 'example.widget' }
+fresh.bar.layout = JSON.parse(move.layout)
+assertEqual(bar.commitBarRemoval(), true, 'unchanged fresh layout still accepts a removal')
+assertEqual(fresh.bar.layout.left.map(entry => entry.value).join(), 'two', 'the removed widget is the one dragged off')
 
 JS
 
@@ -189,17 +200,30 @@ assert r['ok'] is False and r['error'], r
 assert r['config'] == json.load(open(sys.argv[2])), r
 PY
 }
+snapshot_memory() {
+  qs -p "$fixture" ipc call config-test noop > "$fixture/result"
+  python3 - "$fixture/result" "$fixture/expected-memory" <<'PY'
+import json, sys
+json.dump(json.load(open(sys.argv[1]))['config'], open(sys.argv[2], 'w'))
+PY
+}
 for invalid in '' '{' '[]' '{"version":2}' 'null'; do
   printf '%s' "$invalid" > "$config"
   cp "$config" "$fixture/before"
-  assert_refused
+  qs -p "$fixture" ipc call config-test mutate > "$fixture/result"
+  python3 - "$fixture/result" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1]))
+assert r['ok'] is True and r['config']['bar']['position'] == 'bottom', r
+PY
   cmp "$config" "$fixture/before"
 done
-pass "empty, malformed and unsupported config files are refused without resetting disk or memory"
+pass "empty, malformed and unsupported config files are left as they are while a change applies for the session"
 cp "$fixture/before" "$config"
 # Restore the valid config for read/write failure cases.
 printf '%s\n' '{"version":1,"plugins":[{"id":"example.service","unknownSetting":42}]}' > "$config"
 cp "$config" "$fixture/before"
+snapshot_memory
 if (( EUID != 0 )); then
   chmod 000 "$config"
   assert_refused
@@ -266,10 +290,13 @@ assert json.load(open(sys.argv[1]))['config'] == json.load(open(sys.argv[2]))
 PY
 }
 printf '%s' '{' > "$config"
-assert_ipc_failure
-[[ $(cat "$config") == "{" ]] || fail "failed IPC mutations retain malformed file"
-pass "known plugin disable IPC reports invalid-file failures without publishing state"
+[[ $(qs -p "$fixture" ipc call config-test setPluginEnabled example.service false) == "ok" ]] ||
+  fail "known plugin disable applies for the session while shell.json is malformed"
+[[ $(cat "$config") == "{" ]] || fail "IPC mutations retain malformed file"
+pass "known plugin disable IPC leaves a malformed file as it is"
 cp "$fixture/valid" "$config"
+qs -p "$fixture" ipc call config-test noop > /dev/null
+snapshot_memory
 if (( EUID != 0 )); then
   chmod 000 "$config"
   assert_ipc_failure
@@ -318,10 +345,14 @@ plugin_disable() {
     QT_QPA_PLATFORM=offscreen CONFIG_TEST_FIXTURE="$fixture" PATH="$fixture/bin:$PATH" \
     bash "$ROOT/bin/omarchy-plugin-disable" "$@"
 }
-printf '%s' '{' > "$config"
-if plugin_disable example.service > "$fixture/cli-result" 2>&1; then fail "plugin disable CLI rejects persistence failure"; fi
-[[ $(cat "$fixture/cli-result") == "omarchy-plugin-disable: could not update shell config" ]] ||
-  fail "plugin disable CLI prints actual persistence failure" "$(cat "$fixture/cli-result")"
+if (( EUID != 0 )); then
+  cp "$fixture/valid" "$config"
+  chmod 500 "$(dirname "$config")"
+  if plugin_disable example.service > "$fixture/cli-result" 2>&1; then fail "plugin disable CLI rejects persistence failure"; fi
+  chmod 700 "$(dirname "$config")"
+  [[ $(cat "$fixture/cli-result") == "omarchy-plugin-disable: could not update shell config" ]] ||
+    fail "plugin disable CLI prints actual persistence failure" "$(cat "$fixture/cli-result")"
+fi
 if CONFIG_TEST_RESPONSE=unknown plugin_disable missing.plugin > "$fixture/cli-result" 2>&1; then fail "plugin disable CLI rejects unknown response"; fi
 [[ $(cat "$fixture/cli-result") == "omarchy-plugin-disable: plugin 'missing.plugin' is not known; run: omarchy-shell shell rescanPlugins" ]] ||
   fail "plugin disable CLI retains unknown-plugin advice"

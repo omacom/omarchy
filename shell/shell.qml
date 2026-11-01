@@ -62,8 +62,6 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
-  // shell.json has text the shell could not use; persisting would replace it with defaults.
-  property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -94,7 +92,6 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
-    userConfigUnreadable = !!userText.trim() && !user
     shellConfig = user || defaults
   }
 
@@ -169,8 +166,8 @@ ShellRoot {
 
   function mutateShellConfig(mutator) {
     var config = shellConfigStore.mutate(mutator, defaultsConfig || builtinShellConfig)
-    if (!config && userConfigUnreadable) {
-      // The store leaves an unreadable shell.json as the user left it; the change holds for this session.
+    if (!config && shellConfigStore.unusable) {
+      // The store leaves an unusable shell.json as the user left it; the change holds for this session.
       config = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
       try {
         if (mutator(config) === false) return false
