@@ -1008,7 +1008,7 @@ Item {
   Component.onCompleted: applyBarConfig()
 
   // The indicator peek opens as the pointer comes onto the bar and holds until
-  // it leaves, or crosses past the end of the center box onto the panel icons
+  // it leaves, or crosses onto the clock at the start of the center box
   // (BarModel.peeksAt). Revealing the indicators widens their section, which
   // can slide a widget under a stationary pointer, so nothing narrower than the
   // stretch of bar up to that edge, held still while the peek is open
@@ -1552,8 +1552,10 @@ Item {
     }
   }
 
+  // FileView also fires for any change in its path's parent directory, so watch
+  // a path inside current/: every plugin writes to ~/.local/state/omarchy.
   FileView {
-    path: root.stateHome + "/omarchy/current"
+    path: root.stateHome + "/omarchy/current/theme"
     watchChanges: true
     printErrors: false
     onFileChanged: root.scheduleTransparentForegroundRefresh()
@@ -1658,6 +1660,15 @@ Item {
     }
   }
 
+  // Hyprland's window list does not follow fullscreen on its own, and each
+  // BarPanel reads it to drop its input under a fullscreen window.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event && String(event.name) === "fullscreen") Hyprland.refreshToplevels()
+    }
+  }
+
   Variants {
     model: Quickshell.screens
 
@@ -1709,7 +1720,7 @@ Item {
     // before it maps (see BarModel.cutoutPending), so it maps at its floor
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
-    visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
+    visible: cutoutWaitOver || !cutoutPending
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
@@ -1726,11 +1737,6 @@ Item {
     // the slot's window, which is not this PanelWindow object itself.
     readonly property bool dragActive: (root.barDragSource !== null && root.sameWindow(root.barDragWindow, barWindow)) ||
       (root.barMoveActive && root.sameWindow(root.barMoveWindow, barWindow))
-
-    ScreenMoveRemap {
-      id: remapGuard
-      window: barWindow
-    }
 
     // Parked by the whole surface, which spans its screen, so none of it
     // stays on screen: not the strip, however thick a notch floor makes it,
@@ -1767,8 +1773,8 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
-    // Where the center box ends along the bar, set by the drawn center
-    // sections. Hovering past it, over the clock's trailing widgets and the
+    // Where the center box starts along the bar, set by the drawn center
+    // sections. Hovering past it, over the clock, its trailing widgets and the
     // right section, leaves the indicator peek shut.
     property real peekEdge: 0
 
@@ -1787,13 +1793,30 @@ Item {
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
+    // Whether the active workspace on this screen holds a real fullscreen
+    // window, which fades the bar out.
+    readonly property bool underFullscreen: {
+      var monitor = Hyprland.monitorFor(screen)
+      var workspace = monitor ? monitor.activeWorkspace : null
+      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+    }
+
     // Idle, only the strip takes input, so the clear expanse passes clicks
-    // through to the windows and desktop below.
-    mask: dragActive ? null : stripInputRegion
+    // through to the windows and desktop below. Under a fullscreen window
+    // nothing does: Hyprland 0.56 passes the pointer through a faded top
+    // layer only while it holds the layer below fullscreen, and it lifts
+    // every layer on the monitor back above whenever a window on any other
+    // workspace leaves fullscreen, or the layer remaps. The invisible strip
+    // would then take the clicks meant for the top of the fullscreen window.
+    mask: dragActive ? null : (underFullscreen ? noInputRegion : stripInputRegion)
 
     Region {
       id: stripInputRegion
       item: barStrip
+    }
+
+    Region {
+      id: noInputRegion
     }
 
     // The bar itself, along its screen edge.
@@ -1835,6 +1858,17 @@ Item {
       implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
       implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
 
+      // Each show maps a fresh surface at a whole-number scale before Qt receives
+      // the output's fractional one. Keep the bubble transparent until it matches the bar.
+      readonly property bool scaleReady: visible && Math.round(devicePixelRatio * 120) === Math.round(barWindow.devicePixelRatio * 120)
+      property bool revealed: false
+
+      // Only hiding resets it: at a whole-number scale the ratio dips to 1 after the first frame.
+      onVisibleChanged: if (!visible) revealed = false
+      onScaleReadyChanged: if (scaleReady) Qt.callLater(function() {
+        if (tooltipWindow.scaleReady) tooltipWindow.revealed = true
+      })
+
       anchor {
         id: tooltipAnchor
         window: barWindow
@@ -1871,6 +1905,7 @@ Item {
 
       BorderSurface {
         id: tooltipBubble
+        opacity: tooltipWindow.revealed ? 1 : 0
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
         color: Commons.Color.tooltip.background
@@ -2277,15 +2312,15 @@ Item {
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
 
     // Both placements sit at the bar surface's origin or anchor off its edge,
-    // so the box's end in the sections is its end on the surface.
-    readonly property real boxEnd: root.vertical ? y + centerBox.y + centerBox.height : x + centerBox.x + centerBox.width
-    onBoxEndChanged: syncPeekEdge()
+    // so the box's start in the sections is its start on the surface.
+    readonly property real boxStart: root.vertical ? y + centerBox.y : x + centerBox.x
+    onBoxStartChanged: syncPeekEdge()
     onActiveChanged: syncPeekEdge()
     onWindowChanged: syncPeekEdge()
     Component.onCompleted: syncPeekEdge()
 
     function syncPeekEdge() {
-      if (active && window) window.peekEdge = BarModel.nextPeekEdge(window.peekEdge, boxEnd, root.centerSectionRevealHeld)
+      if (active && window) window.peekEdge = BarModel.nextPeekEdge(window.peekEdge, boxStart, root.centerSectionRevealHeld)
     }
 
     Connections {
@@ -3009,6 +3044,9 @@ Item {
 
       property bool dragging: false
       property bool suppressClick: false
+      // This area sits over the slot's widget and takes its press, so the
+      // widget never sees itself held; it's told, for its press feedback.
+      property var heldTarget: null
       property real pressedX: 0
       property real pressedY: 0
       readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
@@ -3038,8 +3076,15 @@ Item {
         suppressClick = false
         pressedX = mouse.x
         pressedY = mouse.y
+        hold(root.moduleClickTargetAt(slot, mouse.x, mouse.y), mouse.button)
         root.finishBarSettle()
         root.clearBarDrag()
+      }
+
+      function hold(target, button) {
+        if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
+        heldTarget = target && "heldButtons" in target ? target : null
+        if (heldTarget) heldTarget.heldButtons = button
       }
 
       onPositionChanged: function(mouse) {
@@ -3049,6 +3094,7 @@ Item {
         if (distance >= dragThreshold) {
           if (!dragging) root.beginBarDrag(slot, pressedX, pressedY)
           dragging = true
+          hold(null)
           root.hideTooltip(slot.activeItem)
         }
 
@@ -3071,6 +3117,7 @@ Item {
 
       onReleased: function(mouse) {
         var wasDragging = dragging
+        hold(null)
 
         dragging = false
 
@@ -3088,6 +3135,7 @@ Item {
       onCanceled: {
         dragging = false
         suppressClick = false
+        hold(null)
         root.clearBarDrag()
       }
 

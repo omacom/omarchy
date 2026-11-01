@@ -428,6 +428,25 @@ PanelWindow {
       return true
     }
 
+    // This overlay takes presses on the bar strip too, so the bar button under
+    // the pointer never sees itself held; it's told, for its press feedback,
+    // the way the bar's own press handler tells it.
+    property var heldTarget: null
+    function hold(target, button) {
+      if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
+      heldTarget = target && "heldButtons" in target ? target : null
+      if (heldTarget) heldTarget.heldButtons = button
+    }
+
+    // Every button still down, so a second button pressed or let go mid-hold
+    // leaves the first one's feedback alone.
+    onPressed: function(mouse) {
+      hold(root.focusPrimed && inBarRegion(mouse.x, mouse.y) ? pressTargetAt(mouse.x, mouse.y) : null, mouse.buttons)
+    }
+    onReleased: function(mouse) { hold(mouse.buttons ? heldTarget : null, mouse.buttons) }
+    onCanceled: hold(null)
+    onEnabledChanged: if (!enabled) hold(null)
+
     onPositionChanged: function(mouse) { hoveringBar = inBarRegion(mouse.x, mouse.y) }
     onExited: hoveringBar = false
     onClicked: function(mouse) {

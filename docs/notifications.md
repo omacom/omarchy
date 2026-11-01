@@ -42,6 +42,8 @@ The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), thr
 - `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb.
 - `quiet.json`: `{ dnd }`.
 
+A card with the `transient` hint is never written to either file, as the hint asks: it is not put back after a restart and leaves no history when it closes. Its sender sends it again when it still applies, as `omarchy-migrate-notify` does at every login.
+
 `Store.persistable` decides what a row keeps: its scalar fields, never images, detected links, or derived text. Text with a verification code is stored only as the redacted placeholder, the click command and glyph included. A live row is cut to 16K characters and a history row, shown as a one-line preview, to 4K. Rows keep `execArgv` and `glyph`, so a card restored after a shell restart clicks through like the live one. Rows are re-checked the same way when read back; a file that is not an array of keyed objects, or is oversized, reads as empty, and a file that does not read back exactly as it would be written is rewritten.
 
 Writes go through one short timer, started (not restarted) by a change, so a burst of arrivals writes each file once and a flood writes at most four times a second; no file is written before it has been read. `FileView` writes atomically, which keeps the mode of the file it replaces, so the files are created at 0600 before anything writes them.
@@ -99,6 +101,7 @@ flags map onto that call:
 | `--app-name` | `app_name` | defaults to `omarchy-action` |
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
+| `--transient` | hint `transient` (boolean) | not restored after a restart or kept in history; for reminders that are sent again whenever they still apply |
 
 Unknown flags are a hard error, not a silent pass-through: `--exec` and `--action` are the only doors to a command, and there is no generic option pass-through to smuggle one through.
 
@@ -201,8 +204,7 @@ The `notifications` IPC target also answers `ping` (used by `omarchy-notificatio
 
 Everything goes through the same sender contract, so the pieces are small:
 
-- **Low battery** — `omarchy-battery-low` sends a critical toast and runs the
-  `battery-low` hook.
+- **Low battery** — `omarchy-battery-low` sends a normal toast that expires after 30 seconds (paused, like any card, while the deck is open) and runs the `battery-low` hook. Not critical: a critical toast never expires and comes back on every shell start, so the warning would outlive the charger going in. As an `omarchy-action` toast it still gets through Do Not Disturb.
 - **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump
   journal stream and announces each crashed program (deduped per minute) as a
   critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a
