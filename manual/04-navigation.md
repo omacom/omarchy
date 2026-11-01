@@ -26,6 +26,16 @@ If you hold down `Super` and use the mouse to click on a window, you'll be able 
 
 You close a window with `Super + W` or `Super + Q` (and close all windows with `Ctrl + Alt + Delete`).
 
+Foot terminals ask before closing a running program, including agents started from a normal terminal or with a custom app ID. The confirmation identifies the terminal by its application-supplied title and lists executable names without their arguments. Choose **Keep terminal open**, or press Escape, to cancel. An unanswered prompt cancels after 60 seconds.
+
+Set `omarchy_terminal_close_confirmation` in `~/.config/hypr/bindings.lua` to choose a policy:
+
+- `"conditional"` (the default) skips confirmation for a foreground shell with no child jobs. This is a best-effort check: a shell running builtins such as `read`, a function, or a builtin loop can look the same as an idle prompt. Unfamiliar shell setups and shared Foot server sessions ask for confirmation.
+- `"always"` confirms every Foot terminal close, including idle shells. Use this for stronger protection without relying on process detection.
+- `"never"` closes directly. `false` is also accepted; `true` selects the conditional policy.
+
+This protection applies to `Super + W` and `Super + Q`, not closing all windows, logging out, or terminating a process. Other applications and terminals retain their own close behavior. Shared Foot server windows omit program names when those cannot be attributed to the selected window.
+
 You can also go full screen with `Super + F` or even just full-width (keeping the top bar) with `Super + Alt + F` or full-screen within a window with `Super + Ctrl + F` (good for YouTube!).
 
 ### Dwindle vs scrolling layout

@@ -4,6 +4,162 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Exercise the real selector's timeout and signal cleanup against an IPC boundary.
+python3 - <<'PYTEST'
+import json, os, pathlib, signal, subprocess, tempfile, time
+with tempfile.TemporaryDirectory() as scratch:
+  scratch = pathlib.Path(scratch)
+  stub = scratch / "omarchy-shell"
+  stub.write_text("""#!/usr/bin/python3
+import json,os,pathlib,sys
+payload = {'doneFile':sys.argv[-1]} if 'cancelQueued' in sys.argv else json.loads(sys.argv[-1])
+with open(os.environ['MENU_TEST_LOG'],'a') as log:
+ log.write(json.dumps({'args':sys.argv[1:],'payload':payload})+'\\n')
+if 'summon' in sys.argv and os.environ.get('MENU_TEST_ACCEPT') == '1':
+ pathlib.Path(payload['selectionFile']).write_text('Keep\\n')
+ pathlib.Path(payload['doneFile']).touch()
+""")
+  stub.chmod(0o755)
+  log = scratch / "log"
+  env = {**os.environ, 'PATH': str(scratch)+':'+os.environ['PATH'], 'MENU_TEST_LOG':str(log)}
+  command = [os.environ['ROOT']+'/bin/omarchy-menu-select','Test','Keep','Close','--','--timeout','1']
+  result = subprocess.run(command,env=env,capture_output=True,text=True,timeout=6)
+  assert result.returncode == 124 and not result.stdout, result
+  rows = [json.loads(line) for line in log.read_text().splitlines()]
+  request = rows[0]['payload']
+  assert [row['args'][2:5] for row in rows[1:]] == [
+    ['cancelQueued','omarchy.menu',request['doneFile']],
+    ['call','omarchy.menu','cancelRequest']]
+  assert all(row['payload']['doneFile'] == request['doneFile'] for row in rows[1:])
+  assert not pathlib.Path(request['doneFile']).parent.exists()
+  result = subprocess.run(command,env={**env,'MENU_TEST_ACCEPT':'1'},capture_output=True,text=True,timeout=6)
+  assert result.returncode == 0 and result.stdout.strip() == 'Keep', result
+  log.unlink()
+  proc = subprocess.Popen(command[:-2],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+  try:
+    deadline = time.monotonic()+5
+    while not log.exists():
+      assert time.monotonic() < deadline
+      time.sleep(.02)
+    proc.send_signal(signal.SIGTERM)
+    output,error = proc.communicate(timeout=6)
+    assert proc.returncode == 143 and not output, (proc.returncode,error)
+    rows = [json.loads(line) for line in log.read_text().splitlines()]
+    assert rows[1]['args'][2:] == ['cancelQueued','omarchy.menu',rows[0]['payload']['doneFile']]
+    assert rows[2]['args'][2:5] == ['call','omarchy.menu','cancelRequest']
+    assert not pathlib.Path(rows[0]['payload']['doneFile']).parent.exists()
+  finally:
+    if proc.poll() is None: proc.kill();proc.wait()
+print('ok - selector timeout, acceptance, later requests, and signal cleanup use their own request identity')
+PYTEST
+
+# Exercise the shell queue before the plugin has loaded.
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const source = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const ctx = {
+  pendingPayloads: {}, openPanelIds: {}, panelLoaders: {},
+  pluginRegistry: {
+    resolveEnabledId: id => id, installedPlugins: {'omarchy.menu': {}}, isEnabled: () => true,
+  },
+  isBarWidgetPanelPlugin: () => false,
+}
+ctx.shell = ctx
+vm.createContext(ctx)
+for (const name of ['summon', 'cancelQueued', 'deliverIfLoaded', 'registerPanelLoader']) {
+  const start = source.indexOf('  function ' + name + '(')
+  const end = source.indexOf('\n  }', start)
+  assert(start >= 0 && end > start, 'shell function exists: ' + name)
+  vm.runInContext(source.slice(start, end + 4), ctx)
+}
+const a = JSON.stringify({doneFile: '/a/done'})
+const b = JSON.stringify({doneFile: '/b/done'})
+ctx.summon('omarchy.menu', a)
+ctx.summon('omarchy.menu', b)
+ctx.pendingPayloads.other = [a]
+ctx.openPanelIds.other = true
+ctx.cancelQueued('omarchy.menu', '/a/done')
+assertEqual(ctx.pendingPayloads['omarchy.menu'].length, 1, 'replacement stays queued')
+assert(ctx.openPanelIds['omarchy.menu'], 'replacement stays scheduled to load')
+ctx.cancelQueued('omarchy.menu', '/b/done')
+assert(!ctx.openPanelIds['omarchy.menu'], 'empty queue clears open state')
+assertEqual(ctx.pendingPayloads.other.length, 1, 'other targets keep their queue')
+assert(ctx.openPanelIds.other, 'other targets keep their open state')
+const delivered = []
+ctx.registerPanelLoader('omarchy.menu', {item: {open: payload => delivered.push(payload)}})
+assertEqual(delivered.length, 0, 'cancelled requests cannot open on later load')
+ctx.summon('omarchy.menu', b)
+assertEqual(delivered[0], b, 'later legitimate requests still open')
+JS
+
+# Run the actual QML lifecycle functions; receipts use real filesystem writes.
+run_node_test <<'JS'
+const fs = require('fs')
+const os = require('os')
+const vm = require('vm')
+const cp = require('child_process')
+const source = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+function extract(name) {
+  const start = source.indexOf('  function ' + name + '(')
+  const end = source.indexOf('\n  }', start)
+  assert(start >= 0 && end > start, 'lifecycle function exists: ' + name)
+  return source.slice(start, end + 4)
+}
+const writers = []
+const ctx = {
+  requestActive: false, doneFile: '', selectionFile: '', opened: false,
+  requestSerial: 0, mode: 'menu', appLibrary: null,
+  items: {}, itemOrder: [], checkedResults: {}, disabledResults: {},
+  Qt: { callLater() {} },
+  Commons: { I18n: { t: key => key } },
+  MenuModel: requireFromRoot('shell/plugins/menu/MenuModel.js'),
+  Quickshell: { execDetached: argv => writers.push([...argv]) },
+  item() { return null }, disarmPointer() {}, evaluateGuards() {}, rebuildDisplay() {},
+  invalidateVolatileProvider() {}, loadProviderForMenu() {},
+}
+ctx.root = ctx
+Object.defineProperty(ctx, 'dmenuActive', { get() { return this.mode !== 'menu' } })
+vm.createContext(ctx)
+for (const name of ['finishRequest', 'cancelRequest', 'cancel', 'openDmenu', 'openExistingMenu'])
+  vm.runInContext(extract(name), ctx)
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-menu-lifecycle.'))
+try {
+  function request(id) {
+    return {mode: 'select', options: ['Keep', 'Close'], selectionFile: path.join(dir, id + '-selection'), doneFile: path.join(dir, id + '-done')}
+  }
+  const a = request('a'), b = request('b'), c = request('c')
+  ctx.openDmenu(a)
+  ctx.openDmenu(b)
+  ctx.openDmenu(c)
+  assertEqual(writers.length, 2, 'rapid replacement retains both cancellation receipts')
+  assertEqual(ctx.cancelRequest(JSON.stringify({doneFile: a.doneFile})), 'stale', 'old caller cannot cancel a replacement')
+  assert(ctx.opened && ctx.doneFile === c.doneFile, 'replacement remains visible')
+  ctx.openExistingMenu('root')
+  assertEqual(writers.length, 3, 'opening an ordinary menu cancels the active picker')
+  for (const argv of writers.splice(0)) cp.execFileSync(argv[0], argv.slice(1))
+  for (const req of [a,b,c]) {
+    assert(fs.existsSync(req.doneFile), 'old caller receives cancellation')
+    assert(!fs.existsSync(req.selectionFile), 'cancellation does not return a selection')
+  }
+  assert(ctx.opened && ctx.mode === 'menu', 'delayed receipts do not hide the new menu')
+  ctx.openDmenu(a)
+  ctx.finishRequest('literal $(touch nope)\tvalue')
+  const accepted = writers.shift()
+  cp.execFileSync(accepted[0], accepted.slice(1))
+  assertEqual(fs.readFileSync(a.selectionFile,'utf8').trim(), 'literal $(touch nope)\tvalue', 'selection is written literally')
+  assert(!fs.existsSync('nope'), 'selection is never evaluated as a command')
+  ctx.openDmenu(b)
+  assertEqual(ctx.cancelRequest(JSON.stringify({doneFile: b.doneFile})), 'ok', 'current caller can cancel its own request')
+  assert(!ctx.opened && !ctx.requestActive, 'request-specific cancellation closes its own menu')
+  fs.rmSync(dir, {recursive: true})
+  for (const argv of writers) cp.spawnSync(argv[0], argv.slice(1))
+  assert(!fs.existsSync(dir), 'late receipts do not recreate a cleaned request directory')
+} finally {
+  fs.rmSync(dir, {recursive: true, force: true})
+}
+JS
+
 run_node_test <<'JS'
 const fs = require('fs')
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')

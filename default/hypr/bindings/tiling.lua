@@ -1,5 +1,26 @@
-o.bind("SUPER + W", "Close window", hl.dsp.window.close())
-o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
+local function close_window()
+  local window = hl.get_active_window()
+  if not window then return end
+
+  local policy = _G.omarchy_terminal_close_confirmation
+  if policy == false or policy == "never" then
+    hl.dispatch(hl.dsp.window.close({ window = "address:" .. window.address }))
+  else
+    if policy ~= "always" and policy ~= "conditional" then policy = "conditional" end
+    -- App-ids are user-controlled; a custom Foot app-id may lack a terminal tag.
+    hl.dispatch(hl.dsp.exec_cmd("omarchy-hyprland-window-close --policy " .. o.shell_quote(policy)
+      .. " " .. o.shell_quote(window.address)))
+  end
+end
+
+-- Return the dispatcher for the shortcuts menu, just like workspace actions.
+function o.close_window()
+  return close_window
+end
+o.bind_expressions[close_window] = "o.close_window()"
+
+o.bind("SUPER + W", "Close window", close_window)
+o.bind("SUPER + Q", "Close window", close_window)
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
 
 o.bind("SUPER + J", "Toggle window split", hl.dsp.layout("togglesplit"))
