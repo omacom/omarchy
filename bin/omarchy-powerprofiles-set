@@ -30,14 +30,13 @@ case "$action" in
       fi
       sleep 0.5
     done
-    if [[ -z $on_battery ]]; then
-      echo "omarchy-powerprofiles-set: could not detect power source" >&2
-      exit 1
-    fi
     if [[ $on_battery == "b true" ]]; then
       action=battery
-    else
+    elif [[ -n $on_battery ]]; then
       action=ac
+    else
+      echo "omarchy-powerprofiles-set: could not detect power source" >&2
+      exit 1
     fi
     ;;
   ac | battery) ;;
