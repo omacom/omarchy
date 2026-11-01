@@ -358,6 +358,7 @@ if (updateHotspotSource) {
   let hotspot = {}
   let hotspotLoaded = false
   let hotspotEdited = false
+  let hotspotMaxClients = ''
   let hotspotBands = []
   let hotspotSsid = ''
   let hotspotPassword = ''
@@ -374,16 +375,17 @@ if (updateHotspotSource) {
   hotspotSsid = 'Typed Name'
   hotspotPassword = 'typedpassword'
   hotspotBand = '2.4'
-  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
-  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4', 'a late first status keeps hotspot fields the user already edited')
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
+  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4' && hotspotMaxClients === '', 'a late first status keeps hotspot fields the user already edited')
   hotspotLoaded = false
   hotspotEdited = false
   hotspotSsid = ''
   hotspotPassword = ''
   hotspotBand = ''
 
-  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
   assert(hotspot.ssid === 'Saved Hotspot' && hotspotLoaded && hotspotSsid === 'Saved Hotspot' && hotspotPassword === 'savedpassword' && hotspotBand === '5', 'network loads saved hotspot state only from successful output')
+  assertEqual(hotspotMaxClients, '4', 'network seeds the participant limit from the profile')
   let lastGood = hotspot
   const lastSsid = hotspotSsid
   const lastPassword = hotspotPassword
@@ -531,6 +533,23 @@ if (hotspotStatusOnExited) {
     new Function('root', 'Commons', 'Qt', 'hotspotAliasErr', 'exitCode', exited[1])(root, state.Commons, { callLater: f => f() }, { text: '' }, 0)
     assert(!root.hotspotAliasBusy && root.hotspotAliasMac === '' && root.refreshed === 1, 'network closes the editor and refreshes the clients after a name is saved')
   }
+}
+// The panel always names a limit, so unlimited clears a saved range rather
+// than keeping it, and start and save both carry the chosen one.
+const hotspotLimitArgument = panelBinding('hotspotLimitArgument')
+assertEqual(hotspotLimitArgument({ hotspotMaxClients: '' }), 'unlimited', 'network passes unlimited when no limit is chosen')
+assertEqual(hotspotLimitArgument({ hotspotMaxClients: '4' }), '4', 'network passes the chosen participant limit')
+for (const [name, verb] of [['startHotspot', 'start'], ['applyHotspot', 'apply']]) {
+  const source = panelSource.match(new RegExp('function ' + name + '\\(\\) \\{[\\s\\S]*?\\n {2}\\}'))
+  assert(source, 'network has ' + name)
+  if (!source) continue
+  const state = {
+    hotspotBusy: false, hotspotSsid: ' Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4', hotspotSaveData: 'never',
+    hotspotCommand: 'omarchy-hotspot', hotspotError: '', hotspotActionKind: '',
+    hotspotActionProc: {}, Model: network, Commons: englishCommons,
+  }
+  new Function('state', 'with (state) {\n' + source[0] + '\n' + name + '()\n}')(state)
+  assertEqual(JSON.stringify(state.hotspotActionProc.command), JSON.stringify(['omarchy-hotspot', verb, 'Cafe', '5', '4', '--save-data=never']), 'hotspot ' + verb + ' passes the chosen participant limit and data choice')
 }
 assert(/delegate: HotspotSaveDataPill \{\n\s*required property var modelData\n\s*choice: modelData/.test(panelSource), 'network declares the injected repeater property on the save-data pills')
 assert(/apply_args\+=\("--save-data=\$save_data"\)/.test(hotspotSource), 'hotspot start forwards the data choice to apply')
