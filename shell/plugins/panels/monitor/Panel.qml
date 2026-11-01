@@ -461,13 +461,22 @@ Panel {
 
   // One display command at a time, in the order asked: a second key press or
   // drop while the first is still applying waits its turn instead of being
-  // lost, as starting a running Process again would lose it.
+  // lost, as starting a running Process again would lose it. A queued move
+  // waits as the work to place it, not as positions: a scale or rotation
+  // ahead of it changes the sizes it has to fit around, so it's worked out
+  // from a state read that started after everything before it landed.
   property var queuedActions: []
-  readonly property bool actionBusy: actionProc.running || queuedActions.length > 0
+  property bool awaitingFreshState: false
+  readonly property bool actionBusy: actionProc.running || queuedActions.length > 0 || awaitingFreshState
+  // Finished commands, and how many had finished when the running state read
+  // started, so a read already under way when a command ended isn't fresh.
+  property int actionsDone: 0
+  property int readAfterActions: 0
+  property bool rereadState: false
 
   function runAction(command) {
     if (actionBusy) {
-      queuedActions = queuedActions.concat([command])
+      queuedActions = queuedActions.concat([{ command: command }])
       return
     }
     actionProc.command = command
@@ -475,15 +484,39 @@ Panel {
   }
 
   function runNextAction() {
-    if (actionProc.running) return
+    if (actionProc.running || awaitingFreshState) return
     if (queuedActions.length === 0) {
-      refresh()
+      // A read already under way started before this command landed.
+      if (stateProc.running) rereadState = true
+      else refresh()
       return
     }
     var next = queuedActions[0]
+    if (next.layout) {
+      // Placed by the state read once a fresh one lands; see stateProc.
+      awaitingFreshState = true
+      if (stateProc.running) rereadState = true
+      else refresh()
+      return
+    }
     queuedActions = queuedActions.slice(1)
-    actionProc.command = next
+    actionProc.command = next.command
     actionProc.running = true
+  }
+
+  // The queued move at the front, worked out now the state is fresh.
+  function placeQueuedLayout() {
+    awaitingFreshState = false
+    var next = queuedActions[0]
+    queuedActions = queuedActions.slice(1)
+    var rects = next.layout()
+    if (rects && !Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) {
+      pendingRects = rects
+      actionProc.command = layoutCommand(rects)
+      actionProc.running = true
+    } else {
+      runNextAction()
+    }
   }
 
   function setScale(name, scale) {
@@ -542,7 +575,8 @@ Panel {
   // ctrl+h/j/k/l on the layout: the shown display to that side of the rest.
   function placeShown(side) {
     if (!current || !layoutMovable) return
-    applyLayout(Model.placeDisplay(layoutRects, current.name, side))
+    var name = current.name
+    applyLayout(function() { return Model.placeDisplay(layoutRects, name, side) })
   }
 
   function closeRotateMenu() {
@@ -554,14 +588,22 @@ Panel {
   property var pendingRects: null
   readonly property var shownRects: pendingRects || layoutRects
 
-  // Apply a whole arrangement, unless it leaves everything where it was.
-  function applyLayout(rects) {
+  // Apply the arrangement `place` works out from layoutRects, unless it
+  // leaves everything where it was. Behind another command it waits its turn
+  // and is worked out again then, from the sizes that command left.
+  function applyLayout(place) {
+    var rects = place()
     if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) return
     pendingRects = rects
+    if (actionBusy) queuedActions = queuedActions.concat([{ layout: place }])
+    else runAction(layoutCommand(rects))
+  }
+
+  function layoutCommand(rects) {
     var args = ["omarchy-hyprland-monitor-layout"]
     for (var i = 0; i < rects.length; i++)
       args.push(rects[i].name + "=" + rects[i].x + "x" + rects[i].y)
-    runAction(args)
+    return args
   }
 
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
@@ -638,6 +680,14 @@ Panel {
   Process {
     id: stateProc
     command: ["omarchy-monitor-state"]
+    onRunningChanged: {
+      if (running) {
+        root.readAfterActions = root.actionsDone
+      } else if (root.rereadState) {
+        root.rereadState = false
+        Qt.callLater(root.refresh)
+      }
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -651,6 +701,12 @@ Panel {
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
+        // A queued move waits for a read that started after the last command;
+        // an older one reads again once this process has stopped.
+        if (root.awaitingFreshState) {
+          if (root.readAfterActions === root.actionsDone) root.placeQueuedLayout()
+          else root.rereadState = true
+        }
         // A mirror switch has landed once a read shows it; until then, look
         // again shortly instead of waiting for the next regular read.
         if (root.pendingMirror !== "" && !root.actionBusy) {
@@ -706,7 +762,11 @@ Panel {
     id: actionProc
     stdout: StdioCollector { waitForEnd: true }
     // The next one starts a turn later, not from inside this change.
-    onRunningChanged: if (!running) Qt.callLater(root.runNextAction)
+    onRunningChanged: {
+      if (running) return
+      root.actionsDone++
+      Qt.callLater(root.runNextAction)
+    }
   }
 
   // Applies text size via the CLI, which rewrites the shell override file;
@@ -1619,7 +1679,8 @@ Panel {
             // Reset first: applying the move redraws the map, this box included.
             screenRect.dragX = 0
             screenRect.dragY = 0
-            if (moved) root.applyLayout(Model.dropDisplay(root.layoutRects, name, x, y, Style.space(8) / map.ratio))
+            var snap = Style.space(8) / map.ratio
+            if (moved) root.applyLayout(function() { return Model.dropDisplay(root.layoutRects, name, x, y, snap) })
             else root.selectDisplay(name)
           }
           onCanceled: {
