@@ -48,6 +48,10 @@ if (( ${#yt6801_pending[@]} > 0 )); then
   if ! aliases=$(modinfo -F alias dwmac-motorcomm) ||
     ! grep -Fxq 'pci:v00001F0Ad00006801sv*sd*bc*sc*i*' <<< "$aliases"; then
     echo "The running kernel does not provide YT6801 support in dwmac-motorcomm." >&2
+    # This migration precedes the kernel migration in the synchronous queue.
+    # Stage its real kernel/boot repair now, leaving this migration pending
+    # and the vendor driver intact until the new kernel has actually booted.
+    (source "$OMARCHY_PATH/migrations/1789325478.sh")
     echo "Reboot into the latest Omarchy kernel and rerun omarchy-migrate." >&2
     exit 1
   fi
