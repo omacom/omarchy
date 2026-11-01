@@ -16,19 +16,19 @@ const items = {
 const script = menu.guardScript(items)
 const browserSlot = `\${__omarchy_read_${menu.guardReaders.indexOf('omarchy-default-browser')}}`
 
-assert(
-  script.includes("if ( eval 'omarchy-pkg-present brave-bin' ) >/dev/null 2>&1; then echo setup.default.browser.brave:w:1; else echo setup.default.browser.brave:w:0; fi"),
-  'guard script reports a when: as <id>:w:<0|1>'
+// Each guard answers as <id>:<w|c|d>:<0|1>, and an item with nothing to
+// evaluate gives no row at all.
+const answers = require('child_process').execFileSync('bash', ['-c', menu.guardScript({
+  shown: { id: 'shown', when: 'true' },
+  unchecked: { id: 'unchecked', checked: 'false' },
+  disabled: { id: 'disabled', disabled: 'true' },
+  plain: items.plain
+})], { encoding: 'utf8', env: { ...process.env, XDG_RUNTIME_DIR: '' } }).trim().split('\n').sort()
+assertDeepEqual(
+  answers,
+  ['disabled:d:1', 'shown:w:1', 'unchecked:c:0'],
+  'guard script reports when:, checked: and disabled: per item and skips items with nothing to evaluate'
 )
-assert(
-  script.includes('then echo setup.default.browser.zen:c:1; else echo setup.default.browser.zen:c:0; fi'),
-  'guard script reports a checked: as <id>:c:<0|1>'
-)
-assert(
-  script.includes("if ( eval 'omarchy-pkg-present zen-browser-bin' ) >/dev/null 2>&1; then echo install.browser.zen:d:1; else echo install.browser.zen:d:0; fi"),
-  'guard script reports a disabled: as <id>:d:<0|1>'
-)
-assert(!/\bplain:[wcd]:/.test(script), 'guard script skips items with nothing to evaluate')
 assertEqual(menu.guardScript({ plain: items.plain }), '', 'guard script is empty when no item carries a guard')
 
 // The cost the menu is paying is per fork, not per expression, so what makes
@@ -43,7 +43,7 @@ assert(
   'guard script substitutes the captured answer into the expression'
 )
 assert(
-  script.indexOf('__omarchy_read_') < script.indexOf("if ( eval 'omarchy-pkg-present"),
+  script.indexOf('__omarchy_read_') < script.search(/^if .*omarchy-pkg-present/m),
   'guard script captures readers before any guard runs, since $() would trap a lazy memo in its subshell'
 )
 
@@ -80,19 +80,29 @@ assertDeepEqual(
 )
 JS
 
-prelude() {
+# Runs a JS function body with the menu model in scope and prints what it
+# returns.
+menu_js() {
   node -e '
+    const fs = require("fs")
     const path = require("path")
     const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
-    process.stdout.write(menu.guardScript({ probe: { id: "probe", when: "true" } }))
-  ' | command sed '/^__omarchy_groups=()$/,$d'
+    process.stdout.write(String(new Function("menu", "fs", "path", process.argv[1])(menu, fs, path)))
+  ' "$1"
+}
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+prelude() {
+  menu_js 'return menu.guardScript({ probe: { id: "probe", when: "true" } })' | command sed '/^__omarchy_groups=()$/,$d'
 }
 
 # The prelude shadows the real commands for the length of the batch, so it has
 # to answer exactly as they do -- including for arguments no shipped guard
 # passes today, which an extension is free to write tomorrow.
-stub_dir=$(mktemp -d)
-trap 'rm -rf "$stub_dir"' EXIT
+stub_dir="$test_tmp/stubs"
+mkdir -p "$stub_dir"
 
 # `pacman -Q` resolves a name through what installed packages provide, so gvim
 # answers for vim and bash answers for sh. A set built from `pacman -Qq` alone
@@ -174,13 +184,11 @@ pass "guard prelude resolves commands as omarchy-cmd-present and omarchy-cmd-mis
 
 # A reader is replaced by what it printed, which has to compare identically to
 # the substitution it stood in for -- including the trailing newline $() drops.
-reader_script=$(node -e '
-  const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
-  process.stdout.write(menu.guardScript({
+reader_script=$(menu_js '
+  return menu.guardScript({
     hit: { id: "hit", checked: "[[ \"$(omarchy-dns)\" == \"Cloudflare\" ]]" },
     miss: { id: "miss", checked: "[[ \"$(omarchy-dns)\" == \"Google\" ]]" }
-  }))
+  })
 ')
 reader_result=$(XDG_RUNTIME_DIR="" bash -c '
 omarchy-dns() { printf "Cloudflare\n"; }
@@ -202,18 +210,103 @@ printf "survived\n"' 2>/dev/null)
   fail "guard batch survives a failing reader under errexit" "got: $errexit_result"
 pass "guard batch survives a reader that exits nonzero under errexit"
 
+# Guards and readers run side by side. Each pair below only finishes if both
+# halves run at once: one leaves its mark and waits for the other's, so a
+# batch that ran them one after another would time out instead of answering.
+rendezvous_script=$(menu_js '
+  const meet = (mine, theirs) => `touch "$MEET/${mine}"; for _ in {1..40}; do [[ -e "$MEET/${theirs}" ]] && exit 0; sleep 0.05; done; exit 1`
+  return menu.guardScript({
+    a: { id: "a", when: `(${meet("a", "b")})` },
+    b: { id: "b", when: `(${meet("b", "a")})` },
+    dns: { id: "dns", checked: "[[ \"$(omarchy-dns)\" == \"Cloudflare\" ]]" },
+    google: { id: "google", checked: "[[ \"$(omarchy-dns)\" == \"Google\" ]]" },
+    corners: { id: "corners", checked: "[[ \"$(omarchy-hyprland-corners)\" == \"round\" ]]" }
+  })
+')
+
+# The DNS reader also prints extra trailing newlines, which `$(...)` drops and
+# the captured answer has to drop too.
+mkdir -p "$test_tmp/meet"
+rendezvous_result=$(MEET="$test_tmp/meet" bash -e -c '
+omarchy-dns() { touch "$MEET/dns"; for _ in {1..40}; do [[ -e $MEET/corners ]] && break; sleep 0.05; done; [[ -e $MEET/corners ]] && printf "Cloudflare\n\n"; }
+omarchy-hyprland-corners() { touch "$MEET/corners"; for _ in {1..40}; do [[ -e $MEET/dns ]] && break; sleep 0.05; done; [[ -e $MEET/dns ]] && printf "round\n"; }
+export -f omarchy-dns omarchy-hyprland-corners
+'"$rendezvous_script" | sort | tr '\n' ' ')
+[[ $rendezvous_result == "a:w:1 b:w:1 corners:c:1 dns:c:1 google:c:0 " ]] ||
+  fail "guard batch runs guards and readers side by side and reports every row once" "got: $rendezvous_result"
+pass "guard batch runs guards and readers side by side and reports every row once"
+
+# A reader's output arrives exactly as `$(...)` would have left it: leading
+# and inner whitespace kept, every trailing newline dropped, and nothing at all
+# when it prints only newlines or nothing.
+shape_script=$(menu_js '
+  return menu.guardScript({
+    shape: { id: "shape", checked: "[[ \"$(omarchy-dns)\" == \"  two  words\"$'"'"'\\n'"'"'\"line\" ]]" },
+    blank: { id: "blank", checked: "[[ -z \"$(omarchy-hyprland-corners)\" ]]" }
+  })
+')
+shape_result=$(bash -c '
+omarchy-dns() { printf "  two  words\nline\n\n\n"; }
+omarchy-hyprland-corners() { printf "\n\n"; }
+export -f omarchy-dns omarchy-hyprland-corners
+'"$shape_script" | sort | tr '\n' ' ')
+[[ $shape_result == "blank:c:1 shape:c:1 " ]] ||
+  fail "a captured reader keeps exactly what \$(...) keeps" "got: $shape_result"
+pass "a captured reader keeps exactly what \$(...) keeps"
+
+# The batch is done only when every group is: a slow guard's line still
+# arrives before it exits.
+slow_script=$(menu_js '
+  const items = {}
+  for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 7 ? "sleep 0.3" : "true" }
+  return menu.guardScript(items)
+')
+slow_output=$(bash -c "$slow_script")
+(($(sort -u <<<"$slow_output" | wc -l) == 20)) || fail "guard batch waits for its slowest group" "got: $slow_output"
+grep -qx 'row7:w:1' <<<"$slow_output" || fail "guard batch waits for its slowest group" "row7 missing"
+pass "guard batch exits only after its slowest group has answered"
+
+# A guard that exits, fails, does not parse or trips a login shell's `set -u`
+# answers only its own row. Guards are dealt to groups in turn, so the eight
+# rows behind them give every hostile guard a later row in its own group.
+hostile_script=$(menu_js "$(cat <<'JS'
+const items = {
+  quits: { id: 'quits', when: 'true; exit 0' },
+  failing: { id: 'failing', when: 'exit 3' },
+  broken: { id: 'broken', when: 'fi then' },
+  nounset: { id: 'nounset', when: '[[ -n $OMARCHY_TEST_UNSET ]]' },
+  quote: { id: 'quote', when: "[[ 'a b' == 'a b' ]]" },
+  escape: { id: 'escape', when: 'true; echo pwned:w:9; exit 0' }
+}
+for (let i = 0; i < 8; i++) items[`after${i}`] = { id: `after${i}`, when: 'true' }
+return menu.guardScript(items)
+JS
+)")
+
+# Runs the batch, answering rows on one line and the batch's status last.
+hostile_batch() {
+  local status=0 output
+  output=$("$@" XDG_RUNTIME_DIR= bash -eu -c "$hostile_script" 2>/dev/null | sort | tr '\n' ' ') || status=$?
+  printf '%sstatus=%s' "$output" "$status"
+}
+
+result=$(hostile_batch env OMARCHY_TEST_UNSET=set)
+[[ $result == "after0:w:1 after1:w:1 after2:w:1 after3:w:1 after4:w:1 after5:w:1 after6:w:1 after7:w:1 broken:w:0 escape:w:1 failing:w:0 nounset:w:1 quits:w:1 quote:w:1 status=0" ]] ||
+  fail "a guard that exits, fails or does not parse answers only its own row" "got: $result"
+result=$(hostile_batch env -u OMARCHY_TEST_UNSET)
+[[ $result == "after0:w:1 after1:w:1 after2:w:1 after3:w:1 after4:w:1 after5:w:1 after6:w:1 after7:w:1 broken:w:0 escape:w:1 failing:w:0 nounset:w:0 quits:w:1 quote:w:1 status=0" ]] ||
+  fail "a guard tripping set -u answers its own row and leaves the group standing" "got: $result"
+pass "a guard that exits, fails, does not parse or trips set -u answers only its own row"
+
 # Update > Extra Themes runs omarchy-theme-update, which pulls the themes that
 # came from a git clone and skips everything else, so the guard has to answer
 # for the same set: a row that appears over a symlinked theme or a worktree's
 # `.git` file opens a terminal that prints nothing and closes. Both sides ask
 # omarchy-theme-extras today; the shapes below are what would tell us if one
 # of them stopped.
-themes_guard=$(node -e '
-  const fs = require("fs")
-  const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+themes_guard=$(menu_js '
   const items = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
-  process.stdout.write(items.find(item => item.id === "update.themes").when)
+  return items.find(item => item.id === "update.themes").when
 ')
 
 cat >"$stub_dir/git" <<'STUB'
@@ -224,7 +317,7 @@ STUB
 chmod +x "$stub_dir/git"
 
 # The updater names each theme it pulls, so what it printed is what the row
-# would have been for. Run the guard the way the batch does, braces and all,
+# would have been for. Run the guard the way the batch does, in a subshell,
 # and say which shapes are meant to show it rather than only that the two
 # agree: they read the same command now, and agreement alone would hold even
 # if both went wrong together.
@@ -232,14 +325,13 @@ assert_themes_guard_agrees() {
   local description="$1" home="$2" expected="$3"
   local guarded=0 updated=0
 
-  HOME="$home" PATH="$ROOT/bin:$PATH" bash -e -c "{ $themes_guard; } >/dev/null 2>&1" || guarded=$?
+  HOME="$home" PATH="$ROOT/bin:$PATH" bash -e -c '( eval "$1" ) >/dev/null 2>&1' _ "$themes_guard" || guarded=$?
   [[ -n $(HOME="$home" PATH="$ROOT/bin:$stub_dir:$PATH" "$ROOT/bin/omarchy-theme-update" 2>/dev/null) ]] || updated=1
   ((guarded == expected)) || fail "$description" "$home: guard=$guarded expected=$expected"
   ((updated == expected)) || fail "$description" "$home: update=$updated expected=$expected"
 }
 
-themes_home=$(mktemp -d)
-trap 'rm -rf "$stub_dir" "$themes_home"' EXIT
+themes_home="$test_tmp/themes"
 
 # A theme copied by hand has nothing to pull, a symlinked one is someone's
 # working copy, and a `.git` file is a worktree living elsewhere.
@@ -272,8 +364,8 @@ listed=$(HOME="$themes_home/many" LC_ALL=C "$ROOT/bin/omarchy-theme-extras")
   fail "omarchy-theme-extras lists every clone and nothing else" "got: $listed"
 pass "omarchy-theme-extras lists every clone and nothing else"
 
-git_calls=$(mktemp)
-trap 'rm -rf "$stub_dir" "$themes_home" "$git_calls"' EXIT
+git_calls="$test_tmp/git-calls"
+: >"$git_calls"
 HOME="$themes_home/many" LC_ALL=C GIT_CALLS="$git_calls" PATH="$ROOT/bin:$stub_dir:$PATH" \
   "$ROOT/bin/omarchy-theme-update" >/dev/null 2>&1
 pulled=$(<"$git_calls")
@@ -285,8 +377,7 @@ pass "omarchy-theme-update pulls each clone by its whole path"
 # directory. Each case gets its own runtime dir and database, and a pacman
 # that logs every query, so what is checked is when the set gets rebuilt and
 # whether a stale one could ever answer.
-cache_root=$(mktemp -d)
-trap 'rm -rf "$stub_dir" "$themes_home" "$git_calls" "$cache_root"' EXIT
+cache_root="$test_tmp/cache"
 
 cache_bin="$cache_root/bin"
 mkdir -p "$cache_bin"
@@ -321,14 +412,12 @@ echo "$FIXTURE_DB/"
 STUB
 chmod +x "$cache_bin/pacman" "$cache_bin/pacman-conf"
 
-cache_script=$(node -e '
-  const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
-  process.stdout.write(menu.guardScript({
+cache_script=$(menu_js '
+  return menu.guardScript({
     bash: { id: "bash", when: "omarchy-pkg-present bash" },
     vim: { id: "vim", when: "omarchy-pkg-present vim" },
     zen: { id: "zen", when: "omarchy-pkg-present zen-browser-bin" }
-  }))
+  })
 ')
 
 cache_case() {

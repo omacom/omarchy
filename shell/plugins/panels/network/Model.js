@@ -44,7 +44,7 @@ function parseActiveApSignal(raw) {
 
 // A known plain-HTTP endpoint lets the network redirect the browser to its
 // login page. Never execute or automatically open an untrusted Location header.
-var captivePortalUrl = "http://ping.archlinux.org/nm-check.txt"
+var captivePortalUrl = "http://ping.omacom.io/nm-check.txt"
 
 function connectivityState(kind, connectivity, states, checksEnabled) {
   if (kind === "disconnected") return "none"
@@ -258,6 +258,15 @@ function pingPacketLossPercent(samples) {
   return Math.round((lost / values.length) * 100)
 }
 
+// Ping and loss only mean something once the internet is reachable. Behind a
+// portal, on a limited link or offline every probe is lost by design, so the
+// rows read "--" instead of a "Timeout" and "100%" that just restate that.
+function internetPingReadable(samples, connectivity) {
+  var values = Array.isArray(samples) ? samples : []
+  if (connectivity === "portal" || connectivity === "limited" || connectivity === "none") return false
+  return values.length > 0
+}
+
 function formatPacketLoss(percent, hasSamples, fmt) {
   var f = formatter(fmt)
   if (hasSamples === false) return "--"
@@ -426,6 +435,7 @@ if (typeof module !== "undefined") {
     throughputState: throughputState,
     pingLatencyState: pingLatencyState,
     pingPacketLossPercent: pingPacketLossPercent,
+    internetPingReadable: internetPingReadable,
     formatPacketLoss: formatPacketLoss,
     formatBytes: formatBytes,
     formatRate: formatRate,
