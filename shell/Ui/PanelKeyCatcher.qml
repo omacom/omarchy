@@ -37,9 +37,13 @@ Item {
   // Panels that let items be reordered set this, and Ctrl+Up/Down (or
   // Ctrl+k/j) then asks to move the current item instead of the cursor.
   property bool reorderable: false
+  // And Ctrl+Left/Right (or Ctrl+h/l) sideways, for a panel that arranges in
+  // two dimensions, like the display panel's layout map.
+  property bool reorderableSideways: false
 
   signal moveRequested(int dx, int dy)
   signal reorderRequested(int dy)
+  signal reorderSidewaysRequested(int dx)
   signal activateRequested()
   signal returnRequested()
   signal closeRequested()
@@ -66,6 +70,14 @@ Item {
       var down = event.key === Qt.Key_Down || event.key === Qt.Key_J
       if (up || down) {
         reorderRequested(down ? 1 : -1); event.accepted = true; return
+      }
+    }
+    if (reorderableSideways && (event.modifiers & Qt.ControlModifier)) {
+      // In a mirrored (right-to-left) panel, Left moves forward along a row.
+      var forward = event.key === (LayoutMirroring.enabled ? Qt.Key_Left : Qt.Key_Right) || event.key === (LayoutMirroring.enabled ? Qt.Key_H : Qt.Key_L)
+      var back = event.key === (LayoutMirroring.enabled ? Qt.Key_Right : Qt.Key_Left) || event.key === (LayoutMirroring.enabled ? Qt.Key_L : Qt.Key_H)
+      if (forward || back) {
+        reorderSidewaysRequested(forward ? 1 : -1); event.accepted = true; return
       }
     }
     if (event.key === Qt.Key_Down || event.text === "j") {
