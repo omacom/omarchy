@@ -215,6 +215,7 @@ Panel {
   // while on air changes the profile, not the AP, so the notice that it waits
   // for the next start compares against this, not the saved value.
   property string hotspotSaveDataOnAir: ""
+  property string hotspotSecurityOnAir: ""
   property bool hotspotRefreshPending: false
   property int hotspotStatusGeneration: 0
   readonly property string hotspotCommand: "omarchy-hotspot"
@@ -1066,8 +1067,13 @@ Panel {
     if (next.ap_capable !== "1" && hotspot.ap_capable === "1") next.ap_capable = "1"
     var wasActive = hotspot.active === "1"
     hotspot = next
-    if (next.active !== "1") hotspotSaveDataOnAir = ""
-    else if (!wasActive || hotspotSaveDataOnAir === "") hotspotSaveDataOnAir = Model.hotspotSaveData(next)
+    if (next.active !== "1") {
+      hotspotSaveDataOnAir = ""
+      hotspotSecurityOnAir = ""
+    } else if (!wasActive || hotspotSaveDataOnAir === "") {
+      hotspotSaveDataOnAir = Model.hotspotSaveData(next)
+      hotspotSecurityOnAir = Model.hotspotSecurity(next)
+    }
     var bands = Model.hotspotBands(next)
     if (bands.length > 0 && hotspotBands.join(",") !== bands.join(",")) hotspotBands = bands
     if (!hotspotLoaded) {
@@ -2727,7 +2733,7 @@ Panel {
     required property string choice
 
     text: Model.hotspotSecurityLabel(choice)
-    tooltipText: Model.hotspotSecurityTooltip(choice, root.hotspotActive, Model.hotspotSecurity(root.hotspot), Commons.I18n.t)
+    tooltipText: Model.hotspotSecurityTooltip(choice, root.hotspotActive, root.hotspotSecurityOnAir, Commons.I18n.t)
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily

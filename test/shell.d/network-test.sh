@@ -366,6 +366,8 @@ if (updateHotspotSource) {
   let hotspotMaxClients = ''
   let hotspotSaveData = ''
   let hotspotSaveDataOnAir = ''
+  let hotspotSecurity = ''
+  let hotspotSecurityOnAir = ''
   let hotspotBands = []
   let hotspotSsid = ''
   let hotspotPassword = ''
@@ -413,10 +415,12 @@ if (updateHotspotSource) {
   // choice holds until the hotspot goes off and comes back.
   updateHotspot('active\t0\nsave_data\tnever\n', 0, '')
   assertEqual(hotspotSaveDataOnAir, '', 'network has no on-air data choice while the hotspot is off')
-  updateHotspot('active\t1\nsave_data\tnever\n', 0, '')
+  updateHotspot('active\t1\nsave_data\tnever\nsecurity\tmixed\n', 0, '')
   assertEqual(hotspotSaveDataOnAir, 'never', 'network records the data choice the hotspot came on air with')
-  updateHotspot('active\t1\nsave_data\talways\n', 0, '')
+  assertEqual(hotspotSecurityOnAir, 'mixed', 'network records the security the hotspot came on air with')
+  updateHotspot('active\t1\nsave_data\talways\nsecurity\twpa3\n', 0, '')
   assertEqual(hotspotSaveDataOnAir, 'never', 'network keeps the on-air data choice after a save while running')
+  assertEqual(hotspotSecurityOnAir, 'mixed', 'network keeps the on-air security after a save while running')
   updateHotspot('active\t0\nsave_data\talways\n', 0, '')
   updateHotspot('active\t1\nsave_data\talways\n', 0, '')
   assertEqual(hotspotSaveDataOnAir, 'always', 'network takes the saved choice at the next start')
