@@ -1,12 +1,12 @@
 # Теми
 
-Omarchy постачається з двадцятьма двома красивими темами. Ви можете обирати між ними через _Стиль > Тема_ в меню Omarchy (`Super + Space`) або перейти безпосередньо до вибору теми через `Super + Ctrl + Shift + Space`.
+Omarchy постачається з двадцятьма двома красивими темами. Вибрати між ними можна через _Оформлення > Тема_ в Omarchy Menu (`Super + Space`) або перейти безпосередньо до вибору теми за допомогою `Super + Ctrl + T`.
 
-Кожна тема стилізує робочий стіл, термінал, neovim, екран активності (btop), Chromium і всю оболонку Omarchy: верхню панель, меню, сповіщення, OSD та екран блокування. (Для Obsidian ви повинні вручну вибрати тему Omarchy через _Вигляд > Теми_ всередині програми).
+Кожна тема оформлює робочий стіл, термінал, neovim, екран активності (btop), Chromium і всю оболонку Omarchy: верхню панель, меню, сповіщення, OSD та екран блокування. (Для Obsidian тему Omarchy потрібно вибрати вручну через _Оформлення > Теми_ всередині застосунку).
 
-Теми мають набір фонових зображень, між якими ви можете обирати через `Super + Ctrl + Space`.
+Теми мають набір фонових зображень, між якими можна вибирати за допомогою `Super + Ctrl + W`.
 
-Ви можете знайти ще більше тем на [сторінці додаткових тем](https://omarchy.org/themes/) або навіть [створити власну тему](43-making-your-own-theme.md).
+Ще більше тем можна знайти на [сторінці додаткових тем](https://omarchy.org/themes/) або навіть [створити власну тему](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Розблокування
 
-Теми також можуть мати власний дизайн розблокування, який використовується для процесу розшифрування під час завантаження. Ви можете вибрати один із них у _Стиль > Розблокувати_. Вони виглядають так:
+Теми також можуть мати власний дизайн розблокування, який використовується під час розшифрування при завантаженні. Вибрати один із них можна в розділі _Оформлення > Розблокування_. Виглядають вони так:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

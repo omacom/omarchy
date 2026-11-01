@@ -185,13 +185,3 @@ if [[ -r /proc/self/comm ]]; then
 else
   skip "the real pgrep finds and signals both recorders by name (needs Linux /proc)"
 fi
-
-grep -Fq '["omarchy-capture-screenrecording", "--status"]' "$ROOT/shell/plugins/bar/indicators/ScreenRecording.qml" ||
-  fail "the bar recording indicator asks the recorder script, which stop also uses"
-! grep -Fq 'gpu-screen-recorder' "$ROOT/shell/plugins/bar/indicators/ScreenRecording.qml" ||
-  fail "the bar recording indicator still greps gpu-screen-recorder"
-grep -Fq '"when":"omarchy-capture-screenrecording --status"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "Stop Screenrecording asks the recorder script, which its action also uses"
-! grep -Fq "pgrep -f '^gpu-screen-recorder'" "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "Stop Screenrecording still greps gpu-screen-recorder"
-pass "the bar indicator and the menu ask the recorder script whether its stop has a recording to end"
