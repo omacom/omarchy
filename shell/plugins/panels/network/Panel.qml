@@ -2000,9 +2000,12 @@ Panel {
                 var bandNumber = Number(band)
                 if (band !== "" && isFinite(bandNumber)) band = Commons.I18n.formatNumber(bandNumber)
                 var count = root.hotspotClients.length
-                if (count === 0) return Commons.I18n.t("network.hotspotOnAir").arg(root.hotspotSsid).arg(band)
+                // What is on air, from status: the editor's draft is not
+                // broadcast until it is saved.
+                var liveSsid = String(root.hotspot.ssid || "")
+                if (count === 0) return Commons.I18n.t("network.hotspotOnAir").arg(liveSsid).arg(band)
                 return Commons.I18n.tn("network.hotspotOnAirClients", count)
-                  .arg(root.hotspotSsid).arg(band).arg(Commons.I18n.formatNumber(count))
+                  .arg(liveSsid).arg(band).arg(Commons.I18n.formatNumber(count))
               }
               return root.hotspotConfigured ? Commons.I18n.t("network.hotspotOff") : Commons.I18n.t("network.hotspotNotConfigured")
             }
