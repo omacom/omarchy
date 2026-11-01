@@ -41,10 +41,8 @@ export OMARCHY_HOTSPOT_UFW_RULES="$UFW_RULES_FILE"
 cat >"$STUB_BIN/omarchy-cmd-present" <<'STUB'
 #!/bin/bash
 case "${1:-}" in
-  ufw) (( ${UFW_PRESENT:-0} == 1 )) ;;
   firewalld) (( ${FIREWALLD_PRESENT:-0} == 1 )) ;;
   nft) (( ${NFT_PRESENT:-0} == 1 )) ;;
-  dnsmasq) (( ${DNSMASQ_PRESENT:-1} == 1 )) ;;
   *) exit 1 ;;
 esac
 STUB
@@ -283,6 +281,9 @@ case "${1:-}" in
 esac
 STUB
 cp "$STUB_BIN/sudo" "$STUB_BIN/pkexec"
+# Same helper behind both, but each logs its own name so a test can tell
+# which prompt the caller chose.
+sed -i "s/^printf 'sudo %s/printf 'pkexec %s/" "$STUB_BIN/pkexec"
 chmod +x "$STUB_BIN"/*
 
 FUNCTIONS="$HOTSPOT_FUNCTIONS"
@@ -310,8 +311,7 @@ run_isolated() {
 }
 
 cat >"$TEST_TMP/backend-driver.sh" <<'DRIVER'
-export UFW_PRESENT UFW_ACTIVE FIREWALLD_PRESENT FIREWALLD_ACTIVE NFT_PRESENT NFT_ACTIVE NFT_SERVICE_ACTIVE NFT_RULESET
-UFW_PRESENT=1
+export UFW_ACTIVE FIREWALLD_PRESENT FIREWALLD_ACTIVE NFT_PRESENT NFT_ACTIVE NFT_SERVICE_ACTIVE NFT_RULESET
 UFW_ACTIVE=0
 NFT_PRESENT=1
 NFT_ACTIVE=0
@@ -392,7 +392,6 @@ run_isolated "$TEST_TMP/apply-driver.sh"
 # choice has to survive the process boundary: export, not assign. With the
 # readable rules fixture in place the presence check reads the file instead
 # of privileged UFW state, so both checks below bite.
-export UFW_PRESENT=1
 export UFW_ACTIVE=1
 write_user_rules "$UFW_RULES_FILE" wlan2 10.55.0.0/24
 cat >"$TEST_TMP/idempotent-driver.sh" <<'DRIVER'
@@ -463,9 +462,9 @@ pass "privileged firewall functions enforce EUID and dispatch argument contracts
 
 for backend in firewalld nftables; do
   if [[ $backend == firewalld ]]; then
-    export UFW_PRESENT=0 FIREWALLD_PRESENT=1 FIREWALLD_ACTIVE=1 NFT_PRESENT=0 NFT_ACTIVE=0
+    export UFW_ACTIVE=0 FIREWALLD_PRESENT=1 FIREWALLD_ACTIVE=1 NFT_PRESENT=0 NFT_ACTIVE=0
   else
-    export UFW_PRESENT=0 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=1 NFT_ACTIVE=1 NFT_RULESET=$'table inet filter\n  chain input { type filter hook input priority filter; }'
+    export UFW_ACTIVE=0 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=1 NFT_ACTIVE=1 NFT_RULESET=$'table inet filter\n  chain input { type filter hook input priority filter; }'
   fi
   cat >"$TEST_TMP/start-unsupported-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
@@ -486,6 +485,7 @@ DRIVER
   touch "$TEST_TMP/nmcli-active"
   cat >"$TEST_TMP/teardown-unsupported-driver.sh" <<'DRIVER'
 require_root() { :; }
+require_privileged() { :; }
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
@@ -526,7 +526,7 @@ done
 pass "unsupported firewalls warn on setup and teardown but block start"
 
 reset_firewall_fixture() {
-  export UFW_PRESENT=1 UFW_ACTIVE=1 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=0 NFT_ACTIVE=0 NFT_SERVICE_ACTIVE=0 NFT_RULESET=""
+  export UFW_ACTIVE=1 FIREWALLD_PRESENT=0 FIREWALLD_ACTIVE=0 NFT_PRESENT=0 NFT_ACTIVE=0 NFT_SERVICE_ACTIVE=0 NFT_RULESET=""
   : >"$UFW_STATE"
   : >"$UFW_LOG"
   rm -f "$FIREWALL_STATE" "$FORWARDING_STATE" "$PROFILE_STATE" "$TEST_TMP/nmcli-active" "$UFW_RULES_FILE"
@@ -726,7 +726,6 @@ cat >"$TEST_TMP/reconcile-present-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-UFW_PRESENT=1
 UFW_ACTIVE=1
 firewall_rules_present wlan2 10.55.0.0/24
 firewall_ensure
@@ -744,7 +743,6 @@ cat >"$TEST_TMP/reconcile-absent-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-UFW_PRESENT=1
 UFW_ACTIVE=1
 if firewall_rules_present wlan2 10.55.0.0/24; then
   echo "a rule deleted out of band still reads as installed" >&2
@@ -1212,3 +1210,104 @@ exec {held_lock}<&-
 [[ ! -s $NMCLI_LOG ]] || fail "a blocked action changes nothing" "$(<"$NMCLI_LOG")"
 run_isolated "$TEST_TMP/lock-driver.sh"
 pass "hotspot actions are serialized"
+
+# A failed delete during rollback must not strand the rules after it.
+reset_firewall_fixture
+cat >"$TEST_TMP/rollback-continue-driver.sh" <<'DRIVER'
+require_privileged() { :; }
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+export UFW_SHOW_ALLOWED=1
+firewall_apply wlan2 10.55.0.0/24 >/dev/null
+export UFW_FAIL_DELETE="port 67"
+if firewall_remove_installed_tags wlan2 10.55.0.0/24 dhcp dns-udp dns-tcp forward; then
+  echo "rollback reported success with a failed delete" >&2; exit 1
+fi
+remaining=$(<"$UFW_STATE")
+[[ $remaining == *"port 67"* ]] || { echo "the failing rule vanished: $remaining" >&2; exit 1; }
+[[ $remaining != *"port 53"* && $remaining != *"route allow"* ]] ||
+  { echo "rollback stopped at the first failed delete: $remaining" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/rollback-continue-driver.sh"
+pass "firewall rollback tries every rule past a failed delete"
+
+# UFW keeps its rules while disabled and restores them when re-enabled, so
+# releasing the hotspot removes them even with UFW off.
+reset_firewall_fixture
+cat >"$TEST_TMP/release-inactive-driver.sh" <<'DRIVER'
+require_privileged() { :; }
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+export UFW_SHOW_ALLOWED=1
+firewall_apply wlan2 10.55.0.0/24 >/dev/null
+[[ -s $UFW_STATE ]] || { echo "fixture installed no rules" >&2; exit 1; }
+export UFW_ACTIVE=0
+hotspot_release
+[[ ! -s $UFW_STATE ]] || { echo "release left rules behind with UFW off: $(<"$UFW_STATE")" >&2; exit 1; }
+[[ ! -s $FIREWALL_STATE_FILE ]] || { echo "release kept ownership records" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/release-inactive-driver.sh"
+pass "releasing the hotspot removes its rules while UFW is disabled"
+
+# With the ownership records lost, stop still hands rules that carry the
+# hotspot's owner comment to the privileged release.
+reset_firewall_fixture
+touch "$PROFILE_STATE"
+cat >"$TEST_TMP/stop-lost-records-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+(
+  require_privileged() { :; }
+  export UFW_SHOW_ALLOWED=1
+  firewall_apply wlan2 10.55.0.0/24 >/dev/null
+)
+rm -f "$FIREWALL_STATE_FILE"
+stop
+[[ ! -s $UFW_STATE ]] || { echo "stop skipped owner-tagged rules: $(<"$UFW_STATE")" >&2; exit 1; }
+DRIVER
+SAVED_INTERFACE=wlan2 write_user_rules "$UFW_RULES_FILE" wlan2 10.55.0.0/24
+SAVED_INTERFACE=wlan2 run_isolated "$TEST_TMP/stop-lost-records-driver.sh"
+pass "stop releases owner-tagged rules whose ownership records were lost"
+
+# A password piped on stdin from a terminal still prompts in that terminal.
+reset_firewall_fixture
+cat >"$TEST_TMP/terminal-driver.sh" <<'DRIVER'
+EUID_CHECK=$(id -u)
+(( EUID_CHECK != 0 )) || exit 0
+printf 'secret\n' | privileged_run release
+DRIVER
+script -qec "env PATH='$STUB_BIN:$PATH' OMARCHY_PATH='$ROOT' bash -c 'source \"\$1\"; source \"\$TEST_PATHS\"; source \"\$2\"' _ '$FUNCTIONS' '$TEST_TMP/terminal-driver.sh'" /dev/null >/dev/null </dev/null
+if (( $(id -u) != 0 )); then
+  [[ $(head -n 1 "$PRIVILEGED_LOG") == "sudo "* ]] || fail "a terminal with piped stdin uses sudo" "$(<"$PRIVILEGED_LOG")"
+  : >"$PRIVILEGED_LOG"
+  printf '%s\n' 'printf "secret\n" | privileged_run release' >"$TEST_TMP/no-terminal-driver.sh"
+  run_isolated "$TEST_TMP/no-terminal-driver.sh" </dev/null 2>/dev/null
+  [[ $(head -n 1 "$PRIVILEGED_LOG") == "pkexec "* ]] || fail "no terminal at all uses pkexec" "$(<"$PRIVILEGED_LOG")"
+fi
+pass "privileged steps prompt with sudo whenever a terminal is attached"
+
+# Every user shares one lock once root has left it in the state directory;
+# before that an unprivileged caller uses its own.
+reset_firewall_fixture
+cat >"$TEST_TMP/shared-lock-driver.sh" <<'DRIVER'
+(( $(id -u) != 0 )) || exit 0
+HOTSPOT_LOCK_FILE=""
+HOTSPOT_STATE_DIR="$TEST_TMP/shared-lock-state"
+XDG_RUNTIME_DIR="$TEST_TMP/runtime"
+mkdir -p "$HOTSPOT_STATE_DIR" "$XDG_RUNTIME_DIR"
+[[ $(hotspot_lock_path) == "$XDG_RUNTIME_DIR/omarchy-hotspot.lock" ]] ||
+  { echo "without a shared lock: $(hotspot_lock_path)" >&2; exit 1; }
+: >"$HOTSPOT_STATE_DIR/lock"
+[[ $(hotspot_lock_path) == "$HOTSPOT_STATE_DIR/lock" ]] ||
+  { echo "with a shared lock: $(hotspot_lock_path)" >&2; exit 1; }
+# A lock in the shared spot that root did not create is refused.
+if (hotspot_lock) 2>"$TEST_TMP/shared-lock-err"; then
+  echo "a user-owned shared lock was accepted" >&2; exit 1
+fi
+grep -q "unsafe hotspot lock" "$TEST_TMP/shared-lock-err" || { cat "$TEST_TMP/shared-lock-err" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/shared-lock-driver.sh"
+pass "hotspot actions share one machine-wide lock once root has created it"
