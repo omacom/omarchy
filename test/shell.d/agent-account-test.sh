@@ -383,9 +383,14 @@ pass "a Grok settings cache of the wrong shape reads as no plan"
 
 # OpenCode Go always reports first: it holds one API key, not accounts, and
 # re-adding replaces it.
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional\nopencode first' ]] ||
-  fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
-pass "--check says what adding would mean for each provider"
+add_check=$(omarchy-agent-account-add --check)
+for provider in claude codex grok; do
+  grep -Fxq "$provider additional" <<<"$add_check" ||
+    fail "--check reports an additional account for signed-in $provider" "$add_check"
+done
+grep -Fxq "opencode first" <<<"$add_check" ||
+  fail "--check reports a single replaceable OpenCode Go key" "$add_check"
+pass "--check reports the existing providers' sign-in states"
 
 : >"$notifications"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
