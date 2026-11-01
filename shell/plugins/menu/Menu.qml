@@ -1232,7 +1232,7 @@ Item {
   // The hints are on unless this flag exists (omarchy-toggle-menu-keybinding-hints).
   FileView {
     id: keybindingHintsOffFlag
-    path: root.stateHome + "/omarchy/toggles/menu-keybinding-hints-off"
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles/menu-keybinding-hints-off"
     watchChanges: true
     printErrors: false
     onLoaded: root.keybindingHintsEnabled = false
