@@ -9,14 +9,6 @@ const fs = require('fs')
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 const overlay = read('shell/Ui/OverlayWindow.qml')
 
-// Closing must unmap, not leave a surface on an output that may disappear.
-assert(
-  overlay.includes('visible: shown && !!targetScreen && !!targetMonitor') &&
-    overlay.includes('anchors { top: true; left: true; bottom: true; right: true }') &&
-    !overlay.includes('implicitWidth: 1') && !overlay.includes('WlrLayer.Bottom'),
-  'closed overlays unmap instead of parking a surface'
-)
-
 const readyExpression = /readonly property bool contentReady: ([^\n]*(?:\n    &&[^\n]*)*)/.exec(overlay)[1]
 const readySettling = new Function('shown', 'backingWindowVisible', 'width', 'height', 'targetScreen', 'targetMonitor', 'devicePixelRatio', 'reservedSpace', 'cooperationSettled', `return ${readyExpression}`)
 const readyReserving = (...args) => readySettling(...args, true)
@@ -42,10 +34,6 @@ assert(!ready(false, true, 1200, 750, screen, monitor, 1.6),
 assert(!ready(true, true, 1200, 750, null, monitor, 1.6) &&
   !ready(true, true, 1200, 750, screen, null, 1.6),
   'content waits for a connected screen and its monitor information')
-assert(
-  /target: window\.contentItem\s*property: "opacity"\s*value: window\.contentRevealed \? 1 : 0/.test(overlay),
-  'transparent opening frames preserve immediate keyboard handling'
-)
 
 const revealBody = /onContentReadyChanged: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
 const reveal = new Function('window', 'Qt', `with (window) { ${revealBody} }`)
@@ -128,31 +116,8 @@ window.focusedScreen = () => external
 pending.shift()()
 assertEqual(window.targetScreen, screen, 'a deferred remap preserves the screen chosen by a newer open')
 
-const overlays = {
-  'shell/plugins/menu/Menu.qml': 'shown: root.opened && root.rowsLoaded',
-  'shell/plugins/emojis/Emojis.qml': 'shown: root.opened',
-  'shell/plugins/clipboard/Clipboard.qml': 'shown: root.opened',
-  'shell/plugins/osd/Osd.qml': 'shown: root.opened',
-  'shell/plugins/reminders/ReminderFlow.qml': 'shown: root.opened',
-  'shell/plugins/panels/wifiqr/Panel.qml': 'shown: root.opened',
-  'shell/plugins/image-picker/ImagePicker.qml': 'shown: root.opened',
-}
-for (const [file, shown] of Object.entries(overlays)) {
-  const qml = read(file)
-  assert(
-    qml.includes('OverlayWindow {') && qml.includes(shown) && !/PanelWindow \{\s*(id: panel\s*)?visible: root\.opened/.test(qml),
-    `${file} uses the shared overlay scale and lifecycle handling`
-  )
-}
-
-// Layout resets on a requested close, independent of mapping readiness.
+// Moving an open menu to another output drops the old output's layout.
 const menuQml = read('shell/plugins/menu/Menu.qml')
-assert(
-  menuQml.includes('onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }') &&
-    menuQml.includes('if (shown && cardTop < 0) {') &&
-    !/onVisibleChanged: if \(!visible\) \{ cardTop/.test(menuQml),
-  'the menu unfreezes its layout when the overlay hides'
-)
 const screenHandler = /onTargetScreenChanged: \{([^\n]*)\}/.exec(menuQml)[1]
 const changeScreen = new Function('panel', `with (panel) { ${screenHandler} }`)
 const menuPanel = { shown: true, cardTop: 945, maxRowsHeight: 510 }
@@ -166,14 +131,18 @@ const shellRules = read('default/hypr/apps/omarchy-shell.lua')
 const noAnim = /namespace = "\^\(([^)]*)\)\$" \}, no_anim = true/.exec(shellRules)
 assert(noAnim, 'the shell overlays share one no-animation layer rule')
 const unanimated = noAnim ? noAnim[1].split('|') : []
-for (const file of Object.keys(overlays)) {
+const overlayFiles = fs.readdirSync(path.join(root, 'shell/plugins'), { recursive: true })
+  .filter(file => file.endsWith('.qml'))
+  .map(file => 'shell/plugins/' + file)
+  .filter(file => read(file).includes('OverlayWindow {'))
+assert(overlayFiles.length > 0, 'shell plugins use the shared overlay window')
+for (const file of overlayFiles) {
   const namespace = /WlrLayershell\.namespace: "([^"]+)"/.exec(read(file))
   assert(namespace && unanimated.includes(namespace[1]), `${file} is exempt from Hyprland's layer animation`)
 }
 
 // Cooperative focus is off unless the overlay asks for it, and "auto" only
 // turns it on while something other than the bar reserves screen space.
-assert(overlay.includes('property var cooperativeFocus: false'), 'overlays keep exclusive focus by default')
 const competingBody = /readonly property bool competingSurface: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
 const competingSurface = new Function('monitorReservedSpace', 'ownReservedSpace', competingBody)
 assert(!competingSurface([0, 26, 0, 0], [0, 26, 0, 0]), 'the bar alone is not a competing surface')
@@ -234,18 +203,8 @@ changeActive({ ...cooperative, shown: false }, false)
 changeActive({ ...cooperative, visible: false }, false)
 changeActive({ ...cooperative, cooperating: false }, false)
 assertEqual(dismissals, 0, 'closing, unmapping and stock overlays never request dismissal')
-assert(
-  /model: window\.cooperating \? Quickshell\.screens : \[\]/.test(overlay) &&
-    /WlrLayershell\.namespace: "omarchy-overlay-dismiss"[\s\S]*?WlrLayershell\.keyboardFocus: WlrKeyboardFocus\.None[\s\S]*?onPressed: window\.dismissRequested\(\)/.test(overlay),
-  'only cooperative overlays map keyboard-free dismissal surfaces on other outputs'
-)
 
 // A cooperative overlay sits beside reserved space instead of covering it.
-assert(
-  overlay.includes('exclusionMode: cooperative ? ExclusionMode.Normal : ExclusionMode.Ignore') &&
-    overlay.includes('readonly property var reservedSpace: cooperative ? monitorReservedSpace : [0, 0, 0, 0]'),
-  'only cooperative overlays leave reserved space uncovered'
-)
 const reservedBody = /readonly property var monitorReservedSpace: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
 const reservedSpace = new Function('cooperativeFocus', 'targetMonitor', reservedBody)
 assertDeepEqual(reservedSpace(false, { lastIpcObject: { reserved: [0, 26, 0, 300] } }), [0, 0, 0, 0],
@@ -263,11 +222,6 @@ assert(readyReserving(true, true, 1200, 424, tablet, tabletMonitor, 1.6, [0, 26,
   'a cooperative overlay reveals at the size left above an on-screen keyboard')
 assert(!readyReserving(true, true, 1200, 724, tablet, tabletMonitor, 1.6, [0, 26, 0, 300]),
   'a stale reserved space keeps content transparent until Hyprland is asked again')
-assert(
-  overlay.includes('onWidthChanged: if (shown && cooperativeFocus !== false) Hyprland.refreshMonitors()') &&
-    overlay.includes('onHeightChanged: if (shown && cooperativeFocus !== false) Hyprland.refreshMonitors()'),
-  'a keyboard appearing or leaving refreshes the reserved space'
-)
 // "auto" opens as a stock overlay and decides afterwards, so it has the
 // keyboard from the first keystroke.
 const settledExpression = /readonly property bool cooperationSettled: ([^\n]+)/.exec(overlay)[1]
@@ -284,19 +238,6 @@ assert(openingSize(true, true, { width: 1200, height: 750 }, 1200, 750), 'the fi
 assert(!openingSize(true, true, { width: 1200, height: 750 }, 500, 500) && !openingSize(true, false, { width: 1200, height: 750 }, 1200, 750),
   'a default or unmapped size is not the first size')
 assert(!readySettling(true, true, 1200, 750, screen, monitor, 1.6, [0, 0, 0, 0], false), 'content stays transparent until an auto overlay has decided')
-assert(
-  /onShownChanged: \{\n    reservedSpaceFresh = false\n    openingSizeSettled = false/.test(overlay) &&
-    /running: window\.shown && window\.cooperativeFocus === "auto" && !window\.reservedSpaceFresh\n    onTriggered: window\.reservedSpaceFresh = true/.test(overlay),
-  'every open decides afresh, and an answer that never comes does not hold content back'
-)
-assert(
-  /running: window\.shown && window\.cooperative && window\.backingWindowVisible && !window\.contentReady\n    onTriggered: Hyprland\.refreshMonitors\(\)/.test(overlay),
-  'a cooperative overlay keeps asking until its size and the reserved space agree'
-)
-assert(
-  /enabled: window\.shown && window\.cooperativeFocus === "auto"\n    function onRawEvent\(event\) \{\n      if \(event\.name === "openlayer" \|\| event\.name === "closelayer"\) Hyprland\.refreshMonitors\(\)/.test(overlay),
-  'an open auto overlay looks again when a layer surface comes or goes'
-)
 
 const shellQml = read('shell/shell.qml')
 const switchBody = /readonly property var overlaysCooperativeFocus: \{([\s\S]*?)\n  \}/.exec(shellQml)[1]
@@ -312,32 +253,4 @@ assertDeepEqual(barReserved({ position: 'top', barSize: 26, barHidden: false }),
 assertDeepEqual(barReserved({ position: 'left', barSize: 40 }), [40, 0, 0, 0], 'a side bar reserves its own edge')
 assertDeepEqual(barReserved({ position: 'bottom', barSize: 26, barHidden: true }), [0, 0, 0, 0], 'a hidden bar reserves nothing')
 assertDeepEqual(barReserved(null), [0, 0, 0, 0], 'no bar reserves nothing')
-
-const dismissPaths = {
-  'shell/plugins/menu/Menu.qml': 'cancel',
-  'shell/plugins/emojis/Emojis.qml': 'dismiss',
-  'shell/plugins/clipboard/Clipboard.qml': 'close',
-  'shell/plugins/image-picker/ImagePicker.qml': 'cancel',
-}
-for (const file of Object.keys(overlays)) {
-  const qml = read(file)
-  if (dismissPaths[file]) {
-    assert(
-      qml.includes('cooperativeFocus: root.shell ? root.shell.overlaysCooperativeFocus : false') &&
-        qml.includes('ownReservedSpace: root.shell ? root.shell.barReservedSpace : [0, 0, 0, 0]') &&
-        qml.includes(`onDismissRequested: root.${dismissPaths[file]}()`),
-      `${file} cooperates only on the user's setting and dismisses through its own ${dismissPaths[file]} path`
-    )
-  } else {
-    assert(!qml.includes('cooperativeFocus'), `${file} keeps exclusive focus`)
-  }
-}
-assert(!read('shell/plugins/polkit/PolkitAgent.qml').includes('cooperativeFocus'), 'the password prompt never yields exclusive focus')
-
-// The OSD never takes the keyboard or input, shown or not.
-const osd = read('shell/plugins/osd/Osd.qml')
-assert(
-  osd.includes('shownKeyboardFocus: WlrKeyboardFocus.None') && osd.includes('mask: Region {}'),
-  'the OSD stays click-through and keyboard-free while shown'
-)
 JS

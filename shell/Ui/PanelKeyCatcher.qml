@@ -74,10 +74,13 @@ Item {
     if (event.key === Qt.Key_Up || event.text === "k") {
       moveRequested(0, -1); event.accepted = true; return
     }
-    if (event.key === Qt.Key_Right || event.text === "l") {
+    // In a mirrored (right-to-left) panel, Left moves forward along a row.
+    var right = event.key === Qt.Key_Right || event.text === "l"
+    var left = event.key === Qt.Key_Left || event.text === "h"
+    if (LayoutMirroring.enabled ? left : right) {
       moveRequested(1, 0); event.accepted = true; return
     }
-    if (event.key === Qt.Key_Left || event.text === "h") {
+    if (LayoutMirroring.enabled ? right : left) {
       moveRequested(-1, 0); event.accepted = true; return
     }
     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
