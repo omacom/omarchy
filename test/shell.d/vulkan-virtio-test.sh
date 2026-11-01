@@ -39,17 +39,17 @@ run_script() {
 
 virtio='00:02.0 VGA compatible controller: Red Hat, Inc. Virtio 1.0 GPU (rev 01)'
 got=$(run_script "$virtio")
-[[ $got == vulkan-virtio ]] || fail "virtio GPU installs vulkan-virtio, got: $got"
+[[ $got == "vulkan-virtio" ]] || fail "virtio GPU installs vulkan-virtio, got: $got"
 pass "virtio GPU installs vulkan-virtio"
 
 virtio3d='00:02.0 3D controller: Red Hat, Inc. Virtio 1.0 GPU (rev 01)'
 got=$(run_script "$virtio3d")
-[[ $got == vulkan-virtio ]] || fail "virtio 3D controller installs vulkan-virtio, got: $got"
+[[ $got == "vulkan-virtio" ]] || fail "virtio 3D controller installs vulkan-virtio, got: $got"
 pass "virtio 3D controller installs vulkan-virtio"
 
 intel='00:02.0 VGA compatible controller: Intel Corporation Device 46a6'
 got=$(run_script "$intel")
-[[ $got == vulkan-intel ]] || fail "Intel GPU still installs vulkan-intel, got: $got"
+[[ $got == "vulkan-intel" ]] || fail "Intel GPU still installs vulkan-intel, got: $got"
 pass "Intel GPU still installs vulkan-intel"
 
 none='00:00.0 Host bridge: Intel Corporation Device 1234'
