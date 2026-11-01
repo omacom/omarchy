@@ -2,10 +2,11 @@
 
 # omarchy:summary=Update AUR packages if any are installed
 
-# mise exports GOROOT and GOBIN for its own Go. omarchy-update runs this with
-# the system PATH, so /usr/bin/go would compile with mise's toolchain and every
-# Go PKGBUILD fails with "compile: version ... does not match go tool version".
-# With both unset, whichever go is on PATH uses its own root.
+# mise exports GOROOT and GOBIN for its own Go. omarchy-upgrade-to-quattro runs
+# this with the system PATH but the caller's environment, so /usr/bin/go would
+# compile with mise's toolchain and every Go PKGBUILD fails with
+# "compile: version ... does not match go tool version". With both unset,
+# whichever go is on PATH uses its own root.
 unset GOROOT GOBIN
 
 if pacman -Qem >/dev/null; then
