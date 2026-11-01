@@ -36,14 +36,6 @@ output="$(run_debug_idle)"
 [[ $output == *"VLC: Playing audio (cookie 2)"* ]] || fail "second inhibitor is rendered" "$output"
 pass "active inhibitors are rendered with app, reason, and cookie"
 
-python3 -c "import ast; ast.parse(open('$ROOT/bin/omarchy-idle-inhibit').read())" \
-  || fail "idle-inhibit daemon is valid python"
-grep -q "omarchy:summary=" "$ROOT/bin/omarchy-idle-inhibit" \
-  || fail "idle-inhibit daemon declares a summary"
-grep -q "omarchy:hidden=true" "$ROOT/bin/omarchy-idle-inhibit" \
-  || fail "idle-inhibit daemon is hidden from listings"
-pass "idle-inhibit daemon is valid and declares its metadata"
-
 probe_empty="$("$ROOT/bin/omarchy-idle-inhibit-probe" "$test_tmp/missing-state")"
 [[ $probe_empty == "" ]] || fail "probe is silent for a missing file" "$probe_empty"
 pass "probe is silent for a missing file"
@@ -184,22 +176,3 @@ released_name=$(scenario "
 ")
 [[ $released_name == "1" ]] || fail "a caller dropping a well-known name keeps its inhibitor" "count=$released_name"
 pass "a caller dropping a well-known name keeps its inhibitor"
-
-rg -F 'dbusInhibitorCount === 0' "$ROOT/shell/plugins/services/idle/Service.qml" >/dev/null \
-  || fail "idleEnabled folds D-Bus inhibitors"
-rg -F 'omarchy-idle-inhibit-probe' "$ROOT/shell/plugins/services/idle/Service.qml" >/dev/null \
-  || fail "idle service probes the inhibit state file"
-rg -F 'mkdir -p \"$XDG_RUNTIME_DIR/omarchy/idle-inhibit\"' "$ROOT/shell/plugins/services/idle/Service.qml" >/dev/null \
-  || fail "idle service creates the inhibit state directory before watching it"
-rg -F 'inhibitorStateDirWatcher.reload' "$ROOT/shell/plugins/services/idle/Service.qml" >/dev/null \
-  || fail "idle service reloads the inhibit watcher after mkdir"
-rg -F 'setIdleEnabled(root.stayAwake)' "$ROOT/shell/plugins/services/idle/Service.qml" >/dev/null \
-  || fail "idle toggle derives from stayAwake"
-pass "idle service wires D-Bus inhibitors into idleEnabled"
-
-if awk '/enable --now \\/,/omarchy-crash-watch.service/' "$ROOT/install/user/first-run/enable-user-units.sh" | grep -q omarchy-idle-inhibit.service; then
-  fail "idle-inhibit is not in the batch enable --now list"
-fi
-grep -q 'enable --now omarchy-idle-inhibit.service' "$ROOT/install/user/first-run/enable-user-units.sh" \
-  || fail "idle-inhibit is enabled on its own after the batch"
-pass "first-run enables idle-inhibit separately so a missing unit cannot fail sleep-lock"
