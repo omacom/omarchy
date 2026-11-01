@@ -23,8 +23,9 @@ Learned while building, now in the code:
 - The Podman secret must hold the bare key: a trailing newline reached Gufo's `--api-key` and failed every probe.
 - On unified memory the kernel's `MemAvailable` already reflects halogen's pinned weights; `Mlocked` doesn't. Variants declare `peak_ram_gib` (total system memory) and `peak_gpu_gib` (GTT), not one GPU number.
 - Gufo takes its key only on the command line: runtime definitions gained `key_on_cmdline` with in-container substitution from the secret, shown as a warning (upstream request: a key file or variable).
-- The panel follows `status.json`, rewritten by the unit's `ExecStartPost`/`ExecStopPost` hooks and by every command, instead of a D-Bus subscription; it shows a card only once a model is set up.
-- Manifests are JSON (`runs/*.json`, `active.json`).
+- The panel follows `status.json`, rewritten by the units' `ExecStartPost`/`ExecStopPost` hooks (through `/usr/bin/env`, since systemd doesn't search `PATH` for them) and by every command, instead of a D-Bus subscription. `start` and `stop` write the transition before waiting on systemd, so a click shows at once.
+- Several models can run at once (answering open question 2): every recipe is its own unit, `omarchy-agent-local-model-<recipe>.service`, on its own stable loopback port from `ports.json`. Headroom counts the models already running and names them when one doesn't fit. Manifests are JSON: `models/<recipe>.json` per recipe and `runs/*.json`; `last` names the default for launches and `bench`.
+- The agents panel shows every set-up model as its own line, styled like a subscription: the maker's logo (recipe `vendor`), play/pause, a terminal button opening the default agent on it (pi when the default agent has no overlay), a memory meter, and a loading bar measured against the last load time. Local lines and subscriptions share one drag order (`local:<recipe>` ids in `order.json`), and Delete on a selected line confirms before removing a model or hiding a subscription. Each subscription also gained a terminal button opening its own harness (`omarchy agent --agent <id>`: Codex for OpenAI, Claude Code for Anthropic).
 
 Not done:
 
@@ -506,7 +507,7 @@ halogen's fit with this design is already proven by hand: it runs from a Quadlet
 ## Open questions
 
 1. Which signing scheme Podman verifies for `omarchy`-tier images (sigstore signatures vs GPG).
-2. Is one managed active model the right limit long term? A small fast model next to a big one (completion vs agent) is plausible on 128GB once headroom checks exist.
+2. ~~Is one managed active model the right limit long term?~~ Answered: several run at once, each its own unit and port, within headroom.
 3. Should the model store share Hugging Face's cache (`~/.cache/huggingface`) so weights downloaded for other tools are reused, at the cost of Omarchy not owning deletion?
 4. Should a recipe's `ctx` variants grow automatically as measurements come in for smaller machines, or stay hand-curated?
 5. Who holds catalog signing keys, and is one maintainer's signature enough for a `best.toml` change, or should changes that select a new third-party runtime need two?

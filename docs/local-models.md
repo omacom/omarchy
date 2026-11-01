@@ -4,26 +4,30 @@ This reference describes the implementation in `shell/plugins/agents/agent_local
 
 ## Overview and file map
 
-Omarchy manages one active rootless Podman model server, exposed as an OpenAI-compatible endpoint at `http://127.0.0.1:11435/v1`. The catalog supplies recipes, runtime definitions and ordered recommendations; Omarchy resolves them, downloads weights, generates Quadlet units and checks the running endpoint. Catalog refresh never switches a running model.
+Omarchy manages rootless Podman model servers, each exposed as an OpenAI-compatible endpoint on its own stable loopback port. Several recipes can run at once. Each recipe has an `omarchy-agent-local-model-<recipe>.service` Quadlet unit, a container named `omarchy-agent-local-model-<recipe>`, and a file at `~/.config/containers/systemd/omarchy-agent-local-model-<recipe>.container`. Port assignments live in `ports.json`, starting at 11435 and allocating the lowest free port; removing a recipe releases its assignment for reuse. The catalog supplies recipes, runtime definitions and ordered recommendations; Omarchy resolves them, downloads weights, generates Quadlet units and checks the running endpoint. Catalog refresh never switches a running model.
 
 | File or component | Responsibility |
 |---|---|
 | `shell/plugins/agents/agent_local.py` | Profile, validation, catalog acceptance, artifact storage, units, lifecycle, manifests, overlays and benchmarks |
-| `bin/omarchy-agent-local-*` | Thin Python entry points importing the module through `$OMARCHY_PATH` |
-| `bin/omarchy-agent` | `--local` launches the selected default agent using an Omarchy-owned overlay; currently only OpenCode is supported |
+| `bin/omarchy-agent-local-*` | Python entry points importing the module through `$OMARCHY_PATH`, plus the hidden shell `switch` notification wrapper |
+| `bin/omarchy-agent` | `--local` / `--local-model <recipe>` launch with a pi or OpenCode overlay; `--agent <id>` selects a harness explicitly |
 | `default/omarchy/omarchy-menu.jsonc` | Best-model action and recipe submenu under Install > AI |
 | `shell/plugins/menu/Menu.qml`, `MenuModel.js` | `local-models` provider and unavailable-row presentation; see [Menu providers](menu.md#providers) |
-| `shell/plugins/agents/Main.qml`, `Panel.qml` | Watch lifecycle status and display the model card and actions |
+| `shell/plugins/agents/Main.qml`, `Panel.qml` | Watch lifecycle status and cached recipes and display per-model lines alongside subscriptions |
 | `bin/omarchy-agent-usage-local` | Count historical usage separately from server lifecycle |
 | `install/omarchy-base.packages`, `migrations/1793534376.sh` | Install Podman and crun; migration calls `omarchy-pkg-add podman crun` |
 | `default/omarchy/agent-local/allowed_signers` | SSH catalog signing trust anchors; currently comments only, with no shipped signing key |
 | `bin/omarchy-update` | Best-effort `omarchy-agent-local-refresh --quiet` when the user's catalog directory exists; failure warns without failing the update |
 
-Visible commands are `use`, `list`, `status`, `stop`, `autostart`, `remove` and `bench`, routed under `omarchy agent local`. Hidden commands are `profile`, `refresh`, `validate` and `overlay`. `use` accepts `best` or a recipe id, `--ctx`, `--gpu`, `--catalog <commit>`, `--manifest <file>`, `--seed <directory>` and `--unqualified`. `list` supports `--json` and `--offline`; `status` supports `--json` and the internal `--write`; `refresh` supports `--quiet`; `validate <directory>` supports `--online`; `overlay` accepts only `opencode`; `bench` supports `--output <file>`.
+Visible commands are `use`, `start`, `list`, `status`, `stop`, `autostart`, `remove` and `bench`, routed under `omarchy agent local`. Hidden commands are `profile`, `refresh`, `validate`, `overlay` and `switch`. `use <recipe|best>` sets up and starts that recipe without stopping other models; it accepts `--ctx`, `--gpu`, `--catalog <commit>`, `--manifest <file>`, `--seed <directory>` and `--unqualified`. `start [recipe] [--setup]` starts an existing setup, or delegates to `use` for a named recipe not yet set up when `--setup` is given. `stop [recipe]` stops one recipe, or all running models when omitted. `autostart on|off [recipe]` changes one recipe's session startup flag. `bench [recipe]` supports `--output <file>`; `overlay <opencode|pi> [recipe]` generates a launch overlay. The optional recipe defaults to the last started model for start, autostart, bench and overlays; commands needing a running model fall back to another running setup if necessary. Hidden `switch <recipe>` is the panel wrapper around `start --setup`, with an error notification on failure.
+
+`list` supports `--json` and `--offline`; `status` supports `--json` and the internal `--write`; `refresh` supports `--quiet`; `validate <directory>` supports `--online`.
 
 The menu provider reads only cached `list.json`, with no hardware probe or catalog fetch. Its tab-delimited rows are `label`, `value`, `current`, optional search text and optional unavailable reason. Recommended rows get “ · best”, third-party rows name their publisher, and unavailable rows stay visible but cannot be selected. Without the cache, a refresh row runs `list` in a visible floating terminal. Selecting a recipe runs `use <id>` there.
 
-The panel card appears once status names a configured recipe, independently of usage history. It shows recipe, runtime, unit state, endpoint and context while running, and a changed recommendation. Actions start the unit directly, stop it, launch `omarchy-agent --local`, open the menu picker, or run `use best` when the recommendation differs.
+The panel shows one line per set-up local model, independently of usage history, with a logo named by the recipe's `vendor` (falling back to the Ollama logo), play/pause, a terminal action while running, and a memory meter based on observed load-time RAM usage. While loading, the meter becomes a progress bar measured against the previous load duration (60 seconds when unknown). Starting uses the hidden `switch` wrapper; stopping names the recipe; the terminal launches `omarchy-agent --local-model <recipe>`.
+
+Local lines share the subscriptions' drag order through `local:<recipe>` ids in `~/.local/state/omarchy/agents/order.json`. Delete on a selected line opens confirmation, then removes a local model or hides a subscription while keeping its credentials. Each subscription's terminal action uses `omarchy-agent --agent <id>` and the providerId-to-agent map in `Panel.qml` to open its own harness. Local-model data comes from FileView watches of `status.json` and `list.json`, with no lifecycle polling. The local loading bar's only timer runs while the panel is open and a model is loading.
 
 ## Trust model
 
@@ -48,7 +52,7 @@ Control characters are rejected in relevant strings. The generator quotes argv a
 
 An argument key requires `key_on_cmdline = true` and `shell = "/bin/bash"` (the only supported shell). The generated bash entrypoint replaces an exact `@OMARCHY_LOCAL_KEY@` argv element with the secret inside the container, then execs the runtime. `use` warns that the resulting key is visible in the process list to other local users. Gufo uses this path; halogen takes an environment key.
 
-After health readiness, `use` checks `/v1/models`: without a key it must return 401 or 403; with the key it must return 200 and list the recipe id. It does not test every route, a wrong key, or outbound connectivity at each start. Failed checks stop the candidate and restore the previous container unit, restarting it if it had been running.
+After health readiness, `use` checks `/v1/models`: without a key it must return 401 or 403; with the key it must return 200 and list the recipe id. It does not test every route, a wrong key, or outbound connectivity at each start. Failed checks stop the candidate and restore that recipe's previous container unit, restarting it if it had been running; other recipes are unaffected.
 
 ## Catalog acceptance and refresh
 
@@ -79,7 +83,7 @@ Fetch failure keeps an existing cached catalog with a note. Verification, ancest
 
 ## Catalog formats and examples
 
-Recipe and runtime ids are filename stems matching `^[a-z0-9]+([.-][a-z0-9]+)*$`. Recipes require `name`, `summary`, a known runtime, at least one hardware entry, artifact and variant. Hardware entries require GPU family, one allowed RAM class and a relative measurement-file path; platform is optional. Validation checks that the measurement file exists, not its contents or whether the measurement was taken on the claimed hardware.
+Recipe and runtime ids are filename stems matching `^[a-z0-9]+([.-][a-z0-9]+)*$`. Recipes require `name`, `summary`, a known runtime, at least one hardware entry, artifact and variant. Optional `vendor` must match the same validated id syntax and names the panel logo in `shell/plugins/agents/assets/<vendor>.svg`. Hardware entries require GPU family, one allowed RAM class and a relative measurement-file path; platform is optional. Validation checks that the measurement file exists, not its contents or whether the measurement was taken on the claimed hardware.
 
 Artifacts specify a Hugging Face `owner/name`, 40-hex revision, license string and relative file patterns. Optional `dest` prefixes the full repository path; `model` and `draft` identify unique role files and must match their artifact's patterns. Paths reject absolute paths, empty components, `.` and `..`. Variants require a positive integer `ctx` and positive `peak_ram_gib` and `peak_gpu_gib`; `pins_memory` is accepted metadata but has no effect on memory accounting. Sampling accepts numeric temperature, top_p and top_k; unmapped sampling inputs are skipped with a note during `use`. `[server].args` supplies extra argv subject to reserved-name checks.
 
@@ -406,7 +410,7 @@ RAM class rounds the unrounded installed GiB upward to 32, 64, 96, 128, 192, 256
 2. Walk that class's recipes in order. AMD rejects runtimes requesting NVIDIA CDI; NVIDIA rejects render/KFD runtimes. Require a measured hardware declaration matching GPU family and RAM class, with absent or matching platform.
 3. Sort variants by descending context. Choose the first whose GPU peak fits addressable memory and whose RAM peak plus the 8 GiB desktop reserve fits installed RAM. `--ctx` requires an exact declared context; a recipe without that context raises immediately rather than falling through to the next recipe.
 4. For ordinary static incompatibility or no fitting variant, try the next recipe and report skipped reasons. There is no fallback to another class. Without a class, report the profile and recipes declaring the same GPU family.
-5. After downloads and image preparation, stop the old model and check current headroom, up to 15 checks one second apart. RAM is raw `MemAvailable`; GPU free memory is total VRAM+GTT minus both used counters (or the profile's capacity when no sysfs path exists). Require RAM peak plus 8 GiB and the GPU peak. Failure names the three largest RSS processes and restores the old unit; it never selects a lower recommendation because memory is busy.
+5. After downloads and image preparation, stop only the target recipe if it is already running and check current headroom, up to 15 checks one second apart. Other running models keep their memory and count against what is free. RAM is raw `MemAvailable`; GPU free memory is total VRAM+GTT minus both used counters (or the profile's capacity when no sysfs path exists). Require RAM peak plus 8 GiB and the GPU peak. Failure names running local models and the three largest RSS processes and restores only the target recipe's old unit; it never selects a lower recommendation because memory is busy.
 
 A named recipe normally uses the same compatibility checks. `--unqualified` can bypass qualification or runtime-support rejection but still requires static variant fit. Manifest replay validates its embedded recipe/runtime, reuses its files, roles and variant, and selects a GPU from the current profile; it does not redo catalog resolution, static fit or hardware qualification. Preflight and live headroom still run.
 
@@ -418,7 +422,7 @@ The content-addressed store is `~/.local/share/omarchy/agent-local/blobs/{sha256
 
 Missing downloads require their full combined size plus 2 GiB free disk space. Four workers download into `staging/<hash>.part`, resuming with HTTP Range, restarting if a server ignores Range, and retrying up to five attempts. Size and hash must match before atomic rename into the blob store. Failed hashes are discarded. Existing staging sizes are not subtracted from the free-space requirement. Credentials come from `HF_TOKEN` or `~/.cache/huggingface/token` for Hugging Face access.
 
-Materialization replaces obsolete links in the recipe directory. `remove <recipe>` refuses a running active recipe; otherwise it removes that recipe's tree and run records, deletes blobs whose only remaining link is the store entry, and tries to remove images no surviving run record names. Removing the active stopped recipe also removes its container unit and active manifest. It keeps the network unit, key and secret; it refreshes the list cache and rewrites `status.json`.
+Materialization replaces obsolete links in the recipe directory. `remove <recipe>` stops it first if running, removes its container Quadlet, current manifest, autostart flag, port assignment, model tree and run records, deletes blobs whose only remaining link is the store entry, and tries to remove images no surviving run record names. It clears `last` if it named this recipe. It keeps the network unit, key and secret; it refreshes the list cache and rewrites `status.json`.
 
 ## Generated units and lifecycle
 
@@ -437,7 +441,7 @@ Internal=true
 
 `[Quadlet] DefaultDependencies=false` (in both files) drops Quadlet's default ordering after `podman-user-wait-network-online.service`. These units have no outside network to wait for, and on machines where the system's `network-online.target` never arrives every start otherwise sat out that service's 90-second timeout first.
 
-### `omarchy-agent-local.container`
+### `omarchy-agent-local-model-qwen3.8-27b-gufo.container`
 
 ```ini
 # Generated by omarchy-agent-local-use; changes are overwritten.
@@ -452,11 +456,11 @@ StartLimitBurst=3
 DefaultDependencies=false
 
 [Container]
-ContainerName=omarchy-agent-local
+ContainerName=omarchy-agent-local-model-qwen3.8-27b-gufo
 Image=ghcr.io/gufo-org/toolboxes/gufo-runtime@sha256:ec8c3f0bf06100304f5105590cfe98d62bf21ff133e8c2dea95955eb4028ddb2
 Label=org.omarchy.agent-local.recipe=qwen3.8-27b-gufo
 Network=omarchy-agent-local.network
-PublishPort=127.0.0.1:11435:8080
+PublishPort=127.0.0.1:11436:8080
 Volume=%h/.local/share/omarchy/agent-local/models/qwen3.8-27b-gufo:/models:ro
 Secret=omarchy-agent-local-key,type=env,target=OMARCHY_LOCAL_KEY
 AddDevice=/dev/dri/renderD128
@@ -484,17 +488,17 @@ Notify=healthy
 TimeoutStartSec=12m
 Restart=on-failure
 RestartSec=10s
-ExecStartPost=-omarchy-agent-local-status --write
-ExecStopPost=-omarchy-agent-local-status --write
+ExecStartPost=-/usr/bin/env omarchy-agent-local-status --write
+ExecStopPost=-/usr/bin/env omarchy-agent-local-status --write
 ```
 
-`write_unit_files()` writes both Quadlets and reloads the user manager. `Notify=healthy` keeps activation pending until the container health check passes. While loading, a startup check runs the same probe every 2 seconds (up to 300 tries, the ten-minute load budget), so the unit goes active within seconds of the model being ready rather than at the first 30-second regular probe: Gufo's 27B goes from start to active in about 6 seconds. Once it passes, regular probes run every 30 seconds, time out after five seconds, allow three failures and have a ten-minute startup grace period. Startup times out at twelve minutes. Health failure kills the container; systemd restarts failures after ten seconds, with three starts allowed per ten minutes. Logs are available through `journalctl --user -u omarchy-agent-local`.
+`write_unit_files()` writes both Quadlets and reloads the user manager. `Notify=healthy` keeps activation pending until the container health check passes. While loading, a startup check runs the same probe every 2 seconds (up to 300 tries, the ten-minute load budget), so the unit goes active within seconds of the model being ready rather than at the first 30-second regular probe: Gufo's 27B goes from start to active in about 6 seconds. Once it passes, regular probes run every 30 seconds, time out after five seconds, allow three failures and have a ten-minute startup grace period. Startup times out at twelve minutes. Health failure kills the container; systemd restarts failures after ten seconds, with three starts allowed per ten minutes. Logs are available through `journalctl --user -u omarchy-agent-local-model-<recipe>.service`.
 
-`ExecStartPost` and `ExecStopPost` invoke `status --write` with failure ignored. These hooks update the panel on starts, stops and crashes without a shell polling timer; intermediate systemd states are not continuously observed. The start hook runs before the first successful `use` saves its new active manifest, so `use` writes status again after saving it.
+`ExecStartPost` and `ExecStopPost` run `/usr/bin/env omarchy-agent-local-status --write` with failure ignored. systemd does not search PATH for Exec* command names, so `/usr/bin/env` resolves the Omarchy command. Hooks update the panel on starts, stops and crashes without a lifecycle polling timer. Commands also write `activating` or `deactivating` with `since_ms` before waiting on systemd, making transitions visible immediately. During first setup, the activating record includes the pending manifest; `use` writes status again after saving the successful run.
 
-Switching holds an advisory flock in the state directory. Downloads and image preparation precede stopping the old model. Activation remembers the previous container text and whether it was running, stops it with a warning that requests are interrupted, checks headroom, writes the new unit, resets failures, starts and verifies auth/model id. On handled startup or headroom failure it stops the candidate, restores the previous unit and restarts it if necessary. A successful run records observed load duration and before/after memory deltas, then saves manifests. `stop` keeps the configured recipe and downloads.
+Setup holds an advisory flock in the state directory. Downloads and image preparation precede stopping the target recipe, if running, with a warning that its requests are interrupted. Activation checks live headroom, writes that recipe's unit, resets failures, starts it and verifies auth/model id. On handled startup or headroom failure it stops the candidate, restores only that recipe's previous unit and restarts it if necessary. Other models keep running. A successful run records observed load duration and before/after memory deltas, then saves manifests. `stop` keeps setups and downloads.
 
-`PartOf=graphical-session.target` stops the model at logout. Autostart defaults off; `autostart on|off` creates/removes the state flag and regenerates the active container with or without `[Install]` / `WantedBy=graphical-session.target`. Quadlet applies this at generation time; `systemctl enable` is not the setting. Starting directly from the panel or via systemctl runs the generated unit and health checks, but does not run the Python activation headroom or post-start auth checks again.
+`PartOf=graphical-session.target` stops models at logout. Autostart defaults off for each recipe; `autostart on|off [recipe]` creates/removes `autostart/<recipe>` and regenerates its container with or without `[Install]` / `WantedBy=graphical-session.target`. Quadlet applies this at generation time; `systemctl enable` is not the setting. `start` and the panel wrapper check live headroom before starting an existing unit but do not repeat `use`'s post-start auth checks or load measurements. Direct systemctl starts and session autostart run the generated unit and health checks without Python headroom checks.
 
 ## State files and clients
 
@@ -502,17 +506,21 @@ Paths below are relative to `~/.local/state/omarchy/agent-local/`. These lifecyc
 
 | File | Writer | Readers and contents |
 |---|---|---|
-| `status.json` | `status --write` hooks, successful `use`, `stop`, `autostart`, `refresh`, `remove` | `Main.qml` FileView watches it and feeds `Panel.qml`; unit/substate/result, endpoint, active recipe/runtime/image/context, catalog commits/age, autostart, best and observed load data |
-| `list.json` | `list`, successful `use`, `refresh`, `remove` | Menu provider; recipe id/name/summary/runtime/tier/publisher, static availability/reason, best/active/override markers |
+| `status.json` | `status --write` hooks and lifecycle commands, `refresh`, `remove` | `Main.qml` FileView watches it and feeds `Panel.qml`; per-recipe lifecycle records plus last, total RAM, best and catalog metadata |
+| `list.json` | `list`, successful `use`, `refresh`, `remove` | Menu and panel; recipe id/name/summary/vendor/runtime/tier/publisher, static availability/reason, best/active/installed/override markers (`active` means running) |
 | `profile.json` | `profile`, `list`, `use` | Persisted platform/RAM/GPU diagnostic snapshot; the current menu reads list cache instead, and commands recompute profiles |
-| `active.json` | `save_run()` after successful `use`; removed when removing that stopped recipe | Lifecycle commands, overlay and benchmark; full resolved manifest, not a symlink |
+| `models/<recipe>.json` | `save_run()` after successful `use` | Each recipe's current full resolved manifest, replacing the former `active.json`; lifecycle commands, overlays and benchmark |
+| `last` | Successful `use` and `start`; cleared when that recipe is removed | Last started recipe; default for start, autostart, bench, overlays and `omarchy agent --local`, with fallback to another eligible setup |
+| `ports.json` | Port allocation and `remove` | Recipe-to-loopback-port assignments, stable until removal |
 | `runs/<YYYYMMDDTHHMMSS>-<recipe>.json` | `save_run()` | `use --manifest`, removal/image retention and reproducibility; schema, catalog provenance/overrides, recipe/runtime copies, profile/GPU, variant, image, artifact files/roles, launch argv/env placeholders, creation time and observed load data |
-| `autostart` | `autostart on|off` | Generator and status; existence is the enabled flag |
+| `autostart/<recipe>` | `autostart on|off [recipe]` | Generator and status; existence enables session autostart for this recipe |
 | `lock` | `use`, `autostart`, `remove` | Advisory mutation serialization; refresh, list and stop do not acquire it |
 
-`status` without `--write` queries systemd and prints a fresh record but does not update `status.json`. `refresh` (including the one `omarchy update` runs) and `remove` rewrite it too, so a recommendation change or a removed recipe reaches the panel without waiting for the next start or stop. The FileView retains its last valid record on missing or invalid content and accepts only active, activating, inactive, failed and deactivating unit states.
+`status` without `--write` queries systemd and prints a fresh record but does not update `status.json`. `refresh` (including the one `omarchy update` runs) and `remove` rewrite it too, so a recommendation change or a removed recipe reaches the panel without waiting for the next start or stop. `status.json` has shape `{models: {<recipe>: {...}}, last, ram_total_gib, best, catalog_current, catalog_age_hours}`. Each model record includes recipe/name/vendor, runtime/image/context (`ctx`), unit/substate/result, port/endpoint, autostart, catalog commit, `since_ms`, `expected_load_seconds` and `observed` load duration and RAM/GPU deltas. The FileView retains its last valid record on missing or invalid content and accepts only active, activating, inactive, failed and deactivating unit states.
 
-OpenCode local launches generate `~/.config/omarchy/agent-local/opencode.json` with provider `llamacpp`, npm adapter `@ai-sdk/openai-compatible`, the loopback base URL, a `{file:<absolute-key-path>}` reference, and the active recipe's context limit (output limit 16384). `omarchy-agent` sets `OPENCODE_CONFIG` and passes `--model llamacpp/<recipe>`. It requires an active manifest and active/activating/reloading unit; it does not change the default agent or rewrite that agent's own settings. Other default agents currently fail with an unsupported-overlay message. Usage under `llamacpp` belongs to the `local` collector, independently of this lifecycle state.
+`omarchy agent --local` uses the default running model; `--local-model <recipe>` selects one explicitly. Local launches use the default agent when it supports an overlay (pi or OpenCode), otherwise silently choose pi, then OpenCode. The local fallback emits an error notification only when neither is installed. Normal launcher checks for a configured and installed default still apply before fallback. Launches do not change the default agent or rewrite either agent's own settings; `--agent <id>` explicitly launches a given harness.
+
+OpenCode local launches generate `~/.config/omarchy/agent-local/opencode.json` with provider `llamacpp`, npm adapter `@ai-sdk/openai-compatible`, the recipe's loopback base URL, a `{file:<absolute-key-path>}` reference, and its context limit (output limit 16384). `omarchy-agent` sets `OPENCODE_CONFIG` and passes `--model llamacpp/<recipe>`. Pi launches generate `~/.config/omarchy/agent-local/pi-local-model.ts`, an extension registering the same provider and selected model with its endpoint, context, zero token costs and a command reading the key file. The launcher passes `--extension`, `--provider llamacpp` and `--model <recipe>`. Both overlays require a current manifest and active/activating/reloading unit. Usage under `llamacpp` belongs to the `local` collector, independently of lifecycle state.
 
 ## Tests
 
@@ -522,13 +530,14 @@ When installed, the real Podman Quadlet generator parses the fixture units in dr
 
 ## Differs from the plan
 
-- The panel watches `status.json` written by command and unit hooks, rather than subscribing to systemd D-Bus `PropertiesChanged`. It appears only after a recipe is configured, not as a pre-setup lifecycle card. Intermediate states and recommendation changes can remain absent or stale until a write.
+- Multiple models can run concurrently, answering the plan's open question about one active model. Each recipe has its own unit and stable loopback port from `ports.json`; live headroom includes memory occupied by other running models.
+- The panel watches `status.json` and `list.json` rather than subscribing to systemd D-Bus `PropertiesChanged`, and shows one line per setup alongside subscriptions. Commands publish start/stop transitions before waiting; unit hooks publish completion and failure. The hooks use `/usr/bin/env` because systemd does not search PATH for Exec* commands.
 - `status` never refreshes the catalog. The migration installs Podman/crun only; it does not populate profile or compatibility caches. The menu consumes prepared `list.json`, rather than combining a cached catalog and profile. Provider rows carry a fifth unavailable-reason field rather than an explicit availability flag.
 - Headroom uses raw `MemAvailable` without subtracting locked/unevictable memory; `pins_memory` is informational. GPU free memory subtracts used VRAM and GTT from their combined total. The real recipe field is `peak_ram_gib`, not the proposal example's `peak_host_gib`.
 - GPU preflight checks subordinate-ID entries and the invoking user's device access only. It does not start a throwaway container, inspect the user manager's group access, or configure groups/CDI; no privileged GPU setup command exists here.
 - The official allowed-signers file currently has no keys. Image digest pinning is implemented, but publisher image-signature verification and the Omarchy-tier image build pipeline are not. Cached catalogs are not reverified; pinned catalogs bypass ancestry, and override validation has the gaps described above.
 - Post-start auth accepts 401 or 403 and checks only `/v1/models`. It runs during `use`, not every systemd restart, and is not a full route or network-egress test.
-- Manifests are timestamped JSON files plus a copied `active.json`, not TOML plus an active pointer. Replay uses the current GPU profile and embedded resolution without repeating static compatibility checks.
+- Manifests are timestamped JSON run files plus per-recipe `models/<recipe>.json` current copies and a `last` recipe id, not TOML plus a single active pointer. Replay uses the current GPU profile and embedded resolution without repeating static compatibility checks.
 - `bench`, `remove`, panel controls and the menu provider are already implemented despite their phase-2 placement. The second recipe is open-source Gufo with Qwen3.8 27B, not a llama.cpp Flash Next fallback. Gufo's measurement is explicitly provisional publisher data for a different quant; validation checks measurement existence, not its evidence.
 - Missing exact `--ctx` variants raise before trying later recommendations. General equally ranked class ambiguity is detected during resolution, while validation rejects identical selector triples only. Unmapped sampling defaults are reported during `use`, not in `status`.
 - Existing blobs are reused without rehashing; artifact integrity includes Git blob OIDs for non-LFS files, rather than SHA-256 for every file. The focused suite covers validation, resolution, hashing, serialization and catalog trust, but not the proposed disposable-VM lifecycle/egress checks, rollback integration, locked-memory accounting or overlay generation.
