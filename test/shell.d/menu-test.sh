@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory() as scratch:
   stub = scratch / "omarchy-shell"
   stub.write_text("""#!/usr/bin/python3
 import json,os,pathlib,sys
-payload=json.loads(sys.argv[-1])
+payload={'doneFile':sys.argv[-1]} if 'cancelQueued' in sys.argv else json.loads(sys.argv[-1])
 with open(os.environ['MENU_TEST_LOG'],'a') as log:
  log.write(json.dumps({'args':sys.argv[1:],'payload':payload})+'\\n')
 if 'summon' in sys.argv and os.environ.get('MENU_TEST_ACCEPT') == '1':
@@ -29,6 +29,46 @@ if 'summon' in sys.argv and os.environ.get('MENU_TEST_ACCEPT') == '1':
   request = rows[0]['payload']
   assert rows[-1]['payload']['doneFile'] == request['doneFile']
   assert not pathlib.Path(request['doneFile']).parent.exists()
+  # Replay the real caller's IPC sequence through the actual shell queue functions.
+  subprocess.run(['node', '-e', r"""
+const fs = require('fs'), vm = require('vm'), assert = require('assert')
+const source = fs.readFileSync(process.env.ROOT+'/shell/shell.qml', 'utf8')
+const ctx = {pendingPayloads: {}, openPanelIds: {}, panelLoaders: {},
+  pluginRegistry: {resolveEnabledId: id => id, installedPlugins: {'omarchy.menu': {}}, isEnabled: () => true},
+  isBarWidgetPanelPlugin: () => false}
+ctx.shell = ctx
+vm.createContext(ctx)
+for (const name of ['summon', 'cancelQueued', 'callIfLoaded', 'deliverIfLoaded']) {
+  const start = source.indexOf('  function '+name+'(')
+  assert(start >= 0, name+' exists')
+  vm.runInContext(source.slice(start, source.indexOf('\n  }', start)+4), ctx)
+}
+const rows = JSON.parse(fs.readFileSync(0, 'utf8'))
+assert.deepStrictEqual(rows.map(row => row.args.includes('summon') ? 'summon' : row.args[2]), ['summon', 'cancelQueued', 'call'])
+for (const row of rows) {
+  if (row.args.includes('summon')) ctx.summon('omarchy.menu', JSON.stringify(row.payload))
+  if (row.args[2] === 'cancelQueued') ctx.cancelQueued('omarchy.menu', row.payload.doneFile)
+  if (row.args[2] === 'call') assert.strictEqual(ctx.callIfLoaded('omarchy.menu', 'cancelRequest', JSON.stringify(row.payload)), 'unknown')
+}
+assert(!fs.existsSync(rows[0].payload.doneFile.replace(/\/done$/, '')))
+let opened = 0
+ctx.panelLoaders['omarchy.menu'] = {item: {open() {opened++}}}
+ctx.deliverIfLoaded('omarchy.menu')
+assert.strictEqual(opened, 0)
+assert.strictEqual(ctx.openPanelIds['omarchy.menu'], undefined)
+// Removing one queued caller preserves its replacement and other plugins.
+ctx.panelLoaders = {}
+ctx.summon('omarchy.menu', JSON.stringify({doneFile: 'old'}))
+ctx.summon('omarchy.menu', JSON.stringify({doneFile: 'new'}))
+ctx.pendingPayloads.other = ['{}']; ctx.openPanelIds.other = true
+assert(ctx.cancelQueued('omarchy.menu', 'old'))
+assert(ctx.openPanelIds['omarchy.menu'])
+assert.strictEqual(ctx.pendingPayloads.other.length, 1)
+ctx.panelLoaders['omarchy.menu'] = {item: {open(payload) {assert.strictEqual(JSON.parse(payload).doneFile, 'new'); opened++}}}
+ctx.deliverIfLoaded('omarchy.menu')
+assert.strictEqual(opened, 1)
+console.log('ok - expired queued picker never opens after caller exit; replacements remain queued')
+"""], input=json.dumps(rows), text=True, env=env, check=True, timeout=6)
   result = subprocess.run(command,env={**env,'MENU_TEST_ACCEPT':'1'},capture_output=True,text=True,timeout=6)
   assert result.returncode == 0 and result.stdout.strip() == 'Keep', result
   log.unlink()
@@ -104,6 +144,16 @@ try {
   cp.execFileSync(accepted[0], accepted.slice(1))
   assertEqual(fs.readFileSync(a.selectionFile,'utf8').trim(), 'literal $(touch nope)\tvalue', 'selection is written literally')
   assert(!fs.existsSync('nope'), 'selection is never evaluated as a command')
+  const failed = request('failed')
+  ctx.openDmenu(failed)
+  ctx.finishRequest('x'.repeat(8192))
+  const failedWriter = writers.shift()
+  // A real file-size limit forces printf to leave a partial file before failing.
+  const failure = cp.spawnSync('bash', ['-c', 'ulimit -f 1; trap "" XFSZ; exec "$@"', 'limited-writer', ...failedWriter])
+  assertEqual(failure.status, 0, 'failed selection writer still completes its receipt')
+  assert(fs.existsSync(failed.doneFile), 'failed selection write produces doneFile')
+  assert(!fs.existsSync(failed.selectionFile), 'failed selection write discards partial output')
+  assertEqual(fs.statSync(failed.doneFile).size, 0, 'failure receipt is empty')
   ctx.openDmenu(b)
   assertEqual(ctx.cancelRequest(JSON.stringify({doneFile: b.doneFile})), 'ok', 'current caller can cancel its own request')
   assert(!ctx.opened && !ctx.requestActive, 'request-specific cancellation closes its own menu')

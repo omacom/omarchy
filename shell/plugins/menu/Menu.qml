@@ -164,7 +164,7 @@ Item {
     if (selection === null || selection === undefined) {
       Quickshell.execDetached(["bash", "-c", "{ : > \"$1\"; } 2>/dev/null", "menu-result", activeDoneFile])
     } else {
-      Quickshell.execDetached(["bash", "-c", "{ printf '%s\\n' \"$3\" > \"$2\" && : > \"$1\"; } 2>/dev/null", "menu-result", activeDoneFile, activeSelectionFile, selection])
+      Quickshell.execDetached(["bash", "-c", "{ if ! printf '%s\\n' \"$3\" > \"$2\"; then rm -f -- \"$2\"; fi; : > \"$1\"; } 2>/dev/null", "menu-result", activeDoneFile, activeSelectionFile, selection])
     }
   }
 

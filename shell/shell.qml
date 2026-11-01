@@ -1219,6 +1219,28 @@ ShellRoot {
     return true
   }
 
+  // Cancel a caller's request even before the plugin's loader resolves.
+  function cancelQueued(pluginId, doneFile) {
+    var id = shell.pluginRegistry.resolveEnabledId(pluginId)
+    if (!id || !doneFile) return false
+    var queue = pendingPayloads[id]
+    if (!Array.isArray(queue)) return false
+    var remaining = queue.filter(function(payloadJson) {
+      try { return JSON.parse(payloadJson).doneFile !== doneFile } catch (e) { return true }
+    })
+    if (remaining.length === queue.length) return false
+    var pending = ({})
+    for (var k in pendingPayloads) if (k !== id) pending[k] = pendingPayloads[k].slice()
+    if (remaining.length > 0) pending[id] = remaining
+    pendingPayloads = pending
+    if (remaining.length === 0) {
+      var next = ({})
+      for (var p in openPanelIds) if (p !== id) next[p] = openPanelIds[p]
+      openPanelIds = next
+    }
+    return true
+  }
+
   function hide(pluginId) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
     if (!id) return false
@@ -1929,6 +1951,10 @@ ShellRoot {
 
     function summon(id: string, payloadJson: string): string {
       return shell.summon(id, payloadJson) ? "ok" : "unknown"
+    }
+
+    function cancelQueued(id: string, doneFile: string): string {
+      return shell.cancelQueued(id, doneFile) ? "ok" : "stale"
     }
 
     function hide(id: string): void {
