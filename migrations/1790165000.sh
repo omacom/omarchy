@@ -23,7 +23,9 @@ fi
 
 # Read through sudo so a root-only file fails the migration and gets retried
 # rather than reading as empty and burning the per-user migration marker.
-content="$(sudo cat "$conf")"
+# The x keeps command substitution from stripping trailing newlines.
+content="$(sudo cat "$conf" && printf x)"
+content=${content%x}
 
 legacy_block='# Fix for T2 MacBook WiFi connectivity issues
 options brcmfmac feature_disable=0x82000'
@@ -38,7 +40,8 @@ options brcmfmac feature_disable=0x82000"
 # than as a shell pattern) keeps a reworded comment or an administrator-merged
 # options line out of scope, and lets a block sandwiched between two user lines
 # go the same way as a trailing one.
-rest="$(printf '%s\n' "$content" | awk -v legacy="$legacy_block" -v current="$current_block" '
+[[ -z $content || $content == *$'\n' ]] && noeol=0 || noeol=1
+rest="$(printf '%s' "$content" | awk -v noeol="$noeol" -v legacy="$legacy_block" -v current="$current_block" '
   BEGIN {
     legacy_count = split(legacy, legacy_line, "\n")
     current_count = split(current, current_line, "\n")
@@ -59,18 +62,18 @@ rest="$(printf '%s\n' "$content" | awk -v legacy="$legacy_block" -v current="$cu
       }
     }
 
-    for (k = 1; k <= NR; k++) if (!(k in owned_line)) print line[k]
+    for (k = 1; k <= NR; k++) if (!(k in owned_line)) printf "%s%s", line[k], (k == NR && noeol ? "" : "\n")
   }
   function owned(start, count, text, j) {
     if (start + count - 1 > NR) return 0
     for (j = 0; j < count; j++) if (line[start + j] != text[j + 1]) return 0
     return 1
   }
-')"
+' && printf x)"
+rest=${rest%x}
 
-# Both sides have their trailing newlines stripped by command substitution, so
-# an untouched file compares equal to itself. Anything else means an owned block
-# was removed.
+# An untouched file comes back byte for byte; anything else means an owned
+# block was removed.
 [[ $rest != "$content" ]] || exit 0
 
 # Request the reboot before editing because brcmfmac reads module options only
@@ -84,5 +87,5 @@ if [[ -z $rest ]]; then
     sudo rm -f "$conf"
   fi
 else
-  printf '%s\n' "$rest" | sudo tee "$conf" >/dev/null
+  printf '%s' "$rest" | sudo tee "$conf" >/dev/null
 fi
