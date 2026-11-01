@@ -181,6 +181,8 @@ BarWidget {
           root.keyboardUnresolved = true
           if (typed.length === 0) {
             root.layoutFull = ""
+            root.layoutCodes = ""
+            root.layoutVariants = ""
             root.keyboardName = ""
           }
           return

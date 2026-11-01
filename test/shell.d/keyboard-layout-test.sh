@@ -207,5 +207,7 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   variants.selectKeyboard = typed => typed[0]
   reading(variants, model, JSON.stringify({ keyboards: [{ name: 'at-translated-set-2-keyboard', layout: 'fr,fr', variant: ',bepo', active_keymap: 'French (BEPO)', active_layout_index: 1 }] }))
   assertEqual(model.variantLabel(variants.layoutCodes, variants.layoutVariants, variants.layoutIndex), 'bepo', 'a reading carries the variants the label needs')
+  reading(variants, model, JSON.stringify({ keyboards: [] }))
+  assertEqual(model.variantLabel(variants.layoutCodes, variants.layoutVariants, variants.layoutIndex), '', 'an unplugged keyboard takes its variant label with it')
 }
 JS
