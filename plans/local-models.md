@@ -1,6 +1,36 @@
 # Plan: Local models — `omarchy agent local use best`
 
-Revision 5.
+Revision 6: implementation status. The reference for what's built is [`docs/local-models.md`](../docs/local-models.md), whose "Differs from the plan" section lists every deviation below in detail.
+
+## Status
+
+Built and run end to end on a Ryzen AI Max+ 395 / 128 GB (2026-11-01):
+
+- `omarchy agent local use best | <recipe> | --manifest`, `list`, `status`, `stop`, `autostart`, `remove`, `bench`, plus hidden `profile`, `refresh`, `validate`, `overlay` (`shell/plugins/agents/agent_local.py`).
+- Two recipes for the 128 GB Strix Halo class in a local catalog checkout (`~/src/omarchy-local-ai`, commits `106b946`, `192d846`): Qwen3.8 Flash Next on halogen (best) and Qwen3.8 27B on Gufo (open source, the second option), both measured with `bench` through generated units.
+- Trust model enforcement, typed unit generation, verified downloads into a content-addressed store, transactional switching (rollback exercised by a real failed start), post-start auth checks, the OpenCode overlay, menu entries with unavailable rows, the agents panel card, the `omarchy-update` catalog refresh, podman/crun in base.
+
+| Measured through `omarchy agent local bench` | Flash Next on halogen | 27B Q8 on Gufo |
+|---|---|---|
+| Load (start to healthy) | 27 s | 5 s |
+| RAM at load | 92 GiB | 46 GiB |
+| 32K prompt: first token / prefill / decode | 19.7 s / 1,607 tok/s / 41.3 tok/s | 96.4 s / 329 tok/s / 14.0 tok/s |
+| Short prompt decode | 52.9 tok/s | 26.0 tok/s |
+
+Learned while building, now in the code:
+
+- Quadlet's default dependency on `podman-user-wait-network-online.service` cost 90 s per start on this machine; units set `[Quadlet] DefaultDependencies=false`. A startup health check every 2 s then takes start-to-active from the 30 s probe interval down to seconds.
+- The Podman secret must hold the bare key: a trailing newline reached Gufo's `--api-key` and failed every probe.
+- On unified memory the kernel's `MemAvailable` already reflects halogen's pinned weights; `Mlocked` doesn't. Variants declare `peak_ram_gib` (total system memory) and `peak_gpu_gib` (GTT), not one GPU number.
+- Gufo takes its key only on the command line: runtime definitions gained `key_on_cmdline` with in-container substitution from the secret, shown as a warning (upstream request: a key file or variable).
+- The panel follows `status.json`, rewritten by the unit's `ExecStartPost`/`ExecStopPost` hooks and by every command, instead of a D-Bus subscription; it shows a card only once a model is set up.
+- Manifests are JSON (`runs/*.json`, `active.json`).
+
+Not done:
+
+- `basecamp/omarchy-local-ai` on GitHub, its signing keys and `default/omarchy/agent-local/allowed_signers` (empty; official trust refuses every catalog until keys exist). This machine uses `trust = "unsigned-dev"` against the local checkout.
+- Visual verification of the menu and panel in the running shell.
+- The `omarchy`-tier image pipeline and signature policy, ROCm/CUDA images, GB10 and 64 GB classes, the privileged GPU setup command, a throwaway-container GPU preflight, pi and Codex overlays, live metrics.
 
 - Revision 2 tightened lifecycle, endpoint security, client selection, memory checks, supply chain and config ownership after a review pass.
 - Revision 3 generalized the container contract after running halogen, a closed-source third-party engine, through it: backends are described by runtime definitions that map the standard inputs onto each image's own interface, declare allowlisted run options and their health probe, and carry a trust tier.
