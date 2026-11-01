@@ -35,7 +35,6 @@ on() {
 
   if omarchy-hyprland-toggle-disabled $TOGGLE; then
     printf 'hl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = 1, mirror = "%s" })\n' "$EXTERNAL" "$INTERNAL" >"$TOGGLE_FLAG"
-    omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitor.mirroringEnabled "$EXTERNAL")"
     hyprctl reload
   fi
 }
@@ -43,7 +42,6 @@ on() {
 off() {
   if omarchy-hyprland-toggle-enabled $TOGGLE; then
     omarchy-hyprland-toggle $TOGGLE off
-    omarchy-notification-send -g 󰍹 "$(omarchy-i18n monitor.extendedRestored)"
   fi
 }
 
