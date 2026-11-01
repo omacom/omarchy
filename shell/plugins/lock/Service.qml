@@ -255,7 +255,15 @@ Item {
 
   function runWake() {
     if (!wakeProcess.running) wakeProcess.running = true
-    if (lockRequested) armBlankTimer()
+    // The blank grace only counts from what the user can see: a monitor that
+    // is still waking is blanked by the countdown before it ever shows the
+    // lock, so it starts once the displays report themselves on, not at the
+    // keypress. An already running countdown means they are lit, and input
+    // just takes a fresh run-up.
+    if (lockRequested) {
+      if (idleBlankTimer.running) armBlankTimer()
+      else if (!displayOnWatch.running) displayOnWatch.running = true
+    }
     resumeFingerprint()
     nudgeFingerprint()
   }
@@ -756,6 +764,20 @@ Item {
   Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
+  }
+
+  // Waits for every enabled display to report itself lit -- the same
+  // predicate omarchy-brightness-display wake uses -- and only then arms the
+  // blank grace. The cap keeps a display that never lights on the same
+  // blanking schedule as one that does.
+  Process {
+    id: displayOnWatch
+    command: ["bash", "-c",
+      "for _ in $(seq 1 60); do\n" +
+      "  hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0\n" +
+      "  sleep 0.2\n" +
+      "done"]
+    onExited: if (root.lockRequested) root.armBlankTimer()
   }
 
   Process {
