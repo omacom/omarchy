@@ -216,15 +216,15 @@ assert(
 // that one goes, as when its monitor is unplugged.
 const leadsSource = registry.match(/function leads\(handler, revision\) \{[\s\S]*?\n  \}/)[0]
 const leadsWith = (handlers) => new Function('handlers', `${leadsSource}; return leads`)(handlers)
-const first = { target: 'omarchy.monitor', active: true }
-const second = { target: 'omarchy.monitor', active: true }
-const other = { target: 'omarchy.audio', active: true }
+const first = { target: 'omarchy.monitor' }
+const second = { target: 'omarchy.monitor' }
+const other = { target: 'omarchy.audio' }
 const handlers = [first, second, other]
 const leads = leadsWith(handlers)
 assert(leads(first, 0) && !leads(second, 0) && leads(other, 0), 'the first handler for each target leads')
-first.active = false
-assert(!leads(first, 0) && leads(second, 0), 'a handler that does not want its target lets the next lead')
-first.active = true
+first.target = ''
+assert(!leads(first, 0) && leads(second, 0), 'a handler that gives up its target lets the next lead')
+first.target = 'omarchy.monitor'
 handlers.splice(0, 1)
 assert(leads(second, 0), 'the next handler takes over when the leader goes')
 assert(!leads(first, 0), 'a handler the registry no longer knows does not lead')

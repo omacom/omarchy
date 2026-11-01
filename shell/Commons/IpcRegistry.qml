@@ -31,8 +31,8 @@ Singleton {
     return names
   }
 
-  // Bumped whenever a handler comes, goes, or changes its target or wish to
-  // answer, so each ShellIpc re-checks whether it leads its target.
+  // Bumped whenever a handler comes, goes or changes its target, so each
+  // ShellIpc re-checks whether it leads its target.
   property int revision: 0
 
   function touch() {
@@ -50,14 +50,15 @@ Singleton {
     touch()
   }
 
-  // Whether `handler` is the first live handler that wants its target. One
-  // not registered yet doesn't lead, so it can't enable before the registry
-  // knows of it. `revision` is there only to make a binding re-check.
+  // Whether `handler` is the first live handler for its target. One with no
+  // target, or not registered yet, doesn't lead, so it can't enable before
+  // the registry knows of it. `revision` is there only to make a binding
+  // re-check.
   function leads(handler, revision) {
-    if (handlers.indexOf(handler) === -1) return false
+    if (!handler.target || handlers.indexOf(handler) === -1) return false
     for (var i = 0; i < handlers.length; i++) {
       var other = handlers[i]
-      if (other && other.active && other.target === handler.target) return other === handler
+      if (other && other.target === handler.target) return other === handler
     }
     return false
   }

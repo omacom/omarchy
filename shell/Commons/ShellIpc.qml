@@ -7,16 +7,15 @@ import Quickshell.Io
 //
 // Every bar builds its own copy of a widget, so a target can have one handler
 // per monitor. Quickshell answers with the first and warns about every other,
-// so only the first live copy that wants the target enables itself, and the
-// next takes over when that one goes. Set `active` where you'd set `enabled`.
+// so only the first live copy for a target enables itself, and the next takes
+// over when that one goes. One that shouldn't answer leaves its target empty;
+// a property of its own would add a change signal, which Quickshell warns
+// about on an IPC handler.
 IpcHandler {
   id: handler
 
-  property bool active: true
+  enabled: IpcRegistry.leads(handler, IpcRegistry.revision)
 
-  enabled: active && IpcRegistry.leads(handler, IpcRegistry.revision)
-
-  onActiveChanged: IpcRegistry.touch()
   onTargetChanged: IpcRegistry.touch()
   Component.onCompleted: IpcRegistry.register(handler)
   Component.onDestruction: IpcRegistry.unregister(handler)
