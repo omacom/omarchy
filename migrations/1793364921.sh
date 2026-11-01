@@ -1,4 +1,4 @@
-echo "Give the ASUS Zenbook A16 (UX3607OA) its DSP firmware, Wi-Fi board data and text-console unlock"
+echo "Give the ASUS Zenbook A16 (UX3607OA) its DSP firmware, Wi-Fi board data, text-console unlock and suspend to idle"
 
 # See install/hardware/asus/fix-asus-zenbook-a16-firmware.sh and
 # fix-asus-zenbook-a16-boot.sh.
