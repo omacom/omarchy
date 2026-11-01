@@ -288,6 +288,17 @@ ShellRoot {
   }
 
   property var _services: ({})
+  property bool isSessionLocked: false
+  signal sessionLocked()
+  signal sessionUnlocked()
+
+  onIsSessionLockedChanged: {
+    if (isSessionLocked) {
+      sessionLocked()
+    } else {
+      sessionUnlocked()
+    }
+  }
   property var _pluginShellApis: ({})
   property var _pluginShellApiDescriptors: ({})
   property var _pluginBarEntryShellApis: ({})
@@ -965,6 +976,9 @@ ShellRoot {
         // import retains their lifetime without adding a traversable property
         // or QObject parent back to the host shell.
         AuthServiceStore.put(key, inst)
+        if (key === "omarchy.lock" && inst) {
+          shell.isSessionLocked = Qt.binding(function() { return !!inst.locked })
+        }
       } else {
         var snext = ({})
         for (var sk in _services) snext[sk] = _services[sk]

@@ -32,10 +32,105 @@ Item {
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
   property bool pendingStayAwakePersist: false
-  property bool idledThisCycle: false
-  property bool screensaverStartedThisCycle: false
+  property string stateMachineState: IdleModel.States.ACTIVE
+  property bool idledThisCycle: stateMachineState !== IdleModel.States.ACTIVE && stateMachineState !== IdleModel.States.DISABLED
+  property bool screensaverStartedThisCycle: stateMachineState === IdleModel.States.SCREENSAVER || stateMachineState === IdleModel.States.SCREENSAVER_GRACE
   property string lastEvent: "starting"
   property string lastEventAt: ""
+
+  function isSessionLocked() {
+    try {
+      if (shell && typeof shell.isSessionLocked === "boolean") {
+        return shell.isSessionLocked
+      }
+      if (shell && typeof shell.serviceFor === "function") {
+        var lockService = shell.serviceFor("omarchy.lock")
+        if (lockService && typeof lockService.currentlyLocked === "function") {
+          return lockService.currentlyLocked()
+        }
+      }
+    } catch (e) {}
+    return false
+  }
+
+  Connections {
+    target: shell
+    ignoreUnknownSignals: true
+    function onIsSessionLockedChanged() {
+      if (shell && shell.isSessionLocked) {
+        dispatchState(IdleModel.Events.SESSION_LOCKED)
+      } else {
+        dispatchState(IdleModel.Events.SESSION_UNLOCKED)
+      }
+    }
+  }
+
+  function dispatchState(event, extraContext) {
+    var ctx = {
+      isSessionLocked: isSessionLocked(),
+      screensaverEnabled: root.screensaverEnabled,
+      lockEnabled: root.lockEnabled,
+      screensaverDelaySeconds: root.screensaverDelaySeconds,
+      lockDelaySeconds: root.lockDelaySeconds,
+      isMonitorIdle: idleMonitor.isIdle,
+      stayAwake: root.stayAwake
+    }
+    if (extraContext) {
+      for (var k in extraContext) ctx[k] = extraContext[k]
+    }
+
+    var result = IdleModel.transition(root.stateMachineState, event, ctx)
+    var oldState = root.stateMachineState
+    root.stateMachineState = result.nextState
+
+    if (oldState !== result.nextState) {
+      logEvent("state", oldState + " -> " + result.nextState + " (" + event + ")")
+    }
+
+    executeActions(result.actions)
+  }
+
+  function executeActions(actions) {
+    if (!actions || actions.length === 0) return
+
+    for (var i = 0; i < actions.length; i++) {
+      var act = actions[i]
+      switch (act) {
+        case IdleModel.Actions.START_SCREENSAVER_TIMER:
+          screensaverTimer.interval = root.screensaverDelaySeconds * 1000
+          screensaverTimer.restart()
+          break
+        case IdleModel.Actions.START_LOCK_TIMER:
+          lockTimer.interval = root.lockDelaySeconds * 1000
+          lockTimer.restart()
+          break
+        case IdleModel.Actions.LAUNCH_SCREENSAVER:
+          screensaverLaunchGraceTimer.restart()
+          runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
+          break
+        case IdleModel.Actions.START_GRACE_TIMER:
+          screensaverLaunchGraceTimer.restart()
+          break
+        case IdleModel.Actions.LOCK_SYSTEM:
+          screensaverTimer.stop()
+          lockTimer.stop()
+          screensaverLaunchGraceTimer.stop()
+          runProcess(lockProcess, "lock", "omarchy-system-lock")
+          break
+        case IdleModel.Actions.STOP_SCREENSAVER:
+          screensaverStopProcess.running = true
+          break
+        case IdleModel.Actions.WAKE_SYSTEM:
+          runProcess(wakeProcess, "wake", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-hyprland-session-locked >/dev/null 2>&1 || omarchy-system-wake")
+          break
+        case IdleModel.Actions.STOP_TIMERS:
+          screensaverTimer.stop()
+          lockTimer.stop()
+          screensaverLaunchGraceTimer.stop()
+          break
+      }
+    }
+  }
 
   function secondsFromConfig(value, fallback) {
     return IdleModel.secondsFromConfig(value, fallback)
@@ -64,19 +159,12 @@ Item {
   }
 
   function launchScreensaver() {
-    root.screensaverStartedThisCycle = true
-    screensaverLaunchGraceTimer.restart()
-    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
+    dispatchState(IdleModel.Events.SCREENSAVER_TIMEOUT)
   }
 
   function lockSystem(reason) {
     logEvent("lock-system", reason || "requested")
-    screensaverTimer.stop()
-    lockTimer.stop()
-    screensaverLaunchGraceTimer.stop()
-    root.idledThisCycle = false
-    root.screensaverStartedThisCycle = false
-    runProcess(lockProcess, "lock", "omarchy-system-lock")
+    dispatchState(IdleModel.Events.LOCK_REQUESTED)
   }
 
   function startIdleCycle() {
@@ -86,46 +174,24 @@ Item {
     }
 
     logEvent("idle-cycle-start", "screensaver=" + root.screensaverTimeoutSeconds + " lock=" + root.lockTimeoutSeconds)
-    root.idledThisCycle = true
-    root.screensaverStartedThisCycle = false
-
-    // Set this cycle's deadlines once: a bound interval would restart a pending
-    // timer from the moment shell.json changes, locking early or late.
-    if (root.screensaverEnabled) {
-      if (root.screensaverDelaySeconds === 0) launchScreensaver()
-      else {
-        screensaverTimer.interval = root.screensaverDelaySeconds * 1000
-        screensaverTimer.restart()
-      }
-    }
-
-    if (root.lockEnabled) {
-      if (root.lockDelaySeconds === 0) lockSystem("lock-timeout-immediate")
-      else {
-        lockTimer.interval = root.lockDelaySeconds * 1000
-        lockTimer.restart()
-      }
-    }
+    dispatchState(IdleModel.Events.IDLE_START)
   }
 
   function cancelIdleCycle(reason) {
     logEvent("idle-cycle-cancel", reason || "requested")
-    screensaverTimer.stop()
-    lockTimer.stop()
-    screensaverLaunchGraceTimer.stop()
-
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
-
-    root.idledThisCycle = false
-    root.screensaverStartedThisCycle = false
+    if (reason === "stay-awake") {
+      dispatchState(IdleModel.Events.STAY_AWAKE_ENABLED)
+    } else if (reason === "idle-timers-disabled") {
+      dispatchState(IdleModel.Events.TIMERS_DISABLED)
+    } else {
+      dispatchState(IdleModel.Events.USER_ACTIVITY)
+    }
   }
 
   function handleActiveSignal() {
     if (!root.idledThisCycle) return
 
-    // Starting the screensaver can make the compositor report activity, so the
-    // launch grace ignores it.
-    if (root.screensaverStartedThisCycle && screensaverLaunchGraceTimer.running) {
+    if (root.stateMachineState === IdleModel.States.SCREENSAVER_GRACE && screensaverLaunchGraceTimer.running) {
       logEvent("idle-monitor-active", "screensaver cycle remains armed")
       return
     }
@@ -134,15 +200,12 @@ Item {
   }
 
   function userReturned() {
-    // Input the screensaver never sees (a bound media key, a touchscreen) still means the user is back.
-    if (root.screensaverStartedThisCycle) screensaverStopProcess.running = true
-    cancelIdleCycle("activity")
+    dispatchState(IdleModel.Events.USER_ACTIVITY)
   }
 
   function handleScreensaverExited() {
-    // Closing while the user is active is a dismissal, even inside the launch grace.
-    if (root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle && !idleMonitor.isIdle) {
-      cancelIdleCycle("screensaver-dismissed")
+    if (root.idleEnabled && root.idledThisCycle && !idleMonitor.isIdle) {
+      dispatchState(IdleModel.Events.SCREENSAVER_DISMISSED)
     }
   }
 
@@ -156,6 +219,7 @@ Item {
 
   function statusJson() {
     return JSON.stringify({
+      state: root.stateMachineState,
       enabled: root.idleEnabled,
       stayAwake: root.stayAwake,
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
@@ -213,8 +277,12 @@ Item {
     if (!changed) return enabled ? "disabled" : "enabled"
 
     logEvent("stay-awake", (enabled ? "enabled" : "disabled") + (reason ? " " + reason : ""))
-    if (enabled) cancelIdleCycle("stay-awake")
-    else Qt.callLater(root.handleIdleChanged)
+    if (enabled) {
+      cancelIdleCycle("stay-awake")
+    } else {
+      dispatchState(IdleModel.Events.STAY_AWAKE_DISABLED)
+      Qt.callLater(root.handleIdleChanged)
+    }
 
     return enabled ? "disabled" : "enabled"
   }
@@ -224,7 +292,14 @@ Item {
   }
 
   // With both timeouts at 0 the monitor stops reporting, so nothing else would end a running cycle.
-  onIdleTimersEnabledChanged: if (!idleTimersEnabled) cancelIdleCycle("idle-timers-disabled")
+  onIdleTimersEnabledChanged: {
+    if (!idleTimersEnabled) {
+      cancelIdleCycle("idle-timers-disabled")
+    } else if (!root.stayAwake) {
+      dispatchState(IdleModel.Events.TIMERS_ENABLED)
+      Qt.callLater(root.handleIdleChanged)
+    }
+  }
 
   IdleMonitor {
     id: idleMonitor
@@ -237,7 +312,7 @@ Item {
   Timer {
     id: screensaverTimer
     repeat: false
-    onTriggered: if (root.screensaverEnabled) root.launchScreensaver()
+    onTriggered: if (root.screensaverEnabled) root.dispatchState(IdleModel.Events.SCREENSAVER_TIMEOUT)
   }
 
   Timer {
@@ -245,9 +320,7 @@ Item {
     repeat: false
     onTriggered: {
       if (!root.idleEnabled || !root.idledThisCycle || !root.lockEnabled) return
-      // A deadline inside the launch grace must not lock a user who is already back.
-      if (root.screensaverStartedThisCycle && screensaverLaunchGraceTimer.running && !idleMonitor.isIdle) root.userReturned()
-      else root.lockSystem("lock-timeout")
+      root.dispatchState(IdleModel.Events.LOCK_TIMEOUT)
     }
   }
 
@@ -255,9 +328,7 @@ Item {
     id: screensaverLaunchGraceTimer
     interval: 3000
     repeat: false
-    onTriggered: {
-      if (root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle && !idleMonitor.isIdle) root.userReturned()
-    }
+    onTriggered: root.dispatchState(IdleModel.Events.GRACE_EXPIRED)
   }
 
   Process {
