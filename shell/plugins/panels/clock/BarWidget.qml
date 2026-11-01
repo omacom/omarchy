@@ -41,6 +41,14 @@ BarWidget {
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
+  // A wake restarts both clocks the way a tick would, so a month being browsed
+  // in the calendar stays put, where refresh() would send it back to today.
+  function catchUp() {
+    clock.enabled = false
+    clock.enabled = true
+    if (panelLoader.item && panelLoader.item.catchUp) panelLoader.item.catchUp()
+  }
+
   function cycleFormat() {
     var current = String(configuredFormat)
     var next = Model.nextClockFormat(formatRing, current)
@@ -130,7 +138,7 @@ BarWidget {
 
   Connections {
     target: SystemSleep
-    function onResumed() { root.refresh() }
+    function onResumed() { root.catchUp() }
   }
 
   Loader {

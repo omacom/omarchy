@@ -113,6 +113,17 @@ ShellRoot {
       item.displayDate = new Date(2000, 0, 1)
       SystemSleep.resumed()
       root.assertTrue(Math.abs(item.displayDate.getTime() - Date.now()) < 61000, entry.id + " catches up to the current time when the machine wakes")
+
+      var calendar = null
+      for (var i = 0; i < item.data.length; i++)
+        if (item.data[i].item && "viewMonth" in item.data[i].item) calendar = item.data[i].item
+      root.assertTrue(calendar !== null, entry.id + " loads its calendar")
+      if (calendar) {
+        var browsed = (calendar.today.getMonth() + 6) % 12
+        calendar.viewMonth = browsed
+        SystemSleep.resumed()
+        root.assertEqual(calendar.viewMonth, browsed, entry.id + " keeps the month being browsed when the machine wakes")
+      }
     }
 
     createdObjects.push(item)
