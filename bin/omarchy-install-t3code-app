@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# omarchy:summary=Install the T3 Code desktop app from its AppImage release
+# omarchy:args=<stable|nightly>
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+channel=${1:-}
+if [[ $channel != "stable" && $channel != "nightly" ]]; then
+  echo "Usage: omarchy-install-t3code-app <stable|nightly>" >&2
+  exit 1
+fi
+
+T3CODE_HOME="${T3CODE_HOME:-$HOME/.t3}"
+REPO_URL="https://github.com/pingdotgg/t3code"
+APP_DIR="$HOME/.local/share/t3code"
+# T3 Code updates itself by replacing this file. A name without a version is
+# what tells its updater to keep the name, so the launcher below stays valid.
+# It is moved in last: once it exists, the launcher and `t3` link do too, which
+# the Install menu relies on.
+APPIMAGE="$APP_DIR/T3-Code.AppImage"
+DESKTOP_FILE="$HOME/.local/share/applications/t3code.desktop"
+ICON_DIR="$HOME/.local/share/icons/hicolor"
+
+# The path goes into the launcher's Exec line and a sed replacement unescaped.
+exec_unsafe='["`$\\|&]'
+if [[ $APPIMAGE =~ $exec_unsafe ]]; then
+  echo "T3 Code cannot be installed under $HOME: the path has characters a launcher cannot run." >&2
+  exit 1
+fi
+
+# The AppImage mounts itself through a setuid fusermount at every launch.
+omarchy-pkg-add fuse3
+
+if omarchy-hw-aarch64; then
+  arch_suffix="-arm64"
+else
+  arch_suffix=""
+fi
+
+work=$(mktemp -d)
+download="$APP_DIR/.T3-Code.AppImage.download"
+trap 'rm -rf "$work" "$download"' EXIT
+
+# The app's own updater reads these feeds, so the install starts from the
+# release it would update to. GitHub's "latest" is the newest stable release;
+# nightlies are prereleases, found the way T3 Code's install script finds them.
+if [[ $channel == "stable" ]]; then
+  feed_url="$REPO_URL/releases/latest/download/latest-linux$arch_suffix.yml"
+else
+  tag=$(curl -fsSL --retry 3 "https://api.github.com/repos/pingdotgg/t3code/releases?per_page=100" |
+    jq -r '[.[] | select(.draft | not) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]+\\.[0-9]+$"))][0] // empty')
+  if [[ -z $tag ]]; then
+    echo "Could not find a T3 Code nightly release." >&2
+    exit 1
+  fi
+  feed_url="$REPO_URL/releases/download/$tag/nightly-linux$arch_suffix.yml"
+fi
+
+curl -fsSL --retry 3 "$feed_url" -o "$work/feed.yml"
+version=$(sed -n 's/^version: *//p' "$work/feed.yml")
+file=$(sed -n 's/^path: *//p' "$work/feed.yml")
+sha512=$(sed -n 's/^sha512: *//p' "$work/feed.yml")
+if [[ -z $version || -z $sha512 || ! $file =~ ^T3-Code-[A-Za-z0-9._-]+\.AppImage$ ]]; then
+  echo "T3 Code's release feed at $feed_url is not in the expected format." >&2
+  exit 1
+fi
+
+echo "Downloading T3 Code $version..."
+mkdir -p "$APP_DIR"
+curl -fL --retry 3 --progress-bar "$REPO_URL/releases/download/v$version/$file" -o "$download"
+if [[ $(openssl dgst -sha512 -binary "$download" | base64 -w0) != "$sha512" ]]; then
+  echo "The T3 Code download does not match its release checksum." >&2
+  exit 1
+fi
+chmod 755 "$download"
+
+# Upstream's entry carries the t3code:// handlers that deep links resolve through.
+(
+  cd "$work"
+  "$download" --appimage-extract t3code.desktop >/dev/null
+  "$download" --appimage-extract 'usr/share/icons/hicolor/*/apps/t3code.png' >/dev/null
+)
+for icon in "$work"/squashfs-root/usr/share/icons/hicolor/*/apps/t3code.png; do
+  size=${icon#"$work/squashfs-root/usr/share/icons/hicolor/"}
+  install -Dm644 "$icon" "$ICON_DIR/${size%%/*}/apps/t3code.png"
+done
+gtk-update-icon-cache "$ICON_DIR" &>/dev/null || true
+
+if [[ $channel == "nightly" ]]; then
+  name="T3 Code (Nightly)"
+else
+  name="T3 Code"
+fi
+# Exec expands %-field codes, so a literal % in the path is written as %%.
+exec_path=${APPIMAGE//%/%%}
+mkdir -p "$(dirname "$DESKTOP_FILE")"
+sed -e "s|^Exec=.*|Exec=\"$exec_path\" %U\nTryExec=$APPIMAGE|" -e "s|^Name=.*|Name=$name|" \
+  -e '/^X-AppImage-Version=/d' "$work/squashfs-root/t3code.desktop" >"$work/t3code.desktop"
+install -Dm755 "$work/t3code.desktop" "$DESKTOP_FILE"
+update-desktop-database "$HOME/.local/share/applications"
+
+# The app writes its `t3` launcher on launch. Link it where the packages put
+# `t3` on PATH, unless the user has a `t3` of their own there.
+launcher="$T3CODE_HOME/bin/t3"
+link="$HOME/.local/bin/t3"
+link_target=$(readlink "$link" || true)
+if [[ ! -e $link && ! -L $link ]] || [[ $link_target == "/usr/bin/t3" || $link_target == "/usr/bin/t3-nightly" ]]; then
+  mkdir -p "$(dirname "$link")"
+  ln -sfn "$launcher" "$link"
+fi
+
+mv -f "$download" "$APPIMAGE"
