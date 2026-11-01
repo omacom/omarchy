@@ -329,7 +329,7 @@ assert(updateHotspotSource, 'network accepts a hotspot process result')
 if (updateHotspotSource) {
   let hotspot = {}
   let hotspotLoaded = false
-  let hotspotEdited = false
+  let hotspotEditedFields = {}
   let hotspotBands = []
   let hotspotSsid = ''
   let hotspotPassword = ''
@@ -341,15 +341,17 @@ if (updateHotspotSource) {
   function syncWifiNetworks() { syncs++ }
   eval(updateHotspotSource[0])
 
-  // What the user typed while the first status was still running stays.
-  hotspotEdited = true
+  // A field the user typed in while the first status was still running
+  // stays; the fields they didn't touch still load what the profile holds.
+  hotspotEditedFields = { ssid: true }
   hotspotSsid = 'Typed Name'
-  hotspotPassword = 'typedpassword'
+  hotspotPassword = 'stalepassword'
   hotspotBand = '2.4'
   updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
-  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4', 'a late first status keeps hotspot fields the user already edited')
+  assert(hotspotLoaded && hotspotSsid === 'Typed Name', 'a late first status keeps the field the user already edited')
+  assert(hotspotPassword === 'savedpassword' && hotspotBand === '5', 'a late first status still loads the fields the user did not touch')
   hotspotLoaded = false
-  hotspotEdited = false
+  hotspotEditedFields = {}
   hotspotSsid = ''
   hotspotPassword = ''
   hotspotBand = ''
