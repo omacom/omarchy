@@ -315,4 +315,14 @@ with patch.object(a, "write_unit_files"):
   a._remove_files("gone")
 check("removal drops a blob only a seed copy still links", not (store / "blobs/sha256/seeded").exists() and (seed / "seeded").read_text() == "seeded")
 check("removal keeps a blob another recipe links", (store / "blobs/sha256/kept").exists())
+
+# An interrupted removal leaves the model listed, so remove can finish it.
+Path(a.model_manifest_path("halfway")).parent.mkdir(parents=True, exist_ok=True)
+Path(a.model_manifest_path("halfway")).write_text(json.dumps({"files": []}))
+with patch.object(a, "unit_active", return_value=False), patch.object(a, "write_status"), patch.object(a, "_remove_files", side_effect=KeyboardInterrupt):
+  try:
+    a.cmd_remove(["halfway"])
+  except KeyboardInterrupt:
+    pass
+check("an interrupted removal keeps the model's manifest", Path(a.model_manifest_path("halfway")).exists() and not Path(a.removing_path("halfway")).exists())
 PY

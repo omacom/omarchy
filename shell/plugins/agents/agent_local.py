@@ -1932,12 +1932,14 @@ def cmd_use(argv):
       say(f"Note: runtime {recipe['runtime']} takes no {', '.join(skipped)} default; clients choose their own")
     # Downloaded is installed: when other models hold the memory it needs,
     # the setup is kept, stopped, and starts later from the panel's play.
-    if not unit_active(rid):
+    if not unit_active(rid) and load_model(rid) is None:
       try:
         check_headroom(variant, gpu)
       except LocalError as error:
         write_unit_files(rid, render_container(rid, recipe, runtime, variant, roles, gpu, autostart_enabled(rid), fileset))
         clear_error(rid)
+        # Its first start runs the checks activate() would have.
+        manifest["unchecked"] = True
         path = save_run(manifest, started=False)
         prune_filesets(rid, fileset)
         refresh_list_cache(profile)
@@ -2127,7 +2129,7 @@ def write_status(transitions=None, pending=None):
       run = latest_run(rid) or {}
       record["models"][rid] = model_record(rid, {**manifest, "observed": run.get("observed")})
     for rid, unit in (transitions or {}).items():
-      if rid in record["models"]:
+      if rid in record["models"] and record["models"][rid]["unit"] != "removing":
         record["models"][rid]["unit"] = unit
         record["models"][rid]["since_ms"] = now if unit in ("activating", "deactivating") else None
         if unit == "active":
@@ -2248,6 +2250,16 @@ def _start(args):
   write_status()
   if result.returncode != 0:
     raise LocalError(f"{rid} didn't start: {result.stderr.strip()}\n{journal_tail(rid)}")
+  if manifest.get("unchecked"):
+    try:
+      post_start_checks(rid, ensure_key())
+    except LocalError as error:
+      systemctl("stop", unit_name(rid))
+      record_error(rid, error.short)
+      write_status()
+      raise
+    del manifest["unchecked"]
+    write_atomic(model_manifest_path(rid), json.dumps(manifest, indent=2) + "\n")
   say(f"Started {rid} at {endpoint(rid)}")
   return 0
 
@@ -2299,10 +2311,13 @@ def cmd_remove(argv):
       result = _remove_files(rid)
       if size_gib > 1:
         write_atomic(os.path.join(state_dir(), "removal_rate"), f"{(time.time() - deleting) / size_gib:.4f}\n")
+      # Only once everything else is gone: an interrupted removal leaves a
+      # model that status still lists and remove can finish.
+      if os.path.exists(model_manifest_path(rid)):
+        os.unlink(model_manifest_path(rid))
     finally:
-      for path in (model_manifest_path(rid), removing_path(rid)):
-        if os.path.exists(path):
-          os.unlink(path)
+      if os.path.exists(removing_path(rid)):
+        os.unlink(removing_path(rid))
   refresh_list_cache()
   write_status()
   removed_runs, freed, images = result

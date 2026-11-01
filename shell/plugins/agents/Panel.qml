@@ -408,9 +408,9 @@ Panel {
     var facts = []
     if (recipe.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
     else if (recipe.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
-    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("agents.localMemoryFact").arg(recipe.memory_gib))
-    if (recipe.context != null) facts.push(Commons.I18n.t("agents.localContextFact").arg(Math.round(recipe.context / 1024)))
-    if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Math.round(recipe.decode_tok_s)))
+    if (recipe.memory_gib != null) facts.push(Commons.I18n.t("agents.localMemoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
+    if (recipe.context != null) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(recipe.context / 1024), 0)))
+    if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
     return facts.join(" · ")
   }
 
