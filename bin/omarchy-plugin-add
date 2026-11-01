@@ -45,8 +45,9 @@ select_bar_widget_placement() {
   jq -e '(.kinds // []) | (index("bar") | not) and (index("bar-widget") != null)' \
     "$PLUGINS_DIR/$id/manifest.json" >/dev/null 2>&1 || return 0
 
-  default_section=$(jq -r '.barWidget.defaultSection // "center"' "$PLUGINS_DIR/$id/manifest.json")
-  section=$(printf '%s\n' left center tray right |
+  # A manifest's center means beside the clock, which is centerEnd.
+  default_section=$(jq -r '.barWidget.defaultSection // "centerEnd" | if . == "center" then "centerEnd" end' "$PLUGINS_DIR/$id/manifest.json")
+  section=$(printf '%s\n' left centerBegin center centerEnd tray right |
     gum choose --header="$(omarchy-i18n plugin.barSection "$id")" --selected "$default_section") || return 0
   [[ -n $section ]] || return 0
   ENABLE_PLACEMENT=(--section "$section")
