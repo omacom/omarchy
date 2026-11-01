@@ -1,0 +1,22 @@
+[Unit]
+Description=Own the freedesktop screensaver inhibit names for the session
+# Browsers probe NameHasOwner and never auto-start this name, so the daemon
+# must already be running when they play video. Wait until UWSM has imported
+# OMARCHY_PATH and WAYLAND_DISPLAY, but keep the default target ordering so
+# the daemon starts before graphical-session.target is reached.
+After=dbus.socket wayland-session-waitenv.service
+Requires=dbus.socket
+PartOf=graphical-session.target
+ConditionEnvironment=OMARCHY_PATH
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-idle-inhibit
+# A daemon killed before it can publish an empty state must not hold idle off.
+ExecStopPost=/usr/bin/rm -f %t/omarchy/idle-inhibit/state
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
