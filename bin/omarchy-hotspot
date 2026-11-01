@@ -668,17 +668,18 @@ firewall_delete_tag() {
 firewall_remove_installed_tags() {
   local iface=$1 subnet=$2
   shift 2
-  local rules tag
+  local rules tag failed=0
   require_privileged
   firewall_scope_valid "$iface" "$subnet" || return 1
-  rules=$(ufw show added 2>/dev/null) || return 1
   for tag in "$@"; do
     firewall_tag_valid "$tag" || return 1
-    if firewall_tag_present "$rules" "$iface" "$subnet" "$tag"; then
-      firewall_delete_tag "$iface" "$subnet" "$tag" || return 1
-    fi
-    firewall_state_remove_tags "$iface" "$subnet" "$tag" || return 1
   done
+  rules=$(ufw show added 2>/dev/null) || return 1
+  # Keep going past a failed rule so one bad delete doesn't strand the rest.
+  for tag in "$@"; do
+    firewall_remove_record "$rules" "$iface" "$subnet" "$tag" || failed=1
+  done
+  (( failed == 0 ))
 }
 
 firewall_apply() {

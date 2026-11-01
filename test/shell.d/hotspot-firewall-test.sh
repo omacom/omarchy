@@ -1206,3 +1206,24 @@ exec {held_lock}<&-
 [[ ! -s $NMCLI_LOG ]] || fail "a blocked action changes nothing" "$(<"$NMCLI_LOG")"
 run_isolated "$TEST_TMP/lock-driver.sh"
 pass "hotspot actions are serialized"
+
+# A failed delete during rollback must not strand the rules after it.
+reset_firewall_fixture
+cat >"$TEST_TMP/rollback-continue-driver.sh" <<'DRIVER'
+require_privileged() { :; }
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+export UFW_SHOW_ALLOWED=1
+firewall_apply wlan2 10.55.0.0/24 >/dev/null
+export UFW_FAIL_DELETE="port 67"
+if firewall_remove_installed_tags wlan2 10.55.0.0/24 dhcp dns-udp dns-tcp forward; then
+  echo "rollback reported success with a failed delete" >&2; exit 1
+fi
+remaining=$(<"$UFW_STATE")
+[[ $remaining == *"port 67"* ]] || { echo "the failing rule vanished: $remaining" >&2; exit 1; }
+[[ $remaining != *"port 53"* && $remaining != *"route allow"* ]] ||
+  { echo "rollback stopped at the first failed delete: $remaining" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/rollback-continue-driver.sh"
+pass "firewall rollback tries every rule past a failed delete"
