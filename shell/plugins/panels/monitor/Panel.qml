@@ -248,7 +248,7 @@ Panel {
     } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh" || focusSection === "mirror") {
       selectedIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, selectedIndex + delta))
     } else if (focusSection === "layout" && current) {
-      applyLayout(Model.placeDisplay(layoutRects, current.name, delta < 0 ? "left" : "right"))
+      applyLayout(Model.placeDisplay(layoutRects, current.name, delta < 0 ? "left" : "right"), current.name)
     }
   }
 
@@ -461,9 +461,25 @@ Panel {
     rotateMenuName = ""
   }
 
+  // A move first shows in the map, the display reading "Moving…" where it
+  // lands, and is applied a beat later, so the blink while Hyprland moves the
+  // outputs doesn't come out of nowhere. The map draws shownRects until the
+  // state read after the move catches up.
+  property var pendingRects: null
+  property string pendingName: ""
+  readonly property var shownRects: pendingRects || layoutRects
+
   // Apply a whole arrangement, unless it leaves everything where it was.
-  function applyLayout(rects) {
+  function applyLayout(rects, name) {
     if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) return
+    pendingRects = rects
+    pendingName = name || ""
+    layoutDelay.restart()
+  }
+
+  function commitLayout() {
+    var rects = pendingRects
+    if (!rects) return
     var args = ["omarchy-hyprland-monitor-layout"]
     for (var i = 0; i < rects.length; i++)
       args.push(rects[i].name + "=" + rects[i].x + "x" + rects[i].y)
@@ -558,6 +574,11 @@ Panel {
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
+        // The move has landed once a read after it comes back.
+        if (!layoutDelay.running && !actionProc.running) {
+          root.pendingRects = null
+          root.pendingName = ""
+        }
         root.mirrorManaged = String(lines[8] || "").trim() === "on"
       }
     }
@@ -586,6 +607,12 @@ Panel {
         root.setDisplayBrightness(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
       }
     }
+  }
+
+  Timer {
+    id: layoutDelay
+    interval: 500
+    onTriggered: root.commitLayout()
   }
 
   Process {
@@ -1332,7 +1359,7 @@ Panel {
     property bool hasCursor: false
 
     readonly property var bounds: {
-      var rects = root.layoutRects
+      var rects = root.shownRects
       var b = { x: 0, y: 0, w: 1, h: 1 }
       if (rects.length === 0) return b
       var right = -Infinity
@@ -1357,8 +1384,8 @@ Panel {
     readonly property real stackStep: Style.space(6)
     readonly property int stackDepth: {
       var depth = 0
-      for (var i = 0; i < root.layoutRects.length; i++)
-        depth = Math.max(depth, (root.mirroredBy[root.layoutRects[i].name] || []).length)
+      for (var i = 0; i < root.shownRects.length; i++)
+        depth = Math.max(depth, (root.mirroredBy[root.shownRects[i].name] || []).length)
       return depth
     }
     implicitHeight: bounds.h * ratio + stackDepth * stackStep
@@ -1366,7 +1393,7 @@ Panel {
     readonly property real offsetY: (height - bounds.h * ratio + stackDepth * stackStep) / 2
 
     Repeater {
-      model: root.layoutRects
+      model: root.shownRects
 
       Rectangle {
         id: screenRect
@@ -1429,7 +1456,9 @@ Panel {
           width: parent.width - Style.space(6)
           horizontalAlignment: Text.AlignHCenter
           textFormat: Text.PlainText
-          text: [screenRect.modelData.name].concat(root.mirroredBy[screenRect.modelData.name] || []).join(" + ")
+          text: root.pendingRects && root.pendingName === screenRect.modelData.name
+            ? Commons.I18n.t("monitor.moving")
+            : [screenRect.modelData.name].concat(root.mirroredBy[screenRect.modelData.name] || []).join(" + ")
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
@@ -1439,7 +1468,7 @@ Panel {
 
         MouseArea {
           // A lone display, or a mirrored stack, has nothing to move against.
-          readonly property bool canDrag: root.layoutRects.length > 1
+          readonly property bool canDrag: root.layoutRects.length > 1 && !root.pendingRects
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: !canDrag ? Qt.ArrowCursor : (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
@@ -1463,17 +1492,16 @@ Panel {
           }
           onReleased: function(mouse) {
             if (mouse.button === Qt.RightButton) return
+            var name = screenRect.modelData.name
             var moved = Math.abs(screenRect.dragX) + Math.abs(screenRect.dragY) > 3
-            if (moved) {
-              // Back into layout space; snap within about 8 map pixels.
-              var x = map.bounds.x + (screenRect.x - map.offsetX) / map.ratio
-              var y = map.bounds.y + (screenRect.y - map.offsetY) / map.ratio
-              root.applyLayout(Model.dropDisplay(root.layoutRects, screenRect.modelData.name, x, y, Style.space(8) / map.ratio))
-            } else {
-              root.selectDisplay(screenRect.modelData.name)
-            }
+            // Back into layout space; snap within about 8 map pixels.
+            var x = map.bounds.x + (screenRect.x - map.offsetX) / map.ratio
+            var y = map.bounds.y + (screenRect.y - map.offsetY) / map.ratio
+            // Reset first: staging the move redraws the map, this box included.
             screenRect.dragX = 0
             screenRect.dragY = 0
+            if (moved) root.applyLayout(Model.dropDisplay(root.layoutRects, name, x, y, Style.space(8) / map.ratio), name)
+            else root.selectDisplay(name)
           }
           onCanceled: {
             screenRect.dragX = 0
