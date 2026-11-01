@@ -301,7 +301,7 @@ class EventLoop:
     return True
 
   def scale_event(self, monitor, changed_file, other_file, event_type):
-    if changed_file.get_basename() == "monitor-scaling.log":
+    if changed_file.get_basename() == "scaling":
       self.enqueue("scale")
 
   def sleep_event(self, connection, sender, object_path, interface, signal_name, parameters, user_data=None):
@@ -327,9 +327,9 @@ def main():
   if not re.fullmatch(r"[A-Za-z0-9_-]+", signature):
     raise ValueError("invalid Hyprland instance signature")
   instance_path = runtime / "hypr" / signature
-  state_directory = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "omarchy"
+  state_directory = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "omarchy/monitors"
   bridge = ResizeBridge(Hyprland(instance_path / ".socket.sock"),
-    Path("/sys/class/drm"), state_directory / "monitor-scaling.log")
+    Path("/sys/class/drm"), state_directory / "scaling")
   EventLoop(bridge, instance_path, state_directory).run()
 
 

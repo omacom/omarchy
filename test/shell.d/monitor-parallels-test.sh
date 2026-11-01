@@ -186,6 +186,26 @@ class EventTests(unittest.TestCase):
     watcher.startup_failed = False
     return watcher
 
+  def test_migrated_scale_log_is_read_and_its_changes_are_watched(self):
+    with tempfile.TemporaryDirectory() as directory:
+      state = Path(directory) / "omarchy/monitors"
+      state.mkdir(parents=True)
+      (state / "scaling").write_text("monitor=Virtual-1\tpreferred=1.25\tnew=1.333333\n")
+      with patch.dict(os.environ, {"XDG_STATE_HOME": directory,
+          "XDG_RUNTIME_DIR": directory, "HYPRLAND_INSTANCE_SIGNATURE": "test"}), \
+          patch.object(parallels, "EventLoop") as loop:
+        parallels.main()
+      bridge, instance_path, watched_directory = loop.call_args.args
+      self.assertEqual(parallels.scale_records(bridge.scale_log)["Virtual-1"].preferred, 1.25)
+      # Gio directory monitors are not recursive: the file must be an immediate child.
+      self.assertEqual(watched_directory, bridge.scale_log.parent)
+      watcher = self.watcher(True)
+      watcher.pending.clear()
+      watcher.scale_event(None, SimpleNamespace(get_basename=lambda: "settings"), None, None)
+      self.assertEqual(watcher.pending, set())
+      watcher.scale_event(None, SimpleNamespace(get_basename=lambda: "scaling"), None, None)
+      self.assertEqual(watcher.pending, {"scale"})
+
   def test_successful_refresh_leaves_no_idle_timer(self):
     watcher = self.watcher(True)
     watcher.flush()

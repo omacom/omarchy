@@ -6,7 +6,7 @@
 
 SCALES=(1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-SCALE_LOG="$STATE_DIR/monitor-scaling.log"
+SCALE_LOG="$STATE_DIR/monitors/scaling"
 
 usage() {
   echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE]"
@@ -34,7 +34,7 @@ audit_scale_change() {
   local parent_cmd
   local grandparent_cmd
 
-  mkdir -p "$STATE_DIR" || return 0
+  mkdir -p "${SCALE_LOG%/*}" || return 0
 
   grandparent_pid=$(ps -o ppid= -p "$parent_pid" 2>/dev/null | tr -d ' ')
   parent_cmd=$(cmdline_for_pid "$parent_pid")

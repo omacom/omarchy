@@ -11,7 +11,7 @@ stub_bin="$test_tmp/bin"
 eval_out="$test_tmp/hyprctl-eval"
 home_dir="$test_tmp/home"
 monitor_lua="$home_dir/.config/hypr/monitors.lua"
-scale_log="$home_dir/.local/state/omarchy/monitor-scaling.log"
+scale_log="$home_dir/.local/state/omarchy/monitors/scaling"
 
 mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 
