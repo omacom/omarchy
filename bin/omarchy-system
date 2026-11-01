@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# omarchy:summary=Log out, reboot, or shut down after closing applications
+# omarchy:args=<logout|reboot|shutdown>
+# omarchy:examples=omarchy system logout | omarchy system reboot | omarchy system shutdown
+# omarchy:aliases=omarchy logout | omarchy reboot | omarchy shutdown
+
+usage="Usage: omarchy-system <logout|reboot|shutdown>"
+for arg in "$@"; do
+  case $arg in
+    -h | --help) echo "$usage"; exit 0 ;;
+  esac
+done
+if (( $# > 2 )); then
+  echo "$usage" >&2
+  exit 2
+fi
+
+action=${1:-}
+case $action in
+  logout) command=(uwsm stop) ;;
+  reboot) command=(systemctl reboot --no-wall) ;;
+  shutdown) command=(systemctl poweroff --no-wall) ;;
+  *) echo "$usage" >&2; exit 2 ;;
+esac
+
+# Each action has whole sentences of its own, so a translation can inflect it.
+case $action in
+  logout)
+    message=$(omarchy-i18n system.loggingOut)
+    failed_title=$(omarchy-i18n system.logoutFailed)
+    failed_body=$(omarchy-i18n system.logoutRetry)
+    ;;
+  reboot)
+    message=$(omarchy-i18n system.rebooting)
+    failed_title=$(omarchy-i18n system.rebootFailed)
+    failed_body=$(omarchy-i18n system.rebootRetry)
+    ;;
+  shutdown)
+    message=$(omarchy-i18n system.shuttingDown)
+    failed_title=$(omarchy-i18n system.shutdownFailed)
+    failed_body=$(omarchy-i18n system.shutdownRetry)
+    ;;
+esac
+
+exit_session() {
+  omarchy-osd -i "$action" -m "$message" -d 5000
+  if [[ $action != "logout" ]]; then
+    omarchy-state clear re*-required
+  fi
+
+  # Proceed as soon as apps exit, with a bound for unresponsive windows.
+  timeout 2s omarchy-hyprland-window-close-all --wait
+  "${command[@]}"
+}
+
+if [[ ${2:-} == "--inhibited" ]]; then
+  exit_session
+elif [[ ${2:-} == "--execute" ]]; then
+  if [[ $action == "shutdown" ]]; then
+    # Block lid handling explicitly: it ignores high-level sleep inhibitors.
+    systemd-inhibit --what=sleep:idle:handle-lid-switch \
+      --who=Omarchy --why="Shutdown in progress" --mode=block \
+      "$0" "$action" --inhibited
+  else
+    exit_session
+  fi
+  status=$?
+  if (( status != 0 )); then
+    omarchy-notification-send -u critical "$failed_title" "$failed_body"
+    exit "$status"
+  fi
+elif [[ -z ${2:-} ]]; then
+  # Survive closing the terminal that requested the session exit.
+  systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
+    --setenv=PATH --setenv=HYPRLAND_INSTANCE_SIGNATURE --setenv=OMARCHY_PATH \
+    "$0" "$action" --execute
+else
+  echo "$usage" >&2
+  exit 2
+fi
