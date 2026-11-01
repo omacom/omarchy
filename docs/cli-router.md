@@ -44,6 +44,8 @@ router. The first plain comment line doubles as a fallback summary, and a
 command with no comments at all still gets a generated one, though `--check`
 demands the explicit form (below).
 
+Sibling packages such as `omarchy-settings` and `omarchy-nvim` install their `omarchy-*` binaries into `/usr/bin` only, outside the router's own directory. So when the router runs from `/usr/share/omarchy/bin`, as on an installed system, it also reads `/usr/bin/omarchy-*`, and a binary in its own directory always wins over one of the same name there. Anywhere else it reads only its own directory unless `OMARCHY_SECONDARY_BIN_DIR` names a second one; setting it empty turns the fallback off.
+
 ## Dispatch
 
 Resolution is longest-prefix: the router tries the full argument list as a
@@ -121,6 +123,8 @@ on:
 - invalid boolean metadata: `hidden` and `requires-sudo` must be `true` or
   omitted, never `false`
 - a registered command whose binary is missing or not executable
+
+A missing summary or invalid metadata in a sibling package's binary from `/usr/bin` is reported as foreign and does not fail the check, since that binary ships in another package.
 
 When debugging a routing surprise, `omarchy <route> --help` shows the resolved
 binary and, when it differs, the filename route; `omarchy commands --all
