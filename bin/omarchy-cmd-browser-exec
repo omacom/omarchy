@@ -10,6 +10,10 @@
 #   browser_command the command to launch the browser with those variables
 #   handoff_env     browser_env without PATH, for omarchy-cmd-browser-handoff,
 #                   which needs the session's PATH to find its own helpers
+#   handoff_browser the browser for the handoff to check: the executable the
+#                   entry's PATH selects, so a wrapper found there is launched
+#                   rather than bypassed for a same-named browser on the
+#                   session's PATH; empty when that PATH has none
 #
 # Arguments are split the way the Desktop Entry spec quotes them, without shell
 # evaluation, so a quoted VAR=VALUE may hold spaces.
@@ -87,8 +91,11 @@ browser_from_desktop_entry() {
   fi
 
   handoff_env=()
+  handoff_browser=$browser_exec
   for assignment in "${browser_env[@]}"; do
-    if [[ $assignment != PATH=* ]]; then
+    if [[ $assignment == PATH=* ]]; then
+      handoff_browser=$(PATH=${assignment#PATH=} type -P "$browser_exec")
+    else
       handoff_env+=("$assignment")
     fi
   done

@@ -33,6 +33,6 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
-if ! env "${handoff_env[@]}" omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
+if ! env "${handoff_env[@]}" omarchy-cmd-browser-handoff "$handoff_browser" --app="$1" "${@:2}"; then
   exec setsid uwsm-app -- "${browser_command[@]}" --app="$1" "${@:2}"
 fi
