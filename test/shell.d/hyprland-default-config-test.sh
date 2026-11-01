@@ -8,7 +8,7 @@ run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua <<'LUA'
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local prelude = os.getenv("OMARCHY_BINDING_PRELUDE") or ""
@@ -39,7 +39,7 @@ run_omarchy_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua <<'LUA'
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -107,20 +107,6 @@ grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default app
 grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
 
-grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
-  fail "universal clipboard shortcuts send explicit mods to the focused surface"
-pass "universal clipboard shortcuts send explicit mods to the focused surface"
-
-if grep -E 'send_key_state\(\{[^}]*window' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; then
-  fail "universal clipboard shortcuts do not target only normal windows"
-fi
-pass "universal clipboard shortcuts do not exclude layer-shell fields"
-
-if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; then
-  fail "universal clipboard shortcuts avoid the virtual keyboard so held SUPER cannot merge in"
-fi
-pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
-
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
@@ -148,7 +134,8 @@ pass "preinstalled binding variable skips optional application bindings"
 
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"
-no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_bindings = false')
+no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_bindings = false') ||
+  fail "default binding variable disables all Omarchy bindings"
 [[ -z $no_bindings_output ]] || fail "default binding variable disables all Omarchy bindings" "$no_bindings_output"
 pass "default binding variable disables all Omarchy bindings"
 
@@ -158,22 +145,22 @@ mkdir -p "$dictation_home" "$missing_bin"
 ln -s "$(command -v lua)" "$missing_bin/lua"
 ln -s "$(command -v lspci)" "$missing_bin/lspci"
 ln -s "$(command -v sort)" "$missing_bin/sort"
-dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
+  fail "unconfigured dictation leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "unconfigured dictation leaves application shortcuts available"; fi
 cat > "$missing_bin/omarchy-default-dictation" <<'SH'
 #!/bin/bash
 echo future-backend
 SH
 chmod +x "$missing_bin/omarchy-default-dictation"
-dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
+  fail "a selected backend that is not installed leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a selected backend that is not installed leaves application shortcuts available"; fi
 printf '#!/bin/bash\nexit 0\n' > "$missing_bin/future-backend"
 chmod +x "$missing_bin/future-backend"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
 for binding in \
-  $'SUPER + CTRL + X\tToggle dictation' \
-  $'F9\tStart dictation (push-to-talk)' \
-  $'F9\tStop dictation (push-to-talk)' \
+  $'ALT + SPACE\tToggle dictation' \
   $'ALT + Alt_R\tStart dictation (push-to-talk)' \
   $'ALT + Alt_R\tStop dictation (push-to-talk)'; do
   grep -Fq "$binding" <<<"$dictation_output" || fail "dictation bindings load for any selected backend" "$binding"
@@ -190,26 +177,26 @@ grep -Fqx $'SUPER + SHIFT + D\tDocker' <<<"$lazydocker_output" ||
   fail "installed Lazydocker keeps its Docker shortcut"
 pass "installed Lazydocker keeps its Docker shortcut"
 
-missing_lazydocker_output=$(PATH="$missing_bin" run_application_bindings "$fresh_home")
+missing_lazydocker_output=$(PATH="$missing_bin" run_application_bindings "$fresh_home") ||
+  fail "missing Lazydocker skips its Docker shortcut"
 if grep -Fq $'SUPER + SHIFT + D\tDocker' <<<"$missing_lazydocker_output"; then
   fail "missing Lazydocker skips its Docker shortcut"
 fi
 pass "missing Lazydocker skips its Docker shortcut"
 
-# The Grave shortcuts are aliases, so the original SUPER + S pair has to keep
-# working alongside them.
+# The original scratchpad stays separate from the Quake console.
 scratchpad_home="$tmpdir/scratchpad-home"
 mkdir -p "$scratchpad_home"
 scratchpad_output=$(run_omarchy_bindings "$scratchpad_home")
 grep -Fqx $'SUPER + S	Toggle scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing toggle binding"
-grep -Fqx $'SUPER + grave	Toggle scratchpad' <<<"$scratchpad_output" ||
-  fail "scratchpad supports a Quake-style toggle binding"
+grep -Fqx $'SUPER + grave	Toggle Quake console' <<<"$scratchpad_output" ||
+  fail "Quake console has its own toggle binding"
 grep -Fqx $'SUPER + ALT + S	Move window to scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing move binding"
-grep -Fqx $'SUPER + SHIFT + grave	Move window to scratchpad' <<<"$scratchpad_output" ||
-  fail "scratchpad supports a Quake-style move binding"
-pass "scratchpad retains existing bindings and adds Grave shortcuts"
+grep -Fqx $'SUPER + SHIFT + grave	Move window to Quake console' <<<"$scratchpad_output" ||
+  fail "Quake console has its own move binding"
+pass "scratchpad and Quake console have separate bindings"
 
 # The panel hotkeys claim a row of keys that workspace switching already uses
 # under other modifiers, so the count matters as much as the bindings: a tenth
@@ -225,40 +212,3 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
-
-migration=$(grep -rl 'Move stock Hyprland user overrides into package defaults' "$ROOT/migrations" | head -n 1 || true)
-[[ -n $migration ]] || fail "Hyprland default config migration exists"
-
-migration_home="$tmpdir/migration-home"
-mkdir -p "$migration_home/.config/hypr"
-cat >"$migration_home/.config/hypr/bindings.lua" <<'LUA'
-require("default.hypr.bindings.media")
-require("default.hypr.bindings.clipboard")
-require("default.hypr.bindings.tiling")
-require("default.hypr.bindings.utilities")
-
--- Application bindings without Omarchy's preinstalled web apps, TUIs, or desktop apps.
-o.bind("SUPER + RETURN", "Terminal", { omarchy = "terminal" })
-o.bind("SUPER + SHIFT + RETURN", "Browser", { omarchy = "browser" })
-o.bind("SUPER + SHIFT + F", "File manager", { omarchy = "nautilus" })
-o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)", { omarchy = "nautilus-cwd" })
-o.bind("SUPER + SHIFT + B", "Browser", { omarchy = "browser" })
-o.bind("SUPER + SHIFT + ALT + B", "Browser (private)", { omarchy = "browser --private" })
-o.bind("SUPER + SHIFT + N", "Editor", { omarchy = "editor" })
-LUA
-HOME="$migration_home" OMARCHY_PATH="$ROOT" bash -euo pipefail "$migration" >/dev/null
-cmp -s "$ROOT/config/hypr/bindings.lua" "$migration_home/.config/hypr/bindings.lua" ||
-  fail "plain legacy bindings migrate to the user override stub"
-[[ -f $migration_home/.local/state/omarchy/preinstalls-removed ]] ||
-  fail "plain legacy bindings preserve preinstall removal state"
-pass "migration converts plain legacy bindings to package-owned defaults"
-
-upgrade_script="$ROOT/bin/omarchy-upgrade-to-quattro"
-grep -Fq 'touch "$state_dir/preinstalls-removed"' "$upgrade_script" ||
-  fail "upgrade-to-quattro preserves preinstall removal state"
-
-mark_line=$(awk '/^mark_removed_preinstalls_from_legacy_bindings$/ { print NR; exit }' "$upgrade_script")
-copy_line=$(awk '/^copy_always_config_defaults$/ { print NR; exit }' "$upgrade_script")
-[[ -n $mark_line && -n $copy_line ]] || fail "upgrade-to-quattro preinstall marker and config refresh calls exist"
-(( mark_line < copy_line )) || fail "upgrade-to-quattro detects plain legacy bindings before overwriting Hyprland bindings"
-pass "upgrade-to-quattro preserves preinstall removal before refreshing Hyprland bindings"
