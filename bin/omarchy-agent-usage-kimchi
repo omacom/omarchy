@@ -1,0 +1,401 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Kimchi usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Kimchi usage into one display-ready JSON record.
+
+The plan, prepaid credits, and spend budgets come from the gateway endpoints
+Kimchi's own status line reads (<llm base>/v1/credits and /v1/budget), asked
+with the API key Kimchi signs in with. Tokens and prompts come from its pi
+session files: one line per message, each assistant reply carrying its model
+and token usage. pi and omp sessions on Kimchi's provider ids count too, and
+so do the opencode, Claude Code and Codex setups Kimchi writes, which send
+to its gateway. The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record,
+  cached_scan,
+  emit,
+  kimchi_sessions_root,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  stamp,
+  trusted_endpoint,
+)
+
+AGENT_ID = "kimchi"
+AGENT_NAME = "Kimchi"
+AUTH_HELP = "Start Kimchi and log in, or set KIMCHI_API_KEY."
+REJECTED_HELP = "Kimchi rejected its API key. Log in again in Kimchi, or update KIMCHI_API_KEY."
+OUT_OF_CREDITS_HELP = "Kimchi's gateway is rate limiting requests until the account has credits again."
+REGION_LLM_BASE = {"us": "https://llm.kimchi.dev", "eu": "https://llm.eu.kimchi.dev"}
+# The region a self-hosted login saves; its gateway is the host it names.
+SELF_HOSTED = "self-hosted"
+PLAN_LABELS = {"community": "Community", "coder": "Coder", "teams": "Teams", "enterprise": "Enterprise"}
+BUDGET_LABELS = {
+  "API_KEY": "API key budget",
+  "USER": "Budget",
+  "TEAM_PER_USER": "Team budget",
+  "TEAM_POOLED": "Team pool",
+  "ORGANIZATION_SOFT": "Org budget",
+  "ORGANIZATION_HARD": "Org budget",
+}
+CREDITS_FIELDS = ("serverless", "remaining", "has_credits", "hasCredits", "tier", "tier_name", "tierName")
+
+
+# Kimchi sends dollar amounts as strings, sometimes with a sign or unit.
+def usd(value):
+  if isinstance(value, bool):
+    return None
+  if isinstance(value, (int, float)):
+    parsed = float(value)
+  else:
+    text = str(value or "").lower().replace("$", "").replace("usd", "").replace(",", ".").strip()
+    try:
+      parsed = float(text) if text else None
+    except ValueError:
+      return None
+  return parsed if parsed is not None and math.isfinite(parsed) else None
+
+
+def parse_time(value):
+  if not isinstance(value, str) or not value.strip():
+    return None
+  try:
+    parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# Kimchi's own gateway routes, as its isKimchiProvider names them: kimchi-dev,
+# kimchi-dev/<upstream> and kimchi-experimental, and `kimchi`, the provider id
+# its setup commands write into opencode and other agents and a pi or omp
+# models.json names it by. `--provider` runs a session on any other pi
+# provider (OpenRouter, a custom one in harness/models.json), which that
+# provider bills: the openrouter collector reads these sessions for its own,
+# and a custom provider's count nowhere.
+def kimchi_route(provider, model, entry):
+  name = provider.lower()
+  return name in ("kimchi", "kimchi-dev", "kimchi-experimental") or name.startswith("kimchi-dev/")
+
+
+# Kimchi's harness also wrote replies naming no provider, which only it can
+# have sent: those are its own there, and no one's anywhere else.
+def unnamed(provider, model, entry):
+  return provider == ""
+
+
+# Every pi-format session on a Kimchi route, in Kimchi's harness and in pi's
+# and omp's trees, read in one pass so a root inside another counts once and
+# a message a fork or resumed session repeats counts once; the harness's
+# replies naming no provider; opencode replies on Kimchi's provider; and the
+# Claude Code, MiniMax Code and Codex turns sent to Kimchi's gateway. Returns
+# the stats and whether every source was read.
+def local_stats(sessions_root, reuse=True):
+  stats = Stats()
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"kimchi', kimchi_route, [*pi_session_roots(), sessions_root])
+  harness_rows, harness_complete = scan_pi_sessions(r'"usage"', unnamed, [sessions_root])
+  # Every id starting kimchi gets past the database's prefilter; the accept
+  # keeps Kimchi's own.
+  db_rows, db_complete = scan_opencode(["kimchi"], kimchi_route)
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in pi_rows + harness_rows + db_rows + routed_rows:
+    stats.add_row(row, row.model or AGENT_ID)
+  complete = pi_complete and harness_complete and db_complete and routed_complete
+  return {"hasLocalStats": bool(stats.sessions), **stats.snapshot()}, complete
+
+
+# The key and gateway Kimchi itself would use: KIMCHI_API_KEY, KIMCHI_BASE_URL,
+# and KIMCHI_REGION over ~/.config/kimchi/config.json, the region's gateway
+# when nothing names one. A self-hosted login's gateway is <selfHostedUrl>/llm
+# (KIMCHI_SELF_HOSTED_URL over the saved one), and without one there is none:
+# its key is never sent to Kimchi's public gateway.
+def gateway():
+  config = read_json(Path.home() / ".config" / "kimchi" / "config.json")
+  key = os.environ.get("KIMCHI_API_KEY") or config.get("apiKey") or config.get("api_key") or ""
+  base = os.environ.get("KIMCHI_BASE_URL") or ""
+  region = next((value.strip().lower() for value in (os.environ.get("KIMCHI_REGION"), config.get("region"))
+                 if isinstance(value, str) and value.strip().lower() in (*REGION_LLM_BASE, SELF_HOSTED)), "us")
+  if not base and region == SELF_HOSTED:
+    self_hosted = os.environ.get("KIMCHI_SELF_HOSTED_URL") or config.get("selfHostedUrl") or ""
+    if not isinstance(self_hosted, str) or not self_hosted.strip():
+      return str(key).strip(), ""
+    base = self_hosted.strip().rstrip("/") + "/llm"
+  if not base:
+    base = config.get("llmEndpoint") or REGION_LLM_BASE[region]
+  base = str(base).strip().rstrip("/")
+  if base.lower().endswith("/openai/v1"):
+    base = base[: -len("/openai/v1")]
+  return str(key).strip(), base
+
+
+def get_json(url, key):
+  request = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}", "Accept": "application/json", "User-Agent": "omarchy-agent-usage-kimchi"})
+  return open_json(request, timeout=8)
+
+
+def plan_label(raw):
+  text = str(raw or "").strip().lower().replace("_", "-").replace(" ", "-")
+  if text in ("community", "free", "free-tier", "free-slow"):
+    return PLAN_LABELS["community"]
+  if text in ("starter", "individual"):
+    return PLAN_LABELS["coder"]
+  if text == "team":
+    return PLAN_LABELS["teams"]
+  for plan in ("coder", "teams", "enterprise"):
+    if text == plan or text.startswith(plan + "-"):
+      return PLAN_LABELS[plan]
+  return str(raw or "")
+
+
+# The credits answer names the plan and what's left of the prepaid balance.
+# It says how much remains but not how much was bought, so the gauge shows
+# the remaining figure alone.
+def credits_part(data):
+  # A reply that names none of the credits fields isn't an answer, so it
+  # fails the check rather than replacing the kept plan and balance.
+  if not isinstance(data, dict) or not any(k in data for k in CREDITS_FIELDS):
+    raise ValueError("not a credits answer")
+  if data.get("serverless") is False:
+    return {}
+  tier = next((data[k] for k in ("tier", "tier_name", "tierName") if k in data), "")
+  part = {"tierLabel": plan_label(tier)}
+  remaining = usd(data.get("remaining"))
+  if remaining is not None and remaining >= 0:
+    part["balance"] = {"remaining": remaining, "funded": 0, "spent": 0, "currency": "USD", "estimated": False}
+  has_credits = next((data[k] for k in ("has_credits", "hasCredits") if k in data), None)
+  # The gateway throttles an account with no credits left, and with no funded
+  # figure the balance gauge has no way to raise that alarm itself.
+  if has_credits is False or (remaining is not None and remaining <= 0):
+    part["outOfCredits"] = True
+  return part
+
+
+# The panel titles a window by its clock, so a budget period that spans a
+# month or a week says so rather than leaving the panel to guess from a label.
+def period_title(period):
+  start, end = parse_time(period.get("startTime")), parse_time(period.get("endTime"))
+  if not (start and end):
+    return ""
+  days = (end - start).days
+  if 27 <= days <= 31:
+    return "Monthly"
+  if days == 7:
+    return "Weekly"
+  return ""
+
+
+# Each spend budget is a limit window: spend against its cap until the
+# period ends. A provider capped inside it is its own allowance on the same
+# clock, which the panel draws as a tick on that budget's meter; in a period
+# the panel has no clock name for, it gets a line of its own. A cap is what
+# may be spent, not what was bought, so it never funds the balance gauge.
+#
+# The panel hangs a provider's tick on the meter its title names, so with
+# several budgets on one clock each is titled by its scope ("Team pool
+# Monthly") and its providers get lines of their own that name it, rather
+# than every cap landing on whichever budget came last.
+def budget_part(data):
+  # The budgets list is the answer, and an empty or null one still is; a
+  # reply without it fails the check rather than erasing the kept budgets.
+  if not isinstance(data, dict) or "budgets" not in data or not isinstance(data["budgets"] or [], list):
+    raise ValueError("not a budget answer")
+  period = data.get("period") if isinstance(data.get("period"), dict) else {}
+  # The gateway's own period end, or none: a reset time is never made up.
+  resets = str(period.get("endTime") or "") if parse_time(period.get("endTime")) else ""
+  title = period_title(period)
+  budgets = []
+  for entry in data["budgets"] or []:
+    if not isinstance(entry, dict):
+      continue
+    cap = usd(entry.get("budgetLimitUsd"))
+    spent = usd(entry.get("totalSpendUsd"))
+    if cap and cap > 0 and spent is not None:
+      budgets.append((entry, spent / cap))
+  shared = len(budgets) > 1
+  limits = []
+  for entry, share in budgets:
+    label = BUDGET_LABELS.get(entry.get("scope"), "Budget")
+    limit = {"label": label, "percent": max(0.0, min(1.0, share)), "resetsAt": resets}
+    if title:
+      limit["title"] = f"{label} {title}" if shared else title
+    limits.append(limit)
+    for provider in entry.get("providerBudgets") or []:
+      if not isinstance(provider, dict) or not str(provider.get("limitType") or "").endswith("CAPPED"):
+        continue
+      provider_cap = usd(provider.get("budgetLimitUsd"))
+      used = usd(provider.get("usageUsd"))
+      name = str(provider.get("provider") or "").strip()
+      if not (provider_cap and provider_cap > 0 and used is not None and name):
+        continue
+      name = name[:1].upper() + name[1:]
+      limits.append({
+        "label": f"{name} budget",
+        "title": f"{name} budget ({label})" if shared else (f"{name} {title}" if title else f"{name} budget"),
+        "percent": max(0.0, min(1.0, used / provider_cap)),
+        "resetsAt": resets,
+      })
+  return {"limits": limits}
+
+
+# Keyed by the API key and the gateway it was asked of, so a machine signed
+# in to someone else, or pointed at another region, never shows the last
+# one's numbers. One file per endpoint, so a run only ever writes the answer
+# it actually got: the budget's limits under the limits cache name every
+# collector shares, and the credits' plan and balance beside them. An answer
+# without limits (no budget, or the credits) still stands in for a probe.
+# Returns the cache to save to and the one holding the last answer.
+def billing_cache(key, base, resource):
+  if resource == "credits":
+    cache = LimitsCache(AGENT_ID, base, key, kind="credits")
+    return cache, cache
+  cache = LimitsCache(AGENT_ID, base, key)
+  if not cache.data:
+    # Budgets were cached as kimchi-budget-<key>.json before they joined the
+    # limits cache name every collector shares.
+    return cache, LimitsCache(AGENT_ID, base, key, kind="budget")
+  return cache, cache
+
+
+# The two endpoints answer on their own, and so does each fall back: a part
+# that didn't come back is the last one that did, so one endpoint failing
+# never blanks or overwrites what the other said. Any part that didn't come
+# back fresh marks the record stale, cached or not.
+def collect_billing(force):
+  result = {"tierLabel": "", "limits": [], "usageStatusText": "", "authHelpText": "", "signedIn": False, "limitsStale": False, "limitsFetchedAt": 0}
+  key, base = gateway()
+  if not key:
+    return result
+  result["signedIn"] = True
+  if not base:
+    result["usageStatusText"] = "Balance unavailable"
+    result["authHelpText"] = "Kimchi is set to its self-hosted region but names no self-hosted URL. Local Kimchi stats are still shown."
+    return result
+  # KIMCHI_BASE_URL, llmEndpoint and a self-hosted URL move the gateway,
+  # never the key onto a connection anyone on the way can read.
+  if not trusted_endpoint(base):
+    result["usageStatusText"] = "Balance unavailable"
+    result["authHelpText"] = "Kimchi's gateway must use HTTPS (plain HTTP only for loopback). Local Kimchi stats are still shown."
+    return result
+
+  parts = {}
+  failed = set()
+  rejected = unreachable = False
+  for resource, parse in (("credits", credits_part), ("budget", budget_part)):
+    cache, kept = billing_cache(key, base, resource)
+    cached = None
+    if kept.fetched_at:
+      # A kept budget whose period ended is an untouched allowance, not an
+      # unknown one: it comes back at zero, with no reset time until the
+      # gateway names the next period.
+      cached = dict(kept.data, limits=kept.limits, fetchedAtMs=kept.fetched_at)
+      if kept.fresh(force, allow_empty=True):
+        parts[resource] = cached
+        continue
+    try:
+      data = get_json(f"{base}/v1/{resource}", key)
+      part = parse(data)
+      # Refreshes can overlap (the panel's own and a limits retry), so an
+      # answer only replaces one fetched before it.
+      cache.save(part.pop("limits", []), only_if_newer=True, **part)
+      parts[resource] = dict(cache.data)
+      continue
+    except HttpError as error:
+      rejected = rejected or error.status in (401, 403)
+      # No answer at all: no route, no DNS, a timeout, or a dropped
+      # connection. A reply cut short is an answer that failed to read.
+      unreachable = unreachable or error.transport
+    except Exception:
+      pass
+    failed.add(resource)
+    if cached is not None:
+      parts[resource] = cached
+
+  credits = parts.get("credits") or {}
+  result["tierLabel"] = credits.get("tierLabel") or ""
+  if credits.get("balance"):
+    result["balance"] = credits["balance"]
+  result["limits"] = (parts.get("budget") or {}).get("limits") or []
+  result["limitsStale"] = bool(failed)
+  if parts:
+    result["limitsFetchedAt"] = min(stamp(part.get("fetchedAtMs")) for part in parts.values())
+
+  if rejected:
+    result["usageStatusText"] = "Sign-in expired"
+    result["authHelpText"] = REJECTED_HELP
+  elif credits.get("outOfCredits") or credits.get("usageStatusText"):
+    # With no funded figure the balance gauge can't raise this alarm itself,
+    # so the status does. A credits answer kept before outOfCredits marked it
+    # with a status of its own.
+    result["usageStatusText"] = "Out of credits"
+    result["authHelpText"] = OUT_OF_CREDITS_HELP
+  elif "credits" not in parts:
+    result["usageStatusText"] = "Balance unavailable"
+    result["authHelpText"] = (
+      "Couldn't reach Kimchi's gateway. Local Kimchi stats are still shown." if unreachable
+      else "Kimchi's gateway didn't return the credits. Local Kimchi stats are still shown."
+    )
+  if unreachable and not rejected:
+    # Usually the seconds after login before the network is up; the panel
+    # tries once more soon instead of waiting out its refresh interval.
+    result["retryAdvised"] = True
+  return result
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  # A scan is reused on the day it was made only, since one from before
+  # midnight would count yesterday's sessions as today's. A limits-only
+  # refresh needs fresh credits, not a fresh history scan. The digest covers
+  # every source the scan reads, and the match where Claude Code, MiniMax
+  # Code and Codex are sent, which decides whose their turns are. A forced
+  # scan reads every Codex rollout again too.
+  sessions_root = kimchi_sessions_root()
+  sources = [sessions_root, *pi_session_roots(), opencode_db(), *routed_sources()]
+  max_age = scan_max_age(args.force, args.limits_only)
+  stats = cached_scan(AGENT_ID, sources, max_age, lambda: local_stats(sessions_root, reuse=max_age > 0), match=routed_match())
+  billing = collect_billing(args.force)
+  signed_in = billing.pop("signedIn")
+  # Sessions on disk with no key to ask the gateway with: Kimchi is in use
+  # here, its plan and credits just can't be read yet.
+  if not signed_in and stats.get("hasLocalStats"):
+    billing["usageStatusText"] = "Waiting for auth"
+    billing["authHelpText"] = AUTH_HELP
+  record = base_record(AGENT_ID, AGENT_NAME, ready=signed_in or bool(stats.get("hasLocalStats")))
+  record.update(billing)
+  record.update(stats)
+  emit(record)
+
+
+if __name__ == "__main__":
+  main()

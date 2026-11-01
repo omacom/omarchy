@@ -128,6 +128,88 @@ class Indicator:
         state.update(current=entry[0], name=entry[1], label=entry[4], language=entry[5])
     return state
 
+  def switchable(self, methods):
+    # With one keyboard method in one group the reading cannot change until the
+    # configuration does, and Fcitx saves that to the profile being watched. A
+    # lone composition engine still toggles, and steps aside in password fields.
+    if len(methods) > 1 or not all(method.startswith("keyboard-") for method in methods):
+      return True
+    return len(call(self.bus, "InputMethodGroups")[0]) > 1
+
+
+def owner_environment(bus):
+  """The environment and working directory of the process that owns Fcitx's bus name.
+
+  The profile is wherever that process saves it, which a service drop-in can
+  move without the shell's own environment knowing.
+  """
+  try:
+    pid = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                        "GetConnectionUnixProcessID", GLib.Variant("(s)", (BUS,)), None,
+                        Gio.DBusCallFlags.NONE, 1000, None).unpack()[0]
+    with open(f"/proc/{pid}/environ", "rb") as file:
+      items = file.read().decode(errors="replace").split("\0")
+    environment = dict(item.split("=", 1) for item in items if "=" in item)
+    return environment, os.readlink(f"/proc/{pid}/cwd")
+  except (GLib.Error, OSError, ValueError):
+    return None
+
+
+def profile_path(owner=None):
+  # Fcitx's own lookup: FCITX_CONFIG_HOME, else $XDG_CONFIG_HOME/fcitx5, cleaned
+  # lexically the way Fcitx cleans it before any link is followed. A relative
+  # path is relative to the working directory.
+  environment, cwd = owner or (os.environ, os.getcwd())
+  home = environment.get("HOME") or os.path.expanduser("~")
+  if environment.get("FCITX_CONFIG_HOME"):
+    directory = os.path.join(cwd, environment["FCITX_CONFIG_HOME"])
+  else:
+    # A relative XDG_CONFIG_HOME is relative to the home directory.
+    directory = os.path.join(home, environment.get("XDG_CONFIG_HOME") or ".config", "fcitx5")
+  return os.path.join(os.path.normpath(directory), "profile")
+
+
+class ProfileWatch:
+  """Calls changed() whenever the profile Fcitx saves its configuration to changes.
+
+  The file is located once per Fcitx process, from that process's environment.
+  The watch follows renamed saves; inotify resolves a linked directory when the
+  watch is added, so relinking the dotfiles while Fcitx runs is picked up at
+  its next start.
+  """
+
+  def __init__(self, changed):
+    self.changed = changed
+    self.monitors = []
+    self.bind(None)
+
+  def bind(self, owner):
+    for monitor in self.monitors:
+      monitor.cancel()
+    # A profile linked into dotfiles is saved by replacing the link's target.
+    path = profile_path(owner)
+    self.monitors = [Gio.File.new_for_path(watched).monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, None)
+                     for watched in dict.fromkeys([path, os.path.realpath(path)])]
+    for monitor in self.monitors:
+      monitor.connect("changed", lambda *_: self.changed())
+
+
+def follow(bus, changed, presence):
+  # Fcitx sends no signal when its configuration or current method changes
+  # (Controller1's InputMethodGroupsChanged stays silent for group edits and
+  # switches alike), so follow the service's bus name for restarts and the
+  # profile it saves every configuration change to.
+  profile = ProfileWatch(changed)
+
+  def owner(present):
+    presence(present)
+    if present:
+      profile.bind(owner_environment(bus))
+    changed()
+  name = Gio.bus_watch_name_on_connection(bus, BUS, Gio.BusNameWatcherFlags.NONE,
+                                          lambda *_: owner(True), lambda *_: owner(False))
+  return [name, profile]
+
 
 def watch(bus):
   previous = None
@@ -135,28 +217,77 @@ def watch(bus):
   loop = GLib.MainLoop()
   buffer = ""
   timer = 0
+  settle = 0
+  polling = False
+  failed = False
+  present = True
 
   def refresh():
-    nonlocal previous
+    nonlocal previous, polling, failed
     try:
       state = indicator.refresh()
     except GLib.Error:
+      failed = True
       indicator.pending = ""
       indicator.last = ""
+      # Keep the configured cadence: a timed-out call is not a configuration
+      # change, and a vanished service is followed by its bus name.
       state = {"methods": [], "current": "", "name": "", "language": ""}
+    else:
+      # A failed group count keeps the reading and the last cadence.
+      try:
+        polling = indicator.switchable(state["methods"])
+        failed = False
+      except GLib.Error:
+        failed = True
     line = json.dumps(state, ensure_ascii=False)
     if line != previous:
       print(line, flush=True)
       previous = line
 
+  # Only a pending click or a group with methods to switch between needs
+  # reading again on a timer; everything else waits for an event. A failed
+  # read of a running service is retried, since nothing else would correct it.
+  def schedule():
+    nonlocal timer
+    if timer:
+      GLib.source_remove(timer)
+      timer = 0
+    if indicator.pending:
+      timer = GLib.timeout_add(50, poll)
+    elif polling:
+      timer = GLib.timeout_add(500, poll)
+    elif failed and present:
+      timer = GLib.timeout_add(2000, poll)
+
   def poll():
     nonlocal timer
+    timer = 0
     refresh()
-    timer = GLib.timeout_add(50 if indicator.pending else 500, poll)
+    schedule()
     return GLib.SOURCE_REMOVE
 
+  # A save arrives as several file events, and a restarting service as a
+  # vanish and an appear; read once they settle.
+  def changed():
+    nonlocal settle
+    if settle:
+      GLib.source_remove(settle)
+    settle = GLib.timeout_add(200, settled)
+
+  def settled():
+    nonlocal settle
+    settle = 0
+    refresh()
+    schedule()
+    return GLib.SOURCE_REMOVE
+
+  def presence(running):
+    nonlocal present
+    present = running
+
   def command(source, condition):
-    nonlocal buffer, timer
+    nonlocal buffer
     data = os.read(sys.stdin.fileno(), 4096)
     if not data:
       loop.quit()
@@ -170,14 +301,16 @@ def watch(bus):
         except (GLib.Error, OSError, ValueError, subprocess.CalledProcessError):
           indicator.pending = ""
         refresh()
-    GLib.source_remove(timer)
-    timer = GLib.timeout_add(50 if indicator.pending else 500, poll)
+    schedule()
     return GLib.SOURCE_CONTINUE
 
-  # Fcitx's controller has no current-method-changed signal. Keep one bus
-  # connection open instead of spawning a command on every poll. Polling also
-  # follows per-application input contexts and recovers after service restarts.
+  # Fcitx's controller has no current-method-changed signal, so a group with
+  # more than one method is still read every 500 ms, over one kept-open bus
+  # connection. That follows per-application input contexts and trigger keys
+  # pressed inside applications.
   GLib.io_add_watch(sys.stdin, GLib.IO_IN | GLib.IO_HUP, command)
+  # Held for as long as the loop runs.
+  watchers = follow(bus, changed, presence)  # noqa: F841
   poll()
   loop.run()
 
