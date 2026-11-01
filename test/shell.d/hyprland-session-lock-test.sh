@@ -45,7 +45,7 @@ locker 200 quickshell -n -p /tmp/tmp.abc/omarchy/shell
 locker 201 quickshell -n -p "/home/me/voxtype/quickshell backup/omarchy/shell"
 locker 202 qs -p /usr/share/voxtype/quickshell-locker
 locker 300 qs -p /usr/share/voxtype/quickshell
-locker 301 qs -d -p "/home/me/User Data/voxtype/quickshell/"
+locker 301 /usr/bin/qs -d -p "/home/me/User Data/voxtype/quickshell/"
 locker 400 hyprlock -c /usr/share/voxtype/quickshell/lock.conf
 mkdir -p "$proc/500"
 : >"$proc/500/cmdline"
