@@ -671,11 +671,27 @@ function nextPeekEdge(edge, measured, held) {
   return held ? edge : measured
 }
 
+// Whether a workspace holds a real fullscreen window, which fades the bar out
+// and has to take the clicks along its edge. Hyprland reports a maximized
+// window as fullscreen 1 and a real one with bit 2 set; only the latter hides
+// the bar. `toplevels` are Quickshell's Hyprland toplevels.
+function fullscreenOn(toplevels, workspaceId) {
+  var list = toplevels || []
+  for (var i = 0; i < list.length; i++) {
+    var toplevel = list[i]
+    if (!toplevel || !toplevel.workspace || toplevel.workspace.id !== workspaceId) continue
+    var ipc = toplevel.lastIpcObject
+    if (ipc && (Number(ipc.fullscreen) & 2) !== 0) return true
+  }
+  return false
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
     nextPeekEdge: nextPeekEdge,
     peeksAt: peeksAt,
+    fullscreenOn: fullscreenOn,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,

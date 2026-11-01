@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Kettakiiruse test"
   },
-  "setup.monitors": {
-    "label": "Kuvarid"
-  },
   "setup.keybindings": {
     "label": "Kiirklahvid"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "Tuum"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }
