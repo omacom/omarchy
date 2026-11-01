@@ -415,6 +415,10 @@ if [[ ${1:-} == "phy" ]]; then
     phy1) printf '%s\n' 'Wiphy phy1' '  Band 3:' '    * AP' ;;
     *) exit 1 ;;
   esac
+  exit 0
+fi
+exit 1
+STUB
 chmod +x "$STUB_BIN/iw"
 : >"$NMCLI_LOG"
 SHARED_RANGE=10.42.0.2,10.42.0.5 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
@@ -423,10 +427,7 @@ limit_status=$(awk -F'\t' '$1 == "max_clients" { print $2 }' "$TEST_TMP/limit-st
 [[ $limit_status == "4" ]] || fail "status reports the profile participant limit" "$limit_status"
 [[ -z $(<"$TEST_TMP/limit-status.err") ]] || fail "limit status keeps stderr empty" "$(<"$TEST_TMP/limit-status.err")"
 pass "status reports the participant limit from the profile"
-  exit 0
-fi
-exit 1
-STUB
+
 # Client names come from the neighbour table and the system resolver, both of
 # which an unprivileged status poll can read, unlike dnsmasq's lease file.
 cat >"$STUB_BIN/iw" <<'STUB'
