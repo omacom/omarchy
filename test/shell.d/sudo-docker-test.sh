@@ -16,11 +16,16 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 command="$ROOT/bin/omarchy-sudo-docker"
 
-# Stub id so the configured groups are controllable.
+# Stub id so the configured groups are controllable. The account is tester, not
+# what USER names, and only its own lookup sees the configured groups.
 mkdir -p "$TMPDIR/bin"
 cat >"$TMPDIR/bin/id" <<'STUB'
 #!/bin/bash
-printf '%s\n' "${STUB_GROUPS:-wheel input}"
+case "$*" in
+  -un) echo tester ;;
+  "-nG tester") printf '%s\n' "${STUB_GROUPS:-wheel input}" ;;
+  *) echo "wheel input" ;;
+esac
 STUB
 chmod +x "$TMPDIR/bin/id"
 
@@ -33,7 +38,7 @@ chmod 600 "$reachable_socket"
 chmod 400 "$blocked_socket"
 
 run() { # SOCKET GROUPS [--configured]
-  env PATH="$TMPDIR/bin:$PATH" OMARCHY_DOCKER_SOCKET="$1" STUB_GROUPS="$2" USER=tester \
+  env PATH="$TMPDIR/bin:$PATH" OMARCHY_DOCKER_SOCKET="$1" STUB_GROUPS="$2" USER=spoofed \
     bash "$command" ${3:+"$3"}
 }
 
