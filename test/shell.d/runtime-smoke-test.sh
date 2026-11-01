@@ -684,6 +684,28 @@ done
 jq -e "$saved" "$config" >/dev/null || fail "a bar change is saved again once shell.json is fixed" "$(cat "$config")"
 pass "a bar change is saved again once shell.json is fixed"
 
+# An emptied shell.json is a truncated write: the shell keeps the config it had, and the next bar change writes that back rather than the defaults (#12990).
+emptied=$(grep -c 'shell.json is empty; keeping' "$SCRATCH_LOG" || true)
+: >"$config"
+scratch_ipc -q shell reloadConfig >/dev/null
+for _ in {1..50}; do
+  (( $(grep -c 'shell.json is empty; keeping' "$SCRATCH_LOG" || true) > emptied )) && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading an emptied shell.json"
+  sleep 0.1
+done
+(( $(grep -c 'shell.json is empty; keeping' "$SCRATCH_LOG" || true) > emptied )) && [[ $(center_ids) == *omarchy.microphone* ]] ||
+  fail_with_log "an emptied shell.json keeps the loaded config"
+pass "an emptied shell.json keeps the loaded config"
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+  fail_with_log "bar widget setting is applied while shell.json is empty"
+saved='any(.bar.layout[][]; (.id? // .) == "omarchy.microphone") and any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")'
+for _ in {1..40}; do
+  jq -e "$saved" "$config" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+jq -e "$saved" "$config" >/dev/null || fail "a bar change after shell.json is emptied writes back the loaded config" "$(cat "$config")"
+pass "a bar change after shell.json is emptied writes back the loaded config"
+
 # Run the replacement-bar probes last: switching bar loaders can transiently
 # leave bar-aware panels without a visual host, which should not add noise to
 # the default-bar assertions above.
