@@ -1,0 +1,244 @@
+#!/bin/bash
+
+# omarchy:group=dev
+# omarchy:summary=Audit open pull requests for mergeability, test status, and staleness
+# omarchy:args=[--repo <owner/repo>] [--limit <n>] [--conflicts-only] [--failing-only] [--missing-tests-only] [--json]
+# omarchy:examples=omarchy dev pr audit | omarchy dev pr audit --conflicts-only | omarchy dev pr audit --json
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy dev pr audit [options]
+
+Audit open pull requests for merge conflicts, test status, and Greptile reviews.
+
+Options:
+  --repo <owner/repo>    Target GitHub repository (default: current repo or omacom/omarchy)
+  --limit <n>            Maximum number of pull requests to audit (default: 30)
+  --conflicts-only       Show only pull requests with merge conflicts
+  --failing-only         Show only pull requests where tests failed
+  --missing-tests-only   Show only pull requests missing test runs
+  --json                 Output results as structured JSON
+  -h, --help             Show this help message
+EOF
+}
+
+repo=""
+limit=30
+conflicts_only=false
+failing_only=false
+missing_tests_only=false
+json_output=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repo)
+      [[ $# -ge 2 ]] || { echo "Error: --repo requires an argument" >&2; exit 1; }
+      repo="$2"
+      shift 2
+      ;;
+    --limit)
+      [[ $# -ge 2 ]] || { echo "Error: --limit requires an argument" >&2; exit 1; }
+      limit="$2"
+      shift 2
+      ;;
+    --conflicts-only)
+      conflicts_only=true
+      shift
+      ;;
+    --failing-only)
+      failing_only=true
+      shift
+      ;;
+    --missing-tests-only)
+      missing_tests_only=true
+      shift
+      ;;
+    --json)
+      json_output=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if ! command -v gh >/dev/null 2>&1; then
+  echo "Error: gh (GitHub CLI) is required but not installed." >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq is required but not installed." >&2
+  exit 1
+fi
+
+# Detect repository if not explicitly specified
+if [[ -z $repo ]]; then
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    remote_url=$(git remote get-url upstream 2>/dev/null || git remote get-url origin 2>/dev/null || true)
+    if [[ $remote_url =~ github\.com[:/]([^/]+/[^/.]+)(\.git)?$ ]]; then
+      repo="${BASH_REMATCH[1]}"
+    fi
+  fi
+  repo="${repo:-omacom/omarchy}"
+fi
+
+# Query GitHub CLI for open pull requests
+raw_prs=$(gh pr list --repo "$repo" --state open --limit "$limit" \
+  --json number,title,author,headRefName,mergeable,statusCheckRollup,labels,updatedAt,url)
+
+# Parse and normalize PR status with jq
+parsed=$(jq --arg conflicts_only "$conflicts_only" \
+            --arg failing_only "$failing_only" \
+            --arg missing_tests_only "$missing_tests_only" '
+  [
+    .[] |
+    {
+      number: .number,
+      title: .title,
+      author: (.author.login // "unknown"),
+      headRefName: .headRefName,
+      mergeable: (.mergeable // "UNKNOWN"),
+      tests: (
+        [.statusCheckRollup[]? | select(.name == "test" or .workflowName == "Tests")] |
+        if length == 0 then "NONE"
+        elif .[0].status == "IN_PROGRESS" or .[0].status == "QUEUED" then "IN_PROG"
+        elif .[0].conclusion == "SUCCESS" then "PASS"
+        elif .[0].conclusion == "FAILURE" then "FAIL"
+        else (.[0].conclusion // .[0].status)
+        end
+      ),
+      greptile: (
+        if any(.labels[]?.name; . == "greptile:5/5") then "5/5"
+        elif any(.labels[]?.name; . == "greptile:needs-fixes") then "NEEDS_FIX"
+        else (
+          [.statusCheckRollup[]? | select(.name == "Greptile Review")] |
+          if length == 0 then "NONE"
+          elif .[0].status == "IN_PROGRESS" then "REVIEW"
+          elif .[0].conclusion == "SUCCESS" then "PASS"
+          else (.[0].conclusion // .[0].status)
+          end
+        )
+        end
+      ),
+      updatedAt: .updatedAt,
+      url: .url
+    } |
+    select(
+      ($conflicts_only == "false" or .mergeable == "CONFLICTING") and
+      ($failing_only == "false" or .tests == "FAIL") and
+      ($missing_tests_only == "false" or .tests == "NONE")
+    )
+  ]
+' <<< "$raw_prs")
+
+if [[ $json_output == "true" ]]; then
+  echo "$parsed"
+  exit 0
+fi
+
+# Print table
+count=$(jq 'length' <<< "$parsed")
+if (( count == 0 )); then
+  echo "No pull requests matching criteria in $repo."
+  exit 0
+fi
+
+is_tty=0
+if [[ -t 1 ]]; then
+  is_tty=1
+fi
+
+colorize() {
+  local val="$1"
+  local type="$2"
+  local width="${3:-0}"
+
+  local padded
+  if (( width > 0 )); then
+    printf -v padded "%-${width}s" "$val"
+  else
+    padded="$val"
+  fi
+
+  if (( ! is_tty )); then
+    printf '%s' "$padded"
+    return
+  fi
+
+  case "$type" in
+    mergeable)
+      case "$val" in
+        MERGEABLE)   printf '\033[32m%s\033[0m' "$padded" ;;
+        CONFLICTING) printf '\033[1;31m%s\033[0m' "$padded" ;;
+        *)           printf '\033[33m%s\033[0m' "$padded" ;;
+      esac
+      ;;
+    tests)
+      case "$val" in
+        PASS)    printf '\033[32m%s\033[0m' "$padded" ;;
+        FAIL)    printf '\033[1;31m%s\033[0m' "$padded" ;;
+        IN_PROG) printf '\033[33m%s\033[0m' "$padded" ;;
+        NONE)    printf '\033[2m%s\033[0m' "$padded" ;;
+        *)       printf '%s' "$padded" ;;
+      esac
+      ;;
+    greptile)
+      case "$val" in
+        5/5)       printf '\033[32m%s\033[0m' "$padded" ;;
+        NEEDS_FIX) printf '\033[31m%s\033[0m' "$padded" ;;
+        REVIEW)    printf '\033[33m%s\033[0m' "$padded" ;;
+        PASS)      printf '\033[32m%s\033[0m' "$padded" ;;
+        NONE)      printf '\033[2m%s\033[0m' "$padded" ;;
+        *)         printf '%s' "$padded" ;;
+      esac
+      ;;
+    *)
+      printf '%s' "$padded"
+      ;;
+  esac
+}
+
+echo "Omarchy PR Audit ($repo — $count PRs)"
+echo ""
+printf ' %-7s %-13s %-10s %-11s %-15s %s\n' "PR" "STATUS" "TESTS" "GREPTILE" "AUTHOR" "TITLE"
+printf ' %-7s %-13s %-10s %-11s %-15s %s\n' "-------" "-------------" "----------" "-----------" "---------------" "-----------------------------------------"
+
+while IFS=$'\t' read -r pr_num mergeable tests greptile author title; do
+  short_title="$title"
+  if (( ${#short_title} > 45 )); then
+    short_title="${short_title:0:42}..."
+  fi
+
+  printf ' %-7s ' "$pr_num"
+  colorize "$mergeable" mergeable 13
+  printf ' '
+  colorize "$tests" tests 10
+  printf ' '
+  colorize "$greptile" greptile 11
+  printf ' '
+  printf '%-15s ' "${author:0:14}"
+  printf '%s\n' "$short_title"
+done < <(jq -r '.[] | [.number, .mergeable, .tests, .greptile, .author, .title] | @tsv' <<< "$parsed")
+
+echo ""
+# Summary metrics
+conflicts=$(jq '[.[] | select(.mergeable == "CONFLICTING")] | length' <<< "$parsed")
+test_pass=$(jq '[.[] | select(.tests == "PASS")] | length' <<< "$parsed")
+test_fail=$(jq '[.[] | select(.tests == "FAIL")] | length' <<< "$parsed")
+test_none=$(jq '[.[] | select(.tests == "NONE")] | length' <<< "$parsed")
+greptile_ok=$(jq '[.[] | select(.greptile == "5/5" or .greptile == "PASS")] | length' <<< "$parsed")
+
+echo "Summary:"
+echo "  Total audited: $count | Conflicts: $conflicts"
+echo "  Tests:         $test_pass passed, $test_fail failed, $test_none missing/pending"
+echo "  Greptile:      $greptile_ok verified (5/5 or pass)"
