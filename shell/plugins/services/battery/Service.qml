@@ -163,7 +163,7 @@ Item {
     interval: 30000
     running: true
     repeat: true
-    triggeredOnStart: true
+    // The first check runs when the startup status read answers, so a latched UPower figure never warns first.
     onTriggered: root.checkBattery()
   }
 
