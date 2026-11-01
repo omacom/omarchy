@@ -6,6 +6,14 @@ If you use Tmux, you may not mind, but if not, we fully support _Alacritty_, _Gh
 
 You start a new terminal using `Super + Return`. (This binding will automatically point to whichever Terminal you've installed via _Install > Terminal_, and you can switch between installed terminals under _Setup > Defaults > Terminal_.)
 
+## Close confirmation
+
+Ghostty and Kitty use native close confirmation, with shell integration allowing idle prompts to close without a dialog. Missing shell integration can cause a confirmation even at an idle prompt. Detection does not guarantee protection for background jobs. These dialogs protect ordinary window closes; logout, reboot, and shutdown can still end the session.
+
+Existing customized configurations are preserved. To enable confirmation in an existing Ghostty config, set `confirm-close-surface=true` in `~/.config/ghostty/config`. Kitty uses the packaged default unless `~/.config/kitty/kitty.conf` overrides it; use `confirm_os_window_close -1` there to enable conditional confirmation.
+
+To disable confirmation, set `confirm-close-surface=false` in Ghostty or `confirm_os_window_close 0` in your personal Kitty config. Ghostty also supports `confirm-close-surface=always` to confirm even when shell integration reports a prompt.
+
 ## Tmux
 
 Tmux provides a consistent, programmable interface for panes, windows (aka tabs), and resumable sessions regardless of your terminal. It even works on remote hosts, so when you're SSH'ing into a server, you can use the same approach.
