@@ -1,12 +1,12 @@
 # Tema
 
-Omarchy hadir dengan dua puluh dua tema yang indah. Anda dapat memilih di antara mereka melalui _Gaya > Tema_ dalam Menu Omarchy (`Super + Space`) atau langsung menuju pemilih tema menggunakan `Super + Ctrl + Shift + Space`.
+Omarchy dilengkapi dengan dua puluh dua tema yang indah. Anda dapat memilih di antaranya melalui _Tampilan > Tema_ di Menu Omarchy (`Super + Space`) atau langsung menuju ke pemilih tema menggunakan `Super + Ctrl + T`.
 
-Setiap tema memberi gaya pada desktop, terminal, neovim, layar aktivitas (btop), Chromium, dan seluruh shell Omarchy: bilah atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, Anda harus memilih tema Omarchy secara manual melalui _Appearance > Themes_ di dalam aplikasi).
+Setiap tema memberi gaya pada desktop, terminal, neovim, layar aktivitas (btop), Chromium, dan seluruh shell Omarchy: bilah atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, Anda harus memilih tema Omarchy secara manual melalui _Tampilan > Tema_ di dalam aplikasinya).
 
-Tema memiliki serangkaian gambar latar belakang yang dapat Anda pilih menggunakan `Super + Ctrl + Space`.
+Tema memiliki serangkaian gambar latar belakang yang dapat Anda pilih menggunakan `Super + Ctrl + W`.
 
-Anda dapat menemukan lebih banyak tema di [halaman tema tambahan](https://omarchy.org/themes/) atau bahkan [buat tema Anda sendiri](43-making-your-own-theme.md).
+Anda dapat menemukan lebih banyak tema lagi di [halaman tema tambahan](https://omarchy.org/themes/) atau bahkan [membuat tema Anda sendiri](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Buka Kunci
 
-Tema juga dapat memiliki desain buka kunci kustom, yang digunakan untuk proses dekripsi boot. Anda dapat memilih salah satunya di bawah _Gaya > Buka Kunci_. Mereka terlihat seperti ini:
+Tema juga dapat memiliki desain buka kunci khusus, yang digunakan untuk proses dekripsi saat boot. Anda dapat memilih salah satunya di bagian _Tampilan > Buka Kunci_. Tampilannya seperti ini:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
