@@ -176,7 +176,57 @@ launch "https://example.test/spaced"
 [[ $(sed '1,/^--$/d' "$launch_log") == $'chromium\nhttps://example.test/spaced' ]] ||
   fail "a desktop id with spaces launches its entry's command"
 pass "a desktop id with spaces launches its entry's command"
+
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+exec "$@"
+SH
+chmod +x "$mock_bin/setsid"
+launch_webapp() {
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+    bash "$ROOT/bin/omarchy-launch-webapp" "$@"
+}
+
+spaced_desktop="brave-browser Work.desktop"
+cat >"$test_home/.local/share/applications/$spaced_desktop" <<'DESKTOP'
+[Desktop Entry]
+Exec=brave %U
+DESKTOP
+cat >"$mock_bin/omarchy-cmd-default-browser" <<SH
+#!/bin/bash
+echo "$spaced_desktop"
+SH
+
+launch_webapp "https://example.test/spaced"
+[[ $(<"$launch_log") == $'--\nbrave\n--app=https://example.test/spaced' ]] ||
+  fail "web app launcher finds a desktop id with spaces" "$(cat "$launch_log")"
+pass "web app launcher finds a desktop id with spaces"
 rm -f "$mock_bin/omarchy-cmd-default-browser"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" %U
+EOF
+
+launch_webapp "https://discord.com/channels/@me" --start-maximized
+expected=$(printf '%s\n' -- /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" \
+  --app=https://discord.com/channels/@me --start-maximized)
+[[ $(<"$launch_log") == "$expected" ]] ||
+  fail "web app launcher runs the whole Exec line, then --app and the caller's arguments" "$(cat "$launch_log")"
+pass "web app launcher resolves env-wrapped desktop Exec lines"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Name=Chromium
+Exec=chromium --class=%c --desktop=%k -- %U
+EOF
+
+launch_webapp "https://example.test/app"
+expected=$(printf '%s\n' -- chromium --class=Chromium "--desktop=$test_home/.local/share/applications/chromium.desktop" \
+  --app=https://example.test/app)
+[[ $(<"$launch_log") == "$expected" ]] ||
+  fail "web app launcher expands %c and %k and keeps --app ahead of the Exec line's --" "$(cat "$launch_log")"
+pass "web app launcher expands %c and %k and keeps --app an option"
 
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
 # from the same ones; a browser outside ~/.local and /usr used to resolve and
