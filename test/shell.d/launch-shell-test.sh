@@ -20,7 +20,20 @@ trap cleanup EXIT
 
 fake_bin="$test_tmp/bin"
 shell_root="$test_tmp/root"
-mkdir -p "$fake_bin" "$shell_root/shell"
+launch_home="$test_tmp/home"
+startup_wallpaper="$test_tmp/Selected wallpaper.webp"
+mkdir -p "$fake_bin" "$shell_root/shell" "$launch_home/.local/state/omarchy/current"
+touch "$startup_wallpaper"
+ln -s "$startup_wallpaper" "$launch_home/.local/state/omarchy/current/background"
+
+# Run a scratch copy of the supervisor with its 1s relaunch backoff and
+# 0.5s compositor probe shortened; the scenarios only need the waiting
+# to happen, not its real duration. The backoff stays well above the
+# 0.05s launch poll below so the signal case lands inside it.
+launch_shell_bin="$test_tmp/omarchy-launch-shell"
+sed -e 's/^  sleep 1$/  sleep 0.3/' -e 's/sleep 0.5$/sleep 0.05/' \
+  "$ROOT/bin/omarchy-launch-shell" >"$launch_shell_bin"
+chmod +x "$launch_shell_bin"
 
 # Each launch consumes the next status from OMARCHY_TEST_QS_STATUSES; "run"
 # stands in for a healthy shell that keeps going until stopped.
@@ -28,8 +41,8 @@ cat >"$fake_bin/quickshell" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
-printf 'watcher=%s popup=%s\n' \
-  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
+printf 'watcher=%s popup=%s background=%s\n' \
+  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
 
 launches=$(wc -l <"$OMARCHY_TEST_QS_LOG")
 status=$(awk -v n="$launches" 'NR == n { print; found = 1 } END { if (!found) print "0" }' <<<"$OMARCHY_TEST_QS_STATUSES")
@@ -90,6 +103,7 @@ launch_shell() {
   : >"$logger_log"
 
   PATH="$fake_bin:$PATH" \
+  HOME="$launch_home" \
   OMARCHY_PATH="$shell_root" \
   OMARCHY_TEST_QS_LOG="$qs_log" \
   OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
@@ -99,7 +113,7 @@ launch_shell() {
   OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
   OMARCHY_TEST_HYPRCTL_MISSES="${3:-0}" \
   OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
-    timeout 30 "$ROOT/bin/omarchy-launch-shell"
+    timeout 30 "$launch_shell_bin"
 }
 
 launches() {
@@ -113,9 +127,11 @@ pass "a shell that exits cleanly is left alone"
 
 # A misspelled variable would leave Quickshell hot-reloading the tree pacman
 # rewrites underneath it, which is what crashes the restart that follows.
-[[ $(<"$qs_env_log") == "watcher=1 popup=1" ]] ||
+[[ $(<"$qs_env_log") == "watcher=1 popup=1 "* ]] ||
   fail "the shell launches with Quickshell's own reloading off" "$(<"$qs_env_log")"
 pass "the shell launches with Quickshell's config watcher and reload popup off"
+[[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
+pass "the selected wallpaper can decode as soon as Quickshell starts"
 
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
@@ -152,7 +168,7 @@ OMARCHY_TEST_QS_STATUSES=$'255\n0' \
 OMARCHY_TEST_COMPOSITOR_GONE=0 \
 OMARCHY_TEST_LOGGER_LOG="$logger_log" \
 OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
-  "$ROOT/bin/omarchy-launch-shell" &
+  "$launch_shell_bin" &
 launch_pid=$!
 
 for (( waited = 0; waited < 100; waited++ )); do
@@ -181,7 +197,7 @@ OMARCHY_TEST_QS_STATUSES='run' \
 OMARCHY_TEST_COMPOSITOR_GONE=0 \
 OMARCHY_TEST_LOGGER_LOG="$logger_log" \
 OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
-  "$ROOT/bin/omarchy-launch-shell" &
+  "$launch_shell_bin" &
 launch_pid=$!
 
 for (( waited = 0; waited < 100; waited++ )); do

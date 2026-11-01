@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // Shared visual chrome for keyboard-and-mouse-navigable items inside a panel.
 // Contract: items must NOT read `containsMouse` for color/border. Pointer
@@ -24,8 +25,8 @@ BorderSurface {
   property bool outline: false
   property bool bordered: false
 
-  property color foreground: Color.foreground
-  property color accent: Color.accent
+  property color foreground: Commons.Color.foreground
+  property color accent: Commons.Color.accent
   property color fill: Style.hoverFillFor(foreground, accent)
   property color currentFill: Style.selectedFillFor(foreground, accent)
 
@@ -41,7 +42,7 @@ BorderSurface {
         : Border.none()))
 
   Behavior on color {
-    ColorAnimation { duration: 60 }
+    ColorAnimation { duration: Style.duration(60) }
   }
 
   // acceptedButtons: NoButton so nested click MouseAreas still receive
