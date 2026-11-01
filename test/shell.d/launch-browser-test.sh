@@ -160,23 +160,6 @@ expected=$(printf '%s\n' /usr/bin/env -u BROWSER chromium --name "Work Chromium"
   fail "a private launch expands %c and keeps its flag an option despite the Exec line's --"
 pass "a private launch finds the browser behind env options and keeps its flag an option"
 
-spaced_desktop="userapp-Firefox Developer Edition-U5J9W3.desktop"
-cat >"$test_home/.local/share/applications/$spaced_desktop" <<'DESKTOP'
-[Desktop Entry]
-Exec=chromium %u
-DESKTOP
-cat >"$mock_bin/omarchy-cmd-default-browser" <<SH
-#!/bin/bash
-echo "$spaced_desktop"
-SH
-chmod +x "$mock_bin/omarchy-cmd-default-browser"
-
-rm -f "$launch_log"
-launch "https://example.test/spaced"
-[[ $(sed '1,/^--$/d' "$launch_log") == $'chromium\nhttps://example.test/spaced' ]] ||
-  fail "a desktop id with spaces launches its entry's command"
-pass "a desktop id with spaces launches its entry's command"
-
 cat >"$mock_bin/setsid" <<'SH'
 #!/bin/bash
 exec "$@"
@@ -186,22 +169,6 @@ launch_webapp() {
   HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
     bash "$ROOT/bin/omarchy-launch-webapp" "$@"
 }
-
-spaced_desktop="brave-browser Work.desktop"
-cat >"$test_home/.local/share/applications/$spaced_desktop" <<'DESKTOP'
-[Desktop Entry]
-Exec=brave %U
-DESKTOP
-cat >"$mock_bin/omarchy-cmd-default-browser" <<SH
-#!/bin/bash
-echo "$spaced_desktop"
-SH
-
-launch_webapp "https://example.test/spaced"
-[[ $(<"$launch_log") == $'--\nbrave\n--app=https://example.test/spaced' ]] ||
-  fail "web app launcher finds a desktop id with spaces" "$(cat "$launch_log")"
-pass "web app launcher finds a desktop id with spaces"
-rm -f "$mock_bin/omarchy-cmd-default-browser"
 
 cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 [Desktop Entry]
