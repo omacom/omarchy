@@ -2009,7 +2009,10 @@ Panel {
         anchors.left: sectionPlan.visible ? sectionPlan.right : sectionName.right
         anchors.leftMargin: Style.space(8)
         anchors.verticalCenter: sectionName.verticalCenter
-        visible: !section.multi && message !== ""
+        // An agent's own accounts each say what's wrong on their own line; a
+        // proxy's trouble (a refused key, an unreachable proxy) is the
+        // proxy's, said once beside its name.
+        visible: (!section.multi || !root.supportsSignIn(section.provider)) && message !== ""
         record: section.provider
       }
 
