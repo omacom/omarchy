@@ -246,6 +246,8 @@ assertDeepEqual(
 )
 assertDeepEqual(network.hotspotClients({ clients: 'garbage' }), [], 'network ignores malformed hotspot clients')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }), 'AA:BB:CC · -42 dBm', 'network labels a hotspot client with signal')
+const persianDigits = n => String(n).replace(/[0-9]/g, d => String.fromCharCode(0x06f0 + Number(d)))
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }, persianDigits), 'AA:BB:CC · -۴۲ dBm', 'network writes a hotspot client signal in the language digits')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc' }), 'AA:BB:CC', 'network labels a hotspot client without signal')
 assertEqual(network.hotspotClientLabel({}), '', 'network labels an empty hotspot client')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5', hostname: 'pixel-8' }), 'pixel-8 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network leads a named client with its name')
@@ -313,8 +315,16 @@ if (syncWifiSource) {
 const menuSource = fs.readFileSync(root + '/default/omarchy/omarchy-menu.jsonc', 'utf8')
 const menuNetworkCalls = [...menuSource.matchAll(/shell call omarchy\.network (\w+)/g)].map(m => m[1])
 assert(menuNetworkCalls.length > 0, 'the menu calls the network panel')
+const ipcHandler = panelSource.match(/ShellIpc \{[\s\S]*?target: "omarchy\.network"([\s\S]*?)\n  \}/)
+assert(ipcHandler, 'the network panel has an IPC handler')
 for (const method of menuNetworkCalls) {
-  assert(new RegExp('function ' + method + '\\(\\) \\{ root\\.' + method + '\\(\\) \\}').test(panelSource), 'the network panel answers the menu call ' + method)
+  const wrapper = ipcHandler && ipcHandler[1].match(new RegExp('function ' + method + '\\([^)]*\\) \\{[^\\n]*\\}'))
+  assert(wrapper, 'the network panel answers the menu call ' + method)
+  if (!wrapper) continue
+  const calls = []
+  const root = new Proxy({}, { get: (_, name) => (...args) => calls.push(name) })
+  new Function('root', wrapper[0] + '\nreturn ' + method)(root)()
+  assertEqual(calls.join(','), method, 'the menu call ' + method + ' reaches the panel method of that name')
 }
 
 const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
@@ -322,6 +332,7 @@ assert(updateHotspotSource, 'network accepts a hotspot process result')
 if (updateHotspotSource) {
   let hotspot = {}
   let hotspotLoaded = false
+  let hotspotEdited = false
   let hotspotBands = []
   let hotspotSsid = ''
   let hotspotPassword = ''
@@ -332,6 +343,19 @@ if (updateHotspotSource) {
   let syncs = 0
   function syncWifiNetworks() { syncs++ }
   eval(updateHotspotSource[0])
+
+  // What the user typed while the first status was still running stays.
+  hotspotEdited = true
+  hotspotSsid = 'Typed Name'
+  hotspotPassword = 'typedpassword'
+  hotspotBand = '2.4'
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
+  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4', 'a late first status keeps hotspot fields the user already edited')
+  hotspotLoaded = false
+  hotspotEdited = false
+  hotspotSsid = ''
+  hotspotPassword = ''
+  hotspotBand = ''
 
   updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
   assert(hotspot.ssid === 'Saved Hotspot' && hotspotLoaded && hotspotSsid === 'Saved Hotspot' && hotspotPassword === 'savedpassword' && hotspotBand === '5', 'network loads saved hotspot state only from successful output')

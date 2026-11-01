@@ -465,11 +465,13 @@ function hotspotClients(status) {
 // What to call a client: the name the network gave it when there is one, then
 // its address, then the MAC. The name and address arrive from the network, so
 // they are only rendered in the shapes the status parser allows and the text is
-// plain either way.
-function hotspotClientLabel(client) {
+// plain either way. formatNumber writes the signal in the language's digits
+// (I18n.formatNumber).
+function hotspotClientLabel(client, formatNumber) {
   var c = client || {}
   var mac = String(c.mac || "").toUpperCase()
   var signal = parseInt(c.signal, 10)
+  var format = typeof formatNumber === "function" ? formatNumber : String
   if (!mac) return ""
   var parts = []
   var hostname = String(c.hostname || "")
@@ -478,7 +480,7 @@ function hotspotClientLabel(client) {
   else if (address !== "") parts.push(address)
   parts.push(mac)
   var label = parts.join(" \u00b7 ")
-  if (isFinite(signal)) label += " \u00b7 " + signal + " dBm"
+  if (isFinite(signal)) label += " \u00b7 " + format(signal) + " dBm"
   return label
 }
 
