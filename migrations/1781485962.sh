@@ -1,4 +1,6 @@
 echo "Move stock Hyprland user overrides into package defaults"
+omarchy-edition-desktop || exit 0
+
 
 stock_input_sha="bf7602d679a31da028528d9b7dac64463217a9df42b254d3baefb7ce35674be5"
 stock_bindings_sha="932d647b07d24907d46c0b7752bb81ad87276ccd057670be6c3a5c5e950c19aa"

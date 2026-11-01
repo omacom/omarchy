@@ -1,0 +1,302 @@
+#!/bin/bash
+
+# omarchy:summary=Enable, disable, or check remote LUKS unlock via SSH in the initramfs
+# omarchy:args=enable|disable|status [--static-ip=<ip/prefix>] [--port=<port>]
+# omarchy:examples=omarchy-server-remote-unlock enable | omarchy-server-remote-unlock enable --port=2222 | omarchy-server-remote-unlock enable --static-ip=192.168.1.100/24 | omarchy-server-remote-unlock disable | omarchy-server-remote-unlock status
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+ACTION="${1:-}"
+STATIC_IP=""
+DROPBEAR_PORT="2222"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-server-remote-unlock enable|disable|status [options]
+
+Enable remote LUKS unlock via SSH in the initramfs using dropbear.
+
+Commands:
+  enable   Enable remote unlock (installs packages, configures SSH, regenerates initramfs)
+  disable  Disable remote unlock (removes configuration, regenerates initramfs)
+  status   Show current status
+
+Options (for enable):
+  --static-ip=<ip/prefix>  Configure static IP (e.g., 192.168.1.100/24) instead of DHCP
+  --port=<port>            SSH port in initramfs (default: 2222, avoids conflict with main sshd)
+
+Requirements:
+  - Server edition only
+  - Encrypted root filesystem
+  - At least one SSH key in ~/.ssh/authorized_keys
+
+The initramfs SSH server uses your authorized SSH keys. To unlock remotely:
+  ssh -p <port> root@<ip> cryptroot-unlock
+
+Example:
+  omarchy-server-remote-unlock enable
+  omarchy-server-remote-unlock enable --static-ip=192.168.1.100/24 --port=2222
+  omarchy-server-remote-unlock disable
+USAGE
+}
+
+if [[ ${ACTION:-} == "--help" || ${ACTION:-} == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if ! omarchy-edition-server; then
+  echo "Error: remote LUKS unlock is only available on the server edition." >&2
+  exit 1
+fi
+
+shift || true
+while (( $# > 0 )); do
+  case "$1" in
+    --static-ip=*) STATIC_IP="${1#--static-ip=}" ;;
+    --port=*) DROPBEAR_PORT="${1#--port=}" ;;
+    *)
+      echo "Error: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+MKINITCPIO_DROPBEAR_CONF="/etc/mkinitcpio.conf.d/omarchy-remote-unlock.conf"
+DROPBEAR_DIR="/etc/dropbear"
+INITRAMFS_DROPBEAR_DIR="/etc/initcpio/dropbear"
+CMDLINE_FILE="/etc/kernel/cmdline"
+
+has_encrypted_root() {
+  [[ -e /dev/mapper/cryptroot ]] || lsblk -nlo TYPE | grep -q crypt
+}
+
+get_authorized_keys() {
+  local keys_file="$HOME/.ssh/authorized_keys"
+  [[ -f $keys_file && -s $keys_file ]] || return 1
+  cat "$keys_file"
+}
+
+install_packages() {
+  echo "Installing dropbear and network configuration for initramfs..."
+  omarchy-pkg-add mkinitcpio-dropbear mkinitcpio-netconf mkinitcpio-utils
+}
+
+configure_dropbear_keys() {
+  echo "Configuring dropbear SSH keys in initramfs..."
+  
+  local keys
+  if ! keys=$(get_authorized_keys); then
+    echo "Error: No SSH keys found in ~/.ssh/authorized_keys" >&2
+    echo "Run 'omarchy setup security sshd' first to authorize your SSH key." >&2
+    exit 1
+  fi
+  
+  sudo mkdir -p "$INITRAMFS_DROPBEAR_DIR"
+  echo "$keys" | sudo tee "$INITRAMFS_DROPBEAR_DIR/authorized_keys" >/dev/null
+  sudo chmod 600 "$INITRAMFS_DROPBEAR_DIR/authorized_keys"
+  
+  if [[ ! -f "$DROPBEAR_DIR/dropbear_ed25519_host_key" ]]; then
+    echo "Generating persistent dropbear host key..."
+    sudo mkdir -p "$DROPBEAR_DIR"
+    sudo dropbearkey -t ed25519 -f "$DROPBEAR_DIR/dropbear_ed25519_host_key" >/dev/null 2>&1
+  else
+    echo "Using existing dropbear host key (fingerprint stays stable)."
+  fi
+  
+  sudo mkdir -p /etc/dropbear/initramfs
+  sudo cp "$DROPBEAR_DIR/dropbear_ed25519_host_key" /etc/dropbear/initramfs/
+}
+
+configure_mkinitcpio_hooks() {
+  echo "Adding netconf and dropbear hooks to mkinitcpio..."
+  
+  sudo tee "$MKINITCPIO_DROPBEAR_CONF" >/dev/null <<CONF
+# Remote LUKS unlock via SSH in initramfs
+# Added by omarchy-server-remote-unlock
+
+# Insert netconf and dropbear before encrypt hook
+_omarchy_remote_unlock_hooks=()
+_omarchy_has_encrypt=0
+for _omarchy_hook in "\${HOOKS[@]}"; do
+  if [[ \$_omarchy_hook == "encrypt" ]]; then
+    _omarchy_remote_unlock_hooks+=(netconf dropbear encryptssh)
+    _omarchy_has_encrypt=1
+  fi
+  _omarchy_remote_unlock_hooks+=("\$_omarchy_hook")
+done
+
+if (( _omarchy_has_encrypt )); then
+  HOOKS=("\${_omarchy_remote_unlock_hooks[@]}")
+fi
+unset _omarchy_remote_unlock_hooks _omarchy_has_encrypt _omarchy_hook
+CONF
+  
+  echo "Port $DROPBEAR_PORT" | sudo tee /etc/dropbear/dropbear.conf >/dev/null
+}
+
+configure_network() {
+  local ip_config
+  if [[ -n $STATIC_IP ]]; then
+    echo "Configuring static IP $STATIC_IP for initramfs..."
+    ip_config="ip=$STATIC_IP"
+  else
+    echo "Configuring DHCP for initramfs..."
+    ip_config="ip=dhcp"
+  fi
+  
+  if [[ -f $CMDLINE_FILE ]]; then
+    if grep -q "^ip=" "$CMDLINE_FILE"; then
+      sudo sed -i "s|^ip=.*|$ip_config|" "$CMDLINE_FILE"
+    else
+      echo "$ip_config" | sudo tee -a "$CMDLINE_FILE" >/dev/null
+    fi
+  else
+    echo "$ip_config" | sudo tee "$CMDLINE_FILE" >/dev/null
+  fi
+}
+
+rebuild_initramfs() {
+  echo "Rebuilding initramfs and updating bootloader..."
+  sudo mkinitcpio -P
+  
+  if command -v limine-mkinitcpio >/dev/null 2>&1; then
+    sudo limine-mkinitcpio
+  fi
+}
+
+show_connection_info() {
+  local ip_addr
+  ip_addr=$(ip -4 -o addr show scope global | head -1 | awk '{print $4}' | cut -d/ -f1)
+  [[ -z $ip_addr ]] && ip_addr="<your-server-ip>"
+  
+  local fingerprint
+  if [[ -f "$DROPBEAR_DIR/dropbear_ed25519_host_key" ]]; then
+    fingerprint=$(sudo dropbearkey -y -f "$DROPBEAR_DIR/dropbear_ed25519_host_key" 2>/dev/null | grep Fingerprint | cut -d: -f2- || echo "unavailable")
+  else
+    fingerprint="unavailable"
+  fi
+  
+  cat <<INFO
+
+Remote LUKS unlock is now enabled!
+
+To unlock your encrypted root during boot from a remote machine:
+
+  1. Connect via SSH (you'll need to confirm the host key on first connect):
+     ssh -p $DROPBEAR_PORT root@$ip_addr
+
+  2. Unlock the encrypted root:
+     cryptroot-unlock
+
+  Host key fingerprint:$fingerprint
+
+The initramfs will drop you to the unlock shell automatically. Type the
+passphrase when prompted, or run cryptroot-unlock manually.
+
+INFO
+
+  if [[ -n $STATIC_IP ]]; then
+    echo "Static IP configured: $STATIC_IP"
+  else
+    echo "Network: DHCP (IP may change on each boot)"
+  fi
+}
+
+enable_remote_unlock() {
+  if ! has_encrypted_root; then
+    echo "Error: No encrypted root filesystem detected." >&2
+    echo "Remote unlock is only useful for encrypted installations." >&2
+    exit 1
+  fi
+  
+  install_packages
+  configure_dropbear_keys
+  configure_mkinitcpio_hooks
+  configure_network
+  rebuild_initramfs
+  show_connection_info
+}
+
+disable_remote_unlock() {
+  echo "Disabling remote LUKS unlock..."
+  
+  if [[ -f $MKINITCPIO_DROPBEAR_CONF ]]; then
+    sudo rm -f "$MKINITCPIO_DROPBEAR_CONF"
+  fi
+  
+  if [[ -f $CMDLINE_FILE ]]; then
+    sudo sed -i '/^ip=/d' "$CMDLINE_FILE"
+  fi
+  
+  echo "Rebuilding initramfs without remote unlock..."
+  rebuild_initramfs
+  
+  echo "Remote LUKS unlock has been disabled."
+  echo "The dropbear packages are still installed (safe to remove with omarchy pkg drop)."
+}
+
+show_status() {
+  echo "Remote LUKS unlock status:"
+  echo
+  
+  if [[ -f $MKINITCPIO_DROPBEAR_CONF ]]; then
+    echo "  Status: ENABLED"
+    
+    if [[ -f /etc/dropbear/dropbear.conf ]]; then
+      port=$(grep -oP '(?<=^Port )[0-9]+' /etc/dropbear/dropbear.conf || echo "2222")
+      echo "  Port: $port"
+    fi
+    
+    if [[ -f $CMDLINE_FILE ]] && grep -q "^ip=" "$CMDLINE_FILE"; then
+      ip_config=$(grep "^ip=" "$CMDLINE_FILE")
+      echo "  Network: $ip_config"
+    else
+      echo "  Network: DHCP (default)"
+    fi
+    
+    if [[ -f "$DROPBEAR_DIR/dropbear_ed25519_host_key" ]]; then
+      fingerprint=$(sudo dropbearkey -y -f "$DROPBEAR_DIR/dropbear_ed25519_host_key" 2>/dev/null | grep Fingerprint | cut -d: -f2- || echo "unavailable")
+      echo "  Host key fingerprint:$fingerprint"
+    fi
+    
+    if [[ -f "$INITRAMFS_DROPBEAR_DIR/authorized_keys" ]]; then
+      key_count=$(sudo wc -l < "$INITRAMFS_DROPBEAR_DIR/authorized_keys")
+      echo "  Authorized keys: $key_count"
+    fi
+  else
+    echo "  Status: DISABLED"
+  fi
+  
+  echo
+  if has_encrypted_root; then
+    echo "  Encrypted root: YES"
+  else
+    echo "  Encrypted root: NO (remote unlock not applicable)"
+  fi
+}
+
+case "${ACTION}" in
+  enable)
+    enable_remote_unlock
+    ;;
+  disable)
+    disable_remote_unlock
+    ;;
+  status)
+    show_status
+    ;;
+  "")
+    echo "Error: no action specified" >&2
+    usage >&2
+    exit 1
+    ;;
+  *)
+    echo "Error: unknown action '$ACTION'" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
