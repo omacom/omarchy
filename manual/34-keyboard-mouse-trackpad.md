@@ -49,7 +49,7 @@ hl.config({
 
 ### Function keys
 
-The top row of a laptop keyboard sends the media keys (volume, brightness and so on) by default, and holding `Fn` gives F1-F12; `Fn + Esc` locks it the other way round until you press it again. Most keyboards remember that lock themselves. ASUS laptops and Apple-style keyboards leave it to Linux, which starts them on the media keys at every boot. Apple Silicon Macs keep their own setting.
+The top row of a laptop keyboard sends the media keys (volume, brightness and so on) by default, and holding `Fn` gives F1-F12; `Fn + Esc` locks it the other way round until you press it again. Most keyboards remember that lock themselves. ASUS laptops and Apple-style keyboards leave it to Linux, which starts them on the media keys at every boot. To have them start on F1-F12 instead, run `omarchy keyboard toprow fnkeys` (and `omarchy keyboard toprow mediakeys` to go back); on some laptops it takes effect after a reboot. Apple Silicon Macs keep their own setting.
 
 ### Trackpad gestures
 

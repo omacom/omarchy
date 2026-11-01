@@ -14,8 +14,8 @@ fi
 # An Fn-lock option already set is the administrator's choice; leave it.
 if [[ ! -f $conf ]] && ! grep -qsE '^[[:space:]]*options[[:space:]]+hid_asus[[:space:]].*fnlock_default=' /etc/modprobe.d/*.conf; then
   sudo install -Dm644 /dev/stdin "$conf" <<'CONF'
-# Written by Omarchy: the top row sends the media keys by default, and Fn
-# (Fn+Esc to lock it) gives F1-F12.
+# Written by omarchy-keyboard-toprow: the top row sends the media keys by default,
+# and Fn (Fn+Esc to lock it) gives F1-F12.
 options hid_apple fnmode=1
 options hid_asus fnlock_default=0
 options asus_wmi fnlock_default=0
