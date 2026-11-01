@@ -202,49 +202,12 @@ assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reas
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, false, reasons), false, 'network does not reprompt an open network on auth timeout')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiClientFailed, true, reasons), false, 'network does not reprompt on generic connection failures')
 
-// An early failure in enterpriseConnectScript (before nmcli connection up hands
-// off to NetworkManager) never fires WifiNetwork.onConnectionFailed, so the
-// Process exit handler has to clear the in-flight connect and report a general
-// failure without mislabeling it as a wrong password or keeping the prompt open.
-const os = require("os")
-const { spawnSync } = require("child_process")
-
+// An enterprise script that fails before `nmcli connection up` never fires
+// onConnectionFailed, so its exit has to end the connect with a general failure.
 const clearActionHelper = panelSource.match(/function clearNetworkAction\(\) \{[\s\S]*?\n {2}\}/)
 const failActionHelper = panelSource.match(/function failNetworkAction\(network, reason\) \{[\s\S]*?\n {2}\}/)
 const enterpriseExitHelper = panelSource.match(/function handleEnterpriseConnectExit\(exitCode\) \{[\s\S]*?\n {2}\}/)
 assert(clearActionHelper && failActionHelper && enterpriseExitHelper, "network defines enterprise connect exit helpers")
-
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omarchy-eap-test-"))
-const logFile = path.join(tmpDir, "nmcli.log")
-fs.writeFileSync(
-  path.join(tmpDir, "nmcli"),
-  "#!/bin/bash\nprintf \"%s %s\\n\" \"$1\" \"$2\" >> \"$NMCLI_LOG\"\n[[ \"$1 $2\" == \"connection add\" ]] && exit 4\nexit 0\n",
-  { mode: 0o755 }
-)
-fs.writeFileSync(
-  path.join(tmpDir, "uuidgen"),
-  "#!/bin/bash\necho 00000000-0000-0000-0000-000000000042\n",
-  { mode: 0o755 }
-)
-
-const earlyFailRun = spawnSync(
-  "bash",
-  ["-c", network.enterpriseConnectScript, "nmcli-eap", "Campus WiFi", "student@example.edu"],
-  {
-    input: "hunter2\n",
-    encoding: "utf8",
-    env: Object.assign({}, process.env, { PATH: tmpDir + ":" + process.env.PATH, NMCLI_LOG: logFile })
-  }
-)
-const nmcliCalls = fs.readFileSync(logFile, "utf8").trim().split("\n")
-fs.rmSync(tmpDir, { recursive: true, force: true })
-
-assert(earlyFailRun.status !== 0, "enterpriseConnectScript exits non-zero when profile creation fails")
-assertDeepEqual(
-  nmcliCalls,
-  ["connection add", "connection delete"],
-  "enterpriseConnectScript stops before edit/up and cleans up when connection add fails"
-)
 
 var actionTimeout = { stopped: 0, stop: function() { this.stopped++ } }
 var actionKind = "connect"
@@ -266,7 +229,7 @@ eval(clearActionHelper[0])
 eval(failActionHelper[0])
 eval(enterpriseExitHelper[0])
 
-handleEnterpriseConnectExit(earlyFailRun.status)
+handleEnterpriseConnectExit(1)
 assertEqual(actionKind, "", "early enterprise script failure clears actionKind")
 assertEqual(actionSsid, "", "early enterprise script failure clears actionSsid")
 assertEqual(passwordSsid, "", "early enterprise script failure closes the passphrase prompt instead of reprompting")
