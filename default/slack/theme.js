@@ -11,7 +11,12 @@
       // the observer calls this on each DOM change. Look at most once a second,
       // and give up after a minute on a Slack build whose actions have moved.
       const now = Date.now();
-      if (state.lookedAt !== undefined && now - state.lookedAt < 1000) return;
+      if (state.lookedAt !== undefined && now - state.lookedAt < 1000) {
+        // Slack can finish loading inside that second and then go quiet, so
+        // look again once it's up instead of waiting for another DOM change.
+        state.retry ??= setTimeout(() => { state.retry = undefined; state.apply(); }, 1000 - (now - state.lookedAt));
+        return;
+      }
       state.lookedAt = now;
       state.firstLook ??= now;
       const values = Object.values(state.runtime.c).flatMap(module => Object.values(module.exports || {}));
@@ -41,6 +46,8 @@
       store.dispatch(mode(scheme));
     }
     client.dispatch(mode(scheme));
+    clearTimeout(state.retry);
+    state.retry = undefined;
     state.observer?.disconnect();
     return true;
   };

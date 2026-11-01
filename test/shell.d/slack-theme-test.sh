@@ -14,18 +14,20 @@ const fs = require('fs')
 const source = fs.readFileSync(path.join(root, 'default/slack/theme.js'), 'utf8')
 
 function slack(withActions) {
-  const sandbox = { looks: 0, now: 0, dispatched: [], observing: false }
+  const sandbox = { looks: 0, now: 0, dispatched: [], observing: false, ready: withActions }
   const store = { dispatch: action => sandbox.dispatched.push(action) }
-  const exports = withActions ? {
+  const actions = {
     a: Object.assign(() => ({ T1: store }), { meta: { key: 'getStoreInstanceMap' } }),
     b: Object.assign(() => store, { meta: { key: 'tryGetClientStoreInstance' } }),
     c: Object.assign(action => ({ pref: action }), { meta: { key: 'createActionSetUserPref' } }),
     d: Object.assign(scheme => ({ mode: scheme }), { meta: { key: 'createActionSetClientThemeInternal' } })
-  } : { a: () => {} }
-  const runtime = { c: { module: { get exports() { sandbox.looks++; return exports } } } }
+  }
+  const runtime = { c: { module: { get exports() { sandbox.looks++; return sandbox.ready ? actions : { a: () => {} } } } } }
   sandbox.window = { rspackChunkGantryV2: { push: chunk => chunk[2](runtime) } }
   sandbox.document = {}
   sandbox.Date = { now: () => sandbox.now }
+  sandbox.setTimeout = callback => { sandbox.timer = callback }
+  sandbox.clearTimeout = () => { sandbox.timer = undefined }
   sandbox.MutationObserver = class {
     constructor(callback) { sandbox.mutate = callback }
     observe() { sandbox.observing = true }
@@ -45,6 +47,15 @@ assertEqual(unknown.looks, 1, 'a Slack build without the actions is searched at 
 unknown.now = 61000
 unknown.mutate()
 assert(!unknown.observing, 'theme.js stops watching a Slack build without the actions after a minute')
+
+const late = slack(false)
+late.theme(colors)
+late.now = 500
+late.ready = true
+late.mutate()
+late.now = 1000
+late.timer()
+assertEqual(late.dispatched.length, 3, 'actions that load inside the skipped second still get themed once Slack goes quiet')
 
 const known = slack(true)
 known.theme(colors)
