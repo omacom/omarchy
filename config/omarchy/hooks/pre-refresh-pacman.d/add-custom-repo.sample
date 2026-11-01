@@ -11,7 +11,7 @@
 #
 # To put it into use, remove .sample from this file name.
 
-# Example: add an Include line above [core].
+# Example: add an Include line above the first repository, [omarchy].
 # Maintain the repo entries in /etc/pacman.d/custom-repos.conf yourself.
 
 CONF=/etc/pacman.conf
@@ -21,4 +21,4 @@ MARKER="Include = $SNIPPET"
 [[ -r $SNIPPET ]] || exit 0
 grep -qxF "$MARKER" "$CONF" && exit 0
 
-sudo sed -i "0,/^\[core\]/s||$MARKER\n\n[core]|" "$CONF"
+sudo sed -i "0,/^\[omarchy\]/s||$MARKER\n\n[omarchy]|" "$CONF"
