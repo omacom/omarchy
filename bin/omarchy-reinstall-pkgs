@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# omarchy:summary=Reinstall all default Omarchy packages from the stable channel, or on aarch64 the edge channel
+# omarchy:summary=Reinstall all default Omarchy packages from the stable channel, or on Apple Silicon the edge channel
 # omarchy:requires-sudo=true
 
 set -e
 
 # Reinstall all default Omarchy packages from the platform's default channel
-# (stable, or edge on aarch64) and downgrade any packages that are too new.
+# (stable, or edge on Apple Silicon) and downgrade any packages that are too new.
 
 # Set the package repository to the platform's default channel
 source "$OMARCHY_PATH/install/helpers/pacman.sh"
@@ -20,4 +20,6 @@ omarchy-update-pacman -Suu --noconfirm
 # Ensure this platform's default packages are installed
 default_packages=$(omarchy-pkg-defaults)
 mapfile -t packages <<<"$default_packages"
-omarchy-update-pacman -Syu --noconfirm --needed "${packages[@]}"
+# --ask 4 accepts removing a stock package a default replaces, such as
+# power-profiles-daemon for omarchy-power-profiles-daemon.
+omarchy-update-pacman -Syu --noconfirm --ask 4 --needed "${packages[@]}"

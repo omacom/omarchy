@@ -46,7 +46,9 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
-if omarchy-cmd-missing "$agent"; then
+# OpenClaw's launcher sets OpenClaw up when the package became the seed before
+# this user's OpenClaw moved, so with the package a missing command is its to fix.
+if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
 fi
@@ -138,18 +140,99 @@ kimi)
     command=(kimi --yolo)
   fi
   ;;
+qwen)
+  # Bind the value so a prompt starting with a dash stays literal.
+  command=(qwen --yolo)
+  [[ -n ${prompt:-} ]] && command+=("--prompt-interactive=$prompt")
+  ;;
+dsh)
+  # The browser UI has no prompt option, and the headless profile would run the
+  # prompt with full access in a window that closes with its answer, so a
+  # prompt goes to the clipboard below instead.
+  command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
+  prompt_via_clipboard="DeepSeek Harness"
+  ;;
+mcode)
+  # The TUI has no no-approval flag; permission options belong to exec mode.
+  command=(mcode)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+kiro-cli)
+  # A positional input seeds the interactive chat; -- keeps a prompt starting
+  # with a dash literal.
+  command=(kiro-cli chat --trust-all-tools)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+freebuff)
+  # Freebuff takes no starting prompt and asks no tool permissions, so a
+  # prompt goes to the clipboard below instead.
+  command=(freebuff)
+  prompt_via_clipboard="Freebuff"
+  ;;
+kilo)
+  # Kilo is built on OpenCode and shares its flags. Bind the prompt so one
+  # starting with a dash stays literal.
+  command=(kilo --auto)
+  [[ -n ${prompt:-} ]] && command+=("--prompt=$prompt")
+  ;;
+devin)
+  # A bare positional is a path that opens Devin Desktop, so the prompt
+  # always follows --, which starts an interactive session with it.
+  command=(devin --permission-mode dangerous --respect-workspace-trust false)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+amp)
+  # Amp takes its first interactive message from piped input; a positional
+  # message is for --execute, which exits after one turn. The binary rides in
+  # as $0 so a user install below can replace it.
+  if [[ -n ${prompt:-} ]]; then
+    command=(bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "$prompt")
+  else
+    command=(amp --dangerously-allow-all)
+  fi
+  ;;
+commandcode)
+  # --yolo skips permission prompts and implies --trust. A positional prompt
+  # seeds the interactive session; -- keeps one starting with a dash literal.
+  command=(commandcode --yolo)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
   ;;
 esac
 
-# A user-installed Cursor or Muse still wins in the agent launcher even when
-# mise's system lazy shim is earlier on PATH.
-if [[ $agent == "cursor-agent" || $agent == "muse" ]] &&
-  [[ -f $HOME/.local/bin/$agent && -x $HOME/.local/bin/$agent ]] &&
-  { [[ -L $HOME/.local/bin/$agent ]] || ! grep -q '^mise use -g' "$HOME/.local/bin/$agent"; }; then
-  command[0]="$HOME/.local/bin/$agent"
+# An agent with no way to take a starting prompt still opens, with the prompt
+# on the clipboard to paste as its first message, so a prompted launch from the
+# agents panel or a crash report is not lost.
+if [[ -n ${prompt:-} && -n ${prompt_via_clipboard:-} ]]; then
+  printf '%s' "$prompt" | wl-copy
+  omarchy-notification-send -g 󰅇 "$(omarchy-i18n agents.promptOnClipboard "$prompt_via_clipboard")" \
+    "$(omarchy-i18n agents.promptOnClipboardBody)"
+fi
+
+# omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
+# lines of their own and older ones after an inline variable; either way
+# running one installs the tool it wraps. A symlink is the user's own install.
+mise_wrapper() {
+  [[ ! -L $1 ]] && head -c 4096 "$1" | grep -qaE 'mise (use|x) '
+}
+
+# The user's own install in ~/.local/bin, which omarchy-default-agent counts as
+# installed, still wins over mise's lazy shim earlier on PATH, which would
+# install and run mise's copy instead. Once mise has installed its own, a
+# terminal runs that one, so the launcher does too. OpenClaw's command runs its
+# launcher, so its prompt is the only argument that could match the name.
+user_install="$HOME/.local/bin/$agent"
+if [[ $agent != "openclaw" && -f $user_install && -x $user_install ]] &&
+  ! mise_wrapper "$user_install" && ! MISE_OFFLINE=1 mise which "$agent" &>/dev/null; then
+  for i in "${!command[@]}"; do
+    if [[ ${command[i]} == "$agent" ]]; then
+      command[i]=$user_install
+      break
+    fi
+  done
 fi
 
 # A new session uses the current selection rather than its parent's account
