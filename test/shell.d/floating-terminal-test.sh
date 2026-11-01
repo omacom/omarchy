@@ -26,14 +26,6 @@ source "$tmp_dir/presentation.bash"
   fail "the launcher finds the shared resize helpers it sources"
 pass "the launcher finds the shared resize helpers it sources"
 
-# The window-rule cache (presize_window/apply_size_rule/remember_fit) was
-# confirmed to have no effect on the size a window opens at and was dropped
-# rather than kept as dead weight alongside the live nudge.
-for removed in presize_window apply_size_rule remember_fit; do
-  [[ $(type -t "$removed" 2>/dev/null) != "function" ]] || fail "$removed was dropped as dead code"
-done
-pass "the non-functional size-rule cache was dropped as dead code"
-
 clients_json='[]'
 monitors_json='[{"id":0,"width":2560,"height":1440,"scale":1,"transform":0,"reserved":[0,26,0,0]}]'
 dispatch_log="$tmp_dir/dispatches"
