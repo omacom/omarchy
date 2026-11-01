@@ -7,8 +7,8 @@ hl.on("hyprland.start", function()
     hl.env("XCURSOR_THEME", omarchy_startup_cursor.xcursor)
   end
 
-  -- Slow app launch fix -- set systemd vars before starting session services.
-  hl.exec_cmd("systemctl --user import-environment $(env | cut -d'=' -f 1)")
+  -- Slow app launch fix -- set systemd and D-Bus activation vars before
+  -- starting session services.
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
 
   hl.exec_cmd("omarchy-launch-shell")
@@ -16,6 +16,11 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("omarchy-powerprofiles-init")
   hl.exec_cmd(o.launch("omarchy-hyprland-monitor-watch"))
   hl.exec_cmd(o.launch("udiskie --automount --no-notify --no-tray"))
+
+  -- Start the herdr server inside the graphical session so its panes inherit
+  -- WAYLAND_DISPLAY. Otherwise the first SSH login from a remote herdr starts
+  -- it with a tty environment, and agents in its panes can't read the clipboard.
+  hl.exec_cmd(o.launch("herdr server"))
 
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
