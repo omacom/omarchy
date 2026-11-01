@@ -55,6 +55,10 @@ printf 'options hid_apple fnmode=2\n' >"$modprobe_dir/hid_apple.conf"
 run_fkeys 0
 [[ ! -e $conf && $(<"$modprobe_dir/hid_apple.conf") == "options hid_apple fnmode=2" ]] ||
   fail "setup keeps the F-keys an existing install already has"
+rm -f "$modprobe_dir/hid_apple.conf"
+printf 'options asus_wmi fnlock_default=1\n' >"$modprobe_dir/asus.conf"
+run_fkeys 0
+[[ ! -e $conf ]] || fail "setup keeps an administrator's own asus_wmi Fn-lock"
 pass "setup keeps the F-keys an existing install already has"
 
 rm -rf "$modprobe_dir"

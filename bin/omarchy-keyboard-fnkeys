@@ -68,33 +68,37 @@ options hid_apple fnmode=$fnmode
 options hid_asus fnlock_default=$fnlock
 options asus_wmi fnlock_default=$fnlock"
 
-# A rebuild that failed last time is still owed, even with the file in place.
-changed=0
-[[ -e $rebuild_pending ]] && changed=1
-
 # Omarchy wrote these before this command existed. An administrator's own
 # versions stay, and this file overrides them.
 legacy_apple="options hid_apple fnmode=2"
 legacy_asus="# ASUS ProArt P14: the top row sends media keys by default; Fn+Esc switches to F1-F12.
 options hid_asus fnlock_default=0"
+legacy=()
 if [[ -f $modprobe_dir/hid_apple.conf && $(<"$modprobe_dir/hid_apple.conf") == "$legacy_apple" ]]; then
-  sudo rm -f "$modprobe_dir/hid_apple.conf"
-  changed=1
+  legacy+=("$modprobe_dir/hid_apple.conf")
 fi
 if [[ -f $modprobe_dir/hid_asus.conf && $(<"$modprobe_dir/hid_asus.conf") == "$legacy_asus" ]]; then
-  sudo rm -f "$modprobe_dir/hid_asus.conf"
-  changed=1
+  legacy+=("$modprobe_dir/hid_asus.conf")
 fi
 
-if [[ ! -f $conf || $(<"$conf") != "$content" ]]; then
-  printf '%s\n' "$content" | sudo install -Dm644 /dev/stdin "$conf"
-  changed=1
-fi
-
-if (( ! changed )); then
+# A rebuild that failed or was interrupted last time is still owed, even with
+# the file in place.
+if [[ ! -e $rebuild_pending && -f $conf && $(<"$conf") == "$content" ]] && (( ${#legacy[@]} == 0 )); then
   echo "The top row already sends $first by default."
   exit 0
 fi
+
+# A loaded HID keyboard driver is in the boot image, with the options it had
+# when that was built. Record the rebuild before changing anything, so an
+# interrupted run still owes it.
+needs_rebuild=0
+if (( rebuild )) && [[ -d $sys_module/hid_asus || -d $sys_module/hid_apple ]]; then
+  needs_rebuild=1
+  sudo install -Dm644 /dev/null "$rebuild_pending"
+fi
+
+(( ${#legacy[@]} == 0 )) || sudo rm -f "${legacy[@]}"
+printf '%s\n' "$content" | sudo install -Dm644 /dev/stdin "$conf"
 
 # hid_apple takes the change right away; the others read it only when they load.
 if [[ -e $sys_module/hid_apple/parameters/fnmode ]]; then
@@ -107,10 +111,7 @@ if [[ ! -d $sys_module/hid_asus && ! -d $sys_module/hid_apple && ! -d $sys_modul
   exit 0
 fi
 
-# A loaded HID keyboard driver is in the boot image, with the options it had
-# when that was built.
-if (( rebuild )) && [[ -d $sys_module/hid_asus || -d $sys_module/hid_apple ]]; then
-  sudo install -Dm644 /dev/null "$rebuild_pending"
+if (( needs_rebuild )); then
   log=$(mktemp)
   trap 'rm -f "$log"' EXIT
   sudo limine-mkinitcpio 2>&1 | tee "$log"
