@@ -179,11 +179,11 @@
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
   // Setup
-  "setup.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
+  "setup.keyboard": {"icon":"","label":"Keyboard"},
+  "setup.keyboard.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
+  "setup.keyboard.inputs": {"icon":"","label":"Keyboard Inputs","action":"omarchy-setup-keyboard"},
+  "setup.keyboard.input-methods": {"icon":"","label":"Input Methods","action":"omarchy-setup-input"},
   "setup.input": {"icon":"","label":"Input","when":"[[ -f ~/.config/hypr/input.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/input.lua\""},
-  "setup.typing": {"icon":"","label":"Typing"},
-  "setup.typing.keyboard": {"icon":"","label":"Keyboard Layouts","action":"omarchy-setup-keyboard"},
-  "setup.typing.input": {"icon":"","label":"Input Methods","action":"omarchy-setup-input"},
   "setup.language": {"icon":"","label":"Language","provider":"languages"},
   "setup.network": {"icon":"󰛳","label":"Network","aliases":["network"]},
   "setup.network.dns": {"icon":"󰇖","label":"DNS","aliases":["dns"]},
