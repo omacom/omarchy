@@ -17,7 +17,7 @@ import stat
 import tempfile
 import tomllib
 
-config = Path.home() / ".grok/config.toml"
+config = Path(os.environ.get("GROK_HOME") or Path.home() / ".grok") / "config.toml"
 if config.is_symlink():
     print("Grok config is a symlink; leaving it unchanged")
     raise SystemExit(0)

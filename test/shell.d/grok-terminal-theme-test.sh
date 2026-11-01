@@ -16,6 +16,19 @@ bash "$helper"
 cmp "$test_dir/first" "$HOME/.grok/config.toml"
 pass "fresh Grok defaults use the terminal palette idempotently"
 
+# GROK_HOME replaces ~/.grok for the Grok CLI, so the defaults belong there and
+# the default home must stay untouched when it is set.
+export GROK_HOME="$test_dir/grok-home"
+bash "$helper"
+python3 - <<'PY'
+import os, pathlib, tomllib
+data = tomllib.loads((pathlib.Path(os.environ['GROK_HOME']) / 'config.toml').read_text())
+assert data == {'ui': {'theme': 'terminal'}, 'features': {'terminal_theme': True}}
+PY
+cmp "$test_dir/first" "$HOME/.grok/config.toml"
+unset GROK_HOME
+pass "GROK_HOME places the Grok defaults the helper writes"
+
 cat >"$HOME/.grok/config.toml" <<'TOML'
 # preserve comments and all other settings
 [ui]
