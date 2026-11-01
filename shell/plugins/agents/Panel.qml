@@ -1066,7 +1066,10 @@ Panel {
     cursorActive = false
     keyRow = 0
     keyColumn = 0
-    Qt.callLater(function() { if (picking) pointAt("choice", 0) })
+    Qt.callLater(function() {
+      if (picking) pointAt("choice", 0)
+      else if (addStage === "local") pointAt("localAdd", 0)
+    })
   }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -1229,7 +1232,7 @@ Panel {
 
       onMoveRequested: function(dx, dy) {
         // Naming and signing in have their own fields; there the arrows scroll.
-        if (root.addStage === "" || root.picking) root.moveKey(dx, dy)
+        if (root.addStage === "" || root.addStage === "local" || root.picking) root.moveKey(dx, dy)
         else if (dy !== 0)
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
@@ -1491,14 +1494,6 @@ Panel {
           implicitHeight: recipeBody.implicitHeight
           onHasCursorChanged: if (hasCursor) root.revealItem(recipeRow)
 
-          CursorSurface {
-            anchors.fill: parent
-            anchors.margins: -Style.space(6)
-            z: -1
-            hasCursor: recipeRow.hasCursor
-            foreground: root.foreground
-          }
-
           Column {
             id: recipeBody
             width: parent.width
@@ -1507,6 +1502,15 @@ Panel {
             Item {
               width: parent.width
               implicitHeight: Math.max(recipeMark.height, recipeName.implicitHeight)
+
+              // Only the mark is lit, as on an agent's line.
+              CursorSurface {
+                anchors.fill: recipeMark
+                anchors.margins: -Style.space(5)
+                z: -1
+                hasCursor: recipeRow.hasCursor
+                foreground: root.foreground
+              }
 
               ProviderIcon {
                 id: recipeMark
@@ -1550,6 +1554,21 @@ Panel {
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               wrapMode: Text.WordWrap
+            }
+
+            // Measured on this machine class: footprint, context, and decode
+            // speed with a long prompt.
+            Text {
+              readonly property var recipe: recipeRow.modelData
+              visible: recipe.memory_gib != null && recipe.context != null && recipe.decode_tok_s != null
+              width: parent.width
+              leftPadding: recipeMark.width + Style.space(10)
+              textFormat: Text.PlainText
+              text: visible ? Commons.I18n.t("agents.localFacts").arg(recipe.memory_gib).arg(Math.round(recipe.context / 1024)).arg(Math.round(recipe.decode_tok_s)) : ""
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
             }
           }
 

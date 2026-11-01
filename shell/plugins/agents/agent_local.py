@@ -855,6 +855,7 @@ def recipe_listing(catalog, profile, running=()):
     else:
       variant, reason = None, gpu_error
     review = load_review(catalog, runtime) if runtime.get("tier") == "third-party" else {}
+    measured = load_measurement(catalog, recipe, profile, gpu) if variant else {}
     rows.append({
       "id": rid,
       "name": recipe.get("name", rid),
@@ -869,6 +870,12 @@ def recipe_listing(catalog, profile, running=()):
       "best": rid == best_id,
       "active": rid in running,
       "override": f"recipes/{rid}" in catalog.overrides,
+      # What the card shows: the measured footprint, context and speed at a
+      # long prompt on this machine class.
+      "memory_gib": variant["peak_ram_gib"] if variant else None,
+      "context": variant["ctx"] if variant else None,
+      "decode_tok_s": measured.get("long", {}).get("decode_tok_s"),
+      "prefill_tok_s": measured.get("long", {}).get("prefill_tok_s"),
     })
   return rows
 
@@ -889,6 +896,18 @@ def recipe_installed(rid):
     return False
   runs = runs_dir()
   return os.path.isdir(runs) and any(run_recipe_id(name) == rid for name in os.listdir(runs))
+
+
+def load_measurement(catalog, recipe, profile, gpu):
+  """The bench numbers the catalog recorded for this recipe on this machine class."""
+  for hw in recipe.get("hardware", []):
+    if hw.get("gpu") == gpu["family"] and hw.get("ram_class") == profile["ram_class"] and hw.get("platform") in (None, profile["platform"]):
+      try:
+        with open(os.path.join(catalog.root, hw["measured"]), "rb") as handle:
+          return tomllib.load(handle)
+      except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return {}
+  return {}
 
 
 def load_review(catalog, runtime):
