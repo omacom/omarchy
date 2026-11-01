@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-restart"
 copy_boundary_file bin/omarchy-update-restart
-for step in omarchy-state omarchy-restart-sshd omarchy-restart-shell omarchy-system-reboot; do
+for step in omarchy-state omarchy-restart-sshd omarchy-restart-shell omarchy-system; do
   ln -s test-step "$SUDO_TEST_ROOT/bin/$step"
 done
 cat >"$SUDO_TEST_ROOT/bin/gum" <<'STUB'
@@ -33,7 +33,7 @@ for mode in --services-only --reboot-only; do
 done
 reset_boundary
 OMARCHY_UPDATE_UNATTENDED=1 PATH="$SUDO_TEST_ROOT/bin:$PATH" "$SUDO_TEST_ROOT/bin/omarchy-update-restart" --reboot-only >"$boundary_tmp/output" 2>&1
-if grep -Eq "^(prompt:|step:omarchy-restart-|step:omarchy-system-reboot)" "$SUDO_TEST_LOG"; then
+if grep -Eq "^(prompt:|step:omarchy-restart-|step:omarchy-system)" "$SUDO_TEST_LOG"; then
   fail "unattended reboot phase prompted or performed service work"
 fi
 pass "unattended reboot phase reports a required reboot without prompting"
