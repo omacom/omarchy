@@ -32,9 +32,7 @@ Item {
   }
   readonly property string processKey: processCommand.join("\n")
   onProcessKeyChanged: {
-    // The capture this stops was asked to, so its exit is not a quick one.
     quickExits = 0
-    startedAt = 0
     syncProcess()
   }
   Component.onCompleted: syncProcess()
@@ -44,11 +42,18 @@ Item {
   // until the source changes or the panel reopens, rather than respawned forever.
   property real startedAt: 0
   property int quickExits: 0
+  // Set when this stops a capture itself, so that exit is not counted as one.
+  property bool stopRequested: false
+
+  function stopProcess() {
+    if (meterProcess.running) stopRequested = true
+    meterProcess.running = false
+  }
 
   function syncProcess() {
     var want = processCommand
     if (want.length === 0) {
-      meterProcess.running = false
+      stopProcess()
       return
     }
     // Quickshell treats running=false followed by running=true as a
@@ -56,7 +61,7 @@ Item {
     // set by then. Setting running=true even when the command is unchanged
     // re-arms a start that a stop cancelled while the old process exits.
     if (meterProcess.running && meterProcess.command.join("\n") !== processKey)
-      meterProcess.running = false
+      stopProcess()
     meterProcess.command = want
     meterProcess.running = true
   }
@@ -82,11 +87,13 @@ Item {
     onRunningChanged: {
       if (running) {
         root.startedAt = Date.now()
-        return
+      } else {
+        root.processPeak = 0
+        if (root.stopRequested) root.quickExits = 0
+        else root.quickExits = Date.now() - root.startedAt < 1000 ? root.quickExits + 1 : 0
+        root.stopRequested = false
+        if (root.processKey !== "" && root.quickExits < 5) retryTimer.restart()
       }
-      root.processPeak = 0
-      root.quickExits = Date.now() - root.startedAt < 1000 ? root.quickExits + 1 : 0
-      if (root.processKey !== "" && root.quickExits < 5) retryTimer.restart()
     }
   }
 
