@@ -18,10 +18,37 @@ run_root="${OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT:-/run/user}"
 state_dir="${OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR:-/run/omarchy/hyprland-reload-guard}"
 hyprctl_bin="${HYPRCTL:-/usr/bin/hyprctl}"
 
+valid_bool() {
+  [[ $1 == true || $1 == false ]]
+}
+
+# This name identifies a Hyprland instance only if the socket it names is
+# still a real socket owned by the uid encoded in runtime_dir. Rechecked
+# immediately before every connection: between pause (PreTransaction) and
+# resume (PostTransaction) a user who controls this path could otherwise swap
+# it for a symlink into another user's instance, and have root's unchecked
+# connection (DAC_OVERRIDE bypasses the target socket's permissions) carry a
+# pause-time-injected eval payload into that other session.
+verify_socket_owner() {
+  local runtime_dir="$1"
+  local signature="$2"
+  local uid="${runtime_dir##*/}"
+  local socket="$runtime_dir/hypr/$signature/.socket.sock"
+  local type owner
+
+  [[ $uid =~ ^[0-9]+$ ]] || return 1
+  # Unfollowed stat: a symlink standing in for the socket must be rejected
+  # outright, not resolved and checked against its target's owner.
+  read -r type owner < <(stat -c '%F %u' -- "$socket" 2>/dev/null) || return 1
+  [[ $type == socket && $owner == "$uid" ]]
+}
+
 hyprctl_instance() {
   local runtime_dir="$1"
   local signature="$2"
   shift 2
+
+  verify_socket_owner "$runtime_dir" "$signature" || return 1
 
   XDG_RUNTIME_DIR="$runtime_dir" "$hyprctl_bin" --instance "$signature" "$@"
 }
@@ -42,7 +69,7 @@ instances() {
   [[ -d $run_root ]] || return 0
 
   for instance_dir in "$run_root"/*/hypr/*; do
-    [[ -d $instance_dir ]] || continue
+    [[ -d $instance_dir && ! -L $instance_dir ]] || continue
 
     signature="${instance_dir##*/}"
     hypr_dir="${instance_dir%/*}"
@@ -50,6 +77,18 @@ instances() {
     uid="${runtime_dir##*/}"
 
     [[ $uid =~ ^[0-9]+$ ]] || continue
+    [[ ! -L $runtime_dir && ! -L $hypr_dir ]] || continue
+
+    # Every directory on the way to the instance must belong to the uid its
+    # own path claims. A directory this script would otherwise treat as
+    # another user's instance, but that the calling uid actually owns, is a
+    # forged one.
+    read -r owner < <(stat -c '%u' -- "$runtime_dir" 2>/dev/null) || continue
+    [[ $owner == "$uid" ]] || continue
+    read -r owner < <(stat -c '%u' -- "$hypr_dir" 2>/dev/null) || continue
+    [[ $owner == "$uid" ]] || continue
+    read -r owner < <(stat -c '%u' -- "$instance_dir" 2>/dev/null) || continue
+    [[ $owner == "$uid" ]] || continue
 
     printf '%s\t%s\n' "$runtime_dir" "$signature"
   done
@@ -60,11 +99,17 @@ pause_instance() {
   local signature="$2"
   local disable_autoreload suppress_errors state_file="$state_dir/$signature"
 
-  mkdir -p "$state_dir"
+  mkdir -p -m 0700 "$state_dir"
 
   if [[ ! -f $state_file ]]; then
     disable_autoreload=$(option_bool "$runtime_dir" "$signature" misc.disable_autoreload) || return 0
     suppress_errors=$(option_bool "$runtime_dir" "$signature" debug.suppress_errors) || return 0
+    # These two values are about to be interpolated into a Lua eval sent to
+    # root's hyprctl on resume. Accept only the two literal values hyprctl's
+    # own JSON output can produce for a bool option; anything else is a
+    # compromised or spoofed instance and must not reach that eval.
+    valid_bool "$disable_autoreload" || return 0
+    valid_bool "$suppress_errors" || return 0
     printf '%s\t%s\t%s\n' "$runtime_dir" "$disable_autoreload" "$suppress_errors" >"$state_file"
   fi
 
@@ -79,6 +124,12 @@ resume_instance() {
   local runtime_dir disable_autoreload suppress_errors
 
   IFS=$'\t' read -r runtime_dir disable_autoreload suppress_errors <"$state_file" || return 0
+
+  # Re-validate even though pause_instance already checked: the state file
+  # comes from the same place the socket swap would come from, and a
+  # defense that only checks once is a defense with exactly one gap.
+  valid_bool "$disable_autoreload" || { rm -f "$state_file"; return 0; }
+  valid_bool "$suppress_errors" || { rm -f "$state_file"; return 0; }
 
   if [[ -d $runtime_dir ]]; then
     hyprctl_instance "$runtime_dir" "$signature" eval \
