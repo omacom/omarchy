@@ -28,6 +28,8 @@ the end and exits non-zero.
   Deliberately excluded from `./test/all`; it runs in a VM, not the
   development session.
 
+Every pull request runs `./test/all` on a real Omarchy install (`.github/workflows/test.yml`): `test/ci-vm` boots the VM image of the current stable release, copies the checkout and omarchy-pkgs in, and runs the suite in the desktop session with `OMARCHY_PATH` at the checkout and its `bin/` first on `PATH`. The image is fetched from Cloudflare on every run, which measured faster than restoring it from the Actions cache. The job uploads every file's log.
+
 A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
 live under `test/shell.d/fixtures/`.

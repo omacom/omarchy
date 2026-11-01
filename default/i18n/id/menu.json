@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Uji Kecepatan Disk"
   },
-  "setup.monitors": {
-    "label": "Monitor"
-  },
-  "setup.keybindings": {
-    "label": "Pintasan Tombol"
-  },
   "setup.input": {
     "label": "Masukan"
-  },
-  "setup.typing": {
-    "label": "Pengetikan"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tata Letak Keyboard"
-  },
-  "setup.typing.input": {
-    "label": "Metode Masukan"
   },
   "setup.language": {
     "label": "Bahasa"
@@ -1285,5 +1270,23 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Tangkapan Crash Aktif"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Papan Ketik"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Pintasan Tombol"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Masukan Keyboard"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metode Masukan"
   }
 }
