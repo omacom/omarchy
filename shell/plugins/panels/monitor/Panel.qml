@@ -253,7 +253,8 @@ Panel {
   function sectionFirstIndex(section) {
     if (isSliderSection(section)) return -1
     if (section === "displays") return Math.max(0, currentIndex)
-    if (section === "mirror") return mirrorEnabled ? 0 : 1
+    // The other choice, so arriving shows as it turns bold, and Enter switches.
+    if (section === "mirror") return mirrorEnabled ? 1 : 0
     return 0
   }
 
@@ -1437,13 +1438,11 @@ Panel {
     onHovered: function(isHovered) { if (isHovered) root.pointAt("refresh", refreshPill.refreshIndex) }
   }
 
-  // The displays drawn where they sit, at their relative sizes. Drag one
-  // against another's side to move it there; it lines up with that display's
-  // start, center or end when dropped near one. Clicking one shows it above.
   // Extend puts each display beside the others; Mirror shows the built-in
   // display's picture on the external one too. Plain text like the agents
-  // panel's Autoswitch: dim until hovered or picked, bold accent when it's
-  // the current choice.
+  // panel's Autoswitch: the current choice in bold accent, the other dim
+  // until hovered or picked, when it turns bold. The current one, already
+  // bold, takes a soft underline when picked.
   component MirrorLink: Text {
     id: mirrorLink
     property string mode: ""
@@ -1458,8 +1457,8 @@ Panel {
     color: current ? Commons.Color.accent : (hot ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.55))
     font.family: root.bar.fontFamily
     font.pixelSize: Style.font.caption
-    font.bold: current
-    font.underline: hot && !current
+    font.bold: current || hot
+    font.underline: current && picked
 
     MouseArea {
       id: linkMouse
@@ -1472,6 +1471,9 @@ Panel {
     }
   }
 
+  // The displays drawn where they sit, at their relative sizes. Drag one
+  // against another's side to move it there; it lines up with that display's
+  // start, center or end when dropped near one. Clicking one shows it above.
   component LayoutMap: Item {
     id: map
     // The keyboard is on the map: ctrl+h/j/k/l moves the shown display.
