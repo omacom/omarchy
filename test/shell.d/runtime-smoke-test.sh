@@ -684,6 +684,41 @@ done
 jq -e "$saved" "$config" >/dev/null || fail "a bar change is saved again once shell.json is fixed" "$(cat "$config")"
 pass "a bar change is saved again once shell.json is fixed"
 
+# A shell.json that exists but cannot be read is not a first run: the shell
+# shows the defaults, and a bar change must not replace the file with them.
+# Write-only, so the read fails while a save would still go through.
+cp "$config" "$SCRATCH_DIR/unreadable.json"
+chmod 200 "$config"
+[[ ! -r $config ]] || fail "test setup makes shell.json unreadable"
+scratch_ipc shell reloadConfig >/dev/null
+for _ in {1..80}; do
+  [[ $(center_ids) != *omarchy.microphone* ]] && break
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while shell.json could not be read"
+  sleep 0.1
+done
+[[ $(center_ids) != *omarchy.microphone* ]] || fail_with_log "shell falls back to defaults when shell.json cannot be read"
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+  fail_with_log "bar widget setting is applied while shell.json cannot be read"
+sleep 0.5
+chmod 600 "$config"
+cmp -s "$config" "$SCRATCH_DIR/unreadable.json" || fail "a bar change leaves a shell.json the shell could not read as it was" "$(cat "$config")"
+pass "a bar change leaves a shell.json the shell could not read as it was"
+
+scratch_ipc shell reloadConfig >/dev/null
+for _ in {1..80}; do
+  [[ $(center_ids) == *omarchy.microphone* ]] && break
+  sleep 0.1
+done
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+  fail_with_log "bar widget setting is applied once shell.json can be read again"
+saved='any(.bar.layout[][]; (.id? // .) == "omarchy.microphone") and any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")'
+for _ in {1..40}; do
+  jq -e "$saved" "$config" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+jq -e "$saved" "$config" >/dev/null || fail "a bar change is saved again once shell.json can be read" "$(cat "$config")"
+pass "a bar change is saved again once shell.json can be read"
+
 # Run the replacement-bar probes last: switching bar loaders can transiently
 # leave bar-aware panels without a visual host, which should not add noise to
 # the default-bar assertions above.

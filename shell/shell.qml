@@ -62,8 +62,9 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
-  // shell.json has text the shell could not use; persisting would replace it with defaults.
+  // shell.json has text the shell could not use, or exists but could not be read; persisting would replace it with defaults.
   property bool userConfigUnreadable: false
+  property int userConfigLoadError: FileViewError.Success
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -94,7 +95,8 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
-    userConfigUnreadable = !!userText.trim() && !user
+    var readFailed = userConfigLoadError !== FileViewError.Success && userConfigLoadError !== FileViewError.FileNotFound
+    userConfigUnreadable = readFailed || (!!userText.trim() && !user)
     shellConfig = user || defaults
   }
 
@@ -153,8 +155,14 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
-    onLoadFailed: function(error) { shell.applyShellConfig() }
+    onLoaded: {
+      shell.userConfigLoadError = FileViewError.Success
+      shell.applyShellConfig()
+    }
+    onLoadFailed: function(error) {
+      shell.userConfigLoadError = error
+      shell.applyShellConfig()
+    }
     onFileChanged: reload()
   }
 
