@@ -38,8 +38,19 @@ jobs:
       - name: Pre-flight syntax and routing checks
         working-directory: src/omarchy
         run: |
-          find bin -maxdepth 1 -type f -exec bash -n {} +
-          find install migrations -type f -name '*.sh' -exec bash -n {} +
+          python_cmd=$(command -v python3 || command -v python || true)
+          for f in bin/*; do
+            [[ -f $f ]] || continue
+            shebang=$(head -n 1 "$f")
+            if [[ $shebang =~ ^#!/bin/bash ]]; then
+              bash -n "$f"
+            elif [[ -n $python_cmd && $shebang =~ python ]]; then
+              "$python_cmd" -m py_compile "$f"
+            fi
+          done
+          while IFS= read -r -d '' f; do
+            bash -n "$f"
+          done < <(find install migrations -type f -name '*.sh' -print0)
           ./test/cli
 
       - name: Install the fetch tools
