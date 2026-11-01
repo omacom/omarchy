@@ -18,8 +18,8 @@
 -- Scale every monitor without a choice of its own (Omarchy picks "auto").
 -- hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })
 
--- GTK and XWayland scale, a whole number (Omarchy sets 2 until a scale is
--- chosen in the panel, then follows the lowest monitor scale).
+-- GTK and XWayland scale, a whole number (Omarchy follows the lowest monitor
+-- scale). To set it manually, switch off the panel settings above.
 -- hl.env("GDK_SCALE", "1")
 
 -- Keep a monitor off, such as the phantom output an Apple 6K XDR can show.

@@ -6,6 +6,6 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" 
 
 -- GDK_SCALE is the factor GTK draws its own UI at, which sizes X11/XWayland
 -- windows: Omarchy leaves those unscaled by the compositor so they stay crisp.
--- 2 suits the high-density displays Omarchy assumes; a scale chosen in the
--- display panel replaces it with one following the lowest monitor scale.
+-- Start at 2 until monitors are available. monitor-settings.lua then follows
+-- the lowest connected monitor scale, even before a panel choice is saved.
 hl.env("GDK_SCALE", "2")

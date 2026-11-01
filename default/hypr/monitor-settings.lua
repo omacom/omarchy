@@ -92,16 +92,14 @@ end
 
 -- GDK_SCALE is one value for the whole session, so it follows the lowest
 -- monitor scale: XWayland apps end up a little small on denser screens rather
--- than oversized on the others. GTK only honors integers, so round it. Left to
--- hypr/monitors.lua until a scale has been chosen here.
+-- than oversized on the others. GTK only honors integers, so round it. This
+-- follows the running monitors even before anything is saved in the panel.
 local function set_gdk_scale(settings, identities)
   local lowest = nil
-  local chosen = false
 
   for _, monitor in ipairs(hl.get_monitors()) do
     if not monitor.is_mirror then
       local saved = settings[identities[monitor.name]]
-      chosen = chosen or (saved ~= nil and saved.scale ~= nil)
       local scale = (saved and saved.scale) or monitor.scale
       if scale and (not lowest or scale < lowest) then
         lowest = scale
@@ -109,7 +107,7 @@ local function set_gdk_scale(settings, identities)
     end
   end
 
-  if chosen and lowest then
+  if lowest then
     hl.env("GDK_SCALE", tostring(math.max(1, math.floor(lowest + 0.5))))
   end
 end
@@ -119,10 +117,10 @@ end
 -- hypr/monitors.lua would otherwise win; afterwards one already running as
 -- saved is left alone.
 function M.apply(loading, only)
-  local settings = load()
-  if next(settings) == nil then
+  if _G.omarchy_monitor_panel_settings == false then
     return
   end
+  local settings = load()
 
   local identities = o.workspaces.identities()
   for _, monitor in ipairs(hl.get_monitors()) do
@@ -139,9 +137,8 @@ end
 -- Bring GDK_SCALE up to date after a save, without touching any monitor: the
 -- command that saved has already applied the change, in the order it chose.
 function M.update_gdk_scale()
-  local settings = load()
-  if next(settings) ~= nil then
-    set_gdk_scale(settings, o.workspaces.identities())
+  if _G.omarchy_monitor_panel_settings ~= false then
+    set_gdk_scale(load(), o.workspaces.identities())
   end
 end
 
