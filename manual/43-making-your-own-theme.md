@@ -26,7 +26,7 @@ If you'd like to color-match the file manager icons to your theme, add a file ca
 
 ### Unlock image
 
-Themes supplied with `unlock.png` and `preview-unlock.png` images will be listed under _Style > Unlock_. Your `unlock.png` should preferably be a transparent png. And you can create the preview image using `omarchy plymouth preview`.
+Themes supplied with `unlock.png` and `preview-unlock.png` images will be listed under _Appearance > Unlock_. Your `unlock.png` should preferably be a transparent png. And you can create the preview image using `omarchy plymouth preview`.
 
 ### Theming apps Omarchy doesn't cover
 
