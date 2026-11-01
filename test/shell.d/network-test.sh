@@ -343,6 +343,7 @@ if (updateHotspotSource) {
   let hotspot = {}
   let hotspotLoaded = false
   let hotspotEdited = false
+  let hotspotMaxClients = ''
   let hotspotBands = []
   let hotspotSsid = ''
   let hotspotPassword = ''
@@ -359,16 +360,17 @@ if (updateHotspotSource) {
   hotspotSsid = 'Typed Name'
   hotspotPassword = 'typedpassword'
   hotspotBand = '2.4'
-  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
-  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4', 'a late first status keeps hotspot fields the user already edited')
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
+  assert(hotspotLoaded && hotspotSsid === 'Typed Name' && hotspotPassword === 'typedpassword' && hotspotBand === '2.4' && hotspotMaxClients === '', 'a late first status keeps hotspot fields the user already edited')
   hotspotLoaded = false
   hotspotEdited = false
   hotspotSsid = ''
   hotspotPassword = ''
   hotspotBand = ''
 
-  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
   assert(hotspot.ssid === 'Saved Hotspot' && hotspotLoaded && hotspotSsid === 'Saved Hotspot' && hotspotPassword === 'savedpassword' && hotspotBand === '5', 'network loads saved hotspot state only from successful output')
+  assertEqual(hotspotMaxClients, '4', 'network seeds the participant limit from the profile')
   let lastGood = hotspot
   const lastSsid = hotspotSsid
   const lastPassword = hotspotPassword

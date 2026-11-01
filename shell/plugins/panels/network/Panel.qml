@@ -2446,7 +2446,10 @@ Panel {
     active: root.hotspotActive && Model.hotspotMaxClients(root.hotspot) === limit
     selected: root.hotspotMaxClients === limit
 
-    onClicked: root.hotspotMaxClients = limit
+    onClicked: {
+      root.hotspotEdited = true
+      root.hotspotMaxClients = limit
+    }
   }
 
   component HotspotBandPill: Button {
