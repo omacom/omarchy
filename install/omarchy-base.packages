@@ -16,6 +16,7 @@ brightnessctl
 btop
 chromium
 cliamp
+crun
 cups
 cups-filters
 cups-pk-helper
@@ -113,6 +114,7 @@ pamixer
 pinta
 plocate
 plymouth
+podman
 postgresql-libs
 python-gobject
 python-poetry-core
