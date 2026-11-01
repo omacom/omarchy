@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Run open models on this machine for your agents
+# omarchy:args=<use|list|status|start|stop|remove> [args]
+# omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
+
+# The engine and its recipes come in omarchy-local-ai, on every machine so the
+# agents panel knows which models fit. Podman, which runs them, only comes when
+# a model is first set up, from the terminal that setup runs in.
+if [[ ${1:-} == "use" ]] && omarchy-cmd-missing podman crun; then
+  omarchy-pkg-add podman crun || exit 1
+fi
+
+exec omarchy-local-ai "$@"
