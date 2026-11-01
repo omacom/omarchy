@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Hız Testi"
   },
-  "setup.monitors": {
-    "label": "Monitörler"
-  },
   "setup.keybindings": {
     "label": "Kısayollar"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "Çekirdek"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

@@ -25,11 +25,33 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+# The level from before the first "off" since the last "restore", so the lock
+# blanking again after a resume cannot save its own 0 over it.
+saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
+
+if [[ $direction == "off" || $direction == "restore" ]]; then
+  # The lock runs blank and wake as separate processes that can overlap.
+  exec {lock_fd}>"$saved.lock" || exit 1
+  flock "$lock_fd" || exit 1
+fi
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  if [[ ! -s $saved ]]; then
+    level="$(brightnessctl -d "$device" get)"
+    if [[ $level =~ ^[0-9]+$ ]] && ! echo "$level" >"$saved"; then
+      rm -f "$saved"
+    fi
+  fi
+  # Never blank a level there is no record of to restore.
+  [[ -s $saved ]] && brightnessctl -d "$device" set 0 >/dev/null
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  if [[ -f $saved ]]; then
+    level="$(<"$saved")"
+    if [[ ! $level =~ ^[0-9]+$ ]] || brightnessctl -d "$device" set "$level" >/dev/null; then
+      rm -f "$saved"
+    fi
+  fi
   exit 0
 fi
 

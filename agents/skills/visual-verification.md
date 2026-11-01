@@ -34,7 +34,9 @@ on the changed behavior.
 
 Motion goes wrong in a frame or two, too fast to see at full speed: two texts showing at once in a crossfade, a blank frame between two panels, a card that jumps instead of morphing, a panel growing from the wrong point. Record the change and read it a frame at a time. Follow [`motion.md`](motion.md) for what the motion should be.
 
-Run the branch's shell, not the installed one. The running shell loads plugins from `$OMARCHY_PATH`, and its launcher relaunches it if killed, so stop it and start the worktree's through Hyprland. This takes over the desktop, so tell whoever is at it first with `omarchy-notification-send`, wait a few seconds, and always put their shell back afterwards (a `trap` on `EXIT` does it even when a step fails):
+Run the branch's shell, not the installed one. The running shell loads plugins from `$OMARCHY_PATH`, and its launcher relaunches it if killed, so stop it and start the worktree's through Hyprland. This takes over the desktop, so tell whoever is at it first with `omarchy-notification-send` and wait a few seconds.
+
+Put their shell back with `omarchy-restart-shell` as soon as the check is done, before you turn to anything else, and never end a turn with the worktree's shell running. While it runs, `omarchy-shell` cannot reach the desktop, so theme switches and updates fail without a word, and the user cannot tell why. `omarchy-restart-shell` stops every Omarchy shell, the worktree's included, and starts the session's own. A check usually spans several tool calls, so a `trap` in one of them does not cover it; relaunching between edits is fine, but the restore is yours to run.
 
 ```bash
 WT=/path/to/worktree
@@ -44,7 +46,6 @@ hyprctl dispatch "hl.dsp.exec_cmd(\"env OMARCHY_PATH=$WT omarchy-launch-shell\")
 # wait for several answers in a row, a second apart.
 OMARCHY_PATH=$WT omarchy-shell shell ping
 # ... record ...
-while timeout 30 quickshell kill -p "$WT/shell" --any-display >/dev/null 2>&1; do :; done
 omarchy-restart-shell
 ```
 
