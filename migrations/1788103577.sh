@@ -4,7 +4,7 @@ if ! lspci -nn | grep "106b:180[12]" >/dev/null; then
   exit 0
 fi
 
-rule="${OMARCHY_T2_USBC_RULE:-/etc/udev/rules.d/99-omarchy-t2-usbc-hotplug.rules}"
+rule=/etc/udev/rules.d/99-omarchy-t2-usbc-hotplug.rules
 
 # The Titan Ridge USB-C host controllers lose power in deep sleep and, once
 # reinitialized on resume, no longer wake on hot-plug from runtime suspend.
