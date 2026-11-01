@@ -116,11 +116,9 @@ rename_resume_device() {
   return 1
 }
 
-rebuild_renamed_resume_device() {
+rebuild_boot_image() {
   local log
   local -a status
-
-  [[ -e $RESUME_REBUILD_PENDING ]] && ! $NO_REBUILD || return 0
 
   # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
   log=$(mktemp) || return 1
@@ -128,32 +126,51 @@ rebuild_renamed_resume_device() {
   status=("${PIPESTATUS[@]}")
   if (( status[0] == 0 && status[1] == 0 )) && ! grep -q 'mkinitcpio failed for kernel' "$log"; then
     rm -f "$log"
+    return 0
+  fi
+
+  rm -f "$log"
+  return 1
+}
+
+rebuild_renamed_resume_device() {
+  [[ -e $RESUME_REBUILD_PENDING ]] && ! $NO_REBUILD || return 0
+
+  if rebuild_boot_image; then
     sudo rm -f "$RESUME_REBUILD_PENDING"
     return
   fi
 
-  rm -f "$log"
   echo "Could not rebuild the boot image with the renamed resume device; run omarchy-hibernation-setup again once that is fixed" >&2
   return 1
 }
 
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
+  NEEDS_REBUILD=$FORCE
+
   # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
   if [[ -f $RESUME_DROP_IN ]] && grep -q 'resume_offset="$' "$RESUME_DROP_IN" && [[ -f $SWAP_FILE ]]; then
     RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE" 2>/dev/null)
     if [[ -n $RESUME_OFFSET ]]; then
       echo "Fixing empty resume_offset ($RESUME_OFFSET)"
       sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" "$RESUME_DROP_IN"
-      if ! $NO_REBUILD; then
-        sudo limine-mkinitcpio
-      fi
+      NEEDS_REBUILD=true
     fi
   fi
 
   # After the offset repair, which leaves the device as it found it.
   rename_resume_device || exit 1
-  rebuild_renamed_resume_device || exit 1
+
+  # A pending rename rebuilds the boot image anyway, so --force and the offset repair share it.
+  if [[ -e $RESUME_REBUILD_PENDING ]]; then
+    rebuild_renamed_resume_device || exit 1
+  elif $NEEDS_REBUILD && ! $NO_REBUILD; then
+    echo "Regenerating initramfs..."
+    rebuild_boot_image || exit 1
+    echo
+  fi
+
   echo "Hibernation is already set up"
   exit 0
 fi
