@@ -692,7 +692,7 @@ function applyTranslations(items, catalog) {
 var KEY_NAMES = { SUPER: "Super", CTRL: "Ctrl", CONTROL: "Ctrl", SHIFT: "Shift", ALT: "Alt" }
 
 function keybindingCommand(command) {
-  return String(command || "").trim().replace(/\s+/g, " ").replace(/^uwsm-app -- /, "")
+  return String(command || "").trim().replace(/^uwsm-app -- /, "")
 }
 
 // "SUPER + CTRL + L" reads as "Super + Ctrl + L". Names already in mixed case
