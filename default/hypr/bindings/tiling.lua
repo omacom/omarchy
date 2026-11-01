@@ -2,16 +2,15 @@ local function close_window()
   local window = hl.get_active_window()
   if not window then return end
 
-  if _G.omarchy_terminal_close_confirmation ~= false then
-    for _, tag in ipairs(window.tags or {}) do
-      if tag:gsub("%*$", "") == "terminal" then
-        hl.dispatch(hl.dsp.exec_cmd("omarchy-hyprland-window-close " .. o.shell_quote(window.address)))
-        return
-      end
-    end
+  local policy = _G.omarchy_terminal_close_confirmation
+  if policy == false or policy == "never" then
+    hl.dispatch(hl.dsp.window.close({ window = "address:" .. window.address }))
+  else
+    if policy ~= "always" and policy ~= "conditional" then policy = "conditional" end
+    -- App-ids are user-controlled; a custom Foot app-id may lack a terminal tag.
+    hl.dispatch(hl.dsp.exec_cmd("omarchy-hyprland-window-close --policy " .. o.shell_quote(policy)
+      .. " " .. o.shell_quote(window.address)))
   end
-
-  hl.dispatch(hl.dsp.window.close({ window = "address:" .. window.address }))
 end
 
 o.bind("SUPER + W", "Close window", close_window)

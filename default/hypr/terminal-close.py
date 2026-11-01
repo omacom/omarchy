@@ -2,6 +2,7 @@
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,9 +10,52 @@ import re
 import subprocess
 
 
+def server_arguments(args):
+  """Parse Foot options before its command, including compact short options.
+
+  Unknown options mean opaque/shared state. Optional -s/-l values must be
+  attached, just as in Foot's getopt grammar.
+  """
+  required_long = {
+    "--config", "--override", "--font", "--term", "--title", "--app-id",
+    "--toplevel-tag", "--pty", "--working-directory", "--window-size-pixels",
+    "--window-size-chars", "--print-pid", "--log-level",
+  }
+  other_long = {"--check-config", "--maximized", "--fullscreen", "--login-shell",
+                "--hold", "--log-colorize", "--log-no-syslog", "--version", "--help"}
+  index = 1
+  while index < len(args):
+    arg = args[index]
+    if arg == "--" or not arg.startswith("-") or arg == "-":
+      break
+    if arg.startswith("--"):
+      option, separator, _ = arg.partition("=")
+      if option == "--server":
+        return True
+      if option in required_long:
+        if not separator:
+          index += 1
+      elif option not in other_long:
+        return True
+    else:
+      for offset, option in enumerate(arg[1:], 1):
+        if option == "s":
+          return True
+        if option in "coftTaDwWpd":
+          if offset == len(arg) - 1:
+            index += 1
+          break
+        if option == "l":
+          break
+        if option not in "CmFLHSveh":
+          return True
+    index += 1
+  return False
+
+
 def server_session(pid):
-  args = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-  return any(arg in {b"-s", b"--server"} or arg.startswith(b"--server=") for arg in args[1:])
+  args = [os.fsdecode(arg) for arg in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0") if arg]
+  return server_arguments(args)
 
 
 def process_stat(pid):
@@ -27,11 +71,12 @@ def children(pid):
 
 
 def idle_shell(pid):
-  """Only exempt an ordinary interactive shell alone in its foreground PTY.
+  """Best-effort exemption for a foreground shell with no child jobs.
 
   Direct commands, background jobs, shell wrappers, and unreadable process state
   require confirmation. This deliberately does not guess from CPU use or titles.
-  A Foot server owns several sessions, so it also requires confirmation.
+  Interactive shell builtins cannot be distinguished from a prompt; callers
+  requiring stronger protection must use the always policy.
   """
   try:
     if server_session(pid):
@@ -95,20 +140,64 @@ def translate(command, *args):
   return subprocess.check_output([*command.split(), *args], text=True).strip()
 
 
-def close_window(address):
+def process_identity(pid):
+  started = executable = None
+  try:
+    started = process_stat(pid)[19]
+  except (OSError, ValueError, IndexError):
+    pass
+  try:
+    executable = Path(os.readlink(f"/proc/{pid}/exe")).name.removesuffix(" (deleted)")
+  except OSError:
+    pass
+  return started, executable
+
+
+def same_window(address, pid, started):
+  current = find_window(address)
+  if not current or current.get("pid") != pid:
+    return False
+  return started is None or process_identity(pid)[0] == started
+
+
+def dispatch_close(address):
+  subprocess.run(
+    ["hyprctl", "dispatch", f'hl.dsp.window.close({{ window = "address:{address}" }})'],
+    check=True, stdout=subprocess.DEVNULL,
+  )
+
+
+def close_window(address, policy="conditional"):
   window = find_window(address)
   if not window:
     return
   pid = window["pid"]
-  try:
-    started = process_stat(pid)[19]
-    executable = Path(os.readlink(f"/proc/{pid}/exe")).name.removesuffix(" (deleted)")
-  except (OSError, ValueError, IndexError):
-    return
+  started, executable = process_identity(pid)
 
   # Leave other terminals' native close policies alone. App-ids may be renamed
   # by the agent launcher, so identify Foot through its owning executable.
-  if executable in {"foot", "footclient"} and not idle_shell(pid):
+  foot = executable in {"foot", "footclient"} or (
+    executable is None and window.get("class") in {"foot", "org.codeberg.dnkl.foot"})
+  confirm = foot and policy != "never" and (policy == "always" or not idle_shell(pid))
+  if not confirm:
+    # An unreadable /proc entry must not disable closing ordinary GUI apps.
+    # No confirmation is pending, so preserve the direct-close behavior.
+    if same_window(address, pid, started):
+      dispatch_close(address)
+    return
+  if started is None:
+    return  # A pending terminal confirmation needs a verifiable process owner.
+
+  identity = f"{os.environ.get('HYPRLAND_INSTANCE_SIGNATURE', '')}:{address}:{pid}:{started}"
+  digest = hashlib.sha256(identity.encode()).hexdigest()[:24]
+  lock_path = Path(os.environ["XDG_RUNTIME_DIR"]) / f"omarchy-terminal-close-{digest}.lock"
+  with lock_path.open("w") as lock:
+    try:
+      fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+      return
+    if not same_window(address, pid, started):
+      return
     cancel = translate("omarchy-i18n window.keepTerminal")
     close = translate("omarchy-i18n window.closeTerminal")
     title = " ".join(window.get("title", "").split())[:120] or address
@@ -119,43 +208,27 @@ def close_window(address):
     close_option = f"\t{close}\t{details}"
     result = subprocess.run(
       ["omarchy-menu-select", translate("omarchy-i18n window.confirmTerminalClose"),
-       keep_option, close_option, "--", "--width", "600"],
+       keep_option, close_option, "--", "--width", "600", "--timeout", "60"],
       capture_output=True, text=True,
     )
     if result.returncode != 0 or result.stdout.strip() != f"{close}\t{details}":
       return
 
-  # The menu can change focus. Never close whichever window happens to be active,
-  # or a new window/process that reused the original identity while it was open.
-  current = find_window(address)
-  if not current or current.get("pid") != pid:
-    return
-  try:
-    if process_stat(pid)[19] != started:
-      return
-  except (OSError, ValueError, IndexError):
-    return
-  subprocess.run(
-    ["hyprctl", "dispatch", f'hl.dsp.window.close({{ window = "address:{address}" }})'],
-    check=True, stdout=subprocess.DEVNULL,
-  )
+    # The menu can change focus. Validate the captured target again; a server
+    # owning several windows still cannot supply a compositor generation token.
+    if same_window(address, pid, started):
+      dispatch_close(address)
 
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("address", nargs="?", help="Hyprland window address (defaults to the active window)")
+  parser.add_argument("--policy", choices=("always", "conditional", "never"), default="conditional")
   args = parser.parse_args()
   address = args.address or hypr_json("activewindow").get("address", "")
   if not re.fullmatch(r"0x[0-9a-fA-F]+", address):
     return
-  # Repeated shortcuts must not stack prompts (or authorize a different window).
-  lock_path = Path(os.environ["XDG_RUNTIME_DIR"]) / "omarchy-terminal-close.lock"
-  with lock_path.open("w") as lock:
-    try:
-      fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-      return
-    close_window(address)
+  close_window(address, args.policy)
 
 
 if __name__ == "__main__":
