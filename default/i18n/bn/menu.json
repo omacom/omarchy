@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "ডিস্ক গতি পরীক্ষা"
   },
-  "setup.monitors": {
-    "label": "মনিটর"
-  },
   "setup.keybindings": {
     "label": "কিবাইন্ডিং"
   },
@@ -1285,5 +1282,11 @@
   },
   "update.kernel": {
     "label": "কার্নেল"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }
