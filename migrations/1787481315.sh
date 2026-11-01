@@ -1,4 +1,6 @@
 echo "Re-stage the current theme so an installed theme's code is dropped"
+omarchy-edition-desktop || exit 0
+
 
 # A theme installed from a repo could ship hyprland.lua, gum_env.lua, neovim.lua
 # and terminal configs, and they were copied straight into the staged theme that

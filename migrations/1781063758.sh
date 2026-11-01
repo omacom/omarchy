@@ -1,4 +1,6 @@
 echo "Update Hyprland Lua entrypoint to load Omarchy bootstrap"
+omarchy-edition-desktop || exit 0
+
 
 hyprland_config="$HOME/.config/hypr/hyprland.lua"
 

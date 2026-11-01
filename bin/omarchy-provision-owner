@@ -758,6 +758,10 @@ install_authorized_keys() {
 }
 
 configure_login() {
+  if omarchy-edition-server; then
+    return 0
+  fi
+
   mkdir -p /var/lib/sddm
   printf '[Last]\nSession=omarchy.desktop\nUser=%s\n' "$username" >/var/lib/sddm/state.conf
   chown -R sddm:sddm /var/lib/sddm 2>/dev/null || true
