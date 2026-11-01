@@ -375,9 +375,15 @@ if (updateHotspotSource) {
   hotspotSsid = 'Typed Name'
   hotspotPassword = 'stalepassword'
   hotspotBand = '2.4'
-  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\nmax_clients\t4\n', 0, '')
   assert(hotspotLoaded && hotspotSsid === 'Typed Name', 'a late first status keeps the field the user already edited')
   assert(hotspotPassword === 'savedpassword' && hotspotBand === '5', 'a late first status still loads the fields the user did not touch')
+  assertEqual(hotspotMaxClients, '4', 'a late first status loads an untouched participant limit')
+  hotspotLoaded = false
+  hotspotEditedFields = { limit: true }
+  hotspotMaxClients = '2'
+  updateHotspot('ap_capable\t1\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\nmax_clients\t4\n', 0, '')
+  assertEqual(hotspotMaxClients, '2', 'a late first status keeps a participant limit the user already picked')
   hotspotLoaded = false
   hotspotEditedFields = {}
   hotspotSsid = ''
