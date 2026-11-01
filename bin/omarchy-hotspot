@@ -349,20 +349,22 @@ remove_client_alias() {
 }
 
 # The store as a JSON object keyed by lowercase MAC. A file that cannot be read
-# or parsed yields no aliases rather than failing the whole status poll.
+# or parsed yields no aliases rather than failing the whole status poll. The
+# names reach jq on stdin, never as arguments: argv is readable by every user
+# through /proc, while the store itself is mode 0600.
 client_alias_records() {
-  local mac alias records="{}"
-  [[ -f $(alias_file) ]] || { printf '{}'; return 0; }
-  while IFS=$'\t' read -r mac alias || [[ -n ${mac:-} ]]; do
-    mac=${mac,,}
-    valid_client_alias "${alias:-}" || continue
-    normalize_client_mac "$mac" >/dev/null || continue
-    records=$(printf '%s' "$records" | jq --arg mac "$mac" --arg alias "$alias" '. + {($mac): $alias}' 2>/dev/null) || {
-      printf '{}'
-      return 0
-    }
-  done <"$(alias_file)"
-  printf '%s' "$records"
+  local mac alias records
+  [[ -f $(alias_file) && -r $(alias_file) ]] || { printf '{}'; return 0; }
+  records=$(
+    while IFS=$'\t' read -r mac alias || [[ -n ${mac:-} ]]; do
+      mac=${mac,,}
+      valid_client_alias "${alias:-}" || continue
+      normalize_client_mac "$mac" >/dev/null || continue
+      printf '%s\t%s\n' "$mac" "$alias"
+    done <"$(alias_file)" |
+      jq -Rn 'reduce (inputs | split("\t")) as $f ({}; . + {($f[0]): ($f[1:] | join("\t"))})' 2>/dev/null
+  ) || records="{}"
+  printf '%s' "${records:-"{}"}"
 }
 
 station_list() {
@@ -426,7 +428,7 @@ status() {
         client_count=$(printf '%s\n' "$client_list" | grep -c . || true)
         aliases=$(client_alias_records)
         clients=$(printf '%s\n' "$client_list" |
-          jq -R --argjson aliases "$aliases" 'split("\t") as $f | {
+          jq -R --slurpfile aliases <(printf '%s' "$aliases") '$aliases[0] as $aliases | split("\t") as $f | {
             mac: $f[0],
             signal: ($f[1] | tonumber? // 0),
             address: (($f[2] // "") | select(test("^[0-9.]+$")) // ""),

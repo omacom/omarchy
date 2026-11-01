@@ -465,6 +465,26 @@ printf '%s' "$alias_clients" | jq -e 'all(.[]; (.alias | type) == "string")' >/d
   fail "a malformed alias record cannot change the client shape" "$alias_clients"
 pass "a hand-edited alias store cannot widen the status contract"
 
+# Client names stay off argv, which any user can read through /proc: jq gets
+# them on stdin or from a descriptor, never as an argument.
+JQ_SPY_BIN="$TEST_TMP/jq-spy"
+mkdir -p "$JQ_SPY_BIN"
+real_jq=$(command -v jq)
+cat >"$JQ_SPY_BIN/jq" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >>"$TEST_TMP/jq-argv"
+exec "$real_jq" "\$@"
+STUB
+chmod +x "$JQ_SPY_BIN/jq"
+: >"$TEST_TMP/jq-argv"
+HOTSPOT_ACTIVE=1 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$JQ_SPY_BIN:$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/spy-status.out" 2>/dev/null
+[[ $(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/spy-status.out" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .alias') == "Kitchen Tablet" ]] ||
+  fail "a client name still reaches status through stdin"
+[[ -s $TEST_TMP/jq-argv ]] || fail "the jq spy saw the status run"
+! grep -q "Kitchen Tablet" "$TEST_TMP/jq-argv" || fail "a client name never rides jq's arguments" "$(<"$TEST_TMP/jq-argv")"
+pass "client names never reach process arguments"
+
 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
   bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
 [[ -z $(cut -f1 <"$alias_store" | grep -F 'aa:bb:cc:dd:ee:01' || true) ]] || fail "a removed alias is gone" "$(<"$alias_store")"
