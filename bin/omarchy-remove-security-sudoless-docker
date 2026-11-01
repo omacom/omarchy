@@ -29,6 +29,6 @@ echo "need it, and the plain 'docker' CLI runs under sudo. It takes effect after
 echo ""
 # The migration reuses this command during 'omarchy update' and defers the
 # reboot to omarchy-update-restart, so it doesn't cut the update short.
-if [[ -z ${OMARCHY_DEFER_REBOOT:-} ]] && gum confirm "Reboot now to apply?"; then
-  omarchy-system-reboot
+if [[ -z ${OMARCHY_DEFER_REBOOT:-} ]] && gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n docker.rebootToApply)"; then
+  omarchy-system reboot
 fi
