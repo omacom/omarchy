@@ -89,7 +89,7 @@ fi
 
 # The browser is what an env or flatpak wrapper runs, including inside an
 # env -S string; a Flatpak's is its app id, which is no command on the host.
-browser_exec="" flatpak_app=""
+browser_exec="" flatpak_app="" flatpak=0
 tokens=("${desktop_exec_argv[@]}")
 for (( i = 0; i < ${#tokens[@]}; i++ )); do
   token=${tokens[i]}
@@ -104,14 +104,15 @@ for (( i = 0; i < ${#tokens[@]}; i++ )); do
       split_value=${split_value#-S}
       rest=("${tokens[@]:i+1}")
     fi
-    read -ra split <<<"$split_value"
+    mapfile -t split < <(xargs -r -n1 printf '%s\n' <<<"$split_value" 2>/dev/null)
     tokens=("${tokens[@]:0:i}" "${split[@]}" "${rest[@]}")
     (( i-- ))
     ;;
-  env | */env | flatpak | */flatpak | run | -* | *=*) ;;
+  "" | *=* | env | */env | run | -*) ;;
+  flatpak | */flatpak) flatpak=1 ;;
   *)
     browser_exec=$token
-    [[ ${tokens[0]##*/} == "flatpak" ]] && flatpak_app=$token
+    (( flatpak )) && flatpak_app=$token
     break
     ;;
   esac

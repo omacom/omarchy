@@ -167,13 +167,13 @@ SH
 chmod +x "$mock_bin/firefox"
 cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 [Desktop Entry]
-Exec=/usr/bin/env -S "MOZ_ENABLE_WAYLAND=1 firefox" %u
+Exec=/usr/bin/env -S "LABEL='Work Browser' MOZ_ENABLE_WAYLAND=1 firefox" %u
 EOF
 
 rm -f "$help_log"
 launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser inside env -S, not env"
-expected=$(printf '%s\n' /usr/bin/env -S "MOZ_ENABLE_WAYLAND=1 firefox" --private-window)
+expected=$(printf '%s\n' /usr/bin/env -S "LABEL='Work Browser' MOZ_ENABLE_WAYLAND=1 firefox" --private-window)
 [[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
   fail "a private launch passes the private flag of the browser inside env -S"
 pass "a private launch finds the browser inside env -S"
@@ -181,11 +181,11 @@ pass "a private launch finds the browser inside env -S"
 cp "$mock_bin/chromium" "$mock_bin/flatpak"
 cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 [Desktop Entry]
-Exec=flatpak run --branch=stable --arch=x86_64 --command=firefox --file-forwarding org.mozilla.firefox @@u %u @@
+Exec=/usr/bin/env GDK_BACKEND=wayland flatpak run --branch=stable --arch=x86_64 --command=firefox --file-forwarding org.mozilla.firefox @@u %u @@
 EOF
 
 launch --private
-expected=$(printf '%s\n' flatpak run --branch=stable --arch=x86_64 --command=firefox --file-forwarding org.mozilla.firefox @@u @@ --private-window)
+expected=$(printf '%s\n' /usr/bin/env GDK_BACKEND=wayland flatpak run --branch=stable --arch=x86_64 --command=firefox --file-forwarding org.mozilla.firefox @@u @@ --private-window)
 [[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
   fail "a private launch of a Flatpak Firefox passes --private-window from its app id"
 pass "a private launch names a Flatpak browser's flag from its app id"
