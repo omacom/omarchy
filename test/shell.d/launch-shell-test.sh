@@ -43,6 +43,7 @@ cat >"$fake_bin/quickshell" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 printf 'watcher=%s popup=%s background=%s\n' \
   "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
+[[ -n ${OMARCHY_TEST_QS_SIGIGN_LOG:-} ]] && awk '/^SigIgn:/ { print $2 }' /proc/self/status >>"$OMARCHY_TEST_QS_SIGIGN_LOG"
 
 launches=$(wc -l <"$OMARCHY_TEST_QS_LOG")
 status=$(awk -v n="$launches" 'NR == n { print; found = 1 } END { if (!found) print "0" }' <<<"$OMARCHY_TEST_QS_STATUSES")
@@ -132,6 +133,21 @@ pass "a shell that exits cleanly is left alone"
 pass "the shell launches with Quickshell's config watcher and reload popup off"
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
+
+# Inherited, an ignored SIGCHLD makes every Quickshell Process report exit 0.
+qs_sigign_log="$test_tmp/quickshell-sigign.log"
+PATH="$fake_bin:$PATH" \
+HOME="$launch_home" \
+OMARCHY_PATH="$shell_root" \
+OMARCHY_TEST_QS_LOG="$qs_log" \
+OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+OMARCHY_TEST_QS_SIGIGN_LOG="$qs_sigign_log" \
+OMARCHY_TEST_QS_STATUSES=0 \
+OMARCHY_TEST_LOGGER_LOG="$logger_log" \
+  timeout 30 env --ignore-signal=CHLD "$launch_shell_bin" || fail "a launch from a parent ignoring SIGCHLD succeeds"
+sigign=$(<"$qs_sigign_log")
+(( (16#$sigign & 16#10000) == 0 )) || fail "the shell does not start with SIGCHLD ignored" "SigIgn: $sigign"
+pass "the shell does not inherit an ignored SIGCHLD"
 
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
