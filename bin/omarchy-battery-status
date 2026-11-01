@@ -63,13 +63,23 @@ battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
+# Readable is not read: a battery that only reports energy still advertises
+# power_now and answers the read with ENODEV, and an empty reading divides to
+# 0 W - which would hide the rate UPower gave (#15373). Only a reading that
+# produced a value replaces it, and a failed power_now still tries the pair.
+power_now_microwatts=""
 if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
+  power_now_microwatts=$(<"$battery_path/power_now") 2>/dev/null
+fi
+if [[ -n $power_now_microwatts ]]; then
+  power_rate_raw=$(awk -v microwatts="$power_now_microwatts" 'BEGIN { print microwatts / 1000000 }')
 elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
-    'BEGIN { print microamps * microvolts / 1000000000000 }')
+  microamps=$(<"$battery_path/current_now") 2>/dev/null
+  microvolts=$(<"$battery_path/voltage_now") 2>/dev/null
+  if [[ -n $microamps && -n $microvolts ]]; then
+    power_rate_raw=$(awk -v microamps="$microamps" -v microvolts="$microvolts" \
+      'BEGIN { print microamps * microvolts / 1000000000000 }')
+  fi
 fi
 
 # Some kernels sign power_now by direction (negative while discharging on
