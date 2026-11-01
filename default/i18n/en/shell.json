@@ -85,7 +85,6 @@
   "agents.localStopping": "Stopping…",
   "agents.localFailed": "Failed",
   "agents.localFailedResult": "Failed: %1",
-  "agents.localMeta": "%1 context",
   "agents.localMemory": "Memory",
   "agents.localMemoryValue": "%1 GiB",
   "agents.localEndpoint": "%1 · model %2",

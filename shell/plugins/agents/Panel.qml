@@ -41,8 +41,8 @@ Panel {
   readonly property var localActions: {
     var actions = []
     if (!hasLocalModel) return actions
-    if (!localStopping) actions.push("toggle")
     if (localChoices.length > 0) actions.push("switch")
+    if (!localStopping) actions.push("toggle")
     if (localRunning) actions.push("launch")
     return actions
   }
@@ -94,11 +94,6 @@ Panel {
       ? Commons.I18n.t("agents.localFailedResult").arg(String(localModel.result))
       : Commons.I18n.t("agents.localFailed")
     return ""
-  }
-
-  function localMetaText() {
-    var ctx = Number(localModel.ctx || 0)
-    return ctx > 0 ? Commons.I18n.t("agents.localMeta").arg(Commons.I18n.formatNumber(Math.round(ctx / 1024)) + "K") : ""
   }
 
   function toggleLocal() {
@@ -1228,7 +1223,7 @@ Panel {
                 anchors.left: localMark.right
                 anchors.leftMargin: Style.space(10)
                 anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, parent.width - localMark.width - localState.implicitWidth - localMeta.implicitWidth - localToggle.width - (localSwitch.visible ? localSwitch.width : 0) - Style.space(54))
+                width: Math.min(implicitWidth, parent.width - localMark.width - localState.implicitWidth - localToggle.width - (localSwitch.visible ? localSwitch.width : 0) - (localLaunch.visible ? localLaunch.width : 0) - Style.space(40))
                 textFormat: Text.PlainText
                 text: String(root.localModel.name || root.localModel.recipe || "")
                 color: root.foreground
@@ -1259,19 +1254,6 @@ Panel {
                 font.pixelSize: Style.font.caption
               }
 
-              // Where a provider shows its plan: what the model runs on.
-              Text {
-                id: localMeta
-                anchors.right: localSwitch.visible ? localSwitch.left : localToggle.left
-                anchors.rightMargin: Style.space(10)
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: root.localMetaText()
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-
               // Opens the other models this machine can run, under the header.
               PanelActionButton {
                 id: localSwitch
@@ -1290,7 +1272,8 @@ Panel {
               // Play to start it, pause to stop it and free its memory.
               PanelActionButton {
                 id: localToggle
-                anchors.right: parent.right
+                anchors.right: localLaunch.visible ? localLaunch.left : parent.right
+                anchors.rightMargin: localLaunch.visible ? Style.space(4) : 0
                 anchors.verticalCenter: parent.verticalCenter
                 visible: !root.localStopping
                 iconText: root.localCanStop ? "󰏤" : "󰐊"
@@ -1299,6 +1282,21 @@ Panel {
                 fontFamily: root.fontFamily
                 hasCursor: root.hasKey("local", root.localActions.indexOf("toggle"))
                 onClicked: root.toggleLocal()
+              }
+
+              // Opens your agent on this model, as the panel's own terminal
+              // button opens it on your subscription.
+              PanelActionButton {
+                id: localLaunch
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.localRunning
+                iconText: "󰞷"
+                tooltipText: Commons.I18n.t("agents.localLaunch")
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                hasCursor: root.hasKey("local", root.localActions.indexOf("launch"))
+                onClicked: root.runLocalAction("launch")
               }
             }
 
@@ -1404,13 +1402,6 @@ Panel {
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
               }
-            }
-
-            TextLink {
-              visible: root.localRunning
-              picked: root.hasKey("local", root.localActions.indexOf("launch"))
-              text: Commons.I18n.t("agents.localLaunch")
-              onClicked: root.runLocalAction("launch")
             }
 
           }
