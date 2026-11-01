@@ -281,10 +281,16 @@ station_address() {
 # mDNS when nss-mdns is installed. `getent hosts` prints the address first and
 # the name second. Only a bare label is reported: whatever the network hands
 # back is untrusted text that ends up on screen.
+# The resolver can hang when DNS is slow or the hotspot has no upstream, so
+# each lookup gets half a second, and a status run stops asking after two
+# seconds in all (see station_list): a client without a name keeps its address.
+HOTSPOT_NAME_LOOKUP_TIMEOUT=0.5
+HOTSPOT_NAME_LOOKUP_BUDGET_MS=2000
+
 station_hostname() {
   local address=$1 name
   [[ -n $address ]] || return 0
-  name=$(getent hosts "$address" 2>/dev/null | awk 'NR == 1 { print $2 }') || return 0
+  name=$(timeout "$HOTSPOT_NAME_LOOKUP_TIMEOUT" getent hosts "$address" 2>/dev/null | awk 'NR == 1 { print $2 }') || return 0
   name=${name%%.*}
   [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$ ]] || return 0
   printf '%s\n' "$name"
@@ -412,20 +418,24 @@ client_alias_records() {
 }
 
 station_list() {
-  local iface=$1 mac signal address hostname
+  local iface=$1 mac signal address hostname lookup_deadline
   local dump block
   dump=$(iw dev "$iface" station dump 2>/dev/null) || return 0
   [[ -n $dump ]] || return 0
   block=$(printf '%s\n' "$dump" | awk '/^Station / { if (seen) print ""; seen=1 } { printf "%s ", $0 }')
   [[ -n $block ]] || return 0
   local line first=1
+  lookup_deadline=$(( ${EPOCHREALTIME//[!0-9]/} / 1000 + HOTSPOT_NAME_LOOKUP_BUDGET_MS ))
   while IFS= read -r line; do
     [[ -n $line ]] || continue
     mac=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "Station") { print $(i + 1); break } }' <<<"$line")
     signal=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "signal:") { gsub(/[^0-9-]/, "", $(i + 1)); print $(i + 1); break } }' <<<"$line")
     [[ -n $mac ]] || continue
     address=$(station_address "$iface" "$mac")
-    hostname=$(station_hostname "$address")
+    hostname=""
+    if (( ${EPOCHREALTIME//[!0-9]/} / 1000 < lookup_deadline )); then
+      hostname=$(station_hostname "$address")
+    fi
     [[ $first == "1" ]] || printf '\n'
     first=0
     printf '%s\t%s\t%s\t%s' "$mac" "${signal:-0}" "$address" "$hostname"
@@ -1312,28 +1322,47 @@ start() {
 # other back. Privileged helper re-execs run inside a held lock and never take
 # it themselves; teardown and setup take it in their root instance, after
 # require_root, so the unprivileged process never holds it across the exec.
-# The profile, firewall rules and forwarding are machine-wide, so every user
-# takes one lock: a root-owned file in the root-owned state directory, which
-# root creates and everyone else opens read-only (flock works on a read-only
-# descriptor). Until a root step has ever run there is no such file, and no
-# firewall or forwarding state to fight over either, so an unprivileged
-# caller falls back to a lock in its own runtime directory.
-hotspot_lock_path() {
-  local shared="$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
-  if [[ -n $HOTSPOT_LOCK_FILE ]]; then
-    printf '%s\n' "$HOTSPOT_LOCK_FILE"
-  elif (( EUID == 0 )) || [[ -e $shared || -L $shared ]]; then
-    printf '%s\n' "$shared"
-  else
+# Two locks, always taken in this order so two actions can never wait on each
+# other. The invoking user's lock, in their runtime directory, serializes
+# every action that user starts (panel, menu, terminal, and the root instance
+# of their teardown or setup). The shared lock, a root-owned file in the
+# root-owned state directory, serializes actions across users: root creates
+# it, and everyone else opens it read-only, which is enough for flock. It
+# exists from the first privileged step on; before that there is no firewall
+# or forwarding state for two users to contend over.
+hotspot_user_lock_path() {
+  local uid
+  if (( EUID != 0 )); then
     printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$EUID}/omarchy-hotspot.lock"
+    return
+  fi
+  uid=${PKEXEC_UID:-${SUDO_UID:-}}
+  if [[ $uid =~ ^[1-9][0-9]*$ && -d /run/user/$uid ]]; then
+    printf '%s\n' "/run/user/$uid/omarchy-hotspot.lock"
   fi
 }
 
-hotspot_lock() {
-  local fd lock shared="$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
-  (( HOTSPOT_LOCK_HELD == 0 )) || return 0
-  lock=$(hotspot_lock_path)
-  if [[ $lock == "$shared" ]]; then
+hotspot_shared_lock_path() {
+  printf '%s\n' "$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
+}
+
+# The locks this action takes, in order, one per line.
+hotspot_lock_paths() {
+  local shared
+  if [[ -n $HOTSPOT_LOCK_FILE ]]; then
+    printf '%s\n' "$HOTSPOT_LOCK_FILE"
+    return
+  fi
+  hotspot_user_lock_path
+  shared=$(hotspot_shared_lock_path)
+  if (( EUID == 0 )) || [[ -e $shared || -L $shared ]]; then
+    printf '%s\n' "$shared"
+  fi
+}
+
+hotspot_take_lock() {
+  local lock=$1 fd
+  if [[ $lock == "$(hotspot_shared_lock_path)" && -z $HOTSPOT_LOCK_FILE ]]; then
     (( EUID != 0 )) || hotspot_state_prepare
     hotspot_state_dir_usable "invalid hotspot state directory"
   fi
@@ -1341,11 +1370,20 @@ hotspot_lock() {
   # place of the lock; an existing lock is then only opened read-only.
   [[ -e $lock || -L $lock ]] || (set -C; umask 022; : >"$lock") 2>/dev/null || true
   [[ -f $lock && ! -L $lock ]] || fail "unsafe hotspot lock: $lock"
-  if [[ $lock == "$shared" && -z $HOTSPOT_LOCK_FILE ]]; then
+  if [[ $lock == "$(hotspot_shared_lock_path)" && -z $HOTSPOT_LOCK_FILE ]]; then
     [[ $(stat -c %u -- "$lock") == "0" ]] || fail "unsafe hotspot lock: $lock"
   fi
   exec {fd}<"$lock" || fail "could not open the hotspot lock"
   flock -w "$HOTSPOT_LOCK_WAIT" "$fd" || fail "another hotspot action is still running"
+}
+
+hotspot_lock() {
+  local lock
+  (( HOTSPOT_LOCK_HELD == 0 )) || return 0
+  while IFS= read -r lock; do
+    [[ -n $lock ]] || continue
+    hotspot_take_lock "$lock"
+  done < <(hotspot_lock_paths)
   HOTSPOT_LOCK_HELD=1
 }
 

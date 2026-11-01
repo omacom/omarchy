@@ -652,6 +652,33 @@ grep -q "participant limit" "$TEST_TMP/rejected-limit.err" || fail "a refused li
 ! grep -Eq '^connection (modify|add|edit)' "$NMCLI_LOG" || fail "a refused limit leaves the profile untouched" "$(<"$NMCLI_LOG")"
 pass "a refused participant limit changes nothing"
 
+# A resolver that hangs (slow DNS, or a hotspot with no upstream) can't hold
+# status up: lookups are bounded and the clients keep their addresses.
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+if [[ $* == "-j neigh show dev wlan0" ]]; then
+  printf '%s\n' '[{"dst":"10.42.0.5","lladdr":"aa:bb:cc:dd:ee:01"},{"dst":"10.42.0.6","lladdr":"aa:bb:cc:dd:ee:02"}]'
+  exit 0
+fi
+exit 2
+STUB
+cat >"$STUB_BIN/getent" <<'STUB'
+#!/bin/bash
+sleep 5
+printf '%s\n' "${2:-} slow-name"
+STUB
+chmod +x "$STUB_BIN/ip" "$STUB_BIN/getent"
+slow_started=$SECONDS
+HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/slow-status.out" 2>/dev/null
+slow_seconds=$(( SECONDS - slow_started ))
+(( slow_seconds <= 3 )) || fail "a hanging resolver holds status up" "${slow_seconds}s"
+slow_clients=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/slow-status.out")
+[[ $(printf '%s' "$slow_clients" | jq -r '[.[].address] | sort | join(",")') == "10.42.0.5,10.42.0.6" ]] ||
+  fail "clients keep their addresses when names time out" "$slow_clients"
+[[ $(printf '%s' "$slow_clients" | jq -r '[.[].hostname] | join("")') == "" ]] ||
+  fail "a timed-out lookup reports no name" "$slow_clients"
+pass "a hanging resolver cannot hold up status"
+
 # Connected clients must survive the status protocol: one key per line, so the
 # clients JSON has to stay on its own line all the way into the panel model.
 cat >"$STUB_BIN/iw" <<'STUB'
