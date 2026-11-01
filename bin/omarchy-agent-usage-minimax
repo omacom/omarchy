@@ -5,7 +5,9 @@
 """Collect MiniMax usage into a display-ready JSON record.
 
 The 5-hour session and weekly windows come from MiniMax's Token Plan API with
-the key MiniMax's own `mmx` CLI, opencode, or pi saved. Each credential's last
+MINIMAX_API_KEY, the key pasted into the agents panel (`apiKey` and an
+optional `"region": "global"|"cn"` in ~/.config/omarchy/agents/minimax.json),
+or the key MiniMax's own `mmx` CLI, opencode, or pi saved. Each credential's last
 good limits are cached, so a failed check keeps showing them, marked stale,
 rather than dropping the section.
 
@@ -34,6 +36,7 @@ from collectors import (  # noqa: E402
   Stats,
   base_record as shared_base_record,
   cached_scan,
+  config_home,
   data_home,
   emit,
   open_json,
@@ -54,8 +57,8 @@ AGENT_ID = "minimax"
 AGENT_NAME = "MiniMax"
 DEFAULT_BASE_URL = "https://api.minimax.io"
 CN_BASE_URL = "https://api.minimaxi.com"
-AUTH_HELP = "Set MINIMAX_API_KEY, or sign in to MiniMax in opencode, to show Token Plan limits."
-AUTH_HELP_BAD_KEY = "MiniMax rejected the saved credentials. Set MINIMAX_API_KEY, or sign in to MiniMax again with `mmx` or opencode."
+AUTH_HELP = "Add a MiniMax API key in the agents panel (~/.config/omarchy/agents/minimax.json), set MINIMAX_API_KEY, or sign in to MiniMax in opencode, to show Token Plan limits."
+AUTH_HELP_BAD_KEY = "MiniMax rejected the saved credentials. Add a current key in the agents panel (~/.config/omarchy/agents/minimax.json), set MINIMAX_API_KEY, or sign in to MiniMax again with `mmx` or opencode."
 # The plan the quota endpoint describes: only a Token Plan has these windows.
 TIER_LABEL = "Token Plan"
 # The pi/omp and opencode provider names MiniMax bills, by region. Exact
@@ -167,6 +170,11 @@ def credentials() -> tuple[str, str]:
   env_key = os.environ.get("MINIMAX_API_KEY", "").strip()
   if env_key:
     return env_key, override or (CN_BASE_URL if os.environ.get("MINIMAX_REGION") == "cn" else DEFAULT_BASE_URL)
+
+  # The key pasted into the agents panel, on the region saved beside it.
+  saved = read_json(config_home() / "omarchy" / "agents" / "minimax.json")
+  if saved_api_key := str(saved.get("apiKey") or "").strip():
+    return saved_api_key, override or (CN_BASE_URL if saved.get("region") == "cn" else DEFAULT_BASE_URL)
 
   config = mmx_config()
   if mmx_key := config_key(config):

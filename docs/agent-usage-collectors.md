@@ -13,6 +13,7 @@ New collectors build on the shared module, [`shell/plugins/agents/collectors.py`
   - `--force` (a person pressing refresh) reuses nothing.
 - The record is printed on stdout. Diagnostics go to stderr and never carry a credential.
 - A collector never writes to an agent's own files. Credentials are only read, and a token is refreshed only where the agent's own CLI does the same under its lock, never by rewriting another harness's store.
+- A key-only provider (an API key, no sign-in) reads the key pasted into the panel's add-account screen, which `omarchy-agent-account-add --key <id>` saves as `apiKey` in `~/.config/omarchy/agents/<id>.json` (Kimchi's goes to Kimchi's own `~/.config/kimchi/config.json` instead). It comes right after the provider's own environment variables and before any other agent's or CLI's store, so a pasted key is the one asked with unless one is exported (Z.ai's `zai.json` predates this and outranks its environment variables too). The file can hold other fields a person wrote by hand (a funded amount, a region, a management key), so the writer merges into it.
 
 ## The shared module
 

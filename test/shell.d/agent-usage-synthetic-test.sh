@@ -102,6 +102,9 @@ expect("Synthetic resolves pi's $ENV key", key_used(PI_SYNTHETIC="pi-key"), "Bea
 write_json(home() / "moved" / "auth.json", {"synthetic": {"key": "moved-key"}})
 expect("Synthetic follows PI_CODING_AGENT_DIR to pi's key", key_used(PI_CODING_AGENT_DIR=str(home() / "moved")), "Bearer moved-key")
 expect("Synthetic prefers SYNTHETIC_API_KEY to every stored key", key_used(SYNTHETIC_API_KEY="env-key"), "Bearer env-key")
+write_json(config_home() / "omarchy" / "agents" / "synthetic.json", {"apiKey": "panel-key"})
+expect("Synthetic prefers the key pasted into the panel to pi's", key_used(PI_SYNTHETIC="pi-key"), "Bearer panel-key")
+expect("and SYNTHETIC_API_KEY to the pasted key", key_used(SYNTHETIC_API_KEY="env-key"), "Bearer env-key")
 
 # ---------------------------------------------------------------- contract
 

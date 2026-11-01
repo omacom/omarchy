@@ -181,6 +181,9 @@ write_json(auth, {"opencode-go": " plain_key "})
 expect("OpenCode collector reads a plain-string auth.json key", candidates(), ["plain_key"])
 os.environ["OPENCODE_GO_API_KEY"] = "go_env"
 expect("OpenCode collector reads OPENCODE_GO_API_KEY first", candidates(), ["go_env", "plain_key"])
+write_json(config_home() / "omarchy" / "agents" / "opencode.json", {"apiKey": "panel_key"})
+expect("OpenCode collector asks the key pasted into the panel after the environment's and before opencode's",
+       candidates(), ["go_env", "panel_key", "plain_key"])
 
 sandbox()
 pi_auth(None, "opencode-go", "from_pi")

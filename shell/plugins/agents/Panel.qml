@@ -64,9 +64,14 @@ Panel {
     if (addStage === "") hero.push({ kind: "launch", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
-      var choices = []
-      for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
-      rows.push(choices)
+      for (var g = 0; g < addGroups.length; g++) {
+        var members = addGroups[g].members
+        for (var k = 0; k < members.length; k += addColumns) {
+          var choices = []
+          for (var m = k; m < Math.min(k + addColumns, members.length); m++) choices.push({ kind: "choice", index: members[m] })
+          rows.push(choices)
+        }
+      }
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -240,11 +245,39 @@ Panel {
   // close the panel; the login carries on, and its result arrives as a
   // notification too.
 
+  // Subscriptions sign in through their own CLI; the rest take an API key
+  // pasted here, saved where their collector reads it. keyUrl is where the
+  // provider hands one out. Antigravity has no login command to run again
+  // once it's signed in.
   readonly property var addProviders: [
-    { providerId: "claude", providerName: "Claude Code" },
-    { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "claude", providerName: "Claude Code", kind: "signin" },
+    { providerId: "codex", providerName: "Codex", kind: "signin" },
+    { providerId: "grok", providerName: "Grok", kind: "signin" },
+    { providerId: "cursor", providerName: "Cursor", kind: "signin" },
+    { providerId: "copilot", providerName: "Copilot", kind: "signin" },
+    { providerId: "kimi", providerName: "Kimi", kind: "signin" },
+    { providerId: "muse", providerName: "Muse Code", kind: "signin" },
+    { providerId: "agy", providerName: "Antigravity", kind: "signin", signsInAgain: false },
+    { providerId: "devin", providerName: "Devin", kind: "signin" },
+    { providerId: "zai", providerName: "Z.ai", kind: "key", keyUrl: "https://z.ai/manage-apikey/apikey-list" },
+    { providerId: "minimax", providerName: "MiniMax", kind: "key", keyUrl: "https://platform.minimax.io/user-center/basic-information/interface-key" },
+    { providerId: "synthetic", providerName: "Synthetic", kind: "key", keyUrl: "https://synthetic.new" },
+    { providerId: "ollama", providerName: "Ollama Cloud", kind: "key", keyUrl: "https://ollama.com/settings/keys" },
+    { providerId: "openrouter", providerName: "OpenRouter", kind: "key", keyUrl: "https://openrouter.ai/settings/keys" },
+    { providerId: "deepseek", providerName: "DeepSeek", kind: "key", keyUrl: "https://platform.deepseek.com/api_keys" },
+    { providerId: "fireworks", providerName: "Fireworks", kind: "key", keyUrl: "https://app.fireworks.ai/settings/users/api-keys" },
+    { providerId: "opencode", providerName: "OpenCode", kind: "key", keyUrl: "https://opencode.ai/auth" },
+    { providerId: "kimchi", providerName: "Kimchi", kind: "key", keyUrl: "https://kimchi.dev" }
   ]
+  // The picker's two groups, as indexes into addProviders, and how many
+  // tiles sit in each grid row (the keyboard walks the same rows).
+  readonly property int addColumns: 4
+  readonly property var addGroups: {
+    var signin = [], key = []
+    for (var i = 0; i < addProviders.length; i++)
+      (addProviders[i].kind === "key" ? key : signin).push(i)
+    return [{ kind: "signin", members: signin }, { kind: "key", members: key }]
+  }
   property string addStage: ""
   property string addProvider: ""
   property var addChecks: ({})
@@ -270,12 +303,46 @@ Panel {
     if (!checkProcess.running) checkProcess.running = true
   }
 
+  function choosable(id) {
+    var state = addChecks[id] || ""
+    var entry = addProviderEntry(id)
+    return state !== "" && !(state === "signed" && entry && entry.signsInAgain === false)
+  }
+
   function chooseAddProvider(id) {
     var state = addChecks[id] || ""
-    if (state === "") return
+    if (!choosable(id)) return
     addProvider = id
     if (state === "additional") addStage = "name"
+    else if (state === "key" || state === "keyed") addStage = "key"
     else startAdd("")
+  }
+
+  function addProviderEntry(id) {
+    for (var i = 0; i < addProviders.length; i++)
+      if (addProviders[i].providerId === id) return addProviders[i]
+    return null
+  }
+
+  // A pasted key goes to the add command on stdin, never on its command line.
+  property string pendingKey: ""
+  function startKey(key) {
+    if (key.trim() === "") return
+    pendingKey = key.trim()
+    addPrivate = false
+    addStatus = Commons.I18n.t("agents.savingKey")
+    addCode = ""
+    addUrl = ""
+    addNeedsPaste = false
+    addResult = ""
+    addStage = "running"
+    addProcess.command = ["omarchy-agent-account-add", "--events", "--key", addProvider]
+    addProcess.running = true
+  }
+
+  function openKeyPage() {
+    var entry = addProviderEntry(addProvider)
+    if (entry && entry.keyUrl) Util.execArgv(["omarchy-launch-browser", entry.keyUrl])
   }
 
   function startAdd(label) {
@@ -294,6 +361,7 @@ Panel {
   }
 
   function cancelAdd() {
+    pendingKey = ""
     if (addProcess.running) addProcess.signal(15)
     addStage = ""
     root.focusKeys()
@@ -333,7 +401,7 @@ Panel {
       }
       return
     }
-    var code = text.match(/^\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
+    var code = text.replace(/https?:\/\/\S+/g, "").match(/(?:^|[^A-Za-z0-9-])([A-Z0-9]{4}-[A-Z0-9]{4})(?![A-Za-z0-9-])/)
     if (code) addCode = code[1]
     if (/paste code/i.test(text)) addNeedsPaste = true
     var url = text.match(/(https:\/\/\S+)/)
@@ -908,6 +976,7 @@ Panel {
     running: false
     stdinEnabled: true
     stdout: SplitParser { onRead: function(line) { root.handleAddLine(line) } }
+    onStarted: if (root.pendingKey !== "") { write(root.pendingKey + "\n"); root.pendingKey = "" }
     onExited: {
       if (root.addStage === "running") {
         root.addResult = Commons.I18n.t("agents.signInUnfinished")
@@ -1186,60 +1255,136 @@ Panel {
       wrapMode: Text.WordWrap
     }
 
-    // Pick: each agent by a large mark over its name, three across.
-    Row {
-      id: choiceRow
-      visible: root.picking
+    // Pick: subscriptions to sign in to, then providers that take an API
+    // key, each a mark over its name, four across.
+    Repeater {
+      model: root.picking ? root.addGroups : []
+
+      Column {
+        id: group
+        required property var modelData
+        width: parent ? parent.width : 0
+        spacing: Style.space(10)
+
+        Text {
+          text: group.modelData.kind === "key" ? Commons.I18n.t("agents.apiKeys") : Commons.I18n.t("agents.subscriptions")
+          textFormat: Text.PlainText
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Grid {
+          id: choiceGrid
+          width: parent.width
+          columns: root.addColumns
+          columnSpacing: Style.space(10)
+          rowSpacing: Style.space(10)
+
+          Repeater {
+            model: group.modelData.members
+
+            Item {
+              id: choice
+              required property var modelData
+              readonly property int index: modelData
+              readonly property var provider: root.addProviders[index]
+              readonly property string state: root.addChecks[provider.providerId] || ""
+              readonly property bool available: root.choosable(provider.providerId)
+              // Signed in or holding a saved key already: picking it again
+              // signs in again or replaces the key.
+              readonly property bool done: state === "signed" || state === "keyed"
+              readonly property bool hasCursor: root.hasKey("choice", index)
+              width: (choiceGrid.width - choiceGrid.columnSpacing * (root.addColumns - 1)) / root.addColumns
+              implicitHeight: choiceBody.implicitHeight + Style.space(12)
+              opacity: available || done ? 1.0 : 0.5
+              onHasCursorChanged: if (hasCursor) root.revealItem(choice)
+
+              Column {
+                id: choiceBody
+                anchors.centerIn: parent
+                width: parent.width
+                spacing: Style.space(6)
+
+                ProviderIcon {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  provider: choice.provider
+                  size: Style.font.display
+                  scale: choice.hasCursor ? 1.08 : 1.0
+                  Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutQuad } }
+                }
+
+                Text {
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  elide: Text.ElideRight
+                  textFormat: Text.PlainText
+                  text: choice.provider.providerName
+                  color: choice.hasCursor ? Commons.Color.accent : root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+
+                Text {
+                  visible: choice.done
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  textFormat: Text.PlainText
+                  text: choice.state === "keyed" ? Commons.I18n.t("agents.keySaved") : Commons.I18n.t("agents.signedInShort")
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onEntered: root.pointAt("choice", choice.index)
+                onClicked: root.chooseAddProvider(choice.provider.providerId)
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Key: paste the provider's API key; it is saved where its collector
+    // reads it, and checked against the provider once.
+    Column {
+      visible: root.addStage === "key"
       width: parent.width
       spacing: Style.space(10)
 
-      Repeater {
-        model: root.picking ? root.addProviders : []
+      Text {
+        width: parent.width
+        text: Commons.I18n.t("agents.pasteKey").arg(root.addProviderName(root.addProvider))
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
 
-        Item {
-          id: choice
-          required property var modelData
-          required property int index
-          readonly property string state: root.addChecks[modelData.providerId] || ""
-          readonly property bool available: state === "first" || state === "additional"
-          readonly property bool hasCursor: root.hasKey("choice", index)
-          width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
-          implicitHeight: choiceBody.implicitHeight + Style.space(16)
-          onHasCursorChanged: if (hasCursor) root.revealItem(choice)
+      TextField {
+        id: addKeyField
+        width: parent.width
+        password: true
+        placeholderText: Commons.I18n.t("agents.placeholderKey")
+        foreground: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        onVisibleChanged: if (visible) { text = ""; forceActiveFocus() }
+        onAccepted: { root.startKey(text); text = "" }
+        Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
+      }
 
-          Column {
-            id: choiceBody
-            anchors.centerIn: parent
-            spacing: Style.space(10)
-
-            ProviderIcon {
-              anchors.horizontalCenter: parent.horizontalCenter
-              provider: choice.modelData
-              size: Style.font.display * 1.6
-              scale: choice.hasCursor ? 1.08 : 1.0
-              Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutQuad } }
-            }
-
-            Text {
-              anchors.horizontalCenter: parent.horizontalCenter
-              textFormat: Text.PlainText
-              text: choice.modelData.providerName
-              color: choice.hasCursor ? Commons.Color.accent : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onEntered: root.pointAt("choice", choice.index)
-            onClicked: root.chooseAddProvider(choice.modelData.providerId)
-          }
-
-        }
+      TextLink {
+        visible: !!(root.addProviderEntry(root.addProvider) || {}).keyUrl
+        text: Commons.I18n.t("agents.getKey")
+        onClicked: root.openKeyPage()
       }
     }
 

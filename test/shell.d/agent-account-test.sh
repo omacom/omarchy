@@ -91,6 +91,13 @@ cat >"$mock_bin/omarchy-launch-browser" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_LOG"
 SH
 
+# Antigravity keeps its sign-in in the keyring; this one holds whatever the
+# test puts there, never the developer's.
+cat >"$mock_bin/secret-tool" <<'SH'
+#!/bin/bash
+[[ $* == "lookup service gemini username antigravity" ]] && printf '%s' "${OMARCHY_TEST_AGY_SECRET:-}"
+SH
+
 chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
@@ -103,6 +110,10 @@ export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
 # a run from inside one (an agent working on Omarchy) must not inherit it.
 unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME BROWSER
 unset OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
+# Where the other agents keep their sign-ins and keys follows from HOME alone.
+unset XDG_CONFIG_HOME XDG_DATA_HOME GH_CONFIG_DIR GH_TOKEN GITHUB_TOKEN COPILOT_QUOTA_TOKEN COPILOT_HOME
+unset CURSOR_AUTH_PATH MUSE_AUTH_PATH KIMI_CODE_HOME KIMI_SHARE_DIR AGY_DIR DEVIN_DATA_DIR
+while read -r variable; do unset "$variable"; done < <(compgen -e | grep '_API_KEY$' || true)
 
 accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
 
@@ -381,7 +392,7 @@ pass "a Grok settings cache of the wrong shape reads as no plan"
 
 # ------------------------------------------------------------ panel add flow
 
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
+[[ $(omarchy-agent-account-add --check | sed -n 1,3p) == $'claude additional\ncodex additional\ngrok additional' ]] ||
   fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
 pass "--check says what adding would mean for each provider"
 
@@ -488,3 +499,249 @@ omarchy-agent-account-state refresh claude
 [[ $(jq -r '.accounts[] | select(.id == "events") | .email' "$accounts/claude.json") == "switched@example.com" ]] ||
   fail "refresh saves who each home is signed in as now"
 pass "refresh saves who each home is signed in as now"
+
+# ------------------------------------------------------- other agents' sign-ins
+
+# A machine with nothing signed in yet. Every other agent's CLI is a lazy
+# mise shim, so each stub logs being run: --check must never start one.
+export HOME="$test_tmp/fresh"
+export XDG_STATE_HOME="$test_tmp/fresh-state"
+mkdir -p "$HOME"
+lazy_log="$test_tmp/lazy"
+: >"$lazy_log"
+export OMARCHY_TEST_LAZY_LOG="$lazy_log"
+
+cat >"$mock_bin/cursor-agent" <<'SH'
+#!/bin/bash
+echo "cursor-agent $*" >>"$OMARCHY_TEST_LAZY_LOG"
+[[ $* == "login" ]] || exit 1
+echo "If your browser didn't open, use this link:"
+echo "https://cursor.com/loginDeepControl?challenge=abc"
+mkdir -p "$HOME/.config/cursor"
+echo '{"accessToken":"cursor-token"}' >"$HOME/.config/cursor/auth.json"
+SH
+
+# Kimi writes its whole login to stderr.
+cat >"$mock_bin/kimi" <<'SH'
+#!/bin/bash
+echo "kimi $*" >>"$OMARCHY_TEST_LAZY_LOG"
+[[ $* == "login" ]] || exit 1
+echo "Opening browser for Kimi device login: https://www.kimi.com/code/authorize_device?user_code=5VO0-EJ1G" >&2
+echo "If the browser did not open, paste the URL above and enter code: 5VO0-EJ1G" >&2
+mkdir -p "$HOME/.kimi-code/credentials"
+echo '{"access_token":"kimi-token"}' >"$HOME/.kimi-code/credentials/kimi-code.json"
+SH
+
+# Muse opens no browser at all.
+cat >"$mock_bin/muse" <<'SH'
+#!/bin/bash
+echo "muse $*" >>"$OMARCHY_TEST_LAZY_LOG"
+[[ $* == "login" ]] || exit 1
+if [[ -n ${OMARCHY_TEST_LOGIN_HANGS:-} ]]; then
+  echo $$ >"$OMARCHY_TEST_LOGIN_HANGS"
+  exec sleep 30
+fi
+echo "Open this page to sign in:"
+echo "  https://auth.meta.com/oauth/device/?code=PSBL-LCKQ"
+echo "confirm this code matches:"
+echo "  PSBL-LCKQ"
+echo "Or https://auth.meta.com/elsewhere"
+mkdir -p "$HOME/.config/muse"
+echo '{"providers":{"meta":{"access_token":"muse-token"}}}' >"$HOME/.config/muse/auth.json"
+SH
+
+# gh without a terminal prints its device code and URL and opens nothing.
+cat >"$mock_bin/gh" <<'SH'
+#!/bin/bash
+echo "gh $* GH_TOKEN=${GH_TOKEN-unset}" >>"$OMARCHY_TEST_LAZY_LOG"
+[[ ${1:-} == "auth" && ${2:-} == "login" ]] || exit 1
+echo "! First copy your one-time code: 9AC3-7061" >&2
+echo "Open this URL to continue in your web browser: https://github.com/login/device" >&2
+mkdir -p "$HOME/.config/gh"
+printf 'github.com:\n    git_protocol: https\n    user: octocat\n' >"$HOME/.config/gh/hosts.yml"
+SH
+
+for cli in agy devin; do
+  printf '#!/bin/bash\necho "%s $*" >>"$OMARCHY_TEST_LAZY_LOG"\nexit 1\n' "$cli" >"$mock_bin/$cli"
+done
+
+# agy and devin sign in only in a terminal of their own; this one lands the
+# sign-in a moment after it opens, unless the test leaves it waiting.
+cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
+#!/bin/bash
+echo "$*" >>"$OMARCHY_TEST_TERMINAL_LOG"
+[[ -n ${OMARCHY_TEST_TERMINAL_HANGS:-} ]] && exit 0
+case "$1" in
+agy) file="$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ;;
+devin) file="$HOME/.local/share/devin/credentials.toml" ;;
+esac
+(sleep 1; mkdir -p "${file%/*}"; echo '{"token":{"access_token":"t"}}' >"$file") &
+SH
+export OMARCHY_TEST_TERMINAL_LOG="$test_tmp/terminal"
+
+chmod +x "$mock_bin"/*
+
+expected=$'claude first\ncodex first\ngrok first\ncursor first\ncopilot first\nkimi first\nmuse first\nagy first\ndevin first'
+expected+=$'\nzai key\nminimax key\nsynthetic key\nollama key\nopenrouter key\ndeepseek key\nfireworks key\nopencode key\nkimchi key'
+[[ $(omarchy-agent-account-add --check) == "$expected" ]] ||
+  fail "--check lists every provider, in order, on a machine with nothing signed in" "$(omarchy-agent-account-add --check)"
+[[ $(OMARCHY_TEST_AGY_SECRET='{"token":{}}' omarchy-agent-account-add --check | grep '^agy ') == "agy signed" ]] ||
+  fail "--check reads Antigravity's sign-in from the keyring"
+[[ ! -s $lazy_log ]] || fail "--check never runs an agent's CLI" "$(cat "$lazy_log")"
+pass "--check lists every provider without running any agent's CLI"
+
+: >"$OMARCHY_TEST_BROWSER_LOG"
+OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add --events cursor </dev/null >"$test_tmp/cursor-output" 2>/dev/null ||
+  fail "a Cursor sign-in succeeds" "$(cat "$test_tmp/cursor-output")"
+grep -qx "@@omarchy status Sign in to Cursor in the browser window that opens." "$test_tmp/cursor-output" &&
+  grep -qx "https://cursor.com/loginDeepControl?challenge=abc" "$test_tmp/cursor-output" &&
+  grep -qx "@@omarchy done Signed in to Cursor." "$test_tmp/cursor-output" ||
+  fail "a Cursor sign-in reports its progress and the CLI's own link" "$(cat "$test_tmp/cursor-output")"
+[[ ! -s $OMARCHY_TEST_BROWSER_LOG ]] || fail "Cursor opens its own sign-in page" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+[[ $(cat "$HOME/.config/omarchy/defaults/agent") == "cursor-agent" ]] ||
+  fail "the first agent signed in on a machine with no default becomes the default, by its launcher's name"
+pass "Cursor signs in through its own login"
+
+omarchy-agent-account-add --events kimi </dev/null >"$test_tmp/kimi-output" 2>/dev/null
+grep -q "enter code: 5VO0-EJ1G" "$test_tmp/kimi-output" && grep -qx "@@omarchy done Signed in to Kimi." "$test_tmp/kimi-output" ||
+  fail "what Kimi writes to stderr reaches the panel" "$(cat "$test_tmp/kimi-output")"
+[[ $(cat "$HOME/.config/omarchy/defaults/agent") == "cursor-agent" ]] || fail "a later sign-in leaves the default alone"
+pass "Kimi's sign-in reaches the panel on stdout"
+
+: >"$OMARCHY_TEST_BROWSER_LOG"
+omarchy-agent-account-add --events muse </dev/null >"$test_tmp/muse-output" 2>/dev/null
+grep -qx "  PSBL-LCKQ" "$test_tmp/muse-output" && grep -qx "@@omarchy done Signed in to Muse." "$test_tmp/muse-output" ||
+  fail "a Muse sign-in passes its code through" "$(cat "$test_tmp/muse-output")"
+[[ $(cat "$OMARCHY_TEST_BROWSER_LOG") == "https://auth.meta.com/oauth/device/?code=PSBL-LCKQ" ]] ||
+  fail "Muse's sign-in page is opened for it, once" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+pass "Muse's sign-in page is opened for it"
+
+: >"$OMARCHY_TEST_BROWSER_LOG"
+: >"$lazy_log"
+GH_TOKEN=exported omarchy-agent-account-add --events copilot </dev/null >"$test_tmp/copilot-output" 2>/dev/null
+grep -q "one-time code: 9AC3-7061" "$test_tmp/copilot-output" && grep -qx "@@omarchy done Signed in to GitHub Copilot." "$test_tmp/copilot-output" ||
+  fail "a Copilot sign-in passes gh's device code through" "$(cat "$test_tmp/copilot-output")"
+[[ $(cat "$lazy_log") == "gh auth login --web --hostname github.com --git-protocol https GH_TOKEN=unset" ]] ||
+  fail "Copilot signs in through gh, without an exported token in the way" "$(cat "$lazy_log")"
+[[ $(cat "$OMARCHY_TEST_BROWSER_LOG") == "https://github.com/login/device" && -d $HOME/.copilot ]] ||
+  fail "gh's device page is opened for it, and Copilot's usage gets asked for" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+pass "Copilot signs in through gh"
+
+for agent in agy:Antigravity:agy devin:Devin:"devin auth login"; do
+  IFS=: read -r id agent_name terminal_command <<<"$agent"
+  : >"$OMARCHY_TEST_TERMINAL_LOG"
+  omarchy-agent-account-add --events "$id" </dev/null >"$test_tmp/$id-output" 2>/dev/null
+  grep -qx "@@omarchy status Finish signing in to $agent_name in the terminal window that opens." "$test_tmp/$id-output" &&
+    grep -qx "@@omarchy done Signed in to $agent_name." "$test_tmp/$id-output" ||
+    fail "$agent_name signs in in a terminal and is done once its sign-in lands" "$(cat "$test_tmp/$id-output")"
+  [[ $(cat "$OMARCHY_TEST_TERMINAL_LOG") == "$terminal_command" ]] ||
+    fail "$agent_name's sign-in runs in a terminal" "$(cat "$OMARCHY_TEST_TERMINAL_LOG")"
+done
+pass "Antigravity and Devin sign in in a terminal, and the panel waits for it"
+
+: >"$lazy_log"
+expected=$'cursor signed\ncopilot signed\nkimi signed\nmuse signed\nagy signed\ndevin signed'
+[[ $(omarchy-agent-account-add --check | sed -n 4,9p) == "$expected" ]] ||
+  fail "--check sees each sign-in where its usage collector reads it" "$(omarchy-agent-account-add --check)"
+[[ ! -s $lazy_log ]] || fail "--check never runs an agent's CLI once signed in either" "$(cat "$lazy_log")"
+pass "--check sees each sign-in where its usage collector reads it"
+
+# Cancelling stops a wait on the terminal at once, and a login whose page the
+# script opened, with the CLI itself.
+rm -f "$HOME/.local/share/devin/credentials.toml"
+OMARCHY_TEST_TERMINAL_HANGS=1 omarchy-agent-account-add --events devin </dev/null >"$test_tmp/devin-cancel" 2>&1 &
+adding=$!
+sleep 1
+started=$EPOCHREALTIME
+kill -TERM "$adding"
+wait "$adding" || true
+# Well inside the two seconds between looks at the sign-in.
+now=$EPOCHREALTIME
+(( ${now//[.,]/} - ${started//[.,]/} < 800000 )) || fail "cancelling stops waiting on the terminal at once"
+! grep -q "^@@omarchy done" "$test_tmp/devin-cancel" || fail "a cancelled terminal sign-in isn't done"
+
+OMARCHY_TEST_LOGIN_HANGS="$test_tmp/muse.pid" omarchy-agent-account-add --events muse </dev/null >/dev/null 2>&1 &
+adding=$!
+for _ in {1..20}; do
+  [[ -s $test_tmp/muse.pid ]] && break
+  sleep 0.1
+done
+kill -TERM "$adding"
+wait "$adding" || true
+login_pid=$(cat "$test_tmp/muse.pid")
+for _ in {1..20}; do
+  kill -0 "$login_pid" 2>/dev/null || break
+  sleep 0.1
+done
+if kill -0 "$login_pid" 2>/dev/null; then
+  kill "$login_pid"
+  fail "cancelling stops a login whose page was opened for it"
+fi
+pass "cancelling stops a terminal wait and a login alike"
+
+# ------------------------------------------------------------------- API keys
+
+# The usage collector checks a pasted key with its provider; these report
+# whatever the test says the provider answered, and what they were run with.
+for id in openrouter kimchi zai; do
+  cat >"$mock_bin/omarchy-agent-usage-$id" <<'SH'
+#!/bin/bash
+id=${0##*omarchy-agent-usage-}
+printf '%s %s env=%s\n' "$id" "$*" "${OPENROUTER_API_KEY-unset}" >>"$OMARCHY_TEST_COLLECTOR_LOG"
+printf '{"usageStatusText":"%s"}\n' "${OMARCHY_TEST_KEY_STATUS:-}"
+SH
+done
+# Every jq run is logged, to show the key never rides on a command line.
+cat >"$mock_bin/jq" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >>"\$OMARCHY_TEST_JQ_LOG"
+exec $(command -v jq) "\$@"
+SH
+chmod +x "$mock_bin"/*
+export OMARCHY_TEST_COLLECTOR_LOG="$test_tmp/collector" OMARCHY_TEST_JQ_LOG="$test_tmp/jq"
+: >"$OMARCHY_TEST_JQ_LOG"
+
+saved="$HOME/.config/omarchy/agents/openrouter.json"
+mkdir -p "${saved%/*}"
+echo '{"managementKey":"sk-management","apiKey":"sk-old"}' >"$saved"
+chmod 644 "$saved"
+: >"$notifications"
+printf '  sk-or-pasted \n' | OPENROUTER_API_KEY=sk-exported omarchy-agent-account-add --events --key openrouter >"$test_tmp/key-output" 2>&1 ||
+  fail "a pasted key is saved" "$(cat "$test_tmp/key-output")"
+grep -qx "@@omarchy status Checking the key with OpenRouter…" "$test_tmp/key-output" &&
+  grep -qx "@@omarchy done Saved the OpenRouter API key." "$test_tmp/key-output" ||
+  fail "saving a key reports its progress" "$(cat "$test_tmp/key-output")"
+[[ $(jq -c . "$saved") == '{"managementKey":"sk-management","apiKey":"sk-or-pasted"}' && $(stat -c %a "$saved") == 600 ]] ||
+  fail "a pasted key is merged into the provider's file, readable only by you" "$(stat -c %a "$saved") $(cat "$saved")"
+[[ $(cat "$OMARCHY_TEST_COLLECTOR_LOG") == "openrouter --force env=unset" ]] ||
+  fail "the key is checked by its collector, without an exported key answering for it" "$(cat "$OMARCHY_TEST_COLLECTOR_LOG")"
+! grep -q "sk-or-pasted" "$test_tmp/key-output" "$notifications" "$OMARCHY_TEST_JQ_LOG" "$OMARCHY_TEST_COLLECTOR_LOG" ||
+  fail "the key is never printed or passed as an argument"
+pass "a pasted key is saved beside what the file already holds"
+
+cp -p "$saved" "$test_tmp/saved-before"
+if printf 'sk-or-bad\n' | OMARCHY_TEST_KEY_STATUS="Sign-in expired" omarchy-agent-account-add --events --key openrouter >"$test_tmp/key-rejected" 2>&1; then
+  fail "a key the provider refuses fails"
+fi
+grep -qx "@@omarchy error OpenRouter rejected the key." "$test_tmp/key-rejected" || fail "a refused key says so" "$(cat "$test_tmp/key-rejected")"
+cmp -s "$saved" "$test_tmp/saved-before" && [[ $(stat -c %a "$saved") == 600 ]] ||
+  fail "a refused key puts back the file that was there" "$(cat "$saved")"
+OMARCHY_TEST_KEY_STATUS="Sign-in expired" omarchy-agent-account-add --events --key zai <<<"zai-bad" >/dev/null 2>&1 || true
+[[ ! -e $HOME/.config/omarchy/agents/zai.json ]] || fail "a refused first key leaves no file behind"
+pass "a refused key leaves the saved one as it was"
+
+if omarchy-agent-account-add --events --key zai <<<"   " >"$test_tmp/key-empty" 2>&1; then
+  fail "an empty key is refused"
+fi
+grep -qx "@@omarchy error No API key was pasted." "$test_tmp/key-empty" && [[ ! -e $HOME/.config/omarchy/agents/zai.json ]] ||
+  fail "an empty key is refused and saves nothing" "$(cat "$test_tmp/key-empty")"
+pass "an empty key is refused"
+
+XDG_CONFIG_HOME="$test_tmp/elsewhere" omarchy-agent-account-add --events --key kimchi <<<"kimchi-key" >/dev/null 2>&1 ||
+  fail "a Kimchi key is saved"
+[[ $(jq -r .apiKey "$HOME/.config/kimchi/config.json") == "kimchi-key" ]] || fail "a Kimchi key is saved in Kimchi's own config"
+pass "a Kimchi key is saved where Kimchi reads it"
+
+[[ $(omarchy-agent-account-add --check | sed -n '10p;14p;18p') == $'zai key\nopenrouter keyed\nkimchi keyed' ]] ||
+  fail "--check tells a provider with a saved key from one without" "$(omarchy-agent-account-add --check)"
+pass "--check tells a provider with a saved key from one without"

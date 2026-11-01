@@ -178,6 +178,17 @@ expect("MiniMax asks MINIMAX_BASE_URL when it is set", credentials(), ["mmx_env"
 del os.environ["MINIMAX_API_KEY"], os.environ["MINIMAX_BASE_URL"]
 expect("MiniMax asks with mmx's own key on the host mmx names", credentials(), ["mmx_saved", "https://api.minimaxi.com"])
 
+# The key pasted into the agents panel outranks mmx's, on the region saved
+# beside it, and an exported key outranks it.
+panel = write_json(config_home() / "omarchy" / "agents" / "minimax.json", {"apiKey": "mmx_panel"})
+expect("MiniMax asks with the key pasted into the panel ahead of mmx's", credentials(), ["mmx_panel", "https://api.minimax.io"])
+write_json(panel, {"apiKey": "mmx_panel", "region": "cn"})
+expect("MiniMax asks with the pasted key on the region saved with it", credentials(), ["mmx_panel", "https://api.minimaxi.com"])
+os.environ["MINIMAX_API_KEY"] = "mmx_env"
+expect("MiniMax asks with an exported key ahead of the pasted one", credentials()[0], "mmx_env")
+del os.environ["MINIMAX_API_KEY"]
+panel.unlink()
+
 # Wherever the host comes from, the key never goes over plain HTTP to another
 # machine, nor to a URL that isn't one.
 for name, setup in (

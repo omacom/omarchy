@@ -166,6 +166,11 @@ opencode_auth(None, "deepseek", "key-opencode")
 expect("DeepSeek collector reads the key opencode saved", saved_key(), "key-opencode")
 pi_auth(home() / ".omp" / "agent", "deepseek", "key-omp")
 expect("DeepSeek collector prefers omp's key to opencode's", saved_key(), "key-omp")
+write_json(config_home() / "omarchy" / "agents" / "deepseek.json", {"apiKey": "key-panel", "fundedAmount": 50})
+expect("DeepSeek collector prefers the key pasted into the panel to pi's", saved_key(), "key-panel")
+os.environ["DEEPSEEK_API_KEY"] = "key-env"
+expect("and DEEPSEEK_API_KEY to the pasted key", saved_key(), "key-env")
+del os.environ["DEEPSEEK_API_KEY"]
 
 # The balance is kept per API host: another host, the same key or not, is
 # another account, and never shows this one's balance.

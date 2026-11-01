@@ -8,8 +8,10 @@ Local stats come from pi/omp sessions that ran through an opencode provider
 and from opencode's own message database, both of its stores. Only the Zen
 and Go providers count: opencode runs on Anthropic or OpenAI belong to the
 claude and codex records. The limits are the Go plan's rolling, weekly, and
-monthly meters from OpenCode's usage endpoint. The agents panel only ever
-reads the JSON this prints.
+monthly meters from OpenCode's usage endpoint, asked with OPENCODE_API_KEY or
+OPENCODE_GO_API_KEY, the key pasted into the agents panel (`apiKey` in
+~/.config/omarchy/agents/opencode.json), then the keys opencode, pi and omp
+keep. The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
@@ -34,6 +36,7 @@ from collectors import (  # noqa: E402
   base_record,
   cache_root,  # noqa: F401 - the tests reach the cache through it
   cached_scan,
+  config_home,
   data_home,
   emit,
   limits_cache_path as shared_limits_cache_path,
@@ -41,6 +44,7 @@ from collectors import (  # noqa: E402
   open_json,
   opencode_db,
   pi_session_roots,
+  read_json,
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
@@ -198,7 +202,8 @@ def read_store_credentials(db):
 
 
 def credential_candidates():
-  # An explicit key wins, then opencode's own credential stores, then pi's:
+  # An explicit key wins, then the key pasted into the agents panel, then
+  # opencode's own credential stores, then pi's:
   # pi drives the same Zen subscription and records it under the same
   # provider ids, so a machine that codes through pi never signs the opencode
   # CLI in. The Console session is the implicit one, so it comes last. Which
@@ -206,6 +211,7 @@ def credential_candidates():
   # hands over to the next.
   store_keys, console = read_store_credentials(opencode_db())
   tokens = [str(os.environ.get(name, "")).strip() for name in ("OPENCODE_API_KEY", "OPENCODE_GO_API_KEY")]
+  tokens.append(str(read_json(config_home() / "omarchy" / "agents" / "opencode.json").get("apiKey") or "").strip())
   tokens += store_keys
   tokens.append(read_auth_key(data_home() / "opencode" / "auth.json"))
   tokens.append(read_auth_key(pi_agent_dir() / "auth.json"))
@@ -287,7 +293,7 @@ def probe_limits(credential):
     # A refused credential may just be the wrong one for this account, so the
     # next way in still gets its turn.
     if error.status == 401:
-      return {"ok": False, "refused": True, "helpText": "OpenCode rejected the saved key. Reconnect OpenCode Go with /connect in the TUI, or set OPENCODE_API_KEY."}
+      return {"ok": False, "refused": True, "helpText": "OpenCode rejected the saved key. Reconnect OpenCode Go with /connect in the TUI, add a current key in the agents panel (~/.config/omarchy/agents/opencode.json), or set OPENCODE_API_KEY."}
     if error.status == 403:
       # A key without a Go plan behind it: Zen pay-as-you-go has no meters,
       # which is no trouble at all.

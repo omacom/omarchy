@@ -8,7 +8,9 @@ Token stats come from the Fireworks billing API grouped by day and model for
 the last 30 days. Fireworks does not expose its prepaid ledger, so the record
 carries an estimated balance instead of rate limits: the credits configured in
 ~/.config/omarchy/agents/fireworks.json minus rated account costs since the
-funding date. The agents panel only ever reads the JSON this prints.
+funding date. The API key is FIREWORKS_API_KEY, then the one pasted into the
+agents panel (`apiKey` in that same fireworks.json), then firectl's, pi's or
+opencode's. The agents panel only ever reads the JSON this prints.
 
 Each API key keeps its account's last good usage rows and balance under the
 agent-usage cache, so a failed check shows them stale rather than blank.
@@ -250,10 +252,12 @@ def read_config() -> dict[str, Any]:
 
 def credentials(auth_path: Path, config: dict[str, Any]) -> tuple[str, str]:
   file_key, file_account = read_auth_file(auth_path)
-  # Agent logins are the fallback ladder below an explicit key or a firectl
-  # login: pi first as Omarchy's default agent, opencode as the last resort.
+  # Agent logins are the fallback ladder below an explicit key, the key
+  # pasted into the agents panel, or a firectl login: pi first as Omarchy's
+  # default agent, opencode as the last resort.
   api_key = (
     str(os.environ.get("FIREWORKS_API_KEY", "")).strip()
+    or str(config.get("apiKey") or "").strip()
     or file_key
     or read_pi_key(pi_auth_path())
     or read_opencode_key(opencode_auth_path())
