@@ -78,9 +78,12 @@ else
   (( new_brightness < 0 )) && new_brightness=0
 fi
 
+brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
+
 # A level chosen by hand, even 0, replaces the one a blank saved for restore; a
 # key that changes nothing, like down while blanked, leaves it.
-if brightnessctl -d "$device" set "$new_brightness" >/dev/null && (( new_brightness != current_brightness )); then
-  rm -f "$saved"
-fi
+(( new_brightness != current_brightness )) && rm -f "$saved"
+
+# The OSD can stall, and held keys, blank and wake should not queue behind it.
+exec {lock_fd}>&-
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"

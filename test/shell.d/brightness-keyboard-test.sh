@@ -11,6 +11,7 @@ trap 'touch "$test_tmp/pause.go"; wait || true; rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 leds="$test_tmp/leds"
 level_file="$test_tmp/level"
+osd_file="$test_tmp/osd"
 mkdir -p "$mock_bin" "$leds/asus::kbd_backlight" "$test_tmp/runtime"
 
 # A device holding one level, as the LED class does.
@@ -35,6 +36,17 @@ set)
 esac
 SH
 chmod +x "$mock_bin/brightnessctl"
+
+# Records each OSD call, and whether a blank could take the lock while it shows.
+cat >"$mock_bin/omarchy-osd" <<SH
+#!/bin/bash
+if flock -n "$test_tmp/runtime/omarchy-brightness-keyboard-asus::kbd_backlight.lock" true; then
+  echo "unlocked \$*" >>"$osd_file"
+else
+  echo "locked \$*" >>"$osd_file"
+fi
+SH
+chmod +x "$mock_bin/omarchy-osd"
 
 keyboard="$test_tmp/omarchy-brightness-keyboard"
 sed -e "s|/sys/class/leds|$leds|g" "$ROOT/bin/omarchy-brightness-keyboard" >"$keyboard"
@@ -146,3 +158,22 @@ touch "$pause.go"
 wait "$blank" "$wake"
 [[ $(level) == "3" ]] || fail "a wake overlapping a blank restores the level once the blank is done (got $(level))"
 pass "a wake overlapping a blank waits for it"
+
+# A key the device rejects keeps the saved level and shows no level it never set.
+echo 3 >"$level_file"
+run_keyboard off
+: >"$osd_file"
+if FAIL_SET=1 run_keyboard up; then
+  fail "a rejected key reports failure"
+fi
+[[ ! -s $osd_file ]] || fail "a rejected key shows no OSD (got $(<"$osd_file"))"
+run_keyboard restore
+[[ $(level) == "3" ]] || fail "a rejected key keeps the saved level (got $(level))"
+pass "a rejected key keeps the saved level and shows no OSD"
+
+# The OSD shows after the lock is released, so a stalled shell holds up nothing.
+echo 1 >"$level_file"
+: >"$osd_file"
+run_keyboard up
+[[ $(<"$osd_file") == "unlocked -i keyboard -p 66" ]] || fail "the OSD runs without the lock held (got $(<"$osd_file"))"
+pass "the OSD runs without the lock held"
