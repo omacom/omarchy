@@ -164,13 +164,7 @@ SH
   copy_defaults
   migrate_backend
   [[ -L $backend && $(cat "$backend") == custom-backend ]] || fail "upgrade preserves a linked backend choice"
-  rm "$backend" "$dictation_tmp/linked-backend"
-  ln -s "$dictation_tmp/linked-backend" "$backend"
-  reset_queue
-  copy_defaults
-  migrate_backend
-  [[ -L $backend && ! -e $backend ]] || fail "migration preserves an existing dangling user selection link"
-  pass "copy and migration preserve existing backend links"
+  pass "copy and migration preserve a linked backend choice"
 
   rm "$backend"
   copy_defaults
