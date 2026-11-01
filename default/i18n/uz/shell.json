@@ -73,7 +73,6 @@
   "agents.signInIntro": "AI kodlash obunasiga kiring, bu panel undan qancha qolganini kuzatadi.",
   "agents.signInRequired": "Kirish talab qilinadi",
   "agents.signInUnfinished": "Kirish yakunlanmadi.",
-  "agents.startDefaultAgent": "Standart agentni boshlash",
   "agents.startOnNew": "Standart agentni yangi %1 da boshlash",
   "agents.starting": "Boshlanmoqda…",
   "agents.stopAutoSwitch": "Avtomatik almashtirishni toʻxtatish",

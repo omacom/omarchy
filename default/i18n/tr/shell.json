@@ -73,7 +73,6 @@
   "agents.signInIntro": "Bir yapay zekâ kodlama aboneliğine giriş yapın; bu panel ne kadar hakkınız kaldığını takip eder.",
   "agents.signInRequired": "Giriş gerekli",
   "agents.signInUnfinished": "Giriş tamamlanmadı.",
-  "agents.startDefaultAgent": "Varsayılan ajanınızı başlatın",
   "agents.startOnNew": "Varsayılan ajanınızı yeni bir %1 üzerinde başlatın",
   "agents.starting": "Başlatılıyor…",
   "agents.stopAutoSwitch": "Otomatik geçişi durdurun",

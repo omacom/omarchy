@@ -78,7 +78,6 @@
   "agents.signInIntro": "Pieraksties AI kodēšanas abonementā, un šis panelis sekos, cik daudz tev atlicis.",
   "agents.signInRequired": "Nepieciešama pierakstīšanās",
   "agents.signInUnfinished": "Pierakstīšanās netika pabeigta.",
-  "agents.startDefaultAgent": "Palaid noklusējuma aģentu",
   "agents.startOnNew": "Palaid savu noklusējuma aģentu jaunā %1",
   "agents.starting": "Palaižas…",
   "agents.stopAutoSwitch": "Pārtraukt automātisko pārslēgšanos",

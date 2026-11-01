@@ -68,7 +68,6 @@
   "agents.signInIntro": "登录 AI 编程订阅，此面板会跟踪你的剩余额度。",
   "agents.signInRequired": "需要登录",
   "agents.signInUnfinished": "登录未完成。",
-  "agents.startDefaultAgent": "启动默认智能体",
   "agents.startOnNew": "在新的 %1 上启动默认智能体",
   "agents.starting": "正在启动…",
   "agents.stopAutoSwitch": "停止自动切换",

@@ -78,7 +78,6 @@
   "agents.signInIntro": "Entre em uma assinatura de programação com IA e este painel acompanha quanto resta dela.",
   "agents.signInRequired": "Login necessário",
   "agents.signInUnfinished": "O login não foi concluído.",
-  "agents.startDefaultAgent": "Iniciar o agente padrão",
   "agents.startOnNew": "Iniciar seu agente padrão em um novo %1",
   "agents.starting": "Iniciando…",
   "agents.stopAutoSwitch": "Parar de trocar automaticamente",

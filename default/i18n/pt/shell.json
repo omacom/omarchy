@@ -78,7 +78,6 @@
   "agents.signInIntro": "Inicia sessão numa subscrição de programação com IA e este painel controla quanto ainda te resta.",
   "agents.signInRequired": "Início de sessão necessário",
   "agents.signInUnfinished": "O início de sessão não foi concluído.",
-  "agents.startDefaultAgent": "Inicia o agente predefinido",
   "agents.startOnNew": "Inicia o agente predefinido num novo %1",
   "agents.starting": "A iniciar…",
   "agents.stopAutoSwitch": "Deixa de trocar automaticamente",

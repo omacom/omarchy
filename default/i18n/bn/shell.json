@@ -73,7 +73,6 @@
   "agents.signInIntro": "AI কোডিং সাবস্ক্রিপশনে সাইন-ইন করুন, আর এই প্যানেল হিসাব রাখবে কতটুকু বাকি আছে।",
   "agents.signInRequired": "সাইন-ইন প্রয়োজন",
   "agents.signInUnfinished": "সাইন-ইন শেষ হয়নি।",
-  "agents.startDefaultAgent": "ডিফল্ট এজেন্ট চালু করুন",
   "agents.startOnNew": "নতুন %1-এ ডিফল্ট এজেন্ট চালু করুন",
   "agents.starting": "চালু হচ্ছে…",
   "agents.stopAutoSwitch": "স্বয়ংক্রিয় সুইচ বন্ধ করুন",

@@ -83,7 +83,6 @@
   "agents.signInIntro": "Увійдіть до підписки на кодування зі ШІ, і ця панель відстежуватиме, скільки у вас залишилося.",
   "agents.signInRequired": "Потрібен вхід",
   "agents.signInUnfinished": "Вхід не завершено.",
-  "agents.startDefaultAgent": "Запустити типового агента",
   "agents.startOnNew": "Запустити типового агента на новій %1",
   "agents.starting": "Запуск…",
   "agents.stopAutoSwitch": "Припинити автоматичне перемикання",

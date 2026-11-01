@@ -83,7 +83,6 @@
   "agents.signInIntro": "Zaloguj się do subskrypcji AI do kodowania, a ten panel pokaże, ile limitu Ci zostało.",
   "agents.signInRequired": "Wymagane logowanie",
   "agents.signInUnfinished": "Logowanie nie zakończyło się.",
-  "agents.startDefaultAgent": "Uruchom domyślnego agenta",
   "agents.startOnNew": "Uruchom domyślnego agenta na nowym %1",
   "agents.starting": "Uruchamianie…",
   "agents.stopAutoSwitch": "Przestań przełączać automatycznie",

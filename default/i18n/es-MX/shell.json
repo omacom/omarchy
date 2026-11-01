@@ -78,7 +78,6 @@
   "agents.signInIntro": "Inicia sesión en una suscripción de programación con IA y este panel llevará la cuenta de cuánto te queda.",
   "agents.signInRequired": "Se requiere iniciar sesión",
   "agents.signInUnfinished": "El inicio de sesión no terminó.",
-  "agents.startDefaultAgent": "Iniciar el agente predeterminado",
   "agents.startOnNew": "Inicia tu agente predeterminado en un nuevo %1",
   "agents.starting": "Iniciando…",
   "agents.stopAutoSwitch": "Dejar de cambiar automáticamente",

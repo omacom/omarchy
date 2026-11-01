@@ -68,7 +68,6 @@
   "agents.signInIntro": "登入 AI 程式訂閱，此面板會追蹤你的剩餘用量。",
   "agents.signInRequired": "需要登入",
   "agents.signInUnfinished": "登入未完成。",
-  "agents.startDefaultAgent": "啟動預設代理程式",
   "agents.startOnNew": "在新的 %1 上啟動預設代理程式",
   "agents.starting": "啟動中…",
   "agents.stopAutoSwitch": "停止自動切換",

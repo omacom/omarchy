@@ -78,7 +78,6 @@
   "agents.signInIntro": "Accedi a un abbonamento di coding AI e questo pannello tiene traccia di quanto ti resta.",
   "agents.signInRequired": "Accesso richiesto",
   "agents.signInUnfinished": "L'accesso non è stato completato.",
-  "agents.startDefaultAgent": "Avvia l'agente predefinito",
   "agents.startOnNew": "Avvia l'agente predefinito su un nuovo %1",
   "agents.starting": "Avvio in corso…",
   "agents.stopAutoSwitch": "Smetti di cambiare automaticamente",

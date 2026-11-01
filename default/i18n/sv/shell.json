@@ -73,7 +73,6 @@
   "agents.signInIntro": "Logga in på ett AI-kodabonnemang, så håller panelen koll på hur mycket du har kvar.",
   "agents.signInRequired": "Inloggning krävs",
   "agents.signInUnfinished": "Inloggningen slutfördes inte.",
-  "agents.startDefaultAgent": "Starta standardagenten",
   "agents.startOnNew": "Starta standardagenten på en ny %1",
   "agents.starting": "Startar…",
   "agents.stopAutoSwitch": "Sluta växla automatiskt",

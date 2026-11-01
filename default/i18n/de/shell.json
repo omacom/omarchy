@@ -73,7 +73,6 @@
   "agents.signInIntro": "Melde dich bei einem KI-Coding-Abo an, und dieses Panel zeigt dir, wie viel davon noch übrig ist.",
   "agents.signInRequired": "Anmeldung erforderlich",
   "agents.signInUnfinished": "Die Anmeldung wurde nicht abgeschlossen.",
-  "agents.startDefaultAgent": "Standard-Agenten starten",
   "agents.startOnNew": "Starte deinen Standard-Agenten auf einer neuen %1",
   "agents.starting": "Wird gestartet…",
   "agents.stopAutoSwitch": "Nicht mehr automatisch wechseln",

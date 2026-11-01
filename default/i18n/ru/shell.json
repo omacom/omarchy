@@ -83,7 +83,6 @@
   "agents.signInIntro": "Войдите в подписку на ИИ для программирования — панель покажет, сколько у вас осталось.",
   "agents.signInRequired": "Требуется вход",
   "agents.signInUnfinished": "Вход не завершён.",
-  "agents.startDefaultAgent": "Запустить агента по умолчанию",
   "agents.startOnNew": "Запустите агента по умолчанию с новым: %1",
   "agents.starting": "Запуск…",
   "agents.stopAutoSwitch": "Отключить автопереключение",

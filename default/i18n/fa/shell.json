@@ -73,7 +73,6 @@
   "agents.signInIntro": "وارد اشتراک برنامه‌نویسی AI شوید تا این پنل میزان باقی‌مانده را نشان دهد.",
   "agents.signInRequired": "ورود لازم است",
   "agents.signInUnfinished": "ورود تمام نشد.",
-  "agents.startDefaultAgent": "شروع عامل پیش‌فرض",
   "agents.startOnNew": "عامل پیش‌فرض را روی %1 جدید شروع کن",
   "agents.starting": "در حال شروع…",
   "agents.stopAutoSwitch": "توقف تعویض خودکار",

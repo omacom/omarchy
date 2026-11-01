@@ -93,7 +93,6 @@
   "agents.signInIntro": "سجّل الدخول إلى اشتراك برمجة بالذكاء الاصطناعي، وستتتبع هذه اللوحة المتبقي لديك.",
   "agents.signInRequired": "يلزم تسجيل الدخول",
   "agents.signInUnfinished": "لم يكتمل تسجيل الدخول.",
-  "agents.startDefaultAgent": "ابدأ الوكيل الافتراضي",
   "agents.startOnNew": "ابدأ وكيلك الافتراضي على %1 جديد",
   "agents.starting": "جارٍ البدء…",
   "agents.stopAutoSwitch": "إيقاف التبديل التلقائي",

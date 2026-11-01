@@ -83,7 +83,6 @@
   "agents.signInIntro": "Prijavite se v naročnino za kodiranje z AI in ta plošča spremlja, koliko je še imate.",
   "agents.signInRequired": "Potrebna je prijava",
   "agents.signInUnfinished": "Prijava se ni končala.",
-  "agents.startDefaultAgent": "Zaženite privzetega agenta",
   "agents.startOnNew": "Zaženite privzetega agenta na novem: %1",
   "agents.starting": "Zaganjanje…",
   "agents.stopAutoSwitch": "Ustavite samodejno preklapljanje",

@@ -73,7 +73,6 @@
   "agents.signInIntro": "Kirjaudu tekoälykoodaustilaukseen, niin tämä paneeli pitää kirjaa siitä, kuinka paljon sinulla on sitä jäljellä.",
   "agents.signInRequired": "Kirjautuminen vaaditaan",
   "agents.signInUnfinished": "Kirjautuminen ei valmistunut.",
-  "agents.startDefaultAgent": "Käynnistä oletusagentti",
   "agents.startOnNew": "Käynnistä oletusagenttisi uudessa %1",
   "agents.starting": "Käynnistetään…",
   "agents.stopAutoSwitch": "Lopeta automaattinen vaihtaminen",

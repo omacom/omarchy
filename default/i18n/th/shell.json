@@ -68,7 +68,6 @@
   "agents.signInIntro": "เข้าสู่ระบบบริการ AI สำหรับเขียนโค้ด แล้วแผงนี้จะติดตามว่าคุณเหลือยอดใช้งานเท่าใด",
   "agents.signInRequired": "ต้องเข้าสู่ระบบ",
   "agents.signInUnfinished": "การเข้าสู่ระบบไม่เสร็จสิ้น",
-  "agents.startDefaultAgent": "เริ่มเอเจนต์เริ่มต้น",
   "agents.startOnNew": "เริ่มเอเจนต์เริ่มต้นของคุณบน %1 ใหม่",
   "agents.starting": "กำลังเริ่ม…",
   "agents.stopAutoSwitch": "หยุดสลับอัตโนมัติ",

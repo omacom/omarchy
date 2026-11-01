@@ -73,7 +73,6 @@
   "agents.signInIntro": "AI කේතීකරණ දායකත්වයකට ඇතුළු වන්න, මෙම පැනලය ඔබට ඉතිරි වී ඇති ප්‍රමාණය නිරීක්ෂණය කරයි.",
   "agents.signInRequired": "ඇතුළු වීම අවශ්‍යයි",
   "agents.signInUnfinished": "ඇතුළු වීම අවසන් වූයේ නැත.",
-  "agents.startDefaultAgent": "පෙරනිමි නියෝජිතයා අරඹන්න",
   "agents.startOnNew": "අලුත් %1 එකක් මත ඔබේ පෙරනිමි නියෝජිතයා අරඹන්න",
   "agents.starting": "අරඹමින්…",
   "agents.stopAutoSwitch": "ස්වයංක්‍රීයව මාරු වීම නවත්වන්න",

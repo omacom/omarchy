@@ -73,7 +73,6 @@
   "agents.signInIntro": "Συνδέσου σε συνδρομή AI για προγραμματισμό και αυτός ο πίνακας παρακολουθεί πόσο υπόλοιπο σου μένει.",
   "agents.signInRequired": "Απαιτείται σύνδεση",
   "agents.signInUnfinished": "Η σύνδεση δεν ολοκληρώθηκε.",
-  "agents.startDefaultAgent": "Ξεκίνα τον προεπιλεγμένο πράκτορα",
   "agents.startOnNew": "Ξεκίνα τον προεπιλεγμένο πράκτορά σου σε νέο %1",
   "agents.starting": "Ξεκινάει…",
   "agents.stopAutoSwitch": "Σταμάτα την αυτόματη εναλλαγή",

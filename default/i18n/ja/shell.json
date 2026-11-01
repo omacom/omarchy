@@ -68,7 +68,6 @@
   "agents.signInIntro": "AIコーディングのサブスクリプションにサインインすると、このパネルで残り使用量を確認できます。",
   "agents.signInRequired": "サインインが必要です",
   "agents.signInUnfinished": "サインインが完了しませんでした。",
-  "agents.startDefaultAgent": "既定のエージェントを開始する",
   "agents.startOnNew": "新しい%1で既定のエージェントを開始する",
   "agents.starting": "開始中…",
   "agents.stopAutoSwitch": "自動切り替えを停止",

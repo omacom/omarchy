@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local]
-# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local
+# omarchy:args=[--inline] [--pick] [--local] [--agent <id>]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
 pick=false
 use_local=false
+agent_override=""
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -24,6 +25,10 @@ while (($#)); do
       use_local=true
       shift
       ;;
+    --agent)
+      agent_override=${2:?--agent needs an agent id}
+      shift 2
+      ;;
     --prompt)
       prompt=${2:?--prompt needs a value}
       shift 2
@@ -40,7 +45,17 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
-agent=$(omarchy-default-agent)
+# --agent launches a given agent instead of the default: the panel's terminal
+# button on each subscription opens the harness made for it, Codex for OpenAI.
+if [[ -n $agent_override ]]; then
+  agent=$agent_override
+  if omarchy-cmd-missing "$agent"; then
+    omarchy-notification-send "$(omarchy-i18n agents.harnessMissing "$agent")" "$(omarchy-i18n agents.harnessMissingBody "$agent")"
+    exit 1
+  fi
+else
+  agent=$(omarchy-default-agent)
+fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the

@@ -73,7 +73,6 @@
   "agents.signInIntro": "Mag-sign in sa isang AI coding subscription, at susubaybayan ng panel na ito kung gaano pa ang natitira sa iyo.",
   "agents.signInRequired": "Kailangan mag-sign in",
   "agents.signInUnfinished": "Hindi natapos ang pag-sign in.",
-  "agents.startDefaultAgent": "Simulan ang default na agent",
   "agents.startOnNew": "Simulan ang iyong default na agent sa bagong %1",
   "agents.starting": "Nagsisimula…",
   "agents.stopAutoSwitch": "Itigil ang awtomatikong paglipat",

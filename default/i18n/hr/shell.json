@@ -78,7 +78,6 @@
   "agents.signInIntro": "Prijavite se na pretplatu za AI kodiranje i ova ploča prati koliko vam je ostalo.",
   "agents.signInRequired": "Potrebna je prijava",
   "agents.signInUnfinished": "Prijava nije završila.",
-  "agents.startDefaultAgent": "Pokrenite zadanog agenta",
   "agents.startOnNew": "Pokrenite zadanog agenta na novom %1",
   "agents.starting": "Pokretanje…",
   "agents.stopAutoSwitch": "Zaustavite automatsko prebacivanje",

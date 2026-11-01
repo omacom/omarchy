@@ -78,7 +78,6 @@
   "agents.signInIntro": "Autentifică-te la un abonament de programare AI, iar acest panou arată cât ți-a rămas.",
   "agents.signInRequired": "Autentificare necesară",
   "agents.signInUnfinished": "Autentificarea nu s-a finalizat.",
-  "agents.startDefaultAgent": "Pornește agentul implicit",
   "agents.startOnNew": "Pornește agentul implicit pe un nou %1",
   "agents.starting": "Se pornește…",
   "agents.stopAutoSwitch": "Oprește comutarea automată",

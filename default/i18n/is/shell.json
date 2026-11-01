@@ -73,7 +73,6 @@
   "agents.signInIntro": "Skráðu þig inn á AI-kóðunaráskrift og þetta spjald heldur utan um hve mikið þú átt eftir.",
   "agents.signInRequired": "Innskráning krafist",
   "agents.signInUnfinished": "Innskráningin lauk ekki.",
-  "agents.startDefaultAgent": "Ræstu sjálfgefna agentinn",
   "agents.startOnNew": "Ræstu sjálfgefna agentinn þinn á nýju %1",
   "agents.starting": "Ræsir…",
   "agents.stopAutoSwitch": "Hætta að skipta sjálfkrafa",

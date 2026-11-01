@@ -78,7 +78,6 @@
   "agents.signInIntro": "Prisijunkite prie AI programavimo prenumeratos, ir šis skydelis seks, kiek jos liko.",
   "agents.signInRequired": "Reikia prisijungti",
   "agents.signInUnfinished": "Nepavyko užbaigti prisijungimo.",
-  "agents.startDefaultAgent": "Paleisti numatytąjį agentą",
   "agents.startOnNew": "Paleisti numatytąjį agentą naujame %1",
   "agents.starting": "Paleidžiama…",
   "agents.stopAutoSwitch": "Sustabdyti automatinį perjungimą",

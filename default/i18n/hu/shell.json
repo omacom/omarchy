@@ -73,7 +73,6 @@
   "agents.signInIntro": "Jelentkezz be egy AI-kódolási előfizetésbe, és ez a panel nyilvántartja, mennyi maradt belőle.",
   "agents.signInRequired": "Bejelentkezés szükséges",
   "agents.signInUnfinished": "A bejelentkezés nem fejeződött be.",
-  "agents.startDefaultAgent": "Alapértelmezett ügynök indítása",
   "agents.startOnNew": "Alapértelmezett ügynök indítása új %1 feladaton",
   "agents.starting": "Indítás…",
   "agents.stopAutoSwitch": "Automatikus váltás leállítása",

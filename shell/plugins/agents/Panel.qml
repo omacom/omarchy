@@ -140,7 +140,6 @@ Panel {
     var rows = []
     var hero = []
     if (addButtonShown) hero.push({ kind: "add", index: 0 })
-    if (addStage === "") hero.push({ kind: "launch", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
       var choices = []
@@ -155,8 +154,11 @@ Panel {
       // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
-        // Every agent's header is a stop, so Ctrl+Up/Down can move it.
-        rows.push([{ kind: "provider", index: p }])
+        // Every agent's header is a stop, so Ctrl+Up/Down can move it, with its
+        // terminal button beside it when the provider has a harness of its own.
+        var head = [{ kind: "provider", index: p }]
+        if (harnessFor(providers[p]) !== "") head.push({ kind: "providerLaunch", index: p })
+        rows.push(head)
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -478,7 +480,7 @@ Panel {
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "local") runLocalAction(localActions[target.index])
     else if (target.kind === "localChoice") switchLocal(localChoices[target.index])
-    else if (target.kind === "launch") launchAgent()
+    else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
@@ -574,6 +576,36 @@ Panel {
 
   function launchAgent() {
     if (root.bar) root.bar.run("omarchy-agent --pick")
+    root.close()
+  }
+
+  // The coding agent made for each subscription, by usage provider id. A
+  // provider with none of its own (OpenRouter, Fireworks, Z.ai…) gets no
+  // terminal button: which harness to point at it is the user's choice.
+  readonly property var harnesses: ({
+    agy: "agy",
+    claude: "claude",
+    codex: "codex",
+    copilot: "copilot",
+    cursor: "cursor-agent",
+    deepseek: "dsh",
+    devin: "devin",
+    grok: "grok",
+    hermes: "hermes",
+    kimi: "kimi",
+    muse: "muse",
+    opencode: "opencode",
+    qwen: "qwen"
+  })
+
+  function harnessFor(provider) {
+    return provider && harnesses[provider.providerId] ? harnesses[provider.providerId] : ""
+  }
+
+  function launchHarness(provider) {
+    var harness = harnessFor(provider)
+    if (harness === "") return
+    Util.execArgv(["omarchy-agent", "--agent", harness])
     root.close()
   }
 
@@ -1155,7 +1187,7 @@ Panel {
             trailingControl: Component {
               Row {
                 spacing: Style.space(6)
-                visible: root.addStage === "" || root.addButtonShown
+                visible: root.addButtonShown
 
                 HeroButton {
                   visible: root.addButtonShown
@@ -1165,15 +1197,6 @@ Panel {
                   glyph: adding ? "󰅖" : "󰐕"
                   tooltip: adding ? Commons.I18n.t("agents.backToLimits") : Commons.I18n.t("agents.addSubscription")
                   onClicked: adding ? root.cancelAdd() : root.addAccount()
-                }
-
-                HeroButton {
-                  visible: root.addStage === ""
-                  hasCursor: root.hasKey("launch")
-                  onHovered: root.pointAt("launch")
-                  glyph: "󰞷"
-                  tooltip: Commons.I18n.t("agents.startDefaultAgent")
-                  onClicked: root.launchAgent()
                 }
               }
             }
@@ -1733,7 +1756,8 @@ Panel {
       }
 
       Text {
-        anchors.right: parent.right
+        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionLaunch.visible ? Style.space(10) : 0
         anchors.verticalCenter: parent.verticalCenter
         visible: !section.multi
         textFormat: Text.PlainText
@@ -1741,6 +1765,21 @@ Panel {
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
+      }
+
+      // Opens the coding agent made for this subscription: Codex for OpenAI,
+      // Claude Code for Anthropic.
+      PanelActionButton {
+        id: sectionLaunch
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.harnessFor(section.provider) !== ""
+        iconText: "󰞷"
+        tooltipText: Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("providerLaunch", section.providerIndex)
+        onClicked: root.launchHarness(section.provider)
       }
     }
 

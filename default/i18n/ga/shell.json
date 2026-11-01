@@ -88,7 +88,6 @@
   "agents.signInIntro": "Sínigh isteach i síntiús códaithe AI, agus coinneoidh an painéal seo cuntas ar an méid atá fágtha agat.",
   "agents.signInRequired": "Síniú isteach riachtanach",
   "agents.signInUnfinished": "Níor chríochnaigh an síniú isteach.",
-  "agents.startDefaultAgent": "Tosaigh an gníomhaire réamhshocraithe",
   "agents.startOnNew": "Tosaigh do ghníomhaire réamhshocraithe ar %1 nua",
   "agents.starting": "Ag tosú…",
   "agents.stopAutoSwitch": "Stop ag athrú go huathoibríoch",

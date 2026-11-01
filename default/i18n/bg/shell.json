@@ -73,7 +73,6 @@
   "agents.signInIntro": "Влез в AI абонамент за програмиране и панелът следи колко ти остава.",
   "agents.signInRequired": "Изисква се вход",
   "agents.signInUnfinished": "Входът не завърши.",
-  "agents.startDefaultAgent": "Стартирай агента по подразбиране",
   "agents.startOnNew": "Стартирай агента по подразбиране на нова %1",
   "agents.starting": "Стартиране…",
   "agents.stopAutoSwitch": "Спри автоматичното превключване",

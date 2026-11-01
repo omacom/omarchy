@@ -73,7 +73,6 @@
   "agents.signInIntro": "AI कोडिंग सदस्यता में साइन इन करें, और यह पैनल बताएगा कि कितना बाकी है।",
   "agents.signInRequired": "साइन-इन आवश्यक है",
   "agents.signInUnfinished": "साइन-इन पूरा नहीं हुआ।",
-  "agents.startDefaultAgent": "डिफ़ॉल्ट एजेंट को शुरू करें",
   "agents.startOnNew": "अपने डिफ़ॉल्ट एजेंट को नए %1 पर शुरू करें",
   "agents.starting": "शुरू हो रहा है…",
   "agents.stopAutoSwitch": "स्वचालित रूप से स्विच करना बंद करें",

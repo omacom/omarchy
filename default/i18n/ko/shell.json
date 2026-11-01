@@ -68,7 +68,6 @@
   "agents.signInIntro": "AI 코딩 구독에 로그인하면 이 패널에서 남은 용량을 확인할 수 있습니다.",
   "agents.signInRequired": "로그인 필요",
   "agents.signInUnfinished": "로그인이 완료되지 않았습니다.",
-  "agents.startDefaultAgent": "기본 에이전트 시작",
   "agents.startOnNew": "새 %1에서 기본 에이전트 시작",
   "agents.starting": "시작 중…",
   "agents.stopAutoSwitch": "자동 전환 중지",
