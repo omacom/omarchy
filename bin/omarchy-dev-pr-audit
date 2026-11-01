@@ -7,11 +7,6 @@
 
 set -euo pipefail
 
-if ! command -v omarchy-cmd-missing >/dev/null 2>&1; then
-  bin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-  [[ -x $bin_dir/omarchy-cmd-missing ]] && export PATH="$bin_dir:$PATH"
-fi
-
 usage() {
   cat <<'EOF'
 Usage: omarchy dev pr audit [options]
