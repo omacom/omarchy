@@ -31,8 +31,11 @@ commit_status=0
 commit_error=$(HOME="$empty_home" OMARCHY_PATH="$ROOT" bash -c 'source "$OMARCHY_PATH/bin/omarchy-shell-config" && commit "."' 2>&1 >/dev/null) || commit_status=$?
 (( commit_status != 0 )) && [[ $commit_error == *"refusing to overwrite"* && ! -s $empty_home/.config/omarchy/shell.json ]] ||
   fail "shell config writes leave an empty shell.json alone" "$commit_error"
-rm -rf "$empty_home"
 pass "shell config writes leave an empty shell.json alone"
+position=$(HOME="$empty_home" OMARCHY_PATH="$ROOT" omarchy-bar position 2>&1) && [[ $position == "top" ]] ||
+  fail "bar settings still read the defaults while shell.json is empty" "$position"
+rm -rf "$empty_home"
+pass "bar settings still read the defaults while shell.json is empty"
 
 ROOT="$ROOT" python3 <<'PY'
 import json
