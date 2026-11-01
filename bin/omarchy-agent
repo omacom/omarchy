@@ -254,7 +254,9 @@ if [[ $use_local == "true" ]]; then
   (( ${#overlay[@]} == 3 )) || exit 1
   case "$agent" in
   opencode)
-    command=(env "OPENCODE_CONFIG=${overlay[0]}" "${command[@]}" --model "${overlay[1]}/${overlay[2]}")
+    # The shared background service never sees the overlay, so run a private one.
+    model=$(jq -nc --arg model "${overlay[1]}/${overlay[2]}" '{model: $model}')
+    command=(env "OPENCODE_CONFIG=${overlay[0]}" "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)
     ;;
   pi)
     command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
