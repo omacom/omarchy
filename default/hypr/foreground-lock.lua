@@ -36,6 +36,14 @@ local function lost_screen_to(previous, window)
     and previous.workspace and window.workspace and previous.workspace.id == window.workspace.id
 end
 
+-- A config reload starts this file over while a window already has focus, and
+-- that window is the one the next switch leaves.
+local active = hl.get_active_window()
+if active then
+  last_active = active.address
+  last_active_held = holds_screen(active)
+end
+
 hl.on("window.active", function(window)
   if not window then
     return
