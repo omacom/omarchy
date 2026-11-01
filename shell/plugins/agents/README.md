@@ -9,7 +9,7 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 ## Panel
 
-Every subscription on one page, limits first.
+Every subscription on one page, limits first. Closing the panel remembers which subscription was in view, and the next open returns there.
 
 - **Hero** — the agents robot, and a line that rotates through what the
   token counts add up to across every agent: tokens this week and today, the
