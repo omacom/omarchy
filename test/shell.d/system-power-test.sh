@@ -8,7 +8,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 call_log="$test_tmp/calls.log"
 mkdir -p "$mock_bin"
-export PATH="$mock_bin:$PATH" CALL_LOG="$call_log" OMARCHY_PATH="$ROOT"
+export PATH="$mock_bin:$ROOT/bin:$PATH" CALL_LOG="$call_log" OMARCHY_PATH="$ROOT"
 export HYPRLAND_INSTANCE_SIGNATURE="test-session"
 export EXPECTED_PATH="$PATH" EXPECTED_OMARCHY_PATH="$OMARCHY_PATH"
 
@@ -40,13 +40,16 @@ trap 'rm -f "$CALL_LOG.inhibited"' EXIT
 "$@"
 SH
 
-for command in uwsm omarchy-state omarchy-hyprland-window-close-all omarchy-osd omarchy-notification-send sleep timeout systemctl; do
+for command in uwsm omarchy-state omarchy-hyprland-window-close omarchy-hyprland-window-close-all omarchy-osd omarchy-notification-send sleep timeout systemctl; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 
 command=${0##*/}
 printf '%s %s\n' "$command" "$*" >>"$CALL_LOG"
 case $command in
+  omarchy-hyprland-window-close)
+    [[ ${CANCEL_EXIT:-false} != "true" ]]
+    ;;
   omarchy-osd)
     [[ $PATH == "$EXPECTED_PATH" && $OMARCHY_PATH == "$EXPECTED_OMARCHY_PATH" && $HYPRLAND_INSTANCE_SIGNATURE == "test-session" ]] || exit 38
     touch "$CALL_LOG.environment"
@@ -90,12 +93,12 @@ run_power_command() {
 
 for action in reboot logout; do
   run_power_command "$action" || fail "$action service is scheduled"
-  (( $(wc -l <"$call_log") == 1 )) || fail "$action preparation runs outside the launching terminal"
+  (( $(wc -l <"$call_log") == 2 )) || fail "$action preflight precedes scheduling and all preparation stays in the service"
   [[ -s $CALL_LOG.worker ]] || fail "$action schedules its worker"
   grep -q -- '--property=RuntimeMaxSec=30s' "$CALL_LOG" || fail "$action bounds the worker lifetime"
   PATH=/stale/bin OMARCHY_PATH=/stale/checkout HYPRLAND_INSTANCE_SIGNATURE=stale /bin/bash "$CALL_LOG.worker" || fail "$action worker succeeds"
   [[ -f $CALL_LOG.environment ]] || fail "$action forwards the caller environment over stale manager values"
-  grep -q '^timeout 2s omarchy-hyprland-window-close-all --wait$' "$CALL_LOG" || fail "$action waits for application exit with a deadline"
+  grep -q '^timeout 2s omarchy-hyprland-window-close-all --wait --policy never$' "$CALL_LOG" || fail "$action waits without a second prompt"
   ! grep -q '^sleep ' "$CALL_LOG" || fail "$action has no fixed sleep"
   rm -f "$CALL_LOG.grace"
   BLOCK_WINDOW_CLOSE=true bash "$CALL_LOG.worker" || fail "$action proceeds after the close deadline"
@@ -117,7 +120,7 @@ inhibit_line=$(grep -n '^systemd-inhibit ' "$CALL_LOG" | cut -d: -f1)
 osd_line=$(grep -n '^omarchy-osd ' "$CALL_LOG" | cut -d: -f1)
 (( inhibit_line < osd_line )) || fail "inhibition precedes preparation"
 grep -q '^omarchy-state clear re\*-required$' "$CALL_LOG" || fail "shutdown clears restart state"
-grep -q '^timeout 2s omarchy-hyprland-window-close-all --wait$' "$CALL_LOG" || fail "shutdown waits for applications with a deadline"
+grep -q '^timeout 2s omarchy-hyprland-window-close-all --wait --policy never$' "$CALL_LOG" || fail "shutdown waits for applications without a second prompt"
 ! grep -q '^sleep ' "$CALL_LOG" || fail "shutdown has no fixed sleep"
 grep -q '^systemctl poweroff --no-wall$' "$CALL_LOG" || fail "poweroff runs after the grace period while inhibited"
 [[ ! -f $CALL_LOG.inhibited ]] || fail "accepted poweroff releases inhibition"
@@ -146,11 +149,12 @@ for action in reboot shutdown logout; do
     fail "$action aborts when scheduling fails"
   fi
 
-  if (( $(wc -l <"$call_log") != 1 )); then
+  if (( $(wc -l <"$call_log") != 2 )); then
     fail "$action leaves state and windows alone when scheduling fails"
   fi
   pass "$action leaves state and windows alone when scheduling fails"
 done
+
 
 for failure in FAIL_INHIBIT FAIL_POWEROFF; do
   : >"$call_log"
@@ -204,3 +208,14 @@ for action in logout reboot shutdown; do
 done
 "$ROOT/bin/omarchy" system lock --help | grep -q 'omarchy-system-lock' || fail "system lock remains routed to its own command"
 pass "existing system subcommands keep their routes"
+
+for action in logout reboot shutdown; do
+  : >"$call_log"
+  rm -f "$CALL_LOG.worker"
+  if CANCEL_EXIT=true "$ROOT/bin/omarchy-system" "$action" --policy always; then
+    fail "$action cancellation must fail before scheduling"
+  fi
+  [[ $(wc -l <"$call_log") == 1 && ! -e $CALL_LOG.worker ]] || fail "$action cancellation has no exit side effects"
+  grep -q "^omarchy-hyprland-window-close --confirm-exit $action --policy always$" "$CALL_LOG" || fail "$action forwards its public policy to preflight"
+  pass "$action cancellation precedes closing, state clearing, OSD, inhibition and service creation"
+done
