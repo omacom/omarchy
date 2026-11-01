@@ -2835,6 +2835,36 @@ def codex_providers_path() -> Path:
   return Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state")) / "omarchy" / "agents" / "local-codex-providers.json"
 
 
+# The plans as Codex's own /status names them (SubscriptionDisplay::Status in
+# Codex 0.163's TUI), keyed by the wire planType: "pro" is the 200 plan, and
+# a "team" workspace is what Codex sells as Business.
+CODEX_PLAN_NAMES = {
+  "free": "Free",
+  "go": "Go",
+  "plus": "Plus",
+  "pro": "Pro 200",
+  "prolite": "Pro 100",
+  "promax": "Pro 500",
+  "team": "Business",
+  "self_serve_business_usage_based": "Business",
+  "self_serve_business_prolite": "Business Premium",
+  "business": "Enterprise",
+  "enterprise_cbp_automation": "Enterprise (Automation)",
+  "enterprise_cbp_usage_based": "Enterprise",
+  "ent26": "Enterprise",
+  "enterprise": "Enterprise",
+  "edu": "Edu",
+  "edu_plus": "Edu Plus",
+  "edu_pro": "Edu Pro",
+}
+
+
+def codex_plan_name(plan: Any) -> str:
+  # A plan newer than this table keeps its wire name, made readable.
+  plan = str(plan or "")
+  return CODEX_PLAN_NAMES.get(plan, plan.replace("_", " "))
+
+
 def codex_provider_urls() -> dict[str, str]:
   """provider id -> base_url, for every Codex provider config.toml has named.
 

@@ -49,7 +49,7 @@ sys.path.insert(0, str(OMARCHY_PATH / "shell" / "plugins" / "agents"))
 # real credential or a real store. The sandbox drops every one of them, and
 # any *_API_KEY, so a test only ever sees what it planted.
 DEVELOPER_PREFIXES = (
-  "AGY_", "ANTHROPIC_", "CLAUDE_", "CLOUD_CODE_", "CODEX_", "COPILOT_", "CURSOR_", "DEEPSEEK_",
+  "AGY_", "ANTHROPIC_", "CLAUDE_", "CLIPROXY_", "CLOUD_CODE_", "CODEX_", "COPILOT_", "CURSOR_", "DEEPSEEK_",
   "DEVIN_", "DSH_", "FIREWORKS_", "GH_", "GITHUB_", "GROK_", "HERMES_", "KIMCHI_", "KIMI_",
   "MAVIS_", "MINIMAX_", "MISE_", "MMX_", "MUSE_", "OLLAMA_", "OPENAI_", "OPENCLAW_", "OPENCODE_", "OPENROUTER_",
   "PI_CODING_AGENT_", "QWEN_", "SYNTHETIC_", "VIBE_", "ZAI_", "ZHIPU",

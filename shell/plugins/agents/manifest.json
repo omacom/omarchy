@@ -41,6 +41,7 @@
         "deepseek": { "enabled": true },
         "fireworks": { "enabled": true },
         "synthetic": { "enabled": true },
+        "cliproxy": { "enabled": true },
         "local": { "enabled": true }
       },
       "refreshIntervalSec": 900,

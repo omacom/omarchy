@@ -157,7 +157,7 @@ Panel {
         for (var a = 0; a < accounts.length; a++, entry++) {
           var row = []
           if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
-          if (!accounts[a].active) {
+          if (!accounts[a].active && supportsSignIn(providers[p])) {
             row.push({ kind: "autoswitch", index: entry })
             row.push({ kind: "account", index: entry })
           }
@@ -556,15 +556,17 @@ Panel {
   }
 
   function setSwitchMode(p, mode) {
-    if (!p || providerAccounts(p).length < 2 || mode === (autoSwitchFor(p) ? "auto" : "manual")) return
+    if (!p || !supportsSignIn(p) || providerAccounts(p).length < 2 || mode === (autoSwitchFor(p) ? "auto" : "manual")) return
     Util.execArgv(["bash", "-c", 'omarchy-agent-account-mode "$1" "$2" >/dev/null && omarchy-agent-usage-update --limits-only "$1"',
                    "omarchy-agent-account-mode", p.providerId, mode])
   }
 
   // `m` flips autoswitch for the picked account's provider, or the first
-  // provider with several accounts when nothing is picked.
+  // provider with several switchable accounts when nothing is picked.
   function toggleSwitchMode() {
-    var p = pickedEntry ? pickedEntry.provider : (accountEntries.length > 0 ? accountEntries[0].provider : null)
+    var p = pickedEntry ? pickedEntry.provider : null
+    for (var i = 0; !p && i < accountEntries.length; i++)
+      if (supportsSignIn(accountEntries[i].provider)) p = accountEntries[i].provider
     if (p) setSwitchMode(p, autoSwitchFor(p) ? "manual" : "auto")
   }
 
@@ -603,6 +605,9 @@ Panel {
 
   // Only the agents `omarchy-agent-account-add` signs in get the link; any
   // other agent's sign-in trouble stays text, with its own help to follow.
+  // The same agents are the only ones whose accounts `omarchy agent account`
+  // can switch and rename; another agent's accounts (a proxy's) are listed
+  // without those actions.
   function supportsSignIn(p) {
     for (var i = 0; i < addProviders.length; i++)
       if (p && addProviders[i].providerId === p.providerId) return true
@@ -2249,7 +2254,8 @@ Panel {
 
   // An account's name, email and plan, with ACTIVE or a Use link on the
   // right. Clicking the name edits it in place: Enter renames, Esc or
-  // clicking away leaves it as it was.
+  // clicking away leaves it as it was. An agent whose accounts can't be
+  // switched from here (a proxy's) shows the name and plan alone.
   component AccountHeader: Item {
     id: head
     property var account: ({})
@@ -2260,6 +2266,7 @@ Panel {
     property string renamedTo: ""
     readonly property bool isActive: account.active === true
     readonly property bool autoOn: root.autoSwitchFor(owner)
+    readonly property bool managed: root.supportsSignIn(owner)
     // Which of the row's links the keyboard is on, when it's on this row.
     readonly property string pickedKind: picked && root.keyTarget ? root.keyTarget.kind : ""
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
@@ -2311,15 +2318,15 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: head.isActive
-        font.underline: nameMouse.containsMouse
+        font.underline: head.managed && nameMouse.containsMouse
         elide: Text.ElideRight
 
         MouseArea {
           id: nameMouse
           anchors.fill: parent
           hoverEnabled: true
-          cursorShape: Qt.IBeamCursor
-          onClicked: head.startRename()
+          cursorShape: head.managed ? Qt.IBeamCursor : Qt.ArrowCursor
+          onClicked: if (head.managed) head.startRename()
         }
 
         PanelToolTip {
@@ -2406,8 +2413,8 @@ Panel {
       id: headAction
       anchors.right: parent.right
       anchors.top: parent.top
-      implicitWidth: head.isActive ? headActive.implicitWidth : useRow.implicitWidth
-      implicitHeight: head.isActive ? headActive.implicitHeight : useRow.implicitHeight
+      implicitWidth: head.isActive ? headActive.implicitWidth : useRow.visible ? useRow.implicitWidth : 0
+      implicitHeight: head.isActive ? headActive.implicitHeight : useRow.visible ? useRow.implicitHeight : 0
 
       Text {
         id: headActive
@@ -2427,7 +2434,7 @@ Panel {
       // clicking it again goes back to only being notified.
       Row {
         id: useRow
-        visible: !head.isActive
+        visible: !head.isActive && head.managed
         anchors.right: parent.right
         spacing: Style.space(12)
 

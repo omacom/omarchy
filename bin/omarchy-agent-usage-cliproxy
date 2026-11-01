@@ -1,0 +1,252 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the CLIProxyAPI usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect the limits of the accounts behind a CLIProxyAPI into one record.
+
+CLIProxyAPI serves Claude Code, Codex and other clients from subscription
+accounts it signs in to itself, so those accounts' limits never reach the
+Claude or Codex collectors: the machine's own sign-ins go unused and lapse.
+The proxy keeps, for each Claude and Codex account, the rate-limit headers of
+the last response that carried them, and its management API hands them out
+with the account list (`GET /v0/management/auth-files`, each entry's
+`quota.signals`). This collector reads that list, asked with the management
+key, and shows every enabled account's session and weekly windows. Tokens are
+counted where the requests are made: a Claude model's reply sent through the
+proxy is already Claude's (see claude_code_owner), so the record carries
+limits alone. The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  base_record,
+  codex_plan_name,
+  config_home,
+  emit,
+  finite,
+  number,
+  open_json,
+  open_limits,
+  read_json,
+  trusted_endpoint,
+)
+
+AGENT_ID = "cliproxy"
+AGENT_NAME = "CLIProxyAPI"
+DEFAULT_URL = "http://127.0.0.1:8317"
+AUTH_HELP = "Set `managementKey` in ~/.config/omarchy/agents/cliproxy.json to the proxy's `management.secret-key`."
+
+
+def settings() -> tuple[str, str]:
+  """The proxy's base URL and its management key: CLIPROXY_URL and
+  CLIPROXY_MANAGEMENT_KEY, else `url` and `managementKey` in
+  ~/.config/omarchy/agents/cliproxy.json, the URL defaulting to the port the
+  proxy listens on out of the box."""
+  config = read_json(config_home() / "omarchy" / "agents" / "cliproxy.json")
+  url = str(os.environ.get("CLIPROXY_URL") or config.get("url") or DEFAULT_URL).strip().rstrip("/")
+  key = str(os.environ.get("CLIPROXY_MANAGEMENT_KEY") or config.get("managementKey") or "").strip()
+  return url, key
+
+
+# ------------------------------------------------------------------ limits
+
+
+def fetch_accounts(url: str, key: str) -> list[dict[str, Any]]:
+  request = urllib.request.Request(
+    f"{url}/v0/management/auth-files",
+    headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+  )
+  answer = open_json(request, timeout=10)
+  files = answer.get("files") if isinstance(answer, dict) else None
+  if not isinstance(files, list):
+    raise ValueError("no files list")
+  return [entry for entry in files if isinstance(entry, dict)]
+
+
+def reset_time(value: Any) -> str:
+  seconds = number(value)
+  try:
+    return datetime.fromtimestamp(seconds, timezone.utc).isoformat() if seconds > 0 else ""
+  except (OverflowError, OSError, ValueError):
+    return ""
+
+
+def window(title: str, used: Any, scale: float, resets: Any) -> dict[str, Any] | None:
+  # A window the response didn't carry says nothing; one it did carries a
+  # real number, an untouched one included.
+  if used is None:
+    return None
+  return {"label": title, "percent": max(0.0, min(1.0, finite(used) / scale)), "resetsAt": reset_time(resets)}
+
+
+# Claude reports utilization as a fraction of the shared five-hour and
+# seven-day windows.
+def claude_windows(signals: dict[str, Any]) -> list[dict[str, Any] | None]:
+  prefix = "Anthropic-Ratelimit-Unified-"
+  return [
+    window(title, signals.get(f"{prefix}{span}-Utilization"), 1, signals.get(f"{prefix}{span}-Reset"))
+    for span, title in (("5h", "Session"), ("7d", "Weekly"))
+  ]
+
+
+# Codex reports a percentage of a primary and a secondary window, each naming
+# its own length, so the title comes from the length as the Codex collector
+# reads it.
+def codex_windows(signals: dict[str, Any]) -> list[dict[str, Any] | None]:
+  windows = []
+  for slot in ("Primary", "Secondary"):
+    minutes = number(signals.get(f"X-Codex-{slot}-Window-Minutes"))
+    title = "Monthly" if minutes >= 28 * 1440 else "Weekly" if minutes >= 1440 else "Session" if minutes > 0 else "Limit"
+    windows.append(window(title, signals.get(f"X-Codex-{slot}-Used-Percent"), 100, signals.get(f"X-Codex-{slot}-Reset-At")))
+  return windows
+
+
+READERS = {"claude": ("Claude", claude_windows), "codex": ("Codex", codex_windows)}
+
+
+def read_accounts(files: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+  """The enabled Claude and Codex accounts, and their windows, each tagged
+  with the account it measures so one kept list holds every account's."""
+  accounts, windows = [], []
+  for entry in files:
+    provider = str(entry.get("provider") or entry.get("type") or "").lower()
+    if provider not in READERS or entry.get("disabled") is True:
+      continue
+    product, reader = READERS[provider]
+    quota = entry.get("quota")
+    signals = quota.get("signals") if isinstance(quota, dict) else None
+    signals = signals if isinstance(signals, dict) else {}
+    account_id = str(entry.get("id") or entry.get("name") or "")
+    if not account_id:
+      continue
+    plan = codex_plan_name(signals.get("X-Codex-Plan-Type")) if provider == "codex" else ""
+    email = str(entry.get("email") or entry.get("account") or "")
+    accounts.append({
+      "id": account_id,
+      "label": str(entry.get("label") or email or account_id),
+      "email": email,
+      "plan": f"{product} {plan}".strip(),
+    })
+    windows += [dict(found, account=account_id) for found in reader(signals) if found]
+  return accounts, windows
+
+
+def own_windows(windows: list[dict[str, Any]], account_id: str) -> list[dict[str, Any]]:
+  return [{key: value for key, value in found.items() if key != "account"} for found in windows if found.get("account") == account_id]
+
+
+def fill(record: dict[str, Any], accounts: list[dict[str, Any]], windows: list[dict[str, Any]], fetched_at: int, stale: bool) -> None:
+  """One account reads as the agent's own plan and limits; several are listed
+  in `accounts`, each with its own. The proxy picks the account for every
+  request, so none is the active one and none can be switched to here."""
+  record.update(ready=bool(accounts), limitsStale=stale, limitsFetchedAt=fetched_at if accounts else 0)
+  if len(accounts) == 1:
+    record.update(tierLabel=accounts[0]["plan"], limits=own_windows(windows, accounts[0]["id"]))
+  elif accounts:
+    record["accounts"] = [
+      dict(
+        account,
+        active=False,
+        primary=False,
+        limits=(limits := own_windows(windows, account["id"])),
+        stale=stale and bool(limits),
+        fetchedAt=fetched_at,
+        usageStatusText="",
+        authHelpText="",
+        retryAdvised=False,
+      )
+      for account in accounts
+    ]
+
+
+def collect(force: bool = False) -> dict[str, Any]:
+  record = base_record(AGENT_ID, AGENT_NAME, hasPromptStats=False)
+  url, key = settings()
+  # Without a management key there is nothing to ask, and nothing says the
+  # machine uses a proxy at all.
+  if not key:
+    return record
+  if not trusted_endpoint(url):
+    record.update(
+      ready=True,
+      usageStatusText="CLIProxyAPI limits unavailable",
+      authHelpText=f"The management key is only sent over HTTPS, or plain HTTP to this machine; {url} is neither.",
+    )
+    return record
+
+  cache = LimitsCache(AGENT_ID, url, key)
+  kept_accounts = [entry for entry in cache.data.get("accounts") or [] if isinstance(entry, dict) and entry.get("id")]
+
+  # A panel opened and shut repeatedly must not turn into a request per
+  # flick, so an answer this recent is the answer.
+  if cache.fresh(force, allow_empty=True):
+    fill(record, kept_accounts, cache.limits, cache.fetched_at, stale=False)
+    return record
+
+  retry = False
+  try:
+    accounts, windows = read_accounts(fetch_accounts(url, key))
+  except HttpError as error:
+    if error.status in (401, 403):
+      status, detail = "Sign-in expired", "CLIProxyAPI refused the management key. " + AUTH_HELP
+    elif error.status == 404:
+      status, detail = "", "CLIProxyAPI's management API is off; set `management.secret-key` in its config to turn it on."
+    elif error.status:
+      status, detail = "", f"CLIProxyAPI's management API returned status {error.status}."
+    # No route, no DNS, refused, reset or timed out: nothing answered, so the
+    # panel tries again soon.
+    elif error.transport:
+      status, detail, retry = "", f"Couldn't reach CLIProxyAPI at {url}. Retrying shortly.", True
+    # A reply cut short or one that isn't the expected JSON came from a
+    # server that answered.
+    else:
+      status, detail = "", "CLIProxyAPI sent a reply that couldn't be read."
+  except (ValueError, TypeError, AttributeError):
+    status, detail = "", "CLIProxyAPI sent a reply that couldn't be read."
+  else:
+    # The cache only backs later runs; failing to keep it never costs this
+    # run's live answer.
+    fetched_at = cache.save(windows, accounts=accounts)
+    fill(record, accounts, open_limits(windows), fetched_at, stale=False)
+    return record
+
+  # A failed check keeps the last good accounts, marked stale so the panel
+  # gives their age on hover. With nothing kept, a configured proxy still
+  # says why it shows nothing.
+  fill(record, kept_accounts, cache.limits, cache.fetched_at, stale=True)
+  record.update(
+    ready=True,
+    usageStatusText=status or ("" if kept_accounts else "CLIProxyAPI limits unavailable"),
+    authHelpText=detail + (" Showing the last known limits." if kept_accounts else ""),
+  )
+  if retry:
+    record["retryAdvised"] = True
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the CLIProxyAPI usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  # The proxy has no local scan to reuse, so a near-limit refresh is a normal
+  # run; the flag keeps the invocation every collector takes.
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+  emit(collect(force=args.force))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
