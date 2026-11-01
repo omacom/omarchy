@@ -14,12 +14,31 @@ esac
 # rules, so a wrapped launcher (env VAR=val app, flatpak run App, ...) keeps
 # its full command line instead of collapsing to its first token.
 desktop_exec_tokens() {
-  local line="$1"
+  local raw="$1" line=""
   local token="" ch=""
   local quoted=false
   local i
 
   exec_tokens=()
+
+  # Exec= is a desktop-entry string, so its \s \n \t \r \\ escapes are decoded
+  # before the quoting below is applied.
+  for (( i = 0; i < ${#raw}; i++ )); do
+    ch="${raw:i:1}"
+    if [[ $ch == '\' ]] && (( i + 1 < ${#raw} )); then
+      case "${raw:i+1:1}" in
+        s) line+=" " ;;
+        n) line+=$'\n' ;;
+        t) line+=$'\t' ;;
+        r) line+=$'\r' ;;
+        '\') line+='\' ;;
+        *) line+="\\${raw:i+1:1}" ;;
+      esac
+      (( i++ ))
+    else
+      line+="$ch"
+    fi
+  done
 
   for (( i = 0; i < ${#line}; i++ )); do
     ch="${line:i:1}"
