@@ -8,6 +8,10 @@ Plug in a USB stick or an SD card and it's mounted automatically, so it just sho
 
 Double-clicking follows sensible defaults: images open in imv, video in mpv, PDFs in Document Viewer, and plain text in Neovim.
 
+## Disktree
+
+When the drive fills up and you have no idea what's eating it, launch [Disktree](https://github.com/tobi/disktree) from the app launcher (`Super + Space`). It shows a graphical treemap of your home directory. Larger blocks take up more space; walk into directories with the keyboard or mouse, mark what should go, and review your selections before removing anything. Run `disktree --disk` to scan the whole disk.
+
 ## Obsidian
 
 [Obsidian](https://obsidian.md/) is a free and highly extensible note taking application that uses simple Markdown files for storage.
@@ -59,11 +63,23 @@ Omarchy's firewall is closed by default except for LocalSend's port, so this wor
 
 You start LibreOffice via the application launcher (`Super + Space`).
 
+## Hype
+
+[Hype](https://github.com/omacom/hype) is Omarchy's own dead-simple presentation app. Your deck is a single Markdown file with its images and videos beside it: write each slide below a live preview, drag slides into order, then present fullscreen or export to PDF and PowerPoint. It even picks up your Omarchy theme.
+
+You start Hype via the application launcher (`Super + Space`). Press `?` inside it to see every shortcut.
+
+## Signed
+
+[Signed](https://github.com/omacom/signed) is Omarchy's own dead-simple way to sign PDFs and fill them in. Put your saved signature, text, and today's date anywhere on a page, then save a signed copy beside the original. See [Filling out PDFs](27-filling-out-pdfs.md) for how.
+
+You start Signed via the application launcher (`Super + Space`), or open a PDF with it from the file manager.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.
 
-You start Omacalc with `Super + Ctrl + Q` (or the calculator key, if your keyboard has one).
+You start Omacalc with `Super + Shift + Q` (or the calculator key, if your keyboard has one).
 
 ## Signal
 
@@ -77,20 +93,16 @@ You start Signal with `Super + Shift + G`. It's not part of the base install, so
 
 You start mpv via the application launcher (`Super + Space`) or just double-click on a video in the file manager.
 
-## OBS Studio
-
-[OBS Studio](https://obsproject.com/) lets you record or stream video from multiple inputs. You can mix a screencast with a webcam with a microphone input. It's what was used to record the Omarchy screencasts.
-
-You start OBS Studio via the application launcher (`Super + Space`).
-
-## Kdenlive
-
-[Kdenlive](https://kdenlive.org/) is an excellent video editor. Perfect for working on video that comes out of OBS Studio before sharing it.
-
-You start Kdenlive via the application launcher (`Super + Space`).
-
 ## Omacut
 
 [Omacut](https://github.com/omacom-io/omacut) is Omarchy's own dead-simple video trimmer. When all you need is to cut the start and end off a clip, it beats firing up a full video editor.
 
 You start Omacut via the application launcher (`Super + Space`).
+
+## Monologue
+
+[Monologue](https://github.com/omacom/monologue) is Omarchy's own dead-simple webcam recorder. Choose your camera and microphone once, then press `Space` to record, and again to pause and resume the same take. It always records at your camera's highest resolution, with a live microphone meter so you can check your levels before you start.
+
+Stop the take and it opens right away in a built-in editor. Double-click a clip to split it, drag the handles to trim each piece, and remove the parts you don't want. Then save it as an MP4. Your original recording is kept until you discard it, so you can always come back and cut it differently.
+
+You start Monologue via the application launcher (`Super + Space`).
