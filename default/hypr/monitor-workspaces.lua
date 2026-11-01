@@ -149,12 +149,15 @@ local function internal(monitor)
 end
 
 -- The monitors that show workspaces of their own. `gone` names one Hyprland
--- still lists while it reports the monitor's removal.
+-- still lists while it reports the monitor's removal. FALLBACK is the headless
+-- output Hyprland stands in while no monitor is connected, such as when the
+-- only one sleeps off its link; given a block, it would renumber every
+-- workspace into it and keep that block forever.
 local function connected(gone)
   local monitors = {}
 
   for _, monitor in ipairs(hl.get_monitors()) do
-    if not monitor.is_mirror and monitor.name ~= gone then
+    if not monitor.is_mirror and monitor.name ~= gone and monitor.name ~= "FALLBACK" then
       monitors[#monitors + 1] = monitor
     end
   end
@@ -554,8 +557,15 @@ function M.reconcile(added, gone)
       local guest = regular(active) and not owner(active.id, monitors, by_connector) and monitor.name ~= added
         and (active.windows or 0) > 0
 
-      if not own and not guest then
-        show(monitor, home(monitor, block))
+      -- A returning monitor that Hyprland started on a free number inside its
+      -- own block, while its workspaces waited elsewhere, shows those instead.
+      local target = home(monitor, block)
+      local waiting = hl.get_workspace(target)
+      local parked = own and monitor.name == added and (active.windows or 0) == 0
+        and target ~= active.id and waiting and (waiting.windows or 0) > 0
+
+      if (not own and not guest) or parked then
+        show(monitor, target)
         changed = true
       end
     end

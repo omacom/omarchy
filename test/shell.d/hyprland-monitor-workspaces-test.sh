@@ -396,6 +396,38 @@ check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the laptop is back on its o
 ' || fail "an unplugged monitor's workspaces come back with it, whatever the connector"
 pass "an unplugged monitor's workspaces come back with it, whatever the connector"
 
+run_lua fallback '
+plug("DP-1", 0, "LG", 1)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 2)
+window("0xc", 3)
+monitor_named("DP-1").active = 3
+
+-- The only monitor sleeps off the link: Hyprland stands in a headless output.
+plug("FALLBACK", 1, "", 4)
+world.handlers["monitor.added"]({ name = "FALLBACK" })
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+check(world.windows["0xa"].workspace == 1 and world.windows["0xb"].workspace == 2 and world.windows["0xc"].workspace == 3,
+  "the stand-in output renumbered the workspaces into a block of its own")
+
+-- It wakes, and Hyprland starts it on the next free number before dropping the stand-in.
+plug("DP-1", 2, "LG", 5)
+world.focused = "DP-1"
+world.handlers["monitor.added"]({ name = "DP-1" })
+unplug("FALLBACK")
+world.handlers["monitor.removed"]({ name = "FALLBACK" })
+check(world.windows["0xa"].workspace == 1 and world.windows["0xb"].workspace == 2 and world.windows["0xc"].workspace == 3,
+  "the workspaces came back as " .. world.windows["0xa"].workspace .. ", " .. world.windows["0xb"].workspace .. ", " .. world.windows["0xc"].workspace)
+check(on(1) == "DP-1" and on(2) == "DP-1" and on(3) == "DP-1", "all three are back on the monitor")
+check(shows("DP-1") >= 1 and shows("DP-1") <= 3, "the monitor shows one of them, not empty " .. shows("DP-1"))
+check(not state_file():find("FALLBACK", 1, true), "the stand-in output was given a block: " .. state_file())
+' || fail "Hyprland's stand-in output is not a monitor with workspaces of its own"
+pass "Hyprland's stand-in output is not a monitor with workspaces of its own"
+
 run_lua return-visible '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
