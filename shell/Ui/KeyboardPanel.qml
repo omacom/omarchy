@@ -619,7 +619,8 @@ PanelWindow {
       height: root.contentHeight - card.contentTopInset - card.contentBottomInset
       contentWidth: width
       contentHeight: contentHolder.height
-      clip: true
+      // Only while it scrolls: panels draw selection boxes into the card's padding.
+      clip: interactive
       boundsBehavior: Flickable.StopAtBounds
       flickableDirection: Flickable.VerticalFlick
       interactive: contentHeight > height
