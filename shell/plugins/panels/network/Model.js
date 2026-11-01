@@ -492,12 +492,14 @@ function hotspotAtCapacity(status) {
   return clients >= parseInt(limit, 10)
 }
 
-function hotspotClientLabel(client) {
+// formatNumber writes the signal in the language's digits (I18n.formatNumber).
+function hotspotClientLabel(client, formatNumber) {
   var c = client || {}
   var mac = String(c.mac || "").toUpperCase()
   var signal = parseInt(c.signal, 10)
+  var format = typeof formatNumber === "function" ? formatNumber : String
   if (!mac) return ""
-  if (isFinite(signal)) return mac + " \u00b7 " + signal + " dBm"
+  if (isFinite(signal)) return mac + " \u00b7 " + format(signal) + " dBm"
   return mac
 }
 

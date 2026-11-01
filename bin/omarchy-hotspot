@@ -35,6 +35,7 @@ HOTSPOT_LOCK_HELD=0
 FIREWALL_STATE_FILE="$HOTSPOT_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$HOTSPOT_STATE_DIR/forwarding.state"
 FIREWALL_TAGS=(dhcp dns-udp dns-tcp forward)
+HOTSPOT_SHARED_LOCK_NAME="lock"
 
 fail() {
   echo "hotspot: $*" >&2
@@ -45,9 +46,16 @@ self_path() {
   printf '%s\n' "$SCRIPT_PATH"
 }
 
+# A terminal to type a password in: stdin may carry the hotspot password from
+# a pipe while the user still sits at a terminal, and sudo prompts on the
+# terminal itself, so either end being one counts.
+has_terminal() {
+  [[ -t 0 || -t 2 ]]
+}
+
 require_root() {
   (( EUID == 0 )) && return
-  if [[ -t 0 ]]; then
+  if has_terminal; then
     exec sudo "$(self_path)" "$@"
   else
     exec pkexec "$(self_path)" "$@"
@@ -328,7 +336,7 @@ nft_firewall_active() {
 }
 
 firewall_backend() {
-  if omarchy-cmd-present ufw && systemctl is-active ufw >/dev/null 2>&1; then
+  if systemctl is-active ufw >/dev/null 2>&1; then
     echo ufw
   elif omarchy-cmd-present firewalld && systemctl is-active firewalld >/dev/null 2>&1; then
     echo firewalld
@@ -466,6 +474,12 @@ hotspot_state_prepare() {
   install -d "${owner[@]}" -m 0755 "$HOTSPOT_STATE_DIR" || fail "could not create hotspot state directory"
   chmod 0755 "$HOTSPOT_STATE_DIR" || fail "could not secure hotspot state directory"
   hotspot_state_dir_usable "invalid hotspot state directory"
+  # Every root step leaves the machine-wide lock behind, so from the first
+  # privileged start on, every user's actions serialize on it.
+  if (( EUID == 0 )); then
+    local lock="$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
+    [[ -e $lock || -L $lock ]] || (set -C; umask 022; : >"$lock") 2>/dev/null || true
+  fi
 }
 
 hotspot_state_file_usable() {
@@ -716,17 +730,18 @@ firewall_delete_tag() {
 firewall_remove_installed_tags() {
   local iface=$1 subnet=$2
   shift 2
-  local rules tag
+  local rules tag failed=0
   require_privileged
   firewall_scope_valid "$iface" "$subnet" || return 1
-  rules=$(ufw show added 2>/dev/null) || return 1
   for tag in "$@"; do
     firewall_tag_valid "$tag" || return 1
-    if firewall_tag_present "$rules" "$iface" "$subnet" "$tag"; then
-      firewall_delete_tag "$iface" "$subnet" "$tag" || return 1
-    fi
-    firewall_state_remove_tags "$iface" "$subnet" "$tag" || return 1
   done
+  rules=$(ufw show added 2>/dev/null) || return 1
+  # Keep going past a failed rule so one bad delete doesn't strand the rest.
+  for tag in "$@"; do
+    firewall_remove_record "$rules" "$iface" "$subnet" "$tag" || failed=1
+  done
+  (( failed == 0 ))
 }
 
 firewall_apply() {
@@ -848,7 +863,7 @@ privileged_run() {
     # A subshell, so a helper's fail() ends that step rather than the caller,
     # just as it would in the separate sudo/pkexec process.
     ("$function" "$@")
-  elif [[ -t 0 ]]; then
+  elif has_terminal; then
     sudo "$(self_path)" "$action" "$@"
   else
     pkexec "$(self_path)" "$action" "$@"
@@ -1039,33 +1054,38 @@ start() {
 # other back. Privileged helper re-execs run inside a held lock and never take
 # it themselves; teardown and setup take it in their root instance, after
 # require_root, so the unprivileged process never holds it across the exec.
-# The lock lives in the invoking user's runtime directory. A root instance
-# re-execed through sudo/pkexec (teardown, setup) uses that same user's lock,
-# so it excludes the user's panel and menu actions too.
+# The profile, firewall rules and forwarding are machine-wide, so every user
+# takes one lock: a root-owned file in the root-owned state directory, which
+# root creates and everyone else opens read-only (flock works on a read-only
+# descriptor). Until a root step has ever run there is no such file, and no
+# firewall or forwarding state to fight over either, so an unprivileged
+# caller falls back to a lock in its own runtime directory.
 hotspot_lock_path() {
-  local uid
+  local shared="$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
   if [[ -n $HOTSPOT_LOCK_FILE ]]; then
     printf '%s\n' "$HOTSPOT_LOCK_FILE"
-  elif (( EUID != 0 )); then
-    printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$EUID}/omarchy-hotspot.lock"
+  elif (( EUID == 0 )) || [[ -e $shared || -L $shared ]]; then
+    printf '%s\n' "$shared"
   else
-    uid=${PKEXEC_UID:-${SUDO_UID:-0}}
-    if [[ $uid =~ ^[1-9][0-9]*$ && -d /run/user/$uid ]]; then
-      printf '%s\n' "/run/user/$uid/omarchy-hotspot.lock"
-    else
-      printf '%s\n' /run/lock/omarchy-hotspot.lock
-    fi
+    printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$EUID}/omarchy-hotspot.lock"
   fi
 }
 
 hotspot_lock() {
-  local fd lock
+  local fd lock shared="$HOTSPOT_STATE_DIR/$HOTSPOT_SHARED_LOCK_NAME"
   (( HOTSPOT_LOCK_HELD == 0 )) || return 0
   lock=$(hotspot_lock_path)
+  if [[ $lock == "$shared" ]]; then
+    (( EUID != 0 )) || hotspot_state_prepare
+    hotspot_state_dir_usable "invalid hotspot state directory"
+  fi
   # noclobber creates with O_EXCL, which never follows a symlink planted in
   # place of the lock; an existing lock is then only opened read-only.
   [[ -e $lock || -L $lock ]] || (set -C; umask 022; : >"$lock") 2>/dev/null || true
   [[ -f $lock && ! -L $lock ]] || fail "unsafe hotspot lock: $lock"
+  if [[ $lock == "$shared" && -z $HOTSPOT_LOCK_FILE ]]; then
+    [[ $(stat -c %u -- "$lock") == "0" ]] || fail "unsafe hotspot lock: $lock"
+  fi
   exec {fd}<"$lock" || fail "could not open the hotspot lock"
   flock -w "$HOTSPOT_LOCK_WAIT" "$fd" || fail "another hotspot action is still running"
   HOTSPOT_LOCK_HELD=1
@@ -1078,7 +1098,25 @@ ap_down() {
 }
 
 hotspot_host_state_owned() {
-  [[ -e $FORWARDING_STATE_FILE || -L $FORWARDING_STATE_FILE || -s $FIREWALL_STATE_FILE ]]
+  [[ -e $FORWARDING_STATE_FILE || -L $FORWARDING_STATE_FILE || -s $FIREWALL_STATE_FILE ]] ||
+    firewall_owner_rules_present
+}
+
+# Rules under the hotspot's owner comment for the profile's interface, read
+# from UFW's world-readable rules file. They outlive lost ownership records,
+# and firewall_remove recovers them by that comment, so stop() must still
+# hand them to it rather than skip the privileged step.
+firewall_owner_rules_present() {
+  local rules iface subnet tag
+  rules=$(firewall_rules_file) || return 1
+  iface=$(recorded_iface)
+  [[ -n $iface ]] || return 1
+  subnet=$(shared_subnet) || return 1
+  firewall_scope_valid "$iface" "$subnet" || return 1
+  for tag in "${FIREWALL_TAGS[@]}"; do
+    firewall_rules_file_tag_present "$rules" "$iface" "$subnet" "$tag" && return 0
+  done
+  return 1
 }
 
 # Undo what start() turned on for the hotspot: global IPv4 forwarding and the
@@ -1090,7 +1128,9 @@ hotspot_release() {
   # together at the end.
   local -a failed=()
   (forwarding_restore) || failed+=("IPv4 forwarding restore")
-  [[ $(firewall_backend) != "ufw" ]] || (firewall_remove) || failed+=("firewall rule removal")
+  # UFW keeps its rules while disabled and brings them back when re-enabled,
+  # so the hotspot's own rules go whether or not UFW is running right now.
+  (firewall_remove) || failed+=("firewall rule removal")
   ((${#failed[@]} == 0)) || fail "could not release hotspot host state: ${failed[*]}"
 }
 
@@ -1266,10 +1306,11 @@ teardown() {
   backend=$(firewall_backend)
   iface=$(recorded_iface)
   [[ -n $iface ]] || iface=$(ap_iface)
+  # The hotspot's UFW rules go even while UFW is off: it would restore them
+  # when re-enabled.
+  (firewall_remove) || failed+=("firewall removal")
   case $backend in
-    ufw) (firewall_remove) || failed+=("firewall removal") ;;
     firewalld | nftables) firewall_warn_unsupported "$backend" "$iface" ;;
-    none) echo "hotspot: no active firewall found; nothing to remove" >&2 ;;
   esac
   ((${#failed[@]} == 0)) || fail "could not tear down hotspot: ${failed[*]}"
 }
@@ -1305,11 +1346,7 @@ diagnose() {
   printf 'iw: %s\n' "$(iw --version 2>/dev/null || echo missing)"
   printf 'jq: %s\n' "$(jq --version 2>/dev/null || echo missing)"
   printf 'qrencode: %s\n' "$(qrencode --version 2>/dev/null || echo missing)"
-  if omarchy-cmd-present dnsmasq; then
-    echo "dnsmasq: present"
-  else
-    echo "dnsmasq: missing"
-  fi
+  printf 'dnsmasq: %s\n' "$(dnsmasq --version 2>/dev/null | head -n 1 || echo missing)"
   echo "firewall: $(firewall_backend)"
   if ipv4_forwarding_enabled; then
     echo "ipv4 forwarding: yes"
