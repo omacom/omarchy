@@ -1,8 +1,8 @@
-# CLI Omarchy
+# Omarchy CLI
 
-Omarchy zwykle steruje się przez skróty oraz menu Omarchy (`Super + Space`). Ale możesz też sterować nim przez CLI `omarchy`. Jest to szczególnie pomocne, gdy pracujesz z agentem AI nad dostosowywaniem lub konfiguracją.
+Omarchy zwykle obsługuje się za pomocą skrótów klawiszowych i menu Omarchy (`Super + Space`). Można nią jednak sterować także przez CLI `omarchy`. Jest to szczególnie pomocne, gdy agent AI współpracuje z Tobą nad dostosowywaniem lub konfiguracją.
 
-CLI ma dostęp do wszystkich wewnętrznych narzędzi używanych zarówno z menu, jak i w inny sposób. Wszystko, co jest dostępne, zobaczysz, uruchamiając `omarchy` w terminalu.
+CLI ma dostęp do wszystkich wewnętrznych narzędzi używanych zarówno przez menu, jak i w inny sposób. Wszystko, co jest dostępne, zobaczysz po uruchomieniu `omarchy` w terminalu.
 
 Wygląda to mniej więcej tak:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-A do każdej grupy możesz wejść głębiej:
+Możesz też zajrzeć głębiej do każdej grupy:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Każde polecenie przyjmuje też `--help`, niezależnie od tego, czy zapytasz całą grupę (`omarchy capture --help`), czy pojedyncze polecenie (`omarchy capture screenshot --help`).
+Każde polecenie przyjmuje też `--help`, niezależnie od tego, czy zapytasz o całą grupę (`omarchy capture --help`), czy o pojedyncze polecenie (`omarchy capture screenshot --help`).
 
 ### Otwieranie menu z terminala
 
-Menu Omarchy jest też skryptowalne, co jest przydatne do własnych przypisań klawiszy. `omarchy menu` otwiera je u nasady, a możesz wskoczyć wprost do dowolnego punktu drzewa, nazywając go: `omarchy menu summon style.theme` idzie od razu do wyboru motywu, `omarchy menu toggle system` otwiera menu systemowe i zamyka je ponownie, jeśli jest już otwarte, a `omarchy menu close` je chowa.
+Menu Omarchy można też obsługiwać skryptami, co przydaje się przy własnych skrótach klawiszowych. `omarchy menu` otwiera je na poziomie głównym, a podając nazwę, możesz przejść od razu do dowolnego miejsca w drzewie: `omarchy menu summon appearance.theme` prowadzi prosto do wyboru motywu, `omarchy menu toggle system` otwiera menu systemowe i zamyka je ponownie, jeśli jest już otwarte, a `omarchy menu close` je chowa.
