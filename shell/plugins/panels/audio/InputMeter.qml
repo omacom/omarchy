@@ -32,7 +32,9 @@ Item {
   }
   readonly property string processKey: processCommand.join("\n")
   onProcessKeyChanged: {
+    // The capture this stops was asked to, so its exit is not a quick one.
     quickExits = 0
+    startedAt = 0
     syncProcess()
   }
   Component.onCompleted: syncProcess()
