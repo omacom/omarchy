@@ -35,6 +35,9 @@ exit 130
 STUB
 cat >"$stub_bin/sshd" <<'STUB'
 #!/bin/bash
+# A fresh install has no host keys until ssh-keygen -A runs, and sshd -t and
+# sshd -T refuse to run without them.
+[[ -e ${TEST_ROOT:?}/host-keys ]] || exit 1
 case $1 in
 -t)
   [[ ${SSHD_SYNTAX_VALID:-1} == 1 ]]
@@ -66,7 +69,7 @@ rm)
   /usr/bin/rm -f "${TEST_ROOT:?}${3:?}"
   ;;
 ssh-keygen)
-  printf 'sudo %s\n' "$*" >>"${CALL_LOG:?}"
+  : >"${TEST_ROOT:?}/host-keys"
   ;;
 *)
   exec "$@"
@@ -108,7 +111,6 @@ output=$(run_setup success)
 config="$test_dir/success/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf"
 grep -qxF "PasswordAuthentication no" "$config" || fail "SSH setup disables password authentication"
 grep -qxF "KbdInteractiveAuthentication no" "$config" || fail "SSH setup disables keyboard-interactive authentication"
-grep -qxF "sudo ssh-keygen -A" "$test_dir/success.calls" || fail "SSH setup generates host keys before validating"
 grep -qxF "systemctl reload-or-restart sshd.service" "$test_dir/success.calls" || fail "SSH setup starts sshd with the validated config"
 grep -qxF "ufw limit 22/tcp comment omarchy-sshd" "$test_dir/success.calls" || fail "SSH setup opens the SSH port"
 ! grep -qxF "exposed before hardening" "$test_dir/success.calls" || fail "SSH setup starts sshd and opens the port only after passwords are off"
