@@ -5,8 +5,11 @@
 # omarchy:hidden=true
 
 LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+# The upload carries the journal, so stage it where other users cannot read it.
+TEMP_DIR=$(mktemp -d) || exit 1
+trap 'rm -rf "$TEMP_DIR"' EXIT
+TEMP_LOG="$TEMP_DIR/upload-log.txt"
+SYSTEM_INFO="$TEMP_DIR/system-info.txt"
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then
