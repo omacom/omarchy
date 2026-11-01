@@ -1,0 +1,446 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Z.ai GLM Coding Plan usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Z.ai (GLM Coding Plan) usage into one display-ready JSON record.
+
+Rate limits and the plan tier come from Z.ai's coding-plan monitor endpoint
+(…/api/monitor/usage/quota/limit), which reports the rolling 5-hour and weekly
+token windows. That endpoint only answers for keys that carry a Coding Plan; a
+generic pay-as-you-go key gets "no coding plan" and the record shows local
+stats alone, which is no trouble.
+
+Local stats come from pi/omp sessions and from opencode's message database
+(both of its stores) that ran through a Z.ai or Zhipu provider (the `glm-*` models). Both the local scan and the network probe are cached: the
+panel fires `--limits-only` on every open, so a repeated open must reuse a
+recent scan and must not re-probe Z.ai more than once every few seconds. The
+agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record as shared_base_record,
+  cached_scan,
+  config_home,
+  emit,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+)
+
+AGENT_ID = "zai"
+AGENT_NAME = "Z.ai"
+AUTH_HELP_NO_KEY = (
+  "Set ZAI_API_KEY (or add ~/.config/omarchy/agents/zai.json) to show Coding Plan limits."
+)
+AUTH_HELP_BAD_KEY = (
+  "Z.ai rejected the saved API key. Update it in ~/.config/omarchy/agents/zai.json or ZAI_API_KEY."
+)
+
+# Global (Z.ai) vs China (Zhipu / BigModel) split the same API under two hosts.
+PLATFORMS = {
+  "zai": "https://api.z.ai",
+  "zhipu": "https://open.bigmodel.cn",
+}
+QUOTA_PATH = "/api/monitor/usage/quota/limit"
+# Authentication failed (1000), no credential sent (1001), token expired
+# (1003), two-factor authentication needed (1005).
+AUTH_ERROR_CODES = {"1000", "1001", "1003", "1005"}
+
+# A key with no Coding Plan behind it (a pay-as-you-go account) gets the same
+# answer every time, so it is asked again hourly rather than on every run;
+# --force asks at once, for someone who just subscribed.
+NO_PLAN_RECHECK_SECONDS = 3600
+
+# The pi, omp and opencode provider ids for Z.ai's and Zhipu's APIs, whose
+# turns this collector counts: pi's `zai` and `zai-coding-cn`, omp's `zai`
+# and `zhipu-coding-plan`, and models.dev's (opencode's) `zai`, `zhipuai`,
+# `zai-coding-plan` and `zhipuai-coding-plan`, plus `zhipu`. Exact names: a
+# custom `zai-proxy` gateway is not this subscription.
+PROVIDERS = ("zai", "zhipu", "zai-coding-cn", "zhipu-coding-plan", "zhipuai", "zai-coding-plan", "zhipuai-coding-plan")
+
+# Coding-plan limit windows are tagged by (unit, number); the monitor endpoint
+# reports one CREDIT_LIMIT row per window (older responses used TOKENS_LIMIT).
+LIMIT_TYPES = {"CREDIT_LIMIT", "TOKENS_LIMIT"}
+LIMIT_WINDOWS = {
+  (3, 5): "Session (5-hour)",
+  (6, 1): "Weekly (7-day)",
+}
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  return shared_base_record(AGENT_ID, AGENT_NAME, **overrides)
+
+
+# --------------------------------------------------------------------------
+# Credentials
+# --------------------------------------------------------------------------
+
+def read_env_file(path: Path) -> dict[str, str]:
+  values: dict[str, str] = {}
+  try:
+    for line in path.read_text().splitlines():
+      line = line.strip()
+      if line.startswith("export "):
+        line = line[len("export "):].strip()
+      if not line or line.startswith("#") or "=" not in line:
+        continue
+      key, _, val = line.partition("=")
+      values[key.strip()] = val.strip().strip("'\"")
+  except (OSError, UnicodeError):
+    # Unreadable, or not UTF-8: no keys from it.
+    return {}
+  return values
+
+
+def read_config() -> dict[str, Any]:
+  return read_json(config_home() / "omarchy" / "agents" / "zai.json")
+
+
+def pi_agent_dir() -> Path:
+  configured = os.environ.get("PI_CODING_AGENT_DIR", "").strip()
+  return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
+
+
+def auth_json_key(path: Path, provider: str) -> str:
+  # pi/omp keep a key they were given with /login in auth.json. Only a literal
+  # key is taken: a `$VAR` or `!command` entry is resolved by pi alone.
+  entry = read_json(path).get(provider)
+  if not isinstance(entry, dict):
+    return ""
+  key = str(entry.get("key") or "").strip()
+  return "" if key.startswith(("!", "$")) else key
+
+
+def credentials() -> tuple[str, str]:
+  """Return (api_key, platform). Platform is a PLATFORMS key."""
+  config = read_config()
+
+  # An explicit config file wins, then live env, then whatever omp/pi stored.
+  key = str(config.get("apiKey") or "").strip()
+  platform = str(config.get("platform") or "").strip().lower()
+
+  if not key:
+    if os.environ.get("ZAI_API_KEY"):
+      key, platform = os.environ["ZAI_API_KEY"].strip(), platform or "zai"
+    elif os.environ.get("ZHIPU_API_KEY") or os.environ.get("ZHIPUAI_API_KEY"):
+      key = (os.environ.get("ZHIPU_API_KEY") or os.environ.get("ZHIPUAI_API_KEY")).strip()
+      platform = platform or "zhipu"
+
+  if not key:
+    for env_path in (Path.home() / ".omp" / "agent" / ".env", pi_agent_dir() / ".env"):
+      values = read_env_file(env_path)
+      if values.get("ZAI_API_KEY"):
+        key, platform = values["ZAI_API_KEY"], platform or "zai"
+        break
+      if values.get("ZHIPU_API_KEY") or values.get("ZHIPUAI_API_KEY"):
+        key = values.get("ZHIPU_API_KEY") or values["ZHIPUAI_API_KEY"]
+        platform = platform or "zhipu"
+        break
+
+  if not key:
+    for auth_path in (pi_agent_dir() / "auth.json", Path.home() / ".omp" / "agent" / "auth.json"):
+      if found := auth_json_key(auth_path, "zai"):
+        key, platform = found, platform or "zai"
+        break
+      if found := auth_json_key(auth_path, "zhipu"):
+        key, platform = found, platform or "zhipu"
+        break
+
+  if platform not in PLATFORMS:
+    platform = "zai"
+  return key, platform
+
+
+# --------------------------------------------------------------------------
+# Coding-plan limits
+# --------------------------------------------------------------------------
+
+def iso_from_ms(value: Any) -> str:
+  if isinstance(value, bool):
+    return ""
+  try:
+    ts = float(value)
+  except (TypeError, ValueError):
+    return ""
+  if not math.isfinite(ts) or ts <= 0:
+    return ""
+  # The field is milliseconds, but a plain-seconds epoch (< year 33658) is
+  # accepted too rather than rendered as a date 1000x in the future.
+  if ts < 1e12:
+    ts *= 1000
+  try:
+    return datetime.fromtimestamp(ts / 1000, timezone.utc).isoformat()
+  except (OverflowError, OSError, ValueError):
+    return ""
+
+
+def fetch_limits(api_key: str, platform: str) -> dict[str, Any]:
+  """Probe the monitor endpoint.
+
+  On success returns {"ok": True, "limits": [...], "tierLabel": str}. On a
+  miss returns {"ok": False, "detail": str} plus one of "transport" (reached
+  no server, so worth an early retry), "keyRejected" (the key itself is bad)
+  or "noPlan" (a working key without a Coding Plan). The endpoint answers
+  HTTP 200 even when the key has no plan, carrying
+  {"success": false, "msg": "…coding plan…"} instead of a data payload.
+  """
+  url = PLATFORMS[platform] + QUOTA_PATH
+  request = urllib.request.Request(
+    url,
+    method="GET",
+    headers={
+      # This endpoint takes the raw token, not a Bearer prefix.
+      "Authorization": api_key,
+      "Accept-Language": "en-US,en",
+      "Content-Type": "application/json",
+    },
+  )
+  try:
+    body = open_json(request, timeout=15)
+  except HttpError as error:
+    if error.status in (401, 403):
+      return {"ok": False, "keyRejected": True, "detail": AUTH_HELP_BAD_KEY}
+    if error.status:
+      return {"ok": False, "detail": f"Z.ai's monitor endpoint returned HTTP {error.status}. Local stats are still shown."}
+    if error.transport:
+      # No answer from any server: no route, no DNS, a timeout, a reset.
+      return {"ok": False, "transport": True, "detail": "Couldn't reach Z.ai's monitor endpoint. Retrying shortly. Local stats are still shown."}
+    return {"ok": False, "detail": "Z.ai returned an invalid monitor response. Local stats are still shown."}
+
+  data = body.get("data") if isinstance(body, dict) else None
+  if not isinstance(data, dict) or not isinstance(data.get("limits"), list):
+    msg = str(body.get("msg") or "").strip()[:200] if isinstance(body, dict) else ""
+    code = str(body.get("code") or "").strip() if isinstance(body, dict) else ""
+    # Z.ai names a refused credential in the body under HTTP 200, with the
+    # authentication codes of docs.z.ai/api-reference/api-code.
+    if code in AUTH_ERROR_CODES:
+      return {"ok": False, "keyRejected": True, "detail": AUTH_HELP_BAD_KEY}
+    if "coding plan" in msg.lower():
+      return {"ok": False, "noPlan": True, "detail": ""}
+    return {"ok": False, "detail": (msg or "Z.ai's monitor endpoint returned no limits") + ". Local stats are still shown."}
+
+  limits = []
+  for item in data["limits"]:
+    if not isinstance(item, dict) or item.get("type") not in LIMIT_TYPES:
+      continue
+    try:
+      label = LIMIT_WINDOWS.get((item.get("unit"), item.get("number")))
+    except TypeError:
+      # A list or an object for a tag can't name a window.
+      label = None
+    if not label:
+      # A window Z.ai adds later would vanish silently otherwise.
+      print(
+        f"omarchy-agent-usage-zai: unmapped limit window (unit={item.get('unit')}, "
+        f"number={item.get('number')})",
+        file=sys.stderr,
+      )
+      continue
+    raw = item.get("percentage")
+    # A missing or unparseable percentage is skipped: a false 0% meter reads
+    # as a fresh allowance, which is worse than showing one fewer window.
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+      continue
+    limits.append({
+      "label": label,
+      "percent": max(0.0, min(1.0, float(raw) / 100.0)),
+      "resetsAt": iso_from_ms(item.get("nextResetTime")),
+    })
+
+  if not limits:
+    return {"ok": False, "detail": "Z.ai's monitor endpoint returned no limits. Local stats are still shown."}
+  tier = str(data.get("level") or "").strip()[:64]
+  return {"ok": True, "limits": limits, "tierLabel": tier[:1].upper() + tier[1:].lower() if tier else ""}
+
+
+def limits_cache_paths(api_key: str, platform: str) -> tuple[Path, Path]:
+  # Keyed by who the numbers belong to: another key, or the same key on the
+  # other host, never shows this one's allowance.
+  cache = LimitsCache(AGENT_ID, platform, api_key)
+  return cache.path, cache.lock_path
+
+
+def collect_limits(api_key: str, platform: str, force: bool) -> dict[str, Any]:
+  """Fresh limits when a probe is due, else the last known ones.
+
+  Reuses a recent probe so repeated panel opens do not spam the endpoint,
+  and keeps the last known limits as the answer of record when a later probe
+  fails. `live` says whether the limits are this check's (or a probe recent
+  enough to stand in for one), and `fetchedAtMs` when they were measured, so
+  the panel can tell kept limits from fresh ones.
+  """
+  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "retryAdvised": False, "live": False, "fetchedAtMs": 0}
+  # Keyed by who the numbers belong to: another key, or the same key on the
+  # other host, never shows this one's allowance.
+  cache = LimitsCache(AGENT_ID, platform, api_key)
+
+  def reuse() -> dict[str, Any]:
+    result.update(limits=cache.limits, tierLabel=str(cache.data.get("tierLabel") or ""), live=True, fetchedAtMs=cache.fetched_at if cache.limits else 0)
+    return result
+
+  def no_plan() -> bool:
+    return cache.data.get("noWindows") is True
+
+  def stands_in() -> bool:
+    # --force is a person asking for fresh numbers, so it skips the reuse
+    # window; the interval absorbs repeated panel opens, not a refresh press.
+    # A key without a plan is an answer too, and stands in for longer.
+    if no_plan() and not force and cache.younger_than(NO_PLAN_RECHECK_SECONDS):
+      return True
+    return cache.fresh(force, allow_empty=True)
+
+  if stands_in():
+    return reuse()
+
+  with cache.lock():
+    if not force:
+      # Another run may have probed while this one waited for the lock.
+      cache.reload()
+      if stands_in():
+        return reuse()
+
+    probe = fetch_limits(api_key, platform)
+    if probe["ok"]:
+      fetched_at = cache.save(probe["limits"], tierLabel=probe["tierLabel"])
+      result.update(limits=probe["limits"], tierLabel=probe["tierLabel"], live=True, fetchedAtMs=fetched_at)
+      return result
+
+    # A working key without a Coding Plan is a pay-as-you-go account: Z.ai
+    # has no limits to show for it, which is no trouble. The windows kept from
+    # a plan that has since lapsed go with it, so a later failed check can't
+    # bring them back.
+    if probe.get("noPlan"):
+      cache.save([], tierLabel="", noWindows=True)
+      result["live"] = True
+      return result
+
+  # A transport failure reached no server — typically the seconds after login
+  # before the network is up — so ask the shell to retry sooner than its
+  # regular interval.
+  if probe.get("transport"):
+    result["retryAdvised"] = True
+  # A kept window whose reset has passed comes back at zero: the allowance it
+  # measured has been renewed, so it is untouched rather than unknown.
+  fallback, fetched_at = cache.kept()
+  result.update(limits=fallback, tierLabel=str(cache.data.get("tierLabel") or ""), fetchedAtMs=fetched_at)
+  if probe.get("keyRejected"):
+    result.update(usageStatusText="Sign-in expired", authHelpText=probe["detail"])
+  elif fallback:
+    result["authHelpText"] = probe["detail"]
+  elif not no_plan():
+    # A key that last said it has no plan has no limits to lose, so a
+    # failed recheck is no news.
+    result.update(usageStatusText="Z.ai limits unavailable", authHelpText=probe["detail"])
+  return result
+
+
+# --------------------------------------------------------------------------
+# Local session stats
+# --------------------------------------------------------------------------
+
+# pi, omp, and opencode name the provider alike. Exact names: a custom
+# `zai-proxy` gateway is not this subscription.
+def billed_here(provider: str, model: str, entry: dict) -> bool:
+  return provider.lower() in PROVIDERS
+
+
+def scan_sessions(reuse: bool = True) -> tuple[dict[str, Any], bool]:
+  """Z.ai turns from pi/omp sessions, both of opencode's message stores,
+  Claude Code's transcripts (pointed at Z.ai, or answered by a GLM model) and
+  MiniMax Code's custom providers at Z.ai's hosts, and whether every source
+  was read (safe to cache)."""
+  stats = Stats()
+  pattern = r'"provider"\s*:\s*"(' + "|".join(PROVIDERS) + r')"'
+  pi_rows, pi_complete = scan_pi_sessions(pattern, billed_here)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([provider + '"' for provider in PROVIDERS], billed_here)
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in pi_rows + db_rows + routed_rows:
+    stats.add_row(row, row.model or "glm")
+  return {"hasLocalStats": bool(stats.model_usage), **stats.snapshot()}, pi_complete and db_complete and routed_complete
+
+
+def cached_local_stats(max_age: float) -> dict[str, Any]:
+  # The digest covers every data path the scan reads: the pi/omp session
+  # roots, the opencode DB, and Claude Code's and MiniMax Code's sessions,
+  # whose owner depends on where they are sent.
+  sources = [*pi_session_roots(), opencode_db(), *routed_sources()]
+  # A forced scan reads every Codex rollout again too.
+  return cached_scan(AGENT_ID, sources, max_age, lambda: scan_sessions(reuse=max_age > 0), match=routed_match())
+
+
+# --------------------------------------------------------------------------
+# Assembly
+# --------------------------------------------------------------------------
+
+def scan(force: bool, limits_only: bool) -> dict[str, Any]:
+  record = base_record()
+  record.update(cached_local_stats(scan_max_age(force, limits_only)))
+
+  api_key, platform = credentials()
+  if not api_key:
+    # Z.ai in use here without a key to ask for its limits; a machine that has
+    # never used it is simply skipped.
+    if record["hasLocalStats"]:
+      record.update(ready=True, usageStatusText="Waiting for auth", authHelpText=AUTH_HELP_NO_KEY)
+    return record
+
+  limits = collect_limits(api_key, platform, force)
+  record.update(
+    ready=True,
+    limits=limits["limits"],
+    limitsStale=bool(limits["limits"]) and not limits["live"],
+    limitsFetchedAt=limits["fetchedAtMs"],
+    tierLabel=limits["tierLabel"],
+    usageStatusText=limits["usageStatusText"],
+    authHelpText=limits["authHelpText"],
+  )
+  if limits["retryAdvised"]:
+    record["retryAdvised"] = True
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Z.ai GLM usage record as JSON")
+  # --force rescans and re-probes, ignoring both caches. --limits-only reuses a
+  # recent local scan (only the limits probe must be fresh); a bare run reuses a
+  # scan only long enough to dedup concurrent collector runs.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  try:
+    record = scan(args.force, args.limits_only)
+  except Exception as error:  # noqa: BLE001 - a collector must always emit a record
+    record = base_record(usageStatusText="Z.ai limits unavailable", authHelpText="Z.ai usage scan failed.")
+    print(f"omarchy-agent-usage-zai: {type(error).__name__}", file=sys.stderr)
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

@@ -28,9 +28,15 @@ cat >"$TMPDIR/bin/hyprctl" <<'SH'
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
     printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
+    printf 'false\n' >"$HYPRSUNSET_STATE.identity"
   else
     cat "$HYPRSUNSET_STATE" 2>/dev/null || exit 1
   fi
+  exit 0
+fi
+
+if [[ ${1:-} == "hyprsunset" && ${2:-} == "identity" ]]; then
+  printf 'true\n' >"$HYPRSUNSET_STATE.identity"
   exit 0
 fi
 
@@ -82,11 +88,59 @@ pass "nightlight toggle warms the screen from daylight"
 grep -Fqx -- '-q nightlight refresh' "$SHELL_LOG" || fail "nightlight toggle nudges the shell nightlight service"
 pass "nightlight toggle nudges the shell nightlight service"
 
+[[ $(<"$STATE.identity") == "false" ]] || fail "nightlight toggle leaves identity when warming the screen"
+pass "nightlight toggle leaves identity when warming the screen"
+
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 6500 ]] || fail "nightlight toggle restores daylight from night light"
 pass "nightlight toggle restores daylight from night light"
 
-if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
-  fail "nightlight toggle leaves indicator refresh to the nightlight service"
+[[ $(<"$STATE.identity") == "true" ]] || fail "nightlight toggle resets to the identity matrix when turning off"
+pass "nightlight toggle resets to the identity matrix when turning off"
+
+# hyprsunset's own default, as the shipped identity profile starts it
+printf '6000\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle warms the screen from hyprsunset's default"
+pass "nightlight toggle warms the screen from hyprsunset's default"
+
+rg -F '(temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")' "$ROOT/shell/plugins/services/nightlight/Service.qml" >/dev/null ||
+  fail "nightlight service resets to the identity matrix when turning off"
+pass "nightlight service resets to the identity matrix when turning off"
+
+# hyprsunset reports its age through ps. A boot still in progress applies its
+# default temperature on the first wait, overriding whatever was set before.
+BOOT_PENDING="$TMPDIR/boot-pending"
+printf '#!/bin/bash\n[[ $* == *etimes* ]] && echo "${HYPRSUNSET_AGE:-100}"\n' >"$TMPDIR/bin/ps"
+cat >"$TMPDIR/bin/sleep" <<'SH'
+#!/bin/bash
+printf 'sleep %s\n' "$*" >>"$OMARCHY_SHELL_LOG"
+if [[ -e $BOOT_PENDING ]]; then
+  rm -f "$BOOT_PENDING"
+  printf '6000\n' >"$HYPRSUNSET_STATE"
 fi
-pass "nightlight toggle leaves indicator refresh to the nightlight service"
+SH
+printf '#!/bin/bash\necho 4242\n' >"$TMPDIR/bin/pgrep"
+chmod +x "$TMPDIR/bin/sleep" "$TMPDIR/bin/ps" "$TMPDIR/bin/pgrep"
+toggle_from_daylight() {
+  printf '6500\n' >"$STATE"
+  : >"$SHELL_LOG"
+  BOOT_PENDING="$BOOT_PENDING" HYPRSUNSET_AGE="$1" nightlight_cli >/dev/null
+}
+
+toggle_from_daylight 100
+[[ $(<"$STATE") == 4000 ]] && ! grep -q '^sleep' "$SHELL_LOG" || fail "a hyprsunset that has finished starting applies the toggle without waiting"
+pass "a hyprsunset that has finished starting applies the toggle without waiting"
+
+: >"$BOOT_PENDING"
+toggle_from_daylight 1
+[[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a hyprsunset still booting can't undo the toggle with its default"
+pass "a hyprsunset still booting can't undo the toggle with its default"
+
+printf '#!/bin/bash\nexit 1\n' >"$TMPDIR/bin/pgrep"
+printf '#!/bin/bash\nexit 0\n' >"$TMPDIR/bin/setsid"
+chmod +x "$TMPDIR/bin/setsid"
+: >"$BOOT_PENDING"
+toggle_from_daylight 100
+[[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a freshly started hyprsunset can't undo the toggle with its default"
+pass "a freshly started hyprsunset can't undo the toggle with its default"
