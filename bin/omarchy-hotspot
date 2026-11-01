@@ -249,17 +249,19 @@ station_address() {
       printf '%s\n' "${entry%% *}"
       return 0
     fi
-  done < <(ip neigh show dev "$iface" 2>/dev/null |
-    awk '$1 ~ /^[0-9.]+$/ && $2 == "dev" && $4 == "lladdr" { print $1, tolower($5) }')
+  done < <(ip -j neigh show dev "$iface" 2>/dev/null |
+    jq -r '.[]? | select((.dst | type) == "string" and (.lladdr | type) == "string")
+      | select(.dst | test("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$")) | "\(.dst) \(.lladdr | ascii_downcase)"' 2>/dev/null)
 }
 
 # A name for that address from the system resolver, which covers plain DNS and
-# mDNS when nss-mdns is installed. Only a bare label is reported: whatever the
-# network hands back is untrusted text that ends up on screen.
+# mDNS when nss-mdns is installed. `getent hosts` prints the address first and
+# the name second. Only a bare label is reported: whatever the network hands
+# back is untrusted text that ends up on screen.
 station_hostname() {
   local address=$1 name
   [[ -n $address ]] || return 0
-  name=$(getent hosts "$address" 2>/dev/null | awk 'NR == 1 { print $1 }') || return 0
+  name=$(getent hosts "$address" 2>/dev/null | awk 'NR == 1 { print $2 }') || return 0
   name=${name%%.*}
   [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$ ]] || return 0
   printf '%s\n' "$name"
