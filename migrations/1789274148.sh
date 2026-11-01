@@ -1,9 +1,7 @@
-echo "Remove the MacBook NVMe suspend fix from 15-inch MacBook Pros, where it disabled D3cold on the GPU"
+echo "Remove the MacBook NVMe suspend fix from Macs where it disabled D3cold on the GPU or Wi-Fi instead of the drive"
 
-# install/hardware/apple/fix-suspend-nvme.sh used to match MacBookPro13,3 and 14,3 too. Those
-# models put the AMD GPU at 0000:01:00.0 and the NVMe drive at 02:00.0, so the service turned
-# off D3cold for the GPU and never touched the drive. The leaf now only applies the fix where
-# Apple's NVMe controller sits at 01:00.0; this removes the service everywhere it does not.
+# The leaf used to match the MacBook8,1 and the 15-inch MacBookPro13,3 and 14,3, whose 01:00.0 is Wi-Fi or the GPU.
+# It now needs Apple's controller there, so remove the service everywhere that is not.
 unit="${OMARCHY_NVME_SUSPEND_UNIT:-/etc/systemd/system/omarchy-nvme-suspend-fix.service}"
 pci_vendor="${OMARCHY_NVME_SUSPEND_PCI_VENDOR:-/sys/bus/pci/devices/0000:01:00.0/vendor}"
 

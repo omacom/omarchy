@@ -47,8 +47,8 @@ run_leaf() {
     bash -eE -o pipefail -c 'source "$1"' bash "$script" </dev/null
 }
 
-# The models Dunedan/mbp-2016-linux lists with Apple's NVMe controller at 01:00.0.
-for model in MacBook8,1 MacBook9,1 MacBook10,1 MacBookPro13,1 MacBookPro13,2 MacBookPro14,1 MacBookPro14,2; do
+# The models with Apple's NVMe controller at 01:00.0.
+for model in MacBook9,1 MacBook10,1 MacBookPro13,1 MacBookPro13,2 MacBookPro14,1 MacBookPro14,2; do
   run_leaf "$model" 0x106b >/dev/null
   grep -q 'd3cold_allowed' "$unit" 2>/dev/null || fail "a Mac with Apple's NVMe controller gets the fix" "$model"
   grep -Fq $'sudo\tsystemctl\tenable\tomarchy-nvme-suspend-fix.service' "$calls" ||
@@ -67,6 +67,14 @@ for model in MacBookPro13,3 MacBookPro14,3; do
   [[ ! -s $calls ]] || fail "a 15-inch MacBook Pro escalates nothing" "$model: $(cat "$calls")"
 done
 pass "15-inch MacBook Pros, whose 01:00.0 is the GPU, are left alone"
+
+# MacBook8,1: 01:00.0 is the Broadcom Wi-Fi, and Apple's controller is at 03:00.0.
+run_leaf MacBook8,1 0x14e4 >/dev/null
+[[ ! -e $unit ]] || fail "a MacBook8,1 is left alone"
+[[ ! -s $calls ]] || fail "a MacBook8,1 escalates nothing" "$(cat "$calls")"
+run_leaf MacBook8,1 0x106b >/dev/null
+[[ ! -e $unit ]] || fail "a MacBook8,1 is not matched by model"
+pass "the MacBook8,1, whose 01:00.0 is the Wi-Fi card, is left alone"
 
 # A 13-inch board whose 01:00.0 is not Apple's controller does not get the fix blind.
 run_leaf MacBookPro14,2 0x144d >/dev/null
@@ -111,6 +119,12 @@ run_migration 0x1002
 [[ ! -s $calls ]] || fail "the migration is idempotent" "$(cat "$calls")"
 pass "the migration is idempotent"
 
+# A MacBook8,1 install from before the fix carries the service aimed at its Wi-Fi card.
+write_old_unit
+run_migration 0x14e4
+[[ ! -e $unit ]] || fail "the migration removes the service from a MacBook8,1"
+pass "the migration removes the service from a MacBook8,1"
+
 # The machines the fix was written for keep it.
 write_old_unit
 run_migration 0x106b
@@ -124,7 +138,7 @@ run_migration 0x8086
 pass "the migration skips machines that never had the service"
 
 # The unit the leaf writes now, without the escaped colons, is still Omarchy's to remove.
-run_leaf MacBook8,1 0x106b >/dev/null
+run_leaf MacBook9,1 0x106b >/dev/null
 run_migration 0x1002
 [[ ! -e $unit ]] || fail "the migration removes the unit the current leaf writes"
 pass "the migration removes the unit the current leaf writes"

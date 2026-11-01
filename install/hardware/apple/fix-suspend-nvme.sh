@@ -1,12 +1,10 @@
 # Fix NVMe suspend issues on MacBook models
-# Apple's own NVMe controller fails to wake from D3cold, so keep it out of that state.
-# Only the 12-inch MacBooks and the 13-inch MacBook Pros carry that controller, always at 01:00.0.
-# The 15-inch MacBookPro13,3 and 14,3 ship a standard NVMe drive at 02:00.0 and put the AMD GPU
-# at 01:00.0, so they must not match: the fix would land on the GPU instead.
+# Apple's own NVMe controller fails to wake from D3cold, so keep it out of that state where it sits at 01:00.0.
+# The MacBook8,1 (Wi-Fi there, its controller at 03:00.0) and the 15-inch 13,3 and 14,3 (the AMD GPU there) must not match.
 MACBOOK_MODEL=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
 NVME_PCI="/sys/bus/pci/devices/0000:01:00.0"
 
-if [[ $MACBOOK_MODEL =~ MacBook(8,1|9,1|10,1)|MacBookPro13,[12]|MacBookPro14,[12] ]]; then
+if [[ $MACBOOK_MODEL =~ MacBook(9,1|10,1)|MacBookPro13,[12]|MacBookPro14,[12] ]]; then
   echo "Detected MacBook model: $MACBOOK_MODEL"
 
   if [[ $(cat "$NVME_PCI/vendor" 2>/dev/null || true) == "0x106b" ]]; then
