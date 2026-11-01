@@ -72,6 +72,8 @@ run_case() {
   cp "$ROOT/config/omarchy/shell.json" "$stage/config/omarchy/shell.json"
   cp "$SHELL_TEST_DIR/fixtures/shell-config-startup/Bar.qml" \
     "$stage/shell/plugins/bar/Bar.qml"
+  cp "$SHELL_TEST_DIR/fixtures/shell-config-startup/BackgroundIntro.qml" \
+    "$stage/shell/services/BackgroundIntro.qml"
   ln -s "$ROOT/bin" "$stage/bin"
   ln -s "$ROOT/default" "$stage/default"
   ln -s "$ROOT/themes/tokyo-night" "$test_home/.local/state/omarchy/current/theme"
@@ -205,6 +207,8 @@ run_write_case() {
   cp "$ROOT/config/omarchy/shell.json" "$stage/config/omarchy/shell.json"
   cp "$SHELL_TEST_DIR/fixtures/shell-config-startup/Bar.qml" \
     "$stage/shell/plugins/bar/Bar.qml"
+  cp "$SHELL_TEST_DIR/fixtures/shell-config-startup/BackgroundIntro.qml" \
+    "$stage/shell/services/BackgroundIntro.qml"
   ln -s "$ROOT/bin" "$stage/bin"
   ln -s "$ROOT/default" "$stage/default"
   ln -s "$ROOT/themes/tokyo-night" "$test_home/.local/state/omarchy/current/theme"
@@ -284,7 +288,11 @@ JSON
     fi
     sleep 0.1
   done
-  if [[ $persisted != "true" ]] || ! jq -e --slurpfile expected "$expected_config" ' . == $expected[0] ' "$user_config" >/dev/null; then
+  if [[ $persisted != "true" ]] || ! jq -e --slurpfile expected "$expected_config" '
+    # The host fills in empty layout sections when it saves.
+    def sections: .bar.layout |= with_entries(select(.value != []));
+    sections == ($expected[0] | sections)
+  ' "$user_config" >/dev/null; then
     printf 'Persisted shell.json (%s):\n' "$case_name" >&2
     jq . "$user_config" >&2 || sed -n '1,260p' "$user_config" >&2
     sed -n '1,260p' "$log" >&2
