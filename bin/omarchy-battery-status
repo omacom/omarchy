@@ -91,6 +91,15 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+# UPower fills in its hwdb defaults even where no limit is on, so its numbers
+# only count while it says the limit is enabled. It prints that line only when
+# the limit is on, so a supported limit without it is off. The kernel's own
+# readings below still apply.
+if grep -Eq 'charge-threshold-supported:[[:space:]]+yes' <<<"$battery_info" &&
+  ! grep -Eq 'charge-threshold-enabled:[[:space:]]+yes' <<<"$battery_info"; then
+  threshold_start=""
+  threshold_end=""
+fi
 
 # Read the thresholds from the battery UPower resolved rather than a BAT* glob,
 # which misses every battery with another name.

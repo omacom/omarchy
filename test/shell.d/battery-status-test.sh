@@ -211,3 +211,48 @@ printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
 sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
 pass "battery status leaves out readings it doesn't have"
+
+# UPower reports its hwdb default limits even where the limit is off and the
+# firmware refuses it, and prints charge-threshold-enabled only while the limit
+# is on. A supported limit without that line is not shown; an enabled one and
+# the kernel's own reading still are.
+disabled_dir="$tmp_dir/disabled"
+mkdir -p "$disabled_dir/bin" "$disabled_dir/power/BAT0" "$disabled_dir/power/ac"
+printf 'Mains\n' >"$disabled_dir/power/ac/type"
+printf '0\n' >"$disabled_dir/power/ac/online"
+cat >"$disabled_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                discharging
+  energy-full:          50 Wh
+  energy-rate:          4.9 W
+  percentage:           77%
+  charge-start-threshold:        75%
+  charge-end-threshold:          80%
+  charge-threshold-supported:    yes
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$disabled_dir/bin/upower"
+disabled_output=$(OMARCHY_POWER_SUPPLY_PATH="$disabled_dir/power" PATH="$disabled_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+! grep -q '^threshold' <<<"$disabled_output" || fail "battery status leaves out a charge limit UPower says is off" "$disabled_output"
+printf '85\n' >"$disabled_dir/power/BAT0/charge_control_end_threshold"
+kernel_output=$(OMARCHY_POWER_SUPPLY_PATH="$disabled_dir/power" PATH="$disabled_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'threshold\t85%' <<<"$kernel_output" >/dev/null || fail "battery status leaves out a charge limit UPower says is off" "kernel limit lost: $kernel_output"
+mv "$disabled_dir/power/BAT0/charge_control_end_threshold" "$disabled_dir/kernel-threshold"
+sed -i 's/^  charge-threshold-supported:    yes$/  charge-threshold-enabled:      yes\n&/' "$disabled_dir/bin/upower"
+enabled_output=$(OMARCHY_POWER_SUPPLY_PATH="$disabled_dir/power" PATH="$disabled_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'threshold\t75-80%' <<<"$enabled_output" >/dev/null || fail "battery status leaves out a charge limit UPower says is off" "enabled limit lost: $enabled_output"
+pass "battery status leaves out a charge limit UPower says is off"
