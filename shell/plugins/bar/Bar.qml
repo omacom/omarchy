@@ -1660,6 +1660,15 @@ Item {
     }
   }
 
+  // Hyprland's window list does not follow fullscreen on its own, and each
+  // BarPanel reads it to drop its input under a fullscreen window.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event && String(event.name) === "fullscreen") Hyprland.refreshToplevels()
+    }
+  }
+
   Variants {
     model: Quickshell.screens
 
@@ -1789,13 +1798,30 @@ Item {
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
+    // Whether the active workspace on this screen holds a real fullscreen
+    // window, which fades the bar out.
+    readonly property bool underFullscreen: {
+      var monitor = Hyprland.monitorFor(screen)
+      var workspace = monitor ? monitor.activeWorkspace : null
+      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+    }
+
     // Idle, only the strip takes input, so the clear expanse passes clicks
-    // through to the windows and desktop below.
-    mask: dragActive ? null : stripInputRegion
+    // through to the windows and desktop below. Under a fullscreen window
+    // nothing does: Hyprland 0.56 passes the pointer through a faded top
+    // layer only while it holds the layer below fullscreen, and it lifts
+    // every layer on the monitor back above whenever a window on any other
+    // workspace leaves fullscreen, or the layer remaps. The invisible strip
+    // would then take the clicks meant for the top of the fullscreen window.
+    mask: dragActive ? null : (underFullscreen ? noInputRegion : stripInputRegion)
 
     Region {
       id: stripInputRegion
       item: barStrip
+    }
+
+    Region {
+      id: noInputRegion
     }
 
     // The bar itself, along its screen edge.
@@ -1837,6 +1863,17 @@ Item {
       implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
       implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
 
+      // Each show maps a fresh surface at a whole-number scale before Qt receives
+      // the output's fractional one. Keep the bubble transparent until it matches the bar.
+      readonly property bool scaleReady: visible && Math.round(devicePixelRatio * 120) === Math.round(barWindow.devicePixelRatio * 120)
+      property bool revealed: false
+
+      // Only hiding resets it: at a whole-number scale the ratio dips to 1 after the first frame.
+      onVisibleChanged: if (!visible) revealed = false
+      onScaleReadyChanged: if (scaleReady) Qt.callLater(function() {
+        if (tooltipWindow.scaleReady) tooltipWindow.revealed = true
+      })
+
       anchor {
         id: tooltipAnchor
         window: barWindow
@@ -1873,6 +1910,7 @@ Item {
 
       BorderSurface {
         id: tooltipBubble
+        opacity: tooltipWindow.revealed ? 1 : 0
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
         color: Commons.Color.tooltip.background

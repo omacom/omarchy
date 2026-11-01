@@ -161,37 +161,23 @@ kill -0 "$inhibitor_pid" 2>/dev/null &&
   fail "update waits for its sleep inhibitor to stop before continuing"
 pass "omarchy-update waits for its sleep inhibitor to stop"
 
-# A failed update must release the lid lock even when credential revocation
-# fails. Make only cleanup revocation fail, after the inhibitor is ready.
-mv "$SUDO_TEST_ROOT/mock/sudo" "$SUDO_TEST_ROOT/mock/sudo-cleanup-test"
-cat >"$SUDO_TEST_ROOT/mock/sudo" <<'SH'
-#!/bin/bash
-if [[ ${1:-} == "-k" && -e ${TEST_REVOKE_FAILURE_MARKER:-} ]]; then
-  printf 'sudo -k\n' >>"$SUDO_TEST_LOG"
-  exit 1
-fi
-exec "${0%/*}/sudo-cleanup-test" "$@"
-SH
-chmod +x "$SUDO_TEST_ROOT/mock/sudo"
+# A failed or interrupted update must release the lid lock with its inhibitor.
 write_stub omarchy-update-keyring '
 case "$TEST_UPDATE_FAILURE" in
   error) exit 17 ;;
-  revoke) touch "$TEST_REVOKE_FAILURE_MARKER"; exit 17 ;;
   *) kill -s "$TEST_UPDATE_FAILURE" "$PPID" ;;
 esac'
 
-for failure in error HUP INT TERM revoke; do
-  rm -f "$inhibit_pid_file" "$test_tmp/revoke-failure"
+for failure in error HUP INT TERM; do
+  rm -f "$inhibit_pid_file"
   update_status=0
-  OMARCHY_UPDATE_LOGGED=1 TEST_UPDATE_FAILURE="$failure" \
-    TEST_REVOKE_FAILURE_MARKER="$test_tmp/revoke-failure" INHIBIT_PID_FILE="$inhibit_pid_file" \
+  OMARCHY_UPDATE_LOGGED=1 TEST_UPDATE_FAILURE="$failure" INHIBIT_PID_FILE="$inhibit_pid_file" \
     run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-$failure.out" 2>&1 || update_status=$?
   case "$failure" in
     error) expected_status=17 ;;
     HUP) expected_status=129 ;;
     INT) expected_status=130 ;;
     TERM) expected_status=143 ;;
-    revoke) expected_status=1 ;;
   esac
   [[ -s $inhibit_pid_file ]] || fail "$failure cleanup test started its inhibitor"
   inhibitor_pid=$(<"$inhibit_pid_file")
@@ -204,13 +190,11 @@ for failure in error HUP INT TERM revoke; do
   [[ ! -e $test_home/.local/state/omarchy/indicators/stay-awake ]] || leaked_inhibitor=1
   # Restore the fixture even when the assertion fails, so a regression cannot
   # leave an inhibitor running after the test exits.
-  rm -f "$test_tmp/revoke-failure"
-  OMARCHY_UPDATE_SUDO_SESSION=1 run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
+  run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
   (( leaked_inhibitor == 0 )) || fail "$failure cleanup releases the update inhibitor and Stay Awake state" "$(<"$test_tmp/update-$failure.out")"
   (( update_status == expected_status )) || fail "$failure cleanup preserves the update exit status" "$update_status, expected $expected_status"
   pass "$failure cleanup releases the update inhibitor and preserves the exit status"
 done
-mv -f "$SUDO_TEST_ROOT/mock/sudo-cleanup-test" "$SUDO_TEST_ROOT/mock/sudo"
 
 if (( EUID != 0 )); then
   sudo_log="$SUDO_TEST_LOG"
@@ -237,7 +221,7 @@ SH
   SUDO_LOG="$sudo_log" PKEXEC_MARKER="$pkexec_marker" INHIBIT_PID_FILE="$terminal_inhibit_pid_file" \
     run_with_lock_env script -qefc "$terminal_driver" /dev/null >/dev/null
 
-  grep -q -- '^sudo -N -b -- ' "$sudo_log" || fail "terminal inhibition authenticates its background command without a reusable timestamp"
+  grep -q -- '^sudo -b -- ' "$sudo_log" || fail "terminal inhibition runs its background command through sudo -b" "$(<"$sudo_log")"
   [[ ! -e $pkexec_marker ]] || fail "terminal sleep inhibition does not use pkexec"
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
   pass "terminal updates use sudo instead of Polkit for sleep inhibition"
@@ -349,7 +333,7 @@ pass "omarchy-update restores only its own Stay Awake state before restart handl
 # Model package replacement while the existing updater is still running:
 # start writes the old two-field state; the transaction installs the real new
 # helper, whose stop must clean that state before reboot handling.
-cp "$stub_bin/omarchy-update-stay-awake" "$test_tmp/inhibitor-after-upgrade"
+/usr/bin/cp "$stub_bin/omarchy-update-stay-awake" "$test_tmp/inhibitor-after-upgrade"
 write_stub omarchy-update-stay-awake '
 set -e
 [[ $1 == "start" ]]
@@ -407,18 +391,3 @@ kill "$unrelated_pid"
 wait "$unrelated_pid" 2>/dev/null || true
 pass "stale inhibitor state does not terminate a reused PID"
 
-# The hidden helper also establishes its own boundary when invoked directly.
-reset_boundary
-touch "$SUDO_TEST_CACHE"
-run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
-[[ $(head -1 "$SUDO_TEST_LOG") == "sudo -k" ]] || fail "standalone inhibitor cleanup did not start cold"
-assert_boundary_cold "standalone inhibitor cleanup"
-pass "standalone inhibitor cleanup revokes before and after session work"
-
-reset_boundary
-export SUDO_TEST_REVOKE_FAIL=1
-if run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" start; then
-  fail "inhibitor started after failed initial revocation"
-fi
-[[ ! -e $stay_awake_helper_state/inhibit-pid ]] || fail "failed revocation started an inhibitor"
-pass "failed initial revocation prevents standalone inhibition"

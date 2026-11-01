@@ -357,9 +357,6 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test velocità disco"
   },
-  "setup.monitors": {
-    "label": "Monitor"
-  },
   "setup.keybindings": {
     "label": "Scorciatoie"
   },
@@ -1285,5 +1282,11 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Attiva cattura crash"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   }
 }

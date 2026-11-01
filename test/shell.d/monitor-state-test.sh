@@ -118,3 +118,8 @@ displays_are '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"heig
 monitor_state "$clamshell"
 displays_are '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]'
 pass "monitor state lists every display with its enabled and focused state and size"
+
+monitor_state "$clamshell"
+jq -e 'map(.brightness) == [null, 42]' <<<"${state_lines[7]-}" >/dev/null ||
+  fail "monitor state reads each enabled display's brightness" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state reads each enabled display's brightness"

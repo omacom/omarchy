@@ -18,8 +18,8 @@ if [[ $(jq -r '.shortcuts.hold' <<< "$shortcuts") == "RightAlt" ]]; then
   fi
 fi
 # Superwhisper requires a native recording shortcut; keep it separate from
-# Omarchy's push-to-talk keys.
-superwhisper shortcuts set toggle "Alt+Space" >/dev/null
+# Omarchy's recording keys (Alt + Space and Right Alt).
+superwhisper shortcuts set toggle "Ctrl+Alt+Space" >/dev/null
 superwhisper shortcuts set hold none >/dev/null
 omarchy-dictation-use superwhisper
 hyprctl reload >/dev/null
