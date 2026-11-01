@@ -281,6 +281,9 @@ case "${1:-}" in
 esac
 STUB
 cp "$STUB_BIN/sudo" "$STUB_BIN/pkexec"
+# Same helper behind both, but each logs its own name so a test can tell
+# which prompt the caller chose.
+sed -i "s/^printf 'sudo %s/printf 'pkexec %s/" "$STUB_BIN/pkexec"
 chmod +x "$STUB_BIN"/*
 
 FUNCTIONS="$HOTSPOT_FUNCTIONS"
@@ -1268,3 +1271,20 @@ DRIVER
 SAVED_INTERFACE=wlan2 write_user_rules "$UFW_RULES_FILE" wlan2 10.55.0.0/24
 SAVED_INTERFACE=wlan2 run_isolated "$TEST_TMP/stop-lost-records-driver.sh"
 pass "stop releases owner-tagged rules whose ownership records were lost"
+
+# A password piped on stdin from a terminal still prompts in that terminal.
+reset_firewall_fixture
+cat >"$TEST_TMP/terminal-driver.sh" <<'DRIVER'
+EUID_CHECK=$(id -u)
+(( EUID_CHECK != 0 )) || exit 0
+printf 'secret\n' | privileged_run release
+DRIVER
+script -qec "env PATH='$STUB_BIN:$PATH' OMARCHY_PATH='$ROOT' bash -c 'source \"\$1\"; source \"\$TEST_PATHS\"; source \"\$2\"' _ '$FUNCTIONS' '$TEST_TMP/terminal-driver.sh'" /dev/null >/dev/null </dev/null
+if (( $(id -u) != 0 )); then
+  [[ $(head -n 1 "$PRIVILEGED_LOG") == "sudo "* ]] || fail "a terminal with piped stdin uses sudo" "$(<"$PRIVILEGED_LOG")"
+  : >"$PRIVILEGED_LOG"
+  printf '%s\n' 'printf "secret\n" | privileged_run release' >"$TEST_TMP/no-terminal-driver.sh"
+  run_isolated "$TEST_TMP/no-terminal-driver.sh" </dev/null 2>/dev/null
+  [[ $(head -n 1 "$PRIVILEGED_LOG") == "pkexec "* ]] || fail "no terminal at all uses pkexec" "$(<"$PRIVILEGED_LOG")"
+fi
+pass "privileged steps prompt with sudo whenever a terminal is attached"

@@ -45,9 +45,16 @@ self_path() {
   printf '%s\n' "$SCRIPT_PATH"
 }
 
+# A terminal to type a password in: stdin may carry the hotspot password from
+# a pipe while the user still sits at a terminal, and sudo prompts on the
+# terminal itself, so either end being one counts.
+has_terminal() {
+  [[ -t 0 || -t 2 ]]
+}
+
 require_root() {
   (( EUID == 0 )) && return
-  if [[ -t 0 ]]; then
+  if has_terminal; then
     exec sudo "$(self_path)" "$@"
   else
     exec pkexec "$(self_path)" "$@"
@@ -801,7 +808,7 @@ privileged_run() {
     # A subshell, so a helper's fail() ends that step rather than the caller,
     # just as it would in the separate sudo/pkexec process.
     ("$function" "$@")
-  elif [[ -t 0 ]]; then
+  elif has_terminal; then
     sudo "$(self_path)" "$action" "$@"
   else
     pkexec "$(self_path)" "$action" "$@"
