@@ -109,7 +109,7 @@ Panel {
   // The displays that are on and not mirroring another, where they sit.
   // Switching to Mirror reloads Hyprland, and a read can come back from
   // before it lands, so the map shows the stack as soon as Mirror is clicked:
-  // the first external display mirroring the built-in one, as
+  // every external display mirroring the built-in one, as
   // omarchy-hyprland-monitor-internal-mirror sets it up. "on" or "off" while
   // a switch is on its way; Extend keeps the stack until the real layout,
   // with the external back in its own place, comes in.
@@ -117,18 +117,15 @@ Panel {
   readonly property var layoutDisplays: {
     if (pendingMirror !== "on") return displays
     var internal = ""
-    var external = ""
     for (var i = 0; i < displays.length; i++) {
       var display = displays[i]
-      if (!display || !display.enabled) continue
-      if (/^(eDP|LVDS|DSI)-/.test(display.name)) { if (!internal) internal = display.name }
-      else if (!external) external = display.name
+      if (display && display.enabled && /^(eDP|LVDS|DSI)-/.test(display.name)) { internal = display.name; break }
     }
-    if (!internal || !external) return displays
+    if (!internal) return displays
     var list = []
     for (var j = 0; j < displays.length; j++) {
       var entry = displays[j]
-      if (entry && entry.name === external) {
+      if (entry && entry.enabled && !/^(eDP|LVDS|DSI)-/.test(entry.name)) {
         var copy = {}
         for (var key in entry) copy[key] = entry[key]
         copy.mirrorOf = internal
@@ -177,9 +174,10 @@ Panel {
   }
   readonly property bool mirrorEnabled: pendingMirror !== "" ? pendingMirror === "on" : mirroredNow
   // omarchy-hyprland-monitor-internal-mirror puts the built-in display's
-  // picture on the first external one, so it needs both. A mirror set up in
+  // picture on every external one, so it needs the built-in display on, not
+  // shut in clamshell, and an external one. A mirror set up in
   // the user's own monitors.lua is theirs to undo, so Extend isn't offered.
-  readonly property bool mirrorAvailable: internalMonitor !== "" && externalMonitor !== "" && (!mirrorEnabled || mirrorManaged || pendingMirror !== "")
+  readonly property bool mirrorAvailable: internalEnabled && externalMonitor !== "" && (!mirrorEnabled || mirrorManaged || pendingMirror !== "")
   readonly property var mirrorModes: ["extend", "mirror"]
 
   function displayGlyph(entry) {
