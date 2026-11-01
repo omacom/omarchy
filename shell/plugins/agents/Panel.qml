@@ -38,15 +38,6 @@ Panel {
     return actions
   }
 
-  // Loading has its progress bar under the line; only stopping and failure need words.
-  function localStateText(model) {
-    if (model.unit === "deactivating") return Commons.I18n.t("agents.localStopping")
-    if (model.unit === "failed") return model.result && model.result !== "success"
-      ? Commons.I18n.t("agents.localFailedResult").arg(String(model.result))
-      : Commons.I18n.t("agents.localFailed")
-    return ""
-  }
-
   function runLocalAction(model, action) {
     if (action === "launch") {
       Util.execArgv(["omarchy-agent", "--local-model", model.recipe])
@@ -58,7 +49,7 @@ Panel {
   }
 
   property double loadNowMs: Date.now()
-  readonly property bool localLoading: providers.some(function(p) { return p.localModel && p.localModel.unit === "activating" })
+  readonly property bool localLoading: providers.some(function(p) { return p.localModel && (p.localModel.unit === "activating" || p.localModel.unit === "deactivating") })
   Timer {
     interval: 250
     running: root.opened && root.localLoading
@@ -1539,7 +1530,10 @@ Panel {
     readonly property var model: provider ? (provider.localModel || null) : null
     readonly property bool loading: !!model && model.unit === "activating"
     readonly property bool running: !!model && model.unit === "active"
+    readonly property bool stopping: !!model && model.unit === "deactivating"
     readonly property real loadSeconds: model && Number(model.expected_load_seconds) > 0 ? Number(model.expected_load_seconds) : 60
+    readonly property real stopSeconds: model && Number(model.expected_stop_seconds) > 0 ? Number(model.expected_stop_seconds) : 10
+    readonly property real phaseSeconds: stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
     readonly property var accounts: root.providerAccounts(provider)
@@ -1634,8 +1628,8 @@ Panel {
         anchors.baseline: sectionName.baseline
         visible: !section.multi && text !== ""
         textFormat: Text.PlainText
-        text: section.model ? root.localStateText(section.model) : root.planLabel(section.provider)
-        color: section.model && section.model.unit === "failed" ? root.urgent : root.dim
+        text: section.model ? "" : root.planLabel(section.provider)
+        color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -1653,13 +1647,17 @@ Panel {
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && section.model.unit !== "deactivating"
+        visible: !!section.model && !section.stopping
+        // Greyed out, not disabled, so the reason still shows on hover.
+        readonly property bool blocked: !section.running && !section.loading && !!section.model && section.model.fits === false
         iconText: section.running || section.loading ? "󰏤" : "󰐊"
-        tooltipText: section.running || section.loading ? Commons.I18n.t("agents.localStop") : Commons.I18n.t("agents.localStart")
-        foreground: root.foreground
+        tooltipText: blocked ? Commons.I18n.t("agents.localNotEnoughMemory")
+          : section.running || section.loading ? Commons.I18n.t("agents.localStop") : Commons.I18n.t("agents.localStart")
+        foreground: blocked ? root.dim : root.foreground
+        opacity: blocked ? 0.5 : 1
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelToggle", section.providerIndex)
-        onClicked: root.runLocalAction(section.model, "toggle")
+        onClicked: if (!blocked) root.runLocalAction(section.model, "toggle")
       }
 
       // Opens the coding agent made for this subscription: Codex for OpenAI,
@@ -1678,8 +1676,10 @@ Panel {
       }
     }
 
+    // Under a local model: memory while it runs, progress while it loads or
+    // stops (against how long that took last time), or why it couldn't start.
     Item {
-      visible: section.running || section.loading
+      visible: section.running || section.loading || section.stopping
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -1688,7 +1688,9 @@ Panel {
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.loading ? Commons.I18n.t("agents.localLoadingMeter") : Commons.I18n.t("agents.localMemory")
+        text: section.loading ? Commons.I18n.t("agents.localLoadingMeter")
+          : section.stopping ? Commons.I18n.t("agents.localStoppingMeter")
+          : Commons.I18n.t("agents.localMemory")
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -1698,7 +1700,7 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.loading ? Math.min(0.95, section.elapsed / section.loadSeconds)
+        value: section.loading || section.stopping ? Math.min(0.95, section.elapsed / section.phaseSeconds)
           : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
       }
       Text {
@@ -1707,13 +1709,24 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.loading
-          ? (section.elapsed < section.loadSeconds ? Commons.I18n.t("agents.localSecondsLeft").arg(Commons.I18n.formatNumber(Math.ceil(section.loadSeconds - section.elapsed))) : "")
+        text: section.loading || section.stopping
+          ? (section.elapsed < section.phaseSeconds ? Commons.I18n.t("agents.localSecondsLeft").arg(Commons.I18n.formatNumber(Math.ceil(section.phaseSeconds - section.elapsed))) : "")
           : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
       }
+    }
+
+    Text {
+      visible: !!section.model && !section.running && !section.loading && !section.stopping && String(section.model.error || "") !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: section.model ? String(section.model.error || "") : ""
+      color: root.urgent
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
     }
 
     // A sign-in to redo for a single-account provider; with several, each

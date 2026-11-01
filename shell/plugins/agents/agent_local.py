@@ -37,6 +37,7 @@ KEY_PLACEHOLDER = "@OMARCHY_LOCAL_KEY@"
 DEFAULT_CATALOG_URL = "https://github.com/omacom/omarchy-local-ai"
 CATALOG_MAX_AGE = 4 * 3600
 RESERVE_GIB = 8
+NOT_ENOUGH_MEMORY = "Not enough memory to start model"
 RAM_CLASSES = (32, 64, 96, 128, 192, 256, 512)
 STANDARD_INPUTS = ("model", "draft", "ctx", "alias", "key", "temperature", "top_p", "top_k")
 GFX_FAMILIES = {"gfx1151": "amd-strix-halo", "gfx1150": "amd-strix-point"}
@@ -59,7 +60,12 @@ MAX_SHM_GIB = 16
 
 
 class LocalError(Exception):
-  pass
+  """A failure with its full explanation, and optionally a one-line reason
+  short enough for the agents panel to show where a model's progress bar was."""
+
+  def __init__(self, message, short=None):
+    super().__init__(message)
+    self.short = short or str(message).splitlines()[0]
 
 
 # ---------------------------------------------------------------- paths
@@ -1475,11 +1481,15 @@ def check_headroom(variant, gpu):
       return available, gpu_free
     time.sleep(1)
   running = [rid for rid in known_models() if unit_active(rid)]
+  names = [(load_model(rid) or {}).get("recipe", {}).get("name", rid) for rid in running]
+  need = variant["peak_ram_gib"] + RESERVE_GIB
+  short = f"{NOT_ENOUGH_MEMORY} (needs {need:g} GiB)"
   raise LocalError(
     f"Not enough free memory right now: the model needs {variant['peak_ram_gib']:g} GiB RAM plus {RESERVE_GIB} GiB for the desktop "
     f"and {variant['peak_gpu_gib']:g} GiB GPU-addressable; {available:.1f} GiB RAM and {gpu_free:.1f} GiB GPU are free.\n"
     + (f"Local models running: {', '.join(running)} (stop one with: omarchy agent local stop <recipe>)\n" if running else "")
-    + f"Largest memory users: {top_memory_users()}"
+    + f"Largest memory users: {top_memory_users()}",
+    short=short,
   )
 
 
@@ -1558,6 +1568,31 @@ def save_run(manifest):
   return path
 
 
+def stop_seconds_path(rid):
+  return os.path.join(state_dir(), "stops", rid)
+
+
+def expected_stop_seconds(rid):
+  try:
+    return float(_read(stop_seconds_path(rid)))
+  except ValueError:
+    return None
+
+
+def error_path(rid):
+  return os.path.join(state_dir(), "errors", rid)
+
+
+def record_error(rid, reason):
+  """Keep why a model couldn't start, for the panel to show on its line."""
+  write_atomic(error_path(rid), " ".join(str(reason).split()) + "\n")
+
+
+def clear_error(rid):
+  if os.path.exists(error_path(rid)):
+    os.unlink(error_path(rid))
+
+
 def autostart_flag(rid):
   return os.path.join(state_dir(), "autostart", rid)
 
@@ -1618,6 +1653,7 @@ def activate(manifest, recipe, runtime, gpu, key):
     say(f"Restarting {rid} with the new setup (its in-flight requests are interrupted)")
     write_status({rid: "deactivating"})
     systemctl("stop", unit_name(rid))
+  clear_error(rid)
   try:
     evict_idle_weights(keep=[rid])
     before_ram, before_gpu = check_headroom(manifest["variant"], gpu)
@@ -1632,8 +1668,10 @@ def activate(manifest, recipe, runtime, gpu, key):
     if previous_text is not None and was_running:
       say(f"Restoring the previous setup of {rid}")
       systemctl("start", unit_name(rid))
+    short = getattr(error, "short", None) or str(error).splitlines()[0]
+    record_error(rid, short)
     write_status()
-    raise LocalError(str(error))
+    raise LocalError(str(error), short=short)
   after_ram, after_gpu = free_memory(gpu)
   manifest["observed"] = {
     "load_seconds": round(load_seconds, 1),
@@ -1812,7 +1850,21 @@ def latest_run(rid):
     return None
 
 
-def model_record(rid, manifest, catalog=None):
+def start_fit(manifest, profile):
+  """Whether a stopped model fits in the memory free right now: (fits, reason).
+  Rewritten with every start and stop, the moments free memory changes."""
+  variant = manifest["variant"]
+  try:
+    gpu = choose_gpu(profile, manifest.get("gpu"))
+  except LocalError as error:
+    return False, error.short
+  available, gpu_free = free_memory(gpu)
+  if available >= variant["peak_ram_gib"] + RESERVE_GIB and gpu_free >= variant["peak_gpu_gib"]:
+    return True, ""
+  return False, "Not enough memory"
+
+
+def model_record(rid, manifest, catalog=None, profile=None):
   props = unit_props(rid, "ActiveState", "SubState", "Result", "InactiveExitTimestamp", "ActiveExitTimestamp")
   unit = props.get("ActiveState", "inactive") or "inactive"
   recipe = manifest["recipe"]
@@ -1820,7 +1872,19 @@ def model_record(rid, manifest, catalog=None):
   if not vendor and catalog:
     vendor = catalog.recipes.get(rid, {}).get("vendor", "")
   observed = manifest.get("observed") or {}
+  fits, fit_reason = (True, "") if unit in ("active", "activating", "deactivating") or profile is None else start_fit(manifest, profile)
+  error = _read(error_path(rid))
+  # A memory refusal stops being true once another model lets go of its memory.
+  if fits and error.startswith(NOT_ENOUGH_MEMORY):
+    error = ""
+  if not error and unit == "failed":
+    error = f"Stopped unexpectedly ({props.get('Result') or 'failed'})"
   return {
+    # Why the last start failed, shown where the progress bar was.
+    "error": error,
+    # Whether play can start it now; the panel greys play out when it can't.
+    "fits": fits,
+    "fit_reason": fit_reason,
     "recipe": rid,
     "name": recipe.get("name", rid),
     "vendor": vendor,
@@ -1839,13 +1903,15 @@ def model_record(rid, manifest, catalog=None):
     # the panel's progress bar measures the one against the other.
     "since_ms": _unix_ms(props.get("InactiveExitTimestamp") if unit == "activating" else props.get("ActiveExitTimestamp") if unit == "deactivating" else ""),
     "expected_load_seconds": observed.get("load_seconds"),
+    "expected_stop_seconds": expected_stop_seconds(rid),
   }
 
 
 def status_record():
   catalog = cached_catalog()
   state = catalog_state()
-  models = {rid: model_record(rid, load_model(rid), catalog) for rid in known_models()}
+  profile = machine_profile()
+  models = {rid: model_record(rid, load_model(rid), catalog, profile) for rid in known_models()}
   record = {
     "models": models,
     "last": last_model_id(),
@@ -1922,7 +1988,11 @@ def cmd_stop(argv):
   # A model takes seconds to let go of its memory; the panel says so meanwhile.
   write_status({rid: "deactivating" for rid in targets})
   for rid in targets:
+    started = time.time()
     systemctl("stop", unit_name(rid))
+    # How long this model takes to let go; the panel's stopping bar measures
+    # the next stop against it.
+    write_atomic(stop_seconds_path(rid), f"{time.time() - started:.1f}\n")
   # Give the memory back whole, not as cached weights the next model has to
   # fight the kernel for.
   evict_idle_weights()
@@ -1945,16 +2015,20 @@ def cmd_start(argv):
     return 0
   gpu = choose_gpu(machine_profile(), manifest["gpu"])
   # Shown as loading from the click on; the memory checks below take seconds.
+  clear_error(rid)
   write_status({rid: "activating"})
   evict_idle_weights(keep=[rid])
   try:
     check_headroom(manifest["variant"], gpu)
-  except LocalError:
+  except LocalError as error:
+    record_error(rid, error.short)
     write_status()
     raise
   systemctl("reset-failed", unit_name(rid))
   result = systemctl("start", unit_name(rid))
   write_atomic(os.path.join(state_dir(), "last"), rid + "\n")
+  if result.returncode != 0:
+    record_error(rid, "Didn't start: omarchy agent local status shows why")
   write_status()
   if result.returncode != 0:
     raise LocalError(f"{rid} didn't start: {result.stderr.strip()}\n{journal_tail(rid)}")
@@ -1996,7 +2070,7 @@ def cmd_remove(argv):
       write_status({rid: "deactivating"})
       systemctl("stop", unit_name(rid))
     write_unit_files(rid, None)
-    for path in (model_manifest_path(rid), autostart_flag(rid)):
+    for path in (model_manifest_path(rid), autostart_flag(rid), error_path(rid), stop_seconds_path(rid)):
       if os.path.exists(path):
         os.unlink(path)
     if _read(os.path.join(state_dir(), "last")) == rid:
