@@ -41,6 +41,9 @@ cat >"$fake_bin/quickshell" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
+if [[ -n ${OMARCHY_TEST_QS_SIGNAL_LOG:-} ]]; then
+  grep '^SigIgn:' /proc/self/status >>"$OMARCHY_TEST_QS_SIGNAL_LOG"
+fi
 printf 'watcher=%s popup=%s background=%s\n' \
   "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
 
@@ -93,6 +96,7 @@ chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fa
 
 qs_log="$test_tmp/quickshell.log"
 qs_env_log="$test_tmp/quickshell-env.log"
+qs_signal_log="$test_tmp/quickshell-signals.log"
 logger_log="$test_tmp/logger.log"
 qs_terminated="$test_tmp/quickshell-terminated"
 hyprctl_misses="$test_tmp/hyprctl-misses"
@@ -100,6 +104,7 @@ hyprctl_misses="$test_tmp/hyprctl-misses"
 launch_shell() {
   : >"$qs_log"
   : >"$qs_env_log"
+  : >"$qs_signal_log"
   : >"$logger_log"
 
   PATH="$fake_bin:$PATH" \
@@ -107,13 +112,14 @@ launch_shell() {
   OMARCHY_PATH="$shell_root" \
   OMARCHY_TEST_QS_LOG="$qs_log" \
   OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+  OMARCHY_TEST_QS_SIGNAL_LOG="$qs_signal_log" \
   OMARCHY_TEST_QS_STATUSES="$1" \
   OMARCHY_TEST_COMPOSITOR_GONE="${2:-0}" \
   OMARCHY_TEST_LOGGER_LOG="$logger_log" \
   OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
   OMARCHY_TEST_HYPRCTL_MISSES="${3:-0}" \
   OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
-    timeout 30 "$launch_shell_bin"
+    timeout 30 bash -c "${OMARCHY_TEST_PARENT_TRAP:-} exec \"\$0\"" "$launch_shell_bin"
 }
 
 launches() {
@@ -132,6 +138,14 @@ pass "a shell that exits cleanly is left alone"
 pass "the shell launches with Quickshell's config watcher and reload popup off"
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
+
+# Hyprland starts the launcher with SIGCHLD ignored. Inherited by Quickshell,
+# that makes every Process report exit code 0 and a crash.
+OMARCHY_TEST_PARENT_TRAP="trap '' CHLD;" launch_shell '0' || fail "a launch from a parent ignoring SIGCHLD succeeds"
+sig_ign=$(awk '{ print $2 }' "$qs_signal_log")
+[[ -n $sig_ign ]] && (( (16#$sig_ign & 16#10000) == 0 )) ||
+  fail "the shell starts with SIGCHLD at its default" "SigIgn: $sig_ign"
+pass "the shell starts with SIGCHLD at its default"
 
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"

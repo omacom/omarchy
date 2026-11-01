@@ -14,11 +14,15 @@
 # A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
+#
+# Hyprland starts its children with SIGCHLD ignored, and an exec keeps that.
+# With it ignored, every Process in the shell reports exit code 0 and a crash,
+# whatever the command returned, so the shell gets SIGCHLD back at its default.
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
   OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
-    systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
+    systemd-cat -t omarchy-shell -- env --default-signal=CHLD quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
 
   local status
