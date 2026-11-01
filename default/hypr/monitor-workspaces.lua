@@ -310,13 +310,15 @@ function M.workspace_id(monitor, slot)
 end
 
 -- The workspace a monitor falls back to when what it shows isn't its own: the
--- lowest of its own already on it, or its first.
-local function home(monitor, block)
+-- lowest of its own already on it, or with occupied, the lowest holding windows,
+-- or its first.
+local function home(monitor, block, occupied)
   local best = nil
 
   for _, workspace in ipairs(hl.get_workspaces()) do
     if regular(workspace) and block_of_id(workspace.id) == block and workspace.monitor
-      and workspace.monitor.name == monitor.name and (not best or workspace.id < best) then
+      and workspace.monitor.name == monitor.name and (not occupied or (workspace.windows or 0) > 0)
+      and (not best or workspace.id < best) then
       best = workspace.id
     end
   end
@@ -558,11 +560,13 @@ function M.reconcile(added, gone)
         and (active.windows or 0) > 0
 
       -- A returning monitor that Hyprland started on a free number inside its
-      -- own block, while its workspaces waited elsewhere, shows those instead.
+      -- own block, while its workspaces waited elsewhere, shows those instead,
+      -- even when that free number is below them.
       local target = home(monitor, block)
-      local waiting = hl.get_workspace(target)
+      local waiting = hl.get_workspace(home(monitor, block, true))
       local parked = own and monitor.name == added and (active.windows or 0) == 0
-        and target ~= active.id and waiting and (waiting.windows or 0) > 0
+        and waiting and waiting.id ~= active.id and (waiting.windows or 0) > 0
+      if parked then target = waiting.id end
 
       if (not own and not guest) or parked then
         show(monitor, target)
