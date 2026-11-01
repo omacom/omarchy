@@ -27,6 +27,4 @@ echo "Theme changed to: $THEME_NAME"
 # Add custom actions here
 ```
 
-Both update-related hooks run as your user. `post-update` runs after system packages, migrations, and service restarts, before mise and AUR updates. The update's sudo authorization is still active during this hook and mise, so commands allowed by your sudo policy may reuse it without another password prompt. Omarchy ends that authorization before running AUR updates and revokes it again on exit.
-
-`pre-refresh-pacman` runs after `omarchy refresh pacman` re-syncs the package config and before the package transaction, so custom repositories and `IgnorePkg` entries shape that transaction. This hook runs after the refresh clears its sudo timestamp, behind the no-update wrapper. Its privileged commands must request their own authorization without publishing a reusable timestamp, and the refresh revokes the timestamp again before continuing.
+Update-related hooks run as your user with your PATH, inside the update's sudo authorization, so a hook that invokes `sudo` does not prompt again. `post-update` runs after the system packages, migrations and service restarts. `pre-refresh-pacman` runs after `omarchy refresh pacman` re-syncs the package config and before the package transaction, so custom repositories and `IgnorePkg` entries shape that transaction.

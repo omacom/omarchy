@@ -75,6 +75,10 @@ run_first_run_step "install agent setup post-update hook" \
 
 run_first_run_step "enable user systemd units" \
   bash "$OMARCHY_PATH/install/user/first-run/enable-user-units.sh"
+# Finalization ran it too, maybe without a session; the platform finishes what
+# needs one here.
+run_first_run_step "run the platform's user setup" \
+  omarchy-lifecycle-dispatch setup-user
 run_first_run_step "set GNOME theme" \
   bash "$OMARCHY_PATH/install/user/first-run/gnome-theme.sh"
 run_first_run_step "set GTK primary paste" \
@@ -87,6 +91,8 @@ omarchy-notification-wait || log_first_run "Timed out waiting for notification s
 # order is enough to stack them newest-on-top.
 run_first_run_step "show welcome notification" \
   bash "$OMARCHY_PATH/install/user/first-run/welcome.sh"
+run_first_run_step "show git setup notification" \
+  bash "$OMARCHY_PATH/install/user/first-run/git.sh"
 run_first_run_step "schedule Wi-Fi/update notifications" \
   bash "$OMARCHY_PATH/install/user/first-run/wifi.sh"
 

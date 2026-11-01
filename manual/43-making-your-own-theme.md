@@ -4,7 +4,7 @@ You can add your own themes to `~/.config/omarchy/themes`. Just copy one of the 
 
 The main file you have to tweak is `colors.toml`. That defines the color set that's then used to generate configurations for the terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, and the entire Omarchy shell (top bar, menu, notifications, OSD, and lock screen).
 
-You can also use the included Aether application to create a new theme using a lovely GUI interface to play with colors and search for backgrounds. Just start it via the apps menu on `Super + Alt + Space`.
+You can also use the included Aether application to create a new theme using a lovely GUI interface to play with colors and search for backgrounds. Just start it from the app grid on `Super + Alt + Space`.
 
 ### What an installed theme can contain
 
@@ -26,7 +26,7 @@ If you'd like to color-match the file manager icons to your theme, add a file ca
 
 ### Unlock image
 
-Themes supplied with `unlock.png` and `preview-unlock.png` images will be listed under _Style > Unlock_. Your `unlock.png` should preferably be a transparent png. And you can create the preview image using `omarchy plymouth preview`.
+Themes supplied with `unlock.png` and `preview-unlock.png` images will be listed under _Appearance > Unlock_. Your `unlock.png` should preferably be a transparent png. And you can create the preview image using `omarchy plymouth preview`.
 
 ### Theming apps Omarchy doesn't cover
 
