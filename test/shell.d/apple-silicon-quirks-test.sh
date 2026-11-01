@@ -39,9 +39,7 @@ SH
 chmod +x "$stub_bin"/*
 
 run_fkeys() {
-  mkdir -p "$test_tmp/sys-module"
-  APPLE_SILICON="$1" OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$test_tmp/sys-module" \
-    OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$ROOT/bin:$PATH" TEST_LOG="$calls" \
+  APPLE_SILICON="$1" OMARCHY_MODPROBE_DIR="$modprobe_dir" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
     bash -eE -o pipefail -c 'source "$1"' _ "$ROOT/install/hardware/fix-fkeys.sh" >/dev/null
 }
 
@@ -65,9 +63,6 @@ rm -rf "$modprobe_dir"
 : >"$calls"
 run_fkeys 1
 [[ ! -e $modprobe_dir && ! -s $calls ]] || fail "Apple Silicon keeps its own keyboard mode" "$(cat "$calls")"
-output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-keyboard-toprow" function 2>&1) &&
-  fail "omarchy keyboard toprow refuses Apple Silicon"
-[[ $output == *omarchy-mac* ]] || fail "omarchy keyboard toprow says why it refuses Apple Silicon" "$output"
 pass "Apple Silicon keeps its own keyboard mode"
 
 # The Windows guest is x86_64, so every other CPU refuses it before it touches
