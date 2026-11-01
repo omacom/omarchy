@@ -1,5 +1,7 @@
-# Ensure that F-keys on Apple-like keyboards (such as Lofree Flow84) are always F-keys
-if [[ ! -f /etc/modprobe.d/hid_apple.conf ]]; then
-  sudo mkdir -p /etc/modprobe.d
-  echo "options hid_apple fnmode=2" | sudo tee /etc/modprobe.d/hid_apple.conf >/dev/null
+# Ensure that F-keys on Apple-like keyboards (such as Lofree Flow84) are always F-keys.
+# Apple Silicon is left alone: the omarchy-mac package owns its keyboard mode.
+conf="${OMARCHY_HID_APPLE_CONF:-/etc/modprobe.d/hid_apple.conf}"
+if [[ ! -f $conf ]] && ! omarchy-hw-aarch64-apple; then
+  sudo mkdir -p "$(dirname "$conf")"
+  echo "options hid_apple fnmode=2" | sudo tee "$conf" >/dev/null
 fi
