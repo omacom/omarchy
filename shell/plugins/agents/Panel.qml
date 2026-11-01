@@ -1523,6 +1523,8 @@ Panel {
             id: recipeMark
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
+            // As tall as the name and details, so the lit box frames both.
+            size: Math.max(Style.font.heading, recipeBody.implicitHeight - Style.space(10))
             provider: ({ providerId: String(recipeRow.modelData.vendor || "local") })
           }
 
