@@ -16,6 +16,8 @@ This will restore your root filesystem, but not your `/home`. So it works for re
 
 This also means that your `~/.config` directory is kept as-is. So if you're rolling back to an earlier version of a library or application that stores configuration files in a new format, you'll have to sort that out manually.
 
+The same goes for Omarchy's own record of which migrations have already run: it lives in your home directory, so it survives the restore. Migrations that ran after the snapshot was taken stay marked as done, even though the changes they made to the root filesystem have been rolled back, and the next `omarchy update` won't run them again. So if you update again after a restore and something an earlier update had set up is still missing, that's the likely reason.
+
 _Note: This feature is only available on installations using the Limine boot loader, which has been the default since Omarchy 2.0. It's not available if you're on GRUB or systemd-boot._
 
 ### Skipping the boot menu
