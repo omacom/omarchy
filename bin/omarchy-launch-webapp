@@ -67,7 +67,16 @@ desktop_exec_tokens() {
   [[ -n $token ]] && exec_tokens+=("$token")
 }
 
-desktop_exec_tokens "$(sed -n 's/^Exec=//p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)"
+# Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
+# omarchy-launch-browser does, so a browser it resolved is one this can start.
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+exec_tokens=()
+for data_dir in "${data_dirs[@]}"; do
+  entry="$data_dir/applications/$browser"
+  [[ -f $entry ]] || continue
+  desktop_exec_tokens "$(sed -n 's/^Exec=//p' "$entry" | head -1)"
+  break
+done
 
 # Field codes %u/%U/%f/%F/%i/%c/%k never apply here: the web-app URL is passed
 # as the browser's --app= argument instead.
@@ -78,6 +87,15 @@ for token in "${exec_tokens[@]}"; do
     *) final_tokens+=("$token") ;;
   esac
 done
+
+# Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
+# which fails a keybinding silently. A web app runs in a Chromium-based
+# browser, so say that rather than claiming no browser is set.
+if (( ${#final_tokens[@]} == 0 )); then
+  echo "omarchy-launch-webapp: web apps need a Chromium-based browser; install Chromium with 'omarchy install browser chromium'" >&2
+  omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappNeedsChromium)" "$(omarchy-i18n browser.webappNeedsChromiumHint)"
+  exit 1
+fi
 
 if ! omarchy-cmd-browser-handoff "${final_tokens[@]}" --app="$1" "${@:2}"; then
   exec setsid uwsm-app -- "${final_tokens[@]}" --app="$1" "${@:2}"
