@@ -50,20 +50,20 @@ Panel {
   property int internetPingPacketLoss: 0
   readonly property int pingHistoryWindow: 24
   readonly property int pingAverageWindow: 5
-  readonly property bool hasInternetPing: internetPingSamples.length > 0
+  readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, connectivity)
   // Every stat row stays mounted whether or not there is data behind it, so a
   // sample arriving late never reflows the grid. This says whether the numbers
   // are real yet or the row should read "--".
   readonly property bool hasTransferStats: info.rx_bytes !== undefined
   property int connectionPhraseIndex: 0
   readonly property var connectionPhrases: [
-    "Wiring bits",
-    "Handling packets",
-    "Sorting frames",
-    "Hauling bytes",
-    "Routing crumbs",
-    "Counting collisions",
-    "Bending light",
+    Commons.I18n.t("network.phrase1"),
+    Commons.I18n.t("network.phrase2"),
+    Commons.I18n.t("network.phrase3"),
+    Commons.I18n.t("network.phrase4"),
+    Commons.I18n.t("network.phrase5"),
+    Commons.I18n.t("network.phrase6"),
+    Commons.I18n.t("network.phrase7")
   ]
   readonly property string connectionPhrase: connectionPhrases[connectionPhraseIndex % connectionPhrases.length]
   readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
@@ -138,7 +138,7 @@ Panel {
   readonly property bool qrHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === qrHeaderIndex
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
-  readonly property string toggleHint: Networking.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
+  readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
   readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
@@ -160,8 +160,10 @@ Panel {
   // Under Automatic there is nothing to pick, so the pills collapse away and
   // the header states the live band instead.
   readonly property bool bandPillsVisible: canSelectBand && bandPinned
-  readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent)
+  readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent, Commons.I18n.t, Commons.I18n.formatNumber)
   readonly property bool bandBusy: pendingBand !== ""
+  // The DNS pills show a choice the moment it's made, and fall back if it fails.
+  readonly property string dnsEffective: pendingDnsProvider !== "" ? pendingDnsProvider : dnsProvider
   // The speed test needs an interface to test, so its hero action only
   // appears once there is one.
   readonly property bool canRunSpeedTest: !!info.iface
@@ -280,11 +282,11 @@ Panel {
   }
 
   function bandLabel(band) {
-    return Model.bandLabel(band)
+    return Model.bandLabel(band, Commons.I18n.t, Commons.I18n.formatNumber)
   }
 
   function bandTooltip(band) {
-    return Model.bandTooltip(band)
+    return Model.bandTooltip(band, Commons.I18n.t, Commons.I18n.formatNumber)
   }
 
   // Single cursor model: exactly one highlighted spot across the whole
@@ -538,7 +540,9 @@ Panel {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
     // URL: let the browser handle the redirect without trusting portal input.
-    Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrl])
+    // The command pauses a Tailscale exit node and re-checks quickly until the
+    // sign-in completes.
+    Quickshell.execDetached(["omarchy-network-captive-portal", Model.captivePortalUrl])
     close()
   }
 
@@ -595,15 +599,15 @@ Panel {
   }
 
   function formatHeaderSpeed(mbps) {
-    return Model.formatHeaderSpeed(mbps)
+    return Model.formatHeaderSpeed(mbps, Commons.I18n.formatNumber)
   }
 
   function formatHeaderFreq(mhz) {
-    return Model.formatHeaderFreq(mhz)
+    return Model.formatHeaderFreq(mhz, Commons.I18n.formatNumber)
   }
 
   function headerDetail() {
-    return Model.headerDetail(info)
+    return Model.headerDetail(info, Commons.I18n.formatNumber)
   }
 
   function updateDetails(raw) {
@@ -655,19 +659,19 @@ Panel {
   }
 
   function formatBytes(bytes) {
-    return Model.formatBytes(bytes)
+    return Model.formatBytes(bytes, Commons.I18n.formatNumber)
   }
 
   function formatRate(bytesPerSec) {
-    return Model.formatRate(bytesPerSec)
+    return Model.formatRate(bytesPerSec, Commons.I18n.formatNumber)
   }
 
   function formatPingLatency(ms) {
-    return Model.formatPingLatency(ms, hasInternetPing)
+    return Model.formatPingLatency(ms, hasInternetPing, Commons.I18n.t, Commons.I18n.formatNumber)
   }
 
   function formatPacketLoss(percent) {
-    return Model.formatPacketLoss(percent, hasInternetPing)
+    return Model.formatPacketLoss(percent, hasInternetPing, Commons.I18n.formatNumber)
   }
 
   // Prefer a connected device: a machine can expose several NICs of the
@@ -710,7 +714,7 @@ Panel {
   }
 
   function wifiSectionTitle(index) {
-    return Model.wifiSectionTitle(wifiNetworks, index)
+    return Model.wifiSectionTitle(wifiNetworks, index, Commons.I18n.t)
   }
 
   function wifiIconFor(strength) {
@@ -755,7 +759,7 @@ Panel {
     cancelPasswordPrompt()
     var connection = ""
     if (info.type === "wifi") connection = info.ssid || "Wi-Fi"
-    else if (info.type === "ethernet") connection = "Ethernet"
+    else if (info.type === "ethernet") connection = Commons.I18n.t("network.ethernet")
     bar.shell.summon("omarchy.speedtest", connection ? JSON.stringify({ connection: connection }) : "{}")
   }
 
@@ -775,10 +779,11 @@ Panel {
       return
     }
 
+    // The panel stays open, so the choice can be seen taking hold and another
+    // tried without reopening it.
     root.pendingDnsProvider = provider
     actionProc.command = ["bash", "-c", root.dnsCommand(provider)]
     actionProc.running = true
-    root.close()
   }
 
   function requiresCredentials(security) {
@@ -843,7 +848,7 @@ Panel {
   }
 
   function networkFailureReason(reason, needsCredentials) {
-    return Model.networkFailureReason(reason, needsCredentials, connectionFailReasons)
+    return Model.networkFailureReason(reason, needsCredentials, connectionFailReasons, Commons.I18n.t)
   }
 
   function shouldRepromptPassphrase(reason, needsCredentials) {
@@ -1031,14 +1036,14 @@ Panel {
     id: connectionPhraseSwap
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: root.connectionPhraseIndex = (root.connectionPhraseIndex + 1) % root.connectionPhrases.length
     }
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -1063,9 +1068,9 @@ Panel {
     onTriggered: {
       if (!root.actionKind) return
       var reason
-      if (root.actionKind === "connect") reason = "Timed out connecting"
-      else if (root.actionKind === "disconnect") reason = "Timed out disconnecting"
-      else reason = "Timed out forgetting"
+      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+      else reason = Commons.I18n.t("network.timedOutForgetting")
       root.failureSsid = root.actionSsid
       root.failureReason = reason
       root.actionSsid = ""
@@ -1080,8 +1085,8 @@ Panel {
     bar: root.bar
     text: root.icon
     active: root.restricted
-    tooltipText: root.hasCaptivePortal ? "Sign in to this network"
-      : (root.restricted ? "Limited internet access" : "")
+    tooltipText: root.hasCaptivePortal ? Commons.I18n.t("network.signInToNetwork")
+      : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
 
     onPressed: function(b) {
       if (root.opened) root.close()
@@ -1252,7 +1257,7 @@ Panel {
             id: qrAction
             visible: root.canShareWifi
             iconText: "󰐲"
-            tooltipText: "Show QR code"
+            tooltipText: Commons.I18n.t("network.showQrCode")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             fontSize: Style.font.subtitle * 1.5
@@ -1266,7 +1271,7 @@ Panel {
             id: speedAction
             visible: root.canRunSpeedTest
             iconText: "󰓅"
-            tooltipText: "Run a speed test"
+            tooltipText: Commons.I18n.t("network.runSpeedTest")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             fontSize: Style.font.subtitle * 1.5
@@ -1315,8 +1320,8 @@ Panel {
               // SSID even before route/details polling has returned anything.
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
-              if (root.info.type === "ethernet") return "Ethernet"
-              return root.info.iface || (root.kind === "disconnected" ? "Disconnected" : "No connection")
+              if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
+              return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
             }
             readonly property string detail: root.headerDetail()
 
@@ -1333,15 +1338,16 @@ Panel {
             textFormat: Text.PlainText
             width: parent.width
             text: {
-              if (root.hasCaptivePortal) return "SIGN-IN REQUIRED"
-              if (root.restricted) return "LIMITED INTERNET ACCESS"
+              // The sign-in button right below already says what a portal needs.
+              if (root.hasCaptivePortal) return ""
+              if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
               if (root.info.type === "wifi") {
                 if (root.canDisconnect) return root.connectionPhrase.toUpperCase()
-                if (root.kind === "disconnected") return "NOT CONNECTED"
+                if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
                 return ""
               }
               if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
-              if (root.kind === "disconnected") return "NOT CONNECTED"
+              if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
               return ""
             }
             visible: text !== ""
@@ -1356,41 +1362,25 @@ Panel {
 
       }
 
-      Column {
+      Button {
+        id: portalAction
         visible: root.hasCaptivePortal
         width: parent.width
-        spacing: Style.space(6)
-
-        Button {
-          id: portalAction
-          width: parent.width
-          text: "Open Captive Portal"
-          iconText: "󰏌"
-          foreground: root.bar.urgent
-          accent: root.bar.urgent
-          fontFamily: root.bar.fontFamily
-          verticalPadding: Style.space(10)
-          bordered: true
-          active: true
-          hasCursor: root.cursorActive && root.focusSection === "portal"
-          onHovered: function(on) {
-            if (!on) return
-            root.cursorActive = true
-            root.focusSection = "portal"
-          }
-          onClicked: root.openCaptivePortal()
+        text: Commons.I18n.t("network.openCaptivePortal")
+        iconText: "󰏌"
+        foreground: root.bar.urgent
+        accent: root.bar.urgent
+        fontFamily: root.bar.fontFamily
+        verticalPadding: Style.space(10)
+        bordered: true
+        active: true
+        hasCursor: root.cursorActive && root.focusSection === "portal"
+        onHovered: function(on) {
+          if (!on) return
+          root.cursorActive = true
+          root.focusSection = "portal"
         }
-
-        Text {
-          width: parent.width
-          text: "Sign in or accept this network’s terms to access the internet."
-          textFormat: Text.PlainText
-          wrapMode: Text.WordWrap
-          color: root.bar.foreground
-          opacity: 0.7
-          font.family: root.bar.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
+        onClicked: root.openCaptivePortal()
       }
 
       // Connection details: transfer metrics first, then IP/Gateway.
@@ -1408,39 +1398,39 @@ Panel {
           // Always mounted: these two used to appear a beat after the panel
           // opened, once the first probe returned, shoving everything below
           // them down. They now hold their place and read "--" until there is
-          // a sample.
-          InfoLabel { text: "Ping" }
+          // a sample, and while the internet is out of reach.
+          InfoLabel { text: Commons.I18n.t("network.ping") }
           DetailValue {
             text: root.formatPingLatency(root.internetPingLatency)
-            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
-          InfoLabel { text: "Packet Loss" }
+          InfoLabel { text: Commons.I18n.t("network.packetLoss") }
           DetailValue {
             text: root.formatPacketLoss(root.internetPingPacketLoss)
-            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
+            color: root.hasInternetPing && root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
 
-          InfoLabel { text: "Receiving" }
+          InfoLabel { text: Commons.I18n.t("network.receiving") }
           DetailValue { text: root.hasTransferStats ? root.formatRate(root.downloadRate) : "--" }
-          InfoLabel { text: "Sending" }
+          InfoLabel { text: Commons.I18n.t("network.sending") }
           DetailValue { text: root.hasTransferStats ? root.formatRate(root.uploadRate) : "--" }
 
-          InfoLabel { text: "Downloaded" }
+          InfoLabel { text: Commons.I18n.t("network.downloaded") }
           DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.rx_bytes || "0")) : "--" }
-          InfoLabel { text: "Uploaded" }
+          InfoLabel { text: Commons.I18n.t("network.uploaded") }
           DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.tx_bytes || "0")) : "--" }
 
-          InfoLabel { text: "IP Address" }
+          InfoLabel { text: Commons.I18n.t("network.ipAddress") }
           DetailValue {
             text: root.info.ip || "--"
             copyable: !!root.info.ip
-            tooltipText: "Copy IP"
+            tooltipText: Commons.I18n.t("network.copyIp")
           }
-          InfoLabel { text: "Gateway" }
+          InfoLabel { text: Commons.I18n.t("network.gateway") }
           DetailValue {
             text: root.info.gateway || "--"
             copyable: !!root.info.gateway
-            tooltipText: "Copy gateway"
+            tooltipText: Commons.I18n.t("network.copyGateway")
           }
         }
       }
@@ -1481,7 +1471,7 @@ Panel {
 
             PanelSectionHeader {
               id: bandAutoLabel
-              text: "AUTOMATIC"
+              text: Commons.I18n.t("network.automatic")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               anchors.verticalCenter: parent.verticalCenter
@@ -1514,8 +1504,8 @@ Panel {
               PanelToolTip {
                 visible: bandAutoSwitch.containsMouse
                 text: root.bandPinned
-                  ? "Let Wi-Fi pick the band"
-                  : "Stay on " + root.bandLabel(root.bandCurrent)
+                  ? Commons.I18n.t("network.bandAutoTooltip")
+                  : Commons.I18n.t("network.stayOnBand").arg(root.bandLabel(root.bandCurrent))
                 fontFamily: root.bar.fontFamily
               }
             }
@@ -1586,7 +1576,7 @@ Panel {
         spacing: Style.space(10)
 
         PanelSectionHeader {
-          text: "DNS PROVIDER"
+          text: Commons.I18n.t("network.dnsProvider")
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
@@ -1602,7 +1592,7 @@ Panel {
           DnsProviderPill {
             provider: "DHCP"
             index: 0
-            tooltipText: "Use DNS from DHCP"
+            tooltipText: Commons.I18n.t("network.dnsFromDhcp")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1610,7 +1600,7 @@ Panel {
           DnsProviderPill {
             provider: "Cloudflare"
             index: 1
-            tooltipText: "Set DNS to Cloudflare"
+            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Cloudflare")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1618,7 +1608,7 @@ Panel {
           DnsProviderPill {
             provider: "Google"
             index: 2
-            tooltipText: "Set DNS to Google"
+            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Google")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1626,7 +1616,7 @@ Panel {
           DnsProviderPill {
             provider: "Custom"
             index: 3
-            tooltipText: "Set custom DNS servers"
+            tooltipText: Commons.I18n.t("network.setCustomDns")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1642,7 +1632,7 @@ Panel {
 
       PanelSectionHeader {
         visible: root.wifiStationAvailable && root.scanning
-        text: "SCANNING WI-FI…"
+        text: Commons.I18n.t("network.scanningWifi")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
       }
@@ -1745,7 +1735,7 @@ Panel {
     required property string provider
     required property int index
 
-    text: provider
+    text: provider === "Custom" ? Commons.I18n.t("network.dnsCustom") : provider
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily
@@ -1756,7 +1746,7 @@ Panel {
     // Map the panel's domain semantics onto Button's structural props:
     // `current DNS` is the pill's `active` fill; the keyboard cursor lights
     // up `hasCursor`.
-    active: root.dnsProvider === provider
+    active: root.dnsEffective === provider
     hasCursor: root.cursorActive && root.focusSection === "dns" && root.dnsIndex === index
 
     onHovered: function(isHovered) {
@@ -1828,12 +1818,12 @@ Panel {
     readonly property string statusText: {
       if (!net) return ""
       if (isPasswordOpen) return ""
-      if (isBusy && root.actionKind === "connect") return "Connecting…"
-      if (isBusy && root.actionKind === "disconnect") return "Disconnecting…"
-      if (isBusy && root.actionKind === "forget") return "Forgetting…"
-      if (isFailed) return root.failureReason || "Failed"
-      if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return "Sign-in required"
-      if (isConnected) return "Connected"
+      if (isBusy && root.actionKind === "connect") return Commons.I18n.t("network.connecting")
+      if (isBusy && root.actionKind === "disconnect") return Commons.I18n.t("network.disconnecting")
+      if (isBusy && root.actionKind === "forget") return Commons.I18n.t("network.forgetting")
+      if (isFailed) return root.failureReason || Commons.I18n.t("network.failed")
+      if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return Commons.I18n.t("network.signInRequired")
+      if (isConnected) return Commons.I18n.t("network.connected")
       return ""
     }
 
@@ -1950,7 +1940,7 @@ Panel {
 
         PanelToolTip {
           visible: rightMouse.containsMouse || row.forgetFocused
-          text: "Forget network"
+          text: Commons.I18n.t("network.forgetNetwork")
           fontFamily: root.bar.fontFamily
         }
       }
@@ -1966,7 +1956,7 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          text: row.net ? (row.net.ssid || "Hidden") : ""
+          text: row.net ? (row.net.ssid || Commons.I18n.t("network.hidden")) : ""
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.body
@@ -2026,7 +2016,7 @@ Panel {
         anchors.right: connectPwBtn.left
         anchors.top: parent.top
         anchors.rightMargin: Style.space(6)
-        placeholderText: "Identity (user@domain)"
+        placeholderText: Commons.I18n.t("network.identity")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
         foreground: root.bar.foreground
@@ -2052,7 +2042,7 @@ Panel {
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
         password: true
-        placeholderText: "Passphrase"
+        placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
         foreground: root.bar.foreground
@@ -2085,7 +2075,7 @@ Panel {
           anchors.fill: parent
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
-          text: row.isFailed ? "Wrong password" : "Connecting..."
+          text: row.isFailed ? Commons.I18n.t("network.wrongPassword") : Commons.I18n.t("network.connecting")
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -2102,7 +2092,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
-        tooltipText: "Connect"
+        tooltipText: Commons.I18n.t("network.connect")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
@@ -2113,7 +2103,7 @@ Panel {
 
   component DetailValue: InfoValue {
     property bool copyable: false
-    property string tooltipText: "Copy to clipboard"
+    property string tooltipText: Commons.I18n.t("network.copyToClipboard")
 
     Layout.fillWidth: true
     horizontalAlignment: Text.AlignRight

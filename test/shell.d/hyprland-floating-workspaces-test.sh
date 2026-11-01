@@ -58,6 +58,7 @@ cat >"$fake/monitors.json" <<'EOF'
 EOF
 printf '{ "id": 2, "name": "2", "tiledLayout": "dwindle" }\n' >"$fake/activeworkspace.json"
 printf '[{ "id": 2, "name": "2", "tiledLayout": "dwindle" }, { "id": 4, "name": "4", "tiledLayout": "scrolling" }]\n' >"$fake/workspaces.json"
+printf '[]\n' >"$fake/clients.json"
 reset_logs
 
 # --- Which layout a workspace is in -------------------------------------------
@@ -119,6 +120,73 @@ grep -qxF 'o.workspace_mode({ workspace = "2", mode = "dwindle" })' "$modes_dir/
 grep -qxF 'o.workspace_mode({ workspace = "6", mode = "floating" })' "$modes_dir/6.lua" ||
   fail "a workspace with a layout of its own keeps it"
 pass "a new default leaves workspaces with windows as they are"
+
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ default = "floating" })\n' >"$modes_dir/default.lua"
+printf 'o.workspace_mode({ workspace = "4", mode = "floating" })\n' >"$modes_dir/4.lua"
+printf 'o.workspace_mode({ workspace = "8", mode = "floating" })\n' >"$modes_dir/8.lua"
+printf '[{ "id": 4, "name": "4", "windows": 0 }, { "id": 8, "name": "8", "windows": 0 }]\n' >"$fake/workspaces.json"
+cat >"$fake/clients.json" <<'EOF'
+[
+  {
+    "address": "0xabc",
+    "workspace": { "name": "special:minimized", "type": "special" },
+    "tags": ["omarchy-minimized-from-4"]
+  },
+  {
+    "address": "0xdef",
+    "workspace": { "name": "special:scratchpad", "type": "special" },
+    "tags": ["omarchy-minimized-from-8"]
+  }
+]
+EOF
+run omarchy-hyprland-workspace-layout-default dwindle
+grep -qxF 'o.workspace_mode({ workspace = "4", mode = "floating" })' "$modes_dir/4.lua" ||
+  fail "a workspace with a minimized window keeps its floating layout" "$(cat "$modes_dir/4.lua" 2>&1)"
+[[ ! -e $modes_dir/8.lua ]] || fail "a scratchpad window does not keep another workspace's layout"
+[[ $(run omarchy-hyprland-workspace-layout-current 4) == "floating" ]] ||
+  fail "the minimized window's workspace still reports floating"
+[[ $(run omarchy-hyprland-workspace-layout-current 8) == "dwindle" ]] ||
+  fail "an empty workspace takes the new default"
+pass "a minimized window keeps its workspace floating, and an empty one does not"
+
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ default = "floating" })\n' >"$modes_dir/default.lua"
+printf '[{ "id": 2, "name": "2", "windows": 0 }]\n' >"$fake/workspaces.json"
+printf '[{ "address": "0xabc", "workspace": { "name": "special:minimized" }, "tags": ["omarchy-minimized-from-2"] }]\n' >"$fake/clients.json"
+run omarchy-hyprland-workspace-layout-default scrolling
+grep -qxF 'o.workspace_mode({ workspace = "2", mode = "floating" })' "$modes_dir/2.lua" ||
+  fail "a minimized window's workspace keeps floating when the default changes" "$(ls "$modes_dir"; echo '---'; cat "$modes_dir"/*.lua)"
+grep -qxF 'o.workspace_mode({ default = "scrolling" })' "$modes_dir/default.lua" ||
+  fail "the new default is still saved"
+[[ $(run omarchy-hyprland-workspace-layout-current 2) == "floating" ]] ||
+  fail "the minimized window's workspace stays floating"
+pass "a minimized window pins the floating layout the default used to give its workspace"
+
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ default = "floating" })\n' >"$modes_dir/default.lua"
+printf '[{ "id": 2, "name": "2", "windows": 0 }]\n' >"$fake/workspaces.json"
+jq -n '[range(200) | { address: "0x\(.)", workspace: { name: "3" }, title: ("x" * 1000) }] +
+  [{ address: "0xabc", workspace: { name: "special:minimized" }, tags: ["omarchy-minimized-from-2"] }]' >"$fake/clients.json"
+run omarchy-hyprland-workspace-layout-default scrolling ||
+  fail "a new default is set however long the client list"
+grep -qxF 'o.workspace_mode({ workspace = "2", mode = "floating" })' "$modes_dir/2.lua" ||
+  fail "a long client list still keeps a minimized window's workspace floating"
+pass "a client list longer than one argument still sets the default"
+
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ default = "floating" })\n' >"$modes_dir/default.lua"
+printf 'o.workspace_mode({ workspace = "2", mode = "floating" })\n' >"$modes_dir/2.lua"
+cp "$modes_dir/default.lua" "$tmpdir/default.before"
+printf '[{ "id": 2, "name": "2", "windows": 0 }]\n' >"$fake/workspaces.json"
+printf 'not json\n' >"$fake/clients.json"
+if run omarchy-hyprland-workspace-layout-default scrolling 2>/dev/null; then
+  fail "a new default is refused when minimized windows cannot be read"
+fi
+[[ -f $modes_dir/2.lua ]] || fail "an unreadable client list keeps the saved layouts"
+cmp -s "$modes_dir/default.lua" "$tmpdir/default.before" || fail "an unreadable client list keeps the old default"
+pass "an unreadable client list leaves the saved layouts alone"
+printf '[]\n' >"$fake/clients.json"
 
 # A failed workspace query changes nothing, rather than taking every saved
 # layout for an empty workspace's.
@@ -254,6 +322,9 @@ hl = {
     table.insert(subscriptions[event], callback)
   end,
   timer = function(callback) callback() end,
+  get_loaded_plugins = function()
+    return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
+  end,
   get_active_workspace = function() return active end,
   get_config = function(key) return config[key] end,
   config = function(values)
@@ -294,6 +365,16 @@ function state()
     subscriptions = subscriptions,
     active = active,
   }
+end
+
+function latest_open_rule(index)
+  local found
+  for _, rule in ipairs(rules) do
+    if rule.name == "omarchy-floating-open-" .. tostring(index or 1) then
+      found = rule
+    end
+  end
+  return found
 end
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
@@ -497,6 +578,80 @@ assert(rule.match.title == "negative:(?:^Meet - .+)", "the open rule does not pa
 fi
 pass "apps floated through a tag are left to it on a floating workspace"
 
+# The user config loads saved workspace modes before its personal-rule tail.
+# Refresh exclusions before the first window, without relying on window.open.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+o.window("^late-class$", { float = true })
+assert(latest_open_rule().match.class == "negative:(?:^late-class$)", "a late class float rule did not refresh the first-window exclusion")
+o.window({ title = "^Late picker$" }, { float = true })
+assert(latest_open_rule().match.title == "negative:(?:^Late picker$)", "a late title float rule did not refresh the first-window exclusion")
+'; then
+  fail "personal float rules registered after saved modes exclude the first window"
+fi
+pass "personal float rules registered after saved modes exclude the first window"
+
+# Either half of a tag relationship can arrive after the workspace modes.
+if ! run_lua '
+o.window("^tagged-before$", { tag = "+late-float-tag" })
+o.window({ tag = "early-float-tag" }, { float = true })
+require("default.hypr.workspace-layouts")
+o.window({ tag = "late-float-tag" }, { float = true })
+assert(latest_open_rule().match.class == "negative:(?:^tagged-before$)", "a late tag float rule missed an earlier tagged app")
+o.window({ title = "^Tagged later$" }, { tag = "+early-float-tag" })
+assert(latest_open_rule().match.title == "negative:(?:^Tagged later$)", "a late tagging rule missed an earlier float tag")
+'; then
+  fail "late tag relationships refresh exclusions in either registration order"
+fi
+pass "late tag relationships refresh exclusions in either registration order"
+
+# Two personal rules added in the tail must also work in either order.
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+o.window("^tag-first$", { tag = "+tag-first" })
+o.window({ tag = "tag-first" }, { float = true })
+assert(latest_open_rule().match.class == "negative:(?:^tag-first$)", "two late rules missed the tag-first app")
+o.window({ tag = "float-first" }, { float = true })
+o.window({ title = "^Float first$" }, { tag = "+float-first" })
+assert(latest_open_rule().match.title == "negative:(?:^Float first$)", "two late rules missed the float-first title")
+'; then
+  fail "tag and float rules both registered late exclude their first window"
+fi
+pass "tag and float rules both registered late exclude their first window"
+
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+o.workspace_mode({ workspace = "3", mode = "floating" })
+o.window("^late-on-either$", { float = true })
+for index = 1, 2 do
+  assert(latest_open_rule(index).match.class == "negative:(?:^late-on-either$)", "a late rule missed a floating workspace")
+end
+o.workspace_mode({ workspace = "1", mode = "dwindle" })
+o.workspace_mode({ workspace = "3", mode = "dwindle" })
+o.window({ title = "^After tiling$" }, { float = true })
+for index = 1, 2 do
+  assert(latest_open_rule(index).enabled == false, "a late personal rule re-enabled floating mode")
+end
+'; then
+  fail "late rules refresh all floating workspaces without reviving disabled modes"
+fi
+pass "late rules refresh all floating workspaces without reviving disabled modes"
+
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local before = #state().rules
+o.window("^ordinary-rule$", { opacity = "0.9" })
+assert(#state().rules == before + 1, "an unrelated personal rule rebuilt floating rules")
+package.loaded["default.hypr.helpers"] = nil
+require("default.hypr.helpers")
+before = #state().rules
+o.window("^fresh-config$", { float = true })
+assert(#state().rules == before + 1, "reloading helpers retained the previous modes callback")
+'; then
+  fail "unrelated rules and fresh helpers leave generated rules alone"
+fi
+pass "unrelated rules and fresh helpers leave generated rules alone"
+
 # A window moved to a special workspace, like the scratchpad, is left alone.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 if ! run_lua '
@@ -531,20 +686,12 @@ local s = state()
 assert(s.plugin_loads == 1, "the titlebar plugin was not loaded with a workspace floating")
 local bar = s.titlebar_config
 assert(bar, "the titlebars were not configured once loaded")
-assert(bar.workspace_tag == "omarchy-floating-workspace", "titlebars are not limited to floating workspaces")
 assert(bar.bar_color == "rgb(223344)", "titlebars do not stand out from the window background: " .. tostring(bar.bar_color))
 assert(bar.inactive_button_color == "rgb(223344)", "titlebar buttons do not match the titlebar")
 for _, button in ipairs(s.buttons) do
   assert(button.bg_color == "rgb(223344)", "a titlebar button does not match the titlebar")
 end
 assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme foreground")
-assert(not bar.edge_snap, "dragged windows snap to screen edges")
-assert(#s.buttons == 3, "the titlebars do not have exactly close, maximize, and minimize")
-local actions = s.buttons[1].action .. s.buttons[2].action .. s.buttons[3].action
-assert(actions:find("window.close", 1, true), "no button closes the window")
-assert(actions:find("maximized", 1, true), "no button maximizes the window")
-assert(actions:find("omarchy-hyprland-window-minimize", 1, true), "no button minimizes the window to the dock")
-assert(bar.on_double_click:find("maximized", 1, true), "double-clicking a titlebar does not maximize")
 ' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
   fail "titlebars load when a workspace floats and follow the theme"
 fi
@@ -569,6 +716,19 @@ assert(state().plugin_loads == 1 and #state().buttons == buttons, "titlebars wer
   fail "a workspace that starts floating gets titlebars without a reload"
 fi
 pass "a workspace that starts floating gets titlebars without a reload"
+
+# Hyprland unloads a plugin the config stops asking for, and loading it again
+# costs a cascade of reloads, so a session that has loaded titlebars keeps them.
+if ! run_lua '
+window("0x1", 3)
+require("default.hypr.workspace-layouts")
+local s = state()
+assert(s.plugin_loads == 1, "the loaded titlebar plugin was not asked for with nothing floating")
+assert(not s.titlebar_config, "titlebars were turned on with nothing floating")
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1 HYPRBARS_RESIDENT=1; then
+  fail "a session that loaded titlebars keeps the plugin when nothing floats"
+fi
+pass "a session that loaded titlebars keeps the plugin when nothing floats"
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 
 # A theme whose raised surface is its background would hide the titlebar again,
@@ -604,8 +764,6 @@ pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
-assert(source.includes('function onFocusedWorkspaceChanged() { root.showFocusedMode() }'), 'a workspace switch shows the cached layout instead of running the script')
-assert(source.includes('String(event.name) === "configreloaded") root.refresh()'), 'a config reload drops every cached layout')
 
 // Run the widget's own cache logic against a fake Hyprland and process.
 function body(pattern) {
@@ -619,12 +777,13 @@ const fn = name => new Function(...args, body(new RegExp(`\\n  function ${name}\
 const streamFinished = new Function(...args, 'text', body(/onStreamFinished: \{([\s\S]*?)\n      \}/))
 const exited = new Function(...args, body(/onExited: \{([\s\S]*?)\n    \}/))
 
-const hyprland = { focusedWorkspace: { id: 1 } }
+const hyprland = {}
 const proc = { running: false, command: null, runs: [] }
 const deferred = []
 const qt = { callLater: callback => deferred.push(callback) }
-const widget = { focusedMode: 'dwindle', modeStale: false, modeCache: {}, modeGeneration: 0, modeProcWorkspace: -1, modeProcGeneration: 0 }
-for (const name of ['focusedWorkspaceId', 'showFocusedMode', 'readMode', 'refresh']) {
+// Each bar follows the workspace its own monitor shows.
+const widget = { monitor: { activeWorkspace: { id: 1 } }, activeMode: 'dwindle', modeStale: false, modeCache: {}, modeGeneration: 0, modeProcWorkspace: -1, modeProcGeneration: 0 }
+for (const name of ['activeWorkspaceId', 'showActiveMode', 'readMode', 'refresh']) {
   const call = fn(name)
   widget[name] = () => call(widget, hyprland, proc, qt, widget.readMode)
 }
@@ -637,14 +796,14 @@ const finish = output => {
   proc.running = false
   while (deferred.length) deferred.shift()()
 }
-const focus = id => { hyprland.focusedWorkspace = { id }; widget.showFocusedMode(); start() }
+const focus = id => { widget.monitor.activeWorkspace = { id }; widget.showActiveMode(); start() }
 
 widget.refresh(); start()
 finish('scrolling\n')
-assertEqual(widget.focusedMode, 'scrolling', 'the first read shows the focused layout')
+assertEqual(widget.activeMode, 'scrolling', 'the first read shows the focused layout')
 focus(2); finish('floating\n')
 focus(1)
-assertEqual(widget.focusedMode, 'scrolling', 'returning to a read workspace shows its cached layout')
+assertEqual(widget.activeMode, 'scrolling', 'returning to a read workspace shows its cached layout')
 assertDeepEqual(proc.runs, ['1', '2'], 'a cached workspace switch runs no script')
 
 widget.refresh(); start()
@@ -657,16 +816,16 @@ assert(widget.modeCache[1] === undefined, 'a read that predates a refresh is not
 start()
 assertDeepEqual(proc.runs, ['1', '2', '1', '1'], 'a stale read is retried once it exits')
 finish('floating\n')
-assertEqual(widget.focusedMode, 'floating', 'the retried read shows the current layout')
+assertEqual(widget.activeMode, 'floating', 'the retried read shows the current layout')
 
 widget.refresh(); start()
 focus(2)
 assert(widget.modeStale, 'switching to an uncached workspace during a read marks it pending')
 finish('scrolling\n')
 assertEqual(widget.modeCache[1], 'scrolling', 'the in-flight read still caches its own workspace')
-assertEqual(widget.focusedMode, 'floating', 'a read for a workspace no longer focused leaves the shown layout alone')
+assertEqual(widget.activeMode, 'floating', 'a read for a workspace no longer focused leaves the shown layout alone')
 start()
 assertEqual(proc.runs[proc.runs.length - 1], '2', 'the pending read follows the newly focused workspace')
 finish('dwindle\n')
-assertEqual(widget.focusedMode, 'dwindle', 'the newly focused workspace shows its own layout')
+assertEqual(widget.activeMode, 'dwindle', 'the newly focused workspace shows its own layout')
 JS

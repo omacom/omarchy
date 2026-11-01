@@ -32,18 +32,30 @@ is_exclusive() {
   grep -q 'require_compositor\|# omarchy:exclusive' "$1"
 }
 
+# The idle-spawn guard spends most of its time passively watching its own
+# shell's process tree through an exec logger, so pool load cannot distort
+# what it counts. It starts alongside the pool instead of blocking the
+# serial compositor chain with its idle window.
+is_overlap() {
+  [[ $(basename "$1") == "shell-idle-spawn-test.sh" ]]
+}
+
 parallel_tests=()
 exclusive_tests=()
+overlap_tests=()
 for test in "${tests[@]}"; do
-  if is_exclusive "$test"; then
+  if is_overlap "$test"; then
+    overlap_tests+=("$test")
+  elif is_exclusive "$test"; then
     exclusive_tests+=("$test")
   else
     parallel_tests+=("$test")
   fi
 done
 
-workdir=$(mktemp -d)
-trap 'rm -rf "$workdir"' EXIT
+# Every file's output is kept after the run, so a failure can be read from
+# its log rather than found by running the suite again.
+workdir=$(mktemp -d -t omarchy-test-shell.XXXXXX)
 
 run_one() {
   local test="$1"
@@ -59,9 +71,21 @@ export workdir
 # Keep going after a failing file. A test file exits at its first failed
 # assertion, so aborting the run there too would hide every file after it --
 # one packaging failure was masking 114 of 134 files.
+overlap_pids=()
+for test in "${overlap_tests[@]}"; do
+  run_one "$test" &
+  overlap_pids+=("$!")
+done
 if (( ${#parallel_tests[@]} > 0 )); then
   printf '%s\0' "${parallel_tests[@]}" |
     xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1"' _
+fi
+# The overlap jobs must be done before the exclusive chain starts: those
+# files launch full shells on the live compositor, and a shell starting
+# beside the idle guard (the clipboard plugin's watcher pkill, say) can
+# make the guard's own shell spawn processes it would then count.
+if (( ${#overlap_pids[@]} > 0 )); then
+  wait "${overlap_pids[@]}"
 fi
 for test in "${exclusive_tests[@]}"; do
   run_one "$test"
@@ -88,7 +112,10 @@ fi
 
 if (( ${#failed[@]} > 0 )); then
   printf '\n%d of %d test files failed:\n' "${#failed[@]}" "${#tests[@]}" >&2
-  printf '  %s\n' "${failed[@]}" >&2
+  for test in "${failed[@]}"; do
+    printf '  %s (log: %s/%s.out)\n' "$test" "$workdir" "$(basename "$test")" >&2
+  done
+  printf 'Logs for every file: %s\n' "$workdir" >&2
   exit 1
 fi
 
@@ -97,3 +124,4 @@ if (( ${#skipped[@]} == 0 )); then
 else
   printf '\n%d test files completed without failures; %d had skipped checks.\n' "${#tests[@]}" "${#skipped[@]}"
 fi
+printf 'Logs for every file: %s\n' "$workdir"
