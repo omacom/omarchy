@@ -103,3 +103,32 @@ assertDeepEqual(
   'agents panel shows a model-scoped window under the window it runs on'
 )
 JS
+
+run_node_test <<'JS'
+const fs = require('fs')
+const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+
+// The weekly allowance estimate runs as written: pull the function out of the
+// panel and call it with Main.qml's own dateString.
+const estimateSource = panelSource.match(/  function estimatedAllowance\(days, w\) \{[\s\S]*?\n  \}\n/)
+assert(estimateSource, 'agents panel estimates the weekly allowance')
+const dateStringSource = mainSource.match(/  function dateString\(date\) \{[\s\S]*?\n  \}\n/)
+const estimatedAllowance = new Function('usage', estimateSource[0] + '\nreturn estimatedAllowance')(
+  new Function(dateStringSource[0] + '\nreturn { dateString: dateString }')()
+)
+const resetAt = new Date(2026, 9, 15, 12, 0, 0).toISOString()
+const weekDays = [
+  { date: '2026-10-07', messageCount: 999 },
+  { date: '2026-10-08', messageCount: 100 },
+  { date: '2026-10-09', messageCount: 200 },
+  { date: '2026-10-10', messageCount: 300 }
+]
+assertEqual(estimatedAllowance(weekDays, { title: 'Weekly', percent: 0.1, resetAt: resetAt }), 5500, 'the allowance estimate is spent over used, with half of the window\'s first day counted')
+assertEqual(estimatedAllowance(weekDays.slice(1), { title: 'Weekly', percent: 0.1, resetAt: resetAt }), 5500, 'the allowance estimate counts the window\'s first day when the record starts on it')
+assertEqual(estimatedAllowance(weekDays.slice(2), { title: 'Weekly', percent: 0.1, resetAt: resetAt }), -1, 'no allowance estimate when the record does not reach the window\'s first day')
+assertEqual(estimatedAllowance(weekDays, { title: 'Weekly', percent: 0.04, resetAt: resetAt }), -1, 'no allowance estimate under 5% used')
+assertEqual(estimatedAllowance(weekDays, { title: 'Monthly', percent: 0.5, resetAt: resetAt }), -1, 'no allowance estimate for windows longer than the week of days on record')
+assertEqual(estimatedAllowance(weekDays, { title: 'Session', percent: 0.5, resetAt: resetAt }), -1, 'no allowance estimate for session windows')
+assertEqual(estimatedAllowance(weekDays, { title: 'Weekly', percent: 0.1, resetAt: '' }), -1, 'no allowance estimate without a reset time')
+JS
