@@ -19,6 +19,10 @@ assert(!audio.needsProcessMeter([], AUX), 'audio meters unbound nodes natively u
 assert(!audio.needsProcessMeter(null, AUX), 'audio meters nodes without a channel list natively')
 assert(audio.needsProcessMeter([AUX, AUX + 1], AUX), 'audio meters AUX channels through the process')
 assert(audio.needsProcessMeter([3, 0], AUX), 'audio meters unknown channels through the process')
+// Volumes are Quickshell's cube-root scale: 0.63 is a quarter of the signal.
+assertEqual(audio.processMeterPeak('0.25 0.0625', [1, Math.cbrt(0.25)]).toFixed(3), '0.630', 'the process meter divides out each channel\'s own volume')
+assertEqual(audio.processMeterPeak('0.125', []).toFixed(3), '0.500', 'the process meter leaves a node without volumes unscaled')
+assertEqual(audio.processMeterPeak('', [1]), -1, 'the process meter ignores a line without values')
 
 // A destroyed PwNode stays truthy but reads back no id, which is the shape the
 // third entry stands in for: it must not reach a Repeater row. The first carries

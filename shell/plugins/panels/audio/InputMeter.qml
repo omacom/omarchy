@@ -59,22 +59,10 @@ Item {
     meterProcess.running = true
   }
 
-  // The script reports each channel of the captured signal, which already has
-  // that channel's volume applied. Match PwNodePeakMonitor: cube-root each
-  // magnitude, divide its channel's volume back out so the bar shows what the
-  // mic is picking up rather than where the slider sits, and keep the largest.
+  // The script reports each channel of the captured signal with its volume
+  // already applied; the bar shows what the mic picks up, not the slider.
   function applyProcessSample(line) {
-    var values = String(line).trim().split(/\s+/)
-    var volumes = node && node.audio ? node.audio.volumes : []
-    var peak = -1
-    for (var i = 0; i < values.length; i++) {
-      var raw = parseFloat(values[i])
-      if (!isFinite(raw)) continue
-      var volume = i < volumes.length ? volumes[i] : 1
-      var visual = Math.cbrt(Math.max(0, raw))
-      if (volume > 0.001) visual /= volume
-      peak = Math.max(peak, visual)
-    }
+    var peak = Model.processMeterPeak(line, node && node.audio ? node.audio.volumes : [])
     if (peak >= 0) processPeak = peak
   }
 

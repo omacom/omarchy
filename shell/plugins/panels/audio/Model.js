@@ -24,6 +24,23 @@ function needsProcessMeter(channels, auxRangeStart) {
   return false
 }
 
+// One line of input-peak, a captured peak per channel with that channel's
+// volume already applied, on PwNodePeakMonitor's scale: cube-root each, divide
+// its channel's volume back out, keep the largest. -1 for a line with no values.
+function processMeterPeak(line, volumes) {
+  var values = String(line).trim().split(/\s+/)
+  var peak = -1
+  for (var i = 0; i < values.length; i++) {
+    var raw = parseFloat(values[i])
+    if (!isFinite(raw)) continue
+    var volume = volumes && i < volumes.length ? volumes[i] : 1
+    var visual = Math.cbrt(Math.max(0, raw))
+    if (volume > 0.001) visual /= volume
+    peak = Math.max(peak, visual)
+  }
+  return peak
+}
+
 function isAudioSource(node) {
   if (!node) return false
   if (node.audio) return true
@@ -294,6 +311,7 @@ if (typeof module !== "undefined") {
     isPlaybackStream: isPlaybackStream,
     isAudioSource: isAudioSource,
     needsProcessMeter: needsProcessMeter,
+    processMeterPeak: processMeterPeak,
     nodeRow: nodeRow,
     rowSnapshot: rowSnapshot,
     outputVolumeName: outputVolumeName,
