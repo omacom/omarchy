@@ -106,6 +106,7 @@ if [[ -d "$CHECKOUT/.git" ]] && [[ -n "$(git -C "$CHECKOUT" status --porcelain)"
 fi
 new_pkgver="dev.${short_sha}${dirty}"
 
+built_packages=()
 for PKG in "${PKGS[@]}"; do
   PKGBUILD_DIR="$PKGBUILDS_ROOT/$PKG"
   package_build_dir="$build_dir/$PKG"
@@ -125,13 +126,15 @@ for PKG in "${PKGS[@]}"; do
     OMARCHY_SRC="$CHECKOUT" makepkg -s --skipchecksums --noconfirm "${MAKEPKG_ARGS[@]}"
   )
 
-  # Install separately so we can pass --overwrite='*' (makepkg -i can't).
-  # Dev builds frequently conflict with files left behind by previous
-  # script-installed Omarchy versions; the build is the authoritative state.
   built_pkg=$(ls -t "$package_build_dir"/*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | head -1)
   if [[ -z $built_pkg ]]; then
     echo "Error: no built package found in $package_build_dir" >&2
     exit 1
   fi
-  sudo pacman -U --noconfirm --overwrite='*' "$built_pkg"
+  built_packages+=("$built_pkg")
 done
+
+# Install the pair in one transaction so pacman preserves files transferred
+# between packages. Separate upgrades can delete the new owner's files when
+# removing them from the old owner. Keep --overwrite for script-installed files.
+sudo pacman -U --noconfirm --overwrite='*' "${built_packages[@]}"
