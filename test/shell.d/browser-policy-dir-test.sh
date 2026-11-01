@@ -316,7 +316,9 @@ grep -F '/opt/zen-browser-bin/distribution' "$ROOT/install/helpers/browser-polic
 pass "the shared helper names the Zen distribution directory"
 
 # Zen ships its own copy so the package's keys survive; it must not fall behind the stock file.
-[[ $(jq -c '.policies | del(.DisableAppUpdate, .DefaultSerialGuardSetting)' "$ROOT/default/firefox/zen-policies.json") == $(jq -c '.policies' "$ROOT/default/firefox/policies.json") ]] ||
+jq -e '.policies.DisableAppUpdate == true and .policies.DefaultSerialGuardSetting == 3' "$ROOT/default/firefox/zen-policies.json" >/dev/null ||
+  fail "Zen's policies keep the package's own keys"
+[[ $(jq -cS '.policies | del(.DisableAppUpdate, .DefaultSerialGuardSetting)' "$ROOT/default/firefox/zen-policies.json") == $(jq -cS '.policies' "$ROOT/default/firefox/policies.json") ]] ||
   fail "Zen's policies carry every policy Firefox gets"
 pass "Zen's policies carry every policy Firefox gets"
 
