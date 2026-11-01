@@ -14,13 +14,16 @@ import fnmatch
 import hashlib
 import json
 import os
+import pty
 import re
 import shlex
 import shutil
+import struct
 import subprocess
 import sys
 import tarfile
 import tempfile
+import termios
 import threading
 import time
 import tomllib
@@ -1462,12 +1465,64 @@ def ensure_key():
   return key
 
 
+# Podman's per-layer bars, as it draws them on a terminal: "Copying blob
+# <id> [===>---] 1.2GiB / 3.4GiB | 80 MiB/s", then "Copying blob <id> done".
+PULL_BAR_RE = re.compile(r"Copying blob (\w+) .*?([\d.]+)\s*([KMG]?i?B|b) / ([\d.]+)\s*([KMG]?i?B|b)")
+PULL_DONE_RE = re.compile(r"Copying blob (\w+) (?:done|skipped)")
+PULL_UNITS = {"b": 1, "B": 1, "KiB": 2**10, "MiB": 2**20, "GiB": 2**30, "KB": 1e3, "MB": 1e6, "GB": 1e9}
+
+
 def ensure_image(image):
   if subprocess.run(["podman", "image", "exists", image]).returncode == 0:
     return
-  say(f"Pulling {image}")
-  if subprocess.run(["podman", "pull", image]).returncode != 0:
-    raise LocalError(f"Can't pull {image}")
+  say(f"Pulling the runtime image {image.split('@')[0]}")
+  # Podman only draws byte progress on a terminal, one redrawn bar per layer,
+  # which scrolls into a wall of lines in a narrow window. It draws to a
+  # pseudo-terminal here instead, and its bars become the one progress line
+  # downloads use. Run from a systemd unit's environment, Podman would also
+  # cap the pull at five minutes, too short for a large image.
+  env = {key: value for key, value in os.environ.items() if key not in ("NOTIFY_SOCKET", "INVOCATION_ID", "JOURNAL_STREAM", "SYSTEMD_EXEC_PID")}
+  master, slave = pty.openpty()
+  fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 50, 400, 0, 0))
+  process = subprocess.Popen(["podman", "pull", image], stdin=subprocess.DEVNULL, stdout=slave, stderr=slave, env=env)
+  os.close(slave)
+  layers = {}
+  started = time.time()
+  shown = started
+  pending = ""
+  lines = []
+  while True:
+    try:
+      chunk = os.read(master, 65536)
+    except OSError:
+      break
+    if not chunk:
+      break
+    pending += re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "\n", chunk.decode("utf-8", "replace"))
+    *complete, pending = re.split(r"[\r\n]", pending)
+    for line in (line.strip() for line in complete):
+      if not line:
+        continue
+      bar = PULL_BAR_RE.search(line)
+      done = PULL_DONE_RE.search(line)
+      if bar:
+        layers[bar.group(1)] = (float(bar.group(2)) * PULL_UNITS.get(bar.group(3), 1), float(bar.group(4)) * PULL_UNITS.get(bar.group(5), 1))
+      elif done and done.group(1) in layers:
+        total = layers[done.group(1)][1]
+        layers[done.group(1)] = (total, total)
+      elif "Copying blob" not in line:
+        lines.append(line)
+    now = time.time()
+    if layers and now - shown >= 5:
+      shown = now
+      got = sum(value[0] for value in layers.values())
+      total = sum(value[1] for value in layers.values())
+      say(f"  {gib(got):6.1f} / {gib(total):.1f} GiB  {got / max(now - started, 0.001) / 2**20:6.0f} MiB/s")
+  os.close(master)
+  if process.wait() != 0:
+    raise LocalError(f"Can't pull {image}" + ("\n" + "\n".join(lines[-5:]) if lines else ""))
+  total = sum(value[1] for value in layers.values())
+  say(f"  {gib(total):6.1f} / {gib(total):.1f} GiB  in {time.time() - started:.0f}s")
 
 
 def preflight(runtime, gpu):
