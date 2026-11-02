@@ -3,6 +3,7 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/passwordless-sudo-test.sh"
+source "$SHELL_TEST_DIR/fixtures/passwordless-sudo-native-test.sh"
 
 (
   source "$library"
@@ -371,3 +372,9 @@ grep -q '^sudo -kn -- .* __status ' "$test_tmp/commands" || fail "fallback probe
   assert_status 2 root_dispatch __status 1000
 )
 pass "status lock failures remain inspection errors and an authenticated unsafe grant keeps its warning"
+
+if [[ -n ${OMARCHY_NATIVE_SUDO_IMAGE:-} ]]; then
+  run_native_passwordless_sudo_test
+else
+  skip "set OMARCHY_NATIVE_SUDO_IMAGE to run isolated native sudo policy coverage"
+fi
