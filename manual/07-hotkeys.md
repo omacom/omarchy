@@ -28,7 +28,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + 1/2/3/4` | Move window to workspace on the focused monitor |
 | `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
 | `Super + S` | Toggle full scratchpad |
-| `Super + Alt + S` | Move window to full scratchpad |
+| `Super + Shift + S` | Move window to full scratchpad |
 | `Super + Grave` | Toggle Quake console |
 | `Super + Shift + Grave` | Move window to Quake console |
 | `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
@@ -122,7 +122,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Messenger (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
-| `Super + Shift + S`           | Google Maps  |
+| `Super + Alt + S`             | Google Maps  |
 | `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
 | `Super + Shift + Ctrl + G`           | Messenger (Google)  |
 | `Super + Shift + O`           | Obsidian  |

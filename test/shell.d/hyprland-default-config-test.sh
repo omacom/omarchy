@@ -192,8 +192,8 @@ grep -Fqx $'SUPER + S	Toggle scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing toggle binding"
 grep -Fqx $'SUPER + grave	Toggle Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own toggle binding"
-grep -Fqx $'SUPER + ALT + S	Move window to scratchpad' <<<"$scratchpad_output" ||
-  fail "scratchpad keeps its existing move binding"
+grep -Fqx $'SUPER + SHIFT + S	Move window to scratchpad' <<<"$scratchpad_output" ||
+  fail "scratchpad uses Shift to move windows like numbered workspaces and Quake"
 grep -Fqx $'SUPER + SHIFT + grave	Move window to Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own move binding"
 pass "scratchpad and Quake console have separate bindings"
