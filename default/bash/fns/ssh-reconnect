@@ -40,9 +40,15 @@ ssh() {
 }
 
 # Disarm mouse tracking (1000/1002/1003, 1006 encoding), focus reporting
-# (1004), and the alternate screen (1049), and show the cursor again.
+# (1004), the alternate screen (1049), bracketed paste (2004), the kitty
+# keyboard protocol (pop the whole stack, then zero the flags), xterm
+# modifyOtherKeys, application cursor keys (1), and keypad mode, and show
+# the cursor again. A remote side that dies without disarming these leaves
+# pastes wrapped in ESC[200~/201~ and Ctrl-C as CSI-u, which breaks tty
+# prompts like ssh's own passphrase read during the reconnect below.
 _ssh_disarm() {
   printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h'
+  printf '\e[?2004l\e[<99u\e[=0;1u\e[>4;0m\e[?1l\e>'
 }
 
 # True for an interactive session: a destination and no remote command. The
