@@ -4,6 +4,15 @@ set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
 
+# Remove Preinstalls can take herdr away; a PATH holding only what the hook needs stands in for that.
+no_herdr=$(mktemp -d)
+ln -s "$(command -v jq)" "$(command -v mkdir)" "$ROOT/bin/omarchy-cmd-present" "$no_herdr/"
+out=$(HOME=$no_herdr PATH=$no_herdr MISE_INSTALLED_TOOLS='[{"name":"claude"}]' "$ROOT/bin/omarchy-agent-integrate-herdr" 2>&1) ||
+  fail "integrating without herdr succeeds" "$out"
+rm -rf -- "$no_herdr"
+[[ -z $out ]] || fail "integrating without herdr stays quiet in the agent's first screen" "$out"
+pass "integrating without herdr installed stays quiet"
+
 if ! command -v herdr >/dev/null; then
   skip "herdr not installed; skipping agent herdr integration"
   exit 0

@@ -10,6 +10,9 @@
 # agent makes it on its first run, after this hook, so it is created here.
 # A failure only warns: the agent should still start.
 
+# Remove Preinstalls can take herdr away.
+omarchy-cmd-present herdr || exit 0
+
 config=${XDG_CONFIG_HOME:-$HOME/.config}
 
 while IFS= read -r tool; do
