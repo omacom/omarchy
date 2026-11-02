@@ -70,6 +70,14 @@ close_workspace = "prefix+shift+k"
 previous_workspace = ["prefix+shift+p", "alt+up"]
 next_workspace = ["prefix+shift+n", "alt+down"]
 
+# Floating lazygit, like Space G G in Neovim
+[[keys.command]]
+key = "prefix+alt+g"
+type = "popup"
+command = "lazygit"
+width = "80%"
+height = "80%"
+
 [ui]
 accent = "blue"
 
