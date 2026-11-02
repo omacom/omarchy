@@ -56,6 +56,20 @@ qm start 101
 
 The boot order lists the disk first on purpose: the empty disk falls through to the ISO on the first boot, and the installed system boots from disk ever after.
 
+## On physical hardware, put cidata on the boot stick
+
+A VM attaches the cidata image as a second virtual drive, present from the moment it powers on. On a real machine the tempting equivalent is a second USB stick, and that can silently fail: the installer looks for the `cidata` label once, right after boot, and a USB stick that the host is still enumerating at that moment is invisible to it — some sticks and some ports take several seconds longer than the stick that booted. When that happens nothing is written and you simply get the wizard, with no hint of why.
+
+The reliable layout is to put the cidata filesystem **on the ISO stick itself**, as a partition in the free space after the image. The stick the machine has just booted from is enumerated by definition, so the label is always there when the installer looks. Any filesystem with the label works; FAT32 is the safe choice.
+
+The ISO is a hybrid image with its own partition tables, which makes this a little more than a normal "add a partition":
+
+- The partition starts at the first 1 MiB boundary after the image (the image size in bytes, rounded up) and must not touch anything before it: the ISO's boot code, its partition entries, and the EFI System Partition at the end of the image are what boots the stick.
+- Linux reads the **MBR** on this stick (the hybrid MBR has no protective `0xEE` entry), so the partition needs an MBR entry — type `0x0C`, FAT32 with LBA addressing. UEFI firmware reads the **GPT** to find the EFI System Partition, so add a matching GPT entry as well and keep that table valid: the ISO's backup GPT header sits at the end of the *image*, not the end of the stick, and belongs at the last sector once you edit the table.
+- Stock partitioners can refuse the ISO's GPT because two of its entries overlap by design, so this may take a small script rather than `sgdisk`. Editing only the 64-byte MBR partition table and the GPT leaves every other byte of the image as `dd` wrote it, which you can confirm with `cmp` afterwards.
+
+Then format the partition with the label and copy the same files onto it as for the VM image. One stick, no timing to get right.
+
 ## Two caveats
 
 Encrypted unattended installs aren't fully unattended — someone still has to type the LUKS passphrase at the first boot. And the `disk_encryption` block in `user_configuration.json` carries that passphrase in plaintext, so treat a cidata drive built from an encrypted install as the secret it is.
