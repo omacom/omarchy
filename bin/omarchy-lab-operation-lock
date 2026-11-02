@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Serialize internal Omarchy Lab disk and start operations
+# omarchy:hidden=true
+
+lab_operation_lock() {
+  local lock_dir="${OMARCHY_LAB_DATA_DIR:-$HOME/.local/state/omarchy/lab-vm}"
+  local lock_file="$lock_dir/operation.lock"
+  if [[ ${LAB_OPERATION_FD:-} =~ ^[0-9]+$ && ${LAB_OPERATION_OWNER:-} =~ ^[0-9]+$ && -e /proc/$LAB_OPERATION_OWNER/fd/$LAB_OPERATION_FD && -e /proc/$BASHPID/fd/$LAB_OPERATION_FD ]] &&
+    [[ $(readlink "/proc/$LAB_OPERATION_OWNER/fd/$LAB_OPERATION_FD") == "$lock_file" ]] &&
+    [[ $(readlink "/proc/$BASHPID/fd/$LAB_OPERATION_FD") == "$lock_file" ]]; then
+    return 0
+  fi
+  mkdir -p "$lock_dir" || return 1
+  exec {LAB_OPERATION_FD}>"$lock_file" || return 1
+  if ! flock -w 5 "$LAB_OPERATION_FD"; then
+    exec {LAB_OPERATION_FD}>&-
+    unset LAB_OPERATION_FD
+    echo "Omarchy Lab is busy with another disk or start operation." >&2
+    return 1
+  fi
+  LAB_OPERATION_OWNER=$BASHPID
+  trap lab_operation_unlock EXIT
+}
+
+lab_operation_unlock() {
+  # Nested operations share the owner's open file description. Only its
+  # owning shell may unlock it, even when background children outlive it.
+  if [[ ${LAB_OPERATION_OWNER:-} == "$BASHPID" ]]; then
+    flock -u "$LAB_OPERATION_FD"
+    exec {LAB_OPERATION_FD}>&-
+    unset LAB_OPERATION_FD LAB_OPERATION_OWNER
+  fi
+}
+
+lab_with_operation_lock() (
+  lab_operation_lock || return 1
+  "$@"
+)
