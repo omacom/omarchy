@@ -222,6 +222,8 @@ fun layout() {
 
   entry.x = global.layout_width / 2 - entry.image.GetWidth() / 2;
   entry.y = logo.sprite.GetY() + logo.image.GetHeight() + 40;
+  entry_max_y = global.layout_height - entry.image.GetHeight() - 40;
+  if (entry.y > entry_max_y) entry.y = entry_max_y;
   entry.sprite.SetPosition(entry.x, entry.y, 10001);
 
   lock.x = entry.x - lock.width - 15;
