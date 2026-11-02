@@ -36,16 +36,14 @@ BarWidget {
   readonly property var verticalLines: displayText.split("\n")
 
   function refresh() {
-    clock.enabled = false
-    clock.enabled = true
+    clock.catchUp()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
   // A wake restarts both clocks the way a tick would, so a month being browsed
   // in the calendar stays put, where refresh() would send it back to today.
   function catchUp() {
-    clock.enabled = false
-    clock.enabled = true
+    clock.catchUp()
     if (panelLoader.item && panelLoader.item.catchUp) panelLoader.item.catchUp()
   }
 

@@ -142,8 +142,7 @@ Panel {
   // Restarts the midnight rollover from now; onDateChanged below moves today
   // and keeps a browsed month.
   function catchUp() {
-    clock.enabled = false
-    clock.enabled = true
+    clock.catchUp()
   }
 
   function goToToday() {
