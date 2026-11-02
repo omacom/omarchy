@@ -96,7 +96,10 @@ ShellRoot {
           selectionFile: root.selectionFile,
           doneFile: root.secondDone
         }))
-        root.probe("test -e " + shellQuote(root.firstDone), "a second summon finishes the request the first one left open", "done")
+        // open() finishes the first request through a detached process, so wait
+        // for the file instead of assuming it already landed.
+        root.probe("for _ in $(seq 40); do test -e " + shellQuote(root.firstDone) + " && exit 0; sleep 0.05; done; exit 1",
+          "a second summon finishes the request the first one left open", "done")
         return
       }
       root.pass()
