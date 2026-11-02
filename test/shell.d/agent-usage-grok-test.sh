@@ -17,6 +17,7 @@ from agent_usage_fixtures import *
 
 PERIOD_END = iso_in(9 * 86400)
 USED = {"token-main": 42.0, "token-side": 7.0, "token-fresh": 0}
+PREPAID = {}
 answer = {"percent": None, "end": None}
 
 
@@ -33,6 +34,8 @@ def credits(request):
     config["creditUsagePercent"] = answer["percent"]
   if token == "token-unified":
     config["isUnifiedBillingUser"] = True
+  if PREPAID.get(token) is not None:
+    config["prepaidBalance"] = PREPAID[token]
   return {"config": config}
 
 
@@ -194,6 +197,25 @@ record = grok()
 answer["percent"] = None
 expect("a unified-billing account with weekly credits shows the monthly quota beside them",
        [[limit["label"], limit["percent"]] for limit in record["limits"]], [["Weekly", 0.3], ["Monthly", 0.9]], record)
+
+# Grok reports remaining prepaid credits in cents, with no funded/purchased
+# amount. They are reported in dollars with funded/spent left at zero, so the
+# panel shows the remaining balance without overstating what was purchased.
+sandbox()
+signed_in(grok_home(), token="token-prepaid")
+PREPAID["token-prepaid"] = 1960
+record = grok()
+expect("Grok prepaid credits convert cents to dollars and leave funded at zero",
+       record.get("balance"),
+       {"remaining": 19.6, "funded": 0, "spent": 0, "currency": "USD", "estimated": False}, record)
+
+# A lapsed token restores the kept prepaid balance.
+signed_in(grok_home(), token="token-prepaid", expires=iso_in(-3600))
+record = grok()
+expect("a lapsed token keeps the last prepaid balance",
+       record.get("balance"),
+       {"remaining": 19.6, "funded": 0, "spent": 0, "currency": "USD", "estimated": False}, record)
+del PREPAID["token-prepaid"]
 
 # ------------------------------------------------------------- accounts
 
