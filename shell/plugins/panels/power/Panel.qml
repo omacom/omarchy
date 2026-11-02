@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeThresholdActive)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeThresholdActive)
   }
 
   function profileIcon(name) {
@@ -64,15 +64,45 @@ Panel {
 
   readonly property bool fullyCharged: {
     var device = UPower.displayDevice
-    return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
+    return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdReported
   }
   readonly property bool discharging: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent && UPower.onBattery)
   }
-  readonly property bool chargeThresholdActive: {
+  // What the battery reports right now, and the verdict the panel shows once
+  // that reading has settled (see Model.thresholdSettleDelay).
+  readonly property bool chargeThresholdReported: {
     var device = UPower.displayDevice
     return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+  }
+  property bool chargeThresholdActive: false
+  property real pluggedInAt: 0
+
+  function settleThreshold() {
+    if (!chargeThresholdReported) {
+      thresholdSettle.stop()
+      chargeThresholdActive = false
+      return
+    }
+    thresholdSettle.interval = Model.thresholdSettleDelay(Date.now(), pluggedInAt)
+    thresholdSettle.restart()
+  }
+
+  onChargeThresholdReportedChanged: settleThreshold()
+  // Plugging in also changes the reading, and either handler may run first.
+  onDischargingChanged: {
+    if (discharging) return
+    pluggedInAt = Date.now()
+    settleThreshold()
+  }
+
+  // A limit already holding when the shell starts is shown straight away.
+  Component.onCompleted: chargeThresholdActive = chargeThresholdReported
+
+  Timer {
+    id: thresholdSettle
+    onTriggered: root.chargeThresholdActive = root.chargeThresholdReported
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
