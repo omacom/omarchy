@@ -3,7 +3,7 @@
 # system firmware and on the DKMS build, and there are no 32-bit libraries.
 if omarchy-hw-aarch64-n1x; then
   echo "NVIDIA N1x platform detected; GPU driver policy is owned by hardware/n1x.sh"
-elif lspci | grep -qi 'nvidia'; then
+elif omarchy-hw-nvidia; then
   # The 32-bit libraries come from multilib, which only x86_64 has.
   if omarchy-hw-nvidia-gsp; then
     PACKAGES=(nvidia-open-dkms nvidia-utils)
