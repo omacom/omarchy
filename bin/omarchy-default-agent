@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -25,9 +25,9 @@ fi
 
 case "$1" in
 pi) agent="pi"; name="Pi" ;;
-omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="github:can1357/oh-my-pi" ;;
+omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="oh-my-pi" ;;
 opencode | open-code) agent="opencode"; name="OpenCode" ;;
-ori | openrouter) agent="ori"; name="Ori"; agent_package="github:OpenRouterLabs/ori-releases" ;;
+ori | openrouter) agent="ori"; name="Ori"; agent_package="ori" ;;
 claude | claude-code) agent="claude"; name="Claude Code" ;;
 codex) agent="codex"; name="Codex" ;;
 crush) agent="crush"; name="Crush" ;;
@@ -36,19 +36,45 @@ openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-op
 agy | antigravity | antigravity-cli | gemini | gemini-cli) agent="agy"; name="Antigravity"; agent_package="antigravity-cli" ;;
 hermes) agent="hermes"; name="Hermes"; agent_installer="omarchy-install-hermes-cli" ;;
 copilot | github-copilot) agent="copilot"; name="GitHub Copilot" ;;
-muse | muse-code | musecode)
-  agent="muse"; name="Muse Code"
-  # Meta's launcher verifies and updates the native binary for this platform.
-  agent_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
-  ;;
+muse | muse-code | musecode) agent="muse"; name="Muse Code" ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
+kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
+qwen | qwen-code) agent="qwen"; name="Qwen Code" ;;
+dsh | deepseek | deepseek-harness)
+  agent="dsh"; name="DeepSeek Harness"; agent_package="npm:@deepseek-ai/dsh"
+  # Every DSH release so far is a prerelease. A declared "latest" follows the
+  # npm latest tag, but `mise use` lists only stable versions unless told to
+  # include prereleases.
+  agent_prereleases=true
+  ;;
+mcode | minimax-code | minimax) agent="mcode"; name="MiniMax Code"; agent_tool="npm:@minimax-ai/code"; agent_package="$agent_tool[allow_builds=better-sqlite3]" ;;
+kiro-cli | kiro)
+  agent="kiro-cli"; name="Kiro CLI"
+  # Kiro publishes per-platform archives behind a manifest of the stable release.
+  agent_tool="http:kiro-cli"
+  agent_package="$agent_tool[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]"
+  ;;
+freebuff) agent="freebuff"; name="Freebuff"; agent_package="npm:freebuff" ;;
+kilo | kilocode | kilo-code) agent="kilo"; name="Kilo"; agent_package="npm:@kilocode/cli" ;;
+devin | devin-cli)
+  agent="devin"; name="Devin CLI"
+  # Cognition publishes per-platform archives behind a manifest of the current release.
+  agent_tool="http:devin"
+  agent_package="$agent_tool[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
+  ;;
+amp | ampcode) agent="amp"; name="Amp" ;;
+commandcode | command-code | cmdc) agent="commandcode"; name="Command Code"; agent_package="npm:command-code" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode>"
   exit 1
   ;;
 esac
 
 agent_package=${agent_package:-$agent}
+# Omarchy declares a tool that takes backend options under its bare name, with
+# the options inside the declaration's table, because mise drops bracket options
+# from a table-valued key. The bracketed package is only for the user's config.
+agent_tool=${agent_tool:-$agent_package}
 
 # Hermes and OpenClaw are not mise tools: each is a self-updating runtime in
 # the user's home, Hermes the desktop app's and OpenClaw the one its Control
@@ -63,15 +89,47 @@ if [[ -n ${agent_installer:-} ]]; then
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
 else
+  # omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
+  # lines of their own and older ones after an inline variable; either way
+  # running one installs the tool it wraps. A symlink is the user's own install.
+  mise_wrapper() {
+    [[ ! -L $1 ]] && head -c 4096 "$1" | grep -qaE 'mise (use|x) '
+  }
+
   # Anything at the wrapper's path other than the wrapper is the user's own
   # install, such as the symlink Cursor's installer leaves. A mise copy would
   # only shadow it, since the mise shims precede ~/.local/bin on PATH.
   user_install() {
-    [[ -x $HOME/.local/bin/$agent ]] &&
-      { [[ -L $HOME/.local/bin/$agent ]] || ! grep -q '^mise use -g' "$HOME/.local/bin/$agent"; }
+    [[ -x $HOME/.local/bin/$agent ]] && ! mise_wrapper "$HOME/.local/bin/$agent"
   }
-  agent_present() { user_install || mise where "$agent_package" &>/dev/null; }
-  agent_install() { user_install || mise use -g "$agent_package"; }
+  agent_present() { user_install || mise where "$agent_tool" &>/dev/null; }
+  # Omarchy declares the default agents as mise tools, so installing one is
+  # enough and leaves the user's config alone. A user who removed the
+  # preinstalls, like one without Omarchy's declarations, selects it instead.
+  # An npm-backed agent needs node, itself a lazy tool where Omarchy declares
+  # it, and mise won't install it as the agent's dependency while it's missing.
+  npm_backed() {
+    [[ $1 == npm:* || $(mise tool "${1%%\[*}" --backend 2>/dev/null) == npm:* ]]
+  }
+  agent_install() {
+    user_install && return
+    if omarchy-mise-default-tools declares "$agent_tool"; then
+      if npm_backed "$agent_tool"; then
+        mise install node "$agent_tool"
+      else
+        mise install "$agent_tool"
+      fi
+    else
+      if npm_backed "$agent_package" && ! mise where node &>/dev/null; then
+        mise install node || return 1
+      fi
+      if [[ ${agent_prereleases:-} == "true" ]]; then
+        MISE_PRERELEASES=true mise use -g "$agent_package"
+      else
+        mise use -g "$agent_package"
+      fi
+    fi
+  }
 fi
 
 if [[ $installing == "false" ]] && ! agent_present; then

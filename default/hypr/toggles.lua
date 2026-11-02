@@ -21,3 +21,7 @@ disabled_input_device("touchpad")
 disabled_input_device("touchscreen")
 
 require("default.hypr.workspace-layouts")
+
+-- After hypr/monitors.lua, so each monitor's mode, position and scale as
+-- chosen in the display panel win over a rule written there.
+require("default.hypr.monitor-settings")

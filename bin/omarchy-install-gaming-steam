@@ -15,6 +15,7 @@ echo "Installing Steam..."
 # GPU.
 omarchy-install-gaming-gpu-lib32
 omarchy-pkg-add steam
+omarchy-lifecycle-dispatch post-install steam
 
 echo ""
 echo "Steam will start automatically now. This might take a while..."

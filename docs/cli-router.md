@@ -59,10 +59,7 @@ latency (`omarchy dev benchmark cli` tracks it), and a filename probe is a few
 stat calls. Metadata loads lazily, only for the resolved command when help is
 needed.
 
-When no filename matches — metadata-moved routes like `omarchy share`, and
-aliases like `omarchy screenshot` — the router falls back to loading all
-metadata and resolving against the registered route table, with the same
-longest-prefix rule.
+When no filename matches — metadata-moved routes like `omarchy share`, and aliases like `omarchy screenshot` — the router first loads only the commands that could own a route under the first word: those whose filename starts with it, and those whose header names it as their group or in an alias. If that resolves a route that runs its command, it dispatches from there, about as fast as a filename route. Help output, a route that needs arguments it wasn't given, and anything still unresolved fall back to loading all metadata and resolving against the full route table, with the same longest-prefix rule, since help lists related commands from the whole table.
 
 Both paths intercept `--help`/`-h` *anywhere* in the leftover arguments, not
 just the first one. Resolution can succeed with unresolved words still ahead of
