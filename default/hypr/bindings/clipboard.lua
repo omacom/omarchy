@@ -15,8 +15,9 @@ local function send_shortcut_once(mods, key)
   end
 end
 
--- Lean on the terminal tag from default/hypr/apps/terminals.lua so there's one
--- definition of what counts as a terminal. Dynamic tags carry a trailing "*".
+-- Lean on the terminal and terminal-clipboard tags from
+-- default/hypr/apps/terminals.lua so there's one definition of what counts as
+-- a terminal. Dynamic tags carry a trailing "*".
 local function active_window_is_terminal()
   local window = hl.get_active_window()
   if not window then
@@ -24,7 +25,8 @@ local function active_window_is_terminal()
   end
 
   for _, tag in ipairs(window.tags or {}) do
-    if tag:gsub("%*$", "") == "terminal" then
+    local name = tag:gsub("%*$", "")
+    if name == "terminal" or name == "terminal-clipboard" then
       return true
     end
   end
