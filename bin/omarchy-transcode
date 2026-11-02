@@ -72,10 +72,10 @@ transcode_picture() {
 
   case "$format" in
   jpg)
-    magick "$input" -resize "$resize" -quality 85 -strip "$output"
+    magick "$input" -auto-orient -resize "$resize" -quality 85 -strip "$output"
     ;;
   png)
-    magick "$input" -resize "$resize" -strip -define png:compression-filter=5 \
+    magick "$input" -auto-orient -resize "$resize" -strip -define png:compression-filter=5 \
       -define png:compression-level=9 \
       -define png:compression-strategy=1 \
       -define png:exclude-chunk=all \
