@@ -10,6 +10,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
+import "BarLayout.js" as BarLayout  // layout-modes
 
 Item {
   id: root
@@ -715,6 +716,72 @@ Item {
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
 
+  // ── layout-modes ──────────────────────────────────────────────────────────
+  // classic | notch | floating | island | split. State lives in
+  // ~/.config/omarchy/bar-layout/{mode,layout.json}; omarchy-bar-layout writes
+  // them and calls reloadLayout() (IPC) below. BarLayout.js turns them into
+  // numbers. "classic" reproduces the stock bar: every extra is 0 and the window
+  // paints the background exactly as before.
+  readonly property string layoutDir: root.omarchyConfigDir + "/bar-layout"
+  property string layoutModeName: "classic"
+  property var layoutOptions: ({})
+  readonly property string layoutMode: BarLayout.normalizeMode(layoutModeName)
+
+  function layoutMetricsFor(mode) {
+    return BarLayout.metrics(mode, root.layoutOptions)
+  }
+
+  // The mode a screen really gets. Notch, island and split sit in the middle
+  // of the bar, where a camera notch may be, so a camera-notch screen keeps the
+  // classic full-width bar.
+  function layoutModeFor(screen) {
+    var mode = root.layoutMode
+    if (mode !== "notch" && mode !== "island" && mode !== "split") return mode
+    if (!screen) return mode
+    var notched = BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen))
+    return notched ? "classic" : mode
+  }
+
+  // Fill of a mode's pill: the same background the window paints in classic
+  // (clear, glassy or opaque), then the optional color override and opacity.
+  function layoutFillFor(lm) {
+    if (root.transparent) return Qt.rgba(0, 0, 0, 0)
+    var base = lm.background !== "" ? Qt.color(lm.background) : (root.glassy ? root.glassBackground : root.background)
+    return Qt.rgba(base.r, base.g, base.b, base.a * lm.opacity)
+  }
+
+  FileView {
+    id: layoutModeFile
+    path: root.layoutDir + "/mode"
+    blockLoading: true
+    watchChanges: true
+    printErrors: false
+    // An empty read is a write caught half-way; keep the current mode.
+    onLoaded: {
+      var value = String(text()).trim()
+      if (value !== "") root.layoutModeName = value
+    }
+    onLoadFailed: root.layoutModeName = "classic"
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: layoutOptionsFile
+    path: root.layoutDir + "/layout.json"
+    blockLoading: true
+    watchChanges: true
+    printErrors: false
+    // The same half-way write, which would otherwise flash every tunable back
+    // to its default. Write {} to reset them.
+    onLoaded: {
+      var raw = String(text()).trim()
+      if (raw !== "") root.layoutOptions = BarLayout.parseOptions(raw)
+    }
+    onLoadFailed: root.layoutOptions = ({})
+    onFileChanged: reload()
+  }
+  // ── /layout-modes ─────────────────────────────────────────────────────────
+
   // Display cutouts (a camera notch) the platform's own package describes in
   // the fixed platform root, which no environment variable moves. Most machines
   // have none. It is read as the shell starts (blockLoading), so a bar surface
@@ -762,8 +829,11 @@ Item {
   // the cutout is this panel's minimum sensible top-bar height. An
   // intentionally taller bar still wins.
   function thicknessFor(screen) {
-    if (root.vertical || !screen) return root.barSize
-    return Math.max(root.barSize, BarModel.notchFloor(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen), Style.bar.notchHeight))
+    // layout-modes: the margin and halo widen the window on every edge, so a
+    // left/right bar reserves them across its width just as a top bar does down.
+    var extra = root.layoutMetricsFor(root.layoutModeFor(screen)).extra
+    if (root.vertical || !screen) return root.barSize + extra
+    return Math.max(root.barSize, BarModel.notchFloor(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen), Style.bar.notchHeight)) + extra
   }
 
   // Each screen's bar thickness, by screen name: barSize, or more where a notch
@@ -1515,7 +1585,9 @@ Item {
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
       root.position,
-      String(root.barSize),
+      // layout-modes: the pill sits a margin in from the edge, so sample the
+      // band that covers it (equal to barSize in classic).
+      String(root.thicknessFor(null)),
       colorHex(root.themeForeground),
       colorHex(root.themeContrastForeground)
     ]
@@ -1658,6 +1730,13 @@ Item {
     function syncHidden(): void {
       barHiddenProbe.running = true
     }
+
+    // layout-modes: omarchy-bar-layout calls this after writing the state
+    // files, so a change lands even if the file watch missed it.
+    function reloadLayout(): void {
+      layoutModeFile.reload()
+      layoutOptionsFile.reload()
+    }
   }
 
   // Hyprland's window list does not follow fullscreen on its own, and each
@@ -1773,6 +1852,15 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
+    // ── layout-modes (window) ───────────────────────────────────────────────
+    // classic keeps painting the whole bar as before; every other mode draws its
+    // own pill(s) inside a transparent bar.
+    readonly property string layoutMode: root.layoutModeFor(screen)
+    readonly property var layoutMetrics: root.layoutMetricsFor(layoutMode)
+    // Where the modules' area starts along the surface, for the indicator peek.
+    property real layoutOriginX: 0
+    property real layoutOriginY: 0
+    // ── /layout-modes (window) ──────────────────────────────────────────────
     // Where the center box starts along the bar, set by the drawn center
     // sections. Hovering past it, over the clock, its trailing widgets and the
     // right section, leaves the indicator peek shut.
@@ -1830,7 +1918,8 @@ Item {
 
       Rectangle {
         anchors.fill: parent
-        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+        // layout-modes: classic paints the strip as before; other modes paint pills
+        color: barWindow.layoutMode !== "classic" ? "transparent" : (root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background))
       }
 
       Loader {
@@ -1930,48 +2019,132 @@ Item {
       id: horizontalBar
 
       Item {
+        id: hbar
         anchors.fill: parent
+
+        // layout-modes ─ geometry for this screen. In classic every inset is
+        // 0, so `stage` is the whole window and nothing below moves.
+        readonly property var lm: barWindow.layoutMetrics
+        readonly property string mode: lm.mode
+        readonly property bool isPacked: mode === "island" || mode === "notch"
+        readonly property bool isSplit: mode === "split"
+        // Island and split lay the center sections out as one run, as a notch does.
+        readonly property bool runOn: barWindow.centerBesideRight || isPacked || isSplit
+        readonly property real pad: lm.padding >= 0 ? lm.padding : Style.space(8)
+        // Left and right modules sit this far in from the edge of their pill.
+        readonly property real edgeMargin: (isPacked || isSplit) ? pad : Style.space(8)
+        readonly property real insetTop: root.position === "bottom" ? lm.halo : lm.margin
+        readonly property real insetBottom: root.position === "bottom" ? lm.margin : lm.halo
+        readonly property real insetSide: lm.margin
+        readonly property real stageH: Math.max(0, height - insetTop - insetBottom)
+        readonly property real leftW: leftModules.visible ? leftModules.width : 0
+        readonly property real runW: centerRun.visible ? centerRun.width : 0
+        readonly property real rightW: rightModules.visible ? rightModules.width : 0
+        readonly property real gapLeftRun: (leftW > 0 && runW > 0) ? lm.spacing : 0
+        readonly property real gapRunRight: ((leftW > 0 || runW > 0) && rightW > 0) ? lm.spacing : 0
+        readonly property real islandW: Math.ceil(pad * 2 + leftW + gapLeftRun + runW + gapRunRight + rightW)
+        readonly property real stageW: isPacked ? Math.min(islandW, Math.max(0, width - 2 * insetSide)) : Math.max(0, width - 2 * insetSide)
+        readonly property real stageX: isPacked ? Math.round((width - stageW) / 2) : insetSide
+
+        // Surfaces: painted behind the modules. Nothing is shown in classic.
+        LayoutPill {
+          lm: hbar.lm
+          visible: hbar.mode === "floating" || hbar.isPacked
+          flush: hbar.mode === "notch" ? root.position : ""
+          x: hbar.stageX
+          y: hbar.insetTop
+          width: hbar.stageW
+          height: hbar.stageH
+        }
+        LayoutPill {
+          lm: hbar.lm
+          visible: hbar.isSplit && hbar.leftW > 0
+          x: hbar.stageX
+          y: hbar.insetTop
+          width: hbar.pad * 2 + hbar.leftW
+          height: hbar.stageH
+        }
+        LayoutPill {
+          lm: hbar.lm
+          visible: hbar.isSplit && hbar.runW > 0
+          x: hbar.stageX + centerRun.x - hbar.pad
+          y: hbar.insetTop
+          width: hbar.pad * 2 + hbar.runW
+          height: hbar.stageH
+        }
+        LayoutPill {
+          lm: hbar.lm
+          visible: hbar.isSplit && hbar.rightW > 0
+          x: hbar.stageX + hbar.stageW - width
+          y: hbar.insetTop
+          width: hbar.pad * 2 + hbar.rightW
+          height: hbar.stageH
+        }
 
         WidgetPool { id: horizontalPool }
 
-        CenterModules {
-          anchors.fill: parent
-          window: barWindow
-          pool: horizontalPool
-          drawn: !barWindow.centerBesideRight
+        Binding {
+          target: barWindow
+          property: "layoutOriginX"
+          value: hbar.stageX
         }
 
-        LeftModules {
-          window: barWindow
-          pool: horizontalPool
-          anchors.left: parent.left
-          anchors.leftMargin: Style.space(8)
-          anchors.verticalCenter: parent.verticalCenter
-        }
+        // The rectangle the modules are laid out in: the window (classic), the
+        // window less its margins (floating, split), or the notch's or island's
+        // own pill, as wide as its modules.
+        Item {
+          id: stage
+          x: hbar.stageX
+          y: hbar.insetTop
+          width: hbar.stageW
+          height: hbar.stageH
 
-        RightModules {
-          window: barWindow
-          pool: horizontalPool
-          id: rightModules
-          anchors.right: parent.right
-          anchors.rightMargin: Style.space(8)
-          anchors.verticalCenter: parent.verticalCenter
-        }
+          CenterModules {
+            anchors.fill: parent
+            window: barWindow
+            pool: horizontalPool
+            drawn: !hbar.runOn
+          }
 
-        // Where a display notch covers the middle of the bar, the center
-        // sections run on just left of the right one. They keep their regions,
-        // so settings pushes, drag and drop, and panel routing still address
-        // them. The gap lets a drop at the seam land in the section the pointer
-        // is nearer to.
-        CenterSections {
-          window: barWindow
-          pool: horizontalPool
-          active: barWindow.centerBesideRight
-          besideRight: true
-          anchors.right: rightModules.left
-          anchors.rightMargin: Style.space(4)
-          anchors.top: parent.top
-          anchors.bottom: parent.bottom
+          LeftModules {
+            id: leftModules
+            window: barWindow
+            pool: horizontalPool
+            anchors.left: parent.left
+            anchors.leftMargin: hbar.edgeMargin
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          RightModules {
+            id: rightModules
+            window: barWindow
+            pool: horizontalPool
+            anchors.right: parent.right
+            anchors.rightMargin: hbar.edgeMargin
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          // Where a display notch covers the middle of the bar, the center
+          // sections run on just left of the right one. They keep their regions,
+          // so settings pushes, drag and drop, and panel routing still address
+          // them. The gap lets a drop at the seam land in the section the pointer
+          // is nearer to. layout-modes: island and split use the same run, after
+          // the left modules (island) or centered in the bar (split).
+          CenterSections {
+            id: centerRun
+            window: barWindow
+            pool: horizontalPool
+            active: hbar.runOn
+            besideRight: true
+            // Positioned with x, not anchors: swapping left/right/horizontalCenter
+            // anchors at runtime (split to island) leaves a moment with two set,
+            // and Qt then writes an explicit width the run never gives back.
+            x: hbar.isPacked ? leftModules.x + leftModules.width + hbar.gapLeftRun
+              : (hbar.isSplit ? Math.round((parent.width - width) / 2)
+                : rightModules.x - Style.space(4) - width)
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+          }
         }
       }
     }
@@ -1980,30 +2153,129 @@ Item {
       id: verticalBar
 
       Item {
+        id: vbar
         anchors.fill: parent
+
+        // layout-modes ─ the vertical twin of horizontalBar: the same geometry
+        // turned a quarter, so floating/island/split work on left and right
+        // bars too. "Left" modules are the top ones, "right" the bottom ones.
+        // In classic every inset is 0, so `stage` is the whole strip.
+        readonly property var lm: barWindow.layoutMetrics
+        readonly property string mode: lm.mode
+        readonly property bool isPacked: mode === "island" || mode === "notch"
+        readonly property bool isSplit: mode === "split"
+        readonly property bool runOn: isPacked || isSplit
+        readonly property real pad: lm.padding >= 0 ? lm.padding : Style.space(8)
+        // Top and bottom modules sit this far in from the end of their pill.
+        readonly property real edgeMargin: (isPacked || isSplit) ? pad : Style.space(8)
+        // The margin sits on the screen-edge side, the shadow halo on the
+        // side facing the windows.
+        readonly property real insetLeft: root.position === "right" ? lm.halo : lm.margin
+        readonly property real insetRight: root.position === "right" ? lm.margin : lm.halo
+        readonly property real insetEnds: lm.margin
+        readonly property real stageW: Math.max(0, width - insetLeft - insetRight)
+        readonly property real topH: leftModules.visible ? leftModules.height : 0
+        readonly property real runH: centerRun.visible ? centerRun.height : 0
+        readonly property real bottomH: rightModules.visible ? rightModules.height : 0
+        readonly property real gapTopRun: (topH > 0 && runH > 0) ? lm.spacing : 0
+        readonly property real gapRunBottom: ((topH > 0 || runH > 0) && bottomH > 0) ? lm.spacing : 0
+        readonly property real islandH: Math.ceil(pad * 2 + topH + gapTopRun + runH + gapRunBottom + bottomH)
+        readonly property real stageH: isPacked ? Math.min(islandH, Math.max(0, height - 2 * insetEnds)) : Math.max(0, height - 2 * insetEnds)
+        readonly property real stageX: insetLeft
+        readonly property real stageY: isPacked ? Math.round((height - stageH) / 2) : insetEnds
+
+        // Surfaces: painted behind the modules. Nothing is shown in classic.
+        LayoutPill {
+          lm: vbar.lm
+          visible: vbar.mode === "floating" || vbar.isPacked
+          flush: vbar.mode === "notch" ? root.position : ""
+          x: vbar.stageX
+          y: vbar.stageY
+          width: vbar.stageW
+          height: vbar.stageH
+        }
+        LayoutPill {
+          lm: vbar.lm
+          visible: vbar.isSplit && vbar.topH > 0
+          x: vbar.stageX
+          y: vbar.stageY
+          width: vbar.stageW
+          height: vbar.pad * 2 + vbar.topH
+        }
+        LayoutPill {
+          lm: vbar.lm
+          visible: vbar.isSplit && vbar.runH > 0
+          x: vbar.stageX
+          y: vbar.stageY + centerRun.y - vbar.pad
+          width: vbar.stageW
+          height: vbar.pad * 2 + vbar.runH
+        }
+        LayoutPill {
+          lm: vbar.lm
+          visible: vbar.isSplit && vbar.bottomH > 0
+          x: vbar.stageX
+          y: vbar.stageY + vbar.stageH - height
+          width: vbar.stageW
+          height: vbar.pad * 2 + vbar.bottomH
+        }
 
         WidgetPool { id: verticalPool }
 
-        CenterModules {
-          anchors.fill: parent
-          window: barWindow
-          pool: verticalPool
+        Binding {
+          target: barWindow
+          property: "layoutOriginY"
+          value: vbar.stageY
         }
 
-        LeftModules {
-          window: barWindow
-          pool: verticalPool
-          anchors.top: parent.top
-          anchors.topMargin: Style.space(8)
-          anchors.horizontalCenter: parent.horizontalCenter
-        }
+        // The rectangle the modules are laid out in: the strip (classic), the
+        // strip less its margins (floating, split), or the notch's or island's
+        // own pill, as long as its modules.
+        Item {
+          id: stage
+          x: vbar.stageX
+          y: vbar.stageY
+          width: vbar.stageW
+          height: vbar.stageH
 
-        RightModules {
-          window: barWindow
-          pool: verticalPool
-          anchors.bottom: parent.bottom
-          anchors.bottomMargin: Style.space(8)
-          anchors.horizontalCenter: parent.horizontalCenter
+          CenterModules {
+            anchors.fill: parent
+            window: barWindow
+            pool: verticalPool
+            drawn: !vbar.runOn
+          }
+
+          LeftModules {
+            id: leftModules
+            window: barWindow
+            pool: verticalPool
+            anchors.top: parent.top
+            anchors.topMargin: vbar.edgeMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+          }
+
+          RightModules {
+            id: rightModules
+            window: barWindow
+            pool: verticalPool
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: vbar.edgeMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+          }
+
+          // Island and split lay the center sections out as one run: after the
+          // top modules (island) or centered along the bar (split).
+          CenterSections {
+            id: centerRun
+            window: barWindow
+            pool: verticalPool
+            active: vbar.runOn
+            besideRight: true
+            // y, not anchors, for the reason given on the horizontal bar's run.
+            y: vbar.isPacked ? leftModules.y + leftModules.height + vbar.gapTopRun
+              : Math.round((parent.height - height) / 2)
+            anchors.left: parent.left
+            anchors.right: parent.right
+          }
         }
       }
     }
@@ -2260,6 +2532,44 @@ Item {
     }
   }
 
+  // layout-modes ─ the painted surface of a non-classic mode: a rounded pill,
+  // optionally outlined and haloed, behind the modules. `lm` is the screen's
+  // BarLayout.metrics(). `flush` names the screen edge a notch sits against
+  // ("top", "bottom", "left", "right"); the two corners on that edge stay square
+  // and only the ones facing the windows are rounded.
+  component LayoutPill: Rectangle {
+    id: pill
+    property var lm: root.layoutMetricsFor("classic")
+    property string flush: ""
+
+    color: root.layoutFillFor(lm)
+    radius: Math.min(lm.radius, Math.min(width, height) / 2)
+    topLeftRadius: flush === "top" || flush === "left" ? 0 : radius
+    topRightRadius: flush === "top" || flush === "right" ? 0 : radius
+    bottomLeftRadius: flush === "bottom" || flush === "left" ? 0 : radius
+    bottomRightRadius: flush === "bottom" || flush === "right" ? 0 : radius
+    antialiasing: true
+    border.width: lm.border ? 1 : 0
+    border.color: Qt.rgba(root.barForeground.r, root.barForeground.g, root.barForeground.b, 0.16)
+
+    // Soft shadow: three faint 1px rings outside the pill, darkest nearest it.
+    // Outlines, not fills, so nothing shows through a translucent pill.
+    Repeater {
+      model: pill.lm.shadow && !root.transparent ? pill.lm.halo : 0
+
+      Rectangle {
+        required property int index
+        z: -1
+        anchors.fill: parent
+        anchors.margins: -(index + 1)
+        radius: pill.radius + index + 1
+        color: "transparent"
+        border.width: 1
+        border.color: Qt.rgba(0, 0, 0, index === 0 ? 0.16 : (index === 1 ? 0.09 : 0.05))
+      }
+    }
+  }
+
   component LeftModules: ModuleList {
     keys: root.layoutWidgets.sections.left
     region: "left"
@@ -2313,7 +2623,7 @@ Item {
 
     // Both placements sit at the bar surface's origin or anchor off its edge,
     // so the box's start in the sections is its start on the surface.
-    readonly property real boxStart: root.vertical ? y + centerBox.y : x + centerBox.x
+    readonly property real boxStart: root.vertical ? (window ? window.layoutOriginY : 0) + y + centerBox.y : (window ? window.layoutOriginX : 0) + x + centerBox.x  // layout-modes
     onBoxStartChanged: syncPeekEdge()
     onActiveChanged: syncPeekEdge()
     onWindowChanged: syncPeekEdge()
@@ -2358,7 +2668,9 @@ Item {
       fixedEdge: sections.besideRight ? "end" : "center"
       crossSize: root.vertical ? sections.width : sections.height
       x: root.vertical ? 0 : (sections.besideRight ? beginList.width : Math.round((sections.width - width) / 2))
-      y: root.vertical ? Math.round((sections.height - height) / 2) : 0
+      // layout-modes: beside the right section / in an island's run, the box
+      // follows the begin list instead of sitting in the middle.
+      y: root.vertical ? (sections.besideRight ? beginList.height : Math.round((sections.height - height) / 2)) : 0
     }
   }
 
@@ -2586,8 +2898,12 @@ Item {
 
     visible: listRows.length > 0
     flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
-    rowSpacing: 0
-    columnSpacing: 0
+    // layout-modes: extra px between modules, from the layout of the screen the
+    // list is drawn on. 0 in classic and for a list that isn't drawn, so nothing
+    // moves. A vertical list stacks its slots in rows, a horizontal one in columns.
+    readonly property real slotSpacing: window && window.layoutMetrics ? window.layoutMetrics.spacing : 0
+    rowSpacing: root.vertical ? slotSpacing : 0
+    columnSpacing: root.vertical ? 0 : slotSpacing
 
     Repeater {
       // Keyed rows, so a config change or a drag only adds, moves and removes
