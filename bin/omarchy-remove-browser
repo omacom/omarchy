@@ -18,8 +18,58 @@ set_fallback_default_browser() {
   fi
 }
 
+# PIDs running a binary owned by this package. Matching on package contents needs no per-browser
+# paths, and separates Brave from Brave Origin, which both run a process named "brave".
+package_pids() {
+  local package=$1 file exe exe_link pid
+  local -A owned_files=()
+
+  omarchy-pkg-present "$package" || return
+
+  while IFS= read -r file; do
+    owned_files[$file]=1
+  done < <(pacman -Qlq "$package" 2>/dev/null)
+
+  for exe_link in /proc/[0-9]*/exe; do
+    exe=$(readlink "$exe_link" 2>/dev/null) || continue
+    # A running process whose binary was already deleted reports "<path> (deleted)"
+    exe=${exe%" (deleted)"}
+
+    if [[ -n ${owned_files[$exe]} ]]; then
+      pid=${exe_link#/proc/}
+      echo "${pid%/exe}"
+    fi
+  done
+}
+
+# A browser left running on its deleted install crashes every child process it spawns,
+# so ask it to quit before removal and kill whatever is still there after 10 seconds.
+close_browser() {
+  local name=$1 package=$2 pids
+
+  mapfile -t pids < <(package_pids "$package")
+
+  if (( ${#pids[@]} > 0 )); then
+    echo "Closing $name..."
+    kill -TERM "${pids[@]}" 2>/dev/null
+
+    for _ in {1..100}; do
+      kill -0 "${pids[@]}" 2>/dev/null || break
+      sleep 0.1
+    done
+
+    # Scan again rather than reuse the list, so late children are caught and a recycled PID is not
+    mapfile -t pids < <(package_pids "$package")
+
+    if (( ${#pids[@]} > 0 )); then
+      kill -KILL "${pids[@]}" 2>/dev/null
+    fi
+  fi
+}
+
 case $1 in
 chrome)
+  close_browser Chrome google-chrome
   echo "Removing Chrome..."
   set_fallback_default_browser google-chrome.desktop
   omarchy-pkg-drop google-chrome
@@ -27,6 +77,7 @@ chrome)
   sudo rm -f /etc/opt/chrome/policies/managed/color.json /etc/opt/chrome/policies/managed/omarchy.json
   ;;
 edge)
+  close_browser Edge microsoft-edge-stable-bin
   echo "Removing Edge..."
   set_fallback_default_browser microsoft-edge.desktop
   omarchy-pkg-drop microsoft-edge-stable-bin
@@ -34,6 +85,7 @@ edge)
   sudo rm -f /etc/opt/edge/policies/managed/color.json /etc/opt/edge/policies/managed/omarchy.json
   ;;
 brave)
+  close_browser Brave brave-bin
   echo "Removing Brave..."
   set_fallback_default_browser brave-browser.desktop
   omarchy-pkg-drop brave-bin
@@ -44,6 +96,7 @@ brave)
   fi
   ;;
 brave-origin)
+  close_browser "Brave Origin" brave-origin-bin
   echo "Removing Brave Origin..."
   set_fallback_default_browser brave-origin.desktop
   omarchy-pkg-drop brave-origin-bin
@@ -54,11 +107,13 @@ brave-origin)
   fi
   ;;
 firefox)
+  close_browser Firefox firefox
   echo "Removing Firefox..."
   set_fallback_default_browser firefox.desktop
   omarchy-pkg-drop firefox
   ;;
 zen)
+  close_browser Zen zen-browser-bin
   echo "Removing Zen..."
   set_fallback_default_browser zen.desktop
   omarchy-pkg-drop zen-browser-bin
