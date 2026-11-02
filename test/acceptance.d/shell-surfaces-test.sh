@@ -92,7 +92,9 @@ wait_until "notification popup opens" 15 layer_present "omarchy-notifications"
 wait_until "notification content is visible" 15 screen_contains "Acceptance notification"
 screenshot "success-notification-popup"
 omarchy-shell notifications dismissAll >/dev/null
-wait_until "notification popup closes" 15 layer_absent "omarchy-notifications"
+# The notification surface stays mapped while idle, so wait for the count.
+notifications_cleared() { [[ $(omarchy-shell notifications count) == "0" ]]; }
+wait_until "notification popup closes" 15 notifications_cleared
 
 # The menu's Apps submenu does the full launcher loop: open, search by
 # typing, launch the top hit.
