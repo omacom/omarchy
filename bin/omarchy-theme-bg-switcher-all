@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# omarchy:summary=Open the background switcher across every theme
+# omarchy:group=theme
+# omarchy:name=bg-switcher-all
+
+shopt -s nullglob
+
+state="$HOME/.local/state/omarchy/current"
+view="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/all-backgrounds"
+
+# The image picker keeps one image per file name, and themes reuse names
+# (1.png, omarchy.png), so every background is linked into one folder as
+# <theme>@<file>. That also lets the picker's filter match theme names.
+# Later sources win a clash: theme backgrounds over the user's per-theme ones,
+# as in the per-theme switcher, and a user theme over a stock theme of the
+# same name, as omarchy-theme-set stages them.
+declare -A backgrounds
+
+# Installed theme names can't contain "@" (omarchy-theme-install), but a
+# theme the user made can, so escape it out of the theme part: the first "@"
+# then always ends the theme name, and no two backgrounds share a link name.
+escape_theme() {
+  local theme=${1//%/%25}
+  REPLY=${theme//@/%40}
+}
+
+add_backgrounds() {
+  local dir=$2 image
+
+  # Hidden files too, as the picker lists them in the per-theme switcher.
+  escape_theme "$1"
+  shopt -s dotglob
+  for image in "$dir"/*; do
+    [[ -f $image ]] && backgrounds["$REPLY@${image##*/}"]=$image
+  done
+  shopt -u dotglob
+}
+
+for dir in "$HOME/.config/omarchy/backgrounds"/*/; do
+  dir=${dir%/}
+  add_backgrounds "${dir##*/}" "$dir"
+done
+
+for dir in "$OMARCHY_PATH/themes"/*/ "$HOME/.config/omarchy/themes"/*/; do
+  dir=${dir%/}
+  add_backgrounds "${dir##*/}" "$dir/backgrounds"
+done
+
+# Only touch links that changed: the picker caches its rows by folder mtime.
+mkdir -p "$view"
+
+declare -A links
+while IFS= read -r -d '' name && IFS= read -r -d '' target; do
+  links[$name]=$target
+done < <(find "$view" -mindepth 1 -maxdepth 1 -type l -printf '%f\0%l\0')
+
+for name in "${!backgrounds[@]}"; do
+  [[ ${links[$name]-} == "${backgrounds[$name]}" ]] || ln -sfn "${backgrounds[$name]}" "$view/$name"
+done
+
+for name in "${!links[@]}"; do
+  [[ -n ${backgrounds[$name]+set} ]] || rm -f "$view/$name"
+done
+
+# A background replaced at the same path keeps its link, so the folder's
+# mtime would not change and the picker would show the old preview. Keep the
+# size and mtime of every linked image, and bump the folder when they change.
+signature_file="$view/.signature"
+signature=$(find -L "$view" -mindepth 1 -maxdepth 1 -type f ! -name .signature -printf '%f/%s/%T@\0' | sort -z | md5sum)
+
+if [[ ! -f $signature_file || $(<"$signature_file") != "$signature" ]]; then
+  printf '%s' "$signature" >"$signature_file"
+  touch "$view"
+fi
+
+# Switching theme points the background at the copy staged under
+# current/theme, which is none of the originals linked above, so map it back
+# to the original by name; the picker then matches it through the link.
+current_background=$(readlink -f "$state/background" 2>/dev/null)
+staged_backgrounds=$(readlink -f "$state/theme/backgrounds" 2>/dev/null)
+
+if [[ -n $staged_backgrounds && $current_background == "$staged_backgrounds"/* ]]; then
+  escape_theme "$(<"$state/theme.name")"
+  current_background=${backgrounds["$REPLY@${current_background##*/}"]:-$current_background}
+fi
+
+omarchy-menu-images --filterable --selected "$current_background" "$view"
