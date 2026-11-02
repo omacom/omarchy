@@ -1,0 +1,6 @@
+singleton SharedService 1.0 SharedService.qml
+Service 1.0 Service.qml
+Client 1.0 Client.qml
+Panel 1.0 Panel.qml
+CloudflareIcon 1.0 CloudflareIcon.qml
+Sparkline 1.0 Sparkline.qml

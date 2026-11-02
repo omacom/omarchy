@@ -111,7 +111,7 @@ function collectKeys(dir, extensions, pattern) {
   walk(dir)
   return found
 }
-const shellKeys = collectKeys(path.join(root, 'shell'), ['.qml', '.js'], /(?:I18n\.tn?|[^a-zA-Z_.]tn?|translator\(tr\))\("([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)"/g)
+const shellKeys = collectKeys(path.join(root, 'shell'), ['.qml', '.js'], /(?:I18n\.tn?|[^a-zA-Z_.]tn?|translator\(tr\)|(?:root\.|[^a-zA-Z_.])message)\("([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)"/g)
 const unreferencedShell = Object.keys(enShell).filter((key) => !shellKeys.has(key))
 assert(unreferencedShell.length === 0, 'every shell catalog key is referenced', JSON.stringify(unreferencedShell))
 const unknownShell = [...shellKeys].filter((key) => !Object.hasOwn(enShell, key))
