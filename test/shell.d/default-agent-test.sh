@@ -128,6 +128,17 @@ for command in gum hyprctl omarchy-webapp-remove-all omarchy-tui-remove-all omar
   ln -s omarchy-test-noop "$mock_bin/$command"
 done
 
+cat >"$mock_bin/ss" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_LISTENING:-} == "true" ]] && echo "LISTEN 0 511 127.0.0.1:3080 0.0.0.0:*"
+exit 0
+SH
+
+cat >"$mock_bin/omarchy-launch-webapp" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_WEBAPP_LOG"
+SH
+
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
@@ -754,6 +765,13 @@ assert_launched dsh "opens its browser UI for a prompt" env DSH_PERMISSION_MODE=
 [[ $(<"$clipboard_log") == '-n --help; echo literal' ]] || fail "DSH launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
+# DSH's UI is a server on a fixed port, so a second press reopens the running
+# one rather than starting a server that cannot bind the port.
+: >"$launch_log"
+OMARCHY_TEST_LISTENING=true OMARCHY_TEST_WEBAPP_LOG="$test_tmp/webapp" omarchy-agent --pick
+[[ ! -s $launch_log ]] || fail "DSH launcher starts no second server while one is running"
+[[ $(tr '\0' ' ' <"$test_tmp/webapp") == "http://127.0.0.1:3080/ " ]] || fail "DSH launcher reopens the running UI"
+pass "DSH launcher reopens the running UI"
 assert_launch mcode mcode -- "Review this project"
 assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 : >"$notification_history"
