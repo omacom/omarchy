@@ -484,3 +484,15 @@ output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub colle
 [[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
 grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
 pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"
+
+# A bind whose dispatcher is a Lua function replays the command registered for it.
+cat >"$scan_home/.config/hypr/hyprland.lua" <<'LUA'
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+require("default.hypr.bindings.utilities")
+LUA
+
+output=$(lua_scan) || fail "Lua bind scan loads the utility bindings (output: $output)"
+[[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on the utility bindings ($output)"
+grep -qF $'65\tStart keyboard passthrough\tESCAPE\texec\thyprctl dispatch \'hl.dsp.submap("passthrough")\'' <<<"$output" || fail "Lua bind scan reports keyboard passthrough with its registered command (got: $output)"
+pass "Lua bind scan reports a Lua function bind with its registered command"
