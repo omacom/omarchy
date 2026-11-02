@@ -65,14 +65,21 @@ Item {
 
   // ------------------------------------------------------------- the bar
   //
-  // The deck hangs from the top-right corner, so it clears the bar only when
-  // the bar is on the top or right edge and visible.
+  // The deck hangs from one corner, so it clears the bar only on the two
+  // edges that corner touches, and only while the bar is visible.
   readonly property var barRef: shell && shell.bar ? shell.bar : null
   readonly property string barPosition: barRef ? String(barRef.position || "top") : "top"
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+
+  // The corner toasts stack into: shell.json's notifications.position,
+  // "top-right" (default), "top-left", "bottom-right" or "bottom-left".
+  readonly property var notificationsConfig: shell && shell.shellConfig && shell.shellConfig.notifications ? shell.shellConfig.notifications : ({})
+  readonly property string corner: Delivery.normalizePosition(notificationsConfig.position)
+  readonly property bool deckLeft: corner.indexOf("left") >= 0
+  readonly property bool deckBottom: corner.indexOf("bottom") === 0
   function marginsFor(screenName) {
-    return Delivery.deckMargins(barPosition, Delivery.barThickness(barRef, screenName, defaultBarSize), Style.gapsOut)
+    return Delivery.deckMargins(corner, barPosition, Delivery.barThickness(barRef, screenName, defaultBarSize), Style.gapsOut)
   }
   readonly property int notificationWidth: Style.space(380)
 
@@ -545,7 +552,16 @@ Item {
   readonly property var placements: {
     var out = {}
     var base = layout.placements
-    for (var k in base) out[k] = base[k]
+    for (var k in base) {
+      var place = base[k]
+      if (deckBottom) {
+        // A bottom corner hangs the layout upside down in the deck, so the
+        // newest card (layout y 0) lands nearest the edge.
+        place = Object.assign({}, place)
+        place.y = Delivery.flipY(true, layout.height, place.y, place.height)
+      }
+      out[k] = place
+    }
     for (var key in leaving) if (departures[key]) out[key] = departures[key]
     return out
   }
@@ -703,10 +719,12 @@ Item {
         service.arriving = key
         toasts.insert(0, row)
         service.arriving = ""
-        // It drops in from just above where it lands, from under the bar for
-        // the top card, and fades in on the way.
+        // It drops in from just past the edge it lands on, from under the bar
+        // for the corner card, and fades in on the way.
         var landing = service.layout.placements[key]
-        snap[key] = { y: (landing ? landing.y : 0) - service.travel,
+        snap[key] = { y: Delivery.flipY(service.deckBottom, service.layout.height,
+                                        landing ? landing.y : 0, landing ? landing.height : 0)
+                           + Delivery.outward(service.deckBottom, service.travel),
                       scale: landing ? landing.scale : 1, opacity: 0,
                       height: landing ? landing.height : 0 }
         service.retarget(snap, deckNow, service.arriveDuration)
@@ -772,9 +790,10 @@ Item {
       var from = snap[keys[j]], place = placements[keys[j]]
       if (!next[keys[j]] || gone[keys[j]] || !from) continue
       // Under the cards closing in, so the one taking its place covers it on
-      // the way up. Its text goes first, or it would read through them; the
+      // its way out. Its text goes first, or it would read through them; the
       // last card keeps its words, with nothing to cover it.
-      gone[keys[j]] = { y: from.y - travel, scale: from.scale, opacity: 0, height: from.height,
+      gone[keys[j]] = { y: from.y + Delivery.outward(service.deckBottom, service.travel),
+                        scale: from.scale, opacity: 0, height: from.height,
                         z: 0, front: staying === 0, hidden: place ? place.hidden === true : true,
                         leaving: true, until: Date.now() + Style.duration(leaveDuration) }
     }
@@ -1519,7 +1538,7 @@ Item {
       exclusionMode: ExclusionMode.Ignore
 
       // Constant width and full height, so the buffer is allocated once.
-      anchors { top: true; bottom: true; right: true }
+      anchors { top: true; bottom: true; left: service.deckLeft; right: !service.deckLeft }
       implicitWidth: clipper.width + Style.space(10)
 
       mask: Region { item: surface.showingNotifications ? deck : null }
@@ -1534,18 +1553,22 @@ Item {
       Item {
         id: clipper
         visible: surface.showingNotifications
-        anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.top: service.deckBottom ? undefined : parent.top
         anchors.topMargin: surface.margins.top
+        anchors.bottom: service.deckBottom ? parent.bottom : undefined
+        anchors.bottomMargin: surface.margins.bottom
+        anchors.right: service.deckLeft ? undefined : parent.right
+        anchors.left: service.deckLeft ? parent.left : undefined
         // Room for the arrival's scale animation, and the gap from the edge.
         readonly property int motionInset: Style.spacing.sm
-        width: service.notificationWidth + motionInset + surface.margins.right
-        height: deck.y + deck.height + motionInset
+        width: service.notificationWidth + motionInset
+               + (service.deckLeft ? surface.margins.left : surface.margins.right)
+        height: deck.height + motionInset
         clip: true
 
         Item {
           id: deck
-          x: clipper.motionInset
+          x: service.deckLeft ? surface.margins.left : clipper.motionInset
           width: service.notificationWidth
           height: service.deckHeight
 
@@ -1604,7 +1627,7 @@ Item {
               var decks = service.layout.decks
               for (var i = 0; i < decks.length; i++) {
                 var first = decks[i].rows[0]
-                var place = service.layout.placements[first.key]
+                var place = service.placements[first.key]
                 if (!place) continue
                 var top = place.y
                 var bottom = top + (service.heights[first.key] || Style.space(58))
@@ -1626,6 +1649,7 @@ Item {
               row: model
               scene: service
               cardWidth: deck.width
+              deckBottom: service.deckBottom
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
               hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
