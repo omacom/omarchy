@@ -44,15 +44,11 @@ Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets t
 
 ## Herdr desktop app
 
-`herdr-app.json.tpl` generates the desktop app's terminal palette and primary-button colors. `omarchy-theme-set-herdr-app` publishes it atomically as `themes/omarchy.json` in Herdr's existing home: `$HERDR_APP_HOME`, otherwise `$XDG_CONFIG_HOME/herdr-app`, otherwise `~/.config/herdr-app`. This is separate from the terminal Herdr client's remote-machine theme mirroring above.
+`herdr-app.json.tpl` generates the Herdr desktop app's terminal palette and primary-button colors, and `omarchy-theme-set-herdr-app` publishes it atomically as `themes/omarchy.json` in Herdr's home (`$HERDR_APP_HOME`, otherwise `$XDG_CONFIG_HOME/herdr-app`, otherwise `~/.config/herdr-app`) when that home exists. Herdr 0.1.11 and newer reload that file live. This is separate from the terminal Herdr client's remote-machine theme mirroring above.
 
-Herdr 0.1.11 or newer is required for live custom-theme reloads. Open Herdr, refresh the current Omarchy theme, then run `omarchy-theme-set-herdr-app --activate`. Activation uses `herdr-app do app.theme --name omarchy`, so Herdr records the choice through its native picker instead of global settings overrides. Herdr must be running for activation; if it is closed the palette is still published and activation can be retried after opening it.
+A theme switch only replaces that file: it never contacts Herdr, touches its `settings.json` or reselects a theme, so a theme picked inside Herdr stays picked. Selecting Omarchy is `omarchy-theme-set-herdr-app --activate`, which runs `herdr-app do app.theme --name omarchy` against the running window. `omarchy-install-ai-herdr` does that once the freshly installed app opens. Herdr keeps one theme choice for light and one for dark and `app.theme` sets the half that matches the palette, so the other appearance keeps its own choice until Omarchy is picked there too.
 
-Herdr keeps separate light and dark picker choices. Activation selects Omarchy for the generated palette's appearance and preserves the other appearance's choice. To follow Omarchy in both, activate once while using a light Omarchy theme and once while using a dark one, with Herdr's appearance set to System. Picking another theme inside Herdr remains authoritative. Normal Omarchy switches only replace the palette file: they never invoke the app, change settings, reselect a theme, or start a window. Explicit per-layout or personal color overrides remain Herdr's responsibility.
-
-The helper holds the theme-switch staging lock through publication, so a queued helper reads the current palette rather than overwriting it with an older snapshot. Invalid or unresolved generated colors leave the last good theme untouched and print a skip message without failing the theme-switch batch. Unchanged files are left alone. Activation releases the lock before contacting the app so a busy window does not block desktop theme staging.
-
-If trying an older revision of this unmerged integration or a personal hook that wrote colors into settings.json, remove that hook and restore its backed-up settings or remove only the overrides it installed before activating this version. The helper deliberately does not delete personal overrides, rewrite saved picker files, or retain the 0.1.10 settings workaround.
+The helper holds the theme-switch staging lock while it reads and publishes, so a queued run can't publish an older palette. A palette with unresolved or invalid colors keeps the last good theme and skips without failing the switch.
 
 ## What an installed theme may not ship
 
