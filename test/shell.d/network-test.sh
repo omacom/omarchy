@@ -256,6 +256,9 @@ assertEqual(network.hotspotSecurityLabel('mixed'), 'WPA2/WPA3', 'network labels 
 assert(/older devices can't join/.test(network.hotspotSecurityTooltip('wpa3', false, 'mixed')), 'network warns that WPA3 only shuts out older devices')
 assert(!/next start/.test(network.hotspotSecurityTooltip('mixed', true, 'mixed')), 'network does not defer the security the running hotspot already uses')
 assert(/\(from the next start\)$/.test(network.hotspotSecurityTooltip('wpa2', true, 'mixed')), 'network says a new security waits for the next start while on air')
+const hotspotSecurityInEffect = panelBinding('hotspotSecurityInEffect')
+assertEqual(hotspotSecurityInEffect({ hotspotActive: true, hotspotSecurityOnAir: 'mixed', Model: network, hotspot: { security: 'wpa2' } }), 'mixed', 'network fills the security on air, not one saved since the start')
+assertEqual(hotspotSecurityInEffect({ hotspotActive: false, hotspotSecurityOnAir: '', Model: network, hotspot: { security: 'wpa2' } }), 'wpa2', 'network fills the saved security while the hotspot is off')
 // The filled pill is what is on air while the hotspot runs, and what the
 // profile holds while it is off.
 const hotspotSaveDataInEffect = panelBinding('hotspotSaveDataInEffect')

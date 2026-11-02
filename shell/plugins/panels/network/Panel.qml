@@ -223,6 +223,9 @@ Panel {
   // for the next start compares against this, not the saved value.
   property string hotspotSaveDataOnAir: ""
   property string hotspotSecurityOnAir: ""
+  // As with save-data: the mode on air while the hotspot runs, the saved one
+  // while it's off.
+  readonly property string hotspotSecurityInEffect: hotspotActive && hotspotSecurityOnAir !== "" ? hotspotSecurityOnAir : Model.hotspotSecurity(hotspot)
   // The choice the pills show as filled: what is on air while the hotspot
   // runs, so a saved change doesn't look live before the next start; what the
   // profile holds while it's off.
@@ -2759,7 +2762,7 @@ Panel {
     verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
     bordered: true
 
-    active: root.hotspot.configured === "1" && Model.hotspotSecurity(root.hotspot) === choice
+    active: root.hotspot.configured === "1" && root.hotspotSecurityInEffect === choice
     selected: root.hotspotSecurity === choice
     enabled: !root.hotspotBusy
 
