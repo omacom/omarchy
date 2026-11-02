@@ -16,11 +16,12 @@ trap 'rm -rf "$tmpdir"' EXIT
 mock_bin="$tmpdir/bin"
 ec_io="$tmpdir/ec_io"
 sleep_log="$tmpdir/sleeps"
+modprobe_log="$tmpdir/modprobe"
 mkdir -p "$mock_bin"
 
-cat >"$mock_bin/modprobe" <<'SH'
+cat >"$mock_bin/modprobe" <<SH
 #!/bin/bash
-exit 0
+printf '%s\n' "\$*" >>"$modprobe_log"
 SH
 
 chmod +x "$mock_bin"/*
@@ -38,12 +39,27 @@ read_ec_hex() {
 init_ec
 PATH="$mock_bin:$PATH" \
   OMARCHY_MSI_EC_IO="$ec_io" \
+  OMARCHY_MSI_EC_SYS_MODULE="$tmpdir/no-module" \
   "$hook" pre suspend
 
 [[ $(read_ec_hex 0x34) == "30" && $(read_ec_hex 0x2e) == "4b" ]] ||
   fail "pre-suspend sets EC register 0x34 to 0x30 without touching 0x2e" \
     "0x34=$(read_ec_hex 0x34) 0x2e=$(read_ec_hex 0x2e)"
 pass "pre-suspend sets EC register 0x34 to 0x30 without touching 0x2e"
+
+# An ec_sys already loaded writable (fan tools load it at boot) is used but not unloaded.
+mkdir -p "$tmpdir/module/parameters"
+echo Y >"$tmpdir/module/parameters/write_support"
+init_ec
+: >"$modprobe_log"
+PATH="$mock_bin:$PATH" \
+  OMARCHY_MSI_EC_IO="$ec_io" \
+  OMARCHY_MSI_EC_SYS_MODULE="$tmpdir/module" \
+  "$hook" pre suspend
+
+[[ $(read_ec_hex 0x34) == "30" && ! -s $modprobe_log ]] ||
+  fail "an ec_sys loaded by someone else is used and left loaded" "modprobe: $(paste -sd ' ' "$modprobe_log")"
+pass "an ec_sys loaded by someone else is used and left loaded"
 
 # Wi-Fi wakes hard-blocked with 0x2e bit 3 set (0x4b): bit 3 must read clear
 # (0x43) during the toggle delay and set again (0x4b) after, other bits kept.
@@ -68,6 +84,7 @@ init_ec
 : >"$sleep_log"
 PATH="$mock_bin:$PATH" \
   OMARCHY_MSI_EC_IO="$ec_io" \
+  OMARCHY_MSI_EC_SYS_MODULE="$tmpdir/no-module" \
   "$hook" post suspend
 
 [[ $(read_ec_hex 0x34) == "30" && $(paste -sd ' ' "$sleep_log") == "43 4b" ]] ||
