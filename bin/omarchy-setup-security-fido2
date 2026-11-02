@@ -16,6 +16,176 @@ check_fido2_hardware() {
   return 0
 }
 
+# pamu2fcfg always opens the first device libfido2 enumerates (see its
+# "XXX loop over every device?" comment). With registered keys still plugged
+# in, that is usually one of them, so a new key never blinks — or worse, a
+# touch enrolls a second credential on an already-registered stick. List
+# hidraw paths, skip devices that already know an authfile keyhandle, and
+# isolate the target with a temporary ACL drop so pamu2fcfg can only see it.
+fido_device_paths() {
+  local line path
+
+  while IFS= read -r line; do
+    path=${line%%:*}
+    [[ $path =~ ^/dev/hidraw[0-9]+$ ]] || continue
+    printf '%s\n' "$path"
+  done < <(fido2-token -L 2>/dev/null)
+}
+
+# Keyhandles from the invoking user's authfile line (empty if none / no file).
+authfile_keyhandles() {
+  local mapuser
+
+  [[ -f $authfile && ! -L $authfile ]] || return 0
+  mapuser=$(/usr/bin/id -un)
+  /usr/bin/awk -F: -v user="$mapuser" '
+    $1 == user {
+      for (i = 2; i <= NF; i++) {
+        split($i, fields, ",")
+        if (fields[1] != "") {
+          print fields[1]
+        }
+      }
+    }
+  ' "$authfile"
+}
+
+# True if we must not enroll on this hidraw. A check-only assert (up=false)
+# should not need a touch: NO_CREDENTIALS ⇒ safe to enroll; success,
+# USER_PRESENCE_REQUIRED, timeout, or any other error ⇒ skip (already known
+# or inconclusive — never risk a duplicate credential on a registered stick).
+fido_device_is_registered() {
+  local path=$1
+  local kh rp cdh err status any=0
+
+  [[ $path =~ ^/dev/hidraw[0-9]+$ ]] || return 0
+  rp="pam://$(/usr/bin/hostname)"
+
+  while IFS= read -r kh; do
+    [[ -n $kh ]] || continue
+    any=1
+    cdh=$(/usr/bin/openssl rand -base64 32)
+    set +e
+    # PATH-qualified so tests can stub assert the same way as pamu2fcfg.
+    # Cap wait so a key that demands presence cannot stall the scan.
+    err=$(
+      printf '%s\n%s\n%s\n' "$cdh" "$rp" "$kh" |
+        /usr/bin/timeout 2 fido2-assert -G -t up=false -i /dev/stdin "$path" 2>&1 >/dev/null
+    )
+    status=$?
+    set -e
+    if [[ $status -ne 0 && $err == *FIDO_ERR_NO_CREDENTIALS* ]]; then
+      continue
+    fi
+    return 0
+  done < <(authfile_keyhandles)
+
+  ((any)) || return 1
+  return 1
+}
+
+# Paths that do not already match the authfile (candidates for a new enroll).
+unregistered_fido_paths() {
+  local path
+
+  while IFS= read -r path; do
+    fido_device_is_registered "$path" && continue
+    printf '%s\n' "$path"
+  done < <(fido_device_paths)
+}
+
+# Run pamu2fcfg "$@" with only $1 visible to the invoking user among the FIDO
+# hidraw nodes fido2-token listed. Restores ACLs even when pamu2fcfg fails.
+pamu2fcfg_on_device() {
+  local target=$1
+  shift
+  local mapuser path
+  local -a revoked=()
+
+  mapuser=$(/usr/bin/id -un)
+  [[ $target =~ ^/dev/hidraw[0-9]+$ ]] || return 1
+
+  restore_fido_acls() {
+    local p
+
+    for p in "${revoked[@]}"; do
+      /usr/bin/sudo /usr/bin/setfacl -m "u:${mapuser}:rw-" -- "$p" || true
+    done
+  }
+
+  trap restore_fido_acls RETURN
+
+  while IFS= read -r path; do
+    [[ $path == "$target" ]] && continue
+    [[ $path =~ ^/dev/hidraw[0-9]+$ ]] || continue
+    /usr/bin/sudo /usr/bin/setfacl -x "u:${mapuser}" -- "$path"
+    revoked+=("$path")
+  done < <(fido_device_paths)
+
+  pamu2fcfg "$@"
+}
+
+# Prefer keys that are not already in the authfile. Isolate each candidate so
+# pamu2fcfg cannot enroll a duplicate on a registered stick that happens to
+# enumerate first.
+run_pamu2fcfg() {
+  local -a all_paths=() paths=()
+  local i target adding=0 skipped=0
+
+  for target in "$@"; do
+    [[ $target == --nouser ]] && adding=1
+  done
+
+  mapfile -t all_paths < <(fido_device_paths)
+  if ((${#all_paths[@]} == 0)); then
+    return 1
+  fi
+
+  if ((adding)) && [[ -f $authfile && ! -L $authfile ]]; then
+    echo "Checking plugged keys against the authfile (no touch needed for this step)..." >&2
+    mapfile -t paths < <(unregistered_fido_paths)
+    skipped=$((${#all_paths[@]} - ${#paths[@]}))
+    if ((${#paths[@]} == 0)); then
+      echo -e "\e[31mAll plugged FIDO keys already appear in $authfile.\e[0m" >&2
+      echo "Unplug registered keys or plug the new key, then try again." >&2
+      return 1
+    fi
+    if ((skipped > 0)); then
+      echo -e "\e[33mSkipping $skipped already-registered key(s); ${#paths[@]} left to register.\e[0m" >&2
+    fi
+  else
+    paths=("${all_paths[@]}")
+  fi
+
+  if ((${#paths[@]} == 1)); then
+    echo "Touch the blinking key once to register it." >&2
+    # Still isolate when other FIDO nodes are present but filtered out.
+    if ((${#all_paths[@]} > 1)); then
+      pamu2fcfg_on_device "${paths[0]}" "$@"
+    else
+      pamu2fcfg "$@"
+    fi
+    return
+  fi
+
+  # Progress goes to stderr so command substitutions only capture the credential.
+  echo -e "\e[33mMultiple new FIDO keys detected (${#paths[@]}).\e[0m" >&2
+  echo "Each will be tried in turn (newest first)." >&2
+  echo "Touch only the key you want to add when it blinks." >&2
+  echo "If another new key blinks first, wait it out — do not touch — and the next will be tried." >&2
+  echo >&2
+
+  for ((i = ${#paths[@]} - 1; i >= 0; i--)); do
+    target=${paths[i]}
+    echo "Trying $target ($((${#paths[@]} - i))/${#paths[@]}) — touch only if this is the key to add..." >&2
+    if pamu2fcfg_on_device "$target" "$@"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 setup_pam_config() {
   # Configure sudo
   if ! grep -q pam_u2f.so /etc/pam.d/sudo; then
@@ -119,7 +289,7 @@ if [[ ! -f $authfile ]]; then
     exit 1
   fi
 
-  if pamu2fcfg | sudo tee "$stage" >/dev/null && [[ -s $stage ]]; then
+  if run_pamu2fcfg | sudo tee "$stage" >/dev/null && [[ -s $stage ]]; then
     sudo chmod 644 "$stage"
     sudo mv -Tf "$stage" "$authfile"
     stage=""
@@ -130,7 +300,138 @@ if [[ ! -f $authfile ]]; then
     exit 1
   fi
 else
-  echo "FIDO2 device already registered."
+  # Authfile already exists: offer to append this key to the invoking user's
+  # line only. Never create, replace, or delete credentials, and never rewrite
+  # another user's mapping.
+  echo -n "A key is already registered. Add this key as an additional device? [y/N] "
+  read -r reply || true
+  if [[ ! $reply =~ ^[Yy]$ ]]; then
+    echo -e "\e[33mLeaving the existing registration unchanged.\e[0m"
+    echo "pam_u2f will only accept keys whose credentials are in $authfile."
+    echo "To replace the existing registration, run omarchy-remove-security-fido2, then this setup again."
+    exit 0
+  fi
+
+  mapuser=$(/usr/bin/id -un)
+
+  before_devices=$(/usr/bin/awk -F: -v user="$mapuser" '
+    $1 == user {
+      count++
+      devices = NF - 1
+    }
+    END {
+      if (count != 1 || devices < 1) {
+        exit 1
+      }
+      print devices
+    }
+  ' "$authfile") || {
+    echo -e "\e[31m\nNo single existing FIDO2 mapping for $mapuser in $authfile.\e[0m"
+    echo "To replace the existing registration, run omarchy-remove-security-fido2, then this setup again."
+    exit 1
+  }
+
+  echo -e "\e[32m\nLet's add an additional FIDO2 device.\e[0m"
+  echo "Already-registered keys that are still plugged in will be skipped automatically."
+  echo
+
+  # Capture the new credential unprivileged. pamu2fcfg --nouser omits the
+  # username but still prints a leading ':' (the device separator), e.g.
+  # :keyhandle,pubkey,es256,+presence — strip that before validating/appending.
+  # run_pamu2fcfg skips sticks that already match the authfile, then isolates
+  # each remaining candidate so pamu2fcfg cannot enroll a duplicate.
+  new_cred=$(run_pamu2fcfg --nouser) || {
+    echo -e "\e[31m\nFIDO2 registration failed. Please try again.\e[0m"
+    exit 1
+  }
+  new_cred=${new_cred%%$'\n'*}
+  new_cred=${new_cred#:}
+  if [[ -z $new_cred || $new_cred == *:* ]]; then
+    echo -e "\e[31m\nFIDO2 registration produced an invalid credential. Please try again.\e[0m"
+    exit 1
+  fi
+
+  stage=""
+
+  safe_stage_path() {
+    local candidate=$1
+    local prefix="$authfile.new."
+    local suffix
+
+    [[ $candidate == "$prefix"* ]] || return 1
+    suffix=${candidate#"$prefix"}
+    [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
+  }
+
+  cleanup_stage() {
+    local status=$?
+
+    if safe_stage_path "$stage"; then
+      /usr/bin/sudo /usr/bin/rm -f -- "$stage" || true
+    fi
+
+    return "$status"
+  }
+
+  trap cleanup_stage EXIT
+  stage=$(/usr/bin/sudo /usr/bin/mktemp "$authfile.new.XXXXXX")
+
+  if ! safe_stage_path "$stage" || [[ ! -f $stage || -L $stage ]]; then
+    echo -e "\e[31m\nCould not create a safe staging file beside $authfile.\e[0m"
+    exit 1
+  fi
+
+  # Root-owned authfile in, root-owned stage out. The awk program is an argv
+  # element; the new credential arrives only as -v. Both pipe ends run as root.
+  if /usr/bin/sudo /usr/bin/awk -v user="$mapuser" -v cred="$new_cred" '
+    BEGIN { FS = OFS = ":" }
+    $1 == user {
+      matched++
+      $0 = $0 OFS cred
+    }
+    { print }
+    END {
+      if (matched != 1) {
+        exit 1
+      }
+    }
+  ' "$authfile" | /usr/bin/sudo /usr/bin/tee "$stage" >/dev/null && [[ -s $stage ]]; then
+    after_devices=$(/usr/bin/sudo /usr/bin/awk -F: -v user="$mapuser" '
+      $1 == user {
+        count++
+        devices = NF - 1
+        line = $0
+      }
+      END {
+        if (count != 1) {
+          exit 1
+        }
+        # Refuse a line that awk could not split cleanly into username + devices.
+        n = split(line, fields, ":")
+        if (n != devices + 1 || fields[1] != user) {
+          exit 1
+        }
+        print devices
+      }
+    ' "$stage") || {
+      echo -e "\e[31m\nStaged FIDO2 authfile failed validation. Nothing was changed.\e[0m"
+      exit 1
+    }
+
+    if [[ $after_devices -ne $((before_devices + 1)) ]]; then
+      echo -e "\e[31m\nStaged FIDO2 authfile device count is wrong. Nothing was changed.\e[0m"
+      exit 1
+    fi
+
+    /usr/bin/sudo /usr/bin/chmod 644 "$stage"
+    /usr/bin/sudo /usr/bin/mv -Tf "$stage" "$authfile"
+    stage=""
+    trap - EXIT
+    echo -e "\e[32mFIDO2 device added successfully!\e[0m"
+  else
+    echo -e "\e[31m\nFIDO2 registration failed. Please try again.\e[0m"
+    exit 1
+  fi
 fi
 
 # Configure PAM
