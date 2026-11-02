@@ -18,7 +18,7 @@ Omarchy ships with an ergonomically-optimized Tmux configuration, which has a lo
 
 Because Tmux is programmable, we can use functions to create layouts. Omarchy ships with four different functions for common developer layouts.
 
-`tdl [agent]` starts a three-way split IDE-like interface with the `$EDITOR` on the left, your chosen AI agent on the right (like `c` for opencode or `cx` for Claude or `codex` for OpenAI), and then a terminal at the bottom.
+`tdl [agent]` starts a three-way split IDE-like interface with the `$EDITOR` on the left, an AI agent on the right, and then a terminal at the bottom. On its own, `tdl` runs your [default agent](17-ai.md#the-default-agent); name one to pick a different agent, like `c` for opencode or `cx` for Claude or `codex` for OpenAI.
 
 So `tdl c` would start this (or just `ic`):
 
@@ -28,7 +28,7 @@ You can also start a second agent with `tdl c cx` (opencode + claude) (or just `
 
  ![tmux-tdl2](images/tmux-tdl2.webp)
 
-There's also `tds`, which starts a four-way square with the editor top left, a live diff watcher top right, a terminal bottom left, and opencode bottom right.
+There's also `tds [agent]`, which starts a four-way square with the editor top left, a live diff watcher top right, a terminal bottom left, and your default agent (or the one you name) bottom right.
 
 You can also start this layout configuration for every subdirectory in the current directory using `tdlm [agent]`, then navigate using `alt + 1/2/3/4/5/...`:
 
