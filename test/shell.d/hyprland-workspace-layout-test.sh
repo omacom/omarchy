@@ -654,16 +654,35 @@ active = browser
 -- The browser brought up over the maximized window takes a click on itself.
 assert(click() == browser, "a click on the window over the maximized one missed it")
 
--- A click beside it on the maximized window raises that one, but the browser is
--- still drawn over it, so the next click on the browser still reaches it.
+-- A click beside it on the maximized window brings that one to the front, so
+-- the browser is no longer drawn over a window that would take its clicks.
 click(maximized)
-assert(click() == browser, "a click on the browser went through it after the maximized window was clicked")
+assert(not browser.allowed_over_fullscreen, "the browser stayed drawn over the maximized window that was clicked")
+assert(click() == maximized, "a click on the maximized window in front went elsewhere")
 
--- Its maximized neighbour asking for focus, as an app does right after opening
--- a link there, raises it too, and a click on the browser still reaches it, its
--- titlebar buttons included.
+-- The browser brought back from the dock, then its maximized neighbour asking for
+-- focus back, as an app does right after opening a link there: the browser stays
+-- in front, and takes a click on itself, its titlebar buttons included.
+asks_for_focus(browser)
 asks_for_focus(maximized)
+assert(browser.allowed_over_fullscreen, "an app asking for focus hid the browser over it")
 assert(click() == browser, "a click on the browser went to the maximized window that asked for focus")
+
+-- With the maximized window focused and the browser over it, a click on the
+-- maximized window still brings it forward, though its focus does not change.
+asks_for_focus(maximized)
+click(maximized)
+assert(not browser.allowed_over_fullscreen, "a click on the focused maximized window left the browser over it")
+
+-- Focus passing through the maximized window on its way to the browser, as it
+-- does when the browser comes back from the dock, leaves the browser in front.
+asks_for_focus(browser)
+active = maximized
+emit("window.active", maximized)
+active = browser
+emit("window.active", browser)
+settle()
+assert(browser.allowed_over_fullscreen, "focus passing through the maximized window hid the browser")
 
 -- However the maximized window got above the browser still drawn over it, a
 -- click on the browser reaches it.
@@ -687,13 +706,28 @@ assert(index_of(maximized) < index_of(browser) and index_of(browser) < index_of(
   "putting the windows drawn over the maximized one back above it reordered them")
 table.remove(stack, index_of(editor))
 
--- A true fullscreen window keeps the screen to itself: a click restacks nothing.
+-- A true fullscreen window clicked keeps the browser over it as it is.
 maximized.fullscreen = 2
-move(browser, true)
-move(maximized, true)
-browser.allowed_over_fullscreen = true
-click()
-assert(index_of(maximized) > index_of(browser), "a click restacked the windows over a true fullscreen window")
+click(maximized)
+assert(browser.allowed_over_fullscreen, "a click on a true fullscreen window restacked the windows over it")
+
+-- The dock bringing forward the maximized window that has the focus already,
+-- which Hyprland reports nothing for, still brings it in front of the browser.
+maximized.fullscreen = 1
+asks_for_focus(browser)
+asks_for_focus(maximized)
+o.bring_forward("0xA")
+assert(not browser.allowed_over_fullscreen, "the dock left the browser over the focused maximized window")
+
+-- A dialog over the maximized window, such as the file picker its app waits on,
+-- floats on its own account and belongs over it: a click on the maximized window
+-- leaves it there, and a click on the dialog reaches it.
+local picker = window("0xC")
+click(picker)
+click(maximized)
+assert(picker.allowed_over_fullscreen, "a click on the maximized window hid the dialog over it")
+assert(index_of(picker) > index_of(maximized), "the dialog drawn over the maximized window was left under it")
+assert(click() == picker, "a click on the dialog over the maximized window went through it")
 LUA
 
 if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \
