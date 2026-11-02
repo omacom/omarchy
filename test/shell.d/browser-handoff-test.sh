@@ -66,6 +66,13 @@ chmod +x "$test_tmp/wrapper/chromium"
 ! CHROME_USER_DATA_DIR=/elsewhere "$ROOT/bin/omarchy-cmd-browser-handoff" chromium https://example.test ||
   fail "a data directory from the environment is left to a browser of its own"
 
+# Omarchy adds this one on NVIDIA GPUs with GSP firmware, and the running
+# browser started with it.
+echo "--disable-accelerated-video-decode" >>"$flags_file"
+"$ROOT/bin/omarchy-cmd-browser-handoff" chromium https://example.test ||
+  fail "the software video decode flag Omarchy adds still hands off"
+pass "the software video decode flag Omarchy adds still hands off"
+
 # The handoff forwards no flags file, so any flag beyond Omarchy's own, which
 # may be meant for each launch, needs the launcher.
 for flag in '--new-window' '--enable-features=A --profile-directory="Profile 1"'; do
