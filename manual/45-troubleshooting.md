@@ -16,9 +16,9 @@ Before you reboot, try restarting the offending subsystem on its own. _Update > 
 
 ### The screen froze when I rebooted
 
-A raw `systemctl reboot` (or `reboot`) from a terminal or coding agent skips Omarchy's on-screen notice and window close, so the last frame stays on screen while systemd shuts down. Use `omarchy system reboot` instead — it shows an on-screen notice and closes windows first.
+A reboot that sits on the last frame for minutes can be caused by a kernel driver stuck in uninterruptible sleep, holding up shutdown. Unloading an audio, GPU, or Wi-Fi module that is still in use with `modprobe -r` is one way to get there. Wait it out, or hold the power button; don't try to unload the driver again.
 
-If the machine still hangs on reboot, a kernel driver may be stuck in uninterruptible sleep. Unloading an audio, GPU, or Wi-Fi module that is still in use with `modprobe -r` is one way to get there. Wait it out, or hold the power button; don't try to unload the driver again.
+Reboot with `omarchy system reboot` rather than a raw `systemctl reboot` (or `reboot`) from a terminal or coding agent. It shows an on-screen notice and asks apps to close first, so you can tell the reboot has started.
 
 ### Why are my external speakers not playing?
 
