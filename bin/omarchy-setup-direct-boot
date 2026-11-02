@@ -44,10 +44,19 @@ if [[ -n $boot_num ]]; then
 
   exit 0
 else
-  uki_file=$(sudo find /boot/EFI/Linux/ -name "omarchy*.efi" -printf "%f\n" 2>/dev/null | head -1)
+  # Keep the kernel that is running successfully, including hardware-specific
+  # kernels. Directory order can otherwise silently select stock linux.
+  kernel=$(cat "/usr/lib/modules/$(uname -r)/pkgbase" 2>/dev/null)
 
-  if [[ -z $uki_file ]]; then
-    echo "Error: No Omarchy UKI found in /boot/EFI/Linux/" >&2
+  if [[ -z $kernel ]]; then
+    echo "Error: Cannot identify the running kernel package. Reboot into an installed kernel and try again." >&2
+    exit 1
+  fi
+
+  uki_file="omarchy_${kernel}.efi"
+
+  if ! sudo test -f "/boot/EFI/Linux/$uki_file"; then
+    echo "Error: No Omarchy UKI found for the running kernel ($kernel)." >&2
     exit 1
   fi
 
