@@ -113,6 +113,15 @@ Item {
     sessionLock.locked = true
   }
 
+  // finishUnlock() drops the request before it releases the lock, so a lock that
+  // ends while still requested was lost without authentication. Take it again.
+  function relockLostLock() {
+    if (!lockRequested || pendingSessionLock || sessionLock.locked || sessionLock.secure) return
+
+    logEvent("lock-lost: relocking")
+    queueSessionLock()
+  }
+
   // ext-session-lock outlives its client, and a restart carries no lock over, so
   // a session locked this early may be an orphan behind Hyprland's failsafe. It
   // may also be another shell's live lock, which Hyprland would let this one
@@ -475,6 +484,8 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+      } else {
+        Qt.callLater(root.relockLostLock)
       }
     }
 
@@ -485,15 +496,8 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
-      }
-
-      if (!locked && root.lockRequested) {
-        root.lockRequested = false
-        root.pendingSessionLock = false
-        sessionLockStabilizeTimer.stop()
-        pendingSessionLockTimer.stop()
-        root.resetAuthenticationState()
-        root.runWake()
+      } else {
+        Qt.callLater(root.relockLostLock)
       }
     }
 
