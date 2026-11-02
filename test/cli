@@ -756,6 +756,7 @@ assert_output_contains "body metadata command dispatches by filename" "$output" 
 {
   printf '#!/bin/bash\n\n'
   printf '# omarchy:summary=Partial resolution help test parent\n'
+  printf '# omarchy:args=<word> [args...]\n'
   printf '# omarchy:alias=omarchy parenthelp-alias\n'
   printf 'echo "parenthelp-parent-ran args=[$*]"\n'
 } >"$TMPDIR/omarchy-parenthelp"
@@ -801,6 +802,62 @@ assert_output_contains "a --help behind -- belongs to the command and still forw
 
 output=$("$TMPDIR/omarchy" parenthelp --helpme x--help)
 assert_output_contains "help lookalike tokens do not trigger help" "$output" "parenthelp-parent-ran args=[--helpme x--help]"
+
+# A group parent documents what an operand looks like. When it documents none,
+# a bare word left over after it is a mistyped subcommand and must not run the
+# parent: `omarchy update firmwre` used to start a full update, ignore the typo
+# and report the full run instead of what was asked for.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Unknown subcommand test parent\n'
+  printf '# omarchy:args=[-y]\n'
+  printf 'echo "subcommand-parent-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-subcommandparent"
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Unknown subcommand test child\n'
+  printf 'echo subcommand-child-ran\n'
+} >"$TMPDIR/omarchy-subcommandparent-child"
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Unknown subcommand test parent without arguments\n'
+  printf 'echo "noargs-parent-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-noargsparent"
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Unknown subcommand test child without arguments\n'
+  printf 'echo noargs-child-ran\n'
+} >"$TMPDIR/omarchy-noargsparent-child"
+chmod +x "$TMPDIR"/omarchy-subcommandparent* "$TMPDIR"/omarchy-noargsparent*
+
+status=0
+stderr=$("$TMPDIR/omarchy" subcommandparent typo 2>&1 >/dev/null) || status=$?
+(( status == 127 )) || fail "a mistyped subcommand exits 127 (got $status)"
+[[ $stderr == *"Unknown Omarchy command: omarchy subcommandparent typo"* ]] ||
+  fail "a mistyped subcommand names the whole route"
+[[ $stderr == *"omarchy subcommandparent --help"* ]] ||
+  fail "a mistyped subcommand points at the group's help"
+pass "a mistyped subcommand is rejected by its name"
+
+output=$("$TMPDIR/omarchy" subcommandparent typo 2>/dev/null) || true
+[[ -z $output ]] || fail "a mistyped subcommand does not run the parent"
+pass "a mistyped subcommand does not run the parent"
+
+output=$("$TMPDIR/omarchy" noargsparent typo 2>/dev/null) || true
+[[ -z $output ]] || fail "a parent without documented arguments rejects a bare word too"
+pass "a parent without documented arguments rejects a bare word too"
+
+status=0
+stderr=$("$TMPDIR/omarchy" subcommandparent -y typo 2>&1 >/dev/null) || status=$?
+(( status == 127 )) || fail "a bare word after a flag is still a mistyped subcommand"
+[[ $stderr == *"omarchy subcommandparent typo"* ]] || fail "a bare word after a flag is named in the error"
+pass "a bare word after a flag is still a mistyped subcommand"
+
+output=$("$TMPDIR/omarchy" subcommandparent child)
+assert_output_contains "a documented child still resolves" "$output" "subcommand-child-ran"
+
+output=$("$TMPDIR/omarchy" subcommandparent -- literal)
+assert_output_contains "a -- closes the option list before the bare word check" "$output" "subcommand-parent-ran args=[-- literal]"
 
 # Alias and metadata-moved routes resolve by loading only the commands that can
 # own a route under their first word, then dispatch exactly like a full load.
