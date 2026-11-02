@@ -60,5 +60,11 @@ omarchy-shell -q battery refreshPowerProfile >/dev/null 2>&1 || true
 
 if [[ -n $requested_profile ]]; then
   mkdir -p "$state_dir"
-  printf '%s\n' "$requested_profile" >"$state_file"
+  # Write a copy and move it over the old one, so a full disk keeps the previous
+  # preference instead of leaving an empty file.
+  tmp=$(mktemp "$state_dir/.$action.XXXXXX") || exit
+  if ! printf '%s\n' "$requested_profile" >"$tmp" || ! mv "$tmp" "$state_file"; then
+    rm -f "$tmp"
+    exit 1
+  fi
 fi

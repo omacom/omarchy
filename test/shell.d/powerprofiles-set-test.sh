@@ -17,6 +17,11 @@ if [[ $1 == "list" ]]; then
 elif [[ $1 == "set" ]]; then
   [[ ${POWERPROFILES_SET_FAIL:-0} == "0" ]] || exit 1
   printf '%s\n' "$2" >>"$POWERPROFILES_LOG"
+  # The disk is full from here on: whatever the caller writes next is cut off
+  # after the file is opened, as ENOSPC does. The marker proves the limit took.
+  if [[ ${POWERPROFILES_SET_FILLS_DISK:-0} != "0" ]]; then
+    prlimit --pid "$PPID" --fsize=0: && touch "$POWERPROFILES_LOG.disk-full"
+  fi
 fi
 EOF
 chmod +x "$tmp_dir/bin/powerprofilesctl"
@@ -50,6 +55,13 @@ if POWERPROFILES_SET_FAIL=1 "$ROOT/bin/omarchy-powerprofiles-set" ac performance
 fi
 [[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "power profile preserves preference after failed selection"
 pass "power profile persists only successful selections"
+
+# A full disk lets the file be emptied and then fails the write. The remembered
+# profile must outlive that.
+(trap '' XFSZ; POWERPROFILES_SET_FILLS_DISK=1 "$ROOT/bin/omarchy-powerprofiles-set" ac performance) 2>/dev/null || true
+[[ -e "$tmp_dir/calls.disk-full" ]] || fail "the full-disk stub could not limit the script's writes"
+[[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "power profile keeps its preference when saving it fails"
+pass "power profile keeps its preference when saving it fails"
 
 "$ROOT/bin/omarchy-powerprofiles-set" battery performance
 [[ $(<"$tmp_dir/state/battery") == "performance" ]] || fail "power profile stores battery preference"
