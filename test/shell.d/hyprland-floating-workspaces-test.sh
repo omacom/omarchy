@@ -321,6 +321,7 @@ hl = {
     subscriptions[event] = subscriptions[event] or {}
     table.insert(subscriptions[event], callback)
   end,
+  bind = function() end,
   timer = function(callback) callback() end,
   get_loaded_plugins = function()
     return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}

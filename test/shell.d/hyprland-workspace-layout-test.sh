@@ -222,6 +222,7 @@ hl = {
   dispatch = function() end,
   dsp = { window = { float = function(spec) return spec end, tag = function(spec) return spec end } },
   on = function() end,
+  bind = function() end,
   get_active_workspace = function() return { id = 3 } end,
   get_config = function() end,
   config = function() end,
@@ -356,6 +357,7 @@ hl = {
     subscriptions[event] = subscriptions[event] or {}
     table.insert(subscriptions[event], callback)
   end,
+  bind = function() end,
   -- The move handler waits for the move to land; here it lands at once.
   timer = function(callback) callback() end,
   get_active_workspace = function() return { id = 3 } end,
@@ -483,6 +485,208 @@ if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROO
   fail "a saved floating mode floats the workspace without inventing a layout"
 fi
 pass "a saved floating mode floats the workspace without inventing a layout"
+
+# A window drawn over a maximized one has to take the clicks on it. Hyprland
+# draws the maximized window under every floating window it lets over it, but
+# hands a click to the highest in the stacking order, so the two must agree.
+stacking_script="$tmpdir/maximized-stacking.lua"
+
+cat >"$stacking_script" <<'LUA'
+local handlers, binds, timers = {}, {}, {}
+local stack = {}
+local active
+
+local function window(address, options)
+  local created = {
+    address = address,
+    floating = true,
+    pinned = false,
+    fullscreen = options and options.fullscreen or 0,
+    allowed_over_fullscreen = true,
+    tags = options and options.tags or {},
+    workspace = { id = 3 },
+  }
+  table.insert(stack, created)
+  return created
+end
+
+local function index_of(target)
+  for index, candidate in ipairs(stack) do
+    if candidate == target then
+      return index
+    end
+  end
+end
+
+-- Hyprland's own restacking: raising lets a window over a maximized one,
+-- lowering hides it behind.
+local function move(target, top)
+  table.remove(stack, index_of(target))
+  table.insert(stack, top and #stack + 1 or 1, target)
+  target.allowed_over_fullscreen = top
+end
+
+local function by_address(address)
+  for _, candidate in ipairs(stack) do
+    if "address:" .. candidate.address == address then
+      return candidate
+    end
+  end
+end
+
+hl = {
+  workspace_rule = function() end,
+  window_rule = function() end,
+  get_workspace_windows = function(selector)
+    local found = {}
+    for _, candidate in ipairs(stack) do
+      if tostring(candidate.workspace.id) == tostring(selector) then
+        table.insert(found, candidate)
+      end
+    end
+    return found
+  end,
+  get_windows = function(filter)
+    if not filter then
+      return stack
+    end
+    local found = {}
+    for _, candidate in ipairs(stack) do
+      for _, tag in ipairs(candidate.tags) do
+        if tag == filter.tag then
+          table.insert(found, candidate)
+        end
+      end
+    end
+    return found
+  end,
+  get_window = function(selector) return by_address(selector) end,
+  get_active_window = function() return active end,
+  dispatch = function(action)
+    if action.zorder then
+      move(by_address(action.window), action.zorder == "top")
+    end
+  end,
+  dsp = {
+    window = {
+      float = function(spec) return spec end,
+      tag = function(spec) return spec end,
+      alter_zorder = function(spec) return { zorder = spec.mode, window = spec.window } end,
+    },
+  },
+  on = function(event, callback)
+    handlers[event] = handlers[event] or {}
+    table.insert(handlers[event], callback)
+  end,
+  bind = function(keys, callback, options)
+    binds[keys] = { callback = callback, options = options }
+  end,
+  -- Hyprland runs a timer once the event that set it is handled.
+  timer = function(callback) table.insert(timers, callback) end,
+  get_active_workspace = function() return { id = 3 } end,
+  get_config = function() end,
+  config = function() end,
+  plugin = { load = function() end },
+}
+
+local function emit(event, target)
+  for _, callback in ipairs(handlers[event] or {}) do
+    callback(target)
+  end
+end
+
+local function settle()
+  while #timers > 0 do
+    table.remove(timers, 1)()
+  end
+end
+
+local maximized, browser
+
+-- What a click on a spot both windows cover reaches: the highest of the windows
+-- let over the maximized one, the maximized one counting as one of them.
+local function window_under_click()
+  for index = #stack, 1, -1 do
+    local candidate = stack[index]
+    if candidate == maximized or candidate.allowed_over_fullscreen then
+      return candidate
+    end
+  end
+end
+
+-- A click: binds first, then Hyprland focuses and raises the window it picked.
+local function click(target)
+  if binds["mouse:272"] then
+    binds["mouse:272"].callback()
+  end
+  local picked = target or window_under_click()
+  if active ~= picked then
+    active = picked
+    emit("window.active", picked)
+  end
+  move(picked, true)
+  settle()
+  return picked
+end
+
+-- An app asking for focus: Hyprland marks it urgent, raises it, then focuses it.
+local function asks_for_focus(target)
+  emit("window.urgent", target)
+  move(target, true)
+  active = target
+  emit("window.active", target)
+  settle()
+end
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+require("default.hypr.workspace-layouts")
+o.workspace_mode({ workspace = "3", mode = "floating" })
+settle()
+
+local bind = binds["mouse:272"]
+assert(not bind or bind.options.non_consuming, "watching clicks kept them from the window under the pointer")
+
+maximized = window("0xA", { fullscreen = 1 })
+browser = window("0xB", { tags = { "omarchy-mode-floated" } })
+active = browser
+
+-- The browser brought up over the maximized window takes a click on itself.
+assert(click() == browser, "a click on the window over the maximized one missed it")
+
+-- A click beside it on the maximized window raises that one, but the browser is
+-- still drawn over it, so the next click on the browser still reaches it.
+click(maximized)
+assert(click() == browser, "a click on the browser went through it after the maximized window was clicked")
+
+-- Its maximized neighbour asking for focus, as an app does right after opening
+-- a link there, raises it too, and a click on the browser still reaches it, its
+-- titlebar buttons included.
+asks_for_focus(maximized)
+assert(click() == browser, "a click on the browser went to the maximized window that asked for focus")
+
+-- However the maximized window got above the browser still drawn over it, a
+-- click on the browser reaches it.
+move(browser, true)
+active = maximized
+move(maximized, true)
+browser.allowed_over_fullscreen = true
+assert(click() == browser, "a click on a window drawn over the maximized one went through it")
+
+-- A true fullscreen window keeps the screen to itself: a click restacks nothing.
+maximized.fullscreen = 2
+move(browser, true)
+move(maximized, true)
+browser.allowed_over_fullscreen = true
+click()
+assert(index_of(maximized) > index_of(browser), "a click restacked the windows over a true fullscreen window")
+LUA
+
+if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \
+  lua "$stacking_script"; then
+  fail "a window drawn over a maximized one takes the clicks on it"
+fi
+pass "a window drawn over a maximized one takes the clicks on it"
 
 # A layout change replaces the last layout notification rather than stacking
 # another under it.

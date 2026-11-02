@@ -297,6 +297,62 @@ local function unmaximize_others(window)
   end
 end
 
+-- Hyprland draws a maximized window under every floating window it lets over
+-- it, whatever their order, but hands a click to whichever is highest in that
+-- order. Anything that raises the maximized window, a click on it or an app
+-- asking for focus, leaves it above windows still drawn over it, and they pass
+-- every click through to it. So the order is kept to what is on screen. A true
+-- fullscreen window keeps the screen to itself and is left alone.
+local function maximized_on_floating_workspace(window)
+  return window ~= nil and window.floating and (window.fullscreen or 0) == 1 and window.workspace ~= nil
+    and floating_workspace(window.workspace.id)
+end
+
+-- The windows drawn over a maximized one, bottom to top, and how many of them
+-- are under it in the order clicks follow.
+local function drawn_over(window)
+  local over, under, passed = {}, 0, false
+
+  for _, other in ipairs(hl.get_workspace_windows(tostring(window.workspace.id))) do
+    if other.address == window.address then
+      passed = true
+    elseif other.floating and other.allowed_over_fullscreen and not other.pinned then
+      table.insert(over, other)
+      if not passed then
+        under = under + 1
+      end
+    end
+  end
+
+  return over, under
+end
+
+local function restack(window, mode)
+  hl.dispatch(hl.dsp.window.alter_zorder({ mode = mode, window = "address:" .. window.address }))
+end
+
+-- Puts the windows drawn over a maximized one back above it, in their own order.
+local function keep_over(window)
+  local over, under = drawn_over(window)
+  if under == 0 then
+    return
+  end
+
+  for _, other in ipairs(over) do
+    restack(other, "top")
+  end
+end
+
+-- A click goes to what is on screen, so the order is put right before Hyprland
+-- picks the window under the pointer.
+local function before_click()
+  for _, window in ipairs(hl.get_windows()) do
+    if maximized_on_floating_workspace(window) then
+      keep_over(window)
+    end
+  end
+end
+
 -- The workspace is passed in when a window is still on its way to it.
 local function arrange(windows, workspace)
   local floating = {}
@@ -368,6 +424,10 @@ local function watch()
       arrange({ window })
     end, { type = "oneshot", timeout = 1 })
   end)
+
+  for button = 272, 276 do
+    hl.bind("mouse:" .. button, before_click, { non_consuming = true, ignore_mods = true })
+  end
 
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)
