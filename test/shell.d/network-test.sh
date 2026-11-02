@@ -43,6 +43,9 @@ assert(
 assertEqual(network.effectiveConnectivity('limited', true), 'full', 'network accepts a successful routed probe')
 assertEqual(network.effectiveConnectivity('limited', false), 'limited', 'network keeps an unverified limited result')
 assertEqual(network.effectiveConnectivity('portal', true), 'portal', 'network never overrides a captive portal')
+assert(network.routedProbeSucceeded(0, '204'), 'network accepts the expected connectivity response')
+assert(!network.routedProbeSucceeded(0, '200'), 'network rejects an unexpected success response')
+assert(!network.routedProbeSucceeded(47, '204'), 'network rejects a failed connectivity probe')
 
 assertDeepEqual(
   network.parseNetworkStatus('wifi\tCafe WiFi\t78\t5200\n'),

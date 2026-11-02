@@ -48,9 +48,7 @@ Panel {
   property real routerPingLatency: -1
   property real internetPingLatency: -1
   property int internetPingPacketLoss: 0
-  property bool routedConnectivity: false
-  property int routedConnectivityGeneration: 0
-  property int routedProbeGeneration: -1
+  property var service: null
   readonly property int pingHistoryWindow: 24
   readonly property int pingAverageWindow: 5
   readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, effectiveConnectivity)
@@ -509,7 +507,7 @@ Panel {
     Portal: NetworkConnectivity.Portal, Limited: NetworkConnectivity.Limited,
     Full: NetworkConnectivity.Full, None: NetworkConnectivity.None
   }, connectivityChecksEnabled)
-  readonly property string effectiveConnectivity: Model.effectiveConnectivity(connectivity, routedConnectivity)
+  readonly property string effectiveConnectivity: Model.effectiveConnectivity(connectivity, service ? service.routedConnectivity : false)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || effectiveConnectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, effectiveConnectivity)
@@ -520,21 +518,8 @@ Panel {
     ? kind + ":" + wifiDevice.name
     : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
 
-  onConnectionKeyChanged: {
-    routedConnectivity = false
-    routedConnectivityGeneration++
-    Qt.callLater(checkConnectivity)
-  }
-  onConnectivityChecksEnabledChanged: {
-    routedConnectivityGeneration++
-    if (!connectivityChecksEnabled) routedConnectivity = false
-    Qt.callLater(checkConnectivity)
-  }
-  onConnectivityChanged: {
-    routedConnectivityGeneration++
-    if (connectivity !== "limited") routedConnectivity = false
-    else Qt.callLater(checkRoutedConnectivity)
-  }
+  onConnectionKeyChanged: Qt.callLater(checkConnectivity)
+  onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
   onHasCaptivePortalChanged: {
     if (hasCaptivePortal && opened && passwordSsid === "") {
       focusSection = "portal"
@@ -553,14 +538,6 @@ Panel {
     if (connectivityChecksEnabled && kind !== "disconnected") Networking.checkConnectivity()
   }
 
-  // NetworkManager binds its check to the physical device. A second probe
-  // follows the normal route, so a working VPN or TUN can clear a false warning.
-  function checkRoutedConnectivity() {
-    if (connectivity !== "limited" || !connectivityChecksEnabled || routedConnectivityProc.running) return
-    routedProbeGeneration = routedConnectivityGeneration
-    routedConnectivityProc.running = true
-  }
-
   function openCaptivePortal() {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
@@ -577,11 +554,8 @@ Panel {
     id: connectivityPoll
     interval: 10000
     repeat: true
-    running: (root.hasCaptivePortal || root.connectivity === "limited") && root.connectivityChecksEnabled
-    onTriggered: {
-      root.checkConnectivity()
-      root.checkRoutedConnectivity()
-    }
+    running: root.hasCaptivePortal && root.connectivityChecksEnabled
+    onTriggered: root.checkConnectivity()
   }
 
   // The share card is its own panel plugin (omarchy.wifiqr) so a replacement
@@ -947,19 +921,6 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.updateDetails(text)
-    }
-  }
-
-  Process {
-    id: routedConnectivityProc
-    command: ["curl", "--fail", "--silent", "--show-error", "--noproxy", "*",
-      "--max-time", "6", "--output", "/dev/null", Model.captivePortalUrl]
-    onExited: function(exitCode) {
-      if (routedProbeGeneration !== routedConnectivityGeneration || root.connectivity !== "limited") {
-        Qt.callLater(root.checkRoutedConnectivity)
-        return
-      }
-      root.routedConnectivity = exitCode === 0
     }
   }
 
@@ -1927,7 +1888,7 @@ Panel {
         id: networkIcon
         textFormat: Text.PlainText
         text: row.net ? Model.connectionIcon("wifi", row.net.signal,
-          row.isConnected && root.kind === "wifi" ? root.connectivity : "") : ""
+          row.isConnected && root.kind === "wifi" ? root.effectiveConnectivity : "") : ""
         color: row.statusColor
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.title
