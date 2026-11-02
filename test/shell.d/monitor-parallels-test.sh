@@ -529,7 +529,7 @@ for operation in mktemp install mv; do
       absent) rm "$fixture_home/config/autostart/prlcc.desktop" ;;
       symlink | dangling)
         rm "$fixture_home/config/autostart/prlcc.desktop"
-        target="$test_tmp/original-$original"
+        target="$test_tmp/original-[$original]*"
         [[ $original == "dangling" ]] || cp "$test_tmp/original.desktop" "$target"
         ln -s "$target" "$fixture_home/config/autostart/prlcc.desktop"
         ;;
@@ -546,7 +546,11 @@ for operation in mktemp install mv; do
     elif [[ $original == "present" ]]; then
       cmp -s "$test_tmp/original.desktop" "$fixture_home/config/autostart/prlcc.desktop" || fail "retry preserves original bytes"
     else
-      [[ -L $fixture_home/config/autostart/prlcc.desktop && $(readlink "$fixture_home/config/autostart/prlcc.desktop") == "$target" ]] || fail "retry preserves original symlink"
+      [[ -L $fixture_home/config/autostart/prlcc.desktop ]] || fail "retry restores an original symlink"
+      case $(readlink "$fixture_home/config/autostart/prlcc.desktop") in
+        "$target") ;;
+        *) fail "retry preserves original symlink" ;;
+      esac
     fi
   done
 done
