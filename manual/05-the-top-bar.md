@@ -53,7 +53,7 @@ The panels aren't read-outs. They're where you actually do the thing:
 - **Audio** has a master volume slider, an output-device picker, and a per-app mixer, so you can turn down that one browser tab without touching everything else.
 - **Network** scans for Wi-Fi, shows signal strength, connects, and lets you pick a DNS provider.
 - **Bluetooth** lists your devices with connect/disconnect and battery levels.
-- **Power** shows battery stats, switches power profiles (it remembers a separate choice for battery and AC), and prints some system info.
+- **Power** shows battery stats and switches power profiles (it remembers a separate choice for battery and AC).
 - **Display** carries a brightness slider, text size, monitor scaling presets, and — when you have more than one screen — per-monitor controls. See [monitors](33-monitors.md) for the deeper story.
 - **Clock** opens a month grid with ISO week numbers and month stepping.
 - **World clock** keeps a row per city, with its weather and how its day is going. Search finds towns as well as time zones, so Fort Lauderdale is Fort Lauderdale and not New York. If the line at the top names the wrong city, click it and say where you are; pick somewhere on another time zone and the system clock moves there too, which is handy when you travel. Hover a city and click the person button to say who lives there — plain names, or `@` GitHub handles to bring their faces along.
