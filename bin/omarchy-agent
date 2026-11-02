@@ -127,6 +127,10 @@ grok)
   command=(grok --permission-mode bypassPermissions)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
+gjc)
+  command=(gjc)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
 openclaw)
   # The launcher owns onboarding and the gateway dance: OpenClaw's terminal UI
   # must attach to the running gateway (the embedded `openclaw chat` refuses to
