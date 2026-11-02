@@ -24,6 +24,7 @@ local dragging, pressed, focused, keyboard = false, nil, 1, false
 local focused_id='play'
 local last_move, visible = mp.get_time(), true
 local pointer_seek_target, pending_seek_target
+local mouse_seek_queue={}
 local visibility_mode='auto'
 local reveal_until, milliseconds, show_total = mp.get_time()+3, false, true
 local volume_feedback_until, seek_feedback_until=0, 0
@@ -97,6 +98,10 @@ local function clamp_seek(target,window)
 end
 local function clear_pending_seek()
   pending_seek_target=nil
+  mouse_seek_queue={}
+end
+local function seek_tolerance()
+  return math.max(.05,2/math.max(1,number('container-fps',30)))
 end
 -- Recover if a source rejects a seek without emitting playback-restart.
 local pending_seek_timer=mp.add_timeout(3,function()
@@ -119,6 +124,7 @@ local function seek_mouse()
         mp.set_property_native('user-data/omarchy/seek-target',target)
       end
       pending_seek_target=target
+      mouse_seek_queue[#mouse_seek_queue+1]=target
       pending_seek_timer:kill(); pending_seek_timer:resume()
       mp.commandv('seek',target,'absolute+exact')
       last_drag_seek=target
@@ -779,6 +785,25 @@ mp.observe_property('sub-margin-y','number',function(_,value)
   end
 end)
 mp.register_event('seek',function()
+  if pending_seek_target then
+    -- Match native seek notifications to our queued mouse commands. An
+    -- unmatched seek (keyboard, chapter, IPC, etc.) owns the timeline now.
+    local target=prop('time-pos')
+    local matched,distance
+    if type(target)=='number' then
+      for i,value in ipairs(mouse_seek_queue) do
+        local delta=math.abs(value-target)
+        if not distance or delta < distance then matched,distance=i,delta end
+      end
+    end
+    if distance and distance <= seek_tolerance() then
+      local remaining={}
+      for i=matched+1,#mouse_seek_queue do remaining[#remaining+1]=mouse_seek_queue[i] end
+      mouse_seek_queue=remaining
+    else
+      clear_pending_seek(); pending_seek_timer:kill()
+    end
+  end
   seek_feedback_until=mp.get_time()+1.5
   reveal_until=seek_feedback_until
   request_render()
@@ -786,7 +811,7 @@ end)
 mp.register_event('playback-restart',function()
   -- Running playback can already be a couple of frames past the target when
   -- Lua receives the completion event.
-  local tolerance=math.max(.05,2/math.max(1,number('container-fps',30)))
+  local tolerance=seek_tolerance()
   -- A completion from an earlier seek must not release a newer target.
   if pending_seek_target and not prop('seeking',false) and
     math.abs(number('time-pos')-pending_seek_target) <= tolerance then

@@ -61,8 +61,8 @@ def test():
         def prop(name):
           return command('get_property', name)
 
-        def wait(predicate, description):
-          deadline = time.monotonic() + 5
+        def wait(predicate, description, timeout=5):
+          deadline = time.monotonic() + timeout
           while time.monotonic() < deadline:
             if predicate():
               return
@@ -131,7 +131,14 @@ def test():
         pointer('move', .8)
         assert abs(prop('user-data/omarchy/timeline-time') - target) < 1e-6, \
           'Thumb returned to a stale playback position before seek completion'
+        wait(lambda: decoded(target), 'Mouse seek did not decode before interruption')
         command('script-message-to', 'seek', 'stale-time', '')
+        wait(lambda: prop('user-data/test/stale-time') is False,
+          'Playback clock did not recover')
+        command('keypress', 'Shift+LEFT')
+        wait(lambda: decoded(target - 1), 'Keyboard seek did not decode')
+        wait(lambda: abs(prop('user-data/omarchy/timeline-time') - prop('time-pos')) < .02,
+          'Keyboard seek left the timeline pinned to the earlier mouse target', timeout=.5)
         command('loadfile', str(video))
         wait(lambda: prop('user-data/omarchy/file-generation') == 2, 'Reload did not complete')
         wait(lambda: prop('user-data/omarchy/timeline-time') is not None and
@@ -139,7 +146,7 @@ def test():
           'Seek target leaked into the next file')
         print('PASS: exact clicks and drags on a two-second sparse-keyframe clip, '
             'small pointer movements, stationary deduplication, playback feedback, '
-            'stable thumb and file reset.')
+            'stable thumb, superseding keyboard seeks and file reset.')
       except Exception:
         log.flush()
         log.seek(0)
