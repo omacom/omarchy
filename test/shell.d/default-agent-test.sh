@@ -296,6 +296,22 @@ grep -Fq "Choose default agent with" "$test_tmp/no-agent-output" ||
 [[ ! -s $launch_log ]] || fail "agent launcher starts nothing without a default"
 pass "agent launcher refuses to launch without a default"
 
+# The agents panel launches a running local model whether or not a default was
+# chosen; it opens in an agent with an overlay all the same.
+cat >"$mock_bin/omarchy-agent-local" <<'SH'
+#!/bin/bash
+[[ $1 == "overlay" ]] && printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
+SH
+chmod +x "$mock_bin/omarchy-agent-local"
+: >"$launch_log"
+omarchy-agent --local-model test-model >"$test_tmp/local-output" 2>&1 ||
+  fail "agent launcher opens a local model without a default: $(<"$test_tmp/local-output")"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"/overlays/"*"-local.config"* ]] ||
+  fail "agent launcher points the local model's agent at its overlay: ${launch_args[*]}"
+rm "$mock_bin/omarchy-agent-local"
+pass "agent launcher opens a local model without a default"
+
 # The keybinding uses --pick, where an error on stderr nobody sees would make
 # the keypress look broken. It offers the choice instead.
 : >"$launch_log"
