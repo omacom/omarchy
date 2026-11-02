@@ -142,9 +142,11 @@ pass "default binding variable disables all Omarchy bindings"
 dictation_home="$tmpdir/dictation-home"
 missing_bin="$tmpdir/missing-bin"
 mkdir -p "$dictation_home" "$missing_bin"
-ln -s "$(command -v lua)" "$missing_bin/lua"
-ln -s "$(command -v lspci)" "$missing_bin/lspci"
-ln -s "$(command -v sort)" "$missing_bin/sort"
+# Link real binaries, not version-manager shims: under PATH="$missing_bin" a
+# mise/asdf shim's fallback lookup finds the link back at itself and recurses.
+ln -s "$(command -p -v lua)" "$missing_bin/lua"
+ln -s "$(command -p -v lspci)" "$missing_bin/lspci"
+ln -s "$(command -p -v sort)" "$missing_bin/sort"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
   fail "unconfigured dictation leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "unconfigured dictation leaves application shortcuts available"; fi
