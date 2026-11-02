@@ -10,7 +10,7 @@ set -euo pipefail
 # sudoers rule, or re-execed by require_root below — sudo's secure_path decides
 # where a bare helper resolves, and a dev link (etc/sudoers.d/omarchy-dev-path)
 # prepends a user-writable checkout bin/ to it. Every helper this script calls
-# by bare name (flock, install, printf) is a system tool, never an omarchy-* command,
+# by bare name (install, printf) is a system tool, never an omarchy-* command,
 # so pin PATH to trusted system directories and keep root from resolving one out
 # of that checkout. The unprivileged wrapper phase keeps the caller's PATH so it
 # can still find sudo/pkexec.
@@ -19,7 +19,6 @@ if (( EUID == 0 )); then
 fi
 
 PACKAGED_PATH=/usr/bin/omarchy-powerprofiles-apple-cpufreq-apply
-APPLE_CPUFREQ_LOCK=${OMARCHY_APPLE_CPUFREQ_LOCK:-/run/omarchy/powerprofiles-apple-cpufreq.lock}
 cpufreq_root=${OMARCHY_APPLE_CPUFREQ_SYSFS_ROOT:-/sys/devices/system/cpu/cpufreq}
 
 pick_cap_hz() {
@@ -87,15 +86,6 @@ if [[ $driver != 'apple-cpufreq' ]]; then
 fi
 
 pct=$(cap_pct_for_profile "$profile") || exit 1
-
-lock_dir=${APPLE_CPUFREQ_LOCK%/*}
-install -d -m 0755 "$lock_dir"
-install -m 0666 /dev/null "$APPLE_CPUFREQ_LOCK"
-exec {apple_lock_fd}>>"$APPLE_CPUFREQ_LOCK"
-if ! flock -w 30 "$apple_lock_fd"; then
-  echo "omarchy-powerprofiles-apple-cpufreq-apply: another profile change is in progress" >&2
-  exit 1
-fi
 
 for policy in "$cpufreq_root"/policy*; do
   [[ -r $policy/cpuinfo_max_freq ]] || continue
