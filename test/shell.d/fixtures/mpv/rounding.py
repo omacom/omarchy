@@ -43,8 +43,12 @@ def test():
     rounding = home / 'rounding.json'
     rounding.write_text('{"int": 0}')
     calls = home / 'hyprctl-calls'
+    failure = home / 'hyprctl-failure'
+    failure.write_text('none')
     hyprctl = bin_dir / 'hyprctl'
-    hyprctl.write_text('#!/bin/sh\nprintf "%s\\n" "$PPID" >> "$MPV_TEST_CALLS"\ncat "$MPV_TEST_ROUNDING"\n')
+    hyprctl.write_text('#!/bin/sh\nprintf "%s\\n" "$PPID" >> "$MPV_TEST_CALLS"\n'
+      'case "$(cat "$MPV_TEST_FAILURE")" in\n  fail) exit 1 ;;\n  timeout) exec sleep 3 ;;\nesac\n'
+      'cat "$MPV_TEST_ROUNDING"\n')
     hyprctl.chmod(0o755)
     # A real event socket drives the production watcher without reloading the desktop.
     event_path = home / 'hypr/test/.socket2.sock'
@@ -115,6 +119,7 @@ end
         'av://lavfi:testsrc2=size=640x360:rate=24'], stdout=log, stderr=subprocess.STDOUT,
         env={**os.environ, 'PATH': str(bin_dir)+os.pathsep+os.environ['PATH'],
           'MPV_TEST_ROUNDING': str(rounding), 'MPV_TEST_CALLS': str(calls),
+          'MPV_TEST_FAILURE': str(failure),
           'XDG_RUNTIME_DIR': str(home), 'HYPRLAND_INSTANCE_SIGNATURE': 'test'})
       try:
         deadline = time.monotonic() + 10
@@ -160,6 +165,17 @@ end
             time.sleep(.05)
           raise AssertionError(f'Rounding did not reload: {log_path.read_text()}')
 
+        def query_count():
+          return len(calls.read_text().splitlines())
+
+        def wait_query_after(count):
+          deadline = time.monotonic() + 5
+          while time.monotonic() < deadline:
+            if query_count() > count:
+              return
+            time.sleep(.05)
+          raise AssertionError('Rounding query did not run')
+
         wait_radius(0)
         # Allow the initial result and its replacement subscription to settle.
         time.sleep(.4)
@@ -173,6 +189,36 @@ end
         emit()
         wait_radius(8)
         assert property('pause') is True
+        # Failed and timed-out reads preserve corners, then reconnect without
+        # another event or restarting playback. Repeated failures must back off.
+        for mode, recovered in (('fail', 6), ('timeout', 8)):
+          time.sleep(.15)
+          failure.write_text(mode)
+          count = query_count()
+          emit()
+          wait_query_after(count)
+          time.sleep(.15)
+          retained = property('user-data/omarchy/control-corner-radius')
+          time.sleep(.3)
+          assert property('user-data/omarchy/control-corner-radius') == retained
+          failure.write_text('none')
+          rounding.write_text(json.dumps({'int': recovered}))
+          wait_radius(recovered)
+          assert property('pause') is True
+        time.sleep(.15)
+        failure.write_text('fail')
+        count = query_count()
+        emit()
+        wait_query_after(count)
+        time.sleep(2.3)
+        assert query_count() - count <= 2, 'Failed watcher retries too quickly'
+        assert property('user-data/omarchy/control-corner-radius') == 8
+        failure.write_text('none')
+        rounding.write_text('{"int": 7}')
+        wait_radius(7)
+        rounding.write_text('{"int": 8}')
+        emit()
+        wait_radius(8)
         for bad in ('invalid', '{}', '{"int": -2}', '{"int": "12"}'):
           rounding.write_text(bad)
           emit()
@@ -228,8 +274,17 @@ end
         theme.write_text(legacy)
         wait_palette(parsed(legacy))
         assert property('user-data/omarchy/theme').get('mode') is None
+        # Quit while a failed watcher has a delayed reconnect pending.
+        failure.write_text('fail')
+        count = query_count()
+        emit()
+        wait_query_after(count)
+        time.sleep(.15)
         command('quit')
         player.wait(timeout=5)
+        calls_at_exit = calls.read_text()
+        time.sleep(1.2)
+        assert calls.read_text() == calls_at_exit, 'Watcher retries after mpv exits'
         watcher_pids = {int(pid) for pid in calls.read_text().splitlines()}
         deadline = time.monotonic() + 3
         while any(Path(f'/proc/{pid}').exists() for pid in watcher_pids) and time.monotonic() < deadline:
@@ -243,7 +298,7 @@ end
           capture_output=True, text=True, timeout=10)
         assert fixed.returncode == 0 and 'PASS: fixed radius' in fixed.stdout, fixed.stdout+fixed.stderr
         assert 'stack traceback' not in fixed.stdout+fixed.stderr
-        print('PASS: event-driven rounding, idle process budget, watcher cleanup, paused palette reloads, invalid-data recovery, and rounded ASS geometry.')
+        print('PASS: rounding failure/timeout recovery, retry backoff and shutdown, idle process budget, paused palette reloads, invalid-data recovery, and rounded ASS geometry.')
       finally:
         if player.poll() is None:
           player.terminate()

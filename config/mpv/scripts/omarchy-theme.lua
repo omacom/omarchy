@@ -116,7 +116,8 @@ end
 -- Match the shell's Style.cornerRadius source, including user overrides.
 -- Keep geometry separate from color selection: a player-only palette never
 -- changes the desktop's window/control shape.
-local rounding_request, rounding_timeout, rounding_watch
+local rounding_request, rounding_timeout, rounding_watch, rounding_retry
+local rounding_retry_delay=1
 local shutting_down=false
 local function apply_rounding(contents)
   local data = utils.parse_json(contents)
@@ -169,7 +170,18 @@ local function watch_rounding(previous)
     args={'python3', '-c', rounding_events, event_socket, previous or ''},
     capture_stdout=true, capture_stderr=true, playback_only=false}, function(success, result)
     rounding_watch=nil
-    if shutting_down or not success or not result or result.status ~= 0 then return end
+    if shutting_down then return end
+    if not success or not result or result.status ~= 0 then
+      -- Retain the last radius through failed reads and compositor disconnects.
+      -- Retry only failures, backing off to avoid an idle process-spawn loop.
+      rounding_retry = mp.add_timeout(rounding_retry_delay, function()
+        rounding_retry=nil
+        watch_rounding(previous)
+      end)
+      rounding_retry_delay=math.min(rounding_retry_delay*2,30)
+      return
+    end
+    rounding_retry_delay=1
     apply_rounding(result.stdout)
     watch_rounding(result.stdout)
   end)
@@ -182,6 +194,7 @@ end
 mp.register_script_message('reload-omarchy-rounding', reload_rounding)
 mp.register_event('shutdown', function()
   shutting_down=true
+  if rounding_retry then rounding_retry:kill() end
   if rounding_watch then mp.abort_async_command(rounding_watch) end
   if rounding_request then mp.abort_async_command(rounding_request) end
   if rounding_timeout then rounding_timeout:kill() end
