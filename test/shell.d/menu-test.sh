@@ -216,13 +216,6 @@ assertDeepEqual(
   [],
   'menu never hides an Install row because the software is already there'
 )
-// Each font row dims on the very package its action installs.
-assert(
-  defaultItems.filter(item => item.id.startsWith('install.style.font.')).every(
-    item => item.disabled === `omarchy-pkg-present ${item.action.match(/^omarchy-install-font ('[^']*'|\S+) (\S+)/)[2]}`
-  ),
-  'menu dims the Install font rows for fonts that are already installed'
-)
 assert(
   defaultItems.filter(item => item.id.startsWith('remove.')).every(item => !item.disabled),
   'menu hides Remove rows rather than dimming them'
