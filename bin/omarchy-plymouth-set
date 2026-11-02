@@ -203,6 +203,7 @@ run_root_transaction() {
       preview-unlock.png
       progress_bar.png
       progress_box.png
+      warning.png
     )
     plymouth_default_assets=("${plymouth_theme_assets[@]}" logos/oma.png)
     sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png)
@@ -282,12 +283,19 @@ run_root_transaction() {
       bg_g=$(awk -v n=$((16#${bg_hex:2:2})) "BEGIN{printf \"%.3f\", n/255}")
       bg_b=$(awk -v n=$((16#${bg_hex:4:2})) "BEGIN{printf \"%.3f\", n/255}")
 
+      text_r=$(awk -v n=$((16#${text_hex:0:2})) "BEGIN{printf \"%.3f\", n/255}")
+      text_g=$(awk -v n=$((16#${text_hex:2:2})) "BEGIN{printf \"%.3f\", n/255}")
+      text_b=$(awk -v n=$((16#${text_hex:4:2})) "BEGIN{printf \"%.3f\", n/255}")
+
       sed -i \
         -e "s/^Window.SetBackgroundTopColor.*/Window.SetBackgroundTopColor($bg_r, $bg_g, $bg_b);/" \
         -e "s/^Window.SetBackgroundBottomColor.*/Window.SetBackgroundBottomColor($bg_r, $bg_g, $bg_b);/" \
+        -e "s/^text_color.red = .*/text_color.red = $text_r;/" \
+        -e "s/^text_color.green = .*/text_color.green = $text_g;/" \
+        -e "s/^text_color.blue = .*/text_color.blue = $text_b;/" \
         "$plymouth_stage/omarchy.script"
 
-      for asset in bullet.png entry.png lock.png progress_bar.png; do
+      for asset in bullet.png entry.png lock.png progress_bar.png warning.png; do
         magick "$plymouth_stage/$asset" -channel RGB +level-colors "#$text_hex","#$text_hex" "$plymouth_stage/$asset"
       done
 
