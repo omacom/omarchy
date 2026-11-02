@@ -11,7 +11,49 @@ if ! git -C "$OMARCHY_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; the
   exit 1
 fi
 
-upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
+# Prints the current upstream, or nothing when it doesn't resolve (rev-parse
+# echoes the literal @{upstream} on failure).
+resolve_upstream() {
+  local upstream
+  if upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
+    echo "$upstream"
+  fi
+}
+
+current=$(git -C "$OMARCHY_PATH" branch --show-current 2>/dev/null || true)
+merge=$(git -C "$OMARCHY_PATH" config --get "branch.${current}.merge" 2>/dev/null || true)
+remote=$(git -C "$OMARCHY_PATH" config --get "branch.${current}.remote" 2>/dev/null || true)
+
+# master was deleted when quattro became the default branch. Only a branch that
+# tracks master on a real remote is considered, and only once a pruning fetch
+# shows that master is actually gone there. A fork that still has master, or a
+# branch tracking a local master (remote = .) or a bare URL, is left alone.
+if [[ $merge == "refs/heads/master" && -n $remote ]] && git -C "$OMARCHY_PATH" config --get "remote.$remote.url" >/dev/null; then
+  if ! git -C "$OMARCHY_PATH" fetch --prune "$remote"; then
+    echo "Error: could not fetch $remote to check whether its master branch still exists." >&2
+    echo "Fix the remote or network, then run the update again." >&2
+    exit 1
+  fi
+
+  if [[ -z $(resolve_upstream) ]]; then
+    hint="Check out quattro: git -C \"$OMARCHY_PATH\" checkout -b quattro --track $remote/quattro"
+    if ! git -C "$OMARCHY_PATH" rev-parse --verify --quiet "refs/remotes/$remote/quattro" >/dev/null; then
+      echo "Error: upstream $remote/master no longer exists and $remote has no quattro branch." >&2
+      exit 1
+    fi
+    if ! git -C "$OMARCHY_PATH" merge-base --is-ancestor HEAD "$remote/quattro"; then
+      echo "Error: upstream $remote/master no longer exists, and $current has commits that are not on $remote/quattro." >&2
+      echo "$hint" >&2
+      echo "Then rebase or cherry-pick your own commits onto it." >&2
+      exit 1
+    fi
+    echo -e "\e[33m\nUpstream $remote/master is gone; tracking $remote/quattro\e[0m"
+    git -C "$OMARCHY_PATH" branch --set-upstream-to="$remote/quattro"
+  fi
+fi
+
+upstream=$(resolve_upstream)
+
 if [[ -z $upstream ]]; then
   echo -e "\e[33m\nSkip Omarchy dev checkout update (current branch has no upstream)\e[0m"
   exit 0
