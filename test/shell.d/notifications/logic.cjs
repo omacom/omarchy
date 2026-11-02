@@ -371,6 +371,7 @@ function newCapacityScope() {
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
     Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
+    NotificationCloseReason: { Expired: 1, Dismissed: 2, CloseRequested: 3 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
     Style: { space: n => n, duration: n => n },
@@ -386,7 +387,7 @@ function newCapacityScope() {
     let tracked = false, destroyed = false
     const signal = () => {
       const listeners = []
-      return { connect: f => listeners.push(f), emit: () => listeners.slice().forEach(f => f()) }
+      return { connect: f => listeners.push(f), emit: (...args) => listeners.slice().forEach(f => f(...args)) }
     }
     const close = reason => {
       n.closeAttempts++
@@ -395,7 +396,7 @@ function newCapacityScope() {
       tracked = false
       if (reason === 'expired') n.expiries++
       else n.dismissals++
-      n.closed.emit()
+      n.closed.emit(reason === 'expired' ? 1 : 2)
     }
     const n = { id, summary, body: 'Synthetic body: ' + summary, urgency, appName: 'Fixture',
       actions: [{ identifier: 'open', text: summary }], dismissals: 0, expiries: 0,
@@ -404,6 +405,8 @@ function newCapacityScope() {
       set tracked(value) { if (value) tracked = true; else close('dismissed') },
       dismiss() { close('dismissed') },
       expire() { close('expired') },
+      // The sender's CloseNotification: the server destroys the object itself.
+      withdraw() { destroyed = true; tracked = false; n.closed.emit(3) },
       // NotificationServer::Notify mutates the same QObject; no new server event.
       replace(properties) {
         const changed = Object.keys(properties).filter(field => n[field] !== properties[field])
@@ -684,6 +687,20 @@ for (const held of [true, false]) { // A cancelled pending card frees exactly on
   assert.equal(s.toasts.count, 100)
   assert.equal(s.toasts.rows.filter(r => r.summary === 'Cancelled').length, 0)
   assert.equal(s.toasts.rows.filter(r => r.summary === 'Reused sender ID').length, 1)
+}
+
+{ // A visible card leaves when its sender withdraws the notification.
+  const s = newCapacityScope()
+  const withdrawn = s.fakeNotification(1, 'Read elsewhere', 2)
+  s.handleNotification(withdrawn)
+  s.drainCallLater()
+  const key = s.keyForOriginal(1)
+  assert.equal(s.rowIndexFor(key), 0)
+  withdrawn.withdraw()
+  assert.equal(s.leaving[key], 'closed', 'a sender close starts the card leaving')
+  s.finishClose(key, s.leaving[key])
+  assert.equal(s.toasts.count, 0)
+  assert.equal(withdrawn.closeAttempts, 0, 'the shell does not close it again at the server')
 }
 
 { // A callback queued before the pointer arrived must not insert or overwrite the held update.
