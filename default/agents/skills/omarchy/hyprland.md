@@ -14,6 +14,7 @@ defaults, so overrides go here:
 ├── input.lua          # Keyboard/mouse settings
 ├── looknfeel.lua      # Appearance (gaps, borders, animations)
 ├── autostart.lua      # Startup applications
+├── extensions/*.lua   # Add-ons, loaded in name order between Omarchy's defaults and the files above
 ├── hyprsunset.conf    # Night light / blue light filter
 └── xdph.conf          # Screen sharing / desktop portal
 ```
@@ -23,7 +24,8 @@ defaults, so overrides go here:
 - Use `hyprctl reload` to force reload
 - After ANY Hyprland Lua config change, validate with `hyprctl reload` followed by `hyprctl configerrors`
 - If `hyprctl configerrors` reports errors, address them and rerun validation until clean or until a real blocker is identified
-- Use `omarchy refresh hyprland` to reset the Lua config files to defaults
+- Use `omarchy refresh hyprland` to reset the Lua config files to defaults (it leaves `extensions/` alone)
+- A file in `extensions/` that fails to load is skipped and shown as a Hyprland error notification, not in `hyprctl configerrors`
 
 The two `.conf` files are read by separate processes, so `hyprctl` neither
 applies nor validates them:
