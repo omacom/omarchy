@@ -229,14 +229,16 @@ read_monitor_position() {
 
 # The mode the user's rules give the panel, so re-enabling it does not drop a
 # chosen refresh rate or resolution: "preferred" lets Hyprland pick, and what it
-# picks can be a lower refresh rate than the one configured. Like the scale, the
-# display panel's choice comes first, an internal rule that names a mode settles
-# it, and only a rule that names none defers to the catch-all.
+# picks can be a lower refresh rate than the one configured. The display panel's
+# choice comes first, then the internal rule; Hyprland gives an output with a
+# rule of its own nothing from the catch-all, so only without one is that read.
 read_monitor_mode() {
   local mode
   mode=$(saved_internal_monitor_value mode)
   [[ -n $mode ]] || mode=$(configured_internal_monitor_value mode)
-  [[ -n $mode ]] || mode=$(configured_monitor_value "" mode)
+  if [[ -z $mode ]] && ! monitor_rules | grep -Eq "$(monitor_rule_regex "$INTERNAL")"; then
+    mode=$(configured_monitor_value "" mode)
+  fi
   # A bare word naming no local reaches here as itself, so only Hyprland's mode
   # keywords and WxH@R pass, and nothing else is written into the Lua.
   if [[ $mode =~ ^([0-9]+x[0-9]+(@[0-9.]+)?|preferred|highrr|highres|maxwidth)$ ]]; then

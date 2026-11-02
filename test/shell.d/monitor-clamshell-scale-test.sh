@@ -302,10 +302,14 @@ hl.monitor({ output = "", mode = "highres", position = "auto-right", scale = 1 }
 expect_sync "clamshell recovery keeps the mode of the internal rule" off 1.75 'mode = "2880x1800@120"' <<<"$mode_config"
 expect_sync "scale sync keeps the mode of the internal rule" 2 - 'mode = "2880x1800@120"' <<<"$mode_config"
 
-# A rule that names no mode for the panel defers to the catch-all, as the scale does.
-expect_sync "clamshell recovery takes the catch-all mode when the internal rule has none" off 1.75 'mode = "highrr"' <<'LUA'
-hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+# The catch-all's mode reaches the panel only when it has no rule of its own:
+# Hyprland brings a panel whose rule names no mode up at preferred.
+expect_sync "clamshell recovery takes the catch-all mode when the panel has no rule" off 1.75 'mode = "highrr"' <<'LUA'
 hl.monitor({ output = "", mode = "highrr", position = "auto-right", scale = 1 })
+LUA
+expect_sync "clamshell recovery keeps the catch-all mode off a panel with its own rule" off 1.75 'mode = "preferred"' <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "2560x1440@144", position = "auto-right", scale = 1 })
 LUA
 
 expect_sync "clamshell recovery resolves a mode variable reference" off 1.75 'mode = "2880x1800@120"' <<'LUA'
