@@ -14,7 +14,13 @@ printf '%s' "$emoji" | wl-copy --type text/plain --sensitive --foreground &
 copy_pid=$!
 
 sleep 0.15
-wtype -M shift -k Insert -m shift 2>/dev/null || true
+# Match the universal paste binding: Ctrl+Shift+V in terminals, Ctrl+V elsewhere,
+# since Firefox ignores Shift+Insert and LibreOffice opens Paste Special on Ctrl+Shift+V.
+if hyprctl activewindow -j 2>/dev/null | jq -e '(.tags // []) | map(sub("\\*$"; "")) | index("terminal")' >/dev/null; then
+  wtype -M ctrl -M shift -k v -m shift -m ctrl 2>/dev/null || true
+else
+  wtype -M ctrl -k v -m ctrl 2>/dev/null || true
+fi
 sleep 0.2
 
 kill "$copy_pid" 2>/dev/null || true
