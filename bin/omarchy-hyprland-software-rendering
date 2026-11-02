@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# omarchy:summary=Turn off animations, blur and shadows for a Hyprland session that renders on the CPU
+# omarchy:hidden=true
+
+# Hyprland draws every frame on the CPU when Mesa has no driver for the GPU
+# (llvmpipe or softpipe), and animations then stutter and cost real CPU time.
+# Its renderer is only known once the compositor is up, after the config first
+# loaded, so this runs at start: it marks the session and reloads, and
+# default/hypr/software-rendering.lua then applies lighter defaults. They load
+# before ~/.config/hypr, so a user who turns animations on there keeps them.
+# The mark lives in the instance's runtime directory, so every new session
+# looks again.
+
+if [[ -z ${XDG_RUNTIME_DIR:-} || -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  exit 0
+fi
+
+marker="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/omarchy-software-rendering"
+if [[ -e $marker ]]; then
+  exit 0
+fi
+
+# Hyprland starts this before it has written its lock file or settled on its
+# DRM device, so the probe can't tell yet at first. Keep asking for up to 10s.
+# Mesa's complaints about devices it can't open are expected on exactly these
+# machines, so they stay out of the journal.
+for (( attempt = 1; attempt <= 20; attempt++ )); do
+  renderer=$(omarchy-hw-software-rendering --print 2>/dev/null)
+  status=$?
+  if (( status != 2 )); then
+    break
+  fi
+  sleep 0.5
+done
+
+if (( status == 0 )); then
+  # The renderer's name in the marker is only there for debugging.
+  printf '%s\n' "$renderer" >"$marker"
+  hyprctl reload >/dev/null
+
+  # Whatever is still on after the reload is what ~/.config/hypr turned back on.
+  kept=()
+  unread=0
+  for option in animations:enabled=animations decoration:blur:enabled=blur decoration:shadow:enabled=shadows; do
+    case $(hyprctl -j getoption "${option%=*}" 2>/dev/null | jq -r '.bool' 2>/dev/null) in
+      false) ;;
+      true) kept+=("${option#*=}") ;;
+      *) unread=1 ;;
+    esac
+  done
+
+  if (( unread )); then
+    logger -t omarchy -p user.debug "Hyprland renders on the CPU ($renderer), but its animations, blur or shadows setting couldn't be read after the reload."
+  elif (( ${#kept[@]} == 0 )); then
+    logger -t omarchy "Hyprland renders on the CPU ($renderer), so animations, blur and shadows are off for this session."
+    # The shell serves notifications and comes up slowly on the CPU, so wait
+    # for it. Transient, as it's sent again at every login while it applies. Not
+    # omarchy-action, as it's a notice, not a confirmation: Do Not Disturb holds it.
+    if omarchy-notification-wait 15; then
+      omarchy-notification-send --app-name "Software Rendering" -g 󰘚 -u normal -t 30000 --transient "$(omarchy-i18n animations.softwareRendering)" "$(omarchy-i18n animations.softwareRenderingBody)"
+    else
+      logger -t omarchy -p user.debug "No notification server after 15s, so the software-rendering notice went unshown."
+    fi
+  else
+    kept_list=${kept[*]}
+    logger -t omarchy "Hyprland renders on the CPU ($renderer); keeping the ${kept_list// / and } ~/.config/hypr turns on."
+  fi
+elif (( status == 2 )); then
+  logger -t omarchy -p user.debug "Couldn't read Hyprland's GL renderer after $(( attempt - 1 )) tries, so its animations stay as configured."
+fi
