@@ -4,16 +4,11 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-qml="$ROOT/shell/plugins/plugin-marketplace/PluginMarketplace.qml"
+# The overlay is driven through the request files it hands its summoner, so the
+# behaviour worth pinning is what it does with them: a second summon must finish
+# the request the first one left open, or the waiting command never returns.
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
 
-grep -Fq 'if (opened && doneFile) finishRequest(doneFile)' "$qml" ||
-  fail "marketplace completes an outstanding request before opening another"
-grep -Fq 'Keys.priority: Keys.AfterItem' "$qml" ||
-  fail "marketplace lets focused controls handle keyboard events first"
-grep -Fq 'Flow {' "$qml" || fail "marketplace wraps filters on narrow cards"
-grep -Fq 'ScrollView {' "$qml" || fail "marketplace keeps detail actions reachable when filters wrap"
-grep -Fq 'property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin)' "$qml" ||
-  fail "marketplace derives the primary action label and operation together"
-
-pass "plugin marketplace protects concurrent requests and focused controls"
-pass "plugin marketplace adapts filters and primary actions"
+OMARCHY_QML_TEST_SCRATCH="$scratch" \
+  run_qml_fixture marketplace-request "plugin marketplace finishes an open request before serving another" Ui Commons

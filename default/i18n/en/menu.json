@@ -1359,5 +1359,8 @@
   },
   "agent.make.game": {
     "label": "Make a game"
+  },
+  "setup.plugin.browse": {
+    "label": "Plugin Marketplace"
   }
 }

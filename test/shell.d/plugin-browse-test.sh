@@ -57,11 +57,17 @@ cat >"$mock_bin/omarchy-shell" <<'SH'
 set -euo pipefail
 
 [[ $1 == "shell" && $2 == "summon" && $3 == "omarchy.plugin-marketplace" ]] || exit 1
+# Refusing the summon is what a shell answers when the overlay is not loaded.
+if [[ ${OMARCHY_TEST_SUMMON_REPLY:-ok} != "ok" ]]; then
+  printf '%s\n' "$OMARCHY_TEST_SUMMON_REPLY"
+  exit 0
+fi
 printf '%s\0' "$@" >"$OMARCHY_TEST_SUMMON"
 printf '%s' "$4" >"$OMARCHY_TEST_PAYLOAD"
 cat "$(jq -r '.catalogFile' <<<"$4")" >"$OMARCHY_TEST_CATALOG_PAYLOAD"
 printf '%s\t%s\n' "${OMARCHY_TEST_ACTION:-}" "$OMARCHY_TEST_SELECTED_ID" >"$(jq -r '.selectionFile' <<<"$4")"
 touch "$(jq -r '.doneFile' <<<"$4")"
+printf 'ok\n'
 SH
 
 cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
@@ -190,6 +196,20 @@ jq -e '.[0] | .id == "bad.preview" and .previewPath == "" and .previewImages == 
   fail "plugin marketplace discards malformed preview fields"
 [[ ! -s $notification_log ]] || fail "plugin marketplace treats malformed optional previews as a catalog failure"
 pass "plugin marketplace handles malformed preview fields"
+
+# A shell that cannot open the overlay answers "unknown" and exits successfully.
+# Waiting on the done file afterwards would hang a command that has nothing to
+# wait for.
+printf '{"plugins":[{"id":"acme.clock","name":"Clock","repo":"https://github.com/acme/clock.git","sourceType":"community","installAvailable":true}]}\n' >"$catalog_file"
+: >"$notification_log"
+export OMARCHY_TEST_SUMMON_REPLY="unknown"
+if timeout 10 omarchy-plugin-browse; then
+  fail "plugin marketplace stops when the overlay refuses the summon"
+fi
+grep -Fq "Could not open the Omarchy plugin marketplace" "$notification_log" ||
+  fail "plugin marketplace reports a refused summon"
+unset OMARCHY_TEST_SUMMON_REPLY
+pass "plugin marketplace gives up when the overlay cannot open"
 
 printf '{"plugins":"broken"}\n' >"$catalog_file"
 if omarchy-plugin-browse; then
