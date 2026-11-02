@@ -673,6 +673,20 @@ move(maximized, true)
 browser.allowed_over_fullscreen = true
 assert(click() == browser, "a click on a window drawn over the maximized one went through it")
 
+-- With two windows drawn over it, one under it in click order and one above,
+-- both go back above it in their own order, so where they overlap a click
+-- still reaches the one drawn on top.
+local editor = window("0xD", { tags = { "omarchy-mode-floated" } })
+move(browser, true)
+move(maximized, true)
+move(editor, true)
+browser.allowed_over_fullscreen = true
+active = maximized
+binds["mouse:272"].callback()
+assert(index_of(maximized) < index_of(browser) and index_of(browser) < index_of(editor),
+  "putting the windows drawn over the maximized one back above it reordered them")
+table.remove(stack, index_of(editor))
+
 -- A true fullscreen window keeps the screen to itself: a click restacks nothing.
 maximized.fullscreen = 2
 move(browser, true)
