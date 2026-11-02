@@ -1,6 +1,6 @@
 # Auto-recover ELAN I2C Touchpad on Lenovo IdeaPad
 #
-# Some Lenovo IdeaPads (e.g. IdeaPad Slim 5 14IAH8 / 83BF) have a firmware DSDT bug
+# The Lenovo IdeaPad Slim 5 14IAH8 (machine type 83BF) has a firmware DSDT bug
 # that requests an unsupported 400kHz I2C bus speed. When Linux clamps this to 100kHz,
 # the Intel I2C bus controller (i2c_designware) occasionally times out during boot
 # with error -110 ("can't add hid device: -110"), leaving the touchpad undetected.
@@ -8,7 +8,7 @@
 # Keeping runtime power management "on" for the host controller bridge and rebinding
 # the i2c_designware adapter unfreezes the bus and recovers the ELAN touchpad.
 
-if omarchy-hw-match "IdeaPad Slim 5" || omarchy-hw-match "83BF"; then
+if omarchy-hw-match "83BF"; then
   sudo mkdir -p /etc/systemd/system
   sudo tee /etc/systemd/system/omarchy-ideapad-touchpad-fix.service >/dev/null <<'EOF'
 [Unit]
