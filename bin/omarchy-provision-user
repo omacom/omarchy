@@ -84,14 +84,16 @@ fi
 # Dev-aware skill symlinks. Cannot live in /etc/skel because OMARCHY_PATH may
 # point at a dev checkout (omarchy dev link) where the target differs.
 # Loops every skill directory, so shipping a new one needs no edit here.
-mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/.gemini/config/skills ~/.hermes/skills
+# Pi reads PI_CODING_AGENT_DIR when set.
+pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills "$pi_agent_dir/skills" ~/.gemini/config/skills ~/.hermes/skills
 for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   skill=${skill%/}
   name=${skill##*/}
   ln -sfn "$skill" ~/.agents/skills/"$name"
   ln -sfn "$skill" ~/.claude/skills/"$name"
   ln -sfn "$skill" ~/.codex/skills/"$name"
-  ln -sfn "$skill" ~/.pi/agent/skills/"$name"
+  ln -sfn "$skill" "$pi_agent_dir/skills/$name"
   ln -sfn "$skill" ~/.gemini/config/skills/"$name"
   ln -sfn "$skill" ~/.hermes/skills/"$name"
   if [[ -d ~/.hermes/profiles ]]; then
