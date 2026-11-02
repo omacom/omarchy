@@ -127,3 +127,29 @@ expected=$'-m 768 -a -p 4242\n-m 1024 -a -p 4242\n-m 0 -a -p 4242'
 [[ $(<"$UCLAMP_LOG") == "$expected" ]] ||
   fail "power profile floor follows the profile once listening, on profile changes and logins" "$(<"$UCLAMP_LOG")"
 pass "power profile floor follows the profile once listening, on profile changes and logins"
+
+cat >"$tmp_dir/bin/omarchy-hw-aarch64-apple" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$tmp_dir/bin/omarchy-hw-aarch64-apple"
+
+cat >"$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$1" >>"$APPLE_APPLY_LOG"
+printf '%s\n' "${OMARCHY_POWERPROFILES_STATE_USER:-}" >>"$APPLE_STATE_USER_LOG"
+exit 0
+EOF
+chmod +x "$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply"
+
+export APPLE_APPLY_LOG="$tmp_dir/apple-apply"
+export APPLE_STATE_USER_LOG="$tmp_dir/apple-state-user"
+: >"$APPLE_APPLY_LOG"
+: >"$APPLE_STATE_USER_LOG"
+
+POWERPROFILES_SET_FAIL=0 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
+[[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "apple path still calls powerprofilesctl"
+[[ $(tail -n 1 "$APPLE_APPLY_LOG") == "balanced" ]] || fail "apple path applies caps even when PPD succeeds"
+[[ $(tail -n 1 "$APPLE_STATE_USER_LOG") == "$(id -un)" ]] ||
+  fail "apple apply receives session user for state"
+pass "apple path always applies cpufreq caps and passes state user"
