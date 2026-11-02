@@ -11,7 +11,7 @@ require_command lua
 # base-test.sh does not set -e, so the assertions have to fail the file
 # themselves rather than leaving the pass below to run regardless.
 OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
-local rules, handlers = {}, {}
+local rules, handlers, spawned = {}, {}, {}
 local monitor = nil
 local workspace = nil
 
@@ -31,6 +31,7 @@ hl = {
     return list
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
+  exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
@@ -46,12 +47,19 @@ local function gaps()
 end
 
 -- Config loads before the outputs are up, so the first pass has no monitor to
--- read. It still has to leave a rule behind, or the console would open unseeded.
+-- read. It still has to leave a rule behind, or the console would open unplaced.
 assert(#rules > 0, "console is ruled even before a monitor can be read")
-assert(current().on_created_empty:find("omarchy%-agent"), "console is seeded with the default agent")
-assert(current().on_created_empty:find("^%[workspace special:qconsole silent%]"),
-  "the seed is pinned to the console rather than trusting the spawn to inherit it")
 assert(current().workspace == "special:qconsole")
+
+-- Only an empty console is seeded: one created by moving a window onto it
+-- already has its app, and other workspaces are none of its business.
+handlers["workspace.created"]({ name = "special:qconsole", is_empty = false })
+handlers["workspace.created"]({ name = "special:scratchpad", is_empty = true })
+assert(#spawned == 0, "only an empty console is seeded")
+handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
+assert(#spawned == 1 and spawned[1].cmd == "omarchy-agent", "console is seeded with the default agent")
+assert(spawned[1].rules.workspace == "special:qconsole silent",
+  "the seed is pinned to the console rather than trusting the spawn to inherit it")
 
 local function rescale(height, scale, bar)
   monitor = { width = 1920, height = height, scale = scale, transform = 0, reserved = { top = bar, bottom = 0, left = 0, right = 0 } }
@@ -71,7 +79,6 @@ assert(rescale(1440, 1, 0) == 720, "a monitor with nothing reserved")
 local final = current()
 assert(final.gaps_out.top == 0, "the console stays flush with the top, the way a drop-down arrives")
 assert(final.gaps_out.left == final.gaps_out.right, "the panel is centered")
-assert(final.on_created_empty:find("omarchy%-agent"), "refitting keeps the console seeded")
 assert(final.no_border == true, "the console drops the active window border")
 
 -- A monitor that cannot be read must not wipe the last good rule.

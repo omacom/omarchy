@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diskhastighetstest"
   },
-  "setup.monitors": {
-    "label": "Skjermer"
-  },
-  "setup.keybindings": {
-    "label": "Tastatursnarveier"
-  },
   "setup.input": {
     "label": "Inndata"
-  },
-  "setup.typing": {
-    "label": "Skriving"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tastaturlayout"
-  },
-  "setup.typing.input": {
-    "label": "Inndatametoder"
   },
   "setup.language": {
     "label": "Språk"
@@ -1285,5 +1270,23 @@
   },
   "setup.default.agent.qwen": {
     "label": "Qwen Code"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastatur"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Hurtigtaster"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Tastaturinndata"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Inndatametoder"
   }
 }
