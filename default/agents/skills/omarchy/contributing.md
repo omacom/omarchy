@@ -22,13 +22,15 @@ description with steps to reproduce, and diagnostics. Gather them:
 ```bash
 omarchy version
 
-# Generate the diagnostic log (also written to /tmp/omarchy-debug.log)
+# Generate the diagnostic log
 omarchy debug --no-sudo --print
 
 # Interactive variant: `omarchy debug` offers to upload the log to
 # logs.omarchy.org (expires after 24h) and prints a shareable URL to
 # include in the issue.
 ```
+
+The log is saved to `$XDG_RUNTIME_DIR/omarchy-debug.log`, falling back to `$XDG_STATE_HOME/omarchy/omarchy-debug.log` or `~/.local/state/omarchy/omarchy-debug.log` when the corresponding XDG variables are unset or empty.
 
 **Capture the problem on screen.** A screenshot or short recording of the bug
 is often worth more than the description — see [`capture.md`](capture.md) for
