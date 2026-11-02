@@ -295,6 +295,14 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
   for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
+  // A floating bar adds the margin it keeps off the edge it hangs from.
+  const margins = { top: 6, right: 12, bottom: 12, left: 12 }
+  assert.equal(Delivery.barReach({ ...bar, position: 'top', barMargins: margins }, 'notched', 26), 46)
+  assert.equal(Delivery.barReach({ ...bar, position: 'right', barMargins: margins }, 'plain', 26), 38)
+  assert.equal(Delivery.barReach({ ...bar, position: 'top', barMargins: { top: 0, right: 0, bottom: 0, left: 0 } }, 'plain', 26), 26)
+  assert.equal(Delivery.barReach({ ...bar, position: 'top' }, 'plain', 26), 26)
+  assert.equal(Delivery.barReach({ barHidden: true, position: 'top', barMargins: margins }, 'plain', 26), 0)
+  assert.equal(Delivery.barReach(null, 'plain', 28), 28)
 }
 
 // --------------------------------------------------- Service.qml functions
