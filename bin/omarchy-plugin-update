@@ -36,14 +36,26 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+# The plugin the catalog actually selected for a harness id, which is not the
+# only plugin that may declare it: a duplicate whose harness was ignored must
+# not clear a default that another plugin still provides.
+selected_harness_source() {
+  omarchy-agent-catalog --sources | jq -r --arg id "$1" '.[] | select(.id == $id) | .pluginId // empty' | head -n1
+}
+
 update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
   local old_harness
+  local old_source
+  local plugin_id
   local new_harness
   local was_enabled
   local agent_file="$HOME/.config/omarchy/defaults/agent"
+  plugin_id=$(jq -r '.id // empty' "$dir/manifest.json")
   old_harness=$(jq -r '.agentHarness.id // empty' "$dir/manifest.json")
+  old_source=""
+  [[ -z $old_harness ]] || old_source=$(selected_harness_source "$old_harness")
   was_enabled=$(omarchy-shell shell listPlugins | jq -r --arg id "$id" '.[] | select(.id == $id) | .enabled' | head -n1)
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
@@ -86,7 +98,8 @@ update_one() {
     omarchy-shell shell setPluginEnabled "$id" false >/dev/null
     echo "Disabled $id because it now provides agent metadata only."
   fi
-  if [[ -n $old_harness && $old_harness != "$new_harness" && -f $agent_file && $(<"$agent_file") == "$old_harness" ]]; then
+  if [[ -n $old_harness && $old_harness != "$new_harness" && -f $agent_file && $(<"$agent_file") == "$old_harness" ]] &&
+    [[ $old_source == "$plugin_id" ]]; then
     rm -f "$agent_file"
     echo "Cleared default coding agent $old_harness because its integration changed."
   fi

@@ -29,7 +29,15 @@ id=$(jq -r '.id' <<<"$harness")
 name=$(jq -r '.name' <<<"$harness")
 agent=$(jq -r '.install.command' <<<"$harness")
 agent_package=$(jq -r '.install.package // empty' <<<"$harness")
-agent_installer=$(jq -r '.install.installer // empty' <<<"$harness")
+# Only a harness declared as an installer may run one; a third-party harness
+# installs through mise, whatever else its manifest carries.
+agent_installer=$(jq -r 'if .install.type == "installer" then (.install.installer // empty) else empty end' <<<"$harness")
+# Omarchy declares a tool that takes backend options under its bare name, with
+# the options inside the declaration's table, because mise drops bracket options
+# from a table-valued key. The bracketed package is only for the user's config.
+agent_tool=$(jq -r '.install.tool // empty' <<<"$harness")
+agent_tool=${agent_tool:-$agent_package}
+agent_prereleases=$(jq -r '.install.prereleases // false' <<<"$harness")
 
 # Hermes and OpenClaw are not mise tools: each is installed and managed by its
 # dedicated integration. Their installers follow the same --check/--now
@@ -42,15 +50,47 @@ if [[ -n $agent_installer ]]; then
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
 else
+  # omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
+  # lines of their own and older ones after an inline variable; either way
+  # running one installs the tool it wraps. A symlink is the user's own install.
+  mise_wrapper() {
+    [[ ! -L $1 ]] && head -c 4096 "$1" | grep -qaE 'mise (use|x) '
+  }
+
   # Anything at the wrapper's path other than the wrapper is the user's own
   # install, such as the symlink Cursor's installer leaves. A mise copy would
   # only shadow it, since the mise shims precede ~/.local/bin on PATH.
   user_install() {
-    [[ -x $HOME/.local/bin/$agent ]] &&
-      { [[ -L $HOME/.local/bin/$agent ]] || ! grep -q '^mise use -g' "$HOME/.local/bin/$agent"; }
+    [[ -x $HOME/.local/bin/$agent ]] && ! mise_wrapper "$HOME/.local/bin/$agent"
   }
-  agent_present() { user_install || mise where -- "$agent_package" &>/dev/null; }
-  agent_install() { user_install || mise use -g -- "$agent_package"; }
+  agent_present() { user_install || mise where "$agent_tool" &>/dev/null; }
+  # Omarchy declares the default agents as mise tools, so installing one is
+  # enough and leaves the user's config alone. A user who removed the
+  # preinstalls, like one without Omarchy's declarations, selects it instead.
+  # An npm-backed agent needs node, itself a lazy tool where Omarchy declares
+  # it, and mise won't install it as the agent's dependency while it's missing.
+  npm_backed() {
+    [[ $1 == npm:* || $(mise tool "${1%%\[*}" --backend 2>/dev/null) == npm:* ]]
+  }
+  agent_install() {
+    user_install && return
+    if omarchy-mise-default-tools declares "$agent_tool"; then
+      if npm_backed "$agent_tool"; then
+        mise install node "$agent_tool"
+      else
+        mise install "$agent_tool"
+      fi
+    else
+      if npm_backed "$agent_package" && ! mise where node &>/dev/null; then
+        mise install node || return 1
+      fi
+      if [[ $agent_prereleases == "true" ]]; then
+        MISE_PRERELEASES=true mise use -g "$agent_package"
+      else
+        mise use -g "$agent_package"
+      fi
+    fi
+  }
 fi
 
 if [[ $installing == "false" ]] && ! agent_present; then

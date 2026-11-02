@@ -31,7 +31,7 @@ jq -e '
     {
       id: "muse",
       aliases: ["muse-code", "musecode"],
-      install: {type: "mise", package: "http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]", command: "muse"},
+      install: {type: "mise", package: "muse", command: "muse"},
       launch: {
         mode: "terminal",
         command: ["muse", "--approval-mode", "never"],
