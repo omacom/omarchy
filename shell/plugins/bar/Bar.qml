@@ -1855,8 +1855,10 @@ Item {
 
       visible: root.tooltipShown && root.tooltipTarget !== null && root.tooltipText !== "" && root.targetBelongsToWindow(root.tooltipTarget, barWindow)
       color: "transparent"
-      implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
-      implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
+      // +2 leaves 1 logical px of transparent inset around the bubble so a
+      // 1px border is not clipped at small text sizes (e.g. 9) under 1.25x.
+      implicitWidth: Math.ceil(tooltipBubble.implicitWidth) + 2
+      implicitHeight: Math.ceil(tooltipBubble.implicitHeight) + 2
 
       // Each show maps a fresh surface at a whole-number scale before Qt receives
       // the output's fractional one. Keep the bubble transparent until it matches the bar.
@@ -1905,6 +1907,7 @@ Item {
 
       BorderSurface {
         id: tooltipBubble
+        anchors.centerIn: parent
         opacity: tooltipWindow.revealed ? 1 : 0
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
