@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Services.Pipewire
+import Quickshell.Services.UPower
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
@@ -31,6 +32,15 @@ Panel {
   // never this panel's to stop.
   property bool owesDiscoveryStop: false
   readonly property var devices: Bluetooth.devices ? Bluetooth.devices.values : []
+  // UPower already has the batteries BlueZ's Battery1 interface often lacks:
+  // a keyboard on a cable (HID), and a Bluetooth device whose level never
+  // reaches BlueZ unless bluetoothd was started with Experimental. Readings
+  // without an address in their native path stay separate; Battery1 remains
+  // the fallback when no UPower reading can be matched.
+  readonly property var upowerDevices: UPower.devices ? UPower.devices.values : []
+  readonly property var batteryEntries: Model.batteryReadouts(devices, upowerDevices)
+  readonly property var unmatchedBatteries: Model.unmatchedBatteries(batteryEntries)
+  readonly property string batteryTooltip: Model.formatBatteryTooltip(batteryEntries, Commons.I18n.t, Commons.I18n.formatNumber)
   readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
   property var pendingAudioOutputDevice: null
   property int pendingAudioOutputAttempts: 0
@@ -151,8 +161,11 @@ Panel {
   // projection so those delegates never hold Device QObject wrappers either.
   readonly property var connectedRows: {
     var rows = []
-    for (var i = 0; i < connectedDevices.length; i++)
-      rows.push(Model.deviceRow(connectedDevices[i]))
+    var entries = batteryEntries
+    for (var i = 0; i < connectedDevices.length; i++) {
+      var device = connectedDevices[i]
+      rows.push(Model.deviceRow(device, Model.batteryForAddress(entries, device && device.address)))
+    }
     return rows
   }
 
@@ -654,6 +667,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.icon
+    tooltipText: root.batteryTooltip
     onPressed: function(b) {
       if (b === Qt.RightButton) root.toggleBluetooth()
       else root.toggle()
@@ -766,9 +780,37 @@ Panel {
           }
         }
 
-        // Scrollable device list — capped so a noisy neighborhood doesn't
-        // grow the popup past the screen.
         PanelSeparator {
+          foreground: root.bar.foreground
+        }
+
+        // UPower batteries that cannot be matched to a connected device,
+        // including cabled keyboards and HID++ supplies without an address.
+        // These rows are read-only: no BlueZ device is identified for actions.
+        Column {
+          id: batteryList
+          visible: root.unmatchedBatteries.length > 0
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: Commons.I18n.t("bluetooth.batteries")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Repeater {
+            model: root.unmatchedBatteries
+            BatteryLine {
+              required property var modelData
+              width: batteryList.width
+              entry: modelData
+            }
+          }
+        }
+
+        PanelSeparator {
+          visible: root.unmatchedBatteries.length > 0 && (root.connectedDevices.length > 0 || root.scrollRows.length > 0)
           foreground: root.bar.foreground
         }
 
@@ -870,7 +912,7 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
+          visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0 && root.unmatchedBatteries.length === 0
           text: !root.adapter ? Commons.I18n.t("bluetooth.noBluetoothAdapter")
               : !root.adapter.enabled ? Commons.I18n.t("bluetooth.turnOnToScan")
               : Commons.I18n.t("bluetooth.scanning")
@@ -881,6 +923,40 @@ Panel {
           width: parent.width
         }
       }
+    }
+  }
+
+  // Read-only battery that cannot be matched to a connected BlueZ device.
+  component BatteryLine: Item {
+    id: line
+    required property var entry
+    implicitHeight: Math.max(nameText.implicitHeight, statusText.implicitHeight)
+
+    Text {
+      id: nameText
+      textFormat: Text.PlainText
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(10)
+      anchors.right: statusText.left
+      anchors.rightMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      text: root.deviceLabel(line.entry) || Commons.I18n.t("bluetooth.device")
+      color: root.bar.foreground
+      font.family: root.bar.fontFamily
+      font.pixelSize: Style.font.body
+      elide: Text.ElideRight
+    }
+
+    Text {
+      id: statusText
+      textFormat: Text.PlainText
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(10)
+      anchors.verticalCenter: parent.verticalCenter
+      text: Model.formatBatteryStatus(line.entry, Commons.I18n.t, Commons.I18n.formatNumber)
+      color: root.bar.foreground
+      font.family: root.bar.fontFamily
+      font.pixelSize: Style.font.caption
     }
   }
 
@@ -898,9 +974,12 @@ Panel {
     readonly property string action: root.pendingAction(dev ? dev.address : "")
     readonly property string actionTooltip: {
       if (!dev) return ""
-      if (isConnected) return Commons.I18n.t("bluetooth.disconnect")
-      if (isDiscovered) return Commons.I18n.t("bluetooth.pair")
-      return Commons.I18n.t("bluetooth.connect")
+      var action = isConnected ? Commons.I18n.t("bluetooth.disconnect")
+        : isDiscovered ? Commons.I18n.t("bluetooth.pair")
+        : Commons.I18n.t("bluetooth.connect")
+      if (dev.percentage === null || dev.percentage === undefined) return action
+      var battery = Model.formatBatteryStatus(dev, Commons.I18n.t, Commons.I18n.formatNumber)
+      return battery ? battery + "\n" + action : action
     }
 
     readonly property bool rowSelected: root.cursorActive && root.focusSection === sectionName && root.selectedIndex === rowIndex
@@ -918,7 +997,8 @@ Panel {
       if (action === "forgetting") return Commons.I18n.t("bluetooth.forgetting")
       if (action === "disconnecting" || devState === 2) return Commons.I18n.t("bluetooth.disconnecting")
       if (isConnected) {
-        if (dev.batteryAvailable) return Commons.I18n.formatNumber(Math.round(dev.battery * 100)) + "%"
+        if (dev.percentage !== null && dev.percentage !== undefined)
+          return Model.formatBatteryStatus(dev, Commons.I18n.t, Commons.I18n.formatNumber)
         return sectionName === "connected" ? "" : Commons.I18n.t("bluetooth.connectedStatus")
       }
       if (action === "connecting" || devState === 3 || dev.pairing === true) return Commons.I18n.t("bluetooth.connecting")
