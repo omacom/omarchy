@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation using Hex
+# omarchy:args=<start|stop|toggle>
+
+# Hex's control commands exit 3 when no Hex is running and never launch it.
+not_running=3
+no_speech=4
+
+hex_state() {
+  hex status 2>/dev/null | jq -r '.desktop.activity.state // empty'
+}
+
+start() {
+  hex dictation start
+  local result=$?
+  if (( result == not_running )); then
+    hex start >/dev/null && hex dictation start
+  else
+    return "$result"
+  fi
+}
+
+# Hex pastes with a bare Ctrl+V, which terminals ignore, so take the transcript
+# and let Omarchy type it into whatever is focused.
+stop() {
+  local text result
+  if omarchy-cmd-missing hex || [[ $(hex_state) != "dictating" ]]; then
+    return 0
+  fi
+  text=$(hex dictation stop --print)
+  result=$?
+  if (( result == 0 )); then
+    omarchy-clipboard-paste-text "$text"
+  elif (( result != no_speech )); then
+    return "$result"
+  fi
+}
+
+case "${1:-}" in
+  start) start ;;
+  stop) stop ;;
+  toggle)
+    if [[ $(hex_state) == "dictating" ]]; then
+      stop
+    else
+      start
+    fi
+    ;;
+  *) echo "Usage: omarchy dictation hex <start|stop|toggle>" >&2; exit 1 ;;
+esac
