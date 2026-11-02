@@ -194,6 +194,23 @@ assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, ''), 'root', 'menu
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'no-such-route'), 'no-such-route', 'menu falls through to the literal input')
 assert(menu.matchesQuery(routed.items['apps.htop'], 'system', true), 'menu still finds an app by its keywords in search')
 
+// A web app installed from a Chromium browser's "Install" menu item gets a
+// generated .desktop id (<browser>-<32-letter extension id>-<profile>). Rows
+// are built the way Menu.qml's mergeAppRows builds them, so typing the
+// profile name must not match every web app installed under it.
+const appSearch = requireFromRoot('shell/services/AppSearch.js')
+const appRow = (name, appId) => ({
+  id: 'apps.' + appId, parent: 'apps', kind: 'app', label: name, description: '', aliases: [],
+  appId, searchId: appSearch.searchableId({ id: appId })
+})
+const webapp = appRow('YouTube', 'chrome-agimnkijcaahngcdmfeangaknmldooml-Default')
+assert(!menu.matchesQuery(webapp, 'default', true), 'menu does not match a web app by its generated id')
+assert(menu.matchesQuery(webapp, 'youtube', true), 'menu still matches a web app by its name')
+assert(
+  menu.matchesQuery(appRow('Files', 'org.gnome.Nautilus'), 'nautilus', true),
+  'menu matches a normal app by its id'
+)
+
 // Style folded into Appearance; the old route still lands there.
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'style'), 'appearance', 'menu still routes style to Appearance')
 
