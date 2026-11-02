@@ -300,8 +300,8 @@ now = iso_in(0)
 write_pi_session(sessions / "today.jsonl", [
   {"type": "session", "id": "s-1"},
   {"type": "message", "id": "u-1", "timestamp": now, "message": {"role": "user", "content": "hi", "usage": {"input": 999}}},
-  reply("a-1", "minimax-m3", {"input": 100, "output": 20, "cacheRead": 800, "cacheWrite": 5, "totalTokens": 925}),
-  reply("a-1", "minimax-m3", {"input": 100, "output": 20, "cacheRead": 800, "cacheWrite": 5, "totalTokens": 925}),
+  reply("a-1", "minimax-m3", {"input": 100, "output": 20, "cacheRead": 800, "cacheWrite": 5, "totalTokens": 925}, timestamp=now),
+  reply("a-1", "minimax-m3", {"input": 100, "output": 20, "cacheRead": 800, "cacheWrite": 5, "totalTokens": 925}, timestamp=now),
   reply("a-2", "glm-5.3", {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 75}),
   {"type": "custom", "id": "c-1", "timestamp": now, "data": {"usage": {"input": 999}}},
   {"type": "message", "id": "a-3", "message": {"role": "assistant", "model": "glm-5.3", "timestamp": ms_in(0), "usage": {"input": 10, "output": 5}}},
