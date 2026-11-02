@@ -1,50 +1,50 @@
-# Kapcsolók, üresjárat és a képernyővédő
+# Kapcsolók, tétlenség és a képernyővédő
 
-Sok dolog, amit nap mint nap módosítasz, nem igazán beállítás. Hanem egy mód, amelyet egy órára bekapcsolsz, majd kikapcsolsz: éjszakai fény, miközben későig dolgozol, ne zavarjanak, miközben prezentálsz, ébren maradás, miközben valamit nézel. Az Omarchy kapcsolóknak hívja őket, és mind ugyanúgy működik — egy billentyűparancs, egy menüpont és egy parancs, mind ugyanarra a kapcsolóra hatva.
+Sok minden, amit nap mint nap átállítasz, valójában nem beállítás. Egy mód, amit egy órára bekapcsolsz, aztán ki: éjszakai fény, amikor későig dolgozol, ne zavarjanak, amikor prezentálsz, ébren maradás, amikor nézel valamit. Az Omarchy ezeket kapcsolóknak hívja, és mindegyik ugyanúgy működik — egy gyorsbillentyű, egy menübejegyzés és egy parancs, mind ugyanazt a kapcsolót nyomja meg.
 
 ### A kapcsolómenü
 
-A `Super + Ctrl + O` közvetlenül a _Trigger > Toggle_ pontot nyitja meg, vagy az Omarchy menüből (`Super + Space`) odasétálhatsz. Ezen a listán minden olyan kapcsoló, amelyet anélkül is átköthetsz, hogy azon gondolkodnál, hol él az állapota. Mellette, a _Trigger > Appearance_ alatt vannak azok a kapcsolók, amelyek az asztal kinézetére vonatkoznak.
+A `Super + Ctrl + O` közvetlenül megnyitja a _Trigger > Toggle_ menüt, vagy eljuthatsz oda az Omarchy menüből (`Super + Space`) is. Abban a listában minden egy kapcsoló, amit átkattinthatsz anélkül, hogy azon gondolkodnál, hol lakik az állapota. Az asztal megjelenését szabályozó kapcsolók mellette ülnek, a _Appearance_ alatt.
 
-Terminálból ugyanazok a kapcsolók az `omarchy toggle <thing>` parancsok. Futtasd önmagában az `omarchy toggle` parancsot, hogy az egész csoportot lásd.
+Terminálból ugyanezek a kapcsolók az `omarchy toggle <thing>` formában érhetők el. Futtasd az `omarchy toggle` parancsot önmagában az egész csoport megtekintéséhez.
 
-| Kapcsoló | Billentyűparancs | Parancs |
+| Kapcsoló | Gyorsbillentyű | Parancs |
 | ------ | ------ | ------- |
-| Éjszakai fény | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Értesítések némítása | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
-| Ébren maradás (nincs üresjárati zárolás) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Éjszakai fény | — | `omarchy toggle nightlight` |
+| Értesítések némítása | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Ébren maradás (nincs tétlenségi zárolás) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Összeomlás rögzítése | — | `omarchy toggle crash-capture` |
 | Képernyővédő | — | `omarchy toggle screensaver` |
-| [Herdr](https://herdr.dev) témaszinkron | — | `omarchy toggle theme sync` |
-| Menüsor | `Super + Shift + Space` | `omarchy toggle bar` |
+| [Herdr](https://herdr.dev) témaszinkronizálás | — | `omarchy toggle theme sync` |
+| Menüsáv | `Super + Shift + Space` | `omarchy toggle bar` |
 | Érintőpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
 | Érintőképernyő | — | `omarchy toggle touchscreen` |
 | Felfüggesztés | — | `omarchy toggle suspend` |
 | Hibrid GPU | — | `omarchy toggle hybrid gpu` |
 
-Az érintőpad, érintőképernyő és hibrid GPU kapcsolói a _Trigger > Hardware_ pont (`Super + Ctrl + H`) alatt élnek, nem a Toggle alatt, mivel csak akkor jelennek meg, ha tényleg van olyan hardvered. Az érintőpad és az érintőképernyő kapcsolói túlélnek egy Hyprland-újratöltést — a letiltott eszköz neve egy kis állapotfájlba kerül, amelyet a Hyprland induláskor elolvas, hogy ismét letiltsa azt.
+Az érintőpad, az érintőképernyő és a hibrid GPU kapcsolói a _Trigger > Hardware_ (`Super + Ctrl + H`) alatt találhatók, nem a Toggle alatt, mivel csak akkor jelennek meg, ha tényleg van ilyen hardvered. Az érintőpad és az érintőképernyő kapcsolója túléli a Hyprland újratöltését — a letiltott eszköz neve egy kis állapotfájlba mentődik, amelyet a Hyprland induláskor beolvas, hogy újra letiltsa.
 
-A _Trigger > Appearance_ tartja a menüsort és az animációkat, plusz néhány dolgot, amelyek nem `omarchy toggle` parancsok, de ugyanúgy viselkednek: akku százaléka a sávon, az alapértelmezett munkaterület-kiosztás, ablakközök (`Super + Shift + Backspace`) és az egyetlen ablak négyszögletű képaránya (`Super + Ctrl + Backspace`).
+A _Appearance_ tartalmazza a menüsávot és az animációkat, plusz néhány dolgot, amelyek nem `omarchy toggle` parancsok, de ugyanúgy viselkednek: az akkumulátor százalékos kijelzését a sávban, az alapértelmezett munkaterület-elrendezést, és a _Windows_ alatt az ablakok közötti távolságot (`Super + Shift + Backspace`) és az 1 ablakos négyzetes képarányt (`Super + Ctrl + Backspace`).
 
-Ezek többsége egyszerűen egy jelzőfájl a `~/.local/state/omarchy/toggles/` helyen. Ha szkriptben szeretnél elágazni egyet illetően, az `omarchy-toggle-enabled` kilépési kódot ad a keresés kényszere helyett:
+Ezek többsége csak egy jelzőfájl a `~/.local/state/omarchy/toggles/` alatt. Ha szkriptben akarsz elágazni valamelyiken, az `omarchy-toggle-enabled` kilépési kódot ad, ahelyett hogy neked kellene keresgélned:
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-A jelzők a kikapcsolt államról vannak elnevezve — `screensaver-off`, `suspend-off`, `bar-off` —, így a jelenlétük azt jelenti, hogy a funkció le van tiltva.
+A jelzők a kikapcsolt állapotról vannak elnevezve — `screensaver-off`, `suspend-off`, `bar-off` — tehát a jelenlétük azt jelenti, hogy a funkció le van tiltva.
 
-### Jelzők a sávon
+### Jelzők a sávban
 
-Ha egy mód aktív, kis jelet kapsz a felső sáv közepén, az óra mellett. Ez az indicators widget, és hordozza a diktálást, a képernyőfelvételt, a függőben lévő emlékeztetőket, az éjszakai fényt, a ne zavarjanak módot és az ébren maradást.
+Amikor egy mód be van kapcsolva, egy kis jel jelenik meg a felső sáv közepén, az óra mellett. Ez a jelzők widget, és tartalmazza a diktálást, a képernyőfelvételt, a függőben lévő emlékeztetőket, az éjszakai fényt, a ne zavarjanak módot és az ébren maradást.
 
-Az inaktív jelzők rejtve vannak. Vidd az egeret a körülöttük lévő területre, és elhalványodva előjönnek, így rákattinthatsz egyre, hogy bekapcsold anélkül, hogy tudnád a billentyűparancsát. Aktív jelzőre kattintva kikapcsolod azt. Ha inkább mindet mindig látni szeretnéd, állítsd az `alwaysShow` értékét `true`-ra a `~/.config/omarchy/shell.json` fájlban lévő `omarchy.indicators` bejegyzésen — hogy hogyan konfigurálódnak a sávwidgetek, abban [a felső sáv](05-the-top-bar.md) fejezet segít.
+Az inaktív jelzők rejtve vannak. Vidd az egeret bárhová a sáv fölé, és halványan megjelennek, így rákattinthatsz egyre a bekapcsolásához anélkül, hogy tudnád a gyorsbillentyűjét. Egy aktívra kattintva újra kikapcsolhatod. Ha inkább mindig mindegyiket látni akarod, állítsd az `alwaysShow` értékét `true`-ra a `~/.config/omarchy/shell.json` fájl `omarchy.indicators` bejegyzésénél — lásd [a felső sáv](05-the-top-bar.md) leírását a sáv widgetjeinek beállításáról.
 
 ### Éjszakai fény
 
-A `Super + Ctrl + N` 4000K-re melegíti a képernyőt, és ismételt megnyomása visszaállítja 6500K-re. A hyprsunset hajtja, amelyet a kapcsoló elindít neked, ha még nem fut.
+Az éjszakai fény 4000K-re melegíti a képernyőt, újbóli átkapcsolása pedig visszaállítja 6500K-re. Kapcsold át a kapcsolómenüből (`Super + Ctrl + O`) vagy az `omarchy toggle nightlight` paranccsal. A hyprsunset hajtja, amelyet a kapcsoló elindít helyetted, ha még nem fut.
 
-Alapértelmezetten a hyprsunset egyáltalán nem csinál semmit a képernyőddel. A `~/.config/hypr/hyprsunset.conf` identitásprofillal érkezik, pontosan azért, hogy a kijelző érintetlen maradjon, amíg melegséget nem kérsz. Ha inkább azt szeretnéd, hogy az óra szerint váltson, cseréld le egy időprofilra:
+Alapértelmezés szerint a hyprsunset egyáltalán nem nyúl a képernyődhöz. A `~/.config/hypr/hyprsunset.conf` identitásprofillal érkezik, pontosan azért, hogy a kijelző érintetlen maradjon, amíg meleget nem kérsz. Ha inkább az óra alapján akarod kapcsolni, cseréld le egy időprofilra:
 
 ```
 profile {
@@ -53,19 +53,19 @@ profile {
 }
 ```
 
-Ezután indítsd el a hyprsunsetet bejelentkezéskor az `o.launch_on_start("hyprsunset")` sor `~/.config/hypr/autostart.lua` fájlhoz való hozzáadásával. A kapcsoló által használt 4000K/6500K páros rögzített, így a konfigurációs fájl az, ahova más hőmérsékletekért mész.
+Ezután indítsd el a hyprsunsetet bejelentkezéskor úgy, hogy hozzáadod az `o.launch_on_start("hyprsunset")` sort a `~/.config/hypr/autostart.lua` fájlhoz. A kapcsoló által használt 4000K/6500K pár rögzített, tehát a konfigurációs fájlhoz kell nyúlnod, ha más hőmérsékletet akarsz.
 
 ### Ne zavarjanak
 
-A `Super + Ctrl + ,` némítja az értesítéseket. Amíg be van kapcsolva, nem ugranak fel pirítósszerű értesítések, és az áthúzott csengőjel a sávon emlékeztet arra, miért lett csendes az asztal.
+A `Super + Ctrl + Alt + ,` elnémítja az értesítéseket. Amíg be van kapcsolva, nem ugranak fel értesítési buborékok, és az áthúzott harang jelző ott ül a sávban, hogy emlékeztessen, miért lett csendes az asztal.
 
-Semmi sem vész el azonban. Egy némított értesítés egyenesen bekerül az értesítési előzményeidbe, amely pontosan az a nyilvántartás, amelyet érdemes megnézni, amikor visszatérsz, és kíváncsi vagy, miről maradtál le. Nyisd meg a `Super + Shift + Alt + ,` kombinációval. Az értesítési történet többi részéért lásd a [értesítéseket](10-notices.md).
+Semmi sem vész el azonban. Az elnémított értesítések visszatartódnak: tedd vissza az utóbbi néhányat a képernyőre a `Super + Shift + Alt + ,` kombinációval. A többit lásd az [értesítések](10-notices.md) részben.
 
-Kétféle üzenet még mindig át jut: az Omarchy saját megerősítő értesítései olyasvalamiről, amit épp megtettél („Theme changed”, „Screenshot saved”), és a parancssorból küldött kritikus riasztások. Azok a csevegőappok, amelyek mindent kritikusnak jelölnek, hogy erőszakosan az orrod elé kerüljenek, nem jogosultak erre.
+Kétféle üzenet azért átjut: az Omarchy saját megerősítő buborékjai arról, amit épp csináltál ("Theme changed", "Screenshot saved"), és a parancssorból küldött kritikus riasztások. Azok a csevegőalkalmazások, amelyek mindent kritikusnak jelölnek, hogy eléd tolakodjanak, nem számítanak annak.
 
-### Üresjárat
+### Tétlenség
 
-Az üresjárati viselkedést az Omarchy shell birtokolja, és az időzítések legfelső szintű `idle` blokkban vannak a `~/.config/omarchy/shell.json` fájlban:
+Az Omarchy shell kezeli a tétlenségi viselkedést, és az időzítések egy legfelső szintű `idle` blokkban vannak a `~/.config/omarchy/shell.json` fájlban:
 
 ```json
 {
@@ -77,26 +77,26 @@ Az üresjárati viselkedést az Omarchy shell birtokolja, és az időzítések l
 }
 ```
 
-Mindkét szám másodpercekben mérendő attól a pillanattól, amikor üresjáratba mentél — nem egymástól. Így az alapértelmezésekkel a képernyővédő két és fél perc után jelenik meg, és a zárolási képernyő átveszi az irányítást öt percnél, függetlenül attól, hogy a képernyővédő futott-e. Mentsd el a fájlt, és a shell azonnal átveszi az új időzítéseket.
+Mindkét szám másodperc, attól a pillanattól számolva, amikor tétlen lettél — nem egymástól. Tehát az alapértelmezésekkel a képernyővédő két és fél perc után jelenik meg, a zárolási képernyő pedig öt percnél veszi át a helyét, függetlenül attól, hogy a képernyővédő futott-e. Mentsd el a fájlt, és a shell azonnal átveszi az új időzítéseket.
 
-Ha a zárolási határidő előtt elveted a képernyővédőt, az tevékenységnek számít, és a függőben lévő zárolás megszűnik. Nem zárnak ki azért, mert egy pillantást vetettél a gépedre.
+Ha a zárolási határidő előtt kilépsz a képernyővédőből, az aktivitásnak számít, és a függőben lévő zárolás törlődik. Nem záródsz ki azért, mert csak rápillantottál a gépedre.
 
-Az üresjárati zárolás teljes megszüntetéséhez a `Super + Ctrl + I` — vagy az `omarchy toggle idle` — bekapcsolja az ébren maradást, és a kávéscsésze-jelző megjelenik a sávon. Ezt kell megnyomnod egy hosszú prezentáció vagy egy figyelni kívánt build előtt. Nyomd meg ismét a normálishoz való visszatéréshez. Az `omarchy toggle idle status` kiírja az aktuális állapotot JSON formában, ha szkriptből kell neked.
+Ha teljesen le akarod állítani a tétlenségi zárolást, a `Super + Ctrl + I` — vagy az `omarchy toggle idle` — bekapcsolja az ébren maradást, és a kávéscsésze jelző megjelenik a sávban. Ezt kell megnyomnod egy hosszú prezentáció vagy egy build előtt, amelyet végig akarsz nézni. Nyomd meg újra a normál működéshez való visszatéréshez. Az `omarchy toggle idle status` JSON formátumban kiírja az aktuális állapotot, ha szkriptből van rá szükséged.
 
-Ez a zárolásról és a képernyővédőről szól, nem az energiáról. A felfüggesztésnek és a hibernálásnak saját beállítása van a [rendszeralvásban](36-system-sleep.md).
+Ez a zárolásról és a képernyővédőről szól, nem az energiaellátásról. A felfüggesztésnek és a hibernálásnak saját beállítása van a [rendszer alvása](36-system-sleep.md) részben.
 
 ### A képernyővédő
 
-Az Omarchy képernyővédője véletlen szöveghatásokon keresztül futó ASCII-rajz, monitoronként egy példány. Bármely billentyű vagy egérmozgás kilép belőle.
+Az Omarchy képernyővédője ASCII-művészet véletlenszerű szövegeffekteken keresztül, monitoronként egy példányban. Bármelyik billentyű vagy egérmozdulat kilép belőle.
 
-Igény szerint elindíthatod a _System > Screensaver_ pontból (`Super + Esc`), amely felkényszeríti még akkor is, ha az üresjárati képernyővédőt kikapcsoltad. Alapértelmezetten nincs hozzá rendelt billentyűparancs.
+Igény szerint elindíthatod a _System > Screensaver_ (`Super + Esc`) helyről, amely akkor is előkényszeríti, ha kikapcsoltad a tétlenségi képernyővédőt. Alapértelmezés szerint nincs hozzá gyorsbillentyű rendelve.
 
-Az `omarchy toggle screensaver` kapcsolja ki az üresjáratit, ha inkább egyenesen a munkától a zároláshoz mennél. Szüksége van olyan terminálra, amelyet be tud állítani — Alacritty, Foot, Ghostty vagy Kitty — és meg is fogja mondani neked, ha az alapértelmezett terminálod valami más.
+Az `omarchy toggle screensaver` kapcsolja ki a tétlenségit, ha inkább közvetlenül a munkából mennél a zárolásba. Bármelyik billentyű, kattintás, görgetés vagy egérmozdulat bezárja.
 
-Az általa rajzolt logót megváltoztathatod a _Style > Screensaver_ alatt. Tölts fel egy png-t vagy svg-t, és az Omarchy ASCII-vá alakítja azt. Lásd a [brandinget](41-branding.md).
+Az általa rajzolt logót megváltoztathatod a _Appearance > Branding > Screensaver_ alatt. Tölts fel egy png-t vagy svg-t, és az Omarchy ASCII-vé alakítja. Lásd a [márkajelzés](41-branding.md) részt.
 
 ### A zárolási képernyő
 
-A `Super + Ctrl + L` zárolja a gépet. Ez futtatja a zárolási képernyőt az Omarchy shellből, üresíti a kijelzőt, visszaállítja a billentyűzetkiosztásodat az elsőre, hogy ne rossz ábécével írd be a jelszavadat, és — ha futtatod — kilépéskor zárolja az 1Passwordot is.
+A `Super + Ctrl + L` zárolja a gépet. Ez elindítja az Omarchy shell zárolási képernyőjét, elsötétíti a kijelzőt, visszaállítja a billentyűzetkiosztást az elsőre, hogy ne rossz ábécével gépeld a jelszavadat, és — ha fut — kilépéskor zárolja az 1Passwordot.
 
-A zárolási képernyő jelszót fogad, és ujjlenyomatot is fogad, miután beállítottál egyet. Ezt, és a hitelesítés többi módját a [hardveres hitelesítés](37-hardware-authentication.md) tárgyalja.
+A zárolási képernyő jelszót kér, és ujjlenyomatot is elfogad, ha már beállítottál egyet. Ezt és a többi hitelesítési módot a [hardveres hitelesítés](37-hardware-authentication.md) tárgyalja.
