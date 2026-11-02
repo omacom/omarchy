@@ -429,7 +429,7 @@
   "remove.development.php.laravel": {"icon":"","label":"Laravel","when":"[[ -x $HOME/.local/bin/laravel || -x $HOME/.config/composer/vendor/bin/laravel ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-dev-env laravel'"},
   "remove.development.php.symfony": {"icon":"","label":"Symfony","when":"omarchy-pkg-present symfony-cli","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-dev-env symfony'"},
   "remove.development.elixir.elixir": {"icon":"","label":"Elixir","when":"[[ -d $HOME/.local/share/mise/installs/elixir ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-dev-env elixir'"},
-  "remove.development.elixir.phoenix": {"icon":"","label":"Phoenix","when":"[[ -d $HOME/.local/share/mise/installs/elixir ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-dev-env phoenix'"},
+  "remove.development.elixir.phoenix": {"icon":"","label":"Phoenix","when":"compgen -G \"$HOME/.mix/archives/phx_new*\"","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-dev-env phoenix'"},
 
   // Update
   "update.omarchy": {"icon":"","iconFont":"omarchy","label":"Omarchy","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update"},
