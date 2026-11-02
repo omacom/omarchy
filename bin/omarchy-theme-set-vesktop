@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the Omarchy theme to Vesktop
+# omarchy:hidden=true
+
+set -euo pipefail
+exec python3 - <<'PYTHON'
+"""Publish the generated Omarchy palette to Vesktop's watched themes folder."""
+import os
+from pathlib import Path
+import re
+import tempfile
+
+home = Path.home()
+config = Path(os.environ.get('XDG_CONFIG_HOME', home / '.config'))
+source = home / '.local/state/omarchy/current/theme/vesktop.theme.css'
+if not source.is_file():
+    raise SystemExit(0)
+css = source.read_text()
+if '{{' in css:
+    raise SystemExit('Unresolved Omarchy colour tokens; keeping the previous Vesktop theme.')
+if '__OMARCHY_ON_ACCENT__' in css:
+    accent = re.search(r'--brand-500:\s*(#[0-9a-fA-F]{6})\b', css)
+    if not accent:
+        raise SystemExit('Missing Omarchy accent; keeping the previous Vesktop theme.')
+    # Choose black or white button text by measured contrast against the accent.
+    def linear(value):
+        value = int(value, 16) / 255
+        return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+    color = accent[1][1:]
+    luminance = sum(weight * linear(color[i:i+2]) for weight, i in ((.2126, 0), (.7152, 2), (.0722, 4)))
+    on_accent = '#000000' if (luminance + .05) / .05 >= 1.05 / (luminance + .05) else '#ffffff'
+    css = css.replace('__OMARCHY_ON_ACCENT__', on_accent)
+
+for data in (config / 'vesktop', config / 'Vesktop', home / '.var/app/dev.vencord.Vesktop/config/vesktop'):
+    if not data.is_dir():
+        continue
+    directory = data / 'themes'
+    directory.mkdir(exist_ok=True)
+    target = directory / 'omarchy.theme.css'
+    if target.is_file() and target.read_text() == css:
+        continue
+    # Replacing a real file in this directory triggers Vencord's theme watcher.
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=directory, prefix='.omarchy-', delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(css)
+        temporary.chmod(0o644)
+        temporary.replace(target)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+PYTHON
