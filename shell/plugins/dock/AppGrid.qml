@@ -197,7 +197,7 @@ Item {
       anchors.centerIn: parent
       radius: Style.cornerRadius
       color: Commons.Color.menu.background
-      borderSpec: Border.surfaceSpec("menu", "border", Commons.Color.menu.border, root.borderWidth)
+      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, root.borderWidth)
       padding: root.contentMargin
       opacity: root.dragging ? 0 : 1
 
@@ -313,6 +313,20 @@ Item {
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+
+            Behavior on contentY {
+              SmoothedAnimation { velocity: 50000 }
+            }
+
+            WheelHandler {
+              target: null
+              onWheel: function(event) {
+                var delta = event.pixelDelta.y * 12 || event.angleDelta.y / 120 * root.cellHeight
+                var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
+                grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - delta))
+                event.accepted = true
+              }
+            }
 
             delegate: Item {
               id: cell
