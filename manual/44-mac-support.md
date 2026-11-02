@@ -64,7 +64,8 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 
 #### Known Issues
 
-- Touch Bar and audio support require additional community-maintained software.
+- Sound is not functioning
+- Touch Bar support requires additional community-maintained software.
 - [T1Bridge](https://github.com/standardagents/t1bridge) provides a complete T1 stack, including Touch Bar, Touch ID, and the private T1 link.
 - [mbp-t1-touchbar](https://github.com/Seborider/mbp-t1-touchbar) provides an alternative Touch Bar stack.
 
