@@ -200,7 +200,8 @@ Item {
     id: pwProc
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: if (root.opened && !root.pwExpectedStop) root.password = String(text || "").trim()
+      // Strip only the helper's terminating newline; spaces belong to the password.
+      onStreamFinished: if (root.opened && !root.pwExpectedStop) root.password = String(text || "").replace(/\n$/, "")
     }
     onExited: function(exitCode) {
       if (root.pwExpectedStop) return
