@@ -407,15 +407,37 @@ select_recorder() {
   RECORDER=(--pid "$pid")
 }
 
+# The recording's size and, when its pid is known, the recorder's CPU time:
+# both stay put once a stopping recorder has stalled.
+recorder_progress() {
+  local stat="" fields=()
+  if [[ -n ${RECORDER[1]-} ]] && read -r stat 2>/dev/null <"/proc/${RECORDER[1]}/stat"; then
+    read -ra fields <<<"${stat##*) }"
+  fi
+  echo "$(stat -c %s "$(cat "$RECORDING_FILE" 2>/dev/null)" 2>/dev/null) ${fields[11]-} ${fields[12]-}"
+}
+
 # Stops the recorder screenrecording_active selected.
 stop_screenrecording() {
   omarchy-capture-screenrecording-process "${RECORDER[@]}" --signal INT # SIGINT required to save video properly
 
-  # Wait a maximum of 5 seconds to finish before hard killing
-  local count=0
-  while omarchy-capture-screenrecording-process "${RECORDER[@]}" && ((count < 50)); do
+  # A slow or loaded machine can take well past 5 seconds to write out the
+  # recording, so kill only a recorder that has made no progress for 5 seconds,
+  # or is still running after about a minute.
+  local count=0 stalled=0 progress last_progress=""
+  while omarchy-capture-screenrecording-process "${RECORDER[@]}" && ((stalled < 50 && count < 600)); do
+    if ((count == 50)); then
+      omarchy-notification-send -t 5000 "Saving screen recording" "The recorder is still writing it out."
+    fi
     sleep 0.1
     count=$((count + 1))
+    progress=$(recorder_progress)
+    if [[ $progress == "$last_progress" ]]; then
+      stalled=$((stalled + 1))
+    else
+      stalled=0
+      last_progress=$progress
+    fi
   done
 
   toggle_screenrecording_indicator
