@@ -4,6 +4,10 @@ echo "Let power profiles switch on the Xiaomi Mi NoteBook Ultra"
 # sets up new installs the same way.
 omarchy-hw-match "Mi NoteBook Ultra" || exit 0
 
+# The drop-in is machine-wide, so another user's run may already have put it in place.
+cmp -s "$OMARCHY_PATH/default/systemd/system/power-profiles-daemon.service.d/block-platform-profile.conf" \
+  /etc/systemd/system/power-profiles-daemon.service.d/block-platform-profile.conf && exit 0
+
 source "$OMARCHY_PATH/install/hardware/xiaomi/fix-mi-notebook-ultra-power-profiles.sh"
 sudo systemctl daemon-reload
 
