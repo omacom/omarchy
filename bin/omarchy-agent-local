@@ -6,9 +6,15 @@
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
 # agents panel knows which models fit. Podman, which runs them, only comes when
-# a model is first set up, from the terminal that setup runs in.
-if [[ ${1:-} == "use" ]] && omarchy-cmd-missing podman crun; then
-  omarchy-pkg-add podman crun || exit 1
+# a model is first set up, from the terminal that setup runs in. An NVIDIA GPU
+# reaches the containers through the CDI spec nvidia-container-toolkit writes
+# on install and again at every boot.
+if [[ ${1:-} == "use" ]]; then
+  packages=(podman crun)
+  if omarchy-hw-nvidia; then
+    packages+=(nvidia-container-toolkit)
+  fi
+  omarchy-pkg-add "${packages[@]}" || exit 1
 fi
 
 exec omarchy-local-ai "$@"
