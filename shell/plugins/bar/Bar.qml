@@ -3120,7 +3120,7 @@ Item {
     // plus half the gap to the next pill, so the widget itself keeps its size.
     // A dragged widget's slot counts only while its room is still there, so
     // no empty pill stays behind once the room has moved on.
-    readonly property bool contentDrawn: dragSource ? alongLength > 0 : widgetWidth > 0 && widgetHeight > 0
+    readonly property bool contentDrawn: !removalPending && (dragSource ? alongLength > 0 : widgetWidth > 0 && widgetHeight > 0)
     readonly property var pillState: BarModel.pillState(entry, contentDrawn)
     readonly property string pillRole: pillRun && sectionIndex >= 0 && pillRun.roles[sectionIndex] ? pillRun.roles[sectionIndex] : "none"
     // Half the pill gap on each side of a pill; the halves of two neighbours
