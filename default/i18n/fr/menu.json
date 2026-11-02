@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test débit disque"
   },
-  "setup.monitors": {
-    "label": "Écrans"
-  },
-  "setup.keybindings": {
-    "label": "Raccourcis clavier"
-  },
   "setup.input": {
     "label": "Entrées"
-  },
-  "setup.typing": {
-    "label": "Saisie"
-  },
-  "setup.typing.keyboard": {
-    "label": "Dispositions clavier"
-  },
-  "setup.typing.input": {
-    "label": "Méthodes de saisie"
   },
   "setup.language": {
     "label": "Langue"
@@ -1285,5 +1270,23 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Capture des plantages activée"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Clavier"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Raccourcis clavier"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Entrées clavier"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Méthodes de saisie"
   }
 }
