@@ -665,8 +665,8 @@ pass "installed Muse selects and opens directly"
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
 : >"$mise_history"
-# An installed provider launches as it is: mise is only consulted for its
-# presence, so a mise failure can neither block the selection nor the launch.
+# An installed provider launches as it is: mise is only asked whether it is
+# installed, so a failing `mise install` can neither block the selection nor the launch.
 # Before #16674 this run reported a failed `mise install` as an activation
 # error, because selecting re-installed the tool first.
 if ! OMARCHY_TEST_AGENT_INSTALLED=true OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent musecode >"$test_tmp/muse-failure-output" 2>&1; then
@@ -682,6 +682,19 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
   fail "a failing mise does not stop launching an installed Muse"
 pass "an installed Muse launches even while mise fails"
+
+# A missing agent still installs from Omarchy's declarations, and a failed
+# install there must keep the current selection and open nothing.
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
+: >"$agent_open_log"
+if OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent --install musecode >"$test_tmp/muse-declared-failure-output" 2>&1; then
+  fail "default agent rejects a failed Muse install from Omarchy's declarations"
+fi
+[[ $(omarchy-default-agent) == "pi" ]] || fail "a failed declared Muse install preserves the current default agent"
+grep -F "Could not install Muse Code with mise" "$test_tmp/muse-declared-failure-output" >/dev/null ||
+  fail "default agent reports a failed declared Muse install"
+[[ ! -s $agent_open_log ]] || fail "a failed declared Muse install opens no agent"
+pass "default agent reports a failed declared Muse install without changing the selection"
 
 # A manually installed launcher belongs to the user; selecting it must not
 # install a second copy or replace it with the Omarchy wrapper.
