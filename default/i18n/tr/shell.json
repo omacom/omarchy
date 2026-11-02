@@ -156,7 +156,7 @@
   "bar.remoteSession": "Uzak oturum",
   "bar.remoteSessionFrom": "%1 üzerinden uzak oturum",
   "bar.screenRecording": "Ekran Kaydı",
-  "bar.silenceNotifications": "Bildirimleri Sustur",
+  "bar.silenceNotifications": "Bildirimleri Sessize Al",
   "bar.stayAwake": "Uyanık Kal",
   "bar.stopRecording": "Kaydı durdur",
   "bluetooth.available": "KULLANILABİLİR",
@@ -533,7 +533,7 @@
   "tailscale.unknown": "Bilinmiyor",
   "tailscale.unknownAccount": "Bilinmeyen hesap",
   "tailscale.upFailed": "tailscale up başarısız oldu",
-  "tray.empty": "Bildirim alanı öğesi yok.",
+  "tray.empty": "Tepside simge yok.",
   "tray.help": "Sabitlenen simgeler görünür kalır. Gizli simgeler hiç gösterilmez.",
   "tray.hide": "Gizle",
   "tray.pin": "Sabitle",
@@ -548,7 +548,7 @@
   "weather.wind": "RÜZGÂR",
   "wifiqr.generateFailed": "Wi-Fi QR kodu oluşturulamadı",
   "wifiqr.generating": "QR kodu oluşturuluyor…",
-  "wifiqr.passwordFailed": "Wi-Fi şifresi okunamadı",
+  "wifiqr.passwordFailed": "Wi-Fi parolası okunamadı",
   "wifiqr.scanToJoin": "Bu ağa katılmak için tarayın",
   "wifiqr.showPassword": "Parolayı göster"
 }
