@@ -9,4 +9,21 @@ if omarchy-cmd-present mise; then
   # days after they ship. Running omarchy update is the user asking for current
   # versions now, which is the same call the mup alias makes by hand.
   MISE_MINIMUM_RELEASE_AGE=0 mise up
+  update_status=$?
+
+  # auto_update leaves old agent CLI versions behind. Only Omarchy's tools are
+  # pruned, since a user's virtualenv can sit on a mise Python nothing tracks,
+  # and naming no tools at all would prune every one.
+  prune_status=0
+  mapfile -t tools < <(omarchy-mise-default-tools list)
+  if (( ${#tools[@]} )); then
+    mise prune --tools --yes "${tools[@]}"
+    prune_status=$?
+  fi
+
+  if (( update_status )); then
+    exit $update_status
+  else
+    exit $prune_status
+  fi
 fi
