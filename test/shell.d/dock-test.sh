@@ -111,6 +111,30 @@ assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app t
 
 JS
 
+ROOT="$ROOT" run_node_test <<'JS'
+// Run the dock's own mode reading against a fake Hyprland and process.
+const source = require('fs').readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
+const qml = (name, ...params) => new Function('root', 'Hyprland', 'modeProc', ...params, source.match(new RegExp(`\\n  function ${name}\\(.*\\) \\{([\\s\\S]*?)\\n  \\}`))[1])
+const streamFinished = new Function('root', 'text', source.match(/id: modeProc[\s\S]*?onStreamFinished: \{([\s\S]*?)\n      \}/)[1])
+const hyprland = { monitors: { values: [{ activeWorkspace: { id: 1 } }] }, workspaces: { values: [{ id: 1 }, { id: 2 }] } }
+const proc = { running: false }
+const dock = { modes: {}, pendingModes: [], modeGeneration: 0 }
+for (const [name, ...params] of [['readMode', 'workspaceId'], ['readNextMode'], ['refresh']]) {
+  const call = qml(name, ...params)
+  dock[name] = (...args) => call(dock, hyprland, proc, ...args)
+}
+const answer = mode => { while (proc.running) { streamFinished(dock, mode); proc.running = false; dock.readNextMode() } }
+
+dock.refresh(); answer('floating')
+dock.refresh()
+assertEqual(dock.modes[1], 'floating', 'a refresh keeps a floating workspace on its dock while it reads the mode again')
+answer('dwindle')
+assertEqual(dock.modes[1], 'dwindle', 'the mode read again replaces the kept one')
+hyprland.workspaces.values.pop()
+dock.refresh()
+assertEqual(dock.modes[2], undefined, 'a refresh drops the mode of a workspace that is gone')
+JS
+
 home="$TMPDIR/home"
 mkdir -p "$home/.config/omarchy"
 mock_bin="$TMPDIR/bin"
