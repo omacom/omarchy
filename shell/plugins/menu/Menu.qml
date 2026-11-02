@@ -39,6 +39,12 @@ Item {
     root.cancel()
   }
 
+  function closeDmenu(prompt) {
+    if (!root.opened || !root.dmenuActive || root.dmenuPrompt !== prompt) return "noop"
+    root.cancel()
+    return "ok"
+  }
+
   function refresh() {
     defaultMenuFile.reload()
     userMenuFile.reload()
