@@ -1,4 +1,4 @@
-# Instalace Dual Boot
+# Instalace pro dual boot
 
 Omarchy můžete nainstalovat na jeden oddíl vedle Windows nebo jiných instalací.
 
@@ -18,7 +18,7 @@ Najděte příslušný oddíl, klikněte na něj pravým tlačítkem a zvolte **
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Až budete hotovi, měli byste vidět něco takového, kde část o velikosti 50 GB je v tomto příkladu místem, kam nainstalujeme Omarchy.
+Až budete hotovi, měli byste vidět něco takového; část o velikosti 50 GB je v tomto příkladu místo, kam nainstalujeme Omarchy.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
@@ -35,7 +35,7 @@ Zkontrolujte, že vše vypadá dobře, a stejně jako obvykle počkejte na dokon
 
 Po dokončení instalace Omarchy si všimnete, že je nyní výchozím bootloaderem Limine. Pomocí něj můžete do Limine přidat také možnosti pro své další instalace, například Windows.
 
-Chcete-li přidat další operační systémy, spusťte `limine-scan` a podle pokynů přidejte požadované položky do konfigurace Limine. Nabídka při spouštění zůstává ve výchozím nastavení skrytá a Omarchy se spustí po jedné sekundě. Chcete-li zvolit Windows nebo jinou položku, stiskněte libovolnou klávesu, jakmile se Limine spustí; po zobrazení nabídky vyberte položku pomocí kláves se šipkami a stiskněte Enter. Pokud se Omarchy spustí dříve, než stihnete klávesu stisknout, restartujte počítač a zkuste to znovu. Pokud jste zapnuli _Setup > Direct Boot_, firmware Limine zcela přeskočí, takže vyberte Limine z nabídky spouštění BIOSu, nebo znovu spusťte _Setup > Direct Boot_ a položku odeberte.
+Chcete-li přidat další operační systémy, spusťte `limine-scan` a podle pokynů přidejte požadované položky do konfigurace Limine. Nabídka při spouštění zůstává ve výchozím nastavení skrytá a Omarchy se spustí po jedné sekundě. Chcete-li zvolit Windows nebo jinou položku, stiskněte libovolnou klávesu, jakmile se Limine spustí; po zobrazení nabídky vyberte položku pomocí kláves se šipkami a stiskněte Enter. Pokud se Omarchy spustí dříve, než stihnete klávesu stisknout, restartujte počítač a zkuste to znovu. Pokud jste zapnuli _Nastavení > Přímé spuštění_, firmware Limine zcela přeskočí, takže vyberte Limine z nabídky spouštění BIOSu, nebo znovu spusťte _Nastavení > Přímé spuštění_ a položku odeberte.
 
 ## Bitlocker
 

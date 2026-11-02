@@ -1,12 +1,12 @@
 # Webové aplikace
 
-Vlastní webové aplikace můžete přidat pomocí části _Instalovat > Webová aplikace_ v nabídce Omarchy (`Super + Space`). Zeptá se vás na název aplikace, adresu URL aplikace a adresu URL ikony, pokud ji nedokáže získat prostřednictvím favicon. Skvělé ikony PNG pro mnohé oblíbené webové aplikace získáte na webu [Dashboard Icons](https://dashboardicons.com).
+Vlastní webové aplikace můžete přidat pomocí položky _Instalovat > Webová aplikace_ v nabídce Omarchy (`Super + Space`). Zeptá se vás na název aplikace, adresu URL aplikace a adresu URL ikony, pokud ji nedokáže získat prostřednictvím favicon. Skvělé ikony PNG pro mnohé oblíbené webové aplikace získáte na webu [Dashboard Icons](https://dashboardicons.com).
 
 Poté budou přístupné prostřednictvím spouštěče aplikací (`Super + Space`) a budou používat krásné bezrámové okno pro webové aplikace.
 
-Pokud si přejete webovou aplikaci odebrat, stačí přejít do části _Odebrat > Webová aplikace_ v nabídce Omarchy.
+Pokud si přejete webovou aplikaci odebrat, stačí přejít na položku _Odebrat > Webová aplikace_ v nabídce Omarchy.
 
-Nejlepší je, pokud se před používáním zkratek pro webové aplikace přihlásíte do všech svých účtů pomocí běžného prohlížeče. Tenký rám obálky s 1passwordem dobře nefunguje, takže je jednodušší být přihlášen přímo jako první.
+Před používáním webových aplikací se přihlaste ke svým účtům v běžném prohlížeči. Zjednodušená okna webových aplikací si s 1Password příliš nerozumí, proto je snazší přihlásit se předem.
 
 Všechny klávesové zkratky pro tyto webové aplikace lze změnit v souboru `~/.config/hypr/bindings.lua`.
 
@@ -18,7 +18,7 @@ Ve výchozím nastavení se Omarchy již dodává s výběrem výchozích aplika
 
 [HEY](https://www.hey.com/) je e-mailová a kalendářová služba, která slouží jako skvělá alternativa pro lidi unavené Gmailem, Outlookem nebo Apple Mailem. Vytvořila ji společnost [37signals](https://37signals.com/), kde Omarchy vznikla.
 
-Program HEY Email můžete spustit pomocí klávesové zkratky `Super + Shift + E`, přejít přímo na vytváření nového e-mailu pomocí klávesové zkratky `Super + Shift + Alt + E` a spustit Kalendář HEY pomocí klávesové zkratky `Super + Shift + C`.
+HEY Email můžete spustit pomocí `Super + Shift + E`, přejít přímo na vytváření nového e-mailu pomocí `Super + Shift + Alt + E` a spustit HEY Calendar pomocí `Super + Shift + C`.
 
 ## Basecamp
 
@@ -52,7 +52,7 @@ Google Messages můžete spustit pomocí klávesové zkratky `Super + Shift + Ct
 
 ## X
 
-X je místo, kde se objevují zprávy.
+X je místo, kde se zprávy objevují jako první.
 
 X můžete spustit pomocí klávesové zkratky `Super + Shift + X` a přejít přímo k psaní nového příspěvku pomocí klávesové zkratky `Super + Shift + Alt + X`.
 
@@ -64,21 +64,21 @@ YouTube můžete spustit pomocí klávesové zkratky `Super + Shift + Y`.
 
 ## Zoom
 
-[Zoom](https://zoom.us/) je nejoblíbenější systém pro videochat používaný v USA. Skvělá připojení po celém světě. A 40minutové schůzky lze konat i bez placeného účtu. Omarchy obaluje webového klienta Zoomu a odkazy na schůzky v Zoomu se budou otevírat přímo do něj.
+[Zoom](https://zoom.us/) je nejoblíbenější systém pro videochat používaný v USA. Skvělá připojení po celém světě. A 40minutové schůzky lze konat i bez placeného účtu. Omarchy obaluje webového klienta Zoomu a odkazy na schůzky v Zoomu se budou otevírat přímo v něm.
 
 Zoom spustíte pomocí spouštěče aplikací (`Super + Space`).
 
 ## Discord
 
-[Discord](https://discord.com/) je místo, kde se schází většina herních a open source komunit, včetně [té vlastní Omarchy](https://discord.gg/tXFUdasqhY).
+[Discord](https://discord.com/) je místo, kde se schází většina herních a open source komunit, včetně [komunity samotné Omarchy](https://discord.gg/tXFUdasqhY).
 
 Discord spustíte pomocí spouštěče aplikací (`Super + Space`).
 
 ## Aplikace Microsoft
 
-Vyberte část _Instalovat > Služba > Microsoft_, chcete-li aplikace Outlook, Word, Excel, PowerPoint, Teams a OneDrive přidat jako webové aplikace. Každá aplikace má vlastní spouštěč a otevírá se přímo pomocí komerčních adres URL Microsoft 365 a vašeho stávajícího profilu prohlížeče. Otevírají se ve stejných oknech prohlížeče jako ostatní webové aplikace Omarchy; neinstalují samostatného klienta Teams pro Linux.
+Vyberte položku _Instalovat > Služba > Microsoft_, chcete-li aplikace Outlook, Word, Excel, PowerPoint, Teams a OneDrive přidat jako webové aplikace. Každá aplikace má vlastní spouštěč a otevírá se přímo pomocí komerčních adres URL Microsoft 365 a vašeho stávajícího profilu prohlížeče. Otevírají se ve stejných oknech prohlížeče jako ostatní webové aplikace Omarchy; neinstalují samostatného klienta Teams pro Linux.
 
-Balíček odeberte pomocí části _Odebrat > Služba > Microsoft_, nebo jednotlivé aplikace odeberte pomocí části _Odebrat > Webová aplikace_. Prostřednictvím části _Instalovat > Webová aplikace_ můžete také nainstalovat pouze aplikace, které chcete.
+Balíček odeberte pomocí položky _Odebrat > Služby > Microsoft_, nebo jednotlivé aplikace odeberte pomocí položky _Odebrat > Webová aplikace_. Prostřednictvím položky _Instalovat > Webová aplikace_ můžete také nainstalovat pouze aplikace, které chcete.
 
 V případě vládního nebo suverénního cloudu upravte adresu URL na řádku `Exec=` v příslušném spouštěči v adresáři `~/.local/share/applications/`, například `Microsoft Teams.desktop`, pomocí adresy URL poskytnuté vaší organizací. Každé doslovné `%` v tomto řádku zapište jako `%%`. Změny se projeví při příštím spuštění. Opětovné spuštění instalačního programu balíčku nahradí jeho spouštěče výchozími adresami URL.
 
@@ -88,4 +88,4 @@ Chcete-li pracovní přihlášení oddělit, připojte k řádku `Exec=` každé
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Nahraďte ukázkový adresář absolutní cestou podle vlastního výběru a použijte stejnou cestu pro všech šest spouštěčů, chcete-li pracovní přihlášení mezi nimi sdílet. Webové aplikace používají prohlížeč podporovaný Omarchy, který byl zvolen, a záložně Chromium, když není podporován výchozí prohlížeč.
+Nahraďte ukázkový adresář absolutní cestou podle vlastního výběru a použijte stejnou cestu pro všech šest spouštěčů, chcete-li pracovní přihlášení mezi nimi sdílet. Webové aplikace používají zvolený prohlížeč, pokud ho Omarchy podporuje; jinak se použije Chromium.

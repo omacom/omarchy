@@ -90,31 +90,31 @@
     "label": "Písmo"
   },
   "appearance.top-bar": {
-    "label": "Panel"
+    "label": "Lišta"
   },
   "appearance.top-bar.hide": {
-    "label": "Skrýt panel"
+    "label": "Skrýt lištu"
   },
   "appearance.top-bar.show": {
-    "label": "Zobrazit panel"
+    "label": "Zobrazit lištu"
   },
   "appearance.top-bar.position": {
-    "label": "Poloha panelu"
+    "label": "Poloha lišty"
   },
   "appearance.top-bar.background": {
-    "label": "Pozadí panelu"
+    "label": "Pozadí lišty"
   },
   "appearance.top-bar.background.opaque": {
-    "label": "Neprůhledný panel"
+    "label": "Neprůhledná lišta"
   },
   "appearance.top-bar.background.glassy": {
-    "label": "Skleněný panel"
+    "label": "Skleněná lišta"
   },
   "appearance.top-bar.background.clear": {
-    "label": "Průhledný panel"
+    "label": "Průhledná lišta"
   },
   "appearance.top-bar.indicators": {
-    "label": "Ukazatele panelu"
+    "label": "Ukazatele lišty"
   },
   "appearance.top-bar.indicators.clock": {
     "label": "Hodiny"
@@ -162,16 +162,16 @@
     "label": "14 30"
   },
   "appearance.top-bar.position.top": {
-    "label": "Panel nahoře"
+    "label": "Lišta nahoře"
   },
   "appearance.top-bar.position.bottom": {
-    "label": "Panel dole"
+    "label": "Lišta dole"
   },
   "appearance.top-bar.position.left": {
-    "label": "Panel vlevo"
+    "label": "Lišta vlevo"
   },
   "appearance.top-bar.position.right": {
-    "label": "Panel vpravo"
+    "label": "Lišta vpravo"
   },
   "appearance.windows.corners": {
     "label": "Rohy oken"
@@ -259,7 +259,7 @@
     "label": "Plovoucí"
   },
   "appearance.unlock": {
-    "label": "Odemknout"
+    "label": "Obrazovka odemykání"
   },
   "trigger.toggle": {
     "label": "Přepnout"
@@ -570,7 +570,7 @@
     "label": "Přímé spuštění"
   },
   "setup.reset": {
-    "label": "Reset počítače"
+    "label": "Obnovit počítač"
   },
   "install.package": {
     "label": "Balíček"
@@ -588,7 +588,7 @@
     "label": "Editor"
   },
   "install.style": {
-    "label": "Styl"
+    "label": "Vzhled"
   },
   "install.style.theme": {
     "label": "Motiv"
@@ -1155,55 +1155,55 @@
     "label": "Okna"
   },
   "appearance.windows.gaps-on": {
-    "label": "Mezery oken zapnuté"
+    "label": "Zapnout mezery oken"
   },
   "appearance.windows.gaps-off": {
-    "label": "Mezery oken vypnuté"
+    "label": "Vypnout mezery oken"
   },
   "appearance.windows.one-window-ratio-on": {
-    "label": "Poměr 1 okna zapnutý"
+    "label": "Zapnout poměr 1 okna"
   },
   "appearance.windows.one-window-ratio-off": {
-    "label": "Poměr 1 okna vypnutý"
+    "label": "Vypnout poměr 1 okna"
   },
   "appearance.branding": {
     "label": "Branding"
   },
   "appearance.animations-on": {
-    "label": "Animace zapnuté"
+    "label": "Zapnout animace"
   },
   "appearance.animations-off": {
-    "label": "Animace vypnuté"
+    "label": "Vypnout animace"
   },
   "trigger.toggle.idle-lock-on": {
-    "label": "Zůstat vzhůru"
+    "label": "Vypnout zamykání a spořič"
   },
   "trigger.toggle.idle-lock-off": {
-    "label": "Povolit spánek"
+    "label": "Zapnout zamykání a spořič"
   },
   "trigger.toggle.notifications-on": {
-    "label": "Oznámení zapnutá"
+    "label": "Zapnout oznámení"
   },
   "trigger.toggle.notifications-off": {
     "label": "Ztišit oznámení"
   },
   "trigger.toggle.nightlight-on": {
-    "label": "Noční světlo zapnuté"
+    "label": "Zapnout noční světlo"
   },
   "trigger.toggle.nightlight-off": {
-    "label": "Noční světlo vypnuté"
+    "label": "Vypnout noční světlo"
   },
   "trigger.toggle.screensaver-on": {
-    "label": "Spořič obrazovky zapnutý"
+    "label": "Zapnout spořič obrazovky"
   },
   "trigger.toggle.screensaver-off": {
-    "label": "Spořič obrazovky vypnutý"
+    "label": "Vypnout spořič obrazovky"
   },
   "trigger.toggle.crash-capture-on": {
-    "label": "Zachytávání pádů zapnuté"
+    "label": "Zapnout zachytávání pádů"
   },
   "trigger.toggle.crash-capture-off": {
-    "label": "Vypnout záznam pádů"
+    "label": "Vypnout zachytávání pádů"
   },
   "trigger.hardware.laptop-display-on": {
     "label": "Zapnout displej notebooku"
