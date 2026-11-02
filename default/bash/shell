@@ -1,8 +1,15 @@
-# History control
-shopt -s histappend
+# Eternal history:
+# - preserve multiline commands
+# - append instead of overwriting.
+# - preserve all history: never truncate, overwrite, or rotate
+shopt -s cmdhist histappend
 HISTCONTROL=ignoreboth
-HISTSIZE=32768
-HISTFILESIZE="${HISTSIZE}"
+export HISTSIZE=
+export HISTFILESIZE=
+export HISTFILE=~/.bash_eternal_history
+
+# Save after every command while preserving existing prompt hooks.
+PROMPT_COMMAND=("history -a" "${PROMPT_COMMAND[@]}")
 
 # Autocompletion
 if [[ ! -v BASH_COMPLETION_VERSINFO && -f /usr/share/bash-completion/bash_completion ]]; then
