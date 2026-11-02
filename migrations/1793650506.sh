@@ -7,11 +7,22 @@ echo "Install the OEM firmware package on Snapdragon machines that have one"
 # qcom-firmware-extract's retire hook removes the Windows copies the package
 # covers. qualcomm/firmware.sh then runs again so the DSP driver is no longer
 # held back, which needs one more rebuild.
+#
+# Once a package is in, a rerun no longer sees the package list change, so a
+# marker keeps the firmware setup and the rebuild pending until both finish.
 if omarchy-hw-aarch64-qualcomm; then
+  pending="$HOME/.local/state/omarchy/qcom-oem-firmware-pending"
   packages_before=$(pacman -Qq)
-  bash -euo pipefail -c 'source "$OMARCHY_PATH/install/hardware/qualcomm/oem-firmware.sh"'
+  status=0
+  bash -euo pipefail -c 'source "$OMARCHY_PATH/install/hardware/qualcomm/oem-firmware.sh"' || status=$?
 
   if [[ $(pacman -Qq) != "$packages_before" ]]; then
+    omarchy-state set qcom-oem-firmware-pending
+  fi
+
+  if ((status != 0)); then
+    exit "$status"
+  elif [[ -f $pending ]]; then
     sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
       source "$OMARCHY_PATH/install/hardware/qualcomm/firmware.sh"
     '
@@ -26,5 +37,6 @@ if omarchy-hw-aarch64-qualcomm; then
     fi
 
     omarchy-state set reboot-required
+    omarchy-state clear qcom-oem-firmware-pending
   fi
 fi
