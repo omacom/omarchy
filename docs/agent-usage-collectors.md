@@ -63,6 +63,7 @@ Its main entry points, each documented where it is defined:
 | `hasLocalStats` | Whether the stats below come from this machine |
 | `hasPromptStats` | `false` when the source has no real prompt or session counts (an API that counts requests, not prompts) |
 | `scope` | `"account"` when the stats are account-wide rather than this machine's |
+| `todayScope` | `"device"` when today's numbers (`todayPrompts`, `todaySessions`, `todayTotalTokens`, `todayTokensByModel` and today's `recentDays` entry) are this machine's inside an account-wide record, so synced devices add them up instead of merging by widest value |
 | Stats | `todayPrompts`, `todaySessions`, `todayTotalTokens`, `todayTokensByModel`, `recentDays` (seven `{date, messageCount}`, where `messageCount` holds tokens), `totalPrompts`, `totalSessions`, `activeDays`, `activeDates` (every date), and `modelUsage` buckets of `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens` |
 
 The full stats block is always present, zeroed when there is nothing. An agent the machine doesn't use prints `ready: false` with empty stats, no limits and no balance, and the panel skips it. That's the normal answer for a missing credential on an agent with no local usage; it isn't an error.
