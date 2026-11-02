@@ -1660,6 +1660,15 @@ Item {
     }
   }
 
+  // Hyprland's window list does not follow fullscreen on its own, and each
+  // BarPanel reads it to drop its input under a fullscreen window.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event && String(event.name) === "fullscreen") Hyprland.refreshToplevels()
+    }
+  }
+
   Variants {
     model: Quickshell.screens
 
@@ -1711,7 +1720,7 @@ Item {
     // before it maps (see BarModel.cutoutPending), so it maps at its floor
     // instead of growing once the windows are laid out. The wait ends once, for
     // good: when the mode settles it, or after two seconds without one.
-    visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
+    visible: cutoutWaitOver || !cutoutPending
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
@@ -1728,11 +1737,6 @@ Item {
     // the slot's window, which is not this PanelWindow object itself.
     readonly property bool dragActive: (root.barDragSource !== null && root.sameWindow(root.barDragWindow, barWindow)) ||
       (root.barMoveActive && root.sameWindow(root.barMoveWindow, barWindow))
-
-    ScreenMoveRemap {
-      id: remapGuard
-      window: barWindow
-    }
 
     // Parked by the whole surface, which spans its screen, so none of it
     // stays on screen: not the strip, however thick a notch floor makes it,
@@ -1789,13 +1793,30 @@ Item {
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
+    // Whether the active workspace on this screen holds a real fullscreen
+    // window, which fades the bar out.
+    readonly property bool underFullscreen: {
+      var monitor = Hyprland.monitorFor(screen)
+      var workspace = monitor ? monitor.activeWorkspace : null
+      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+    }
+
     // Idle, only the strip takes input, so the clear expanse passes clicks
-    // through to the windows and desktop below.
-    mask: dragActive ? null : stripInputRegion
+    // through to the windows and desktop below. Under a fullscreen window
+    // nothing does: Hyprland 0.56 passes the pointer through a faded top
+    // layer only while it holds the layer below fullscreen, and it lifts
+    // every layer on the monitor back above whenever a window on any other
+    // workspace leaves fullscreen, or the layer remaps. The invisible strip
+    // would then take the clicks meant for the top of the fullscreen window.
+    mask: dragActive ? null : (underFullscreen ? noInputRegion : stripInputRegion)
 
     Region {
       id: stripInputRegion
       item: barStrip
+    }
+
+    Region {
+      id: noInputRegion
     }
 
     // The bar itself, along its screen edge.
@@ -1837,6 +1858,17 @@ Item {
       implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
       implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
 
+      // Each show maps a fresh surface at a whole-number scale before Qt receives
+      // the output's fractional one. Keep the bubble transparent until it matches the bar.
+      readonly property bool scaleReady: visible && Math.round(devicePixelRatio * 120) === Math.round(barWindow.devicePixelRatio * 120)
+      property bool revealed: false
+
+      // Only hiding resets it: at a whole-number scale the ratio dips to 1 after the first frame.
+      onVisibleChanged: if (!visible) revealed = false
+      onScaleReadyChanged: if (scaleReady) Qt.callLater(function() {
+        if (tooltipWindow.scaleReady) tooltipWindow.revealed = true
+      })
+
       anchor {
         id: tooltipAnchor
         window: barWindow
@@ -1873,6 +1905,7 @@ Item {
 
       BorderSurface {
         id: tooltipBubble
+        opacity: tooltipWindow.revealed ? 1 : 0
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
         color: Commons.Color.tooltip.background
@@ -2862,6 +2895,8 @@ Item {
     // Its drawer section is outlined while a widget that could go in it is
     // dragged on this bar, as the center box is.
     readonly property bool traySectionShown: hostsTraySection && root.traySectionDragActive && root.sameWindow(root.barDragWindow, window)
+    // A drop now would land in its drawer section, so the whole tray lights up.
+    readonly property bool trayDropInto: traySectionShown && root.barDragRegion === "tray"
     // The part of the section the drawer shows, in the slot's widget area,
     // or null while the drawer hides all of it (the tray's sectionShown).
     readonly property var traySectionGeometry: {
@@ -2935,6 +2970,18 @@ Item {
 
       RoomOutline { visible: slot.dragSource }
 
+      // The whole tray, lit while a drop would land in its drawer section and
+      // dark again the moment the pointer takes the widget out, so in and out
+      // of the tray read at a glance. Under the icons, so they stay crisp.
+      DropOutline {
+        visible: slot.trayDropInto
+        length: root.vertical ? parent.height : parent.width
+        dropInto: true
+        color: Util.alpha(Commons.Color.accent, 0.15)
+        x: root.vertical ? Math.round((parent.width - across) / 2) : 0
+        y: root.vertical ? 0 : Math.round((parent.height - across) / 2)
+      }
+
       // Folding away under a drag, the slot keeps the widget centred, like
       // the copy in the room it opens (DragSpacer).
       Item {
@@ -2947,13 +2994,13 @@ Item {
       // The tray section's outline, as the center box's: around what it
       // holds, the room for the dragged widget included, or a line where it
       // holds nothing. Drawn over the tray rather than in its drawer, whose
-      // clip would hide an empty section's line.
+      // clip would hide an empty section's line. Faint until a drop would
+      // land in it; then the whole tray's highlight takes over.
       DropOutline {
         readonly property var section: slot.traySectionGeometry || { x: 0, y: 0, width: 0, height: 0 }
 
-        visible: slot.traySectionShown && !!slot.traySectionGeometry
+        visible: slot.traySectionShown && !slot.trayDropInto && !!slot.traySectionGeometry
         length: root.vertical ? section.height : section.width
-        dropInto: root.barDragRegion === "tray"
         x: root.vertical ? Math.round((parent.width - across) / 2) : section.x
         y: root.vertical ? section.y : Math.round((parent.height - across) / 2)
         z: 40
