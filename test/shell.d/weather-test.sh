@@ -161,3 +161,10 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
+
+# Configured coordinates make Open-Meteo the icon's source, but wttr.in still
+# has to fill an empty icon, or the bar hides while Open-Meteo is unreachable.
+panel="$ROOT/shell/plugins/panels/weather/Panel.qml"
+grep -B1 'root.label = Model.provisionalCurrentIcon' "$panel" | grep -q 'hasConfiguredCoordinates' &&
+  fail "weather bar falls back to wttr.in's icon when Open-Meteo has not answered"
+pass "weather bar falls back to wttr.in's icon when Open-Meteo has not answered"
