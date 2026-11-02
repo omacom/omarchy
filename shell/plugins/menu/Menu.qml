@@ -526,8 +526,8 @@ Item {
     return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
   }
 
-  function searchScore(entry, query) {
-    return MenuModel.searchScore(root.items, entry, query)
+  function searchScore(entry, query, matchingApps) {
+    return MenuModel.searchScore(root.items, entry, query, matchingApps)
   }
 
   function displayRow(entry, detail, score, section) {
@@ -656,16 +656,21 @@ Item {
     if (query) {
       var currentRows = []
       var drilldownRows = []
+      var matches = []
 
       for (var i = 0; i < root.itemOrder.length; i++) {
         var entry = root.item(root.itemOrder[i])
         if (!entry || entry.id === "root") continue
         if (!root.isDescendantOf(entry.id, active)) continue
-        if (!root.matchesQuery(entry, query)) continue
+        if (root.matchesQuery(entry, query)) matches.push(entry)
+      }
 
-        var detail = root.parentPathFor(entry.id)
-        var row = root.displayRow(entry, detail, root.searchScore(entry, query))
-        if (entry.parent === active) currentRows.push(row)
+      var matchingApps = matches.filter(function(match) { return match.kind === "app" })
+      for (var m = 0; m < matches.length; m++) {
+        var match = matches[m]
+        var detail = root.parentPathFor(match.id)
+        var row = root.displayRow(match, detail, root.searchScore(match, query, matchingApps))
+        if (match.parent === active) currentRows.push(row)
         else drilldownRows.push(row)
       }
 
