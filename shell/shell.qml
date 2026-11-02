@@ -624,7 +624,7 @@ ShellRoot {
     // property, even though the resulting proxy is otherwise acyclic.
     var firstPartyServices = ({})
     if (barCapabilities) {
-      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
+      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.network", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
       for (var i = 0; i < serviceIds.length; i++) {
         var serviceId = serviceIds[i]
         firstPartyServices[serviceId] = shell.pluginFirstPartyServiceFor(cacheKey, key, serviceId)

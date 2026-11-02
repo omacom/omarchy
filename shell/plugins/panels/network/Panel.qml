@@ -48,7 +48,8 @@ Panel {
   property real routerPingLatency: -1
   property real internetPingLatency: -1
   property int internetPingPacketLoss: 0
-  property var service: null
+  readonly property var service: bar && bar.shell && typeof bar.shell.firstPartyServiceFor === "function"
+    ? bar.shell.firstPartyServiceFor("omarchy.network") : null
   readonly property int pingHistoryWindow: 24
   readonly property int pingAverageWindow: 5
   readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, effectiveConnectivity)
