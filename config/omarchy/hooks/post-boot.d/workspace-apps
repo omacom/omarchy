@@ -1,0 +1,77 @@
+
+#!/bin/bash
+# omarchy:summary=Launch default apps assigned to workspaces
+
+CONF="$HOME/.config/omarchy/workspace-apps.conf"
+
+[[ -f "$CONF" ]] || exit 0
+
+valid_workspace() {
+    [[ "${1:-}" =~ ^([1-9]|10)$ ]]
+}
+
+launch_on_workspace() {
+    local ws="$1"
+    local label="$2"
+    local launch_type="$3"
+    local target="$4"
+    local shell_command lua_command
+    local -a launch_args
+
+    if ! valid_workspace "$ws"; then
+        omarchy-notification-send -u low \
+            "Workspace apps: invalid workspace configuration"
+        return 0
+    fi
+
+    case "$launch_type" in
+        app)
+            if [[ "$target" != /* ||
+                  "$target" != *.desktop ||
+                  ! -f "$target" ]]; then
+                omarchy-notification-send -u low \
+                    "Workspace apps: invalid desktop entry for $label"
+                return 0
+            fi
+
+            launch_args=(uwsm-app -- gio launch "$target")
+            ;;
+
+        web)
+            if [[ ! "$target" =~ ^https?://[^[:space:]]+$ ]]; then
+                omarchy-notification-send -u low \
+                    "Workspace apps: invalid URL for $label"
+                return 0
+            fi
+
+            launch_args=(omarchy-launch-webapp "$target")
+            ;;
+
+        *)
+            omarchy-notification-send -u low \
+                "Workspace apps: unknown launch type for $label"
+            return 0
+            ;;
+    esac
+
+        # Build a safely quoted command from the argument array.
+    printf -v shell_command '%q ' "${launch_args[@]}"
+    shell_command=${shell_command% }
+
+    lua_command=$(jq -Rn --arg command "$shell_command" '$command') || return 0
+
+    # Pass the workspace rule separately to Hyprland.
+    if ! hyprctl eval \
+        "hl.dispatch(hl.dsp.exec_cmd($lua_command, { workspace = \"$ws silent\" }))" \
+        >/dev/null 2>&1; then
+        omarchy-notification-send -u low \
+            "Workspace apps: failed to dispatch $label"
+    fi
+}
+
+while IFS=$'\t' read -r ws label launch_type target; do
+    [[ -n "$ws" ]] || continue
+    [[ -n "$label" && -n "$launch_type" && -n "$target" ]] || continue
+
+    launch_on_workspace "$ws" "$label" "$launch_type" "$target"
+done < "$CONF"
