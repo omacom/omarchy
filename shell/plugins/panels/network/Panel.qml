@@ -450,8 +450,9 @@ Panel {
     // that list. An OWE transition-mode network does this between scans: the
     // in-use access point carries the hidden "_owetm_" SSID, so the profile
     // for the open SSID looks out of range even while it is connected. Trust
-    // the device's own state then instead of flickering to disconnected.
-    if (wifiDevice && wifiDevice.connected) return "wifi"
+    // the device's own state then instead of flickering to disconnected, unless
+    // it is running a hotspot: that is connected with no uplink.
+    if (wifiDevice && wifiDevice.connected && wifiDevice.mode !== WifiDeviceMode.AccessPoint) return "wifi"
     return "disconnected"
   }
   readonly property int signalStrength: kind === "wifi"
@@ -676,15 +677,17 @@ Panel {
 
   // Prefer a connected device: a machine can expose several NICs of the
   // same type (e.g. an idle onboard port alongside the active adapter),
-  // and the first-enumerated one may be carrierless.
+  // and the first-enumerated one may be carrierless. A hotspot radio is not
+  // the uplink, so a station radio wins over it, connected or not.
   function findDevice(type) {
     var devices = networkDevices || []
     var fallback = null
     for (var i = 0; i < devices.length; i++) {
       var device = devices[i]
       if (!device || device.type !== type) continue
-      if (device.connected) return device
-      if (!fallback) fallback = device
+      var hotspot = device.mode === WifiDeviceMode.AccessPoint
+      if (device.connected && !hotspot) return device
+      if (!fallback || (fallback.mode === WifiDeviceMode.AccessPoint && !hotspot)) fallback = device
     }
     return fallback
   }

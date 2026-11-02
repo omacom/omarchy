@@ -14,6 +14,7 @@ QtObject {
   property var devices: ({ values: [wifi] })
   property QtObject wifi: QtObject {
     property int type: DeviceType.Wifi
+    property int mode: WifiDeviceMode.Station
     property string name: "test-wifi"
     property bool connected: true
     property bool scannerEnabled: false
