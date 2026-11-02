@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Apply Omarchy's managed policy to Chromium-family browsers pacman installed or upgraded
+# omarchy:group=apply
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Runs as root from default/libalpm/hooks/60-omarchy-apply-browser-policy.hook,
+# which passes the installed or upgraded browser packages on stdin. Only
+# omarchy-install-browser set the policy up before, so a browser installed with
+# pacman or an AUR helper, or reinstalled after omarchy-remove-browser, went
+# without it. Applying it again on each upgrade also carries a new policy key to
+# every browser without a migration. A pacman hook runs outside the session, so
+# OMARCHY_PATH falls back to the packaged install, as in omarchy-apply-system.
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+while read -r package; do
+  if policy_dir=$(browser_policy_managed_dir_for_package "$package"); then
+    browser_policy_setup_dir "$policy_dir"
+  fi
+done

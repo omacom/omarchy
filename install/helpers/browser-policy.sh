@@ -31,6 +31,18 @@ BROWSER_POLICY_FIREFOX_DIRS=(
 
 BROWSER_POLICY_DEFAULT_COLOR="#1c2027"
 
+# The managed policy directory each Chromium-family browser package reads.
+# default/libalpm/hooks/60-omarchy-apply-browser-policy.hook targets these packages.
+browser_policy_managed_dir_for_package() {
+  case $1 in
+  chromium) echo /etc/chromium/policies/managed ;;
+  google-chrome) echo /etc/opt/chrome/policies/managed ;;
+  microsoft-edge-stable-bin) echo /etc/opt/edge/policies/managed ;;
+  brave-bin | brave-origin-bin) echo /etc/brave/policies/managed ;;
+  *) return 1 ;;
+  esac
+}
+
 browser_policy_purge_dir() {
   local dir=$1
 
