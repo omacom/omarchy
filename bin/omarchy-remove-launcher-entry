@@ -25,11 +25,11 @@ fi
 desktop_file_name=${desktop_file##*/}
 
 is_user_desktop_file() {
-  local dir desktop_dir
+  local dir relative
 
-  desktop_dir="${desktop_file%/*}"
   for dir in "${user_desktop_dirs[@]}"; do
-    [[ $desktop_dir == $dir ]] && return 0
+    relative=${desktop_file#"$dir/"}
+    (( ${#relative} < ${#desktop_file} )) && return 0
   done
 
   return 1

@@ -221,6 +221,14 @@ cp "$tmp_dir/system/applications/org.example.Editor.desktop" "$tmp_dir/system/ap
 grep -Fxq 'Name=Nested' "$tmp_dir/data/applications/vendor-editor.desktop" || fail "nested desktop IDs can be renamed"
 pass "launcher lookup handles nested IDs, desktop suffixes and CRLF entries"
 
+# A nested user launcher resolves to its original, then removes both copies.
+mkdir -p "$tmp_dir/data/applications/vendor"
+cp "$tmp_dir/system/applications/org.example.Editor.desktop" "$tmp_dir/data/applications/vendor/personal.desktop"
+"$ROOT/bin/omarchy-rename-launcher-entry" vendor-personal 'Personal Editor'
+"$ROOT/bin/omarchy-remove-launcher-entry" vendor-personal 'Personal Editor'
+[[ ! -e $tmp_dir/data/applications/vendor/personal.desktop && ! -e $tmp_dir/data/applications/vendor-personal.desktop ]] || fail "nested user launcher removal clears the source and its managed rename"
+pass "nested user launchers can be removed after renaming"
+
 # Removing a package's source entries clears every managed copy, while keeping
 # overrides whose originals and unrelated user entries are still present.
 mkdir -p "$tmp_dir/fallback/applications"
