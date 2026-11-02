@@ -1417,11 +1417,11 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader.errorString() reflects the source-load failure even when
-            // sourceComponent is null. Surface both so the user sees something
-            // actionable instead of a panel that silently refuses to open.
-            var detail = errorString && errorString() ? errorString() : ""
-            if (!detail && sourceComponent) detail = sourceComponent.errorString()
+            // Loader has no errorString of its own; the reason lives on the
+            // component it built from `source`. Surface it so the user sees
+            // something actionable instead of a panel that silently refuses to open.
+            var component = sourceComponent || Qt.createComponent(source)
+            var detail = component ? component.errorString().trim() : ""
             console.warn("panel plugin " + panelEntry.pluginId + " failed to load:", detail)
             shell.hide(panelEntry.pluginId)
           }
