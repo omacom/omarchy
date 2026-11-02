@@ -23,6 +23,7 @@ local mx, my, inside = -1, -1, false
 local dragging, pressed, focused, keyboard = false, nil, 1, false
 local focused_id='play'
 local last_move, visible = mp.get_time(), true
+local pointer_seek_target, pending_seek_target
 local visibility_mode='auto'
 local reveal_until, milliseconds, show_total = mp.get_time()+3, false, true
 local volume_feedback_until, seek_feedback_until=0, 0
@@ -94,20 +95,32 @@ local function clamp_seek(target,window)
   end
   return closest
 end
-local function seek_mouse(final)
+local function clear_pending_seek()
+  pending_seek_target=nil
+end
+-- Recover if a source rejects a seek without emitting playback-restart.
+local pending_seek_timer=mp.add_timeout(3,function()
+  clear_pending_seek()
+  request_render()
+end)
+pending_seek_timer:kill()
+local function seek_mouse()
   local window=seek_window()
   if seekbar and window then
     local ratio=math.max(0,math.min(1,(mx-seekbar.x)/seekbar.w))
     local target=clamp_seek(window.start+ratio*(window.finish-window.start),window)
-    -- Coarse drag previews avoid decoding every intermediate exact position.
-    -- Release always commits the selected position exactly.
-    if final or not last_drag_seek or math.abs(target-last_drag_seek) >= .05 then
+    if dragging == 'seek' then pointer_seek_target=target end
+    -- Every pointer position is precise, including the first press and tiny
+    -- movements on short clips. Do not repeat a stationary seek on release.
+    if not last_drag_seek or math.abs(target-last_drag_seek) > 1e-6 then
       seek_requests=seek_requests+1
       if opts.debug then
         mp.set_property_native('user-data/omarchy/seek-requests',seek_requests)
         mp.set_property_native('user-data/omarchy/seek-target',target)
       end
-      mp.commandv('seek',target,final and 'absolute+exact' or 'absolute+keyframes')
+      pending_seek_target=target
+      pending_seek_timer:kill(); pending_seek_timer:resume()
+      mp.commandv('seek',target,'absolute+exact')
       last_drag_seek=target
     end
   end
@@ -119,6 +132,7 @@ end
 local function reset_pointer()
   dragging,pressed=false,nil
   last_drag_seek=nil
+  pointer_seek_target=nil
   mp.set_property_native('user-data/omarchy/dragging',false)
 end
 local function volume_mouse()
@@ -154,7 +168,7 @@ local function up()
   update_pointer()
   local i, r = select_region()
   if not dragging and r and r.id == pressed and r.action then r.action() end
-  if dragging == 'seek' then seek_mouse(true) end
+  if dragging == 'seek' then seek_mouse() end
   reset_pointer()
   wake()
 end
@@ -633,7 +647,10 @@ render = function()
     local window=seek_window()
     if prop('user-data/omarchy/seek-enabled') ~= (window ~= nil) then mp.set_property_native('user-data/omarchy/seek-enabled',window ~= nil) end
     if opts.debug then mp.set_property_native('user-data/omarchy/seek-window',window or false) end
-    local time=number('time-pos')
+    -- Follow the user's target while dragging or decoding a seek, rather
+    -- than briefly drawing an old playback position under the pointer.
+    local time=pointer_seek_target or pending_seek_target or number('time-pos')
+    if opts.debug then mp.set_property_native('user-data/omarchy/timeline-time',time) end
     local sy=bottom+28
     text(18,sy,milliseconds and string.format('%s.%03d',format_time(time),math.floor(time%1*1000)) or format_time(time),13,palette.foreground)
     regions[#regions+1]={id='elapsed',x=0,y=sy-12,w=90,h=24,action=function() milliseconds=not milliseconds end}
@@ -766,6 +783,17 @@ mp.register_event('seek',function()
   reveal_until=seek_feedback_until
   request_render()
 end)
+mp.register_event('playback-restart',function()
+  -- Running playback can already be a couple of frames past the target when
+  -- Lua receives the completion event.
+  local tolerance=math.max(.05,2/math.max(1,number('container-fps',30)))
+  -- A completion from an earlier seek must not release a newer target.
+  if pending_seek_target and not prop('seeking',false) and
+    math.abs(number('time-pos')-pending_seek_target) <= tolerance then
+    clear_pending_seek(); pending_seek_timer:kill()
+    request_render()
+  end
+end)
 local previous_volume
 mp.observe_property('volume','number',function(_,value)
   if previous_volume ~= nil and value ~= previous_volume then
@@ -776,9 +804,11 @@ mp.observe_property('volume','number',function(_,value)
   request_render()
 end)
 mp.register_event('end-file',function()
+  clear_pending_seek(); pending_seek_timer:kill()
   file_active=false; reset_pointer(); restore_sub_margin(); request_render()
 end)
 mp.register_event('file-loaded',function()
+  clear_pending_seek(); pending_seek_timer:kill()
   file_active=true; file_generation=file_generation+1
   if opts.debug then mp.set_property_native('user-data/omarchy/file-generation',file_generation) end
   reset_pointer(); keyboard=false; focused_id='play'

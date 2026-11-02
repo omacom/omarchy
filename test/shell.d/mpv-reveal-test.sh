@@ -11,3 +11,7 @@ fi
 require_command python3
 python3 "$ROOT/test/shell.d/fixtures/mpv/reveal.py"
 pass "mpv top and bottom controls reveal independently with matching input regions"
+
+require_command ffmpeg
+python3 "$ROOT/test/shell.d/fixtures/mpv/seek.py"
+pass "mpv clicks and drags seek precisely on short clips without timeline bounce"
