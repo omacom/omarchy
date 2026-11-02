@@ -15,9 +15,8 @@ local box = 2
 local CONSOLE = "special:qconsole"
 
 -- Seed the console with the default agent the first time it opens, rather than
--- at boot, so nothing is running until it is wanted. The exec rule has to pin
--- the workspace itself: Hyprland only tags a spawn with the workspace it came
--- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
+-- at boot, so nothing is running until it is wanted. Pin the workspace in the
+-- exec rule so placement also works when initial workspace tracking is disabled.
 -- Omarchy ships without a default agent, and omarchy-agent exits without
 -- opening anything when none is set, so until one is picked this just opens an
 -- empty console. A console created by moving a window onto it is not empty, and

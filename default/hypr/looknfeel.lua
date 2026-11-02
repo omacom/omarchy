@@ -113,7 +113,8 @@ hl.config({
     focus_on_activate = true,
     anr_missed_pings = 3,
     on_focus_under_fullscreen = 1,
-    initial_workspace_tracking = 0,
+    -- Keep the first window where it was launched while the application starts.
+    initial_workspace_tracking = 1,
     -- Let a fresh shell re-acquire the session lock after the lock client
     -- died, so omarchy-restart-shell can recover the LOCK failsafe.
     allow_session_lock_restore = true,
