@@ -11,8 +11,10 @@ _omarchy_gum_env="$HOME/.local/state/omarchy/current/theme/gum_env.lua"
 
 if [[ -f $_omarchy_gum_env ]]; then
   while IFS=$'\t' read -r _omarchy_gum_key _omarchy_gum_value; do
-    [[ -n $_omarchy_gum_key && -n $_omarchy_gum_value ]] && export "$_omarchy_gum_key=$_omarchy_gum_value"
-  done < <(awk -F'"' '/hl\.env\("[A-Z0-9_]+", "[^"]+"\)/ { print $2 "\t" $4 }' "$_omarchy_gum_env")
+    if [[ $_omarchy_gum_key =~ ^(FOREGROUND|BACKGROUND|BORDER_(FOREGROUND|BACKGROUND)|GUM_[A-Z0-9_]+)$ && -n $_omarchy_gum_value ]]; then
+      export "$_omarchy_gum_key=$_omarchy_gum_value"
+    fi
+  done < <(/usr/bin/awk -F'"' '/hl\.env\("[A-Z0-9_]+", "[^"]+"\)/ { print $2 "\t" $4 }' "$_omarchy_gum_env")
 fi
 
 unset _omarchy_gum_env _omarchy_gum_key _omarchy_gum_value
