@@ -308,6 +308,20 @@ Item {
   // toward the summary, but would leave an empty section.
   readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
 
+  // Every agent this machine has a record for, whether or not it is shown:
+  // the settings list has to be able to bring back one that was switched
+  // off, so it cannot be built from the agents on screen.
+  readonly property var knownProviders: {
+    var rev = dataRevision
+    var result = []
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (!record || !record.id) continue
+      result.push({ providerId: String(record.id), providerName: String(record.name || record.id) })
+    }
+    return orderedProviders(result)
+  }
+
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
       || !!p.balance || p.tierLabel !== ""
@@ -352,6 +366,23 @@ Item {
     orderFile.setText(JSON.stringify(ids) + "\n")
   }
 
+  // Moves an agent up or down the order the settings tab sets, hidden ones
+  // included: an agent that is switched off keeps its place, so switching it
+  // back on puts it where it was.
+  function moveKnownProvider(id, to) {
+    var ids = []
+    for (var i = 0; i < knownProviders.length; i++) ids.push(knownProviders[i].providerId)
+    var from = ids.indexOf(id)
+    if (from < 0) return
+    to = Math.max(0, Math.min(ids.length - 1, to))
+    if (from === to) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    for (var j = 0; j < providerOrder.length; j++)
+      if (ids.indexOf(providerOrder[j]) < 0) ids.push(providerOrder[j])
+    providerOrder = ids
+    orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
   FileView {
     id: orderFile
     path: root.orderPath
@@ -366,9 +397,29 @@ Item {
     onFileChanged: reload()
   }
 
+  // Which agents the panel shows. A switch the settings tab has just
+  // flipped answers before the shell's copy of the settings comes back with
+  // the same answer.
+  property var providerToggles: ({})
+
+  onSettingsChanged: root.providerToggles = ({})
+
   function providerEnabled(id) {
+    var pending = root.providerToggles[id]
+    if (pending !== undefined) return pending
     if (!settings || !settings.providers || !settings.providers[id]) return true
     return settings.providers[id].enabled !== false
+  }
+
+  // The settings tab switches an agent on or off; the panel writes it out.
+  signal providerEnabledChanged(string id, bool enabled)
+
+  function setProviderEnabled(id, enabled) {
+    var toggles = {}
+    for (var key in root.providerToggles) toggles[key] = root.providerToggles[key]
+    toggles[id] = enabled
+    root.providerToggles = toggles
+    root.providerEnabledChanged(id, enabled)
   }
 
   // All-time keeps a quiet day from hiding an agent; today's counts admit a
