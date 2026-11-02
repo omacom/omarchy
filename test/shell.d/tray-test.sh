@@ -36,3 +36,11 @@ assertEqual(tray.shownSpan(0, 10, 50, 30), null, 'a section still outside the dr
 assertDeepEqual(tray.shownSpan(0, 50, 50.5, 0), { start: 50, length: 0 }, 'an empty section shows on the drawer\'s edge once within a pixel of it')
 assertEqual(tray.shownSpan(0, 50, 52, 0), null, 'an empty section further out shows nothing')
 JS
+
+run_node_test "tray icon layer stays enabled" <<'JS'
+const fs = require('fs')
+const src = fs.readFileSync(path.join(root, 'shell/plugins/bar/widgets/Tray.qml'), 'utf8')
+const image = src.match(/Image \{\s*id: trayIconImage[\s\S]*?\n    \}/)
+assert(image, 'tray icon image block exists')
+assert(/^\s*layer\.enabled:\s*true\s*$/m.test(image[0]), 'tray icon layer stays enabled so the tinted effect survives an attention-icon cycle')
+JS
