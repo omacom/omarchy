@@ -103,11 +103,20 @@ if [[ -S $socket && $request != *$'\x1e'* && $request != *$'\x1f'* ]]; then
   fi
 fi
 
+# qs ipc reads an argument in brackets as a list of arguments, so a JSON array
+# '[]' arrives as none and '["a","b"]' as two. A leading space keeps it whole,
+# and JSON.parse skips it.
+ipc_args=()
+for arg in "$@"; do
+  [[ $arg == "["*"]" ]] && arg=" $arg"
+  ipc_args+=("$arg")
+done
+
 # The -- keeps function names that shadow qs subcommands (e.g. show) as
 # positionals. qs reports connection failures with a nonzero exit, but IPC-level
 # failures (unknown target/function, bad arguments) go to stdout with exit 0.
 ipc_timeout=${OMARCHY_SHELL_IPC_TIMEOUT:-2s}
-output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "$@" 2>/dev/null)
+output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "${ipc_args[@]}" 2>/dev/null)
 ipc_status=$?
 
 if (( ipc_status == 124 || ipc_status == 137 )); then
