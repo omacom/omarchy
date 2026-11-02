@@ -238,5 +238,15 @@ check("Claude collector ignores an exported key its settings empty", record["usa
 write_json(home() / ".claude.json", {"customApiKeyResponses": {"approved": [], "rejected": ["sk-ant-test"[-20:]]}})
 record, _ = claude()
 check("Claude collector ignores an exported key Claude Code was told not to use", record["usageStatusText"] == "Sign-in expired", record)
+# Claude Code keeps only the trimmed key's last 20 characters, and matches them
+# exactly, not as any ending.
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-api03-0123456789abcdefghijklmnop\n"
+write_json(home() / ".claude.json", {"customApiKeyResponses": {"approved": ["456789abcdefghijklmnop"[-20:]], "rejected": []}})
+record, _ = claude()
+check("Claude collector matches an approved key by its trimmed last 20 characters", record["usageStatusText"] == "", record)
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-api03-0123456789abcdefghijklmnop"
+write_json(home() / ".claude.json", {"customApiKeyResponses": {"approved": ["mnop"], "rejected": []}})
+record, _ = claude()
+check("Claude collector doesn't take a shorter approved ending for the key", record["usageStatusText"] == "Sign-in expired", record)
 del os.environ["ANTHROPIC_API_KEY"]
 PY

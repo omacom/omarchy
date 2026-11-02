@@ -679,11 +679,11 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
 
 # Claude Code signed in with an API key (pay as you go through the Anthropic
 # Console) has no plan limits, and isn't waiting for a sign-in. The key is the
-# CLI's own (primaryApiKey in its profile), supplied by its user settings (an
-# apiKeyHelper, or a key in their env block), or set in the environment it
-# starts with, once approved; settings.local.json beside them is a project's, which it doesn't
-# sign in from. Only whether a key is configured is checked; the key itself is
-# never recorded.
+# CLI's own (primaryApiKey in its profile), an apiKeyHelper in its user
+# settings, or an ANTHROPIC_API_KEY it was told to use, from their env block or
+# the environment it starts with; settings.local.json beside them is a
+# project's, which it doesn't sign in from. Only whether a key is configured is
+# checked; the key itself is never recorded.
 API_KEY_HELP = "Signed in with an API key, which has no plan limits."
 API_KEY_VARIABLES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 SIGN_IN_STATUSES = ("Waiting for auth", "Sign-in expired")
@@ -703,11 +703,13 @@ def api_key_login(claude_dir: Path) -> bool:
   if isinstance(overrides, dict):
     env.update({name: overrides[name] for name in API_KEY_VARIABLES if name in overrides})
   # The CLI asks once whether to use an ANTHROPIC_API_KEY it finds, and keeps a
-  # yes as the key's ending in its profile; only a key approved there counts.
+  # yes as the trimmed key's last 20 characters in its profile; only a key
+  # approved there counts, matched the way the CLI matches it.
   responses = profile.get("customApiKeyResponses")
   approved = responses.get("approved") if isinstance(responses, dict) else None
   key = env.get("ANTHROPIC_API_KEY")
-  if not (isinstance(key, str) and isinstance(approved, list) and any(isinstance(end, str) and end and key.endswith(end) for end in approved)):
+  ending = key.strip()[-20:] if isinstance(key, str) else ""
+  if not (ending and isinstance(approved, list) and ending in approved):
     env["ANTHROPIC_API_KEY"] = None
   return any(env.values())
 
