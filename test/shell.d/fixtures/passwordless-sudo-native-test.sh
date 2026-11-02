@@ -32,7 +32,7 @@ mkdir -p /run/lock /tmp/cache
 chmod 0755 /run /run/lock /etc/sudoers.d
 # The image's root-owned /etc/sudoers must include this tmpfs directory. The
 # policy is created only after Docker starts, so no host policy is mounted.
-grep -Eq '^[[:space:]]*#includedir[[:space:]]+/etc/sudoers\.d$' /etc/sudoers
+grep -Eq '^[[:space:]]*[@#]includedir[[:space:]]+/etc/sudoers\.d[[:space:]]*$' /etc/sudoers
 cat >/etc/sudoers.d/00-native-password-required <<'SUDOERS'
 Defaults timestamp_timeout=10
 Defaults timestamp_type=global
@@ -97,7 +97,9 @@ refuse_verify_and_run 'daemon after revoke' 1 1
 # Preserve the publisher's generated account-scoped default and replace only
 # the timed rule's deadline. systemd is deliberately not started in this test.
 SUDO_UID=65534 /source/bin/omarchy-sudo-passwordless __enable 65534 permanent
-deadline=$(/usr/bin/date -u -d 'now + 3 seconds' +%Y%m%d%H%M%SZ)
+# Leave setup and two active checks enough time before the bounded expiry.
+deadline_epoch=$(( $(/usr/bin/date +%s) + 15 ))
+deadline=$(/usr/bin/date -u -d "@$deadline_epoch" +%Y%m%d%H%M%SZ)
 permanent=/etc/sudoers.d/99-omarchy-permanent-nopasswd-65534
 timed=/etc/sudoers.d/99-omarchy-nopasswd-65534
 pending=$(mktemp /etc/sudoers.d/.native-expiry.XXXXXX)
@@ -108,7 +110,11 @@ mv -fT "$pending" "$timed"
 rm "$permanent"
 visudo -cf /etc/sudoers >/dev/null
 verify_and_run 'expiry fixture' 65534 65534
-/usr/bin/sleep 4
+# Wait once for the absolute deadline rather than relying on setup duration.
+remaining_seconds=$(( deadline_epoch + 1 - $(/usr/bin/date +%s) ))
+if (( remaining_seconds > 0 )); then
+  /usr/bin/sleep "$remaining_seconds"
+fi
 # Sudo 1.8.31 lets -v inspect this expired rule, but it cannot execute a
 # command. The actual expiry callback removes the policy before checking both.
 expect_password 'expired grant command' as_user 65534 65534 /usr/bin/sudo -n /usr/bin/true
