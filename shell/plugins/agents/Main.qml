@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -14,6 +15,71 @@ Item {
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
+
+  // Server lifecycle is independent of the local usage collector. Keep the
+  // watch alive even before the panel's content has been built.
+  property var localModel: ({})
+
+  FileView {
+    id: localModelFile
+    path: root.home + "/.local/state/omarchy/agent-local/status.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.parseLocalModel(text())
+  }
+
+  // The catalog's recipes as this machine sees them (fits, best, installed),
+  // which Add another › Local AI offers from.
+  property var localRecipes: []
+
+  FileView {
+    id: localRecipesFile
+    path: root.home + "/.local/state/omarchy/agent-local/list.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        var parsed = JSON.parse(text())
+        if (Array.isArray(parsed)) root.localRecipes = parsed
+      } catch (e) {
+        // A half-written listing keeps the last good one.
+      }
+    }
+  }
+
+  // Rewrites the listing and status, which a package upgrade may have
+  // changed. On a fresh account neither file exists until this first run, and
+  // a missing file can't be watched, so both are loaded once it finishes.
+  function refreshLocal() {
+    if (!localRefresh.running) localRefresh.running = true
+  }
+
+  Process {
+    id: localRefresh
+    command: ["omarchy-agent-local", "refresh", "--quiet"]
+    onExited: {
+      localRecipesFile.reload()
+      localModelFile.reload()
+    }
+  }
+
+  function parseLocalModel(content) {
+    try {
+      var parsed = JSON.parse(content)
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
+      if (!parsed.models || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
+      for (var id in parsed.models) {
+        var model = parsed.models[id]
+        if (!model || model.recipe !== id || id === "") return
+        if (["active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+      }
+      root.localModel = parsed
+    } catch (e) {
+      // A missing or partially written file leaves the last good state intact.
+    }
+  }
 
   // ------------------------------------------------------------- discovery
 
@@ -62,6 +128,13 @@ Item {
 
     onObjectAdded: (index, object) => root.rebuildAgents()
     onObjectRemoved: (index, object) => root.rebuildAgents()
+  }
+
+  // Each record's FileView follows its file on its own; this catches the ones
+  // whose watch was lost when an update replaced the file underneath them.
+  function reloadRecords() {
+    for (var i = 0; i < agents.length; i++)
+      if (agents[i]) agents[i].reload()
   }
 
   function rebuildAgents() {
@@ -117,12 +190,32 @@ Item {
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
 
+  // A fifteen-minute interval can't catch an account crossing its switch
+  // threshold, so while any provider with several accounts has its active one
+  // within 15 points of that threshold (80% at the default 95%), the limits
+  // are checked every three minutes. Those runs
+  // reuse the transcript scans; only the limits probes are new, and any more
+  // often than this Anthropic starts refusing them.
+  readonly property bool nearLimit: {
+    var rev = dataRevision
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (!record || !Array.isArray(record.accounts) || record.accounts.length < 2) continue
+      var limits = Array.isArray(record.limits) ? record.limits : []
+      var threshold = Number(record.accountSwitch && record.accountSwitch.threshold || 95)
+      var from = Math.min(0.8, (threshold - 15) / 100)
+      for (var j = 0; j < limits.length; j++)
+        if (Number(limits[j] && limits[j].percent) >= from) return true
+    }
+    return false
+  }
+
   Timer {
-    interval: root.refreshIntervalSec * 1000
+    interval: root.nearLimit ? Math.min(180, root.refreshIntervalSec) * 1000 : root.refreshIntervalSec * 1000
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.runUpdate("normal")
+    onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
   }
 
   Process {
@@ -130,6 +223,7 @@ Item {
     running: false
     onExited: {
       root.rescanAgents()
+      root.reloadRecords()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
         root.pendingUpdateKind = ""
@@ -206,7 +300,70 @@ Item {
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
-    return result
+    return orderedProviders(result)
+  }
+
+  // The panel gives a section only to an agent with a subscription to show:
+  // limits, a balance, a plan, or accounts. Local history alone still counts
+  // toward the summary, but would leave an empty section.
+  readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
+
+  function providerHasSubscription(p) {
+    return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
+      || !!p.balance || p.tierLabel !== ""
+  }
+
+  // ----------------------------------------------------------------- order
+  //
+  // The panel's agents in the order someone dragged them into, kept beside the
+  // usage records. An agent the order doesn't name yet keeps its place after
+  // the ones it does.
+  readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
+  property var providerOrder: []
+
+  readonly property var panelProviders: {
+    var list = subscribedProviders.slice()
+    var models = localModel.models || {}
+    for (var id in models)
+      list.push({ providerId: "local:" + id, localModel: models[id] })
+    return orderedProviders(list)
+  }
+
+  function orderedProviders(list) {
+    var order = providerOrder
+    var rank = function(p) {
+      var i = order.indexOf(p.providerId)
+      return i < 0 ? order.length : i
+    }
+    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
+  }
+
+  // Moves one agent to a position among the ones shown, and saves the result.
+  function moveProvider(id, to) {
+    var ids = panelProviders.map(function(p) { return p.providerId })
+    var from = ids.indexOf(id)
+    if (from < 0) return
+    to = Math.max(0, Math.min(ids.length - 1, to))
+    if (from === to) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    for (var i = 0; i < providerOrder.length; i++)
+      if (ids.indexOf(providerOrder[i]) < 0) ids.push(providerOrder[i])
+    providerOrder = ids
+    orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
+  FileView {
+    id: orderFile
+    path: root.orderPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.providerOrder = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onFileChanged: reload()
   }
 
   function providerEnabled(id) {
@@ -215,12 +372,15 @@ Item {
   }
 
   // All-time keeps a quiet day from hiding an agent; today's counts admit a
-  // machine whose only source is history.jsonl, which knows nothing older.
+  // machine whose only source is history.jsonl, which knows nothing older. A
+  // signed-in agent with a plan shows before its first numbers arrive, so a
+  // lapsed sign-in still has somewhere to say so.
   function providerHasData(p) {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
-      || !!p.balance
+      || (p.accounts && p.accounts.length > 0) || !!p.balance
+      || (p.ready === true && p.tierLabel !== "")
   }
 
   // A prepaid agent's credit ledger. Like rate limits, the balance is
@@ -254,7 +414,14 @@ Item {
       // Rate limits and balances stay per-account and are never merged
       // across devices.
       limits: Array.isArray(record.limits) ? record.limits : [],
+      limitsStale: record.limitsStale === true,
+      limitsFetchedAt: numberValue(record.limitsFetchedAt),
       tierLabel: String(record.tierLabel || ""),
+      // Every subscription account's own limits, once there's more than one.
+      accounts: Array.isArray(record.accounts) ? record.accounts : [],
+      accountSwitch: record.accountSwitch || ({ mode: "manual", threshold: 95 }),
+      // Codex's free full resets of its rate limits, when it has any.
+      resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),
 
       todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
@@ -317,7 +484,7 @@ Item {
     onRunningChanged: root.updateSyncRunning()
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        if (root.syncConfigured()) root.syncStatusText = "Usage sync mkdir failed"
+        if (root.syncConfigured()) root.syncStatusText = I18n.t("agents.syncMkdirFailed")
         root.finishSyncRun()
         return
       }
@@ -330,7 +497,7 @@ Item {
     running: false
     onRunningChanged: root.updateSyncRunning()
     onExited: function(exitCode) {
-      if (exitCode !== 0 && root.syncConfigured()) root.syncStatusText = "Usage sync scan failed"
+      if (exitCode !== 0 && root.syncConfigured()) root.syncStatusText = I18n.t("agents.syncScanFailed")
       root.finishSyncRun()
     }
 
@@ -707,11 +874,11 @@ Item {
   // ---------------------------------------------------------------- format
 
   function formatTokenCount(n) {
-    if (n === undefined || n === null) return "0"
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + "B"
-    if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"
-    return String(n)
+    if (n === undefined || n === null) return I18n.formatNumber(0)
+    if (n >= 1e9) return I18n.formatNumber(n / 1e9, 1) + "B"
+    if (n >= 1e6) return I18n.formatNumber(n / 1e6, 1) + "M"
+    if (n >= 1e3) return I18n.formatNumber(n / 1e3, 1) + "K"
+    return I18n.formatNumber(n)
   }
 
   function modelWordCase(word) {
@@ -724,7 +891,7 @@ Item {
   // (`claude-opus-4-8`, `gpt-5.6-sol`). Rejoin the numeric run into one
   // version and title-case the words around it.
   function friendlyModelName(id) {
-    if (!id) return "Unknown"
+    if (!id) return I18n.t("agents.unknownModel")
     var name = String(id).replace(/^claude-/, "").replace(/-\d{8}$/, "")
     var parts = name.split("-")
     var words = []
@@ -743,6 +910,6 @@ Item {
       words.push(modelWordCase(part))
     }
     if (version.length > 0) words.push(version.join("."))
-    return words.length > 0 ? words.join(" ") : "Unknown"
+    return words.length > 0 ? words.join(" ") : I18n.t("agents.unknownModel")
   }
 }

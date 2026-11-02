@@ -40,16 +40,41 @@ auth       required                    pam_faillock.so authsucc
 account    include                     system-local-login
 EOF
 
-if [[ -x /usr/bin/fprintd-list ]] &&
-  /usr/bin/fprintd-list "$target_user" 2>/dev/null | grep -qi finger; then
+# Install resume recovery alongside fingerprint PAM, so setup and upgrades
+# cannot leave one configured without the other.
+resume_hook_src="$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume"
+resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume
+stop_timeout_src="$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
+stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf
+
+# Keep the privileged probe pinned to /usr/bin; failure is not empty enrollment.
+if [[ -x /usr/bin/fprintd-list ]]; then
+  fingerprint_status=$(/usr/bin/fprintd-list "$target_user" 2>&1 || true)
+else
+  fingerprint_status="no"
+fi
+
+if grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:' <<< "$fingerprint_status"; then
   echo "Configuring lock screen fingerprint authentication..."
+  as_root install -Dm755 -o root -g root "$resume_hook_src" "$resume_hook_dst"
+  as_root install -Dm644 -o root -g root "$stop_timeout_src" "$stop_timeout_dst"
+  as_root systemctl daemon-reload
   as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
 #%PAM-1.0
 auth       required                    pam_fprintd.so
 account    include                     system-local-login
 EOF
+elif [[ $fingerprint_status == "no" ]] || grep -qi 'has no fingers enrolled' <<< "$fingerprint_status"; then
+  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint "$resume_hook_dst"
+  # Only reload when something was there: this branch also runs in the
+  # install chroot, where there is no systemd to reload.
+  if [[ -e $stop_timeout_dst ]]; then
+    as_root rm -f "$stop_timeout_dst"
+    as_root rmdir --ignore-fail-on-non-empty "$(dirname "$stop_timeout_dst")"
+    as_root systemctl daemon-reload
+  fi
 else
-  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint
+  echo "Could not check fingerprint enrollment; keeping the existing configuration." >&2
 fi
 
 # omarchy-shell can't reach a running shell during chroot install. The echo
