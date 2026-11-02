@@ -56,17 +56,22 @@ register_generated_extension() {
   fi
 }
 
+# VS Code takes a theme's light or dark base from its uiTheme once, when it
+# loads the extension, and the _watch reload below refreshes only the colors.
+# A switch between a light and a dark palette would keep the old base until a
+# window reload. So the extension declares the palette once for each base, and
+# a switch selects the other label, which VS Code applies at once.
+generated_theme_label() {
+  if [[ $(jq -r '.type // "dark"' "$GENERATED_THEME") == "light" ]]; then
+    echo "Omarchy Light"
+  else
+    echo "Omarchy Dark"
+  fi
+}
+
 # Install generated theme as a local extension for a given editor
 install_generated_extension() {
   local ext_dir="$1"
-  local theme_type ui_theme
-
-  theme_type=$(jq -r '.type // "dark"' "$GENERATED_THEME")
-  if [[ $theme_type == "light" ]]; then
-    ui_theme="vs"
-  else
-    ui_theme="vs-dark"
-  fi
 
   # VS Code caches loaded color themes in memory and only rebuilds a registry
   # entry when the providing extension changes, so derive the version from the
@@ -91,8 +96,13 @@ install_generated_extension() {
     "categories": ["Themes"],
     "contributes": {
         "themes": [{
-            "label": "Omarchy",
-            "uiTheme": "$ui_theme",
+            "label": "Omarchy Dark",
+            "uiTheme": "vs-dark",
+            "path": "./themes/omarchy-color-theme.json",
+            "_watch": true
+        }, {
+            "label": "Omarchy Light",
+            "uiTheme": "vs",
             "path": "./themes/omarchy-color-theme.json",
             "_watch": true
         }]
@@ -165,7 +175,7 @@ set_theme() {
   elif [[ -f "$GENERATED_THEME" ]]; then
     # VS Code only discovers local color themes through an extension package.
     install_generated_extension "$ext_base/$GENERATED_EXTENSION_NAME"
-    theme_name="Omarchy"
+    theme_name=$(generated_theme_label)
   fi
 
   if [[ -n "$theme_name" ]]; then
