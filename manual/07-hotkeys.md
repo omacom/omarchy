@@ -111,7 +111,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Shift + Alt + F`           | File manager in cwd of terminal    |
 | `Super + Shift + M`           | Music (Spotify)    |
 | `Super + Shift + Alt + M`           | Music (cliamp)    |
-| `Super + Shift + /`           | Password manager (1password)    |
+| `Super + Shift + /`           | Password manager (1password or bitwarden)    |
 | `Super + Shift + Q`           | Calculator (Omacalc)    |
 | `Super + Shift + T`           | Activity (btop)    |
 | `Super + Shift + N`           | Editor (Neovim)  |

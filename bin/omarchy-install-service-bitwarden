@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Install Bitwarden and its Chromium extension.
+# omarchy:requires-sudo=true
+
+set -e
+
+EXTENSION_ID="nngceckbapebfimnlniiiahkandclblb"
+EXTENSION_DIR="/usr/share/chromium/extensions"
+EXTENSION_FILE="$EXTENSION_DIR/$EXTENSION_ID.json"
+WEBSTORE_UPDATE_URL="https://clients2.google.com/service/update2/crx"
+
+install_chromium_extension() {
+  if omarchy-cmd-present chromium; then
+    sudo mkdir -p "$EXTENSION_DIR"
+    printf '{ "external_update_url": "%s" }\n' "$WEBSTORE_UPDATE_URL" | sudo tee "$EXTENSION_FILE" >/dev/null
+    sudo chmod 644 "$EXTENSION_FILE"
+  else
+    echo "Chromium is not installed; skipping Bitwarden Chromium extension."
+  fi
+}
+
+echo "Installing Bitwarden..."
+omarchy-pkg-add bitwarden
+
+echo "Installing Bitwarden CLI..."
+if ! omarchy-pkg-add bitwarden-cli; then
+  echo "Could not install bitwarden-cli; see the package error above."
+  echo "Retry later with: omarchy pkg add bitwarden-cli"
+  echo "If the error is a nodejs conflict, the unofficial Rust client rbw avoids it."
+fi
+
+echo "Installing Bitwarden extension for Chromium..."
+install_chromium_extension
+
+echo "Opening Bitwarden..."
+omarchy-launch-bitwarden
+
+echo ""
+echo "Bitwarden has been installed. Restart Chromium to load the browser extension."

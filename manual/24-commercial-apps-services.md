@@ -6,11 +6,11 @@ Omarchy is mostly focused on providing free, open source software, but it's not 
 
 Keeping your passwords in a password manager is a best practice. Doubly so if you're working with a team. And [1password](https://1password.com/) is a great solution, which also comes with a command line tool for integrating key lookups in scripts.
 
-You start 1Password with `Super + Shift + /`. If it isn't installed yet, that hotkey kicks off the installation first (you can also use _Install > Service > 1Password_ from the Omarchy menu). The installer sets up the 1Password extension for Chromium as well.
+You start 1Password with `Super + Shift + /`. If it isn't installed yet, that hotkey kicks off the installation first (you can also use _Install > Service > 1Password_ from the Omarchy menu). The installer sets up the 1Password extension for Chromium as well. When another password manager is installed alongside it, _Setup > Defaults > Password Manager_ decides which of them the hotkey opens — 1Password until you pick otherwise.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) is the open source alternative in the password manager space, with a free tier that covers most personal use. Install it with _Install > Service > Bitwarden_ from the Omarchy menu, which brings along the Bitwarden command line tool as well.
+[Bitwarden](https://bitwarden.com/) is the open source alternative in the password manager space, with a free tier that covers most personal use. Install it with _Install > Service > Bitwarden_ from the Omarchy menu, which sets up the Bitwarden extension for Chromium and brings along the `bw` command line tool. The CLI is skipped with an explanatory note if installation fails; when the failure is a conflict with an installed Node.js, the unofficial [rbw](https://github.com/doy/rbw) client, written in Rust, avoids it entirely and keeps an agent running in the background. With Bitwarden installed, `Super + Shift + /` opens it as long as 1Password isn't installed. To have the hotkey open Bitwarden with 1Password around too, choose it under _Setup > Defaults > Password Manager_ — picking a manager that isn't installed yet installs it first.
 
 ## Spotify
 

@@ -647,6 +647,16 @@
   "setup.default.editor.emacs": {
     "label": "Emacs"
   },
+  "setup.default.password-manager": {
+    "label": "Password Manager",
+    "title": "Default Password Manager"
+  },
+  "setup.default.password-manager.1password": {
+    "label": "1Password"
+  },
+  "setup.default.password-manager.bitwarden": {
+    "label": "Bitwarden"
+  },
   "setup.plugin": {
     "label": "Plugins"
   },
@@ -1063,6 +1073,9 @@
   },
   "remove.service.1password": {
     "label": "1Password"
+  },
+  "remove.service.bitwarden": {
+    "label": "Bitwarden"
   },
   "remove.service.dropbox": {
     "label": "Dropbox"
