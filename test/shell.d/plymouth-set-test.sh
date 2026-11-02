@@ -324,7 +324,7 @@ setup_run() {
   custom_theme="$fake_root/usr/share/plymouth/themes/omarchy-custom"
   custom_sddm="$fake_root/usr/share/sddm/themes/omarchy-custom"
   sddm_conf="$fake_root/etc/sddm.conf.d"
-  custom_conf="$sddm_conf/20-omarchy-custom-theme.conf"
+  custom_conf="$sddm_conf/99-omarchy-unlock-theme.conf"
 
   mkdir -p "$theme/logos" "$sddm" "$sddm_conf"
   chmod 0755 \

@@ -213,7 +213,7 @@ without a file conflict. Instead their sources (under `etc/` in the repo;
 Tradeoff: user edits to those files get clobbered on every `omarchy-settings`
 upgrade. This is documented in the PKGBUILD.
 
-The one exception is the unlock screen picked in Style > Unlock. `omarchy-plymouth-set` publishes it as the `omarchy-custom` Plymouth and SDDM themes, outside the package-owned `omarchy` ones, and the scriptlet keeps `Theme=omarchy-custom` in `plymouthd.conf` while that theme is installed. SDDM selects it through `/etc/sddm.conf.d/20-omarchy-custom-theme.conf`, which no package owns. Reset switches both back to `omarchy`.
+The one exception is the unlock screen picked in Style > Unlock. `omarchy-plymouth-set` publishes it as the `omarchy-custom` Plymouth and SDDM themes, outside the package-owned `omarchy` ones, and the scriptlet keeps `Theme=omarchy-custom` in `plymouthd.conf` while that theme is installed. SDDM selects it through `/etc/sddm.conf.d/99-omarchy-unlock-theme.conf`, which no package owns. Reset switches both back to `omarchy`.
 
 ## Locate indexing
 

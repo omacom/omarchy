@@ -200,7 +200,9 @@ run_root_transaction() {
     plymouth_custom_dir=/usr/share/plymouth/themes/omarchy-custom
     sddm_custom_dir=/usr/share/sddm/themes/omarchy-custom
     sddm_conf_dir=/etc/sddm.conf.d
-    sddm_custom_conf=20-omarchy-custom-theme.conf
+    # SDDM lets the last file in name order win, and the installer writes
+    # Current=omarchy into 99-omarchy-login.conf, so this must sort after it.
+    sddm_custom_conf=99-omarchy-unlock-theme.conf
     plymouth_theme_assets=(
       bullet.png
       entry.png
