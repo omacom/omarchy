@@ -25,3 +25,18 @@ The clipboard history is provided by the Omarchy shell and works for both text a
 You can also search the history just by starting to type:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
+
+### Managing entries
+
+The picker can also remove entries and do more than paste:
+
+| Key | Action |
+| --- | --- |
+| `Del` | Remove the selected entry from the history |
+| `Shift + Del` | Clear the entire history (with a confirmation) |
+| `Shift + Return` | Copy the selected entry to the clipboard without pasting |
+| `Alt + Return` | Open the entry: URLs open in the browser, images in the screenshot viewer, other text in the editor |
+| `Up` / `Down` | Move the selection |
+| `PageUp` / `PageDown` | Move the selection six entries |
+| `Home` / `End` | Jump to the first / last entry |
+| `Esc` | Clear the search, or close the picker |
