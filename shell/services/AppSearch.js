@@ -31,7 +31,7 @@ function wordText(value) {
 }
 
 function words(value) {
-  var values = wordText(value).split(/[^a-z0-9]+/)
+  var values = wordText(value).split(/[^\p{L}\p{N}]+/u)
   var result = []
   for (var i = 0; i < values.length; i++) {
     if (values[i]) result.push(values[i])

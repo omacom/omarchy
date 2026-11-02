@@ -99,7 +99,17 @@ assertEqual(refreshedDoc.name, 'Updated App', 'cached document updates when entr
 
 search.invalidateEntry(mutableEntry)
 const invalidatedDoc = search.buildEntryDocument(mutableEntry)
+assert(invalidatedDoc !== refreshedDoc, 'invalidating entry rebuilds the cached document')
 assertEqual(invalidatedDoc.name, 'Updated App', 'invalidating entry rebuilds valid document')
+
+// Accented word prefix matching (#17253)
+const mediaEntry = { name: 'Média Player', id: 'media-player.desktop' }
+const dialogueEntry = { name: 'Outil Dialogue', id: 'outil-dialogue.desktop' }
+const mediaDoc = search.buildEntryDocument(mediaEntry)
+assertDeepEqual(mediaDoc.nameWords, ['média', 'player'], 'accented letters are preserved in word tokens')
+const mediaScore = search.fuzzyScore(mediaEntry, 'dia')
+const dialogueScore = search.fuzzyScore(dialogueEntry, 'dia')
+assert(dialogueScore > mediaScore, 'real word-prefix "Dialogue" outranks accented substring in "Média"')
 
 // Menu ranking with word prefix and apps (#11614)
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
