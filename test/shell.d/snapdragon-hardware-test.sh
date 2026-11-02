@@ -183,7 +183,7 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
 (
   declare -A KERNEL_CMDLINE=([default]="quiet splash")
   source "$snapdragon/limine-entry-tool.d/qualcomm-snapdragon.conf"
-  for parameter in clk_ignore_unused pd_ignore_unused arm64.nopauth systemd.tpm2_wait=0 iommu.passthrough=0; do
+  for parameter in clk_ignore_unused pd_ignore_unused regulator_ignore_unused arm64.nopauth systemd.tpm2_wait=0 plymouth.use-simpledrm iommu.passthrough=0; do
     [[ " ${KERNEL_CMDLINE[default]} " == *" $parameter "* ]] ||
       fail "a Snapdragon device tree boots with $parameter"
   done
@@ -195,9 +195,12 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
   # A kernel that builds the X1 platform drivers as modules gets them named for
   # the initramfs, each one optional so another kernel's image still builds.
   MODULES=(first)
+  HOOKS=(base udev kms)
   source "$snapdragon/mkinitcpio.conf.d/qualcomm-platform.conf"
   [[ ${MODULES[0]} == first ]] ||
     fail "Snapdragon setup preserves the initramfs modules already named"
+  [[ " ${HOOKS[*]} " != *" kms "* ]] ||
+    fail "Snapdragon setup drops early kms from initramfs hooks"
   for module in pinctrl-x1e80100 qnoc-x1e80100 spmi-pmic-arb i2c-qcom-geni; do
     [[ " ${MODULES[*]} " == *" $module? "* ]] ||
       fail "a Snapdragon device tree gets $module in its initramfs"
