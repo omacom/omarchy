@@ -557,11 +557,9 @@ def fetch_codex_rpc(home=None, primary=True):
     return result
 
   # No auth.json under the file store and no CODEX_ACCESS_TOKEN means
-  # account/read can only fail — and starting the app-server is not free: it
-  # syncs the plugin list, a git fetch per refresh that also leaves
-  # .tmp/git-* folders behind. The home is the one being probed, so a
-  # signed-out secondary account reads as signed out even while ~/.codex
-  # holds a login.
+  # account/read can only fail, so the app-server is not worth starting. The
+  # home is the one being probed, so a signed-out secondary account reads as
+  # signed out even while ~/.codex holds a login.
   if not has_codex_credentials(Path(env.get("CODEX_HOME") or (Path.home() / ".codex")), env):
     result["usageStatusText"] = "Waiting for auth"
     result["authHelpText"] = AUTH_HELP
@@ -579,9 +577,12 @@ def fetch_codex_rpc(home=None, primary=True):
     stderr_file = tempfile.TemporaryFile("w+", errors="replace")
   except OSError:
     stderr_file = None
+  # With plugins on, every start syncs the plugin list and each git
+  # marketplace: a fetch per refresh, and a .tmp/git-* folder left each time.
+  # Not --disable plugins: a Codex older than the feature refuses that flag.
   try:
     proc = subprocess.Popen(
-      [codex, "-s", "read-only", "-a", "on-request", "app-server"],
+      [codex, "-s", "read-only", "-a", "on-request", "app-server", "-c", "features.plugins=false"],
       stdin=subprocess.PIPE,
       stdout=subprocess.PIPE,
       stderr=stderr_file or subprocess.DEVNULL,
@@ -726,8 +727,8 @@ def collect_limits(home=None, force=False, primary=True):
   cache = limits_cache(home, primary)
   fallback, fetched_at_ms = cache.kept() if cache else ([], 0)
 
-  # Each probe starts an app-server, which syncs the plugin list on the way
-  # up, so a panel opened and shut repeatedly reuses a recent answer instead.
+  # Each probe starts an app-server and a round trip to OpenAI, so a panel
+  # opened and shut repeatedly reuses a recent answer instead.
   # --force is a person asking for fresh numbers, so it skips the reuse
   # window. A plan without windows is an answer like any other, so it stands
   # in too.
