@@ -75,15 +75,24 @@ expected=$(printf 'START\0%s\0browser\0--xdg-activation-token=token-from-click\0
   fail "the handoff passes the activation token the way a browser process does" "$(od -c <"$received")"
 pass "the handoff passes the activation token to the running browser"
 
-if [[ $(type -P microsoft-edge-stable) != "/usr/bin/microsoft-edge-stable" ]]; then
-  skip "Edge handoff needs /usr/bin/microsoft-edge-stable"
-elif [[ -e /etc/microsoft-edge-stable-flags.conf ]]; then
+if [[ -e /etc/microsoft-edge-stable-flags.conf ]]; then
   skip "Edge handoff needs no /etc/microsoft-edge-stable-flags.conf"
 else
   mkdir -p "$XDG_CONFIG_HOME/microsoft-edge"
   ln -s "$socket" "$XDG_CONFIG_HOME/microsoft-edge/SingletonSocket"
-  (cd "$test_tmp" && "$ROOT/bin/omarchy-cmd-browser-handoff" microsoft-edge-stable --app=https://example.test/d --ignore-certificate-errors) ||
-    fail "the running Edge acknowledges a handed off command line"
+  # The packaged path is what selects Edge's profile, so stand in for it where
+  # Edge isn't installed.
+  (
+    type() {
+      if [[ ${1:-} == "-P" && ${2:-} == "microsoft-edge-stable" ]]; then
+        echo /usr/bin/microsoft-edge-stable
+      else
+        builtin type "$@"
+      fi
+    }
+    export -f type
+    cd "$test_tmp" && "$ROOT/bin/omarchy-cmd-browser-handoff" microsoft-edge-stable --app=https://example.test/d --ignore-certificate-errors
+  ) || fail "the running Edge acknowledges a handed off command line"
 
   [[ $(tr '\0' '\n' <"$received") =~ ^START$'\n'"$test_tmp"$'\n'[0-9]{17}$'\n'0$'\n'browser$'\n'--app=https://example.test/d$'\n'--ignore-certificate-errors$ ]] ||
     fail "the handoff sends Edge the two fields its own handoff adds after the directory" "$(od -c <"$received")"
