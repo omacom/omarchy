@@ -261,6 +261,19 @@ applied_save_data() {
   esac
 }
 
+# The security mode in an applied connection, mapped as profile_security
+# maps the saved one (NM PMF: 1 disable).
+applied_security() {
+  local key_mgmt pmf
+  key_mgmt=$(jq -r '."802-11-wireless-security"."key-mgmt".data // ""' <<<"$1" 2>/dev/null)
+  pmf=$(jq -r '."802-11-wireless-security".pmf.data // 0' <<<"$1" 2>/dev/null)
+  case $key_mgmt in
+    sae) echo "wpa3" ;;
+    wpa-psk) if [[ $pmf == "1" ]]; then echo "wpa2"; else echo "mixed"; fi ;;
+    *) echo "" ;;
+  esac
+}
+
 profile_save_data() {
   case $(nm_get connection.metered connection show "$PROFILE") in
     yes) echo "always" ;;
@@ -500,7 +513,7 @@ station_list() {
 
 status() {
   local capable=0 active=0 configured=0 iface ssid band password freq ip clients upstream
-  local client_list client_count bands save_data="auto" security="mixed" aliases max_clients applied save_data_on_air=""
+  local client_list client_count bands save_data="auto" security="mixed" aliases max_clients applied save_data_on_air="" security_on_air=""
 
   # Without NetworkManager there is no AP to offer, but the panel still
   # needs the status lines to say so.
@@ -535,7 +548,10 @@ status() {
     fi
     if ((active)); then
       applied=$(applied_hotspot_connection "$iface")
-      [[ -z $applied ]] || save_data_on_air=$(applied_save_data "$applied")
+      if [[ -n $applied ]]; then
+        save_data_on_air=$(applied_save_data "$applied")
+        security_on_air=$(applied_security "$applied")
+      fi
     fi
     max_clients=$(profile_max_clients)
 
@@ -577,6 +593,7 @@ status() {
   printf 'save_data\t%s\n' "$save_data"
   printf 'security\t%s\n' "$security"
   printf 'save_data_on_air\t%s\n' "$save_data_on_air"
+  printf 'security_on_air\t%s\n' "$security_on_air"
 }
 
 nft_firewall_active() {

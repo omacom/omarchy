@@ -84,7 +84,7 @@ stderr: $(<"$TEST_TMP/status.err")"
 
 declare -A values=()
 declare -A seen=()
-expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients upstream save_data security save_data_on_air)
+expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients upstream save_data security save_data_on_air security_on_air)
 index=0
 while IFS=$'\t' read -r key value; do
   [[ -n $key ]] || continue
@@ -403,20 +403,25 @@ pass "the participant limit is a bounded DHCP range on the profile subnet"
 # D-Bus, and only when the device runs this hotspot's profile.
 extract_hotspot_function applied_hotspot_connection
 extract_hotspot_function applied_save_data
+extract_hotspot_function applied_security
 cat >"$TEST_TMP/applied-driver.sh" <<'DRIVER'
 PROFILE=omarchy-hotspot
 nm_get() { [[ $* == "GENERAL.DBUS-PATH device show wlan0" ]] && printf '%s\n' /org/freedesktop/NetworkManager/Devices/7; }
 busctl() {
   [[ $* == *"/org/freedesktop/NetworkManager/Devices/7 org.freedesktop.NetworkManager.Device GetAppliedConnection u 0" ]] || return 1
   [[ ${APPLIED_FAILS:-0} == 1 ]] && return 1
-  printf '{"type":"a{sa{sv}}t","data":[{"connection":{"id":{"type":"s","data":"%s"},"metered":{"type":"i","data":%s}}},7]}\n' "${APPLIED_ID:-omarchy-hotspot}" "${APPLIED_METERED:-2}"
+  printf '{"type":"a{sa{sv}}t","data":[{"connection":{"id":{"type":"s","data":"%s"},"metered":{"type":"i","data":%s}},"802-11-wireless-security":{"key-mgmt":{"type":"s","data":"%s"},"pmf":{"type":"i","data":%s}}},7]}\n' "${APPLIED_ID:-omarchy-hotspot}" "${APPLIED_METERED:-2}" "${APPLIED_KEY_MGMT:-wpa-psk}" "${APPLIED_PMF:-2}"
 }
 source "$TEST_TMP/applied_hotspot_connection.sh"
 source "$TEST_TMP/applied_save_data.sh"
+source "$TEST_TMP/applied_security.sh"
 applied=$(applied_hotspot_connection wlan0)
 [[ $(applied_save_data "$applied") == "never" ]] || { echo "metered no reads as never: $applied" >&2; exit 1; }
 [[ $(APPLIED_METERED=1 applied_save_data "$(APPLIED_METERED=1 applied_hotspot_connection wlan0)") == "always" ]] || { echo "metered yes" >&2; exit 1; }
 [[ $(applied_save_data "$(APPLIED_METERED=0 applied_hotspot_connection wlan0)") == "auto" ]] || { echo "metered unknown" >&2; exit 1; }
+[[ $(applied_security "$applied") == "mixed" ]] || { echo "wpa-psk with optional pmf reads as mixed" >&2; exit 1; }
+[[ $(applied_security "$(APPLIED_PMF=1 applied_hotspot_connection wlan0)") == "wpa2" ]] || { echo "pmf disabled reads as wpa2" >&2; exit 1; }
+[[ $(applied_security "$(APPLIED_KEY_MGMT=sae applied_hotspot_connection wlan0)") == "wpa3" ]] || { echo "sae reads as wpa3" >&2; exit 1; }
 [[ -z $(APPLIED_ID=Home-Wifi applied_hotspot_connection wlan0) ]] || { echo "another connection's settings were reported" >&2; exit 1; }
 [[ -z $(APPLIED_FAILS=1 applied_hotspot_connection wlan0) ]] || { echo "a failed read reported something" >&2; exit 1; }
 DRIVER

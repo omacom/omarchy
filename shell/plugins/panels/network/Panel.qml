@@ -1085,13 +1085,15 @@ Panel {
     // it, so a restart this panel didn't see is still right. Otherwise the
     // panel keeps what it saw the hotspot come on air with.
     var saveDataOnAir = Model.hotspotSaveDataOnAir(next)
+    var securityOnAir = Model.hotspotSecurityOnAir(next)
     if (next.active !== "1") {
       hotspotSaveDataOnAir = ""
       hotspotSecurityOnAir = ""
     } else {
       if (saveDataOnAir !== "") hotspotSaveDataOnAir = saveDataOnAir
       else if (!wasActive || hotspotSaveDataOnAir === "") hotspotSaveDataOnAir = Model.hotspotSaveData(next)
-      if (!wasActive || hotspotSecurityOnAir === "") hotspotSecurityOnAir = Model.hotspotSecurity(next)
+      if (securityOnAir !== "") hotspotSecurityOnAir = securityOnAir
+      else if (!wasActive || hotspotSecurityOnAir === "") hotspotSecurityOnAir = Model.hotspotSecurity(next)
     }
     var bands = Model.hotspotBands(next)
     if (bands.length > 0 && hotspotBands.join(",") !== bands.join(",")) hotspotBands = bands

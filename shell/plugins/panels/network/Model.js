@@ -464,6 +464,13 @@ function hotspotSaveData(status) {
 
 // The choice the running hotspot started with, as status read it from the
 // applied connection, or "" when status could not tell.
+// The security mode the running hotspot started with, or "" when status
+// could not tell.
+function hotspotSecurityOnAir(status) {
+  var value = (status && status.security_on_air) || ""
+  return hotspotSecurityChoices.indexOf(value) !== -1 ? value : ""
+}
+
 function hotspotSaveDataOnAir(status) {
   var value = (status && status.save_data_on_air) || ""
   return hotspotSaveDataChoices.indexOf(value) !== -1 ? value : ""
@@ -626,6 +633,7 @@ if (typeof module !== "undefined") {
     hotspotSaveDataChoices: hotspotSaveDataChoices,
     hotspotSaveData: hotspotSaveData,
     hotspotSaveDataOnAir: hotspotSaveDataOnAir,
+    hotspotSecurityOnAir: hotspotSecurityOnAir,
     hotspotSaveDataLabel: hotspotSaveDataLabel,
     hotspotSaveDataTooltip: hotspotSaveDataTooltip,
     hotspotSecurityChoices: hotspotSecurityChoices,

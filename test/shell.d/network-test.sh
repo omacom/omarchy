@@ -461,6 +461,8 @@ if (updateHotspotSource) {
   assertEqual(hotspotSaveDataOnAir, 'always', 'network follows a restart it did not see, from the applied connection')
   updateHotspot('active\t1\nsave_data\tnever\nsave_data_on_air\talways\n', 0, '')
   assertEqual(hotspotSaveDataOnAir, 'always', 'network keeps the applied choice after a save while running')
+  updateHotspot('active\t1\nsecurity\twpa2\nsecurity_on_air\twpa3\n', 0, '')
+  assertEqual(hotspotSecurityOnAir, 'wpa3', 'network takes the security on air from status')
 }
 
 const hotspotActionFailureSource = panelSource.match(/function hotspotActionFailure\(kind, reason\) \{[\s\S]*?\n {2}\}/)
