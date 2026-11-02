@@ -4,9 +4,13 @@ image_dirs=${1:-}
 cache_dir=${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/image-selector
 index_file="$cache_dir/index.tsv"
 pending_video_file=$(mktemp)
-
-mkdir -p "$cache_dir"
 trap 'rm -f "$pending_video_file"' EXIT
+
+umask 077
+if ! mkdir -p "$cache_dir" || ! chmod 700 "$cache_dir"; then
+  echo "Unable to secure the image thumbnail cache: $cache_dir" >&2
+  exit 1
+fi
 
 is_video_path() {
   [[ ${1,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]]
