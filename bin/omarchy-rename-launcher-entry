@@ -41,8 +41,8 @@ if ! source_file=$(launcher_find_entry "$desktop_id"); then
   exit 1
 fi
 for dir in "${launcher_dirs[@]}"; do
-  if [[ $source_file == "$dir/"* ]]; then
-    relative=${source_file#"$dir/"}
+  relative=${source_file#"$dir/"}
+  if (( ${#relative} < ${#source_file} )); then
     desktop_file_name=${relative//\//-}
     break
   fi
