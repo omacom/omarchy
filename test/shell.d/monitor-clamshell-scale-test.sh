@@ -321,7 +321,7 @@ expect_sync "clamshell recovery falls back to preferred for a mode naming no loc
 hl.monitor({ output = "eDP-1", mode = my_mode, position = "0x0", scale = 1.25 })
 LUA
 expect_sync "clamshell recovery falls back to preferred for an unsafe mode" off 1.75 'mode = "preferred"' '!os.exit' <<'LUA'
-hl.monitor({ output = "eDP-1", mode = "x\"}); os.exit()", position = "auto", scale = 1.25 })
+hl.monitor({ output = "eDP-1", mode = "1920x1080 }) os.exit() hl.monitor({ x = 1", position = "auto", scale = 1.25 })
 LUA
 
 # The display panel's mode still comes before the one in monitors.lua.
