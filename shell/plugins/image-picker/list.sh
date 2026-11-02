@@ -17,7 +17,7 @@ thumbnail_path_for() {
   local signature hash
 
   signature=$(stat -Lc '%s:%Y' "$image") || return
-  hash=$(awk -F '\t' -v path="$image" -v sig="$signature" '$1 == path && $2 == sig { print $3; exit }' "$index_file" 2>/dev/null)
+  hash=${thumbnail_index["$image"$'\t'"$signature"]-}
 
   if [[ -z $hash ]]; then
     hash=$(printf '%s\t%s' "$image" "$signature" | md5sum | cut -d ' ' -f 1)
@@ -97,6 +97,18 @@ mapfile -d '' -t images < <(
       -print0 2>/dev/null
   done <<<"$image_dirs" | sort -z
 )
+
+# One pass over the index instead of an awk scan per image. The index only
+# gains rows, and a lookup stopped at the first row for a key, so the first
+# row wins here too.
+declare -A thumbnail_index=()
+if [[ -f $index_file && ${#images[@]} -gt 0 ]]; then
+  while IFS=$'\t' read -r path signature hash _; do
+    [[ -n $path && -n $signature && -n $hash ]] || continue
+    [[ -z ${thumbnail_index["$path"$'\t'"$signature"]-} ]] || continue
+    thumbnail_index["$path"$'\t'"$signature"]=$hash
+  done <"$index_file" 2>/dev/null
+fi
 
 for image in "${images[@]}"; do
   if is_video_path "$image"; then
