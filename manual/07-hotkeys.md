@@ -33,6 +33,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + Grave` | Move window to Quake console |
 | `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
 | `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
+| `Super + Shift + Ctrl + Alt + Arrows` | Swap workspace with the one the monitor in that direction shows |
 | `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
 | `Super + Shift + Arrow`  | Swap window with another in direction of arrow, including one on the monitor on that side |
 | `Super + Minus` | Expand window left |
