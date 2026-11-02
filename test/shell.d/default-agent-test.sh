@@ -158,6 +158,7 @@ dsh_package="npm:@deepseek-ai/dsh"
 # bracketed package is what a user without the declarations gets.
 mcode_tool="npm:@minimax-ai/code"
 mcode_package="$mcode_tool[allow_builds=better-sqlite3]"
+goose_package="goose-agent"
 kiro_cli_tool="http:kiro-cli"
 kiro_cli_package="$kiro_cli_tool[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]"
 freebuff_package="npm:freebuff"
@@ -242,12 +243,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 22 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 32 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -354,6 +355,7 @@ declare -A expected_agents=(
   [mcode]="mcode"
   [minimax-code]="mcode"
   [minimax]="mcode"
+  [goose]="goose"
   [kiro-cli]="kiro-cli"
   [kiro]="kiro-cli"
   [freebuff]="freebuff"
@@ -389,6 +391,7 @@ declare -A expected_packages=(
   [qwen]="$qwen_package"
   [dsh]="$dsh_package"
   [mcode]="$mcode_package"
+  [goose]="$goose_package"
   [kiro-cli]="$kiro_cli_package"
   [freebuff]="$freebuff_package"
   [kilo]="$kilo_package"
@@ -611,7 +614,7 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 pass "Muse installs visibly through mise and opens directly"
 
 saved_agent=$(<"$agent_file")
-for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+for agent in qwen dsh mcode goose kiro-cli freebuff kilo devin amp commandcode; do
   tool_var="${agent//-/_}_tool"
   package_var="${agent//-/_}_package"
   declared_tool=${!tool_var:-${!package_var}}
@@ -619,7 +622,7 @@ for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
   omarchy-default-agent --install "$agent" >/dev/null
   # npm-backed agents bring node along, which a fresh machine doesn't have yet.
   case "$agent" in
-  kiro-cli | devin) expected_install="install $declared_tool" ;;
+  goose | kiro-cli | devin) expected_install="install $declared_tool" ;;
   *) expected_install="install node $declared_tool" ;;
   esac
   grep -Fx "$expected_install" "$mise_history" >/dev/null || fail "visible $agent installation installs Omarchy's declaration (expected: $expected_install)"
@@ -739,6 +742,7 @@ assert_launched dsh "opens its browser UI for a prompt" env DSH_PERMISSION_MODE=
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
 assert_launch mcode mcode -- "Review this project"
+assert_launch goose env GOOSE_MODE=auto goose run --interactive "--text=Review this project"
 assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 : >"$notification_history"
 assert_launch freebuff freebuff
@@ -781,6 +785,7 @@ assert_bypass kimi kimi --yolo
 assert_bypass qwen qwen --yolo
 assert_bypass dsh env DSH_PERMISSION_MODE=danger-full-access dsh web
 assert_bypass mcode mcode
+assert_bypass goose env GOOSE_MODE=auto goose
 assert_bypass kiro-cli kiro-cli chat --trust-all-tools
 : >"$clipboard_log"
 : >"$notification_history"
