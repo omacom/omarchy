@@ -107,7 +107,7 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null; root.cancelOpenWork() }
   // Bound to the central [menu] section in shell.toml via Commons.Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -962,14 +962,13 @@ Item {
     selectedIndex = 0
     cursorActive = true
     root.disarmPointer()
-    root.evaluateGuards()
     opened = true
     rebuildDisplay()
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
-    // The shell may start before first-install packages have finished placing
-    // their icons. Refresh here even when the desktop entry list did not change.
-    if (root.appLibrary) root.appLibrary.refreshIcons()
+    // The guard batch and the icon rescan follow once the card is on screen:
+    // see scheduleOpenWork.
+    root.scheduleOpenWork()
 
     Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
@@ -1201,6 +1200,56 @@ Item {
   property var disabledResults: ({})   // id → true|false (dim, skip cursor)
   property bool guardsPending: false
 
+  // ------------------------------------------------------------- open work
+  //
+  // The guard batch and the icon rescan both spawn processes: the batch alone
+  // is ~150 of them and ~0.7 s of CPU on a two-core laptop. Started from the
+  // open path they compete with the first frame for the cores, which held the
+  // menu off screen for ~100 ms on a ThinkPad T550 (140 ms to map, 45 ms
+  // without them). The menu opens on the last answers anyway, so both wait
+  // until the window has revealed its content plus one frame, and a menu
+  // closed again before then runs neither. The rescan is here because the
+  // shell may start before first-install packages have finished placing their
+  // icons, so icons are looked for on every open, not only when the desktop
+  // entry list changes.
+  property bool openWorkPending: false
+
+  function scheduleOpenWork() {
+    root.openWorkPending = true
+    openWorkTimer.interval = panel.contentRevealed ? openWorkTimer.afterReveal : openWorkTimer.fallback
+    openWorkTimer.restart()
+  }
+
+  function cancelOpenWork() {
+    root.openWorkPending = false
+    openWorkTimer.stop()
+  }
+
+  function runOpenWork() {
+    openWorkTimer.stop()
+    if (!root.openWorkPending) return
+    root.openWorkPending = false
+    if (!root.opened) return
+    root.evaluateGuards()
+    if (root.appLibrary) root.appLibrary.refreshIcons()
+  }
+
+  Timer {
+    id: openWorkTimer
+    // One frame after the reveal, so the processes never land on the frame
+    // that first shows the card.
+    readonly property int afterReveal: 50
+    // A window that never reveals (no matching monitor scale yet, say) still
+    // gets its answers refreshed.
+    readonly property int fallback: 500
+    onTriggered: root.runOpenWork()
+  }
+
+  // The script only changes with the items, which are replaced whole and
+  // never edited in place; building it is ~15 ms of main-thread JS on a T550.
+  property var guardScriptItems: null
+  property string guardScript: ""
+
   function evaluateGuards() {
     // Process ignores a command change while it is running, and `collected`
     // belongs to the run in flight, so a second evaluation cannot overwrite
@@ -1214,7 +1263,11 @@ Item {
     }
     root.guardsPending = false
 
-    var script = MenuModel.guardScript(root.items)
+    if (root.guardScriptItems !== root.items) {
+      root.guardScriptItems = root.items
+      root.guardScript = MenuModel.guardScript(root.items)
+    }
+    var script = root.guardScript
     if (!script) {
       root.whenResults = ({})
       root.checkedResults = ({})
@@ -1222,7 +1275,7 @@ Item {
       return
     }
     guardProc.collected = ""
-    guardProc.command = ["bash", "-lc", script]
+    guardProc.command = ["nice", "-n", "10", "bash", "-lc", script]
     guardProc.running = true
   }
 
@@ -1293,6 +1346,10 @@ Item {
     }
     onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }
     onTargetScreenChanged: { cardTop = -1; maxRowsHeight = -1 }
+    onContentRevealedChanged: if (contentRevealed && root.openWorkPending) {
+      openWorkTimer.interval = openWorkTimer.afterReveal
+      openWorkTimer.restart()
+    }
 
     Rectangle {
       anchors.fill: parent
