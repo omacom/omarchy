@@ -85,3 +85,26 @@ status=$(dropbox_status)
 [[ $(jq -r .running <<<"$status") == "true" && $(jq -r .statusText <<<"$status") == "Up to date" && $(<"$test_tmp/home/cli.log") == "status" ]] ||
   fail "dropbox status asks a linked daemon for its status" "$status"
 pass "dropbox status asks a linked daemon for its status"
+
+# A real file, and the staging copy Dropbox writes while syncing it. The cache
+# entry is larger and newer, so an unfiltered scan would report it first.
+dropbox_dir="$test_tmp/home/Dropbox"
+mkdir -p "$dropbox_dir/Documents" "$dropbox_dir/.dropbox.cache/new_files"
+printf 'hello' >"$dropbox_dir/Documents/notes.txt"
+head -c 4096 /dev/zero >"$dropbox_dir/.dropbox.cache/new_files/abc123"
+printf 'metadata' >"$dropbox_dir/.dropbox"
+touch -d '2020-01-01' "$dropbox_dir/Documents/notes.txt"
+
+result=$(dropbox_status)
+
+[[ $(jq -r '.files | length' <<<"$result") == "1" ]] ||
+  fail "dropbox lists only user files" "$result"
+pass "dropbox lists only user files"
+
+[[ $(jq -r '.files[0].name' <<<"$result") == "notes.txt" ]] ||
+  fail "dropbox skips .dropbox.cache staging files" "$result"
+pass "dropbox skips .dropbox.cache staging files"
+
+[[ $(jq -r '.usedBytes' <<<"$result") == "5" ]] ||
+  fail "dropbox usage excludes internal directories" "$result"
+pass "dropbox usage excludes internal directories"
