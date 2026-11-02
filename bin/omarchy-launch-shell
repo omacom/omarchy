@@ -14,10 +14,15 @@
 # A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
+# Qt hashes a file again after compiling it. Replacement between those reads
+# can save old bytecode with the new source hash, surviving every restart.
+# Bypass runtime disk-cache reads and writes for this shell until Qt ties the
+# checksum to the compiled source snapshot. Leave existing user caches alone.
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
-  OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
+  OMARCHY_STARTUP_BACKGROUND="$startup_background" QML_DISABLE_DISK_CACHE=1 \
+    QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
 

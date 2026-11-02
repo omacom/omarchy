@@ -218,3 +218,16 @@ launch_pid=""
 [[ -f $qs_terminated ]] || fail "the running shell is signalled when the supervisor is"
 [[ $(launches) == 1 ]] || fail "the signalled shell is not relaunched" "$(<"$qs_log")"
 pass "stopping the supervisor stops the shell it is watching"
+
+# Unlike the supervisor dependency stand-ins above, this fixture runs real
+# Quickshell and the production launcher against a genuinely poisoned cache.
+if command -v quickshell >/dev/null 2>&1 && command -v cc >/dev/null 2>&1; then
+  if ! python3 "$SHELL_TEST_DIR/fixtures/qml-cache-replacement.py" "$ROOT" "$test_tmp/cache-race"; then
+    for file in "$test_tmp/cache-race/"*.log; do
+      [[ ! -f $file ]] || { echo "$file" >&2; cat "$file" >&2; }
+    done
+    fail "launcher prevents and recovers persistent QML disk-cache failures"
+  fi
+else
+  skip "real QML cache replacement regression needs quickshell and a C compiler"
+fi
