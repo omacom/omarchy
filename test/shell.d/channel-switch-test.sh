@@ -47,7 +47,8 @@ hooks = [i for i, event in enumerate(events) if event.startswith('step:omarchy-h
 assert len(hooks) == 2, events
 assert events[hooks[0]] == 'step:omarchy-hook pre-refresh-pacman', events
 assert events[hooks[1]] == 'step:omarchy-hook post-update', events
-transaction = next(i for i, event in enumerate(events) if event.startswith('step:pacman '))
+# Package queries are not transactions.
+transaction = next(i for i, event in enumerate(events) if event.startswith('step:pacman ') and not event.startswith(('step:pacman -Q', 'step:pacman -Sl')))
 # The package swap calls pacman itself, so an older release can't strand it.
 swap = next(i for i, event in enumerate(events) if event.startswith('sudo env OMARCHY_UPDATE_PACMAN=1 pacman -S --needed --noconfirm --ask 4 '))
 auth = events.index('sudo true', swap)
