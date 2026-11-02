@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable live backgrounds
+# omarchy:args=<enable|disable|toggle|status>
+# omarchy:examples=omarchy theme bg loop toggle | omarchy theme bg loop disable
+
+set -euo pipefail
+
+toggle="$HOME/.local/state/omarchy/toggles/background-loops-on"
+case ${1:-} in
+  enable)
+    mkdir -p "$(dirname "$toggle")"
+    touch "$toggle"
+    omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true
+    omarchy-theme-bg-loop-apply
+    ;;
+  disable)
+    rm -f "$toggle"
+    omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true
+    omarchy-theme-bg-loop-apply
+    ;;
+  toggle)
+    if [[ -f $toggle ]]; then
+      omarchy-theme-bg-loop disable
+    else
+      omarchy-theme-bg-loop enable
+    fi
+    ;;
+  status)
+    [[ -f $toggle ]]
+    ;;
+  *)
+    echo "Usage: omarchy-theme-bg-loop <enable|disable|toggle|status>" >&2
+    exit 1
+    ;;
+esac

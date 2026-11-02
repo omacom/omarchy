@@ -21,7 +21,21 @@ fi
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 flock 9
 
+# A playing theme loop stands for its still, so picking that still again
+# changes nothing, as it wouldn't with the still on screen.
+SELECTED=$(omarchy-shell shell selectedBackground 2>/dev/null)
+[[ -n $SELECTED ]] || SELECTED=$(readlink "$CURRENT_BACKGROUND_LINK")
+if [[ $SELECTED == */backgrounds/loops/* && $(realpath "$(omarchy-theme-bg-loop-apply --still "$SELECTED")") == "$BACKGROUND" ]]; then
+  exit 0
+fi
+
 INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
+
+# Serialize with omarchy-theme-bg-loop-apply, so a loop it starts in the
+# meantime never replaces this choice.
+mkdir -p "$HOME/.local/state/omarchy"
+exec 8>"$HOME/.local/state/omarchy/background-loop.lock"
+flock 8
 
 # The shell sequences the change, with the intro or the ordinary transition,
 # and repoints the link itself once nothing on screen can flash.
@@ -29,3 +43,9 @@ if [[ $(omarchy-shell shell switchBackground "$BACKGROUND" "$INTRO" 2>/dev/null)
   ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
   omarchy-shell -q background set "$BACKGROUND"
 fi
+
+# The shell gets the still, so a selection it queues follows the settings as
+# they are when its turn comes. The theme loop starts from here, or once an
+# intro or queued change has settled.
+exec 8>&-
+omarchy-theme-bg-loop-apply

@@ -318,6 +318,12 @@
   "trigger.toggle.screensaver-off": {
     "label": "Screensaver Off"
   },
+  "trigger.toggle.background-loops-on": {
+    "label": "Live Wallpaper On"
+  },
+  "trigger.toggle.background-loops-off": {
+    "label": "Live Wallpaper Off"
+  },
   "trigger.toggle.crash-capture-on": {
     "label": "Crash Capture On"
   },
