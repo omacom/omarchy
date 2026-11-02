@@ -60,7 +60,7 @@ fi
 # scaling_max_freq, so always cap frequencies on Apple and record the profile
 # for omarchy-powerprofiles-list.
 if omarchy-hw-aarch64-apple 2>/dev/null; then
-  apple_lock=$state_dir/apple-cpufreq.lock
+  apple_lock=${OMARCHY_POWERPROFILES_APPLE_LOCK:-/run/omarchy/powerprofiles-apple-cpufreq.lock}
   mkdir -p "$state_dir"
   (
     flock -w 30 9 || {

@@ -91,6 +91,9 @@ exit 0
 EOF
 chmod +x "$tmp_dir/bin/omarchy-hw-aarch64-apple"
 
+export OMARCHY_POWERPROFILES_APPLE_LOCK="$tmp_dir/apple-global.lock"
+touch "$OMARCHY_POWERPROFILES_APPLE_LOCK"
+
 cat >"$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$1" >>"$APPLE_APPLY_LOG"
@@ -110,7 +113,12 @@ pass "apple path always applies cpufreq caps and records applied profile"
 
 printf 'power-saver\n' >"$tmp_dir/state/ac"
 printf 'performance\n' >"$tmp_dir/state/apple-cpufreq-active"
-active=$("$ROOT/bin/omarchy-powerprofiles-list" --active-state | awk -F'\t' '$2 == 1 { print $1; exit }')
+active=""
+while IFS=$'\t' read -r name is_active; do
+  [[ $is_active == 1 ]] || continue
+  active=$name
+  break
+done < <("$ROOT/bin/omarchy-powerprofiles-list" --active-state)
 [[ $active == "performance" ]] ||
   fail "apple list marks the applied profile, not the saved preference" "active=$active"
 pass "apple list reads apple-cpufreq-active for --active-state"
@@ -123,18 +131,18 @@ printf '%s\n' "696000 2424000 3420000 4056000" >"$cpufreq_fixture/policy0/scalin
 printf '%s\n' 696000 >"$cpufreq_fixture/policy0/scaling_min_freq"
 printf '%s\n' 4056000 >"$cpufreq_fixture/policy0/scaling_max_freq"
 printf '%s\n' 'apple-cpufreq' >"$tmp_dir/scaling_driver"
-apple_lock="$tmp_dir/run-apple-cpufreq.lock"
-mkdir -p "${apple_lock%/*}"
-touch "$apple_lock"
-unshare -Ur env \
-  OMARCHY_APPLE_CPUFREQ_SYSFS_ROOT="$cpufreq_fixture" \
-  OMARCHY_APPLE_CPUFREQ_DRIVER_FILE="$tmp_dir/scaling_driver" \
-  OMARCHY_APPLE_CPUFREQ_LOCK="$apple_lock" \
-  "$ROOT/bin/omarchy-powerprofiles-apple-cpufreq-apply" balanced ||
-  fail "apple apply could not cap frequencies in a root namespace"
-[[ $(<"$cpufreq_fixture/policy0/scaling_max_freq") == "3420000" ]] ||
-  fail "apple apply caps scaling_max_freq to the profile step"
-pass "apple apply caps scaling_max_freq per profile"
+if unshare --user --map-root-user true 2>/dev/null; then
+  unshare -Ur env \
+    OMARCHY_APPLE_CPUFREQ_SYSFS_ROOT="$cpufreq_fixture" \
+    OMARCHY_APPLE_CPUFREQ_DRIVER_FILE="$tmp_dir/scaling_driver" \
+    "$ROOT/bin/omarchy-powerprofiles-apple-cpufreq-apply" balanced ||
+    fail "apple apply could not cap frequencies in a root namespace"
+  [[ $(<"$cpufreq_fixture/policy0/scaling_max_freq") == "3420000" ]] ||
+    fail "apple apply caps scaling_max_freq to the profile step"
+  pass "apple apply caps scaling_max_freq per profile"
+else
+  pass "apple apply caps scaling_max_freq per profile (skipped: user namespaces unavailable)"
+fi
 
 bash -n "$ROOT/bin/omarchy-powerprofiles-apple-cpufreq-apply" ||
   fail "apple-cpufreq apply script has a syntax error"
