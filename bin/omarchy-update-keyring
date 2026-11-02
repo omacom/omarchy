@@ -45,13 +45,14 @@ if omarchy-hw-aarch64 && ! alarm_key_trusted; then
   fi
 fi
 
-# Ensure we have the latest archlinux-keyring, maintainer keys might have changed.
+# Ensure we have the latest archlinux-keyring and omarchy-keyring, maintainer
+# keys might have changed.
 # --needed installs only a newer keyring: new or revoked keys reach the repos
 # as a new package version, and an installed version was populated when it
 # went in, so reinstalling the same one only repeats that populate.
 # An aarch64 machine's Arch Linux ARM repositories are signed with keys of
 # their own, so its keyring is kept current the same way.
-keyrings=(archlinux-keyring)
+keyrings=(archlinux-keyring omarchy-keyring)
 if omarchy-hw-aarch64 && { omarchy-pkg-present archlinuxarm-keyring || (( alarm_keyring_missing )); }; then
   keyrings+=(archlinuxarm-keyring)
 fi
@@ -73,7 +74,7 @@ if [[ -f $platform_keyrings ]]; then
     fi
   done <"$platform_keyrings"
 fi
-echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
+echo -e "\e[32m\nUpdate signing keys\e[0m"
 sudo pacman -Sy --needed --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- skipping$' >&2)
 
 if omarchy-hw-aarch64 && ! alarm_key_trusted; then
