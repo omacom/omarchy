@@ -37,6 +37,12 @@ case $1 in
     ;;
 esac
 
+# Serialize saved layout changes with the global layout switch.
+LOCK_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+mkdir -p "$LOCK_DIR"
+exec 9>"$LOCK_DIR/workspace-layout-global.lock"
+flock 9
+
 mkdir -p "$MODES_DIR"
 
 # A workspace with windows on it keeps the layout it has, so changing the
