@@ -31,8 +31,14 @@ done
 
 cd "${OMARCHY_PATH:-$(pwd)}"
 mkdir -p migrations
-migration_file="migrations/$(git log -1 --format=%cd --date=unix).sh"
+timestamp=$(date +%s)
+while [[ -e "migrations/$timestamp.sh" ]]; do
+  sleep 1
+  timestamp=$(date +%s)
+done
+migration_file="migrations/$timestamp.sh"
 touch "$migration_file"
+chmod 0644 "$migration_file"
 
 if (( ! no_edit )); then
   nvim "$migration_file"
