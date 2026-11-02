@@ -15,10 +15,10 @@ omarchy_ensure_brave_web_speech() {
   # symlink so the next graphical login has voices. --now starts it immediately
   # when the user manager is up, so an already-open session does not wait.
   if ! systemctl --user enable --now speech-dispatcher.socket >/dev/null 2>&1; then
-    wants_dir="$HOME/.config/systemd/user/sockets.target.wants"
-    mkdir -p "$wants_dir"
+    local wants_dir="$HOME/.config/systemd/user/sockets.target.wants"
+    mkdir -p "$wants_dir" || return 1
     ln -sfn /usr/lib/systemd/user/speech-dispatcher.socket \
-      "$wants_dir/speech-dispatcher.socket"
+      "$wants_dir/speech-dispatcher.socket" || return 1
   fi
 
   # Brave only asks speech-dispatcher for voices when started with this switch.

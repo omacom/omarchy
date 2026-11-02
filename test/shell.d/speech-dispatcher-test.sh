@@ -93,6 +93,18 @@ OMARCHY_SPEECH_ENABLE_STATUS=1 run_helper "$flags"
   fail "running again does not repeat the speech-dispatcher flag"
 pass "the helper links the socket without a user manager and is idempotent"
 
+rm -rf "$test_tmp/home/.config/systemd"
+mkdir -p "$test_tmp/home/.config/systemd/user"
+touch "$test_tmp/home/.config/systemd/user/sockets.target.wants"
+: >"$log"
+# The installer calls the helper as `... || exit 1`, which turns off errexit inside it.
+if HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_SPEECH_TEST_LOG="$log" OMARCHY_SPEECH_ENABLE_STATUS=1 \
+  bash -euo pipefail -c "source \"$helper\"; omarchy_ensure_brave_web_speech \"$flags\" || exit 1" >/dev/null 2>&1; then
+  fail "a socket fallback that cannot link fails the Brave install"
+fi
+rm -rf "$test_tmp/home/.config/systemd"
+pass "a socket fallback that cannot link fails the Brave install"
+
 printf -- '--ozone-platform=wayland' >"$flags"
 run_helper "$flags"
 [[ $(<"$flags") == $'--ozone-platform=wayland\n--enable-speech-dispatcher' ]] ||
