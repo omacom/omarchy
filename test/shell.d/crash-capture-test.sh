@@ -87,11 +87,12 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" cmdline="${3:-$2}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg cmdline "$cmdline" \
     '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV",
+      COREDUMP_CMDLINE: $cmdline}' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -180,6 +181,32 @@ run_watch
 announced nautilus ||
   fail "a muted crash stops the watcher reading the journal, losing every crash after it"
 pass "a muted crash does not stop the watcher reading the next one"
+
+# Chromium and Electron apps restart a crashed GPU or renderer child on their
+# own, and every child runs the app's own binary, so announcing one reads as the
+# app crashing when it never closed. The app's own crash must still toast, and
+# so must another program that happens to take a --type= flag.
+for child_type in gpu-process renderer; do
+  reset_entries
+  crash_entry spotify /opt/spotify/spotify "/opt/spotify/spotify --type=$child_type --no-sandbox"
+  crash_entry nautilus /usr/bin/nautilus
+  run_watch
+  ! announced spotify ||
+    fail "a $child_type child the app recovered from is announced as the app crashing"
+  announced nautilus ||
+    fail "a skipped $child_type child crash stops the watcher reading the next one"
+done
+pass "a Chromium child process crash is not announced as the app crashing"
+
+reset_entries
+crash_entry spotify /opt/spotify/spotify "/opt/spotify/spotify --enable-features=Foo"
+crash_entry mytool /usr/bin/mytool "/usr/bin/mytool --type=renderer-config"
+run_watch
+announced spotify ||
+  fail "the main process of a Chromium app is silenced along with its children"
+announced mytool ||
+  fail "an unrelated program's --type= flag is mistaken for a Chromium child"
+pass "a Chromium app's own crash and an unrelated --type= flag still announce"
 
 # A process can set its own comm to anything prctl takes, slashes included, and
 # a crash with no recorded executable falls back to it. A name that climbed out

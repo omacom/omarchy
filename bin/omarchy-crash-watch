@@ -21,6 +21,12 @@ readonly dedupe_seconds=${OMARCHY_CRASH_DEDUPE_SECONDS:-60}
 # Extended regex of process names never worth announcing.
 readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
 
+# Chromium and Electron apps run every child process from the app's own binary,
+# so the name alone cannot tell a GPU or renderer crash from the app's. Chromium
+# marks each child with --type=<kind>. Only its own kinds match, as a whole
+# argument, so another program's --type= flag still has its crashes announced.
+readonly chromium_child_pattern=' --type=(renderer|gpu-process|utility|zygote|ppapi|ppapi-broker|broker|nacl-loader|crashpad-handler) '
+
 declare -A last_notified
 
 announce() {
@@ -52,13 +58,14 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    IFS=$'\t' read -r uid comm pid exe signal cmdline < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.COREDUMP_CMDLINE | field)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
@@ -71,6 +78,10 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
     [[ $uid =~ ^[0-9]+$ ]] || continue
     ((uid == UID)) || continue
+
+    # A Chromium or Electron child the app restarts on its own; the user never
+    # saw it go, and the toast would name the whole app.
+    [[ " $cmdline " =~ $chromium_child_pattern ]] && continue
 
     # comm is truncated to 15 characters, so prefer the executable's basename.
     name=$comm
