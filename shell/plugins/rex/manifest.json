@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.rex",
+  "name": "Rex",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Offline regular expression workbench: test, explain, debug, optimize, and learn patterns on the real engines of many languages",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "Rex.qml"
+  }
+}
