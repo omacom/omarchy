@@ -766,3 +766,63 @@ run omarchy-install-openclaw-cli --now || fail "--now leaves a script of the use
 ! grep -q "install --force\|^systemctl" "$events" && cmp -s "$test_tmp/own-unit" "$test_home/.config/systemd/user/openclaw-gateway.service" ||
   fail "--now leaves a script of the user's alone" "$(cat "$events")"
 pass "a gateway the user runs on Bun, or a script of their own on /usr/bin/node, is left alone"
+
+# A service the old package installed stops starting once the seed package
+# replaces it, so it is moved to the runtime and running even with an OpenClaw
+# of the user's own in the way. The refusal still comes, once that is done.
+for case in command path; do
+  new_home "own-$case-services"
+  touch "$test_tmp/package-installed"
+  units="$test_home/.config/systemd/user"
+  mkdir -p "$units"
+  printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$units/openclaw-gateway.service"
+  touch "$test_home/active-openclaw-gateway.service" "$test_home/enabled-openclaw-gateway.service"
+  case $case in
+  command)
+    printf '#!/bin/bash\necho mine\n' >"$command"
+    chmod +x "$command"
+    ;;
+  path)
+    printf '#!/bin/bash\n' >"$test_tmp/usr-bin/openclaw"
+    chmod +x "$test_tmp/usr-bin/openclaw"
+    ;;
+  esac
+  status=0
+  run omarchy-install-openclaw-cli --now || status=$?
+  ((status == 79)) || fail "an OpenClaw of the user's own is still refused beside the old package's gateway ($case)" "$status $(cat "$test_tmp/output")"
+  sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$units/openclaw-gateway.service" | grep -qx "$test_home/.openclaw/tools/node-v24.19.0/bin/node" &&
+    [[ -e $test_home/active-openclaw-gateway.service ]] ||
+    fail "the old package's gateway moves to the runtime and runs beside an OpenClaw of the user's own ($case)" "$(cat "$units/openclaw-gateway.service")"
+  if [[ $case == command ]]; then
+    grep -q mine "$command" || fail "the user's own command is kept while the gateway moves"
+  else
+    [[ $(readlink -- "$command") == "$runtime" ]] || fail "the command is linked while another openclaw is on PATH"
+  fi
+  rm -f "$test_tmp/usr-bin/openclaw"
+done
+pass "a service the old package installed moves to the runtime whatever OpenClaw of the user's own is in the way"
+
+# A move that rewrote the gateway but could not get it to answer leaves it
+# stopped, no longer on the old package. The next run still repairs and starts
+# it before refusing the user's command.
+new_home own-command-retry
+touch "$test_tmp/package-installed"
+units="$test_home/.config/systemd/user"
+mkdir -p "$units"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$units/openclaw-gateway.service"
+touch "$test_home/active-openclaw-gateway.service" "$test_home/enabled-openclaw-gateway.service" "$test_home/stale-agent-db"
+printf '#!/bin/bash\necho mine\n' >"$command"
+chmod +x "$command"
+status=0
+OMARCHY_TEST_DOCTOR_CANNOT_FIX=1 run omarchy-install-openclaw-cli --now || status=$?
+((status != 0 && status != 79)) || fail "a moved gateway that does not answer fails the install beside the user's command" "$status"
+! grep -qF /usr/lib/node_modules "$units/openclaw-gateway.service" ||
+  fail "the failed run had already moved the gateway" "$(cat "$units/openclaw-gateway.service")"
+: >"$events"
+status=0
+run omarchy-install-openclaw-cli --now || status=$?
+((status == 79)) || fail "the retry refuses the user's command once the gateway is repaired" "$status $(cat "$test_tmp/output")"
+grep -q '^runtime doctor' "$events" && [[ -e $test_home/active-openclaw-gateway.service && ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+  fail "the retry repairs and starts the gateway the failed run stopped" "$(cat "$events")"
+grep -q mine "$command" || fail "the user's own command is kept through the retry"
+pass "a gateway a failed move left stopped is repaired by the next run, with the user's command still in the way"
