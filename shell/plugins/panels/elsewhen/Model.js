@@ -71,6 +71,58 @@ function parseZones(spec) {
   return out
 }
 
+// ---- the stored list
+
+function isCoordinate(value, limit) {
+  if (value === undefined || value === null || value === "") return false
+  var n = Number(value)
+  return isFinite(n) && Math.abs(n) <= limit
+}
+
+// The place facts a city may carry beyond its name and zone, copied onto `into`.
+// Coordinates come as a pair or not at all.
+function withPlace(into, place) {
+  if (place && isCoordinate(place.lat, 90) && isCoordinate(place.lon, 180)) {
+    into.lat = Number(place.lat)
+    into.lon = Number(place.lon)
+  }
+  var region = place && place.region ? String(place.region).replace(/\s+/g, " ").trim() : ""
+  if (region !== "") into.region = region
+  return into
+}
+
+// The `cities` setting, [{ name, zone, lat, lon, region, people }], as rows
+// of { label, id, ... }. Before the first write it is unset and the older
+// "Label|Zone, ..." string in `zones` is read instead.
+function parseCities(cities, legacyZones) {
+  if (!Array.isArray(cities) || cities.length === 0) return parseZones(legacyZones)
+  var out = []
+  for (var i = 0; i < cities.length; i++) {
+    var c = cities[i]
+    if (!c || typeof c !== "object") continue
+    var id = String(c.zone || "").trim()
+    if (id === "" || !ZONE_ID.test(id)) continue
+    var label = cleanLabel(c.name)
+    var entry = withPlace({ label: label === "" ? labelForZoneId(id) : label, id: id }, c)
+    var people = Array.isArray(c.people) ? cleanPeople(c.people) : []
+    if (people.length > 0) entry.people = people
+    out.push(entry)
+  }
+  return out
+}
+
+function serializeCities(zones) {
+  var out = []
+  for (var i = 0; i < zones.length; i++) {
+    var z = zones[i]
+    if (!z || !z.id) continue
+    var entry = withPlace({ name: z.label || labelForZoneId(z.id), zone: z.id }, z)
+    if (z.people && z.people.length > 0) entry.people = z.people.slice()
+    out.push(entry)
+  }
+  return out
+}
+
 // ---- the date probe
 
 // argv for one `date` per zone, printing "Asia/Tokyo|JST|+0900". Zones are
@@ -255,13 +307,15 @@ function relativeOffsetLabel(zoneOffsetMinutes, localOffsetMinutes, words) {
 // Everything a row needs; `ready` is false until the zone has been probed.
 function rowFor(zone, probe, nowMs, localOffsetMinutes, hour24, words) {
   var info = probe ? probe[zone.id] : null
-  if (!info) return { label: zone.label, id: zone.id, ready: false }
+  var people = zone.people || []
+  if (!info) return { label: zone.label, id: zone.id, people: people, ready: false }
   var parts = zoneParts(nowMs, info.offsetMinutes)
   var here = localParts(nowMs)
   var delta = dayDelta(parts, here)
   return {
     label: zone.label,
     id: zone.id,
+    people: people,
     ready: true,
     abbr: info.abbr,
     offsetMinutes: info.offsetMinutes,
@@ -321,6 +375,206 @@ function homeCityAfterTap(label, zoneId, homeOverride, localZone) {
   return name === zoneCity ? "" : name
 }
 
+// Where "here" is: the stored `here` place while this machine is still on its
+// zone, else the older `homeCity` name, else the zone's own city. `chosen` is
+// false only for that last guess. Null until the machine's zone is known.
+function resolveHere(here, legacyCity, localZone) {
+  var zone = String(localZone || "")
+  if (zone === "") return null
+  if (here && typeof here === "object" && String(here.zone || "") === zone) {
+    var name = cleanLabel(here.name)
+    if (name !== "") return withPlace({ label: name, id: zone, chosen: true }, here)
+  }
+  var legacy = cleanLabel(legacyCity)
+  if (legacy !== "") return { label: legacy, id: zone, chosen: true }
+  return { label: labelForZoneId(zone), id: zone, chosen: false }
+}
+
+// Picking `pick` as here: { here, zones, zoneChange }. `here` is the new
+// setting, null to go back to the zone's own city.
+//
+// On this machine's zone, the row that stood for the old here is renamed to the
+// new one, keeping its place in the list and its people. A city on another zone
+// moves the machine's clock there - `zoneChange` is that zone - and leaves the
+// list alone: home stays on it while you are away from it.
+function hereAfterPick(zones, current, pick, localZone) {
+  var local = String(localZone || "")
+  var zone = pick ? String(pick.id || "") : ""
+  if (local === "" || zone === "" || !ZONE_ID.test(zone)) return null
+  var name = cleanLabel(pick.label)
+  if (name === "") return null
+  var place = withPlace({}, pick)
+  var bare = name === labelForZoneId(zone) && place.lat === undefined
+  var here = bare ? null : withPlace({ name: name, zone: zone }, pick)
+  if (zone !== local) return { here: here, zones: zones, zoneChange: zone }
+
+  var out = zones
+  var at = current ? indexOfZone(zones, current.label, zone) : -1
+  if (at >= 0 && (name === current.label || !hasEntry(zones, zone, name))) {
+    var row = { label: name, id: zone }
+    if (zones[at].people) row.people = zones[at].people
+    out = zones.slice()
+    out[at] = withPlace(row, pick)
+  }
+  return { here: here, zones: out, zoneChange: "" }
+}
+
+// argv that moves this machine's clock to `zone` through the passwordless
+// `timedatectl set-timezone` rule the timezone menu uses (etc/sudoers.d/omarchy-tzupdate),
+// then tells the bar clock. `-n`: a missing rule fails rather than waiting on a
+// password nobody can type. The zone is an argument, never script text.
+function timezoneCommand(zone) {
+  return ["bash", "-c", 'sudo -n timedatectl set-timezone "$1" && omarchy-shell -q omarchy.clock refresh', "bash", String(zone)]
+}
+
+// ---- people
+
+// GitHub's own rule for a username.
+var GITHUB_HANDLE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/
+var MAX_PEOPLE = 12
+
+// "Emir, @sarahdev" -> ["Emir", "@sarahdev"]: trimmed, without repeats, and a
+// handle GitHub could not have is kept as a plain name.
+function parsePeople(text) {
+  var parts = String(text === undefined || text === null ? "" : text).split(",")
+  var out = []
+  var seen = {}
+  for (var i = 0; i < parts.length && out.length < MAX_PEOPLE; i++) {
+    var name = cleanLabel(parts[i])
+    if (name.charAt(0) === "@") {
+      var handle = name.slice(1).trim()
+      name = GITHUB_HANDLE.test(handle) ? "@" + handle : handle
+    }
+    if (name === "" || seen[name.toLowerCase()]) continue
+    seen[name.toLowerCase()] = true
+    out.push(name)
+  }
+  return out
+}
+
+function cleanPeople(list) {
+  return parsePeople((list || []).map(function(p) { return String(p).replace(/,/g, " ") }).join(","))
+}
+
+function peopleText(list) {
+  return (list || []).join(", ")
+}
+
+// "@SarahDev" -> "sarahdev"; "" for a plain name.
+function personHandle(person) {
+  var text = String(person || "")
+  if (text.charAt(0) !== "@" || !GITHUB_HANDLE.test(text.slice(1))) return ""
+  return text.slice(1).toLowerCase()
+}
+
+// A handle reads as the profile's name once it is known, and as the bare handle before.
+function personName(person, profiles) {
+  var handle = personHandle(person)
+  if (handle === "") return String(person || "")
+  var profile = profiles ? profiles[handle] : null
+  if (profile && profile.name) return profile.name
+  return profile && profile.login ? profile.login : String(person).slice(1)
+}
+
+// The first letter, whole: a surrogate pair is one letter.
+function initialOf(name) {
+  var text = String(name || "").trim()
+  if (text === "") return ""
+  var code = text.charCodeAt(0)
+  var first = code >= 0xd800 && code < 0xdc00 ? text.slice(0, 2) : text.charAt(0)
+  return first.toUpperCase()
+}
+
+// Every handle on the list, once.
+function handlesIn(zones) {
+  var out = []
+  for (var i = 0; i < (zones || []).length; i++) {
+    var people = zones[i].people || []
+    for (var j = 0; j < people.length; j++) {
+      var handle = personHandle(people[j])
+      if (handle !== "" && out.indexOf(handle) < 0) out.push(handle)
+    }
+  }
+  return out
+}
+
+// The row at `index` with these people, or the same array when nothing changes.
+function setPeopleAt(zones, index, people) {
+  if (index < 0 || index >= zones.length) return zones
+  var next = cleanPeople(people)
+  if (peopleText(next) === peopleText(zones[index].people)) return zones
+  var row = Object.assign({}, zones[index])
+  if (next.length > 0) row.people = next
+  else delete row.people
+  var out = zones.slice()
+  out[index] = row
+  return out
+}
+
+// argv that refreshes each handle's cached profile when missing or a week old,
+// and its avatar along with it or whenever the avatar is missing, then prints
+// one JSON line per handle it has a profile for. Handles are arguments, never
+// script text, and are checked before they get here.
+//
+// The API's answer is not trusted to name a URL: the avatar is fetched from
+// GitHub's own avatar host by the account's numeric id, and curl may speak
+// nothing but HTTPS, redirects included. Downloads land in fresh temporary
+// files in a private directory and are renamed into place, so nothing planted
+// at a predictable name is written through. Every monitor has its own panel,
+// so each handle is refreshed under a lock, and checked again once it is held.
+function profilesCommand(handles) {
+  var script = [
+    'dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/elsewhen/people"',
+    'mkdir -p "$dir" && chmod 700 "$dir" || exit 0',
+    'fetch() {',
+    '  local tmp',
+    '  tmp=$(mktemp "$dir/.fetch.XXXXXX") || return 1',
+    '  if curl -fsSL --max-time 8 --proto =https --proto-redir =https --globoff -o "$tmp" --url "$1"; then',
+    '    mv -f "$tmp" "$2"',
+    '  else',
+    '    rm -f "$tmp"',
+    '    return 1',
+    '  fi',
+    '}',
+    'for h; do',
+    '  json="$dir/$h.json" img="$dir/$h.avatar"',
+    '  (',
+    '    flock -w 30 9 || exit 0',
+    '    fresh=1',
+    '    if [[ ! -s $json || -n $(find "$json" -mmin +10080) ]]; then',
+    '      fetch "https://api.github.com/users/$h" "$json" && fresh=0',
+    '    fi',
+    '    if [[ -s $json ]] && { (( fresh == 0 )) || [[ ! -s $img ]]; }; then',
+    '      id=$(jq -r \'.id // empty | tostring\' "$json")',
+    '      [[ $id =~ ^[0-9]+$ ]] && fetch "https://avatars.githubusercontent.com/u/$id?s=96" "$img"',
+    '    fi',
+    '  ) 9>>"$dir/.$h.lock"',
+    '  [[ -s $img ]] || img=""',
+    '  [[ -s $json ]] && jq -c --arg h "$h" --arg img "$img" \'{handle: $h, login: (.login // $h | tostring), name: (.name // "" | tostring), avatar: $img}\' "$json"',
+    'done',
+    'true'
+  ].join("\n")
+  var valid = (handles || []).filter(function(h) { return GITHUB_HANDLE.test(String(h)) })
+  return ["bash", "-c", script, "bash"].concat(valid.map(function(h) { return String(h).toLowerCase() }))
+}
+
+// One JSON line per handle -> { handle: { login, name, avatar } }.
+function parseProfiles(text) {
+  var out = {}
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var p
+    try { p = JSON.parse(lines[i]) } catch (e) { continue }
+    if (!p || !GITHUB_HANDLE.test(String(p.handle || ""))) continue
+    out[String(p.handle).toLowerCase()] = {
+      login: String(p.login || p.handle),
+      name: cleanLabel(p.name),
+      avatar: String(p.avatar || "")
+    }
+  }
+  return out
+}
+
 function serializeZones(zones) {
   var parts = []
   for (var i = 0; i < zones.length; i++) {
@@ -338,15 +592,33 @@ function hasEntry(zones, id, label) {
   return false
 }
 
+// "Springfield" in "Missouri, US" -> "Springfield (Missouri)": a second town
+// of a name already in use, named so the two can be told apart. The name
+// alone when there is no region to add.
+function regionalName(name, region) {
+  var first = cleanLabel(String(region || "").split(",")[0])
+  return first === "" ? name : name + " (" + first + ")"
+}
+
 // Returns the same array when nothing changes, so callers can skip the write.
-function addZone(zones, id, label) {
+// `place` may carry the city's coordinates and region from a place search. A
+// second town with a name and zone already on the list is a different place
+// when the coordinates say so, and is named with its region to tell them apart:
+// a row is known by its name and zone.
+function addZone(zones, id, label, place) {
   var zoneId = String(id || "").trim()
   if (zoneId === "" || !ZONE_ID.test(zoneId)) return zones
   var name = cleanLabel(label)
   if (name === "") name = labelForZoneId(zoneId)
-  if (hasEntry(zones, zoneId, name)) return zones
+  var row = withPlace({ label: name, id: zoneId }, place)
+  var at = indexOfZone(zones, name, zoneId)
+  if (at >= 0) {
+    if (row.lat === undefined || zones[at].lat === undefined || nearPlace(zones[at], row)) return zones
+    row.label = regionalName(name, row.region)
+    if (row.label === name || hasEntry(zones, zoneId, row.label)) return zones
+  }
   var out = zones.slice()
-  out.push({ label: name, id: zoneId })
+  out.push(row)
   return out
 }
 
@@ -416,6 +688,100 @@ function searchZones(options, query, limit) {
     if (starts.length >= max && q === "") break
   }
   return starts.concat(contains).slice(0, max)
+}
+
+// ---- place search
+// The tz database names one city per zone; the geocoder knows the towns in
+// between, and tells us which zone each one keeps.
+
+var PLACE_QUERY_MIN = 3
+
+// The query a place search runs for, or "" when it is too short to be worth one.
+function placeQuery(text) {
+  var q = String(text || "").replace(/\s+/g, " ").trim()
+  return q.length >= PLACE_QUERY_MIN ? q.toLowerCase() : ""
+}
+
+// "Florida, US": what tells Portland, Oregon from Portland, Maine.
+function placeRegion(result) {
+  var parts = []
+  var admin = cleanLabel(result.admin1)
+  if (admin !== "" && admin !== cleanLabel(result.name)) parts.push(admin)
+  var country = cleanLabel(result.country_code || result.country)
+  if (country !== "") parts.push(country.toUpperCase().length === 2 ? country.toUpperCase() : country)
+  return parts.join(", ")
+}
+
+// The geocoder's results, or null when the answer is not one. Only a real
+// array, and only as many entries as were asked for: the answer comes off the
+// network, and a `{"length": 1e300}` would otherwise hold the shell's UI thread
+// in a loop.
+var GEOCODE_COUNT = 10
+
+function geocodeResults(text) {
+  var payload
+  try { payload = JSON.parse(text) } catch (e) { return null }
+  var results = payload && payload.results
+  if (results === undefined || results === null) return []
+  return Array.isArray(results) ? results.slice(0, GEOCODE_COUNT) : []
+}
+
+// Geocoder answer -> picker options carrying the place, [] when it failed.
+function placeOptions(text) {
+  var results = geocodeResults(text)
+  if (!results) return []
+  var out = []
+  var seen = {}
+  for (var i = 0; i < results.length; i++) {
+    var r = results[i] || {}
+    var zone = String(r.timezone || "")
+    var name = cleanLabel(r.name)
+    if (name === "" || !ZONE_ID.test(zone) || zone.indexOf("/") < 0) continue
+    var option = withPlace({ value: zone, label: name }, { lat: r.latitude, lon: r.longitude, region: placeRegion(r) })
+    if (option.lat === undefined) continue
+    var key = name + "\u0000" + (option.region || "") + "\u0000" + zone
+    if (seen[key]) continue
+    seen[key] = true
+    out.push(option)
+  }
+  return out
+}
+
+// Within about a kilometre: the same place, whichever list it came from.
+function nearPlace(a, b) {
+  return a.lat !== undefined && b.lat !== undefined
+    && Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
+}
+
+function sameName(option, label, zone) {
+  return option.value === zone && String(option.label).toLowerCase() === String(label).toLowerCase()
+}
+
+// The offline matches first, so three letters and Return still pick what they
+// did; then the geocoder's places. The first place an offline city's name and
+// zone match lends it a region and coordinates rather than being listed twice;
+// any other town of that name and zone - Springfield, Illinois and Springfield,
+// Missouri both keep Central time - is a place of its own and listed as one.
+// A place already on the list is left out, known by where it is - or, for a
+// row with no coordinates, by its name.
+function mergePlaces(offline, places, existing, limit) {
+  var out = (offline || []).slice()
+  var offlineCount = out.length
+  for (var i = 0; i < (places || []).length; i++) {
+    var p = places[i]
+    var tracked = false
+    for (var k = 0; existing && k < existing.length && !tracked; k++) {
+      var row = existing[k]
+      tracked = row.id === p.value && (nearPlace(row, p)
+        || (row.lat === undefined && String(row.label).toLowerCase() === p.label.toLowerCase()))
+    }
+    if (tracked) continue
+    var twin = -1
+    for (var j = 0; j < offlineCount && twin < 0; j++) if (sameName(out[j], p.label, p.value)) twin = j
+    if (twin >= 0 && out[twin].lat === undefined) out[twin] = withPlace(Object.assign({}, out[twin]), p)
+    else if (twin < 0 || !nearPlace(out[twin], p)) out.push(p)
+  }
+  return limit === undefined ? out : out.slice(0, limit)
 }
 
 // Keyboard selection in a result list, wrapping at both ends.
@@ -562,18 +928,18 @@ function factsKey(zone) {
 var WEATHER_TTL_MS = 20 * 60 * 1000
 
 function geocodeUrl(label) {
-  return "https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&name="
+  return "https://geocoding-api.open-meteo.com/v1/search?count=" + GEOCODE_COUNT + "&language=en&format=json&name="
     + encodeURIComponent(label)
 }
 
 // { place, answered }: a place in the row's own zone beats the top result, and
 // `answered` is false when the request itself failed.
 function pickGeocode(text, zone) {
-  var results
-  try { results = JSON.parse(text).results || [] } catch (e) { return { place: null, answered: false } }
+  var results = geocodeResults(text)
+  if (!results) return { place: null, answered: false }
   var best = null
-  for (var i = 0; i < results.length && !best; i++) if (results[i].timezone === zone) best = results[i]
-  if (!best && results.length > 0) best = results[0]
+  for (var i = 0; i < results.length && !best; i++) if (results[i] && results[i].timezone === zone) best = results[i]
+  if (!best && results.length > 0 && results[0] && typeof results[0] === "object") best = results[0]
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 
@@ -598,7 +964,9 @@ function forecastUrl(points) {
 }
 
 // Open-Meteo answers one point as an object and several as an array, in request order.
-function parseForecast(text, keys, nowMs) {
+// `points`, when given, are the coordinates each reading was asked for; a
+// reading remembers them, so a city that moves does not keep another's weather.
+function parseForecast(text, keys, nowMs, points) {
   var payload
   try { payload = JSON.parse(text) } catch (e) { return {} }
   if (!Array.isArray(payload)) payload = [payload]
@@ -607,12 +975,15 @@ function parseForecast(text, keys, nowMs) {
     var current = (payload[i] && payload[i].current) || {}
     if (current.temperature_2m === undefined || current.temperature_2m === null) continue
     out[keys[i]] = { c: Math.round(current.temperature_2m * 10) / 10, w: current.weather_code, at: nowMs }
+    if (points && points[i]) { out[keys[i]].lat = points[i].lat; out[keys[i]].lon = points[i].lon }
   }
   return out
 }
 
-function weatherStale(entry, nowMs) {
-  return !entry || nowMs - entry.at >= WEATHER_TTL_MS
+// Twenty minutes old, or read for somewhere other than `coords`.
+function weatherStale(entry, nowMs, coords) {
+  if (!entry || nowMs - entry.at >= WEATHER_TTL_MS) return true
+  return !!coords && entry.lat !== undefined && !nearPlace(entry, coords)
 }
 
 // { "label|zone": { lat, lon, c, w } }, each field only when known.
@@ -776,9 +1147,35 @@ function knockShrink(index, zoom) { return 1 - KNOCK_SHRINK * knockAt(index, zoo
 // Rows the pointer must travel past the held slot before the target moves.
 var DRAG_HYSTERESIS = 0.6
 
-function dragTargetFor(dragIndex, dragOffset, rowPitch, heldTarget, count) {
+// How many rows a drag of `offset` has passed, fractionally. Rows are not all
+// one height - a row with people is a line taller - so each is measured by its
+// own pitch in `pitches`; without them every row is `rowPitch`.
+function rowsPassed(dragIndex, offset, rowPitch, pitches) {
+  if (!pitches) return offset / rowPitch
+  var step = offset < 0 ? -1 : 1
+  var left = Math.abs(offset)
+  var passed = 0
+  for (var i = dragIndex + step; i >= 0 && i < pitches.length; i += step) {
+    var pitch = pitches[i] > 0 ? pitches[i] : rowPitch
+    if (left < pitch) return step * (passed + left / pitch)
+    left -= pitch
+    passed++
+  }
+  return step * (passed + left / rowPitch)
+}
+
+// Where the dragged row lands when it drops into `target`: the pitches of the rows it passed.
+function dropOffset(dragIndex, target, rowPitch, pitches) {
+  var step = target < dragIndex ? -1 : 1
+  var out = 0
+  for (var i = dragIndex + step; step > 0 ? i <= target : i >= target; i += step)
+    out += step * (pitches && pitches[i] > 0 ? pitches[i] : rowPitch)
+  return out
+}
+
+function dragTargetFor(dragIndex, dragOffset, rowPitch, heldTarget, count, pitches) {
   if (dragIndex < 0 || rowPitch <= 0) return -1
-  var raw = dragOffset / rowPitch
+  var raw = rowsPassed(dragIndex, dragOffset, rowPitch, pitches)
   var held = heldTarget < 0 ? 0 : heldTarget - dragIndex
   var next = Math.abs(raw - held) >= DRAG_HYSTERESIS ? Math.round(raw) : held
   return Math.max(0, Math.min(count - 1, dragIndex + next))
@@ -919,6 +1316,25 @@ if (typeof module !== "undefined") {
     NO_CHIP: NO_CHIP,
     SEED_CANDIDATES: SEED_CANDIDATES,
     parseZones: parseZones,
+    parseCities: parseCities,
+    serializeCities: serializeCities,
+    resolveHere: resolveHere,
+    hereAfterPick: hereAfterPick,
+    timezoneCommand: timezoneCommand,
+    parsePeople: parsePeople,
+    peopleText: peopleText,
+    personHandle: personHandle,
+    personName: personName,
+    initialOf: initialOf,
+    handlesIn: handlesIn,
+    setPeopleAt: setPeopleAt,
+    profilesCommand: profilesCommand,
+    parseProfiles: parseProfiles,
+    placeQuery: placeQuery,
+    placeOptions: placeOptions,
+    mergePlaces: mergePlaces,
+    nearPlace: nearPlace,
+    regionalName: regionalName,
     probeCommand: probeCommand,
     parseOffset: parseOffset,
     parseProbe: parseProbe,
@@ -973,6 +1389,7 @@ if (typeof module !== "undefined") {
     knockTilt: knockTilt,
     knockShrink: knockShrink,
     dragTargetFor: dragTargetFor,
+    dropOffset: dropOffset,
     rowShift: rowShift,
     mix: mix,
     seedCandidateZones: seedCandidateZones,
