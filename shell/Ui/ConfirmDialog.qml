@@ -62,6 +62,7 @@ Item {
       MouseArea { anchors.fill: parent; onClicked: {} }
 
       Item {
+        id: content
         anchors.fill: parent
         anchors.topMargin: card.contentTopInset
         anchors.rightMargin: card.contentRightInset
@@ -82,9 +83,44 @@ Item {
         }
 
         Row {
+          id: buttonRow
           anchors.right: parent.right
           anchors.bottom: parent.bottom
           spacing: Style.space(10)
+
+          // A button keeps 88px for short labels and grows to fit a longer
+          // one, such as a translation, into the room the other button leaves
+          // in the card; each is sure of half. A label past that elides.
+          readonly property real minButtonWidth: Style.space(88)
+          readonly property real labelPadding: Style.space(12)
+          readonly property real available: content.width - spacing
+          readonly property real cancelWanted: wantedWidth(cancelMetrics)
+          readonly property real confirmWanted: wantedWidth(confirmMetrics)
+          readonly property real cancelWidth: fittedWidth(cancelWanted, confirmWanted)
+          readonly property real confirmWidth: fittedWidth(confirmWanted, cancelWanted)
+
+          function wantedWidth(metrics) {
+            return Math.max(minButtonWidth, Math.ceil(metrics.advanceWidth) + labelPadding * 2)
+          }
+
+          function fittedWidth(wanted, otherWanted) {
+            var room = Math.max(Math.floor(available / 2), available - otherWanted)
+            return Math.max(minButtonWidth, Math.min(wanted, room))
+          }
+
+          TextMetrics {
+            id: cancelMetrics
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            text: root.cancelText
+          }
+
+          TextMetrics {
+            id: confirmMetrics
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            text: root.confirmText
+          }
 
           Repeater {
             model: [root.cancelText, root.confirmText]
@@ -96,7 +132,7 @@ Item {
               readonly property bool selected: root.selectedIndex === index
               readonly property bool destructive: index === 1
 
-              width: Style.space(88)
+              width: index === 0 ? buttonRow.cancelWidth : buttonRow.confirmWidth
               height: Style.space(34)
               color: selected
                 ? (destructive ? Util.alpha(Commons.Color.urgent, 0.22) : root.selectedBackground)
@@ -107,8 +143,12 @@ Item {
               radius: 0
 
               Text {
+                id: label
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
+                width: Math.min(implicitWidth, parent.width - buttonRow.labelPadding * 2)
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
                 text: modelData
                 color: destructive ? (selected ? Commons.Color.urgent : root.foreground) : (selected ? root.selectedText : root.foreground)
                 font.family: root.fontFamily
