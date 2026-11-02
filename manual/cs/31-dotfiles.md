@@ -10,7 +10,7 @@ Tady je seznam klíčových souborů v adresáři `~/.config` a toho, co ovláda
 | ----------------------- | --------------------- |
 | `~/.config/hypr/hyprland.lua` | Hlavní konfigurace Hyprlandu. Načítá výchozí nastavení Omarchy plus vaše soubory pro přepsání níže. [Další informace o konfiguracích Hyprlandu](https://wiki.hypr.land/Configuring/).  |
 | `~/.config/hypr/bindings.lua` | Vaše vlastní klávesové zkratky a přepsání výchozích nastavení. |
-| `~/.config/hypr/monitors.lua` | Nastavení monitorů, která panel monitorů nepokrývá, například otočení, další režimy nebo ponechání monitoru vypnutého. |
+| `~/.config/hypr/monitors.lua` | Nastavení monitorů, která panel monitoru nepokrývá, například otočení, další režimy nebo ponechání monitoru vypnutého. |
 | `~/.config/hypr/input.lua` | Ovládá rozložení vaší klávesnice, nastavení myši a touchpadu. |
 | `~/.config/hypr/looknfeel.lua` | Ovládá mezery, rámečky, animace a zbytek vzhledu. |
 | `~/.config/hypr/autostart.lua` | Ovládá další procesy spuštěné se relací. |

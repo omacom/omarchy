@@ -1,6 +1,6 @@
 # Aktualizace
 
-Omarchy a vaše balíčky se udržují aktuální přes _Aktualizace > Omarchy_ v nabídce Omarchy (`Super + Space`).
+Omarchy a vaše balíčky se udržují aktuální přes _Aktualizovat > Omarchy_ v nabídce Omarchy (`Super + Space`).
 
 Samotná Omarchy je nainstalovaná jako běžné balíčky pacman z [repozitáře balíčků Omarchy](https://github.com/omacom-io/omarchy-pkgs), takže aktualizace nainstaluje [nejnovější vydání Omarchy](https://github.com/omacom/omarchy/releases), spustí všechny čekající migrace, aby byl váš systém v souladu s nejnovější verzí, a aktualizuje všechny systémové balíčky z [Arch mirroru Omarchy](https://github.com/omacom-io/omarchy-mirror) a [AUR](https://aur.archlinux.org/) (pokud máte nainstalované nějaké balíčky z AUR).
 
@@ -18,15 +18,15 @@ Před každým novým hlavním vydáním budeme provádět finální ověření 
 
 A konečně je tu kanál dev, který propojí Omarchy přímo s git checkoutem zdrojového kódu v `~/omarchy` v kombinaci s balíčky edge. Tento kanál byste měli používat jen tehdy, pokud jste zkušený uživatel Linuxu, pracujete přímo na Omarchy a jste ochotní tolerovat, že se něco rozbije.
 
-Mezi kanály můžete přepínat pomocí _Aktualizace > Kanál_ v nabídce Omarchy (nebo `omarchy-channel-set` v terminálu).
+Mezi kanály můžete přepínat pomocí _Aktualizovat > Kanál_ v nabídce Omarchy (nebo `omarchy-channel-set` v terminálu).
 
 ### Přepínání kernelů
 
-Omarchy bootuje svůj vlastní kernel `linux-omarchy`, ale vedle něj můžete mít nainstalované i další, například výchozí kernel `linux` z Archu nebo experimentální sestavení, které testujete. Když jich máte více než jeden, položka _Aktualizace > Kernel_ v nabídce Omarchy je vypíše se zaškrtnutím u toho, který se bootuje ve výchozím nastavení. Vyberte jiný, jednou zadejte své heslo a po příštím restartu nabootuje právě ten. Ostatní kernely zůstanou v bootovací nabídce, takže si jeden stále můžete vybrat ručně, pokud vám nový výchozí dělá potíže. V terminálu zobrazí `omarchy-kernel` aktuální výchozí kernel, `omarchy-kernel list` to, co je nainstalované, a `omarchy-kernel set <kernel>` slouží k přepnutí.
+Omarchy bootuje svůj vlastní kernel `linux-omarchy`, ale vedle něj můžete mít nainstalované i další, například výchozí kernel `linux` z Archu nebo experimentální sestavení, které testujete. Když jich máte více než jeden, položka _Aktualizovat > Jádro_ v nabídce Omarchy je vypíše se zaškrtnutím u toho, který se bootuje ve výchozím nastavení. Vyberte jiný, jednou zadejte své heslo a po příštím restartu nabootuje právě ten. Ostatní kernely zůstanou v bootovací nabídce, takže si jeden stále můžete vybrat ručně, pokud vám nový výchozí dělá potíže. V terminálu zobrazí `omarchy-kernel` aktuální výchozí kernel, `omarchy-kernel list` to, co je nainstalované, a `omarchy-kernel set <kernel>` slouží k přepnutí.
 
 ### Aktualizace firmwaru
 
-Vaše balíčky nejsou to jediné, co zastarává. Mnoho laptopů a periferií dodává firmware pro BIOS, SSD a dok prostřednictvím Linux Vendor Firmware Service a položka _Aktualizace > Firmware_ v nabídce Omarchy stáhne a nainstaluje vše, co na váš hardware čeká. Při prvním spuštění nainstaluje `fwupd`. Spoustu firmwaru lze zapsat jen během restartu, takže se nedivte, když o něj budete požádáni.
+Vaše balíčky nejsou to jediné, co zastarává. Mnoho laptopů a periferií dodává firmware pro BIOS, SSD a dok prostřednictvím Linux Vendor Firmware Service a položka _Aktualizovat > Firmware_ v nabídce Omarchy stáhne a nainstaluje vše, co na váš hardware čeká. Při prvním spuštění nainstaluje `fwupd`. Spoustu firmwaru lze zapsat jen během restartu, takže se nedivte, když o něj budete požádáni.
 
 ### Varování před přímými aktualizacemi přes pacman/yay
 

@@ -28,7 +28,7 @@ Tím se zobrazí Sunday 10:55 AM.
 
 ### Jak změnit časové pásmo?
 
-V nabídce Omarchy spusťte volbu _Aktualizovat > Timezone_ a vyberte ze seznamu. Pokud je časové pásmo správné, ale hodiny samy o sobě ujely, volba _Aktualizovat > Time_ za vás restartuje synchronizaci času.
+V nabídce Omarchy spusťte volbu _Aktualizovat > Časové pásmo_ a vyberte ze seznamu. Pokud je časové pásmo správné, ale hodiny samy o sobě ujely, volba _Aktualizovat > Čas_ za vás restartuje synchronizaci času.
 
 ### Jak změnit DNS, sdílet Wi-Fi nebo zkontrolovat rychlost připojení?
 
@@ -74,11 +74,11 @@ Nezapomeňte, že pro displeje Apple (Studio i XDR) máte v systému Omarchy ves
 
 Pokud nechcete programy jako Obsidian nebo LibreOffice ani žádný další předinstalovaný software, můžete je velmi snadno odstranit.
 
-Spuštěním volby _Odebrat > Package_ zobrazíte všechny nainstalované balíčky. Poté můžete klávesou Tab vybrat libovolný balíček, který chcete odstranit, a klávesou Enter zahájit odstraňování všeho vybraného.
+Spuštěním volby _Odebrat > Balíček_ zobrazíte všechny nainstalované balíčky. Poté můžete klávesou Tab vybrat libovolný balíček, který chcete odstranit, a klávesou Enter zahájit odstraňování všeho vybraného.
 
-K odebrání předinstalovaných webových aplikací, které nechcete, můžete v nabídce Omarchy využít volbu _Odebrat > Web App_.
+K odebrání předinstalovaných webových aplikací, které nechcete, můžete v nabídce Omarchy využít volbu _Odebrat > Webová aplikace_.
 
-Nebo spusťte volbu _Odebrat > Preinstalls_ a jedním tahem vymetete všechny předinstalované doplňky — webové aplikace, aplikace TUI a volitelné aplikace. Klávesové zkratky, které je spouštěly, zmizí spolu s nimi, takže uvolněná přiřazení kláves můžete v souboru `~/.config/hypr/bindings.lua` zaplnit vlastními zkratkami.
+Nebo spusťte volbu _Odebrat > Předinstalované_ a jedním tahem vymetete všechny předinstalované doplňky — webové aplikace, aplikace TUI a volitelné aplikace. Klávesové zkratky, které je spouštěly, zmizí spolu s nimi, takže uvolněná přiřazení kláves můžete v souboru `~/.config/hypr/bindings.lua` zaplnit vlastními zkratkami.
 
 ---
 

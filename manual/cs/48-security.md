@@ -10,21 +10,21 @@ Omarchy bere zabezpečení nesmírně vážně. Má to být operační systém, 
 
 ## Změna hesel
 
-Na zašifrované instalaci máte dvě hesla: jedno, které při startu odemyká disk, a druhé, kterým se přihlašujete a používáte `sudo`. Nastavení je nastaví jako stejná. Obě lze změnit v nabídce Omarchy pod _Aktualizace > Heslo_ — _Šifrování disku_ pro první, _Uživatel_ pro druhé. Změna hesla disku se nejdřív zeptá na to současné, takže ho mějte po ruce. Pokud je změna přerušena, spusťte _Šifrování disku_ znovu: zeptá se na heslo, které disk odemyká nyní, a změnu dokončí.
+Na zašifrované instalaci máte dvě hesla: jedno, které při startu odemyká disk, a druhé, kterým se přihlašujete a používáte `sudo`. Nastavení je nastaví jako stejná. Obě lze změnit v nabídce Omarchy pod _Aktualizovat > Heslo_ — _Šifrování disku_ pro první, _Uživatel_ pro druhé. Změna hesla disku se nejdřív zeptá na to současné, takže ho mějte po ruce. Pokud je změna přerušena, spusťte _Šifrování disku_ znovu: zeptá se na heslo, které disk odemyká nyní, a změnu dokončí.
 
 ## Předání počítače, který jste už používali
 
-Pokud počítač předáváte někomu jinému, nemusíte ho přeinstalovávat. V nabídce Omarchy spusťte _Nastavení > Resetovat počítač_, pro potvrzení napište `reset` a restartujte. Tím se smaže každý uživatelský účet a vše v `/home`, zahodí se všechny balíčky a systémové změny, které jste od instalace provedli, a vymaže se identita počítače — síťová připojení, hostitelské klíče, prostě všechno. Co naběhne zpět, je průvodce nastavením z prvního spuštění, připravený, aby jeho nový majitel zadal své vlastní jméno, heslo a šifrovací heslo.
+Pokud počítač předáváte někomu jinému, nemusíte ho přeinstalovávat. V nabídce Omarchy spusťte _Nastavení > Reset počítače_, pro potvrzení napište `reset` a restartujte. Tím se smaže každý uživatelský účet a vše v `/home`, zahodí se všechny balíčky a systémové změny, které jste od instalace provedli, a vymaže se identita počítače — síťová připojení, hostitelské klíče, prostě všechno. Co naběhne zpět, je průvodce nastavením z prvního spuštění, připravený, aby jeho nový majitel zadal své vlastní jméno, heslo a šifrovací heslo.
 
 Funguje to obnovením základního snímku, který instalátor pořídí, takže je to dostupné pouze na počítačích nainstalovaných z ISO Omarchy. A na disku bez šifrování je reset smazáním, nikoli bezpečným vymazáním, takže pokud byla data citlivá, proveďte místo toho čerstvou instalaci.
 
 ## Sudo bez hesla
 
-Někdy chcete, aby příkaz `sudo` přestal vyžadovat heslo, nejčastěji když za vás agent umělé inteligence vykonává delší úsek práce se systémem. Volba _Nastavení > Zabezpečení > Sudo bez hesla_ se ptá, jak dlouho má být přístup povolen: **15 minut**, **1 hodina**, **1 den** nebo **Trvale**. Po dobu aktivního přístupu se vedle ostatních indikátorů v pruhu nabídek zobrazuje červená výstražná ikona. Kliknutím na ni nebo opětovným spuštěním příkazu přístup vypnete. Pomocí příkazu `omarchy-sudo-passwordless 30` můžete předat také vlastní počet minut (od 1 do 1440), případně použít variantu `omarchy-sudo-passwordless permanent`.
+Někdy chcete, aby příkaz `sudo` přestal vyžadovat heslo, nejčastěji když za vás agent umělé inteligence vykonává delší úsek práce se systémem. Volba _Nastavení > Zabezpečení > Sudo bez hesla_ se ptá, jak dlouho má být přístup povolen: **15 minut**, **1 hodina**, **1 den** nebo **Trvale**. Po dobu aktivního přístupu se vedle ostatních indikátorů na horní liště zobrazuje červená výstražná ikona. Kliknutím na ni nebo opětovným spuštěním příkazu přístup vypnete. Pomocí příkazu `omarchy-sudo-passwordless 30` můžete předat také vlastní počet minut (od 1 do 1440), případně použít variantu `omarchy-sudo-passwordless permanent`.
 
 Časovaný přístup automaticky vyprší, a to i ihned po probuzení z režimu spánku, který překročil termín. Restartování počítače ho ukončí předčasně. Trvalý přístup přežije restarty a zůstává zapnutý, dokud ho nevypnete.
 
-Aktualizace nebo odebrání balíčku s nastaveními Omarchy ukončí jakékoli dočasné povolení dříve, než se změní podpora jeho vypršení. Pokud příkaz nahlásí chybu autorizace nebo čištění, vyřešte ji, než se pokusíte povolit další povolení; chyba neznamená, že přístup bez hesla není aktivní.
+Aktualizace nebo odebrání balíčku s nastaveními Omarchy ukončí jakékoli dočasné povolení dříve, než se změní podpora jeho vypršení. Pokud příkaz nahlásí chybu autorizace nebo čištění, vyřešte ji, než se pokusíte povolit další přístup; chyba neznamená, že přístup bez hesla není aktivní.
 
 U tohoto mějte oči otevřené: zatímco je to zapnuté, cokoli běžící pod vaším uživatelem může bez dotazování dělat cokoli jako root. To je celý smysl, a také celé riziko.
 

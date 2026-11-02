@@ -6,13 +6,13 @@ Tento panel vyhledává Wi-Fi sítě, ukazuje sílu signálu a připojuje se k n
 
 ## Sdílení vaší Wi-Fi
 
-Místo abyste nahlas četli dlouhé heslo, spusťte _Setup > Network > QR Code_, když jste připojeni k Wi-Fi. Na obrazovce se tím zobrazí QR kód, který může naskenovat fotoaparát jakéhokoli telefonu a připojit se. Je to jedna z těch věcí, které budete používat častěji, než byste čekali, jakmile o ní budete vědět.
+Místo abyste nahlas četli dlouhé heslo, spusťte _Nastavení > Síť > QR kód_, když jste připojeni k Wi-Fi. Na obrazovce se tím zobrazí QR kód, který může naskenovat fotoaparát jakéhokoli telefonu a připojit se. Je to jedna z těch věcí, které budete používat častěji, než byste čekali, jakmile o ní budete vědět.
 
 Pokud skutečně potřebujete samotné heslo, příkaz `omarchy network password <interface>` ho vytiskne.
 
 ## DNS
 
-Omarchy používá DNS, které vaše síť předává přes DHCP. Pro celý počítač to můžete změnit v _Setup > Network > DNS_, kde jsou Cloudflare a Google na jedno kliknutí. Zvolte _Custom_, pokud chcete zadat vlastní servery.
+Omarchy používá DNS, které vaše síť předává přes DHCP. Pro celý počítač to můžete změnit v _Nastavení > Síť > DNS_, kde jsou Cloudflare a Google na jedno kliknutí. Zvolte _Vlastní_, pokud chcete zadat vlastní servery.
 
 Z terminálu příkaz `omarchy dns` vytiskne aktuálního poskytovatele a `omarchy dns Cloudflare` jednoho nastaví.
 
@@ -24,7 +24,7 @@ Omezí se pouze pásmo, nikoli konkrétní přístupový bod. Zařízení tak m�
 
 ## Jak rychlé to je?
 
-_Trigger > Speed Test > Network Speed Test_ měří vaši skutečnou rychlost stahování a odesílání pomocí dvojice ukazatelů. Z terminálu je to `omarchy network speedtest down` nebo `up`. Měření probíhá proti vlastní službě Omarchy a započítává pouze její testovací přenosy. Ostatní stahování mohou soupeřit o šířku pásma, ale do výsledku testu rychlosti se nepřičítají. (V tomto menu vedle něj najdete test rychlosti disku, pokud chcete změřit druhé úzké hrdlo.)
+_Akce > Test rychlosti > Test rychlosti sítě_ měří vaši skutečnou rychlost stahování a odesílání pomocí dvojice ukazatelů. Z terminálu je to `omarchy network speedtest down` nebo `up`. Měření probíhá proti vlastní službě Omarchy a započítává pouze její testovací přenosy. Ostatní stahování mohou soupeřit o šířku pásma, ale do výsledku testu rychlosti se nepřičítají. (V tomto menu vedle něj najdete test rychlosti disku, pokud chcete změřit druhé úzké hrdlo.)
 
 ## Firewall
 
@@ -42,4 +42,4 @@ Instalace rovněž přidá webovou aplikaci pro administrační konzoli Tailscal
 
 ## Když to přestane fungovat
 
-Než budete restartovat, zkuste restartovat pouze vadnou součást samostatně. _Update > Hardware_ obsahuje Wi-Fi, Bluetooth, Audio a Trackpad a opětovné načtení jedné z těchto položek vyřeší většinu situací typu „před pěti minutami to fungovalo“. Viz [řešení potíží](45-troubleshooting.md).
+Než budete restartovat, zkuste restartovat pouze vadnou součást samostatně. _Aktualizovat > Hardware_ obsahuje Wi-Fi, Bluetooth, Audio a Trackpad a opětovné načtení jedné z těchto položek vyřeší většinu situací typu „před pěti minutami to fungovalo“. Viz [řešení potíží](45-troubleshooting.md).

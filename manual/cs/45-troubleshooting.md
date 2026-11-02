@@ -18,7 +18,7 @@ Než se začnete hrabat v `~/.config/hypr/`, stiskněte jednou `Fn + Super`, a p
 
 ### Právě mi přestala fungovat Wi-Fi, Bluetooth, zvuk nebo trackpad
 
-Než budete restartovat, zkuste nejprve restartovat jen problematický subsystém samotný. _Update > Hardware_ v nabídce Omarchy obsahuje Wi-Fi, Bluetooth, Audio a Trackpad a opětovné načtení jednoho z nich vyřeší většinu situací typu „před pěti minutami to fungovalo“ — Bluetooth sluchátka, která se nechtějí znovu připojit, trackpad, který přestal reagovat po uspání, zvuk, který zmizel, když jste odpojili monitor.
+Než budete restartovat, zkuste nejprve restartovat jen problematický subsystém samotný. _Aktualizovat > Hardware_ v nabídce Omarchy obsahuje Wi-Fi, Bluetooth, Zvuk a Trackpad a opětovné načtení jednoho z nich vyřeší většinu situací typu „před pěti minutami to fungovalo“ — Bluetooth sluchátka, která se nechtějí znovu připojit, trackpad, který přestal reagovat po uspání, zvuk, který zmizel, když jste odpojili monitor.
 
 ### Proč mi nehrají externí reproduktory?
 
@@ -32,7 +32,7 @@ U některých notebooků Omarchy automaticky používá ladění reproduktorů, 
 
 Pravděpodobně jste ho zadali příliš mnohokrát nesprávně a systém vás zamkl. Pokud se to děje na zamykací obrazovce, můžete stiskem `CTRL + ALT + F2` spustit nový TTY, kde se přihlásíte jako root, a poté spustit příkaz `faillock --reset --user [your-username]`. Tím zrušíte zablokování přihlášení a můžete pokračovat.
 
-### Heslo mi je přijato, ale vracím se na přihlašovací obrazovku
+### Heslo je přijato, ale vracím se na přihlašovací obrazovku
 
 Rozbitý soubor s proměnnými prostředí relace může zabránit spuštění desktopu, i když je vaše heslo správné. Stojí za to to zkontrolovat zejména po úpravách v `~/.config/uwsm/env.d/`.
 

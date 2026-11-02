@@ -42,7 +42,7 @@ Lidé z Windows: vaše historie schránky z Win + V žije na `Super + Ctrl + V` 
 
 Spousta nastavení žije v textových souborech, které upravujete, ne v panelech, kterými se proklikáváte. Zní to primitivně, dokud si neuvědomíte, že to znamená, že každou úpravu lze vidět, zkopírovat na váš další počítač a dát pod správu verzí. Nabídka _Nastavení_ vás hodí rovnou do správného souboru a po dokončení restartuje vše, co restart potřebuje.
 
-Aktualizace přicházejí jedním příkazem — _Aktualizace > Omarchy_ — který aktualizuje samotné Omarchy i každý balíček v systému a předtím pořídí snímek. Žádné aktualizační programy jednotlivých aplikací, které by vás otravovaly v náhodných chvílích. Viz [aktualizace](30-updates.md).
+Aktualizace přicházejí jedním příkazem — _Aktualizovat > Omarchy_ — který aktualizuje samotné Omarchy i každý balíček v systému a předtím pořídí snímek. Žádné aktualizační programy jednotlivých aplikací, které by vás otravovaly v náhodných chvílích. Viz [aktualizace](30-updates.md).
 
 Software pochází ze správce balíčků, ne ze stažených instalátorů.
 

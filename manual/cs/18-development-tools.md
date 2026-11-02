@@ -2,7 +2,7 @@
 
 ## Alternativní editory
 
-Omarchy ve výchozím nastavení obsahuje [Neovim](https://neovim.io/), ale pokud chcete něco běžnějšího a známějšího, můžete spustit Omarchy Menu (`Super + Space`) a podívat se na možnosti v části _Install > Editor_. Máme tam VSCode, Cursor, Zed, Sublime Text, Helix, Vim a Emacs. Pokud nenajdete, co hledáte, podívejte se do _Install > Package_ a zjistěte, zda to náhodou není v balíčku Arch (a pokud ne, zkuste _Install > AUR_ a zkontrolujte AUR).
+Omarchy ve výchozím nastavení obsahuje [Neovim](https://neovim.io/), ale pokud chcete něco běžnějšího a známějšího, můžete spustit Omarchy Menu (`Super + Space`) a podívat se na možnosti v části _Instalovat > Editor_. Máme tam VSCode, Cursor, Zed, Sublime Text, Helix, Vim a Emacs. Pokud nenajdete, co hledáte, podívejte se do _Instalovat > Balíček_ a zjistěte, zda to náhodou není v balíčku Arch (a pokud ne, zkuste _Instalovat > AUR_ a zkontrolujte AUR).
 
 Původní editor `vi` je také k dispozici hned po instalaci. Spuštěním `vi filename` upravíte soubor v terminálu.
 
@@ -55,7 +55,7 @@ _Remove Preinstalls_ zařídí, že mise pro vašeho uživatele přeskočí dekl
 
 Ve výchozím nastavení váš uživatel *není* ve skupině `docker`. Členství v ní v podstatě poskytuje oprávnění root bez hesla: příkaz `docker run -v /:/host` umožní převzít kontrolu nad počítačem. Stačil by tak jediný škodlivý skript nebo závislost spuštěná pod vaším účtem. Proto v terminálu používáte `sudo` (`sudo docker ps`, `sudo docker compose up`). Grafické nástroje, například virtuální počítač s Windows, si potřebná oprávnění vyžádají samy. Pokud riziku rozumíte a chcete Docker používat bez sudo, povolte **Nastavení > Zabezpečení > Docker bez sudo** nebo spusťte `omarchy-setup-security-sudoless-docker`. Po varování vás přidá do skupiny `docker`; samotný příkaz `docker` i alias `d` pak budou fungovat bez `sudo`.
 
-Běžné databáze pro lokální vývoj v Docker můžete nastavit pomocí _Install > Development > Docker DB_ v menu Omarchy.
+Běžné databáze pro lokální vývoj v Docker můžete nastavit pomocí _Instalovat > Vývoj > Docker DB_ v menu Omarchy.
 
 ## GitHub CLI
 

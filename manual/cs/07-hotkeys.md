@@ -164,7 +164,7 @@ Na Linuxu obvykle potřebujete `Ctrl + Shift + C/V` ke kopírování a vkládán
 
 U nahrávání obrazovky se zkratka nejdřív zeptá, jaký zvuk chcete, a pak začne nahrávat. Dalším stisknutím nahrávání zastavíte. Podrobnosti najdete v části [snímky obrazovky a nahrávání](12-screenshots-recording.md).
 
-Všechny možnosti zachytávání jsou dostupné také pod _Trigger > Capture_ v nabídce Omarchy (`Super + Space`).
+Všechny možnosti zachytávání jsou dostupné také pod _Akce > Zachytit_ v nabídce Omarchy (`Super + Space`).
 
 ## Oznámení
 
@@ -181,8 +181,8 @@ Všechny možnosti zachytávání jsou dostupné také pod _Trigger > Capture_ v
 
 | Klávesová zkratka                  | Funkce              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + T` | Vybrat nové téma (také `Super + Ctrl + Shift + Space`) |
-| `Super + Ctrl + W` | Vybrat pozadí tématu (také `Super + Ctrl + Space`) |
+| `Super + Ctrl + T` | Vybrat nový motiv (také `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Vybrat pozadí motivu (také `Super + Ctrl + Space`) |
 | `Super + Backspace` | Přepnout průhlednost okna |
 | `Super + Ctrl + Backspace` | Přepnout čtvercový poměr stran jednoho okna |
 
@@ -289,7 +289,7 @@ Tyto funkce musíte spouštět uvnitř relace Tmux.
 
 ## Terminál Ghostty
 
-Terminál Ghostty se instaluje pomocí _Install > Terminal_ přes nabídku Omarchy.
+Terminál Ghostty se instaluje pomocí _Instalovat > Terminál_ přes nabídku Omarchy.
 
 | Klávesová zkratka                  | Funkce              |
 | ----------------------- | --------------------- |

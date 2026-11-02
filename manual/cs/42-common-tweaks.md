@@ -2,7 +2,7 @@
 
 Toto je sbírka běžných přizpůsobení nastavení Omarchy. Mějte na paměti, že někdy může být u aktualizací systému nutné obnovit určité konfigurace do původního stavu. Pokud se to stane, vaše změny se neztratí, ale uloží se do souboru `.bak` ve stejném adresáři.
 
-Pokud něco pokazíte, můžete obnovit jednotlivé konfigurace do původního nastavení v nabídce Omarchy v části _Aktualizovat > Config_. Pokud to pokazíte _opravdu_ všechno, můžete obnovit všechny konfigurace příkazem `omarchy-reinstall`.
+Pokud něco pokazíte, můžete obnovit jednotlivé konfigurace do původního nastavení v nabídce Omarchy v části _Aktualizovat > Konfigurace_. Pokud to pokazíte _opravdu_ všechno, můžete obnovit všechny konfigurace příkazem `omarchy-reinstall`.
 
 ### Trvalé zobrazení všech ikon v oblasti oznámení
 

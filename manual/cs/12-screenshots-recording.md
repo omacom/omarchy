@@ -41,11 +41,11 @@ Tato přiřazení existují pouze tehdy, když je Omasnap otevřený, takže nem
 
 ## Nahrávání obrazovky
 
-`Alt + Print Screen` otevře _Trigger > Capture > Screenrecord_, které se zeptá, co chcete na zvukové stopě: žádný zvuk, zvuk plochy, plochu plus mikrofon, nebo plochu plus mikrofon plus webkameru. Ta poslední možnost se zobrazí pouze tehdy, pokud máte skutečně připojenou kameru. Vyberte jednu a výběr nahrávání v Omarchy vám umožní táhnout oblast nebo kliknout na okno či monitor.
+`Alt + Print Screen` otevře _Akce > Zachytit > Nahrávání obrazovky_, které se zeptá, co chcete na zvukové stopě: žádný zvuk, zvuk plochy, plochu plus mikrofon, nebo plochu plus mikrofon plus webkameru. Ta poslední možnost se zobrazí pouze tehdy, pokud máte skutečně připojenou kameru. Vyberte jednu a výběr nahrávání v Omarchy vám umožní táhnout oblast nebo kliknout na okno či monitor.
 
 Nahrávání běží na gpu-screen-recorder, který kóduje na GPU při 60fps a v případě nutnosti se vrátí k CPU. Výsledkem je MP4 v `~/Videos` s názvem `screenrecording-2026-08-13_14-22-05.mp4`. Nastavte `OMARCHY_SCREENRECORD_DIR`, abyste to změnili — ale všimněte si, že na rozdíl od adresáře pro snímky obrazovky musí tento již existovat, jinak nahrávání odmítne začít.
 
-Když nahráváte, objeví se v liště malý indikátor. Klikněte na něj pro zastavení. Můžete také zastavit znovu pomocí `Alt + Print Screen` nebo pomocí položky _Stop Screenrecording_ pod _Trigger > Capture > Screenrecord_, která se zobrazí pouze tehdy, když něco skutečně nahrává.
+Když nahráváte, objeví se v liště malý indikátor. Klikněte na něj pro zastavení. Můžete také zastavit znovu pomocí `Alt + Print Screen` nebo pomocí položky _Zastavit nahrávání_ pod _Akce > Zachytit > Nahrávání obrazovky_, která se zobrazí pouze tehdy, když něco skutečně nahrává.
 
 Po zastavení se z nahrávky odstraní první snímek. Pokud obsahuje zvuk, jeho hlasitost se normalizuje na -14 LUFS a ztlumí se lupnutí při zahájení záznamu přes PipeWire. Potom se zobrazí oznámení s náhledem nahrávky. Kliknutím na něj nahrávku přehrajete v mpv.
 
@@ -66,13 +66,13 @@ Můžete ji také volat přímo pomocí `omarchy-capture-webcam-resize small`, n
 
 `Super + Ctrl + Print Screen` vybere oblast a provede její OCR do schránky. To je řádně popsáno v [Extrakce textu a diktování](11-text-extraction-dictation.md).
 
-_Trigger > Capture > QR Code_ dělá stejný trik pro QR kódy. Vyberte oblast s kódem a dekódovaná hodnota se dostane do schránky. Hledá pouze QR kódy — hustý obsah obrazovky má jinak ve zvyku falešně pozitivně vycházet jako čárový kód. Stojí za to vědět: dekódovaná hodnota jde do schránky a nikam jinam. Není vytištěna, není v oznámení a je označena jako citlivá, takže nezůstává v [historii schránky](08-unified-clipboard-history.md). QR kódy běžně nesou tajemství — například `otpauth://` URI za nastavovacím kódem 2FA — a to v logu nechcete. Vkládání stále funguje dobře.
+_Akce > Zachytit > QR kód_ dělá stejný trik pro QR kódy. Vyberte oblast s kódem a dekódovaná hodnota se dostane do schránky. Hledá pouze QR kódy — hustý obsah obrazovky má jinak ve zvyku falešně pozitivně vycházet jako čárový kód. Stojí za to vědět: dekódovaná hodnota jde do schránky a nikam jinam. Není vytištěna, není v oznámení a je označena jako citlivá, takže nezůstává v [historii schránky](08-unified-clipboard-history.md). QR kódy běžně nesou tajemství — například `otpauth://` URI za nastavovacím kódem 2FA — a to v logu nechcete. Vkládání stále funguje dobře.
 
-`Super + Print Screen` (nebo _Trigger > Capture > Color_) promění kurzor v kapátko. Klikněte na cokoli na obrazovce a barva přistane ve schránce. Stiskněte klávesovou zkratku znovu, abyste se vrátili zpět bez výběru.
+`Super + Print Screen` (nebo _Akce > Zachytit > Barva_) promění kurzor v kapátko. Klikněte na cokoli na obrazovce a barva přistane ve schránce. Stiskněte klávesovou zkratku znovu, abyste se vrátili zpět bez výběru.
 
 ## Překódování před sdílením
 
-Nahrávka obrazovky ve 4K nebo syrové HEIC z vašeho telefonu je často příliš velká na to, abyste ji jen tak poslali. `Super + Ctrl + .` (nebo _Trigger > Transcode_) to napraví. Nabídne vám fuzzy výběr souboru nad `~/Pictures` a `~/Videos`, pak se zeptá na formát a velikost.
+Nahrávka obrazovky ve 4K nebo syrové HEIC z vašeho telefonu je často příliš velká na to, abyste ji jen tak poslali. `Super + Ctrl + .` (nebo _Akce > Překódovat_) to napraví. Nabídne vám fuzzy výběr souboru nad `~/Pictures` a `~/Videos`, pak se zeptá na formát a velikost.
 
 Obrázky jdou do jpg nebo png ve vysoké, střední nebo nízké kvalitě, které omezují šířku na 3160, 2160 a 1080 pixelů. Videa jdou do mp4 nebo animovaného gifu ve 4k, 1080p nebo 720p. Převedený soubor se zapíše vedle originálu s rozlišením v názvu — `demo-1080p.mp4` — a cesta se zkopíruje do schránky jako URI souboru, takže ho můžete vložit přímo do aplikace, která podporuje přetažení souborů.
 

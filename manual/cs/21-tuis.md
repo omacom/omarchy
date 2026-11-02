@@ -22,13 +22,13 @@ Spustíte ho (nebo se znovu připojíte ke své existující relaci) pomocí `Su
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) ukazuje informace o systému, jako je verze kernelu, doba provozu, téma, CPU, paměť a další. Je nástupcem oblíbeného nástroje neofetch.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) ukazuje informace o systému, jako je verze kernelu, doba provozu, motiv, CPU, paměť a další. Je nástupcem oblíbeného nástroje neofetch.
 
-Omarchy to zabalila jako _About_ v nabídce Omarchy (`Super + Space`).
+Omarchy to zabalila jako _O aplikaci_ v nabídce Omarchy (`Super + Space`).
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) je retro hudební přehrávač pro terminál inspirovaný Winamp 2.x, včetně vestavěných rozhlasových stanic pro lo-fi beaty. Spustíte ho pomocí `Super + Shift + Alt + M` nebo z nabídky Omarchy pod položkou _Apps_. Úplný seznam přiřazení kláves zobrazíte stisknutím `?`.
+[Cliamp](https://www.cliamp.stream/) je retro hudební přehrávač pro terminál inspirovaný Winamp 2.x, včetně vestavěných rozhlasových stanic pro lo-fi beaty. Spustíte ho pomocí `Super + Shift + Alt + M` nebo z nabídky Omarchy pod položkou _Aplikace_. Úplný seznam přiřazení kláves zobrazíte stisknutím `?`.
 
 ## A co Wi-Fi a Bluetooth?
 
@@ -36,4 +36,4 @@ Pro Wi-Fi a Bluetooth žádné TUI nenajdete — tyto úkoly patří shellu Omar
 
 ## Přidání vlastní
 
-Každý terminálový program může dostat plné zacházení jako aplikace. Přejděte do _Install > TUI_ v nabídce Omarchy (`Super + Space`), dejte mu název, příkaz pro spuštění, styl okna a ikonu a objeví se ve spouštěči aplikací jako každá jiná aplikace. Znovu ho můžete odstranit pod položkou _Remove > TUI_.
+Každý terminálový program může dostat plné zacházení jako aplikace. Přejděte do _Instalovat > TUI_ v nabídce Omarchy (`Super + Space`), dejte mu název, příkaz pro spuštění, styl okna a ikonu a objeví se ve spouštěči aplikací jako každá jiná aplikace. Znovu ho můžete odstranit pod položkou _Odebrat > TUI_.

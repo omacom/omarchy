@@ -78,7 +78,7 @@ Discord spustíte pomocí spouštěče aplikací (`Super + Space`).
 
 Vyberte část _Instalovat > Služba > Microsoft_, chcete-li aplikace Outlook, Word, Excel, PowerPoint, Teams a OneDrive přidat jako webové aplikace. Každá aplikace má vlastní spouštěč a otevírá se přímo pomocí komerčních adres URL Microsoft 365 a vašeho stávajícího profilu prohlížeče. Otevírají se ve stejných oknech prohlížeče jako ostatní webové aplikace Omarchy; neinstalují samostatného klienta Teams pro Linux.
 
-Balíček odeberte pomocí části _Odebrat > Služba > Microsoft_, nebo jednotlivé aplikace odeberte pomocí části _Odebrat > Webová aplikace_. Prostřednictvím části _Instalovat > Webová aplikace_ můžete také nainstalovat pouze aplikace, které chcete.
+Balíček odeberte pomocí části _Odebrat > Služby > Microsoft_, nebo jednotlivé aplikace odeberte pomocí části _Odebrat > Webová aplikace_. Prostřednictvím části _Instalovat > Webová aplikace_ můžete také nainstalovat pouze aplikace, které chcete.
 
 V případě vládního nebo suverénního cloudu upravte adresu URL na řádku `Exec=` v příslušném spouštěči v adresáři `~/.local/share/applications/`, například `Microsoft Teams.desktop`, pomocí adresy URL poskytnuté vaší organizací. Každé doslovné `%` v tomto řádku zapište jako `%%`. Změny se projeví při příštím spuštění. Opětovné spuštění instalačního programu balíčku nahradí jeho spouštěče výchozími adresami URL.
 

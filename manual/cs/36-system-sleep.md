@@ -12,10 +12,10 @@ Co váš počítač nabízí, zjistíte pomocí `omarchy powerprofiles list`, a 
 
 ### Přepnutí pozastavení
 
-Pozastavení přepnete spuštěním `omarchy toggle suspend` z terminálu. Tím se pouze zobrazí/skryje možnost v nabídce _System_ (nebo `Super + Esc`), a pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, stejným příkazem ji zase skryjete.
+Pozastavení přepnete spuštěním `omarchy toggle suspend` z terminálu. Tím se pouze zobrazí/skryje možnost v nabídce _Systém_ (nebo `Super + Esc`), a pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, stejným příkazem ji zase skryjete.
 
 ### Přepnutí hibernace
 
 Hibernaci nastavíte spuštěním příkazu `omarchy hibernation setup` z terminálu. Hibernace vytvoří na spouštěcí jednotce podsvazek /swap o velikosti odpovídající kapacitě operační paměti RAM, takže si ověřte, že máte dostatek volného místa. U počítače s 32 GB budete pro tento svazek vždy potřebovat více než 32 GB volného místa. Hibernace vyžaduje také výchozí zavaděč Limine.
 
-Po nastavení uvidíte možnost hibernace v nabídce _System_ (nebo `Super + Esc`), a pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, můžete ji zase odstranit spuštěním `omarchy hibernation remove`.
+Po nastavení uvidíte možnost hibernace v nabídce _Systém_ (nebo `Super + Esc`), a pak můžete vyzkoušet, zda na vašem systému funguje spolehlivě. Pokud ne, můžete ji zase odstranit spuštěním `omarchy hibernation remove`.

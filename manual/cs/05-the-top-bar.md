@@ -88,7 +88,7 @@ Střed lišty je box: cokoli je v něm, zůstává vycentrované jako jedna skup
 
 Widget, který chcete mít po ruce, ale ne vždy na očích, může jít do zásuvky systémové oblasti: táhněte ho na systémovou oblast a zásuvka se otevře, aby ho přijala. Sedí tam za ikonami aplikací, objeví se, kdykoli se objeví zásuvka, a nechá svou zásuvku otevřenou, zatímco je jeho panel nahoře. Táhněte ho zpět na lištu, abyste ho vrátili.
 
-Pokud byste raději vybírali z menu, **Appearance → Menu Bar** má pozici a **Bar Background** vybírá, jak se lišta kreslí: **Opaque Bar**, **Glassy Bar** (průhledná, s tím, co je za ní, rozmazaným) nebo **Clear Bar**.
+Pokud byste raději vybírali z menu, _Vzhled > Horní lišta_ má polohu a _Pozadí lišty_ vybírá, jak se lišta kreslí: _Neprůhledná lišta_, _Skleněná lišta_ (průhledná, s tím, co je za ní, rozmazaným) nebo _Průhledná lišta_.
 
 Tytéž věci mají příkazy, což je to, co chcete pro nastavení [dotfiles](31-dotfiles.md):
 
@@ -110,7 +110,7 @@ omarchy plugin disable omarchy.weather
 
 ## Skrytí lišty
 
-`Super + Shift + Space` přepne lištu pryč a zase zpět, aniž by zabil shell — panely a klávesové zkratky dál fungují, jen získáte zpět pixely. Je to taky v menu pod **Appearance → Menu Bar → Hide Bar**.
+`Super + Shift + Space` přepne lištu pryč a zase zpět, aniž by zabil shell — panely a klávesové zkratky dál fungují, jen získáte zpět pixely. Je to taky v menu pod _Vzhled > Horní lišta > Skrýt lištu_.
 
 ## Konfigurační soubor
 
