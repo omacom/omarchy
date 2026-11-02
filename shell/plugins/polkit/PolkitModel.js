@@ -17,17 +17,47 @@ function fingerprintConfiguredFromPamConfig(raw) {
   return false
 }
 
-function authorizationLabel(message, tr) {
+// pkexec joins the command line without escaping it, so its arguments (and the
+// target user's name) can carry line breaks that push the rest of the command
+// out of view, or bidi controls that reorder it on screen. Show those
+// characters as escapes rather than letting them shape what the prompt shows.
+function visibleText(text) {
+  return String(text).replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g, function(c) {
+    if (c === "\n") return "\\n"
+    if (c === "\t") return "\\t"
+    if (c === "\r") return "\\r"
+    return "\\u" + ("000" + c.charCodeAt(0).toString(16)).slice(-4)
+  })
+}
+
+function authorizationRequest(message, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var text = String(message || "")
-  var match = text.match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
-  return match ? t("polkit.authorizeRunning", "Authorize running '%1'").replace("%1", match[1]) : text
+  if (!text) return { title: t("polkit.authenticationNeeded", "Authentication is needed..."), program: "", args: "" }
+  // pkexec's message: "Authentication is needed to run `CMD' as the super user"
+  // (or "... as user NAME"). CMD is pkexec's cmdline_short, which keeps any
+  // quotes the command itself contains, so anchor on the fixed tail instead of
+  // stopping at the next quote.
+  var match = text.match(/^Authentication is (?:needed|required) to run [`']([\s\S]+)[`'] as (?:(the super user)|user ([\s\S]+))$/i)
+  if (!match) return { title: text, program: "", args: "" }
+
+  // pkexec separates the program from its arguments with one space. Split on
+  // that space only, so a control character at either boundary stays in the
+  // text and reaches visibleText() instead of being trimmed away.
+  var command = match[1].match(/^([^ ]+)(?: ([\s\S]*))?$/)
+  if (!command) return { title: text, program: "", args: "" }
+
+  return {
+    title: match[2] ? t("polkit.runAsRoot", "Run as root") : t("polkit.runAsUser", "Run as %1").replace("%1", function() { return visibleText(match[3]) }),
+    program: visibleText(command[1]),
+    args: visibleText(command[2] || "")
+  }
 }
 
 if (typeof module !== "undefined") {
   module.exports = {
     promptLooksFingerprint: promptLooksFingerprint,
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
-    authorizationLabel: authorizationLabel
+    authorizationRequest: authorizationRequest
   }
 }
