@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# omarchy:summary=Configure the dock shown on floating workspaces
+# omarchy:group=dock
+# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
+# omarchy:examples=omarchy dock position left | omarchy dock pin org.gnome.Nautilus
+
+set -euo pipefail
+
+source omarchy-shell-config
+
+usage() {
+  cat <<USAGE
+Usage: omarchy dock <command> [args...]
+
+  position [top|bottom|left|right]     Dock position; prints the current one
+                                       when given none
+  autohide [on|off|toggle]             Hide the dock until the pointer reaches
+                                       its edge; prints on or off when given
+                                       none
+  pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
+                                       them one per line when given none
+  pin <desktop-id>                     Keep an app in the dock
+  unpin <desktop-id>                   Remove an app from the dock
+USAGE
+}
+
+# A shell.json without pins of its own uses the default pins, so pinning or
+# unpinning starts from those rather than from an empty dock.
+PINNED='(.dock.pinned // $defaults[0].dock.pinned // [])'
+
+cmd_position() {
+  if (( $# == 0 )); then
+    jq -r '.dock.position // "bottom"' "$(source_file)"
+    return
+  fi
+
+  local position="$1"
+  (( $# == 1 )) || fail "position takes a single value"
+  [[ $position =~ ^(top|bottom|left|right)$ ]] || fail "position must be top, bottom, left, or right"
+  commit "$NORMALIZE | .dock.position = \$position" --arg position "$position"
+  echo "Dock position set to $position"
+}
+
+current_autohide() {
+  jq -r 'if .dock.autohide == true then "on" else "off" end' "$(source_file)"
+}
+
+cmd_autohide() {
+  if (( $# == 0 )); then
+    current_autohide
+    return
+  fi
+
+  local value="$1"
+  (( $# == 1 )) || fail "autohide takes a single value"
+  if [[ $value == "toggle" ]]; then
+    if [[ $(current_autohide) == "on" ]]; then
+      value=off
+    else
+      value=on
+    fi
+  fi
+  [[ $value =~ ^(on|off)$ ]] || fail "autohide must be on, off, or toggle"
+  commit "$NORMALIZE | .dock.autohide = (\$value == \"on\")" --arg value "$value"
+  echo "Dock auto-hide turned $value"
+}
+
+cmd_pinned() {
+  if (( $# == 0 )); then
+    jq -r --slurpfile defaults "$DEFAULTS_FILE" "$PINNED | .[]" "$(source_file)"
+    return
+  fi
+
+  local ids=() id
+  for id in "$@"; do
+    ids+=("$(desktop_id "$id")")
+  done
+  commit "$NORMALIZE | .dock.pinned = (\$ids | reduce .[] as \$id ([]; if index([\$id]) then . else . + [\$id] end))" \
+    --argjson ids "$(printf '%s\n' "${ids[@]}" | jq -R . | jq -s .)"
+  echo "Set the apps pinned to the dock"
+}
+
+desktop_id() {
+  (( $# == 1 )) || fail "takes a single desktop id"
+  local id="${1%.desktop}"
+  [[ -n $id ]] || fail "desktop id must not be empty"
+  printf '%s\n' "$id"
+}
+
+cmd_pin() {
+  local id
+  id=$(desktop_id "$@")
+  commit "$NORMALIZE | .dock.pinned = ($PINNED | if index([\$id]) then . else . + [\$id] end)" \
+    --arg id "$id" --slurpfile defaults "$DEFAULTS_FILE"
+  echo "Pinned $id to the dock"
+}
+
+cmd_unpin() {
+  local id
+  id=$(desktop_id "$@")
+  commit "$NORMALIZE | .dock.pinned = ($PINNED | map(select(. != \$id)))" \
+    --arg id "$id" --slurpfile defaults "$DEFAULTS_FILE"
+  echo "Unpinned $id from the dock"
+}
+
+command="${1:-}"
+(( $# > 0 )) && shift
+
+case "$command" in
+  position) cmd_position "$@" ;;
+  autohide) cmd_autohide "$@" ;;
+  pinned) cmd_pinned "$@" ;;
+  pin) cmd_pin "$@" ;;
+  unpin) cmd_unpin "$@" ;;
+  -h | --help | help) usage ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

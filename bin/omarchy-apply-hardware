@@ -19,6 +19,9 @@ for diagnostics or after hardware/package updates.
 
 --defer-provisioning runs without an install user (deferred-provisioning installs create the user at
 first boot); group grants are recorded in /var/lib/omarchy/provisioning/groups.
+
+In an image build (/var/lib/omarchy/image/target exists) nothing runs here: every step is queued
+for omarchy-provision-hardware on the machine's first boot.
 USAGE
 }
 
@@ -66,10 +69,21 @@ else
 fi
 
 export OMARCHY_INSTALL_USER="$install_user"
+# Only omarchy-provision-hardware runs steps as an image's first boot.
+unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 export OMARCHY_INSTALL="${OMARCHY_INSTALL:-$OMARCHY_PATH/install}"
 export OMARCHY_INSTALL_LOG_FILE="${OMARCHY_INSTALL_LOG_FILE:-/var/log/omarchy-install.log}"
 export PATH="$OMARCHY_PATH/bin:$PATH"
 
 source "$OMARCHY_INSTALL/helpers/logging.sh"
-source "$OMARCHY_INSTALL/hardware/all.sh"
+source "$OMARCHY_INSTALL/helpers/image-target.sh"
+
+omarchy_image_init
+omarchy_image_lock
+if omarchy_image_manifest_present; then
+  omarchy_image_read_manifest
+  omarchy_image_defer_hardware
+else
+  source "$OMARCHY_INSTALL/hardware/all.sh"
+fi

@@ -20,7 +20,13 @@ install_php() {
 
 install_node() {
   echo -e "Installing Node.js...\n"
-  mise use --global node
+  # Omarchy declares Node as a default tool. A user who removed the preinstalls,
+  # like one without Omarchy's declarations, selects it in their own config.
+  if omarchy-mise-default-tools declares node; then
+    mise install node
+  else
+    mise use --global node
+  fi
 }
 
 case "$1" in
@@ -70,7 +76,13 @@ python)
   echo -e "Installing Python...\n"
   mise use --global python@latest
   echo -e "\nInstalling uv...\n"
-  curl -fsSL https://astral.sh/uv/install.sh | sh
+  # Omarchy declares uv as a default tool. A user who removed the preinstalls,
+  # like one without Omarchy's declarations, selects it in their own config.
+  if omarchy-mise-default-tools declares uv; then
+    mise install uv
+  else
+    mise use --global uv
+  fi
   ;;
 elixir)
   echo -e "Installing Elixir...\n"
@@ -92,6 +104,9 @@ phoenix)
   ;;
 rust)
   echo -e "Installing Rust...\n"
+  # Crates that generate C bindings with bindgen, including Ruby gems built
+  # with rb-sys, load libclang from clang.
+  omarchy-pkg-add clang
   bash -c "$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)" -- -y
   ;;
 java)

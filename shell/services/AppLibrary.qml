@@ -78,11 +78,26 @@ Item {
     var id = String(desktopId || "")
     if (!id) return
     root.beginLaunchFeedback(name)
+    // A terminal app goes through Omarchy's TUI launcher, which names its
+    // terminal window after the command (org.omarchy.nvim), so the dock and
+    // titlebars can tell Neovim from the terminal it runs in.
+    var command = root.terminalCommand(DesktopEntries.byId(id))
+    if (command.length > 0) {
+      Util.execDetached("omarchy-launch-tui " + command.map(function(word) { return Util.shellQuote(word) }).join(" "))
+      return
+    }
     // Start gtk-launch inside a scope under app-graphical.slice so apps do not
     // inherit wayland-wm@.service. Keeping gtk-launch as the desktop-entry
     // resolver supports IDs with spaces and entries that UWSM rejects.
     // Keep the .desktop suffix or ids like org.telegram.desktop won't resolve.
     Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+  }
+
+  // The command a terminal entry runs, without the field codes it leaves for a
+  // launcher to fill in; empty for an entry that is not run in a terminal.
+  function terminalCommand(entry) {
+    if (!entry || !entry.runInTerminal) return []
+    return (entry.command || []).filter(function(word) { return !/^%[a-zA-Z]$/.test(String(word)) })
   }
 
   function remove(desktopId, name) {
@@ -127,12 +142,12 @@ Item {
     return [
       'dirs="$HOME/.icons $HOME/.local/share/icons";',
       'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
-      'for ext in svg png; do',
+      '{',
       '  for base in $dirs; do',
-      '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" 2>/dev/null;',
+      '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
       '  done;',
-      '  find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null;',
-      'done'
+      '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
+      '} | awk \'/\\.svg$/ { print; next } { png[++n] = $0 } END { for (i = 1; i <= n; i++) print png[i] }\''
     ].join(' ')
   }
 
@@ -161,7 +176,7 @@ Item {
     root.launchSerial++
     root.launchToplevelCount = root.toplevelCount()
     root.launchActiveToplevel = ToplevelManager.activeToplevel
-    root.launchOsdMessage = "Launching " + String(name || "application") + "…"
+    root.launchOsdMessage = name ? I18n.t("appLibrary.launching").arg(String(name)) : I18n.t("appLibrary.launchingApp")
     launchDelay.restart()
     launchTimeout.restart()
   }
