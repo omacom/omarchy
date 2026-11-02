@@ -47,14 +47,58 @@ sudo_grants_passwordless() {
   sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
 }
 
+preserve_state_env() {
+  PRESERVE_STATE_ENV=()
+  if [[ -n ${OMARCHY_POWERPROFILES_STATE_DIR:-} ]]; then
+    PRESERVE_STATE_ENV+=(OMARCHY_POWERPROFILES_STATE_DIR="$OMARCHY_POWERPROFILES_STATE_DIR")
+  fi
+  if [[ -n ${OMARCHY_POWERPROFILES_STATE_USER:-} ]]; then
+    PRESERVE_STATE_ENV+=(OMARCHY_POWERPROFILES_STATE_USER="$OMARCHY_POWERPROFILES_STATE_USER")
+  fi
+}
+
 require_root() {
+  preserve_state_env
   if (( EUID == 0 )); then
     return
   elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
-    exec sudo "$PACKAGED_PATH" "$@"
+    if ((${#PRESERVE_STATE_ENV[@]})); then
+      exec sudo env "${PRESERVE_STATE_ENV[@]}" "$PACKAGED_PATH" "$@"
+    else
+      exec sudo "$PACKAGED_PATH" "$@"
+    fi
   else
-    exec pkexec "$PACKAGED_PATH" "$@"
+    if ((${#PRESERVE_STATE_ENV[@]})); then
+      exec pkexec env "${PRESERVE_STATE_ENV[@]}" "$PACKAGED_PATH" "$@"
+    else
+      exec pkexec "$PACKAGED_PATH" "$@"
+    fi
   fi
+}
+
+resolve_state_user() {
+  if (( EUID != 0 )); then
+    printf '%s\n' "${USER:-$(id -un)}"
+    return 0
+  fi
+  if [[ -n ${OMARCHY_POWERPROFILES_STATE_USER:-} ]]; then
+    printf '%s\n' "$OMARCHY_POWERPROFILES_STATE_USER"
+    return 0
+  fi
+  if [[ -n ${SUDO_USER:-} && $SUDO_USER != root ]]; then
+    printf '%s\n' "$SUDO_USER"
+    return 0
+  fi
+  if [[ ${SUDO_UID:-} =~ ^[0-9]+$ ]] && ((10#$SUDO_UID > 0)); then
+    id -nu "+$SUDO_UID"
+    return 0
+  fi
+  if [[ ${PKEXEC_UID:-} =~ ^[0-9]{1,10}$ ]] && ((10#$PKEXEC_UID > 0)); then
+    getent passwd "$PKEXEC_UID" | cut -d: -f1
+    return 0
+  fi
+  echo "omarchy-powerprofiles-apple-cpufreq-apply: cannot determine session user for state file" >&2
+  return 1
 }
 
 usage() {
@@ -93,7 +137,7 @@ for policy in /sys/devices/system/cpu/cpufreq/policy*; do
   printf '%s\n' "$cap_hz" >"$policy/scaling_max_freq"
 done
 
-state_user=${SUDO_USER:-${USER:-$(id -un)}}
+state_user=$(resolve_state_user) || exit 1
 state_home=$(getent passwd "$state_user" | cut -d: -f6)
 state_dir=${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$state_home/.local/state}/omarchy/powerprofiles}
 install -d -o "$state_user" -g "$state_user" -m 0755 "$state_dir" 2>/dev/null || mkdir -p "$state_dir"
