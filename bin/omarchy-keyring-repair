@@ -36,6 +36,21 @@ KEYFILE_PROPERTY_RE = re.compile(
     r"^(?:item-type=\d+|display-name=.*|binary-secret=.*|secret=.*|ctime=\d+|mtime=\d+|name=.*|type=.*|value=.*|lock-on-idle=.*|lock-after=.*|lock-timeout=\d+)$"
 )
 
+# Properties legitimate in the [keyring] section per gkm-secret-textual.c
+KEYRING_PROPERTY_RE = re.compile(
+    r"^(?:display-name=.*|ctime=\d+|mtime=\d+|lock-on-idle=.*|lock-after=.*|lock-timeout=\d+)$"
+)
+
+# Properties legitimate in an item [N] section per gkm-secret-textual.c
+ITEM_PROPERTY_RE = re.compile(
+    r"^(?:item-type=\d+|display-name=.*|binary-secret=.*|secret=.*|ctime=\d+|mtime=\d+)$"
+)
+
+# Properties legitimate in an attribute [N:attributeM] section per gkm-secret-textual.c
+ATTR_PROPERTY_RE = re.compile(
+    r"^(?:name=.*|type=.*|value=.*)$"
+)
+
 # Legitimate metadata keys inside an item section [N] per gkm-secret-textual.c
 ITEM_METADATA_KEY_RE = re.compile(
     r"^(?:item-type=\d+|display-name=.*|binary-secret=.*|ctime=\d+|mtime=\d+)$"
@@ -80,14 +95,22 @@ def split_file_lines(content: str) -> list[str]:
     return lines
 
 
-def is_bare_continuation(raw_line: str) -> bool:
+def is_bare_continuation(raw_line: str, header: str = "") -> bool:
     """Return True if a line is an unescaped bare continuation line."""
     stripped = raw_line.strip()
     if not stripped or stripped.startswith("#"):
         return False
     if stripped.startswith("[") and stripped.endswith("]"):
         return False
-    return not bool(KEYFILE_PROPERTY_RE.match(stripped))
+    if header == "[keyring]":
+        prop_re = KEYRING_PROPERTY_RE
+    elif ITEM_HEADER_RE.match(header):
+        prop_re = ITEM_PROPERTY_RE
+    elif ATTR_HEADER_RE.match(header):
+        prop_re = ATTR_PROPERTY_RE
+    else:
+        prop_re = KEYFILE_PROPERTY_RE
+    return not bool(prop_re.match(stripped))
 
 
 def split_sections(lines: list[str]) -> list[list[str]]:
@@ -195,12 +218,6 @@ def repair_keyring_content(content: str) -> tuple[str, bool, bool]:
         # Do not modify encrypted binary keyrings or foreign formats
         return content, False, False
 
-    # Pre-flight validation gate:
-    # If the file contains no bare continuation lines anywhere, it is fully valid
-    # and must be left untouched byte-for-byte.
-    if not any(is_bare_continuation(line) for line in lines):
-        return content, False, False
-
     # Reject ambiguous section boundaries before committing
     for raw_line in lines:
         stripped = raw_line.strip()
@@ -219,13 +236,23 @@ def repair_keyring_content(content: str) -> tuple[str, bool, bool]:
     if not validate_section_hierarchy(sections):
         return content, False, True
 
+    # Pre-flight validation gate:
+    # If the file contains no bare continuation lines anywhere, it is fully valid
+    # and must be left untouched byte-for-byte.
+    if not any(
+        is_bare_continuation(line, sec[0].strip() if sec else "")
+        for sec in sections
+        for line in sec
+    ):
+        return content, False, False
+
     output_lines: list[str] = []
     modified_any = False
 
     for sec in sections:
         header = sec[0].strip() if sec else ""
         is_item = bool(ITEM_HEADER_RE.match(header))
-        has_bare = any(is_bare_continuation(line) for line in sec)
+        has_bare = any(is_bare_continuation(line, header) for line in sec)
 
         if not is_item:
             if has_bare:
@@ -337,7 +364,7 @@ def repair_keyring_content(content: str) -> tuple[str, bool, bool]:
         out.extend(tail_metadata)
         out.extend(trailing_lines)
 
-        if any(is_bare_continuation(line) for line in out):
+        if any(is_bare_continuation(line, header) for line in out):
             return content, False, True
 
         output_lines.extend(out)

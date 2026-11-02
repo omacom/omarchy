@@ -437,3 +437,38 @@ cp -a "$forged_file" "$tmpdir/forged_before.keyring"
 cmp -s "$tmpdir/forged_before.keyring" "$forged_file" || fail "forged item file was modified"
 rm -f "$forged_file" "$tmpdir/forged_before.keyring"
 pass "item forged inside a secret is refused without modifying file"
+
+# 17. Secret continuation lines matching keyring-level properties fold and recover via GLib
+lock_prop_file="$OMARCHY_KEYRING_DIR/lock_prop.keyring"
+cat >"$lock_prop_file" <<'KEYRING'
+[keyring]
+display-name=Default keyring
+
+[1]
+item-type=0
+display-name=Lock Property In Secret Item
+secret=first_line
+lock-timeout=300
+lock-on-idle=true
+ctime=1700000000
+mtime=1700000000
+KEYRING
+
+python3 "$repair" || fail "repair failed on secret containing lock property strings"
+
+python3 - << 'PY'
+import os
+import gi
+gi.require_version('GLib', '2.0')
+from gi.repository import GLib
+
+kf = GLib.KeyFile()
+keyring_dir = os.environ["OMARCHY_KEYRING_DIR"]
+kf.load_from_file(f"{keyring_dir}/lock_prop.keyring", GLib.KeyFileFlags.KEEP_COMMENTS)
+val = kf.get_string("1", "secret")
+expected = "first_line\nlock-timeout=300\nlock-on-idle=true"
+assert val == expected, f"GLib recovered secret mismatch: {repr(val)} != {repr(expected)}"
+PY
+rm -f "$lock_prop_file"
+pass "secret continuation lines matching keyring properties fold and recover via GLib"
+
