@@ -818,6 +818,7 @@ Item {
   }
 
   function setFilter(nextFilter) {
+    root.pendingRoute = ""
     panel.freezeCardTop()
     root.filterText = nextFilter
     root.selectedIndex = 0
@@ -828,6 +829,7 @@ Item {
   }
 
   function setActiveMenu(id, pushHistory, fromPointer) {
+    root.pendingRoute = ""
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
     if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
@@ -870,6 +872,7 @@ Item {
         if (picked.itemId === "dmenu.apply") {
           root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
         } else {
+          root.pendingRoute = ""
           var value = MenuModel.dmenuValue(root.dmenuOptions[Number(picked.itemId.substring(6))])
           var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(), value)
           if (root.dmenuOnChange.length > 0) {
@@ -893,6 +896,7 @@ Item {
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label
+      root.pendingRoute = ""
       applySerial = requestSerial
       opened = false
       filterText = ""
@@ -929,6 +933,7 @@ Item {
   }
 
   function applyDmenuSelection(value) {
+    root.pendingRoute = ""
     applySerial = requestSerial
     opened = false
     filterText = ""
@@ -938,6 +943,7 @@ Item {
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
+    root.pendingRoute = ""
     applySerial = requestSerial
     opened = false
     filterText = ""
@@ -945,12 +951,14 @@ Item {
   }
 
   function cancel() {
+    root.pendingRoute = ""
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
     filterText = ""
   }
 
-  function openExistingMenu(initialMenu) {
+  function openExistingMenu(initialMenu, skipGuards) {
+    root.pendingRoute = ""
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -962,7 +970,7 @@ Item {
     selectedIndex = 0
     cursorActive = true
     root.disarmPointer()
-    root.evaluateGuards()
+    if (!skipGuards) root.evaluateGuards()
     opened = true
     rebuildDisplay()
     invalidateVolatileProvider(activeMenu)
@@ -975,6 +983,7 @@ Item {
   }
 
   function openDmenu(payload) {
+    root.pendingRoute = ""
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
@@ -1016,8 +1025,23 @@ Item {
     return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
-  function openRoute(initialMenu) {
-    var id = root.resolveRoute(initialMenu)
+  function openRoute(initialMenu, refreshed) {
+    root.pendingRoute = ""
+    var id = MenuModel.routeTarget(root.items, root.itemOrder, root.whenResults, initialMenu)
+    // The route resolved to an entry the `when` guards hid: a summon must not
+    // run or open it, the same way the rendered row list never shows it.
+    // Refresh the guards first so a condition that became true while the menu
+    // was idle (e.g. a recording started) can let the route through.
+    if (!id) {
+      if (!refreshed) {
+        root.pendingRoute = String(initialMenu || "root")
+        root.evaluateGuards()
+        if (guardProc.running || root.guardsPending) return "pending"
+        return root.openRoute(initialMenu, true)
+      }
+      root.cancel()
+      return "hidden"
+    }
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
     // a leaf, e.g. `omarchy menu summon screenrecord-stop`), run it directly
@@ -1030,7 +1054,7 @@ Item {
     // If it's a link (a redirect to another menu), follow the link.
     if (entry && entry.kind === "link" && entry.target) id = entry.target
     root.pendingInitialMenu = id
-    root.openExistingMenu(id)
+    root.openExistingMenu(id, refreshed)
     return "ok"
   }
 
@@ -1200,6 +1224,7 @@ Item {
   property var checkedResults: ({})    // id → true|false (show ✓)
   property var disabledResults: ({})   // id → true|false (dim, skip cursor)
   property bool guardsPending: false
+  property string pendingRoute: ""
 
   function evaluateGuards() {
     // Process ignores a command change while it is running, and `collected`
@@ -1219,6 +1244,9 @@ Item {
       root.whenResults = ({})
       root.checkedResults = ({})
       root.disabledResults = ({})
+      // No batch runs, so no onExited will settle a waiting summon. Deferred so
+      // the openRoute that started this evaluation settles it first.
+      if (root.pendingRoute) Qt.callLater(function() { if (root.pendingRoute) root.openRoute(root.pendingRoute, true) })
       return
     }
     guardProc.collected = ""
@@ -1238,6 +1266,7 @@ Item {
       // Keep the last complete set rather than let a half-read one through.
       // A signal leaves the exit code at 0, so the status is what tells us.
       if (exitCode !== 0 || exitStatus !== 0) {
+        if (!root.guardsPending && root.pendingRoute) root.openRoute(root.pendingRoute, true)
         if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
         return
       }
@@ -1265,6 +1294,7 @@ Item {
       root.checkedResults = nextChecked
       root.disabledResults = nextDisabled
       if (root.opened) root.rebuildDisplay()
+      if (!root.guardsPending && root.pendingRoute) root.openRoute(root.pendingRoute, true)
       // Run the evaluation that had to stand aside. Deferred by a turn so the
       // process is settled before its command is set again.
       if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
