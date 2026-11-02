@@ -39,7 +39,13 @@ stub_hyprctl() {
     echo 'BINDS'
     echo '  ;;'
     echo '  devices) echo "active keymap: English (US)" ;;'
-    echo '  -j) [[ $2 == getoption ]] && cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null ;;'
+    echo '  -j) if [[ $2 == "--batch" ]]; then'
+    echo '        layout=$(cat "'"$stub_bin"'/option-kb_layout" 2>/dev/null || echo "{}")'
+    echo '        variant=$(cat "'"$stub_bin"'/option-kb_variant" 2>/dev/null || echo "{}")'
+    echo '        echo "[$layout, $variant]"'
+    echo '      elif [[ $2 == getoption ]]; then'
+    echo '        cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null'
+    echo '      fi ;;'
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
