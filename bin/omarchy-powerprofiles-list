@@ -13,16 +13,7 @@ state_dir=${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/stat
 
 resolved_active=""
 if omarchy-hw-aarch64-apple 2>/dev/null && [[ -r $state_dir/apple-cpufreq-active ]]; then
-  if [[ $(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null) == "b true" ]]; then
-    power_key=battery
-  else
-    power_key=ac
-  fi
-  if [[ -r $state_dir/$power_key ]]; then
-    resolved_active=$(<"$state_dir/$power_key")
-  else
-    resolved_active=$(<"$state_dir/apple-cpufreq-active")
-  fi
+  resolved_active=$(<"$state_dir/apple-cpufreq-active")
 fi
 
 mapfile -t lines < <(powerprofilesctl list 2>/dev/null |

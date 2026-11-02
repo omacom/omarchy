@@ -10,7 +10,7 @@ set -euo pipefail
 # sudoers rule, or re-execed by require_root below — sudo's secure_path decides
 # where a bare helper resolves, and a dev link (etc/sudoers.d/omarchy-dev-path)
 # prepends a user-writable checkout bin/ to it. Every helper this script calls
-# by bare name (getent, mv, printf) is a system tool, never an omarchy-* command,
+# by bare name (flock, install, printf) is a system tool, never an omarchy-* command,
 # so pin PATH to trusted system directories and keep root from resolving one out
 # of that checkout. The unprivileged wrapper phase keeps the caller's PATH so it
 # can still find sudo/pkexec.
@@ -19,6 +19,8 @@ if (( EUID == 0 )); then
 fi
 
 PACKAGED_PATH=/usr/bin/omarchy-powerprofiles-apple-cpufreq-apply
+APPLE_CPUFREQ_LOCK=${OMARCHY_APPLE_CPUFREQ_LOCK:-/run/omarchy/powerprofiles-apple-cpufreq.lock}
+cpufreq_root=${OMARCHY_APPLE_CPUFREQ_SYSFS_ROOT:-/sys/devices/system/cpu/cpufreq}
 
 pick_cap_hz() {
   local max_hz=$1 pct=$2 freqs
@@ -47,58 +49,14 @@ sudo_grants_passwordless() {
   sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
 }
 
-preserve_state_env() {
-  PRESERVE_STATE_ENV=()
-  if [[ -n ${OMARCHY_POWERPROFILES_STATE_DIR:-} ]]; then
-    PRESERVE_STATE_ENV+=(OMARCHY_POWERPROFILES_STATE_DIR="$OMARCHY_POWERPROFILES_STATE_DIR")
-  fi
-  if [[ -n ${OMARCHY_POWERPROFILES_STATE_USER:-} ]]; then
-    PRESERVE_STATE_ENV+=(OMARCHY_POWERPROFILES_STATE_USER="$OMARCHY_POWERPROFILES_STATE_USER")
-  fi
-}
-
 require_root() {
-  preserve_state_env
   if (( EUID == 0 )); then
     return
   elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
-    if ((${#PRESERVE_STATE_ENV[@]})); then
-      exec sudo env "${PRESERVE_STATE_ENV[@]}" "$PACKAGED_PATH" "$@"
-    else
-      exec sudo "$PACKAGED_PATH" "$@"
-    fi
+    exec sudo "$PACKAGED_PATH" "$@"
   else
-    if ((${#PRESERVE_STATE_ENV[@]})); then
-      exec pkexec env "${PRESERVE_STATE_ENV[@]}" "$PACKAGED_PATH" "$@"
-    else
-      exec pkexec "$PACKAGED_PATH" "$@"
-    fi
+    exec pkexec "$PACKAGED_PATH" "$@"
   fi
-}
-
-resolve_state_user() {
-  if (( EUID != 0 )); then
-    printf '%s\n' "${USER:-$(id -un)}"
-    return 0
-  fi
-  if [[ -n ${OMARCHY_POWERPROFILES_STATE_USER:-} ]]; then
-    printf '%s\n' "$OMARCHY_POWERPROFILES_STATE_USER"
-    return 0
-  fi
-  if [[ -n ${SUDO_USER:-} && $SUDO_USER != root ]]; then
-    printf '%s\n' "$SUDO_USER"
-    return 0
-  fi
-  if [[ ${SUDO_UID:-} =~ ^[0-9]+$ ]] && ((10#$SUDO_UID > 0)); then
-    id -nu "+$SUDO_UID"
-    return 0
-  fi
-  if [[ ${PKEXEC_UID:-} =~ ^[0-9]{1,10}$ ]] && ((10#$PKEXEC_UID > 0)); then
-    getent passwd "$PKEXEC_UID" | cut -d: -f1
-    return 0
-  fi
-  echo "omarchy-powerprofiles-apple-cpufreq-apply: cannot determine session user for state file" >&2
-  return 1
 }
 
 usage() {
@@ -121,14 +79,25 @@ esac
 
 require_root "$profile"
 
-if [[ $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver 2>/dev/null) != apple-cpufreq ]]; then
+driver_file=${OMARCHY_APPLE_CPUFREQ_DRIVER_FILE:-/sys/devices/system/cpu/cpu0/cpufreq/scaling_driver}
+driver=$(cat "$driver_file" 2>/dev/null)
+if [[ $driver != 'apple-cpufreq' ]]; then
   echo "omarchy-powerprofiles-apple-cpufreq-apply: scaling driver is not apple-cpufreq" >&2
   exit 1
 fi
 
 pct=$(cap_pct_for_profile "$profile") || exit 1
 
-for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+lock_dir=${APPLE_CPUFREQ_LOCK%/*}
+install -d -m 0755 "$lock_dir"
+install -m 0666 /dev/null "$APPLE_CPUFREQ_LOCK"
+exec {apple_lock_fd}>>"$APPLE_CPUFREQ_LOCK"
+if ! flock -w 30 "$apple_lock_fd"; then
+  echo "omarchy-powerprofiles-apple-cpufreq-apply: another profile change is in progress" >&2
+  exit 1
+fi
+
+for policy in "$cpufreq_root"/policy*; do
   [[ -r $policy/cpuinfo_max_freq ]] || continue
   max_hz=$(<"$policy/cpuinfo_max_freq")
   min_hz=$(<"$policy/cpuinfo_min_freq")
@@ -136,13 +105,3 @@ for policy in /sys/devices/system/cpu/cpufreq/policy*; do
   printf '%s\n' "$min_hz" >"$policy/scaling_min_freq"
   printf '%s\n' "$cap_hz" >"$policy/scaling_max_freq"
 done
-
-state_user=$(resolve_state_user) || exit 1
-state_home=$(getent passwd "$state_user" | cut -d: -f6)
-state_dir=${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$state_home/.local/state}/omarchy/powerprofiles}
-install -d -o "$state_user" -g "$state_user" -m 0755 "$state_dir" 2>/dev/null || mkdir -p "$state_dir"
-state_file=$state_dir/apple-cpufreq-active
-printf '%s\n' "$profile" >"$state_file.new"
-chown "$state_user:" "$state_file.new" 2>/dev/null || true
-mv -f "$state_file.new" "$state_file"
-chown "$state_user:" "$state_file" 2>/dev/null || true
