@@ -118,6 +118,18 @@ grep -q 'Restored omarchy.menu.' <<<"$remove_output" ||
   fail "removing a clone does not report its restored source"
 pass "removing an enabled clone goes through plugin disable and reports its source"
 
+clone_plugin omarchy.menu >/dev/null
+echo '{"disabledPlugins":["omarchy.menu"]}' >"$TMPDIR/home/.config/omarchy/shell.json"
+remove_disabled_source_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" \
+  omarchy-plugin-remove tester.menu --yes)
+! grep -q 'Restored omarchy.menu.' <<<"$remove_disabled_source_output" ||
+  fail "removing a clone reports restored source when source stays disabled"
+grep -q 'Plugin was enabled and was unloaded from omarchy-shell.' <<<"$remove_disabled_source_output" ||
+  fail "removing a clone with disabled source reports unloading"
+pass "removing a clone whose source stays disabled does not report restore"
+rm -f "$TMPDIR/home/.config/omarchy/shell.json"
+
 clone_plugin omarchy.active-window >/dev/null
 [[ -f $TMPDIR/home/.config/omarchy/plugins/tester.active-window/ActiveWindow.qml ]] ||
   fail "flat bar plugin clone is incomplete"
