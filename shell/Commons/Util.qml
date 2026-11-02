@@ -55,6 +55,12 @@ QtObject {
     return "file://" + String(path).split("/").map(encodeURIComponent).join("/")
   }
 
+  // For Image.asynchronous: Quickshell's icon and tray providers call QIcon, whose theme
+  // cache is unsynchronised, so loading one on Qt's image thread can crash the shell.
+  function loadsOffThread(url) {
+    return !/^image:\/\/(icon|qspixmap)\//.test(String(url || ""))
+  }
+
   function isVideoPath(path) {
     return /\.(mp4|m4v|mov|webm|mkv|avi)$/i.test(String(path || ""))
   }
