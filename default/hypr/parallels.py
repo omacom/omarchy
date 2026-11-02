@@ -21,6 +21,15 @@ class ScalePreference(NamedTuple):
   saved: float
 
 
+class PendingLayout(NamedTuple):
+  monitor: dict
+  mode: str
+  scale: float
+  layout: list
+  original: dict
+  expected: dict
+
+
 def parse_mode(value):
   match = re.fullmatch(r"([0-9]{1,5})x([0-9]{1,5})", value)
   if not match:
@@ -91,13 +100,16 @@ def active_outputs(monitors):
     and monitor.get("dpmsStatus") is not False and monitor.get("mirrorOf", "none") == "none"]
 
 
-def resize_layout(monitors, monitor, mode, scale):
+def resize_layout(monitors, monitor, mode, scale, transform):
   if len(monitors) == 1:
     return [{"name": monitor["name"], "x": int(monitor.get("x", 0)), "y": int(monitor.get("y", 0))}]
   planner = Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-hyprland-monitor-layout"
+  width, height = parse_mode(mode)
+  if transform % 2 != monitor.get("transform", 0) % 2:
+    width, height = height, width
   result = subprocess.run(["bash", str(planner), "--plan", "--resized", monitor["name"],
-    f"{monitor['width']}x{monitor['height']}", str(monitor["scale"]), mode, str(scale),
-    mode, str(monitor.get("transform", 0))], input=json.dumps(monitors), text=True,
+    f"{monitor['width']}x{monitor['height']}", str(monitor["scale"]), f"{width}x{height}", str(scale),
+    mode, str(transform)], input=json.dumps(monitors), text=True,
     capture_output=True, check=True, timeout=3)
   layout = json.loads(result.stdout)
   if (not isinstance(layout, list) or len(layout) != len(monitors)
@@ -105,6 +117,24 @@ def resize_layout(monitors, monitor, mode, scale):
       or any(type(target[coordinate]) is not int for target in layout for coordinate in ("x", "y"))):
     raise ValueError("invalid monitor layout plan")
   return layout
+
+
+def pending_outputs(monitors, pending):
+  # Undo only positions attributable to our partial move. Keep live neighbor
+  # modes, scales, rotations and new outputs instead of waiting for old values.
+  outputs = []
+  for monitor in monitors:
+    output = dict(monitor)
+    original = pending.original.get(monitor["name"])
+    expected = pending.expected.get(monitor["name"])
+    if original and expected:
+      position = (monitor.get("x", 0), monitor.get("y", 0))
+      if position in ((original.get("x", 0), original.get("y", 0)), (expected["x"], expected["y"])):
+        output.update(x=original.get("x", 0), y=original.get("y", 0))
+      if monitor["name"] == pending.monitor["name"]:
+        output.update((field, original.get(field, 0)) for field in ("width", "height", "scale", "transform"))
+    outputs.append(output)
+  return outputs
 
 
 def layout_matches(monitors, expected):
@@ -182,9 +212,9 @@ class ResizeBridge:
     self.pending_layout = None
 
   def apply_pending_layout(self):
-    monitor, mode, scale, layout, expected = self.pending_layout
-    self.compositor.configure(monitor, mode, scale, layout)
-    if not layout_matches(self.compositor.monitors(), expected):
+    pending = self.pending_layout
+    self.compositor.configure(pending.monitor, pending.mode, pending.scale, pending.layout)
+    if not layout_matches(self.compositor.monitors(), pending.expected):
       return False
     self.pending_layout = None
     return True
@@ -192,18 +222,14 @@ class ResizeBridge:
   def reconcile(self, reasons):
     records = scale_records(self.scale_log)
     successful = True
-    if self.pending_layout:
-      expected = self.pending_layout[-1]
-      if {output["name"] for output in active_outputs(self.compositor.monitors())} != expected.keys():
-        self.pending_layout = None
-      else:
-        try:
-          if not self.apply_pending_layout():
-            return False
-        except (OSError, ValueError, KeyError) as error:
-          LOG.warning("Cannot finish pending display layout: %s", error)
-          return False
-    for name in [output.get("name", "") for output in self.compositor.monitors()]:
+    pending = self.pending_layout
+    names = [output.get("name", "") for output in active_outputs(self.compositor.monitors())]
+    if pending and pending.monitor["name"] in names:
+      names.remove(pending.monitor["name"])
+      names.insert(0, pending.monitor["name"])
+    else:
+      pending = self.pending_layout = None
+    for name in names:
       monitors = self.compositor.monitors()
       monitor = next((output for output in monitors if output.get("name") == name), None)
       if monitor is None:
@@ -244,17 +270,21 @@ class ResizeBridge:
           self.audit_records[name] = record.event
 
         scale = clean_scale(self.preferences[name], width, height)
-        if ((monitor.get("width"), monitor.get("height")) != (width, height)
+        unfinished = pending and name == pending.monitor["name"]
+        if (unfinished or (monitor.get("width"), monitor.get("height")) != (width, height)
             or not math.isclose(current_scale, scale, abs_tol=0.001)):
           outputs = active_outputs(monitors)
-          layout = resize_layout(outputs, monitor, mode, scale)
+          planning = pending_outputs(outputs, pending) if unfinished else outputs
+          origin = next(output for output in planning if output["name"] == name)
+          layout = resize_layout(planning, origin, mode, scale, monitor.get("transform", 0))
           expected = {output["name"]: dict(output) for output in outputs}
           for target in layout:
             expected[target["name"]].update(x=target["x"], y=target["y"])
           expected[name].update(width=width, height=height, scale=scale)
           if layout_overlaps(expected.values()):
             raise ValueError("resize would leave overlapping monitors")
-          self.pending_layout = (monitor, mode, scale, layout, expected)
+          self.pending_layout = PendingLayout(monitor, mode, scale, layout,
+            {output["name"]: dict(output) for output in planning}, expected)
           if not self.apply_pending_layout():
             return False
         verified = (mode, scale)
@@ -263,6 +293,8 @@ class ResizeBridge:
           self.last_verified[name] = verified
       except (OSError, ValueError, KeyError, StopIteration, subprocess.SubprocessError) as error:
         LOG.warning("%s: %s", name, error)
+        if pending and name == pending.monitor["name"]:
+          return False
         successful = False
     return successful
 

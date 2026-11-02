@@ -43,6 +43,10 @@ class Compositor:
       for target in layout:
         output = next(output for output in self.outputs if output["name"] == target["name"])
         output.update(x=target["x"], y=target["y"])
+    callback = getattr(self, "after_configure", None)
+    if callback:
+      self.after_configure = None
+      callback()
 
 
 class ResizeTests(unittest.TestCase):
@@ -139,6 +143,73 @@ class ResizeTests(unittest.TestCase):
     self.assertEqual(self.compositor.outputs[1]["x"], 3200)
     self.assertEqual(self.compositor.outputs[1]["width"], 2560)
     self.assertFalse(parallels.layout_overlaps(self.compositor.outputs))
+
+  def test_pending_resize_recomputes_after_neighbor_state_changes(self):
+    for changed in ({"scale": 1.25}, {"width": 1920, "height": 1080}, {"transform": 1}):
+      for reason in ("hotplug", "config", "scale", "resume"):
+        for requested_mode in ("6400x3600", "2560x1600"):
+          with self.subTest(changed=changed, reason=reason, mode=requested_mode):
+            self.compositor = Compositor()
+            neighbor = dict(self.compositor.outputs[0], name="Virtual-2", x=512, width=1280, height=800)
+            self.compositor.outputs.append(neighbor)
+            self.mode("Virtual-1", "6400x3600")
+            self.mode("Virtual-2", "1280x800")
+            self.bridge = parallels.ResizeBridge(self.compositor, self.drm, self.scale_log)
+            def change_neighbor():
+              neighbor.update(changed)
+              self.mode("Virtual-2", f"{neighbor['width']}x{neighbor['height']}")
+            self.compositor.after_configure = change_neighbor
+            self.assertFalse(self.bridge.reconcile({"hotplug"}))
+            self.mode("Virtual-1", requested_mode)
+            self.assertTrue(self.bridge.reconcile({reason}))
+            self.assertIsNone(self.bridge.pending_layout)
+            self.assertEqual(self.compositor.outputs[0]["width"], parallels.parse_mode(requested_mode)[0])
+            for field, value in changed.items():
+              self.assertEqual(neighbor[field], value)
+            self.assertFalse(parallels.layout_overlaps(self.compositor.outputs))
+            self.assertTrue(all(mode == requested_mode for name, mode, scale in self.compositor.applied[1:]))
+
+  def test_pending_resize_reads_new_mode_and_scale_before_reapplying(self):
+    self.compositor.outputs.append(dict(self.compositor.outputs[0], name="Virtual-2", x=512))
+    self.mode("Virtual-2", "1024x768")
+    self.compositor.ignore_positions = True
+    self.assertFalse(self.bridge.reconcile({"hotplug"}))
+    self.mode("Virtual-1", "2560x1600")
+    self.preference(1.6)
+    self.compositor.ignore_positions = False
+    self.assertTrue(self.bridge.reconcile({"scale", "hotplug"}))
+    self.assertEqual(self.compositor.applied[1:], [("Virtual-1", "2560x1600", 1.6)])
+    self.assertEqual(self.compositor.outputs[1]["x"], 1600)
+
+  def test_pending_resize_recomputes_when_output_membership_changes(self):
+    for remove_neighbor in (False, True):
+      with self.subTest(remove_neighbor=remove_neighbor):
+        self.compositor = Compositor()
+        self.compositor.outputs.append(dict(self.compositor.outputs[0], name="Virtual-2", x=512))
+        self.mode("Virtual-1", "6400x3600")
+        self.mode("Virtual-2", "1024x768")
+        self.bridge = parallels.ResizeBridge(self.compositor, self.drm, self.scale_log)
+        self.compositor.ignore_positions = True
+        self.assertFalse(self.bridge.reconcile({"hotplug"}))
+        if remove_neighbor:
+          self.compositor.outputs.pop()
+        else:
+          self.compositor.outputs.append(dict(self.compositor.outputs[1], name="Virtual-3", x=1024))
+          self.mode("Virtual-3", "1024x768")
+        self.mode("Virtual-1", "2560x1600")
+        self.compositor.ignore_positions = False
+        self.assertTrue(self.bridge.reconcile({"hotplug"}))
+        self.assertFalse(parallels.layout_overlaps(self.compositor.outputs))
+
+  def test_pending_resize_keeps_a_new_rotation_on_the_resized_output(self):
+    self.compositor.outputs.append(dict(self.compositor.outputs[0], name="Virtual-2", x=512))
+    self.mode("Virtual-2", "1024x768")
+    self.compositor.after_configure = lambda: self.compositor.outputs[0].update(transform=1)
+    self.assertFalse(self.bridge.reconcile({"hotplug"}))
+    self.mode("Virtual-1", "2560x1600")
+    self.assertTrue(self.bridge.reconcile({"config"}))
+    self.assertEqual(self.compositor.outputs[0]["transform"], 1)
+    self.assertEqual(self.compositor.outputs[1]["x"], 800)
 
   def test_ipc_batches_neighbor_moves_before_growth_without_changing_their_scale(self):
     ipc = parallels.Hyprland(self.directory / "unused.sock")
