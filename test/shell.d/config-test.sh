@@ -280,6 +280,23 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "shell config sets bar position"
 
+# A bar capped along its edge (bar.maxWidth) is a centered strip. The cap is
+# a number of pixels, and full, the whole edge, drops it from the file.
+[[ $(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar max-width) == "full" ]] ||
+  fail "a bar without a cap reports its max width as full"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar max-width 2560
+jq -e '.bar.maxWidth == 2560 and .bar.position == "bottom"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "shell config caps the bar along its edge"
+[[ $(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar max-width) == "2560" ]] ||
+  fail "a capped bar reports its max width"
+if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar max-width wide 2>/dev/null; then
+  fail "bar max-width accepted a value that is not a number of pixels"
+fi
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar max-width full
+jq -e '.bar.maxWidth == null and .bar.position == "bottom"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "a bar set back to full drops its cap"
+pass "shell config caps the bar along its edge and lets it run the whole edge again"
+
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent true
 jq -e '
   .bar.background == "none" and

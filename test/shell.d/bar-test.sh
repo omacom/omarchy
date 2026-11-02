@@ -303,6 +303,23 @@ assertDeepEqual(bar.fadeShares({ 'right:0': 0.5, 'centerEnd:1': 0.5 }, 'centerEn
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
 assertEqual(bar.normalizePosition('sideways'), 'top', 'bar defaults invalid positions')
+
+// A bar capped along its edge (bar.maxWidth) is a centered strip: the cap is
+// whole pixels or none, and the strip starts in from each end of the edge by
+// half of what the edge has over.
+assertEqual(bar.normalizeMaxWidth(2560), 2560, 'bar keeps a pixel cap')
+assertEqual(bar.normalizeMaxWidth('2560'), 2560, 'bar reads a cap written as a string')
+assertEqual(bar.normalizeMaxWidth(2559.6), 2560, 'bar rounds a cap to whole pixels')
+assertEqual(bar.normalizeMaxWidth(0), 0, 'bar takes zero as no cap')
+assertEqual(bar.normalizeMaxWidth(-100), 0, 'bar takes a negative cap as none')
+assertEqual(bar.normalizeMaxWidth(undefined), 0, 'bar takes a missing cap as none')
+assertEqual(bar.normalizeMaxWidth('wide'), 0, 'bar takes a cap that is not a number as none')
+assertEqual(bar.normalizeMaxWidth(true), 0, 'bar takes a cap that is not a number or string as none')
+assertEqual(bar.stripInset(5120, 2560), 1280, 'a capped bar starts in from each end by half of what the edge has over')
+assertEqual(bar.stripInset(5120, 2561), 1280, 'the inset of an odd cap is whole pixels')
+assertEqual(bar.stripInset(2560, 2560), 0, 'a cap the edge just fits leaves the bar along the whole edge')
+assertEqual(bar.stripInset(1920, 2560), 0, 'a cap longer than the edge leaves the bar along the whole edge')
+assertEqual(bar.stripInset(5120, 0), 0, 'no cap leaves the bar along the whole edge')
 assertDeepEqual(bar.entrySettings({ id: 'omarchy.clock', format: 'HH:mm' }), { format: 'HH:mm' }, 'bar extracts entry settings')
 assertEqual(bar.entryId({ id: 'omarchy.clock' }), 'omarchy.clock', 'bar extracts object entry ids')
 assertEqual(bar.entryId('omarchy.clock'), 'omarchy.clock', 'bar extracts string entry ids')
