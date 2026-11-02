@@ -74,6 +74,7 @@ Panel {
   property var sinkAvailability: ({})
   property bool sinkAvailabilityLoaded: false
   property var sourceAvailability: ({})
+  property var outputProfiles: []
 
   // Identify true playback streams without reading node.properties here:
   // PwNode.properties is invalid until the node is bound, and reading it while
@@ -90,7 +91,7 @@ Panel {
     return Model.isAudioSource(node)
   }
 
-  property var cachedAudioSinks: []
+  property var cachedAudioOutputs: []
   property var cachedAudioSources: []
 
   readonly property var rawAudioSinks: {
@@ -107,7 +108,10 @@ Panel {
     return list
   }
 
-  readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
+  // candidateSinks also covers sinks the list hides, like the physical speakers a
+  // tuning fronts, so their card profile is not offered as a second row.
+  readonly property var rawAudioOutputs: Model.outputRows(rawAudioSinks, outputProfiles, candidateSinks)
+  readonly property var audioOutputs: rawAudioOutputs.length > 0 ? rawAudioOutputs : cachedAudioOutputs
   readonly property var audioSources: rawAudioSources.length > 0 ? rawAudioSources : cachedAudioSources
 
   readonly property var audioStreams: {
@@ -208,7 +212,7 @@ Panel {
   readonly property var inputPeakNode: inputViaWpctl ? null : source
   readonly property bool inputLevelShown: !!inputPeakNode
 
-  onRawAudioSinksChanged: if (rawAudioSinks.length > 0) cachedAudioSinks = rawAudioSinks
+  onRawAudioOutputsChanged: if (rawAudioOutputs.length > 0) cachedAudioOutputs = rawAudioOutputs
   onRawAudioSourcesChanged: if (rawAudioSources.length > 0) cachedAudioSources = rawAudioSources
 
   // Single cursor model shared by keyboard and mouse. Sections:
@@ -351,8 +355,8 @@ Panel {
     if (focusSection === "header") { toggleAllMuted(); return }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
-      var sink = nodeFor(displayAudioSinks[selectedIndex])
-      if (sink) setDefaultSink(sink)
+      var output = displayAudioSinks[selectedIndex]
+      if (output) activateOutput(output)
       return
     }
     if (focusSection === "input") {
@@ -380,7 +384,7 @@ Panel {
   }
 
   // Clamp / repair the cursor whenever any list refreshes underneath us.
-  onAudioSinksChanged: scheduleDisplayAudioModelRefresh()
+  onAudioOutputsChanged: scheduleDisplayAudioModelRefresh()
   onAudioSourcesChanged: scheduleDisplayAudioModelRefresh()
   onAudioStreamsChanged: scheduleDisplayAudioModelRefresh()
 
@@ -402,7 +406,7 @@ Panel {
 
   function refreshDisplayAudioModels() {
     if (!opened) return
-    displayAudioSinks = rowSnapshot(audioSinks)
+    displayAudioSinks = Model.outputRowSnapshot(audioOutputs)
     displayAudioSources = rowSnapshot(audioSources)
     displayAudioStreams = rowSnapshot(audioStreams)
     clampCursor()
@@ -554,6 +558,22 @@ Panel {
     }
   }
 
+  function activateOutput(output) {
+    if (!output) return
+    if (output.kind === "sink") {
+      var node = nodeFor(output)
+      if (node) setDefaultSink(node)
+      return
+    }
+    if (output.kind !== "profile" || outputProfileSetProc.running) return
+    outputProfileSetProc.command = [
+      "omarchy-audio-output-set-profile",
+      String(output.cardName),
+      String(output.profileName)
+    ]
+    outputProfileSetProc.running = true
+  }
+
   function setDefaultSource(node) {
     if (!node) return
     // Quickshell refuses an untyped node; the command below still selects it.
@@ -576,6 +596,10 @@ Panel {
   function updateSinkAvailability(raw) {
     sinkAvailability = Model.parseSinkAvailability(raw)
     sinkAvailabilityLoaded = true
+  }
+
+  function updateOutputProfiles(raw) {
+    outputProfiles = Model.parseOutputProfiles(raw)
   }
 
   function friendlyDeviceLabel(text) {
@@ -688,6 +712,23 @@ Panel {
   }
 
   Process {
+    id: outputProfileProc
+    command: ["omarchy-audio-output-profiles"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateOutputProfiles(text)
+    }
+  }
+
+  Process {
+    id: outputProfileSetProc
+    onExited: function(exitCode) {
+      if (exitCode !== 0) console.warn("Could not switch audio output profile")
+      if (!outputProfileProc.running) outputProfileProc.running = true
+    }
+  }
+
+  Process {
     id: volumeSinkProc
     command: ["omarchy-audio-output-sink"]
     stdout: StdioCollector {
@@ -712,6 +753,7 @@ Panel {
     onTriggered: {
       if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
       if (!sourceAvailabilityProc.running) sourceAvailabilityProc.running = true
+      if (!outputProfileProc.running) outputProfileProc.running = true
     }
   }
 
@@ -967,7 +1009,7 @@ Panel {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: root.nodeFor(modelData)
+                output: modelData
                 rowIndex: index
               }
             }
@@ -1127,9 +1169,10 @@ Panel {
   // from hasCursor/current via CursorSurface, never from containsMouse.
   component SinkRow: CursorSurface {
     id: sinkRow
-    required property var node
+    required property var output
     required property int rowIndex
 
+    readonly property var node: output && output.kind === "sink" ? root.nodeFor(output) : null
     readonly property bool isActive: root.sink && node && root.sink.id === node.id
     hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sinkRow)
@@ -1150,7 +1193,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.sinkGlyph(sinkRow.node)
+        text: sinkRow.output && sinkRow.output.kind === "profile" ? "󰍹" : root.sinkGlyph(sinkRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.title
@@ -1161,7 +1204,9 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.nodeLabel(sinkRow.node)
+        text: sinkRow.output && sinkRow.output.kind === "profile"
+          ? sinkRow.output.label
+          : (sinkRow.output.label || root.nodeLabel(sinkRow.node))
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body
@@ -1181,7 +1226,7 @@ Panel {
         root.focusSection = "output"
         root.selectedIndex = sinkRow.rowIndex
       }
-      onClicked: root.setDefaultSink(sinkRow.node)
+      onClicked: root.activateOutput(sinkRow.output)
     }
   }
 
