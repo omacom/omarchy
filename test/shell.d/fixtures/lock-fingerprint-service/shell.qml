@@ -11,7 +11,10 @@ ShellRoot {
   property var failures: []
   property int checks: 0
 
-  Item { id: host }
+  Item {
+    id: host
+    property var shellConfig: ({ plugins: [] })
+  }
 
   function check(condition, message) {
     checks += 1
@@ -37,7 +40,7 @@ ShellRoot {
   function run() {
     var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/lock/Service.qml", Component.PreferSynchronous)
     if (component.status !== Component.Ready) throw new Error(component.errorString())
-    var service = component.createObject(host, { omarchyPath: rootPath })
+    var service = component.createObject(host, { omarchyPath: rootPath, shell: host })
     if (!service) throw new Error(component.errorString())
     try {
       var retry = timer(service, 250, false)
@@ -231,12 +234,89 @@ ShellRoot {
       service.fingerprintConfigured = true
       service.pauseFingerprint()
 
+      // Changing the live plugin configuration must preserve existing pacing.
+      service.fingerprintUnreachedStreak = 8
+      service.fingerprintLastSettleMs = Date.now()
+      service.armFingerprintRetry(40000)
+      var due = service.fingerprintRetryDueMs
+      host.shellConfig = { plugins: [{ id: "omarchy.lock", fingerprintWhileBlank: "true" }] }
+      check(service.fingerprintPaused && !retry.running, "a string cannot opt into scanning while blank")
+      host.shellConfig = { plugins: [{ id: "omarchy.lock", fingerprintWhileBlank: true }] }
+      check(!service.fingerprintPaused && retry.running, "explicit opt-in resumes an already blank lock")
+      check(retry.interval > 39000 && service.fingerprintRetryDueMs === due,
+        "enabling while blank keeps the remaining deadline and daemon idle window")
+      check(service.fingerprintUnreachedStreak === 8, "enabling while blank does not clear failure history")
+      service.startFingerprint()
+      check(!service.fingerprintAuthenticating && !reach.running,
+        "opt-in cannot start PAM before the compositor has secured the lock")
+      service.pauseFingerprint()
+      check(!service.fingerprintPaused && retry.running, "another blank event leaves opted-in retries running")
+
+      service.fingerprintAuthenticating = true
+      service.fingerprintAttemptReachedDevice = true
+      service.settleFingerprintAttempt()
+      check(retry.running && retry.interval === 250, "a completed scan retries while the opted-in display stays blank")
+      service.fingerprintResumedAtMs = 0
+      for (var failure = 0; failure < 8; failure++) {
+        service.fingerprintAuthenticating = true
+        service.fingerprintAttemptReachedDevice = false
+        service.settleFingerprintAttempt()
+      }
+      check(retry.running && retry.interval === 40000, "an unavailable reader still backs off to its idle-clearing cap while blank")
+
+      service.fingerprintAuthenticating = true
+      service.authenticatingPassword = true
+      service.pendingPassword = "synthetic"
+      reach.start()
+      host.shellConfig = { plugins: [{ id: "omarchy.lock", fingerprintWhileBlank: false }] }
+      check(service.fingerprintPaused && !retry.running, "removing opt-in stops future attempts while still blank")
+      check(service.fingerprintAuthenticating && reach.running,
+        "removing opt-in lets the current attempt finish under its existing deadline")
+      check(service.authenticatingPassword && service.pendingPassword === "synthetic",
+        "blank policy changes do not cancel or consume the independent password attempt")
+      service.settleFingerprintAttempt()
+      check(!retry.running && !reach.running, "the final in-flight attempt cannot restart a paused reader")
+      service.authenticatingPassword = false
+      blankTimer.stop()
+
+      host.shellConfig = { plugins: [{ id: "omarchy.lock", fingerprintWhileBlank: true }] }
+      check(sleepWatch.running, "the existing sleep watch covers opt-in retries while blank")
+      service.fingerprintAuthenticating = true
+      service.restartFingerprintAfterSleep()
+      check(!service.fingerprintAuthenticating && retry.running && retry.interval === 1000,
+        "resume settles an orphaned opt-in attempt and retries within the unchanged grace")
+      check(service.lockRequested, "resuming an opted-in reader never unlocks")
+      service.fingerprintAuthenticating = true
+      reach.start()
+      service.timeoutFingerprintReach()
+      check(!service.fingerprintAuthenticating && !reach.running && retry.running,
+        "opt-in does not remove the reach deadline or its recovery path")
+
+      // Keep the real success path, replacing only the external display command.
+      var wake = null
+      for (var object of service.data) {
+        if (object.command && object.command.indexOf("omarchy-system-wake") !== -1) wake = object
+      }
+      if (!wake) throw new Error("Missing wake process")
+      wake.command = ["true"]
+      service.enteredPassword = "partial"
+      service.handleFingerprintFinished(PamResult.Success)
+      check(!service.lockRequested && !service.displaysBlanked && wake.running,
+        "successful fingerprint authentication clears blank state and invokes display wake")
+      check(service.enteredPassword === "" && service.pendingPassword === "",
+        "fingerprint success clears both password buffers")
+      check(!retry.running && !reach.running && !resumeTimer.running,
+        "fingerprint success stops opt-in retries and sleep recovery")
+
       service.lockRequested = false
       service.resetAuthenticationState()
       check(!retry.running && !reach.running && !recheck.running, "unlock reset stops every fingerprint timer")
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
+      host.shellConfig = { plugins: [{ id: "omarchy.lock", fingerprintWhileBlank: false }] }
+      host.shellConfig = { plugins: [{ id: "omarchy.lock", fingerprintWhileBlank: true }] }
+      check(!retry.running && !service.fingerprintPaused, "configuration changes outside the lock cannot start authentication")
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()
