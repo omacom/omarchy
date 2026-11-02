@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
@@ -230,7 +231,10 @@ Panel {
   }
   property var historyPoints: []
   property bool historyPending: false
-  readonly property bool historyVisible: historyBattery !== null && historyPoints.length > 1
+  // Set once UPower answers with no usable history. Until then the chart's
+  // room is kept, so a first open doesn't grow the panel when the reply lands.
+  property bool historyMissing: false
+  readonly property bool historyShown: historyBattery !== null && !historyMissing
 
   function refreshHistory() {
     if (!historyBattery) {
@@ -258,9 +262,11 @@ Panel {
     var entries = Model.parseHistory(raw)
     if (entries === null || !historyBattery) {
       historyPoints = []
+      historyMissing = true
       return
     }
     historyPoints = Model.historyPoints(entries, Date.now() / 1000, historyHours * 3600, historyBattery.percentage * 100)
+    historyMissing = historyPoints.length < 2
   }
 
   // Screen coordinates for the chart: time runs with the reading direction,
@@ -480,29 +486,25 @@ Panel {
           }
         }
 
-        // ---------- Battery progress bar ----------
+        // ---------- Charge bar ----------
+        // With UPower history for the battery, the bar grows into a chart of
+        // the last few hours in the same track and colour: the filled area is
+        // the level over time, and its right edge is the level now. Without
+        // history it stays the plain bar.
         Item {
+          id: chargeBar
           width: parent.width
-          implicitHeight: Style.space(8)
+          implicitHeight: root.historyShown ? Style.space(32) : Style.space(8)
 
           Rectangle {
             id: barTrack
             anchors.fill: parent
-            radius: height / 2
+            radius: root.historyShown ? Style.space(6) : height / 2
             color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
           }
 
-          Rectangle {
-            id: barFill
-            anchors.left: barTrack.left
-            anchors.verticalCenter: barTrack.verticalCenter
-            height: barTrack.height
-            radius: barTrack.radius
-            color: root.batteryFillColor
-            width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
-
-            Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
-            Behavior on color { ColorAnimation { duration: Style.duration(220) } }
+          Item {
+            anchors.fill: parent
 
             // Subtle pulse while charging — visible signal that energy is flowing in.
             SequentialAnimation on opacity {
@@ -512,57 +514,66 @@ Panel {
               NumberAnimation { from: 1.0; to: 0.55; duration: Style.duration(950); easing.type: Easing.InOutSine }
               NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
             }
-          }
-        }
 
-        // ---------- Charge history ----------
-        Column {
-          visible: root.historyVisible
-          width: parent.width
-          spacing: Style.space(6)
+            Rectangle {
+              id: barFill
+              visible: !root.historyShown
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              height: barTrack.height
+              radius: barTrack.radius
+              color: root.batteryFillColor
+              width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
 
-          Shape {
-            id: historyChart
-            readonly property bool mirrored: LayoutMirroring.enabled
-            readonly property color foreground: root.bar.foreground
-            readonly property real stroke: Math.max(1, Style.spaceReal(1.5))
-            width: parent.width
-            height: Style.space(36)
-            preferredRendererType: Shape.CurveRenderer
+              Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
+              Behavior on color { ColorAnimation { duration: Style.duration(220) } }
+            }
 
-            // Fades from the line to nothing, so a battery held near full
-            // reads as a line rather than a solid block.
-            ShapePath {
-              strokeColor: "transparent"
-              fillGradient: LinearGradient {
-                x1: 0; y1: 0
-                x2: 0; y2: historyChart.height
-                GradientStop { position: 0; color: Qt.rgba(historyChart.foreground.r, historyChart.foreground.g, historyChart.foreground.b, 0.18) }
-                GradientStop { position: 1; color: Qt.rgba(historyChart.foreground.r, historyChart.foreground.g, historyChart.foreground.b, 0) }
+            // The chart is clipped to the track's rounded corners.
+            Item {
+              visible: root.historyShown
+              anchors.fill: parent
+              layer.enabled: visible
+              layer.smooth: true
+              layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: chartMask
+                maskThresholdMin: 0.3
+                maskSpreadAtMin: 0.3
               }
-              PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, true) }
-            }
 
-            ShapePath {
-              strokeColor: historyChart.foreground
-              strokeWidth: historyChart.stroke
-              fillColor: "transparent"
-              joinStyle: ShapePath.RoundJoin
-              capStyle: ShapePath.RoundCap
-              PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, false) }
+              Shape {
+                id: historyChart
+                readonly property bool mirrored: LayoutMirroring.enabled
+                readonly property color fill: root.batteryFillColor
+                readonly property real stroke: Math.max(1, Style.spaceReal(1.5))
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer
+
+                ShapePath {
+                  strokeColor: "transparent"
+                  fillColor: Qt.rgba(historyChart.fill.r, historyChart.fill.g, historyChart.fill.b, 0.35)
+                  PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, true) }
+                }
+
+                ShapePath {
+                  strokeColor: historyChart.fill
+                  strokeWidth: historyChart.stroke
+                  fillColor: "transparent"
+                  joinStyle: ShapePath.RoundJoin
+                  capStyle: ShapePath.RoundCap
+                  PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, false) }
+                }
+              }
             }
           }
 
-          Text {
-            textFormat: Text.PlainText
-            text: Commons.I18n.tn("power.historyHours", root.historyHours).arg(Commons.I18n.formatNumber(root.historyHours)).toUpperCase()
-            color: Qt.darker(root.bar.foreground, 1.4)
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            font.letterSpacing: 1.2
-            elide: Text.ElideRight
-            width: parent.width
+          Rectangle {
+            id: chartMask
+            anchors.fill: parent
+            radius: barTrack.radius
+            visible: false
+            layer.enabled: root.historyShown
           }
         }
 
