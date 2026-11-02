@@ -132,7 +132,7 @@ BarWidget {
   // this takes: the handler above puts the recovered time on the label.
   Connections {
     target: Wallclock
-    function onJumped() { Wallclock.resync(clock) }
+    function onJumped() { clock.resync() }
   }
 
   Loader {

@@ -257,7 +257,7 @@ Panel {
   // open on another month back to this one.
   Connections {
     target: Wallclock
-    function onJumped() { Wallclock.resync(clock) }
+    function onJumped() { clock.resync() }
   }
 
   KeyboardPanel {
