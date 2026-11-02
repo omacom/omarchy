@@ -221,6 +221,20 @@ editor_argv=$(<"$editor_calls")
   fail "launch-editor opens +50 as a file after the caller's separator" "$editor_argv"
 pass "launch-editor passes a line number before the file as an option, and a lone one, or one after --, as a file"
 
+# micro stops reading options at "+50", so a separator after it would open as a
+# file named "--". It reads the line number after the separator instead.
+cp "$mock_bin/nvim" "$mock_bin/micro"
+printf 'micro\n' >"$fake_home/.local/state/omarchy/defaults/editor"
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline +50 notes.txt
+
+editor_argv=$(<"$editor_calls")
+printf 'nvim\n' >"$fake_home/.local/state/omarchy/defaults/editor"
+rm "$mock_bin/micro"
+[[ $editor_argv == $'<-->\n<+50>\n<notes.txt>' ]] ||
+  fail "launch-editor keeps micro's line number after the separator" "$editor_argv"
+pass "launch-editor keeps micro's line number after the separator"
+
 cat >"$mock_bin/omarchy-launch-tui" <<'STUB'
 #!/bin/bash
 

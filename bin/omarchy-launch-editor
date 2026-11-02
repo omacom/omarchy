@@ -36,10 +36,11 @@ omarchy-cmd-present "$editor" || editor="nvim"
 # command does by default. The separator below would make "+LINE" a file to
 # open, so a leading line number followed by a file stays an option, for the
 # editors that read one. On its own, or after the caller's own "--", "+LINE"
-# is still a file name.
+# is still a file name. micro is left out: it reads "+LINE" after the separator,
+# and would open a "--" placed after it as a file.
 line=()
 case "${editor##*/}" in
-nvim | vim | nano | micro)
+nvim | vim | nano | hx | helix)
   if [[ $options_ended == "false" ]] && (( $# > 1 )) && [[ $1 =~ ^\+[0-9]+$ ]]; then
     line=("$1")
     shift
