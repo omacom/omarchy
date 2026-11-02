@@ -818,6 +818,9 @@
   "install.service.once": {
     "label": "ONCE"
   },
+  "install.service.cryptomator": {
+    "label": "Cryptomator"
+  },
   "install.service.bitwarden": {
     "label": "Bitwarden"
   },
