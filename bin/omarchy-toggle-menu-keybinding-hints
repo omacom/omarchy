@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle keybinding hints under the selected Omarchy menu row
+
+# nf-md-keyboard, escaped so this file reads without a Nerd Font.
+readonly KEYBOARD_GLYPH=$'\U000f030c'
+
+# The menu reads the flag each time it opens, so the next open follows it.
+omarchy-toggle menu-keybinding-hints-off
+
+if omarchy-toggle-enabled menu-keybinding-hints-off; then
+  omarchy-notification-send -g "$KEYBOARD_GLYPH" "$(omarchy-i18n menu.keybindingHintsDisabled)"
+else
+  omarchy-notification-send -g "$KEYBOARD_GLYPH" "$(omarchy-i18n menu.keybindingHintsEnabled)"
+fi

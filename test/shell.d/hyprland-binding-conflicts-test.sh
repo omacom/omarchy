@@ -29,6 +29,7 @@ local function proxy()
 end
 
 local bindings = {}
+hl_handlers = {}
 
 hl = setmetatable({
   dsp = proxy(),
@@ -58,7 +59,10 @@ hl = setmetatable({
   curve = function() end,
   exec_cmd = function() end,
   dispatch = function() end,
-  on = function() end,
+  on = function(event, callback)
+    hl_handlers[event] = hl_handlers[event] or {}
+    table.insert(hl_handlers[event], callback)
+  end,
   timer = function() end,
   get_config = function() return nil end,
   get_active_window = function() return nil end,
@@ -207,6 +211,27 @@ rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
 [[ $rebound == $'SHIFT+SUPER+F\tSUPER + SHIFT + F\tFlea' ]] ||
   fail "rebinding replaces the default file manager without stacking actions" "$rebound"
 pass "rebinding replaces the default file manager without stacking actions"
+
+# The menu's keybinding hints read the command each chord runs once the whole
+# config has loaded, so a user's unbind and rebind win over the defaults.
+mkdir -p "$home/.local/state/omarchy"
+PATH="$stub_bin:$PATH" list_bindings "$home" '
+  hl.unbind("CTRL + SUPER + L")
+  o.bind("SUPER + ALT + L", "Lock system", "omarchy-system-lock")
+  o.bind("SUPER + CTRL + ALT + H", "Hint probe", hl.dsp.window.close())
+  for _, callback in ipairs(hl_handlers["config.reloaded"]) do
+    if debug.getinfo(callback, "S").short_src:find("helpers.lua", 1, true) then callback() end
+  end' >/dev/null
+hints=$(<"$home/.local/state/omarchy/keybinding-commands")
+[[ $(grep -F $'\tomarchy-system-lock' <<<"$hints") == $'SUPER + ALT + L\tomarchy-system-lock' ]] ||
+  fail "keybinding hints follow an unbind and rebind of a default" "$hints"
+grep -Fq $'SUPER + RETURN\t' <<<"$hints" || fail "keybinding hints keep the defaults left alone" "$hints"
+grep -Fq $'F9\t' <<<"$hints" || fail "a push-to-talk press names its key once" "$hints"
+(( $(grep -c $'^F9\t' <<<"$hints") == 1 )) || fail "a push-to-talk press names its key once" "$hints"
+! grep -Fq 'Hint probe' <<<"$hints" && ! grep -Fq $'SUPER + CTRL + ALT + H\t' <<<"$hints" ||
+  fail "binds that run no command get no keybinding hint" "$hints"
+rm -rf "$home/.local"
+pass "keybinding hints follow the loaded config, user overrides included"
 
 rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
   'o.rebind("ALT + SPACE", "Dictation on release", "voxtype record toggle", { release = true })' | \

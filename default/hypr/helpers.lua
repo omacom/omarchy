@@ -135,6 +135,73 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+-- The command each key runs, for the menu's keybinding hints. It is written to
+-- the state file only once the whole config has loaded, so the user's rebinds
+-- and unbinds have already landed on top of the defaults.
+local bound_commands, bound_order, bound_seen = {}, {}, {}
+
+-- Modifiers in any order name the same chord: SUPER + CTRL + L is CTRL + SUPER + L.
+local function chord_id(keys)
+  local parts = {}
+  for part in tostring(keys):gmatch("[^%s+]+") do
+    table.insert(parts, part:upper())
+  end
+  local key = table.remove(parts)
+  table.sort(parts)
+  table.insert(parts, key)
+  return table.concat(parts, "+")
+end
+
+local function remember_bind(keys, command)
+  local id = chord_id(keys)
+  -- A tab or newline would break the line-per-bind file; such a bind gets no hint.
+  if type(command) ~= "string" or command:find("[\t\n]") then
+    bound_commands[id] = nil
+    return
+  end
+
+  if not bound_seen[id] then
+    bound_seen[id] = true
+    table.insert(bound_order, id)
+  end
+  bound_commands[id] = { keys = keys, command = command }
+end
+
+-- Tools and tests load these helpers outside Hyprland, with no hl or a partial
+-- stub, so the hooks below install only where there is something to hook.
+local unbind = hl and hl.unbind
+if unbind then
+  function hl.unbind(keys, ...)
+    bound_commands[chord_id(keys)] = nil
+    return unbind(keys, ...)
+  end
+end
+
+local function write_bound_commands()
+  local lines = {}
+  for _, id in ipairs(bound_order) do
+    local bind = bound_commands[id]
+    if bind then
+      table.insert(lines, bind.keys .. "\t" .. bind.command .. "\n")
+    end
+  end
+
+  local path = paths.state_home .. "/omarchy/keybinding-commands"
+  local temporary = path .. ".tmp"
+  local file = io.open(temporary, "w")
+  if not file then
+    return
+  end
+  file:write(table.concat(lines))
+  file:close()
+  os.rename(temporary, path)
+end
+
+if hl and hl.on then
+  hl.on("hyprland.start", write_bound_commands)
+  hl.on("config.reloaded", write_bound_commands)
+end
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
 
@@ -143,6 +210,11 @@ function o.bind(keys, description, dispatcher, options)
   end
 
   dispatcher = command_from(dispatcher, description)
+
+  -- A release half (o.bind_hold) shares its press's keys; the press is the hint.
+  if not opts.release then
+    remember_bind(keys, type(dispatcher) == "string" and dispatcher or o.bind_commands[dispatcher])
+  end
 
   if type(dispatcher) == "string" then
     dispatcher = hl.dsp.exec_cmd(dispatcher)
