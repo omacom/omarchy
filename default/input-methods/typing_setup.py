@@ -165,9 +165,13 @@ def keyboard_values(selected):
   if not selected:
     raise ValueError("Select at least one keyboard layout")
   parts = [value.split(":", 1) for value in selected]
-  # Preserve the installer's Latin-leading rule for desktop keybindings.
+  # Preserve the installer's Latin-leading rule for desktop keybindings. A US
+  # layout already chosen leads with its variant, as input.lua moves one,
+  # rather than a second QWERTY the toggle would cycle through; a US variant
+  # that types no Latin letters (Russian phonetic, Cherokee) stays put.
   if parts[0][0] in setup.NON_LATIN:
-    parts = [["us"]] + [part for part in parts if part != ["us"]]
+    latin_us = next((part for part in parts if part[0] == "us" and part[1:] not in (["chr"], ["rus"])), ["us"])
+    parts = [latin_us] + [part for part in parts if part is not latin_us]
   layouts = ",".join(part[0] for part in parts)
   variants = ",".join(part[1] if len(part) > 1 else "" for part in parts)
   return layouts, variants
