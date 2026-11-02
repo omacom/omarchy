@@ -73,11 +73,12 @@ cat >"$fake_bin/hyprctl" <<'SH'
 # Mirrors are absent from plain `monitors`, so the helper must ask for `all`.
 if [[ ${1:-} == "monitors" && ${2:-} == "all" && ${3:-} == "-j" ]]; then
   [[ -f $OMARCHY_TEST_HYPRCTL_FAIL_FLAG ]] && exit 4
-  cat "$OMARCHY_TEST_MONITORS_FILE"
+  cp "$OMARCHY_TEST_MONITORS_FILE" "$OMARCHY_TEST_MONITORS_FILE.seen"
+  cat "$OMARCHY_TEST_MONITORS_FILE.seen"
 elif [[ ${1:-} == "reload" ]]; then
-  # The width the monitor had when the reload was asked for, so a test can
-  # tell a recovery reload made at 0x0 from the one made after the mode came.
-  printf 'reload %s\n' "$(jq -r '.[0].width // ""' "$OMARCHY_TEST_MONITORS_FILE" 2>/dev/null)" >>"$OMARCHY_TEST_RELOAD_LOG"
+  # The width the watcher last saw, not the file's width now: a mode the test
+  # writes after a 0x0 query would otherwise relabel that recovery reload.
+  printf 'reload %s\n' "$(jq -r '.[0].width // ""' "$OMARCHY_TEST_MONITORS_FILE.seen" 2>/dev/null)" >>"$OMARCHY_TEST_RELOAD_LOG"
   [[ -f $OMARCHY_TEST_RECOVERED_MONITORS ]] &&
     cp "$OMARCHY_TEST_RECOVERED_MONITORS" "$OMARCHY_TEST_MONITORS_FILE"
 fi
