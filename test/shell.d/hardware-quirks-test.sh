@@ -212,6 +212,12 @@ machine() {
       surface "Surface Laptop, 7th Edition"; FAKE_PLATFORM=aarch64-qualcomm
       FAKE_MISSING_FIRMWARE="qcom/x1e80100/microsoft/Romulus/qcadsp8380.mbn\nqcom/x1e80100/microsoft/qcdxkmsuc8380.mbn"
       ;;
+    # Copied from Windows: the manifest qcom-firmware-extract keeps, nothing missing.
+    surface-pro-11-from-windows)
+      surface "Surface Pro, 11th Edition"; FAKE_PLATFORM=aarch64-qualcomm
+      printf '%s 0 /windows 2026-01-01T00:00:00Z\n' qcom/x1e80100/microsoft/Denali/qcadsp8380.mbn \
+        qcom/x1e80100/microsoft/qcdxkmsuc8380.mbn >"$hw/qcom-firmware-manifest"
+      ;;
     ideacentre-mini-x-no-firmware) dmi product_name 91B6; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/LENOVO/91B6/qcadsp8380.mbn" ;;
     snapdragon-unpackaged) dmi product_name "Aspire A14-11M"; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/ACER/AL14-31P/qcadsp8380.mbn" ;;
     t14s-21n1) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64-qualcomm ;;
@@ -254,6 +260,7 @@ run_leaf() {
   before=$(snapshot)
   HOME="$root/home" OMARCHY_PATH="$ROOT" PATH="$stub_bin:$ROOT/bin:$PATH" STUB_BIN="$stub_bin" CALLS="$calls" \
     FAKE_HW="$hw" FAKE_ROOT="$root" FAKE_PROVIDERS="$test_tmp/providers" \
+    OMARCHY_QCOM_FIRMWARE_MANIFEST="$hw/qcom-firmware-manifest" \
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -339,6 +346,7 @@ hardware/asus/fix-asus-zenbook-a16-firmware.sh|yoga-slim7x|0
 # A machine's own folder picks its package before the folder the Surfaces share.
 hardware/qualcomm/oem-firmware.sh|surface-pro-11-no-firmware|0|pkg-add microsoft-surface-pro-11-firmware
 hardware/qualcomm/oem-firmware.sh|surface-laptop-7-no-firmware|0|pkg-add microsoft-surface-laptop-7-firmware
+hardware/qualcomm/oem-firmware.sh|surface-pro-11-from-windows|0|pkg-add microsoft-surface-pro-11-firmware
 hardware/qualcomm/oem-firmware.sh|ideacentre-mini-x-no-firmware|0|pkg-add lenovo-ideacentre-mini-x-firmware
 hardware/qualcomm/oem-firmware.sh|snapdragon-unpackaged|0
 hardware/qualcomm/oem-firmware.sh|yoga-slim7x|0
