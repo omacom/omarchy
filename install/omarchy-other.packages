@@ -75,6 +75,11 @@ asus-zenbook-a16-firmware
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
 
+# MacBookPro13,1 compatibility
+facetimehd-dkms
+facetimehd-firmware
+snd-hda-macbookpro-dkms
+
 # T2 MacBook support packages
 apple-bcm-firmware-fetcher
 apple-t2-audio-config
