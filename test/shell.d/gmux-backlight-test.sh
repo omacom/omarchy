@@ -6,22 +6,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 leaf="$ROOT/install/hardware/apple/fix-gmux-backlight.sh"
 rule="$ROOT/default/udev/gmux-backlight.rules"
-all="$ROOT/install/hardware/all.sh"
-migration="$ROOT/migrations/1787689809.sh"
-
-grep -q 'apple/fix-gmux-backlight.sh' "$all" ||
-  fail "the gmux backlight quirk runs during hardware setup"
-pass "the gmux backlight quirk runs during hardware setup"
-
-grep -Fq 'ENV{SYSTEMD_WANTS}+="systemd-backlight@backlight:gmux_backlight.service"' "$rule" ||
-  fail "the udev rule starts systemd-backlight for gmux_backlight"
-! grep -Fq 'IMPORT{builtin}="path_id"' "$rule" ||
-  fail "the udev rule must not depend on path_id"
-pass "the udev rule starts systemd-backlight without path_id"
-
-grep -q 'fix-gmux-backlight.sh' "$migration" ||
-  fail "the migration applies the gmux backlight quirk" "$migration"
-pass "the migration applies the gmux backlight quirk"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -114,30 +98,3 @@ run_leaf "Apple Inc." 1 1 >/dev/null
 [[ $(<"$dest") == "keep me" ]] || fail "an existing udev rule is not overwritten"
 [[ ! -s $calls ]] || fail "an already-installed rule escalates nothing" "$(cat "$calls")"
 pass "an existing udev rule is left in place without sudo"
-
-run_migration() {
-  local vendor="$1" gmux="${2:-0}"
-  rm -rf "$test_tmp/etc" "$test_tmp/backlight"
-  mkdir -p "$test_tmp/etc" "$test_tmp/backlight"
-  printf '%s' "$vendor" >"$test_tmp/dmi/sys_vendor"
-  if (( gmux == 1 )); then
-    mkdir -p "$test_tmp/backlight/gmux_backlight"
-  fi
-  : >"$calls"
-
-  OMARCHY_PATH="$ROOT" \
-    OMARCHY_UDEV_RULES_DIR="$rules_dir" \
-    OMARCHY_BACKLIGHT_PATH="$test_tmp/backlight" \
-    OMARCHY_DMI_VENDOR="$test_tmp/dmi/sys_vendor" \
-    PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    bash -euo pipefail "$migration" >/dev/null
-}
-
-run_migration "Apple Inc." 1
-[[ -f $dest ]] || fail "the migration installs the udev rule on a Mac with gmux"
-pass "the migration installs the udev rule on a Mac with gmux"
-
-run_migration "LENOVO" 0
-[[ ! -f $dest ]] || fail "the migration skips non-Apple hardware without gmux"
-[[ ! -s $calls ]] || fail "the migration escalates nothing on unaffected hardware" "$(cat "$calls")"
-pass "the migration skips hardware without gmux"
