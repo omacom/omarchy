@@ -39,3 +39,22 @@ created=$(add_migration)
 [[ $created == "$checkout/migrations/1790700001.sh" && -f $created ]] ||
   fail "a second migration in the same second takes the next free id" "created: $created"
 pass "a second migration in the same second takes the next free id"
+
+# Two runs started together in the same second must each claim their own file.
+for trial in {1..10}; do
+  checkout="$test_tmp/race-$trial"
+  mkdir -p "$checkout/migrations"
+
+  add_migration >"$test_tmp/$trial.a" &
+  first=$!
+  add_migration >"$test_tmp/$trial.b" &
+  second=$!
+  wait "$first" || fail "two concurrent runs in one checkout create distinct migrations" "trial $trial: first run failed"
+  wait "$second" || fail "two concurrent runs in one checkout create distinct migrations" "trial $trial: second run failed"
+
+  a=$(<"$test_tmp/$trial.a")
+  b=$(<"$test_tmp/$trial.b")
+  [[ -f $a && -f $b && $a != "$b" ]] ||
+    fail "two concurrent runs in one checkout create distinct migrations" "trial $trial: printed '$a' and '$b'"
+done
+pass "two concurrent runs in one checkout create distinct migrations"
