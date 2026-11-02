@@ -71,8 +71,8 @@ chmod +x "$mock_bin/omarchy-shell"
 PATH="$mock_bin:$PATH" CALL_LOG="$secure_log" POLL_FILE="$poll_file" "$ROOT/bin/omarchy-system-lock"
 
 mapfile -t secure_polls < <(rg '^omarchy-shell lock status$' "$secure_log")
-first_pkill_line=$(rg -n '^pkill' "$secure_log" | head -1 | cut -d: -f1)
-last_poll_line=$(rg -n '^omarchy-shell lock status$' "$secure_log" | tail -1 | cut -d: -f1)
+first_pkill_line=$(rg -n '^pkill' "$secure_log" | head -1 | cut -d: -f1) || true
+last_poll_line=$(rg -n '^omarchy-shell lock status$' "$secure_log" | tail -1 | cut -d: -f1) || true
 
 [[ ${#secure_polls[@]} == 3 ]] ||
   fail "system lock polls status until the lock is secure" "polls: ${#secure_polls[@]}"
