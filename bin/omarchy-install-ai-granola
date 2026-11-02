@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Granola desktop app
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+echo "Installing Granola..."
+omarchy-pkg-add granola
+
+echo "Opening Granola..."
+setsid uwsm-app -- /usr/bin/granola >/dev/null 2>&1 &
+
+echo ""
+echo "Granola has been installed."
