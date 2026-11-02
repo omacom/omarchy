@@ -16,6 +16,7 @@ if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.utilities")
   require("default.hypr.bindings.dictation")
   require_optional.module("default.hypr.bindings.applications")
+  require("default.hypr.webapp-shortcuts")
 end
 if _G.omarchy_default_gestures ~= false then
   require("default.hypr.gestures")
