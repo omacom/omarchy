@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test ng Bilis ng Disk"
   },
-  "setup.monitors": {
-    "label": "Mga Monitor"
-  },
-  "setup.keybindings": {
-    "label": "Mga Keybinding"
-  },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Pag-type"
-  },
-  "setup.typing.keyboard": {
-    "label": "Mga Layout ng Keyboard"
-  },
-  "setup.typing.input": {
-    "label": "Mga Paraan ng Input"
   },
   "setup.language": {
     "label": "Wika"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Kernel"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Teclado"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Mga Keybinding"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Mga Input ng Teclado"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Mga Paraan ng Input"
   }
 }
