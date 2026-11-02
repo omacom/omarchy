@@ -12,9 +12,9 @@ Vestavěné pluginy jsou součástí Omarchy a najdete je v adresáři `$OMARCHY
 omarchy plugin list
 ```
 
-Příkaz vypíše všechny nalezené pluginy, jejich ID, stav povolení, původ (vestavěný nebo od třetí strany), druhy a zobrazovaný název. Pokud chcete výstup zpracovat dalším programem, přidejte `--json`.
+Příkaz vypíše všechny nalezené pluginy, jejich id, stav povolení, původ (vestavěný nebo od třetí strany), druhy a zobrazovaný název. Pokud chcete výstup zpracovat dalším programem, přidejte `--json`.
 
-ID pluginů používají jmenné prostory. Vestavěné pluginy začínají na `omarchy.` — například `omarchy.clock`, `omarchy.network` a `omarchy.notifications`. Tento prostor je vyhrazený a plugin třetí strany ho nemůže použít.
+Id pluginů používají jmenné prostory. Vestavěné pluginy začínají na `omarchy.` — například `omarchy.clock`, `omarchy.network` a `omarchy.notifications`. Tento jmenný prostor je vyhrazený a plugin třetí strany ho nemůže použít.
 
 ## Zapínání a vypínání
 
@@ -23,7 +23,7 @@ omarchy plugin enable omarchy.tailscale
 omarchy plugin disable omarchy.weather
 ```
 
-Nebo použijte nabídku: _Nastavení > Pluginy_ má možnosti Povolit, Zakázat, Přidat, Klonovat a Odebrat, každou s výběrem, který nabízí pouze pluginy, které pro danou akci dávají smysl.
+Nebo použijte nabídku: _Nastavení > Pluginy_ má možnosti Povolit, Zakázat, Přidat, Klonovat a Odebrat, každou s výběrem nabízejícím pouze pluginy, které pro danou akci dávají smysl.
 
 Stav povolení je uložen v souboru `~/.config/omarchy/shell.json` a pravidlo se u dvou druhů pluginů mírně liší. Plugin třetí strany je povolený přesně tehdy, když se jeho id objeví někde v tomto souboru — jako položka rozložení lišty, jako položka v poli `plugins[]` nebo jako `bar.id`. Vestavěné pluginy, které nejsou widgety lišty, to mají obráceně: jsou ve výchozím nastavení zapnuté a vypnou se pouze uvedením v poli `disabledPlugins[]`.
 
@@ -41,7 +41,7 @@ Než cokoli udělá, rovnou vám řekne, že pluginy běží jako libovolný kó
 
 Náhradní lišta může vykreslovat nainstalované widgety, ale widgety třetích stran podporované službami tam mohou mít omezenou funkčnost, protože lišta nesmí požadovat živý objekt služby jiného pluginu. Pokud takový widget potřebuje svou doprovodnou službu, přepněte zpět na vestavěnou lištu `omarchy.bar`.
 
-Poté repozitář naklonuje do přípravného adresáře, ověří manifest, odmítne instalaci, pokud si dané id již nárokuje jiný plugin, a přesune ho do adresáře `~/.config/omarchy/plugins/<id>/`. Bez volby `--enable` se zeptá, zda ho chcete nyní zapnout, a vy můžete říci ne a nejprve si kód přečíst. Při stažení a ověření pluginu se nespouštějí instalační skripty z repozitáře a sudo není potřeba. Povolení přes IPC už spustí jeho kód v shellu.
+Poté repozitář naklonuje do přípravného adresáře, ověří manifest, odmítne instalaci, pokud si dané id již nárokuje jiný plugin, a přesune ho do adresáře `~/.config/omarchy/plugins/<id>/`. Bez volby `--enable` se zeptá, zda ho chcete nyní zapnout, a vy můžete říci ne a nejprve si kód přečíst. Nikdy z pluginu nic nespouští, nikdy nespouští instalační skript a nikdy nežádá o sudo — jen naklonuje soubory, zkontroluje manifest a přes IPC přepne jeden příznak.
 
 Aktualizace posune stávající místní kopii repozitáře na novější revizi bez slučování větví (fast-forward):
 
@@ -50,25 +50,25 @@ omarchy plugin update acme.weather
 omarchy plugin update
 ```
 
-Bez id aktualizuje každý vámi spravovaný plugin pod gitem. Před použitím rozdílů vám je ukáže, odmítne aktualizovat, pokud místní změny neumožňují aktualizaci bez slučování, a vrátí se zpět, pokud nová revize selže při ověření.
+Bez id aktualizuje každý váš plugin spravovaný gitem. Před použitím rozdílů vám je ukáže, odmítne aktualizovat, pokud místní změny neumožňují aktualizaci bez slučování, a vrátí se zpět, pokud nová revize selže při ověření.
 
 ```
 omarchy plugin remove acme.weather
 ```
 
-Odebrání plugin nejprve zakáže, poté ho odstraní, pokud jde o gitový checkout (repozitář je stále upstream), nebo ho odpojí, pokud jde o symbolický odkaz. Ručně vytvořená složka pluginu bez gitového repozitáře se místo okamžitého odstranění přesune do zálohy s časovým razítkem uvnitř adresáře pluginů.
+Odebrání plugin nejprve zakáže, poté ho odstraní, pokud jde o gitový checkout (repozitář dál existuje v upstreamu), nebo odstraní odkaz, pokud jde o symbolický odkaz. Ručně vytvořená složka pluginu bez gitového repozitáře se místo okamžitého odstranění přesune do zálohy s časovým razítkem uvnitř adresáře pluginů.
 
 ## Úprava vestavěného pluginu pomocí klonu
 
-Toto je moje oblíbená část. Pokud chcete změnit, jak se integrovaný widget chová, neupravujte soubory v adresáři `$OMARCHY_PATH` — patří do balíčku a příští aktualizace je přepíše. Místo toho ho naklonujte:
+Toto je moje oblíbená část. Pokud chcete změnit, jak se vestavěný widget chová, neupravujte soubory v adresáři `$OMARCHY_PATH` — patří do balíčku a příští aktualizace je přepíše. Místo toho ho naklonujte:
 
 ```
 omarchy plugin clone omarchy.clock
 ```
 
-Tím se celý plugin zkopíruje do adresáře `~/.config/omarchy/plugins/dhh.clock` (vaše uživatelské jméno, ne moje), přejmenuje se na „My Clock“, povolí se a shell se přepne z integrovaného modulu na vaši kopii — při zachování polohy a nastavení stávajícího widgetu na liště. Přidejte volbu `--edit`, chcete-li nový adresář okamžitě otevřít v editoru určeném proměnnou `$EDITOR`, což pro vás dělá položka nabídky _Nastavení > Pluginy > Klonovat plugin_.
+Tím se celý plugin zkopíruje do adresáře `~/.config/omarchy/plugins/dhh.clock` (vaše uživatelské jméno, ne moje), přejmenuje se na „My Clock“, povolí se a shell se přepne z vestavěného pluginu na vaši kopii — při zachování polohy a nastavení stávajícího widgetu na liště. Přidejte volbu `--edit`, chcete-li nový adresář okamžitě otevřít v editoru určeném proměnnou `$EDITOR`, což pro vás dělá položka nabídky _Nastavení > Pluginy > Klonovat plugin_.
 
-Předpona uživatelského jména zachovává id vašeho klonu jako vaše, takže jeho sdílení nekoliduje s nikým jiným. Volání směřující na původní integrované id se přesměrují na váš klon, takže nic, co odkazovalo na `omarchy.clock`, není třeba aktualizovat. A pokud to pomotáte, příkaz `omarchy plugin remove dhh.clock` vrátí integrovaný modul zpět.
+Díky předponě s uživatelským jménem zůstává id klonu jen vaše, takže při sdílení nebude s ničím kolidovat. Volání směřující na původní vestavěné id se přesměrují na váš klon, takže nic, co odkazovalo na `omarchy.clock`, není třeba aktualizovat. A pokud to pomotáte, příkaz `omarchy plugin remove dhh.clock` vrátí vestavěný plugin zpět.
 
 Uložení souboru kamkoli v adresáři `~/.config/omarchy/plugins/` automaticky znovu načte kód pluginu, takže můžete nechat editor otevřený a sledovat, jak vaše změny dopadají.
 
@@ -85,7 +85,7 @@ Plugin je adresář se souborem `manifest.json` a trochou QML. Manifest deklaruj
 | `service` | Jediná sdílená instance služby bez uživatelského rozhraní |
 | `bar` | Plnohodnotná lišta, která nahrazuje vestavěnou lištu |
 
-Plugin může deklarovat několik druhů najednou — modul pro média je současně `service` i `bar-widget`. Widgety lišty dostávají navíc blok `barWidget` se zobrazovaným názvem, kategorií, volitelnou položkou `defaultSection` a položkou `allowMultiple`, která říká, zda dává smysl mít na liště více než jeden. Většina widgetů ji nastavuje na hodnotu `false`; oddělovače a indikátory ji nastavují na hodnotu `true`.
+Plugin může deklarovat několik druhů najednou — plugin pro média je současně `service` i `bar-widget`. Widgety lišty dostávají navíc blok `barWidget` se zobrazovaným názvem, kategorií, volitelnou položkou `defaultSection` a položkou `allowMultiple`, která říká, zda dává smysl mít na liště více než jeden. Většina widgetů ji nastavuje na hodnotu `false`; mezery a ukazatele ji nastavují na hodnotu `true`.
 
 Před zveřejněním plugin zkontrolujte:
 
@@ -93,12 +93,12 @@ Před zveřejněním plugin zkontrolujte:
 omarchy plugin validate ./my-plugin
 ```
 
-Tím se spustí stejné kontroly, které shell provádí při načítání: verzi schématu, povinná pole, id, které není vyhrazené, vstupní body, které jsou bezpečnými relativními cestami a skutečně existují, vstupní bod pro každý druh, který jste si nárokovali, a žádné symbolické odkazy nikde uvnitř složky.
+Tím se spustí stejné kontroly, které shell provádí při načítání: verzi schématu, povinná pole, id, které není vyhrazené, vstupní body, které jsou bezpečnými relativními cestami a skutečně existují, vstupní bod pro každý deklarovaný druh a to, že ve složce nejsou žádné symbolické odkazy.
 
 Pro vývoj pluginů se podívejte na [referenci shellu](https://github.com/omacom/omarchy/blob/quattro/docs/omarchy-shell.md) a [katalog vestavěných pluginů](https://github.com/omacom/omarchy/blob/quattro/shell/plugins/README.md).
 
 ## Sdílení vlastních pluginů
 
-Jakmile vytvoříte něco, co se vám líbí, vložte to do veřejného gitového repozitáře. To je celý distribuční mechanismus — kdokoli pak může spustit příkaz `omarchy plugin add` proti vaší adrese URL a mít ho za pár sekund spuštěný.
+Jakmile vytvoříte něco, co se vám líbí, vložte to do veřejného gitového repozitáře. To je celý distribuční mechanismus — kdokoli pak může spustit příkaz `omarchy plugin add` s vaší adresou URL a mít ho za pár sekund spuštěný.
 
 Chcete-li lidem pomoci ho skutečně najít, uveďte ho na webu [plugins.omarchy.org](https://plugins.omarchy.org). To je tržiště pro pluginy shellu Omarchy a je to první místo, kam se podívat, když si lámete hlavu nad tím, zda už někdo nevytvořil widget, který se chystáte psát. Před začátkem si ho prohlédněte!

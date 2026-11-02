@@ -1,14 +1,14 @@
 # Horní lišta
 
-Pruh podél horní části obrazovky je lišta Omarchy. Není to přišroubovaná stavová lišta, ale součást shellu Omarchy, jediného dlouho běžícího procesu Quickshell, který kreslí i menu, oznámení, vyskakovací OSD okna a zamykací obrazovku. Proto dokonale ladí se vším ostatním a proto se panel otevře okamžitě, místo aby spouštěl novou aplikaci.
+Pruh podél horní části obrazovky je lišta Omarchy. Není to přišroubovaná stavová lišta, ale součást shellu Omarchy, jediného dlouho běžícího procesu Quickshell, který kreslí i nabídku, oznámení, vyskakovací OSD okna a zamykací obrazovku. Proto dokonale ladí se vším ostatním a proto se panel otevře okamžitě, místo aby spouštěl novou aplikaci.
 
 Je to taky jediná část plochy, která je pořád na obrazovce, takže stojí za to vědět, co všechny ty malé glyfy dělají.
 
 ## Co je na ní ve výchozím stavu
 
-Lišta má tři sekce. Vlevo sedí logo Omarchy (spouštěč menu) a indikátory pracovních ploch. Uprostřed máte stavové indikátory, hodiny, Elsewhen (světové hodiny), počasí a odznak aktualizace Omarchy. Vpravo: systémová oblast, rozložení klávesnice (když je nakonfigurováno víc než jedno), agenti, bluetooth, síť, zvuk, displej a napájení.
+Lišta má tři sekce. Vlevo sedí logo Omarchy (spouštěč nabídky) a ukazatele pracovních ploch. Uprostřed máte stavové ukazatele, hodiny, Elsewhen (světové hodiny), počasí a odznak aktualizace Omarchy. Vpravo: oznamovací oblast, rozložení klávesnice (když je nakonfigurováno víc než jedno), agenti, bluetooth, síť, zvuk, displej a napájení.
 
-Několik z nich se objeví jen tehdy, když mají co říct. Rozložení klávesnice se objeví jen tehdy, pokud jste nakonfigurovali víc než jedno rozložení. Odznak aktualizace se objeví jen tehdy, když čeká aktualizace Omarchy. A ikona agentů se objeví poprvé, když Omarchy na počítači najde využití AI kódování (viz [AI](17-ai.md)).
+Několik z nich se objeví jen tehdy, když mají co říct. Rozložení klávesnice se objeví jen tehdy, pokud jste nakonfigurovali víc než jedno rozložení. Odznak aktualizace se objeví jen tehdy, když čeká aktualizace Omarchy. A ikona agentů se objeví, jakmile Omarchy na počítači poprvé zjistí používání AI nástrojů pro programování (viz [AI](17-ai.md)).
 
 ## Klikání po liště
 
@@ -16,7 +16,7 @@ Skoro každý widget něco dělá při levém, pravém a prostředním kliknutí
 
 | Widget | Levý klik | Pravý klik | Prostřední klik / rolování |
 | --- | --- | --- | --- |
-| Menu | Menu Omarchy | Nový terminál | — |
+| Nabídka | Nabídka Omarchy | Nový terminál | — |
 | Pracovní plochy | Zaměřit danou pracovní plochu na tomto monitoru | — | Rolování: další/předchozí pracovní plocha |
 | Hodiny | Vyskakovací kalendář | Přepnout formát popisku | Prostřední: výběr časového pásma |
 | Počasí | Vyskakovací předpověď | Úplné počasí jako oznámení | Prostřední: obnovit |
@@ -28,43 +28,43 @@ Skoro každý widget něco dělá při levém, pravém a prostředním kliknutí
 | Napájení | Panel napájení | Přepnout procenta baterie | — |
 | Média | Přehrát/pozastavit | Vyskakovací okno s obalem alba | Prostřední: další · rolování: předchozí/další |
 | Agenti | Panel agentů | Spustit vašeho agenta | Prostřední: další předplatné |
-| Systémová oblast | Najetím myši odhalíte zásuvku | Pravý klik na šipku pro správu | — |
+| Oznamovací oblast | Najetím myši odhalíte zásuvku | Pravý klik na šipku pro správu | — |
 | Aktualizace Omarchy | Spustit aktualizaci | — | — |
 
 Ne všechno v té tabulce máte na liště hned po vybalení. Widget médií (právě hrající MPRIS, s posouvající se skladbou a interpretem) a widget mikrofonu jsou oba vestavěné, ale ve výchozím stavu vypnuté — přidejte si je, pokud je chcete, jak je popsáno níže.
 
 ## Panely
 
-Kliknutí na ikonu na liště otevře panel, což je pořádné vyskakovací okno s posuvníky, seznamy a ovládáním z klávesnice, ne jen tooltip. Každý má taky klávesovou zkratku, takže nikdy nemusíte mířit na 16pixelový glyf:
+Kliknutí na ikonu na liště otevře panel, což je pořádné vyskakovací okno s posuvníky, seznamy a ovládáním z klávesnice, ne jen popisek. Každý má taky klávesovou zkratku, takže nikdy nemusíte mířit na 16pixelový glyf:
 
-| Hotkey | Panel |
+| Klávesová zkratka | Panel |
 | --- | --- |
-| `Super + Ctrl + A` | Audio |
-| `Super + Ctrl + N` | Network |
+| `Super + Ctrl + A` | Zvuk |
+| `Super + Ctrl + N` | Síť |
 | `Super + Ctrl + B` | Bluetooth |
-| `Super + Ctrl + D` | Display |
-| `Super + Ctrl + P` | Power |
-| `Super + Ctrl + Alt + D` | Calendar |
-| `Super + Ctrl + Alt + E` | World clock |
-| `Super + Ctrl + 1-9` | Toggle the nth panel in the right section |
+| `Super + Ctrl + D` | Displej |
+| `Super + Ctrl + P` | Napájení |
+| `Super + Ctrl + Alt + D` | Kalendář |
+| `Super + Ctrl + Alt + E` | Světové hodiny |
+| `Super + Ctrl + 1-9` | Přepnout n-tý panel v pravé sekci |
 
 Panely nejsou jen výpisy. Právě v nich tu věc skutečně uděláte:
 
-- **Audio** has a master volume slider, an output-device picker, and a per-app mixer, so you can turn down that one browser tab without touching everything else.
-- **Network** scans for Wi-Fi, shows signal strength, connects, and lets you pick a DNS provider.
-- **Bluetooth** lists your devices with connect/disconnect and battery levels.
-- **Power** shows battery stats, switches power profiles (it remembers a separate choice for battery and AC), and prints some system info.
-- **Display** carries a brightness slider, text size, monitor scaling presets, and — when you have more than one screen — per-monitor controls. See [monitors](33-monitors.md) for the deeper story.
-- **Clock** opens a month grid with ISO week numbers and month stepping.
-- **World clock** keeps a row per city, with its weather and how its day is going. Search finds towns as well as time zones, so Fort Lauderdale is Fort Lauderdale and not New York. If the line at the top names the wrong city, click it and say where you are; pick somewhere on another time zone and the system clock moves there too, which is handy when you travel. Hover a city and click the person button to say who lives there — plain names, or `@` GitHub handles to bring their faces along.
+- **Zvuk** má hlavní posuvník hlasitosti, výběr výstupního zařízení a mixér pro jednotlivé aplikace, takže můžete ztlumit jednu kartu prohlížeče, aniž byste sahali na všechno ostatní.
+- **Síť** vyhledává sítě Wi-Fi, ukazuje sílu signálu, připojuje se a umožňuje vybrat poskytovatele DNS.
+- **Bluetooth** vypisuje vaše zařízení s možností připojit/odpojit a s úrovní baterie.
+- **Napájení** ukazuje statistiky baterie, přepíná profily napájení (pro baterii a napájení ze sítě si pamatuje volbu zvlášť) a vypisuje některé informace o systému.
+- **Displej** nabízí posuvník jasu, velikost textu, předvolby škálování monitoru a — pokud máte více obrazovek — ovládání jednotlivých monitorů. Podrobnosti najdete v kapitole [Monitory](33-monitors.md).
+- **Hodiny** otevřou měsíční mřížku s čísly týdnů podle ISO a přepínáním měsíců.
+- **Světové hodiny** mají řádek pro každé město s jeho počasím a s tím, jaká část dne tam právě je. Vyhledávání najde města i časová pásma, takže Fort Lauderdale je Fort Lauderdale, a ne New York. Pokud řádek nahoře uvádí špatné město, klikněte na něj a zadejte, kde jste; zvolíte-li místo v jiném časovém pásmu, přesunou se tam i systémové hodiny, což se hodí na cestách. Najeďte na město a kliknutím na tlačítko osoby zadejte, kdo tam žije — prostá jména, nebo přezdívky z GitHubu s `@`, které přinesou i jejich fotky.
 
-Každý panel bere klávesnici stejně jako myš: šipky se pohybují, Return aktivuje, Tab přeskočí na sousední panel a Escape zavře.
+Každý panel bere klávesnici stejně jako myš: šipky přesouvají výběr, Return aktivuje, Tab přeskočí na sousední panel a Escape zavře.
 
-`Super + Ctrl + 1-9` počítá panely zleva doprava v pravé sekci a přeskakuje systémovou oblast, protože ta nemá vlastní panel. Takže číslo odpovídá ikoně, na kterou byste ukázali.
+`Super + Ctrl + 1-9` počítá panely zleva doprava v pravé sekci a přeskakuje oznamovací oblast, protože ta nemá vlastní panel. Takže číslo odpovídá ikoně, na kterou byste ukázali.
 
 ### Tailscale a Dropbox
 
-Další dva widgety se na liště objeví, až když si z **Install → Service** nainstalujete odpovídající službu, a oba stojí za to znát, protože dělají víc než jen hlásí stav.
+Další dva widgety se na liště objeví, až když si z _Instalovat > Služba_ nainstalujete odpovídající službu, a oba stojí za to znát, protože dělají víc než jen hlásí stav.
 
 Panel **Tailscale** připojuje a odpojuje tailnet, přepíná mezi účty a vybírá exit node (v tom seznamu se objeví vaše vlastní stroje i regiony Mullvadu). Taky prochází vaše stroje — a když je jeden vybraný, `s` mu pošle soubory přes Taildrop, což je nejrychlejší způsob, jak přesunout soubor do telefonu nebo jiného laptopu. `c` zkopíruje IP stroje, `n` jeho název a `d` jeho úplný název DNS. Na každém řádku stroje je taky tlačítko pro odeslání, pokud raději klikáte. Totéž z terminálu je `omarchy tailscale send <machine> [file...]`.
 
@@ -72,23 +72,23 @@ Panel **Dropbox** řeší přihlášení, ukazuje, kolik úložiště jste využ
 
 Odstranění kterékoli služby stáhne její widget z lišty zase pryč.
 
-## Indikátory
+## Ukazatele
 
-Malý shluk uprostřed je widget indikátorů. Jsou to stavové glyfy pro režimy, které jste zapnuli: nerušit, noční osvětlení, zařazené [připomenutí](09-reminders.md), aktivní nahrávání obrazovky, zůstat vzhůru a [diktování](11-text-extraction-dictation.md). Rozsvítí se, když je režim aktivní, a jinak zůstávají stranou — najeďte kamkoli na lištu, abyste se podívali na ty neaktivní. Kliknutí na indikátor daný režim přepne. Jeden další je pouze stavový: vzdálená relace svítí červeně, zatímco je k tomuto stroji přes gliff někdo připojen.
+Malý shluk uprostřed je widget ukazatelů. Jsou to stavové glyfy pro režimy, které jste zapnuli: nerušit, noční světlo, naplánovaná [připomínka](09-reminders.md), aktivní nahrávání obrazovky, vypnuté zamykání a spořič a [diktování](11-text-extraction-dictation.md). Rozsvítí se, když je režim aktivní, a jinak zůstávají stranou — najeďte kamkoli na lištu, abyste se podívali na ty neaktivní. Kliknutí na ukazatel daný režim přepne. Jeden další je pouze stavový: vzdálená relace svítí červeně, zatímco je k tomuto stroji přes gliff někdo připojen.
 
-Pokud byste raději, aby byly vždy viditelné, nastavte u widgetu `alwaysShow` na `true`. A pokud vám záleží jen na některých z nich, uveďte ty, které chcete, v `items`: `["Dnd", "Reminder", "NightLight"]`. Widgetů indikátorů můžete mít víc než jeden, takže různé sekce mohou zobrazovat různé podmnožiny.
+Pokud byste raději, aby byly vždy viditelné, nastavte u widgetu `alwaysShow` na `true`. A pokud vám záleží jen na některých z nich, uveďte ty, které chcete, v `items`: `["Dnd", "Reminder", "NightLight"]`. Widgetů ukazatelů můžete mít víc než jeden, takže různé sekce mohou zobrazovat různé podmnožiny.
 
 ## Přeskupení lišty
 
 Lišta se konfiguruje sama. Nemusíte kvůli přesouvání věcí otevírat konfigurační soubor.
 
-Chyťte prázdné místo na liště kolem středu a táhněte je k jinému okraji obrazovky a lišta se tam přesune — doleva, doprava, nahoru i dolů to všechno funguje a každý widget se přizpůsobí (svislé lišty se vrátí ke kompaktním formám pouze s ikonami). Kliknutí a podržení spustí stejné tažení. Dvojitý levý klik na totéž prázdné místo přepne pozadí lišty z čirého na skleněné na neprůhledné. A táhněte libovolný widget, abyste změnili jeho pořadí nebo ho hodili do jiné sekce; ostatní widgety se rozestoupí, aby udělaly místo tam, kam dopadne.
+Chyťte prázdné místo na liště kolem středu a táhněte ho k jinému okraji obrazovky a lišta se tam přesune — doleva, doprava, nahoru i dolů to všechno funguje a každý widget se přizpůsobí (svislé lišty se vrátí ke kompaktním formám pouze s ikonami). Kliknutí a podržení spustí stejné tažení. Dvojitý levý klik na totéž prázdné místo přepne pozadí lišty z průhledného přes skleněné na neprůhledné. A táhněte libovolný widget, abyste změnili jeho pořadí nebo ho hodili do jiné sekce; ostatní widgety se rozestoupí, aby udělaly místo tam, kam dopadne.
 
-Střed lišty je box: cokoli je v něm, zůstává vycentrované jako jedna skupina a widgety po jeho obou stranách visí na jeho okrajích. Zatímco táhnete widget, box se ukáže jako obrys, nebo jako čára přes lištu, když je prázdný, a můžete pustit do něj nebo vedle něj. Když by puštění dopadlo do boxu, box se zvětší, aby widget přijal.
+Střed lišty je box: cokoli je v něm, zůstává vycentrované jako jedna skupina a widgety po jeho obou stranách visí na jeho okrajích. Zatímco táhnete widget, box se ukáže jako obrys, nebo jako čára přes lištu, když je prázdný, a widget můžete pustit do něj nebo vedle něj. Když by widget dopadl do boxu, box se zvětší, aby widget přijal.
 
-Widget, který chcete mít po ruce, ale ne vždy na očích, může jít do zásuvky systémové oblasti: táhněte ho na systémovou oblast a zásuvka se otevře, aby ho přijala. Sedí tam za ikonami aplikací, objeví se, kdykoli se objeví zásuvka, a nechá svou zásuvku otevřenou, zatímco je jeho panel nahoře. Táhněte ho zpět na lištu, abyste ho vrátili.
+Widget, který chcete mít po ruce, ale ne vždy na očích, může jít do zásuvky oznamovací oblasti: táhněte ho na oznamovací oblast a zásuvka se otevře, aby ho přijala. Sedí tam za ikonami aplikací, objeví se, kdykoli se objeví zásuvka, a nechá svou zásuvku otevřenou, dokud je jeho panel otevřený. Táhněte ho zpět na lištu, abyste ho vrátili.
 
-Pokud byste raději vybírali z menu, _Vzhled > Horní lišta_ má polohu a _Pozadí lišty_ vybírá, jak se lišta kreslí: _Neprůhledná lišta_, _Skleněná lišta_ (průsvitná, s tím, co je za ní, rozmazaným) nebo _Průhledná lišta_.
+Pokud byste raději vybírali z nabídky, _Vzhled > Lišta_ má polohu a _Pozadí lišty_ vybírá, jak se lišta kreslí: _Neprůhledná lišta_, _Skleněná lišta_ (průsvitná, s rozmazaným pozadím) nebo _Průhledná lišta_.
 
 Tytéž věci mají příkazy, což je to, co chcete pro nastavení [dotfiles](31-dotfiles.md):
 
@@ -101,7 +101,7 @@ omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Chcete-li widget úplně přidat nebo odebrat, použijte příkazy pluginů. `omarchy plugin list` vytiskne každý widget, který shell zná, s jeho id, a pak:
+Chcete-li widget úplně přidat nebo odebrat, použijte příkazy pluginů. `omarchy plugin list` vypíše každý widget, který shell zná, s jeho id, a pak:
 
 ```bash
 omarchy plugin enable omarchy.media --section centerEnd
@@ -110,7 +110,7 @@ omarchy plugin disable omarchy.weather
 
 ## Skrytí lišty
 
-`Super + Shift + Space` přepne lištu pryč a zase zpět, aniž by zabil shell — panely a klávesové zkratky dál fungují, jen získáte zpět pixely. Je to taky v menu pod _Vzhled > Horní lišta > Skrýt lištu_.
+`Super + Shift + Space` skryje a znovu zobrazí lištu, aniž by ukončila shell — panely a klávesové zkratky dál fungují, jen získáte zpět pixely. Je to taky v nabídce pod _Vzhled > Lišta > Skrýt lištu_.
 
 ## Konfigurační soubor
 
@@ -137,6 +137,6 @@ Každý widget je jeden záznam v jednom z pěti polí rozložení a jeho nastav
 
 `center` je box uprostřed lišty: všechno v něm je vycentrováno na obrazovce jako jedna skupina. `centerBegin` a `centerEnd` visí po obou stranách boxu, což je způsob, jak hodiny zůstávají přesně uprostřed, i když počasí a odznak aktualizace přicházejí a odcházejí. Dejte do `center` víc než jeden widget a budou vycentrovány společně; nechte ho prázdný a `centerBegin` a `centerEnd` se setkají uprostřed lišty.
 
-Jedno pravidlo, které stojí za to si vštípit: **jakmile máte vlastní `shell.json`, je kanonický**. Dokud si nic nepřizpůsobíte, shell čte výchozí soubor Omarchy. V okamžiku, kdy přetáhnete widget, spustíte `omarchy bar` nebo sami upravíte soubor, vlastníte ho vy — nedochází k žádnému hlubokému slučování, takže nové výchozí widgety v budoucích vydáních Omarchy se na vaší liště neobjeví automaticky. `omarchy bar defaults` vrátí dodávané rozložení, kdykoli chcete čistý štít.
+Jedno pravidlo, které stojí za to si vštípit: **jakmile máte vlastní `shell.json`, je kanonický**. Dokud si nic nepřizpůsobíte, shell čte výchozí soubor Omarchy. V okamžiku, kdy přetáhnete widget, spustíte `omarchy bar` nebo sami upravíte soubor, vlastníte ho vy — nedochází k žádnému hlubokému slučování, takže nové výchozí widgety v budoucích vydáních Omarchy se na vaší liště neobjeví automaticky. `omarchy bar defaults` vrátí dodávané rozložení, kdykoli chcete začít od nuly.
 
 Tentýž soubor taky drží vaše časování nečinnosti na nejvyšší úrovni, mimo klíč `bar`: `idle.screensaver` a `idle.lock`, obojí v sekundách od chvíle, kdy jste přestali být aktivní. Takže výchozí spořič obrazovky naskočí po 150 sekundách a zámek po 300.

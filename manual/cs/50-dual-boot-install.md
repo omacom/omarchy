@@ -1,4 +1,4 @@
-# Instalace Dual Boot
+# Instalace pro dual boot
 
 Omarchy můžete nainstalovat na jeden oddíl vedle Windows nebo jiných instalací.
 
@@ -18,7 +18,7 @@ Najděte příslušný oddíl, klikněte na něj pravým tlačítkem a zvolte **
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Až budete hotovi, měli byste vidět něco takového, kde část o velikosti 50 GB je v tomto příkladu místem, kam nainstalujeme Omarchy.
+Až budete hotovi, měli byste vidět něco takového; část o velikosti 50 GB je v tomto příkladu místo, kam nainstalujeme Omarchy.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 

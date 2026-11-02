@@ -1,8 +1,8 @@
 # Virtuální počítač s Windows
 
-Omarchy nabízí snadnou možnost spouštět Windows prostřednictvím virtuálního počítače v Dockeru. Můžete ho nainstalovat pomocí části _Instalovat > Windows_ z nabídky Omarchy (`Super + Space`).
+Omarchy nabízí snadnou možnost spouštět Windows prostřednictvím virtuálního počítače v Dockeru. Můžete ho nainstalovat pomocí položky _Instalovat > Windows_ z nabídky Omarchy (`Super + Space`).
 
-Váš počítač k tomu potřebuje virtualizaci KVM, což většina má — ale někdy je v systému BIOS vypnutá a instalační program vám řekne, pokud tomu tak je. Budete také chtít místo na disku: cokoli, co Windows dáte, plus asi 10 GB pro samotný obraz.
+Váš počítač k tomu potřebuje virtualizaci KVM, což většina má — ale někdy je v systému BIOS vypnutá a instalační program vám řekne, pokud tomu tak je. Budete také potřebovat místo na disku: cokoli, co Windows dáte, plus asi 10 GB pro samotný obraz.
 
 Instalační program se zeptá, kolik paměti RAM, kolik jader CPU a kolik místa na disku má předat (64 GB nebo více je rozumný základ), a poté na uživatelské jméno a heslo pro Windows. Nechte je prázdná a dostanete `docker` / `admin`. Stažení chvíli trvá — 10–15 minut je normální — a průběh můžete sledovat v prohlížeči na adrese `http://127.0.0.1:8006`. Prohlížeč si před otevřením konzole vyžádá stejné uživatelské jméno a heslo.
 
@@ -12,11 +12,11 @@ Instalační program se zeptá, kolik paměti RAM, kolik jader CPU a kolik míst
 
 Jakmile bude nainstalovaný, spusťte _Windows_ ze spouštěče aplikací. Tím se spustí virtuální počítač, pokud ještě neběží, a připojí vás přes RDP na celou obrazovku. Při studeném startu mu dejte 15–30 sekund.
 
-Relace RDP přenáší zvuk, váš mikrofon a sdílenou schránku, takže kopírování textu mezi Linuxem a Windows prostě funguje. Rozlišení sleduje vaše okno a Omarchy předává měřítko vašeho displeje, takže na obrazovce HiDPI to není rozmazaný nepořádek.
+Relace RDP přenáší zvuk, váš mikrofon a sdílenou schránku, takže kopírování textu mezi Linuxem a Windows prostě funguje. Rozlišení sleduje vaše okno a Omarchy předává měřítko vašeho displeje, takže obraz na obrazovce HiDPI nebude rozmazaný.
 
 Když okno RDP zavřete, virtuální počítač se automaticky vypne. Pokud byste ho raději nechali běžet — řekněme, že tam máte něco, co pracuje — spusťte ho místo toho pomocí příkazu `omarchy windows vm launch --keep-alive`.
 
-Zbytek ovládacích prvků je na stejném příkazu:
+Ostatní ovládání nabízí tentýž příkaz:
 
 ```bash
 omarchy windows vm status    # is it running?
@@ -44,6 +44,6 @@ Nainstalovaná verze je Windows 11 Pro, neaktivovaná. K používání funkcí v
 
 Pokud byl tento počítač dodán s Windows, je klíč OEM i po instalaci Omarchy stále ve firmwaru. Zobrazíte ho příkazem `omarchy windows key`. Tento klíč je vázán na tento počítač — aktivuje systém Windows přeinstalovaný na tomto hardwaru, ale obvykle neaktivuje virtuální počítač.
 
-Přidělení prostředků můžete později změnit opětovným spuštěním příkazu `omarchy-windows-vm install`, který na základě vašich odpovědí přepíše konfiguraci virtuálního počítače. Samotný soubor compose nyní žije v umístění `/var/lib/omarchy/windows/docker-compose.yml` a vlastní ho root — to je záměrné, aby ho proces běžící pod vaším účtem nemohl přepsat a nechat privilegovaný počáteční proces připojit celý váš disk do kontejneru. Pokud ho potřebujete ručně upravit (například pro připojení zařízení USB), upravte ho pomocí `sudo` a všechny možnosti najděte v projektu [Dockur Windows](https://github.com/dockur/windows).
+Přidělení prostředků můžete později změnit opětovným spuštěním příkazu `omarchy-windows-vm install`, který na základě vašich odpovědí přepíše konfiguraci virtuálního počítače. Samotný soubor compose nyní žije v umístění `/var/lib/omarchy/windows/docker-compose.yml` a vlastní ho root — to je záměrné, aby ho proces běžící pod vaším účtem nemohl přepsat a nechat privilegované spuštění připojit celý váš disk do kontejneru. Pokud ho potřebujete ručně upravit (například pro připojení zařízení USB), upravte ho pomocí `sudo` a všechny možnosti najděte v projektu [Dockur Windows](https://github.com/dockur/windows).
 
-Chcete-li se toho všeho zbavit, použijte část _Odebrat > Windows_ z nabídky Omarchy. Tím se odstraní disk virtuálního počítače a všechna jeho data, takže se ujistěte, že všechno, na čem vám záleží, je nejprve pryč z adresáře `~/Windows`.
+Chcete-li se toho všeho zbavit, použijte položku _Odebrat > Windows_ z nabídky Omarchy. Tím se odstraní disk virtuálního počítače a všechna jeho data, takže se ujistěte, že všechno, na čem vám záleží, je nejprve pryč z adresáře `~/Windows`.

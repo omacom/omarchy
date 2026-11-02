@@ -6,7 +6,7 @@ Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (bt
 
 Motivy mají sadu obrázků na pozadí, mezi kterými můžete vybírat pomocí `Super + Ctrl + W`.
 
-Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce [vytvořte vlastní motiv](43-making-your-own-theme.md).
+Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce můžete [vytvořit vlastní motiv](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odemknutí
+### Obrazovky odemykání
 
-Motivy mohou mít také vlastní design odemknutí, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Obrazovka odemykání_. Vypadají takto:
+Motivy mohou mít také vlastní vzhled obrazovky odemykání, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Obrazovka odemykání_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

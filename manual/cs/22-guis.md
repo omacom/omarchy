@@ -1,12 +1,12 @@
-# GUIs
+# GUI
 
 ## Files
 
 Files (Nautilus) je grafický správce souborů. Pomocí `Super + Shift + F` ho otevřete a `Super + Shift + Alt + F` ho otevře v adresáři, ve kterém se právě nachází váš terminál, což ušetří spoustu klikání. Pomocí `Ctrl + L` můžete zadat cestu a stisknutím `Space` na libovolném souboru získáte rychlý náhled, aniž byste cokoli otevírali.
 
-Zapojte USB disk nebo SD kartu a automaticky se připojí, takže se prostě objeví v postranním panelu. Pro cokoli složitějšího — formátování disku, kontrolu stavu SMART, vytváření oddílů — spusťte _Disks_ ze spouštěče aplikací (`Super + Space`).
+Zapojte USB disk nebo SD kartu a automaticky se připojí, takže se prostě objeví v postranním panelu. Pro cokoli složitějšího — formátování disku, kontrolu stavu SMART, vytváření oddílů — spusťte _Disky_ ze spouštěče aplikací (`Super + Space`).
 
-Dvojklik se řídí rozumnými výchozími nastaveními: obrázky se otevírají v imv, video v mpv, PDF v Document Viewer a prostý text v Neovim.
+Dvojklik se řídí rozumnými výchozími nastaveními: obrázky se otevírají v imv, video v mpv, PDF v Prohlížeči dokumentů a prostý text v Neovimu.
 
 ## Disktree
 
@@ -24,13 +24,13 @@ Obsidian spustíte pomocí `Super + Shift + O`. Chcete-li používat synchroniza
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) je vlastní, zcela jednoduchá aplikace Omarchy pro psaní v Markdownu. Žádné trezory, žádné pluginy, jen vy a slova.
+[Omawrite](https://github.com/omacom-io/omawrite) je vlastní, naprosto jednoduchá aplikace Omarchy pro psaní v Markdownu. Žádné trezory, žádné pluginy, jen vy a slova.
 
 Omawrite spustíte pomocí `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) je základní nástroj na úpravu obrázků, který je skvělý na ořezávání, změnu velikosti a další základní úpravy. Jen nečekejte alternativu k Photoshop. Ale pořád má Magic Wand a vrstvy!
+[Pinta](https://www.pinta-project.com/) je základní nástroj na úpravu obrázků, který je skvělý na ořezávání, změnu velikosti a další základní úpravy. Jen nečekejte alternativu k Photoshopu. Ale pořád má kouzelnou hůlku a vrstvy!
 
 Pinta spustíte přes spouštěč aplikací (`Super + Space`).
 
@@ -42,36 +42,36 @@ Aether spustíte přes spouštěč aplikací (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) vám umožňuje posílat soubory do jiných zařízení ve stejné síti, na kterých běží tato aplikace, podobně jako AirDrop od Apple. Je ale multiplatformní, takže můžete posílat soubory do a z Windows, macOS, Android, iOS a samozřejmě Linux.
+[LocalSend](https://localsend.org/) vám umožňuje posílat soubory do jiných zařízení ve stejné síti, na kterých běží tato aplikace, podobně jako AirDrop od Applu. Je ale multiplatformní, takže můžete posílat soubory mezi Windows, macOS, Androidem, iOS a samozřejmě Linuxem.
 
 Nabídku Sdílet otevřete pomocí `Super + Ctrl + S` nebo pod _Akce > Sdílet_ v nabídce Omarchy. Nabízí čtyři možnosti:
 
-- **Clipboard** odešle cokoli, co jste zkopírovali, jako textový soubor. Skvělé, když potřebujete dostat odkaz nebo úryvek kódu do telefonu, aniž byste si posílali e-mail.
-- **File** otevře výběr souborů, ve kterém můžete vybrat hned několik souborů najednou.
-- **Folder** odešle celý adresář.
-- **Receive** otevře samotný LocalSend, aby vám jiné zařízení mohlo něco poslat.
+- **Schránka** odešle cokoli, co jste zkopírovali, jako textový soubor. Skvělé, když potřebujete dostat odkaz nebo úryvek kódu do telefonu, aniž byste si posílali e-mail.
+- **Soubor** otevře výběr souborů, ve kterém můžete vybrat hned několik souborů najednou.
+- **Složka** odešle celý adresář.
+- **Přijmout** otevře samotný LocalSend, aby vám jiné zařízení mohlo něco poslat.
 
 Totéž funguje z terminálu pomocí `omarchy share clipboard`, `omarchy share file [path]` a `omarchy share folder [path]`. Cestu vynechte a zobrazí se vám výběr souborů.
 
-Posílat můžete také rovnou ze správce souborů: klikněte pravým tlačítkem na libovolný výběr v Nautilus a vyberte _Send via LocalSend_.
+Posílat můžete také rovnou ze správce souborů: klikněte pravým tlačítkem na libovolný výběr v Nautilu a vyberte _Send via LocalSend_.
 
 Firewall v Omarchy je ve výchozím nastavení zavřený s výjimkou portu pro LocalSend, takže tohle funguje hned po čerstvé instalaci. Viz [zabezpečení](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) je kompletní kancelářský balík s textovým procesorem, tabulkovým procesorem, prezentacemi, kreslicí aplikací a dalšími nástroji. Je kompatibilní se soubory z Microsoft Office, takže je to skvělý způsob, jak si otevřít ty dokumenty z Word.
+[LibreOffice](https://www.libreoffice.org/) je kompletní kancelářský balík s textovým procesorem, tabulkovým procesorem, prezentacemi, kreslicí aplikací a dalšími nástroji. Je kompatibilní se soubory z Microsoft Office, takže je to skvělý způsob, jak si otevřít ty dokumenty z Wordu.
 
 LibreOffice spustíte přes spouštěč aplikací (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) je vlastní, naprosto jednoduchá prezentační aplikace Omarchy. Vaše prezentace je jediný soubor Markdown s obrázky a videi vedle něj: každý snímek píšete pod živým náhledem, snímky přetažením seřadíte, a pak prezentujete na celé obrazovce nebo exportujete do PDF a PowerPoint. Dokonce převezme váš motiv Omarchy.
+[Hype](https://github.com/omacom/hype) je vlastní, naprosto jednoduchá prezentační aplikace Omarchy. Vaše prezentace je jediný soubor Markdown s obrázky a videi vedle něj: každý snímek píšete pod živým náhledem, snímky přetažením seřadíte, a pak prezentujete na celé obrazovce nebo exportujete do PDF a PowerPointu. Dokonce převezme váš motiv Omarchy.
 
 Hype spustíte přes spouštěč aplikací (`Super + Space`). Stisknutím `?` uvnitř zobrazíte všechny zkratky.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) je vlastní, naprosto jednoduchý způsob Omarchy, jak podepisovat PDF a vyplňovat je. Umístěte svůj uložený podpis, text a dnešní datum kamkoli na stránku a pak uložte podepsanou kopii vedle originálu. Jak na to, najdete v [Vyplňování PDF](27-filling-out-pdfs.md).
+[Signed](https://github.com/omacom/signed) je vlastní, naprosto jednoduchý způsob Omarchy, jak podepisovat PDF a vyplňovat je. Umístěte svůj uložený podpis, text a dnešní datum kamkoli na stránku a pak uložte podepsanou kopii vedle originálu. Jak na to, najdete v kapitole [Vyplňování PDF](27-filling-out-pdfs.md).
 
 Signed spustíte přes spouštěč aplikací (`Super + Space`), nebo s ním otevřete PDF ze správce souborů.
 

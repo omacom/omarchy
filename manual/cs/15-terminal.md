@@ -1,16 +1,16 @@
 # Terminál
 
-Výchozím terminálem pro Omarchy je [Foot](https://codeberg.org/dnkl/foot). Je rychlý, lehký a kompatibilní i se starými počítači. Nepodporuje však nativní záložky ani rozdělení.
+Výchozím terminálem pro Omarchy je [Foot](https://codeberg.org/dnkl/foot). Je rychlý, lehký a kompatibilní i se starými počítači. Nepodporuje však nativní karty ani rozdělení.
 
-Pokud používáte Tmux, nemusí vám to vadit, ale pokud ne, plně podporujeme také _Alacritty_, _Ghostty_ a _Kitty_ jako možnosti. Svou preferenci si vyberte v _Instalovat > Terminál_ v nabídce Omarchy.
+Pokud používáte Tmux, nemusí vám to vadit, ale pokud ne, plně podporujeme také _Alacritty_, _Ghostty_ a _Kitty_. Svou preferenci si vyberte v _Instalovat > Terminál_ v nabídce Omarchy.
 
-Nový terminál spustíte pomocí `Super + Return`. (Tato zkratka bude automaticky ukazovat na jakýkoli Terminál, který jste nainstalovali přes _Instalovat > Terminál_, a mezi nainstalovanými terminály můžete přepínat v _Nastavení > Výchozí > Terminál_.)
+Nový terminál spustíte pomocí `Super + Return`. (Tato zkratka bude automaticky ukazovat na jakýkoli terminál, který jste nainstalovali přes _Instalovat > Terminál_, a mezi nainstalovanými terminály můžete přepínat v _Nastavení > Výchozí > Terminál_.)
 
 ## Tmux
 
 Tmux nabízí podokna, okna (obdobu karet) a relace, ke kterým se můžete kdykoli znovu připojit. Ovládání je stejné v každém terminálu a můžete si ho upravit pomocí skriptů. Funguje i na vzdálených počítačích, takže stejný způsob práce můžete používat také na serverech přes SSH.
 
-Novou relaci Tmux v čerstvém terminálu spustíte pomocí `Super + Alt + Return`, a protože Tmux je trvalý proces, můžete svou relaci obnovit, i když tento terminál zavřete. Stačí stisknout `Ctrl + Space` (říká se tomu prefixová klávesa) a poté `s` a uvidíte všechny své aktivní relace.
+Novou relaci Tmux v čerstvém terminálu spustíte pomocí `Super + Alt + Return`, a protože Tmux je trvalý proces, můžete svou relaci obnovit, i když tento terminál zavřete. Stačí stisknout `Ctrl + Space` (říká se jí klávesa prefixu) a poté `s` a uvidíte všechny své aktivní relace.
 
 Omarchy se dodává s ergonomicky optimalizovanou konfigurací Tmuxu, která má mnoho klávesových zkratek k naučení, takže mějte [tahák po ruce](07-hotkeys.md#tmux).
 

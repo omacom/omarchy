@@ -10,7 +10,7 @@ Pomocí `omarchy plymouth preview` se můžete podívat, jak by vaše vlastní l
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-Poté nastavení použijte pomocí `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, což dá přihlašovací obrazovce SDDM stejné barvy a logo. Pokud to chcete vrátit zpět, můžete použít `omarchy plymouth reset`.
+Poté nastavení použijte pomocí `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, což dá také přihlašovací obrazovce SDDM stejné barvy a logo. Pokud to chcete vrátit zpět, můžete použít `omarchy plymouth reset`.
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
@@ -20,7 +20,7 @@ Logo používané pro spořič obrazovky můžete změnit v části _Vzhled > Br
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-V tomto menu jsou tři položky:
+V této nabídce jsou tři položky:
 
 - **Upravit text** otevře `~/.config/omarchy/branding/screensaver.txt` ve vašem editoru. Napište nebo vložte, co chcete — ASCII art, své jméno, sprosté slovo. Uložte a zavřete a spořič obrazovky se okamžitě spustí, abyste ho viděli.
 - **Nastavit z obrázku** otevře výběr souboru pro png nebo svg, převede ho do ASCII a ukáže vám výsledek. Loga s jasnou siluetou fungují mnohem lépe než fotografie.
@@ -42,14 +42,14 @@ Obě možnosti _Nastavit z obrázku_ jen volají `omarchy transcode ascii`, kter
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-Přijímá `--width` a `--height` ve sloupcích a řádcích terminálu, `--mode` buď `braille` (výchozí a mnohem jemnější), nebo `block`, procentuální `--threshold` pro rozhodování, které pixely se počítají jako součást loga, a `--invert` pro případy, kdy je vaše logo světlé na tmavém pozadí. Pokud převod vyjde jako flek, práh je obvykle ten knoflík, kterým je třeba otočit.
+Přijímá `--width` a `--height` ve sloupcích a řádcích terminálu, `--mode` buď `braille` (výchozí a mnohem jemnější), nebo `block`, procentuální `--threshold` pro rozhodování, které pixely se počítají jako součást loga, a `--invert` pro případy, kdy je vaše logo světlé na tmavém pozadí. Pokud z převodu vyjde jen šmouha, obvykle pomůže upravit práh.
 
 ### Slova místo loga
 
-`omarchy ascii` kreslí text fontem Delta Corps Priest 1, FIGlet fontem, kterým je nakreslen samotný wordmark Omarchy, takže spořič obrazovky může něco říkat, místo aby ukazoval obrázek:
+`omarchy ascii` kreslí text písmem Delta Corps Priest 1, FIGlet písmem, kterým je nakreslen samotný wordmark Omarchy, takže spořič obrazovky může něco říkat, místo aby ukazoval obrázek:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Přijímá text jako argumenty, nebo ho čte z roury, když žádné nedostane. Font obsahuje pouze písmena a mezery — byl nakreslen bez číslic a interpunkce — takže cokoli jiného je vyřazeno a pojmenováno na stderr, místo aby to bylo tiše spolknuto.
+Přijímá text jako argumenty, nebo ho čte z roury, když žádné nedostane. Písmo obsahuje pouze písmena a mezery — byl nakreslen bez číslic a interpunkce — takže cokoli jiného se vynechá a vypíše na stderr, místo aby se tiše ztratilo.

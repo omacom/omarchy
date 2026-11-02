@@ -8,13 +8,13 @@ Tento panel vyhledává Wi-Fi sítě, ukazuje sílu signálu a připojuje se k n
 
 Místo abyste nahlas četli dlouhé heslo, spusťte _Nastavení > Síť > QR kód_, když jste připojeni k Wi-Fi. Na obrazovce se tím zobrazí QR kód, který může naskenovat fotoaparát jakéhokoli telefonu a připojit se. Je to jedna z těch věcí, které budete používat častěji, než byste čekali, jakmile o ní budete vědět.
 
-Pokud skutečně potřebujete samotné heslo, příkaz `omarchy network password <interface>` ho vytiskne.
+Pokud skutečně potřebujete samotné heslo, příkaz `omarchy network password <interface>` ho vypíše.
 
 ## DNS
 
 Omarchy používá DNS, které vaše síť předává přes DHCP. Pro celý počítač to můžete změnit v _Nastavení > Síť > DNS_, kde jsou Cloudflare a Google na jedno kliknutí. Zvolte _Vlastní_, pokud chcete zadat vlastní servery.
 
-Z terminálu příkaz `omarchy dns` vytiskne aktuálního poskytovatele a `omarchy dns Cloudflare` jednoho nastaví.
+Z terminálu příkaz `omarchy dns` vypíše aktuálního poskytovatele a `omarchy dns Cloudflare` ho nastaví.
 
 ## Výběr pásma Wi-Fi
 
@@ -24,22 +24,22 @@ Omezí se pouze pásmo, nikoli konkrétní přístupový bod. Zařízení tak m�
 
 ## Jak rychlé to je?
 
-_Akce > Test rychlosti > Test rychlosti sítě_ měří vaši skutečnou rychlost stahování a odesílání pomocí dvojice ukazatelů. Z terminálu je to `omarchy network speedtest down` nebo `up`. Měření probíhá proti vlastní službě Omarchy a započítává pouze její testovací přenosy. Ostatní stahování mohou soupeřit o šířku pásma, ale do výsledku testu rychlosti se nepřičítají. (V tomto menu vedle něj najdete test rychlosti disku, pokud chcete změřit druhé úzké hrdlo.)
+_Akce > Test rychlosti > Test rychlosti sítě_ měří vaši skutečnou rychlost stahování a odesílání pomocí dvojice ukazatelů. Z terminálu je to `omarchy network speedtest down` nebo `up`. Měření probíhá proti vlastní službě Omarchy a započítává pouze její testovací přenosy. Ostatní stahování mohou soupeřit o šířku pásma, ale do výsledku testu rychlosti se nepřičítají. (V této nabídce vedle něj najdete test rychlosti disku, pokud chcete změřit druhé úzké hrdlo.)
 
 ## Firewall
 
 Firewall je ve výchozím nastavení zapnutý a blokuje veškerý příchozí provoz, s jedinou výjimkou: port 53317, aby [LocalSend](22-guis.md) fungoval okamžitě po instalaci.
 
-SSH je vypnuté, dokud ho nezapnete volbou _Nastavení > Zabezpečení > SSHD_, která spustí démona, otevře port 22 s omezením rychlosti proti útokům hrubou silou a autorizuje klíč. I Docker je uzamčený, aby se kontejnery nemohly nechtěně vystavit světu. Celý příběh najdete v části [zabezpečení](48-security.md).
+SSH je vypnuté, dokud ho nezapnete volbou _Nastavení > Zabezpečení > SSHD_, která spustí démona, otevře port 22 s omezením rychlosti proti útokům hrubou silou a autorizuje klíč. I Docker je uzamčený, aby se kontejnery nemohly nechtěně vystavit světu. Podrobnosti najdete v kapitole [zabezpečení](48-security.md).
 
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) je síťová VPN typu mesh, která umožňuje jednoduše a bezpečně dosáhnout na všechny vaše počítače a servery přes internet. Nainstalujete ji volbou _Instalovat > Služba > Tailscale_.
 
-Na horní liště tím získáte ikonu Tailscale. Otevře ovládací panel, ve kterém se můžete připojit k síti Tailscale nebo se odpojit, přepnout účet a vybrat výstupní uzel — v seznamu se objeví vaše vlastní počítače i regiony sítě Mullvad. Zobrazuje také vaše počítače a nabízí Taildrop: vyberete počítač a stiskem `s` mu pošlete soubory, případně pomocí `c`, `n` a `d` zkopírujete jeho IP adresu, název nebo úplný název DNS. Ekvivalentem v terminálu je `omarchy tailscale send <machine> [file...]` a soubory odeslané vám automaticky skončí ve složce `~/Downloads`. Oznámení o doručení čeká, dokud na něj nekliknete a neotevřete ho nebo ho nezavřete, takže soubor, který dorazí, zatímco nejste u počítače, na vás po návratu stále čeká.
+Na horní liště tím získáte ikonu Tailscale, která otevře ovládací panel, ve kterém se můžete připojit k síti Tailscale nebo se odpojit, přepnout účet a vybrat výstupní uzel — v seznamu se objeví vaše vlastní počítače i regiony sítě Mullvad. Zobrazuje také vaše počítače a nabízí Taildrop: vyberete počítač a stiskem `s` mu pošlete soubory, případně pomocí `c`, `n` a `d` zkopírujete jeho IP adresu, název nebo úplný název DNS. Ekvivalentem v terminálu je `omarchy tailscale send <machine> [file...]` a soubory odeslané vám automaticky skončí ve složce `~/Downloads`. Oznámení o doručení čeká, dokud na něj nekliknete a neotevřete ho nebo ho nezavřete, takže soubor, který dorazí, zatímco nejste u počítače, na vás po návratu stále čeká.
 
 Instalace rovněž přidá webovou aplikaci pro administrační konzoli Tailscale.
 
 ## Když to přestane fungovat
 
-Než budete restartovat, zkuste restartovat pouze vadnou součást samostatně. _Aktualizovat > Hardware_ obsahuje Wi-Fi, Bluetooth, Audio a Trackpad a opětovné načtení jedné z těchto položek vyřeší většinu situací typu „před pěti minutami to fungovalo“. Viz [řešení potíží](45-troubleshooting.md).
+Než restartujete počítač, zkuste restartovat jen problematickou součást. _Aktualizovat > Hardware_ obsahuje Wi-Fi, Bluetooth, Zvuk a Trackpad a opětovné načtení jedné z těchto položek vyřeší většinu situací typu „před pěti minutami to fungovalo“. Viz [Řešení potíží](45-troubleshooting.md).

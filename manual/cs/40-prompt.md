@@ -1,6 +1,6 @@
 # Výzva terminálu
 
-Omarchy používá jednoduchou výzvu terminálu [Starship](https://starship.rs/). Takhle ji mám nejradši. Uživatelské jméno nepotřebuji, protože jsem to vždycky já, a čas také ne, protože ho vidím nahoře na liště.
+Omarchy ve výchozím nastavení používá jednoduchou výzvu terminálu [Starship](https://starship.rs/). Takhle ji mám nejradši. Uživatelské jméno nepotřebuji, protože jsem to vždycky já, a čas také ne, protože ho vidím nahoře na liště.
 
  ![prompt](images/prompt.webp)
 

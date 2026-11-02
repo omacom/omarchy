@@ -25,10 +25,10 @@ RetroArch je plně předkonfigurovaný s krásným shaderem CRT Royale pro dokon
 Jak začít:
 
 1. Vložte své soubory BIOS do adresáře `~/Games/bios` a své ROM do adresáře `~/Games/roms`.
-2. Spusťte RetroArch pomocí klávesové zkratky `Super + Space` a zadáním příkazu `retro`.
+2. Stiskněte `Super + Space`, napište `retro` a spusťte RetroArch.
 3. Prohledejte adresář `~/Games/roms` a můžete hrát.
 
-Svou oblíbenou hru si můžete přidat jako vlastní položku ve spouštěči aplikací pomocí části _Instalovat > Hry > Spouštěč her RetroArch_, která vám umožní vybrat jádro a ROM a přejít přímo do hry z klávesové zkratky `Super + Space`.
+Svou oblíbenou hru si můžete přidat jako vlastní položku ve spouštěči aplikací pomocí položky _Instalovat > Hry > Spouštěč her RetroArch_, která vám umožní vybrat jádro a ROM a spustit hru rovnou ze spouštěče (`Super + Space`).
 
  ![gaming-retroarch](images/gaming-retroarch.webp)
 
@@ -60,7 +60,7 @@ Nainstalujte podporu pro ovladače Xbox přes Bluetooth výběrem položky _Inst
 
 ## Moonlight (streamování her z počítače)
 
-[klient Moonlight](https://github.com/moonlight-stream/moonlight-qt) je s Omarchy předinstalovaný, takže můžete okamžitě streamovat hry z počítače se systémem Windows, na kterém běží služba [Sunshine](https://app.lizardbyte.dev/Sunshine/). Moonlight spusťte prostřednictvím klávesové zkratky `Super + Space`.
+[Klient Moonlight](https://github.com/moonlight-stream/moonlight-qt) je s Omarchy předinstalovaný, takže můžete okamžitě streamovat hry z počítače se systémem Windows, na kterém běží služba [Sunshine](https://app.lizardbyte.dev/Sunshine/). Moonlight spusťte prostřednictvím klávesové zkratky `Super + Space`.
 
 Pokud jsou počítač s Omarchy i vzdálený herní počítač připojené k síti kabelem, je zážitek k nerozeznání od místního hraní. Zvyšte rozlišení na nativní, nastavte obnovovací frekvenci na 120 Hz a maximalizujte přenosovou rychlost — toto je nejlepší způsob, jak v Linuxu hrát soutěžní střílečky, například Fortnite.
 
@@ -80,6 +80,6 @@ Instalace se může občas zadrhávat a chvílemi to vypadá, že se nic neděje
 
 ## Spouštěč Heroic (Epic Games)
 
-Nainstalujte [spouštěč Heroic](https://heroicgameslauncher.com/) výběrem položky _Instalovat > Hry > Heroic (Epic Games)_ z nabídky Omarchy (`Super + Space`). Heroic umožňuje spouštět tituly z Epic Games, například OddSparks, které nevyžadují ochranu proti podvádění — plus hry z GOG a Amazon Prime Gaming. Bohužel to znamená žádný Fortnite a žádný Rocket League — dokud Tim Sweeney nepřejde do Linuxu, toto je nejdál, kam se dostaneme.
+Nainstalujte [spouštěč Heroic](https://heroicgameslauncher.com/) výběrem položky _Instalovat > Hry > Heroic (Epic Games)_ z nabídky Omarchy (`Super + Space`). Heroic umožňuje spouštět tituly z Epic Games, například OddSparks, které nevyžadují ochranu proti podvádění — plus hry z GOG a Amazon Prime Gaming. Bohužel to znamená, že Fortnite ani Rocket League nespustíte — dokud Tim Sweeney nepřijde s podporou Linuxu, toto je nejdál, kam se dostaneme.
 
 Stejně jako u Lutrisu může být instalace her pomalá a občas se zadrhnout. Dejte jí čas.

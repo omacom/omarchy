@@ -6,11 +6,11 @@ Pokud jste strávili roky na macOS nebo Windows, vaše prsty znají sto věcí, 
 
 Veškerá svalová paměť, kterou jste si vybudovali kolem Cmd nebo klávesy Windows, se přenáší na jedinou klávesu: Super. To je klávesa Windows na PC klávesnici a je kotvou téměř každé klávesové zkratky v Omarchy.
 
-Váš reflex na Spotlight, Raycast nebo nabídku Start se stává `Super + Space`. To otevře nabídku Omarchy, která spouští aplikace, mění nastavení, instaluje software, zachycuje obrazovku — prostě skoro všechno. Začněte psát a filtrujete. `Super + Alt + Space` zobrazí všechny aplikace v jedné mřížce, stejně jako to dělá Launchpad. Viz [navigace](04-navigation.md).
+Váš reflex na Spotlight, Raycast nebo nabídku Start se stává `Super + Space`. To otevře nabídku Omarchy, která spouští aplikace, mění nastavení, instaluje software, zachycuje obrazovku — prostě skoro všechno. Začněte psát a nabídka se začne filtrovat. `Super + Alt + Space` zobrazí všechny aplikace v jedné mřížce, stejně jako to dělá Launchpad. Viz [navigace](04-navigation.md).
 
 ### Není tu žádný dock ani ikony na ploše
 
-Není na co klikat pro spouštění věcí, žádné ikony k uspořádání na ploše. Aplikace se spouštějí klávesovou zkratkou (`Super + Return` pro terminál, `Super + Shift + Return` pro prohlížeč a `Super + K` pro seznam všeho, co je namapováno) nebo z nabídky. Jediným trvalým prvkem uživatelského rozhraní je [horní lišta](05-the-top-bar.md), která pokrývá to, co pro vás dříve dělaly lišta nabídek, systémová lišta a Centrum oznámení — a téměř každý widget na ní dělá něco při levém, pravém a prostředním kliknutí.
+Nemáte na co kliknout, abyste něco spustili, žádné ikony k uspořádání na ploše. Aplikace se spouštějí klávesovou zkratkou (`Super + Return` pro terminál, `Super + Shift + Return` pro prohlížeč a `Super + K` pro seznam všeho, co je namapováno) nebo z nabídky. Jediným trvalým prvkem uživatelského rozhraní je [horní lišta](05-the-top-bar.md), která pokrývá to, co pro vás dříve dělaly řádek nabídek, oznamovací oblast a Centrum oznámení — a téměř každý widget na ní dělá něco při levém, pravém a prostředním kliknutí.
 
 ### Okna se umisťují sama
 
@@ -24,7 +24,7 @@ Pracovní plochy vám budou povědomé: jsou to macOS Spaces nebo virtuální pl
 
 Na Macu jste měli všude Cmd + C. Ve Windows jste měli všude Ctrl + C — kromě terminálu, kde vám to zabije program. Omarchy vám dává `Super + C`, `Super + X` a `Super + V` a fungují všude, včetně terminálu. Nemusíte se učit žádný zvláštní reflex pro shell.
 
-Lidé z Windows: vaše historie schránky z Win + V žije na `Super + Ctrl + V` a uchovává obrázky stejně jako text. Viz [jednotná schránka a historie](08-unified-clipboard-history.md).
+Uživatelé Windows: vaše historie schránky z Win + V žije na `Super + Ctrl + V` a uchovává obrázky stejně jako text. Viz [jednotná schránka a historie](08-unified-clipboard-history.md).
 
 ### Překladová tabulka
 
@@ -40,15 +40,15 @@ Lidé z Windows: vaše historie schránky z Win + V žije na `Super + Ctrl + V` 
 
 ### Některé věci jsou opravdu jiné
 
-Spousta nastavení žije v textových souborech, které upravujete, ne v panelech, kterými se proklikáváte. Zní to primitivně, dokud si neuvědomíte, že to znamená, že každou úpravu lze vidět, zkopírovat na váš další počítač a dát pod správu verzí. Nabídka _Nastavení_ vás hodí rovnou do správného souboru a po dokončení restartuje vše, co restart potřebuje.
+Spousta nastavení žije v textových souborech, které upravujete, ne v dialozích, kterými se proklikáváte. Zní to primitivně, dokud si neuvědomíte, že to znamená, že každou úpravu lze vidět, zkopírovat na váš další počítač a dát pod správu verzí. Nabídka _Nastavení_ vás hodí rovnou do správného souboru a po dokončení restartuje vše, co restart potřebuje.
 
-Aktualizace přicházejí jedním příkazem — _Aktualizovat > Omarchy_ — který aktualizuje samotné Omarchy i každý balíček v systému a předtím pořídí snímek. Žádné aktualizační programy jednotlivých aplikací, které by vás otravovaly v náhodných chvílích. Viz [aktualizace](30-updates.md).
+Aktualizace přicházejí jedním příkazem — _Aktualizovat > Omarchy_ — který aktualizuje samotnou Omarchy i každý balíček v systému a předtím pořídí snímek. Žádné aktualizační programy jednotlivých aplikací, které by vás otravovaly v náhodných chvílích. Viz [aktualizace](30-updates.md).
 
 Software pochází ze správce balíčků, ne ze stažených instalátorů.
 
 A když okno zavřete, aplikace se skutečně ukončí. Neexistuje žádné macOS limbo, kde program běží dál bez oken. `Super + W` — nebo `Super + Q`, pokud jste přišli s touhle svalovou pamětí prstů — znamená pryč.
 
-### Na hardwaru Mac
+### Na hardwaru od Applu
 
 Omarchy běží dobře na Macech s procesorem Intel — viz [podpora Maců](44-mac-support.md). A klávesnice je k vám laskavá: Omarchy nic nepřemapovává a Linux zachází s klávesou Command jako se Super, takže Super sedí přesně tam, kde vždycky bylo Cmd. Váš palec si přesunu ani nevšimne.
 

@@ -24,7 +24,7 @@ Kliknutím pravým tlačítkem na hodiny na liště budete procházet běžné f
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Tím se zobrazí Sunday 10:55 AM.
+Tím se zobrazí den v týdnu a čas ve 12hodinovém formátu, například „neděle 10:55“ s označením dopoledne nebo odpoledne.
 
 ### Jak změnit časové pásmo?
 
@@ -32,7 +32,7 @@ V nabídce Omarchy spusťte volbu _Aktualizovat > Časové pásmo_ a vyberte ze 
 
 ### Jak změnit DNS, sdílet Wi-Fi nebo zkontrolovat rychlost připojení?
 
-To vše najdete v části [síť](35-networking.md).
+To vše najdete v kapitole [Síťové připojení](35-networking.md).
 
 ### Jak zjistím, jak rychlý je můj disk?
 
@@ -40,15 +40,15 @@ Volba _Akce > Test rychlosti > Test rychlosti disku_ měří aktuální rychlost
 
 ### Proč se nemohu v Chromiu přihlásit ke svému účtu Google?
 
-Čistě otevřená sestava Chromia se nedodává s přihlašovacími údaji OAuth, které Google pro přihlášení k účtu vyžaduje. V nabídce Omarchy spusťte volbu _Instalovat > Služba > Účet Chromium_, čímž je přidáte, restartujte prohlížeč a přihlášení proběhne.
+Běžná open source sestava Chromia se nedodává s přihlašovacími údaji OAuth, které Google pro přihlášení k účtu vyžaduje. V nabídce Omarchy spusťte volbu _Instalovat > Služba > Účet Chromium_, čímž je přidáte, restartujte prohlížeč a přihlášení proběhne.
 
 ### Jak přidám tiskárnu?
 
-Tisk je nastavený a hned po instalaci běží a jednotlivé tiskárny si přidáváte sami v části _Print Settings_ ve spouštěči aplikací (`Super + Space`).
+Tisk je nastavený a funguje hned po instalaci; jednotlivé tiskárny si přidáváte sami v části _Print Settings_ ve spouštěči aplikací (`Super + Space`).
 
 Zvolte _Add_ a dejte tomu chvilku na vyhledání: najde se tiskárna připojená přes USB a většina síťových tiskáren. Pokud vaše tiskárna v seznamu není, vyberte _Network Printer > Internet Printing Protocol (ipp)_ a zadejte její adresu — tu vám sdělí displej tiskárny nebo její webová stránka, obvykle něco jako `192.168.1.50` s frontou `ipp/print`. Volba _Forward_ poté nabídne ovladač, přičemž moderní tiskárna funguje nejlépe s bezovladačovým profilem _IPP Everywhere_ a starší tiskárna chce vlastní ovladač daného modelu.
 
-Klikněte na tiskárnu pravým tlačítkem a volbou _Set as Default_ vyberte, kterou tiskárnu mají vaše aplikace používat jako první, a volbou _Properties_ nastavíte formát papíru, oboustranný tisk a kvalitu.
+Klikněte na tiskárnu pravým tlačítkem a volbou _Set as Default_ vyberte, kterou tiskárnu mají vaše aplikace používat jako první, a volbou _Properties_ nastavte formát papíru, oboustranný tisk a kvalitu.
 
 Automatické vyhledávání, při kterém se tiskárny v síti objeví, aniž by byly přidány, je během přepracování dočasně vypnuté, a proto je první krok výše na vás, nikoli automatický. Tisk do souboru PDF funguje i zcela bez tiskárny.
 
@@ -66,7 +66,7 @@ Omasnap si adresář pro snímky obrazovky vytvoří sám. Adresář pro záznam
 
 ### Jak zprovozním reproduktory a webovou kameru na Apple Studio Display?
 
-Člověk by čekal, že vše bude fungovat pouhým připojením přes USB C, ale bohužel tomu tak není. Řešení, které jsem našel a které funguje spolehlivě, spočívá v použití [kabelu WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Potom fungují reproduktory i webová kamera jako z partesu.
+Člověk by čekal, že vše bude fungovat pouhým připojením přes USB C, ale bohužel tomu tak není. Řešení, které jsem našel a které funguje spolehlivě, spočívá v použití [kabelu WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Potom fungují reproduktory i webová kamera bez problémů.
 
 Nezapomeňte, že pro displeje Apple (Studio i XDR) máte v systému Omarchy vestavěné ovládání jasu pomocí běžných kláves pro jas na klávesnici.
 

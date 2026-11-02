@@ -1,8 +1,8 @@
 # Instalace bez obsluhy
 
-ISO Omarchy se dokáže nainstalovat samo, aniž by někdo seděl u klávesnice. Pokud instalační program najde druhý disk s označením `cidata`, který obsahuje jeho konfigurační soubory, zkopíruje je z něj, úplně přeskočí průvodce nastavením a sám se restartuje do hotového systému. Žádný speciální build ISO, žádná další položka ve spouštěcí nabídce — pokud takový disk není připojený, nic se nezmění a dostanete běžného průvodce.
+ISO Omarchy se dokáže nainstalovat samo, aniž by někdo seděl u klávesnice. Pokud instalační program najde druhý disk se jmenovkou `cidata`, který obsahuje jeho konfigurační soubory, zkopíruje je z něj, úplně přeskočí průvodce nastavením a sám se restartuje do hotového systému. Žádný speciální sestavení ISO, žádná další položka ve spouštěcí nabídce — pokud takový disk není připojený, nic se nezmění a dostanete běžného průvodce.
 
-Díky tomu se Omarchy výborně hodí jako základní obraz pro jednorázová vývojová prostředí: vytvoříte virtuální počítač v systému Proxmox nebo pomocí nástroje Packer, spustíte ho, odejdete a přihlásíte se přes SSH. Jmenovku `cidata` používá zdroj dat `NoCloud` nástroje cloud-init, takže všechny běžné virtualizační nástroje už takovou jednotku připojit umějí.
+Díky tomu se Omarchy výborně hodí jako základní obraz pro jednorázová vývojová prostředí: vytvoříte virtuální počítač v systému Proxmox nebo pomocí nástroje Packer, spustíte ho, odejdete a přihlásíte se přes SSH. Jmenovku `cidata` používá zdroj dat `NoCloud` nástroje cloud-init, takže všechny běžné virtualizační nástroje už takový disk připojit umějí.
 
 ## Konfigurační soubory
 
@@ -20,13 +20,13 @@ Hash hesla pro `user_credentials.json` vygenerujete pomocí `openssl passwd -6 "
 
 Jméno a e-mail pro commity v gitu součástí instalace nejsou. Nastavte je, jakmile stroj běží, například přes SSH pomocí `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-Místo `user_credentials.json` můžete také vložit prázdný soubor s názvem `defer-provisioning`. Tím se spustí stejná [instalace s přípravou pro jiného vlastníka](02-getting-started.md), kterou můžete spustit interaktivně: stroj se nainstaluje bez jakýchkoli osobních údajů a ten, kdo ho spustí jako první, si vybere klávesnici a vytvoří svého uživatele. To je režim pro imagingové stroje, kde disk nemá obsahovat vůbec ničí přihlašovací údaje.
+Místo `user_credentials.json` můžete také vložit prázdný soubor s názvem `defer-provisioning`. Tím se spustí stejná [instalace s přípravou pro jiného vlastníka](02-getting-started.md), kterou můžete spustit interaktivně: stroj se nainstaluje bez jakýchkoli osobních údajů a ten, kdo ho spustí jako první, si vybere klávesnici a vytvoří svého uživatele. To je režim pro stroje pro hromadné vytváření diskových obrazů, kde disk nemá obsahovat vůbec ničí přihlašovací údaje.
 
 ## Přístup přes SSH
 
-Když je přítomen soubor `authorized_keys`, instalace nastaví klíče jako `~/.ssh/authorized_keys` uživatele, povolí `sshd` a otevře pro něj firewall. (Běžná instalace Omarchy obsahuje openssh s vypnutou službou a zavřeným portem, takže stroj bez obsluhy by jinak byl nedostupný.) Instalace pouze přidá vaše klíče — nezměkčuje žádná další nastavení ověřování démona SSH.
+Když je přítomen soubor `authorized_keys`, instalace nastaví klíče jako `~/.ssh/authorized_keys` uživatele, povolí `sshd` a otevře pro něj firewall. (Běžná instalace Omarchy obsahuje openssh s vypnutou službou a zavřeným portem, takže stroj bez obsluhy by jinak byl nedostupný.) Instalace pouze přidá vaše klíče — neoslabuje žádná další nastavení ověřování démona SSH.
 
-Když je naopak přítomen soubor `tailscale_authkey`, stroj se při prvním spuštění připojí k vaší síti tailnet: Tailscale se nainstaluje z balíčků přibalených na ISO, firewall povolí rozhraní tailnetu a úloha na pozadí provede připojení, jakmile bude mít stroj skutečně síť, a opakuje pokusy, dokud se jí to nepodaří. Použijte opakovaně použitelný, předem autorizovaný klíč, aby jedna image disku mohla sloužit mnoha strojům.
+Když je naopak přítomen soubor `tailscale_authkey`, stroj se při prvním spuštění připojí k vaší síti tailnet: Tailscale se nainstaluje z balíčků přibalených na ISO, firewall povolí rozhraní tailnetu a úloha na pozadí provede připojení, jakmile bude mít stroj skutečně síť, a opakuje pokusy, dokud se jí to nepodaří. Použijte opakovaně použitelný, předem autorizovaný klíč, aby jeden obraz disku mohla sloužit mnoha strojům.
 
 ## Vytvoření disku cidata
 
@@ -58,4 +58,4 @@ Disk je v pořadí spouštění první záměrně. Při prvním spuštění je p
 
 ## Dvě výhrady
 
-Šifrované bezobslužné instalace nejsou úplně bezobslužné — někdo přece jen musí při prvním spuštění zadat heslo LUKS. A blok `disk_encryption` v souboru `user_configuration.json` toto heslo obsahuje v nešifrované podobě, takže s jednotkou cidata vytvořenou na základě šifrované instalace nakládejte jako s tajemstvím, kterým skutečně je.
+Šifrované bezobslužné instalace nejsou úplně bezobslužné — někdo přece jen musí při prvním spuštění zadat heslo LUKS. A blok `disk_encryption` v souboru `user_configuration.json` toto heslo obsahuje v nešifrované podobě, takže s diskem cidata vytvořeným na základě šifrované instalace nakládejte jako s tajemstvím, kterým skutečně je.
