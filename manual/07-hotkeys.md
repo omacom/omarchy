@@ -27,8 +27,10 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + Tab` | Jump to former workspace on the focused monitor |
 | `Super + Shift + 1/2/3/4` | Move window to workspace on the focused monitor |
 | `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
-| `Super + S` / `Super + Grave` | Toggle scratchpad |
-| `Super + Alt + S` / `Super + Shift + Grave` | Move window to scratchpad |
+| `Super + S` | Toggle full scratchpad |
+| `Super + Alt + S` | Move window to full scratchpad |
+| `Super + Grave` | Toggle Quake console |
+| `Super + Shift + Grave` | Move window to Quake console |
 | `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
 | `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
 | `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
@@ -60,6 +62,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Alt + Shift + Tab` | Cycle backward through windows on the active workspace |
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
+
+Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<AE12>`), regardless of the characters printed on the keyboard. On US keyboards these keys are `-` and `=`; on Japanese (JIS) keyboards they are `-` and `^`; on Spanish keyboards they are `'` and `¡`. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`.
 
 ## System controls
 
@@ -133,6 +137,7 @@ Change/add bindings in `~/.config/hypr/bindings.lua`.
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
+| `Super + A`           | Select all in apps that support `Ctrl + A`    |
 | `Super + C`           | Copy    |
 | `Super + X`           | Cut (not in terminal)    |
 | `Super + V`           | Paste    |
@@ -154,8 +159,8 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
 | `Alt + Shift + L` | Copy current URL from webapp or Chromium |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
-| `Super + Ctrl + X` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Push-to-talk dictation (requires Voxtype or Superwhisper) |
+| `Alt + Space` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
+| `Right Alt` | Hold to dictate (requires _Setup > Defaults > Dictation_) |
 
 With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. See [screenshots and recording](12-screenshots-recording.md) for the details.
 
@@ -165,11 +170,12 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Dismiss latest notification  |
+| `Super + ,` | Act on latest notification: open it or press its only button, pick from its choices, or dismiss it when it has none  |
 | `Super + Shift + ,` | Dismiss all notifications |
-| `Super + Ctrl + ,` | Toggle silencing notifications  |
-| `Super + Alt + ,` | Invoke most recent notification  |
+| `Super + Ctrl + ,` | Control notifications with the keyboard  |
+| `Super + Alt + ,` | Dismiss latest notification  |
 | `Super + Shift + Alt + ,` | Open notification history  |
+| `Super + Ctrl + Alt + ,` | Toggle silencing notifications  |
 
 ## Style
 
@@ -304,7 +310,7 @@ Ghostty terminal is installed using _Install > Terminal_ via the Omarchy menu.
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Go to path                     |
 | `Space`               | Preview file (arrows navigate) |
-| `Backspace`      | Go back one folder             |
+| `Alt + Up`       | Go up to parent folder        |
 
 ## Neovim (w/ lazyvim)
 

@@ -461,8 +461,6 @@ alternative_chord_actions() {
   cat <<'ACTIONS'
 Close window
 Calculator
-Toggle scratchpad
-Move window to scratchpad
 ACTIONS
 }
 
@@ -601,7 +599,7 @@ prioritize_entries() {
     if (match(line, /Resize window/))  prio = 35
     if (match(line, /Expand window/))  prio = 36
     if (match(line, /Shrink window/))  prio = 37
-    if (match(line, /scratchpad/))  prio = 38
+    if (match(line, /scratchpad|Quake console/))  prio = 38
     if (match(line, /notification/))  prio = 39
     if (match(line, /Toggle window transparency/))  prio = 40
     if (match(line, /Toggle workspace gaps/))  prio = 41

@@ -1,32 +1,32 @@
-# Oövervakade installationer
+# Obevakade installationer
 
-Omarchy ISO kan installera sig själv utan någon vid tangentbordet. Om installationsprogrammet hittar en andra enhet märkt `cidata` som bär dess konfigurationsfiler kopierar det av dem, hoppar över installationsguiden helt och startar om in till det färdiga systemet på egen hand. Inget specialbygge av ISO, ingen extra post i startmenyn — utan en sådan enhet ansluten ändras ingenting och du får den normala guiden.
+Omarchy-ISO:n kan installera sig själv utan någon vid tangentbordet. Om installationsprogrammet hittar en andra enhet med etiketten `cidata` som innehåller dess konfigurationsfiler kopierar det över dem, hoppar över installationsguiden helt och startar om till det färdiga systemet på egen hand. Ingen särskild ISO-byggnad, ingen extra post i startmenyn — utan en sådan enhet ansluten förändras ingenting och du får den vanliga guiden.
 
-Detta gör Omarchy fantastisk som basbild för engångsmiljöer för utveckling: skapa en VM i Proxmox eller med Packer, starta den, gå därifrån, SSH:a in. `cidata` är cloud-init `NoCloud`-etiketten, så alla vanliga virtualiseringsverktyg vet redan hur man ansluter en sådan enhet.
+Det gör Omarchy utmärkt som basavbildning för tillfälliga utvecklingsmiljöer: skapa en VM i Proxmox eller med Packer, starta den, gå därifrån, anslut via SSH. `cidata` är cloud-init-etiketten `NoCloud`, så alla vanliga virtualiseringsverktyg vet redan hur man ansluter en sådan enhet.
 
 ## Konfigurationsfilerna
 
-Filerna är exakt vad installationsprogrammets egen guide skriver, så det enklaste sättet att få en startuppsättning är att köra en interaktiv installation (i en VM, till exempel) och kopiera det den skrev till `/root`:
+Filerna är exakt det som installationsprogrammets egen guide skriver, så det enklaste sättet att få en startuppsättning är att köra en interaktiv installation (till exempel i en VM) och kopiera det den skrev till `/root`:
 
-| Fil | Krävs | Syfte |
+| Fil | Obligatorisk | Syfte |
 |------|----------|---------|
 | `user_configuration.json` | Ja | Disk, värdnamn, tidszon, tangentbord |
 | `user_credentials.json` | Ja | Användarnamn och lösenordshash |
-| `user_full_name.txt` | Nej | Git fullständigt namn |
-| `user_email_address.txt` | Nej | Git e-post |
-| `user_encrypt_installation.txt` | Nej | `true` när konfigurationen bär ett `disk_encryption`-block |
-| `authorized_keys` | Nej | SSH publika nycklar, en per rad |
-| `tailscale_authkey` | Nej | Tailscale auth-nyckel för att ansluta till ditt tailnet vid första uppstart |
+| `user_encrypt_installation.txt` | Nej | `true` när konfigurationen innehåller ett `disk_encryption`-block |
+| `authorized_keys` | Nej | Publika SSH-nycklar, en per rad |
+| `tailscale_authkey` | Nej | Tailscale-auth-nyckel för att ansluta till ditt tailnet vid första uppstarten |
 
 Generera lösenordshashen för `user_credentials.json` med `openssl passwd -6 "yourpassword"`.
 
-Du kan också lägga in en tom fil med namnet `defer-provisioning` på platsen för `user_credentials.json`. Det kör samma [installera-för-en-annan-ägare-installation](02-getting-started.md) som du kan utlösa interaktivt: datorn installeras utan personliga uppgifter, och den som startar den först väljer sitt tangentbord och skapar sin användare. Det är läget för avbildningsriggar, där enheten inte bör bära någons uppgifter alls.
+Namnet och e-postadressen för git-commits ingår inte i installationen. Ställ in dem när maskinen är igång, till exempel via SSH, med `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+Du kan också lägga in en tom fil med namnet `defer-provisioning` i stället för `user_credentials.json`. Då körs samma [installation som förbereder för en annan ägare](02-getting-started.md) som du kan starta interaktivt: maskinen installeras utan personuppgifter, och den som startar den först väljer sitt tangentbord och skapar sin användare. Det är läget för avbildningsriggar, där enheten inte ska innehålla någons inloggningsuppgifter alls.
 
 ## SSH-åtkomst
 
-När `authorized_keys` finns konfigurerar installationen nycklarna som användarens `~/.ssh/authorized_keys`, aktiverar `sshd` och öppnar brandväggen för den. (En standard Omarchy-installation levererar openssh med tjänsten inaktiverad och porten stängd, så en oövervakad dator skulle annars vara oåtkomlig.) Installationen lägger endast till dina nycklar — den lossar inte någon av SSH-demonens andra autentiseringsinställningar.
+När `authorized_keys` finns ställer installationen in nycklarna som användarens `~/.ssh/authorized_keys`, aktiverar `sshd` och öppnar brandväggen för den. (En vanlig Omarchy-installation levereras med openssh med tjänsten inaktiverad och porten stängd, så en obevakad maskin skulle annars vara oåtkomlig.) Installationen lägger bara till dina nycklar — den luckrar inte upp några av SSH-daemonens övriga autentiseringsinställningar.
 
-När `tailscale_authkey` finns ansluter datorn i stället till ditt tailnet vid första uppstart: Tailscale installeras från ISO:s bundlade paket, brandväggen tillåter tailnet-gränssnittet, och ett bakgrundsjobb kör anslutningen så snart datorn faktiskt har nätverk, och försöker igen tills den lyckas. Använd en återanvändbar, förauktoriserad nyckel så att en enhetsbild kan tjäna många datorer.
+När `tailscale_authkey` finns ansluter maskinen i stället till ditt tailnet vid första uppstarten: Tailscale installeras från ISO:ns medföljande paket, brandväggen tillåter tailnet-gränssnittet, och ett bakgrundsjobb kör anslutningen så snart maskinen faktiskt har nätverk, med nya försök tills det lyckas. Använd en återanvändbar, förhandsgodkänd nyckel så att en enhetsavbildning kan betjäna många maskiner.
 
 ## Bygga cidata-enheten
 
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Anslut den sedan till VM:en bredvid Omarchy ISO. Här är ett fullständigt Proxmox-exempel:
+Anslut den sedan till VM:en tillsammans med Omarchy-ISO:n. Här är ett komplett Proxmox-exempel:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Startordningen listar disken först med flit: den tomma disken faller igenom till ISO vid första start, och det installerade systemet startar från disk för alltid därefter.
+Startordningen listar disken först med flit: den tomma disken faller vidare till ISO:n vid första uppstarten, och det installerade systemet startar från disk för all framtid därefter.
 
 ## Två förbehåll
 
-Krypterade oövervakade installationer är inte helt oövervakade — någon måste fortfarande skriva LUKS-lösenfrasen vid första uppstarten. Och `disk_encryption`-blocket i `user_configuration.json` bär denna lösenfras i klartext, så behandla en cidata-enhet byggd från en krypterad installation som den hemlighet den är.
+Krypterade obevakade installationer är inte helt obevakade — någon måste fortfarande skriva in LUKS-lösenfrasen vid första uppstarten. Och `disk_encryption`-blocket i `user_configuration.json` innehåller den lösenfrasen i klartext, så behandla en cidata-enhet byggd från en krypterad installation som den hemlighet den är.

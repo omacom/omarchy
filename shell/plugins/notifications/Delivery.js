@@ -1,6 +1,7 @@
 // Whether a notification reaches the screen, and where the deck sits. Pure
 // functions over a snapshot row (Store.snapshot).
 .pragma library
+.import "Security.js" as Security
 
 var CRITICAL = 2
 
@@ -11,6 +12,24 @@ function bypassesQuiet(row) {
   var app = String((row && row.app) || "")
   if (app === "omarchy-action") return true
   return app === "notify-send" && Number(row.urgency) === CRITICAL
+}
+
+// The buttons a card offers, in the order it draws them and the number keys
+// count them: copying each code it found, then an Omarchy sender's --action
+// buttons, then the sender's own actions. A code's label is left to the card,
+// which translates it.
+function deeds(row, senderActions) {
+  var out = []
+  var codes = String((row && (row.codes || row.code)) || "").split(" ")
+  for (var c = 0; c < codes.length; c++)
+    if (codes[c]) out.push({ kind: "code", value: codes[c], label: "" })
+  var exec = Security.parseExecActions(row && row.execActions) || []
+  for (var e = 0; e < exec.length; e++)
+    out.push({ kind: "exec", value: e, label: exec[e].label })
+  var actions = senderActions || []
+  for (var i = 0; i < actions.length; i++)
+    out.push({ kind: "action", value: String(actions[i].id), label: String(actions[i].text || "") })
+  return out
 }
 
 // Nobody looks back at these (the `transient` hint, or an unnamed sender), so
