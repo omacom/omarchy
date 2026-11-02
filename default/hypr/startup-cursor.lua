@@ -34,8 +34,12 @@ function omarchy_startup_cursor_restore(loaded)
     hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
     hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
     hl.config({ cursor = cursor.config })
-    if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
+    local theme = (cursor.config.enable_hyprcursor and cursor.hyprcursor and cursor.hyprcursor ~= "" and cursor.hyprcursor) or cursor.xcursor
+    hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(theme) .. " " .. cursor.size)
+    -- Hyprland skips setcursor for the Xcursor theme it already has, so it never resyncs a stale GSettings itself.
+    if cursor.config.sync_gsettings_theme then
+      hl.exec_cmd("gsettings set org.gnome.desktop.interface cursor-theme " .. o.shell_quote(cursor.xcursor)
+        .. " && gsettings set org.gnome.desktop.interface cursor-size " .. cursor.size)
     end
     hl.exec_cmd("xsetroot -cursor_name left_ptr >/dev/null 2>&1 || true")
   elseif not cursor.restoring then
