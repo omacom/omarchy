@@ -256,6 +256,11 @@ assertEqual(network.hotspotSecurityLabel('mixed'), 'WPA2/WPA3', 'network labels 
 assert(/older devices can't join/.test(network.hotspotSecurityTooltip('wpa3', false, 'mixed')), 'network warns that WPA3 only shuts out older devices')
 assert(!/next start/.test(network.hotspotSecurityTooltip('mixed', true, 'mixed')), 'network does not defer the security the running hotspot already uses')
 assert(/\(from the next start\)$/.test(network.hotspotSecurityTooltip('wpa2', true, 'mixed')), 'network says a new security waits for the next start while on air')
+// The filled pill is what is on air while the hotspot runs, and what the
+// profile holds while it is off.
+const hotspotSaveDataInEffect = panelBinding('hotspotSaveDataInEffect')
+assertEqual(hotspotSaveDataInEffect({ hotspotActive: true, hotspotSaveDataOnAir: 'never', Model: network, hotspot: { save_data: 'always' } }), 'never', 'network fills the data choice on air, not one saved since the start')
+assertEqual(hotspotSaveDataInEffect({ hotspotActive: false, hotspotSaveDataOnAir: '', Model: network, hotspot: { save_data: 'always' } }), 'always', 'network fills the saved data choice while the hotspot is off')
 assertEqual(network.hotspotDefaultBand({}), '', 'network returns no hotspot band when none exist')
 assertDeepEqual(
   network.hotspotClients({ clients: '[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]' }),
