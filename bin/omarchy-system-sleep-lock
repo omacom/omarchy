@@ -90,6 +90,14 @@ sync_clamshell() {
     omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true
 }
 
+# Wake into the first layout, as `omarchy system lock` does. A password typed
+# in a non-Latin layout left active at suspend never matches, and the lock
+# screen offers no way to switch. Best-effort for the same reason as above.
+reset_keyboard_layout() {
+  timeout --kill-after=0.1s 0.4s \
+    hyprctl switchxkblayout all 0 >/dev/null 2>&1 || true
+}
+
 # logind suspends whether or not this wait succeeded, so a failure here means
 # the machine slept with the session exposed. The notification is the only way
 # anyone finds out, and it lands on the screen they unlock into. The journal
@@ -109,6 +117,7 @@ report_unsecured() {
 # cannot consume the window before Quickshell has begun securing the session.
 request_lock
 sync_clamshell
+reset_keyboard_layout
 
 # The trailing sleep can overshoot the deadline by one interval, which is well
 # inside the reserve derive_budget_ms already held back for logind.
