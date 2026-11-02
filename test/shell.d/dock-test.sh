@@ -109,6 +109,50 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
+const rgb = hex => {
+  const n = parseInt(hex.replace('#', ''), 16)
+  return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 }
+}
+assertEqual(Math.round(dock.contrastRatio(rgb('#000000'), rgb('#ffffff'))), 21, 'app grid measures contrast as WCAG does')
+const amber = dock.selectionRingColor(rgb('#e68e0d'), rgb('#bebebe'), rgb('#121212'), 0.9)
+assertDeepEqual([amber.r, amber.g, amber.b, amber.a], [rgb('#e68e0d').r, rgb('#e68e0d').g, rgb('#e68e0d').b, 0.9], 'app grid rings the selection in the accent when it stands out')
+const soft = dock.selectionRingColor(rgb('#56949f'), rgb('#575279'), rgb('#faf4ed'), 0.9)
+assertDeepEqual([soft.r, soft.g, soft.b, soft.a], [rgb('#575279').r, rgb('#575279').g, rgb('#575279').b, 1], 'app grid falls back to the text color when the accent is too faint')
+
+const fs = require('fs')
+const themeValue = (body, key) => (body.match(new RegExp(`^${key}\\s*=\\s*"(#[0-9a-fA-F]{6})"`, 'm')) || [])[1]
+for (const theme of fs.readdirSync(path.join(root, 'themes'))) {
+  const file = path.join(root, 'themes', theme, 'colors.toml')
+  if (!fs.existsSync(file)) continue
+  const body = fs.readFileSync(file, 'utf8')
+  const [accent, text, background] = ['accent', 'foreground', 'background'].map(key => themeValue(body, key))
+  if (!accent || !text || !background) continue
+  const ring = dock.selectionRingColor(rgb(accent), rgb(text), rgb(background), 0.9)
+  const bg = rgb(background)
+  const painted = { r: ring.r * ring.a + bg.r * (1 - ring.a), g: ring.g * ring.a + bg.g * (1 - ring.a), b: ring.b * ring.a + bg.b * (1 - ring.a) }
+  assert(dock.contrastRatio(painted, bg) >= 3, `app grid selection ring stands out at 3:1 in the ${theme} theme`)
+}
+
+assert(dock.isGridStep(3, 4, 7) && dock.isGridStep(4, 3, 7), 'app grid glides to the next cell in a row')
+assert(dock.isGridStep(3, 10, 7) && dock.isGridStep(10, 3, 7), 'app grid glides one row up or down')
+assert(!dock.isGridStep(6, 7, 7) && !dock.isGridStep(7, 6, 7), 'app grid snaps when a move wraps to another row')
+assert(!dock.isGridStep(3, 5, 7) && !dock.isGridStep(3, 3, 7), 'app grid snaps on a jump of more than one cell')
+assertDeepEqual(dock.gridCellOrigin(0, 7, 143, 126, 6, false), { x: 6, y: 6 }, 'app grid rings the first cell inside its gutter')
+assertDeepEqual(dock.gridCellOrigin(9, 7, 143, 126, 6, false), { x: 292, y: 132 }, 'app grid rings a cell on the last, partial row')
+assertDeepEqual(dock.gridCellOrigin(0, 7, 143, 126, 6, true), { x: 864, y: 6 }, 'app grid fills rows from the right in a right-to-left layout')
+
+assert(!dock.pointerMoved({ x: 40, y: 40 }, { x: 40, y: 40 }), 'app grid ignores a pointer that stays put while the grid scrolls')
+let anchor = { x: 0, y: 0 }
+const counted = []
+for (const x of [0.4, 0.8, 1.2, 1.6, 2.0, 2.4]) {
+  const point = { x, y: 0.3 }
+  if (dock.pointerMoved(anchor, point)) {
+    counted.push(x)
+    anchor = point
+  }
+}
+assertDeepEqual(counted, [1.2, 2.4], 'app grid adds up slow fractional pointer steps until they make a pixel')
+
 JS
 
 home="$TMPDIR/home"
