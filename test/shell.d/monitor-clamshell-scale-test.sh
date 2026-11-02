@@ -307,10 +307,14 @@ expect_sync "scale sync keeps the mode of the internal rule" 2 - 'mode = "2880x1
 expect_sync "clamshell recovery takes the catch-all mode when the panel has no rule" off 1.75 'mode = "highrr"' <<'LUA'
 hl.monitor({ output = "", mode = "highrr", position = "auto-right", scale = 1 })
 LUA
-expect_sync "clamshell recovery keeps the catch-all mode off a panel with its own rule" off 1.75 'mode = "preferred"' <<'LUA'
-hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
-hl.monitor({ output = "", mode = "2560x1440@144", position = "auto-right", scale = 1 })
-LUA
+for rule in \
+  'hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })' \
+  $'hl.monitor({\n  output = "eDP-1",\n  position = "0x0",\n})' \
+  "hl.monitor({ output = 'eDP-1', position = '0x0' })" \
+  'hl.monitor({ output = "desc:Sharp Corporation 0x1517", position = "0x0" })'; do
+  expect_sync "clamshell recovery keeps the catch-all mode off a panel that may have its own rule: $rule" off 1.75 'mode = "preferred"' <<<"$rule
+hl.monitor({ output = \"\", mode = \"2560x1440@144\", position = \"auto-right\", scale = 1 })"
+done
 
 expect_sync "clamshell recovery resolves a mode variable reference" off 1.75 'mode = "2880x1800@120"' <<'LUA'
 local omarchy_monitor_mode = "2880x1800@120"

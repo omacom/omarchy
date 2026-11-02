@@ -227,6 +227,12 @@ read_monitor_position() {
   echo auto
 }
 
+# Any output naming the panel, on whatever line, or matching by description
+# might be its rule, which the one-line reader above can miss.
+internal_may_have_rule() {
+  monitor_rules | grep -Eq "output[[:space:]]*=[[:space:]]*[\"']($INTERNAL|desc:[^\"']*)[\"']"
+}
+
 # The mode the user's rules give the panel, so re-enabling it does not drop a
 # chosen refresh rate or resolution: "preferred" lets Hyprland pick, and what it
 # picks can be a lower refresh rate than the one configured. The display panel's
@@ -236,7 +242,7 @@ read_monitor_mode() {
   local mode
   mode=$(saved_internal_monitor_value mode)
   [[ -n $mode ]] || mode=$(configured_internal_monitor_value mode)
-  if [[ -z $mode ]] && ! monitor_rules | grep -Eq "$(monitor_rule_regex "$INTERNAL")"; then
+  if [[ -z $mode ]] && ! internal_may_have_rule; then
     mode=$(configured_monitor_value "" mode)
   fi
   # A bare word naming no local reaches here as itself, so only Hyprland's mode
