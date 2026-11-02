@@ -20,6 +20,14 @@ printf 'drivers\n' >>"$OMARCHY_TEST_CALLS"
 exit "${OMARCHY_TEST_DRIVER_STATUS:-0}"
 SH
 
+# Answers pacman -Q from the packages the test says are installed; wine-staging provides wine.
+cat >"$stub_bin/pacman" <<'SH'
+#!/bin/bash
+installed=" ${OMARCHY_TEST_INSTALLED:-} "
+[[ $installed == *" wine-staging "* ]] && installed+="wine "
+[[ $1 == "-Q" && $installed == *" ${!#} "* ]]
+SH
+
 cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
 printf 'packages %s\n' "$*" >>"$OMARCHY_TEST_CALLS"
@@ -36,13 +44,23 @@ done
 chmod +x "$stub_bin"/*
 
 run_installer() {
-  local installer="$1" driver_status="$2"
+  local installer="$1" driver_status="$2" installed="${3:-}"
 
   : >"$test_tmp/calls"
   HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$stub_bin:$PATH" \
     OMARCHY_TEST_CALLS="$test_tmp/calls" OMARCHY_TEST_DRIVER_STATUS="$driver_status" \
+    OMARCHY_TEST_INSTALLED="$installed" \
     bash "$ROOT/bin/$installer" >"$test_tmp/output" 2>&1
 }
+
+for case in ":wine-staging" "wine:wine" "wine-staging:wine-staging"; do
+  installed=${case%%:*} expected=${case##*:}
+  run_installer omarchy-install-gaming-lutris 0 "$installed" ||
+    fail "Lutris installs with '$installed' present" "$(<"$test_tmp/output")"
+  packages=" $(sed -n 's/^packages //p' "$test_tmp/calls") "
+  [[ $packages == *" $expected "* ]] || fail "Lutris requests $expected with '$installed' present" "$packages"
+  pass "Lutris requests $expected with '$installed' present"
+done
 
 for installer in omarchy-install-gaming-lutris omarchy-install-gaming-battlenet; do
   run_installer "$installer" 0 || fail "$installer completes with stubbed dependencies" "$(<"$test_tmp/output")"
