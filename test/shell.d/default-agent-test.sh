@@ -130,13 +130,15 @@ done
 
 cat >"$mock_bin/ss" <<'SH'
 #!/bin/bash
-[[ ${OMARCHY_TEST_LISTENING:-} == "true" ]] && echo "LISTEN 0 511 127.0.0.1:3080 0.0.0.0:*"
+if [[ -n ${OMARCHY_TEST_LISTENER_PID:-} ]]; then
+  echo "LISTEN 0 511 127.0.0.1:3080 0.0.0.0:* users:((\"node\",pid=$OMARCHY_TEST_LISTENER_PID,fd=20))"
+fi
 exit 0
 SH
 
-cat >"$mock_bin/omarchy-launch-webapp" <<'SH'
+cat >"$mock_bin/omarchy-launch-browser" <<'SH'
 #!/bin/bash
-printf '%s\0' "$@" >"$OMARCHY_TEST_WEBAPP_LOG"
+printf '%s\0' "$@" >"$OMARCHY_TEST_BROWSER_LOG"
 SH
 
 chmod +x "$mock_bin"/*
@@ -767,11 +769,25 @@ mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
 # DSH's UI is a server on a fixed port, so a second press reopens the running
 # one rather than starting a server that cannot bind the port.
+bash -c 'exec -a dsh sleep 60' &
+dsh_pid=$!
 : >"$launch_log"
-OMARCHY_TEST_LISTENING=true OMARCHY_TEST_WEBAPP_LOG="$test_tmp/webapp" omarchy-agent --pick
+: >"$clipboard_log"
+OMARCHY_TEST_LISTENER_PID=$dsh_pid OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser" omarchy-agent-prompt "Review this"
 [[ ! -s $launch_log ]] || fail "DSH launcher starts no second server while one is running"
-[[ $(tr '\0' ' ' <"$test_tmp/webapp") == "http://127.0.0.1:3080/ " ]] || fail "DSH launcher reopens the running UI"
+[[ $(tr '\0' ' ' <"$test_tmp/browser") == "http://127.0.0.1:3080/ " ]] || fail "DSH launcher reopens the running UI"
+[[ $(<"$clipboard_log") == "Review this" ]] || fail "DSH launcher still puts the prompt on the clipboard when reopening"
+kill "$dsh_pid"
 pass "DSH launcher reopens the running UI"
+
+sleep 60 &
+other_pid=$!
+: >"$test_tmp/browser"
+OMARCHY_TEST_LISTENER_PID=$other_pid OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser" omarchy-agent
+assert_launched dsh "ignores another service on its port" env DSH_PERMISSION_MODE=danger-full-access dsh web
+[[ ! -s $test_tmp/browser ]] || fail "DSH launcher does not open another service as its UI"
+kill "$other_pid"
+pass "DSH launcher ignores another service on its port"
 assert_launch mcode mcode -- "Review this project"
 assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 : >"$notification_history"
