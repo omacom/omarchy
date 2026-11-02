@@ -112,12 +112,17 @@ pass "omarchy-update prevents overlapping top-level updates"
 # would otherwise leave the inhibitor holding the flock forever, blocking every
 # later update and silencing omarchy-migrate-notify, which reads the same lock.
 inhibit_pid_file="$test_tmp/inhibit-pid"
+inhibit_args_log="$test_tmp/inhibit-args.log"
 keyring_marker="$test_tmp/keyring-started"
 write_stub omarchy-snapshot 'exit 0'
-write_stub systemd-inhibit '[[ -z ${INHIBIT_PID_FILE:-} ]] || echo "$$" >"$INHIBIT_PID_FILE"; while [[ $1 == --* ]]; do shift; done; exec "$@"'
+write_stub systemd-inhibit '
+[[ -z ${INHIBIT_ARGS_LOG:-} ]] || printf "%s\n" "$@" >"$INHIBIT_ARGS_LOG"
+[[ -z ${INHIBIT_PID_FILE:-} ]] || echo "$$" >"$INHIBIT_PID_FILE"
+while [[ $1 == --* ]]; do shift; done
+exec "$@"'
 write_stub omarchy-update-keyring 'echo started >"$TEST_MARKER"; sleep 1; exit 0'
 
-OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$keyring_marker" INHIBIT_PID_FILE="$inhibit_pid_file" \
+OMARCHY_UPDATE_LOGGED=1 TEST_MARKER="$keyring_marker" INHIBIT_PID_FILE="$inhibit_pid_file" INHIBIT_ARGS_LOG="$inhibit_args_log" \
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$test_tmp/update-inhibit.out" 2>&1 &
 inhibit_update_pid=$!
 
@@ -138,6 +143,12 @@ for fd in /proc/"$inhibitor_pid"/fd/*; do
 done
 
 wait "$inhibit_update_pid"
+
+# LidSwitchIgnoreInhibited defaults to yes, so logind ignores high-level sleep
+# locks when the lid closes. Check the low-level lock from the real launcher.
+grep -Fxq -- '--what=sleep:idle:handle-lid-switch' "$inhibit_args_log" ||
+  fail "update inhibitor blocks the lid switch" "$(<"$inhibit_args_log")"
+pass "update inhibitor blocks the lid switch during updates"
 
 (( inhibitor_holds_lock == 0 )) || fail "update keeps the update lock out of the sleep inhibitor it leaves running"
 pass "omarchy-update keeps the update lock out of its sleep inhibitor"
