@@ -238,6 +238,29 @@ save_data_for() {
   esac
 }
 
+# The settings the running hotspot actually started with, as NetworkManager
+# applied them: the saved profile can change while it runs, and the change
+# waits for the next start. Unprivileged, read over D-Bus; printed only when
+# the device is running this hotspot's profile, empty otherwise.
+applied_hotspot_connection() {
+  local iface=$1 path applied
+  [[ -n $iface ]] || return 0
+  path=$(nm_get GENERAL.DBUS-PATH device show "$iface" | head -n 1)
+  [[ $path == /org/freedesktop/NetworkManager/Devices/* ]] || return 0
+  applied=$(busctl --system --json=short call org.freedesktop.NetworkManager "$path" \
+    org.freedesktop.NetworkManager.Device GetAppliedConnection u 0 2>/dev/null) || return 0
+  jq -ce --arg profile "$PROFILE" '.data[0] | select(.connection.id.data == $profile)' <<<"$applied" 2>/dev/null || true
+}
+
+# The save-data choice in an applied connection (NM_METERED: 1 yes, 2 no).
+applied_save_data() {
+  case $(jq -r '.connection.metered.data // 0' <<<"$1" 2>/dev/null) in
+    1) echo "always" ;;
+    2) echo "never" ;;
+    *) echo "auto" ;;
+  esac
+}
+
 profile_save_data() {
   case $(nm_get connection.metered connection show "$PROFILE") in
     yes) echo "always" ;;
@@ -444,7 +467,7 @@ station_list() {
 
 status() {
   local capable=0 active=0 configured=0 iface ssid band password freq ip clients upstream
-  local client_list client_count bands save_data="auto" aliases max_clients
+  local client_list client_count bands save_data="auto" aliases max_clients applied save_data_on_air=""
 
   # Without NetworkManager there is no AP to offer, but the panel still
   # needs the status lines to say so.
@@ -474,6 +497,10 @@ status() {
     band=$(profile_band)
     password=$(profile_secret)
     if ((configured)); then save_data=$(profile_save_data); fi
+    if ((active)); then
+      applied=$(applied_hotspot_connection "$iface")
+      [[ -z $applied ]] || save_data_on_air=$(applied_save_data "$applied")
+    fi
     max_clients=$(profile_max_clients)
 
     if ((active)); then
@@ -512,6 +539,7 @@ status() {
   printf 'max_clients\t%s\n' "$max_clients"
   printf 'upstream\t%s\n' "$upstream"
   printf 'save_data\t%s\n' "$save_data"
+  printf 'save_data_on_air\t%s\n' "$save_data_on_air"
 }
 
 nft_firewall_active() {
