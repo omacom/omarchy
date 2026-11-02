@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Open a new Alacritty window in the existing process, or start one
+# omarchy:args=[options...]
+
+if ! alacritty msg create-window "$@" 2>/dev/null; then
+  exec alacritty "$@"
+fi
