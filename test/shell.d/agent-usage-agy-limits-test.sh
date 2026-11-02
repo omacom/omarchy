@@ -221,4 +221,22 @@ for path in limits_cache_files("agy"):
 record, _ = agy("down")
 expect("Antigravity collector invents no limits when it has never reached Google",
        [record["limits"], record["usageStatusText"], record["retryAdvised"]], [[], "Antigravity limits unavailable", True], record)
+
+# When the quota endpoint refuses the token (e.g. 403 on consumer accounts without
+# a GCP project), agy --print /usage stands in with live quotas.
+stub = home() / "bin" / "agy"
+stub.write_text("""#!/bin/bash
+if [[ "$*" == *"/usage"* ]]; then
+  printf 'Gemini Models\tFive Hour Limit Remaining\t80%%\t2026-09-15T19:31:46Z\\n'
+  printf 'Claude and GPT models\tWeekly Limit Remaining\t50%%\t2026-09-18T12:56:14Z\\n'
+fi
+""")
+stub.chmod(0o755)
+os.environ["AGY_TEST_CLI"] = "1"
+record, _ = agy(mode=403)
+del os.environ["AGY_TEST_CLI"]
+stub.unlink()
+expect("Antigravity collector falls back to agy CLI when Google quota service refuses the token",
+       [(entry["label"], entry["percent"]) for entry in record["limits"]],
+       [("Session (5-hour)", 0.2), ("Claude/GPT Weekly", 0.5)], record)
 PY

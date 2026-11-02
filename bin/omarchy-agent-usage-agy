@@ -303,7 +303,9 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
+  gemini = next((g for g in groups if re.search(r"\bgemini\s+models\b", str(g.get("displayName") or "").lower())), None)
+  if not gemini:
+    gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower() and "argon" not in str(g.get("displayName") or "").lower()), groups[0])
   if not listed(gemini, "buckets"):
     return None
 
@@ -328,7 +330,7 @@ def extract_limits(data):
     if group is gemini:
       continue
     group_name = str(group.get("displayName") or "").strip()
-    short = "Claude/GPT" if "claude" in group_name.lower() else (group_name or "3P")
+    short = "Argon" if "argon" in group_name.lower() else ("Claude/GPT" if "claude" in group_name.lower() else (group_name or "3P"))
     buckets = group.get("buckets")
     for bucket in buckets if isinstance(buckets, list) else []:
       if isinstance(bucket, dict) and (used(bucket) or 0) > 0:
@@ -366,6 +368,51 @@ def lapsed_help(entry, kept):
 def refused_help(entry):
   name = SOURCE_NAMES[entry["source"]]
   return f"Google refused the Antigravity sign-in {name} keeps. Start {name} to sign in again."
+
+
+# Standard consumer and Pro Antigravity accounts without a GCP project get 403
+# from the Cloud Code quota endpoint. agy's live CLI report provides the same
+# windows directly from Google's quota service.
+def agy_cli_limits():
+  agy = shutil.which("agy")
+  if not agy:
+    return None
+  try:
+    proc = subprocess.run([agy, "--print", "/usage"], capture_output=True, text=True, timeout=8)
+    if proc.returncode != 0 or not proc.stdout.strip():
+      return None
+    lines = [l.strip() for l in proc.stdout.splitlines() if l.strip() and not l.strip().startswith("Quota:")]
+    limits = []
+    for line in lines:
+      parts = [p.strip() for p in re.split(r"\t+|\s{2,}", line)]
+      if len(parts) < 4:
+        continue
+      grp, lim, pct_s, reset_s = parts[0], parts[1], parts[2], parts[3]
+      try:
+        pct_num = int(pct_s.rstrip("%"))
+      except ValueError:
+        continue
+      used_ratio = round((100 - pct_num) / 100.0, 4)
+      gl = grp.lower()
+      ll = lim.lower()
+      if "gemini models" in gl:
+        is_five = "five hour" in ll or "5h" in ll or "5 hour" in ll
+        title = "Session" if is_five else "Weekly"
+        label = "Session (5-hour)" if is_five else "Weekly (7-day)"
+      elif "claude and gpt" in gl:
+        is_five = "five hour" in ll or "5h" in ll or "5 hour" in ll
+        title = f"Claude/GPT {'Session' if is_five else 'Weekly'}"
+        label = title
+      elif "argon" in gl or "argon" in ll:
+        title = "Argon Weekly"
+        label = title
+      else:
+        title = f"{grp} {lim}"
+        label = title
+      limits.append({"label": label, "title": title, "percent": used_ratio, "resetsAt": reset_s})
+    return limits if limits else None
+  except Exception:
+    return None
 
 
 # The plan and limits, asked of Google with one sign-in after another until
@@ -418,10 +465,14 @@ def collect_limits(entries, force):
         return result
 
   refused, failure = [], None
+  tier_by_account = {}
   for entry in fresh:
+    tier = None
     try:
       assist = post("loadCodeAssist", entry["accessToken"])
       tier = extract_tier(assist)
+      if tier:
+        tier_by_account[entry["source"]] = tier
       limits = extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"], project_body(assist)))
       if limits is None:
         raise HttpError()
@@ -456,6 +507,12 @@ def collect_limits(entries, force):
     return answered(entry, tier or kept_tier(entry), limits)
 
   if refused:
+    agy_entry = next((e for e in refused if e["source"] == "agy"), None)
+    if agy_entry:
+      cli = agy_cli_limits() if not os.environ.get("SANDBOX") or os.environ.get("AGY_TEST_CLI") else None
+      if cli:
+        matched_tier = tier_by_account.get("agy") or kept_tier(agy_entry)
+        return answered(agy_entry, matched_tier, cli)
     keep(refused[0])
     result.update(usageStatusText="Sign-in expired", authHelpText=refused_help(refused[0]))
     return result
