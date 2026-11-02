@@ -17,8 +17,8 @@ SH
 cat >"$QML_FIXTURE_TMP/bin/hyprctl" <<'SH'
 #!/bin/bash
 
-if [[ $1 == monitors ]]; then
-  if [[ $(<"$OMARCHY_TEST_DPMS_FILE") == on ]]; then
+if [[ $1 == "monitors" ]]; then
+  if [[ $(<"$OMARCHY_TEST_DPMS_FILE") == "on" ]]; then
     echo '[{"name":"DP-1","disabled":false,"dpmsStatus":true}]'
   else
     echo '[{"name":"DP-1","disabled":false,"dpmsStatus":false}]'
