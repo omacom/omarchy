@@ -7,6 +7,7 @@ BarIndicator {
   id: root
 
   property bool recording: false
+  property bool refreshPending: false
 
   active: recording
   activeText: "󰻂"
@@ -15,7 +16,12 @@ BarIndicator {
   inactiveTooltipText: I18n.t("bar.screenRecording")
 
   function refresh() {
-    if (!root.bar || statusProc.running) return
+    if (!root.bar) return
+    if (statusProc.running) {
+      root.refreshPending = true
+      return
+    }
+    root.refreshPending = false
     statusProc.command = ["omarchy-capture-screenrecording", "--status"]
     statusProc.running = true
   }
@@ -33,6 +39,7 @@ BarIndicator {
     id: statusProc
     onExited: function(exitCode) {
       root.recording = exitCode === 0
+      if (root.refreshPending) root.refresh()
     }
   }
 
