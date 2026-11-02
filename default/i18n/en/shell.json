@@ -328,6 +328,10 @@
   "menu.powerProfileBalanced": "balanced",
   "menu.powerProfilePerformance": "performance",
   "menu.powerProfilePowerSaver": "power-saver",
+  "menu.queryCopy": "Copy to clipboard",
+  "menu.queryOpen": "Open",
+  "menu.queryPluginLabel": "%1: %2",
+  "menu.querySearch": "Search: %1",
   "menu.selectPrompt": "Select",
   "menu.selectedCount": {
     "one": "%1 selected",
