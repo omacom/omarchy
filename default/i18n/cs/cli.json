@@ -206,7 +206,7 @@
   "nordvpn.rebootNow": "Restartovat nyní a zprovoznit NordVPN?",
   "openclaw.deleteData": "Smazat také ~/.openclaw (%1: chaty, vzpomínky, přihlašovací údaje, stažené pluginy a samotný OpenClaw)?",
   "perplexity.deleteData": "Smazat také vaše data Perplexity (%1: přihlášení, nastavení, trezor tajemství a identitu zařízení)?",
-  "plugin.barSection": "Do které části panelu umístit %1?",
+  "plugin.barSection": "Do které části lišty umístit %1?",
   "plugin.cloneTitle": "Klonovat plugin",
   "plugin.confirmAdd": "Klonovat a přidat tento plugin?",
   "plugin.confirmDelete": "Smazat '%1'? Jeho git repozitář zůstane upstream.",

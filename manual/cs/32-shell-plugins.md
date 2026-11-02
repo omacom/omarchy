@@ -25,9 +25,9 @@ omarchy plugin disable omarchy.weather
 
 Nebo použijte nabídku: _Nastavení > Pluginy_ má možnosti Povolit, Zakázat, Přidat, Klonovat a Odebrat, každou s výběrem, který nabízí pouze pluginy, které pro danou akci dávají smysl.
 
-Stav povolení je uložen v souboru `~/.config/omarchy/shell.json` a pravidlo se u dvou druhů pluginů mírně liší. Plugin třetí strany je povolený přesně tehdy, když se jeho id objeví někde v tomto souboru — jako položka rozložení panelu, jako položka v poli `plugins[]` nebo jako `bar.id`. Vestavěné pluginy, které nejsou widgety lišty, to mají obráceně: jsou ve výchozím nastavení zapnuté a vypnou se pouze uvedením v poli `disabledPlugins[]`.
+Stav povolení je uložen v souboru `~/.config/omarchy/shell.json` a pravidlo se u dvou druhů pluginů mírně liší. Plugin třetí strany je povolený přesně tehdy, když se jeho id objeví někde v tomto souboru — jako položka rozložení lišty, jako položka v poli `plugins[]` nebo jako `bar.id`. Vestavěné pluginy, které nejsou widgety lišty, to mají obráceně: jsou ve výchozím nastavení zapnuté a vypnou se pouze uvedením v poli `disabledPlugins[]`.
 
-Plnohodnotný plugin panelu nemá vůbec žádný vypnutý stav. Vždy existuje přesně jeden panel, takže ho nahradíte povolením jiného. Umístění widgetů na panelu je popsáno v části [horní lišta](05-the-top-bar.md).
+Plnohodnotný plugin lišty nemá vůbec žádný vypnutý stav. Vždy existuje přesně jedna lišta, takže ji nahradíte povolením jiné. Umístění widgetů na liště je popsáno v části [horní lišta](05-the-top-bar.md).
 
 ## Přidání pluginu z gitu
 
@@ -37,9 +37,9 @@ Plugin třetí strany je prostě gitový repozitář se souborem `manifest.json`
 omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
 ```
 
-Než cokoli udělá, rovnou vám řekne, že pluginy běží jako libovolný kód bez sandboxu uvnitř vašeho dlouhodobě běžícího procesu shellu, ukáže vám adresu URL a požádá vás o potvrzení. Berte to vážně. Rozhraní pluginů třetích stran přímo nevystavuje služby ověřování a náhradní panel dostává pouze omezené schopnosti pro nakonfigurované uživatelské rozhraní bez ověřování. Vizuální pluginy stále sdílejí scénu QML shellu a mohou procházet běžné nadřazené objekty, zatímco veškerý kód pluginů běží se vším, na co může dosáhnout váš uživatelský účet. Stav ověřování je chráněn samostatně tím, že se tyto služby udržují mimo dosažitelný graf objektů hostitele. Přidávejte pouze repozitáře, které jste ochotni spustit, a přečtěte si je, než je povolíte.
+Než cokoli udělá, rovnou vám řekne, že pluginy běží jako libovolný kód bez sandboxu uvnitř vašeho dlouhodobě běžícího procesu shellu, ukáže vám adresu URL a požádá vás o potvrzení. Berte to vážně. Rozhraní pluginů třetích stran přímo nevystavuje služby ověřování a náhradní lišta dostává pouze omezené schopnosti pro nakonfigurované uživatelské rozhraní bez ověřování. Vizuální pluginy stále sdílejí scénu QML shellu a mohou procházet běžné nadřazené objekty, zatímco veškerý kód pluginů běží se vším, na co může dosáhnout váš uživatelský účet. Stav ověřování je chráněn samostatně tím, že se tyto služby udržují mimo dosažitelný graf objektů hostitele. Přidávejte pouze repozitáře, které jste ochotni spustit, a přečtěte si je, než je povolíte.
 
-Náhradní panel může vykreslovat nainstalované widgety, ale widgety třetích stran podporované službami tam mohou mít omezenou funkčnost, protože panel nesmí požadovat živý objekt služby jiného pluginu. Pokud takový widget potřebuje svou doprovodnou službu, přepněte zpět na integrovaný panel `omarchy.bar`.
+Náhradní lišta může vykreslovat nainstalované widgety, ale widgety třetích stran podporované službami tam mohou mít omezenou funkčnost, protože lišta nesmí požadovat živý objekt služby jiného pluginu. Pokud takový widget potřebuje svou doprovodnou službu, přepněte zpět na vestavěnou lištu `omarchy.bar`.
 
 Poté repozitář naklonuje do přípravného adresáře, ověří manifest, odmítne instalaci, pokud si dané id již nárokuje jiný plugin, a přesune ho do adresáře `~/.config/omarchy/plugins/<id>/`. Bez volby `--enable` se zeptá, zda ho chcete nyní zapnout, a vy můžete říci ne a nejprve si kód přečíst. Při stažení a ověření pluginu se nespouštějí instalační skripty z repozitáře a sudo není potřeba. Povolení přes IPC už spustí jeho kód v shellu.
 
@@ -66,7 +66,7 @@ Toto je moje oblíbená část. Pokud chcete změnit, jak se integrovaný widget
 omarchy plugin clone omarchy.clock
 ```
 
-Tím se celý plugin zkopíruje do adresáře `~/.config/omarchy/plugins/dhh.clock` (vaše uživatelské jméno, ne moje), přejmenuje se na „My Clock“, povolí se a shell se přepne z integrovaného modulu na vaši kopii — při zachování polohy a nastavení stávajícího widgetu na panelu. Přidejte volbu `--edit`, chcete-li nový adresář okamžitě otevřít v editoru určeném proměnnou `$EDITOR`, což pro vás dělá položka nabídky _Nastavení > Pluginy > Klonovat plugin_.
+Tím se celý plugin zkopíruje do adresáře `~/.config/omarchy/plugins/dhh.clock` (vaše uživatelské jméno, ne moje), přejmenuje se na „My Clock“, povolí se a shell se přepne z integrovaného modulu na vaši kopii — při zachování polohy a nastavení stávajícího widgetu na liště. Přidejte volbu `--edit`, chcete-li nový adresář okamžitě otevřít v editoru určeném proměnnou `$EDITOR`, což pro vás dělá položka nabídky _Nastavení > Pluginy > Klonovat plugin_.
 
 Předpona uživatelského jména zachovává id vašeho klonu jako vaše, takže jeho sdílení nekoliduje s nikým jiným. Volání směřující na původní integrované id se přesměrují na váš klon, takže nic, co odkazovalo na `omarchy.clock`, není třeba aktualizovat. A pokud to pomotáte, příkaz `omarchy plugin remove dhh.clock` vrátí integrovaný modul zpět.
 
@@ -78,14 +78,14 @@ Plugin je adresář se souborem `manifest.json` a trochou QML. Manifest deklaruj
 
 | Druh | Co to je |
 |------|------------|
-| `bar-widget` | Komponenta, kterou může aktivní panel vložit do oddílu |
+| `bar-widget` | Komponenta, kterou může aktivní lišta vložit do oddílu |
 | `panel` | Trvalé nebo vyvolané plovoucí okno |
 | `overlay` | Celoobrazovkový překryv |
 | `menu` | Vyvolaná plocha nabídky |
 | `service` | Jediná sdílená instance služby bez uživatelského rozhraní |
-| `bar` | Plnohodnotný panel, který nahrazuje integrovaný panel |
+| `bar` | Plnohodnotná lišta, která nahrazuje vestavěnou lištu |
 
-Plugin může deklarovat několik druhů najednou — modul pro média je současně `service` i `bar-widget`. Widgety panelu dostávají navíc blok `barWidget` se zobrazovaným názvem, kategorií, volitelnou položkou `defaultSection` a položkou `allowMultiple`, která říká, zda dává smysl mít na panelu více než jeden. Většina widgetů ji nastavuje na hodnotu `false`; oddělovače a indikátory ji nastavují na hodnotu `true`.
+Plugin může deklarovat několik druhů najednou — modul pro média je současně `service` i `bar-widget`. Widgety lišty dostávají navíc blok `barWidget` se zobrazovaným názvem, kategorií, volitelnou položkou `defaultSection` a položkou `allowMultiple`, která říká, zda dává smysl mít na liště více než jeden. Většina widgetů ji nastavuje na hodnotu `false`; oddělovače a indikátory ji nastavují na hodnotu `true`.
 
 Před zveřejněním plugin zkontrolujte:
 

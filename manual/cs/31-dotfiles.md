@@ -14,7 +14,7 @@ Tady je seznam klíčových souborů v adresáři `~/.config` a toho, co ovláda
 | `~/.config/hypr/input.lua` | Ovládá rozložení vaší klávesnice, nastavení myši a touchpadu. |
 | `~/.config/hypr/looknfeel.lua` | Ovládá mezery, rámečky, animace a zbytek vzhledu. |
 | `~/.config/hypr/autostart.lua` | Ovládá další procesy spuštěné se relací. |
-| `~/.config/omarchy/shell.json` | Ovládá shell Omarchy: polohu panelu, rozložení a widgety, plus časy spořiče obrazovky, zamykání a nečinnosti. |
+| `~/.config/omarchy/shell.json` | Ovládá shell Omarchy: polohu lišty, rozložení a widgety, plus časy spořiče obrazovky, zamykání a nečinnosti. |
 | `~/.config/foot/foot.ini` | Ovládá váš terminál (foot je výchozí). |
 | `~/.XCompose` | Definuje vaše emoji s rychlým přístupem a automatické doplňování jména/e-mailu. Po provedení změn nezapomeňte spustit příkaz `omarchy-restart-xcompose`. |
 

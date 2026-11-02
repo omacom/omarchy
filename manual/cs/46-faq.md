@@ -14,11 +14,11 @@ hl.config({
 })
 ```
 
-V panelu se automaticky zobrazí aktuální rozložení klávesnice, jakmile jich budete mít nakonfigurováno několik (a kliknutím ho můžete také přepnout).
+Na liště se automaticky zobrazí aktuální rozložení klávesnice, jakmile jich budete mít nakonfigurováno několik (a kliknutím ho můžete také přepnout).
 
 ### Jak změnit formát hodin na 12hodinový?
 
-Kliknutím pravým tlačítkem na hodiny v panelu budete procházet běžné formáty, včetně těch 12hodinových. Formát můžete nastavit také přímo:
+Kliknutím pravým tlačítkem na hodiny na liště budete procházet běžné formáty, včetně těch 12hodinových. Formát můžete nastavit také přímo:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"

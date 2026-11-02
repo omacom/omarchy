@@ -1200,10 +1200,10 @@
     "label": "Spořič obrazovky vypnutý"
   },
   "trigger.toggle.crash-capture-on": {
-    "label": "Zachytávání pádů zapnuto"
+    "label": "Zachytávání pádů zapnuté"
   },
   "trigger.toggle.crash-capture-off": {
-    "label": "Zachytávání pádů vypnuto"
+    "label": "Zachytávání pádů vypnuté"
   },
   "trigger.hardware.laptop-display-on": {
     "label": "Zapnout displej notebooku"

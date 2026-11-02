@@ -44,7 +44,7 @@ Aether spustíte přes spouštěč aplikací (`Super + Space`).
 
 [LocalSend](https://localsend.org/) vám umožňuje posílat soubory do jiných zařízení ve stejné síti, na kterých běží tato aplikace, podobně jako AirDrop od Apple. Je ale multiplatformní, takže můžete posílat soubory do a z Windows, macOS, Android, iOS a samozřejmě Linux.
 
-Nabídku Share otevřete pomocí `Super + Ctrl + S` nebo pod _Akce > Sdílet_ v nabídce Omarchy. Nabízí čtyři možnosti:
+Nabídku Sdílet otevřete pomocí `Super + Ctrl + S` nebo pod _Akce > Sdílet_ v nabídce Omarchy. Nabízí čtyři možnosti:
 
 - **Clipboard** odešle cokoli, co jste zkopírovali, jako textový soubor. Skvělé, když potřebujete dostat odkaz nebo úryvek kódu do telefonu, aniž byste si posílali e-mail.
 - **File** otevře výběr souborů, ve kterém můžete vybrat hned několik souborů najednou.
