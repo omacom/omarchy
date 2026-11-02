@@ -1,0 +1,244 @@
+#!/bin/bash
+
+# omarchy:summary=Manage TPM 2.0 unlocking for encrypted drives
+# omarchy:args=[status|enroll|wipe] [drive]
+# omarchy:examples=omarchy drive tpm status | omarchy drive tpm enroll
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+ACTION="${1:-status}"
+shift || true
+DRIVE="${1:-}"
+
+root_luks_device() {
+  local root_source ancestry device
+  root_source=$(findmnt -no SOURCE / 2>/dev/null) && [[ -n $root_source ]] || return 1
+  ancestry=$(lsblk -nsrpo NAME,TYPE,FSTYPE "${root_source%%[*}" 2>/dev/null) || return 1
+  device=$(awk '$3 == "crypto_LUKS" { print $1; exit }' <<<"$ancestry")
+  if [[ -n $device ]]; then
+    readlink -f "$device"
+  elif awk '$2 == "crypt" { found = 1 } END { exit !found }' <<<"$ancestry"; then
+    return 1
+  fi
+}
+
+tpm2_device_present() {
+  local list status=0
+  list=$(systemd-cryptenroll --tpm2-device=list 2>&1) || status=$?
+  if (( status != 0 )) || [[ $list == *"No suitable TPM2 devices"* || $list == *"not installed"* || -z $list ]]; then
+    return 1
+  fi
+  grep -qE '/dev/tpm' <<<"$list"
+}
+
+luks_tpm2_slots() {
+  local drive=$1 dump
+  dump=$(sudo cryptsetup luksDump "$drive" 2>/dev/null) || return 1
+  awk '
+    /^Tokens:/ { in_tokens = 1 }
+    in_tokens && /^[ \t]*[0-9]+: systemd-tpm2/ { is_tpm = 1 }
+    is_tpm && /Keyslot(s)?:?[ \t]*[0-9]+/ {
+      sub(/.*Keyslot(s)?:?[ \t]*/, "");
+      sub(/[^0-9].*/, "");
+      print $0;
+      is_tpm = 0
+    }
+    /^[^ \t]/ && !/^Tokens:/ { in_tokens = 0; is_tpm = 0 }
+  ' <<<"$dump" | paste -sd, -
+}
+
+initramfs_has_sd_encrypt() {
+  local conf_file="${OMARCHY_MKINITCPIO_CONF:-/etc/mkinitcpio.conf}"
+  local conf_dir="${OMARCHY_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}"
+
+  if [[ ! -f $conf_file && ! -d $conf_dir ]]; then
+    return 1
+  fi
+
+  bash -c '
+    HOOKS=()
+    conf_file=$1
+    conf_dir=$2
+    if [[ -f $conf_file ]]; then
+      source "$conf_file" 2>/dev/null || true
+    fi
+    if [[ -d $conf_dir ]]; then
+      shopt -s nullglob
+      for dropin in "$conf_dir"/*.conf; do
+        source "$dropin" 2>/dev/null || true
+      done
+    fi
+    for hook in "${HOOKS[@]}"; do
+      if [[ $hook == "sd-encrypt" ]]; then
+        exit 0
+      fi
+    done
+    exit 1
+  ' bash "$conf_file" "$conf_dir" 2>/dev/null
+}
+
+secure_boot_active() {
+  if bootctl is-secure-boot 2>/dev/null | grep -qi "yes"; then
+    return 0
+  fi
+  local sb_var="${OMARCHY_SECURE_BOOT_VAR:-/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c}"
+  if [[ -f $sb_var ]]; then
+    local val
+    val=$(od -An -t u1 "$sb_var" 2>/dev/null | awk '{print $NF}')
+    (( val == 1 )) && return 0
+  fi
+  return 1
+}
+
+resolve_drive() {
+  local target="${1:-}"
+  if [[ -n $target ]]; then
+    echo "$target"
+    return 0
+  fi
+  local root_drive
+  root_drive=$(root_luks_device) || true
+  if [[ -n $root_drive ]]; then
+    echo "$root_drive"
+    return 0
+  fi
+  return 1
+}
+
+cmd_status() {
+  local drive
+  drive=$(resolve_drive "${1:-}" || true)
+
+  echo "TPM 2.0 Drive Encryption Status:"
+  if tpm2_device_present; then
+    echo "  TPM 2.0 Device: Available"
+  else
+    echo "  TPM 2.0 Device: Not detected"
+  fi
+
+  if [[ -z $drive ]]; then
+    echo "  Drive: No LUKS root drive detected"
+    return 0
+  fi
+
+  echo "  Drive: $drive"
+  if ! sudo cryptsetup isLuks "$drive" 2>/dev/null; then
+    echo "  Drive Format: Not a LUKS drive"
+    return 1
+  fi
+
+  local slots
+  slots=$(luks_tpm2_slots "$drive")
+  if [[ -n $slots ]]; then
+    echo "  TPM 2.0 Unlock: Enrolled (keyslot: $slots)"
+  else
+    echo "  TPM 2.0 Unlock: Not enrolled"
+  fi
+
+  if initramfs_has_sd_encrypt; then
+    echo "  Boot Configuration: Ready (sd-encrypt hook active)"
+  else
+    echo "  Boot Configuration: Notice (requires 'sd-encrypt' hook in mkinitcpio for boot-time unlock)"
+  fi
+}
+
+cmd_enroll() {
+  local allow_unsafe="${OMARCHY_TPM_ALLOW_UNSAFE:-0}"
+  local drive_arg=""
+
+  while (( $# > 0 )); do
+    case "$1" in
+      --allow-unsafe)
+        allow_unsafe=1
+        shift
+        ;;
+      *)
+        drive_arg="$1"
+        shift
+        ;;
+    esac
+  done
+
+  local drive pcrs
+  drive=$(resolve_drive "$drive_arg") || {
+    echo "Could not identify LUKS drive to enroll. Specify the drive explicitly: omarchy drive tpm enroll /dev/..." >&2
+    return 1
+  }
+  pcrs="${OMARCHY_TPM_PCRS:-0+7}"
+
+  if ! tpm2_device_present; then
+    echo "No suitable TPM 2.0 device found. Enrollment aborted." >&2
+    return 1
+  fi
+
+  if ! sudo cryptsetup isLuks --type luks2 "$drive" 2>/dev/null; then
+    echo "$drive is not a LUKS2 volume. TPM 2.0 enrollment requires LUKS2." >&2
+    return 1
+  fi
+
+  local existing
+  existing=$(luks_tpm2_slots "$drive")
+  if [[ -n $existing ]]; then
+    echo "TPM 2.0 is already enrolled in keyslot $existing for $drive."
+    echo "To re-enroll, first run: omarchy drive tpm wipe $drive"
+    return 0
+  fi
+
+  if [[ $pcrs == "0+7" && $allow_unsafe != "1" ]] && ! secure_boot_active; then
+    echo "Refusing TPM enrollment: Secure Boot is disabled or unavailable." >&2
+    echo "Binding PCRs 0+7 without Secure Boot allows an attacker with physical access to boot a modified image and extract the disk key." >&2
+    echo "To proceed without Secure Boot, re-run with --allow-unsafe or set OMARCHY_TPM_ALLOW_UNSAFE=1." >&2
+    return 1
+  fi
+
+  echo "Enrolling TPM 2.0 unlock for $drive (PCRs: $pcrs)..."
+  sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs="$pcrs" "$drive"
+
+  local new_slots
+  new_slots=$(luks_tpm2_slots "$drive")
+  if [[ -n $new_slots ]]; then
+    echo "TPM 2.0 successfully enrolled in keyslot $new_slots."
+    if ! initramfs_has_sd_encrypt; then
+      echo "Notice: Ensure mkinitcpio is configured with 'sd-encrypt' hook to unlock automatically at boot."
+    fi
+  else
+    echo "Failed to verify TPM 2.0 enrollment on $drive." >&2
+    return 1
+  fi
+}
+
+cmd_wipe() {
+  local drive
+  drive=$(resolve_drive "${1:-}") || {
+    echo "Could not identify LUKS drive to wipe. Specify the drive explicitly: omarchy drive tpm wipe /dev/..." >&2
+    return 1
+  }
+
+  local existing
+  existing=$(luks_tpm2_slots "$drive")
+  if [[ -z $existing ]]; then
+    echo "No TPM 2.0 token found on $drive."
+    return 0
+  fi
+
+  echo "Wiping TPM 2.0 token from $drive (keyslot: $existing)..."
+  sudo systemd-cryptenroll --wipe-slot=tpm2 "$drive"
+  echo "TPM 2.0 token removed from $drive."
+}
+
+case "$ACTION" in
+  status)
+    cmd_status "$@"
+    ;;
+  enroll)
+    cmd_enroll "$@"
+    ;;
+  wipe)
+    cmd_wipe "$@"
+    ;;
+  *)
+    echo "Usage: omarchy drive tpm [status|enroll|wipe] [drive]" >&2
+    exit 1
+    ;;
+esac
