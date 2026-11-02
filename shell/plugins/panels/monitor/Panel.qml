@@ -1147,24 +1147,30 @@ Panel {
               fontFamily: root.bar.fontFamily
             }
 
-            Grid {
-              id: scaleGrid
+            Item {
               width: parent.width
-              columns: Math.max(1, root.current ? root.current.scales.length : 1)
-              spacing: Style.spacing.xs
+              height: scaleGrid.implicitHeight
 
-              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+              Grid {
+                id: scaleGrid
+                width: parent.width - 2 * Style.spacing.xxs
+                x: Style.spacing.xxs
+                columns: Math.max(1, root.current ? root.current.scales.length : 1)
+                spacing: Style.spacing.xs
 
-              Repeater {
-                model: root.current ? root.current.scales : []
+                readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
 
-                ScalePill {
-                  required property string modelData
-                  required property int index
+                Repeater {
+                  model: root.current ? root.current.scales : []
 
-                  scaleValue: modelData
-                  scaleIndex: index
-                  width: scaleGrid.cellWidth
+                  ScalePill {
+                    required property string modelData
+                    required property int index
+
+                    scaleValue: modelData
+                    scaleIndex: index
+                    width: scaleGrid.cellWidth
+                  }
                 }
               }
             }
@@ -1210,24 +1216,30 @@ Panel {
               }
             }
 
-            Grid {
-              id: resolutionGrid
+            Item {
               width: parent.width
-              columns: Math.max(1, root.current ? root.current.resolutions.length : 1)
-              spacing: Style.spacing.xs
+              height: resolutionGrid.implicitHeight
 
-              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+              Grid {
+                id: resolutionGrid
+                width: parent.width - 2 * Style.spacing.xxs
+                x: Style.spacing.xxs
+                columns: Math.max(1, root.current ? root.current.resolutions.length : 1)
+                spacing: Style.spacing.xs
 
-              Repeater {
-                model: root.current ? root.current.resolutions : []
+                readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
 
-                ResolutionPill {
-                  required property string modelData
-                  required property int index
+                Repeater {
+                  model: root.current ? root.current.resolutions : []
 
-                  resolution: modelData
-                  resolutionIndex: index
-                  width: resolutionGrid.cellWidth
+                  ResolutionPill {
+                    required property string modelData
+                    required property int index
+
+                    resolution: modelData
+                    resolutionIndex: index
+                    width: resolutionGrid.cellWidth
+                  }
                 }
               }
             }
@@ -1272,24 +1284,30 @@ Panel {
               }
             }
 
-            Grid {
-              id: refreshGrid
+            Item {
               width: parent.width
-              columns: Math.max(1, root.current ? root.current.refreshes.length : 1)
-              spacing: Style.spacing.xs
+              height: refreshGrid.implicitHeight
 
-              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+              Grid {
+                id: refreshGrid
+                width: parent.width - 2 * Style.spacing.xxs
+                x: Style.spacing.xxs
+                columns: Math.max(1, root.current ? root.current.refreshes.length : 1)
+                spacing: Style.spacing.xs
 
-              Repeater {
-                model: root.current ? root.current.refreshes : []
+                readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
 
-                RefreshPill {
-                  required property var modelData
-                  required property int index
+                Repeater {
+                  model: root.current ? root.current.refreshes : []
 
-                  option: modelData
-                  refreshIndex: index
-                  width: refreshGrid.cellWidth
+                  RefreshPill {
+                    required property var modelData
+                    required property int index
+
+                    option: modelData
+                    refreshIndex: index
+                    width: refreshGrid.cellWidth
+                  }
                 }
               }
             }
