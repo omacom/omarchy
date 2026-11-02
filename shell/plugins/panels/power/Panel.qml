@@ -568,6 +568,72 @@ Panel {
             }
           }
 
+          // Hovering the chart reads it: a hairline and a dot at the pointer,
+          // and the level there with how long ago it was. Nothing animates,
+          // since the marks follow the pointer.
+          HoverHandler {
+            id: chartHover
+            enabled: root.historyShown
+          }
+
+          readonly property real hoverX: Math.max(0, Math.min(width, chartHover.point.position.x))
+          readonly property real hoverFraction: LayoutMirroring.enabled ? 1 - hoverX / width : hoverX / width
+          readonly property string hoverText: chartHover.hovered
+            ? Model.historyReadout(root.historyPoints, hoverFraction, root.historyHours * 3600,
+                function(key, english) { return Commons.I18n.t(key, english) },
+                function(value) { return Commons.I18n.formatNumber(value) })
+            : ""
+          readonly property real hoverLevel: {
+            var level = Model.levelAt(root.historyPoints, hoverFraction)
+            return level === null ? -1 : level
+          }
+
+          Item {
+            visible: chartHover.hovered && chargeBar.hoverText !== ""
+            anchors.fill: parent
+            layer.enabled: visible
+            layer.smooth: true
+            layer.effect: MultiEffect {
+              maskEnabled: true
+              maskSource: chartMask
+              maskThresholdMin: 0.3
+              maskSpreadAtMin: 0.3
+            }
+
+            Rectangle {
+              x: Math.round(chargeBar.hoverX - width / 2)
+              width: Math.max(1, Style.spaceReal(1))
+              height: parent.height
+              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.5)
+            }
+          }
+
+          // Outside the clip and kept inside the track, so a level near full
+          // or empty doesn't cut the dot in half.
+          Rectangle {
+            readonly property real inset: historyChart.stroke / 2
+            visible: chartHover.hovered && chargeBar.hoverText !== ""
+            width: Style.space(7)
+            height: width
+            radius: width / 2
+            x: Math.max(0, Math.min(parent.width - width, chargeBar.hoverX - width / 2))
+            y: Math.max(0, Math.min(parent.height - height,
+              inset + (100 - chargeBar.hoverLevel) / 100 * (parent.height - inset * 2) - height / 2))
+            color: root.batteryFillColor
+            border.width: Math.max(1, Style.spaceReal(1.5))
+            border.color: Commons.Color.popups.background
+          }
+
+          // Above the chart, because below is where the pointer is.
+          PanelToolTip {
+            visible: chartHover.hovered && chargeBar.hoverText !== ""
+            delay: 0
+            text: chargeBar.hoverText
+            fontFamily: root.bar.fontFamily
+            x: Math.max(0, Math.min(chargeBar.width - width, chargeBar.hoverX - width / 2))
+            y: -height - Style.space(4)
+          }
+
           Rectangle {
             id: chartMask
             anchors.fill: parent

@@ -178,6 +178,35 @@ function historyPoints(entries, now, span, current) {
   return points
 }
 
+// The charge at a point along the chart, `fraction` of the way from the
+// window's start to now: the reading in force there, or null before the
+// first one.
+function levelAt(points, fraction) {
+  var list = Array.isArray(points) ? points : []
+  var level = null
+  for (var i = 0; i < list.length && list[i].x <= fraction; i++) level = Math.round(100 - list[i].y * 100)
+  return level
+}
+
+// What the chart's hover tooltip says at `fraction`: the level, and how long
+// before now that was.
+function historyReadout(points, fraction, span, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var f = typeof fmt === "function" ? fmt : function(v) { return String(v) }
+  function fill(text, a, b) { return String(text).replace("%1", a).replace("%2", b) }
+
+  var level = levelAt(points, fraction)
+  if (level === null) return ""
+  var percent = f(level) + "%"
+  var minutes = Math.round((1 - fraction) * span / 60)
+  if (minutes < 1) return fill(t("power.historyNow", "%1 · now"), percent)
+  var hours = Math.floor(minutes / 60)
+  var ago = hours > 0
+    ? fill(t("power.durationHoursMinutes", "%1h %2m"), f(hours), f(minutes % 60))
+    : fill(t("power.durationMinutes", "%1m"), f(minutes))
+  return fill(t("power.historyAgo", "%1 · %2 ago"), percent, ago)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
@@ -193,6 +222,8 @@ if (typeof module !== "undefined") {
     localizeReading: localizeReading,
     historyDevicePath: historyDevicePath,
     parseHistory: parseHistory,
-    historyPoints: historyPoints
+    historyPoints: historyPoints,
+    levelAt: levelAt,
+    historyReadout: historyReadout
   }
 }

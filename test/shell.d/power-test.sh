@@ -72,4 +72,12 @@ assertDeepEqual(
   [{ x: 0.5, y: 0.4 }, { x: 1, y: 0.4 }, { x: 1, y: 0.45 }],
   'power starts the line at the first reading when nothing came before it, and ends on the live level'
 )
+
+// The same window read under the pointer: nothing before the first reading,
+// 80% at the start, 60% from the step on, and the live level at now.
+const steps = power.historyPoints([{ time: 21600, value: 80 }, { time: 25200, value: 60 }], 28800, 7200, 55)
+assertEqual(power.historyReadout(steps, 0.25, 7200), '80% · 1h 30m ago', 'power reads the level before a step under the pointer')
+assertEqual(power.historyReadout(steps, 0.5, 7200), '60% · 1h 0m ago', 'power reads the new level on a step under the pointer')
+assertEqual(power.historyReadout(steps, 1, 7200), '55% · now', 'power reads the live level at the end of the chart')
+assertEqual(power.historyReadout(power.historyPoints([{ time: 950, value: 60 }], 1000, 100, 55), 0.2, 100), '', 'power says nothing before the first reading')
 JS
