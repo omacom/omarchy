@@ -1,12 +1,12 @@
 # Теме
 
-Omarchy долази с двадесет две лепе теме. Можете бирати између њих преко _Стил > Тема_ у Omarchy менију (`Super + Space`) или директно скочити на бирач тема помоћу `Super + Ctrl + Shift + Space`.
+Omarchy долази са двадесет две прелепе теме. Можете да бирате између њих преко _Изглед > Тема_ у Omarchy менију (`Super + Space`) или да директно скочите на бирач тема помоћу `Super + Ctrl + T`.
 
-Свака тема стилује радну површину, терминал, neovim, екран активности (btop), Chromium и целу Omarchy шкољку: горњу траку, мени, обавештења, OSD и екран за закључавање. (За Obsidian, морате ручно изабрати Omarchy тему преко _Appearance > Themes_ унутар апликације).
+Свака тема стилизује радну површину, терминал, neovim, екран активности (btop), Chromium и целокупну Omarchy љуску: горњу траку, мени, обавештења, OSD и екран за закључавање. (За Obsidian морате ручно да изаберете Omarchy тему преко _Изглед > Теме_ унутар апликације).
 
-Теме имају скуп позадинских слика између којих можете бирати помоћу `Super + Ctrl + Space`.
+Теме имају скуп позадинских слика између којих можете да бирате помоћу `Super + Ctrl + W`.
 
-Још више тема можете пронаћи на [страници додатних тема](https://omarchy.org/themes/) или чак [направити сопствену тему](43-making-your-own-theme.md).
+Још више тема можете да пронађете на [страници са додатним темама](https://omarchy.org/themes/) или чак да [направите сопствену тему](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Откључавања
 
-Теме могу имати и прилагођен дизајн откључавања, који се користи за процес дешифровања при покретању. Можете изабрати један под _Стил > Откључај_. Изгледају овако:
+Теме могу да имају и прилагођен дизајн за откључавање, који се користи за процес дешифровања при покретању система. Један од њих можете да изаберете под _Изглед > Откључавање_. Изгледају овако:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

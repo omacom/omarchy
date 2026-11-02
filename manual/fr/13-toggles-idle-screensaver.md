@@ -1,50 +1,50 @@
-# Bascules, inactivité et écran de veille
+# Bascules, inactivité et l'économiseur d'écran
 
-Une grande partie de ce que vous changez au quotidien n'est pas vraiment un réglage. C'est un mode que vous activez pendant une heure puis désactivez : l'éclairage nocturne pendant que vous travaillez tard, ne pas déranger pendant que vous présentez, rester éveillé pendant que vous regardez quelque chose. Omarchy les appelle des bascules, et elles fonctionnent toutes de la même façon — un raccourci, une entrée de menu et une commande, tous frappant le même interrupteur.
+Une bonne partie de ce que tu changes au quotidien n'est pas vraiment un réglage. C'est un mode que tu actives pour une heure, puis que tu désactives : l'éclairage nocturne quand tu travailles tard, le mode ne pas déranger quand tu présentes, le maintien éveillé quand tu regardes quelque chose. Omarchy appelle ça des bascules, et elles fonctionnent toutes de la même façon — un raccourci clavier, une entrée de menu et une commande, qui agissent tous sur le même interrupteur.
 
 ### Le menu des bascules
 
-`Super + Ctrl + O` ouvre directement _Déclencher > Basculer_, ou vous pouvez y aller depuis le menu Omarchy (`Super + Space`). Tout dans cette liste est un interrupteur que vous pouvez actionner sans penser à l'endroit où vit l'état. Les interrupteurs pour l'apparence du bureau se trouvent juste à côté, sous _Déclencher > Apparence_.
+`Super + Ctrl + O` ouvre directement _Trigger > Toggle_, ou tu peux y accéder depuis le menu Omarchy (`Super + Space`). Tout ce qui figure dans cette liste est un interrupteur que tu peux basculer sans te demander où vit l'état. Les interrupteurs liés à l'apparence du bureau se trouvent juste à côté, sous _Appearance_.
 
-Depuis le terminal, les mêmes interrupteurs sont `omarchy toggle <thing>`. Exécutez `omarchy toggle` tout seul pour voir tout le groupe.
+Depuis le terminal, les mêmes interrupteurs sont `omarchy toggle <thing>`. Exécute `omarchy toggle` tout seul pour voir tout le groupe.
 
-| Bascule | Raccourci | Commande |
+| Bascule | Raccourci clavier | Commande |
 | ------ | ------ | ------- |
-| Éclairage nocturne | `Super + Ctrl + N` | `omarchy toggle nightlight` |
-| Silencer les notifications | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
-| Rester éveillé (pas de verrouillage inactif) | `Super + Ctrl + I` | `omarchy toggle idle` |
-| Capture de crash | — | `omarchy toggle crash-capture` |
-| Écran de veille | — | `omarchy toggle screensaver` |
-| Synchro thème [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
+| Éclairage nocturne | — | `omarchy toggle nightlight` |
+| Silence des notifications | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
+| Rester éveillé (pas de verrouillage pour inactivité) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Capture en cas de plantage | — | `omarchy toggle crash-capture` |
+| Économiseur d'écran | — | `omarchy toggle screensaver` |
+| Synchronisation du thème de [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barre de menu | `Super + Shift + Space` | `omarchy toggle bar` |
 | Pavé tactile | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
 | Écran tactile | — | `omarchy toggle touchscreen` |
-| Suspendre | — | `omarchy toggle suspend` |
+| Veille | — | `omarchy toggle suspend` |
 | GPU hybride | — | `omarchy toggle hybrid gpu` |
 
-Les interrupteurs pavé tactile, écran tactile et GPU hybride vivent sous _Déclencher > Matériel_ (`Super + Ctrl + H`) plutôt que sous Basculer, puisqu'ils n'apparaissent que lorsque vous avez réellement ce matériel. Ceux du pavé tactile et de l'écran tactile survivent à un rechargement de Hyprland — le nom du périphérique désactivé est enregistré dans un petit fichier d'état que Hyprland lit au démarrage pour le désactiver à nouveau.
+Les interrupteurs du pavé tactile, de l'écran tactile et du GPU hybride se trouvent sous _Trigger > Hardware_ (`Super + Ctrl + H`) plutôt que sous Toggle, puisqu'ils n'apparaissent que si tu possèdes réellement ce matériel. Ceux du pavé tactile et de l'écran tactile survivent à un rechargement de Hyprland — le nom du périphérique désactivé est enregistré dans un petit fichier d'état que Hyprland lit au démarrage pour le désactiver à nouveau.
 
-_Déclencher > Apparence_ contient la barre de menu et les animations, plus quelques éléments qui ne sont pas des commandes `omarchy toggle` mais se comportent de la même façon : le pourcentage batterie dans la barre, la disposition d'espace par défaut, les espacements fenêtres (`Super + Shift + Backspace`), et le ratio carré 1 fenêtre (`Super + Ctrl + Backspace`).
+_Appearance_ regroupe la barre de menu et les animations, plus quelques éléments qui ne sont pas des commandes `omarchy toggle` mais se comportent de la même façon : le pourcentage de batterie dans la barre, la disposition par défaut des espaces de travail, et sous _Windows_, les espacements des fenêtres (`Super + Shift + Backspace`) et le format carré pour 1 fenêtre (`Super + Ctrl + Backspace`).
 
-La plupart d'entre eux ne sont qu'un fichier indicateur sous `~/.local/state/omarchy/toggles/`. Si vous voulez brancher sur l'un d'eux dans un script, `omarchy-toggle-enabled` vous donne un code de sortie au lieu de vous faire chercher :
+La plupart ne sont qu'un fichier drapeau sous `~/.local/state/omarchy/toggles/`. Si tu veux tester l'un d'eux dans un script, `omarchy-toggle-enabled` te donne un code de sortie au lieu de t'obliger à aller chercher toi-même :
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-Les indicateurs sont nommés pour l'état désactivé — `screensaver-off`, `suspend-off`, `bar-off` — donc leur présence signifie que la fonctionnalité est désactivée.
+Les drapeaux sont nommés d'après l'état désactivé — `screensaver-off`, `suspend-off`, `bar-off` — donc leur présence signifie que la fonctionnalité est désactivée.
 
-### Indicateurs dans la barre
+### Les indicateurs dans la barre
 
-Lorsqu'un mode est activé, vous obtenez un petit glyphe au milieu de la barre supérieure, à côté de l'horloge. C'est le widget indicateurs, et il porte la dictée, l'enregistrement d'écran, les rappels en attente, l'éclairage nocturne, ne pas déranger, et rester éveillé.
+Quand un mode est activé, tu obtiens un petit glyphe au milieu de la barre supérieure, à côté de l'horloge. C'est le widget des indicateurs, et il regroupe la dictée, l'enregistrement d'écran, les rappels en attente, l'éclairage nocturne, le mode ne pas déranger et le maintien éveillé.
 
-Les indicateurs inactifs sont masqués. Survolez la zone autour d'eux et ils apparaissent en fondu atténué, de sorte que vous pouvez en cliquer un pour l'activer sans connaître son raccourci. Cliquer sur un indicateur actif le désactive. Si vous préférez les voir tous en permanence, définissez `alwaysShow` à `true` sur l'entrée `omarchy.indicators` dans `~/.config/omarchy/shell.json` — voir [la barre supérieure](05-the-top-bar.md) pour la façon dont les widgets de la barre sont configurés.
+Les indicateurs inactifs sont masqués. Survole n'importe quel endroit de la barre et ils apparaissent en fondu, en atténué, pour que tu puisses cliquer sur l'un d'eux pour l'activer sans connaître son raccourci clavier. Cliquer sur un indicateur actif le désactive à nouveau. Si tu préfères les voir tous en permanence, définis `alwaysShow` sur `true` sur l'entrée `omarchy.indicators` dans `~/.config/omarchy/shell.json` — voir [la barre supérieure](05-the-top-bar.md) pour savoir comment les widgets de la barre sont configurés.
 
 ### Éclairage nocturne
 
-`Super + Ctrl + N` réchauffe l'écran à 4000K, et le refaire le remet à 6500K. Il est piloté par hyprsunset, que la bascule démarre pour vous s'il ne tourne pas déjà.
+L'éclairage nocturne réchauffe l'écran à 4000K, et le basculer à nouveau le ramène à 6500K. Bascule-le depuis le menu des bascules (`Super + Ctrl + O`) ou avec `omarchy toggle nightlight`. Il est piloté par hyprsunset, que la bascule démarre pour toi s'il n'est pas déjà en cours d'exécution.
 
-Par défaut, hyprsunset ne fait rien du tout à votre écran. `~/.config/hypr/hyprsunset.conf` est livré avec un profil identité précisément pour que l'affichage reste intact jusqu'à ce que vous demandiez de la chaleur. Si vous préférez qu'il bascule selon l'horloge, remplacez-le par un profil horaire :
+Par défaut, hyprsunset ne fait absolument rien à ton écran. `~/.config/hypr/hyprsunset.conf` est livré avec un profil identité précisément pour que l'affichage reste intact jusqu'à ce que tu demandes de la chaleur. Si tu préfères qu'il bascule selon l'heure, remplace-le par un profil horaire :
 
 ```
 profile {
@@ -53,19 +53,19 @@ profile {
 }
 ```
 
-Démarrez ensuite hyprsunset à la connexion en ajoutant `o.launch_on_start("hyprsunset")` à `~/.config/hypr/autostart.lua`. La paire 4000K/6500K utilisée par la bascule est fixe, donc le fichier de configuration est l'endroit où aller si vous voulez une autre température.
+Ensuite, démarre hyprsunset à la connexion en ajoutant `o.launch_on_start("hyprsunset")` à `~/.config/hypr/autostart.lua`. La paire 4000K/6500K utilisée par la bascule est fixe, donc c'est dans le fichier de configuration que tu dois aller si tu veux une autre température.
 
 ### Ne pas déranger
 
-`Super + Ctrl + ,` silence les notifications. Aucun toast n'apparaît pendant qu'il est actif, et l'indicateur de cloche barrée se trouve dans la barre pour vous rappeler pourquoi le bureau est devenu silencieux.
+`Super + Ctrl + Alt + ,` met les notifications en silence. Aucun toast n'apparaît tant qu'il est actif, et l'indicateur de cloche barrée se trouve dans la barre pour te rappeler pourquoi le bureau est devenu silencieux.
 
-Rien n'est perdu, cependant. Une notification silenciée est écrite directement dans votre historique de notifications, qui est exactement l'enregistrement que vous voulez lorsque vous revenez et vous demandez ce que vous avez manqué. Ouvrez-le avec `Super + Shift + Alt + ,`. Voir [avis](10-notices.md) pour le reste de l'histoire des notifications.
+Rien n'est perdu pour autant. Les notifications mises en silence sont retenues : réaffiche les dernières à l'écran avec `Super + Shift + Alt + ,`. Voir [les notices](10-notices.md) pour le reste.
 
-Deux types de messages passent encore : les propres toasts de confirmation d'Omarchy pour quelque chose que vous venez de faire (« Theme changed », « Screenshot saved »), et les alertes critiques envoyées depuis la ligne de commande. Les applis de chat qui marquent tout comme critique pour se forcer devant vous ne sont pas qualifiées.
+Deux types de messages passent quand même : les toasts de confirmation propres à Omarchy pour quelque chose que tu viens de faire (« Theme changed », « Screenshot saved »), et les alertes critiques envoyées depuis la ligne de commande. Les applications de chat qui marquent tout comme critique pour s'imposer à toi ne comptent pas.
 
 ### Inactivité
 
-Le shell Omarchy détient le comportement d'inactivité, et les délais sont un bloc `idle` de niveau supérieur dans `~/.config/omarchy/shell.json` :
+Le shell Omarchy gère le comportement en cas d'inactivité, et les délais se trouvent dans un bloc `idle` de premier niveau dans `~/.config/omarchy/shell.json` :
 
 ```json
 {
@@ -77,26 +77,26 @@ Le shell Omarchy détient le comportement d'inactivité, et les délais sont un 
 }
 ```
 
-Les deux nombres sont des secondes comptées à partir du moment où vous êtes devenu inactif — pas l'un par rapport à l'autre. Ainsi, avec les valeurs par défaut, l'écran de veille apparaît après deux minutes et demie et l'écran de verrouillage prend le relais à cinq minutes, que l'écran de veille ait tourné ou non. Enregistrez le fichier et le shell prend les nouveaux délais tout de suite.
+Les deux nombres sont des secondes comptées à partir du moment où tu es devenu inactif — pas l'un par rapport à l'autre. Donc avec les valeurs par défaut, l'économiseur d'écran apparaît au bout de deux minutes et demie et l'écran de verrouillage prend le relais à cinq minutes, que l'économiseur d'écran se soit lancé ou non. Enregistre le fichier et le shell prend en compte les nouveaux délais immédiatement.
 
-Si vous fermez l'écran de veille avant l'échéance de verrouillage, cela compte comme une activité et le verrouillage en attente est annulé. Vous n'êtes pas verrouillé dehors pour avoir jeté un coup d'œil à votre machine.
+Si tu fermes l'économiseur d'écran avant l'échéance de verrouillage, cela compte comme une activité et le verrouillage en attente est annulé. Tu ne te retrouves pas verrouillé dehors pour avoir jeté un coup d'œil à ta machine.
 
-Pour arrêter complètement le verrouillage en cas d'inactivité, `Super + Ctrl + I` — ou `omarchy toggle idle` — active rester éveillé, et l'indicateur tasse de café apparaît dans la barre. C'est celui à actionner avant une longue présentation ou un build que vous voulez regarder. Réactionnez-le pour revenir à la normale. `omarchy toggle idle status` affiche l'état actuel en JSON si vous en avez besoin depuis un script.
+Pour arrêter complètement le verrouillage en cas d'inactivité, `Super + Ctrl + I` — ou `omarchy toggle idle` — active le maintien éveillé, et l'indicateur de tasse de café apparaît dans la barre. C'est celui-là qu'il faut activer avant une longue présentation ou une compilation que tu veux surveiller. Active-le à nouveau pour revenir à la normale. `omarchy toggle idle status` affiche l'état actuel en JSON si tu en as besoin depuis un script.
 
-Il s'agit du verrouillage et de l'écran de veille, pas de l'alimentation. La suspension et l'hibernation ont leur propre configuration dans [veille système](36-system-sleep.md).
+Il s'agit ici du verrouillage et de l'économiseur d'écran, pas de l'alimentation. La veille et l'hibernation ont leur propre configuration dans [la mise en veille du système](36-system-sleep.md).
 
-### L'écran de veille
+### L'économiseur d'écran
 
-L'écran de veille d'Omarchy est de l'art ASCII traversant des effets de texte aléatoires, une instance par écran. N'importe quelle touche ou mouvement de souris en sort.
+L'économiseur d'écran d'Omarchy est un art ASCII traversé par des effets de texte aléatoires, avec une instance par moniteur. N'importe quelle touche ou mouvement de souris le quitte.
 
-Vous pouvez le démarrer à la demande depuis _Système > Écran de veille_ (`Super + Esc`), ce qui le force même si vous avez désactivé l'écran de veille inactif. Aucun raccourci ne lui est lié par défaut.
+Tu peux le lancer à la demande depuis _System > Screensaver_ (`Super + Esc`), ce qui le force à apparaître même si tu as désactivé l'économiseur d'écran en cas d'inactivité. Aucun raccourci clavier ne lui est assigné par défaut.
 
-`omarchy toggle screensaver` est ce qui désactive celui de l'inactivité, si vous préférez passer directement du travail au verrouillé. Il a besoin d'un terminal qu'il sait configurer — Alacritty, Foot, Ghostty ou Kitty — et vous le dira si votre terminal par défaut est autre chose.
+`omarchy toggle screensaver` est ce qui désactive celui lié à l'inactivité, si tu préfères passer directement du travail au verrouillage. N'importe quelle touche, clic, défilement ou mouvement de souris le ferme.
 
-Le logo qu'il dessine vous appartient, sous _Style > Écran de veille_. Téléversez un png ou un svg et Omarchy le convertit en ASCII. Voir [branding](41-branding.md).
+Le logo qu'il dessine peut être changé par le tien, sous _Appearance > Branding > Screensaver_. Envoie un png ou un svg et Omarchy le convertit en ASCII. Voir [l'identité visuelle](41-branding.md).
 
 ### L'écran de verrouillage
 
-`Super + Ctrl + L` verrouille la machine. Cela exécute l'écran de verrouillage du shell Omarchy, éteint l'affichage, réinitialise votre disposition de clavier à la première pour que vous ne tapiez pas votre mot de passe dans le mauvais alphabet, et — si vous l'avez en cours — verrouille 1Password en sortant.
+`Super + Ctrl + L` verrouille la machine. Cela lance l'écran de verrouillage du shell Omarchy, éteint l'affichage, réinitialise ta disposition de clavier à la première pour que tu ne tapes pas ton mot de passe dans le mauvais alphabet, et — si tu l'as en cours d'exécution — verrouille 1Password au passage.
 
-L'écran de verrouillage accepte un mot de passe, et il acceptera aussi une empreinte digitale une fois que vous en aurez configuré une. Cela, et les autres façons de s'authentifier, sont couverts dans [authentification matérielle](37-hardware-authentication.md).
+L'écran de verrouillage accepte un mot de passe, et il acceptera aussi une empreinte digitale une fois que tu en auras configuré une. Cela, et les autres façons de s'authentifier, sont traités dans [l'authentification matérielle](37-hardware-authentication.md).

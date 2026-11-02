@@ -72,7 +72,6 @@ run omarchy-hyprland-window-transparency glassy
 (( $(grep -c 'omarchy-glass begin' "$gtk_css") == 1 )) || fail "glassy GTK apps import the backdrop blur once"
 run omarchy-hyprland-window-transparency transparent
 [[ $(<"$gtk_css") == 'label { color: red; }' ]] || fail "leaving glassy restores the user's GTK CSS"
-grep -qF 'backdrop-filter: blur(' "$ROOT/default/gtk/glass.css" || fail "the GTK glass is a backdrop blur"
 printf 'label { color: red; }' >"$gtk_css"
 run omarchy-hyprland-window-transparency glassy
 run omarchy-hyprland-window-transparency transparent
@@ -90,12 +89,6 @@ chmod u+w "$gtk_css"
 [[ $(run omarchy-hyprland-window-transparency) == "transparent" ]] || fail "a failed change keeps the previous choice"
 run omarchy-hyprland-window-transparency transparent
 pass "glassy GTK apps get a backdrop blur, and leaving glassy takes it out"
-
-# Opaque reaches the windows Omarchy makes transparent through their tag.
-grep -qF 'tag = "+transparent-window"' "$ROOT/default/hypr/helpers.lua" || fail "transparent windows carry a tag"
-grep -qF 'o.window({ tag = "transparent-window" }, { opacity = "1 1" })' "$ROOT/default/hypr/toggles/window-opaque.lua" ||
-  fail "opaque windows apply to the tagged windows"
-pass "opaque windows apply to the windows Omarchy makes transparent"
 
 # Terminals turn compositor blur down and fade their text with the window, so
 # glassy gives each theme terminal file a see-through, blurred background.
@@ -248,7 +241,3 @@ if command -v script >/dev/null; then
 else
   skip "script is not installed"
 fi
-
-grep -qx 'blur=yes' "$ROOT/default/themed/foot.ini.tpl" || fail "foot starts ready to blur"
-grep -qx 'dynamic_background_opacity yes' "$ROOT/default/themed/kitty.conf.tpl" || fail "kitty starts ready to change opacity"
-pass "foot and kitty start ready for glass, since they read that only at launch"

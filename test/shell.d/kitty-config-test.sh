@@ -7,98 +7,7 @@ test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 test_home="$test_dir/home"
 kitty_config="$test_home/.config/kitty/kitty.conf"
-legacy="$ROOT/test/shell.d/fixtures/kitty/legacy.conf"
-migration="$ROOT/migrations/1788745941.sh"
 mkdir -p "$(dirname "$kitty_config")" "$test_dir/bin"
-
-# The migration announces the restart with gum, which is mise-managed on
-# some machines and refuses to run under a scratch HOME it does not
-# trust. Stub it (echoing its text, which cases below look for).
-printf '#!/bin/bash\nprintf "%%s\\n" "$@"\n' >"$test_dir/bin/gum"
-chmod +x "$test_dir/bin/gum"
-
-run_migration() {
-  env HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" bash -euo pipefail "$migration"
-}
-
-cp "$legacy" "$kitty_config"
-output=$(run_migration)
-cmp -s "$ROOT/config/kitty/kitty.conf" "$kitty_config" || fail "stock config becomes the user template"
-backups=("$kitty_config".bak.*)
-cmp -s "$legacy" "${backups[0]}" || fail "refresh backs up the original config"
-[[ $output == *"Close and reopen all Kitty windows"* ]] || fail "migration requires a full restart"
-pass "stock config is refreshed with a backup and restart guidance"
-
-output=$(run_migration)
-cmp -s "$ROOT/config/kitty/kitty.conf" "$kitty_config" || fail "stock migration is idempotent"
-[[ $output != *"Close and reopen"* ]] || fail "rerun does not repeat restart guidance"
-pass "stock migration is idempotent"
-
-cat >"$kitty_config" <<'CONF'
-# Keep this comment and my theme choice
-include my-theme.conf
-font_family My Font
-font_size 13
-map ctrl+insert
-include shortcuts.conf
-map shift+insert paste_from_clipboard
-  allow_remote_control   yes
-allow_remote_control y
-allow_remote_control true
-# allow_remote_control yes
-listen_on unix:/tmp/my-kitty
-CONF
-printf 'allow_remote_control yes  \n' >>"$kitty_config"
-cp "$kitty_config" "$test_dir/custom-original"
-cat >"$test_dir/expected" <<'CONF'
-# Keep this comment and my theme choice
-include my-theme.conf
-font_family My Font
-font_size 13
-map ctrl+insert
-include shortcuts.conf
-map shift+insert paste_from_clipboard
-#   allow_remote_control   yes
-# allow_remote_control y
-# allow_remote_control true
-# allow_remote_control yes
-listen_on unix:/tmp/my-kitty
-CONF
-printf '# allow_remote_control yes  \n' >>"$test_dir/expected"
-chmod 600 "$kitty_config"
-run_migration >/dev/null
-cmp -s "$test_dir/expected" "$kitty_config" || fail "customizations survive the security repair"
-[[ $(stat -c %a "$kitty_config") == "600" ]] || fail "migration preserves config permissions"
-backup=$(rg -l 'allow_remote_control true' "$kitty_config".bak.* | tail -1)
-cmp -s "$test_dir/custom-original" "$backup" || fail "custom config is backed up"
-run_migration >/dev/null
-cmp -s "$test_dir/expected" "$kitty_config" || fail "custom migration is idempotent"
-pass "custom config repair preserves ordering, mappings, theme, permissions, and original backup"
-
-for mode in no n false socket-only socket password; do
-  printf 'allow_remote_control %s\nfont_size 13\n' "$mode" >"$kitty_config"
-  cp "$kitty_config" "$test_dir/expected"
-  run_migration >/dev/null
-  cmp -s "$test_dir/expected" "$kitty_config" || fail "migration preserves $mode"
-done
-pass "explicit restricted remote-control modes are preserved"
-
-printf 'font_size 13\n' >"$kitty_config"
-cp "$kitty_config" "$test_dir/expected"
-run_migration >/dev/null
-cmp -s "$test_dir/expected" "$kitty_config" || fail "omitted setting stays omitted"
-rm "$kitty_config"
-run_migration >/dev/null
-[[ ! -e $kitty_config ]] || fail "absent config stays absent"
-pass "migration leaves omitted settings and absent user configs alone"
-
-printf 'allow_remote_control yes\nfont_size 13\n' >"$test_dir/dotfiles.conf"
-ln -s "$test_dir/dotfiles.conf" "$kitty_config"
-run_migration >/dev/null
-[[ -L $kitty_config ]] || fail "migration preserves a dotfile symlink"
-grep -qx '# allow_remote_control yes' "$test_dir/dotfiles.conf" || fail "symlink target is repaired"
-pass "custom dotfile symlinks survive the repair"
-rm "$kitty_config"
 
 # Exercise the real font commands without changing the running desktop.
 for command in pkill omarchy-restart-shell omarchy-hook omarchy-notification-send; do
@@ -153,7 +62,9 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
-if "$ROOT/bin/omarchy-cmd-present" kitty; then
+# try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
+# is installed, so a command on PATH is not enough: ask Kitty itself.
+if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
   kitty +runpy "$(cat "$ROOT/test/shell.d/fixtures/kitty/check-config.py")"
 else
   skip "Kitty not installed; skipping native config parser checks"

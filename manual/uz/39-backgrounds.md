@@ -1,15 +1,15 @@
 # Fonlar
 
-Har bir mavzu oʻzining fon toʻplami bilan keladi va siz oʻzingizning qoʻshimchalaringizni `~/.config/omarchy/backgrounds/[theme]` da qoʻsha olasiz. Agar, aytaylik, nord mavzusiga qoʻshimcha fon rasmini qoʻshishni istasangiz, faylni shunchaki `~/.config/omarchy/backgrounds/nord` ga qoʻyasiz.
+Har bir mavzu o‘z fonlar to‘plami bilan birga keladi, siz esa qo‘shimchalarini `~/.config/omarchy/backgrounds/[theme]` ga qo‘shishingiz mumkin. Agar, aytaylik, nord mavzusiga qo‘shimcha fon rasmi qo‘shmoqchi bo‘lsangiz, faylni shunchaki `~/.config/omarchy/backgrounds/nord` ga joylashtirasiz.
 
-Buni eng oson Omarchy menyusida _Oʻrnatish > Uslub > Fon_ ga oʻtish bilan qilishingiz mumkin. Bu oʻsha mavzu uchun fonlar saqlanadigan jildni ochadi. Boshqa fayl menejerini boshlash uchun `Super + Shift + F` ni bosing, foningizni toping, uni koʻchiring. Endi u `Super + Ctrl + Space` yordamida tanlashingiz mumkin boʻlgan fonlar tanlovlariga kiritiladi.
+Buni eng oson Omarchy Menu da _Install > Style > Background_ ga o‘tish orqali qilishingiz mumkin. Bu o‘sha mavzu fonlari saqlanadigan papkani ochadi. Boshqa fayl boshqaruvchisini ishga tushirish uchun `Super + Shift + F` ni bosing, foningizni toping, uni nusxalab o‘tkazing. Endi u `Super + Ctrl + W` yordamida tanlashingiz mumkin bo‘lgan fonlar qatoriga kiradi.
 
-Fonlar kadrlardan tashqari videolar ham boʻlishi mumkin. Bir xil jildga `mp4`, `m4v`, `mov`, `webm`, `mkv` yoki `avi` faylini tashlang va u rasmlar yonida paydo boʻladi. Videolar OWE wallpaper mexanizmi tomonidan oʻynatiladi. U barcha monitorlar uchun videoni bir marta dekodlaydi va uning ovozini standart audio chiqishi orqali oʻynaydi va u har safar uni hech narsa koʻra olmaganda ijronishni toʻxtatadi. Qulf ekrani OWE orqali bir xil dekodlashni tovushsiz chizadi. Video fon hali ham kadr fonga qaraganda ancha koʻproq quvvat sarflaydi.
+Fonlar harakatsiz rasmlar bilan bir qatorda videolar ham bo‘lishi mumkin. Xuddi shu papkaga `mp4`, `m4v`, `mov`, `webm`, `mkv` yoki `avi` faylini tashlang, u rasmlar yonida paydo bo‘ladi. Videolar OWE fon dvigateli tomonidan ijro etiladi. U videoni barcha monitorlar uchun bir marta dekodlaydi va uning ovozini standart audio chiqish orqali ijro etadi, hech narsa uni ko‘ra olmay qolganda esa ijroni to‘xtatadi. Video fon baribir harakatsiz fondan ancha ko‘proq quvvat sarflaydi.
 
-Mavzular kadr fon uchun qisqa intro kiritishi mumkin. `backgrounds/road.webp` uchun mos video `backgrounds/intros/road.mp4` da yashaydi. U yuklashda va shu fon tanlangan mavzuga almashganda avtomatik oʻynatiladi, keyin kadrga qaytadi. Intro videolar fon tanlagichdan tashqarida qoladi va hech qachon takrorlanmaydi.
+Mavzular harakatsiz fon uchun qisqa intro ni o‘z ichiga olishi mumkin. `backgrounds/road.webp` uchun mos video `backgrounds/intros/road.mp4` da joylashgan. U yuklanishda, o‘sha fon tanlangan mavzuga o‘tganda va o‘sha fonni tanlaganda avtomatik ijro etiladi, keyin harakatsiz rasmga qaytadi. Intro videolar fon tanlagichidan tashqarida qoladi va hech qachon takrorlanmaydi.
 
-_Ishga tushirish > Koʻrinish > Animatsiyalar_ ni oʻchirish fon introdagi ham oʻchiradi. Omarchy buni virtual mashinada standart holatda qiladi. `omarchy theme bg intro toggle` buyrugʻi intro ni alohida almashtirishi mumkin. Mavzunni yangilash yoki bir xil mavzu ichida boshqa fon tanlash intro oʻynamaydi.
+_Appearance > Animations_ ni o‘chirish fon introlarini ham o‘chiradi. Omarchy virtual mashinada buni sukut bo‘yicha shunday qiladi. `omarchy theme bg intro toggle` buyrug‘i introlarni alohida yoqib-o‘chirishi mumkin. Mavzuni yangilash intro ni ijro etmaydi.
 
-Siz salqin tanlangan fonlarning ulkan toʻplamini topishingiz mumkin: https://github.com/dharmx/walls.
+Ajoyib tanlangan fonlarning ulkan to‘plamini [dharmx/walls](https://github.com/dharmx/walls) da topishingiz mumkin.
 
-Video fonlar ijronish pauza qilingan yoki mavjud boʻlmaganda qulf ekranida keshlangan kadrni saqlaydi. Animatsiya qilingan GIFlar ish stolida oʻynaydi va qulf ekranida kadr kadrini koʻrsatadi.
+Qulflash ekrani video fonning harakatsiz kadrini ko‘rsatadi, xuddi animatsiyalangan GIF ning harakatsiz kadrini ko‘rsatgani kabi.
