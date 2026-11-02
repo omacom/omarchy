@@ -219,6 +219,10 @@ Panel {
   // while on air changes the profile, not the AP, so the notice that it waits
   // for the next start compares against this, not the saved value.
   property string hotspotSaveDataOnAir: ""
+  // The choice the pills show as filled: what is on air while the hotspot
+  // runs, so a saved change doesn't look live before the next start; what the
+  // profile holds while it's off.
+  readonly property string hotspotSaveDataInEffect: hotspotActive && hotspotSaveDataOnAir !== "" ? hotspotSaveDataOnAir : Model.hotspotSaveData(hotspot)
   property bool hotspotRefreshPending: false
   property int hotspotStatusGeneration: 0
   readonly property string hotspotCommand: "omarchy-hotspot"
@@ -2685,7 +2689,7 @@ Panel {
   }
 
   // One save-data choice. `selected` is what the next apply or start writes;
-  // `active` (fill) is what the saved profile holds.
+  // `active` (fill) is the choice in effect (hotspotSaveDataInEffect).
   component HotspotSaveDataPill: Button {
     required property string choice
 
@@ -2698,7 +2702,7 @@ Panel {
     verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
     bordered: true
 
-    active: root.hotspot.configured === "1" && Model.hotspotSaveData(root.hotspot) === choice
+    active: root.hotspot.configured === "1" && root.hotspotSaveDataInEffect === choice
     selected: root.hotspotSaveData === choice
     enabled: !root.hotspotBusy
 

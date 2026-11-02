@@ -248,6 +248,11 @@ assert(/only when this computer's connection is metered/.test(network.hotspotSav
 assert(!/next start/.test(network.hotspotSaveDataTooltip('always', true, 'always')), 'network does not defer the choice the running hotspot already uses')
 assert(/\(from the next start\)$/.test(network.hotspotSaveDataTooltip('never', true, 'always')), 'network says a new choice waits for the next start while on air')
 assert(!/next start/.test(network.hotspotSaveDataTooltip('never', false, 'always')), 'network does not defer a choice while the hotspot is off')
+// The filled pill is what is on air while the hotspot runs, and what the
+// profile holds while it is off.
+const hotspotSaveDataInEffect = panelBinding('hotspotSaveDataInEffect')
+assertEqual(hotspotSaveDataInEffect({ hotspotActive: true, hotspotSaveDataOnAir: 'never', Model: network, hotspot: { save_data: 'always' } }), 'never', 'network fills the data choice on air, not one saved since the start')
+assertEqual(hotspotSaveDataInEffect({ hotspotActive: false, hotspotSaveDataOnAir: '', Model: network, hotspot: { save_data: 'always' } }), 'always', 'network fills the saved data choice while the hotspot is off')
 assertEqual(network.hotspotDefaultBand({}), '', 'network returns no hotspot band when none exist')
 assertDeepEqual(
   network.hotspotClients({ clients: '[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]' }),
