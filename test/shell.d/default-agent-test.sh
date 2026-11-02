@@ -5,7 +5,8 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+fixture_pids=()
+trap 'kill "${fixture_pids[@]}" 2>/dev/null; rm -rf "$test_tmp"' EXIT
 
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
@@ -769,8 +770,9 @@ mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
 # DSH's UI is a server on a fixed port, so a second press reopens the running
 # one rather than starting a server that cannot bind the port.
-bash -c 'exec -a dsh sleep 60' &
+bash -c 'exec -a dsh sleep 60' >/dev/null 2>&1 &
 dsh_pid=$!
+fixture_pids+=("$dsh_pid")
 : >"$launch_log"
 : >"$clipboard_log"
 OMARCHY_TEST_LISTENER_PID=$dsh_pid OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser" omarchy-agent-prompt "Review this"
@@ -780,8 +782,9 @@ OMARCHY_TEST_LISTENER_PID=$dsh_pid OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser" 
 kill "$dsh_pid"
 pass "DSH launcher reopens the running UI"
 
-sleep 60 &
+sleep 60 >/dev/null 2>&1 &
 other_pid=$!
+fixture_pids+=("$other_pid")
 : >"$test_tmp/browser"
 OMARCHY_TEST_LISTENER_PID=$other_pid OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser" omarchy-agent
 assert_launched dsh "ignores another service on its port" env DSH_PERMISSION_MODE=danger-full-access dsh web
