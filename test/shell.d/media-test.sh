@@ -24,7 +24,8 @@ assertEqual(media.idlePlayer([idleBrowser, pausedTrack], idleBrowser, withStream
 assertEqual(media.idlePlayer([idleBrowser], null, withStreams(idleBrowser)), idleBrowser, 'media falls back to a hidden player when none is shown')
 const otherTrack = { identity: 'Spotify', trackTitle: 'Other', canPlay: true }
 assertEqual(media.idlePlayer([otherTrack, pausedTrack], null, withStreams(otherTrack, pausedTrack)), otherTrack, 'media keeps the first shown stream holder')
-assertEqual(media.idlePlayer([otherTrack, pausedTrack], pausedTrack, withStreams(otherTrack)), otherTrack, 'media still ranks a stream holder above the preference')
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], pausedTrack, withStreams(otherTrack)), pausedTrack, 'media ranks the preference above a player whose stream lingers')
+assertEqual(media.idlePlayer([otherTrack, pausedTrack], otherTrack, withStreams(otherTrack), [pausedTrack, otherTrack]), pausedTrack, 'media resumes the player played since over a stale preference holding a stream')
 assertEqual(media.idlePlayer([], null, withStreams()), null, 'media selects nothing without players')
 assert(media.playerCanControl({ canGoNext: true }), 'media detects controllable players')
 assert(media.canHandleAction({ canTogglePlaying: true }, 'playPause'), 'media maps playPause capability')
@@ -55,6 +56,98 @@ assert(media.trackChanged(trackSignature, { ...track, trackTitle: 'Next song' })
 assertEqual(media.labelFor({ trackTitle: 'Song', identity: 'Spotify' }), 'Song', 'media labels players by track first')
 assertEqual(media.osdMessage({ trackTitle: 'Song', trackArtist: 'Artist' }, 'Fallback'), 'Song - Artist', 'media builds OSD messages')
 assertEqual(media.osdMessage(null, 'Fallback'), 'Fallback', 'media falls back OSD messages')
+
+const browser = { dbusName: 'org.mpris.MediaPlayer2.brave.instance1', identity: 'Brave', trackTitle: 'A video', canPlay: true }
+const spotify = { dbusName: 'org.mpris.MediaPlayer2.spotify', identity: 'Spotify', trackTitle: 'A song', canPlay: true }
+const proxy = { dbusName: 'org.mpris.MediaPlayer2.playerctld', identity: 'playerctld', trackTitle: 'Proxied', canPlay: true }
+
+assertEqual(
+  media.mostRecentlyActivePlayer([browser, spotify], { [media.playerKey(browser)]: 100, [media.playerKey(spotify)]: 50 }),
+  browser,
+  'media prefers the player most recently observed playing'
+)
+assertEqual(
+  media.mostRecentlyActivePlayer([browser, spotify], { [media.playerKey(spotify)]: 50 }),
+  spotify,
+  'media picks the only player with recorded recency'
+)
+assertEqual(
+  media.mostRecentlyActivePlayer([browser, spotify], {}),
+  null,
+  'media has no recency opinion when nothing was ever observed playing'
+)
+assertEqual(
+  media.mostRecentlyActivePlayer([proxy], { [media.playerKey(proxy)]: 100 }),
+  null,
+  'media excludes proxy players from recency selection'
+)
+assertEqual(
+  media.mostRecentlyActivePlayer({ length: 2, 0: browser, 1: spotify }, { [media.playerKey(browser)]: 100, [media.playerKey(spotify)]: 50 }),
+  browser,
+  'media reads recency from a player list that is not a JS array, as Mpris.players.values is'
+)
+const endedBrowser = { ...browser, canPlay: false, canTogglePlaying: false }
+assertEqual(
+  media.mostRecentlyActivePlayer([endedBrowser, spotify], { [media.playerKey(browser)]: 100, [media.playerKey(spotify)]: 50 }),
+  spotify,
+  'media skips a recently active player that can no longer play'
+)
+
+const browserKey = media.playerKey(browser)
+const spotifyKey = media.playerKey(spotify)
+assertDeepEqual(
+  media.lastActiveStamps([{ ...browser, isPlaying: true }, spotify], { [browserKey]: 10, [spotifyKey]: 20 }, {}, 500),
+  { [browserKey]: 500, [spotifyKey]: 20 },
+  'media stamps a playing player and keeps a paused one\'s last stamp'
+)
+assertDeepEqual(
+  media.lastActiveStamps([browser, spotify], { [browserKey]: 10, [spotifyKey]: 20 }, { [browserKey]: 1 }, 900),
+  { [browserKey]: 900, [spotifyKey]: 20 },
+  'media dates a player\'s recency to when it stopped, not when it started'
+)
+assertDeepEqual(
+  media.lastActiveStamps({ length: 1, 0: spotify }, { [browserKey]: 10, [spotifyKey]: 20 }, {}, 900),
+  { [spotifyKey]: 20 },
+  'media drops recency for players that have gone away'
+)
+// A browser plays on after a media key pauses Spotify, then is paused hours
+// later: the browser must resume, not the older Spotify preference.
+const stoppedAt = media.lastActiveStamps([browser, spotify], { [browserKey]: 50 }, { [browserKey]: 1 }, 5000)
+assertEqual(
+  media.recencyOrderedFallbacks(spotify, 100, media.mostRecentlyActivePlayer([browser, spotify], stoppedAt), stoppedAt)[0],
+  browser,
+  'media resumes a player that kept playing after the preference was set'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, browser, { [media.playerKey(browser)]: 50 }),
+  [spotify, browser],
+  'media keeps a preference that is newer than the other player\'s last playback'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, browser, { [media.playerKey(browser)]: 200 }),
+  [browser, spotify],
+  'media demotes a stale preference behind a player that played more recently'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, spotify, { [media.playerKey(spotify)]: 200 }),
+  [spotify],
+  'media collapses preference and recency when they name the same player'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(null, 0, browser, { [media.playerKey(browser)]: 50 }),
+  [browser],
+  'media falls back to recency alone when nothing is preferred'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, null, {}),
+  [spotify],
+  'media falls back to the preference alone when nothing was observed playing'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, browser, {}),
+  [spotify, browser],
+  'media keeps the preference first when the other player has no recorded recency'
+)
 
 // The in-shell volume keys follow omarchy-audio-output-volume's rules.
 assertDeepEqual(media.volumeKeyStep('raise', 43, true), { percent: 48, muted: false }, 'volume raise steps 5 and unmutes')
