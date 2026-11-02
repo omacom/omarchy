@@ -7,9 +7,15 @@ ga() {
 
   local branch="$1"
   local base="$(basename "$PWD")"
-  local wt_path="../${base}--${branch}"
+  # A slash in the branch name would nest the worktree one directory deeper.
+  local wt_path="../${base}--${branch//\//-}"
+  # release/toto and release-toto get the same directory; never enter the other
+  if [[ -e $wt_path ]]; then
+    echo "ga: $wt_path already exists" >&2
+    return 1
+  fi
 
-  git worktree add -b "$branch" "$wt_path"
+  git worktree add -b "$branch" "$wt_path" || return 1
   mise trust "$wt_path"
   cd "$wt_path"
 }
@@ -17,20 +23,37 @@ ga() {
 # Remove worktree and branch from within active worktree directory.
 gd() {
   if gum confirm "Remove worktree and branch?"; then
-    local cwd base branch root worktree
+    local cwd base branch name root suffix worktree
 
     cwd="$(pwd)"
     worktree="$(basename "$cwd")"
 
     # split on first `--`
     root="${worktree%%--*}"
-    branch="${worktree#*--}"
+    suffix="${worktree#*--}"
+
+    # ga turned any slashes in the branch name into dashes, so the directory
+    # name cannot say which branch to delete. Take the checked-out branch, but
+    # only when it is the one branch that maps back to this directory.
+    branch="$(git branch --show-current)"
+    if [[ ${branch//\//-} != "$suffix" ]]; then
+      branch=""
+    fi
+    while IFS= read -r name; do
+      if [[ $name != "$branch" && ${name//\//-} == "$suffix" ]]; then
+        branch=""
+      fi
+    done < <(git for-each-ref --format='%(refname:lstrip=2)' refs/heads)
 
     # Protect against accidentally nuking a non-worktree directory
     if [[ "$root" != "$worktree" ]]; then
       cd "../$root"
       git worktree remove "$cwd" --force || return 1
-      git branch -D "$branch"
+      if [[ -n $branch ]]; then
+        git branch -D "$branch"
+      else
+        echo "Kept the branch: cannot tell which one ga created for $worktree" >&2
+      fi
     fi
   fi
 }
