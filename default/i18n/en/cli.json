@@ -397,5 +397,12 @@
   "windowsVm.ramHeader": "How much RAM would you like to allocate to Windows VM?",
   "windowsVm.usernameHeader": "Enter Windows username:",
   "windowsVm.usernamePlaceholder": "Username (Press enter to use default: %1)",
-  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?"
+  "xbox.rebootNeeded": "Reboot needed to finish setup. Reboot now?",
+  "wifiRecovery.failedTitle": "Wi-Fi did not come back",
+  "wifiRecovery.failedBody": {
+    "one": "The radio driver was reloaded %1 time without recovering. Run: omarchy restart wifi",
+    "other": "The radio driver was reloaded %1 times without recovering. Run: omarchy restart wifi"
+  },
+  "wifiRecovery.reloadedTitle": "Wi-Fi radio reloaded",
+  "wifiRecovery.reloadedBody": "The radio firmware wedged and the driver was reloaded."
 }
