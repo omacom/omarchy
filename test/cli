@@ -287,14 +287,26 @@ chmod +x "$FONT_TMPDIR/fake-bin/fc-list"
 PATH="$FONT_TMPDIR/fake-bin:$ROOT/bin:$PATH" HOME="$FONT_TMPDIR" \
   "$ROOT/bin/omarchy-font-set" "Test Font" >/dev/null
 
-grep -qx 'font=Test Font:size=12' "$FONT_TMPDIR/.config/foot/foot.ini" || fail "font set preserves the Foot size set by omarchy display text size"
-pass "font set preserves the Foot size set by omarchy display text size"
+grep -qx 'font=Test Font:size=12, Noto Color Emoji:size=10' "$FONT_TMPDIR/.config/foot/foot.ini" || fail "font set preserves the Foot size set by omarchy display text size and its fallback fonts"
+pass "font set preserves the Foot size set by omarchy display text size and its fallback fonts"
 grep -qx 'font_size 12.0' "$FONT_TMPDIR/.config/kitty/kitty.conf" || fail "font set preserves kitty size"
 pass "font set preserves kitty size"
 grep -qx 'size = 12' "$FONT_TMPDIR/.config/alacritty/alacritty.toml" || fail "font set preserves alacritty size"
 pass "font set preserves alacritty size"
 grep -qx 'font-size = 12' "$FONT_TMPDIR/.config/ghostty/config" || fail "font set preserves ghostty size"
 pass "font set preserves ghostty size"
+
+# Foot keeps everything but the family: other options and a pixelsize, not just :size=.
+printf 'font=Old Font:size=11:weight=medium\n' >"$FONT_TMPDIR/.config/foot/foot.ini"
+PATH="$FONT_TMPDIR/fake-bin:$ROOT/bin:$PATH" HOME="$FONT_TMPDIR" \
+  "$ROOT/bin/omarchy-font-set" "Test Font" >/dev/null
+grep -qx 'font=Test Font:size=11:weight=medium' "$FONT_TMPDIR/.config/foot/foot.ini" || fail "font set preserves Foot font options"
+pass "font set preserves Foot font options"
+printf 'font=Old Font:pixelsize=16\n' >"$FONT_TMPDIR/.config/foot/foot.ini"
+PATH="$FONT_TMPDIR/fake-bin:$ROOT/bin:$PATH" HOME="$FONT_TMPDIR" \
+  "$ROOT/bin/omarchy-font-set" "Test Font" >/dev/null
+grep -qx 'font=Test Font:pixelsize=16' "$FONT_TMPDIR/.config/foot/foot.ini" || fail "font set preserves a Foot pixelsize"
+pass "font set preserves a Foot pixelsize"
 
 make_tmpdir PI_TMPDIR
 NEXT_THEME="$PI_TMPDIR/.local/state/omarchy/current/next-theme"
