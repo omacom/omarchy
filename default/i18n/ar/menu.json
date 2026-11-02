@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "اختبار سرعة القرص"
   },
-  "setup.keybindings": {
-    "label": "اختصارات المفاتيح"
-  },
   "setup.input": {
     "label": "الإدخال"
-  },
-  "setup.typing": {
-    "label": "الكتابة"
-  },
-  "setup.typing.keyboard": {
-    "label": "تخطيطات لوحة المفاتيح"
-  },
-  "setup.typing.input": {
-    "label": "طرق الإدخال"
   },
   "setup.language": {
     "label": "اللغة"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "لوحة المفاتيح"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "اختصارات لوحة المفاتيح"
+  },
+  "setup.keyboard.inputs": {
+    "label": "إدخالات لوحة المفاتيح"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "طرق الإدخال"
   }
 }

@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test brzine diska"
   },
-  "setup.keybindings": {
-    "label": "Prečaci"
-  },
   "setup.input": {
     "label": "Unos"
-  },
-  "setup.typing": {
-    "label": "Tipkanje"
-  },
-  "setup.typing.keyboard": {
-    "label": "Rasporedi tipkovnice"
-  },
-  "setup.typing.input": {
-    "label": "Načini unosa"
   },
   "setup.language": {
     "label": "Jezik"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tipkovnica"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Prečaci"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Unosi tipkovnice"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metode unosa"
   }
 }

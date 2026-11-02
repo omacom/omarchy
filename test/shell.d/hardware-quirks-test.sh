@@ -206,6 +206,9 @@ run_leaf() {
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
+    OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
@@ -225,6 +228,8 @@ leaves=(
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
+  hardware/asus/fix-asus-zenbook-a16-firmware.sh
+  hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
@@ -275,6 +280,14 @@ hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenboo
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|yoga-slim7x|0
+hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-firmware
+hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
+hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-a16-firmware.sh|yoga-slim7x|0
+hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/zenbook-a16.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
+hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16+unreadable|0
+hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl|0|pkg-add linux-firmware-cirrus-dx13260
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl+unreadable|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-wcl|0

@@ -77,6 +77,15 @@ grep -Fx $'rate\t7.3W' <<<"$generic_output" >/dev/null || fail "battery status a
 grep -Fx $'time\t3h 53m' <<<"$generic_output" >/dev/null || fail "battery status time left follows the live draw"
 pass "battery status supports Apple Silicon and arbitrary native battery paths"
 
+# Firmware that doesn't know the present rate leaves current_now in place but
+# gives nothing on read; UPower's rate, from the falling charge, stands.
+rm "$tmp_dir/power/CMB0/power_now"
+: >"$tmp_dir/power/CMB0/current_now"
+printf '12900000\n' >"$tmp_dir/power/CMB0/voltage_now"
+unknown_rate_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t7.3W' <<<"$unknown_rate_output" >/dev/null || fail "an unreadable current_now leaves UPower's rate in place" "$unknown_rate_output"
+pass "battery status keeps UPower's rate when the battery has no live reading"
+
 # An 80% hold threshold doesn't trip while the battery is still below it.
 hold_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir" "$hold_dir"' EXIT

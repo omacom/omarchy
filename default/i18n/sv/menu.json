@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diskhastighetstest"
   },
-  "setup.keybindings": {
-    "label": "Tangentgenvägar"
-  },
   "setup.input": {
     "label": "Inmatning"
-  },
-  "setup.typing": {
-    "label": "Inmatning"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tangentbordslayouter"
-  },
-  "setup.typing.input": {
-    "label": "Inmatningsmetoder"
   },
   "setup.language": {
     "label": "Språk"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tangentbord"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Kortkommandon"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Tangentbordsinmatning"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Inmatningsmetoder"
   }
 }

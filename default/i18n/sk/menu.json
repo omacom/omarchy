@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test rýchlosti disku"
   },
-  "setup.keybindings": {
-    "label": "Klávesové skratky"
-  },
   "setup.input": {
     "label": "Vstup"
-  },
-  "setup.typing": {
-    "label": "Písanie"
-  },
-  "setup.typing.keyboard": {
-    "label": "Rozloženia klávesnice"
-  },
-  "setup.typing.input": {
-    "label": "Metódy vstupu"
   },
   "setup.language": {
     "label": "Jazyk"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klávesnica"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Klávesové skratky"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Vstupy klávesnice"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metódy vstupu"
   }
 }

@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Δοκιμή ταχύτητας δίσκου"
   },
-  "setup.keybindings": {
-    "label": "Συντομεύσεις"
-  },
   "setup.input": {
     "label": "Είσοδος"
-  },
-  "setup.typing": {
-    "label": "Πληκτρολόγηση"
-  },
-  "setup.typing.keyboard": {
-    "label": "Διατάξεις πληκτρολογίου"
-  },
-  "setup.typing.input": {
-    "label": "Μέθοδοι εισαγωγής"
   },
   "setup.language": {
     "label": "Γλώσσα"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Πληκτρολόγιο"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Συντομεύσεις"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Είσοδοι πληκτρολογίου"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Μέθοδοι εισαγωγής"
   }
 }

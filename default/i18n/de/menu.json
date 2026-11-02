@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Plattentest"
   },
-  "setup.keybindings": {
-    "label": "Tastenkürzel"
-  },
   "setup.input": {
     "label": "Eingabe"
-  },
-  "setup.typing": {
-    "label": "Tippen"
-  },
-  "setup.typing.keyboard": {
-    "label": "Tastaturlayouts"
-  },
-  "setup.typing.input": {
-    "label": "Eingabemethoden"
   },
   "setup.language": {
     "label": "Sprache"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastatur"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Tastenbelegung"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Tastatureingaben"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Eingabemethoden"
   }
 }
