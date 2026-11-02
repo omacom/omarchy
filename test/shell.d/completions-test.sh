@@ -34,3 +34,7 @@ mkdir -p "$test_tmp/.local/state/omarchy/settings"
 printf '{"name": "Malibu"}\n' >"$test_tmp/.local/state/omarchy/settings/weather.json"
 [[ $(HOME="$test_tmp" "$ROOT/bin/omarchy" weather location) == "Malibu" ]] || fail "omarchy weather location with no args shows the saved location"
 pass "omarchy weather location with no args shows the saved location"
+
+# Completion runs in the user's own shell, so it must not trip errexit there.
+bash -ec 'source "$1/default/bash/completions"; COMP_WORDS=(omarchy notification send ""); COMP_CWORD=3; _omarchy_complete' _ "$ROOT" || fail "completion survives errexit"
+pass "completion survives errexit"
