@@ -63,6 +63,24 @@ else
   agent=$(omarchy-default-agent)
 fi
 
+# Only agents with a launch-time overlay can be pointed at the local model. When
+# the default can't, or none is set, the local model opens in pi, or OpenCode
+# without pi: the agents panel launches it whether or not a default was chosen.
+if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
+  local_agent=""
+  for candidate in pi opencode; do
+    if omarchy-cmd-present "$candidate"; then
+      local_agent=$candidate
+      break
+    fi
+  done
+  if [[ -z $local_agent ]]; then
+    omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
+    exit 1
+  fi
+  agent=$local_agent
+fi
+
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
@@ -77,23 +95,6 @@ fi
 if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
-fi
-
-# Only agents with a launch-time overlay can be pointed at the local model. When
-# the default can't, the local model opens in pi, or OpenCode without pi.
-if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
-  local_agent=""
-  for candidate in pi opencode; do
-    if omarchy-cmd-present "$candidate"; then
-      local_agent=$candidate
-      break
-    fi
-  done
-  if [[ -z $local_agent ]]; then
-    omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
-    exit 1
-  fi
-  agent=$local_agent
 fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts
