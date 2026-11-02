@@ -52,6 +52,14 @@ OUT
     "volume": {"front-left": {"value_percent": "50%"}}
   },
   {
+    "index": 3,
+    "name": "alsa_output.transmitter",
+    "description": "Transmitter",
+    "ports": [{"name": "analog-output", "availability": "available"}],
+    "properties": {"priority.session": "-1000"},
+    "volume": {"front-left": {"value_percent": "100%"}}
+  },
+  {
     "index": 2,
     "name": "alsa_output.headphones",
     "description": "Headphones",
@@ -113,6 +121,10 @@ grep -qx 'C pactl get-sink-volume alsa_output.headphones' "$CALLS" ||
 grep -qx 'C pactl get-sink-mute alsa_output.headphones' "$CALLS" ||
   fail 'audio-output-switch reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-switch reads pactl outputs in the C locale'
+
+grep -q 'alsa_output.transmitter' "$CALLS" &&
+  fail 'audio-output-switch skips sinks ranked below zero' "$(calls)"
+pass 'audio-output-switch skips sinks ranked below zero'
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 2>/dev/null || true
