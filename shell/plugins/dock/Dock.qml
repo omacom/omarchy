@@ -335,6 +335,8 @@ Item {
     function onRawEvent(event) {
       var name = event ? String(event.name) : ""
       if (name === "configreloaded") root.refresh()
+      // Quickshell does not refresh the monitor's special workspace on its own.
+      else if (name === "activespecial") Hyprland.refreshMonitors()
       // Hyprland's window and workspace lists do not follow fullscreen on
       // their own.
       else if (name === "fullscreen") {
