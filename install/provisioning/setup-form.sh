@@ -71,7 +71,7 @@ Lao|us||la
 Latvian|lv
 Lithuanian|lt
 Macedonian|mk-utf
-Norwegian|no-latin1
+Norwegian|no
 Polish|pl
 Portuguese|pt-latin1
 Portuguese (Brazil)|br-abnt2
