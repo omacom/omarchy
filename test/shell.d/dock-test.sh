@@ -109,6 +109,113 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
+// The open path: Dock.activate and Dock.openEntry drive both the dock icons
+// and the app grid, so an app that is running or still starting is never
+// started twice. Their bodies run here against a stub root, like
+// bar-click-clipping-test.sh does.
+const fs = require('fs')
+const dockQml = fs.readFileSync(root + '/shell/plugins/dock/Dock.qml', 'utf8')
+const gridQml = fs.readFileSync(root + '/shell/plugins/dock/AppGrid.qml', 'utf8')
+const activate = new Function('root', 'Hyprland', 'DockModel', 'item',
+  dockQml.match(/function activate\(item\) \{([\s\S]*?)\n  \}/)[1])
+const gridLaunch = new Function('root', 'index',
+  gridQml.match(/function launch\(index\) \{([\s\S]*?)\n  \}/)[1])
+const Hyprland = { focusedMonitor: { activeWorkspace: { id: 3 } } }
+
+function stubDock() {
+  const d = {
+    calls: { launched: [], forward: [] },
+    itemsByKey: {},
+    launches: {},
+    itemFor(key) { return d.itemsByKey[key] || null },
+    isLaunching(key) { return d.launches[key] !== undefined },
+    isStarting(key) { return d.launches[key] !== undefined && d.launches[key].starting },
+    launch(item) { d.calls.launched.push(item.key); d.launches[item.key] = { at: Date.now(), windows: item.windows.length, starting: item.windows.length === 0 } },
+    bringForward(window) { d.calls.forward.push(window.address) },
+    activate(item) { activate.call(null, d, Hyprland, dock, item) }
+  }
+  return d
+}
+
+const clickingDock = stubDock()
+clickingDock.launches.youtube = { at: Date.now(), windows: 0, starting: true }
+activate(clickingDock, Hyprland, dock, { key: 'youtube', windows: [] })
+assertEqual(clickingDock.calls.launched.length, 0,
+  'dock does not start an app a second time while its first launch is still opening')
+
+// A New Window request records the windows the app already has. When those
+// close before the new one shows, the record outlives them, and clicking the
+// app in the dock must start it rather than wait out the record.
+const newWindowDock = stubDock()
+newWindowDock.launches.chromium = { at: Date.now(), windows: 1, starting: false }
+activate(newWindowDock, Hyprland, dock, { key: 'chromium', windows: [] })
+assertEqual(newWindowDock.calls.launched.length, 1,
+  'dock starts an app again while only a New Window request is pending')
+
+const freshDock = stubDock()
+activate(freshDock, Hyprland, dock, { key: 'youtube', windows: [] })
+assertEqual(freshDock.calls.launched.length, 1,
+  'dock still starts an app that is neither running nor launching')
+
+// The app grid routes its opens through Dock.openEntry, which brings a
+// running app forward and tracks a starting one like a dock click does.
+const openEntry = new Function('root', 'entry',
+  dockQml.match(/function openEntry\(entry\) \{([\s\S]*?)\n  \}/)[1])
+
+const gridOpening = stubDock()
+gridOpening.itemsByKey.chromium = {
+  key: 'chromium',
+  windows: [{ address: '0x1', workspaceId: 3, minimized: false, toplevel: { activated: true } }]
+}
+openEntry(gridOpening, { id: 'chromium' })
+assertEqual(gridOpening.calls.forward.length, 1,
+  'the app grid brings a running app forward instead of starting another copy')
+assertEqual(gridOpening.calls.launched.length, 0,
+  'the app grid does not start a running app again')
+
+const gridLaunching = stubDock()
+openEntry(gridLaunching, { id: 'youtube' })
+assertEqual(gridLaunching.calls.launched.length, 1,
+  'the app grid starts an app the dock does not show yet through the tracked launch path')
+openEntry(gridLaunching, { id: 'youtube' })
+assertEqual(gridLaunching.calls.launched.length, 1,
+  'a second open of a still-starting app starts no further copy')
+
+const gridSkipping = stubDock()
+openEntry(gridSkipping, null)
+openEntry(gridSkipping, {})
+assertEqual(gridSkipping.calls.launched.length + gridSkipping.calls.forward.length, 0,
+  'the app grid ignores an entry without an id')
+
+const grid = {
+  apps: [{ id: 'chromium', name: 'Chromium' }],
+  closed: 0,
+  routed: null,
+  fellBack: false,
+  close() { grid.closed++ },
+  dock: { openEntry(entry) { grid.routed = entry.id } },
+  appLibrary: { launch() { grid.fellBack = true }, entryName(entry) { return entry.name } }
+}
+gridLaunch(grid, 0)
+assertEqual(grid.routed, 'chromium',
+  'app grid opens go through the dock so a running app comes forward')
+assertEqual(grid.closed, 1,
+  'the app grid closes before handing the open to the dock')
+assert(!grid.fellBack,
+  'the app grid leaves the app library alone when a dock runs')
+
+const gridAlone = {
+  apps: [{ id: 'chromium', name: 'Chromium' }],
+  closed: 0,
+  fellBack: false,
+  close() { gridAlone.closed++ },
+  dock: null,
+  appLibrary: { launch() { gridAlone.fellBack = true }, entryName(entry) { return entry.name } }
+}
+gridLaunch(gridAlone, 0)
+assert(gridAlone.fellBack && gridAlone.closed === 1,
+  'app grid launches through the app library when no dock runs')
+
 JS
 
 home="$TMPDIR/home"
