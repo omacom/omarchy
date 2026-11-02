@@ -124,6 +124,11 @@ _omarchy_complete() {
 
 complete -o default -F _omarchy_complete omarchy
 
+# Terraform completes itself; going through PATH keeps this working across mise upgrades
+if command -v terraform &> /dev/null; then
+  complete -C terraform terraform
+fi
+
 # Hide individual omarchy-* binaries from initial-word command completion;
 # the unified `omarchy` dispatcher is the user-facing entry point.
 complete -I -A command -X 'omarchy-*'
