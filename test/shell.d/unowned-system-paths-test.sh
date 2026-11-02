@@ -40,6 +40,9 @@ allowed = {
   # Claude's extension is registered only when the user selects Claude.
   "/usr/share/google-chrome/extensions",
   "/usr/share/microsoft-edge/extensions",
+  # Installed only with the .NET dev env, ahead of the SDK-less /usr/bin/dotnet
+  # Pinta needs. No package ships into /usr/local, so it cannot conflict.
+  "/usr/local/bin/dotnet",
   # Static content that belongs in omarchy-settings. It cannot move there in the
   # same release that first ships omarchy-update-system-pkgs-when-conflicted: the
   # upgrade carrying the handler is the one that would hit the conflict, and the
