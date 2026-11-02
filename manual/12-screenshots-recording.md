@@ -1,11 +1,12 @@
 # Screenshots & Recording
 
-Everything you can grab off the screen hangs off the Print Screen key. One key on its own takes a picture, and the modifiers take a recording, a colour, or the text inside a region. If your keyboard doesn't have a Print Screen key at all, `Super + Ctrl + Alt + C` takes the same screenshot, and `Super + Ctrl + C` opens the whole set as a menu.
+Everything you can grab off the screen hangs off the Print Screen key. One key on its own takes a picture, and the modifiers take a recording, a colour, or the text inside a region. If your keyboard doesn't have a Print Screen key at all, `Super + Ctrl + Alt + C` takes the same screenshot (so does `Super + Shift + S`, where Windows keeps it), and `Super + Ctrl + C` opens the whole set as a menu.
 
 | Hotkey | Function |
 | ------ | -------- |
 | `Print Screen` | Screenshot |
 | `Super + Ctrl + Alt + C` | Screenshot |
+| `Super + Shift + S` | Screenshot |
 | `Alt + Print Screen` | Screenrecord (or stop the one that's running) |
 | `Super + Print Screen` | Colour picker |
 | `Super + Ctrl + Print Screen` | Extract text from a region |

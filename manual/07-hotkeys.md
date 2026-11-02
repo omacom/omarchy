@@ -122,7 +122,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Shift + Alt + A`           | AI (Grok)  |
 | `Super + Shift + G`           | Messenger (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
-| `Super + Shift + S`           | Google Maps  |
+| `Super + Shift + Alt + S`           | Google Maps  |
 | `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
 | `Super + Shift + Ctrl + G`           | Messenger (Google)  |
 | `Super + Shift + O`           | Obsidian  |
@@ -151,6 +151,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Screenshot                      |
 | `Super + Ctrl + Alt + C`            | Screenshot (the same shot, for keyboards with no Print Screen key) |
+| `Super + Shift + S`            | Screenshot (the same shot, on the keys Windows uses) |
 | `Super + Ctrl + C` | Capture menu |
 | `Alt + Print Screen`            | Screenrecord                     |
 | `Super + Print Screen` | Color picker |
