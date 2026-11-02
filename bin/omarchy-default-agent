@@ -35,9 +35,9 @@ agent_installer=$(jq -r 'if .install.type == "installer" then (.install.installe
 # Omarchy declares a tool that takes backend options under its bare name, with
 # the options inside the declaration's table, because mise drops bracket options
 # from a table-valued key. The bracketed package is only for the user's config.
-agent_tool=$(jq -r '.install.tool // empty' <<<"$harness")
+agent_tool=$(jq -r 'if .firstParty then (.install.tool // empty) else empty end' <<<"$harness")
 agent_tool=${agent_tool:-$agent_package}
-agent_prereleases=$(jq -r '.install.prereleases // false' <<<"$harness")
+agent_prereleases=$(jq -r 'if .firstParty then (.install.prereleases // false) else false end' <<<"$harness")
 
 # Hermes and OpenClaw are not mise tools: each is installed and managed by its
 # dedicated integration. Their installers follow the same --check/--now

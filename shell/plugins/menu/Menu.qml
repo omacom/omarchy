@@ -352,6 +352,7 @@ Item {
     // finds the row labeled with its native name; mergeProviderRows turns
     // it into an alias.
     "agent-harnesses": {
+      volatile: true,
       script: "current=$(\"$OMARCHY_PATH/bin/omarchy-default-agent\" 2>/dev/null); \"$OMARCHY_PATH/bin/omarchy-agent-list\" --json 2>/dev/null | jq -r --arg current \"$current\" '.[] | [.name, .id, (if .id == $current then .id else \"\" end), (.icon // \"\"), (.iconFont // \"\")] | @tsv'",
       icon: "󰚩",
       actionFor: function(value) { return "omarchy-default-agent " + Util.shellQuote(value) }

@@ -974,3 +974,113 @@ for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
   rm "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
 done
 pass "agent launcher runs user-installed agents ahead of native lazy shims"
+
+# ---------------------------------------------------------------- harnesses
+# A harness is installed metadata, so the launcher's whole contract with a
+# third-party integration is the argv it builds and the placeholders it expands.
+harness_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp" "$harness_tmp"' EXIT
+harness_home="$harness_tmp/home"
+harness_bin="$harness_tmp/bin"
+harness_plugin="$harness_home/.config/omarchy/plugins/acme.integration"
+harness_agent_file="$harness_home/.config/omarchy/defaults/agent"
+harness_argv_log="$harness_tmp/argv"
+harness_marker="$harness_tmp/should-not-exist"
+mkdir -p "$harness_plugin" "$harness_bin" "$(dirname "$harness_agent_file")"
+
+default_catalog=$(HOME="$harness_home" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-agent-catalog")
+jq -e '
+  . as $catalog
+  | [
+    {
+      id: "cursor-agent",
+      aliases: ["cursor"],
+      install: {type: "mise", package: "cursor-agent", command: "cursor-agent"},
+      launch: {
+        mode: "terminal",
+        command: ["cursor-agent", "--yolo", "--trust"],
+        promptCommand: ["cursor-agent", "--yolo", "--trust", "agent", "--", "{prompt}"]
+      }
+    },
+    {
+      id: "muse",
+      aliases: ["muse-code", "musecode"],
+      install: {type: "mise", package: "muse", command: "muse"},
+      launch: {
+        mode: "terminal",
+        command: ["muse", "--approval-mode", "never"],
+        promptCommand: ["muse", "--approval-mode", "never", "--", "{prompt}"]
+      }
+    },
+    {
+      id: "openclaw",
+      install: {type: "installer", command: "openclaw", installer: "omarchy-install-openclaw-cli"},
+      launch: {
+        mode: "terminal",
+        command: ["omarchy-launch-openclaw", "--tui"],
+        promptCommand: ["omarchy-launch-openclaw", "--tui", "--message", "{prompt}"]
+      }
+    }
+  ] as $legacy
+  | all($legacy[]; . as $expected | any($catalog[]; .id == $expected.id and (.aliases // []) == ($expected.aliases // []) and .install == $expected.install and .launch == $expected.launch))
+' <<<"$default_catalog" >/dev/null ||
+  fail "the default harness registry preserves legacy Cursor, Muse, and OpenClaw semantics"
+pass "the default harness registry preserves legacy Cursor, Muse, and OpenClaw semantics"
+
+cat >"$harness_plugin/manifest.json" <<'JSON'
+{"schemaVersion":1,"id":"acme.integration","name":"Acme integration","version":"1.0.0","kinds":[],"entryPoints":{},"agentHarness":{"id":"acme-agent","name":"Acme Agent","install":{"type":"mise","package":"npm:@acme/agent","command":"acme-agent"},"launch":{"mode":"browser","command":["acme-agent","--project={project}"],"promptCommand":["acme-agent","--project={project}","--prompt={prompt}"]}}}
+JSON
+
+cat >"$harness_bin/omarchy-cmd-missing" <<'MOCK'
+#!/bin/bash
+exit 1
+MOCK
+cat >"$harness_bin/acme-agent" <<'MOCK'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_ARGV_LOG"
+MOCK
+cat >"$harness_bin/omarchy-launch-tui" <<'MOCK'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_ARGV_LOG"
+MOCK
+chmod +x "$harness_bin"/*
+
+export HOME="$harness_home"
+export OMARCHY_TEST_ARGV_LOG="$harness_argv_log"
+export PATH="$harness_bin:$ROOT/bin:$PATH"
+printf '%s\n' acme-agent >"$harness_agent_file"
+
+harness_project="$harness_tmp/project with spaces"
+mkdir -p "$harness_project"
+harness_prompt=$(printf '$(touch %s); "quoted"\tline\nnext' "$harness_marker")
+(
+  cd "$harness_project"
+  omarchy-agent --prompt "$harness_prompt"
+)
+[[ ! -e $harness_marker ]] || fail "harness prompt executes shell text"
+mapfile -d '' -t harness_argv <"$harness_argv_log"
+[[ ${#harness_argv[@]} == 2 && ${harness_argv[0]} == "--project=$harness_project" && ${harness_argv[1]} == "--prompt=$harness_prompt" ]] ||
+  fail "browser harness preserves project and prompt as literal argv" "actual: ${harness_argv[*]}"
+pass "browser harness substitutes project and hostile prompts without shell evaluation"
+
+harness_placeholder_project="$harness_tmp/project-{prompt}"
+mkdir -p "$harness_placeholder_project"
+(
+  cd "$harness_placeholder_project"
+  omarchy-agent --prompt diagnose
+)
+mapfile -d '' -t harness_argv <"$harness_argv_log"
+[[ ${#harness_argv[@]} == 2 && ${harness_argv[0]} == "--project=$harness_placeholder_project" && ${harness_argv[1]} == "--prompt=diagnose" ]] ||
+  fail "browser harness preserves literal prompt placeholders in project paths" "actual: ${harness_argv[*]}"
+pass "browser harness substitutes placeholders without changing a project path"
+
+jq '.agentHarness.launch.mode = "terminal" | del(.agentHarness.launch.promptCommand)' "$harness_plugin/manifest.json" >"$harness_plugin/updated.json"
+mv "$harness_plugin/updated.json" "$harness_plugin/manifest.json"
+(
+  cd "$harness_project"
+  omarchy-agent --prompt "$harness_prompt"
+)
+mapfile -d '' -t harness_argv <"$harness_argv_log"
+[[ ${#harness_argv[@]} == 3 && ${harness_argv[0]} == "--app-id=org.omarchy.agent" && ${harness_argv[1]} == "acme-agent" && ${harness_argv[2]} == "--project=$harness_project" ]] ||
+  fail "terminal harness falls back to its command template" "actual: ${harness_argv[*]}"
+pass "terminal harness uses argv fallback when promptCommand is omitted"
