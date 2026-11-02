@@ -16,6 +16,20 @@ fi
 for pkg in "$@"; do
   # Secondary check to handle states where pacman doesn't actually register an error
   if ! pacman -Q -- "$pkg" &>/dev/null; then
+    # Groups have no package record; verify every sync group member instead.
+    group_packages=$(pacman -Sgq -- "$pkg" 2>/dev/null)
+    if [[ -n $group_packages ]]; then
+      group_installed=true
+      while read -r group_pkg; do
+        if ! pacman -Q -- "$group_pkg" &>/dev/null; then
+          group_installed=false
+          break
+        fi
+      done <<< "$group_packages"
+      if [[ $group_installed == "true" ]]; then
+        continue
+      fi
+    fi
     echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
     exit 1
   fi
