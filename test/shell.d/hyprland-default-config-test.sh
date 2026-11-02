@@ -198,6 +198,24 @@ grep -Fqx $'SUPER + SHIFT + grave	Move window to Quake console' <<<"$scratchpad_
   fail "Quake console has its own move binding"
 pass "scratchpad and Quake console have separate bindings"
 
+for layout in no no,us us us,no; do
+  layout_home="$tmpdir/console-$layout"
+  mkdir -p "$layout_home/.config/omarchy"
+  printf 'XKBLAYOUT=%s\n' "$layout" > "$layout_home/.config/omarchy/keyboard-layouts"
+  layout_output=$(run_omarchy_bindings "$layout_home")
+  if [[ $layout == "no" || $layout == "no,us" ]]; then
+    grep -Fqx $'SUPER + bar\tToggle Quake console' <<<"$layout_output" ||
+      fail "Norwegian primary layout can toggle the console: $layout"
+    grep -Fqx $'SUPER + SHIFT + bar\tMove window to Quake console' <<<"$layout_output" ||
+      fail "Norwegian primary layout can move windows to the console: $layout"
+  else
+    if grep -Fq 'SUPER + bar' <<<"$layout_output" || grep -Fq 'SUPER + SHIFT + bar' <<<"$layout_output"; then
+      fail "Norwegian console aliases stay inactive for primary layout: $layout"
+    fi
+  fi
+done
+pass "console aliases follow the primary keyboard layout"
+
 # The panel hotkeys claim a row of keys that workspace switching already uses
 # under other modifiers, so the count matters as much as the bindings: a tenth
 # claim on SUPER + CTRL + a number is a collision with one of these.
