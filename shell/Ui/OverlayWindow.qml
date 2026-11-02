@@ -100,6 +100,12 @@ PanelWindow {
   function beginFocusPrime() {
     if (shown && backingWindowVisible) focusPrimeTimer.restart()
   }
+  // A summon while already shown changes none of the above, so overlays that
+  // can be re-summoned call this to take the keyboard back from wherever it went.
+  function primeFocus() {
+    focusPrimed = false
+    beginFocusPrime()
+  }
   onBackingWindowVisibleChanged: beginFocusPrime()
   onShownKeyboardFocusChanged: { focusPrimed = false; beginFocusPrime() }
 

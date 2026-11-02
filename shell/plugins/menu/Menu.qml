@@ -33,6 +33,7 @@ Item {
     } else {
       root.openRoute(payload.initialMenu || payload.menu || "root")
     }
+    panel.primeFocus()
   }
 
   function close() {

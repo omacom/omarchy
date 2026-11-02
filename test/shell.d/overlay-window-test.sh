@@ -157,6 +157,13 @@ const later = { focusPrimed: true, beginFocusPrime() { restarts++ } }
 changeFocus(later)
 assert(!later.focusPrimed && restarts === 2,
   'an overlay that asks for the keyboard after mapping (image picker) primes again')
+const primeFocusBody = /function primeFocus\(\) \{([\s\S]*?)\n  \}/.exec(overlay)[1]
+const resummoned = { focusPrimed: true, beginFocusPrime() { restarts++ } }
+new Function('window', `with (window) { ${primeFocusBody} }`)(resummoned)
+assert(!resummoned.focusPrimed && restarts === 3, 'priming again starts from Exclusive')
+const menuOpen = /\n  function open\(payloadJson\) \{([\s\S]*?)\n  \}/.exec(read('shell/plugins/menu/Menu.qml'))[1]
+assert(menuOpen.includes('panel.primeFocus()'),
+  'a summon that finds the menu already open takes the keyboard back')
 
 // Every other output gets a twin that catches the click the overlay's own
 // surface can never see; the overlay's output must stay uncovered.
