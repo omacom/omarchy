@@ -25,9 +25,13 @@ for trial in $(seq 1 20); do
   first=$!
   PATH="$stub_bin:$PATH" OMARCHY_PATH="$checkout" "$ROOT/bin/omarchy-dev-add-migration" --no-edit >"$test_tmp/$trial.b" &
   second=$!
-  wait "$first" "$second"
+  # wait on both pids returns only the last status, so a failed first run would pass.
+  wait "$first" || fail "two concurrent runs in one checkout create distinct migrations" "trial $trial: first run failed"
+  wait "$second" || fail "two concurrent runs in one checkout create distinct migrations" "trial $trial: second run failed"
 
-  [[ $(<"$test_tmp/$trial.a") != "$(<"$test_tmp/$trial.b")" ]] ||
-    fail "two concurrent runs in one checkout create distinct migrations" "trial $trial: both printed $(<"$test_tmp/$trial.a")"
+  a=$(<"$test_tmp/$trial.a")
+  b=$(<"$test_tmp/$trial.b")
+  [[ -f $a && -f $b && $a != "$b" ]] ||
+    fail "two concurrent runs in one checkout create distinct migrations" "trial $trial: printed '$a' and '$b'"
 done
 pass "two concurrent runs in one checkout create distinct migrations"
