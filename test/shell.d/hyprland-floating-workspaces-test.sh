@@ -220,7 +220,7 @@ local subscriptions = {}
 local plugin_loads = 0
 local titlebar_config = nil
 local buttons = {}
-local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false }
+local config = { ["input.follow_mouse"] = 1, ["general.resize_on_border"] = false, ["general.hover_icon_on_border"] = false, ["decoration.shadow.enabled"] = false }
 local rules = {}
 local placed = {}
 local active = { id = 1 }
@@ -430,11 +430,16 @@ assert(not scratch.floating and #scratch.tags == 0, "a window on a special works
 assert(not fullscreen.floating, "a fullscreen window was floated")
 assert(has_tag(fullscreen, "omarchy-floating-workspace"), "a fullscreen window on a floating workspace got no titlebar tag")
 
--- Pointer focus follows the active workspace.
+-- Pointer focus follows the active workspace, and its windows resize from
+-- their borders.
 assert(s.config["input.follow_mouse"] == 0, "a floating workspace focused on hover")
+assert(s.config["general.resize_on_border"] == true, "a floating workspace gave up border resizing")
+assert(s.config["general.hover_icon_on_border"] == true, "a floating workspace gave up the resize cursor")
 s.active.id = 2
 s.subscriptions["workspace.active"][1]()
 assert(s.config["input.follow_mouse"] == 1, "a tiled workspace lost the user focus setting")
+assert(s.config["general.resize_on_border"] == false, "a tiled workspace kept border resizing on")
+assert(s.config["general.hover_icon_on_border"] == false, "a tiled workspace kept the resize cursor on")
 
 -- Shadows only for windows on floating workspaces, when the user has none.
 assert(s.config["decoration.shadow.enabled"] == true, "floating windows got no shadows to tell them apart")
@@ -443,6 +448,25 @@ assert(#s.rules >= 3, "the floating window rules were not added")
   fail "a floating default floats every regular workspace without a layout of its own"
 fi
 pass "a floating default floats every regular workspace without a layout of its own"
+
+# A user who turns border resizing on for themselves keeps it on tiled
+# workspaces too, rather than the mode forcing its own values back.
+if ! run_lua '
+state().config["general.resize_on_border"] = true
+state().config["general.hover_icon_on_border"] = true
+require("default.hypr.workspace-layouts")
+local s = state()
+assert(s.config["general.resize_on_border"] and s.config["general.hover_icon_on_border"], "a floating workspace lost border resizing")
+s.active.id = 2
+s.subscriptions["workspace.active"][1]()
+assert(s.config["general.resize_on_border"] and s.config["general.hover_icon_on_border"], "a tiled workspace lost the user border resizing")
+s.active.id = 1
+s.subscriptions["workspace.active"][1]()
+assert(s.config["general.resize_on_border"] and s.config["general.hover_icon_on_border"], "a floating workspace did not take border resizing back")
+'; then
+  fail "a user with border resizing on keeps it on every workspace"
+fi
+pass "a user with border resizing on keeps it on every workspace"
 
 # A tiled default is Hyprland's own layout for workspaces without a rule.
 rm -f "$modes_dir"/*.lua
