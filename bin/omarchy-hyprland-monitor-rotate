@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set a Hyprland monitor's rotation (the focused one by default)
+# omarchy:args=[--monitor NAME] [0|90|180|270]
+# omarchy:examples=omarchy hyprland monitor rotate | omarchy hyprland monitor rotate 90 | omarchy hyprland monitor rotate --monitor DP-2 270
+
+usage() {
+  echo "Usage: omarchy-hyprland-monitor-rotate [--monitor NAME] [0|90|180|270]"
+}
+
+if [[ ${1:-} == "--monitor" ]]; then
+  if [[ -z ${2:-} ]]; then
+    usage >&2
+    exit 1
+  fi
+  monitor_name="$2"
+  shift 2
+fi
+
+if [[ -n ${monitor_name:-} ]]; then
+  monitor_info=$(hyprctl monitors -j | jq -e -c --arg name "$monitor_name" '.[] | select(.name == $name)')
+else
+  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
+fi
+
+if [[ -z $monitor_info ]]; then
+  echo "No such monitor: ${monitor_name:-focused}" >&2
+  exit 1
+fi
+
+# Hyprland's transforms 0-3 are quarter turns clockwise; 4-7 mirror them,
+# which this leaves to monitors.lua.
+old_transform=$(jq -r '.transform // 0' <<<"$monitor_info")
+
+if [[ -z ${1:-} ]]; then
+  if (( old_transform < 4 )); then
+    echo $(( old_transform * 90 ))
+  else
+    echo "flipped"
+  fi
+  exit 0
+fi
+
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+case "$1" in
+0) transform=0 ;;
+90) transform=1 ;;
+180) transform=2 ;;
+270) transform=3 ;;
+*)
+  usage >&2
+  exit 1
+  ;;
+esac
+
+active_monitor=$(jq -r '.name' <<<"$monitor_info")
+
+# active_monitor is written into the Lua string eval'd below, so only a plain
+# connector name may pass; a hostile output name could execute otherwise.
+if [[ ! $active_monitor =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Refusing unsafe monitor name" >&2
+  exit 1
+fi
+
+scale=$(jq -r '.scale' <<<"$monitor_info")
+width=$(jq -r '.width' <<<"$monitor_info")
+height=$(jq -r '.height' <<<"$monitor_info")
+mode=$(jq -r '"\(.width)x\(.height)@\(.refreshRate)"' <<<"$monitor_info")
+
+omarchy-hyprland-monitor-persist "$active_monitor" "$scale" "" "" "$transform"
+
+# A quarter turn swaps the monitor's width and height in the layout. The layout
+# reads the size through the current transform, so the new size goes in swapped
+# when the turn changes which way the monitor stands. Beside other monitors it
+# keeps its place and the layout closes up around it in the same step; alone,
+# Hyprland places it.
+if (( old_transform % 2 != transform % 2 )); then
+  new_size="${height}x${width}"
+else
+  new_size="${width}x${height}"
+fi
+
+others=$(hyprctl monitors -j | jq --arg name "$active_monitor" '[.[] | select(.name != $name)] | length')
+if (( others > 0 )); then
+  omarchy-hyprland-monitor-layout --resized "$active_monitor" "${width}x${height}" "$scale" "$new_size" "$scale" "$mode" "$transform"
+else
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"$mode\", position = \"auto\", scale = $scale, transform = $transform })" >/dev/null
+fi

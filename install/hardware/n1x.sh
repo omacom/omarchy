@@ -34,14 +34,6 @@ CONF
 # the zz- drop-in.
 mkdir -p /etc/limine-entry-tool.d
 
-# The firmware advertises PSCI system suspend, so the kernel defaults to "deep"
-# sleep, but the call returns at once and the laptop wakes straight back up.
-# Suspend to idle instead, as Windows does on this hardware.
-cat > /etc/limine-entry-tool.d/00-omarchy-n1x-sleep.conf <<'CONF'
-# N1x: the firmware's deep sleep returns at once; suspend to idle instead.
-KERNEL_CMDLINE[default]+=" mem_sleep_default=s2idle"
-CONF
-
 # cppc_cpufreq leaves CPPC autonomous selection off, so the CPUs follow the
 # kernel governor and the energy performance preference that
 # power-profiles-daemon sets per profile changes nothing. NVIDIA's RTX Spark
@@ -60,39 +52,26 @@ ACTION=="add", SUBSYSTEM=="module", KERNEL=="cppc_cpufreq", RUN+="/usr/bin/sh -c
 ACTION=="online", SUBSYSTEM=="cpu", TEST=="cpufreq/auto_select", ATTR{cpufreq/auto_select}="0", ATTR{cpufreq/scaling_max_freq}="$attr{cpufreq/cpuinfo_max_freq}", ATTR{cpufreq/scaling_min_freq}="$attr{cpufreq/cpuinfo_min_freq}", ATTR{cpufreq/auto_select}="1"
 RULES
 
-# USB4: linux-omarchy drives the USB4 host routers (patches 1070-1081),
-# which power_wrap would otherwise release once xHCI is up; the SSPM cannot
-# power them again after that. The tunnel root ports are left unconfigured by
-# the firmware, so reserve bus numbers and windows for docks behind them. A
-# dock or adapter is approved through Omarchy's Thunderbolt authorization
-# prompt, like any other accessory.
+# USB4: linux-omarchy drives the USB4 host routers, keeps them powered and
+# keeps a tunnel root port awake while a dock's PCIe tunnel runs through it.
+# The firmware leaves those root ports unconfigured, so reserve bus numbers and
+# windows for docks behind them. A dock or adapter is approved through
+# Omarchy's Thunderbolt authorization prompt, like any other accessory.
 #
-# The ASUS ProArt P14's settings are validated with a CalDigit TS4 on all three
+# The ASUS ProArt P14's sizes are validated with a CalDigit TS4 on all three
 # ports. Other N1x laptops (the Dell XPS 16) set aside fewer bus numbers, as
-# tested there with a TS4, and do not get the root-port rule below until it is
-# tested on them.
-#
-# The tunnel root ports (10de:22cf) cannot signal a hotplug from D3hot or
-# D3cold, so once one has runtime-suspended, a PCIe tunnel that comes up behind
-# it is never enumerated: the dock is authorized but its Ethernet never
-# appears, until something happens to read the port's config space. Keep the
-# three of them in D0.
+# tested there with a TS4.
 if omarchy-hw-match "H7407BA"; then
   cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
-# N1x: keep the USB4 host routers powered and leave room for docks behind them;
-# see install/hardware/n1x.sh.
-KERNEL_CMDLINE[default]+=" power_wrap_drv.usb4_release=0 pci=hpbussize=0x80,hpmmiosize=32M,hpmmioprefsize=32G"
+# N1x: leave room for docks behind the USB4 tunnel root ports; see
+# install/hardware/n1x.sh.
+KERNEL_CMDLINE[default]+=" pci=hpbussize=0x80,hpmmiosize=32M,hpmmioprefsize=32G"
 CONF
-  cat > /etc/udev/rules.d/71-omarchy-n1x-usb4-root-ports.rules <<'RULES'
-# N1x: the USB4 tunnel root ports cannot wake for a hotplug, so keep them out of
-# runtime suspend; see install/hardware/n1x.sh.
-ACTION=="add|bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{device}=="0x22cf", ATTR{power/control}="on"
-RULES
 else
   cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
-# N1x: keep USB4 powered for the Thunderbolt connection manager, and leave bus
-# numbers for docks. See install/hardware/n1x.sh.
-KERNEL_CMDLINE[default]+=" power_wrap_drv.usb4_release=0 pci=hpbussize=0x20"
+# N1x: leave bus numbers for docks behind the USB4 tunnel root ports; see
+# install/hardware/n1x.sh.
+KERNEL_CMDLINE[default]+=" pci=hpbussize=0x20"
 CONF
 fi
 
@@ -143,11 +122,6 @@ n1x_kernel_version=${n1x_kernel_version%/pkgbase}
 # eDP-1 at 1920x1200@120 with nothing else configured.
 bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
-cat > /etc/modprobe.d/omarchy-n1x-nvidiafb.conf <<'CONF'
-# The legacy nvidiafb driver also claims this GPU and must never load.
-blacklist nvidiafb
-install nvidiafb /bin/false
-CONF
 n1x_gpu_driver=unloaded
 if [[ ! $bios_version =~ ^0\. ]]; then
   omarchy-pkg-add nvidia-open-dkms nvidia-utils libva-nvidia-driver
