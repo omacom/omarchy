@@ -55,6 +55,9 @@ local selection_layers = 0
 local selection_keys = {
   ["RETURN"] = "--take-window",
   ["CTRL + RETURN"] = "--take-fullscreen",
+  -- Some laptop keyboards and every numpad emit KP_Enter for Enter.
+  ["KP_Enter"] = "--take-window",
+  ["CTRL + KP_Enter"] = "--take-fullscreen",
   ["TAB"] = "--select-window next",
   ["CTRL + TAB"] = "--select-window prev",
   ["LEFT"] = "--select-window left",

@@ -71,10 +71,10 @@ end
 local function use_picker()
   handlers["layer.opened"]({ namespace = "selection" })
   handlers["layer.opened"]({ namespace = "selection" })
-  assert(enabled_picker_binds() == 8, "the picker enables its eight binds while open")
+  assert(enabled_picker_binds() == 10, "the picker enables its ten binds while open")
 
   handlers["layer.closed"]({ namespace = "selection" })
-  assert(enabled_picker_binds() == 8, "the picker keeps its binds while a layer is still open")
+  assert(enabled_picker_binds() == 10, "the picker keeps its binds while a layer is still open")
 
   handlers["layer.closed"]({ namespace = "selection" })
   assert(enabled_picker_binds() == 0, "the picker disables its binds once every layer closes")
@@ -88,11 +88,11 @@ for _, keybind in ipairs(binds) do
   kept = kept or keybind == user
 end
 assert(kept and user.enabled, "the user's own CTRL + TAB survives the picker")
-assert(#binds == 9, "the picker reuses its binds rather than adding more each time")
+assert(#binds == 11, "the picker reuses its binds rather than adding more each time")
 
 hl.unbind("TAB")
 use_picker()
-assert(#binds == 9, "the picker binds a chord again after something else unbinds it")
+assert(#binds == 11, "the picker binds a chord again after something else unbinds it")
 
 handlers["layer.opened"]({ namespace = "selection" })
 hl.unbind("RETURN")
