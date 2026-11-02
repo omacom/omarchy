@@ -233,9 +233,9 @@ catch_all_reaches_internal() {
   local rules calls outputs
   rules=$(monitor_rules)
   calls=$(grep -oE 'hl\.monitor[[:space:]]*\(' <<<"$rules" | wc -l)
-  outputs=$(grep -oE "output[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*')" <<<"$rules")
+  outputs=$(grep -oE "output[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*')[[:space:]]*([,;}]|$)" <<<"$rules")
   (( calls == $(grep -c . <<<"$outputs") )) || return 1
-  ! grep -Eq "[\"']($INTERNAL|desc:.*)[\"']$" <<<"$outputs"
+  ! grep -Eq "[\"']($INTERNAL|desc:[^\"']*)[\"']" <<<"$outputs"
 }
 
 # The mode the user's rules give the panel, so re-enabling it does not drop a
@@ -246,9 +246,12 @@ catch_all_reaches_internal() {
 read_monitor_mode() {
   local mode
   mode=$(saved_internal_monitor_value mode)
-  [[ -n $mode ]] || mode=$(configured_internal_monitor_value mode)
-  if [[ -z $mode ]] && catch_all_reaches_internal; then
-    mode=$(configured_monitor_value "" mode)
+  # The one-line reader takes the last mode on a line, whichever rule it is in.
+  if [[ -z $mode ]] && ! monitor_rules | grep -Eq 'hl\.monitor[[:space:]]*\(.*hl\.monitor[[:space:]]*\('; then
+    mode=$(configured_internal_monitor_value mode)
+    if [[ -z $mode ]] && catch_all_reaches_internal; then
+      mode=$(configured_monitor_value "" mode)
+    fi
   fi
   # A bare word naming no local reaches here as itself, so only Hyprland's mode
   # keywords and WxH@R pass, and nothing else is written into the Lua.

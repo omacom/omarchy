@@ -314,10 +314,15 @@ for rule in \
   "hl.monitor({ output = 'eDP-1', position = '0x0' })" \
   'hl.monitor({ output = "desc:Sharp Corporation 0x1517", position = "0x0" })' \
   $'local panel = "eDP-1"\nhl.monitor({ output = panel, position = "0x0" })' \
-  $'hl.monitor({\n  output =\n    "eDP-1",\n})'; do
+  $'hl.monitor({\n  output =\n    "eDP-1",\n})' \
+  'hl.monitor({ output = "eDP-" .. "1", position = "0x0" })'; do
   expect_sync "clamshell recovery keeps the catch-all mode off a panel that may have its own rule: $rule" off 1.75 'mode = "preferred"' <<<"$rule
 hl.monitor({ output = \"\", mode = \"2560x1440@144\", position = \"auto-right\", scale = 1 })"
 done
+
+expect_sync "clamshell recovery reads no mode from a line holding two rules" off 1.75 'mode = "preferred"' <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "2880x1800@120", scale = 1.25 }); hl.monitor({ output = "DP-1", mode = "7680x4320@60", scale = 1 })
+LUA
 
 expect_sync "clamshell recovery resolves a mode variable reference" off 1.75 'mode = "2880x1800@120"' <<'LUA'
 local omarchy_monitor_mode = "2880x1800@120"
