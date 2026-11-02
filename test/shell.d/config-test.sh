@@ -180,7 +180,7 @@ else
   skip "package-owned defaults live outside config: needs the omarchy-pkgs checkout; set OMARCHY_PKGS_PATH to it"
 fi
 
-OMARCHY_PATH="$ROOT" lua <<'LUA'
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "Hyprland bootstrap reloads cached Omarchy config modules"
 package.loaded["default.hypr.omarchy"] = true
 package.loaded["default.hypr.require_optional"] = true
 package.loaded["hypr.looknfeel"] = true

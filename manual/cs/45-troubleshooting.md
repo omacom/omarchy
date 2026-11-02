@@ -6,7 +6,7 @@ Nejprve zkuste [vrátit systém](47-system-snapshots.md) do verze před vaší p
 
 ### Proč jsou některé aplikace na mém displeji tak velké?
 
-Omarchy předpokládá displej s vysokým rozlišením a škálováním 2x, což vyžaduje nastavení `GDK_SCALE` na 2 v `~/.config/hypr/monitors.lua`. Pokud ale máte displej se škálováním 1x, můžete změnit `local omarchy_gdk_scale = 2` na 1 (a pak restartovat všechny aplikace, které jsou příliš velké). Viz [příručka o monitorech](33-monitors.md).
+Omarchy předpokládá displej s vysokým rozlišením a škálováním 2x, takže nastavuje `GDK_SCALE` na 2, dokud si na panelu monitoru nezvolíte škálování. Pokud máte displej se škálováním 1x a aplikace GTK nebo X11 vycházejí příliš velké, zvolte pro něj na panelu monitoru 1x, nebo přidejte `hl.env("GDK_SCALE", "1")` do `~/.config/hypr/monitors.lua` (a pak restartujte všechny aplikace, které jsou příliš velké). Viz [příručka o monitorech](33-monitors.md).
 
 U Spotify můžete uživatelské rozhraní zmenšit pomocí `Ctrl + Minus` (a zvětšit pomocí `Ctrl + Plus`).
 
@@ -31,6 +31,27 @@ U některých notebooků Omarchy automaticky používá ladění reproduktorů, 
 ### Proč se nemůžu přihlásit ani použít sudo se svým heslem?
 
 Pravděpodobně jste ho zadali příliš mnohokrát nesprávně a systém vás zamkl. Pokud se to děje na zamykací obrazovce, můžete stiskem `CTRL + ALT + F2` spustit nový TTY, kde se přihlásíte jako root, a poté spustit příkaz `faillock --reset --user [your-username]`. Tím zrušíte zablokování přihlášení a můžete pokračovat.
+
+### Heslo mi je přijato, ale vracím se na přihlašovací obrazovku
+
+Rozbitý soubor s proměnnými prostředí relace může zabránit spuštění desktopu, i když je vaše heslo správné. Stojí za to to zkontrolovat zejména po úpravách v `~/.config/uwsm/env.d/`.
+
+Stiskněte `Ctrl + Alt + F2`, přihlaste se svým obvyklým uživatelským jménem a heslem a prohlédněte si uživatelský žurnál aktuálního startu:
+
+```bash
+journalctl --user -b -t uwsm_env-preloader --no-pager
+```
+
+Hledejte chybu, která jmenuje jeden z vašich souborů s prostředím, například `bad substitution`, těsně před zprávou, že nebyla nalezena značka výstupu prostředí. Než se zkusíte přihlásit znovu, přesuňte tento soubor mimo `env.d`. Pokud například chyba jmenuje `99-custom`:
+
+```bash
+mkdir -p ~/.config/uwsm/disabled
+mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
+```
+
+UWSM přeskočí soubor se syntaktickou chybou, ale fatální chyba, která se projeví až při spuštění souboru, například `bad substitution`, může desktopu stále zabránit ve startu. Návrat k systémovému snímku tyto soubory neopraví, protože `/home` se nevrací.
+
+Jakmile se přihlásíte, opravte uloženou kopii, než ji přesunete zpět. `sh -n` zachytí syntaktické chyby bez spuštění souboru, ale nezachytí každou chybu, která nastane při jeho načtení. Při testování změn mějte otevřený funkční terminál.
 
 ### Proč se mi nezobrazují autorizační výzvy 1Password pro 1Password SSH Agent / CLI?
 

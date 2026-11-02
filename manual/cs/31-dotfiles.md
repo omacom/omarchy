@@ -2,7 +2,7 @@
 
 Omarchy se konfiguruje především prostřednictvím takzvaných dotfiles, které žijí v adresáři `~/.config`. Ty jsou považovány za vaše soubory pro vaše změny. Soubory, které žijí v adresáři `/usr/share/omarchy`, patří samotné Omarchy a neměli byste se v nich šťourat. Pokud potřebujete cokoli v adresáři `/usr/share/omarchy` změnit, měli byste místo toho přepsat hodnotu v adresáři `~/.config`.
 
-Klíčové konfigurace lze upravovat přímo z nabídky Omarchy (`Super + Space`), například _Nastavení > Monitory_, _Nastavení > Klávesové zkratky_, _Nastavení > Vstup_ a _Nastavení > Konfigurace > [soubor]_. Když to uděláte tímto způsobem, každý proces, který po úpravách konfigurace potřebuje restartovat automaticky, se restartuje poté, co zavřete editor (ve výchozím nastavení Neovim — `:wq`, pamatujte! — ale to můžete změnit v části _Nastavení > Výchozí > Editor_).
+Klíčové konfigurace lze upravovat přímo z nabídky Omarchy (`Super + Space`), například _Nastavení > Klávesnice > Klávesové zkratky_, _Nastavení > Vstup_ a _Nastavení > Konfigurace > [soubor]_. Když to uděláte tímto způsobem, každý proces, který po úpravách konfigurace potřebuje restartovat automaticky, se restartuje poté, co zavřete editor (ve výchozím nastavení Neovim — `:wq`, pamatujte! — ale to můžete změnit v části _Nastavení > Výchozí > Editor_).
 
 Tady je seznam klíčových souborů v adresáři `~/.config` a toho, co ovládají:
 
@@ -10,7 +10,7 @@ Tady je seznam klíčových souborů v adresáři `~/.config` a toho, co ovláda
 | ----------------------- | --------------------- |
 | `~/.config/hypr/hyprland.lua` | Hlavní konfigurace Hyprlandu. Načítá výchozí nastavení Omarchy plus vaše soubory pro přepsání níže. [Další informace o konfiguracích Hyprlandu](https://wiki.hypr.land/Configuring/).  |
 | `~/.config/hypr/bindings.lua` | Vaše vlastní klávesové zkratky a přepsání výchozích nastavení. |
-| `~/.config/hypr/monitors.lua` | Ovládá vaše monitory, rozlišení a polohu. |
+| `~/.config/hypr/monitors.lua` | Nastavení monitorů, která panel monitorů nepokrývá, například otočení, další režimy nebo ponechání monitoru vypnutého. |
 | `~/.config/hypr/input.lua` | Ovládá rozložení vaší klávesnice, nastavení myši a touchpadu. |
 | `~/.config/hypr/looknfeel.lua` | Ovládá mezery, rámečky, animace a zbytek vzhledu. |
 | `~/.config/hypr/autostart.lua` | Ovládá další procesy spuštěné se relací. |
@@ -61,6 +61,10 @@ Znovu použijte existující id a tento řádek přepíšete, místo abyste při
 ### Přidávání vlastních exportů, funkcí a aliasů shellu
 
 Omarchy je dodávána s řadou ergonomických aliasů a užitečných funkcí, ale je velmi běžné, že chcete přidat své vlastní. Aliasy, funkce i exporty byste měli přidat do souboru `~/.bashrc`. Tento soubor nebude při aktualizacích přepsán. Pokud chcete změnit některá z výchozích nastavení Omarchy, můžete je zde také bezpečně přidat.
+
+### Nastavování proměnných prostředí pro desktop
+
+Exporty relace desktopu patří do `~/.config/uwsm/env.d/`. Tyto soubory se spouštějí před startem vašeho desktopu, takže chyba v shellu vás může vrátit na přihlašovací obrazovku. Při jejich úpravách mějte otevřený funkční terminál. Chcete-li přepsání vypnout, přesuňte soubor mimo `env.d`. Pokud změna zabrání přihlášení, přečtěte si [obnovení přihlášení](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen).
 
 ### Změna vnitřních souborů Omarchy
 

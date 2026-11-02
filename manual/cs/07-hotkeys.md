@@ -159,8 +159,8 @@ Na Linuxu obvykle potřebujete `Ctrl + Shift + C/V` ke kopírování a vkládán
 | `Super + Alt + ]` | Zvětšit překryv webkamery během nahrávání |
 | `Alt + Shift + L` | Zkopírovat aktuální URL z webové aplikace nebo Chromium |
 | `Alt + Shift + D` | Stáhnout video na aktuální stránce do `~/Videos` |
-| `Super + Ctrl + X` | Spustit/zastavit diktování (vyžaduje _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Diktování push-to-talk (vyžaduje Voxtype nebo Superwhisper) |
+| `Alt + Space` | Spustit/zastavit diktování (vyžaduje _Nastavení > Výchozí > Diktování_) |
+| `Right Alt` | Diktovat po dobu podržení (vyžaduje _Nastavení > Výchozí > Diktování_) |
 
 U nahrávání obrazovky se zkratka nejdřív zeptá, jaký zvuk chcete, a pak začne nahrávat. Dalším stisknutím nahrávání zastavíte. Podrobnosti najdete v části [snímky obrazovky a nahrávání](12-screenshots-recording.md).
 

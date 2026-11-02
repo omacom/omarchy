@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Hex dictation
+# omarchy:requires-sudo=true
+
+set -e
+
+systemctl --user disable --now hex.service 2>/dev/null || true
+omarchy-pkg-drop hex-bin
+systemctl --user daemon-reload
+
+# Hex's settings, history, and downloaded models stay in ~/.local/share/hex.
+backend_config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
+if [[ -f $backend_config && $(< "$backend_config") == "hex" ]]; then
+  rm "$backend_config"
+fi
+
+hyprctl reload >/dev/null
