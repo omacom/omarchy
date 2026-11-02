@@ -380,9 +380,7 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           root.report = parsed
-          // Fills only an empty icon, so the bar shows even while Open-Meteo
-          // has not answered for configured coordinates.
-          root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
+          root.label = Model.barIconAfterResponse("wttr", parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
@@ -442,7 +440,7 @@ Panel {
           var parsed = JSON.parse(raw)
           var parsedCurrent = Model.openMeteoCurrentCondition(parsed)
           root.dailyForecastReport = parsed
-          root.label = Model.currentIcon(parsedCurrent, root.label)
+          root.label = Model.barIconAfterResponse("open-meteo", parsedCurrent, root.label)
           root.dailyForecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "open-meteo"))
             root.finishSavingLocation()
