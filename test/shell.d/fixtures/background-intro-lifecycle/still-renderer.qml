@@ -19,27 +19,34 @@ ShellRoot {
 
   // A login with no intro whose shell was not up for OWE's handoff: OWE
   // draws the still itself and keeps the shell's background off.
-  Timer {
-    interval: 100
-    running: true
-    onTriggered: test.services = ({ "omarchy.background": background })
-  }
-  Timer {
-    interval: 300
-    running: true
-    onTriggered: {
+  // Each step runs a set delay after the one before it ran, always in order;
+  // see switch-sequence.qml.
+  property int step: 0
+  readonly property var steps: [
+    { delay: 100, run: function() {
+      test.services = ({ "omarchy.background": background })
+    } },
+    { delay: 200, run: function() {
       test.check(intro.cover, "the cover stays while the launcher runs")
       background.suspended = true
-    }
-  }
-  Timer {
-    interval: 2600
-    running: true
-    onTriggered: {
+    } },
+    { delay: 2300, run: function() {
       test.check(intro.startupSettled, "the launcher has finished")
       test.check(!intro.cover, "OWE's still releases the cover while the shell's background stays off")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
+    } }
+  ]
+  Timer {
+    interval: test.steps[0].delay
+    running: true
+    onTriggered: {
+      test.steps[test.step].run()
+      test.step++
+      if (test.step < test.steps.length) {
+        interval = test.steps[test.step].delay
+        start()
+      }
     }
   }
 }
