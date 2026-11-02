@@ -24,7 +24,12 @@ if (($# == 0)); then
 fi
 
 case "$1" in
-afk) agent="afk"; name="AFK"; agent_package="forgejo:mooglest/public[api_url=https://git.mooglest.com/api/v1]" ;;
+afk)
+  agent="afk"; name="AFK"
+  # The forge needs its API endpoint, which mise only takes inside the table.
+  agent_tool="forgejo:mooglest/public"
+  agent_package="$agent_tool[api_url=https://git.mooglest.com/api/v1]"
+  ;;
 pi) agent="pi"; name="Pi" ;;
 omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="oh-my-pi" ;;
 opencode | open-code) agent="opencode"; name="OpenCode" ;;
