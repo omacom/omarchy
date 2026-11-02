@@ -30,7 +30,7 @@ Spotify spustíte pomocí `Super + Shift + M`. Stejně jako u 1Password spustí 
 
 [Tailscale](https://tailscale.com/) je síťová VPN typu mesh, která extrémně zjednodušuje bezpečný přístup ke všem vašim počítačům a serverům přes internet. Chcete-li ho nastavit, vyberte v nabídce Omarchy položku _Instalovat > Služba > Tailscale_.
 
-Dostane panel na liště, webovou aplikaci pro administrační konzoli a Taildrop pro posílání souborů mezi vašimi počítači — viz kapitola [Síťové připojení](35-networking.md).
+Dostane panel na liště, webovou aplikaci pro administrační konzoli a Taildrop pro posílání souborů mezi vašimi počítači — viz kapitolu [Síťové připojení](35-networking.md).
 
 ## ONCE
 

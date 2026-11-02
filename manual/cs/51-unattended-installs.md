@@ -1,6 +1,6 @@
 # Instalace bez obsluhy
 
-ISO Omarchy se dokáže nainstalovat samo, aniž by někdo seděl u klávesnice. Pokud instalační program najde druhý disk se jmenovkou `cidata`, který obsahuje jeho konfigurační soubory, zkopíruje je z něj, úplně přeskočí průvodce nastavením a sám se restartuje do hotového systému. Žádný speciální sestavení ISO, žádná další položka ve spouštěcí nabídce — pokud takový disk není připojený, nic se nezmění a dostanete běžného průvodce.
+ISO Omarchy se dokáže nainstalovat samo, aniž by někdo seděl u klávesnice. Pokud instalační program najde druhý disk se jmenovkou `cidata`, který obsahuje jeho konfigurační soubory, zkopíruje je z něj, úplně přeskočí průvodce nastavením a sám se restartuje do hotového systému. Žádné speciální sestavení ISO, žádná další položka ve spouštěcí nabídce — pokud takový disk není připojený, nic se nezmění a dostanete běžného průvodce.
 
 Díky tomu se Omarchy výborně hodí jako základní obraz pro jednorázová vývojová prostředí: vytvoříte virtuální počítač v systému Proxmox nebo pomocí nástroje Packer, spustíte ho, odejdete a přihlásíte se přes SSH. Jmenovku `cidata` používá zdroj dat `NoCloud` nástroje cloud-init, takže všechny běžné virtualizační nástroje už takový disk připojit umějí.
 
@@ -26,7 +26,7 @@ Místo `user_credentials.json` můžete také vložit prázdný soubor s názvem
 
 Když je přítomen soubor `authorized_keys`, instalace nastaví klíče jako `~/.ssh/authorized_keys` uživatele, povolí `sshd` a otevře pro něj firewall. (Běžná instalace Omarchy obsahuje openssh s vypnutou službou a zavřeným portem, takže stroj bez obsluhy by jinak byl nedostupný.) Instalace pouze přidá vaše klíče — neoslabuje žádná další nastavení ověřování démona SSH.
 
-Když je naopak přítomen soubor `tailscale_authkey`, stroj se při prvním spuštění připojí k vaší síti tailnet: Tailscale se nainstaluje z balíčků přibalených na ISO, firewall povolí rozhraní tailnetu a úloha na pozadí provede připojení, jakmile bude mít stroj skutečně síť, a opakuje pokusy, dokud se jí to nepodaří. Použijte opakovaně použitelný, předem autorizovaný klíč, aby jeden obraz disku mohla sloužit mnoha strojům.
+Když je naopak přítomen soubor `tailscale_authkey`, stroj se při prvním spuštění připojí k vaší síti tailnet: Tailscale se nainstaluje z balíčků přibalených na ISO, firewall povolí rozhraní tailnetu a úloha na pozadí provede připojení, jakmile bude mít stroj skutečně síť, a opakuje pokusy, dokud se jí to nepodaří. Použijte opakovaně použitelný, předem autorizovaný klíč, aby jeden obraz disku mohl sloužit mnoha strojům.
 
 ## Vytvoření disku cidata
 

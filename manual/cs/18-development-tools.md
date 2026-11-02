@@ -8,7 +8,7 @@ Původní editor `vi` je také k dispozici hned po instalaci. Spuštěním `vi f
 
 Sladění s motivem je k dispozici pro `VSCode`, `Cursor`, `VSCodium` a `Helix`.
 
-Výchozí editor pro celý systém můžete nastavit v části `Setup > Defaults > Editor`.
+Výchozí editor pro celý systém můžete nastavit v části _Nastavení > Výchozí > Editor_.
 
 ## Prostředí
 

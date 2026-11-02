@@ -12,7 +12,7 @@ Ale Omarchy se dodává s kompletním nastavením Neovimu — balíčkem `omarch
 
 Jak jsem zmínil, nebudu vás v tomto krátkém úvodu učit vim, ale mohu vám ukázat pár základů LazyVimu a jak se v něm pohybovat.
 
-Neovim především používá koncept klávesy leader. To je v zásadě brána ke všem příkazům. LazyVim ji nastavil na `Space`. Takže ji prostě stiskněte, chvíli počkejte a uvidíte spoustu možností vysvětlených přímo na místě takto:
+Zaprvé: Neovim používá koncept klávesy leader. To je v zásadě brána ke všem příkazům. LazyVim ji nastavil na `Space`. Takže ji prostě stiskněte, chvíli počkejte a uvidíte spoustu možností vysvětlených přímo na místě takto:
 
 Tady je pár základních příkazů, které používám pořád:
 

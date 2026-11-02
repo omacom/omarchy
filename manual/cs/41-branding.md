@@ -52,4 +52,4 @@ Přijímá `--width` a `--height` ve sloupcích a řádcích terminálu, `--mode
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Přijímá text jako argumenty, nebo ho čte z roury, když žádné nedostane. Písmo obsahuje pouze písmena a mezery — byl nakreslen bez číslic a interpunkce — takže cokoli jiného se vynechá a vypíše na stderr, místo aby se tiše ztratilo.
+Přijímá text jako argumenty, nebo ho čte z roury, když žádné nedostane. Písmo obsahuje pouze písmena a mezery — bylo nakresleno bez číslic a interpunkce — takže cokoli jiného se vynechá a vypíše na stderr, místo aby se tiše ztratilo.

@@ -84,7 +84,7 @@ Lišta se konfiguruje sama. Nemusíte kvůli přesouvání věcí otevírat konf
 
 Chyťte prázdné místo na liště kolem středu a táhněte ho k jinému okraji obrazovky a lišta se tam přesune — doleva, doprava, nahoru i dolů to všechno funguje a každý widget se přizpůsobí (svislé lišty se vrátí ke kompaktním formám pouze s ikonami). Kliknutí a podržení spustí stejné tažení. Dvojitý levý klik na totéž prázdné místo přepne pozadí lišty z průhledného přes skleněné na neprůhledné. A táhněte libovolný widget, abyste změnili jeho pořadí nebo ho hodili do jiné sekce; ostatní widgety se rozestoupí, aby udělaly místo tam, kam dopadne.
 
-Střed lišty je box: cokoli je v něm, zůstává vycentrované jako jedna skupina a widgety po jeho obou stranách visí na jeho okrajích. Zatímco táhnete widget, box se ukáže jako obrys, nebo jako čára přes lištu, když je prázdný, a widget můžete pustit do něj nebo vedle něj. Když by widget dopadl do boxu, box se zvětší, aby widget přijal.
+Střed lišty je box: cokoli je v něm, zůstává vycentrované jako jedna skupina a widgety po jeho obou stranách visí na jeho okrajích. Zatímco táhnete widget, box se ukáže jako obrys, nebo jako čára přes lištu, když je prázdný, a widget můžete pustit do něj nebo vedle něj. Kdyby widget dopadl do boxu, box se zvětší, aby widget přijal.
 
 Widget, který chcete mít po ruce, ale ne vždy na očích, může jít do zásuvky oznamovací oblasti: táhněte ho na oznamovací oblast a zásuvka se otevře, aby ho přijala. Sedí tam za ikonami aplikací, objeví se, kdykoli se objeví zásuvka, a nechá svou zásuvku otevřenou, dokud je jeho panel otevřený. Táhněte ho zpět na lištu, abyste ho vrátili.
 

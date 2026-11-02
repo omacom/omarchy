@@ -66,7 +66,7 @@ Velikost můžete změnit i přímo pomocí `omarchy-capture-webcam-resize small
 
 `Super + Ctrl + Print Screen` vybere oblast a provede její OCR do schránky. To je řádně popsáno v kapitole [Extrakce textu a diktování](11-text-extraction-dictation.md).
 
-_Akce > Zachytit > QR kód_ dělá stejný trik pro QR kódy. Vyberte oblast s kódem a dekódovaná hodnota se dostane do schránky. Hledá pouze QR kódy — hustý obsah obrazovky by jinak býval často mylně rozpoznán jako čárový kód. Stojí za to vědět: dekódovaná hodnota jde do schránky a nikam jinam. Nevypisuje se, není v oznámení a je označena jako citlivá, takže nezůstává v [historii schránky](08-unified-clipboard-history.md). QR kódy běžně obsahují tajné údaje — například `otpauth://` URI za nastavovacím kódem 2FA — a to v logu nechcete. Vkládání stále funguje dobře.
+_Akce > Zachytit > QR kód_ dělá stejný trik pro QR kódy. Vyberte oblast s kódem a dekódovaná hodnota se dostane do schránky. Hledá pouze QR kódy — hustý obsah obrazovky by jinak byl často mylně rozpoznán jako čárový kód. Stojí za to vědět: dekódovaná hodnota jde do schránky a nikam jinam. Nevypisuje se, není v oznámení a je označena jako citlivá, takže nezůstává v [historii schránky](08-unified-clipboard-history.md). QR kódy běžně obsahují tajné údaje — například `otpauth://` URI za nastavovacím kódem 2FA — a to v logu nechcete. Vkládání stále funguje dobře.
 
 `Super + Print Screen` (nebo _Akce > Zachytit > Barva_) promění kurzor v kapátko. Klikněte na cokoli na obrazovce a barva přistane ve schránce. Stiskněte klávesovou zkratku znovu, abyste se vrátili zpět bez výběru.
 
