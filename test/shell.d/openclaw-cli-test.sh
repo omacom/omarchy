@@ -422,6 +422,17 @@ runs=$(sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$test_home/.config/systemd/user/o
   fail "--now moves a dormant gateway and leaves it stopped and disabled" "$(cat "$events")"
 pass "a gateway the user left stopped and disabled is moved and stays that way"
 
+# Upgrading to the seed package restarts a running gateway into files that are
+# gone, so the move finds it between restarts. It was running all the same.
+new_home crash-looping
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/enabled-openclaw-gateway.service"
+echo 1 >"$test_home/gateway-restarting"
+run omarchy-install-openclaw-cli --now || fail "--now moves a gateway between restarts" "$(cat "$test_tmp/output")"
+[[ -e $test_home/active-openclaw-gateway.service ]] || fail "--now leaves a gateway it found between restarts running" "$(cat "$events")"
+pass "a gateway the seed package left between restarts runs again after the move"
+
 new_home stop-fails
 mkdir -p "$test_home/.config/systemd/user"
 printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
