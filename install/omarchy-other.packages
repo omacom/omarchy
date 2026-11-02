@@ -65,7 +65,6 @@ surface-pro-11-support
 # Dell laptop support packages
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
-linux-firmware-cirrus-dx13260
 
 # ASUS laptop support packages
 asus-proart-p14-speaker-firmware
