@@ -142,6 +142,31 @@ omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION, gsettings = "", "old-session", "'custom-cursor'\n"
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
+
+-- An unset HYPRCURSOR_THEME must not leave the reveal's hyprcursor on its
+-- first-found fallback: a regenerated SVG-only theme hands Hyprland a null
+-- surface once hyprcursor is re-enabled (#17315). On a cold boot it follows
+-- the Xcursor theme, is exported to the session env, and the reveal applies it.
+omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+env.HYPRCURSOR_THEME, env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_THEME = nil, "my-xcursor", nil
+env.OMARCHY_STARTUP_CURSOR_SESSION, env.XCURSOR_PATH = "", "/my/icons"
+config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
+commands = {}
+events["config.reloaded"]()
+assert(env.HYPRCURSOR_THEME == "my-xcursor" and omarchy_startup_cursor.hyprcursor == "my-xcursor", "an unset Hyprcursor theme follows the Xcursor theme instead of the first-found fallback")
+omarchy_startup_cursor_restore(true)
+local hyprcursor_applied = false
+for _, c in ipairs(commands) do
+  if c:match("setcursor 'my%-xcursor' 24$") then hyprcursor_applied = true end
+end
+assert(hyprcursor_applied, "the reveal must apply the Hyprcursor theme it derived")
+-- With no theme at all the default alias serves both, and GSettings stays unread.
+omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+env.HYPRCURSOR_THEME, env.XCURSOR_THEME = nil, ""
+io.popen = function() error("an ordinary boot must not consult GSettings for the Hyprcursor theme") end
+events["config.reloaded"]()
+assert(omarchy_startup_cursor.hyprcursor == "default" and env.HYPRCURSOR_THEME == "default", "an ordinary boot without a cursor theme keeps the default alias for Hyprcursor too")
+env.HYPRCURSOR_THEME, env.XCURSOR_THEME = "my-hyprcursor", "my-xcursor"
 io.popen = popen
 LUA
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"

@@ -62,20 +62,27 @@ hl.on("config.reloaded", function()
     omarchy_startup_cursor_pending = cold or interrupted or recover
     if omarchy_startup_cursor_pending then
       local hyprcursor = hl.get_config("cursor.enable_hyprcursor")
+      local xcursor = normal_theme(interrupted)
       omarchy_startup_cursor = {
         config = {
           invisible = hl.get_config("cursor.invisible"),
           enable_hyprcursor = hyprcursor,
           sync_gsettings_theme = hl.get_config("cursor.sync_gsettings_theme"),
         },
-        hyprcursor = os.getenv("HYPRCURSOR_THEME"),
+        -- Hyprcursor with no theme named falls back to the first manifest it
+        -- finds, which can be a freshly regenerated SVG-only theme whose
+        -- un-rasterized shapes hand Hyprland a null surface once the reveal
+        -- re-enables it (#17315). Follow the Xcursor theme instead, so the
+        -- reveal always applies a theme by name.
+        hyprcursor = cursor_theme(os.getenv("HYPRCURSOR_THEME")) or xcursor,
         size = tonumber((hyprcursor and os.getenv("HYPRCURSOR_SIZE")) or os.getenv("XCURSOR_SIZE")) or 24,
         path = normal_path(),
-        xcursor = normal_theme(interrupted),
+        xcursor = xcursor,
       }
       if omarchy_startup_cursor.size <= 0 then omarchy_startup_cursor.size = 24 end
       -- Compositor environment survives Lua reloads; a session id prevents stale inheritance.
       hl.env("OMARCHY_STARTUP_CURSOR_THEME", omarchy_startup_cursor.xcursor)
+      hl.env("HYPRCURSOR_THEME", omarchy_startup_cursor.hyprcursor)
       hl.env("OMARCHY_STARTUP_CURSOR_SESSION", os.getenv("HYPRLAND_INSTANCE_SIGNATURE"))
       if cold then
         hl.env("XCURSOR_PATH", os.getenv("OMARCHY_PATH") .. "/default/hypr/cursors:" .. omarchy_startup_cursor.path)
