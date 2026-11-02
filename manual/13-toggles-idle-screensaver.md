@@ -30,9 +30,10 @@ Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If y
 
 ```bash
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
+omarchy-toggle-enabled bar-hidden && echo "bar is hidden"
 ```
 
-The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar-off` — so their presence means the feature is disabled.
+Most flags are named for the off state — `screensaver-off`, `suspend-off` — so their presence means the feature is disabled. The bar uses `bar-hidden` because its toggle follows the visibility of the bar directly: the flag is present when the bar is hidden, and removed when it is shown.
 
 ### Indicators in the bar
 

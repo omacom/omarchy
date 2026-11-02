@@ -10,7 +10,7 @@ case $ACTION in
   toggle|"")
     # Only leave full screen when both halves are already in it, so a lone bar
     # or a lone gap toggle is pulled into line rather than flipped away.
-    if omarchy-toggle-enabled bar-off && omarchy-hyprland-toggle-enabled window-no-gaps; then
+    if omarchy-toggle-enabled bar-hidden && omarchy-hyprland-toggle-enabled window-no-gaps; then
       ACTION="off"
     else
       ACTION="on"
@@ -23,5 +23,11 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+# Entering full screen hides the bar, leaving it shows the bar. The bar toggle
+# names its `on`/`off` arguments after bar visibility, so invert them here.
+if [[ $ACTION == on ]]; then
+  omarchy-toggle-bar off
+else
+  omarchy-toggle-bar on
+fi
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
