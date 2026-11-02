@@ -58,6 +58,8 @@ omarchy plugin remove acme.weather
 
 Removal disables the plugin first, then deletes it if it's a git checkout (the repo is still upstream) or unlinks it if it's a symlink. A hand-made plugin folder with no git repo gets moved to a timestamped backup inside the plugins directory instead of being deleted outright.
 
+If a plugin declares a pre-remove cleanup hook, removal asks separately for permission to run it before disabling or removing anything. Declining, a changed hook, or failed cleanup leaves the checkout in place. For scripts, `--yes` alone does not authorize plugin code: review the hook, then pass `--yes --run-pre-remove`. Plugins without a hook keep the normal removal behavior.
+
 ## Cloning a built-in to modify it
 
 This is my favorite part. If you want to change how a built-in widget behaves, don't edit the files under `$OMARCHY_PATH` — those belong to the package and the next update will overwrite them. Clone it instead:
