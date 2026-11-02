@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
 fixture_pids=()
-trap 'kill "${fixture_pids[@]}" 2>/dev/null; rm -rf "$test_tmp"' EXIT
+trap 'kill "${fixture_pids[@]}" 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
 
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
