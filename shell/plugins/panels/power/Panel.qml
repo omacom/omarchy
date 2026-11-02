@@ -82,6 +82,7 @@ Panel {
   }
   property bool chargeThresholdActive: false
   property real pluggedInAt: 0
+  property real createdOnAcAt: 0
 
   function settleThreshold() {
     if (!chargeThresholdReported) {
@@ -89,7 +90,7 @@ Panel {
       chargeThresholdActive = false
       return
     }
-    thresholdSettle.interval = Model.thresholdSettleDelay(Date.now(), pluggedInAt)
+    thresholdSettle.interval = Model.thresholdSettleDelay(Date.now(), Math.max(pluggedInAt, createdOnAcAt))
     thresholdSettle.restart()
   }
 
@@ -117,10 +118,11 @@ Panel {
 
   // Each screen gets its own widget, so one can be created mid plug-in: a dock
   // brings power and a display together. Without knowing when the power came,
-  // a widget created on AC treats now as the plug-in and lets the reading settle.
+  // a widget created on AC lets a charge-limit reading settle from now. Only a
+  // plug-in it saw holds back an unplug, so starting the shell never does.
   Component.onCompleted: {
     discharging = onBatteryReported
-    if (!discharging) pluggedInAt = Date.now()
+    if (!discharging) createdOnAcAt = Date.now()
     settleThreshold()
   }
 
