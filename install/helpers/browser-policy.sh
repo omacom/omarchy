@@ -162,9 +162,18 @@ browser_policy_firefox_hardened() {
   browser_policy_firefox_policy_file_ok "$dir/policies.json"
 }
 
+# Zen's package ships a policies.json of its own, so its replacement keeps those keys.
+browser_policy_firefox_default_policies() {
+  if [[ $1 == "/opt/zen-browser-bin/distribution" ]]; then
+    echo "$OMARCHY_PATH/default/firefox/zen-policies.json"
+  else
+    echo "$OMARCHY_PATH/default/firefox/policies.json"
+  fi
+}
+
 browser_policy_install_firefox_policies() {
   local distribution_dir=$1
-  local policies=${2:-$OMARCHY_PATH/default/firefox/policies.json}
+  local policies=${2:-$(browser_policy_firefox_default_policies "$distribution_dir")}
 
   as_root install -m 644 -o root -g root -T "$policies" "$distribution_dir/policies.json"
 }
@@ -187,9 +196,8 @@ browser_policy_firefox_skip_default_check() {
 
 browser_policy_setup_firefox_distribution() {
   local distribution_dir=$1
-  local policies=${2:-$OMARCHY_PATH/default/firefox/policies.json}
 
   browser_policy_setup_parent "$distribution_dir"
   browser_policy_purge_dir "$distribution_dir"
-  browser_policy_install_firefox_policies "$distribution_dir" "$policies"
+  browser_policy_install_firefox_policies "$distribution_dir" "${2:-}"
 }

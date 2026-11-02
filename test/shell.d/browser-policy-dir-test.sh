@@ -322,6 +322,13 @@ jq -e '.policies.DisableAppUpdate == true and .policies.DefaultSerialGuardSettin
   fail "Zen's policies carry every policy Firefox gets"
 pass "Zen's policies carry every policy Firefox gets"
 
+# The hardening migration repairs every directory without naming a file; Zen's must not lose its keys.
+[[ $(browser_policy_firefox_default_policies /opt/zen-browser-bin/distribution) == "$ROOT/default/firefox/zen-policies.json" ]] ||
+  fail "a Zen policy repair installs Zen's own policies"
+[[ $(browser_policy_firefox_default_policies /usr/lib/firefox/distribution) == "$ROOT/default/firefox/policies.json" ]] ||
+  fail "a Firefox policy repair installs the stock policies"
+pass "each Firefox distribution is repaired with its own policies"
+
 fx_merge=$test_tmp/fx-merge
 mkdir -p "$fx_merge"
 printf '{"policies": {"DisableTelemetry": true}}\n' >"$fx_merge/policies.json"

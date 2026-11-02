@@ -109,8 +109,7 @@ zen)
   echo "Installing Zen..."
   omarchy-pkg-aur-add zen-browser-bin || exit 1
 
-  browser_policy_setup_firefox_distribution /opt/zen-browser-bin/distribution \
-    "$OMARCHY_PATH/default/firefox/zen-policies.json"
+  browser_policy_setup_firefox_distribution /opt/zen-browser-bin/distribution
   setup_firefox_wayland
   omarchy-lifecycle-dispatch post-install zen
   announce_browser_installed "Zen"
