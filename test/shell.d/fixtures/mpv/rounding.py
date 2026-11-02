@@ -6,6 +6,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -41,9 +42,35 @@ def test():
     bin_dir.mkdir()
     rounding = home / 'rounding.json'
     rounding.write_text('{"int": 0}')
+    calls = home / 'hyprctl-calls'
     hyprctl = bin_dir / 'hyprctl'
-    hyprctl.write_text('#!/bin/sh\ncat "$MPV_TEST_ROUNDING"\n')
+    hyprctl.write_text('#!/bin/sh\nprintf "%s\\n" "$PPID" >> "$MPV_TEST_CALLS"\ncat "$MPV_TEST_ROUNDING"\n')
     hyprctl.chmod(0o755)
+    # A real event socket drives the production watcher without reloading the desktop.
+    event_path = home / 'hypr/test/.socket2.sock'
+    event_path.parent.mkdir(parents=True)
+    events = socket.socket(socket.AF_UNIX)
+    events.bind(str(event_path))
+    events.listen()
+    subscribers = []
+
+    def accept_events():
+      while True:
+        try:
+          connection, _ = events.accept()
+          subscribers.append(connection)
+        except OSError:
+          return
+
+    threading.Thread(target=accept_events, daemon=True).start()
+
+    def emit(event='configreloaded>>'):
+      for connection in list(subscribers):
+        try:
+          connection.sendall((event+'\n').encode())
+        except OSError:
+          subscribers.remove(connection)
+          connection.close()
     ipc = home / 'ipc.sock'
     config = home / 'config'
     config.mkdir()
@@ -87,7 +114,8 @@ end
         f'--script-opts=omarchy-theme-theme_file={theme},unrelated-value=kept,omarchy-controls-debug=yes,omarchy-controls-visibility=always',
         'av://lavfi:testsrc2=size=640x360:rate=24'], stdout=log, stderr=subprocess.STDOUT,
         env={**os.environ, 'PATH': str(bin_dir)+os.pathsep+os.environ['PATH'],
-          'MPV_TEST_ROUNDING': str(rounding)})
+          'MPV_TEST_ROUNDING': str(rounding), 'MPV_TEST_CALLS': str(calls),
+          'XDG_RUNTIME_DIR': str(home), 'HYPRLAND_INSTANCE_SIGNATURE': 'test'})
       try:
         deadline = time.monotonic() + 10
         while not ipc.exists() and time.monotonic() < deadline:
@@ -133,20 +161,31 @@ end
           raise AssertionError(f'Rounding did not reload: {log_path.read_text()}')
 
         wait_radius(0)
+        # Allow the initial result and its replacement subscription to settle.
+        time.sleep(.4)
+        initial_calls = calls.read_text()
+        time.sleep(2.3)
+        assert calls.read_text() == initial_calls, 'Idle player keeps spawning hyprctl'
+        emit('focusedmon>>test,1')
+        time.sleep(.15)
+        assert calls.read_text() == initial_calls, 'Unrelated events query rounding'
         rounding.write_text('{"int": 8}')
+        emit()
         wait_radius(8)
         assert property('pause') is True
         for bad in ('invalid', '{}', '{"int": -2}', '{"int": "12"}'):
           rounding.write_text(bad)
-          command('script-message', 'reload-omarchy-rounding')
+          emit()
           time.sleep(.15)
           assert property('user-data/omarchy/control-corner-radius') == 8
         # Large radii exercise clamps on buttons, tooltips, and the volume thumb.
         rounding.write_text('{"int": 1000}')
+        emit()
         wait_radius(1000)
         rounded_ass = property('user-data/mpv-test/overlay')
         assert '\\clip(' in rounded_ass and ' b ' in rounded_ass
         rounding.write_text('{"int": 0}')
+        emit()
         wait_radius(0)
         deadline = time.monotonic() + 5
         while property('user-data/mpv-test/overlay') == rounded_ass and time.monotonic() < deadline:
@@ -191,6 +230,11 @@ end
         assert property('user-data/omarchy/theme').get('mode') is None
         command('quit')
         player.wait(timeout=5)
+        watcher_pids = {int(pid) for pid in calls.read_text().splitlines()}
+        deadline = time.monotonic() + 3
+        while any(Path(f'/proc/{pid}').exists() for pid in watcher_pids) and time.monotonic() < deadline:
+          time.sleep(.05)
+        assert not any(Path(f'/proc/{pid}').exists() for pid in watcher_pids), 'Rounding watcher outlives mpv'
         assert 'stack traceback' not in log_path.read_text(), log_path.read_text()
         fixed = subprocess.run(['mpv', f'--config-dir={config}', '--vo=null',
           '--ao=null', '--idle=yes', '--osc=no', f'--script={wrapper}',
@@ -199,11 +243,14 @@ end
           capture_output=True, text=True, timeout=10)
         assert fixed.returncode == 0 and 'PASS: fixed radius' in fixed.stdout, fixed.stdout+fixed.stderr
         assert 'stack traceback' not in fixed.stdout+fixed.stderr
-        print('PASS: paused palette/rounding reloads, invalid-data recovery, rounded ASS gradients/clamps, and unrelated options.')
+        print('PASS: event-driven rounding, idle process budget, watcher cleanup, paused palette reloads, invalid-data recovery, and rounded ASS geometry.')
       finally:
         if player.poll() is None:
           player.terminate()
           player.wait(timeout=5)
+        events.close()
+        for connection in subscribers:
+          connection.close()
 
 
 if __name__ == '__main__':

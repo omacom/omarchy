@@ -116,7 +116,16 @@ end
 -- Match the shell's Style.cornerRadius source, including user overrides.
 -- Keep geometry separate from color selection: a player-only palette never
 -- changes the desktop's window/control shape.
-local rounding_request, rounding_timeout
+local rounding_request, rounding_timeout, rounding_watch
+local shutting_down=false
+local function apply_rounding(contents)
+  local data = utils.parse_json(contents)
+  local radius = type(data) == 'table' and data.int
+  if type(radius) ~= 'number' or radius < 0 or radius == math.huge then return end
+  if mp.get_property_native('user-data/omarchy/corner-radius') ~= radius then
+    mp.set_property_native('user-data/omarchy/corner-radius', radius)
+  end
+end
 local function reload_rounding()
   if rounding_request then return end
   rounding_request = mp.command_native_async({name='subprocess',
@@ -125,22 +134,57 @@ local function reload_rounding()
     rounding_request = nil
     if rounding_timeout then rounding_timeout:kill() end
     if not success or not result or result.status ~= 0 then return end
-    local data = utils.parse_json(result.stdout)
-    local radius = type(data) == 'table' and data.int
-    if type(radius) ~= 'number' or radius < 0 or radius == math.huge then return end
-    if mp.get_property_native('user-data/omarchy/corner-radius') ~= radius then
-      mp.set_property_native('user-data/omarchy/corner-radius', radius)
-    end
+    apply_rounding(result.stdout)
   end)
   rounding_timeout = mp.add_timeout(1.5, function()
     if rounding_request then mp.abort_async_command(rounding_request) end
   end)
 end
-reload_rounding()
-mp.add_periodic_timer(2, reload_rounding)
+-- mpv's subprocess API delivers output on exit, so wait for one reload at a
+-- time. Subscribe before reading the current value to cover the reconnect gap.
+-- Python blocks on the socket; an idle player starts no further processes.
+local rounding_events = [[
+import socket, subprocess, sys
+with socket.socket(socket.AF_UNIX) as events:
+  events.connect(sys.argv[1])
+  def rounding():
+    return subprocess.check_output(
+      ['hyprctl', '-j', 'getoption', 'decoration:rounding'], timeout=1.5).decode()
+  current = rounding()
+  if current == sys.argv[2]:
+    with events.makefile() as lines:
+      for line in lines:
+        if line.startswith('configreloaded>>'):
+          current = rounding()
+          break
+      else:
+        sys.exit(1)
+  sys.stdout.write(current)
+]]
+local runtime, signature = os.getenv('XDG_RUNTIME_DIR'), os.getenv('HYPRLAND_INSTANCE_SIGNATURE')
+local event_socket = runtime and signature and runtime..'/hypr/'..signature..'/.socket2.sock'
+local function watch_rounding(previous)
+  if shutting_down then return end
+  rounding_watch = mp.command_native_async({name='subprocess',
+    args={'python3', '-c', rounding_events, event_socket, previous or ''},
+    capture_stdout=true, capture_stderr=true, playback_only=false}, function(success, result)
+    rounding_watch=nil
+    if shutting_down or not success or not result or result.status ~= 0 then return end
+    apply_rounding(result.stdout)
+    watch_rounding(result.stdout)
+  end)
+end
+if event_socket and utils.file_info(event_socket) then
+  watch_rounding()
+else
+  reload_rounding()
+end
 mp.register_script_message('reload-omarchy-rounding', reload_rounding)
 mp.register_event('shutdown', function()
+  shutting_down=true
+  if rounding_watch then mp.abort_async_command(rounding_watch) end
   if rounding_request then mp.abort_async_command(rounding_request) end
+  if rounding_timeout then rounding_timeout:kill() end
 end)
 
 local function theme_file(slug, name)
