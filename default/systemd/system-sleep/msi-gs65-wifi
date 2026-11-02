@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Clear the Wi-Fi hardware rfkill block asserted by the MSI GS65 Stealth
+# Embedded Controller on S3 resume (EC register 0x34 OS profile nibble and
+# register 0x2e bit 3 radio killswitch).
+# Upstream: https://github.com/BeardOverflow/msi-ec/issues/804
+
+ec_io=${OMARCHY_MSI_EC_IO:-/sys/kernel/debug/ec/ec0/io}
+toggle_delay=${OMARCHY_MSI_EC_DELAY:-1}
+retry_delay=${OMARCHY_MSI_EC_RETRY_DELAY:-2}
+
+wifi_blocked() {
+  rfkill list | grep -A2 "Wireless" | grep -q "Hard blocked: yes"
+}
+
+read_byte() {
+  dd if="$ec_io" bs=1 skip=$(($1)) count=1 2>/dev/null | od -A n -t x1 | tr -d " \n"
+}
+
+write_byte() {
+  local octal
+  printf -v octal '\\%03o' "$2"
+  printf "$octal" | dd of="$ec_io" bs=1 seek=$(($1)) conv=notrunc 2>/dev/null
+}
+
+ensure_ec_os_profile() {
+  local b34
+  b34=$(read_byte 0x34)
+  if [[ $b34 == "50" ]]; then
+    write_byte 0x34 0x30
+  fi
+}
+
+case "$1" in
+  pre)
+    if modprobe ec_sys write_support=1 2>/dev/null && [[ -f $ec_io ]]; then
+      ensure_ec_os_profile
+      modprobe -r ec_sys 2>/dev/null || true
+    fi
+    ;;
+  post)
+    if modprobe ec_sys write_support=1 2>/dev/null && [[ -f $ec_io ]]; then
+      ensure_ec_os_profile
+      for _ in 1 2 3; do
+        if ! wifi_blocked; then
+          break
+        fi
+        hex2e=$(read_byte 0x2e)
+        if [[ -z $hex2e ]]; then
+          break
+        fi
+        val=$((16#$hex2e))
+        if (( (val & 0x08) != 0 )); then
+          write_byte 0x2e $((val & ~0x08))
+          sleep "$toggle_delay"
+          write_byte 0x2e $((val | 0x08))
+        else
+          write_byte 0x2e $((val | 0x08))
+        fi
+        sleep "$retry_delay"
+      done
+      modprobe -r ec_sys 2>/dev/null || true
+    fi
+    ;;
+esac
