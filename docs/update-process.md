@@ -61,7 +61,7 @@ When invoked by the update, migrations share its single sudo authorization. The 
 
 For watchers and diagnostics, `omarchy-migrate --pending` prints pending
 migration names and exits `0` when any are pending. When no migrations are
-pending, it prints nothing and exits non-zero.
+pending, it prints nothing and exits `1`. When the migrations directory under `$OMARCHY_PATH` is missing, it prints an error and exits `2`, so a wrong path is never read as nothing pending.
 
 ## Raw pacman guard
 
