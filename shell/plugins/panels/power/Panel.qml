@@ -285,16 +285,15 @@ Panel {
     historyMissing = historyPoints.length < 2
   }
 
-  // Screen coordinates for the chart: time runs with the reading direction,
-  // the line is inset by half its stroke so a full battery isn't cut off at
-  // the top, and the fill closes along the bottom edge.
-  function historyPath(points, width, height, inset, mirrored, fill) {
+  // Screen coordinates for the chart's area: time runs with the reading
+  // direction, and the area closes along the bottom edge.
+  function historyPath(points, width, height, mirrored) {
     var path = []
     for (var i = 0; i < points.length; i++) {
       var x = (mirrored ? 1 - points[i].x : points[i].x) * width
-      path.push(Qt.point(x, inset + points[i].y * (height - inset * 2)))
+      path.push(Qt.point(x, points[i].y * height))
     }
-    if (fill && path.length > 0) {
+    if (path.length > 0) {
       path.push(Qt.point(path[path.length - 1].x, height))
       path.push(Qt.point(path[0].x, height))
     }
@@ -505,12 +504,12 @@ Panel {
         // ---------- Charge bar ----------
         // With UPower history for the battery, the bar grows into a chart of
         // the last few hours in the same track and colour: the filled area is
-        // the level over time, and its right edge is the level now. Without
-        // history it stays the plain bar.
+        // the level over time, solid like the bar's fill, and its right edge
+        // is the level now. Without history it stays the plain bar.
         Item {
           id: chargeBar
           width: parent.width
-          implicitHeight: root.historyShown ? Style.space(32) : Style.space(8)
+          implicitHeight: root.historyShown ? Style.space(24) : Style.space(8)
 
           Rectangle {
             id: barTrack
@@ -561,32 +560,22 @@ Panel {
               Shape {
                 id: historyChart
                 readonly property bool mirrored: LayoutMirroring.enabled
-                readonly property color fill: root.batteryFillColor
-                readonly property real stroke: Math.max(1, Style.spaceReal(1.5))
                 anchors.fill: parent
                 preferredRendererType: Shape.CurveRenderer
 
                 ShapePath {
                   strokeColor: "transparent"
-                  fillColor: Qt.rgba(historyChart.fill.r, historyChart.fill.g, historyChart.fill.b, 0.35)
-                  PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, true) }
-                }
-
-                ShapePath {
-                  strokeColor: historyChart.fill
-                  strokeWidth: historyChart.stroke
-                  fillColor: "transparent"
-                  joinStyle: ShapePath.RoundJoin
-                  capStyle: ShapePath.RoundCap
-                  PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, false) }
+                  fillColor: root.batteryFillColor
+                  PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.mirrored) }
                 }
               }
             }
           }
 
-          // Hovering the chart reads it: a hairline and a dot at the pointer,
-          // and the level there with how long ago it was. Nothing animates,
-          // since the marks follow the pointer.
+          // Hovering the chart reads it: a dot on the area's edge at the
+          // pointer, a cut through the area under it, and the level there with
+          // how long ago it was. Nothing animates, since the marks follow the
+          // pointer.
           HoverHandler {
             id: chartHover
             enabled: root.historyShown
@@ -604,6 +593,7 @@ Panel {
             var level = Model.levelAt(root.historyPoints, hoverFraction)
             return level === null ? -1 : level
           }
+          readonly property real hoverY: (100 - hoverLevel) / 100 * height
 
           Item {
             visible: chartHover.hovered && chargeBar.hoverText !== ""
@@ -619,23 +609,22 @@ Panel {
 
             Rectangle {
               x: Math.round(chargeBar.hoverX - width / 2)
-              width: Math.max(1, Style.spaceReal(1))
-              height: parent.height
-              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.5)
+              y: chargeBar.hoverY
+              width: Math.max(1, Style.spaceReal(1.5))
+              height: parent.height - y
+              color: Commons.Color.popups.background
             }
           }
 
           // Outside the clip and kept inside the track, so a level near full
           // or empty doesn't cut the dot in half.
           Rectangle {
-            readonly property real inset: historyChart.stroke / 2
             visible: chartHover.hovered && chargeBar.hoverText !== ""
             width: Style.space(7)
             height: width
             radius: width / 2
             x: Math.max(0, Math.min(parent.width - width, chargeBar.hoverX - width / 2))
-            y: Math.max(0, Math.min(parent.height - height,
-              inset + (100 - chargeBar.hoverLevel) / 100 * (parent.height - inset * 2) - height / 2))
+            y: Math.max(0, Math.min(parent.height - height, chargeBar.hoverY - height / 2))
             color: root.batteryFillColor
             border.width: Math.max(1, Style.spaceReal(1.5))
             border.color: Commons.Color.popups.background
