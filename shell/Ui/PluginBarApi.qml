@@ -41,6 +41,7 @@ QtObject {
   property var _popoutCardFor: null
   property var _switchPanelFrom: null
   property var _targetBelongsToWindow: null
+  property var _forwardBarClick: null
   property var _moduleWidgets: null
   property var _run: null
   property var _setCenterHoverRevealSuppressed: null
@@ -88,6 +89,10 @@ QtObject {
 
   function targetBelongsToWindow(target, window) {
     return _targetBelongsToWindow ? _targetBelongsToWindow(target, window) : false
+  }
+
+  function forwardBarClick(window, point, button) {
+    return _forwardBarClick ? _forwardBarClick(window, point, button) : false
   }
 
   function moduleWidgets(id) {
