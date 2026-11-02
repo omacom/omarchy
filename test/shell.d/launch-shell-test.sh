@@ -91,6 +91,9 @@ SH
 
 chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fake_bin/logger"
 
+runtime_dir="$test_tmp/runtime"
+mkdir -p "$runtime_dir"
+
 qs_log="$test_tmp/quickshell.log"
 qs_env_log="$test_tmp/quickshell-env.log"
 logger_log="$test_tmp/logger.log"
@@ -104,6 +107,7 @@ launch_shell() {
 
   PATH="$fake_bin:$PATH" \
   HOME="$launch_home" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
   OMARCHY_PATH="$shell_root" \
   OMARCHY_TEST_QS_LOG="$qs_log" \
   OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
@@ -154,6 +158,34 @@ rm -f "$hyprctl_misses"
 launch_shell $'255\n0' 0 2 || fail "a shell survives a compositor that misses a query"
 [[ $(launches) == 2 ]] || fail "a missed compositor query does not end supervision" "$(<"$qs_log")"
 pass "a compositor too busy to answer is not mistaken for one that is gone"
+
+# Quickshell never reaps the instance dirs of dead shells, and a shell dying
+# every few seconds fills the runtime tmpfs with their logs until nothing in
+# the session can write there any more. Each launch reaps the dead ones and
+# leaves every live instance alone, whichever config it runs.
+instances="$runtime_dir/quickshell"
+mkdir -p "$instances/by-id/deadshell" "$instances/by-id/liveother" "$instances/by-pid"
+printf 'stale\n' >"$instances/by-id/deadshell/log.qslog"
+printf 'live\n' >"$instances/by-id/liveother/log.qslog"
+sleep 30 &
+live_instance_pid=$!
+ln -s "$instances/by-id/liveother" "$instances/by-pid/$live_instance_pid"
+dead_instance_pid=$live_instance_pid
+while kill -0 "$dead_instance_pid" 2>/dev/null; do dead_instance_pid=$(( dead_instance_pid + 1 )); done
+ln -s "$instances/by-id/deadshell" "$instances/by-pid/$dead_instance_pid"
+ln -s "$instances/by-id/longgone" "$instances/by-pid/$(( dead_instance_pid + 1 ))"
+
+launch_shell '0' || fail "a launch with stale instance dirs succeeds"
+kill "$live_instance_pid" 2>/dev/null || true
+wait "$live_instance_pid" 2>/dev/null || true
+[[ ! -e $instances/by-id/deadshell ]] || fail "a dead instance's dir is reaped before the launch"
+[[ ! -L $instances/by-pid/$dead_instance_pid ]] || fail "a dead instance's pid link is reaped before the launch"
+[[ ! -L $instances/by-pid/$(( dead_instance_pid + 1 )) ]] || fail "a dangling pid link is reaped before the launch"
+[[ -f $instances/by-id/liveother/log.qslog ]] || fail "a live instance's dir is left alone"
+[[ -L $instances/by-pid/$live_instance_pid ]] || fail "a live instance's pid link is left alone"
+pass "dead Quickshell instance dirs are reaped before each launch"
+
+rm -rf "$instances"
 
 # A signal mid-backoff only reaches the trap once the sleep is over.
 : >"$qs_log"
