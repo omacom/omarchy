@@ -8,7 +8,9 @@ echo "Replace the leftover Kimi mise wrapper with its lazy shim"
 package="npm:@moonshot-ai/kimi-code"
 wrapper="$HOME/.local/bin/kimi"
 
-if [[ ! -f $HOME/.local/state/omarchy/preinstalls-removed ]]; then
+# A user who opted out of the declarations by hand has no marker, and there the
+# wrapper and its request are the only Kimi left.
+if [[ ! -f $HOME/.local/state/omarchy/preinstalls-removed ]] && omarchy-mise-default-tools declares "$package"; then
   # Only the exact wrapper omarchy-mise-install wrote, so a customized or
   # user-owned launcher at the same path stays.
   if [[ -f $wrapper && ! -L $wrapper ]] &&
