@@ -11,6 +11,7 @@ text_color=${3:-}
 background_color=${4:-}
 background_path=""
 screen_size=""
+max_width=""
 
 shift 4 2>/dev/null || true
 while (($# > 0)); do
@@ -21,6 +22,10 @@ while (($# > 0)); do
     ;;
   --screen)
     screen_size=${2:-}
+    shift 2
+    ;;
+  --max-width)
+    max_width=${2:-}
     shift 2
     ;;
   *)
@@ -90,30 +95,45 @@ screen_width=${BASH_REMATCH[1]}
 screen_height=${BASH_REMATCH[2]}
 ((screen_width > 0 && screen_height > 0 && bar_size > 0)) || fallback
 
+# A bar capped along its edge (bar.maxWidth) paints a centered strip, so the
+# sample is that strip, in from each end of the edge, not the whole edge.
+inset=0
+if [[ $max_width =~ ^[0-9]+$ ]] && ((max_width > 0)); then
+  if [[ $position == "left" || $position == "right" ]]; then
+    edge_length=$screen_height
+  else
+    edge_length=$screen_width
+  fi
+  if ((max_width < edge_length)); then
+    inset=$(((edge_length - max_width) / 2))
+  fi
+fi
+
 # Only the bar strip's mean colour is needed, so sample on a canvas no wider than
 # 1920 px; a 6K or 8K screen would otherwise add a full-size intermediate image.
 if ((screen_width > 1920)); then
   screen_height=$(((screen_height * 1920 + screen_width - 1) / screen_width))
   bar_size=$(((bar_size * 1920 + screen_width - 1) / screen_width))
+  inset=$((inset * 1920 / screen_width))
   screen_width=1920
 fi
 
 case "$position" in
 top)
-  crop="${screen_width}x${bar_size}+0+0"
+  crop="$((screen_width - inset * 2))x${bar_size}+${inset}+0"
   ;;
 bottom)
   crop_y=$((screen_height - bar_size))
   ((crop_y >= 0)) || fallback
-  crop="${screen_width}x${bar_size}+0+${crop_y}"
+  crop="$((screen_width - inset * 2))x${bar_size}+${inset}+${crop_y}"
   ;;
 left)
-  crop="${bar_size}x${screen_height}+0+0"
+  crop="${bar_size}x$((screen_height - inset * 2))+0+${inset}"
   ;;
 right)
   crop_x=$((screen_width - bar_size))
   ((crop_x >= 0)) || fallback
-  crop="${bar_size}x${screen_height}+${crop_x}+0"
+  crop="${bar_size}x$((screen_height - inset * 2))+${crop_x}+${inset}"
   ;;
 esac
 
