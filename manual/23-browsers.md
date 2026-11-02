@@ -32,7 +32,7 @@ These are Chromium-family only. Firefox and Zen don't get them.
 
 Sites that use the Web Speech API — Google Translate's Listen button is the usual example — talk to a local speech backend on Linux. Chromium still ships Google cloud voices, so it works without one. Brave does not.
 
-When you install Brave (or Brave Origin) through Omarchy, it also installs `speech-dispatcher` and `espeak-ng` and enables the user socket so those sites have voices. After an update on a machine that already had Brave, fully quit and reopen the browser once so it picks the new voices up.
+When you install Brave (or Brave Origin) through Omarchy, it also installs `speech-dispatcher` and `espeak-ng`, enables the user socket, and adds `--enable-speech-dispatcher` to Brave's flags file so those sites have voices. After an update on a machine that already had Brave, fully quit and reopen the browser once so it picks the new voices up.
 
 ## Firefox and Zen
 

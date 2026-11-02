@@ -4,6 +4,8 @@
 # the base install and runs only when Brave is installed.
 
 omarchy_ensure_brave_web_speech() {
+  local flags_file=$1
+
   omarchy-pkg-add speech-dispatcher espeak-ng || return 1
 
   systemctl --user daemon-reload >/dev/null 2>&1 || true
@@ -17,5 +19,13 @@ omarchy_ensure_brave_web_speech() {
     mkdir -p "$wants_dir"
     ln -sfn /usr/lib/systemd/user/speech-dispatcher.socket \
       "$wants_dir/speech-dispatcher.socket"
+  fi
+
+  # Brave only asks speech-dispatcher for voices when started with this switch.
+  if [[ -f $flags_file ]] && ! grep -qxF -- "--enable-speech-dispatcher" "$flags_file"; then
+    if [[ -n $(tail -c1 "$flags_file") ]]; then
+      echo >>"$flags_file"
+    fi
+    echo "--enable-speech-dispatcher" >>"$flags_file"
   fi
 }

@@ -78,10 +78,10 @@ edge)
 brave)
   echo "Installing Brave..."
   omarchy-pkg-aur-add brave-bin || exit 1
-  omarchy_ensure_brave_web_speech || exit 1
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-flags.conf
+  omarchy_ensure_brave_web_speech ~/.config/brave-flags.conf || exit 1
   link_widevine_cdm brave-bin
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install brave
@@ -90,10 +90,10 @@ brave)
 brave-origin)
   echo "Installing Brave Origin..."
   omarchy-pkg-aur-add brave-origin-bin || exit 1
-  omarchy_ensure_brave_web_speech || exit 1
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-origin-flags.conf
+  omarchy_ensure_brave_web_speech ~/.config/brave-origin-flags.conf || exit 1
   link_widevine_cdm brave-origin-bin
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install brave-origin
