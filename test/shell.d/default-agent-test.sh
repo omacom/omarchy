@@ -632,6 +632,24 @@ done
 printf '%s\n' "$saved_agent" >"$agent_file"
 pass "the added agents install through Omarchy's mise declarations"
 
+# Selecting an installed agent must launch what is there: a `mise install` in
+# the menu action would re-resolve the "latest" declaration and silently
+# download a whole new release with nothing to show for it (#16674).
+: >"$mise_history"
+: >"$agent_open_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent kiro >/dev/null
+if grep -q '^install ' "$mise_history"; then
+  fail "selecting an installed agent downloads nothing"
+fi
+grep -Fx "where $kiro_cli_tool" "$mise_history" >/dev/null ||
+  fail "selecting an installed agent checks its installation"
+[[ $(omarchy-default-agent) == "kiro-cli" ]] ||
+  fail "selecting an installed agent records the selection"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
+  fail "selecting an installed agent opens the agent"
+pass "selecting an installed agent launches it without re-downloading"
+
 : >"$terminal_log"
 : >"$muse_login_log"
 : >"$agent_open_log"
@@ -646,14 +664,24 @@ pass "installed Muse selects and opens directly"
 
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
-if OMARCHY_TEST_AGENT_INSTALLED=true OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent musecode >"$test_tmp/muse-failure-output" 2>&1; then
-  fail "default agent rejects a failed Muse activation"
+: >"$mise_history"
+# An installed provider launches as it is: mise is only consulted for its
+# presence, so a mise failure can neither block the selection nor the launch.
+# Before #16674 this run reported a failed `mise install` as an activation
+# error, because selecting re-installed the tool first.
+if ! OMARCHY_TEST_AGENT_INSTALLED=true OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent musecode >"$test_tmp/muse-failure-output" 2>&1; then
+  fail "default agent launches an installed Muse even while mise fails"
 fi
-[[ $(omarchy-default-agent) == "pi" ]] || fail "failed Muse activation preserves the current default agent"
-grep -F "Could not set Muse Code as the default coding agent" "$test_tmp/muse-failure-output" >/dev/null ||
-  fail "default agent reports a failed Muse activation"
-[[ ! -s $agent_open_log ]] || fail "failed Muse activation does not open an agent"
-pass "default agent reports Muse mise failures without changing the selection"
+[[ $(omarchy-default-agent) == "muse" ]] || fail "a failing mise does not stop an installed Muse selection"
+if grep -qE '^(install|use) ' "$mise_history"; then
+  fail "an installed Muse selection runs no mise install"
+fi
+[[ ! -s $test_tmp/muse-failure-output ]] ||
+  fail "an installed Muse selection stays silent while mise fails"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
+  fail "a failing mise does not stop launching an installed Muse"
+pass "an installed Muse launches even while mise fails"
 
 # A manually installed launcher belongs to the user; selecting it must not
 # install a second copy or replace it with the Omarchy wrapper.
