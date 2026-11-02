@@ -181,6 +181,7 @@ A test whose fixtures are dated today calls `freeze_today()` (and stamps rows wi
   with `HOME` pointed at a `mktemp -d` directory (cleaned up via
   `trap ... EXIT`) and `OMARCHY_PATH="$ROOT"`, so tests exercise the checkout
   without touching the developer's machine.
+- **Exercise staged-write failures.** `theme-set-settings-tmp-cleanup-test.sh` runs the real Claude and Pi sync scripts with isolated `HOME` and `CLAUDE_CONFIG_DIR`. It checks invalid settings, successful activation, failed theme copies (including partial copies), failed theme renames, and failed settings renames. Failure cases must reach the selected operation, return failure, remove the stage, and preserve the existing destination and settings bytes; a settings-rename failure occurs after the theme has already been published.
 - **Migrations get no suite test.** A migration runs once per machine and is frozen once it ships, so a test of it guards nothing for long. Check it by hand against a scratch `$HOME` while writing it (see [`agents/skills/migrations.md`](../agents/skills/migrations.md)). When a migration needs logic worth a test, put that logic in a `bin/` command and test the command. Tests of `omarchy-migrate`, the login notifier, and `omarchy-upgrade-to-quattro` stay.
 - **Assert the invariant, not the snapshot.** Config tests pin the property a
   test is named for (this widget stays adjacent to that one) rather than whole
