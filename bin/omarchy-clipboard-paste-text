@@ -57,7 +57,12 @@ fi
 sleep 0.15
 
 if [[ $use_shift_insert == "true" ]]; then
-  wtype -M shift -k Insert -m shift 2>/dev/null || true
+  here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+  if [[ -x $here/omarchy-cmd-send-paste ]]; then
+    "$here/omarchy-cmd-send-paste"
+  else
+    omarchy-cmd-send-paste
+  fi
 else
   wtype "$text" 2>/dev/null || true
 fi
