@@ -1,12 +1,12 @@
 # Motywy
 
-Omarchy jest dostarczane z dwudziestoma dwoma pięknymi motywami. Możesz wybierać między nimi przez _Wygląd > Motyw_ w Menu Omarchy (`Super + Space`) lub przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
+Omarchy zawiera dwadzieścia dwa piękne motywy. Możesz wybierać spośród nich przez _Wygląd > Motyw_ w Menu Omarchy (`Super + Space`) albo przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
 
-Każdy motyw stylizuje pulpit, terminal, neovim, ekran aktywności (btop), Chromium oraz całą powłokę Omarchy: górny pasek, menu, powiadomienia, OSD i ekran blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy przez _Wygląd > Motywy_ wewnątrz aplikacji).
+Każdy motyw stylizuje pulpit, terminal, Neovim, ekran aktywności (btop), Chromium oraz całą powłokę Omarchy: górny pasek, menu, powiadomienia, OSD i ekran blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy przez _Wygląd > Motywy_ wewnątrz aplikacji).
 
 Motywy mają zestaw obrazów tła, spośród których możesz wybierać za pomocą `Super + Ctrl + W`.
 
-Jeszcze więcej motywów znajdziesz na [stronie z dodatkowymi motywami](https://omarchy.org/themes/) lub możesz nawet [stworzyć własny motyw](43-making-your-own-theme.md).
+Jeszcze więcej motywów znajdziesz na [stronie z dodatkowymi motywami](https://omarchy.org/themes/), a możesz nawet [stworzyć własny motyw](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odblokowanie
+### Ekrany odblokowania
 
-Motywy mogą mieć również własny projekt odblokowania, który jest używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w _Wygląd > Odblokowanie_. Wyglądają tak:
+Motywy mogą też mieć własny projekt ekranu odblokowania, który jest używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w _Wygląd > Odblokowanie_. Wyglądają tak:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

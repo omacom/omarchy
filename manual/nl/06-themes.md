@@ -1,8 +1,8 @@
 # Thema's
 
-Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Uiterlijk > Thema_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
+Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Appearance > Theme_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
 
-Elk thema geeft stijl aan het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Uiterlijk > Thema's_ in de app zelf).
+Elk thema geeft stijl aan het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Appearance > Themes_ in de app).
 
 Thema's hebben een set achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + W`.
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Ontgrendelschermen
+### Ontgrendelingen
 
-Thema's kunnen ook een aangepast ontgrendelontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces bij het opstarten. Je kunt er een selecteren onder _Uiterlijk > Ontgrendelen_. Ze zien er zo uit:
+Thema's kunnen ook een aangepast ontgrendelingsontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces tijdens het opstarten. Je kunt er een selecteren onder _Appearance > Unlock_. Ze zien er zo uit:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

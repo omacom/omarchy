@@ -1,12 +1,12 @@
 # 主題
 
-Omarchy 內建二十二套精美的主題。你可以透過 Omarchy Menu（`Super + Space`）中的 _外觀 > 主題_ 在這些主題之間選擇，或是使用 `Super + Ctrl + T` 直接跳至主題選擇器。
+Omarchy 內建二十二套精美的主題。你可以透過 Omarchy Menu（`Super + Space`）中的 _Appearance > Theme_ 在它們之間做選擇，或使用 `Super + Ctrl + T` 直接跳到主題選擇器。
 
-每套主題都會為桌面、終端機、neovim、活動畫面（btop）、Chromium，以及整個 Omarchy shell 設定樣式：頂端列、選單、通知、OSD 和鎖定畫面。（對於 Obsidian，你必須在應用程式內透過 _外觀 > 主題_ 手動選擇 Omarchy 主題）。
+每套主題都會為桌面、終端機、neovim、活動畫面（btop）、Chromium 以及整個 Omarchy shell 設定樣式：頂部列、選單、通知、OSD 和鎖定畫面。（對於 Obsidian，你必須在應用程式內透過 _Appearance > Themes_ 手動選取 Omarchy 主題）。
 
 主題都有一組背景圖片，你可以使用 `Super + Ctrl + W` 在其中挑選。
 
-你可以在[額外主題頁面](https://omarchy.org/themes/)找到更多主題，甚至可以[製作你自己的主題](43-making-your-own-theme.md)。
+你在[額外主題頁面](https://omarchy.org/themes/)上可以找到更多主題，甚至可以[製作你自己的主題](43-making-your-own-theme.md)。
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### 解鎖畫面
 
-主題也可以擁有自訂的解鎖設計，用於開機解密流程。你可以在 _外觀 > 解鎖_ 下選擇其中一種。它們看起來像這樣：
+主題也可以有自訂的解鎖設計，用於開機解密程序。你可以在 _Appearance > Unlock_ 底下選取其中一套。它們看起來像這樣：
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

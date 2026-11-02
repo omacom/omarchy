@@ -1,10 +1,10 @@
 # Теми
 
-Omarchy се предлага с двадесет и две красиви теми. Можете да избирате между тях чрез _Външен вид > Тема_ в Omarchy Menu (`Super + Space`) или да преминете директно към избора на тема с помощта на `Super + Ctrl + T`.
+Omarchy идва с двадесет и две красиви теми. Можете да избирате между тях чрез _Облик > Тема_ в Omarchy Menu (`Super + Space`) или да отидете директно до избора на тема с `Super + Ctrl + T`.
 
-Всяка тема оформя работния плот, терминала, neovim, екрана за активност (btop), Chromium и цялата обвивка на Omarchy: горната лента, менюто, известията, OSD и заключения екран. (За Obsidian трябва ръчно да изберете темата на Omarchy чрез _Външен вид > Теми_ вътре в приложението).
+Всяка тема оформя работния плот, терминала, neovim, екрана за активност (btop), Chromium и цялата обвивка на Omarchy: горната лента, менюто, известията, OSD и заключения екран. (За Obsidian трябва ръчно да изберете темата Omarchy чрез _Appearance > Themes_ вътре в приложението).
 
-Темите имат набор от фонови изображения, между които можете да избирате с помощта на `Super + Ctrl + W`.
+Темите имат набор от фонови изображения, между които можете да избирате с `Super + Ctrl + W`.
 
 Можете да намерите още повече теми на [страницата с допълнителни теми](https://omarchy.org/themes/) или дори да [създадете своя собствена тема](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Екрани за отключване
+### Отключвания
 
-Темите могат да имат и персонализиран дизайн за отключване, който се използва за процеса на дешифриране при зареждане. Можете да изберете един от тях под _Външен вид > Отключване_. Те изглеждат така:
+Темите могат да имат и персонализиран дизайн за отключване, който се използва за процеса на дешифриране при стартиране. Можете да изберете един от тях под _Облик > Отключване_. Изглеждат така:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

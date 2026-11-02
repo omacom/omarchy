@@ -1,12 +1,12 @@
 # Mavzular
 
-Omarchy yigirma ikkita go'zal mavzu bilan birga keladi. Siz ular orasidan Omarchy Menu (`Super + Space`) ichidagi _Appearance > Theme_ orqali tanlashingiz yoki `Super + Ctrl + T` yordamida to'g'ridan-to'g'ri mavzu tanlagichga o'tishingiz mumkin.
+Omarchy bilan birga yigirma ikkita go'zal mavzu keladi. Ular orasidan Omarchy Menu (`Super + Space`) ichidagi _Tashqi ko'rinish > Mavzu_ orqali tanlashingiz yoki `Super + Ctrl + T` yordamida to'g'ridan-to'g'ri mavzu tanlagichga o'tishingiz mumkin.
 
-Har bir mavzu ish stolini, terminalni, neovim'ni, faollik ekranini (btop), Chromium'ni va butun Omarchy qobig'ini: yuqori panel, menyu, bildirishnomalar, OSD va qulf ekranini bezaydi. (Obsidian uchun Omarchy mavzusini ilova ichidagi _Appearance > Themes_ orqali qo'lda tanlashingiz kerak).
+Har bir mavzu ish stolini, terminalni, neovim'ni, faollik ekranini (btop), Chromium'ni va butun Omarchy qobig'ini bezaydi: yuqori panel, menyu, bildirishnomalar, OSD va qulf ekrani. (Obsidian uchun Omarchy mavzusini ilova ichidagi _Tashqi ko'rinish > Mavzular_ orqali qo'lda tanlashingiz kerak).
 
-Mavzularning fon rasmlari to'plami bor, ular orasidan `Super + Ctrl + W` yordamida tanlashingiz mumkin.
+Mavzularda fon rasmlari to'plami bo'ladi, ular orasidan `Super + Ctrl + W` yordamida tanlashingiz mumkin.
 
-Yanada ko'proq mavzularni [qo'shimcha mavzular sahifasida](https://omarchy.org/themes/) topishingiz yoki hatto [o'z mavzuingizni yaratishingiz](43-making-your-own-theme.md) mumkin.
+Yanada ko'proq mavzularni [qo'shimcha mavzular sahifasida](https://omarchy.org/themes/) topishingiz yoki hatto [o'zingizning mavzuingizni yaratishingiz](43-making-your-own-theme.md) mumkin.
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Qulfdan ochish ekranlari
+### Qulf ekranlari
 
-Mavzularda yuklanish paytidagi shifrni ochish jarayoni uchun ishlatiladigan maxsus qulfdan ochish dizayni ham bo'lishi mumkin. Ulardan birini _Appearance > Unlock_ ostida tanlashingiz mumkin. Ular quyidagicha ko'rinadi:
+Mavzularda yuklash paytidagi shifrni ochish jarayoni uchun ishlatiladigan maxsus qulfni ochish dizayni ham bo'lishi mumkin. Ulardan birini _Tashqi ko'rinish > Qulfni ochish_ bo'limida tanlashingiz mumkin. Ular quyidagicha ko'rinadi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

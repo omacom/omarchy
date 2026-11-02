@@ -1,12 +1,12 @@
 # Témy
 
-Omarchy prichádza s dvadsiatimi dvomi krásnymi témami. Môžete si medzi nimi vybrať cez _Vzhľad > Téma_ v Omarchy Menu (`Super + Space`) alebo prejsť priamo do výberu tém pomocou `Super + Ctrl + T`.
+Omarchy prichádza s dvadsiatimi dvoma krásnymi témami. Môžete si medzi nimi vybrať cez _Vzhľad > Téma_ v Omarchy Menu (`Super + Space`) alebo skočiť priamo do výberu tém pomocou `Super + Ctrl + T`.
 
-Každá téma upravuje vzhľad pracovnej plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého prostredia Omarchy: horného panela, ponuky, oznámení, OSD a obrazovky uzamknutia. (V prípade Obsidian musíte tému Omarchy vybrať ručne cez _Vzhľad > Témy_ priamo v aplikácii).
+Každá téma upravuje vzhľad pracovnej plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého prostredia Omarchy: horného panela, ponuky, oznámení, OSD a zamknutej obrazovky. (V prípade Obsidian musíte tému Omarchy vybrať manuálne cez _Vzhľad > Témy_ priamo v aplikácii).
 
-Témy majú sadu obrázkov na pozadí, medzi ktorými si môžete vyberať pomocou `Super + Ctrl + W`.
+Témy majú sadu obrázkov na pozadie, medzi ktorými si môžete vyberať pomocou `Super + Ctrl + W`.
 
-Ešte viac tém nájdete na [stránke s ďalšími témami](https://omarchy.org/themes/) alebo si môžete dokonca [vytvoriť vlastnú tému](43-making-your-own-theme.md).
+Ešte viac tém nájdete na [stránke s ďalšími témami](https://omarchy.org/themes/) alebo si dokonca môžete [vytvoriť vlastnú tému](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odomykanie
+### Odomknutia
 
-Témy môžu mať aj vlastný dizajn odomykania, ktorý sa používa pri procese dešifrovania počas zavádzania systému. Jeden z nich si môžete vybrať v časti _Vzhľad > Odomykanie_. Vyzerajú takto:
+Témy môžu mať aj vlastný dizajn odomknutia, ktorý sa používa pri dešifrovaní počas zavádzania systému. Jeden z nich si môžete vybrať v časti _Vzhľad > Odomknutie_. Vyzerajú takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

@@ -1,12 +1,12 @@
 # Téamaí
 
-Tagann Omarchy le dhá théama álainn is fiche. Is féidir leat roghnú eatarthu via _Dealramh > Téama_ i Roghchlár Omarchy (`Super + Space`) nó léim díreach chuig an roghnóir téamaí ag úsáid `Super + Ctrl + T`.
+Tagann Omarchy le dhá théama is fiche álainne. Is féidir leat roghnú eatarthu trí _Dealramh > Téama_ sa Roghchlár Omarchy (`Super + Space`) nó léim go díreach chuig an roghnóir téamaí le `Super + Ctrl + T`.
 
-Tugann gach téama stíl don deasc, don teirminéal, do neovim, don scáileán gníomhaíochta (btop), do Chromium, agus don bhlaosc iomlán Omarchy: an barra uachtarach, an roghchlár, na fógraí, OSD, agus an scáileán glais. (Maidir le Obsidian, ní mór duit téama Omarchy a roghnú de láimh via _Dealramh > Téamaí_ taobh istigh den aip).
+Déanann gach téama stíliú ar an deasc, ar an teirminéal, ar neovim, ar an scáileán gníomhaíochta (btop), ar Chromium, agus ar bhlaosc iomlán Omarchy: an barra uachtarach, an roghchlár, na fógraí, an OSD, agus an scáileán glais. (Maidir le Obsidian, ní mór duit téama Omarchy a roghnú de láimh trí _Dealramh > Téamaí_ laistigh den aip).
 
-Tá sraith íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu ag úsáid `Super + Ctrl + W`.
+Tá sraith íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu le `Super + Ctrl + W`.
 
-Is féidir leat níos mó téamaí fós a fháil ar [leathanach na dtéamaí breise](https://omarchy.org/themes/) nó fiú [do théama féin a dhéanamh](43-making-your-own-theme.md).
+Is féidir leat níos mó téamaí fós a aimsiú ar [an leathanach téamaí breise](https://omarchy.org/themes/) nó fiú [do théama féin a dhéanamh](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Díghlasálacha
 
-Is féidir dearadh díghlasála saincheaptha a bheith ag téamaí freisin, a úsáidtear don phróiseas díchriptithe ag am tosaithe. Is féidir leat ceann acu seo a roghnú faoi _Dealramh > Díghlasáil_. Seo mar a fhéachann siad:
+Is féidir dearadh díghlasála saincheaptha a bheith ag téamaí freisin, a úsáidtear don phróiseas díchriptithe ag am tosaithe. Is féidir leat ceann acu seo a roghnú faoi _Dealramh > Díghlasáil_. Seo mar a bhreathnaíonn siad:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
