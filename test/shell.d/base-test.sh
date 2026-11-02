@@ -17,6 +17,12 @@ export ROOT
 # shared module from it.
 export OMARCHY_PATH=$ROOT
 
+# Commands under test call each other by name, so this checkout's bin/ goes
+# ahead of the installed Omarchy's: otherwise a command reaches a sibling from
+# whatever release the machine runs, or misses one that release lacks. Tests
+# still put their stubs ahead of it.
+export PATH="$ROOT/bin:$PATH"
+
 # Commands print user-facing text in the language picked under Setup >
 # Language, so pin tests to English (a missing file means English) rather than
 # whatever the machine running them is set to. Tests of other languages point
