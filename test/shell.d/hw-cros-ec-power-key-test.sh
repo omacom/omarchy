@@ -26,7 +26,7 @@ while IFS='|' read -r description expected_status expected_disabled devices; do
 
   status=0
   omarchy-hw-cros-ec-power-key || status=$?
-  [[ $status == "$expected_status" ]] || fail "$description: detector" "expected $expected_status, got $status"
+  (( status == expected_status )) || fail "$description: detector" "expected $expected_status, got $status"
 
   # Run the real Lua config; capture only the devices it disables.
   actual_disabled=$(lua - <<'LUA'
@@ -43,7 +43,7 @@ require("default.hypr.input")
 print(#disabled > 0 and table.concat(disabled, " ") or "-")
 LUA
   )
-  [[ $actual_disabled == "$expected_disabled" ]] || fail "$description: disabled devices" "expected $expected_disabled, got $actual_disabled"
+  [[ $actual_disabled == $expected_disabled ]] || fail "$description: disabled devices" "expected $expected_disabled, got $actual_disabled"
   pass "$description"
 done <<'CASES'
 Chromebook EC with power and volume keys|0|power-button power-button-1|Power Button=8000 10000000000000 0;cros_ec_buttons=1c000000000000 0;Lid Switch=0
