@@ -36,6 +36,18 @@ export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 export POWERPROFILES_LOG="$tmp_dir/calls"
 export OMARCHY_POWERPROFILES_STATE_DIR="$tmp_dir/state"
 
+cat >"$tmp_dir/bin/omarchy-hw-aarch64-apple" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$tmp_dir/bin/omarchy-hw-aarch64-apple"
+
+cat >"$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply"
+
 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
 [[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "power profile stores AC preference"
 [[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "power profile applies selected AC preference"
