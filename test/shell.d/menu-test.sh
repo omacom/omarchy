@@ -125,6 +125,11 @@ const entry = merged.items['style.theme']
 assert(menu.matchesQuery(entry, 'theme', true), 'menu matches labels and aliases')
 assert(menu.matchesQuery(entry, 'colors', true), 'menu matches aliases')
 assert(!menu.matchesQuery(entry, 'missing', true), 'menu rejects missing terms')
+assert(!menu.matchesQuery(entry, 'thene', true) && menu.matchesQueryWithTypos(entry, 'thene', true), 'menu forgives a typo only in the typo search')
+assert(menu.matchesQueryWithTypos(entry, 'pikcer', true) && menu.matchesQueryWithTypos(entry, 'pikc theme', true), 'menu counts swapped letters as one typo, mid-word and beside exact terms')
+assert(!menu.matchesQueryWithTypos(entry, 'thx', true) && !menu.matchesQueryWithTypos(entry, 'thene', false), 'menu forgives no typo under four letters, and none in a hidden row')
+const bluetooth = menu.normalizeItem('bluetooth', { label: 'Bluetooth', action: 'x' })
+assert(menu.matchesQueryWithTypos(bluetooth, 'bluetoxx', true) && !menu.matchesQueryWithTypos(bluetooth, 'bluetxx', true), 'menu forgives two typos from eight letters, and only one below')
 assert(!menu.matchesQuery(entry, 'theme', false), 'menu hides invisible matches')
 assert(menu.searchScore(merged.items, entry, 'theme') < menu.searchScore(merged.items, entry, 'appearance'), 'menu scores name matches above description matches')
 
@@ -179,6 +184,36 @@ assert(
   rankScore('appearance.font', 'font') < rankScore('apps.fontforge', 'font'),
   'menu keeps a better-matching menu entry above a weaker app match'
 )
+
+// Runs Menu.qml's own search over the shipped menu. Foot is a typo away from
+// "font" but shares no "n" with it, so only a typo pass could show it there.
+const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+const qmlFunction =(name, params) => new Function('root', 'MenuModel', 'displayModel', 'Qt', ...params,
+  `with (root) {${menuQml.match(new RegExp(`\\n  function ${name}\\(${params.join(', ')}\\) \\{([\\s\\S]*?)\\n  \\}\\n`))[1]}}`)
+const menuMatchesQuery = qmlFunction('matchesQuery', ['entry', 'query', 'typos'])
+const menuRebuildDisplay = qmlFunction('rebuildDisplay', ['typos'])
+const searchIds = query => {
+  const rows = []
+  const displayModel = { count: 0, clear: () => { rows.length = 0 }, append: row => rows.push(row) }
+  const root = Object.assign({}, ranked, {
+    activeMenu: 'root', filterText: query, rowsLoaded: true, dmenuActive: false, searchDivider: false, layoutSerial: 0,
+    item: id => ranked.items[id] || null,
+    isDescendantOf: (id, ancestorId) => menu.isDescendantOf(ranked.items, id, ancestorId),
+    parentPathFor: id => menu.parentPathFor(ranked.items, id),
+    isVisible: () => true,
+    isDisabled: () => false,
+    searchScore: (entry, q) => menu.searchScore(ranked.items, entry, q),
+    displayRow: (entry, detail, score) => menu.displayRow(ranked.items, ranked.itemOrder, {}, {}, entry, detail, score),
+    settleCursor: () => {},
+    matchesQuery: (entry, q, typos) => menuMatchesQuery(root, menu, displayModel, null, entry, q, typos),
+    rebuildDisplay: typos => menuRebuildDisplay(root, menu, displayModel, { callLater: () => {} }, typos)
+  })
+  root.rebuildDisplay()
+  return rows.map(row => row.itemId)
+}
+assert(searchIds('fnot').includes('appearance.font'), 'menu search retries a search that found nothing, forgiving typos')
+const fontIds = searchIds('font')
+assert(fontIds.includes('appearance.font') && !fontIds.some(id => id.endsWith('.foot')), 'menu search never adds typo matches to a search that found rows')
 
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
 // An installed app must never capture a menu route (SUPER+ESCAPE opens the

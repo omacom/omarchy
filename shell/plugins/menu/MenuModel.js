@@ -410,6 +410,60 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
   }
 }
 
+// A search that found nothing runs again forgiving typos: each term matches as
+// typed or sits a typo away from the start of a name word.
+function matchesQueryWithTypos(entry, query, visible) {
+  if (!entry || entry.id === "root" || !visible) return false
+  var nameText = nameSearchText(entry)
+  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  for (var i = 0; i < terms.length; i++) {
+    if (matchesQuery(entry, terms[i], true)) continue
+    if (termNearSearchWords(terms[i], nameText)) continue
+    return false
+  }
+  return true
+}
+
+// Algolia's default typo budget: none under four letters, one from four, two
+// from eight. Measuring against word prefixes keeps it working mid-word
+// ("fierf" finds Firefox). Each letter of the term missing from the start of
+// the word costs an edit of its own, which rules out most words before their
+// distance is worth working out.
+function termNearSearchWords(term, text) {
+  var limit = term.length >= 8 ? 2 : term.length >= 4 ? 1 : 0
+  if (!limit) return false
+  var words = String(text || "").split(/\s+/)
+  for (var i = 0; i < words.length; i++) {
+    var start = words[i].slice(0, term.length + limit)
+    var missing = 0
+    for (var c = 0; c < term.length && missing <= limit; c++) if (start.indexOf(term[c]) < 0) missing++
+    if (missing > limit) continue
+    var distances = prefixDistances(term, start)
+    for (var n = term.length - limit; n < distances.length; n++) {
+      if (distances[n] <= limit) return true
+    }
+  }
+  return false
+}
+
+// Damerau-Levenshtein distances (optimal string alignment, so a swapped pair
+// of letters counts as one typo) from a to each prefix of b, by length.
+function prefixDistances(a, b) {
+  var d = []
+  for (var i = 0; i <= a.length; i++) d[i] = [i]
+  for (var j = 0; j <= b.length; j++) d[0][j] = j
+  for (i = 1; i <= a.length; i++) {
+    for (j = 1; j <= b.length; j++) {
+      var cost = a[i - 1] === b[j - 1] ? 0 : 1
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
+      }
+    }
+  }
+  return d[a.length]
+}
+
 // Commands a `checked:` expression reads a value out of. Every sibling row
 // asks the same one -- Defaults > Browser has seven rows all comparing
 // against `omarchy-default-browser` -- so the batch runs it once and the rows
@@ -718,6 +772,7 @@ if (typeof module !== "undefined") {
     dmenuValue: dmenuValue,
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
+    matchesQueryWithTypos: matchesQueryWithTypos,
     displayRow: displayRow,
     applyTranslations: applyTranslations
   }
