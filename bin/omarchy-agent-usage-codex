@@ -577,8 +577,8 @@ def fetch_codex_rpc(home=None, primary=True):
     stderr_file = tempfile.TemporaryFile("w+", errors="replace")
   except OSError:
     stderr_file = None
-  # With plugins on, every start syncs the plugin list and each git
-  # marketplace: a fetch per refresh, and a .tmp/git-* folder left each time.
+  # With plugins on, every start syncs the plugin list and contacts each
+  # configured git marketplace, which can leave .tmp/git-* folders behind.
   # Not --disable plugins: a Codex older than the feature refuses that flag.
   try:
     proc = subprocess.Popen(
