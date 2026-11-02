@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = virt-manager
+
+[Action]
+Description = Pinning virt-manager to the system Python...
+When = PostTransaction
+Exec = /usr/bin/omarchy-install-virt-manager --fix-python
