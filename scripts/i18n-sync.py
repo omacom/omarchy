@@ -520,12 +520,16 @@ def protected_inline(text):
 
 
 def urls_of(text):
-    # The published manual's autolinks leave trailing ASCII punctuation out
-    # of a bare URL but keep 。 or । in it, a ](destination) keeps it all, and
-    # a URL in inline code is no link at all (protected_inline holds it).
-    prose = DEST_URL_RE.sub("", text)
-    prose = INLINE_RE.sub(lambda m: "" if re.search(r"https?://", m.group(1)) else m.group(), prose)
-    return DEST_URL_RE.findall(text) + [url.rstrip(SENTENCE_END) for url in URL_RE.findall(prose)]
+    # Marked drops trailing ASCII punctuation from a bare URL, not 。 or । or a ](destination)'s;
+    # a URL in inline code is compared as written, so misread backticks hide no changed link.
+    code = []
+    def code_span(m):
+        if not re.search(r"https?://", m.group(1)):
+            return m.group()
+        code.extend(URL_RE.findall(m.group(1)))
+        return ""
+    prose = INLINE_RE.sub(code_span, DEST_URL_RE.sub("", text))
+    return DEST_URL_RE.findall(text) + [url.rstrip(SENTENCE_END) for url in URL_RE.findall(prose)] + code
 
 
 def validate_manual(source, value):

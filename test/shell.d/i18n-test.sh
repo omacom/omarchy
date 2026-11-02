@@ -182,14 +182,18 @@ const englishTexts = {}
 for (const file of englishManual) englishTexts[file] = fs.readFileSync(path.join(manualDir, file), 'utf8')
 const bagOf = (items) => JSON.stringify([...items].sort())
 const fencesOf = (text) => [...text.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((m) => m[1])
-// The published manual's autolinks leave trailing ASCII punctuation out of a
-// bare URL but keep 。 or । in it, a ](destination) keeps it all, and a URL in
-// inline code is no link at all (protectedInlineOf holds it).
+// Marked drops trailing ASCII punctuation from a bare URL, not 。 or । or a ](destination)'s;
+// a URL in inline code is compared as written, so misread backticks hide no changed link.
 const destUrlRe = /\]\(\s*<?(https?:\/\/[^\s)]+)/g
 const urlsOf = (text) => {
-  const prose = text.replace(destUrlRe, '').replace(/`[^`\n]+`/g, (span) => (/https?:\/\//.test(span) ? '' : span))
+  const code = []
+  const prose = text.replace(destUrlRe, '').replace(/`([^`\n]+)`/g, (span, inner) => {
+    if (!/https?:\/\//.test(inner)) return span
+    code.push(...(inner.match(/https?:\/\/[^\s)]+/g) || []))
+    return ''
+  })
   const bare = prose.match(/https?:\/\/[^\s)]+/g) || []
-  return [...[...text.matchAll(destUrlRe)].map((m) => m[1]), ...bare.map((url) => url.replace(/[.,;:!?]+$/, ''))]
+  return [...[...text.matchAll(destUrlRe)].map((m) => m[1]), ...bare.map((url) => url.replace(/[.,;:!?]+$/, '')), ...code]
 }
 const relDestsOf = (text) => [...text.matchAll(/\]\((?!<?https?:\/\/)([^)\s]+)/g)].map((m) => m[1])
 const protectedInlineOf = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1])
@@ -219,7 +223,10 @@ assert(['https://example.org/walls を参照してください。', 'ดูท�
   manualProblems('`a` [x](https://example.org/walls) `b`', '`a` [あ](https://example.org/walls) `b`').length === 0 &&
   manualProblems('Like `https://example.org/walls.sig`.', '例：`https://example.org/walls.sig`。').length === 0 &&
   manualProblems('Use `https://`.', '`https://` を使います。').length === 0 &&
-  manualProblems('[x](https://example.org/ab) `https://hidden`', '[x](https://example.org/a`https://hidden`b)').length > 0, 'the manual integrity check ignores the full stop the published link drops, not one it keeps')
+  manualProblems('[x](https://example.org/ab) `https://hidden`', '[x](https://example.org/a`https://hidden`b)').length > 0 &&
+  ['``https://example.org/[two]` tail', '\\`https://example.org/[two]` tail', '`a\n\nhttps://example.org/[two]` b', '`a\n# https://example.org/[two]`', '# Guide `draft\nRead https://example.org/[two] `note` now.']
+    .every((translated) => manualProblems(translated.replace('[two]', '[one]'), translated).length > 0) &&
+  manualProblems('Run `` git clone https://example.org/a.git ``.', '`` git clone https://example.org/a.git `` を実行します。').length === 0, 'the manual integrity check ignores the full stop the published link drops, not one it keeps')
 for (const code of codes) {
   if (code === 'en') continue
   const dir = path.join(manualDir, code)
@@ -508,6 +515,35 @@ extract_candidates=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '
 keybindings_stale=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '.keybindingsCatalogStale')
 assert_bash_equal "$keybindings_stale" "false" "the English keybindings catalog matches the Hyprland bindings"
 assert_bash_equal "$extract_candidates" "0" "no embedded English literals await extraction"
+
+# validate_manual tells links apart as manualProblems does.
+manual_url_misjudged=$(python3 - "$ROOT/scripts/i18n-sync.py" <<'PY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("s", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+walls, dest = "See https://example.org/walls.", "[dharmx/walls](https://github.com/dharmx/walls)."
+cases = [(walls, t, False) for t in ["https://example.org/walls を参照してください。", "ดูที่ https://example.org/walls", "https://example.org/walls. पर देखें"]]
+cases += [(walls, t, True) for t in ["参照: https://example.org/walls。", "देखें https://example.org/walls।", "دیکھیں https://example.org/walls۔", "See https://example.org/other."]]
+cases += [(dest, t, True) for t in ["[dharmx/walls](https://github.com/dharmx/walls.)。", "[dharmx/walls]( https://github.com/dharmx/walls.)。", "[dharmx/walls](https://github.com/dharmx/walls`x)。", "[dharmx/walls](https://github.com/dharmx/walls`x`)。"]]
+cases += [(t.replace("[two]", "[one]"), t, True) for t in ["``https://example.org/[two]` tail", "\\`https://example.org/[two]` tail", "`a\n\nhttps://example.org/[two]` b", "`a\n# https://example.org/[two]`", "# Guide `draft\nRead https://example.org/[two] `note` now."]]
+cases += [
+  ("[LocalSend](https://localsend.org/)", "[LocalSend](https://localsend.org/ダウンロード)", True),
+  ("(see https://example.org/walls.)", "(参照 https://example.org/walls)", False),
+  ("`a` [x](https://example.org/walls) `b`", "`a` [あ](https://example.org/walls) `b`", False),
+  ("Like `https://example.org/walls.sig`.", "例：`https://example.org/walls.sig`。", False),
+  ("Use `https://`.", "`https://` を使います。", False),
+  ("[x](https://example.org/ab) `https://hidden`", "[x](https://example.org/a`https://hidden`b)", True),
+  ("Run `` git clone https://example.org/a.git ``.", "`` git clone https://example.org/a.git `` を実行します。", False),
+]
+def rejected(source, value):
+  try:
+    m.validate_manual(source, value)
+    return False
+  except m.SyncError:
+    return True
+print(json.dumps([value for source, value, want in cases if rejected(source, value) != want], ensure_ascii=False))
+PY
+)
+assert_bash_equal "$manual_url_misjudged" "[]" "validate_manual ignores the full stop the published link drops, not one it keeps"
 
 # A miniature tree exercises staleness: one key changed in English, one
 # deleted from the translation, one manual chapter missing.
