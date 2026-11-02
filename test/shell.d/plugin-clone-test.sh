@@ -191,3 +191,47 @@ fi
 [[ ! -e $TMPDIR/home/.config/omarchy/plugins/tester.osd ]] ||
   fail "failed clone discovery leaves a partial clone behind"
 pass "clone removes a partial clone when switching fails"
+
+# Once the enable call has been sent, the shell may have already applied it;
+# deleting the clone then would leave shell.json pointing at a missing plugin.
+mkdir -p "$TMPDIR/bin-slow-enable"
+enable_calls="$TMPDIR/enable-calls"
+cat >"$TMPDIR/bin-slow-enable/omarchy-shell" <<'SH'
+#!/bin/bash
+if [[ $* == *"listShellConfig"* ]]; then
+  if [[ -n ${FAKE_SHELL_CONFIG:-} ]]; then
+    printf '%s\n' "$FAKE_SHELL_CONFIG"
+  else
+    printf '{}\n'
+  fi
+elif [[ $* == *"listPlugins"* ]]; then
+  find "$HOME/.config/omarchy/plugins" -mindepth 2 -maxdepth 2 -name manifest.json -print0 |
+    xargs -0 -r jq -s 'map({id: .id, enabled: true})'
+elif [[ $* == *"enablePlugin"* ]]; then
+  printf 'omarchy-shell enablePlugin timeout=%s\n' "${OMARCHY_SHELL_IPC_TIMEOUT-unset}" >>"$OMARCHY_TEST_CALLS"
+  printf 'error: enable did not finish in time\n'
+fi
+exit 0
+SH
+chmod +x "$TMPDIR/bin-slow-enable/omarchy-shell"
+
+unset OMARCHY_SHELL_IPC_TIMEOUT
+if HOME="$TMPDIR/home" USER=tester OMARCHY_PATH="$ROOT" \
+  PATH="$TMPDIR/bin-slow-enable:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_CALLS="$enable_calls" OMARCHY_TEST_ROOT="$ROOT" \
+  omarchy-plugin-clone omarchy.menu >/dev/null 2>"$TMPDIR/slow-enable.err"; then
+  fail "clone succeeded although enabling it failed"
+fi
+pass "clone fails when the enable step fails"
+
+[[ -d $TMPDIR/home/.config/omarchy/plugins/tester.menu ]] ||
+  fail "a failed enable deletes the clone the shell may already point at"
+pass "a failed enable keeps the clone on disk"
+
+grep -Fqx 'omarchy-shell enablePlugin timeout=10s' "$enable_calls" ||
+  fail "enablePlugin did not get the wider default IPC timeout"
+pass "plugin enable gives enablePlugin a wider default IPC timeout"
+
+grep -q 'retry with: omarchy plugin enable tester.menu' "$TMPDIR/slow-enable.err" ||
+  fail "a failed enable does not tell the user how to recover"
+pass "a failed enable reports how to retry"
