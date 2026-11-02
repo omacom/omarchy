@@ -315,7 +315,7 @@ pass "hardware quirks apply on their own hardware and nowhere else"
 
 machine surface-intel
 run_leaf hardware/fix-surface-keyboard.sh >/dev/null
-[[ $(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf") == "MODULES=(pinctrl_tigerlake "*")" ]] ||
+[[ $(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf") == "MODULES+=(pinctrl_tigerlake "*")" ]] ||
   fail "Surface keyboard setup lists the detected pinctrl module first" "$(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf")"
 pass "Surface keyboard setup builds its module list around the detected pinctrl module"
 
