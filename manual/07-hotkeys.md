@@ -312,6 +312,10 @@ Ghostty terminal is installed using _Install > Terminal_ via the Omarchy menu.
 | `Space`               | Preview file (arrows navigate) |
 | `Alt + Up`       | Go up to parent folder        |
 
+You can also preview a file or directory from scripts or a terminal with `omarchy preview <path>`.
+Terminal file managers can bind that command too; for example, Yazi can use
+`shell --orphan -- omarchy preview %h` to preview the hovered file.
+
 ## Neovim (w/ lazyvim)
 
 ### Navigation
