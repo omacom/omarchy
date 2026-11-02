@@ -66,6 +66,7 @@
   "browser.webappNeedsChromium": "Web apps need a Chromium-based browser",
   "browser.webappNeedsChromiumHint": "Install Chromium with: omarchy install browser chromium",
   "capture.audioNotAdded": "The %1 audio could not be added to this recording.",
+  "capture.eyesTitle": "Eyes",
   "capture.noRecordingDir": "Screen recording directory does not exist: %1",
   "capture.noWebcam": "No webcam devices found",
   "capture.qrCopied": "QR code copied to clipboard",

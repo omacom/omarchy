@@ -70,6 +70,12 @@ _Trigger > Capture > QR Code_ does the same trick for QR codes. Select the regio
 
 `Super + Print Screen` (or _Trigger > Capture > Color_) turns the cursor into an eyedropper. Click anything on screen and the colour lands on the clipboard. Press the hotkey again to back out without picking.
 
+## Eyes
+
+OCR reads the words on your screen. Eyes understands the picture. `omarchy capture eyes` sends a screenshot to a small vision model running on your own machine and tells you what is on screen and anything that needs attention. `omarchy capture eyes ask "what does this error mean"` answers a question about it, and `omarchy capture eyes locate "the export button"` tells you where something is. Add `--region` to look at one area, `--copy` to put the answer on the clipboard, or find Describe and Find under _Trigger > Capture > Eyes_.
+
+Nothing is sent anywhere else: the model is local (Ollama with the moondream model), the screenshot is a temp file deleted as soon as the answer comes back, and Eyes refuses to look while a password manager is the active window. Set it up once with `omarchy capture eyes setup`, which installs the model server and pulls the model. If you never set it up, nothing about your screen is ever captured by Eyes.
+
 ## Transcoding before you share
 
 A 4K screen recording or a raw HEIC off your phone is often too big to just send. `Super + Ctrl + .` (or _Trigger > Transcode_) fixes that. It offers you a fuzzy file picker over `~/Pictures` and `~/Videos`, then asks for a format and a size.
