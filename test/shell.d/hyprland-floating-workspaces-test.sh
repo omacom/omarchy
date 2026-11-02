@@ -224,6 +224,7 @@ local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = fal
 local rules = {}
 local workspace_rules = {}
 local placed = {}
+local commands = {}
 local active = { id = 1 }
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
 
@@ -323,6 +324,7 @@ hl = {
     table.insert(subscriptions[event], callback)
   end,
   timer = function(callback) callback() end,
+  exec_cmd = function(command) table.insert(commands, command) end,
   get_loaded_plugins = function()
     return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
   end,
@@ -364,6 +366,7 @@ function state()
     rules = rules,
     workspace_rules = workspace_rules,
     placed = placed,
+    commands = commands,
     subscriptions = subscriptions,
     active = active,
   }
@@ -784,6 +787,9 @@ local last = {}
 for _, rule in ipairs(state().workspace_rules) do last[rule.workspace] = rule.layout end
 assert(last["2"] == "scrolling", "the new number did not get the layout: " .. tostring(last["2"]))
 assert(last["12"] == "dwindle", "the old number was not returned to the default layout: " .. tostring(last["12"]))
+local asked = table.concat(state().commands, "\n")
+assert(asked:find("omarchy-shell -q omarchy.workspaces refresh", 1, true), "the bar was not asked to read the layouts again: " .. asked)
+assert(asked:find("omarchy-shell -q omarchy.dock refresh", 1, true), "the dock was not asked to read the layouts again: " .. asked)
 ' TITLEBARS_INSTALLED=1; then
   fail "a renumbered workspace keeps its tiled layout"
 fi
@@ -824,6 +830,7 @@ require("default.hypr.workspace-layouts")
 local modes = require("default.hypr.workspace-modes")
 modes.renumber(3, 4)
 assert(#state().workspace_rules == 0, "a workspace with no layout of its own set a rule when renumbered")
+assert(#state().commands == 0, "the bar and dock were asked to read layouts that did not change")
 ' TITLEBARS_INSTALLED=1; then
   fail "a renumbered workspace with no layout of its own is left alone"
 fi
@@ -871,6 +878,28 @@ grep -qxF 'o.workspace_mode({ workspace = "12", mode = "scrolling" })' "$modes_d
   fail "a layout that cannot be saved under its new number stays saved under the old one" "$(ls "$modes_dir")"
 rmdir "$modes_dir/2.lua"
 pass "a layout that cannot be saved under its new number stays saved under the old one"
+
+# A reconcile renumbers several workspaces in one go. The bar and dock are asked
+# to look again once it is through, not once per workspace.
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ workspace = "12", mode = "scrolling" })\n' >"$modes_dir/12.lua"
+printf 'o.workspace_mode({ workspace = "13", mode = "floating" })\n' >"$modes_dir/13.lua"
+if ! run_lua '
+window("0x1", 12)
+window("0x2", 13)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+local queued = {}
+hl.timer = function(callback) queued[#queued + 1] = callback end
+modes.renumber(12, 2)
+modes.renumber(13, 3)
+assert(#state().commands == 0, "the bar and dock were asked before the renumbering was through")
+for _, callback in ipairs(queued) do callback() end
+assert(#state().commands == 2, "the bar and dock were asked once each, not " .. #state().commands .. " times")
+' TITLEBARS_INSTALLED=1; then
+  fail "several renumbered workspaces ask the bar and dock to look once"
+fi
+pass "several renumbered workspaces ask the bar and dock to look once"
 
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')

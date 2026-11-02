@@ -411,6 +411,22 @@ function o.workspace_mode(spec)
   update_input()
 end
 
+-- The bar and the dock each read a workspace's layout once and keep it until a
+-- layout command asks them to look again. A layout that moved to another number
+-- asks too, once for however many a reconcile moves at a time.
+local refresh_asked = false
+local function refresh_shell()
+  if refresh_asked then
+    return
+  end
+  refresh_asked = true
+  hl.timer(function()
+    refresh_asked = false
+    hl.exec_cmd("omarchy-shell -q omarchy.workspaces refresh")
+    hl.exec_cmd("omarchy-shell -q omarchy.dock refresh")
+  end, { type = "oneshot", timeout = 1 })
+end
+
 -- Per-monitor workspaces renumber a workspace as it joins another monitor's
 -- block, and the mode it was given goes with it, saved file and all. The number
 -- it leaves goes back to the default layout, as does the number it takes when
@@ -450,6 +466,7 @@ function M.renumber(from, to)
   arrange(hl.get_workspace_windows(to))
   sync_open_rules()
   update_input()
+  refresh_shell()
 end
 
 local function theme_colors()
