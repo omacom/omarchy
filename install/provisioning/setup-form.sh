@@ -30,11 +30,9 @@
 OMARCHY_FORM_BACK=1
 OMARCHY_FORM_SIGNAL=130
 
-# The English layouts lead, then everything else alphabetically. gum choose
-# paginates in --height-sized pages and jumps to the page holding --selected,
-# so an alphabetical English (US) landed deep enough to sit alone at the edge
-# of a page of layouts nobody scanning for it reads. Up here the default and
-# its variants are the first thing on screen no matter how the list grows.
+# The English layouts lead, then everything else alphabetically. The keyboard
+# picker puts the current choice or the caller's default first, leaving the
+# search empty so typing filters every layout.
 OMARCHY_KEYBOARD_LAYOUTS=$'English (US)|us
 English (UK)|uk
 English (US, Dvorak)|dvorak
@@ -129,10 +127,13 @@ omarchy_form_text() {
 }
 
 omarchy_prompt_keyboard() {
-  local choice status default=${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}
-  # gum splits --selected on commas, so "Chinese (Simplified, Pinyin)" needs them escaped.
-  choice=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 |
-    gum choose --height 10 --selected "${default//,/\\,}" --header "$(omarchy_form_text setupForm.keyboardHeader)") && status=0 || status=$?
+  local choice status layouts default=${keyboard_label:-${OMARCHY_FORM_KEYBOARD_DEFAULT:-English (US)}}
+  layouts=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1)
+  if [[ $default != *$'\n'* && $'\n'$layouts$'\n' == *$'\n'"$default"$'\n'* ]]; then
+    layouts=$(printf '%s\n' "$default"; grep -vxF -- "$default" <<<"$layouts")
+  fi
+
+  choice=$(gum filter --height 10 --header "$(omarchy_form_text setupForm.keyboardHeader)" <<<"$layouts") && status=0 || status=$?
   ((status == 0)) || return $status
 
   local selection
