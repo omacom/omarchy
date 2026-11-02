@@ -97,6 +97,11 @@ write_stub omarchy-version-channel '#!/bin/bash
 printf "%s\n" "${OMARCHY_TEST_VERSION_CHANNEL:-unknown}"
 '
 
+# The departing tree's default packages.
+write_stub omarchy-pkg-defaults '#!/bin/bash
+[[ -z ${OMARCHY_TEST_DEFAULTS:-} ]] || printf "%s\n" $OMARCHY_TEST_DEFAULTS
+'
+
 # The previous channel's Omarchy repository, and what is foreign after the switch.
 write_stub pacman '#!/bin/bash
 case "$1" in
@@ -175,6 +180,10 @@ pass "leaving edge leaves the user's own foreign packages alone"
 [[ $(grep -E $'^(drop|update)\t' "$log_file") == $'drop\tedge-app\tedge-lib\nupdate\t-y\tOMARCHY_PATH='"$package_root" ]] ||
   fail "left-behind packages are removed before the update reaches the AUR" "$(cat "$log_file")"
 pass "left-behind packages are removed before the update reaches the AUR"
+
+OMARCHY_TEST_DEFAULTS="omarchy-screensaver" OMARCHY_TEST_PREVIOUS_REPO="omarchy-screensaver edge-app" \
+  OMARCHY_TEST_FOREIGN="omarchy-screensaver edge-app" run_channel stable >/dev/null
+assert_log_line $'drop\tedge-app' "leaving edge keeps its default packages and still offers optional ones"
 
 OMARCHY_TEST_GUM_STATUS=1 OMARCHY_TEST_PREVIOUS_REPO="edge-app" OMARCHY_TEST_FOREIGN="edge-app" run_channel stable >/dev/null
 if grep -q $'^drop\t' "$log_file"; then fail "declining keeps the left-behind packages" "$(cat "$log_file")"; fi
