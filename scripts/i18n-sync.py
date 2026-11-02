@@ -467,6 +467,7 @@ REGIONAL_NOTES = {
     "pt": "European Portuguese as written in Portugal (estar a fazer, equipa, ecrã, ficheiro, utilizador); Brazilian forms are a defect.",
     "pt-BR": "Brazilian Portuguese.",
     "es-MX": "Mexican Spanish.",
+    "cs": "Czech. Use polite plural instructions (vykání) and infinitives for actions. Use natural desktop terms: Vzhled for appearance, motiv for a theme, horní lišta for the top bar, pracovní plocha for a workspace, podokno for a terminal pane, výzva terminálu for a terminal prompt. Keep plugin and pull request; AI zadání is an AI prompt and AI skill a named instruction bundle (explain it on first use). Preserve the playful rotating status phrases. Do not build grammatical sentences around nominative labels or names: put a label after a colon or in parentheses when a placeholder cannot be inflected. Always translate table headers and menu paths (use the Czech menu labels from default/i18n/cs/menu.json).",
     "zh-CN": "Simplified Chinese.",
     "zh-TW": "Traditional Chinese in Taiwan usage.",
     "no": "Norwegian Bokmål.",
@@ -610,8 +611,19 @@ Short, natural UI language; menu labels one or two words where the language allo
     return {unit: validate_catalog_value(batch[unit], result[unit], categories) for unit in batch}
 
 
-def translate_manual(source, code, name, model):
+def translate_manual(source, code, name, model, current=None):
     note = REGIONAL_NOTES.get(code, "")
+    # A chapter is retranslated whole whenever its English changes, so hand the
+    # model the translation it replaces: unchanged passages keep their reviewed
+    # wording instead of being re-rolled, and edits made by translators survive.
+    previous = ""
+    if current:
+        previous = f"""
+Below is the current translation of an earlier version of this chapter. Keep its wording, terminology, table headers and menu paths for every passage whose English did not change, and translate only what is new or changed. Return the whole chapter.
+<current_translation>
+{json.dumps({"markdown": current}, ensure_ascii=False)}
+</current_translation>
+"""
     prompt = f"""Translate this complete Omarchy manual chapter from English into {name} ({code}).{(" " + note) if note else ""}
 Return ONLY a JSON object with exactly one string field: "markdown".
 Translate everything; never summarize. Keep the author's direct, opinionated voice.
@@ -620,7 +632,7 @@ Preserve Markdown structure and heading levels, link URLs (translate link text o
 <chapter>
 {json.dumps({"markdown": source}, ensure_ascii=False)}
 </chapter>
-"""
+{previous}"""
     result = muse_json(prompt, model)
     if not isinstance(result, dict) or set(result) != {"markdown"}:
         raise SyncError("manual response shape is wrong")
@@ -712,8 +724,10 @@ def cmd_translate(args):
 
     def one_manual(unit):
         filename = split_unit(unit)[1]
-        text = translate_manual(english[unit], code, name, args.model)
-        atomic_write(root / "manual" / code / filename, text)
+        path = root / "manual" / code / filename
+        current = path.read_text(encoding="utf-8") if path.exists() else None
+        text = translate_manual(english[unit], code, name, args.model, current)
+        atomic_write(path, text)
         return unit
 
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
