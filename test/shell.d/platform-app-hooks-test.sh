@@ -34,7 +34,7 @@ chmod -R go-w "$lifecycle"
 stub_bin=$tmp/bin
 omarchy_path=$tmp/omarchy
 mkdir -p "$stub_bin" "$omarchy_path/install/helpers" "$omarchy_path/config"
-printf 'browser_policy_setup_dir() { :; }\nbrowser_policy_setup_firefox_distribution() { :; }\nas_root() { "$@"; }\n' \
+printf 'browser_policy_setup_dir() { :; }\nbrowser_policy_setup_firefox_distribution() { :; }\nbrowser_policy_setup_zen_policies() { :; }\nas_root() { "$@"; }\n' \
   >"$omarchy_path/install/helpers/browser-policy.sh"
 cp "$ROOT/config/chromium-flags.conf" "$omarchy_path/config/"
 for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-pkg-drop omarchy-install-gaming-gpu-lib32; do
