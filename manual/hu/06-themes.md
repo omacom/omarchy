@@ -1,12 +1,12 @@
 # Témák
 
-Az Omarchy huszonkét gyönyörű témával érkezik. Közülük az Omarchy menüben (`Super + Space`) a _Stílus > Téma_ pontból választhatsz, vagy a `Super + Ctrl + Shift + Space` kombinációval egyenesen a témaválasztóhoz ugorhatsz.
+Az Omarchy huszonkét gyönyörű témával érkezik. Közülük az Omarchy menü (`Super + Space`) _Megjelenés > Téma_ pontjában választhatsz, vagy közvetlenül a témaválasztóhoz ugorhatsz a `Super + Ctrl + T` billentyűkombinációval.
 
-Minden téma formázza az asztalt, a terminált, a neovimet, az activity képernyőt (btop), a Chromiumot és a teljes Omarchy shellt: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidian esetén az alkalmazáson belül az _Appearance > Themes_ pontban kézzel kell kiválasztanod az Omarchy témát).
+Minden téma formázza az asztalt, a terminált, a neovimt, a tevékenységképernyőt (btop), a Chromiumot és a teljes Omarchy felületet: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidian esetében manuálisan kell kiválasztanod az Omarchy témát az alkalmazáson belül a _Megjelenés > Témák_ alatt).
 
-A témáknak háttérképek készlete is van, amelyek között a `Super + Ctrl + Space` kombinációval választhatsz.
+A témákhoz háttérképek készlete tartozik, amelyek közül a `Super + Ctrl + W` billentyűkombinációval választhatsz.
 
-Még több témát találsz [az extra témák oldalán](https://omarchy.org/themes/), vagy [készíthetsz saját témát](43-making-your-own-theme.md).
+Még több témát találsz [a további témák oldalán](https://omarchy.org/themes/), vagy akár [saját témát is készíthetsz](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Feloldások
+### Feloldóképernyők
 
-A témáknak egyedi feloldási mintájuk is lehet, amelyet a rendszer indulásakor a visszafejtési folyamat használ. Ezek közül az _Stílus > Feloldás_ pontban választhatsz egyet. Így néznek ki:
+A témák egyéni feloldási dizájnnal is rendelkezhetnek, amelyet a rendszerindításkori visszafejtési folyamat használ. Ezek közül a _Megjelenés > Feloldás_ alatt választhatsz egyet. Így néznek ki:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

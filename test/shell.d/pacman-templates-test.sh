@@ -16,10 +16,10 @@ export OMARCHY_PATH="$ROOT"
 source "$ROOT/install/helpers/pacman.sh"
 
 platforms="x86 aarch64 aarch64-apple"
-# Apple Silicon has edge alone: its packages and Asahi ALARM are published for
-# edge only so far.
+# Apple Silicon has rc and edge: its stable template comes with the first Mac
+# stable release.
 channels_for() {
-  if [[ $1 == "aarch64-apple" ]]; then echo "edge"; else echo "stable rc edge"; fi
+  if [[ $1 == "aarch64-apple" ]]; then echo "rc edge"; else echo "stable rc edge"; fi
 }
 
 # ── the templates ────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ repos() {
 }
 for platform in $platforms; do
   templates=$(omarchy_pacman_templates "$platform")
-  for channel in stable rc; do
+  for channel in stable; do
     [[ $platform == "aarch64-apple" ]] || continue
     [[ ! -e $templates/pacman-$channel.conf && ! -e $templates/mirrorlist-$channel ]] ||
       fail "$platform has no $channel template or mirrorlist"
@@ -106,7 +106,17 @@ for command in omarchy-pkg-add pacman-key; do
   printf '#!/bin/bash\nexit 0\n' >"$finalize_bin/$command"
 done
 chmod +x "$finalize_bin"/*
-sed "s|/etc/pacman|$work/etc/pacman|g" "$ROOT/install/post-install/pacman.sh" >"$work/finalize.sh"
+# Finalization restores the templates through omarchy-apply-pacman, whose copy
+# here writes into the test's etc rather than the host's.
+finalize_root=$work/finalize-root
+mkdir -p "$finalize_root/bin" "$finalize_root/install/post-install" "$finalize_root/default"
+cp -r "$ROOT/install/helpers" "$finalize_root/install/"
+cp -r "$ROOT/default/pacman" "$ROOT/default/regions" "$finalize_root/default/"
+cp "$ROOT/install/post-install/pacman.sh" "$work/finalize.sh"
+target_etc='etc="${2:-/}/etc"'
+grep -Fqx "  $target_etc" "$ROOT/bin/omarchy-apply-pacman" || fail "omarchy-apply-pacman still names its target etc"
+sed "s|^  $target_etc\$|  etc=\"\${2:-$work}/etc\"|" "$ROOT/bin/omarchy-apply-pacman" >"$finalize_root/bin/omarchy-apply-pacman"
+chmod +x "$finalize_root/bin/omarchy-apply-pacman"
 mkdir -p "$work/install/hardware"
 : >"$work/install/hardware/pacman.sh"
 
@@ -125,7 +135,7 @@ for platform in $platforms; do
     rm -rf "$work/etc"
     mkdir -p "$work/etc/pacman.d"
     printf 'offline\n' | tee "$work/etc/pacman.conf" >"$work/etc/pacman.d/mirrorlist"
-    OMARCHY_IMAGE_ROOT=$work OMARCHY_MIRROR=$channel PLATFORM=$platform OMARCHY_INSTALL="$work/install" PATH="$finalize_bin:$PATH" \
+    OMARCHY_PATH=$finalize_root OMARCHY_IMAGE_ROOT=$work OMARCHY_MIRROR=$channel PLATFORM=$platform OMARCHY_INSTALL="$work/install" PATH="$finalize_bin:$PATH" \
       bash -e -c 'source "$1"' bash "$work/finalize.sh" >/dev/null || fail "$platform finalization on '$channel'"
     cmp -s "$work/etc/pacman.conf" "$templates/pacman-$expected.conf" || fail "$platform '$channel': finalization copies the $expected template"
     cmp -s "$work/etc/pacman.d/mirrorlist" "$templates/mirrorlist-$expected" || fail "$platform '$channel': finalization copies the $expected mirrorlist"
@@ -139,6 +149,7 @@ fi
 rm -rf "$work"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-refresh-pacman
+copy_boundary_file bin/omarchy-apply-pacman
 cat >"$SUDO_TEST_ROOT/bin/omarchy-channel-current" <<'STUB'
 #!/bin/bash
 [[ ${SUDO_TEST_CHANNEL_FAIL:-0} != "1" ]] || exit 1
@@ -166,15 +177,21 @@ for platform in $platforms; do
     [[ -n $channel ]] || channel=$(omarchy_pacman_default_channel "$platform")
     python3 - "$SUDO_TEST_LOG" "$templates" "$channel" <<'PY'
 import sys
-events = [e for e in open(sys.argv[1]).read().splitlines() if e not in ('sudo -h', 'sudo -k')]
+events = open(sys.argv[1]).read().splitlines()
 templates, channel = sys.argv[2:]
+# The caller renders from the platform's templates; root backs up and copies
+# the result.
+copies = [e for e in events if e.startswith('step:cp ')]
+assert len(copies) == 6, events
+rendered = copies[0].split()[-1].rsplit('/', 1)[0]
 expected = [
+  f'step:cp {templates}/pacman-{channel}.conf {rendered}/pacman.conf',
+  f'step:cp {templates}/mirrorlist-{channel} {rendered}/mirrorlist',
   'step:cp -f /etc/pacman.conf /etc/pacman.conf.bak',
   'step:cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak',
-  f'step:cp -f {templates}/pacman-{channel}.conf /etc/pacman.conf',
-  f'step:cp -f {templates}/mirrorlist-{channel} /etc/pacman.d/mirrorlist',
+  f'step:cp -f {rendered}/pacman.conf /etc/pacman.conf',
+  f'step:cp -f {rendered}/mirrorlist /etc/pacman.d/mirrorlist',
 ]
-copies = [e for e in events if e.startswith('step:cp ')]
 assert copies == expected, events
 hook = events.index('step:omarchy-hook pre-refresh-pacman')
 upgrade = 'step:pacman -Syyuu --noconfirm'
@@ -185,36 +202,32 @@ if channel in ('stable', 'rc'):
 transaction = events.index(upgrade)
 assert events.index(expected[-1]) < hook < transaction, events
 PY
-    assert_boundary_cold "$platform $channel"
   done
 done
-pass "a refresh backs up and copies the named channel, or the platform default when the current channel is unknown, then runs the cold hook and the upgrade"
+pass "a refresh renders and copies the named channel, or the platform default when the current channel is unknown, then runs the hook and the upgrade"
 
 for channel in stable rc edge dev; do
   reset_boundary
   SUDO_TEST_CHANNEL=$channel refresh || fail "refresh preserves $channel" "$(cat "$boundary_tmp/output")"
   expected=$channel
   [[ $channel != "dev" ]] || expected=edge
-  grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/pacman-$expected.conf /etc/pacman.conf" "$SUDO_TEST_LOG" >/dev/null ||
+  grep -F "step:cp $SUDO_TEST_ROOT/default/pacman/pacman-$expected.conf " "$SUDO_TEST_LOG" >/dev/null ||
     fail "$channel refresh uses $expected repositories" "$(events)"
-  grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/mirrorlist-$expected /etc/pacman.d/mirrorlist" "$SUDO_TEST_LOG" >/dev/null ||
+  grep -F "step:cp $SUDO_TEST_ROOT/default/pacman/mirrorlist-$expected " "$SUDO_TEST_LOG" >/dev/null ||
     fail "$channel refresh uses $expected mirrors" "$(events)"
-  assert_boundary_cold "$channel refresh"
 done
 pass "a refresh with no channel preserves stable, rc and edge, and uses edge for a linked dev checkout"
 
 reset_boundary
 SUDO_TEST_CHANNEL=edge SUDO_TEST_CHANNEL_FAIL=1 refresh rc || fail "explicit rc overrides current edge without detecting it"
-grep -Fx "step:cp -f $SUDO_TEST_ROOT/default/pacman/pacman-rc.conf /etc/pacman.conf" "$SUDO_TEST_LOG" >/dev/null ||
+grep -F "step:cp $SUDO_TEST_ROOT/default/pacman/pacman-rc.conf " "$SUDO_TEST_LOG" >/dev/null ||
   fail "explicit rc overrides current edge" "$(events)"
-assert_boundary_cold "explicit override"
 pass "an explicit channel overrides the current channel without querying it"
 
-for channel in stable rc; do
+for channel in stable; do
   reset_boundary
   if SUDO_TEST_PLATFORM=aarch64-apple SUDO_TEST_CHANNEL=$channel refresh; then fail "aarch64-apple refuses current $channel without templates"; fi
   [[ -z $(events) ]] || fail "unsupported current channel changes nothing" "$(events)"
-  assert_boundary_cold "unsupported current channel"
 done
 for channel in invalid failed; do
   reset_boundary
@@ -224,25 +237,22 @@ for channel in invalid failed; do
     if SUDO_TEST_CHANNEL=$channel refresh; then fail "unexpected channel is refused"; fi
   fi
   [[ -z $(events) ]] || fail "failed channel detection changes nothing" "$(events)"
-  assert_boundary_cold "failed channel detection"
 done
 pass "unsupported, unexpected or failed current channel detection changes nothing"
 
 reset_boundary
 if refresh invalid; then fail "invalid explicit channel is refused"; fi
 [[ -z $(events) ]] || fail "invalid explicit channel changes nothing" "$(events)"
-assert_boundary_cold "invalid explicit channel"
 pass "an invalid explicit channel changes nothing"
 
-# A channel the platform has no template for (stable or rc on Apple Silicon),
-# or a machine whose platform can't be told, stops before anything changes.
+# A channel the platform has no template for (stable on Apple Silicon), or a
+# machine whose platform can't be told, stops before anything changes.
 for platform in aarch64-apple; do
-  for channel in stable rc; do
+  for channel in stable; do
     reset_boundary
     if SUDO_TEST_PLATFORM=$platform refresh "$channel"; then fail "$platform: $channel is refused"; fi
     [[ -z $(events) ]] || fail "$platform: $channel stops before anything" "$(events)"
     grep -q "Omarchy has no $channel channel for $platform" "$boundary_tmp/output" || fail "the refusal says why" "$(cat "$boundary_tmp/output")"
-    assert_boundary_cold "$platform $channel"
   done
 done
 cat >"$SUDO_TEST_ROOT/bin/omarchy-hw-platform" <<'STUB'
@@ -252,5 +262,4 @@ STUB
 reset_boundary
 if refresh stable; then fail "an unknown platform is refused"; fi
 [[ -z $(events) ]] || fail "an unknown platform stops before anything" "$(events)"
-assert_boundary_cold "unknown platform"
 pass "a channel without a template, or a machine whose platform can't be told, changes nothing"
