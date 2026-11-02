@@ -19,6 +19,12 @@ config_dir="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/opencode"
 source_theme="$HOME/.local/state/omarchy/current/theme/opencode.json"
 [[ -d $config_dir || $activate == 1 ]] || exit 0
+
+# Serialize runs and read the current palette once the lock is held, so a slow
+# earlier sync can never publish an older theme after a later switch.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-opencode.lock"
+flock 9
+
 if [[ ! -f $source_theme ]]; then
   if (( activate )); then
     echo "OpenCode palette missing; refresh the Omarchy theme first." >&2

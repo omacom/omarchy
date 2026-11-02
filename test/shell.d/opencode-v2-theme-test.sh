@@ -4,8 +4,8 @@ source "$(dirname "$0")/base-test.sh"
 require_command node
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
-export HOME="$test_dir" OPENCODE_CONFIG_DIR="$test_dir/config" OMARCHY_PATH="$ROOT"
-mkdir -p "$HOME/.local/state/omarchy/current/theme" "$OPENCODE_CONFIG_DIR"
+export HOME="$test_dir" OPENCODE_CONFIG_DIR="$test_dir/config" OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$test_dir/runtime"
+mkdir -p "$HOME/.local/state/omarchy/current/theme" "$OPENCODE_CONFIG_DIR" "$XDG_RUNTIME_DIR"
 printf '{}\n' >"$HOME/.local/state/omarchy/current/theme/opencode.json"
 printf '{"theme":{"name":"custom","mode":"dark"},"plugins":["./herdr-opencode"]}\n' >"$OPENCODE_CONFIG_DIR/cli.json"
 bash "$ROOT/bin/omarchy-theme-set-opencode"
