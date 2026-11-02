@@ -171,6 +171,7 @@ Item {
   // The keys each section showed as the drag started (layoutWidgets). They
   // hold while no widget moves about.
   property string barDragKeys: ""
+  property string barDragLayout: ""
   // The spacers a drag has put in the sections, where a released widget can
   // land (DragSpacer).
   property var dragSpacers: []
@@ -594,6 +595,7 @@ Item {
     barDragRoom = null
     barDragExtent = 0
     barDragKeys = ""
+    barDragLayout = ""
     barDragRemoveArmed = false
     barDragRegrab.stop()
     barSettle = null
@@ -676,7 +678,7 @@ Item {
   function setBarPosition(value) {
     var next = normalizePosition(value)
     if (root.shell && typeof root.shell.mutateShellConfig === "function") {
-      root.shell.mutateShellConfig(function(config) {
+      return root.shell.mutateShellConfig(function(config) {
         if (!Util.isPlainObject(config.bar)) config.bar = {}
         config.bar.position = next
       })
@@ -1162,6 +1164,7 @@ Item {
   // the room moves away.
   function startDragRoom(sourceSlot) {
     barDragKeys = JSON.stringify(layoutWidgets.sections)
+    barDragLayout = JSON.stringify(layoutConfig)
     barDragRoom = BarModel.dropRoom(null, { key: sourceSlot.widgetKey, region: sourceSlot.region }, layoutWidgets.sections, drawnKeys(barDragWindow))
     barDragHome = dragShareKey(barDragRoom)
     var shares = {}
@@ -1262,7 +1265,8 @@ Item {
       key: source.widgetKey,
       from: { region: source.region, index: (sections[source.region] || []).indexOf(source.widgetKey), id: entryId(source.entry) },
       to: { region: room.region, index: room.index < count ? room.index : -1 },
-      keys: barDragKeys
+      keys: barDragKeys,
+      layout: barDragLayout
     }
   }
 
@@ -1328,24 +1332,25 @@ Item {
   // whatever else shares its id (BarModel.layoutWidgets).
   function landBarDrag(move) {
     clearBarDrag()
-    if (!move || JSON.stringify(layoutWidgets.sections) !== move.keys) return
+    if (!move || JSON.stringify(layoutWidgets.sections) !== move.keys) return false
     var expected = JSON.parse(move.keys)
     var into = expected[move.to.region]
     var before = move.to.index >= 0 ? into[move.to.index] : null
     expected[move.from.region].splice(move.from.index, 1)
     into.splice(before ? into.indexOf(before) : into.length, 0, move.key)
-    writeLayout(expected, function(config) {
-      BarModel.moveEntry(config, move, function(entry) { return Util.normalizeLayoutEntry(entry) })
+    return writeLayout(expected, function(config) {
+      if (JSON.stringify(normalizeLayout(config.bar ? config.bar.layout : null)) !== move.layout) return false
+      return BarModel.moveEntry(config, move, function(entry) { return Util.normalizeLayoutEntry(entry) })
     })
   }
 
   // Writes a layout edit to shell.json. Widgets keep their instances through
   // the write as long as the sections come out as `expected`.
   function writeLayout(expected, edit) {
-    if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return
+    if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return false
     widgetMemo.expected = expected
     try {
-      root.shell.mutateShellConfig(edit)
+      return root.shell.mutateShellConfig(edit)
     } finally {
       widgetMemo.expected = null
     }
@@ -1395,14 +1400,17 @@ Item {
   function commitBarRemoval() {
     var removal = barRemoval
     barRemoval = null
-    if (!removal) return
+    if (!removal) return false
     var expected = JSON.parse(JSON.stringify(layoutWidgets.sections))
     var list = expected[removal.region] || []
     var index = list.indexOf(removal.key)
-    if (index < 0) return
+    if (index < 0) return false
     list.splice(index, 1)
-    writeLayout(expected, function(config) {
-      BarModel.removeEntry(config, { region: removal.region, index: index, id: removal.id }, function(entry) { return Util.normalizeLayoutEntry(entry) })
+    var layout = JSON.stringify(layoutConfig)
+    return writeLayout(expected, function(config) {
+      // An index can name the wrong one of two same-id widgets once the layout on disk has moved.
+      if (JSON.stringify(normalizeLayout(config.bar ? config.bar.layout : null)) !== layout) return false
+      return BarModel.removeEntry(config, { region: removal.region, index: index, id: removal.id }, function(entry) { return Util.normalizeLayoutEntry(entry) })
     })
   }
 
