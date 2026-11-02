@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Install Cloudmail and open it.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Cloudmail..."
+# npm runs Cloudflare's cf CLI, which `cloudmail setup` uses to sign in and deploy the mail worker.
+omarchy-pkg-add cloudmail npm
+
+echo "Opening Cloudmail..."
+setsid uwsm-app -- /usr/bin/cloudmail-gtk >/dev/null 2>&1 &
+
+echo ""
+echo "Cloudmail has been installed."
+echo "Deploy it to your Cloudflare account with:"
+echo "  cloudmail setup you@yourdomain.com"
