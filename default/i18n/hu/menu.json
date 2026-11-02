@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Lemez sebességteszt"
   },
-  "setup.monitors": {
-    "label": "Monitorok"
-  },
-  "setup.keybindings": {
-    "label": "Billentyűk"
-  },
   "setup.input": {
     "label": "Bevitel"
-  },
-  "setup.typing": {
-    "label": "Gépelés"
-  },
-  "setup.typing.keyboard": {
-    "label": "Billentyűzetkiosztás"
-  },
-  "setup.typing.input": {
-    "label": "Beviteli módok"
   },
   "setup.language": {
     "label": "Nyelv"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Kernel"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Billentyűzet"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Billentyűparancsok"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Billentyűzetbemenetek"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Beviteli módok"
   }
 }

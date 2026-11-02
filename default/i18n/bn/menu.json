@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "ডিস্ক গতি পরীক্ষা"
   },
-  "setup.monitors": {
-    "label": "মনিটর"
-  },
-  "setup.keybindings": {
-    "label": "কিবাইন্ডিং"
-  },
   "setup.input": {
     "label": "ইনপুট"
-  },
-  "setup.typing": {
-    "label": "টাইপিং"
-  },
-  "setup.typing.keyboard": {
-    "label": "কিবোর্ড লেআউট"
-  },
-  "setup.typing.input": {
-    "label": "ইনপুট পদ্ধতি"
   },
   "setup.language": {
     "label": "ভাষা"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "কার্নেল"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "কীবোর্ড"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "কীবাইন্ডিং"
+  },
+  "setup.keyboard.inputs": {
+    "label": "কীবোর্ড ইনপুট"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "ইনপুট পদ্ধতি"
   }
 }
