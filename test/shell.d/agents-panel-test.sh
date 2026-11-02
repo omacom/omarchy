@@ -32,8 +32,32 @@ assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsSta
 assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
   'Endpoint returned 500.', 'an account whose refresh failed still says why')
 
-// Local history alone feeds the summary; a section needs a subscription to show.
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+{
+  const vm = require('vm')
+  const body = name => (mainSource.match(new RegExp('\\n  function ' + name + '\\([\\s\\S]*?\\n  \\}\\n')) || [''])[0]
+  const exited = (mainSource.match(/id: updateProcess\n[\s\S]*?\n    onExited: \{([\s\S]*?)\n    \}\n/) || ['', ''])[1]
+  const queue = () => {
+    const shell = { settings: {}, pendingUpdateKind: '', pendingUpdateAgentIds: null, updateProcess: { running: true }, rescanAgents() {}, reloadRecords() {} }
+    shell.root = shell
+    vm.createContext(shell)
+    vm.runInContext(body('updateCommand') + body('runUpdate') + 'function exited() {' + exited + '\n}', shell)
+    return shell
+  }
+  const queued = (...requests) => {
+    const shell = queue()
+    for (const [kind, ids] of requests) shell.runUpdate(kind, ids)
+    shell.updateProcess.running = false
+    shell.exited()
+    return shell.updateProcess.command.join(' ')
+  }
+  assertEqual(queued(['limits', ['claude']]), 'omarchy-agent-usage-update --limits-only claude', 'a retry queued behind a running update probes only the agents that asked')
+  assertEqual(queued(['limits', ['claude']], ['limits', ['codex', 'claude']]), 'omarchy-agent-usage-update --limits-only claude codex', 'queued retries merge the agents they target')
+  assertEqual(queued(['limits', ['claude']], ['limits']), 'omarchy-agent-usage-update --limits-only', 'a refresh queued behind a retry still covers every agent')
+  assertEqual(queued(['limits', ['claude']], ['force']), 'omarchy-agent-usage-update --force', 'a forced refresh queued behind a retry covers every agent')
+  assertEqual(queued(['normal'], ['limits', ['claude']]), 'omarchy-agent-usage-update', 'a retry queued behind a refresh leaves it covering every agent')
+}
+// Local history alone feeds the summary; a section needs a subscription to show.
 const subscribed = new Function(mainSource.match(/function providerHasSubscription\([^]*?\n  \}/)[0] + '\nreturn providerHasSubscription')()
 const historyOnly = { limits: [], accounts: [], balance: null, tierLabel: '', totalPrompts: 1 }
 assertEqual(subscribed(historyOnly), false, 'an agent with only local history gets no section')
