@@ -1,0 +1,15 @@
+{
+  "name": "session-desktop-health-after-boot",
+  "kind": "resume",
+  "context": "From the desktop please do the following:\n\n- `omarchy-version` prints the version of the build under test; any version number passes.",
+  "steps": [
+    "Look at the desktop. The bar is up. No crash dialog is showing.",
+    "Press Super+Enter. A terminal opens.",
+    "Run `omarchy-shell shell ping` and press Enter. It prints `ok`.",
+    "Run `omarchy-version` and press Enter. A version prints.",
+    "Run `findmnt -no FSTYPE /` and press Enter. It prints `btrfs`.",
+    "Run `wpctl status | head -3` and press Enter. A PipeWire header prints.",
+    "Run `systemctl --failed --no-legend --plain; systemctl --user --failed --no-legend --plain; echo UNITS-DONE` and press Enter. Nothing is listed above `UNITS-DONE`."
+  ],
+  "proof": "* On success\n** The final screen shows the bar and wallpaper with no crash dialog, and the terminal reading `ok`, the version, `btrfs`, the PipeWire header, and `UNITS-DONE` with nothing listed above it\n* If unsuccessful\n** The failing command on screen (a missing bar, `omarchy-shell is not running`, `connection refused`, or a listed unit)"
+}
