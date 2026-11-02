@@ -49,4 +49,22 @@ mechanism, read the skill files directly and follow them instead:
 PROMPT
 )
 
+# nf-md-robot_dead, escaped so this file reads without a Nerd Font.
+readonly CRASH_GLYPH=$'\U000f16a1'
+
+agent=$(omarchy-default-agent)
+if [[ -z $agent ]] || omarchy-cmd-missing "$agent"; then
+  omarchy-notification-send -g "$CRASH_GLYPH" "AI diagnosis unavailable" \
+    "No default AI coding agent is installed or configured."
+  exit 1
+fi
+
+# Guard against agents that require interactive authentication before use.
+# Launching an unauthenticated agent in the crash handler causes unclosable prompts or deadlocks.
+if [[ $agent == "gemini" ]] && [[ ! -f "$HOME/.gemini/oauth_creds.json" && -z "${GEMINI_API_KEY:-}" ]]; then
+  omarchy-notification-send -g "$CRASH_GLYPH" "Gemini CLI not authenticated" \
+    "Please run 'gemini' in terminal to log in before using AI crash diagnosis."
+  exit 1
+fi
+
 exec omarchy-agent --prompt "$prompt"

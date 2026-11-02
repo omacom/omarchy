@@ -67,6 +67,7 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # agent is chosen. Checked per crash, not at startup, so picking one takes
     # effect without restarting this service.
     [[ -n $(omarchy-default-agent) ]] || continue
+    omarchy-toggle-enabled crash-capture-off 2>/dev/null && continue
 
     # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
     [[ $uid =~ ^[0-9]+$ ]] || continue
