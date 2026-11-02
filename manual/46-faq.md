@@ -30,6 +30,8 @@ This will display Sunday 10:55 AM.
 
 Run _Update > Timezone_ in the Omarchy menu and pick from the list. If the timezone is right but the clock itself has drifted, _Update > Time_ restarts the time synchronization for you.
 
+To have it follow you instead, turn on _Trigger > Toggle > Auto Timezone_ (or run `omarchy toggle timezone-auto`). Whenever you connect to a network or wake the machine, Omarchy looks up the Wi-Fi networks around you with [BeaconDB](https://beacondb.net) to find where you are, so it gets the right answer even with a VPN on, and moves the clock once a second reading agrees. A notification says where it moved to and offers Undo. A zone you pick by hand or undo is remembered for that Wi-Fi network, and a network it has seen before needs no lookup at all. It's off by default because it sends the addresses of nearby access points to BeaconDB. Without usable Wi-Fi it falls back to locating your internet connection, but never while a VPN carries your traffic.
+
 ### How do I change my DNS, share my Wi-Fi, or check my connection speed?
 
 Those all live in [networking](35-networking.md).

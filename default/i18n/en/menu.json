@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.timezone-auto-on": {
+    "label": "Auto Timezone On"
+  },
+  "trigger.toggle.timezone-auto-off": {
+    "label": "Auto Timezone Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },

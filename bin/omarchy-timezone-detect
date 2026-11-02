@@ -1,0 +1,199 @@
+#!/bin/bash
+
+# omarchy:summary=Detect the local timezone from nearby Wi-Fi networks
+# omarchy:args=[--no-ip|--network]
+
+# Prints "<zone> <source> <accuracy-in-meters>" and exits 0. Exits 1 when
+# there is nothing to tell the location from (too few networks, no fix, only a
+# VPN to look through) and 2 when a lookup failed (offline, a timeout, a
+# service error), which is worth trying again. Never changes the clock;
+# omarchy-timezone-set does that. --network instead prints a key for the access point Wi-Fi is
+# connected to, which the watcher remembers zones by, or exits 1 when there is
+# no such access point worth remembering.
+#
+# A VPN moves the address traffic leaves from, not the radio around the
+# machine, so the location comes from the access points in range: their BSSIDs
+# go to BeaconDB (the community successor to Mozilla Location Service), which
+# answers with coordinates, and Open-Meteo turns the coordinates into a zone.
+# Neither answer depends on the address the request came from, so a request
+# that travels through a VPN still describes where the machine is.
+#
+# Without a usable Wi-Fi answer (Ethernet, Wi-Fi off, too few networks), the
+# public address is the fallback, and only when the default route leaves
+# through a physical interface; behind a VPN it would locate the VPN server.
+
+set -uo pipefail
+
+readonly BEACONDB_URL=${OMARCHY_TIMEZONE_BEACONDB_URL:-https://api.beacondb.net/v1/geolocate}
+readonly OPEN_METEO_URL=${OMARCHY_TIMEZONE_OPEN_METEO_URL:-https://api.open-meteo.com/v1/forecast}
+readonly USER_AGENT="omarchy-timezone (+https://omarchy.org)"
+
+# A fix vaguer than this cannot tell neighboring zones apart, so it is no fix.
+readonly max_accuracy=${OMARCHY_TIMEZONE_MAX_ACCURACY:-5000}
+
+# BeaconDB, like MLS before it, wants two networks before it will answer, so a
+# single access point never pins down one household.
+readonly min_access_points=2
+readonly max_access_points=20
+
+use_ip=1
+network_only=0
+case ${1:-} in
+  --no-ip) use_ip=0 ;;
+  --network) network_only=1 ;;
+  "") ;;
+  *)
+    echo "Usage: omarchy-timezone-detect [--no-ip|--network]" >&2
+    exit 1
+    ;;
+esac
+
+# A locally administered address is randomized or virtual: a phone's hotspot,
+# a travel router, a plane's cabin. They travel with their owner, so they say
+# nothing about where this is.
+travels_with_owner() {
+  local bssid=$1
+  (((16#${bssid:0:2}) & 2))
+}
+
+# nmcli -t escapes colons inside a field as "\:"; swap those for a byte no
+# field holds before splitting on the real separators.
+unescape_fields() {
+  local line
+  while IFS= read -r line; do
+    printf '%s\n' "${line//\\:/$'\x01'}"
+  done
+}
+
+valid_zone() {
+  local zone=$1
+  [[ $zone =~ ^[A-Za-z0-9_+][A-Za-z0-9_+.-]*(/[A-Za-z0-9_+][A-Za-z0-9_+.-]*)*$ ]] || return 1
+  # Etc/ and bare UTC/GMT are what the services answer for open sea, which is a
+  # plane or a ship, not somewhere to set the clock to.
+  [[ $zone != Etc/* && $zone != "UTC" && $zone != "GMT" ]] || return 1
+  [[ -f /usr/share/zoneinfo/$zone ]]
+}
+
+# The networks in range as a geolocate request body, or nothing when there are
+# too few worth sending.
+wifi_request() {
+  local bssid signal ssid
+  local -a points=()
+
+  # SSID comes last because it is the only field that can hold anything.
+  while IFS=: read -r bssid signal ssid; do
+    bssid=${bssid//$'\x01'/:}
+    ssid=${ssid//$'\x01'/:}
+
+    [[ $bssid =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || continue
+    [[ $signal =~ ^[0-9]+$ ]] || continue
+
+    # The opt-out convention every location database honors.
+    [[ $ssid == *_nomap ]] && continue
+
+    travels_with_owner "$bssid" && continue
+
+    # nmcli reports quality as a percentage; the API wants dBm, converted
+    # below.
+    points+=("$signal ${bssid,,}")
+  done < <(nmcli -t -f BSSID,SIGNAL,SSID device wifi list --rescan auto 2>/dev/null | unescape_fields)
+
+  ((${#points[@]} >= min_access_points)) || return 1
+
+  # Strongest first, so the cap keeps the networks that place this best.
+  # considerIp and the ipf fallback both off: an answer guessed from the
+  # address would be the VPN's location again, wearing Wi-Fi's accuracy.
+  printf '%s\n' "${points[@]}" | sort -rn | head -n "$max_access_points" |
+    jq -cRs '[split("\n")[] | select(. != "") | split(" ")
+              | {macAddress: .[1], signalStrength: ((.[0] | tonumber) / 2 - 100 | floor)}]
+             | {considerIp: false, fallbacks: {ipf: false, lacf: false}, wifiAccessPoints: .}'
+}
+
+# Fails only when the request does; an answer without a zone prints nothing.
+zone_at() {
+  local lat=$1 lng=$2
+  curl -fsS --max-time 10 -A "$USER_AGENT" \
+    "$OPEN_METEO_URL?latitude=$lat&longitude=$lng&timezone=auto&forecast_days=1" 2>/dev/null |
+    jq -r '.timezone // empty' 2>/dev/null
+}
+
+detect_from_wifi() {
+  local request response code lat lng accuracy zone
+
+  request=$(wifi_request) || return 1
+  response=$(curl -sS --max-time 10 -A "$USER_AGENT" -w '\n%{http_code}' \
+    -H "Content-Type: application/json" --data "$request" "$BEACONDB_URL" 2>/dev/null) || return 2
+
+  # 404 is the API's "these networks are unknown", an answer; anything else
+  # that isn't 200 is the service having a bad moment.
+  code=${response##*$'\n'}
+  response=${response%$'\n'*}
+  [[ $code == "404" ]] && return 1
+  [[ $code == "200" ]] || return 2
+
+  read -r lat lng accuracy < <(jq -r '[.location.lat, .location.lng, .accuracy] | map(tostring) | join(" ")' <<<"$response" 2>/dev/null)
+  [[ $lat =~ ^-?[0-9]+([.][0-9]+)?$ && $lng =~ ^-?[0-9]+([.][0-9]+)?$ ]] || return 1
+  [[ $accuracy =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  accuracy=${accuracy%%.*}
+  ((accuracy <= max_accuracy)) || return 1
+
+  zone=$(zone_at "$lat" "$lng") || return 2
+  valid_zone "$zone" || return 1
+  echo "$zone wifi $accuracy"
+}
+
+# True when traffic to the internet leaves through a tunnel: a WireGuard or
+# tun/tap device carrying the route (wg-quick, Tailscale exit nodes, OpenVPN,
+# Mullvad, Proton), or a VPN connection NetworkManager has up. Split tunnels
+# whose default route stays physical are fine to geolocate through.
+vpn_active() {
+  local dev kind
+
+  if nmcli -t -f TYPE connection show --active 2>/dev/null | grep -qE '^(vpn|wireguard|tun)$'; then
+    return 0
+  fi
+
+  dev=$(ip -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p')
+  [[ -n $dev ]] || return 0 # no route at all: nothing to trust either
+
+  kind=$(ip -d -o link show dev "$dev" 2>/dev/null)
+  [[ $kind == *" wireguard "* || $kind == *" tun "* || $kind == *" tap "* || $kind == *POINTOPOINT* ]]
+}
+
+detect_from_ip() {
+  local zone
+  ((use_ip)) || return 1
+  vpn_active && return 1
+  zone=$(tzupdate --print-only --timeout 10 2>/dev/null) || return 2
+  valid_zone "$zone" || return 1
+  echo "$zone ip -"
+}
+
+connected_network() {
+  local in_use bssid
+  while IFS=: read -r in_use bssid; do
+    [[ $in_use == "*" ]] || continue
+    bssid=${bssid//$'\x01'/:}
+    [[ $bssid =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || return 1
+    travels_with_owner "$bssid" && return 1
+    bssid=${bssid//:/}
+    echo "${bssid,,}"
+    return 0
+  done < <(nmcli -t -f IN-USE,BSSID device wifi list --rescan no 2>/dev/null | unescape_fields)
+  return 1
+}
+
+if ((network_only)); then
+  connected_network
+else
+  detect_from_wifi
+  wifi=$?
+  ((wifi == 0)) && exit 0
+
+  detect_from_ip
+  ip=$?
+  ((ip == 0)) && exit 0
+
+  ((wifi == 2 || ip == 2)) && exit 2
+  exit 1
+fi
