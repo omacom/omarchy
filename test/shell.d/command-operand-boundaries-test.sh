@@ -216,6 +216,24 @@ setsid_argv=$(<"$setsid_calls")
   fail "launch-editor separates a graphical editor path from editor options" "$setsid_argv"
 pass "launch-editor separates a graphical editor path from editor options"
 
+# JetBrains reads `--` as a file name, so its launcher gets absolute paths instead.
+# Every product Defaults can save must reach that branch, including Air's full path.
+jetbrains_bin="$test_tmp/jetbrains-bin"
+mkdir -p "$jetbrains_bin"
+printf '#!/bin/bash\nexit 0\n' >"$jetbrains_bin/omarchy-cmd-present"
+chmod +x "$jetbrains_bin/omarchy-cmd-present"
+source "$ROOT/default/jetbrains/products.sh"
+for product in air clion datagrip goland intellij-idea phpstorm pycharm rider rubymine rustrover webstorm; do
+  jetbrains_product "$product"
+  printf '%s\n' "$jetbrains_command" >"$fake_home/.local/state/omarchy/defaults/editor"
+  HOME="$fake_home" PATH="$jetbrains_bin:$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_SETSID_CALLS="$setsid_calls" \
+    "$ROOT/bin/omarchy-launch-editor" "folder with spaces" -cquit /absolute/path
+  setsid_argv=$(<"$setsid_calls")
+  [[ $setsid_argv == "<uwsm-app>"$'\n<-->\n'"<$jetbrains_command>"$'\n'"<$PWD/folder with spaces>"$'\n'"<$PWD/-cquit>"$'\n<'"/absolute/path>" ]] ||
+    fail "launch-editor passes $product absolute paths without a -- delimiter" "$setsid_argv"
+done
+pass "launch-editor passes JetBrains editors absolute paths without a -- delimiter"
+
 hook_calls="$test_tmp/hook-calls"
 hook_home="$test_tmp/hook-home"
 printf '#!/bin/bash\n' >"$test_tmp/--help"

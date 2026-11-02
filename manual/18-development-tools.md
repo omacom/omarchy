@@ -8,7 +8,11 @@ The original `vi` editor is also available out of the box. Run `vi filename` to 
 
 Theme matching is offered for `VSCode`, `Cursor`, `VSCodium`, and `Helix`.
 
-You can set the system-wide default editor under `Setup > Defaults > Editor`.
+Choose the editor Omarchy uses under _Setup > Default > Editor_.
+
+JetBrains editors are under _Install > Editor > JetBrains_: Air, CLion, DataGrip, GoLand, IntelliJ IDEA, PhpStorm, PyCharm, Rider, RubyMine, RustRover, and WebStorm. Installing one opens it without changing your default editor. To make it your default, choose it under _Setup > Default > Editor > JetBrains_. Choosing an editor you haven't installed yet installs it first; if installation fails, your previous default stays selected. Sign in or activate your license in the IDE's own first-run screen.
+
+JetBrains Toolbox, Gateway, and MPS are separate options under _Install > Development_. Toolbox is optional; you can install each IDE directly.
 
 ## Environment
 
