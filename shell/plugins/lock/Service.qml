@@ -782,8 +782,10 @@ Item {
   }
 
   function setMouseDpmsWake(enabled) {
-    var val = enabled ? "true" : "false"
-    lockDpmsProcess.command = ["bash", "-c", "hyprctl keyword misc:mouse_move_enables_dpms " + val + " >/dev/null 2>&1 || true"]
+    var cmd = enabled
+      ? 'f="${XDG_RUNTIME_DIR:-/tmp}/omarchy-mouse-dpms-prev"; if [[ -f "$f" ]]; then val=$(jq -r "if .int == 0 or .bool == false then \\"false\\" else \\"true\\" end" "$f" 2>/dev/null); [[ -n $val ]] || val="true"; rm -f "$f"; hyprctl keyword misc:mouse_move_enables_dpms "$val" >/dev/null 2>&1 || true; else hyprctl keyword misc:mouse_move_enables_dpms true >/dev/null 2>&1 || true; fi'
+      : 'f="${XDG_RUNTIME_DIR:-/tmp}/omarchy-mouse-dpms-prev"; if [[ ! -f "$f" ]]; then hyprctl -j getoption misc:mouse_move_enables_dpms > "$f" 2>/dev/null || true; fi; hyprctl keyword misc:mouse_move_enables_dpms false >/dev/null 2>&1 || true'
+    lockDpmsProcess.command = ["bash", "-c", cmd]
     lockDpmsProcess.running = true
   }
 
