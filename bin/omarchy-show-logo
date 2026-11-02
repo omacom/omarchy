@@ -4,6 +4,42 @@
 
 clear
 echo -e "\033[32m"
-cat <$OMARCHY_PATH/logo.txt
+# Leave room for the command and its prompt below the logo. Read the actual
+# terminal grid rather than the dimensions inherited from the launching shell.
+if [[ -t 1 ]] && read -r rows columns < <(stty size < /dev/tty 2>/dev/null) && (( rows > 0 && columns > 0 )); then
+  if ! python3 - "$OMARCHY_PATH/logo.svg" "$columns" "$rows" <<'PY'
+import sys
+import subprocess
+import xml.etree.ElementTree as ET
+
+source, columns, rows = sys.argv[1], max(1, int(sys.argv[2]) - 1), max(1, int(sys.argv[3]) - 4)
+root = ET.parse(source).getroot()
+viewbox = [float(value) for value in root.attrib["viewBox"].split()]
+ratio = viewbox[2] / viewbox[3]
+width = min(columns * 2, max(1, int(rows * 4 * ratio)))
+height = max(1, min(rows * 4, int(width / ratio)))
+args = ["magick", source, "-background", "white", "-alpha", "remove",
+        "-resize", f"{width}x{height}!", "-colorspace", "gray", "-depth", "8"]
+pixels = subprocess.check_output(args + ["gray:-"])
+levels = [pixels[index] < 200 for index in range(width * height)]
+dot_bits = ((1, 2, 4, 64), (8, 16, 32, 128))
+for y in range(0, height, 4):
+    line = []
+    for x in range(0, width, 2):
+        pattern = sum(dot_bits[dx][dy]
+                      for dx in range(2) for dy in range(4)
+                      if x + dx < width and y + dy < height
+                      and levels[(y + dy) * width + x + dx])
+        line.append(chr(0x2800 + pattern))
+    while line and line[-1] == "\u2800":
+        line.pop()
+    print("".join(line))
+PY
+  then
+    cat < "$OMARCHY_PATH/logo.txt"
+  fi
+else
+  cat < "$OMARCHY_PATH/logo.txt"
+fi
 echo -e "\033[0m"
 echo
