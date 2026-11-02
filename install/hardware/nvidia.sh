@@ -4,15 +4,16 @@
 if omarchy-hw-aarch64-n1x; then
   echo "NVIDIA N1x platform detected; GPU driver policy is owned by hardware/n1x.sh"
 elif lspci | grep -qi 'nvidia'; then
-  # The 32-bit libraries come from multilib, which only x86_64 has.
   if omarchy-hw-nvidia-gsp; then
-    PACKAGES=(nvidia-open-dkms nvidia-utils)
-    if omarchy-hw-x86; then
-      PACKAGES+=(lib32-nvidia-utils)
-    fi
-    PACKAGES+=(libva-nvidia-driver)
+    # The 32-bit driver comes when a game asks for it, through
+    # omarchy-install-gaming-gpu-lib32, so a machine that never runs a 32-bit
+    # game does not carry it.
+    PACKAGES=(nvidia-open-dkms nvidia-utils libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then
     PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils)
+    # The 580xx 32-bit driver stays: without it, a Steam installed with pacman
+    # takes lib32-nvidia-utils as its 32-bit Vulkan driver, which conflicts with
+    # nvidia-580xx-utils. Multilib only exists on x86_64.
     if omarchy-hw-x86; then
       PACKAGES+=(lib32-nvidia-580xx-utils)
     fi
