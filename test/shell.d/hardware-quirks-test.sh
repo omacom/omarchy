@@ -309,6 +309,7 @@ leaves=(
   hardware/qualcomm/glymur-display.sh
   hardware/qualcomm/oem-firmware.sh
   hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh
+  hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
@@ -384,6 +385,10 @@ hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa|0|wrote e
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa+unreadable|0
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-a16|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa|0|pkg-add asus-zenbook-14-ux3480qa-audio
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa+unreadable|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-a16|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl|0|pkg-add linux-firmware-cirrus-dx13260
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl+unreadable|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-wcl|0
