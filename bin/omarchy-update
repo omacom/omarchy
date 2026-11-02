@@ -95,10 +95,24 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-update-dev
   omarchy-update-keyring
 
+  # A settings update rewrites nsswitch.conf without sss, which silently
+  # breaks every directory account, and sudo with it: it can no longer look the
+  # account up. A pacman hook restores sss as root inside that transaction, so
+  # it goes in now, while sudo still works for the account running the update.
+  # Machines joined before the hook existed get it here. Nothing else depends
+  # on it, so a failure is reported without stopping.
+  omarchy-apply-sssd-hook ||
+    echo -e "\e[33mCould not install the SSSD update hook. Run omarchy-apply-sssd-hook to retry.\e[0m" >&2
+
   # Migrations ship with the packages installed here and are written against
   # them, so everything below waits on this finishing. An upgrade that stopped
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
+
+  # A backstop for a machine whose hook could not be installed. It does nothing
+  # once the hook has run, and asks for no privileges then.
+  omarchy-apply-sssd ||
+    echo -e "\e[33mCould not re-apply the SSSD setup. Run omarchy-apply-sssd to retry.\e[0m" >&2
 
   omarchy-migrate
   omarchy-update-orphan-pkgs -y
