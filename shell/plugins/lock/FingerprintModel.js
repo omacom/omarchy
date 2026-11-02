@@ -36,10 +36,11 @@ function shouldNudge(nowMs, lastNudgeMs, lastSettleMs, currentIntervalMs) {
 
 
 // A failed probe is unknown, so it cannot disable authentication for the lock.
+// fprintd-list prints each reader's prints before a later reader can fail, so a row still counts.
 function classifyProbe(text, exitCode) {
-  if (exitCode !== 0) return "unknown"
   var s = String(text || "").trim()
   if (/^[ \t]*-[ \t]*#[0-9]+:/m.test(s)) return "yes"
+  if (exitCode !== 0) return "unknown"
   if (s === "no") return "no"
   if (/has no fingers enrolled/i.test(s)) return "no"
   return "unknown"

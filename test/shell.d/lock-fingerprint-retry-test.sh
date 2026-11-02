@@ -173,7 +173,8 @@ assertEqual(model.classifyProbe('Impossible to get devices: GDBus.Error:org.free
 assertEqual(model.classifyProbe('ListEnrolledFingers failed: Timeout was reached', 0), 'unknown', 'a D-Bus timeout reads unknown')
 assertEqual(model.classifyProbe('', 0), 'unknown', 'empty output reads unknown')
 assertEqual(model.classifyProbe('User test has no fingers enrolled.', 1), 'unknown', 'a failed probe cannot clear enrollment from partial output')
-assertEqual(model.classifyProbe(' - #0: right-index-finger', 124), 'unknown', 'a timed-out probe cannot enable fingerprint from partial output')
+assertEqual(model.classifyProbe('Fingerprints for user test on A:\n - #0: right-index-finger\nListEnrolledFingers failed: Timeout was reached', 1), 'yes', 'a print listed before a later reader fails still enables fingerprint')
+assertEqual(model.classifyProbe('ListEnrolledFingers failed: Timeout was reached', 124), 'unknown', 'a timed-out probe without a print row is unknown')
 
 assert(model.REACH_TIMEOUT_MS < model.ERROR_RETRY_CAP_MS,
   'the reach bound is shorter than the backoff cap, so a stuck attempt is caught well before the cap')
