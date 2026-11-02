@@ -117,7 +117,8 @@ assert(unreferencedShell.length === 0, 'every shell catalog key is referenced', 
 const unknownShell = [...shellKeys].filter((key) => !Object.hasOwn(enShell, key))
 assert(unknownShell.length === 0, 'every referenced shell key exists in the English catalog', JSON.stringify(unknownShell))
 
-const cliKeyPattern = /omarchy-i18n (?:--count \S+ )?([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
+// The screen time daemon's jq carries keys as say("…"), translated when sent.
+const cliKeyPattern = /(?:omarchy-i18n (?:--count \S+ )?|\bsay\(")([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
 const cliKeys = collectKeys(path.join(root, 'bin'), [''], cliKeyPattern)
 for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)

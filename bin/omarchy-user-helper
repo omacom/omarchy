@@ -1,0 +1,122 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Add, delete and change the password of people's accounts, as root
+# omarchy:args=list | add adult|child NAME | password NAME | password-self | apps NAME | themes NAME | adult-check | delete NAME [--delete-home] | finish
+# omarchy:requires-sudo=true
+
+# A child reaches this through a NOPASSWD grant for password-self, so it starts
+# as a privileged Bash and drops anything the caller's environment could use
+# to run code before the first command.
+if [[ $- != *p* && ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "Refusing an unsafe Bash startup for the user helper." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  omarchy_security_require_privileged_bash_startup || {
+    echo "Refusing an unsafe Bash startup for the user helper." >&2
+    exit 126
+  }
+  omarchy_security_sanitize_bash_environment "$0" "$@" || exit 126
+fi
+
+set -uo pipefail
+set +x
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin
+umask 077
+
+# The library's paths are root's alone; nothing the caller exports may move them.
+unset "${!USERS_@}" "${!APPS_@}"
+source "${security_entrypoint%/*}/omarchy-user-functions" || exit 126
+
+usage() {
+  echo "Usage: omarchy-user-helper list | add adult|child NAME | password NAME | password-self | apps NAME | themes NAME | adult-check | delete NAME [--delete-home] | finish" >&2
+  echo "Passwords are read from stdin, one per line: your own first, then the new one." >&2
+  exit 64
+}
+
+(( EUID == 0 )) || { echo "omarchy-user-helper must run as root, through sudo." >&2; exit 1; }
+[[ ${SUDO_UID:-} =~ ^[0-9]+$ ]] || { echo "omarchy-user-helper must be run through sudo." >&2; exit 1; }
+caller=$(id -un -- "$SUDO_UID" 2>/dev/null) && users_valid_name "$caller" || { echo "Could not tell who is asking." >&2; exit 1; }
+
+caller_password=""
+new_password=""
+
+read_password() {
+  IFS= read -r "$1" || [[ -n ${!1} ]]
+}
+
+with_lock() {
+  local fd status=0
+  mkdir -p "${USERS_LOCK%/*}" && exec {fd}>"$USERS_LOCK" || return 1
+  flock -x -w 60 "$fd" || { users_say "Another change to this computer's users is still running."; return 1; }
+  if users_journal_pending; then
+    users_finish || { users_say "Could not finish an earlier change to this computer's users."; return 1; }
+  fi
+  "$@" || status=$?
+  exec {fd}>&-
+  return "$status"
+}
+
+command=${1:-}
+(( $# )) && shift
+users_load_drive || exit 1
+
+case $command in
+  list)
+    (( $# == 0 )) || usage
+    users_list
+    ;;
+  add)
+    (( $# == 2 )) || usage
+    read_password caller_password && read_password new_password || usage
+    with_lock users_add "$caller" "$1" "$2" "$new_password" "$caller_password"
+    ;;
+  password)
+    (( $# == 1 )) || usage
+    read_password caller_password && read_password new_password || usage
+    with_lock users_password "$caller" "$1" "$new_password" "$caller_password"
+    ;;
+  password-self)
+    (( $# == 0 )) || usage
+    read_password caller_password && read_password new_password || usage
+    with_lock users_password "$caller" "$caller" "$new_password" "$caller_password"
+    ;;
+  delete)
+    (( $# == 1 || $# == 2 )) || usage
+    delete_home=no
+    if (( $# == 2 )); then
+      [[ $2 == "--delete-home" ]] || usage
+      delete_home=yes
+    fi
+    read_password caller_password || usage
+    with_lock users_delete "$caller" "$1" "$caller_password" "$delete_home"
+    ;;
+  apps)
+    (( $# == 1 )) || usage
+    read_password caller_password || usage
+    with_lock users_apps "$caller" "$1" "$caller_password"
+    ;;
+  themes)
+    (( $# == 1 )) || usage
+    read_password caller_password || usage
+    with_lock users_themes "$caller" "$1" "$caller_password"
+    ;;
+  adult-check)
+    (( $# == 0 )) || usage
+    read_password caller_password || usage
+    users_adult_check "$caller" "$caller_password"
+    ;;
+  finish)
+    (( $# == 0 )) || usage
+    users_require_adult "$caller" || exit 1
+    with_lock true
+    ;;
+  *)
+    usage
+    ;;
+esac

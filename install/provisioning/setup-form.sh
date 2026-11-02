@@ -181,10 +181,13 @@ omarchy_prompt_password() {
     password_confirmation=$(gum input --placeholder "$(omarchy_form_text setupForm.confirmPlaceholder)" --prompt.foreground="#845DF9" --password --prompt "$(omarchy_form_text setupForm.confirmPrompt)") && status=0 || status=$?
     ((status == 0)) || return $status
 
-    if [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
+    # Every account's password is also a disk key, so it has a floor.
+    if [[ -n "$password" && "$password" == "$password_confirmation" ]] && (( ${#password} >= 6 )); then
       return 0
     elif [[ -z "$password" ]]; then
       notice "$(omarchy_form_text setupForm.passwordBlank)" 1
+    elif [[ "$password" == "$password_confirmation" ]]; then
+      notice "$(omarchy_form_text setupForm.passwordTooShort | sed 's/%1/6/')" 1
     else
       notice "$(omarchy_form_text setupForm.passwordMismatch)" 1
     fi

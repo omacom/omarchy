@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Switch to another person's desktop, locking yours first
+# omarchy:args=[NAME]
+
+set -euo pipefail
+
+# Their own desktop when they have one running, which asks their password (or,
+# for a child's, a grown-up's) on its lock screen; otherwise the login screen.
+# Either way the password is typed on their side of the switch, never here.
+
+me=$(id -un)
+mapfile -t others < <(omarchy-user-list | awk -v me="$me" '$1 != me { print $1 }')
+name=${1:-}
+
+if (( ${#others[@]} == 0 )); then
+  omarchy-notification-send -g 󰀄 "$(omarchy-i18n users.noOneElse)"
+  exit 1
+fi
+if [[ -z $name ]]; then
+  name=$(omarchy-menu-select "$(omarchy-i18n users.switchTo)" "${others[@]}" -- --width 440) || exit 0
+fi
+if ! printf '%s\n' "${others[@]}" | grep -qx -- "$name"; then
+  echo "There is no one else named $name." >&2
+  exit 1
+fi
+
+sessions=$(loginctl list-sessions --json=short)
+session=$(jq -r --arg user "$name" '.[] | select(.user == $user and .seat == "seat0" and .class == "user") | .session' <<<"$sessions" | head -1)
+
+# SDDM 0.21 starts a greeter for someone not signed in on the first console,
+# and when a desktop holds that console, as an automatic login's does, the
+# greeter fails there and leaves this desktop dark with no way back. Logging
+# out frees it, so that is offered instead.
+if [[ -z $session ]] && jq -e '.[] | select(.tty == "tty1")' <<<"$sessions" >/dev/null; then
+  omarchy-notification-send -u critical -g 󰍃 "$(omarchy-i18n users.logOutToSwitch "$name")" "$(omarchy-i18n users.logOutToSwitchBody "$name")" \
+    --exec omarchy-system logout
+  exit 0
+fi
+
+# Locked before anything switches, so this desktop is never left open behind
+# the other one.
+omarchy-system-lock
+for (( i = 0; i < 50; i++ )); do
+  omarchy-hyprland-session-locked && break
+  sleep 0.1
+done
+omarchy-hyprland-session-locked || { echo "Could not lock this desktop, so nothing was switched." >&2; exit 1; }
+
+if [[ -n $session ]]; then
+  loginctl activate "$session"
+else
+  busctl call org.freedesktop.DisplayManager /org/freedesktop/DisplayManager/Seat0 org.freedesktop.DisplayManager.Seat SwitchToGreeter
+fi

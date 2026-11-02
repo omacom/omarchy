@@ -107,6 +107,34 @@ if [[ ! -f $fast_signature_file ]] || ! cmp -s "$fast_signature_file" <(printf '
   printf '%s' "$fast_signature" >"$fast_signature_file"
 fi
 
+# A person's picker offers the theme collections a grown-up picked for them
+# (omarchy-theme-collections), or every theme while none of those is
+# installed. Their previews go in a directory named for its contents, built
+# aside and renamed into place, so a refresh running alongside another finds
+# it whole or builds its own, and never hands over an emptied one.
+if allowed=$(omarchy-theme-collections --allowed); then
+  limited_previews=()
+  while read -r theme; do
+    [[ -n $theme ]] || continue
+    for preview in "$preview_dir/$theme".*; do
+      [[ -e $preview ]] && limited_previews+=("${preview##*/}")
+    done
+  done <<<"$allowed"
+
+  if (( ${#limited_previews[@]} )); then
+    limited_dir="$CACHE_PATH/limited-previews-$(printf '%s\n' "${limited_previews[@]}" | md5sum | cut -c1-12)"
+    if [[ ! -d $limited_dir ]]; then
+      staging=$(mktemp -d "$CACHE_PATH/.limited-previews.XXXXXX")
+      for preview in "${limited_previews[@]}"; do
+        ln -s "$preview_dir/$preview" "$staging/$preview"
+      done
+      mv -T "$staging" "$limited_dir" 2>/dev/null || rm -rf "$staging"
+      find "$CACHE_PATH" -maxdepth 1 -name 'limited-previews-*' ! -path "$limited_dir" -exec rm -rf {} + 2>/dev/null
+    fi
+    preview_dir=$limited_dir
+  fi
+fi
+
 current_theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 selected_preview=""
 for extension in png jpg jpeg webp gif bmp mp4 m4v mov webm mkv avi; do

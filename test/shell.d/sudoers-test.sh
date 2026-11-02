@@ -21,6 +21,8 @@ declare -A expected=(
   [omarchy-passwd-tries]='Defaults passwd_tries=10'
   [omarchy-sudo-timeout]='Defaults timestamp_timeout=10'
   [omarchy-theme-browser]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-theme-set-browser-policy [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'
+  [omarchy-user-password]='%omarchy-child ALL=(root) NOPASSWD: /usr/bin/omarchy-user-helper password-self, /usr/bin/omarchy-user-helper adult-check'
+  [omarchy-screen-time]='%omarchy-screen-time ALL=(root) NOPASSWD: /usr/bin/omarchy-screen-time-ctl'
   [omarchy-tzupdate]='%wheel ALL=(root) NOPASSWD: /usr/bin/timedatectl ^set-timezone [A-Za-z0-9_+][A-Za-z0-9_+.-]*(/[A-Za-z0-9_+][A-Za-z0-9_+.-]*)*$'
 )
 

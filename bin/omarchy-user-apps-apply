@@ -1,0 +1,128 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Stop people running the apps on their blocked list, as root
+# omarchy:requires-sudo=true
+
+# Every package stays installed for the whole machine; each person's blocked
+# list (/etc/omarchy/blocked-apps/<user>) names desktop ids they neither see
+# nor run. Their shell hides the entries. This denies each one's program to
+# that person with an ACL that takes read and execute both, so neither running
+# it nor loading it through the dynamic linker works. A program others depend
+# on (a shell, an interpreter, env, sudo, an Omarchy launcher) is never denied,
+# so an entry that runs through one, a web app say, is hidden only.
+#
+# Run after every change to a list, and by a pacman hook after each
+# transaction, since a package upgrade replaces a program and its ACL with it.
+# What it set is recorded, so an app taken off a list, or a person deleted,
+# gets their access back.
+
+set -uo pipefail
+
+: "${APPS_BLOCKED_DIR:=/etc/omarchy/blocked-apps}"
+: "${APPS_STATE:=/var/lib/omarchy/blocked-apps/applied}"
+: "${APPS_DESKTOP_DIRS:=/usr/local/share/applications:/usr/share/applications:/usr/share/omarchy/applications}"
+: "${APPS_PROGRAM_DIRS:=/usr/local/bin:/usr/bin}"
+: "${APPS_SYSTEM_ROOTS:=/usr:/opt}"
+
+(( EUID == 0 )) || [[ -n ${APPS_TESTING:-} ]] || { echo "omarchy-user-apps-apply must run as root." >&2; exit 1; }
+
+# Desktop ids as Omarchy ships them, spaces included ("Google Messages").
+desktop_id='^[A-Za-z0-9._+ -]+$'
+
+desktop_file() {
+  local dir
+  local IFS=:
+  for dir in $APPS_DESKTOP_DIRS; do
+    [[ -f $dir/$1.desktop ]] && { echo "$dir/$1.desktop"; return 0; }
+  done
+  return 1
+}
+
+# The program the entry runs, resolved to the file on disk, or nothing when it
+# runs through something others depend on.
+entry_program() {
+  local exec word path dir
+  exec=$(awk -F= '/^\[/ { section = $0 } section == "[Desktop Entry]" && $1 == "Exec" { sub(/^Exec=/, ""); print; exit }' "$1")
+  # Past a leading env and its assignments to the program itself.
+  for word in $exec; do
+    [[ $word == "env" || $word == *=* ]] || break
+  done
+  [[ -n ${word:-} ]] || return 1
+  if [[ $word == /* ]]; then
+    path=$word
+  else
+    local IFS=:
+    for dir in $APPS_PROGRAM_DIRS; do
+      [[ -x $dir/$word ]] && { path=$dir/$word; break; }
+    done
+  fi
+  [[ -n ${path:-} ]] && path=$(readlink -f -- "$path") && [[ -f $path ]] || return 1
+  # Only a program the system installed, never a file in someone's home.
+  local root system=false
+  local IFS=:
+  for root in $APPS_SYSTEM_ROOTS; do
+    [[ $path == "$root"/* ]] && system=true
+  done
+  unset IFS
+  [[ $system == "true" ]] || return 1
+  case ${path##*/} in
+    bash | sh | dash | zsh | fish | env | sudo | pkexec | systemd-run | flatpak | xdg-open | gtk-launch | uwsm* | python* | perl* | ruby* | node | electron* | omarchy-*) return 1 ;;
+  esac
+  echo "$path"
+}
+
+# A program's own directory, where a launcher in /usr/bin often hands off to
+# the real binary (/usr/bin/chromium runs /usr/lib/chromium/chromium): denied
+# with it, or the real one runs by its full path.
+program_dirs() {
+  local name=${1##*/} root dir
+  local IFS=:
+  for root in $APPS_SYSTEM_ROOTS; do
+    for dir in "$root/lib/$name" "$root/$name"; do
+      [[ -d $dir && ! -L $dir ]] && echo "$dir"
+    done
+  done
+}
+
+# "<user> <path>" for every program a list blocks, and its own directory, once
+# each.
+desired() {
+  local list user id file program dir
+  for list in "$APPS_BLOCKED_DIR"/*; do
+    [[ -f $list ]] || continue
+    user=${list##*/}
+    getent passwd "$user" >/dev/null || continue
+    while read -r id; do
+      [[ $id =~ $desktop_id ]] || continue
+      file=$(desktop_file "$id") || continue
+      program=$(entry_program "$file") || continue
+      printf '%s %s\n' "$user" "$program"
+      for dir in $(program_dirs "$program"); do
+        printf '%s %s\n' "$user" "$dir"
+      done
+    done <"$list"
+  done | sort -u
+}
+
+mkdir -p "${APPS_STATE%/*}" || exit 1
+want=$(desired)
+had=$( [[ -f $APPS_STATE ]] && cat "$APPS_STATE" )
+status=0
+
+# Access comes back first for what is no longer blocked.
+while read -r user path; do
+  [[ -n $user ]] || continue
+  grep -qxF -- "$user $path" <<<"$want" && continue
+  [[ -e $path ]] && ! setfacl -x "u:$user" -- "$path" 2>/dev/null && getent passwd "$user" >/dev/null && status=1
+done <<<"$had"
+
+# Then every blocked program is denied again, which also restores one a
+# package upgrade replaced.
+while read -r user path; do
+  [[ -n $user ]] || continue
+  setfacl -m "u:$user:---" -- "$path" || status=1
+done <<<"$want"
+
+{ printf '%s\n' "$want" | grep -v '^$' || true; } >"$APPS_STATE.tmp" && mv -f "$APPS_STATE.tmp" "$APPS_STATE" || status=1
+exit "$status"

@@ -3,8 +3,11 @@
 # omarchy:summary=Prompt for text input from a menu
 # omarchy:group=menu
 # omarchy:name=input
-# omarchy:args=prompt [menu args...]
-# omarchy:examples=omarchy menu input Reminder|omarchy-menu-input "Reminder in minutes" --width 400
+# omarchy:args=prompt [--password] [--width <pixels>]
+# omarchy:examples=omarchy menu input Reminder|omarchy-menu-input "Reminder in minutes" --width 400|omarchy-menu-input "Your password" --password
+
+# --password shows bullets for what is typed, and the answer travels through a
+# file in the runtime directory, which only this account can read.
 
 set -euo pipefail
 
@@ -14,6 +17,7 @@ if (( $# > 0 )); then
 fi
 
 menu_width=""
+secret=0
 
 while (( $# > 0 )); do
   case "$1" in
@@ -25,12 +29,15 @@ while (( $# > 0 )); do
       fi
       menu_width="$1"
       ;;
+    --password)
+      secret=1
+      ;;
   esac
   shift
 done
 
-selection_file=$(mktemp)
-done_file=$(mktemp)
+selection_file=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}")
+done_file=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}")
 rm -f "$done_file"
 trap 'rm -f "$selection_file" "$done_file"' EXIT
 
@@ -42,8 +49,9 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json -e '
     doneFile => decode("UTF-8", $ARGV[2])
   };
   $payload->{width} = int($ARGV[3]) if length($ARGV[3] // "");
+  $payload->{secret} = JSON::PP::true if $ARGV[4];
   print encode_json($payload)
-' "$prompt" "$selection_file" "$done_file" "$menu_width")
+' "$prompt" "$selection_file" "$done_file" "$menu_width" "$secret")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 

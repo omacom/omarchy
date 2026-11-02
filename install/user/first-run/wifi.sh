@@ -44,6 +44,8 @@ announce_network() {
 
   # A fresh install from current media has nothing to update, and a toast
   # that leads nowhere teaches people to dismiss the next one.
+  # A child's account can't run an update, so it is never asked to.
+  [[ " $(id -nG) " == *" omarchy-child "* ]] && return
   update_pending && notify_update
 }
 

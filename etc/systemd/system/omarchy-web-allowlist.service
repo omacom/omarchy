@@ -1,0 +1,15 @@
+# Puts the web allowlists back at boot: the redirect, the resolvers and the
+# socket ACLs all live in memory or /run. Enabled the first time a grown-up
+# turns an allowlist on.
+[Unit]
+Description=Omarchy web allowlists
+After=systemd-resolved.service ufw.service
+Wants=systemd-resolved.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/omarchy-web-allowlist-apply
+
+[Install]
+WantedBy=multi-user.target
