@@ -547,6 +547,7 @@ Panel {
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(480))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
+    scrollOverflow: false
 
     content: PanelKeyCatcher {
       id: keyCatcher
