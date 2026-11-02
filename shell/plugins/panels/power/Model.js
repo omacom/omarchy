@@ -110,6 +110,74 @@ function profileLabel(name, tr) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+// UPower names a battery's object path after the last part of its native
+// path: BAT0 is battery_BAT0, and macsmc-battery is battery_macsmc_battery.
+function historyDevicePath(nativePath) {
+  var name = String(nativePath || "").split("/").pop()
+  if (!name) return ""
+  return "/org/freedesktop/UPower/devices/battery_" + name.replace(/[^A-Za-z0-9_]/g, "_")
+}
+
+// busctl --json=short answers GetHistory with
+// {"type":"a(udu)","data":[[[time, percentage, state], …]]}, newest first.
+// UPower writes a row with state 0 when it starts up; it marks the restart
+// and is not a reading of 0%. Returns null for a reply that isn't a history.
+function parseHistory(text) {
+  var rows
+  try {
+    rows = JSON.parse(text).data[0]
+  } catch (e) {
+    return null
+  }
+  if (!Array.isArray(rows)) return null
+
+  var entries = []
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i]
+    if (!Array.isArray(row) || row.length < 3) continue
+    var time = Number(row[0])
+    var value = Number(row[1])
+    if (!(time > 0) || Number(row[2]) === 0 || !(value >= 0 && value <= 100)) continue
+    entries.push({ time: time, value: value })
+  }
+  entries.sort(function(a, b) { return a.time - b.time })
+  return entries
+}
+
+// The charge over the last `span` seconds as a step line in 0..1 on both
+// axes (x along time, y down from full). UPower records the level only when
+// it changes, so each reading holds until the next, the line opens at the
+// level in force when the window starts, and it runs on to now at the live
+// level. Without any reading the live level holds across the whole window.
+function historyPoints(entries, now, span, current) {
+  var list = Array.isArray(entries) ? entries : []
+  var start = now - span
+  var points = []
+  function add(time, value) {
+    points.push({ x: (time - start) / span, y: (100 - Math.max(0, Math.min(100, value))) / 100 })
+  }
+
+  var level = null
+  var i = 0
+  for (; i < list.length && list[i].time <= start; i++) level = list[i].value
+  if (level !== null) add(start, level)
+  for (; i < list.length && list[i].time <= now; i++) {
+    if (level !== null) add(list[i].time, level)
+    add(list[i].time, list[i].value)
+    level = list[i].value
+  }
+
+  var live = Number(current) >= 0 ? Number(current) : level
+  if (live === null) return []
+  if (level === null) {
+    add(start, live)
+    level = live
+  }
+  add(now, level)
+  if (Math.round(live) !== Math.round(level)) add(now, live)
+  return points
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
@@ -122,6 +190,9 @@ if (typeof module !== "undefined") {
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
-    localizeReading: localizeReading
+    localizeReading: localizeReading,
+    historyDevicePath: historyDevicePath,
+    parseHistory: parseHistory,
+    historyPoints: historyPoints
   }
 }

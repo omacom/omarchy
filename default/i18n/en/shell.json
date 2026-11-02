@@ -467,6 +467,10 @@
   "power.dischargingPhrase8": "Guzzling volts",
   "power.dischargingPhrase9": "Munching reserves",
   "power.fullyCharged": "Fully charged",
+  "power.historyHours": {
+    "one": "Last hour",
+    "other": "Last %1 hours"
+  },
   "power.holding": "Holding",
   "power.onBattery": "On battery",
   "power.powerProfile": "POWER PROFILE",

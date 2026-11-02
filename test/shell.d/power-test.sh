@@ -43,4 +43,33 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
+
+assertEqual(power.historyDevicePath('BAT0'), '/org/freedesktop/UPower/devices/battery_BAT0', 'power names the battery history device')
+assertEqual(power.historyDevicePath('macsmc-battery'), '/org/freedesktop/UPower/devices/battery_macsmc_battery', 'power names a battery whose native path has dashes')
+
+const historyReply = rows => JSON.stringify({ type: 'a(udu)', data: [rows] })
+assertDeepEqual(
+  power.parseHistory(historyReply([[300, 96, 2], [200, 0, 0], [200, 98, 4], [100, 99, 4]])),
+  [{ time: 100, value: 99 }, { time: 200, value: 98 }, { time: 300, value: 96 }],
+  'power orders the history oldest first and skips the row UPower writes when it starts'
+)
+assertEqual(power.parseHistory(''), null, 'power reads a missing history reply as none')
+
+// A 100-second window ending at 1000: 80% from before it opens, 60% at 950,
+// then the live level carries the line to now.
+assertDeepEqual(
+  power.historyPoints([{ time: 800, value: 80 }, { time: 950, value: 60 }], 1000, 100, 60),
+  [{ x: 0, y: 0.2 }, { x: 0.5, y: 0.2 }, { x: 0.5, y: 0.4 }, { x: 1, y: 0.4 }],
+  'power holds each charge reading until the next and opens on the level before the window'
+)
+assertDeepEqual(
+  power.historyPoints([], 1000, 100, 75),
+  [{ x: 0, y: 0.25 }, { x: 1, y: 0.25 }],
+  'power holds the live level across a window with no readings'
+)
+assertDeepEqual(
+  power.historyPoints([{ time: 950, value: 60 }], 1000, 100, 55),
+  [{ x: 0.5, y: 0.4 }, { x: 1, y: 0.4 }, { x: 1, y: 0.45 }],
+  'power starts the line at the first reading when nothing came before it, and ends on the live level'
+)
 JS

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.UPower
@@ -203,6 +204,7 @@ Panel {
       }
 
       refresh()
+      refreshHistory()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
@@ -210,6 +212,88 @@ Panel {
   }
 
   onBatteryPresentChanged: if (!batteryPresent) close()
+
+  // ---------- Charge history ----------
+  // UPower keeps each battery's charge history on disk. The display device
+  // has none, so the chart reads the one laptop battery directly, and stays
+  // hidden on a machine with two packs rather than draw one of them.
+  readonly property int historyHours: 6
+  readonly property var historyBattery: {
+    var devices = UPower.devices.values
+    var found = null
+    for (var i = 0; i < devices.length; i++) {
+      if (!devices[i].isLaptopBattery) continue
+      if (found) return null
+      found = devices[i]
+    }
+    return found
+  }
+  property var historyPoints: []
+  property bool historyPending: false
+  readonly property bool historyVisible: historyBattery !== null && historyPoints.length > 1
+
+  function refreshHistory() {
+    if (!historyBattery) {
+      historyPoints = []
+      return
+    }
+    // A read already running may have been sent before the change this
+    // refresh is for, so run another once it finishes.
+    if (historyProc.running) {
+      historyPending = true
+      return
+    }
+    historyPending = false
+    var path = Model.historyDevicePath(historyBattery.nativePath)
+    if (!path) return
+    // A day beyond the window finds the level in force when it opens: UPower
+    // writes a row only when the level changes.
+    var span = historyHours * 3600
+    historyProc.command = ["busctl", "--json=short", "call", "org.freedesktop.UPower", path,
+      "org.freedesktop.UPower.Device", "GetHistory", "suu", "charge", String(span + 86400), "500"]
+    historyProc.running = true
+  }
+
+  function updateHistory(raw) {
+    var entries = Model.parseHistory(raw)
+    if (entries === null || !historyBattery) {
+      historyPoints = []
+      return
+    }
+    historyPoints = Model.historyPoints(entries, Date.now() / 1000, historyHours * 3600, historyBattery.percentage * 100)
+  }
+
+  // Screen coordinates for the chart: time runs with the reading direction,
+  // the line is inset by half its stroke so a full battery isn't cut off at
+  // the top, and the fill closes along the bottom edge.
+  function historyPath(points, width, height, inset, mirrored, fill) {
+    var path = []
+    for (var i = 0; i < points.length; i++) {
+      var x = (mirrored ? 1 - points[i].x : points[i].x) * width
+      path.push(Qt.point(x, inset + points[i].y * (height - inset * 2)))
+    }
+    if (fill && path.length > 0) {
+      path.push(Qt.point(path[path.length - 1].x, height))
+      path.push(Qt.point(path[0].x, height))
+    }
+    return path
+  }
+
+  Process {
+    id: historyProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateHistory(text) }
+    // Deferred: the process still reports running while it signals exit.
+    onExited: if (root.historyPending) Qt.callLater(root.refreshHistory)
+  }
+
+  // UPower writes a row on each change, so the open chart follows the same
+  // changes rather than polling.
+  Connections {
+    target: UPower.displayDevice
+    enabled: root.opened
+    function onPercentageChanged() { root.refreshHistory() }
+    function onStateChanged() { root.refreshHistory() }
+  }
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -428,6 +512,57 @@ Panel {
               NumberAnimation { from: 1.0; to: 0.55; duration: Style.duration(950); easing.type: Easing.InOutSine }
               NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
             }
+          }
+        }
+
+        // ---------- Charge history ----------
+        Column {
+          visible: root.historyVisible
+          width: parent.width
+          spacing: Style.space(6)
+
+          Shape {
+            id: historyChart
+            readonly property bool mirrored: LayoutMirroring.enabled
+            readonly property color foreground: root.bar.foreground
+            readonly property real stroke: Math.max(1, Style.spaceReal(1.5))
+            width: parent.width
+            height: Style.space(36)
+            preferredRendererType: Shape.CurveRenderer
+
+            // Fades from the line to nothing, so a battery held near full
+            // reads as a line rather than a solid block.
+            ShapePath {
+              strokeColor: "transparent"
+              fillGradient: LinearGradient {
+                x1: 0; y1: 0
+                x2: 0; y2: historyChart.height
+                GradientStop { position: 0; color: Qt.rgba(historyChart.foreground.r, historyChart.foreground.g, historyChart.foreground.b, 0.18) }
+                GradientStop { position: 1; color: Qt.rgba(historyChart.foreground.r, historyChart.foreground.g, historyChart.foreground.b, 0) }
+              }
+              PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, true) }
+            }
+
+            ShapePath {
+              strokeColor: historyChart.foreground
+              strokeWidth: historyChart.stroke
+              fillColor: "transparent"
+              joinStyle: ShapePath.RoundJoin
+              capStyle: ShapePath.RoundCap
+              PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.stroke / 2, historyChart.mirrored, false) }
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            text: Commons.I18n.tn("power.historyHours", root.historyHours).arg(Commons.I18n.formatNumber(root.historyHours)).toUpperCase()
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.letterSpacing: 1.2
+            elide: Text.ElideRight
+            width: parent.width
           }
         }
 
