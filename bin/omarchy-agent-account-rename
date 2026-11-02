@@ -19,6 +19,6 @@ if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]] || (( $# < 
 fi
 
 account=$(omarchy-agent-account-state rename "$@") || exit 1
-echo "Renamed to $(jq -r .label <<<"$account"). Switch to it with: omarchy agent account use $(jq -r .id <<<"$account")"
+echo "Renamed to $(jq -r .label <<<"$account"). Switch to it with: omarchy agent account use $1 $(jq -r .id <<<"$account")"
 # The panel reads account names from the usage record.
 omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
