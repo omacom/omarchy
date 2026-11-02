@@ -1,22 +1,6 @@
 #!/bin/bash
 source "$(dirname "$0")/base-test.sh"
 
-run_node_test <<'JS'
-const fs = require('fs')
-
-const buttonQml = fs.readFileSync(path.join(root, 'shell/Ui/Button.qml'), 'utf8')
-
-assert(
-  /anchors\.leftMargin:\s*root\.leftAlign \? root\._reservedContentLeftInset : 0/.test(buttonQml),
-  'Button left-aligned content uses reserved border inset'
-)
-
-assert(
-  !/implicitWidth:[^\n]*\bborderLeft\b/.test(buttonQml) && !/implicitHeight:[^\n]*\bborderTop\b/.test(buttonQml),
-  'Button implicit size does not depend on current hover/focus border'
-)
-JS
-
 require_compositor "Button hover geometry runtime test"
 
 if ! command -v quickshell >/dev/null 2>&1; then

@@ -15,6 +15,9 @@ T3CODE_APPIMAGE="$HOME/.local/share/t3code/T3-Code.AppImage"
 t3_cli() {
   local mount="" status=0
   t3_cli_work=$(mktemp -d)
+  # The background job creates its output file only once it runs; made here,
+  # the loop below reads it empty instead of failing on a file not there yet.
+  : >"$t3_cli_work/mount"
   "$T3CODE_APPIMAGE" --appimage-mount >"$t3_cli_work/mount" 2>/dev/null &
   t3_cli_mounter=$!
   # The runtime stays mounted until killed, and a background job ignores
