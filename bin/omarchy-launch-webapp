@@ -30,6 +30,10 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
+# Opera is Chromium-based but ignores --app= and opens the start page instead.
+# A positional URL opens a tab in the existing window, or starts Opera with that tab.
+if [[ $browser == opera* ]]; then
+  exec setsid uwsm-app -- "$browser_exec" "$1" "${@:2}"
+elif ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
   exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
 fi
