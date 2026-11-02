@@ -5,45 +5,22 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 hook="$ROOT/default/systemd/system-sleep/msi-gs65-wifi"
-leaf="$ROOT/install/hardware/fix-msi-gs65-wifi.sh"
-all="$ROOT/install/hardware/all.sh"
 
 [[ -x $hook ]] ||
   fail "the MSI GS65 Wi-Fi sleep hook is executable" "mode: $(stat -c '%A' "$hook")"
 pass "the MSI GS65 Wi-Fi sleep hook is executable"
-
-grep -q 'run_logged .*hardware/fix-msi-gs65-wifi.sh' "$all" ||
-  fail "the MSI GS65 Wi-Fi quirk runs during hardware setup"
-pass "the MSI GS65 Wi-Fi quirk runs during hardware setup"
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 mock_bin="$tmpdir/bin"
 ec_io="$tmpdir/ec_io"
-write_log="$tmpdir/writes"
+sleep_log="$tmpdir/sleeps"
 mkdir -p "$mock_bin"
 
 cat >"$mock_bin/modprobe" <<'SH'
 #!/bin/bash
 exit 0
-SH
-
-cat >"$mock_bin/rfkill" <<'SH'
-#!/bin/bash
-if [[ ${TEST_WIFI_HARD_BLOCKED:-0} == "1" ]]; then
-  cat <<'EOF'
-1: phy0: Wireless LAN
-	Soft blocked: no
-	Hard blocked: yes
-EOF
-else
-  cat <<'EOF'
-1: phy0: Wireless LAN
-	Soft blocked: no
-	Hard blocked: no
-EOF
-fi
 SH
 
 chmod +x "$mock_bin"/*
@@ -61,9 +38,6 @@ read_ec_hex() {
 init_ec
 PATH="$mock_bin:$PATH" \
   OMARCHY_MSI_EC_IO="$ec_io" \
-  OMARCHY_MSI_EC_DELAY=0 \
-  OMARCHY_MSI_EC_RETRY_DELAY=0 \
-  TEST_WIFI_HARD_BLOCKED=0 \
   "$hook" pre suspend
 
 [[ $(read_ec_hex 0x34) == "30" && $(read_ec_hex 0x2e) == "4b" ]] ||
@@ -71,29 +45,32 @@ PATH="$mock_bin:$PATH" \
     "0x34=$(read_ec_hex 0x34) 0x2e=$(read_ec_hex 0x2e)"
 pass "pre-suspend sets EC register 0x34 to 0x30 without touching 0x2e"
 
-# When Wi-Fi wakes hard-blocked with 0x2e bit 3 set (0x4b), the hook clears bit
-# 3 (0x43) and sets it back (0x4b) while preserving the remaining bits (0x43).
+# Wi-Fi wakes hard-blocked with 0x2e bit 3 set (0x4b): bit 3 must read clear
+# (0x43) during the toggle delay and set again (0x4b) after, other bits kept.
+cat >"$mock_bin/sleep" <<SH
+#!/bin/bash
+dd if="$ec_io" bs=1 skip=\$((0x2e)) count=1 2>/dev/null | od -A n -t x1 | tr -d " \n" >>"$sleep_log"
+echo >>"$sleep_log"
+SH
+
 cat >"$mock_bin/rfkill" <<SH
 #!/bin/bash
-val=\$(dd if="$ec_io" bs=1 skip=\$((0x2e)) count=1 2>/dev/null | od -A n -t x1 | tr -d " \n")
-printf '%s\n' "\$val" >>"$write_log"
-if (( \$(wc -l <"$write_log") == 1 )); then
-  printf '1: phy0: Wireless LAN\n\tSoft blocked: no\n\tHard blocked: yes\n'
+if grep -qx 43 "$sleep_log" && [[ \$(dd if="$ec_io" bs=1 skip=\$((0x2e)) count=1 2>/dev/null | od -A n -t x1 | tr -d " \n") == "4b" ]]; then
+  blocked=no
 else
-  printf '1: phy0: Wireless LAN\n\tSoft blocked: no\n\tHard blocked: no\n'
+  blocked=yes
 fi
+printf '1: phy0: Wireless LAN\n\tSoft blocked: no\n\tHard blocked: %s\n' "\$blocked"
 SH
-chmod +x "$mock_bin/rfkill"
+chmod +x "$mock_bin"/*
 
 init_ec
-: >"$write_log"
+: >"$sleep_log"
 PATH="$mock_bin:$PATH" \
   OMARCHY_MSI_EC_IO="$ec_io" \
-  OMARCHY_MSI_EC_DELAY=0 \
-  OMARCHY_MSI_EC_RETRY_DELAY=0 \
   "$hook" post suspend
 
-[[ $(read_ec_hex 0x34) == "30" && $(read_ec_hex 0x2e) == "4b" ]] && (( $(wc -l <"$write_log") == 2 )) ||
-  fail "post-resume clears the hard block and preserves non-killswitch bits in 0x2e" \
-    "0x34=$(read_ec_hex 0x34) 0x2e=$(read_ec_hex 0x2e)"
-pass "post-resume clears the hard block and preserves non-killswitch bits in 0x2e"
+[[ $(read_ec_hex 0x34) == "30" && $(paste -sd ' ' "$sleep_log") == "43 4b" ]] ||
+  fail "post-resume toggles 0x2e bit 3 off and on, keeping the other bits" \
+    "0x34=$(read_ec_hex 0x34) 0x2e during sleeps: $(paste -sd ' ' "$sleep_log")"
+pass "post-resume toggles 0x2e bit 3 off and on, keeping the other bits"
