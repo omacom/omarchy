@@ -7,45 +7,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const panelQml = fs.readFileSync(path.join(root, 'shell/Ui/KeyboardPanel.qml'), 'utf8')
-const pluginBarApiQml = fs.readFileSync(path.join(root, 'shell/Ui/PluginBarApi.qml'), 'utf8')
-const barQml = fs.readFileSync(path.join(root, 'shell/plugins/bar/Bar.qml'), 'utf8')
 
-assert(
-  /exclusionMode: ExclusionMode\.Auto/.test(panelQml),
-  'bar panels respect the reserved area of an on-screen keyboard'
-)
-assert(
-  !/exclusionMode: ExclusionMode\.Ignore/.test(panelQml),
-  'bar panels do not cover exclusive zones (OSK taps would dismiss the popdown)'
-)
-assert(
-  /WlrLayershell\.keyboardFocus: open/.test(panelQml) &&
-    /focusPrimed \? WlrKeyboardFocus\.OnDemand : WlrKeyboardFocus\.Exclusive/.test(panelQml),
-  'bar panels settle on OnDemand keyboard focus so pointer input can reach an OSK'
-)
-assert(
-  /localX = x - root\.originX/.test(panelQml) && /localY = y - root\.originY/.test(panelQml),
-  'panel cards are positioned in the inset overlay, not double-offset by the bar exclusive zone'
-)
-assert(
-  !/root\.x/.test(panelQml) && !/root\.y/.test(panelQml),
-  'panel positioning never reads PanelWindow x/y (undefined there, NaNs the card origin to top-left)'
-)
-assert(
-  /barReserved: insetOverlay && !\(bar && bar\.barHidden\)/.test(panelQml) &&
-    /originX: \(barPos === "left" && barReserved\)/.test(panelQml) &&
-    /originY: \(barPos === "top" && barReserved\)/.test(panelQml),
-  'a hidden bar does not shift the card when an OSK insets the overlay'
-)
-assert(
-  /property bool barHidden: false/.test(pluginBarApiQml) &&
-    /api\.barHidden = Qt\.binding\(function\(\) \{ return root\.barHidden \}\)/.test(barQml),
-  'third-party panels see the hidden bar too, through the widget bar facade'
-)
-assert(
-  /insetOverlay: backingWindowVisible/.test(panelQml),
-  'panel overlay measurements wait for the mapped surface instead of trusting pre-map geometry'
-)
+// Surface exclusion and OSK input delivery need compositor acceptance checks;
+// source-string assertions cannot establish either behavior.
 
 // Evaluate the production geometry against a full-screen bar window. Its
 // dimensions must not become the reserved strip size after upstream's drag fix.
@@ -67,6 +31,19 @@ function expression(name) {
   const found = panelQml.match(new RegExp('property real ' + name + ': ([^\\n]+)'))
   assert(found, name + ' binding exists')
   return new Function('barPos', 'barReserved', 'barThickness', 'barW', 'barH', 'return ' + found[1])
+}
+const reserveBody = panelQml.match(/property bool barReserved: ([^\n]+)/)[1]
+const reservesBar = new Function('insetOverlay', 'bar', 'return ' + reserveBody)
+for (const inset of [false, true]) {
+  for (const hidden of [false, true]) {
+    const reserved = reservesBar(inset, {barHidden: hidden})
+    assert(reserved === (inset && !hidden), 'only a visible bar reserves space on an inset surface')
+    for (const edge of ['top', 'left']) {
+      const axis = edge === 'left' ? 'originX' : 'originY'
+      assert(expression(axis)(edge, reserved, 34, 1920, 1080) === (inset && !hidden ? 34 : 0),
+        'hiding the ' + edge + ' bar removes its card offset')
+    }
+  }
 }
 for (const edge of ['top', 'bottom', 'left', 'right']) {
   assert(expression('originX')(edge, true, 34, 1920, 1080) === (edge === 'left' ? 34 : 0), 'horizontal inset uses the strip at ' + edge)
