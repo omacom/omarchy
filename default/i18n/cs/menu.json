@@ -90,31 +90,31 @@
     "label": "Písmo"
   },
   "appearance.top-bar": {
-    "label": "Panel"
+    "label": "Horní lišta"
   },
   "appearance.top-bar.hide": {
-    "label": "Skrýt panel"
+    "label": "Skrýt lištu"
   },
   "appearance.top-bar.show": {
-    "label": "Zobrazit panel"
+    "label": "Zobrazit lištu"
   },
   "appearance.top-bar.position": {
-    "label": "Poloha panelu"
+    "label": "Poloha lišty"
   },
   "appearance.top-bar.background": {
-    "label": "Pozadí panelu"
+    "label": "Pozadí lišty"
   },
   "appearance.top-bar.background.opaque": {
-    "label": "Neprůhledný panel"
+    "label": "Neprůhledná lišta"
   },
   "appearance.top-bar.background.glassy": {
-    "label": "Skleněný panel"
+    "label": "Skleněná lišta"
   },
   "appearance.top-bar.background.clear": {
-    "label": "Průhledný panel"
+    "label": "Průhledná lišta"
   },
   "appearance.top-bar.indicators": {
-    "label": "Ukazatele panelu"
+    "label": "Ukazatele lišty"
   },
   "appearance.top-bar.indicators.clock": {
     "label": "Hodiny"
@@ -162,16 +162,16 @@
     "label": "14 30"
   },
   "appearance.top-bar.position.top": {
-    "label": "Panel nahoře"
+    "label": "Lišta nahoře"
   },
   "appearance.top-bar.position.bottom": {
-    "label": "Panel dole"
+    "label": "Lišta dole"
   },
   "appearance.top-bar.position.left": {
-    "label": "Panel vlevo"
+    "label": "Lišta vlevo"
   },
   "appearance.top-bar.position.right": {
-    "label": "Panel vpravo"
+    "label": "Lišta vpravo"
   },
   "appearance.windows.corners": {
     "label": "Rohy oken"
@@ -1176,10 +1176,10 @@
     "label": "Animace vypnuté"
   },
   "trigger.toggle.idle-lock-on": {
-    "label": "Zůstat vzhůru"
+    "label": "Nezamykat při nečinnosti"
   },
   "trigger.toggle.idle-lock-off": {
-    "label": "Povolit spánek"
+    "label": "Zamykat při nečinnosti"
   },
   "trigger.toggle.notifications-on": {
     "label": "Oznámení zapnutá"
@@ -1200,10 +1200,10 @@
     "label": "Spořič obrazovky vypnutý"
   },
   "trigger.toggle.crash-capture-on": {
-    "label": "Zachytávání pádů zapnuté"
+    "label": "Zachytávání pádů zapnuto"
   },
   "trigger.toggle.crash-capture-off": {
-    "label": "Vypnout záznam pádů"
+    "label": "Zachytávání pádů vypnuto"
   },
   "trigger.hardware.laptop-display-on": {
     "label": "Zapnout displej notebooku"

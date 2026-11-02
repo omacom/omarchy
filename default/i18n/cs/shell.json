@@ -99,7 +99,7 @@
   "agents.signInIntro": "Přihlaste se k předplatnému AI asistenta a panel ukáže, kolik vám ještě zbývá.",
   "agents.signInRequired": "Vyžadováno přihlášení",
   "agents.signInUnfinished": "Přihlášení nebylo dokončeno.",
-  "agents.startOnNew": "Spustit výchozího agenta na novém projektu (%1)",
+  "agents.startOnNew": "Spustit výchozího agenta (nový: %1)",
   "agents.starting": "Spouštění…",
   "agents.stopAutoSwitch": "Zastavit automatické přepínání",
   "agents.subscriptions": "Předplatná",
