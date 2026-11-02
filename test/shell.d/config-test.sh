@@ -488,3 +488,6 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
+
+[[ $(stat -c '%a' "$TMPDIR/home/.config/omarchy/shell.json") == "600" ]] || fail "shell refresh enforces mode 0600 on shell.json"
+pass "shell refresh enforces mode 0600 on shell.json"
