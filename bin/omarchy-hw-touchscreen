@@ -1,6 +1,19 @@
 #!/bin/bash
 
-# omarchy:summary=Print the detected Hyprland touchscreen or tablet device name
+# omarchy:summary=Print detected Hyprland touchscreen device names, or the tablet name
 
-device=$(hyprctl devices -j | jq -r '[.touch[]?.name, .tablets[]?.name] | first // empty')
-[[ -n $device ]] && echo "$device"
+# Dual-screen machines (Zenbook Duo and similar) expose one touch device per
+# panel. Print every name, one per line, so omarchy-toggle-input-device can
+# disable them together. Without a touch device, fall back to the first tablet
+# entry as before.
+devices=$(hyprctl devices -j | jq -r '
+  (.touch // [] | map(.name) | map(select(. != null and . != ""))) as $touch
+  | if ($touch | length) > 0 then $touch[]
+    else [.tablets[]?.name] | first // empty
+    end
+')
+if [[ -n $devices ]]; then
+  printf '%s\n' "$devices"
+else
+  exit 1
+fi
