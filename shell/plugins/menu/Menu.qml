@@ -1274,6 +1274,7 @@ Item {
     id: panel
     shown: root.opened && root.rowsLoaded
     WlrLayershell.namespace: "omarchy-menu"
+    onDismissRequested: root.cancel()
 
     // The card opens centered exactly as always. The first search keystroke
     // or submenu move freezes the top line where it currently sits — from
