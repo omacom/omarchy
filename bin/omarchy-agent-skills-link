@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# omarchy:summary=Link Omarchy's agent skills where each installed coding agent reads them
+# omarchy:args=[agent...]
+# omarchy:hidden=true
+
+# Every shipped skill is linked into ~/.agents/skills, the folder most agents
+# read, and into the own skills folder of each agent that does not read it,
+# as default/agents/registry records. Links Omarchy wrote earlier into folders
+# no longer wanted are removed; anything a user put there stays. Safe to run
+# any number of times. Dependency-free on purpose: provisioning and the
+# quattro upgrade run it before the rest of Omarchy is on PATH.
+#
+# With agent names, only those agents' folders are touched, for the moment
+# one of them is installed; ~/.agents/skills is refreshed either way.
+
+set -euo pipefail
+
+registry="$OMARCHY_PATH/default/agents/registry"
+skills_source="$OMARCHY_PATH/default/agents/skills"
+shared="$HOME/.agents/skills"
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+only=("$@")
+
+default_agent=""
+if [[ -f $config_home/omarchy/defaults/agent ]]; then
+  read -r default_agent <"$config_home/omarchy/defaults/agent" || true
+fi
+
+# A home from the registry, with ~ and the XDG config home expanded.
+expand_home() {
+  case $1 in
+    "~/.config/"*) printf '%s\n' "$config_home/${1#\~/.config/}" ;;
+    "~/"*) printf '%s\n' "$HOME/${1#\~/}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+# mise puts a shim on PATH for every agent Omarchy offers, and
+# omarchy-mise-install a wrapper that installs on first run, so a command on
+# PATH says nothing until mise confirms the tool is there. Anything else on
+# PATH is the user's own install.
+agent_installed() {
+  local path
+  path=$(type -P -- "$1") || return 1
+  if [[ $(readlink -f -- "$path") == */mise ]] || grep -qaE 'mise (use|x) ' < <(head -c 4096 -- "$path" 2>/dev/null); then
+    mise which "$1" >/dev/null 2>&1
+  else
+    return 0
+  fi
+}
+
+# An agent gets links into its own folder once it is installed, once it has
+# a home folder (it was used, or an earlier Omarchy already linked there), or
+# as the selected default agent, which omarchy-default-agent installs.
+wants_own_links() {
+  [[ $1 == "$default_agent" || -d $2 ]] || agent_installed "$1"
+}
+
+# A link Omarchy wrote: it points into a default/agents/skills directory, of
+# this checkout or of an earlier install location.
+omarchy_link() {
+  [[ -L $1 && $(readlink -- "$1") == */default/agents/skills/* ]]
+}
+
+# Some people point an agent's folder at ~/.agents/skills by hand, or the
+# other way round. Through such a link, an agent's folder holds the shared
+# links themselves, so it is neither filled again nor emptied.
+same_as_shared() {
+  [[ -e $1 && -e $shared && $(readlink -f -- "$1") == "$(readlink -f -- "$shared")" ]]
+}
+
+link_skills_into() {
+  local dir=$1 skill name entry
+
+  if [[ $dir != "$shared" ]] && same_as_shared "$dir"; then
+    return 0
+  fi
+  # A dangling link where the folder should be is the user's to sort out.
+  if [[ -L $dir && ! -e $dir ]]; then
+    return 0
+  fi
+  mkdir -p -- "$dir"
+  for skill in "$skills_source"/*/; do
+    skill=${skill%/}
+    name=${skill##*/}
+    # A real directory of that name is the user's own skill and stays; a link
+    # is Omarchy's to repoint.
+    [[ -e $dir/$name && ! -L $dir/$name ]] && continue
+    ln -sfn -- "$skill" "$dir/$name"
+  done
+  # A link to a skill no longer shipped.
+  for entry in "$dir"/*; do
+    if omarchy_link "$entry" && [[ ! -e $entry ]]; then
+      rm -f -- "$entry"
+    fi
+  done
+}
+
+unlink_skills_from() {
+  local dir=$1 entry removed=0
+
+  [[ -d $dir ]] || return 0
+  same_as_shared "$dir" && return 0
+  for entry in "$dir"/*; do
+    if omarchy_link "$entry"; then
+      rm -f -- "$entry"
+      removed=1
+    fi
+  done
+  # Only a folder Omarchy emptied is removed; an empty one of the user's stays,
+  # and so does one with anything else in it.
+  if (( removed )); then
+    rmdir -- "$dir" 2>/dev/null || true
+  fi
+}
+
+selected() {
+  local wanted
+
+  (( ${#only[@]} == 0 )) && return 0
+  for wanted in "${only[@]}"; do
+    [[ $wanted == "$1" ]] && return 0
+  done
+  return 1
+}
+
+link_skills_into "$shared"
+
+while read -r agent variable home reads_shared; do
+  [[ -z $agent || $agent == \#* ]] && continue
+  selected "$agent" || continue
+  [[ $home == "-" ]] && continue
+
+  if [[ $variable != "-" && -n ${!variable:-} ]]; then
+    home=${!variable}
+  else
+    home=$(expand_home "$home")
+  fi
+
+  # Hermes loads a profile's skills from the profile, not from the root home.
+  profiles=()
+  if [[ $agent == "hermes" ]]; then
+    for profile in "$home"/profiles/*/; do
+      [[ -d $profile ]] && profiles+=("${profile%/}/skills")
+    done
+  fi
+
+  if [[ $reads_shared == "no" ]] && wants_own_links "$agent" "$home"; then
+    link_skills_into "$home/skills"
+    for dir in "${profiles[@]}"; do
+      link_skills_into "$dir"
+    done
+  else
+    unlink_skills_from "$home/skills"
+    for dir in "${profiles[@]}"; do
+      unlink_skills_from "$dir"
+    done
+  fi
+done <"$registry"

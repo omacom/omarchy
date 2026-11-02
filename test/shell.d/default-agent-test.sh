@@ -958,3 +958,22 @@ for agent in cursor-agent muse claude kiro-cli devin amp dsh hermes; do
   rm "$test_home/.local/bin/$agent" "$lazy_shims/$agent"
 done
 pass "agent launcher runs user-installed agents ahead of native lazy shims"
+
+# default/agents/registry says where each agent reads skills. A line for an
+# agent the selector does not offer, or an offered agent with no line, leaves
+# omarchy-agent-skills-link and this command disagreeing about the agents.
+registry="$ROOT/default/agents/registry"
+offered=$(grep -oE 'agent="[a-z-]+"' "$ROOT/bin/omarchy-default-agent" | sed -E 's/agent="([a-z-]+)"/\1/' | sort -u)
+listed=$(grep -vE '^\s*(#|$)' "$registry" | awk '{print $1}' | sort -u)
+missing=$(comm -23 <(echo "$offered") <(echo "$listed"))
+[[ -z $missing ]] || fail "every agent the selector offers has a skills registry line" "missing: $missing"
+extra=$(comm -13 <(echo "$offered") <(echo "$listed"))
+[[ -z $extra ]] || fail "every skills registry line names an agent the selector offers" "unknown: $extra"
+while read -r agent variable home reads_shared rest; do
+  [[ -z $agent || $agent == \#* ]] && continue
+  [[ -z $rest ]] || fail "a skills registry line has four columns" "$agent: $rest"
+  [[ $variable == "-" || $variable =~ ^[A-Z][A-Z0-9_]*$ ]] || fail "the registry's home variable is a variable name or -" "$agent: $variable"
+  [[ $home == "-" || $home == "~/"* ]] || fail "the registry's home is under ~ or -" "$agent: $home"
+  [[ $reads_shared == "yes" || $reads_shared == "no" ]] || fail "the registry's reads-agents-skills is yes or no" "$agent: $reads_shared"
+done <"$registry"
+pass "the skills registry names the agents the selector offers, one well-formed line each"

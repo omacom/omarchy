@@ -154,6 +154,10 @@ fi
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
+# Now the default, so its skill folder gets Omarchy's skills at once rather
+# than at the next update.
+omarchy-agent-skills-link "$agent"
+
 if [[ $installing == "true" ]]; then
   printf '\033[2J\033[3J\033[H'
   exec omarchy-agent --inline
