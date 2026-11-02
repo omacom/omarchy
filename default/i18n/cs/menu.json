@@ -90,7 +90,7 @@
     "label": "Písmo"
   },
   "appearance.top-bar": {
-    "label": "Horní lišta"
+    "label": "Lišta"
   },
   "appearance.top-bar.hide": {
     "label": "Skrýt lištu"
@@ -570,7 +570,7 @@
     "label": "Přímé spuštění"
   },
   "setup.reset": {
-    "label": "Reset počítače"
+    "label": "Obnovit počítač"
   },
   "install.package": {
     "label": "Balíček"
@@ -1155,55 +1155,55 @@
     "label": "Okna"
   },
   "appearance.windows.gaps-on": {
-    "label": "Mezery oken zapnuté"
+    "label": "Zapnout mezery oken"
   },
   "appearance.windows.gaps-off": {
-    "label": "Mezery oken vypnuté"
+    "label": "Vypnout mezery oken"
   },
   "appearance.windows.one-window-ratio-on": {
-    "label": "Poměr 1 okna zapnutý"
+    "label": "Zapnout poměr 1 okna"
   },
   "appearance.windows.one-window-ratio-off": {
-    "label": "Poměr 1 okna vypnutý"
+    "label": "Vypnout poměr 1 okna"
   },
   "appearance.branding": {
     "label": "Branding"
   },
   "appearance.animations-on": {
-    "label": "Animace zapnuté"
+    "label": "Zapnout animace"
   },
   "appearance.animations-off": {
-    "label": "Animace vypnuté"
+    "label": "Vypnout animace"
   },
   "trigger.toggle.idle-lock-on": {
-    "label": "Nezamykat při nečinnosti"
+    "label": "Vypnout zamykání a spořič"
   },
   "trigger.toggle.idle-lock-off": {
-    "label": "Zamykat při nečinnosti"
+    "label": "Zapnout zamykání a spořič"
   },
   "trigger.toggle.notifications-on": {
-    "label": "Oznámení zapnutá"
+    "label": "Zapnout oznámení"
   },
   "trigger.toggle.notifications-off": {
     "label": "Ztišit oznámení"
   },
   "trigger.toggle.nightlight-on": {
-    "label": "Noční světlo zapnuté"
+    "label": "Zapnout noční světlo"
   },
   "trigger.toggle.nightlight-off": {
-    "label": "Noční světlo vypnuté"
+    "label": "Vypnout noční světlo"
   },
   "trigger.toggle.screensaver-on": {
-    "label": "Spořič obrazovky zapnutý"
+    "label": "Zapnout spořič obrazovky"
   },
   "trigger.toggle.screensaver-off": {
-    "label": "Spořič obrazovky vypnutý"
+    "label": "Vypnout spořič obrazovky"
   },
   "trigger.toggle.crash-capture-on": {
-    "label": "Zachytávání pádů zapnuté"
+    "label": "Zapnout zachytávání pádů"
   },
   "trigger.toggle.crash-capture-off": {
-    "label": "Zachytávání pádů vypnuté"
+    "label": "Vypnout zachytávání pádů"
   },
   "trigger.hardware.laptop-display-on": {
     "label": "Zapnout displej notebooku"
