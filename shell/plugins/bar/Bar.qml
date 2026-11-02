@@ -1585,17 +1585,22 @@ Item {
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
       root.position,
-      // layout-modes: the pill sits a margin in from the edge, so sample the
-      // band that covers it (equal to barSize in classic).
-      String(root.thicknessFor(null)),
+      String(root.layoutThickness),
       colorHex(root.themeForeground),
       colorHex(root.themeContrastForeground)
     ]
     transparentForegroundProc.running = true
   }
 
+  // layout-modes: the pill sits a margin in from the edge, so the clear bar's
+  // text color samples the band that covers it (equal to barSize in classic).
+  // Switching layout or margin moves that band, so a change schedules a new
+  // sample rather than keeping the color picked for the old one.
+  readonly property real layoutThickness: root.thicknessFor(null)
+
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onLayoutThicknessChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -2032,7 +2037,9 @@ Item {
         readonly property bool runOn: barWindow.centerBesideRight || isPacked || isSplit
         readonly property real pad: lm.padding >= 0 ? lm.padding : Style.space(8)
         // Left and right modules sit this far in from the edge of their pill.
-        readonly property real edgeMargin: (isPacked || isSplit) ? pad : Style.space(8)
+        // Every mode honors `padding`; classic always carries -1, so it keeps
+        // the theme's own Style.space(8) inset.
+        readonly property real edgeMargin: pad
         readonly property real insetTop: root.position === "bottom" ? lm.halo : lm.margin
         readonly property real insetBottom: root.position === "bottom" ? lm.margin : lm.halo
         readonly property real insetSide: lm.margin
@@ -2167,7 +2174,9 @@ Item {
         readonly property bool runOn: isPacked || isSplit
         readonly property real pad: lm.padding >= 0 ? lm.padding : Style.space(8)
         // Top and bottom modules sit this far in from the end of their pill.
-        readonly property real edgeMargin: (isPacked || isSplit) ? pad : Style.space(8)
+        // Every mode honors `padding`; classic always carries -1, so it keeps
+        // the theme's own Style.space(8) inset.
+        readonly property real edgeMargin: pad
         // The margin sits on the screen-edge side, the shadow halo on the
         // side facing the windows.
         readonly property real insetLeft: root.position === "right" ? lm.halo : lm.margin
