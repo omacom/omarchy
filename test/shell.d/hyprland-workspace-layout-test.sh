@@ -21,6 +21,11 @@ if [[ $1 == "activeworkspace" && -n $HYPRCTL_BROKEN ]]; then
   printf '{}\n'
 elif [[ $1 == "activeworkspace" ]]; then
   printf '{"id":%s,"tiledLayout":"%s"}\n' "${HYPRCTL_WS_ID:-3}" "${HYPRCTL_TILED_LAYOUT:-dwindle}"
+elif [[ $1 == "monitors" ]]; then
+  printf '%s\n' "${HYPRCTL_MONITORS:-[{\"focused\":true,\"specialWorkspace\":{\"id\":0,\"name\":\"\"}}]}"
+elif [[ $1 == "workspaces" ]]; then
+  printf '[{"id":3,"name":"3","tiledLayout":"%s"},{"id":-99,"name":"special:%s","tiledLayout":"%s"}]\n' \
+    "${HYPRCTL_TILED_LAYOUT:-dwindle}" "${HYPRCTL_SPECIAL_NAME:-scratchpad}" "${HYPRCTL_SPECIAL_LAYOUT:-dwindle}"
 else
   printf '%s\n' "$*" >>"$HYPRCTL_LOG"
 
@@ -500,3 +505,96 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# A special workspace open on the focused monitor is what the user is looking
+# at, but hyprctl activeworkspace only reports the regular workspace underneath
+# it. A toggle with the scratchpad open has to reach the scratchpad by its
+# "special:name" reference instead of the workspace hiding behind it.
+special_monitors='[{"focused":true,"specialWorkspace":{"id":0,"name":"special:scratchpad"}}]'
+special_file="$home_dir/.local/state/omarchy/workspace-layouts/special:scratchpad.lua"
+
+run_current() {
+  env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
+    HYPRCTL_LOG="$log_file" NOTIFICATION_LOG="$notification_log" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-current" "$@"
+}
+
+rm -f "$layout_file" "$special_file"
+: >"$log_file"
+toggle HYPRCTL_MONITORS="$special_monitors" HYPRCTL_SPECIAL_LAYOUT=dwindle
+[[ -f $special_file ]] || fail "a toggle under an open special workspace saves the special workspace's mode"
+if ! grep -Fx 'eval o.workspace_mode({ workspace = "special:scratchpad", mode = "scrolling" })' "$log_file" >/dev/null; then
+  fail "a toggle under an open special workspace applies to the special workspace" "$(cat "$log_file")"
+fi
+if grep -q 'workspace = "3"' "$log_file"; then
+  fail "a toggle under an open special workspace leaves the workspace underneath it alone" "$(cat "$log_file")"
+fi
+pass "a toggle under an open special workspace reaches the special workspace"
+
+# The saved file is what the next press reads its mode back from, and
+# omarchy-hyprland-workspace-layout-current finds a special workspace by name
+# where the bar and the dock find regular ones by id.
+[[ $(run_current special:scratchpad) == "scrolling" ]] ||
+  fail "the current mode of a special workspace is read back by name" "got: $(run_current special:scratchpad)"
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+[[ $(run_current special:scratchpad) == "scrolling" ]] ||
+  fail "a special workspace's mode is read from its own file, not a regular workspace's" "got: $(run_current special:scratchpad)"
+[[ $(run_current 3) == "floating" ]] ||
+  fail "a regular workspace's mode still reads back by id" "got: $(run_current 3)"
+rm -f "$layout_file"
+pass "the current mode of a special workspace is read back by name"
+
+# Floating is Omarchy's own machinery over regular workspaces, and it leaves the
+# windows of special ones alone, so the cycle there is the two tiled layouts:
+# from scrolling the next press lands on dwindle, not on floating.
+: >"$log_file"
+toggle HYPRCTL_MONITORS="$special_monitors"
+[[ ! -e $special_file ]] || fail "a special workspace cycles back to dwindle, the default" "saved: $(cat "$special_file")"
+if ! grep -Fx 'eval o.workspace_mode({ workspace = "special:scratchpad", mode = "dwindle" })' "$log_file" >/dev/null; then
+  fail "the second press under a special workspace lands on dwindle" "$(cat "$log_file")"
+fi
+if grep -q 'mode = "floating"' "$log_file"; then
+  fail "a special workspace is never cycled onto floating" "$(cat "$log_file")"
+fi
+pass "a special workspace cycles between the tiled layouts only"
+
+# And the cycle walks backwards through the same two.
+: >"$log_file"
+env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
+  HYPRCTL_LOG="$log_file" NOTIFICATION_LOG="$notification_log" \
+  HYPRCTL_MONITORS="$special_monitors" \
+  PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-toggle" back
+[[ $(sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$special_file" 2>/dev/null) == "scrolling" ]] ||
+  fail "back from dwindle a special workspace goes to scrolling"
+pass "a special workspace cycles backwards through the tiled layouts"
+
+# A special workspace name that cannot safely name a state file is left alone
+# like a named one: a slash escapes the state directory, a dot breaks the
+# require that loads the file on reload, and a quote or a backslash breaks the
+# Lua string the mode is applied with.
+for unsafe_name in 'special:../evil' 'special:notes.work' 'special:notes"today' 'special:notes\today'; do
+  : >"$log_file"
+  unsafe_monitors=$(jq -cn --arg name "$unsafe_name" '[{focused: true, specialWorkspace: {id: 0, name: $name}}]')
+  if toggle HYPRCTL_MONITORS="$unsafe_monitors" 2>/dev/null; then
+    fail "a special workspace whose name cannot name a state file is refused" "$unsafe_name"
+  fi
+  if grep -q workspace_mode "$log_file"; then
+    fail "a refused special workspace applies nothing" "$unsafe_name: $(cat "$log_file")"
+  fi
+done
+if [[ -e $home_dir/.local/state/omarchy/evil.lua ]] || compgen -G "$home_dir/.local/state/omarchy/workspace-layouts/special:notes*" >/dev/null; then
+  fail "a refused special workspace writes no state file"
+fi
+pass "a special workspace with an unsafe name is left alone"
+
+# A floating default never reaches special workspaces, so one without a mode of
+# its own reports the tiled layout Hyprland shows on it rather than floating;
+# otherwise a scrolling scratchpad would be toggled onto scrolling again.
+rm -f "$special_file"
+printf 'o.workspace_mode({ default = "floating" })\n' >"$home_dir/.local/state/omarchy/workspace-layouts/default.lua"
+current=$(HYPRCTL_SPECIAL_LAYOUT=scrolling run_current special:scratchpad)
+[[ $current == "scrolling" ]] ||
+  fail "a special workspace without a mode reports its live tiled layout" "got: $current"
+rm -f "$home_dir/.local/state/omarchy/workspace-layouts/default.lua"
+pass "a special workspace without a mode ignores a floating default"
+
