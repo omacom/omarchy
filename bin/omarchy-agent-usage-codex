@@ -40,6 +40,7 @@ from collectors import (  # noqa: E402
   codex_scan_match,
   emit,
   find_command,
+  find_installed_command,
   jwt_claims,
   now_ms,
   number,
@@ -86,52 +87,6 @@ def model_name(raw):
 
 
 ENV = runtime_env()
-
-
-def mise_shims_dir():
-  data_home = ENV.get("MISE_DATA_DIR") or os.path.join(
-    ENV.get("XDG_DATA_HOME") or os.path.join(str(Path.home()), ".local", "share"), "mise")
-  return os.path.join(data_home, "shims")
-
-
-def is_lazy_launcher(path):
-  # omarchy-mise-install writes a regular file whose first step is `mise use
-  # -g`, and mise's shims exec `mise x`; running either installs the tool it
-  # wraps. A shim is a symlink to the mise binary itself, so the symlink
-  # check comes after the shim checks: a symlink elsewhere is the user's own
-  # binary.
-  if os.path.dirname(os.path.abspath(path)) == mise_shims_dir():
-    return True
-  if os.path.islink(path):
-    mise = find_command("mise")
-    return bool(mise) and os.path.realpath(path) == os.path.realpath(mise)
-  try:
-    with open(path, "rb") as handle:
-      head = handle.read(4096)
-    return b"mise use" in head or b"mise x " in head
-  except OSError:
-    return False
-
-
-def find_codex_binary():
-  for directory in ENV.get("PATH", "").split(os.pathsep):
-    candidate = os.path.join(directory, "codex")
-    if os.path.isfile(candidate) and os.access(candidate, os.X_OK) and not is_lazy_launcher(candidate):
-      return candidate
-  # `mise which` only prints a binary that is already installed, so it is the
-  # safe way to resolve a codex managed by mise without running the launcher.
-  # `mise which` can resolve a configured `latest` over the network; the usage
-  # probe stays offline.
-  mise = find_command("mise")
-  if mise:
-    try:
-      out = subprocess.run([mise, "which", "codex"], capture_output=True, text=True, env=dict(ENV, MISE_OFFLINE="1"), timeout=10)
-      resolved = out.stdout.strip()
-      if out.returncode == 0 and os.path.isfile(resolved) and not is_lazy_launcher(resolved):
-        return resolved
-    except Exception:
-      pass
-  return None
 
 
 
@@ -550,7 +505,7 @@ def home_env(home=None, primary=True):
 def fetch_codex_rpc(home=None, primary=True):
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
   env = home_env(home, primary)
-  codex = find_codex_binary()
+  codex = find_installed_command("codex")
   if not codex:
     result["usageStatusText"] = "Codex limits unavailable"
     result["authHelpText"] = "codex not found in PATH"
@@ -794,7 +749,7 @@ def account_limits(account, force):
 def codex_in_use(stats):
   return (
     bool(find_command("codex"))
-    or bool(find_codex_binary())
+    or bool(find_installed_command("codex"))
     or codex_home().exists()
     or bool(ENV.get("CODEX_ACCESS_TOKEN"))
     or number(stats.get("totalSessions")) > 0
