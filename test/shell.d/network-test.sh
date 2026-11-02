@@ -47,6 +47,12 @@ assertDeepEqual(
 )
 assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'network maps wifi icon from signal')
 
+// NetworkManager reports scan strength in noisy 20% buckets: the same healthy
+// 5GHz link can flap between 95 and 74-76. Keep full bars across that range.
+assertEqual(network.wifiIconFor(76), network.wifiIconFor(95), 'network keeps full bars at an excellent signal NM reports as 76')
+assertEqual(network.wifiIconFor(61), network.wifiIconFor(100), 'network keeps full bars just above 60')
+assert(network.wifiIconFor(59) !== network.wifiIconFor(100), 'network drops below full bars under 60')
+
 // OWE transition mode: between scans NetworkManager files the in-use access
 // point under the hidden "_owetm_" SSID and drops the active profile from the
 // device's AvailableConnections, so Quickshell lists no connected network. The
