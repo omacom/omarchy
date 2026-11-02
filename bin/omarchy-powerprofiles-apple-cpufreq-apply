@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=Apply power profile CPU caps when apple-cpufreq cannot toggle boost
+# omarchy:args=power-saver|balanced|performance
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Whenever this runs as root — invoked directly through the passwordless
+# sudoers rule, or re-execed by require_root below — sudo's secure_path decides
+# where a bare helper resolves, and a dev link (etc/sudoers.d/omarchy-dev-path)
+# prepends a user-writable checkout bin/ to it. Every helper this script calls
+# by bare name (getent, mv, printf) is a system tool, never an omarchy-* command,
+# so pin PATH to trusted system directories and keep root from resolving one out
+# of that checkout. The unprivileged wrapper phase keeps the caller's PATH so it
+# can still find sudo/pkexec.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+PACKAGED_PATH=/usr/bin/omarchy-powerprofiles-apple-cpufreq-apply
+
+pick_cap_hz() {
+  local max_hz=$1 pct=$2 freqs
+  freqs=$(cat "$3/scaling_available_frequencies" 2>/dev/null) || return 1
+  local target=$((max_hz * pct / 100))
+  local best=0 f
+  for f in $freqs; do
+    (( f <= target && f > best )) && best=$f
+  done
+  if (( best == 0 )); then
+    read -r best _ <<<"$freqs"
+  fi
+  printf '%s\n' "$best"
+}
+
+cap_pct_for_profile() {
+  case $1 in
+    performance) echo 100 ;;
+    balanced) echo 85 ;;
+    power-saver) echo 60 ;;
+    *) return 1 ;;
+  esac
+}
+
+sudo_grants_passwordless() {
+  sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
+}
+
+require_root() {
+  if (( EUID == 0 )); then
+    return
+  elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
+    exec sudo "$PACKAGED_PATH" "$@"
+  else
+    exec pkexec "$PACKAGED_PATH" "$@"
+  fi
+}
+
+usage() {
+  echo "Usage: omarchy-powerprofiles-apple-cpufreq-apply power-saver|balanced|performance" >&2
+}
+
+if (( $# != 1 )); then
+  usage
+  exit 1
+fi
+
+profile=$1
+case $profile in
+  power-saver | balanced | performance) ;;
+  *)
+    echo "omarchy-powerprofiles-apple-cpufreq-apply: unknown profile '$profile'" >&2
+    exit 1
+    ;;
+esac
+
+require_root "$profile"
+
+if [[ $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver 2>/dev/null) != apple-cpufreq ]]; then
+  echo "omarchy-powerprofiles-apple-cpufreq-apply: scaling driver is not apple-cpufreq" >&2
+  exit 1
+fi
+
+pct=$(cap_pct_for_profile "$profile") || exit 1
+
+for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+  [[ -r $policy/cpuinfo_max_freq ]] || continue
+  max_hz=$(<"$policy/cpuinfo_max_freq")
+  min_hz=$(<"$policy/cpuinfo_min_freq")
+  cap_hz=$(pick_cap_hz "$max_hz" "$pct" "$policy")
+  printf '%s\n' "$min_hz" >"$policy/scaling_min_freq"
+  printf '%s\n' "$cap_hz" >"$policy/scaling_max_freq"
+done
+
+state_user=${SUDO_USER:-${USER:-$(id -un)}}
+state_home=$(getent passwd "$state_user" | cut -d: -f6)
+state_dir=${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$state_home/.local/state}/omarchy/powerprofiles}
+install -d -o "$state_user" -g "$state_user" -m 0755 "$state_dir" 2>/dev/null || mkdir -p "$state_dir"
+state_file=$state_dir/apple-cpufreq-active
+printf '%s\n' "$profile" >"$state_file.new"
+chown "$state_user:" "$state_file.new" 2>/dev/null || true
+mv -f "$state_file.new" "$state_file"
+chown "$state_user:" "$state_file" 2>/dev/null || true

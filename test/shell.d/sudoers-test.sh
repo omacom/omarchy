@@ -19,6 +19,7 @@ declare -A expected=(
   [omarchy-dns]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-dns Cloudflare, /usr/bin/omarchy-dns Google, /usr/bin/omarchy-dns DHCP'
   [omarchy-locale-generate]="%wheel ALL=(root) NOPASSWD: $(jq -r 'keys | sort | map("/usr/bin/omarchy-locale-generate " + .) | join(", ")' "$registry")"
   [omarchy-passwd-tries]='Defaults passwd_tries=10'
+  [omarchy-powerprofiles-apple-cpufreq]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply power-saver, /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply balanced, /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply performance'
   [omarchy-sudo-timeout]='Defaults timestamp_timeout=10'
   [omarchy-theme-browser]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-theme-set-browser-policy [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'
   [omarchy-tzupdate]='%wheel ALL=(root) NOPASSWD: /usr/bin/timedatectl ^set-timezone [A-Za-z0-9_+][A-Za-z0-9_+.-]*(/[A-Za-z0-9_+][A-Za-z0-9_+.-]*)*$'
@@ -296,6 +297,9 @@ omarchy-dns|omarchy-dns|DHCP|sudo /usr/bin/omarchy-dns DHCP
 omarchy-dns|omarchy-dns|cloudflare|sudo /usr/bin/omarchy-dns Cloudflare
 omarchy-dns|omarchy-dns|Custom|pkexec /usr/bin/omarchy-dns Custom
 omarchy-theme-browser|omarchy-theme-set-browser-policy|1c2027|sudo /usr/bin/omarchy-theme-set-browser-policy 1c2027
+omarchy-powerprofiles-apple-cpufreq|omarchy-powerprofiles-apple-cpufreq-apply|balanced|sudo /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply balanced
+omarchy-powerprofiles-apple-cpufreq|omarchy-powerprofiles-apple-cpufreq-apply|performance|sudo /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply performance
+omarchy-powerprofiles-apple-cpufreq|omarchy-powerprofiles-apple-cpufreq-apply|power-saver|sudo /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply power-saver
 ROWS
 pass "helpers take the passwordless sudo grant where it reaches and polkit elsewhere"
 
@@ -317,4 +321,7 @@ for bad in Quad9 "Cloudflare;id" "Cloudflare Google"; do
   expect_rejected omarchy-dns omarchy-dns "$bad"
 done
 expect_rejected omarchy-dns omarchy-dns Cloudflare Google
+for bad in invalid turbo performancex "power-saver balanced"; do
+  expect_rejected omarchy-powerprofiles-apple-cpufreq omarchy-powerprofiles-apple-cpufreq-apply "$bad"
+done
 pass "helpers reject malformed arguments before elevating"

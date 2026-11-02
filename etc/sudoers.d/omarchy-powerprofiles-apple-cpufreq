@@ -1,0 +1,3 @@
+# Apple Silicon: power-profiles-daemon toggles cpufreq boost, which apple-cpufreq
+# rejects. Omarchy caps scaling_max_freq per profile instead, from the shell.
+%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply power-saver, /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply balanced, /usr/bin/omarchy-powerprofiles-apple-cpufreq-apply performance
