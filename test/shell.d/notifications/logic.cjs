@@ -219,6 +219,9 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(snap({ appName: 'Slack', desktopEntry: 'slack' }).appIcon, 'slack')
   assert.equal(snap({ appName: 'Slack', appIcon: 'slack-tray', desktopEntry: 'slack' }).appIcon, 'slack-tray')
   assert.equal(snap({ appName: 'Google Chrome', desktopEntry: '/tmp/.org.chromium.Chromium.x/google-chrome' }).appIcon, '')
+  // An app_icon that is a file path is no name to look up, so it does not hide the hint.
+  assert.equal(snap({ appName: 'Chromium', appIcon: '/usr/share/icons/hicolor/48x48/apps/chromium.png', desktopEntry: 'chromium' }).appIcon, 'chromium')
+  assert.equal(snap({ appName: 'Chromium', appIcon: 'file:///usr/share/pixmaps/chromium.png', desktopEntry: 'chromium' }).appIcon, 'chromium')
 }
 
 { // Icon names: a site by its own names first and its browser last, never fetched.

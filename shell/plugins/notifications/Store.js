@@ -6,6 +6,18 @@
 .import "Detect.js" as Detect
 
 var QSIMAGE = /^image:\/\/qsimage\/[0-9]+\/[0-9]+$/
+// A theme icon name. A path can't be looked up as one, so it is no icon at all.
+var ICON_NAME = /^[a-zA-Z0-9_.-]{1,256}$/
+
+// The first candidate that is a usable icon name, so a path in one does not
+// hide a usable name in the next.
+function iconName(candidates) {
+  for (var i = 0; i < candidates.length; i++) {
+    var name = Security.bounded(candidates[i], 256)
+    if (ICON_NAME.test(name)) return name
+  }
+  return ""
+}
 
 // Everything a card draws and a history entry needs, read defensively from an
 // arbitrary sender.
@@ -47,8 +59,9 @@ function snapshot(n, key, urgencyEnum) {
     transient: hints["transient"] === true || hints["transient"] === 1,
     app: raw.app,
     // Else the desktop-entry hint, which names the app's .desktop file and so,
-    // usually, its icon. normalise() drops it when it is a path (Chrome's).
-    appIcon: Security.bounded(n.appIcon || named || n.desktopEntry, 256),
+    // usually, its icon. A path in any of them (an app_icon file, Chrome's
+    // desktop entry) is skipped for the next.
+    appIcon: iconName([n.appIcon, named, n.desktopEntry]),
     summary: id.summary,
     body: id.body,
     // What the sender sent, so a replay keeps the source anchor.
@@ -104,7 +117,7 @@ function normalise(row) {
   out.app = out.app.slice(0, Security.MAX_APP_NAME)
   out.summary = out.summary.slice(0, Security.MAX_SUMMARY)
   out.source = out.source.slice(0, Security.MAX_SOURCE)
-  out.appIcon = /^[a-zA-Z0-9_.-]{1,256}$/.test(out.appIcon) ? out.appIcon : ""
+  out.appIcon = ICON_NAME.test(out.appIcon) ? out.appIcon : ""
   out.link = Security.safeHttpUrl(out.link)
   out.glyph = Security.safeGlyph(out.glyph)
   var argv = Security.parseExecArgv(out.execArgv)
