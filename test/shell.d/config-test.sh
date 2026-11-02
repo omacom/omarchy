@@ -280,6 +280,29 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "shell config sets bar position"
 
+linked_home="$TMPDIR/linked-home"
+mkdir -p "$linked_home/dotfiles" "$linked_home/.config/omarchy"
+printf '{"bar":{"position":"top"}}\n' >"$linked_home/dotfiles/shell.json"
+chmod 640 "$linked_home/dotfiles/shell.json"
+ln -s "$linked_home/dotfiles/shell.json" "$linked_home/.config/omarchy/shell.json"
+HOME="$linked_home" OMARCHY_PATH="$ROOT" omarchy-bar position bottom
+[[ -L $linked_home/.config/omarchy/shell.json ]] || fail "bar update keeps a dotfiles symlink"
+[[ $(stat -c '%a' "$linked_home/dotfiles/shell.json") == 640 ]] || fail "bar update keeps the config mode"
+[[ $(jq -r '.bar.position' "$linked_home/dotfiles/shell.json") == "bottom" ]] || fail "bar update writes through the symlink"
+pass "shell config writes through a dotfiles symlink and keeps its mode"
+
+failing_jq_bin="$TMPDIR/failing-jq"
+mkdir -p "$failing_jq_bin"
+printf '#!/bin/bash\nexit 17\n' >"$failing_jq_bin/jq"
+chmod +x "$failing_jq_bin/jq"
+cp "$linked_home/dotfiles/shell.json" "$TMPDIR/linked-before"
+if HOME="$linked_home" OMARCHY_PATH="$ROOT" PATH="$failing_jq_bin:$PATH" omarchy-bar position top 2>/dev/null; then
+  fail "bar update reported success after jq failed"
+fi
+cmp -s "$linked_home/dotfiles/shell.json" "$TMPDIR/linked-before" || fail "failed bar update keeps the config"
+[[ -z $(find "$linked_home/dotfiles" -name '.shell-config.*' -print -quit) ]] || fail "failed bar update removes its staging file"
+pass "a failed shell config update keeps the linked config and cleans up"
+
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent true
 jq -e '
   .bar.background == "none" and

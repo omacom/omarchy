@@ -43,5 +43,9 @@ if [[ -s $config_file ]]; then
     else
       .bar.layout.right |= insert_after("omarchy.tray"; { id: "omarchy.agents" })
     end
-  ' "$config_file" >"$tmp" && mv "$tmp" "$config_file" || rm -f "$tmp"
+  ' "$config_file" >"$tmp" || { rm -f "$tmp"; exit 1; }
+  if ! jq -e --slurpfile new "$tmp" '. == $new[0]' "$config_file" >/dev/null; then
+    omarchy-config-replace "$tmp" "$config_file" || { rm -f "$tmp"; exit 1; }
+  fi
+  rm -f "$tmp"
 fi
