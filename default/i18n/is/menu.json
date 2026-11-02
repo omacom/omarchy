@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Diskahraðapróf"
   },
-  "setup.keybindings": {
-    "label": "Flýtilyklar"
-  },
   "setup.input": {
     "label": "Inntak"
-  },
-  "setup.typing": {
-    "label": "Innsláttur"
-  },
-  "setup.typing.keyboard": {
-    "label": "Lyklaborðskipan"
-  },
-  "setup.typing.input": {
-    "label": "Innsláttaraðferðir"
   },
   "setup.language": {
     "label": "Tungumál"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Lyklaborð"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Flýtilyklar"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Lyklaborðsinntak"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Inntaksaðferðir"
   }
 }

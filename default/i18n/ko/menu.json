@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "디스크 속도 테스트"
   },
-  "setup.keybindings": {
-    "label": "단축키"
-  },
   "setup.input": {
     "label": "입력"
-  },
-  "setup.typing": {
-    "label": "타이핑"
-  },
-  "setup.typing.keyboard": {
-    "label": "키보드 레이아웃"
-  },
-  "setup.typing.input": {
-    "label": "입력 방법"
   },
   "setup.language": {
     "label": "언어"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "키보드"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "단축키"
+  },
+  "setup.keyboard.inputs": {
+    "label": "키보드 입력"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "입력 방식"
   }
 }

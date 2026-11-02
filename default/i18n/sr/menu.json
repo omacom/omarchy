@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Тест брзине диска"
   },
-  "setup.keybindings": {
-    "label": "Пречице"
-  },
   "setup.input": {
     "label": "Унос"
-  },
-  "setup.typing": {
-    "label": "Куцање"
-  },
-  "setup.typing.keyboard": {
-    "label": "Распореди тастатуре"
-  },
-  "setup.typing.input": {
-    "label": "Начини уноса"
   },
   "setup.language": {
     "label": "Језик"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Тастатура"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Пречице тастатуре"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Уноси тастатуре"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Методе уноса"
   }
 }

@@ -188,6 +188,12 @@ jq -e '.shortcuts | .hold == "" and .toggle == "Ctrl+Alt+Space"' "$SHORTCUT_STAT
 omarchy-install-dictation-superwhisper
 pass "Superwhisper installer owns setup and saves selection only after success"
 
+: > "$DICTATION_LOG"
+omarchy-install-dictation-superwhisper --background
+grep -qx setup-user "$DICTATION_LOG" || fail "background setup still configures Superwhisper"
+if grep -E '^(superwhisper settings|omarchy-notification-send)' "$DICTATION_LOG"; then fail "background setup opens no window and sends no toast"; fi
+pass "first-run Superwhisper setup stays in the background"
+
 DICTATION_INSTALLED=superwhisper
 CONFIRM_EXIT=1 omarchy-install-dictation-voxtype
 [[ $(cat "$config") == "superwhisper" ]] || fail "cancelled installation preserves selection"

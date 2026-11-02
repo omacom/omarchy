@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "ڈسک رفتار ٹیسٹ"
   },
-  "setup.keybindings": {
-    "label": "کلید شارٹ کٹ"
-  },
   "setup.input": {
     "label": "ان پٹ"
-  },
-  "setup.typing": {
-    "label": "ٹائپنگ"
-  },
-  "setup.typing.keyboard": {
-    "label": "کی بورڈ لے آؤٹ"
-  },
-  "setup.typing.input": {
-    "label": "ان پٹ طریقے"
   },
   "setup.language": {
     "label": "زبان"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "کی بورڈ"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "کی بائنڈنگز"
+  },
+  "setup.keyboard.inputs": {
+    "label": "کی بورڈ ان پٹ"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "ان پٹ طریقے"
   }
 }

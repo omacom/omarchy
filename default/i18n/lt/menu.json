@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disko greičio testas"
   },
-  "setup.keybindings": {
-    "label": "Spartieji klavišai"
-  },
   "setup.input": {
     "label": "Įvestis"
-  },
-  "setup.typing": {
-    "label": "Rašymas"
-  },
-  "setup.typing.keyboard": {
-    "label": "Klaviatūros išdėstymai"
-  },
-  "setup.typing.input": {
-    "label": "Įvesties metodai"
   },
   "setup.language": {
     "label": "Kalba"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Klaviatūra"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Klavišų deriniai"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Klaviatūros įvestys"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Įvesties metodai"
   }
 }

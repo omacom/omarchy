@@ -357,20 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "磁盘测速"
   },
-  "setup.keybindings": {
-    "label": "快捷键"
-  },
   "setup.input": {
     "label": "输入"
-  },
-  "setup.typing": {
-    "label": "打字"
-  },
-  "setup.typing.keyboard": {
-    "label": "键盘布局"
-  },
-  "setup.typing.input": {
-    "label": "输入法"
   },
   "setup.language": {
     "label": "语言"
@@ -1288,5 +1276,17 @@
   },
   "remove.dictation.hex": {
     "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "键盘"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "快捷键"
+  },
+  "setup.keyboard.inputs": {
+    "label": "键盘输入"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "输入法"
   }
 }
