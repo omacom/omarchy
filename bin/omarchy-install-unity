@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Install Unity Hub and the compatibility library required by Unity editors
+# omarchy:requires-sudo=true
+
+set -e
+
+# Unity ships Linux Hub binaries only for x86_64.
+if ! omarchy-hw-x86; then
+  echo "Unity Hub is only available for x86_64 Linux." >&2
+  exit 1
+fi
+
+# Editors downloaded through Hub need this library outside Hub's package dependencies.
+omarchy-pkg-add libxml2-legacy
+omarchy-pkg-aur-add unityhub
+
+echo "Unity Hub is installed. Open Hub to install the editor version your project requires."
