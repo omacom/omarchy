@@ -317,6 +317,9 @@ LUA
 expect_sync "clamshell recovery falls back to preferred when no rule names a mode" off 1.75 'mode = "preferred"' <<'LUA'
 hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
 LUA
+expect_sync "clamshell recovery falls back to preferred for a mode naming no local" off 1.75 'mode = "preferred"' '!my_mode' <<'LUA'
+hl.monitor({ output = "eDP-1", mode = my_mode, position = "0x0", scale = 1.25 })
+LUA
 expect_sync "clamshell recovery falls back to preferred for an unsafe mode" off 1.75 'mode = "preferred"' '!os.exit' <<'LUA'
 hl.monitor({ output = "eDP-1", mode = "x\"}); os.exit()", position = "auto", scale = 1.25 })
 LUA

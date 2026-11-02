@@ -237,7 +237,9 @@ read_monitor_mode() {
   mode=$(saved_internal_monitor_value mode)
   [[ -n $mode ]] || mode=$(configured_internal_monitor_value mode)
   [[ -n $mode ]] || mode=$(configured_monitor_value "" mode)
-  if [[ $mode =~ ^[[:alnum:]_.@+-]+$ ]]; then
+  # A bare word naming no local reaches here as itself, so only Hyprland's mode
+  # keywords and WxH@R pass, and nothing else is written into the Lua.
+  if [[ $mode =~ ^([0-9]+x[0-9]+(@[0-9.]+)?|preferred|highrr|highres|maxwidth)$ ]]; then
     echo "$mode"
     return
   fi
