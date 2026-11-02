@@ -100,7 +100,7 @@ fi
 STUB
 chmod +x "$test_tmp/bin/udevadm"
 wait_for_camera() {
-  local start=${EPOCHREALTIME/./}
+  local start=${1:-${EPOCHREALTIME/./}}
   OMARCHY_MEDIA_DEVICES_PATH="$media" "$ROOT/bin/omarchy-hw-wait-camera-access"
   echo $(((${EPOCHREALTIME/./} - start) / 1000))
 }
@@ -116,9 +116,11 @@ else
   rm "$OMARCHY_TEST_QUALCOMM"
   (($(wait_for_camera) < 500)) || fail "other machines start WirePlumber without waiting"
   touch "$OMARCHY_TEST_QUALCOMM"
+  # Time from before the grant is scheduled, so a slow start cannot shorten the wait.
+  start=${EPOCHREALTIME/./}
   (sleep 1 && chmod 600 "$media/media0") >/dev/null 2>&1 &
   grant_pid=$!
-  elapsed=$(wait_for_camera)
+  elapsed=$(wait_for_camera "$start")
   wait "$grant_pid"
   grant_pid=""
   ((elapsed >= 900 && elapsed < 4000)) || fail "WirePlumber waits until the seat's camera opens" "waited ${elapsed} ms"
