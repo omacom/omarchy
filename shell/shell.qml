@@ -127,6 +127,17 @@ ShellRoot {
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
+  Binding {
+    target: Commons.Time
+    property: "clockFormat"
+    value: {
+      var id = shell.pluginRegistry.resolveEnabledId("omarchy.clock")
+      var location = shell.pluginRegistry.findBarLocation(shell.shellConfig, id, "")
+      var entry = location.found ? shell.shellConfig.bar.layout[location.section][location.index] : {}
+      return ClockFormat.configuredClockFormat(entry, shell.barConfig.position === "left" || shell.barConfig.position === "right")
+    }
+  }
+
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
   onBarConfigChanged: {
     if (bar && "barConfig" in bar)
