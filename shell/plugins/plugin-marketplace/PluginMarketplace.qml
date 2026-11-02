@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "MarketplaceModel.js" as MarketplaceModel
 
@@ -24,11 +25,11 @@ Item {
   property int selectedIndex: 0
   property int previewIndex: 0
   property bool previewExpanded: false
-  property color background: Color.menu.background
-  property color foreground: Color.menu.text
-  property color border: Color.menu.border
-  property color scrim: Color.menu.scrim
-  property color accent: Color.accent
+  property color background: Commons.Color.menu.background
+  property color foreground: Commons.Color.menu.text
+  property color border: Commons.Color.menu.border
+  property color scrim: Commons.Color.menu.scrim
+  property color accent: Commons.Color.accent
 
   readonly property var visiblePlugins: MarketplaceModel.filtered(plugins, {
     query: query, category: category, kind: kind, installable: installable,
@@ -37,6 +38,16 @@ Item {
   readonly property var categoryOptions: MarketplaceModel.options(plugins, "category")
   readonly property var kindOptions: MarketplaceModel.options(plugins, "kind")
   readonly property var selectedPlugin: selectedIndex >= 0 && selectedIndex < visiblePlugins.length ? visiblePlugins[selectedIndex] : null
+  readonly property string metadataLine: {
+    if (!selectedPlugin) return ""
+    return [
+      selectedPlugin.kind,
+      selectedPlugin.category,
+      selectedPlugin.author ? Commons.I18n.t("marketplace.by").arg(selectedPlugin.author) : "",
+      selectedPlugin.version ? Commons.I18n.t("marketplace.version").arg(selectedPlugin.version) : "",
+      selectedPlugin.stars != null ? Commons.I18n.t("marketplace.stars").arg(Commons.I18n.formatNumber(selectedPlugin.stars, 0)) : ""
+    ].filter(Boolean).join(" · ")
+  }
   readonly property var selectedPreviewImages: selectedPlugin ? selectedPlugin.previewImages : []
   readonly property string selectedPreview: selectedPreviewImages.length > 0 ? selectedPreviewImages[Math.max(0, Math.min(previewIndex, selectedPreviewImages.length - 1))] : (selectedPlugin ? selectedPlugin.previewPath : "")
 
@@ -163,11 +174,11 @@ Item {
         anchors.bottomMargin: card.contentBottomInset
         anchors.leftMargin: card.contentLeftInset
         spacing: Style.spacing.md
-        Text { text: "Plugin Marketplace"; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+        Text { text: Commons.I18n.t("marketplace.title"); color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
         TextField {
           id: search
           width: parent.width
-          placeholderText: "Search plugins, authors, categories, and tags"
+          placeholderText: Commons.I18n.t("marketplace.search")
           text: root.query
           onTextEdited: root.query = text
           onAccepted: root.choose()
@@ -175,12 +186,12 @@ Item {
         Flow {
           width: parent.width
           spacing: Style.spacing.sm
-          Dropdown { width: Style.space(150); showLabel: false; value: root.category; options: root.optionRows(root.categoryOptions, "All categories"); onChanged: function(value) { root.category = value } }
-          Dropdown { width: Style.space(140); showLabel: false; value: root.kind; options: root.optionRows(root.kindOptions, "All kinds"); onChanged: function(value) { root.kind = value } }
-          Button { text: "Installable"; selected: root.installable; onClicked: root.installable = !root.installable }
-          Button { text: "Verified"; selected: root.verified; onClicked: root.verified = !root.verified }
-          Dropdown { width: Style.space(130); showLabel: false; value: root.installed; options: [{value:"",label:"All plugins"},{value:"available",label:"Not installed"},{value:"installed",label:"Installed"}]; onChanged: function(value) { root.installed = value } }
-          Dropdown { width: Style.space(120); showLabel: false; value: root.sort; options: [{value:"relevance",label:"Relevance"},{value:"stars",label:"Most stars"},{value:"newest",label:"Newest"}]; onChanged: function(value) { root.sort = value } }
+          Dropdown { width: Style.space(150); showLabel: false; value: root.category; options: root.optionRows(root.categoryOptions, Commons.I18n.t("marketplace.allCategories")); onChanged: function(value) { root.category = value } }
+          Dropdown { width: Style.space(140); showLabel: false; value: root.kind; options: root.optionRows(root.kindOptions, Commons.I18n.t("marketplace.allKinds")); onChanged: function(value) { root.kind = value } }
+          Button { text: Commons.I18n.t("marketplace.installable"); selected: root.installable; onClicked: root.installable = !root.installable }
+          Button { text: Commons.I18n.t("marketplace.verified"); selected: root.verified; onClicked: root.verified = !root.verified }
+          Dropdown { width: Style.space(130); showLabel: false; value: root.installed; options: [{value:"",label:Commons.I18n.t("marketplace.allPlugins")},{value:"available",label:Commons.I18n.t("marketplace.notInstalled")},{value:"installed",label:Commons.I18n.t("marketplace.installed")}]; onChanged: function(value) { root.installed = value } }
+          Dropdown { width: Style.space(120); showLabel: false; value: root.sort; options: [{value:"relevance",label:Commons.I18n.t("marketplace.relevance")},{value:"stars",label:Commons.I18n.t("marketplace.mostStars")},{value:"newest",label:Commons.I18n.t("marketplace.newest")}]; onChanged: function(value) { root.sort = value } }
         }
         Row {
           width: parent.width
@@ -223,7 +234,7 @@ Item {
                 anchors.rightMargin: Style.spacing.controlPaddingX
                 anchors.topMargin: Style.spacing.xs
                 visible: root.selectedIndex == pluginRow.rowIndex
-                text: "SELECTED"
+                text: Commons.I18n.t("marketplace.selected").toUpperCase()
                 color: root.accent
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -235,7 +246,7 @@ Item {
                 anchors.rightMargin: Style.spacing.controlPaddingX
                 anchors.bottomMargin: Style.spacing.xs
                 visible: modelData.installed
-                text: "INSTALLED"
+                text: Commons.I18n.t("marketplace.installedBadge").toUpperCase()
                 color: root.accent
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -284,11 +295,11 @@ Item {
                   anchors.fill: parent
                   visible: !preview.visible
                   color: Util.alpha(root.foreground, 0.06)
-                  Text { anchors.centerIn: parent; text: "No preview available"; color: Qt.darker(root.foreground, 1.4); font.family: Style.font.family }
+                  Text { anchors.centerIn: parent; text: Commons.I18n.t("marketplace.noPreview"); color: Qt.darker(root.foreground, 1.4); font.family: Style.font.family }
                 }
                 MouseArea { anchors.fill: parent; enabled: preview.visible; cursorShape: Qt.PointingHandCursor; onClicked: root.previewExpanded = true }
-                Button { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; visible: root.selectedPreviewImages.length > 1; text: "‹"; onClicked: root.previousPreview() }
-                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; visible: root.selectedPreviewImages.length > 1; text: "›"; onClicked: root.nextPreview() }
+                Button { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; visible: root.selectedPreviewImages.length > 1; focusable: true; text: "‹"; onClicked: root.previousPreview() }
+                Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; visible: root.selectedPreviewImages.length > 1; focusable: true; text: "›"; onClicked: root.nextPreview() }
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: Style.spacing.xs
                   visible: root.selectedPreviewImages.length > 1
@@ -297,11 +308,11 @@ Item {
                 }
               }
               Text { width: parent.width; text: root.selectedPlugin ? root.selectedPlugin.description : ""; textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight }
-              Text { width: parent.width; text: root.selectedPlugin ? [root.selectedPlugin.kind, root.selectedPlugin.category, root.selectedPlugin.author && "by " + root.selectedPlugin.author, root.selectedPlugin.version && "v" + root.selectedPlugin.version, root.selectedPlugin.stars + " stars"].filter(Boolean).join(" · ") : ""; textFormat: Text.PlainText; color: Qt.darker(root.foreground, 1.35); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
+              Text { width: parent.width; text: root.metadataLine; textFormat: Text.PlainText; color: Qt.darker(root.foreground, 1.35); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
               Text { width: parent.width; text: root.selectedPlugin ? MarketplaceModel.badges(root.selectedPlugin).join(" · ") : ""; textFormat: Text.PlainText; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
               property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin) : ({ label: "", operation: "" })
-              Button { text: parent.primaryAction.label; bordered: true; onClicked: root.choose(parent.primaryAction.operation) }
-              Button { visible: root.selectedPlugin && root.selectedPlugin.installed; text: "Uninstall plugin"; onClicked: root.choose("remove") }
+              Button { text: parent.primaryAction.label; bordered: true; focusable: true; onClicked: root.choose(parent.primaryAction.operation) }
+              Button { visible: root.selectedPlugin && root.selectedPlugin.installed; focusable: true; text: Commons.I18n.t("marketplace.uninstall"); onClicked: root.choose("remove") }
               }
             }
           }
@@ -329,7 +340,7 @@ Item {
           source: root.selectedPreview
           fillMode: Image.PreserveAspectFit
         }
-        Button { anchors.top: parent.top; anchors.right: parent.right; text: "Close"; onClicked: root.previewExpanded = false }
+        Button { anchors.top: parent.top; anchors.right: parent.right; focusable: true; text: Commons.I18n.t("marketplace.close"); onClicked: root.previewExpanded = false }
         Button { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; visible: root.selectedPreviewImages.length > 1; text: "‹"; onClicked: root.previousPreview() }
         Button { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; visible: root.selectedPreviewImages.length > 1; text: "›"; onClicked: root.nextPreview() }
         Text {

@@ -10,12 +10,12 @@ plugin_url="https://plugins.omarchy.org/plugin.html"
 preview_base_url="https://plugins.omarchy.org/"
 
 catalog=$(curl -fsSL --max-time 10 "$catalog_url" 2>/dev/null) || {
-  omarchy-notification-send "Could not load the Omarchy plugin marketplace"
+  omarchy-notification-send "$(omarchy-i18n marketplace.loadFailed)"
   exit 1
 }
 
 jq -e '.plugins | type == "array"' <<<"$catalog" >/dev/null || {
-  omarchy-notification-send "The Omarchy plugin marketplace returned invalid data"
+  omarchy-notification-send "$(omarchy-i18n marketplace.invalidData)"
   exit 1
 }
 
@@ -48,7 +48,7 @@ plugins=$(jq -c --argjson installed "$installed" --arg preview_base_url "$previe
 ' <<<"$catalog")
 
 if [[ $(jq 'length' <<<"$plugins") == "0" ]]; then
-  omarchy-notification-send "No community plugins are currently listed"
+  omarchy-notification-send "$(omarchy-i18n marketplace.empty)"
   exit 0
 fi
 
@@ -60,10 +60,14 @@ rm -f "$done_file"
 trap 'rm -f "$selection_file" "$done_file" "$catalog_file"' EXIT
 
 payload=$(jq -cn --arg catalog_file "$catalog_file" --arg selection_file "$selection_file" --arg done_file "$done_file" '{catalogFile: $catalog_file, selectionFile: $selection_file, doneFile: $done_file}')
-omarchy-shell shell summon omarchy.plugin-marketplace "$payload" >/dev/null || {
-  omarchy-notification-send "Could not open the Omarchy plugin marketplace"
+# A summon answers "ok" only when the overlay opened. "unknown" means the
+# plugin is not loaded, which would otherwise wait forever for a done file the
+# unopened plugin can never write.
+reply=$(omarchy-shell shell summon omarchy.plugin-marketplace "$payload") || reply=""
+if [[ $reply != "ok" ]]; then
+  omarchy-notification-send "$(omarchy-i18n marketplace.openFailed)"
   exit 1
-}
+fi
 
 while [[ ! -e $done_file ]]; do
   sleep 0.05
@@ -80,7 +84,7 @@ fi
 [[ -n $id ]] || exit 1
 
 plugin=$(jq -cer --arg id "$id" '.plugins[] | select(.id == $id)' <<<"$catalog") || {
-  omarchy-notification-send "That plugin is no longer in the marketplace"
+  omarchy-notification-send "$(omarchy-i18n marketplace.gone)"
   exit 1
 }
 
