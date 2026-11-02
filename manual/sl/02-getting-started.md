@@ -2,7 +2,7 @@
 
 Omarchy se namesti z ISO-jem. Izberete lahko med namestitvijo na celoten disk, ki prevzame celoten pogon, ali namestitvijo v prosti prostor, ki Omarchy umesti v nedodeljeni prostor na pogonu — tako izvedete dvojni zagon ob Windows ali drugem operacijskem sistemu (glejte [namestitev z dvojnim zagonom](50-dual-boot-install.md) — upoštevajte, da morate v Windows najprej izklopiti BitLocker). V obeh primerih je namestitev privzeto povsem šifrirana, možnost namestitve na celoten disk pa bo izbrisala izbrani pogon, zato pred uporabo obstoječega pogona obvezno naredite varnostno kopijo!
 
-Najprej [prenesite Omarchy ISO](https://omarchy.org/), ga zapišite na USB ključek (v Windows uporabite [Rufus](https://rufus.ie/), na Mac [balenaEtcher](https://etcher.balena.io/) ali na Linux [caligula](https://github.com/ifd3f/caligula)) in se zaženite s ključka.
+Najprej [prenesite Omarchy ISO](https://omarchy.org/), ga zapišite na USB ključek (v Windows uporabite [Rufus](https://rufus.ie/), na Mac [balenaEtcher](https://etcher.balena.io/) ali na Linux [caligula](https://github.com/ifd3f/caligula)) in zaženite računalnik s ključka.
 
 _V BIOS morate izklopiti Secure Boot in/ali TPM. Če želite namestiti Omarchy, ju morate izklopiti. Gre za Microsoftovi varnostni shemi, namenjeni Windows in z Microsoftom povezanim distribucijam Linux._
 
