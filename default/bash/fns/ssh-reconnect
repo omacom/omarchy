@@ -50,7 +50,7 @@ _ssh_disarm() {
 # not mistaken for the destination.
 _ssh_interactive() {
   local value_opts="BbcDEeFIiJLlmOoPpQRSWw"
-  local argv=("$@") arg letters i dest="" opts_done=""
+  local args=("$@") arg letters i dest="" opts_done=""
 
   while (($#)); do
     arg="$1"
@@ -61,7 +61,7 @@ _ssh_interactive() {
     elif [[ -z $opts_done && $arg == -?* ]]; then
       letters="${arg#-}"
       for ((i = 0; i < ${#letters}; i++)); do
-        if [[ $value_opts == *"${letters:i:1}"* ]]; then
+        if [[ $value_opts == *"${letters:$i:1}"* ]]; then
           # The value is glued to the letter (-p2222) unless the letter ends
           # the argument, in which case it consumes the next one (-p 2222).
           (( i == ${#letters} - 1 )) && shift
@@ -83,6 +83,6 @@ _ssh_interactive() {
   # since an undetected RemoteCommand must not replay. The explicit "none"
   # cancels a configured command, and some versions emit it when unset.
   local resolved
-  resolved=$(command ssh -G "${argv[@]}" 2>/dev/null) || return 1
+  resolved=$(command ssh -G "${args[@]}" 2>/dev/null) || return 1
   ! grep -i '^remotecommand ' <<<"$resolved" | grep -qvi '^remotecommand none$'
 }
