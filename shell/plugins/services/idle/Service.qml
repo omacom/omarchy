@@ -114,7 +114,7 @@ Item {
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
 
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
+    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-hyprland-session-locked >/dev/null 2>&1 || omarchy-system-wake")
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
