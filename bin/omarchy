@@ -472,8 +472,18 @@ load_group_commands() {
 command_takes_free_word() {
   local key="$1"
   local token=""
+  local in_option=false
 
   for token in ${COMMAND_ARGS[$key]}; do
+    # The value an optional flag names, as in [--model <name>], is not a positional.
+    if [[ $in_option == true ]]; then
+      [[ $token == *"]" ]] && in_option=false
+      continue
+    elif [[ $token == "[-"* && $token != *"]" ]]; then
+      in_option=true
+      continue
+    fi
+
     token="${token//[][]/}"
     [[ -z $token || $token == -* ]] && continue
     [[ $token =~ ^[\<][^|\<\>]+[\>]$ ]]

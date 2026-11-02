@@ -240,6 +240,9 @@ assert_output_contains "hidden plumbing keeps the arguments after its name" "$ou
 output=$("$CLI" system lid-close --help)
 assert_output_contains "hidden plumbing keeps its route beside a fixed-choice parent" "$output" "omarchy-system-lid-close"
 
+output=$("$CLI" agent usage-claude --help)
+assert_output_contains "hidden plumbing keeps its route beside a parent whose flag takes a value" "$output" "omarchy-agent-usage-claude"
+
 output=$("$CLI" screenshot --help)
 assert_output_contains "root alias resolves to command help" "$output" "omarchy-capture-screenshot"
 
