@@ -20,10 +20,15 @@ cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 Exec=chromium %U
 EOF
 
+cat >"$test_home/.local/share/applications/firefox.desktop" <<'EOF'
+[Desktop Entry]
+Exec=firefox %U
+EOF
+
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 [[ -z ${BROWSER:-} ]] || printf '%s\n' "$BROWSER" >"$OMARCHY_TEST_XDG_SETTINGS_BROWSER"
-[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo chromium.desktop
+[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo "${OMARCHY_TEST_BROWSER_DESKTOP:-chromium.desktop}"
 SH
 cat >"$mock_bin/xdg-mime" <<'SH'
 #!/bin/bash
@@ -33,11 +38,12 @@ fi
 SH
 cat >"$mock_bin/chromium" <<'SH'
 #!/bin/bash
-exit 0
+printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_EXEC"
 SH
+ln -s chromium "$mock_bin/firefox"
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+printf '%s\n' "$@" >"$OMARCHY_TEST_BROWSER_LAUNCH"
 SH
 cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
@@ -49,17 +55,31 @@ chmod +x "$mock_bin"/*
 launch_log="$test_tmp/launch"
 focus_log="$test_tmp/focus"
 xdg_settings_browser="$test_tmp/xdg-settings-browser"
+browser_exec_log="$test_tmp/browser-exec"
 HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
   bash "$ROOT/bin/omarchy-launch-browser"
 
 [[ ! -e $focus_log ]] || fail "browser launcher leaves a new window on the current workspace"
+[[ ! -e $browser_exec_log ]] || fail "browser launcher does not execute a browser to detect its family" "$(cat "$browser_exec_log")"
+
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  OMARCHY_TEST_BROWSER_DESKTOP=firefox.desktop \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" --private
+
+grep -F -- '--private-window' "$launch_log" >/dev/null || fail "Firefox private launches use its private-window flag" "$(cat "$launch_log")"
+[[ ! -e $browser_exec_log ]] || fail "Firefox detection does not execute the browser" "$(cat "$browser_exec_log")"
 
 HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
   bash "$ROOT/bin/omarchy-launch-browser" --private
 
 [[ ! -e $focus_log ]] || fail "private browser launcher leaves a new window on the current workspace"
+[[ ! -e $browser_exec_log ]] || fail "Chromium private launch does not probe the browser" "$(cat "$browser_exec_log")"
+grep -Fq -- '--incognito' "$launch_log" || fail "Chromium private launch receives its incognito flag"
 
 HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
@@ -98,28 +118,37 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="
 [[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
 pass "browser launcher hands a URL to the running browser"
 
-rm -f "$mock_bin/omarchy-cmd-browser-handoff" "$launch_log"
-help_log="$test_tmp/help"
-cat >"$mock_bin/chromium" <<'SH'
-#!/bin/bash
-[[ $1 != "--help" ]] || printf 'probed\n' >>"$OMARCHY_TEST_BROWSER_HELP"
-SH
-chmod +x "$mock_bin/chromium"
-launch() {
-  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
-    OMARCHY_TEST_BROWSER_FOCUS="$focus_log" OMARCHY_TEST_BROWSER_HELP="$help_log" \
-    bash "$ROOT/bin/omarchy-launch-browser" "$@"
-}
+rm "$mock_bin/omarchy-cmd-browser-handoff"
+for browser in floorp helium custom-browser; do
+  ln -s chromium "$mock_bin/$browser"
+  printf '[Desktop Entry]\nExec=%s %%U\n' "$browser" >"$test_home/.local/share/applications/$browser.desktop"
+  rm -f "$launch_log"
+  if HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_DESKTOP="$browser.desktop" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
+    bash "$ROOT/bin/omarchy-launch-browser" --private >"$test_tmp/out" 2>"$test_tmp/errors"; then
+    if [[ $browser == "floorp" ]]; then
+      flag=--private-window
+    else
+      [[ $browser == "helium" ]] || fail "unknown browser families must not receive a guessed private flag"
+      flag=--incognito
+    fi
+    grep -Fq -- "$flag" "$launch_log" || fail "$browser receives its known private flag"
+  else
+    [[ $browser == "custom-browser" ]] || fail "Floorp private launch succeeds"
+    [[ ! -e $launch_log ]] || fail "unknown private launches start no normal browser window"
+    grep -Fq 'Cannot determine the private browsing flag' "$test_tmp/errors" || fail "unknown private browsing reports a clear error"
+  fi
+done
+pass "Firefox forks use the correct private flag and unknown families fail closed"
 
-launch "https://example.test/a--private-b"
-[[ ! -e $help_log ]] || fail "an ordinary launch doesn't probe the browser's flags"
-grep -F 'https://example.test/a--private-b' "$launch_log" >/dev/null || fail "an ordinary launch leaves its arguments alone"
-pass "an ordinary launch doesn't probe the browser's flags"
-
-launch --private
-[[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
-grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
-pass "a private launch passes the browser's private flag"
+for browser in custom-browser helium; do
+  url='https://example.test/--private?value=--private'
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_DESKTOP="$browser.desktop" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
+    bash "$ROOT/bin/omarchy-launch-browser" "$url"
+  grep -Fxq "$url" "$launch_log" || fail "literal --private text in URLs is preserved"
+done
+pass "private option translation leaves ordinary URLs unchanged"
 
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
 # from the same ones; a browser outside ~/.local and /usr used to resolve and
@@ -140,8 +169,9 @@ x-scheme-handler/http=vivaldi-stable.desktop
 EOF
 
 rm -f "$launch_log"
-launch "https://example.test/vivaldi"
-grep -F -- ' -- vivaldi https://example.test/vivaldi' "$launch_log" >/dev/null ||
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/vivaldi"
+grep -Fx vivaldi "$launch_log" >/dev/null && grep -Fx 'https://example.test/vivaldi' "$launch_log" >/dev/null ||
   fail "a browser in XDG_DATA_DIRS launches from its desktop entry" "$(cat "$launch_log")"
 pass "browser launcher reads Exec= from the data dirs the resolver searched"
 
