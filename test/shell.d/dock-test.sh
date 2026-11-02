@@ -118,6 +118,10 @@ const dockQml = fs.readFileSync(root + '/shell/plugins/dock/Dock.qml', 'utf8')
 const gridQml = fs.readFileSync(root + '/shell/plugins/dock/AppGrid.qml', 'utf8')
 const activate = new Function('root', 'Hyprland', 'DockModel', 'item',
   dockQml.match(/function activate\(item\) \{([\s\S]*?)\n  \}/)[1])
+const isStarting = new Function('root', 'key',
+  dockQml.match(/function isStarting\(key\) \{([\s\S]*?)\n  \}/)[1])
+const launch = new Function('root', 'entryFor', 'item',
+  dockQml.match(/function launch\(item\) \{([\s\S]*?)\n  \}/)[1])
 const gridLaunch = new Function('root', 'index',
   gridQml.match(/function launch\(index\) \{([\s\S]*?)\n  \}/)[1])
 const Hyprland = { focusedMonitor: { activeWorkspace: { id: 3 } } }
@@ -129,8 +133,10 @@ function stubDock() {
     launches: {},
     itemFor(key) { return d.itemsByKey[key] || null },
     isLaunching(key) { return d.launches[key] !== undefined },
-    isStarting(key) { return d.launches[key] !== undefined && d.launches[key].starting },
-    launch(item) { d.calls.launched.push(item.key); d.launches[item.key] = { at: Date.now(), windows: item.windows.length, starting: item.windows.length === 0 } },
+    isStarting(key) { return isStarting(d, key) },
+    entryFor(item) { return { id: item.key } },
+    launchEntry(entry) { d.calls.launched.push(entry.id) },
+    launch(item) { launch(d, d.entryFor, item) },
     bringForward(window) { d.calls.forward.push(window.address) },
     activate(item) { activate.call(null, d, Hyprland, dock, item) }
   }
