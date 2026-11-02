@@ -100,12 +100,14 @@ elif grep -qE '^\s*charge-threshold-enabled:\s+yes' <<<"$battery_info"; then
   threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 fi
 
-# An end threshold of 100 (or 0 on some firmware) means no limit is set.
+# An end threshold of 100 (or 0 on some firmware) means no limit is set, and a
+# start of 0 means charging resumes at any level, so there is no start to show.
 clear_unset_limit() {
   if [[ -n $threshold_end ]] && (( threshold_end <= 0 || threshold_end >= 100 )); then
     threshold_start=""
     threshold_end=""
   fi
+  [[ $threshold_start != "0" ]] || threshold_start=""
 }
 
 clear_unset_limit

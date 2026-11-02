@@ -138,6 +138,13 @@ sysfs_limit_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir
 grep -Fx $'time\t1h 15m' <<<"$sysfs_limit_output" >/dev/null || fail "time to full counts to the sysfs charge limit" "$sysfs_limit_output"
 grep -Fx $'threshold\t90%' <<<"$sysfs_limit_output" >/dev/null || fail "the sysfs charge limit is the one reported" "$sysfs_limit_output"
 
+# A start of 0 is no start, so an end-only ThinkPad limit doesn't read 0-80%.
+printf '0\n' >"$hold_dir/power/BAT0/charge_control_start_threshold"
+printf '80\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
+zero_start_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'threshold\t80%' <<<"$zero_start_output" >/dev/null || fail "a start of 0 isn't shown" "$zero_start_output"
+rm "$hold_dir/power/BAT0/charge_control_start_threshold"
+
 # A sysfs end threshold of 100 means no limit, whatever UPower reports.
 printf '100\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
 no_limit_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
@@ -164,14 +171,15 @@ rm "$hold_dir/power/BAT0/charge_control_end_threshold"
 upower_limit_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 grep -Fx $'time\t1h' <<<"$upower_limit_output" >/dev/null || fail "time to full counts to an enabled UPower limit" "$upower_limit_output"
 grep -Fx $'threshold\t75-80%' <<<"$upower_limit_output" >/dev/null || fail "an enabled UPower limit is reported" "$upower_limit_output"
-sed -i 's/charge-threshold-enabled: yes/charge-threshold-enabled: no/' "$hold_dir/bin/upower"
+# UPower leaves the enabled line out entirely while the limit is off.
+sed -i '/charge-threshold-enabled: yes/d' "$hold_dir/bin/upower"
 upower_off_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 grep -Fx $'time\t1h 30m' <<<"$upower_off_output" >/dev/null || fail "a disabled UPower limit doesn't shorten time to full" "$upower_off_output"
 if grep -q '^threshold' <<<"$upower_off_output"; then
   fail "a disabled UPower limit isn't reported" "$upower_off_output"
 fi
 printf '80\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
-sed -i '/charge-threshold-enabled: no/d; /charge-start-threshold: 75%/d' "$hold_dir/bin/upower"
+sed -i '/charge-start-threshold: 75%/d' "$hold_dir/bin/upower"
 pass "battery status prefers the charge limit sysfs enforces"
 
 # UPower's own estimate stands in when the draw is too small to divide by...
