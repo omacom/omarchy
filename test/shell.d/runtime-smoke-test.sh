@@ -294,6 +294,21 @@ esac
 SH
 chmod +x "$SCRATCH_BIN/curl"
 
+# Counts the transparent bar's wallpaper samples.
+text_color_calls="$SCRATCH_DIR/text-color.calls"
+cat >"$SCRATCH_BIN/omarchy-bar-text-color" <<SH
+#!/bin/bash
+echo "\$*" >>"$text_color_calls"
+echo "#ffffff"
+SH
+chmod +x "$SCRATCH_BIN/omarchy-bar-text-color"
+
+state_dir="$SCRATCH_HOME/.local/state/omarchy"
+mkdir -p "$state_dir/current/theme"
+: >"$state_dir/current/theme/a.png"
+: >"$state_dir/current/theme/b.png"
+ln -s "$state_dir/current/theme/a.png" "$state_dir/current/background"
+
 start_scratch_shell
 wait_scratch_shell
 
@@ -319,6 +334,61 @@ jq -e '
   fail_with_log "shell IPC lists plugin metadata"
 }
 pass "shell IPC lists plugin metadata"
+
+# Plugins save their own state beside current/. That must not make the
+# transparent bar sample the wallpaper again; repointing the background must.
+text_color_count() {
+  if [[ -f $text_color_calls ]]; then
+    wc -l <"$text_color_calls"
+  else
+    echo 0
+  fi
+}
+
+bar_background() {
+  HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" background "$@"
+}
+
+# Elsewhen saves its first-run cities once its probe returns, and that save
+# writes the shell's whole config back to shell.json. Landing after an edit
+# from outside the shell, it puts the old config back, so wait for it before
+# editing shell.json. A machine slower than a desktop returns the probe late.
+wait_for_elsewhen_cities() {
+  local saved='any(.bar.layout[][]; .id? == "omarchy.elsewhen" and .cities? != null)'
+  local config="$SCRATCH_HOME/.config/omarchy/shell.json"
+
+  for _ in {1..300}; do
+    jq -e "$saved" "$config" >/dev/null 2>&1 && return 0
+    kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited before Elsewhen saved its cities"
+    sleep 0.1
+  done
+  fail_with_log "Elsewhen saves its first-run cities before shell.json is edited"
+}
+
+wait_for_elsewhen_cities
+bar_background none >/dev/null
+for _ in {1..50}; do
+  (( $(text_color_count) > 0 )) && break
+  sleep 0.1
+done
+(( $(text_color_count) > 0 )) || fail_with_log "transparent bar samples the wallpaper when turned on"
+sleep 0.5
+before=$(text_color_count)
+
+printf '{}' >"$state_dir/unrelated.tmp"
+mv "$state_dir/unrelated.tmp" "$state_dir/unrelated.json"
+sleep 1
+(( $(text_color_count) == before )) ||
+  fail_with_log "unrelated state writes re-sample the wallpaper (was $before, now $(text_color_count))"
+
+ln -nsf "$state_dir/current/theme/b.png" "$state_dir/current/background"
+for _ in {1..50}; do
+  (( $(text_color_count) > before )) && break
+  sleep 0.1
+done
+(( $(text_color_count) > before )) || fail_with_log "repointing the background re-samples the wallpaper"
+bar_background opaque >/dev/null
+pass "unrelated state writes leave the transparent bar alone"
 
 jq '.name = "After Hot Reload"' "$hot_reload_dir/manifest.json" >"$hot_reload_dir/manifest.json.tmp"
 mv "$hot_reload_dir/manifest.json.tmp" "$hot_reload_dir/manifest.json"
@@ -579,40 +649,32 @@ pass "bar put leaves a widget already on the bar alone"
 # A hand edit that drops the closing brace puts the shell on the defaults,
 # which have no omarchy.microphone. A bar change then applies for the session
 # only, leaving the file as the user left it until they fix it.
-config="$test_home/.config/omarchy/shell.json"
-# Elsewhen saves its first-run cities once its probe returns. Landing between
-# the edit and the shell's reload, that save would write valid JSON back.
-for _ in {1..80}; do
-  jq -e 'any(.bar.layout[][]; .id? == "omarchy.elsewhen" and .cities? != null)' "$config" >/dev/null 2>&1 && break
-  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited before Elsewhen saved its cities"
-  sleep 0.1
-done
-jq -e 'any(.bar.layout[][]; .id? == "omarchy.elsewhen" and .cities? != null)' "$config" >/dev/null ||
-  fail_with_log "Elsewhen saves its first-run cities before shell.json is edited"
+config="$SCRATCH_HOME/.config/omarchy/shell.json"
+wait_for_elsewhen_cities
 sed -i '$ d' "$config"
-cp "$config" "$TMPDIR/broken.json"
+cp "$config" "$SCRATCH_DIR/broken.json"
 for _ in {1..80}; do
   [[ $(center_ids) != *omarchy.microphone* ]] && break
-  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited while reading an unreadable shell.json"
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading an unreadable shell.json"
   sleep 0.1
 done
 [[ $(center_ids) != *omarchy.microphone* ]] || fail_with_log "shell falls back to defaults on an unreadable shell.json"
-[[ $(shell_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
   fail_with_log "bar widget setting is applied while shell.json is unreadable"
 jq -e 'any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "HH:mm")' \
-  <<<"$(shell_ipc shell listShellConfig)" >/dev/null ||
+  <<<"$(scratch_ipc shell listShellConfig)" >/dev/null ||
   fail_with_log "a bar change still applies in memory while shell.json is unreadable"
 sleep 0.5
-cmp -s "$config" "$TMPDIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
+cmp -s "$config" "$SCRATCH_DIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
 pass "a bar change leaves an unreadable shell.json as the user left it"
 
 printf '}\n' >>"$config"
 for _ in {1..80}; do
   [[ $(center_ids) == *omarchy.microphone* ]] && break
-  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited while reading a fixed shell.json"
+  kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited while reading a fixed shell.json"
   sleep 0.1
 done
-[[ $(shell_ipc shell setBarWidget omarchy.clock format '"H:mm"' '{}') == "ok" ]] ||
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"H:mm"' '{}') == "ok" ]] ||
   fail_with_log "bar widget setting is applied once shell.json is fixed"
 saved='any(.bar.layout[][]; (.id? // .) == "omarchy.microphone") and any(.bar.layout[][]; .id? == "omarchy.clock" and .format? == "H:mm")'
 for _ in {1..40}; do
