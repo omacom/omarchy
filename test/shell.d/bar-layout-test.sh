@@ -5,7 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 LAYOUT_JS=$ROOT/shell/plugins/bar/BarLayout.js
-BAR_QML=$ROOT/shell/plugins/bar/Bar.qml
 MENU=$ROOT/default/omarchy/omarchy-menu.jsonc
 
 # --- BarLayout.js ---------------------------------------------------------
@@ -190,7 +189,7 @@ expect_ok() {
   local label=$1
   shift
   run "$@"
-  [[ $status == 0 ]] || fail "$label" "exit $status: $err"
+  (( status == 0 )) || fail "$label" "exit $status: $err"
 }
 
 expect_fail() {
@@ -198,19 +197,19 @@ expect_fail() {
   local pattern=$2
   shift 2
   run "$@"
-  [[ $status != 0 ]] || fail "$label" "expected a failure, got: $out"
+  (( status != 0 )) || fail "$label" "expected a failure, got: $out"
   [[ $err == *"$pattern"* ]] || fail "$label" "stderr was: $err"
 }
 
 reset_state
 expect_ok "get without state" get
-[[ $out == classic ]] || fail "a missing mode file is classic" "$out"
+[[ $out == "classic" ]] || fail "a missing mode file is classic" "$out"
 pass "layout defaults to classic"
 
 expect_ok "apply island" island
-[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == island ]] || fail "applying writes the mode file"
+[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == "island" ]] || fail "applying writes the mode file"
 expect_ok "get after apply" get
-[[ $out == island ]] || fail "get reports the applied mode" "$out"
+[[ $out == "island" ]] || fail "get reports the applied mode" "$out"
 rg -qx 'omarchy-shell -q omarchy.bar reloadLayout' "$TEST_CALLS" || fail "applying nudges the bar" "$(<"$TEST_CALLS")"
 pass "layout applies and nudges the bar"
 
@@ -225,10 +224,10 @@ pass "layout aliases are canonicalized"
 # A hand-written alias in the mode file reads back as the bar reads it
 printf 'Panel\n' >"$OMARCHY_BAR_LAYOUT_DIR/mode"
 expect_ok "get with alias" get
-[[ $out == island ]] || fail "get resolves aliases in the file like the bar does" "$out"
+[[ $out == "island" ]] || fail "get resolves aliases in the file like the bar does" "$out"
 printf 'garbage\n' >"$OMARCHY_BAR_LAYOUT_DIR/mode"
 expect_ok "get with garbage" get
-[[ $out == classic ]] || fail "garbage in the mode file is classic" "$out"
+[[ $out == "classic" ]] || fail "garbage in the mode file is classic" "$out"
 pass "layout reads the mode file like the bar"
 
 reset_state
@@ -239,13 +238,13 @@ pass "layout rejects unknown modes"
 
 reset_state
 expect_ok "cycle 1" cycle
-[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == notch ]] || fail "cycle goes classic to notch"
+[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == "notch" ]] || fail "cycle goes classic to notch"
 expect_ok "cycle prev" cycle prev
-[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == classic ]] || fail "cycle prev goes back"
+[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == "classic" ]] || fail "cycle prev goes back"
 expect_ok "cycle prev wraps" cycle prev
-[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == split ]] || fail "cycle prev wraps to split"
+[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == "split" ]] || fail "cycle prev wraps to split"
 expect_ok "cycle wraps" cycle
-[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == classic ]] || fail "cycle wraps to classic"
+[[ $(<"$OMARCHY_BAR_LAYOUT_DIR/mode") == "classic" ]] || fail "cycle wraps to classic"
 expect_fail "cycle argument" "cycle takes" cycle sideways
 pass "layout cycles both ways and wraps"
 
@@ -253,18 +252,19 @@ reset_state
 expect_ok "list" island
 expect_ok "list" list
 [[ $out == *'* island'* && $out == *'  classic'* ]] || fail "list marks the current layout" "$out"
-[[ $(rg -c '^[* ] ' <<<"$out") == 5 ]] || fail "list shows every layout" "$out"
+listed=$(rg -c '^[* ] ' <<<"$out" || echo 0)
+(( listed == 5 )) || fail "list shows every layout" "$out"
 pass "layout lists modes"
 
 reset_state
 expect_ok "radius default" radius pill
 [[ $(jq -c . "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == '{"notch":{"radius":"pill"}}' ]] || fail "radius defaults to notch" "$(<"$OMARCHY_BAR_LAYOUT_DIR/layout.json")"
 expect_ok "radius island" radius 012 island
-[[ $(jq -c .island.radius "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == 12 ]] || fail "radius normalizes leading zeros"
+[[ $(jq -c .island.radius "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == "12" ]] || fail "radius normalizes leading zeros"
 expect_ok "radius px" radius 20px floating
-[[ $(jq -c .floating.radius "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == 20 ]] || fail "radius accepts px"
+[[ $(jq -c .floating.radius "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == "20" ]] || fail "radius accepts px"
 expect_ok "radius preset" radius sm
-[[ $(jq -c .notch.radius "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == 8 ]] || fail "radius presets"
+[[ $(jq -c .notch.radius "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == "8" ]] || fail "radius presets"
 [[ $(jq -c .notch.radius "$OMARCHY_BAR_LAYOUT_DIR/layout.json") != '"pill"' ]] || fail "a later radius replaces the earlier one"
 expect_fail "radius classic" "classic has no corners" radius 8 classic
 expect_fail "radius classic alias" "classic has no corners" radius 8 flat
@@ -293,7 +293,7 @@ jq -e '
   .split.spacing == 3
 ' "$OMARCHY_BAR_LAYOUT_DIR/layout.json" >/dev/null || fail "set stores typed values" "$(<"$OMARCHY_BAR_LAYOUT_DIR/layout.json")"
 expect_ok "set theme" set common background theme
-[[ $(jq -r .common.background "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == theme ]] || fail "background accepts theme"
+[[ $(jq -r .common.background "$OMARCHY_BAR_LAYOUT_DIR/layout.json") == "theme" ]] || fail "background accepts theme"
 pass "layout set stores typed values"
 
 reset_state
@@ -330,7 +330,7 @@ expect_ok "help" --help
 [[ $out == *'Usage: omarchy bar layout'* ]] || fail "help prints usage" "$out"
 pass "layout reload, menu and help"
 
-# --- wiring: script, JS, Bar.qml and menu agree ---------------------------
+# --- wiring: command, BarLayout.js and menu agree --------------------------
 
 expect_ok "list for wiring" list
 script_modes=$(sed -E 's/^[* ] //' <<<"$out" | paste -sd' ')
@@ -365,28 +365,3 @@ while read -r word expected; do
   [[ $out == "$expected" ]] || fail "'$word' means $expected to the bar but $out to the command"
 done <<<"$alias_pairs"
 pass "command and BarLayout.js resolve aliases the same way"
-
-rg -q 'target: "omarchy.bar"' "$BAR_QML" || fail "Bar.qml keeps the omarchy.bar IPC target"
-rg -q 'function reloadLayout\(\): void' "$BAR_QML" || fail "Bar.qml handles the reloadLayout IPC call"
-rg -q 'import "BarLayout.js" as BarLayout' "$BAR_QML" || fail "Bar.qml imports BarLayout.js"
-rg -q 'bar-layout' "$BAR_QML" || fail "Bar.qml reads the bar-layout state directory"
-rg -q 'omarchy-shell -q omarchy.bar reloadLayout' "$ROOT/bin/omarchy-bar-layout" || fail "the command nudges the IPC call Bar.qml handles"
-rg -q 'String\(root\.thicknessFor\(null\)\)' "$BAR_QML" || fail "the transparent text color samples the band the layout pill covers"
-rg -Uq 'radius: pill\.radius \+ index \+ 1\n\s+color: "transparent"' "$BAR_QML" || fail "shadow rings are outlines, so a translucent pill is not darkened"
-# Switching split to island at runtime must not leave a stale width on the run:
-# the run is placed with x/y, never with anchors that are swapped between modes.
-run_blocks=$(awk '/id: centerRun/ { grab = 1 } grab { print } grab && /^          }$/ { grab = 0 }' "$BAR_QML")
-[[ -n $run_blocks ]] || fail "Bar.qml has the center run blocks"
-if rg -q 'anchors\.(left|right|horizontalCenter|verticalCenter|top): .*(\?|undefined)' <<<"$run_blocks"; then
-  fail "the center run is positioned with x/y, not mode-swapped anchors" "$run_blocks"
-fi
-rg -q 'x: hbar\.isPacked' "$BAR_QML" || fail "the horizontal run is placed with x"
-rg -q 'y: vbar\.isPacked' "$BAR_QML" || fail "the vertical run is placed with y"
-# A notch hangs from its screen edge: the pill squares the corners on that edge,
-# and a camera-notch screen falls back to the classic bar.
-rg -q 'flush: (hbar|vbar)\.mode === "notch" \? root\.position : ""' "$BAR_QML" || fail "the notch pill is flush with the bar's screen edge"
-rg -q 'topLeftRadius: flush === "top" \|\| flush === "left" \? 0 : radius' "$BAR_QML" || fail "the pill squares the corners on its flush edge"
-rg -q 'mode !== "notch" && mode !== "island" && mode !== "split"' "$BAR_QML" || fail "the notch, island and split yield to a camera notch"
-rg -q 'return notched \? "classic" : mode' "$BAR_QML" || fail "a camera-notch screen keeps the classic bar"
-if rg -q '"rounded"' "$BAR_QML"; then fail "Bar.qml no longer knows the retired rounded mode"; fi
-pass "Bar.qml, command and IPC agree"

@@ -222,7 +222,7 @@ radius_value() {
 background_value() {
   local text=${1,,}
 
-  if [[ $text == theme ]]; then
+  if [[ $text == "theme" ]]; then
     echo '"theme"'
   elif [[ $text =~ ^#([0-9a-f]{6}|[0-9a-f]{8})$ ]]; then
     jq -cn --arg v "$text" '$v'
@@ -253,7 +253,7 @@ cmd_radius() {
 
   [[ -n $value ]] || die "usage: radius <0|8|12|20|pill|N> [mode]"
   mode=$(canonical "$mode")
-  [[ $mode != classic ]] || die "classic has no corners to round"
+  [[ $mode != "classic" ]] || die "classic has no corners to round"
 
   json=$(radius_value "$value")
   # shellcheck disable=SC2016 # $mode and $v are jq variables, not shell ones
@@ -269,14 +269,14 @@ cmd_set() {
   local candidate known=false json
 
   (( $# == 3 )) || die "usage: set <mode|common> <key> <value>"
-  if [[ $mode != common ]]; then
+  if [[ $mode != "common" ]]; then
     mode=$(canonical "$mode")
   fi
 
   for candidate in "${KEYS[@]}"; do
     [[ $candidate == "$key" ]] && known=true
   done
-  [[ $known == true ]] || die "unknown key '$key' (choose: ${KEYS[*]})"
+  [[ $known == "true" ]] || die "unknown key '$key' (choose: ${KEYS[*]})"
 
   json=$(value_for "$key" "$value")
   # shellcheck disable=SC2016
