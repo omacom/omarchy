@@ -440,6 +440,22 @@ command_takes_only_flags() {
   done
 }
 
+# A word after a flags-only command that has children of its own is a mistyped
+# child (`omarchy update firmwre`), not an argument, so it must not run the
+# parent: for update that would start a full system update.
+reject_mistyped_child() {
+  local key="$1"
+  local word="$2"
+  local route="${COMMAND_ROUTE[$key]}"
+
+  [[ -n $word && $word != -* ]] || return 1
+  group_has_child_commands "${COMMAND_BINARY[$key]#omarchy-}" || return 1
+  command_takes_only_flags "$key" || return 1
+
+  echo "Unknown Omarchy command: $route $word" >&2
+  echo "Run '$route --help' to see its commands." >&2
+}
+
 load_group_commands() {
   local group="$1"
   local file=""
@@ -1070,6 +1086,14 @@ dispatch_fast_or_help() {
       fi
     fi
 
+    if (( ${#remaining[@]} > 0 )) && [[ ${remaining[0]} != -* ]]; then
+      load_command_by_binary "$DIRECT_RESOLVED_BINARY"
+      key="${BINARY_TO_KEY[$DIRECT_RESOLVED_BINARY]}"
+      if [[ -n $key ]] && reject_mistyped_child "$key" "${remaining[0]}"; then
+        return 127
+      fi
+    fi
+
     exec "$binary_path" "${remaining[@]}"
   fi
 
@@ -1131,6 +1155,10 @@ dispatch_or_help() {
         show_command_help "$key"
       fi
       return 0
+    fi
+
+    if (( ${#remaining[@]} > 0 )) && reject_mistyped_child "$key" "${remaining[0]}"; then
+      return 127
     fi
 
     exec "$binary_path" "${remaining[@]}"
