@@ -68,20 +68,30 @@ run_leaf() {
     bash -eE -o pipefail -c 'source "$1"' bash "$script" </dev/null
 }
 
-# The quirk shipped for T2 Macs first, and the move to its own leaf must not
-# drop them.
-run_leaf "Apple Inc." 4488 1 >/dev/null
-grep -q 'feature_disable=0x82000' "$conf" 2>/dev/null ||
-  fail "a T2 Mac still gets the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
-pass "a T2 Mac still gets the quirk"
-
-# Every Broadcom part brcmfmac drives, on a Mac with no T2 to detect: BCM43602
-# and its single-band variants, BCM4350, BCM4355, BCM4364, BCM4378, BCM4387.
-for wifi_id in 43ba 43bb 43bc 43a3 43dc 4464 4425 4433; do
-  run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
-  [[ -f $conf ]] || fail "a Mac without a T2 gets the quirk" "14e4:$wifi_id"
+# T2 Macs (BCM4364, BCM4355, BCM4377) and the T2-less BCM4364 iMac19,x keep
+# their firmware SAE offload, or WPA3-only networks never connect (#9802).
+for wifi_id in 4464 43dc 4488; do
+  run_leaf "Apple Inc." "$wifi_id" 1 >/dev/null
+  [[ ! -f $conf ]] || fail "a T2 Mac with 14e4:$wifi_id does not get the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
 done
-pass "every brcmfmac part on a Mac without a T2 gets the quirk"
+pass "T2 Macs do not get the quirk"
+
+run_leaf "Apple Inc." 4464 0 >/dev/null
+[[ ! -f $conf ]] || fail "a BCM4364 Mac without a T2 does not get the quirk"
+pass "a BCM4364 Mac without a T2 does not get the quirk"
+
+# No Mac carries both a T2 and a legacy part, so without this case deleting the
+# T2 check leaves every other case passing.
+run_leaf "Apple Inc." 43ba 1 >/dev/null
+[[ ! -f $conf ]] || fail "a T2 Mac reporting a legacy part does not get the quirk"
+pass "the T2 check alone keeps the quirk off a T2 Mac"
+
+# Legacy pre-T2 parts: BCM43602 and its single-band variants, BCM4350.
+for wifi_id in 43ba 43bb 43bc 43a3; do
+  run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
+  [[ -f $conf ]] || fail "a legacy Mac without a T2 gets the quirk" "14e4:$wifi_id"
+done
+pass "legacy brcmfmac parts on pre-T2 Macs get the quirk"
 
 run_leaf "Apple Inc." 4433 0 1 >/dev/null
 [[ ! -f $conf ]] || fail "Apple Silicon is excluded from the Intel Mac quirk"
