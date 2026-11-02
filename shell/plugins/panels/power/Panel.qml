@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.rateSettling)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.rateSettling)
   }
 
   function profileIcon(name) {
@@ -72,7 +72,18 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.rateSettling)
+  }
+  // UPower drops the rate to 0 W on a power source change and measures it
+  // again ~10 s later; until then a stalled rate is not the charge limit.
+  property bool rateSettling: false
+  Timer { id: rateSettle; interval: 15000; onTriggered: root.rateSettling = false }
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() {
+      root.rateSettling = true
+      rateSettle.restart()
+    }
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
