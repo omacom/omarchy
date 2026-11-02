@@ -134,6 +134,8 @@
   "trigger.toggle.nightlight-off": {"icon":"󰔎","label":"Nightlight Off","when":"[[ $(omarchy-toggle-nightlight --status) == *'\"enabled\":true'* ]]","action":"omarchy-toggle-nightlight"},
   "trigger.toggle.screensaver-on": {"icon":"󱄄","label":"Screensaver On","when":"omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.screensaver-off": {"icon":"󱄄","label":"Screensaver Off","when":"! omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
+  "trigger.toggle.ddc-blank-on": {"icon":"󰍹","label":"DDC Monitor Sleep On","when":"! omarchy-toggle-enabled ddc-blank","action":"omarchy-toggle-ddc-blank"},
+  "trigger.toggle.ddc-blank-off": {"icon":"󰍹","label":"DDC Monitor Sleep Off","when":"omarchy-toggle-enabled ddc-blank","action":"omarchy-toggle-ddc-blank"},
   "trigger.toggle.crash-capture-on": {"icon":"󱚡","label":"Crash Capture On","when":"omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
   "trigger.toggle.crash-capture-off": {"icon":"󱚡","label":"Crash Capture Off","when":"! omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
   "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},

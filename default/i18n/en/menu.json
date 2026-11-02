@@ -318,6 +318,12 @@
   "trigger.toggle.screensaver-off": {
     "label": "Screensaver Off"
   },
+  "trigger.toggle.ddc-blank-on": {
+    "label": "DDC Monitor Sleep On"
+  },
+  "trigger.toggle.ddc-blank-off": {
+    "label": "DDC Monitor Sleep Off"
+  },
   "trigger.toggle.crash-capture-on": {
     "label": "Crash Capture On"
   },

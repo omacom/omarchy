@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle sleeping external monitors over DDC/CI instead of DPMS when the screen blanks
+
+# Some HDMI 2.1 monitors drop hotplug when the output is turned off, which
+# removes and re-adds the display every few seconds behind the lock screen,
+# and then need a long link training to come back. Sleeping the monitor over
+# DDC/CI keeps the link up on both counts. Applies only while every enabled
+# monitor is external; a built-in panel keeps DPMS.
+
+omarchy-toggle ddc-blank
+
+if omarchy-toggle-enabled ddc-blank; then
+  omarchy-notification-send -g 󰍹 "$(omarchy-i18n ddcBlank.enabled)"
+else
+  omarchy-notification-send -g 󰍹 "$(omarchy-i18n ddcBlank.disabled)"
+fi

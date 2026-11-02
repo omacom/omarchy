@@ -220,3 +220,145 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# `off` and `on` blank with DPMS unless the ddc-blank toggle is on and every
+# enabled display is external: then the monitor sleeps over DDC/CI and the
+# video link stays up (some HDMI 2.1 monitors drop hotplug on DPMS off).
+home_dir="$test_tmp/home"
+mkdir -p "$home_dir"
+
+# The mock compositor remembers its DPMS state, so a wake after a DPMS blank
+# has something to turn back on.
+dpms_state="$test_tmp/dpms"
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "dispatch" ]]; then
+  printf 'hyprctl dispatch %s\n' "$2" >>"$CALL_LOG"
+  if [[ $2 == *disable* ]]; then
+    printf 'false\n' >"$DPMS_STATE"
+  else
+    printf 'true\n' >"$DPMS_STATE"
+  fi
+  exit 0
+fi
+monitors=${MONITORS_JSON:-}
+if [[ -z $monitors ]]; then
+  dpms=true
+  [[ -r $DPMS_STATE ]] && read -r dpms <"$DPMS_STATE"
+  monitors='[{"name":"HDMI-A-1","disabled":false,"dpmsStatus":'$dpms'}]'
+fi
+printf '%s\n' "$monitors"
+SH
+
+cat >"$mock_bin/ddcutil" <<'SH'
+#!/bin/bash
+printf 'ddcutil %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == *" detect --brief"* ]]; then
+  cat <<EOT
+Display 1
+   I2C bus:             /dev/i2c-7
+   DRM connector:       card1-HDMI-A-1
+EOT
+elif [[ $* == *" setvcp D6 "* ]]; then
+  sleep "${DDC_SET_DELAY:-0}"
+  if [[ ${DDC_SET_FAIL:-0} == "1" ]]; then
+    exit 1
+  fi
+fi
+SH
+chmod +x "$mock_bin/hyprctl" "$mock_bin/ddcutil"
+
+run_power() {
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" HOME="$home_dir" DPMS_STATE="$dpms_state" \
+    PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
+}
+
+: >"$call_log"
+run_power off
+grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "off blanks with DPMS while the toggle is off"
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "off sends no DDC power command while the toggle is off"
+pass "off blanks with DPMS while the toggle is off"
+
+mkdir -p "$home_dir/.local/state/omarchy/toggles"
+: >"$home_dir/.local/state/omarchy/toggles/ddc-blank"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/"*
+: >"$call_log"
+run_power off
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp D6 04' "$call_log" >/dev/null || \
+  fail "the ddc-blank toggle sleeps an external monitor over DDC/CI"
+! grep -F 'hl.dsp.dpms' "$call_log" >/dev/null || fail "a monitor asleep over DDC/CI is not also turned off with DPMS"
+pass "the ddc-blank toggle sleeps an external monitor over DDC/CI instead of DPMS"
+
+# The lock and the asleep markers live in the private runtime directory; a
+# shared one would let another user plant a symlink where the lock is opened.
+# Without it the toggle is ignored and DPMS blanks as before.
+: >"$call_log"
+CALL_LOG="$call_log" HOME="$home_dir" DPMS_STATE="$dpms_state" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  env -u XDG_RUNTIME_DIR "$brightness_display" off
+grep -F 'hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "without a runtime directory the toggle is ignored and DPMS blanks" "$(<"$call_log")"
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "no DDC sleep without a runtime directory to track it in"
+pass "without a private runtime directory the toggle is ignored and DPMS blanks"
+
+: >"$call_log"
+MONITORS_JSON='[{"name":"eDP-1","disabled":false,"dpmsStatus":true},{"name":"HDMI-A-1","disabled":false,"dpmsStatus":true}]' run_power off
+grep -F 'hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "a built-in panel keeps DPMS for every display"
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "no display sleeps over DDC/CI beside a built-in panel"
+pass "a built-in panel keeps DPMS for every display"
+
+# The external monitor is still asleep over DDC/CI from the earlier blank, and
+# a built-in panel that came back since (lid reopened) does not stand in the
+# way of waking it: DPMS would read it as on and leave it dark.
+: >"$call_log"
+rm -f "$dpms_state"
+MONITORS_JSON='[{"name":"eDP-1","disabled":false,"dpmsStatus":true},{"name":"HDMI-A-1","disabled":false,"dpmsStatus":true}]' run_power on
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp D6 01' "$call_log" >/dev/null || \
+  fail "a monitor slept over DDC/CI is woken over DDC/CI whatever the monitor set has become" "$(<"$call_log")"
+! grep -F 'hl.dsp.dpms' "$call_log" >/dev/null || fail "waking over DDC/CI leaves a lit display's DPMS alone"
+pass "a monitor slept over DDC/CI is woken whatever the monitor set has become"
+
+# Every key press and pointer move asks for a wake; only the monitors still
+# asleep get one.
+: >"$call_log"
+run_power on
+run_power on
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "a monitor already woken gets no second DDC wake" "$(<"$call_log")"
+! grep -F 'hl.dsp.dpms' "$call_log" >/dev/null || fail "a burst of wake requests leaves lit displays alone"
+pass "a burst of wake requests writes DDC once and leaves lit displays alone"
+
+: >"$call_log"
+DDC_SET_FAIL=1 run_power off
+grep -F 'hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "a monitor that refuses the DDC command is blanked with DPMS"
+pass "a monitor that refuses the DDC command is blanked with DPMS"
+
+: >"$call_log"
+run_power on
+! grep -F ' setvcp D6 ' "$call_log" >/dev/null || fail "a monitor blanked with DPMS gets no DDC wake" "$(<"$call_log")"
+grep -F 'hl.dsp.dpms({ action = "enable" })' "$call_log" >/dev/null || \
+  fail "a monitor blanked with DPMS is woken with DPMS" "$(<"$call_log")"
+pass "a monitor blanked with DPMS is woken with DPMS"
+
+# A monitor that takes the sleep but ignores the wake only comes back on a
+# fresh signal: a DPMS cycle.
+: >"$call_log"
+run_power off
+DDC_SET_FAIL=1 run_power on
+[[ $(grep -F 'hl.dsp.dpms' "$call_log" | tr -d '\n') == *disable*enable* ]] || \
+  fail "a monitor that ignores the DDC wake gets a DPMS cycle" "$(<"$call_log")"
+pass "a monitor that ignores the DDC wake gets a DPMS cycle"
+
+# The lock screen starts blank and wake without waiting for one another. A
+# blank that is slow to fail must not fall back to DPMS after a newer wake has
+# lit the screen: the wake waits for it and has the last word.
+: >"$call_log"
+DDC_SET_DELAY=1 DDC_SET_FAIL=1 run_power off &
+blank_pid=$!
+sleep 0.3
+run_power on
+wait "$blank_pid"
+[[ $(grep -F 'hl.dsp.dpms' "$call_log" | tail -n 1) == *enable* ]] || \
+  fail "a wake that arrives during a slow blank still ends with the display lit" "$(<"$call_log")"
+pass "a wake that arrives during a slow blank still ends with the display lit"
