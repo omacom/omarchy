@@ -209,6 +209,9 @@ Panel {
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+    } else {
+      // A read queued behind one still running isn't needed once closed.
+      historyPending = false
     }
   }
 
@@ -229,6 +232,7 @@ Panel {
     }
     return found
   }
+  property var historyEntries: []
   property var historyPoints: []
   property bool historyPending: false
   // Set once UPower answers with no usable history. Until then the chart's
@@ -261,11 +265,21 @@ Panel {
   function updateHistory(raw) {
     var entries = Model.parseHistory(raw)
     if (entries === null || !historyBattery) {
+      historyEntries = []
       historyPoints = []
       historyMissing = true
       return
     }
-    historyPoints = Model.historyPoints(entries, Date.now() / 1000, historyHours * 3600, historyBattery.percentage * 100)
+    historyEntries = entries
+    placeHistory()
+  }
+
+  // Lays the readings out on a window ending now. Run again when the pointer
+  // enters the chart, so a panel left open with nothing changing doesn't
+  // read times, or draw a window, from when the history was fetched.
+  function placeHistory() {
+    if (!historyBattery) return
+    historyPoints = Model.historyPoints(historyEntries, Date.now() / 1000, historyHours * 3600, historyBattery.percentage * 100)
     historyMissing = historyPoints.length < 2
   }
 
@@ -289,7 +303,7 @@ Panel {
     id: historyProc
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateHistory(text) }
     // Deferred: the process still reports running while it signals exit.
-    onExited: if (root.historyPending) Qt.callLater(root.refreshHistory)
+    onExited: if (root.historyPending && root.opened) Qt.callLater(root.refreshHistory)
   }
 
   // UPower writes a row on each change, so the open chart follows the same
@@ -574,6 +588,7 @@ Panel {
           HoverHandler {
             id: chartHover
             enabled: root.historyShown
+            onHoveredChanged: if (hovered) root.placeHistory()
           }
 
           readonly property real hoverX: Math.max(0, Math.min(width, chartHover.point.position.x))
