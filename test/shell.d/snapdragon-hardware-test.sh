@@ -157,6 +157,7 @@ run_leaves_on() (
   export PATH="$scratch/platforms/$platform/bin:$ROOT/bin:$PATH"
 
   omarchy-pkg-add() { :; }
+  omarchy-hw-match() { return 1; }
   qcom-firmware-extract() { [[ $1 != "--list-missing" ]]; }
   findmnt() { printf '/dev/mapper/root\n'; }
   lsblk() { printf 'nvme\n'; }
@@ -183,7 +184,7 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
 (
   declare -A KERNEL_CMDLINE=([default]="quiet splash")
   source "$snapdragon/limine-entry-tool.d/qualcomm-snapdragon.conf"
-  for parameter in clk_ignore_unused pd_ignore_unused regulator_ignore_unused arm64.nopauth systemd.tpm2_wait=0 plymouth.use-simpledrm iommu.passthrough=0; do
+  for parameter in clk_ignore_unused pd_ignore_unused arm64.nopauth systemd.tpm2_wait=0 iommu.passthrough=0; do
     [[ " ${KERNEL_CMDLINE[default]} " == *" $parameter "* ]] ||
       fail "a Snapdragon device tree boots with $parameter"
   done
@@ -209,6 +210,18 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
     [[ $module == *\? ]] ||
       fail "every Snapdragon platform module is optional ($module)"
   done
+)
+
+(
+  # The Yoga Slim 7x blacklists simpledrm and needs msm at disk unlock, so it keeps early kms.
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-hw-match() { [[ $1 == "83ED" ]]; }
+  OMARCHY_QUALCOMM_MKINITCPIO_DIR="$scratch/yoga/mkinitcpio.conf.d"
+  source "$initramfs_setup"
+  HOOKS=(base udev kms)
+  source "$scratch/yoga/mkinitcpio.conf.d/qualcomm-platform.conf"
+  [[ " ${HOOKS[*]} " == *" kms "* ]] ||
+    fail "the Yoga Slim 7x keeps early kms for its disk unlock screen"
 )
 
 for platform in aarch64 aarch64-apple x86; do

@@ -15,8 +15,15 @@ MODULES+=(pinctrl-x1e80100? qnoc-x1e80100? pinctrl-glymur? qnoc-glymur?
   reset-gpio? gpio-shared-proxy? qcom_hwspinlock? smem? smp2p? socinfo? nvmem_qfprom?
   nvmem_qcom-spmi-sdam? qcom-cpucp-mbox? pci-pwrctrl-pwrseq? pwrseq-qcom-wcn? dwc3-qcom?
   rtc-pm8xxx? qcom-pon? pm8941-pwrkey? icc-bwmon? qcom_tsens? qcom-spmi-temp-alarm?)
+CONF
 
-# Drop early KMS: msm blanks panels before userspace; simpledrm keeps Plymouth & LUKS visible.
+  # Drop early KMS: msm blanks panels before userspace; simpledrm keeps Plymouth & LUKS visible.
+  # The Yoga Slim 7x blacklists simpledrm (lenovo/yoga-slim7x.sh) and shows its unlock
+  # screen through msm, so it keeps kms.
+  if ! omarchy-hw-match "83ED"; then
+    cat >>"$mkinitcpio_dir/qualcomm-platform.conf" <<'CONF'
+
 HOOKS=(${HOOKS[@]:+${HOOKS[@]/#kms}})
 CONF
+  fi
 fi
