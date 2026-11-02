@@ -72,6 +72,31 @@ asus-proart-p14-speaker-firmware
 asus-zenbook-a16-audio
 asus-zenbook-a16-firmware
 
+# Snapdragon OEM firmware, one package per machine (install/hardware/qualcomm/oem-firmware.sh)
+acer-swift-14-go-pro-ai-firmware
+asus-vivobook-s15-firmware
+asus-zenbook-a14-firmware
+asus-zenbook-a14-x2-firmware
+dell-inspiron-14-5441-firmware
+dell-inspiron-14-plus-7441-firmware
+dell-latitude-7455-firmware
+dell-xps-13-9345-firmware
+honor-magicbook-art-14-firmware
+hp-elitebook-6-g1q-firmware
+hp-elitebook-ultra-g1q-firmware
+hp-elitebook-x-g2q-firmware
+hp-omnibook-ultra-14-firmware
+hp-omnibook-x14-firmware
+hp-omnibook-x16-firmware
+lenovo-ideacentre-mini-x-firmware
+lenovo-thinkpad-t14s-gen7-firmware
+medion-sprchrgd-14-s1-firmware
+microsoft-surface-laptop-7-firmware
+microsoft-surface-laptop-8-firmware
+microsoft-surface-pro-11-firmware
+microsoft-surface-pro-12in-firmware
+samsung-galaxy-book4-edge-firmware
+
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
 
