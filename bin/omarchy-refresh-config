@@ -26,6 +26,25 @@ if [[ ! -e $default_config_file ]]; then
   exit 1
 fi
 
+# A directory under ~/.config that an elevated run left owned by root (#13329)
+# refuses the directory creation and the copy alike with a bare "Permission
+# denied", and the migration that asked for the refresh stays pending with
+# nothing to go on. Name the directory, who owns it and the repair instead.
+unwritable=$(dirname "$user_config_file")
+while [[ ! -e $unwritable ]]; do
+  unwritable=$(dirname "$unwritable")
+done
+if [[ ! -w $unwritable ]]; then
+  # -w follows a symlink, so the owner read is the target's too.
+  owner=$(stat -L -c %U "$unwritable" 2>/dev/null || true)
+  if [[ -n $owner && $owner != "$(id -un)" ]]; then
+    echo "$unwritable is owned by $owner, so $config_file cannot be refreshed. Run: sudo chown -R $(id -un): \"$unwritable\"" >&2
+  else
+    echo "$unwritable is not writable, so $config_file cannot be refreshed. Run: chmod u+w \"$unwritable\"" >&2
+  fi
+  exit 1
+fi
+
 mkdir -p "$(dirname "$user_config_file")"
 
 if [[ -f $user_config_file ]]; then
