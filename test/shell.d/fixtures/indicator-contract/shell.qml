@@ -28,6 +28,7 @@ ShellRoot {
   QtObject {
     id: idleService
     property bool stayAwake: false
+    property double stayAwakeUntil: 0
     readonly property bool idleEnabled: !stayAwake
     function setIdleEnabled(value) {
       stayAwake = !value
@@ -74,6 +75,7 @@ ShellRoot {
     property bool centerSectionRevealHeld: false
     property bool centerHoverRevealSuppressed: false
     property var shell: mockShell
+    property var activePopout: null
     function run(command) {
       root.commands.push(String(command))
     }
@@ -87,6 +89,11 @@ ShellRoot {
     id: indicatorHost
     property bool revealInactiveIndicators: true
     signal refreshRequested()
+  }
+
+  QtObject {
+    id: popupOwner
+    property var indicatorHost: null
   }
 
   function createIndicator(name) {
@@ -161,12 +168,33 @@ ShellRoot {
 
       Qt.callLater(function() {
         root.assertTrue(tray.implicitWidth > 0, "inactive indicator tray expands on center hover")
+        var revealedWidth = tray.implicitWidth
+        popupOwner.indicatorHost = tray
+        mockBar.activePopout = popupOwner
         mockBar.centerSectionRevealHeld = false
 
         Qt.callLater(function() {
-          root.assertTrue(tray.implicitWidth === 0, "inactive indicator tray collapses after hover")
-          tray.destroy()
-          root.checkFixedEdges([["start", false], ["end", false], ["start", true], ["end", true]])
+          root.assertTrue(tray.implicitWidth === revealedWidth, "indicator popup holds the revealed bar layout after hover leaves")
+          mockBar.vertical = true
+
+          Qt.callLater(function() {
+            root.assertTrue(tray.vertical && tray.revealInactiveIndicators, "indicator popup also holds a vertical bar open")
+            mockBar.activePopout = null
+
+            Qt.callLater(function() {
+              root.assertTrue(tray.implicitHeight === 0, "indicator tray collapses when its popup closes")
+              popupOwner.indicatorHost = indicatorHost
+              mockBar.activePopout = popupOwner
+
+              Qt.callLater(function() {
+                root.assertTrue(tray.implicitHeight === 0, "an unrelated popup does not reveal indicators")
+                mockBar.activePopout = null
+                tray.destroy()
+                mockBar.vertical = false
+                root.checkFixedEdges([["start", false], ["end", false], ["start", true], ["end", true]])
+              })
+            })
+          })
         })
       })
     })
@@ -433,6 +461,9 @@ ShellRoot {
         root.injectBar(stayAwake)
         stayAwake.triggerPress(Qt.LeftButton)
         root.assertTrue(idleService.stayAwake === true, "Stay Awake left click toggles the idle service")
+        idleService.stayAwakeUntil = Date.now() + 1800000
+        root.assertTrue(stayAwake.tooltipText.indexOf("Stay Awake until ") === 0 && stayAwake.tooltipText.indexOf("%1") === -1, "timed tooltip substitutes the localized deadline")
+        idleService.stayAwakeUntil = 0
       }
 
       root.checkIndicatorTray()
