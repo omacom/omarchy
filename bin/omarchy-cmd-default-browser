@@ -52,18 +52,21 @@ done
 
 # Nothing set in a config dir: let xdg-settings search the data dirs and caches.
 # It consults $BROWSER too, which the session points back at omarchy-launch-browser,
-# and the desktop-specific list, which points at omarchy-browser.desktop.
+# and the desktop-specific list, which points at omarchy-browser.desktop. Asking
+# as X-Generic skips both that list and the xprop probe for XFCE that xdg-utils
+# runs for a desktop it does not know, which starts Xwayland where it is started
+# on demand.
 #
 # Either answer can outlive its browser, so an entry is only taken once
 # installed() agrees, and xdg-mime still gets its say when xdg-settings names
 # one that is gone.
-browser=$(env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings get default-web-browser 2>/dev/null)
+browser=$(env -u BROWSER XDG_CURRENT_DESKTOP=X-Generic xdg-settings get default-web-browser 2>/dev/null)
 if [[ -n $browser && $browser != "omarchy-browser.desktop" ]] && installed "$browser"; then
   echo "$browser"
   exit 0
 fi
 
-browser=$(XDG_CURRENT_DESKTOP= xdg-mime query default x-scheme-handler/https 2>/dev/null)
+browser=$(XDG_CURRENT_DESKTOP=X-Generic xdg-mime query default x-scheme-handler/https 2>/dev/null)
 if [[ -n $browser && $browser != "omarchy-browser.desktop" ]] && installed "$browser"; then
   echo "$browser"
   exit 0
