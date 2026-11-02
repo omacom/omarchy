@@ -49,21 +49,38 @@ current_base_size() {
   ' "$shell_config"
 }
 
+# Publish beside the referent so changing text size keeps dotfiles symlinks and
+# access metadata. Refuse updates that cannot retain ownership and publish safely.
+rewrite_shell_config() (
+  local settings_path tmp
+  settings_path=$(realpath -e "$shell_config") || exit 1
+  if ! tmp=$(mktemp "$settings_path.XXXXXX" 2>/dev/null); then
+    echo "Cannot stage a text-size update beside $settings_path; check directory permissions." >&2
+    exit 1
+  fi
+  trap 'rm -f "$tmp"' EXIT
+  awk "$@" "$settings_path" >"$tmp" || exit 1
+  if ! chown --reference="$settings_path" "$tmp" 2>/dev/null; then
+    echo "Cannot preserve owner/group of $settings_path; text size was not changed." >&2
+    exit 1
+  fi
+  cp --attributes-only --preserve=mode,xattr "$settings_path" "$tmp" || exit 1
+  mv -fT "$tmp" "$settings_path"
+)
+
 # Upsert base-size under [font]: replace it in place if present, insert it into
 # an existing [font] section, or append a fresh [font] section otherwise. Other
 # sections and keys in the user override are left untouched.
 set_base_size() {
   local size="$1"
-  mkdir -p "$(dirname "$shell_config")"
+  mkdir -p "$(dirname "$shell_config")" || return 1
 
   if [[ ! -f $shell_config ]]; then
     printf '[font]\nbase-size = %s\n' "$size" >"$shell_config"
     return
   fi
 
-  local tmp
-  tmp="$(mktemp)"
-  awk -v val="$size" '
+  rewrite_shell_config -v val="$size" '
     function emit_base() { print "base-size = " val; done = 1 }
     /^[[:space:]]*\[/ {
       if (in_font && !done) emit_base()
@@ -84,21 +101,17 @@ set_base_size() {
         emit_base()
       }
     }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  '
 }
 
 # Drop the base-size line, returning the shell to the theme/default size.
 reset_base_size() {
   [[ -f $shell_config ]] || return 0
-  local tmp
-  tmp="$(mktemp)"
-  awk '
+  rewrite_shell_config '
     /^[[:space:]]*\[/ { in_font = ($0 ~ /^[[:space:]]*\[font\]([[:space:]]|$)/) }
     in_font && /^[[:space:]]*base-size[[:space:]]*=/ { next }
     { print }
-  ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  '
 }
 
 # ---- GTK text-scaling-factor ----
@@ -208,7 +221,7 @@ case "${1:-}" in
     exit 0
     ;;
   reset | default)
-    reset_base_size
+    reset_base_size || exit 1
     gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
     set_terminal_size "$TERM_DEFAULT_PT"
     exit 0
@@ -223,7 +236,7 @@ if [[ ! $size =~ ^[0-9]+$ ]] || ((size < MIN || size > MAX)); then
 fi
 
 # Shell side: base-size in px (the omarchy shell's rem root).
-set_base_size "$size"
+set_base_size "$size" || exit 1
 
 # GTK side: multiplier anchored so 12px == 1.0, quantized so the interface
 # font renders at a whole point size. Raw ratios yield fractional point sizes,
