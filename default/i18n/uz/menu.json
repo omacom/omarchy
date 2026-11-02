@@ -1288,5 +1288,8 @@
   },
   "setup.keyboard.input-methods": {
     "label": "Kiritish usullari"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   }
 }

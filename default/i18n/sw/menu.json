@@ -1288,5 +1288,8 @@
   },
   "setup.keyboard.input-methods": {
     "label": "Mbinu za Uingizaji"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   }
 }

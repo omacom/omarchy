@@ -1288,5 +1288,8 @@
   },
   "setup.keyboard.input-methods": {
     "label": "इनपुट विधियाँ"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   }
 }

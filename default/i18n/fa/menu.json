@@ -1288,5 +1288,8 @@
   },
   "setup.keyboard.input-methods": {
     "label": "روش‌های ورودی"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   }
 }
