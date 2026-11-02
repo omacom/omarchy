@@ -25,6 +25,8 @@ chmod +x "$tmp_dir/bin/"*
 var="$OMARCHY_EFIVARS/EXPOSED_DISP_FRM-4b086294-0740-4f71-a7b5-85a329c7ec5f"
 shipped='\x07\x00\x00\x00\x00\xfa\x00\x00\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00'
 four_gib='\x07\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01'
+lenovo='\x07\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00'
+lenovo_four_gib='\x07\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01'
 
 apply() { : > "$CALL_LOG"; omarchy-apply-n1x-gpu-memory >/dev/null 2>&1; }
 holds() { cmp -s <(printf "$1") "$var"; }
@@ -44,6 +46,13 @@ pass "an N1x reservation is set to 4 GiB with its attributes kept"
 apply
 [[ ! -s $CALL_LOG ]] || fail "a set reservation is not rewritten"
 pass "a set reservation is not rewritten"
+
+printf "$lenovo" > "$var"
+apply
+holds "$lenovo_four_gib" || fail "the Lenovo reservation is set to 4 GiB" "$(od -An -tx1 "$var")"
+apply
+holds "$lenovo_four_gib" && [[ ! -s $CALL_LOG ]] || fail "a set Lenovo reservation is not rewritten"
+pass "a Lenovo reservation keeps its marker and is set to 4 GiB"
 
 printf '\x07\x00\x00\x00\x00\xfa\x00\x00\x00\x00\x00\x40\x00' > "$var"
 cp "$var" "$tmp_dir/unknown"

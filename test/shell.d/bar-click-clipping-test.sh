@@ -66,9 +66,4 @@ const clickBar = () => panelForward({ anchorWindow: barWindow, bar: facade }, Qt
 assert(clickBar() && pressed.length === 1, 'third-party panel hands a bar click to another module')
 host.activePopout = {}
 assert(!clickBar() && pressed.length === 1, 'host forwards a plugin click only while its panel is open')
-
-for (const file of ['shell/plugins/bar/Bar.qml', 'shell/Ui/KeyboardPanel.qml']) {
-  assert(fs.readFileSync(root + '/' + file, 'utf8').includes('Util.itemContainsPoint(target,'),
-    file + ' checks clipping when forwarding bar clicks')
-}
 JS

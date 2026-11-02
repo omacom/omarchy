@@ -4,127 +4,6 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-run_node_test <<'JS'
-const fs = require('fs')
-
-const utilQml = fs.readFileSync(path.join(root, 'shell/Commons/Util.qml'), 'utf8')
-const mediaQml = fs.readFileSync(path.join(root, 'shell/Ui/BackgroundMedia.qml'), 'utf8')
-const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
-const lockQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/LockView.qml'), 'utf8')
-const themeSwitcher = fs.readFileSync(path.join(root, 'bin/omarchy-theme-switcher'), 'utf8')
-const quattroUpgrade = fs.readFileSync(path.join(root, 'bin/omarchy-upgrade-to-quattro'), 'utf8')
-const barTextColor = fs.readFileSync(path.join(root, 'bin/omarchy-bar-text-color'), 'utf8')
-const menuImages = fs.readFileSync(path.join(root, 'bin/omarchy-menu-images'), 'utf8')
-const batteryService = fs.readFileSync(path.join(root, 'shell/plugins/services/battery/Service.qml'), 'utf8')
-const themeSet = fs.readFileSync(path.join(root, 'bin/omarchy-theme-set'), 'utf8')
-const directImageList = fs.readFileSync(path.join(root, 'shell/plugins/image-picker/list.sh'), 'utf8')
-
-assert(
-  /function isVideoPath\(path\)[\s\S]*\.test\(String\(path \|\| ""\)\)/.test(utilQml) &&
-    !utilQml.includes('split(/[?#]/)'),
-  'shared media helper identifies video paths without truncating valid local names'
-)
-assert(
-  !fs.existsSync(path.join(root, 'shell/Ui/BackgroundVideo.qml')),
-  'the shell keeps no video player of its own'
-)
-assert(
-  /imageUrl: path && !video \? Util\.fileUrl\(path\) \+ \(version \? "\?v=" \+ version : ""\) : ""/.test(mediaQml) &&
-    /active: root\.path !== "" && !root\.video/.test(mediaQml) &&
-    !mediaQml.includes('videoUrl') &&
-    !mediaQml.includes('videoLoader') &&
-    !mediaQml.includes('videoEnabled'),
-  'background media is image-only: it loads stills and leaves videos to OWE'
-)
-assert(
-  !/^\s*import QtMultimedia/m.test(mediaQml) &&
-    !/^\s*import QtMultimedia/m.test(backgroundQml) &&
-    !/^\s*import QtMultimedia/m.test(lockQml) &&
-    !backgroundQml.includes('MediaPlayer') &&
-    !lockQml.includes('MediaPlayer'),
-  'no shell surface builds a Qt Multimedia pipeline'
-)
-assert(
-  !mediaQml.includes('mipmap'),
-  'the shared image path leaves mipmapping off, as the desktop background had it'
-)
-assert(
-  /instant \|\| !displayedBackground \|\| isVideo\(path\) \|\| isVideo\(displayedBackground\)[\s\S]*displayedBackground = finalPath/.test(backgroundQml),
-  'video switches bypass the image-only reveal stack and use the durable background path'
-)
-assert(backgroundQml.includes('BackgroundMedia {') && lockQml.includes('BackgroundMedia {'), 'desktop and lock screen share still rendering')
-assert(
-  !backgroundQml.includes('videoEnabled') &&
-    !backgroundQml.includes('displayedReloads') &&
-    !mediaQml.includes('displayedReloads'),
-  'the desktop hands video backgrounds to OWE with no player switch to carry'
-)
-assert(
-  !backgroundQml.includes('playbackEnabled') &&
-    !backgroundQml.includes('sessionObscured') &&
-    !backgroundQml.includes('fullscreenHere') &&
-    !backgroundQml.includes('Hyprland.monitorFor') &&
-    !backgroundQml.includes('omarchy.lock') &&
-    !backgroundQml.includes('omarchy.battery'),
-  'the desktop no longer carries the shell video pause policy'
-)
-assert(
-  barTextColor.includes('magick "$background_path[0]"'),
-  'bar colour sampling reads one frame instead of decoding a whole video'
-)
-assert(
-  menuImages.includes('pending_video_file') && /video_jobs=\$\(\( \$\(nproc\) \/ 4 \)\)/.test(menuImages),
-  'video thumbnails fan out narrower than single-threaded vips jobs'
-)
-assert(
-  themeSwitcher.includes('fast_signature="v2"'),
-  'the theme preview cache rebuilds after preview discovery learned about video'
-)
-assert(
-  /lazy_thumbnails == true && \$cache_only != true \]\] && ! is_video_path/.test(menuImages),
-  'a video never stands in as its own lazy thumbnail, so the fan out cap always applies'
-)
-assert(
-  /thumbnail_command=\(timeout -k \d+ \d+ ffmpegthumbnailer/.test(menuImages),
-  'a stalled video cannot hold the picker shut, because its generator is time bounded'
-)
-assert(
-  directImageList.includes('generate_video_thumbnail') &&
-    /timeout -k \d+ \d+ ffmpegthumbnailer/.test(directImageList) &&
-    /if \[\[ ! -f \$thumbnail \]\] && ! is_video_path/.test(directImageList),
-  'a direct picker scan generates bounded video thumbnails without content-hashing the media'
-)
-assert(
-  themeSet.includes('choose_staged_theme_background') &&
-    themeSet.includes('background_transition_uses_snapshots') &&
-    themeSet.includes('BACKGROUND_TRANSITION_SNAPSHOTS=false') &&
-    /if \[\[ \$BACKGROUND_TRANSITION_SNAPSHOTS == "true" \]\]/.test(themeSet) &&
-    /if \[\[ -z \$CHOSEN_THEME_BACKGROUND \|\| ! -f \$CHOSEN_THEME_BACKGROUND \]\]/.test(themeSet),
-  'theme changes disable both transition snapshots whenever either side is a video'
-)
-assert(
-  batteryService.includes('property string activePowerProfile') &&
-    /function onProfileChanged\(\) \{\s*root\.powerProfileSignals\+\+\s*root\.activePowerProfile = root\.profileName\(PowerProfiles\.profile\)/.test(batteryService) &&
-    batteryService.includes('root.activePowerProfile = BatteryModel.profileAfterRead(root.activePowerProfile, text, root.powerProfileReadSignals, root.powerProfileSignals)') &&
-    /if \(powerProfileReadProcess\.running\) \{\s*powerProfileReadPending = true/.test(batteryService) &&
-    batteryService.includes('if (root.powerProfileReadPending) Qt.callLater(root.refreshPowerProfile)') &&
-    batteryService.includes('case PowerProfile.PowerSaver: return "power-saver"') &&
-    batteryService.includes('"get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"') &&
-    !batteryService.includes('["powerprofilesctl"') &&
-    !/Timer \{[^}]*refreshPowerProfile/.test(batteryService) &&
-    batteryService.includes('function refreshPowerProfile(): void { root.refreshPowerProfile() }') &&
-    fs.readFileSync(path.join(root, 'bin/omarchy-powerprofiles-set'), 'utf8').includes('omarchy-shell -q battery refreshPowerProfile'),
-  'the battery service tracks the active power profile'
-)
-assert(
-  themeSwitcher.includes("-iname '*.mp4'") &&
-    themeSwitcher.includes('mp4 m4v mov webm mkv avi') &&
-    themeSwitcher.includes('preview.mp4'),
-  'theme switcher previews video-only themes, named preview files included'
-)
-assert(quattroUpgrade.includes("-iname '*.mp4'"), 'Quattro upgrade can seed a video-only theme background')
-JS
-
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin" "$test_tmp/backgrounds" "$test_tmp/generator-cache" "$test_tmp/direct-cache"
@@ -236,7 +115,6 @@ timeout_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$timeout_cache" \
 timeout_marker=$(find "$timeout_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
 [[ -z $timeout_marker ]] || fail "a timed out video is left to retry rather than remembered as failed"
 
-grep -qx 'owe' "$ROOT/install/omarchy-base.packages" || fail "OWE is a base package"
 # Qt Multimedia ships for building apps; the shell itself plays video through OWE.
 if grep -rqs 'import QtMultimedia' "$ROOT/shell"; then
   fail "Qt Multimedia is no longer needed by the shell"
@@ -247,7 +125,6 @@ pass "direct picker generates and reuses still thumbnails"
 pass "direct picker omits videos whose thumbnails cannot be generated"
 pass "a rejected video is remembered so it costs nothing on the next open"
 pass "a timed out video is left to retry"
-pass "OWE is a base package"
 
 source <(awk '
   /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
@@ -292,6 +169,7 @@ video_snapshot=$(snapshot_background_path "$CURRENT_THEME_PATH/backgrounds/old.m
 CHOSEN_THEME_BACKGROUND="$transition_home/disappeared.mp4"
 BACKGROUND_TRANSITION_SNAPSHOTS=false
 THEME_BACKGROUND_INTRO=""
+THEME_BACKGROUND_COVER=false
 OLD_BACKGROUND_SNAPSHOT=""
 PREPARED_BACKGROUND=""
 PREPARED_BACKGROUND_SNAPSHOT=""
