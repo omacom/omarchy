@@ -19,11 +19,18 @@ BarWidget {
   // After the only monitor drops hotplug and comes back, this window can keep
   // the screen that went away, and its monitor resolves to nothing: no
   // workspace shows as active, scrolling stops and clicks name no monitor
-  // (#16351). That falls back to the focused monitor, as having no screen does.
+  // (#16351). With one monitor the focused one can only be this bar's, so it
+  // stands in. With more, a monitor Hyprland hasn't reported yet resolves to
+  // nothing too, and the focused one would be another bar's, so it waits.
+  // Reading the monitor list re-runs this when a monitor is reported or goes.
   readonly property var monitor: {
     var window = root.QsWindow.window
     var screen = window ? window.screen : null
-    return (screen ? Hyprland.monitorFor(screen) : null) || Hyprland.focusedMonitor
+    var monitors = Hyprland.monitors.values
+    if (!screen) return Hyprland.focusedMonitor
+    var own = Hyprland.monitorFor(screen)
+    if (own) return own
+    return monitors.length === 1 ? Hyprland.focusedMonitor : null
   }
   readonly property string monitorName: root.monitor ? root.monitor.name : ""
 
