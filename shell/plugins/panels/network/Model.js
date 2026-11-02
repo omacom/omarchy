@@ -57,11 +57,15 @@ function connectivityState(kind, connectivity, states, checksEnabled) {
   return "unknown"
 }
 
-function connectionIcon(kind, signalStrength, connectivity) {
+function connectionIcon(kind, signalStrength, connectivity, wifiOff) {
   var restricted = connectivity === "portal" || connectivity === "limited"
-  if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
   if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
-  return "󰤮"
+  // Crossed out only while the radio is off, and at once: NetworkManager
+  // takes a few seconds to tear the Wi-Fi link down after the switch.
+  if (wifiOff) return "󰤮"
+  if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
+  // On but not connected gets the alert fan; the empty fan means weak signal.
+  return "󰤫"
 }
 
 function formatHeaderSpeed(mbps, fmt) {

@@ -46,6 +46,10 @@ assertDeepEqual(
   'network parses bar status'
 )
 assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'network maps wifi icon from signal')
+assertEqual(network.connectionIcon('disconnected', -1, 'none', true), '󰤮', 'network crosses out the icon while Wi-Fi is off')
+assertEqual(network.connectionIcon('disconnected', -1, 'none', false), '󰤫', 'network tells on-but-disconnected apart from off')
+assertEqual(network.connectionIcon('wifi', 80, 'full', true), '󰤮', 'Wi-Fi off wins over a link still being torn down')
+assertEqual(network.connectionIcon('ethernet', -1, 'full', true), '󰈀', 'Wi-Fi off does not hide a wired connection')
 
 // OWE transition mode: between scans NetworkManager files the in-use access
 // point under the hidden "_owetm_" SSID and drops the active profile from the

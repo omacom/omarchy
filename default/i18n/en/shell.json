@@ -425,6 +425,7 @@
   "network.timeout": "Timeout",
   "network.turnWifiOff": "Turn Wi-Fi off",
   "network.turnWifiOn": "Turn Wi-Fi on",
+  "network.turnedOff": "TURNED OFF",
   "network.uploaded": "Uploaded",
   "network.wifiBand": "WI-FI BAND",
   "network.wifiBandCurrent": "WI-FI BAND: %1",

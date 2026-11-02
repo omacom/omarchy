@@ -63,7 +63,7 @@ ShellRoot {
 
   function unlistedChecks() {
     check(panel.kind === "wifi", "connected device keeps Wi-Fi when no network is listed as connected")
-    check(panel.icon !== "󰤮", "unlisted network does not flicker to the disconnected icon")
+    check(panel.icon !== "󰤫", "unlisted network does not flicker to the disconnected icon")
     check(panel.testApPoll.running, "missing strength starts the in-use access point poll")
     check(panel.connectionKey === "wifi:test-wifi", "connection key survives the listed network disappearing")
     firstReading.start()
@@ -91,7 +91,7 @@ ShellRoot {
   function dropWhileReading() {
     NetworkMock.wifi.connected = false
     Qt.callLater(function() {
-      check(panel.kind === "disconnected" && panel.icon === "󰤮", "a real disconnect still shows disconnected")
+      check(panel.kind === "disconnected" && panel.icon === "󰤫", "a real disconnect still shows disconnected")
       check(panel.activeApSignal === -1 && !panel.testApPoll.running, "disconnect clears the cached strength and stops polling")
       NetworkMock.wifi.connected = true
       staleReading.start()
