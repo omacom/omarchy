@@ -462,6 +462,13 @@ function hotspotSaveData(status) {
   return hotspotSaveDataChoices.indexOf(value) !== -1 ? value : "auto"
 }
 
+// The choice the running hotspot started with, as status read it from the
+// applied connection, or "" when status could not tell.
+function hotspotSaveDataOnAir(status) {
+  var value = (status && status.save_data_on_air) || ""
+  return hotspotSaveDataChoices.indexOf(value) !== -1 ? value : ""
+}
+
 function hotspotSaveDataLabel(choice, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   if (choice === "always") return t("network.hotspotSaveDataAlways", "Always")
@@ -618,6 +625,7 @@ if (typeof module !== "undefined") {
     hotspotDefaultBand: hotspotDefaultBand,
     hotspotSaveDataChoices: hotspotSaveDataChoices,
     hotspotSaveData: hotspotSaveData,
+    hotspotSaveDataOnAir: hotspotSaveDataOnAir,
     hotspotSaveDataLabel: hotspotSaveDataLabel,
     hotspotSaveDataTooltip: hotspotSaveDataTooltip,
     hotspotSecurityChoices: hotspotSecurityChoices,

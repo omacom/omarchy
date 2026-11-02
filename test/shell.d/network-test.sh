@@ -242,6 +242,8 @@ assertEqual(network.hotspotDefaultBand({ ap_bands: '5' }), '5', 'network uses th
 assertDeepEqual(network.hotspotSaveDataChoices, ['auto', 'always', 'never'], 'network offers auto, always and never for hotspot data saving')
 assertEqual(network.hotspotSaveData({ save_data: 'always' }), 'always', 'network reads the saved hotspot data choice')
 assertEqual(network.hotspotSaveData({ save_data: 'bogus' }), 'auto', 'network falls back to auto for an unknown data choice')
+assertEqual(network.hotspotSaveDataOnAir({ save_data_on_air: 'never' }), 'never', 'network reads the data choice on air')
+assertEqual(network.hotspotSaveDataOnAir({ save_data_on_air: 'bogus' }), '', 'network ignores an unknown on-air data choice')
 assertEqual(network.hotspotSaveData({}), 'auto', 'network treats a status without a data choice as auto')
 assertEqual(network.hotspotSaveDataLabel('never'), 'Never', 'network labels the hotspot data choices')
 assert(/only when this computer's connection is metered/.test(network.hotspotSaveDataTooltip('auto', false, 'auto')), 'network explains what auto follows')
@@ -450,6 +452,15 @@ if (updateHotspotSource) {
   updateHotspot('active\t0\nsave_data\talways\n', 0, '')
   updateHotspot('active\t1\nsave_data\talways\n', 0, '')
   assertEqual(hotspotSaveDataOnAir, 'always', 'network takes the saved choice at the next start')
+
+  // When status reads the applied connection it wins, so a stop and start
+  // this panel never saw (it was closed) still shows what is on air.
+  updateHotspot('active\t1\nsave_data\tnever\nsave_data_on_air\tnever\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'never', 'network takes the data choice on air from status')
+  updateHotspot('active\t1\nsave_data\talways\nsave_data_on_air\talways\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'always', 'network follows a restart it did not see, from the applied connection')
+  updateHotspot('active\t1\nsave_data\tnever\nsave_data_on_air\talways\n', 0, '')
+  assertEqual(hotspotSaveDataOnAir, 'always', 'network keeps the applied choice after a save while running')
 }
 
 const hotspotActionFailureSource = panelSource.match(/function hotspotActionFailure\(kind, reason\) \{[\s\S]*?\n {2}\}/)
