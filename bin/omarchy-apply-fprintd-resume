@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# omarchy:summary=Install missing fingerprint resume files without replacing local configuration
+# omarchy:args=[--reload-only]
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+reload_only=false
+if (( $# == 1 )) && [[ $1 == "--reload-only" ]]; then
+  reload_only=true
+elif (( $# != 0 )); then
+  echo "Usage: omarchy-apply-fprintd-resume [--reload-only]" >&2
+  exit 1
+fi
+
+as_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+# An unprivileged -e/-f test reports absence when an administrator made the
+# containing directory root-only. Ask with the same access used to install;
+# an error other than ENOENT must stop the migration, not authorize a write.
+file_state() {
+  as_root /usr/bin/python3 -I - "$1" <<'PY'
+import os
+import stat
+import sys
+
+try:
+  info = os.lstat(sys.argv[1])
+except FileNotFoundError:
+  print("absent")
+else:
+  if stat.S_ISLNK(info.st_mode):
+    try:
+      info = os.stat(sys.argv[1])
+    except FileNotFoundError:
+      info = None
+  print("file" if info and stat.S_ISREG(info.st_mode) else "present")
+PY
+}
+
+install_missing() {
+  local source=$1 destination=$2 mode=$3 state
+  [[ -f $source ]] || return 0
+  state=$(file_state "$destination") || return
+  if [[ $state == "absent" ]]; then
+    as_root /usr/bin/install -Dm"$mode" "$source" "$destination"
+  fi
+}
+
+hook_src="${OMARCHY_FPRINTD_RESUME_SRC:-$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume}"
+hook_dst="${OMARCHY_FPRINTD_RESUME_DST:-/usr/lib/systemd/system-sleep/fprintd-resume}"
+stop_timeout_src="${OMARCHY_FPRINTD_STOP_TIMEOUT_SRC:-$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf}"
+stop_timeout_dst="${OMARCHY_FPRINTD_STOP_TIMEOUT_DST:-/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf}"
+lock_pam="${OMARCHY_LOCK_FINGERPRINT_PAM:-/etc/pam.d/omarchy-lock-fingerprint}"
+
+if ! $reload_only; then
+  if ! pam_state=$(file_state "$lock_pam"); then
+    echo "Could not inspect fingerprint PAM configuration." >&2
+    exit 1
+  fi
+  case $pam_state in
+    file) ;;
+    absent) exit 0 ;;
+    *) echo "Fingerprint PAM configuration is not a regular file." >&2; exit 1 ;;
+  esac
+  install_missing "$hook_src" "$hook_dst" 755
+  install_missing "$stop_timeout_src" "$stop_timeout_dst" 644
+fi
+
+# Retrying after a failed reload, or repairing an already-completed migration,
+# must also see an existing drop-in through its protected parent directory.
+state=$(file_state "$stop_timeout_dst")
+if [[ $state == "file" ]]; then
+  reload_needed=$(/usr/bin/systemctl show fprintd.service --property=NeedDaemonReload --value)
+  if [[ $reload_needed == "yes" ]]; then
+    as_root /usr/bin/systemctl daemon-reload
+  fi
+fi
