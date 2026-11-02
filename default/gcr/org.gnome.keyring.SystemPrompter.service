@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.gnome.keyring.SystemPrompter
+Exec=/usr/bin/env GTK_THEME=omarchy-gcr-prompter /usr/lib/gcr-prompter
