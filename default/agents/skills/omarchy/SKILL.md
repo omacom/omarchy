@@ -2,6 +2,8 @@
 name: omarchy
 description: >
   REQUIRED for end-user customization of Linux desktop, window manager, or system config.
+  Also REQUIRED before installing system packages, including build dependencies: use
+  `omarchy pkg add`, never raw pacman.
   Use when editing ANY file in ~/.config/, ~/.config/hypr/, ~/.config/omarchy/,
   ~/.config/alacritty/, ~/.config/foot/, ~/.config/kitty/, or ~/.config/ghostty/.
   Triggers: Hyprland, window rules, window behavior, animations, keybindings, monitors, gaps, borders,
