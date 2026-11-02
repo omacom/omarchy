@@ -210,5 +210,45 @@ if (publicManifestMatch) {
   check(raw.__sourceDir === '/plugins/acme.demo', 'a plugin editing its manifest copy cannot move the registry entry')
 }
 
+const loaderBlock = shellSource.match(/property Loader panelLoader: Loader \{([\s\S]*?)\n      \}/)
+check(!!loaderBlock, 'shell.qml declares the panelLoader Loader')
+if (loaderBlock) {
+  const statusBlock = loaderBlock[1].match(/onStatusChanged: \{([\s\S]*)\}/)
+  check(!!statusBlock, 'panelLoader has an onStatusChanged handler')
+  if (statusBlock) {
+    const warns = []
+    const hides = []
+    const createdUrls = []
+    let destroyed = false
+    const detail = 'qs:///plugin/Main.qml:5 module "somemodule" is not installed'
+    const handler = new Function(
+      'status', 'Loader', 'Component', 'Qt', 'shell', 'panelEntry', 'panelLoader', 'console',
+      statusBlock[1]
+    )
+    handler(
+      4,
+      { Error: 4 },
+      { PreferSynchronous: 0 },
+      {
+        createComponent: (url) => {
+          createdUrls.push(url)
+          return {
+            errorString: () => detail,
+            destroy: () => { destroyed = true }
+          }
+        }
+      },
+      { hide: (id) => hides.push(id) },
+      { pluginId: 'test.broken-panel', sourceUrl: 'file:///plugin/Main.qml' },
+      { source: 'file:///plugin/Main.qml', sourceComponent: null },
+      { warn: (...parts) => warns.push(parts.join(' ')) }
+    )
+    check(createdUrls.join(',') === 'file:///plugin/Main.qml', 'panel error handler inspects the failing entry Component')
+    check(warns.length === 1 && warns[0].includes('test.broken-panel') && warns[0].includes(detail), 'panel error handler logs the Component errorString')
+    check(hides.join(',') === 'test.broken-panel', 'broken panel is hidden after the report')
+    check(destroyed, 'temporary diagnostic Component is destroyed')
+  }
+}
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
