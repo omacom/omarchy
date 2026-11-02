@@ -12,7 +12,7 @@ In a simple test, we were able to achieve 36% performance gains on a 2019 MacBoo
 
 Omarchy supports both a full-disk install and a free-space install. A full-disk install erases the selected drive and removes the existing macOS installation. To keep macOS, first create unallocated space and choose **Free space install** in the installer. See [Dual Boot Install](50-dual-boot-install.md) for the general procedure.
 
-Keeping macOS is especially useful on Macs with a T1 or T2 chip. Their firmware and machine-data requirements differ; see the T1 and T2 sections below before partitioning. Internet Recovery provides a recovery path, but is not a substitute for backing up the required files.
+Keeping macOS is especially useful on Macs with a T1 or T2 chip. Their firmware and machine-data requirements differ. On a T1 Mac, make the Apple EFI backup described in the next section before any install: a full-disk install erases the Apple EFI partition, including this Mac's `FDRData`. For T2 Wi-Fi firmware, see the T2 section below. Internet Recovery provides a recovery path, but is not a substitute for backing up the required files.
 
 #### Prepare macOS for a free-space install
 
@@ -91,4 +91,4 @@ The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued 
 
 On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support.
 
-The T2 Wi-Fi firmware fetcher reads firmware from an on-disk macOS volume. A full-disk installation that removed macOS may therefore boot without working Wi-Fi until the firmware is supplied from a macOS installation or a supported recovery image. Preserve macOS or prepare a recovery path before installing on a T2 Mac.
+The T2 Wi-Fi firmware fetcher reads firmware from an on-disk macOS volume. A full-disk installation that removed macOS may therefore boot without working Wi-Fi until the firmware is supplied from a macOS installation or from Apple's recovery image, as described in the [t2linux Wi-Fi and Bluetooth guide](https://wiki.t2linux.org/guides/wifi-bluetooth/). The recovery-image method needs another way online while Wi-Fi is down, and does not work on the iMac Pro, whose firmware can only be taken from an installed macOS. Preserve macOS or prepare a recovery path before installing on a T2 Mac.
