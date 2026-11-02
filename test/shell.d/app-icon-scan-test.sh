@@ -68,3 +68,19 @@ const roots = fs.readFileSync(calls, 'utf8').trim().split('\n')
 assertEqual(new Set(roots).size, 5, 'scan visits all icon roots and pixmaps')
 assertEqual(roots.length, 5, 'scan visits each root only once')
 JS
+
+require_quickshell "icon rescan queued during a scan"
+qml_fixture_scratch
+# Holds each icon scan at its last root while the gate file exists.
+cat >"$QML_FIXTURE_TMP/bin/find" <<'STUB'
+#!/bin/bash
+if [[ $1 == "/usr/share/pixmaps" ]]; then
+  echo >>"$SCAN_LOG"
+  while [[ -e $SCAN_GATE ]]; do sleep 0.02; done
+fi
+exec /usr/bin/find "$@"
+STUB
+chmod +x "$QML_FIXTURE_TMP/bin/find"
+touch "$QML_FIXTURE_TMP/scan-gate"
+SCAN_GATE="$QML_FIXTURE_TMP/scan-gate" SCAN_LOG="$QML_FIXTURE_TMP/scan-log" XDG_DATA_DIRS="$QML_FIXTURE_TMP/share" \
+  run_qml_fixture app-icon-rescan "an icon refresh asked for during a scan runs once the scan ends" Ui Commons
