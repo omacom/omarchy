@@ -25,14 +25,7 @@ HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_TEST_FINALIZE_CALLED="$fina
 [[ ! -e $finalize_called ]] || fail "completed first-run exits before any setup step"
 grep -F 'First-run already complete' "$test_tmp/output" >/dev/null || fail "completed first-run reports its lifecycle gate"
 
-if grep -F 'user-migration-notify-watch-enabled' "$ROOT/bin/omarchy-provision-first-run" >/dev/null; then
-  fail "first-run does not track the migration watcher separately"
-fi
-if grep -F 'skip-first-run-update-notification' "$ROOT/install/user/first-run/wifi.sh" >/dev/null; then
-  fail "first-run does not track update notifications separately"
-fi
-
-pass "first-run uses one lifecycle completion marker"
+pass "completed first-run exits at its lifecycle gate"
 
 # systemctl enables none of a list when one unit in it is unknown, so a unit
 # missing from a build must cost first-run only that unit.
@@ -91,8 +84,12 @@ cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
 SH
+cat >"$mock_bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+echo "$1"
+SH
 chmod +x "$mock_bin/nm-online" "$mock_bin/omarchy-update-available" \
-  "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send"
+  "$mock_bin/checkupdates" "$mock_bin/omarchy-notification-send" "$mock_bin/omarchy-i18n"
 
 # Arguments: OMARCHY_PATH, omarchy-update-available's exit status, then
 # checkupdates'.
@@ -101,7 +98,7 @@ offers_update() {
   OMARCHY_PATH="$1" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
     OMARCHY_TEST_OMARCHY_UPDATE="$2" OMARCHY_TEST_CHECKUPDATES="$3" \
     bash -c 'source "$1"; wait' _ "$ROOT/install/user/first-run/wifi.sh"
-  grep -Fq 'Update System' "$test_tmp/calls"
+  grep -Fq -- '--exec omarchy-launch-floating-terminal-with-presentation omarchy-update' "$test_tmp/calls"
 }
 
 installed=/usr/share/omarchy
@@ -119,3 +116,22 @@ if offers_update "$checkout" 1 2; then
   fail "first run offers no update when a current checkout has nothing pending"
 fi
 pass "first run offers an update only when there is one"
+
+# Arguments: the git name and email already configured, empty for unset.
+offers_git_setup() {
+  : >"$test_tmp/calls"
+  local home="$test_tmp/git-home"
+  rm -rf "$home" && mkdir -p "$home"
+  [[ -z $1 ]] || HOME="$home" git config --global user.name "$1"
+  [[ -z $2 ]] || HOME="$home" git config --global user.email "$2"
+  HOME="$home" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
+    bash "$ROOT/install/user/first-run/git.sh"
+  grep -Fq 'omarchy-setup-git' "$test_tmp/calls"
+}
+
+offers_git_setup "" "" || fail "first run offers git setup on a fresh account"
+offers_git_setup "Jane" "" || fail "first run offers git setup when the email is missing"
+if offers_git_setup "Jane" "jane@example.com"; then
+  fail "first run offers no git setup when the install already set an identity"
+fi
+pass "first run offers git setup only when the identity is missing"

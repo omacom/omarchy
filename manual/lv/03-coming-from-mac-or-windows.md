@@ -1,57 +1,57 @@
-# Ja nāc no Mac vai Windows
+# Ja pārnākat no Mac vai Windows
 
-Ja esi pavadījis gadus macOS vai Windows, tavi pirksti zina simt lietu, ko tavas smadzenes ir aizmirsušas, ka tās kādreiz ir iemācījušās. Šī nodaļa ir tulkošanas slānis: kur šie instinkti nonāk Omarchy. Pašas funkcijas ir padziļināti apskatītas citur — šī ir tikai karte.
+Ja esi pavadījis gadus macOS vai Windows vidē, tavi pirksti zina simtiem lietu, ko tavas smadzenes jau ir aizmirsušas, ka vispār iemācījušās. Šī nodaļa ir tulkošanas slānis: kur šie instinkti nonāk Omarchy. Pašas funkcijas ir padziļināti aprakstītas citur — šī ir tikai karte.
 
 ### Super ir visa centrs
 
-Visa muskuļu atmiņa, ko esi izveidojis ap Cmd vai Windows taustiņu, pāriet uz vienu taustiņu: Super. Tas ir Windows taustiņš datora tastatūrā, un tas ir enkurs gandrīz katrai karstajai taustiņa kombinācijai Omarchy.
+Visa muskuļu atmiņa, ko esi izveidojis ap Cmd vai Windows taustiņu, pāriet uz vienu taustiņu: Super. Tas ir Windows taustiņš PC klaviatūrā, un tas ir enkurs gandrīz katram īsinājumtaustiņam Omarchy.
 
-Tavs Spotlight, Raycast vai izvēlnes Start reflekss kļūst par `Super + Space`. Tas atver Omarchy izvēlni, kas palaiž lietotnes, maina iestatījumus, instalē programmatūru, uzņem ekrānu — gandrīz visu. Sāc rakstīt, lai filtrētu. `Super + Alt + Space` rāda visas lietotnes vienā režģī, kā to dara Launchpad. Skat. [navigācija](04-navigation.md).
+Tavs Spotlight, Raycast vai Start izvēlnes reflekss kļūst par `Super + Space`. Tas atver Omarchy izvēlni, kas palaiž lietotnes, maina iestatījumus, instalē programmatūru, tver ekrānu — gandrīz visu. Sāc rakstīt, lai filtrētu. `Super + Alt + Space` parāda visas lietotnes vienā režģī, tāpat kā Launchpad. Skaties [navigācija](04-navigation.md).
 
 ### Nav ne doka, ne darbvirsmas ikonu
 
-Nav nekā, uz kā noklikšķināt, lai palaistu lietas, nav ikonu, ko sakārtot uz darbvirsmas. Lietotnes startē no karstās taustiņa kombinācijas (`Super + Return` terminālim, `Super + Shift + Return` pārlūkam un `Super + K` sarakstam ar visu, kas ir piesaistīts) vai no izvēlnes. Vienīgā pastāvīgā UI daļa ir [augšējā josla](05-the-top-bar.md), kas aptver to, ko izvēlņu josla, sistēmas tekne un paziņojumu centrs tev darīja iepriekš — un gandrīz katrs logrīks tajā kaut ko dara ar kreiso, labo un vidējo klikšķi.
+Nav nekā, uz kā noklikšķināt, lai palaistu lietas, un nav ikonu, ko kārtot uz darbvirsmas. Lietotnes startē no īsinājumtaustiņa (`Super + Return` terminālim, `Super + Shift + Return` pārlūkam un `Super + K` visu piesaistīto saīšņu sarakstam) vai no izvēlnes. Vienīgais pastāvīgais saskarnes elements ir [augšējā josla](05-the-top-bar.md), kas aptver to, ko agrāk tev darīja izvēļņu josla, sistēmas tekne un Notification Center — un gandrīz katrs tās logrīks kaut ko dara ar kreiso, labo un vidējo klikšķi.
 
-### Logi novietojas paši
+### Logi paši atrod savu vietu
 
-Lielākā domāšanas maiņa: tu nevelc logus apkārt un nepiesaisti tos ekrāna pusēm. Atver logu, un tas aizņem visu ekrānu. Atver otru, un tie to sadala. Tu nekad nezvejo logu no cita apakšas, jo logi nepārklājas.
+Lielākā domāšanas maiņa: tu nevelc logus apkārt un nepieķer tos pie ekrāna pusēm. Atver logu, un tas aizņem visu ekrānu. Atver otru, un tie to sadala. Tev nekad nav jāvelk ārā logs no cita apakšas, jo logi nepārklājas.
 
-Kad tev patiešām vajag peldošu logu, `Super + T` pārslēdz aktīvo logu ārā no mozaīkas (un atpakaļ). Bet vispirms dod mozaīkai reālu iespēju — tā ir visa būtība. [Navigācija](04-navigation.md) izved tevi cauri tam.
+Kad tev patiešām vajag peldošu logu, `Super + T` pārslēdz aktīvo logu ārā no mozaīkas izkārtojuma (un atpakaļ). Bet vispirms dod mozaīkas izkārtojumam īstu iespēju — tā ir visas sistēmas sirds. [Navigācija](04-navigation.md) tevi tam izved cauri.
 
-Darbvietas šķitīs pazīstamas: tās ir macOS Spaces vai Windows virtuālās darbvirsmas, tikai tu tās patiešām lietosi, jo `Super + 1/2/3/4` lec tieši uz vienu, un `Super + Shift + 1/2/3/4` nosūta aktīvo logu turp. Nekādas animācijas kavēšanās, tikai tūlītēji lēcieni. Tas nozīmē, ka tev varbūt pat nevajadzēs vairākus monitorus, ja tu biji pieradis pie tā iepriekš.
+Darba virsmas šķitīs pazīstamas: tās ir macOS Spaces vai Windows virtuālās darbvirsmas, tikai tu tās patiešām izmantosi, jo `Super + 1/2/3/4` uzreiz pāriet uz vienu, bet `Super + Shift + 1/2/3/4` turp nosūta aktīvo logu. Nekādas animācijas aizkaves, tikai tūlītēji lēcieni. Tas nozīmē, ka tev, iespējams, pat nevajadzēs vairākus monitorus, ja agrāk biji pie tā pieradis.
 
-### Kopēšana un ielīmēšana vienkārši darbojas
+### Kopēšana un ielīmēšana vienkārši strādā
 
-Mac tev visur bija Cmd + C. Windows tev visur bija Ctrl + C — izņemot termināli, kur tas nogalina tavu programmu. Omarchy dod tev `Super + C`, `Super + X` un `Super + V`, un tie darbojas visur, tostarp terminālī. Nav atsevišķa refleksa, kas jāiemācās čaulai.
+Mac datorā tev visur bija Cmd + C. Windows datorā tev visur bija Ctrl + C — izņemot termināli, kur tas nogalina tavu programmu. Omarchy tev dod `Super + C`, `Super + X` un `Super + V`, un tie strādā visur, ieskaitot termināli. Nekāda atsevišķa refleksa, kas jāapgūst čaulai.
 
-Windows cilvēki: jūsu Win + V starpliktuves vēsture dzīvo uz `Super + Ctrl + V`, un tā glabā attēlus, kā arī tekstu. Skat. [vienotā starpliktuve un vēsture](08-unified-clipboard-history.md).
+Windows ļaudis: jūsu Win + V starpliktuves vēsture dzīvo uz `Super + Ctrl + V`, un tajā glabājas gan attēli, gan teksts. Skaties [vienotā starpliktuve un vēsture](08-unified-clipboard-history.md).
 
 ### Tulkošanas tabula
 
 | Tu sniedzies pēc | Omarchy |
 | ------------- | ---------- |
 | Spotlight / Raycast / Start izvēlne | `Super + Space` — Omarchy izvēlne |
-| AirDrop | LocalSend, izmantojot `Super + Ctrl + S` — skat. [GUI](22-guis.md) |
-| Cmd + Shift + 4 / Win + Shift + S | `Print Screen` — skat. [ekrānuzņēmumi un ierakstīšana](12-screenshots-recording.md) |
-| Paziņojumu centrs | Paziņojumu vēsture uz `Super + Shift + Alt + ,` |
-| Time Machine (sistēmai) | Automātiski [sistēmas momentuzņēmumi](47-system-snapshots.md) pie katra atjauninājuma |
-| App Store / instalētāja lejupielāde | _Instalēt_ izvēlnē vai `omarchy pkg add` — skat. [citas pakotnes](29-other-packages.md) |
-| Sistēmas iestatījumi / Vadības panelis | _Iestatīšana_ izvēlnē, kas rediģē vienkāršus konfigurācijas failus — skat. [dotfaili](31-dotfiles.md) |
+| AirDrop | LocalSend, ar `Super + Ctrl + S` — skaties [GUIs](22-guis.md) |
+| Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` vai `Print Screen` — skaties [ekrānuzņēmumi un ierakstīšana](12-screenshots-recording.md) |
+| Notification Center | Paziņojumu vēsture uz `Super + Shift + Alt + ,` |
+| Time Machine (sistēmai) | Automātiski [sistēmas momentuzņēmumi](47-system-snapshots.md) katrā atjauninājumā |
+| App Store / instalētāja lejupielāde | _Install_ izvēlnē vai `omarchy pkg add` — skaties [citas pakotnes](29-other-packages.md) |
+| System Settings / Control Panel | _Setup_ izvēlnē, kas rediģē vienkāršus konfigurācijas failus — skaties [dotfiles](31-dotfiles.md) |
 
-### Dažas lietas patiešām ir citādākas
+### Dažas lietas patiešām ir citādas
 
-Daudz iestatījumu dzīvo teksta failos, ko tu rediģē, nevis paneļos, cauri kuriem tu klikšķini. Tas izklausās primitīvi, līdz tu saproti, ka tas nozīmē, ka katru pielāgojumu var redzēt, nokopēt uz nākamo iekārtu un ievietot versiju kontrolē. Izvēlne _Iestatīšana_ ieved tevi tieši pareizajā failā un restartē visu, kas jārestartē, kad esi pabeidzis.
+Daudzi iestatījumi dzīvo teksta failos, kurus tu rediģē, nevis paneļos, kuros tu klikšķini. Tas izklausās primitīvi, līdz apjēdz, ka tas nozīmē, ka katru pielāgojumu var redzēt, nokopēt uz nākamo datoru un ievietot versiju kontrolē. _Setup_ izvēlne tevi iemet tieši pareizajā failā un, kad esi pabeidzis, pārstartē visu, kas jāpārstartē.
 
-Atjauninājumi nāk ar vienu komandu — _Atjaunināt > Omarchy_ —, kas atjaunina pašu Omarchy un katru pakotni sistēmā, vispirms izveidojot momentuzņēmumu. Nekādi katras lietotnes atjauninātāji, kas kaitina tevi nejauši. Skat. [atjauninājumi](30-updates.md).
+Atjauninājumi nāk caur vienu komandu — _Update > Omarchy_ —, kas atjaunina pašu Omarchy un katru sistēmas pakotni, pirms tam izveidojot momentuzņēmumu. Nekādu atsevišķu lietotņu atjauninātāju, kas baksta nejaušos brīžos. Skaties [atjauninājumi](30-updates.md).
 
 Programmatūra nāk no pakotņu pārvaldnieka, nevis no lejupielādētiem instalētājiem.
 
-Un, kad tu aizver logu, lietotne patiešām aizveras. Nav macOS starpstāvokļa, kur programma turpina darboties bez logiem. `Super + W` — vai `Super + Q`, ja tā ir pirkstu atmiņa, ar kuru tu ieradies — nozīmē, ka tās vairs nav.
+Un, kad tu aizver logu, lietotne patiešām aizveras. Nav nekādas macOS starpstadijas, kur programma turpina darboties bez neviena loga. `Super + W` — vai `Super + Q`, ja tā ir pirkstu atmiņa, ar ko esi ieradies, — nozīmē: prom.
 
 ### Uz Mac aparatūras
 
-Omarchy labi darbojas Intel Mac datoros — skat. [Mac atbalsts](44-mac-support.md). Un tastatūra pret tevi ir laipna: Omarchy neko nepārsaista, un Linux Command taustiņu uztver kā Super, tāpēc Super sēž tieši tur, kur Cmd vienmēr bija. Tavs īkšķis pāreju nepamanīs.
+Omarchy labi darbojas Intel Mac datoros — skaties [Mac atbalsts](44-mac-support.md). Un klaviatūra ir laipna pret tevi: Omarchy neko nepārkartē, un Linux Command taustiņu apstrādā kā Super, tāpēc Super atrodas tieši tur, kur Cmd vienmēr bija. Tavs īkšķis pārcelšanos nemanīs.
 
 ### Dod tam divas nedēļas
 
-Instinkti pāriet ātrāk, nekā tu domā. Vienu reizi pārskati nodaļu [karstie taustiņi](07-hotkeys.md), un, kad vien aizmirsti piesaisti, nospied `Super + K` — tas rāda tev tās visas. Tā ir vienīgā karstā taustiņa kombinācija, kas tev patiešām jāiegaumē.
+Instinkti pāriet ātrāk, nekā domā. Vienreiz izskrien cauri [īsinājumtaustiņi](07-hotkeys.md) nodaļai, un ikreiz, kad piemirsti kādu piesaisti, nospied `Super + K` — tas tev parāda visas. Tas ir vienīgais īsinājumtaustiņš, kas tev patiešām jāiemācās no galvas.

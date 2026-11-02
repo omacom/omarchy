@@ -1,108 +1,108 @@
 # GUI-k
 
-## Files
+## Fájlok
 
-A Files (Nautilus) a grafikus fájlkezelő. A `Super + Shift + F` megnyitja, a `Super + Shift + Alt + F` pedig abban a könyvtárban nyitja meg, amelyben a terminálod tartózkodik, ami sok kattintást takarít meg. A `Ctrl + L` lehetővé teszi egy útvonal begépelését, bármelyik fájlon megnyomva a `Space` billentyűt pedig gyors előnézetet kapsz anélkül, hogy bármit megnyitnál.
+A Files (Nautilus) a grafikus fájlkezelő. A `Super + Shift + F` nyitja meg, a `Super + Shift + Alt + F` pedig abban a könyvtárban, amelyben éppen a terminálod áll, ami rengeteg kattintást megspórol. A `Ctrl + L` segítségével beírhatsz egy elérési utat, a `Space` megnyomása bármelyik fájlon pedig gyors előnézetet ad anélkül, hogy bármit is megnyitnál.
 
-Dugj be egy USB-meghajtót vagy egy SD-kártyát, és automatikusan csatolódik, így egyszerűen megjelenik az oldalsávban. Minden összetettebb feladathoz — meghajtó formázásához, SMART-állapot ellenőrzéséhez, partíciók létrehozásához — indítsd el a _Disks_ alkalmazást az alkalmazásindítóból (`Super + Space`).
+Csatlakoztass egy USB-meghajtót vagy egy SD-kártyát, és automatikusan csatolódik, így egyszerűen megjelenik az oldalsávban. Minden komolyabb feladathoz — meghajtó formázásához, a SMART-állapot ellenőrzéséhez, partíciók létrehozásához — indítsd el a _Disks_ alkalmazást az alkalmazásindítóból (`Super + Space`).
 
-A dupla kattintás értelmes alapértelmezéseket követ: a képek az imv-ben nyílnak, a videó az mpv-ben, a PDF-ek a Document Viewerben, a sima szöveg pedig a Neovimban.
+A dupla kattintás ésszerű alapértelmezéseket követ: a képek imv-ben, a videók mpv-ben, a PDF-ek a Document Viewer alkalmazásban, az egyszerű szövegfájlok pedig Neovimban nyílnak meg.
 
 ## Disktree
 
-Amikor a meghajtó megtelik, és fogalmad sincs, mi eszi fel, indítsd el a [Disktree](https://github.com/tobi/disktree) programot az alkalmazásindítóból (`Super + Space`). A saját mappád grafikus fatérképét mutatja. A nagyobb blokkok több helyet foglalnak; járj be könyvtárakat billentyűzettel vagy egérrel, jelöld meg, minek kell mennie, és ellenőrizd a választásaidat, mielőtt bármit eltávolítanál. Futtasd a `disktree --disk` parancsot az egész lemez beolvasásához.
+Amikor megtelik a meghajtó, és fogalmad sincs, mi zabálja fel, indítsd el a [Disktree](https://github.com/tobi/disktree) alkalmazást az alkalmazásindítóból (`Super + Space`). Grafikus treemap formájában mutatja a saját könyvtáradat. A nagyobb blokkok több helyet foglalnak; billentyűzettel vagy egérrel lépkedhetsz be a könyvtárakba, megjelölheted, minek kell mennie, és bármit is távolítanál el, előbb átnézheted a kiválasztásaidat. Az egész lemez vizsgálatához futtasd a `disktree --disk` parancsot.
 
 ## Obsidian
 
 Az [Obsidian](https://obsidian.md/) egy ingyenes és rendkívül bővíthető jegyzetelő alkalmazás, amely egyszerű Markdown-fájlokat használ tárolásra.
 
-Az Obsidian minden célra ingyenes, beleértve a személyes, kereskedelmi és nonprofit használatot is.
+Az Obsidian minden célra ingyenes, beleértve a személyes, a kereskedelmi és a nonprofit felhasználást is.
 
-Az Obsidian [kereskedelmi szinkronizálási kiegészítőt](https://obsidian.md/sync) is kínál iOS- és Android-mobilalkalmazásokkal. (https://obsidian.md/pricing).
+Az Obsidian [kereskedelmi kiegészítőt is kínál szinkronizáláshoz](https://obsidian.md/sync) iOS-es és androidos mobilalkalmazásokkal. (https://obsidian.md/pricing).
 
-Az Obsidiant a `Super + Shift + O` kombinációval indítod. A témaszinkronizáláshoz a beállításokban ki kell választanod az `Omarchy` témát.
+Az Obsidiant a `Super + Shift + O` billentyűkombinációval indítod. A téma szinkronizálásához a beállítások alatt ki kell választanod az `Omarchy` témát.
 
 ## Omawrite
 
-Az [Omawrite](https://github.com/omacom-io/omawrite) az Omarchy saját, végtelenül egyszerű Markdown-íróalkalmazása. Nincsenek adattárak, nincsenek bővítmények, csak te és a szavaid.
+Az [Omawrite](https://github.com/omacom-io/omawrite) az Omarchy saját, pofonegyszerű Markdown-íróalkalmazása. Nincsenek vaultok, nincsenek bővítmények, csak te és a szavak.
 
-Az Omawrite-ot a `Super + Shift + W` kombinációval indítod.
+Az Omawrite-ot a `Super + Shift + W` billentyűkombinációval indítod.
 
 ## Pinta
 
-A [Pinta](https://www.pinta-project.com/) egy alapvető képszerkesztő eszköz, amely nagyszerű vágáshoz, átméretezéshez és más alapvető műveletekhez. Csak ne vársz Photoshop-alternatívát. De mégis megvan benne a varázspálca és a rétegek!
+A [Pinta](https://www.pinta-project.com/) egy egyszerű képszerkesztő eszköz, amely remekül használható vágáshoz, átméretezéshez és más alapvető műveletekhez. Csak Photoshop-alternatívát ne várj tőle. De még így is van benne Magic Wand és rétegek!
 
-A Pintát az alkalmazásindítón keresztül indíthatod (`Super + Space`).
+A Pintát az alkalmazásindítón keresztül indítod (`Super + Space`).
 
 ## Aether
 
-Az [Aether](https://github.com/bjarneo/aether) egy témázó alkalmazás, amely színeket nyer ki egy háttérképről, és azokat teljes, egységes témává alakítja. Ez a legegyszerűbb módja annak, hogy [elkészítsd saját témádat](43-making-your-own-theme.md).
+Az [Aether](https://github.com/bjarneo/aether) egy témázó alkalmazás, amely színeket tud kinyerni egy háttérképből, és azokat teljes, egységes témává tudja alakítani. Ez a legegyszerűbb módja annak, hogy [elkészítsd a saját témádat](43-making-your-own-theme.md).
 
-Az Aethert az alkalmazásindítón keresztül indíthatod (`Super + Space`).
+Az Aethert az alkalmazásindítón keresztül indítod (`Super + Space`).
 
 ## LocalSend
 
-A [LocalSend](https://localsend.org/) segítségével fájlokat küldhetsz ugyanazon a hálózaton lévő, az alkalmazást futtató más eszközökre, mint az Apple AirDropja. Azonban többplatformos, így Windowsra, macOS-re, Androidra, iOS-re és természetesen Linuxra is küldhetsz és fogadhatsz fájlokat.
+A [LocalSend](https://localsend.org/) segítségével fájlokat küldhetsz ugyanazon a hálózaton lévő, az alkalmazást futtató más eszközökre, akárcsak az Apple AirDropjával. Viszont platformfüggetlen, így Windows, macOS, Android, iOS és persze Linux között is küldhetsz fájlokat oda-vissza.
 
-A Megosztás menüt a `Super + Ctrl + S` billentyűvel vagy az Omarchy menü _Trigger > Share_ pontjában nyithatod meg. Négy lehetőséget ad:
+A Megosztás menüt a `Super + Ctrl + S` billentyűkombinációval vagy az Omarchy menüben a _Trigger > Share_ alatt nyithatod meg. Négy lehetőséget kínál:
 
-- A **Clipboard** szövegfájlként küldi el, bármit is másoltál. Nagyszerű ahhoz, hogy egy hivatkozást vagy egy kódrészletet a telefonodra juttass anélkül, hogy magadnak e-maileznél.
-- A **File** megnyit egy fájlválasztót, ahol egyszerre többet választhatsz ki.
-- A **Folder** egy teljes könyvtárat küld.
-- A **Receive** megnyitja magát a LocalSend-et, hogy egy másik eszköz küldhessen neked valamit.
+- A **Clipboard** szövegfájlként küldi el, bármit is másoltál. Remek arra, hogy egy hivatkozást vagy egy részletet a telefonodra juttass anélkül, hogy e-mailt küldenél magadnak.
+- A **File** egy fájlválasztót nyit meg, ahol egyszerre többet is kiválaszthatsz.
+- A **Folder** egy teljes könyvtárat küld el.
+- A **Receive** magát a LocalSendet nyitja meg, hogy egy másik eszköz küldhessen neked valamit.
 
-Ugyanez működik terminálból is az `omarchy share clipboard`, az `omarchy share file [path]` és az `omarchy share folder [path]` paranccsal. Hagyd le az elérési utat, és megkapod a fájlválasztót.
+Ugyanez a terminálból is működik az `omarchy share clipboard`, az `omarchy share file [path]` és az `omarchy share folder [path]` parancsokkal. Hagyd le az elérési utat, és megkapod a választót.
 
-Küldhetsz közvetlenül a fájlkezelőből is: kattints jobb gombbal bármely kiválasztásra a Nautilusban, és válaszd az _Send via LocalSend_ lehetőséget.
+Közvetlenül a fájlkezelőből is küldhetsz: kattints jobb gombbal bármilyen kijelölésre a Nautilusban, és válaszd a _Send via LocalSend_ lehetőséget.
 
-Az Omarchy tűzfala alapértelmezetten zárva van, kivéve a LocalSend portját, így ez frissen telepített rendszeren is azonnal működik. Lásd a [security](48-security.md) részt.
+Az Omarchy tűzfala alapértelmezés szerint zárva van, kivéve a LocalSend portját, így ez egy friss telepítésen azonnal működik. Lásd: [biztonság](48-security.md).
 
 ## LibreOffice
 
-A [LibreOffice](https://www.libreoffice.org/) egy teljes irodai csomag szövegszerkesztővel, táblázatkezelővel, prezentációval, rajzalkalmazással és egyebekkel. Kompatibilis a Microsoft Office fájljaival, így ez nagyszerű módja annak, hogy megnyisd azokat a Word-dokumentumokat.
+A [LibreOffice](https://www.libreoffice.org/) egy teljes irodai csomag szövegszerkesztővel, táblázatkezelővel, bemutatókészítővel, rajzolóalkalmazással és még sok mással. Kompatibilis a Microsoft Office fájljaival, így remek módja annak, hogy meg tudd nyitni azokat a Word-dokumentumokat.
 
-A LibreOffice-t az alkalmazásindítón keresztül indíthatod (`Super + Space`).
+A LibreOffice-t az alkalmazásindítón keresztül indítod (`Super + Space`).
 
 ## Hype
 
-A [Hype](https://github.com/omacom/hype) az Omarchy saját, végtelenül egyszerű prezentációs alkalmazása. A diavetítésed egy egyetlen Markdown-fájl a képeivel és videóival mellette: minden diát egy élő előnézet alá írj, húzd rendezett sorba a diákat, majd mutasd be teljes képernyőn vagy exportáld PDF-be és PowerPointba. Még az Omarchy-témádat is átveszi.
+A [Hype](https://github.com/omacom/hype) az Omarchy saját, pofonegyszerű prezentációs alkalmazása. A prezentációd egyetlen Markdown-fájl, mellette a képeivel és videóival: minden diát élő előnézet alatt írsz meg, a diákat sorrendbe húzod, majd teljes képernyőn prezentálsz, vagy PDF-be és PowerPointba exportálsz. Még az Omarchy-témádat is átveszi.
 
-A Hype-ot az alkalmazásindítón keresztül indíthatod (`Super + Space`). Nyomd meg a `?` billentyűt belül az összes gyorsbillentyű megtekintéséhez.
+A Hype-ot az alkalmazásindítón keresztül indítod (`Super + Space`). Nyomd meg benne a `?` billentyűt az összes gyorsbillentyű megtekintéséhez.
 
 ## Signed
 
-A [Signed](https://github.com/omacom/signed) az Omarchy saját, végtelenül egyszerű módja PDF-ek aláírására és kitöltésére. Tedd a tárolt aláírásodat, szövegedet és a mai dátumot az oldal bármely részére, majd ments el egy aláírt példányt az eredeti mellé. A hogyanról lásd a [Filling out PDFs](27-filling-out-pdfs.md) részt.
+A [Signed](https://github.com/omacom/signed) az Omarchy saját, pofonegyszerű módja PDF-ek aláírására és kitöltésére. Helyezd el a mentett aláírásodat, szöveget és a mai dátumot bárhová egy oldalon, majd ments egy aláírt példányt az eredeti mellé. A módját lásd itt: [PDF-ek kitöltése](27-filling-out-pdfs.md).
 
-A Signedet az alkalmazásindítón keresztül indíthatod (`Super + Space`), vagy nyiss meg vele egy PDF-et a fájlkezelőből.
+A Signedet az alkalmazásindítón keresztül indítod (`Super + Space`), vagy megnyithatsz vele egy PDF-et a fájlkezelőből.
 
 ## Omacalc
 
-Az [Omacalc](https://github.com/omacom-io/omacalc) az Omarchy saját, végtelenül egyszerű számológépe, amely lebegő ablakban nyílik.
+Az [Omacalc](https://github.com/omacom-io/omacalc) az Omarchy saját, pofonegyszerű számológépe, amely lebegő ablakban nyílik meg.
 
-Az Omacalcot a `Super + Ctrl + Q` kombinációval indíthatod (vagy a számológép-billentyűvel, ha a billentyűzete rendelkezik ilyennel).
+Az Omacalcot a `Super + Shift + Q` billentyűkombinációval indítod (vagy a számológép billentyűvel, ha a billentyűzeteden van ilyen).
 
 ## Signal
 
-A [Signal](https://signal.org/) az E2E-titkosítás úttörője, és nagyszerű kommunikációs lehetőség bárki számára, aki szeretné elkerülni a nagy technológiai konglomerátumokat.
+A [Signal](https://signal.org/) az E2E-titkosított üzenetküldés úttörője, és remek kommunikációs lehetőség mindenkinek, aki inkább nem valamelyik nagy technológiai konglomerátumon keresztül intézné ezt.
 
-A Signalt a `Super + Shift + G` kombinációval indíthatod. Nem része az alaptelepítésnek, így az első alkalommal, amikor ezt megnyomod, az Omarchy felajánlja, hogy telepíti neked (az Omarchy menü _Install > Service_ pontja alatt is megtalálható).
+A Signalt a `Super + Shift + G` billentyűkombinációval indítod. Nem része az alaptelepítésnek, így amikor először megnyomod ezt, az Omarchy felajánlja, hogy telepíti neked (az Omarchy menüben az _Install > Service_ alatt is megtalálod).
 
 ## mpv
 
-Az [mpv](https://mpv.io/) egy egyszerű, gyors médialejátszó, amely szinte bármit lejátszik bármilyen forrásból. Nagyszerű videónezegetéshez.
+Az [mpv](https://mpv.io/) egy egyszerű, gyors médialejátszó, amely szinte bármit lejátszik bármilyen forrásból. Remek videók nézéséhez.
 
-Az mpv-t az alkalmazásindítón keresztül (`Super + Space`) indíthatod, vagy egyszerűen duplán kattints egy videóra a fájlkezelőben.
+Az mpv-t az alkalmazásindítón keresztül indítod (`Super + Space`), vagy egyszerűen dupla kattintással egy videóra a fájlkezelőben.
 
 ## Omacut
 
-Az [Omacut](https://github.com/omacom-io/omacut) az Omarchy saját, végtelenül egyszerű videóvágója. Amikor csak egy klip elejét és végét kell levágni, ez veri egy komplett videószerkesztő elindítását.
+Az [Omacut](https://github.com/omacom-io/omacut) az Omarchy saját, pofonegyszerű videóvágója. Amikor csak egy klip elejét és végét kell levágnod, sokkal jobb, mint elindítani egy teljes értékű videószerkesztőt.
 
-Az Omacutot az alkalmazásindítón keresztül indíthatod (`Super + Space`).
+Az Omacutot az alkalmazásindítón keresztül indítod (`Super + Space`).
 
 ## Monologue
 
-A [Monologue](https://github.com/omacom/monologue) az Omarchy saját, végtelenül egyszerű webkamera-felvevője. Vállj kamerát és mikrofont egyszer, majd nyomd meg a `Space` billentyűt a felvételhez, és újra a szünethez és folytatáshoz ugyanannál a felvételnél. Mindig a kamerád legnagyobb felbontásában rögzít, élő mikrofon-méterrel, hogy a kezdés előtt ellenőrizd a szinteket.
+A [Monologue](https://github.com/omacom/monologue) az Omarchy saját, pofonegyszerű webkamerás rögzítője. Válaszd ki egyszer a kamerádat és a mikrofonodat, majd nyomd meg a `Space` billentyűt a rögzítéshez, és újra ugyanannak a felvételnek a szüneteltetéséhez és folytatásához. Mindig a kamerád legmagasabb felbontásában rögzít, élő mikrofonszint-jelzővel, így még kezdés előtt ellenőrizheted a szinteket.
 
-Állítsd le a felvételt, és máris megnyílik egy beépített szerkesztőben. Kattints duplán egy klipre, hogy felvágd, húzd a fogantyúkat minden rész vágásához, és töröld a nem kívánt részeket. Majd mentse el MP4-ként. Az eredeti felvétel addig megmarad, amíg el nem dobja, így mindig visszatérhetsz, és másképp vághatod.
+Állítsd le a felvételt, és azonnal megnyílik egy beépített szerkesztőben. Kattints duplán egy klipre a felosztásához, húzd a fogantyúkat az egyes darabok vágásához, és távolítsd el azokat a részeket, amelyekre nincs szükséged. Ezután mentsd el MP4-ként. Az eredeti felvételed megmarad, amíg el nem veted, így bármikor visszatérhetsz hozzá, és másképp vághatod meg.
 
-A Monologue-ot az alkalmazásindítón keresztül indíthatod (`Super + Space`).
+A Monologue-ot az alkalmazásindítón keresztül indítod (`Super + Space`).
