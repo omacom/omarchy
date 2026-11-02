@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Test viteză disc"
   },
-  "setup.monitors": {
-    "label": "Monitoare"
-  },
-  "setup.keybindings": {
-    "label": "Scurtături"
-  },
   "setup.input": {
     "label": "Intrare"
-  },
-  "setup.typing": {
-    "label": "Tastare"
-  },
-  "setup.typing.keyboard": {
-    "label": "Aranjări tastatură"
-  },
-  "setup.typing.input": {
-    "label": "Metode de introducere"
   },
   "setup.language": {
     "label": "Limbă"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Kernel"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Tastatură"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Scurtături"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Intrări tastatură"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Metode de introducere"
   }
 }

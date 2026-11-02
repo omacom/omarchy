@@ -4,9 +4,9 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 require_command lua
 
-lua - <<'LUA'
+lua - <<'LUA' || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, reveal, command, imported = {}, nil, nil, nil, false
+local events, recovery, reveal, command, imported, commands = {}, nil, nil, nil, false, {}
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
@@ -43,6 +43,7 @@ hl = {
       assert(config.invisible and env.XCURSOR_THEME == "my-xcursor", "hide the compositor cursor while restoring application settings before launch")
     end
     command = value
+    table.insert(commands, value)
   end,
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
@@ -88,7 +89,12 @@ end
 reveal()
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
 assert(env.OMARCHY_STARTUP_CURSOR_SESSION == "" and env.OMARCHY_STARTUP_CURSOR_REVEALED == "", "a shown cursor ends the startup reveal")
-assert(command:match("setcursor 'my%-hyprcursor'"), "restore the user's Hyprcursor theme")
+assert(command:match("xsetroot %-cursor_name left_ptr"), "restore the X11/XWayland root cursor")
+local hyprcursor_restored = false
+for _, c in ipairs(commands) do
+  if c:match("setcursor 'my%-hyprcursor'") then hyprcursor_restored = true end
+end
+assert(hyprcursor_restored, "restore the user's Hyprcursor theme")
 local previous_command = command
 previous_recovery()
 assert(command == previous_command, "recovery must not change a revealed cursor")

@@ -573,6 +573,20 @@ case ${OMARCHY_TEST_SHELL_STATE:-ready} in
     echo "Function not found." >&2
     exit 1
     ;;
+  flapping)
+    # IPC timeout on every ask: the 2s default window keeps expiring.
+    echo >>"$OMARCHY_TEST_SHELL_MARKER"
+    echo "omarchy-shell is not responding" >&2
+    exit 1
+    ;;
+  slow)
+    # Misses the IPC window once, then answers.
+    if [[ ! -e $OMARCHY_TEST_SHELL_MARKER ]]; then
+      touch "$OMARCHY_TEST_SHELL_MARKER"
+      echo "omarchy-shell is not responding" >&2
+      exit 1
+    fi
+    ;;
   scanning)
     # Answering IPC, but has not read the plugins yet.
     if [[ ! -e $OMARCHY_TEST_SHELL_MARKER ]]; then
@@ -601,17 +615,36 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=spawni
 pass "put waits for a shell that is being spawned"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=starting OMARCHY_SHELL_READY_ATTEMPTS=2 \
-  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) &&
-  fail "put fails when the shell never becomes ready" "$put_output"
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
+  fail "put carries on when the shell never becomes ready" "$put_output"
 [[ $put_output == *"did not become ready"* ]] || fail "put says the shell never became ready" "$put_output"
-pass "put fails when the shell never becomes ready"
+pass "put carries on when the shell never becomes ready"
+
+put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=slow \
+  OMARCHY_TEST_SHELL_MARKER="$put_tmp/slow" \
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
+  fail "put asks again after a timeout" "$put_output"
+[[ $put_output == *"omarchy.keyboard-layout is on the bar" ]] || fail "put places once the shell answers in time" "$put_output"
+pass "put asks again when the shell misses the IPC window"
+
+# A shell that answers nothing but IPC timeouts must be carried on from the
+# same way: failing the first timeout wedges every subsequent update on a
+# shell that keeps missing the 2s window (omacom/omarchy#13301), and asking
+# it the full ready budget holds the update for over a minute.
+put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=flapping OMARCHY_SHELL_TIMEOUT_ATTEMPTS=2 \
+  OMARCHY_TEST_SHELL_MARKER="$put_tmp/timeouts" \
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
+  fail "put carries on when the shell only times out" "$put_output"
+[[ $put_output == *"did not become ready"* ]] || fail "put says the shell never settled" "$put_output"
+(( $(wc -l <"$put_tmp/timeouts") == 2 )) || fail "put stops asking a shell that keeps timing out" "$put_output"
+pass "put gives up on a shell that keeps timing out"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=crashing \
   OMARCHY_TEST_SHELL_MARKER="$put_tmp/started" \
-  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) &&
-  fail "put fails when a starting shell disappears" "$put_output"
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
+  fail "put carries on when a starting shell disappears" "$put_output"
 [[ $put_output == *"did not become ready"* ]] || fail "put keeps a lost shell retryable" "$put_output"
-pass "put fails when a starting shell disappears"
+pass "put carries on when a starting shell disappears"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=oldshell \
   "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
@@ -621,10 +654,10 @@ pass "put falls back against a shell that has not restarted yet"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=vanishing \
   OMARCHY_TEST_SHELL_MARKER="$put_tmp/vanished" \
-  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) &&
-  fail "put fails when the shell goes away mid-fallback" "$put_output"
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
+  fail "put carries on when the shell goes away mid-fallback" "$put_output"
 [[ $put_output == *"did not become ready"* ]] || fail "put remembers the shell answered once" "$put_output"
-pass "put fails when the shell goes away mid-fallback"
+pass "put carries on when the shell goes away mid-fallback"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=unsupported \
   "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) &&

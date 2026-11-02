@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Tástáil luais diosca"
   },
-  "setup.monitors": {
-    "label": "Monatóirí"
-  },
-  "setup.keybindings": {
-    "label": "Naisc eochrach"
-  },
   "setup.input": {
     "label": "Ionchur"
-  },
-  "setup.typing": {
-    "label": "Clóscríobh"
-  },
-  "setup.typing.keyboard": {
-    "label": "Leagan méarchláir"
-  },
-  "setup.typing.input": {
-    "label": "Modhanna ionchuir"
   },
   "setup.language": {
     "label": "Teanga"
@@ -1285,5 +1270,23 @@
   },
   "update.kernel": {
     "label": "Eithne"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Méarchlár"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Aicearraí Méarchláir"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Ionchuir Méarchláir"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Modhanna Ionchuir"
   }
 }
