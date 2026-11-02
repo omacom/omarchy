@@ -500,6 +500,12 @@ assert(config["input.follow_mouse"] == 0, "focus moving to a floating monitor tu
 active_ws = { id = 5 }
 focus_changed(nil)
 assert(config["input.follow_mouse"] == 1, "a focus event without a monitor did not read the active workspace")
+
+-- Switching a monitor to an empty floating workspace can leave focus on a
+-- window under the pointer on a tiled monitor: the focused workspace decides.
+active_ws = { id = 5 }
+subscriptions["workspace.active"][1]({ id = 3 })
+assert(config["input.follow_mouse"] == 1, "a floating workspace that did not take focus turned follow_mouse off")
 LUA
 
 # Lua 5.5 exits 0 when a script that failed came in on stdin, so a heredoc piped

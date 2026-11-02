@@ -373,7 +373,11 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
-  hl.on("workspace.active", update_input)
+  -- A workspace switch can hand focus to a window on another monitor, so the
+  -- event's workspace is not necessarily the focused one.
+  hl.on("workspace.active", function()
+    update_input()
+  end)
   hl.on("monitor.focused", function(monitor)
     update_input(monitor and monitor.active_workspace)
   end)
