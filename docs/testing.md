@@ -169,6 +169,12 @@ A collector test describes its collector once, as an `Adapter`, and hands it to 
 
 A test whose fixtures are dated today calls `freeze_today()` (and stamps rows with `fixture_now()`), so a run that crosses local midnight still sees the day it began; `check_scan_cache` freezes it on its own. Collectors run as processes under `run_collector` aren't reached by it, so a test that runs them that way and dates its rows today waits for the new day when it would start within two minutes of local midnight, as the partition test does.
 
+## Native sudo policy coverage
+
+The passwordless-sudo expiry suite has an opt-in native integration hook. Set `OMARCHY_NATIVE_SUDO_IMAGE` to a preloaded local image that provides Bash, sudo, visudo, `setpriv`, `timeout`, `mktemp`, and a root-owned `/etc/sudoers` which includes `/etc/sudoers.d`; for example, `OMARCHY_NATIVE_SUDO_IMAGE=sting:latest bash test/shell.d/nopasswd-sudo-expiry-test.sh`. The hook uses Docker with `--pull never`, no network, a read-only root and checkout, bounded tmpfs state, and CPU, memory, PID, file-size, and wall-clock limits. It drops every capability except isolated setuid/setgid for dummy identities and `AUDIT_WRITE`, which sudo needs to emit no audit-plugin error on the real policy checks. It writes the password-requiring policy inside a root-owned container tmpfs, then exercises real sudo against the actual publisher's generated grant, revocation, native `NOTAFTER` expiry, and an unaffected second account. The short expiry atomically adapts only the generated rule's deadline because the production publisher also starts a systemd unit, which this bounded container intentionally does not start; after the deadline the fixture proves command refusal, invokes the actual expiry callback, and proves that both validation and command execution refuse.
+
+The missing-default RED control is validation-only: copy the candidate into disposable container scratch, remove only its account-scoped `verifypw = any` default, and verify with real sudo that `sudo -n /usr/bin/true` still succeeds while `sudo -n -v` refuses authentication. Do not add that mutation path to committed tests, use Git history, or modify host accounts, sudoers policy, or timestamp state.
+
 ## Conventions worth copying
 
 - **Redirect background output.** Send background fixtures' stdout to a log or `/dev/null` and clean up the processes on exit. An inherited output pipe can hold the runner open after the test exits.
