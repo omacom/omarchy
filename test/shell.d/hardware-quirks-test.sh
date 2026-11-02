@@ -254,8 +254,8 @@ while IFS='|' read -r leaf name want; do
   got=$(run_leaf "$leaf")
   [[ $got == "$want" ]] || fail "install/$leaf on $name: $want" "got: $got"
 done <<'ROWS'
-hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
-hardware/apple/fix-spi-keyboard.sh|macbook8|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
+hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
+hardware/apple/fix-spi-keyboard.sh|macbook8|0|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbookpro13+unreadable|0
 hardware/apple/fix-spi-keyboard.sh|macbookpro15|0
 hardware/fix-synaptic-touchpad.sh|synaptics|0|modprobe psmouse synaptics_intertouch=1
