@@ -36,8 +36,17 @@ BarWidget {
   readonly property var verticalLines: displayText.split("\n")
 
   function refresh() {
-    displayDate = new Date()
+    clock.enabled = false
+    clock.enabled = true
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+  }
+
+  // A wake restarts both clocks the way a tick would, so a month being browsed
+  // in the calendar stays put, where refresh() would send it back to today.
+  function catchUp() {
+    clock.enabled = false
+    clock.enabled = true
+    if (panelLoader.item && panelLoader.item.catchUp) panelLoader.item.catchUp()
   }
 
   function cycleFormat() {
@@ -125,6 +134,11 @@ BarWidget {
     id: clock
     step: root.showsSeconds ? 1000 : 60000
     onDateChanged: root.displayDate = date
+  }
+
+  Connections {
+    target: SystemSleep
+    function onResumed() { root.catchUp() }
   }
 
   Loader {
