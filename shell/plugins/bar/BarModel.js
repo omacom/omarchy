@@ -88,6 +88,15 @@ function customModulePath(entry, home, configDir) {
   return source
 }
 
+// The label a "command" module shows for its output, as Util.parseModuleJson parsed it. A JSON
+// text is the label even when empty, which hides the module; output naming no text shows the
+// configured one.
+function customCommandText(raw, data, fallback) {
+  if (!isPlainObject(data)) return String(raw || "").trim() || String(fallback || "")
+  if (data.text === undefined || data.text === null) return String(fallback || "")
+  return String(data.text)
+}
+
 // A widget's slot can be on a bar without being drawn: the widget has hidden
 // itself, or a drag has folded its slot away. Panel routing has to pick a
 // drawn one — it is the only one that can anchor a popup, carry the
@@ -723,6 +732,7 @@ if (typeof module !== "undefined") {
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
     customModuleType: customModuleType,
-    customModulePath: customModulePath
+    customModulePath: customModulePath,
+    customCommandText: customCommandText
   }
 }
