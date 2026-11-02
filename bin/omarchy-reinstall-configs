@@ -18,6 +18,11 @@ echo "Resetting Omarchy user configs to shipped defaults..."
 # Trailing dot copies dotfiles; the shell wouldn't glob them with /etc/skel/*.
 cp -af /etc/skel/. ~/
 
+# skel's shell.json is world-readable, and it can hold plugin credentials.
+if [[ -f ~/.config/omarchy/shell.json ]]; then
+  chmod 0600 ~/.config/omarchy/shell.json
+fi
+
 omarchy-refresh-limine
 omarchy-refresh-plymouth
 

@@ -122,6 +122,11 @@ for dir in Downloads Projects Pictures Videos; do
   grep -qxF "$bookmark" ~/.config/gtk-3.0/bookmarks || echo "$bookmark" >>~/.config/gtk-3.0/bookmarks
 done
 
+# /etc/skel ships shell.json world-readable, and it can hold plugin credentials.
+if [[ -f ~/.config/omarchy/shell.json ]]; then
+  chmod 0600 ~/.config/omarchy/shell.json
+fi
+
 source "$OMARCHY_INSTALL/user/all.sh"
 
 omarchy-refresh-applications
