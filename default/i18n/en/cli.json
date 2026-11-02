@@ -286,6 +286,7 @@
   "setupForm.usernameInvalid": "Username must be alphanumeric with no spaces",
   "setupForm.usernamePlaceholder": "Alphanumeric without spaces (like dhh)",
   "setupForm.usernamePrompt": "Username> ",
+  "setupForm.usernameGroupConflict": "Username conflicts with a system group",
   "setupForm.usernameReserved": "Username is reserved for system",
   "setupForm.usernameTaken": "That username already exists on this machine",
   "share.chooserClosed": "The file chooser did not open",
