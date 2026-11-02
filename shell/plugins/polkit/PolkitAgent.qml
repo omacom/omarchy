@@ -39,6 +39,13 @@ Item {
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
   property int shakeOffset: 0
+  // The processes that ran pkexec, found by omarchy-polkit-caller. Any process
+  // can name itself anything, so the prompt says the chain isn't verified.
+  property string requestedBy: ""
+  // Bumped per prompt and on close, so a lookup still finishing for an earlier
+  // prompt can't fill in this one.
+  property int promptSerial: 0
+  property int callerSerial: 0
 
   readonly property bool dialogVisible: polkitAgent.isActive || closing
   // We show one method at a time. Fingerprint owns the dialog while PAM is
@@ -46,14 +53,18 @@ Item {
   // a password — including immediately when the lid is shut and the clamshell
   // gate skips pam_fprintd — we switch to the password field instead.
   readonly property bool fingerprintMode: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
-  readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
-  // Password mode is a wide field; fingerprint mode collapses to a square that
-  // just frames the centered sensor icon.
-  readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
-
-  function authorizationLabel(message) {
-    return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
-  }
+  // What is being authorized: a title, plus the program and its arguments when
+  // the request comes from pkexec. Shown at the top of the card.
+  readonly property var request: PolkitModel.authorizationRequest(currentMessage, I18n.t)
+  readonly property bool hasHeader: request.title !== ""
+  readonly property bool hasCommand: request.program !== ""
+  readonly property int headerSpacing: Style.space(12)
+  readonly property int contentHeight: fieldHeight + (hasHeader ? header.implicitHeight + headerSpacing : 0)
+  readonly property int cardHeight: panel.height > 0 ? Math.min(contentHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : contentHeight + contentMargin * 2
+  // Password mode is a wide field, wider still when it has a command to show;
+  // fingerprint mode without a header collapses to a square that just frames
+  // the centered sensor icon.
+  readonly property int cardWidth: fingerprintMode && !hasHeader ? cardHeight : Math.min(Style.space(hasCommand ? 480 : 312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
@@ -63,7 +74,25 @@ Item {
     if (!laptopClosedProc.running) laptopClosedProc.running = true
   }
 
+  function lookUpCaller() {
+    promptSerial++
+    requestedBy = ""
+    // A lookup still running for an earlier prompt is stopped first, and
+    // onRunningChanged starts this one once it has.
+    if (callerProc.running) callerProc.running = false
+    else if (hasCommand) startCallerLookup()
+  }
+
+  function startCallerLookup() {
+    callerSerial = promptSerial
+    // Bounded, so a lookup stuck on a hung process can't hold up later prompts.
+    callerProc.command = ["timeout", "-k", "1", "2", "omarchy-polkit-caller", request.command]
+    callerProc.running = true
+  }
+
   function resetSnapshot() {
+    promptSerial++
+    requestedBy = ""
     currentMessage = ""
     currentPrompt = ""
     currentSupplementary = ""
@@ -96,6 +125,7 @@ Item {
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
+    lookUpCaller()
     Qt.callLater(refocus)
   }
 
@@ -105,6 +135,13 @@ Item {
     // key catcher so Escape still cancels; otherwise focus the password field.
     if (fingerprintMode) keyCatcher.forceActiveFocus()
     else passwordInput.forceActiveFocus()
+  }
+
+  // The header scrolls when a short screen clamps the card; keyboard users reach
+  // the hidden part with Page Up and Page Down while focus stays on the field.
+  function scrollHeader(pages) {
+    var max = Math.max(0, headerView.contentHeight - headerView.height)
+    headerView.contentY = Math.max(0, Math.min(max, headerView.contentY + pages * headerView.height))
   }
 
   function submitResponse() {
@@ -172,6 +209,16 @@ Item {
     command: ["bash", "-c", "omarchy-hw-laptop-closed && echo closed || echo open"]
     stdout: StdioCollector { id: laptopClosedOut; waitForEnd: true }
     onExited: root.laptopClosed = String(laptopClosedOut.text || "").trim() === "closed"
+  }
+
+  Process {
+    id: callerProc
+    stdout: StdioCollector { id: callerOut; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (root.callerSerial === root.promptSerial) root.requestedBy = PolkitModel.callerFromOutput(exitCode, callerOut.text).requestedBy
+    }
+    // A new prompt arrived while an earlier lookup was still running.
+    onRunningChanged: if (!running && root.hasCommand && root.callerSerial !== root.promptSerial) root.startCallerLookup()
   }
 
   PolkitAgent {
@@ -269,14 +316,112 @@ Item {
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (root.responseRequired) root.submitResponse()
             event.accepted = true
+          } else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+            root.scrollHeader(event.key === Qt.Key_PageDown ? 1 : -1)
+            event.accepted = true
           }
         }
       }
 
-      // Fingerprint mode shows just the sensor icon, centered and alone \u2014 no
+      // On a short screen the card is clamped below what the header needs; the
+      // header scrolls inside the space above the password row instead of
+      // running underneath it.
+      Flickable {
+        id: headerView
+        visible: root.hasHeader
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: card.contentTopInset
+        anchors.rightMargin: card.contentRightInset
+        anchors.leftMargin: card.contentLeftInset
+        height: Math.max(0, Math.min(header.implicitHeight, card.height - card.contentTopInset - card.contentBottomInset - (root.fieldHeight - card.borderTop - card.borderBottom) - root.headerSpacing))
+        contentWidth: width
+        contentHeight: header.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+          id: header
+          width: headerView.width
+          spacing: Style.space(8)
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            text: root.request.title
+            color: root.foreground
+            opacity: 0.6
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            maximumLineCount: 3
+            elide: Text.ElideRight
+          }
+
+          Rectangle {
+            visible: root.hasCommand
+            width: parent.width
+            height: commandFlow.implicitHeight + Style.space(8) * 2
+            radius: root.cornerRadius
+            color: Util.alpha(root.foreground, 0.06)
+
+            // The program stays on the first line; its arguments follow on the
+            // same line when they fit and wrap below it when they don't. The
+            // arguments are never cut off: this is what the user is approving,
+            // and pkexec already caps the command line at about 80 bytes.
+            Flow {
+              id: commandFlow
+              x: Style.space(10)
+              y: Style.space(8)
+              width: parent.width - Style.space(10) * 2
+              spacing: Style.space(8)
+
+              Text {
+                textFormat: Text.PlainText
+                width: Math.min(implicitWidth, commandFlow.width)
+                text: root.request.program
+                color: root.accent
+                font.family: Style.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                wrapMode: Text.WrapAnywhere
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                visible: text !== ""
+                width: Math.min(implicitWidth, commandFlow.width)
+                text: root.request.args
+                color: root.foreground
+                font.family: Style.fontFamily
+                font.pixelSize: Style.font.body
+                wrapMode: Text.WrapAnywhere
+              }
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            visible: root.requestedBy !== ""
+            width: parent.width
+            clip: true
+            text: I18n.t("polkit.requestedBy").arg(root.requestedBy)
+            color: root.foreground
+            opacity: 0.6
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
+          }
+        }
+      }
+
+      // Fingerprint mode shows just the sensor icon in place of the field \u2014 no
       // padlock, no field, no prompt text.
       OpticalGlyph {
-        anchors.centerIn: parent
+        anchors.centerIn: cardRow
         width: Math.round(root.fieldHeight * 0.7)
         height: width
         visible: root.fingerprintMode
@@ -289,11 +434,13 @@ Item {
       Row {
         id: cardRow
         visible: !root.fingerprintMode
-        anchors.fill: parent
-        anchors.topMargin: card.contentTopInset
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         anchors.rightMargin: card.contentRightInset
         anchors.bottomMargin: card.contentBottomInset
         anchors.leftMargin: card.contentLeftInset
+        height: root.fieldHeight - card.borderTop - card.borderBottom
         spacing: Style.space(14)
 
         Text {
@@ -332,6 +479,9 @@ Item {
               if (event.key === Qt.Key_Escape) {
                 root.cancelRequest()
                 event.accepted = true
+              } else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+                root.scrollHeader(event.key === Qt.Key_PageDown ? 1 : -1)
+                event.accepted = true
               }
             }
           }
@@ -366,31 +516,6 @@ Item {
             onClicked: passwordInput.forceActiveFocus()
           }
         }
-      }
-    }
-
-    Rectangle {
-      width: Math.min(justificationText.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
-      height: Style.space(28)
-      anchors.horizontalCenter: card.horizontalCenter
-      anchors.bottom: card.top
-      anchors.bottomMargin: Style.space(10)
-      radius: root.cornerRadius
-      color: root.background
-
-      Text {
-        id: justificationText
-        textFormat: Text.PlainText
-        anchors.fill: parent
-        anchors.leftMargin: Style.space(12)
-        anchors.rightMargin: Style.space(12)
-        text: root.authorizationLabel(root.currentMessage)
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideMiddle
       }
     }
   }

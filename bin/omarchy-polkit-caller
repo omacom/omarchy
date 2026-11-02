@@ -1,0 +1,213 @@
+#!/bin/bash
+
+# omarchy:summary=Print which processes started the pkexec waiting on a password, and its full command, as JSON
+# omarchy:args=<shown-command>
+# omarchy:hidden=true
+
+# Which processes started the pkexec behind the polkit prompt, and its full
+# command. Processes name themselves, so the chain is a hint, not proof.
+
+set -euo pipefail
+
+shown=${1?usage: omarchy-polkit-caller <shown-command>}
+proc_path=${OMARCHY_PROC_PATH:-/proc}
+
+# pkexec's message joins the program, as an absolute path, and its arguments
+# with single spaces, and past 80 bytes keeps only the first 38 and last 37
+# around " ... ".
+shorten() {
+  local LC_ALL=C
+  rendered=$1
+  if ((${#rendered} > 80)); then
+    rendered="${rendered:0:38} ... ${rendered: -37}"
+  fi
+}
+
+# Whether the shown message could be pkexec's for this program and arguments:
+# 0 for yes, 1 for no, 2 when it can't be told. A relative program shows as a
+# path this helper cannot see, ending in it, so only the shown text around that
+# path is compared. Sets resolved to the program as shown when the message
+# reveals it.
+resolved=""
+matches_shown() {
+  local LC_ALL=C given=$1 plain=${1#./} text="" n head tail visible
+  shift
+  if (($#)); then
+    printf -v text ' %s' "$@"
+  fi
+
+  if [[ $given == /* ]]; then
+    shorten "$given$text"
+    resolved=$given
+    [[ $rendered == "$shown" ]]
+    return
+  fi
+
+  # The message is at most 80 bytes, or exactly 80 around a cut.
+  if [[ $shown == /*"$text" ]] && ((${#shown} <= 80)); then
+    resolved=${shown%"$text"}
+    [[ $resolved == */"$given" || $resolved == */"$plain" ]] && return 0
+  fi
+  [[ ${shown:38:5} == " ... " ]] || return 1
+
+  # The end of a cut message is the end of the arguments, or of the path when
+  # there are few.
+  tail=${shown: -37}
+  if ((${#text} >= 37)); then
+    [[ $tail == "${text: -37}" ]] || return 1
+  else
+    [[ $tail == *"$text" ]] || return 1
+    visible=${tail:0:37-${#text}}
+    [[ /$given == *"$visible" || $visible == *"/$given" || /$plain == *"$visible" || $visible == *"/$plain" ]] || return 1
+  fi
+
+  for ((n = 1; n < 38; n++)); do
+    resolved=${shown:0:n}
+    [[ $resolved == /*/"$given" || $resolved == /*/"$plain" ]] || continue
+    shorten "$resolved$text"
+    [[ $rendered == "$shown" ]] && return 0
+  done
+
+  # A path running past the first 38 bytes shows only its start. A space in it
+  # could hide where the path ends, so then it can't be told.
+  resolved=$given
+  head=${shown:0:38}
+  [[ $head == /* ]] || return 1
+  [[ $head != *" "* ]] || return 2
+}
+
+# The requester controls its pkexec's name, options and program, so every root
+# process for this user counts unless its command rules it out; two means none.
+candidate=""
+program=""
+candidate_argv=()
+program_index=0
+for dir in "$proc_path"/[0-9]*; do
+  real="" effective=""
+  while read -r key uid euid _; do
+    if [[ $key == "Uid:" ]]; then
+      real=$uid
+      effective=$euid
+      break
+    fi
+  done 2>/dev/null <"$dir/status" || true
+  [[ $real == "$UID" && $effective == "0" ]] || continue
+
+  argv=()
+  mapfile -d '' -t argv 2>/dev/null <"$dir/cmdline" || continue
+  i=1
+  while ((i < ${#argv[@]})); do
+    case ${argv[i]} in
+    --user | -u) ((i += 2)) ;;
+    --disable-internal-agent | --keep-cwd) ((i += 1)) ;;
+    *) break ;;
+    esac
+  done
+  if ((i < ${#argv[@]})); then
+    status=0
+    matches_shown "${argv[@]:i}" || status=$?
+    # A process that might be the requester but can't be ruled in or out must
+    # not leave a decoy to be named in its place.
+    ((status != 2)) || exit 1
+    ((status == 0)) || continue
+  elif [[ $shown == *" "* ]]; then
+    # Without a program pkexec runs a shell, with no arguments to show.
+    continue
+  fi
+
+  if [[ -n $candidate ]]; then
+    exit 1
+  fi
+  candidate=${dir##*/}
+  candidate_argv=("${argv[@]}")
+  program_index=$i
+  program=$resolved
+done
+
+if [[ -z $candidate ]] || ((program_index >= ${#candidate_argv[@]})); then
+  exit 1
+fi
+arguments=("${candidate_argv[@]:program_index+1}")
+
+# The executable's or script's name without control, bidi or zero-width
+# characters; huge strings are cut first, since bash pattern expansions are slow.
+process_name() {
+  local LC_ALL=C.UTF-8
+  local dir=$proc_path/$1 name
+  local -a argv=()
+  local hidden=$'[[:cntrl:]\xd8\x9c\xe2\x80\x8b-\xe2\x80\x8f\xe2\x80\xa8-\xe2\x80\xae\xe2\x81\xa0-\xe2\x81\xa9\xef\xbb\xbf]'
+
+  if name=$(readlink "$dir/exe" 2>/dev/null); then
+    name=${name% (deleted)}
+  else
+    name=$2
+  fi
+
+  mapfile -d '' -t argv 2>/dev/null <"$dir/cmdline" || true
+  case ${name##*/} in
+  bash | sh | dash | zsh | python* | perl | node)
+    if [[ -n ${argv[1]:-} && ${argv[1]} != -* ]]; then
+      name=${argv[1]:0:4096}
+    fi
+    ;;
+  esac
+
+  name=${name##*/}
+  name=${name:0:200}
+  name=${name//$hidden/}
+  if ((${#name} > 40)); then
+    name="${name:0:40}…"
+  fi
+  printf '%s' "$name"
+}
+
+names=()
+current=$candidate
+for _ in {1..5}; do
+  { stat=$(<"$proc_path/$current/stat"); } 2>/dev/null || break
+  # comm sits in parentheses and may hold spaces, so parse after the last one.
+  read -r _ ppid _ <<<"${stat##*) }"
+  if ((ppid <= 1)); then
+    break
+  fi
+  current=$ppid
+
+  { comm=$(<"$proc_path/$current/comm"); } 2>/dev/null || break
+  if [[ $comm == "systemd" ]]; then
+    break
+  fi
+
+  name=$(process_name "$current" "$comm")
+  [[ -n $name ]] || continue
+  if ((${#names[@]} == 0)) || [[ ${names[-1]} != "$name" ]]; then
+    names+=("$name")
+  fi
+done
+
+requested_by=""
+for name in "${names[@]}"; do
+  requested_by+=${requested_by:+ ← }$name
+done
+
+# Quoted in the C locale, so argument boundaries survive and anything
+# unprintable shows as an escape, and capped at 4000 bytes.
+quote_command() {
+  local LC_ALL=C arg quoted
+  command_text=""
+  shortened=false
+  for arg in "$program" "${arguments[@]}"; do
+    # Quoting a longer argument passes the cap below anyway.
+    arg=${arg:0:4096}
+    printf -v quoted '%q' "$arg"
+    command_text+=${command_text:+ }$quoted
+    if ((${#command_text} > 4000)); then
+      command_text=${command_text:0:4000}
+      shortened=true
+      break
+    fi
+  done
+}
+quote_command
+
+jq -cn --arg requestedBy "$requested_by" --arg command "$command_text" --argjson shortened "$shortened" \
+  '{requestedBy: $requestedBy, command: $command, shortened: $shortened}'
