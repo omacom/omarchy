@@ -1,0 +1,14 @@
+# Sorts after 25-systemd-binfmt.hook, which reloads the package registrations
+# that the overrides written here shadow.
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = usr/lib/binfmt.d/qemu-*-static.conf
+
+[Action]
+Description = Adding O and C to QEMU binfmt registrations...
+When = PostTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-apply-binfmt
