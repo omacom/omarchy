@@ -1572,20 +1572,18 @@ Item {
     transparentForegroundTimer.restart()
   }
 
-  // A refresh asked for while the sampler runs is dropped. With pills, the
-  // pill blend is one more input that can change meanwhile, so it runs again
-  // once the current sample is in: while pills are on, and when the running
-  // sample used the blend and pills went off, or its result would stay.
+  // A refresh asked for while the sampler runs waits for it and runs once the
+  // current sample is in. Anything it reads may have changed meanwhile: the
+  // position, the margins, the pill blend. Dropped, the running sample's
+  // answer for the old state would stay.
   property bool transparentForegroundPending: false
-  property bool transparentForegroundBlended: false
 
   function refreshTransparentForeground() {
     if (!requestedTransparent) return
     if (transparentForegroundProc.running) {
-      if (root.pillsOn || root.transparentForegroundBlended) root.transparentForegroundPending = true
+      root.transparentForegroundPending = true
       return
     }
-    root.transparentForegroundBlended = root.pillBlendArgs.length > 0
 
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
