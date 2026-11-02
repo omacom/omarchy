@@ -264,10 +264,16 @@ Item {
 
   // One event stream for the session, including while Stay Awake is enabled.
   // SplitParser consumes each line instead of retaining the session's output.
+  // Nothing else would notice it gone, so it restarts, backing off to once a
+  // minute while it keeps failing at once.
+  property real sleepMonitorStartedAt: 0
+  property int sleepMonitorQuickExits: 0
+
   Process {
     id: sleepMonitor
     running: true
     command: ["dbus-monitor", "--system", "type='signal',sender='org.freedesktop.login1',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
+    onRunningChanged: if (running) root.sleepMonitorStartedAt = Date.now()
     stdout: SplitParser {
       onRead: function(line) {
         if (String(line).trim() === "boolean false") root.resumed()
@@ -275,7 +281,15 @@ Item {
     }
     onExited: function(exitCode, exitStatus) {
       root.logEvent("sleep-monitor-exit", "exitCode=" + exitCode + " status=" + exitStatus)
+      root.sleepMonitorQuickExits = Date.now() - root.sleepMonitorStartedAt < 1000 ? root.sleepMonitorQuickExits + 1 : 0
+      sleepMonitorRestart.interval = Math.min(60000, 1000 * Math.pow(2, root.sleepMonitorQuickExits))
+      sleepMonitorRestart.start()
     }
+  }
+
+  Timer {
+    id: sleepMonitorRestart
+    onTriggered: sleepMonitor.running = true
   }
 
   Process {
