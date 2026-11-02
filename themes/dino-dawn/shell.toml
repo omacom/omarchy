@@ -1,0 +1,143 @@
+# Dino Dawn — dark bark, jade leaves, lagoon mist, and a golden sunrise.
+# Original forest/gold identity by NobleDoodle; Kids shell adaptation.
+# Visual tokens only: no shell layout, plugins, keybindings, or behavior changes.
+[bar]
+background = "#28211e"
+background-alpha = 1.0
+text = "#d9e1d4"
+active = "#83cdb1"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#83cdb1 #acd77b 90deg"
+active-border-foreground = "#83cdb1 #7dd3cf 90deg"
+
+[controls]
+normal-color = "foreground"
+normal-fill-alpha = 0.04
+normal-border = "#aac5b4"
+normal-border-width = 1
+normal-border-alpha = 0.55
+hover-cursor-color = "foreground"
+hover-cursor-fill-alpha = 0.08
+hover-cursor-border = "#acd77b"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 1.0
+focus-color = "foreground"
+focus-fill-alpha = 0.08
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+# Shared controls use one state color for ink and translucent fill.
+# Keep pale ink here; solid jade/dark ink belongs to menu/launcher rows below.
+selected-color = "foreground"
+selected-fill-alpha = 0.12
+selected-border = "#83cdb1"
+selected-border-width = 2
+selected-border-alpha = 1.0
+pressed-fill-alpha = 0.16
+selection-fill-alpha = 0.20
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 32
+popup-row-height = 32
+panel-gap = 16
+panel-padding = 18
+popup-padding = 14
+
+[font]
+base-size = 13
+
+[popups]
+background = "#3b302a"
+background-alpha = 1.0
+text = "#d9e1d4"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+
+[tooltip]
+background = "#3b302a"
+background-alpha = 1.0
+text = "#d9e1d4"
+border = "#acd77b"
+border-alpha = 1.0
+
+[notifications]
+background = "#3b302a"
+background-alpha = 1.0
+text = "#d9e1d4"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+countdown = "#e8bd72"
+
+[launcher]
+background = "#3b302a"
+background-alpha = 1.0
+text = "#b9c7bd"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+scrim = "#28211e"
+scrim-alpha = 0.35
+selected-background = "#83cdb1"
+selected-background-alpha = 1.0
+selected-text = "#28211e"
+selected-border = "#83cdb1"
+selected-border-alpha = 1.0
+selected-border-width = 0
+
+[menu]
+background = "#3b302a"
+background-alpha = 1.0
+text = "#b9c7bd"
+border = "hyprland.active-border"
+border-alpha = 1.0
+border-width = 2
+scrim = "#28211e"
+scrim-alpha = 0.35
+selected-background = "#83cdb1"
+selected-background-alpha = 1.0
+selected-text = "#28211e"
+selected-border = "#83cdb1"
+selected-border-alpha = 1.0
+selected-border-width = 0
+
+[polkit]
+background = "#3b302a"
+background-alpha = 1.0
+text = "#d9e1d4"
+text-error = "#ef9386"
+border = "hyprland.active-border"
+border-error = "#ef9386"
+border-alpha = 1.0
+scrim = "#28211e"
+scrim-alpha = 0.45
+accent = "#83cdb1"
+
+[lock]
+background = "#3b302a"
+background-alpha = 1.0
+text = "#d9e1d4"
+placeholder = "#aac5b4"
+text-error = "#ef9386"
+border = "#acd77b"
+border-active = "hyprland.active-border"
+border-error = "#ef9386"
+border-alpha = 1.0
+selection = "#83cdb1"
+selection-alpha = 0.20
+
+[image-picker]
+scrim = "#28211e"
+scrim-alpha = 0.45
+text = "#d9e1d4"
+selected-border = "#83cdb1"
+selected-border-alpha = 1.0
+unselected-border = "#aac5b4"
+unselected-border-alpha = 0.65
