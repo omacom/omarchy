@@ -642,6 +642,17 @@ function dmenuSelections(options, selected, preserveOrder) {
   })
 }
 
+// A select or input payload's anchor, {x, y, width, height} in the screen's
+// logical coordinates, or null unless every field is a finite number and the
+// rectangle has an area. Strings would concatenate instead of adding up.
+function dmenuAnchor(anchor) {
+  if (!anchor || typeof anchor !== "object") return null
+  var fields = [anchor.x, anchor.y, anchor.width, anchor.height]
+  var numbers = fields.every(function(value) { return typeof value === "number" && isFinite(value) })
+  if (!numbers || anchor.width <= 0 || anchor.height <= 0) return null
+  return { x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }
+}
+
 function toggleDmenuSelection(selected, value) {
   return selected.indexOf(value) === -1 ? selected.concat([value])
     : selected.filter(function(item) { return item !== value })
@@ -717,6 +728,7 @@ if (typeof module !== "undefined") {
     searchScore: searchScore,
     dmenuValue: dmenuValue,
     dmenuSelections: dmenuSelections,
+    dmenuAnchor: dmenuAnchor,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
     applyTranslations: applyTranslations
