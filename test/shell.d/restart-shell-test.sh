@@ -376,6 +376,33 @@ restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart from outside the session launches a fresh shell"
 pass "restart from outside the session finds the running Hyprland and its display, not the newest runtime dir"
 
+# A multiplexer that outlived an earlier session hands down that session's
+# signature and display; the restart still finds the running Hyprland.
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+: >"$restart_log"
+
+HYPRLAND_INSTANCE_SIGNATURE=stale-sig \
+WAYLAND_DISPLAY=wayland-2 \
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_LIVE_SIGNATURE=live-sig \
+OMARCHY_TEST_SHELL_DISPLAY=wayland-1 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" >/dev/null 2>&1 ||
+  fail "restart with an earlier session's signature reaches the running Hyprland"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart with an earlier session's signature launches a fresh shell"
+pass "restart with an earlier session's signature and display finds the running Hyprland"
+
 # With no running Hyprland to launch a fresh shell, the restart leaves the
 # running one alone instead of stopping it and waiting on a launch that
 # cannot happen.

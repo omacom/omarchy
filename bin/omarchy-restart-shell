@@ -25,12 +25,15 @@ hyprland_alive() {
 # Allow running from outside the session (e.g. over ssh, or a terminal
 # multiplexer started before Hyprland) by finding the running instance.
 # Nested and crashed compositors leave their runtime dirs behind, so the
-# newest dir is not necessarily the live one.
+# newest dir is not necessarily the live one. A multiplexer that outlived an
+# earlier session still carries that session's signature, so search then too.
 hypr_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr"
-if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+found_instance=0
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] || ! hyprland_alive "$hypr_runtime_dir/$HYPRLAND_INSTANCE_SIGNATURE"; then
   while read -r _ instance_dir; do
     if hyprland_alive "$instance_dir"; then
       export HYPRLAND_INSTANCE_SIGNATURE=${instance_dir##*/}
+      found_instance=1
       break
     fi
   done < <(find "$hypr_runtime_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -rn)
@@ -38,8 +41,9 @@ fi
 
 # Quickshell only finds instances on the caller's Wayland display, so the
 # readiness and lock IPC below would never see the fresh shell from outside
-# the session. Hyprland records its display on the second line of the lock.
-if [[ -z ${WAYLAND_DISPLAY:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+# the session. Hyprland records its display on the second line of the lock,
+# and a caller's own display belongs to another session when its signature did.
+if (( found_instance )) || [[ -z ${WAYLAND_DISPLAY:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   if { read -r _ && read -r session_display; } <"$hypr_runtime_dir/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.lock" 2>/dev/null &&
     [[ -n $session_display ]]; then
     export WAYLAND_DISPLAY=$session_display
