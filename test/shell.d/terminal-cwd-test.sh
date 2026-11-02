@@ -89,3 +89,79 @@ pass "a focused app that is not a terminal opens a new terminal in HOME, not its
 cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$pty_browser_pid" 2>&1)
 [[ $cwd == "$test_tmp" ]] || fail "an app started from a terminal, sharing its pty, still opens a new terminal in HOME" "got: $cwd"
 pass "an app started from a terminal, sharing its pty, still opens a new terminal in HOME"
+
+# The launcher's fast path: foot starts directly under an app.slice unit, and
+# an entry the script does not know (or a terminal that is not installed)
+# delegates to the uwsm-app/xdg-terminal-exec chain, as it did before.
+cat >"$stub_bin/omarchy-cmd-terminal-cwd" <<'SH'
+#!/bin/bash
+printf '%s\n' "$WORK_DIR"
+SH
+cat >"$stub_bin/omarchy-cmd-missing" <<'SH'
+#!/bin/bash
+exit "${MISSING_EXIT:-1}"
+SH
+cat >"$stub_bin/omarchy-default-terminal" <<'SH'
+#!/bin/bash
+printf '%s\n' "${FALLBACK_TERMINAL:-meu-terminal}"
+SH
+cat >"$stub_bin/systemd-run" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$SD_RECORD"
+while (( $# )); do
+  [[ $1 == -- ]] && { shift; break; }
+  shift
+done
+exec "$@"
+SH
+cat >"$stub_bin/foot" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$RECORD"
+SH
+cat >"$stub_bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$RECORD"
+SH
+for stub in omarchy-cmd-terminal-cwd omarchy-cmd-missing omarchy-default-terminal systemd-run foot uwsm-app; do
+  chmod +x "$stub_bin/$stub"
+done
+
+config_dir="$test_tmp/config"
+mkdir -p "$config_dir"
+export WORK_DIR="$work_dir" RECORD="$test_tmp/record" SD_RECORD="$test_tmp/sd-record"
+export MISSING_EXIT=1 FALLBACK_TERMINAL="meu-terminal" XDG_CONFIG_HOME="$config_dir"
+
+run_launcher() {
+  rm -f "$RECORD" "$SD_RECORD"
+  PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-launch-terminal" "$@" >/dev/null 2>&1
+}
+
+printf 'foot.desktop\n' >"$config_dir/xdg-terminals.list"
+run_launcher echo hi
+record=$(cat "$RECORD")
+[[ $record == "--working-directory=$work_dir -e echo hi" ]] \
+  || fail "foot is started directly with workdir and -e" "got: $record"
+sd_record=$(cat "$SD_RECORD")
+[[ $sd_record == *"--slice=app.slice"* && $sd_record == *" foot "* ]] \
+  || fail "foot is started under an app.slice unit" "got: $sd_record"
+pass "foot is started directly under an app.slice unit"
+
+run_launcher
+record=$(cat "$RECORD")
+[[ $record == "--working-directory=$work_dir" ]] \
+  || fail "foot without a command gets only the workdir" "got: $record"
+pass "foot without a command gets only the workdir"
+
+printf 'meu-terminal.desktop\nfoot.desktop\n' >"$config_dir/xdg-terminals.list"
+run_launcher echo hi
+record=$(cat "$RECORD")
+[[ $record == "-- xdg-terminal-exec --dir=$work_dir echo hi" ]] \
+  || fail "an unknown earlier entry keeps the old chain" "got: $record"
+pass "an unknown earlier entry keeps the old chain"
+
+printf 'foot.desktop\n' >"$config_dir/xdg-terminals.list"
+MISSING_EXIT=0 run_launcher
+record=$(cat "$RECORD")
+[[ $record == "-- xdg-terminal-exec --dir=$work_dir" ]] \
+  || fail "a mapped terminal that is not installed falls back" "got: $record"
+pass "a mapped terminal that is not installed falls back"
