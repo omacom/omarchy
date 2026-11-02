@@ -66,10 +66,14 @@ Panel {
     var device = UPower.displayDevice
     return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdReported
   }
-  readonly property bool discharging: {
+  // What UPower reports right now, and the power source the panel shows once a
+  // charger dropout just after plug-in has had time to recover (see
+  // Model.unplugSettleDelay).
+  readonly property bool onBatteryReported: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent && UPower.onBattery)
   }
+  property bool discharging: false
   // What the battery reports right now, and the verdict the panel shows once
   // that reading has settled (see Model.thresholdSettleDelay).
   readonly property bool chargeThresholdReported: {
@@ -90,15 +94,40 @@ Panel {
   }
 
   onChargeThresholdReportedChanged: settleThreshold()
-  // Plugging in also changes the reading, and either handler may run first.
-  onDischargingChanged: {
-    if (discharging) return
-    pluggedInAt = Date.now()
+
+  function settlePowerSource() {
+    if (!onBatteryReported) {
+      unplugSettle.stop()
+      pluggedInAt = Date.now()
+      discharging = false
+      // Plugging in also changes the reading, and its handler may run first.
+      settleThreshold()
+      return
+    }
+    var delay = Model.unplugSettleDelay(Date.now(), pluggedInAt)
+    if (delay <= 0) {
+      discharging = true
+      return
+    }
+    unplugSettle.interval = delay
+    unplugSettle.restart()
+  }
+
+  onOnBatteryReportedChanged: settlePowerSource()
+
+  // Each screen gets its own widget, so one can be created mid plug-in: a dock
+  // brings power and a display together. Without knowing when the power came,
+  // a widget created on AC treats now as the plug-in and lets the reading settle.
+  Component.onCompleted: {
+    discharging = onBatteryReported
+    if (!discharging) pluggedInAt = Date.now()
     settleThreshold()
   }
 
-  // A limit already holding when the shell starts is shown straight away.
-  Component.onCompleted: chargeThresholdActive = chargeThresholdReported
+  Timer {
+    id: unplugSettle
+    onTriggered: root.discharging = root.onBatteryReported
+  }
 
   Timer {
     id: thresholdSettle
@@ -115,7 +144,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
+    return d && d.isPresent && !root.discharging && !root.batteryFlowIdle
   }
 
   readonly property color batteryFillColor: {
@@ -172,9 +201,9 @@ Panel {
   function refresh() {
     if (!batteryPresent) return
 
-    if (!batteryProc.running) batteryProc.running = true
-    if (!profilesProc.running) profilesProc.running = true
-    if (!systemProc.running) systemProc.running = true
+    batteryProc.read()
+    profilesProc.read()
+    systemProc.read()
   }
 
   function updateKeyValue(raw, targetName) {
@@ -255,22 +284,22 @@ Panel {
   implicitWidth: batteryPresent ? button.implicitWidth : 0
   implicitHeight: batteryPresent ? button.implicitHeight : 0
 
-  Process {
+  ReadProcess {
     id: batteryProc
     command: ["omarchy-battery-status", "--shell"]
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateKeyValue(text, "battery") }
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: if (!batteryProc.readAgain) root.updateKeyValue(text, "battery") }
   }
 
-  Process {
+  ReadProcess {
     id: profilesProc
     command: ["omarchy-powerprofiles-list", "--active-state"]
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateProfiles(text) }
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: if (!profilesProc.readAgain) root.updateProfiles(text) }
   }
 
-  Process {
+  ReadProcess {
     id: systemProc
     command: ["omarchy-system-stats"]
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateKeyValue(text, "system") }
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: if (!systemProc.readAgain) root.updateKeyValue(text, "system") }
   }
 
   Process {
@@ -556,6 +585,28 @@ Panel {
           }
         }
       }
+    }
+  }
+
+  // A read asked for while one is running may have sampled the state before
+  // the change it is for (the charger going in), so that result is dropped and
+  // the read runs again once it exits.
+  component ReadProcess: Process {
+    property bool readAgain: false
+
+    function read() {
+      if (running) {
+        readAgain = true
+        return
+      }
+      running = true
+    }
+
+    onExited: {
+      if (!readAgain) return
+      readAgain = false
+      // Deferred: the process still reports running while it signals exit.
+      Qt.callLater(read)
     }
   }
 

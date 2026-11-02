@@ -76,6 +76,18 @@ function thresholdSettleDelay(nowMs, pluggedInAtMs) {
   return Math.max(thresholdSteadyMs, thresholdAfterPlugMs - sincePlug)
 }
 
+// Some chargers drop out for a few seconds just after they go in, while USB-C
+// renegotiates its power: the kernel reports the adapter offline and UPower
+// says on battery. Losing power that soon after a plug-in is only shown once it
+// lasts; an unplug at any other time shows at once.
+var unplugBounceWindowMs = 15000
+var unplugBounceHoldMs = 6000
+
+function unplugSettleDelay(nowMs, pluggedInAtMs) {
+  var sincePlug = Number(nowMs) - Number(pluggedInAtMs || 0)
+  return sincePlug < unplugBounceWindowMs ? unplugBounceHoldMs : 0
+}
+
 // threshold, when given, is the panel's settled charge-limit verdict; without
 // it the device's current reading decides.
 function thresholdFor(device, onBattery, states, threshold) {
@@ -137,6 +149,7 @@ if (typeof module !== "undefined") {
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
     thresholdSettleDelay: thresholdSettleDelay,
+    unplugSettleDelay: unplugSettleDelay,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,

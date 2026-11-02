@@ -43,6 +43,11 @@ assertEqual(power.thresholdSettleDelay(1000, 1000), 60000, 'power waits a minute
 assertEqual(power.thresholdSettleDelay(1000 + 55000, 1000), 10000, 'power still wants a steady reading late in the plug-in window')
 assertEqual(power.thresholdSettleDelay(1000 + 600000, 1000), 10000, 'power needs a steady reading long after plug-in')
 assertEqual(power.thresholdSettleDelay(5000000, 0), 10000, 'power needs a steady reading when it never saw the plug-in')
+
+// A USB-C charger can drop out for a few seconds right after it goes in.
+assertEqual(power.unplugSettleDelay(1000 + 5500, 1000), 6000, 'power waits out a charger dropout just after plug-in')
+assertEqual(power.unplugSettleDelay(1000 + 20000, 1000), 0, 'power shows an unplug at once outside the plug-in window')
+assertEqual(power.unplugSettleDelay(5000000, 0), 0, 'power shows an unplug at once when it never saw the plug-in')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states), 'power does not flag active charging as threshold')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
