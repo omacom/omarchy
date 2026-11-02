@@ -130,13 +130,35 @@ QML_FIXTURE_TMP=""
 QML_FIXTURE_PID=""
 QML_FIXTURE_LOG=""
 
-qml_fixture_cleanup() {
-  if [[ -n $QML_FIXTURE_PID ]] && kill -0 "$QML_FIXTURE_PID" 2>/dev/null; then
-    kill "$QML_FIXTURE_PID" 2>/dev/null || true
-    wait "$QML_FIXTURE_PID" 2>/dev/null || true
-  fi
+# Each fixture's Quickshell leads a process group of its own (setsid), so
+# everything it started can be stopped through the group, even once Quickshell
+# itself has crashed and left its children to init.
+qml_fixture_stop() {
+  local group=$QML_FIXTURE_PID attempt
+  [[ -n $group ]] || return 0
   QML_FIXTURE_PID=""
-  [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]] && rm -rf "$QML_FIXTURE_TMP"
+  kill -TERM -- "-$group" 2>/dev/null || true
+  wait "$group" 2>/dev/null || true
+  for attempt in {1..20}; do
+    pgrep -g "$group" >/dev/null 2>&1 || return 0
+    sleep 0.1
+  done
+  kill -KILL -- "-$group" 2>/dev/null || true
+}
+
+qml_fixture_cleanup() {
+  local attempt
+  # Processes a fixture started can still be writing into its HOME while that
+  # is removed, so stop them first.
+  qml_fixture_stop
+  if [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]]; then
+    # A child that was mid-write when it got the signal can still add a file.
+    for attempt in {1..20}; do
+      rm -rf "$QML_FIXTURE_TMP" 2>/dev/null && break
+      sleep 0.1
+    done
+    [[ ! -e $QML_FIXTURE_TMP ]] || echo "Could not remove $QML_FIXTURE_TMP" >&2
+  fi
   return 0
 }
 
@@ -164,10 +186,7 @@ run_qml_fixture() {
 
   qml_fixture_scratch
   # A second fixture in the same file must not read the first one's result.
-  if [[ -n $QML_FIXTURE_PID ]] && kill -0 "$QML_FIXTURE_PID" 2>/dev/null; then
-    kill "$QML_FIXTURE_PID" 2>/dev/null || true
-    wait "$QML_FIXTURE_PID" 2>/dev/null || true
-  fi
+  qml_fixture_stop
   config_dir="$QML_FIXTURE_TMP/$fixture"
   result="$QML_FIXTURE_TMP/result.json"
   QML_FIXTURE_LOG="$QML_FIXTURE_TMP/quickshell.log"
@@ -187,7 +206,7 @@ run_qml_fixture() {
   QML2_IMPORT_PATH="$ROOT/shell${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}" \
   QML_IMPORT_PATH="$ROOT/shell${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
   PATH="$QML_FIXTURE_TMP/bin:$ROOT/bin:$PATH" \
-    quickshell -p "$config_dir" --no-color >"$QML_FIXTURE_LOG" 2>&1 &
+    setsid quickshell -p "$config_dir" --no-color >"$QML_FIXTURE_LOG" 2>&1 &
   QML_FIXTURE_PID=$!
 
   for _ in {1..150}; do
