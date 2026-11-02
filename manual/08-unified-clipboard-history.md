@@ -32,7 +32,7 @@ The picker can also remove entries and do more than paste:
 | `Del` | Remove the selected entry from the history |
 | `Shift + Del` | Clear the entire history (with a confirmation) |
 | `Shift + Return` | Copy the selected entry to the clipboard without pasting |
-| `Alt + Return` | Open the entry: URLs open in the browser, images in the screenshot viewer, other text in the editor |
+| `Alt + Return` | Open the entry: URLs open in the browser, images in Omasnap's annotation editor, other text in the editor |
 | `Up` / `Down` | Move the selection |
 | `PageUp` / `PageDown` | Move the selection six entries |
 | `Home` / `End` | Jump to the first / last entry |
