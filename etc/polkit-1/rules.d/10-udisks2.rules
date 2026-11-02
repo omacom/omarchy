@@ -1,0 +1,8 @@
+// Allow users in the wheel group to mount and unlock internal/system devices without entering an administrator password
+polkit.addRule(function(action, subject) {
+  if ((action.id == "org.freedesktop.udisks2.filesystem-mount-system" ||
+       action.id == "org.freedesktop.udisks2.encrypted-unlock-system") &&
+      subject.isInGroup("wheel")) {
+    return polkit.Result.YES;
+  }
+});
