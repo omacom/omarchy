@@ -28,6 +28,8 @@ Item {
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
 
+  // The lock service is never handed to other plugins, so this is the only sign a lock is on its way.
+  property bool lockCommandPending: false
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
@@ -64,6 +66,11 @@ Item {
   }
 
   function launchScreensaver() {
+    if (root.lockCommandPending) {
+      logEvent("screensaver-skip", "lock-in-flight")
+      return
+    }
+
     root.screensaverStartedThisCycle = true
     screensaverLaunchGraceTimer.restart()
     runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
@@ -76,12 +83,24 @@ Item {
     screensaverLaunchGraceTimer.stop()
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
-    runProcess(lockProcess, "lock", "omarchy-system-lock")
+    // The lock is invisible until omarchy-system-lock reaches the lock service, about a
+    // second later; bounded, so a lock command that never returns cannot park idle handling.
+    if (runProcess(lockProcess, "lock", "omarchy-system-lock")) {
+      root.lockCommandPending = true
+      lockCommandTimer.restart()
+    }
   }
 
   function startIdleCycle() {
     if (root.idledThisCycle) {
       logEvent("idle-cycle-already-running")
+      return
+    }
+
+    // lockSystem() clears idledThisCycle before the lock exists, so an idle re-assertion
+    // would start a new cycle and launch a screensaver into the pending lock.
+    if (root.lockCommandPending) {
+      logEvent("idle-cycle-skip", "lock-in-flight")
       return
     }
 
@@ -161,6 +180,7 @@ Item {
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
       idle: idleMonitor.isIdle,
+      lockCommandPending: root.lockCommandPending,
       inIdleCycle: root.idledThisCycle,
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
@@ -252,6 +272,16 @@ Item {
   }
 
   Timer {
+    id: lockCommandTimer
+    interval: 15000
+    repeat: false
+    onTriggered: {
+      root.lockCommandPending = false
+      root.logEvent("lock-command-timeout")
+    }
+  }
+
+  Timer {
     id: screensaverLaunchGraceTimer
     interval: 3000
     repeat: false
@@ -273,7 +303,11 @@ Item {
   }
   Process {
     id: lockProcess
-    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus) }
+    onExited: function(exitCode, exitStatus) {
+      root.lockCommandPending = false
+      lockCommandTimer.stop()
+      root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus)
+    }
   }
   Process {
     id: wakeProcess
