@@ -33,6 +33,15 @@ setup_scenario() {
 printf '%s\n' "\$*" >>"$notify_log"
 SH
   chmod +x "$mock_bin/omarchy-notification-send"
+
+  # The script resets the keyboard layout through Hyprland IPC; record the
+  # call instead of touching the running session.
+  cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+
+printf 'hyprctl %s\n' "\$*" >>"$call_log"
+SH
+  chmod +x "$mock_bin/hyprctl"
 }
 
 mock_logind_window() {
@@ -96,14 +105,93 @@ pass "sleep lock succeeds once the session reports secure"
   fail "sleep lock requests the session lock first" "first call: ${calls[0]}"
 pass "sleep lock requests the session lock first"
 
-[[ ${calls[1]} == "clamshell" && ${calls[2]} == "shell lock status" ]] ||
-  fail "sleep lock checks security after clamshell reconciliation"
-pass "sleep lock checks security after clamshell reconciliation"
+[[ ${calls[1]} == "clamshell" && ${calls[2]} == "hyprctl switchxkblayout all 0" && ${calls[3]} == "shell lock status" ]] ||
+  fail "sleep lock resets the layout after clamshell sync, then checks security" \
+    "calls: ${calls[*]:0:5}"
+pass "sleep lock resets the layout after clamshell sync, then checks security"
+
+resets=0
+for call in "${calls[@]}"; do
+  [[ $call == "hyprctl switchxkblayout all 0" ]] && (( ++resets ))
+done
+(( resets == 1 )) ||
+  fail "sleep lock resets the keyboard layout exactly once" "resets: $resets"
+pass "sleep lock resets the keyboard layout exactly once"
 
 # The stalled sync only finishes if the sleep lock waited it out.
 [[ ! -e $call_log.clamshell-done ]] ||
   fail "sleep lock bounds a stalled clamshell sync" "the sleep lock waited for it"
 pass "sleep lock bounds a stalled clamshell sync"
+
+# The scenarios around the layout reset share a shell that locks immediately,
+# so the reset is the only thing that can slow the sleep lock down or stop it.
+responsive_shell() {
+  cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock lock" ]]; then
+  printf 'ok\n'
+elif [[ $* == "lock status" ]]; then
+  printf '{"secure":true}\n'
+fi
+SH
+  chmod +x "$mock_bin/omarchy-shell"
+}
+
+# A lid transition is exactly when Hyprland IPC stalls, and the reset runs on
+# the lid-closed path, so it has to give up on its own rather than spend the
+# window waiting a dead IPC out.
+setup_scenario stalled_reset
+responsive_shell
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+sleep 5
+SH
+chmod +x "$mock_bin/hyprctl"
+mock_clamshell
+
+run_sleep_lock 2000
+
+(( exit_status == 0 )) ||
+  fail "sleep lock locks anyway when the layout reset stalls" "exit: $exit_status"
+pass "sleep lock locks anyway when the layout reset stalls"
+
+[[ ${calls[*]} == *"hyprctl switchxkblayout all 0"* && ${calls[*]} == *"shell lock status"* ]] ||
+  fail "sleep lock still checks lock security after a stalled reset" "calls: ${calls[*]}"
+pass "sleep lock still checks lock security after a stalled reset"
+
+# The stalled hyprctl would outlast the whole budget, so any finish well inside
+# it means the reset was cut short by its own bound. The reset itself can take
+# 0.6s (0.5s cap plus the kill-after), and the rest is process-startup room.
+(( elapsed_us <= 1500000 )) ||
+  fail "sleep lock bounds a stalled layout reset" "elapsed: ${elapsed_us}us"
+pass "sleep lock bounds a stalled layout reset"
+
+# The reset is best-effort, so a hyprctl that fails outright must not take the
+# security wait down with it.
+setup_scenario failed_reset
+responsive_shell
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+exit 1
+SH
+chmod +x "$mock_bin/hyprctl"
+mock_clamshell
+
+run_sleep_lock 2000
+
+(( exit_status == 0 )) ||
+  fail "sleep lock continues past a failed layout reset" "exit: $exit_status"
+pass "sleep lock continues past a failed layout reset"
+
+[[ ${calls[*]} == *"shell lock status"* ]] ||
+  fail "sleep lock checks lock security after a failed reset" "calls: ${calls[*]}"
+pass "sleep lock checks lock security after a failed reset"
 
 # A shell that never secures the session must give up inside the budget rather
 # than hold logind's delay inhibitor open.
