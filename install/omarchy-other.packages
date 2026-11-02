@@ -71,6 +71,7 @@ linux-firmware-cirrus-dx13260
 asus-proart-p14-speaker-firmware
 asus-zenbook-a16-audio
 asus-zenbook-a16-firmware
+asus-zenbook-14-ux3480qa-firmware
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
