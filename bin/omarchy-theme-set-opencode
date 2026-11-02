@@ -16,6 +16,7 @@ esac
 (( $# <= 1 )) || exit 1
 
 config_dir="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/opencode"
 source_theme="$HOME/.local/state/omarchy/current/theme/opencode.json"
 [[ -d $config_dir || $activate == 1 ]] || exit 0
 if [[ ! -f $source_theme ]]; then
@@ -37,7 +38,7 @@ cli_config="$config_dir/cli.json"
 if [[ ! -f $cli_config ]]; then
   # Do not preempt OpenCode's one-time migration of legacy TUI preferences.
   # The first ordinary theme sync after migration registers this adapter.
-  if [[ -f $config_dir/tui.json || -f $config_dir/tui.jsonc ]]; then
+  if [[ -e $config_dir/tui.json || -e $config_dir/tui.jsonc || -e $state_dir/kv.json ]]; then
     exit 0
   fi
 fi

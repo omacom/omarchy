@@ -47,6 +47,14 @@ bash "$ROOT/bin/omarchy-theme-set-opencode" --activate
 [[ ! -f $OPENCODE_CONFIG_DIR/cli.json ]] || fail "legacy preferences must migrate before cli.json is created"
 pass "activation leaves legacy preference migration to OpenCode"
 
+rm "$OPENCODE_CONFIG_DIR/tui.json"
+mkdir -p "$HOME/.local/state/opencode"
+printf '{"theme":"custom"}\n' >"$HOME/.local/state/opencode/kv.json"
+bash "$ROOT/bin/omarchy-theme-set-opencode" --activate
+[[ ! -f $OPENCODE_CONFIG_DIR/cli.json ]] || fail "legacy state-file preferences must migrate before cli.json is created"
+pass "activation leaves legacy state-file preference migration to OpenCode"
+rm "$HOME/.local/state/opencode/kv.json"
+
 # Exercise the actual migration with a retained active copy whose source was
 # removed. Missing optional application palettes must not stop the update queue.
 mkdir -p "$test_dir/bin" "$test_dir/source/themes/available"
