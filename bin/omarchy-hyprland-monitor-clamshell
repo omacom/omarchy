@@ -227,10 +227,15 @@ read_monitor_position() {
   echo auto
 }
 
-# Any output naming the panel, on whatever line, or matching by description
-# might be its rule, which the one-line reader above can miss.
-internal_may_have_rule() {
-  monitor_rules | grep -Eq "output[[:space:]]*=[[:space:]]*[\"']($INTERNAL|desc:[^\"']*)[\"']"
+# The catch-all reaches the panel only when no rule is the panel's own, which
+# is certain only when every rule names a literal output and none is the panel.
+catch_all_reaches_internal() {
+  local rules calls outputs
+  rules=$(monitor_rules)
+  calls=$(grep -oE 'hl\.monitor[[:space:]]*\(' <<<"$rules" | wc -l)
+  outputs=$(grep -oE "output[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*')" <<<"$rules")
+  (( calls == $(grep -c . <<<"$outputs") )) || return 1
+  ! grep -Eq "[\"']($INTERNAL|desc:.*)[\"']$" <<<"$outputs"
 }
 
 # The mode the user's rules give the panel, so re-enabling it does not drop a
@@ -242,7 +247,7 @@ read_monitor_mode() {
   local mode
   mode=$(saved_internal_monitor_value mode)
   [[ -n $mode ]] || mode=$(configured_internal_monitor_value mode)
-  if [[ -z $mode ]] && ! internal_may_have_rule; then
+  if [[ -z $mode ]] && catch_all_reaches_internal; then
     mode=$(configured_monitor_value "" mode)
   fi
   # A bare word naming no local reaches here as itself, so only Hyprland's mode
