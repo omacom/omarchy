@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation with the configured backend
+# omarchy:args=<start|stop|toggle>
+# omarchy:examples=omarchy dictation start | omarchy dictation toggle
+
+if (($# != 1)) || [[ $1 != "start" && $1 != "stop" && $1 != "toggle" ]]; then
+  echo "Usage: omarchy dictation <start|stop|toggle>" >&2
+  exit 1
+fi
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
+mkdir -p "${config%/*}"
+exec 9> "$config.lock"
+if ! flock -w 5 9; then
+  echo "Dictation is busy; try again." >&2
+  exit 1
+fi
+
+backend=$(omarchy-default-dictation) || exit 1
+adapter="omarchy-dictation-$backend"
+if omarchy-cmd-missing "$adapter"; then
+  echo "The selected dictation backend ($backend) is not installed." >&2
+  exit 1
+fi
+"$adapter" "$1" 9>&-
