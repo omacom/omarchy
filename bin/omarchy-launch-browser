@@ -5,31 +5,132 @@
 
 default_browser=$(omarchy-cmd-default-browser)
 
-# Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
-# the same order, so the command always comes from the entry that was checked.
-IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-browser_exec=""
-for data_dir in "${data_dirs[@]}"; do
-  entry="$data_dir/applications/$default_browser"
-  [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-  break
-done
+# Undo the escapes every desktop entry string carries.
+desktop_string() {
+  local string=$1 char i
+  REPLY=""
+  for (( i = 0; i < ${#string}; i++ )); do
+    char=${string:i:1}
+    if [[ $char == "\\" ]]; then
+      (( i++ ))
+      case ${string:i:1} in
+      s) char=" " ;;
+      n) char=$'\n' ;;
+      t) char=$'\t' ;;
+      r) char=$'\r' ;;
+      "\\") char="\\" ;;
+      *) char="\\${string:i:1}" ;;
+      esac
+    fi
+    REPLY+=$char
+  done
+}
+
+desktop_exec_argv() {
+  local desktop=$1
+  local file="" line="" name data_dir
+  desktop_exec_argv=()
+  # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
+  # the same order, so the command always comes from the entry that was checked.
+  local -a data_dirs
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for data_dir in "${data_dirs[@]}"; do
+    file="$data_dir/applications/$desktop"
+    [[ -f $file ]] || continue
+    line=$(sed -n 's/^Exec=//p' "$file" | head -1)
+    break
+  done
+  [[ -n $line ]] || return 1
+  desktop_string "$(sed -n 's/^Name=//p' "$file" | head -1)"
+  name=$REPLY
+
+  # Split the Exec line by its own quoting, expanding %c and %k, keeping %% as
+  # %, and dropping the other field codes. A standalone -- goes too, or the
+  # launcher's own options after it would be read as operands.
+  desktop_string "$line"
+  local value=$REPLY arg="" char i quoted=0 started=0
+  for (( i = 0; i < ${#value}; i++ )); do
+    char=${value:i:1}
+    if [[ $char == '"' ]]; then
+      (( quoted = !quoted, started = 1 ))
+    elif [[ $char == "\\" ]] && (( quoted )); then
+      (( i++ ))
+      arg+=${value:i:1}
+    elif [[ $char == "%" ]]; then
+      (( i++ ))
+      case ${value:i:1} in
+      "%") arg+="%" started=1 ;;
+      c) arg+=$name started=1 ;;
+      k) arg+=$file started=1 ;;
+      esac
+    elif [[ $char == " " ]] && (( ! quoted )); then
+      if (( started )) && [[ $arg != "--" ]]; then
+        desktop_exec_argv+=("$arg")
+      fi
+      arg="" started=0
+    else
+      arg+=$char started=1
+    fi
+  done
+  if (( started )) && [[ $arg != "--" ]]; then
+    desktop_exec_argv+=("$arg")
+  fi
+
+  (( ${#desktop_exec_argv[@]} > 0 ))
+}
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
 # which fails a keybinding silently. Say what is missing and how to fix it.
-if [[ -z $browser_exec ]]; then
+if ! desktop_exec_argv "$default_browser"; then
   echo "omarchy-launch-browser: no default browser found; set one with 'omarchy default browser <browser>'" >&2
   omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.notFound)" "$(omarchy-i18n browser.notFoundHint)"
   exit 1
 fi
 
+# The browser is what an env or flatpak wrapper runs, including inside an
+# env -S string; a Flatpak's is its app id, which is no command on the host.
+browser_exec="" flatpak_app="" flatpak=0
+tokens=("${desktop_exec_argv[@]}")
+for (( i = 0; i < ${#tokens[@]}; i++ )); do
+  token=${tokens[i]}
+  case $token in
+  -u | --unset | -C | --chdir) (( i++ )) ;;
+  -S | --split-string | -S?* | --split-string=*)
+    if [[ $token == "-S" || $token == "--split-string" ]]; then
+      split_value=${tokens[i + 1]}
+      rest=("${tokens[@]:i+2}")
+    else
+      split_value=${token#--split-string=}
+      split_value=${split_value#-S}
+      rest=("${tokens[@]:i+1}")
+    fi
+    mapfile -t split < <(xargs -r -n1 printf '%s\n' <<<"$split_value" 2>/dev/null)
+    tokens=("${tokens[@]:0:i}" "${split[@]}" "${rest[@]}")
+    (( i-- ))
+    ;;
+  "" | *=* | env | */env | run | -*) ;;
+  flatpak | */flatpak) flatpak=1 ;;
+  *)
+    browser_exec=$token
+    (( flatpak )) && flatpak_app=$token
+    break
+    ;;
+  esac
+done
+[[ -n $browser_exec ]] || browser_exec=${desktop_exec_argv[0]}
+
 # Only a private launch needs the browser's flag, and probing a Firefox-family
 # browser's --help starts the whole binary, so ordinary launches skip it and
-# leave their arguments as they are.
+# leave their arguments as they are. A Flatpak is named by its app id instead.
 private_flag="--private"
 if [[ " $* " == *" --private "* ]]; then
-  if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+  if [[ -n $flatpak_app ]]; then
+    case ${flatpak_app,,} in
+    org.mozilla.firefox | io.gitlab.librewolf-community | app.zen_browser.zen | net.waterfox.waterfox | one.ablaze.floorp) private_flag="--private-window" ;;
+    com.microsoft.edge) private_flag="--inprivate" ;;
+    *) private_flag="--incognito" ;;
+    esac
+  elif "$browser_exec" --help 2>/dev/null | grep -q MOZ_LOG; then
     private_flag="--private-window"
   elif [[ $browser_exec =~ edge ]]; then
     private_flag="--inprivate"
@@ -38,10 +139,10 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+if ! omarchy-cmd-browser-handoff "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+    uwsm-app -- "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"
 fi
 
 url=""
