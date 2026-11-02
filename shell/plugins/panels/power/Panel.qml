@@ -241,6 +241,8 @@ Panel {
   readonly property bool historyShown: historyBattery !== null && !historyMissing
 
   function refreshHistory() {
+    // Also the deferred rerun below, which can land after the panel closed.
+    if (!opened) return
     if (!historyBattery) {
       historyPoints = []
       return
@@ -303,7 +305,7 @@ Panel {
     id: historyProc
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateHistory(text) }
     // Deferred: the process still reports running while it signals exit.
-    onExited: if (root.historyPending && root.opened) Qt.callLater(root.refreshHistory)
+    onExited: if (root.historyPending) Qt.callLater(root.refreshHistory)
   }
 
   // UPower writes a row on each change, so the open chart follows the same
