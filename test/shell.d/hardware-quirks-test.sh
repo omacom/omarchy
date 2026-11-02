@@ -43,9 +43,10 @@ pass "every setup script is reached from setup"
 # --- Each quirk is a no-op on other hardware and applies on its own ---
 
 # The fake machine: DMI attributes as files, which cat and omarchy-hw-match
-# read in place of /sys/class/dmi/id; the platform, loaded modules, input
-# devices and lspci listing come from FAKE_* variables. Writes the leaves make
-# through sudo land under a scratch root, and every other effect is logged.
+# read in place of /sys/class/dmi/id, and PCI devices as sysfs files; the
+# platform, loaded modules, input devices and lspci listing come from FAKE_*
+# variables. Writes the leaves make through sudo land under a scratch root,
+# and every other effect is logged.
 hw="$test_tmp/hw"
 root="$test_tmp/root"
 stub_bin="$test_tmp/bin"
@@ -138,13 +139,14 @@ chmod +x "$stub_bin"/*
 machine() {
   local name=${1%+unreadable}
   rm -rf "$hw" "$root"
-  mkdir -p "$hw/dmi" "$root/etc" "$root/home/.config/hypr"
+  mkdir -p "$hw/dmi" "$hw/pci" "$root/etc" "$root/home/.config/hypr"
   printf '%s\n' '-- User look and feel' >"$root/home/.config/hypr/looknfeel.lua"
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
   FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
+  pci() { mkdir -p "$hw/pci/$1"; printf '%s\n' "$2" >"$hw/pci/$1/vendor"; printf '%s\n' "$3" >"$hw/pci/$1/class"; printf '%s\n' "$4" >"$hw/pci/$1/device"; }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
@@ -171,7 +173,7 @@ machine() {
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
-    xps13-wcl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Wildcat Lake [Intel Graphics]" ;;
+    xps13-wcl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Wildcat Lake [Intel Graphics]"; pci 0000:00:02.0 0x8086 0x030000 0xfd80 ;;
     xps13-dx13261) xps13 DX13261; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
     xps13-sku-0e54) xps13 DX13260 0E54 ;;
     # An exact SKU match must not be satisfied by one that merely contains it.
@@ -179,7 +181,7 @@ machine() {
     xps13-no-sku) xps13; rm "$hw/dmi/product_sku" ;;
     xps13-apply-fails) xps13; FAKE_APPLY_STATUS=1 ;;
     xps13-pkg-add-fails) xps13; FAKE_PKG_ADD_STATUS=1 ;;
-    nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
+    nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; pci 0000:01:00.0 0x10de 0x030000 0x1287 ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
   esac
@@ -210,6 +212,7 @@ run_leaf() {
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
+    OMARCHY_PCI_DEVICES_PATH="$hw/pci" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
     printf '%s\n' "$status"
@@ -302,7 +305,7 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-ptl+unreadable|0
 # has to surface rather than be swallowed by a successful install.
 hardware/dell-xps13-sidecar-amps.sh|xps13-apply-fails|1|pkg-add dell-xps13-sidecar-amps|sudo dell-xps13-sidecar-amps-apply
 hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sidecar-amps
-# Wildcat Lake's GPU is named only "[Intel Graphics]".
+# Wildcat Lake (8086:fd80), which lspci names only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0
 user/hardware/fix-nouveau-cursor.sh|nouveau|0|wrote home/.config/hypr/looknfeel.lua
