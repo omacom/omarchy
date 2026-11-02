@@ -382,3 +382,58 @@ PY
 rm -f "$leading_space_file"
 pass "leading secret spaces survive repair without disappearing"
 
+
+# 15. A keyring gnome-keyring wrote with a lock timeout is still repaired
+lock_timeout_file="$OMARCHY_KEYRING_DIR/lock_timeout.keyring"
+cat >"$lock_timeout_file" <<'KEYRING'
+[keyring]
+display-name=Default keyring
+ctime=1700000000
+mtime=1700000000
+lock-on-idle=true
+lock-timeout=300
+lock-after=false
+
+[1]
+item-type=0
+display-name=Lock Timeout Item
+secret=first
+second
+mtime=1700000000
+ctime=1700000000
+KEYRING
+
+python3 "$repair" || fail "repair refused a keyring carrying lock-timeout"
+grep -Fqx 'secret=first\nsecond' "$lock_timeout_file" || fail "lock-timeout keyring was not repaired"
+rm -f "$lock_timeout_file"
+pass "keyring with lock-timeout is repaired"
+
+# 16. A secret whose payload forges a whole item is refused, not split into two items
+forged_file="$OMARCHY_KEYRING_DIR/forged.keyring"
+cat >"$forged_file" <<'KEYRING'
+[keyring]
+display-name=Default keyring
+
+[1]
+item-type=0
+display-name=Real Item
+secret=first
+bare
+[9]
+item-type=0
+display-name=forged
+secret=other
+mtime=1700000000
+ctime=1700000000
+
+[1:attribute0]
+name=app
+type=string
+value=real
+KEYRING
+
+cp -a "$forged_file" "$tmpdir/forged_before.keyring"
+! python3 "$repair" 2>/dev/null || fail "repair should refuse an item forged inside a secret"
+cmp -s "$tmpdir/forged_before.keyring" "$forged_file" || fail "forged item file was modified"
+rm -f "$forged_file" "$tmpdir/forged_before.keyring"
+pass "item forged inside a secret is refused without modifying file"

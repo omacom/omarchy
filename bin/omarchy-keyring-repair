@@ -33,7 +33,7 @@ ANY_BRACKET_RE = re.compile(r"^\[.+\]$")
 
 # Legitimate property patterns in cleartext GNOME Keyring files per gkm-secret-textual.c
 KEYFILE_PROPERTY_RE = re.compile(
-    r"^(?:item-type=\d+|display-name=.*|binary-secret=.*|secret=.*|ctime=\d+|mtime=\d+|name=.*|type=.*|value=.*|lock-on-idle=.*|lock-after=.*)$"
+    r"^(?:item-type=\d+|display-name=.*|binary-secret=.*|secret=.*|ctime=\d+|mtime=\d+|name=.*|type=.*|value=.*|lock-on-idle=.*|lock-after=.*|lock-timeout=\d+)$"
 )
 
 # Legitimate metadata keys inside an item section [N] per gkm-secret-textual.c
@@ -127,8 +127,8 @@ def validate_section_hierarchy(sections: list[list[str]]) -> bool:
         return False
 
     seen_headers: set[str] = set()
-    seen_items: set[str] = set()
     next_attr_idx: dict[str, int] = {}
+    current_item: str | None = None
 
     for sec in sections[header_idx:]:
         if not sec:
@@ -144,7 +144,7 @@ def validate_section_hierarchy(sections: list[list[str]]) -> bool:
         m_item = ITEM_HEADER_RE.match(header)
         if m_item:
             item_id = m_item.group(1)
-            seen_items.add(item_id)
+            current_item = item_id
             next_attr_idx[item_id] = 0
             continue
 
@@ -152,7 +152,9 @@ def validate_section_hierarchy(sections: list[list[str]]) -> bool:
         if m_attr:
             item_id = m_attr.group(1)
             attr_idx = int(m_attr.group(2))
-            if item_id not in seen_items or attr_idx != next_attr_idx[item_id]:
+            # gnome-keyring writes an item's attributes straight after it, so one
+            # trailing another item means a secret's payload forged that item.
+            if item_id != current_item or attr_idx != next_attr_idx[item_id]:
                 return False
             next_attr_idx[item_id] += 1
             continue
