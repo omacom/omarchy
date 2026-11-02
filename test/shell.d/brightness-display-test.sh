@@ -260,6 +260,7 @@ Display 1
    DRM connector:       card1-HDMI-A-1
 EOT
 elif [[ $* == *" setvcp D6 "* ]]; then
+  [[ -n ${DDC_SET_STARTED:-} ]] && : >"$DDC_SET_STARTED"
   sleep "${DDC_SET_DELAY:-0}"
   if [[ ${DDC_SET_FAIL:-0} == "1" ]]; then
     exit 1
@@ -352,11 +353,19 @@ pass "a monitor that ignores the DDC wake gets a DPMS cycle"
 
 # The lock screen starts blank and wake without waiting for one another. A
 # blank that is slow to fail must not fall back to DPMS after a newer wake has
-# lit the screen: the wake waits for it and has the last word.
+# lit the screen: the wake waits for it and has the last word. The wake is
+# sent only once the blank's DDC write is under way, so the blank holds the
+# lock by then whatever the runner's load.
 : >"$call_log"
-DDC_SET_DELAY=1 DDC_SET_FAIL=1 run_power off &
+ddc_started="$runtime_dir/ddc-set-started"
+rm -f "$ddc_started"
+DDC_SET_STARTED="$ddc_started" DDC_SET_DELAY=1 DDC_SET_FAIL=1 run_power off &
 blank_pid=$!
-sleep 0.3
+for _ in $(seq 1 100); do
+  [[ -e $ddc_started ]] && break
+  sleep 0.05
+done
+[[ -e $ddc_started ]] || fail "the slow blank never reached its DDC write" "$(<"$call_log")"
 run_power on
 wait "$blank_pid"
 [[ $(grep -F 'hl.dsp.dpms' "$call_log" | tail -n 1) == *enable* ]] || \
