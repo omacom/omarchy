@@ -209,7 +209,9 @@ elif [[ $* == *"listPlugins"* ]]; then
     xargs -0 -r jq -s 'map({id: .id, enabled: true})'
 elif [[ $* == *"enablePlugin"* ]]; then
   printf 'omarchy-shell enablePlugin timeout=%s\n' "${OMARCHY_SHELL_IPC_TIMEOUT-unset}" >>"$OMARCHY_TEST_CALLS"
-  printf 'error: enable did not finish in time\n'
+  # A real IPC timeout: the shell may have applied it, the client exits non-zero.
+  printf 'omarchy-shell is not responding\n' >&2
+  exit 1
 fi
 exit 0
 SH
