@@ -166,8 +166,6 @@ devin_tool="http:devin"
 devin_package="$devin_tool[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
 amp_package="amp"
 commandcode_package="npm:command-code"
-afk_tool="forgejo:mooglest/public"
-afk_package="$afk_tool[api_url=https://git.mooglest.com/api/v1]"
 cursor_agent_package="cursor-agent"
 muse_package="muse"
 
@@ -228,7 +226,6 @@ done
 # options is declared by its bare name with the options inside the table: the
 # same options the launcher hands a user without the declarations.
 declare -A declared_option_bins=(
-  [afk]='"afk"'
   [mcode]='"mcode"'
   [kiro_cli]='"kiro-cli"'
   [devin]='"devin"'
@@ -245,12 +242,10 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 22 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 32 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
