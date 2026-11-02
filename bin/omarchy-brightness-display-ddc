@@ -126,8 +126,9 @@ if [[ -z $step ]]; then
   exit 0
 fi
 
+# Amounts are read as base 10: bash would take a leading zero (08%) as octal.
 if [[ $step =~ ^([0-9]+)%$ ]]; then
-  target="${BASH_REMATCH[1]}"
+  target=$((10#${BASH_REMATCH[1]}))
   range_cache_fresh=0
   if [[ -r $cache_file ]]; then
     read -r bus maximum range_cached_at <"$cache_file" || true
@@ -147,7 +148,7 @@ elif [[ $step =~ ^\+([0-9]+)%$ ]]; then
   read -r bus current maximum < <(read_brightness) || exit 1
   [[ -n ${bus:-} && -n ${current:-} && -n ${maximum:-} ]] || exit 1
   (( percent = (current * 100 + maximum / 2) / maximum ))
-  amount="${BASH_REMATCH[1]}"
+  amount=$((10#${BASH_REMATCH[1]}))
   if (( amount == 5 && percent < 5 )); then
     (( target = percent + 1 ))
   else
@@ -157,7 +158,7 @@ elif [[ $step =~ ^([0-9]+)%-$ ]]; then
   read -r bus current maximum < <(read_brightness) || exit 1
   [[ -n ${bus:-} && -n ${current:-} && -n ${maximum:-} ]] || exit 1
   (( percent = (current * 100 + maximum / 2) / maximum ))
-  amount="${BASH_REMATCH[1]}"
+  amount=$((10#${BASH_REMATCH[1]}))
   if (( amount == 5 && percent <= 5 )); then
     (( target = percent - 1 ))
   else
