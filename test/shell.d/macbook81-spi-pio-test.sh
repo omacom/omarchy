@@ -45,6 +45,7 @@ cat >"$stub_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 
 echo 'limine-mkinitcpio' >>"$TEST_LOG"
+[[ -z ${REBUILD_FAILS:-} ]] || echo "==> ERROR: mkinitcpio failed for kernel linux-omarchy, skipping."
 SH
 
 chmod +x "$stub_bin"/*
@@ -110,6 +111,14 @@ run_migration() {
 rm -rf "$test_tmp/etc" "$test_tmp/repair-complete"
 mkdir -p "$test_tmp/etc"
 echo 'quiet splash' >"$test_tmp/cmdline"
+! REBUILD_FAILS=1 run_migration "MacBook8,1" 2>/dev/null ||
+  fail "a boot image rebuild that skipped a kernel fails the migration"
+[[ ! -e $test_tmp/repair-complete ]] ||
+  fail "a boot image rebuild that skipped a kernel leaves the repair pending"
+pass "the migration stays pending when a kernel is not rebuilt"
+
+rm -rf "$test_tmp/etc"
+mkdir -p "$test_tmp/etc"
 run_migration "MacBook8,1"
 grep -Fq 'initcall_blacklist=dw_pci_driver_init' "$pio" ||
   fail "the migration writes the PIO drop-in" "$(cat "$pio" 2>/dev/null)"

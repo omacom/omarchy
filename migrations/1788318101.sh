@@ -37,6 +37,15 @@ if [[ -f $limine_conf ]] &&
 fi
 
 if (( needs_limine_rebuild )); then
-  sudo limine-mkinitcpio
+  rebuild_log=$(mktemp)
+  trap 'rm -f "$rebuild_log"' EXIT
+  sudo limine-mkinitcpio 2>&1 | tee "$rebuild_log"
+
+  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+  # Without the marker, this migration stays pending and retries.
+  if grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+    echo "Could not rebuild the boot image; this migration stays pending." >&2
+    exit 1
+  fi
   sudo install -Dm644 /dev/null "$repair_marker"
 fi
