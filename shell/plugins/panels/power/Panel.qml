@@ -514,8 +514,12 @@ Panel {
           Rectangle {
             id: barTrack
             anchors.fill: parent
-            radius: root.historyShown ? Style.space(6) : height / 2
-            color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+            // As a chart it's a box, so it takes the theme's corners and the
+            // track the agents panel's meters use; the thin bar stays a pill.
+            radius: root.historyShown ? Style.cornerRadius : height / 2
+            color: root.historyShown
+              ? Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
+              : Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
           }
 
           Item {
