@@ -11,6 +11,8 @@ assert(media.isProxyPlayer({ dbusName: 'org.mpris.MediaPlayer2.playerctld' }), '
 assert(media.isProxyPlayer({ desktopEntry: 'playerctld' }), 'media detects playerctld proxy by desktop entry')
 assert(media.hasMetadata({ identity: 'Spotify' }), 'media detects identity metadata')
 assert(media.hasTrackMetadata({ trackTitle: 'Track' }), 'media detects track metadata')
+assert(media.hasTrackTitle({ trackTitle: 'Track' }), 'media detects track titles')
+assert(!media.hasTrackTitle({ trackArtUrl: 'file:///cover.jpg' }), 'media ignores blank titles with stale art')
 
 // An idle browser keeps an MPRIS session with only art and length; the bar hides it, so it must not hide a paused track.
 const idleBrowser = { identity: 'Chrome', trackArtUrl: 'file:///tmp/art' }
