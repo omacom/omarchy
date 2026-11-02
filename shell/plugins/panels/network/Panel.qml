@@ -48,9 +48,12 @@ Panel {
   property real routerPingLatency: -1
   property real internetPingLatency: -1
   property int internetPingPacketLoss: 0
+  property bool routedConnectivity: false
+  property int routedConnectivityGeneration: 0
+  property int routedProbeGeneration: -1
   readonly property int pingHistoryWindow: 24
   readonly property int pingAverageWindow: 5
-  readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, connectivity)
+  readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, effectiveConnectivity)
   // Every stat row stays mounted whether or not there is data behind it, so a
   // sample arriving late never reflows the grid. This says whether the numbers
   // are real yet or the row should read "--".
@@ -506,9 +509,10 @@ Panel {
     Portal: NetworkConnectivity.Portal, Limited: NetworkConnectivity.Limited,
     Full: NetworkConnectivity.Full, None: NetworkConnectivity.None
   }, connectivityChecksEnabled)
+  readonly property string effectiveConnectivity: Model.effectiveConnectivity(connectivity, routedConnectivity)
   readonly property bool hasCaptivePortal: connectivity === "portal"
-  readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
-  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
+  readonly property bool restricted: hasCaptivePortal || effectiveConnectivity === "limited"
+  readonly property string icon: Model.connectionIcon(kind, signalStrength, effectiveConnectivity)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
   // stays up, and a real network switch already passes through "disconnected".
@@ -516,8 +520,21 @@ Panel {
     ? kind + ":" + wifiDevice.name
     : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
 
-  onConnectionKeyChanged: Qt.callLater(checkConnectivity)
-  onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
+  onConnectionKeyChanged: {
+    routedConnectivity = false
+    routedConnectivityGeneration++
+    Qt.callLater(checkConnectivity)
+  }
+  onConnectivityChecksEnabledChanged: {
+    routedConnectivityGeneration++
+    if (!connectivityChecksEnabled) routedConnectivity = false
+    Qt.callLater(checkConnectivity)
+  }
+  onConnectivityChanged: {
+    routedConnectivityGeneration++
+    if (connectivity !== "limited") routedConnectivity = false
+    else Qt.callLater(checkRoutedConnectivity)
+  }
   onHasCaptivePortalChanged: {
     if (hasCaptivePortal && opened && passwordSsid === "") {
       focusSection = "portal"
@@ -536,6 +553,14 @@ Panel {
     if (connectivityChecksEnabled && kind !== "disconnected") Networking.checkConnectivity()
   }
 
+  // NetworkManager binds its check to the physical device. A second probe
+  // follows the normal route, so a working VPN or TUN can clear a false warning.
+  function checkRoutedConnectivity() {
+    if (connectivity !== "limited" || !connectivityChecksEnabled || routedConnectivityProc.running) return
+    routedProbeGeneration = routedConnectivityGeneration
+    routedConnectivityProc.running = true
+  }
+
   function openCaptivePortal() {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
@@ -552,8 +577,11 @@ Panel {
     id: connectivityPoll
     interval: 10000
     repeat: true
-    running: root.restricted && root.connectivityChecksEnabled
-    onTriggered: root.checkConnectivity()
+    running: (root.hasCaptivePortal || root.connectivity === "limited") && root.connectivityChecksEnabled
+    onTriggered: {
+      root.checkConnectivity()
+      root.checkRoutedConnectivity()
+    }
   }
 
   // The share card is its own panel plugin (omarchy.wifiqr) so a replacement
@@ -919,6 +947,19 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.updateDetails(text)
+    }
+  }
+
+  Process {
+    id: routedConnectivityProc
+    command: ["curl", "--fail", "--silent", "--show-error", "--noproxy", "*",
+      "--max-time", "6", "--output", "/dev/null", Model.captivePortalUrl]
+    onExited: function(exitCode) {
+      if (routedProbeGeneration !== routedConnectivityGeneration || root.connectivity !== "limited") {
+        Qt.callLater(root.checkRoutedConnectivity)
+        return
+      }
+      root.routedConnectivity = exitCode === 0
     }
   }
 

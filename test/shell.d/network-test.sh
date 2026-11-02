@@ -40,6 +40,10 @@ assert(
   'network releases the previous scanner device before enabling its replacement'
 )
 
+assertEqual(network.effectiveConnectivity('limited', true), 'full', 'network accepts a successful routed probe')
+assertEqual(network.effectiveConnectivity('limited', false), 'limited', 'network keeps an unverified limited result')
+assertEqual(network.effectiveConnectivity('portal', true), 'portal', 'network never overrides a captive portal')
+
 assertDeepEqual(
   network.parseNetworkStatus('wifi\tCafe WiFi\t78\t5200\n'),
   { kind: 'wifi', label: 'Cafe WiFi', signalStrength: 78, frequency: '5200' },
