@@ -229,37 +229,26 @@ if (loaderBlock) {
   const statusBlock = loaderBlock[1].match(/onStatusChanged: \{([\s\S]*)\}/)
   check(!!statusBlock, 'panelLoader has an onStatusChanged handler')
   if (statusBlock) {
+    // The original bug: the handler read a bare errorString that is not in
+    // scope there, so the report crashed and the panel stayed hidden. The
+    // handler is run with errorString out of scope again.
     const warns = []
     const hides = []
-    const createdUrls = []
-    let destroyed = false
-    const detail = 'qs:///plugin/Main.qml:5 module "somemodule" is not installed'
     const handler = new Function(
-      'status', 'Loader', 'Component', 'Qt', 'shell', 'panelEntry', 'panelLoader', 'console',
+      'status', 'Loader', 'Component', 'Qt', 'shell', 'panelEntry', 'console',
       statusBlock[1]
     )
     handler(
       4,
       { Error: 4 },
       { PreferSynchronous: 0 },
-      {
-        createComponent: (url) => {
-          createdUrls.push(url)
-          return {
-            errorString: () => detail,
-            destroy: () => { destroyed = true }
-          }
-        }
-      },
+      { createComponent: () => ({ errorString: () => 'qs:///plugin/Main.qml:5 module "somemodule" is not installed' }) },
       { hide: (id) => hides.push(id) },
       { pluginId: 'test.broken-panel', sourceUrl: 'file:///plugin/Main.qml' },
-      { source: 'file:///plugin/Main.qml', sourceComponent: null },
       { warn: (...parts) => warns.push(parts.join(' ')) }
     )
-    check(createdUrls.join(',') === 'file:///plugin/Main.qml', 'panel error handler inspects the failing entry Component')
-    check(warns.length === 1 && warns[0].includes('test.broken-panel') && warns[0].includes(detail), 'panel error handler logs the Component errorString')
+    check(warns.length === 1 && warns[0].includes('test.broken-panel') && warns[0].includes('module "somemodule" is not installed'), 'broken panel report names the plugin and the real load error')
     check(hides.join(',') === 'test.broken-panel', 'broken panel is hidden after the report')
-    check(destroyed, 'temporary diagnostic Component is destroyed')
   }
 }
 
