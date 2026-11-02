@@ -12,6 +12,21 @@ fail() {
   exit 1
 }
 
+# Print a plugin's optional postEnable string. This is display only: never
+# execute it. Keep UTF-8, tab, and newline; drop every other control character
+# so a listing cannot hijack the terminal.
+print_post_enable() {
+  local id="$1"
+  local manifest text
+  manifest=$(omarchy-plugin-catalog | jq -r --arg id "$id" '
+    map(select(.id == $id))[0].manifestPath // empty
+  ') || return 0
+  [[ -n ${manifest:-} && -f $manifest ]] || return 0
+  text=$(jq -r '.postEnable | select(type == "string") | .[0:2000] | gsub("[^\\P{Cc}\\t\\n]"; "")' "$manifest") || return 0
+  [[ -n $text ]] || return 0
+  printf '\n%s\n' "$text"
+}
+
 if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
   echo "Usage: omarchy plugin enable <id> [placement]"
   exit 0
@@ -98,3 +113,5 @@ elif omarchy-plugin-catalog | jq -e --arg id "$id" '
 else
   echo "Enabled $id"
 fi
+
+print_post_enable "$id"
