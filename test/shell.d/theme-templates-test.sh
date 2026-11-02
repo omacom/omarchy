@@ -76,3 +76,34 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
   [[ -f $next/$name ]] || fail "every built-in template renders ($name)"
 done
 pass "theme templates render every built-in template"
+
+# Render the real stock templates with Glassy selected, rather than hand-writing
+# terminal configs: an implicit opacity line would suppress Glassy's defaults.
+while IFS='|' read -r name declaration expected; do
+  opacity_home="$test_tmp/opacity-$name"
+  opacity_next="$opacity_home/.local/state/omarchy/current/next-theme"
+  mkdir -p "$opacity_next" "$opacity_home/.local/state/omarchy/toggles/hypr"
+  cp "$next/colors.toml" "$opacity_next/colors.toml"
+  if [[ -n $declaration ]]; then
+    printf 'terminal_opacity = %s\n' "$declaration" >>"$opacity_next/colors.toml"
+  fi
+  touch "$opacity_home/.local/state/omarchy/toggles/hypr/window-glassy.lua"
+  HOME="$opacity_home" XDG_CONFIG_HOME="$opacity_home/.config" XDG_STATE_HOME="$opacity_home/.local/state" \
+    OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-templates" 2>"$test_tmp/opacity-$name.log"
+  grep -qx "opacity = $expected" "$opacity_next/alacritty.toml" || fail "Glassy Alacritty opacity for $name"
+  grep -qx "alpha=$expected" "$opacity_next/foot.ini" || fail "Glassy Foot opacity for $name"
+  grep -qx "background-opacity = $expected" "$opacity_next/ghostty.conf" || fail "Glassy Ghostty opacity for $name"
+  grep -qx "background_opacity $expected" "$opacity_next/kitty.conf" || fail "Glassy Kitty opacity for $name"
+  pass "Glassy stock templates respect $name opacity"
+done <<'CASES'
+missing||0.65
+invalid|"invalid"|0.65
+declared|0.8|0.8
+opaque|1.0|1.0
+commented|0.8 # translucent|0.8
+quoted-junk|"0.8 garbage"|0.65
+quoted-hash|"0.8 # not a comment"|0.65
+unquoted-junk|0.8 garbage|0.65
+quoted-comment|'0.8' # translucent|0.8
+comment-quotes|0.8 # "translucent"|0.8
+CASES
