@@ -69,6 +69,7 @@ ShellRoot {
   // IDs observed by this shell process remain here after removal. Re-adding
   // one must use code-reload semantics because Qt may still cache its QML URL.
   property var knownLocalPluginIds: ({})
+  property var knownLocalPluginDirs: ({})
   // These two sets make plugin-add's explicit discovery and the filesystem
   // watcher idempotent regardless of which reaches the shell first.
   property var requestedPluginDiscoveries: ({})
@@ -76,7 +77,6 @@ ShellRoot {
   // Values are true when a request arrived during a scan and therefore needs
   // one follow-up scan if that scan did not discover the plugin.
   property var pendingPluginDiscoveries: ({})
-  property bool initialPluginScanFinished: false
 
   Timer {
     id: localPluginReloadTimer
@@ -1527,6 +1527,8 @@ ShellRoot {
   }
 
   function reloadPlugins() {
+    shell.requestedPluginDiscoveries = ({})
+    shell.watcherPluginDiscoveries = ({})
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
       return
@@ -1543,6 +1545,19 @@ ShellRoot {
     for (var id in shell.knownLocalPluginIds) next[id] = true
     next[String(pluginId)] = true
     shell.knownLocalPluginIds = next
+    var manifest = shell.pluginRegistry.installedPlugins[pluginId]
+    if (manifest && manifest.__sourceDir) {
+      var directories = Object.assign({}, shell.knownLocalPluginDirs)
+      var directory = String(manifest.__sourceDir).split("/").pop()
+      directories[directory] = String(pluginId)
+      shell.knownLocalPluginDirs = directories
+      if (directory !== String(pluginId) && shell.watcherPluginDiscoveries[directory]) {
+        var acknowledged = Object.assign({}, shell.watcherPluginDiscoveries)
+        delete acknowledged[directory]
+        acknowledged[String(pluginId)] = true
+        shell.watcherPluginDiscoveries = acknowledged
+      }
+    }
   }
 
   function forgetDiscovery(setName, pluginId) {
@@ -1565,10 +1580,11 @@ ShellRoot {
     var pending = ({})
     var followUp = false
     for (var id in shell.pendingPluginDiscoveries) {
-      if (shell.pluginRegistry.installedPlugins[id]) {
-        shell.rememberLocalPlugin(id)
-        shell.forgetDiscovery("requestedPluginDiscoveries", id)
-        shell.forgetDiscovery("watcherPluginDiscoveries", id)
+      var discoveredId = shell.knownLocalPluginDirs[id] || id
+      if (shell.pluginRegistry.installedPlugins[discoveredId]) {
+        shell.rememberLocalPlugin(discoveredId)
+        // Keep the first arrival acknowledged until its counterpart arrives,
+        // even when this metadata scan finishes before that notification.
       } else if (shell.pendingPluginDiscoveries[id]) {
         pending[id] = false
         followUp = true
@@ -1593,20 +1609,22 @@ ShellRoot {
 
   Connections {
     target: shell.pluginRegistry
-    function onLocalPluginChanged(pluginId) {
+    function onLocalPluginChanged(directory) {
+      var pluginId = shell.knownLocalPluginDirs[directory] || directory
+      if (shell.requestedPluginDiscoveries[pluginId]) {
+        shell.forgetDiscovery("requestedPluginDiscoveries", pluginId)
+        console.log("Local plugin addition acknowledged:", pluginId)
+        shell.requestPluginDiscovery(pluginId)
+        return
+      }
       // A plugin unseen by this shell session has no live objects to tear
       // down. Discover its completed manifest without rebuilding unrelated
       // plugins. Session-known IDs include removed plugins, whose QML URLs may
       // still be cached and therefore require the code-reload path below.
       if (!shell.knownLocalPluginIds[pluginId]) {
-        if (shell.requestedPluginDiscoveries[pluginId])
-          shell.forgetDiscovery("requestedPluginDiscoveries", pluginId)
-        else {
-          var acknowledged = ({})
-          for (var id in shell.watcherPluginDiscoveries) acknowledged[id] = true
-          acknowledged[pluginId] = true
-          shell.watcherPluginDiscoveries = acknowledged
-        }
+        var acknowledged = Object.assign({}, shell.watcherPluginDiscoveries)
+        acknowledged[pluginId] = true
+        shell.watcherPluginDiscoveries = acknowledged
         console.log("Local plugin added, discovering:", pluginId)
         shell.requestPluginDiscovery(pluginId)
         return
@@ -1615,14 +1633,11 @@ ShellRoot {
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
-      shell.finishPluginDiscoveries()
-      if (!shell.initialPluginScanFinished) {
-        for (var id in shell.pluginRegistry.installedPlugins) {
-          var manifest = shell.pluginRegistry.installedPlugins[id]
-          if (manifest && !manifest.__isFirstParty) shell.rememberLocalPlugin(id)
-        }
-        shell.initialPluginScanFinished = true
+      for (var id in shell.pluginRegistry.installedPlugins) {
+        var manifest = shell.pluginRegistry.installedPlugins[id]
+        if (manifest && !manifest.__isFirstParty) shell.rememberLocalPlugin(id)
       }
+      shell.finishPluginDiscoveries()
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false

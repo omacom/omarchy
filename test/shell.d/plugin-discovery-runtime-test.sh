@@ -1,40 +1,25 @@
 #!/bin/bash
 
+# omarchy:exclusive
+
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-TMPDIR=""
-QS_PID=""
-
-cleanup() {
-  SCRATCH_ROOT=${test_root:-}
-  SCRATCH_PID=$QS_PID
-  stop_scratch_shell
-  [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
-}
-trap cleanup EXIT
-
-require_compositor "plugin discovery runtime test"
-command -v quickshell >/dev/null 2>&1 || {
-  pass "quickshell not installed; skipping plugin discovery runtime test"
-  exit 0
-}
+require_quickshell "plugin discovery runtime test"
 require_command jq
-
-TMPDIR=$(mktemp -d)
-test_root="$TMPDIR/omarchy"
-test_home="$TMPDIR/home"
+setup_scratch_shell
+TMPDIR=$SCRATCH_DIR
+test_root=$SCRATCH_ROOT
+test_home=$SCRATCH_HOME
 plugins_dir="$test_home/.config/omarchy/plugins"
-log="$TMPDIR/quickshell.log"
-stub_dir="$TMPDIR/bin"
+log=$SCRATCH_LOG
+stub_dir=$SCRATCH_BIN
 scan_arm="$TMPDIR/scan-arm"
 scan_reached="$TMPDIR/scan-reached"
 scan_release="$TMPDIR/scan-release"
-mkdir -p "$test_root" "$plugins_dir" "$stub_dir"
-cp -a "$ROOT/shell" "$test_root/shell"
-ln -s "$ROOT/config" "$test_root/config"
-ln -s "$ROOT/bin" "$test_root/bin"
+watcher_hold="$TMPDIR/watcher-hold"
+mkdir -p "$plugins_dir"
 
 cat >"$stub_dir/bash" <<'SH'
 #!/bin/bash
@@ -45,6 +30,7 @@ if [[ -e $OMARCHY_TEST_SCAN_ARM && ${2:-} == *scan_firstparty* ]]; then
   while [[ ! -e $OMARCHY_TEST_SCAN_RELEASE ]]; do sleep 0.01; done
   printf '%s\n' "$output"
 else
+  [[ ${1:-} == "-lc" ]] && shift && set -- -c "$@"
   exec /bin/bash "$@"
 fi
 SH
@@ -74,8 +60,17 @@ Item {
 QML
 }
 
+cat >"$stub_dir/inotifywait" <<'SH'
+#!/bin/bash
+/usr/bin/inotifywait "$@" | while IFS= read -r event; do
+  while [[ -e $OMARCHY_TEST_WATCHER_HOLD ]]; do sleep 0.01; done
+  printf '%s\n' "$event"
+done
+SH
+chmod +x "$stub_dir/inotifywait"
+
 write_service "$plugins_dir/test.service-a" test.service-a 1
-write_service "$plugins_dir/test.service-b" test.service-b 1
+write_service "$plugins_dir/different-folder" test.service-b 1
 mkdir -p "$test_home/.config/omarchy"
 jq '.plugins = [{id: "test.service-a"}, {id: "test.service-b"}]' \
   "$ROOT/config/omarchy/shell.json" >"$test_home/.config/omarchy/shell.json"
@@ -123,7 +118,7 @@ wait_for_plugin() {
 wait_for_log() {
   local pattern="$1"
   for _ in {1..80}; do
-    grep -qF "$pattern" "$log" 2>/dev/null && return 0
+    grep -qE "$pattern" "$log" 2>/dev/null && return 0
     kill -0 "$QS_PID" 2>/dev/null || return 1
     sleep 0.1
   done
@@ -153,12 +148,14 @@ HOME="$test_home" \
 XDG_CONFIG_HOME="$test_home/.config" \
 XDG_CACHE_HOME="$test_home/.cache" \
 XDG_STATE_HOME="$test_home/.local/state" \
+OMARCHY_TEST_WATCHER_HOLD="$watcher_hold" \
 OMARCHY_TEST_SCAN_ARM="$scan_arm" \
 OMARCHY_TEST_SCAN_REACHED="$scan_reached" \
 OMARCHY_TEST_SCAN_RELEASE="$scan_release" \
 PATH="$stub_dir:$ROOT/bin:$PATH" \
   quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
 QS_PID=$!
+SCRATCH_PID=$QS_PID
 
 for _ in {1..80}; do
   shell_ipc shell ping >/dev/null 2>&1 && break
@@ -216,7 +213,7 @@ start_blocked_scan ipc-first || fail_with_log "IPC-first scan reaches its determ
 shell_ipc shell discoverPlugins test.service-ipc-first >/dev/null
 write_service "$plugins_dir/.add.test" test.service-ipc-first 1
 mv "$plugins_dir/.add.test" "$plugins_dir/test.service-ipc-first"
-wait_for_log "Local plugin added, discovering: test.service-ipc-first" ||
+wait_for_log "Local plugin (added, discovering|addition acknowledged): test.service-ipc-first" ||
   fail_with_log "watcher acknowledges IPC-first discovery while the registry is scanning"
 if shell_ipc shell listPlugins | jq -e 'any(.[]; .id == "test.service-ipc-first")' >/dev/null; then
   fail_with_log "blocked initial scan discovers the IPC-first plugin added after enumeration"
@@ -232,14 +229,34 @@ wait_for_count test.service-ipc-first 1 1 || fail_with_log "IPC-first service is
   fail_with_log "IPC-first queued discovery does not recreate existing services"
 pass "IPC-first discovery queued during a scan is not lost"
 
+# The first scan has completed before the second notification arrives.
+write_service "$plugins_dir/.add.late" test.late-watcher 1
+mv "$plugins_dir/.add.late" "$plugins_dir/test.late-watcher"
+wait_for_plugin test.late-watcher 1 || fail_with_log "watcher finishes discovery before the CLI arrives"
+shell_ipc shell discoverPlugins test.late-watcher >/dev/null
+sleep 0.3
+(( $(instance_count test.service-a 1) == 1 )) || fail_with_log "late CLI acknowledgment does not reload existing services"
+pass "watcher-first discovery stays incremental after its scan finishes"
+
+: >"$watcher_hold"
+write_service "$plugins_dir/.add.late" test.late-ipc 1
+mv "$plugins_dir/.add.late" "$plugins_dir/test.late-ipc"
+shell_ipc shell discoverPlugins test.late-ipc >/dev/null
+wait_for_plugin test.late-ipc 1 || fail_with_log "CLI finishes discovery before the watcher arrives"
+rm "$watcher_hold"
+wait_for_log "Local plugin (added, discovering|addition acknowledged|changed, reloading): test.late-ipc" || fail_with_log "delayed watcher acknowledges completed discovery"
+sleep 0.3
+(( $(instance_count test.service-a 1) == 1 )) || fail_with_log "late watcher acknowledgment does not reload existing services"
+pass "IPC-first discovery stays incremental after its scan finishes"
+
 shell_ipc shell rescanPlugins >/dev/null
 wait_for_count test.service-a 1 2 || fail_with_log "explicit rescan recreates service A"
 wait_for_count test.service-b 1 2 || fail_with_log "explicit rescan recreates service B"
 wait_for_count test.service-c 1 2 || fail_with_log "explicit rescan recreates service C"
 pass "explicit rescanPlugins retains full code-reload semantics"
 
-jq '.name = "Edited service B"' "$plugins_dir/test.service-b/manifest.json" >"$TMPDIR/manifest.json"
-mv "$TMPDIR/manifest.json" "$plugins_dir/test.service-b/manifest.json"
+jq '.name = "Edited service B"' "$plugins_dir/different-folder/manifest.json" >"$TMPDIR/manifest.json"
+mv "$TMPDIR/manifest.json" "$plugins_dir/different-folder/manifest.json"
 wait_for_count test.service-b 1 3 || fail_with_log "known plugin edit triggers full reload"
 grep -q "Local plugin changed, reloading: test.service-b" "$log" ||
   fail_with_log "known plugin edit is classified as a reload"
@@ -258,3 +275,19 @@ wait_for_plugin test.service-c 1 || fail_with_log "same-id plugin is rediscovere
 wait_for_count test.service-a 1 "$((before_a + 1))" || fail_with_log "same-id reinstallation reloads service A"
 wait_for_count test.service-b 1 "$((before_b + 1))" || fail_with_log "same-id reinstallation reloads service B"
 pass "remove and re-add of a session-known id uses full reload semantics"
+
+# A plugin installed after startup may also use a folder unlike its manifest ID.
+write_service "$plugins_dir/.add.folder" test.folder-id 1
+mv "$plugins_dir/.add.folder" "$plugins_dir/unrelated-folder"
+wait_for_plugin test.folder-id 1 || fail_with_log "differently named new folder is discovered"
+before_a=$(instance_count test.service-a 1)
+shell_ipc shell discoverPlugins test.folder-id >/dev/null
+sleep 0.3
+(( $(instance_count test.service-a 1) == before_a )) || fail_with_log "folder-to-ID acknowledgment avoids a global reload"
+shell_ipc shell setPluginEnabled test.folder-id true >/dev/null
+wait_for_count test.folder-id 1 1 || fail_with_log "differently named plugin starts"
+before_folder=$(instance_count test.folder-id 1)
+jq '.name = "Edited folder plugin"' "$plugins_dir/unrelated-folder/manifest.json" >"$TMPDIR/edited-manifest.json"
+mv "$TMPDIR/edited-manifest.json" "$plugins_dir/unrelated-folder/manifest.json"
+wait_for_count test.folder-id 1 "$((before_folder + 1))" || fail_with_log "edits to a differently named folder recreate the existing component"
+pass "plugins added in differently named folders retain incremental discovery and code reload"
