@@ -8,6 +8,14 @@ When new releases are made, a circle arrow icon will appear to the right of your
 
 ![update-available](images/update-available.webp)
 
+### Changelog
+
+_Update > Changelog_ opens the release notes for every Omarchy version, fetched from the [Omarchy releases](https://github.com/omacom/omarchy/releases) page when you open it.
+
+The last fetched copy is kept in `~/.cache/omarchy/`. Releases are grouped one feature version per page, newest first, and the changelog opens straight onto the newest version.
+
+Press `q` or `Esc` to pick an older one.
+
 ### Four channels
 
 Omarchy is updated along four channels: stable, RC, edge, and dev. New installations start on the stable channel, which tracks the [official releases](https://github.com/omacom/omarchy/releases/), as well as the [stable Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror) that's running one month behind the latest, so we can catch any new incompatibilities that require config changes before they cause problems for people.
