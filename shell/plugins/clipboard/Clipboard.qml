@@ -132,7 +132,7 @@ Item {
   }
 
   function rebuildDisplay() {
-    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Quickshell.env("HOME"))
+    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber, Quickshell.env("HOME"))
 
     displayModel.clear()
     for (var i = 0; i < rows.length; i++) {
@@ -156,6 +156,13 @@ Item {
     Qt.callLater(function() {
       if (displayModel.count > 0) resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
     })
+  }
+
+  // Preview text is composed imperatively, so rebuild it when the
+  // language (and with it the string catalog) changes under an open panel.
+  Connections {
+    target: Commons.I18n
+    function onStringsChanged() { if (root.opened) root.rebuildDisplay() }
   }
 
   function select(delta) {
@@ -400,8 +407,8 @@ Item {
           anchors.fill: parent
           opened: root.clearConfirmOpen
           z: 10
-          message: "Delete entire clipboard history?"
-          confirmText: "Delete"
+          message: Commons.I18n.t("clipboard.deleteHistory")
+          confirmText: Commons.I18n.t("common.delete")
           background: root.background
           foreground: root.foreground
           scrim: root.scrim
@@ -433,7 +440,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search clipboard…"
+            text: root.filterText || Commons.I18n.t("clipboard.search")
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -487,12 +494,11 @@ Item {
                     anchors.bottomMargin: Style.space(8)
                     spacing: Style.space(10)
 
-                    Image {
+                    SizedImage {
                       visible: parent.parent.previewImage.length > 0
                       width: visible ? parent.height : 0
                       height: parent.height
-                      source: parent.parent.previewImage
-                      fillMode: Image.PreserveAspectFit
+                      url: parent.parent.previewImage
                       asynchronous: true
                       smooth: true
                     }
@@ -564,29 +570,27 @@ Item {
               // Text that is an image path or link: show the image once it
               // loads, otherwise the text above stays visible. Only the active
               // row is loaded, so a remote link is fetched when selected.
-              Image {
+              SizedImage {
                 id: textImagePreview
                 readonly property bool shown: parent.activeRow && !parent.activeRow.previewImage
                   && parent.activeRow.textImage !== "" && status === Image.Ready
                 visible: shown
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
-                source: parent.activeRow && !parent.activeRow.previewImage ? parent.activeRow.textImage : ""
-                fillMode: Image.PreserveAspectFit
+                url: parent.activeRow && !parent.activeRow.previewImage ? parent.activeRow.textImage : ""
                 verticalAlignment: Image.AlignTop
                 asynchronous: true
                 smooth: true
               }
 
-              Image {
+              SizedImage {
                 visible: parent.activeRow && parent.activeRow.previewImage
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
                 anchors.rightMargin: 0
                 anchors.topMargin: 0
                 anchors.bottomMargin: 0
-                source: parent.activeRow ? parent.activeRow.previewImage : ""
-                fillMode: Image.PreserveAspectFit
+                url: parent.activeRow ? parent.activeRow.previewImage : ""
                 verticalAlignment: Image.AlignTop
                 asynchronous: true
                 smooth: true
@@ -611,7 +615,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.history.length === 0 ? "Clipboard is empty" : "No matches for “" + root.filterText + "”"
+              text: root.history.length === 0 ? Commons.I18n.t("clipboard.empty") : Commons.I18n.t("common.noMatchesFor").arg(root.filterText)
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily

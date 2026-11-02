@@ -106,8 +106,10 @@ for virt in vm none; do
   HOME="$test_home" OMARCHY_PATH="$ROOT" bash "$ROOT/install/user/hardware/vm-no-animations.sh" >/dev/null
   if [[ $virt == "vm" ]]; then
     [[ -f $animations_flag ]] || fail "a VM install turns animations off"
+    [[ -f ${animations_flag%/*}/window-opaque.lua ]] || fail "a VM install starts with opaque windows"
   else
     [[ ! -f $animations_flag ]] || fail "a machine that is not a VM keeps its animations"
+    [[ ! -f ${animations_flag%/*}/window-opaque.lua ]] || fail "a machine that is not a VM keeps transparent windows"
   fi
 done
-pass "a VM install starts without animations"
+pass "a VM install starts without animations and with opaque windows"

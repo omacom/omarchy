@@ -6,9 +6,12 @@
 name = "terminal"
 
 [theme.custom]
-# The active tab is drawn as panel_bg text on an accent background, so panel_bg
-# has to be dark for it to read - same colors as status-left's "#[fg=black,bg=blue]"
-panel_bg = "black"
+# The tab bar sits on the terminal's own background, like tmux's bg=default, so
+# it turns see-through with the rest of the terminal under Glassy windows. With
+# no panel_bg the active tab's text falls back to surface_dim, so that is black
+# for dark text on the accent - same colors as status-left's "#[fg=black,bg=blue]"
+panel_bg = "reset"
+surface_dim = "black"
 
 [terminal]
 # Matches -c "#{pane_current_path}" on every split, window, and session

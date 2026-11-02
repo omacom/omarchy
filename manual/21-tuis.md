@@ -12,7 +12,7 @@ You hop between the different panes using `Tab`. In the Files pane, you select f
 
 [Btop](https://github.com/aristocratos/btop) is a beautiful resource manager that shows memory, CPU, disk, and network usage. It also lists all active processes, and allows you to manage them.
 
-Omarchy calls it Activity, and you start it by hitting `Super + Ctrl + T`. It opens as a floating window, which you can tile with `Super + T`.
+Omarchy calls it Activity, and you start it by hitting `Super + Shift + T`. It opens as a floating window, which you can tile with `Super + T`.
 
 ## Herdr
 
@@ -32,7 +32,7 @@ Omarchy has packaged this as _About_ in the Omarchy menu (`Super + Space`).
 
 ## What about Wi-Fi and Bluetooth?
 
-You won't find TUIs for Wi-Fi and Bluetooth — those jobs belong to the Omarchy shell. Click the Wi-Fi icon in the top bar (or hit `Super + Ctrl + W`) to see networks and connect, and click the Bluetooth icon (or hit `Super + Ctrl + B`) to pair and connect devices. See [networking](35-networking.md) for the full story.
+You won't find TUIs for Wi-Fi and Bluetooth — those jobs belong to the Omarchy shell. Click the Wi-Fi icon in the top bar (or hit `Super + Ctrl + N`) to see networks and connect, and click the Bluetooth icon (or hit `Super + Ctrl + B`) to pair and connect devices. See [networking](35-networking.md) for the full story.
 
 ## Adding your own
 
