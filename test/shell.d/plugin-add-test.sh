@@ -175,3 +175,87 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# --- Bar section prompt ---------------------------------------------------
+#
+# Enabling interactively asks which bar section a new widget goes in. A clone
+# (manifest `omarchy.clonedFrom`) whose source is on the bar takes over the
+# source's slot instead, so it must not be asked: the answer would become a move
+# out of that slot. With its source off the bar it has no slot to take and is
+# asked like any new widget. Runs on a pty like the gum-prompt case above; gum,
+# the shell and enable are stubbed.
+
+if script -qec true /dev/null >/dev/null 2>&1; then
+  place_stubs="$TMPDIR/place-stubs"
+  mkdir -p "$place_stubs"
+  cat >"$place_stubs/omarchy-shell" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+  cat >"$place_stubs/omarchy-plugin-catalog" <<'STUB'
+#!/bin/bash
+echo '[]'
+STUB
+  cat >"$place_stubs/omarchy-plugin-list" <<'STUB'
+#!/bin/bash
+jq -n --arg id "$PLACE_ID" --arg on "$PLACE_SOURCE_ON_BAR" \
+  '[{id: $id, enabled: false}, {id: "omarchy.monitor", enabled: ($on == "1")}]'
+STUB
+  cat >"$place_stubs/omarchy-plugin-enable" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >"$PLACE_ENABLED"
+STUB
+  cat >"$place_stubs/gum" <<'STUB'
+#!/bin/bash
+if [[ $1 == "choose" ]]; then
+  touch "$PLACE_ASKED"
+  echo right
+fi
+exit 0
+STUB
+  chmod +x "$place_stubs"/*
+
+  add_and_enable() {
+    local id="$1"
+    local source="$TMPDIR/place-$id"
+    local home="$TMPDIR/place-home-$id"
+    write_plugin "$source" "$id" "Placed"
+    if [[ -n ${2:-} ]]; then
+      jq --arg from "$2" '. + {omarchy: {clonedFrom: $from}}' "$source/manifest.json" >"$source/manifest.tmp"
+      mv "$source/manifest.tmp" "$source/manifest.json"
+    fi
+    git -C "$source" init -q
+    git -C "$source" add .
+    git -C "$source" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
+    rm -f "$TMPDIR/place-asked" "$TMPDIR/place-enabled"
+    PLACE_ID="$id" PLACE_SOURCE_ON_BAR="${3:-1}" PLACE_ASKED="$TMPDIR/place-asked" PLACE_ENABLED="$TMPDIR/place-enabled" \
+      HOME="$home" OMARCHY_PATH="$ROOT" PATH="$place_stubs:$ROOT/bin:$PATH" \
+      script -qec "omarchy-plugin-add '$source' --enable" /dev/null 2>&1
+  }
+
+  output=$(add_and_enable acme.fresh) ||
+    fail "plugin add enables a new bar widget interactively" "$output"
+  [[ -e $TMPDIR/place-asked ]] ||
+    fail "plugin add asks where to place a new bar widget" "$output"
+  [[ $(cat "$TMPDIR/place-enabled") == "acme.fresh --section right" ]] ||
+    fail "plugin add enables a new bar widget in the chosen section" "$(cat "$TMPDIR/place-enabled")"
+  pass "plugin add asks which bar section a new widget goes in"
+
+  output=$(add_and_enable acme.clone omarchy.monitor) ||
+    fail "plugin add enables a cloned bar widget interactively" "$output"
+  [[ ! -e $TMPDIR/place-asked ]] ||
+    fail "plugin add does not ask where to place a clone" "$output"
+  [[ $(cat "$TMPDIR/place-enabled") == "acme.clone" ]] ||
+    fail "plugin add enables a clone without a placement" "$(cat "$TMPDIR/place-enabled")"
+  pass "plugin add leaves a clone in the slot of the widget it replaces"
+
+  output=$(add_and_enable acme.loose omarchy.monitor 0) ||
+    fail "plugin add enables a clone of a widget that is off the bar" "$output"
+  [[ -e $TMPDIR/place-asked ]] ||
+    fail "plugin add asks where to place a clone whose source is off the bar" "$output"
+  [[ $(cat "$TMPDIR/place-enabled") == "acme.loose --section right" ]] ||
+    fail "plugin add enables a clone with no slot to take in the chosen section" "$(cat "$TMPDIR/place-enabled")"
+  pass "plugin add asks where a clone goes when its source is off the bar"
+else
+  skip "script -qec unavailable; skipping the bar section prompt cases"
+fi
