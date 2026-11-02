@@ -245,7 +245,7 @@ Item {
     idleBlankTimer.stop()
     sessionLock.locked = false
     logEvent("unlocked")
-    runWake()
+    forceWake()
   }
 
   function armBlankTimer(delayMs) {
@@ -254,11 +254,22 @@ Item {
     idleBlankTimer.restart()
   }
 
+  // Pointer motion calls this at input rate, so the spawn is coalesced.
   function runWake() {
-    if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
     nudgeFingerprint()
+    if (!wakeCoalesceTimer.running) {
+      wakeCoalesceTimer.start()
+      Quickshell.execDetached(["timeout", "--signal=KILL", "10s", "bash", "-c", "omarchy-system-wake"])
+    }
+  }
+
+  // Unlock gets no second chance: the surface is gone, so no later input can
+  // ask again for a wake the coalescing window swallowed.
+  function forceWake() {
+    wakeCoalesceTimer.stop()
+    runWake()
   }
 
   // An attempt already running is left to finish under its own timeouts, so
@@ -348,9 +359,12 @@ Item {
     armFingerprintRetry(FingerprintModel.MATCH_RETRY_MS)
   }
 
+  // Detached so a hung child cannot latch the next request; the timeout keeps
+  // hung children from piling up one per coalescing window instead.
   function runBlank() {
     pauseFingerprint()
-    if (!blankProcess.running) blankProcess.running = true
+    logEvent("blank-requested")
+    Quickshell.execDetached(["timeout", "--signal=KILL", "10s", "bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"])
   }
 
   function submitPassword(value) {
@@ -493,7 +507,7 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.resetAuthenticationState()
-        root.runWake()
+        root.forceWake()
       }
     }
 
@@ -754,14 +768,10 @@ Item {
     }
   }
 
-  Process {
-    id: wakeProcess
-    command: ["bash", "-c", "omarchy-system-wake"]
-  }
-
-  Process {
-    id: blankProcess
-    command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+  Timer {
+    id: wakeCoalesceTimer
+    interval: 1000
+    repeat: false
   }
 
   Timer {
