@@ -1,0 +1,11 @@
+[Unit]
+Description=Omarchy Status Notifier Watcher
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/omarchy-sni-watcher
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
