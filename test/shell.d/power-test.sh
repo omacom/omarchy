@@ -52,7 +52,12 @@ assertEqual(
   'power does not show the full-battery glyph for a FullyCharged reading below 99%'
 )
 assertEqual(
-  power.batteryIcon({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states, false),
+  power.batteryIcon({ isPresent: true, percentage: 0.51, state: states.FullyCharged }, true, states, false),
+  power.batteryIcon({ isPresent: true, percentage: 0.51, state: states.Discharging }, true, states, false),
+  'power does not show the full-battery glyph for a stale FullyCharged reading on battery'
+)
+assertEqual(
+  power.batteryIcon({ isPresent: true, percentage: 1, state: states.FullyCharged }, true, states, false),
   '󰂅',
   'power shows the full-battery glyph at genuine full charge'
 )
@@ -60,7 +65,7 @@ assertEqual(
 // A confirmed threshold hold overrides device state entirely.
 assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.8, state: states.Charging }, false, states, true),
-  power.batteryIcon({ isPresent: true, percentage: 0.8, state: states.Discharging }, false, states, true),
+  power.batteryIcon({ isPresent: true, percentage: 0.8, state: states.Discharging }, true, states, false),
   'power shows the non-charging glyph whenever threshold-hold is confirmed, regardless of device state'
 )
 
@@ -87,6 +92,8 @@ replugTrace.forEach(function(sample) {
   replugState = power.nextChargeThresholdState(sample.raw, replugState.activeSince, sample.t, confirmDelay)
 })
 assert(!replugState.confirmed, 'threshold confirmation never fires during a noisy sub-30s replug burst')
+assert(!power.nextChargeThresholdState(true, replugState.activeSince, 2100 + confirmDelay - 1, confirmDelay).confirmed, 'threshold confirmation restarts its window after a false reading')
+assert(power.nextChargeThresholdState(true, replugState.activeSince, 2100 + confirmDelay, confirmDelay).confirmed, 'threshold confirmation counts from the last reset')
 
 // Exit is instant and unconditional, even from an already-confirmed state.
 var held = power.nextChargeThresholdState(true, null, 0, confirmDelay)
