@@ -58,9 +58,9 @@ function chargeThresholdActive(device, onBattery, states) {
   if (d.state === s.Discharging) return false
   if (d.state === s.PendingCharge) return true
   if (d.state === s.FullyCharged && fraction < 0.99) return true
-  if (d.state !== s.Charging || fraction >= 0.99) return false
-
-  return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
+  // Rate and time estimates can remain stale after plugging in. An explicit
+  // Charging state must not be mistaken for a battery holding at its limit.
+  return false
 }
 
 function batteryIcon(device, onBattery, states) {

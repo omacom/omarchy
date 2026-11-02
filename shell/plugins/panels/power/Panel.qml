@@ -211,6 +211,16 @@ Panel {
 
   onBatteryPresentChanged: if (!batteryPresent) close()
 
+  Connections {
+    target: UPower.displayDevice
+    function onStateChanged() { if (root.opened) root.refresh() }
+  }
+
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() { if (root.opened) root.refresh() }
+  }
+
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
   implicitHeight: batteryPresent ? button.implicitHeight : 0

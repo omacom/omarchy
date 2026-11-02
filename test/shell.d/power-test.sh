@@ -22,7 +22,16 @@ assert(power.profileIcon('performance').length > 0, 'power maps profile icons')
 assertEqual(power.batteryFraction({ isPresent: true, percentage: 1.5 }), 1, 'power clamps battery fraction')
 
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states), 'power detects threshold by pending charge state')
-assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0.1, timeToFull: 120 }, false, states), 'power detects threshold by stalled charging')
+for (const estimates of [{ changeRate: 0.1, timeToFull: 120 }, { changeRate: 1, timeToFull: 36000 }, {}]) {
+  const charging = { isPresent: true, percentage: 0.1, state: states.Charging, ...estimates }
+  assert(!power.chargeThresholdActive(charging, false, states), 'power does not infer a charge limit from stale or missing charging estimates')
+  assertEqual(power.modeLabel(charging, false, states), 'Charging', 'power keeps charging status while estimates settle')
+  assertEqual(
+    power.batteryIcon(charging, false, states),
+    power.batteryIcon({ ...charging, changeRate: 10, timeToFull: 7200 }, false, states),
+    'power keeps the charging icon while estimates settle'
+  )
+}
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states), 'power does not flag active charging as threshold')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
