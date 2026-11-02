@@ -171,6 +171,67 @@ ShellRoot {
     // case the user dir already existed at startup.
     pluginRegistry.rescan()
     shell._syncServices()
+    shell.refreshBundledI18n()
+  }
+
+  // Plugins may ship their own translations in i18n.json next to
+  // manifest.json: { "<locale>": { "": {language, plural-forms}, "msgid":
+  // "msgstr" } }. The scan stamps it on the manifest as __i18n; here every
+  // catalog matching the picked language is registered under the plugin's
+  // own domain, most preferred locale first, so a string missing from a
+  // partial es_MX catalog still comes from es. Plain I18n.tr() calls in the
+  // plugin, and the Ui kit's own, resolve through the global merge.
+  // Intended for strings the system gettext catalogs do not cover; those
+  // stay the default source. Precedence 100 and down (lower number wins)
+  // beats the system gettext layers (200 and down); the startup snapshot
+  // sits at 1000.
+  property var _bundledI18nOwners: []
+
+  function refreshBundledI18n() {
+    var active = {}
+    var plugins = pluginRegistry.installedPlugins
+    for (var id in plugins) {
+      var manifest = plugins[id]
+      var bundled = manifest ? manifest.__i18n : null
+      if (!bundled || !pluginRegistry.isEnabled(id)) continue
+      if (I18n.setLocaleCatalogs(id + ":i18n", id, bundled, 100) > 0) active[id + ":i18n"] = true
+    }
+    for (var j = 0; j < _bundledI18nOwners.length; j++) {
+      var owner = _bundledI18nOwners[j]
+      if (!active[owner]) I18n.clearCatalogs(owner)
+    }
+    var owners = []
+    for (var k in active) owners.push(k)
+    _bundledI18nOwners = owners
+  }
+
+  // After a full scan every enabled plugin has registered, so a cached
+  // plugin domain that is still unclaimed belongs to a plugin that is gone,
+  // disabled, or no longer ships the language.
+  function settleBundledI18nCache() {
+    var keep = [I18n.systemDomain]
+    for (var k = 0; k < _bundledI18nOwners.length; k++) keep.push(_bundledI18nOwners[k].replace(/:i18n$/, ""))
+    I18n.settleCache(keep)
+  }
+
+  Connections {
+    target: pluginRegistry
+    function onPluginsChanged() { shell.refreshBundledI18n() }
+    function onScanFinished() { shell.settleBundledI18nCache() }
+  }
+
+  // A language switch hands I18n a fresh registry; register again into it
+  // on the next tick, once I18n has swapped registries. The plugin scan
+  // is already done by then, so the new snapshot settles straight away.
+  Connections {
+    target: I18n
+    function onCandidatesKeyChanged() {
+      Qt.callLater(function() {
+        shell._bundledI18nOwners = []
+        shell.refreshBundledI18n()
+        if (!pluginRegistry.scanning) shell.settleBundledI18nCache()
+      })
+    }
   }
 
   function mutateShellConfig(mutator) {
