@@ -8,10 +8,9 @@ TMPDIR=""
 QS_PID=""
 
 cleanup() {
-  if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
-    kill "$QS_PID" 2>/dev/null || true
-    wait "$QS_PID" 2>/dev/null || true
-  fi
+  SCRATCH_ROOT=${test_root:-}
+  SCRATCH_PID=$QS_PID
+  stop_scratch_shell
   [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
 }
 trap cleanup EXIT

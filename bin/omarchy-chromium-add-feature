@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Add a feature to Chromium's --enable-features in the user's flags file
+# omarchy:args=<feature>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+feature=${1:-}
+if [[ ! $feature =~ ^[A-Za-z0-9]+$ ]]; then
+  echo "Usage: omarchy-chromium-add-feature <feature>" >&2
+  exit 1
+fi
+
+conf=~/.config/chromium-flags.conf
+[[ -f $conf ]] || exit 0
+
+# Chromium's launcher splits each line into arguments, so a switch can share a
+# line with others or end in a comment. Look for switches with comments removed.
+args=$(sed -E 's/(^|[[:space:]])#.*$//' "$conf")
+
+if grep -E -- "(^|[[:space:]])--enable-features=([^[:space:]]*,)?$feature([,:<[:space:]]|\$)" <<<"$args" >/dev/null; then
+  exit 0
+fi
+
+if grep -E -- '(^|[[:space:]])--enable-features=' <<<"$args" >/dev/null; then
+  # Extend the feature list itself, ahead of any neighbouring switch or comment.
+  sed -i --follow-symlinks -E \
+    -e "s/^(([^#]*[[:space:]])?--enable-features=[^[:space:]#]*)/\1,$feature/" \
+    -e "s/--enable-features=,$feature/--enable-features=$feature/" "$conf"
+else
+  # Start a new line first if the file doesn't end in a newline.
+  if [[ -n $(tail -c1 "$conf") ]]; then
+    echo >>"$conf"
+  fi
+  printf '%s\n' "--enable-features=$feature" >>"$conf"
+fi

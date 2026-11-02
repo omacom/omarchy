@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# omarchy:summary=Give terminals, btop, and GTK apps a see-through background while windows are glassy
+# omarchy:args=[theme-dir]
+# omarchy:hidden=true
+
+# A Hyprland opacity rule fades a terminal's text along with its background,
+# and foot turns compositor blur down unless its own config asks for it, so the
+# glass belongs in each terminal's theme file, as in the glassy Starship
+# (#14726). The lines sit between markers so leaving glassy takes them out
+# again, and a theme that sets its own opacity keeps it.
+
+THEME_DIR="${1:-$HOME/.local/state/omarchy/current/theme}"
+TOGGLES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
+GLASSY=false
+[[ -f $TOGGLES_DIR/window-glassy.lua ]] && GLASSY=true
+status=0
+
+# A literal for a sed address, whose delimiter is /.
+regex() {
+  sed 's/[][\\.*^$/]/\\&/g' <<<"$1"
+}
+
+# A block added to a file that did not end in a newline has to supply one, so
+# its begin marker says so, and taking the block out takes that newline back.
+# Leaving glassy then gives the file back exactly as it was. Markers come as
+# an opening and a closing part, so CSS can wrap them in a comment.
+remove_block() {
+  local file="$1" open="$2" close="$3"
+  local begin end
+  # Theme switches wait on this, and a freshly rendered file has no block, so
+  # look for one before building its sed addresses.
+  [[ -f $file ]] && grep -qF "$open omarchy-glass begin" "$file" || return 0
+  begin=$(regex "$open omarchy-glass begin")
+  end=$(regex "$open omarchy-glass end$close")
+
+  local added_newline=false
+  grep -qxF "$open omarchy-glass begin after a line without a newline$close" "$file" && added_newline=true
+  sed -i "/^$begin/,/^$end\$/d" "$file" || return 1
+  if [[ $added_newline == "true" && -s $file && -z $(tail -c 1 "$file") ]]; then
+    truncate -s -1 "$file" || return 1
+  fi
+}
+
+append_block() {
+  local file="$1" open="$2" close="$3" lines="$4"
+  if [[ -s $file && -n $(tail -c 1 "$file") ]]; then
+    printf '\n%s\n%s\n%s\n' "$open omarchy-glass begin after a line without a newline$close" "$lines" "$open omarchy-glass end$close" >>"$file"
+  else
+    printf '%s\n%s\n%s\n' "$open omarchy-glass begin$close" "$lines" "$open omarchy-glass end$close" >>"$file"
+  fi
+}
+
+# Each setting comes with a pattern for the theme setting it already, which
+# keeps the theme's own; an empty pattern always adds it. Lines that belong in
+# a section go in under its header. A file that already has the section gets
+# them inside it, since TOML refuses a table declared twice; otherwise the
+# header comes along with them.
+glass() {
+  local file="$THEME_DIR/$1" section="$2"
+  shift 2
+  [[ -f $file ]] || return 0
+
+  remove_block "$file" "#" "" || return 1
+  [[ $GLASSY == "true" ]] || return 0
+
+  local lines=""
+  while (( $# >= 2 )); do
+    if [[ -z $1 ]] || ! grep -qE "$1" "$file"; then
+      lines+="${lines:+$'\n'}$2"
+    fi
+    shift 2
+  done
+  [[ -n $lines ]] || return 0
+
+  # A header may carry trailing space or a comment.
+  local header="^$(regex "$section")[[:space:]]*(#.*)?\$"
+  if [[ -n $section ]] && grep -qE "$header" "$file"; then
+    local block
+    block=$(mktemp) || return 1
+    printf '# omarchy-glass begin\n%s\n# omarchy-glass end\n' "$lines" >"$block"
+    sed -i -E "0,/$header/{/$header/r $block
+}" "$file"
+    local result=$?
+    rm -f "$block"
+    return $result
+  fi
+
+  append_block "$file" "#" "" "${section:+$section$'\n'}$lines"
+}
+
+# Alacritty's own blur works only on macOS and KDE; Hyprland blurs it anyway.
+glass alacritty.toml '[window]' \
+  '^[[:space:]]*opacity[[:space:]]*=' 'opacity = 0.65' || status=1
+glass foot.ini '[colors-dark]' \
+  '^[[:space:]]*alpha[[:space:]]*=' 'alpha=0.65' \
+  '^[[:space:]]*blur[[:space:]]*=' 'blur=yes' || status=1
+glass kitty.conf '' \
+  '^[[:space:]]*background_opacity[[:space:]]' 'background_opacity 0.65' || status=1
+# btop paints its own background over the terminal's glass. An empty main_bg
+# uses the terminal background; the last theme value wins, so removing the
+# block restores the theme's colour without changing btop's user config.
+glass btop.theme '' \
+  '^[[:space:]]*theme\[main_bg\][[:space:]]*=[[:space:]]*""' 'theme[main_bg]=""' || status=1
+# GTK only asks Hyprland for blur under a CSS backdrop-filter, which Ghostty
+# takes as custom CSS and reloads live; its background-blur speaks only KDE's
+# blur protocol.
+glass ghostty.conf '' \
+  '^[[:space:]]*background-opacity[[:space:]]*=' 'background-opacity = 0.65' \
+  '' "gtk-custom-css = $OMARCHY_PATH/default/gtk/glass.css" || status=1
+
+# Other GTK apps, such as Nautilus, read the user's gtk.css at launch, so the
+# same backdrop blur is imported there. It follows the mode alone, so a theme
+# switch, which names the theme it is rendering, leaves it be.
+if (( $# == 0 )); then
+  gtk_css="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/gtk.css"
+  remove_block "$gtk_css" "/*" " */" || status=1
+  if [[ $GLASSY == "true" ]]; then
+    { mkdir -p "${gtk_css%/*}" &&
+      append_block "$gtk_css" "/*" " */" "@import url(\"file://$OMARCHY_PATH/default/gtk/glass.css\");"; } || status=1
+  fi
+fi
+
+exit $status

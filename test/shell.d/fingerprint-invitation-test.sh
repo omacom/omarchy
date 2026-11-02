@@ -4,7 +4,7 @@ source "$(dirname "$0")/base-test.sh"
 
 # The hook guards on the real /etc/pam.d path, which can't be mocked via PATH.
 if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
-  pass "fingerprint invitation test skipped: host already has fingerprint auth configured"
+  skip "fingerprint invitation test skipped: host already has fingerprint auth configured"
   exit 0
 fi
 
@@ -31,10 +31,12 @@ chmod +x "$test_bin/omarchy-hw-fingerprint"
 cat >"$test_bin/omarchy-notification-send" <<'EOF'
 #!/bin/bash
 echo notification >>"$TEST_LOG"
+exec_args=()
 while (($# > 0)); do
-  [[ $1 == "--exec" ]] && echo "exec:$2" >>"$TEST_LOG"
+  if [[ $1 == "--exec" ]]; then shift; exec_args=("$@"); break; fi
   shift
 done
+((${#exec_args[@]})) && echo "exec:${exec_args[*]}" >>"$TEST_LOG"
 EOF
 chmod +x "$test_bin/omarchy-notification-send"
 

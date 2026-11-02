@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Install and configure Superwhisper dictation
+# omarchy:args=[--background]
+# omarchy:requires-sudo=true
+
+set -e
+
+# First run configures the preinstalled package unattended, so it must not
+# open settings or announce itself.
+background=false
+if [[ ${1:-} == "--background" ]]; then
+  background=true
+elif (($# > 0)); then
+  echo "Usage: omarchy install dictation superwhisper [--background]" >&2
+  exit 1
+fi
+
+omarchy-pkg-add superwhisper-bin
+bash /usr/share/superwhisper/setup-user
+# Existing profiles may still use Right Alt, which conflicts with Omarchy.
+# Keep a recording shortcut active while moving away from that binding.
+shortcuts=$(superwhisper shortcuts show)
+if [[ $(jq -r '.shortcuts.hold' <<< "$shortcuts") == "RightAlt" ]]; then
+  if [[ -z $(jq -r '.shortcuts.toggle' <<< "$shortcuts") ]]; then
+    superwhisper shortcuts set hold "RightSuper" >/dev/null
+  else
+    superwhisper shortcuts set hold none >/dev/null
+  fi
+fi
+# Superwhisper requires a native recording shortcut; keep it separate from
+# Omarchy's recording keys (Alt + Space and Right Alt).
+superwhisper shortcuts set toggle "Ctrl+Alt+Space" >/dev/null
+superwhisper shortcuts set hold none >/dev/null
+omarchy-dictation-use superwhisper
+hyprctl reload >/dev/null
+if [[ $background == "false" ]]; then
+  omarchy-notification-send -g  "$(omarchy-i18n dictation.superwhisperReady)" "$(omarchy-i18n dictation.hint)" -t 10000
+  superwhisper settings
+fi

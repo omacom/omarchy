@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the CPU is aarch64 (every ARM machine, Apple Silicon included).
+
+[[ $(uname -m) == "aarch64" ]]
