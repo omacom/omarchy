@@ -7,6 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
+export XDG_DATA_HOME="$test_tmp/data"
 mock_path="$test_tmp/pkg-drop-bin"
 mkdir -p "$mock_path"
 
@@ -53,3 +54,16 @@ if PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" TEST_REMOVE_STATUS=1 \
   fail "failed package transaction must fail removal"
 fi
 pass "package removal propagates transaction failures"
+
+# Exercise the actual post-transaction cleanup with a managed launcher whose
+# source is absent, and preserve it if package removal fails.
+mkdir -p "$XDG_DATA_HOME/applications"
+export XDG_DATA_DIRS="$test_tmp/system"
+printf '[Desktop Entry]\nX-Omarchy-Renamed=true\nName=Old app\n' >"$XDG_DATA_HOME/applications/orphan.desktop"
+PATH="$mock_path:$ROOT/bin:$PATH" TEST_TMP="$test_tmp" TEST_REMOVE_STATUS=1 \
+  "$ROOT/bin/omarchy-pkg-drop" exact-package >/dev/null 2>&1 || true
+[[ -f $XDG_DATA_HOME/applications/orphan.desktop ]] || fail "failed removals preserve launcher overrides"
+PATH="$mock_path:$ROOT/bin:$PATH" TEST_TMP="$test_tmp" \
+  "$ROOT/bin/omarchy-pkg-drop" exact-package
+[[ ! -e $XDG_DATA_HOME/applications/orphan.desktop ]] || fail "successful package removals clear orphaned rename overrides"
+pass "package removal cleans managed launcher copies only after a successful transaction"

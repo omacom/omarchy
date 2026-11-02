@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Remove renamed launcher copies whose original entry was removed
+# omarchy:hidden=true
+
+source "$OMARCHY_PATH/default/launchers/entries.sh"
+shopt -s nullglob
+changed=false
+for file in "$launcher_user_dir"/*.desktop; do
+  [[ -f $file && ! -L $file ]] || continue
+  grep -Fxq 'X-Omarchy-Renamed=true' "$file" || continue
+  id=${file##*/}
+  source_file=$(sed -n 's/^X-Omarchy-RenameSource=//p' "$file" | head -1)
+  if { [[ -n $source_file ]] && [[ ! -f $source_file ]]; } ||
+    { [[ -z $source_file ]] && ! launcher_find_entry "${id%.desktop}" true >/dev/null; }; then
+    rm -f -- "$file"
+    changed=true
+  fi
+done
+if [[ $changed == true ]]; then
+  update-desktop-database "$launcher_user_dir" &>/dev/null || true
+fi

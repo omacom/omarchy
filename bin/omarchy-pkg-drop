@@ -28,8 +28,9 @@ done
 
 if (( ${#installed[@]} > 0 )); then
   if (( EUID == 0 )); then
-    pacman -Rns --noconfirm "${installed[@]}"
+    pacman -Rns --noconfirm "${installed[@]}" || exit $?
   else
-    sudo pacman -Rns --noconfirm "${installed[@]}"
+    sudo pacman -Rns --noconfirm "${installed[@]}" || exit $?
   fi
+  omarchy-refresh-launcher-renames
 fi

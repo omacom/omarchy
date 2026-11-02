@@ -15,47 +15,14 @@ if [[ -z $desktop_id ]]; then
   exit 1
 fi
 
-desktop_file_name="$desktop_id"
-if [[ $desktop_file_name != *.desktop ]]; then
-  desktop_file_name="$desktop_file_name.desktop"
-fi
-
-user_desktop_dirs=()
-desktop_dirs=()
-if [[ -n ${XDG_DATA_HOME-} ]]; then
-  user_desktop_dirs+=("$XDG_DATA_HOME/applications")
-else
-  user_desktop_dirs+=("$HOME/.local/share/applications")
-fi
-desktop_dirs+=("${user_desktop_dirs[@]}")
-
-if [[ -n ${XDG_DATA_DIRS-} ]]; then
-  IFS=: read -ra data_dirs <<<"$XDG_DATA_DIRS"
-  for data_dir in "${data_dirs[@]}"; do
-    desktop_dirs+=("$data_dir/applications")
-  done
-else
-  desktop_dirs+=("/usr/local/share/applications" "/usr/share/applications")
-fi
-
-desktop_file=""
-rename_override=""
-for dir in "${desktop_dirs[@]}"; do
-  candidate="$dir/$desktop_file_name"
-  if [[ -f $candidate ]]; then
-    if [[ $dir == "${user_desktop_dirs[0]}" ]] && grep -Fxq 'X-Omarchy-Renamed=true' "$candidate"; then
-      rename_override="$candidate"
-      continue
-    fi
-    desktop_file="$candidate"
-    break
-  fi
-done
-
-if [[ -z $desktop_file ]]; then
-  echo "Could not find launcher entry: $desktop_file_name" >&2
+source "$OMARCHY_PATH/default/launchers/entries.sh"
+user_desktop_dirs=("$launcher_user_dir")
+if ! desktop_file=$(launcher_find_entry "$desktop_id" true); then
+  omarchy-refresh-launcher-renames
+  echo "Could not find launcher entry: $desktop_id" >&2
   exit 1
 fi
+desktop_file_name=${desktop_file##*/}
 
 is_user_desktop_file() {
   local dir desktop_dir
@@ -74,11 +41,13 @@ exec_line="$(sed -n 's/^Exec=//p' "$desktop_file" | head -1)"
 
 if [[ $exec_line =~ omarchy-launch-webapp|omarchy-webapp-handler ]]; then
   OMARCHY_REMOVE_NOTIFY=false omarchy-webapp-remove "$desktop_name"
+  omarchy-refresh-launcher-renames
   exit 0
 fi
 
 if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e([[:space:]]|$) ]]; then
   OMARCHY_REMOVE_NOTIFY=false omarchy-tui-remove "$desktop_name"
+  omarchy-refresh-launcher-renames
   exit 0
 fi
 
@@ -89,6 +58,7 @@ fi
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
   rm -f "$desktop_file"
+  omarchy-refresh-launcher-renames
   update-desktop-database "${desktop_file%/*}" &>/dev/null || true
   exit 0
 fi
@@ -97,12 +67,7 @@ if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n 
   display_name="${entry_name:-$desktop_name}"
   quoted_package="$(printf '%q' "$package_name")"
   quoted_display="$(printf '%q' "$display_name")"
-  command="echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
-  if [[ -n $rename_override ]]; then
-    quoted_override="$(printf '%q' "$rename_override")"
-    quoted_applications_dir="$(printf '%q' "${rename_override%/*}")"
-    command+=" && rm -f -- $quoted_override && update-desktop-database $quoted_applications_dir"
-  fi
+  command="echo Uninstalling $quoted_display...; omarchy-pkg-drop $quoted_package"
   exec omarchy-launch-floating-terminal-with-presentation "$command"
 fi
 
@@ -110,11 +75,7 @@ if omarchy-cmd-present flatpak && flatpak info "${desktop_file_name%.desktop}" >
   flatpak_id="${desktop_file_name%.desktop}"
   quoted_flatpak="$(printf '%q' "$flatpak_id")"
   command="flatpak uninstall $quoted_flatpak"
-  if [[ -n $rename_override ]]; then
-    quoted_override="$(printf '%q' "$rename_override")"
-    quoted_applications_dir="$(printf '%q' "${rename_override%/*}")"
-    command+=" && rm -f -- $quoted_override && update-desktop-database $quoted_applications_dir"
-  fi
+  command+=" && omarchy-refresh-launcher-renames"
   exec omarchy-launch-floating-terminal-with-presentation "$command"
 fi
 

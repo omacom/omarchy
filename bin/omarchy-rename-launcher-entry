@@ -34,40 +34,19 @@ if [[ $new_name == [[:space:]]* || $new_name == *[[:space:]] ]]; then
   exit 1
 fi
 
-desktop_file_name="$desktop_id"
-if [[ $desktop_file_name != *.desktop ]]; then
-  desktop_file_name="$desktop_file_name.desktop"
+source "$OMARCHY_PATH/default/launchers/entries.sh"
+user_applications_dir=$launcher_user_dir
+if ! source_file=$(launcher_find_entry "$desktop_id"); then
+  echo "Could not find launcher entry: $desktop_id" >&2
+  exit 1
 fi
-
-if [[ -n ${XDG_DATA_HOME-} ]]; then
-  user_applications_dir="$XDG_DATA_HOME/applications"
-else
-  user_applications_dir="$HOME/.local/share/applications"
-fi
-
-desktop_dirs=("$user_applications_dir")
-if [[ -n ${XDG_DATA_DIRS-} ]]; then
-  IFS=: read -ra data_dirs <<<"$XDG_DATA_DIRS"
-  for data_dir in "${data_dirs[@]}"; do
-    [[ -n $data_dir ]] && desktop_dirs+=("$data_dir/applications")
-  done
-else
-  desktop_dirs+=("/usr/local/share/applications" "/usr/share/applications")
-fi
-
-source_file=""
-for dir in "${desktop_dirs[@]}"; do
-  candidate="$dir/$desktop_file_name"
-  if [[ -f $candidate ]]; then
-    source_file="$candidate"
+for dir in "${launcher_dirs[@]}"; do
+  if [[ $source_file == "$dir/"* ]]; then
+    relative=${source_file#"$dir/"}
+    desktop_file_name=${relative//\//-}
     break
   fi
 done
-
-if [[ -z $source_file ]]; then
-  echo "Could not find launcher entry: $desktop_file_name" >&2
-  exit 1
-fi
 
 mkdir -p "$user_applications_dir"
 target_file="$user_applications_dir/$desktop_file_name"
@@ -77,7 +56,7 @@ if [[ -L $target_file ]]; then
 fi
 
 managed_override=false
-if [[ $source_file != "$target_file" ]]; then
+if [[ $source_file != $target_file ]]; then
   managed_override=true
 fi
 
@@ -92,26 +71,28 @@ desktop_entry_found=false
 name_written=false
 
 while IFS= read -r line || [[ -n $line ]]; do
-  if [[ $line == "[Desktop Entry]" && $desktop_entry_found == false ]]; then
+  line=${line%$'\r'}
+  if [[ $line == "[Desktop Entry]" && $desktop_entry_found == "false" ]]; then
     in_desktop_entry=true
     desktop_entry_found=true
     printf '%s\n' "$line"
-    if [[ $managed_override == true ]]; then
+    if [[ $managed_override == "true" ]]; then
       printf 'X-Omarchy-Renamed=true\n'
+      printf 'X-Omarchy-RenameSource=%s\n' "$source_file"
     fi
-  elif [[ $in_desktop_entry == true && $line == \[* ]]; then
-    if [[ $name_written == false ]]; then
+  elif [[ $in_desktop_entry == "true" && $line == \[* ]]; then
+    if [[ $name_written == "false" ]]; then
       printf 'Name=%s\n' "$escaped_name"
       name_written=true
     fi
     in_desktop_entry=false
     printf '%s\n' "$line"
-  elif [[ $in_desktop_entry == true && $line =~ ^Name(\[[^]]+\])?= ]]; then
-    if [[ $name_written == false ]]; then
+  elif [[ $in_desktop_entry == "true" && $line =~ ^Name(\[[^]]+\])?= ]]; then
+    if [[ $name_written == "false" ]]; then
       printf 'Name=%s\n' "$escaped_name"
       name_written=true
     fi
-  elif [[ $managed_override == true && $in_desktop_entry == true && $line == "X-Omarchy-Renamed="* ]]; then
+  elif [[ $managed_override == "true" && $in_desktop_entry == "true" && ( $line == "X-Omarchy-Renamed="* || $line == "X-Omarchy-RenameSource="* ) ]]; then
     # Replace any source marker with the one written directly after the group.
     continue
   else
@@ -119,12 +100,12 @@ while IFS= read -r line || [[ -n $line ]]; do
   fi
 done <"$source_file" >"$temp_file"
 
-if [[ $desktop_entry_found == false ]]; then
+if [[ $desktop_entry_found == "false" ]]; then
   echo "Invalid launcher entry (missing [Desktop Entry]): $desktop_file_name" >&2
   exit 1
 fi
 
-if [[ $in_desktop_entry == true && $name_written == false ]]; then
+if [[ $in_desktop_entry == "true" && $name_written == "false" ]]; then
   printf 'Name=%s\n' "$escaped_name" >>"$temp_file"
 fi
 

@@ -1463,7 +1463,7 @@ Item {
               Text {
                 textFormat: Text.PlainText
                 width: parent.width
-                text: "Rename " + ((root.renameTarget && root.renameTarget.label) || "application")
+                text: Commons.I18n.t("menu.renameApp").arg((root.renameTarget && root.renameTarget.label) || "")
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.title
@@ -1474,7 +1474,7 @@ Item {
                 id: renameField
                 width: parent.width
                 text: root.renameName
-                placeholderText: "Application name"
+                placeholderText: Commons.I18n.t("menu.applicationName")
                 foreground: root.foreground
                 accent: root.selectedText
                 onTextChanged: if (root.renameDialogOpen && text !== root.renameName) root.renameName = text
@@ -1500,7 +1500,7 @@ Item {
                 spacing: Style.space(10)
 
                 Button {
-                  text: "Cancel"
+                  text: Commons.I18n.t("common.cancel")
                   bordered: true
                   foreground: root.foreground
                   accent: root.selectedText
@@ -1508,7 +1508,7 @@ Item {
                 }
 
                 Button {
-                  text: "Rename"
+                  text: Commons.I18n.t("menu.rename")
                   bordered: true
                   enabled: root.renameName.trim().length > 0
                   foreground: root.foreground
