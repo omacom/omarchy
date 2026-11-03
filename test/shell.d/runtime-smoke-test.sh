@@ -535,6 +535,42 @@ jq -e --argjson layout "$default_layout" '
 }
 pass "default bar layout renders each widget in its configured section"
 
+# bar.maxWidth lays the bar out as a centered strip. A slot's position is in
+# its own window's coordinates, and the window spans its screen, so a drawn
+# slot of a capped bar sits inside the strip of at least one screen: in from
+# both ends of the edge by that screen's inset. Uncapped, as the default bar
+# is, a widget sits by the edge's end, inside every screen's inset. The cap
+# is one no screen fits, so every screen's bar is a strip.
+cap=400
+screen_sizes=$(hyprctl -j monitors | jq -c '[.[] | {width: (.width / .scale), height: (.height / .scale)}]')
+
+bar_strip_is() {
+  local want="$1" position="$2"
+  jq -e --argjson screens "$screen_sizes" --argjson cap "$cap" --arg position "$position" --arg want "$want" '
+    def vertical: $position == "left" or $position == "right";
+    def along: if vertical then .y else .x end;
+    def extent: if vertical then .height else .width end;
+    def edge: if vertical then .height else .width end;
+    def inset: edge as $edge | if $cap < $edge then (($edge - $cap) / 2 | round) else 0 end;
+    [.[] | select(.visible == true)] as $rows
+    | ([$screens[] | inset] | min) as $least
+    | ($rows | length) > 0
+    and if $want == "capped" then
+        all($rows[]; along as $from | (along + extent) as $to
+          | any($screens[]; inset as $inset | $from >= $inset and $to <= edge - $inset))
+      else
+        any($rows[]; along < $least)
+      end
+  ' <<<"$geometry" >/dev/null 2>&1
+}
+
+bar_strip_is uncapped top || {
+  printf 'Geometry:\n' >&2
+  jq . <<<"$geometry" >&2
+  fail_with_log "an uncapped bar runs the whole edge"
+}
+pass "an uncapped bar runs the whole edge"
+
 for panel_id in omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network omarchy.power; do
   scratch_ipc "$panel_id" open >/dev/null || fail_with_log "direct panel IPC opens $panel_id"
   scratch_ipc "$panel_id" close >/dev/null || fail_with_log "direct panel IPC closes $panel_id"
@@ -802,3 +838,35 @@ jq -e '.currentAllowed == false and .retainedAllowed == false' \
   fail_with_log "cached plugin facades revoke capabilities removed from the manifest"
 }
 pass "manifest reload revokes cached facade capabilities"
+
+# A cold start per cap, each with its own shell.json: a config written while
+# the shell runs races the writes of its own startup (Elsewhen saving its
+# cities, above), which can land on top of it.
+capped_bar_from() {
+  local config="$1" position="$2" description="$3"
+
+  stop_scratch_shell
+  reset_scratch_home
+  mkdir -p "$SCRATCH_HOME/.config/omarchy"
+  jq "$config" "$ROOT/config/omarchy/shell.json" >"$SCRATCH_HOME/.config/omarchy/shell.json"
+  start_scratch_shell
+  wait_scratch_shell
+  wait_scratch_layer omarchy-bar mapped || fail_with_log "$description"
+
+  geometry=""
+  for _ in {1..80}; do
+    geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
+    if [[ -n $geometry ]] && bar_strip_is capped "$position"; then
+      pass "$description"
+      return 0
+    fi
+    kill -0 "$SCRATCH_PID" 2>/dev/null || fail_with_log "test shell exited before the capped bar geometry settled"
+    sleep 0.1
+  done
+  printf 'Geometry:\n' >&2
+  jq . <<<"$geometry" >&2
+  fail_with_log "$description"
+}
+
+capped_bar_from ".bar.maxWidth = $cap" top "a capped top bar lays its widgets out within a centered strip"
+capped_bar_from ".bar.position = \"left\" | .bar.maxWidth = $cap" left "a capped vertical bar lays its widgets out within a centered strip"
