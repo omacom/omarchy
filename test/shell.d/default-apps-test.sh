@@ -331,3 +331,17 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+webapp_config="$test_home/.config/omarchy/webapp-browser"
+[[ $(omarchy-default-webapp-browser) == "auto" && ! -e $webapp_config ]] ||
+  fail "the web app browser starts in automatic mode without writing a config"
+touch "$installed_dir/helium-browser"
+omarchy-default-webapp-browser helium
+[[ $(omarchy-default-webapp-browser) == "helium.desktop" ]] || fail "a web app browser selection persists its desktop ID"
+if omarchy-default-webapp-browser zen >/dev/null 2>&1; then fail "Zen cannot be selected as an app-mode browser"; fi
+rm -f "$installed_dir/vivaldi-stable"
+if omarchy-default-webapp-browser vivaldi >/dev/null 2>&1; then fail "a missing browser cannot be selected for web apps"; fi
+[[ $(omarchy-default-webapp-browser) == "helium.desktop" ]] || fail "a rejected selection keeps the previous web app browser"
+omarchy-default-webapp-browser auto
+[[ $(omarchy-default-webapp-browser) == "auto" ]] || fail "automatic mode can be restored"
+pass "web app browser selection accepts only installed app-mode browsers"

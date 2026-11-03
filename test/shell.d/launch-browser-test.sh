@@ -202,3 +202,39 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
   fail "web app launcher asks for a Chromium-based browser" "$(cat "$notify_log" 2>/dev/null)"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"
+
+# Automatic mode keeps the Chromium fallback for a regular browser without app
+# mode, and passes the whole URL and any extra arguments through.
+webapp() {
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+    bash "$ROOT/bin/omarchy-launch-webapp" "$@"
+}
+webapp_url='https://example.test/reports/weekly?x=1&y=2#section'
+printf '[Desktop Entry]\nExec=chromium %%U\n' >"$test_home/.local/share/applications/chromium.desktop"
+rm -f "$launch_log"
+webapp "$webapp_url" --class=App
+grep -Fx -- "-- chromium --app=$webapp_url --class=App" "$launch_log" >/dev/null ||
+  fail "an automatic web app falls back to Chromium with the full URL" "$(cat "$launch_log")"
+pass "an automatic web app falls back to Chromium for a regular browser without app mode"
+
+# An explicit choice applies whatever the regular browser is.
+printf '[Desktop Entry]\nExec=helium-browser %%U\n' >"$XDG_DATA_DIRS/applications/helium.desktop"
+cp "$mock_bin/firefox" "$mock_bin/helium-browser"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-default-webapp-browser" helium
+rm -f "$launch_log"
+webapp "$webapp_url"
+grep -Fx -- "-- helium-browser --app=$webapp_url" "$launch_log" >/dev/null ||
+  fail "a selected web app browser opens the full URL" "$(cat "$launch_log")"
+pass "a selected web app browser applies whatever the regular browser is"
+
+# A removed choice fails visibly instead of opening another browser profile.
+rm -f "$XDG_DATA_DIRS/applications/helium.desktop" "$launch_log" "$notify_log"
+status=0
+webapp "$webapp_url" 2>/dev/null || status=$?
+(( status == 1 )) || fail "a removed web app browser exits 1" "status: $status"
+[[ ! -e $launch_log ]] || fail "a removed web app browser opens no other browser" "$(cat "$launch_log")"
+grep -F "Web App Browser" "$notify_log" >/dev/null ||
+  fail "a removed web app browser says where to choose another" "$(cat "$notify_log" 2>/dev/null)"
+pass "a removed web app browser fails visibly instead of switching profiles"
