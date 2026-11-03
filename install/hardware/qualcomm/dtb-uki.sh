@@ -30,13 +30,20 @@ if omarchy-hw-aarch64-qualcomm; then
   # holds the same list is it, and the UKI embeds just that tree, which also
   # needs no hardware IDs. Without a running device tree, or without exactly
   # one match, systemd-stub keeps choosing from every tree by SMBIOS data.
+  # A tree file holds a property as its token, length and name offset, then
+  # the value, so matching the length too takes only the whole property, never
+  # a longer list that ends the same way. od writes each byte as " xx", which
+  # keeps a match on byte boundaries and the newline bytes out of grep's way.
   own_dtb=""
   running_compatible=${OMARCHY_PROC_ROOT:-/proc}/device-tree/compatible
   if ((${#dtbs[@]} > 0)) && [[ -s $running_compatible ]]; then
-    pattern=$(od -An -v -tx1 "$running_compatible" | tr -d ' \n' | sed 's/../\\x&/g')
+    length=$(wc -c <"$running_compatible")
+    pattern=$(printf ' 00 00 00 03 %02x %02x %02x %02x' $((length >> 24 & 255)) \
+      $((length >> 16 & 255)) $((length >> 8 & 255)) $((length & 255)))
+    pattern+="( [0-9a-f]{2}){4}$(od -An -v -tx1 "$running_compatible" | tr -d '\n')"
     matches=()
     for dtb in "${dtbs[@]}"; do
-      if LC_ALL=C grep -qaP "$pattern" "$dtb"; then
+      if grep -qE "$pattern" <(od -An -v -tx1 "$dtb" | tr -d '\n'); then
         matches+=("$dtb")
       fi
     done

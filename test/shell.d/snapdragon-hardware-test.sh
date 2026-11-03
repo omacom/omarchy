@@ -138,8 +138,13 @@ own="$scratch/own"
 mkdir -p "$own/proc/device-tree" "$own/dtbs"
 acer='acer,swift-go14-01\0lenovo,thinkpad-t14s\0qcom,x1p42100\0qcom,x1e80100\0'
 t14s='lenovo,thinkpad-t14s\0qcom,x1e78100\0qcom,x1e80100\0'
-printf "\xd0\x0d\xfe\xed\0\0\0\x03$acer\0\0\0\x03model" >"$own/dtbs/x1p42100-acer-swift-go14-01.dtb"
-printf "\xd0\x0d\xfe\xed\0\0\0\x03$t14s\0\0\0\x03model" >"$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb"
+# A tree's compatible property: its token, length and name offset, then the
+# strings. Offset 10 is a newline byte, as a real tree's can be.
+fake_dtb() {
+  printf "\xd0\x0d\xfe\xed\0\0\0\x03\0\0\0\x$(printf "$2" | wc -c | xargs printf %02x)\0\0\0\x0a$2\0\0\0\x09" >"$1"
+}
+fake_dtb "$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$acer"
+fake_dtb "$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$t14s"
 run_own_dtb_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
@@ -164,7 +169,13 @@ cp "$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/dtbs/x1e78100-lenovo-thin
 run_own_dtb_setup
 grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
   fail "two trees with the machine's compatible leave the choice to systemd-stub"
-rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb" "$own/proc/device-tree/compatible"
+rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+fake_dtb "$own/dtbs/x1e80100-microsoft-denali-oled.dtb" 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0'
+printf 'microsoft,denali\0qcom,x1e80100\0' >"$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
+  fail "a machine without its own tree does not take one whose longer list ends with its own"
+rm "$own/proc/device-tree/compatible"
 run_own_dtb_setup
 grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
   fail "a machine with no running device tree keeps every tree"
