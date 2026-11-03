@@ -73,4 +73,5 @@ mv "$tmp" "$CLAUDE_THEME_PATH"
 
 if (( CLAUDE_ACTIVATE == 1 )); then
   write_setting_theme
+  omarchy-done mark theme-activate-claude
 fi

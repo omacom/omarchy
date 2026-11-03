@@ -35,3 +35,4 @@ done
 (( GROK_ACTIVATE == 1 )) || exit 0
 
 python3 "$OMARCHY_PATH/default/theme/activate-toml.py" "$GROK_CONFIG_PATH" "ui" "minimal"
+omarchy-done mark theme-activate-grok

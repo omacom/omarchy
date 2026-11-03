@@ -36,3 +36,4 @@ done
 (( CODEX_ACTIVATE == 1 )) || exit 0
 
 python3 "$OMARCHY_PATH/default/theme/activate-toml.py" "$CODEX_CONFIG_PATH" "tui" "ansi"
+omarchy-done mark theme-activate-codex

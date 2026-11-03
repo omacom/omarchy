@@ -75,4 +75,5 @@ mv "$tmp" "$PI_THEME_PATH"
 
 if (( PI_ACTIVATE == 1 )); then
   write_setting_theme
+  omarchy-done mark theme-activate-pi
 fi
