@@ -387,6 +387,48 @@ def keybinding_descriptions(root):
     return {text: text for text in sorted(found)}
 
 
+MANUAL_PATH_RE = re.compile(r"_([^_\n]+(?: > [^_\n]+)+)_")
+
+
+def menu_children(menu, parent):
+    depth = parent.count(".") + 1 if parent else 0
+    prefix = f"{parent}." if parent else ""
+    return {mid: entry for mid, entry in menu.items()
+            if mid.count(".") == depth and mid.startswith(prefix)}
+
+
+def menu_id_for_path(path, menu):
+    """The menu key a written path such as "Appearance > Dock > Dock Position" names."""
+    parent = None
+    for label in path.split(" > "):
+        matches = [mid for mid, entry in menu_children(menu, parent).items()
+                   if entry.get("label") == label]
+        if len(matches) != 1:
+            return None
+        parent = matches[0]
+    return parent
+
+
+def manual_menu_glossary(root, code, source):
+    """Menu paths in a chapter, paired with the labels the localized menu shows."""
+    english = read_json(root / "default/i18n/en/menu.json", {})
+    localized = read_json(root / "default/i18n" / code / "menu.json", {})
+    glossary = {}
+    for path in sorted(set(MANUAL_PATH_RE.findall(source))):
+        mid = menu_id_for_path(path, english)
+        if mid is None:
+            continue
+        labels, parts = [], mid.split(".")
+        for i in range(len(parts)):
+            label = localized.get(".".join(parts[:i + 1]), {}).get("label")
+            if not label:
+                break
+            labels.append(label)
+        else:
+            glossary[path] = " > ".join(labels)
+    return glossary
+
+
 def menu_catalog_stale(root):
     """English menu catalog vs the shipped JSONC (the test's freshness rule)."""
     raw = (root / "default/omarchy/omarchy-menu.jsonc").read_text(encoding="utf-8")
@@ -610,14 +652,20 @@ Short, natural UI language; menu labels one or two words where the language allo
     return {unit: validate_catalog_value(batch[unit], result[unit], categories) for unit in batch}
 
 
-def translate_manual(source, code, name, model):
+def translate_manual(source, code, name, model, glossary=None):
     note = REGIONAL_NOTES.get(code, "")
+    glossary_block = f"""
+Menu paths in the chapter name entries in the Omarchy menu. Each one is given as the English chapter writes it and as the localized menu shows it: render the former with the latter, keeping the italics and the " > " separators, rather than translating the labels yourself:
+<menu_paths>
+{json.dumps(glossary, ensure_ascii=False)}
+</menu_paths>
+""" if glossary else ""
     prompt = f"""Translate this complete Omarchy manual chapter from English into {name} ({code}).{(" " + note) if note else ""}
 Return ONLY a JSON object with exactly one string field: "markdown".
 Translate everything; never summarize. Keep the author's direct, opinionated voice.
 Preserve Markdown structure and heading levels, link URLs (translate link text only), relative .md links, image references, code blocks and inline code verbatim. Full lines, no hard wrapping.
 {BRIEF}
-<chapter>
+{glossary_block}<chapter>
 {json.dumps({"markdown": source}, ensure_ascii=False)}
 </chapter>
 """
@@ -712,7 +760,9 @@ def cmd_translate(args):
 
     def one_manual(unit):
         filename = split_unit(unit)[1]
-        text = translate_manual(english[unit], code, name, args.model)
+        source = english[unit]
+        glossary = manual_menu_glossary(root, code, source)
+        text = translate_manual(source, code, name, args.model, glossary)
         atomic_write(root / "manual" / code / filename, text)
         return unit
 
