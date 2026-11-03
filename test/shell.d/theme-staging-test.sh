@@ -21,7 +21,7 @@ marker="omarchy-theme-staging-marker"
 
 set_theme() {
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
-    OMARCHY_THEME_HEADLESS="${OMARCHY_TEST_THEME_HEADLESS:-1}" OMARCHY_THEME_SKIP_BACKGROUND=1 \
+    OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
     XDG_RUNTIME_DIR="$test_tmp" \
     bash "$ROOT/bin/omarchy-theme-set" "$1" 2>"$test_tmp/stderr" || return $?
 }
@@ -237,13 +237,3 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
 done
 
 pass "every file Omarchy generates is classified as code or colour"
-
-if OMARCHY_TEST_THEME_HEADLESS=0 set_theme mine; then
-  fail "interactive theme changes propagate banner authorization rejection"
-else
-  status=$?
-  (( status == 73 )) || fail "interactive theme changes preserve the banner failure status" "$status"
-fi
-grep -q 'banner authorization rejected' "$test_tmp/stderr" ||
-  fail "interactive theme changes keep the banner error visible"
-pass "interactive theme changes report banner authorization failure"

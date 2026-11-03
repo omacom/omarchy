@@ -502,7 +502,7 @@ echo "$THEME_NAME" >"$CURRENT_THEME_NAME_PATH"
 
 # Root setup seeds the pre-login banner before any user theme exists.
 if (( THEME_HEADLESS == 0 )); then
-  omarchy-server-issue || exit $?
+  omarchy-server-issue || FAILED_THEME_COMMANDS+=(omarchy-server-issue)
 fi
 
 # Make the running shell pick up the new palette immediately while the rest of

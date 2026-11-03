@@ -73,6 +73,14 @@ done
 for command in omarchy-theme-set-templates omarchy-theme-set-herdr-machines; do
   ln -sf noop "$commands/$command"
 done
+cat >"$commands/omarchy-server-issue" <<'STUB'
+#!/bin/bash
+if [[ ${TEST_ISSUE_FAIL:-} == "1" ]]; then
+  echo "banner authorization rejected" >&2
+  exit 73
+fi
+STUB
+chmod +x "$commands/omarchy-server-issue"
 cat >"$commands/omarchy-notification-send" <<'STUB'
 #!/bin/bash
 echo "notify: $*" >>"$TEST_LOG"
@@ -143,6 +151,16 @@ wait_for_detached_work() {
   done
   fail "the detached retints finish"
 }
+
+touch "$test_tmp/release"
+TEST_ISSUE_FAIL=1 TEST_VSCODE_OK_THEME=alpha OMARCHY_THEME_WAIT=1 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
+for command in omarchy-theme-set-tmux omarchy-theme-set-browser omarchy-hook; do
+  grep -qx "$command" "$log" || fail "banner authorization failure still runs $command" "$(cat "$log")"
+done
+grep -q 'banner authorization rejected' "$test_tmp/stderr" || fail "banner authorization failure remains visible"
+grep -qx 'Theme retint failed: omarchy-server-issue' "$test_tmp/stderr" || fail "banner failure is included in the completed switch report"
+rm -f "$test_tmp/release" "$test_tmp/held"
+pass "banner authorization failure finishes retints and hooks and reports the failure"
 
 set_theme beta
 for command in omarchy-restart-terminal omarchy-theme-set-foot omarchy-theme-set-tmux omarchy-restart-btop; do
