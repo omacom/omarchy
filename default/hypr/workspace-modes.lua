@@ -438,6 +438,21 @@ function M.saved(id)
   return file ~= nil
 end
 
+-- Forget the layout saved for a workspace number with no workspace under it,
+-- so the next one there follows the default.
+function M.forget(id)
+  id = tostring(id)
+  os.remove(LAYOUTS_DIR .. "/" .. id .. ".lua")
+  if not modes[id] then
+    return
+  end
+
+  modes[id] = nil
+  hl.workspace_rule({ workspace = id, layout = hl.get_config("general.layout") or "dwindle" })
+  sync_open_rules()
+  refresh_shell()
+end
+
 -- Per-monitor workspaces renumber a workspace as it joins another monitor's
 -- block, and the mode it was given goes with it, saved file and all. The number
 -- it leaves goes back to the default layout, so whatever opens under it later

@@ -855,6 +855,27 @@ grep -qxF 'o.workspace_mode({ workspace = "4", mode = "floating" })' "$modes_dir
   fail "a renumbered workspace leaves a layout saved under its new number alone" "$(ls "$modes_dir"; cat "$modes_dir"/*.lua 2>&1)"
 pass "a renumbered workspace leaves a layout saved under its new number alone"
 
+# A workspace going home takes back its own number, and a layout saved under it
+# while the workspace was away gives way, so the one coming home keeps its own.
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ workspace = "12", mode = "floating" })\n' >"$modes_dir/12.lua"
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+assert(latest_open_rule(1).match.workspace == "r[12-12]", "windows opening on the floating number float: " .. latest_open_rule(1).match.workspace)
+modes.forget(12)
+local last = {}
+for _, rule in ipairs(state().workspace_rules) do last[rule.workspace] = rule.layout end
+assert(last["12"] == "dwindle", "the number was not returned to the default layout: " .. tostring(last["12"]))
+assert(latest_open_rule(1) == nil or not latest_open_rule(1).enabled, "windows opening on the number still float")
+local asked = table.concat(state().commands, "\n")
+assert(asked:find("omarchy-shell -q omarchy.workspaces refresh", 1, true), "the bar was not asked to read the layouts again: " .. asked)
+' TITLEBARS_INSTALLED=1; then
+  fail "a forgotten layout leaves its number to the default"
+fi
+[[ ! -e $modes_dir/12.lua ]] || fail "a forgotten layout leaves its number to the default" "$(ls "$modes_dir")"
+pass "a forgotten layout leaves its number to the default"
+
 # A layout that cannot be saved under the new number stays saved under the old
 # one, as it would have before, rather than being lost on the next reload.
 rm -f "$modes_dir"/*.lua

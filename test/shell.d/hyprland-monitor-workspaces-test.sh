@@ -680,6 +680,7 @@ local renumbered = {}
 package.loaded["default.hypr.workspace-modes"] = {
   renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
   saved = function() return false end,
+  forget = function() end,
 }
 local m = load_module()
 world.handlers["hyprland.start"]()
@@ -742,6 +743,36 @@ check(world.windows["0xc"].workspace == 5, "the workspace joined under the first
 ' || fail "a workspace joining a block leaves a number with a saved layout to it"
 pass "a workspace joining a block leaves a number with a saved layout to it"
 
+# A workspace going home takes back its own number. A layout saved under it
+# while the workspace was away was given to another one there, and gives way.
+run_lua home-number '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 12)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xb"].workspace == 2, "the workspace joined the laptop'"'"'s")
+
+-- A window rule opened a workspace 12 meanwhile, set to scrolling and closed since.
+save_layout(12, "scrolling")
+
+plug("DP-3", 3, "LG", 3)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xb"].workspace == 12 and on(12) == "DP-3", "the workspace went home as " .. world.windows["0xb"].workspace .. ", not 12")
+local saved = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/workspace-layouts/12.lua")
+if saved then saved:close() end
+check(not saved, "the workspace going home took the layout saved under its number while it was away")
+' || fail "a workspace going home takes back its number from a layout saved there meanwhile"
+pass "a workspace going home takes back its number from a layout saved there meanwhile"
+
 run_lua closed-away '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
@@ -750,6 +781,7 @@ local renumbered = {}
 package.loaded["default.hypr.workspace-modes"] = {
   renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
   saved = function() return false end,
+  forget = function() end,
 }
 load_module()
 world.handlers["hyprland.start"]()
@@ -797,6 +829,7 @@ local renumbered = {}
 package.loaded["default.hypr.workspace-modes"] = {
   renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
   saved = function() return false end,
+  forget = function() end,
 }
 load_module()
 world.handlers["hyprland.start"]()
@@ -829,6 +862,7 @@ local renumbered = {}
 package.loaded["default.hypr.workspace-modes"] = {
   renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
   saved = function() return false end,
+  forget = function() end,
 }
 load_module()
 world.handlers["hyprland.start"]()

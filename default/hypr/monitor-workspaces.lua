@@ -638,6 +638,9 @@ function M.reconcile(added, gone)
           end
 
           if block_of_id(origin.id) == by_connector[monitor.name] and not hl.get_workspace(origin.id) then
+            -- A layout saved under its old number while it was away was given
+            -- to another workspace there, and gives way to its own.
+            workspace_modes.forget(origin.id)
             renumber(workspace, origin.id)
           elseif block_of_id(id) ~= by_connector[monitor.name] then
             adopt(workspace, by_connector[monitor.name])
