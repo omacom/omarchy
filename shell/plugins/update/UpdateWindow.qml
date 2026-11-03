@@ -675,7 +675,7 @@ Item {
             contentHeight: content.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
 
-            NumberAnimation on contentY { id: scroll; running: false; duration: Style.duration(450); easing.type: Easing.OutCubic }
+            NumberAnimation on contentY { id: scroll; running: false; duration: Style.duration(250); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
 
             ColumnLayout {
               id: content
@@ -981,7 +981,7 @@ Item {
       height: parent.height
       width: parent.width * Math.max(0, bar.fraction)
       color: bar.failed ? root.urgent : root.accent
-      Behavior on width { NumberAnimation { duration: Style.duration(450); easing.type: Easing.OutCubic } }
+      Behavior on width { NumberAnimation { duration: Style.duration(250); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
     }
     // No measurable progress: sweep instead.
     Rectangle {
@@ -1105,7 +1105,7 @@ Item {
     color: active ? Util.alpha(root.accent, 0.16) : Util.alpha(root.fg, 0.04)
     border.width: Style.normalBorderWidth
     border.color: active ? root.accent : Util.alpha(root.fg, finished ? 0.28 : 0.1)
-    Behavior on color { ColorAnimation { duration: Style.duration(250) } }
+    Behavior on color { ColorAnimation { duration: Style.duration(250); easing.type: Easing.InOutQuad } }
     Text {
       id: chipText
       textFormat: Text.PlainText
@@ -1142,7 +1142,7 @@ Item {
     color: Util.alpha(active ? root.accent : root.fg, active ? 0.1 : 0.03)
     border.width: Style.normalBorderWidth
     border.color: active ? root.accent : Util.alpha(root.fg, 0.1)
-    Behavior on color { ColorAnimation { duration: Style.duration(250) } }
+    Behavior on color { ColorAnimation { duration: Style.duration(250); easing.type: Easing.InOutQuad } }
 
     // Where it comes from, when that isn't the Arch repos.
     Text {
@@ -1163,7 +1163,7 @@ Item {
       anchors.horizontalCenter: parent.horizontalCenter
       y: Style.space(18)
       opacity: tile.waiting ? 0.35 : 1
-      Behavior on opacity { NumberAnimation { duration: Style.duration(300) } }
+      Behavior on opacity { NumberAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
 
       IconImage {
         anchors.fill: parent
@@ -1197,8 +1197,12 @@ Item {
       height: width
       radius: width / 2
       color: root.accent
-      scale: tile.finished && root.phase !== "ready" ? 1 : 0
-      Behavior on scale { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutBack } }
+      // Fades in near full size rather than growing from nothing (agents/skills/motion.md).
+      readonly property bool shown: tile.finished && root.phase !== "ready"
+      opacity: shown ? 1 : 0
+      scale: shown ? 1 : 0.96
+      Behavior on opacity { NumberAnimation { duration: Style.duration(200); easing.type: Easing.OutCubic } }
+      Behavior on scale { NumberAnimation { duration: Style.duration(200); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
       Text {
         textFormat: Text.PlainText
         anchors.centerIn: parent
