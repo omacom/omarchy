@@ -29,7 +29,10 @@ assert_packages "ARM GSP selection uses native packages" aarch64 gsp \
   'nvidia-open-dkms nvidia-utils libva-nvidia-driver'
 assert_packages "ARM legacy selection omits x86 multilib" aarch64 legacy \
   'nvidia-580xx-dkms nvidia-580xx-utils'
-assert_packages "x86 GSP package selection stays unchanged" x86_64 gsp \
-  'nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver'
+# A GSP machine gets its 32-bit driver when a game asks for it, through
+# omarchy-install-gaming-gpu-lib32. A 580xx machine keeps its own, so a Steam
+# installed with pacman does not reach for lib32-nvidia-utils.
+assert_packages "x86 GSP selection leaves the 32-bit driver to the gaming installers" x86_64 gsp \
+  'nvidia-open-dkms nvidia-utils libva-nvidia-driver'
 assert_packages "x86 legacy package selection stays unchanged" x86_64 legacy \
   'nvidia-580xx-dkms nvidia-580xx-utils lib32-nvidia-580xx-utils'
