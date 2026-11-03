@@ -12,10 +12,15 @@ pkill -x herdr-app || true
 # terminals and agents running, and the herdr package and the terminal use it
 # too, so it stays. ~/.config/herdr-app holds the user's own settings and
 # themes, which a reinstall picks right back up.
-data="${XDG_DATA_HOME:-$HOME/.local/share}"
+# The installer put the app under XDG_DATA_HOME as it was then and linked
+# herdr-app to it, so the link says where it went even if that has changed.
+link=$(readlink "$HOME/.local/bin/herdr-app" || true)
 
-if [[ $(readlink "$HOME/.local/bin/herdr-app" || true) == "$data/herdr-app/herdr-app" ]]; then
+if [[ $link == "$HOME"/*/herdr-app/herdr-app ]]; then
+  data=${link%/herdr-app/herdr-app}
   rm -f "$HOME/.local/bin/herdr-app"
+else
+  data="${XDG_DATA_HOME:-$HOME/.local/share}"
 fi
 
 rm -rf "$data/herdr-app"

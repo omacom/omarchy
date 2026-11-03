@@ -180,6 +180,18 @@ XDG_DATA_HOME= "$ROOT/bin/omarchy-remove-ai-herdr" >/dev/null
 [[ -f $HOME/.local/bin/herdr-app ]] || fail "Herdr removal keeps a herdr-app the user put there"
 pass "Herdr removal keeps a herdr-app the user put there"
 
+# An app installed under ~/.local/share goes from there after XDG_DATA_HOME moves.
+fresh_home
+mkdir -p "$HOME/.local/share/herdr-app" "$HOME/.local/share/applications" "$HOME/.local/bin" "$HOME/xdg-data/herdr-app"
+touch "$HOME/.local/share/herdr-app/herdr-app" "$HOME/.local/share/applications/herdr-app.desktop" "$HOME/xdg-data/herdr-app/keep"
+ln -s "$HOME/.local/share/herdr-app/herdr-app" "$HOME/.local/bin/herdr-app"
+XDG_DATA_HOME=$HOME/xdg-data "$ROOT/bin/omarchy-remove-ai-herdr" >/dev/null
+for gone in .local/share/herdr-app .local/share/applications/herdr-app.desktop .local/bin/herdr-app; do
+  [[ ! -e $HOME/$gone && ! -L $HOME/$gone ]] || fail "Herdr removal follows its link to where the app went" "$gone"
+done
+[[ -e $HOME/xdg-data/herdr-app/keep ]] || fail "Herdr removal leaves the new XDG_DATA_HOME alone"
+pass "Herdr removal follows its link to where the app went"
+
 # Perplexity's other products (the CLI, Comet) share the perplexity-* prefix;
 # the desktop app owns only its rpc-server runtime and Electron caches. The
 # logins, vault, and flags are the user's and only go when a terminal said so.
