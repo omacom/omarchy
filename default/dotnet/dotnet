@@ -1,10 +1,13 @@
 #!/bin/bash
+# omarchy-dotnet-launcher
 
 # Installed to /usr/local/bin by `omarchy install dev-env dotnet`. Pinta pulls
 # in dotnet-runtime, whose /usr/bin/dotnet has no SDK, and SSH commands and
 # login shells put mise's shims after /usr/bin. Sitting ahead of both, this
 # hands dotnet to the user's mise SDK when one is active.
 #
+# Setup and its migration only replace a /usr/local/bin/dotnet that carries
+# the omarchy-dotnet-launcher line at the top, so one an admin put there stays.
 # Removing the dev env keeps it: other users may still have an SDK, and
 # without one it just runs /usr/bin/dotnet.
 #
