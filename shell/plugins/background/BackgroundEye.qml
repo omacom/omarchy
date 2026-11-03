@@ -17,13 +17,14 @@ Item {
   // Screen pixels from the eye at which the pupil is halfway to the rim.
   property real reach: 100
 
-  readonly property real factor: crop.scale
+  // crop can turn null a moment before the Repeater drops this eye.
+  readonly property real factor: crop ? crop.scale : 0
   readonly property var offset: tracking
     ? EffectsModel.pupilOffset(eye, pointer.x - x, pointer.y - y, reach)
     : EffectsModel.pupilOffset(eye, null, null, reach)
 
-  x: crop.x + eye.center.x * factor
-  y: crop.y + eye.center.y * factor
+  x: crop ? crop.x + eye.center.x * factor : 0
+  y: crop ? crop.y + eye.center.y * factor : 0
 
   Ellipse {
     radiusX: root.eye.radius.x * root.factor

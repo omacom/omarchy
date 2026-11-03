@@ -39,7 +39,8 @@ function sidecarPath(backgroundPath) {
   var name = path.slice(slash + 1)
   var dot = name.lastIndexOf(".")
   if (slash < 0 || dot <= 0) return ""
-  if (!/\.(jpe?g|png|bmp|webp)$/i.test(name)) return ""
+  // The stills the picker offers; the shell draws a GIF's first frame.
+  if (!/\.(jpe?g|png|gif|bmp|webp)$/i.test(name)) return ""
   return path.slice(0, slash) + "/effects/" + name.slice(0, dot) + ".json"
 }
 
@@ -93,9 +94,13 @@ function parseEye(raw) {
     ? { x: radius.x - pupilRadius.x * 1.1, y: radius.y - pupilRadius.y * 1.1 }
     : pair(pupilRaw.travel, false)
   if (!travel || travel.x < 0 || travel.y < 0) return "pupil.travel must be a number or [x, y], not negative"
+  // The pupil never leaves the white: it may roll until it touches the rim.
+  var room = { x: radius.x - pupilRadius.x, y: radius.y - pupilRadius.y }
+  if (travel.x > room.x || travel.y > room.y) return "pupil.travel must keep the pupil inside radius"
 
   var rest = pupilRaw.rest === undefined ? { x: 0, y: 0 } : pair(pupilRaw.rest, false)
   if (!rest) return "pupil.rest must be a number or [x, y]"
+  if (Math.abs(rest.x) > room.x || Math.abs(rest.y) > room.y) return "pupil.rest must keep the pupil inside radius"
 
   var highlight = null
   if (pupilRaw.highlight !== undefined) {

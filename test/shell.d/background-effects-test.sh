@@ -11,6 +11,7 @@ const effects = requireFromRoot('shell/plugins/background/EffectsModel.js')
 assertEqual(effects.sidecarPath('/t/backgrounds/1-totoro.webp'), '/t/backgrounds/effects/1-totoro.json', 'a still finds its sidecar in effects/')
 assertEqual(effects.sidecarPath('/t/backgrounds/my.photo.JPG'), '/t/backgrounds/effects/my.photo.json', 'only the last extension is dropped')
 assertEqual(effects.sidecarPath('/t/backgrounds/clip.mp4'), '', 'a video has no sidecar; OWE draws it')
+assertEqual(effects.sidecarPath('/t/backgrounds/cat.gif'), '/t/backgrounds/effects/cat.json', 'a GIF is a still the shell draws, so it takes a sidecar too')
 assertEqual(effects.sidecarPath(''), '', 'no background has no sidecar')
 
 const eye = (overrides) => Object.assign({
@@ -28,6 +29,12 @@ const parsed = effects.parse(JSON.stringify({ eyes: [
 assertEqual(parsed.effects.eyes.length, 1, 'eyes with a bad color, an oversized pupil, a bad radius or an incomplete highlight are dropped one by one')
 assertDeepEqual(parsed.warnings.map((w) => w.split(':')[0]), ['eyes[1] skipped', 'eyes[2] skipped', 'eyes[3] skipped', 'eyes[4] skipped'], 'each dropped eye is named, so an author can find the typo')
 assertDeepEqual(parsed.effects.eyes[0].pupil.travel, { x: 40 - 16 * 1.1, y: 36 - 15 * 1.1 }, 'a pupil rolls to a tenth of its size from the rim by default')
+const astray = effects.parse(JSON.stringify({ eyes: [
+  eye({ pupil: { radius: [16, 15], color: '#171723', travel: [60, 60] } }),
+  eye({ pupil: { radius: [16, 15], color: '#171723', rest: [30, 0] } }),
+  eye({ pupil: { radius: [16, 15], color: '#171723', travel: [24, 21], rest: [-24, 21] } })
+] }))
+assertEqual(astray.effects.eyes.length, 1, 'a pupil may roll to the rim of its white but never past it', JSON.stringify(astray.warnings))
 const malformed = effects.parse('{ not json')
 assert(malformed.effects.eyes.length === 0 && malformed.warnings.length === 1, 'malformed JSON gives no effects and says why', JSON.stringify(malformed))
 assertEqual(effects.parse(JSON.stringify({ eyes: Array(100).fill(eye()) })).effects.eyes.length, effects.maxEntries, 'a sidecar cannot ask for unbounded eyes')

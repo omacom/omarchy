@@ -231,6 +231,15 @@ Item {
   onReadyChanged: maybeFinishTransition()
   onDisplayedBackgroundChanged: pointerTracking = false
   onSuspendedChanged: if (suspended) pointerTracking = false
+  // Animations off, or no effect left to follow: the next one starts from the
+  // image's pose, not from where the pointer was back then.
+  onFollowsPointerChanged: if (!followsPointer) pointerTracking = false
+
+  EffectsSidecar {
+    id: effectsSidecar
+    background: root.isVideo(root.displayedBackground) ? "" : root.displayedBackground
+    version: root.backgroundVersion
+  }
 
   function trackPointer(x, y) {
     pointer = Qt.point(x, y)
@@ -514,14 +523,14 @@ Item {
         id: effects
         anchors.fill: parent
         visible: active && base.ready
-        path: root.isVideo(root.displayedBackground) ? "" : root.displayedBackground
+        effects: effectsSidecar.effects
         imageSize: {
           var native = root.nativeSizes[root.displayedBackground]
           return native ? Qt.size(native.width, native.height) : Qt.size(0, 0)
         }
         screenOrigin: Qt.point(panel.modelData.x, panel.modelData.y)
         pointer: root.pointer
-        tracking: root.pointerTracking && !Style.reduceMotion
+        tracking: root.pointerTracking
       }
 
       Item {
