@@ -28,6 +28,12 @@ Both extensions talk to Omarchy through a small native messaging host, which get
 
 These are Chromium-family only. Firefox and Zen don't get them.
 
+## Google Calendar
+
+Google Calendar follows your theme too. A third bundled extension recolors [calendar.google.com](https://calendar.google.com) with the current theme: backgrounds, text, and borders take the theme's colors, Google's blue becomes your accent, and Google's event colors (Tomato, Sage, Peacock, and the rest) map onto the theme's reds, greens, blues, and so on. Calendars you've already given a color straight from your theme are left alone, and one you gave a theme's accent follows the accent of whichever theme you're on. Past events stay a faded version of their calendar's color. It works with Calendar's own Light or Dark appearance, and switching either one, or your theme, recolors an open calendar on the spot, no reload needed.
+
+It works the same way as the extensions above, through a native messaging host that hands it your theme's colors, and it's Chromium-family only as well.
+
 ## Firefox and Zen
 
 Firefox and Zen are a different family, so they get different treatment: Omarchy installs a policies file for sensible defaults and switches them into native Wayland mode, which you want for fractional scaling and smooth trackpad scrolling.
