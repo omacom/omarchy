@@ -75,6 +75,31 @@ resolve() {
 
 explicit_families=("JetBrains Mono" "Liberation Mono" "Adwaita Mono" "JetBrainsMono Nerd Font")
 
+rig_fonts() {
+  rig fc-list
+}
+
+# A requested family that isn't installed must still land on the package
+# default: the generic the system appends behind it is what assign
+# replaces, so the fallback survives only while the package defaults
+# stay unguarded. Ask the rig itself which of the probe families it can
+# see: a developer machine that actually has one installed resolves the
+# request to that font, which is correct behaviour, so skip that probe
+# instead of failing on it.
+check_missing_fallbacks() {
+  local available=$1
+  local family base_family actual
+  for family in "DejaVu Sans Mono" "Consolas" "Droid Sans Mono, monospace"; do
+    base_family=${family%%,*}
+    if grep -Fqi -- "$base_family" <<<"$available"; then
+      printf 'ok - missing %s falls back to the package default # SKIP %s is installed\n' "$family" "$base_family"
+      continue
+    fi
+    actual=$(resolve "$family")
+    [[ $actual == "JetBrainsMono Nerd Font" ]] || fail "missing $family falls back to the package default" "$actual"
+  done
+}
+
 check_matrix() {
   local chosen=$1
   local actual
@@ -88,14 +113,7 @@ check_matrix() {
     [[ $actual == "$family" ]] || fail "explicit $family resolves to itself with $chosen generated" "$actual"
   done
 
-  # A requested family that isn't installed must still land on the package
-  # default: the generic the system appends behind it is what assign
-  # replaces, so the fallback survives only while the package defaults
-  # stay unguarded.
-  for family in "DejaVu Sans Mono" "Consolas" "Droid Sans Mono, monospace"; do
-    actual=$(resolve "$family")
-    [[ $actual == "JetBrainsMono Nerd Font" ]] || fail "missing $family falls back to the package default with $chosen generated" "$actual"
-  done
+  check_missing_fallbacks "$(rig_fonts)"
 
   # An explicit CJK pair keeps its head even though another variant is in
   # the list: the preference deletion must not drop a requested JP.
