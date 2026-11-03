@@ -112,3 +112,23 @@ output=$(FAKE_NOTIFY_FAIL=1 NOTIFY_INTERVAL=0 FAKE_QS_OUTPUT="Function not found
 [[ $output == "Function not found." ]] || fail "the IPC answer is unchanged by the notifier" "$output"
 wait_for_notifications 4 || fail "a failing notifier is still attempted"
 pass "a failing notification never changes the IPC result"
+
+# The /tmp fallback directory is shared, so another user could precreate the
+# stamp directory and plant the stamp path as a symlink to a file this user can
+# write. The notifier must not follow it.
+victim="$test_tmp/victim"
+printf 'original\n' >"$victim"
+link_dir="$test_tmp/link-notify"
+mkdir -p "$link_dir"
+ln -s "$victim" "$link_dir/omarchy.link.apps"
+
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  OMARCHY_PATH="$ROOT" \
+  XDG_RUNTIME_DIR="$run_dir" \
+  OMARCHY_SHELL_NOTIFY_DIR="$link_dir" \
+  OMARCHY_SHELL_NOTIFY_INTERVAL=300 \
+  OMARCHY_SHELL_IPC_TIMEOUT=0.1s \
+  FAKE_QS_OUTPUT="Function not found." \
+  "$ROOT/bin/omarchy-shell" omarchy.link apps >/dev/null 2>&1 || true
+[[ $(cat "$victim") == "original" ]] || fail "a planted stamp symlink is not followed"
+pass "a planted stamp symlink is not followed"

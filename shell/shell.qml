@@ -204,7 +204,12 @@ ShellRoot {
     var revision = shell.pluginRegistry.registryRevision
     return shell.barOptionAvailable(shell.selectedBarId)
   }
-  readonly property string activeBarId: selectedBarId !== failedBarId && selectedBarAvailable ? selectedBarId : defaultBarId
+  // While a package transaction holds plugin loads paused, keep the bar the
+  // shell already has. A new selectedBarId would otherwise instantiate its QML
+  // from the tree being replaced, which is what pausePlugins exists to stop.
+  property string pausedBarId: ""
+  readonly property string liveBarId: selectedBarId !== failedBarId && selectedBarAvailable ? selectedBarId : defaultBarId
+  readonly property string activeBarId: shell.pluginsPaused && shell.pausedBarId !== "" ? shell.pausedBarId : shell.liveBarId
   readonly property var activeBarManifest: {
     var revision = shell.pluginRegistry.registryRevision
     return shell.barManifestFor(shell.activeBarId)
@@ -1856,7 +1861,10 @@ ShellRoot {
     // the update restarts this shell instead of compiling new plugin QML in
     // the old engine (#16126).
     function pausePlugins(): string {
-      shell.pluginsPaused = true
+      if (!shell.pluginsPaused) {
+        shell.pausedBarId = shell.activeBarId
+        shell.pluginsPaused = true
+      }
       return "ok"
     }
 

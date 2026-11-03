@@ -87,7 +87,12 @@ SH
 cat >"$fake_bin/omarchy-hyprland-session-locked" <<'SH'
 #!/bin/bash
 
-[[ ${FAKE_LOCKED:-0} == 1 ]]
+# 0 exit locked, 1 unlocked, 2 undetermined, mirroring the real probe.
+case ${FAKE_LOCKED:-0} in
+  1) exit 0 ;;
+  2) exit 2 ;;
+  *) exit 1 ;;
+esac
 SH
 
 chmod 0755 "$fake_bin/quickshell" "$fake_bin/qs" \
@@ -192,6 +197,18 @@ FAKE_QS_MODE=missing FAKE_LOCKED=1 "$guard" pause
 [[ -z $(state_actions) ]] || fail "a locked session's shell is not recorded for restart"
 pass "the guard leaves a locked session's shell running"
 
+# The lock probe's exit 2 is "undetermined" (hyprctl failed), not "unlocked".
+# Stopping a shell that might own the lock screen would strand the session, so
+# an undetermined state must keep it running like a locked one.
+stop_shell
+: >"$kill_log"
+
+start_shell
+FAKE_QS_MODE=missing FAKE_LOCKED=2 "$guard" pause
+[[ ! -s $kill_log ]] || fail "an undetermined lock state does not stop the shell"
+[[ -z $(state_actions) ]] || fail "an undetermined lock state records no restart"
+pass "an undetermined lock state leaves the shell running"
+
 stop_shell
 : >"$restart_log"
 : >"$kill_log"
@@ -221,6 +238,25 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 [[ ! -e $state_dir/gone-session ]] || fail "a dead session's state is cleared without a restart"
 [[ ! -s $restart_log ]] || fail "a dead session is not restarted"
 pass "the guard drops state for a session that ended during the transaction"
+
+# A shell with no WAYLAND_DISPLAY or HYPRLAND_INSTANCE_SIGNATURE records empty
+# fields. Reading that record must not collapse the tabs and shift action away,
+# or a still-running paused shell is dropped without being restarted.
+: >"$restart_log"
+: >"$qs_log"
+env -u WAYLAND_DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE OMARCHY_PATH="$root_dir" sleep 60 &
+shell_pid=$!
+shell_pids+=("$shell_pid")
+printf '%s\n' "$shell_pid" >"$pid_file"
+printf '%s\n' "$root_dir/shell/shell.qml" >"$config_file"
+FAKE_QS_MODE=ok "$guard" pause
+[[ $(state_actions) == "paused" ]] || fail "an env-less shell is paused"
+"$guard" resume
+grep -Fx 'restart' "$restart_log" >/dev/null ||
+  fail "an empty-field record still restarts the paused shell"
+[[ -z $(state_actions) ]] || fail "an empty-field record is cleared on resume"
+pass "an empty-field record still restarts the paused shell"
+stop_shell
 
 # Another Quickshell config can also live at shell/shell.qml. Its own
 # OMARCHY_PATH names a different tree, so the guard must leave it alone.

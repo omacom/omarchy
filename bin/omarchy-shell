@@ -33,15 +33,21 @@ notify_missing() {
   key=${key//[^A-Za-z0-9._-]/_}
   stamp_file="$stamp_dir/$key"
 
+  # The runtime directory is private, but the /tmp fallback is shared: another
+  # user could precreate the directory or plant a stamp-file symlink. Only
+  # write into a directory this user owns, and never through a symlink.
+  mkdir -p "$stamp_dir" 2>/dev/null || return 0
+  [[ -O $stamp_dir && ! -L $stamp_dir ]] || return 0
+
   now=$(date +%s)
-  if [[ -f $stamp_file ]]; then
+  if [[ -f $stamp_file && ! -L $stamp_file ]]; then
     read -r last <"$stamp_file" || last=0
     if [[ $last =~ ^[0-9]+$ ]] && (( now - last < interval )); then
       return 0
     fi
   fi
 
-  mkdir -p "$stamp_dir" 2>/dev/null || return 0
+  [[ -L $stamp_file ]] && return 0
   printf '%s\n' "$now" >"$stamp_file" 2>/dev/null || return 0
 
   headline=$(omarchy-i18n shell.actionUnavailable 2>/dev/null || true)
