@@ -1,39 +1,67 @@
 # Snabbtangenter
 
-Du kan se alla de viktigaste tangentbindningarna med `Super + K` (Tmux-bindningar med `Super + Alt + K` och Herdr-bindningar med `Super + Ctrl + K`).
+Du kan se alla huvudsakliga tangentbordsbindningar med `Super + K` (Tmux-bindningar med `Super + Alt + K` och Herdr-bindningar med `Super + Ctrl + K`).
 
-## Navigera
+## Hur snabbtangenterna är upplagda
+
+Varje snabbtangent sitter på ett plan, som bestäms av dess modifierare, och varje plan har ett jobb. Det är det som hindrar snabbtangenterna från att flyta ihop, och det betyder att du oftast kan gissa var något finns.
+
+| Plan | Vad som finns där | Exempel |
+| --- | --- | --- |
+| `Super + key` | Systemet: fönster, arbetsytor, layouter och kärnmenyer | `Super + Space` Omarchy-menyn, `Super + W` stäng fönster, `Super + F` helskärm |
+| `Super + Shift + key` | Appar | `Super + Shift + B` webbläsare, `Super + Shift + E` e-post, `Super + Shift + N` redigerare |
+| `Super + Ctrl + key` | Paneler och systemmenyer | `Super + Ctrl + A` ljud, `Super + Ctrl + N` nätverk, `Super + Ctrl + C` inspelningsmeny |
+| `Super + Ctrl + Alt + key` | Snabbåtgärder och meddelanden | `Super + Ctrl + Alt + T` visa tid, `Super + Ctrl + Alt + B` batteri, `Super + Ctrl + Alt + C` skärmdump |
+
+Att lägga till `Alt` på en snabbtangent ger dig en variant av samma sak, aldrig något orelaterat:
+
+- `Super + Shift + B` öppnar webbläsaren; `Super + Shift + Alt + B` öppnar ett privat fönster
+- `Super + Shift + E` öppnar e-post; `Super + Shift + Alt + E` startar en ny
+- `Super + F` går till helskärm; `Super + Alt + F` går till full bredd
+- `Super + Ctrl + C` öppnar inspelningsmenyn; `Super + Ctrl + Alt + C` hoppar över menyn och tar en skärmdump
+
+När du lägger till en snabbtangent:
+
+1. Välj plan utifrån vad den gör, välj sedan tangenten.
+2. Flytta inte en befintlig snabbtangent för att göra plats. Hitta en ledig tangent på rätt plan.
+3. Använd bara `Alt` för en variant av snabbtangenten utan den.
+
+Några snabbtangenter bryter mot dessa regler för att de är bekväma. `Shift` med en pil eller `Tab` flyttar eller vänder istället för att öppna en app, och `Print`, mediaknapparna, `Alt + Tab` och `Ctrl + Alt + Del` fungerar som de gör överallt annars. De är undantag, inte mönster att kopiera.
+
+Om en standardbindning inte passar dig (säg att du vill ha `Super + Shift + S` för skärmdumpar som i Windows), bind om den i `~/.config/hypr/bindings.lua`.
+
+## Navigering
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy-menyn (appar och allt annat)    |
 | `Super + Alt + Space` | Apprutnät |
-| `Super + Escape` | Systemmeny (viloläge, omstart osv.)  |
+| `Super + Escape` | Systemmeny (viloläge, omstart, osv.)  |
 | `Super + Ctrl + L` | Lås datorn |
 | `Super + W` or `Super + Q` | Stäng fönster             |
 | `Ctrl + Alt + Del` | Stäng alla fönster |
-| `Super + T`               | Växla fönster mellan kaklat/flytande             |
+| `Super + T`               | Växla fönster mellan tiling/flytande             |
 | `Super + J` | Växla fönsterposition (horisontell/vertikal) |
-| `Super + O`               | Växla om fönster ska poppa ut till fastnålat och flytande läge |
-| `Super + L`               | Bläddra mellan layouterna dwindle, scrolling och floating |
-| `Super + Alt + L`         | Bläddra bakåt mellan layouterna |
-| `Super + P`               | Växla pseudofönsterstil (naturlig mot utsträckt) |
-| `Super + F`                 | Visa i helskärm              |
-| `Super + Alt + F`                 | Visa i full bredd              |
-| `Super + Ctrl + F`                 | Visa i helskärm inne i fönstret              |
+| `Super + O`               | Växla om fönstret poppar in i sticky'n'floating |
+| `Super + L`               | Växla mellan layouterna dwindle, scrolling och floating |
+| `Super + Alt + L`         | Växla mellan layouterna i omvänd ordning |
+| `Super + P`               | Växla pseudo-fönsterstil (natural mot stretch) |
+| `Super + F`                 | Gå till helskärm              |
+| `Super + Alt + F`                 | Gå till full bredd              |
+| `Super + Ctrl + F`                 | Gå till helskärm inuti fönstret              |
 | `Super + 1/2/3/4`         | Hoppa till specifik arbetsyta på den fokuserade skärmen |
 | `Super + Tab` | Hoppa till nästa arbetsyta på den fokuserade skärmen |
 | `Super + Shift + Tab` | Hoppa till föregående arbetsyta på den fokuserade skärmen |
-| `Super + Ctrl + Tab` | Hoppa till den arbetsyta du var på innan på den fokuserade skärmen |
+| `Super + Ctrl + Tab` | Hoppa till tidigare arbetsyta på den fokuserade skärmen |
 | `Super + Shift + 1/2/3/4` | Flytta fönster till arbetsyta på den fokuserade skärmen |
-| `Super + Shift + Alt + 1/2/3/4` | Flytta fönster till arbetsyta på den fokuserade skärmen utan att följa med |
-| `Super + S` | Växla helt scratchpad |
-| `Super + Alt + S` | Flytta fönster till helt scratchpad |
+| `Super + Shift + Alt + 1/2/3/4` | Flytta fönster till arbetsyta på den fokuserade skärmen utan att följa efter |
+| `Super + S` | Växla full scratchpad |
+| `Super + Alt + S` | Flytta fönster till full scratchpad |
 | `Super + Grave` | Växla Quake-konsol |
 | `Super + Shift + Grave` | Flytta fönster till Quake-konsol |
 | `Super + Shift + Ctrl + Arrows` | Flytta fönster till skärmen i den riktningen |
 | `Super + Shift + Alt + Arrows` | Flytta arbetsyta till skärmen i den riktningen |
-| `Super + Arrow`  | Flytta fokus till fönster i pilens riktning, och vidare till skärmen på den sidan vid skärmkanten |
+| `Super + Arrow`  | Flytta fokus till fönster i pilens riktning, gå över till skärmen på den sidan vid skärmkanten |
 | `Super + Shift + Arrow`  | Byt plats på fönster med ett annat i pilens riktning, inklusive ett på skärmen på den sidan |
 | `Super + Minus` | Expandera fönster åt vänster |
 | `Super + Equal` | Krymp fönster åt vänster |
@@ -45,25 +73,25 @@ Du kan se alla de viktigaste tangentbindningarna med `Super + K` (Tmux-bindninga
 | `Super + Home` | Återställ sparad fönsterbredd |
 | `Super + Left Mouse` | Dra runt fönster |
 | `Super + Right Mouse` | Ändra storlek på fönster |
-| `Super + Scroll Wheel` | Rulla genom arbetsytor på den fokuserade skärmen |
+| `Super + Scroll Wheel` | Scrolla genom arbetsytor på den fokuserade skärmen |
 | `Super + G`               | Växla fönstergruppering      |
-| `Super + Alt + G`               | Flytta fönster ur gruppering      |
-| `Super + Alt + Tab`               | Bläddra mellan fönster i gruppering      |
-| `Super + Alt + Shift + Tab`               | Bläddra bakåt mellan fönster i gruppering      |
-| `Super + Alt + Scroll Wheel` | Bläddra mellan fönster i gruppering |
+| `Super + Alt + G`               | Flytta fönster ut ur gruppering      |
+| `Super + Alt + Tab`               | Växla mellan fönster i gruppering      |
+| `Super + Alt + Shift + Tab`               | Växla bakåt mellan fönster i gruppering      |
+| `Super + Alt + Scroll Wheel` | Växla mellan fönster i gruppering |
 | `Super + Alt + 1/2/3/4/5`               | Hoppa till specifikt fönster i gruppering      |
-| `Super + Alt + Arrow`  | Flytta fönster till gruppering i pilens riktning, inklusive ett på skärmen på den sidan |
-| `Super + Ctrl + Left/Right`  | Flytta mellan fönster inne i en kaklad grupp |
+| `Super + Alt + Arrow`  | Flytta fönster in i gruppering i pilens riktning, inklusive ett på skärmen på den sidan |
+| `Super + Ctrl + Left/Right`  | Flytta mellan fönster inuti en tiling-grupp |
 | `Super + Ctrl + Z` | Zooma in på skärmen (upprepa för mer zoom) |
 | `Super + Ctrl + Alt + Z` | Zooma ut helt från skärmen |
-| `Super + /` | Stega framåt genom alternativ för skärmskalning |
-| `Super + Alt + /` | Stega bakåt genom alternativ för skärmskalning |
-| `Alt + Tab` | Bläddra framåt genom fönster på den aktiva arbetsytan |
-| `Alt + Shift + Tab` | Bläddra bakåt genom fönster på den aktiva arbetsytan |
-| `Ctrl + Alt + Tab`| Bläddra fokus framåt genom skärmar |
-| `Ctrl + Alt + Shift + Tab`| Bläddra fokus bakåt genom skärmar |
+| `Super + /` | Stega framåt genom skärmskalningsalternativen |
+| `Super + Alt + /` | Stega bakåt genom skärmskalningsalternativen |
+| `Alt + Tab` | Växla framåt genom fönster på den aktiva arbetsytan |
+| `Alt + Shift + Tab` | Växla bakåt genom fönster på den aktiva arbetsytan |
+| `Ctrl + Alt + Tab`| Växla fokus framåt genom skärmar |
+| `Ctrl + Alt + Shift + Tab`| Växla fokus bakåt genom skärmar |
 
-Snabbtangenter för storleksändring använder de fysiska tangenterna `code:20` och `code:21` (XKB `<AE11>` och `<AE12>`), oavsett vilka tecken som är tryckta på tangentbordet. På amerikanska tangentbord är dessa tangenter `-` och `=`; på japanska (JIS) tangentbord är de `-` och `^`; på spanska tangentbord är de `'` och `¡`. På JIS är `Super + ^` `Super + Equal`, medan `Super + Shift + -` (som skriver `=`) är `Super + Shift + Minus`.
+Snabbtangenterna för storleksändring använder de fysiska tangenterna `code:20` och `code:21` (XKB `<AE11>` och `<AE12>`), oavsett vilka tecken som är tryckta på tangentbordet. På amerikanska tangentbord är dessa tangenter `-` och `=`; på japanska (JIS) tangentbord är de `-` och `^`; på spanska tangentbord är de `'` och `¡`. På JIS är `Super + ^` `Super + Equal`, medan `Super + Shift + -` (som skriver `=`) är `Super + Shift + Minus`.
 
 ## Systemkontroller
 
@@ -71,18 +99,18 @@ Snabbtangenter för storleksändring använder de fysiska tangenterna `code:20` 
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Ljudpanel    |
 | `Super + Ctrl + B`           | Bluetooth-panel    |
-| `Super + Ctrl + N`           | Wi-Fi-/nätverkspanel    |
-| `Super + Ctrl + D`           | Skärmpanel    |
+| `Super + Ctrl + N`           | Wifi/nätverkspanel    |
+| `Super + Ctrl + D`           | Bildskärmspanel    |
 | `Super + Ctrl + P`           | Strömpanel    |
 | `Super + Ctrl + Alt + D`           | Kalenderpanel    |
 | `Super + Ctrl + Alt + E`           | Världsklockspanel    |
 | `Super + Ctrl + 1-9`           | Växla panel i listen efter position    |
-| `Super + Ctrl + S` | Delningsmeny (via LocalSend) |
-| `Super + Ctrl + C` | Fångstkontroller (skärmbild/-inspelning/väljare) |
+| `Super + Ctrl + S` | Dela-meny (via LocalSend) |
+| `Super + Ctrl + C` | Inspelningskontroller (skärmdump/-inspelning/väljare) |
 | `Super + Ctrl + O` | Växla meny |
 | `Super + Ctrl + H` | Hårdvarumeny |
-| `Super + Ctrl + E` | Emojiväljare |
-| `Super + Ctrl + .` | Omkoda media |
+| `Super + Ctrl + E` | Emoji-väljare |
+| `Super + Ctrl + .` | Transkoda media |
 | `Super + Shift + Ctrl + A` | Välj en AI-agent |
 
 ## Justeringar
@@ -91,10 +119,10 @@ Snabbtangenter för storleksändring använder de fysiska tangenterna `code:20` 
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Maximal skärmljusstyrka |
 | `Shift + Brightness Down` | Minimal skärmljusstyrka |
-| `Alt + Brightness Up/Down` | Exakta ändringar av ljusstyrka på 1 % |
-| `Alt + Volume Up/Down` | Exakta volymändringar på 1 % |
-| `Keyboard Brightness Up/Down` | Tangentbordsbelysning starkare/svagare |
-| `Keyboard Backlight` | Bläddra mellan nivåerna för tangentbordsbelysning |
+| `Alt + Brightness Up/Down` | Exakta ändringar av ljusstyrkan med 1 % |
+| `Alt + Volume Up/Down` | Exakta ändringar av volymen med 1 % |
+| `Keyboard Brightness Up/Down` | Tangentbordsbelysning ljusare/mörkare |
+| `Keyboard Backlight` | Växla mellan nivåerna för tangentbordsbelysning |
 | `Alt + Play` | Nästa spår |
 | `Alt + Shift + Play` | Föregående spår |
 
@@ -112,7 +140,7 @@ Snabbtangenter för storleksändring använder de fysiska tangenterna `code:20` 
 | `Super + Shift + M`           | Musik (Spotify)    |
 | `Super + Shift + Alt + M`           | Musik (cliamp)    |
 | `Super + Shift + /`           | Lösenordshanterare (1password)    |
-| `Super + Shift + Q`           | Kalkylator (Omacalc)    |
+| `Super + Shift + Q`           | Miniräknare (Omacalc)    |
 | `Super + Shift + T`           | Aktivitet (btop)    |
 | `Super + Shift + N`           | Redigerare (Neovim)  |
 | `Super + Shift + C`           | Kalender ([HEY](https://hey.com/))  |
@@ -133,49 +161,49 @@ Snabbtangenter för storleksändring använder de fysiska tangenterna `code:20` 
 
 Ändra/lägg till bindningar i `~/.config/hypr/bindings.lua`.
 
-## Universellt urklipp
+## Universell urklipp
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
-| `Super + A`           | Markera allt i appar som stödjer `Ctrl + A`    |
+| `Super + A`           | Markera allt i appar som stöder `Ctrl + A`    |
 | `Super + C`           | Kopiera    |
 | `Super + X`           | Klipp ut (inte i terminalen)    |
 | `Super + V`           | Klistra in    |
 | `Super + Ctrl + V`           | Urklippshanterare    |
 
-I vanliga fall på Linux behöver du `Ctrl + Shift + C/V` för att kopiera och klistra in i terminalen och `Ctrl + C/V` för att göra det överallt annars. De här enhetliga snabbtangenterna för urklipp i Omarchy fungerar överallt.
+Vanligtvis på Linux behöver du `Ctrl + Shift + C/V` för att kopiera och klistra in i terminalen och `Ctrl + C/V` för att göra det överallt annars. De här enhetliga urklippssnabbtangenterna i Omarchy fungerar överallt.
 
-## Fånga
+## Inspelning
 
 | Snabbtangent              | Funktion                       |
 | ------------------- | ------------------------------ |
-| `Print Screen`            | Skärmbild                      |
-| `Super + Ctrl + Alt + C`            | Skärmbild (samma bild, för tangentbord utan Print Screen-tangent) |
-| `Super + Ctrl + C` | Fångstmeny |
+| `Print Screen`            | Skärmdump                      |
+| `Super + Ctrl + Alt + C`            | Skärmdump (samma bild, för tangentbord utan Print Screen-tangent) |
+| `Super + Ctrl + C` | Inspelningsmeny |
 | `Alt + Print Screen`            | Skärminspelning                     |
 | `Super + Print Screen` | Färgväljare |
 | `Super + Ctrl + Print Screen` | Textextrahering till urklipp |
-| `Super + Alt + [` | Gör webbkamerans överlägg mindre under inspelning |
-| `Super + Alt + ]` | Gör webbkamerans överlägg större under inspelning |
+| `Super + Alt + [` | Gör webbkameraöverlägget mindre under inspelning |
+| `Super + Alt + ]` | Gör webbkameraöverlägget större under inspelning |
 | `Alt + Shift + L` | Kopiera aktuell URL från webbapp eller Chromium |
 | `Alt + Shift + D` | Ladda ner videon på den aktuella sidan till `~/Videos` |
 | `Alt + Space` | Starta/stoppa diktering (kräver _Setup > Defaults > Dictation_) |
 | `Right Alt` | Håll för att diktera (kräver _Setup > Defaults > Dictation_) |
 
-Vid skärminspelningar frågar snabbtangenten först vilket ljud du vill ha, och börjar sedan spela in. Tryck på den igen för att stoppa. Se [skärmbilder och inspelning](12-screenshots-recording.md) för detaljerna.
+Vid skärminspelningar frågar snabbtangenten först vilket ljud du vill ha, sedan startar inspelningen. Tryck på den igen för att stoppa. Se [skärmdumpar och inspelning](12-screenshots-recording.md) för detaljerna.
 
-Alla fångstalternativ finns också under _Trigger > Capture_ i Omarchy-menyn (`Super + Space`).
+Alla inspelningsalternativ finns också under _Trigger > Capture_ i Omarchy-menyn (`Super + Space`).
 
 ## Aviseringar
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Agera på senaste avisering: öppna den eller tryck på dess enda knapp, välj bland dess val, eller avfärda den när den inte har några  |
+| `Super + ,` | Agera på senaste aviseringen: öppna den eller tryck på dess enda knapp, välj bland dess alternativ, eller avfärda den när den inte har några  |
 | `Super + Shift + ,` | Avfärda alla aviseringar |
 | `Super + Ctrl + ,` | Styr aviseringar med tangentbordet  |
-| `Super + Alt + ,` | Avfärda senaste avisering  |
+| `Super + Alt + ,` | Avfärda senaste aviseringen  |
 | `Super + Shift + Alt + ,` | Öppna aviseringshistorik  |
-| `Super + Ctrl + Alt + ,` | Växla tysta aviseringar  |
+| `Super + Ctrl + Alt + ,` | Växla tystande av aviseringar  |
 
 ## Stil
 
@@ -184,7 +212,7 @@ Alla fångstalternativ finns också under _Trigger > Capture_ i Omarchy-menyn (`
 | `Super + Ctrl + T` | Välj ett nytt tema (även `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Välj temabakgrund (även `Super + Ctrl + Space`) |
 | `Super + Backspace` | Växla transparens på ett fönster |
-| `Super + Ctrl + Backspace` | Växla kvadratiskt format för enskilt fönster |
+| `Super + Ctrl + Backspace` | Växla kvadratiskt format för ett enskilt fönster |
 
 Extra bakgrundsbilder finns i `~/.config/omarchy/backgrounds/<theme name>`. Finns också via _Install > Style > Background_ i Omarchy-menyn.
 
@@ -197,25 +225,25 @@ Alla stilalternativ finns också under _Style_ i Omarchy-menyn (`Super + Space`)
 | `Super + Ctrl + I` | Växla låsning vid inaktivitet |
 | `Super + Ctrl + Delete` | Växla bärbara datorns skärm på/av |
 | `Super + Ctrl + Alt + Delete` | Växla spegling av bärbara datorns skärm |
-| `Super + Shift + Space` | Växla topplisten  |
+| `Super + Shift + Space` | Växla den övre listen  |
 | `Shift + Mute` | Växla till nästa ljudutgång |
 | `Shift + Play` | Växla till nästa mediakälla |
-| `Super + Shift + Backspace` | Växla fönsteravstånd |
-| `Super + Ctrl + Alt + F` | Växla helskärms skrivbord (topplist + fönsteravstånd) |
+| `Super + Shift + Backspace` | Växla fönstermellanrum |
+| `Super + Ctrl + Alt + F` | Växla helskärmsskrivbord (övre listen + fönstermellanrum) |
 
 ## Påminnelser
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + R` | Skapa en påminnelse  |
+| `Super + Ctrl + R` | Ställ in en påminnelse  |
 | `Super + Ctrl + Alt + R` | Se alla påminnelser  |
 | `Super + Ctrl + Shift + R` | Rensa alla påminnelser  |
 
-## Notiser
+## Meddelanden
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Visa tiden som avisering  |
+| `Super + Ctrl + Alt + T` | Visa tid som avisering  |
 | `Super + Ctrl + Alt + B` | Visa batteri som avisering  |
 | `Super + Ctrl + Alt + W` | Växla väder som avisering  |
 
@@ -223,71 +251,71 @@ Alla stilalternativ finns också under _Style_ i Omarchy-menyn (`Super + Space`)
 
 Prefix-tangenten är `Ctrl + Space` (`Ctrl + B` fungerar också). Du kan ändra dessa bindningar i `~/.config/tmux/tmux.conf`.
 
-### Paneler
+### Rutor
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Dela panel bredvid (vertikalt) |
-| `Prefix + h` | Dela panel nedanför (horisontellt) |
-| `Prefix + x` | Döda panelen |
-| `Prefix + z` | Växla panelzoom (helskärm) |
-| `Alt + Enter` | Dela panel nedanför (utan prefix) |
-| `Alt + Shift + Enter` | Dela panel bredvid (utan prefix) |
-| `Alt + Escape` | Döda panelen (utan prefix) |
-| `Ctrl + Alt + Arrows` | Flytta mellan paneler |
-| `Ctrl + Alt + Shift + Arrows` | Ändra storlek på paneler |
+| `Prefix + v` | Dela ruta bredvid (vertikal) |
+| `Prefix + h` | Dela ruta nedanför (horisontell) |
+| `Prefix + x` | Döda ruta |
+| `Prefix + z` | Växla rutzoom (helskärm) |
+| `Alt + Enter` | Dela ruta nedanför (utan prefix) |
+| `Alt + Shift + Enter` | Dela ruta bredvid (utan prefix) |
+| `Alt + Escape` | Döda ruta (utan prefix) |
+| `Ctrl + Alt + Arrows` | Flytta mellan rutor |
+| `Ctrl + Alt + Shift + Arrows` | Ändra storlek på rutor |
 
 ### Fönster
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Nytt fönster |
-| `Prefix + k` | Döda fönstret |
+| `Prefix + k` | Döda fönster |
 | `Prefix + r` | Byt namn på fönster |
 | `Alt + 1-9` | Gå till specifikt fönster |
 | `Alt + Arrow Left/Right` | Flytta mellan fönster |
-| `Alt + Shift + Arrow Left/Right` | Flytta fönster åt vänster/höger |
+| `Alt + Shift + Arrow Left/Right` | Flytta fönster vänster/höger |
 
 ### Sessioner
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Ny session |
-| `Prefix + K` | Döda sessionen |
+| `Prefix + K` | Döda session |
 | `Prefix + R` | Byt namn på session |
 | `Prefix + N` | Nästa session |
 | `Prefix + P` | Föregående session |
 | `Alt + Arrow Up/Down` | Flytta mellan sessioner |
 | `Prefix + s` | Lista sessioner |
-| `Prefix + d` | Koppla från sessionen |
+| `Prefix + d` | Koppla loss från session |
 
 ### Kopieringsläge (vi-stil)
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Gå in i kopieringsläge |
-| `v` | Börja markera (i kopieringsläge) |
+| `v` | Börja markering (i kopieringsläge) |
 | `y` | Kopiera markering (i kopieringsläge) |
 
 ### Allmänt
 
 | Snabbtangent                  | Funktion              |
 | ----------------------- | --------------------- |
-| `Prefix + q` | Ladda om konfigurationen |
+| `Prefix + q` | Ladda om konfiguration |
 | `Prefix + ?` | Visa Tmux-tangentbindningar |
 | `Prefix + :` | Kommandoprompt |
 
 ### Tmux-layoutfunktioner
 
-Dessa funktioner måste köras inne i en Tmux-session.
+Dessa funktioner måste köras inuti en Tmux-session.
 
 | Kommando | Funktion |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Skapa utvecklarlayout med redigerare, AI och terminal |
-| `tdlm <ai> [<second_ai>]` | Skapa utvecklarlayout per underkatalog |
-| `tsl <count> <command>` | Skapa svärmlayout med flera paneler |
+| `tdl <ai> [<second_ai>]` | Skapa dev-layout med redigerare, AI och terminal |
+| `tdlm <ai> [<second_ai>]` | Skapa dev-layout per underkatalog |
+| `tsl <count> <command>` | Skapa swarm-layout med flera rutor |
 
-## Ghostty-terminalen
+## Ghostty Terminal
 
 Ghostty-terminalen installeras med _Install > Terminal_ via Omarchy-menyn.
 
@@ -301,15 +329,15 @@ Ghostty-terminalen installeras med _Install > Terminal_ via Omarchy-menyn.
 | `Ctrl + Shift + T` | Ny flik  |
 | `Ctrl + Shift + Arrows` | Flytta mellan flikar |
 | `Alt + Numbers` | Gå till specifik flik |
-| `Shift + Pg Up/Down` | Rulla historiken |
-| `Ctrl + Left mouse` | Öppna länk i webbläsaren |
+| `Shift + Pg Up/Down` | Scrolla historiken |
+| `Ctrl + Left mouse` | Öppna länk i webbläsare |
 
 ## Filhanterare
 
 | Snabbtangent              | Funktion                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Gå till sökväg                     |
-| `Space`               | Förhandsgranska fil (pilarna navigerar) |
+| `Space`               | Förhandsgranska fil (pilar navigerar) |
 | `Alt + Up`       | Gå upp till överordnad mapp        |
 
 ## Neovim (med lazyvim)
@@ -324,7 +352,7 @@ Ghostty-terminalen installeras med _Install > Terminal_ via Omarchy-menyn.
 | `Space G G`                | Visa git-kontroller               |
 | `Space S G`                | Sök i filinnehåll             |
 | `Ctrl + W W`               | Hoppa mellan sidofält och redigerare |
-| `Ctrl + Left/right arrow`  | Ändra storlek på sidofältet          |
+| `Ctrl + Left/right arrow`  | Ändra storlek på sidofält          |
 | `Shift + H`                      | Gå till vänster filflik             |
 | `Shift + L`                      | Gå till höger filflik            |
 | `Space B D`                | Stäng filflik                  |
@@ -342,9 +370,9 @@ Ghostty-terminalen installeras med _Install > Terminal_ via Omarchy-menyn.
 
 [Se alla Neovim-snabbtangenter som konfigurerats av LazyVim](https://www.lazyvim.org/keymaps).
 
-## Snabba emojier
+## Snabba emojis
 
-Du kan använda `Super + Ctrl + E` för att visa en komplett emojiväljare som lägger valet på urklippet, eller så kan du använda dessa snabbval.
+Du kan använda `Super + Ctrl + E` för att visa en komplett emoji-väljare som lägger valet på urklippet, eller så kan du använda de här snabbåtkomstalternativen.
 
 | Snabbtangent       | EM | Ledtråd       |
 | ------------ | -- | ---------- |
@@ -359,10 +387,10 @@ Du kan använda `Super + Ctrl + E` för att visa en komplett emojiväljare som l
 | `Shift + CapsLock M W` | 🤞 | önskan       |
 | `Shift + CapsLock M R` | 🤘 | rock       |
 | `Shift + CapsLock M K` | 😘 | puss       |
-| `Shift + CapsLock M E` | 🙄 | ögonrullning    |
+| `Shift + CapsLock M E` | 🙄 | himlar med ögonen    |
 | `Shift + CapsLock M I` | 😉 | blinkning       |
-| `Shift + CapsLock M P` | 🙏 | be |
-| `Shift + CapsLock M D` | 🤤 | dregla      |
+| `Shift + CapsLock M P` | 🙏 | ber |
+| `Shift + CapsLock M D` | 🤤 | dreglar      |
 | `Shift + CapsLock M M` | 💰 | pengar      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
@@ -370,13 +398,13 @@ Du kan använda `Super + Ctrl + E` för att visa en komplett emojiväljare som l
 | `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | hälsning |
 | `Shift + CapsLock M A` |💪 | arm |
-| `Shift + CapsLock M B` |🤯 | sprängning |
+| `Shift + CapsLock M B` |🤯 | sprängs |
 
 ## Snabba kompletteringar
 
 | Snabbtangent       | Komplettering       |
 | ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (långt tankstreck)   |
+| `Shift + CapsLock Space Space` | — (mdash)   |
 | `Shift + CapsLock Space N` | Ditt namn (som det angavs vid installationen)  |
 | `Shift + CapsLock Space E` | Din e-post (som den angavs vid installationen)  |
 
