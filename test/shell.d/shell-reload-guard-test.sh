@@ -236,7 +236,7 @@ stop_shell
 
 # A failed pacman transaction never runs PostTransaction hooks, so the update
 # command's exit path must release the pause as well.
-grep -F 'guard=$(command -v omarchy-shell-reload-guard)' "$ROOT/bin/omarchy-update" >/dev/null &&
-  grep -F '"$guard" resume' "$ROOT/bin/omarchy-update" >/dev/null ||
+grep -F 'omarchy-cmd-present omarchy-shell-reload-guard' "$ROOT/bin/omarchy-update" >/dev/null &&
+  grep -F 'omarchy-shell-reload-guard resume' "$ROOT/bin/omarchy-update" >/dev/null ||
   fail "a failed update resumes paused shell plugin loads"
 pass "a failed update resumes paused shell plugin loads"

@@ -136,6 +136,9 @@ record_instance() {
     log "cannot create state directory $state_dir"
     return 0
   fi
+  # The update's failure path probes this directory as the user, so keep the
+  # state listable; the records hold no secrets.
+  chmod 0755 "$state_dir" 2>/dev/null || true
 
   key=$(printf '%s\n%s\n%s\n%s\n' "$runtime_dir" "$config_path" "$display" "$pid" | md5sum | cut -d' ' -f1)
   if ! printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
