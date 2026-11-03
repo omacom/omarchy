@@ -8,7 +8,8 @@
 # self-updating, so that is an agent's first use and every upgrade after it.
 # herdr only installs into a config directory the agent already made, and the
 # agent makes it on its first run, after this hook, so it is created here.
-# A failure only warns: the agent should still start.
+# A failure only warns: the agent should still start. Agents that don't come
+# from mise, like Hermes, name themselves as arguments from their installer.
 
 config=${XDG_CONFIG_HOME:-$HOME/.config}
 
@@ -27,6 +28,7 @@ while IFS= read -r tool; do
   http:devin) target=devin dir=$config/devin ;;
   npm:@kilocode/cli) target=kilo dir=$config/kilo ;;
   npm:@moonshot-ai/kimi-code) target=kimi dir=$HOME/.kimi-code ;;
+  hermes) target=hermes dir=${HERMES_HOME:-$HOME/.hermes} ;;
   *) continue ;;
   esac
 
@@ -34,6 +36,6 @@ while IFS= read -r tool; do
   if ! mkdir -p "$dir" || ! herdr integration install "$target" >/dev/null; then
     echo "Could not install the herdr integration for $target" >&2
   fi
-done < <(jq -r '.[].name' <<<"${MISE_INSTALLED_TOOLS:-[]}" 2>/dev/null)
+done < <(if (($#)); then printf '%s\n' "$@"; else jq -r '.[].name' <<<"${MISE_INSTALLED_TOOLS:-[]}" 2>/dev/null; fi)
 
 exit 0

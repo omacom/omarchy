@@ -31,3 +31,8 @@ done
 [[ ! -s $test_home/out.log ]] || fail "integrating stays quiet in the agent's first screen" "$(cat "$test_home/out.log")"
 pass "a first mise install integrates the agent with herdr"
 
+# Hermes comes from its app rather than mise, so its installer names it outright.
+"$ROOT/bin/omarchy-agent-integrate-herdr" hermes >"$test_home/out.log" 2>&1 || fail "integrating Hermes succeeds" "$(cat "$test_home/out.log")"
+[[ $(integration_state hermes) == "current" ]] || fail "naming Hermes integrates it with herdr" "$(herdr integration status)"
+[[ ! -s $test_home/out.log ]] || fail "integrating Hermes stays quiet" "$(cat "$test_home/out.log")"
+pass "naming an agent outside mise integrates it with herdr"
