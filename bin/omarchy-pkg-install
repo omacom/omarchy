@@ -15,12 +15,14 @@ fzf_args=(
   --color 'pointer:green,marker:green'
 )
 
-pkg_names=$(pacman -Slq | fzf "${fzf_args[@]}")
+# pacman -Sl marks installed packages; leave them out so picking one can't
+# upgrade it outside omarchy update.
+pkg_names=$(pacman -Sl | awk '$4 !~ /^\[installed/ { print $2 }' | fzf "${fzf_args[@]}")
 
 if [[ -n $pkg_names ]]; then
   source omarchy-sudo-keepalive
 
   # Convert newline-separated selections to space-separated for pacman
-  echo "$pkg_names" | tr '\n' ' ' | xargs sudo pacman -S --noconfirm
+  echo "$pkg_names" | tr '\n' ' ' | xargs sudo pacman -S --noconfirm --needed
   omarchy-show-done $?
 fi
