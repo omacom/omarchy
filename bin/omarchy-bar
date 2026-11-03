@@ -278,9 +278,16 @@ cmd_transparent() {
 
 # A bar capped along its edge paints a centered strip, so an ultrawide keeps
 # both ends of the bar within one glance. On a vertical bar the cap is its
-# height. Unset, the bar runs the whole edge, which reads as full.
+# height. Unset, the bar runs the whole edge, which reads as full. Read the
+# way the bar reads it (BarModel.normalizeMaxWidth): a number or a numeric
+# string, rounded to whole pixels, and anything else as no cap.
 current_max_width() {
-  jq -r '.bar.maxWidth // 0 | if type == "number" and . > 0 then floor else "full" end' "$(source_file)"
+  jq -r '
+    .bar.maxWidth
+    | if type == "string" then (tonumber? // 0) elif type == "number" then . else 0 end
+    | round
+    | if . > 0 then . else "full" end
+  ' "$(source_file)"
 }
 
 cmd_max_width() {
