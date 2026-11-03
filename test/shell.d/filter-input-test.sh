@@ -25,6 +25,8 @@ for (const [key, digit] of Object.entries(expected)) {
     `with NumLock off, keypad key ${Number(key).toString(16)} stays navigation`)
 }
 
+assertEqual(keypad.digitFor(0x01000010, K, ''), null,
+  'unset NumLock does not remap (avoids racing the hyprctl query)')
 assertEqual(keypad.digitFor(0x01000010, K | Alt, '', true), null, 'Alt+keypad does not type')
 assertEqual(keypad.digitFor(0x01000010, K | Meta, '', true), null, 'Super+keypad does not type')
 assertEqual(keypad.digitFor(0x01000010, K | Ctrl, '', true), null, 'Ctrl+keypad does not type')

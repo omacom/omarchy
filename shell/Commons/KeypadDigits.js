@@ -34,10 +34,11 @@ var NAVIGATION_TO_DIGIT = {
 }
 
 // The digit this key event should type, or null when it is not this case.
-// numLockOn is the compositor's NumLock (hyprctl devices); false means genuine
-// keypad navigation and must not be remapped.
+// numLockOn must be strictly true (compositor NumLock from hyprctl). Anything
+// else — false, unset, or still loading — leaves keypad navigation alone so a
+// genuine NumLock-off seat never types digits while the query is in flight.
 function digitFor(key, modifiers, text, numLockOn) {
-  if (numLockOn === false) return null
+  if (numLockOn !== true) return null
   modifiers = modifiers || 0
   if ((modifiers & SHORTCUT_MODIFIERS) !== 0) return null
   if ((modifiers & KEYPAD_MODIFIER) === 0) return null

@@ -9,8 +9,9 @@ TextInput {
 
   // Sees every key first; whatever it leaves unaccepted is typed here.
   property Item keyHandler: null
-  // Compositor NumLock. When false, keypad Home/arrows stay navigation.
-  property bool compositorNumLock: true
+  // Compositor NumLock. Must be true before desynced keypad keys type digits;
+  // false/unknown leaves Home/arrows as navigation.
+  property bool compositorNumLock: false
 
   focus: true
   clip: true

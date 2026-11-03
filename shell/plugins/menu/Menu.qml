@@ -15,13 +15,16 @@ Item {
   property var shell: null
   property var manifest: null
 
-  // Compositor NumLock from hyprctl. Defaults true (Omarchy's numlock_by_default);
-  // when false, keypad Home/arrows stay navigation instead of digits.
-  property bool compositorNumLock: true
+  // Compositor NumLock from hyprctl. Starts false until the query returns so a
+  // NumLock-off seat never types digits during the race; once true, desynced
+  // keypad keys map to digits.
+  property bool compositorNumLock: false
 
   // Plugin lifecycle hooks. The host calls open(payloadJson) after
   // `omarchy-shell shell summon omarchy.menu ...` and close() when hidden.
   property string pendingInitialMenu: "root"
+
+  Component.onCompleted: root.refreshCompositorNumLock()
 
   function open(payloadJson) {
     var payload = ({})
