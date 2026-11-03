@@ -119,10 +119,18 @@ if "�" in text:
 pass "the menu emits well-formed UTF-8"
 
 ascii_menu=$(menu COLUMNS=100 OMARCHY_BBS_UNICODE=0)
-LC_ALL=C printf '%s' "$ascii_menu" | grep -q '[^[:print:][:space:]'$'\033'']' &&
-  fail "the ASCII fallback stays inside ASCII"
-[[ $(printf '%s' "$ascii_menu" | strip_ansi) == *"[S] STATUS"* ]] || fail "the ASCII fallback still lists the doors"
-pass "the ASCII fallback stays inside ASCII and still lists the doors"
+printf '%s' "$ascii_menu" | python3 -c '
+import re
+import sys
+
+plain = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", sys.stdin.read())
+assert plain.isascii(), "ASCII mode emitted non-ASCII characters"
+footer = next(line for line in plain.splitlines() if "select" in line)
+assert "[Up/Down] select" in footer, "ASCII navigation label is missing"
+assert len(footer) == 100, "ASCII footer measurement disagrees with its rendering"
+assert "[T] THEME" in plain, "ASCII mode is missing the theme door"
+' || fail "the ASCII fallback draws its navigation legend and aligned footer"
+pass "the ASCII fallback stays inside ASCII with an aligned footer and theme door"
 
 # Two panes need the width for two panes. A narrow terminal gets the list.
 narrow=$(menu COLUMNS=70)

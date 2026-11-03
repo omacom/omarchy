@@ -24,16 +24,15 @@ printf '%s' "$OMARCHY_BBS_CONSOLE_PALETTE"
 
 if [[ ${OMARCHY_BBS_UNICODE:-1} == "1" ]]; then
   TL="┌"; TR="┐"; BL="└"; BR="┘"; HR="─"; VR="│"
-  SEP=" ▪ "; TICK="✓"; FULL="▓"; EMPTY="░"; MARK="▌"; ELLIPSIS="…"
+  SEP=" ▪ "; TICK="✓"; FULL="▓"; EMPTY="░"; MARK="▌"; ELLIPSIS="…"; NAVIGATION="↑↓"
 else
   TL="+"; TR="+"; BL="+"; BR="+"; HR="-"; VR="|"
-  SEP=" - "; TICK="+"; FULL="#"; EMPTY="."; MARK=">"; ELLIPSIS="~"
+  SEP=" - "; TICK="+"; FULL="#"; EMPTY="."; MARK=">"; ELLIPSIS="~"; NAVIGATION="Up/Down"
 fi
 
 LEFT_W=44
 RIGHT_W=34
 
-# Build the keys and labels dynamically, omitting entries that can't work yet
 KEYS=() LABELS=() HINTS=()
 KEYS+=(S) LABELS+=("STATUS") HINTS+=("")
 KEYS+=(D) LABELS+=("DOCKER") HINTS+=("")
@@ -42,10 +41,7 @@ KEYS+=(U) LABELS+=("UPDATE") HINTS+=("")
 KEYS+=(L) LABELS+=("LOGS") HINTS+=("")
 KEYS+=(B) LABELS+=("BACKUP") HINTS+=("")
 KEYS+=(N) LABELS+=("NETWORK") HINTS+=("")
-# Theme door requires the palette bridge
-if omarchy-cmd-present omarchy-server-palette; then
-  KEYS+=(T) LABELS+=("THEME") HINTS+=("")
-fi
+KEYS+=(T) LABELS+=("THEME") HINTS+=("")
 KEYS+=(G) LABELS+=("GOODBYE") HINTS+=("")
 KEYS+=(Q) LABELS+=("QUIT TO SHELL") HINTS+=("")
 selected=0
@@ -326,13 +322,13 @@ draw() {
 
   frame+=$'\n'
 
-  local legend_plain="  [↑↓] select  [ENTER] open  [hotkey] jump  [Q] shell"
+  local legend_plain="  [$NAVIGATION] select  [ENTER] open  [hotkey] jump  [Q] shell"
   local signature_plain="${USER:-$(id -un 2>/dev/null || echo user)}@${host}${SEP}node ${node}  "
   local legend_pad=$(( cols - ${#legend_plain} - ${#signature_plain} ))
   (( legend_pad > 0 )) || legend_pad=1
 
-  frame+=$(printf '  %s[%s↑↓%s] select  [%sENTER%s] open  [%shotkey%s] jump  [%sQ%s] shell%s%*s%s%s%s' \
-    "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
+  frame+=$(printf '  %s[%s%s%s] select  [%sENTER%s] open  [%shotkey%s] jump  [%sQ%s] shell%s%*s%s%s%s' \
+    "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_KEY" "$NAVIGATION" "$OMARCHY_BBS_DIM" \
     "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
     "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
     "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET" \
@@ -361,11 +357,6 @@ door() {
   raw_terminal
   printf '\033[?25l'
   return $status
-}
-
-missing() {
-  printf '\n  %s%s is not installed on this machine.%s\n' \
-    "$OMARCHY_BBS_WARN" "$1" "$OMARCHY_BBS_RESET"
 }
 
 hold() {
@@ -503,18 +494,10 @@ door_backup() {
 open_door() {
   case "${KEYS[$selected]}" in
     S) door btop ;;
-    D)
-      if omarchy-cmd-present lazydocker; then door lazydocker; else missing lazydocker; hold; fi
-      ;;
+    D) door lazydocker ;;
     V) door_services ;;
     U) door omarchy-update; hold ;;
-    L)
-      if omarchy-cmd-present lazyjournal; then
-        door lazyjournal
-      else
-        door journalctl --pager-end
-      fi
-      ;;
+    L) door lazyjournal ;;
     B) door_backup ;;
     N) door_network ;;
     T) door_theme ;;
