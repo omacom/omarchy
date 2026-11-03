@@ -133,6 +133,8 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ xdg-terminal-exec/*.list                           /usr/share/xdg-terminal-exec/
   ├─ applications/mimeapps.list                         /usr/share/applications/mimeapps.list
   ├─ systemd/user/*.service                             /usr/lib/systemd/user/
+  ├─ systemd/user-environment-generators/*              /usr/lib/systemd/user-environment-generators/
+  ├─ systemd/system/docker.socket.d/*                   /usr/lib/systemd/system/docker.socket.d/
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
   ├─ systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf  /usr/lib/systemd/user/wireplumber.service.d/
   ├─ systemd/system-sleep/unmount-fuse                  /usr/lib/systemd/system-sleep/

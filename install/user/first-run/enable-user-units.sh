@@ -19,6 +19,7 @@ systemctl --user daemon-reload
 # one unit, and that should not cost the session its bluetooth agent as well.
 failed=0
 for unit in \
+  docker.service \
   bt-agent.service \
   owed.service \
   omarchy-recover-internal-monitor.service \

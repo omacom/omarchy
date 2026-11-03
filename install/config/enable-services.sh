@@ -3,7 +3,10 @@
 systemctl enable cups.service
 systemctl enable avahi-daemon.service
 systemctl enable linux-modules-cleanup.service
+# The root-owned socket is reserved for authenticated Windows VM operations.
 systemctl enable docker.socket
+# Development Docker is enabled per user only after subordinate IDs and that
+# account's daemon configuration have been installed.
 systemctl enable systemd-resolved.service
 systemctl enable NetworkManager.service
 # Don't let network-online.target hold up graphical.target waiting for
