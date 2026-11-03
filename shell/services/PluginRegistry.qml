@@ -442,8 +442,9 @@ QtObject {
     else delete config.cloneSourceRestores
   }
 
-  function activeCloneFor(config, sourceId) {
+  function activeCloneFor(config, sourceId, exceptId) {
     for (var candidate in installedPlugins) {
+      if (candidate === exceptId) continue
       var candidateManifest = installedPlugins[candidate]
       var candidateMetadata = candidateManifest && Util.isPlainObject(candidateManifest.omarchy)
         ? candidateManifest.omarchy : null
@@ -457,7 +458,7 @@ QtObject {
     return ""
   }
 
-  function restoreCloneSource(config, cloneId, sourceId) {
+  function restoreCloneSource(config, cloneId, sourceId, dropEntry) {
     var cloneManifest = installedPlugins[cloneId]
     var isBarOption = cloneManifest && Array.isArray(cloneManifest.kinds)
       && cloneManifest.kinds.indexOf("bar") !== -1
@@ -466,7 +467,9 @@ QtObject {
       else config.bar.id = sourceId
     } else {
       var cloneLocation = findEntryLocation(config, cloneId)
-      if (cloneLocation.kind === "bar") {
+      if (cloneLocation.kind === "bar" && dropEntry) {
+        config.bar.layout[cloneLocation.section].splice(cloneLocation.index, 1)
+      } else if (cloneLocation.kind === "bar") {
         var cloneEntry = config.bar.layout[cloneLocation.section][cloneLocation.index]
         var sections = Util.barSections
         for (var s = 0; s < sections.length; s++) {
@@ -584,7 +587,9 @@ QtObject {
         return
       }
 
-      if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
+      // Another clone of the same source already stands in for it, so this
+      // one was an extra entry: dropping it must not bring the source back.
+      if (clonedFrom) restoreCloneSource(config, key, clonedFrom, activeCloneFor(config, clonedFrom, key) !== "")
       else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
       else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
 

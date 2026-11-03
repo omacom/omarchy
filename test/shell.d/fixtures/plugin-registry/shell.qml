@@ -96,6 +96,9 @@ ShellRoot {
     var localWidget = manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
     localWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
     scan += block("thirdparty", "/third/local-widget", localWidget)
+    var friendWidget = manifest("friend.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
+    friendWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
+    scan += block("thirdparty", "/third/friend-widget", friendWidget)
     var localWeather = manifest("local.weather", ["bar-widget"], { barWidget: "Widget.qml" })
     localWeather.omarchy = { clonedFrom: "omarchy.weather" }
     scan += block("thirdparty", "/third/local-weather", localWeather)
@@ -129,6 +132,7 @@ ShellRoot {
     registry.parseScanOutput(scan)
 
     root.assertDeepEqual(pluginIds(), [
+      "friend.first-widget",
       "local.bar",
       "local.first-widget",
       "local.future-auth",
@@ -393,6 +397,25 @@ ShellRoot {
       root.config.bar.layout.center,
       [{ id: "omarchy.first-widget", size: 4 }],
       "disabling a widget clone restores its source in place"
+    )
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [{ id: "omarchy.first-widget", size: 4 }], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("local.first-widget", true)
+    registry.setEnabled("friend.first-widget", true)
+    registry.setEnabled("friend.first-widget", false)
+    root.assertDeepEqual(
+      root.config.bar.layout.center,
+      [{ id: "local.first-widget", size: 4 }],
+      "disabling a second clone leaves the first clone in its source's place"
+    )
+    root.assertTrue(
+      !registry.findEntryLocation(root.config, "omarchy.first-widget").found
+        && !registry.findEntryLocation(root.config, "friend.first-widget").found,
+      "disabling a second clone adds no copy of the source"
     )
 
     root.config = {
