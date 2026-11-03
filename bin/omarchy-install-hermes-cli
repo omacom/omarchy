@@ -38,8 +38,20 @@ fi
 export HERMES_HOME
 
 runtime="$HERMES_HOME/hermes-agent"
-native_app="$runtime/apps/desktop/release/linux-unpacked"
 command_path="$HOME/.local/bin/hermes"
+
+# The packaged app is seeded under the directory electron-builder gives the
+# machine's architecture, so the rebuild `hermes update` runs replaces it in
+# place instead of landing beside it. ARM machines set up before this have it
+# under the x86_64 name, which still counts rather than being seeded again.
+release_dir="$runtime/apps/desktop/release"
+native_app="$release_dir/linux-unpacked"
+if omarchy-hw-aarch64; then
+  arm_app="$release_dir/linux-arm64-unpacked"
+  if [[ -e $arm_app || -L $arm_app || ( ! -e $native_app && ! -L $native_app ) ]]; then
+    native_app=$arm_app
+  fi
+fi
 
 # The wrapper the retired mise-backed installer wrote, matched whole so a
 # wrapper that merely mentions it is not mistaken for it, and the tool it
@@ -497,7 +509,7 @@ fi
 refuse_unless_seedable || exit 1
 if [[ ! -e $native_app && ! -L $native_app ]]; then
   mkdir -p -- "${native_app%/*}"
-  staging=$(mktemp -d "${native_app%/*}/.linux-unpacked.XXXXXX")
+  staging=$(mktemp -d "${native_app%/*}/.${native_app##*/}.XXXXXX")
   trap 'rm -rf -- "$staging"' EXIT
   cp -a /opt/hermes-desktop/. "$staging/"
   chmod 0755 "$staging/chrome-sandbox"
