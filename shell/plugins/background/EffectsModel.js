@@ -31,6 +31,7 @@
 // BackgroundEffects.qml.
 
 var maxEntries = 32
+var maxWarnings = 8
 
 function sidecarPath(backgroundPath) {
   var path = String(backgroundPath || "")
@@ -60,9 +61,13 @@ function pair(value, positive) {
   return { x: x, y: y }
 }
 
+// Takes #rrggbb or #rrggbbaa, as CSS and image editors write them, and
+// returns what a QML color reads, which puts the alpha first: #aarrggbb.
 function color(value) {
   var text = String(value || "")
-  return /^#([0-9a-f]{6}|[0-9a-f]{8})$/i.test(text) ? text : ""
+  if (/^#[0-9a-f]{6}$/i.test(text)) return text
+  if (/^#[0-9a-f]{8}$/i.test(text)) return "#" + text.slice(7) + text.slice(1, 7)
+  return ""
 }
 
 // Each parser returns the entry, or a string saying what is wrong with it.
@@ -119,10 +124,17 @@ var parsers = {
 // dropped on its own, so one typo does not take the rest down, and an effect
 // this version does not know is skipped, so a sidecar written for a newer
 // Omarchy still shows what this one can draw.
+// Both the entries looked at and the warnings kept are bounded, so a huge
+// broken file cannot stall the shell or flood its log.
 function parse(text) {
   var effects = {}
   var warnings = []
   for (var type in parsers) effects[type] = []
+
+  function warn(message) {
+    if (warnings.length < maxWarnings) warnings.push(message)
+    else if (warnings.length === maxWarnings) warnings.push("further problems not listed")
+  }
 
   var data
   try {
@@ -138,22 +150,20 @@ function parse(text) {
     // Only the types listed here, not names every object inherits.
     var parser = Object.prototype.hasOwnProperty.call(parsers, key) ? parsers[key] : null
     if (!parser) {
-      warnings.push("unknown effect \"" + key + "\" skipped")
+      warn("unknown effect \"" + key + "\" skipped")
       continue
     }
     if (!Array.isArray(data[key])) {
-      warnings.push(key + " must be a list")
+      warn(key + " must be a list")
       continue
     }
-    for (var i = 0; i < data[key].length; i++) {
-      if (effects[key].length >= maxEntries) {
-        warnings.push(key + " beyond the first " + maxEntries + " skipped")
-        break
-      }
+    var count = Math.min(data[key].length, maxEntries)
+    for (var i = 0; i < count; i++) {
       var entry = parser(data[key][i])
-      if (typeof entry === "string") warnings.push(key + "[" + i + "] skipped: " + entry)
+      if (typeof entry === "string") warn(key + "[" + i + "] skipped: " + entry)
       else effects[key].push(entry)
     }
+    if (data[key].length > maxEntries) warn(key + " beyond the first " + maxEntries + " skipped")
   }
   return { effects: effects, warnings: warnings }
 }
@@ -189,6 +199,7 @@ function pupilOffset(eye, dx, dy, reach) {
 if (typeof module !== "undefined") {
   module.exports = {
     maxEntries: maxEntries,
+    maxWarnings: maxWarnings,
     sidecarPath: sidecarPath,
     parse: parse,
     cropTransform: cropTransform,

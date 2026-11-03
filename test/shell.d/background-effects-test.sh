@@ -31,6 +31,10 @@ assertDeepEqual(parsed.effects.eyes[0].pupil.travel, { x: 40 - 16 * 1.1, y: 36 -
 const malformed = effects.parse('{ not json')
 assert(malformed.effects.eyes.length === 0 && malformed.warnings.length === 1, 'malformed JSON gives no effects and says why', JSON.stringify(malformed))
 assertEqual(effects.parse(JSON.stringify({ eyes: Array(100).fill(eye()) })).effects.eyes.length, effects.maxEntries, 'a sidecar cannot ask for unbounded eyes')
+const broken = effects.parse(JSON.stringify({ eyes: Array(100000).fill({}) }))
+assert(broken.effects.eyes.length === 0 && broken.warnings.length === effects.maxWarnings + 1, 'a huge broken list is looked at only up to the cap and logs a bounded few lines', JSON.stringify(broken.warnings.length))
+const translucent = effects.parse(JSON.stringify({ eyes: [eye({ color: '#ffffff80' })] })).effects.eyes[0]
+assertEqual(translucent.color, '#80ffffff', '#rrggbbaa is passed to QML alpha first, as it reads colors')
 const newer = effects.parse(JSON.stringify({ sparkles: [{}], eyes: [eye()] }))
 assert(newer.effects.eyes.length === 1 && newer.warnings[0].includes('sparkles'), 'an effect this version does not know is skipped without losing the ones it does', JSON.stringify(newer))
 const inherited = effects.parse('{"toString": [1], "constructor": [1], "__proto__": [1], "eyes": [' + JSON.stringify(eye()) + ']}')
