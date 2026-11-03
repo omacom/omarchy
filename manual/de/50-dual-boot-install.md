@@ -1,44 +1,44 @@
 # Dual-Boot-Installation
 
-Du kannst Omarchy in einer einzelnen Partition neben Windows oder anderen Installationen installieren.
+Du kannst Omarchy auf einer einzelnen Partition neben Windows oder anderen Installationen installieren.
 
-Diese Installationsmethode kommt standardmäßig trotzdem mit LUKS-Verschlüsselung für die Partition, sodass sie sich effektiv nicht von einer kompletten Platteninstallation unterscheidet und einfach freien Speicherplatz auf der Platte braucht.
+Diese Installationsmethode nutzt standardmäßig weiterhin LUKS-Verschlüsselung für die Partition, sodass sie sich effektiv nicht von einer Installation auf dem gesamten Laufwerk unterscheidet und lediglich freien Speicherplatz auf der Festplatte erfordert.
 
-## Platz unter Windows schaffen
+## Platz auf Windows schaffen
 
-Um neben Windows zu installieren, tippe `disk management` in das Startmenü und wähle die Option **Create and format hard disk partitions**.
+Um Omarchy neben Windows zu installieren, gib `disk management` in das Startmenü ein und wähle die Option **Create and format hard disk partitions** aus.
 
  ![dual-boot-1](images/dual-boot-1.webp)
 
-Finde die passende Partition, klicke mit der rechten Maustaste und wähle **Shrink Volume**.
+Finde die entsprechende Partition, klicke mit der rechten Maustaste darauf und wähle **Shrink Volume**.
 
 ![dual-boot-2](images/dual-boot-2.webp)
 
- Gib ein, um wie viel du das Volume verkleinern willst. Beachte, dass das die Größe deiner zukünftigen Omarchy-Installation einschließlich der Boot-Partition ist.
+ Gib den Betrag ein, um den du das Volume verkleinern möchtest. Beachte, dass dies die Größe deiner zukünftigen Omarchy-Installation einschließlich der Boot-Partition sein wird.
 
  ![dual-boot-3](images/dual-boot-3.webp)
 
-Wenn du fertig bist, solltest du etwas wie hier sehen, wo der 50-GB-Abschnitt in diesem Beispiel der ist, in dem wir Omarchy installieren.
+Wenn du fertig bist, solltest du etwas wie dies sehen, wobei der 50GB-Abschnitt in diesem Beispiel der Bereich ist, in dem wir Omarchy installieren werden.
 
  ![dual-boot-4](images/dual-boot-4.webp)
 
 ## Omarchy installieren
 
-Der Installationsprozess für Omarchy ist effektiv derselbe wie normal. Nachdem du deine Platte ausgewählt hast, bekommst du die Option **Free space install**. Wähle diese Option, um zu verhindern, dass die gesamte Platte gelöscht wird.
+Der Installationsprozess für Omarchy ist effektiv derselbe wie normal. Nachdem du deine Festplatte ausgewählt hast, erhältst du die Option **Free space install**. Wähle diese Option aus, um zu verhindern, dass die gesamte Festplatte gelöscht wird.
 
  ![dual-boot-5](images/dual-boot-5.webp)
 
-Bestätige, dass alles gut aussieht, und warte wie gewohnt, bis die Installation fertig ist. Hier könntest du dich auch entscheiden, unverschlüsselt zu installieren (nicht empfohlen), genau wie bei einer Installation auf der ganzen Platte.
+Bestätige, dass alles gut aussieht, und warte wie gewohnt, bis die Installation abgeschlossen ist. Hier könntest du dich auch dafür entscheiden, unverschlüsselt zu installieren (nicht empfohlen), genau wie bei einer Installation auf dem gesamten Laufwerk.
  ![dual-boot-6](images/dual-boot-6.webp)
 
 ## Andere Installationen zum Bootloader hinzufügen
 
-Wenn deine Omarchy-Installation fertig ist, wirst du feststellen, dass jetzt der Limine-Bootloader der Standard ist. Damit kannst du auch Optionen zu Limine für deine anderen Installationen wie Windows hinzufügen.
+Wenn du deine Omarchy-Installation abgeschlossen hast, wirst du feststellen, dass der Limine-Bootloader jetzt der Standard ist. Damit kannst du Limine auch Optionen für deine anderen Installationen wie Windows hinzufügen.
 
-Führe dazu `limine-scan` aus und folge den Anweisungen, um hinzuzufügen, welche Einträge du in deiner Limine-Konfiguration willst. Beim Booten siehst du dann deine normalen Optionen für Omarchy sowie den Windows Boot Manager oder andere.
+Um andere Betriebssysteme hinzuzufügen, führe `limine-scan` aus und folge den Anweisungen, um die gewünschten Einträge zu deiner Limine-Konfiguration hinzuzufügen. Das Boot-Menü bleibt standardmäßig verborgen und startet Omarchy nach einer Sekunde. Um Windows oder einen anderen Eintrag auszuwählen, drücke eine beliebige Taste, sobald Limine startet; wenn das Menü erscheint, verwende die Pfeiltasten, um einen Eintrag auszuwählen, und drücke Enter. Wenn Omarchy startet, bevor du eine Taste drückst, starte neu und versuche es erneut. Wenn du _Setup > Direct Boot_ aktiviert hast, überspringt die Firmware Limine vollständig, also wähle Limine aus deinem BIOS-Boot-Menü aus oder führe _Setup > Direct Boot_ erneut aus, um den Eintrag zu entfernen.
 
 ## Bitlocker
 
-Wichtig ist, dass diese Installationsmethode nicht mit Bitlocker kompatibel ist, weil es das gesamte Laufwerk verschlüsselt, nicht nur die Partition. Wenn ein Fehler erscheint, der sagt, dass Bitlocker aktiviert ist, boote in Windows, gehe zu **Settings -> Privacy & Security -> Device encryption** und schalte Bitlocker aus. Die Entschlüsselung des Laufwerks kann einige Zeit dauern.
+Es ist wichtig zu beachten, dass diese Installationsmethode nicht mit Bitlocker kompatibel ist, da Bitlocker das gesamte Laufwerk verschlüsselt, nicht nur die Partition. Wenn du einen Fehler erhältst, der besagt, dass Bitlocker aktiviert ist, starte Windows, gehe zu **Settings -> Privacy & Security -> Device encryption** und schalte Bitlocker aus. Es kann einige Zeit dauern, das Laufwerk zu entschlüsseln.
 
  ![dual-boot-7](images/dual-boot-7.webp)

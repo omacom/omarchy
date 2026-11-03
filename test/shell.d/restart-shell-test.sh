@@ -60,8 +60,27 @@ cat >"$restart_bin/quickshell" <<'SH'
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 
+# Other configs' instances, one "<config dir> <pid>" per line.
+strays=${OMARCHY_TEST_QS_STRAYS:-/nonexistent}
+
 case " $* " in
+  *' list '*)
+    [[ -f $strays ]] && jq -R -s -c 'split("\n") | map(select(length > 0) | split(" ") | {config_path: (.[0] + "/shell.qml"), pid: (.[1] | tonumber)})' "$strays"
+    ;;
   *' kill -p '*)
+    if [[ $3 != "$OMARCHY_TEST_SESSION_PATH/shell" ]]; then
+      pid=$(awk -v dir="$3" '$1 == dir { print $2; exit }' "$strays" 2>/dev/null)
+      [[ $pid =~ ^[0-9]+$ ]] || exit 1
+      # The instance outlasts the client's timeout and exits a moment later.
+      (
+        sleep 0.5
+        kill "$pid" 2>/dev/null
+        awk -v dir="$3" '$1 != dir' "$strays" >"$strays.next"
+        mv "$strays.next" "$strays"
+      ) &
+      exit 124
+    fi
+
     pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
     [[ $pid =~ ^[0-9]+$ ]] || exit 1
     kill "$pid" 2>/dev/null
@@ -72,6 +91,7 @@ case " $* " in
   *' -n -p '*)
     printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
     printf '303\n' >"$OMARCHY_TEST_QS_STATE"
+    [[ ! -f $strays ]] || cp "$strays" "$strays.at-launch"
     ;;
 esac
 SH
@@ -271,3 +291,41 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# A worktree's shell left running after a visual check holds the notification
+# server and is out of omarchy-shell's reach, so a restart stops it too. A
+# Quickshell config that is not an Omarchy tree is someone else's and stays.
+worktree_root="$test_tmp/worktree"
+other_root="$test_tmp/other"
+mkdir -p "$worktree_root/shell" "$worktree_root/bin" "$other_root/shell"
+ln -s "$ROOT/bin/omarchy-launch-shell" "$worktree_root/bin/omarchy-launch-shell"
+sleep 30 &
+restart_pid_one=$!
+sleep 30 &
+restart_pid_two=$!
+printf '%s %s\n%s %s\n' "$worktree_root/shell" "$restart_pid_one" "$other_root/shell" "$restart_pid_two" >"$test_tmp/strays"
+printf '303\n' >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_STRAYS="$test_tmp/strays" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart with a worktree shell running succeeds"
+
+if kill -0 "$restart_pid_one" 2>/dev/null; then
+  fail "restart stops a worktree's shell" "$(cat "$restart_log")"
+fi
+! grep -q "^$worktree_root/shell " "$test_tmp/strays.at-launch" || fail "restart waits for a slow worktree shell to exit before launching"
+kill -0 "$restart_pid_two" 2>/dev/null || fail "restart leaves a Quickshell config outside Omarchy running"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
+pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
