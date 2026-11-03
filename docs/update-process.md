@@ -114,6 +114,16 @@ hook runs `omarchy-hyprland-reload-guard resume`, forces one `hyprctl reload`,
 and restores the session's previous `misc.disable_autoreload` and
 `debug.suppress_errors` values.
 
+## Directory accounts (SSSD)
+
+`omarchy setup ad` joins an Active Directory domain and lets `omarchy-apply-sssd` add `sss` to `nsswitch.conf` and point `su` at the system PAM stack. The `omarchy-settings` post-upgrade scriptlet copies `/etc/nsswitch.conf` from `etc-overrides/` on every upgrade (see [`file-layout.md`](file-layout.md)), which drops `sss` again: SSSD keeps running, but `id` and sudo group lookups answer "no such user" for every directory account.
+
+A migration would run once per user and never again, and a repair that asks `sudo` fails for the people it is for: without `sss`, `sudo` can no longer look a directory account up, whatever its cached credentials. So the repair runs as root inside the transaction that removes `sss`. `omarchy-apply-sssd-hook` writes a local pacman hook, `/etc/pacman.d/hooks/50-omarchy-sssd.hook`, that runs `omarchy-apply-sssd` as a `PostTransaction` action for `omarchy-settings` (and `omarchy-settings-dev`), after the scriptlet and before anything else asks for `sudo`. Because it belongs to pacman rather than to the update, it covers every Omarchy-run transaction (`omarchy update`, `refresh pacman`, `reinstall pkgs`, `channel set`) and a direct `pacman -Syu` too. Deleting the file stops it.
+
+The hook has to exist before that transaction starts, so `omarchy update` runs `omarchy-apply-sssd-hook` ahead of the package upgrade, while `sudo` still knows the account running the update. That is how a machine joined before the hook existed gets it, and `omarchy setup ad` runs it as well. The one update that first brings this code is not covered: the code only exists once that transaction has finished, so a directory account running that update can still lose `sudo` midway, and a local account is unaffected. Closing that gap takes a hook shipped by the Omarchy package itself.
+
+After the package transaction `omarchy update` also runs `omarchy-apply-sssd`, as a backstop for a machine whose hook could not be installed. Where the hook has already run there is nothing left to change, so it asks for no privileges. A failure of either step is reported and the update carries on. Both do nothing unless the SSSD service is enabled, write a file only when its content changes, and `omarchy-apply-sssd` reads both files before writing either, so a failed read never blanks one. The lock screen needs no step of its own: no package owns `omarchy-lock-password`, so an update leaves its `pam_sss` lines alone, and `omarchy-apply-lock` writes them whenever it runs on a machine with SSSD, which `omarchy setup ad` does.
+
 ## Path 1: `omarchy update`
 
 High-level flow:
@@ -134,7 +144,9 @@ omarchy-update
   │  installed but unconfigured fails the snapshot loudly, pointing at
   │  install/config/snapper.sh, and the update continues without one)
   ├─ omarchy-update-stay-awake start
+  ├─ install the SSSD pacman hook (omarchy-apply-sssd-hook), a no-op unless SSSD is set up
   ├─ run system-package updates
+  ├─ re-apply the SSSD setup (omarchy-apply-sssd), a backstop: nothing to do once the pacman hook ran
   ├─ run migrations
   ├─ automatically remove orphan packages and run log analysis
   ├─ clear the shell update indicator: the update just installed what it showed

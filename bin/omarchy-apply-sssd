@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# omarchy:summary=Let SSSD (directory) accounts through user lookup and su, where SSSD is set up
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -e
+
+# A package hook runs this as root, and so can an update that was started as
+# root. Ignore their PATH so nothing falls through to a user-writable directory.
+if (( EUID == 0 )); then
+  export PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin
+fi
+
+# Root writes directly. A directory account can't ask sudo once sss is gone from
+# nsswitch.conf, which is why the pacman hook this is run from matters: it runs
+# as root inside the transaction that removes sss.
+as_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+sssd_pam_module=/usr/lib/security/pam_sss.so
+nsswitch=/etc/nsswitch.conf
+su_pam=/etc/pam.d/su
+
+# SSSD is optional, and a settings update rewrites nsswitch.conf without it.
+# Joining a domain enables the service, which is the sign it is set up:
+# /etc/sssd is readable by root only, so its configuration can't be probed here.
+sssd_is_set_up() {
+  [[ -f $sssd_pam_module ]] && systemctl is-enabled --quiet sssd.service 2>/dev/null
+}
+
+# Install the content over the target only when it differs, so a machine that
+# is already set up runs no privileged command at all. The content goes in on
+# stdin, so there is no temporary file to replace between the edit and the copy.
+# An empty result means the file could not be read, and would blank the target.
+install_if_changed() {
+  local target="$1" content="$2"
+
+  if [[ -z $content ]]; then
+    echo "omarchy-apply-sssd: nothing to write to $target; leaving it alone." >&2
+    return 1
+  fi
+
+  if ! cmp -s <(printf '%s\n' "$content") "$target"; then
+    printf '%s\n' "$content" | as_root install -Dm644 /dev/stdin "$target"
+    echo "Updated $target"
+  fi
+}
+
+if sssd_is_set_up; then
+  # Both files are read before either is written, as plain assignments so that
+  # a failed read stops the script (set -e ignores a failure inside an
+  # argument) and one file is never changed while the other can't be.
+  #
+  # Without sss in nsswitch.conf, SSSD runs and is online but `id` and sudo
+  # group lookups answer "no such user" for every directory account.
+  nsswitch_content=$(sed -E '/^(passwd|group|shadow|gshadow):/{/[[:space:]]sss([[:space:]]|$)/!s/[[:space:]]*$/ sss/}' "$nsswitch")
+  # su asks pam_unix alone, which never sees a directory account's password.
+  su_content=$(sed -E 's/^(auth|account|session)[[:space:]]+required[[:space:]]+pam_unix\.so[[:space:]]*$/\1 include system-auth/' "$su_pam")
+
+  install_if_changed "$nsswitch" "$nsswitch_content"
+  install_if_changed "$su_pam" "$su_content"
+fi

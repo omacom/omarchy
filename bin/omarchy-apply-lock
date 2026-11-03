@@ -28,17 +28,42 @@ as_root() {
 
 echo "Configuring lock screen password authentication..."
 
-as_root tee /etc/pam.d/omarchy-lock-password >/dev/null <<'EOF'
-#%PAM-1.0
-auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120
--auth      [success=2 default=ignore]  pam_systemd_home.so
-auth       [success=1 default=bad]     pam_unix.so try_first_pass nullok
-auth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120
-auth       optional                    pam_permit.so
-auth       required                    pam_env.so
-auth       required                    pam_faillock.so authsucc
-account    include                     system-local-login
-EOF
+# Directory accounts (SSSD, for example Active Directory) are unknown to
+# pam_unix. Where SSSD is set up, offer the password to pam_sss first: it
+# answers for directory accounts and passes local ones on to pam_unix.
+# SSSD counts as set up when its PAM module is installed and its service is
+# enabled, which any account can check: /etc/sssd is readable by root only.
+sssd_pam_module=/usr/lib/security/pam_sss.so
+
+# Each success=N jump must land on pam_permit, past pam_unix and the faillock
+# failure handler, so a password that was accepted never counts as a failure
+# and pam_faillock's authsucc still clears the tally. pam_sss adds one module
+# to skip, so the jump of pam_systemd_home grows by one with it.
+homed_jump=2
+sssd_auth=()
+sssd_account=()
+if [[ -f $sssd_pam_module ]] && systemctl is-enabled --quiet sssd.service 2>/dev/null; then
+  homed_jump=3
+  sssd_auth=("auth       [success=2 default=ignore]  pam_sss.so forward_pass")
+  # done: pam_unix's account check does not know directory accounts either.
+  sssd_account=("account    [success=done default=ignore] pam_sss.so")
+fi
+
+{
+  printf '%s\n' \
+    '#%PAM-1.0' \
+    'auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120' \
+    "-auth      [success=$homed_jump default=ignore]  pam_systemd_home.so"
+  (( ${#sssd_auth[@]} == 0 )) || printf '%s\n' "${sssd_auth[@]}"
+  printf '%s\n' \
+    'auth       [success=1 default=bad]     pam_unix.so try_first_pass nullok' \
+    'auth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120' \
+    'auth       optional                    pam_permit.so' \
+    'auth       required                    pam_env.so' \
+    'auth       required                    pam_faillock.so authsucc'
+  (( ${#sssd_account[@]} == 0 )) || printf '%s\n' "${sssd_account[@]}"
+  printf '%s\n' 'account    include                     system-local-login'
+} | as_root tee /etc/pam.d/omarchy-lock-password >/dev/null
 
 # Install resume recovery alongside fingerprint PAM, so setup and upgrades
 # cannot leave one configured without the other.
