@@ -5,8 +5,7 @@
 # the Intel I2C bus controller (i2c_designware) occasionally times out during boot
 # with error -110 ("can't add hid device: -110"), leaving the touchpad undetected.
 #
-# Keeping runtime power management "on" for the host controller bridge and rebinding
-# the i2c_designware adapter unfreezes the bus and recovers the ELAN touchpad.
+# Rebinding the i2c_designware adapter unfreezes the bus and recovers the ELAN touchpad.
 
 if omarchy-hw-match "83BF"; then
   sudo mkdir -p /etc/systemd/system
@@ -19,8 +18,6 @@ After=multi-user.target
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/bin/bash -c '\
-    echo on > /sys/devices/pci0000:00/0000:00:15.0/power/control 2>/dev/null; \
-    echo on > /sys/devices/pci0000:00/0000:00:15.0/i2c_designware.0/power/control 2>/dev/null; \
     has_touchpad() { \
         local class_path="${OMARCHY_INPUT_CLASS_PATH:-/sys/class/input}"; \
         for dev in "$class_path"/event*; do \
@@ -35,10 +32,6 @@ ExecStart=/bin/bash -c '\
         echo i2c_designware.0 > /sys/bus/platform/drivers/i2c_designware/unbind 2>/dev/null; \
         sleep 1; \
         echo i2c_designware.0 > /sys/bus/platform/drivers/i2c_designware/bind 2>/dev/null; \
-        sleep 1; \
-        /usr/bin/modprobe -r i2c_hid_acpi 2>/dev/null; \
-        sleep 1; \
-        /usr/bin/modprobe i2c_hid_acpi 2>/dev/null; \
     fi'
 
 [Install]
