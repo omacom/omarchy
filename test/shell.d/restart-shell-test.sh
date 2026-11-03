@@ -329,3 +329,49 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# A shell that exits non-zero on its way out would be relaunched by its own
+# launcher, beside the replacement the restart starts (#17341). The restart has
+# the launcher stand down first. This launcher stands in for the real one:
+# TERM stops its shell and exits, while a shell that dies under it is relaunched.
+fake_launcher_dir="$test_tmp/fake-launcher"
+mkdir -p "$fake_launcher_dir"
+cat >"$fake_launcher_dir/omarchy-launch-shell" <<'SH'
+#!/bin/bash
+sleep 30 &
+child=$!
+printf '%s\n' "$child" >"$1"
+trap 'kill "$child" 2>/dev/null; printf "stood down\n" >"$2"; exit 0' TERM
+wait "$child"
+printf 'relaunched after %s\n' "$?" >"$2"
+SH
+chmod +x "$fake_launcher_dir/omarchy-launch-shell"
+"$fake_launcher_dir/omarchy-launch-shell" "$test_tmp/fake-shell-pid" "$test_tmp/fake-launcher-outcome" &
+fake_launcher_pid=$!
+for (( waited = 0; waited < 100; waited++ )); do
+  [[ -s $test_tmp/fake-shell-pid ]] && break
+  sleep 0.05
+done
+restart_pid_one=$(<"$test_tmp/fake-shell-pid")
+printf '%s %s\n' "$worktree_root/shell" "$restart_pid_one" >"$test_tmp/strays"
+printf '303\n' >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks" "$test_tmp/fake-launcher-outcome"
+: >"$restart_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_STRAYS="$test_tmp/strays" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart with a supervised worktree shell succeeds"
+
+wait "$fake_launcher_pid" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$test_tmp/fake-launcher-outcome") == "stood down" ]] ||
+  fail "restart has a shell's launcher stand down instead of relaunching it" "$(cat "$test_tmp/fake-launcher-outcome" 2>/dev/null)"
+pass "restart has a shell's launcher stand down instead of relaunching it"
