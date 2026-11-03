@@ -97,8 +97,16 @@ omarchy_shell_dirs() {
 
 # The launcher supervising the old shell would take a teardown crash for a
 # crash, relaunch it next to the replacement started below, and leave two
-# shells running. Stop it first; on TERM it only takes its shell down.
-pkill -TERM -f "${session_omarchy_path%/}/bin/omarchy-launch-shell\$" 2>/dev/null
+# shells running. Stop it first; on TERM it only takes its shell down. Paths
+# are compared literally, and a package install runs the copy in /usr/bin.
+launchers=("${session_omarchy_path%/}/bin/omarchy-launch-shell")
+[[ $session_omarchy_path == "/usr/share/omarchy" ]] && launchers+=("/usr/bin/omarchy-launch-shell")
+for pid in $(pgrep -f omarchy-launch-shell); do
+  mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null || continue
+  for launcher in "${launchers[@]}"; do
+    [[ ${argv[1]:-} == "$launcher" ]] && kill -TERM "$pid" 2>/dev/null
+  done
+done
 
 while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
 while IFS= read -r dir; do

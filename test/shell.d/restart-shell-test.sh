@@ -333,11 +333,15 @@ pass "restart stops a worktree's shell and leaves other Quickshell configs alone
 # The launcher supervising the old shell takes a crash during teardown for one
 # to recover from, so it relaunches next to the fresh shell. A restart stops
 # that launcher before it stops the shell.
-supervised_root="$test_tmp/supervised"
+# The previous case left a Quickshell config outside Omarchy running.
+kill "$restart_pid_two" 2>/dev/null || true
+wait "$restart_pid_two" 2>/dev/null || true
+# Read as a regular expression, a bracketed path does not match itself.
+supervised_root="$test_tmp/supervised[dev]"
 mkdir -p "$supervised_root/shell" "$supervised_root/bin"
 touch "$supervised_root/shell/shell.qml"
 printf '#!/bin/bash\ntrap "exit 0" TERM\nwhile :; do sleep 0.05; done\n' >"$supervised_root/bin/omarchy-launch-shell"
-bash "$supervised_root/bin/omarchy-launch-shell" &
+bash "$supervised_root/bin/omarchy-launch-shell" >/dev/null 2>&1 &
 restart_pid_two=$!
 sleep 30 &
 restart_pid_one=$!
