@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Install optional power profile actions (qualified brcmfmac Wi-Fi only)
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+source_dir="$OMARCHY_PATH/default/powerprofiles"
+sudo install -d -m 755 /etc/omarchy/powerprofiles/actions.d
+sudo install -m 644 "$source_dir/profile-actions.py" /etc/omarchy/powerprofiles/profile-actions.py
+sudo install -m 755 "$source_dir/actions.d/10-wifi" /etc/omarchy/powerprofiles/actions.d/10-wifi
+sudo install -m 644 "$source_dir/omarchy-profile-actions.service" /etc/systemd/system/omarchy-profile-actions.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now omarchy-profile-actions.service

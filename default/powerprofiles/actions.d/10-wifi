@@ -1,0 +1,18 @@
+#!/bin/bash
+# Only brcmfmac is qualified. In particular, never enable Intel iwlwifi PS.
+set -euo pipefail
+case ${1:-} in
+  power-saver) mode=on ;;
+  balanced | performance) mode=off ;;
+  *) exit 1 ;;
+esac
+shopt -s nullglob
+for wireless in /sys/class/net/*/wireless; do
+  interface=${wireless%/wireless}; interface=${interface##*/}
+  driver=$(readlink -f "/sys/class/net/$interface/device/driver")
+  [[ ${driver##*/} == "brcmfmac" ]] || continue
+  # NM connection defaults only apply on activation. iw changes the live
+  # setting without reconnecting; the action service reconciles NM state
+  # changes so reconnects cannot leave the radio on its activation default.
+  iw dev "$interface" set power_save "$mode"
+done
