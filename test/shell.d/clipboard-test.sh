@@ -414,6 +414,27 @@ pass "clipboard paste helper copy-only copies history entry text"
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard paste helper copy-only skips typing"
 pass "clipboard paste helper copy-only skips typing"
 
+cat >"$TMPDIR/bin/hyprctl" <<'STUB'
+#!/bin/bash
+if [[ $1 == "clients" ]]; then
+  printf '[{"address":"0xaaa","mapped":true},{"address":"0xbbb","mapped":false}]'
+else
+  printf '%s\n' "$*" >>"$HYPRCTL_OUT"
+fi
+STUB
+chmod +x "$TMPDIR/bin/hyprctl"
+
+rm -f "$TMPDIR/hyprctl-out"
+HYPRCTL_OUT="$TMPDIR/hyprctl-out" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/refocus-run.sh" 0xaaa touch "$TMPDIR/ran"
+[[ -e $TMPDIR/ran ]] || fail "clipboard refocus helper runs the paste command"
+grep -q 'address:0xaaa' "$TMPDIR/hyprctl-out" || fail "clipboard refocus helper focuses the window that was active when the panel opened"
+pass "clipboard refocus helper focuses the original window before pasting"
+
+rm -f "$TMPDIR/hyprctl-out" "$TMPDIR/ran"
+HYPRCTL_OUT="$TMPDIR/hyprctl-out" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/refocus-run.sh" 0xbbb touch "$TMPDIR/ran"
+[[ -e $TMPDIR/ran && ! -e $TMPDIR/hyprctl-out ]] || fail "clipboard refocus helper skips focus for a window that is gone"
+pass "clipboard refocus helper still pastes when the window is gone"
+
 printf 'image-data' >"$TMPDIR/image.png"
 rm -f "$TMPDIR/wtype"
 WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \

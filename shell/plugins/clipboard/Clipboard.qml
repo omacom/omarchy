@@ -20,6 +20,10 @@ Item {
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  property string refocusScript: root.omarchyPath + "/shell/plugins/clipboard/refocus-run.sh"
+  // The window that had focus when the panel opened, so a paste goes back to
+  // it even if the pointer moved over another window while clicking.
+  property string targetWindow: ""
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -41,6 +45,8 @@ Item {
   property int historyLimit: 500
 
   function open(payloadJson) {
+    root.targetWindow = ""
+    activeWindowProc.running = true
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
@@ -225,9 +231,9 @@ Item {
     if (!row) return
     root.opened = false
     if (row.entryType === "image") {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
+      Quickshell.execDetached([root.refocusScript, root.targetWindow, root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      Quickshell.execDetached([root.refocusScript, root.targetWindow, root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
     }
   }
 
@@ -277,6 +283,15 @@ Item {
       currentProc.running = true
       textWatchProc.running = true
       imageWatchProc.running = true
+    }
+  }
+
+  Process {
+    id: activeWindowProc
+    command: ["sh", "-c", "hyprctl activewindow -j | jq -r '.address // empty'"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.targetWindow = text.trim()
     }
   }
 
