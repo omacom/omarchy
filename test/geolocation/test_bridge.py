@@ -22,12 +22,12 @@ class Bridge(unittest.TestCase):
             [dict(macAddress='00:11:22:33:44:55', signalStrength=-52)])
     self.assertEqual(b.collect(tree, [('/n', -5200)], True)[0]['ssid'], 'Cafe')
 
-  def test_scan_waits_for_busctl_false_then_collects_networks(self):
+  def test_empty_scan_reply_waits_then_collects_networks(self):
     tree = {'/station': {b.STATION: dict(ConnectedAccessPoint='/b')},
         '/n': {b.NETWORK: dict(Name='Cafe', ExtendedServiceSet=['/b'])},
         '/b': {b.BSS: dict(Address='00:11:22:33:44:55')}}
     replies = [Mock(stdout=value) for value in (
-      '{"data":[]}', '{"data":[true]}', '{"data":[false]}',
+      '', '{"data":[true]}', '{"data":[false]}',
       '{"data":[[["/n",-5200]]]}')]
     with patch.object(b, 'objects', return_value=tree), \
         patch.object(b.subprocess, 'run', side_effect=replies) as run, \

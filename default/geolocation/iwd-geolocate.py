@@ -20,10 +20,11 @@ NETWORK = IWD + '.Network'
 BSS = IWD + '.BasicServiceSet'
 
 
-def call(*args):
+def call(*args, reply=True):
   result = subprocess.run(['busctl', '--system', '--json=short', *args],
               check=True, capture_output=True, text=True, timeout=15)
-  return json.loads(result.stdout)['data']
+  if reply:
+    return json.loads(result.stdout)['data']
 
 
 def objects():
@@ -59,7 +60,8 @@ def scan(with_ssid=False):
   ordered = []
   for path in stations:
     try:
-      call('call', IWD, path, STATION, 'Scan')
+      # Scan has no return value; wait for Scanning below before reading results.
+      call('call', IWD, path, STATION, 'Scan', reply=False)
     except subprocess.CalledProcessError:
       pass  # Busy: consume the in-progress scan, never disconnect.
     deadline = time.monotonic() + 12
