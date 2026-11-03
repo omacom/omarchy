@@ -14,8 +14,8 @@ cp "$(command -v bash)" "$test_tmp/opencode.exe"
 for subcommand in tui serve; do
   printf '%s\n' 'trap '"'"'touch "$0.usr2"; exit 0'"'"' USR2' 'while :; do sleep 0.05; done' >"$test_tmp/$subcommand"
 done
-(cd "$test_tmp" && exec ./opencode.exe tui "Review this server") &
-(cd "$test_tmp" && exec ./opencode.exe serve --service) &
+(cd "$test_tmp" && exec ./opencode.exe tui "Review this server") >/dev/null 2>&1 &
+(cd "$test_tmp" && exec ./opencode.exe serve --service) >/dev/null 2>&1 &
 sleep 0.2
 
 "$ROOT/bin/omarchy-restart-opencode"
