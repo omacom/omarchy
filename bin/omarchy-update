@@ -101,6 +101,11 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-update-system-pkgs
 
   omarchy-migrate
+  # The update can ship new skills, and agents installed since the last one
+  # have no links yet. The caller's PATH, like the hooks below: it is where
+  # mise's shims and the user's own installs are found, and nothing here
+  # needs sudo.
+  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-agent-skills-link"
   omarchy-update-orphan-pkgs -y
 
   omarchy-update-analyze-logs
