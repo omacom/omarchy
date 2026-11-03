@@ -18,6 +18,12 @@ ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=on-failure
 RestartSec=2
+# bluez-tools maps SIGTERM to bt-agent's reload handler, so a stop only logs
+# "SIGUSR1 received" and waits out TimeoutStopSec before SIGKILL. That stall
+# holds up the user manager's exit long enough for a relogin to race it, which
+# leaves SDDM on a black screen. SIGINT is the signal bt-agent unregisters on.
+KillSignal=SIGINT
+TimeoutStopSec=5s
 
 [Install]
 WantedBy=graphical-session.target
