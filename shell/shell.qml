@@ -1554,7 +1554,7 @@ ShellRoot {
     function onLocalPluginChanged(pluginId, qmlSourceChanged) {
       console.log("Local plugin changed, reloading:", pluginId)
       if (qmlSourceChanged) shell.localPluginQmlReloadPending = true
-      localPluginReloadTimer.interval = 150
+      localPluginReloadTimer.interval = PluginReload.quietInterval(shell.localPluginQmlReloadPending)
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
