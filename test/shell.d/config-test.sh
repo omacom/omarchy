@@ -297,6 +297,20 @@ jq -e '.bar.maxWidth == null and .bar.position == "bottom"' "$TMPDIR/home/.confi
   fail "a bar set back to full drops its cap"
 pass "shell config caps the bar along its edge and lets it run the whole edge again"
 
+# A cap edited into shell.json by hand reads as the bar applies it: a numeric
+# string counts, a fraction rounds, and anything else is no cap.
+report_max_width() {
+  jq --argjson cap "$1" '.bar.maxWidth = $cap' "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/home/.config/omarchy/shell.json.tmp"
+  mv "$TMPDIR/home/.config/omarchy/shell.json.tmp" "$TMPDIR/home/.config/omarchy/shell.json"
+  HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar max-width
+}
+[[ $(report_max_width '"2560"') == "2560" ]] || fail "a cap written as a string reads as its number"
+[[ $(report_max_width '2559.6') == "2560" ]] || fail "a fractional cap reads rounded to whole pixels"
+[[ $(report_max_width '"wide"') == "full" ]] || fail "a cap that is not a number reads as full"
+[[ $(report_max_width '-100') == "full" ]] || fail "a negative cap reads as full"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar max-width full
+pass "a hand-edited cap reads the way the bar applies it"
+
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent true
 jq -e '
   .bar.background == "none" and
