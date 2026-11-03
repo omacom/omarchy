@@ -6,7 +6,7 @@ Se Chromium non è di tuo gusto, non sei costretto a tenerlo. In _Installa > Bro
 
 ## Impostarne uno come predefinito
 
-Installare un browser non lo promuove. Una volta che è sulla macchina, vai in _Impostazioni > Predefiniti > Browser_ e sceglilo — il menu elenca solo i browser che hai effettivamente installato e contrassegna quello predefinito corrente con un segno di spunta.
+Installare un browser non lo rende predefinito. Una volta che è sulla macchina, vai in _Impostazioni > Predefiniti > Browser_ e sceglilo — il menu elenca solo i browser che hai effettivamente installato e contrassegna quello predefinito corrente con un segno di spunta.
 
 Dal terminale è:
 
@@ -22,7 +22,7 @@ I browser della famiglia Chromium (Chromium stesso, Chrome, Edge e Brave) includ
 
 **Copy URL** mette l'indirizzo della scheda corrente negli appunti con `Alt + Shift + L`. È più veloce che fare clic nella barra degli indirizzi e copiare, e poiché passa dagli appunti di sistema anziché da quelli del browser, ricevi una notifica Omarchy di conferma e l'URL è immediatamente disponibile nella [cronologia appunti](08-unified-clipboard-history.md) e in ogni altra app. C'è anche un pulsante nella barra degli strumenti, se preferisci fare clic.
 
-**Download Video** cattura il video in riproduzione sulla pagina che stai guardando con `Alt + Shift + D`. Passa l'URL a [yt-dlp](https://github.com/yt-dlp/yt-dlp), quindi funziona su molto più che YouTube, e il download finisce in `~/Videos`. L'avanzamento appare nello stesso display su schermo usato da volume e luminosità, aggiornandosi sul posto anziché accumulare notifiche. Imposta `OMARCHY_YTDLP_DIR` se preferisci che i file vadano altrove — vedi le [FAQ](46-faq.md) per sapere dove mettere le variabili d'ambiente.
+**Download Video** cattura il video in riproduzione sulla pagina che stai guardando con `Alt + Shift + D`. Passa l'URL a [yt-dlp](https://github.com/yt-dlp/yt-dlp), quindi funziona su molto più che YouTube, e il download finisce in `~/Videos`. L'avanzamento appare nello stesso indicatore a schermo usato per volume e luminosità, aggiornandosi sul posto anziché accumulare notifiche. Imposta `OMARCHY_YTDLP_DIR` se preferisci che i file vadano altrove — vedi le [FAQ](46-faq.md) per sapere dove mettere le variabili d'ambiente.
 
 Entrambe le estensioni parlano con Omarchy tramite un piccolo host di messaggistica nativa, che viene installato per te insieme al browser. È il pezzo che permette al video di una pagina web di finire nella tua directory home e a un URL di finire nel gestore degli appunti, cosa che un'estensione normale non può fare da sola.
 

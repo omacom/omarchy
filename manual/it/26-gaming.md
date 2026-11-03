@@ -2,9 +2,9 @@
 
 Omarchy non è solo per la _pRoDUTTiViTÀ_, è anche per divertirsi, e cosa c'è di più divertente che giocare? Omarchy include un'intera suite di opzioni per il gaming — Steam e RetroArch per il gioco nativo e retrò, Battle.net, Lutris e Heroic per gli store non Steam, Moonlight per lo streaming da PC, Xbox Cloud Gaming + NVIDIA GeForce NOW per il cloud, oltre all'intramontabile Minecraft.
 
-Grazie all'incredibile lavoro di Valve su [il livello di compatibilità proton](https://en.wikipedia.org/wiki/Proton_(software)), ora ci sono decine di migliaia di giochi moderni giocabili su Linux. Ah, e sapevi che [Steam Deck](https://store.steampowered.com/steamdeck/) esegue effettivamente Arch!
+Grazie all'incredibile lavoro di Valve sul [livello di compatibilità Proton](https://en.wikipedia.org/wiki/Proton_(software)), ora ci sono decine di migliaia di giochi moderni giocabili su Linux. Ah, e sapevi che lo [Steam Deck](https://store.steampowered.com/steamdeck/) gira proprio su Arch?
 
-Tutti gli installatori per il gaming vivono in _Installa > Giochi_ nel menu Omarchy (`Super + Space`). Se mai volessi annullarne uno, usa _Rimuovi > Giochi_.
+Tutti gli installatori per il gaming si trovano in _Installa > Giochi_ nel menu Omarchy (`Super + Space`). Se mai volessi annullarne uno, usa _Rimuovi > Giochi_.
 
 ## Steam
 
@@ -12,7 +12,7 @@ Installa [Steam](https://store.steampowered.com/) selezionando _Installa > Gioch
 
 Dopo averlo installato, potrai avviare Steam con `Super + Space`.
 
-Nota che Steam può impiegare 10-20 secondi per avviarsi e non fornirà alcun feedback visivo del caricamento.
+Nota che Steam può impiegare 10-20 secondi per avviarsi senza mostrare alcun segno di caricamento.
 
  ![gaming-steam](images/gaming-steam.webp)
 
@@ -62,7 +62,7 @@ Installa il supporto per i controller Xbox Bluetooth selezionando _Installa > Gi
 
 Il [client Moonlight](https://github.com/moonlight-stream/moonlight-qt) è preinstallato con Omarchy, quindi puoi trasmettere subito giochi da un PC Windows che esegue [Sunshine](https://app.lizardbyte.dev/Sunshine/). Avvia Moonlight tramite `Super + Space`.
 
-Se sia la tua macchina Omarchy sia il PC da gaming remoto sono cablati, l'esperienza è indistinguibile dal giocare in locale. Alza la risoluzione a quella nativa, imposta l'aggiornamento a 120Hz e porta il bitrate al massimo — questo è il modo migliore per giocare a sparatutto competitivi come Fortnite su Linux.
+Se sia la tua macchina Omarchy sia il PC da gaming remoto sono cablati, l'esperienza è indistinguibile dal giocare in locale. Alza la risoluzione a quella nativa, imposta la frequenza di aggiornamento a 120Hz e porta il bitrate al massimo — questo è il modo migliore per giocare a sparatutto competitivi come Fortnite su Linux.
 
 Puoi anche trasformare una macchina Omarchy nell'host eseguendo `omarchy install service sunshine`, che installa Sunshine e apre le porte di streaming Moonlight per la tua LAN e Tailscale.
 
