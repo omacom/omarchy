@@ -491,13 +491,36 @@ chmod +x "$mock_bin/hyprctl"
 : >"$agent_open_log"
 omarchy-default-agent --install github-copilot >/dev/null
 [[ ! -s $agent_open_log ]] || fail "an install from the Quake console leaves its floating terminal"
-grep -qF 'hl.dsp.exec_cmd("omarchy-agent", { workspace = "special:qconsole silent" })' "$test_tmp/dispatch" ||
+grep -qF 'hl.dsp.exec_cmd("omarchy-agent --prefer-local", { workspace = "special:qconsole silent" })' "$test_tmp/dispatch" ||
   fail "an install from the Quake console opens the agent tiled in the console"
 grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
   fail "an install from the Quake console closes its floating terminal"
+pass "an agent installed from the Quake console opens tiled in the console"
+
+# A terminal serving every window from one process matches them all by PID, so
+# the installer names its own window. The mock applies whatever title the
+# installer printed to the console window alone, as the terminal would.
+cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "clients" ]]; then
+  title=\$(grep -ao 'omarchy-default-agent-[0-9]*' "$test_tmp/installer-tty" 2>/dev/null | head -n1)
+  echo "[{\"pid\": $$, \"address\": \"0xdead\", \"title\": \"shell\", \"workspace\": {\"name\": \"1\"}},
+        {\"pid\": $$, \"address\": \"0xc0ffee\", \"title\": \"\$title\", \"workspace\": {\"name\": \"special:qconsole\"}}]"
+else
+  printf '%s\n' "\$*" >>"$test_tmp/dispatch"
+fi
+SH
+: >"$test_tmp/dispatch"
+: >"$agent_open_log"
+omarchy-default-agent --install github-copilot >"$test_tmp/installer-tty"
+[[ ! -s $agent_open_log ]] || fail "an install from a shared terminal process leaves its floating terminal"
+grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
+  fail "an install from a shared terminal process closes its own window"
+! grep -qF 'address:0xdead' "$test_tmp/dispatch" ||
+  fail "an install from a shared terminal process leaves the terminal's other windows alone"
 rm "$mock_bin/hyprctl"
 ln -s omarchy-test-noop "$mock_bin/hyprctl"
-pass "an agent installed from the Quake console opens tiled in the console"
+pass "an install from a terminal sharing one process across windows finds its own window"
 
 : >"$notification_history"
 : >"$agent_open_log"
