@@ -3,3 +3,4 @@
 if omarchy-edition-desktop; then
   run_logged "$OMARCHY_INSTALL/login/sddm.sh"
 fi
+run_logged "$OMARCHY_INSTALL/login/server-issue.sh"

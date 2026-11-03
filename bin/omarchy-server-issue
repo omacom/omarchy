@@ -52,8 +52,12 @@ done
 issue_file=${OMARCHY_ISSUE_FILE:-/etc/issue}
 backup_file="$issue_file.omarchy-orig"
 
-# Escalate only when the target needs it, so the installer can call this as root
-# from the ISO chroot where there is no terminal to answer a password prompt in.
+if [[ -t 0 ]]; then
+  PRIVILEGE=(sudo)
+else
+  PRIVILEGE=(pkexec)
+fi
+
 write_issue() {
   local content="$1"
   local issue_dir
@@ -62,7 +66,7 @@ write_issue() {
   if [[ -w $issue_file ]] || { [[ ! -e $issue_file && -w $issue_dir ]]; }; then
     printf '%s\n' "$content" >"$issue_file"
   else
-    printf '%s\n' "$content" | sudo tee "$issue_file" >/dev/null
+    printf '%s\n' "$content" | "${PRIVILEGE[@]}" tee "$issue_file" >/dev/null
   fi
 }
 
@@ -75,7 +79,7 @@ if ! omarchy-edition-server; then
     if [[ -w $issue_file && -w $backup_file ]]; then
       mv -f "$backup_file" "$issue_file"
     else
-      sudo mv -f "$backup_file" "$issue_file"
+      "${PRIVILEGE[@]}" mv -f "$backup_file" "$issue_file"
     fi
   fi
   exit 0
@@ -108,7 +112,7 @@ if [[ -e $issue_file && ! -e $backup_file ]]; then
   if [[ -w $(dirname "$backup_file") ]]; then
     cp -a "$issue_file" "$backup_file"
   else
-    sudo cp -a "$issue_file" "$backup_file"
+    "${PRIVILEGE[@]}" cp -a "$issue_file" "$backup_file"
   fi
 fi
 

@@ -87,8 +87,7 @@ pass "an unusable or missing color falls back instead of emitting a broken escap
   fail "a dumb terminal drops to 16 colors"
 pass "color depth and glyph set degrade independently"
 
-# omarchy-theme-set calls the issue renderer unconditionally, so it has to be
-# silent and successful on a desktop.
+# The issue renderer also handles restoring a desktop banner.
 printf 'desktop\n' >"$OMARCHY_EDITION_FILE"
 export OMARCHY_ISSUE_FILE="$workdir/issue"
 printf 'Arch Linux \\r (\\l)\n' >"$OMARCHY_ISSUE_FILE"
@@ -162,3 +161,51 @@ pass "no palette program leaks to a non-console terminal"
 grep -qF "\\033]P01a1b26" <<<"$(TERM=xterm-256color omarchy-server-palette --truecolor --console)" ||
   fail "--console forces the program for output that renders on a VT later"
 pass "--console forces the palette program regardless of TERM"
+
+# A rejected privileged write must reach the caller, including its diagnostic.
+if (( EUID != 0 )); then
+  printf 'server\n' >"$OMARCHY_EDITION_FILE"
+  cp "$OMARCHY_ISSUE_FILE" "$OMARCHY_ISSUE_FILE.omarchy-orig"
+  chmod 0444 "$OMARCHY_ISSUE_FILE"
+  for command in sudo pkexec; do
+    cat >"$workdir/stub/$command" <<'STUB'
+#!/bin/bash
+printf 'authorization rejected: %s %s\n' "${0##*/}" "$*" >&2
+exit 73
+STUB
+    chmod +x "$workdir/stub/$command"
+  done
+  python3 - <<'CHECK' || fail "issue authorization uses the caller terminal and reports rejection"
+import os
+import pty
+import subprocess
+
+for terminal, authorizer in ((False, "pkexec"), (True, "sudo")):
+    master, slave = pty.openpty()
+    try:
+        result = subprocess.run(
+            ["omarchy-server-issue"], stdin=slave if terminal else subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5,
+        )
+        assert result.returncode == 73, result
+        expected = ("authorization rejected: %s tee %s" %
+                    (authorizer, os.environ["OMARCHY_ISSUE_FILE"])).encode()
+        assert expected in result.stderr, result.stderr
+    finally:
+        os.close(master)
+        os.close(slave)
+CHECK
+  chmod 0644 "$OMARCHY_ISSUE_FILE"
+  pass "issue authorization selects sudo in a terminal and propagates visible failures"
+else
+  skip "root writes directly; authorization rejection needs an unprivileged caller"
+fi
+
+# Root setup has no user theme and must seed from the packaged palette.
+printf 'server\n' >"$OMARCHY_EDITION_FILE"
+HOME="$workdir/empty-home" PATH="$ROOT/bin:$PATH" \
+  bash -e -c 'source "$OMARCHY_PATH/install/login/server-issue.sh"' ||
+  fail "system setup seeds the issue without a user theme"
+grep -qF $'\033[38;2;187;154;247m' "$OMARCHY_ISSUE_FILE" ||
+  fail "system setup uses the packaged Tokyo Night title color"
+pass "system setup seeds the banner from packaged colors without a user theme"
