@@ -20,9 +20,9 @@ if (( $# == 0 )); then
 fi
 
 case $1 in
-  theme) LABEL="Corners follow the theme" ;;
-  sharp) LABEL="Sharp corners for all themes" ;;
-  rounded) LABEL="Rounded corners for all themes" ;;
+  theme) LABEL=$(omarchy-i18n corners.followTheme) ;;
+  sharp) LABEL=$(omarchy-i18n corners.sharp) ;;
+  rounded) LABEL=$(omarchy-i18n corners.rounded) ;;
   *)
     echo "Usage: omarchy-hyprland-corners [theme|sharp|rounded]" >&2
     exit 1

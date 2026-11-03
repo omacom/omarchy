@@ -28,8 +28,9 @@ if (( $# == 0 )); then
 fi
 
 case $1 in
-  dwindle) LABEL=tiling ;;
-  scrolling | floating) LABEL=$1 ;;
+  dwindle) MESSAGE=$(omarchy-i18n layout.defaultTiling) ;;
+  scrolling) MESSAGE=$(omarchy-i18n layout.defaultScrolling) ;;
+  floating) MESSAGE=$(omarchy-i18n layout.defaultFloating) ;;
   *)
     echo "Usage: omarchy-hyprland-workspace-layout-default [dwindle|scrolling|floating]" >&2
     exit 1
@@ -44,9 +45,31 @@ mkdir -p "$MODES_DIR"
 # default, including one given a layout of its own with Super + L.
 # Without a list of workspaces nothing can tell busy from empty, so nothing is
 # changed rather than every saved layout taken for an empty workspace's.
-if ! workspaces=$(hyprctl workspaces -j) ||
-  ! busy=$(jq -r 'if type == "array" then .[] | select(.id >= 1 and (.windows // 0) > 0) | .id else error("not a workspace list") end' <<<"$workspaces"); then
-  echo "omarchy-hyprland-workspace-layout-default: could not read the workspaces, so nothing was changed" >&2
+busy_workspace_ids() {
+  local workspaces clients
+  workspaces=$(hyprctl workspaces -j) || return 1
+  clients=$(hyprctl clients -j) || return 1
+  # Both lists go through stdin, as a long client list outgrows one argument.
+  printf '%s\n%s\n' "$workspaces" "$clients" | jq -rs '
+    .[0] as $workspaces | .[1] as $clients |
+    if ($workspaces | type == "array") and ($clients | type == "array") then
+      (
+        [$workspaces[] | select(.id >= 1 and (.windows // 0) > 0) | .id] +
+        [$clients[]
+          | select(.workspace.name == "special:minimized")
+          | (.tags // [])[]
+          | select(test("^omarchy-minimized-from-[1-9][0-9]*$"))
+          | sub("^omarchy-minimized-from-"; "")
+          | tonumber]
+      ) | unique | .[]
+    else
+      error("not a workspace list")
+    end
+  '
+}
+
+if ! busy=$(busy_workspace_ids); then
+  echo "omarchy-hyprland-workspace-layout-default: could not read the workspaces or the minimized windows, so nothing was changed" >&2
   exit 1
 fi
 
@@ -71,4 +94,4 @@ printf 'o.workspace_mode({ default = "%s" })\n' "$1" >"$DEFAULT_FILE"
 hyprctl reload >/dev/null
 omarchy-shell -q omarchy.workspaces refresh
 omarchy-shell -q omarchy.dock refresh
-notify_layout "Default layout set to $LABEL"
+notify_layout "$MESSAGE"

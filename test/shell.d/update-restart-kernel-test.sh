@@ -58,12 +58,12 @@ kernel 7.2.8-arch1-1 modules.builtin vmlinuz
 pass "a running Arch kernel does not ask for a reboot"
 
 kernel 7.2.9-1-aarch64-ARCH modules.builtin
-grep -Fxq "prompt:confirm Linux kernel has been updated. Reboot?" <<<"$(prompts 7.2.8-1-aarch64-ARCH)" ||
+grep -Fxq "prompt:confirm --affirmative Yes --negative No Linux kernel has been updated. Reboot?" <<<"$(prompts 7.2.8-1-aarch64-ARCH)" ||
   fail "an updated kernel asks for a reboot"
 pass "an updated kernel asks for a reboot"
 
 kernel 7.2.8-1-aarch64-ARCH
 touch "$tmp_dir/modules/7.2.8-1-aarch64-ARCH/modules.builtin"
-grep -Fxq "prompt:confirm Linux kernel has been updated. Reboot?" <<<"$(prompts 7.2.8-1-aarch64-ARCH)" ||
+grep -Fxq "prompt:confirm --affirmative Yes --negative No Linux kernel has been updated. Reboot?" <<<"$(prompts 7.2.8-1-aarch64-ARCH)" ||
   fail "a leftover directory no package owns asks for a reboot"
 pass "a leftover directory no package owns asks for a reboot"

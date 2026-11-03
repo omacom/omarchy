@@ -35,7 +35,7 @@ else
   message="Running sessions stay on $previous."
   echo "New $name sessions now use $active. $message"
   # The headline leaves out the plan, so it stays on one line.
-  omarchy-notification-send -g 󰚩 "New $name sessions now use $label" "$message"
+  omarchy-notification-send -g 󰚩 "$(omarchy-i18n agents.newSessionsUse "$name" "$label")" "$(omarchy-i18n agents.runningStayOn "$previous")"
   # The usage record's own limits describe the active account.
   omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
 fi

@@ -13,11 +13,11 @@ The first form runs the operation. `--resolve` prints the entrypoint the operati
 
 | Situation | Run | `--resolve` |
 | --- | --- | --- |
-| The platform registers no package (`x86` and `aarch64` today) | no-op, exit 0 | prints nothing, exit 0 |
+| The platform registers no package (`x86`, `aarch64`, `aarch64-qualcomm`, `aarch64-n1x` and `aarch64-gb10` today) | no-op, exit 0 | prints nothing, exit 0 |
 | The entrypoint exists and passes the trust rules | execs it; its exit status is the result | prints its path |
 | A required operation has no entrypoint, and the package is not installed | exit 3 (an entrypoint's own status could also be 3; with `--resolve` it is only this): `Error: <operation> on <platform> needs <package>, which provides <path>; it is not installed` | same error |
 | A required operation has no entrypoint, but the package is installed (its pacman record says so) | exit 1: `Error: <operation> on <platform> needs <path>, which <package> <version> does not provide; update <package>` | same error |
-| An optional operation has no entrypoint (every setup and app-install operation is optional, so none of them ever fails for a missing package) | no-op, exit 0 | prints nothing, exit 0 |
+| An optional operation has no entrypoint (every setup, app-install and fingerprint operation is optional, so none of them ever fails for a missing package) | no-op, exit 0 | prints nothing, exit 0 |
 | A user operation (`setup-user`, `post-install`, `pre-remove`) is run as root on a platform that registers it (Apple Silicon), its entrypoint installed or not | exit 1: `Error: <operation> runs as the user, never as root` | same error |
 | The entrypoint fails the trust rules | exit 1: `Error: refusing <path>: ...` (optional operations too) | same error |
 | `omarchy-hw-platform` can't settle the platform | exit 1 | exit 1 |
@@ -44,6 +44,8 @@ The set is fixed in the dispatcher; adding one is a change to Omarchy. Every ope
 | `setup-user` | Runs as the user being set up: at the end of user finalization (`install/user/platform-setup.sh`, from `install/user/all.sh`), and in first run once the session is up. Finalization inside an image build skips it; first run on the machine runs it. | The platform's per-user setup. Idempotent. Finalization may have no session (the ISO chroot, owner setup), so work that needs one (a user unit started now, a D-Bus call) is left for the first-run call, and its absence is not a failure. A failure fails finalization or the first-run step, so first run stays pending and runs it again at the next login. | optional | `install/user/platform-setup.sh`, `omarchy-provision-first-run` |
 | `post-install <app>` | Runs as the user, from an installer once `<app>` is installed and Omarchy's own setup of it is done: `chromium`, `chrome`, `edge`, `brave`, `brave-origin`, `firefox`, `zen` (`omarchy-install-browser`) and `steam` (`omarchy-install-gaming-steam`) | The platform's adjustments for that app, such as its browser flags or a launcher the app needs on this hardware (which may install a package through `sudo`). Idempotent. A failure fails the install. | optional | `omarchy-install-browser`, `omarchy-install-gaming-steam` |
 | `pre-remove <app>` | Runs as the user, from a remover before `<app>`'s packages go: `steam` (`omarchy-remove-gaming-steam`) | Undoes what `post-install <app>` added, packages that depend on the app first. Idempotent; nothing to undo is a success. A failure stops the removal before anything is removed. | optional | `omarchy-remove-gaming-steam` |
+| `enable-fingerprint` | Fingerprint setup, once `sudo` is authenticated and before fprintd is asked about the reader | Turns on a reader the platform keeps off until the owner agrees, as a Mac does with Touch ID: it explains what turning it on leaves behind, asks on the caller's terminal, and turns the reader on only on yes. Exit 0 lets setup go on: the reader is on, was already, or has nothing to turn on here, so any other reader enrolls as usual; any other status stops setup before anything is enrolled. | optional | `omarchy-setup-security-fingerprint` |
+| `disable-fingerprint` | Fingerprint removal, once the prints and PAM lines are gone and before the packages go | Undoes what `enable-fingerprint` turned on, so the reader stays off from the next boot. Idempotent; nothing to undo is a success. A failure is not fatal. | optional | `omarchy-remove-security-fingerprint` |
 
 Snapshot restore is not an operation: a Limine machine restores through `limine-snapper-restore`, and a platform boot package that checks a restore does so through limine-snapper-sync's own hooks.
 
@@ -54,8 +56,8 @@ Registration is code in `bin/omarchy-lifecycle-dispatch`, not configuration. No 
 | Platform | Implementation directory | Package | Required operations |
 | --- | --- | --- | --- |
 | `aarch64-apple` | `/usr/lib/omarchy/mac-boot` | `omarchy-mac-boot` | all its operations |
-| `aarch64-apple`: `setup-system`, `setup-user`, `post-install`, `pre-remove` | `/usr/lib/omarchy/mac` | `omarchy-mac` | none |
-| `x86`, `aarch64` | none | none | none: every operation is a no-op, and callers keep their generic path |
+| `aarch64-apple`: `setup-system`, `setup-user`, `post-install`, `pre-remove`, `enable-fingerprint`, `disable-fingerprint` | `/usr/lib/omarchy/mac` | `omarchy-mac` | none |
+| `x86`, `aarch64`, `aarch64-qualcomm`, `aarch64-n1x`, `aarch64-gb10` | none | none | none: every operation is a no-op, and callers keep their generic path |
 
 The entrypoint for an operation is `<implementation directory>/<operation>`. A registered platform's required operations must be shipped. Its optional operations may be left out, and then they are no-ops.
 
@@ -76,7 +78,7 @@ A dispatch point takes one of two shapes:
 - **A platform step with no generic counterpart:** `omarchy-lifecycle-dispatch <operation> || fail`. It is a no-op on platforms without a boot package.
 - **A platform implementation that replaces a generic step:** `--resolve <operation>`. A path means dispatch the operation, an empty result means run the generic step, and a failure fails closed.
 
-Failing closed holds on every platform: where `omarchy-hw-platform` can't settle the platform (contradicting device-tree evidence, for one), first-boot setup and factory reset stop instead of guessing a boot path, and an update fails its verification without the reboot prompt. There is no check before an update's packages change: on a machine whose platform can't be told, the update installs its packages first, and it only then fails verification. A platform that needs an earlier refusal adds that operation with its first entrypoint.
+Failing closed holds on every platform: where `omarchy-hw-platform` can't settle the platform (contradicting device-tree evidence, for one), first-boot setup and factory reset stop instead of guessing a boot path, and an update fails its verification without the reboot prompt. Fingerprint setup and removal are the exception (see Fingerprint setup and removal below): a failed resolution of `enable-fingerprint` warns and setup goes on, since the reader that hook would turn on stays off without it, and one of `disable-fingerprint` warns that the reader may stay on, as any failure of that hook does, and removal goes on. There is no check before an update's packages change: on a machine whose platform can't be told, the update installs its packages first, and it only then fails verification. A platform that needs an earlier refusal adds that operation with its first entrypoint.
 
 ### Owner provisioning (`bin/omarchy-provision-owner`)
 
@@ -88,14 +90,14 @@ Failing closed holds on every platform: where `omarchy-hw-platform` can't settle
 
 ### Factory reset (`bin/omarchy-system-factory-reset`)
 
-- `reset_boot_owner` resolves the four reset operations before the reset is confirmed. If all resolve, the platform owns the factory root's boot chain; if none do, the generic path runs unchanged (x86, Snapdragon, other aarch64: throwaway slot, keyfile in the Limine UKI, `limine-update`, `verify_limine_hashes`). If only some resolve, or resolution fails (a Mac without `omarchy-mac-boot`'s entrypoints), the reset stops before anything changes.
+- `reset_boot_owner` resolves the four reset operations before the reset is confirmed. If all resolve, the platform owns the factory root's boot chain; if none do, the generic path runs unchanged (x86, Snapdragon, the N1x, the GB10, other aarch64: throwaway slot, keyfile in the Limine UKI, `limine-update`, `verify_limine_hashes`). If only some resolve, or resolution fails (a Mac without `omarchy-mac-boot`'s entrypoints), the reset stops before anything changes.
 - Where the platform owns it, the order is: authorise with the current passphrase and stage the throwaway in the factory root's `/var/lib/omarchy/provisioning/luks-key`; `reset-prepare`; `reset-verify`; add the throwaway slot; switch the subvolumes; `reset-commit` with the throwaway on standard input. The slot comes after verification, so a failed rebuild adds no credential, and the platform writes its boot-time key only after the switch, so a power loss before it leaves the previous root asking for its password, never unlocked unattended.
 - Any failure before the switch runs `reset-rollback` (once `reset-prepare` started), then revokes the slot this attempt added (found by the throwaway key when the add was not confirmed) and deletes the clone: the previous root stays the one that boots, with its boot files and encryption state. Operation output goes to the reset log; a failure shows the operation's last line.
 - Everything else stays as it is: the @factory clone, identity and account scrub, provisioning markers and units, LUKS discovery, the passphrase check, the throwaway slot, and the subvolume switch.
 
 ### Update (`bin/omarchy-update`)
 
-- `omarchy-update-boot` runs `update-verify` after AUR packages, which the update runs last, so it is the last sudo-capable step; like AUR it follows third-party build code, so it authenticates through the no-update wrapper without a reusable timestamp. When it fails, the update still releases Stay Awake, then says the update is not finished and exits 1 without the reboot prompt.
+- `omarchy-update-boot` runs `update-verify` after AUR packages, which the update runs last, so it is the last sudo-capable step, under the update's one authorization. When it fails, the update still releases Stay Awake, then says the update is not finished and exits 1 without the reboot prompt.
 - It resolves the operation as the user first and runs it with `sudo` only when it resolves to an entrypoint, so an update with nothing to run never asks for root. A failed resolution fails the step with the dispatcher's message, except one: `update-verify` on a machine without its platform's boot package at all (exit 3) warns that the boot files were not verified and lets the update finish. Such a machine predates the package and boots a chain it does not manage; once the package is installed, a failed verification blocks. A package too old to ship `update-verify` blocks, since the fix is one package update away.
 - The update path rebuilds no boot file itself: package hooks do, and `update-verify` catches what they missed.
 - When an Omarchy package's upgrade stops only on files no package owns, `omarchy-update-system-pkgs-when-conflicted` moves them aside and retries. Before it moves anything it resolves `update-takeover` as the user and, when it resolves, runs `sudo omarchy-lifecycle-dispatch update-takeover <path>...` (inside the update's authorization, which the move needs anyway). A refusal, or a failed resolution (a Mac without its boot package, or with one too old to ship the operation), keeps every file and fails the update as it did before the retry existed. Where nothing resolves, the takeover goes ahead with no extra step.
@@ -119,6 +121,11 @@ Failing closed holds on every platform: where `omarchy-hw-platform` can't settle
 - After the system disk's key changed and the new key is confirmed, `record_owner_slot` resolves `luks-slots` as the user and, when it resolves, runs `sudo omarchy-lifecycle-dispatch luks-slots owner=<slot>`, so no other platform sees an extra `sudo`. Until that succeeds the journal stays, and the next run finishes the change and records the slot. The new key can land in another slot (cryptsetup 2.8's `luksChangeKey` moves a LUKS1 key to the first free slot, and keeps a LUKS2 one in place), and the boot check would then find a slot the platform did not record.
 - Before anything changes, where `luks-slots` resolves, `owner_slot_matches` runs `sudo omarchy-lifecycle-dispatch luks-slots --owner` and refuses a current password whose slot is not the owner's, so another key on the system disk, such as a recovery key an earlier Mac setup added, stays as it is and can't take the owner's place. Exit 4 (no owner slot recorded) is taken as a machine nobody recorded: the change goes on only when the current password opens the disk's one key slot, checked again before the key changes, and records the new slot as the owner's once it is confirmed; with other keys on the disk it stops, naming the slots and saying how to record them (`luks-slots owner=<slot> recovery=<slot>`) or remove the extra key. Any other failure stops the change with the boot package's reason.
 
+### Fingerprint setup and removal (`bin/omarchy-setup-security-fingerprint`, `bin/omarchy-remove-security-fingerprint`)
+
+- Setup resolves `enable-fingerprint` as the user once `sudo` is authenticated and, when it resolves, runs `sudo omarchy-lifecycle-dispatch enable-fingerprint` before fprintd is asked about the reader. The entrypoint asks the owner on the terminal; a refusal or any failure stops setup with nothing enrolled. Where nothing resolves, setup runs as before, and so it does where the resolution fails, with a warning: a reader its platform keeps off stays off, so fprintd doesn't find it, and setup never stops on a platform without the hook.
+- Removal authenticates `sudo` in view, then deletes the user's prints through `fprintd-delete` while fprintd still runs, since a match-on-chip reader keeps them in the device too. Once the prints and PAM lines are gone and before the packages go, it resolves `disable-fingerprint` and, when it resolves, runs it with `sudo`. A failed delete, resolution or hook doesn't stop the removal; each is reported, since the reader may then keep the prints or stay on at the next boot.
+
 ## Key slots
 
 Omarchy has no disk recovery key: the disk, the login user and root share one password, as on every install. The re-key keeps the owner's slot alone.
@@ -128,28 +135,29 @@ Omarchy has no disk recovery key: the disk, the login user and root share one pa
 
 ## Platform files
 
-A platform's runtime package describes its hardware in files under the platform root, `/usr/share/omarchy-platform/`, without an operation and without a branch in Omarchy's code: display hints, camera cutouts, audio nodes, keyrings and key names (see [file-layout.md](file-layout.md#platform-root)). Only the one installed platform package owns the root, and Omarchy ships nothing in it. The root is fixed: no environment variable moves it, and a development checkout in `OMARCHY_PATH` doesn't replace it. A missing root or file means no platform additions. It changes no binds, settings or gestures: Omarchy behaves the same on every machine.
+A platform's runtime package describes its hardware in files under the platform root, `/usr/share/omarchy-platform/`, without an operation and without a branch in Omarchy's code: display hints, camera cutouts, audio nodes, keyrings, key names and fingerprint readers (see [file-layout.md](file-layout.md#platform-root)). Only the one installed platform package owns the root, and Omarchy ships nothing in it. The root is fixed: no environment variable moves it, and a development checkout in `OMARCHY_PATH` doesn't replace it. A missing root or file means no platform additions. It changes no binds, settings or gestures: Omarchy behaves the same on every machine.
 
 - **Key names: `key-names`**, one `<keysym> <name>` per line, which the keybindings menu shows in place of the keysym (a MacBook's `XF86MonBrightnessUp` is its F2 key). Its tests run copies of the menu that read a fixture root (`platform_root_copy` in `base-test.sh`).
 
 ## Apple Silicon
 
-`omarchy-mac-boot`, from omacom/omarchy-mac-pkgs, implements the Apple boot operations as small entrypoints around its boot modules and installs them in `/usr/lib/omarchy/mac-boot`. `omarchy-mac`, from the same repository, implements `setup-system`, `setup-user`, `post-install` and `pre-remove` in `/usr/lib/omarchy/mac`. Their documentation describes each one. Nothing Apple-specific lives in Omarchy beyond the registration above.
+`omarchy-mac-boot`, from omacom/omarchy-mac-pkgs, implements the Apple boot operations as small entrypoints around its boot modules and installs them in `/usr/lib/omarchy/mac-boot`. `omarchy-mac`, from the same repository, implements `setup-system`, `setup-user`, `post-install`, `pre-remove`, `enable-fingerprint` and `disable-fingerprint` in `/usr/lib/omarchy/mac`. Their documentation describes each one. Nothing Apple-specific lives in Omarchy beyond the registration above.
 
 ## Snapdragon
 
-Snapdragon laptops are `aarch64` here: they boot Limine with unified kernel images, like x86, every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before.
+Snapdragon laptops are `aarch64-qualcomm`, which registers no package: they boot Limine with unified kernel images, like x86, every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before.
 
 ## Tests
 
 - `test/shell.d/lifecycle-dispatch-test.sh` covers the dispatcher on every platform fixture:
-  - the setup and app-install operations: no-ops off Apple, `omarchy-mac`'s directory on Apple (never `omarchy-mac-boot`'s), no-ops without `omarchy-mac`, the user operations refused as root and given only their allowlisted environment
+  - the setup, app-install and fingerprint operations: no-ops off Apple, `omarchy-mac`'s directory on Apple (never `omarchy-mac-boot`'s), no-ops without `omarchy-mac`, the user operations refused as root and given only their allowlisted environment
   - no-ops on x86 and plain aarch64, even with Mac entrypoints on disk
   - Apple with and without the boot package, and with one too old to ship an operation
   - arguments, exit status and the cleared environment
   - untrusted entrypoints
   - usage errors, and an undetermined platform
   - an ordinary Bash launch, and root ignoring fixture roots, `BASH_ENV` and exported functions
+- `test/shell.d/fingerprint-package-test.sh` and `test/shell.d/security-fingerprint-remove-test.sh` run fingerprint setup and removal against a stub dispatcher: the hook resolved as the user and run with `sudo` only when it resolves, setup stopping with nothing enrolled when the reader isn't turned on, and going on as before, with a warning, when the hook can't be resolved, and removal deleting the prints through fprintd before anything else and warning, without stopping, when the reader can't be turned off.
 - `test/shell.d/luks-rekey-journal-test.sh` runs owner provisioning through the real dispatcher:
   - the crash-and-resume matrix on x86 (Limine UKI path unchanged, no Mac entrypoint runs) and on Apple with a fake boot package (the owner's slot recorded), on a slot-table fake and on file-backed LUKS2 and LUKS1 volumes
   - setup stopping before the owner form when the boot package is not ready, missing, or too old to ship the provisioning entrypoints
@@ -160,5 +168,5 @@ Snapdragon laptops are `aarch64` here: they boot Limine with unified kernel imag
 - `test/shell.d/platform-app-hooks-test.sh` runs every browser install and Steam's install and removal through the real dispatcher: on Apple each calls its hook once, after the package and flags (before removal for `pre-remove`), and fails with it; on x86 none runs, even with Mac entrypoints on disk.
 - `test/shell.d/update-file-conflict-test.sh` checks the takeover: on x86 it goes ahead asking no one; on Apple it goes ahead only when the boot package's `update-takeover` vouches for exactly the files that move, and a refusal, a missing boot package or one too old keep every file.
 - `test/shell.d/factory-reset-dispatch-test.sh` runs the reset through the real dispatcher: on x86 with Mac entrypoints on disk that must not run (generic path unchanged), and on Apple into a fake boot package, covering a finished reset, a failed verification and a failed switch that roll back, an unconfirmed throwaway slot found by its key and revoked, a failed commit after the switch, and a missing or partial package.
-- `test/shell.d/update-boot-verify-test.sh` runs `omarchy update` through the real `omarchy-update-boot` and dispatcher inside the sudo boundary fixture: no-ops and no root on x86 and plain aarch64; on Apple, verify after AUR through the no-update wrapper, a failed verification that offers no reboot, and a Mac without the package or with one too old.
+- `test/shell.d/update-boot-verify-test.sh` runs `omarchy update` through the real `omarchy-update-boot` and dispatcher inside the sudo boundary fixture: no-ops and no root on x86 and plain aarch64; on Apple, verify after AUR under the update's authorization, a failed verification that offers no reboot, and a Mac without the package or with one too old.
 - `test/shell.d/drive-password-test.sh` checks that an Apple password change records the owner's new slot through `luks-slots`, including after an interruption, and that x86 never calls it; that `--owner` failing (1, or a slot that isn't a number) stops the change with the reason; and that with no owner slot recorded (4) a one-key disk changes and records its slot, also after an interruption, while a disk with another key, or one that gains a key during the prompts, is refused unchanged.

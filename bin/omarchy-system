@@ -18,10 +18,29 @@ fi
 
 action=${1:-}
 case $action in
-  logout) message="Logging out"; command=(uwsm stop) ;;
-  reboot) message="Rebooting"; command=(systemctl reboot --no-wall) ;;
-  shutdown) message="Shutting down"; command=(systemctl poweroff --no-wall) ;;
+  logout) command=(uwsm stop) ;;
+  reboot) command=(systemctl reboot --no-wall) ;;
+  shutdown) command=(systemctl poweroff --no-wall) ;;
   *) echo "$usage" >&2; exit 2 ;;
+esac
+
+# Each action has whole sentences of its own, so a translation can inflect it.
+case $action in
+  logout)
+    message=$(omarchy-i18n system.loggingOut)
+    failed_title=$(omarchy-i18n system.logoutFailed)
+    failed_body=$(omarchy-i18n system.logoutRetry)
+    ;;
+  reboot)
+    message=$(omarchy-i18n system.rebooting)
+    failed_title=$(omarchy-i18n system.rebootFailed)
+    failed_body=$(omarchy-i18n system.rebootRetry)
+    ;;
+  shutdown)
+    message=$(omarchy-i18n system.shuttingDown)
+    failed_title=$(omarchy-i18n system.shutdownFailed)
+    failed_body=$(omarchy-i18n system.shutdownRetry)
+    ;;
 esac
 
 exit_session() {
@@ -48,7 +67,7 @@ elif [[ ${2:-} == "--execute" ]]; then
   fi
   status=$?
   if (( status != 0 )); then
-    omarchy-notification-send -u critical "${action^} failed" "Could not complete $action. Please try again."
+    omarchy-notification-send -u critical "$failed_title" "$failed_body"
     exit "$status"
   fi
 elif [[ -z ${2:-} ]]; then

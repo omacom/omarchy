@@ -42,6 +42,7 @@ for unit_file in "$unit_dir"/openclaw-gateway.service "$unit_dir"/openclaw-node.
     # A unit that had been failing stays listed as "not-found failed" after
     # its file is gone until its failed state is reset.
     systemctl --user reset-failed "$unit" 2>/dev/null || true
+    rm -f "$HOME/.local/state/omarchy/openclaw-stopped/$role"
   else
     echo "Could not stop $unit; OpenClaw was not removed." >&2
     exit 1
@@ -58,6 +59,9 @@ if [[ -L $HOME/.local/bin/openclaw && $(readlink -- "$HOME/.local/bin/openclaw")
   rm -f "$HOME/.local/bin/openclaw"
 fi
 
+# What omarchy-install-openclaw-cli kept of services it stopped goes with them.
+rm -rf "$HOME/.local/state/omarchy/openclaw-stopped"
+
 # The web app launcher and icon omarchy-install-ai-openclaw created.
 rm -f "$HOME/.local/share/applications/OpenClaw.desktop"
 rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/openclaw.png"
@@ -73,7 +77,12 @@ gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 state_removed=false
 if [[ -d $HOME/.openclaw && -t 0 ]]; then
   size=$(du -sh "$HOME/.openclaw" 2>/dev/null | cut -f1)
-  if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, downloaded plugins, and OpenClaw itself)?"; then
+  # du glues the unit to the number ("1.2G"); write the number with the
+  # language's decimal separator and digits.
+  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+    size="$number${BASH_REMATCH[3]}"
+  fi
+  if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n openclaw.deleteData "$size")"; then
     rm -rf "$HOME/.openclaw" "$HOME/.openclaw.update-captures"
     state_removed=true
   fi
