@@ -20,9 +20,10 @@ cat > "$TEST_BIN/omarchy-cmd-missing" <<'STUB'
 #!/bin/bash
 [[ ! -x "$TEST_BIN/$1" ]]
 STUB
+export TEST_NOTIFICATIONS="$scratch/notifications"
 cat > "$TEST_BIN/omarchy-notification-send" <<'STUB'
 #!/bin/bash
-exit 0
+printf '%s\n' "$*" >> "$TEST_NOTIFICATIONS"
 STUB
 cat > "$TEST_BIN/xdg-settings" <<'STUB'
 #!/bin/bash
@@ -38,7 +39,7 @@ cat > "$TEST_BIN/uwsm-app" <<'STUB'
 #!/bin/bash
 [[ $1 == "--" ]] || exit 1
 shift
-exec "$@"
+printf '%s\0' "$@" > "$TEST_LAUNCH"
 STUB
 for browser in chromium helium-browser; do
   cat > "$TEST_BIN/$browser" <<'STUB'
@@ -83,8 +84,10 @@ if omarchy-default-webapp-browser zen >/dev/null 2>&1; then fail "unsupported na
 rm "$TEST_BIN/helium-browser"
 if omarchy-default-webapp-browser helium >/dev/null 2>&1; then fail "missing browser cannot be selected"; fi
 rm "$TEST_LAUNCH"
+: > "$TEST_NOTIFICATIONS"
 if omarchy-launch-webapp "$url" >/dev/null 2>&1; then fail "removed explicit browser must not silently switch profiles"; fi
 [[ ! -e $TEST_LAUNCH ]] || fail "removed explicit browser launches nothing"
+grep -Fq "Web App Browser" "$TEST_NOTIFICATIONS" || fail "removed explicit browser explains how to choose another outside a terminal"
 pass "invalid and unavailable explicit browsers fail without changing browser profiles"
 
 omarchy-default-webapp-browser auto

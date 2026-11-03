@@ -18,14 +18,14 @@ fi
 
 case "$1" in
 auto) desktop_id=auto ;;
-chromium) command=chromium; desktop_id=chromium.desktop ;;
-chrome) command=google-chrome-stable; desktop_id=google-chrome.desktop ;;
-brave) command=brave; desktop_id=brave-browser.desktop ;;
-brave-origin) command=brave-origin; desktop_id=brave-origin.desktop ;;
-edge) command=microsoft-edge-stable; desktop_id=microsoft-edge.desktop ;;
-helium) command=helium-browser; desktop_id=helium.desktop ;;
-opera) command=opera; desktop_id=opera.desktop ;;
-vivaldi) command=vivaldi-stable; desktop_id=vivaldi-stable.desktop ;;
+chromium) command=chromium; desktop_id=chromium.desktop; name="Chromium" ;;
+chrome) command=google-chrome-stable; desktop_id=google-chrome.desktop; name="Chrome" ;;
+brave) command=brave; desktop_id=brave-browser.desktop; name="Brave" ;;
+brave-origin) command=brave-origin; desktop_id=brave-origin.desktop; name="Brave Origin" ;;
+edge) command=microsoft-edge-stable; desktop_id=microsoft-edge.desktop; name="Edge" ;;
+helium) command=helium-browser; desktop_id=helium.desktop; name="Helium" ;;
+opera) command=opera; desktop_id=opera.desktop; name="Opera" ;;
+vivaldi) command=vivaldi-stable; desktop_id=vivaldi-stable.desktop; name="Vivaldi" ;;
 *)
   echo "Usage: omarchy-default-webapp-browser <auto|chromium|chrome|brave|brave-origin|edge|helium|opera|vivaldi>" >&2
   exit 1
@@ -33,7 +33,7 @@ vivaldi) command=vivaldi-stable; desktop_id=vivaldi-stable.desktop ;;
 esac
 
 if [[ $desktop_id != "auto" ]] && omarchy-cmd-missing "$command"; then
-  echo "Install $1 before selecting it as the web app browser." >&2
+  echo "Install $1 with 'omarchy install browser $1' before selecting it as the web app browser." >&2
   exit 1
 fi
 
@@ -42,4 +42,9 @@ temporary=$(mktemp "${config}.XXXXXX")
 trap 'rm -f "$temporary"' EXIT
 printf '%s\n' "$desktop_id" > "$temporary"
 mv -f "$temporary" "$config"
-omarchy-notification-send "Web app browser: $1"
+
+if [[ $desktop_id == "auto" ]]; then
+  omarchy-notification-send -g 󰖟 "$(omarchy-i18n default.webappBrowserAuto)"
+else
+  omarchy-notification-send -g 󰖟 "$(omarchy-i18n default.webappBrowserSet "$name")"
+fi
