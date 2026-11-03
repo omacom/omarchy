@@ -36,3 +36,16 @@ pass "a first mise install integrates the agent with herdr"
 [[ $(integration_state hermes) == "current" ]] || fail "naming Hermes integrates it with herdr" "$(herdr integration status)"
 [[ ! -s $test_home/out.log ]] || fail "integrating Hermes stays quiet" "$(cat "$test_home/out.log")"
 pass "naming an agent outside mise integrates it with herdr"
+
+# A directory herdr can't install into only warns from mise's hook, so the
+# agent still starts, but fails a named run, so the migration stays pending.
+touch "$test_home/not-a-dir"
+CODEX_HOME=$test_home/not-a-dir/codex MISE_INSTALLED_TOOLS='[{"name":"codex"}]' \
+  "$ROOT/bin/omarchy-agent-integrate-herdr" >"$test_home/out.log" 2>&1 || fail "a failed integration from mise's hook still exits 0" "$(cat "$test_home/out.log")"
+grep -q "Could not install the herdr integration for codex" "$test_home/out.log" || fail "a failed integration from mise's hook warns" "$(cat "$test_home/out.log")"
+pass "a failed integration from mise's hook only warns"
+
+if HERMES_HOME=$test_home/not-a-dir/hermes "$ROOT/bin/omarchy-agent-integrate-herdr" hermes >"$test_home/out.log" 2>&1; then
+  fail "a failed integration for a named agent exits non-zero" "$(cat "$test_home/out.log")"
+fi
+pass "a failed integration for a named agent exits non-zero"

@@ -548,8 +548,8 @@ fi
 settle_path || exit 1
 
 # Hermes comes from its app, not mise, so mise's hook never gives it herdr's
-# session-restore integration.
-omarchy-agent-integrate-herdr hermes
+# session-restore integration. A failure warns; Hermes itself is installed.
+omarchy-agent-integrate-herdr hermes || true
 
 # Only a running Hermes can be told which skin to show; a unit outlives this
 # terminal and reports to the journal.

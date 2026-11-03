@@ -8,10 +8,13 @@
 # self-updating, so that is an agent's first use and every upgrade after it.
 # herdr only installs into a config directory the agent already made, and the
 # agent makes it on its first run, after this hook, so it is created here.
-# A failure only warns: the agent should still start. Agents that don't come
-# from mise, like Hermes, name themselves as arguments from their installer.
+# Agents that don't come from mise, like Hermes, are named as arguments by
+# their installer and migration. A failure warns, and fails the command only
+# when agents were named, so a migration stays pending; mise's hook still exits
+# 0 so the agent starts.
 
 config=${XDG_CONFIG_HOME:-$HOME/.config}
+failed=false
 
 while IFS= read -r tool; do
   case $tool in
@@ -35,7 +38,12 @@ while IFS= read -r tool; do
   # herdr reports to stdout, which would land on the agent's first screen.
   if ! mkdir -p "$dir" || ! herdr integration install "$target" >/dev/null; then
     echo "Could not install the herdr integration for $target" >&2
+    failed=true
   fi
 done < <(if (($#)); then printf '%s\n' "$@"; else jq -r '.[].name' <<<"${MISE_INSTALLED_TOOLS:-[]}" 2>/dev/null; fi)
 
-exit 0
+if (($#)) && [[ $failed == "true" ]]; then
+  exit 1
+else
+  exit 0
+fi
