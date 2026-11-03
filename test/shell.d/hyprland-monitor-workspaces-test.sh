@@ -741,3 +741,112 @@ fire_timers()
 check(world.windows["0xc"].workspace == 5, "the workspace joined under the first free number as " .. world.windows["0xc"].workspace .. ", not 5")
 ' || fail "a workspace joining a block leaves a number with a saved layout to it"
 pass "a workspace joining a block leaves a number with a saved layout to it"
+
+run_lua closed-away '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local renumbered = {}
+package.loaded["default.hypr.workspace-modes"] = {
+  renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
+  saved = function() return false end,
+}
+load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 3)
+world.focused = "DP-1"
+window("0xc", 12)
+window("0xd", 13)
+window("0xe", 14)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(table.concat(renumbered, " ") == "12>4 13>5 14>6", "the workspaces joined the laptop'"'"'s as " .. table.concat(renumbered, " "))
+
+-- All three close while their monitor is away.
+world.windows["0xc"], world.windows["0xd"], world.windows["0xe"] = nil, nil, nil
+hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+check(on(4) == nil and on(5) == nil and on(6) == nil, "the emptied workspaces went away")
+
+-- A new workspace under one of the numbers starts fresh, and the layout the
+-- closed one brought goes back to the number it came from.
+window("0xf", 4)
+world.handlers["workspace.created"]({ id = 4 })
+check(table.concat(renumbered, " ") == "12>4 13>5 14>6 4>12", "the layout stayed under the number that was opened again: " .. table.concat(renumbered, " "))
+
+-- A window rule opens a workspace under another one'"'"'s old number.
+window("0xg", 14)
+
+-- The monitor comes back: one layout goes home with it, and the workspace
+-- holding the other number keeps its own.
+plug("DP-3", 3, "LG", 2)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(table.concat(renumbered, " ") == "12>4 13>5 14>6 4>12 5>13", "the layouts went home as " .. table.concat(renumbered, " "))
+check(world.windows["0xg"].workspace == 14 and on(14) == "DP-3", "the workspace the window rule opened went to its monitor")
+' || fail "a workspace closed away from home sends its layout back to its old number"
+pass "a workspace closed away from home sends its layout back to its old number"
+
+run_lua closed-lid '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local renumbered = {}
+package.loaded["default.hypr.workspace-modes"] = {
+  renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
+  saved = function() return false end,
+}
+load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 11)
+world.focused = "eDP-1"
+
+-- The lid closes on the laptop panel, and its workspace closes on the monitor.
+unplug("eDP-1")
+world.handlers["monitor.removed"]({ name = "eDP-1" })
+fire_timers()
+check(table.concat(renumbered, " ") == "1>12", "the panel'"'"'s workspace joined the monitor'"'"'s as " .. table.concat(renumbered, " "))
+world.windows["0xa"] = nil
+hl.dispatch(hl.dsp.focus({ workspace = "11" }))
+check(on(12) == nil, "the emptied workspace went away")
+
+-- The lid opens, and Hyprland parks the panel on workspace 1 again.
+plug("eDP-1", 0, "Panel", 1)
+world.handlers["monitor.added"]({ name = "eDP-1" })
+check(table.concat(renumbered, " ") == "1>12 12>1", "the layout did not go back to the number the panel came back on: " .. table.concat(renumbered, " "))
+' || fail "a layout goes back to the empty workspace a returning monitor is parked on"
+pass "a layout goes back to the empty workspace a returning monitor is parked on"
+
+run_lua closed-session '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local renumbered = {}
+package.loaded["default.hypr.workspace-modes"] = {
+  renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
+  saved = function() return false end,
+}
+load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 12)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(table.concat(renumbered, " ") == "12>2", "the workspace joined the laptop'"'"'s as " .. table.concat(renumbered, " "))
+
+-- The session ends with the monitor still away.
+world.windows["0xb"] = nil
+hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+load_module()
+world.handlers["hyprland.start"]()
+check(table.concat(renumbered, " ") == "12>2 2>12", "the layout stayed under the number it was given: " .. table.concat(renumbered, " "))
+' || fail "a new session sends the layouts workspaces brought from elsewhere back"
+pass "a new session sends the layouts workspaces brought from elsewhere back"

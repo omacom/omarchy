@@ -285,6 +285,18 @@ local function renumber(workspace, id)
   end
 end
 
+-- A workspace that joined another block while its monitor was unplugged took
+-- its layout to the number it was given there. Closed before going home, it
+-- sends the layout back to the number it came from, unless a workspace with
+-- windows has that number now. An empty one is only the number Hyprland parked
+-- a returning monitor on.
+local function send_layout_home(id, origin)
+  local there = hl.get_workspace(origin.id)
+  if not there or (there.windows or 0) == 0 then
+    workspace_modes.renumber(id, origin.id)
+  end
+end
+
 local function owner(id, monitors, by_connector)
   if id < 1 then
     return nil
@@ -597,7 +609,8 @@ function M.reconcile(added, gone)
   end
 
   -- Workspaces that joined another monitor's block while theirs was unplugged
-  -- go back to it, under their old numbers when those are free.
+  -- go back to it, under their old numbers when those are free. One closed
+  -- since sends back its layout.
   local function restore()
     local ids = {}
     for id in pairs(merged) do
@@ -630,6 +643,8 @@ function M.reconcile(added, gone)
             adopt(workspace, by_connector[monitor.name])
           end
           changed = true
+        else
+          send_layout_home(id, origin)
         end
       end
     end
@@ -688,16 +703,21 @@ function M.reconcile(added, gone)
 end
 
 hl.on("hyprland.start", function()
-  -- Windows don't outlive a session, so neither do the workspaces that held them.
+  -- Windows don't outlive a session, so neither do the workspaces that held
+  -- them, and those from elsewhere send back their layouts.
+  for id, origin in pairs(merged) do
+    send_layout_home(id, origin)
+  end
   merged = {}
   save_merged()
   M.reconcile()
 end)
 
 -- A workspace created under a remembered number is a new one; the one that
--- came from elsewhere has gone.
+-- came from elsewhere has gone, and sends back its layout.
 hl.on("workspace.created", function(workspace)
   if workspace and merged[workspace.id] then
+    send_layout_home(workspace.id, merged[workspace.id])
     merged[workspace.id] = nil
     save_merged()
   end
