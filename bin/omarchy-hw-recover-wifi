@@ -15,54 +15,71 @@ pci_path="${OMARCHY_PCI_PATH:-/sys/bus/pci}"
 module_path="${OMARCHY_MODULE_PATH:-/sys/module}"
 
 # Intel network controllers (class 0x0280) that have no wireless interface.
+# A card another driver holds (vfio-pci for a VM, say) is not ours to re-probe.
 stalled_cards() {
-  local device vendor class
+  local device vendor class driver
 
   for device in "$pci_path"/devices/*; do
     [[ -r $device/vendor && -r $device/class ]] || continue
     read -r vendor <"$device/vendor"
     read -r class <"$device/class"
-    if [[ $vendor == "0x8086" && $class == 0x0280* ]] && ! compgen -G "$device/net/*/wireless" >/dev/null; then
+    driver=$(basename "$(readlink "$device/driver" 2>/dev/null)")
+    if [[ $vendor == "0x8086" && $class == 0x0280* && ( -z $driver || $driver == "iwlwifi" ) ]] && ! compgen -G "$device/net/*/wireless" >/dev/null; then
       basename "$device"
     fi
   done
 }
 
+# Each card is back only once it has re-enumerated with an interface, not merely when it is missing.
+cards_recovered() {
+  local card
+
+  for card in "$@"; do
+    compgen -G "$pci_path/devices/$card/net/*/wireless" >/dev/null || return 1
+  done
+}
+
 wait_for_cards() {
   for _ in {1..15}; do
-    [[ -z $(stalled_cards) ]] && return 0
+    cards_recovered "$@" && return 0
     sleep 1
   done
   return 1
 }
 
 # A normal boot can still be bringing the interface up.
-wait_for_cards && exit 0
+for _ in {1..15}; do
+  mapfile -t cards < <(stalled_cards)
+  ((${#cards[@]} == 0)) && exit 0
+  sleep 1
+done
+
+# Without iwlwifi loaded nothing tried to probe the card, so a blacklisted driver is left alone.
+if [[ ! -d $module_path/iwlwifi ]]; then
+  exit 0
+fi
 
 for attempt in 1 2 3; do
   echo "Wi-Fi card has no interface, re-probing it (attempt $attempt)"
-  for card in $(stalled_cards); do
-    echo 1 >"$pci_path/devices/$card/remove"
+  for card in "${cards[@]}"; do
+    [[ -e $pci_path/devices/$card/remove ]] && echo 1 >"$pci_path/devices/$card/remove"
   done
   sleep 2
   echo 1 >"$pci_path/rescan"
-  if wait_for_cards; then
+  if wait_for_cards "${cards[@]}"; then
     echo "Wi-Fi card recovered"
     exit 0
   fi
 
-  # Only reload a driver that is already in use, so a blacklisted iwlwifi stays out.
-  if [[ -d $module_path/iwlwifi ]]; then
-    echo "Reloading iwlwifi (attempt $attempt)"
-    for module in iwlmld iwlmvm iwlwifi; do
-      [[ -d $module_path/$module ]] && modprobe -r "$module"
-    done
-    sleep 2
-    modprobe iwlwifi
-    if wait_for_cards; then
-      echo "Wi-Fi card recovered"
-      exit 0
-    fi
+  echo "Reloading iwlwifi (attempt $attempt)"
+  for module in iwlmld iwlmvm iwlwifi; do
+    [[ -d $module_path/$module ]] && modprobe -r "$module"
+  done
+  sleep 2
+  modprobe iwlwifi
+  if wait_for_cards "${cards[@]}"; then
+    echo "Wi-Fi card recovered"
+    exit 0
   fi
 done
 

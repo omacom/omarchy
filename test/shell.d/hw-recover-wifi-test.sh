@@ -20,6 +20,9 @@ echo "$*" >>"$MODPROBE_LOG"
 if [[ $* == "iwlwifi" && -n ${RELOAD_RECOVERS:-} ]]; then
   mkdir -p "$OMARCHY_PCI_PATH/devices/0000:28:00.0/net/wlan0/wireless"
 fi
+if [[ $* == "iwlwifi" && -n ${RELOAD_LOSES_CARD:-} ]]; then
+  rm -rf "$OMARCHY_PCI_PATH/devices/0000:28:00.0"
+fi
 SH
 
 chmod +x "$stub_bin"/*
@@ -36,6 +39,7 @@ setup() {
   : >"$pci/rescan"
   [[ -z ${HAS_INTERFACE:-} ]] || mkdir -p "$card/net/wlan0/wireless"
   [[ -z ${IWLWIFI_LOADED:-} ]] || mkdir -p "$modules/iwlwifi" "$modules/iwlmvm"
+  [[ -z ${DRIVER:-} ]] || { mkdir -p "$test_tmp/drivers/$DRIVER" && ln -s "$test_tmp/drivers/$DRIVER" "$card/driver"; }
   export MODPROBE_LOG="$test_tmp/modprobe-$RANDOM.log"
   : >"$MODPROBE_LOG"
 }
@@ -63,9 +67,26 @@ grep -qx -- "-r iwlmvm" "$MODPROBE_LOG" && grep -qx -- "-r iwlwifi" "$MODPROBE_L
   fail "iwlwifi and its op mode are unloaded before loading again" "$(<"$MODPROBE_LOG")"
 pass "a card that failed to probe is rescanned, then recovered by reloading iwlwifi"
 
-setup
+IWLWIFI_LOADED=1 DRIVER=vfio-pci setup
+recover || fail "a card another driver holds is not recovered"
+[[ ! -s $card/remove && ! -s $pci/rescan && ! -s $MODPROBE_LOG ]] || fail "a card another driver holds is left alone"
+pass "a card another driver holds is left alone"
+
+IWLWIFI_LOADED=1 setup
 status=0
 recover || status=$?
 ((status == 1)) || fail "a card that never recovers is reported" "exit status: $status"
-[[ ! -s $MODPROBE_LOG ]] || fail "an unloaded (blacklisted) iwlwifi is never loaded" "$(<"$MODPROBE_LOG")"
-pass "a card that never recovers is reported, and an unloaded iwlwifi stays unloaded"
+(($(grep -cx iwlwifi "$MODPROBE_LOG") == 3)) || fail "every attempt reloads iwlwifi" "$(<"$MODPROBE_LOG")"
+pass "a card that never recovers is retried, then reported"
+
+IWLWIFI_LOADED=1 setup
+status=0
+RELOAD_LOSES_CARD=1 recover || status=$?
+((status == 1)) || fail "a card missing after the re-probe is not counted as recovered" "exit status: $status"
+pass "a card missing after the re-probe is not counted as recovered"
+
+setup
+recover || fail "a card whose iwlwifi never loaded is not a failure"
+[[ ! -s $card/remove && ! -s $pci/rescan && ! -s $MODPROBE_LOG ]] ||
+  fail "an unloaded (blacklisted) iwlwifi leaves the card alone" "$(<"$MODPROBE_LOG")"
+pass "an unloaded (blacklisted) iwlwifi leaves the card alone"
