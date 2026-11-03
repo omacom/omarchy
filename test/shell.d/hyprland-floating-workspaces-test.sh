@@ -520,23 +520,20 @@ assert(open_rule().enabled == false, "the open rule still applies after the work
 fi
 pass "windows the open rule floats tile again when the workspace stops floating"
 
-# A maximized window on a floating workspace comes back to its own size when
-# another window opens there, and one on a tiled workspace is left maximized.
+# A maximized window on a floating workspace stays maximized when another app
+# opens a window there: the new one floats over it at its own size.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 if ! run_lua '
 require("default.hypr.workspace-layouts")
-local maximized = window("0x1", 1, { floating = true, fullscreen = 1 })
-local tiled_max = window("0x2", 2, { fullscreen = 1 })
-local opening = window("0x3", 1, { floating = true })
+local maximized = window("0x1", 1, { floating = true, fullscreen = 1, tags = { "omarchy-mode-floated" } })
+local opening = window("0x2", 1, { floating = true, tags = { "omarchy-mode-opened*" } })
 state().subscriptions["window.open"][1](opening)
-assert(maximized.fullscreen == 0, "a maximized window stayed maximized when another opened on its floating workspace")
-local next_door = window("0x4", 2)
-state().subscriptions["window.open"][1](next_door)
-assert(tiled_max.fullscreen == 1, "a maximized window on a tiled workspace was unmaximized")
+assert(maximized.fullscreen == 1, "a maximized window lost its maximize when another opened on its floating workspace")
+assert(opening.fullscreen == 0 and opening.floating, "the new window did not open floating at its own size")
 '; then
-  fail "a new window on a floating workspace brings a maximized one back to size"
+  fail "a new window on a floating workspace leaves a maximized one maximized"
 fi
-pass "a new window on a floating workspace brings a maximized one back to size"
+pass "a new window on a floating workspace leaves a maximized one maximized"
 
 # Apps with float rules of their own keep them on a floating workspace: the
 # open rule passes them over, so they open at their own size and the mode never

@@ -282,21 +282,10 @@ local function claim_opened(window)
   end
 end
 
--- A maximized window has a floating workspace to itself until another one
--- opens there, which brings it back to its own size so the two can share it.
-local function unmaximize_others(window)
-  local id = window.workspace and window.workspace.id
-  if not floating_workspace(id) then
-    return
-  end
-
-  for _, other in ipairs(hl.get_workspace_windows(tostring(id))) do
-    if other.address ~= window.address and (other.fullscreen or 0) == 1 then
-      hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "unset", window = other }))
-    end
-  end
-end
-
+-- A window opening over a maximized one floats over it at its own size, and the
+-- maximized window stays maximized behind it, as it does on Windows: Hyprland
+-- lets every new floating window over a maximized one and raises it.
+--
 -- Hyprland draws a maximized window under every floating window it lets over
 -- it, whatever their order, but hands a click to whichever is highest in that
 -- order. Anything that raises the maximized window, a click on it or an app
@@ -480,7 +469,6 @@ local function watch()
 
   hl.on("window.open", function(window)
     claim_opened(window)
-    unmaximize_others(window)
     arrange({ window })
   end)
 
