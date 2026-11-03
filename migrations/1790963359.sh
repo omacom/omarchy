@@ -55,15 +55,27 @@ effective=$(sudo limine-entry-tool --get-cmdline default)
 # appended to it) the update landed in a .pacnew beside it and nothing sets the
 # parameter. Add it the same way, on its own line and only once, unless
 # /etc/default/limine replaces the drop-ins' command line, where it couldn't
-# take effect, or the file sets no command line of its own: while it is blank,
-# limine-entry-tool falls back to /etc/kernel/cmdline, and root= with it.
+# take effect. While the configured command line is blank, limine-entry-tool
+# falls back to /etc/kernel/cmdline, and the line would end that, root= with
+# it, so it stays only when it adds the parameter and takes nothing away.
 line="KERNEL_CMDLINE[default]+=\" $param\""
 if [[ -z $(autosuspend_value "$effective") && -e $defaults_conf.pacnew ]] &&
-  grep -Eq '^[[:space:]]*KERNEL_CMDLINE\[default\][[:space:]]*\+?=[[:space:]"'\'']*[^[:space:]"'\'']' "$defaults_conf" &&
   ! grep -Fxq "$line" "$defaults_conf" &&
   ! grep -Eqs '^[[:space:]]*KERNEL_CMDLINE\[default\][[:space:]]*=' "$default_limine"; then
+  size=$(stat -c %s "$defaults_conf")
   printf '\n%s\n' "$line" | sudo tee -a "$defaults_conf" >/dev/null
-  effective=$(sudo limine-entry-tool --get-cmdline default)
+  appended=$(sudo limine-entry-tool --get-cmdline default)
+  read -ra before -d '' <<<"$effective" || true
+  read -ra after -d '' <<<"$appended" || true
+  after_without=()
+  for word in "${after[@]}"; do
+    [[ $word == "$param" ]] || after_without+=("$word")
+  done
+  if [[ ${after_without[*]} == "${before[*]}" ]]; then
+    effective=$appended
+  else
+    sudo truncate -s "$size" "$defaults_conf"
+  fi
 fi
 
 value=$(autosuspend_value "$effective")
