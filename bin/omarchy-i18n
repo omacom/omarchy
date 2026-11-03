@@ -47,7 +47,7 @@ shift
 # sudo, env -i and bare logins drop the session environment. A cosmetic lookup
 # must not abort the command that called it, often after its action ran.
 i18n=${OMARCHY_PATH:-/usr/share/omarchy}/default/i18n
-language_file=${OMARCHY_LANGUAGE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/language}
+language_file=${OMARCHY_LANGUAGE_FILE:-${XDG_CONFIG_HOME:-${HOME:-}/.config}/omarchy/language}
 language=en
 if [[ -f $language_file ]]; then
   # Builtins only: head and tr would cost two process starts on every lookup.
