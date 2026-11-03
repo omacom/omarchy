@@ -80,8 +80,7 @@ if [[ $value == "-1" ]]; then
     exit 1
   fi
 
-  # Done also means a boot entry has the parameter. A menu with no command
-  # lines in it (they are inside the boot images then) is taken at its word.
+  # Done also means a boot entry has the parameter.
   limine_conf="${OMARCHY_LIMINE_CONF:-}"
   if [[ -z $limine_conf ]]; then
     esp=""
@@ -92,12 +91,27 @@ if [[ $value == "-1" ]]; then
   fi
 
   menu_cmdlines=$(sudo grep -E '^[[:space:]]*cmdline:' "$limine_conf" 2>/dev/null) || menu_cmdlines=""
+  checked=0
   built=0
   while IFS= read -r menu_cmdline; do
+    [[ -n $menu_cmdline ]] || continue
+    checked=1
     ! carries_param "${menu_cmdline#*cmdline:}" || built=1
   done <<<"$menu_cmdlines"
 
-  if [[ -n $menu_cmdlines ]] && ((!built)); then
+  # A menu with no command lines boots UKIs, which carry theirs in a .cmdline
+  # section; without objcopy to read it, the rebuild is taken at its word.
+  if [[ -z $menu_cmdlines ]] && omarchy-cmd-present objcopy; then
+    ukis=$(sudo grep -o 'boot():/EFI/Linux/[^#[:space:]]*\.efi' "$limine_conf" 2>/dev/null | sort -u) || ukis=""
+    while IFS= read -r uki; do
+      [[ -n $uki ]] || continue
+      checked=1
+      uki_cmdline=$(sudo objcopy -O binary --only-section=.cmdline "$(dirname "$limine_conf")/${uki#boot():/}" /dev/stdout 2>/dev/null | tr -d '\0') || uki_cmdline=""
+      ! carries_param "$uki_cmdline" || built=1
+    done <<<"$ukis"
+  fi
+
+  if ((checked && !built)); then
     # Unless per-kernel keys leave it out of every kernel the rebuild builds,
     # which no rebuild can change. Ask limine-entry-tool for each, as 1791581004 does.
     # shellcheck disable=SC2016
