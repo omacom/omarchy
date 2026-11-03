@@ -27,6 +27,14 @@ SH
 
 chmod +x "$stub_bin"/*
 
+# Loading iwlwifi brings a second card at 0000:29:00.0 up with SECOND_RECOVERS, clearing its remove log.
+cat >>"$stub_bin/modprobe" <<'SH'
+if [[ $* == "iwlwifi" && -n ${SECOND_RECOVERS:-} && ! -d $OMARCHY_PCI_PATH/devices/0000:29:00.0/net ]]; then
+  mkdir -p "$OMARCHY_PCI_PATH/devices/0000:29:00.0/net/wlan1/wireless"
+  : >"$OMARCHY_PCI_PATH/devices/0000:29:00.0/remove"
+fi
+SH
+
 # One network controller at 0000:28:00.0, from VENDOR, with a Wi-Fi interface when HAS_INTERFACE.
 setup() {
   pci="$test_tmp/pci-$RANDOM"
@@ -90,3 +98,15 @@ recover || fail "a card whose iwlwifi never loaded is not a failure"
 [[ ! -s $card/remove && ! -s $pci/rescan && ! -s $MODPROBE_LOG ]] ||
   fail "an unloaded (blacklisted) iwlwifi leaves the card alone" "$(<"$MODPROBE_LOG")"
 pass "an unloaded (blacklisted) iwlwifi leaves the card alone"
+
+IWLWIFI_LOADED=1 setup
+second="$pci/devices/0000:29:00.0"
+mkdir -p "$second"
+echo 0x8086 >"$second/vendor"
+echo 0x028000 >"$second/class"
+: >"$second/remove"
+status=0
+SECOND_RECOVERS=1 recover || status=$?
+((status == 1)) || fail "a card that stays down is reported beside one that recovered" "exit status: $status"
+[[ ! -s $second/remove ]] || fail "a card that recovered is not removed again"
+pass "a card that recovered on an earlier attempt is not removed again"

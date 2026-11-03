@@ -50,7 +50,9 @@ wait_for_cards() {
 # A normal boot can still be bringing the interface up.
 for _ in {1..15}; do
   mapfile -t cards < <(stalled_cards)
-  ((${#cards[@]} == 0)) && exit 0
+  if ((${#cards[@]} == 0)); then
+    exit 0
+  fi
   sleep 1
 done
 
@@ -61,8 +63,9 @@ fi
 
 for attempt in 1 2 3; do
   echo "Wi-Fi card has no interface, re-probing it (attempt $attempt)"
-  for card in "${cards[@]}"; do
-    [[ -e $pci_path/devices/$card/remove ]] && echo 1 >"$pci_path/devices/$card/remove"
+  # Only the cards still down, so one that came back on an earlier attempt keeps its interface.
+  for card in $(stalled_cards); do
+    echo 1 >"$pci_path/devices/$card/remove"
   done
   sleep 2
   echo 1 >"$pci_path/rescan"
