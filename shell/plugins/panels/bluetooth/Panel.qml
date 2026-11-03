@@ -679,7 +679,9 @@ Panel {
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
-        if (!root.cursorActive) { root.cursorActive = true; return }
+        // The list keeps its scroll across a close while opening resets the
+        // cursor to the first row, so the key that lights the cursor reveals it.
+        if (!root.cursorActive) { root.cursorActive = true; deviceListView.revealCursor(); return }
         if (dy !== 0) {
           root.moveCursor(dy)
           deviceListView.revealCursor()
