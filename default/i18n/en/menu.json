@@ -794,6 +794,9 @@
   "install.browser.firefox": {
     "label": "Firefox"
   },
+  "install.browser.librewolf": {
+    "label": "LibreWolf"
+  },
   "install.browser.zen": {
     "label": "Zen"
   },
@@ -1066,6 +1069,9 @@
   },
   "remove.browser.firefox": {
     "label": "Firefox"
+  },
+  "remove.browser.librewolf": {
+    "label": "LibreWolf"
   },
   "remove.browser.zen": {
     "label": "Zen"

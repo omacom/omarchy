@@ -458,9 +458,6 @@
   "setup.default.browser.firefox": {
     "label": "Firefox"
   },
-  "setup.default.browser.librewolf": {
-    "label": "LibreWolf"
-  },
   "setup.default.browser.zen": {
     "label": "Zen"
   },
