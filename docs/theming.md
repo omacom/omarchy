@@ -12,6 +12,8 @@ A theme can pair a still background with a silent intro video using matching fil
 
 Aim for a video between five and seven seconds long that opens on its scene setup and ends on the matching still. The shell provides the opening crossfade, so an added fade from black is unnecessary. OWE owns decoding, mute and the handoff back to that image. The theme picker prepares the highlighted theme's remembered intro offscreen, paused at its opening frame. OWE keeps one prepared clip and an idle renderer for up to one minute, then releases them. A theme switch also starts preparation while its templates render; OWE compares the selected video with the prepared clip before resuming it. Older OWE versions use the ordinary startup path. Hyprland and the SDDM greeter use a black compositor background. On a fresh login, the persistent shell host keeps an opaque black cover above the bar and wallpaper until the bar has loaded and OWE has a moving video frame, then fades both in together over 420 ms. Hyprland initializes with a transparent cursor so its visibility polling cannot expose a pointer in the first frames. The temporary Xcursor theme stays private to the compositor; applications inherit the normal cursor environment. The opening fade restores the selected cursor and settings. Shell restarts and a fifteen-second compositor timeout recover a cursor left hidden by an interrupted startup. With intros disabled or unavailable, it waits for the still to be ready instead. A ten-second deadline releases the cover if a missing wallpaper or failed plugin never becomes ready. Ordinary shell restarts preload the selected still alongside the bar without mapping that login cover. Login intros use the Hyprland instance signature, so logging out and back in plays the intro again. The launcher consumes the current session before waiting up to five seconds for OWE. Shell restarts and a daemon starting after that window cannot play a delayed intro. The shell's `BackgroundSwitch` service sequences every change that involves an intro: `omarchy-theme-set` puts up its cover and hands the rest over with `omarchy-shell shell playThemeIntro`, and `omarchy-theme-bg-set` hands a whole background change over with `omarchy-shell shell switchBackground`. Each step waits on the event that allows it: the background link moves once the cover is on screen, the new still goes in under the cover before OWE starts the clip in its first-frame mode, and the cover fades once the clip is moving. An interrupted video supplies its currently playing frame as the outgoing snapshot. Rapid selections wait for the previous opening fade to finish before capturing it. Theme replacement and playback wait for the outgoing cover to decode and reach the compositor on every screen. A persistent layer holds that outgoing wallpaper until OWE hides the shell background and reports a ready video with an advancing playback position and no outgoing still transition, then crossfades it over 420 ms while applying the new bar palette. The shell retains its background service and decoded wallpaper while it is hidden, so handing the still back does not recreate them. App retints wait until the opening crossfade completes, with a three-second bound, so they do not compete with its first frames. The compositor reload waits until playback finishes because reloading Hyprland pauses video presentation. A switch superseded during its intro carries its reload over until no intro plays. Failed playback releases the pending palette, and a newer theme invalidates the older handoff. A background change uses the same cover and crossfade with the unchanged palette and no compositor reload; reselecting the background already shown plays nothing. A change to a still without an intro of its own, made while an intro plays, holds the playing frame under the cover and opens it with the ordinary slanted cut once OWE hands the desktop back. Refreshing a theme and headless setup do not trigger intros. Appearance > Animations suppresses playback along with the other animations. The `omarchy theme bg intro toggle` command can toggle intros separately.
 
+A still background can also carry effects the shell draws over it, such as eyes that follow the pointer, from a sidecar paired by filename the same way: `backgrounds/1-totoro.webp` and `backgrounds/effects/1-totoro.json`. See [Background effects](#background-effects).
+
 A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
 ## Theme activation flow
@@ -69,6 +71,38 @@ A theme predating `colors.toml` is not left without a palette: its `alacritty.to
 The restriction lives in `omarchy-theme-set` rather than in `omarchy-theme-install` on purpose. Filtering at staging also covers themes installed before the rule existed and files a theme gains later through `omarchy theme update`.
 
 What this does not cover: a theme distributed as an archive rather than a git repo, extracted into `~/.config/omarchy/themes/` by hand, is indistinguishable from one the user wrote and stages in full. `omarchy theme install` only takes git URLs, so the supported path is always filtered, but the check is a statement about where a theme came from and not a sandbox.
+
+## Background effects
+
+A sidecar at `backgrounds/effects/<stem>.json` adds effects to the still `backgrounds/<stem>.<ext>`. It works in a theme's `backgrounds/` and in `~/.config/omarchy/backgrounds/<theme>/`, and an image chosen from any other directory looks in that directory's own `effects/`. Each top-level key names one effect type and holds a list of entries. Coordinates and sizes are in the image's own pixels, as an image editor shows them, so one sidecar fits every screen size. A radius or offset is a number for a circle or `[x, y]` for an ellipse; colors are `#rrggbb` or `#rrggbbaa`.
+
+The one effect type today is `eyes`. Each eye paints its white over the image's own and a pupil on top, so at rest it matches the picture; once the pointer moves over the desktop the pupil rolls toward it, barely when the pointer is on the eye and nearly to the rim when it is far away:
+
+```json
+{
+  "eyes": [
+    {
+      "center": [1783, 1295],
+      "radius": [40, 36],
+      "color": "#cba4f5",
+      "pupil": {
+        "radius": [16, 15],
+        "color": "#171723",
+        "rest": [6.5, -1.5],
+        "highlight": { "radius": 5, "offset": [-6.5, -3.5], "color": "#cba4f5" }
+      }
+    }
+  ]
+}
+```
+
+`center` and `radius` describe the eye's white and `color` fills it. `pupil.rest` is where the image paints the pupil, measured from `center`. `pupil.travel` optionally limits how far the pupil rolls; by default it stops a tenth of its size from the rim. `pupil.highlight` is an optional catchlight that moves with the pupil, placed from the pupil's center. To measure an eye, threshold a crop of it and read the bounding boxes, for example `magick image.webp -crop 80x72+1743+1259 +repage -colorspace gray -threshold 35% -define connected-components:verbose=true -connected-components 8 null:`, and sample the white's color away from the pupil. With the sidecar beside the image on screen, each save shows at once.
+
+A malformed entry is skipped on its own and an unknown effect type is ignored, so a sidecar written for a newer Omarchy still shows what an older one can draw; each is logged once to the shell's journal (`journalctl --user -t omarchy-shell`) with the file and the reason. The sidecar is data only, so a theme cloned from git keeps it.
+
+The shell owns these effects, not OWE: they draw on the still that the background plugin already shows, and they need the pointer, which reaches the background layer's desktop `MouseArea` but not OWE's layer. Hover is enabled only while a screen shows an effect that follows the pointer, so there is no cursor polling; the eyes follow the pointer over bare desktop and keep their last gaze while it is over a window, the bar or the dock. Each new still, and each return from a video or intro, starts on the image's own pose. Pupils glide to a new gaze over 180 ms. With Appearance > Animations off they stay in the image's pose, as intros stay off. Videos, the lock screen and the picker show the plain image, and the brief cover of a background or theme switch shows the image's own pose.
+
+`shell/plugins/background/EffectsModel.js` parses and validates sidecars; `BackgroundEffects.qml` loads one per screen and hosts each effect type's component, such as `BackgroundEye.qml`. A new effect type adds its parser to `EffectsModel.js` and its component to `BackgroundEffects.qml`. Theme updates that add a sidecar to a background re-stage the active theme in a migration, because the shell reads theme backgrounds from the staged copy.
 
 ## `colors.toml`
 
