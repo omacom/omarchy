@@ -106,14 +106,20 @@ instances() {
   done
 }
 
+# The lock probe exits 0 locked, 1 unlocked, 2 undetermined (hyprctl failed).
+# Only a definite "unlocked" may let the caller stop a shell: an undetermined
+# state counts as locked so we never stop a live lock client.
 session_locked() {
-  local uid="$1" runtime_dir="$2" home="$3" user="$4" signature="$5"
+  local uid="$1" runtime_dir="$2" home="$3" user="$4" signature="$5" state=0
 
   [[ -n $signature && -x $locked_bin ]] || return 1
 
   as_user "$uid" "$runtime_dir" "$home" "$user" env \
     HYPRLAND_INSTANCE_SIGNATURE="$signature" \
-    "$locked_bin"
+    "$locked_bin" || state=$?
+
+  (( state == 1 )) && return 1
+  return 0
 }
 
 wait_for_exit() {
@@ -154,18 +160,19 @@ pause_instance() {
 
   [[ $pid =~ ^[0-9]+$ ]] || return 0
 
-  # Another Quickshell config can also live at shell/shell.qml. Only touch a
-  # shell whose own OMARCHY_PATH names the tree it is running from.
+  # A Quickshell config at some other tree's shell/shell.qml, or one with no
+  # OMARCHY_PATH at all, is not the Omarchy shell. Require a positive match
+  # before touching the process.
+  omarchy_path=${config_path%/shell/shell.qml}
   env_omarchy_path=$(process_env "$pid" OMARCHY_PATH || true)
   env_omarchy_path=${env_omarchy_path%/}
-  if [[ -n $env_omarchy_path && $config_path != "$env_omarchy_path/shell/shell.qml" ]]; then
+  if [[ -z $env_omarchy_path || $env_omarchy_path != "$omarchy_path" ]]; then
     return 0
   fi
 
   user=$(user_for_uid "$uid") || return 0
   [[ -n $user ]] || return 0
   home=$(home_for_uid "$uid") || home=/
-  omarchy_path=${config_path%/shell/shell.qml}
   display=$(process_env "$pid" WAYLAND_DISPLAY || true)
   signature=$(process_env "$pid" HYPRLAND_INSTANCE_SIGNATURE || true)
 
@@ -222,13 +229,23 @@ instance_config_live() {
 
 resume_state() {
   local state_file="$1"
-  local uid runtime_dir pid config_path display signature action
+  local uid runtime_dir pid config_path display signature action line
   local user home omarchy_path
 
-  IFS=$'\t' read -r uid runtime_dir pid config_path display signature action <"$state_file" || {
+  IFS= read -r line <"$state_file" || {
     rm -f "$state_file"
     return 0
   }
+  # Split with `cut` rather than `read`: a whitespace IFS collapses runs of
+  # tabs, which would shift action into signature when the shell had no
+  # WAYLAND_DISPLAY or HYPRLAND_INSTANCE_SIGNATURE and leave it paused.
+  uid=$(cut -f1 <<<"$line")
+  runtime_dir=$(cut -f2 <<<"$line")
+  pid=$(cut -f3 <<<"$line")
+  config_path=$(cut -f4 <<<"$line")
+  display=$(cut -f5 <<<"$line")
+  signature=$(cut -f6 <<<"$line")
+  action=$(cut -f7 <<<"$line")
 
   # The session ended, or another shell already replaced the one we touched.
   if [[ ! -d $runtime_dir ]]; then
