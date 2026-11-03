@@ -98,6 +98,22 @@ Item {
     selectionFile = ""; doneFile = ""; opened = false
     if (done) finishRequest(done)
   }
+  // Badges and the primary action travel from the model as catalog keys, since
+  // it has no translator. Each is spelled out here so the shell catalog stays
+  // fully referenced, and a language change re-runs these lookups with the
+  // rest of the card.
+  function marketplaceText(key) {
+    switch (key) {
+    case "marketplace.badgeInstalled": return Commons.I18n.t("marketplace.badgeInstalled")
+    case "marketplace.badgeInstallable": return Commons.I18n.t("marketplace.badgeInstallable")
+    case "marketplace.badgeManualSetup": return Commons.I18n.t("marketplace.badgeManualSetup")
+    case "marketplace.badgeVerified": return Commons.I18n.t("marketplace.badgeVerified")
+    case "marketplace.viewDetails": return Commons.I18n.t("marketplace.viewDetails")
+    case "marketplace.installPlugin": return Commons.I18n.t("marketplace.installPlugin")
+    case "marketplace.setupInstructions": return Commons.I18n.t("marketplace.setupInstructions")
+    }
+    return ""
+  }
   function choose(action) {
     if (!selectedPlugin || !selectionFile || !doneFile) return
     var selected = selectedPlugin.id
@@ -309,9 +325,9 @@ Item {
               }
               Text { width: parent.width; text: root.selectedPlugin ? root.selectedPlugin.description : ""; textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight }
               Text { width: parent.width; text: root.metadataLine; textFormat: Text.PlainText; color: Qt.darker(root.foreground, 1.35); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
-              Text { width: parent.width; text: root.selectedPlugin ? MarketplaceModel.badges(root.selectedPlugin).join(" · ") : ""; textFormat: Text.PlainText; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
-              property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin) : ({ label: "", operation: "" })
-              Button { text: parent.primaryAction.label; bordered: true; focusable: true; onClicked: root.choose(parent.primaryAction.operation) }
+              Text { width: parent.width; text: root.selectedPlugin ? MarketplaceModel.badges(root.selectedPlugin).map(function(key) { return root.marketplaceText(key) }).join(" · ") : ""; textFormat: Text.PlainText; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
+              property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin) : ({ labelKey: "", operation: "" })
+              Button { text: root.marketplaceText(parent.primaryAction.labelKey); bordered: true; focusable: true; onClicked: root.choose(parent.primaryAction.operation) }
               Button { visible: root.selectedPlugin && root.selectedPlugin.installed; focusable: true; text: Commons.I18n.t("marketplace.uninstall"); onClicked: root.choose("remove") }
               }
             }
