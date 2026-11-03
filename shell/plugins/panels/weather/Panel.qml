@@ -76,12 +76,12 @@ Panel {
 
   // Configured location, read from the weather.json state file (owned by
   // omarchy-weather-location). The watch makes hand edits take effect live.
-  property var configuredLocationState: ({ name: "", latitude: null, longitude: null })
+  property var configuredLocationState: ({ name: "", latitude: null, longitude: null, country: "" })
   readonly property string configuredLocation: configuredLocationState.name
 
   // With nothing configured, where geo.omarchy.org places this network, in the
   // same shape. Kept when a later lookup fails.
-  property var detectedLocationState: ({ name: "", latitude: null, longitude: null })
+  property var detectedLocationState: ({ name: "", latitude: null, longitude: null, country: "" })
   property bool detectingLocation: false
   readonly property bool autoLocation: Model.isAutoLocation(configuredLocationState)
   onAutoLocationChanged: if (autoLocation) detectLocation()
@@ -147,8 +147,12 @@ Panel {
   readonly property var areaInfo: report && report.nearest_area && report.nearest_area[0] ? report.nearest_area[0] : null
   readonly property var forecastDays: buildForecastDays()
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
+  readonly property string locationCountry: locationState && locationState.country ? String(locationState.country) : ""
 
-  readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
+  // Units follow the location's own country, whether saved with the location
+  // or detected with it, before the wttr report's country, and the session
+  // locale only when neither is known.
+  readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, locationCountry, reportCountry)
 
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
@@ -258,13 +262,14 @@ Panel {
     configuredLocationState = {
       name: location.name,
       latitude: location.latitude,
-      longitude: location.longitude
+      longitude: location.longitude,
+      country: location.country || ""
     }
-    persistLocation(location.name, location.latitude, location.longitude)
+    persistLocation(location.name, location.latitude, location.longitude, location.country || "")
   }
 
   function clearLocation() {
-    persistLocation("", null, null)
+    persistLocation("", null, null, "")
     cancelEditingLocation()
   }
 
@@ -275,22 +280,26 @@ Panel {
     configuredLocationState = {
       name: suggestion.name,
       latitude: suggestion.latitude,
-      longitude: suggestion.longitude
+      longitude: suggestion.longitude,
+      country: suggestion.country || ""
     }
-    persistLocation(suggestion.name, suggestion.latitude, suggestion.longitude)
+    persistLocation(suggestion.name, suggestion.latitude, suggestion.longitude, suggestion.country || "")
   }
 
   function finishSavingLocation() {
     if (savingLocation && savingLocationQueryStarted) cancelEditingLocation()
   }
 
-  function persistLocation(name, latitude, longitude) {
-    if (name && latitude !== null && longitude !== null)
-      locationSaveProc.command = ["omarchy-weather-location", "--set", name, latitude + "," + longitude]
-    else if (name)
+  function persistLocation(name, latitude, longitude, country) {
+    if (name && latitude !== null && longitude !== null) {
+      var cmd = ["omarchy-weather-location", "--set", name, latitude + "," + longitude]
+      if (country) cmd.push(country)
+      locationSaveProc.command = cmd
+    } else if (name) {
       locationSaveProc.command = ["omarchy-weather-location", "--set", name]
-    else
+    } else {
       locationSaveProc.command = ["omarchy-weather-location", "--clear"]
+    }
     locationSaveProc.running = true
   }
 
@@ -383,6 +392,23 @@ Panel {
           if (!root.hasConfiguredCoordinates)
             root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
+          // A location saved before countries were carried has none in
+          // weather.json; backfill it from this wttr report once, so unit
+          // selection survives wttr outages. Only the country changes, so
+          // locationQuery is untouched and no refetch follows; the guard
+          // keeps it from racing a location save the user just made.
+          var wttrCountry = parsed.nearest_area && parsed.nearest_area[0] && parsed.nearest_area[0].country && parsed.nearest_area[0].country[0]
+            ? String(parsed.nearest_area[0].country[0].value || "").trim()
+            : ""
+          if (wttrCountry !== "" && root.hasConfiguredCoordinates && !root.configuredLocationState.country && !root.savingLocation && !locationSaveProc.running) {
+            root.configuredLocationState = {
+              name: root.configuredLocationState.name,
+              latitude: root.configuredLocationState.latitude,
+              longitude: root.configuredLocationState.longitude,
+              country: wttrCountry
+            }
+            root.persistLocation(root.configuredLocationState.name, root.configuredLocationState.latitude, root.configuredLocationState.longitude, wttrCountry)
+          }
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
           // Known coordinates already drove the fast open-meteo fetch from
