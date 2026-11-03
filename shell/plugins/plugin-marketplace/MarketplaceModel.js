@@ -76,20 +76,22 @@ function filtered(plugins, filters) {
   return result.map(function(row) { return row.plugin })
 }
 
+// Catalog keys, not text: the overlay translates them, so these badges and the
+// primary action speak the same language as the rest of the card.
 function badges(plugin) {
   var values = []
-  if (plugin.installed) values.push("Installed")
-  else if (plugin.installAvailable) values.push("Installable")
-  else values.push("Manual setup")
-  if (plugin.verified) values.push("Verified")
+  if (plugin.installed) values.push("marketplace.badgeInstalled")
+  else if (plugin.installAvailable) values.push("marketplace.badgeInstallable")
+  else values.push("marketplace.badgeManualSetup")
+  if (plugin.verified) values.push("marketplace.badgeVerified")
   return values
 }
 
 function primaryAction(plugin) {
   var row = plugin || {}
-  if (row.installed) return { label: "View details", operation: "" }
-  if (row.installAvailable && cleaned(row.repo)) return { label: "Install plugin", operation: "" }
-  return { label: "View setup instructions", operation: "" }
+  if (row.installed) return { labelKey: "marketplace.viewDetails", operation: "" }
+  if (row.installAvailable && cleaned(row.repo)) return { labelKey: "marketplace.installPlugin", operation: "" }
+  return { labelKey: "marketplace.setupInstructions", operation: "" }
 }
 
 if (typeof module !== "undefined") module.exports = { normalize: normalize, options: options, filtered: filtered, badges: badges, primaryAction: primaryAction }

@@ -24,7 +24,7 @@ assertEqual(marketplace.filtered(plugins, { category: 'Menus' })[0].id, 'acme.me
 assertEqual(marketplace.filtered(plugins, { installable: true })[0].id, 'acme.clock', 'marketplace model filters installable plugins')
 assertEqual(marketplace.filtered(plugins, { installed: 'available' })[0].id, 'acme.menu', 'marketplace model filters installed state')
 assertEqual(marketplace.filtered(plugins, { sort: 'stars' })[0].id, 'acme.clock', 'marketplace model sorts by stars')
-assertDeepEqual(marketplace.badges(plugins[0]), ['Installed', 'Verified'], 'marketplace model labels installed verified plugins')
-assertEqual(marketplace.primaryAction({ installed: false, installAvailable: true, repo: '' }).label, 'View setup instructions', 'marketplace labels entries without repositories as setup instructions')
-assertEqual(marketplace.primaryAction({ installed: false, installAvailable: true, repo: 'https://github.com/acme/clock.git' }).label, 'Install plugin', 'marketplace labels installable repositories as install actions')
+assertDeepEqual(marketplace.badges(plugins[0]), ['marketplace.badgeInstalled', 'marketplace.badgeVerified'], 'marketplace model labels installed verified plugins')
+assertEqual(marketplace.primaryAction({ installed: false, installAvailable: true, repo: '' }).labelKey, 'marketplace.setupInstructions', 'marketplace labels entries without repositories as setup instructions')
+assertEqual(marketplace.primaryAction({ installed: false, installAvailable: true, repo: 'https://github.com/acme/clock.git' }).labelKey, 'marketplace.installPlugin', 'marketplace labels installable repositories as install actions')
 JS
