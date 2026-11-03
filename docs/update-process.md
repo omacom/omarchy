@@ -163,8 +163,7 @@ Important behavior:
   check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
 - `omarchy update` checks/runs migrations in the same visible terminal via
   `omarchy-migrate` after pacman finishes.
-- A failure should leave enough output in `$XDG_RUNTIME_DIR/omarchy-update.log` and the
-  terminal transcript to debug.
+- A failure should leave enough output in `$XDG_RUNTIME_DIR/omarchy-update.log` and the terminal transcript to debug.
 - The boot check is the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-verify`, a no-op on platforms whose boot chain needs no handling of its own, x86 included: nothing runs and nothing asks for root. It is the last sudo-capable step, after AUR packages, so it also covers the initramfs rebuilds they trigger. When it fails, the update finishes its remaining steps, then exits non-zero without the reboot prompt: the update is not finished. A machine without its platform's boot package at all predates it: the update warns that its boot files were not verified and finishes. There is no check before the packages change: where `omarchy-hw-platform` can't tell the platform, the update installs its packages, and the update then fails verification, without the reboot prompt.
 
 ## Path 2: direct `sudo pacman -Syu` attempt
