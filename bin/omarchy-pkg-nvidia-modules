@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# omarchy:summary=Print or install the NVIDIA open kernel modules for the installed kernels, prebuilt when every kernel has them
+# omarchy:args=[--install]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Each linux-omarchy kernel ships NVIDIA's open modules prebuilt as
+# <kernel>-nvidia-open. They replace nvidia-open-dkms, which conflicts with
+# them, so they're only usable when every installed kernel has its package;
+# any other kernel (Arch's linux, linux-lts) still needs DKMS.
+#
+# Without arguments, prints the prebuilt packages and fails when some kernel
+# has none. --install installs them, replacing nvidia-open-dkms in the same
+# transaction, or installs nvidia-open-dkms when some kernel has none.
+
+modules_path="${OMARCHY_MODULES_PATH:-/usr/lib/modules}"
+
+prebuilt_packages() {
+  local pkgbase_file kernel packages=()
+
+  shopt -s nullglob
+  for pkgbase_file in "$modules_path"/*/pkgbase; do
+    kernel=$(< "$pkgbase_file")
+    pacman -Si -- "$kernel-nvidia-open" &>/dev/null || return 1
+    packages+=("$kernel-nvidia-open")
+  done
+
+  (( ${#packages[@]} )) || return 1
+  printf '%s\n' "${packages[@]}" | sort -u
+}
+
+as_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+case ${1:-} in
+  "")
+    prebuilt_packages
+    ;;
+  --install)
+    if packages=$(prebuilt_packages); then
+      mapfile -t packages <<<"$packages"
+      if omarchy-pkg-present nvidia-open-dkms; then
+        # --noconfirm answers pacman's conflict prompt with N; --ask 4 accepts
+        # replacing nvidia-open-dkms, so no initramfs is built without modules.
+        as_root pacman -S --needed --noconfirm --ask 4 -- "${packages[@]}"
+      else
+        omarchy-pkg-add "${packages[@]}"
+      fi
+    else
+      omarchy-pkg-add nvidia-open-dkms
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-pkg-nvidia-modules [--install]" >&2
+    exit 1
+    ;;
+esac

@@ -1,10 +1,10 @@
-echo "Switch N1x laptops to NVIDIA modules prebuilt for linux-omarchy instead of building them with DKMS"
+echo "Switch NVIDIA machines on linux-omarchy kernels to NVIDIA modules prebuilt with the kernel instead of building them with DKMS"
 
-# nvidia-open-dkms compiled NVIDIA's modules on the laptop for every kernel
-# update. linux-omarchy-nvidia-open ships them built and signed with each
-# kernel.
-if omarchy-hw-aarch64-n1x && omarchy-pkg-present nvidia-open-dkms linux-omarchy; then
-  # One transaction with --ask 4 so pacman accepts replacing the conflicting
-  # nvidia-open-dkms in place, and no initramfs is built without the modules.
-  sudo pacman -S --noconfirm --ask 4 linux-omarchy-nvidia-open
+# nvidia-open-dkms compiled NVIDIA's modules on the machine for every kernel
+# update. Each linux-omarchy kernel now ships them built and signed as
+# <kernel>-nvidia-open. omarchy-pkg-nvidia-modules swaps them in, in one
+# transaction, only when every installed kernel has its package, and leaves
+# DKMS alone otherwise.
+if omarchy-pkg-present nvidia-open-dkms; then
+  omarchy-pkg-nvidia-modules --install
 fi

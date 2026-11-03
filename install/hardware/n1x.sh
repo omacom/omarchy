@@ -128,13 +128,9 @@ bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
 n1x_gpu_driver=unloaded
 if [[ ! $bios_version =~ ^0\. ]]; then
-  # linux-omarchy-nvidia-open ships NVIDIA's modules prebuilt with each
-  # kernel. On a machine set up with nvidia-open-dkms, which it conflicts
-  # with, --ask 4 replaces that in the same transaction.
-  if omarchy-pkg-present nvidia-open-dkms; then
-    pacman -S --needed --noconfirm --ask 4 linux-omarchy-nvidia-open
-  fi
-  omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver
+  # linux-omarchy-nvidia-open ships NVIDIA's modules prebuilt with the kernel.
+  omarchy-pkg-nvidia-modules --install
+  omarchy-pkg-add nvidia-utils libva-nvidia-driver
   # The modules depend on the exact kernel they were built for, so installing
   # them can bring a newer linux-omarchy than the one found above.
   n1x_find_kernel || return 1
