@@ -1,3 +1,5 @@
+omarchy-edition-desktop || return 0
+
 # The Spark profile installs these optional applications; Workbench account
 # access is requested on first launch.
 if omarchy-pkg-present nvidia-ai-workbench; then

@@ -10,14 +10,10 @@ run_logged "$OMARCHY_INSTALL/hardware/network.sh"
 run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-fkeys.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-synaptic-touchpad.sh"
-if omarchy-edition-desktop; then
-  run_logged "$OMARCHY_INSTALL/hardware/bluetooth.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/bluetooth.sh"
 run_logged "$OMARCHY_INSTALL/hardware/n1x.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia.sh"
-if omarchy-edition-desktop; then
-  run_logged "$OMARCHY_INSTALL/hardware/nvidia-apps.sh"
-fi
+run_logged "$OMARCHY_INSTALL/hardware/nvidia-apps.sh"
 run_logged "$OMARCHY_INSTALL/hardware/vulkan.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/intel/video-acceleration.sh"

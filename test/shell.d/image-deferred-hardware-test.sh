@@ -15,6 +15,39 @@ umask 022
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
+# Queue on a server, then execute the actual leaves after the edition changes.
+(
+  export OMARCHY_EDITION_FILE="$test_tmp/edition"
+  printf 'server\n' >"$OMARCHY_EDITION_FILE"
+  export PATH="$ROOT/bin:$PATH"
+  OMARCHY_INSTALL="$ROOT/install"
+  queued=()
+  run_logged() { queued+=("$1"); }
+  source "$OMARCHY_INSTALL/hardware/all.sh"
+  for leaf in bluetooth nvidia-apps; do
+    printf '%s\n' "${queued[@]}" | grep -qx "$OMARCHY_INSTALL/hardware/$leaf.sh" ||
+      fail "server image keeps $leaf for runtime evaluation"
+  done
+
+  systemctl() { printf '%s\n' "$*" >>"$test_tmp/edition-actions"; }
+  omarchy-pkg-present() { return 0; }
+  nvidia-ctk() { printf '%s\n' "$*" >>"$test_tmp/edition-actions"; }
+  for edition in server desktop; do
+    printf '%s\n' "$edition" >"$OMARCHY_EDITION_FILE"
+    : >"$test_tmp/edition-actions"
+    source "$ROOT/install/hardware/bluetooth.sh"
+    source "$ROOT/install/hardware/nvidia-apps.sh"
+    if [[ $edition == "server" ]]; then
+      [[ ! -s $test_tmp/edition-actions ]] || fail "server skips desktop hardware actions"
+    else
+      grep -qx 'enable bluetooth.service' "$test_tmp/edition-actions" || fail "desktop enables Bluetooth at runtime"
+      grep -qx 'runtime configure --runtime=docker' "$test_tmp/edition-actions" || fail "desktop configures NVIDIA apps at runtime"
+      grep -qx 'enable dgx-dashboard.service' "$test_tmp/edition-actions" || fail "desktop enables the NVIDIA dashboard at runtime"
+    fi
+  done
+) || exit 1
+pass "deferred hardware evaluates the edition when its leaves run"
+
 unit_name=omarchy-provision-hardware.service
 unit_source="$ROOT/install/provisioning/$unit_name"
 
