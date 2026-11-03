@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import "GlobeModel.js" as Solar
 import "Model.js" as Model
 
@@ -11,7 +12,7 @@ Item {
   id: root
 
   property real spin: 0
-  property color color: Color.foreground
+  property color color: Commons.Color.foreground
   // Below this size land turns to noise; draw the graticule alone.
   readonly property bool showLand: width >= 22
 
@@ -24,7 +25,7 @@ Item {
   property bool showMarker: false
   property real markerLat: 0
   property real markerLon: 0
-  property color markerColor: Color.accent
+  property color markerColor: Commons.Color.accent
 
   readonly property real radius: Math.min(width, height) / 2 - 1
   readonly property string pluginDir: Quickshell.env("OMARCHY_PATH") + "/shell/plugins/panels/elsewhen"
@@ -68,7 +69,7 @@ Item {
       // The ocean, opaque like the large globe.
       ctx.beginPath()
       ctx.arc(0, 0, r, 0, Math.PI * 2)
-      ctx.fillStyle = Model.mix(Color.popups.background, c, root.bold ? 0.16 : 0.13)
+      ctx.fillStyle = Model.mix(Commons.Color.popups.background, c, root.bold ? 0.16 : 0.13)
       ctx.fill()
 
       ctx.save()
@@ -117,7 +118,7 @@ Item {
           ctx.fill()
           // Edged so it does not dissolve into a continent of similar lightness.
           ctx.lineWidth = Math.max(1, r * 0.04)
-          ctx.strokeStyle = Util.alpha(Color.background, 0.5)
+          ctx.strokeStyle = Util.alpha(Commons.Color.background, 0.5)
           ctx.stroke()
 
           ctx.beginPath()

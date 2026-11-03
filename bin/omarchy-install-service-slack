@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Install Slack Desktop with live Omarchy theme support
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-add slack-desktop
+if omarchy-setup-slack; then
+  setsid uwsm-app -- gtk-launch slack >/dev/null 2>&1 &
+else
+  echo "Slack theme setup failed; opening packaged Slack." >&2
+  setsid uwsm-app -- gio launch /usr/share/applications/slack.desktop >/dev/null 2>&1 &
+fi
