@@ -59,6 +59,7 @@ fi
 flock -u 9
 
 hyprctl reload >/dev/null || exit 1
-omarchy-restart-terminal
+# foot takes the new glass live from omarchy-theme-set-foot, so it needs no restart warning.
+OMARCHY_THEME_SWITCHING=1 omarchy-restart-terminal
 omarchy-theme-set-foot
 omarchy-restart-btop
