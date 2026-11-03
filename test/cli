@@ -811,6 +811,7 @@ assert_output_contains "help lookalike tokens do not trigger help" "$output" "pa
   printf '#!/bin/bash\n\n'
   printf '# omarchy:summary=Unknown subcommand test parent\n'
   printf '# omarchy:args=[-y]\n'
+  printf '# omarchy:alias=omarchy subcommandparent-alias\n'
   printf 'echo "subcommand-parent-ran args=[$*]"\n'
 } >"$TMPDIR/omarchy-subcommandparent"
 {
@@ -852,6 +853,12 @@ stderr=$("$TMPDIR/omarchy" subcommandparent -y typo 2>&1 >/dev/null) || status=$
 (( status == 127 )) || fail "a bare word after a flag is still a mistyped subcommand"
 [[ $stderr == *"omarchy subcommandparent typo"* ]] || fail "a bare word after a flag is named in the error"
 pass "a bare word after a flag is still a mistyped subcommand"
+
+status=0
+output=$("$TMPDIR/omarchy" subcommandparent-alias typo 2>&1) || status=$?
+(( status == 127 )) && [[ $output != *"subcommand-parent-ran"* ]] ||
+  fail "a mistyped subcommand behind an alias does not run the parent (status $status): $output"
+pass "a mistyped subcommand behind an alias does not run the parent"
 
 output=$("$TMPDIR/omarchy" subcommandparent child)
 assert_output_contains "a documented child still resolves" "$output" "subcommand-child-ran"
