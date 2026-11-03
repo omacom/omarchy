@@ -127,7 +127,7 @@ pass "a rejected video is remembered so it costs nothing on the next open"
 pass "a timed out video is left to retry"
 
 source <(awk '
-  /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
+  /^(is_video_path|snapshot_background_path|remove_background_snapshots|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
   copying { print }
   copying && /^}$/ { copying=0 }
 ' "$ROOT/bin/omarchy-theme-set")
