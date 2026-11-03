@@ -44,7 +44,7 @@ notify_missing() {
   mkdir -p "$stamp_dir" 2>/dev/null || return 0
   printf '%s\n' "$now" >"$stamp_file" 2>/dev/null || return 0
 
-  command -v omarchy-notification-send >/dev/null 2>&1 || return 0
+  omarchy-cmd-present omarchy-notification-send || return 0
 
   headline=$(omarchy-i18n shell.actionUnavailable 2>/dev/null || true)
   body=$(omarchy-i18n shell.actionUnavailableBody "$target.$method" 2>/dev/null || true)
