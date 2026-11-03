@@ -33,7 +33,8 @@ fi
 superwhisper shortcuts set toggle "Ctrl+Alt+Space" >/dev/null
 superwhisper shortcuts set hold none >/dev/null
 omarchy-dictation-use superwhisper
-hyprctl reload >/dev/null
+# The config is saved; Hyprland picks it up on its next reload or start.
+omarchy-restart-hyprctl || true
 if [[ $background == "false" ]]; then
   omarchy-notification-send -g  "$(omarchy-i18n dictation.superwhisperReady)" "$(omarchy-i18n dictation.hint)" -t 10000
   superwhisper settings

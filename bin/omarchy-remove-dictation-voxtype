@@ -22,7 +22,8 @@ if omarchy-cmd-present voxtype; then
   if [[ -f $backend_config && $(< "$backend_config") == "voxtype" ]]; then
     rm "$backend_config"
   fi
-  hyprctl reload >/dev/null
+  # The config is saved; Hyprland picks it up on its next reload or start.
+  omarchy-restart-hyprctl || true
 else
   echo "Voxtype was not installed."
 fi

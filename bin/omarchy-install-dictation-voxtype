@@ -32,5 +32,6 @@ voxtype setup systemd
 systemctl --user enable --now voxtype.service
 
 omarchy-dictation-use voxtype
-hyprctl reload >/dev/null
+# The config is saved; Hyprland picks it up on its next reload or start.
+omarchy-restart-hyprctl || true
 omarchy-notification-send -g  "$(omarchy-i18n dictation.voxtypeReady)" "$(omarchy-i18n dictation.hint)" -t 10000
