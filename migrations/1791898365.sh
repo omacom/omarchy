@@ -46,7 +46,16 @@ fi
 # panics. A run after a failed rebuild finds the menu already edited, so
 # the rebuild does not wait for an edit in this run.
 if omarchy-cmd-present limine-mkinitcpio; then
-  sudo limine-mkinitcpio
+  rebuild_log=$(mktemp)
+  trap 'rm -f "$rebuild_log"' EXIT
+  sudo limine-mkinitcpio 2>&1 | tee "$rebuild_log"
+
+  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+  # The menu no longer matches that image, so the migration stays pending.
+  if grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+    echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
+    exit 1
+  fi
 fi
 
 if [[ -n $set_timeout && -n $added_quiet ]]; then
