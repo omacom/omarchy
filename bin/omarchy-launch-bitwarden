@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Bitwarden or start its installer when missing.
+
+set -e
+
+bitwarden_window() {
+  hyprctl clients -j | jq -r '.[] | select(.class | test("^bitwarden$"; "i")) | .address' | head -n1
+}
+
+launch_bitwarden() {
+  # Detached, not exec'd: setsid only forks for process-group leaders, so a
+  # script caller (the installer, the defaults setup) would otherwise sit in
+  # the app's foreground until it quits.
+  setsid uwsm-app -- bitwarden-desktop --force-device-scale-factor=1 >/dev/null 2>&1 &
+}
+
+# Bitwarden reads the display scale itself, the way Electron apps do, and comes
+# up oversized next to every other window on a scaled monitor. Same treatment
+# 1Password gets for its hotkey.
+if omarchy-cmd-present bitwarden-desktop; then
+  # A window that still exists, on any workspace, is brought forward instead
+  # of launching a second copy, the way the Signal launcher works.
+  window_address=$(bitwarden_window)
+
+  if [[ -n $window_address ]]; then
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$window_address\" })" >/dev/null 2>&1 ||
+      hyprctl dispatch focuswindow "address:$window_address"
+  elif pgrep -x bitwarden-app >/dev/null; then
+    # With "run in the background" on (Bitwarden's default), closing the window
+    # only hides it: the process, tray and unlocked vault survive, and the
+    # single-instance handoff shows the window again. Try that first — a
+    # restart would lock the vault. But the re-show intermittently fails to
+    # remap on Wayland (bitwarden/clients#23899), and a handoff to a window
+    # Bitwarden really destroyed does nothing at all, so watch for the window
+    # and restart only when it does not come back.
+    launch_bitwarden
+
+    window_back=0
+    for _ in $(seq 30); do
+      if [[ -n $(bitwarden_window) ]]; then
+        window_back=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if (( window_back == 0 )); then
+      pkill -x bitwarden-app || true
+      # The single-instance lock only releases once the old process is gone; a
+      # new instance started before that hands off to the dying one and exits.
+      for _ in $(seq 100); do
+        pgrep -x bitwarden-app >/dev/null || break
+        sleep 0.05
+      done
+      launch_bitwarden
+    fi
+  else
+    launch_bitwarden
+  fi
+else
+  exec omarchy-launch-floating-terminal-with-presentation omarchy-install-service-bitwarden
+fi
