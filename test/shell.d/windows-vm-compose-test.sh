@@ -4,6 +4,13 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Exercise x86 behaviour on every host, including the checks before namespaces.
+export OMARCHY_WINDOWS_TEST_BIN=${OMARCHY_WINDOWS_TEST_BIN:-$(mktemp -d)}
+trap 'rm -rf "$OMARCHY_WINDOWS_TEST_BIN"' EXIT
+printf '#!/bin/bash\nexit 0\n' >"$OMARCHY_WINDOWS_TEST_BIN/omarchy-hw-x86"
+chmod +x "$OMARCHY_WINDOWS_TEST_BIN/omarchy-hw-x86"
+export PATH="$OMARCHY_WINDOWS_TEST_BIN:$PATH"
+
 # Bind mounts need CAP_SYS_ADMIN in a private mount namespace. Keep the
 # caller's uid so the non-root development path is exercised.
 if [[ ${OMARCHY_WINDOWS_TEST_NAMESPACE:-0} != 1 ]]; then
@@ -462,14 +469,6 @@ export OMARCHY_WINDOWS_DIR="$TMPDIR/win"
 export HOME="$TMPDIR/home"
 mkdir -p "$HOME"
 
-# The command refuses any CPU but x86_64 before defining anything, and sourcing
-# it there would exit this test with it. What is under test is the x86_64 path,
-# so omarchy-hw-x86 answers as one.
-STUB_BIN="$TMPDIR/bin"
-mkdir -p "$STUB_BIN"
-printf '#!/bin/bash\nexit 0\n' >"$STUB_BIN/omarchy-hw-x86"
-chmod +x "$STUB_BIN/omarchy-hw-x86"
-PATH="$STUB_BIN:$PATH"
 
 set -- help
 source "$ROOT/bin/omarchy-windows-vm" >/dev/null 2>&1
@@ -486,7 +485,7 @@ unmount_all() {
 cleanup() {
   set +e
   unmount_all
-  rm -rf "$TMPDIR"
+  rm -rf "$TMPDIR" "$OMARCHY_WINDOWS_TEST_BIN"
 }
 trap cleanup EXIT
 
