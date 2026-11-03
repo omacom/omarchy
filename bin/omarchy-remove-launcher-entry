@@ -81,6 +81,12 @@ if [[ $desktop_file_name == "slack.desktop" && $exec_line =~ ^omarchy-launch-sla
   exec omarchy-launch-floating-terminal-with-presentation omarchy-remove-service-slack
 fi
 
+# Notion's Flatpak desktop file is linked into the user applications dir, so
+# route it to the service removal before the generic local-file removal below.
+if [[ $desktop_file_name == "com.notion.app.desktop.notion.desktop" && $exec_line =~ (^|[[:space:]/])flatpak[[:space:]]run ]]; then
+  exec omarchy-launch-floating-terminal-with-presentation omarchy-remove-service-notion
+fi
+
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
   rm -f "$desktop_file"

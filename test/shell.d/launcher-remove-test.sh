@@ -104,3 +104,13 @@ DESKTOP
 [[ $(tail -1 "$TEST_LOG") == "terminal::omarchy-remove-service-slack" ]] || fail "the themed Slack launcher opens its package removal flow"
 [[ -f $tmp_dir/data/applications/slack.desktop ]] || fail "the override remains until package removal succeeds"
 pass "the themed Slack override routes to package removal before any cleanup"
+
+cat >"$tmp_dir/data/applications/com.notion.app.desktop.notion.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Notion
+Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=notion com.notion.app.desktop.notion @@u %U @@
+DESKTOP
+"$ROOT/bin/omarchy-remove-launcher-entry" com.notion.app.desktop.notion.desktop Notion
+[[ $(tail -1 "$TEST_LOG") == "terminal::omarchy-remove-service-notion" ]] || fail "the linked Notion launcher opens its Flatpak removal flow"
+[[ -e $tmp_dir/data/applications/com.notion.app.desktop.notion.desktop ]] || fail "the link remains until the Flatpak removal succeeds"
+pass "the linked Notion launcher routes to Flatpak removal before any cleanup"
