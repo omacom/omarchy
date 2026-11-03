@@ -30,8 +30,9 @@ function layoutHasWidget(layout, id) {
   return false
 }
 
+// Quickshell 0.3.1 still hands Wine's /NO_DBUSMENU sentinel over as a menu, so Wine ids are matched too.
 function usesNativeContextMenu(item) {
-  return !!item && String(item.id || "").indexOf("wine-") === 0
+  return !!item && (!item.menu || String(item.id || "").indexOf("wine-") === 0)
 }
 
 // A bar widget that stands in for an app's tray item takes its place: the app's
