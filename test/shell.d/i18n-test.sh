@@ -559,6 +559,39 @@ LUA
 keybinding_texts=$(cd "$fix" && python3 -c 'import importlib.util,json,sys; from pathlib import Path; spec=importlib.util.spec_from_file_location("s", sys.argv[1]); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print(json.dumps(sorted(m.keybinding_descriptions(Path(".")))))' "$ROOT/scripts/i18n-sync.py")
 assert_bash_equal "$keybinding_texts" '["Bar panel %1", "Keybindings", "Start dictation", "Stop dictation", "Switch to workspace %1", "Toggle nightlight"]' "keybinding descriptions are extracted from the bind calls"
 
+# A manual chapter gets the menu labels it names: each italic path in the
+# English source maps through the menu catalog to the target language's
+# labels, while a path the menu no longer has, or one the language has not
+# translated yet, is left out rather than guessed at.
+glossary=$work/glossary
+mkdir -p "$glossary/default/i18n/en" "$glossary/default/i18n/da"
+cat >"$glossary/default/i18n/en/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Appearance"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dock Position"},
+  "appearance.animations-on": {"label": "Animations On"},
+  "install": {"label": "Install"},
+  "install.service": {"label": "Service"},
+  "install.service.microsoft": {"label": "Microsoft"},
+  "setup": {"label": "Setup"},
+  "setup.input": {"label": "Input"}
+}
+JSON
+cat >"$glossary/default/i18n/da/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Udseende"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dockplacering"},
+  "install": {"label": "Installer"},
+  "install.service": {"label": "Tjeneste"},
+  "install.service.microsoft": {"label": "Microsoft"}
+}
+JSON
+manual_paths=$'Name _Appearance > Dock > Dock Position_ and _Install > Service > Microsoft_, but not _Appearance > Animations_ or _Setup > Input_.\n'
+glossary_json=$(cd "$glossary" && python3 -c 'import importlib.util,json,sys; from pathlib import Path; spec=importlib.util.spec_from_file_location("s", sys.argv[1]); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print(json.dumps(m.manual_menu_glossary(Path("."), "da", sys.stdin.read()), ensure_ascii=False, sort_keys=True))' "$ROOT/scripts/i18n-sync.py" <<<"$manual_paths")
+assert_bash_equal "$glossary_json" '{"Appearance > Dock > Dock Position": "Udseende > Dock > Dockplacering", "Install > Service > Microsoft": "Installer > Tjeneste > Microsoft"}' "manual chapters get a glossary of their menu paths in the localized labels"
+
 # Any display-text property name counts, both arms of a ternary count, and a
 # bare list item counts; identifiers and lines marked "i18n: ignore" do not.
 cat >"$fix/shell/Panel.qml" <<'QML'
