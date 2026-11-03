@@ -5,7 +5,7 @@
 
 if [[ -n $1 ]]; then
   WORKSPACE_ID=$1
-  TILED_LAYOUT=$(hyprctl workspaces -j | jq -r --arg id "$WORKSPACE_ID" 'first(.[] | select((.id | tostring) == $id or .name == $id) | .tiledLayout) // empty')
+  TILED_LAYOUT=$(hyprctl workspaces -j | jq -r --arg id "$WORKSPACE_ID" 'first(.[] | select(if ($id | startswith("special:")) then .name == $id else (.id | tostring) == $id end) | .tiledLayout) // empty')
 else
   read -r WORKSPACE_ID TILED_LAYOUT < <(hyprctl activeworkspace -j | jq -r '"\(.id) \(.tiledLayout // "")"')
 fi

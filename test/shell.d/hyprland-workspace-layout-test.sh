@@ -24,6 +24,8 @@ elif [[ $1 == "activeworkspace" ]]; then
 elif [[ $1 == "monitors" ]]; then
   no_special='[{"focused":true,"specialWorkspace":{"id":0,"name":""}}]'
   printf '%s\n' "${HYPRCTL_MONITORS:-$no_special}"
+elif [[ $1 == "workspaces" && -n $HYPRCTL_WORKSPACES ]]; then
+  printf '%s\n' "$HYPRCTL_WORKSPACES"
 elif [[ $1 == "workspaces" ]]; then
   printf '[{"id":3,"name":"3","tiledLayout":"%s"},{"id":-99,"name":"special:%s","tiledLayout":"%s"}]\n' \
     "${HYPRCTL_TILED_LAYOUT:-dwindle}" "${HYPRCTL_SPECIAL_NAME:-scratchpad}" "${HYPRCTL_SPECIAL_LAYOUT:-dwindle}"
@@ -599,3 +601,10 @@ current=$(HYPRCTL_SPECIAL_LAYOUT=scrolling run_current special:scratchpad)
 rm -f "$home_dir/.local/state/omarchy/workspace-layouts/default.lua"
 pass "a special workspace without a mode ignores a floating default"
 
+# A regular workspace is looked up by id alone: a named workspace called "3"
+# listed first must not stand in for workspace 3.
+rm -f "$layout_file"
+current=$(HYPRCTL_WORKSPACES='[{"id":-1337,"name":"3","tiledLayout":"scrolling"},{"id":3,"name":"work","tiledLayout":"dwindle"}]' run_current 3)
+[[ $current == "dwindle" ]] ||
+  fail "a regular workspace is read by id, not by a named workspace's name" "got: $current"
+pass "a regular workspace is read by id, not by a named workspace's name"
