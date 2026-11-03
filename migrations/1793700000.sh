@@ -11,5 +11,5 @@ fi
 # Only repoint PDFs when the user is still on the old default.
 mimeapps="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
 if [[ -f $mimeapps ]] && grep -q '^application/pdf=org.gnome.Evince.desktop' "$mimeapps"; then
-  sed -i 's/^application\/pdf=org.gnome.Evince.desktop/application\/pdf=org.gnome.Papers.desktop/' "$mimeapps"
+  sed -i --follow-symlinks 's/^application\/pdf=org.gnome.Evince.desktop/application\/pdf=org.gnome.Papers.desktop/' "$mimeapps"
 fi
