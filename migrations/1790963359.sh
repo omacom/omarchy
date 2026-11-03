@@ -55,9 +55,11 @@ effective=$(sudo limine-entry-tool --get-cmdline default)
 # appended to it) the update landed in a .pacnew beside it and nothing sets the
 # parameter. Add it the same way, on its own line and only once, unless
 # /etc/default/limine replaces the drop-ins' command line, where it couldn't
-# take effect.
+# take effect, or the file assigns no command line of its own: a first +=
+# stops limine-entry-tool falling back to /etc/kernel/cmdline, and root= with it.
 line="KERNEL_CMDLINE[default]+=\" $param\""
 if [[ -z $(autosuspend_value "$effective") && -e $defaults_conf.pacnew ]] &&
+  grep -Eq '^[[:space:]]*KERNEL_CMDLINE\[default\][[:space:]]*\+?=' "$defaults_conf" &&
   ! grep -Fxq "$line" "$defaults_conf" &&
   ! grep -Eqs '^[[:space:]]*KERNEL_CMDLINE\[default\][[:space:]]*=' "$default_limine"; then
   printf '\n%s\n' "$line" | sudo tee -a "$defaults_conf" >/dev/null
