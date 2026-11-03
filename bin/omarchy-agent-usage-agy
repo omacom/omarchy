@@ -378,7 +378,7 @@ def agy_cli_limits():
   if not agy:
     return None
   try:
-    proc = subprocess.run([agy, "--print", "/usage"], capture_output=True, text=True, timeout=8)
+    proc = subprocess.run([agy, "--print", "/usage"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=8)
     if proc.returncode != 0 or not proc.stdout.strip():
       return None
     lines = [l.strip() for l in proc.stdout.splitlines() if l.strip() and not l.strip().startswith("Quota:")]
@@ -509,7 +509,7 @@ def collect_limits(entries, force):
   if refused:
     agy_entry = next((e for e in refused if e["source"] == "agy"), None)
     if agy_entry:
-      cli = agy_cli_limits() if not os.environ.get("SANDBOX") or os.environ.get("AGY_TEST_CLI") else None
+      cli = agy_cli_limits()
       if cli:
         matched_tier = tier_by_account.get("agy") or kept_tier(agy_entry)
         return answered(agy_entry, matched_tier, cli)
