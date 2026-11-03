@@ -399,6 +399,7 @@
   "remove.dictation.superwhisper": {"icon":"","label":"Superwhisper","when":"omarchy-pkg-present superwhisper-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-dictation-superwhisper"},
   "remove.dictation.voxtype": {"icon":"","label":"Voxtype","when":"omarchy-pkg-present voxtype-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-dictation-voxtype"},
   "remove.ai.grok-bot": {"icon":"","iconFont":"omarchy","label":"Grok Bot","when":"omarchy-pkg-present grok-bot","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-grok-bot"},
+  "remove.ai.herdr": {"icon":"","label":"Herdr Desktop","when":"[[ -f \"$HOME/.local/share/herdr-app/herdr-app\" ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-herdr"},
   "remove.ai.lm-studio": {"icon":"","iconFont":"omarchy","label":"LM Studio","when":"omarchy-pkg-present lmstudio-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-lm-studio"},
   "remove.ai.ollama": {"icon":"","iconFont":"omarchy","label":"Ollama","when":"omarchy-pkg-present ollama","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-ollama"},
   "remove.ai.openclaw": {"icon":"","iconFont":"omarchy","label":"OpenClaw","when":"omarchy-pkg-present openclaw","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-openclaw"},

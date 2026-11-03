@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Herdr desktop app, keeping herdr-core and your Herdr settings.
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+# The app updates itself in place, so a running one could put back what goes here.
+pkill -x herdr-app || true
+
+# Only what Herdr's installer put down for the app. herdr-core keeps the
+# terminals and agents running, and the herdr package and the terminal use it
+# too, so it stays. ~/.config/herdr-app holds the user's own settings and
+# themes, which a reinstall picks right back up.
+data="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+if [[ $(readlink "$HOME/.local/bin/herdr-app" || true) == "$data/herdr-app/herdr-app" ]]; then
+  rm -f "$HOME/.local/bin/herdr-app"
+fi
+
+rm -rf "$data/herdr-app"
+rm -f \
+  "$data/applications/herdr-app.desktop" \
+  "$data/icons/hicolor/scalable/apps/herdr-app.svg"
+update-desktop-database "$data/applications" &>/dev/null || true
+
+echo ""
+echo "Herdr Desktop has been removed."
