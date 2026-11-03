@@ -124,7 +124,7 @@ kernel_link_up() {
 # wifi device is in a state only a dead phy explains. A roam or a radio-on
 # race can look like this for one poll, which is what CONFIRM_POLLS is for.
 looks_wedged() {
-  local dev state iface nm_out nm_rc radio_rc
+  local dev state iface nm_out nm_rc radio_rc type
   local -A listed=()
   wedged_devices=()
   radio_state
@@ -152,8 +152,12 @@ looks_wedged() {
     rfkill_blocked "$dev" && continue
     case $state in
       connected*)
-        [[ $(iface_type $dev) == "managed" ]] || continue
-        kernel_link_up "$dev" || wedged_devices+=("$dev")
+        type=$(iface_type "$dev")
+        if [[ -z $type ]]; then
+          kernel_responsive "$dev" || wedged_devices+=("$dev")
+        elif [[ $type == "managed" ]]; then
+          kernel_link_up "$dev" || wedged_devices+=("$dev")
+        fi
         ;;
       unavailable)
         kernel_responsive "$dev" || wedged_devices+=("$dev")

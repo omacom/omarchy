@@ -152,6 +152,14 @@ if run_check >/dev/null; then
 fi
 pass "wifi recover leaves a healthy association alone"
 
+# A wedged station may stop answering even the interface-type query.
+NM_STATUS=$'wlp9s0:wifi:connected\n' IW_FAIL=1
+if ! run_check >/dev/null; then
+  fail "wifi recover recognizes a connected radio whose kernel queries fail"
+fi
+IW_FAIL=0
+pass "wifi recover recognizes an unresponsive connected radio"
+
 # User turned the radio off, or rfkill is on. Do not fight them.
 NM_STATUS=$'wlp9s0:wifi:unavailable\n' RADIO=disabled
 if run_check >/dev/null; then
