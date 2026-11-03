@@ -639,3 +639,10 @@ if [[ -f /usr/share/i18n/SUPPORTED ]]; then
 else
   skip "every registry locale exists in glibc SUPPORTED"
 fi
+
+# Callers from a scrubbed environment (sudo, env -i) have no OMARCHY_PATH.
+# The lookup still prints a string rather than aborting the command it serves.
+unset_path_output=$(env -u OMARCHY_PATH "$ROOT/bin/omarchy-i18n" audio.micMuted) ||
+  fail "omarchy-i18n works without OMARCHY_PATH"
+[[ -n $unset_path_output ]] || fail "omarchy-i18n prints a string without OMARCHY_PATH"
+pass "omarchy-i18n works without OMARCHY_PATH"
