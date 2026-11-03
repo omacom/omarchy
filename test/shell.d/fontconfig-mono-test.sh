@@ -10,7 +10,7 @@ unset FONTCONFIG_FILE FONTCONFIG_PATH
 # into a variable first: grep -q closing the pipe early would SIGPIPE
 # fc-list and, under pipefail, read as a missing font.
 installed_fonts=$(fc-list)
-for family in "Adwaita Mono" "Liberation Mono" "JetBrains Mono" "JetBrainsMono Nerd Font" "Noto Sans Mono CJK KR"; do
+for family in "Adwaita Mono" "Liberation Mono" "JetBrains Mono" "JetBrainsMono Nerd Font" "Noto Sans Mono CJK KR" "Noto Sans CJK JP" "Noto Sans CJK KR"; do
   if ! grep -Fqi -- "$family" <<<"$installed_fonts"; then
     skip "fontconfig monospace scoping needs $family"
     exit 0
@@ -88,17 +88,19 @@ check_matrix() {
     [[ $actual == "$family" ]] || fail "explicit $family resolves to itself with $chosen generated" "$actual"
   done
 
-  # FC_DEBUG=7 prefixes edits a rule actually applied with "Substitute";
-  # the bare rule listing repeats every Assign in the config, applied or not.
-  # Read the output fully before grepping: grep -q closing the pipe early
-  # would SIGPIPE fc-match and hide an applied assignment under pipefail.
-  local debug
-  for family in "${explicit_families[@]}"; do
-    debug=$(rig FC_DEBUG=7 fc-match "$family" 2>&1)
-    if grep -q 'Substitute Edit family Assign' <<<"$debug"; then
-      fail "no Assign fires for explicit $family" "$debug"
-    fi
+  # A requested family that isn't installed must still land on the package
+  # default: the generic the system appends behind it is what assign
+  # replaces, so the fallback survives only while the package defaults
+  # stay unguarded.
+  for family in "DejaVu Sans Mono" "Consolas" "Droid Sans Mono, monospace"; do
+    actual=$(resolve "$family")
+    [[ $actual == "JetBrainsMono Nerd Font" ]] || fail "missing $family falls back to the package default with $chosen generated" "$actual"
   done
+
+  # An explicit CJK pair keeps its head even though another variant is in
+  # the list: the preference deletion must not drop a requested JP.
+  actual=$(resolve "Noto Sans CJK JP, Noto Sans CJK KR")
+  [[ $actual == "Noto Sans CJK JP" ]] || fail "an explicit CJK pair keeps its requested head" "$actual"
 }
 
 refresh_cache() {

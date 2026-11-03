@@ -1,26 +1,9 @@
-echo "Move the monospace font rule aside and upgrade your generated font override"
+echo "Upgrade your generated monospace override to the scoped form"
 
-# The package rule moved from 50-omarchy.conf to 51-omarchy.conf so the
-# generated user rule (loaded by 50-user.conf) is evaluated first. Only
-# clean up once the replacement is actually installed: on a checkout that
-# links Omarchy commands without updating fixed system paths, the installed
-# settings package may still supply only the old file, and deleting it
-# would remove every Omarchy font default from that machine. Staying
-# pending retries after the package update lands (omarchy update installs
-# packages before running migrations).
-if [[ ! -e /usr/share/fontconfig/conf.avail/51-omarchy.conf && ! -L /etc/fonts/conf.d/51-omarchy.conf ]]; then
-  echo "The settings package has not installed 51-omarchy.conf yet; leaving this migration pending"
-  exit 1
-fi
-
-# Pacman orphans the removed 50- files instead of deleting them, so an old
-# install would keep the old hijacking rule alongside the new one. Remove
-# both the installed target and its conf.d symlink; either may already be
-# gone.
-if [[ -e /usr/share/fontconfig/conf.avail/50-omarchy.conf || -L /usr/share/fontconfig/conf.avail/50-omarchy.conf || -e /etc/fonts/conf.d/50-omarchy.conf || -L /etc/fonts/conf.d/50-omarchy.conf ]]; then
-  sudo rm -f /usr/share/fontconfig/conf.avail/50-omarchy.conf /etc/fonts/conf.d/50-omarchy.conf
-fi
-
+# No system cleanup is needed here: the old 50-omarchy.conf files are
+# package-owned and not in the PKGBUILD's backup list, so pacman removes
+# them on upgrade when the new package stops shipping them.
+#
 # A rule the old omarchy-font-set generated keeps working after the rename,
 # and keeps hijacking: its unguarded prepend_first runs before the package
 # rule and puts the chosen font ahead of explicit families that only gained
@@ -32,17 +15,21 @@ if [[ -f $user_font ]] && grep -Fq 'prepend_first' "$user_font"; then
   first_prepend=$(grep -n 'prepend_first' "$user_font" | head -n 1 | cut -d: -f1)
   old_start=$(grep -n '<match' "$user_font" | awk -F: -v pl="$first_prepend" '$1 <= pl {s=$1} END {print s}' || true)
   old_end=$(awk -v pl="$first_prepend" 'NR >= pl && /<\/match>/ {print NR; exit}' "$user_font" || true)
-  # Only the known generated block qualifies: one monospace test plus the
-  # prepend_first edit and nothing else. A custom prepend_first block, or a
-  # file where another rule names the first non-monospace family, keeps
-  # whatever the user wrote.
+  # Only the known generated block qualifies, attribute for attribute: one
+  # monospace test plus the prepend_first edit and nothing else. A custom
+  # prepend_first block, or a file where another rule names the first
+  # non-monospace family, keeps whatever the user wrote.
   block_ok=false
   if [[ -n $old_start && -n $old_end ]]; then
     block=$(sed -n "${old_start},${old_end}p" "$user_font")
     if (( $(grep -c '<string>' <<<"$block") == 2 )) &&
       (( $(grep -c '<string>monospace</string>' <<<"$block") == 1 )) &&
       (( $(grep -c '<test' <<<"$block") == 1 )) &&
-      (( $(grep -c '<edit' <<<"$block") == 1 )); then
+      (( $(grep -c '<edit' <<<"$block") == 1 )) &&
+      grep -Fq 'qual="any"' <<<"$block" &&
+      grep -Fq 'mode="prepend_first"' <<<"$block" &&
+      grep -Fq 'binding="strong"' <<<"$block" &&
+      grep -Fq 'target="pattern"' <<<"$block"; then
       block_ok=true
     fi
   fi
