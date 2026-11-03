@@ -25,6 +25,9 @@ SH
 done
 
 calls="$test_tmp/theme-calls"
+export OPENCODE_CONFIG_DIR="$test_tmp/home/.config/opencode"
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
+mkdir -p "$XDG_RUNTIME_DIR"
 test_path="$mock_bin:$ROOT/bin:$PATH"
 touch "$test_tmp/home/.config/chromium/SingletonLock"
 HOME="$test_tmp/home" PATH="$test_path" OMARCHY_TEST_THEME_CALLS="$calls" \
