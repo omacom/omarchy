@@ -48,8 +48,14 @@ if [[ ! -f $cli_config ]]; then
     exit 0
   fi
 fi
-tmp=$(mktemp "$cli_config.XXXXXX")
-config_source="$cli_config"
+# Write through a symlinked cli.json instead of replacing the link, so a
+# dotfiles checkout keeps receiving later palette updates.
+cli_target="$cli_config"
+if [[ -L $cli_config ]]; then
+  cli_target=$(readlink -f "$cli_config") || exit 1
+fi
+tmp=$(mktemp "$cli_target.XXXXXX")
+config_source="$cli_target"
 [[ -f $config_source ]] || config_source=/dev/null
 if ! jq -s --arg plugin "$config_dir/omarchy-theme" --arg legacy "$config_dir/tui-plugins/omarchy-theme.ts" --argjson activate "$activate" '
   (.[0] // {}) |
@@ -58,4 +64,4 @@ if ! jq -s --arg plugin "$config_dir/omarchy-theme" --arg legacy "$config_dir/tu
 ' "$config_source" >"$tmp"; then
   exit 1
 fi
-mv "$tmp" "$cli_config"
+mv "$tmp" "$cli_target"

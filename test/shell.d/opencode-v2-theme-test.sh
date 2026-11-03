@@ -36,6 +36,17 @@ process.off('SIGUSR2', listener)
 JS
 pass "OpenCode 2 theme activation, opt-out, Herdr preservation and watcher cleanup"
 
+# A symlinked cli.json must stay a symlink so later dotfiles edits reach OpenCode.
+dotfiles="$test_dir/dotfiles"
+mkdir -p "$dotfiles"
+printf '{"theme":{"name":"dotfiles","mode":"light"}}\n' >"$dotfiles/cli.json"
+rm "$OPENCODE_CONFIG_DIR/cli.json"
+ln -s "$dotfiles/cli.json" "$OPENCODE_CONFIG_DIR/cli.json"
+bash "$ROOT/bin/omarchy-theme-set-opencode" --activate
+[[ -L $OPENCODE_CONFIG_DIR/cli.json ]] || fail "theme sync must preserve a symlinked cli.json"
+jq -e '.theme.name == "omarchy" and .theme.mode == "light"' "$dotfiles/cli.json" >/dev/null
+pass "theme sync updates a symlinked cli.json without replacing the link"
+
 rm "$OPENCODE_CONFIG_DIR/cli.json"
 bash "$ROOT/bin/omarchy-theme-set-opencode" --activate
 jq -e '.theme.name == "omarchy" and (.plugins | length) == 1' "$OPENCODE_CONFIG_DIR/cli.json" >/dev/null
