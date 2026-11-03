@@ -860,6 +860,53 @@ mapfile -d '' -t launch_args <"$launch_log"
 [[ ! -s $menu_log ]] || fail "--pick opens no menu once an agent is chosen"
 pass "--pick launches once an agent is chosen"
 
+# The Quake console seeds with --prefer-local: the local model when one is
+# running, the usual agent otherwise. The mock reports whatever status the test
+# writes to OMARCHY_TEST_LOCAL_STATUS, and no status at all when it is unset.
+cat >"$mock_bin/omarchy-agent-local" <<'SH'
+#!/bin/bash
+case $1 in
+status) [[ -n ${OMARCHY_TEST_LOCAL_STATUS:-} ]] && printf '%s\n' "$OMARCHY_TEST_LOCAL_STATUS" || exit 1 ;;
+overlay) printf '%s\n' "/overlays/$2-${3:-last}.config" omarchy-local "${3:-last}" ;;
+esac
+SH
+chmod +x "$mock_bin/omarchy-agent-local"
+prefer_local_launch() {
+  : >"$launch_log"
+  OMARCHY_TEST_LOCAL_STATUS=$1 omarchy-agent --pick --prefer-local
+  mapfile -d '' -t launch_args <"$launch_log"
+}
+
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
+[[ ${launch_args[*]} == *"OPENCODE_CONFIG=/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
+  fail "--prefer-local opens the running local model: ${launch_args[*]}"
+
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"inactive","sub_state":"dead"},"small":{"unit":"active","sub_state":"running"}}}'
+[[ ${launch_args[*]} == *"/overlays/opencode-small.config"* ]] ||
+  fail "--prefer-local opens whichever model is running when the last one is stopped: ${launch_args[*]}"
+
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"activating","sub_state":"start"}}}'
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+  fail "--prefer-local opens the usual agent while the model is still loading: ${launch_args[*]}"
+
+prefer_local_launch ''
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+  fail "--prefer-local opens the usual agent without a local model: ${launch_args[*]}"
+
+# A default that can't take the overlay, with no pi or OpenCode to stand in,
+# still opens rather than failing as --local would.
+printf '%s\n' "codex" >"$agent_file"
+: >"$notification_history"
+printf '#!/bin/bash\nexit 1\n' >"$mock_bin/omarchy-cmd-present"
+chmod +x "$mock_bin/omarchy-cmd-present"
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
+[[ ${launch_args[*]} == *"codex --approve-for-me" && ${launch_args[*]} != *overlays* ]] ||
+  fail "--prefer-local falls back to a default that can't take the overlay: ${launch_args[*]}"
+[[ ! -s $notification_history ]] || fail "--prefer-local falling back raises no notification"
+printf '%s\n' "opencode" >"$agent_file"
+rm "$mock_bin/omarchy-agent-local" "$mock_bin/omarchy-cmd-present"
+pass "--prefer-local opens the running local model, and the usual agent otherwise"
+
 : >"$launch_log"
 omarchy agent prompt "Review this project"
 mapfile -d '' -t launch_args <"$launch_log"

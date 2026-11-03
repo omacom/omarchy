@@ -22,10 +22,11 @@ local CONSOLE = "special:qconsole"
 -- of an empty console that explains nothing. One that has to be installed
 -- first does so in a floating terminal and then moves into the console; see
 -- omarchy-default-agent. A console created by moving a window onto it is not
--- empty, and is left alone.
+-- empty, and is left alone. --prefer-local opens the agent on the local model
+-- when one is running, and on the usual one otherwise.
 hl.on("workspace.created", function(ws)
   if ws and ws.name == CONSOLE and ws.is_empty then
-    hl.exec_cmd("omarchy-agent --pick", { workspace = CONSOLE .. " silent" })
+    hl.exec_cmd("omarchy-agent --pick --prefer-local", { workspace = CONSOLE .. " silent" })
   end
 end)
 
