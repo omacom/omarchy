@@ -840,6 +840,31 @@ assert_bypass copilot copilot --allow-all
 assert_bypass kimi kimi --yolo
 assert_bypass qwen qwen --yolo
 assert_bypass dsh env DSH_PERMISSION_MODE=danger-full-access dsh web
+# A second launch while dsh serves its UI cannot bind the port, so it reopens
+# the running UI in the default browser instead of starting another server.
+cat >"$mock_bin/omarchy-launch-browser" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_AGENT_LAUNCH_LOG.browser"
+SH
+chmod +x "$mock_bin/omarchy-launch-browser"
+python3 -c 'import socket, sys, time
+s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", 3080)); s.listen(); print("ready", flush=True); time.sleep(30)' >"$test_tmp/dsh-port" 2>&1 &
+dsh_server=$!
+for _ in {1..50}; do [[ -s $test_tmp/dsh-port ]] && break; sleep 0.05; done
+grep -qx ready "$test_tmp/dsh-port" || fail "DSH test can listen on 127.0.0.1:3080" "$(cat "$test_tmp/dsh-port")"
+: >"$launch_log"
+: >"$clipboard_log"
+rm -f "$launch_log.browser"
+printf '%s\n' dsh >"$agent_file"
+omarchy-agent-prompt "Review this"
+kill "$dsh_server" 2>/dev/null || true
+wait "$dsh_server" 2>/dev/null || true
+[[ $(tr '\0' ' ' <"$launch_log.browser" 2>/dev/null) == "http://127.0.0.1:3080/ " ]] || fail "DSH launcher reopens the running UI in the default browser"
+[[ ! -s $launch_log ]] || fail "DSH launcher starts no second server while one runs" "$(tr '\0' ' ' <"$launch_log")"
+[[ $(<"$clipboard_log") == "Review this" ]] || fail "DSH launcher still puts the prompt on the clipboard when reopening"
+rm "$mock_bin/omarchy-launch-browser"
+pass "DSH launcher reopens its running UI instead of starting a second server"
 assert_bypass mcode mcode
 assert_bypass kiro-cli kiro-cli chat --trust-all-tools
 : >"$clipboard_log"
