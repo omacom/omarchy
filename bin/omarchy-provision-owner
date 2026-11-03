@@ -157,11 +157,12 @@ log_step() {
 
 # ── Setup progress screen ────────────────────────────────────────────────────
 #
-# A port of the ISO install dashboard's renderer, so first-boot account setup
-# looks like a continuation of the install: same logo header, same 34-cell
-# bar, same rotating tips. Position = max(floor, work) in
-# per-mille, monotonic; the floor is asymptotic per phase band and the work
-# signal counts finalize-user's run_logged scripts in the log.
+# The ISO install dashboard's own screen, drawn by the file it vendors from this
+# package, so first-boot account setup continues the install on the screen it
+# started on: the same traced icon, percentage and rotating tips. Position =
+# max(floor, work) in per-mille, monotonic; the floor is asymptotic per phase
+# band and the work signal counts finalize-user's run_logged scripts in the log.
+source "$OMARCHY_PATH/install/provisioning/progress-icon.sh"
 
 CSI=$'\033['
 RESET="${CSI}0m"
@@ -169,19 +170,10 @@ DIM="${CSI}2m"
 HIDE_CURSOR="${CSI}?25l"
 SHOW_CURSOR="${CSI}?25h"
 CLEAR="${CSI}2J${CSI}H"
-CLEAR_LINE="${CSI}2K"
-CLEAR_TO_END="${CSI}J"
 GREEN="${CSI}32m"
-WHITE="${CSI}37m"
-DARK="${CSI}90m"
 
 STATE_FILE=/run/omarchy-provision-owner.state
 FINALIZE_WARNING_FLAG=/run/omarchy-provision-owner.finalize-warning
-# Rows the setup screen occupies: logo, blank, title, blank, bar, blank, tip.
-SETUP_HEIGHT=$((LOGO_HEIGHT + 6))
-SETUP_TOP_ROW=1
-DYNAMIC_ROW=$((LOGO_HEIGHT + 3))
-LAST_SETUP_SIZE=""
 
 tips=(
   "Super + Space opens the Omarchy menu for apps, settings, and more"
@@ -210,8 +202,6 @@ term_cols() {
   [[ $cols =~ ^[0-9]+$ ]] && (( cols > 0 )) || cols=${COLUMNS:-80}
   printf '%s' "$cols"
 }
-
-term_size() { stty size 2>/dev/null </dev/tty || printf '24 80\n'; }
 
 # A fingerprint of the console geometry: the VT size plus the framebuffer's
 # identity and pixel size. On a fresh first boot the VT can come up in a
@@ -248,12 +238,6 @@ wait_console_stable() {
   return 1
 }
 
-repeat() {
-  local char="$1" count="$2" out="" i
-  for ((i = 0; i < count; i++)); do out+="$char"; done
-  printf '%s' "$out"
-}
-
 left_padding() {
   local width="${1:-$LOGO_WIDTH}" cols pad
   cols=$(term_cols)
@@ -262,47 +246,7 @@ left_padding() {
   printf '%*s' "$pad" ''
 }
 
-visible_len() {
-  local text="$1"
-  text="$(printf '%b' "$text" | sed -E $'s/\x1b\\[[0-9;?]*[A-Za-z]//g')"
-  printf '%s' "${#text}"
-}
-
-blank_line() { printf '\r%s\n' "$CLEAR_LINE"; }
-
-line_at() {
-  local width="${1:-$LOGO_WIDTH}" indent="${2:-0}"
-  shift 2
-  printf '\r%s%s%*s' "$CLEAR_LINE" "$(left_padding "$width")" "$indent" ''
-  printf '%b' "$*"
-}
-
-center() {
-  local text="$1" width="${2:-$LOGO_WIDTH}" len inner_pad
-  len="$(visible_len "$text")"
-  inner_pad=$(((width - len) / 2))
-  (( inner_pad < 0 )) && inner_pad=0
-  printf '\r%s%s%*s%b%s\n' "$CLEAR_LINE" "$(left_padding "$width")" "$inner_pad" '' "$text" "$RESET"
-}
-
-render_logo() {
-  local pad line
-  pad="$(left_padding "$LOGO_WIDTH")"
-  while IFS= read -r line; do
-    printf '\r%s%s%b%s%b\n' "$CLEAR_LINE" "$pad" "$GREEN" "$line" "$RESET"
-  done <"$LOGO_PATH"
-}
-
-progress_bar() {
-  local pm="$1" width="${2:-34}" filled empty
-  (( pm < 0 )) && pm=0
-  (( pm > 1000 )) && pm=1000
-  filled=$((pm * width / 1000))
-  empty=$((width - filled))
-  printf '%s%s%s%s%s' "$WHITE" "$(repeat █ "$filled")" "$DARK" "$(repeat ░ "$empty")" "$RESET"
-}
-
-# Monotonic clock so an NTP step during setup cannot jump the bar.
+# Monotonic clock so an NTP step during setup cannot jump the progress.
 set_now() {
   local up rest
   if read -r up rest </proc/uptime 2>/dev/null && [[ $up == [0-9]* ]]; then
@@ -338,7 +282,7 @@ REKEY_PENDING=false
 phase_band() {
   if $REKEY_PENDING; then
     # Encrypted: finalize is quick, the LUKS re-key (UKI rebuild) is the long
-    # pole — give it nearly half the bar so it keeps moving while it works.
+    # pole — give it nearly half the drawing so it keeps moving while it works.
     case $1 in
       finalize) echo "80 480 40" ;;
       rekey)    echo "480 950 30" ;;
@@ -393,44 +337,26 @@ setup_progress() {
   return 0
 }
 
-# Vertically center the setup block the way greeter_screen centers its splash,
-# so the screen the owner watches through finalization is composed rather than
-# stacked from row one — and first boot bookends the install identically.
-measure_setup_layout() {
-  local rows
-  LAST_SETUP_SIZE=$(term_size)
-  rows=${LAST_SETUP_SIZE%% *}
-  [[ $rows =~ ^[0-9]+$ ]] || rows=24
-  SETUP_TOP_ROW=$(((rows - SETUP_HEIGHT) / 2))
-  (( SETUP_TOP_ROW < 0 )) && SETUP_TOP_ROW=0
-  SETUP_TOP_ROW=$((SETUP_TOP_ROW + 1))
-  DYNAMIC_ROW=$((SETUP_TOP_ROW + LOGO_HEIGHT + 1))
-}
-
 render_setup_static() {
-  measure_setup_layout
-  printf '%s%s%s%d;1H' "$HIDE_CURSOR" "$CLEAR" "$CSI" "$SETUP_TOP_ROW"
-  render_logo
-  blank_line
+  printf '%s' "$HIDE_CURSOR"
+  progress_icon_layout /dev/tty "$LOGO_WIDTH"
+  progress_icon_static
 }
 
+# The VT can still resize under us (the same virtio-gpu KMS handoff the greeter
+# watches for); progress_icon_frame redraws at the new size when it does. Only
+# the worker's successful exit completes the drawing (render_setup_finish).
 render_setup_dynamic() {
-  # The VT can still resize under us — the same virtio-gpu KMS handoff the
-  # greeter watches for. left_padding recomputes every frame, but the logo is
-  # drawn once, so repaint it at the new center rather than leaving the centered
-  # block stranded against a stale geometry.
-  [[ $(term_size) == "$LAST_SETUP_SIZE" ]] || render_setup_static
+  local poll="${1:-1}" pm
   set_now
-  setup_progress
-  printf '%s%d;1H' "$CSI" "$DYNAMIC_ROW"
-  center "Setting up your machine" "$LOGO_WIDTH"
-  blank_line
-  line_at "$LOGO_WIDTH" $(((LOGO_WIDTH - 34) / 2)) ""
-  progress_bar "$SETUP_POS" 34
-  printf '\n'
-  blank_line
-  center "${DIM}Tip:${RESET} ${GREEN}$(current_tip)${RESET}" "$LOGO_WIDTH"
-  printf '%s' "$CLEAR_TO_END"
+  (( poll )) && setup_progress
+  pm=$SETUP_POS
+  (( pm > 999 )) && pm=999
+  progress_icon_frame "$pm" "Setting up your machine" "Tip: $(current_tip)"
+}
+
+render_setup_finish() {
+  progress_icon_finish "Setting up your machine" "Tip: $(current_tip)"
 }
 
 # The first thing a new owner sees, shown once before the keyboard step:
@@ -697,7 +623,7 @@ apply_keyboard() {
   fi
 }
 
-# The same username/password/name/email form as the ISO configurator's Step 2.
+# The same username/password form as the ISO configurator's Step 2.
 user_form() {
   step "Let's setup your user account..."
 
@@ -712,7 +638,6 @@ user_form() {
   fi
 
   omarchy_prompt_password || return $?
-  omarchy_prompt_identity || return $?
 
   # Hostname and timezone are deferred to first boot with the rest of the user
   # step: the deferred install seeds neutral placeholders (omarchy/UTC) and the
@@ -730,8 +655,6 @@ confirm_form() {
 Keyboard,${keyboard_label:-English (US)}
 Username,$username
 Password,$(printf "%${#password}s" | tr ' ' '*')
-Full name,${full_name:-[Skipped]}
-Email address,${email_address:-[Skipped]}
 Hostname,${hostname:-omarchy}
 Timezone,${timezone:-UTC}" |
     gum table -s "," -p | sed "s/^/${PADDING_LEFT_SPACES}/"
@@ -801,10 +724,9 @@ create_user() {
   if getent passwd "$username" >/dev/null; then
     # Resuming a partially-completed earlier attempt: refresh what the form
     # collected this time around.
-    usermod -aG "$(user_groups)" ${full_name:+-c "$full_name"} "$username"
+    usermod -aG "$(user_groups)" "$username"
   else
-    useradd -m -G "$(user_groups)" -s /bin/bash \
-      ${full_name:+-c "$full_name"} "$username"
+    useradd -m -G "$(user_groups)" -s /bin/bash "$username"
   fi
 
   printf '%s:%s\n' "$username" "$password" | chpasswd
@@ -962,8 +884,6 @@ finalize_user() {
     OMARCHY_PATH="$OMARCHY_PATH" \
     OMARCHY_INSTALL="$OMARCHY_PATH/install" \
     OMARCHY_SETUP_CONTEXT=provision-owner \
-    OMARCHY_USER_NAME="$full_name" \
-    OMARCHY_USER_EMAIL="$email_address" \
     OMARCHY_INSTALL_LOG_FILE="$LOG_FILE" \
     OMARCHY_LOG_TO_STDOUT=1 \
     "$OMARCHY_PATH/bin/omarchy-provision-user" --force --first-install
@@ -1183,7 +1103,7 @@ cleanup_oem_state() {
 }
 
 # The provisioning work, backgrounded under the progress screen. Phase writes
-# to STATE_FILE drive the bar; all output lands in the log.
+# to STATE_FILE drive the progress; all output lands in the log.
 run_provisioning() {
   log_step "creating user $username"
   create_user
@@ -1285,9 +1205,13 @@ run_setup() {
   SETUP_PHASE_T0=$NOW
 
   render_setup_static
+  # Read the phase and the log at 2 Hz; animate the trace at 10 Hz, as the ISO
+  # install dashboard does.
+  local frame=0
   while kill -0 "$worker" 2>/dev/null; do
-    render_setup_dynamic
-    sleep 0.5
+    render_setup_dynamic "$((frame % 5 == 0))"
+    frame=$((frame + 1))
+    sleep 0.1
   done
 
   # The cursor comes back only on the failure path, where the retry prompt needs
@@ -1299,9 +1223,10 @@ run_setup() {
     return "$status"
   fi
 
-  # One full-bar frame so the finish doesn't cut in mid-progress.
+  # Finish the trace and show the solid icon, so the handoff doesn't cut in
+  # mid-progress.
   echo done >"$STATE_FILE"
-  render_setup_dynamic
+  render_setup_finish
   sleep 1
 
   if [[ -f $FINALIZE_WARNING_FLAG ]]; then

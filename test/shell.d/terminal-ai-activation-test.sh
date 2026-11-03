@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import tomllib
 
@@ -77,30 +78,15 @@ with tempfile.TemporaryDirectory() as temporary:
     print('ok - Grok uses GROK_HOME while preserving an explicit config-path override')
 
 with tempfile.TemporaryDirectory() as temporary:
-    home = Path(temporary)
-    codex = home / 'custom-codex'
-    claude = home / 'custom-claude'
-    pi = home / '.pi/agent'
-    for p in [codex, claude, pi / 'extensions']:
-        p.mkdir(parents=True)
-    extension = pi / 'extensions/omarchy-system-theme.ts'
-    extension.write_text('legacy')
-    current = home / '.local/state/omarchy/current'
-    current.mkdir(parents=True)
-    (current / 'theme.name').write_text('tokyo-night\n')
-    env = dict(base_env, HOME=str(home), CODEX_HOME=str(codex), CLAUDE_CONFIG_DIR=str(claude), OMARCHY_PATH=str(root), PATH=str(root / 'bin') + ':' + os.environ['PATH'])
-    subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1786637624.sh')], env=env, check=True, capture_output=True)
-    assert (current / 'theme/claude.json').exists() and (current / 'theme/pi.json').exists()
-    assert tomllib.loads((codex / 'config.toml').read_text())['tui']['theme'] == 'ansi'
-    assert json.loads((claude / 'settings.json').read_text())['theme'] == 'custom:omarchy'
-    assert json.loads((pi / 'settings.json').read_text())['theme'] == 'omarchy-system' and not extension.exists()
-    subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1786637624.sh')], env=env, check=True, capture_output=True)
-    print('ok - migration generates missing palettes before activating custom homes and retiring Pi extension; rerun succeeds')
-    (current / 'theme.name').unlink()
-    for name in ['claude.json', 'pi.json']:
-        (current / 'theme' / name).unlink()
-    extension.write_text('legacy')
-    result = subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1786637624.sh')], env=env, capture_output=True)
-    assert result.returncode != 0 and extension.exists()
-    print('ok - absent palette sources keep activation pending and preserve the old Pi extension')
+    config = Path(temporary) / 'herdr.toml'
+    for source in ['["theme"]\n"name" = "old"\nauto_switch = false\n[ui]\nother = 7\n',
+                   '"theme"."name" = "old"\nother = 7\n',
+                   'theme = { name = "old", auto_switch = false }\n']:
+        config.write_text(source)
+        subprocess.run([sys.executable, str(root / 'default/theme/activate-toml.py'),
+                        str(config), 'theme', 'terminal', 'name'], check=True)
+        expected = tomllib.loads(source)
+        expected['theme']['name'] = 'terminal'
+        assert tomllib.loads(config.read_text()) == expected
+    print('ok - shared TOML editor changes a custom setting key without changing unrelated values')
 PY

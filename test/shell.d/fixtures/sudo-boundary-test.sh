@@ -9,8 +9,12 @@ export SUDO_TEST_LOG="$boundary_tmp/events"
 export SUDO_TEST_CACHE="$boundary_tmp/cache"
 export OMARCHY_PATH="$SUDO_TEST_ROOT"
 export SUDO_TEST_HOME="$boundary_tmp/home"
-mkdir -p "$SUDO_TEST_HOME"
-mkdir -p "$SUDO_TEST_ROOT/bin" "$SUDO_TEST_ROOT/mock" "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update"
+# The machine the render reads its region marker from. It starts global; a test
+# writes etc/omarchy/region here to model a regional install, never the host's.
+export SUDO_TEST_TARGET="$boundary_tmp/target"
+export OMARCHY_REGION_FILE="$SUDO_TEST_TARGET/etc/omarchy/region"
+mkdir -p "$SUDO_TEST_HOME" "$SUDO_TEST_TARGET/etc"
+mkdir -p "$SUDO_TEST_ROOT/bin" "$SUDO_TEST_ROOT/mock" "$SUDO_TEST_ROOT/default"
 : >"$SUDO_TEST_LOG"
 
 copy_boundary_file() {
@@ -24,6 +28,10 @@ s=(source/name).read_text().replace('$HOME', '$SUDO_TEST_HOME')
 for command in ['sudo','pkexec','pacman','omarchy-pkg-missing','systemd-inhibit','setpriv','snapper']:
  s=s.replace('/usr/bin/'+command, str(target/'mock'/command))
 s=s.replace('PATH=/usr/bin:/usr/sbin:/bin:/sbin', 'PATH="'+str(target/'bin')+':/usr/bin:/usr/sbin:/bin:/sbin"')
+if name.name == 'omarchy-apply-pacman':
+ render_etc='etc="${4:-/}/etc"'
+ assert s.count(render_etc)==1, 'render target lookup moved'
+ s=s.replace(render_etc, 'etc="${4:-$SUDO_TEST_TARGET}/etc"')
 p.write_text(s)
 p.chmod((source/name).stat().st_mode & 0o777)
 PY
@@ -31,7 +39,6 @@ PY
 
 copy_boundary_file bin/omarchy-security-functions
 copy_boundary_file bin/omarchy-update-pacman
-copy_boundary_file default/omarchy/sudo-no-update/sudo
 copy_boundary_file install/helpers/pacman.sh
 # Channel changes copy the platform's templates; the copy itself is a stand-in.
 cp -r "$ROOT/default/pacman" "$SUDO_TEST_ROOT/default/"
@@ -50,16 +57,7 @@ set -euo pipefail
 printf 'sudo' >>"$SUDO_TEST_LOG"
 printf ' %q' "$@" >>"$SUDO_TEST_LOG"
 printf '\n' >>"$SUDO_TEST_LOG"
-if [[ ${1:-} == "-h" ]]; then
-  if [[ ${SUDO_TEST_UNSUPPORTED:-0} == "1" ]]; then
-    echo 'usage: sudo [-ABbEHknPS] command'
-  else
-    echo 'usage: sudo [-ABbEHkNnPS] command'
-  fi
-  exit 0
-fi
 if [[ ${1:-} == "-k" || ${1:-} == "-K" ]]; then
-  [[ ${SUDO_TEST_REVOKE_FAIL:-0} != "1" ]] || exit 1
   /usr/bin/rm -f "$SUDO_TEST_CACHE"
   exit 0
 fi
@@ -67,16 +65,13 @@ if [[ ${1:-} == "-n" && ! -e $SUDO_TEST_CACHE ]]; then
   # Non-interactive sudo cannot authenticate without a cached credential.
   exit 1
 fi
-if [[ ${1:-} == "-N" ]]; then
-  shift
-else
-  touch "$SUDO_TEST_CACHE"
-fi
 [[ ${SUDO_TEST_SUDO_FAIL:-0} != "1" ]] || exit 1
+# A password given once stays good for the rest of the timeout.
+touch "$SUDO_TEST_CACHE"
 background=0
 while (( $# )); do
   case "$1" in
-    -N|-n) shift ;;
+    -n) shift ;;
     -b) background=1; shift ;;
     -v) exit 0 ;;
     -u|--user) shift 2 ;;
@@ -92,9 +87,10 @@ else
 fi
 STUB
 chmod +x "$SUDO_TEST_ROOT/mock/sudo"
-# The updater's own phases call a bare sudo from its fixed PATH. Resolve it to
-# the stand-in so no test can ever reach the host's sudo.
+# The commands call sudo and their helpers by name from the caller's PATH. Put
+# the stand-ins first so no test can ever reach the host's sudo or commands.
 ln -s ../mock/sudo "$SUDO_TEST_ROOT/bin/sudo"
+export PATH="$SUDO_TEST_ROOT/bin:$PATH"
 
 cat >"$SUDO_TEST_ROOT/bin/test-step" <<'STUB'
 #!/bin/bash
@@ -107,43 +103,22 @@ if [[ $step == "systemd-run" ]]; then
   while (( $# )) && [[ $1 == -* ]]; do shift; done
   exec "$@"
 fi
-# omarchy update shares one authorization with its post-update hook and mise.
-# Standalone hooks, such as the pre-refresh one, and AUR builds run cold.
-if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]] || [[ $step == "omarchy-update-mise" ]]; then
+# omarchy update shares one authorization with its post-update hook, mise and
+# AUR builds, so none of them prompts again.
+if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]] || [[ $step == "omarchy-update-mise" || $step == "yay" ]]; then
   [[ -e $SUDO_TEST_CACHE ]] || exit 94
-elif [[ $step == "omarchy-hook" || $step == "yay" ]]; then
-  [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
-fi
-if [[ -n ${SUDO_TEST_REMOVE_WRAPPER_STEP:-} && "$step $*" == $SUDO_TEST_REMOVE_WRAPPER_STEP ]]; then
-  # Model a package transaction replacing the running tree with a release
-  # that predates the wrapper.
-  /usr/bin/rm -f "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"
 fi
 if [[ ${SUDO_TEST_FAIL_STEP:-} == "$step" ]]; then
-  # Model a misbehaving child leaving state behind, then failing. Cleanup must
-  # still revoke it. This never invokes real sudo or exercises a privilege flaw.
-  touch "$SUDO_TEST_CACHE"
+  # Model a misbehaving child failing. This never invokes real sudo.
   exit 17
 fi
 if [[ ${SUDO_TEST_SIGNAL_STEP:-} == "$step" ]]; then
-  touch "$SUDO_TEST_CACHE"
   kill -TERM "$PPID"
   exit 0
 fi
 case "$step" in
   omarchy-update-system-pkgs|omarchy-update-keyring|omarchy-snapshot)
     sudo /usr/bin/true
-    ;;
-  pacman)
-    # A query answers with the packages a test models as installed, one per line.
-    if [[ ${1:-} == "-Q" && -n ${SUDO_TEST_INSTALLED:-} ]]; then
-      printf '%s\n' "$SUDO_TEST_INSTALLED"
-    fi
-    ;;
-  yay)
-    [[ $* == *"--sudo $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"* ]] || exit 92
-    [[ $* == *"--sudoloop=false"* ]] || exit 93
-    [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 95
     ;;
 esac
 STUB
@@ -156,9 +131,5 @@ ln -s ../bin/test-step "$SUDO_TEST_ROOT/mock/pacman"
 reset_boundary() {
   : >"$SUDO_TEST_LOG"
   /usr/bin/rm -f "$SUDO_TEST_CACHE"
-  unset SUDO_TEST_FAIL_STEP SUDO_TEST_SIGNAL_STEP SUDO_TEST_SUDO_FAIL SUDO_TEST_REVOKE_FAIL SUDO_TEST_UNSUPPORTED SUDO_TEST_REMOVE_WRAPPER_STEP SUDO_TEST_PLATFORM SUDO_TEST_INSTALLED
-}
-assert_boundary_cold() {
-  [[ ! -e $SUDO_TEST_CACHE ]] || fail "$1 left cached authorization"
-  [[ $(tail -1 "$SUDO_TEST_LOG") == "sudo -k" ]] || fail "$1 did not revoke at exit" "$(<"$SUDO_TEST_LOG")"
+  unset SUDO_TEST_FAIL_STEP SUDO_TEST_SIGNAL_STEP SUDO_TEST_SUDO_FAIL SUDO_TEST_PLATFORM
 }
