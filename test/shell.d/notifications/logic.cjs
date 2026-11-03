@@ -522,6 +522,20 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.deepEqual(calls, ['action'])
 }
 
+{ // One sender process with several windows: focus the one used last, not the first listed.
+  const s = newCapacityScope(), calls = []
+  s.Hyprland.toplevels = { values: [
+    { lastIpcObject: { class: 'firefox', pid: 42, address: '0xa', focusHistoryID: 3 } },
+    { lastIpcObject: { class: 'firefox', pid: 42, address: '0xb', focusHistoryID: 1 } }] }
+  s.Hyprland.dispatch = command => calls.push(command)
+  const notification = s.fakeNotification(1)
+  Object.assign(notification, { appName: 'Firefox', hints: { 'sender-pid': 42 },
+    actions: [{ identifier: 'default', text: 'Open', invoke: () => calls.push('action') }] })
+  s.admit(notification)
+  s.activate(s.toasts.get(0).key)
+  assert.deepEqual(calls, ['action', 'hl.dsp.focus({window = hl.get_window("address:0xb")})'])
+}
+
 { // A clicked card rises out before it goes; a keypress clears every card with one jump.
   const s = newCapacityScope()
   s.admit(...[1, 2, 3].map(id => s.fakeNotification(id)))

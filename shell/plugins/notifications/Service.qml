@@ -993,13 +993,15 @@ Item {
   }
 
   // The sender process's own window: the one identity that is never a guess.
+  // A process with several windows (Firefox, Electron) gives the latest used.
   function windowForPid(pid) {
     var want = Number(pid || 0)
     if (!want) return null
     var windows = openWindows()
+    var found = []
     for (var i = 0; i < windows.length; i++)
-      if (windows[i].pid === want) return windows[i]
-    return null
+      if (windows[i].pid === want) found.push(windows[i])
+    return mostRecent(found)
   }
 
   // Of several windows that all match, the one you were in most recently.
