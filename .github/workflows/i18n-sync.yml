@@ -26,6 +26,11 @@ on:
       - 'bin/**'
       - 'install/**'
   workflow_dispatch:
+    inputs:
+      backfill_manual:
+        description: 'Retranslate manual chapters whose current translation misses a menu path'
+        type: boolean
+        default: false
   schedule:
     # Retry unfinished translations without delaying English.
     - cron: '41 3 * * *'
@@ -52,8 +57,14 @@ jobs:
           persist-credentials: false
       - name: Find pending translations and embedded English
         id: pending
+        env:
+          BACKFILL_MANUAL: ${{ inputs.backfill_manual || 'false' }}
         run: |
-          python3 scripts/i18n-sync.py pending > "$RUNNER_TEMP/pending.json"
+          if [[ $BACKFILL_MANUAL == "true" ]]; then
+            python3 scripts/i18n-sync.py pending --backfill-manual > "$RUNNER_TEMP/pending.json"
+          else
+            python3 scripts/i18n-sync.py pending > "$RUNNER_TEMP/pending.json"
+          fi
           python3 scripts/i18n-sync.py extract-scan > "$RUNNER_TEMP/scan.json"
           python3 - <<'PY'
           import json, os
@@ -295,7 +306,13 @@ jobs:
         env:
           MUSE_MODEL: ${{ vars.MUSE_MODEL || 'muse-spark-1.3-contributor' }}
           LOCALE: ${{ matrix.locale }}
-        run: python3 scripts/i18n-sync.py translate --locale "$LOCALE" --concurrency 2 --model "$MUSE_MODEL" --done-file "$RUNNER_TEMP/done.json"
+          BACKFILL_MANUAL: ${{ inputs.backfill_manual || 'false' }}
+        run: |
+          args=(--locale "$LOCALE" --concurrency 2 --model "$MUSE_MODEL" --done-file "$RUNNER_TEMP/done.json")
+          if [[ $BACKFILL_MANUAL == "true" ]]; then
+            args+=(--backfill-manual)
+          fi
+          python3 scripts/i18n-sync.py translate "${args[@]}"
       - name: Package only this language's translations
         env:
           LOCALE: ${{ matrix.locale }}

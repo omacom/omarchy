@@ -219,6 +219,15 @@ def cmd_manifest(args):
 def cmd_pending(args):
     root = root_path(args)
     result = compute_pending(root, args.locale)
+    if args.backfill_manual:
+        english = english_units(root)
+        codes = [args.locale] if args.locale else sorted(locales(root))
+        for code in codes:
+            units = manual_backfill_units(root, code, english)
+            if not units:
+                continue
+            entry = result.setdefault(code, {"pending": [], "prune": []})
+            entry["pending"] = sorted(set(entry["pending"]) | set(units))
     payload = {
         "locales": sorted(result),
         "jobs": {
@@ -427,6 +436,36 @@ def manual_menu_glossary(root, code, source):
         else:
             glossary[path] = " > ".join(labels)
     return glossary
+
+
+MENU_PATH_SPACING = re.compile(r"\s*>\s*")
+
+
+def normalize_menu_path(text):
+    return MENU_PATH_SPACING.sub(" > ", text)
+
+
+def glossary_misses(text, glossary):
+    """Glossary paths a translation does not reproduce, for a warning."""
+    normalized = normalize_menu_path(text)
+    return [f"{english} -> {localized}" for english, localized in sorted(glossary.items())
+            if normalize_menu_path(localized) not in normalized]
+
+
+def manual_backfill_units(root, code, english):
+    """Current manual translations that miss a menu path in their glossary."""
+    translated = translated_units(root, code)
+    units = []
+    for unit, source in english.items():
+        if not unit.startswith("manual:"):
+            continue
+        text = translated.get(unit)
+        if text is None:
+            continue
+        glossary = manual_menu_glossary(root, code, source)
+        if glossary and glossary_misses(text, glossary):
+            units.append(unit)
+    return sorted(units)
 
 
 def menu_catalog_stale(root):
@@ -739,12 +778,15 @@ def cmd_translate(args):
     english = english_units(root)
     manifest = read_json(manifest_path(root), {})
     pending, prune = pending_for(root, code, english, manifest)
+    if args.backfill_manual:
+        pending = sorted(set(pending) | set(manual_backfill_units(root, code, english)))
     if prune:
         apply_prune(root, code, prune)
     catalog_pending = {u: english[u] for u in pending if not u.startswith("manual:")}
     manual_pending = [u for u in pending if u.startswith("manual:")]
     done = list(prune)
     failures = []
+    warnings = []
 
     batches = batch_catalog(catalog_pending)
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
@@ -763,22 +805,33 @@ def cmd_translate(args):
         source = english[unit]
         glossary = manual_menu_glossary(root, code, source)
         text = translate_manual(source, code, name, args.model, glossary)
+        misses = glossary_misses(text, glossary)
         atomic_write(root / "manual" / code / filename, text)
-        return unit
+        return unit, misses
 
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
         futures = {pool.submit(one_manual, unit): unit for unit in manual_pending}
         for future in as_completed(futures):
             try:
-                done.append(future.result())
+                unit, misses = future.result()
             except SyncError as exc:
                 failures.append(f"{futures[future]}: {exc}")
+                continue
+            done.append(unit)
+            warnings.extend(f"{unit}: {miss}" for miss in misses)
 
     if args.done_file:
         existing = read_json(args.done_file, {})
         existing[code] = sorted(set(existing.get(code, [])) | set(done))
         write_json(args.done_file, existing)
-    print(f"{code}: {len(done)} units done, {len(failures)} failures")
+    for warning in sorted(warnings):
+        print(f"warning: {warning}", file=sys.stderr)
+    if warnings and os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+            out.write(f"{code}: {len(warnings)} manual menu-path warnings\n")
+            for warning in sorted(warnings):
+                out.write(f"- {warning}\n")
+    print(f"{code}: {len(done)} units done, {len(failures)} failures, {len(warnings)} glossary warnings")
     for failure in failures:
         print(f"  failed: {failure}", file=sys.stderr)
     return 1 if failures else 0
@@ -897,6 +950,7 @@ def main():
 
     p = sub.add_parser("pending")
     p.add_argument("--locale", default=None)
+    p.add_argument("--backfill-manual", action="store_true", help="treat manual chapters with a menu-path miss as pending")
     p.set_defaults(fn=cmd_pending)
 
     p = sub.add_parser("manifest")
@@ -917,6 +971,7 @@ def main():
     p.add_argument("--concurrency", type=int, default=2)
     p.add_argument("--model", default=MODEL)
     p.add_argument("--done-file", default=None)
+    p.add_argument("--backfill-manual", action="store_true", help="retranslate manual chapters with a menu-path miss")
     p.set_defaults(fn=cmd_translate)
 
     p = sub.add_parser("pack")

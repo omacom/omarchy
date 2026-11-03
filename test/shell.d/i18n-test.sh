@@ -591,6 +591,49 @@ JSON
 manual_paths=$'Name _Appearance > Dock > Dock Position_ and _Install > Service > Microsoft_, but not _Appearance > Animations_ or _Setup > Input_.\n'
 glossary_json=$(cd "$glossary" && python3 -c 'import importlib.util,json,sys; from pathlib import Path; spec=importlib.util.spec_from_file_location("s", sys.argv[1]); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print(json.dumps(m.manual_menu_glossary(Path("."), "da", sys.stdin.read()), ensure_ascii=False, sort_keys=True))' "$ROOT/scripts/i18n-sync.py" <<<"$manual_paths")
 assert_bash_equal "$glossary_json" '{"Appearance > Dock > Dock Position": "Udseende > Dock > Dockplacering", "Install > Service > Microsoft": "Installer > Tjeneste > Microsoft"}' "manual chapters get a glossary of their menu paths in the localized labels"
+glossary_misses=$(cd "$glossary" && python3 -c 'import importlib.util,json,sys; from pathlib import Path; spec=importlib.util.spec_from_file_location("s", sys.argv[1]); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); glossary=m.manual_menu_glossary(Path("."), "da", "Name _Appearance > Dock > Dock Position_ and _Install > Service > Microsoft_.\n"); print(json.dumps(m.glossary_misses("Brug _Udseende >\nDock > Dockplacering_.\n", glossary), ensure_ascii=False))' "$ROOT/scripts/i18n-sync.py")
+assert_bash_equal "$glossary_misses" '["Install > Service > Microsoft -> Installer > Tjeneste > Microsoft"]' "a missing glossary path is only a warning, and spacing around the separators is tolerated"
+
+# A backfill retranslates only the chapters whose current translation misses
+# a glossary path; a chapter that already matches is left alone. The run
+# reports a remaining miss as a warning without failing the language.
+backfill=$work/backfill
+mkdir -p "$backfill/default/i18n/en" "$backfill/default/i18n/da" "$backfill/manual/da"
+printf '{"en": {"englishName": "English"}, "da": {"englishName": "Danish"}}\n' >"$backfill/default/i18n/locales.json"
+cat >"$backfill/default/i18n/en/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Appearance"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dock Position"}
+}
+JSON
+cat >"$backfill/default/i18n/da/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Udseende"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dockplacering"}
+}
+JSON
+printf '# Hello\n\nOpen _Appearance > Dock > Dock Position_.\n' >"$backfill/manual/01-hello.md"
+printf '# Hej\n\nÅbn _Appearance > Dock > Dock Position_.\n' >"$backfill/manual/da/01-hello.md"
+printf '# Good\n\nOpen _Appearance > Dock > Dock Position_.\n' >"$backfill/manual/02-good.md"
+printf '# Godt\n\nÅbn _Udseende > Dock > Dockplacering_.\n' >"$backfill/manual/da/02-good.md"
+python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" manifest >/dev/null
+backfill_pending=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" pending --backfill-manual | jq -c '.jobs.da.pending')
+assert_bash_equal "$backfill_pending" '["manual:01-hello.md"]' "backfill-manual marks only chapters with a glossary miss"
+cat >"$work/stubs/muse" <<'STUB'
+#!/bin/bash
+echo '{"markdown":"# Hej\n\nÅbn _Appearance > Dock > Dock Position_.\n"}'
+STUB
+chmod +x "$work/stubs/muse"
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" translate --locale da --model test --backfill-manual --done-file "$work/backfill-done.json" >"$work/backfill.log" 2>&1; then
+  pass "backfill-manual completes even when a glossary path is still missing"
+else
+  fail "backfill-manual completes even when a glossary path is still missing" "$(cat "$work/backfill.log")"
+fi
+grep -q 'warning: manual:01-hello.md: Appearance > Dock > Dock Position -> Udseende > Dock > Dockplacering' "$work/backfill.log" && pass "a missing glossary path is reported as a warning" || fail "a missing glossary path is reported as a warning" "$(cat "$work/backfill.log")"
+assert_bash_equal "$(jq -c '.da' "$work/backfill-done.json")" '["manual:01-hello.md"]' "backfill-manual marks the retranslated chapter done and leaves the matching one alone"
+rm -f "$work/stubs/muse"
 
 # Any display-text property name counts, both arms of a ternary count, and a
 # bare list item counts; identifiers and lines marked "i18n: ignore" do not.
