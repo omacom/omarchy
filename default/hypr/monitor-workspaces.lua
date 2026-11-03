@@ -29,6 +29,7 @@ local SLOTS = 10
 local STATE_DIR = paths.state_home .. "/omarchy/monitors"
 local STATE_FILE = STATE_DIR .. "/workspaces"
 local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
+local VIEWS_FILE = STATE_DIR .. "/workspaces-active"
 
 local M = { slots = SLOTS }
 
@@ -38,6 +39,35 @@ local written = nil
 
 -- Connector -> identity for the monitors plugged in now.
 local current = {}
+
+-- Last local view per physical monitor, including empty workspaces. Teardown
+-- has already cleared active_workspace when monitor.removed is delivered.
+-- Keep these across reloads, just like merged, but not across sessions.
+local views = {}
+local reconciling = false
+local views_file = io.open(VIEWS_FILE, "r")
+if views_file then
+  for line in views_file:lines() do
+    local id, identity = line:match("^(%d+)\t(.+)$")
+    if id then
+      views[identity] = tonumber(id)
+    end
+  end
+  views_file:close()
+end
+
+local function save_views()
+  local lines = {}
+  for identity, id in pairs(views) do
+    lines[#lines + 1] = id .. "\t" .. identity .. "\n"
+  end
+  table.sort(lines)
+  local file = io.open(VIEWS_FILE, "w")
+  if file then
+    file:write(table.concat(lines))
+    file:close()
+  end
+end
 
 local function load_blocks()
   local file = io.open(STATE_FILE, "r")
@@ -300,15 +330,54 @@ local function regular(workspace)
   return workspace and not workspace.special and workspace.id > 0
 end
 
+-- Only user views on a settled topology count. Ignore the temporary views
+-- Hyprland creates during hotplug and the moves made by reconcile itself.
+local function remember_views()
+  if reconciling then
+    return
+  end
+  local monitors = connected()
+  local count = 0
+  for _ in pairs(current) do
+    count = count + 1
+  end
+  if count ~= #monitors then
+    return
+  end
+  for _, monitor in ipairs(monitors) do
+    if not monitor.enabled or not current[monitor.name] then
+      return
+    end
+  end
+
+  local changed = false
+  for _, monitor in ipairs(monitors) do
+    local identity = current[monitor.name]
+    local active = monitor.active_workspace
+    if regular(active) and block_of_id(active.id) == blocks[identity] and not merged[active.id]
+      and views[identity] ~= active.id then
+      views[identity] = active.id
+      changed = true
+    end
+  end
+  if changed then
+    save_views()
+  end
+end
+
 -- The workspace id of a slot on a monitor.
 function M.workspace_id(monitor, slot)
   local by_connector = assign(connected())
   return (by_connector[monitor.name] or 0) * SLOTS + slot
 end
 
--- The workspace a monitor falls back to when what it shows isn't its own: the
--- lowest of its own already on it, or its first.
+-- The workspace a monitor falls back to when what it shows isn't its own:
+-- its remembered view, the lowest of its own already on it, or its first.
 local function home(monitor, block)
+  local remembered = views[current[monitor.name]]
+  if remembered and block_of_id(remembered) == block and not merged[remembered] then
+    return remembered
+  end
   local best = nil
 
   for _, workspace in ipairs(hl.get_workspaces()) do
@@ -536,6 +605,7 @@ function M.reconcile(added, gone)
     return
   end
 
+  reconciling = true
   local by_connector, identities = assign(monitors)
   local focused_window = hl.get_active_window()
   local focused_monitor = hl.get_active_monitor()
@@ -616,6 +686,10 @@ function M.reconcile(added, gone)
           elseif block_of_id(id) ~= by_connector[monitor.name] then
             adopt(workspace, by_connector[monitor.name])
           end
+          if views[origin.identity] == origin.id then
+            views[origin.identity] = workspace.id
+            save_views()
+          end
           changed = true
         end
       end
@@ -665,19 +739,41 @@ function M.reconcile(added, gone)
   -- Moving a visible workspace home leaves a gap Hyprland fills with anything.
   own_views()
 
+  -- A fresh monitor may already show an arbitrary *own* workspace, and moving
+  -- a visible restored workspace can replace the survivor's view with another
+  -- own workspace. Neither is caught by own_views(). Restore both explicitly.
+  for _, monitor in ipairs(monitors) do
+    local id = views[identities[monitor.name]]
+    if added and id and block_of_id(id) == by_connector[monitor.name] and not merged[id]
+      and (not monitor.active_workspace or monitor.active_workspace.id ~= id) then
+      show(monitor, id)
+      changed = true
+    end
+  end
+
   if changed then
-    if focused_window and hl.get_window("address:" .. focused_window.address) then
+    local window = focused_window and hl.get_window("address:" .. focused_window.address)
+    local workspace = window and window.workspace
+    if workspace and workspace.monitor and workspace.monitor.active_workspace
+      and workspace.monitor.active_workspace.id == workspace.id then
       hl.dispatch(hl.dsp.focus({ window = "address:" .. focused_window.address }))
     elseif focused_name and focused_name ~= gone and hl.get_monitor(focused_name) then
       hl.dispatch(hl.dsp.focus({ monitor = focused_name }))
     end
   end
+  reconciling = false
+  remember_views()
 end
+
+remember_views()
+hl.on("workspace.active", remember_views)
 
 hl.on("hyprland.start", function()
   -- Windows don't outlive a session, so neither do the workspaces that held them.
   merged = {}
+  views = {}
   save_merged()
+  save_views()
   M.reconcile()
 end)
 
