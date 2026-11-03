@@ -478,6 +478,27 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
   fail "newly installed agent opens in the installation terminal"
 pass "missing agents install visibly and open in the same terminal"
 
+rm "$mock_bin/hyprctl"
+cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "clients" ]]; then
+  echo '[{"pid": $$, "address": "0xc0ffee", "workspace": {"name": "special:qconsole"}}]'
+else
+  printf '%s\n' "\$*" >>"$test_tmp/dispatch"
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+: >"$agent_open_log"
+omarchy-default-agent --install github-copilot >/dev/null
+[[ ! -s $agent_open_log ]] || fail "an install from the Quake console leaves its floating terminal"
+grep -qF 'hl.dsp.exec_cmd("omarchy-agent", { workspace = "special:qconsole silent" })' "$test_tmp/dispatch" ||
+  fail "an install from the Quake console opens the agent tiled in the console"
+grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
+  fail "an install from the Quake console closes its floating terminal"
+rm "$mock_bin/hyprctl"
+ln -s omarchy-test-noop "$mock_bin/hyprctl"
+pass "an agent installed from the Quake console opens tiled in the console"
+
 : >"$notification_history"
 : >"$agent_open_log"
 : >"$terminal_log"

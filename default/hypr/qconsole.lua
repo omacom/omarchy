@@ -19,8 +19,9 @@ local CONSOLE = "special:qconsole"
 -- the workspace itself: Hyprland only tags a spawn with the workspace it came
 -- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
 -- Omarchy ships without a default agent, so --pick offers the choice instead
--- of an empty console that explains nothing; the agent seeds the console the
--- next time it opens. A console created by moving a window onto it is not
+-- of an empty console that explains nothing. One that has to be installed
+-- first does so in a floating terminal and then moves into the console; see
+-- omarchy-default-agent. A console created by moving a window onto it is not
 -- empty, and is left alone.
 hl.on("workspace.created", function(ws)
   if ws and ws.name == CONSOLE and ws.is_empty then
