@@ -58,7 +58,9 @@ pass "resource profiles stay workload-based and expand the VM ceiling safely"
   require_lab() { :; }
   domain_running() { $mock_running; }
   stop_guest() { mock_running=false; ((++mock_stops)); }
-  wait_ssh() { :; }
+  mock_link=up mock_waits=0
+  lab_mac() { echo 52:54:00:00:00:01; }
+  wait_ssh() { ((++mock_waits)); }
   wait_hypr() { :; }
   resource_status_json() {
     jq -cn --argjson maximum "$mock_max_cpus" --argjson cpus "$mock_cpus" \
@@ -67,6 +69,7 @@ pass "resource profiles stay workload-based and expand the VM ceiling safely"
   }
   run_virsh() {
     case $1 in
+    domif-getlink) printf "link: %s\n" "$mock_link" ;;
     setvcpus)
       if [[ $4 == "--maximum" ]]; then
         (($3 >= mock_cpus)) || fail "CPU ceiling cannot shrink below current CPUs"
@@ -97,6 +100,11 @@ pass "resource profiles stay workload-based and expand the VM ceiling safely"
   set_resource_profile balanced --no-reboot --json >/dev/null
   ((mock_max_cpus == 4 && mock_cpus == 4 && mock_max_kib == 8388608 && mock_kib == 8388608)) || fail "balanced lowers current values before their ceilings"
   ((mock_stops == 2 && mock_starts == 2)) || fail "no-reboot stages config without cycling the guest"
+  ((mock_waits == 2)) || fail "online resource changes wait for guest readiness"
+  mock_link=down
+  set_resource_profile performance --json >/dev/null
+  ((mock_stops == 3 && mock_starts == 3 && mock_waits == 2)) || fail "offline resource changes restart without waiting for SSH"
+  [[ $mock_link == "down" ]] || fail "resource changes preserve the saved offline link"
 )
 pass "profile changes shrink boot allocations and preserve growth and deferred changes"
 

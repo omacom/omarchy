@@ -286,3 +286,20 @@ for (const busy of [false, true]) {
   assertDeepEqual(calls, busy ? [] : ['close', 'record'], 'recording closes the panel before capture and respects busy state')
 }
 JS
+
+(
+  source "$ROOT/bin/omarchy-lab-viewer"
+  domain_running() { return 0; }
+  LAB_VM_BIN="$test_tmp/display-controller"
+  cat >"$LAB_VM_BIN" <<'SH'
+#!/bin/bash
+lab_ssh() { printf '1600x900\n'; }
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  printf started >"$DISPLAY_START_MARKER"
+fi
+SH
+  export DISPLAY_START_MARKER="$test_tmp/display-started"
+  [[ $(guest_display) == "1600x900" ]] || fail "viewer reads the guest display through a direct SSH probe"
+  [[ ! -e $DISPLAY_START_MARKER ]] || fail "a status probe must not invoke the lifecycle command"
+)
+pass "viewer display status cannot start a guest stopped during the probe"

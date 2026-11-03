@@ -226,3 +226,23 @@ remove_ssh_artifacts
   fail "remove deletes the lab key pair and known_hosts"
 grep -q '^Host omarchy-lab$' "$HOME/.ssh/config" && fail "remove deletes Host omarchy-lab"
 pass "remove wipes lab SSH keys and config"
+
+(
+  network_active=true
+  network_calls="$tmpdir/network-calls"
+  run_virsh() {
+    printf '%s\n' "$*" >>"$network_calls"
+    case $1 in
+    net-list) $network_active && printf 'default\n'; return 0 ;;
+    net-start) network_active=true ;;
+    net-autostart) : ;;
+    *) fail "network setup must not interrupt shared guests: $*" ;;
+    esac
+  }
+  ensure_default_network_running
+  ! grep -q '^net-start' "$network_calls" || fail "an unchanged active network must stay running"
+  network_active=false
+  ensure_default_network_running
+  $network_active || fail "an inactive network must be started"
+)
+pass "hypervisor setup leaves an active shared network running"

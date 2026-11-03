@@ -104,7 +104,7 @@ show_resource_status() {
 
 apply_resource_profile() {
   local profile=${1:-} requested_cpus=0 requested_gib=0 no_reboot=false json=false custom=false current maximum_cpus maximum_gib running=false
-  local safe_cpus safe_gib balanced_cpus balanced_gib performance_cpus performance_gib full_cpus full_gib
+  local safe_cpus safe_gib balanced_cpus balanced_gib performance_cpus performance_gib full_cpus full_gib link mac
   [[ -n $profile ]] || lab_fail "usage: omarchy lab resource set PROFILE [CPUS MEMORY_GIB] [--no-reboot] [--json]"
   shift || true
   require_lab
@@ -167,6 +167,9 @@ apply_resource_profile() {
     running=true
   fi
   if $running && ! $no_reboot; then
+    mac=$(lab_mac) || return 1
+    link=$(run_virsh domif-getlink "$NAME" "$mac" --config | awk 'NR == 1 {print $NF}') || return 1
+    [[ $link == "up" || $link == "down" ]] || return 1
     echo "Power-cycling the Lab to apply its resource profile ..." >&2
     stop_guest
   fi
@@ -189,8 +192,10 @@ apply_resource_profile() {
   write_private_json "$RESOURCE_FILE" "$(jq -cn --arg profile "$profile" --argjson cpus "$requested_cpus" --argjson memoryGiB "$requested_gib" '{profile:$profile,cpus:$cpus,memoryGiB:$memoryGiB}')"
   if $running && ! $no_reboot; then
     lab_with_operation_lock run_virsh start "$NAME" >/dev/null
-    wait_ssh >&2
-    wait_hypr >&2 || true
+    if [[ $link == "up" ]]; then
+      wait_ssh >&2
+      wait_hypr >&2 || true
+    fi
   fi
   current=$(resource_status_json)
   if $json; then

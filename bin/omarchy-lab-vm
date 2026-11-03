@@ -777,6 +777,17 @@ ensure_install_packages() {
   omarchy-pkg-add "${HYPERVISOR_PACKAGES[@]}" || return 1
 }
 
+ensure_default_network_running() {
+  # A running default network may serve guests outside Lab. UFW's routed
+  # rules do not require cycling libvirt's shared bridge or dnsmasq.
+  local active_networks
+  active_networks=$(run_virsh net-list --name) || return 1
+  if ! grep -Fx default <<<"$active_networks" >/dev/null; then
+    run_virsh net-start default >/dev/null || return 1
+  fi
+  run_virsh net-autostart default >/dev/null || return 1
+}
+
 ensure_hypervisor() {
   if [[ ! -e /dev/kvm ]]; then
     gum style --border normal --padding "1 2" --margin "1" \
@@ -796,12 +807,7 @@ ensure_hypervisor() {
   ensure_default_network || return 1
   ensure_libvirt_conf || return 1
   ensure_ufw || return 1
-  run_virsh net-start default >/dev/null 2>&1 || true
-  run_virsh net-autostart default >/dev/null 2>&1 || true
-  # Reinstall NAT masquerade after the firewall rules land.
-  run_virsh net-destroy default >/dev/null 2>&1 || true
-  run_virsh net-start default >/dev/null || return 1
-  run_virsh net-autostart default >/dev/null || return 1
+  ensure_default_network_running
 }
 
 ensure_iso() {

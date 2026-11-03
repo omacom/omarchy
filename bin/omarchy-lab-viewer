@@ -374,7 +374,7 @@ toggle_fullscreen() {
 guest_display() {
   local display
   domain_running || return 0
-  display=$(timeout 2 "$LAB_VM_BIN" ssh 'for mode_file in /sys/class/drm/card*-Virtual-*/modes; do if [ -f "$mode_file" ]; then head -n 1 "$mode_file"; break; fi; done' 2>/dev/null || true)
+  display=$(timeout 2 bash -c 'source "$1"; lab_ssh "$2"' bash "$LAB_VM_BIN" 'for mode_file in /sys/class/drm/card*-Virtual-*/modes; do if [ -f "$mode_file" ]; then head -n 1 "$mode_file"; break; fi; done' 2>/dev/null || true)
   [[ $display =~ ^[0-9]+x[0-9]+$ ]] && printf '%s\n' "$display"
 }
 
