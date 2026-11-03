@@ -27,10 +27,10 @@ Upstream Omarchy offers RC and edge on Apple Silicon. Stable is not available th
 On an existing upstream Apple Silicon installation:
 
 1. Run _Update > Omarchy_ on the current channel first. The installed packages must include [Apple Silicon RC support](https://github.com/omacom/omarchy/pull/16986); the original 4.5.0 RC2 release predates that change.
-2. Choose _Update > Channel > RC_, or run `omarchy channel set rc`. The channel switch installs the channel's packages and runs the update. Complete any remaining prompts, then restart if requested.
+2. Choose _Update > Channel > RC_, or run `omarchy channel set rc`. The channel switch installs the channel's packages and runs the update. Answer any prompts and follow any instructions it prints, then restart if requested.
 3. Run `omarchy channel current` to check that it reports `rc`.
 
-If the command reports that Apple Silicon has no RC channel, the installed build does not yet include that support. Wait for a package update containing the fix, then repeat the steps. A GitHub release tag alone does not update the packages or channel choices on your machine.
+If switching reports that Omarchy has no rc channel for `aarch64-apple`, the installed build does not yet include that support. Wait for a package update containing the fix, then repeat the steps. A GitHub release tag alone does not update the packages or channel choices on your machine.
 
 These steps apply to upstream Omarchy. If your installation still uses the separate [Omarchy Mac fork](https://github.com/omacom/omarchy-mac) and its `[omarchy-aarch64]` repository, check that project's migration guidance before switching to upstream repositories. Its older updater uses a different package source.
 
