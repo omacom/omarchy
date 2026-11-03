@@ -6,7 +6,6 @@
 linux-omarchy
 linux-omarchy-headers
 # Release firmware (1.0 and later) drives the panel from the GPU.
-# NVIDIA's modules, prebuilt for linux-omarchy.
 linux-omarchy-nvidia-open
 nvidia-utils
 libva-nvidia-driver

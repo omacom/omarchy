@@ -114,15 +114,9 @@ printf '%s\n' \
 # eDP-1 at 1920x1200@120 with nothing else configured.
 bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
-n1x_gpu_driver=unloaded
 if [[ ! $bios_version =~ ^0\. ]]; then
-  omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver
-  n1x_gpu_driver=nvidia
-else
-  echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
-fi
-if [[ $n1x_gpu_driver == nvidia ]]; then
   echo "N1x firmware $bios_version: GPU drives the panel"
+  omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver
   cat > /etc/modprobe.d/nvidia.conf <<'CONF'
 options nvidia_drm modeset=1 fbdev=1
 CONF
@@ -179,6 +173,7 @@ HOOKS=("${_omarchy_n1x_hooks[@]}")
 unset _omarchy_n1x_hooks _omarchy_n1x_hook
 CONF
 else
+  echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
   rm -f /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf \
     /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf
   cat > /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf <<'CONF'
