@@ -639,6 +639,57 @@ report=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" glossary-report
 assert_bash_equal "$report" $'Manual chapters still missing a menu path: 1.\n- da: 1 (manual:01-hello.md)' "the backfill report names the chapters that still miss a menu path"
 rm -f "$work/stubs/muse"
 
+# A label translated in this same run has to count. While it is missing the
+# glossary omits the path, so the chapter is not a target yet; once the
+# catalog write lands, the backfill retranslates the chapter that names it.
+late=$work/late
+mkdir -p "$late/default/i18n/en" "$late/default/i18n/da" "$late/manual/da"
+printf '{"en": {"englishName": "English"}, "da": {"englishName": "Danish"}}\n' >"$late/default/i18n/locales.json"
+cp "$ROOT/default/i18n/plural.jq" "$late/default/i18n/plural.jq"
+cat >"$late/default/i18n/en/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Appearance"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dock Position"}
+}
+JSON
+cat >"$late/default/i18n/da/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Udseende"},
+  "appearance.dock": {"label": "Dock"}
+}
+JSON
+printf '# Hello\n\nOpen _Appearance > Dock > Dock Position_.\n' >"$late/manual/01-hello.md"
+printf '# Hej\n\nÅbn _Appearance > Dock > Dock Position_.\n' >"$late/manual/da/01-hello.md"
+python3 "$ROOT/scripts/i18n-sync.py" --root "$late" manifest >/dev/null
+late_before=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$late" pending --backfill-manual | jq -c '.jobs.da.pending')
+assert_bash_equal "$late_before" '["menu:appearance.dock.position.label"]' "a chapter is not a backfill target while its menu label is still missing"
+cat >"$work/stubs/muse" <<'STUB'
+#!/bin/bash
+prompt_file=""
+while (( $# > 0 )); do
+  if [[ $1 == "--prompt-file" ]]; then
+    prompt_file=$2
+    break
+  fi
+  shift
+done
+if [[ $(cat "$prompt_file") == *"<chapter>"* ]]; then
+  printf '%s\n' '{"markdown":"# Hej\n\nÅbn _Udseende > Dock > Dockplacering_.\n"}'
+else
+  printf '%s\n' '{"menu:appearance.dock.position.label":"Dockplacering"}'
+fi
+STUB
+chmod +x "$work/stubs/muse"
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$late" translate --locale da --model test --backfill-manual --done-file "$work/late-done.json" >"$work/late.log" 2>&1; then
+  pass "a backfill retranslates a chapter once this run fills its menu label"
+else
+  fail "a backfill retranslates a chapter once this run fills its menu label" "$(cat "$work/late.log")"
+fi
+assert_bash_equal "$(cat "$late/manual/da/01-hello.md")" $'# Hej\n\nÅbn _Udseende > Dock > Dockplacering_.' "the chapter uses the menu label this run just translated"
+assert_bash_equal "$(jq -c '.da' "$work/late-done.json")" '["manual:01-hello.md","menu:appearance.dock.position.label"]' "the backfill records both the new menu label and the chapter it unlocked"
+rm -f "$work/stubs/muse"
+
 # Any display-text property name counts, both arms of a ternary count, and a
 # bare list item counts; identifiers and lines marked "i18n: ignore" do not.
 cat >"$fix/shell/Panel.qml" <<'QML'

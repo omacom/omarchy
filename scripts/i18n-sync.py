@@ -778,12 +778,10 @@ def cmd_translate(args):
     english = english_units(root)
     manifest = read_json(manifest_path(root), {})
     pending, prune = pending_for(root, code, english, manifest)
-    if args.backfill_manual:
-        pending = sorted(set(pending) | set(manual_backfill_units(root, code, english)))
     if prune:
         apply_prune(root, code, prune)
     catalog_pending = {u: english[u] for u in pending if not u.startswith("manual:")}
-    manual_pending = [u for u in pending if u.startswith("manual:")]
+    manual_pending = sorted(u for u in pending if u.startswith("manual:"))
     done = list(prune)
     failures = []
     warnings = []
@@ -799,6 +797,12 @@ def cmd_translate(args):
                 continue
             apply_catalog_translations(root, code, translated)
             done.extend(translated)
+
+    # The glossary reads menu labels off disk, so a backfill waits until the
+    # catalog translations above are applied. A label this run just filled
+    # then counts, and a chapter that names its path is still retranslated.
+    if args.backfill_manual:
+        manual_pending = sorted(set(manual_pending) | set(manual_backfill_units(root, code, english)))
 
     def one_manual(unit):
         filename = split_unit(unit)[1]
