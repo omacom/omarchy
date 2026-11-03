@@ -7,17 +7,19 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const weather = requireFromRoot('shell/plugins/panels/weather/Model.js')
 
-assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577, "longitude": -118.7804}\n'), { name: 'Malibu', latitude: 34.02577, longitude: -118.7804 }, 'weather parses name plus coordinates from weather.json')
-assertDeepEqual(weather.parseLocationFile('{"name": "New York"}'), { name: 'New York', latitude: null, longitude: null }, 'weather parses a name-only weather.json')
-assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577}'), { name: 'Malibu', latitude: null, longitude: null }, 'weather requires both coordinates')
-assertDeepEqual(weather.parseLocationFile('not json'), { name: '', latitude: null, longitude: null }, 'weather treats an unparseable weather.json as auto-detect')
-assertDeepEqual(weather.parseLocationFile(''), { name: '', latitude: null, longitude: null }, 'weather treats a missing weather.json as auto-detect')
+assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577, "longitude": -118.7804}\n'), { name: 'Malibu', latitude: 34.02577, longitude: -118.7804, country: '' }, 'weather parses name plus coordinates from weather.json')
+assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577, "longitude": -118.7804, "country": "us"}'), { name: 'Malibu', latitude: 34.02577, longitude: -118.7804, country: 'US' }, 'weather keeps the stored country, upper-cased')
+assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "country": "United States"}'), { name: 'Malibu', latitude: null, longitude: null, country: '' }, 'weather drops a country that is not a two-letter code')
+assertDeepEqual(weather.parseLocationFile('{"name": "New York"}'), { name: 'New York', latitude: null, longitude: null, country: '' }, 'weather parses a name-only weather.json')
+assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577}'), { name: 'Malibu', latitude: null, longitude: null, country: '' }, 'weather requires both coordinates')
+assertDeepEqual(weather.parseLocationFile('not json'), { name: '', latitude: null, longitude: null, country: '' }, 'weather treats an unparseable weather.json as auto-detect')
+assertDeepEqual(weather.parseLocationFile(''), { name: '', latitude: null, longitude: null, country: '' }, 'weather treats a missing weather.json as auto-detect')
 
-assertDeepEqual(weather.locationCommit('  Pasadena  ', [], 0), { name: 'Pasadena', latitude: null, longitude: null }, 'weather commits typed locations before suggestions load')
-assertDeepEqual(weather.locationCommit('', [], 0), { name: '', latitude: null, longitude: null }, 'weather commits an empty location as auto-detect')
+assertDeepEqual(weather.locationCommit('  Pasadena  ', [], 0), { name: 'Pasadena', latitude: null, longitude: null, country: '' }, 'weather commits typed locations before suggestions load')
+assertDeepEqual(weather.locationCommit('', [], 0), { name: '', latitude: null, longitude: null, country: '' }, 'weather commits an empty location as auto-detect')
 assertDeepEqual(
-  weather.locationCommit('mal', [{ name: 'Malibu', latitude: 34.02577, longitude: -118.7804 }], 0),
-  { name: 'Malibu', latitude: 34.02577, longitude: -118.7804 },
+  weather.locationCommit('mal', [{ name: 'Malibu', latitude: 34.02577, longitude: -118.7804, country: 'US' }], 0),
+  { name: 'Malibu', latitude: 34.02577, longitude: -118.7804, country: 'US' },
   'weather commits the selected geocoding suggestion when available'
 )
 
@@ -30,7 +32,7 @@ assertEqual(weather.wttrLocationQuery('  ', null, null), '', 'weather treats a b
 
 const unset = weather.parseLocationFile('')
 const detected = weather.parseLocationFile('{"name":"Amsterdam","latitude":52.37403,"longitude":4.88969,"country":"NL","timezone":"Europe/Amsterdam"}')
-assertDeepEqual(detected, { name: 'Amsterdam', latitude: 52.37403, longitude: 4.88969 }, 'weather reads a geo.omarchy.org answer with the weather.json parser')
+assertDeepEqual(detected, { name: 'Amsterdam', latitude: 52.37403, longitude: 4.88969, country: 'NL' }, 'weather reads a geo.omarchy.org answer with the weather.json parser')
 assertDeepEqual(weather.effectiveLocation(unset, detected), detected, 'weather reports for the detected place when none is stored')
 assertDeepEqual(weather.effectiveLocation({ name: 'New York', latitude: null, longitude: null }, detected).name, 'New York', 'weather keeps a stored name over the detected place')
 assertDeepEqual(weather.effectiveLocation({ name: '', latitude: 34.02577, longitude: -118.7804 }, detected).latitude, 34.02577, 'weather keeps stored coordinates over the detected place')
@@ -38,16 +40,16 @@ assertDeepEqual(weather.effectiveLocation({ name: '', latitude: 34.02577, longit
 assertDeepEqual(
   weather.parseGeocodingResults(JSON.stringify({
     results: [
-      { name: 'Malibu', latitude: 34.02577, longitude: -118.7804, admin1: 'California', country: 'United States' },
-      { name: 'Malibu', latitude: -7.18333, longitude: 29.65, admin1: 'Tanganyika', country: 'Democratic Republic of Congo' },
+      { name: 'Malibu', latitude: 34.02577, longitude: -118.7804, admin1: 'California', country: 'United States', country_code: 'US' },
+      { name: 'Malibu', latitude: -7.18333, longitude: 29.65, admin1: 'Tanganyika', country: 'Democratic Republic of Congo', country_code: 'CD' },
       { name: 'Broken', latitude: 1.0 },
       { name: 'Bare', latitude: 2.0, longitude: 3.0 }
     ]
   })),
   [
-    { name: 'Malibu', description: 'California, United States', latitude: 34.02577, longitude: -118.7804 },
-    { name: 'Malibu', description: 'Tanganyika, Democratic Republic of Congo', latitude: -7.18333, longitude: 29.65 },
-    { name: 'Bare', description: '', latitude: 2.0, longitude: 3.0 }
+    { name: 'Malibu', description: 'California, United States', latitude: 34.02577, longitude: -118.7804, country: 'US' },
+    { name: 'Malibu', description: 'Tanganyika, Democratic Republic of Congo', latitude: -7.18333, longitude: 29.65, country: 'CD' },
+    { name: 'Bare', description: '', latitude: 2.0, longitude: 3.0, country: '' }
   ],
   'weather parses geocoding suggestions and drops incomplete rows'
 )
@@ -63,6 +65,8 @@ assertEqual(weather.shouldUseImperial('', 'en_US', 'Denmark'), false, 'weather p
 assertEqual(weather.shouldUseImperial('', 'da_DK', 'United States of America'), true, 'weather prefers reported imperial country over metric locale')
 assertEqual(weather.shouldUseImperial('metric', 'en_US', 'United States of America'), false, 'weather metric override wins')
 assertEqual(weather.shouldUseImperial('imperial', 'da_DK', 'Denmark'), true, 'weather imperial override wins')
+assertEqual(weather.shouldUseImperial('', 'en_US', 'AU'), false, 'weather prefers a metric country code over US locale')
+assertEqual(weather.shouldUseImperial('', 'da_DK', 'US'), true, 'weather prefers an imperial country code over metric locale')
 assertEqual(weather.dayName('2026-05-25'), 'Monday', 'weather derives day names')
 
 const openMeteo = {
@@ -130,6 +134,10 @@ weather_location() {
   HOME="$test_tmp" "$ROOT/bin/omarchy-weather-location" "$@"
 }
 
+weather_location --set "Sydney" "-33.8688,151.2093" --country au
+[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"Sydney","latitude":-33.8688,"longitude":151.2093,"country":"AU"}' ]] || fail "weather location stores the country code with the coordinates" "$(cat "$test_tmp/.local/state/omarchy/settings/weather.json")"
+pass "weather location stores the country code with the coordinates"
+
 weather_location --set "Malibu" "34.02577,-118.7804"
 [[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"Malibu","latitude":34.02577,"longitude":-118.7804}' ]] || fail "weather location stores name and coordinates as JSON"
 pass "weather location stores name and coordinates as JSON"
@@ -141,6 +149,11 @@ weather_location --set "New York"
 [[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"New York"}' ]] || fail "weather location stores a bare name as JSON"
 [[ $(weather_location) == "New York" ]] || fail "weather location returns a bare stored name"
 pass "weather location stores and returns a bare name"
+
+if weather_location --set "Sydney" "-33.8688,151.2093" --country Australia 2>/dev/null; then
+  fail "weather location rejects a country that is not a two-letter code"
+fi
+pass "weather location rejects a country that is not a two-letter code"
 
 if weather_location --set "bad" "not,coords" 2>/dev/null; then
   fail "weather location rejects malformed coordinates"

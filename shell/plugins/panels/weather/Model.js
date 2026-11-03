@@ -1,8 +1,17 @@
-// weather.json holds {"name": ..., "latitude": ..., "longitude": ...} (see
+// An ISO 3166-1 alpha-2 code, upper-cased. Anything else, a country name
+// included, means unknown: it cannot be answered from a place we only have a
+// name for.
+function countryCode(value) {
+  var code = String(value || "").replace(/^\s+|\s+$/g, "").toUpperCase()
+  return /^[A-Z]{2}$/.test(code) ? code : ""
+}
+
+// weather.json holds
+// {"name": ..., "latitude": ..., "longitude": ..., "country": ...} (see
 // omarchy-weather-location, which owns the format). Missing, blank, or
 // unparseable means the location is auto-detected (see isAutoLocation).
 function parseLocationFile(raw) {
-  var unset = { name: "", latitude: null, longitude: null }
+  var unset = { name: "", latitude: null, longitude: null, country: "" }
   try {
     var data = JSON.parse(String(raw || ""))
     if (!data || typeof data !== "object") return unset
@@ -13,7 +22,8 @@ function parseLocationFile(raw) {
     return {
       name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
       latitude: hasCoordinates ? latitude : null,
-      longitude: hasCoordinates ? longitude : null
+      longitude: hasCoordinates ? longitude : null,
+      country: countryCode(data.country)
     }
   } catch (e) {
     return unset
@@ -62,7 +72,8 @@ function parseGeocodingResults(raw) {
         name: String(r.name),
         description: region,
         latitude: r.latitude,
-        longitude: r.longitude
+        longitude: r.longitude,
+        country: countryCode(r.country_code)
       })
     }
     return out
@@ -73,14 +84,14 @@ function parseGeocodingResults(raw) {
 
 function locationCommit(text, suggestions, selectedIndex) {
   var name = String(text || "").replace(/^\s+|\s+$/g, "")
-  if (name === "") return { name: "", latitude: null, longitude: null }
+  if (name === "") return { name: "", latitude: null, longitude: null, country: "" }
 
   var choices = suggestions || []
   var index = Math.max(0, Math.min(parseInt(selectedIndex, 10) || 0, choices.length - 1))
   var suggestion = choices[index]
   if (suggestion) return suggestion
 
-  return { name: name, latitude: null, longitude: null }
+  return { name: name, latitude: null, longitude: null, country: "" }
 }
 
 function isFutureForecastDate(dateString, todayString) {
