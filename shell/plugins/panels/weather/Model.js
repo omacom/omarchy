@@ -138,7 +138,7 @@ function countryUsesImperial(countryName) {
     .toLowerCase()
   if (!country) return null
   if (country === "us" || country === "usa" || country === "united states" || country === "united states of america") return true
-  if (country === "liberia" || country === "myanmar" || country === "burma") return true
+  if (country === "liberia" || country === "lr" || country === "myanmar" || country === "mm" || country === "burma") return true
   return false
 }
 
