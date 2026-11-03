@@ -366,6 +366,11 @@ world.focused = "eDP-1"
 local m = load_module()
 world.handlers["hyprland.start"]()
 window("0xa", 1)
+world.focused = "DP-1"
+window("0xb", 11)
+window("0xc", 15)
+world.monitors[2].active = 15
+world.focused = "eDP-1"
 world.active_window = "0xa"
 -- A rule retained from a global workspace plan sends a newly created slot
 -- to another monitor. There is nothing for reclaim() to move before creation.
@@ -380,7 +385,7 @@ end
 check(on(2) == "eDP-1", "a new slot followed the old rule onto the other monitor")
 check(world.focused == "eDP-1", "the action switched monitors")
 check(shows("eDP-1") == (action == "silent" and 1 or 2), "silent/follow behavior changed")
-check(shows("DP-1") == 11, "the other monitor lost its visible workspace")
+check(shows("DP-1") == 15, "the other monitor lost its visible workspace")
 ' || fail "$action keeps a new slot on its monitor despite a conflicting creation rule"
   pass "$action keeps a new slot on its monitor despite a conflicting creation rule"
 done

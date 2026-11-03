@@ -372,7 +372,27 @@ local function reclaim(monitor, id)
 
   local monitors = connected()
   settle(away, monitors, assign(monitors))
-  return true
+  return away
+end
+
+-- What each monitor shows, so a view a workspace monitor rule displaced can be
+-- put back rather than left to whichever workspace Hyprland falls back to.
+local function views()
+  local shown = {}
+  for _, monitor in ipairs(hl.get_monitors()) do
+    if regular(monitor.active_workspace) then
+      shown[monitor.name] = monitor.active_workspace.id
+    end
+  end
+  return shown
+end
+
+local function restore_view(monitor, shown)
+  local id = shown[monitor.name]
+  local workspace = id and hl.get_workspace(id)
+  if workspace and workspace.monitor and workspace.monitor.name == monitor.name then
+    monitor:set_workspace(workspace.name)
+  end
 end
 
 -- Renumber a workspace into a block, keeping its slot when that one is free and
@@ -455,10 +475,13 @@ function M.focus(slot, monitor_name)
 
     local id = M.workspace_id(monitor, slot)
     reclaim(monitor, id)
+    local shown = views()
     hl.dispatch(hl.dsp.focus({ workspace = tostring(id) }))
     -- A new workspace did not exist when reclaim first checked it. An older
     -- monitor rule may have created it elsewhere and taken focus with it.
-    if reclaim(monitor, id) then
+    local away = reclaim(monitor, id)
+    if away then
+      restore_view(away, shown)
       show(monitor, id)
       hl.dispatch(hl.dsp.focus({ monitor = monitor.name }))
     end
@@ -478,8 +501,11 @@ function M.move_window(slot, follow)
     local id = M.workspace_id(monitor, slot)
     local previous = monitor.active_workspace
     reclaim(monitor, id)
+    local shown = views()
     hl.dispatch(hl.dsp.window.move({ workspace = tostring(id), follow = follow ~= false, window = "address:" .. window.address }))
-    if reclaim(monitor, id) then
+    local away = reclaim(monitor, id)
+    if away then
+      restore_view(away, shown)
       if follow == false and regular(previous) then
         show(monitor, previous.id)
       else
