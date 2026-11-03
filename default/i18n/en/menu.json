@@ -869,6 +869,9 @@
   "install.ai.grok-bot": {
     "label": "Grok Bot"
   },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
   "install.ai.hermes": {
     "label": "Hermes Desktop"
   },

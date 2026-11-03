@@ -1288,5 +1288,8 @@
   },
   "setup.keyboard.input-methods": {
     "label": "Syöttömenetelmät"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   }
 }
