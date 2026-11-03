@@ -2,31 +2,10 @@
 
 # omarchy:summary=Reload hyprland configuration (used by the Omarchy theme switching).
 
-# This also runs outside the session: over ssh, in a remotely started herdr, or
-# in an update launched from either. There HYPRLAND_INSTANCE_SIGNATURE is
-# missing, or names a Hyprland that has since exited, so fall back to the newest
-# live instance. With none running there is nothing to reload: Hyprland reads
-# its config when it starts.
-runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$UID}
-
-live_instance() {
-  [[ -n $1 && -S $runtime_dir/hypr/$1/.socket.sock ]]
-}
-
-if ! live_instance "${HYPRLAND_INSTANCE_SIGNATURE:-}"; then
-  signature=""
-  while read -r _ instance_dir; do
-    live_instance "${instance_dir##*/}" && signature=${instance_dir##*/}
-  done < <(find "$runtime_dir/hypr" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -n)
-
-  [[ -n $signature ]] || exit 0
-  export HYPRLAND_INSTANCE_SIGNATURE=$signature
-fi
-export XDG_RUNTIME_DIR=$runtime_dir
-
-# hyprctl reports its failures on stdout, so surface them on stderr instead of
-# letting callers that discard stdout fail without a word.
-if ! output=$(hyprctl reload 2>&1); then
-  printf 'Could not reload Hyprland: %s\n' "$output" >&2
-  exit 1
+# Outside the session (ssh, a remotely started herdr) there is no instance
+# signature, so reach the running Hyprland directly.
+if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  hyprctl reload >/dev/null
+else
+  hyprctl --instance 0 reload >/dev/null
 fi
