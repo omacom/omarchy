@@ -5,6 +5,11 @@
   "version": "1.0.0",
   "author": "Omarchy",
   "description": "Graphical window for omarchy update and one-click installs. Open it with omarchy-launch-update or omarchy-launch-install.",
+  "omarchy": {
+    "capabilities": [
+      "authentication"
+    ]
+  },
   "kinds": [
     "service"
   ],
