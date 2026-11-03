@@ -863,6 +863,9 @@ pass "a mistyped subcommand behind an alias does not run the parent"
 output=$("$TMPDIR/omarchy" subcommandparent child)
 assert_output_contains "a documented child still resolves" "$output" "subcommand-child-ran"
 
+output=$("$TMPDIR/omarchy" subcommandparent -y)
+assert_output_contains "a flags-only parent still takes its flags" "$output" "subcommand-parent-ran args=[-y]"
+
 output=$("$TMPDIR/omarchy" subcommandparent -- literal)
 assert_output_contains "a -- closes the option list before the bare word check" "$output" "subcommand-parent-ran args=[-- literal]"
 
