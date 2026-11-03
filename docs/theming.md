@@ -42,6 +42,14 @@ A switch from the theme picker, the menu or a script does not wait for that seco
 
 Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets the same theme on every enabled `herdr machine list` target that runs Omarchy, over SSH inside the remote's live Hyprland session, and logs each machine's result to `~/.local/state/omarchy/theme-set-herdr-machines.log`. Sync is off by default. The `herdr-theme-sync` toggle turns it on, and a machine only sends and accepts themes while it is on. A mirrored change carries `OMARCHY_THEME_SYNC_FROM`, so the receiving machine never sends it on.
 
+## Herdr desktop app
+
+`herdr-app.json.tpl` generates the Herdr desktop app's terminal palette and primary-button colors, and `omarchy-theme-set-herdr-app` publishes it atomically as `themes/omarchy.json` in Herdr's home (`$HERDR_APP_HOME`, otherwise `$XDG_CONFIG_HOME/herdr-app`, otherwise `~/.config/herdr-app`) when that home exists. Herdr 0.1.11 and newer reload that file live. This is separate from the terminal Herdr client's remote-machine theme mirroring above.
+
+A theme switch only replaces that file: it never contacts Herdr, touches its `settings.json` or reselects a theme, so a theme picked inside Herdr stays picked. Selecting Omarchy is `omarchy-theme-set-herdr-app --activate`, which runs `herdr-app do app.theme --name omarchy` against the running window. `omarchy-install-ai-herdr` does that once the freshly installed app opens. Herdr keeps one theme choice for light and one for dark and `app.theme` sets the half that matches the palette, so the other appearance keeps its own choice until Omarchy is picked there too.
+
+The helper holds the theme-switch staging lock while it reads and publishes, so a queued run can't publish an older palette. A palette with unresolved or invalid colors keeps the last good theme and skips without failing the switch.
+
 ## What an installed theme may not ship
 
 `themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.
