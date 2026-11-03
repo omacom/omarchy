@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Install phux from its official installer, optionally with the Phux Rune desktop app
+# omarchy:args=[rune]
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+if [[ ${1-} == "rune" ]]; then
+  name="Phux Rune"
+  installer_args=(--rune)
+else
+  name="phux"
+  installer_args=()
+fi
+
+# phux's own installer puts phux and phux-mcp in ~/.local/bin; with --rune it
+# also puts Phux Rune in ~/.local/share/phux-rune with a launcher entry, adding
+# the CLI first when there is none. Downloaded whole before it runs, so a
+# dropped connection can never run half a script.
+echo "Installing $name..."
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+curl -fsSL --retry 3 https://phux.sh/install -o "$installer"
+sh "$installer" "${installer_args[@]}"
+
+# Takes Omarchy's tmux keys, follows the current theme, and binds Super + Ctrl
+# + Return and Super + Ctrl + K to phux. Safe to run again. --rune keeps a phux
+# already installed elsewhere, so the one just installed is only preferred.
+echo "Wiring phux into Omarchy..."
+PATH="$HOME/.local/bin:$PATH" phux omarchy setup
+
+if [[ $name == "Phux Rune" ]]; then
+  echo "Opening Phux Rune..."
+  setsid uwsm-app -- gtk-launch sh.phux.rune >/dev/null 2>&1 &
+fi
+
+echo ""
+echo "$name has been installed. Run 'phux omarchy remove' to undo the Omarchy wiring."
