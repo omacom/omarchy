@@ -27,7 +27,7 @@ class Bridge(unittest.TestCase):
         '/n': {b.NETWORK: dict(Name='Cafe', ExtendedServiceSet=['/b'])},
         '/b': {b.BSS: dict(Address='00:11:22:33:44:55')}}
     replies = [Mock(stdout=value) for value in (
-      '', '{"data":[true]}', '{"data":[false]}',
+      '', '{"type":"b","data":true}', '{"type":"b","data":false}',
       '{"data":[[["/n",-5200]]]}')]
     with patch.object(b, 'objects', return_value=tree), \
         patch.object(b.subprocess, 'run', side_effect=replies) as run, \
