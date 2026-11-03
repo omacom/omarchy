@@ -77,8 +77,16 @@ if [[ ! -f $authorized_keys ]] || ! has_usable_key; then
   # root included, or an alternate key source may still be how an administrator
   # gets in, and stopping sshd would lock them out mid-session.
   effective_config=$(as_root sshd -T) || skip "Could not inspect sshd's effective configuration."
+  # systemd links in a drop-in asking userdb for keys, which only user records
+  # that carry them, such as systemd-homed accounts, can answer.
+  if grep -qixF "authorizedkeyscommand /usr/bin/userdbctl ssh-authorized-keys %u" <<<"$effective_config"; then
+    if ! user_records=$(as_root userdbctl user --json=short) || grep -qF '"sshAuthorizedKeys"' <<<"$user_records"; then
+      skip "systemd-userdb may hold SSH keys for an account, so sshd was left running."
+    fi
+  elif ! grep -qixF "authorizedkeyscommand none" <<<"$effective_config"; then
+    skip "sshd asks an AuthorizedKeysCommand for keys, so it was left running."
+  fi
   if ! grep -qixE "authorizedkeysfile \.ssh/authorized_keys( \.ssh/authorized_keys2)?" <<<"$effective_config" ||
-    ! grep -qixF "authorizedkeyscommand none" <<<"$effective_config" ||
     ! grep -qixF "trustedusercakeys none" <<<"$effective_config" ||
     ! grep -qixF "hostbasedauthentication no" <<<"$effective_config" ||
     ! grep -qixF "gssapiauthentication no" <<<"$effective_config"; then
