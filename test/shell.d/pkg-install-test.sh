@@ -55,5 +55,5 @@ PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" "$ROOT/bin/omarchy-pkg-install"
 pass "package picker lists only packages that are not installed"
 
 [[ $(<"$test_tmp/pkg-install-command") == "pacman -S --noconfirm --needed bat" ]] ||
-  fail "package install must skip installed targets: $(<"$test_tmp/pkg-install-command")"
-pass "package install passes --needed so it never upgrades an installed package"
+  fail "package install must pass --needed: $(<"$test_tmp/pkg-install-command")"
+pass "package install passes --needed to skip reinstalling up-to-date packages"
