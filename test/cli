@@ -1009,63 +1009,37 @@ with tempfile.TemporaryDirectory() as temporary:
         expected['theme']['name'] = 'terminal'
         assert tomllib.loads(config.read_text()) == expected
     print('ok - shared TOML editor changes a custom setting key without changing unrelated values')
+
+with tempfile.TemporaryDirectory() as temporary:
+    home = Path(temporary)
+    palette = home / '.local/state/omarchy/current/theme'
+    palette.mkdir(parents=True)
+    (palette.parent / 'theme.name').write_text('Solitude\n')
+    for app in ('claude', 'pi'):
+        (palette / (app + '.json')).write_text('{}')
+    stub = home / 'bin'
+    stub.mkdir()
+    fcitx = stub / 'omarchy-theme-set-fcitx5'
+    fcitx.write_text('#!/bin/bash\nexit 0\n')
+    fcitx.chmod(0o755)
+    env = dict(base_env, HOME=str(home), OMARCHY_PATH=str(root),
+               PATH=str(stub) + ':' + str(root / 'bin') + ':' + os.environ['PATH'])
+    setup = ['bash', '-e', str(root / 'install/user/theme.sh')]
+    codex = home / '.codex/config.toml'
+    codex.parent.mkdir()
+    codex.write_text('invalid = [\n')
+    failed = subprocess.run(setup, env=env, capture_output=True)
+    assert failed.returncode != 0
+    assert not (home / '.local/state/omarchy/done/theme-activate-codex').exists()
+    codex.write_text('[tui]\ntheme = "user-before-activation"\n')
+    subprocess.run(setup, env=env, check=True)
+    assert tomllib.loads(codex.read_text())['tui']['theme'] == 'ansi'
+    configs = [codex, home / '.grok/config.toml', home / '.pi/agent/settings.json', home / '.claude/settings.json']
+    for config in configs:
+        config.write_text(config.read_text().replace('ansi', 'user-choice').replace('minimal', 'user-choice').replace('omarchy-system', 'user-choice').replace('custom:omarchy', 'user-choice'))
+    choices = [config.read_bytes() for config in configs]
+    subprocess.run(setup, env=env, check=True)
+    assert [config.read_bytes() for config in configs] == choices
+    assert (palette.parent / 'theme.name').read_text() == 'Solitude\n'
+    print('ok - production user setup retries failed activation and preserves subsequent app and desktop choices')
 PY
-
-# User provisioning activates each application once and retries failed work.
-(
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-mock_bin="$test_tmp/bin"
-mkdir -p "$mock_bin" "$test_tmp/home/.config/chromium" "$test_tmp/home/.local/state/omarchy/current"
-
-cat >"$mock_bin/omarchy-theme-set" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*" >>"$OMARCHY_TEST_THEME_CALLS"
-SH
-chmod +x "$mock_bin/omarchy-theme-set"
-
-for command in omarchy-theme-set-codex omarchy-theme-set-grok omarchy-theme-set-pi omarchy-theme-set-claude omarchy-theme-set-fcitx5; do
-  cat >"$mock_bin/$command" <<'SH'
-#!/bin/bash
-app=${0##*omarchy-theme-set-}
-[[ ${FAIL_APP:-} != "$app" ]] || exit 1
-printf '%s %s\n' "$(basename "$0")" "$*" >>"$OMARCHY_TEST_APP_THEME_CALLS"
-if [[ $app != "fcitx5" ]]; then
-  omarchy-done mark "theme-activate-$app"
-fi
-SH
-  chmod +x "$mock_bin/$command"
-done
-
-calls="$test_tmp/theme-calls"
-app_theme_calls="$test_tmp/app-theme-calls"
-touch "$test_tmp/home/.config/chromium/SingletonLock"
-HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_THEME_CALLS="$calls" OMARCHY_TEST_APP_THEME_CALLS="$app_theme_calls" \
-  bash "$ROOT/install/user/theme.sh"
-grep -Fx 'Tokyo Night' "$calls" >/dev/null || fail "user theme setup seeds Tokyo Night when no theme exists"
-[[ -f $test_tmp/home/.config/chromium/SingletonLock ]] || fail "runtime user theme setup preserves Chromium's singleton lock"
-for command in codex grok pi claude fcitx5; do
-  grep -Fx "omarchy-theme-set-$command --activate" "$app_theme_calls" >/dev/null ||
-    fail "user theme setup activates the $command application theme"
-done
-
-: >"$calls"
-: >"$app_theme_calls"
-printf 'Solitude\n' >"$test_tmp/home/.local/state/omarchy/current/theme.name"
-HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_THEME_CALLS="$calls" OMARCHY_TEST_APP_THEME_CALLS="$app_theme_calls" \
-  bash "$ROOT/install/user/theme.sh"
-[[ ! -s $calls ]] || fail "user theme setup preserves an existing theme"
-[[ $(cat "$app_theme_calls") == "omarchy-theme-set-fcitx5 --activate" ]] || fail "repeated user setup preserves terminal application choices"
-
-rm "$test_tmp/home/.local/state/omarchy/done/theme-activate-codex"
-if HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_THEME_CALLS="$calls" OMARCHY_TEST_APP_THEME_CALLS="$app_theme_calls" FAIL_APP=codex bash -e "$ROOT/install/user/theme.sh"; then
-  fail "activation failures propagate to provisioning"
-fi
-[[ ! -e $test_tmp/home/.local/state/omarchy/done/theme-activate-codex ]] || fail "failed activation remains retryable"
-HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_THEME_CALLS="$calls" OMARCHY_TEST_APP_THEME_CALLS="$app_theme_calls" bash -e "$ROOT/install/user/theme.sh"
-[[ -e $test_tmp/home/.local/state/omarchy/done/theme-activate-codex ]] || fail "successful retry records activation"
-
-pass "user theme setup seeds once and activates terminal application themes"
-
-)
