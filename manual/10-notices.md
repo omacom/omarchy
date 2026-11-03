@@ -28,7 +28,7 @@ Silencing notifications holds them back, except Omarchy's own confirmations, eme
 
 The location is detected from your IP address, which is usually close enough, but not always. You can pin it down with `omarchy weather location --set Malibu`, or be exact about it by adding coordinates: `omarchy weather location --set Malibu 34.0259,-118.7798`. Run `omarchy weather location` on its own to see where it thinks you are, and `--clear` to go back to auto-detection.
 
-Units follow the pinned place's own country, so pinning Melbourne shows °C even on an `en_US` session. Where no country is known it falls back to the session's locale.
+Units follow the pinned place's country when one is saved, and picking a search suggestion saves its country for you. From the CLI, pass a two-letter code: `omarchy weather location --set Melbourne -37.8136,144.9631 --country AU` keeps Melbourne in °C on an `en_US` session even when wttr.in is unavailable. Without a saved country, units follow wttr.in's reported country, then the session's locale.
 
 ### Battery
 

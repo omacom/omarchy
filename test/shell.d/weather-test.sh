@@ -67,6 +67,8 @@ assertEqual(weather.shouldUseImperial('metric', 'en_US', 'United States of Ameri
 assertEqual(weather.shouldUseImperial('imperial', 'da_DK', 'Denmark'), true, 'weather imperial override wins')
 assertEqual(weather.shouldUseImperial('', 'en_US', 'AU'), false, 'weather prefers a metric country code over US locale')
 assertEqual(weather.shouldUseImperial('', 'da_DK', 'US'), true, 'weather prefers an imperial country code over metric locale')
+assertEqual(weather.shouldUseImperial('', 'da_DK', 'LR'), true, 'weather treats Liberia by its country code as imperial')
+assertEqual(weather.shouldUseImperial('', 'da_DK', 'MM'), true, 'weather treats Myanmar by its country code as imperial')
 assertEqual(weather.dayName('2026-05-25'), 'Monday', 'weather derives day names')
 
 const openMeteo = {
