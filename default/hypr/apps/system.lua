@@ -16,7 +16,7 @@ o.window(
 o.window("xdg-desktop-portal-gtk", { tag = "+floating-window" })
 
 -- Keyring and GPG password prompts are not modal to any window, so pin them where they can be seen.
-o.window("^(gcr-prompter|[Pp]inentry.*)$", { float = true, center = true, pin = true })
+o.window("^(gcr-prompter|(org\\.gnupg\\.)?[Pp]inentry.*)$", { float = true, center = true, pin = true })
 
 o.window({
   class = "(sublime_text|DesktopEditors|org.gnome.Nautilus)",
