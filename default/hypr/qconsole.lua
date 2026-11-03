@@ -18,13 +18,13 @@ local CONSOLE = "special:qconsole"
 -- at boot, so nothing is running until it is wanted. The exec rule has to pin
 -- the workspace itself: Hyprland only tags a spawn with the workspace it came
 -- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
--- Omarchy ships without a default agent, and omarchy-agent exits without
--- opening anything when none is set, so until one is picked this just opens an
--- empty console. A console created by moving a window onto it is not empty, and
--- is left alone.
+-- Omarchy ships without a default agent, so --pick offers the choice instead
+-- of an empty console that explains nothing; the agent seeds the console the
+-- next time it opens. A console created by moving a window onto it is not
+-- empty, and is left alone.
 hl.on("workspace.created", function(ws)
   if ws and ws.name == CONSOLE and ws.is_empty then
-    hl.exec_cmd("omarchy-agent", { workspace = CONSOLE .. " silent" })
+    hl.exec_cmd("omarchy-agent --pick", { workspace = CONSOLE .. " silent" })
   end
 end)
 
