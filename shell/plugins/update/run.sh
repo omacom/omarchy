@@ -21,8 +21,7 @@ exec 3<>"$dir/in"
 
 # sudo and gum announce their questions as OSC sequences the window turns into
 # dialogs, and sudo, pacman and yay speak English for the window to read (see
-# shims/english); everything else runs untouched. omarchy update sets its own
-# PATH, so only installs meet the stand-ins.
+# shims/english); everything else runs untouched.
 export PATH="$here/shims:$PATH" OMARCHY_UPDATE_WINDOW=1 TERM=dumb
 export SUDO_PROMPT=$'\e]5150;password\a'
 
