@@ -33,7 +33,7 @@ fi
 superwhisper shortcuts set toggle "Ctrl+Alt+Space" >/dev/null
 superwhisper shortcuts set hold none >/dev/null
 omarchy-dictation-use superwhisper
-omarchy-restart-hyprland || true
+omarchy-restart-hyprctl
 if [[ $background == "false" ]]; then
   omarchy-notification-send -g  "$(omarchy-i18n dictation.superwhisperReady)" "$(omarchy-i18n dictation.hint)" -t 10000
   superwhisper settings

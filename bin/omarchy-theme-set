@@ -610,7 +610,7 @@ if [[ $THEME_HEADLESS != "1" ]]; then
   # An intro reloads Hyprland after playback; ordinary theme changes reload it
   # with the terminals.
   if [[ -z $THEME_INTRO_TOKEN ]]; then
-    visible_theme_commands+=(omarchy-restart-hyprland)
+    visible_theme_commands+=(omarchy-restart-hyprctl)
   fi
   run_parallel "${visible_theme_commands[@]}"
 

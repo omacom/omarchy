@@ -165,7 +165,7 @@ pass "terminals retint during an intro and the other apps follow without holding
 
 rm -f "$test_tmp/release"
 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme beta
-grep -qx 'omarchy-restart-hyprland' "$log" || fail "a switch without an intro reloads Hyprland before returning"
+grep -qx 'omarchy-restart-hyprctl' "$log" || fail "a switch without an intro reloads Hyprland before returning"
 ! grep -qx 'omarchy-theme-set-browser' "$log" || fail "the browser retint does not hold up the switch"
 touch "$test_tmp/release"
 wait_for_detached_work
