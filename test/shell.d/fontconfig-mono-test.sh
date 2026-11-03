@@ -92,7 +92,7 @@ check_missing_fallbacks() {
   for family in "DejaVu Sans Mono" "Consolas" "Droid Sans Mono, monospace"; do
     base_family=${family%%,*}
     if grep -Fqi -- "$base_family" <<<"$available"; then
-      printf 'ok - missing %s falls back to the package default # SKIP %s is installed\n' "$family" "$base_family"
+      skip "missing $family fallback check: $base_family is installed"
       continue
     fi
     actual=$(resolve "$family")
