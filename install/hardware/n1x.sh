@@ -97,17 +97,13 @@ printf '%s\n' \
   'BOOT_ORDER="linux-omarchy, linux-omarchy-fallback, *, Snapshots"' \
   > /etc/limine-entry-tool.d/zz-omarchy-n1x-boot-order.conf
 
-n1x_find_kernel() {
-  local pkgbase_files
-  mapfile -t pkgbase_files < <(grep -lFx linux-omarchy /usr/lib/modules/*/pkgbase 2>/dev/null || true)
-  if (( ${#pkgbase_files[@]} != 1 )); then
-    echo "Error: expected one installed linux-omarchy module tree, found ${#pkgbase_files[@]}" >&2
-    return 1
-  fi
-  n1x_kernel_version=${pkgbase_files[0]#/usr/lib/modules/}
-  n1x_kernel_version=${n1x_kernel_version%/pkgbase}
-}
-n1x_find_kernel || return 1
+mapfile -t n1x_pkgbase_files < <(grep -lFx linux-omarchy /usr/lib/modules/*/pkgbase 2>/dev/null || true)
+if (( ${#n1x_pkgbase_files[@]} != 1 )); then
+  echo "Error: expected one installed linux-omarchy module tree, found ${#n1x_pkgbase_files[@]}" >&2
+  return 1
+fi
+n1x_kernel_version=${n1x_pkgbase_files[0]#/usr/lib/modules/}
+n1x_kernel_version=${n1x_kernel_version%/pkgbase}
 
 # GPU policy, decided by the system firmware version.
 #
@@ -128,12 +124,7 @@ bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
 n1x_gpu_driver=unloaded
 if [[ ! $bios_version =~ ^0\. ]]; then
-  # linux-omarchy-nvidia-open ships NVIDIA's modules prebuilt with the kernel.
-  omarchy-pkg-nvidia-modules --install
-  omarchy-pkg-add nvidia-utils libva-nvidia-driver
-  # The modules depend on the exact kernel they were built for, so installing
-  # them can bring a newer linux-omarchy than the one found above.
-  n1x_find_kernel || return 1
+  omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver
   # Early KMS lists the NVIDIA modules in the initramfs, so a kernel without
   # them would fail every UKI build. Fall back to the firmware framebuffer
   # instead: a software-rendered desktop beats no boot.

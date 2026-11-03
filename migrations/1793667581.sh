@@ -1,10 +1,8 @@
-echo "Switch NVIDIA machines on linux-omarchy to NVIDIA modules prebuilt with the kernel instead of building them with DKMS"
+echo "Switch NVIDIA machines on linux-omarchy from DKMS to prebuilt NVIDIA modules"
 
-# nvidia-open-dkms compiled NVIDIA's modules on the machine for every kernel
-# update. linux-omarchy now ships them built and signed as
-# linux-omarchy-nvidia-open. omarchy-pkg-nvidia-modules swaps them in, in one
-# transaction, only when every installed kernel has its package, and leaves
-# DKMS alone otherwise.
-if omarchy-pkg-present nvidia-open-dkms; then
-  omarchy-pkg-nvidia-modules --install
+# linux-omarchy-nvidia-open ships the modules built with each kernel, so
+# kernel updates no longer compile them. One transaction with --ask 4 so pacman
+# accepts replacing the conflicting nvidia-open-dkms in place.
+if omarchy-pkg-present nvidia-open-dkms linux-omarchy; then
+  sudo pacman -S --noconfirm --ask 4 linux-omarchy-nvidia-open
 fi
