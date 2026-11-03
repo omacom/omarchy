@@ -837,8 +837,10 @@ fi
 [[ ! -e $modes_dir/4.lua && ! -e $modes_dir/3.lua ]] || fail "nothing is saved for a workspace with no layout of its own"
 pass "a renumbered workspace with no layout of its own is left alone"
 
-# A number can have a saved layout while no workspace holds it. The workspace
-# taking the number over brings its own layout, or the default, in its place.
+# A number can have a saved layout while no workspace holds it, the user's
+# choice for the next workspace opened under it. Per-monitor workspaces give
+# such a number to no other workspace, and a renumber onto it all the same
+# leaves the layout saved.
 printf 'o.workspace_mode({ workspace = "4", mode = "floating" })\n' >"$modes_dir/4.lua"
 if ! run_lua '
 local moved = window("0x1", 3)
@@ -846,16 +848,12 @@ require("default.hypr.workspace-layouts")
 local modes = require("default.hypr.workspace-modes")
 moved.workspace.id = 4
 modes.renumber(3, 4)
-local last = {}
-for _, rule in ipairs(state().workspace_rules) do last[rule.workspace] = rule.layout end
-assert(last["4"] == "dwindle", "the taken-over number was not returned to the default layout: " .. tostring(last["4"]))
-assert(not moved.floating, "the window took the floating layout saved under the number it moved to")
-assert(latest_open_rule(1) == nil or not latest_open_rule(1).enabled, "windows opening on the taken-over number still float")
 ' TITLEBARS_INSTALLED=1; then
-  fail "a renumbered workspace replaces the layout saved under its new number"
+  fail "a renumbered workspace leaves a layout saved under its new number alone"
 fi
-[[ ! -e $modes_dir/4.lua ]] || fail "the layout saved under the taken-over number is dropped"
-pass "a renumbered workspace replaces the layout saved under its new number"
+grep -qxF 'o.workspace_mode({ workspace = "4", mode = "floating" })' "$modes_dir/4.lua" ||
+  fail "a renumbered workspace leaves a layout saved under its new number alone" "$(ls "$modes_dir"; cat "$modes_dir"/*.lua 2>&1)"
+pass "a renumbered workspace leaves a layout saved under its new number alone"
 
 # A layout that cannot be saved under the new number stays saved under the old
 # one, as it would have before, rather than being lost on the next reload.

@@ -427,14 +427,27 @@ local function refresh_shell()
   end, { type = "oneshot", timeout = 1 })
 end
 
+-- Whether a layout is saved for a workspace number. Hyprland drops a workspace
+-- once it is empty, and its layout stays saved for the next one opened under
+-- the number.
+function M.saved(id)
+  local file = io.open(LAYOUTS_DIR .. "/" .. tostring(id) .. ".lua")
+  if file then
+    file:close()
+  end
+  return file ~= nil
+end
+
 -- Per-monitor workspaces renumber a workspace as it joins another monitor's
 -- block, and the mode it was given goes with it, saved file and all. The number
--- it leaves goes back to the default layout, as does the number it takes when
--- it has no mode of its own, so whatever opens under either later starts fresh.
+-- it leaves goes back to the default layout, so whatever opens under it later
+-- starts fresh. The number it takes has nothing saved for it, as per-monitor
+-- workspaces leave a number with a saved layout to the next workspace opened
+-- under it, so a workspace with no mode of its own has nothing to change.
 function M.renumber(from, to)
   from, to = tostring(from), tostring(to)
   local mode = modes[from]
-  if not mode and not modes[to] then
+  if not mode then
     return
   end
 
@@ -444,17 +457,13 @@ function M.renumber(from, to)
   -- The old file goes once the new one is written. A layout that cannot be
   -- saved under the new number stays saved under the old one, as it would have
   -- before, rather than being lost on the next reload.
-  if mode then
-    local saved = io.open(LAYOUTS_DIR .. "/" .. to .. ".lua", "w")
-    if saved then
-      local written = saved:write(string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', to, mode)) ~= nil
-      written = saved:close() and written
-      if written then
-        os.remove(LAYOUTS_DIR .. "/" .. from .. ".lua")
-      end
+  local saved = io.open(LAYOUTS_DIR .. "/" .. to .. ".lua", "w")
+  if saved then
+    local written = saved:write(string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', to, mode)) ~= nil
+    written = saved:close() and written
+    if written then
+      os.remove(LAYOUTS_DIR .. "/" .. from .. ".lua")
     end
-  else
-    os.remove(LAYOUTS_DIR .. "/" .. to .. ".lua")
   end
 
   -- A floating workspace tiles in the default layout once it stops floating,

@@ -372,6 +372,14 @@ local function reclaim(monitor, id)
   settle(away, monitors, assign(monitors))
 end
 
+-- A number is free when no workspace has it and no layout is saved for it. A
+-- layout saved for a number whose workspace Hyprland dropped once it was empty
+-- is the user's choice for the next workspace opened under it, so a workspace
+-- from elsewhere doesn't take the number.
+local function free(id)
+  return not hl.get_workspace(id) and not workspace_modes.saved(id)
+end
+
 -- Renumber a workspace into a block, keeping its slot when that one is free and
 -- taking the first free one otherwise. False when all ten are taken.
 local function adopt(workspace, block)
@@ -382,7 +390,7 @@ local function adopt(workspace, block)
   end
 
   for _, id in ipairs(candidates) do
-    if not hl.get_workspace(id) then
+    if free(id) then
       renumber(workspace, id)
       return true
     end
@@ -393,7 +401,7 @@ end
 
 -- The first free id after the highest of a block in use, as Niri appends an
 -- unplugged output's workspaces after another's, or any free one in the block
--- when the last is taken. Nil when all ten are.
+-- when none after it is. Nil when all ten are taken.
 local function append_slot(block)
   local highest = block * SLOTS
   for _, workspace in ipairs(hl.get_workspaces()) do
@@ -402,12 +410,14 @@ local function append_slot(block)
     end
   end
 
-  if highest < block * SLOTS + SLOTS then
-    return highest + 1
+  for id = highest + 1, block * SLOTS + SLOTS do
+    if free(id) then
+      return id
+    end
   end
 
-  for id = block * SLOTS + 1, block * SLOTS + SLOTS do
-    if not hl.get_workspace(id) then
+  for id = block * SLOTS + 1, highest do
+    if free(id) then
       return id
     end
   end

@@ -290,6 +290,15 @@ function state_file()
   return content
 end
 
+-- A layout saved for a workspace number, as the layout toggle leaves it.
+function save_layout(id, mode)
+  local dir = os.getenv("XDG_STATE_HOME") .. "/omarchy/workspace-layouts"
+  os.execute("mkdir -p '" .. dir .. "'")
+  local file = io.open(dir .. "/" .. id .. ".lua", "w")
+  file:write(string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', id, mode))
+  file:close()
+end
+
 function check(condition, message)
   if not condition then error(message, 2) end
 end
@@ -670,6 +679,7 @@ world.focused = "eDP-1"
 local renumbered = {}
 package.loaded["default.hypr.workspace-modes"] = {
   renumber = function(from, to) renumbered[#renumbered + 1] = from .. ">" .. to end,
+  saved = function() return false end,
 }
 local m = load_module()
 world.handlers["hyprland.start"]()
@@ -690,3 +700,44 @@ check(world.windows["0xb"].workspace == 12, "the workspace went home")
 check(table.concat(renumbered, " ") == "12>2 2>12", "the layout did not follow the workspace home: " .. table.concat(renumbered, " "))
 ' || fail "a renumbered workspace takes its layout with it"
 pass "a renumbered workspace takes its layout with it"
+
+# Hyprland drops a workspace once it is empty, but a layout saved for its
+# number stays the user's choice for the next workspace opened there.
+run_lua saved '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 2)
+world.focused = "DP-1"
+window("0xc", 11)
+window("0xd", 12)
+world.focused = "eDP-1"
+save_layout(3, "floating")
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xc"].workspace == 4 and world.windows["0xd"].workspace == 5,
+  "the workspaces joined as " .. world.windows["0xc"].workspace .. " and " .. world.windows["0xd"].workspace .. ", not 4 and 5")
+
+-- Hyprland puts the returning monitor on the lowest number without a workspace.
+plug("DP-3", 3, "LG", 3)
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(world.windows["0xc"].workspace == 11 and world.windows["0xd"].workspace == 12 and on(12) == "DP-3", "the workspaces went home")
+
+world.neighbours = { ["DP-3"] = { d = "eDP-1" } }
+hl.dispatch(hl.dsp.focus({ workspace = "12" }))
+hl.dispatch(m.move_to_monitor("d"))
+check(world.windows["0xd"].workspace == 4 and on(4) == "eDP-1", "the workspace moved by hand joined as " .. world.windows["0xd"].workspace .. ", not 4")
+
+-- With the last number in use, one joins under the first free number instead.
+window("0xe", 10)
+unplug("DP-3")
+world.handlers["monitor.removed"]({ name = "DP-3" })
+fire_timers()
+check(world.windows["0xc"].workspace == 5, "the workspace joined under the first free number as " .. world.windows["0xc"].workspace .. ", not 5")
+' || fail "a workspace joining a block leaves a number with a saved layout to it"
+pass "a workspace joining a block leaves a number with a saved layout to it"
