@@ -24,13 +24,13 @@ def apply():
         if profile not in ('power-saver', 'balanced', 'performance'):
             raise ValueError(profile)
         for script in sorted(Path('/etc/omarchy/powerprofiles/actions.d').glob('*')):
-            status = script.lstat()
-            if (stat.S_ISREG(status.st_mode) and status.st_uid == 0
-                    and not status.st_mode & 0o022 and os.access(script, os.X_OK)):
-                try:
+            try:
+                status = script.lstat()
+                if (stat.S_ISREG(status.st_mode) and status.st_uid == 0
+                        and not status.st_mode & 0o022 and os.access(script, os.X_OK)):
                     subprocess.run([str(script), profile], check=True, timeout=10)
-                except (subprocess.SubprocessError, OSError):
-                    logging.exception('Profile action failed: %s', script)
+            except (subprocess.SubprocessError, OSError):
+                logging.exception('Profile action failed: %s', script)
     except GLib.Error:
         logging.exception('Cannot read ActiveProfile')
     return GLib.SOURCE_REMOVE

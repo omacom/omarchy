@@ -9,10 +9,15 @@ esac
 shopt -s nullglob
 for wireless in /sys/class/net/*/wireless; do
   interface=${wireless%/wireless}; interface=${interface##*/}
-  driver=$(readlink -f "/sys/class/net/$interface/device/driver")
+  if ! driver=$(readlink -f "/sys/class/net/$interface/device/driver"); then
+    echo "Cannot resolve driver for $interface" >&2
+    continue
+  fi
   [[ ${driver##*/} == "brcmfmac" ]] || continue
   # NM connection defaults only apply on activation. iw changes the live
   # setting without reconnecting; the action service reconciles NM state
   # changes so reconnects cannot leave the radio on its activation default.
-  iw dev "$interface" set power_save "$mode"
+  if ! iw dev "$interface" set power_save "$mode"; then
+    echo "Cannot set power saving for $interface" >&2
+  fi
 done
