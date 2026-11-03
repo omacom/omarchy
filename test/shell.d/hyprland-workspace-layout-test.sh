@@ -22,7 +22,8 @@ if [[ $1 == "activeworkspace" && -n $HYPRCTL_BROKEN ]]; then
 elif [[ $1 == "activeworkspace" ]]; then
   printf '{"id":%s,"tiledLayout":"%s"}\n' "${HYPRCTL_WS_ID:-3}" "${HYPRCTL_TILED_LAYOUT:-dwindle}"
 elif [[ $1 == "monitors" ]]; then
-  printf '%s\n' "${HYPRCTL_MONITORS:-[{\"focused\":true,\"specialWorkspace\":{\"id\":0,\"name\":\"\"}}]}"
+  no_special='[{"focused":true,"specialWorkspace":{"id":0,"name":""}}]'
+  printf '%s\n' "${HYPRCTL_MONITORS:-$no_special}"
 elif [[ $1 == "workspaces" ]]; then
   printf '[{"id":3,"name":"3","tiledLayout":"%s"},{"id":-99,"name":"special:%s","tiledLayout":"%s"}]\n' \
     "${HYPRCTL_TILED_LAYOUT:-dwindle}" "${HYPRCTL_SPECIAL_NAME:-scratchpad}" "${HYPRCTL_SPECIAL_LAYOUT:-dwindle}"
