@@ -34,11 +34,17 @@ assertEqual(keypad.digitFor(0x01000010, K, '7', true), null, 'synced NumLock tex
 assertEqual(keypad.digitFor(0x01000010, 0, '', true), null, 'non-keypad Home is left alone')
 
 assertEqual(keypad.numLockFromDevices({ keyboards: [{ main: true, numLock: false }] }), false,
-  'numLockFromDevices reads the main keyboard')
+  'numLockFromDevices reads NumLock off on the main keyboard')
 assertEqual(keypad.numLockFromDevices({ keyboards: [{ main: false, numLock: false }, { main: true, numLock: true }] }), true,
   'numLockFromDevices prefers the main keyboard over others')
-assertEqual(keypad.numLockFromDevices('{"keyboards":[]}'), true,
-  'numLockFromDevices defaults to on when the seat is empty')
+assertEqual(keypad.numLockFromDevices({ keyboards: [{ main: true }] }), false,
+  'numLockFromDevices stays off when the numLock field is missing')
+assertEqual(keypad.numLockFromDevices('{"keyboards":[]}'), false,
+  'numLockFromDevices stays off when the seat is empty')
+assertEqual(keypad.numLockFromDevices('not-json'), false,
+  'numLockFromDevices stays off on malformed hyprctl output')
+assertEqual(keypad.numLockFromDevices(null), false,
+  'numLockFromDevices stays off on null output')
 JS
 
 # /usr/bin/qmltestrunner is the Qt 5 binary, which exits 0 having run nothing.

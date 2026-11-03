@@ -15,9 +15,10 @@ Item {
   property var shell: null
   property var manifest: null
 
-  // Compositor NumLock from hyprctl. Starts false until the query returns so a
-  // NumLock-off seat never types digits during the race; once true, desynced
-  // keypad keys map to digits.
+  // Compositor NumLock from hyprctl. Starts false until a query confirms
+  // numLock === true; refresh clears it first so a reopen never briefly
+  // remaps on a stale true. Hyprland raises no NumLock event, so while the
+  // menu is open a short poll picks up toggles.
   property bool compositorNumLock: false
 
   // Plugin lifecycle hooks. The host calls open(payloadJson) after
@@ -43,8 +44,17 @@ Item {
     }
   }
 
+  // Drop the cache before re-querying so a previous true cannot remap during
+  // the in-flight window (e.g. reopen after NumLock was turned off).
   function refreshCompositorNumLock() {
+    root.compositorNumLock = false
     numLockProc.running = false
+    numLockProc.running = true
+  }
+
+  // Soft update while open: keep the last answer until the new reading lands.
+  function pollCompositorNumLock() {
+    if (numLockProc.running) return
     numLockProc.running = true
   }
 
@@ -1065,6 +1075,14 @@ Item {
       waitForEnd: true
       onStreamFinished: root.compositorNumLock = Util.numLockFromDevices(text)
     }
+  }
+
+  // No Hyprland event for NumLock; poll only while the menu is visible.
+  Timer {
+    interval: 400
+    repeat: true
+    running: root.opened
+    onTriggered: root.pollCompositorNumLock()
   }
 
   Process {

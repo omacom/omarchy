@@ -48,22 +48,23 @@ function digitFor(key, modifiers, text, numLockOn) {
 }
 
 // Compositor NumLock from `hyprctl -j devices` JSON (object or string). Prefers
-// the main keyboard; defaults to true when the seat cannot be read, matching
-// Omarchy's numlock_by_default.
+// the main keyboard. Returns true only when that keyboard reports numLock ===
+// true — malformed output, an empty seat, or a missing field stay false so
+// remapping never enables without confirmation.
 function numLockFromDevices(devices) {
   var parsed = devices
   if (typeof devices === "string") {
-    try { parsed = JSON.parse(devices || "{}") } catch (e) { return true }
+    try { parsed = JSON.parse(devices || "{}") } catch (e) { return false }
   }
-  if (!parsed || typeof parsed !== "object") return true
+  if (!parsed || typeof parsed !== "object") return false
   var keyboards = parsed.keyboards
-  if (!Array.isArray(keyboards) || keyboards.length === 0) return true
+  if (!Array.isArray(keyboards) || keyboards.length === 0) return false
   var main = null
   for (var i = 0; i < keyboards.length; i++) {
     if (keyboards[i] && keyboards[i].main) { main = keyboards[i]; break }
   }
   var kb = main || keyboards[0]
-  return kb.numLock !== false
+  return !!(kb && kb.numLock === true)
 }
 
 if (typeof module !== "undefined") {
