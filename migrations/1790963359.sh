@@ -74,7 +74,7 @@ if [[ -z $(autosuspend_value "$effective") && -e $defaults_conf.pacnew ]] &&
   for word in "${after[@]}"; do
     [[ $word == "$param" ]] || after_without+=("$word")
   done
-  if [[ ${after_without[*]} == "${before[*]}" ]]; then
+  if carries_param "$appended" && [[ ${after_without[*]} == "${before[*]}" ]]; then
     effective=$appended
   else
     sudo truncate -s "$size" "$defaults_conf"
