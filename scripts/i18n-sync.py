@@ -943,6 +943,26 @@ def cmd_collect(args):
             out.write(summary)
 
 
+def cmd_glossary_report(args):
+    """Manual chapters that still miss a menu path, for a backfill's summary."""
+    root = root_path(args)
+    english = english_units(root)
+    codes = [args.locale] if args.locale else sorted(locales(root))
+    remaining = {}
+    for code in codes:
+        units = manual_backfill_units(root, code, english)
+        if units:
+            remaining[code] = units
+    total = sum(len(units) for units in remaining.values())
+    report = f"Manual chapters still missing a menu path: {total}.\n"
+    for code, units in sorted(remaining.items()):
+        report += f"- {code}: {len(units)} ({', '.join(units)})\n"
+    print(report, end="")
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+            out.write(report)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=None, help="repository root (default: this script's repo)")
@@ -984,6 +1004,10 @@ def main():
     p.add_argument("directory")
     p.add_argument("--expected", required=True, help="comma-separated locales")
     p.set_defaults(fn=cmd_collect)
+
+    p = sub.add_parser("glossary-report")
+    p.add_argument("--locale", default=None)
+    p.set_defaults(fn=cmd_glossary_report)
 
     args = parser.parse_args()
     try:
