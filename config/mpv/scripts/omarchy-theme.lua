@@ -223,7 +223,7 @@ local function render_palette(template, colors)
   -- unknown expressions stay unresolved and are rejected by apply_palette.
   return template:gsub('{{%s*(.-)%s*}}', function(expression)
     if colors[expression] then return colors[expression] end
-    local start, finish, amount = expression:match('^mix%s+(%w+)%s+(%w+)%s+([%d.]+%%?)$')
+    local start, finish, amount = expression:match('^mix%s+([%w_]+)%s+([%w_]+)%s+([%d.]+%%?)$')
     if not start or not colors[start] or not colors[finish] or
       not colors[start]:match('^#%x%x%x%x%x%x$') or
       not colors[finish]:match('^#%x%x%x%x%x%x$') then return end

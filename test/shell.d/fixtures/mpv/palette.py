@@ -64,7 +64,7 @@ def test():
           'exec "$OMARCHY_PATH/bin/omarchy-theme-color" "$@"\n')
       helper.chmod(0o755)
       request, release = home / 'request', home / 'release'
-      environment = {**os.environ, 'OMARCHY_PATH': str(ROOT),
+      environment = {**os.environ, 'HOME': str(home), 'OMARCHY_PATH': str(ROOT),
           'MPV_THEME_REQUEST': str(request), 'MPV_THEME_RELEASE': str(release),
           'PATH': str(helpers) + os.pathsep + str(ROOT / 'bin') + os.pathsep + os.environ['PATH']}
       player = second = second_log = None
@@ -173,6 +173,21 @@ def test():
           assert property('user-data/omarchy/theme') == parsed(dark)
           assert property('user-data/omarchy/theme-selection') == 'nord'
           assert not (home / 'sentinel').exists()
+        # Player-only mixes must match the native renderer for underscored aliases.
+        template = home / '.config/omarchy/themed/mpv-theme.conf.tpl'
+        original_template = template.read_text()
+        template.write_text(original_template.replace('mix background foreground 2.5%',
+            'mix lighter_background bright_foreground 20%'))
+        stage = home / '.local/state/omarchy/current/next-theme'
+        shutil.copyfile(ROOT / 'themes/nord/colors.toml', stage / 'colors.toml')
+        (stage / 'mpv-theme.conf').unlink()
+        subprocess.run([str(ROOT / 'bin/omarchy-theme-set-templates')],
+            check=True, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        custom = (stage / 'mpv-theme.conf').read_text()
+        assert parsed(custom)['panel'] != parsed(dark)['panel']
+        command('script-message', 'set-omarchy-theme', 'nord')
+        wait_palette(parsed(custom), parsed(light))
+        template.write_text(original_template)
         command('script-message', 'set-omarchy-theme', 'flexoki-light')
         wait_palette(parsed(light))
         assert_stats(light)
