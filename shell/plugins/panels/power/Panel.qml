@@ -560,8 +560,10 @@ Panel {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: Math.max(slot.radius * 2, Math.round((slot.level || 0) / 100 * slot.height))
-                    radius: slot.radius
+                    height: Math.max(1, Math.round((slot.level || 0) / 100 * slot.height))
+                    // A short fill rounds less rather than standing taller
+                    // than its level.
+                    radius: Math.min(slot.radius, height / 2)
                     color: root.batteryFillColor
                     // The column being read stays full; the rest step back.
                     opacity: chargeBar.hoverIndex < 0 || chargeBar.hoverIndex === slot.index ? 1 : 0.6
