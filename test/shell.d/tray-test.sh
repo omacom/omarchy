@@ -11,9 +11,8 @@ assert(tray.itemNamed({ id: 'dropbox-client' }, 'dropbox'), 'tray matches item i
 assert(tray.itemNamed({ title: 'Dropbox' }, 'dropbox'), 'tray matches item titles')
 assert(tray.itemNamed({ tooltipTitle: 'LocalSend' }, 'localsend'), 'tray matches item tooltips')
 assert(!tray.itemNamed({ id: 'nextcloud' }, 'dropbox'), 'tray ignores items named for something else')
-assert(tray.usesNativeContextMenu({ id: 'wine-0x10106-0', menu: {} }), 'tray routes Wine items to their native context menu')
-assert(tray.usesNativeContextMenu({ id: 'nextcloud', menu: null }), 'tray routes items without a D-Bus menu to their native context menu')
-assert(!tray.usesNativeContextMenu({ id: 'nextcloud', title: 'wine-helper', menu: {} }), 'tray keeps items with a D-Bus menu on its own popup')
+assert(tray.usesNativeContextMenu({ id: 'wine-0x10106-0', menu: null }), 'tray routes items without a D-Bus menu to their native context menu')
+assert(!tray.usesNativeContextMenu({ id: 'wine-0x10106-0', menu: {} }), 'tray keeps items with a D-Bus menu on its own popup')
 assert(!tray.usesNativeContextMenu(null), 'tray rejects missing items for native context menus')
 
 const layout = {

@@ -170,7 +170,7 @@ def run():
   bus = dbus.SessionBus()
 
   if context_menu_path:
-    StatusNotifierItem(bus, "wine-omarchy-test-tray", "/NO_DBUSMENU", context_menu_path)
+    StatusNotifierItem(bus, "omarchy-test-tray-no-menu", "/NO_DBUSMENU", context_menu_path)
   else:
     dbus.service.BusName("org.omarchy.TestStatusNotifier", bus)
     StatusNotifierItem(bus, "omarchy-test-tray", MENU_PATH, "")

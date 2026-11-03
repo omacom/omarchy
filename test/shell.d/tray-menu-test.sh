@@ -136,7 +136,7 @@ ShellRoot {
 
     Tray {
       id: tray
-      settings: ({ pinned: ["wine-omarchy-test-tray"] })
+      settings: ({ pinned: ["omarchy-test-tray-no-menu"] })
     }
 
     Timer {
@@ -147,7 +147,7 @@ ShellRoot {
       onTriggered: {
         var values = SystemTray.items.values
         for (var i = 0; i < values.length; i++) {
-          if (String(values[i].id) === "wine-omarchy-test-tray") {
+          if (String(values[i].id) === "omarchy-test-tray-no-menu") {
             stop()
             tray.openTrayMenu(values[i], tray, { x: 5, y: 5 })
             return
@@ -197,7 +197,7 @@ for _ in {1..50}; do
 done
 [[ -s $twin_ready ]] || fail "second tray item with the same id registers with the watcher"
 
-if "$ROOT/bin/omarchy-tray-context-menu" wine-omarchy-test-tray 10 20 2>/dev/null; then
+if "$ROOT/bin/omarchy-tray-context-menu" omarchy-test-tray-no-menu 10 20 2>/dev/null; then
   fail "tray context menu helper refuses to pick between items with the same id"
 fi
 [[ ! -e $context_menu_result && ! -e $twin_result ]] ||
