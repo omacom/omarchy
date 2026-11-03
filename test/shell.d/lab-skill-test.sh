@@ -5,6 +5,7 @@ skill="$ROOT/default/agents/skills/omarchy-lab"
 test_tmp=$(mktemp -d)
 trap 'rm -rf -- "$test_tmp"' EXIT
 
+node_executable=$(node -p "process.execPath")
 export HOME="$test_tmp/home with spaces"
 export OMARCHY_PATH="$test_tmp/native with spaces"
 mkdir -p "$HOME" "$OMARCHY_PATH/bin"
@@ -48,7 +49,7 @@ result=0
 ((result == 17)) || fail "controller failure was swallowed"
 pass "skill prefers the installed plugin, preserves spaced arguments, and propagates failures"
 
-run_node_test <<'JS'
+PATH="${node_executable%/*}:$PATH" run_node_test <<'JS'
 const fs = require('fs')
 const child = require('child_process')
 const skill = path.join(root, 'default/agents/skills/omarchy-lab')

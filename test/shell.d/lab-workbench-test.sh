@@ -228,6 +228,7 @@ jq -e '.type == "screenshot" and (.before | endswith("before.png"))' <<<"$compar
 [[ $(magick identify -format '%wx%h' "$test_tmp/compare.png") == "4x2" ]] || fail "comparison joins both screenshots"
 pass "comparison joins screenshots and emits structured metadata"
 
+if command -v qemu-img >/dev/null && command -v qemu-io >/dev/null; then
 (
   # shellcheck disable=SC1090
   source "$ROOT/bin/omarchy-lab-gold"
@@ -278,6 +279,9 @@ pass "comparison joins screenshots and emits structured metadata"
   jq -e '.networkSource == "default"' "$STATE_DIR/gold.json" >/dev/null || fail "promotion saves reset network"
 )
 pass "gold promotion flattens safely and retains one previous image"
+else
+  skip "qemu-img and qemu-io are not installed; skipping gold disk promotion"
+fi
 
 (
   # shellcheck disable=SC1090

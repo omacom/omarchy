@@ -102,6 +102,7 @@ pass "terminal launch is detached from panel lifetime and propagates launch erro
 )
 pass "reset reconciles original and promoted gold network configurations"
 
+if command -v qemu-img >/dev/null && command -v qemu-io >/dev/null; then
 (
   source "$ROOT/bin/omarchy-lab-common"
   CHECKPOINT_DIR="$test_tmp/checkpoints"
@@ -147,6 +148,9 @@ pass "legacy checkpoints preserve bytes across repeated gold replacement and con
   qemu-io -c 'read -P 0x33 0 4096' "$CHECKPOINT_DIR/independent.qcow2" >/dev/null
 )
 pass "new checkpoints are self-contained when created"
+else
+  skip "qemu-img and qemu-io are not installed; skipping checkpoint disk preservation"
+fi
 
 (
   source "$ROOT/bin/omarchy-lab-gold"
