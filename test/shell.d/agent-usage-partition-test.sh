@@ -139,8 +139,8 @@ cells_path = Path(sys.argv[2])
 # (provider, model stem, api, owner on pi/omp, owner on opencode). An owner of
 # None means nobody may count it; "-" means the harness never records it.
 #
-# - pi's `openai` is an OpenAI API key, which no collector bills; opencode's
-#   `openai` is the ChatGPT sign-in the Codex collector reads.
+# - pi and opencode use `openai` for ChatGPT sign-in; the Codex collector
+#   also reads pi's historical transcript identities.
 # - pi records an Antigravity sign-in as `google-antigravity`; opencode's
 #   Antigravity plugin records a `google` provider (`google`, `google-vertex`)
 #   with an `antigravity-` model.
@@ -148,7 +148,7 @@ PROVIDERS = [
   ("anthropic", "claude-pt", "", "claude", "claude"),
   ("openai-codex", "gpt-pt", "openai-codex-responses", "codex", "-"),
   ("openai", "gpt-pt", "openai-codex-responses", "codex", "-"),
-  ("openai", "gpt-pt", "", "-", "codex"),
+  ("openai", "gpt-pt", "openai-responses", "codex", "codex"),
   ("opencode", "zen-pt", "", "opencode", "opencode"),
   ("opencode-go", "go-pt", "", "opencode", "opencode"),
   ("ollama-cloud", "cloud-pt", "", "ollama", "ollama"),

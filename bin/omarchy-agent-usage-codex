@@ -5,7 +5,7 @@
 """Collect Codex usage into one display-ready JSON record.
 
 Local stats come from native Codex CLI session files, pi/omp sessions that
-ran through openai-codex, and opencode sessions that ran on an OpenAI
+ran through OpenAI's ChatGPT sign-in, and opencode sessions that ran on an OpenAI
 provider; rate limits and the plan come from the Codex app-server RPC. The agents
 panel only ever reads the JSON this prints.
 """
@@ -143,14 +143,15 @@ def codex_home():
 STATS = Stats()
 
 
-# pi and omp sessions that ran through openai-codex, by provider or by the
-# Responses API pi drives for it. Their compatible JSONL transcripts carry the
-# provider, model, and token usage on every assistant message.
-PI_PATTERN = r'"provider"\s*:\s*"openai-codex"|"api"\s*:\s*"openai-codex'
+# Pi's ChatGPT sign-in now uses the openai provider. Keep reading legacy
+# transcript identities so upgrading does not erase the account's usage history.
+# No credential inspection is needed: this collector already treats OpenAI
+# sessions in opencode as belonging to the subscription.
+PI_PATTERN = r'"provider"\s*:\s*"openai(?:-codex)?"|"api"\s*:\s*"openai-codex'
 
 
 def pi_billed_here(provider, model, entry):
-  return provider == "openai-codex" or str(entry.get("api") or "").startswith("openai-codex")
+  return provider in ("openai", "openai-codex") or str(entry.get("api") or "").startswith("openai-codex")
 
 
 # A subscription burned entirely through opencode leaves no native session
