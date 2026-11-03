@@ -147,6 +147,39 @@ echo "#!/bin/sh" >"$HOME/.local/bin/t3"
 [[ -f $HOME/.local/bin/t3 ]] || fail "T3 Code removal keeps a t3 the user put there"
 pass "T3 Code removal keeps a t3 the user put there"
 
+# Herdr's installer leaves the app, its herdr-app link, launcher and icon.
+# herdr-core runs the terminals and the user's settings live in
+# ~/.config/herdr-app, so both outlive the app.
+fresh_home
+: >"$TEST_LOG"
+mkdir -p "$HOME/.local/share/herdr-app" "$HOME/.local/share/applications" \
+  "$HOME/.local/share/icons/hicolor/scalable/apps" "$HOME/.local/bin" "$HOME/.config/herdr-app/themes"
+touch "$HOME/.local/share/herdr-app/herdr-app" "$HOME/.local/share/applications/herdr-app.desktop" \
+  "$HOME/.local/share/icons/hicolor/scalable/apps/herdr-app.svg" "$HOME/.local/share/applications/other.desktop" \
+  "$HOME/.local/bin/herdr-core" "$HOME/.config/herdr-app/settings.json"
+ln -s "$HOME/.local/share/herdr-app/herdr-app" "$HOME/.local/bin/herdr-app"
+XDG_DATA_HOME= "$ROOT/bin/omarchy-remove-ai-herdr" >/dev/null
+
+for gone in .local/share/herdr-app .local/share/applications/herdr-app.desktop \
+  .local/share/icons/hicolor/scalable/apps/herdr-app.svg .local/bin/herdr-app; do
+  [[ ! -e $HOME/$gone && ! -L $HOME/$gone ]] || fail "Herdr removal deletes what its app install left" "$gone"
+done
+[[ -e $HOME/.local/share/applications/other.desktop ]] || fail "Herdr removal keeps other launchers"
+grep -qx 'pkill:-x herdr-app' "$TEST_LOG" || fail "Herdr removal quits the running app first" "$(cat "$TEST_LOG")"
+pass "Herdr removal deletes the app, its herdr-app link, launcher and icon"
+
+for kept in .local/bin/herdr-core .config/herdr-app/settings.json; do
+  [[ -e $HOME/$kept ]] || fail "Herdr removal keeps herdr-core and the user's settings" "$kept"
+done
+pass "Herdr removal keeps herdr-core and the user's settings"
+
+fresh_home
+mkdir -p "$HOME/.local/bin"
+echo "#!/bin/sh" >"$HOME/.local/bin/herdr-app"
+XDG_DATA_HOME= "$ROOT/bin/omarchy-remove-ai-herdr" >/dev/null
+[[ -f $HOME/.local/bin/herdr-app ]] || fail "Herdr removal keeps a herdr-app the user put there"
+pass "Herdr removal keeps a herdr-app the user put there"
+
 # Perplexity's other products (the CLI, Comet) share the perplexity-* prefix;
 # the desktop app owns only its rpc-server runtime and Electron caches. The
 # logins, vault, and flags are the user's and only go when a terminal said so.
