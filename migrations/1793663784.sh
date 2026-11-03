@@ -14,8 +14,10 @@ if omarchy-hw-aarch64-qualcomm && ! omarchy-hw-match-device-tree microsoft,denal
   '
 
   # A marker records the machine-wide rebuild: another user's run must not repeat
-  # it, while a missing marker still retries an interrupted rebuild.
-  if grep -q '^DeviceTree=' "$uki_config" && [[ ! -e $rebuild_marker ]]; then
+  # it, while a missing marker still retries an interrupted rebuild. The config
+  # keeps whatever permissions it had, so root reads it; a missing one pinned
+  # nothing.
+  if [[ ! -e $rebuild_marker ]] && sudo grep -qs '^DeviceTree=' "$uki_config"; then
     rebuild_log=$(mktemp)
     trap 'rm -f "$rebuild_log"' EXIT
     sudo limine-mkinitcpio 2>&1 | tee "$rebuild_log"
