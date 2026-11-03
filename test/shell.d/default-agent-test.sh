@@ -2,10 +2,17 @@
 
 set -euo pipefail
 
+# The dsh launcher checks whether 127.0.0.1:3080 is in use. Run on a private
+# loopback so a developer's own dsh server cannot change what it sees.
+if [[ -z ${OMARCHY_TEST_PRIVATE_NET:-} ]] && unshare -rn true 2>/dev/null; then
+  OMARCHY_TEST_PRIVATE_NET=1 exec unshare -rn bash -c 'ip link set lo up && exec bash "$0"' "${BASH_SOURCE[0]}"
+fi
+
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+dsh_server=
+trap '[[ -n $dsh_server ]] && kill "$dsh_server" 2>/dev/null; rm -rf "$test_tmp"' EXIT
 
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
@@ -860,6 +867,7 @@ printf '%s\n' dsh >"$agent_file"
 omarchy-agent-prompt "Review this"
 kill "$dsh_server" 2>/dev/null || true
 wait "$dsh_server" 2>/dev/null || true
+dsh_server=
 [[ $(tr '\0' ' ' <"$launch_log.browser" 2>/dev/null) == "http://127.0.0.1:3080/ " ]] || fail "DSH launcher reopens the running UI in the default browser"
 [[ ! -s $launch_log ]] || fail "DSH launcher starts no second server while one runs" "$(tr '\0' ' ' <"$launch_log")"
 [[ $(<"$clipboard_log") == "Review this" ]] || fail "DSH launcher still puts the prompt on the clipboard when reopening"
