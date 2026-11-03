@@ -106,3 +106,26 @@ chmod +x "$test_tmp/usr/bin/dotnet" "$test_tmp/sdk/dotnet" "$mock_bin/mise" "$te
 [[ $(TEST_SDK="$test_tmp/sdk/dotnet" "$test_tmp/dotnet" /usr/lib/pinta/Pinta.dll) == "system /usr/lib/pinta/Pinta.dll" ]] ||
   fail ".NET launcher keeps Pinta on the system runtime"
 pass ".NET launcher prefers the mise SDK and keeps Pinta on the system runtime"
+
+# Removal keeps the launcher for other users. A sandbox stands a scratch
+# /usr/local/bin in for the host's.
+if ! command -v bwrap >/dev/null || ! bwrap --ro-bind / / --unshare-user true 2>/dev/null; then
+  skip "user namespaces unavailable; skipping .NET launcher ownership"
+  exit 0
+fi
+
+local_bin="$test_tmp/usr-local-bin"
+launcher="$local_bin/dotnet"
+shipped="$ROOT/default/dotnet/dotnet"
+mkdir -p "$local_bin"
+printf '#!/bin/bash\nexec "$@"\n' >"$mock_bin/sudo"
+chmod +x "$mock_bin/sudo"
+sandbox=(bwrap --ro-bind / / --bind "$test_tmp" "$test_tmp" --bind "$local_bin" /usr/local/bin --dev /dev --proc /proc --unshare-user)
+
+"${sandbox[@]}" bash "$ROOT/bin/omarchy-install-dev-env" dotnet >/dev/null
+cmp -s "$launcher" "$shipped" || fail ".NET setup installs the launcher"
+pass ".NET setup installs the launcher"
+
+"${sandbox[@]}" bash "$ROOT/bin/omarchy-remove-dev-env" dotnet >/dev/null
+cmp -s "$launcher" "$shipped" || fail ".NET removal keeps the launcher other users fall back through"
+pass ".NET removal keeps the launcher other users fall back through"

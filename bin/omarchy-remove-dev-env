@@ -99,7 +99,8 @@ dotnet)
   echo -e "Removing .NET...\n"
   mise uninstall dotnet --all
   mise rm -g dotnet
-  sudo rm -f /usr/local/bin/dotnet
+  # /usr/local/bin/dotnet stays: other users may still have an SDK, and
+  # without one it runs /usr/bin/dotnet.
   ;;
 ocaml)
   echo -e "Removing OCaml...\n"
