@@ -557,20 +557,23 @@ pass "apps with float rules of their own are left to them on a floating workspac
 
 # Apps floated through a tag keep their floating too: one tagged into a tag a
 # float rule matches is passed over, while a rule floating a tag together with
-# a title passes over only that title, not everything with the tag.
+# a title passes over only that title, not everything with the tag. A rule
+# tagging an app's file chooser by class and title passes over just the title,
+# so the app's main window still opens floating.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 if ! run_lua '
 o.window("^1password$", { tag = "+floating-window" })
 o.window({ tag = "floating-window" }, { float = true })
 o.window("^chromium$", { tag = "+chromium-based-browser" })
 o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, { float = true })
+o.window({ class = "^files$", title = "^Open Files$" }, { tag = "+floating-window" })
 require("default.hypr.workspace-layouts")
 local rule
 for _, candidate in ipairs(state().rules) do
   if candidate.name == "omarchy-floating-open-1" then rule = candidate end
 end
 assert(rule.match.class == "negative:(?:^1password$)", "the open rule does not pass over an app tagged to float: " .. tostring(rule.match.class))
-assert(rule.match.title == "negative:(?:^Meet - .+)", "the open rule does not pass over just the title a tag rule floats: " .. tostring(rule.match.title))
+assert(rule.match.title == "negative:(?:^Meet - .+)|(?:^Open Files$)", "the open rule does not pass over just the titles tag rules float: " .. tostring(rule.match.title))
 '; then
   fail "apps floated through a tag are left to it on a floating workspace"
 fi
