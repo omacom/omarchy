@@ -145,7 +145,7 @@ pass "OpenClaw launch leaves a JSON5 remote client's gateway alone"
 # instead of sitting forever behind an app-grid icon with no terminal.
 cat >"$tmp_dir/bin/timeout" <<SCRIPT
 #!/bin/bash
-printf 'timeout:%s\\n' "\$1" >>"\$TEST_LOG"
+printf 'timeout:%s\\n' "\$*" >>"\$TEST_LOG"
 exit 124
 SCRIPT
 chmod +x "$tmp_dir/bin/timeout"
@@ -153,7 +153,7 @@ chmod +x "$tmp_dir/bin/timeout"
 rc=0
 "$ROOT/bin/omarchy-launch-openclaw" >/dev/null 2>&1 || rc=$?
 [[ $rc != 0 ]] || fail "OpenClaw launch bounds a hanging dashboard probe"
-grep -q '^timeout:10$' "$TEST_LOG" || fail "OpenClaw launch bounds a hanging dashboard probe" "probe ran without a timeout"
+grep -q '^timeout:10 openclaw dashboard --json$' "$TEST_LOG" || fail "OpenClaw launch bounds a hanging dashboard probe" "probe ran without a timeout"
 pass "OpenClaw launch bounds a hanging dashboard probe"
 rm -f "$tmp_dir/bin/timeout"
 
