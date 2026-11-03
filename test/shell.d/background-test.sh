@@ -53,6 +53,7 @@ const outgoing = vm.createContext({
   currentBackground: '/old/art.svg', displayedBackground: '/old/art.svg',
   displayedVersion: 3, backgroundVersion: 3, preparedBackground: '', lastTransitionPath: '',
   isVideo: () => false,
+  suspended: false, revealGraceTimer: { stop() {} },
   revealAnimation: { stop() {} },
   preparedBackgroundTimer: { stop() {} }, requestNativeSize() {}
 })
@@ -398,6 +399,10 @@ assert(!state.revealAnimation.stopped, 'one failed panel cannot interrupt anothe
 slow.lockIncoming('/late.png','crop','solid','#000000',.5,.5)
 assertEqual(slow.incomingPath, '', 'a late resolver cannot revive an abandoned panel transition')
 ready.baseSettled = () => true
+ready.backgroundReady = false
+state.maybeFinishTransition()
+assertEqual(state.incomingBackground, '/snapshot.png', 'a decoded base keeps its snapshot until the screen has drawn it')
+ready.backgroundReady = true
 state.maybeFinishTransition()
 assertEqual(state.incomingBackground, '', 'shared sources release after the remaining panel base settles')
 const a = panel(), b = panel()
