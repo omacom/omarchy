@@ -889,9 +889,8 @@ Panel {
       clearNetworkAction()
       return
     }
-    var network = networkForSsid(ssid)
-    if (network) failNetworkAction(network, connectionFailReasons.WifiClientFailed)
-    else clearNetworkAction()
+    var network = networkForSsid(ssid) || { name: ssid, security: WifiSecurityType.Wpa2Eap }
+    failNetworkAction(network, connectionFailReasons.WifiClientFailed)
   }
 
   // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).
