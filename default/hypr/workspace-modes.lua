@@ -262,6 +262,10 @@ local function sync_open_rules()
   open_rules = math.max(open_rules, #ranges)
 end
 
+-- Personal rules can follow saved workspace modes in hyprland.lua. Keep the
+-- exclusions current before their first window opens, including tag rules.
+o.floating_apps_changed = sync_open_rules
+
 -- A rule's tag leaves with the rule, so a window the open rule floated is
 -- claimed for good as it opens, and the mode tiles it again when it ends. A
 -- rule's tags are listed with a trailing "*", and a strict tag query passes
@@ -373,7 +377,7 @@ function o.workspace_mode(spec)
   watch()
 
   -- The default for every workspace that has no mode of its own, chosen under
-  -- Trigger > Appearance > Workspace Layout. A tiled default is Hyprland's own
+  -- Appearance > Workspace Layout. A tiled default is Hyprland's own
   -- layout; a floating one is arranged once the saved modes have all loaded.
   if spec.default then
     default_mode = spec.default
@@ -439,17 +443,22 @@ local function theme_colors()
   }
 end
 
--- Titlebars come from omarchy-hyprland-titlebars, loaded only while something
--- floats. Hyprland keeps a plugin loaded after the config stops asking for it,
--- but resets its options, and the plugin draws nothing until enabled here.
+-- Titlebars come from omarchy-hyprland-titlebars, loaded once something floats.
 -- The plugin reloads the config once it is in, which is the pass that finds its
--- options here.
-local function titlebars()
+-- options here. Its options reset on every load, so it draws nothing until enabled.
+local function titlebars_installed()
   local file = io.open(TITLEBARS, "r")
   if not file then
-    return
+    return false
   end
   file:close()
+  return true
+end
+
+local function titlebars()
+  if not titlebars_installed() then
+    return
+  end
 
   hl.plugin.load(TITLEBARS)
 
@@ -501,6 +510,18 @@ local function titlebars()
   end
 end
 
+-- Hyprland unloads a plugin the config stops asking for, and bringing this one
+-- back costs a cascade of reloads, so once in it stays asked for all session.
+local function titlebars_loaded()
+  for _, plugin in ipairs(hl.get_loaded_plugins and hl.get_loaded_plugins() or {}) do
+    if plugin.name == "hyprbars" then
+      return true
+    end
+  end
+
+  return false
+end
+
 -- Runs once every saved mode has loaded. A reload is a fresh start on this side
 -- but not for the windows, so each one is brought in line with the modes as they
 -- now stand: moving the default away from floating has to give back what it
@@ -521,6 +542,8 @@ function M.apply()
 
   if anything_floats() then
     set_up_floating()
+  elseif titlebars_loaded() and titlebars_installed() then
+    hl.plugin.load(TITLEBARS)
   end
 end
 
