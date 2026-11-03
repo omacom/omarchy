@@ -34,24 +34,5 @@ AttrPalmSizeThreshold=900
 AttrThumbSizeThreshold=800
 EOF
 
-# Rebind hid-magicmouse driver so the quirk takes effect immediately without a reboot
-rebound=0
-for dev in /sys/bus/hid/drivers/magicmouse/*:05AC:02[78][0-9A-Fa-f]*; do
-  if [[ -d $dev ]]; then
-    dev_name=$(basename "$dev")
-    if echo "$dev_name" | sudo tee /sys/bus/hid/drivers/magicmouse/unbind >/dev/null 2>&1; then
-      if echo "$dev_name" | sudo tee /sys/bus/hid/drivers/magicmouse/bind >/dev/null 2>&1; then
-        rebound=1
-      else
-        echo "Error: Failed to rebind $dev_name to hid-magicmouse driver." >&2
-        echo "A system reboot is required to restore trackpad input." >&2
-        omarchy-state set reboot-required 2>/dev/null || true
-        rebound=1
-      fi
-    fi
-  fi
-done
-
-if (( ! rebound )); then
-  omarchy-state set reboot-required 2>/dev/null || true
-fi
+# The compositor loads libinput quirks once, so the override applies from the next boot.
+omarchy-state set reboot-required
