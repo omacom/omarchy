@@ -241,7 +241,9 @@ Item {
     version: root.backgroundVersion
   }
 
+  // A held button reports motion even with hover off, so the gate is here.
   function trackPointer(x, y) {
+    if (!followsPointer) return
     pointer = Qt.point(x, y)
     pointerTracking = true
   }
