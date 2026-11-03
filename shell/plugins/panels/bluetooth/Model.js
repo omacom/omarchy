@@ -211,6 +211,10 @@ function syncScrollRows(model, rows) {
     }
     updateScrollRow(model, k, want)
   }
+
+  // Bluetooth.devices spans every adapter, so one address can repeat; the
+  // removal above keeps every copy of a wanted key, which leaves a surplus here.
+  while (model.count > desired.length) model.remove(model.count - 1)
 }
 
 function updateScrollRow(model, index, want) {

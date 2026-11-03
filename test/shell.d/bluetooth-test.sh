@@ -106,15 +106,16 @@ function fakeRowModel() {
   let inserts = 0
   let removes = 0
   let moves = 0
+  let sets = 0
   return {
     get count() { return rows.length },
     get(i) { return rows[i] },
     insert(i, values) { inserts += 1; rows.splice(i, 0, Object.assign({}, values)) },
     remove(i) { removes += 1; rows.splice(i, 1) },
     move(from, to, count) { moves += 1; rows.splice(to, 0, ...rows.splice(from, count)) },
-    set(i, values) { rows[i] = Object.assign({}, values) },
-    stats() { return { inserts, removes, moves } },
-    resetStats() { inserts = 0; removes = 0; moves = 0 },
+    set(i, values) { sets += 1; rows[i] = Object.assign({}, values) },
+    stats() { return { inserts, removes, moves, sets } },
+    resetStats() { inserts = 0; removes = 0; moves = 0; sets = 0 },
     keys() { return rows.map(row => row.key) }
   }
 }
@@ -136,7 +137,7 @@ bluetooth.syncScrollRows(scrollModel, [
 ])
 assertDeepEqual(scrollModel.keys(), ['known:1', 'discovered:2', 'discovered:3'], 'bluetooth appends new devices in scan order')
 assert(scrollModel.get(0) === seededRow, 'bluetooth keeps an unchanged row instead of rebuilding the model')
-assertDeepEqual(scrollModel.stats(), { inserts: 2, removes: 0, moves: 0 }, 'bluetooth appends without touching existing rows')
+assertDeepEqual(scrollModel.stats(), { inserts: 2, removes: 0, moves: 0, sets: 0 }, 'bluetooth appends without touching existing rows')
 
 bluetooth.syncScrollRows(scrollModel, [
   scrollRow('known', '1', 'Keyboard', true),
@@ -168,6 +169,19 @@ bluetooth.syncScrollRows(scrollModel, [
   scrollRow('discovered', '4', 'Headset', true)
 ])
 assertDeepEqual(scrollModel.stats(), settled, 'bluetooth leaves a row set that did not change alone')
+
+bluetooth.syncScrollRows(scrollModel, [
+  scrollRow('known', '1', 'Keyboard', true),
+  scrollRow('discovered', '3', 'Mouse'),
+  scrollRow('discovered', '4', 'Studio Headset', true)
+])
+assert(scrollModel.get(2).name === 'Studio Headset', 'bluetooth writes a changed field to the existing row')
+assert(scrollModel.stats().sets === settled.sets + 1, 'bluetooth writes only the row that changed')
+
+const duplicateModel = fakeRowModel()
+bluetooth.syncScrollRows(duplicateModel, [scrollRow('known', '1', 'Keyboard', true), scrollRow('known', '1', 'Keyboard')])
+bluetooth.syncScrollRows(duplicateModel, [scrollRow('known', '1', 'Keyboard', true)])
+assertDeepEqual(duplicateModel.keys(), ['known:1'], 'bluetooth drops a repeated address once only one adapter reports it')
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
