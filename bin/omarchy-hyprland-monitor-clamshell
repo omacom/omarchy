@@ -229,7 +229,7 @@ enable_internal() {
   fi
 
   if (( changed )); then
-    hyprctl reload >/dev/null 2>&1 || true
+    omarchy-restart-hyprctl
   fi
 
   [[ -f $MANUAL_DISABLE_FLAG ]] && omarchy-hyprland-monitor-external-active && return 0
@@ -252,7 +252,7 @@ disable_internal() {
 
   if [[ ! -f $CLAMSHELL_FLAG ]] || [[ $(< "$CLAMSHELL_FLAG") != $config ]]; then
     printf '%s\n' "$config" >"$CLAMSHELL_FLAG"
-    hyprctl reload >/dev/null 2>&1 || true
+    omarchy-restart-hyprctl
   fi
 }
 

@@ -47,7 +47,7 @@ fi
 exit "${DICTATION_EXIT:-0}"
 SH
 done
-for command in omarchy-pkg-add omarchy-notification-send hyprctl omarchy-restart-shell; do
+for command in omarchy-pkg-add omarchy-notification-send hyprctl omarchy-restart-hyprctl omarchy-restart-shell; do
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
