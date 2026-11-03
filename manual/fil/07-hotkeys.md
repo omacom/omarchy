@@ -7,63 +7,65 @@ Makikita mo ang lahat ng pangunahing keyboard binding gamit ang `Super + K` (mga
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Menu ng Omarchy (mga app at lahat ng iba pa)    |
-| `Super + Alt + Space` | Grid ng app |
-| `Super + Escape` | Menu ng sistema (suspend, restart, atbp)  |
+| `Super + Alt + Space` | Grid ng mga app |
+| `Super + Escape` | Menu ng system (suspend, restart, atbp.)  |
 | `Super + Ctrl + L` | I-lock ang computer |
 | `Super + W` or `Super + Q` | Isara ang window             |
 | `Ctrl + Alt + Del` | Isara ang lahat ng window |
 | `Super + T`               | I-toggle ang window sa pagitan ng tiling/floating             |
 | `Super + J` | I-toggle ang posisyon ng window (pahalang/patayo) |
 | `Super + O`               | I-toggle ang pag-pop ng window papuntang sticky'n'floating |
-| `Super + L`               | Magpalit-palit sa mga layout na dwindle, scrolling, at floating |
+| `Super + L`               | Magpalit-palit sa dwindle, scrolling, at floating na mga layout |
 | `Super + Alt + L`         | Magpalit-palit sa mga layout nang pabaliktad |
-| `Super + P`               | I-toggle ang pseudo window style (natural v stretch) |
+| `Super + P`               | I-toggle ang pseudo na estilo ng window (natural v stretch) |
 | `Super + F`                 | Mag-full screen              |
 | `Super + Alt + F`                 | Mag-full width              |
 | `Super + Ctrl + F`                 | Mag-full screen sa loob ng window              |
-| `Super + 1/2/3/4`         | Tumalon sa partikular na workspace sa nakatuong monitor |
-| `Super + Tab` | Tumalon sa susunod na workspace sa nakatuong monitor |
-| `Super + Shift + Tab` | Tumalon sa nakaraang workspace sa nakatuong monitor |
-| `Super + Ctrl + Tab` | Tumalon sa dating workspace sa nakatuong monitor |
-| `Super + Shift + 1/2/3/4` | Ilipat ang window sa workspace sa nakatuong monitor |
-| `Super + Shift + Alt + 1/2/3/4` | Ilipat ang window sa workspace sa nakatuong monitor nang hindi sumusunod |
+| `Super + 1/2/3/4`         | Tumalon sa partikular na workspace sa naka-focus na monitor |
+| `Super + Tab` | Tumalon sa susunod na workspace sa naka-focus na monitor |
+| `Super + Shift + Tab` | Tumalon sa nakaraang workspace sa naka-focus na monitor |
+| `Super + Ctrl + Tab` | Tumalon sa dating workspace sa naka-focus na monitor |
+| `Super + Shift + 1/2/3/4` | Ilipat ang window sa workspace sa naka-focus na monitor |
+| `Super + Shift + Alt + 1/2/3/4` | Ilipat ang window sa workspace sa naka-focus na monitor nang hindi sumusunod |
 | `Super + S` | I-toggle ang buong scratchpad |
 | `Super + Alt + S` | Ilipat ang window sa buong scratchpad |
 | `Super + Grave` | I-toggle ang Quake console |
 | `Super + Shift + Grave` | Ilipat ang window sa Quake console |
 | `Super + Shift + Ctrl + Arrows` | Ilipat ang window sa monitor sa direksyong iyon |
 | `Super + Shift + Alt + Arrows` | Ilipat ang workspace sa monitor sa direksyong iyon |
-| `Super + Arrow`  | Ilipat ang focus sa window sa direksyon ng arrow, tumatawid sa monitor sa gilid na iyon sa dulo ng screen |
-| `Super + Shift + Arrow`  | Ipalit ang window sa isa pa sa direksyon ng arrow, kasama ang nasa monitor sa gilid na iyon |
-| `Super + Minus` | Palakihin ang window pakaliwa |
+| `Super + Arrow`  | Ilipat ang focus sa window sa direksyon ng arrow, tatawid sa monitor sa gilid na iyon sa dulo ng screen |
+| `Super + Shift + Arrow`  | Ipagpalit ang window sa isa pa sa direksyon ng arrow, kasama ang nasa monitor sa gilid na iyon |
+| `Super + Minus` | Palawakin ang window pakaliwa |
 | `Super + Equal` | Paliitin ang window pakaliwa |
 | `Super + Shift + Minus` | Paliitin ang window pataas |
-| `Super + Shift + Equal` | Palakihin ang window pababa |
+| `Super + Shift + Equal` | Palawakin ang window pababa |
 | `Super + Alt + Minus/Equal` | Parehong pag-resize sa mas maliliit na hakbang |
 | `Super + Ctrl + Minus/Equal` | Parehong pag-resize sa mas malalaking hakbang |
 | `Super + Alt + Home` | I-save ang lapad ng window |
 | `Super + Home` | Ibalik ang na-save na lapad ng window |
-| `Super + Left Mouse` | I-drag ang window sa paligid |
+| `Super + Left Mouse` | I-drag ang window kung saan-saan |
 | `Super + Right Mouse` | I-resize ang window |
-| `Super + Scroll Wheel` | Mag-scroll sa mga workspace sa nakatuong monitor |
-| `Super + G`               | I-toggle ang pagpapangkat ng window      |
-| `Super + Alt + G`               | Ilipat ang window palabas ng pagpapangkat      |
-| `Super + Alt + Tab`               | Magpalit-palit sa mga window sa pagpapangkat      |
-| `Super + Alt + Shift + Tab`               | Magpalit-palit nang pabaliktad sa mga window sa pagpapangkat      |
-| `Super + Alt + Scroll Wheel` | Magpalit-palit sa mga window sa pagpapangkat |
-| `Super + Alt + 1/2/3/4/5`               | Tumalon sa partikular na window sa pagpapangkat      |
-| `Super + Alt + Arrow`  | Ilipat ang window papunta sa pagpapangkat sa direksyon ng arrow, kasama ang nasa monitor sa gilid na iyon |
+| `Super + Scroll Wheel` | Mag-scroll sa mga workspace sa naka-focus na monitor |
+| `Super + G`               | I-toggle ang pag-group ng window      |
+| `Super + Alt + G`               | Ilabas ang window sa grouping      |
+| `Super + Alt + Tab`               | Magpalit-palit sa mga window sa grouping      |
+| `Super + Alt + Shift + Tab`               | Magpalit-palit nang pabaliktad sa mga window sa grouping      |
+| `Super + Alt + Scroll Wheel` | Magpalit-palit sa mga window sa grouping |
+| `Super + Alt + 1/2/3/4/5`               | Tumalon sa partikular na window sa grouping      |
+| `Super + Alt + Arrow`  | Ilipat ang window papasok sa grouping sa direksyon ng arrow, kasama ang nasa monitor sa gilid na iyon |
 | `Super + Ctrl + Left/Right`  | Lumipat sa pagitan ng mga window sa loob ng tiling group |
-| `Super + Ctrl + Z` | Mag-zoom in sa screen (ulitin para sa mas malaking zoom) |
+| `Super + Ctrl + Z` | Mag-zoom in sa screen (ulitin para sa mas maraming zoom) |
 | `Super + Ctrl + Alt + Z` | Mag-zoom out nang buo mula sa screen |
-| `Super + /` | Humakbang pasulong sa mga opsyon sa scaling ng monitor |
-| `Super + Alt + /` | Humakbang paatras sa mga opsyon sa scaling ng monitor |
+| `Super + /` | Humakbang pasulong sa mga opsyon sa pag-scale ng monitor |
+| `Super + Alt + /` | Humakbang pabalik sa mga opsyon sa pag-scale ng monitor |
 | `Alt + Tab` | Magpalit-palit pasulong sa mga window sa aktibong workspace |
-| `Alt + Shift + Tab` | Magpalit-palit paatras sa mga window sa aktibong workspace |
-| `Ctrl + Alt + Tab`| Magpalit-palit ng focus pasulong sa mga monitor |
-| `Ctrl + Alt + Shift + Tab`| Magpalit-palit ng focus paatras sa mga monitor |
+| `Alt + Shift + Tab` | Magpalit-palit pabalik sa mga window sa aktibong workspace |
+| `Ctrl + Alt + Tab`| I-cycle ang focus pasulong sa mga monitor |
+| `Ctrl + Alt + Shift + Tab`| I-cycle ang focus pabalik sa mga monitor |
 
-## Mga kontrol ng sistema
+Gumagamit ang mga shortcut sa pag-resize ng mga pisikal na key na `code:20` at `code:21` (XKB `<AE11>` at `<AE12>`), anuman ang mga karakter na nakalimbag sa keyboard. Sa mga US keyboard, ang mga key na ito ay `-` at `=`; sa mga Japanese (JIS) keyboard, ang mga ito ay `-` at `^`; sa mga Spanish keyboard, ang mga ito ay `'` at `¡`. Sa JIS, ang `Super + ^` ay `Super + Equal`, habang ang `Super + Shift + -` (na nagta-type ng `=`) ay `Super + Shift + Minus`.
+
+## Mga kontrol ng system
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
@@ -75,15 +77,15 @@ Makikita mo ang lahat ng pangunahing keyboard binding gamit ang `Super + K` (mga
 | `Super + Ctrl + Alt + D`           | Panel ng kalendaryo    |
 | `Super + Ctrl + Alt + E`           | Panel ng orasan sa mundo    |
 | `Super + Ctrl + 1-9`           | I-toggle ang panel ng bar ayon sa posisyon    |
-| `Super + Ctrl + S` | Menu ng pagbabahagi (sa pamamagitan ng LocalSend) |
-| `Super + Ctrl + C` | Mga kontrol sa capture (screenshot/-recording/picker) |
+| `Super + Ctrl + S` | Menu ng pag-share (sa pamamagitan ng LocalSend) |
+| `Super + Ctrl + C` | Mga kontrol sa pag-capture (screenshot/-recording/picker) |
 | `Super + Ctrl + O` | I-toggle ang menu |
 | `Super + Ctrl + H` | Menu ng hardware |
 | `Super + Ctrl + E` | Tagapili ng emoji |
 | `Super + Ctrl + .` | I-transcode ang media |
 | `Super + Shift + Ctrl + A` | Pumili ng AI agent |
 
-## Mga pagsasaayos
+## Mga pag-aayos
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
@@ -104,7 +106,7 @@ Makikita mo ang lahat ng pangunahing keyboard binding gamit ang `Super + K` (mga
 | `Super + Alt + Return` | Terminal ng Tmux |
 | `Super + Ctrl + Return` | Herdr (tagapamahala ng agent) |
 | `Super + Shift + Return`           | Browser    |
-| `Super + Shift + Alt + B`           | Browser (private/incognito)    |
+| `Super + Shift + Alt + B`           | Browser (pribado/incognito)    |
 | `Super + Shift + F`           | Tagapamahala ng file    |
 | `Super + Shift + Alt + F`           | Tagapamahala ng file sa cwd ng terminal    |
 | `Super + Shift + M`           | Musika (Spotify)    |
@@ -131,48 +133,49 @@ Makikita mo ang lahat ng pangunahing keyboard binding gamit ang `Super + K` (mga
 
 Baguhin/magdagdag ng mga binding sa `~/.config/hypr/bindings.lua`.
 
-## Pangkalahatang clipboard
+## Universal na clipboard
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
+| `Super + A`           | Piliin lahat sa mga app na sumusuporta sa `Ctrl + A`    |
 | `Super + C`           | Kopyahin    |
-| `Super + X`           | Gupitin (hindi sa terminal)    |
-| `Super + V`           | Idikit    |
+| `Super + X`           | I-cut (hindi sa terminal)    |
+| `Super + V`           | I-paste    |
 | `Super + Ctrl + V`           | Tagapamahala ng clipboard    |
 
 Karaniwan sa Linux, kailangan mo ng `Ctrl + Shift + C/V` para mag-copy'n'paste sa terminal at `Ctrl + C/V` para gawin ito sa lahat ng iba pang lugar. Gumagana saanman ang mga pinag-isang clipboard hotkey na ito ng Omarchy.
 
-## Capture
+## Pag-capture
 
 | Hotkey              | Tungkulin                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Screenshot                      |
 | `Super + Ctrl + Alt + C`            | Screenshot (ang parehong kuha, para sa mga keyboard na walang Print Screen key) |
-| `Super + Ctrl + C` | Menu ng capture |
+| `Super + Ctrl + C` | Menu ng pag-capture |
 | `Alt + Print Screen`            | Screenrecord                     |
 | `Super + Print Screen` | Tagapili ng kulay |
-| `Super + Ctrl + Print Screen` | Pagkuha ng teksto papunta sa clipboard |
-| `Super + Alt + [` | Paliitin ang overlay ng webcam habang nagre-record |
-| `Super + Alt + ]` | Palakihin ang overlay ng webcam habang nagre-record |
+| `Super + Ctrl + Print Screen` | Pag-extract ng teksto papunta sa clipboard |
+| `Super + Alt + [` | Paliitin ang webcam overlay habang nagre-record |
+| `Super + Alt + ]` | Palakihin ang webcam overlay habang nagre-record |
 | `Alt + Shift + L` | Kopyahin ang kasalukuyang URL mula sa webapp o Chromium |
 | `Alt + Shift + D` | I-download ang video sa kasalukuyang page papunta sa `~/Videos` |
-| `Super + Ctrl + X` | Simulan/ihinto ang pagdidikta (nangangailangan ng _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Push-to-talk na pagdidikta (nangangailangan ng Voxtype o Superwhisper) |
+| `Alt + Space` | Simulan/itigil ang dictation (nangangailangan ng _Setup > Defaults > Dictation_) |
+| `Right Alt` | Hawakan para mag-dictate (nangangailangan ng _Setup > Defaults > Dictation_) |
 
-Sa mga screenrecording, tatanungin ka muna ng hotkey kung aling audio ang gusto mo, pagkatapos ay magsisimula ang recording. Pindutin itong muli para huminto. Tingnan ang [mga screenshot at recording](12-screenshots-recording.md) para sa mga detalye.
+Sa mga screenrecording, tatanungin ka muna ng hotkey kung aling audio ang gusto mo, pagkatapos ay magsisimulang mag-record. Pindutin itong muli para huminto. Tingnan ang [mga screenshot at pag-record](12-screenshots-recording.md) para sa mga detalye.
 
-Mapupuntahan din ang lahat ng opsyon sa capture sa ilalim ng _Trigger > Capture_ sa menu ng Omarchy (`Super + Space`).
+Maa-access din ang lahat ng opsyon sa pag-capture sa ilalim ng _Trigger > Capture_ sa menu ng Omarchy (`Super + Space`).
 
-## Mga abiso
+## Mga notification
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Kumilos sa pinakabagong abiso: buksan ito o pindutin ang nag-iisa nitong button, pumili mula sa mga pagpipilian nito, o i-dismiss ito kapag wala ito ng alinman  |
-| `Super + Shift + ,` | I-dismiss ang lahat ng abiso |
-| `Super + Ctrl + ,` | Kontrolin ang mga abiso gamit ang keyboard  |
-| `Super + Alt + ,` | I-dismiss ang pinakabagong abiso  |
-| `Super + Shift + Alt + ,` | Buksan ang kasaysayan ng abiso  |
-| `Super + Ctrl + Alt + ,` | I-toggle ang pagpapatahimik sa mga abiso  |
+| `Super + ,` | Kumilos sa pinakabagong notification: buksan ito o pindutin ang nag-iisa nitong button, pumili mula sa mga pagpipilian nito, o i-dismiss ito kapag wala ito nito  |
+| `Super + Shift + ,` | I-dismiss ang lahat ng notification |
+| `Super + Ctrl + ,` | Kontrolin ang mga notification gamit ang keyboard  |
+| `Super + Alt + ,` | I-dismiss ang pinakabagong notification  |
+| `Super + Shift + Alt + ,` | Buksan ang kasaysayan ng notification  |
+| `Super + Ctrl + Alt + ,` | I-toggle ang pagtahimik ng mga notification  |
 
 ## Estilo
 
@@ -181,24 +184,24 @@ Mapupuntahan din ang lahat ng opsyon sa capture sa ilalim ng _Trigger > Capture_
 | `Super + Ctrl + T` | Pumili ng bagong tema (din ang `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Pumili ng background ng tema (din ang `Super + Ctrl + Space`) |
 | `Super + Backspace` | I-toggle ang transparency sa isang window |
-| `Super + Ctrl + Backspace` | I-toggle ang square aspect ng nag-iisang window |
+| `Super + Ctrl + Backspace` | I-toggle ang square aspect ng iisang window |
 
-Nasa `~/.config/omarchy/backgrounds/<theme name>` ang mga karagdagang larawan sa background. Makukuha rin sa pamamagitan ng _Install > Style > Background_ sa menu ng Omarchy.
+Nasa `~/.config/omarchy/backgrounds/<theme name>` ang mga karagdagang background image. Maa-access din sa pamamagitan ng _Install > Style > Background_ sa menu ng Omarchy.
 
-Mapupuntahan din ang lahat ng opsyon sa estilo sa ilalim ng _Style_ sa menu ng Omarchy (`Super + Space`).
+Maa-access din ang lahat ng opsyon sa estilo sa ilalim ng _Style_ sa menu ng Omarchy (`Super + Space`).
 
 ## Mga toggle
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | I-toggle ang pag-lock kapag idle |
-| `Super + Ctrl + Delete` | I-toggle ang on/off ng display ng laptop |
+| `Super + Ctrl + Delete` | I-toggle ang display ng laptop on/off |
 | `Super + Ctrl + Alt + Delete` | I-toggle ang pag-mirror ng display ng laptop |
 | `Super + Shift + Space` | I-toggle ang top bar  |
-| `Shift + Mute` | Lumipat sa susunod na output ng audio |
-| `Shift + Play` | Lumipat sa susunod na pinagmulan ng media |
-| `Super + Shift + Backspace` | I-toggle ang mga puwang ng window |
-| `Super + Ctrl + Alt + F` | I-toggle ang full screen desktop (top bar + mga puwang ng window) |
+| `Shift + Mute` | Lumipat sa susunod na audio output |
+| `Shift + Play` | Lumipat sa susunod na media source |
+| `Super + Shift + Backspace` | I-toggle ang mga gap ng window |
+| `Super + Ctrl + Alt + F` | I-toggle ang full screen desktop (top bar + mga gap ng window) |
 
 ## Mga paalala
 
@@ -206,15 +209,15 @@ Mapupuntahan din ang lahat ng opsyon sa estilo sa ilalim ng _Style_ sa menu ng O
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Magtakda ng paalala  |
 | `Super + Ctrl + Alt + R` | Tingnan ang lahat ng paalala  |
-| `Super + Ctrl + Shift + R` | Burahin ang lahat ng paalala  |
+| `Super + Ctrl + Shift + R` | I-clear ang lahat ng paalala  |
 
-## Mga notice
+## Mga abiso
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Ipakita ang oras bilang abiso  |
-| `Super + Ctrl + Alt + B` | Ipakita ang baterya bilang abiso  |
-| `Super + Ctrl + Alt + W` | I-toggle ang panahon bilang abiso  |
+| `Super + Ctrl + Alt + T` | Ipakita ang oras bilang notification  |
+| `Super + Ctrl + Alt + B` | Ipakita ang baterya bilang notification  |
+| `Super + Ctrl + Alt + W` | I-toggle ang panahon bilang notification  |
 
 ## Tmux
 
@@ -224,12 +227,12 @@ Ang prefix key ay `Ctrl + Space` (gumagana rin ang `Ctrl + B`). Maaari mong bagu
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Hatiin ang pane sa gilid (patayo) |
+| `Prefix + v` | Hatiin ang pane sa tabi (patayo) |
 | `Prefix + h` | Hatiin ang pane sa ibaba (pahalang) |
 | `Prefix + x` | Patayin ang pane |
 | `Prefix + z` | I-toggle ang zoom ng pane (fullscreen) |
 | `Alt + Enter` | Hatiin ang pane sa ibaba (walang prefix) |
-| `Alt + Shift + Enter` | Hatiin ang pane sa gilid (walang prefix) |
+| `Alt + Shift + Enter` | Hatiin ang pane sa tabi (walang prefix) |
 | `Alt + Escape` | Patayin ang pane (walang prefix) |
 | `Ctrl + Alt + Arrows` | Lumipat sa pagitan ng mga pane |
 | `Ctrl + Alt + Shift + Arrows` | I-resize ang mga pane |
@@ -256,9 +259,9 @@ Ang prefix key ay `Ctrl + Space` (gumagana rin ang `Ctrl + B`). Maaari mong bagu
 | `Prefix + P` | Nakaraang session |
 | `Alt + Arrow Up/Down` | Lumipat sa pagitan ng mga session |
 | `Prefix + s` | Ilista ang mga session |
-| `Prefix + d` | Mag-detach mula sa session |
+| `Prefix + d` | Kumalas mula sa session |
 
-### Copy mode (vi-style)
+### Mode ng pagkopya (vi-style)
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
@@ -272,11 +275,11 @@ Ang prefix key ay `Ctrl + Space` (gumagana rin ang `Ctrl + B`). Maaari mong bagu
 | ----------------------- | --------------------- |
 | `Prefix + q` | I-reload ang config |
 | `Prefix + ?` | Ipakita ang mga keybinding ng Tmux |
-| `Prefix + :` | Prompt ng command |
+| `Prefix + :` | Command prompt |
 
 ### Mga function ng layout ng Tmux
 
-Dapat patakbuhin ang mga function na ito sa loob ng session ng Tmux.
+Dapat patakbuhin ang mga function na ito sa loob ng isang Tmux session.
 
 | Command | Tungkulin |
 | ------- | -------- |
@@ -290,11 +293,11 @@ Ini-install ang Ghostty terminal gamit ang _Install > Terminal_ sa pamamagitan n
 
 | Hotkey                  | Tungkulin              |
 | ----------------------- | --------------------- |
-| `Ctrl + Shift + E` | Bagong hati sa ibaba |
-| `Ctrl + Shift + O` | Bagong hati sa gilid |
-| `Ctrl + Alt + Arrows` | Lumipat sa pagitan ng mga hati |
-| `Super + Ctrl + Shift + Arrows` | I-resize ang hati nang 10 linya |
-| `Super + Ctrl + Shift + Alt + Arrows` | I-resize ang hati nang 100 linya |
+| `Ctrl + Shift + E` | Bagong split sa ibaba |
+| `Ctrl + Shift + O` | Bagong split sa tabi |
+| `Ctrl + Alt + Arrows` | Lumipat sa pagitan ng mga split |
+| `Super + Ctrl + Shift + Arrows` | I-resize ang split ng 10 linya |
+| `Super + Ctrl + Shift + Alt + Arrows` | I-resize ang split ng 100 linya |
 | `Ctrl + Shift + T` | Bagong tab  |
 | `Ctrl + Shift + Arrows` | Lumipat sa pagitan ng mga tab |
 | `Alt + Numbers` | Pumunta sa partikular na tab |
@@ -306,8 +309,8 @@ Ini-install ang Ghostty terminal gamit ang _Install > Terminal_ sa pamamagitan n
 | Hotkey              | Tungkulin                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Pumunta sa path                     |
-| `Space`               | I-preview ang file (nagna-navigate ang mga arrow) |
-| `Backspace`      | Bumalik ng isang folder             |
+| `Space`               | I-preview ang file (mag-navigate gamit ang mga arrow) |
+| `Alt + Up`       | Umakyat sa parent folder        |
 
 ## Neovim (w/ lazyvim)
 
@@ -315,16 +318,16 @@ Ini-install ang Ghostty terminal gamit ang _Install > Terminal_ sa pamamagitan n
 
 | Hotkey                   | Tungkulin                        |
 | ------------------------ | ------------------------------- |
-| `Space`                    | Ipakita ang mga opsyon ng command            |
+| `Space`                    | Ipakita ang mga opsyon sa command            |
 | `Space Space`              | Buksan ang file sa pamamagitan ng fuzzy search      |
 | `Space E`                  | I-toggle ang sidebar                  |
 | `Space G G`                | Ipakita ang mga kontrol ng git               |
 | `Space S G`                | Hanapin ang nilalaman ng file             |
 | `Ctrl + W W`               | Tumalon sa pagitan ng sidebar at editor |
 | `Ctrl + Left/right arrow`  | Baguhin ang laki ng sidebar          |
-| `Shift + H`                      | Pumunta sa kaliwang tab ng file             |
-| `Shift + L`                      | Pumunta sa kanang tab ng file            |
-| `Space B D`                | Isara ang tab ng file                  |
+| `Shift + H`                      | Pumunta sa kaliwang file tab             |
+| `Shift + L`                      | Pumunta sa kanang file tab            |
+| `Space B D`                | Isara ang file tab                  |
 
 ### Habang nasa sidebar
 
@@ -337,11 +340,11 @@ Ini-install ang Ghostty terminal gamit ang _Install > Terminal_ sa pamamagitan n
 | `R`                        | Palitan ang pangalan ng naka-highlight na file/dir     |
 | `?`                        | Ipakita ang tulong para sa lahat ng command      |
 
-[Tingnan ang lahat ng hotkey ng Neovim na ikino-configure ng LazyVim](https://www.lazyvim.org/keymaps).
+[Tingnan ang lahat ng Neovim hotkey na na-configure ng LazyVim](https://www.lazyvim.org/keymaps).
 
-## Mabilis na Mga Emoji
+## Mga Mabilisang Emoji
 
-Maaari mong gamitin ang `Super + Ctrl + E` para magpakita ng kumpletong tagapili ng emoji na maglalagay ng pinili sa clipboard o maaari mong gamitin ang mga opsyon na ito para sa mabilis na pag-access.
+Maaari mong gamitin ang `Super + Ctrl + E` upang ipakita ang kumpletong emoji picker na maglalagay ng pinili sa clipboard o maaari mong gamitin ang mga mabilisang opsyon sa pag-access na ito.
 
 | Hotkey       | EM | Pahiwatig       |
 | ------------ | -- | ---------- |
@@ -359,7 +362,7 @@ Maaari mong gamitin ang `Super + Ctrl + E` para magpakita ng kumpletong tagapili
 | `Shift + CapsLock M E` | 🙄 | eyeroll    |
 | `Shift + CapsLock M I` | 😉 | kindat       |
 | `Shift + CapsLock M P` | 🙏 | dasal |
-| `Shift + CapsLock M D` | 🤤 | laway      |
+| `Shift + CapsLock M D` | 🤤 | paglalaway      |
 | `Shift + CapsLock M M` | 💰 | pera      |
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
@@ -369,12 +372,12 @@ Maaari mong gamitin ang `Super + Ctrl + E` para magpakita ng kumpletong tagapili
 | `Shift + CapsLock M A` |💪 | braso |
 | `Shift + CapsLock M B` |🤯 | sumasabog |
 
-## Mabilis na Mga Pagkumpleto
+## Mga Mabilisang Pagkumpleto
 
 | Hotkey       | Pagkumpleto       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | Pangalan mo (tulad ng inilagay sa setup)  |
-| `Shift + CapsLock Space E` | Email mo (tulad ng inilagay sa setup)  |
+| `Shift + CapsLock Space N` | Ang iyong pangalan (tulad ng inilagay sa setup)  |
+| `Shift + CapsLock Space E` | Ang iyong email (tulad ng inilagay sa setup)  |
 
-Maaari kang magdagdag ng higit pa ng sarili mo sa pamamagitan ng pag-edit sa `~/.XCompose`, pagkatapos ay pagpapatakbo ng `omarchy-restart-xcompose` sa terminal para makuha ang mga pagbabago.
+Maaari kang magdagdag ng higit pa sa sarili mo sa pamamagitan ng pag-edit sa `~/.XCompose`, pagkatapos ay pagpapatakbo ng `omarchy-restart-xcompose` sa terminal upang makuha ang mga pagbabago.

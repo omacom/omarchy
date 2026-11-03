@@ -1041,10 +1041,16 @@ Item {
     // labels and native classes, never shorter than four characters.
     var slug = name.replace(/[^a-z0-9]+/g, "")
     if (slug.length < 4) return null
+    // Several words also match a class ending in them: "Telegram Desktop" is
+    // org.telegram.desktop, "Brave Browser" brave-browser.
+    var words = name.split(/[^a-z0-9]+/).filter(function(w) { return w })
+    var tail = words.length > 1 ? "." + words.join(".") : ""
     found = []
     for (i = 0; i < windows.length; i++) {
       var lower = windows[i].wmClass.toLowerCase()
       if (lower === slug) { found.push(windows[i]); continue }
+      var dotted = "." + lower.replace(/[^a-z0-9]+/g, ".")
+      if (tail && dotted.slice(-tail.length) === tail) { found.push(windows[i]); continue }
       if (lower.indexOf("chrome-") !== 0) continue
       var labels = lower.substring(7).split("__")[0].split(".")
       for (var l = 0; l < labels.length; l++)
@@ -1171,6 +1177,14 @@ Item {
   property var unsaved: ({})
 
   function storePut(row) {
+    // The transient hint asks to by-pass persistence: such a card is not
+    // restored after a restart or kept in history, and its sender sends it
+    // again when it still applies. An update that turns a card transient takes
+    // its stored row out.
+    if (row.transient) {
+      storeDrop(row.key)
+      return
+    }
     liveEntries = Store.putLive(liveEntries, Store.persistable(row))
     saveSoon("live")
   }
