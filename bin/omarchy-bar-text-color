@@ -117,7 +117,7 @@ if resolved=$(omarchy-theme-bg-resolve "${resolver_args[@]}" 2>/dev/null); then
       [[ $value =~ ^(crop|fit|center|tile)$ ]] && fill="$value"
       ;;
     fill_color)
-      valid_hex "$value" && fill_color="$value"
+      [[ $value =~ ^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$ ]] && fill_color="$value"
       ;;
     backdrop)
       [[ $value == "blur" ]] && backdrop="$value"
@@ -187,9 +187,8 @@ screen="${screen_width}x${screen_height}"
 sample_format='%[fx:int(255*r)],%[fx:int(255*g)],%[fx:int(255*b)]'
 
 # Compose the same viewport as WallpaperImage before extracting the bar strip.
-# Crop offsets are fractions of the cover overflow, matching its focal bindings.
-cover=(-define jpeg:size="$screen" "$sample_path[0]" -auto-orient -scale "${screen}^"
-  -gravity NorthWest -crop "${screen}+%[fx:max(0,round((w-$screen_width)*$focal_x))]+%[fx:max(0,round((h-$screen_height)*$focal_y))]" +repage)
+# Only the crop foreground uses focal offsets; the blurred cover stays centered.
+cover=(-define jpeg:size="$screen" "$sample_path[0]" -auto-orient -scale "${screen}^")
 composition=()
 if [[ $fill != "crop" ]]; then
   composition=(-size "$screen" "xc:$fill_color")
@@ -197,7 +196,7 @@ if [[ $fill != "crop" ]]; then
     # Qt uses a subdued cover copy over the solid tint. Approximate its blur
     # for contrast sampling; retain the same 35% opacity and full geometry.
     blur_radius=$(awk -v ratio="$sample_scale" 'BEGIN { print 40 * ratio }')
-    composition+=(\( "${cover[@]}" -blur "0x$blur_radius" -alpha set -channel A -evaluate multiply 0.35 +channel \) -compose Over -composite)
+    composition+=(\( "${cover[@]}" -gravity center -extent "$screen" -blur "0x$blur_radius" -alpha set -channel A -evaluate multiply 0.35 +channel \) -compose Over -composite)
   fi
 fi
 
@@ -214,16 +213,18 @@ tile)
   composition+=(\( "$sample_path[0]" -auto-orient -resize "$native_percent" -write mpr:tile +delete -size "$screen" tile:mpr:tile \) -compose Over -composite)
   ;;
 *)
-  composition=("${cover[@]}")
+  composition=("${cover[@]}" -gravity NorthWest
+    -crop "${screen}+%[fx:max(0,round((w-$screen_width)*$focal_x))]+%[fx:max(0,round((h-$screen_height)*$focal_y))]" +repage)
   ;;
 esac
+# The transparent wallpaper layer is displayed over the compositor's black base.
 pixel=$(MAGICK_MEMORY_LIMIT=512MiB \
   MAGICK_MAP_LIMIT=0 \
   MAGICK_DISK_LIMIT=0 \
   MAGICK_TIME_LIMIT=5 \
   MAGICK_THREAD_LIMIT=2 \
   timeout --kill-after=1s 5s magick "${composition[@]}" -gravity NorthWest -crop "$crop" +repage \
-  -resize '1x1!' -format "$sample_format" info:- 2>/dev/null || true)
+  -background black -alpha remove -alpha off -resize '1x1!' -format "$sample_format" info:- 2>/dev/null || true)
 [[ $pixel =~ ^([0-9]+),([0-9]+),([0-9]+)$ ]] || fallback
 
 sample=$(printf '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")

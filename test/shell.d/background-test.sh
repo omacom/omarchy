@@ -53,9 +53,11 @@ const outgoing = vm.createContext({
   currentBackground: '/old/art.svg', displayedBackground: '/old/art.svg',
   displayedVersion: 3, backgroundVersion: 3, preparedBackground: '', lastTransitionPath: '',
   isVideo: () => false,
+  suspended: false, revealGraceTimer: { stop() {} },
   revealAnimation: { stop() {} },
   preparedBackgroundTimer: { stop() {} }, requestNativeSize() {}
 })
+outgoing.root = outgoing
 vm.runInContext(blockAfter(backgroundQml, 'function transitionBackground(', 'transition function exists') + '\n}', outgoing)
 outgoing.transitionBackground('/snapshots/canonical.svg', '/snapshots/new.png', '/new/art.svg', false, true)
 assertEqual(outgoing.displayedBackground, '/old/art.svg', 'theme snapshots leave the per-panel base source intact during reveal')
@@ -341,6 +343,27 @@ recovery.recoverDisplayedImage()
 assert(recovery.displayedResolver.canonicalOnly && !recovery.root.recovered, 'a failed variant retries the canonical on that panel')
 recovery.recoverDisplayedImage()
 assertEqual(recovery.root.recovered, '/image.png', 'a failed canonical uses the ordinary missing-background recovery')
+const displayed = qml.slice(qml.indexOf('id: displayedResolver'), qml.indexOf('id: snapshotResolver'))
+const resolvedHandler = displayed.match(/onResolveVersionChanged: \{([^]*?)\n        \}/)[1]
+const missing = vm.createContext({canonicalPath:'/deleted.svg', requestSeq:1, resolveVersion:0,
+  ready:false, resolvedPath:'', screenWidth:1920, screenHeight:1080,
+  displayedBackground:'/deleted.svg', backgroundVersion:3, recoverProc:{running:false},
+  panel:{lastDisplayedPath:'/previous.png'}, Commons:{Color:{background:'#000000'}},
+  requestNativeSize(){}, maybeFinishTransition(){}})
+missing.root = missing
+load('recoverBackground', missing, qml, '  ')
+load('publishFallback', missing, resolver, '  ')
+vm.runInContext(resolvedHandler, missing)
+assert(!missing.recoverProc.running, 'an unresolved SVG does not start recovery')
+missing.publishFallback(1)
+missing.screenWidth = 0
+vm.runInContext(resolvedHandler, missing)
+assert(!missing.recoverProc.running, 'an unsized screen does not mistake a pending SVG for a missing file')
+missing.screenWidth = 1920
+vm.runInContext(resolvedHandler, missing)
+assert(missing.recoverProc.running, 'a completed empty SVG resolution starts missing-background recovery')
+assertEqual(missing.failedBackground, '/deleted.svg', 'recovery receives the failed SVG canonical')
+assertEqual(missing.panel.lastDisplayedPath, '/previous.png', 'recovery retains already displayed pixels')
 for (const event of ['CanonicalPath', 'ScreenWidth', 'ScreenHeight', 'DevicePixelRatio', 'RefreshToken']) {
   const choice = vm.createContext({canonicalOnly:true, requests:0, requestResolve(){this.requests++}})
   load('resetChoice', choice, resolver, '  ')
@@ -376,6 +399,10 @@ assert(!state.revealAnimation.stopped, 'one failed panel cannot interrupt anothe
 slow.lockIncoming('/late.png','crop','solid','#000000',.5,.5)
 assertEqual(slow.incomingPath, '', 'a late resolver cannot revive an abandoned panel transition')
 ready.baseSettled = () => true
+ready.backgroundReady = false
+state.maybeFinishTransition()
+assertEqual(state.incomingBackground, '/snapshot.png', 'a decoded base keeps its snapshot until the screen has drawn it')
+ready.backgroundReady = true
 state.maybeFinishTransition()
 assertEqual(state.incomingBackground, '', 'shared sources release after the remaining panel base settles')
 const a = panel(), b = panel()
