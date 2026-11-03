@@ -247,6 +247,17 @@ assertEqual(failureSsid, "Campus WiFi", "early enterprise script failure records
 assertEqual(failureReason, "Connection failed", "early enterprise script failure reports a general connection failure")
 
 actionKind = "connect"
+actionSsid = "Vanished Enterprise WiFi"
+passwordSsid = "Vanished Enterprise WiFi"
+failureSsid = ""
+failureReason = ""
+enterpriseConnect.targetSsid = "Vanished Enterprise WiFi"
+var WifiSecurityType = security
+handleEnterpriseConnectExit(1)
+assertEqual(failureSsid, "Vanished Enterprise WiFi", "early enterprise script failure records failed SSID even if AP dropped from scan list")
+assertEqual(failureReason, "Connection failed", "early enterprise script failure reports connection failure even if AP dropped from scan list")
+
+actionKind = "connect"
 actionSsid = "Campus WiFi"
 passwordSsid = "Campus WiFi"
 enterpriseConnect.targetSsid = "Stale WiFi"
