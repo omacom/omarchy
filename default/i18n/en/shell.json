@@ -570,5 +570,12 @@
   "marketplace.close": "Close",
   "marketplace.by": "by %1",
   "marketplace.version": "v%1",
-  "marketplace.stars": "%1 stars"
+  "marketplace.stars": "%1 stars",
+  "marketplace.badgeInstalled": "Installed",
+  "marketplace.badgeInstallable": "Installable",
+  "marketplace.badgeManualSetup": "Manual setup",
+  "marketplace.badgeVerified": "Verified",
+  "marketplace.viewDetails": "View details",
+  "marketplace.installPlugin": "Install plugin",
+  "marketplace.setupInstructions": "View setup instructions"
 }
