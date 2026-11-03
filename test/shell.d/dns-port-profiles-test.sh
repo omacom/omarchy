@@ -13,7 +13,7 @@ nmcli() {
       if [[ ${reject_profiles:-no} == "yes" ]]; then
         printf '%s\n' 'vanished:802-3-ethernet' 'link-local:802-3-ethernet' 'disabled:802-3-ethernet' 'ignore:802-3-ethernet'
       fi
-      printf '%s\n' 'wifi:802-11-wireless' 'bridge-port:802-3-ethernet' 'bond-port:802-3-ethernet' 'team-port:802-3-ethernet' 'ethernet:802-3-ethernet' 'bridge:bridge'
+      printf '%s\n' 'wifi:802-11-wireless' 'hotspot:802-11-wireless' 'bridge-port:802-3-ethernet' 'bond-port:802-3-ethernet' 'team-port:802-3-ethernet' 'ethernet:802-3-ethernet' 'bridge:bridge'
       if [[ ${reject_profiles:-no} == "yes" ]]; then
         echo 'rejected-last:802-3-ethernet'
       fi
@@ -22,6 +22,10 @@ nmcli() {
     '-g connection.controller connection show bond-port') echo bond0 ;;
     '-g connection.controller connection show team-port') echo team0 ;;
     '-g connection.controller connection show vanished') echo 'Error: vanished - no such connection profile.' >&2; return 10 ;;
+    '-g ipv4.method connection show hotspot') echo shared ;;
+    '-g ipv4.method connection show '*) echo auto ;;
+    '-g connection.controller connection show hotspot') ;;
+    'connection modify hotspot '*) printf '%s\n' "$*" >>"$test_tmp/hotspot"; return 1 ;;
     '-g connection.controller connection show wifi'|'-g connection.controller connection show ethernet') ;;
     '-g connection.controller connection show link-local'|'-g connection.controller connection show disabled'|'-g connection.controller connection show ignore'|'-g connection.controller connection show rejected-last') ;;
     'connection modify link-local '*|'connection modify disabled '*|'connection modify ignore '*)
@@ -43,13 +47,15 @@ nmcli() {
 set_connection_dns '1.1.1.1' '2606:4700:4700::1111'
 [[ $(wc -l <"$test_tmp/modified") == 4 ]] || fail "only standalone DNS profiles are modified"
 grep -q 'connection modify ethernet ipv4.ignore-auto-dns yes' "$test_tmp/modified" || fail "profiles after ports still receive DNS"
-pass "DNS configuration skips bridge, bond and team ports"
+[[ ! -e $test_tmp/hotspot ]] || fail "hotspot profiles are left alone"
+pass "DNS configuration skips bridge, bond and team ports, and hotspots"
 
 : >"$test_tmp/modified"
 clear_connection_dns
 [[ $(wc -l <"$test_tmp/modified") == 2 ]] || fail "only standalone profiles return to DHCP"
 grep -q 'connection modify ethernet ipv4.ignore-auto-dns no' "$test_tmp/modified" || fail "profiles after ports return to DHCP"
-pass "DHCP reset skips port profiles without aborting"
+[[ ! -e $test_tmp/hotspot ]] || fail "DHCP leaves hotspot profiles alone"
+pass "DHCP reset skips port profiles and hotspots without aborting"
 
 # Exercise the command dispatch with failed modifications. Redirect every system
 # write and service operation so the test cannot change the host's network.

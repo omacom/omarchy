@@ -173,7 +173,7 @@ networkmanager_dns_connection() {
 }
 
 set_connection_dns() {
-  local uuid type controller
+  local uuid type controller method
   local ipv4_dns="${1:-}"
   local ipv6_dns="${2:-}"
 
@@ -184,6 +184,9 @@ set_connection_dns() {
     # A port can still have the same Ethernet type as a standalone profile.
     controller=$(nmcli -g connection.controller connection show "$uuid") || continue
     [[ -z $controller ]] || continue
+    # Hotspots (ipv4.method shared) reject DNS servers and hand out the host's own.
+    method=$(nmcli -g ipv4.method connection show "$uuid") || continue
+    [[ $method != "shared" ]] || continue
 
     # Set each family on its own: a profile with IPv6 disabled rejects IPv6 DNS
     # but must still take the IPv4 servers.
@@ -195,7 +198,7 @@ set_connection_dns() {
 }
 
 clear_connection_dns() {
-  local uuid type controller
+  local uuid type controller method
 
   DNS_RESET_FAILED=false
 
@@ -206,6 +209,9 @@ clear_connection_dns() {
     # A port can still have the same Ethernet type as a standalone profile.
     controller=$(nmcli -g connection.controller connection show "$uuid") || continue
     [[ -z $controller ]] || continue
+    # Hotspots (ipv4.method shared) reject DNS servers and hand out the host's own.
+    method=$(nmcli -g ipv4.method connection show "$uuid") || continue
+    [[ $method != "shared" ]] || continue
 
     if ! nmcli connection modify "$uuid" \
       ipv4.ignore-auto-dns no \
