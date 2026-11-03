@@ -108,7 +108,23 @@ ShellRoot {
         // A theme switch keeps the durable path but swaps the files behind
         // it; the forced reload probes the twin again and finds it.
         if (!shell.settled("3-lonely.png", true)) return
+        // Every screen portrait, so no landscape screen's ready frame can
+        // start the reveal for the others.
+        for (var panel of shell.panels()) panel.portrait = true
         shell.step = 7
+        background.setBackground(shell.backgrounds + "/4-broken.png", false)
+        return
+      case 7:
+        if (!background.incomingBackground) return
+        shell.step = 8
+        return
+      case 8:
+        if (background.incomingBackground || !background.ready) return
+        // A twin the probe found but Qt cannot decode gives way to the plain
+        // file on the incoming frame, and the reveal still runs.
+        for (var screen of shell.panels())
+          if (screen.basePath !== shell.backgrounds + "/4-broken.png") return
+        shell.step = 9
         shell.finish()
         return
       }

@@ -491,6 +491,12 @@ Item {
         return probed === undefined ? "" : probed.found ? twin : path
       }
 
+      // A transition frame whose twin fails to decode drops the twin, so
+      // the frame binds the plain file instead of waiting on an error.
+      function frameFailed(frame, plain) {
+        if (frame.status === Image.Error && frame.framePath !== plain) root.dropTwin(frame.framePath)
+      }
+
       function decodeSize(path) {
         if (!sized || !path) return Qt.size(0, 0)
         var native = root.nativeSizes[path]
@@ -544,7 +550,10 @@ Item {
         smooth: true
         mipmap: true
         visible: root.oldBackground !== "" && root.revealProgress < 1
-        onStatusChanged: panel.maybeStartReveal()
+        onStatusChanged: {
+          panel.frameFailed(oldFrame, root.oldBackground)
+          panel.maybeStartReveal()
+        }
       }
 
       Item {
@@ -577,7 +586,10 @@ Item {
           cache: false
           smooth: true
           mipmap: true
-          onStatusChanged: panel.maybeStartReveal()
+          onStatusChanged: {
+            panel.frameFailed(incomingFrame, root.incomingBackground || root.preparedBackground)
+            panel.maybeStartReveal()
+          }
         }
       }
 
