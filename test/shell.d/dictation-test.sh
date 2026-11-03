@@ -73,6 +73,9 @@ for command in omarchy-pkg-add omarchy-clipboard-paste-text omarchy-notification
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
+case ${0##*/} in
+  hyprctl | omarchy-restart-hyprland) exit "${RELOAD_EXIT:-0}" ;;
+esac
 exit "${SETUP_EXIT:-0}"
 SH
 done
@@ -189,7 +192,8 @@ omarchy-install-dictation-superwhisper
 pass "Superwhisper installer owns setup and saves selection only after success"
 
 : > "$DICTATION_LOG"
-omarchy-install-dictation-superwhisper --background
+# Migrations run this from outside the session, where the Hyprland reload can fail.
+RELOAD_EXIT=1 omarchy-install-dictation-superwhisper --background || fail "a failed Hyprland reload does not fail setup"
 grep -qx setup-user "$DICTATION_LOG" || fail "background setup still configures Superwhisper"
 if grep -E '^(superwhisper settings|omarchy-notification-send)' "$DICTATION_LOG"; then fail "background setup opens no window and sends no toast"; fi
 pass "first-run Superwhisper setup stays in the background"
