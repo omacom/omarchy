@@ -123,6 +123,22 @@ grep -q '^omarchy-launch-floating-terminal-with-presentation:omarchy-launch-open
 grep -q '^openclaw:tui$' "$TEST_LOG" && ! grep -q '^openclaw:gateway' "$TEST_LOG" ||
   fail "OpenClaw launch leaves a remote client's gateway alone" "--tui: $(cat "$TEST_LOG")"
 pass "OpenClaw launch leaves a remote client's gateway alone"
+
+# OpenClaw accepts JSON5, which jq cannot parse, so the CLI's reader decides.
+printf '{\n  // remote client\n  gateway: {mode: "remote"},\n}\n' >"$HOME/.openclaw/openclaw.json"
+cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
+#!/bin/bash
+printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
+[[ $* == "config get gateway.mode" ]] && echo remote
+[[ $* == *--json* ]] && echo '{"ok":false,"reason":"Gateway is not running."}'
+exit 0
+SCRIPT
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw"
+! grep -q '^openclaw:gateway' "$TEST_LOG" &&
+  grep -q '^omarchy-launch-floating-terminal-with-presentation:omarchy-launch-openclaw --tui$' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a JSON5 remote client's gateway alone" "$(cat "$TEST_LOG")"
+pass "OpenClaw launch leaves a JSON5 remote client's gateway alone"
 : >"$HOME/.openclaw/openclaw.json"
 
 # A dashboard probe that hangs is cut off, so the launch still fails cleanly
