@@ -188,6 +188,15 @@ function levelAt(points, fraction) {
   return level
 }
 
+// The chart as `count` columns from the window's start to now, each the
+// level at its end, so the last one is the level now. null for a column that
+// ends before the first reading.
+function historyBars(points, count) {
+  var bars = []
+  for (var i = 0; i < count; i++) bars.push(levelAt(points, (i + 1) / count))
+  return bars
+}
+
 // What the chart's hover tooltip says at `fraction`: the level, and how long
 // before now that was.
 function historyReadout(points, fraction, span, tr, fmt) {
@@ -224,6 +233,7 @@ if (typeof module !== "undefined") {
     parseHistory: parseHistory,
     historyPoints: historyPoints,
     levelAt: levelAt,
+    historyBars: historyBars,
     historyReadout: historyReadout
   }
 }

@@ -1,6 +1,4 @@
 import QtQuick
-import QtQuick.Effects
-import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.UPower
@@ -285,20 +283,10 @@ Panel {
     historyMissing = historyPoints.length < 2
   }
 
-  // Screen coordinates for the chart's area: time runs with the reading
-  // direction, and the area closes along the bottom edge.
-  function historyPath(points, width, height, mirrored) {
-    var path = []
-    for (var i = 0; i < points.length; i++) {
-      var x = (mirrored ? 1 - points[i].x : points[i].x) * width
-      path.push(Qt.point(x, points[i].y * height))
-    }
-    if (path.length > 0) {
-      path.push(Qt.point(path[path.length - 1].x, height))
-      path.push(Qt.point(path[0].x, height))
-    }
-    return path
-  }
+  // Ten minutes a column over six hours: UPower writes a reading only when
+  // the level moves, so the chart was never finer than that.
+  readonly property int historyBarCount: 36
+  readonly property var historyBars: Model.historyBars(historyPoints, historyBarCount)
 
   Process {
     id: historyProc
@@ -503,9 +491,9 @@ Panel {
 
         // ---------- Charge bar ----------
         // With UPower history for the battery, the bar grows into a chart of
-        // the last few hours in the same track and colour: the filled area is
-        // the level over time, solid like the bar's fill, and its right edge
-        // is the level now. Without history it stays the plain bar.
+        // the last few hours in the same track and colour: a column per ten
+        // minutes, each filled to the level then like the bar's fill, the
+        // last one the level now. Without history it stays the plain bar.
         Item {
           id: chargeBar
           width: parent.width
@@ -514,12 +502,10 @@ Panel {
           Rectangle {
             id: barTrack
             anchors.fill: parent
-            // As a chart it's a box, so it takes the theme's corners and the
-            // track the agents panel's meters use; the thin bar stays a pill.
-            radius: root.historyShown ? Style.cornerRadius : height / 2
-            color: root.historyShown
-              ? Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
-              : Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+            // As a chart each column carries its own track instead.
+            visible: !root.historyShown
+            radius: height / 2
+            color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
           }
 
           Item {
@@ -548,108 +534,77 @@ Panel {
               Behavior on color { ColorAnimation { duration: Style.duration(220) } }
             }
 
-            // The chart is clipped to the track's rounded corners.
+            // Each column is a slot of its own, in the track the agents
+            // panel's meters use and with the theme's corners, filled from
+            // the bottom to the level.
             Item {
               visible: root.historyShown
               anchors.fill: parent
-              layer.enabled: visible
-              layer.smooth: true
-              layer.effect: MultiEffect {
-                maskEnabled: true
-                maskSource: chartMask
-                maskThresholdMin: 0.3
-                maskSpreadAtMin: 0.3
-              }
 
-              Shape {
-                id: historyChart
-                readonly property bool mirrored: LayoutMirroring.enabled
-                anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer
+              Repeater {
+                model: root.historyBarCount
 
-                ShapePath {
-                  strokeColor: "transparent"
-                  fillColor: root.batteryFillColor
-                  PathPolyline { path: root.historyPath(root.historyPoints, historyChart.width, historyChart.height, historyChart.mirrored) }
+                Rectangle {
+                  id: slot
+                  required property int index
+                  readonly property var level: root.historyBars[index]
+                  // Time runs with the reading direction.
+                  x: (LayoutMirroring.enabled ? root.historyBarCount - 1 - index : index) * (chargeBar.barWidth + chargeBar.barGap)
+                  width: chargeBar.barWidth
+                  height: parent.height
+                  radius: Math.min(Style.cornerRadius, width / 2)
+                  color: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
+
+                  Rectangle {
+                    visible: slot.level !== null
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: Math.max(slot.radius * 2, Math.round((slot.level || 0) / 100 * slot.height))
+                    radius: slot.radius
+                    color: root.batteryFillColor
+                    // The column being read stays full; the rest step back.
+                    opacity: chargeBar.hoverIndex < 0 || chargeBar.hoverIndex === slot.index ? 1 : 0.6
+                  }
                 }
               }
             }
           }
 
-          // Hovering the chart reads it: a dot on the area's edge at the
-          // pointer, a cut through the area under it, and the level there with
-          // how long ago it was. Nothing animates, since the marks follow the
-          // pointer.
+          readonly property real barGap: Math.max(1, Style.spaceReal(2))
+          readonly property real barWidth: (width - barGap * (root.historyBarCount - 1)) / root.historyBarCount
+
+          // Hovering a column reads it: that column stays full while the rest
+          // step back, and the tooltip gives its level and how long ago it
+          // was. Nothing animates, since it follows the pointer.
           HoverHandler {
             id: chartHover
             enabled: root.historyShown
             onHoveredChanged: if (hovered) root.placeHistory()
           }
 
-          readonly property real hoverX: Math.max(0, Math.min(width, chartHover.point.position.x))
-          readonly property real hoverFraction: LayoutMirroring.enabled ? 1 - hoverX / width : hoverX / width
-          readonly property string hoverText: chartHover.hovered
-            ? Model.historyReadout(root.historyPoints, hoverFraction, root.historyHours * 3600,
+          readonly property int hoverColumn: Math.max(0, Math.min(root.historyBarCount - 1,
+            Math.floor(chartHover.point.position.x / (barWidth + barGap))))
+          readonly property int hoverIndex: {
+            if (!chartHover.hovered) return -1
+            var index = LayoutMirroring.enabled ? root.historyBarCount - 1 - hoverColumn : hoverColumn
+            return root.historyBars[index] === null ? -1 : index
+          }
+          readonly property string hoverText: hoverIndex >= 0
+            ? Model.historyReadout(root.historyPoints, (hoverIndex + 1) / root.historyBarCount, root.historyHours * 3600,
                 function(key, english) { return Commons.I18n.t(key, english) },
                 function(value) { return Commons.I18n.formatNumber(value) })
             : ""
-          readonly property real hoverLevel: {
-            var level = Model.levelAt(root.historyPoints, hoverFraction)
-            return level === null ? -1 : level
-          }
-          readonly property real hoverY: (100 - hoverLevel) / 100 * height
-
-          Item {
-            visible: chartHover.hovered && chargeBar.hoverText !== ""
-            anchors.fill: parent
-            layer.enabled: visible
-            layer.smooth: true
-            layer.effect: MultiEffect {
-              maskEnabled: true
-              maskSource: chartMask
-              maskThresholdMin: 0.3
-              maskSpreadAtMin: 0.3
-            }
-
-            Rectangle {
-              x: Math.round(chargeBar.hoverX - width / 2)
-              y: chargeBar.hoverY
-              width: Math.max(1, Style.spaceReal(1.5))
-              height: parent.height - y
-              color: Commons.Color.popups.background
-            }
-          }
-
-          // Outside the clip and kept inside the track, so a level near full
-          // or empty doesn't cut the dot in half.
-          Rectangle {
-            visible: chartHover.hovered && chargeBar.hoverText !== ""
-            width: Style.space(7)
-            height: width
-            radius: width / 2
-            x: Math.max(0, Math.min(parent.width - width, chargeBar.hoverX - width / 2))
-            y: Math.max(0, Math.min(parent.height - height, chargeBar.hoverY - height / 2))
-            color: root.batteryFillColor
-            border.width: Math.max(1, Style.spaceReal(1.5))
-            border.color: Commons.Color.popups.background
-          }
 
           // Above the chart, because below is where the pointer is.
           PanelToolTip {
-            visible: chartHover.hovered && chargeBar.hoverText !== ""
+            visible: chargeBar.hoverText !== ""
             delay: 0
             text: chargeBar.hoverText
             fontFamily: root.bar.fontFamily
-            x: Math.max(0, Math.min(chargeBar.width - width, chargeBar.hoverX - width / 2))
+            x: Math.max(0, Math.min(chargeBar.width - width,
+              chargeBar.hoverColumn * (chargeBar.barWidth + chargeBar.barGap) + chargeBar.barWidth / 2 - width / 2))
             y: -height - Style.space(4)
-          }
-
-          Rectangle {
-            id: chartMask
-            anchors.fill: parent
-            radius: barTrack.radius
-            visible: false
-            layer.enabled: root.historyShown
           }
         }
 

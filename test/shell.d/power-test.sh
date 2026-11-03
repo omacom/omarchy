@@ -80,4 +80,5 @@ assertEqual(power.historyReadout(steps, 0.25, 7200), '80% · 1h 30m ago', 'power
 assertEqual(power.historyReadout(steps, 0.5, 7200), '60% · 1h 0m ago', 'power reads the new level on a step under the pointer')
 assertEqual(power.historyReadout(steps, 1, 7200), '55% · now', 'power reads the live level at the end of the chart')
 assertEqual(power.historyReadout(power.historyPoints([{ time: 950, value: 60 }], 1000, 100, 55), 0.2, 100), '', 'power says nothing before the first reading')
+assertDeepEqual(power.historyBars(power.historyPoints([{ time: 950, value: 60 }], 1000, 100, 55), 4), [null, 60, 60, 55], 'power draws each column at the level its stretch ends on, and none before the first reading')
 JS
