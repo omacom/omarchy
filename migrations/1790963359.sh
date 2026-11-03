@@ -64,7 +64,10 @@ if [[ -z $(autosuspend_value "$effective") && -e $defaults_conf.pacnew ]] &&
   ! grep -Eqs '^[[:space:]]*KERNEL_CMDLINE\[default\][[:space:]]*=' "$default_limine"; then
   size=$(stat -c %s "$defaults_conf")
   printf '\n%s\n' "$line" | sudo tee -a "$defaults_conf" >/dev/null
-  appended=$(sudo limine-entry-tool --get-cmdline default)
+  if ! appended=$(sudo limine-entry-tool --get-cmdline default); then
+    sudo truncate -s "$size" "$defaults_conf"
+    exit 1
+  fi
   read -ra before -d '' <<<"$effective" || true
   read -ra after -d '' <<<"$appended" || true
   after_without=()
