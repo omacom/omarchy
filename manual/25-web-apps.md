@@ -18,12 +18,13 @@ Use _Setup > Defaults > Web App Browser_ to choose an installed app-mode browser
 
 ```bash
 omarchy default browser zen
+omarchy install browser helium
 omarchy default webapp-browser helium
 ```
 
 This applies when opening existing web-app shortcuts too. Custom launch commands supplied when creating a shortcut keep their own behavior. Cookies, extensions, and sign-ins come from the selected browser, so sign in there first. Helium is also available under _Setup > Defaults > Browser_ for normal browsing; choosing it there installs it if needed.
 
-The web-app setting starts at **Automatic**. In this mode, Omarchy uses the regular browser if it supports Chromium's app-window mode, otherwise Chromium. Run `omarchy default webapp-browser auto` to restore this behavior. With no argument, the command prints `auto` or the selected desktop entry ID. If a selected browser is removed, choose another browser or Automatic before opening web apps.
+The web-app setting starts at **Automatic**. In this mode, Omarchy uses the regular browser if it supports Chromium's app-window mode, otherwise Chromium. Run `omarchy default webapp-browser auto` to restore this behavior. With no argument, the command prints `auto` or the selected desktop entry ID. If a selected browser is removed, web apps show a notification until you choose another browser or Automatic.
 
 ### Experimental Zen web apps
 
