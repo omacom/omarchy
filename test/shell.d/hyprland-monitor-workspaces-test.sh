@@ -109,9 +109,11 @@ end
 function monitor_object(monitor)
   if not monitor then return nil end
   return setmetatable({
-    set_workspace = function(_, spec)
+    -- Hyprland takes a selector here and raises on a table.
+    set_workspace = function(_, selector)
       world.calls = world.calls + 1
-      local workspace = workspace_numbered(tonumber(spec.workspace))
+      assert(type(selector) ~= "table", "set_workspace takes a workspace selector")
+      local workspace = workspace_numbered(tonumber(selector))
       if workspace and workspace.monitor == monitor.name then
         monitor.active = workspace.id
         world.focused = monitor.name
