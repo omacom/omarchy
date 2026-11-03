@@ -26,7 +26,8 @@ theme_a="tokyo-night"
 theme_b="catppuccin"
 
 set_theme "$theme_a"
-mapfile -t theme_a_backgrounds < <(find "$current_state/theme/backgrounds" -maxdepth 1 -type f -print | sort)
+# Aspect variants are render resources, not independent background choices.
+mapfile -t theme_a_backgrounds < <(find "$current_state/theme/backgrounds" -maxdepth 1 -type f ! -name '*@*' -print | sort)
 (( ${#theme_a_backgrounds[@]} > 1 )) || fail "test theme has multiple backgrounds"
 theme_a_first=${theme_a_backgrounds[0]##*/}
 theme_a_selected_path=${theme_a_backgrounds[1]}
@@ -34,13 +35,13 @@ theme_a_selected=${theme_a_selected_path##*/}
 ln -nsf "$theme_a_selected_path" "$current_state/background"
 
 set_theme "$theme_b"
-mapfile -t theme_b_backgrounds < <(find "$current_state/theme/backgrounds" -maxdepth 1 -type f -print | sort)
+mapfile -t theme_b_backgrounds < <(find "$current_state/theme/backgrounds" -maxdepth 1 -type f ! -name '*@*' -print | sort)
 (( ${#theme_b_backgrounds[@]} > 1 )) || fail "second test theme has multiple backgrounds"
 theme_b_first=${theme_b_backgrounds[0]##*/}
 
 common_background=$(comm -12 \
-  <(find "$ROOT/themes/$theme_a/backgrounds" -maxdepth 1 -type f -printf '%f\n' | sort) \
-  <(find "$current_state/theme/backgrounds" -maxdepth 1 -type f -printf '%f\n' | sort) | head -n 1)
+  <(find "$ROOT/themes/$theme_a/backgrounds" -maxdepth 1 -type f ! -name '*@*' -printf '%f\n' | sort) \
+  <(find "$current_state/theme/backgrounds" -maxdepth 1 -type f ! -name '*@*' -printf '%f\n' | sort) | head -n 1)
 [[ -n $common_background ]] || fail "test themes share a background filename"
 theme_b_common_path=$(find "$current_state/theme/backgrounds" -maxdepth 1 -type f -name "$common_background" -print -quit)
 ln -nsf "$theme_b_common_path" "$current_state/background"
