@@ -329,3 +329,38 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# The launcher supervising the old shell takes a crash during teardown for one
+# to recover from, so it relaunches next to the fresh shell. A restart stops
+# that launcher before it stops the shell.
+supervised_root="$test_tmp/supervised"
+mkdir -p "$supervised_root/shell" "$supervised_root/bin"
+touch "$supervised_root/shell/shell.qml"
+printf '#!/bin/bash\ntrap "exit 0" TERM\nwhile :; do sleep 0.05; done\n' >"$supervised_root/bin/omarchy-launch-shell"
+bash "$supervised_root/bin/omarchy-launch-shell" &
+restart_pid_two=$!
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks" "$test_tmp/strays"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$supervised_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$supervised_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart with a supervising launcher succeeds"
+
+for _ in {1..50}; do kill -0 "$restart_pid_two" 2>/dev/null || break; sleep 0.05; done
+if kill -0 "$restart_pid_two" 2>/dev/null; then
+  fail "restart stops the launcher supervising the old shell"
+fi
+wait "$restart_pid_one" "$restart_pid_two" 2>/dev/null || true
+restart_pid_one=""
+restart_pid_two=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart with a supervising launcher leaves one fresh shell"
+pass "restart stops the old shell's launcher so it cannot relaunch a second shell"
