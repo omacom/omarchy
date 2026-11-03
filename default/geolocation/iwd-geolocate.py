@@ -64,7 +64,8 @@ def scan(with_ssid=False):
         deadline = time.monotonic() + 12
         while time.monotonic() < deadline:
             time.sleep(.25)
-            if not call('get-property', IWD, path, STATION, 'Scanning'):
+            # busctl JSON wraps even a single boolean in its data array.
+            if not call('get-property', IWD, path, STATION, 'Scanning')[0]:
                 break
         else:
             raise TimeoutError('iwd scan timed out')

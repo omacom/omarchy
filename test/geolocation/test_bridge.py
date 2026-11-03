@@ -3,7 +3,7 @@ from pathlib import Path
 import socket
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('bridge', Path(__file__).resolve().parents[2] / 'default/geolocation/iwd-geolocate.py')
 b = importlib.util.module_from_spec(spec)
@@ -19,6 +19,24 @@ class Bridge(unittest.TestCase):
         self.assertEqual(b.collect(tree, [('/n', -5200), ('/hidden', -2000)]),
                          [dict(macAddress='00:11:22:33:44:55', signalStrength=-52)])
         self.assertEqual(b.collect(tree, [('/n', -5200)], True)[0]['ssid'], 'Cafe')
+
+    def test_scan_waits_for_busctl_false_then_collects_networks(self):
+        tree = {'/station': {b.STATION: dict(ConnectedAccessPoint='/b')},
+                '/n': {b.NETWORK: dict(Name='Cafe', ExtendedServiceSet=['/b'])},
+                '/b': {b.BSS: dict(Address='00:11:22:33:44:55')}}
+        replies = [Mock(stdout=value) for value in (
+            '{"data":[]}', '{"data":[true]}', '{"data":[false]}',
+            '{"data":[[["/n",-5200]]]}')]
+        with patch.object(b, 'objects', return_value=tree), \
+                patch.object(b.subprocess, 'run', side_effect=replies) as run, \
+                patch.object(b.time, 'sleep'), \
+                patch.object(b.time, 'monotonic', side_effect=[0, 0, 1, 13]):
+            result = b.scan()
+        self.assertEqual(result, dict(
+            aps=[dict(macAddress='00:11:22:33:44:55', signalStrength=-52)],
+            connected='00:11:22:33:44:55'))
+        self.assertEqual([args.args[0][-1] for args in run.call_args_list],
+                         ['Scan', 'Scanning', 'Scanning', 'GetOrderedNetworks'])
 
     def test_invalid_or_coarse_fix(self):
         for lat, lon, accuracy in [(91, 0, 1), (0, 181, 1), (float('nan'), 0, 5),
