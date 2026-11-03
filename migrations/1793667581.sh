@@ -1,8 +1,10 @@
-echo "Switch NVIDIA machines on linux-omarchy from DKMS to prebuilt NVIDIA modules"
+echo "Finish Superwhisper setup for installs that came up with it unconfigured"
 
-# linux-omarchy-nvidia-open ships the modules built with each kernel, so
-# kernel updates no longer compile them. One transaction with --ask 4 so pacman
-# accepts replacing the conflicting nvidia-open-dkms in place.
-if omarchy-pkg-present nvidia-open-dkms linux-omarchy; then
-  sudo pacman -S --noconfirm --ask 4 linux-omarchy-nvidia-open
+# Superwhisper became the default dictation backend before first run set it up
+# (#17286), and aarch64 images before omacom/omarchy-iso#377 left the package
+# out entirely. Both left dictation selected but unusable. setup-user creates
+# the app/current link, so its presence means setup already ran.
+if [[ $(omarchy-default-dictation 2>/dev/null) == "superwhisper" ]] &&
+  [[ ! -e ${XDG_DATA_HOME:-$HOME/.local/share}/superwhisper/app/current ]]; then
+  omarchy-install-dictation-superwhisper --background
 fi
