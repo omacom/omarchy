@@ -633,6 +633,10 @@ else
 fi
 grep -q 'warning: manual:01-hello.md: Appearance > Dock > Dock Position -> Udseende > Dock > Dockplacering' "$work/backfill.log" && pass "a missing glossary path is reported as a warning" || fail "a missing glossary path is reported as a warning" "$(cat "$work/backfill.log")"
 assert_bash_equal "$(jq -c '.da' "$work/backfill-done.json")" '["manual:01-hello.md"]' "backfill-manual marks the retranslated chapter done and leaves the matching one alone"
+# The report a backfill's summary runs names what is left over, so a partial
+# backfill is visible instead of silent.
+report=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" glossary-report)
+assert_bash_equal "$report" $'Manual chapters still missing a menu path: 1.\n- da: 1 (manual:01-hello.md)' "the backfill report names the chapters that still miss a menu path"
 rm -f "$work/stubs/muse"
 
 # Any display-text property name counts, both arms of a ternary count, and a
