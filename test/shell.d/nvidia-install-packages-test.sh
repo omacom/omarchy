@@ -80,15 +80,15 @@ run_modules() {
     PATH="$modules_fixture/bin:$PATH" "$ROOT/bin/omarchy-pkg-nvidia-modules" "$@"
 }
 
-prebuilt="linux-omarchy-nvidia-open linux-omarchy-eevdf-nvidia-open"
+prebuilt="linux-omarchy-nvidia-open"
+
+modules_case "linux-omarchy" "$prebuilt" ""
+actual=$(run_modules)
+[[ $actual == "linux-omarchy-nvidia-open" ]] \
+  || fail "linux-omarchy gets its prebuilt modules" "actual: $actual"
+pass "linux-omarchy gets its prebuilt modules"
 
 modules_case "linux-omarchy linux-omarchy-eevdf" "$prebuilt" ""
-actual=$(run_modules)
-[[ $actual == $'linux-omarchy-eevdf-nvidia-open\nlinux-omarchy-nvidia-open' ]] \
-  || fail "every kernel gets its prebuilt modules" "actual: $actual"
-pass "every kernel gets its prebuilt modules"
-
-modules_case "linux-omarchy linux" "$prebuilt" ""
 if run_modules >/dev/null; then
   fail "a kernel without prebuilt modules needs DKMS" "listed prebuilt modules"
 fi

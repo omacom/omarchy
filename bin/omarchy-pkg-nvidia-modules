@@ -5,10 +5,10 @@
 # omarchy:hidden=true
 # omarchy:requires-sudo=true
 
-# Each linux-omarchy kernel ships NVIDIA's open modules prebuilt as
-# <kernel>-nvidia-open. They replace nvidia-open-dkms, which conflicts with
-# them, so they're only usable when every installed kernel has its package;
-# any other kernel (Arch's linux, linux-lts) still needs DKMS.
+# linux-omarchy ships NVIDIA's open modules prebuilt as <kernel>-nvidia-open.
+# They replace nvidia-open-dkms, which conflicts with them, so they're only
+# usable when every installed kernel has its package; any other kernel
+# (linux-omarchy-eevdf, Arch's linux, linux-lts) still needs DKMS.
 #
 # Without arguments, prints the prebuilt packages and fails when some kernel
 # has none. --install installs them, replacing nvidia-open-dkms in the same
