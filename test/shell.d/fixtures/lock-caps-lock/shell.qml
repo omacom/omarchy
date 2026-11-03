@@ -72,12 +72,58 @@ ShellRoot {
         }
 
         view.destroy()
+
+        checkService()
       } catch (error) {
         root.fail("lock caps lock fixture threw: " + error)
       } finally {
         root.writeResult()
       }
     }
+  }
+
+  function devices(keyboards) {
+    return JSON.stringify({ keyboards: keyboards })
+  }
+
+  // Feeds Service.applyCapsLock the device list hyprctl returns.
+  function checkService() {
+    var component = Qt.createComponent("file://" + root.rootPath + "/shell/plugins/lock/Service.qml", Component.PreferSynchronous)
+    if (component.status !== Component.Ready) {
+      root.fail("Service failed to load: " + component.errorString())
+      return
+    }
+    var service = component.createObject(host, { omarchyPath: root.rootPath })
+    if (!service) {
+      root.fail("Service failed to instantiate: " + component.errorString())
+      return
+    }
+
+    service.applyCapsLock(devices([
+      { name: "at-translated-set-2-keyboard", main: false, capsLock: true },
+      { name: "hl-virtual-keyboard", main: true, capsLock: false }
+    ]))
+    root.assertTrue(service.capsLockOn, "caps lock reads on when fcitx5's virtual keyboard holds main")
+
+    service.applyCapsLock(devices([
+      { name: "keychron-k2", main: false, capsLock: false },
+      { name: "power-button", main: false, capsLock: false },
+      { name: "dell-aio-wmi-hotkeys", main: true, capsLock: false },
+      { name: "at-translated-set-2-keyboard", main: false, capsLock: true }
+    ]))
+    root.assertTrue(service.capsLockOn, "caps lock reads on from any typed keyboard")
+
+    service.applyCapsLock(devices([
+      { name: "keychron-k2", main: true, capsLock: false },
+      { name: "power-button", main: false, capsLock: true }
+    ]))
+    root.assertTrue(!service.capsLockOn, "a power button never turns caps lock on")
+
+    service.capsLockOn = true
+    service.applyCapsLock(devices([]))
+    root.assertTrue(!service.capsLockOn, "no keyboards reads as off")
+
+    service.destroy()
   }
 
   function findByObjectName(node, name) {
