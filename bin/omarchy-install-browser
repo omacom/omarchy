@@ -108,6 +108,11 @@ firefox)
 helium)
   echo "Installing Helium..."
   omarchy-pkg-aur-add helium-browser-bin || exit 1
+
+  setup_chromium_policy_directory /etc/chromium/policies/managed
+  copy_chromium_flags ~/.config/helium-browser-flags.conf
+  omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install helium
   announce_browser_installed "Helium"
   ;;
 zen)
