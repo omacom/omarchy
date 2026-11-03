@@ -105,7 +105,9 @@ omarchy_shell_dirs() {
 stand_down_launchers() {
   local dir pid parent
 
-  while read -r dir pid; do
+  # The pid goes first: a checkout path can hold spaces, and the rest of the
+  # line, spaces and all, is the path.
+  while read -r pid dir; do
     [[ -x ${dir%/shell}/bin/omarchy-launch-shell && $pid =~ ^[0-9]+$ ]] || continue
     parent=$(ps -o ppid= -p "$pid" 2>/dev/null)
     parent=${parent//[[:space:]]/}
@@ -113,7 +115,7 @@ stand_down_launchers() {
     [[ $(ps -o args= -p "$parent" 2>/dev/null) == *omarchy-launch-shell* ]] || continue
     kill -TERM "$parent" 2>/dev/null || true
   done < <(quickshell list -a -j 2>/dev/null |
-    jq -r '.[] | select(.config_path | endswith("/shell/shell.qml")) | "\(.config_path | rtrimstr("/shell.qml")) \(.pid)"' 2>/dev/null)
+    jq -r '.[] | select(.config_path | endswith("/shell/shell.qml")) | "\(.pid) \(.config_path | rtrimstr("/shell.qml"))"' 2>/dev/null)
 }
 
 stand_down_launchers
