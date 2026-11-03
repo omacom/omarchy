@@ -200,7 +200,7 @@ Item {
   // taken and runs before it is released, so no new intro can start between.
   Process {
     id: reloadLock
-    command: ["flock", root.themeSetLock, "bash", "-c", 'echo locked; read -r go; [[ $go != reload ]] || exec omarchy-restart-hyprctl']
+    command: ["flock", root.themeSetLock, "bash", "-c", 'echo locked; read -r go; [[ $go != reload ]] || exec omarchy-restart-hyprland']
     stdinEnabled: true
     stdout: SplitParser {
       onRead: {

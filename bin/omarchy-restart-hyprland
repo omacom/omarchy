@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# omarchy:summary=Reload hyprland configuration (used by the Omarchy theme switching).
+# omarchy:summary=Reload the Hyprland configuration, from inside or outside the session.
 
 # Outside the session (ssh, a remotely started herdr) there is no instance
 # signature, so reach the running Hyprland directly.
-if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+if [[ -n $HYPRLAND_INSTANCE_SIGNATURE ]]; then
   hyprctl reload >/dev/null
 else
   hyprctl --instance 0 reload >/dev/null

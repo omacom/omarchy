@@ -95,7 +95,7 @@ cat >"$switch/bin/hyprctl" <<'SH'
 #!/bin/bash
 echo '{"bool":true}'
 SH
-cat >"$switch/bin/omarchy-restart-hyprctl" <<'SH'
+cat >"$switch/bin/omarchy-restart-hyprland" <<'SH'
 #!/bin/bash
 printf 'reload\n' >>"$SWITCH_LOG"
 SH

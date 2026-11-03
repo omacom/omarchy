@@ -34,8 +34,7 @@ if [[ -f $backend_config && $(< "$backend_config") == "superwhisper" ]]; then
 fi
 
 omarchy-shell -q shell rescanPlugins
-# The config is saved; Hyprland picks it up on its next reload or start.
-omarchy-restart-hyprctl || true
+omarchy-restart-hyprland || true
 if systemctl --user -q is-active omarchy-fcitx5.service; then
   systemctl --user restart omarchy-fcitx5.service
 fi

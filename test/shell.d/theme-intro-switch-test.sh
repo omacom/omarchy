@@ -34,9 +34,9 @@ chmod +x "$commands/noop"
 # a no-op except the compositor reload, whose timing it checks.
 for command in "$ROOT"/bin/omarchy-restart-* "$ROOT"/bin/omarchy-theme-set-* omarchy-hook omarchy-theme-bg-cache; do
   command=${command##*/}
-  [[ $command == omarchy-restart-hyprctl ]] || ln -sf noop "$commands/$command"
+  [[ $command == omarchy-restart-hyprland ]] || ln -sf noop "$commands/$command"
 done
-cat >"$commands/omarchy-restart-hyprctl" <<'STUB'
+cat >"$commands/omarchy-restart-hyprland" <<'STUB'
 #!/bin/bash
 echo "hypr-reload" >>"$TEST_LOG"
 STUB
@@ -106,7 +106,7 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
   exit 1
 fi
 STUB
-chmod +x "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
+chmod +x "$commands/omarchy-restart-hyprland" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
 
 set_theme() {
   : >"$log"
