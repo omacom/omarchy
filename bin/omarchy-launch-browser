@@ -24,6 +24,8 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
+# Pick the private flag from the browser's name and never by running it: a
+# --help probe starts the whole binary, and current Chrome builds crash on it.
 browser_name=$(basename "$browser_exec")
 
 arguments=()

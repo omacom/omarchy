@@ -141,6 +141,19 @@ for browser in floorp helium custom-browser; do
 done
 pass "Firefox forks use the correct private flag and unknown families fail closed"
 
+for variant in zen-browser:--private-window microsoft-edge-stable:--inprivate; do
+  browser=${variant%%:*} flag=${variant#*:}
+  ln -s chromium "$mock_bin/$browser"
+  printf '[Desktop Entry]\nExec=%s %%U\n' "$browser" >"$test_home/.local/share/applications/$browser.desktop"
+  rm -f "$launch_log"
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_DESKTOP="$browser.desktop" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
+    bash "$ROOT/bin/omarchy-launch-browser" --private
+  grep -Fxq -- "$flag" "$launch_log" || fail "$browser private launch receives $flag" "$(cat "$launch_log")"
+  [[ ! -e $browser_exec_log ]] || fail "$browser private launch does not execute the browser" "$(cat "$browser_exec_log")"
+done
+pass "Zen and Edge private launches use their own flags"
+
 for browser in custom-browser helium; do
   url='https://example.test/--private?value=--private'
   HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_DESKTOP="$browser.desktop" \
