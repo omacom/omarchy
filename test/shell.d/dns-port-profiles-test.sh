@@ -25,7 +25,7 @@ nmcli() {
     '-g ipv4.method connection show hotspot') echo shared ;;
     '-g ipv4.method connection show '*) echo auto ;;
     '-g connection.controller connection show hotspot') ;;
-    'connection modify hotspot '*) printf '%s\n' "$*" >>"$test_tmp/hotspot"; return 1 ;;
+    'connection modify hotspot '*'ignore-auto-dns yes'*) printf '%s\n' "$*" >>"$test_tmp/hotspot"; return 1 ;;
     '-g connection.controller connection show wifi'|'-g connection.controller connection show ethernet') ;;
     '-g connection.controller connection show link-local'|'-g connection.controller connection show disabled'|'-g connection.controller connection show ignore'|'-g connection.controller connection show rejected-last') ;;
     'connection modify link-local '*|'connection modify disabled '*|'connection modify ignore '*)
@@ -52,10 +52,10 @@ pass "DNS configuration skips bridge, bond and team ports, and hotspots"
 
 : >"$test_tmp/modified"
 clear_connection_dns
-[[ $(wc -l <"$test_tmp/modified") == 2 ]] || fail "only standalone profiles return to DHCP"
+[[ $(wc -l <"$test_tmp/modified") == 3 ]] || fail "only standalone profiles return to DHCP"
 grep -q 'connection modify ethernet ipv4.ignore-auto-dns no' "$test_tmp/modified" || fail "profiles after ports return to DHCP"
-[[ ! -e $test_tmp/hotspot ]] || fail "DHCP leaves hotspot profiles alone"
-pass "DHCP reset skips port profiles and hotspots without aborting"
+grep -q 'connection modify hotspot ipv4.ignore-auto-dns no' "$test_tmp/modified" || fail "DHCP clears DNS a hotspot may still hold"
+pass "DHCP reset skips port profiles without aborting and clears hotspots"
 
 # Exercise the command dispatch with failed modifications. Redirect every system
 # write and service operation so the test cannot change the host's network.
