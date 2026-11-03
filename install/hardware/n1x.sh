@@ -97,13 +97,17 @@ printf '%s\n' \
   'BOOT_ORDER="linux-omarchy, linux-omarchy-fallback, *, Snapshots"' \
   > /etc/limine-entry-tool.d/zz-omarchy-n1x-boot-order.conf
 
-mapfile -t n1x_pkgbase_files < <(grep -lFx linux-omarchy /usr/lib/modules/*/pkgbase 2>/dev/null || true)
-if (( ${#n1x_pkgbase_files[@]} != 1 )); then
-  echo "Error: expected one installed linux-omarchy module tree, found ${#n1x_pkgbase_files[@]}" >&2
-  return 1
-fi
-n1x_kernel_version=${n1x_pkgbase_files[0]#/usr/lib/modules/}
-n1x_kernel_version=${n1x_kernel_version%/pkgbase}
+n1x_find_kernel() {
+  local pkgbase_files
+  mapfile -t pkgbase_files < <(grep -lFx linux-omarchy /usr/lib/modules/*/pkgbase 2>/dev/null || true)
+  if (( ${#pkgbase_files[@]} != 1 )); then
+    echo "Error: expected one installed linux-omarchy module tree, found ${#pkgbase_files[@]}" >&2
+    return 1
+  fi
+  n1x_kernel_version=${pkgbase_files[0]#/usr/lib/modules/}
+  n1x_kernel_version=${n1x_kernel_version%/pkgbase}
+}
+n1x_find_kernel || return 1
 
 # GPU policy, decided by the system firmware version.
 #
@@ -124,14 +128,23 @@ bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
 n1x_gpu_driver=unloaded
 if [[ ! $bios_version =~ ^0\. ]]; then
-  omarchy-pkg-add nvidia-open-dkms nvidia-utils libva-nvidia-driver
-  # Early KMS lists the NVIDIA modules in the initramfs, so a DKMS build that
-  # failed for this kernel would fail every UKI build. Fall back to the
-  # firmware framebuffer instead: a software-rendered desktop beats no boot.
+  # linux-omarchy-nvidia-open ships NVIDIA's modules prebuilt with each
+  # kernel. On a machine set up with nvidia-open-dkms, which it conflicts
+  # with, --ask 4 replaces that in the same transaction.
+  if omarchy-pkg-present nvidia-open-dkms; then
+    pacman -S --needed --noconfirm --ask 4 linux-omarchy-nvidia-open
+  fi
+  omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver
+  # The modules depend on the exact kernel they were built for, so installing
+  # them can bring a newer linux-omarchy than the one found above.
+  n1x_find_kernel || return 1
+  # Early KMS lists the NVIDIA modules in the initramfs, so a kernel without
+  # them would fail every UKI build. Fall back to the firmware framebuffer
+  # instead: a software-rendered desktop beats no boot.
   if modinfo -k "$n1x_kernel_version" nvidia nvidia_modeset nvidia_uvm nvidia_drm &>/dev/null; then
     n1x_gpu_driver=nvidia
   else
-    echo "WARNING: no NVIDIA DKMS modules for $n1x_kernel_version; keeping the NVIDIA stack unloaded" >&2
+    echo "WARNING: no NVIDIA modules for $n1x_kernel_version; keeping the NVIDIA stack unloaded" >&2
   fi
 else
   echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
