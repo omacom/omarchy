@@ -43,6 +43,8 @@
   "agents.switchedBody": "Az új %1 munkamenetek mostantól ezt használják: %2 (%3%).\nA futó munkamenetek ennél maradnak: %4.",
   "animations.disabled": "Animációk kikapcsolva",
   "animations.enabled": "Animációk bekapcsolva",
+  "animations.softwareRendering": "Animációk kikapcsolva GPU nélkül",
+  "animations.softwareRenderingBody": "Nincs GPU használatban, ezért az animációk, elmosás és árnyékok ki vannak kapcsolva. A Megjelenés > Animációk bekapcsolásával állíthatók vissza.",
   "audio.micMuted": "Mikrofon némítva",
   "audio.micOn": "Mikrofon be",
   "audio.noDevices": "Nem találhatók hangeszközök",

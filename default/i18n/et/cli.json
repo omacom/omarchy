@@ -43,6 +43,8 @@
   "agents.switchedBody": "Uued %1-seansid kasutavad nüüd %2 (%3%).\nTöötavad seansid jäävad %4 juurde.",
   "animations.disabled": "Animatsioonid keelatud",
   "animations.enabled": "Animatsioonid lubatud",
+  "animations.softwareRendering": "Animatsioonid GPU-ta välja lülitatud",
+  "animations.softwareRenderingBody": "GPU ei ole kasutusel, seega on animatsioonid, hägustus ja varjud välja lülitatud. Välimus > Animatsioonid sees toob need tagasi.",
   "audio.micMuted": "Mikrofon vaigistatud",
   "audio.micOn": "Mikrofon sees",
   "audio.noDevices": "Heliseadmeid ei leitud",

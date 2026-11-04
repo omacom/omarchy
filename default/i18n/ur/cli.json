@@ -43,6 +43,8 @@
   "agents.switchedBody": "نئے %1 سیشنز اب %2 (%3%) استعمال کرتے ہیں۔\nچلتے سیشنز %4 پر رہیں گے۔",
   "animations.disabled": "اینیمیشنز بند",
   "animations.enabled": "اینیمیشنز آن",
+  "animations.softwareRendering": "GPU کے بغیر اینیمیشنز بند",
+  "animations.softwareRenderingBody": "GPU استعمال میں نہیں ہے، اس لیے اینیمیشنز، بلر اور شیڈوز بند ہیں۔ Appearance > Animations On سے انہیں واپس لائیں۔",
   "audio.micMuted": "مائیکروفون خاموش",
   "audio.micOn": "مائیکروفون آن",
   "audio.noDevices": "کوئی آڈیو ڈیوائس نہیں ملی",
