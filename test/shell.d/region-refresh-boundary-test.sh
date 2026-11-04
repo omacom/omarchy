@@ -35,8 +35,9 @@ exec /usr/bin/cp "$@"
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/cp"
 
-# Regional rendering must stay unprivileged: root only copies finished files,
-# exactly as the channel refresh did before regions existed.
+# Regional rendering runs in a root-owned staging directory: root creates the
+# directory, renders into it, and copies only files the desktop user cannot
+# swap between those steps.
 reset_boundary
 "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" rc >"$boundary_tmp/output" 2>&1 || fail "refresh failed" "$(<"$boundary_tmp/output")"
 python3 - "$SUDO_TEST_LOG" "$SUDO_TEST_ROOT" <<'PY'
@@ -48,12 +49,23 @@ copies = [i for i, e in enumerate(events) if e.startswith('sudo cp ')]
 # The China render writes pacman.conf itself, so the rendered directory is the
 # one root copies from, and it is a scratch directory, never the templates.
 rendered = events[copies[2]].split()[-2].rsplit('/', 1)[0]
-assert not rendered.startswith(root), events
+# The fixture maps the production /run/omarchy-render.XXXXXX into its own run
+# directory; the point is that root created it, not that it is outside root.
+assert rendered.startswith(f'{root}/run/omarchy-render.'), events
 assert [events[i] for i in copies[2:]] == [
     f'sudo cp -f {rendered}/pacman.conf /etc/pacman.conf',
     f'sudo cp -f {rendered}/mirrorlist /etc/pacman.d/mirrorlist',
 ], events
-assert not any(e.startswith('sudo ') and 'omarchy-apply-pacman' in e for e in events), events
+stage = [i for i, e in enumerate(events) if e.startswith('sudo mktemp -d ')]
+assert len(stage) == 1, events
+stage_template = events[stage[0]].split()[-1]
+assert stage_template.endswith('/omarchy-render.XXXXXX'), events
+assert stage_template.rsplit('/', 1)[0] == rendered.rsplit('/', 1)[0], events
+apply = [i for i, e in enumerate(events) if 'omarchy-apply-pacman --render' in e]
+assert len(apply) == 1, events
+assert events[apply[0]].startswith('sudo env OMARCHY_PATH='), events
+assert events[apply[0]].split()[-1] == rendered, events
+assert stage[0] < apply[0] < min(copies), events
 transaction = next(i for i, e in enumerate(events) if e.startswith('step:pacman '))
 assert max(copies) < transaction, events
 PY
@@ -64,7 +76,7 @@ cmp -s "$boundary_tmp/expected-pacman.conf" "$SUDO_TEST_CAPTURE/etc/pacman.conf"
   fail "root installs the rendered China pacman.conf" "$(diff "$boundary_tmp/expected-pacman.conf" "$SUDO_TEST_CAPTURE/etc/pacman.conf" 2>&1)"
 cmp -s "$boundary_tmp/expected-mirrorlist" "$SUDO_TEST_CAPTURE/etc/pacman.d/mirrorlist" ||
   fail "root installs the rendered China mirrorlist" "$(diff "$boundary_tmp/expected-mirrorlist" "$SUDO_TEST_CAPTURE/etc/pacman.d/mirrorlist" 2>&1)"
-pass "refresh renders regional config unprivileged and gives root only plain copies"
+pass "refresh renders regional config in a root-owned staging directory"
 
 reset_boundary
 if "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" dev >"$boundary_tmp/output" 2>&1; then
@@ -75,7 +87,7 @@ if grep -Eq '^(sudo cp |step:pacman )' "$SUDO_TEST_LOG"; then
 fi
 pass "failed refresh does not proceed to privileged copies or a package update"
 
-# A failed render still removes its scratch directory.
+# A failed render still removes its root-owned staging directory.
 reset_boundary
 mv "$SUDO_TEST_ROOT/bin/omarchy-apply-pacman" "$boundary_tmp/omarchy-apply-pacman"
 cat >"$SUDO_TEST_ROOT/bin/omarchy-apply-pacman" <<'STUB'
@@ -84,13 +96,12 @@ cat >"$SUDO_TEST_ROOT/bin/omarchy-apply-pacman" <<'STUB'
 exit 1
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/omarchy-apply-pacman"
-mkdir -p "$boundary_tmp/scratch"
-if TMPDIR="$boundary_tmp/scratch" "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" rc >"$boundary_tmp/output" 2>&1; then
+if "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" rc >"$boundary_tmp/output" 2>&1; then
   fail "refresh succeeds after a failed render"
 fi
 mv "$boundary_tmp/omarchy-apply-pacman" "$SUDO_TEST_ROOT/bin/omarchy-apply-pacman"
-[[ -z $(ls -A "$boundary_tmp/scratch") ]] || fail "failed render leaves its scratch directory" "$(ls -AR "$boundary_tmp/scratch")"
+[[ -z $(ls -A "$SUDO_TEST_ROOT/run") ]] || fail "failed render leaves its staging directory" "$(ls -AR "$SUDO_TEST_ROOT/run")"
 if grep -Eq '^(sudo cp |step:pacman )' "$SUDO_TEST_LOG"; then
   fail "failed render reached privileged work" "$(<"$SUDO_TEST_LOG")"
 fi
-pass "failed render removes its scratch directory"
+pass "failed render removes its staging directory"

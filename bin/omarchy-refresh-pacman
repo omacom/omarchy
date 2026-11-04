@@ -5,6 +5,13 @@
 
 set -e
 
+# The renderer runs as root below, so bind its source tree to this command's
+# own entrypoint first. A caller cannot point that privileged half at a tree it
+# wrote while the packaged /usr/bin entrypoint is what ran.
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_source_root "$0" || exit 1
+
 channel="${1:-}"
 if [[ -n $channel && $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
   echo "Invalid channel: $channel" >&2
@@ -35,19 +42,26 @@ if [[ ! -f $templates/pacman-$channel.conf || ! -f $templates/mirrorlist-$channe
   exit 1
 fi
 
-# Render the channel templates plus this machine's regional additions as the
-# caller, so root only copies finished files. The scratch directory goes on
-# every exit, including a failed render, a refused sudo prompt, or a signal.
-rendered=$(mktemp -d)
-trap 'rm -rf "$rendered"' EXIT
-"$OMARCHY_PATH/bin/omarchy-apply-pacman" --render "$channel" "$rendered"
+# Render the channel templates plus this machine's regional additions into a
+# root-owned staging directory. A directory the desktop user can write leaves a
+# window between render and the privileged copy where the file can be swapped;
+# root creates and fills this one, so only root can change it. The source root
+# was validated above, so both the renderer and the templates are the same tree
+# this command came from.
+if ! rendered=$(sudo mktemp -d /run/omarchy-render.XXXXXX); then
+  echo "Could not create a root-owned staging directory." >&2
+  exit 1
+fi
+trap 'sudo rm -rf "$rendered"' EXIT
+sudo env OMARCHY_PATH="$OMARCHY_PATH" "$OMARCHY_PATH/bin/omarchy-apply-pacman" --render "$channel" "$rendered"
 
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
 sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
 echo "Setting channel to $channel"
 sudo cp -f "$rendered/pacman.conf" /etc/pacman.conf
 sudo cp -f "$rendered/mirrorlist" /etc/pacman.d/mirrorlist
-rm -rf "$rendered"
+sudo rm -rf "$rendered"
+trap - EXIT
 
 # Allow user customization of /etc/pacman.conf before the upgrade runs, so
 # custom repositories and IgnorePkg entries shape the downgrade-capable

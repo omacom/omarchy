@@ -73,7 +73,9 @@ for source in edge dev; do
     [[ $source != "dev" ]] || root=$checkout
 
     status=0
-    OMARCHY_PATH="$root" "$root/bin/omarchy-channel-set" "$channel" >"$boundary_tmp/output" 2>&1 || status=$?
+    # A linked checkout puts its own bin first on PATH; mirror that here so the
+    # refresh command it invokes is the checkout's copy.
+    PATH="$root/bin:$PATH" OMARCHY_PATH="$root" "$root/bin/omarchy-channel-set" "$channel" >"$boundary_tmp/output" 2>&1 || status=$?
 
     if grep -q '^model:downgraded' "$SUDO_TEST_LOG"; then
       fail "$source to $channel: the refresh moved omarchy-dev onto the repository's older build" "$(<"$SUDO_TEST_LOG")"
