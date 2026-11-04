@@ -16,6 +16,7 @@ omarchy-input-method configure --defaults || echo "Input method defaults deferre
 # enables none of it when it cannot find one unit, while 8 separate reloads
 # stall the user manager during first-login startup.
 units=(
+  oo7-daemon.service
   bt-agent.service
   owed.service
   omarchy-recover-internal-monitor.service
@@ -28,6 +29,10 @@ units=(
 )
 
 failed=0
+
+# Before oo7-daemon's first start, so that it creates the keyring encrypted.
+omarchy-keyring-seal || failed=1
+
 enabled=()
 for unit in "${units[@]}"; do
   if systemctl --user enable --no-reload "$unit"; then

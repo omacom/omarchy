@@ -49,10 +49,10 @@ folio
 fontconfig
 foot
 fzf
+gcr
 ghostscript
 git
 gliff
-gnome-keyring
 gnome-themes-extra
 google-chrome
 grim
@@ -112,6 +112,7 @@ omarchy-screensaver
 omarchy-themes-intros
 omarchy-themes-loops
 omasnap
+oo7
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
 pacman-contrib
