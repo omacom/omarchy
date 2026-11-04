@@ -75,10 +75,14 @@ fi
 # not, so the Quake console opens on whatever the machine is running. The model
 # last started wins when it is running; any other running one will do. One
 # still loading is not up yet, and opening an agent on it would only error.
+#
+# `omarchy-agent-local status` exits non-zero when no model was ever started,
+# which under this script's `set -e` and `pipefail` would end the launch instead
+# of falling through to the usual agent, so the probe answers empty there.
 if [[ $prefer_local == "true" && $use_local != "true" ]]; then
   local_model=$(omarchy-agent-local status --json 2>/dev/null | jq -r '
     [.models // {} | to_entries[] | select(.value.unit == "active" and .value.sub_state == "running") | .key] as $up
-    | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null)
+    | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null || true)
   [[ -n $local_model ]] && use_local=true
 fi
 
