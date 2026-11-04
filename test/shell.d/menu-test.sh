@@ -76,6 +76,8 @@ const orderExtension = menu.keepMenuDefinition(null, JSON.stringify({
   order: ['apps', 'install', 'remove', 'install', 'missing', 'learn.manual', 'root', null, 42],
   personal: { action: 'open-personal' }
 }))
+const orderDefaultsBefore = JSON.parse(JSON.stringify(orderDefaults))
+const orderExtensionBefore = JSON.parse(JSON.stringify(orderExtension.items))
 const ordered = menu.mergeMenuSources(orderDefaults, orderExtension.items, 'Go', orderExtension.order)
 const rootIds = result => result.itemOrder.filter(id => result.items[id].parent === 'root')
 assertDeepEqual(rootIds(ordered), ['apps', 'install', 'remove', 'learn', 'personal'], 'menu prioritizes listed root entries and preserves the remaining order')
@@ -91,7 +93,8 @@ assertEqual(wrappedMerged.items.apps.label, 'My apps', 'root ordering coexists w
 const ordinary = menu.mergeMenuSources(orderDefaults, [], 'Go')
 assertDeepEqual(menu.mergeMenuSources(orderDefaults, [], 'Go', []).itemOrder, ordinary.itemOrder, 'empty root ordering preserves the default sequence')
 assertDeepEqual(menu.mergeMenuSources(orderDefaults, [], 'Go', 'remove').itemOrder, ordinary.itemOrder, 'invalid root ordering preserves the default sequence')
-assertDeepEqual(orderDefaults.map(row => row.id), ['apps', 'learn', 'learn.manual', 'install', 'install.editor', 'remove'], 'root ordering does not mutate its source rows')
+assertDeepEqual(orderDefaults, orderDefaultsBefore, 'root ordering does not mutate shipped source rows')
+assertDeepEqual(orderExtension.items, orderExtensionBefore, 'root ordering does not mutate extension source rows')
 assertEqual(menu.keepMenuDefinition(orderExtension, ''), orderExtension, 'an empty read during a file save preserves ordering and rows')
 assertEqual(menu.keepMenuDefinition(orderExtension, '{"order":['), orderExtension, 'a partial file save preserves ordering and rows together')
 assertDeepEqual(menu.keepMenuDefinition(orderExtension, '{}'), { items: [], order: [] }, 'removing the order override restores ordinary ordering')
