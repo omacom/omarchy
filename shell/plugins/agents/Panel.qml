@@ -2076,14 +2076,14 @@ Panel {
         text: Commons.I18n.t("agents.spendThisMonth")
         color: root.foreground
         font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.font.bodySmall
       }
 
       Meter {
         visible: !!section.spend && section.spend.cap > 0
         anchors.left: spendTitle.right
         anchors.right: spendValue.left
-        anchors.rightMargin: Style.spacing.md
+        anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
         value: visible ? section.spend.amount / section.spend.cap : -1
         alarming: root.spendAlarming(section.spend)
@@ -2094,7 +2094,7 @@ Panel {
         visible: !!section.spend && section.spend.cap <= 0 && section.spend.days.length > 0
         anchors.left: spendTitle.right
         anchors.right: spendValue.left
-        anchors.rightMargin: Style.spacing.md
+        anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
         height: spendTitle.implicitHeight
         readonly property var days: section.spend ? section.spend.days : []
@@ -2126,16 +2126,25 @@ Panel {
         }
       }
 
+      // As wide as a limit row's time left, so the line ends where theirs do.
+      TextMetrics {
+        id: spendValueMetrics
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        text: "00h 00m"
+      }
+
       Text {
         id: spendValue
         textFormat: Text.PlainText
+        width: Math.max(Math.ceil(spendValueMetrics.advanceWidth), implicitWidth)
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         horizontalAlignment: Text.AlignRight
         text: root.spendValueText(section.spend)
         color: root.spendAlarming(section.spend) ? root.urgent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.font.bodySmall
       }
     }
 
