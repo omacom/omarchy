@@ -53,10 +53,7 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
     #
-    # The tracer comes out of /proc/<pid>/status as systemd-coredump saved it.
-    # Anything short of a readable TracerPid line reads as untraced, so a field
-    # that is missing, or journalled as a byte array because the status held
-    # bytes that are not UTF-8, still announces rather than drops the crash.
+    # Missing or non-text status must not suppress a crash.
     IFS=$'\t' read -r uid comm pid exe signal tracer < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              def tracer: if type == "string"
@@ -81,10 +78,7 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     [[ $uid =~ ^[0-9]+$ ]] || continue
     ((uid == UID)) || continue
 
-    # A process that died under strace, gdb or any other ptrace tracer was being
-    # watched by someone already, so a toast offering a diagnosis is noise. It
-    # can also be the tracer's doing: a program that asserts with a breakpoint
-    # only when it sees a debugger turns a logged warning into a SIGTRAP.
+    # Skip crashes already being debugged.
     [[ $tracer =~ ^[0-9]+$ ]] && ((tracer != 0)) && continue
 
     # comm is truncated to 15 characters, so prefer the executable's basename.

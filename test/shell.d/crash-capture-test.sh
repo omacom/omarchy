@@ -243,10 +243,6 @@ run_watch
 pass "the fallback name can be muted like any other"
 mute unknown off
 
-# A crash under a tracer is somebody's debugging session, and the tracer can be
-# the cause: a program that asserts by breakpoint only under a debugger dies of
-# SIGTRAP there and nowhere else. The status is the /proc text systemd-coredump
-# journals; it is the one field that says a tracer was attached.
 traced_entry() {
   local comm="$1" status="$2"
 
@@ -266,9 +262,7 @@ announced nautilus ||
   fail "a TracerPid of 0 is read as traced, so every crash with a recorded status goes silent"
 pass "a traced crash stays quiet while an untraced one still announces"
 
-# journalctl writes a field holding bytes that are not UTF-8 as an array of
-# numbers, and a comm can put such bytes into the status. Reading that as
-# traced, or failing to parse the entry at all, would drop a real crash.
+# journalctl represents non-UTF-8 fields as byte arrays.
 reset_entries
 traced_entry nautilus '[78,97,109,101,58,9,255,10]'
 run_watch
