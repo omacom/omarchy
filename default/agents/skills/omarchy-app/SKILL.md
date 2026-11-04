@@ -66,8 +66,9 @@ files committed.
 - Use `QGuiApplication`, not `QApplication`. Call
   `app.setDesktopFileName("<name>")` so the compositor and launcher match the
   window to its `.desktop` file and icon.
-- Use the Material style with `Material.theme: Material.Dark` and the theme
-  accent as `Material.accent`, on a dark window color.
+- Use the Material style, light or dark by the theme's `mode`, with the theme
+  accent as `Material.accent` and the window, panels and text in the theme's
+  own colors (see below).
 - Heavy media work goes through the `ffmpeg`/`ffprobe` command-line tools via
   `QProcess`, not by linking libav.
 - Open and save dialogs go through xdg-desktop-portal over D-Bus
@@ -77,11 +78,18 @@ files committed.
 
 ## Omarchy conventions
 
-- **Follow the theme live.** Read `accent` from
+- **Follow the whole theme live, light ones too.** Read
   `~/.local/state/omarchy/current/theme/colors.toml` and watch it; a theme
   switch replaces files and symlinks, so re-arm the watcher on every change.
-  Fall back to `#FFD60A` when Omarchy isn't there. `templates.md` has the
-  `Theme` class. Never change Omarchy's config.
+  Take `accent` (fallback `#FFD60A`) and the palette: `mode` picks
+  `Material.Light` or `Material.Dark`; the window is `background`, side lists
+  `dark_background`, panels `lighter_background`, selected rows `selection`,
+  text `foreground`, states `red`/`green`/`yellow`. Five stock themes are
+  light (Flexoki Light, Catppuccin Latte, Rosé Pine and more), and an app that
+  reads only the accent stays dark on them. Define the colors once on the
+  window in `Main.qml` and use those names everywhere; a hex literal in a page
+  file is a bug, except the black behind video and photos. `templates.md` has
+  the `Theme` class and the palette. Never change Omarchy's config.
 - **Speak the user's language.** Omarchy runs in 50 languages, and the app
   follows the one picked under Setup > Language, live, like the theme. Write
   every visible string as `qsTr("Save")` in QML or `tr("Save")` in C++, with
@@ -134,7 +142,9 @@ files committed.
    straight in, run offscreen, and pass temp directories to anything that
    reads the disk (the `Theme` takes the theme directory as an argument).
 3. Look at it. Take a screenshot with `omarchy capture screenshot fullscreen
-   save` and check the window against the theme before calling it done.
+   save` and check the window against the theme before calling it done, on
+   one light and one dark stock theme (`/usr/share/omarchy/themes/<name>/
+   colors.toml`; the offscreen harness can point the `Theme` at a copy).
    Switch the language once (`omarchy language da`) and look again: longer
    words must not clip, and nothing should still be in English.
 4. Drive the real QML offscreen when a change is about interaction. A small
