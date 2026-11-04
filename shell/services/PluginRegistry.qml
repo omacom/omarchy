@@ -457,6 +457,19 @@ QtObject {
     return ""
   }
 
+  // A clone of sourceId other than exceptId whose widget is on the bar.
+  function barCloneFor(config, sourceId, exceptId) {
+    for (var candidate in installedPlugins) {
+      if (candidate === exceptId) continue
+      var candidateManifest = installedPlugins[candidate]
+      var candidateMetadata = candidateManifest && Util.isPlainObject(candidateManifest.omarchy)
+        ? candidateManifest.omarchy : null
+      if (!candidateMetadata || String(candidateMetadata.clonedFrom || "") !== sourceId) continue
+      if (findEntryLocation(config, candidate).kind === "bar") return candidate
+    }
+    return ""
+  }
+
   function restoreCloneSource(config, cloneId, sourceId) {
     var cloneManifest = installedPlugins[cloneId]
     var isBarOption = cloneManifest && Array.isArray(cloneManifest.kinds)
@@ -584,7 +597,19 @@ QtObject {
         return
       }
 
-      if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
+      // Another clone of the same source still has its widget on the bar, so
+      // the source is not put back beside it: that clone puts it back when it
+      // goes.
+      var barClone = clonedFrom ? barCloneFor(config, clonedFrom, key) : ""
+      if (barClone) {
+        var cloneBarLocation = findBarLocation(config, key, "")
+        if (cloneBarLocation.found) config.bar.layout[cloneBarLocation.section].splice(cloneBarLocation.index, 1)
+        config.plugins = config.plugins.filter(function(entry) {
+          return !entry || Util.canonicalWidgetId(String(entry.id)) !== key
+        })
+        if (cloneShouldRestoreSource(config, key)) setCloneShouldRestoreSource(config, barClone, true)
+        setCloneShouldRestoreSource(config, key, false)
+      } else if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
       else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
       else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
 

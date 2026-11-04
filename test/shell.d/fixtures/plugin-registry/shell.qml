@@ -96,12 +96,18 @@ ShellRoot {
     var localWidget = manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
     localWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
     scan += block("thirdparty", "/third/local-widget", localWidget)
+    var sharedWidget = manifest("shared.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
+    sharedWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
+    scan += block("thirdparty", "/third/shared-widget", sharedWidget)
     var localWeather = manifest("local.weather", ["bar-widget"], { barWidget: "Widget.qml" })
     localWeather.omarchy = { clonedFrom: "omarchy.weather" }
     scan += block("thirdparty", "/third/local-weather", localWeather)
     var localHybrid = manifest("local.hybrid", ["menu", "bar-widget"], { menu: "Menu.qml", barWidget: "Widget.qml" })
     localHybrid.omarchy = { clonedFrom: "omarchy.hybrid" }
     scan += block("thirdparty", "/third/local-hybrid", localHybrid)
+    var sharedHybrid = manifest("shared.hybrid", ["menu", "bar-widget"], { menu: "Menu.qml", barWidget: "Widget.qml" })
+    sharedHybrid.omarchy = { clonedFrom: "omarchy.hybrid" }
+    scan += block("thirdparty", "/third/shared-hybrid", sharedHybrid)
     var localPanel = manifest("local.grouped-panel", ["panel"], { panel: "Panel.qml" })
     localPanel.omarchy = { clonedFrom: "omarchy.grouped-panel" }
     scan += block("thirdparty", "/third/local-panel", localPanel)
@@ -141,6 +147,8 @@ ShellRoot {
       "omarchy.future-auth",
       "omarchy.grouped-panel",
       "omarchy.hybrid",
+      "shared.first-widget",
+      "shared.hybrid",
       "third.bar",
       "third.begin-widget",
       "third.center-widget",
@@ -393,6 +401,39 @@ ShellRoot {
       root.config.bar.layout.center,
       [{ id: "omarchy.first-widget", size: 4 }],
       "disabling a widget clone restores its source in place"
+    )
+
+    registry.setEnabled("local.first-widget", true)
+    registry.setEnabled("shared.first-widget", true)
+    registry.setEnabled("shared.first-widget", false)
+    var afterSecondClone = JSON.parse(JSON.stringify(root.config.bar.layout))
+    root.config.plugins.push({ id: "shared.first-widget" })
+    registry.setEnabled("local.first-widget", false)
+    var afterLastClone = JSON.parse(JSON.stringify(root.config.bar.layout))
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "omarchy.hybrid" }], center: [], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("local.hybrid", true)
+    registry.setEnabled("shared.hybrid", true)
+    root.config.plugins.push({ id: "local.hybrid" })
+    registry.setEnabled("local.hybrid", false)
+    var afterFirstHybrid = JSON.parse(JSON.stringify({
+      left: root.config.bar.layout.left,
+      centerEnd: root.config.bar.layout.centerEnd,
+      plugins: root.config.plugins,
+      receiver: registry.resolveEnabledId("omarchy.hybrid")
+    }))
+    registry.setEnabled("shared.hybrid", false)
+    root.assertDeepEqual(
+      [afterSecondClone.center, afterSecondClone.centerEnd, afterLastClone.center,
+        afterFirstHybrid, root.config.bar.layout.centerEnd, root.config.disabledPlugins === undefined],
+      [[{ id: "local.first-widget", size: 4 }], [], [{ id: "omarchy.first-widget", size: 4 }],
+        { left: [], centerEnd: [{ id: "shared.hybrid" }], plugins: [], receiver: "shared.hybrid" },
+        [{ id: "omarchy.hybrid" }], true],
+      "disabling a clone while another stays on the bar drops every record of it, and the last clone on the bar restores its source"
     )
 
     root.config = {
