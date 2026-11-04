@@ -5,8 +5,11 @@ echo "Remove legacy temporary passwordless sudo grants"
 # through the root-owned /etc/omarchy.conf; otherwise use the installed path,
 # so a caller cannot put a program in $OMARCHY_PATH and have sudo run it.
 helper=/usr/bin/omarchy-sudo-passwordless
+conf_owner=
+conf_mode=
 if [[ -f /etc/omarchy.conf && ! -L /etc/omarchy.conf ]] &&
-  [[ $(/usr/bin/stat -Lc '%u' /etc/omarchy.conf 2>/dev/null || true) == 0 ]]; then
+  read -r conf_owner conf_mode < <(/usr/bin/stat -Lc '%u %a' /etc/omarchy.conf 2>/dev/null) &&
+  [[ $conf_owner == 0 && $conf_mode =~ ^[0-7]+$ ]] && ! ((8#$conf_mode & 022)); then
   quoted_root=$OMARCHY_PATH
   quoted_root=${quoted_root//\\/\\\\}
   quoted_root=${quoted_root//\"/\\\"}
