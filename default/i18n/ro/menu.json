@@ -1288,5 +1288,14 @@
   },
   "setup.keyboard.input-methods": {
     "label": "Metode de introducere"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
   }
 }

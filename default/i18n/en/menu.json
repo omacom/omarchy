@@ -860,6 +860,9 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -868,6 +871,9 @@
   },
   "install.ai.grok-bot": {
     "label": "Grok Bot"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   },
   "install.ai.hermes": {
     "label": "Hermes Desktop"
@@ -1075,6 +1081,9 @@
   },
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
   },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
