@@ -42,7 +42,7 @@ pass "emoji picker hides"
 picker_prefs() {
   local prefs
   for _ in {1..50}; do
-    prefs=$(scratch_ipc shell call omarchy.emojis prefsJson 2>/dev/null || true)
+    prefs=$(scratch_ipc shell call omarchy.emojis prefsJson "" 2>/dev/null || true)
     [[ $prefs == "{"* && $(jq -r '.recent | length' <<<"$prefs" 2>/dev/null) != 0 ]] && { printf '%s' "$prefs"; return; }
     sleep 0.1
   done

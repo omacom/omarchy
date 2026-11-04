@@ -273,7 +273,7 @@ Item {
   // ------------------------------------------------------------- actions
 
   // The favorites, recents and tone the picker holds, as it saves them
-  // (`omarchy-shell shell call omarchy.emojis prefsJson`).
+  // (`omarchy-shell shell call omarchy.emojis prefsJson ""`).
   function prefsJson() {
     return EmojiSearch.serializePrefs(root.prefs)
   }
