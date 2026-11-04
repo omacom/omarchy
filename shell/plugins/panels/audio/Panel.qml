@@ -1463,10 +1463,11 @@ Panel {
       // Which output this application comes out of. Click to send it to the
       // next device, and again to hand it back to the default. Hidden when
       // there is only one output to choose from, counted after sinkAvailable()
-      // has removed the ones routing will not offer, so the row cannot appear
-      // with nothing to cycle to.
+      // has removed the ones routing will not offer, unless the application is
+      // pinned: a pin outlives its output, and this row is the mouse's way back
+      // to following the default.
       Item {
-        visible: root.audioSinks.length > 1
+        visible: root.audioSinks.length > 1 || streamRow.routePinned
         width: parent.width
         implicitHeight: visible ? routeText.implicitHeight : 0
         height: implicitHeight
