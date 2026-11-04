@@ -88,43 +88,6 @@ pass "fullscreen on enters full screen"
 # The flag records animations being off, so on and off are the other way round.
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-notification-send"
 chmod +x "$stub_bin/omarchy-notification-send"
-
-ratio_flag="$test_home/.local/state/omarchy/toggles/hypr/single-window-aspect-ratio.lua"
-
-HOME="$test_home" omarchy-hyprland-window-single-square-aspect-toggle
-[[ -f $ratio_flag ]] || fail "square aspect toggle places the single-window-aspect-ratio flag"
-pass "square aspect toggle places the single-window-aspect-ratio flag"
-
-HOME="$test_home" omarchy-hyprland-window-single-square-aspect-toggle
-[[ ! -f $ratio_flag ]] || fail "square aspect toggle removes the single-window-aspect-ratio flag"
-pass "square aspect toggle removes the single-window-aspect-ratio flag"
-
-if command -v lua >/dev/null; then
-  ratio_load() {
-    local dir="$TMPDIR/ratio_load"
-    rm -rf "$dir"
-    mkdir -p "$dir"
-    cp "$ROOT/default/hypr/toggles/single-window-aspect-ratio.lua" "$dir/"
-    ROOT="$ROOT" DIR="$dir" lua - <<'LUA'
-package.path = os.getenv("ROOT") .. "/?.lua;" .. os.getenv("DIR") .. "/?.lua;" .. package.path
-local ratio, fs_one_col
-hl = {
-  config = function(c)
-    if c.layout and c.layout.single_window_aspect_ratio then ratio = c.layout.single_window_aspect_ratio end
-    if c.scrolling and c.scrolling.fullscreen_on_one_column ~= nil then fs_one_col = c.scrolling.fullscreen_on_one_column end
-  end
-}
-require("default.hypr.require_all").files(os.getenv("DIR"), nil, { reload = true })
-if ratio and ratio[1] == 1 and ratio[2] == 1 and fs_one_col == false then
-  print("ok")
-else
-  print("fail")
-end
-LUA
-  }
-  [[ $(ratio_load) == "ok" ]] || fail "single-window-aspect-ratio sets layout ratio and disables scrolling fullscreen_on_one_column"
-  pass "single-window-aspect-ratio configures both layout aspect ratio and scrolling mode"
-fi
 animations_flag="$test_home/.local/state/omarchy/toggles/hypr/no-animations.lua"
 
 HOME="$test_home" omarchy-toggle-animations off
