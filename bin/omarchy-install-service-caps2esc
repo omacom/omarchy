@@ -24,3 +24,5 @@ sudo systemctl enable --now udevmon.service
 echo ""
 echo "caps2esc has been installed and udevmon is running."
 echo "Caps Lock now acts as Escape when tapped and Control when held."
+echo "Shift + CapsLock no longer works as the compose key for quick emojis and other completions."
+echo "To move compose to Right Alt, set kb_options = \"compose:ralt\" in ~/.config/hypr/input.lua."
