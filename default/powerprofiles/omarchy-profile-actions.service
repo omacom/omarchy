@@ -11,4 +11,4 @@ RestartSec=2
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/bin
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
