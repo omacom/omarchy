@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Remove caps2esc, interception-tools, and disable the udevmon service.
+# omarchy:alias=omarchy remove caps2esc
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Stopping and disabling udevmon..."
+sudo systemctl disable --now udevmon.service 2>/dev/null || true
+
+echo "Removing /etc/udevmon.yaml..."
+sudo rm -f /etc/udevmon.yaml
+
+echo "Removing caps2esc and interception-tools..."
+omarchy-pkg-drop interception-caps2esc interception-tools
+
+echo ""
+echo "caps2esc and interception-tools have been removed."
