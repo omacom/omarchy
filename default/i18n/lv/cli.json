@@ -44,6 +44,8 @@
   "agents.switchedBody": "Jaunas %1 sesijas tagad izmanto %2 (%3%).\nAktīvās sesijas turpina izmantot %4.",
   "animations.disabled": "Animācijas izslēgtas",
   "animations.enabled": "Animācijas ieslēgtas",
+  "animations.softwareRendering": "Animācijas izslēgtas bez GPU",
+  "animations.softwareRenderingBody": "Netiek izmantots GPU, tāpēc animācijas, izplūšana un ēnas ir izslēgtas. Tās var atkal ieslēgt: Izskats > Animācijas ieslēgtas.",
   "audio.micMuted": "Mikrofons izslēgts",
   "audio.micOn": "Mikrofons ieslēgts",
   "audio.noDevices": "Nav atrasta neviena audio ierīce",

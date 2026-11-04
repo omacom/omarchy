@@ -42,6 +42,8 @@
   "agents.switchedBody": "Sesi %1 baru kini menggunakan %2 (%3%).\nSesi yang berjalan tetap di %4.",
   "animations.disabled": "Animasi dinonaktifkan",
   "animations.enabled": "Animasi diaktifkan",
+  "animations.softwareRendering": "Animasi nonaktif tanpa GPU",
+  "animations.softwareRenderingBody": "Tidak ada GPU yang digunakan, jadi animasi, blur, dan bayangan nonaktif. Tampilan > Animasi Aktif mengaktifkannya kembali.",
   "audio.micMuted": "Mikrofon dibisukan",
   "audio.micOn": "Mikrofon nyala",
   "audio.noDevices": "Tidak ada perangkat audio ditemukan",

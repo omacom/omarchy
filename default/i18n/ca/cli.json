@@ -44,6 +44,8 @@
   "agents.switchedBody": "Les sessions noves de %1 ara fan servir %2 (%3%).\nLes sessions en curs es mantenen a %4.",
   "animations.disabled": "Animacions desactivades",
   "animations.enabled": "Animacions activades",
+  "animations.softwareRendering": "Animacions desactivades sense GPU",
+  "animations.softwareRenderingBody": "No s'utilitza cap GPU, per això les animacions, el desenfocament i les ombres estan desactivats. Aparença > Animacions activades els torna a activar.",
   "audio.micMuted": "Micròfon silenciat",
   "audio.micOn": "Micròfon activat",
   "audio.noDevices": "No s'han trobat dispositius d'àudio",

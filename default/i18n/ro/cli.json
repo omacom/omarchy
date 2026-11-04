@@ -44,6 +44,8 @@
   "agents.switchedBody": "Sesiunile noi %1 folosesc acum %2 (%3%).\nSesiunile în curs rămân pe %4.",
   "animations.disabled": "Animații dezactivate",
   "animations.enabled": "Animații activate",
+  "animations.softwareRendering": "Animații dezactivate fără GPU",
+  "animations.softwareRenderingBody": "Niciun GPU activ, așa că animațiile, estomparea și umbrele sunt dezactivate. Aspect > Animații activate le reactivează.",
   "audio.micMuted": "Microfon dezactivat",
   "audio.micOn": "Microfon activat",
   "audio.noDevices": "Nu s-au găsit dispozitive audio",

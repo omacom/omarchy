@@ -44,6 +44,8 @@
   "agents.switchedBody": "Нове %1 сесије сада користе %2 (%3%).\nПокренуте сесије остају на %4.",
   "animations.disabled": "Анимације онемогућене",
   "animations.enabled": "Анимације омогућене",
+  "animations.softwareRendering": "Анимације искључене без GPU",
+  "animations.softwareRenderingBody": "GPU се не користи, па су анимације, замућење и сенке искључене. Изглед > Анимације укључене их враћа.",
   "audio.micMuted": "Микрофон утишан",
   "audio.micOn": "Микрофон укључен",
   "audio.noDevices": "Нису пронађени аудио-уређаји",

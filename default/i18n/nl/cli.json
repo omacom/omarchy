@@ -43,6 +43,8 @@
   "agents.switchedBody": "Nieuwe %1-sessies gebruiken nu %2 (%3%).\nActieve sessies blijven op %4.",
   "animations.disabled": "Animaties uitgeschakeld",
   "animations.enabled": "Animaties ingeschakeld",
+  "animations.softwareRendering": "Animaties uit zonder GPU",
+  "animations.softwareRenderingBody": "Geen GPU in gebruik, dus animaties, vervaging en schaduwen zijn uit. Via Uiterlijk > Animaties aan zet je ze weer aan.",
   "audio.micMuted": "Microfoon gedempt",
   "audio.micOn": "Microfoon aan",
   "audio.noDevices": "Geen audioapparaten gevonden",

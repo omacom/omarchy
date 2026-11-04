@@ -44,6 +44,8 @@
   "agents.switchedBody": "Les nouvelles sessions %1 utilisent désormais %2 (%3 %). \nLes sessions en cours restent sur %4.",
   "animations.disabled": "Animations désactivées",
   "animations.enabled": "Animations activées",
+  "animations.softwareRendering": "Animations désactivées sans GPU",
+  "animations.softwareRenderingBody": "Aucun GPU utilisé, donc les animations, le flou et les ombres sont désactivés. Apparence > Animations activées permet de les réactiver.",
   "audio.micMuted": "Microphone coupé",
   "audio.micOn": "Microphone activé",
   "audio.noDevices": "Aucun périphérique audio trouvé",
