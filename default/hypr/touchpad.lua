@@ -7,8 +7,9 @@
 -- The file is the source of truth for whatever it sets. apply() runs from
 -- default/hypr/toggles.lua, after ~/.config/hypr/input.lua, so a value saved
 -- here beats the same option set by hand there; keys absent from the file keep
--- whatever input.lua or Omarchy's defaults chose. watch() runs before the
--- user's files so gestures they add can be replaced by gestures saved here.
+-- whatever input.lua or Omarchy's defaults chose. watch() runs before
+-- Omarchy's default gestures and the user's files, so gestures saved here can
+-- replace both.
 --
 -- apply() runs at config load and again through `hyprctl eval` whenever the tool
 -- saves, so it must be safe to repeat in one Lua state: gestures and window
@@ -76,6 +77,26 @@ M.pointer_schema = {
   scroll_method = enum("2fg", "edge", "on_button_down", "no_scroll"),
 }
 
+-- Options under input that Hyprland applies to every pointer except touchpads,
+-- or to every pointer when no device setting says otherwise. Saved under
+-- "mouse"; apply() pins each touchpad to its own pointer values when these
+-- are set, so they only reach mice.
+M.mouse_schema = {
+  sensitivity = number(-1, 1),
+  accel_profile = enum("adaptive", "flat"),
+  left_handed = boolean(),
+  natural_scroll = boolean(),
+  scroll_factor = number(0.05, 5),
+}
+
+-- What a touchpad keeps for a pointer option the mouse settings take over,
+-- when it has no value of its own: Omarchy's defaults.
+M.pointer_defaults = {
+  sensitivity = 0,
+  accel_profile = "adaptive",
+  left_handed = false,
+}
+
 M.gesture_settings_schema = {
   workspace_swipe_distance = integer(50, 2000),
   workspace_swipe_invert = boolean(),
@@ -130,10 +151,27 @@ M.actions = {
   focus_right = { fn = function() return dispatch(hl.dsp.focus({ direction = "r" })) end },
   focus_up = { fn = function() return dispatch(hl.dsp.focus({ direction = "u" })) end },
   focus_down = { fn = function() return dispatch(hl.dsp.focus({ direction = "d" })) end },
-  workspace_next = { fn = function() return dispatch(hl.dsp.focus({ workspace = "e+1" })) end },
-  workspace_previous = { fn = function() return dispatch(hl.dsp.focus({ workspace = "e-1" })) end },
-  menu = { fn = function() return command("omarchy-menu toggle root") end },
+  workspace_next = { fn = function() return dispatch(hl.dsp.focus({ workspace = "r+1" })) end },
+  workspace_previous = { fn = function() return dispatch(hl.dsp.focus({ workspace = "r-1" })) end },
+  move_window_next = { fn = function() return dispatch(hl.dsp.window.move({ workspace = "r+1" })) end },
+  move_window_previous = { fn = function() return dispatch(hl.dsp.window.move({ workspace = "r-1" })) end },
+  console = { action = "special", workspace_name = "qconsole" },
+  menu = { fn = function() return dispatch(hl.dsp.global("omarchy:menu.root")) end },
   notifications = { fn = function() return command("omarchy-shell notifications showHistory") end },
+}
+
+-- Omarchy's default gestures, in the form the tool saves. A saved "bindings"
+-- list replaces these entirely, so the window shows them as ordinary rows.
+-- Workspace switches aren't animated, so a swipe through workspaces lands
+-- when it ends rather than dragging the workspace along under the fingers.
+M.default_gestures = {
+  { fingers = 3, direction = "left", action = "workspace_previous" },
+  { fingers = 3, direction = "right", action = "workspace_next" },
+  { fingers = 3, direction = "up", action = "console" },
+  { fingers = 3, direction = "down", action = "menu" },
+  { fingers = 4, direction = "left", action = "move_window_previous" },
+  { fingers = 4, direction = "right", action = "move_window_next" },
+  { fingers = 4, direction = "down", action = "fullscreen" },
 }
 
 -- Omarchy's default per-app touchpad scroll speeds. A saved "apps" list
@@ -295,9 +333,10 @@ function M.read(path)
   local settings = {
     touchpad = pick(data.touchpad, M.touchpad_schema),
     pointer = pick(data.touchpad, M.pointer_schema),
+    mouse = pick(data.mouse, M.mouse_schema),
     devices = {},
     gesture_settings = {},
-    gestures = {},
+    gestures = nil,
     apps = nil,
   }
 
@@ -317,6 +356,7 @@ function M.read(path)
     settings.gesture_settings = pick(gestures.settings, M.gesture_settings_schema)
 
     if json.is_array(gestures.bindings) then
+      settings.gestures = {}
       for _, binding in ipairs(gestures.bindings) do
         local spec = gesture_spec(binding)
         if spec and usable(spec, settings.gestures) then
@@ -347,6 +387,10 @@ local applied = { gestures = {}, rules = {} }
 -- take over their swipe instead of being refused as shadowed.
 local foreign = {}
 local real_gesture = nil
+
+-- Omarchy's default gestures as added by add_defaults(): those still in place,
+-- and those a saved list took out, to put back if the list goes away.
+local defaults = { active = {}, replaced = {} }
 
 -- Window classes other config gives a touchpad scroll speed, recorded by
 -- watch(), so Omarchy's default speeds never override the user's own.
@@ -389,9 +433,11 @@ function M.watch()
     local result = real_gesture(spec)
     if type(spec) == "table" and type(spec.fingers) == "number" and type(spec.direction) == "string" then
       if spec.action == "unset" then
-        for i = #foreign, 1, -1 do
-          if same_gesture(foreign[i], spec) then
-            table.remove(foreign, i)
+        for _, list in ipairs({ foreign, defaults.active }) do
+          for i = #list, 1, -1 do
+            if same_gesture(list[i], spec) then
+              table.remove(list, i)
+            end
           end
         end
       else
@@ -399,6 +445,39 @@ function M.watch()
       end
     end
     return result
+  end
+end
+
+-- Add Omarchy's default gestures, from default/hypr/gestures.lua. They are
+-- kept apart from the gestures watch() records, so a saved list can replace
+-- them all while only taking over the user's own gestures that clash.
+function M.add_defaults()
+  for _, binding in ipairs(M.default_gestures) do
+    local spec = gesture_spec(binding)
+    local ok, err = pcall(gesture_api(), spec)
+    if ok then
+      defaults.active[#defaults.active + 1] = spec
+    else
+      print("Default gesture: could not add " .. spec.fingers .. "-finger " .. spec.direction .. ": " .. tostring(err))
+    end
+  end
+end
+
+-- A saved list takes the defaults out; without one, any it took out go back.
+local function sync_defaults(saved)
+  if saved then
+    for _, spec in ipairs(defaults.active) do
+      pcall(gesture_api(), { fingers = spec.fingers, direction = spec.direction, mods = spec.mods, action = "unset" })
+      defaults.replaced[#defaults.replaced + 1] = spec
+    end
+    defaults.active = {}
+  else
+    for _, spec in ipairs(defaults.replaced) do
+      if pcall(gesture_api(), spec) then
+        defaults.active[#defaults.active + 1] = spec
+      end
+    end
+    defaults.replaced = {}
   end
 end
 
@@ -532,8 +611,11 @@ function M.apply(path)
   remove_previous()
 
   local config = {}
-  if next(settings.touchpad) then
-    config.input = { touchpad = settings.touchpad }
+  if next(settings.touchpad) or next(settings.mouse) then
+    config.input = merge(settings.mouse)
+    if next(settings.touchpad) then
+      config.input.touchpad = settings.touchpad
+    end
   end
   if next(settings.gesture_settings) then
     config.gestures = settings.gesture_settings
@@ -545,8 +627,17 @@ function M.apply(path)
     end
   end
 
+  -- A pointer option set for mice is global, so each touchpad keeps its own.
+  -- One plugged in later has the mouse value until the next apply.
+  local pinned = {}
+  for key, value in pairs(M.pointer_defaults) do
+    if settings.mouse[key] ~= nil then
+      pinned[key] = value
+    end
+  end
+
   for _, device in ipairs(devices_with_connected(settings.devices)) do
-    local spec = merge(settings.pointer, device.settings)
+    local spec = merge(pinned, settings.pointer, device.settings)
     if next(spec) then
       spec.name = device.name
       local ok, err = pcall(hl.device, spec)
@@ -556,7 +647,9 @@ function M.apply(path)
     end
   end
 
-  for _, gesture in ipairs(settings.gestures) do
+  sync_defaults(settings.gestures ~= nil)
+
+  for _, gesture in ipairs(settings.gestures or {}) do
     take_over(gesture)
     local ok, err = pcall(gesture_api(), gesture)
     if ok then

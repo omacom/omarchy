@@ -99,6 +99,8 @@ hl = {
   dsp = {
     focus = function(arg) return arg end,
     exec_cmd = function(arg) return arg end,
+    global = function(arg) return arg end,
+    window = { move = function(arg) return arg end },
   },
 }
 
@@ -273,7 +275,12 @@ hl = {
   end,
   window_rule = function() return { set_enabled = function() end } end,
   dispatch = function() end,
-  dsp = { focus = function(arg) return arg end, exec_cmd = function(arg) return arg end },
+  dsp = {
+    focus = function(arg) return arg end,
+    exec_cmd = function(arg) return arg end,
+    global = function(arg) return arg end,
+    window = { move = function(arg) return arg end },
+  },
 }
 
 local touchpad = require("default.hypr.touchpad")
@@ -326,6 +333,94 @@ grep -Fqx 'require("default.hypr.touchpad").watch()' "$ROOT/default/hypr/omarchy
   fail "touchpad settings do not also apply before input.lua"
 pass "touchpad settings apply after input.lua, and gesture watching starts before it"
 
+# ---- Omarchy's default gestures ----------------------------------------------
+
+printf '{ "gestures": { "bindings": [{ "fingers": 3, "direction": "up", "action": "close" }] } }' >"$tmpdir/own-gestures.json"
+printf '{}' >"$tmpdir/no-gestures.json"
+
+# gestures.lua adds the defaults between watch() and the user's input.lua,
+# which here takes 4-finger down for itself.
+defaults_output=$(ROOT="$ROOT" OWN="$tmpdir/own-gestures.json" NONE="$tmpdir/no-gestures.json" lua - <<'LUA'
+package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
+hl = {
+  config = function() end,
+  device = function() end,
+  gesture = function(spec)
+    print(("gesture %d %s %s"):format(spec.fingers, spec.direction, spec.action == "unset" and "unset" or "add"))
+  end,
+  window_rule = function() return { set_enabled = function() end } end,
+  dispatch = function() end,
+  dsp = {
+    focus = function(arg) return arg end,
+    exec_cmd = function(arg) return arg end,
+    global = function(arg) return arg end,
+    window = { move = function(arg) return arg end },
+  },
+}
+
+local touchpad = require("default.hypr.touchpad")
+touchpad.watch()
+print("-- defaults")
+touchpad.add_defaults()
+print("-- input.lua")
+hl.gesture({ fingers = 4, direction = "down", action = "unset" })
+hl.gesture({ fingers = 4, direction = "down", action = "close" })
+print("-- saved list")
+touchpad.apply(os.getenv("OWN"))
+print("-- list removed")
+touchpad.apply(os.getenv("NONE"))
+LUA
+)
+
+expected_defaults='-- defaults
+gesture 3 left add
+gesture 3 right add
+gesture 3 up add
+gesture 3 down add
+gesture 4 left add
+gesture 4 right add
+gesture 4 down add
+-- input.lua
+gesture 4 down unset
+gesture 4 down add
+-- saved list
+gesture 3 left unset
+gesture 3 right unset
+gesture 3 up unset
+gesture 3 down unset
+gesture 4 left unset
+gesture 4 right unset
+gesture 3 up add
+-- list removed
+gesture 3 up unset
+gesture 3 left add
+gesture 3 right add
+gesture 3 up add
+gesture 3 down add
+gesture 4 left add
+gesture 4 right add'
+[[ $defaults_output == "$expected_defaults" ]] ||
+  fail "a saved gesture list replaces Omarchy's defaults, and they return when it goes" "expected:"$'\n'"$expected_defaults"$'\n'"actual:"$'\n'"$defaults_output"
+pass "a saved gesture list replaces Omarchy's defaults, and they return when it goes"
+pass "a default the user's input.lua unsets is neither unset again nor brought back"
+
+# ---- mouse settings ----------------------------------------------------------
+
+cat >"$tmpdir/mouse.json" <<'JSON'
+{
+  "touchpad": { "sensitivity": 0.4 },
+  "mouse": { "sensitivity": -0.5, "accel_profile": "flat", "natural_scroll": true, "scroll_factor": 9, "tap_to_click": false },
+  "devices": { "elan-touchpad": {}, "apple-trackpad": { "accel_profile": "adaptive" } }
+}
+JSON
+mouse_output=$(run_apply "$tmpdir/mouse.json" | grep -v '^rule')
+expected_mouse='config input.accel_profile=flat input.natural_scroll=true input.sensitivity=-0.5
+device accel_profile=adaptive name=apple-trackpad sensitivity=0.4
+device accel_profile=adaptive name=elan-touchpad sensitivity=0.4'
+[[ $mouse_output == "$expected_mouse" ]] ||
+  fail "mouse settings set the global pointer options and touchpads keep their own" "expected:"$'\n'"$expected_mouse"$'\n'"actual:"$'\n'"$mouse_output"
+pass "mouse settings set the global pointer options and touchpads keep their own"
+
 # ---- Model.js and touchpad.lua stay in sync -----------------------------------
 
 lua_lists=$(ROOT="$ROOT" lua - <<'LUA'
@@ -363,12 +458,16 @@ local function specs(...)
 end
 print(specs(touchpad.touchpad_schema, touchpad.pointer_schema))
 print(specs(touchpad.gesture_settings_schema))
+print(specs(touchpad.mouse_schema))
+local defaults = {}
+for _, g in ipairs(touchpad.default_gestures) do defaults[#defaults + 1] = g.fingers .. ":" .. g.direction .. ":" .. g.action end
+print(table.concat(defaults, ","))
 LUA
 )
 
 LUA_LISTS="$lua_lists" run_node_test <<'JS'
 const model = requireFromRoot('shell/plugins/touchpad/Model.js')
-const [actions, directions, settings, gestureSettings, apps, loaderSettings, loaderGestureSettings] = process.env.LUA_LISTS.split('\n')
+const [actions, directions, settings, gestureSettings, apps, loaderSettings, loaderGestureSettings, loaderMouseSettings, defaultGestures] = process.env.LUA_LISTS.split('\n')
 const sorted = list => list.slice().sort().join(',')
 
 assertEqual(sorted(model.ACTIONS.map(a => a.value)), actions, 'the window offers exactly the gesture actions the loader maps')
@@ -390,6 +489,15 @@ const specs = schema => Object.keys(schema).map(key => {
 }).sort().join(';')
 assertEqual(specs(model.LOADER_SETTINGS), loaderSettings, 'the window keeps exactly the settings and ranges the loader accepts')
 assertEqual(specs(model.LOADER_GESTURE_SETTINGS), loaderGestureSettings, 'the window keeps exactly the gesture settings and ranges the loader accepts')
+assertEqual(specs(model.LOADER_MOUSE_SETTINGS), loaderMouseSettings, 'the window keeps exactly the mouse settings and ranges the loader accepts')
+for (const key of Object.keys(model.MOUSE_SETTINGS)) {
+  assert(key in model.LOADER_MOUSE_SETTINGS, `the loader accepts the ${key} mouse setting`)
+}
+assertEqual(
+  model.DEFAULT_GESTURES.map(g => `${g.fingers}:${g.direction}:${g.action}`).join(','),
+  defaultGestures,
+  'the window and the loader agree on the default gestures'
+)
 assertEqual(
   model.DEFAULT_APPS.map(app => `${app.match}=${app.scroll.toFixed(1)}`).join(','),
   apps,
@@ -464,7 +572,8 @@ assertDeepEqual(overrides.gestureSettings, { workspace_swipe_invert: true }, 'in
 assertEqual(overrides.gestures, 1, 'input.lua gestures are counted')
 assertEqual(overrides.appScroll, true, 'input.lua per-app scroll rules are detected')
 const template = require('fs').readFileSync(require('path').join(root, 'config/hypr/input.lua'), 'utf8')
-assertDeepEqual(model.userOverrides(template), { touchpad: {}, gestureSettings: {}, gestures: 0, appScroll: false }, 'the stock input.lua template overrides nothing')
+assertDeepEqual(overrides.mouse, { sensitivity: true }, 'input.lua pointer settings are detected for the mouse')
+assertDeepEqual(model.userOverrides(template), { touchpad: {}, mouse: {}, gestureSettings: {}, gestures: 0, appScroll: false }, 'the stock input.lua template overrides nothing')
 
 // ---- labels resolve through the shell catalog ----
 const english = JSON.parse(require('fs').readFileSync(require('path').join(root, 'default/i18n/en/shell.json'), 'utf8'))
@@ -474,7 +583,7 @@ const collect = (entry) => {
   if (entry.description) labelKeys.push(entry.description)
   ;(entry.options || []).forEach(collect)
 }
-Object.values(model.SETTINGS).concat(Object.values(model.GESTURE_SETTINGS), model.PAGES, model.FINGERS, model.DIRECTIONS,
+Object.values(model.SETTINGS).concat(Object.values(model.GESTURE_SETTINGS), Object.values(model.MOUSE_SETTINGS), model.PAGES, model.FINGERS, model.DIRECTIONS,
   model.MODIFIERS, model.ACTIONS, model.GESTURE_PRESETS, [model.CUSTOM_DEVICE]).forEach(collect)
 assertDeepEqual(labelKeys.filter((key) => typeof english[key] !== 'string'), [], 'every touchpad label and description is an English catalog key')
 
@@ -490,8 +599,28 @@ assertDeepEqual(
   ['', 'Gesture 1 already uses this swipe', '', 'Two-finger swipes are used for scrolling', ''],
   'shadowed and two-finger swipes are flagged like the loader drops them'
 )
-const taken = [{ fingers: 3, direction: 'horizontal', action: 'workspace' }]
-assertEqual(model.gestureProblems(taken.concat([model.nextBinding(taken)]))[1], '', 'a new gesture starts on a free swipe')
+const defaults = model.gesturesOrDefault(null, false)
+assertDeepEqual(model.gestureProblems(defaults.concat([model.nextBinding(defaults)])).filter(Boolean), [], 'a new gesture starts on a swipe the defaults leave free')
+assertDeepEqual(
+  model.GESTURE_PRESETS.filter(preset => !model.presetTaken(defaults, preset)).map(preset => preset.label),
+  ['touchpad.presetMenu', 'touchpad.presetZoom'],
+  'only suggestions on a swipe the defaults leave free are offered'
+)
+assertDeepEqual(model.gesturesOrDefault(null, true), [], 'no defaults show when hyprland.lua turns them off')
+assertDeepEqual(model.gesturesOrDefault([], false), [], 'an emptied list stays empty instead of showing the defaults')
+assertEqual(model.serialize(model.normalize({ gestures: { bindings: [] } })).includes('"bindings": []'), true, 'an emptied gesture list is saved')
+assertEqual(model.defaultGesturesOff('-- omarchy_default_gestures = false\n'), false, 'a commented-out switch leaves the default gestures on')
+assertEqual(model.defaultGesturesOff('omarchy_default_gestures = false\n'), true, 'hyprland.lua can turn the default gestures off')
+
+// ---- mouse ----
+assertDeepEqual(model.normalize({ mouse: { scroll_factor: 2, tap_to_click: false, sensitivity: 4 } }).mouse, { scroll_factor: 2 }, 'the window keeps only valid mouse settings')
+assertDeepEqual(
+  model.touchpadLive({ sensitivity: 0.5, accel_profile: 'flat', natural_scroll: true }, { sensitivity: 0.5 }),
+  { accel_profile: 'flat', natural_scroll: true },
+  'a pointer option the mouse sets is not shown as the touchpad running it'
+)
+assertEqual(model.effective('sensitivity', {}, model.touchpadLive({ sensitivity: 0.5 }, { sensitivity: 0.5 })), 0, 'a touchpad pinned away from the mouse speed shows the default')
+assertDeepEqual(model.visiblePages(false).map(page => page.id), ['mouse'], 'without a touchpad only the mouse page shows')
 
 // ---- labels ----
 assertEqual(model.deviceLabel('elan0678:00-04f3:3195-touchpad'), 'ELAN Touchpad', 'bus ids are dropped from device names')
@@ -515,6 +644,8 @@ case "$1 $2" in
       input:touchpad:natural_scroll) echo '{"option": "input:touchpad:natural_scroll", "bool": true, "set": true }' ;;
       input:touchpad:scroll_factor) echo '{"option": "input:touchpad:scroll_factor", "float": 0.400000, "set": true }' ;;
       input:accel_profile) echo '{"option": "input:accel_profile", "str": "[[EMPTY]]", "set": false }' ;;
+      input:natural_scroll) echo '{"option": "input:natural_scroll", "bool": false, "set": false }' ;;
+      input:scroll_factor) echo '{"option": "input:scroll_factor", "float": 1.000000, "set": false }' ;;
       *) echo "no such option" ;;
     esac
     ;;
@@ -550,6 +681,9 @@ status=$(HOME="$tmpdir/home" PATH="$stub_bin:$PATH" HYPRCTL_LOG="$log" "$ROOT/bi
 jq -e '.options == {natural_scroll: true, scroll_factor: 0.4, accel_profile: ""}' <<<"$status" >/dev/null ||
   fail "status reports the running options" "$status"
 pass "status reports the running options"
+jq -e '.mouse == {accel_profile: "", natural_scroll: false, scroll_factor: 1}' <<<"$status" >/dev/null ||
+  fail "status reports the mouse's scroll options apart from the touchpad's" "$status"
+pass "status reports the mouse's scroll options apart from the touchpad's"
 [[ $(jq -c '.devices' <<<"$status") == '["elan-touchpad","Apple Magic Trackpad"]' ]] ||
   fail "status lists touchpads and trackpads but not mice" "$status"
 pass "status lists touchpads and trackpads but not mice"

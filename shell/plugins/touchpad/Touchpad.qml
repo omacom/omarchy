@@ -7,8 +7,8 @@ import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
-// Touchpad settings window, summoned from Setup > Config > Touchpad
-// (omarchy-setup-touchpad) or directly:
+// Mouse and touchpad settings window, summoned from Setup > Config > Mouse &
+// Touchpad (omarchy-setup-touchpad) or directly:
 //   omarchy-shell shell summon omarchy.touchpad '{"page":"gestures"}'
 //
 // Every change is saved to ~/.config/omarchy/touchpad.json and applied to the
@@ -26,6 +26,7 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string settingsPath: home + "/.config/omarchy/touchpad.json"
   readonly property string userInputPath: home + "/.config/hypr/input.lua"
+  readonly property string userHyprlandPath: home + "/.config/hypr/hyprland.lua"
 
   readonly property color foreground: Commons.Color.foreground
   readonly property color background: Commons.Color.background
@@ -36,6 +37,9 @@ Item {
   // helper found on this machine.
   property var doc: Model.normalize({})
   property var live: ({})
+  property var mouseLive: ({})
+  property bool statusLoaded: false
+  property bool defaultGesturesOff: false
   property var devices: []
   property var clients: []
   property string disabledName: ""
@@ -54,9 +58,19 @@ Item {
     || Object.keys(overrides.gestureSettings).length > 0
     || overrides.gestures > 0
     || overrides.appScroll
+    || Object.keys(overrides.mouse).length > 0
   readonly property var apps: Model.appsOrDefault(doc.apps)
-  readonly property var gestureProblems: Model.gestureProblems(doc.gestures.bindings, Commons.I18n.t, Commons.I18n.formatNumber)
-  readonly property var pageIds: Model.PAGES.map(function(p) { return p.id })
+  readonly property var gestures: Model.gesturesOrDefault(doc.gestures.bindings, defaultGesturesOff)
+  readonly property var gestureProblems: Model.gestureProblems(gestures, Commons.I18n.t, Commons.I18n.formatNumber)
+  readonly property var touchpadLive: Model.touchpadLive(live, doc.mouse)
+  // Every page until the status says whether there is a touchpad, so a
+  // laptop's window does not open on Mouse and then jump.
+  readonly property var pages: Model.visiblePages(devices.length > 0 || !statusLoaded)
+  readonly property var pageIds: pages.map(function(p) { return p.id })
+
+  onPageIdsChanged: {
+    if (pageIds.indexOf(page) < 0) page = pageIds[0]
+  }
 
   // ---- lifecycle ----------------------------------------------------------
 
@@ -71,6 +85,7 @@ Item {
     customApp.text = ""
     settingsFile.reload()
     inputFile.reload()
+    hyprlandFile.reload()
     refreshStatus()
     window.visible = true
     Qt.callLater(function() { if (window.visible) navigation.focusCurrent() })
@@ -165,6 +180,18 @@ Item {
     commit(next, true)
   }
 
+  function setMouse(key, value) {
+    var next = edited()
+    next.mouse[key] = value
+    commit(next, false)
+  }
+
+  function resetMouse(key) {
+    var next = edited()
+    delete next.mouse[key]
+    commit(next, true)
+  }
+
   function setDevice(name, key, value) {
     var next = edited()
     if (!next.devices[name]) next.devices[name] = {}
@@ -205,26 +232,40 @@ Item {
     commit(next, true)
   }
 
-  function addGesture(binding) {
+  // The list starts as Omarchy's defaults; once edited the saved list
+  // replaces them, and matching them again goes back to following them.
+  function setGestures(list, needsReload) {
     var next = edited()
-    next.gestures.bindings.push(Model.copy(binding))
-    commit(next, false)
+    next.gestures.bindings = !defaultGesturesOff && Model.sameGestures(list, Model.DEFAULT_GESTURES) ? null : list
+    commit(next, needsReload)
+  }
+
+  function addGesture(binding) {
+    var list = Model.copy(gestures)
+    list.push(Model.copy(binding))
+    setGestures(list, false)
   }
 
   function editGesture(index, field, value) {
-    var next = edited()
-    var binding = next.gestures.bindings[index]
+    var list = Model.copy(gestures)
+    var binding = list[index]
     if (!binding) return
     if (field === "mods" && value === "") delete binding.mods
     else binding[field] = value
-    commit(next, field !== "action")
+    setGestures(list, field !== "action")
   }
 
   // A saved gesture unsets any input.lua gesture on the same swipe, and only a
   // reload brings that one back once the saved gesture moves or goes away.
   function removeGesture(index) {
+    var list = Model.copy(gestures)
+    list.splice(index, 1)
+    setGestures(list, true)
+  }
+
+  function restoreGestures() {
     var next = edited()
-    next.gestures.bindings.splice(index, 1)
+    next.gestures.bindings = null
     commit(next, true)
   }
 
@@ -300,6 +341,16 @@ Item {
   }
 
   FileView {
+    id: hyprlandFile
+    path: root.userHyprlandPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.defaultGesturesOff = Model.defaultGesturesOff(text())
+    onLoadFailed: root.defaultGesturesOff = false
+    onFileChanged: reload()
+  }
+
+  FileView {
     id: inputFile
     path: root.userInputPath
     watchChanges: true
@@ -338,6 +389,8 @@ Item {
         var status = {}
         try { status = JSON.parse(text) || {} } catch (e) { return }
         root.live = status.options || {}
+        root.mouseLive = status.mouse || {}
+        root.statusLoaded = true
         root.devices = Array.isArray(status.devices) ? status.devices : []
         root.clients = Array.isArray(status.clients) ? status.clients : []
         root.disabledName = String(status.disabled || "")
@@ -465,7 +518,7 @@ Item {
 
             Repeater {
               id: navRepeater
-              model: Model.PAGES
+              model: root.pages
 
               Button {
                 required property var modelData
@@ -522,7 +575,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: Commons.I18n.t(Model.PAGES[Math.max(0, root.pageIds.indexOf(root.page))].label)
+                text: Commons.I18n.t(root.pages[Math.max(0, root.pageIds.indexOf(root.page))].label)
                 color: root.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.title
@@ -530,6 +583,7 @@ Item {
               }
 
               Text {
+                visible: root.page !== "mouse"
                 textFormat: Text.PlainText
                 text: root.devices.length === 0 ? Commons.I18n.t("touchpad.noTouchpadDetected")
                   : root.devices.map(Model.deviceLabel).join(", ")
@@ -542,7 +596,7 @@ Item {
             }
 
             Text {
-              visible: root.devices.length > 0
+              visible: enableControl.visible
               textFormat: Text.PlainText
               text: root.disabledName === "" ? Commons.I18n.t("touchpad.on") : Commons.I18n.t("touchpad.off")
               color: root.dim
@@ -552,7 +606,7 @@ Item {
 
             Item {
               id: enableControl
-              visible: root.devices.length > 0
+              visible: root.devices.length > 0 && root.page !== "mouse"
               implicitWidth: enableSwitch.implicitWidth
               implicitHeight: enableSwitch.implicitHeight
               activeFocusOnTab: visible
@@ -629,7 +683,8 @@ Item {
           StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: Math.max(0, root.pageIds.indexOf(root.page))
+            // Pages below follow Model.PAGES, whichever of them are listed.
+            currentIndex: Math.max(0, Model.PAGES.map(function(p) { return p.id }).indexOf(root.page))
 
             // ---- Scrolling ----
             Page {
@@ -697,7 +752,7 @@ Item {
                 foreground: root.foreground
 
                 Text {
-                  visible: root.doc.gestures.bindings.length === 0
+                  visible: root.gestures.length === 0
                   textFormat: Text.PlainText
                   text: Commons.I18n.t("touchpad.noGestures")
                   color: root.dim
@@ -712,12 +767,12 @@ Item {
                 // updates rows in place instead of rebuilding them and dropping
                 // keyboard focus from the control just used.
                 Repeater {
-                  model: root.doc.gestures.bindings.length
+                  model: root.gestures.length
 
                   GestureRow {
                     required property int index
                     Layout.fillWidth: true
-                    binding: root.doc.gestures.bindings[index] || ({})
+                    binding: root.gestures[index] || ({})
                     number: index + 1
                     divided: index > 0
                     problem: root.gestureProblems[index] || ""
@@ -746,12 +801,12 @@ Item {
                   focusable: true
                   foreground: root.foreground
                   accent: root.accent
-                  onClicked: root.addGesture(Model.nextBinding(root.doc.gestures.bindings))
+                  onClicked: root.addGesture(Model.nextBinding(root.gestures))
                 }
 
                 Repeater {
                   model: Model.GESTURE_PRESETS.filter(function(preset) {
-                    return !Model.presetActive(root.doc.gestures.bindings, preset)
+                    return !Model.presetTaken(root.gestures, preset)
                   })
 
                   Button {
@@ -769,6 +824,19 @@ Item {
                       root.addGesture(binding)
                     }
                   }
+                }
+              }
+
+              Button {
+                visible: root.doc.gestures.bindings !== null && !root.defaultGesturesOff
+                text: Commons.I18n.t("touchpad.restoreDefaults")
+                iconText: "󰑓"
+                focusable: true
+                foreground: root.dim
+                accent: root.accent
+                onClicked: {
+                  addGestureButton.forceActiveFocus()
+                  root.restoreGestures()
                 }
               }
 
@@ -970,7 +1038,7 @@ Item {
                       Layout.fillWidth: true
                       divided: true
                       spec: Model.SETTINGS[modelData]
-                      value: Model.deviceEffective(modelData, root.doc, deviceSection.deviceName, root.live)
+                      value: Model.deviceEffective(modelData, root.doc, deviceSection.deviceName, root.touchpadLive)
                       saved: (root.doc.devices[deviceSection.deviceName] || {})[modelData] !== undefined
                       scroller: devicesPage
                       foreground: root.foreground
@@ -1068,6 +1136,38 @@ Item {
                 }
               }
             }
+
+            // ---- Mouse ----
+            Page {
+              id: mousePage
+
+              Section {
+                title: Commons.I18n.t("touchpad.mouse")
+                subtitle: Commons.I18n.t("touchpad.mouseSubtitle")
+                foreground: root.foreground
+
+                Repeater {
+                  model: Object.keys(Model.MOUSE_SETTINGS)
+
+                  Setting {
+                    required property string modelData
+                    required property int index
+                    Layout.fillWidth: true
+                    divided: index > 0
+                    spec: Model.MOUSE_SETTINGS[modelData]
+                    external: root.overrides.mouse[modelData] === true
+                    value: Model.effective(modelData, root.doc.mouse, root.mouseLive, Model.MOUSE_SETTINGS)
+                    saved: root.doc.mouse[modelData] !== undefined
+                    scroller: mousePage
+                    foreground: root.foreground
+                    accent: root.accent
+                    background: root.background
+                    onChanged: function(v) { root.setMouse(modelData, v) }
+                    onReset: root.resetMouse(modelData)
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -1106,7 +1206,7 @@ Item {
       divided: index > 0
       spec: Model.SETTINGS[modelData]
       external: root.overrides.touchpad[modelData] === true
-      value: Model.effective(modelData, root.doc.touchpad, root.live)
+      value: Model.effective(modelData, root.doc.touchpad, root.touchpadLive)
       saved: root.doc.touchpad[modelData] !== undefined
       scroller: parent ? pageOf(this) : null
       foreground: root.foreground

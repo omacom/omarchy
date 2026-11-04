@@ -18,7 +18,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Emojis        | `omarchy.emojis`          | `overlay`               | `emojis/Emojis.qml`                   |
 | Clipboard mgr | `omarchy.clipboard`       | `overlay`               | `clipboard/Clipboard.qml`             |
 | Reminders     | `omarchy.reminders`       | `overlay`               | `reminders/ReminderFlow.qml`          |
-| Touchpad      | `omarchy.touchpad`        | `panel`                 | `touchpad/Touchpad.qml`               |
+| Mouse & Touchpad | `omarchy.touchpad`     | `panel`                 | `touchpad/Touchpad.qml`               |
 | Omarchy menu  | `omarchy.menu`            | `menu`, `bar-widget`    | `menu/Menu.qml`, `menu/BarWidget.qml` |
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
@@ -84,7 +84,7 @@ The carousel renders only the slices that fit on the screen plus one prefetch sl
 
 ## Touchpad
 
-Touchpad settings window behind _Setup > Config > Touchpad_ (`omarchy-setup-touchpad`). It is a regular floating window rather than a layer-shell overlay, so the user can try a change in the app they are tuning it for. It writes only the keys the user changed to `~/.config/omarchy/touchpad.json`; `default/hypr/touchpad.lua` validates that file as data on every Hyprland load and again through `omarchy-touchpad-apply`, which applies live changes with `hyprctl eval` and falls back to `hyprctl reload` when a setting is removed. `omarchy-touchpad-status` reports the running values, touchpads, and open window classes the window shows. The module applies from `default/hypr/toggles.lua`, after the user's own `~/.config/hypr/input.lua`, so saved settings win over that file; `watch()` runs earlier, from `default/hypr/omarchy.lua`, to record gestures the user's files add so a saved gesture can unset one using the same swipe. Options `input.lua` also sets are marked in the window.
+Mouse and touchpad settings window behind _Setup > Config > Mouse & Touchpad_ (`omarchy-setup-touchpad`). It is a regular floating window rather than a layer-shell overlay, so the user can try a change in the app they are tuning it for. It writes only the keys the user changed to `~/.config/omarchy/touchpad.json`; `default/hypr/touchpad.lua` validates that file as data on every Hyprland load and again through `omarchy-touchpad-apply`, which applies live changes with `hyprctl eval` and falls back to `hyprctl reload` when a setting is removed. `omarchy-touchpad-status` reports the running values, touchpads, and open window classes the window shows. The module applies from `default/hypr/toggles.lua`, after the user's own `~/.config/hypr/input.lua`, so saved settings win over that file; `watch()` runs earlier, from `default/hypr/omarchy.lua`, to record gestures the user's files add so a saved gesture can unset one using the same swipe. Omarchy's default gestures are listed in the module too, added by `default/hypr/gestures.lua` through `add_defaults()`, and a saved gesture list replaces them all. Mouse settings are Hyprland's global pointer options, so when one is set each touchpad is pinned to its own value. Options `input.lua` also sets are marked in the window.
 
 ## Lock screen
 

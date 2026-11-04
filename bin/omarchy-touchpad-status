@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Print the running touchpad state as JSON for the touchpad settings window
+# omarchy:summary=Print the running touchpad and mouse state as JSON for the mouse and touchpad settings window
 # omarchy:hidden=true
 
 set -o pipefail
@@ -31,8 +31,17 @@ OPTIONS=(
   gestures:workspace_swipe_direction_lock
 )
 
-options=$(
-  for option in "${OPTIONS[@]}"; do
+# Mice scroll by these, which share their last name with the touchpad ones,
+# so they are reported apart along with the pointer options mice also use.
+MOUSE_OPTIONS=(
+  input:natural_scroll
+  input:scroll_factor
+)
+
+# Prints the given options as one JSON object keyed by each option's last name.
+read_options() {
+  local option
+  for option in "$@"; do
     hyprctl getoption -j "$option" 2>/dev/null || true
   done | jq -nR '
     # Unknown options answer in plain text, so keep only the JSON lines.
@@ -49,7 +58,11 @@ options=$(
       })
     | from_entries
   '
-) || options='{}'
+}
+
+options=$(read_options "${OPTIONS[@]}") || options='{}'
+mouse=$(read_options "${MOUSE_OPTIONS[@]}" | jq --argjson options "$options" \
+  '($options | {sensitivity, accel_profile, left_handed} | with_entries(select(.value != null))) + .') || mouse='{}'
 
 devices=$(hyprctl devices -j 2>/dev/null | jq '[.mice[]?.name | select(test("touchpad|trackpad"; "i"))]') || devices='[]'
 # A pad named neither (Apple Silicon's apple-mtp-multi-touch) is only found
@@ -65,7 +78,8 @@ disabled_file="$HOME/.local/state/omarchy/toggles/hypr/touchpad-disabled-name"
 
 jq -n \
   --argjson options "$options" \
+  --argjson mouse "$mouse" \
   --argjson devices "$devices" \
   --argjson clients "$clients" \
   --arg disabled "$disabled" \
-  '{ options: $options, devices: $devices, clients: $clients, disabled: $disabled }'
+  '{ options: $options, mouse: $mouse, devices: $devices, clients: $clients, disabled: $disabled }'

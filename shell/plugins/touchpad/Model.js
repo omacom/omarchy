@@ -136,6 +136,55 @@ var SETTINGS = {
   }
 }
 
+// What the Mouse page offers. These are Hyprland's global input options, which
+// mice follow; default/hypr/touchpad.lua keeps touchpads on their own values.
+var MOUSE_SETTINGS = {
+  sensitivity: {
+    type: "number",
+    label: t("touchpad.pointerSpeed"),
+    description: t("touchpad.mouseSpeedHint"),
+    min: -1,
+    max: 1,
+    step: 0.05,
+    decimals: 2,
+    signed: true,
+    fallback: 0
+  },
+  accel_profile: {
+    type: "choice",
+    label: t("touchpad.acceleration"),
+    description: t("touchpad.accelerationHint"),
+    options: [
+      { value: "adaptive", label: t("touchpad.adaptive") },
+      { value: "flat", label: t("touchpad.flat") }
+    ],
+    fallback: "adaptive"
+  },
+  natural_scroll: {
+    type: "bool",
+    label: t("touchpad.naturalScroll"),
+    description: t("touchpad.mouseNaturalScrollHint"),
+    fallback: false
+  },
+  scroll_factor: {
+    type: "number",
+    label: t("touchpad.scrollSpeed"),
+    description: t("touchpad.mouseScrollSpeedHint"),
+    min: 0.1,
+    max: 3,
+    step: 0.1,
+    decimals: 1,
+    suffix: "×",
+    fallback: 1
+  },
+  left_handed: {
+    type: "bool",
+    label: t("touchpad.leftHanded"),
+    description: t("touchpad.leftHandedHint"),
+    fallback: false
+  }
+}
+
 var GESTURE_SETTINGS = {
   workspace_swipe_invert: {
     type: "bool",
@@ -181,8 +230,14 @@ var PAGES = [
   { id: "pointer", label: t("touchpad.pointer"), icon: "󰇀" },
   { id: "gestures", label: t("touchpad.gestures"), icon: "󰆾" },
   { id: "apps", label: t("touchpad.appScrolling"), icon: "󰀻" },
-  { id: "devices", label: t("touchpad.devices"), icon: "󰟸" }
+  { id: "devices", label: t("touchpad.devices"), icon: "󰟸" },
+  { id: "mouse", label: t("touchpad.mouse"), icon: "󰦋" }
 ]
+
+// Without a touchpad only the Mouse page applies.
+function visiblePages(hasTouchpad) {
+  return PAGES.filter(function(page) { return hasTouchpad || page.id === "mouse" })
+}
 
 var PAGE_SETTINGS = {
   scrolling: ["natural_scroll", "scroll_factor", "scroll_method"],
@@ -234,6 +289,8 @@ var ACTIONS = [
   { value: "workspace", label: t("touchpad.actionWorkspaces") },
   { value: "workspace_next", label: t("touchpad.actionNextWorkspace") },
   { value: "workspace_previous", label: t("touchpad.actionPreviousWorkspace") },
+  { value: "move_window_next", label: t("touchpad.actionMoveWindowNext") },
+  { value: "move_window_previous", label: t("touchpad.actionMoveWindowPrevious") },
   { value: "focus_left", label: t("touchpad.actionFocusLeft") },
   { value: "focus_right", label: t("touchpad.actionFocusRight") },
   { value: "focus_up", label: t("touchpad.actionFocusUp") },
@@ -247,6 +304,7 @@ var ACTIONS = [
   { value: "special", label: t("touchpad.actionScratchpad") },
   { value: "zoom", label: t("touchpad.actionZoom") },
   { value: "scroll_move", label: t("touchpad.actionScrollLayout") },
+  { value: "console", label: t("touchpad.actionConsole") },
   { value: "menu", label: t("touchpad.actionMenu") },
   { value: "notifications", label: t("touchpad.actionNotifications") }
 ]
@@ -257,6 +315,17 @@ var GESTURE_PRESETS = [
   { label: t("touchpad.presetClose"), binding: { fingers: 4, direction: "down", action: "close" } },
   { label: t("touchpad.presetZoom"), binding: { fingers: 3, direction: "pinch", action: "zoom" } },
   { label: t("touchpad.presetScratchpad"), binding: { fingers: 3, direction: "up", action: "special" } }
+]
+
+// Keep in sync with M.default_gestures in default/hypr/touchpad.lua.
+var DEFAULT_GESTURES = [
+  { fingers: 3, direction: "left", action: "workspace_previous" },
+  { fingers: 3, direction: "right", action: "workspace_next" },
+  { fingers: 3, direction: "up", action: "console" },
+  { fingers: 3, direction: "down", action: "menu" },
+  { fingers: 4, direction: "left", action: "move_window_previous" },
+  { fingers: 4, direction: "right", action: "move_window_next" },
+  { fingers: 4, direction: "down", action: "fullscreen" }
 ]
 
 // Keep in sync with M.default_apps in default/hypr/touchpad.lua.
@@ -300,6 +369,14 @@ var LOADER_SETTINGS = {
   accel_profile: loaderChoice("adaptive", "flat"),
   left_handed: loaderBool(),
   scroll_method: loaderChoice("2fg", "edge", "on_button_down", "no_scroll")
+}
+
+var LOADER_MOUSE_SETTINGS = {
+  sensitivity: loaderNumber(-1, 1),
+  accel_profile: loaderChoice("adaptive", "flat"),
+  left_handed: loaderBool(),
+  natural_scroll: loaderBool(),
+  scroll_factor: loaderNumber(0.05, 5)
 }
 
 var LOADER_GESTURE_SETTINGS = {
@@ -393,8 +470,9 @@ function normalize(data) {
   var source = isObject(data) ? data : {}
   var state = {
     touchpad: pickValid(source.touchpad, LOADER_SETTINGS),
+    mouse: pickValid(source.mouse, LOADER_MOUSE_SETTINGS),
     devices: {},
-    gestures: { settings: {}, bindings: [] },
+    gestures: { settings: {}, bindings: null },
     apps: null
   }
 
@@ -432,10 +510,11 @@ function parse(text) {
 function serialize(state) {
   var data = { version: 1 }
   if (Object.keys(state.touchpad).length > 0) data.touchpad = state.touchpad
+  if (Object.keys(state.mouse).length > 0) data.mouse = state.mouse
   if (Object.keys(state.devices).length > 0) data.devices = state.devices
   var gestures = {}
   if (Object.keys(state.gestures.settings).length > 0) gestures.settings = state.gestures.settings
-  if (state.gestures.bindings.length > 0) gestures.bindings = state.gestures.bindings
+  if (state.gestures.bindings !== null) gestures.bindings = state.gestures.bindings
   if (Object.keys(gestures).length > 0) data.gestures = gestures
   if (state.apps !== null) data.apps = state.apps
   return JSON.stringify(data, null, 2) + "\n"
@@ -460,6 +539,17 @@ function effective(key, saved, live, specs) {
   var running = liveValue(key, live, specs)
   if (running !== undefined && validValue(spec, running)) return running
   return spec ? spec.fallback : undefined
+}
+
+// The running values a touchpad follows. A pointer option the Mouse page sets
+// is global, so the running value is the mouse's, while touchpads are pinned
+// to their own; drop it so the touchpad shows its own value or the default.
+function touchpadLive(live, mouse) {
+  var result = {}
+  for (var key in (isObject(live) ? live : {})) {
+    if (!(SETTINGS[key] && SETTINGS[key].pointer && isObject(mouse) && mouse[key] !== undefined)) result[key] = live[key]
+  }
+  return result
 }
 
 function deviceEffective(key, state, name, live) {
@@ -513,8 +603,12 @@ function userOverrides(text) {
   var code = stripLuaComments(text)
   var touchpad = topLevelKeys(blockAfter(code, /\btouchpad\s*=\s*\{/))
   var gestureSettings = topLevelKeys(blockAfter(code, /\bgestures\s*=\s*\{/))
-  var result = { touchpad: {}, gestureSettings: {}, gestures: 0, appScroll: false }
+  var input = topLevelKeys(blockAfter(code, /\binput\s*=\s*\{/))
+  var result = { touchpad: {}, mouse: {}, gestureSettings: {}, gestures: 0, appScroll: false }
 
+  for (var option in input) {
+    if (MOUSE_SETTINGS[option]) result.mouse[option] = true
+  }
   for (var key in touchpad) {
     if (SETTINGS[key] && !SETTINGS[key].pointer) result.touchpad[key] = true
   }
@@ -566,12 +660,12 @@ function gestureProblems(bindings, tr, fmt) {
   return problems
 }
 
-function presetActive(bindings, preset) {
+// A suggestion is offered only while its swipe is free, so taking one never
+// produces a conflict.
+function presetTaken(bindings, preset) {
   return bindings.some(function(binding) {
-    return binding.fingers === preset.binding.fingers
-      && binding.direction === preset.binding.direction
-      && binding.action === preset.binding.action
-      && !binding.mods
+    return binding.fingers === preset.binding.fingers && !binding.mods
+      && directionsOverlap(binding.direction, preset.binding.direction)
   })
 }
 
@@ -594,6 +688,22 @@ function nextBinding(bindings) {
     }
   }
   return { fingers: 5, direction: "pinch", action: "zoom", mods: "SUPER" }
+}
+
+// The gestures in effect: the saved list, or Omarchy's defaults unless the
+// user's hyprland.lua turns them off.
+function gesturesOrDefault(bindings, defaultsOff) {
+  if (bindings !== null && bindings !== undefined) return copy(bindings)
+  return defaultsOff ? [] : copy(DEFAULT_GESTURES)
+}
+
+function sameGestures(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+// Whether ~/.config/hypr/hyprland.lua sets omarchy_default_gestures = false.
+function defaultGesturesOff(text) {
+  return /\bomarchy_default_gestures\s*=\s*false\b/.test(stripLuaComments(text))
 }
 
 function appsOrDefault(apps) {
@@ -621,7 +731,9 @@ if (typeof module !== "undefined") {
   module.exports = {
     SETTINGS: SETTINGS,
     GESTURE_SETTINGS: GESTURE_SETTINGS,
+    MOUSE_SETTINGS: MOUSE_SETTINGS,
     LOADER_SETTINGS: LOADER_SETTINGS,
+    LOADER_MOUSE_SETTINGS: LOADER_MOUSE_SETTINGS,
     LOADER_GESTURE_SETTINGS: LOADER_GESTURE_SETTINGS,
     PAGES: PAGES,
     PAGE_SETTINGS: PAGE_SETTINGS,
@@ -633,6 +745,12 @@ if (typeof module !== "undefined") {
     GESTURE_PRESETS: GESTURE_PRESETS,
     CUSTOM_DEVICE: CUSTOM_DEVICE,
     DEFAULT_APPS: DEFAULT_APPS,
+    DEFAULT_GESTURES: DEFAULT_GESTURES,
+    visiblePages: visiblePages,
+    touchpadLive: touchpadLive,
+    gesturesOrDefault: gesturesOrDefault,
+    sameGestures: sameGestures,
+    defaultGesturesOff: defaultGesturesOff,
     normalize: normalize,
     parse: parse,
     serialize: serialize,
@@ -643,7 +761,7 @@ if (typeof module !== "undefined") {
     translatedOptions: translatedOptions,
     userOverrides: userOverrides,
     gestureProblems: gestureProblems,
-    presetActive: presetActive,
+    presetTaken: presetTaken,
     nextBinding: nextBinding,
     appsOrDefault: appsOrDefault,
     sameApps: sameApps,
