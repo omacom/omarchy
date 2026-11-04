@@ -50,7 +50,7 @@
   "learn.bash": {"icon":"󱆃","label":"Bash","action":"omarchy-launch-webapp 'https://devhints.io/bash'"},
   "learn.tmux-keybindings": {"icon":"","label":"Tmux","action":"omarchy-menu-tmux-keybindings"},
   "learn.herdr-keybindings": {"icon":"","label":"Herdr","action":"omarchy-menu-herdr-keybindings"},
-  "learn.phux-keybindings": {"icon":"","label":"Phux","when":"[[ -x $HOME/.local/bin/phux ]]","action":"$HOME/.local/bin/phux omarchy keys | omarchy-menu-select 'Phux keybindings' -- --width 800"},
+  "learn.phux-keybindings": {"icon":"","label":"Phux","when":"omarchy-cmd-present phux","action":"phux omarchy keys | omarchy-menu-select 'Phux keybindings' -- --width 800"},
   "learn.community": {"icon":"󰙯","label":"Community","action":"omarchy-launch-discord-community"},
 
   // Appearance
