@@ -215,6 +215,18 @@ assert(searchIds('fnot').includes('appearance.font'), 'menu search retries a sea
 const fontIds = searchIds('font')
 assert(fontIds.includes('appearance.font') && !fontIds.some(id => id.endsWith('.foot')), 'menu search never adds typo matches to a search that found rows')
 
+// A pasted run of one letter shares it with most words in the menu, but no
+// word is long enough to be a typo of it. Working out their distances anyway
+// built a table as long as the paste for each word, stalling the shell.
+const vm = require('vm')
+const model = vm.createContext({})
+vm.runInContext(fs.readFileSync(path.join(root, 'shell/plugins/menu/MenuModel.js'), 'utf8'), model)
+const prefixDistances = model.prefixDistances
+let measured = 0
+model.prefixDistances = (a, b) => (measured++, prefixDistances(a, b))
+for (const id of ranked.itemOrder) model.matchesQueryWithTypos(ranked.items[id], 'a'.repeat(256), true)
+assertEqual(measured, 0, 'menu typo search skips words too short to be a typo of the term')
+
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
 // An installed app must never capture a menu route (SUPER+ESCAPE opens the
 // `system` menu), while its keywords keep working for search.

@@ -426,14 +426,16 @@ function matchesQueryWithTypos(entry, query, visible) {
 
 // Algolia's default typo budget: none under four letters, one from four, two
 // from eight. Measuring against word prefixes keeps it working mid-word
-// ("fierf" finds Firefox). Each letter of the term missing from the start of
-// the word costs an edit of its own, which rules out most words before their
+// ("fierf" finds Firefox). A word shorter than the term by more than the budget
+// is out of reach, and each letter of the term missing from the start of the
+// word costs an edit of its own, which rules out most words before their
 // distance is worth working out.
 function termNearSearchWords(term, text) {
   var limit = term.length >= 8 ? 2 : term.length >= 4 ? 1 : 0
   if (!limit) return false
   var words = String(text || "").split(/\s+/)
   for (var i = 0; i < words.length; i++) {
+    if (words[i].length < term.length - limit) continue
     var start = words[i].slice(0, term.length + limit)
     var missing = 0
     for (var c = 0; c < term.length && missing <= limit; c++) if (start.indexOf(term[c]) < 0) missing++
