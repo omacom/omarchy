@@ -1,10 +1,10 @@
-# CLI של Omarchy
+# Omarchy CLI
 
-Omarchy נשלטת בדרך כלל דרך קיצורי המקלדת ותפריט Omarchy (`Super + Space`). אבל אפשר גם לשלוט בה דרך ה-CLI של `omarchy`. זה שימושי במיוחד כאשר סוכן AI עובד איתכם על התאמה אישית או הגדרה.
+את Omarchy שולטים בדרך כלל דרך מקשי הקיצור והתפריט של Omarchy (`Super + Space`). אבל אפשר לשלוט בה גם דרך ה-CLI של `omarchy`. זה מועיל במיוחד כשסוכן AI עובד איתך על התאמה אישית או על תצורה.
 
-ל-CLI יש גישה לכל הכלים הפנימיים שנמצאים בשימוש הן דרך התפריט והן בדרכים אחרות. אפשר לראות את כל מה שזמין על ידי הרצת `omarchy` בטרמינל.
+ל-CLI יש גישה לכל הכלים הפנימיים שמשמשים גם דרך התפריט וגם בדרכים אחרות. אפשר לראות את כל מה שזמין על ידי הרצת `omarchy` בטרמינל.
 
-זה נראה בערך כך:
+זה נראה בערך ככה:
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-ואפשר לצלול עמוק יותר בכל קבוצה:
+ואפשר לצלול עמוק יותר לכל קבוצה:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-כל פקודה מקבלת גם את `--help`, בין אם שואלים קבוצה שלמה (`omarchy capture --help`) או פקודה בודדת (`omarchy capture screenshot --help`).
+כל פקודה מקבלת גם `--help`, בין אם שואלים קבוצה שלמה (`omarchy capture --help`) או פקודה בודדת (`omarchy capture screenshot --help`).
 
 ### פתיחת התפריט מהטרמינל
 
-תפריט Omarchy ניתן גם לתסריט, מה שנחמד לשיוכי המקשים שלכם. הפקודה `omarchy menu` פותחת אותו בשורש, ואפשר לקפוץ ישירות לכל נקודה בעץ על ידי ציון שמה: `omarchy menu summon style.theme` עובר ישר לבורר ערכות הנושא, `omarchy menu toggle system` פותח את תפריט המערכת וסוגר אותו שוב אם הוא כבר פתוח, ו-`omarchy menu close` מסלק אותו.
+גם בתפריט של Omarchy אפשר לשלוט באמצעות סקריפטים, וזה שימושי עבור מקשי הקיצור שלך. `omarchy menu` פותח אותו מהשורש, ואפשר לקפוץ ישר לכל נקודה בעץ על ידי ציון שמה: `omarchy menu summon appearance.theme` הולך ישר לבוחר ערכות הנושא, `omarchy menu toggle system` פותח את תפריט המערכת וסוגר אותו שוב אם הוא כבר פתוח, ו-`omarchy menu close` מסתיר אותו.

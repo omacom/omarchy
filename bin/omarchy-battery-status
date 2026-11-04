@@ -61,15 +61,23 @@ power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
 battery_path="$power_supply_path/$native_path"
 
+# A sysfs reading as a number, or nothing. Firmware that doesn't know the
+# present rate leaves current_now in place but fails every read of it (ENODEV),
+# so a readable file is no promise of a value.
+read_sysfs_number() {
+  local value
+  { value=$(<"$1"); } 2>/dev/null || return 1
+  [[ $value =~ ^-?[0-9]+$ ]] || return 1
+  echo "$value"
+}
+
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
-# the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
-    'BEGIN { print microamps * microvolts / 1000000000000 }')
+# the instantaneous sysfs reading when there is one so the open panel stays
+# live; without one, UPower's rate, worked out from the falling charge, stands.
+if microwatts=$(read_sysfs_number "$battery_path/power_now"); then
+  power_rate_raw=$(awk -v microwatts="$microwatts" 'BEGIN { print microwatts / 1000000 }')
+elif microamps=$(read_sysfs_number "$battery_path/current_now") && microvolts=$(read_sysfs_number "$battery_path/voltage_now"); then
+  power_rate_raw=$(awk -v microamps="$microamps" -v microvolts="$microvolts" 'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 
 # Some kernels sign power_now by direction (negative while discharging on
@@ -172,7 +180,10 @@ battery_full=false
 if [[ $state == "fully-charged" ]]; then
   battery_full=true
 elif [[ $ac_online == "true" ]] && (( percentage >= 100 )); then
-  battery_full=true
+  # A load bigger than the adapter drains a battery that still reads 100%.
+  if [[ $state != "discharging" || $charge_idle == "true" ]]; then
+    battery_full=true
+  fi
 fi
 
 parts=("$(omarchy-i18n battery.statusLabel "$percentage")")
