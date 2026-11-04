@@ -149,7 +149,7 @@ run_session_start 0 "llvmpipe (LLVM 21.1.0, 128 bits)" false
 [[ $(cat "$marker") == "llvmpipe (LLVM 21.1.0, 128 bits)" ]] || fail "a CPU-rendered session is marked with its renderer"
 grep -Fxq "hyprctl reload" "$log" || fail "marking the session reloads Hyprland" "$(cat "$log")"
 grep -Fq "logger -t omarchy Hyprland renders on the CPU (llvmpipe (LLVM 21.1.0, 128 bits)), so animations" "$log" || fail "the journal says why animations are off" "$(cat "$log")"
-grep -Fq "notify --app-name Software Rendering -g 󰘚 -u normal -t 30000 --transient Animations off without a GPU No GPU in use, so animations, blur and shadows are off." "$log" || fail "a notification says why animations are off" "$(cat "$log")"
+grep -Fq "notify --app-name Software Rendering -g 󰘚 -u normal -t 30000 Animations off without a GPU No GPU in use, so animations, blur and shadows are off." "$log" || fail "a notification says why animations are off" "$(cat "$log")"
 pass "a session that renders on the CPU is marked, reloaded and explained"
 
 run_session_start 0 "llvmpipe (LLVM 21.1.0, 128 bits)" false
