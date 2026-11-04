@@ -108,6 +108,8 @@ expect("activity folds prompt and completion tokens per model, with its active d
 expect("activity counts reasoning inside the completion tokens, once, as output",
        [activity["modelUsage"]["gpt-4.1-2025-04-14"]["inputTokens"], activity["modelUsage"]["gpt-4.1-2025-04-14"]["outputTokens"],
         activity["modelUsage"]["gpt-4o-mini"]["outputTokens"]], [50, 125, 4], activity)
+expect("activity's rated usage is this month's account spend, by day, and a row from another month adds none", activity["spend"],
+       {"amount": 0.015, "cap": 0.0, "currency": "USD", "days": [0.0] * (TODAY.day - 1) + [0.015], "estimated": False}, activity)
 expect("a key without a credit limit has no meter, and one with a limit names its period, not a reset time",
        [module.key_limit_meter({"limit": None, "limit_remaining": None}), module.key_limit_meter({"limit": 10, "limit_remaining": 4, "limit_reset": "weekly"})],
        [[], [{"label": "Weekly key limit", "title": "Weekly key limit", "percent": 0.6, "resetsAt": ""}]])

@@ -925,6 +925,16 @@ Panel {
       : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
   }
 
+  // A balance or spend row's amount is as wide as a limit row's time left
+  // ("19h 40m"), so every line ends where the limit meters do.
+  TextMetrics {
+    id: valueColumnMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.bodySmall
+    text: "00h 00m"
+  }
+  readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
+
   // ------------------------------------------------------------------ spend
   //
   // Pay-as-you-go agents report what the account spent this month, and the
@@ -937,6 +947,8 @@ Panel {
   function spendValueText(s) {
     if (!s) return ""
     var amount = formatMoney(s.amount, s.currency)
+    // Added up from this machine's sessions, so only about what was billed.
+    if (s.estimated) return Commons.I18n.t("agents.spendEstimated").arg(amount)
     return s.cap > 0 ? Commons.I18n.t("agents.spendOfCap").arg(amount).arg(formatMoney(s.cap, s.currency)) : amount
   }
 
@@ -2024,29 +2036,31 @@ Panel {
           text: Commons.I18n.t("agents.balance")
           color: root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.bodySmall
         }
 
+        // Without a funded figure there is nothing to drain from, so no meter.
         Meter {
+          visible: !!section.balance && section.balance.funded > 0
           anchors.left: balanceTitle.right
           anchors.right: balanceValue.left
-          anchors.rightMargin: Style.spacing.md
+          anchors.rightMargin: Style.space(20)
           anchors.verticalCenter: parent.verticalCenter
-          value: section.balance && section.balance.funded > 0 ? section.balance.remaining / section.balance.funded : -1
+          value: visible ? section.balance.remaining / section.balance.funded : -1
           alarming: root.balanceAlarming(section.balance)
         }
 
         Text {
           id: balanceValue
           textFormat: Text.PlainText
-          width: Style.space(96)
+          width: Math.max(root.valueColumnWidth, implicitWidth)
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           horizontalAlignment: Text.AlignRight
           text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
           color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.bodySmall
         }
       }
 
@@ -2077,6 +2091,7 @@ Panel {
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
       }
 
       Meter {
@@ -2126,18 +2141,10 @@ Panel {
         }
       }
 
-      // As wide as a limit row's time left, so the line ends where theirs do.
-      TextMetrics {
-        id: spendValueMetrics
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        text: "00h 00m"
-      }
-
       Text {
         id: spendValue
         textFormat: Text.PlainText
-        width: Math.max(Math.ceil(spendValueMetrics.advanceWidth), implicitWidth)
+        width: Math.max(root.valueColumnWidth, implicitWidth)
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         horizontalAlignment: Text.AlignRight

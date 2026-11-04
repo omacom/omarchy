@@ -59,7 +59,7 @@ Its main entry points, each documented where it is defined:
 | `limitsStale`, `limitsFetchedAt` | Whether `limits` were kept past a failed check, and when they were measured (epoch ms, `0` when never) |
 | `retryAdvised` | `true` only when the service couldn't be reached at all (DNS, connection, timeout), so the panel retries this agent in 30 seconds |
 | `balance` | `{remaining, funded, spent, currency, estimated}` for prepaid accounts |
-| `spend` | `{amount, cap, currency, days}` for pay-as-you-go accounts: spent this month, against `cap` when the account has a monthly cap (`0` when it has none), and `days`, each day's cost this month so far, the 1st first |
+| `spend` | `{amount, cap, currency, days, estimated}` for pay-as-you-go accounts: spent this month, against `cap` when the account has a monthly cap (`0` when it has none), and `days`, each day's cost this month so far, the 1st first. `estimated` is `true` when it adds up the costs local stores wrote beside each reply (`Stats.snapshot_with_spend()`) rather than the provider's own rating |
 | `accounts`, `accountSwitch` | Only when two or more accounts are registered; each account carries `limits`, `stale`, `fetchedAt`, `usageStatusText`, `authHelpText` |
 | `hasLocalStats` | Whether the stats below come from this machine |
 | `hasPromptStats` | `false` when the source has no real prompt or session counts (an API that counts requests, not prompts) |

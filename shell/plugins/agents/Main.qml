@@ -411,7 +411,9 @@ Item {
       amount: amount,
       cap: isFinite(cap) && cap > 0 ? cap : 0,
       currency: String(raw.currency || "USD"),
-      days: days
+      days: days,
+      // Counted from this machine's sessions, not rated by the provider.
+      estimated: raw.estimated === true
     }
   }
 

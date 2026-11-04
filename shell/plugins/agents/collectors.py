@@ -139,6 +139,16 @@ def token_count(value: Any) -> int:
   return number(value)
 
 
+def dollars(value: Any) -> float:
+  """A cost a store wrote beside a reply, 0.0 unless it is a plain JSON
+  number that is finite, positive and not absurdly large."""
+  if isinstance(value, bool) or not isinstance(value, (int, float)):
+    return 0.0
+  if not math.isfinite(value) or value <= 0 or value >= NUMBER_CEILING:
+    return 0.0
+  return float(value)
+
+
 def usage_tokens(usage: dict[str, Any], *keys: str) -> int:
   """pi, omp, and the harnesses that copy their format spell usage camelCase
   or snake_case; the first spelling present wins."""
@@ -422,6 +432,9 @@ class Stats:
     self.sessions: set[str] = set()
     self.active_dates: set[str] = set()
     self.model_usage: dict[str, dict[str, int]] = {}
+    # What the store said each day of this month cost, for spend().
+    self.month_days = [date_string(day.replace(day=n)) for n in range(1, day.day + 1)]
+    self.month_costs = {d: 0.0 for d in self.month_days}
 
   def add(
     self,
@@ -433,6 +446,7 @@ class Stats:
     cache_read: int,
     cache_write: int,
     prompts: int = 1,
+    cost: float = 0.0,
   ) -> None:
     """Tokens `model` spent on `day` in `session`, and the prompts they
     answered: one reply is one prompt, the default.
@@ -443,11 +457,14 @@ class Stats:
     row with no date to trust that still counts toward the lifetime totals,
     and a session of None is tokens no session is known for. With no tokens
     there is no model bucket, and with neither tokens nor prompts there is
-    nothing to count at all.
+    nothing to count at all. `cost` is what the store said the reply cost,
+    in dollars, for spend().
     """
     total = input_tokens + output_tokens + cache_read + cache_write
     if total <= 0 and prompts <= 0:
       return
+    if day in self.month_costs:
+      self.month_costs[day] += cost
     self.total_prompts += prompts
     if session is not None:
       self.sessions.add(session)
@@ -495,7 +512,26 @@ class Stats:
     if row.input_tokens + row.output_tokens + row.cache_read + row.cache_write <= 0:
       self.add_prompts(row.day, row.session, row.prompts)
       return
-    self.add(row.day, row.session, model, row.input_tokens, row.output_tokens, row.cache_read, row.cache_write, row.prompts)
+    self.add(row.day, row.session, model, row.input_tokens, row.output_tokens, row.cache_read, row.cache_write, row.prompts, row.cost)
+
+  def spend(self) -> dict[str, Any] | None:
+    """This month's spend on this machine, from the costs the stores wrote
+    beside each reply, as the record's `spend`: an estimate, since it sees
+    neither other machines nor the provider's own rating. None when nothing
+    this month had a cost."""
+    days = [round(self.month_costs[d], 4) for d in self.month_days]
+    if not any(days):
+      return None
+    return {"amount": round(sum(days), 4), "cap": 0.0, "currency": "USD", "days": days, "estimated": True}
+
+  def snapshot_with_spend(self) -> dict[str, Any]:
+    """snapshot(), plus `spend` when this month had any, for a pay-as-you-go
+    collector whose local stores are the only record of what it cost."""
+    snapshot = self.snapshot()
+    spend = self.spend()
+    if spend:
+      snapshot["spend"] = spend
+    return snapshot
 
   def snapshot(self) -> dict[str, Any]:
     return {
@@ -615,7 +651,8 @@ class UsageRow(NamedTuple):
   `session` is the session it counts toward: the realpath of a pi/omp
   session file, or "opencode:<session id>". `model` is the model id as the
   store wrote it, for the collector to name. `prompts` is how many prompts
-  it answered: tokens spent on a summary answered none.
+  it answered: tokens spent on a summary answered none. `cost` is the
+  dollars the store wrote beside the reply, 0.0 where it wrote none.
   """
 
   day: str
@@ -627,6 +664,7 @@ class UsageRow(NamedTuple):
   cache_read: int
   cache_write: int
   prompts: int = 1
+  cost: float = 0.0
 
 
 # accept(provider, model, entry) decides whether a reply bills this collector.
@@ -806,7 +844,8 @@ def _pi_row(entry: dict, timestamp: Any, path: str, provider: str, model: str, u
   day = local_day(timestamp)
   if day is None:
     return None
-  return _pi_key(entry, timestamp, path), UsageRow(day, path, provider, model, input_tokens, output_tokens, cache_read, cache_write, prompts)
+  cost = dollars(obj(usage.get("cost")).get("total"))
+  return _pi_key(entry, timestamp, path), UsageRow(day, path, provider, model, input_tokens, output_tokens, cache_read, cache_write, prompts, cost)
 
 
 def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterator[tuple[int, tuple, UsageRow, tuple, bool]]:
@@ -1185,7 +1224,8 @@ def _opencode_row(session_id: Any, entry: Any, row_type: str, created: Any, acce
   if day is None:
     return None
   # One key per session id across both stores: a migrated session is one.
-  return UsageRow(day, "opencode:" + str(session_id), provider, model, input_tokens, output_tokens, cache_read, cache_write)
+  cost = dollars(entry.get("cost")) if entry.get("role") != "user" else 0.0
+  return UsageRow(day, "opencode:" + str(session_id), provider, model, input_tokens, output_tokens, cache_read, cache_write, cost=cost)
 
 
 def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageRow], bool]:
