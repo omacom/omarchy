@@ -656,6 +656,12 @@ function M.reconcile(added, gone)
   -- Workspaces that joined another monitor's block while theirs was unplugged
   -- go back to it, under their old numbers when those are free.
   local function restore()
+    -- Match original IDs against the view before any restored ID can collide
+    -- with the next workspace's original number.
+    local remembered = {}
+    for identity, id in pairs(views) do
+      remembered[identity] = id
+    end
     local ids = {}
     for id in pairs(merged) do
       ids[#ids + 1] = id
@@ -686,7 +692,7 @@ function M.reconcile(added, gone)
           elseif block_of_id(id) ~= by_connector[monitor.name] then
             adopt(workspace, by_connector[monitor.name])
           end
-          if views[origin.identity] == origin.id then
+          if remembered[origin.identity] == origin.id then
             views[origin.identity] = workspace.id
             save_views()
           end
