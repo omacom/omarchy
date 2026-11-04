@@ -13,6 +13,7 @@ printf 'P6\n1 1\n255\n\377\377\377' >"$stage/cover.ppm"
 cp "$ROOT/shell/services/BackgroundIntro.qml" "$stage/services/"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/shell.qml" "$stage/shell.qml"
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/StepSequence.qml" "$stage/"
 cat >"$stage/bin/omarchy-theme-bg-boot-intro" <<'SH'
 #!/bin/bash
 printf 'intro\n' >>"$INTRO_TEST_LOG"
@@ -76,6 +77,7 @@ mkdir -p "$switch/services" "$switch/bin" "$switch/home/.local/state/omarchy/cur
 cp "$ROOT/shell/services/BackgroundIntro.qml" "$ROOT/shell/services/BackgroundSwitch.qml" "$switch/services/"
 ln -s "$ROOT/shell/Commons" "$switch/Commons"
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/switch-sequence.qml" "$switch/shell.qml"
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/StepSequence.qml" "$switch/"
 for name in old new plain other frame; do
   magick -size 16x10 "xc:#$(printf '%06x' $((RANDOM * 512)))" "$switch/media/$name.png"
 done
@@ -88,7 +90,9 @@ cat >"$switch/bin/owe" <<'SH'
 printf 'owe %s\n' "$*" >>"$SWITCH_LOG"
 case $1 in
   intro) sleep 0.6; printf 'owe intro done\n' >>"$SWITCH_LOG" ;;
-  render) cp "$SWITCH_STAGE/frame.png" "$(jq -r .path <<<"$2")" ;;
+  # A slow snapshot used to outlast the fixture's 600 ms pause and make it
+  # check the next transition before the outgoing frame had even decoded.
+  render) sleep 1; cp "$SWITCH_STAGE/frame.png" "$(jq -r .path <<<"$2")" ;;
 esac
 SH
 cat >"$switch/bin/hyprctl" <<'SH'
@@ -102,7 +106,7 @@ SH
 chmod +x "$switch/bin/"*
 touch "$switch/log"
 output=$(HOME="$switch/home" PATH="$switch/bin:$ROOT/bin:$PATH" OMARCHY_SESSION_ID=switch-session \
-  SWITCH_STAGE="$switch/media" SWITCH_LOG="$switch/log" timeout 15 quickshell -p "$switch" --no-color 2>&1) || fail "background switch fixture exits cleanly" "$output"
+  SWITCH_STAGE="$switch/media" SWITCH_LOG="$switch/log" timeout 30 quickshell -p "$switch" --no-color 2>&1) || fail "background switch fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "background switch assertions pass" "$output$(printf '\n--- log\n')$(cat "$switch/log")"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
   fail "background switch fixture has no QML errors" "$output"
