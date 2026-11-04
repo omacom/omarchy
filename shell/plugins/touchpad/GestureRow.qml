@@ -49,7 +49,7 @@ Item {
         options: Model.translatedOptions(Model.FINGERS, Commons.I18n.t)
         value: String(root.binding.fingers)
         Layout.fillWidth: true
-        Layout.preferredWidth: Style.space(110)
+        Layout.preferredWidth: Style.space(90)
         Layout.minimumWidth: Style.space(64)
         onChanged: function(v) { root.edited("fingers", Number(v)) }
       }
@@ -60,7 +60,7 @@ Item {
         options: Model.translatedOptions(Model.DIRECTIONS, Commons.I18n.t)
         value: root.binding.direction || ""
         Layout.fillWidth: true
-        Layout.preferredWidth: Style.space(140)
+        Layout.preferredWidth: Style.space(110)
         Layout.minimumWidth: Style.space(64)
         onChanged: function(v) { root.edited("direction", v) }
       }
@@ -90,7 +90,7 @@ Item {
         options: Model.translatedOptions(Model.ACTIONS, Commons.I18n.t)
         value: root.binding.action || ""
         Layout.fillWidth: true
-        Layout.preferredWidth: Style.space(180)
+        Layout.preferredWidth: Style.space(250)
         Layout.minimumWidth: Style.space(96)
         onChanged: function(v) { root.edited("action", v) }
       }

@@ -153,7 +153,7 @@ var MOUSE_SETTINGS = {
   accel_profile: {
     type: "choice",
     label: t("touchpad.acceleration"),
-    description: t("touchpad.accelerationHint"),
+    description: t("touchpad.mouseAccelerationHint"),
     options: [
       { value: "adaptive", label: t("touchpad.adaptive") },
       { value: "flat", label: t("touchpad.flat") }
