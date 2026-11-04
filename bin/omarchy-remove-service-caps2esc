@@ -6,14 +6,40 @@
 
 set -e
 
-echo "Stopping and disabling udevmon..."
-sudo systemctl disable --now udevmon.service 2>/dev/null || true
+CONFIG_FILE="/etc/interception/udevmon.d/caps2esc.yaml"
 
-echo "Removing /etc/interception/udevmon.yaml..."
-sudo rm -f /etc/interception/udevmon.yaml
+has_other_udevmon_jobs() {
+  if compgen -G "/etc/interception/udevmon.d/*.yaml" >/dev/null || compgen -G "/etc/interception/udevmon.d/*.yml" >/dev/null; then
+    return 0
+  fi
 
-echo "Removing caps2esc and interception-tools..."
-omarchy-pkg-drop interception-caps2esc interception-tools
+  local conf
+  for conf in /etc/interception/udevmon.yaml /etc/interception/udevmon.yml /etc/udevmon.yaml; do
+    if [[ -s $conf ]] && grep -q '[^[:space:]]' "$conf" 2>/dev/null; then
+      return 0
+    fi
+  done
 
-echo ""
-echo "caps2esc and interception-tools have been removed."
+  return 1
+}
+
+echo "Removing $CONFIG_FILE..."
+sudo rm -f "$CONFIG_FILE"
+
+echo "Removing caps2esc..."
+omarchy-pkg-drop interception-caps2esc
+
+if has_other_udevmon_jobs; then
+  echo "Restarting udevmon for remaining jobs..."
+  sudo systemctl restart udevmon.service
+  echo ""
+  echo "caps2esc has been removed. Other udevmon jobs remain active."
+else
+  echo "Stopping and disabling udevmon..."
+  sudo systemctl disable --now udevmon.service 2>/dev/null || true
+  sudo rmdir /etc/interception/udevmon.d 2>/dev/null || true
+  echo "Removing interception-tools..."
+  omarchy-pkg-drop interception-tools
+  echo ""
+  echo "caps2esc and interception-tools have been removed."
+fi
