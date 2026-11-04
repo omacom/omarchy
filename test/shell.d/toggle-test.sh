@@ -114,6 +114,10 @@ cpu_session omarchy-toggle-animations
 ! cpu_session omarchy-hyprland-animations-off || fail "animations turned on in a CPU session count as on"
 cpu_session omarchy-toggle-animations
 [[ ! -f $without_gpu && -f $animations_flag ]] || fail "turning animations off again forgets the choice"
+rm -f "$animations_flag"
+printf '#!/bin/bash\necho %s\n' "'{\"bool\": true}'" >"$stub_bin/hyprctl"
+! cpu_session omarchy-hyprland-animations-off || fail "animations the user's looknfeel.lua kept on in a CPU session count as on"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/hyprctl"
 pass "the animations toggle works in a session that renders on the CPU"
 
 # A VM install starts without animations; other machines keep them.
