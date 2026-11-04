@@ -18,7 +18,12 @@ systemctl --user daemon-reload
 # One at a time: given a list, systemctl enables none of it when it cannot find
 # one unit, and that should not cost the session its bluetooth agent as well.
 failed=0
+
+# Before oo7-daemon's first start, so that it creates the keyring encrypted.
+omarchy-keyring-seal || failed=1
+
 for unit in \
+  oo7-daemon.service \
   bt-agent.service \
   owed.service \
   omarchy-recover-internal-monitor.service \
