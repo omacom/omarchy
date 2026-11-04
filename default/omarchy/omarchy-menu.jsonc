@@ -120,8 +120,8 @@
   "appearance.workspace-layout.dwindle": {"icon":"󱓻","label":"Tiling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"dwindle\" ]]","action":"omarchy-hyprland-workspace-layout-default dwindle"},
   "appearance.workspace-layout.scrolling": {"icon":"󰝥","label":"Scrolling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"scrolling\" ]]","action":"omarchy-hyprland-workspace-layout-default scrolling"},
   "appearance.workspace-layout.floating": {"icon":"󰔶","label":"Floating","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"floating\" ]]","action":"omarchy-hyprland-workspace-layout-default floating"},
-  "appearance.animations-on": {"icon":"󰗘","label":"Animations On","when":"omarchy-hyprland-toggle-enabled no-animations","action":"omarchy-toggle-animations"},
-  "appearance.animations-off": {"icon":"󰗘","label":"Animations Off","when":"! omarchy-hyprland-toggle-enabled no-animations","action":"omarchy-toggle-animations"},
+  "appearance.animations-on": {"icon":"󰗘","label":"Animations On","when":"omarchy-hyprland-animations-off","action":"omarchy-toggle-animations"},
+  "appearance.animations-off": {"icon":"󰗘","label":"Animations Off","when":"! omarchy-hyprland-animations-off","action":"omarchy-toggle-animations"},
   "appearance.unlock": {"icon":"󰟵","label":"Unlock","aliases":["unlock"],"action":"unlock=$(omarchy-plymouth-switcher); if [[ $unlock == default ]]; then omarchy-launch-floating-terminal-with-presentation omarchy-plymouth-reset; elif [[ -n $unlock ]]; then omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-set-by-theme $(printf %q \"$unlock\")\"; fi"},
 
   // Trigger
