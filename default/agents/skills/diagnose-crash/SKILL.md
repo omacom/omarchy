@@ -41,8 +41,8 @@ in its unit; a binary missing on the host may just have been deleted. Map paths
 with `systemd-cgls -u <unit>` and the bwrap `--bind` arguments.
 
 **A SIGTRAP is a lead, not a verdict.** Check the `si_code` on `coredumpctl
-info`'s `Signal:` line (`SI_KERNEL` for an x86 `int3`, `SI_USER` or `SI_TKILL` if
-sent) and the instruction at the crash address: a trap behind a conditional
+info`'s `Signal:` line (`SI_KERNEL` for an x86 `int3`, `SI_USER` or `SI_TKILL`
+if sent) and the instruction at the crash address: a trap behind a conditional
 branch is a check that fired; one in padding between functions is a wild jump.
 
 ## Read the program's own logs
