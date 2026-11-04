@@ -49,6 +49,16 @@ SH
 done
 # Like Hex: control commands exit 3 until `hex start` brings it up, and
 # `stop --print` hands back the transcript instead of pasting it.
+export PACTL_LOG="$test_tmp/pactl.log" PACTL_STATE_FILE="$test_tmp/pactl-state"
+echo RUNNING >"$PACTL_STATE_FILE"
+cat >"$test_tmp/bin/pactl" <<'SH'
+#!/bin/bash
+case $1 in
+  get-default-source) printf 'mic\n' ;;
+  list) printf '1 mic PipeWire s16le 2ch 48000Hz %s\n' "$(cat "$PACTL_STATE_FILE")" ;;
+  suspend-source) printf '%s\n' "$*" >>"$PACTL_LOG"; printf 'RUNNING\n' >"$PACTL_STATE_FILE" ;;
+esac
+SH
 export HEX_STATE="$test_tmp/hex-state"
 echo listening > "$HEX_STATE"
 cat > "$test_tmp/bin/hex" <<'SH'
@@ -123,7 +133,7 @@ for backend in voxtype superwhisper hex; do
   : > "$DICTATION_LOG"
   for action in start stop toggle; do omarchy dictation "$action"; done
   if [[ $backend == "voxtype" ]]; then
-    expected=$'voxtype record start\nvoxtype status\nvoxtype record stop\nvoxtype record toggle'
+    expected=$'voxtype record start\nvoxtype status\nvoxtype record stop\nvoxtype status\nvoxtype record toggle'
   elif [[ $backend == "superwhisper" ]]; then
     expected=$'superwhisper start\nsuperwhisper stop\nsuperwhisper record'
   else
@@ -400,3 +410,21 @@ printf '%s\n' voxtype > "$config"
 omarchy-remove-dictation-hex
 [[ $(cat "$config") == "voxtype" ]] || fail "removing Hex preserves another selected backend"
 pass "Hex installer selects Hex only after setup succeeds, and removal clears only its own selection"
+
+printf '%s\n' voxtype > "$config"
+: >"$PACTL_LOG"
+echo RUNNING >"$PACTL_STATE_FILE"
+omarchy-dictation-voxtype start
+[[ ! -s $PACTL_LOG ]] || fail "an awake mic is left alone" "$(cat "$PACTL_LOG")"
+echo SUSPENDED >"$PACTL_STATE_FILE"
+: >"$PACTL_LOG"
+omarchy-dictation-voxtype start
+[[ $(cat "$PACTL_LOG") == "suspend-source mic 0" ]] || fail "a suspended mic is woken before recording" "$(cat "$PACTL_LOG")"
+[[ $(cat "$PACTL_STATE_FILE") == "RUNNING" ]] || fail "recording waits until the mic is running"
+# The voxtype stub reports VOXTYPE_STATUS. A recording already underway must
+# not unsuspend again on toggle.
+echo SUSPENDED >"$PACTL_STATE_FILE"
+: >"$PACTL_LOG"
+VOXTYPE_STATUS=recording omarchy-dictation-voxtype toggle
+[[ ! -s $PACTL_LOG ]] || fail "toggle does not wake the mic while already recording"
+pass "voxtype wakes a suspended mic before recording and leaves an awake one alone"
