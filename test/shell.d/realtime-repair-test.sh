@@ -29,15 +29,16 @@ mkdir -p "$stub_bin"
 # pointed at this test's scratch tree.
 repair_command="$test_dir/omarchy-realtime-repair"
 python3 - "$ROOT/bin/omarchy-realtime-repair" "$repair_command" "$proc_root" "$state/pending" "$state/lock" <<'PY'
+import shlex
 import sys
 from pathlib import Path
 
 source, target, proc_root, pending, lock = map(Path, sys.argv[1:])
 text = source.read_text()
 for old, new in (
-    ('proc_root=/proc', f'proc_root={proc_root}'),
-    ('pending=/var/lib/omarchy/realtime-repair-pending', f'pending={pending}'),
-    ('lock=/run/omarchy-realtime-repair.lock', f'lock={lock}'),
+    ('proc_root=/proc', f'proc_root={shlex.quote(str(proc_root))}'),
+    ('pending=/var/lib/omarchy/realtime-repair-pending', f'pending={shlex.quote(str(pending))}'),
+    ('lock=/run/omarchy-realtime-repair.lock', f'lock={shlex.quote(str(lock))}'),
 ):
     assert text.count(old) == 1, f'machine path moved: {old}'
     text = text.replace(old, new)
