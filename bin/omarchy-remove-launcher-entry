@@ -55,6 +55,7 @@ if [[ -z $desktop_file ]]; then
       relative_path="${candidate#"$dir"/}"
       if [[ ${relative_path//\//-} == "$desktop_file_name" ]]; then
         desktop_file="$candidate"
+        nested_name="${relative_path%.desktop}"
         break 2
       fi
     done < <(find "$dir" -mindepth 2 -name '*.desktop' -print0 2>/dev/null)
@@ -79,6 +80,8 @@ is_user_desktop_file() {
 
 desktop_name="${desktop_file##*/}"
 desktop_name="${desktop_name%.desktop}"
+# The web app and TUI helpers take the path below their directory.
+desktop_name="${nested_name:-$desktop_name}"
 exec_line="$(sed -n 's/^Exec=//p' "$desktop_file" | head -1)"
 
 if [[ $exec_line =~ omarchy-launch-webapp|omarchy-webapp-handler ]]; then
