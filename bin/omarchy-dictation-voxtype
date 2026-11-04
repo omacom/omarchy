@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation using Voxtype
+# omarchy:args=<start|stop|toggle>
+
+case "${1:-}" in
+  start|toggle) voxtype record "$1" ;;
+  stop)
+    if omarchy-cmd-missing voxtype || [[ $(voxtype status) == "stopped" ]]; then
+      exit 0
+    else
+      voxtype record stop
+    fi
+    ;;
+  *) echo "Usage: omarchy dictation voxtype <start|stop|toggle>" >&2; exit 1 ;;
+esac

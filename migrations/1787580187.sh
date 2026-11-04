@@ -18,5 +18,5 @@ fi
 # (or runs directly under sudoless Docker). Refresh just that file.
 dest="$HOME/.local/share/applications/Docker.desktop"
 if [[ -f $dest ]]; then
-  cp "$OMARCHY_PATH/applications/Docker.desktop" "$dest"
+  cp "$OMARCHY_PATH/default/applications/Docker.desktop" "$dest"
 fi

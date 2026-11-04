@@ -193,7 +193,8 @@ if (( HERMES_ACTIVATE == 0 )); then
   esac
 fi
 
-# Omarchy's cold stub installs Hermes when run, so ask the probe before running it.
+# The probe vets the command before anything here runs it: a wrapper that is
+# not a working Hermes, or the retired mise stub that would build one.
 if ! omarchy-install-hermes-cli --check 2>/dev/null; then
   note "Hermes is not ready, so the Omarchy skin is published but not active."
   note "Once Hermes runs, activate it with: hermes config set display.skin $HERMES_SKIN_NAME"
