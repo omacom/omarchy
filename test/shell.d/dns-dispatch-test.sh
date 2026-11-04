@@ -29,14 +29,25 @@ mkdir -p "$work/bin"
 cat >"$work/bin/nmcli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$STUB_LOG"
-if [[ $* == "-g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "* ]]; then
-  # nmcli prints nothing for a port's ip settings, since it has none.
-  if [[ -n ${STUB_CONTROLLER:-} ]]; then
-    printf '%s\n%s\n' "$STUB_TYPE" "$STUB_CONTROLLER"
-  else
-    printf '%s\n\n%s\n%s\n%s\n%s\n' "$STUB_TYPE" "${STUB_METHOD4:-auto}" "$STUB_IGNORE4" "${STUB_METHOD6:-auto}" "$STUB_IGNORE6"
-  fi
+# STUB_PORT names the one profile that is a bridge port; STUB_REJECT the one
+# whose modify nmcli refuses.
+controller=""
+if [[ -n ${STUB_PORT:-} && ${*: -1} == "$STUB_PORT" ]]; then
+  controller=br0
 fi
+case "$*" in
+  "-t -f UUID,TYPE connection show") printf '%s\n' "${STUB_PROFILES:-}" ;;
+  "-g connection.controller connection show "*) printf '%s\n' "$controller" ;;
+  "-g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "*)
+    # nmcli prints nothing for a port's ip settings, since it has none.
+    if [[ -n $controller ]]; then
+      printf '%s\n%s\n' "${STUB_TYPE:-802-3-ethernet}" "$controller"
+    else
+      printf '%s\n\n%s\n%s\n%s\n%s\n' "${STUB_TYPE:-802-3-ethernet}" "${STUB_METHOD4:-auto}" "${STUB_IGNORE4:-no}" "${STUB_METHOD6:-auto}" "${STUB_IGNORE6:-no}"
+    fi
+    ;;
+  "connection modify ${STUB_REJECT:-none} "*) exit 1 ;;
+esac
 SH
 cat >"$work/bin/systemctl" <<'SH'
 #!/bin/bash
@@ -74,14 +85,20 @@ refute_modify() {
 
 modify="connection modify $uuid ipv4.ignore-auto-dns yes ipv4.dns 1.1.1.1 1.0.0.1 ipv6.ignore-auto-dns yes ipv6.dns 2606:4700:4700::1111 2606:4700:4700::1001"
 
-for type in 802-11-wireless 802-3-ethernet; do
+for type in 802-11-wireless 802-3-ethernet bridge bond vlan team; do
   pin "$cloudflare" "$type" no
   grep -Fx "$modify" "$work/log" >/dev/null ||
     fail "dispatcher pins the provider on a new $type profile" "log: $(cat "$work/log")"
   grep -Fx 'device reapply wlan0' "$work/log" >/dev/null ||
     fail "dispatcher reapplies the device so the pinned DNS takes effect now"
 done
-pass "dispatcher pins the provider on Wi-Fi and Ethernet profiles that still take DHCP DNS"
+pass "dispatcher pins the provider on uplink profiles that still take DHCP DNS"
+
+# A bridge or bond port is an Ethernet profile that takes its IP settings from
+# the controller, and nmcli prints none of them.
+STUB_PORT=$uuid pin "$cloudflare" 802-3-ethernet no ||
+  fail "dispatcher succeeds on a bridge port" "log: $(cat "$work/log")"
+refute_modify "dispatcher leaves a bridge port to its controller"
 
 for type in vpn tun wireguard; do
   pin "$cloudflare" "$type" no
@@ -95,10 +112,6 @@ pass "dispatcher pins a profile whose IPv6 DNS is still automatic"
 
 pin "$cloudflare" 802-11-wireless yes
 refute_modify "dispatcher leaves an already pinned profile alone"
-
-STUB_CONTROLLER=br0 pin "$cloudflare" 802-3-ethernet no ||
-  fail "dispatcher succeeds on a bridge port" "log: $(cat "$work/log")"
-refute_modify "dispatcher leaves a bridge port to its controller"
 
 # nmcli refuses ipv6.dns on a profile with IPv6 disabled and fails the whole
 # modify, which would leave IPv4 on DHCP DNS too.
@@ -188,3 +201,26 @@ wait "$custom_pid" || fail "Custom finishes once it reads its servers"
 grep -Fx 'DNS=9.9.9.9 149.112.112.112' "$work/resolved.conf" >/dev/null ||
   fail "Custom writes the servers it read" "got: $(cat "$work/resolved.conf")"
 pass "an open Custom prompt does not hold up the dispatcher"
+
+# A provider switch skips ports and keeps going past a profile nmcli rejects,
+# so later profiles, resolved.conf and the reloads are still reached.
+port=22222222-3333-4444-5555-666666666666
+bad=33333333-4444-5555-6666-777777777777
+last=44444444-5555-6666-7777-888888888888
+profiles="$port:802-3-ethernet
+$bad:802-11-wireless
+$last:802-11-wireless"
+for provider in Cloudflare DHCP; do
+  printf '%s\n' "$dhcp" >"$work/resolved.conf"
+  : >"$work/log"
+  if STUB_LOG="$work/log" STUB_PROFILES="$profiles" STUB_PORT="$port" STUB_REJECT="$bad" \
+    bash "$dns" "$provider" </dev/null >/dev/null 2>&1; then
+    fail "$provider switch reports the profile it could not update"
+  fi
+  if grep -q "^connection modify $port " "$work/log"; then
+    fail "$provider switch leaves a bridge port alone" "log: $(cat "$work/log")"
+  fi
+  grep -q "^connection modify $last " "$work/log" ||
+    fail "$provider switch keeps going past a rejected profile" "log: $(cat "$work/log")"
+done
+pass "provider switches skip ports and keep going past a rejected profile"

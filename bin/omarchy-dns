@@ -133,48 +133,107 @@ split_dns_servers() {
   done
 }
 
+# Profiles that carry the machine's own uplink. Bridges, bonds, VLANs and teams
+# are uplinks too; the Ethernet ports under them are skipped by controller.
+# VPN, tun and WireGuard keep the DNS they push.
 networkmanager_dns_connection() {
   case "$1" in
-    802-11-wireless|802-3-ethernet) return 0 ;;
+    802-11-wireless|802-3-ethernet|bridge|bond|vlan|team) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-pin_profile_dns() {
-  nmcli connection modify "$1" \
-    ipv4.ignore-auto-dns yes \
-    ipv4.dns "$2" \
-    ipv6.ignore-auto-dns yes \
-    ipv6.dns "$3" \
-    >/dev/null
+# The fields that decide whether and how a profile can carry DNS servers. A
+# bridge or bond port has no IP settings, so nmcli prints only its type and
+# controller; read the result with read_profile_dns_settings, not by position.
+profile_dns_info() {
+  nmcli -g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "$1"
 }
 
+# From <info> (profile_dns_info's output), fill profile_dns_settings with the
+# nmcli settings that pin <ipv4> <ipv6>, and set profile_dns_pinned=yes when the
+# profile already ignores automatic DNS on every family it can carry. Returns 1
+# when the profile takes no DNS of its own: not an uplink type, a bridge, bond
+# or team port (its controller carries its IP settings), or no family that
+# accepts servers. nmcli rejects ipvN.dns for a method that takes no DNS (IPv6
+# disabled, say) and fails the whole modify, so only those families are set.
+read_profile_dns_settings() {
+  local info="$1" ipv4_dns="$2" ipv6_dns="$3"
+  local fields=()
+
+  profile_dns_settings=()
+  profile_dns_pinned=yes
+
+  mapfile -t fields <<<"$info"
+  networkmanager_dns_connection "${fields[0]:-}" || return 1
+  [[ -z ${fields[1]:-} ]] || return 1
+
+  case "${fields[2]:-}" in
+    link-local|shared|disabled) ;;
+    *)
+      profile_dns_settings+=(ipv4.ignore-auto-dns yes ipv4.dns "$ipv4_dns")
+      [[ ${fields[3]:-} == "yes" ]] || profile_dns_pinned=no
+      ;;
+  esac
+  case "${fields[4]:-}" in
+    link-local|ignore|disabled) ;;
+    *)
+      profile_dns_settings+=(ipv6.ignore-auto-dns yes ipv6.dns "$ipv6_dns")
+      [[ ${fields[5]:-} == "yes" ]] || profile_dns_pinned=no
+      ;;
+  esac
+  (( ${#profile_dns_settings[@]} > 0 ))
+}
+
+# A profile nmcli still rejects is reported and skipped, so one bad profile
+# does not stop the rest, resolved.conf, or the reloads.
+dns_change_failed=false
+
 set_connection_dns() {
-  local uuid type
+  local uuid type info
   local ipv4_dns="${1:-}"
   local ipv6_dns="${2:-}"
 
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
+    if ! info=$(profile_dns_info "$uuid"); then
+      echo "omarchy-dns: could not read $uuid" >&2
+      dns_change_failed=true
+      continue
+    fi
+    read_profile_dns_settings "$info" "$ipv4_dns" "$ipv6_dns" || continue
 
-    pin_profile_dns "$uuid" "$ipv4_dns" "$ipv6_dns"
+    if ! nmcli connection modify "$uuid" "${profile_dns_settings[@]}" >/dev/null; then
+      echo "omarchy-dns: could not set DNS on $uuid" >&2
+      dns_change_failed=true
+    fi
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
 clear_connection_dns() {
-  local uuid type
+  local uuid type controller
 
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
+    # Bridge/bond/team ports inherit IP settings from their controller.
+    if ! controller=$(nmcli -g connection.controller connection show "$uuid"); then
+      echo "omarchy-dns: could not read $uuid" >&2
+      dns_change_failed=true
+      continue
+    fi
+    [[ -z $controller ]] || continue
 
-    nmcli connection modify "$uuid" \
+    if ! nmcli connection modify "$uuid" \
       ipv4.ignore-auto-dns no \
       ipv4.dns "" \
       ipv6.ignore-auto-dns no \
       ipv6.dns "" \
-      >/dev/null
+      >/dev/null; then
+      echo "omarchy-dns: could not reset DNS on $uuid" >&2
+      dns_change_failed=true
+    fi
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
@@ -188,47 +247,21 @@ lock_dns_changes() {
 
 # NetworkManager's dispatcher hook calls this as a profile comes up. Profiles
 # created after the provider was chosen still take DHCP DNS, so pin the provider
-# on Wi-Fi/Ethernet ones; VPNs keep the DNS they push.
+# on uplink ones; VPNs keep the DNS they push.
 pin_connection() {
-  local uuid="$1" device="$2" dns type ipv4_method ipv4_ignore ipv6_method ipv6_ignore pinned=yes
-  local info fields=() settings=()
+  local uuid="$1" device="$2" dns info
 
   dns=$(resolved_dns)
   [[ -n $uuid && -n ${dns//[[:space:]]/} ]] || return 0
 
-  info=$(nmcli -g connection.type,connection.controller,ipv4.method,ipv4.ignore-auto-dns,ipv6.method,ipv6.ignore-auto-dns connection show "$uuid")
-  mapfile -t fields <<<"$info"
-  type=${fields[0]:-}
-  networkmanager_dns_connection "$type" || return 0
-
-  # A bridge or bond port is Ethernet too, but has no IP settings to pin: its
-  # controller carries them, and nmcli prints none of the fields below.
-  [[ -z ${fields[1]:-} ]] || return 0
-  ipv4_method=${fields[2]:-}
-  ipv4_ignore=${fields[3]:-}
-  ipv6_method=${fields[4]:-}
-  ipv6_ignore=${fields[5]:-}
-
-  # nmcli rejects ipvN.dns for a method that takes no DNS (IPv6 disabled, say)
-  # and fails the whole modify, so pin only the families that can carry servers.
+  # Read outside a condition, so an nmcli error fails the pin rather than
+  # reading as an empty, skippable profile.
+  info=$(profile_dns_info "$uuid")
   split_dns_servers "$dns"
-  case "$ipv4_method" in
-    link-local|shared|disabled) ;;
-    *)
-      settings+=(ipv4.ignore-auto-dns yes ipv4.dns "$ipv4_dns")
-      [[ $ipv4_ignore == "yes" ]] || pinned=no
-      ;;
-  esac
-  case "$ipv6_method" in
-    link-local|ignore|disabled) ;;
-    *)
-      settings+=(ipv6.ignore-auto-dns yes ipv6.dns "$ipv6_dns")
-      [[ $ipv6_ignore == "yes" ]] || pinned=no
-      ;;
-  esac
-  [[ $pinned == "no" ]] || return 0
+  read_profile_dns_settings "$info" "$ipv4_dns" "$ipv6_dns" || return 0
+  [[ $profile_dns_pinned == "no" ]] || return 0
 
-  nmcli connection modify "$uuid" "${settings[@]}" >/dev/null
+  nmcli connection modify "$uuid" "${profile_dns_settings[@]}" >/dev/null
   if [[ -n $device ]]; then
     nmcli device reapply "$device" >/dev/null 2>&1 || true
   fi
@@ -240,7 +273,7 @@ reapply_active_dns_connections() {
   while IFS=: read -r device type state; do
     [[ -n $device && $state == connected ]] || continue
     case "$type" in
-      wifi|ethernet)
+      wifi|ethernet|bridge|bond|vlan|team)
         nmcli device reapply "$device" >/dev/null 2>&1 || true
         ;;
     esac
@@ -358,3 +391,8 @@ EOF
 esac
 
 reload_dns_stack
+
+if [[ $dns_change_failed == "true" ]]; then
+  echo "Could not update DNS on every profile; the profiles listed above keep their previous DNS." >&2
+  exit 1
+fi
