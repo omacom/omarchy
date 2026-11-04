@@ -38,6 +38,7 @@ from collectors import (  # noqa: E402
   base_record as shared_base_record,
   cached_scan,
   config_home,
+  dsh_home,
   emit,
   open_json,
   opencode_db,
@@ -46,6 +47,7 @@ from collectors import (  # noqa: E402
   routed_match,
   routed_sources,
   scan_max_age,
+  scan_dsh_sessions,
   scan_opencode,
   scan_pi_sessions,
   scan_routed,
@@ -368,27 +370,38 @@ def billed_here(provider: str, model: str, entry: dict) -> bool:
   return provider.lower() in PROVIDERS
 
 
+# DeepSeek Harness letters its built-in provider ids, not the hosts behind
+# them: a Z.ai turn through dsh is the route `zai`.
+DSH_PROVIDERS = ("zai",)
+
+
+def dsh_billed_here(provider: str, model: str, request: dict) -> bool:
+  return provider in DSH_PROVIDERS
+
+
 def scan_sessions(reuse: bool = True) -> tuple[dict[str, Any], bool]:
   """Z.ai turns from pi/omp sessions, both of opencode's message stores,
-  Claude Code's transcripts (pointed at Z.ai, or answered by a GLM model) and
-  MiniMax Code's custom providers at Z.ai's hosts, and whether every source
-  was read (safe to cache)."""
+  Claude Code's transcripts (pointed at Z.ai, or answered by a GLM model),
+  MiniMax Code's custom providers at Z.ai's hosts, and DeepSeek Harness
+  sessions on its `zai` route, and whether every source was read (safe to
+  cache)."""
   stats = Stats()
   pattern = r'"provider"\s*:\s*"(' + "|".join(PROVIDERS) + r')"'
   pi_rows, pi_complete = scan_pi_sessions(pattern, billed_here)
   # The closing quote makes the database's prefilter match the whole id.
   db_rows, db_complete = scan_opencode([provider + '"' for provider in PROVIDERS], billed_here)
   routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
-  for row in pi_rows + db_rows + routed_rows:
+  dsh_rows, dsh_complete = scan_dsh_sessions(dsh_billed_here)
+  for row in pi_rows + db_rows + routed_rows + dsh_rows:
     stats.add_row(row, row.model or "glm")
-  return {"hasLocalStats": bool(stats.model_usage), **stats.snapshot()}, pi_complete and db_complete and routed_complete
+  return {"hasLocalStats": bool(stats.model_usage), **stats.snapshot()}, pi_complete and db_complete and routed_complete and dsh_complete
 
 
 def cached_local_stats(max_age: float) -> dict[str, Any]:
   # The digest covers every data path the scan reads: the pi/omp session
-  # roots, the opencode DB, and Claude Code's and MiniMax Code's sessions,
-  # whose owner depends on where they are sent.
-  sources = [*pi_session_roots(), opencode_db(), *routed_sources()]
+  # roots, the opencode DB, Claude Code's and MiniMax Code's sessions (whose
+  # owner depends on where they are sent), and the DeepSeek Harness sessions.
+  sources = [*pi_session_roots(), opencode_db(), *routed_sources(), dsh_home()]
   # A forced scan reads every Codex rollout again too.
   return cached_scan(AGENT_ID, sources, max_age, lambda: scan_sessions(reuse=max_age > 0), match=routed_match())
 
