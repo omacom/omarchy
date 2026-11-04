@@ -347,7 +347,7 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
-  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
+  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive', 'keep']
 
 function newCapacityScope() {
   const toasts = { rows: [],
@@ -358,7 +358,7 @@ function newCapacityScope() {
     remove(i) { this.rows.splice(i, 1) } }
   const later = []
   const s = {
-    toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
+    toasts, refs: {}, kept: {}, replayCount: 6, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
     held: [], doNotDisturb: false,
@@ -772,6 +772,61 @@ for (const holding of [false, true]) { // Silencing closes a muted update; only 
   s.drainCallLater()
   assert.equal(s.toasts.get(0).senderPid, 1234)
   assert.equal(s.toasts.count, 1)
+}
+
+// An app's notification with a click to run, as Slack sends it.
+function appNotification(s, id, summary, clicks) {
+  const n = s.fakeNotification(id, summary)
+  n.desktopEntry = 'slack'
+  n.actions = [{ identifier: 'default', text: 'Show', invoke: () => { clicks.push(summary) } }]
+  return n
+}
+
+{ // An app's expired toast keeps its sender, so its history replay still runs the click.
+  const s = newCapacityScope(), clicks = []
+  const app = appNotification(s, 1, 'Thread reply', clicks)
+  const script = s.fakeNotification(2, 'Script')
+  script.actions = app.actions
+  s.admit(app, script)
+  for (const row of [...s.toasts.rows]) s.finishClose(row.key, 'expired')
+  assert.equal(app.expiries, 0, 'the app still waits for its click')
+  assert.equal(script.expiries, 1, 'a sender with no desktop entry expires as before')
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Thread reply', 'Script'])
+  s.activate(s.toasts.rows[0].key, true)
+  assert.deepEqual(clicks, ['Thread reply'])
+  assert.equal(s.refs[s.toasts.rows[1].key], undefined, 'a replayed row with no kept sender has no sender')
+}
+
+{ // Only the newest replayCount senders wait; a replayed card that expires again is newest.
+  const s = newCapacityScope(), clicks = []
+  const senders = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(id => appNotification(s, id, 'Reply ' + id, clicks))
+  s.admit(...senders.slice(0, 8))
+  for (const row of [...s.toasts.rows].reverse()) s.finishClose(row.key, 'expired')
+  assert.deepEqual(senders.map(n => n.expiries), [1, 1, 0, 0, 0, 0, 0, 0, 0])
+  s.restoreRows(s.historyEntries.filter(e => e.summary === 'Reply 3'), true)
+  s.drainCallLater()
+  s.finishClose(s.toasts.rows[0].key, 'expired')
+  s.admit(senders[8])
+  s.finishClose(s.toasts.rows[0].key, 'expired')
+  assert.deepEqual(senders.map(n => n.expiries), [1, 1, 0, 1, 0, 0, 0, 0, 0])
+}
+
+{ // A kept sender that closes is let go; one that updates comes back on screen.
+  const s = newCapacityScope(), clicks = []
+  const closing = appNotification(s, 1, 'Read elsewhere', clicks)
+  const updating = appNotification(s, 2, 'Typing', clicks)
+  s.admit(closing, updating)
+  for (const row of [...s.toasts.rows]) s.finishClose(row.key, 'expired')
+  closing.dismiss()
+  assert.equal(Object.keys(s.kept).length, 1)
+  updating.replace({ summary: 'Sent' })
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Sent'])
+  assert.equal(Object.keys(s.kept).length, 0)
+  s.activate(s.toasts.rows[0].key, true)
+  assert.deepEqual(clicks, ['Typing'], 'the card runs the sender action it was sent with')
 }
 
 const storedRows = count => Array.from({ length: count }, (_, i) => ({ key: 'stored-' + i, summary: 'Stored ' + i }))

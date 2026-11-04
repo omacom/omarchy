@@ -156,6 +156,10 @@ Item {
   // ListModel role dangles once the server destroys it and crashes the next read.
   property var refs: ({})
   property int refsRevision: 0
+  // Senders whose toast expired while they still wait for a click, by key,
+  // oldest first. A history replay gives the card its sender back, so its
+  // click still opens the Slack thread rather than only the Slack window.
+  property var kept: ({})
   property int keySeed: 0
 
   ListModel {
@@ -633,6 +637,7 @@ Item {
   function watchNotification(notification, key) {
     var reservation = liveKeys[key]
     notification.closed.connect(function() {
+      if (service.kept[key] === notification) delete service.kept[key]
       if (service.refs[key] !== notification) return
       delete service.refs[key]
       service.refsRevision += 1
@@ -652,6 +657,12 @@ Item {
       service.handleNotification(notification)
     }
     var schedule = function() {
+      // A kept sender that changes its notification wants it on screen again.
+      if (service.kept[key] === notification) {
+        delete service.kept[key]
+        service.handleNotification(notification)
+        return
+      }
       if (queued || service.liveKeys[key] !== reservation || service.refs[key] !== notification) return
       queued = true
       reservation.refresh = refresh
@@ -723,11 +734,37 @@ Item {
     // synchronously and must not cancel a row or release a newer sender.
     delete refs[key]
     refsRevision += 1
+    if (reason === "expired" && keep(key, ref)) return
     try {
       if (reason === "expired") ref.expire()
       else if (reason) ref.dismiss()
       else ref.tracked = false
     } catch (e) {}
+  }
+
+  // Keep an app's expired sender for a history replay when it has a click to
+  // run. A sender with no desktop entry, such as `notify-send --wait`, must
+  // not block until replayCount newer ones expire; a transient one has no
+  // history row to replay.
+  function keep(key, ref) {
+    try {
+      var hints = ref.hints || {}
+      if (!ref.desktopEntry || hints["transient"]) return false
+      var actions = ref.actions || [], clickable = false
+      for (var i = 0; i < Math.min(actions.length, Security.MAX_ACTIONS); i++)
+        if (String(actions[i].identifier) === "default") clickable = true
+      if (!clickable) return false
+    } catch (e) {
+      return false
+    }
+    kept[key] = ref
+    var keys = Object.keys(kept)
+    for (var k = 0; k < keys.length - replayCount; k++) {
+      var old = kept[keys[k]]
+      delete kept[keys[k]]
+      try { old.expire() } catch (e) {}
+    }
+    return true
   }
 
   // ------------------------------------------------------------- departure
@@ -1345,6 +1382,12 @@ Item {
         row.groupKey = Markup.regroup(row)
       }
       if (!reserveLive(row.key)) break
+      if (replay && kept[row.key]) {
+        refs[row.key] = kept[row.key]
+        delete kept[row.key]
+        refsRevision += 1
+        watchNotification(refs[row.key], row.key)
+      }
       showRow(row)
     }
   }
@@ -1364,7 +1407,8 @@ Item {
 
   // ------------------------------------------------------------- history replay
   //
-  // The last few come back as restored rows: no live sender, a short grace.
+  // The last few come back as restored rows with a short grace. Only a kept
+  // sender is live again.
   readonly property int replayCount: 6
 
   function replayHistory() {
