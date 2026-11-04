@@ -9,9 +9,9 @@ set -e
 echo "Installing interception-tools and caps2esc..."
 omarchy-pkg-add interception-tools interception-caps2esc
 
-echo "Configuring /etc/udevmon.yaml..."
-sudo mkdir -p /etc
-sudo tee /etc/udevmon.yaml >/dev/null << 'EOF'
+echo "Configuring /etc/interception/udevmon.yaml..."
+sudo mkdir -p /etc/interception
+sudo tee /etc/interception/udevmon.yaml >/dev/null << 'EOF'
 - JOB: "intercept -g $DEVNODE | caps2esc -m 1 | uinput -d $DEVNODE"
   DEVICE:
     EVENTS:
