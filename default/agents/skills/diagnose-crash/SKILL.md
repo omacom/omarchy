@@ -24,56 +24,33 @@ program was working on when it died, which is often the whole answer.
 crashes of the same program, or several programs dying together, point somewhere
 different than a single failure does.
 
-**Check whether it was traced.** systemd-coredump saves the process's `/proc`
-status with the crash, but `coredumpctl info` does not print it. Read it from
-the journal entry instead:
+**Check for a tracer and a sandbox.** `coredumpctl info` omits the `/proc`
+status it saved; read it from the journal:
 
 ```bash
-journalctl -n 1 -o cat --output-fields=COREDUMP_PROC_STATUS \
-  MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1 COREDUMP_PID=<pid>
+journalctl -n 1 -o cat --output-fields=COREDUMP_PROC_STATUS COREDUMP_PID=<pid>
 ```
 
-A non-zero `TracerPid:` there names the strace, gdb or other ptrace tracer that
-was attached. A traced process was already being debugged by someone, and the
-tracer can be the cause: some programs assert by breakpoint only when they see a
-debugger, which turns a warning they would otherwise log into a fatal SIGTRAP.
+A non-zero `TracerPid:` means strace, gdb or similar was attached, and that can
+be the cause: some programs assert by breakpoint only under a debugger.
 
-**Treat a SIGTRAP as a lead, not a verdict.** Most are a deliberate `int3` from
-an assertion or check, but `kill -TRAP` sends one from outside, a tracer that
-died can leave a breakpoint behind in the code, and a jump through corrupt
-memory can land on the `int3` padding compilers put between functions. Before
-blaming an assertion, read the `si_code` on the `Signal:` line of `coredumpctl
-info` (`SI_KERNEL` for an `int3` on x86, `SI_USER` or `SI_TKILL` for a signal
-something sent), the instruction at the crashing address, and the stack that led
-there. A trap just after a call and a conditional branch, inside a function, is
-a check that fired; one in a run of padding is a wild jump.
+An `NSpid:` with several values means the core's PIDs are not host PIDs. Treat
+its paths as a sandbox's only on evidence of a separate root, such as
+`container=` in `COREDUMP_ENVIRON` or a bwrap, Flatpak or pressure-vessel parent
+in its unit; a binary missing on the host may just have been deleted. Map paths
+with `systemd-cgls -u <unit>` and the bwrap `--bind` arguments.
 
-**Check whether it was sandboxed.** An `NSpid:` line with more than one value in
-that same status proves the process had its own PID namespace, so the PIDs in
-the core are not host PIDs. It says nothing about paths: Chromium's own sandbox
-gives its processes a PID namespace while they still see the host's files. The
-paths are the sandbox's own only when there is evidence of a separate root, such
-as a `container=` variable in the core's environment (`COREDUMP_ENVIRON`, read
-the same way) or a bwrap, Flatpak or pressure-vessel launcher in its unit.
-
-A binary path that does not exist on the host is a clue, not proof. The file may
-have been deleted or upgraded away since the crash, or while the process ran,
-which the kernel marks by ending the path in ` (deleted)`. Only map paths once
-other evidence confirms a sandbox. Map them through the `Control Group` and
-`Unit` that `coredumpctl info` shows: `systemd-cgls -u <unit>` lists what is
-still running there, and a bwrap command line spells out each `--bind` from host
-path to sandbox path.
+**A SIGTRAP is a lead, not a verdict.** Check the `si_code` on `coredumpctl
+info`'s `Signal:` line (`SI_KERNEL` for an x86 `int3`, `SI_USER` or `SI_TKILL` if
+sent) and the instruction at the crash address: a trap behind a conditional
+branch is a check that fired; one in padding between functions is a wild jump.
 
 ## Read the program's own logs
 
-Many programs log the reason they are about to die, which a backtrace never
-shows: a failed assertion, a fatal check, a missing resource. Find the log the
-program writes, often named on its command line, under its config or data
-directory, or in the journal, and read the lines from the crash second.
-
-Then find a run of the same program that did **not** crash, on this machine or
-in the same log from an earlier start. A warning that appears in both is not the
-cause on its own; what differs between them is where the cause is.
+Programs often log why they are about to die — a failed assertion, a fatal
+check — where no backtrace shows it. Read the program's log at the crash second,
+then the same log from a run that survived: a warning in both is not the cause
+on its own.
 
 ## Rule out the boring causes first
 
@@ -124,10 +101,8 @@ never invent function names to fill the gap. An unsymbolized stack still has
 shape: which library each frame belongs to, and whether the crash came from a
 signal handler, a main loop, or a worker thread.
 
-A stripped binary still names what it imports. Disassemble a little before the
-crashing address, follow each `call` into the PLT, and look up the slot it jumps
-through in `readelf -rW <executable>`: the relocation there names the function,
-which can be enough to identify the check that fired.
+A stripped binary still names its imports: a `call` into the PLT resolves to a
+function through its slot in `readelf -rW <executable>`.
 
 ## Report
 
