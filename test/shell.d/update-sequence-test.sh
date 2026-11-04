@@ -23,6 +23,7 @@ steps=(
   omarchy-update-keyring
   omarchy-update-system-pkgs
   omarchy-migrate
+  omarchy-restart-shell
   omarchy-hook
   omarchy-update-aur-pkgs
   omarchy-update-mise
@@ -78,6 +79,8 @@ expected_steps() {
     omarchy-update-keyring \
     omarchy-update-system-pkgs \
     omarchy-migrate \
+    omarchy-restart-shell \
+    omarchy-migrate \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
     omarchy-shell \
@@ -117,7 +120,7 @@ pass "a confirmed update approves orphan removal"
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
