@@ -424,6 +424,7 @@ def apply_guarded(monitors, name, scale, config, mode=None):
   except Exception:
     with finish_cleanup():
       recovery_failed = False
+      owner_reloaded = False
       if publishing:
         try:
           if prior is None:
@@ -444,11 +445,12 @@ def apply_guarded(monitors, name, scale, config, mode=None):
             result = ipc("reload")
             if result.returncode or result.stdout.strip() not in ("", "ok"):
               raise ValueError(result.stdout.strip() + result.stderr.strip())
+            owner_reloaded = read_config(path) != original
             print("Scale save cancelled; reloaded current owner configuration", file=sys.stderr)
         except (ValueError, OSError, subprocess.SubprocessError) as error:
           recovery_failed = True
           print(f"Monitor recovery failed: {error}; inspect {saved}, then run hyprctl reload when the compositor responds", file=sys.stderr)
-      if changed_live and previous_gdk is not None:
+      if changed_live and previous_gdk is not None and not owner_reloaded:
         try:
           hypr_eval(env_rule(previous_gdk))
         except (ValueError, OSError, subprocess.SubprocessError) as error:

@@ -100,7 +100,7 @@ with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {'XDG_STATE_HOM
   # Exercise the default managed GTK knob through the mocked compositor, with
   # failures at each transaction boundary and both autoreload policies.
   for disabled in (False, True):
-    for phase in ('success', 'eval', 'publish', 'readback', 'gtk-readback', 'signal'):
+    for phase in ('success', 'eval', 'publish', 'readback', 'gtk-readback', 'owner-edit', 'signal'):
       owner.write_text('local omarchy_gdk_scale = 2\n')
       live = [monitor('A', scale=2)]
       gtk = '3'  # Must restore the compositor value, not infer it from geometry.
@@ -115,6 +115,10 @@ with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {'XDG_STATE_HOM
         if args[0] == 'eval' and 'hl.monitor(' in args[1] and len([c for c in calls if c[0]=='eval']) == 1:
           if phase == 'eval': result.stdout = 'error: partial apply'
           if phase == 'signal': raise m.Terminated(15)
+        if args[0] == 'monitors' and phase == 'owner-edit' and any(c[0]=='eval' for c in calls):
+          owner.write_text('local omarchy_gdk_scale = 4\n')
+        if args[0] == 'reload' and phase == 'owner-edit':
+          gtk = '4'
         if args[0] == 'monitors' and phase == 'readback' and any(c[0]=='eval' for c in calls):
           result.stdout = json.dumps([monitor('A', scale=2)])
         if args[0] == 'repl' and phase == 'gtk-readback' and any(c[0]=='eval' for c in calls):
@@ -133,7 +137,7 @@ with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {'XDG_STATE_HOM
           try: m.apply(live, 'A', 1, owner)
           except (ValueError, OSError, m.Terminated): pass
           else: raise AssertionError('false success: ' + phase)
-          assert gtk == '3', (phase, disabled, gtk)
+          assert gtk == ('4' if phase == 'owner-edit' and not disabled else '3'), (phase, disabled, gtk)
           assert live == [monitor('A', scale=2)] and m.state_path().read_bytes() == prior
           assert any(c[0]=='reload' for c in calls) == (not disabled)
       print(f'ok - GTK {phase}, autoreload disabled={disabled}: live environment and saved state follow transaction recovery')
