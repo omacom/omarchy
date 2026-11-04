@@ -31,6 +31,11 @@ assertEqual(
   'refresh rate offers only the rates at the current resolution'
 )
 assertEqual(refresh.ratesFor(null).length, 0, 'refresh rate handles a missing monitor')
+// A 59.94 and a 60 are one choice, as in the display panel, so a panel offering
+// only those is left alone instead of being flipped between near-equal rates.
+const nearEqual = { name: 'eDP-1', width: 1920, height: 1080, availableModes: ['1920x1080@59.94Hz', '1920x1080@60.00Hz', '1920x1080@48.00Hz'] }
+assertEqual(refresh.ratesFor(nearEqual).join(','), '48.00,60.00', 'refresh rate folds rates that round alike, keeping the faster')
+assertEqual(refresh.targetRate({ ...nearEqual, availableModes: nearEqual.availableModes.slice(0, 2) }, true, 90, 50), '', 'refresh rate declines a panel whose rates are all one choice')
 
 assertEqual(refresh.targetRate(panel, false, 60, 50), '165.02', 'refresh rate runs fast on mains above the threshold')
 assertEqual(refresh.targetRate(panel, false, 50, 50), '165.02', 'refresh rate treats the threshold as inclusive')

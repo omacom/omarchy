@@ -14,19 +14,22 @@ Item {
   readonly property var config: shell && shell.shellConfig && shell.shellConfig.refreshRate
     ? shell.shellConfig.refreshRate
     : ({})
-  readonly property bool enabled: config.enabled === true
+  readonly property bool active: config.enabled === true
   readonly property int threshold: typeof config.threshold === "number" ? config.threshold : 50
 
   property var pending: []
 
-  function batteryPercentage() {
+  readonly property int batteryPercent: {
     var device = UPower.displayDevice
     if (!device || !device.isPresent) return -1
     return Math.round(Number(device.percentage || 0) * 100)
   }
+  // Charge crossing the threshold has no UPower event of its own; this flips
+  // only on the crossing, so the service reacts without a polling clock.
+  readonly property bool charged: batteryPercent < 0 || batteryPercent >= threshold
 
   function refresh() {
-    if (!enabled || monitorsProc.running || applyProc.running) return
+    if (!active || monitorsProc.running || applyProc.running) return
     monitorsProc.running = true
   }
 
@@ -51,7 +54,7 @@ Item {
           return
         }
         root.pending = RefreshRateModel.pendingSpecs(
-          monitors, UPower.onBattery, root.batteryPercentage(), root.threshold)
+          monitors, UPower.onBattery, root.batteryPercent, root.threshold)
         root.applyNext()
       }
     }
@@ -73,15 +76,11 @@ Item {
     onRunningChanged: if (!running) root.applyNext()
   }
 
-  // Charge crossing the threshold is not something UPower raises an event for,
-  // so the rate is re-checked on a clock as well as on the mains transition.
-  Timer {
-    interval: 60000
-    running: root.enabled
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: root.refresh()
-  }
+  // Only power changes apply a rate, so a rate picked in the display panel
+  // holds until the next one.
+  onActiveChanged: refresh()
+  onChargedChanged: refresh()
+  Component.onCompleted: refresh()
 
   Connections {
     target: UPower

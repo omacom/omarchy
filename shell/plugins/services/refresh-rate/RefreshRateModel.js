@@ -6,24 +6,26 @@ function isInternal(name) {
   return !!name && INTERNAL.test(name)
 }
 
-// The rates an output advertises at the resolution it is already using.
-// Restricting to the current mode means a rate change can never also change
-// the resolution behind the user's back.
+// The rates an output advertises at the resolution it is already using, one
+// per whole rate as the display panel offers them: a 59.94 and a 60 are the
+// same choice, so the faster exact rate stands for both. Restricting to the
+// current mode means a rate change can never also change the resolution
+// behind the user's back.
 function ratesFor(monitor) {
   if (!monitor || !monitor.availableModes) return []
   var prefix = monitor.width + "x" + monitor.height + "@"
-  var seen = ({})
-  var rates = []
+  var byWhole = ({})
   for (var i = 0; i < monitor.availableModes.length; i++) {
     var mode = monitor.availableModes[i]
     if (mode.indexOf(prefix) !== 0) continue
     var rate = mode.substring(prefix.length).replace(/Hz$/, "")
-    if (seen[rate]) continue
-    seen[rate] = true
-    rates.push(rate)
+    var whole = Math.round(parseFloat(rate))
+    if (!byWhole[whole] || parseFloat(rate) > parseFloat(byWhole[whole])) byWhole[whole] = rate
   }
-  rates.sort(function (a, b) { return parseFloat(a) - parseFloat(b) })
-  return rates
+  return Object.keys(byWhole)
+    .map(Number)
+    .sort(function (a, b) { return a - b })
+    .map(function (whole) { return byWhole[whole] })
 }
 
 // On mains with charge to spare, run the panel as fast as it goes. Otherwise
@@ -40,7 +42,8 @@ function targetRate(monitor, onBattery, percent, threshold) {
 }
 
 // Hyprland reports 165.02000 for the mode written as 165.02, so compare on the
-// rounded value rather than the string.
+// rounded value rather than the string. ratesFor keeps one rate per whole
+// rate, so two rates that round alike are the same choice.
 function needsChange(monitor, rate) {
   if (!rate || !monitor) return false
   return Math.round(Number(monitor.refreshRate)) !== Math.round(parseFloat(rate))
