@@ -243,6 +243,39 @@ run_watch
 pass "the fallback name can be muted like any other"
 mute unknown off
 
+# A crash under a tracer is somebody's debugging session, and the tracer can be
+# the cause: a program that asserts by breakpoint only under a debugger dies of
+# SIGTRAP there and nowhere else. The status is the /proc text systemd-coredump
+# journals; it is the one field that says a tracer was attached.
+traced_entry() {
+  local comm="$1" status="$2"
+
+  jq -cn --arg uid "$UID" --arg comm "$comm" --argjson status "$status" \
+    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
+      COREDUMP_EXE: ("/usr/bin/" + $comm), COREDUMP_SIGNAL_NAME: "SIGTRAP",
+      COREDUMP_PROC_STATUS: $status}' >>"$JOURNAL_ENTRIES"
+}
+
+reset_entries
+traced_entry steamwebhelper '"Name:\tsteamwebhelper\nTracerPid:\t613146\nNSpid:\t613739\t1672\n"'
+traced_entry nautilus '"Name:\tnautilus\nTracerPid:\t0\n"'
+run_watch
+! announced steamwebhelper ||
+  fail "a crash under strace or gdb offers a diagnosis to someone already debugging it"
+announced nautilus ||
+  fail "a TracerPid of 0 is read as traced, so every crash with a recorded status goes silent"
+pass "a traced crash stays quiet while an untraced one still announces"
+
+# journalctl writes a field holding bytes that are not UTF-8 as an array of
+# numbers, and a comm can put such bytes into the status. Reading that as
+# traced, or failing to parse the entry at all, would drop a real crash.
+reset_entries
+traced_entry nautilus '[78,97,109,101,58,9,255,10]'
+run_watch
+announced nautilus ||
+  fail "a status journalled as bytes drops the crash instead of announcing it"
+pass "a status journalled as bytes still announces"
+
 # What omarchy-crash-mute does on its own. That it agrees with the watcher is
 # already covered above, which drives it for every mute it makes.
 mute_home="$TMPDIR/mute-home"
