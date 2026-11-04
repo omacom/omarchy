@@ -37,10 +37,14 @@ function keyboard.vconsole()
 end
 
 -- Choices whose console keymap is plain US but whose desktop layout is not:
--- Korean keeps US letters, and Lao is non-Latin, so US still leads. Korean
--- installs take kr104, which adds Right Alt and Right Ctrl as 한/영 and 한자;
--- plain kr is what earlier installs saved.
-local desktop_overrides = { kr = true, ["kr:kr104"] = true, la = true }
+-- Korean keeps US letters; Lao and Bengali are non-Latin, so US still leads.
+-- Korean installs take kr104, which adds Right Alt and Right Ctrl as 한/영 and
+-- 한자; plain kr is what earlier installs saved. Bengali uses the Probhat
+-- layout that users actually type on, rather than the BCC National standard.
+local desktop_overrides = {
+  ["bd:probhat"] = true, bd = true,
+  kr = true, ["kr:kr104"] = true, la = true,
+}
 
 function keyboard.installed()
   local values = keyboard.vconsole()
@@ -49,6 +53,9 @@ function keyboard.installed()
     and (values.XKBLAYOUT or "us") == "us"
     and (values.XKBVARIANT or "") == "" then
     values.XKBLAYOUT, values.XKBVARIANT = override:match("^([^:]*):?(.*)$")
+    if values.XKBLAYOUT == "bd" and (values.XKBVARIANT or "") == "" then
+      values.XKBVARIANT = "probhat"
+    end
   end
   return values
 end

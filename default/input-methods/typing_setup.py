@@ -33,6 +33,7 @@ def keyboard_catalog():
     layout = input_settings[1] if len(input_settings) > 1 else mappings.get(keymap, keymap)
     # Composition engines belong in Input Methods, not as duplicate US layouts.
     catalog.setdefault(layout, label)
+  catalog.setdefault("bd", "Bengali")
   return catalog
 
 
@@ -164,7 +165,7 @@ def seed_language(method):
 def keyboard_values(selected):
   if not selected:
     raise ValueError("Select at least one keyboard layout")
-  parts = [value.split(":", 1) for value in selected]
+  parts = [["bd", "probhat"] if value == "bd" else value.split(":", 1) for value in selected]
   # Preserve the installer's Latin-leading rule for desktop keybindings.
   if parts[0][0] in setup.NON_LATIN:
     parts = [["us"]] + [part for part in parts if part != ["us"]]

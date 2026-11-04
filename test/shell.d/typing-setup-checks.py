@@ -20,6 +20,8 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(typing.keyboard_values(["us:intl", "fr"]), ("us,fr", "intl,"))
     self.assertEqual(typing.keyboard_values(["ru:phonetic"]), ("us,ru", ",phonetic"))
     self.assertEqual(typing.keyboard_values(["ru:phonetic", "us"]), ("us,ru", ",phonetic"))
+    self.assertEqual(typing.keyboard_values(["bd:probhat"]), ("us,bd", ",probhat"))
+    self.assertEqual(typing.keyboard_values(["bd"]), ("us,bd", ",probhat"))
     with self.assertRaises(ValueError):
       typing.keyboard_values([])
 
@@ -32,6 +34,7 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["la"], "Lao")
     self.assertEqual(catalog["kr:kr104"], "Korean")
     self.assertNotIn("kr", catalog)
+    self.assertEqual(catalog["bd:probhat"], "Bengali")
     # Converted as the installer does.
     self.assertEqual(catalog["fr"], "French")
     self.assertEqual(catalog["bg:phonetic"], "Bulgarian")

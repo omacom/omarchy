@@ -32,6 +32,21 @@ local non_latin_layouts =
 -- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
 local non_latin_us_variants = " chr rus "
 
+-- Default variants for layouts whose stock XKB default is not what desktop
+-- typists use (Bengali uses Probhat rather than the BCC National layout).
+local default_variants = { bd = "probhat" }
+
+local function with_default_variants(layouts, variants)
+  while #variants < #layouts do
+    variants[#variants + 1] = ""
+  end
+  for i, layout in ipairs(layouts) do
+    if default_variants[layout] and (variants[i] or "") == "" then
+      variants[i] = default_variants[layout]
+    end
+  end
+end
+
 local vconsole = read_vconsole()
 local kb_layout = vconsole.XKBLAYOUT or "us"
 local kb_variant = vconsole.XKBVARIANT or ""
@@ -62,6 +77,7 @@ if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
 
   table.insert(layouts, 1, "us")
   table.insert(variants, 1, us_variant)
+  with_default_variants(layouts, variants)
   kb_layout = table.concat(layouts, ",")
   kb_variant = table.concat(variants, ",")
   kb_options = "grp:alts_toggle"
