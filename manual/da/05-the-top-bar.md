@@ -1,117 +1,120 @@
-# Menulinjen
+# Topbjælken
 
-Striben langs toppen af din skærm er Omarchy-linjen. Den er ikke en påspændt statuslinje, men en del af Omarchy-shell'en, den ene langvarige Quickshell-proces, som også tegner menuen, notifikationerne, OSD-popups og låseskærmen. Det er derfor, den har perfekt tema med alt andet, og hvorfor et panel åbner øjeblikkeligt i stedet for at starte en ny app.
+Strimlen langs toppen af din skærm er Omarchy-bjælken. Den er ikke en påboltet statusbjælke, men en del af Omarchy-skallen, den ene langvarige Quickshell-proces, der også tegner menuen, notifikationerne, OSD-popup'erne og låseskærmen. Derfor matcher den perfekt i tema med alt andet, og derfor åbner et panel øjeblikkeligt i stedet for at starte en ny app.
 
-Den er også det eneste stykke af skrivebordet, der altid er på skærmen, så det er værd at vide, hvad alle de små tegn gør.
+Den er også det eneste stykke af skrivebordet, der altid er på skærmen, så det er værd at vide, hvad alle de små glyffer gør.
 
 ## Hvad der er på den som standard
 
-Linjen har tre sektioner. Til venstre sidder Omarchy-logoet (menustarteren) og arbejdsområdeindikatorerne. I midten får du statusindikatorerne, uret, Elsewhen (et verdensuret), vejret og et Omarchy-opdateringsbadge. Til højre: tastaturlayoutet (når mere end ét er konfigureret), systembakken, agenter, bluetooth, netværk, lyd, skærm og strøm.
+Bjælken har tre sektioner. Til venstre sidder Omarchy-logoet (menustarteren) og arbejdsområdeindikatorerne. I midten får du statusindikatorerne, uret, Elsewhen (et verdensure), vejret og et Omarchy-opdateringsbadge. Til højre: systembakken, tastaturlayoutet (når mere end ét er konfigureret), agenter, bluetooth, netværk, lyd, skærm og strøm.
 
-Nogle af dem vises kun, når de har noget at sige. Tastaturlayoutet vises kun, hvis du har konfigureret mere end ét layout. Opdateringsbadget vises kun, når der venter en Omarchy-opdatering. Og agentikonet vises første gang, Omarchy finder AI-kodningsforbrug på maskinen (se [AI](17-ai.md)).
+Nogle få af dem dukker kun op, når de har noget at sige. Tastaturlayoutet vises kun, hvis du har konfigureret mere end ét layout. Opdateringsbadget vises kun, når der venter en Omarchy-opdatering. Og agentikonet vises første gang Omarchy finder AI-kodningsforbrug på maskinen (se [AI](17-ai.md)).
 
-## At klikke rundt
+## Klik rundt
 
-Næsten alle widgets gør noget ved venstre-, højre- og midterklik, og flere reagerer på rulning. Det er den del, folk overser — højre- og midterknapperne er der, hvor meget af det gode gemmer sig.
+Næsten alle widgets gør noget ved venstre-, højre- og midterklik, og flere reagerer på rulning. Det er den del, folk overser — de gode ting gemmer sig i højre- og midterknapperne.
 
-| Widget | Venstre | Højre | Midter / rul |
+| Widget | Venstre | Højre | Midten / rul |
 | --- | --- | --- | --- |
 | Menu | Omarchy-menu | Ny terminal | — |
-| Arbejdsområder | Fokusér det arbejdsområde | — | Rul: næste/forrige arbejdsområde |
-| Ur | Kalender-popup | Bladr igennem etiketformatet | Midter: tidszonevælger |
-| Vejr | Udsigt-popup | Fuldt vejr som notifikation | Midter: opdater |
-| Lyd | Lydpanel | Lydløs | Midter: panel · rul: lydstyrke |
-| Mikrofon | Slå mikrofonen fra | — | Midter: lydpanel · rul: inputlydstyrke |
+| Arbejdsområder | Fokuser det arbejdsområde på denne skærm | — | Rul: næste/forrige arbejdsområde |
+| Ur | Kalender-popup | Skift etiketformat i cyklus | Midten: tidszonevælger |
+| Vejr | Vejrudsigt-popup | Fuld vejrudsigt som notifikation | Midten: opdater |
+| Lyd | Lydpanel | Slå lyd fra | Midten: panel · rul: lydstyrke |
+| Mikrofon | Slå mikrofonen fra | — | Midten: lydpanel · rul: inputlydstyrke |
 | Netværk | Netværkspanel | — | — |
 | Bluetooth | Bluetooth-panel | Slå radioen til/fra | — |
 | Skærm | Skærmpanel | — | Rul: lysstyrke |
-| Strøm | Strømpanel | Slå batteriprocenten til/fra | — |
-| Medier | Afspil/pause | Cover-popup | Midter: næste · rul: forrige/næste |
-| Agenter | Agentpanel | Start din agent | Midter: næste abonnement |
-| Bakke | Hold musen over for at afsløre skuffen | Højreklik på chevronen for at administrere | — |
+| Strøm | Strømpanel | Slå batteriprocent til/fra | — |
+| Medier | Afspil/pause | Coverbillede-popup | Midten: næste · rul: forrige/næste |
+| Agenter | Agentpanel | Start din agent | Midten: næste abonnement |
+| Bakke | Hold musen over for at vise skuffen | Højreklik på chevronen for at administrere | — |
 | Omarchy-opdatering | Kør opdateringen | — | — |
 
-Ikke alt i den tabel er på din linje fra start. Mediewidget'en (MPRIS-nu-kørende med et rullende nummer og kunstner) og mikrofonwidget'en er begge indbyggede, men slået fra som standard — tilføj dem, hvis du vil, som beskrevet nedenfor.
+Ikke alt i den tabel er på din bjælke fra start. Mediewidgetten (MPRIS afspiller nu, med et rullende spor og kunstner) og mikrofonwidgetten er begge indbyggede, men slået fra som standard — tilføj dem, hvis du vil have dem, som beskrevet nedenfor.
 
 ## Panelerne
 
-Et klik på et linjeikon åbner et panel, som er en rigtig popup med skydere, lister og tastaturnavigation snarere end et værktøjstip. Hvert af dem har også en genvejstast, så du aldrig behøver at sigte efter et 16-pixel-tegn:
+Når du klikker på et bjælkeikon, åbnes et panel, som er en rigtig popup med skydere, lister og tastaturnavigation i stedet for et værktøjstip. Hver af dem har også en genvejstast, så du aldrig behøver sigte efter en glyph på 16 pixel:
 
 | Genvejstast | Panel |
 | --- | --- |
 | `Super + Ctrl + A` | Lyd |
-| `Super + Ctrl + W` | Netværk |
+| `Super + Ctrl + N` | Netværk |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Skærm |
 | `Super + Ctrl + P` | Strøm |
 | `Super + Ctrl + Alt + D` | Kalender |
-| `Super + Ctrl + Alt + E` | Verdensur |
+| `Super + Ctrl + Alt + E` | Verdensure |
 | `Super + Ctrl + 1-9` | Slå det n'te panel i højre sektion til/fra |
 
-Panelerne er ikke aflæsninger. De er der, hvor du rent faktisk gør tingene:
+Panelerne er ikke aflæsninger. Det er der, hvor du faktisk gør tingene:
 
-- **Lyd** har en masterlydstyrkeskyder, en vælger til outputenhed og en mixer pr. app, så du kan skrue ned for den ene browserfane uden at røre alt andet.
-- **Netværk** scanner efter Wi-Fi, viser signalstyrke, forbinder og lader dig vælge en DNS-udbyder.
-- **Bluetooth** lister dine enheder med tilslut/afbryd og batteriniveauer.
-- **Strøm** viser batteristatistik, skifter strømprofiler (den husker et separat valg for batteri og vekselstrøm) og udskriver nogle systemoplysninger.
-- **Skærm** rummer en lysstyrkeskyder, tekststørrelse, forudindstillinger for skærmskalering og — når du har mere end én skærm — kontroller pr. skærm. Se [skærme](33-monitors.md) for hele historien.
-- **Ur** åbner et månedsgitter med ISO-ugenumre og månedstrin.
+- **Lyd** har en hovedlydstyrkeskyder, en vælger til outputenhed og en mixer pr. app, så du kan skrue ned for den ene browserfane uden at røre ved alt andet.
+- **Netværk** scanner efter Wi-Fi, viser signalstyrke, opretter forbindelse og lader dig vælge en DNS-udbyder.
+- **Bluetooth** viser dine enheder med tilslut/afbryd og batteriniveauer.
+- **Strøm** viser batteristatistik, skifter strømprofiler (den husker et separat valg for batteri og AC) og udskriver nogle systemoplysninger.
+- **Skærm** har en lysstyrkeskyder, tekststørrelse, forudindstillinger for skærmskalering og — når du har mere end én skærm — kontroller pr. skærm. Se [skærme](33-monitors.md) for den dybere historie.
+- **Ur** åbner et månedsgitter med ISO-ugenumre og månedsskift.
+- **Verdensure** holder en række pr. by med dens vejr, og hvordan dens dag går. Søgning finder byer såvel som tidszoner, så Fort Lauderdale er Fort Lauderdale og ikke New York. Hvis linjen øverst nævner den forkerte by, så klik på den og fortæl, hvor du er; vælg et sted i en anden tidszone, og systemuret flytter også derhen, hvilket er praktisk, når du rejser. Hold musen over en by og klik på personknappen for at fortælle, hvem der bor der — almindelige navne eller `@` GitHub-brugernavne for at tage deres ansigter med.
 
-Hvert panel tager tastaturet såvel som musen: pilene flytter, Return aktiverer, Tab går videre til nabopanelet, og Escape lukker.
+Hvert panel tager imod tastaturet såvel som musen: pile flytter, Return aktiverer, Tab går til nabopanelet, og Escape lukker.
 
-`Super + Ctrl + 1-9` tæller paneler fra venstre mod højre i højre sektion og springer bakken over, da den ikke har noget eget panel. Så nummeret matcher det ikon, du ville pege på.
+`Super + Ctrl + 1-9` tæller paneler fra venstre mod højre i højre sektion og springer bakken over, da den ikke har sit eget panel. Så tallet matcher det ikon, du ville pege på.
 
 ### Tailscale og Dropbox
 
-To widgets mere vises på linjen, først når du installerer den matchende tjeneste fra **Installer → Service**, og begge er værd at kende, fordi de gør mere end at rapportere status.
+To widgets mere vises kun på bjælken, når du installerer den matchende tjeneste fra **Install → Service**, og begge er værd at kende, fordi de gør mere end at rapportere status.
 
-**Tailscale**-panelet tilslutter og frakobler tailnet'et, skifter mellem konti og vælger en exit-node (både dine egne maskiner og Mullvad-regioner vises på den liste). Den gennemser også dine maskiner — og når én er valgt, sender `s` filer til den via Taildrop, hvilket er den hurtigste måde at flytte en fil til din telefon eller en anden bærbar på. `c` kopierer maskinens IP, `n` dens navn og `d` dens fulde DNS-navn. Der er også en sendeknap på hver maskinrække, hvis du hellere vil klikke. Det samme fra terminalen er `omarchy tailscale send <machine> [file...]`.
+**Tailscale**-panelet tilslutter og afbryder tailnettet, skifter mellem konti og vælger en exit node (dine egne maskiner og Mullvad-regioner vises begge på den liste). Det gennemser også dine maskiner — og med én valgt sender `s` filer til den over Taildrop, hvilket er den hurtigste måde at flytte en fil til din telefon eller en anden bærbar. `c` kopierer maskinens IP, `n` dens navn og `d` dens fulde DNS-navn. Der er også en send-knap på hver maskinrække, hvis du hellere vil klikke. Det samme fra terminalen er `omarchy tailscale send <machine> [file...]`.
 
-**Dropbox**-panelet håndterer login, viser, hvor meget lagerplads du har brugt, og lister nyligt synkroniserede filer.
+**Dropbox**-panelet håndterer login, viser, hvor meget lagerplads du har brugt, og viser nyligt synkroniserede filer.
 
-Fjerner du en af tjenesterne, tages dens widget af linjen igen.
+Hvis du fjerner en af tjenesterne, forsvinder dens widget igen fra bjælken.
 
 ## Indikatorer
 
-Den lille klynge i midten er indikatorwidget'en. Det er statustegn for tilstande, du har slået til: forstyr ikke, natlys, en [påmindelse](09-reminders.md) i kø, en aktiv skærmoptagelse, hold vågen og [diktering](11-text-extraction-dictation.md). De lyser op, når tilstanden er aktiv, og holder sig ellers væk — hold musen til venstre for uret (over det på en lodret linje) for at smugkigge på de inaktive. Et klik på en indikator slår den tilstand til eller fra. Én mere er kun status: en ekstern session lyser rødt, mens nogen er forbundet til denne maskine via gliff.
+Den lille klynge i midten er indikatorwidgetten. Det er statusglyffer for tilstande, du har slået til: forstyr ikke, natlys, en sat [påmindelse](09-reminders.md) i kø, en aktiv skærmoptagelse, hold vågen og [diktering](11-text-extraction-dictation.md). De lyser op, når tilstanden er aktiv, og holder sig ellers af vejen — hold musen overalt på bjælken for at kigge på de inaktive. Når du klikker på en indikator, slås den tilstand til/fra. Én mere er kun status: en fjernsession lyser rødt, mens nogen er forbundet til denne maskine gennem gliff.
 
-Hvis du hellere vil have dem altid synlige, skal du sætte `alwaysShow` til `true` på widget'en. Og hvis du kun går op i nogle af dem, skal du liste dem, du vil have, i `items`: `["Dnd", "Reminder", "NightLight"]`. Du kan have mere end én indikatorwidget, så forskellige sektioner kan vise forskellige delsæt.
+Hvis du hellere vil have dem altid synlige, så sæt `alwaysShow` til `true` på widgetten. Og hvis du kun interesserer dig for nogle af dem, så angiv dem, du vil have, i `items`: `["Dnd", "Reminder", "NightLight"]`. Du kan have mere end én indikatorwidget, så forskellige sektioner kan vise forskellige delmængder.
 
-## Omarrangering af linjen
+## Omarranger bjælken
 
-Linjen konfigurerer sig selv. Du behøver ikke at åbne en konfigurationsfil for at flytte ting.
+Bjælken konfigurerer sig selv. Du behøver ikke åbne en konfigurationsfil for at flytte ting.
 
-Grib et tomt område på linjen omkring midten, og træk det mod en anden skærmkant, og linjen flytter derover — venstre, højre, top eller bund virker alle, og hver widget tilpasser sig (lodrette linjer falder tilbage til kompakte former kun med ikoner). Et klik-og-hold starter den samme trækning. Dobbelt-venstreklik på det samme tomme område for at bladre linjens baggrund fra klar til glasagtig til uigennemsigtig. Og træk en hvilken som helst widget for at omarrangere den eller kaste den ind i en anden sektion.
+Tag fat i et tomt område på bjælken omkring midten og træk det mod en anden skærmkant, og bjælken flytter derhen — venstre, højre, top eller bund virker alle, og hver widget tilpasser sig (lodrette bjælker falder tilbage til kompakte former kun med ikoner). Et klik-og-hold starter det samme træk. Dobbeltvenstreklik på det samme tomme område for at skifte bjælkens baggrund i cyklus fra klar til glasagtig til uigennemsigtig. Og træk enhver widget for at omarrangere den eller smide den ind i en anden sektion; de andre widgets glider fra hinanden for at give plads, hvor den vil lande.
 
-En widget, du vil have ved hånden, men ikke altid i syne, kan ryge i bakkens skuffe: træk den hen på bakken, og skuffen åbner sig og tager imod den. Den sidder der efter appikonerne, dukker op, hver gang skuffen gør det, og holder sin skuffe åben, mens dens panel er oppe. Træk den tilbage ud på linjen for at sætte den på plads igen.
+Midten af bjælken er en boks: hvad der end er i den, forbliver centreret som én gruppe, og widgetterne på hver side af den hænger ud fra dens kanter. Mens du trækker en widget, vises boksen som en kontur, eller en linje tværs over bjælken, når den er tom, og du kan slippe i den eller ved siden af den. Når et slip ville lande i boksen, vokser boksen for at tage widgetten ind.
 
-Hvis du hellere vil vælge fra en menu, har **Udløs → Udseende → Menulinje** placeringen, og **Linjebaggrund** vælger, hvordan linjen tegnes: **Uigennemsigtig linje**, **Glaslinje** (gennemsigtig, med det bagved sløret) eller **Klar linje**.
+En widget, du vil have i nærheden, men ikke altid i syne, kan komme i bakkens skuffe: træk den over på bakken, og skuffen åbner for at tage den. Den sidder der efter appikonerne, dukker op, når skuffen gør, og holder sin skuffe åben, mens dens panel er oppe. Træk den tilbage ud på bjælken for at sætte den tilbage.
+
+Hvis du hellere vil vælge fra en menu, har **Appearance → Menu Bar** positionen, og **Bar Background** vælger, hvordan bjælken tegnes: **Opaque Bar**, **Glassy Bar** (gennemsigtig, med det bagved sløret) eller **Clear Bar**.
 
 De samme ting har kommandoer, hvilket er det, du vil have til en [dotfiles](31-dotfiles.md)-opsætning:
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-For at tilføje eller fjerne en widget helt skal du bruge plugin-kommandoerne. `omarchy plugin list` udskriver alle widgets, shell'en kender, med deres id, og derefter:
+For at tilføje eller fjerne en widget helt skal du bruge pluginkommandoerne. `omarchy plugin list` udskriver hver widget, skallen kender til, med dens id, og derefter:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
-## At skjule linjen
+## Skjul bjælken
 
-`Super + Shift + Space` slår linjen fra og til igen uden at dræbe shell'en — paneler og genvejstaster virker stadig, du får bare pixelne tilbage. Det findes også i menuen under **Udløs → Udseende → Menulinje → Skjul linje**.
+`Super + Shift + Space` slår bjælken fra og til igen uden at dræbe skallen — paneler og genvejstaster virker stadig, du får bare pixlerne tilbage. Den er også i menuen under **Appearance → Menu Bar → Hide Bar**.
 
 ## Konfigurationsfilen
 
-Det hele gemmes i `~/.config/omarchy/shell.json` under nøglen `bar`. Her er en beskåret version:
+Det hele gemmes i `~/.config/omarchy/shell.json` under `bar`-nøglen. Her er en beskåret version:
 
 ```json
 {
@@ -119,20 +122,21 @@ Det hele gemmes i `~/.config/omarchy/shell.json` under nøglen `bar`. Her er en 
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Hver widget er én post i ét af de tre layout-arrays, og dets indstillinger sidder inline på den post — der er ingen separat indstillingsfil og intet `config`-underobjekt. Urets `format`, `formatAlt` (hvad højreklik bladrer til) og `verticalFormat` bor alle lige der på `{ "id": "omarchy.clock" }`.
+Hver widget er én post i et af de fem layoutarrays, og dens indstillinger sidder inline på den post — der er ingen separat indstillingsfil og intet `config`-underobjekt. Urets `format`, `formatAlt` (det, højreklik skifter til i cyklus) og `verticalFormat` bor alle lige der på `{ "id": "omarchy.clock" }`.
 
-`centerAnchor` navngiver den ene midterwidget, der fastgøres til skærmens nøjagtige midte, med de andre ved dens side. Det er sådan, uret forbliver præcis i midten, selv når vejret og opdateringsbadget kommer og går. Sæt det til en tom streng, og midterlisten centreres bare som en gruppe i stedet.
+`center` er boksen i midten af bjælken: alt i den centreres på skærmen som én gruppe. `centerBegin` og `centerEnd` hænger ud fra hver side af boksen, hvilket er sådan, uret forbliver præcis i midten, selv mens vejret og opdateringsbadget kommer og går. Sæt mere end én widget i `center`, og de centreres sammen; lad den være tom, og `centerBegin` og `centerEnd` mødes i midten af bjælken.
 
-Én regel, der er værd at internalisere: **når du først har din egen `shell.json`, er den kanonisk**. Indtil du tilpasser noget, læser shell'en Omarchys standardfil. I det øjeblik du trækker en widget, kører `omarchy bar` eller redigerer filen selv, ejer du den — der er ingen dyb sammenfletning, så nye standardwidgets i fremtidige Omarchy-udgivelser vises ikke automatisk på din linje. `omarchy bar defaults` sætter det leverede layout tilbage, når du vil have en ren tavle.
+Én regel, der er værd at internalisere: **når du først har din egen `shell.json`, er den kanonisk**. Indtil du tilpasser noget, læser skallen Omarchys standardfil. I det øjeblik du trækker en widget, kører `omarchy bar` eller selv redigerer filen, ejer du den — der er ingen dyb fletning, så nye standardwidgets i fremtidige Omarchy-udgivelser vises ikke automatisk på din bjælke. `omarchy bar defaults` sætter det leverede layout tilbage, når du vil have en ren tavle.
 
-Den samme fil rummer også dine ledig-tider på øverste niveau, uden for nøglen `bar`: `idle.screensaver` og `idle.lock`, begge i sekunder, siden du gik i ledig. Så standardpauseskærmen sætter ind ved 150 sekunder, og låsen ved 300.
+Den samme fil rummer også dine inaktivitetstider på øverste niveau, uden for `bar`-nøglen: `idle.screensaver` og `idle.lock`, begge i sekunder, siden du blev inaktiv. Så standardpauseskærmen går i gang efter 150 sekunder og låsen efter 300.

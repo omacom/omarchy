@@ -1,0 +1,118 @@
+name: Tests
+
+# Runs ./test/all on a real Omarchy install: the VM image of the current
+# release, booted fresh for the run, with this checkout's code copied in.
+# The package recipes are checked out beside it, because some tests hold
+# this repository's scripts against them. Nothing it runs holds a secret, so
+# a fork's pull request runs the same way as ours.
+
+on:
+  pull_request:
+  push:
+    branches: [quattro]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      SITE: https://nightly.omarchy.org
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: src/omarchy
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: omacom/omarchy-pkgs
+          path: src/omarchy-pkgs
+          persist-credentials: false
+
+      - name: Install the fetch tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends aria2 jq
+
+      # The image of the current release: an installed Omarchy with user
+      # omarchy, built and boot-tested by omarchy-iso. It is fetched from
+      # Cloudflare on every run, into RAM: runners write their disk at 200
+      # or 400 MB/s, which bound the fetch to 15-31 s, and /dev/shm took it
+      # in 7-12 s on eight runners. Restoring it from the Actions cache took
+      # 27-62 s.
+      - name: Fetch the VM image
+        run: |
+          mkdir -p /dev/shm/image && cd /dev/shm/image
+          curl -fsS --retry 3 -o latest.json "$SITE/stable/latest.json"
+          jq -r '"Image: Omarchy \(.omarchy_version), kernel \(.kernel)"' latest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          unpacked=$(jq -r .vm.unpacked latest.json)
+          for file in vmlinuz initrd cmdline; do
+            curl -fsS --retry 3 -o "$file" "$unpacked$file"
+          done
+          url=$(jq -r .vm.url latest.json)
+          started=$SECONDS
+          aria2c --quiet -x 16 -s 16 -o base.qcow2 "$url"
+          echo "Fetched $(stat -c %s base.qcow2) bytes in $(( SECONDS - started )) s" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "$(jq -r .vm.sha256 latest.json)  base.qcow2" | sha256sum -c -
+
+      # QEMU runs in an Arch container on the runner's KVM: Arch's current
+      # QEMU (11) instead of the runner's older one, the same as
+      # omarchy-iso's install test and an Omarchy workstation.
+      - name: Run the tests in the VM
+        run: |
+          sudo chmod 0666 /dev/kvm
+          docker run --rm --device /dev/kvm -v "$PWD:/w" -v /dev/shm/image:/image:ro -w /w -e VM_STATE_DIR=/tmp -e MEM=6G \
+            ghcr.io/archlinux/archlinux:latest bash -euo pipefail -c '
+              # pacman 7 fails every sync on a kernel without Landlock, which
+              # these runners have; omarchy-iso does the same.
+              if ! grep -qw landlock /sys/kernel/security/lsm 2>/dev/null; then
+                printf "#!/bin/sh\nexec /usr/bin/pacman --disable-sandbox \"\$@\"\n" >/usr/local/bin/pacman
+                chmod 0755 /usr/local/bin/pacman
+              fi
+              # Our own Arch mirror first, the public ones after it; a mirror
+              # that drops one file must not fail the run: try again.
+              sed -i "1i Server = https://mirror.omarchy.org/\$repo/os/\$arch" /etc/pacman.d/mirrorlist
+              for attempt in 1 2 3; do
+                if pacman -Syu --noconfirm --needed qemu-system-x86 qemu-hw-display-virtio-gpu qemu-hw-display-virtio-vga qemu-img openssh >/dev/null; then
+                  break
+                elif (( attempt < 3 )); then
+                  echo "pacman failed, attempt $attempt of 3; trying again in 15 s"
+                  sleep 15
+                else
+                  echo "::error::the test container could not install QEMU"
+                  exit 1
+                fi
+              done
+              qemu-system-x86_64 --version | head -n 1
+              src/omarchy/test/ci-vm /image src out
+            '
+
+      # The container ran as root: its output belongs to root until here.
+      - name: Hand the results to the runner's user
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" out 2>/dev/null || true
+
+      - name: Summary
+        if: always()
+        run: |
+          if [[ -f out/run.log ]]; then
+            {
+              echo '```'
+              sed -n '/^Skipped checks in/,$p' out/run.log
+              echo '```'
+            } >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 14

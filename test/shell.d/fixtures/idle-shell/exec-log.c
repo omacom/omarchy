@@ -10,9 +10,15 @@
 // preload is inherited, under a parent the log has never seen.
 //
 // The exec family can run in a vfork child, which shares the parent's memory,
-// so the logging path allocates nothing and takes no locks: raw syscalls from
-// a stack buffer, with errno left as the caller had it. The real functions are
+// so the logging path takes no locks and never touches the allocator: raw
+// syscalls, with errno left as the caller had it. The real functions are
 // resolved once, at load.
+//
+// Nor may it take much stack. Qt 6.12 runs a QProcess child on a stack carved
+// out of the parent's own, SIGSTKSZ bytes above the parent's frame in clone():
+// glibc sizes that for the CPU at run time, 8KB on many, and a line buffer there
+// runs over the return address the parent resumes on. The line is built in
+// pages mapped for the one call instead.
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -21,9 +27,11 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 #define MAX_LIST_ARGS 256
+#define LINE_SIZE 8192
 
 typedef int (*execve_fn)(const char *, char *const[], char *const[]);
 typedef int (*execv_fn)(const char *, char *const[]);
@@ -83,8 +91,12 @@ static void record_as(pid_t pid, pid_t parent, char *const argv[]) {
   if (!log_path[0]) return;
 
   int saved_errno = errno;
-  char line[8192];
-  size_t cap = sizeof(line) - 1, at = 0;
+  char *line = mmap(NULL, LINE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (line == MAP_FAILED) {
+    errno = saved_errno;
+    return;
+  }
+  size_t cap = LINE_SIZE - 1, at = 0;
 
   at = put_number(line, at, cap, (long)pid);
   if (at < cap) line[at++] = ' ';
@@ -101,6 +113,7 @@ static void record_as(pid_t pid, pid_t parent, char *const argv[]) {
     (void)written;
     close(fd);
   }
+  munmap(line, LINE_SIZE);
   errno = saved_errno;
 }
 

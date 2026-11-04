@@ -98,6 +98,9 @@ for (let i = 0; i < 1000; i++) {
   // A restored row cannot claim a site either unless it came from a browser.
   assert.equal(Store.restored({ key: 'r', app: 'Chat', source: 'bank.example' }).groupKey, 'app:chat')
   assert.equal(Store.restored({ key: 'r', app: 'Chromium', source: 'app.slack.com' }).groupKey, 'web:app.slack.com')
+  // An unnamed sender's toasts each stand alone rather than stacking.
+  for (const app of ['omarchy-action', 'notify-send'])
+    assert.notEqual(Store.restored({ key: 'a', app }).groupKey, Store.restored({ key: 'b', app }).groupKey, app)
 }
 
 { // `-i name` is an icon name, not a picture; only the strict charset is kept.
@@ -176,6 +179,21 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.deepEqual([secret.execArgv, secret.glyph], ['', ''])
 }
 
+{ // --action buttons: up to three, each a label and an argv held to the click's rules.
+  const actions = JSON.stringify([{ label: 'Edit', argv: ['omasnap', '--file', '/tmp/a b.png'] },
+                                  { label: 'Copy path', argv: ['wl-copy', '--', '/tmp/a b.png'] }])
+  assert.equal(JSON.stringify(S.parseExecActions(actions)), actions)
+  const one = { label: 'Go', argv: ['true'] }
+  for (const bad of ['', '[]', '{}', JSON.stringify([one, one, one, one]), JSON.stringify([{ label: ' ', argv: ['true'] }]),
+                     JSON.stringify([{ label: 'Go', argv: ['-rf'] }]), JSON.stringify([{ label: 'Go' }]), JSON.stringify([one, 'x'])])
+    assert.equal(S.parseExecActions(bad), null, bad)
+  // Stored with the row, so a restored card keeps its buttons; redacted with a code.
+  const row = snap({ appName: 'omasnap', summary: 'Screenshot saved', hints: { 'omarchy-actions': actions } })
+  assert.equal(Store.restored(Store.sanitiseForPersistence(row)).execActions, actions)
+  const secret = snap({ appName: 'x', summary: 'Sign in', body: 'Your verification code is 482913', hints: { 'omarchy-actions': actions } })
+  assert.equal(Store.sanitiseForPersistence(secret).execActions, '')
+}
+
 { // Sender image paths: absolute, one spelling, bounded, and never a kernel interface or service state.
   for (const path of ['/tmp/.org.chromium.Chromium.Xk3lQa/1', '/tmp/.org.chromium.Chromium.Xk3lQa/notification-icon', '/home/u/.cache/app/avatar.png',
                       '/usr/share/icons/hicolor/48x48/apps/slack.png', '/run/user/1000/app/com.slack.Slack/icon.png', '/tmp/a b#c?.png',
@@ -251,6 +269,11 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     [{ app: 'omarchy-action', urgency: 0 }, true, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
   ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
+  const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
+                               [{ id: 'join', text: 'Join call' }])
+  assert.equal(JSON.stringify(Array.from(deeds, d => d.kind + ':' + d.value)), JSON.stringify(['code:482913', 'code:771204', 'exec:0', 'action:join']))
+  assert.equal(Delivery.deeds({}, []).length, 0)
   for (const [row, ephemeral] of [[{ app: 'notify-send' }, true], [{ app: 'omarchy-action' }, true],
                                   [{ app: 'Slack', transient: true }, true], [{ app: 'Slack' }, false]])
     assert.equal(Delivery.isEphemeral(row), ephemeral, row.app)
@@ -305,12 +328,25 @@ function runIn(scope, ...names) {
   assert.deepEqual(calls, ['hl.dsp.focus({window = hl.get_window("address:0x123abc")})'])
 }
 
+{ // An app name of several words finds the class that ends in them, and only that.
+  // The decoy was focused last, so it would win any match it wrongly made.
+  const windows = ['telegram-desktop-notes', 'org.telegram.desktop', 'brave-browser', 'desktop']
+    .map((c, i) => ({ lastIpcObject: { class: c, title: '', address: '0x' + (i + 1), pid: 0, focusHistoryID: i } }))
+  const s = runIn({ Hyprland: { toplevels: { values: windows } } }, 'openWindows', 'mostRecent', 'windowForSource')
+  const at = name => (s.windowForSource(name) || {}).wmClass
+  assert.equal(at('Telegram Desktop'), 'org.telegram.desktop')
+  assert.equal(at('Brave Browser'), 'brave-browser')
+  assert.equal(at('Desktop'), 'desktop')
+  assert.equal(at('Notes Desktop'), undefined)
+}
+
 // Admission, close and replay run for real; only the ListModel, QObject
 // signals, the deferred event loop and external effects are faked.
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
 function newCapacityScope() {
@@ -323,7 +359,8 @@ function newCapacityScope() {
   const later = []
   const s = {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
-    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, layoutRevision: 0,
+    maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
+    arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
     held: [], doNotDisturb: false,
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
@@ -332,11 +369,12 @@ function newCapacityScope() {
     displayNames: ['fixture-display'], focusedDisplayName: 'fixture-display',
     Quickshell: { screens: [] }, Hyprland: { monitorFor: screen => screen.monitor },
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
-    Security: S, Delivery, Store,
+    Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
-    Style: { space: n => n },
+    Style: { space: n => n, duration: n => n },
+    departureDeadline: { running: false, start() {}, restart() {} },
     holding: () => s.pointerHolding === true,
     snapshot: () => ({}), deckHeight: 0, retarget: () => {}, land: () => {}, layout: { placements: {} },
   }
@@ -414,15 +452,102 @@ const summaries = rows => Array.from(rows, row => row.summary)
   for (const sender of senders) assert.equal(sender.closeAttempts, 1)
 }
 
-{ // Clearing takes every card out together, with one jump.
+{ // Acting on the newest card dismisses it bare, presses its lone button, or picks among several.
+  const s = newCapacityScope()
+  const picking = []
+  s.startKeyboard = key => { picking.push(key); return true }
+  assert.equal(s.act(), 'none')
+  const bare = s.fakeNotification(1), single = s.fakeNotification(2), several = s.fakeNotification(3)
+  let pressed = 0
+  bare.actions = []
+  single.actions = [{ identifier: 'open', text: 'Open', invoke: () => { pressed += 1 } }]
+  several.actions = [{ identifier: 'reply', text: 'Reply' }, { identifier: 'archive', text: 'Archive' }]
+  s.admit(bare, single, several)
+  const [severalKey, singleKey, bareKey] = s.toasts.rows.map(row => row.key)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey], 'several buttons hand that card the keyboard')
+  assert.equal(s.leaving[severalKey], undefined)
+  s.closeToast(severalKey, 'dismissed')
+  assert.equal(s.act(), 'ok')
+  assert.equal(pressed, 1, 'a lone button is pressed')
+  assert.equal(s.leaving[singleKey], 'activated')
+  assert.equal(s.act(), 'ok')
+  assert.equal(s.leaving[bareKey], 'dismissed', 'a card with no buttons is dismissed')
+
+  // A web notification's only action is its click: it opens rather than going away.
+  const web = s.fakeNotification(4)
+  let opened = 0
+  web.actions = [{ identifier: 'default', text: 'Activate', invoke: () => { opened += 1 } }]
+  s.admit(web)
+  const webKey = s.toasts.get(0).key
+  assert.equal(s.act(), 'ok')
+  assert.equal(opened, 1, 'a card whose one action is its click is clicked')
+  assert.equal(s.leaving[webKey], 'activated')
+
+  // Its click and a button make two things to choose from.
+  const both = s.fakeNotification(5)
+  both.actions = [{ identifier: 'default', text: 'Activate' }, { identifier: 'reply', text: 'Reply' }]
+  s.admit(both)
+  assert.equal(s.act(), 'ok')
+  assert.deepEqual(picking, [severalKey, s.toasts.get(0).key], 'a click and a button hand the card the keyboard')
+
+  // A native app with no actions at all still has its own window to go to.
+  const focused = []
+  s.Hyprland.toplevels = { values: [{ lastIpcObject: { class: 'signal', pid: 42, address: '0xabc' } }] }
+  s.Hyprland.dispatch = x => focused.push(x)
+  const native = s.fakeNotification(6)
+  native.actions = []
+  native.hints = { 'sender-pid': 42 }
+  s.admit(native)
+  assert.equal(s.act(), 'ok')
+  assert.equal(focused.length, 1, "a card from an app with a window open focuses that window")
+  assert.equal(s.leaving[s.toasts.get(0).key], 'activated')
+}
+
+{ // A clicked card rises out before it goes; a keypress clears every card with one jump.
   const s = newCapacityScope()
   s.admit(...[1, 2, 3].map(id => s.fakeNotification(id)))
-  let lands = 0
+  let lands = 0, moves = 0
   s.land = () => { lands += 1 }
-  assert.equal(s.clearAll('dismissed'), 3)
+  s.retarget = () => { moves += 1 }
+  s.closeToast(s.toasts.get(0).key, 'dismissed')
+  s.drainCallLater()
+  assert.equal(moves, 1)
+  assert.equal(s.toasts.count, 3, 'a clicked card keeps its row until its exit move finishes')
+  assert.equal(s.clearAll('dismissed', true), 3)
   assert.equal(lands, 1)
   s.drainCallLater()
-  assert.equal(s.toasts.count, 0)
+  assert.equal(s.toasts.count, 0, 'the jump takes the card already on its way out too')
+}
+
+{ // A card on its way out is passed over by the shortcuts, and goes on its own deadline
+  // however often an update restarts the scene.
+  const s = newCapacityScope()
+  s.admit(...[1, 2].map(id => s.fakeNotification(id)))
+  const [front, back] = s.toasts.rows.map(row => row.key)
+  const at = { y: 0, scale: 1, opacity: 1, height: 58 }
+  s.snapshot = () => ({ [front]: at, [back]: at })
+  s.closeToast(front, 'dismissed')
+  assert.equal(s.newestLive(), back, 'the activation shortcut must not run the departing card again')
+  s.finishDeparted(Date.now())
+  assert.equal(s.toasts.count, 2, 'the card rises out before it goes')
+  s.finishDeparted(Date.now() + 1000)
+  assert.deepEqual(s.toasts.rows.map(row => row.key), [back], 'its deadline removes it without the scene settling')
+}
+
+{ // A sender replacing a card during its exit brings it back instead of losing the update.
+  const s = newCapacityScope()
+  const sender = s.fakeNotification(1, 'Expiring')
+  s.admit(sender)
+  const key = s.keyForOriginal(1)
+  s.snapshot = () => ({ [key]: { y: 0, scale: 1, opacity: 1, height: 58 } })
+  s.closeToast(key, 'expired')
+  sender.replace({ summary: 'Still going', expireTimeout: 12345 })
+  s.drainCallLater()
+  s.finishDeparted(Date.now() + 1000)
+  assert.equal(s.toasts.count, 1)
+  assert.equal(s.toasts.get(0).summary, 'Still going')
+  assert.equal(sender.expiries, 0, 'the fresh notification must not be reported expired')
 }
 
 { // A code must not outlive its toast, even in source metadata.
@@ -434,6 +559,39 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.ok(Store.redacted(s.historyEntries[0]))
   assert.ok(!Store.redacted({ summary: 'Verification notification', body: 'a real message' }))
   assert.ok(!JSON.stringify(s.historyEntries).includes('938271'))
+}
+
+{ // The keyboard only selects cards that fit on screen: the deck does not scroll.
+  const s = newCapacityScope()
+  const other = s.fakeNotification(9, 'Other app')
+  other.appName = 'Other'
+  s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
+  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
+    Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
+  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
+  for (const row of s.toasts.rows) s.heights[row.key] = 100
+  Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
+  s.selectCard = key => { s.keyboardKey = key; s.openDeck = Layout.groupKeyFor(s.toasts.get(s.rowIndexFor(key))) }
+  const summary = () => s.toasts.get(s.rowIndexFor(s.keyboardKey)).summary
+  s.selectCard(s.keyboardOrder()[0])
+  s.moveSelection(1)
+  // 300 tall, 10 down, 6 apart: two 100-tall cards fit, the third would end at 322...
+  assert.equal(summary(), 'Card 4')
+  // ...so Down skips the rest of that deck for the next one, which fits once it opens.
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
+  s.moveSelection(-1)
+  assert.equal(summary(), 'Card 4')
+  // A selected card that grows past the bottom (its buttons, its body) gives way.
+  const grown = s.keyboardKey
+  s.heights[grown] = 200
+  s.keepSelectionInReach()
+  assert.equal(summary(), 'Card 5')
+  // Its buttons hide again once it is not selected; Down passes it rather than
+  // landing on it and giving way again, forever.
+  s.heights[grown] = 100
+  s.moveSelection(1)
+  assert.equal(summary(), 'Other app')
 }
 
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.
@@ -654,12 +812,13 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
 
 { // Repeated replay creates distinct cards; restore cannot overwrite an admitted key.
   const s = newCapacityScope()
-  s.restoreRows([{ key: 'same', summary: 'Original' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Replay' }], true)
-  s.restoreRows([{ key: 'same', summary: 'Stale startup' }], false)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Replay' }], true)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Stale startup' }], false)
   s.drainCallLater()
   assert.deepEqual(summaries(s.toasts.rows), ['Replay', 'Original'])
   assert.equal(new Set(s.toasts.rows.map(r => r.key)).size, 2)
+  assert.equal(new Set(s.toasts.rows.map(r => r.groupKey)).size, 2, 'the replayed card is its own deck')
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.
@@ -844,6 +1003,23 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Silenced:silenced', 'Shown:expired'])
   assert.equal(s.liveEntries.length, 0)
   assert.ok(s.unsaved.live && s.unsaved.history)
+}
+
+{ // A transient card is shown but never stored, so the next login does not
+  // restore it next to the sender's fresh copy; it leaves no history either.
+  const s = newCapacityScope()
+  const reminder = () => Object.assign(s.fakeNotification(0, 'Pending migrations', 2), { hints: { transient: true } })
+  s.admit(reminder())
+  eq([s.toasts.count, s.liveEntries.length], [1, 0])
+  s.finishClose(s.toasts.get(0).key, 'dismissed')
+  eq([s.liveEntries.length, s.historyEntries.length], [0, 0])
+  // An update that turns a stored card transient takes its row out.
+  const update = s.fakeNotification(5, 'Stored')
+  s.admit(update)
+  assert.equal(s.liveEntries.length, 1)
+  update.replace({ hints: { transient: true } })
+  s.drainCallLater()
+  assert.equal(s.liveEntries.length, 0)
 }
 
 { // A pending card silenced before it showed leaves nothing to restore.

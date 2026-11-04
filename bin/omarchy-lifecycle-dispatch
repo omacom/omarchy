@@ -33,6 +33,7 @@ operations=(
   luks-slots
   setup-boot setup-system setup-user
   post-install pre-remove
+  enable-fingerprint disable-fingerprint
 )
 
 # Run as the user, never as root, with that user's session.
@@ -97,11 +98,14 @@ fi
 # update-takeover: the Mac boot chain and its image own files no package does,
 # and a Mac whose boot package can't vouch for a takeover keeps them. Setup and
 # the app-install hooks are optional: a Mac without omarchy-mac keeps Omarchy's
-# generic setup and installs. Moving an operation to required also changes
-# apple_optional in test/shell.d/lifecycle-dispatch-test.sh and the Apple column
-# and registration table in docs/lifecycle-dispatch.md.
+# generic setup and installs. So are the fingerprint hooks, which turn on a
+# reader the platform keeps off until the owner agrees (a Mac's Touch ID).
+# Moving an operation to required also changes apple_optional in
+# test/shell.d/lifecycle-dispatch-test.sh and the Apple column and registration
+# table in docs/lifecycle-dispatch.md.
 case $platform:$operation in
-  aarch64-apple:setup-system | aarch64-apple:setup-user | aarch64-apple:post-install | aarch64-apple:pre-remove)
+  aarch64-apple:setup-system | aarch64-apple:setup-user | aarch64-apple:post-install | aarch64-apple:pre-remove | \
+    aarch64-apple:enable-fingerprint | aarch64-apple:disable-fingerprint)
     implementation=/usr/lib/omarchy/mac
     package=omarchy-mac
     required=()
