@@ -59,8 +59,10 @@ Item {
   property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
 
   // Emoji fonts ship bitmaps at fixed sizes; 40px and 48px are native sizes
-  // of the common ones, so the grid and the preview stay sharp.
-  readonly property int columns: 8
+  // of the common ones, so the grid and the preview stay sharp. Cells keep
+  // their size, so a narrow screen gets fewer columns (at least four).
+  readonly property int columns: Math.max(4, Math.min(8, Math.floor(
+    (panel.width - Style.gapsOut * 2 - scrollGutter - contentMargin * 2 - card.borderLeft - card.borderRight) / cellSize)))
   property int cellSize: Style.space(56)
   property int emojiSize: Style.space(40)
   property int previewSize: Style.space(48)
@@ -189,6 +191,8 @@ Item {
     function onStringsChanged() { if (root.opened) root.rebuildKeepingView() }
   }
 
+  onColumnsChanged: if (root.opened) root.rebuildKeepingView()
+
   // ------------------------------------------------------------- cursor
 
   function setCursor(row, col) {
@@ -245,8 +249,9 @@ Item {
     })
   }
 
+  // A search lists one section, its results: Tab keeps the search.
   function cycleSection(delta) {
-    if (!root.sections.length) return
+    if (root.filterText || !root.sections.length) return
     var at = 0
     for (var i = 0; i < root.sections.length; i++)
       if (root.sections[i].id === root.activeSection) at = i
@@ -266,6 +271,12 @@ Item {
   }
 
   // ------------------------------------------------------------- actions
+
+  // The favorites, recents and tone the picker holds, as it saves them
+  // (`omarchy-shell shell call omarchy.emojis prefsJson`).
+  function prefsJson() {
+    return EmojiSearch.serializePrefs(root.prefs)
+  }
 
   function savePrefs(next) {
     root.prefs = next
@@ -456,8 +467,14 @@ Item {
             elide: Text.ElideLeft
           }
 
+          // The caret sits after the query in reading order. queryText's
+          // alignment flips under LayoutMirroring (and for right-to-left
+          // text), so the caret follows it rather than assuming the left.
           Rectangle {
-            x: queryText.x + (root.filterText ? Math.min(queryText.contentWidth, queryText.width) : 0)
+            readonly property real typed: root.filterText ? Math.min(queryText.contentWidth, queryText.width) : 0
+            x: queryText.effectiveHorizontalAlignment === Text.AlignRight
+              ? queryText.x + queryText.width - typed - width
+              : queryText.x + typed
             anchors.verticalCenter: parent.verticalCenter
             width: Math.max(1, Style.space(2))
             height: Style.font.heading + Style.space(4)
@@ -469,6 +486,7 @@ Item {
             id: clearHint
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
             text: root.filterText ? Commons.I18n.t("emojis.clearSearch") : ""
             color: root.mutedText
             font.family: root.fontFamily
@@ -501,6 +519,7 @@ Item {
 
               Text {
                 anchors.centerIn: parent
+                textFormat: Text.PlainText
                 text: tab.modelData.icon
                 color: tab.active ? root.selectedText : root.foreground
                 opacity: tab.active ? 1 : (root.filterText ? 0.3 : 0.6)
