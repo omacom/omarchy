@@ -583,6 +583,7 @@ Item {
 
           Column {
             anchors.centerIn: parent
+            width: parent.width - 2 * root.contentMargin
             spacing: Style.space(8)
             visible: displayModel.count === 0
 
@@ -593,7 +594,7 @@ Item {
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
               horizontalAlignment: Text.AlignHCenter
-              width: parent.width
+              anchors.horizontalCenter: parent.horizontalCenter
             }
 
             Text {
@@ -605,6 +606,7 @@ Item {
               font.pixelSize: Style.font.title
               horizontalAlignment: Text.AlignHCenter
               width: parent.width
+              elide: Text.ElideRight
             }
           }
         }
