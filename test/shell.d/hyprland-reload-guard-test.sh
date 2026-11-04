@@ -84,3 +84,31 @@ touch "$state_dir/some-signature"
 OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" "$ROOT/bin/omarchy-hyprland-reload-guard" paused ||
   fail "reload guard reports itself paused during a transaction"
 pass "reload guard reports whether a transaction is holding reloads"
+
+# The same transaction that pauses reloads can replace the Hyprland package.
+# Reloading the process whose executable was unlinked wedges the session.
+rm -rf "$state_dir"
+: >"$hyprctl_log"
+proc_root="$test_tmp/proc"
+mkdir -p "$runtime_dir/hypr/$signature" "$proc_root/4242"
+printf '4242\nwayland-1\n' >"$runtime_dir/hypr/$signature/hyprland.lock"
+touch "$test_tmp/Hyprland (deleted)"
+ln -s "$test_tmp/Hyprland (deleted)" "$proc_root/4242/exe"
+FAKE_HYPRCTL_LOG="$hyprctl_log" \
+  HYPRCTL="$fake_hyprctl" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
+  "$ROOT/bin/omarchy-hyprland-reload-guard" pause
+: >"$hyprctl_log"
+FAKE_HYPRCTL_LOG="$hyprctl_log" \
+  HYPRCTL="$fake_hyprctl" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
+  OMARCHY_HYPRLAND_PROC_ROOT="$proc_root" \
+  "$ROOT/bin/omarchy-hyprland-reload-guard" resume
+if grep -F -- '--instance test-signature reload' "$hyprctl_log"; then
+  fail "reload guard reloaded a Hyprland whose executable was replaced"
+fi
+grep -F 'hl.config({ misc = { disable_autoreload = false }, debug = { suppress_errors = false } })' "$hyprctl_log" >/dev/null ||
+  fail "reload guard still restores settings when it skips the reload"
+pass "reload guard does not reload a replaced Hyprland binary"

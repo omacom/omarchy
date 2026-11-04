@@ -62,6 +62,9 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // Set once a packaged shell.json has loaded. A later read failure is pacman
+  // unlinking that file mid-upgrade, not a missing install.
+  property bool defaultsReady: false
   // shell.json has text the shell could not use; persisting would replace it with defaults.
   property bool userConfigUnreadable: false
   property bool pluginReloading: false
@@ -107,8 +110,10 @@ ShellRoot {
     }
     try {
       var parsed = JSON.parse(text)
-      if (Util.isPlainObject(parsed) && parsed.version === 1) defaultsConfig = parsed
-      else defaultsConfig = builtinShellConfig
+      if (Util.isPlainObject(parsed) && parsed.version === 1) {
+        defaultsConfig = parsed
+        defaultsReady = true
+      } else defaultsConfig = builtinShellConfig
     } catch (e) {
       console.warn("default shell.json parse failed, using builtin:", e)
       defaultsConfig = builtinShellConfig
@@ -140,7 +145,10 @@ ShellRoot {
     onLoaded: shell.loadDefaults(text())
     onLoadFailed: function(error) {
       console.warn("default shell.json load failed: " + error + " path=" + shell.defaultsPath)
-      shell.loadDefaults("")
+      // Keep the bar that is already on screen. Falling back to the builtin
+      // config here is what blanks it for the rest of the update.
+      if (!shell.defaultsReady)
+        shell.loadDefaults("")
     }
     onFileChanged: reload()
   }
@@ -1638,11 +1646,23 @@ ShellRoot {
     id: shortcutsFile
     path: shell.omarchyPath + "/default/omarchy/shortcuts"
     watchChanges: true
+    printErrors: false
+    // Last text that actually loaded. A failed reread during a package
+    // replace must not drop every global shortcut until the next login.
+    property string kept: ""
+    onLoaded: {
+      var raw = text() || ""
+      if (String(raw).trim().length)
+        kept = raw
+    }
+    onLoadFailed: function(error) {
+      console.warn("shortcuts load failed: " + error)
+    }
     onFileChanged: reload()
   }
 
   Variants {
-    model: shell.parseShortcuts(shortcutsFile.text())
+    model: shell.parseShortcuts(shortcutsFile.kept || shortcutsFile.text())
 
     GlobalShortcut {
       required property var modelData
