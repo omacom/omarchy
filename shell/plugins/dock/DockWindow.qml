@@ -37,7 +37,8 @@ PanelWindow {
     }
     return mode
   }
-  readonly property bool shown: !!dock && dock.isFloating(workspaceId) && fullscreenMode < 2
+  readonly property bool shown: !!dock && workspaceId >= 1
+    && (dock.showOnAllLayouts || dock.isFloating(workspaceId)) && fullscreenMode < 2
   // With auto-hide on, the dock waits off screen until the pointer reaches its
   // edge, and stays while the pointer, a menu, or a drag still needs it. A
   // maximized window hides the dock the same way, so it can still be called up.
@@ -48,11 +49,16 @@ PanelWindow {
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
-  readonly property int iconSize: Math.round(36 * Style.fontScale)
+  readonly property int iconSize: Math.round((dock ? dock.iconSize : 36) * Style.fontScale)
   // Each app has a square slot with its icon in the middle, and the slots run
   // straight to the edge of the dock.
-  readonly property int iconInset: Style.spacing.md
-  readonly property int slotSize: iconSize + iconInset * 2
+  readonly property int slotSize: Math.max(iconSize + Style.spacing.xs * 2,
+    dock && dock.dockHeight > 0 ? Math.round(dock.dockHeight * Style.fontScale) : iconSize + Style.spacing.md * 2)
+  readonly property int iconInset: Math.round((slotSize - iconSize) / 2)
+  readonly property color dockBackground: !dock || dock.backgroundColor === "theme"
+    ? Commons.Color.bar.background : dock.backgroundColor
+  readonly property color dockBorder: !dock || dock.borderColor === "theme"
+    ? Commons.Color.popups.border : dock.borderColor
   // A pinned app that is not running is drawn faded.
   readonly property real idleOpacity: 0.7
   // Room inward of the dock for its menus: the tallest, the apps button's,
@@ -193,8 +199,7 @@ PanelWindow {
   WlrLayershell.namespace: "omarchy-dock"
   WlrLayershell.layer: WlrLayer.Top
   WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-  // Kept clear of the bar's reserved edge, without reserving one of its own:
-  // floating windows go where they are put.
+  // Kept clear of the bar's reserved edge, without reserving one of its own.
   exclusionMode: ExclusionMode.Normal
   exclusiveZone: 0
 
@@ -284,11 +289,18 @@ PanelWindow {
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
       : Math.round((window.height - height) / 2)
-    // Switching between tiled and floating workspaces shows and hides the dock
-    // at once, with nothing to watch in between. Hidden by opacity rather than
+    // Switching layouts shows and hides the dock at once. Hidden by opacity rather than
     // visibility, so the icons keep their textures and are drawn on the first
     // frame back instead of being uploaded again.
     opacity: window.shown ? 1 : 0
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Math.min(width, height) / 2
+      color: window.dockBackground
+      border.color: window.dockBorder
+      border.width: window.dock ? window.dock.borderWidth : 0
+    }
 
     HoverHandler {
       id: bodyHover

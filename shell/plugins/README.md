@@ -101,9 +101,11 @@ runs inside the long-lived `omarchy-shell` process, replacing the old
 
 ## Dock
 
-App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
+App dock shown on floating workspaces by default, and hidden behind a fullscreen window. Set `dock.showOnAllLayouts` to `true` to show it on tiled and scrolling workspaces as well. The dock does not reserve screen space, so `dock.autohide` is useful on those layouts. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
 
-Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`) and `pinned` (desktop ids). A `shell.json` without pins uses the defaults. `omarchy dock` sets both.
+Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`), `pinned` (desktop ids), `autohide`, `showOnAllLayouts`, `backgroundColor`, `borderColor`, `borderWidth`, `iconSize` and `height`. A `shell.json` without pins uses the defaults. `omarchy dock` sets position, pins and auto-hide.
+
+`backgroundColor` defaults to `transparent`; `borderColor` defaults to `theme`, which follows the theme's popup border color. Set either color to `theme` to follow the theme (`backgroundColor` uses the bar background), or to a hex color. `borderWidth` defaults to `0`. `iconSize` defaults to `36` and `height` to the current icon size plus the theme's medium spacing on both sides. `height` controls the dock's thickness, including when it sits vertically; sizes are scaled with the shell font scale. The icon stays centered if `height` is larger than `iconSize`.
 
 ## Omarchy menu
 
