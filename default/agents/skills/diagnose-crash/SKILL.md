@@ -49,13 +49,20 @@ there. A trap just after a call and a conditional branch, inside a function, is
 a check that fired; one in a run of padding is a wild jump.
 
 **Check whether it was sandboxed.** An `NSpid:` line with more than one value in
-that same status, a `container=` variable in the core's environment
-(`COREDUMP_ENVIRON`, read the same way), or a binary path that does not exist on
-the host means the process ran in its own namespaces (bwrap, Flatpak,
-pressure-vessel). Its paths and PIDs are its own. Map them to the host through
-the `Control Group` and `Unit` that `coredumpctl info` shows: `systemd-cgls -u
-<unit>` lists what is still running there, and a bwrap command line spells out
-each `--bind` from host path to sandbox path.
+that same status proves the process had its own PID namespace, so the PIDs in
+the core are not host PIDs. It says nothing about paths: Chromium's own sandbox
+gives its processes a PID namespace while they still see the host's files. The
+paths are the sandbox's own only when there is evidence of a separate root, such
+as a `container=` variable in the core's environment (`COREDUMP_ENVIRON`, read
+the same way) or a bwrap, Flatpak or pressure-vessel launcher in its unit.
+
+A binary path that does not exist on the host is a clue, not proof. The file may
+have been deleted or upgraded away since the crash, or while the process ran,
+which the kernel marks by ending the path in ` (deleted)`. Only map paths once
+other evidence confirms a sandbox. Map them through the `Control Group` and
+`Unit` that `coredumpctl info` shows: `systemd-cgls -u <unit>` lists what is
+still running there, and a bwrap command line spells out each `--bind` from host
+path to sandbox path.
 
 ## Read the program's own logs
 
