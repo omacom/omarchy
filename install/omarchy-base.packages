@@ -99,6 +99,7 @@ obsidian
 omacalc
 omacut
 omawrite
+omarchy-clipboard-keeper
 omarchy-nvim
 omarchy-hyprland-titlebars
 omasnap
@@ -153,7 +154,6 @@ vi
 whois
 wireless-regdb
 wireplumber
-wl-clip-persist
 wl-clipboard
 wtype
 woff2-font-awesome

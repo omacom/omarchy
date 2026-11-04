@@ -13,9 +13,9 @@ Omarchy tackles both problems with unified clipboard hotkeys that work (almost) 
 
 _Note that most agent harnesses will use `Ctrl + V` for pasting images, but `Super + V` for pasting text._
 
-The last copy stays available after you close the application it came from, so you can copy text from a PDF, close the viewer, and paste with `Super + V`. Selections marked as sensitive by password managers are excluded from this persistence.
-
 ### Clipboard history
+
+The last copy remains available for normal pasting after you close its source application. It is kept temporarily in memory until another copy replaces it or your desktop session ends. Copies marked as sensitive are excluded. This temporary copy is separate from the history below, which keeps previous entries across sessions.
 
 The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, select your entry with return, and then that'll be placed on the clipboard ready to paste on `Super + V`.
 
