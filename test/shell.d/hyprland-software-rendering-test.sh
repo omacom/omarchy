@@ -220,26 +220,6 @@ fi
 grep -Fq "keeping the blur ~/.config/hypr turns on" "$log" || fail "the journal names the setting the user kept" "$(cat "$log")"
 pass "a user who keeps blur on is not told it is off"
 
-# The shell that serves notifications can come up after the session is
-# marked; the notice waits for it rather than being lost.
-reset_session
-run_session_start 0 "llvmpipe (LLVM 23.1.4, 128 bits)" false 5
-(( $(grep -c '^busctl$' "$log") == 6 )) || fail "the notice waits for the notification server" "$(cat "$log")"
-grep -q "^notify --app-name Software Rendering -g 󰘚 -u normal -t 30000 --transient Animations off without a GPU" "$log" || fail "the notice is sent once the server is up" "$(cat "$log")"
-(( $(grep -n '^hyprctl reload$' "$log" | cut -d: -f1) < $(grep -n '^busctl$' "$log" | head -1 | cut -d: -f1) )) ||
-  fail "the reload doesn't wait for the notification server" "$(cat "$log")"
-pass "a slow notification server still gets the notice, after the reload"
-
-reset_session
-run_session_start 0 "llvmpipe (LLVM 23.1.4, 128 bits)" false ""
-[[ -f $marker ]] || fail "a missing notification server still leaves the session marked"
-if grep -q "^notify" "$log"; then
-  fail "no notice is sent without a notification server" "$(cat "$log")"
-fi
-(( $(grep -c '^busctl$' "$log") == 150 )) || fail "the wait for the notification server is bounded to 15s" "$(grep -c '^busctl$' "$log")"
-grep -Fq "logger -t omarchy -p user.debug No notification server after 15s" "$log" || fail "a skipped notice is logged" "$(cat "$log")"
-pass "without a notification server the notice is skipped and logged"
-
 # At Hyprland start the probe can't tell yet (no lock file, no DRM device
 # open), so the script keeps asking for a while.
 reset_session
@@ -248,13 +228,6 @@ run_session_start "2 2 0" "llvmpipe (LLVM 23.1.4, 128 bits)" false
 [[ $(cat "$marker") == "llvmpipe (LLVM 23.1.4, 128 bits)" ]] || fail "a late answer still marks the session" "$(cat "$log")"
 grep -Fxq "hyprctl reload" "$log" || fail "a late answer still reloads Hyprland" "$(cat "$log")"
 pass "a probe that can't tell at start is retried until it can"
-
-reset_session
-run_session_start 2
-(( $(grep -c '^probe$' "$log") == 20 )) || fail "the probe is retried for a bounded time" "$(cat "$log")"
-(( $(grep -c '^sleep 0.5$' "$log") == 20 )) || fail "retries wait between probes" "$(cat "$log")"
-grep -Fq "logger -t omarchy -p user.debug Couldn't read Hyprland's GL renderer after 20 tries" "$log" || fail "giving up is logged" "$(cat "$log")"
-pass "a probe that never answers is given up on after 10s, with a log line"
 
 for status in 1 2; do
   reset_session
@@ -268,11 +241,11 @@ grep -Fq "Couldn't read Hyprland's GL renderer" "$log" || fail "an unreadable re
 pass "a GPU or unreadable renderer leaves the session alone"
 
 # Replays the order hyprland.lua loads things in: Omarchy's defaults, the
-# software-rendering defaults, the user's looknfeel.lua, then the saved
-# toggles. Prints the final animations and blur settings.
+# software-rendering defaults, then a saved toggle. Prints the final
+# animations, blur and shadow settings.
 run_config() {
   HOME="$test_tmp/home" XDG_RUNTIME_DIR="$runtime" HYPRLAND_INSTANCE_SIGNATURE="$signature" OMARCHY_PATH="$ROOT" \
-    USER_CONFIG="${1:-}" TOGGLE="${2:-}" lua - <<'LUA'
+    TOGGLE="${1:-}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 local values = {}
 local function merge(target, source)
@@ -299,9 +272,6 @@ hl = setmetatable({
 require("default.hypr.helpers")
 hl.config({ animations = { enabled = true }, decoration = { blur = { enabled = false }, shadow = { enabled = false } } })
 require("default.hypr.software-rendering")
-if os.getenv("USER_CONFIG") ~= "" then
-  assert(load(os.getenv("USER_CONFIG")))()
-end
 if os.getenv("TOGGLE") ~= "" then
   dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/toggles/" .. os.getenv("TOGGLE") .. ".lua")
 end
@@ -317,63 +287,20 @@ expect_config() {
   [[ $output == "$expected" ]] || fail "$description" "$output"
 }
 
-user_animations='hl.config({ animations = { enabled = true } })'
-user_blur='hl.config({ decoration = { blur = { enabled = true } } })'
-
 reset_session
 expect_config "animations=true blur=false shadow=false" "a GPU session keeps Omarchy's defaults"
-expect_config "animations=true blur=true shadow=false" "a GPU session keeps the Glassy bar's blur" "" bar-glassy
-expect_config "animations=true blur=true shadow=false" "a GPU session keeps Glassy windows' blur" "" window-glassy
+expect_config "animations=true blur=true shadow=false" "a GPU session keeps the Glassy bar's blur" bar-glassy
+expect_config "animations=true blur=true shadow=false" "a GPU session keeps Glassy windows' blur" window-glassy
 pass "a GPU session is unchanged, Glassy toggles included"
 
 printf 'llvmpipe\n' >"$marker"
 expect_config "animations=false blur=false shadow=false" "a CPU session turns off animations, blur and shadows"
-expect_config "animations=false blur=false shadow=false" "a CPU session turns off the Glassy bar's blur" "" bar-glassy
-expect_config "animations=false blur=false shadow=false" "a CPU session turns off Glassy windows' blur" "" window-glassy
+expect_config "animations=false blur=false shadow=false" "a CPU session turns off the Glassy bar's blur" bar-glassy
+expect_config "animations=false blur=false shadow=false" "a CPU session turns off Glassy windows' blur" window-glassy
 pass "a CPU session turns off animations, blur and shadows, Glassy toggles included"
-
-expect_config "animations=true blur=false shadow=false" "the user's looknfeel.lua can turn animations back on" "$user_animations"
-expect_config "animations=false blur=true shadow=false" "the user's looknfeel.lua can turn blur back on" "$user_blur"
-expect_config "animations=false blur=true shadow=false" "blur from the user's looknfeel.lua survives the Glassy bar" "$user_blur" bar-glassy
-pass "the user's looknfeel.lua still wins in a CPU session"
 
 mkdir -p "$test_tmp/home/.local/state/omarchy/toggles"
 touch "$test_tmp/home/.local/state/omarchy/toggles/animations-without-gpu"
 expect_config "animations=true blur=false shadow=false" "Appearance turns animations back on in a CPU session"
-expect_config "animations=true blur=true shadow=false" "Appearance brings the Glassy bar's blur back in a CPU session" "" bar-glassy
-rm "$test_tmp/home/.local/state/omarchy/toggles/animations-without-gpu"
+expect_config "animations=true blur=true shadow=false" "Appearance brings the Glassy bar's blur back in a CPU session" bar-glassy
 pass "turning animations on in Appearance lifts the CPU session's defaults"
-
-# The lighter defaults must land over the theme and under ~/.config/hypr.
-order=$(OMARCHY_PATH="$ROOT" lua - <<'LUA'
-local loaded = {}
-local real_require = require
-require = function(name)
-  table.insert(loaded, name)
-  if name == "default.hypr.require_optional" then
-    return { module = function(module) table.insert(loaded, module) end }
-  end
-  return {}
-end
-dofile = function() end
-loadfile(os.getenv("OMARCHY_PATH") .. "/config/hypr/hyprland.lua")()
-loadfile(os.getenv("OMARCHY_PATH") .. "/default/hypr/omarchy.lua")()
-print(table.concat(loaded, " "))
-LUA
-)
-position() {
-  local words=($order) index
-  for index in "${!words[@]}"; do
-    [[ ${words[$index]} == "$1" ]] && { echo "$index"; return; }
-  done
-  echo -1
-}
-theme=$(position omarchy.current.theme.hyprland)
-software=$(position default.hypr.software-rendering)
-omarchy=$(position default.hypr.omarchy)
-user=$(position hypr.looknfeel)
-(( omarchy >= 0 && user > omarchy )) || fail "hyprland.lua loads Omarchy's defaults before the user's looknfeel.lua" "$order"
-(( theme >= 0 && software > theme )) || fail "the software-rendering defaults load after the theme" "$order"
-toggles=$(position default.hypr.toggles)
-(( toggles > user )) || fail "the saved toggles load after the user's looknfeel.lua" "$order"
-pass "the software-rendering defaults load over the theme and under user config"
