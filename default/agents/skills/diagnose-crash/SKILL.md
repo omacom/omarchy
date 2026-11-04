@@ -24,33 +24,28 @@ program was working on when it died, which is often the whole answer.
 crashes of the same program, or several programs dying together, point somewhere
 different than a single failure does.
 
-**Check for a tracer and a sandbox.** `coredumpctl info` omits the `/proc`
-status it saved; read it from the journal:
+**Check for a tracer or sandbox.** `coredumpctl info` omits the saved `/proc`
+status. Read it from the journal:
 
 ```bash
 journalctl -n 1 -o cat --output-fields=COREDUMP_PROC_STATUS COREDUMP_PID=<pid>
 ```
 
-A non-zero `TracerPid:` means strace, gdb or similar was attached, and that can
-be the cause: some programs assert by breakpoint only under a debugger.
+A nonzero `TracerPid:` identifies an attached tracer, which can cause the crash:
+some programs trap into a debugger only when one is attached. Multiple `NSpid:`
+values indicate a PID namespace; paths require separate evidence, such as a
+sandbox launcher or `container=` in `COREDUMP_ENVIRON`. A missing executable may
+instead have been deleted. For bwrap, inspect its `--bind` arguments to map
+paths.
 
-An `NSpid:` with several values means the core's PIDs are not host PIDs. Treat
-its paths as a sandbox's only on evidence of a separate root, such as
-`container=` in `COREDUMP_ENVIRON` or a bwrap, Flatpak or pressure-vessel parent
-in its unit; a binary missing on the host may just have been deleted. Map paths
-with `systemd-cgls -u <unit>` and the bwrap `--bind` arguments.
+For SIGTRAP, inspect `si_code`, the crashing instruction and its callers before
+concluding that an assertion fired.
 
-**A SIGTRAP is a lead, not a verdict.** Check the `si_code` on `coredumpctl
-info`'s `Signal:` line (`SI_KERNEL` for an x86 `int3`, `SI_USER` or `SI_TKILL`
-if sent) and the instruction at the crash address: a trap behind a conditional
-branch is a check that fired; one in padding between functions is a wild jump.
+## Read the program's logs
 
-## Read the program's own logs
-
-Programs often log why they are about to die — a failed assertion, a fatal
-check — where no backtrace shows it. Read the program's log at the crash second,
-then the same log from a run that survived: a warning in both is not the cause
-on its own.
+Read the logs around the crash timestamp; the command line may identify their
+location. Compare a successful run before treating a recurring warning as the
+cause.
 
 ## Rule out the boring causes first
 
