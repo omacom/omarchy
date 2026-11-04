@@ -1,13 +1,46 @@
 #!/bin/bash
 
-# omarchy:summary=Install the ONCE service, enable its background service, and launch the TUI.
+# omarchy:summary=Install ONCE with a rootless user service and launch its TUI
 # omarchy:requires-sudo=true
 
-echo "Installing ONCE..."
-omarchy-pkg-add once-bin
+set -euo pipefail
 
-echo "Enabling ONCE background service..."
-sudo systemctl enable --now once-background.service
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
 
-echo -e "\nLaunching ONCE..."
-sudo once
+# Never start a second manager while the legacy system service owns the apps.
+if systemctl is-active --quiet once-background.service || systemctl is-enabled --quiet once-background.service; then
+  echo "An existing rootful ONCE service needs an explicit backup/restore migration." >&2
+  echo "Its service and application data were left unchanged." >&2
+  exit 1
+fi
+
+# Package queries resolve providers too: once-bin satisfies "once", so the
+# package helper would leave the unpatched binary installed. Never replace an
+# existing manager implicitly, even when its legacy service is stopped.
+if ! once_provider=$(pacman -Qq once 2>/dev/null); then
+  if ! pacman -Qq >/dev/null; then
+    echo "Cannot verify the installed ONCE package; no changes were made." >&2
+    exit 1
+  fi
+  once_provider=""
+fi
+if [[ -n $once_provider && $once_provider != "once" ]]; then
+  echo "An existing ONCE package needs an explicit backup/restore migration to the patched once package." >&2
+  echo "Its package, service and application data were left unchanged." >&2
+  exit 1
+fi
+
+systemctl --user show-environment >/dev/null
+omarchy-pkg-add once
+systemctl --user daemon-reload
+omarchy-launch-once list
+systemctl --user enable podman-restart.service
+sudo loginctl enable-linger "$(id -un)"
+systemctl --user enable --now omarchy-once.service
+
+echo "ONCE runs as your user. Local apps use http://<app>.localhost:8080."
+echo "Existing ONCE namespaces and rootful application data are not moved by this installer."
+omarchy-launch-once

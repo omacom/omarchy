@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=Podman
+Exec=omarchy-launch-podman
+Terminal=false
+Type=Application
+Icon=io.podman_desktop.PodmanDesktop
+StartupNotify=true

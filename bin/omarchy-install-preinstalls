@@ -23,6 +23,8 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     pinta \
     obsidian \
     moonlight-qt \
+    podman-desktop \
+    podman-tui \
     omacut \
     monologue \
     omacalc \
