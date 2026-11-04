@@ -406,10 +406,12 @@ Item {
     var amount = Number(raw.amount)
     var cap = Number(raw.cap)
     if (!isFinite(amount) || amount < 0) return null
+    var days = Array.isArray(raw.days) ? raw.days.map(function(d) { return Math.max(0, Number(d) || 0) }) : []
     return {
       amount: amount,
       cap: isFinite(cap) && cap > 0 ? cap : 0,
-      currency: String(raw.currency || "USD")
+      currency: String(raw.currency || "USD"),
+      days: days
     }
   }
 

@@ -24,15 +24,19 @@ export TZ=UTC
 
 python3 - <<'PY'
 from agent_usage_fixtures import *
-from datetime import date
+from datetime import date, datetime, timezone
 
 API = "https://api.fireworks.ai"
 TODAY = time.strftime("%Y-%m-%d")
 ROWS = [{"startTime": TODAY + "T00:00:00Z", "promptTokens": "100", "completionTokens": "20", "group": {"model_name": "accounts/fireworks/models/kimi-k2p5"}}]
 SPEND = {"name": "accounts/example/quotas/monthly-spend-usd", "usage": 7.5, "value": "50"}
+# Today's rated cost, the only day this month with any.
+COSTS = {"rows": [{"dimensions": {"startTime": TODAY + "T00:00:00Z"}, "subtotal": {"units": "1", "nanos": 250000000}}]}
+DAYS = [0.0] * (int(TODAY[8:]) - 1) + [1.25]
 # The bare account route goes last: routes match by substring, in order.
 ROUTES = {
   "/quotas/monthly-spend-usd": SPEND,
+  "/usageCosts:query": COSTS,
   "/billingUsage": {"serverlessCosts": ROWS},
   "/v1/accounts/example": {"name": "accounts/example", "ratelimitTier": 2},
 }
@@ -100,11 +104,12 @@ def check_spend_contract(plant, per_probe):
 # ---------------------------------------------------------------- contract
 
 sandbox()
-fresh = check_spend_contract(signed_in, 3)
+fresh = check_spend_contract(signed_in, 4)
 expect("the record is account-wide, on its rate-limit tier, with tokens and no prompt counts or limits",
        {key: fresh.get(key) for key in ("ready", "hasPromptStats", "scope", "tierLabel", "limits", "todayTotalTokens", "hasLocalStats")},
        {"ready": True, "hasPromptStats": False, "scope": "account", "tierLabel": "Tier 2", "limits": [], "todayTotalTokens": 120, "hasLocalStats": True}, fresh)
-expect("this month's spend is read against the tier's monthly cap", fresh["spend"], {"amount": 7.5, "cap": 50.0, "currency": "USD"}, fresh)
+expect("this month's spend is read against the tier's monthly cap, with each day's cost", fresh["spend"],
+       {"amount": 7.5, "cap": 50.0, "currency": "USD", "days": DAYS}, fresh)
 
 # The usage rows are this record's stats, reused like a local scan: briefly
 # on a normal run and for 15 minutes on the near-limit refresh, which probes
@@ -117,7 +122,7 @@ fireworks("--limits-only")
 limits_only = fireworks.asked
 fireworks(force=False)
 expect("a minute-old answer serves --limits-only its usage but not its spend, and a normal run neither",
-       [limits_only, fireworks.asked], [["spend", "spend"], ["usage"]])
+       [limits_only, fireworks.asked], [["spend", "spend", "spend"], ["usage"]])
 
 # --------------------------------------------------------------- the spend
 
@@ -125,14 +130,14 @@ expect("a minute-old answer serves --limits-only its usage but not its spend, an
 sandbox()
 signed_in()
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": dict(SPEND, value="9999999")}))
-expect("an uncapped account shows its spend with no cap", record["spend"], {"amount": 7.5, "cap": 0.0, "currency": "USD"}, record)
+expect("an uncapped account shows its spend with no cap", record["spend"], {"amount": 7.5, "cap": 0.0, "currency": "USD", "days": DAYS}, record)
 
 # A quota that can't be read keeps the last good spend, stale; with nothing
 # kept there is no spend, and the tokens still show.
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": {"value": "50"}}))
 expect("an unreadable quota keeps the last spend, stale",
        [record["spend"], record["limitsStale"], record["usageStatusText"], "unreadable" in record["authHelpText"]],
-       [{"amount": 7.5, "cap": 0.0, "currency": "USD"}, True, "", True], record)
+       [{"amount": 7.5, "cap": 0.0, "currency": "USD", "days": DAYS}, True, "", True], record)
 for path in limits_cache_files("fireworks"):
   path.unlink()
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403}))
@@ -209,6 +214,18 @@ expect("Fireworks never keeps another account's answers when the key moves",
 # ------------------------------------------------------------ the answer
 
 module = load_collector("fireworks")
+
+# Each day's cost lands on its day of the month, days without a row cost
+# nothing, and a row outside the month so far, or with no day, is left out.
+client = module.FireworksClient("fw_test", API)
+with FakeHttp({"/usageCosts:query": {"rows": [
+  {"dimensions": {"startTime": "2026-07-01T00:00:00Z"}, "subtotal": {"units": "2"}},
+  {"dimensions": {"startTime": "2026-07-03T00:00:00Z"}, "subtotal": {"nanos": 500000000}},
+  {"dimensions": {"startTime": "2026-07-09T00:00:00Z"}, "subtotal": {"units": "9"}},
+  {"dimensions": {}, "subtotal": {"units": "9"}},
+]}}):
+  days = client.daily_costs("example", datetime(2026, 7, 4, 12, tzinfo=timezone.utc))
+expect("daily costs fill the month so far, day by day", days, [2.0, 0.0, 0.5, 0.0])
 
 # Today's uncached, cached and output tokens count once, cache apart in the
 # model totals, over the 30-day window.

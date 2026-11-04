@@ -39,7 +39,8 @@ Every subscription on one page, limits first.
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
 - **Spend** — pay-as-you-go agents show what the account spent this month,
-  with a meter against the monthly cap when there is one.
+  with a meter against the monthly cap when there is one, or else a bar for
+  each day of the month.
 - **Make something cool** — starter prompts (a new theme, plugin, or app) that
   start the default agent on the task through `omarchy agent prompt`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
@@ -258,7 +259,7 @@ DeepSeek reads `DEEPSEEK_API_KEY` first, then the key pi stores in `~/.pi/agent/
 
 Fireworks reads `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there (honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms), and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
 
-Everything comes from the key alone, with nothing to configure. The plan is the account's rate-limit tier (Tier 2, say). The section shows what the account has spent this month, from the `monthly-spend-usd` quota Fireworks keeps for every account. When the tier caps monthly spend, that cap is the meter beside the amount, alarming from 90%; an uncapped account (the quota's 9999999 placeholder) shows the amount alone. Fireworks bills pay-as-you-go by default, and the prepaid ledger behind `:getBalance` refuses every console-issued API key, so there is no balance to show. `FIREWORKS_ACCOUNT_ID` only matters when one API key can access several accounts.
+Everything comes from the key alone, with nothing to configure. The plan is the account's rate-limit tier (Tier 2, say). The section shows what the account has spent this month, from the `monthly-spend-usd` quota Fireworks keeps for every account. When the tier caps monthly spend, that cap is the meter beside the amount, alarming from 90%; an uncapped account (the quota's 9999999 placeholder) shows a bar for each day of the month instead, scaled to the busiest, from `usageCosts:query` grouped by day (UTC days, the only kind it offers). Fireworks bills pay-as-you-go by default, and the prepaid ledger behind `:getBalance` refuses every console-issued API key, so there is no balance to show. `FIREWORKS_ACCOUNT_ID` only matters when one API key can access several accounts.
 
 Each API key keeps its account's last good usage rows and spend; another key or account never shows them. Usage is re-read at most every 20 seconds (15 minutes on the panel's near-limit refresh). A rejected key reads as an expired sign-in; with no key anywhere the tab stays hidden. Its stats come from the account's billing API, so they already include this machine's pi and opencode use, and no local scan adds them again.
 

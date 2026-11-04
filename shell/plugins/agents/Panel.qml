@@ -2061,8 +2061,8 @@ Panel {
       }
     }
 
-    // The meter shows only against a real monthly cap; without one, the
-    // amount spent stands alone.
+    // Against a real monthly cap the spend is a meter; without one, a bar for
+    // each day of the month, scaled to the busiest, shows where it went.
     Item {
       visible: !!section.spend
       width: parent.width
@@ -2087,6 +2087,43 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         value: visible ? section.spend.amount / section.spend.cap : -1
         alarming: root.spendAlarming(section.spend)
+      }
+
+      Item {
+        id: spendDays
+        visible: !!section.spend && section.spend.cap <= 0 && section.spend.days.length > 0
+        anchors.left: spendTitle.right
+        anchors.right: spendValue.left
+        anchors.rightMargin: Style.spacing.md
+        anchors.verticalCenter: parent.verticalCenter
+        height: spendTitle.implicitHeight
+        readonly property var days: section.spend ? section.spend.days : []
+        // The month the quota counts is a UTC one.
+        readonly property int monthDays: {
+          var now = new Date(root.nowMs)
+          return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate()
+        }
+        readonly property real busiest: Math.max.apply(null, days.concat([0]))
+        readonly property real gap: Style.space(2)
+        readonly property real stub: Math.max(Style.space(2), Math.round(Style.spacing.controlHeight * 0.07))
+
+        Row {
+          anchors.fill: parent
+          spacing: spendDays.gap
+
+          Repeater {
+            model: spendDays.monthDays
+
+            Rectangle {
+              readonly property real cost: index < spendDays.days.length ? spendDays.days[index] : 0
+              width: (spendDays.width - spendDays.gap * (spendDays.monthDays - 1)) / spendDays.monthDays
+              height: cost > 0 && spendDays.busiest > 0 ? Math.max(spendDays.stub, spendDays.height * cost / spendDays.busiest) : spendDays.stub
+              anchors.bottom: parent ? parent.bottom : undefined
+              radius: Math.min(width, height) / 2
+              color: cost > 0 ? root.foreground : root.track
+            }
+          }
+        }
       }
 
       Text {

@@ -358,14 +358,53 @@ class FireworksClient:
     quoted = urllib.parse.quote(normalize_account_id(account_id), safe="")
     return self.request(f"/v1/accounts/{quoted}/quotas/monthly-spend-usd")
 
+  # The rated cost of each day of this month so far, the 1st first. The API
+  # buckets days in UTC only, like the month the quota counts.
+  def daily_costs(self, account_id: str, now: datetime) -> list[float]:
+    quoted = urllib.parse.quote(normalize_account_id(account_id), safe="")
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    payload = self.request(f"/v1/accounts/{quoted}/usageCosts:query", body={
+      "startTime": month_start.isoformat().replace("+00:00", "Z"),
+      "endTime": now.isoformat().replace("+00:00", "Z"),
+      "scope": "ACCOUNT",
+      "groupBy": ["DAY"],
+    })
+    rows = payload.get("rows", [])
+    if not isinstance(rows, list):
+      raise FireworksError("Fireworks returned an invalid billing response")
+    days = [0.0] * now.day
+    for row in rows:
+      if not isinstance(row, dict):
+        continue
+      dimensions = row.get("dimensions") if isinstance(row.get("dimensions"), dict) else {}
+      try:
+        day = datetime.fromisoformat(str(dimensions.get("startTime") or "").replace("Z", "+00:00")).day
+      except ValueError:
+        continue
+      if 1 <= day <= now.day:
+        days[day - 1] += money(row.get("subtotal"))
+    return [round(cost, 4) for cost in days]
+
+
+# A Money object's amount; anything unreadable is nothing.
+def money(value: Any) -> float:
+  if not isinstance(value, dict):
+    return 0.0
+  try:
+    amount = float(value.get("units") or 0) + float(value.get("nanos") or 0) / 1e9
+  except (TypeError, ValueError):
+    return 0.0
+  return amount if math.isfinite(amount) and amount > 0 else 0.0
+
 
 def tier_label(account: dict[str, Any]) -> str:
   tier = number(account.get("ratelimitTier"))
   return f"Tier {tier}" if tier > 0 else ""
 
 
-# What the account has spent this month, and the cap its tier sets, if any.
-def current_spend(quota: dict[str, Any]) -> dict[str, Any]:
+# What the account has spent this month, the cap its tier sets, if any, and
+# what each day so far cost.
+def current_spend(quota: dict[str, Any], days: list[float]) -> dict[str, Any]:
   try:
     amount = float(quota["usage"])
     cap = float(quota.get("value") or 0)
@@ -377,6 +416,7 @@ def current_spend(quota: dict[str, Any]) -> dict[str, Any]:
     "amount": max(0.0, amount),
     "cap": cap if 0 < cap < UNCAPPED_SPEND else 0.0,
     "currency": "USD",
+    "days": days,
   }
 
 
@@ -456,7 +496,8 @@ def scan(api_base_url: str, auth_path: Path, force: bool = False, limits_only: b
           failed.add("usage")
       if not spend_fresh:
         try:
-          spend = current_spend(client.monthly_spend(account_id))
+          now = datetime.now(timezone.utc)
+          spend = current_spend(client.monthly_spend(account_id), client.daily_costs(account_id, now))
           # The tier comes with the account, which a known account id skipped.
           tier = tier_label(account or client.account(account_id))
           spend_part = remember(spend_cache, accountId=account_id, spend=spend, tierLabel=tier)
