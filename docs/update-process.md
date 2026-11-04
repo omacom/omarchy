@@ -135,6 +135,7 @@ omarchy-update
   │  install/config/snapper.sh, and the update continues without one)
   ├─ omarchy-update-stay-awake start
   ├─ run system-package updates
+  ├─ restart the shell when migrations are pending, so they reach current code
   ├─ run migrations
   ├─ automatically remove orphan packages and run log analysis
   ├─ clear the shell update indicator: the update just installed what it showed
