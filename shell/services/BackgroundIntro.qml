@@ -39,6 +39,8 @@ Item {
   // animation started in that frame begins already advanced by its length,
   // about 40% of the fade. The reveal starts two frames later instead.
   property int revealDelayFrames: 0
+  // The login's omarchy-theme-bg-boot-intro, which plays outside any change.
+  readonly property bool startupRunning: introProc.running
   readonly property bool revealing: revealDelayFrames > 0 || themeFade.running || themeCutReveal.running || startupFade.running
   // The outgoing frame reached, or failed to reach, the screen.
   signal coverPresented()

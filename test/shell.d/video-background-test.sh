@@ -127,7 +127,7 @@ pass "a rejected video is remembered so it costs nothing on the next open"
 pass "a timed out video is left to retry"
 
 source <(awk '
-  /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
+  /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|link_background|set_theme_background)\(\) \{/ { copying=1 }
   copying { print }
   copying && /^}$/ { copying=0 }
 ' "$ROOT/bin/omarchy-theme-set")
@@ -136,6 +136,7 @@ transition_home="$test_tmp/transition-home"
 CURRENT_THEME_PATH="$transition_home/.local/state/omarchy/current/theme"
 NEXT_THEME_PATH="$transition_home/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$transition_home/.local/state/omarchy/current/background"
+BACKGROUND_LOOP_LOCK="$transition_home/.local/state/omarchy/background-loop.lock"
 BACKGROUND_TRANSITION_CACHE="$transition_home/.cache/omarchy/background-transitions"
 THEME_NAME="video-test"
 PREVIOUS_THEME_NAME="$THEME_NAME"
