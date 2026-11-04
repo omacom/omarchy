@@ -5,6 +5,9 @@
   // "personal.notes" appears under "personal", and "personal" appears on the
   // root menu. Reuse an existing id to override/extend it.
   //
+  // Optional root-menu order (unlisted entries keep their relative order):
+  // "order": ["apps", "install", "remove", "learn"],
+  //
   // Fields:
   //   icon        Nerd Font glyph shown in the icon column.
   //   label       Visible row title.

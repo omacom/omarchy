@@ -63,6 +63,40 @@ assertDeepEqual(
   'menu normalizes parsed items'
 )
 
+// Ordering metadata must not replace or blank the shipped entries.
+const orderDefaults = menu.parseMenuJsonc(JSON.stringify({
+  apps: { provider: 'apps' },
+  learn: {},
+  'learn.manual': { action: 'open-manual', when: 'has-manual' },
+  install: {},
+  'install.editor': { action: 'install-editor' },
+  remove: {}
+}))
+const orderExtension = menu.keepMenuDefinition(null, JSON.stringify({
+  order: ['apps', 'install', 'remove', 'install', 'missing', 'learn.manual', 'root', null, 42],
+  personal: { action: 'open-personal' }
+}))
+const ordered = menu.mergeMenuSources(orderDefaults, orderExtension.items, 'Go', orderExtension.order)
+const rootIds = result => result.itemOrder.filter(id => result.items[id].parent === 'root')
+assertDeepEqual(rootIds(ordered), ['apps', 'install', 'remove', 'learn', 'personal'], 'menu prioritizes listed root entries and preserves the remaining order')
+assertEqual(ordered.items['learn.manual'].action, 'open-manual', 'ordering-only overlays preserve shipped actions')
+assertEqual(ordered.items['learn.manual'].when, 'has-manual', 'ordering-only overlays preserve shipped guards')
+assertEqual(ordered.items.apps.provider, 'apps', 'ordering-only overlays preserve providers')
+assertDeepEqual(ordered.itemOrder.filter(id => id.includes('.')), ['learn.manual', 'install.editor'], 'root ordering leaves submenu rows in their existing sequence')
+assertEqual(ordered.items.root.label, 'Go', 'ordering-only extensions preserve the root heading')
+const wrappedOrder = menu.keepMenuDefinition(null, '{"order":["remove","apps"],"items":{"apps":{"label":"My apps"}}}')
+const wrappedMerged = menu.mergeMenuSources(orderDefaults, wrappedOrder.items, 'Go', wrappedOrder.order)
+assertDeepEqual(rootIds(wrappedMerged), ['remove', 'apps', 'learn', 'install'], 'menu accepts ordering alongside an items wrapper')
+assertEqual(wrappedMerged.items.apps.label, 'My apps', 'root ordering coexists with user row overrides')
+const ordinary = menu.mergeMenuSources(orderDefaults, [], 'Go')
+assertDeepEqual(menu.mergeMenuSources(orderDefaults, [], 'Go', []).itemOrder, ordinary.itemOrder, 'empty root ordering preserves the default sequence')
+assertDeepEqual(menu.mergeMenuSources(orderDefaults, [], 'Go', 'remove').itemOrder, ordinary.itemOrder, 'invalid root ordering preserves the default sequence')
+assertDeepEqual(orderDefaults.map(row => row.id), ['apps', 'learn', 'learn.manual', 'install', 'install.editor', 'remove'], 'root ordering does not mutate its source rows')
+assertEqual(menu.keepMenuDefinition(orderExtension, ''), orderExtension, 'an empty read during a file save preserves ordering and rows')
+assertEqual(menu.keepMenuDefinition(orderExtension, '{"order":['), orderExtension, 'a partial file save preserves ordering and rows together')
+assertDeepEqual(menu.keepMenuDefinition(orderExtension, '{}'), { items: [], order: [] }, 'removing the order override restores ordinary ordering')
+assertDeepEqual(menu.keepMenuDefinition(null, '{"order":"apps"}').order, [], 'invalid order metadata is ignored')
+
 // A watched file read mid-write must keep the rows already there, never
 // replace them with nothing, or the menu opens empty until the shell restarts.
 const shippedMenu = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')

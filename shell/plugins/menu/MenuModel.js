@@ -51,8 +51,15 @@ function parseMenuJsonc(raw) {
 // reader sees of a file caught mid-write by an update, a checkout or an
 // editor's save. A file of nothing but comments is still an empty menu.
 function readMenuJsonc(raw) {
+  var definition = readMenuDefinition(raw)
+  return definition ? definition.items : null
+}
+
+// Keep ordering metadata beside the rows, so a watched extension replaces
+// both together only after a complete read.
+function readMenuDefinition(raw) {
   var stripped = stripJsonc(raw)
-  if (!stripped.trim()) return []
+  if (!stripped.trim()) return { items: [], order: [] }
 
   var parsed
   try {
@@ -71,7 +78,14 @@ function readMenuJsonc(raw) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
     out.push(normalizeItem(id, entry))
   }
-  return out
+  return { items: out, order: Array.isArray(parsed.order) ? parsed.order.slice() : [] }
+}
+
+function keepMenuDefinition(previous, raw) {
+  // Truncating a file is the first step of many saves. A finished empty
+  // object, comments-only file, or deletion can still clear the extension.
+  if (!String(raw || "").trim()) return previous
+  return readMenuDefinition(raw) || previous
 }
 
 // The rows a watched menu file leaves after a read. An update, a checkout or
@@ -89,7 +103,7 @@ function keepMenuRows(previous, raw, required) {
 // source supplies one; only then does rootLabel (the catalog's translation
 // of "Go") apply. A root row from either source keeps its own label, so a
 // user-supplied heading is never overwritten by the catalog.
-function mergeMenuSources(defaultItems, userItems, rootLabel) {
+function mergeMenuSources(defaultItems, userItems, rootLabel, rootOrder) {
   var nextItems = ({})
   var nextOrder = []
   var sources = [defaultItems || [], userItems || []]
@@ -112,6 +126,24 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
   if (!nextItems.root) {
     nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "" }
     nextOrder.unshift("root")
+  }
+  // Replace only the root rows' slots. Submenu and provider ordering keep
+  // their existing sequence; unlisted root rows follow in their old order.
+  if (Array.isArray(rootOrder)) {
+    var rootIds = nextOrder.filter(function(id) { return nextItems[id].parent === "root" })
+    var preferred = []
+    for (var r = 0; r < rootOrder.length; r++) {
+      var wanted = rootOrder[r]
+      if (typeof wanted === "string" && rootIds.indexOf(wanted) >= 0 && preferred.indexOf(wanted) < 0)
+        preferred.push(wanted)
+    }
+    for (var u = 0; u < rootIds.length; u++) {
+      if (preferred.indexOf(rootIds[u]) < 0) preferred.push(rootIds[u])
+    }
+    var rootIndex = 0
+    nextOrder = nextOrder.map(function(id) {
+      return nextItems[id].parent === "root" ? preferred[rootIndex++] : id
+    })
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
 
@@ -694,6 +726,7 @@ if (typeof module !== "undefined") {
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
     keepMenuRows: keepMenuRows,
+    keepMenuDefinition: keepMenuDefinition,
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,
