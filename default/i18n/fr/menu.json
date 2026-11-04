@@ -1285,5 +1285,11 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Capture des plantages activée"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
   }
 }
