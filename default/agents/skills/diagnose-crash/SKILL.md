@@ -24,6 +24,33 @@ program was working on when it died, which is often the whole answer.
 crashes of the same program, or several programs dying together, point somewhere
 different than a single failure does.
 
+**Check whether it was traced.** `TracerPid:` in the `/proc` status that
+`coredumpctl info` records names any strace, gdb or other ptrace tracer attached
+at the time. A traced process was already being debugged by someone, and the
+tracer can be the cause: some programs assert by breakpoint only when they see a
+debugger, which turns a warning they would otherwise log into a fatal SIGTRAP.
+A SIGTRAP is in any case a deliberate `int3` or breakpoint, not memory
+corruption, so look for the assertion or check that executed it.
+
+**Check whether it was sandboxed.** An `NSpid:` line with more than one value, a
+`container=` variable in the core's environment, or a binary path that does not
+exist on the host means the process ran in its own namespaces (bwrap, Flatpak,
+pressure-vessel). Its paths and PIDs are its own. Map them to the host through
+the `Control Group` and `Unit` that `coredumpctl info` shows: `systemd-cgls -u
+<unit>` lists what is still running there, and a bwrap command line spells out
+each `--bind` from host path to sandbox path.
+
+## Read the program's own logs
+
+Many programs log the reason they are about to die, which a backtrace never
+shows: a failed assertion, a fatal check, a missing resource. Find the log the
+program writes, often named on its command line, under its config or data
+directory, or in the journal, and read the lines from the crash second.
+
+Then find a run of the same program that did **not** crash, on this machine or
+in the same log from an earlier start. A warning that appears in both is not the
+cause on its own; what differs between them is where the cause is.
+
 ## Rule out the boring causes first
 
 Check resource exhaustion before blaming the program: `free -h`, and the journal
@@ -72,6 +99,11 @@ Many packages publish no debug symbols. When frames stay unresolved, say so —
 never invent function names to fill the gap. An unsymbolized stack still has
 shape: which library each frame belongs to, and whether the crash came from a
 signal handler, a main loop, or a worker thread.
+
+A stripped binary still names what it imports. Disassemble a little before the
+crashing address, follow each `call` into the PLT, and look up the slot it jumps
+through in `readelf -rW <executable>`: the relocation there names the function,
+which can be enough to identify the check that fired.
 
 ## Report
 
