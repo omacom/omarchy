@@ -2629,12 +2629,15 @@ Panel {
 
     Rectangle {
       visible: meter.pace >= 0
-      width: Math.max(1, Math.round(meter.thickness * 0.25))
-      height: meter.thickness * 1.6
+      width: Math.max(2, Math.round(meter.thickness * 0.4))
+      radius: width / 2
+      height: meter.thickness * 2.2
       anchors.verticalCenter: meterTrack.verticalCenter
       readonly property real along: root.clamp(meterTrack.width * root.clamp(meter.pace, 0, 1) - width / 2, 0, meterTrack.width - width)
       x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
-      color: root.dim
+      // The accent shows against both the track and the fill, which the
+      // foreground and dim colors blend into.
+      color: Commons.Color.accent
     }
 
     Repeater {
