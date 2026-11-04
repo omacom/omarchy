@@ -455,6 +455,9 @@ stop_screenrecording() {
       -t 10000 "${image_args[@]}" \
       --action "$(omarchy-i18n capture.recordingOpen)" mpv -- \
       --action "$(omarchy-i18n capture.recordingCut)" omacut \
+      --action "$(omarchy-i18n file.copyToClipboard)" omarchy-file-copy \
+      --action "$(omarchy-i18n file.showInFiles)" omarchy-file-reveal \
+      --action "$(omarchy-i18n file.moveToTrash)" omarchy-file-trash \
       --with "$filename"
 
     # The shell loads the preview into memory when the toast appears and never

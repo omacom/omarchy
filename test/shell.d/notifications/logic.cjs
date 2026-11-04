@@ -179,12 +179,13 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.deepEqual([secret.execArgv, secret.glyph], ['', ''])
 }
 
-{ // --action buttons: up to three, each a label and an argv held to the click's rules.
+{ // --action buttons: up to nine, each a label and an argv held to the click's rules.
   const actions = JSON.stringify([{ label: 'Edit', argv: ['omasnap', '--file', '/tmp/a b.png'] },
                                   { label: 'Copy path', argv: ['wl-copy', '--', '/tmp/a b.png'] }])
   assert.equal(JSON.stringify(S.parseExecActions(actions)), actions)
   const one = { label: 'Go', argv: ['true'] }
-  for (const bad of ['', '[]', '{}', JSON.stringify([one, one, one, one]), JSON.stringify([{ label: ' ', argv: ['true'] }]),
+  assert.equal(S.parseExecActions(JSON.stringify(Array(9).fill(one))).length, 9)
+  for (const bad of ['', '[]', '{}', JSON.stringify(Array(10).fill(one)), JSON.stringify([{ label: ' ', argv: ['true'] }]),
                      JSON.stringify([{ label: 'Go', argv: ['-rf'] }]), JSON.stringify([{ label: 'Go' }]), JSON.stringify([one, 'x'])])
     assert.equal(S.parseExecActions(bad), null, bad)
   // Stored with the row, so a restored card keeps its buttons; redacted with a code.
@@ -361,7 +362,7 @@ function newCapacityScope() {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
-    held: [], doNotDisturb: false,
+    held: [], doNotDisturb: false, actionMenuKey: "",
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -1048,6 +1049,70 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.ok(s.toasts.rows.filter(r => r.restored).every(r => r.duration === Store.RESTORE_GRACE))
   s.loadLive('[]')
   assert.equal(s.liveEntries.length, 100, 'a second load event is ignored')
+}
+
+// Overflow is presentation only: all kinds retain their original dispatch
+// identity, and opening the menu must never invoke the secondary action.
+{
+  const deeds = Delivery.deeds({ codes: '123456', execActions: JSON.stringify([{ label: 'Edit', argv: ['true'] }]) },
+    [{ id: 'reply', text: '<b>Reply</b>' }])
+  assert.equal(Delivery.actionButtons([], 'More').length, 0)
+  assert.equal(Delivery.actionButtons(deeds.slice(0, 1), 'More')[0], deeds[0])
+  const buttons = Delivery.actionButtons(deeds, 'More')
+  assert.equal(buttons.length, 2)
+  assert.equal(buttons[0], deeds[0])
+  assert.equal(buttons[1].kind, 'more')
+  assert.equal(deeds[2].value, 'reply')
+  assert.equal(deeds[2].label, '<b>Reply</b>')
+}
+{
+  const calls = [], Qt = {}
+  for (const key of ['Escape', 'M', 'Down', 'J', 'Tab', 'Up', 'K', 'Backtab', 'Return', 'Enter', 'Space', 'Delete', 'Backspace'])
+    Qt['Key_' + key] = key
+  const s = runIn({ Qt, keyboardMode: true, keyboardKey: 'card', actionMenuKey: '', actionMenuIndex: 0,
+    keyboardIdle: { restart() {} }, deedsFor: () => [{}, {}, {}],
+    stopKeyboard() { this.keyboardMode = false }, runDeed: (key, index) => calls.push([key, index]) }, 'keyboardPressed')
+  assert.ok(s.keyboardPressed(Qt.Key_M, 'm'))
+  assert.equal(s.actionMenuKey, 'card')
+  assert.equal(calls.length, 0)
+  s.keyboardPressed(Qt.Key_Down, '')
+  s.keyboardPressed(Qt.Key_Return, '')
+  assert.deepEqual(calls, [['card', 2]])
+  assert.equal(s.actionMenuKey, '')
+  s.actionMenuKey = 'card'
+  s.keyboardPressed(Qt.Key_Escape, '')
+  assert.equal(s.actionMenuKey, '')
+  assert.equal(calls.length, 1)
+  // A menu opened with the pointer takes no keys: the surface has no focus.
+  s.keyboardMode = false
+  s.actionMenuKey = 'card'
+  assert.equal(s.keyboardPressed('2', '2'), false)
+  assert.equal(calls.length, 1)
+}
+
+{ // Reaching another card closes an open menu, even after leaving the deck:
+  // the opener's own hover had already gone, so only the service sees it.
+  const s = runIn({ hoverKey: 'a', actionMenuKey: 'a' }, 'hoverCard')
+  s.hoverCard('')
+  assert.deepEqual([s.hoverKey, s.actionMenuKey], ['a', 'a'])
+  s.hoverCard('b')
+  assert.deepEqual([s.hoverKey, s.actionMenuKey], ['b', ''])
+  s.actionMenuKey = 'b'
+  s.hoverCard('b')
+  assert.equal(s.actionMenuKey, 'b')
+}
+{ // The menu fits the room left below the card, in whole rows, never none.
+  assert.equal(Delivery.menuRows(8, 35, Infinity), 8)
+  assert.equal(Delivery.menuRows(8, 35, 140), 4)
+  assert.equal(Delivery.menuRows(8, 35, 139), 3)
+  assert.equal(Delivery.menuRows(8, 35, -20), 1)
+  assert.equal(Delivery.menuRows(0, 35, 140), 0)
+}
+{ // Without a whole row of room under the bar, the menu opens up over the card.
+  assert.equal(Delivery.menuOpensUp(35, 35), false)
+  assert.equal(Delivery.menuOpensUp(10, 35), true)
+  assert.equal(Delivery.menuOpensUp(-20, 35), true)
+  assert.equal(Delivery.menuOpensUp(Infinity, 35), false)
 }
 
 console.log('notification logic: passed')

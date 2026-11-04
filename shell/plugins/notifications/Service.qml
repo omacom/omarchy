@@ -204,6 +204,9 @@ Item {
   // ------------------------------------------------------------- the deck
   //
   // Expansion follows the pointer, with a grace period for crossing gaps.
+  property string actionMenuKey: ""
+  property int actionMenuIndex: 0
+  onActionMenuKeyChanged: actionMenuIndex = 0
   property bool pointerIn: false
   property bool expanded: false
   property string openDeck: ""
@@ -222,7 +225,8 @@ Item {
 
   Timer {
     id: collapseGrace
-    interval: 120
+    // Longer with a menu open, so slipping past its edge does not lose it.
+    interval: service.actionMenuKey ? 600 : 120
     onTriggered: {
       // The keyboard holds the deck open while the pointer passes through.
       if (service.keyboardMode) return
@@ -267,6 +271,16 @@ Item {
   }
   function pointerLeft() { collapseGrace.restart() }
 
+  // The card under the pointer. In a gap between cards the last card keeps
+  // hover: letting it go hid its bar, which pulled the next card up under the
+  // pointer. Reaching another card puts an open menu away, even when the
+  // pointer left the deck on the way.
+  function hoverCard(key) {
+    if (!key) return
+    if (actionMenuKey && key !== actionMenuKey) actionMenuKey = ""
+    hoverKey = key
+  }
+
   // ------------------------------------------------------------- keyboard
   //
   // Notifications never take the keyboard on their own: a card grabbing focus
@@ -294,6 +308,7 @@ Item {
   function selectCard(key) {
     var at = rowIndexFor(key)
     if (at < 0) return false
+    actionMenuKey = ""
     keyboardKey = key
     hoverKey = key
     pointerEntered(Layout.groupKeyFor(toasts.get(at)))
@@ -311,6 +326,7 @@ Item {
   }
 
   function stopKeyboard() {
+    actionMenuKey = ""
     if (!keyboardMode) return
     keyboardIdle.stop()
     keyboardMode = false
@@ -389,8 +405,29 @@ Item {
   function keyboardPressed(key, text) {
     if (!keyboardMode) return false
     keyboardIdle.restart()
+    if (actionMenuKey) {
+      var menuKey = actionMenuKey
+      var count = deedsFor(menuKey).length - 1
+      if (count < 1) { actionMenuKey = ""; return false }
+      if (key === Qt.Key_Escape || key === Qt.Key_M) actionMenuKey = ""
+      else if (key === Qt.Key_Down || key === Qt.Key_J || key === Qt.Key_Tab)
+        actionMenuIndex = (actionMenuIndex + 1) % count
+      else if (key === Qt.Key_Up || key === Qt.Key_K || key === Qt.Key_Backtab)
+        actionMenuIndex = (actionMenuIndex + count - 1) % count
+      else {
+        var deedIndex = key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Space
+          ? actionMenuIndex + 1 : (/^[1-9]$/.test(text) ? Number(text) - 1 : -1)
+        if (deedIndex < 0 || deedIndex > count) return false
+        actionMenuKey = ""
+        stopKeyboard()
+        runDeed(menuKey, deedIndex)
+      }
+      return true
+    }
     var selected = keyboardKey
-    if (key === Qt.Key_Escape) {
+    if (key === Qt.Key_M && deedsFor(selected).length > 1) {
+      actionMenuKey = selected
+    } else if (key === Qt.Key_Escape) {
       stopKeyboard()
     } else if (key === Qt.Key_Down || key === Qt.Key_J || key === Qt.Key_Tab) {
       moveSelection(1)
@@ -742,6 +779,7 @@ Item {
 
   // One move, or one jump, for the lot, however many cards leave together.
   function closeToasts(keys, reason, instant) {
+    if (keys.indexOf(actionMenuKey) >= 0) actionMenuKey = ""
     var next = {}, marked = false
     for (var k in leaving) next[k] = leaving[k]
     for (var i = 0; i < keys.length; i++) {
@@ -1572,7 +1610,7 @@ Item {
                 var h = pl.height || Style.space(58)
                 if (y >= pl.y && y <= pl.y + h) { found = key; break }
               }
-              service.hoverKey = found
+              service.hoverCard(found)
             }
 
             // Cards move under a still pointer after a dismissal: re-hit-test
@@ -1629,6 +1667,15 @@ Item {
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
               hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
+              menuIndex: service.actionMenuIndex
+              menuOpen: surface.showingNotifications && service.actionMenuKey === model.key
+              // The deck does not scroll: what is below the screen's bottom
+              // is out of reach, so the menu scrolls within the rest.
+              roomBelow: surface.height - surface.margins.top - service.gap - (place.y || 0)
+              onMenuRequested: function(open) {
+                if (open) service.actionMenuKey = model.key
+                else if (service.actionMenuKey === model.key) service.actionMenuKey = ""
+              }
               selected: service.keyboardMode && service.keyboardKey === model.key
               actions: service.actionsOf(model.key, service.refsRevision)
               hoverX: service.hoverX
@@ -1650,6 +1697,7 @@ Item {
               // A hidden output collapses child visibility; its measurements
               // must not overwrite the visible deck's heights.
               onTargetHeightChanged: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
+              Component.onDestruction: if (service.actionMenuKey === model.key) service.actionMenuKey = ""
               Component.onCompleted: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
 
               onExpired: service.closeToast(model.key, "expired")
