@@ -104,3 +104,9 @@ DESKTOP
 [[ $(tail -1 "$TEST_LOG") == "terminal::omarchy-remove-service-slack" ]] || fail "the themed Slack launcher opens its package removal flow"
 [[ -f $tmp_dir/data/applications/slack.desktop ]] || fail "the override remains until package removal succeeds"
 pass "the themed Slack override routes to package removal before any cleanup"
+
+mkdir -p "$tmp_dir/data/applications/wine/Programs/Deck"
+touch "$tmp_dir/data/applications/wine/Programs/Deck/Deck.exe.desktop"
+"$ROOT/bin/omarchy-remove-launcher-entry" wine-Programs-Deck-Deck.exe Deck
+[[ ! -e $tmp_dir/data/applications/wine/Programs/Deck/Deck.exe.desktop ]] || fail "launcher remove deletes user-owned desktop files in subdirectories"
+pass "launcher remove deletes user-owned desktop files in subdirectories"

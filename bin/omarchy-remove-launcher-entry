@@ -47,6 +47,20 @@ for dir in "${desktop_dirs[@]}"; do
   fi
 done
 
+# An entry in a subdirectory, like wine/Programs/App/App.desktop, has the
+# desktop id wine-Programs-App-App.desktop.
+if [[ -z $desktop_file ]]; then
+  for dir in "${desktop_dirs[@]}"; do
+    while IFS= read -r -d '' candidate; do
+      relative_path="${candidate#"$dir"/}"
+      if [[ ${relative_path//\//-} == "$desktop_file_name" ]]; then
+        desktop_file="$candidate"
+        break 2
+      fi
+    done < <(find "$dir" -mindepth 2 -name '*.desktop' -print0 2>/dev/null)
+  done
+fi
+
 if [[ -z $desktop_file ]]; then
   echo "Could not find launcher entry: $desktop_file_name" >&2
   exit 1
@@ -57,7 +71,7 @@ is_user_desktop_file() {
 
   desktop_dir="${desktop_file%/*}"
   for dir in "${user_desktop_dirs[@]}"; do
-    [[ $desktop_dir == $dir ]] && return 0
+    [[ $desktop_dir == "$dir" || $desktop_dir == "$dir"/* ]] && return 0
   done
 
   return 1
