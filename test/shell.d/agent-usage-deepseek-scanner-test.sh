@@ -70,8 +70,8 @@ expect("DeepSeek in use without a key prints a valid record with no plan and no 
        {key: record.get(key) for key in ("id", "ready", "tierLabel", "hasPromptStats", "usageStatusText", "authHelpText")} | {"balance": "balance" in record},
        {"id": "deepseek", "ready": True, "tierLabel": "", "hasPromptStats": True, "usageStatusText": "", "authHelpText": "", "balance": False}, record)
 
-# The costs pi and opencode wrote beside each DeepSeek reply add up to this
-# month's spend, a day at a time, as an estimate; another provider's cost
+# The costs pi and opencode wrote beside each DeepSeek reply add up to the
+# last 30 days' spend, a day at a time, as an estimate; another provider's cost
 # never counts, and replies with no cost add no spend at all.
 expect("replies without a cost add no spend", "spend" in record, False, record)
 sandbox()
@@ -83,9 +83,8 @@ opencode_db(tables=("message",), message=[
   ("m-1", "ses_1", json.dumps({**json.loads(oc_v1("deepseek", {"input": 10})), "cost": 0.5})),
 ])
 record = deepseek()
-today = fixture_now().astimezone().day
-expect("DeepSeek adds up this month's local reply costs, by day, as an estimate", record.get("spend"),
-       {"amount": 0.75, "cap": 0.0, "currency": "USD", "days": [0.0] * (today - 1) + [0.75], "estimated": True}, record)
+expect("DeepSeek adds up the last 30 days' local reply costs, by day, as an estimate", record.get("spend"),
+       {"amount": 0.75, "cap": 0.0, "currency": "USD", "days": [0.0] * 29 + [0.75], "estimated": True}, record)
 
 # -------------------------------------------------------- DeepSeek Harness
 

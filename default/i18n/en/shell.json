@@ -95,6 +95,7 @@
   "agents.localEndpoint": "%1 · model %2",
   "agents.launchHarness": "Start %1",
   "agents.spendEstimated": "≈ %1",
+  "agents.spendLast30Days": "Last 30 days",
   "agents.spendOfCap": "%1 of %2",
   "agents.spendThisMonth": "This month",
   "agents.startOnNew": "Start your default agent on a new %1",

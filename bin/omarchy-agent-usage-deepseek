@@ -8,8 +8,8 @@ Local stats come from pi/omp session files whose assistant messages ran on the
 deepseek provider, from opencode sessions that ran on a deepseek provider, and
 from DeepSeek Harness (dsh) session logs on its DeepSeek routes. DeepSeek
 billing is prepaid, so the record carries the live credit balance from
-GET https://api.deepseek.com/user/balance when a key is available, and this
-month's spend from the costs pi and opencode wrote beside each reply. The
+GET https://api.deepseek.com/user/balance when a key is available, and the last
+30 days' spend from the costs pi and opencode wrote beside each reply. The
 agents panel only ever reads the JSON this prints.
 """
 

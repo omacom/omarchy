@@ -5,9 +5,9 @@
 """Collect Fireworks serverless usage into one display-ready JSON record.
 
 Token stats come from the Fireworks billing API grouped by day and model for
-the last 30 days. The record's spend is the account's monthly-spend quota:
-what the account has spent this month, against the monthly cap when the
-account's tier sets one. The plan is the account's rate-limit tier. All of it
+the last 30 days. The record's spend is what each of those days cost, and,
+when the account's tier caps monthly spend, the month's spend from its
+monthly-spend quota against that cap. The plan is the account's rate-limit tier. All of it
 is read with the API key alone; the agents panel only ever reads the JSON this
 prints.
 
@@ -41,6 +41,7 @@ from collectors import (  # noqa: E402
   cache_root,  # noqa: F401 - the tests find the cached answers through it
   data_home,
   emit,
+  SPEND_DAYS,
   number,
   open_json,
   read_json,
@@ -358,13 +359,13 @@ class FireworksClient:
     quoted = urllib.parse.quote(normalize_account_id(account_id), safe="")
     return self.request(f"/v1/accounts/{quoted}/quotas/monthly-spend-usd")
 
-  # The rated cost of each day of this month so far, the 1st first. The API
-  # buckets days in UTC only, like the month the quota counts.
+  # The rated cost of each of the last 30 days, oldest first, today last.
+  # The API buckets days in UTC only.
   def daily_costs(self, account_id: str, now: datetime) -> list[float]:
     quoted = urllib.parse.quote(normalize_account_id(account_id), safe="")
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=SPEND_DAYS - 1)
     payload = self.request(f"/v1/accounts/{quoted}/usageCosts:query", body={
-      "startTime": month_start.isoformat().replace("+00:00", "Z"),
+      "startTime": start.isoformat().replace("+00:00", "Z"),
       "endTime": now.isoformat().replace("+00:00", "Z"),
       "scope": "ACCOUNT",
       "groupBy": ["DAY"],
@@ -372,17 +373,20 @@ class FireworksClient:
     rows = payload.get("rows", [])
     if not isinstance(rows, list):
       raise FireworksError("Fireworks returned an invalid billing response")
-    days = [0.0] * now.day
+    days = [0.0] * SPEND_DAYS
     for row in rows:
       if not isinstance(row, dict):
         continue
       dimensions = row.get("dimensions") if isinstance(row.get("dimensions"), dict) else {}
       try:
-        day = datetime.fromisoformat(str(dimensions.get("startTime") or "").replace("Z", "+00:00")).day
+        when = datetime.fromisoformat(str(dimensions.get("startTime") or "").replace("Z", "+00:00"))
       except ValueError:
         continue
-      if 1 <= day <= now.day:
-        days[day - 1] += money(row.get("subtotal"))
+      if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+      index = (when.astimezone(timezone.utc).date() - start.date()).days
+      if 0 <= index < SPEND_DAYS:
+        days[index] += money(row.get("subtotal"))
     return [round(cost, 4) for cost in days]
 
 
@@ -402,8 +406,9 @@ def tier_label(account: dict[str, Any]) -> str:
   return f"Tier {tier}" if tier > 0 else ""
 
 
-# What the account has spent this month, the cap its tier sets, if any, and
-# what each day so far cost.
+# What each of the last 30 days cost and, against a monthly cap the tier
+# sets, what the account has spent this month; with no cap, the amount is
+# the 30 days' total.
 def current_spend(quota: dict[str, Any], days: list[float]) -> dict[str, Any]:
   try:
     amount = float(quota["usage"])
@@ -412,9 +417,10 @@ def current_spend(quota: dict[str, Any], days: list[float]) -> dict[str, Any]:
     raise FireworksError("Fireworks returned an unreadable monthly spend")
   if not (math.isfinite(amount) and math.isfinite(cap)):
     raise FireworksError("Fireworks returned an unreadable monthly spend")
+  cap = cap if 0 < cap < UNCAPPED_SPEND else 0.0
   return {
-    "amount": max(0.0, amount),
-    "cap": cap if 0 < cap < UNCAPPED_SPEND else 0.0,
+    "amount": max(0.0, amount) if cap else round(sum(days), 4),
+    "cap": cap,
     "currency": "USD",
     "days": days,
   }

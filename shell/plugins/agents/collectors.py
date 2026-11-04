@@ -63,6 +63,8 @@ PROBE_MIN_INTERVAL_SECONDS = 15
 # The scan cache's envelope. A file of another version, or another shape, is
 # a miss: rescanned and rewritten, never a crash or a garbage record.
 SCAN_CACHE_VERSION = 2
+# How many days, today last, a record's spend covers.
+SPEND_DAYS = 30
 STATS_KEYS = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
 
 # Counts and times read from disk or the network are untrusted: a boolean,
@@ -432,9 +434,9 @@ class Stats:
     self.sessions: set[str] = set()
     self.active_dates: set[str] = set()
     self.model_usage: dict[str, dict[str, int]] = {}
-    # What the store said each day of this month cost, for spend().
-    self.month_days = [date_string(day.replace(day=n)) for n in range(1, day.day + 1)]
-    self.month_costs = {d: 0.0 for d in self.month_days}
+    # What the store said each of the last 30 days cost, for spend().
+    self.spend_days = [date_string(day - timedelta(days=offset)) for offset in range(SPEND_DAYS - 1, -1, -1)]
+    self.spend_costs = {d: 0.0 for d in self.spend_days}
 
   def add(
     self,
@@ -463,8 +465,8 @@ class Stats:
     total = input_tokens + output_tokens + cache_read + cache_write
     if total <= 0 and prompts <= 0:
       return
-    if day in self.month_costs:
-      self.month_costs[day] += cost
+    if day in self.spend_costs:
+      self.spend_costs[day] += cost
     self.total_prompts += prompts
     if session is not None:
       self.sessions.add(session)
@@ -515,17 +517,17 @@ class Stats:
     self.add(row.day, row.session, model, row.input_tokens, row.output_tokens, row.cache_read, row.cache_write, row.prompts, row.cost)
 
   def spend(self) -> dict[str, Any] | None:
-    """This month's spend on this machine, from the costs the stores wrote
+    """The last 30 days' spend on this machine, from the costs the stores wrote
     beside each reply, as the record's `spend`: an estimate, since it sees
     neither other machines nor the provider's own rating. None when nothing
-    this month had a cost."""
-    days = [round(self.month_costs[d], 4) for d in self.month_days]
+    the last 30 days had a cost."""
+    days = [round(self.spend_costs[d], 4) for d in self.spend_days]
     if not any(days):
       return None
     return {"amount": round(sum(days), 4), "cap": 0.0, "currency": "USD", "days": days, "estimated": True}
 
   def snapshot_with_spend(self) -> dict[str, Any]:
-    """snapshot(), plus `spend` when this month had any, for a pay-as-you-go
+    """snapshot(), plus `spend` when the last 30 days had any, for a pay-as-you-go
     collector whose local stores are the only record of what it cost."""
     snapshot = self.snapshot()
     spend = self.spend()

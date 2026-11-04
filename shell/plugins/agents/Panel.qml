@@ -2075,8 +2075,9 @@ Panel {
       }
     }
 
-    // Against a real monthly cap the spend is a meter; without one, a bar for
-    // each day of the month, scaled to the busiest, shows where it went.
+    // Against a real monthly cap the spend is this month's meter; without
+    // one, a bar for each of the last 30 days, scaled to the busiest, shows
+    // where it went.
     Item {
       visible: !!section.spend
       width: parent.width
@@ -2087,7 +2088,7 @@ Panel {
         textFormat: Text.PlainText
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
-        text: Commons.I18n.t("agents.spendThisMonth")
+        text: section.spend && section.spend.cap > 0 ? Commons.I18n.t("agents.spendThisMonth") : Commons.I18n.t("agents.spendLast30Days")
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -2113,11 +2114,6 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         height: spendTitle.implicitHeight
         readonly property var days: section.spend ? section.spend.days : []
-        // The month the quota counts is a UTC one.
-        readonly property int monthDays: {
-          var now = new Date(root.nowMs)
-          return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate()
-        }
         readonly property real busiest: Math.max.apply(null, days.concat([0]))
         readonly property real gap: Style.space(2)
         readonly property real stub: Math.max(Style.space(2), Math.round(Style.spacing.controlHeight * 0.07))
@@ -2127,11 +2123,11 @@ Panel {
           spacing: spendDays.gap
 
           Repeater {
-            model: spendDays.monthDays
+            model: spendDays.days.length
 
             Rectangle {
-              readonly property real cost: index < spendDays.days.length ? spendDays.days[index] : 0
-              width: (spendDays.width - spendDays.gap * (spendDays.monthDays - 1)) / spendDays.monthDays
+              readonly property real cost: spendDays.days[index]
+              width: (spendDays.width - spendDays.gap * (spendDays.days.length - 1)) / spendDays.days.length
               height: cost > 0 && spendDays.busiest > 0 ? Math.max(spendDays.stub, spendDays.height * cost / spendDays.busiest) : spendDays.stub
               anchors.bottom: parent ? parent.bottom : undefined
               radius: Math.min(width, height) / 2
