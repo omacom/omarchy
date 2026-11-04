@@ -94,6 +94,8 @@
   "agents.localMemoryValue": "%1 GiB",
   "agents.localEndpoint": "%1 · model %2",
   "agents.launchHarness": "Start %1",
+  "agents.spendOfCap": "%1 of %2",
+  "agents.spendThisMonth": "This month",
   "agents.startOnNew": "Start your default agent on a new %1",
   "agents.starting": "Starting…",
   "agents.stopAutoSwitch": "Stop switching automatically",

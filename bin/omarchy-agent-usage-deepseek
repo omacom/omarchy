@@ -9,8 +9,8 @@ deepseek provider, from opencode sessions that ran on a deepseek provider, and
 from DeepSeek Harness (dsh) session logs on its DeepSeek routes. DeepSeek
 billing is prepaid, so the record carries the live credit balance from
 GET https://api.deepseek.com/user/balance when a key is available, plus the
-optional funded/spent detail derived from ~/.config/omarchy/agents/deepseek.json
-(the same shape the fireworks collector uses). The agents panel only ever reads
+optional funded/spent detail derived from ~/.config/omarchy/agents/deepseek.json.
+The agents panel only ever reads
 the JSON this prints.
 """
 

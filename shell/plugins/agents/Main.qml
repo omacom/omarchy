@@ -304,13 +304,13 @@ Item {
   }
 
   // The panel gives a section only to an agent with a subscription to show:
-  // limits, a balance, a plan, or accounts. Local history alone still counts
+  // limits, a balance, spend, a plan, or accounts. Local history alone still counts
   // toward the summary, but would leave an empty section.
   readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
 
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
-      || !!p.balance || p.tierLabel !== ""
+      || !!p.balance || !!p.spend || p.tierLabel !== ""
   }
 
   // ----------------------------------------------------------------- order
@@ -379,7 +379,7 @@ Item {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
-      || (p.accounts && p.accounts.length > 0) || !!p.balance
+      || (p.accounts && p.accounts.length > 0) || !!p.balance || !!p.spend
       || (p.ready === true && p.tierLabel !== "")
   }
 
@@ -396,6 +396,20 @@ Item {
       spent: Math.max(0, Number(raw.spent) || 0),
       currency: String(raw.currency || "USD"),
       estimated: raw.estimated === true
+    }
+  }
+
+  // A pay-as-you-go agent's spend this month, against the monthly cap when
+  // the account has one. Per-account, like the balance.
+  function spendValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var amount = Number(raw.amount)
+    var cap = Number(raw.cap)
+    if (!isFinite(amount) || amount < 0) return null
+    return {
+      amount: amount,
+      cap: isFinite(cap) && cap > 0 ? cap : 0,
+      currency: String(raw.currency || "USD")
     }
   }
 
@@ -423,6 +437,7 @@ Item {
       // Codex's free full resets of its rate limits, when it has any.
       resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),
+      spend: spendValue(record.spend),
 
       todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
       todaySessions: synced ? numberValue(stats.todaySessions) : numberValue(record.todaySessions),
