@@ -65,6 +65,19 @@ Item {
     'System.out.println("Hello, world!");'
   ]
   property int fontPreviewIndex: 0
+  property int fontPreviewPreviousIndex: 0
+  property real fontPreviewProgress: 1
+
+  NumberAnimation {
+    id: fontPreviewTransition
+    target: root
+    property: "fontPreviewProgress"
+    from: 0
+    to: 1
+    duration: Style.duration(220)
+    easing.type: Easing.Bezier
+    easing.bezierCurve: Style.easeOut
+  }
 
   // One clock keeps every font row on the same sample, even while scrolling.
   Timer {
@@ -72,8 +85,17 @@ Item {
     repeat: true
     running: root.opened && !root.dmenuActive
       && (root.activeMenu === "appearance.font" || root.activeMenu === "style.font" || root.activeMenu === "install.style.font")
-    onRunningChanged: root.fontPreviewIndex = 0
-    onTriggered: root.fontPreviewIndex = (root.fontPreviewIndex + 1) % root.fontPreviewSamples.length
+    onRunningChanged: {
+      fontPreviewTransition.stop()
+      root.fontPreviewIndex = 0
+      root.fontPreviewPreviousIndex = 0
+      root.fontPreviewProgress = 1
+    }
+    onTriggered: {
+      root.fontPreviewPreviousIndex = root.fontPreviewIndex
+      root.fontPreviewIndex = (root.fontPreviewIndex + 1) % root.fontPreviewSamples.length
+      fontPreviewTransition.restart()
+    }
   }
 
   Component.onCompleted: terminalFontProc.running = true
@@ -1645,16 +1667,17 @@ Item {
                   elide: Text.ElideRight
                 }
 
-                Text {
+                FontPreview {
                   width: parent.width
+                  height: implicitHeight
                   visible: row.hasPreview
-                  textFormat: Text.PlainText
                   text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : "Preview unavailable"
+                  previousText: row.previewReady ? root.fontPreviewSamples[root.fontPreviewPreviousIndex] : "Preview unavailable"
+                  progress: row.previewReady ? root.fontPreviewProgress : 1
                   color: row.hasCursor ? root.selectedText : root.foreground
                   opacity: 0.75
-                  font.family: row.previewFamily
-                  font.pointSize: root.terminalFontPointSize
-                  elide: Text.ElideRight
+                  fontFamily: row.previewFamily
+                  pointSize: root.terminalFontPointSize
                 }
 
                 Text {

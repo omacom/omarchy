@@ -35,7 +35,7 @@ assertEqual(terminalFont.pointSize('ghostty', 'font-size = 0\nfont-size = invali
 assertEqual(terminalFont.configPath('ghostty'), 'ghostty/config', 'preview locates the default terminal configuration')
 assertEqual(terminalFont.configPath('unknown'), '', 'unsupported terminals have no guessed config path')
 assert(menuQml.includes('pointSize: root.terminalFontPointSize, weight: Font.Normal'), 'font names use their own family at terminal point size')
-assert(menuQml.includes('font.pointSize: root.terminalFontPointSize'), 'sample text uses terminal point size instead of shell caption pixels')
+assert(menuQml.includes('pointSize: root.terminalFontPointSize'), 'sample text uses terminal point size instead of shell caption pixels')
 
 const previewSamples = vm.runInNewContext(menuQml.match(/readonly property var fontPreviewSamples: (\[[\s\S]*?\n  \])/)[1])
 assertEqual(previewSamples.length, 8, 'preview cycles the original sample and seven language snippets')
@@ -48,9 +48,16 @@ assert(menuQml.includes('interval: 3000'), 'preview advances every three seconds
 for (const route of ['appearance.font', 'style.font', 'install.style.font']) {
   assert(menuQml.includes('root.activeMenu === "' + route + '"'), 'preview timer supports font route ' + route)
 }
-assert(menuQml.includes('onRunningChanged: root.fontPreviewIndex = 0'), 'preview resets when opening the font menu')
+assert(/onRunningChanged: \{\s*fontPreviewTransition.stop\(\)\s*root.fontPreviewIndex = 0\s*root.fontPreviewPreviousIndex = 0\s*root.fontPreviewProgress = 1/.test(menuQml), 'preview resets without animating when opening the font menu')
 assert(menuQml.includes('(root.fontPreviewIndex + 1) % root.fontPreviewSamples.length'), 'preview wraps back to the original sample')
 assert(menuQml.includes('text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : "Preview unavailable"'), 'font rows share the current sample and preserve the unavailable fallback')
+const previewQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/FontPreview.qml'), 'utf8')
+assert(menuQml.includes('duration: Style.duration(220)'), 'sample transitions respect the animation setting')
+assert(menuQml.includes('easing.bezierCurve: Style.easeOut'), 'sample transitions use the shared smooth easing')
+assert(menuQml.includes('root.fontPreviewPreviousIndex = root.fontPreviewIndex'), 'transition retains the outgoing sample')
+assert(previewQml.includes('opacity: 1 - root.progress') && previewQml.includes('x: -Style.space(16) * root.progress'), 'outgoing sample fades and moves left')
+assert(previewQml.includes('opacity: root.progress') && previewQml.includes('x: Style.space(16) * (1 - root.progress)'), 'incoming sample fades and moves in from the right')
+assert(previewQml.includes('clip: true') && previewQml.includes('implicitHeight: incoming.implicitHeight'), 'sample transitions stay clipped in a stable line height')
 
 const parsed = menu.parseMenuJsonc(`
 {
