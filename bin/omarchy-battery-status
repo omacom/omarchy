@@ -80,7 +80,10 @@ read_sysfs_number() {
 # read this battery's own kernel registers for those figures instead, the
 # way the live draw already comes from sysfs. UPower's energy and rate still
 # hold, and nothing else here moves. The --shell output names the source so
-# the shell knows when to prefer this percentage over UPower's.
+# the shell knows when to prefer this percentage over UPower's. When no
+# register pair answers (ENODEV for a moment, or none at all), UPower's energy
+# over the design capacity stands in: off by pack wear, not by the latch.
+# With no energy either, the source reads unavailable and the shell retries.
 charge_source=upower
 if awk -v full="${energy_full:-0}" -v design="${energy_full_design:-0}" 'BEGIN { exit !(design > 0 && full > design * 2) }'; then
   kernel_energy=""
@@ -115,10 +118,25 @@ if awk -v full="${energy_full:-0}" -v design="${energy_full_design:-0}" 'BEGIN {
     }')
     capacity=$(awk -v full="$energy_full" 'BEGIN { printf "%d", full }')
     charge_source=kernel
-    # UPower's time to full counts up to the latched value, in days; its time
-    # to empty divides a sound energy by the rate and stands.
-    [[ $state != "charging" ]] || upower_hours=""
+  elif awk -v energy="${energy:-0}" 'BEGIN { exit !(energy > 0) }'; then
+    energy_full=$energy_full_design
+    percentage=$(awk -v energy="$energy" -v full="$energy_full" 'BEGIN {
+      percent = int(energy * 100 / full)
+      if (percent > 100) percent = 100
+      if (percent < 0) percent = 0
+      print percent
+    }')
+    capacity=$(awk -v full="$energy_full" 'BEGIN { printf "%d", full }')
+    charge_source=design
+  else
+    # UPower's energy comes from the same registers; 0 Wh is no reading.
+    charge_source=unavailable
+    # Nor is the latched energy-full a figure to count a time to full against.
+    energy=""
   fi
+  # UPower's time to full counts up to the latched value, in days; its time
+  # to empty divides a sound energy by the rate and stands.
+  [[ $state != "charging" ]] || upower_hours=""
 fi
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use

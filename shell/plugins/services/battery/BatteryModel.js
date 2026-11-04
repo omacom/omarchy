@@ -1,7 +1,9 @@
-// omarchy-battery-status --shell adds a source line when it has read the
-// kernel's charge registers past a latched UPower energy-full (see the script);
-// its percentage then stands in for the display device's. Any other output,
-// or none, leaves UPower's figure: -1 here.
+// omarchy-battery-status --shell adds a source line past a latched UPower
+// energy-full (see the script): "kernel" when it read the charge registers,
+// "design" when it fell back to UPower's energy over the design capacity; that
+// percentage then stands in for the display device's. "unavailable" (nothing
+// readable) is no answer: kernelReading keeps the last level and retries. Any
+// other output leaves UPower's figure: -1 here.
 function kernelPercentage(raw) {
   var lines = String(raw || "").split("\n")
   var source = ""
@@ -14,17 +16,21 @@ function kernelPercentage(raw) {
     if (key === "source") source = value
     else if (key === "percentage") percentage = value
   }
-  if (source !== "kernel") return -1
+  if (source !== "kernel" && source !== "design") return -1
   var level = parseInt(percentage, 10)
   return isNaN(level) ? -1 : Math.max(0, Math.min(100, level))
 }
 
 // What a finished status-script run leaves. A run that printed nothing found no
-// battery for a moment (around AC plug events) and is no answer: the last
-// level stands and the script runs again on UPower's next change.
+// battery for a moment (around AC plug events) and is no answer, nor is one
+// that named a source without a level: the last level stands and the script
+// runs again on UPower's next change.
 function kernelReading(raw, lastLevel) {
-  if (String(raw || "").trim() === "") return { level: lastLevel, retry: true }
-  return { level: kernelPercentage(raw), retry: false }
+  var text = String(raw || "")
+  if (text.trim() === "") return { level: lastLevel, retry: true }
+  var level = kernelPercentage(text)
+  if (level < 0 && /^source\t/m.test(text)) return { level: lastLevel, retry: true }
+  return { level: level, retry: false }
 }
 
 // Whether UPower's figures have moved enough since the status script last

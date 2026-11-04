@@ -286,17 +286,27 @@ grep -Fx $'size\t54Wh' <<<"$energy_latched_output" >/dev/null || fail "an energy
 grep -Fx $'source\tkernel' <<<"$energy_latched_output" >/dev/null || fail "an energy-counting battery past a latch names the kernel as its source" "$energy_latched_output"
 
 # An energy register the firmware can't answer reads empty: it must not show
-# as 0% from the kernel, and with no charge pair UPower's figures stand.
+# as 0% from the kernel; with no charge pair, UPower's energy over the design
+# capacity stands in (30.7 of 76.6 Wh), not the latched 4%.
 : >"$latch_dir/power/BAT0/energy_now"
 unknown_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 grep -Fx $'percentage\t0%' <<<"$unknown_latched_output" >/dev/null && fail "an unreadable energy register does not read as 0%" "$unknown_latched_output"
 grep -q $'^source\tkernel' <<<"$unknown_latched_output" && fail "an unreadable energy register does not name the kernel as source" "$unknown_latched_output"
+grep -Fx $'percentage\t40%' <<<"$unknown_latched_output" >/dev/null || fail "an unreadable energy register falls back to the design capacity" "$unknown_latched_output"
+grep -Fx $'source\tdesign' <<<"$unknown_latched_output" >/dev/null || fail "an unreadable energy register names the design capacity as source" "$unknown_latched_output"
+grep -Fx $'size\t76Wh' <<<"$unknown_latched_output" >/dev/null || fail "an unreadable energy register sizes the pack at its design capacity" "$unknown_latched_output"
 
-# With no registers to read, UPower's figures stand, wrong as they are.
+# With no registers to read at all, the design capacity stands in too.
 rm "$latch_dir/power/BAT0"/energy_*
 bare_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
-grep -Fx $'percentage\t4%' <<<"$bare_latched_output" >/dev/null || fail "a latch with no kernel registers keeps UPower's percentage" "$bare_latched_output"
-grep -q $'^source\t' <<<"$bare_latched_output" && fail "a latch with no kernel registers names no other source" "$bare_latched_output"
+grep -Fx $'percentage\t40%' <<<"$bare_latched_output" >/dev/null || fail "a latch with no kernel registers falls back to the design capacity" "$bare_latched_output"
+grep -Fx $'source\tdesign' <<<"$bare_latched_output" >/dev/null || fail "a latch with no kernel registers names the design capacity as source" "$bare_latched_output"
+
+# UPower's energy comes from the same registers: 0 Wh there is no reading either.
+sed -i 's/energy:               30.7 Wh/energy:               0 Wh/' "$latch_dir/bin/upower"
+empty_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'source\tunavailable' <<<"$empty_latched_output" >/dev/null || fail "a latch with no energy anywhere reports the source as unavailable" "$empty_latched_output"
+sed -i 's/energy:               0 Wh/energy:               30.7 Wh/' "$latch_dir/bin/upower"
 pass "battery status reads the kernel's charge registers past a latched UPower energy-full"
 
 # A full charge a little over the design capacity is a healthy new pack, and

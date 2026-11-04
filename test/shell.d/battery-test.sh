@@ -64,6 +64,12 @@ assertDeepEqual(battery.kernelReading('', 99), { level: 99, retry: true }, 'batt
 assert(battery.shouldRereadKernel(-1, 484.5, 0.106, 0.1061, false), 'battery reads again after an empty run')
 assertDeepEqual(battery.kernelReading(latched, -1), { level: 99, retry: false }, 'battery settles on a run that answered')
 assertDeepEqual(battery.kernelReading(sound, 99), { level: -1, retry: false }, 'battery hands back to UPower once the latch clears')
+// A latch whose registers can't be read falls back to the design capacity;
+// unavailable, or a source line with no level, is no answer and is retried.
+assertEqual(battery.kernelPercentage('percentage\t52%\nsource\tdesign\n'), 52, 'battery takes the design-capacity percentage when the registers are unreadable')
+assertDeepEqual(battery.kernelReading('percentage\t52%\nsource\tdesign\n', 99), { level: 52, retry: false }, 'battery settles on a design-capacity reading')
+assertDeepEqual(battery.kernelReading('percentage\t0%\nsource\tunavailable\n', 99), { level: 99, retry: true }, 'battery keeps the last level when nothing is readable')
+assertDeepEqual(battery.kernelReading('source\tkernel\n', 99), { level: 99, retry: true }, 'battery retries a source with no level')
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
 assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
