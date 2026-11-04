@@ -10,7 +10,7 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
 
   mkdir -p ~/.local/state/omarchy
   touch ~/.local/state/omarchy/preinstalls-removed
-  hyprctl reload
+  omarchy-restart-hyprctl
 
   # Disable Omarchy's default mise tools for this user and retire their shims.
   omarchy-mise-default-tools disable || exit 1
