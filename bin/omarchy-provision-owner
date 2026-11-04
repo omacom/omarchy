@@ -566,6 +566,7 @@ keyboard_xkb_settings() {
 
   case $1 in
     colemak) layout=us variant=colemak ;;
+    mod-dh-ansi-us) layout=us variant=colemak_dh ;;
     bg-cp1251) layout=bg,us variant=phonetic, options=$switch ;;
     cz) layout=cz,us variant=qwerty, options=$switch ;;
     de_CH-latin1) layout=ch ;;
