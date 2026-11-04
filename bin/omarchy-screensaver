@@ -36,13 +36,29 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# Mouse input never reaches the terminal, so watch the pointer instead. Focusing
+# each monitor to open its screensaver moves the pointer too, so movement only
+# counts once the launch has settled.
+cursor=$(hyprctl cursorpos 2>/dev/null)
+cursor_settled_at=$((SECONDS + 3))
+
+pointer_moved() {
+  local now
+  now=$(hyprctl cursorpos 2>/dev/null)
+  if (( SECONDS < cursor_settled_at )); then
+    cursor=$now
+    return 1
+  fi
+  [[ $now != "$cursor" ]]
+}
+
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if read -n1 -t 1 || ! screensaver_in_focus || pointer_moved; then
       exit_screensaver
     fi
   done
