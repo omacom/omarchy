@@ -47,7 +47,7 @@ fi
 exit "${DICTATION_EXIT:-0}"
 SH
 done
-for command in omarchy-pkg-add omarchy-notification-send hyprctl omarchy-restart-shell; do
+for command in omarchy-pkg-add omarchy-notification-send hyprctl omarchy-restart-hyprctl omarchy-restart-shell; do
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
@@ -216,7 +216,7 @@ wait "$reader" || fail "concurrent readers always see a complete selection"
 printf '%s\n' voxtype > "$config"
 pass "selection updates are atomic for concurrent readers"
 
-lua <<'LUA'
+lua - <<'LUA' || fail "dictation shortcuts require a selection without limiting backend names"
 local root = os.getenv("ROOT")
 local selected, installed, bindings = nil, true, {}
 io.popen = function(command)
@@ -261,7 +261,7 @@ cp "$ROOT/config/omarchy/defaults/dictation" "$config"
 printf '%s\n' voxtype > "$config"
 pass "fresh users get Superwhisper as their default backend"
 
-lua <<'LUA'
+lua - <<'LUA' || fail "desktop integration follows the selected backend without personal Hyprland config"
 local root = os.getenv("ROOT")
 package.path = root .. "/?.lua;" .. package.path
 package.loaded["default.hypr.paths"] = { config_home = "/config" }

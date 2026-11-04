@@ -1285,5 +1285,11 @@
   },
   "update.kernel": {
     "label": "Nucli"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
   }
 }

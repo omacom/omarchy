@@ -1285,5 +1285,11 @@
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Tangkapan Crash Aktif"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
   }
 }

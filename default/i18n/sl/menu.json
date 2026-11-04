@@ -1285,5 +1285,11 @@
   },
   "update.kernel": {
     "label": "Jedro"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
   }
 }
