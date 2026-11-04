@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--agent <id>]
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
 pick=false
 use_local=false
+prefer_local=false
 local_model=""
 agent_override=""
 
@@ -30,6 +31,10 @@ while (($#)); do
       use_local=true
       local_model=${2:?--local-model needs a recipe id}
       shift 2
+      ;;
+    --prefer-local)
+      prefer_local=true
+      shift
       ;;
     --agent)
       agent_override=${2:?--agent needs an agent id}
@@ -63,6 +68,17 @@ else
   agent=$(omarchy-default-agent)
 fi
 
+# --prefer-local takes the local model when one is up and the usual agent when
+# not, so the Quake console opens on whatever the machine is running. The model
+# last started wins when it is running; any other running one will do. One
+# still loading is not up yet, and opening an agent on it would only error.
+if [[ $prefer_local == "true" && $use_local != "true" ]]; then
+  local_model=$(omarchy-agent-local status --json 2>/dev/null | jq -r '
+    [.models // {} | to_entries[] | select(.value.unit == "active" and .value.sub_state == "running") | .key] as $up
+    | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null)
+  [[ -n $local_model ]] && use_local=true
+fi
+
 # Only agents with a launch-time overlay can be pointed at the local model. When
 # the default can't, or none is set, the local model opens in pi, or OpenCode
 # without pi: the agents panel launches it whether or not a default was chosen.
@@ -74,11 +90,16 @@ if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
       break
     fi
   done
-  if [[ -z $local_agent ]]; then
+  if [[ -z $local_agent && $prefer_local == "true" ]]; then
+    # Preferred, not asked for: without an agent that can take the overlay,
+    # open the usual one rather than nothing.
+    use_local=false
+  elif [[ -z $local_agent ]]; then
     omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
     exit 1
+  else
+    agent=$local_agent
   fi
-  agent=$local_agent
 fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
