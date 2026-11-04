@@ -13,6 +13,6 @@ o.window(
 -- Super + V doesn't type ^V. Tag your own the same way:
 -- o.window("^myapp$", { tag = "+terminal-clipboard" })
 o.window(
-  "(org\\.kde\\.konsole|org\\.gnome\\.Ptyxis|org\\.gnome\\.Console|org\\.gnome\\.Terminal|com\\.gexperts\\.Tilix|rio|dev\\.warp\\.Warp|herdr-app)",
+  "(org\\.kde\\.konsole|org\\.gnome\\.Ptyxis|org\\.gnome\\.Console|org\\.gnome\\.Terminal|com\\.gexperts\\.Tilix|rio|dev\\.warp\\.Warp|herdr-app|so\\.stencil\\.tern)",
   { tag = "+terminal-clipboard" }
 )
