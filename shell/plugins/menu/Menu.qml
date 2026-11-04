@@ -54,6 +54,28 @@ Item {
   property string fontFamily: Style.font.menuFamily
   property string previewTerminal: ""
   property real terminalFontPointSize: 9
+  readonly property var fontPreviewSamples: [
+    "Aa Bb 0123456789 {} [] -> !=",
+    'puts [1, 2, 3].map { |n| n * 2 }',
+    'let nums: Vec<_> = (1..=3).collect();',
+    'const greet = (name: string) => `Hi ${name}`;',
+    'fmt.Println("Hello, world!")',
+    '$name = "world"; echo "Hello, $name!";',
+    'std::cout << "Hello, world!" << std::endl;',
+    'System.out.println("Hello, world!");'
+  ]
+  property int fontPreviewIndex: 0
+
+  // One clock keeps every font row on the same sample, even while scrolling.
+  Timer {
+    interval: 3000
+    repeat: true
+    running: root.opened && !root.dmenuActive
+      && (root.activeMenu === "appearance.font" || root.activeMenu === "style.font" || root.activeMenu === "install.style.font")
+    onRunningChanged: root.fontPreviewIndex = 0
+    onTriggered: root.fontPreviewIndex = (root.fontPreviewIndex + 1) % root.fontPreviewSamples.length
+  }
+
   Component.onCompleted: terminalFontProc.running = true
 
   FontMetrics {
@@ -1627,7 +1649,7 @@ Item {
                   width: parent.width
                   visible: row.hasPreview
                   textFormat: Text.PlainText
-                  text: row.previewReady ? "Aa Bb 0123456789 {} [] -> !=" : "Preview unavailable"
+                  text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : "Preview unavailable"
                   color: row.hasCursor ? root.selectedText : root.foreground
                   opacity: 0.75
                   font.family: row.previewFamily
