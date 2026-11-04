@@ -37,7 +37,7 @@ PanelWindow {
     }
     return mode
   }
-  readonly property bool shown: !!dock && dock.isFloating(workspaceId) && fullscreenMode < 2
+  readonly property bool shown: !!dock && (dock.showOn === "all" || dock.isFloating(workspaceId)) && fullscreenMode < 2
   // With auto-hide on, the dock waits off screen until the pointer reaches its
   // edge, and stays while the pointer, a menu, or a drag still needs it. A
   // maximized window hides the dock the same way, so it can still be called up.

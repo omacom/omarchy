@@ -69,6 +69,7 @@
     }
   },
   "dock": {
+    "showOn": "floating",
     "position": "bottom",
     "pinned": [
       "org.gnome.Nautilus",
