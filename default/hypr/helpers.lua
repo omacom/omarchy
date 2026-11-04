@@ -271,9 +271,11 @@ function o.notify(message)
   return "omarchy-notification-send -u low " .. shell_quote(message)
 end
 
--- Whether this session renders on the CPU (llvmpipe or softpipe), as
--- omarchy-hyprland-software-rendering marks it once Hyprland is up.
-function o.renders_on_cpu()
+-- Whether this session gets default/hypr/software-rendering.lua's lighter look:
+-- it renders on the CPU (llvmpipe or softpipe), as
+-- omarchy-hyprland-software-rendering marks it once Hyprland is up, and the user
+-- hasn't turned animations back on there with omarchy-toggle-animations.
+function o.software_rendering_defaults()
   local runtime = os.getenv("XDG_RUNTIME_DIR")
   local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
   if not runtime or runtime == "" or not signature or signature == "" then
@@ -281,6 +283,7 @@ function o.renders_on_cpu()
   end
 
   return file_exists(runtime .. "/hypr/" .. signature .. "/omarchy-software-rendering")
+    and not file_exists(paths.home .. "/.local/state/omarchy/toggles/animations-without-gpu")
 end
 
 -- What makes apps float on their own account, so a floating workspace can

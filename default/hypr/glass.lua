@@ -3,8 +3,8 @@
 return function()
   -- Blur costs every frame when the session renders on the CPU, so the Glassy
   -- toggles leave it as it is there: off, unless the user's own looknfeel.lua
-  -- turned it on.
-  if o.renders_on_cpu() then
+  -- turned it on or Appearance turned animations back on.
+  if o.software_rendering_defaults() then
     return
   end
 

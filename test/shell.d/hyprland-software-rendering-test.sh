@@ -140,7 +140,7 @@ run_session_start() {
 }
 
 reset_session() {
-  rm -rf "$runtime"
+  rm -rf "$runtime" "$test_tmp/home"
   mkdir -p "$runtime/hypr/$signature"
 }
 
@@ -155,6 +155,38 @@ pass "a session that renders on the CPU is marked, reloaded and explained"
 run_session_start 0 "llvmpipe (LLVM 21.1.0, 128 bits)" false
 [[ ! -s $log ]] || fail "a marked session is not probed or announced again" "$(cat "$log")"
 pass "a marked session is not probed or announced again"
+
+# The next login is a new session on the same machine: no second notice.
+rm -rf "$runtime"
+mkdir -p "$runtime/hypr/$signature"
+run_session_start 0 "llvmpipe (LLVM 21.1.0, 128 bits)" false
+grep -Fxq "hyprctl reload" "$log" || fail "a new session on the same machine still gets the lighter defaults" "$(cat "$log")"
+if grep -q "^notify" "$log"; then
+  fail "the notice shows once per machine" "$(cat "$log")"
+fi
+pass "the notice shows once per machine"
+
+# A VM install already turned animations off with the toggle: no notice.
+reset_session
+mkdir -p "$test_tmp/home/.local/state/omarchy/toggles/hypr"
+cp "$ROOT/default/hypr/toggles/no-animations.lua" "$test_tmp/home/.local/state/omarchy/toggles/hypr/"
+run_session_start 0 "llvmpipe (LLVM 21.1.0, 128 bits)" false
+if grep -q "^notify" "$log"; then
+  fail "no notice where animations were already off by choice" "$(cat "$log")"
+fi
+pass "no notice where animations were already off by choice"
+
+# Animations turned back on in Appearance: the session is marked, but nothing
+# reloads and nothing is announced.
+reset_session
+mkdir -p "$test_tmp/home/.local/state/omarchy/toggles"
+touch "$test_tmp/home/.local/state/omarchy/toggles/animations-without-gpu"
+run_session_start 0 "llvmpipe (LLVM 21.1.0, 128 bits)" false
+[[ -f $marker ]] || fail "a session with animations turned back on is still marked"
+if grep -q "^hyprctl reload\|^notify" "$log"; then
+  fail "animations turned back on in Appearance are left alone" "$(cat "$log")"
+fi
+pass "animations turned back on in Appearance are left alone"
 
 reset_session
 run_session_start 0 "llvmpipe (LLVM 21.1.0, 128 bits)" true
@@ -239,7 +271,7 @@ pass "a GPU or unreadable renderer leaves the session alone"
 # software-rendering defaults, the user's looknfeel.lua, then the saved
 # toggles. Prints the final animations and blur settings.
 run_config() {
-  XDG_RUNTIME_DIR="$runtime" HYPRLAND_INSTANCE_SIGNATURE="$signature" OMARCHY_PATH="$ROOT" \
+  HOME="$test_tmp/home" XDG_RUNTIME_DIR="$runtime" HYPRLAND_INSTANCE_SIGNATURE="$signature" OMARCHY_PATH="$ROOT" \
     USER_CONFIG="${1:-}" TOGGLE="${2:-}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 local values = {}
@@ -304,6 +336,13 @@ expect_config "animations=true blur=false shadow=false" "the user's looknfeel.lu
 expect_config "animations=false blur=true shadow=false" "the user's looknfeel.lua can turn blur back on" "$user_blur"
 expect_config "animations=false blur=true shadow=false" "blur from the user's looknfeel.lua survives the Glassy bar" "$user_blur" bar-glassy
 pass "the user's looknfeel.lua still wins in a CPU session"
+
+mkdir -p "$test_tmp/home/.local/state/omarchy/toggles"
+touch "$test_tmp/home/.local/state/omarchy/toggles/animations-without-gpu"
+expect_config "animations=true blur=false shadow=false" "Appearance turns animations back on in a CPU session"
+expect_config "animations=true blur=true shadow=false" "Appearance brings the Glassy bar's blur back in a CPU session" "" bar-glassy
+rm "$test_tmp/home/.local/state/omarchy/toggles/animations-without-gpu"
+pass "turning animations on in Appearance lifts the CPU session's defaults"
 
 # The lighter defaults must land over the theme and under ~/.config/hypr.
 order=$(OMARCHY_PATH="$ROOT" lua - <<'LUA'
