@@ -542,6 +542,7 @@ Item {
               property var activeRow: displayModel.count > 0 && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
 
               Rectangle {
+                visible: displayModel.count > 0
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
