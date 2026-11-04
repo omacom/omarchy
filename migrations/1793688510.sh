@@ -1,16 +1,26 @@
-#!/bin/bash
-# omarchy:summary=Configure gnome-libsecret password store for VS Code/Code-OSS to fix keyring loop
-
 echo "Configure gnome-libsecret password store for VS Code"
 
-# Apply to both Microsoft VS Code (AUR) and Arch Code-OSS (pacman)
+# argv.json is treated as VS Code's flat argument map; this is not a general JSONC parser.
+# Supports full-line // comments and a trailing // comment on the root opening-brace line.
+# This remains a targeted flat-object migration, not a general JSONC parser.
+# It ensures that installations via pacman/yay receive the keyring fix.
+
 for config_dir in "$HOME/.vscode" "$HOME/.vscode-oss"; do
   argv_file="$config_dir/argv.json"
 
-  # 1. If argv.json doesn't exist OR is exactly 0 bytes, create it
-  if [[ ! -s "$argv_file" ]]; then
-    mkdir -p "$config_dir"
-    cat > "$argv_file" << 'EOF'
+  if ! mkdir -p "$config_dir"; then
+    echo "Error: Cannot create configuration directory $config_dir." >&2
+    exit 1
+  fi
+
+  # Create argv.json only when it is missing or empty.
+  if [[ ! -s $argv_file ]]; then
+    if [[ -e $argv_file && ! -w $argv_file ]]; then
+      echo "Error: $argv_file is not writable. Aborting migration so it can retry later." >&2
+      exit 1
+    fi
+
+    if ! cat > "$argv_file" <<'JSONC'
 // This configuration file allows you to pass permanent command line arguments to VS Code.
 // Only a subset of arguments is currently supported to reduce the likelihood of breaking
 // the installation.
@@ -21,39 +31,91 @@ for config_dir in "$HOME/.vscode" "$HOME/.vscode-oss"; do
 {
 	"password-store": "gnome-libsecret"
 }
-EOF
+JSONC
+    then
+      echo "Error: Failed to create $argv_file." >&2
+      exit 1
+    fi
     continue
   fi
 
-  # Skip if the user messed up their permissions (prevents the update from crashing)
-  if [[ ! -w "$argv_file" ]]; then
+  # Ignore full-line // comments. Inline and block comments are outside this migration's
+  # supported input format; argv.json is expected to use VS Code's usual flat argument map.
+  if ! active_content=$(sed -E '/^[[:space:]]*\/\//d' "$argv_file"); then
+    echo "Error: Cannot read $argv_file." >&2
+    exit 1
+  fi
+
+  # Case 2: Replace an existing basic setting. Do not rewrite full-line comments.
+  if grep -qE '(^|[[:space:],{])"password-store"[[:space:]]*:[[:space:]]*"basic"' <<< "$active_content"; then
+    if [[ -f $argv_file && ! -w $argv_file ]]; then
+      echo "Error: $argv_file is not writable. Aborting migration so it can retry later." >&2
+      exit 1
+    fi
+
+    if ! sed -i --follow-symlinks '/^[[:space:]]*\/\//! s/"password-store"[[:space:]]*:[[:space:]]*"basic"/"password-store": "gnome-libsecret"/' "$argv_file"; then
+      echo "Error: Failed to update the password-store setting in $argv_file." >&2
+      exit 1
+    fi
     continue
   fi
 
-  # 2. If password-store is explicitly set to "basic", heal/override it
-  # (Anchored to ensure we don't match commented-out settings)
-  if grep -q '^[[:space:]]*"password-store"[[:space:]]*:[[:space:]]*"basic"' "$argv_file"; then
-    sed --follow-symlinks -i 's/"password-store"[[:space:]]*:[[:space:]]*"basic"/"password-store": "gnome-libsecret"/g' "$argv_file"
+  # Case 3: Preserve an existing non-basic setting.
+  if grep -qE '(^|[[:space:],{])"password-store"[[:space:]]*:' <<< "$active_content"; then
     continue
   fi
 
-  # 3. If password-store already exists with some other value, leave it completely alone
-  # (Anchored to ensure we don't get fooled by // "password-store": "gnome-libsecret")
-  if grep -q '^[[:space:]]*"password-store"' "$argv_file"; then
-    continue
+  if [[ -f $argv_file && ! -w $argv_file ]]; then
+    echo "Error: $argv_file is not writable. Aborting migration so it can retry later." >&2
+    exit 1
   fi
 
-  # 4. If password-store key is missing entirely, safely inject it while preserving JSONC comments
-  # (Anchored to ignore commented-out brackets like `// {`)
-  if ! grep -q '^[[:space:]]*{' "$argv_file"; then
-    # No active opening brace found (file is just comments). Append a new JSON object.
-    printf '\n{\n\t"password-store": "gnome-libsecret"\n}\n' >> "$argv_file"
-  elif grep -qE '^[[:space:]]*"[^"]+"[[:space:]]*:' "$argv_file"; then
-    # Existing active keys found. Inject WITH a trailing comma.
-    sed --follow-symlinks -i '0,/^[[:space:]]*{/s//{\n\t"password-store": "gnome-libsecret",/' "$argv_file"
+  # Case 4a: The file contains comments but no JSON object; append a new object.
+  if ! grep -q '^[[:space:]]*{' <<< "$active_content"; then
+    if ! printf '\n{\n\t"password-store": "gnome-libsecret"\n}\n' >> "$argv_file"; then
+      echo "Error: Failed to append the configuration to $argv_file." >&2
+      exit 1
+    fi
+
+  # Case 4b: Existing properties are present; preserve compact or multiline layout.
+  elif grep -qE '(^|[[:space:],{])"[^\"]+"[[:space:]]*:' <<< "$active_content"; then
+    if grep -qE '^[[:space:]]*\{[[:space:]]*"' <<< "$active_content"; then
+      # Compact object: insert after the opening brace.
+      if ! sed -i --follow-symlinks '0,/^[[:space:]]*{/s/^\([[:space:]]*{[[:space:]]*\)/\1"password-store": "gnome-libsecret", /' "$argv_file"; then
+        echo "Error: Failed to update $argv_file." >&2
+        exit 1
+      fi
+    elif grep -qE '^[[:space:]]*\{[[:space:]]*(//.*)?$' <<< "$active_content"; then
+      # Multiline object: the opening brace may have a trailing // comment.
+      # Insert the new property on the following line, preserving that comment.
+      if ! sed -i --follow-symlinks '0,/^[[:space:]]*{/ { /^[[:space:]]*{/a\
+	"password-store": "gnome-libsecret",
+}' "$argv_file"; then
+        echo "Error: Failed to update $argv_file." >&2
+        exit 1
+      fi
+    else
+      echo "Error: Cannot safely locate the root opening brace in $argv_file." >&2
+      exit 1
+    fi
+
+  # Case 4c: Empty object; no trailing comma is required.
+  elif grep -qE '^[[:space:]]*\{[[:space:]]*\}[[:space:]]*$' <<< "$active_content"; then
+    if ! sed -i --follow-symlinks '0,/^[[:space:]]*{/s/^\([[:space:]]*{\)[[:space:]]*}[[:space:]]*$/\1"password-store": "gnome-libsecret"}/' "$argv_file"; then
+      echo "Error: Failed to update $argv_file." >&2
+      exit 1
+    fi
+  elif grep -qE '^[[:space:]]*\{[[:space:]]*(//.*)?$' <<< "$active_content"; then
+    # Empty multiline object; allow a trailing // comment after the opening brace.
+    # Keep the comment on the opening-brace line and add the property below it.
+    if ! sed -i --follow-symlinks '0,/^[[:space:]]*{/ { /^[[:space:]]*{/a\
+	"password-store": "gnome-libsecret"
+}' "$argv_file"; then
+      echo "Error: Failed to update $argv_file." >&2
+      exit 1
+    fi
   else
-    # No existing active keys found. Inject WITHOUT a trailing comma.
-    sed --follow-symlinks -i '0,/^[[:space:]]*{/s//{\n\t"password-store": "gnome-libsecret"/' "$argv_file"
+    echo "Error: Cannot safely update $argv_file." >&2
+    exit 1
   fi
-
 done
