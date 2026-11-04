@@ -13,6 +13,10 @@ printf 'P6\n1 1\n255\n\377\377\377' >"$stage/cover.ppm"
 cp "$ROOT/shell/services/BackgroundIntro.qml" "$stage/services/"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/shell.qml" "$stage/shell.qml"
+# A splash restyled by omarchy plymouth set, which the startup cover continues.
+mkdir -p "$stage/splash"
+cp "$ROOT/default/plymouth/logo.png" "$stage/splash/"
+sed 's/^Window.SetBackgroundTopColor.*/Window.SetBackgroundTopColor(0.114, 0.125, 0.129);/' "$ROOT/default/plymouth/omarchy.script" >"$stage/splash/omarchy.script"
 cat >"$stage/bin/omarchy-theme-bg-boot-intro" <<'SH'
 #!/bin/bash
 printf 'intro\n' >>"$INTRO_TEST_LOG"
@@ -36,7 +40,7 @@ else
 fi
 SH
 chmod +x "$stage/bin/owe"
-output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" INTRO_TEST_LOG="$stage/starts" INTRO_TEST_COVER="$stage/cover.ppm" INTRO_TEST_FRAME_READY="$stage/video-ready" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "background intro fixture exits cleanly" "$output"
+output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" INTRO_TEST_LOG="$stage/starts" INTRO_TEST_SPLASH="$stage/splash" INTRO_TEST_COVER="$stage/cover.ppm" INTRO_TEST_FRAME_READY="$stage/video-ready" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "background intro fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "background intro lifecycle assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
   fail "background intro fixture has no QML errors" "$output"

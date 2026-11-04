@@ -17,7 +17,7 @@ ShellRoot {
   }
 
   QtObject { id: retainedBackground; property bool suspended: false }
-  BackgroundIntro { id: intro; host: test }
+  BackgroundIntro { id: intro; host: test; splashDir: Quickshell.env("INTRO_TEST_SPLASH") }
 
   Process {
     id: revealVideo
@@ -30,6 +30,7 @@ ShellRoot {
   readonly property var steps: [
     { delay: 300, run: function() {
       test.check(intro.checked, "startup runs even when OWE left the background disabled for a video")
+      test.check(Qt.colorEqual(intro.splashColor, Qt.rgba(0.114, 0.125, 0.129, 1)), "the startup cover takes the installed boot splash color")
       test.services = ({ "omarchy.background": retainedBackground })
       intro.prepareTheme(Quickshell.env("INTRO_TEST_COVER"), "theme-one", Qt.btoa('background = "#123456"'), "")
       test.check(intro.themeCoverStatus("theme-one") === "loading", "the cover waits for decoding and presentation")
