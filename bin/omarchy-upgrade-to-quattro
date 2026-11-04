@@ -806,9 +806,14 @@ install_omarchy_quattro_packages() {
 
   # The base list carries rtkit, which can make a running app realtime under the
   # zero realtime budget it took without rtkit, and the kernel kills it. The
-  # repair raises those budgets, then installs rtkit itself.
-  as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" omarchy-realtime-repair ||
-    fail "Could not install rtkit without killing running apps. Fix the error above and rerun the upgrade."
+  # repair raises those budgets, then installs rtkit itself. A released package
+  # older than the repair has no rtkit in its base list either, so it skips it.
+  if PATH="$root_path" command -v omarchy-realtime-repair >/dev/null; then
+    as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" omarchy-realtime-repair ||
+      fail "Could not install rtkit without killing running apps. Fix the error above and rerun the upgrade."
+  else
+    warn "This omarchy package predates the realtime repair; skipping it."
+  fi
 
   if [[ -f /usr/share/omarchy/install/omarchy-base.packages ]]; then
     log "Installing Omarchy quattro default package set"

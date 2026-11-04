@@ -1,81 +1,85 @@
 # Dotfiles
 
-Omarchy se konfiguruje především prostřednictvím takzvaných dotfiles, které žijí v adresáři `~/.config`. Ty jsou považovány za vaše soubory pro vaše změny. Soubory, které žijí v adresáři `/usr/share/omarchy`, patří samotné Omarchy a neměli byste se v nich šťourat. Pokud potřebujete cokoli v adresáři `/usr/share/omarchy` změnit, měli byste místo toho přepsat hodnotu v adresáři `~/.config`.
+Omarchy se konfiguruje především prostřednictvím takzvaných dotfiles, které se nacházejí v `~/.config`. Ty jsou považovány za vaše soubory pro vaše změny. Soubory, které se nacházejí v `/usr/share/omarchy`, patří samotnému Omarchy a do těch byste neměli zasahovat. Pokud potřebujete cokoli změnit v `/usr/share/omarchy`, měli byste místo toho přepsat danou hodnotu v `~/.config`.
 
-Klíčové konfigurace lze upravovat přímo z nabídky Omarchy (`Super + Space`), například _Nastavení > Monitory_, _Nastavení > Klávesové zkratky_, _Nastavení > Vstup_ a _Nastavení > Config > [file]_. Když to uděláte tímto způsobem, každý proces, který po úpravách konfigurace potřebuje restartovat automaticky, se restartuje poté, co zavřete editor (ve výchozím nastavení Neovim — `:wq`, pamatujte! — ale to můžete změnit v části _Nastavení > Výchozí > Editor_).
+Klíčové konfigurace lze upravovat přímo z nabídky Omarchy (`Super + Space`), například _Setup > Keyboard > Keybindings_, _Setup > Input_ a _Setup > Config > [file]_. Když to uděláte tímto způsobem, každý proces, který je po úpravách konfigurace potřeba restartovat, se automaticky restartuje, jakmile editor zavřete (ve výchozím nastavení Neovim — `:wq`, pamatujte! — ten si ale můžete změnit přes _Setup > Defaults > Editor_).
 
-Tady je seznam klíčových souborů v adresáři `~/.config` a toho, co ovládají:
+Zde je seznam klíčových souborů v `~/.config` a toho, co ovládají:
 
-| File                  | Účel              |
+| File                  | Purpose              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | Hlavní konfigurace Hyprlandu. Načítá výchozí nastavení Omarchy plus vaše soubory pro přepsání níže. [Další informace o konfiguracích Hyprlandu](https://wiki.hypr.land/Configuring/).  |
-| `~/.config/hypr/bindings.lua` | Vaše vlastní klávesové zkratky a přepsání výchozích nastavení. |
-| `~/.config/hypr/monitors.lua` | Ovládá vaše monitory, rozlišení a polohu. |
-| `~/.config/hypr/input.lua` | Ovládá rozložení vaší klávesnice, nastavení myši a trackpadu. |
-| `~/.config/hypr/looknfeel.lua` | Ovládá mezery, rámečky, animace a zbytek vzhledu. |
-| `~/.config/hypr/autostart.lua` | Ovládá další procesy spuštěné se relací. |
-| `~/.config/omarchy/shell.json` | Ovládá shell Omarchy: polohu panelu, rozložení a widgety, plus časy spořiče obrazovky, zamykání a nečinnosti. |
-| `~/.config/foot/foot.ini` | Ovládá váš terminál (foot je výchozí). |
-| `~/.XCompose` | Definuje vaše emoji s rychlým přístupem a automatické doplňování jména/e-mailu. Po provedení změn nezapomeňte spustit příkaz `omarchy-restart-xcompose`. |
+| `~/.config/hypr/hyprland.lua` | Hlavní konfigurace Hyprlandu. Načítá výchozí nastavení Omarchy plus vaše níže uvedené soubory s přepsáními. [Další informace o konfiguracích Hyprlandu](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | Vaše vlastní klávesové zkratky a přepsání výchozích. |
+| `~/.config/hypr/monitors.lua` | Nastavení monitorů, která panel monitorů nepokrývá, například otočení, další režimy nebo ponechání monitoru vypnutého. |
+| `~/.config/hypr/input.lua` | Ovládá rozložení klávesnice a nastavení myši a trackpadu. |
+| `~/.config/hypr/looknfeel.lua` | Ovládá mezery, okraje, animace a zbytek vzhledu. |
+| `~/.config/hypr/autostart.lua` | Ovládá další procesy spouštěné spolu s relací. |
+| `~/.config/omarchy/shell.json` | Ovládá shell Omarchy: polohu lišty, rozložení a widgety plus časování spořiče obrazovky, zámku a nečinnosti. |
+| `~/.config/foot/foot.ini` | Ovládá váš terminál (ve výchozím nastavení je to foot). |
+| `~/.XCompose` | Definuje vaše emoji pro rychlý přístup a automatické doplňování jména/e-mailu. Po provedení změn nezapomeňte spustit `omarchy-restart-xcompose`. |
 
-Pokud nakonec uděláte spoustu změn při ladění vlastního nastavení, je dobré si všechny tyto dotfiles zazálohovat. [Stow je skvělý způsob, jak to udělat](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+Pokud nakonec provedete spoustu změn, abyste si vlastní nastavení vyladili, je dobré si všechny tyto dotfiles zálohovat. [Stow je skvělý způsob, jak to udělat](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
-### Spouštění vlastních aplikací se relací
+### Spouštění vlastních aplikací spolu s relací
 
-Pokud chcete, aby se při každém přihlášení něco spustilo — démon pro synchronizaci, chatovací aplikace, vlastní skript — vložte to do souboru `~/.config/hypr/autostart.lua`:
+Pokud chcete, aby se něco spouštělo při každém přihlášení — synchronizační démon, chatovací aplikace, váš vlastní skript — vložte to do `~/.config/hypr/autostart.lua`:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-Tím se příkaz spustí jako součást relace, takže při odhlášení se zase řádně uklidí.
+Tím se příkaz spustí jako součást relace, takže se při opětovném odhlášení řádně ukončí.
 
 ### Spouštění skriptů při systémových událostech
 
-Omarchy spouští háčky v několika okamžicích a můžete na ně zavěsit vlastní skripty. Žijí v adresáři `~/.config/omarchy/hooks/<event>.d/`, jeden adresář pro každou událost, a každý spustitelný soubor v něm se spustí, když událost nastane:
+Omarchy v několika okamžicích spouští hooky a můžete na ně navěsit své vlastní skripty. Nacházejí se v `~/.config/omarchy/hooks/<event>.d/`, pro každou událost jeden adresář, a každý spustitelný soubor v něm se spustí, když k dané události dojde:
 
-| Event | Kdy běží |
+| Event | When it runs |
 | ----- | ------------ |
-| `post-boot` | Hned po spuštění pracovního prostředí |
-| `post-update` | Ke konci příkazu `omarchy update`, po balíčcích, migracích a restartech služeb, před aktualizací nástrojů mise |
-| `pre-refresh-pacman` | Poté, co příkaz `omarchy refresh pacman` znovu synchronizuje konfiguraci balíčků, předtím, než balíčky aktualizuje; přepnutí kanálu ho spustí během stejného kroku obnovení |
-| `theme-set` | Po změně motivu (název motivu v proměnné `$1`) |
-| `font-set` | Po změně písma (název písma v proměnné `$1`) |
-| `battery-low` | Když je baterie vybitá (procenta v proměnné `$1`) |
+| `post-boot` | Hned po spuštění desktopu |
+| `post-update` | Ke konci `omarchy update`, po balíčcích, migracích a restartech služeb, předtím, než se aktualizují nástroje mise |
+| `pre-refresh-pacman` | Poté, co `omarchy refresh pacman` znovu synchronizuje konfiguraci balíčků, předtím, než balíčky aktualizuje; přepnutí kanálu ho spustí během téhož kroku obnovení |
+| `theme-set` | Po změně motivu (název motivu v `$1`) |
+| `font-set` | Po změně písma (název písma v `$1`) |
+| `battery-low` | Když je baterie téměř vybitá (procento v `$1`) |
 
-Háček `pre-refresh-pacman` je místo, kam patří vlastní repozitáře nebo řádky `IgnorePkg`, protože běží před transakcí balíčků. Oba háčky související s aktualizací běží pod vaším uživatelem poté, co Omarchy vymaže oprávnění sudo z mezipaměti, takže háček používající `sudo` potřebuje vlastní oprávnění a může si vyžádat vaše heslo.
+Právě do hooku `pre-refresh-pacman` patří vlastní repozitáře nebo řádky `IgnorePkg`, protože se spouští před transakcí balíčků. Oba hooky související s aktualizací běží pod vaším uživatelem poté, co Omarchy vymaže svou uloženou autorizaci sudo, takže hook, který používá `sudo`, potřebuje vlastní autorizaci a může vás požádat o heslo.
 
-Každý z těchto adresářů již obsahuje soubor `.sample` ukazující tvar háčku — odeberte příponu `.sample` z názvu, abyste ho uvedli do provozu. Chcete-li nainstalovat skript, který jste napsali jinde, použijte příkaz `omarchy hook install post-boot ~/my-hook`, který ho zkopíruje a udělá z něho spustitelný soubor.
+Každý z těchto adresářů už obsahuje soubor `.sample`, který ukazuje podobu hooku — abyste ho uvedli do provozu, odstraňte z názvu `.sample`. K instalaci skriptu, který jste napsali jinde, použijte `omarchy hook install post-boot ~/my-hook`, což ho zkopíruje dovnitř a nastaví ho jako spustitelný.
 
 ### Přidávání vlastních položek nabídky
 
-Nabídku Omarchy (`Super + Space`) lze rozšířit vlastními řádky úpravou souboru `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Položky jsou klíčovány tečkovaným id a toto id je umisťuje do stromu, takže `personal` se objeví v kořenové nabídce a `personal.notes` se objeví uvnitř ní:
+Nabídku Omarchy (`Super + Space`) lze rozšířit o vlastní řádky úpravou `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Položky jsou klíčovány tečkovým id a právě toto id je umisťuje do stromu, takže `personal` se zobrazí v kořenové nabídce a `personal.notes` se zobrazí uvnitř ní:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Znovu použijte existující id a tento řádek přepíšete, místo abyste přidali nový. Soubor je dodáván se všemi dostupnými poli zdokumentovanými jako komentáře.
+Když znovu použijete existující id, přepíšete daný řádek, místo abyste přidali nový. Soubor se dodává se všemi dostupnými poli zdokumentovanými jako komentáře.
 
-### Přidávání vlastních exportů, funkcí a aliasů shellu
+### Přidávání vlastních exportů shellu, funkcí a aliasů
 
-Omarchy je dodávána s řadou ergonomických aliasů a užitečných funkcí, ale je velmi běžné, že chcete přidat své vlastní. Aliasy, funkce i exporty byste měli přidat do souboru `~/.bashrc`. Tento soubor nebude při aktualizacích přepsán. Pokud chcete změnit některá z výchozích nastavení Omarchy, můžete je zde také bezpečně přidat.
+Omarchy se dodává se spoustou ergonomických aliasů a užitečných funkcí, ale je velmi běžné, že si chcete přidat vlastní. Aliasy, funkce i exporty byste měli přidávat do `~/.bashrc`. Tento soubor nebude při aktualizacích přepsán. Pokud chcete změnit kterékoli z výchozích nastavení Omarchy, můžete je sem také bezpečně přidat.
 
-### Změna vnitřních souborů Omarchy
+### Nastavování proměnných prostředí pro desktop
 
-Podívejte, toto je váš počítač. Můžete si s ním dělat, co chcete, ale doporučoval bych neprovádět změny přímo v souborech v adresáři `/usr/share/omarchy`. Patří do balíčku pacman pro Omarchy, takže vaše změny budou při příští aktualizaci jednoduše přepsány. Místo toho je lepší jednoduše přepsat všechny výchozí hodnoty, které se vám nelíbí, ve složce `~/.config/*`.
+Exporty relace desktopu patří do `~/.config/uwsm/env.d/`. Tyto soubory se spouštějí před spuštěním vašeho desktopu, takže chyba shellu vás může poslat zpět na přihlašovací obrazovku. Při jejich úpravách mějte otevřený funkční terminál. Chcete-li přepsání zakázat, přesuňte ho mimo `env.d`. Pokud změna zabrání přihlášení, podívejte se na [obnovení přihlášení](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen).
 
-Tímto způsobem můžete změnit téměř vše, například výchozí klávesové zkratky. Stačí upravit soubor `~/.config/hypr/bindings.lua` tak, že například nahradíte [Obsidian](https://obsidian.md/) programem [Joplin](https://joplinapp.org/) (nainstalujte pomocí příkazu `omarchy-pkg-add joplin-bin`):
+### Změna interních souborů Omarchy
+
+Podívejte, je to váš počítač. Můžete si s ním dělat, co chcete, ale doporučoval bych vám nedělat změny přímo v souborech v `/usr/share/omarchy`. Patří do balíčku Omarchy pro pacman, takže vaše změny se při příští aktualizaci jednoduše přepíší. Mnohem lépe uděláte, když jakékoli výchozí hodnoty, které se vám nelíbí, přepíšete místo toho ve složce `~/.config/*`.
+
+Tímto způsobem můžete změnit téměř cokoli, třeba výchozí klávesové zkratky. Stačí upravit `~/.config/hypr/bindings.lua` a třeba nahradit [Obsidian](https://obsidian.md/) aplikací [Joplin](https://joplinapp.org/) (nainstalujete pomocí `omarchy-pkg-add joplin-bin`):
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-Příkaz `o.rebind` odstraní existující vazbu před přidáním její náhrady. Přijímá stejné argumenty jako `o.bind`, včetně pomocných funkcí pro spouštění a možností vazeb. K přidání vazby použijte příkaz `o.bind`, nebo k jejímu odebrání bez nahrazení příkaz `hl.unbind`.
+`o.rebind` odstraní existující vazbu před přidáním její náhrady. Přijímá stejné argumenty jako `o.bind`, včetně pomocníků pro spouštění a možností vazby. Pomocí `o.bind` vazbu přidáte, pomocí `hl.unbind` ji odstraníte bez náhrady.
 
-Pokud trváte na hackování vnitřních souborů Omarchy, přepněte na kanál dev v části _Aktualizovat > Kanál > Dev_. Tím se Omarchy propojí s gitovým checkoutem zdrojového kódu v adresáři `~/omarchy`, který můžete libovolně měnit dle libosti. Nikdo vám tu nebude říkat, co máte dělat!
+Pokud trváte na hackování interních souborů Omarchy, přepněte se na dev kanál přes _Update > Channel > Dev_. Tím se Omarchy propojí s git checkoutem zdrojového kódu v `~/omarchy`, který můžete měnit dle libosti. Nikdo tu není od toho, aby vám říkal, co máte dělat!
 
-### Resetování jakýchkoli změn
+### Resetování všech změn
 
-Pokud nakonec uděláte v konfiguracích nepořádek, můžete je vždy vrátit do výchozích nastavení v části _Aktualizovat > Config_ v nabídce Omarchy. Nebo spuštěním příkazu `omarchy reinstall configs`, který vše resetuje.
+Pokud nakonec konfigurace pořádně zpackáte, můžete je vždy vrátit do výchozího stavu přes _Update > Config_ v nabídce Omarchy. Nebo spuštěním `omarchy reinstall configs`, čímž resetujete všechno.
