@@ -112,7 +112,9 @@ The `omarchy` package also installs ALPM hooks for `omarchy-settings` /
 while `/usr/share/omarchy/default/hypr/**` is replaced. The post-transaction
 hook runs `omarchy-hyprland-reload-guard resume`, forces one `hyprctl reload`,
 and restores the session's previous `misc.disable_autoreload` and
-`debug.suppress_errors` values.
+`debug.suppress_errors` values. A session whose Hyprland binary the same
+transaction replaced is left paused with errors hidden instead: it predates the
+new config, and both settings go away when it restarts on the new binary.
 
 ## Path 1: `omarchy update`
 
