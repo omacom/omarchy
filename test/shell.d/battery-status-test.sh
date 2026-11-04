@@ -285,6 +285,13 @@ grep -Fx $'percentage\t56%' <<<"$energy_latched_output" >/dev/null || fail "an e
 grep -Fx $'size\t54Wh' <<<"$energy_latched_output" >/dev/null || fail "an energy-counting battery's size comes from energy_full" "$energy_latched_output"
 grep -Fx $'source\tkernel' <<<"$energy_latched_output" >/dev/null || fail "an energy-counting battery past a latch names the kernel as its source" "$energy_latched_output"
 
+# An energy register the firmware can't answer reads empty: it must not show
+# as 0% from the kernel, and with no charge pair UPower's figures stand.
+: >"$latch_dir/power/BAT0/energy_now"
+unknown_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t0%' <<<"$unknown_latched_output" >/dev/null && fail "an unreadable energy register does not read as 0%" "$unknown_latched_output"
+grep -q $'^source\tkernel' <<<"$unknown_latched_output" && fail "an unreadable energy register does not name the kernel as source" "$unknown_latched_output"
+
 # With no registers to read, UPower's figures stand, wrong as they are.
 rm "$latch_dir/power/BAT0"/energy_*
 bare_latched_output=$(OMARCHY_POWER_SUPPLY_PATH="$latch_dir/power" PATH="$latch_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)

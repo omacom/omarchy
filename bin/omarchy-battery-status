@@ -85,21 +85,22 @@ charge_source=upower
 if awk -v full="${energy_full:-0}" -v design="${energy_full_design:-0}" 'BEGIN { exit !(design > 0 && full > design * 2) }'; then
   kernel_energy=""
   kernel_energy_full=""
-  if [[ -r $battery_path/energy_now && -r $battery_path/energy_full ]]; then
-    kernel_energy=$(awk -v microwatthours="$(<"$battery_path/energy_now")" 'BEGIN { print microwatthours / 1000000 }')
-    kernel_energy_full=$(awk -v microwatthours="$(<"$battery_path/energy_full")" 'BEGIN { print microwatthours / 1000000 }')
-  elif [[ -r $battery_path/charge_now && -r $battery_path/charge_full ]]; then
+  # Read each pair with read_sysfs_number: a register the firmware can't
+  # answer (ENODEV, or empty) drops to the next pair rather than reading as 0.
+  if microwatthours=$(read_sysfs_number "$battery_path/energy_now") && microwatthours_full=$(read_sysfs_number "$battery_path/energy_full"); then
+    kernel_energy=$(awk -v microwatthours="$microwatthours" 'BEGIN { print microwatthours / 1000000 }')
+    kernel_energy_full=$(awk -v microwatthours="$microwatthours_full" 'BEGIN { print microwatthours / 1000000 }')
+  elif microamphours=$(read_sysfs_number "$battery_path/charge_now") && microamphours_full=$(read_sysfs_number "$battery_path/charge_full"); then
     # A charge-counting battery converts at the design voltage; UPower tries
     # these files in this order, so its energy and this full charge agree.
     design_voltage=""
     for voltage_file in voltage_max_design voltage_min_design voltage_now; do
-      [[ -r $battery_path/$voltage_file ]] || continue
-      design_voltage=$(<"$battery_path/$voltage_file")
-      break
+      design_voltage=$(read_sysfs_number "$battery_path/$voltage_file") && break
+      design_voltage=""
     done
     if [[ -n $design_voltage ]]; then
-      kernel_energy=$(awk -v microamphours="$(<"$battery_path/charge_now")" -v microvolts="$design_voltage" 'BEGIN { print microamphours * microvolts / 1000000000000 }')
-      kernel_energy_full=$(awk -v microamphours="$(<"$battery_path/charge_full")" -v microvolts="$design_voltage" 'BEGIN { print microamphours * microvolts / 1000000000000 }')
+      kernel_energy=$(awk -v microamphours="$microamphours" -v microvolts="$design_voltage" 'BEGIN { print microamphours * microvolts / 1000000000000 }')
+      kernel_energy_full=$(awk -v microamphours="$microamphours_full" -v microvolts="$design_voltage" 'BEGIN { print microamphours * microvolts / 1000000000000 }')
     fi
   fi
 
