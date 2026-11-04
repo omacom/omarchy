@@ -36,20 +36,24 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
-# Mouse input never reaches the terminal, so watch the pointer instead. Focusing
-# each monitor to open its screensaver moves the pointer too, so movement only
-# counts once the launch has settled.
-cursor=$(hyprctl cursorpos 2>/dev/null)
-cursor_settled_at=$((SECONDS + 3))
+# Mouse input never reaches the terminal, so watch the pointer instead. The
+# launcher moves it while it focuses each monitor, so movement only counts once
+# the launcher is done.
+launching="$XDG_RUNTIME_DIR/omarchy-screensaver-launching"
+cursor=
 
 pointer_moved() {
   local now
   now=$(hyprctl cursorpos 2>/dev/null)
-  if (( SECONDS < cursor_settled_at )); then
+  if [[ -e $launching ]]; then
+    cursor=
+  elif [[ -z $cursor ]]; then
     cursor=$now
-    return 1
+  else
+    [[ $now != "$cursor" ]]
+    return
   fi
-  [[ $now != "$cursor" ]]
+  return 1
 }
 
 while true; do
