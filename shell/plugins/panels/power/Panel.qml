@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateSettling)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateSettling)
   }
 
   function profileIcon(name) {
@@ -72,8 +72,11 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateSettling)
   }
+  // True for a moment after the power source changes, while UPower's rate
+  // still reads 0W. It took 10s to report one on an ASUS TUF F15.
+  property bool chargeRateSettling: false
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
@@ -239,6 +242,20 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+
+  Timer {
+    id: chargeRateSettleTimer
+    interval: 15000
+    onTriggered: root.chargeRateSettling = false
+  }
+
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() {
+      root.chargeRateSettling = true
+      chargeRateSettleTimer.restart()
+    }
+  }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
