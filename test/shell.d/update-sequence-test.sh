@@ -26,6 +26,7 @@ steps=(
   omarchy-restart-shell
   omarchy-hook
   omarchy-update-aur-pkgs
+  omarchy-update-restart-hex
   omarchy-update-mise
   omarchy-update-orphan-pkgs
   omarchy-update-analyze-logs
@@ -95,6 +96,7 @@ expected_steps() {
     omarchy-hook \
     omarchy-update-mise \
     omarchy-update-aur-pkgs \
+    omarchy-update-restart-hex \
     omarchy-update-boot \
     omarchy-update-stay-awake \
     omarchy-update-restart
@@ -132,7 +134,7 @@ pass "an update restarts the shell before migrating only when migrations are pen
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart-hex omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
