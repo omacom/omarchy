@@ -17,13 +17,20 @@ if [[ ! -f $BACKGROUND ]]; then
   exit 1
 fi
 
-# Create symlink to the new background media
-ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+# A theme switch repoints the background too, so the two take turns.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+flock 9
 
-# Update the live shell background when it is running. Nothing watches the
-# symlink, so this is how the shell learns of the new background.
-omarchy-shell -q background set "$BACKGROUND"
+INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
 
-# Download this wallpaper's intro, if it has one, for the next time it arrives
-# with its theme or at login. Choosing a wallpaper never plays an intro.
-setsid -f omarchy-theme-bg-boot-intro --fetch "$BACKGROUND" </dev/null >/dev/null 2>&1
+# The shell sequences the change, with the intro or the ordinary transition,
+# and repoints the link itself once nothing on screen can flash.
+if [[ $(omarchy-shell shell switchBackground "$BACKGROUND" "$INTRO" 2>/dev/null) != "ok" ]]; then
+  ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+  omarchy-shell -q background set "$BACKGROUND"
+fi
+
+# Download this wallpaper's intro, if it has one that isn't here yet, so it plays
+# the next time this wallpaper is chosen, arrives with its theme or at login.
+# The download must not hold the theme lock.
+setsid -f omarchy-theme-bg-boot-intro --fetch "$BACKGROUND" </dev/null >/dev/null 2>&1 9>&-

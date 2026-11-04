@@ -1,34 +1,34 @@
 # Unbeaufsichtigte Installationen
 
-Die Omarchy-ISO kann sich installieren, ohne dass jemand an der Tastatur sitzt. Wenn der Installer ein zweites Laufwerk mit der Bezeichnung `cidata` findet, das seine Konfigurationsdateien trägt, kopiert er sie herunter, überspringt den Einrichtungsassistenten vollständig und startet von selbst in das fertige System neu. Kein spezieller ISO-Build, kein extra Boot-Menü-Eintrag — ohne so ein Laufwerk ändert sich nichts, und du bekommst den normalen Assistenten.
+Die Omarchy-ISO kann sich selbst installieren, ohne dass jemand an der Tastatur sitzt. Findet das Installationsprogramm ein zweites Laufwerk mit der Bezeichnung `cidata`, das seine Konfigurationsdateien enthält, kopiert es sie herunter, überspringt den Einrichtungsassistenten vollständig und startet von selbst neu in das fertige System. Kein spezieller ISO-Build, kein zusätzlicher Eintrag im Boot-Menü — ist kein solches Laufwerk angeschlossen, ändert sich nichts und du bekommst den normalen Assistenten.
 
-Das macht Omarchy ideal als Basis-Image für wegwerfbare Entwicklungsumgebungen: eine VM in Proxmox oder mit Packer erstellen, booten, weggehen, per SSH einloggen. `cidata` ist die cloud-init-Bezeichnung `NoCloud`, sodass alle üblichen Virtualisierungstools bereits wissen, wie man so ein Laufwerk anhängt.
+Damit eignet sich Omarchy hervorragend als Basis-Image für wegwerfbare Entwicklungsumgebungen: Erstelle eine VM in Proxmox oder mit Packer, starte sie, geh weg, verbinde dich per SSH. `cidata` ist die `NoCloud`-Bezeichnung von cloud-init, sodass alle gängigen Virtualisierungswerkzeuge bereits wissen, wie sie ein solches Laufwerk anhängen.
 
 ## Die Konfigurationsdateien
 
-Die Dateien sind genau das, was der Assistent des Installers selbst schreibt. Der einfachste Weg zu einem Ausgangssatz ist also, eine interaktive Installation durchzuführen (zum Beispiel in einer VM) und zu kopieren, was er nach `/root` geschrieben hat:
+Die Dateien sind genau das, was der eigene Assistent des Installationsprogramms schreibt. Am einfachsten bekommst du also einen Startsatz, indem du eine interaktive Installation durchführst (etwa in einer VM) und kopierst, was sie nach `/root` geschrieben hat:
 
 | Datei | Erforderlich | Zweck |
 |------|----------|---------|
-| `user_configuration.json` | Ja | Platte, Hostname, Zeitzone, Tastatur |
+| `user_configuration.json` | Ja | Festplatte, Hostname, Zeitzone, Tastatur |
 | `user_credentials.json` | Ja | Benutzername und Passwort-Hash |
-| `user_full_name.txt` | Nein | Vollständiger Name für Git |
-| `user_email_address.txt` | Nein | E-Mail für Git |
-| `user_encrypt_installation.txt` | Nein | `true`, wenn die Konfiguration einen `disk_encryption`-Block trägt |
+| `user_encrypt_installation.txt` | Nein | `true`, wenn die Konfiguration einen `disk_encryption`-Block enthält |
 | `authorized_keys` | Nein | Öffentliche SSH-Schlüssel, einer pro Zeile |
-| `tailscale_authkey` | Nein | Tailscale-Auth-Schlüssel, um beim ersten Boot deinem Tailnet beizutreten |
+| `tailscale_authkey` | Nein | Tailscale-Authentifizierungsschlüssel, um beim ersten Start deinem Tailnet beizutreten |
 
-Den Passwort-Hash für `user_credentials.json` erzeugst du mit `openssl passwd -6 "yourpassword"`.
+Erzeuge den Passwort-Hash für `user_credentials.json` mit `openssl passwd -6 "yourpassword"`.
 
-Du kannst auch eine leere Datei namens `defer-provisioning` statt `user_credentials.json` einlegen. Das führt dieselbe [prepare-for-another-owner Installation](02-getting-started.md) aus, die du auch interaktiv auslösen kannst: Der Rechner installiert ohne persönliche Angaben, und wer ihn zuerst bootet, wählt seine Tastatur und erstellt seinen Benutzer. Das ist der Modus für Imaging-Systeme, bei denen das Laufwerk niemandes Zugangsdaten tragen sollte.
+Name und E-Mail für Git-Commits sind nicht Teil der Installation. Lege sie fest, sobald die Maschine läuft, zum Beispiel über SSH, mit `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+Du kannst auch eine leere Datei namens `defer-provisioning` anstelle von `user_credentials.json` ablegen. Das führt dieselbe [Installation zur Vorbereitung für einen anderen Besitzer](02-getting-started.md) aus, die du auch interaktiv auslösen kannst: Die Maschine wird ohne persönliche Angaben installiert, und wer sie zuerst startet, wählt seine Tastatur und erstellt seinen Benutzer. Das ist der Modus für Imaging-Rigs, bei denen das Laufwerk überhaupt keine Zugangsdaten von irgendwem enthalten sollte.
 
 ## SSH-Zugriff
 
-Wenn `authorized_keys` vorhanden ist, richtet die Installation die Schlüssel als `~/.ssh/authorized_keys` des Benutzers ein, aktiviert `sshd` und öffnet die Firewall dafür. (Eine Standard-Omarchy-Installation liefert openssh mit deaktiviertem Dienst und geschlossenem Port, sodass ein unbeaufsichtigter Rechner sonst unerreichbar wäre.) Die Installation fügt nur deine Schlüssel hinzu — sie lockert keine der anderen Authentifizierungseinstellungen des SSH-Dienstes.
+Ist `authorized_keys` vorhanden, richtet die Installation die Schlüssel als `~/.ssh/authorized_keys` des Benutzers ein, aktiviert `sshd` und öffnet die Firewall dafür. (Eine Standardinstallation von Omarchy liefert openssh mit deaktiviertem Dienst und geschlossenem Port aus, sodass eine unbeaufsichtigte Maschine sonst unerreichbar wäre.) Die Installation fügt nur deine Schlüssel hinzu — sie lockert keine der anderen Authentifizierungseinstellungen des SSH-Daemons.
 
-Wenn `tailscale_authkey` vorhanden ist, tritt der Rechner stattdessen beim ersten Boot deinem Tailnet bei: Tailscale wird aus den mitgelieferten Paketen der ISO installiert, die Firewall erlaubt die Tailnet-Schnittstelle, und ein Hintergrundjob führt den Beitritt aus, sobald der Rechner tatsächlich Netzwerk hat, und wiederholt es, bis es gelingt. Verwende einen wiederverwendbaren, vorautorisierten Schlüssel, sodass ein Laufwerks-Image vielen Rechnern dienen kann.
+Ist `tailscale_authkey` vorhanden, tritt die Maschine stattdessen beim ersten Start deinem Tailnet bei: Tailscale wird aus den mitgelieferten Paketen der ISO installiert, die Firewall lässt die Tailnet-Schnittstelle zu, und ein Hintergrundjob führt den Beitritt aus, sobald die Maschine tatsächlich Netzwerk hat, und versucht es so lange weiter, bis es klappt. Verwende einen wiederverwendbaren, vorab autorisierten Schlüssel, damit ein einziges Laufwerks-Image für viele Maschinen dienen kann.
 
-## Das cidata-Laufwerk bauen
+## Das cidata-Laufwerk erstellen
 
 Jedes Dateisystem mit der richtigen Bezeichnung funktioniert. Eine winzige ISO ist der einfache Weg:
 
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Dann hängst du es zusammen mit der Omarchy-ISO an die VM an. Hier ist ein vollständiges Proxmox-Beispiel:
+Hänge sie dann zusammen mit der Omarchy-ISO an die VM an. Hier ist ein vollständiges Proxmox-Beispiel:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Die Boot-Reihenfolge listet die Platte absichtlich zuerst: Die leere Platte fällt beim ersten Boot auf die ISO durch, und das installierte System bootet danach immer von der Platte.
+Die Boot-Reihenfolge führt die Festplatte absichtlich zuerst auf: Die leere Festplatte fällt beim ersten Start auf die ISO durch, und danach startet das installierte System für immer von der Festplatte.
 
 ## Zwei Vorbehalte
 
-Verschlüsselte unbeaufsichtigte Installationen sind nicht vollständig unbeaufsichtigt — jemand muss beim ersten Boot noch die LUKS-Passphrase eingeben. Und der Block `disk_encryption` in `user_configuration.json` trägt diese Passphrase im Klartext, also behandle ein cidata-Laufwerk, das aus einer verschlüsselten Installation gebaut wurde, als das Geheimnis, das es ist.
+Verschlüsselte unbeaufsichtigte Installationen sind nicht vollständig unbeaufsichtigt — jemand muss beim ersten Start immer noch die LUKS-Passphrase eingeben. Und der `disk_encryption`-Block in `user_configuration.json` enthält diese Passphrase im Klartext. Behandle ein cidata-Laufwerk, das aus einer verschlüsselten Installation erstellt wurde, also wie das Geheimnis, das es ist.

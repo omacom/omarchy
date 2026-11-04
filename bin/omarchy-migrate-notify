@@ -36,7 +36,10 @@ fi
 
 # The shell keeps the click command with the toast, so this oneshot can hand the
 # invitation over and exit instead of staying activated until it is answered.
-omarchy-notification-send -u critical -g  "$(omarchy-i18n migrate.pending)" "$message" \
+# Transient, because this runs at every login while migrations are pending:
+# restoring the last login's reminder next to the new one would stack a copy
+# per login.
+omarchy-notification-send -u critical --transient -g  "$(omarchy-i18n migrate.pending)" "$message" \
   --exec omarchy-launch-floating-terminal-with-presentation omarchy-migrate && exit 0
 
 # Reached when the notification could not be handed off, so fall back to telling

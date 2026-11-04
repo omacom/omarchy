@@ -37,6 +37,31 @@ if [[ ! -f $LAUNCHER ]]; then
   exit 1
 fi
 
+# Hyprland leaves XWayland apps unscaled (xwayland:force_zero_scaling), and Wine
+# reads its DPI from the prefix registry once at startup, so match it to the
+# focused monitor's scale on every launch. Skipped while the prefix is running:
+# the running launcher ignores it, and wineserver rewrites user.reg on exit.
+prefix_running() {
+  local pid prefix
+  for pid in $(pgrep -x wineserver); do
+    prefix=$(tr '\0' '\n' </proc/"$pid"/environ 2>/dev/null | sed -n 's/^WINEPREFIX=//p')
+    [[ -n $prefix && $(realpath "$prefix" 2>/dev/null) == "$(realpath "$PREFIX")" ]] && return 0
+  done
+  return 1
+}
+
+match_dpi_to_monitor_scale() {
+  local scale dpi
+  scale=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true).scale')
+  [[ $scale =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 0
+  dpi=$(awk -v scale="$scale" 'BEGIN { printf "%d", scale * 96 + 0.5 }')
+  sed -i "s/^\"LogPixels\"=dword:[0-9a-f]\{8\}$/\"LogPixels\"=dword:$(printf '%08x' "$dpi")/" "$PREFIX/user.reg"
+}
+
+if ! prefix_running; then
+  match_dpi_to_monitor_scale
+fi
+
 env_args=(
   WINEPREFIX="$PREFIX"
   PROTONPATH=GE-Proton
