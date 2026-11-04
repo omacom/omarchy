@@ -96,7 +96,8 @@ def lookup(aps):
     {key: ap[key] for key in ('macAddress', 'signalStrength')} for ap in aps])).encode()
   request = urllib.request.Request('https://api.beacondb.net/v1/geolocate', data=body,
                   headers={'Content-Type': 'application/json', 'User-Agent': 'omarchy-iwd-geolocate/1'})
-  with urllib.request.urlopen(request, timeout=10) as response:
+  # BeaconDB often takes several seconds to answer (1-10 s measured); give it 20.
+  with urllib.request.urlopen(request, timeout=20) as response:
     return validate(json.loads(response.read(65537)))
 
 
