@@ -1288,5 +1288,14 @@
   },
   "setup.keyboard.input-methods": {
     "label": "입력 방식"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
   }
 }
