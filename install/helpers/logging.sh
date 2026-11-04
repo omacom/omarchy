@@ -14,7 +14,7 @@ start_install_log() {
   if ! omarchy_log_to_stdout; then
     mkdir -p "$(dirname "$OMARCHY_INSTALL_LOG_FILE")"
     touch "$OMARCHY_INSTALL_LOG_FILE"
-    chmod 666 "$OMARCHY_INSTALL_LOG_FILE" 2>/dev/null || true
+    chmod 644 "$OMARCHY_INSTALL_LOG_FILE" 2>/dev/null || true
   fi
 
   export OMARCHY_START_TIME="${OMARCHY_START_TIME:-$(date '+%Y-%m-%d %H:%M:%S')}"
