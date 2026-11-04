@@ -29,4 +29,19 @@ EOF
   fi
 done
 
-omarchy-restart-hyprctl
+# Skip reloading when Hyprland was replaced during an update or when upgrading
+# live to Quattro so the running compositor is not loaded with newer configs.
+if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} != "1" ]] &&
+  ! (command -v omarchy-hyprland-reload-guard >/dev/null && omarchy-hyprland-reload-guard paused); then
+  replaced_hyprland=false
+  for pid in $(pgrep -x Hyprland 2>/dev/null || true); do
+    if [[ $(readlink "/proc/$pid/exe" 2>/dev/null) == *"(deleted)"* ]]; then
+      replaced_hyprland=true
+      break
+    fi
+  done
+
+  if [[ $replaced_hyprland == "false" ]]; then
+    omarchy-restart-hyprctl
+  fi
+fi
