@@ -90,4 +90,4 @@ hl.config({
 })
 
 -- Terminal touchpad scroll speeds live in default/hypr/touchpad.lua, so the
--- touchpad window (Setup > Config > Touchpad) can change or remove them.
+-- touchpad window (Setup > Config > Mouse & Touchpad) can change or remove them.

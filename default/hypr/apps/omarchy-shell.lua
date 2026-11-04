@@ -20,6 +20,6 @@ hl.layer_rule({ match = { namespace = "^(omarchy-background|owe-background)$" },
 -- SUPER+ALT+F so component previews have the whole workspace.
 o.window({ class = "^org.quickshell$", title = "^Omarchy shell – dev gallery$" }, { maximize = true })
 
--- The touchpad settings window floats over the app you are tuning it for, so
--- its scroll and tap changes can be tried in place.
-o.window({ class = "^org.quickshell$", title = "^Touchpad$" }, { float = true, center = true })
+-- The mouse and touchpad settings window floats over the app you are tuning
+-- it for, so its scroll and tap changes can be tried in place.
+o.window({ class = "^org.quickshell$", title = "^Mouse & Touchpad$" }, { float = true, center = true })
