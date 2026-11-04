@@ -57,7 +57,7 @@ pass "Battle.net launch matches the DPI to the focused monitor's scale"
 # While the prefix's wineserver runs, the registry is its to write back on
 # exit, so the launch leaves it alone and still hands off to the launcher.
 ln -s "$(command -v sleep)" "$tmp_dir/wineserver"
-WINEPREFIX="$prefix/pfx/" "$tmp_dir/wineserver" 60 &
+WINEPREFIX="$prefix/pfx/" "$tmp_dir/wineserver" 60 >/dev/null 2>&1 &
 wineserver_pid=$!
 write_registry
 echo 2 >"$tmp_dir/scale"
