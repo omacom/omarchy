@@ -96,6 +96,9 @@ ShellRoot {
     var localWidget = manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
     localWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
     scan += block("thirdparty", "/third/local-widget", localWidget)
+    var sharedWidget = manifest("shared.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
+    sharedWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
+    scan += block("thirdparty", "/third/shared-widget", sharedWidget)
     var localWeather = manifest("local.weather", ["bar-widget"], { barWidget: "Widget.qml" })
     localWeather.omarchy = { clonedFrom: "omarchy.weather" }
     scan += block("thirdparty", "/third/local-weather", localWeather)
@@ -141,6 +144,7 @@ ShellRoot {
       "omarchy.future-auth",
       "omarchy.grouped-panel",
       "omarchy.hybrid",
+      "shared.first-widget",
       "third.bar",
       "third.begin-widget",
       "third.center-widget",
@@ -393,6 +397,18 @@ ShellRoot {
       root.config.bar.layout.center,
       [{ id: "omarchy.first-widget", size: 4 }],
       "disabling a widget clone restores its source in place"
+    )
+
+    registry.setEnabled("local.first-widget", true)
+    registry.setEnabled("shared.first-widget", true)
+    registry.setEnabled("shared.first-widget", false)
+    var afterSecondClone = JSON.parse(JSON.stringify(root.config.bar.layout))
+    root.config.plugins.push({ id: "shared.first-widget" })
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(
+      [afterSecondClone.center, afterSecondClone.centerEnd, root.config.bar.layout.center],
+      [[{ id: "local.first-widget", size: 4 }], [], [{ id: "omarchy.first-widget", size: 4 }]],
+      "disabling a second widget clone leaves the first alone, and the last clone on the bar restores its source"
     )
 
     root.config = {
