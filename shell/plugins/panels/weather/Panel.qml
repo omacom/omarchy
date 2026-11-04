@@ -394,20 +394,25 @@ Panel {
           root.forecastRetries = 0
           // A location saved before countries were carried has none in
           // weather.json; backfill it from this wttr report once, so unit
-          // selection survives wttr outages. Only the country changes, so
-          // locationQuery is untouched and no refetch follows; the guard
-          // keeps it from racing a location save the user just made.
+          // selection survives wttr outages. Unnamed locations are skipped
+          // because omarchy-weather-location requires a name to persist
+          // state, and saving without one would clear the file and delete
+          // the coordinates; they fall back to report- or locale-based units.
+          // Only the country changes, so locationQuery is untouched and
+          // no refetch follows; the guard keeps it from racing a location
+          // save the user just made.
+          var configuredName = String(root.configuredLocationState && root.configuredLocationState.name || "").trim()
           var wttrCountry = parsed.nearest_area && parsed.nearest_area[0] && parsed.nearest_area[0].country && parsed.nearest_area[0].country[0]
             ? String(parsed.nearest_area[0].country[0].value || "").trim()
             : ""
-          if (wttrCountry !== "" && root.hasConfiguredCoordinates && !root.configuredLocationState.country && !root.savingLocation && !locationSaveProc.running) {
+          if (configuredName !== "" && wttrCountry !== "" && root.hasConfiguredCoordinates && !root.configuredLocationState.country && !root.savingLocation && !locationSaveProc.running) {
             root.configuredLocationState = {
-              name: root.configuredLocationState.name,
+              name: configuredName,
               latitude: root.configuredLocationState.latitude,
               longitude: root.configuredLocationState.longitude,
               country: wttrCountry
             }
-            root.persistLocation(root.configuredLocationState.name, root.configuredLocationState.latitude, root.configuredLocationState.longitude, wttrCountry)
+            root.persistLocation(configuredName, root.configuredLocationState.latitude, root.configuredLocationState.longitude, wttrCountry)
           }
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
