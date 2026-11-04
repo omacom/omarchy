@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 
 ShellRoot {
@@ -28,7 +29,7 @@ ShellRoot {
     })
 
     if (resultPath) {
-      Quickshell.execDetached(["bash", "-lc", "printf '%s' " + shellQuote(payload) + " > " + shellQuote(resultPath)])
+      Quickshell.execDetached(["bash", "-c", "printf '%s' " + shellQuote(payload) + " > " + shellQuote(resultPath)])
     }
   }
 
@@ -37,6 +38,15 @@ ShellRoot {
   property var lock: null
   property string lastLoggedBeforeGate: ""
   property int blankPolls: 0
+  property bool secureObserved: false
+  property int initialScreenCount: 0
+
+  Connections {
+    target: root.lock
+    function onLastEventChanged() {
+      if (root.lock.lastEvent === "secure=true") root.secureObserved = true
+    }
+  }
 
   Timer {
     interval: 1
@@ -71,13 +81,9 @@ ShellRoot {
         root.assertTrue(lock.activityMonitor.timeout < 5,
           "activity monitor's idle timeout is shorter than the blank countdown, got " + lock.activityMonitor.timeout)
 
-        // 2. beginLock() would take a real session lock, which this fixture must
-        // never do. Set lockRequested directly instead -- it is exactly the state
-        // beginLock() leaves behind, without the WlSessionLock side effect. Doing
-        // it this way also proves the bug this test guards: lockRequested alone
-        // does not arm the timer, only beginLock() does, so a lock that reaches
-        // this state through a real session lock and then goes idle is "lit and
-        // spent" until something re-arms it.
+        // 2. Start in the "lit and spent" state, without beginLock() arming the
+        // timer. This can still acquire a protocol lock on screensChanged:
+        // ONLY run this fixture through the test's disposable compositor.
         lock.lockRequested = true
         root.assertTrue(lock.activityMonitor.enabled === true, "activity monitor turns on once a lock is requested")
         root.assertTrue(lock.blankArmed === false, "setting lockRequested directly does not arm the blank timer")
@@ -103,10 +109,7 @@ ShellRoot {
         root.assertTrue(lock.blankArmed === true, "clearing the password check re-arms the blank timer")
 
         // 5. Let the re-armed 5000 ms timer run out for real and spawn the blank.
-        // This races real input in the live session: any mouse motion or key
-        // press re-arms the timer again (silently this time, since it is
-        // already running), which is correct behaviour but can keep pushing
-        // the deadline out, so give this a generous budget.
+        // The private compositor receives no developer input.
         blankPollTimer.start()
       } catch (error) {
         root.fail("lock activity reblank fixture threw: " + error)
@@ -155,7 +158,39 @@ ShellRoot {
       root.assertTrue(lock.lastEvent === lastBeforeUnlockedActivity,
         "activity while unlocked is not logged as a re-arm, got " + lock.lastEvent)
 
-      lock.destroy()
+      // 8. Reproduce the safety regression: setting lockRequested is NOT a
+      // protocol-lock guard. A new output must take a real lock, confined to
+      // the disposable compositor even if this fixture is killed afterwards.
+      root.secureObserved = false
+      root.initialScreenCount = lock.realScreenCount()
+      lock.lockRequested = true
+      hotplug.running = true
+      hotplugDeadline.start()
+    }
+  }
+
+  Process {
+    id: hotplug
+    command: ["swaymsg", "-s", Quickshell.env("SWAYSOCK"), "create_output"]
+    onExited: function(exitCode) {
+      root.assertTrue(exitCode === 0, "private compositor creates a new output")
+    }
+  }
+
+  Timer {
+    id: hotplugDeadline
+    interval: 100
+    repeat: true
+    property int polls: 0
+    onTriggered: {
+      polls++
+      if (!root.secureObserved && polls < 50) return
+      stop()
+      root.assertTrue(root.lock.realScreenCount() > root.initialScreenCount,
+        "screen-change check adds an output to the private compositor")
+      root.assertTrue(root.secureObserved, "screen change acquires a real protocol lock")
+      root.lock.finishUnlock()
+      root.lock.destroy()
       root.writeResult()
     }
   }
