@@ -40,6 +40,7 @@ ShellRoot {
     }
   }
   FileView { id: logView; path: Quickshell.env("SWITCH_LOG"); blockLoading: true; printErrors: false }
+  Process { id: clearApplies; command: ["rm", "-f", Quickshell.env("SWITCH_LOG") + ".apply"] }
 
   BackgroundIntro { id: intro; host: test }
   BackgroundSwitch { id: sw; intro: intro }
@@ -104,6 +105,17 @@ ShellRoot {
     } },
     { delay: 2000, run: function() {
       test.check(intro.themeToken === "" && !sw.reloadPending, "the theme switch has revealed and reloaded")
+      // A loop swap made while a change no longer tracked here holds the
+      // cover. The test reads whether it ran again from the file of applies.
+      sw.token = ""
+      clearApplies.running = true
+    } },
+    { delay: 200, run: function() {
+      intro.prepareTheme(test.stage + "/new.png", "held-1", "", "")
+      test.check(sw.replace(test.stage + "/new.png", test.stage + "/loop.mp4") === "stale", "a loop swap waits for a change under way")
+      intro.finishTheme("held-1", true)
+    } },
+    { delay: 1500, run: function() {
       console.log("SNAPSHOT " + test.snapshotSeen)
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()

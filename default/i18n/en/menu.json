@@ -288,6 +288,12 @@
   "appearance.animations-off": {
     "label": "Animations Off"
   },
+  "appearance.background-loops-on": {
+    "label": "Live Backgrounds"
+  },
+  "appearance.background-loops-off": {
+    "label": "Still Backgrounds"
+  },
   "appearance.unlock": {
     "label": "Unlock"
   },
