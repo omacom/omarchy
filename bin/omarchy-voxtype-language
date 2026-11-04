@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# omarchy:summary=Match Voxtype's whisper model and language to the desktop language
+# omarchy:args=[apply|apply-stock]
+# omarchy:hidden=true
+# omarchy:examples=omarchy voxtype language | omarchy voxtype language apply
+
+# The shipped config is English-only (base.en). That model cannot transcribe
+# anything else, so a desktop that is not English gets the multilingual base
+# model and Whisper's code for the language, or auto when Whisper has no code
+# for it. apply rewrites a config. apply-stock does that only while the file
+# is still the English default, so a model someone already chose is left alone.
+
+set -euo pipefail
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+config="$config_home/voxtype/config.toml"
+
+# Whisper's language ids. Codes outside this set use auto.
+whisper_codes=" af am ar as az ba be bg bn bo br bs ca cs cy da de el en es et eu fa fi fo fr gl gu ha haw he hi hr ht hu hy id is it ja jw ka kk km kn ko la lb ln lo lt lv mg mi mk ml mn mr ms mt my ne nl nn no oc pa pl ps pt ro ru sa si sk sl sn so sq sr su sv sw ta te tg th tk tl tr tt uk ur uz vi yi yo zh "
+
+desktop_language() {
+  local code
+  code=$(omarchy-language)
+  printf '%s\n' "$code"
+}
+
+whisper_language() {
+  local code=$1 primary
+  case $code in
+    en) printf 'en\n'; return ;;
+    zh-CN | zh-TW) printf 'zh\n'; return ;;
+    pt-BR) printf 'pt\n'; return ;;
+    es-MX) printf 'es\n'; return ;;
+    fil) printf 'tl\n'; return ;;
+  esac
+  primary=${code%%-*}
+  if [[ $whisper_codes == *" $primary "* ]]; then
+    printf '%s\n' "$primary"
+  else
+    printf 'auto\n'
+  fi
+}
+
+whisper_model() {
+  if [[ $1 == "en" ]]; then
+    printf 'base.en\n'
+  else
+    printf 'base\n'
+  fi
+}
+
+language=$(whisper_language "$(desktop_language)")
+model=$(whisper_model "$language")
+
+if (($# == 0)); then
+  printf '%s\n%s\n' "$model" "$language"
+  exit 0
+fi
+
+if [[ $1 != "apply" && $1 != "apply-stock" ]]; then
+  echo "Usage: omarchy voxtype language [apply|apply-stock]" >&2
+  exit 1
+fi
+
+[[ -f $config ]] || exit 0
+
+if [[ $1 == "apply-stock" ]]; then
+  [[ $language != "en" ]] || exit 0
+  grep -qx 'model = "base.en"' "$config" || exit 0
+  grep -qx 'language = "en"' "$config" || exit 0
+fi
+
+tmp=$(mktemp)
+while IFS= read -r line || [[ -n $line ]]; do
+  case $line in
+    'model = "'*) line="model = \"$model\"" ;;
+    'language = "'*) line="language = \"$language\"" ;;
+  esac
+  printf '%s\n' "$line"
+done <"$config" >"$tmp"
+mv "$tmp" "$config"

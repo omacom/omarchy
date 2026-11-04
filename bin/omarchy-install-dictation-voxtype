@@ -19,6 +19,9 @@ config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 mkdir -p "$config_home/voxtype"
 if [[ ! -e $config_home/voxtype/config.toml ]]; then
   cp "$OMARCHY_PATH/default/voxtype/config.toml" "$config_home/voxtype/"
+  # The template is English-only. A Swedish (or other) desktop needs a
+  # multilingual model or Whisper never hears that language.
+  omarchy-voxtype-language apply
   # A Vulkan runtime is not enough: aarch64 voxtype-bin ships no Vulkan backend.
   if omarchy-hw-vulkan && [[ -x $voxtype_lib_path/voxtype-vulkan ]]; then
     voxtype setup gpu --enable || true

@@ -45,7 +45,7 @@ run_install() {
   esac
 
   HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" OMARCHY_VOXTYPE_LIB_PATH="$lib_path" \
-    VULKAN="$vulkan" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
+    VULKAN="$vulkan" TEST_LOG="$calls" PATH="$stub_bin:$ROOT/bin:$PATH" \
     XDG_CONFIG_HOME="$test_tmp/home/.config" bash "$ROOT/bin/omarchy-install-dictation-voxtype" >/dev/null ||
     fail "Voxtype install completes (vulkan=$vulkan backend=$backend)"
 
@@ -72,3 +72,26 @@ run_install 0 executable
 ! grep -q 'setup gpu' "$calls" ||
   fail "Voxtype does not enable the GPU backend without a Vulkan runtime"
 pass "Voxtype does not enable the GPU backend without a Vulkan runtime"
+
+english="$test_tmp/home/.config/voxtype/config.toml"
+grep -qx 'model = "base.en"' "$english" && grep -qx 'language = "en"' "$english" ||
+  fail "an English desktop keeps the English-only whisper model"
+pass "an English desktop keeps the English-only whisper model"
+
+printf 'sv\n' >"$test_tmp/language"
+OMARCHY_LANGUAGE_FILE="$test_tmp/language" run_install 0 executable
+swedish="$test_tmp/home/.config/voxtype/config.toml"
+grep -qx 'model = "base"' "$swedish" && grep -qx 'language = "sv"' "$swedish" ||
+  fail "a Swedish desktop gets a multilingual model and Swedish" "$(grep -E '^(model|language) ' "$swedish")"
+pass "a Swedish desktop gets a multilingual model and Swedish"
+
+# A config someone already pointed at another model is not rewritten.
+printf 'sv\n' >"$test_tmp/language"
+mkdir -p "$test_tmp/home/.config/voxtype"
+printf 'model = "large-v3"\nlanguage = "ja"\n' >"$swedish"
+OMARCHY_LANGUAGE_FILE="$test_tmp/language" PATH="$stub_bin:$ROOT/bin:$PATH" \
+  XDG_CONFIG_HOME="$test_tmp/home/.config" HOME="$test_tmp/home" \
+  bash "$ROOT/bin/omarchy-voxtype-language" apply-stock
+grep -qx 'model = "large-v3"' "$swedish" && grep -qx 'language = "ja"' "$swedish" ||
+  fail "apply-stock leaves a whisper model the user already chose"
+pass "apply-stock leaves a whisper model the user already chose"
