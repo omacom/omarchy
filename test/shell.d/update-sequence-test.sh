@@ -111,6 +111,20 @@ pass "-y is what marks an update unattended, not the update itself"
 [[ $(cat "$test_tmp/steps.orphan-args") == "-y" ]] || fail "a confirmed update approves orphan removal"
 pass "a confirmed update approves orphan removal"
 
+# A mistyped subcommand reaches the update as an argument (`omarchy update
+# firmwre`), and so does -y anywhere but alone. Each is refused before any step
+# runs, the confirmation included (#16770).
+for args in "firmwre" "aur pkg" "-y firmwre" "firmwre -y"; do
+  read -r -a argv <<<"$args"
+  if run_update "${argv[@]}" </dev/null; then
+    fail "an update given '$args' is refused" "$(cat "$test_tmp/steps")"
+  fi
+  [[ ! -s $test_tmp/steps ]] || fail "an update given '$args' runs no step" "$(cat "$test_tmp/steps")"
+  grep -qxF "Usage: omarchy update [-y]" "$test_tmp/err" ||
+    fail "an update given '$args' says how to call it" "$(cat "$test_tmp/err")"
+done
+pass "an unknown argument is refused before any step, the confirmation included"
+
 # Migrations ship with the packages the upgrade installs and are written against
 # them. Running them against what is still on disk is the failure this ordering
 # exists to prevent, so the update stops where the packages did.

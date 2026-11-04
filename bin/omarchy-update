@@ -8,6 +8,15 @@
 
 set -e
 
+# -y is the only argument. The router hands a mistyped subcommand to the
+# nearest command it finds, so `omarchy update firmwre` arrives here as an
+# argument, and ignoring it would start a full update nobody asked for (#16770).
+if (( $# > 1 )) || { (( $# == 1 )) && [[ $1 != "-y" ]]; }; then
+  echo "omarchy update: unknown argument: $*" >&2
+  echo "Usage: omarchy update [-y]" >&2
+  exit 2
+fi
+
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
 
