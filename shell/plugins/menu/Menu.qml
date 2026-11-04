@@ -7,6 +7,7 @@ import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
 import "TerminalFont.js" as TerminalFont
+import "FontSyntax.js" as FontSyntax
 
 Item {
   id: root
@@ -67,6 +68,16 @@ Item {
   property int fontPreviewIndex: 0
   property int fontPreviewPreviousIndex: 0
   property real fontPreviewProgress: 1
+  property var fontSyntaxColors: ({})
+
+  FileView {
+    path: Color.currentThemePath + "/colors.toml"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.fontSyntaxColors = FontSyntax.palette(text())
+    onLoadFailed: root.fontSyntaxColors = ({})
+    onFileChanged: reload()
+  }
 
   NumberAnimation {
     id: fontPreviewTransition
@@ -1674,7 +1685,10 @@ Item {
                   text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : "Preview unavailable"
                   previousText: row.previewReady ? root.fontPreviewSamples[root.fontPreviewPreviousIndex] : "Preview unavailable"
                   progress: row.previewReady ? root.fontPreviewProgress : 1
-                  color: row.hasCursor ? root.selectedText : root.foreground
+                  syntaxColors: root.fontSyntaxColors
+                  syntaxEnabled: row.previewReady && root.fontPreviewIndex > 0
+                  previousSyntaxEnabled: row.previewReady && root.fontPreviewPreviousIndex > 0
+                  color: root.foreground
                   opacity: 0.75
                   fontFamily: row.previewFamily
                   pointSize: root.terminalFontPointSize
