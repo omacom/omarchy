@@ -18,6 +18,10 @@ Item {
   readonly property int threshold: typeof config.threshold === "number" ? config.threshold : 50
 
   property var pending: []
+  // Set from starting the monitor query until its output is read, which can
+  // land before or after the process exits.
+  property bool querying: false
+  property bool refreshQueued: false
 
   readonly property int batteryPercent: {
     var device = UPower.displayDevice
@@ -28,9 +32,23 @@ Item {
   // only on the crossing, so the service reacts without a polling clock.
   readonly property bool charged: batteryPercent < 0 || batteryPercent >= threshold
 
+  readonly property bool busy: querying || monitorsProc.running || applyProc.running
+
   function refresh() {
-    if (!active || monitorsProc.running || applyProc.running) return
+    if (!active) return
+    if (busy) {
+      refreshQueued = true
+      return
+    }
+    refreshQueued = false
+    querying = true
     monitorsProc.running = true
+  }
+
+  function settle() {
+    var step = RefreshRateModel.nextStep(busy, pending.length, refreshQueued)
+    if (step === "apply") applyNext()
+    else if (step === "query") refresh()
   }
 
   function applyNext() {
@@ -51,13 +69,15 @@ Item {
         try {
           monitors = JSON.parse(String(text || "[]"))
         } catch (e) {
-          return
+          monitors = []
         }
         root.pending = RefreshRateModel.pendingSpecs(
           monitors, UPower.onBattery, root.batteryPercent, root.threshold)
-        root.applyNext()
+        root.querying = false
+        root.settle()
       }
     }
+    onRunningChanged: if (!running) root.settle()
   }
 
   // A rate Hyprland refuses is worth a line. Nothing here is visible to the
@@ -73,7 +93,7 @@ Item {
       if (exitCode !== 0)
         console.warn("refresh-rate", "eval exited", exitCode, String(applyStdout.text || "").trim())
     }
-    onRunningChanged: if (!running) root.applyNext()
+    onRunningChanged: if (!running) root.settle()
   }
 
   // Only power changes apply a rate, so a rate picked in the display panel

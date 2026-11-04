@@ -73,6 +73,15 @@ function pendingSpecs(monitors, onBattery, percent, threshold) {
   return specs
 }
 
+// What the service does once a query or eval stops: finish applying the specs
+// it has, then re-read the monitors if a power change arrived while it was
+// busy, since those specs were built for the power state before the change.
+function nextStep(busy, pendingCount, refreshQueued) {
+  if (busy) return "wait"
+  if (pendingCount > 0) return "apply"
+  return refreshQueued ? "query" : "idle"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isInternal: isInternal,
@@ -80,6 +89,7 @@ if (typeof module !== "undefined") {
     targetRate: targetRate,
     needsChange: needsChange,
     monitorSpec: monitorSpec,
-    pendingSpecs: pendingSpecs
+    pendingSpecs: pendingSpecs,
+    nextStep: nextStep
   }
 }
