@@ -73,12 +73,7 @@ built-ins, while Remove is limited to installed plugins since a built-in has
 no checkout to delete. Add, Clone, and Remove open a terminal so their warning,
 editor, confirmation, and output stay visible.
 
-Cloning `omarchy.clock`, for example, creates and switches to
-`~/.config/omarchy/plugins/<username>.clock/` (e.g. `dhh.clock`), names it
-`My Clock`, and preserves the built-in IPC identity so existing shortcuts keep
-working. The username prefix keeps a shared clone from colliding with anyone
-else's. Saving files in any installed plugin reloads its code automatically,
-and removing an active clone switches back to its built-in source.
+Cloning `omarchy.clock`, for example, creates and switches to `~/.config/omarchy/plugins/<username>.clock/` (e.g. `dhh.clock`), names it `My Clock`, and preserves the built-in IPC identity so existing shortcuts keep working. The username prefix keeps a shared clone from colliding with anyone else's. Saving files in any installed plugin reloads its code automatically, and removing an active clone switches back to its built-in source. One clone stands in for a built-in at a time: enabling another one switches over to it.
 
 For a bar widget, on and off means its place in the bar. Everything else is
 loaded by default when it is built in, so `shell.json` records only the
@@ -176,8 +171,7 @@ Rules:
 3. Settings are inline on the entry. No `config:` sub-object, no
    merge layers.
 4. Built-in bar widget ids are namespaced (`omarchy.clock`, `omarchy.audio`, …).
-5. Third-party enabled ⇔ present; for full bar options that means `bar.id`.
-   First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
+5. Third-party enabled ⇔ present; for full bar options that means `bar.id`. First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`, or while an enabled clone stands in for them.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 8. `version: 1` is required.
