@@ -23,6 +23,7 @@ SCRIPT
 write_fake_command omarchy-webapp-remove web
 write_fake_command omarchy-tui-remove tui
 write_fake_command omarchy-launch-floating-terminal-with-presentation terminal
+write_fake_command pkexec pkexec
 
 cat >"$tmp_dir/bin/omarchy-notification-send" <<'SCRIPT'
 #!/bin/bash
@@ -86,13 +87,16 @@ pass "launcher remove routes web apps by desktop name"
 [[ ${lines[1]} == "tui:false:Docker" ]] || fail "launcher remove routes TUIs by desktop name" "${lines[1]}"
 pass "launcher remove routes TUIs by desktop name"
 
-[[ ${lines[2]} == "terminal::echo Uninstalling Native...; sudo pacman -Rns native-pkg" ]] || fail "launcher remove opens package uninstall flow" "${lines[2]}"
-pass "launcher remove opens package uninstall flow"
+[[ ${lines[2]} == "pkexec::/usr/bin/pacman -Rns --noconfirm -- native-pkg" ]] || fail "launcher remove uninstalls packages through pkexec" "${lines[2]}"
+pass "launcher remove uninstalls packages through pkexec"
+
+[[ ${lines[3]} == notify::*Native ]] || fail "launcher remove reports the package uninstall" "${lines[3]}"
+pass "launcher remove reports the package uninstall"
 
 [[ ! -e $tmp_dir/data/applications/aliens.desktop ]] || fail "launcher remove deletes user-owned desktop files"
 pass "launcher remove deletes user-owned desktop files"
 
-(( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
+(( ${#lines[@]} == 4 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
 
 cat >"$tmp_dir/data/applications/slack.desktop" <<'DESKTOP'
