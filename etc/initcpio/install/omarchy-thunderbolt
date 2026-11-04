@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Lets the Thunderbolt docks and displays that Bolt authorizes on its own bring
+# up their USB at the disk unlock prompt. At the user security level the kernel
+# opens a device's PCIe tunnel, and with it a Thunderbolt 3 dock's USB
+# controller, only once something writes the device's authorized attribute.
+# That is boltd's job, and boltd starts after the root is unlocked. The
+# thunderbolt module also resets the host router when the image loads it, which
+# closes any tunnel the firmware opened, so a keyboard on such a dock typed
+# nothing at the prompt.
+#
+# The image gets one udev rule per device boltd would authorize right now,
+# decided as boltd decides: auth mode enabled, and the stored policy auto, or
+# iommu with the domain's IOMMU DMA protection on. The rule also needs the
+# domain at the user level; in secure mode boltd answers a key challenge, which
+# stays with boltd. Manual devices and anything Bolt never stored wait for boltd
+# as before, and a device enrolled later reaches the prompt with the next image
+# rebuild.
+
+build() {
+  local store=${OMARCHY_BOLT_STORE:-/var/lib/boltd} device uuid policy iommu rules=""
+
+  [[ $(_omarchy_bolt_value "$store/boltd.conf" config AuthMode) != "disabled" ]] || return 0
+
+  for device in "$store"/devices/*; do
+    [[ -f $device ]] || continue
+    uuid=${device##*/}
+    # The file name goes into the rule; Bolt names devices by their UUID.
+    [[ $uuid =~ ^[0-9a-f-]+$ ]] || continue
+
+    policy=$(_omarchy_bolt_value "$device" user policy)
+    case $policy in
+      auto) iommu="" ;;
+      iommu) iommu=', ATTRS{iommu_dma_protection}=="1"' ;;
+      *) continue ;;
+    esac
+    rules+="ACTION==\"add\", SUBSYSTEM==\"thunderbolt\", ATTR{unique_id}==\"$uuid\", ATTR{authorized}==\"0\", ATTRS{security}==\"user\"$iommu, ATTR{authorized}=\"1\""$'\n'
+  done
+
+  [[ -n $rules ]] || return 0
+  add_file - /usr/lib/udev/rules.d/70-omarchy-thunderbolt.rules 644 < <(printf '%s' "$rules")
+}
+
+# Prints the value of key $3 in group [$2] of the GLib key file $1, the format
+# Bolt keeps its config and device records in, or nothing.
+_omarchy_bolt_value() {
+  local file=$1 group=$2 key=$3 line section=""
+
+  [[ -r $file ]] || return 0
+  while IFS= read -r line || [[ -n $line ]]; do
+    if [[ $line =~ ^\[(.*)\]$ ]]; then
+      section=${BASH_REMATCH[1]}
+    elif [[ $section == "$group" && $line == "$key="* ]]; then
+      printf '%s\n' "${line#*=}"
+      return 0
+    fi
+  done <"$file"
+}
+
+help() {
+  cat <<HELPEOF
+Authorizes the Thunderbolt devices boltd would authorize on its own, so the USB
+of a dock or display works at the disk unlock prompt.
+HELPEOF
+}
