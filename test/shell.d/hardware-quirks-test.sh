@@ -179,6 +179,9 @@ machine() {
     xps13-no-sku) xps13; rm "$hw/dmi/product_sku" ;;
     xps13-apply-fails) xps13; FAKE_APPLY_STATUS=1 ;;
     xps13-pkg-add-fails) xps13; FAKE_PKG_ADD_STATUS=1 ;;
+    wcn7850-card) FAKE_LSPCI="0004:01:00.0 Network controller [0280]: Qualcomm Technologies, Inc NCM8x5/WCN785x Wi-Fi 7(802.11be) 320MHz 2x2 [FastConnect 7800] [17cb:1107] (rev 01)" ;;
+    qcc2072-card) FAKE_LSPCI="0004:01:00.0 Network controller [0280]: Qualcomm Technologies, Inc Device [17cb:1112]" ;;
+    qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
@@ -231,6 +234,7 @@ leaves=(
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
+  hardware/fix-ath12k-board-data.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
 )
@@ -302,6 +306,10 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-ptl+unreadable|0
 # has to surface rather than be swallowed by a successful install.
 hardware/dell-xps13-sidecar-amps.sh|xps13-apply-fails|1|pkg-add dell-xps13-sidecar-amps|sudo dell-xps13-sidecar-amps-apply
 hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sidecar-amps
+# The package itself decides whether the card needs board data.
+hardware/fix-ath12k-board-data.sh|wcn7850-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|qcc2072-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|qualcomm-no-wifi|0
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0
