@@ -188,6 +188,12 @@
   "appearance.windows.gaps-off": {
     "label": "Window Gaps Off"
   },
+  "appearance.windows.borders-on": {
+    "label": "Window Borders On"
+  },
+  "appearance.windows.borders-off": {
+    "label": "Window Borders Off"
+  },
   "appearance.windows.corners": {
     "label": "Window Corners"
   },

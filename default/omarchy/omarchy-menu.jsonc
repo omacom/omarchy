@@ -89,6 +89,8 @@
   "appearance.windows": {"icon":"󰖲","label":"Windows"},
   "appearance.windows.gaps-on": {"icon":"","label":"Window Gaps On","when":"omarchy-hyprland-toggle-enabled window-no-gaps","action":"omarchy-hyprland-window-gaps-toggle"},
   "appearance.windows.gaps-off": {"icon":"","label":"Window Gaps Off","when":"! omarchy-hyprland-toggle-enabled window-no-gaps","action":"omarchy-hyprland-window-gaps-toggle"},
+  "appearance.windows.borders-on": {"icon":"󰃍","label":"Window Borders On","when":"omarchy-hyprland-toggle-enabled window-no-borders","action":"omarchy-hyprland-window-borders-toggle"},
+  "appearance.windows.borders-off": {"icon":"󰃍","label":"Window Borders Off","when":"! omarchy-hyprland-toggle-enabled window-no-borders","action":"omarchy-hyprland-window-borders-toggle"},
   "appearance.windows.corners": {"icon":"󰘇","label":"Window Corners"},
   "appearance.windows.corners.theme": {"icon":"󰏘","label":"Theme Corners","checked":"[[ $(omarchy-hyprland-corners) == \"theme\" ]]","action":"omarchy-hyprland-corners theme"},
   "appearance.windows.corners.sharp": {"icon":"󰝣","label":"Sharp Corners","checked":"[[ $(omarchy-hyprland-corners) == \"sharp\" ]]","action":"omarchy-hyprland-corners sharp"},

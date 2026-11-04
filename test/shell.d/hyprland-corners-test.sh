@@ -94,6 +94,23 @@ LUA
   [[ $(toggle_load corners-sharp) == "0" ]] || fail "sharp corners override the theme's rounding"
   [[ $(toggle_load corners-rounded window-no-gaps) == "0" ]] || fail "no-gaps squares rounded corners"
   pass "corners load after the theme, and no-gaps still squares them"
+
+  toggle_border_load() {
+    local dir="$tmpdir/border_load"
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    for toggle in "$@"; do cp "$ROOT/default/hypr/toggles/$toggle.lua" "$dir/"; done
+    ROOT="$ROOT" DIR="$dir" lua - <<'LUA'
+package.path = os.getenv("ROOT") .. "/?.lua;" .. os.getenv("DIR") .. "/?.lua;" .. package.path
+local border_size = 2
+hl = { config = function(config) if config.general and config.general.border_size ~= nil then border_size = config.general.border_size end end }
+require("default.hypr.require_all").files(os.getenv("DIR"), nil, { reload = true })
+print(border_size)
+LUA
+  }
+  [[ $(toggle_border_load window-no-gaps) == "2" ]] || fail "no-gaps does not disable borders"
+  [[ $(toggle_border_load window-no-borders) == "0" ]] || fail "no-borders disables borders"
+  pass "no-gaps keeps borders while no-borders disables them"
 else
   skip "lua is not installed"
 fi
