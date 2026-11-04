@@ -57,6 +57,14 @@ hybrid = fake_sysfs({"card0": (0, "renderD128"), "card1": (1, "renderD129")})
 nodes = ["card0", "card1", "renderD128", "renderD129"]
 assert pick(nodes, hybrid) == "/dev/dri/renderD129"
 assert pick(nodes, hybrid, {"AQ_DRM_DEVICES": "/dev/dri/card0:/dev/dri/card1"}) == "/dev/dri/renderD128"
+assert pick(nodes, hybrid, {"AQ_DRM_DEVICES": "/dev/dri/missing:/dev/dri/card0"}) == "/dev/dri/renderD128", "a missing AQ_DRM_DEVICES entry is skipped"
+
+# The laptop panel hangs off the GPU firmware didn't boot on: Aquamarine puts
+# the GPU with the built-in panel first.
+os.makedirs(f"{hybrid}/card0-eDP-1")
+with open(f"{hybrid}/card0-eDP-1/status", "w") as f:
+    f.write("connected\n")
+assert pick(nodes, hybrid) == "/dev/dri/renderD128"
 
 # Apple Silicon: a display-only apple-drm card and the GPU's own card, so the
 # sole render node renders; with it unopenable, the display card does.
