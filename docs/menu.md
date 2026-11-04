@@ -34,6 +34,8 @@ submenu. The fields:
 |---|---|
 | `icon` | Glyph in the icon column (usually Nerd Font) |
 | `iconFont` | Font family for the glyph when it differs from the menu font — how the private `omarchy` font's brand glyphs render |
+| `previewFont` | Optional font family to preview in the label and an additional specimen line; icons and search paths keep the menu font |
+| `previewFontFile` | Optional font specimen path relative to `$OMARCHY_PATH`; loaded privately with `FontLoader` instead of requiring system installation |
 | `label` | Visible row title; defaults to the id |
 | `title` | Header text when the submenu is open; defaults to `label`. Lets a row read "Browser" under Defaults while the open menu says "Default Browser" |
 | `action` | Shell command to run, detached, when selected |
@@ -141,6 +143,14 @@ which used to duplicate launcher rows. Never mutate `root.items` in place.
 Adding a provider means adding an entry to the `providers` map in `Menu.qml`
 (script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
 it with `provider:`.
+
+## Font specimens
+
+The `fonts` provider sets `previewFont` to the installed family. The Install > Style > Font entries additionally specify `previewFontFile`, so their previews work offline before installation. A missing font or failed asset load shows “Preview unavailable” rather than presenting the menu's fallback as a specimen. Actions, checks, and search text are independent of preview metadata.
+
+Both the font name and specimen use the previewed family at the configured default terminal's point size, not the shell's heading or caption pixel sizes. The menu detects the terminal on open and watches its standard configuration file for size changes (Ghostty, Kitty, Alacritty, and Foot). This previews the saved size, not temporary per-window zoom; missing settings use Omarchy's shipped 9 pt default.
+
+Bundled specimens live in `default/fonts/previews/`. They contain printable ASCII from regular-weight Nerd Fonts v3.4.0, including shaping rules, and use distinct `Omarchy Preview N` family names so they cannot shadow full installed fonts or violate reserved-name requirements. They are loaded only into the shell process and never installed into fontconfig. See the adjacent licenses and `README.md` for sources and regeneration instructions.
 
 ## Driving the menu from the CLI
 

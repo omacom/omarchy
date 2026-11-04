@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
+import "TerminalFont.js" as TerminalFont
 
 Item {
   id: root
@@ -20,6 +21,7 @@ Item {
   property string pendingInitialMenu: "root"
 
   function open(payloadJson) {
+    if (!terminalFontProc.running) terminalFontProc.running = true
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
@@ -50,6 +52,37 @@ Item {
   function ping() { return "ok" }
 
   property string fontFamily: Style.font.menuFamily
+  property string previewTerminal: ""
+  property real terminalFontPointSize: 9
+  Component.onCompleted: terminalFontProc.running = true
+
+  FontMetrics {
+    id: terminalFontMetrics
+    font.family: root.fontFamily
+    font.pointSize: root.terminalFontPointSize
+  }
+
+  Process {
+    id: terminalFontProc
+    command: ["omarchy-default-terminal"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.previewTerminal = text.trim()
+        terminalFontConfig.reload()
+      }
+    }
+  }
+
+  FileView {
+    id: terminalFontConfig
+    path: TerminalFont.configPath(root.previewTerminal)
+      ? (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/" + TerminalFont.configPath(root.previewTerminal) : ""
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.terminalFontPointSize = TerminalFont.pointSize(root.previewTerminal, text())
+    onLoadFailed: root.terminalFontPointSize = 9
+    onFileChanged: reload()
+  }
   // JSONC menu definitions. The shell parses both at startup and merges
   // the user file on top of the defaults, so the keybind → IPC → visible
   // path doesn't have to shell out to bash + jq on every open.
@@ -135,7 +168,7 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "style.font" || root.activeMenu === "install.style.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -173,8 +206,13 @@ Item {
 
   // Menu rows only surface their detail while a search is narrowing them;
   // dmenu rows carry caller-supplied subtext that must always be visible.
-  function rowHeightForDetail(detail) {
-    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
+  function rowHeightForDetail(detail, previewFont) {
+    var showDetail = (root.filterText || root.dmenuActive) && detail
+    if (previewFont) {
+      return Math.max(root.baseRowHeight, Math.ceil(terminalFontMetrics.height * 2 + Style.space(3) + Style.spacing.rowPaddingX * 2))
+        + (showDetail ? Style.font.caption + Style.space(3) : 0)
+    }
+    return showDetail ? root.detailRowHeight : root.baseRowHeight
   }
 
   // Height the card can devote to rows before running off the screen — or
@@ -219,7 +257,7 @@ Item {
       var row = displayModel.get(i)
       if (i > 0) total += root.rowSpacing
       if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
-      total += root.rowHeightForDetail(row.detail)
+      total += root.rowHeightForDetail(row.detail, row.previewFont)
       previousSection = row.section
       totals.push(total)
     }
@@ -325,6 +363,7 @@ Item {
       script: "current=$(omarchy-font-current 2>/dev/null); omarchy-font-list 2>/dev/null | while read -r f; do [[ -z $f ]] && continue; printf '%s\\t%s\\t%s\\n' \"$f\" \"$f\" \"$current\"; done",
       icon: "",
       volatile: true,
+      previewFontFor: function(value) { return value },
       actionFor: function(value) { return "omarchy-font-set " + Util.shellQuote(value) }
     },
     "power-profiles": {
@@ -454,6 +493,8 @@ Item {
         parent: menuId,
         kind: "action",
         icon: (value === current) ? "✓" : (spec.icon || ""),
+        previewFont: spec.previewFontFor ? spec.previewFontFor(value) : "",
+        previewFontFile: "",
         label: label,
         title: "",
         target: "",
@@ -666,6 +707,8 @@ Item {
         kind: "dmenu",
         icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
         iconFont: "",
+        previewFont: "",
+        previewFontFile: "",
         appIcon: "",
         appId: "",
         label: label,
@@ -1478,6 +1521,8 @@ Item {
               required property string kind
               required property string icon
               required property string iconFont
+              required property string previewFont
+              required property string previewFontFile
               required property string appIcon
               required property string appId
               required property string label
@@ -1491,9 +1536,20 @@ Item {
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              readonly property bool hasPreview: row.previewFont.length > 0
+              readonly property bool previewReady: row.previewFontFile.length > 0
+                ? previewLoader.status === FontLoader.Ready
+                : row.hasPreview && Qt.fontFamilies().indexOf(row.previewFont) >= 0
+              readonly property string previewFamily: row.previewReady
+                ? (row.previewFontFile.length > 0 ? previewLoader.name : row.previewFont) : root.fontFamily
+
+              FontLoader {
+                id: previewLoader
+                source: row.previewFontFile ? root.omarchyPath + "/" + row.previewFontFile : ""
+              }
 
               width: ListView.view.width
-              height: root.rowHeightForDetail(row.detail)
+              height: root.rowHeightForDetail(row.detail, row.previewFont)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
@@ -1559,10 +1615,23 @@ Item {
                   textFormat: Text.PlainText
                   width: parent.width
                   text: row.label
+                  textFormat: Text.PlainText
                   color: row.hasCursor ? root.selectedText : root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.heading
-                  font.weight: Font.Medium
+                  font: row.hasPreview
+                    ? Qt.font({ family: row.previewFamily, pointSize: root.terminalFontPointSize, weight: Font.Normal })
+                    : Qt.font({ family: root.fontFamily, pixelSize: Style.font.heading, weight: Font.Medium })
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  width: parent.width
+                  visible: row.hasPreview
+                  textFormat: Text.PlainText
+                  text: row.previewReady ? "Aa Bb 0123456789 {} [] -> !=" : "Preview unavailable"
+                  color: row.hasCursor ? root.selectedText : root.foreground
+                  opacity: 0.75
+                  font.family: row.previewFamily
+                  font.pointSize: root.terminalFontPointSize
                   elide: Text.ElideRight
                 }
 

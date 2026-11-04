@@ -22,6 +22,19 @@ assertDeepEqual(
 assertEqual(menu.summonAction("omarchy-shell shell summon omarchy.speedtest && echo done"), null, 'menu leaves compound summon commands to bash')
 assertEqual(menu.summonAction(`omarchy-shell shell summon omarchy.x "$(id)"`), null, 'menu leaves shell-expanded payloads to bash')
 assertEqual(menu.summonAction("omarchy-theme-set nord"), null, 'menu leaves ordinary actions to bash')
+const terminalFont = requireFromRoot('shell/plugins/menu/TerminalFont.js')
+const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+
+assertEqual(terminalFont.pointSize('ghostty', '# font-size = 99\nfont-size = 10\n'), 10, 'preview reads Ghostty point size, not comments')
+assertEqual(terminalFont.pointSize('ghostty', 'font-size = 10\nfont-size = 12.5 # override'), 12.5, 'preview uses the last configured fractional size')
+assertEqual(terminalFont.pointSize('kitty', 'font_size   11.5'), 11.5, 'preview reads Kitty point size')
+assertEqual(terminalFont.pointSize('alacritty', '[window]\nsize = 99\n[font]\nsize = 10.5\n[other]\nsize = 42'), 10.5, 'preview reads only the Alacritty font section')
+assertEqual(terminalFont.pointSize('foot', '[main]\nfont=Example:size=12,Other:size=20\n[other]\nfont=Example:size=99'), 12, 'preview reads the primary Foot font size')
+assertEqual(terminalFont.pointSize('ghostty', 'font-size = 0\nfont-size = invalid'), 9, 'invalid or missing sizes fall back to the Omarchy default')
+assertEqual(terminalFont.configPath('ghostty'), 'ghostty/config', 'preview locates the default terminal configuration')
+assertEqual(terminalFont.configPath('unknown'), '', 'unsupported terminals have no guessed config path')
+assert(menuQml.includes('pointSize: root.terminalFontPointSize, weight: Font.Normal'), 'font names use their own family at terminal point size')
+assert(menuQml.includes('font.pointSize: root.terminalFontPointSize'), 'sample text uses terminal point size instead of shell caption pixels')
 
 const parsed = menu.parseMenuJsonc(`
 {
@@ -48,6 +61,8 @@ assertDeepEqual(
     kind: 'action',
     icon: '',
     iconFont: '',
+    previewFont: '',
+    previewFontFile: '',
     label: 'Themes',
     title: '',
     target: '',
@@ -136,6 +151,8 @@ assertDeepEqual(
     kind: 'action',
     icon: '',
     iconFont: '',
+    previewFont: '',
+    previewFontFile: '',
     appIcon: '',
     appId: '',
     label: 'Theme picker',
@@ -153,6 +170,31 @@ assertDeepEqual(
 
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
+
+const preview = menu.normalizeItem('font.example', {
+  label: 'Example', action: 'install-example', previewFont: 'Example Mono',
+  previewFontFile: 'default/fonts/previews/example.ttf'
+})
+const previewRow = menu.displayRow({ [preview.id]: preview }, [preview.id], {}, {}, preview, 'Fonts')
+assertEqual(previewRow.previewFont, 'Example Mono', 'menu carries preview font families')
+assertEqual(previewRow.previewFontFile, preview.previewFontFile, 'menu carries preview font files')
+assertEqual(previewRow.action, 'install-example', 'font previews do not change actions')
+assertEqual(previewRow.detail, 'Fonts', 'font previews preserve search paths')
+const specimens = JSON.parse(fs.readFileSync(path.join(root, 'default/fonts/previews/sources.json'), 'utf8'))
+const installFonts = defaultItems.filter(item => item.parent === 'install.style.font')
+assertEqual(installFonts.length, 6, 'all six installable fonts have specimens')
+for (const font of installFonts) {
+  assert(font.previewFont && font.action.includes(`'${font.previewFont}'`), `${font.id} previews its install family`)
+  const key = font.id.split('.').pop()
+  assertEqual(specimens[key].sourceFamily, font.previewFont, `${font.id} specimen matches its actual font family`)
+  const asset = fs.readFileSync(path.join(root, font.previewFontFile))
+  assertEqual(asset.readUInt32BE(0), 0x00010000, `${font.id} has a TrueType specimen`)
+  assert(asset.length < 100000, `${font.id} specimen is small`)
+  assert(fs.existsSync(path.join(root, `default/fonts/previews/${key}.LICENSE`)), `${font.id} includes its license`)
+}
+assert(menuQml.includes('previewFontFor: function(value) { return value }'), 'installed fonts preview their provider value')
+assert(menuQml.includes('height: root.rowHeightForDetail(row.detail, row.previewFont)'), 'delegate sizing accounts for previews')
+assert(menuQml.includes('total += root.rowHeightForDetail(row.detail, row.previewFont)'), 'list sizing accounts for previews')
 
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.
