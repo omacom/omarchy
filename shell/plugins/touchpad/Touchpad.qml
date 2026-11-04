@@ -62,7 +62,7 @@ Item {
   readonly property var apps: Model.appsOrDefault(doc.apps)
   readonly property var gestures: Model.gesturesOrDefault(doc.gestures.bindings, defaultGesturesOff)
   readonly property var gestureProblems: Model.gestureProblems(gestures, Commons.I18n.t, Commons.I18n.formatNumber)
-  readonly property var touchpadLive: Model.touchpadLive(live, doc.mouse)
+  readonly property var touchpadLive: Model.touchpadLive(live, doc.mouse, overrides.pointer)
   // Every page until the status says whether there is a touchpad, so a
   // laptop's window does not open on Mouse and then jump.
   readonly property var pages: Model.visiblePages(devices.length > 0 || !statusLoaded)

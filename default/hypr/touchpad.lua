@@ -1,4 +1,4 @@
--- Touchpad settings managed by Setup > Config > Touchpad (omarchy-setup-touchpad).
+-- Touchpad settings managed by Setup > Config > Mouse & Touchpad (omarchy-setup-touchpad).
 --
 -- The tool stores what the user changed in ~/.config/omarchy/touchpad.json.
 -- The file is data, never Lua: every key is checked against the schema below
@@ -89,8 +89,8 @@ M.mouse_schema = {
   scroll_factor = number(0.05, 5),
 }
 
--- What a touchpad keeps for a pointer option the mouse settings take over,
--- when it has no value of its own: Omarchy's defaults.
+-- The pointer options the mouse settings can take over from touchpads, with
+-- the value a touchpad keeps when nothing else gave one.
 M.pointer_defaults = {
   sensitivity = 0,
   accel_profile = "adaptive",
@@ -601,6 +601,33 @@ local function devices_with_connected(devices)
   return result
 end
 
+-- What touchpads ran before any mouse setting, read once per Lua state: the
+-- first apply runs at config load, after input.lua and before the mouse
+-- settings change the global options, so it sees input.lua's or Omarchy's
+-- value. A live re-apply keeps it, and a reload reads it again.
+local pointer_base = nil
+
+local function read_pointer_base()
+  if pointer_base then
+    return pointer_base
+  end
+
+  pointer_base = {}
+  for key, default in pairs(M.pointer_defaults) do
+    local ok, value = false, nil
+    if type(hl.get_config) == "function" then
+      ok, value = pcall(hl.get_config, "input." .. key)
+    end
+    -- An unset acceleration profile is libinput's default, adaptive.
+    if ok and type(value) == type(default) and value ~= "" then
+      pointer_base[key] = value
+    else
+      pointer_base[key] = default
+    end
+  end
+  return pointer_base
+end
+
 local function report(what, err)
   print("Touchpad settings: could not apply " .. what .. ": " .. tostring(err))
 end
@@ -609,6 +636,7 @@ function M.apply(path)
   local settings = M.read(path)
 
   remove_previous()
+  local base = read_pointer_base()
 
   local config = {}
   if next(settings.touchpad) or next(settings.mouse) then
@@ -627,12 +655,12 @@ function M.apply(path)
     end
   end
 
-  -- A pointer option set for mice is global, so each touchpad keeps its own.
-  -- One plugged in later has the mouse value until the next apply.
+  -- A pointer option set for mice is global, so each touchpad keeps what it
+  -- ran before. One plugged in later has the mouse value until the next apply.
   local pinned = {}
-  for key, value in pairs(M.pointer_defaults) do
+  for key in pairs(M.pointer_defaults) do
     if settings.mouse[key] ~= nil then
-      pinned[key] = value
+      pinned[key] = base[key]
     end
   end
 

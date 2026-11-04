@@ -95,6 +95,10 @@ hl = {
     print(("rule %s%s %s"):format(rule.match.class, title, rule.scroll_touchpad))
     return { set_enabled = function(_, on) print("rule-enabled " .. tostring(on)) end }
   end,
+  -- The global pointer options as input.lua left them, before any apply.
+  get_config = function(name)
+    return ({ ["input.sensitivity"] = 0.35, ["input.accel_profile"] = "", ["input.left_handed"] = false })[name]
+  end,
   dispatch = function() end,
   dsp = {
     focus = function(arg) return arg end,
@@ -406,20 +410,21 @@ pass "a default the user's input.lua unsets is neither unset again nor brought b
 
 # ---- mouse settings ----------------------------------------------------------
 
+# input.lua leaves the global speed at 0.35 (see run_apply's get_config).
 cat >"$tmpdir/mouse.json" <<'JSON'
 {
-  "touchpad": { "sensitivity": 0.4 },
   "mouse": { "sensitivity": -0.5, "accel_profile": "flat", "natural_scroll": true, "scroll_factor": 9, "tap_to_click": false },
-  "devices": { "elan-touchpad": {}, "apple-trackpad": { "accel_profile": "adaptive" } }
+  "devices": { "elan-touchpad": {}, "apple-trackpad": { "sensitivity": 0.1 } }
 }
 JSON
-mouse_output=$(run_apply "$tmpdir/mouse.json" | grep -v '^rule')
+mouse_output=$(run_apply "$tmpdir/mouse.json" 2 | grep -v '^rule')
 expected_mouse='config input.accel_profile=flat input.natural_scroll=true input.sensitivity=-0.5
-device accel_profile=adaptive name=apple-trackpad sensitivity=0.4
-device accel_profile=adaptive name=elan-touchpad sensitivity=0.4'
-[[ $mouse_output == "$expected_mouse" ]] ||
-  fail "mouse settings set the global pointer options and touchpads keep their own" "expected:"$'\n'"$expected_mouse"$'\n'"actual:"$'\n'"$mouse_output"
-pass "mouse settings set the global pointer options and touchpads keep their own"
+device accel_profile=adaptive name=apple-trackpad sensitivity=0.1
+device accel_profile=adaptive name=elan-touchpad sensitivity=0.35'
+[[ $mouse_output == "$expected_mouse"$'\n--\n'"$expected_mouse" ]] ||
+  fail "mouse settings set the global pointer options and touchpads keep what they ran before" "expected (twice):"$'\n'"$expected_mouse"$'\n'"actual:"$'\n'"$mouse_output"
+pass "mouse settings set the global pointer options and touchpads keep what they ran before"
+pass "a live re-apply pins touchpads to what they ran before the mouse settings, not to the mouse's"
 
 # ---- Model.js and touchpad.lua stay in sync -----------------------------------
 
@@ -573,7 +578,8 @@ assertEqual(overrides.gestures, 1, 'input.lua gestures are counted')
 assertEqual(overrides.appScroll, true, 'input.lua per-app scroll rules are detected')
 const template = require('fs').readFileSync(require('path').join(root, 'config/hypr/input.lua'), 'utf8')
 assertDeepEqual(overrides.mouse, { sensitivity: true }, 'input.lua pointer settings are detected for the mouse')
-assertDeepEqual(model.userOverrides(template), { touchpad: {}, mouse: {}, gestureSettings: {}, gestures: 0, appScroll: false }, 'the stock input.lua template overrides nothing')
+assertDeepEqual(overrides.pointer, { sensitivity: 0.35 }, 'input.lua pointer values are read for the touchpads')
+assertDeepEqual(model.userOverrides(template), { touchpad: {}, mouse: {}, pointer: {}, gestureSettings: {}, gestures: 0, appScroll: false }, 'the stock input.lua template overrides nothing')
 
 // ---- labels resolve through the shell catalog ----
 const english = JSON.parse(require('fs').readFileSync(require('path').join(root, 'default/i18n/en/shell.json'), 'utf8'))
@@ -619,7 +625,8 @@ assertDeepEqual(
   { accel_profile: 'flat', natural_scroll: true },
   'a pointer option the mouse sets is not shown as the touchpad running it'
 )
-assertEqual(model.effective('sensitivity', {}, model.touchpadLive({ sensitivity: 0.5 }, { sensitivity: 0.5 })), 0, 'a touchpad pinned away from the mouse speed shows the default')
+assertEqual(model.effective('sensitivity', {}, model.touchpadLive({ sensitivity: 0.5 }, { sensitivity: 0.5 }, {})), 0, 'a touchpad pinned away from the mouse speed shows the default')
+assertEqual(model.effective('sensitivity', {}, model.touchpadLive({ sensitivity: 0.5 }, { sensitivity: 0.5 }, { sensitivity: 0.35 })), 0.35, 'a touchpad pinned away from the mouse speed shows the speed input.lua gave it')
 assertDeepEqual(model.visiblePages(false).map(page => page.id), ['mouse'], 'without a touchpad only the mouse page shows')
 
 // ---- labels ----

@@ -543,11 +543,14 @@ function effective(key, saved, live, specs) {
 
 // The running values a touchpad follows. A pointer option the Mouse page sets
 // is global, so the running value is the mouse's, while touchpads are pinned
-// to their own; drop it so the touchpad shows its own value or the default.
-function touchpadLive(live, mouse) {
+// to what they ran before: input.lua's value, or the default.
+function touchpadLive(live, mouse, inputPointer) {
   var result = {}
-  for (var key in (isObject(live) ? live : {})) {
-    if (!(SETTINGS[key] && SETTINGS[key].pointer && isObject(mouse) && mouse[key] !== undefined)) result[key] = live[key]
+  var source = isObject(live) ? live : {}
+  for (var key in source) {
+    var taken = SETTINGS[key] && SETTINGS[key].pointer && isObject(mouse) && mouse[key] !== undefined
+    if (!taken) result[key] = source[key]
+    else if (isObject(inputPointer) && inputPointer[key] !== undefined) result[key] = inputPointer[key]
   }
   return result
 }
@@ -582,6 +585,25 @@ function blockAfter(text, pattern) {
   return text.slice(start)
 }
 
+// Literal values set at the top level of a block: numbers, strings, booleans.
+function topLevelValues(block) {
+  var values = {}
+  var depth = 0
+  var pattern = /([{}])|\b([a-z_0-9]+)\s*=(?!=)\s*(true|false|-?\d+(?:\.\d+)?|"[^"]*"|'[^']*')?/g
+  var match
+  while ((match = pattern.exec(block)) !== null) {
+    if (match[1] === "{") depth++
+    else if (match[1] === "}") depth--
+    else if (depth === 0 && match[3] !== undefined) {
+      var text = match[3]
+      if (text === "true" || text === "false") values[match[2]] = text === "true"
+      else if (text[0] === '"' || text[0] === "'") values[match[2]] = text.slice(1, -1)
+      else values[match[2]] = Number(text)
+    }
+  }
+  return values
+}
+
 function topLevelKeys(block) {
   var keys = {}
   var depth = 0
@@ -603,11 +625,18 @@ function userOverrides(text) {
   var code = stripLuaComments(text)
   var touchpad = topLevelKeys(blockAfter(code, /\btouchpad\s*=\s*\{/))
   var gestureSettings = topLevelKeys(blockAfter(code, /\bgestures\s*=\s*\{/))
-  var input = topLevelKeys(blockAfter(code, /\binput\s*=\s*\{/))
-  var result = { touchpad: {}, mouse: {}, gestureSettings: {}, gestures: 0, appScroll: false }
+  var inputBlock = blockAfter(code, /\binput\s*=\s*\{/)
+  var input = topLevelKeys(inputBlock)
+  var inputValues = topLevelValues(inputBlock)
+  var result = { touchpad: {}, mouse: {}, pointer: {}, gestureSettings: {}, gestures: 0, appScroll: false }
 
   for (var option in input) {
     if (MOUSE_SETTINGS[option]) result.mouse[option] = true
+  }
+  for (var name in inputValues) {
+    if (SETTINGS[name] && SETTINGS[name].pointer && name !== "scroll_method" && validValue(SETTINGS[name], inputValues[name])) {
+      result.pointer[name] = inputValues[name]
+    }
   }
   for (var key in touchpad) {
     if (SETTINGS[key] && !SETTINGS[key].pointer) result.touchpad[key] = true
