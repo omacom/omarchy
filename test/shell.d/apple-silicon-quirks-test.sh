@@ -70,14 +70,12 @@ output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-keyboard
 [[ $output == *omarchy-mac* ]] || fail "omarchy keyboard toprow says why it refuses Apple Silicon" "$output"
 pass "Apple Silicon keeps its own keyboard mode"
 
-# The Windows guest is x86_64, so every other CPU refuses it before it touches
-# anything, Apple Silicon or not.
-for machine in aarch64 armv7l; do
-  output=$(UNAME_M=$machine APPLE_SILICON=0 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" install 2>&1) &&
-    fail "Windows VM install fails on $machine"
-  [[ $output == *"needs an x86_64 machine"* ]] || fail "Windows VM says why it refuses on $machine" "$output"
-done
-pass "Windows VM refuses every CPU but x86_64"
+# The Windows guest matches the host CPU, so a CPU with no native Windows build
+# refuses it before it touches anything.
+output=$(UNAME_M=armv7l APPLE_SILICON=0 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" install 2>&1) &&
+  fail "Windows VM install fails on armv7l"
+[[ $output == *"needs an x86_64 or aarch64 machine"* ]] || fail "Windows VM says why it refuses on armv7l" "$output"
+pass "Windows VM refuses CPUs without a native Windows guest"
 
 # The firmware boot entry and hibernation are refused or skipped on Apple
 # Silicon before they touch anything.
@@ -90,7 +88,9 @@ output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-hibernat
   fail "hibernation setup stops before its own checks on Apple Silicon" "$output"
 pass "direct boot and hibernation step aside on Apple Silicon"
 
-# On x86_64 the Windows VM goes on to its own commands, as before.
-output=$(UNAME_M=x86_64 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" help 2>&1) || true
-[[ $output != *"x86_64 machine"* && $output == *"install"* ]] || fail "Windows VM runs as before on x86_64" "$output"
-pass "Windows VM runs as before on x86_64"
+# On x86_64 and aarch64 the Windows VM goes on to its own commands.
+for machine in x86_64 aarch64; do
+  output=$(UNAME_M=$machine PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" help 2>&1) || true
+  [[ $output != *"aarch64 machine"* && $output == *"install"* ]] || fail "Windows VM runs on $machine" "$output"
+done
+pass "Windows VM runs on x86_64 and aarch64"
