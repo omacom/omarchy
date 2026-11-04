@@ -12,7 +12,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 # ---- json.lua ---------------------------------------------------------------
 
-json_cases=$(ROOT="$ROOT" lua <<'LUA'
+json_cases=$(ROOT="$ROOT" lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 local json = require("default.hypr.json")
 
@@ -66,7 +66,7 @@ run_apply() {
   local times="${2:-1}"
 
   ROOT="$ROOT" SETTINGS="$file" TIMES="$times" INPUT_DEVICES="${INPUT_DEVICES:-$tmpdir/no-input-devices}" \
-    INPUT_CLASS="$tmpdir/sys-class-input" UDEV_DATA="$tmpdir/udev-data" lua <<'LUA'
+    INPUT_CLASS="$tmpdir/sys-class-input" UDEV_DATA="$tmpdir/udev-data" lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 
 local function flat(value, prefix, out)
@@ -260,7 +260,7 @@ JSON
 
 # watch() runs before the user's files and apply() after them, as
 # default/hypr/omarchy.lua and default/hypr/toggles.lua do.
-precedence_output=$(ROOT="$ROOT" SETTINGS="$tmpdir/winner.json" lua <<'LUA'
+precedence_output=$(ROOT="$ROOT" SETTINGS="$tmpdir/winner.json" lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 hl = {
   config = function(config)
@@ -328,7 +328,7 @@ pass "touchpad settings apply after input.lua, and gesture watching starts befor
 
 # ---- Model.js and touchpad.lua stay in sync -----------------------------------
 
-lua_lists=$(ROOT="$ROOT" lua <<'LUA'
+lua_lists=$(ROOT="$ROOT" lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 hl = {}
 local touchpad = require("default.hypr.touchpad")
