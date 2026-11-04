@@ -20,6 +20,32 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  // Coming back from a video, the layer fades in over OWE's last frames,
+  // which stay up until OWE parks, instead of cutting from wherever the
+  // video had moved to.
+  property real resumeOpacity: 1
+  onSuspendedChanged: {
+    resumeFade.stop()
+    if (suspended) wasLoop = isLoop(currentBackground)
+    resumeOpacity = suspended || wasLoop ? 1 : 0
+  }
+  // A theme loop starts on its still, so the still and the loop meet on the
+  // same picture, and turned off it gives way at once, like any motion with
+  // animations off. Either way this layer cuts instead of fading: a fade
+  // would blur the loop's first moving frames, and would start from nothing
+  // whenever OWE has already gone, as it has at logout.
+  property bool wasLoop: false
+  property string lastLoop: ""
+  // Anything else taking a loop's place, a video of the user's own or another
+  // still, comes back with the ordinary fade, since it is a different picture.
+  onCurrentBackgroundChanged: {
+    if (isLoop(currentBackground)) {
+      wasLoop = true
+      lastLoop = currentBackground
+    } else if (suspended && (isVideo(currentBackground) || !isStillOf(currentBackground, lastLoop))) {
+      wasLoop = false
+    }
+  }
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -46,6 +72,8 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  // The ordinary slanted reveal is under way; a theme loop waits for it.
+  readonly property bool revealing: revealProgress < 1
   readonly property bool ready: {
     if (isVideo(displayedBackground)) return true
     if (backgrounds.instances.length === 0) return false
@@ -64,7 +92,14 @@ Item {
   }
 
   function refreshBackground() {
-    if (!readlinkProc.running) readlinkProc.running = true
+    // A refresh asked for while the link is read runs once that read is done,
+    // since the link may have moved after the read began.
+    if (readlinkProc.running) {
+      readlinkProc.again = true
+      return
+    }
+    readlinkProc.forVersion = backgroundVersion
+    readlinkProc.running = true
   }
 
   // The desktop must never be left without a wallpaper. A path that stops
@@ -119,11 +154,23 @@ Item {
     failedBackground = ""
     revealStartedVersion = -1
 
+    if (!suspended && isLoop(path)) {
+      loopSuspendCheck.tries = 0
+      loopSuspendCheck.restart()
+    }
+
     // OWE draws a video background and fades the last still into it. That
     // still stays on screen until OWE has the first frame and suspends this
     // layer, so the desktop does not show an empty background meanwhile. A
     // running reveal finishes on its incoming still, which OWE fades from.
     if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+    // A theme loop is its still moving, so the still stays here behind it,
+    // ready for whenever OWE goes: a loop turned off, OWE restarting, a logout.
+    // A shell started while a loop plays has no still yet, so it looks one up.
+    if (isLoop(path)) {
+      if (isStillOf(displayedBackground, path)) return
+      lookUpLoopStill(path)
+    }
 
     revealAnimation.stop()
     revealGraceTimer.stop()
@@ -131,7 +178,9 @@ Item {
 
     // Video frames are not fed through the image-only reveal stack. Switching
     // instantly also avoids decoding two full videos during a transition.
-    if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground)) {
+    // Nor is there anything to reveal coming back to the still already showing,
+    // and the softer incoming frame would stay up in its place.
+    if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground) || path === displayedBackground) {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
@@ -289,9 +338,16 @@ Item {
 
   Process {
     id: readlinkProc
+    // A background set while the link was read is newer than what it found.
+    property int forVersion: -1
+    property bool again: false
+    onExited: if (again) {
+      again = false
+      Qt.callLater(root.refreshBackground)
+    }
     command: ["readlink", "-f", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: if (readlinkProc.forVersion === root.backgroundVersion) root.setBackground(String(text || "").trim(), false)
     }
   }
 
@@ -308,6 +364,86 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: root.finishRecovery(text)
     }
+  }
+
+  Process {
+    id: loopStillProc
+    property string loop: ""
+    // The loop changed while this ran; look again once it has exited.
+    property bool again: false
+    onExited: if (again) {
+      again = false
+      Qt.callLater(root.lookUpLoopStill, root.currentBackground)
+    }
+    command: ["omarchy-theme-bg-loop-apply", "--still", loop]
+    stdout: StdioCollector {
+      onStreamFinished: root.showLoopStill(text)
+    }
+  }
+
+  // OWE tells the shell to step aside when it starts drawing a video, but
+  // only once: a shell started while a loop plays, as after a restart, is
+  // never told (OWE's call fails while the old shell is gone), and its still
+  // would cover the loop for good. OWE sends nothing a new shell could wait
+  // for, so with no word from it shortly after a loop arrives, the shell asks,
+  // a few times while OWE is still getting to the loop. It runs only after a
+  // loop arrives, never while idle.
+  Timer {
+    id: loopSuspendCheck
+    property int tries: 0
+    interval: 1500
+    onTriggered: {
+      if (root.suspended || !root.isLoop(currentBackground)) return
+      tries += 1
+      oweStatusProc.running = true
+    }
+  }
+
+  Process {
+    id: oweStatusProc
+    command: ["owe", "status"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        let status = {}
+        try { status = JSON.parse(text) } catch (error) { return }
+        if (status.engine === "renderer" && status.media_ready && status.loaded_path === root.currentBackground) root.suspended = true
+        else if (loopSuspendCheck.tries < 4) loopSuspendCheck.restart()
+      }
+    }
+  }
+
+  // A theme loop is a video in a backgrounds/loops folder; the lookup below
+  // finds its still, and finds none for a video of the user's own there.
+  function isLoop(path) {
+    return isVideo(path) && path.includes("/backgrounds/loops/")
+  }
+
+  // backgrounds/loops/NAME.mp4 belongs to backgrounds/NAME.<any image type>.
+  function isStillOf(still, loop) {
+    if (!still || isVideo(still)) return false
+    const stem = p => p.replace(/\.[^./]+$/, "")
+    return stem(still) === stem(loop).replace("/backgrounds/loops/", "/backgrounds/")
+  }
+
+  // A lookup that ends after the loop has changed again looks up the new one.
+  function showLoopStill(still) {
+    still = String(still || "").trim()
+    if (isStillOf(still, currentBackground)) {
+      requestNativeSize(still)
+      displayedBackground = still
+    } else if (currentBackground !== loopStillProc.loop && isLoop(currentBackground) &&
+               !isStillOf(displayedBackground, currentBackground)) {
+      // The output can arrive after the process has exited, too late for its
+      // exit to look again, so look now if it has.
+      if (loopStillProc.running) loopStillProc.again = true
+      else Qt.callLater(root.lookUpLoopStill, currentBackground)
+    }
+  }
+
+  function lookUpLoopStill(loop) {
+    if (loopStillProc.running) return
+    loopStillProc.loop = loop
+    loopStillProc.running = true
   }
 
   ShellIpc {
@@ -366,6 +502,15 @@ Item {
   }
 
   NumberAnimation {
+    id: resumeFade
+    target: root
+    property: "resumeOpacity"
+    to: 1
+    duration: Style.duration(root.wasLoop ? 0 : 250)
+    easing.type: Easing.OutCubic
+  }
+
+  NumberAnimation {
     id: revealAnimation
     target: root
     property: "revealProgress"
@@ -421,6 +566,20 @@ Item {
       FrameAnimation {
         running: base.ready && panel.readyFrames < 2
         onTriggered: panel.readyFrames += 1
+      }
+
+      // A surface mapped this moment has drawn nothing yet, so the fade starts
+      // on its frames rather than when it is asked to show.
+      FrameAnimation {
+        running: panel.visible && base.ready && root.resumeOpacity < 1 && !resumeFade.running
+        onTriggered: if (currentFrame >= 2) resumeFade.restart()
+      }
+
+      // On the whole layer: a reveal draws its own frames over the base image.
+      Binding {
+        target: panel.contentItem
+        property: "opacity"
+        value: root.resumeOpacity
       }
 
       // Decode the wallpaper at the size this screen can show, not the size
