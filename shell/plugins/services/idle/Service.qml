@@ -315,7 +315,14 @@ Item {
     onExited: function(exitCode, exitStatus) {
       root.logEvent("process-exit", "screensaver-inhibit exitCode=" + exitCode + " status=" + exitStatus)
       root.appInhibitors = []
+      screensaverInhibitRestart.restart()
     }
+  }
+
+  Timer {
+    id: screensaverInhibitRestart
+    interval: 5000
+    onTriggered: screensaverInhibitService.running = true
   }
 
   Process {
