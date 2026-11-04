@@ -10,9 +10,6 @@ for state_home in "$HOME/.local/state" "${XDG_STATE_HOME:-}"; do
   [[ -f $gaps_file ]] || continue
 
   if grep -q '[[:space:]]*border_size[[:space:]]*=[[:space:]]*0' "$gaps_file"; then
-    sed -i '/[[:space:]]*border_size[[:space:]]*=[[:space:]]*0,\?/d' "$gaps_file"
-    sed -i 's/-- Remove all window gaps and borders\./-- Remove all window gaps\./' "$gaps_file"
-
     borders_file="$toggles_dir/window-no-borders.lua"
     if [[ ! -f $borders_file ]]; then
       source_toggle="${OMARCHY_PATH:-/usr/share/omarchy}/default/hypr/toggles/window-no-borders.lua"
@@ -29,6 +26,9 @@ hl.config({
 EOF
       fi
     fi
+
+    sed -i '/[[:space:]]*border_size[[:space:]]*=[[:space:]]*0,\?/d' "$gaps_file"
+    sed -i 's/-- Remove all window gaps and borders\./-- Remove all window gaps\./' "$gaps_file"
   fi
 done
 
