@@ -79,6 +79,12 @@ assertDeepEqual(
   'agents panel still reads a window out of a label that carries no title'
 )
 
+assertEqual(
+  limitWindows({ limits: [{ label: 'Monthly', percent: 0.08, resetsAt: '' }] })[0].spanMs,
+  0,
+  'a calendar month has no fixed length, so it gets no pace'
+)
+
 const resetAt = new Date(panelRoot.nowMs + 1000).toISOString()
 const measured = { limits: [{ label: 'Session (5-hour)', percent: 0.78, resetsAt: resetAt }] }
 assertEqual(limitWindows(measured)[0].percent, 0.78, 'usage remains until the reset time')

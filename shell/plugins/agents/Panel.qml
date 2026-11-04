@@ -717,6 +717,11 @@ Panel {
       || text.indexOf("month") >= 0 || text.indexOf("30-day") >= 0
   }
 
+  function windowIsMonthly(label) {
+    var text = String(label || "").toLowerCase()
+    return text.indexOf("month") >= 0 || text.indexOf("30-day") >= 0
+  }
+
   function windowSpanMs(label) {
     var text = String(label || "").toLowerCase()
     if (text.indexOf("month") >= 0 || text.indexOf("30-day") >= 0) return 30 * 24 * 3600 * 1000
@@ -747,9 +752,10 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
-      // A collector-stated title means the label is a model name, which
-      // the length can't be read from; no length, no pace.
-      spanMs: String(title || "") !== "" ? 0 : windowSpanMs(label),
+      // No length, no pace: a collector-stated title means the label is a
+      // model name, and a calendar month is 28 to 31 days, not the 30 the
+      // label reads as.
+      spanMs: String(title || "") !== "" || windowIsMonthly(label) ? 0 : windowSpanMs(label),
       resetAt: expired ? "" : String(resetAt || "")
     }
   }
