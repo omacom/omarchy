@@ -24,17 +24,34 @@ program was working on when it died, which is often the whole answer.
 crashes of the same program, or several programs dying together, point somewhere
 different than a single failure does.
 
-**Check whether it was traced.** `TracerPid:` in the `/proc` status that
-`coredumpctl info` records names any strace, gdb or other ptrace tracer attached
-at the time. A traced process was already being debugged by someone, and the
+**Check whether it was traced.** systemd-coredump saves the process's `/proc`
+status with the crash, but `coredumpctl info` does not print it. Read it from
+the journal entry instead:
+
+```bash
+journalctl -n 1 -o cat --output-fields=COREDUMP_PROC_STATUS \
+  MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1 COREDUMP_PID=<pid>
+```
+
+A non-zero `TracerPid:` there names the strace, gdb or other ptrace tracer that
+was attached. A traced process was already being debugged by someone, and the
 tracer can be the cause: some programs assert by breakpoint only when they see a
 debugger, which turns a warning they would otherwise log into a fatal SIGTRAP.
-A SIGTRAP is in any case a deliberate `int3` or breakpoint, not memory
-corruption, so look for the assertion or check that executed it.
 
-**Check whether it was sandboxed.** An `NSpid:` line with more than one value, a
-`container=` variable in the core's environment, or a binary path that does not
-exist on the host means the process ran in its own namespaces (bwrap, Flatpak,
+**Treat a SIGTRAP as a lead, not a verdict.** Most are a deliberate `int3` from
+an assertion or check, but `kill -TRAP` sends one from outside, a tracer that
+died can leave a breakpoint behind in the code, and a jump through corrupt
+memory can land on the `int3` padding compilers put between functions. Before
+blaming an assertion, read the `si_code` on the `Signal:` line of `coredumpctl
+info` (`SI_KERNEL` for an `int3` on x86, `SI_USER` or `SI_TKILL` for a signal
+something sent), the instruction at the crashing address, and the stack that led
+there. A trap just after a call and a conditional branch, inside a function, is
+a check that fired; one in a run of padding is a wild jump.
+
+**Check whether it was sandboxed.** An `NSpid:` line with more than one value in
+that same status, a `container=` variable in the core's environment
+(`COREDUMP_ENVIRON`, read the same way), or a binary path that does not exist on
+the host means the process ran in its own namespaces (bwrap, Flatpak,
 pressure-vessel). Its paths and PIDs are its own. Map them to the host through
 the `Control Group` and `Unit` that `coredumpctl info` shows: `systemd-cgls -u
 <unit>` lists what is still running there, and a bwrap command line spells out
