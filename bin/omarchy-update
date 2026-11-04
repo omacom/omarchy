@@ -100,10 +100,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
 
-  # Migrations call into the shell over IPC, and the running one still has the
-  # code from before this update: its hot reload fires while the files are
-  # still being replaced and can settle on a mix of old and new. A function
-  # added since then answers "Function not found." and stops the whole queue.
+  # Migrations call the shell over IPC, so give them one running current code.
   if omarchy-migrate --pending >/dev/null; then
     omarchy-restart-shell || true
   fi
