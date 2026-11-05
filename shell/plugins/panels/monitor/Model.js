@@ -87,7 +87,7 @@ function availableScales(scales, width, height) {
 var RESOLUTION_LIMIT = 5
 var RESOLUTION_MIN_HEIGHT = 1080
 
-function resolutionOptions(availableModes, width, height) {
+function resolutionOptions(availableModes, width, height, name) {
   if (!Array.isArray(availableModes)) return []
 
   var sizes = {}
@@ -103,10 +103,18 @@ function resolutionOptions(availableModes, width, height) {
   if (all.length === 0) return []
   all.sort(function(a, b) { return b.w * b.h - a.w * a.h || b.w - a.w })
 
+  // A virtual display advertises sizes larger than any real screen behind it, so
+  // its largest mode isn't its native one. Take the mode it lists first instead,
+  // with the standard 16:9 sizes, so there's always a way back to a normal one.
+  var isVirtual = /^Virtual-/.test(String(name || ""))
+  var firstMode = /^(\d+x\d+)@/.exec(String(availableModes[0]))
+  var preferred = firstMode ? firstMode[1] : ""
   var native = all[0]
   var aspect = native.w / native.h
   var options = all.filter(function(size) {
-    return size.h >= RESOLUTION_MIN_HEIGHT && Math.abs(size.w / size.h - aspect) < 0.01
+    if (size.h < RESOLUTION_MIN_HEIGHT) return false
+    if (isVirtual) return size.w + "x" + size.h === preferred || Math.abs(size.w / size.h - 16 / 9) < 0.01
+    return Math.abs(size.w / size.h - aspect) < 0.01
   }).slice(0, RESOLUTION_LIMIT).map(function(size) { return size.w + "x" + size.h })
 
   var current = Number(width) + "x" + Number(height)
