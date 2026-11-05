@@ -79,9 +79,13 @@ ShellRoot {
     panel.testKeys.moveRequested(0, 1)
     check(panel.focusSection === "interfaces", "down from portal reaches interfaces without a band section")
     panel.testKeys.moveRequested(0, 1)
+    check(panel.focusSection === "interfaces" && panel.interfaceIndex === 1, "down reaches the second interface before DNS")
+    panel.testKeys.moveRequested(0, 1)
     check(panel.focusSection === "dns", "down from the last interface reaches DNS")
     panel.testKeys.moveRequested(0, -1)
     check(panel.focusSection === "interfaces", "up from DNS reaches interfaces")
+    panel.testKeys.moveRequested(0, -1)
+    check(panel.focusSection === "interfaces" && panel.interfaceIndex === 0, "up traverses the first interface before portal")
     panel.testKeys.moveRequested(0, -1)
     check(panel.focusSection === "portal", "up from the first interface reaches portal")
     panel.bandAvailable = ["2.4", "5"]
@@ -129,6 +133,39 @@ ShellRoot {
   function disconnectedChecks() {
     check(panel.kind === "disconnected" && !panel.hasCaptivePortal, "disconnect clears stale portal")
     check(!panel.testButton.visible && panel.icon === "󰤮", "disconnected icon not portal icon")
+    if (failed) { Qt.quit(); return }
+    panel.showInterfaces("ethernet")
+    Qt.callLater(interfaceKeyboardChecks)
+  }
+
+  function interfaceKeyboardChecks() {
+    var row = panel.testInterfaceRows.itemAt(1)
+    check(panel.testInterfaceRows.count === 2, "both native-model interface rows are rendered")
+    if (!row) { Qt.quit(); return }
+    check(row.visible && row.device === NetworkMock.wired && row.selected, "the unplugged wired row receives the keyboard cursor")
+    panel.testKeys.moveRequested(1, 0)
+    check(row.testConfigureButton.hasCursor, "the rendered Configure button has the visible cursor")
+    panel.testKeys.activateRequested()
+    check(row.pending === "configure", "Enter starts configuration from the highlighted button")
+    editorDone.start()
+  }
+
+  Timer {
+    id: editorDone
+    interval: 50
+    repeat: true
+    property int attempts: 0
+    onTriggered: {
+      var row = panel.testInterfaceRows.itemAt(1)
+      if (row && row.pending !== "" && ++attempts < 100) return
+      stop()
+      test.check(row && row.pending === "" && row.failure === "", "the unplugged editor action completes successfully")
+      test.check(!panel.opened, "opening the editor relinquishes panel keyboard focus")
+      test.finishChecks()
+    }
+  }
+
+  function finishChecks() {
     if (failed) { Qt.quit(); return }
     console.log("RESULT pass")
     var preview = Quickshell.env("NETWORK_TEST_PREVIEW")

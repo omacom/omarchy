@@ -76,7 +76,11 @@ source = source.replace('  id: root', `  id: root
   property alias testMeta: heroMeta
   property alias testTitle: heroSsid
   property alias testPoll: connectivityPoll
-  property alias testBarButton: button`)
+  property alias testBarButton: button
+  property alias testInterfaceRows: interfaceRepeater`)
+source = source.replace('    id: interfaceRow', `    id: interfaceRow
+    property alias testConfigureButton: configureButton`)
+source = source.replace('        text: "Configure"', '        id: configureButton\n        text: "Configure"')
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
 printf '#!/bin/bash\nexit 0\n' > "$stage/bin/noop"
@@ -90,11 +94,22 @@ printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type
 chmod +x "$stage/bin/omarchy-network-status"
 printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
 chmod +x "$stage/bin/omarchy-launch-browser"
+cat > "$stage/bin/nmcli" <<'BASH'
+#!/bin/bash
+if [[ $* == "-g GENERAL.CON-UUID device show test-wired" ]]; then
+  printf '%s\n' --
+else
+  exit 64
+fi
+BASH
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_EDITOR_LOG"\n' > "$stage/bin/omarchy-launch-floating-terminal-with-presentation"
+chmod +x "$stage/bin/nmcli" "$stage/bin/omarchy-launch-floating-terminal-with-presentation"
 
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
 output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
   NETWORK_TEST_BROWSER_LOG="$stage/browser.log" \
+  NETWORK_TEST_EDITOR_LOG="$stage/editor.log" \
   timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "network portal fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "network portal runtime assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
@@ -102,4 +117,6 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
 fi
 [[ -f $stage/browser.log ]] || fail "portal action launches the browser"
 [[ $(<"$stage/browser.log") == "http://ping.archlinux.org/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
-pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"
+[[ -f $stage/editor.log ]] || fail "keyboard activation opens the unplugged interface editor"
+[[ $(<"$stage/editor.log") == "nmtui edit" ]] || fail "an unplugged interface opens the profile chooser"
+pass "network portal, recovery, disabled checks, outage, disconnect, rendered interface keyboard actions, and browser argv work in QML"
