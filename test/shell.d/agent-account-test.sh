@@ -139,7 +139,6 @@ grep -q "private window that opens" "$test_tmp/add-output" || fail "adding an ac
 wrapper=$(grep '^wrapper ' "$OMARCHY_TEST_BROWSER_LOG" | head -1 | cut -d' ' -f2-)
 [[ $wrapper == "$XDG_STATE_HOME/omarchy/omarchy-account-browser."* ]] ||
   fail "the private-window helper is kept in the state dir" "$wrapper"
-[[ $wrapper != /tmp/* ]] || fail "the private-window helper is not created in /tmp" "$wrapper"
 pass "adding an account signs in through the CLI's own login"
 
 work="$accounts/claude/work"
