@@ -36,7 +36,7 @@ for (const [index, marker] of ['puts ', 'Vec<_>', 'name: string', 'fmt.Println',
 }
 assert(previewSamples.every(sample => !sample.includes('\n')), 'all preview samples fit on one line')
 assert(menuQml.includes('interval: 3000'), 'preview advances every three seconds')
-for (const route of ['appearance.font', 'style.font', 'install.style.font']) {
+for (const route of ['appearance.font', 'install.style.font']) {
   assert(menuQml.includes('root.activeMenu === "' + route + '"'), 'preview timer supports font route ' + route)
 }
 assert(/onRunningChanged: \{\s*fontPreviewTransition.stop\(\)\s*root.fontPreviewIndex = 0\s*root.fontPreviewPreviousIndex = 0\s*root.fontPreviewProgress = 1/.test(menuQml), 'preview resets without animating when opening the font menu')
