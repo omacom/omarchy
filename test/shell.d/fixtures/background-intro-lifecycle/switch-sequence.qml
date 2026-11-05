@@ -47,6 +47,11 @@ ShellRoot {
   Process { id: readLink; command: ["readlink", test.link]; stdout: StdioCollector { id: linkOut } }
   function linkTarget() { return String(linkOut.text || "").trim() }
 
+  function reloadLogged() {
+    logView.reload()
+    return String(logView.text()).split("\n").indexOf("reload") !== -1
+  }
+
   // Observe each handoff before issuing the next change: a slow image decode
   // must not accidentally turn an ordinary change into a queued selection.
   readonly property var steps: [
@@ -107,8 +112,13 @@ ShellRoot {
                  "a theme switch hands its intro over")
     } },
     { until: function() { return intro.themeToken === "" && !intro.revealing && !sw.reloadPending },
-      waitFor: "the theme intro, reveal and reload", run: function() {
-      test.check(intro.themeToken === "" && !sw.reloadPending, "the theme switch has revealed and reloaded")
+      waitFor: "the theme intro, reveal and reload request", run: function() {
+      test.check(intro.themeToken === "" && !sw.reloadPending, "the theme switch has revealed and requested its reload")
+    } },
+    // reloadPending clears when the lock is taken, before its child runs.
+    // Give the reload its own bounded wait for completion before quitting.
+    { until: function() { return test.reloadLogged() },
+      waitFor: "the completed Hyprland reload", run: function() {
       console.log("SNAPSHOT " + test.snapshotSeen)
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()

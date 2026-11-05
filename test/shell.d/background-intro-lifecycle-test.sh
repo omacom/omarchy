@@ -101,6 +101,8 @@ echo '{"bool":true}'
 SH
 cat >"$switch/bin/omarchy-restart-hyprctl" <<'SH'
 #!/bin/bash
+# Taking the lock starts the reload; its completion must be observed later.
+sleep 1
 printf 'reload\n' >>"$SWITCH_LOG"
 SH
 chmod +x "$switch/bin/"*
