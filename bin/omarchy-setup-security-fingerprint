@@ -147,16 +147,21 @@ if ! omarchy-hw-fingerprint; then
 fi
 
 
-# Check for any valid libfprint provider. If a user with custom hardware has
-# already provisioned a foreign vendor-specific driver (e.g., libfprint-tod),
-# we only install the remaining framework packages to avoid dependency breaks.
-# Otherwise, we default to libfprint-git, where --ask 4 seamlessly replaces 
-# stock libfprint in a single transaction.
-if omarchy-pkg-missing libfprint fprintd usbutils; then
-  echo "Installing required packages..."
+# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
+# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
+# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
+# one transaction, so a failed install leaves the existing driver in place.
+# We explicitly exempt foreign providers (e.g., libfprint-tod from AUR) from
+# this replacement path to prevent breaking vendor-specific downstream packages.
+if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   if pacman -Qqm libfprint &>/dev/null; then
-    sudo pacman -S --needed --noconfirm -- fprintd usbutils
+    # Only notify if missing framework packages actually need to be provisioned
+    if omarchy-pkg-missing fprintd usbutils; then
+      echo "Installing required framework packages..."
+      sudo pacman -S --needed --noconfirm -- fprintd usbutils
+    fi
   else
+    echo "Installing required packages..."
     sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
   fi
 fi
