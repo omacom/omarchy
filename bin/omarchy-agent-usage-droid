@@ -496,33 +496,33 @@ def collect_limits(force: bool) -> dict[str, Any]:
   return result
 
 
-def session_times() -> dict[str, int]:
+def session_times() -> tuple[dict[str, int], bool]:
   if not INDEX_DB.is_file():
-    return {}
+    return {}, True
   try:
     connection = sqlite3.connect(f"file:{INDEX_DB}?mode=ro", uri=True, timeout=1)
     try:
       rows = connection.execute("select session_id, last_event_at from sessions").fetchall()
     finally:
       connection.close()
-  except sqlite3.Error as exc:
+  except (sqlite3.Error, OSError) as exc:
     warn(f"could not read Droid's session index ({exc})")
-    return {}
+    return {}, False
   times = {}
   for session_id, last_event_at in rows:
     if isinstance(session_id, str) and session_id:
       times[session_id] = number(last_event_at)
-  return times
+  return times, True
 
 
-def prompt_count(settings_path: Path) -> int:
+def prompt_count(settings_path: Path) -> tuple[int, bool]:
   """Typed user messages in the session transcript, never their text."""
   transcript = settings_path.with_name(settings_path.name.removesuffix(".settings.json") + ".jsonl")
   if not transcript.is_file():
-    return 0
+    return 0, True
   count = 0
   try:
-    with transcript.open(encoding="utf-8") as handle:
+    with transcript.open(encoding="utf-8", errors="replace") as handle:
       for line in handle:
         try:
           event = json.loads(line)
@@ -537,17 +537,19 @@ def prompt_count(settings_path: Path) -> int:
         if not message.get("userMessageSource"):
           continue
         count += 1
-  except OSError:
-    return 0
-  return count
+  except (OSError, UnicodeError):
+    return 0, False
+  return count, True
 
 
 def scan_sessions() -> tuple[dict[str, Any], bool]:
   stats = Stats()
   complete = True
-  times = session_times()
+  times, times_ok = session_times()
+  if not times_ok:
+    complete = False
   if not SESSIONS_DIR.is_dir():
-    return stats.snapshot(), True
+    return stats.snapshot(), times_ok
 
   for path in sorted(SESSIONS_DIR.rglob("*.settings.json")):
     try:
@@ -572,7 +574,9 @@ def scan_sessions() -> tuple[dict[str, Any], bool]:
     total = input_tokens + output_tokens + thinking_tokens + cache_read + cache_write
 
     session_id = path.name.removesuffix(".settings.json")
-    prompts = prompt_count(path)
+    prompts, prompts_ok = prompt_count(path)
+    if not prompts_ok:
+      complete = False
     if total <= 0 and prompts <= 0:
       continue
 
