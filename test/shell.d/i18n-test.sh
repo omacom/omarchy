@@ -265,6 +265,7 @@ assertEqual([0, 1, 2, 3, 11, 100].map((n) => Plural.category('ar', n)).join(), '
 assertEqual(Plural.category('fr', 1000000), 'many', 'French millions take their own form')
 assertEqual(Plural.categories('ja').join(), 'other', 'Japanese has one form')
 assertEqual(Plural.categories('pl').join(), 'one,few,many,other', 'Polish needs one, few, many, and other')
+assertEqual([0, 1, 2, 11, 99, 100].map((n) => Plural.category('zgh', n)).join(), 'one,one,other,one,one,other', 'Tamazight counts take one and other')
 assertEqual(Plural.pick({ one: '%1 file', other: '%1 files' }, 'en', 1), '%1 file', 'pick chooses the form for the count')
 assertEqual(Plural.pick({ other: '%1 files' }, 'ru', 2), '%1 files', 'a missing form falls back to other')
 assertEqual(Plural.pick('plain', 'ru', 2), 'plain', 'a plain string ignores the count')
