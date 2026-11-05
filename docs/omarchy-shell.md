@@ -135,9 +135,32 @@ or `omarchy.power`. There is no `bar` target.
 answer on stdout with exit 0 — `ok` on success, `unknown` or an error
 string on a miss.
 
-The `omarchy.clipboard` target exposes `pickTextHistory <token>`. Use a fresh token of 32 lowercase hexadecimal digits. Before calling, listen on the Unix socket `$XDG_RUNTIME_DIR/omarchy-clipboard-pick-<token>.sock` with owner-only permissions. The call returns `ok` when the request starts, or `invalid`, `unavailable`, or `busy`. The picker opens after connecting to the socket.
+The `omarchy.clipboard` target exposes `pickTextHistory <token>`.
+Use a fresh token of 32 lowercase hexadecimal digits. Before calling,
+listen on the owner-only Unix socket
+`$XDG_RUNTIME_DIR/omarchy-clipboard-pick-<token>.sock`. Use this
+route within the same user session. The token identifies the request.
 
-Enter or a click returns one UTF-8 JSON line with `{"state":"selected","text":"…"}` and closes the connection. The picker offers text entries of up to 8192 UTF-16 code units. It excludes files, images and text containing NUL. Escape, a standard Clipboard open, or the two-minute deadline returns `{"state":"cancelled"}`. The matching `cancelTextHistory <token>` call also cancels the active picker. Treat a failed connection or an incomplete frame as cancellation. Close and remove the socket after use. This route leaves the system clipboard unchanged.
+The call returns `ok` when the request starts. This does not confirm
+the socket connection. Other results are `invalid`, `unavailable`
+or `busy`. Ordinary Clipboard and an active picker both make a
+request busy. The slot stays busy during connection and reply drain.
+If history is still loading, the request is unavailable. Try again.
+
+Enter, a click, or the accessible selection action returns one UTF-8
+JSON line with `{"state":"selected","text":"…"}` and closes the
+connection. The picker offers text up to 8192 UTF-16 code units. It
+excludes images, entries Clipboard recognizes as files, blank text and
+text containing NUL. The list stays stable until the request ends.
+
+Escape, a backdrop click, an ordinary Clipboard open, or the two-minute
+deadline cancels the picker. Use
+`omarchy.clipboard cancelTextHistory <token>` for IPC cancellation.
+It returns `ok` for a matching active request or `unknown` otherwise.
+Cancellation returns `{"state":"cancelled"}` when connected. Use a
+deadline when you wait for the connection or reply. Treat a failed
+connection or incomplete line as cancellation. Close and remove the
+socket after use. The picker leaves the system clipboard unchanged.
 
 ## shell.json
 

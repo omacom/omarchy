@@ -195,6 +195,7 @@
   },
   "clipboard.image": "Image",
   "clipboard.imageFrom": "Image from %1",
+  "clipboard.noPickableText": "No selectable text in clipboard history",
   "clipboard.pickText": "Choose text from clipboard history",
   "clipboard.screenshotFrom": "Screenshot from %1",
   "clipboard.search": "Search clipboard…",

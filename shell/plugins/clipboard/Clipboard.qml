@@ -17,7 +17,10 @@ Item {
   property int selectedIndex: 0
   property bool cursorActive: false
   property bool clearConfirmOpen: false
+  property bool historyReady: false
   property var history: []
+  property var pickHistory: []
+  readonly property var displayedHistory: pickingText ? pickHistory : history
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
@@ -77,7 +80,8 @@ Item {
 
   function loadHistory(raw) {
     root.history = ClipboardHistory.parseHistory(raw)
-    if (root.opened) root.rebuildDisplay()
+    root.historyReady = true
+    if (root.opened && !root.pickingText) root.rebuildDisplay()
   }
 
   function saveHistory() {
@@ -90,7 +94,7 @@ Item {
 
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
     root.saveHistory()
-    if (root.opened) root.rebuildDisplay()
+    if (root.opened && !root.pickingText) root.rebuildDisplay()
   }
 
   function addClipboardJson(line) {
@@ -140,7 +144,7 @@ Item {
   }
 
   function rebuildDisplay() {
-    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber, root.pickingText)
+    var rows = ClipboardHistory.displayRows(root.displayedHistory, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber, root.pickingText)
 
     displayModel.clear()
     for (var i = 0; i < rows.length; i++) {
@@ -214,7 +218,7 @@ Item {
     if (index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
     if (root.pickingText) {
-      var entry = root.history[row.historyIndex]
+      var entry = root.displayedHistory[row.historyIndex]
       if (pickReply.item && row.entryType === "text" && ClipboardHistory.pickableText(entry))
         pickReply.item.finish(entry.text)
     } else {
@@ -268,7 +272,8 @@ Item {
     function pickTextHistory(token: string): string {
       if (!/^[0-9a-f]{32}$/.test(token)) return "invalid"
       if (!pickReply.runtimeDir) return "unavailable"
-      if (pickReply.token) return "busy"
+      if (root.opened || pickReply.token) return "busy"
+      if (!root.historyReady) return "unavailable"
       pickReply.token = token
       if (!pickReply.item) {
         pickReply.token = ""
@@ -307,7 +312,9 @@ Item {
         if (root.pickingText) {
           root.opened = false
           root.pickingText = false
+          root.pickHistory = []
           root.filterText = ""
+          displayModel.clear()
         }
         if (connected) {
           write(JSON.stringify(text === null ? { state: "cancelled" } : { state: "selected", text: text }) + "\n")
@@ -325,6 +332,8 @@ Item {
           finish(null)
           Qt.callLater(pickReply.clear, reply)
         } else if (!finished) {
+          // History updates replace the array. Keep the picker rows stable until it closes.
+          root.pickHistory = root.history
           root.pickingText = true
           root.clearConfirmOpen = false
           root.show()
@@ -707,7 +716,13 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.history.length === 0 ? Commons.I18n.t("clipboard.empty") : Commons.I18n.t("common.noMatchesFor").arg(root.filterText)
+              text: {
+                if (root.pickingText && !root.filterText.trim()) return Commons.I18n.t("clipboard.noPickableText")
+                if (root.displayedHistory.length === 0) return Commons.I18n.t("clipboard.empty")
+                return Commons.I18n.t("common.noMatchesFor").arg(root.filterText)
+              }
+              Accessible.role: root.pickingText ? Accessible.StaticText : Accessible.NoRole
+              Accessible.name: root.pickingText ? text : ""
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
