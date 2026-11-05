@@ -25,12 +25,12 @@ fi
 sudo flock /run/lock/boot-partition.lock bash -c '
   conf=$1
   grep -Eqi "^[[:space:]]*(timeout|quiet):" "$conf" && exit 0
+  # Both lines in one rewrite, so an interrupted run leaves neither.
   if grep -Eqi "^[[:space:]]*#timeout:" "$conf"; then
-    sed -i -E "s/^[[:space:]]*#timeout:.*/timeout: 1/I" "$conf"
+    sed -i -E "0,/^[[:space:]]*#timeout:.*/I s//timeout: 1\nquiet: yes/" "$conf"
   else
-    sed -i "1i timeout: 1" "$conf"
+    sed -i "1i timeout: 1\nquiet: yes" "$conf"
   fi
-  sed -i -E "/^[[:space:]]*timeout:/I a quiet: yes" "$conf"
   grep -Eqi "^[[:space:]]*timeout:" "$conf" && grep -Eqi "^[[:space:]]*quiet:" "$conf"
 ' _ "$limine_conf" || {
   echo "Could not set the quiet boot menu in $limine_conf; it will be retried on the next update" >&2
