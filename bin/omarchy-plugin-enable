@@ -17,10 +17,27 @@ fail() {
 # so a listing cannot hijack the terminal.
 print_post_enable() {
   local id="$1"
-  local manifest text
-  manifest=$(omarchy-plugin-catalog | jq -r --arg id "$id" '
-    map(select(.id == $id))[0].manifestPath // empty
-  ') || return 0
+  local manifest text user_dir sub
+  manifest=""
+  # The shell keeps the last user directory for an id. The catalog keeps
+  # the first, so a note from the catalog can describe the other checkout.
+  # omarchy.* is reserved, and that note still comes from the catalog.
+  if [[ $id != omarchy.* ]]; then
+    user_dir="$HOME/.config/omarchy/plugins"
+    if [[ -d $user_dir ]]; then
+      for sub in "$user_dir"/*/; do
+        [[ -f ${sub}manifest.json ]] || continue
+        if jq -e --arg id "$id" '.id == $id' "${sub}manifest.json" >/dev/null; then
+          manifest="${sub}manifest.json"
+        fi
+      done
+    fi
+  fi
+  if [[ -z $manifest ]]; then
+    manifest=$(omarchy-plugin-catalog | jq -r --arg id "$id" '
+      map(select(.id == $id))[0].manifestPath // empty
+    ') || return 0
+  fi
   [[ -n ${manifest:-} && -f $manifest ]] || return 0
   text=$(jq -r '.postEnable | select(type == "string") | .[0:2000] | gsub("[^\\P{Cc}\\t\\n]"; "")' "$manifest") || return 0
   [[ -n $text ]] || return 0

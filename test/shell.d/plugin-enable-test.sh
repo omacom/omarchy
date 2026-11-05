@@ -130,3 +130,26 @@ cap_out=$(run_enable acme.cap)
 [[ $cap_out != *TAIL* ]] ||
   fail "plugin enable did not cap postEnable at 2000 characters" "$cap_out"
 pass "plugin enable caps postEnable at 2000 characters"
+
+same_manifest() {
+  local dir="$1" note="$2"
+  mkdir -p "$dir"
+  jq -n --arg note "$note" '{
+    schemaVersion: 1,
+    id: "acme.same",
+    name: "Same",
+    version: "1.0.0",
+    kinds: ["bar-widget"],
+    entryPoints: { barWidget: "Widget.qml" },
+    postEnable: $note
+  }' >"$dir/manifest.json"
+  printf 'import QtQuick\nItem {}\n' >"$dir/Widget.qml"
+}
+same_manifest "$TMPDIR/home/.config/omarchy/plugins/aaa.same" "from the earlier folder"
+same_manifest "$TMPDIR/home/.config/omarchy/plugins/zzz.same" "from the later folder"
+same_out=$(run_enable acme.same)
+[[ $same_out == *"from the later folder"* ]] ||
+  fail "plugin enable prints postEnable from the last directory with that id" "$same_out"
+[[ $same_out != *"from the earlier folder"* ]] ||
+  fail "plugin enable printed postEnable from the earlier directory" "$same_out"
+pass "plugin enable prints postEnable from the last directory with that id"
