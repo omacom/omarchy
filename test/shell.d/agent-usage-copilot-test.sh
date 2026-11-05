@@ -414,6 +414,19 @@ read = {name: meter(copilot(routes=routes)) for name, routes in shapes.items()}
 expect("an upstream allowance is used by what it has left",
        read, {name: {"limits": [["Monthly allowance", 0.25, True]], "stale": False, "status": "", "retry": False, "tier": "Pro"} for name in shapes}, read)
 
+# Copilot Free reports copilot_plan "individual" like Pro; its SKU names the
+# plan, and with no premium requests its meters are chat and completions.
+free = quota("individual", 0, 0, remaining=0)
+del free["quota_snapshots"]["premium_interactions"]["credits_used"]
+free["access_type_sku"] = "free_limited_copilot"
+free["quota_snapshots"] |= {
+  "chat": {"entitlement": 200, "remaining": 150, "unlimited": False},
+  "completions": {"entitlement": 2000, "remaining": 2000, "unlimited": False},
+}
+record = copilot(routes={QUOTA_URL: free})
+expect("a Copilot Free account is labeled Free and metered on chat and completions", meter(record),
+       {"limits": [["Monthly chat", 0.25, True], ["Monthly completions", 0.0, True]], "stale": False, "status": "", "retry": False, "tier": "Free"}, record)
+
 # A reset date that can't be read is no reset date, both live and once kept.
 damaged_reset = quota("individual", 300, 30)
 damaged_reset["quota_reset_date_utc"] = "\u00b2"
