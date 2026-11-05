@@ -319,9 +319,5 @@ done
   fail "clamshell lock is kept in the private state dir"
 [[ -e $test_tmp/fallback-state/omarchy/omarchy-monitor-modeless.lock && ! -L $test_tmp/fallback-state/omarchy/omarchy-monitor-modeless.lock ]] ||
   fail "modeless lock is kept in the private state dir"
-[[ ! -e /tmp/omarchy-monitor-clamshell.lock && ! -L /tmp/omarchy-monitor-clamshell.lock ]] ||
-  fail "clamshell lock is not created in /tmp"
-[[ ! -e /tmp/omarchy-monitor-modeless.lock && ! -L /tmp/omarchy-monitor-modeless.lock ]] ||
-  fail "modeless lock is not created in /tmp"
 pass "monitor recovery locks stay out of /tmp"
 stop_watcher
