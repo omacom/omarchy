@@ -194,3 +194,26 @@ run_steps "fresh rates are not fetched again" '[
   ["3 mxn to usd","ready","0.15"]
 ]'
 assert_requests 'jsdelivr.*mxn.min.json' 1 "rates within their lifetime stay cached"
+
+# The real menu around the lookup. Actions run through a login bash, which would
+# put the real wl-copy back on PATH without this.
+wl_copy_log="$QML_FIXTURE_TMP/wl-copy.log"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$wl_copy_log" >"$QML_FIXTURE_TMP/bin/wl-copy"
+printf '#!/bin/bash\n[[ ${1:-} == "-lc" ]] && shift && set -- -c "$@"\nexec /bin/bash "$@"\n' >"$QML_FIXTURE_TMP/bin/bash"
+chmod +x "$QML_FIXTURE_TMP/bin/wl-copy" "$QML_FIXTURE_TMP/bin/bash"
+mkdir -p "$QML_FIXTURE_TMP/home/.config/omarchy/extensions"
+cat >"$QML_FIXTURE_TMP/home/.config/omarchy/extensions/omarchy-menu.jsonc" <<'JSONC'
+{
+  "jpynotes": {"label": "7 jpy to usd notes", "action": "true"},
+  "cadnotes": {"label": "7 cad to usd notes", "action": "true"},
+}
+JSONC
+
+: >"$curl_log"
+CURL_MODE=menu run_qml_fixture menu-answers "the menu shows, selects and copies answers" Commons Ui
+if grep -Fxq -- '-- 42' "$wl_copy_log"; then
+  pass "the copy button copies the bare answer"
+else
+  fail "the copy button copies the bare answer" "$(cat "$wl_copy_log" 2>/dev/null)"
+fi
+assert_requests 'settings\|zip' 0 "the menu keeps search text out of its requests"
