@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "DockModel.js" as DockModel
 
 // Every app on one grid. Type to narrow it, arrows to move, Enter to launch.
 Item {
@@ -47,7 +48,7 @@ Item {
   readonly property int cellGutter: Style.spacing.sm
   readonly property int tilePaddingY: Style.spacing.xl
   readonly property int cellWidth: Math.round(iconSize * 2.2)
-  readonly property int cellHeight: cellGutter * 2 + tilePaddingY * 2 + iconSize + labelGap + labelHeight
+  readonly property int cellHeight: DockModel.gridCellHeight(root.cellGutter, root.tilePaddingY, root.iconSize, root.labelGap, root.labelHeight)
   readonly property int maxColumns: 7
   readonly property int visibleRows: 4
   readonly property int borderWidth: Math.max(1, Style.space(2))
@@ -172,15 +173,7 @@ Item {
 
     var row = Math.floor(index / root.columns)
     var lastRow = Math.floor((root.apps.length - 1) / root.columns)
-    if (row < lastRow) {
-      var maxY = Math.max(grid.originY, grid.originY + grid.contentHeight - grid.height)
-      var overhang = item.y + item.height + root.rowPeek - (grid.contentY + grid.height)
-      if (overhang > 0) grid.contentY = Math.min(grid.contentY + overhang, maxY)
-    }
-    if (row > 0) {
-      var underhang = grid.contentY - (item.y - root.rowPeek)
-      if (underhang > 0) grid.contentY = Math.max(grid.contentY - underhang, grid.originY)
-    }
+    grid.contentY = DockModel.gridPeekedContentY(grid, item, root.rowPeek, row < lastRow, row > 0)
   }
 
   function setFilter(text) {
@@ -211,16 +204,8 @@ Item {
   function selectRows(rows) {
     var count = root.apps.length
     if (count === 0) return
-    var row = Math.floor(root.selectedIndex / root.columns)
-    var target = root.selectedIndex + rows * root.columns
-    if (target < 0) {
-      if (row === 0) return
-      target = root.selectedIndex % root.columns
-    } else if (target > count - 1) {
-      if (row >= Math.floor((count - 1) / root.columns)) return
-      target = count - 1
-    }
-    root.selectIndex(target)
+    var next = DockModel.gridStepRows(root.selectedIndex, count, root.columns, rows)
+    if (next !== root.selectedIndex) root.selectIndex(next)
   }
 
   function selectFromPointer(index, item, mouse) {
@@ -481,7 +466,7 @@ Item {
                 x: root.cellGutter
                 y: root.cellGutter
                 width: cell.width - root.cellGutter * 2
-                height: root.tilePaddingY * 2 + root.iconSize + root.labelGap + Math.ceil(label.contentHeight)
+                height: DockModel.gridTileHeight(root.tilePaddingY, root.iconSize, root.labelGap, label.contentHeight)
                 radius: Style.cornerRadius
                 color: cell.selected ? Commons.Color.menu.selectedBackground : "transparent"
               }
@@ -504,7 +489,7 @@ Item {
                 scale: cellMouse.pressed && !cell.moved ? 0.92 : 1
                 Behavior on scale {
                   id: pressScale
-                  NumberAnimation { duration: Style.duration(pressScale.targetValue < 1 ? 80 : 140); easing.type: Easing.OutCubic }
+                  NumberAnimation { duration: Style.duration(pressScale.targetValue < 1 ? 80 : 140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
                 }
               }
 
