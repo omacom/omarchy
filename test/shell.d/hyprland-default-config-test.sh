@@ -190,11 +190,11 @@ mkdir -p "$scratchpad_home"
 scratchpad_output=$(run_omarchy_bindings "$scratchpad_home")
 grep -Fqx $'SUPER + S	Toggle scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing toggle binding"
-grep -Fqx $'SUPER + grave	Toggle Quake console' <<<"$scratchpad_output" ||
+grep -Fqx $'SUPER + code:49	Toggle Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own toggle binding"
 grep -Fqx $'SUPER + ALT + S	Move window to scratchpad' <<<"$scratchpad_output" ||
   fail "scratchpad keeps its existing move binding"
-grep -Fqx $'SUPER + SHIFT + grave	Move window to Quake console' <<<"$scratchpad_output" ||
+grep -Fqx $'SUPER + SHIFT + code:49	Move window to Quake console' <<<"$scratchpad_output" ||
   fail "Quake console has its own move binding"
 pass "scratchpad and Quake console have separate bindings"
 
