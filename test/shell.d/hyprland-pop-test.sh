@@ -6,13 +6,14 @@ require_command lua
 
 OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "a window moved to another monitor lands on screen there"
 local handlers, timers, dispatched, landed = {}, {}, {}, nil
+local config = { ["general.border_size"] = 2 }
 
 hl = {
   on = function(event, callback) handlers[event] = callback end,
   timer = function(callback, opts) table.insert(timers, { run = callback, opts = opts }) end,
   dispatch = function(dispatcher) table.insert(dispatched, dispatcher) end,
   get_window = function() return landed end,
-  get_config = function(key) return key == "general.border_size" and 2 or nil end,
+  get_config = function(key) return config[key] end,
   plugin = {},
   dsp = {
     window = {
@@ -58,6 +59,12 @@ assert(#moved == 1 and moved[1].move.x == 1898 and moved[1].move.y == 1028 and m
 
 moved = move({ at = { x = 1080, y = 600 }, size = { x = 2400, y = 1400 } }, portrait, landscape)
 assert(moved[1].move.x == 1082 and moved[1].move.y == 712, "a window larger than the screen keeps its top-left corner on it, below the bar")
+
+-- A floating workspace draws its titlebar above the window, outside its position.
+hl.plugin.hyprbars, config["plugin.hyprbars.bar_height"] = {}, 30
+moved = move({ tags = { "omarchy-floating-workspace" }, at = { x = 1500, y = 600 } }, portrait, landscape)
+assert(moved[1].move.x == 1500 and moved[1].move.y == 742, "a window with a titlebar lands with the titlebar below the bar")
+hl.plugin.hyprbars, config["plugin.hyprbars.bar_height"] = nil, nil
 
 assert(#move({ at = { x = 1500, y = 800 } }, portrait, landscape) == 0, "a window already on screen stays where it landed")
 assert(#move({ at = { x = 2121, y = 2243 }, fullscreen = 1 }, portrait, landscape) == 0, "a maximized window is left to Hyprland")
