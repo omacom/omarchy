@@ -47,8 +47,9 @@ fi
 exit "${DICTATION_EXIT:-0}"
 SH
 done
-# Like Hex: control commands exit 3 until `hex start` brings it up, and
-# `stop --print` hands back the transcript instead of pasting it.
+# Like Hex: control commands exit 3 until `hex start` brings it up,
+# `status` is text unless asked for `--json`, and `stop --print` hands back
+# the transcript instead of pasting it.
 export HEX_STATE="$test_tmp/hex-state"
 echo listening > "$HEX_STATE"
 cat > "$test_tmp/bin/hex" <<'SH'
@@ -60,8 +61,14 @@ elif [[ $1 == "start" ]]; then
   echo listening > "$HEX_STATE"
 elif [[ ! -e $HEX_STATE ]]; then
   exit 3
+elif [[ $* == "status --json" ]]; then
+  if [[ $(< "$HEX_STATE") == "dictating" ]]; then
+    echo '{"capture":{"state":"recording","recording":"dictation"}}'
+  else
+    echo '{"capture":{"state":"idle","recording":null}}'
+  fi
 elif [[ $1 == "status" ]]; then
-  printf '{"desktop":{"activity":{"state":"%s"}}}\n' "$(< "$HEX_STATE")"
+  echo "Capture      $(< "$HEX_STATE")"
 elif [[ $* == "dictation start" ]]; then
   echo dictating > "$HEX_STATE"
 elif [[ $* == "dictation stop --print" ]]; then

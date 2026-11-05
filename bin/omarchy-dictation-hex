@@ -7,8 +7,9 @@
 not_running=3
 no_speech=4
 
-hex_state() {
-  hex status 2>/dev/null | jq -r '.desktop.activity.state // empty'
+# Plain `hex status` is text; `--json` names what Hex is capturing.
+hex_capture() {
+  hex status --json 2>/dev/null | jq -r '.capture.recording // empty'
 }
 
 start() {
@@ -25,7 +26,7 @@ start() {
 # and let Omarchy type it into whatever is focused.
 stop() {
   local text result
-  if omarchy-cmd-missing hex || [[ $(hex_state) != "dictating" ]]; then
+  if omarchy-cmd-missing hex || [[ $(hex_capture) != "dictation" ]]; then
     return 0
   fi
   text=$(hex dictation stop --print)
@@ -41,7 +42,7 @@ case "${1:-}" in
   start) start ;;
   stop) stop ;;
   toggle)
-    if [[ $(hex_state) == "dictating" ]]; then
+    if [[ $(hex_capture) == "dictation" ]]; then
       stop
     else
       start
