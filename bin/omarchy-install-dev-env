@@ -6,6 +6,8 @@
 # omarchy:examples=omarchy install dev-env ruby | omarchy install dev-env node
 # omarchy:requires-sudo=true
 
+set -e
+
 if [[ -z $1 ]]; then
   echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>" >&2
   exit 1
@@ -107,7 +109,8 @@ rust)
   # Crates that generate C bindings with bindgen, including Ruby gems built
   # with rb-sys, load libclang from clang.
   omarchy-pkg-add clang
-  bash -c "$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)" -- -y
+  rustup_init=$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)
+  bash -c "$rustup_init" -- -y
   ;;
 java)
   echo -e "Installing Java...\n"
@@ -120,7 +123,8 @@ zig)
   ;;
 ocaml)
   echo -e "Installing OCaml...\n"
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)"
+  opam_install=$(curl -fsSL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)
+  bash -c "$opam_install"
   opam init --yes
   eval "$(opam env)"
   opam install ocaml-lsp-server odoc ocamlformat utop --yes

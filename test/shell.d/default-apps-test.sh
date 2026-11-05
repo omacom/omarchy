@@ -44,6 +44,11 @@ printf 'sudo:%s\n' "$*" >>"$OMARCHY_TEST_SETUP_LOG"
 [[ ${OMARCHY_TEST_SETUP_FAIL:-} != "sudo" ]]
 SH
 
+cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_INSTALL_FAIL:-false} != "true" ]]
+SH
+
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 case $1 in
@@ -236,6 +241,15 @@ grep -Fxq 'omarchy-theme-set-browser:' "$setup_log" ||
   fail "Chromium browser installer applies the current theme"
 pass "Chromium browser installer restores the complete Omarchy setup"
 
+if ((EUID != 0)); then
+  chmod a-w "$test_home/.config/chromium-flags.conf"
+  if bash "$ROOT/bin/omarchy-install-chromium-google-account" >"$test_tmp/google-account-failure" 2>&1; then
+    fail "Chromium account setup returns an error when it cannot write the flags"
+  fi
+  chmod u+w "$test_home/.config/chromium-flags.conf"
+  pass "Chromium account setup reports a flags file it cannot write"
+fi
+
 : >"$install_log"
 : >"$setup_log"
 rm -f "$installed_dir/firefox"
@@ -321,3 +335,10 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+for browser in chrome edge brave brave-origin; do
+  if OMARCHY_TEST_INSTALL_FAIL=true bash "$ROOT/bin/omarchy-remove-browser" "$browser" >"$test_tmp/remove-browser-failure" 2>&1; then
+    fail "removing $browser returns an error when its package removal fails"
+  fi
+done
+pass "browser removal reports a failed package removal"

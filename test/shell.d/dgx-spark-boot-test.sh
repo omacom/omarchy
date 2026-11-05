@@ -156,3 +156,22 @@ status=0
 TEST_EFIBOOTMGR_STATUS=1 numbers 'Boot0002* Omarchy' >/dev/null || status=$?
 (( status == 2 )) || fail "--number reports an unreadable EFI list"
 pass "the Direct Boot helper names the Omarchy entry for Setup > Direct Boot"
+
+# Setup > Direct Boot reads the fixed firmware paths; point a copy at fixtures.
+mkdir -p "$scratch/firmware/efi" "$scratch/direct-boot/bin"
+printf 'EDK II\n' >"$scratch/firmware/bios_vendor"
+sed -e "s|/sys/firmware/efi|$scratch/firmware/efi|" -e "s|/sys/class/dmi/id/bios_vendor|$scratch/firmware/bios_vendor|" \
+  "$ROOT/bin/omarchy-setup-direct-boot" >"$scratch/direct-boot/setup"
+cat >"$scratch/direct-boot/bin/efibootmgr" <<'SH'
+#!/bin/bash
+[[ " $* " != *" --delete-bootnum "* ]] || exit 5
+printf '%b\n' "Boot0002* Omarchy\t$TEST_UKI_PATH"
+SH
+printf '#!/bin/bash\nexec "$@"\n' >"$scratch/direct-boot/bin/sudo"
+printf '#!/bin/bash\nexit 0\n' >"$scratch/direct-boot/bin/gum"
+chmod +x "$scratch/direct-boot/bin"/*
+if TEST_UKI_PATH="$uki_path" PATH="$scratch/direct-boot/bin:$scratch/bin:$ROOT/bin:$PATH" \
+  bash "$scratch/direct-boot/setup" >/dev/null 2>&1; then
+  fail "Direct Boot returns an error when it cannot remove the entry"
+fi
+pass "Direct Boot reports an entry it cannot remove"

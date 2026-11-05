@@ -2,6 +2,8 @@
 
 # omarchy:summary=Allow Chromium to sign in to Google accounts by adding the required OAuth credentials
 
+set -e
+
 if [[ -f ~/.config/chromium-flags.conf ]]; then
   echo "Installing Chromium Google account support..."
   CONF=~/.config/chromium-flags.conf

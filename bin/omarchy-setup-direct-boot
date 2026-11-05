@@ -41,8 +41,6 @@ if [[ -n $boot_num ]]; then
     echo "Removing EFI boot entry $boot_num"
     sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null
   fi
-
-  exit 0
 else
   uki_file=$(sudo find /boot/EFI/Linux/ -name "omarchy*.efi" -printf "%f\n" 2>/dev/null | head -1)
 

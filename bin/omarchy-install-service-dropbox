@@ -3,11 +3,13 @@
 # omarchy:summary=Install and start the Dropbox service. Must then be authenticated via the web.
 # omarchy:requires-sudo=true
 
+set -e
+
 echo "Installing all dependencies..."
 omarchy-pkg-add dropbox dropbox-cli libappindicator python-gpgme nautilus-dropbox
 
 echo "Adding Dropbox to the bar..."
-omarchy-plugin-enable omarchy.dropbox
+omarchy-plugin-enable omarchy.dropbox || true
 
 echo "Starting Dropbox..."
 uwsm-app -- dropbox-cli start &>/dev/null &
