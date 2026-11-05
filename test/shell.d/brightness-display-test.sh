@@ -220,3 +220,14 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+fallback_home="$test_tmp/fallback-home"
+mkdir -p "$fallback_home"
+env -u XDG_RUNTIME_DIR HOME="$fallback_home" XDG_STATE_HOME="$test_tmp/fallback-state" \
+  CALL_LOG="$call_log" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  "$brightness_display" --no-osd --monitor eDP-1 +5%
+lock="$test_tmp/fallback-state/omarchy/omarchy-brightness-display.lock"
+[[ -e $lock && ! -L $lock ]] || fail "display brightness lock is kept in the private state dir"
+[[ ! -e /tmp/omarchy-brightness-display.lock && ! -L /tmp/omarchy-brightness-display.lock ]] ||
+  fail "display brightness lock is not created in /tmp"
+pass "display brightness lock stays out of /tmp"
