@@ -360,7 +360,7 @@ require = function(name, ...)
   if not package.loaded[name] then
     local base = tostring(name):gsub("%.", "/")
     for template in string.gmatch(package.path, "[^;]+") do
-      local candidate = template:gsub("%?", base)
+      local candidate = template:gsub("%?", function() return base end)
       note(candidate)
       local found = io.open(candidate, "r")
       if found then
