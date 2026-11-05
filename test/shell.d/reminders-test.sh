@@ -32,3 +32,31 @@ assertDeepEqual(
   'reminders command args are empty for invalid minutes'
 )
 JS
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/bin" "$work/home"
+for command in omarchy-i18n omarchy-notification-send omarchy-shell systemd-run systemctl jq; do
+  printf '#!/bin/bash\nexit 0\n' >"$work/bin/$command"
+done
+cat >"$work/bin/date" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "-d" ]]; then
+  printf '12:00\n'
+  exit 0
+fi
+exec /bin/date "$@"
+SH
+chmod +x "$work/bin"/*
+
+env -u XDG_RUNTIME_DIR HOME="$work/home" XDG_STATE_HOME="$work/state" \
+  PATH="$work/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-reminder" 5 "oven check" >/dev/null
+message=$(find "$work/state/omarchy/omarchy-reminders" -name '*.message' -print -quit)
+[[ -n $message && ! -L $message && $(cat "$message") == "oven check" ]] ||
+  fail "reminder text is stored in the private state dir"
+[[ $(stat -f %Lp "$message") == "600" || $(stat -c %a "$message" 2>/dev/null) == "600" ]] ||
+  fail "reminder text is not readable by other accounts"
+[[ ! -e /tmp/omarchy-reminders && ! -L /tmp/omarchy-reminders ]] ||
+  fail "reminder text is not stored in /tmp"
+pass "reminder text stays out of /tmp"

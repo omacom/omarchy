@@ -39,13 +39,34 @@ refresh_indicator() {
   omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true
 }
 
+# Reminder text used to live at a fixed name in /tmp. Another local account can
+# create that directory first, read the messages, or point the files at
+# something this user can write. Keep them in a mode-0700 directory.
+reminder_state_dir() {
+  local parent dir
+
+  if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+    parent=$XDG_RUNTIME_DIR
+  else
+    parent=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy
+    mkdir -p "$parent" || return 1
+    chmod 700 "$parent" || return 1
+  fi
+
+  dir=$parent/omarchy-reminders
+  mkdir -p "$dir" || return 1
+  chmod 700 "$dir" || return 1
+  printf '%s\n' "$dir"
+}
+
 open_interactive() {
   omarchy-shell shell summon omarchy.reminders "{}"
 }
 
 show_reminders() {
   local timer next remaining reminder reminder_minutes body=""
-  local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
+  local reminder_dir
+  reminder_dir=$(reminder_state_dir) || return 1
   local reminder_message=""
   local now=$(date +%s)
 
@@ -70,7 +91,8 @@ show_reminders() {
 
 show_json() {
   local timer next remaining reminder reminder_minutes unit reminder_message label item_json reminders_json="[]"
-  local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
+  local reminder_dir
+  reminder_dir=$(reminder_state_dir) || return 1
   local now=$(date +%s)
   local count=0
   local tooltip
@@ -116,7 +138,8 @@ show_json() {
 
 clear_reminders() {
   local units
-  local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
+  local reminder_dir
+  reminder_dir=$(reminder_state_dir) || return 1
 
   units=$(systemctl --user list-timers --all --no-legend --no-pager "omarchy-reminder-*.timer" 2>/dev/null | awk '{ print $(NF - 1), $NF }')
 
@@ -179,7 +202,7 @@ fi
 set_at=$(date +%s)
 remind_at=$(date -d "+${minutes} minutes" +%H:%M)
 unit="omarchy-reminder-${minutes}m-$set_at"
-reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
+reminder_dir=$(reminder_state_dir) || exit 1
 message_file="$reminder_dir/$unit.message"
 confirmation=$(omarchy-i18n reminder.willRemindAt "$remind_at")
 confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$minutes")
@@ -187,7 +210,7 @@ confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$mi
 mkdir -p "$reminder_dir"
 
 if [[ -n $custom_message ]]; then
-  printf "%s" "$custom_message" >"$message_file"
+  (umask 077; printf '%s' "$custom_message" >"$message_file")
   confirmation_title=$(omarchy-i18n --count "$minutes" reminder.customInMinutes "$custom_message" "$minutes")
 fi
 
