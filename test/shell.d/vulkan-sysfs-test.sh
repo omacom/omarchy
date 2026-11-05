@@ -26,7 +26,9 @@ cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
 printf '%s\n' "$@" >>"$OMARCHY_TEST_VULKAN_PKGS"
 SH
-chmod +x "$stub_bin/omarchy-pkg-add"
+# The fixture tests PCI GPUs; do not add the host's platform GPU.
+printf '#!/bin/bash\nexit 1\n' > "$stub_bin/omarchy-hw-aarch64-qualcomm"
+chmod +x "$stub_bin/omarchy-pkg-add" "$stub_bin/omarchy-hw-aarch64-qualcomm"
 
 run_vulkan() {
   : >"$tmp/pkgs"

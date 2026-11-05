@@ -20,6 +20,9 @@ cat >"$tmp/bin/lspci" <<'SH'
 echo called >>"$OMARCHY_TEST_NVIDIA_LSPCI"
 echo 'NVIDIA VGA controller'
 SH
+# These PCI fixtures describe an x86 machine, independent of the test host.
+printf '#!/bin/bash\nexit 0\n' > "$tmp/bin/omarchy-hw-x86"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/bin/omarchy-hw-aarch64-n1x"
 chmod +x "$tmp/bin/"*
 
 run_layout() {
