@@ -6,7 +6,13 @@
 
 set -e
 
-lock_dir="${XDG_RUNTIME_DIR:-/tmp}"
+# Without a session runtime dir, a fixed lock in /tmp is a name another local
+# account can create first and point at a file this user can write.
+lock_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  mkdir -p "$lock_dir" || exit 1
+  chmod 700 "$lock_dir" || exit 1
+fi
 lock_path="$lock_dir/omarchy-update.lock"
 
 lock_is_held() {

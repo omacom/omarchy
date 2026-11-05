@@ -43,3 +43,31 @@ mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
 rg -A1 '^pkill -KILL ' "$call_log" | rg -q 'invisible = false' ||
   fail "system lock shows the cursor a killed screensaver left hidden" "$(<"$call_log")"
 pass "system lock gives the screensaver a second to restore the cursor before killing it, then restores it itself"
+
+# 1Password is running, and there is no session runtime dir. The lock file must
+# not be created under /tmp.
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/pgrep"
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-cmd-present"
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/1password"
+chmod +x "$mock_bin/pgrep" "$mock_bin/omarchy-cmd-present" "$mock_bin/1password"
+fallback="$tmpdir/fallback"
+mkdir -p "$fallback/home"
+env -u XDG_RUNTIME_DIR HOME="$fallback/home" XDG_STATE_HOME="$fallback/state" \
+  PATH="$mock_bin:$PATH" CALL_LOG="$call_log" "$ROOT/bin/omarchy-system-lock"
+for _ in {1..20}; do
+  [[ -e $fallback/state/omarchy/omarchy-1password-lock.lock ]] && break
+  sleep 0.05
+done
+[[ -e $fallback/state/omarchy/omarchy-1password-lock.lock && ! -L $fallback/state/omarchy/omarchy-1password-lock.lock ]] ||
+  fail "1password lock is kept in the private state dir"
+[[ ! -e /tmp/omarchy-1password-lock.lock && ! -L /tmp/omarchy-1password-lock.lock ]] ||
+  fail "1password lock is not created in /tmp"
+pass "1password lock stays out of /tmp"
+
+env -u XDG_RUNTIME_DIR HOME="$fallback/home" XDG_STATE_HOME="$fallback/state" \
+  "$ROOT/bin/omarchy-update-lock" run true
+[[ -e $fallback/state/omarchy/omarchy-update.lock && ! -L $fallback/state/omarchy/omarchy-update.lock ]] ||
+  fail "update lock is kept in the private state dir"
+[[ ! -e /tmp/omarchy-update.lock && ! -L /tmp/omarchy-update.lock ]] ||
+  fail "update lock is not created in /tmp"
+pass "update lock stays out of /tmp"
