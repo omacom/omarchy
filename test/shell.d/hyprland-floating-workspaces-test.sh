@@ -447,6 +447,40 @@ assert(#s.rules >= 3, "the floating window rules were not added")
 fi
 pass "a floating default floats every regular workspace without a layout of its own"
 
+# Floating windows are opaque, except under Glassy, which fades them after the
+# opaque rule so it wins, and leaves the windows that stay solid elsewhere solid.
+glassy_lua='
+local glassy = os.getenv("GLASSY") == "1"
+local window = window("0x1", 1)
+require("default.hypr.workspace-layouts")
+local opaque, faded, solid = 0, 0, {}
+for index, rule in ipairs(state().rules) do
+  if rule.match.tag == "omarchy-floating-workspace" and rule.opacity == "1.0 override 1.0 override" then
+    opaque = index
+  elseif rule.match.tag == "omarchy-floating-workspace" and rule.opacity then
+    faded = index
+    assert(rule.tag == "+transparent-window", "a faded window did not get the glass titlebar")
+  elseif rule.match.float and rule.opacity == "1.0 override 1.0 override" then
+    solid[rule.match.tag] = index
+  end
+end
+assert(opaque > 0, "floating windows were not made opaque")
+if glassy then
+  assert(faded > opaque, "Glassy did not fade floating windows after the opaque rule")
+  for _, tag in ipairs({ "terminal", "chromium-based-browser", "firefox-based-browser", "pip" }) do
+    assert((solid[tag] or 0) > faded, tag .. " windows did not stay solid under Glassy")
+  end
+else
+  assert(faded == 0 and next(solid) == nil, "floating windows faded without Glassy")
+end
+'
+mkdir -p "$state_home/omarchy/toggles/hypr"
+run_lua "$glassy_lua" || fail "floating windows stay opaque without Glassy"
+: >"$state_home/omarchy/toggles/hypr/window-glassy.lua"
+run_lua "$glassy_lua" GLASSY=1 || fail "Glassy fades floating windows"
+rm -f "$state_home/omarchy/toggles/hypr/window-glassy.lua"
+pass "Glassy fades floating windows, and only Glassy"
+
 # A tiled default is Hyprland's own layout for workspaces without a rule.
 rm -f "$modes_dir"/*.lua
 printf 'o.workspace_mode({ default = "scrolling" })\n' >"$modes_dir/default.lua"
