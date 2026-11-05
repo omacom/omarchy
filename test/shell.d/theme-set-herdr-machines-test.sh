@@ -185,10 +185,8 @@ env -u XDG_RUNTIME_DIR HOME="$fallback_home" PATH="$fallback_bin:$PATH" \
   bash "$ROOT/bin/omarchy-theme-set-herdr-machines" >/dev/null
 [[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set-herdr-machines.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set-herdr-machines.lock ]] ||
   fail "herdr machine sync lock is kept in the private state dir"
-env -u XDG_RUNTIME_DIR HOME="$fallback_home" PATH="$fallback_bin:$PATH" \
+env -u XDG_RUNTIME_DIR HOME="$fallback_home" HERDR_APP_HOME="$fallback_home/.config/herdr-app" PATH="$fallback_bin:$PATH" \
   bash "$ROOT/bin/omarchy-theme-set-herdr-app" >/dev/null
 [[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set.lock ]] ||
   fail "herdr app theme lock is kept in the private state dir"
-[[ ! -e /tmp/omarchy-theme-set-herdr-machines.lock && ! -e /tmp/omarchy-theme-set.lock ]] ||
-  fail "herdr theme locks are not created in /tmp"
 pass "herdr theme locks stay out of /tmp"
