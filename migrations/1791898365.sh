@@ -25,21 +25,35 @@ if [[ ! -f $limine_conf ]]; then
   sudo test -f "$limine_conf" || exit 0
 fi
 
+# limine-snapper-sync rewrites limine.conf after every snapshot, and the
+# package installs in earlier migrations take snapshots. Edit under the lock
+# the Limine tools use, or a sync that read the file earlier writes it back
+# over these edits. Fail unless both lines are in the file, so the migration
+# stays pending instead of announcing a quiet boot it did not get.
+result=$(sudo flock /run/lock/boot-partition.lock bash -c '
+  conf=$1
+  if ! grep -Eqi "^[[:space:]]*timeout:" "$conf"; then
+    if grep -Eqi "^[[:space:]]*#timeout:" "$conf"; then
+      sed -i -E "s/^[[:space:]]*#timeout:.*/timeout: 1/I" "$conf"
+    else
+      sed -i "1i timeout: 1" "$conf"
+    fi
+    echo set_timeout
+  fi
+  if ! grep -Eqi "^[[:space:]]*quiet:" "$conf"; then
+    sed -i -E "/^[[:space:]]*timeout:/I a quiet: yes" "$conf"
+    echo added_quiet
+  fi
+  grep -Eqi "^[[:space:]]*timeout:" "$conf" && grep -Eqi "^[[:space:]]*quiet:" "$conf"
+' _ "$limine_conf") || {
+  echo "Could not set the quiet boot menu in $limine_conf; it will be retried on the next update" >&2
+  exit 1
+}
+
 set_timeout=""
 added_quiet=""
-if ! sudo grep -Eqi '^[[:space:]]*timeout:' "$limine_conf"; then
-  if sudo grep -Eqi '^[[:space:]]*#timeout:' "$limine_conf"; then
-    sudo sed -i -E 's/^[[:space:]]*#timeout:.*/timeout: 1/I' "$limine_conf"
-  else
-    sudo sed -i '1i timeout: 1' "$limine_conf"
-  fi
-  set_timeout=1
-fi
-
-if ! sudo grep -Eqi '^[[:space:]]*quiet:' "$limine_conf"; then
-  sudo sed -i -E '/^[[:space:]]*timeout:/I a quiet: yes' "$limine_conf"
-  added_quiet=1
-fi
+[[ $result == *set_timeout* ]] && set_timeout=1
+[[ $result == *added_quiet* ]] && added_quiet=1
 
 if [[ -n $set_timeout && -n $added_quiet ]]; then
   echo "The boot menu now waits 1 second and stays quiet until a key is pressed"
