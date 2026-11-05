@@ -32,6 +32,8 @@ The surface is one fixed-width `WlrLayer.Overlay` window per output (namespace `
 
 A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stretched up to 30s by a longer `expire_timeout`. Its time pauses while the deck is open; a content update restarts it. Left-click activates; right-click, middle-click, or the close mark on hover dismisses.
 
+A sender's `CloseNotification(id)` withdraws its card through the same departure animation, or cancels it before display if it is still held or deferred. Non-transient cards move to history with reason `closed`. This uses Quickshell's `NotificationCloseReason.CloseRequested`, not the sender process's lifetime: a one-shot sender exiting does not retract its notification.
+
 A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `default` action; the sender's window by pid; a window showing the source (exact class, then for a site a browser window whose title names it); the site itself; the first link in the text; `omarchy-hyprland-focus-app` by app name.
 
 ## Persistence

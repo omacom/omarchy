@@ -371,6 +371,7 @@ function newCapacityScope() {
     lowDuration: 5000, normalDuration: 8000, maxDuration: 30000,
     Security: S, Delivery, Store, Markup: M,
     NotificationUrgency: { Critical: 2, Normal: 1, Low: 0 },
+    NotificationCloseReason: { Expired: 1, Dismissed: 2, CloseRequested: 3 },
     Qt: { callLater: f => later.push(f),
       md5: value => require('node:crypto').createHash('md5').update(value).digest('hex') },
     Style: { space: n => n, duration: n => n },
@@ -386,7 +387,7 @@ function newCapacityScope() {
     let tracked = false, destroyed = false
     const signal = () => {
       const listeners = []
-      return { connect: f => listeners.push(f), emit: () => listeners.slice().forEach(f => f()) }
+      return { connect: f => listeners.push(f), emit: (...args) => listeners.slice().forEach(f => f(...args)) }
     }
     const close = reason => {
       n.closeAttempts++
@@ -395,7 +396,7 @@ function newCapacityScope() {
       tracked = false
       if (reason === 'expired') n.expiries++
       else n.dismissals++
-      n.closed.emit()
+      n.closed.emit(reason === 'expired' ? 1 : reason === 'withdrawn' ? 3 : 2)
     }
     const n = { id, summary, body: 'Synthetic body: ' + summary, urgency, appName: 'Fixture',
       actions: [{ identifier: 'open', text: summary }], dismissals: 0, expiries: 0,
@@ -404,6 +405,7 @@ function newCapacityScope() {
       set tracked(value) { if (value) tracked = true; else close('dismissed') },
       dismiss() { close('dismissed') },
       expire() { close('expired') },
+      withdraw() { close('withdrawn') },
       // NotificationServer::Notify mutates the same QObject; no new server event.
       replace(properties) {
         const changed = Object.keys(properties).filter(field => n[field] !== properties[field])
@@ -701,7 +703,7 @@ for (const held of [true, false]) { // A cancelled pending card frees exactly on
   assert.deepEqual(summaries(s.toasts.rows), ['Update after release'])
 }
 
-{ // Sender withdrawal cancels pending cards but leaves an already visible snapshot intact.
+{ // Untracking cancels pending cards but leaves an already visible snapshot intact.
   const s = newCapacityScope()
   const withdrawn = s.fakeNotification(1, 'Withdrawn')
   s.handleNotification(withdrawn)
@@ -719,6 +721,47 @@ for (const held of [true, false]) { // A cancelled pending card frees exactly on
   assert.equal(s.liveCount(), 1)
   s.finishClose(key, 'dismissed')
   assert.equal(s.liveCount(), 0)
+}
+
+for (const held of [false, true]) { // Explicit withdrawal cancels deferred and held cards, even with an update queued.
+  const s = newCapacityScope()
+  s.pointerHolding = held
+  const sender = s.fakeNotification(1, 'Pending')
+  s.handleNotification(sender)
+  sender.replace({ summary: 'Queued replacement' })
+  sender.withdraw()
+  s.releaseHeld()
+  s.drainCallLater()
+  assert.equal(s.toasts.count, 0)
+  assert.equal(s.liveCount(), 0)
+  assert.equal(s.held.length, 0)
+  assert.equal(sender.destroyedCloseAttempts, 0)
+}
+
+for (const queuedRow of [false, true]) { // Withdrawal retracts a visible card without a pending replacement reviving it.
+  const s = newCapacityScope()
+  const sender = s.fakeNotification(1, 'Visible')
+  s.admit(sender)
+  const key = s.keyForOriginal(1)
+  sender.replace({ summary: 'Updated' })
+  // Cover both a queued property refresh and a refresh already consumed with
+  // the ListModel update still deferred to avoid Repeater incubation.
+  if (queuedRow) s.liveKeys[key].refresh()
+  sender.withdraw()
+  assert.equal(s.leaving[key], 'closed')
+  assert.equal(s.actionsOf(key).length, 0)
+  assert.equal(s.toasts.count, 1, 'withdrawal uses the normal departure animation')
+  const replacement = s.fakeNotification(1, 'Reused ID')
+  s.handleNotification(replacement)
+  sender.closed.emit(3)
+  s.drainCallLater()
+  assert.equal(s.leaving[key], 'closed', 'a queued update cannot revive the withdrawn card')
+  s.finishLeaving()
+  assert.deepEqual(summaries(s.toasts.rows), ['Reused ID'])
+  assert.equal(s.liveCount(), 1, 'an obsolete close cannot release the new sender')
+  assert.equal(s.historyEntries[0].closed_reason, 'closed')
+  assert.equal(s.liveEntries.length, 1)
+  assert.equal(sender.destroyedCloseAttempts, 0, 'withdrawal never closes the destroyed QObject again')
 }
 
 for (const holding of [false, true]) { // Silencing closes a muted update; only Omarchy and bare notify-send critical get through.

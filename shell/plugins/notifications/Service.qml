@@ -632,13 +632,18 @@ Item {
 
   function watchNotification(notification, key) {
     var reservation = liveKeys[key]
-    notification.closed.connect(function() {
+    notification.closed.connect(function(reason) {
       if (service.refs[key] !== notification) return
       delete service.refs[key]
       service.refsRevision += 1
-      // Visible snapshots outlive their sender; pending rows must not appear
-      // after the sender withdraws them.
-      if (service.rowIndexFor(key) < 0) service.finishClose(key, "closed")
+      // CloseNotification is an explicit withdrawal, not sender exit or our
+      // own expiry/untracking. Cancel any deferred replacement before leaving.
+      if (reason === NotificationCloseReason.CloseRequested) {
+        reservation.row = null
+        service.closeToast(key, "closed")
+      } else if (service.rowIndexFor(key) < 0) {
+        service.finishClose(key, "closed")
+      }
     })
     // NotificationServer emits onNotification only for new objects. A
     // replaces_id update mutates this QObject and emits its property signals,
