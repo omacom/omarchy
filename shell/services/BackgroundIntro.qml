@@ -258,6 +258,21 @@ Item {
     }
   }
 
+  // The installed boot splash, which omarchy plymouth set restyles.
+  property string splashDir: "/usr/share/plymouth/themes/omarchy"
+  readonly property color splashColor: {
+    var match = /^Window\.SetBackgroundTopColor\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)/m.exec(String(splashScript.text() || ""))
+    return match ? Qt.rgba(Number(match[1]), Number(match[2]), Number(match[3]), 1) : "black"
+  }
+
+  FileView {
+    id: splashScript
+    path: root.startupPending ? root.splashDir + "/omarchy.script" : ""
+    blockLoading: true
+    watchChanges: false
+    printErrors: false
+  }
+
   // A shell restart shares this compositor session; a new login does not.
   FileView {
     id: sessionMarker
@@ -315,10 +330,21 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
 
+      // Continue the boot splash instead of black while the shell loads and
+      // the intro prepares, at the device-pixel size Plymouth draws its logo.
       Rectangle {
         anchors.fill: parent
-        color: "black"
+        color: root.splashColor
         opacity: root.startupOpacity
+
+        Image {
+          anchors.centerIn: parent
+          source: root.startupPending ? Util.fileUrl(root.splashDir + "/logo.png") : ""
+          width: implicitWidth / (modelData.devicePixelRatio || 1)
+          height: implicitHeight / (modelData.devicePixelRatio || 1)
+          smooth: true
+          cache: false
+        }
       }
 
       FrameAnimation {
