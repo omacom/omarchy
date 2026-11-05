@@ -4,6 +4,8 @@
 # omarchy:args=<path>
 # omarchy:hidden=true
 
+set -euo pipefail
+
 # Dotfile managers link a config, or a folder above it, into a place of their
 # own, which may be read-only. Writing through the link edits or fails on their
 # copy, and replacing it detaches the config, so callers leave such a config to
