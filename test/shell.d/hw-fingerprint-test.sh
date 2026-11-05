@@ -41,7 +41,7 @@ mkdir -p "$platform_root" "$tmp_dir/bin"
 platform_root_copy "$ROOT/bin/omarchy-hw-fingerprint" "$tmp_dir/bin/omarchy-hw-fingerprint" "$platform_root"
 
 hw_fingerprint() {
-  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$tmp_dir/bin/omarchy-hw-fingerprint"
+  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" OMARCHY_LIBFPRINT_HWDB="$tmp_dir/libfprint.hwdb" "$tmp_dir/bin/omarchy-hw-fingerprint"
 }
 
 assert_detects() {
@@ -161,3 +161,30 @@ write_sep 396400000 not-ready
 assert_detects "a USB reader found by vendor is detected while Touch ID reads not-ready"
 
 rm -f "$platform_root/fingerprint-readers"
+
+# Readers libfprint lists as known unsupported can't be set up, so they aren't
+# offered, whether they match by product string or by vendor. The Synaptics
+# Tudor ids stay, since synaTudor drives them.
+cat >"$tmp_dir/libfprint.hwdb" <<'EOF'
+# Supported by libfprint driver elanmoc
+usb:v04F3p0C7E*
+ ID_AUTOSUSPEND=1
+
+# Known unsupported devices
+usb:v04F3p0C00*
+usb:v06CBp009A*
+usb:v06CBp00BE*
+ ID_AUTOSUSPEND=1
+ ID_PERSIST=0
+EOF
+write_usb_devices '04f3:0c00:ELAN:ARM-M4'
+assert_rejects "an ELAN reader libfprint lists as unsupported is not detected"
+write_usb_devices '06cb:009a'
+assert_rejects "a Synaptics reader libfprint lists as unsupported is not detected"
+write_usb_devices '04f3:0c7e:ELAN:ARM-M4'
+assert_detects "an ELAN reader libfprint supports is still detected"
+write_usb_devices '06cb:00be'
+assert_detects "a Synaptics Tudor reader is still detected for synaTudor"
+rm -f "$tmp_dir/libfprint.hwdb"
+write_usb_devices '04f3:0c00:ELAN:ARM-M4'
+assert_detects "without libfprint's list, a reader is detected as before"

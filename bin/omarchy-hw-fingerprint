@@ -47,7 +47,33 @@ has_kernel_driver() {
   return 1
 }
 
+# libfprint lists the readers it knows it can't drive under "Known
+# unsupported devices" in its autosuspend hwdb. Offering one of those leads to
+# a setup that ends in NoSuchDevice, so they are skipped whatever they match
+# on. The Synaptics Tudor readers are on that list too but have their own
+# driver (synaTudor), so they stay detectable.
+libfprint_hwdb="${OMARCHY_LIBFPRINT_HWDB:-/usr/lib/udev/hwdb.d/60-autosuspend-libfprint-2.hwdb}"
+unsupported_ids=" "
+if [[ -r $libfprint_hwdb ]]; then
+  in_unsupported=false
+  while IFS= read -r line; do
+    if [[ $line == "#"* ]]; then
+      [[ $line == "# Known unsupported devices"* ]] && in_unsupported=true || in_unsupported=false
+    elif $in_unsupported && [[ $line =~ ^usb:v([0-9A-Fa-f]{4})p([0-9A-Fa-f]{4}) ]]; then
+      unsupported_ids+="${BASH_REMATCH[1],,}:${BASH_REMATCH[2],,} "
+    fi
+  done <"$libfprint_hwdb"
+fi
+for tudor_id in 06cb:00be 06cb:00da 06cb:00fd 06cb:00ff; do
+  unsupported_ids=${unsupported_ids/ $tudor_id / }
+done
+
 for dev in "$usb_devices_path"/*; do
+  if [[ -r $dev/idVendor && -r $dev/idProduct ]]; then
+    usb_id="$(<"$dev/idVendor"):$(<"$dev/idProduct")"
+    [[ $unsupported_ids == *" ${usb_id,,} "* ]] && continue
+  fi
+
   # The device's own product descriptor usually names it, e.g. "Goodix
   # Fingerprint USB Device" — driver-independent and vendor-agnostic.
   if [[ -r $dev/product ]]; then
