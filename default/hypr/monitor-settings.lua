@@ -14,9 +14,11 @@
 -- saved, so plugging it back in doesn't reconfigure it for nothing.
 --
 -- Setting omarchy_monitor_panel_settings = false in hypr/monitors.lua leaves
--- that file alone in charge, GDK_SCALE included.
+-- that file alone in charge, GDK_SCALE included. Turning monitor management off
+-- does the same for the manager it was handed to.
 
 local paths = require("default.hypr.paths")
+local monitor_management = require("default.hypr.monitor-management")
 
 local STATE_FILE = paths.state_home .. "/omarchy/monitors/settings"
 
@@ -24,7 +26,7 @@ local M = {}
 
 local function load()
   local settings = {}
-  if _G.omarchy_monitor_panel_settings == false then
+  if _G.omarchy_monitor_panel_settings == false or not monitor_management() then
     return settings
   end
 

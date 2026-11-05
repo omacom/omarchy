@@ -15,10 +15,7 @@ local exclude = {
 
 -- The clamshell rule is Omarchy's own reconciliation, loaded after the monitor
 -- settings, so it must not outlast handing monitors to another manager.
-local monitor_management = io.open(paths.home .. "/.local/state/omarchy/toggles/monitor-management", "r")
-if monitor_management then
-  monitor_management:close()
-else
+if not require("default.hypr.monitor-management")() then
   exclude["internal-monitor-clamshell"] = true
 end
 
