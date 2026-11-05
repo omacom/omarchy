@@ -5,7 +5,9 @@
 // transcript after reopening the window lands on the same picture as watching
 // it live. Activities are codes; the window turns them into text.
 
-var STEPS = ["prepare", "packages", "configure", "apps", "cleanup"]
+// In the order bin/omarchy-update runs them: orphan removal and the shell
+// restart come before mise and AUR, so Clean up precedes Apps & tools.
+var STEPS = ["prepare", "packages", "configure", "cleanup", "apps"]
 
 var HEADINGS = [
   [/^Prune package cache$/, "prepare", "prune"],
@@ -268,7 +270,7 @@ function feed(s, chunk) {
 }
 
 // 0..1 across the whole update, weighted by where the time actually goes.
-var WEIGHTS = { prepare: [0, 0.06], packages: [0.06, 0.74], configure: [0.74, 0.8], apps: [0.8, 0.95], cleanup: [0.95, 1] }
+var WEIGHTS = { prepare: [0, 0.06], packages: [0.06, 0.74], configure: [0.74, 0.8], cleanup: [0.8, 0.85], apps: [0.85, 1] }
 
 // How far pacman is through downloading and installing, 0..1; -1 before it
 // has said anything measurable.
