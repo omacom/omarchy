@@ -49,10 +49,26 @@ case $1 in
   unload-module) rm -f "$TEST_STATE/module-$2" ;;
 esac
 SH
+# The contended invocations wait 1s for the lock before deciding a start
+# is in progress; the starts under test are gated, so 0.2s decides the same.
 cat >"$tmp/bin/flock" <<'SH'
 #!/bin/bash
 [[ ${TEST_ROLE:-} == "new-start" ]] && touch "$TEST_STATE/lock-attempted"
+if [[ ${1:-} == "-w" && ${2:-} == "1" ]]; then
+  shift 2
+  set -- -w 0.2 "$@"
+fi
 exec /usr/bin/flock "$@"
+SH
+# The recorder-exit polls (0.1s TERM grace, 0.2s ready wait) run shorter;
+# the test's own shorter sleeps pass through untouched.
+cat >"$tmp/bin/sleep" <<'SH'
+#!/bin/bash
+case "${1:-}" in
+  0.1) exec /usr/bin/sleep 0.02 ;;
+  0.2) exec /usr/bin/sleep 0.05 ;;
+  *) exec /usr/bin/sleep "$@" ;;
+esac
 SH
 cat >"$tmp/bin/omarchy-cmd-present" <<'SH'
 #!/bin/bash
@@ -218,10 +234,24 @@ rm -f "$tmp/recorder-pid" "$tmp/recordings/"* "$XDG_RUNTIME_DIR/omarchy-screenre
 true & dead=$!
 wait "$dead"
 echo "$dead" >"$XDG_RUNTIME_DIR/omarchy-screenrecord-starting"
-/usr/bin/flock "$XDG_RUNTIME_DIR/omarchy-screenrecord.lock" sleep 2 & holder=$!
-sleep 0.3
-timeout 15 "$record" --fullscreen --resolution=1280x800 >/dev/null 2>&1 || fail "a toggle behind a stale start marker finishes"
+rm -f "$tmp/lock-held"
+# One process holds the lock, so cleanup's kill on a failed wait leaves nothing
+# blocked on the release fifo.
+(
+  exec 8>"$XDG_RUNTIME_DIR/omarchy-screenrecord.lock"
+  /usr/bin/flock 8
+  touch "$tmp/lock-held"
+  read -r _ <"$tmp/release"
+) & holder=$!
+wait_for "$tmp/lock-held"
+"$record" --fullscreen --resolution=1280x800 >/dev/null 2>&1 & toggle=$!
+# The toggle leaves its cancel request once its wait for the lock times out;
+# only then does releasing the lock test what it does with the stale marker.
+wait_for "$XDG_RUNTIME_DIR/omarchy-screenrecord-cancel"
+echo release >"$tmp/release"
 wait "$holder" || true
+timeout 15 tail --pid="$toggle" -f /dev/null || fail "a toggle behind a stale start marker finishes"
+wait "$toggle" || fail "a toggle behind a stale start marker finishes"
 [[ -s $XDG_RUNTIME_DIR/omarchy-screenrecord-pid ]] && kill -0 "$(<"$tmp/recorder-pid")" 2>/dev/null ||
   fail "a toggle behind a stale start marker starts the recording instead of cancelling a start that is gone"
 "$record" --stop-recording >/dev/null 2>&1 || true

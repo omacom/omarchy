@@ -353,6 +353,7 @@ QtObject {
     readonly property int iconSlot:       root.barToken("icon-slot",       27)
     readonly property int iconCanvas:     root.barToken("icon-canvas",     16)
     readonly property int iconFont:       root.barToken("icon-font",       13)
+    readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
   }
 
@@ -364,6 +365,10 @@ QtObject {
   function duration(ms) {
     return reduceMotion ? 0 : ms
   }
+
+  // A strong ease-out, for anything appearing or moving in answer to the
+  // pointer: it starts at once and settles without a bounce.
+  readonly property var easeOut: [0.23, 1.0, 0.32, 1.0, 1.0, 1.0]
 
   function refresh() {
     hyprctlProc.running = true
@@ -424,7 +429,9 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
-        } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height") {
+        } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
+          || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
+          || key === "icon-size" || key === "status-slot") {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }
