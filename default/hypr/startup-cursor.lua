@@ -51,6 +51,24 @@ function omarchy_startup_cursor_restore(loaded)
   end
 end
 
+-- A timed-out hyprctl skips the completion eval, so keep retrying while pending.
+-- The interval outlasts hyprctl's own timeout (about 5.5 s) so attempts never overlap.
+local function watch_startup_cursor(attempt)
+  hl.timer(function()
+    if not omarchy_startup_cursor_pending then return end
+    local cursor = omarchy_startup_cursor
+    if attempt < 5 then
+      cursor.restoring = false
+      omarchy_startup_cursor_restore()
+      watch_startup_cursor(attempt + 1)
+    else
+      -- Last resort: never leave the pointer hidden for the whole session.
+      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.xcursor) .. " " .. cursor.size)
+      omarchy_startup_cursor_restore(true)
+    end
+  end, { timeout = attempt == 0 and 15000 or 10000, type = "oneshot" })
+end
+
 hl.on("config.reloaded", function()
   local recover = false
   if omarchy_startup_cursor_pending == nil then
@@ -89,12 +107,7 @@ hl.on("config.reloaded", function()
   if omarchy_startup_cursor_pending then
     -- Keep the temporary cursor private to the compositor, including GSettings.
     hl.config({ cursor = { invisible = true, enable_hyprcursor = false, sync_gsettings_theme = false } })
-    hl.timer(function()
-      if omarchy_startup_cursor_pending then
-        omarchy_startup_cursor.restoring = false
-        omarchy_startup_cursor_restore()
-      end
-    end, { timeout = 15000, type = "oneshot" })
+    watch_startup_cursor(0)
     if recover then omarchy_startup_cursor_restore() end
   end
 end)
