@@ -62,6 +62,13 @@ expect("Claude collector reads only the profile the CLI keeps",
        {where: read_plan(CREDENTIALS, UPGRADED, where, STALE) for where in ("beside", "inside", "legacy")},
        {"beside": "Max 20x", "inside": "Max 20x", "legacy": "Max 20x"})
 
+# Max 20x is now called Ultra, but the tier and subscription still read
+# max_20x and max; the profile's display name carries the new name. A Team
+# seat keeps reading Team whatever the profile calls it.
+ULTRA = {"oauthAccount": dict(UPGRADED["oauthAccount"], organizationType="claude_max", planDisplayName="Ultra")}
+expect("Claude collector names a renamed Max plan as the profile does",
+       [read_plan(CREDENTIALS, ULTRA), read_plan(credentials("default_claude_max_5x", "team"), ULTRA)], ["Ultra", "Team 20x"])
+
 # A seat with a tier of its own is limited by that tier, not by its org's.
 expect("Claude collector prefers the seat's own tier over the organization's",
        read_plan(CREDENTIALS, {"oauthAccount": {"organizationRateLimitTier": "default_claude_max_20x", "userRateLimitTier": "default_claude_max_5x"}}), "Max 5x")
