@@ -1224,6 +1224,7 @@ Panel {
           Layout.fillWidth: true
           text: {
             var parts = []
+            if (peerRow.peer && peerRow.peer.Self) parts.push(Commons.I18n.t("tailscale.thisMachine"))
             if (peerRow.peerIp !== "") parts.push(peerRow.peerIp)
             if (peerRow.peerDns !== "") parts.push(peerRow.peerDns)
             return parts.join(" · ")

@@ -116,7 +116,8 @@ function peerFromStatus(id, peer, tr) {
     Tags: peer.Tags || [],
     ExitNodeOption: peer.ExitNodeOption === true,
     ExitNode: peer.ExitNode === true,
-    Mullvad: isMullvadPeer(peer)
+    Mullvad: isMullvadPeer(peer),
+    Self: false
   }
 }
 
@@ -255,6 +256,15 @@ function parseStatus(raw, tr) {
     exitNodes.sort(function(a, b) {
       return String(a.HostName).localeCompare(String(b.HostName))
     })
+
+    // This machine heads the list so its own address is one copy away, like
+    // any other machine's. It never lists as an exit node for itself.
+    if (backendState === "Running" && (self.HostName || self.DNSName)) {
+      var me = peerFromStatus(String(self.ID || "self"), self, tr)
+      me.Self = true
+      me.Online = true
+      peers.unshift(me)
+    }
 
     return {
       ok: true,
