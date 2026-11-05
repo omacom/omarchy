@@ -55,11 +55,12 @@ function unescapeAllowed(text) {
   out = out.replace(/&lt;br\s*\/?&gt;/gi, "<br/>")
   // Anchors keep only their href, and only when Security allows it: a click
   // goes straight to the desktop URL handler, and the sender writes the label.
-  // A refused link keeps its text and loses its click.
-  out = out.replace(/&lt;a\s+href=(?:&quot;|")([^"&]+)(?:&quot;|")[^&]*&gt;([\s\S]*?)&lt;\/a&gt;/gi,
+  // A refused link keeps its text and loses its click. The href's own & came
+  // through escapeAll as &amp;, so a query string still matches.
+  out = out.replace(/&lt;a\s+href=(?:&quot;|")((?:[^"&]|&amp;)+)(?:&quot;|")[^&]*&gt;([\s\S]*?)&lt;\/a&gt;/gi,
                     function (whole, href, label) {
-                      var safe = Security.safeExternalUrl(href)
-                      return safe ? '<a href="' + safe + '">' + label + '</a>' : label
+                      var safe = Security.safeExternalUrl(href.replace(/&amp;/g, "&"))
+                      return safe ? '<a href="' + safe.replace(/&/g, "&amp;") + '">' + label + '</a>' : label
                     })
   return out
 }
