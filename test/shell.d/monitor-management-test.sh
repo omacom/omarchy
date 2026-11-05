@@ -40,6 +40,7 @@ trap cleanup EXIT
 stub_bin="$test_tmp/bin"
 watcher_bin="$test_tmp/watcher-bin"
 command_log="$test_tmp/commands.log"
+lid_log="$test_tmp/lid.log"
 events="$test_tmp/events"
 mkdir -p "$stub_bin" "$watcher_bin"
 
@@ -58,9 +59,30 @@ cat >"$watcher_bin/omarchy-hw-laptop" <<'SH'
 exit 1
 SH
 
-cat >"$watcher_bin/omarchy-hyprland-monitor-clamshell" <<'SH'
+# The watcher runs the real reconciler, so this is where it would carry on past
+# its guard. What it reads after that is stubbed, to keep it off the real hardware.
+cat >"$watcher_bin/omarchy-hyprland-monitor-laptop" <<'SH'
 #!/bin/bash
 printf 'clamshell continued\n' >>"$OMARCHY_TEST_COMMAND_LOG"
+SH
+
+for command in omarchy-hw-clamshell omarchy-hyprland-monitor-external-active; do
+  cat >"$watcher_bin/$command" <<'SH'
+#!/bin/bash
+exit 1
+SH
+done
+
+for command in omarchy-hyprland-monitor-internal omarchy-hyprland-monitor-internal-mirror; do
+  cat >"$watcher_bin/$command" <<'SH'
+#!/bin/bash
+exit 0
+SH
+done
+
+cat >"$watcher_bin/omarchy-system-lid-inhibit" <<'SH'
+#!/bin/bash
+printf 'synced\n' >>"$OMARCHY_TEST_LID_LOG"
 SH
 
 cat >"$watcher_bin/omarchy-hyprland-monitor-modeless" <<'SH'
@@ -97,6 +119,17 @@ await_log_line() {
   return 1
 }
 
+await_lid_sync() {
+  local waited
+
+  for ((waited = 0; waited < 100; waited++)); do
+    [[ -s $lid_log ]] && return 0
+    sleep 0.05
+  done
+
+  return 1
+}
+
 start_watcher() {
   rm -f "$events"
   mkdir -p "$test_tmp/run"
@@ -107,6 +140,7 @@ start_watcher() {
     XDG_RUNTIME_DIR="$test_tmp/run" \
     HYPRLAND_INSTANCE_SIGNATURE=test \
     OMARCHY_TEST_COMMAND_LOG="$command_log" \
+    OMARCHY_TEST_LID_LOG="$lid_log" \
     OMARCHY_TEST_EVENTS="$events" \
     "$ROOT/bin/omarchy-hyprland-monitor-watch" &
   watch_pid=$!
@@ -152,7 +186,8 @@ HOME="$test_tmp/home" \
   "$ROOT/bin/omarchy-hyprland-monitor-clamshell"
 
 start_watcher
-sleep 0.2
+await_lid_sync || fail "monitor watcher stopped syncing the lid inhibitor while monitor management was disabled"
+pass "the lid inhibitor stays in step while monitor management is off"
 
 [[ ! -e $command_log ]] || fail "automatic monitor commands ran while monitor management was disabled"
 kill -0 "$watch_pid" 2>/dev/null || fail "monitor watcher exited while monitor management was disabled"
@@ -174,8 +209,10 @@ HOME="$test_tmp/home" \
   omarchy-toggle monitor-management off
 
 : >"$command_log"
+: >"$lid_log"
 printf 'monitoradded>>DP-2\n' >&"$events_fd"
 printf 'configreloaded>>\n' >&"$events_fd"
+await_lid_sync || fail "monitor watcher stopped syncing the lid inhibitor after management was disabled"
 sleep 1.5
 
 [[ ! -s $command_log ]] || fail "running monitor watcher changed monitor state after management was disabled"
