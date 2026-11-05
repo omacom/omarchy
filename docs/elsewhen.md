@@ -142,6 +142,8 @@ Clicking anywhere else on the row puts the chip away. A tooltip that can only be
 
 A click on an arrow stops at the arrow: the scrub bar and the row's reorder grab underneath record no press at all, so the scrub bar needs no guard against the arrows drawn on top of it. That is measured rather than reasoned - see [Testing what the pointer does](#testing-what-the-pointer-does).
 
+A press on the row body does still reach the grab, which dismisses, so the two decisions can meet on one click. Neither rule reads the live value; both are answered from what was showing when the press began, which is the same number whichever runs first. The two rules are `Model.chipAfterTap` and `Model.chipAfterRelease`, and `test/shell.d/elsewhen-model-test.sh` plays a click through both delivery orders across every case: opening, closing, swapping one chip for another, and a release that must not undo a chip opened during the same press.
+
 ### Solar noon
 
 The two ends of the band are sunrise and sunset. The minute the sun is highest has no edge of its own, so a small gold pin stays up there, in the gap above the track, whether or not the pointer is on the row. It is the same gold as the day marker and smaller than it. Five rows can carry it without the clutter the arrows would make, because it is one mark and it is the thing the band cannot already say.
@@ -149,8 +151,6 @@ The two ends of the band are sunrise and sunset. The minute the sun is highest h
 Click it and the chip reads `Sun highest 12:54 PM`, the same chip as the arrows and the same one-at-a-time rule. The pin is declared before the arrows, so a sunrise that lands on the same minute keeps the click. It hides while the now marker stands on it, and an open chip closes with it, for the same reason an arrow does: two things drawn at one point read as a printing fault, and the marker is the one that says when now is.
 
 It is still drawn under the midnight sun and in the polar night. The sun has a highest point whether or not it crosses the horizon, and that minute is when the day is brightest or least dark. `noonMinutes` is that instant on the same local clock as the band. The sun test checks it against the midpoint of Chicago's published sunrise and sunset, and checks that the poles still have one.
-
-A press on the row body does still reach the grab, which dismisses, so the two decisions can meet on one click. Neither rule reads the live value; both are answered from what was showing when the press began, which is the same number whichever runs first. The two rules are `Model.chipAfterTap` and `Model.chipAfterRelease`, and `test/shell.d/elsewhen-model-test.sh` plays a click through both delivery orders across every case: opening, closing, swapping one chip for another, and a release that must not undo a chip opened during the same press.
 
 ## Weather
 
