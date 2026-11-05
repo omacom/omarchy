@@ -174,3 +174,21 @@ pass "an enabled herdr machine makes theme sync available while it is off"
 printf '#!/bin/bash\nprintf "1\\tretired\\tretired\\tdefault\\tdisabled\\n"\n' >"$stub_bin/herdr"
 ! run_sync --available || fail "only disabled herdr machines make theme sync unavailable"
 pass "only disabled herdr machines make theme sync unavailable"
+
+fallback_home="$SYNC_TEST/fallback-home"
+fallback_bin="$SYNC_TEST/fallback-bin"
+mkdir -p "$fallback_home" "$fallback_bin" "$fallback_home/.config/herdr-app"
+printf '#!/bin/bash\nexit 0\n' >"$fallback_bin/herdr"
+printf '#!/bin/bash\nexit 1\n' >"$fallback_bin/omarchy-toggle-enabled"
+chmod +x "$fallback_bin/herdr" "$fallback_bin/omarchy-toggle-enabled"
+env -u XDG_RUNTIME_DIR HOME="$fallback_home" PATH="$fallback_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-theme-set-herdr-machines" >/dev/null
+[[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set-herdr-machines.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set-herdr-machines.lock ]] ||
+  fail "herdr machine sync lock is kept in the private state dir"
+env -u XDG_RUNTIME_DIR HOME="$fallback_home" PATH="$fallback_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-theme-set-herdr-app" >/dev/null
+[[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set.lock ]] ||
+  fail "herdr app theme lock is kept in the private state dir"
+[[ ! -e /tmp/omarchy-theme-set-herdr-machines.lock && ! -e /tmp/omarchy-theme-set.lock ]] ||
+  fail "herdr theme locks are not created in /tmp"
+pass "herdr theme locks stay out of /tmp"
