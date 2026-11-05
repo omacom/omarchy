@@ -14,18 +14,20 @@ const view = (s) => JSON.stringify({ step: s.step, packages: s.packages, tools: 
 // bookkeeping, pacman redrawing its progress lines with \r, and the markers.
 const bar = (name, i, n) => [0, 40, 100].map((p) => `(${String(i).padStart(String(n).length)}/${n}) upgrading ${name.padEnd(30)} [${'#'.repeat(p / 10).padEnd(10, '-')}] ${String(p).padStart(3)}%`).join('\r')
 const names = ['claude-code', 'google-chrome', 'ttf-jetbrains-mono-nerd-basic', 'spotifast-bin']
-const transcript = [
+const parts = [
   '\x1b[32m\r\nPrune package cache\x1b[0m\r\nIdentifying face...\r\n',
   '\x1b]3008;start=abc;user=u;hostname=h\x1b\\\x1b[32m\r\nUpdate system packages\x1b[0m\r\n:: Retrieving packages...\r\n',
   ' Total ( 0/4)   0.0   B  0.00   B/s 00:00 [--------]   0%\r Total ( 2/4)  12.3 MiB  23.0 MiB/s 00:02 [###-----]  40%\r Total ( 4/4)  40.1 MiB  22.9 MiB/s 00:00 [########] 100%\r\n',
   ':: Processing package changes...\r\n',
   ...names.slice(0, 3).map((n, i) => bar(n, i + 1, 3) + '\r\n'),
   ':: Running post-transaction hooks...\r\n(1/2) Arming ConditionNeedsUpdate...\r\n\x1b]3008;end=abc\x1b\\',
+  '\x1b[32m\r\nOrphan system packages\x1b[0m\r\n  libfoo\r\n\r\n\x1b[32m\r\nRemoving orphan system packages\x1b[0m\r\n',
+  '\x1b[32m\r\nRestarting shell\x1b[0m\r\nAll plugins have been reloaded\r\n',
   '\x1b[32m\r\nUpdate mise tools\x1b[0m\r\nUpgraded 2 tools:\r\n  claude 2.1.296 → 2.1.299\r\n  pi 1.1.0 → 1.2.0\r\n',
   '\x1b[32m\r\nUpdate AUR packages\x1b[0m\r\n==>\x1b(B Making package: spotifast-bin 0.13.1-1 (Wed)\x1b(B\r\n', bar(names[3], 1, 1) + '\r\n',
-  '\x1b[32m\r\nRestarting shell\x1b[0m\r\nAll plugins have been reloaded\r\n',
   '\r\nLinux kernel has been updated. Reboot? Run omarchy-system reboot when ready.\r\n\x1b]5150;exit;0\x07'
-].join('')
+]
+const transcript = parts.join('')
 
 const whole = feedAll([transcript])
 let stable = true
@@ -38,9 +40,15 @@ assert(stable, 'splitting the stream anywhere lands on the same picture')
 assertEqual(JSON.stringify(Object.keys(whole.packages)), JSON.stringify(names), 'every upgraded package gets a tile, in order')
 assert(names.every((n) => whole.packages[n] === 'done'), 'every package ends done')
 assertEqual(whole.tools.map((t) => t.name).join(','), 'claude,pi', 'mise upgrades become developer tools')
-assertEqual([whole.step, whole.exit, whole.errors.length].join(','), 'cleanup,0,0', 'a clean run ends in cleanup with exit 0')
+assertEqual([whole.step, whole.exit, whole.errors.length].join(','), 'apps,0,0', 'a clean run ends in apps with exit 0')
 assertEqual(whole.reboot, 'Linux kernel has been updated. Reboot?', 'the unattended reboot notice becomes a restart offer')
 assertEqual(U.progress(whole), 1, 'a finished update is all the way there')
+let last = 0
+for (const [i, part] of parts.entries()) {
+  const p = U.progress(feedAll(parts.slice(0, i + 1)))
+  assert(p >= last, `progress never moves backward (${last} -> ${p} at part ${i})`)
+  last = p
+}
 
 // Questions are pending until output follows them.
 let s = U.create()
