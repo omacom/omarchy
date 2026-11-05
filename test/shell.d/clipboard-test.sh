@@ -89,6 +89,21 @@ assertDeepEqual(
   'clipboard display rows preserve original history indexes'
 )
 
+const selectedText = 'a'.repeat(8190) + '🙂'
+const mixedHistory = [
+  { type: 'image', path: '/tmp/a.png', mime: 'image/png' },
+  { type: 'text', text: 'file:///tmp/a.txt' },
+  { type: 'text', text: selectedText + 'x' },
+  { type: 'text', text: 'invalid\0text' },
+  { type: 'text', text: selectedText }
+]
+
+assertDeepEqual(
+  clipboard.displayRows(mixedHistory, '', 1, null, null, null, true).map(row => [row.index, row.fullText]),
+  [[4, selectedText]],
+  'clipboard text picker skips unsupported entries before limiting rows'
+)
+
 assertDeepEqual(
   clipboard.displayRows([{ type: 'text', text: 'line one\nline two' }], '', 50)[0].previewText,
   'line one line two',

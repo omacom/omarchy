@@ -12,6 +12,7 @@ Item {
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property bool opened: false
+  property bool pickingText: false
   property string filterText: ""
   property int selectedIndex: 0
   property bool cursorActive: false
@@ -41,6 +42,11 @@ Item {
   property int historyLimit: 500
 
   function open(payloadJson) {
+    if (pickReply.item) pickReply.item.finish(null)
+    root.show()
+  }
+
+  function show() {
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
@@ -51,6 +57,7 @@ Item {
   }
 
   function close() {
+    if (pickReply.item) pickReply.item.finish(null)
     root.cancelClearHistory()
     root.opened = false
   }
@@ -91,7 +98,7 @@ Item {
   }
 
   function requestClearHistory() {
-    if (root.history.length === 0) return
+    if (root.pickingText || root.history.length === 0) return
     clearConfirm.selectedIndex = 1
     root.clearConfirmOpen = true
   }
@@ -103,6 +110,7 @@ Item {
   }
 
   function confirmClearHistory() {
+    if (root.pickingText) return
     root.history = ClipboardHistory.clearHistory()
     root.saveHistory()
     root.selectedIndex = 0
@@ -114,7 +122,7 @@ Item {
   }
 
   function removeDisplayIndex(index) {
-    if (index < 0 || index >= displayModel.count) return
+    if (root.pickingText || index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
     root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
@@ -132,7 +140,7 @@ Item {
   }
 
   function rebuildDisplay() {
-    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber)
+    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber, root.pickingText)
 
     displayModel.clear()
     for (var i = 0; i < rows.length; i++) {
@@ -205,23 +213,29 @@ Item {
   function activateIndex(index) {
     if (index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
-    root.applySelected(row)
+    if (root.pickingText) {
+      var entry = root.history[row.historyIndex]
+      if (pickReply.item && row.entryType === "text" && ClipboardHistory.pickableText(entry))
+        pickReply.item.finish(entry.text)
+    } else {
+      root.applySelected(row)
+    }
   }
 
   function copyIndex(index) {
-    if (index < 0 || index >= displayModel.count) return
+    if (root.pickingText || index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
     root.copySelected(row)
   }
 
   function openIndex(index) {
-    if (index < 0 || index >= displayModel.count) return
+    if (root.pickingText || index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
     root.openSelected(row)
   }
 
   function applySelected(row) {
-    if (!row) return
+    if (root.pickingText || !row) return
     root.opened = false
     if (row.entryType === "image") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
@@ -231,7 +245,7 @@ Item {
   }
 
   function copySelected(row) {
-    if (!row) return
+    if (root.pickingText || !row) return
     root.opened = false
     if (row.entryType === "image") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", "--copy-only", row.mime, row.path])
@@ -241,12 +255,98 @@ Item {
   }
 
   function openSelected(row) {
-    if (!row) return
+    if (root.pickingText || !row) return
     root.opened = false
     Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
   }
 
   Component.onCompleted: initProc.running = true
+
+  ShellIpc {
+    target: "omarchy.clipboard"
+
+    function pickTextHistory(token: string): string {
+      if (!/^[0-9a-f]{32}$/.test(token)) return "invalid"
+      if (!pickReply.runtimeDir) return "unavailable"
+      if (pickReply.token) return "busy"
+      pickReply.token = token
+      if (!pickReply.item) {
+        pickReply.token = ""
+        return "unavailable"
+      }
+      return "ok"
+    }
+
+    function cancelTextHistory(token: string): string {
+      if (!token || token !== pickReply.token || !pickReply.item || pickReply.item.finished) return "unknown"
+      pickReply.item.finish(null)
+      return "ok"
+    }
+  }
+
+  // Bind each socket to one request, including while its reply drains.
+  Loader {
+    id: pickReply
+    readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR")
+    property string token: ""
+    active: token !== ""
+    onLoaded: item.connected = true
+
+    function clear(socket) {
+      if (item === socket) token = ""
+    }
+
+    sourceComponent: Socket {
+      id: reply
+      property bool finished: false
+      path: pickReply.runtimeDir + "/omarchy-clipboard-pick-" + pickReply.token + ".sock"
+
+      function finish(text) {
+        if (finished) return
+        finished = true
+        if (root.pickingText) {
+          root.opened = false
+          root.pickingText = false
+          root.filterText = ""
+        }
+        if (connected) {
+          write(JSON.stringify(text === null ? { state: "cancelled" } : { state: "selected", text: text }) + "\n")
+          flush()
+          deadline.interval = 3000
+          deadline.restart()
+          connected = false
+        } else {
+          Qt.callLater(pickReply.clear, reply)
+        }
+      }
+
+      onConnectionStateChanged: {
+        if (!connected) {
+          finish(null)
+          Qt.callLater(pickReply.clear, reply)
+        } else if (!finished) {
+          root.pickingText = true
+          root.clearConfirmOpen = false
+          root.show()
+        }
+      }
+      onError: Qt.callLater(reply.finish, null)
+
+      parser: SplitParser {
+        splitMarker: ""
+        onRead: reply.finish(null)
+      }
+
+      property Timer deadline: Timer {
+        interval: 120000
+        running: true
+        onTriggered: {
+          if (reply.finished) Qt.callLater(pickReply.clear, reply)
+          else reply.finish(null)
+        }
+      }
+    }
+  }
 
   ListModel { id: displayModel }
 
@@ -360,7 +460,7 @@ Item {
           }
 
           if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
+            if (!root.pickingText && root.filterText) root.setFilter("")
             else root.close()
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
@@ -439,7 +539,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || Commons.I18n.t("clipboard.search")
+            text: root.filterText || (root.pickingText ? Commons.I18n.t("clipboard.pickText") : Commons.I18n.t("clipboard.search"))
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -479,6 +579,13 @@ Item {
                   required property string previewImage
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
+                  Accessible.role: root.pickingText ? Accessible.ListItem : Accessible.NoRole
+                  Accessible.name: root.pickingText ? row.previewText : ""
+                  Accessible.selected: root.pickingText && row.hasCursor
+                  Accessible.onPressAction: {
+                    if (root.pickingText && root.opened && row.visible && resultList.itemAtIndex(row.index) === row)
+                      root.activateIndex(row.index)
+                  }
 
                   width: ListView.view.width
                   height: root.rowHeight

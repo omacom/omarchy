@@ -185,7 +185,11 @@ function cappedEntry(entry) {
   return { type: "text", text: entry.text.slice(0, cut > 0 ? cut : displayTextLimit) }
 }
 
-function displayRows(history, query, limit, tr, trn, fmt) {
+function pickableText(entry) {
+  return !!entry && entry.type === "text" && entry.text.length <= 8192 && entry.text.indexOf("\0") === -1
+}
+
+function displayRows(history, query, limit, tr, trn, fmt, textOnly) {
   var values = Array.isArray(history) ? history : []
   var needle = String(query || "").trim().toLowerCase()
   var max = limit === undefined || limit === null ? 50 : Number(limit)
@@ -196,13 +200,15 @@ function displayRows(history, query, limit, tr, trn, fmt) {
   var rows = []
 
   for (var i = 0; i < values.length; i++) {
-    var entry = cappedEntry(normalizeEntry(values[i]))
-    if (!entry) continue
+    var normalized = normalizeEntry(values[i])
+    if (!normalized || (textOnly && !pickableText(normalized))) continue
+    var entry = cappedEntry(normalized)
     if (needle && searchableText(entry).toLowerCase().indexOf(needle) < 0) continue
 
     var paths = filePaths(entry)
     var isFile = paths.length > 0
     var isImage = entry.type === "image"
+    if (textOnly && isFile) continue
     var previewPath = isImage ? String(entry.path || "") : (isFile && paths.length === 1 && isImagePath(paths[0]) ? paths[0] : "")
     rows.push({
       entryType: isFile ? "file" : entry.type,
