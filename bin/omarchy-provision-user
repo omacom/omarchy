@@ -129,6 +129,10 @@ env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromiu
 xdg-mime default HEY.desktop x-scheme-handler/mailto
 
 if (( first_install )); then
+  # Marked complete below without running, so what migrations seed for existing
+  # users has to be seeded here too.
+  omarchy-toggle monitor-management on
+
   mkdir -p "$state_dir/migrations"
   for migration in "$OMARCHY_PATH"/migrations/*.sh; do
     [[ -f $migration ]] && touch "$state_dir/migrations/$(basename "$migration")"
