@@ -86,7 +86,8 @@ Swedish|sv-latin1
 Taiwan (Zhuyin)|us|chewing
 Tajik|tj_alt-UTF8
 Turkish|trq
-Ukrainian|ua'
+Ukrainian|ua
+Vietnamese|us|bamboo'
 
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
 OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
@@ -147,7 +148,7 @@ omarchy_prompt_keyboard() {
 # preference survives separately for every user of the installed system.
 omarchy_persist_input_selection() {
   local target_root=${1:-} method=${keyboard_input_method:-none} layout=${keyboard_xkb_layout:-}
-  case "$method" in none | mozc | hangul | pinyin | chewing | cangjie5) ;; *) return 1 ;; esac
+  case "$method" in none | mozc | hangul | pinyin | chewing | cangjie5 | bamboo) ;; *) return 1 ;; esac
   case "$layout" in "" | kr | kr:kr104 | la) ;; *) return 1 ;; esac
   mkdir -p "$target_root/etc/omarchy"
   printf 'INPUT_METHOD=%s\nXKB_LAYOUT=%s\n' "$method" "$layout" > "$target_root/etc/omarchy/input-method"

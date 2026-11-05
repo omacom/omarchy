@@ -167,7 +167,7 @@ OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" OMARCHY_FORM_KEYBOARD_DEFAULT=Jap
 grep -qF -- '--selected Japanese' "$GUM_ARGS" || fail "the live installer's environment wins over the file"
 pass "a first-boot owner setup reads the media's defaults as data"
 
-for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr:kr104' 'Lao|us|none|la' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Taiwan (Zhuyin)|us|chewing|' 'Hong Kong (Cangjie)|us|cangjie5|'; do
+for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr:kr104' 'Lao|us|none|la' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Taiwan (Zhuyin)|us|chewing|' 'Hong Kong (Cangjie)|us|cangjie5|' 'Vietnamese|us|bamboo|'; do
   IFS='|' read -r label keymap method layout <<< "$selection"
   run_prompt omarchy_prompt_keyboard "0:$label"
   assert_status 0 "$label can be selected at install"
