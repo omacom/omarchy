@@ -67,6 +67,7 @@ function evaluate(text) {
   try {
     var value = expression()
     if (position !== tokens.length || !hasOperator || !isFinite(value)) return ""
+    if (Number.isSafeInteger(value)) return String(value)
     // Trim binary float noise, so 0.1+0.2 reads 0.3.
     return String(Number(value.toPrecision(12)))
   } catch (e) {

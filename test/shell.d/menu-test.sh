@@ -425,7 +425,7 @@ const missingGlyphs = fontGlyphRows
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 
 const calc = requireFromRoot('shell/plugins/menu/Calc.js')
-for (const [text, answer] of [['2 + 3 * 4', '14'], ['(2+3)*4', '20'], ['0.1+0.2', '0.3'], ['2*-3', '-6'], ['3x4', '12'], ['6÷2', '3']]) {
+for (const [text, answer] of [['2 + 3 * 4', '14'], ['(2+3)*4', '20'], ['0.1+0.2', '0.3'], ['1000000000000+1', '1000000000001'], ['2*-3', '-6'], ['3x4', '12'], ['6÷2', '3']]) {
   assertEqual(calc.evaluate(text), answer, `the calculator answers "${text}"`)
 }
 for (const text of ['5', '-5', '2+', '(2+3', '1/0', '7-zip', '1.2.3', 'firefox 2+2', '$(id)+1']) {
