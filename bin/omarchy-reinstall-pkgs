@@ -20,4 +20,6 @@ omarchy-update-pacman -Suu --noconfirm
 # Ensure this platform's default packages are installed
 default_packages=$(omarchy-pkg-defaults)
 mapfile -t packages <<<"$default_packages"
-omarchy-update-pacman -Syu --noconfirm --needed "${packages[@]}"
+# --ask 4 accepts removing a stock package a default replaces, such as
+# power-profiles-daemon for omarchy-power-profiles-daemon.
+omarchy-update-pacman -Syu --noconfirm --ask 4 --needed "${packages[@]}"
