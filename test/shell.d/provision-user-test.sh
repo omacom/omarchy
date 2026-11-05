@@ -7,6 +7,9 @@ source "$(dirname "$0")/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
+# Never let provisioning replace links in the caller's Pi profile.
+unset PI_CODING_AGENT_DIR
+
 mock_bin="$test_tmp/bin"
 mkdir -p "$mock_bin" "$test_tmp/home" "$test_tmp/home/.hermes/profiles/james"
 
