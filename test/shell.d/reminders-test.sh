@@ -57,6 +57,25 @@ message=$(find "$work/state/omarchy/omarchy-reminders" -name '*.message' -print 
   fail "reminder text is stored in the private state dir"
 [[ $(stat -f %Lp "$message") == "600" || $(stat -c %a "$message" 2>/dev/null) == "600" ]] ||
   fail "reminder text is not readable by other accounts"
-[[ ! -e /tmp/omarchy-reminders && ! -L /tmp/omarchy-reminders ]] ||
-  fail "reminder text is not stored in /tmp"
-pass "reminder text stays out of /tmp"
+pass "reminder text stays in private storage"
+
+cat >"$work/bin/systemctl" <<'SH'
+#!/bin/bash
+[[ $2 == show ]] || exit 0
+case $3 in
+  *stale*) printf 'not-found\n' ;;
+  *active*) printf 'loaded\n' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$work/bin/systemctl"
+reminder_dir="$work/state/omarchy/omarchy-reminders"
+printf 'old private text' >"$reminder_dir/omarchy-reminder-stale.message"
+printf 'active private text' >"$reminder_dir/omarchy-reminder-active.message"
+printf 'unconfirmed private text' >"$reminder_dir/omarchy-reminder-unknown.message"
+env -u XDG_RUNTIME_DIR HOME="$work/home" XDG_STATE_HOME="$work/state" \
+  PATH="$work/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-reminder" 5 "next reminder" >/dev/null
+[[ ! -e $reminder_dir/omarchy-reminder-stale.message ]] || fail "orphaned reminder text is removed"
+[[ -f $reminder_dir/omarchy-reminder-active.message ]] || fail "active reminder text is retained"
+[[ -f $reminder_dir/omarchy-reminder-unknown.message ]] || fail "a failed unit query retains reminder text"
+pass "only confirmed orphaned reminder text is removed"

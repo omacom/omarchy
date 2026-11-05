@@ -59,6 +59,26 @@ reminder_state_dir() {
   printf '%s\n' "$dir"
 }
 
+# Serialize pruning with message creation: a newly written message must not be
+# mistaken for an orphan before systemd-run has registered its timer.
+prepare_reminder_state() {
+  local message_file unit load_state
+  reminder_dir=$(reminder_state_dir) || return 1
+  (umask 077; touch "$reminder_dir/.lock") || return 1
+  exec 8>"$reminder_dir/.lock" || return 1
+  flock 8 || return 1
+
+  for message_file in "$reminder_dir"/omarchy-reminder-*.message; do
+    [[ -f $message_file && ! -L $message_file ]] || continue
+    unit=${message_file##*/}
+    unit=${unit%.message}.timer
+    # Only a positive not-found response permits deletion. A disconnected user
+    # manager or a failed query leaves messages intact.
+    load_state=$(systemctl --user show "$unit" --property=LoadState --value 2>/dev/null || true)
+    [[ $load_state != not-found ]] || rm -f -- "$message_file"
+  done
+}
+
 open_interactive() {
   omarchy-shell shell summon omarchy.reminders "{}"
 }
@@ -66,7 +86,7 @@ open_interactive() {
 show_reminders() {
   local timer next remaining reminder reminder_minutes body=""
   local reminder_dir
-  reminder_dir=$(reminder_state_dir) || return 1
+  prepare_reminder_state || return 1
   local reminder_message=""
   local now=$(date +%s)
 
@@ -92,7 +112,7 @@ show_reminders() {
 show_json() {
   local timer next remaining reminder reminder_minutes unit reminder_message label item_json reminders_json="[]"
   local reminder_dir
-  reminder_dir=$(reminder_state_dir) || return 1
+  prepare_reminder_state || return 1
   local now=$(date +%s)
   local count=0
   local tooltip
@@ -139,7 +159,7 @@ show_json() {
 clear_reminders() {
   local units
   local reminder_dir
-  reminder_dir=$(reminder_state_dir) || return 1
+  prepare_reminder_state || return 1
 
   units=$(systemctl --user list-timers --all --no-legend --no-pager "omarchy-reminder-*.timer" 2>/dev/null | awk '{ print $(NF - 1), $NF }')
 
@@ -202,7 +222,7 @@ fi
 set_at=$(date +%s)
 remind_at=$(date -d "+${minutes} minutes" +%H:%M)
 unit="omarchy-reminder-${minutes}m-$set_at"
-reminder_dir=$(reminder_state_dir) || exit 1
+prepare_reminder_state || exit 1
 message_file="$reminder_dir/$unit.message"
 confirmation=$(omarchy-i18n reminder.willRemindAt "$remind_at")
 confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$minutes")
@@ -215,7 +235,7 @@ if [[ -n $custom_message ]]; then
 fi
 
 systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
-  bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"
+  bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file" 8>&-
 
 refresh_indicator
 omarchy-notification-send -g 󰢌 "$confirmation_title" "$confirmation"
