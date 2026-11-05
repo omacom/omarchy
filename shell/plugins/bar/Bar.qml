@@ -91,9 +91,10 @@ Item {
   // turns a horizontal bar's full-width strip into one capsule per section,
   // frosted when glassy and solid black when opaque.
   readonly property bool islands: Style.bar.style === "islands" && !vertical && !transparent
-  // In islands mode the strip floats this far off its screen edge, and the
-  // capsules fill the strip, so widget highlights sit inside them.
-  readonly property int islandGap: islands ? Style.space(5) : 0
+  // In islands mode the strip floats one window gap (Hyprland's gaps_out on
+  // that edge) off the screen edge, so the space above and below the capsules
+  // matches. The capsules fill the strip, so widget highlights sit inside them.
+  readonly property int islandGap: islands ? (position === "bottom" ? Style.gapsOutBottom : Style.gapsOutTop) : 0
   property color urgent: Commons.Color.bar.active
 
   // A theme change cross-fades the bar's colors. Cycling the background
@@ -2284,9 +2285,9 @@ Item {
     width: Math.round(extent + pad * 2)
     height: parent.height
     radius: height / 2
-    // Glassy: frosted see-through capsule with a light rim. Opaque: a solid
-    // black capsule, like a dynamic island.
-    color: root.glassy ? root.glassBackground : "black"
+    // Glassy: frosted see-through capsule with a light rim. Opaque: the bar's
+    // own background, so a theme with a black bar gets a dynamic island.
+    color: root.glassy ? root.glassBackground : root.background
     border.width: root.glassy ? 1 : 0
     border.color: Qt.rgba(1, 1, 1, 0.22)
   }
