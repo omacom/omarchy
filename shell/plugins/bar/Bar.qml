@@ -1758,7 +1758,10 @@ Item {
 
     readonly property var panelMode: root.panelModeFor(screen)
 
-    readonly property bool centerBesideRight: BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
+    readonly property bool centerBesideRight: BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode, Style.bar.notchWidth)
+    // The width of a display notch of known width in the middle of the bar, or
+    // 0. The center sections split around it.
+    readonly property real notchSpan: BarModel.notchSpan(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode, Style.bar.notchWidth)
 
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false
@@ -1939,6 +1942,7 @@ Item {
           window: barWindow
           pool: horizontalPool
           drawn: !barWindow.centerBesideRight
+          notchSpan: barWindow.notchSpan
         }
 
         LeftModules {
@@ -1958,8 +1962,8 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
         }
 
-        // Where a display notch covers the middle of the bar, the center
-        // sections run on just left of the right one. They keep their regions,
+        // Where a display notch of unknown width covers the middle of the
+        // bar, the center sections run on just left of the right one. They keep their regions,
         // so settings pushes, drag and drop, and panel routing still address
         // them. The gap lets a drop at the seam land in the section the pointer
         // is nearer to.
@@ -2282,6 +2286,9 @@ Item {
     // False where a display notch has moved the center sections beside the
     // right one.
     property bool drawn: true
+    // A display notch's width in the middle of the bar, which the center
+    // sections split around.
+    property real notchSpan: 0
 
     CenterGestureArea { anchors.fill: parent }
 
@@ -2290,13 +2297,17 @@ Item {
       window: centerRoot.window
       pool: centerRoot.pool
       active: centerRoot.drawn
+      notchSpan: centerRoot.notchSpan
     }
   }
 
   // The center box and the two sections hanging off its edges. In the middle
   // of the bar the box is centered, and centerBegin and centerEnd grow away
-  // from it. Beside the right section the three run on as one, growing toward
-  // the start of the bar. Placed by hand rather than by a Row or Column, which
+  // from it. Around a display notch, centerBegin ends at its left edge and the
+  // box and centerEnd start at its right one, growing away from it, so moving
+  // a widget between the sections moves it across the notch. Beside the right
+  // section the three run on as one, growing toward the start of the bar.
+  // Placed by hand rather than by a Row or Column, which
   // cannot center one child and hang the others off it.
   component CenterSections: Item {
     id: sections
@@ -2307,6 +2318,11 @@ Item {
     // shows nothing.
     property bool active: true
     property bool besideRight: false
+    property real notchSpan: 0
+    // Around a notch, the room each side keeps clear of its edge.
+    readonly property bool aroundNotch: !root.vertical && !besideRight && notchSpan > 0
+    readonly property real notchStart: Math.round((width - notchSpan) / 2) - Style.space(4)
+    readonly property real notchEnd: Math.round((width + notchSpan) / 2) + Style.space(4)
 
     implicitWidth: root.vertical ? root.barSize : beginList.width + centerBox.width + endList.width
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
@@ -2335,7 +2351,7 @@ Item {
       pool: sections.pool
       region: "centerBegin"
       fixedEdge: "end"
-      x: root.vertical ? Math.round((sections.width - width) / 2) : centerBox.x - width
+      x: root.vertical ? Math.round((sections.width - width) / 2) : (sections.aroundNotch ? sections.notchStart - width : centerBox.x - width)
       y: root.vertical ? centerBox.y - height : Math.round((sections.height - height) / 2)
     }
 
@@ -2355,9 +2371,9 @@ Item {
       window: sections.window
       pool: sections.pool
       active: sections.active
-      fixedEdge: sections.besideRight ? "end" : "center"
+      fixedEdge: sections.besideRight ? "end" : (sections.aroundNotch ? "start" : "center")
       crossSize: root.vertical ? sections.width : sections.height
-      x: root.vertical ? 0 : (sections.besideRight ? beginList.width : Math.round((sections.width - width) / 2))
+      x: root.vertical ? 0 : (sections.besideRight ? beginList.width : (sections.aroundNotch ? sections.notchEnd : Math.round((sections.width - width) / 2)))
       y: root.vertical ? Math.round((sections.height - height) / 2) : 0
     }
   }
