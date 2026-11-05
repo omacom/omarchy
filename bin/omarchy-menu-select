@@ -135,7 +135,7 @@ payload=$(jq -cn \
   }
   + (if $width != "" then { width: ($width | tonumber | floor) } else {} end)
   + (if $maxHeight != "" then { maxHeight: ($maxHeight | tonumber | floor) } else {} end)' \
-  --args "${options[@]}" "${selected[@]}")
+  --args -- "${options[@]}" "${selected[@]}")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 
