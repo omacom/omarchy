@@ -530,7 +530,11 @@ if (( ${#namespace_args[@]} > 0 )) &&
   namespace_capable=1
 fi
 
-if (( namespace_capable == 0 )); then
+# The namespace hides the fixture behind a fresh /tmp to rebuild it there, which
+# only works for a TMPDIR under /tmp.
+if [[ $test_tmp != /tmp/* ]]; then
+  skip "cross-UID fallback probe: TMPDIR is outside /tmp"
+elif (( namespace_capable == 0 )); then
   skip "cross-UID fallback probe: two-UID mount namespace unavailable"
 else
   # Keep the protected entrypoint, shared helper and harmless command stubs
@@ -542,7 +546,7 @@ set -euo pipefail
 fixture=$1
 run_id=$2
 mount -t tmpfs -o mode=1777 tmpfs /tmp
-mkdir -m 755 "$fixture"
+mkdir -p -m 755 "$fixture"
 tar -C "$fixture" -xf /proc/self/fd/9
 exec 9<&-
 mkdir -m 700 /tmp/victim-home
