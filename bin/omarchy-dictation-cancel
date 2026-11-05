@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+# omarchy:summary=Discard an active Voxtype recording or transcription without typing it
+
+import argparse
+import fcntl
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+
+
+def lock_expired(signum, frame):
+  raise TimeoutError("Dictation is busy; try again.")
+
+
+def main():
+  argparse.ArgumentParser(description="Cancel an active Voxtype dictation without transcribing or typing it. Uses the selected backend; other backends are reported as unsupported.").parse_args()
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+  lock_path = config_home / "omarchy/defaults/dictation.lock"
+  lock_path.parent.mkdir(parents=True, exist_ok=True)
+  # Share the backend-selection lock with `omarchy dictation` and dictation-use.
+  with lock_path.open("a") as lock:
+    previous_handler = signal.signal(signal.SIGALRM, lock_expired)
+    signal.alarm(5)
+    try:
+      fcntl.flock(lock, fcntl.LOCK_EX)
+    finally:
+      signal.alarm(0)
+      signal.signal(signal.SIGALRM, previous_handler)
+    backend = subprocess.run(["omarchy-default-dictation"], capture_output=True, text=True, check=True, timeout=5).stdout.strip()
+    if backend != "voxtype":
+      raise ValueError(f"Cancel is currently supported for Voxtype. Selected backend: {backend}")
+    if subprocess.run(["omarchy-cmd-missing", "voxtype"]).returncode == 0:
+      raise ValueError("The selected Voxtype backend is not installed.")
+    status = subprocess.run(["voxtype", "status"], capture_output=True, text=True, check=True, timeout=5).stdout.strip()
+    if status != "stopped":
+      subprocess.run(["voxtype", "record", "cancel"], check=True, timeout=10)
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except KeyboardInterrupt:
+    sys.exit(130)
+  except (OSError, ValueError, subprocess.SubprocessError) as error:
+    print(f"Cancel dictation: {error}", file=sys.stderr)
+    sys.exit(1)
