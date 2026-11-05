@@ -32,6 +32,9 @@ for backend in voxtype superwhisper; do
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
 if [[ $1 == "status" ]]; then echo "${VOXTYPE_STATUS:-idle}"; exit 0; fi
+if [[ ${0##*/} == "voxtype" && $1 == "record" && ${PACTL_REQUIRE_READY:-0} == 1 ]]; then
+  [[ $(cat "$PACTL_STATE_FILE") == "RUNNING" && ! -e $PACTL_STATE_FILE.pending ]] || exit 91
+fi
 if [[ -n ${FAIL_SETUP_STEP:-} && $* == "$FAIL_SETUP_STEP" ]]; then exit 7; fi
 if [[ ${0##*/} == "superwhisper" && $1 == "shortcuts" && ${DICTATION_EXIT:-0} == 0 ]]; then
   if [[ $2 == "show" ]]; then
@@ -55,8 +58,22 @@ cat >"$test_tmp/bin/pactl" <<'SH'
 #!/bin/bash
 case $1 in
   get-default-source) printf 'mic\n' ;;
-  list) printf '1 mic PipeWire s16le 2ch 48000Hz %s\n' "$(cat "$PACTL_STATE_FILE")" ;;
-  suspend-source) printf '%s\n' "$*" >>"$PACTL_LOG"; printf 'RUNNING\n' >"$PACTL_STATE_FILE" ;;
+  list)
+    if [[ -e $PACTL_STATE_FILE.pending ]]; then
+      remaining=$(cat "$PACTL_STATE_FILE.pending")
+      if (( remaining > 0 )); then
+        echo "$((remaining - 1))" > "$PACTL_STATE_FILE.pending"
+      else
+        echo RUNNING > "$PACTL_STATE_FILE"
+        rm "$PACTL_STATE_FILE.pending"
+      fi
+    fi
+    printf '1 mic PipeWire s16le 2ch 48000Hz %s\n' "$(cat "$PACTL_STATE_FILE")"
+    ;;
+  suspend-source)
+    printf '%s\n' "$*" >>"$PACTL_LOG"
+    echo 2 > "$PACTL_STATE_FILE.pending"
+    ;;
 esac
 SH
 export HEX_STATE="$test_tmp/hex-state"
@@ -418,7 +435,7 @@ omarchy-dictation-voxtype start
 [[ ! -s $PACTL_LOG ]] || fail "an awake mic is left alone" "$(cat "$PACTL_LOG")"
 echo SUSPENDED >"$PACTL_STATE_FILE"
 : >"$PACTL_LOG"
-omarchy-dictation-voxtype start
+PACTL_REQUIRE_READY=1 omarchy-dictation-voxtype start
 [[ $(cat "$PACTL_LOG") == "suspend-source mic 0" ]] || fail "a suspended mic is woken before recording" "$(cat "$PACTL_LOG")"
 [[ $(cat "$PACTL_STATE_FILE") == "RUNNING" ]] || fail "recording waits until the mic is running"
 # The voxtype stub reports VOXTYPE_STATUS. A recording already underway must
