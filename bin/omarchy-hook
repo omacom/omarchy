@@ -42,6 +42,6 @@ fi
 
 # Existing callers keep best-effort semantics; launch supervisors can request
 # a status without depending on parsing or retaining the hook's output.
-if [[ ${OMARCHY_HOOK_REPORT_STATUS:-0} == 1 ]]; then
+if [[ ${OMARCHY_HOOK_REPORT_STATUS:-0} == "1" ]]; then
   exit "$status"
 fi

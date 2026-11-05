@@ -140,7 +140,7 @@ printf 'after noisy hook' | HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_HARNESS_LOG="$harness_log" "$ROOT/bin/omarchy-agent" --inline >"$test_tmp/output" 2>&1
 grep -aq 'agent-launch hook failed or timed out (status ' "$OMARCHY_TEST_HOOK_DIAGNOSTICS" ||
   fail "noisy hook must leave an independent failure diagnostic"
-[[ $(wc -c <"$OMARCHY_TEST_HOOK_DIAGNOSTICS") -lt 34000 ]] ||
+(( $(wc -c <"$OMARCHY_TEST_HOOK_DIAGNOSTICS") < 34000 )) ||
   fail "hook diagnostic output must stay bounded"
 pass "noisy hooks keep bounded output and visible failure status"
 
@@ -152,7 +152,7 @@ SH
 HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_HOOK_LOG="$hook_log" OMARCHY_TEST_HARNESS_LOG="$harness_log" \
   "$ROOT/bin/omarchy-agent" --inline
-[[ $(wc -c <"$hook_log") -eq 100000 ]] || fail "hook files must not inherit the diagnostic size limit"
+(( $(wc -c <"$hook_log") == 100000 )) || fail "hook files must not inherit the diagnostic size limit"
 pass "hooks can write files larger than the diagnostic snapshot"
 
 # A returned hook's background child may safely keep its inherited output.
@@ -170,5 +170,5 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_HOOK_LOG="$hook_log" OMARCHY_TEST_HARNESS_LOG="$harness_log" \
   "$ROOT/bin/omarchy-agent" --inline
 sleep 1
-[[ $(cat "$hook_log") == finished ]] || fail "background output must not terminate the child with SIGPIPE"
+[[ $(cat "$hook_log") == "finished" ]] || fail "background output must not terminate the child with SIGPIPE"
 pass "returned hook background work keeps safe output descriptors"

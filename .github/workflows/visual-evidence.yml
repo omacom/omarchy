@@ -1,0 +1,68 @@
+name: Check visual evidence
+
+# Asks PRs that could change what's on screen to show it: screenshots or a
+# recording in the Screenshots section of the PR body, or a
+# "No visible change: <reason>" line, which is taken at the author's word.
+# It's a nudge toward easier reviews, not a gate: it isn't a required check,
+# so a red X here doesn't block a merge. The paths are deliberately broad for
+# that reason. It reads only the event payload, so a fork's PR runs it the
+# same way, and editing the body re-runs it. A required status check must not
+# be path-filtered (a PR that skips it waits on it forever), so this needs a
+# job-level condition instead if it is ever made one.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+    paths:
+      - 'shell/**'
+      - 'config/**'
+      - 'themes/**'
+      - 'applications/**'
+      - 'install/*.packages'
+      - 'default/themed/**'
+      - 'default/hypr/**'
+      - 'default/omarchy/**'
+      - 'default/applications/**'
+      - 'default/fonts/**'
+      - 'default/gtk/**'
+      - 'default/plymouth/**'
+      - 'default/sddm/**'
+      - 'default/limine/**'
+      - 'default/i18n/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  visual-evidence:
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Look for screenshots or a recording in the PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 - <<'EOF'
+          import os, re, sys
+
+          body = re.sub(r"<!--.*?-->", "", os.environ.get("PR_BODY") or "", flags=re.S)
+
+          # Read the Screenshots section when the template is there; without it,
+          # only embedded media anywhere in the body counts.
+          section = re.search(r"^#{1,6}\s*(screenshots?|recordings?|demo)\b.*?$(.*?)(?=^#{1,6}\s|\Z)", body, flags=re.S | re.M | re.I)
+          media = r"!\[[^\]]*\]\(|<img\b|<video\b|github\.com/user-attachments/|https?://\S+\.(png|jpe?g|gif|webp|mp4|webm|mov)\b"
+
+          if re.search(r"^\s*no visible change:\s*\S", body, flags=re.M | re.I):
+            print("Author says nothing on screen changes.")
+          elif section and re.search(media + r"|https?://\S", section.group(2), flags=re.I):
+            print("Found screenshots or a recording in the Screenshots section.")
+          elif not section and re.search(media, body, flags=re.I):
+            print("Found screenshots or a recording in the PR body.")
+          else:
+            print("::error title=Screenshots help review::This PR touches files that can change what's on screen. Add before/after screenshots (and a short recording for motion or interaction) to the Screenshots section of the PR body. If nothing visible changes, a line reading \"No visible change: <reason>\" is all it needs. Editing the body re-runs this check.")
+            sys.exit(1)
+          EOF

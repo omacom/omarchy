@@ -9,6 +9,7 @@ printf 'exit 7\n' >"$HOME/.config/omarchy/hooks/demo"
 printf 'echo continued >"$HOME/continued"\n' >"$HOME/.config/omarchy/hooks/demo.d/second"
 OMARCHY_HOOK_REPORT_STATUS=0 bash "$ROOT/bin/omarchy-hook" demo >/dev/null || fail "legacy hook callers keep best-effort status"
 [[ -f $HOME/continued ]] || fail "later hooks must run after failure"
+rm -f "$HOME/continued"
 if OMARCHY_HOOK_REPORT_STATUS=1 bash "$ROOT/bin/omarchy-hook" demo >/dev/null; then
   fail "opt-in supervisor must see failure"
 fi
