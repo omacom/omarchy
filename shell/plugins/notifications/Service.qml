@@ -208,6 +208,12 @@ Item {
   property bool expanded: false
   property string openDeck: ""
   property string hoverKey: ""     // the card under the pointer, when open
+  // The deck of that card. A deck opens a few pixels before its first card
+  // is under the pointer; until then the card keeps its buttons.
+  readonly property string hoverDeck: {
+    var at = rowIndexFor(hoverKey)
+    return at < 0 ? "" : Layout.groupKeyFor(toasts.get(at))
+  }
   property real hoverX: -1         // where it is, in the deck's coordinates
   property real hoverY: -1
 
