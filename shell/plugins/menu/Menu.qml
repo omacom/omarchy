@@ -466,11 +466,13 @@ Item {
       while (takenIds[rowId]) rowId += "-"
       takenIds[rowId] = true
 
+      var isCurrent = value === current
       providerRows.push({
         id: rowId,
         parent: menuId,
         kind: "action",
-        icon: (value === current) ? "✓" : (spec.icon || ""),
+        icon: isCurrent ? "✓" : (spec.icon || ""),
+        providerCurrent: isCurrent,
         label: label,
         title: "",
         target: "",
@@ -659,7 +661,7 @@ Item {
 
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
       displayModel.append({
-        itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
+        itemId: "dmenu.apply", disabled: false, kind: "dmenu", checkable: false, checked: false, icon: "", iconFont: "",
         appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
         detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
         action: "", provider: "", score: -1, section: ""
@@ -677,11 +679,14 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
+      var checked = root.dmenuMultiple && root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1
       displayModel.append({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
-        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
+        checkable: root.dmenuMultiple,
+        checked: checked,
+        icon: root.dmenuMultiple ? (checked ? "✓" : "○") : icon,
         iconFont: "",
         appIcon: "",
         appId: "",
@@ -715,7 +720,9 @@ Item {
         displayModel.setProperty(i, "detail", Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)))
       } else if (row.kind === "dmenu") {
         var value = MenuModel.dmenuValue(root.dmenuOptions[Number(row.itemId.substring(6))])
-        displayModel.setProperty(i, "icon", root.dmenuSelected.indexOf(value) !== -1 ? "✓" : "○")
+        var checked = root.dmenuSelected.indexOf(value) !== -1
+        displayModel.setProperty(i, "checked", checked)
+        displayModel.setProperty(i, "icon", checked ? "✓" : "○")
       }
     }
   }
@@ -1522,11 +1529,12 @@ Item {
               required property string action
               required property int childCount
               required property bool disabled
+              required property bool checkable
+              required property bool checked
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
-              readonly property bool isChoice: row.kind === "dmenu" && row.itemId !== "dmenu.apply" && root.dmenuMultiple
 
               enabled: !row.disabled && !root.deleteConfirmOpen
               Accessible.role: Accessible.ListItem
@@ -1534,8 +1542,8 @@ Item {
               Accessible.description: row.detail
               Accessible.focusable: row.enabled
               Accessible.selected: row.hasCursor
-              Accessible.checkable: row.isChoice
-              Accessible.checked: row.isChoice && row.icon === "✓"
+              Accessible.checkable: row.checkable
+              Accessible.checked: row.checked
               Accessible.onPressAction: row.activate(false)
               Keys.forwardTo: [filterInput]
 

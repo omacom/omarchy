@@ -133,6 +133,8 @@ assertDeepEqual(
   {
     itemId: 'style.theme',
     disabled: false,
+    checkable: false,
+    checked: false,
     kind: 'action',
     icon: '',
     iconFont: '',
@@ -398,6 +400,15 @@ assert(
     .itemOrder.join(',') === 'root,apps,style.font.mono,style.font.serif',
   'repeating a provider merge does not duplicate rows'
 )
+// Both provider choices are checkable, but the current value is independent
+// of the icon used to display it.
+const activeProviderRow = { ...firstProviderMerge.items['style.font.mono'], providerCurrent: true }
+const otherProviderRow = { ...firstProviderMerge.items['style.font.serif'], providerCurrent: false, icon: '✓' }
+const activeProviderDisplay = menu.displayRow(firstProviderMerge.items, firstProviderMerge.itemOrder, {}, {}, activeProviderRow)
+const otherProviderDisplay = menu.displayRow(firstProviderMerge.items, firstProviderMerge.itemOrder, {}, {}, otherProviderRow)
+assert(activeProviderDisplay.checkable && activeProviderDisplay.checked, 'provider current choice is checked')
+assert(otherProviderDisplay.checkable && !otherProviderDisplay.checked, 'provider icon does not set its check state')
+
 // A plugin drops out of the Enable list the moment it is enabled, so a
 // provider that runs again has to lose the rows it contributed last time.
 const rerunProviderMerge = menu.swapProviderRows(firstProviderMerge.items, firstProviderMerge.itemOrder, 'style.font', providerRowsFor(['serif']))
