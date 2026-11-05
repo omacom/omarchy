@@ -12,6 +12,8 @@ without restarting the shell. Rendering and behavior live in
 also load — the shell tests in `test/shell.d/menu-test.sh` and
 `menu-guards-test.sh` exercise it directly.
 
+Tab and Shift+Tab move focus between search and the highlighted result. Up and Down move through results, and Enter activates the highlighted result. Typing filters the menu even when a result has focus. Assistive technology can read each result's label, detail, selection and check state and activate it through the same menu action.
+
 JSONC here means JSON plus comments and trailing commas, stripped by the
 parser rather than a real JSONC grammar: only whole-line `//` comments are
 removed, so an inline trailing comment breaks the parse. A file that fails to
