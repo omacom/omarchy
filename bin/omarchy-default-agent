@@ -155,6 +155,40 @@ mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
 if [[ $installing == "true" ]]; then
+  # The installer's own window: the nearest ancestor Hyprland knows as a client.
+  installer=""
+  clients=$(hyprctl clients -j 2>/dev/null)
+  pid=$PPID
+  while [[ -n $clients && -z $installer ]] && (( pid > 1 )); do
+    installer=$(jq -r --argjson pid "$pid" '.[]? | select(.pid == $pid) | "\(.address) \(.workspace.name)"' <<<"$clients" 2>/dev/null)
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null)
+  done
+
+  # A terminal that serves every window from one process (foot's server, a
+  # single-instance Ghostty or Kitty) matches them all. A title only this
+  # window carries picks it out. Terminals apply a title on their next frame,
+  # so give it a moment; if it never shows, the installer stays unknown and the
+  # agent opens here as it would outside the console.
+  if [[ $installer == *$'\n'* ]]; then
+    title="omarchy-default-agent-$$"
+    printf '\033]2;%s\007' "$title"
+    installer=""
+    for _ in {1..20}; do
+      installer=$(hyprctl clients -j 2>/dev/null | jq -r --arg title "$title" '[.[]? | select(.title == $title)][0] // empty | "\(.address) \(.workspace.name)"' 2>/dev/null)
+      [[ -n $installer ]] && break
+      sleep 0.05
+    done
+    printf '\033]2;Omarchy\007'
+  fi
+fi
+
+# An install started from the Quake console floats only while it installs. The
+# agent then takes its place in the console as the tiled window the console is
+# shaped around, rather than running inline in a floating terminal over it.
+if [[ $installing == "true" && ${installer#* } == "special:qconsole" ]]; then
+  hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-agent --prefer-local", { workspace = "special:qconsole silent" })' >/dev/null
+  hyprctl dispatch "hl.dsp.window.close({ window = \"address:${installer%% *}\" })" >/dev/null
+elif [[ $installing == "true" ]]; then
   printf '\033[2J\033[3J\033[H'
   exec omarchy-agent --inline
 else

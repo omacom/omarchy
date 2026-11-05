@@ -134,6 +134,7 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ applications/mimeapps.list                         /usr/share/applications/mimeapps.list
   ├─ systemd/user/*.service                             /usr/lib/systemd/user/
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
+  ├─ systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf  /usr/lib/systemd/user/wireplumber.service.d/
   ├─ systemd/system-sleep/unmount-fuse                  /usr/lib/systemd/system-sleep/
   ├─ systemd/zram-generator.conf.d/90-omarchy.conf      /usr/lib/systemd/zram-generator.conf.d/
   ├─ systemd/timesyncd.conf.d/10-omarchy.conf          /usr/lib/systemd/timesyncd.conf.d/
@@ -371,7 +372,7 @@ the legacy finalization marker from `~/.local/state/omarchy/` into `done/`.
 finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
-  powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
+  SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
   device-specific kernel modules, udev rules, microcode, wireless regdom,

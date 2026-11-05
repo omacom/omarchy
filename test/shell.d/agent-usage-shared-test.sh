@@ -460,7 +460,7 @@ except collectors.HttpError as error:
 check("a body short of its Content-Length over a socket is cut short", short is not None and (short.transport, short.invalid, short.cut_short) == (False, True, True), repr(short and vars(short)))
 
 
-def drip_server():
+def drip_server(status=b"200 OK"):
   listener = socket.socket()
   listener.bind(("127.0.0.1", 0))
   listener.listen(1)
@@ -469,7 +469,7 @@ def drip_server():
     conn, _ = listener.accept()
     with conn:
       conn.recv(65536)
-      conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n')
+      conn.sendall(b'HTTP/1.1 ' + status + b'\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n')
       with contextlib.suppress(OSError):
         for _ in range(100):
           conn.sendall(b" ")
@@ -489,6 +489,17 @@ except collectors.HttpError as error:
 check(
   "a reply dripping a byte at a time runs out of time as one cut short instead of holding the collector",
   dripped is not None and dripped.cut_short and not dripped.transport and time.monotonic() - began < 5,
+  repr(dripped and vars(dripped)),
+)
+began = time.monotonic()
+try:
+  collectors.open_json(urllib.request.Request(drip_server(b"500 Internal Server Error")), timeout=0.3)
+  dripped = None
+except collectors.HttpError as error:
+  dripped = error
+check(
+  "an error reply dripping its body still answers with its status by the deadline",
+  dripped is not None and dripped.status == 500 and time.monotonic() - began < 5,
   repr(dripped and vars(dripped)),
 )
 bad_key = urllib.request.Request("https://example.invalid", headers={"Authorization": "Bearer sk-secret\nX: y"})

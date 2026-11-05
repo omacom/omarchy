@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Make Slack follow Omarchy themes live
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+[[ -f /usr/bin/slack ]] || { echo "Install Slack Desktop first." >&2; exit 1; }
+
+if [[ ! -f $HOME/.local/state/omarchy/current/theme/slack.json ]]; then
+  omarchy-theme-refresh
+fi
+
+desktop="/usr/share/applications/slack.desktop"
+override="$HOME/.local/share/applications/slack.desktop"
+state="$HOME/.local/state/omarchy/slack"
+if ! grep -qE '^Exec=(/usr/bin/)?slack( |$)' "$desktop"; then
+  echo "Slack's desktop launcher has changed; refusing to replace it." >&2
+  exit 1
+fi
+
+mkdir -p "${override%/*}" "$state"
+if [[ -f $override ]] && ! grep -qE '^Exec=omarchy-launch-slack( |$)' "$override"; then
+  if [[ -e $override.before-omarchy ]]; then
+    echo "An earlier launcher backup already exists: $override.before-omarchy" >&2
+    exit 1
+  fi
+  cp -a "$override" "$override.before-omarchy"
+fi
+pending=$(mktemp "$override.XXXXXX")
+trap 'rm -f "$pending"' EXIT
+sed -E 's#^Exec=(/usr/bin/)?slack( |$)#Exec=omarchy-launch-slack\2#' "$desktop" >"$pending"
+mv "$pending" "$override"
+touch "$state/enabled"
+update-desktop-database "${override%/*}"
+omarchy-theme-set-slack
+
+echo "Slack theme sync enabled. Fully quit Slack and reopen it from the launcher once."
+echo "Future Omarchy theme changes will recolor open Slack windows automatically."
