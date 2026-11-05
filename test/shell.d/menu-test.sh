@@ -225,7 +225,7 @@ for (const font of installFonts) {
       names.push(Buffer.from(asset.subarray(start, start + asset.readUInt16BE(offset + 8))).swap16().toString('utf16le'))
     }
   }
-  assert(names.length > 0 && names.every(name => name === specimens[key].previewFamily && name.startsWith('Omarchy Preview ')), `${font.id} uses its private preview family, not the full installed family`)
+  assert(names.length > 0 && names.every(name => name === `Omarchy Preview ${key}` && name === specimens[key].previewFamily), `${font.id} uses its private preview family, not the full installed family`)
   assert(fs.readFileSync(path.join(root, `default/fonts/previews/${key}.LICENSE`), 'utf8').trim(), `${font.id} includes its license`)
 }
 assert(menuQml.includes('previewFontFor: function(value) { return value }'), 'installed fonts preview their provider value')

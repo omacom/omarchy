@@ -150,7 +150,7 @@ The `fonts` provider sets `previewFont` to the installed family. The Install > S
 
 Both the font name and specimen use the previewed family at the point size `omarchy-display-text-size` gives terminals (the shell's base text size × 9 / 12, rounded to the nearest integer, so 9 pt by default), not the shell's heading or caption pixel sizes. The preview updates live when the text size changes; hand-edits to terminal configurations are not reflected.
 
-Bundled specimens live in `default/fonts/previews/`. They contain printable ASCII from regular-weight Nerd Fonts v3.4.0, including shaping rules, and use distinct `Omarchy Preview N` family names so they cannot shadow full installed fonts or violate reserved-name requirements. They are loaded only into the shell process and never installed into fontconfig. See the adjacent licenses and `README.md` for sources and regeneration instructions.
+Bundled specimens live in `default/fonts/previews/`. They contain printable ASCII from regular-weight Nerd Fonts v3.4.0, including shaping rules, and use distinct `Omarchy Preview <key>` family names so they cannot shadow full installed fonts or violate reserved-name requirements. They are loaded only into the shell process and never installed into fontconfig. See the adjacent licenses and `README.md` for sources and regeneration instructions.
 
 ## Driving the menu from the CLI
 
