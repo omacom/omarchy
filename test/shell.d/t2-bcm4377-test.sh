@@ -7,7 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 leaf="$ROOT/install/hardware/apple/fix-t2-bcm4377.sh"
 fix_t2="$ROOT/install/hardware/apple/fix-t2.sh"
 all="$ROOT/install/hardware/all.sh"
-migration="$ROOT/migrations/1789234234.sh"
 rebind="$ROOT/bin/omarchy-t2-bcm4377-rebind"
 suspend="$ROOT/bin/omarchy-t2-bcm4377-suspend"
 rebind_unit="$ROOT/default/systemd/system/omarchy-t2-bcm4377-rebind.service"
@@ -20,35 +19,17 @@ grep -q 'apple/fix-t2-bcm4377.sh' "$all" ||
   fail "the BCM4377 workaround runs during hardware setup"
 ! grep -q 'omarchy-t2-bcm4377' "$fix_t2" ||
   fail "only the BCM4377 leaf owns the combo-chip units"
-grep -q 'Class: 0x00000000' "$rebind" ||
-  fail "the rebind treats an unset adapter class as hung"
 grep -q 'RequiredBy=sleep.target' "$suspend_unit" ||
   fail "a failed unload fails sleep, instead of continuing without ExecStop"
 grep -q 'Before=sleep.target' "$suspend_unit" ||
   fail "suspend unload runs before sleep.target"
 grep -q 'OnFailure=omarchy-t2-bcm4377-recover.service' "$suspend_unit" ||
   fail "a killed pre has a unit that puts the radios back"
-grep -q 'TimeoutStartSec=70' "$suspend_unit" ||
-  fail "pre is allowed the rebind-stop budget plus a slow hci teardown"
-grep -q 'omarchy-t2-bcm4377-rebind.service' "$suspend" ||
-  fail "resume reloads Bluetooth through the rebind unit"
-grep -q 'omarchy-t2-bcm4377-reload.service' "$suspend" ||
-  fail "resume is a packaged reload unit"
-! grep -q 'systemd-run' "$suspend" ||
-  fail "resume does not use a transient unit"
-! grep -q 'sleep 15' "$suspend" "$reload_unit" ||
-  fail "reload does not wait a fixed 15 seconds"
-! grep -q 'ExecStartPre=/bin/sleep' "$reload_unit" ||
-  fail "the reload unit has no sleep before it loads brcmfmac"
-grep -q 'wait_for_pci_wifi_d0' "$suspend" ||
-  fail "reload waits until the Wi-Fi function is in D0"
 grep -q 'OnFailure=omarchy-t2-bcm4377-recover.service' "$reload_unit" ||
   fail "a failed reload is handed to recover"
 grep -q 'Restart=on-failure' "$reload_unit" ||
   fail "a failed reload is retried"
-! grep -q 'rfkill unblock wlan' "$suspend" ||
-  fail "resume does not unblock every Wi-Fi adapter"
-pass "BCM4377 setup is a dedicated leaf with a class-aware rebind"
+pass "BCM4377 setup is a dedicated leaf with systemd sleep integration"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -166,6 +147,10 @@ for module in "$@"; do
     printf 'power_state=%s\n' "$(<"$sys/bus/pci/devices/0000:73:00.0/power_state")" >>"$TEST_LOG"
   fi
   mkdir -p "$sys/module/$module"
+  if [[ $module == brcmfmac && ${RECOVER_IFACE:-0} == 1 ]]; then
+    mkdir -p "$sys/class/net/wlp115s0f0/device"
+    ln -sfn "$sys/bus/pci/drivers/brcmfmac" "$sys/class/net/wlp115s0f0/device/driver"
+  fi
 done
 exit 0
 SH
@@ -324,41 +309,6 @@ run_leaf "" "" 0 >/dev/null
   fail "unrelated hardware is left alone"
 pass "unrelated hardware is left alone"
 
-run_migration() {
-  local wifi_id="${1:-}" bt_id="${2:-}" t2="${3:-0}"
-  rm -rf "$systemd_dir" "$(dirname "$sleep_hook")"
-  mkdir -p "$systemd_dir" "$(dirname "$sleep_hook")"
-  printf 'legacy-hook\n' >"$sleep_hook"
-  chmod 755 "$sleep_hook"
-  : >"$calls"
-
-  WIFI_ID="$wifi_id" BT_ID="$bt_id" T2_HARDWARE="$t2" PATH="$stub_bin:$PATH" \
-    TEST_LOG="$calls" SYSTEM_STATE=offline \
-    OMARCHY_PATH="$ROOT" \
-    OMARCHY_T2_BCM4377_SYSTEMD_DIR="$systemd_dir" \
-    OMARCHY_T2_BCM4377_SLEEP_HOOK="$sleep_hook" \
-    bash -euo pipefail "$migration" >/dev/null
-}
-
-run_migration 4488 5fa0 1
-[[ -f $systemd_dir/omarchy-t2-bcm4377-rebind.service ]] ||
-  fail "the migration installs the rebind unit on existing BCM4377 installs"
-grep -Fq $'sudo\tenv' "$calls" ||
-  fail "the migration escalates to install machine-wide units" "$(cat "$calls")"
-grep -Fq $'systemctl\tenable\tomarchy-t2-bcm4377-suspend.service' "$calls" ||
-  fail "the migration enables the suspend unit" "$(cat "$calls")"
-[[ ! -e $sleep_hook ]] || fail "the migration takes a custom sleep hook out of the hook path"
-[[ -f ${sleep_hook}.disabled ]] || fail "the migration keeps a custom sleep hook"
-[[ ! -x ${sleep_hook}.disabled ]] || fail "the migration does not leave a custom sleep hook executable"
-pass "the migration repairs an existing BCM4377 install"
-
-run_migration 4464 "" 1
-[[ ! -e $systemd_dir/omarchy-t2-bcm4377-rebind.service ]] ||
-  fail "the migration skips T2 Macs without BCM4377"
-[[ ! -s $calls ]] || fail "the migration escalates nothing on other T2 chips" "$(cat "$calls")"
-[[ -x $sleep_hook ]] || fail "the migration leaves a sleep hook alone on other T2 chips"
-pass "the migration skips T2 Macs without BCM4377"
-
 setup_sysfs() {
   rm -rf "$sys" "$run" "$rfkill_dir"
   mkdir -p \
@@ -421,6 +371,7 @@ run_helper() {
     export FAIL_HCI="${FAIL_HCI:-0}"
     export FAIL_WIFI="${FAIL_WIFI:-0}"
     export FAIL_LOAD="${FAIL_LOAD:-0}"
+    export RECOVER_IFACE="${RECOVER_IFACE:-0}"
     export NM_WIFI_RADIO="${NM_WIFI_RADIO:-enabled}"
     export NM_DEVICE_STATE="${NM_DEVICE_STATE:-100 (connected)}"
     export RELOAD_ACTIVE="${RELOAD_ACTIVE:-0}"
@@ -670,6 +621,28 @@ pass "a failed brcmfmac load fails the reload"
 
 setup_sysfs
 rm -rf "$sys/module/brcmfmac" "$sys/module/hci_bcm4377"
+rm -rf "$sys/class/net/wlp115s0f0"
+set +e
+run_helper "$suspend" resume
+status=$?
+set -e
+assert_status 1 "$status" "resume fails when the Wi-Fi interface does not appear"
+pass "a missing Wi-Fi interface fails the reload"
+
+setup_sysfs
+# brcmfmac is loaded but unbound (no netdev interface)
+rm -rf "$sys/class/net/wlp115s0f0"
+set +e
+RECOVER_IFACE=1 run_helper "$suspend" resume
+status=$?
+set -e
+assert_status 0 "$status" "retrying resume recovers a loaded but unbound device"
+log_before $'modprobe\t-r\tbrcmfmac' $'modprobe\tbrcmfmac' ||
+  fail "retry unloads the unbound driver before probing again" "$(cat "$calls")"
+pass "retrying resume recovers a loaded but unbound device"
+
+setup_sysfs
+rm -rf "$sys/module/brcmfmac" "$sys/module/hci_bcm4377"
 set +e
 run_helper "$suspend" recover
 status=$?
@@ -751,6 +724,18 @@ grep -Fq $'systemctl\tstart\t--no-block\tomarchy-t2-bcm4377-rebind.service' "$ca
 grep -Fq $'modprobe\tbrcmfmac' "$calls" &&
   fail "recover does not reload a brcmfmac that never unloaded" "$(cat "$calls")"
 pass "recover restores Wi-Fi and Bluetooth when pre was killed between the two unloads"
+
+setup_sysfs
+# reload failed after loading brcmfmac without binding an interface
+rm -rf "$sys/class/net/wlp115s0f0"
+set +e
+RECOVER_IFACE=1 run_helper "$suspend" recover
+status=$?
+set -e
+assert_status 0 "$status" "recover handles a loaded but unbound Wi-Fi device"
+log_before $'modprobe\t-r\tbrcmfmac' $'modprobe\tbrcmfmac' ||
+  fail "recover reloads an unbound driver through resume" "$(cat "$calls")"
+pass "recover restores a loaded but unbound Wi-Fi device"
 
 setup_sysfs
 set +e

@@ -125,7 +125,6 @@ persisted_wlan_blocked() {
 
 nm_wifi_disabled() {
   local state
-  command -v nmcli >/dev/null 2>&1 || return 1
   state=$(nmcli radio wifi 2>/dev/null || true)
   [[ $state == *disabled* ]]
 }
@@ -190,10 +189,7 @@ release_wifi() {
   rm -rf "$connected_dir"
   for iface in $(wifi_ifaces); do
     rejoin=0
-    state=""
-    if command -v nmcli >/dev/null 2>&1; then
-      state=$(timeout 5 nmcli -g GENERAL.STATE device show "$iface" 2>/dev/null || true)
-    fi
+    state=$(timeout 5 nmcli -g GENERAL.STATE device show "$iface" 2>/dev/null || true)
     # Only a state we actually read can justify joining again. nmcli device
     # disconnect also returns success for an interface that was already
     # disconnected, so its exit status is not evidence of an active link.
@@ -230,7 +226,7 @@ restore_wifi() {
       if [[ -e $connected_dir/$iface.up || -e $connected_dir/$iface ]]; then
         ip link set "$iface" up >/dev/null 2>&1 || true
       fi
-      if [[ -e $connected_dir/$iface ]] && command -v nmcli >/dev/null 2>&1; then
+      if [[ -e $connected_dir/$iface ]]; then
         nmcli device connect "$iface" >/dev/null 2>&1 || true
       fi
     done
@@ -341,6 +337,9 @@ wait_for_pci_wifi_d0() {
 
 load_wifi() {
   local attempt
+  if loaded brcmfmac && [[ -z $(wifi_ifaces) ]]; then
+    unload_wifi || true
+  fi
   for attempt in 1 2 3; do
     if modprobe brcmfmac; then
       modprobe brcmfmac_wcc 2>/dev/null || true
@@ -365,15 +364,17 @@ bring_wifi_up() {
   systemctl stop systemd-rfkill.service >/dev/null 2>&1 || true
   persist_wlan "$value"
   load_wifi
+  if ! wait_for_wifi_iface; then
+    echo "BCM4377 Wi-Fi interface failed to appear" >&2
+    unload_wifi || true
+    return 1
+  fi
   set_bcm_wlan_soft "$value"
   if [[ $value == 1 ]]; then
     persist_wlan 1
     return 0
   fi
-  wait_for_wifi_iface || true
-  if command -v nmcli >/dev/null 2>&1; then
-    nmcli radio wifi on >/dev/null 2>&1 || true
-  fi
+  nmcli radio wifi on >/dev/null 2>&1 || true
   persist_wlan 0
 }
 
@@ -436,9 +437,10 @@ resume() {
 }
 
 # Backstop when pre, post, or the reload is killed or fails. A reload that
-# is already running owns the bring-up. A missing brcmfmac takes the normal
-# D0 resume. A brcmfmac that never left still has the link pre dropped, and
-# Bluetooth may already be unloaded: pre does Bluetooth first.
+# is already running owns the bring-up. A missing brcmfmac or missing Wi-Fi
+# interface takes the normal D0 resume. A brcmfmac that never left still has
+# the link pre dropped, and Bluetooth may already be unloaded: pre does
+# Bluetooth first.
 recover() {
   has_bcm4377 || exit 0
 
@@ -446,7 +448,7 @@ recover() {
     exit 0
   fi
 
-  if [[ -f $stamp ]] || ! loaded brcmfmac; then
+  if [[ -f $stamp ]] || ! loaded brcmfmac || [[ -z $(wifi_ifaces) ]]; then
     rm -f "$stamp" "$released_stamp"
     rm -rf "$connected_dir"
     resume
