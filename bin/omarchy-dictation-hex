@@ -17,7 +17,7 @@ hex_state() {
 hex_dictating() {
   local state
   state=$(hex_state)
-  [[ $state == recording || $state == dictating ]]
+  [[ $state == "recording" || $state == "dictating" ]]
 }
 
 start() {
