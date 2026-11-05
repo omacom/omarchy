@@ -684,8 +684,30 @@ function applyTranslations(items, catalog) {
   return out
 }
 
+// Where the list scrolls to show the cursor's row with a peek of the rows
+// around it. `view` has the ListView's contentY, height, originY and
+// contentHeight; `item` the row's y and height. A cursor with only disabled
+// rows after it can never move onto them, so the list goes to its end to show
+// them whole, as far as that keeps the cursor's row in view.
+function revealContentY(view, item, reach, rowAfter, selectableAfter, rowBefore) {
+  var maxY = Math.max(view.originY, view.originY + view.contentHeight - view.height)
+  var y = view.contentY
+  if (rowAfter && !selectableAfter) {
+    y = Math.max(y, Math.min(maxY, item.y))
+  } else if (rowAfter) {
+    var overhang = item.y + item.height + reach - (y + view.height)
+    if (overhang > 0) y = Math.min(y + overhang, maxY)
+  }
+  if (rowBefore) {
+    var underhang = y - (item.y - reach)
+    if (underhang > 0) y = Math.max(y - underhang, view.originY)
+  }
+  return y
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    revealContentY: revealContentY,
     summonAction: summonAction,
     guardReaders: GUARD_READERS,
     guardScript: guardScript,

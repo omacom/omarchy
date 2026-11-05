@@ -792,16 +792,11 @@ Item {
     var item = resultList.itemAtIndex(root.selectedIndex)
     if (!item) return
 
-    var reach = root.rowPeek + root.rowSpacing
-    if (root.selectedIndex < displayModel.count - 1) {
-      var maxY = Math.max(resultList.originY, resultList.originY + resultList.contentHeight - resultList.height)
-      var overhang = item.y + item.height + reach - (resultList.contentY + resultList.height)
-      if (overhang > 0) resultList.contentY = Math.min(resultList.contentY + overhang, maxY)
-    }
-    if (root.selectedIndex > 0) {
-      var underhang = resultList.contentY - (item.y - reach)
-      if (underhang > 0) resultList.contentY = Math.max(resultList.contentY - underhang, resultList.originY)
-    }
+    var selectableAfter = false
+    for (var i = root.selectedIndex + 1; i < displayModel.count && !selectableAfter; i++)
+      selectableAfter = root.rowSelectable(i)
+    resultList.contentY = MenuModel.revealContentY(resultList, item, root.rowPeek + root.rowSpacing,
+      root.selectedIndex < displayModel.count - 1, selectableAfter, root.selectedIndex > 0)
   }
 
   function select(delta) {

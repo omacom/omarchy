@@ -423,4 +423,15 @@ const missingGlyphs = fontGlyphRows
   .filter(({ code }) => !fontRanges.some(([start, end = start]) => code >= start && code <= end))
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
+
+// The cursor's row is revealed with a peek of the row past it. When only
+// disabled rows follow, the cursor can never move onto them, so the list
+// scrolls to its end to show them whole, as far as that keeps the cursor's
+// row in view. Rows here are 40px, the view shows three, and the peek reaches 20px.
+const view = { contentY: 0, height: 120, originY: 0, contentHeight: 200 }
+const fourth = { y: 120, height: 40 }
+assertEqual(menu.revealContentY(view, fourth, 20, true, true, true), 60, 'menu reveals the next selectable row with a peek')
+assertEqual(menu.revealContentY(view, fourth, 20, true, false, true), 80, 'menu scrolls to the end when only disabled rows follow the cursor')
+assertEqual(menu.revealContentY({ ...view, contentHeight: 1000 }, fourth, 20, true, false, true), 100,
+  'menu keeps the cursor in view when the disabled rows after it are taller than the list')
 JS
