@@ -69,7 +69,7 @@ elif [[ $* == "dictation stop --print" ]]; then
   echo hello
 fi
 SH
-for command in omarchy-pkg-add omarchy-clipboard-paste-text omarchy-notification-send hyprctl omarchy-restart-hyprctl omarchy-restart-shell; do
+for command in omarchy-pkg-add wtype wl-copy omarchy-notification-send hyprctl omarchy-restart-hyprctl omarchy-restart-shell; do
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
@@ -127,7 +127,7 @@ for backend in voxtype superwhisper hex; do
   elif [[ $backend == "superwhisper" ]]; then
     expected=$'superwhisper start\nsuperwhisper stop\nsuperwhisper record'
   else
-    expected=$'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text hello\nhex dictation start'
+    expected=$'hex dictation start\nhex dictation stop --print\nwtype -- hello\nhex dictation start'
   fi
   [[ $(cat "$DICTATION_LOG") == "$expected" ]] || fail "adapter dispatches recording for $backend"
 done
@@ -135,7 +135,7 @@ pass "built-in adapters implement start stop and toggle"
 
 : > "$DICTATION_LOG"
 omarchy-dictation-hex toggle
-[[ $(cat "$DICTATION_LOG") == $'hex dictation stop --print\nomarchy-clipboard-paste-text hello' ]] || fail "toggling a recording Hex types its transcript"
+[[ $(cat "$DICTATION_LOG") == $'hex dictation stop --print\nwtype -- hello' ]] || fail "toggling a recording Hex types its transcript without replacing the clipboard"
 : > "$DICTATION_LOG"
 omarchy-dictation-hex stop || fail "stopping an idle Hex succeeds"
 rm "$HEX_STATE"
