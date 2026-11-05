@@ -147,32 +147,24 @@ check(#applied == 0 and env.GDK_SCALE == nil, "applies nothing without saved set
 ' || fail "monitor settings leave monitors.lua alone until something is saved"
 pass "monitor settings leave monitors.lua alone until something is saved"
 
-# On Apple Silicon, every rule reaching the Pro Display XDR maps sRGB into its
-# P3 gamut, the panel's port-named rules included, since a rule without cm puts
-# it back on sRGB. A color choice of its own wins, other monitors are left alone,
-# and so is every monitor on a PC, where the display does the mapping itself.
+# On Apple Silicon every monitor rule maps sRGB into the display's own gamut,
+# the panel's port-named rules included, since a rule without cm puts the
+# display back on sRGB. A color choice of a rule's own wins, and nothing changes
+# on a PC, where the display does the mapping itself.
 wide_gamut_rules='
-plug("DP-2", "", { description = "Apple Computer Inc ProDisplayXDR 0x0A110A08" })
-plug("eDP-1", "", { description = "" })
 o.shell_quote = function(value) return value end
 o.shell_succeeds = function() return apple end
 package.loaded["default.hypr.wide-gamut"] = nil
 require("default.hypr.wide-gamut")
 hl.monitor({ output = "", mode = "preferred", scale = "auto" })
 hl.monitor({ output = "DP-2", scale = 2 })
-hl.monitor({ output = "eDP-1", scale = 2 })
-hl.monitor({ output = "desc:Apple Computer Inc ProDisplayXDR", scale = 2, cm = "srgb" })
+hl.monitor({ output = "DP-3", scale = 2, cm = "srgb" })
 '
 run_lua "apple = true $wide_gamut_rules"'
-check(#applied == 5, "adds one rule, for the catch-all, got " .. #applied)
-check(applied[1].output == "" and applied[1].cm == nil, "leaves the catch-all as written")
-check(applied[2].output == "desc:Apple Computer Inc ProDisplayXDR" and applied[2].cm == "edid" and applied[2].scale == "auto",
-  "copies the catch-all for the XDR with EDID color")
-check(applied[3].output == "DP-2" and applied[3].cm == "edid" and applied[3].scale == 2, "gives the XDR'"'"'s port rule EDID color")
-check(applied[4].output == "eDP-1" and applied[4].cm == nil, "leaves another monitor alone")
-check(applied[5].cm == "srgb", "keeps a color choice of its own")
-' || fail "wide-gamut displays get EDID color on Apple Silicon"
+check(applied[1].cm == "edid" and applied[2].cm == "edid" and applied[2].scale == 2, "gives every rule EDID color")
+check(applied[3].cm == "srgb", "keeps a color choice of its own")
+' || fail "monitors get EDID color on Apple Silicon"
 run_lua "apple = false $wide_gamut_rules"'
-check(#applied == 4 and applied[2].cm == nil, "changes no rule off Apple Silicon")
-' || fail "wide-gamut displays keep sRGB off Apple Silicon"
-pass "wide-gamut displays get EDID color only on Apple Silicon"
+check(applied[1].cm == nil and applied[2].cm == nil, "changes no rule off Apple Silicon")
+' || fail "monitors keep sRGB off Apple Silicon"
+pass "monitors get EDID color only on Apple Silicon"
