@@ -896,6 +896,7 @@ Item {
         if (picked.itemId === "dmenu.apply") {
           root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
         } else {
+          if (resultList.activeFocus && resultList.currentIndex !== index) root.focusSelectedResult()
           var value = MenuModel.dmenuValue(root.dmenuOptions[Number(picked.itemId.substring(6))])
           var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(), value)
           if (root.dmenuOnChange.length > 0) {
