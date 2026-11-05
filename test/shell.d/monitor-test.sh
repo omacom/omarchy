@@ -73,6 +73,33 @@ assertDeepEqual(
   'monitor offers nothing below 1080p'
 )
 assertDeepEqual(monitor.resolutionOptions(undefined, 0, 0), [], 'monitor offers no resolutions without modes')
+
+// A QEMU virtio display lists sizes bigger than the screen behind it, and its
+// first (preferred) mode has another shape than its largest. It must not take
+// the largest, an ultrawide, as the screen's shape.
+const virtio = ['3024x1964@120.00Hz', '5120x2160@50.00Hz', '4096x2160@50.00Hz', '3840x2160@60.00Hz',
+  '3840x2160@59.94Hz', '3840x2160@50.00Hz', '1920x1440@60.00Hz', '2560x1080@50.00Hz', '1856x1392@59.99Hz',
+  '1792x1344@60.00Hz', '2048x1152@60.00Hz', '1920x1200@59.88Hz', '1920x1080@60.00Hz', '1920x1080@50.00Hz',
+  '1600x1200@60.00Hz', '1680x1050@59.95Hz', '1400x1050@59.98Hz', '1280x1024@60.02Hz', '1440x900@59.89Hz',
+  '1280x960@60.00Hz', '1360x768@60.02Hz', '1280x768@59.87Hz', '1024x768@60.00Hz', '800x600@60.32Hz',
+  '640x480@60.00Hz', '640x480@59.94Hz']
+assertDeepEqual(
+  monitor.resolutionOptions(virtio, 1920, 1080),
+  ['1920x1080', '2048x1152', '3840x2160'],
+  'monitor offers 16:9 sizes on a virtual display whose largest mode is not its first'
+)
+assertDeepEqual(
+  monitor.resolutionOptions(virtio, 5120, 2160),
+  ['1920x1080', '2048x1152', '2560x1080', '3840x2160', '5120x2160'],
+  'monitor keeps a way back to 16:9 from an ultrawide virtual mode'
+)
+
+// A normal monitor lists its native mode first and largest: unchanged.
+assertDeepEqual(
+  monitor.resolutionOptions(['3840x2160@60.00Hz', '2560x1440@60.00Hz', '2560x1080@60.00Hz', '1920x1080@60.00Hz'], 3840, 2160),
+  ['1920x1080', '2560x1440', '3840x2160'],
+  'monitor still offers only the native shape on a normal monitor'
+)
 assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
 assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')
 assertEqual(monitor.resolutionLabel('2560x1440'), '1440p', 'monitor names smaller modes by height')
