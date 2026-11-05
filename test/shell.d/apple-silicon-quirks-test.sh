@@ -12,7 +12,8 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
-conf="$test_tmp/modprobe.d/hid_apple.conf"
+modprobe_dir="$test_tmp/modprobe.d"
+conf="$modprobe_dir/omarchy-toprow.conf"
 mkdir -p "$stub_bin"
 
 cat >"$stub_bin/omarchy-hw-aarch64-apple" <<'SH'
@@ -38,23 +39,35 @@ SH
 chmod +x "$stub_bin"/*
 
 run_fkeys() {
-  APPLE_SILICON="$1" OMARCHY_HID_APPLE_CONF="$conf" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    bash -eE -o pipefail -c 'source "$1"' _ "$ROOT/install/hardware/fix-fkeys.sh"
+  mkdir -p "$test_tmp/sys-module"
+  APPLE_SILICON="$1" OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$test_tmp/sys-module" \
+    OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$ROOT/bin:$PATH" TEST_LOG="$calls" \
+    bash -eE -o pipefail -c 'source "$1"' _ "$ROOT/install/hardware/fix-fkeys.sh" >/dev/null
 }
 
 run_fkeys 0
-[[ $(<"$conf") == "options hid_apple fnmode=2" ]] || fail "a PC keeps F-keys first on Apple-like keyboards" "$(cat "$conf")"
-pass "a PC keeps F-keys first on Apple-like keyboards"
+grep -qx 'options hid_apple fnmode=1' "$conf" && grep -qx 'options hid_asus fnlock_default=0' "$conf" ||
+  fail "a PC starts keyboards that leave Fn-lock to Linux on the media keys" "$(cat "$conf")"
+pass "a PC starts keyboards that leave Fn-lock to Linux on the media keys"
 
-printf 'options hid_apple fnmode=0\n' >"$conf"
+rm -f "$conf"
+printf 'options hid_apple fnmode=2\n' >"$modprobe_dir/hid_apple.conf"
 run_fkeys 0
-[[ $(<"$conf") == "options hid_apple fnmode=0" ]] || fail "an existing hid_apple.conf is left alone"
-pass "an existing hid_apple.conf is left alone"
+[[ ! -e $conf && $(<"$modprobe_dir/hid_apple.conf") == "options hid_apple fnmode=2" ]] ||
+  fail "setup keeps the F-keys an existing install already has"
+rm -f "$modprobe_dir/hid_apple.conf"
+printf 'options asus_wmi fnlock_default=1\n' >"$modprobe_dir/asus.conf"
+run_fkeys 0
+[[ ! -e $conf ]] || fail "setup keeps an administrator's own asus_wmi Fn-lock"
+pass "setup keeps the F-keys an existing install already has"
 
-rm -rf "$test_tmp/modprobe.d"
+rm -rf "$modprobe_dir"
 : >"$calls"
 run_fkeys 1
-[[ ! -e $conf && ! -s $calls ]] || fail "Apple Silicon keeps its own keyboard mode" "$(cat "$calls")"
+[[ ! -e $modprobe_dir && ! -s $calls ]] || fail "Apple Silicon keeps its own keyboard mode" "$(cat "$calls")"
+output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-keyboard-toprow" fnkeys 2>&1) &&
+  fail "omarchy keyboard toprow refuses Apple Silicon"
+[[ $output == *omarchy-mac* ]] || fail "omarchy keyboard toprow says why it refuses Apple Silicon" "$output"
 pass "Apple Silicon keeps its own keyboard mode"
 
 # The Windows guest is x86_64, so every other CPU refuses it before it touches
