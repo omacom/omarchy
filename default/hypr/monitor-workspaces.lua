@@ -308,7 +308,7 @@ end
 
 -- The workspace a monitor falls back to when what it shows isn't its own: the
 -- lowest of its own already on it, or its first. `avoid` is an id that is about
--- to leave, so the first free one stands in for it.
+-- to leave, so the first free one stands in for it, or none if all are taken.
 local function home(monitor, block, avoid)
   local best = nil
 
@@ -325,6 +325,7 @@ local function home(monitor, block, avoid)
         return id
       end
     end
+    return nil
   end
 
   return best or block * SLOTS + 1
@@ -357,7 +358,10 @@ local function settle(monitor, monitors, by_connector, avoid)
   local active = monitor.active_workspace
 
   if block and regular(active) and block_of_id(active.id) ~= block and owner(active.id, monitors, by_connector) then
-    show(monitor, home(monitor, block, avoid))
+    local id = home(monitor, block, avoid)
+    if id then
+      show(monitor, id)
+    end
   end
 end
 
@@ -513,7 +517,8 @@ function M.move_to_monitor(direction)
     local by_connector = assign(monitors)
 
     -- Settle first: the number Hyprland parked the old monitor on is not taken,
-    -- it goes away once that monitor shows one of its own.
+    -- it goes away once that monitor shows one of its own. With every number
+    -- of its block taken, it settles after the adoption frees one instead.
     if from then
       settle(from, monitors, by_connector, id)
     end
@@ -521,6 +526,9 @@ function M.move_to_monitor(direction)
     local block = by_connector[moved.monitor.name]
     if block and block_of_id(id) ~= block then
       adopt(moved, block)
+    end
+    if from then
+      settle(from, monitors, by_connector)
     end
 
     -- Settling the monitor it left can take focus; it belongs with the
