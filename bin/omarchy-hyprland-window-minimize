@@ -35,9 +35,11 @@ hyprctl dispatch "hl.dsp.window.move({ workspace = \"special:minimized\", follow
 # opened would join it on the hidden workspace. Focusing the workspace we are
 # already on is a no-op (Hyprland keeps focus on the moved window), so bounce
 # through another workspace and back inside a single eval: that leaves focus
-# on the now-empty workspace with no visible flicker.
-OTHER_WORKSPACE=$(hyprctl workspaces -j | jq -r --argjson id "$WORKSPACE" '[.[] | select(.id >= 1 and .id != $id) | .id] | min // empty')
-if [[ -z $OTHER_WORKSPACE ]]; then
-  OTHER_WORKSPACE=$(( WORKSPACE == 1 ? 2 : 1 ))
-fi
-hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"$OTHER_WORKSPACE\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
+# on the now-empty workspace with no visible flicker. The hop away is
+# previous_per_monitor — the workspace this monitor last switched from, the
+# one SUPER+CTRL+TAB returns to — resolved by Hyprland itself, so the round
+# trip ends from it and leaves that record as it found it; hopping through a
+# concrete workspace would rewrite it. On a monitor with nothing before this
+# one (a fresh session) the selector resolves to nothing, both hops are
+# no-ops, and focus stays with the moved window.
+hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"previous_per_monitor\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
