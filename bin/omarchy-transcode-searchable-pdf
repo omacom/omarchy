@@ -27,7 +27,7 @@ def main():
   if os.path.lexists(output):
     raise FileExistsError(f"Output already exists: {output}")
   if subprocess.run(["omarchy-cmd-missing", "ocrmypdf"]).returncode == 0:
-    raise ValueError("Install OCRmyPDF first: omarchy pkg add ocrmypdf")
+    raise ValueError("Install OCRmyPDF first: omarchy pkg aur add ocrmypdf")
 
   # Generate next to the destination so publication is atomic on its filesystem.
   # link() refuses even a destination created after the initial existence check.

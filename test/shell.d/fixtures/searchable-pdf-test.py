@@ -21,11 +21,11 @@ class SearchablePdfTest(unittest.TestCase):
     self.output = self.source.with_name(self.source.stem + ".searchable.pdf")
     self.calls = []
 
-  def run_app(self, failure=False, race=False):
+  def run_app(self, failure=False, race=False, missing=False):
     def run(argv, **kwargs):
       self.calls.append(argv)
       if argv[0] == "omarchy-cmd-missing":
-        return subprocess.CompletedProcess(argv, 1)
+        return subprocess.CompletedProcess(argv, 0 if missing else 1)
       Path(argv[-1]).write_bytes(b"searchable PDF")
       if race:
         self.output.write_bytes(b"another process")
@@ -69,6 +69,12 @@ class SearchablePdfTest(unittest.TestCase):
     with self.assertRaises(FileExistsError):
       self.run_app()
     self.assertFalse(target.exists())
+
+  def test_missing_dependency_points_to_aur_and_does_not_create_output(self):
+    with self.assertRaisesRegex(ValueError, "pkg aur add ocrmypdf"):
+      self.run_app(missing=True)
+    self.assertFalse(self.output.exists())
+    self.assertEqual(len(self.calls), 1)
 
 
 unittest.main()
