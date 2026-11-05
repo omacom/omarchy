@@ -74,4 +74,10 @@ assertDeepEqual([0, 60, 180].map(m => Sun.litAt(solstice, m)), [true, false, tru
 
 assertEqual(Sun.eventMark(solstice.setMinutes), null, 'elsewhen marks no sunset past midnight')
 assertDeepEqual([-30, 1500, 0, 1440].map(Sun.eventMark), [null, null, 0, 1], 'elsewhen marks only events on the bar')
+
+// Solar noon is the midpoint of the published day, not 12:00 by the clock.
+const publishedNoon = (Date.parse('2026-08-31T11:15Z') + Date.parse('2026-09-01T00:26Z')) / 2
+assert(within((chicago.noonMs - publishedNoon) / 60000, 0, 2), 'elsewhen finds solar noon between Chicago\'s published sunrise and sunset')
+assert(Sun.eventMark(chicago.noonMinutes) !== null, 'elsewhen keeps an ordinary solar noon on the bar')
+assert(Sun.eventMark(midnightSun.noonMinutes) !== null && Sun.eventMark(polarNight.noonMinutes) !== null, 'elsewhen keeps a highest sun when the sun does not set')
 JS
