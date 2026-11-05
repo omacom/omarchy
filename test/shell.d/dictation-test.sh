@@ -64,8 +64,11 @@ elif [[ $1 == "status" ]]; then
   # Hex 3.3 answers --json with the state under capture, and renames a recording
   # to "recording"; plain `hex status` is prose, so an adapter that forgets
   # --json reads nothing.
-  [[ $2 == "--json" ]] || { printf 'Capture      %s\n' "$(< "$HEX_STATE")"; exit 0; }
-  printf '{"capture":{"state":"%s"}}\n' "$(< "$HEX_STATE")"
+  if [[ $2 == "--json" ]]; then
+    printf '{"capture":{"state":"%s"}}\n' "$(< "$HEX_STATE")"
+  else
+    printf 'Capture      %s\n' "$(< "$HEX_STATE")"
+  fi
 elif [[ $* == "dictation start" ]]; then
   echo recording > "$HEX_STATE"
 elif [[ $* == "dictation stop --print" ]]; then
