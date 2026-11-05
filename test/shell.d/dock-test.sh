@@ -160,14 +160,17 @@ fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
 # Minimizing moves a window to the dock's hidden workspace without following
-# it, then focuses the workspace it left, so the next window opens there and
-# not beside the minimized one.
+# it, then drops focus on the workspace it left, so the next window opens
+# there and not beside the minimized one. Focusing the workspace the user is
+# already on is a no-op (Hyprland keeps focus on the moved window), so
+# minimize bounces through another workspace and back inside a single eval.
 cat >"$mock_bin/hyprctl" <<STUB
 #!/bin/bash
 case "\$1" in
   clients) printf '[{"address":"0xabc","workspace":{"id":3}}]\n' ;;
   activewindow) printf '{"address":"0xdef","workspace":{"id":5}}\n' ;;
-  dispatch) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
+  workspaces) printf '[{"id":1},{"id":3}]\n' ;;
+  dispatch|eval) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
 esac
 STUB
 chmod +x "$mock_bin/hyprctl"
@@ -180,12 +183,12 @@ grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-3", window = "addr
   fail "minimize remembers the workspace the window left" "$(cat "$TMPDIR/hyprctl.log")"
 grep -qxF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
   fail "minimize moves the window to the dock's hidden workspace" "$(cat "$TMPDIR/hyprctl.log")"
-[[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "3" })' ]] ||
-  fail "minimize focuses the workspace the window left" "$(cat "$TMPDIR/hyprctl.log")"
+[[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "1" })) hl.dispatch(hl.dsp.focus({ workspace = "3" }))' ]] ||
+  fail "minimize drops focus on the workspace the window left by bouncing through another and back" "$(cat "$TMPDIR/hyprctl.log")"
 : >"$TMPDIR/hyprctl.log"
 minimize
 grep -qF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-5", window = "address:0xdef" })' "$TMPDIR/hyprctl.log" &&
-  grep -qF 'address:0xdef' "$TMPDIR/hyprctl.log" && [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dsp.focus({ workspace = "5" })' ]] ||
+  grep -qF 'address:0xdef' "$TMPDIR/hyprctl.log" && [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "1" })) hl.dispatch(hl.dsp.focus({ workspace = "5" }))' ]] ||
   fail "minimize takes the active window when given none" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize sends a window to the dock and keeps focus on its workspace"
 

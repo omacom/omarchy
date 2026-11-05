@@ -32,5 +32,12 @@ remember_minimized_from "$ADDRESS" "$WORKSPACE"
 hyprctl dispatch "hl.dsp.window.move({ workspace = \"special:minimized\", follow = false, window = \"address:$ADDRESS\" })" >/dev/null
 
 # Focus would otherwise stay with the minimized window, and the next window
-# opened would join it on the hidden workspace.
-hyprctl dispatch "hl.dsp.focus({ workspace = \"$WORKSPACE\" })" >/dev/null
+# opened would join it on the hidden workspace. Focusing the workspace we are
+# already on is a no-op (Hyprland keeps focus on the moved window), so bounce
+# through another workspace and back inside a single eval: that leaves focus
+# on the now-empty workspace with no visible flicker.
+OTHER_WORKSPACE=$(hyprctl workspaces -j | jq -r --argjson id "$WORKSPACE" '[.[] | select(.id >= 1 and .id != $id) | .id] | min // empty')
+if [[ -z $OTHER_WORKSPACE ]]; then
+  OTHER_WORKSPACE=$(( WORKSPACE == 1 ? 2 : 1 ))
+fi
+hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"$OTHER_WORKSPACE\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
