@@ -423,4 +423,30 @@ const missingGlyphs = fontGlyphRows
   .filter(({ code }) => !fontRanges.some(([start, end = start]) => code >= start && code <= end))
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
+
+const calc = requireFromRoot('shell/plugins/menu/Calc.js')
+for (const [text, answer] of [['2 + 3 * 4', '14'], ['(2+3)*4', '20'], ['0.1+0.2', '0.3'], ['2*-3', '-6'], ['3x4', '12'], ['6÷2', '3']]) {
+  assertEqual(calc.evaluate(text), answer, `the calculator answers "${text}"`)
+}
+for (const text of ['5', '-5', '2+', '(2+3', '1/0', '7-zip', '1.2.3', 'firefox 2+2', '$(id)+1']) {
+  assertEqual(calc.evaluate(text), '', `the calculator leaves "${text}" to search`)
+}
+
+const currency = requireFromRoot('shell/plugins/menu/Currency.js')
+for (const [text, amount, from, to] of [
+  ['INR 100 to USD', 100, 'inr', 'usd'],
+  ['$5 to INR', 5, 'usd', 'inr'],
+  ['inr100 to usd', 100, 'inr', 'usd'],
+  ['₹100 in $', 100, 'inr', 'usd'],
+  ['100 rupees to dollars', 100, 'inr', 'usd'],
+  ['how much is $5 in inr?', 5, 'usd', 'inr'],
+  ['usd to inr', 1, 'usd', 'inr']
+]) {
+  assertDeepEqual(currency.parse(text), { amount, from, to }, `the menu reads the conversion "${text}"`)
+}
+for (const text of ['zen', '100 inr', '$5', '100 inr to', 'to usd', '$(id) to usd', '5 usd to $(id)']) {
+  assertEqual(currency.parse(text), null, `the menu leaves "${text}" to search`)
+}
+assertEqual(currency.format(1.0578803), '1.06', 'a conversion rounds money to two places')
+assertEqual(currency.format(0.0105788), '0.01058', 'a conversion keeps the digits of a small result')
 JS
