@@ -30,10 +30,31 @@ assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted outp
 
 assertDeepEqual(audio.parseSinkAvailability('alsa_output\t1\nhdmi_output\t0\n'), { alsa_output: true, hdmi_output: false }, 'audio parses sink availability')
 assertEqual(audio.friendlyDeviceLabel('Built-in Audio Speakers Output'), 'Speakers', 'audio cleans device labels')
+assertEqual(audio.friendlyDeviceLabel('AD103 High Definition Audio Controller Digital Stereo (HDMI) [LG ULTRAGEAR]'), 'LG ULTRAGEAR', 'audio unpacks bracketed display labels')
 assertEqual(
   audio.nodeLabel({ ready: true, properties: { 'node.nick': 'Built-in Audio Microphones Input' }, name: 'alsa_input' }),
   'Microphone',
   'audio chooses friendly node labels'
+)
+assertEqual(
+  audio.nodeLabel({ ready: true, properties: { 'node.nick': 'USB Audio #1', 'node.description': 'SteelSeries Arctis 7 Game' } }),
+  'SteelSeries Arctis 7 Game',
+  'audio skips generic USB Audio #1 nickname in favor of description'
+)
+assertEqual(
+  audio.nodeLabel({ ready: true, properties: { 'node.nick': 'SteelSeries Arctis 7', 'node.description': 'SteelSeries Arctis 7 Chat' } }),
+  'SteelSeries Arctis 7 Chat',
+  'audio preserves endpoint role when nickname omits profile'
+)
+assertEqual(
+  audio.nodeLabel({ ready: true, properties: { 'node.nick': 'ALC897 Digital', 'node.description': 'Built-in Audio Digital Stereo (IEC958)' } }),
+  'Digital Stereo (IEC958)',
+  'audio skips raw ALC codec nickname in favor of description'
+)
+assertEqual(
+  audio.nodeLabel({ ready: true, properties: { 'node.nick': 'Desk Speakers', 'node.description': 'USB Audio Device' } }),
+  'Desk Speakers',
+  'audio respects custom nicknames'
 )
 
 const headphones = { ready: true, name: 'bluez_output.airpods', properties: { 'device.product.name': 'AirPods Headphones' } }
