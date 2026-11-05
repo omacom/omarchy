@@ -21,11 +21,11 @@ cat >"$stub_bin/hyprctl" <<'SH'
 
 if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
   other=""
-  [[ -n ${OMARCHY_TEST_OTHER_OUTPUT:-} ]] && other=$(printf ',{"name":"%s","disabled":false,"scale":1}' "$OMARCHY_TEST_OTHER_OUTPUT")
+  [[ -n ${OMARCHY_TEST_OTHER_OUTPUT:-} ]] && other=$(printf ',{"name":"%s","disabled":false,"scale":1,"x":1920,"y":0,"mirrorOf":"%s"}' "$OMARCHY_TEST_OTHER_OUTPUT" "${OMARCHY_TEST_MIRROR_OF:-none}")
   if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" ]]; then
     printf '[{"name":"eDP-1","disabled":true,"scale":null}%s]' "$other"
   else
-    printf '[{"name":"eDP-1","disabled":false,"scale":%s}%s]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "$other"
+    printf '[{"name":"eDP-1","disabled":false,"scale":%s,"x":0,"y":0}%s]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "$other"
   fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
@@ -294,3 +294,70 @@ omarchy_monitor_panel_settings = false
 ]]
 $internal_config"
 rm -f "$settings_file"
+
+# Closing the lid saves where every monitor sits, so the reloads that follow put
+# them back instead of placing the returning panel last. Only the position: a
+# scale nobody chose stays Hyprland's.
+stock_config='hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })'
+
+close_lid() {
+  rm -f "$state_dir/internal-monitor-clamshell.lua"
+  printf '%s\n' "$1" >"$monitor_lua"
+  OMARCHY_TEST_OTHER_OUTPUT="${2-HDMI-A-1}" OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+}
+
+saved_line() {
+  awk -F'\t' -v identity="$1" '$NF == identity' "$settings_file"
+}
+
+close_lid "$stock_config"
+[[ $(saved_line eDP-1) == $'\t0x0\t\t\teDP-1' && $(saved_line HDMI-A-1) == $'\t1920x0\t\t\tHDMI-A-1' ]] ||
+  fail "closing the lid saves every monitor's position and no scale" "$(<"$settings_file")"
+pass "closing the lid saves every monitor's position and no scale"
+
+# The defaults written out through a local, as older monitors.lua files have them.
+rm -f "$settings_file"
+close_lid 'local omarchy_monitor_scale = "auto"
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })'
+[[ -n $(saved_line eDP-1) ]] || fail "closing the lid saves positions under a monitors.lua spelling out the defaults"
+pass "closing the lid saves positions under a monitors.lua spelling out the defaults"
+
+# Docked reconciles run every two seconds and find the flag already written, so
+# they don't save anything, including over a choice made while docked.
+rm -f "$settings_file"
+OMARCHY_TEST_OTHER_OUTPUT=HDMI-A-1 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ ! -e $settings_file ]] || fail "a docked reconcile saves no positions" "$(<"$settings_file")"
+pass "a docked reconcile saves no positions"
+
+printf '%s\t%s\t%s\t%s\t%s\n' "2560x1600@60" "640x1440" "1.6" "" "eDP-1" >"$settings_file"
+close_lid "$stock_config"
+[[ $(saved_line eDP-1) == $'2560x1600@60\t640x1440\t1.6\t\teDP-1' && $(saved_line HDMI-A-1) == $'\t1920x0\t\t\tHDMI-A-1' ]] ||
+  fail "closing the lid keeps a saved position and fills in the rest" "$(<"$settings_file")"
+pass "closing the lid keeps a saved position and fills in the rest"
+
+expect_nothing_saved() {
+  rm -f "$settings_file"
+  close_lid "$2" "${3-HDMI-A-1}"
+  [[ ! -e $settings_file ]] || fail "$1" "$(<"$settings_file")"
+  pass "$1"
+}
+
+expect_nothing_saved "closing the lid saves nothing with the panel's choices off" "omarchy_monitor_panel_settings = false
+$stock_config"
+expect_nothing_saved "closing the lid saves nothing when monitors.lua names a position" \
+  'hl.monitor({ output = "desc:Dell", mode = "preferred", position = "1920x0", scale = 1 })'
+expect_nothing_saved "closing the lid saves nothing with only the panel enabled" "$stock_config" ""
+# A rule naming a port doesn't inherit from a shared rule, so a saved position
+# would drop what one sets.
+expect_nothing_saved "closing the lid saves nothing when every monitor's rule sets a scale" \
+  'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.6 })'
+expect_nothing_saved "closing the lid resolves a shared rule's scale from its local" 'local omarchy_monitor_scale = 1.6
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })'
+expect_nothing_saved "closing the lid saves nothing when every monitor's rule sets a mode" \
+  'hl.monitor({ output = "", mode = "1920x1080@60", position = "auto", scale = "auto" })'
+expect_nothing_saved "closing the lid saves nothing when every monitor's rule sets more" \
+  'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto", bitdepth = 10 })'
+expect_nothing_saved "closing the lid saves nothing when a desc rule sets a monitor" \
+  'hl.monitor({ output = "desc:Dell Inc. DELL U2723QE", scale = 1.5 })'
+OMARCHY_TEST_MIRROR_OF=eDP-1 expect_nothing_saved "closing the lid saves nothing while a monitor mirrors another" "$stock_config"
+rm -f "$state_dir/internal-monitor-clamshell.lua"

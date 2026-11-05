@@ -128,25 +128,31 @@ configured_internal_monitor_value() {
   configured_monitor_value "$INTERNAL" "$1"
 }
 
-# The panel's mode, position or scale as chosen in the display panel, which
+# A monitor's mode, position or scale as chosen in the display panel, which
 # default/hypr/monitor-settings.lua applies over monitors.lua, so it settles the
 # value before anything written there.
-saved_internal_monitor_value() {
-  [[ -n $INTERNAL && -f $MONITOR_SETTINGS ]] || return 0
+saved_monitor_value() {
+  [[ -f $MONITOR_SETTINGS ]] || return 0
   panel_settings_off && return 0
-  local field identity
+  local output="$1" field identity
 
-  case "$1" in
+  case "$2" in
   mode) field=1 ;;
   position) field=2 ;;
   scale) field=3 ;;
   *) return 0 ;;
   esac
 
-  identity=$(omarchy-hyprland-monitor-identity "$INTERNAL")
+  identity=$(omarchy-hyprland-monitor-identity "$output")
   # The identity is the last field: lines saved before rotation was saved lack
   # the transform before it.
   awk -F'\t' -v identity="$identity" -v field="$field" '$NF == identity { print $field; exit }' "$MONITOR_SETTINGS"
+}
+
+saved_internal_monitor_value() {
+  [[ -n $INTERNAL ]] || return 0
+
+  saved_monitor_value "$INTERNAL" "$1"
 }
 
 configured_monitor_scale() {
@@ -280,6 +286,41 @@ sync_internal_scale() {
   enable_internal_output "$desired_scale"
 }
 
+# Whether saving a monitor's position would undo something in monitors.lua. A
+# position there means the file arranges the monitors itself. And a rule naming a
+# port doesn't inherit from a shared one, every monitor's or a desc: one, so
+# whatever a shared rule sets beyond Hyprland's defaults would be lost.
+monitors_lua_needs_keeping() {
+  local rules
+  rules=$(monitor_rules)
+
+  grep -oE '\bposition[[:space:]]*=[[:space:]]*[^,;}[:space:]]+' <<<"$rules" | grep -Evq '=[[:space:]]*"auto"$' && return 0
+  grep -q '"desc:' <<<"$rules" && return 0
+  [[ $(configured_monitor_value "" scale) =~ ^(auto)?$ && $(configured_monitor_value "" mode) =~ ^(preferred)?$ ]] || return 0
+  grep -E "$(monitor_rule_regex "")" <<<"$rules" |
+    sed -E 's/\b(output|mode|position|scale)[[:space:]]*=[[:space:]]*("[^"]*"|[^,;}[:space:]]+)//g' | grep -q '='
+}
+
+# Hyprland places an output on "auto" after the ones it already holds, so a panel
+# coming back last lands at the far end, taking its windows with it. Saving where
+# every monitor sits before the panel goes off lets each reload put them back, the
+# way a choice made in the layout map does. All of them, since an external left on
+# "auto" would be placed around the returning panel. A position already saved
+# stands.
+remember_monitor_positions() {
+  panel_settings_off && return 0
+  monitors_lua_needs_keeping && return 0
+
+  local name position
+  while IFS=$'\t' read -r name position; do
+    [[ -n $(saved_monitor_value "$name" position) ]] || omarchy-hyprland-monitor-persist "$name" "" "" "$position"
+  done < <(hyprctl monitors all -j | jq -r --arg internal "$INTERNAL" '
+    [.[] | select(.disabled != true and .name != "FALLBACK")]
+    | select(length > 1 and any(.[]; .name == $internal))
+    | select(all(.[]; (.mirrorOf // "none") == "none" and (.name | test("^[A-Za-z0-9._-]+$"))))
+    | .[] | "\(.name)\t\(.x)x\(.y)"')
+}
+
 dpms_internal() {
   local action="$1"
 
@@ -318,6 +359,7 @@ disable_internal() {
   config=$(printf 'hl.monitor({ output = "%s", disabled = true })' "$INTERNAL")
 
   if [[ ! -f $CLAMSHELL_FLAG ]] || [[ $(< "$CLAMSHELL_FLAG") != $config ]]; then
+    remember_monitor_positions
     printf '%s\n' "$config" >"$CLAMSHELL_FLAG"
     omarchy-restart-hyprctl
   fi
