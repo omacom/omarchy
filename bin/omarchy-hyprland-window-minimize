@@ -35,11 +35,18 @@ hyprctl dispatch "hl.dsp.window.move({ workspace = \"special:minimized\", follow
 # opened would join it on the hidden workspace. Focusing the workspace we are
 # already on is a no-op (Hyprland keeps focus on the moved window), so bounce
 # through another workspace and back inside a single eval: that leaves focus
-# on the now-empty workspace with no visible flicker. The hop away is
-# previous_per_monitor — the workspace this monitor last switched from, the
-# one SUPER+CTRL+TAB returns to — resolved by Hyprland itself, so the round
-# trip ends from it and leaves that record as it found it; hopping through a
-# concrete workspace would rewrite it. On a monitor with nothing before this
-# one (a fresh session) the selector resolves to nothing, both hops are
-# no-ops, and focus stays with the moved window.
-hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"previous_per_monitor\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
+# on the now-empty workspace with no visible flicker. Hyprland records the
+# workspace each monitor last switched from — SUPER+CTRL+TAB returns there —
+# so the hop away is that recorded workspace whenever one is still open: the
+# round trip then ends from it and leaves the record exactly as it was.
+WORKSPACES=$(hyprctl workspaces -j)
+BOUNCE_WORKSPACE=$(hyprctl monitors -j | jq -r --argjson current "$WORKSPACE" '
+  first(.[] | select(.focused == true)) |
+  (.previousWorkspaceId // .previousWorkspace.id // 0) |
+  select(. != 0 and . != $current)')
+if [[ ! $BOUNCE_WORKSPACE =~ ^[0-9]+$ ]] ||
+  ! jq -e --argjson id "$BOUNCE_WORKSPACE" 'any(.[]; .id == $id and .id >= 1)' <<<"$WORKSPACES" >/dev/null; then
+  BOUNCE_WORKSPACE=$(jq -r --argjson id "$WORKSPACE" '[.[] | select(.id >= 1 and .id != $id) | .id] | min // empty' <<<"$WORKSPACES")
+  [[ -n $BOUNCE_WORKSPACE ]] || BOUNCE_WORKSPACE=$(( WORKSPACE == 1 ? 2 : 1 ))
+fi
+hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"$BOUNCE_WORKSPACE\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
