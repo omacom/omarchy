@@ -647,6 +647,9 @@
   "setup.default.editor.emacs": {
     "label": "Emacs"
   },
+  "setup.default.editor.nano": {
+    "label": "Nano"
+  },
   "setup.plugin": {
     "label": "Plugins"
   },
