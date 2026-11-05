@@ -31,14 +31,16 @@ def credits(request):
     config["creditUsagePercent"] = USED[token]
   if answer["percent"] is not None:
     config["creditUsagePercent"] = answer["percent"]
-  if token == "token-unified":
+  if token in ("token-unified", "token-unified-idle"):
     config["isUnifiedBillingUser"] = True
   return {"config": config}
 
 
 def monthly(request):
+  token = request.get_header("Authorization").split(" ", 1)[1]
+  quota = {} if token == "token-unified-idle" else {"val": 1000}
   return {"config": {"isUnifiedBillingUser": True, "billingPeriodStart": iso_in(-20 * 86400), "billingPeriodEnd": PERIOD_END,
-                     "monthlyLimit": {"val": 1000}, "used": {"val": 900}}}
+                     "monthlyLimit": quota, "used": {"val": 900}}}
 
 
 ROUTES = {"cli-chat-proxy.grok.com/v1/billing?format=credits": credits, "cli-chat-proxy.grok.com/v1/billing": monthly}
@@ -184,6 +186,15 @@ record = grok()
 expect("a unified-billing account reads its monthly quota, not a confident 0%",
        [record["limits"][0]["label"], record["limits"][0]["percent"], record["limitsStale"], bool(record["limits"][0]["resetsAt"])],
        ["Monthly", 0.9, False, True], record)
+
+# One with no monthly quota (protobuf leaves out a zero) is metered on the
+# week alone, and an untouched week reads as 0%, not as no limit at all.
+sandbox()
+signed_in(grok_home(), token="token-unified-idle")
+record = grok()
+expect("a unified-billing account without a monthly quota reads an untouched week as 0%",
+       [[limit["label"], limit["percent"], bool(limit["resetsAt"])] for limit in record["limits"]] + [record["usageStatusText"]],
+       [["Weekly", 0.0, True], ""], record)
 
 # A unified-billing account can also carry a weekly percentage on the credits
 # answer; Grok's /usage then shows the monthly included quota beside it.
