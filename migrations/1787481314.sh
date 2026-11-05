@@ -9,16 +9,20 @@ repo="https://github.com/omacom/omarchy-osaka-jade-theme"
 
 [[ -s $theme_name_path && $(<"$theme_name_path") == "osaka-jade" ]] || exit 0
 
-for theme_path in "$OMARCHY_PATH/themes/osaka-jade" "$user_theme"; do
-  [[ -f $theme_path/colors.toml || -f $theme_path/alacritty.toml ]] && exit 0
-done
+[[ -f $OMARCHY_PATH/themes/osaka-jade/colors.toml ]] && exit 0
+
+if [[ -f $user_theme/colors.toml ]]; then
+  [[ -f $HOME/.local/state/omarchy/current/theme/colors.toml ]] || omarchy-theme-set osaka-jade
+  exit 0
+fi
 
 if [[ -d $user_theme ]]; then
   # Overrides that were layered on the bundled theme: give back its palette, icons
   # and wallpapers beside them, never over them, rather than replacing the directory.
   clone=$(mktemp -d)
   if GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 -- "$repo" "$clone"; then
-    cp -rn "$clone/colors.toml" "$clone/icons.theme" "$clone/backgrounds" "$user_theme/"
+    [[ -L $user_theme/backgrounds ]] || cp -rn "$clone/backgrounds" "$user_theme/"
+    cp -n "$clone/icons.theme" "$clone/colors.toml" "$user_theme/"
     rm -rf "$clone"
     omarchy-theme-set osaka-jade
     exit 0
