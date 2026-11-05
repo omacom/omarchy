@@ -144,7 +144,7 @@ it with `provider:`.
 
 ## Calculator
 
-Search answers arithmetic as it is typed: `2+3*4`, `(10-2)/4`, with `+ - * /` (also `x × ÷`), parentheses, unary signs and decimals. The answer sits in a row above the matches, and its action copies the bare number. `Calc.js` is a small parser rather than `eval`, because the input is whatever is being typed. A lone number, an unfinished `2+` and a division by zero have no answer, so they stay ordinary searches, as does anything else that fails to parse, such as `7-zip`.
+Search answers arithmetic as it is typed: `2+3*4`, `(10-2)/4`, with `+ - * /` (also `x × ÷`), parentheses, unary signs and decimals. The answer sits in a row above the matches, and its action copies the bare number. `Calc.js` is a small parser rather than `eval`, because the input is whatever is being typed. A lone number, an unfinished `2+`, a division by zero and an answer past 2^53, where a double can no longer hold every digit, have no answer, so they stay ordinary searches, as does anything else that fails to parse, such as `7-zip`. Answers are always plain digits, never exponents.
 
 ## Currency conversion
 

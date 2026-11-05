@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import "Currency.js" as Currency
+import "../../Commons/Numbers.js" as Numbers
 
 // Turns the search line into a currency conversion. status is "" when the text
 // is not one, otherwise "loading", "ready" or "failed". One fetch runs at a time;
@@ -95,8 +96,8 @@ Item {
 
     if (known && known.rates[request.to] !== undefined) {
       root.publish("ready", {
-        value: Currency.format(request.amount * known.rates[request.to]),
-        amount: String(request.amount),
+        value: Numbers.plain(Currency.round(request.amount * known.rates[request.to])),
+        amount: Numbers.plain(request.amount),
         from: request.from.toUpperCase(),
         to: request.to.toUpperCase(),
         date: known.date

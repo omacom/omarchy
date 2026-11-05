@@ -424,12 +424,58 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 
+const numbers = requireFromRoot('shell/Commons/Numbers.js')
+for (const [value, written] of [
+  [0, '0'], [-0, '0'], [14, '14'], [1.5, '1.5'], [0.000001, '0.000001'], [1e-7, '0.0000001'], [1.1e-7, '0.00000011'], [-2.5e-8, '-0.000000025'],
+  ['1.1e-7', '0.00000011'], [999999999999999900000, '999999999999999900000'], [1e21, '1000000000000000000000'], [1.5e21, '1500000000000000000000'], [-1e21, '-1000000000000000000000']
+]) {
+  assertEqual(numbers.plain(value), written, `${value} is written in plain digits`)
+}
+assertEqual(numbers.format(1.1e-7, undefined, ',', '0'), '0,00000011', 'a small number keeps its digits in a comma-decimal language')
+assertEqual(numbers.format(1.1e-7, undefined, '.', '٠'), '٠.٠٠٠٠٠٠١١', 'a small number keeps its digits in a language with its own numerals')
+assertEqual(numbers.format(1.5, 2, '.', '0'), '1.50', 'asking for decimals still pads them')
+
 const calc = requireFromRoot('shell/plugins/menu/Calc.js')
-for (const [text, answer] of [['2 + 3 * 4', '14'], ['(2+3)*4', '20'], ['0.1+0.2', '0.3'], ['1000000000000+1', '1000000000001'], ['2*-3', '-6'], ['3x4', '12'], ['6÷2', '3']]) {
+for (const [text, answer] of [
+  // Precedence and grouping
+  ['2 + 3 * 4', '14'], ['(2+3)*4', '20'], ['2+3+4', '9'], ['10-2-3', '5'], ['2*3/4', '1.5'], ['100/10/5', '2'], ['((1+2))*3', '9'], ['-(2+3)*2', '-10'],
+  // Every spelling of multiply and divide
+  ['3x4', '12'], ['3X4', '12'], ['3×4', '12'], ['3*4', '12'], ['6÷2', '3'], ['6/4', '1.5'], ['3 x 4', '12'],
+  // Signs
+  ['2*-3', '-6'], ['-2+5', '3'], ['+2+5', '7'], ['--2+1', '3'], ['2--3', '5'], ['2+-+-3', '5'], ['7-8', '-1'],
+  // Zero, and never a negative one
+  ['0*5', '0'], ['0*-1', '0'], ['5-5', '0'], ['0/5', '0'],
+  // Decimals, and float noise that must not show
+  ['.5+.5', '1'], ['5.+1', '6'], ['0.1+0.2', '0.3'], ['0.1*3', '0.3'], ['0.1+0.7', '0.8'], ['1.1*1.1', '1.21'], ['1.005*1000', '1005'], ['1/3', '0.333333333333333'], ['2/3', '0.666666666666667'],
+  // Digits that were typed are kept
+  ['1000000000000+1', '1000000000001'], ['9007199254740990+1', '9007199254740991'], ['123456789012.5+1', '123456789013.5'],
+  // Whitespace
+  ['  2 + 2  ', '4'], ['2\t+\t2', '4'],
+  // Reads as a sum even though it might be a date
+  ['2024-11-05', '2008']
+]) {
   assertEqual(calc.evaluate(text), answer, `the calculator answers "${text}"`)
 }
-for (const text of ['5', '-5', '2+', '(2+3', '1/0', '7-zip', '1.2.3', 'firefox 2+2', '$(id)+1']) {
-  assertEqual(calc.evaluate(text), '', `the calculator leaves "${text}" to search`)
+for (const [text, written] of [['0.000001/10', '0.0000001'], ['0.0000001*0.0000001', '0.00000000000001'], ['-0.000001/10', '-0.0000001']]) {
+  assertEqual(numbers.plain(calc.evaluate(text)), written, `a tiny answer to "${text}" is written out`)
+}
+for (const text of [
+  // Nothing to calculate
+  '', ' ', null, undefined, '5', '-5', '+5', '(5)', '5.5',
+  // Unfinished or malformed
+  '2+', '+', '*', '*2', '2*', '2+*3', '(2+3', '2+3)', '()', '()+1', '2(3)', '(2)(3)', '2 3+1', 'x', '2x', 'x2', '1.2.3', '1.2.3+1', '..+1',
+  // No answer
+  '1/0', '0/0', '-1/0', '5+1/0',
+  // Past what a double can hold exactly
+  '9007199254740992+1', '12345678901234567+1', '12345678901234567-12345678901234566', '99999999*99999999', '9007199254740991+1',
+  // Syntax that isn't supported
+  '1,000+1', '1e5+1', '2^3', '5%', '٣+٤',
+  // Ordinary searches and anything that could be a command
+  '7-zip', 'firefox 2+2', '2+2 firefox', '$(id)+1', '1+1;id', '1+`id`', '1+1|id',
+  // Too long to be typed by hand, and deep enough to overflow the stack
+  '('.repeat(5000) + '1+1' + ')'.repeat(5000), '1' + '+1'.repeat(200)
+]) {
+  assertEqual(calc.evaluate(text), '', `the calculator leaves ${JSON.stringify(String(text).slice(0, 30))} to search`)
 }
 
 const currency = requireFromRoot('shell/plugins/menu/Currency.js')
@@ -449,6 +495,7 @@ for (const [text, amount, from, to] of [
 for (const text of ['zen', '100 inr', '$5', '100 inr to', '1,25 USD to EUR', 'to usd', '$(id) to usd', '5 usd to $(id)']) {
   assertEqual(currency.parse(text), null, `the menu leaves "${text}" to search`)
 }
-assertEqual(currency.format(1.0578803), '1.06', 'a conversion rounds money to two places')
-assertEqual(currency.format(0.0105788), '0.01058', 'a conversion keeps the digits of a small result')
+assertEqual(currency.round(1.0578803), 1.06, 'a conversion rounds money to two places')
+assertEqual(currency.round(0.0105788), 0.01058, 'a conversion keeps the digits of a small result')
+assertEqual(numbers.plain(currency.round(1.1e-7)), '0.00000011', 'a tiny conversion is written out')
 JS

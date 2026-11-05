@@ -7,6 +7,7 @@ import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
 import "Calc.js" as Calc
+import "../../Commons/Numbers.js" as Numbers
 
 Item {
   id: root
@@ -609,7 +610,7 @@ Item {
     return {
       itemId: "calc.result", disabled: false, kind: "calc", icon: "\u{F00EC}", iconFont: "",
       appIcon: "", appId: "", label: Commons.I18n.formatNumber(result), target: "", detail: expression, path: "", childCount: 0,
-      action: "wl-copy -- " + result, provider: "", score: -1, section: ""
+      action: "wl-copy -- " + Numbers.plain(result), provider: "", score: -1, section: ""
     }
   }
 

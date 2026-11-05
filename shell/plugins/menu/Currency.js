@@ -71,16 +71,16 @@ function parse(text) {
 }
 
 // Two decimals is enough for money, but a small result needs its significant
-// digits or 1 INR to BTC would read 0.00. Plain digits, so it can be copied.
-function format(value) {
+// digits or 1 INR to BTC would read 0.00. Numbers.plain writes the result out.
+function round(value) {
   var size = Math.abs(value)
-  if (size === 0 || size >= 1) return String(Number(value.toFixed(2)))
-  return String(Number(value.toPrecision(4)))
+  if (size === 0 || size >= 1) return Number(value.toFixed(2))
+  return Number(value.toPrecision(4))
 }
 
 if (typeof module !== "undefined") {
   module.exports = {
     parse: parse,
-    format: format
+    round: round
   }
 }
