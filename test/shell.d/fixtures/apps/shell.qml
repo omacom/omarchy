@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "services"
 
 ShellRoot {
   id: root
@@ -32,6 +33,16 @@ ShellRoot {
     property var appLibrary: library
     property var services: ({})
     function firstPartyServiceFor(id) { return services[id] || null }
+  }
+
+  PluginAppLibraryApi {
+    id: scopedLibrary
+    ownerPluginId: "tester.apps"
+    _entryName: function(entry) { return library.entryName(entry) }
+    _sortedEntries: function(query) { return library.sortedEntries(query) }
+    _iconSource: function(icon) { return library.iconSource(icon) }
+    _refreshIcons: function() { library.refreshIcons() }
+    _launch: function(id, name) { library.launch(id, name) }
   }
 
   QtObject {
@@ -86,6 +97,13 @@ ShellRoot {
       root.apps.open("{}")
       root.apps.launch(1)
       root.check(root.launched === "terminal", "grid still launches after the dock is disabled")
+      host.appLibrary = scopedLibrary
+      root.apps.open("{}")
+      root.check(root.apps.apps.length === 2, "a clone lists apps through its scoped application library")
+      root.apps.setFilter("edit")
+      root.check(root.apps.apps.length === 1 && root.apps.apps[0].id === "editor", "a clone searches through its scoped application library")
+      root.apps.launch(0)
+      root.check(root.launched === "editor", "a clone launches through its scoped application library")
       finish.start()
     }
   }

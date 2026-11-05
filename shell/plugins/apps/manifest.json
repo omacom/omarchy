@@ -6,10 +6,10 @@
   "author": "Omarchy",
   "description": "Application grid available independently of the dock",
   "kinds": [
-    "overlay"
+    "menu"
   ],
   "keepLoaded": true,
   "entryPoints": {
-    "overlay": "Apps.qml"
+    "menu": "Apps.qml"
   }
 }
