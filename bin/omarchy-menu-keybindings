@@ -354,9 +354,20 @@ local function note(path)
   end
 end
 local real_require, real_dofile, real_loadfile = require, dofile, loadfile
+-- A module is noted with every place package.path looks before the one that
+-- has it, so a file added earlier on the path, overriding it, changes the key.
 require = function(name, ...)
   if not package.loaded[name] then
-    note(package.searchpath(tostring(name), package.path))
+    local base = tostring(name):gsub("%.", "/")
+    for template in string.gmatch(package.path, "[^;]+") do
+      local candidate = template:gsub("%?", base)
+      note(candidate)
+      local found = io.open(candidate, "r")
+      if found then
+        found:close()
+        break
+      end
+    end
   end
   return real_require(name, ...)
 end
@@ -716,6 +727,19 @@ output_binding_records_uncached() {
   [[ -n $dynamic ]]
 }
 
+# The path, size and mtime of each Lua file the last scan loaded or looked
+# for; one that is missing says so, and appears once it is created.
+lua_files_state() {
+  [[ -n ${keybindings_lua_files:-} && -s $keybindings_lua_files ]] || return 0
+  local -a lua_files
+  mapfile -t lua_files <"$keybindings_lua_files"
+  find -L "${lua_files[@]}" -maxdepth 0 -printf '%p %s %T@\n' 2>&1
+}
+
+lua_files_newest() {
+  lua_files_state | awk 'NF == 3 && $3 > newest { newest = $3 } END { print newest }'
+}
+
 keybindings_cache_key() {
   {
     printf 'v19\n'
@@ -729,11 +753,7 @@ keybindings_cache_key() {
     # Keying on it would throw the cache away after each reload, so the key
     # takes the Lua files the last scan loaded instead.
     hyprctl binds 2>/dev/null | awk '/^\tdispatcher: / { lua = ($2 == "__lua") } !(lua && /^\targ: /)'
-    if [[ -n ${keybindings_lua_files:-} && -s $keybindings_lua_files ]]; then
-      local -a lua_files
-      mapfile -t lua_files <"$keybindings_lua_files"
-      find -L "${lua_files[@]}" -maxdepth 0 -printf '%p %s %T@\n' 2>&1
-    fi
+    lua_files_state
   } | sha256sum | awk '{ print $1 }'
 }
 
@@ -743,9 +763,19 @@ refresh_keybindings_cache() {
   local cache_dir="$1"
   local cache_file cache_name tmp_file
 
+  local started newest
+  started=$(date +%s.%N)
   tmp_file=$(mktemp "$cache_dir/keybindings.XXXXXX") || return 1
 
   if output_binding_records_uncached >"$tmp_file"; then
+    # A Lua file edited while the scan ran may be newer than what the records
+    # say about it, so those records are shown once but not kept.
+    newest=$(lua_files_newest)
+    if awk -v newest="$newest" -v started="$started" 'BEGIN { exit !(newest != "" && newest + 0 >= started + 0) }'; then
+      cat "$tmp_file"
+      rm -f "$tmp_file"
+      return 0
+    fi
     cache_name="keybindings-$(keybindings_cache_key).records"
     cache_file="$cache_dir/$cache_name"
     mv "$tmp_file" "$cache_file"

@@ -507,7 +507,7 @@ cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
 # Binds can live in any module the config requires, not only under ~/.config/hypr.
 mkdir -p "$home/.config/elsewhere"
 printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("first-thing"), { description = "My own thing" })\n' >"$home/.config/elsewhere/my_binds.lua"
-printf 'package.path = "%s/.config/elsewhere/?.lua;" .. package.path\nrequire("my_binds")\n' "$home" >>"$home/.config/hypr/hyprland.lua"
+printf 'package.path = "%s/.config/override/?.lua;%s/.config/elsewhere/?.lua;" .. package.path\nrequire("my_binds")\n' "$home" "$home" >>"$home/.config/hypr/hyprland.lua"
 stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + X" "My own thing")
 BINDS
@@ -519,4 +519,24 @@ printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("second-thing"), { description = "M
 keybindings "$menu" "$reload_cache" >/dev/null
 grep -qP '→ My own thing\texec\tsecond-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
   fail "an edit to a required module refreshes the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+# A module added earlier on package.path overrides the one the scan found.
+mkdir -p "$home/.config/override"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("third-thing"), { description = "My own thing" })\n' >"$home/.config/override/my_binds.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tthird-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "a module added earlier on package.path refreshes the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
 pass "a reload that renumbers __lua binds keeps the keybindings cache, an edit to any Lua file the config loads refreshes it"
+
+# A Lua file edited while the scan runs may be newer than the records built
+# from it, so those records are shown but not cached under the edited state.
+real_lua=$(command -v lua)
+printf '#!/bin/bash\n"%s" "$@"\nstatus=$?\nprintf -- "-- edited mid-scan\\n" >>"%s"\nexit $status\n' "$real_lua" "$home/.config/override/my_binds.lua" >"$stub_bin/lua"
+chmod +x "$stub_bin/lua"
+rm -rf "$tmpdir/cache-race"
+output=$(keybindings "$menu" "$tmpdir/cache-race")
+rm -f "$stub_bin/lua"
+grep -q 'SUPER + X  *→ My own thing' <<<"$output" || fail "a scan raced by an edit still shows the menu" "$output"
+if compgen -G "$tmpdir/cache-race/omarchy/keybindings-*.records" >/dev/null; then
+  fail "a scan raced by an edit is not cached" "$(ls "$tmpdir/cache-race/omarchy")"
+fi
+pass "a scan raced by an edit shows the menu without caching it"
