@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
+import "Calc.js" as Calc
 
 Item {
   id: root
@@ -600,6 +601,16 @@ Item {
     return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
   }
 
+  // Pinned above the search results; Enter copies the answer. The action only
+  // ever holds a number, since that is all Calc.evaluate returns.
+  function calculationRow(result, expression) {
+    return {
+      itemId: "calc.result", disabled: false, kind: "calc", icon: "\u{F00EC}", iconFont: "",
+      appIcon: "", appId: "", label: result, target: "", detail: expression, path: "", childCount: 0,
+      action: "wl-copy -- " + result, provider: "", score: -1, section: ""
+    }
+  }
+
   CurrencyLookup {
     id: currencyLookup
     query: root.dmenuActive ? "" : root.filterText
@@ -775,6 +786,9 @@ Item {
       }
       rows = currentRows.concat(drilldownRows)
       if (currencyLookup.status) rows.unshift(root.currencyRow())
+
+      var calculation = Calc.evaluate(query)
+      if (calculation) rows.unshift(root.calculationRow(calculation, query))
     } else {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
