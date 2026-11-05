@@ -338,6 +338,7 @@
   "menu.powerProfileBalanced": "equilibrat",
   "menu.powerProfilePerformance": "rendiment",
   "menu.powerProfilePowerSaver": "estalvi d'energia",
+  "menu.previewUnavailable": "Previsualització no disponible",
   "menu.selectPrompt": "Selecciona",
   "menu.selectedCount": {
     "many": "%1 seleccionats",

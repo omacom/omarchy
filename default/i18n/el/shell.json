@@ -328,6 +328,7 @@
   "menu.powerProfileBalanced": "ισορροπημένο",
   "menu.powerProfilePerformance": "απόδοση",
   "menu.powerProfilePowerSaver": "εξοικονόμηση ενέργειας",
+  "menu.previewUnavailable": "Η προεπισκόπηση δεν είναι διαθέσιμη",
   "menu.selectPrompt": "Επιλογή",
   "menu.selectedCount": {
     "one": "%1 επιλεγμένο",

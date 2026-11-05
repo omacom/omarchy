@@ -328,6 +328,7 @@
   "menu.powerProfileBalanced": "kiegyensúlyozott",
   "menu.powerProfilePerformance": "teljesítmény",
   "menu.powerProfilePowerSaver": "energiatakarékos",
+  "menu.previewUnavailable": "Előnézet nem elérhető",
   "menu.selectPrompt": "Kiválasztás",
   "menu.selectedCount": {
     "one": "%1 kiválasztva",

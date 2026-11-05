@@ -1645,8 +1645,8 @@ Item {
                   width: parent.width
                   height: implicitHeight
                   visible: row.hasPreview
-                  text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : "Preview unavailable"
-                  previousText: row.previewReady ? root.fontPreviewSamples[root.fontPreviewPreviousIndex] : "Preview unavailable"
+                  text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : Commons.I18n.t("menu.previewUnavailable")
+                  previousText: row.previewReady ? root.fontPreviewSamples[root.fontPreviewPreviousIndex] : Commons.I18n.t("menu.previewUnavailable")
                   progress: row.previewReady ? root.fontPreviewProgress : 1
                   syntaxColors: Commons.Color.syntax
                   syntaxEnabled: row.previewReady && root.fontPreviewIndex > 0

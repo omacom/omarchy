@@ -318,6 +318,7 @@
   "menu.powerProfileBalanced": "平衡",
   "menu.powerProfilePerformance": "性能",
   "menu.powerProfilePowerSaver": "节能",
+  "menu.previewUnavailable": "预览不可用",
   "menu.selectPrompt": "选择",
   "menu.selectedCount": {
     "other": "已选 %1 项"

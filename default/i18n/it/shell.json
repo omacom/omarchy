@@ -338,6 +338,7 @@
   "menu.powerProfileBalanced": "bilanciato",
   "menu.powerProfilePerformance": "prestazioni",
   "menu.powerProfilePowerSaver": "risparmio energetico",
+  "menu.previewUnavailable": "Anteprima non disponibile",
   "menu.selectPrompt": "Seleziona",
   "menu.selectedCount": {
     "many": "%1 selezionati",

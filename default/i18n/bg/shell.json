@@ -328,6 +328,7 @@
   "menu.powerProfileBalanced": "балансиран",
   "menu.powerProfilePerformance": "производителност",
   "menu.powerProfilePowerSaver": "пестене на енергия",
+  "menu.previewUnavailable": "Прегледът не е наличен",
   "menu.selectPrompt": "Избери",
   "menu.selectedCount": {
     "one": "%1 избран",

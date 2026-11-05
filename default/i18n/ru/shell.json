@@ -348,6 +348,7 @@
   "menu.powerProfileBalanced": "сбалансированный",
   "menu.powerProfilePerformance": "производительный",
   "menu.powerProfilePowerSaver": "энергосбережение",
+  "menu.previewUnavailable": "Предпросмотр недоступен",
   "menu.selectPrompt": "Выбрать",
   "menu.selectedCount": {
     "few": "Выбрано: %1",

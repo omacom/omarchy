@@ -41,7 +41,7 @@ for (const route of ['appearance.font', 'install.style.font']) {
 }
 assert(/onRunningChanged: \{\s*fontPreviewTransition.stop\(\)\s*root.fontPreviewIndex = 0\s*root.fontPreviewPreviousIndex = 0\s*root.fontPreviewProgress = 1/.test(menuQml), 'preview resets without animating when opening the font menu')
 assert(menuQml.includes('(root.fontPreviewIndex + 1) % root.fontPreviewSamples.length'), 'preview wraps back to the original sample')
-assert(menuQml.includes('text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : "Preview unavailable"'), 'font rows share the current sample and preserve the unavailable fallback')
+assert(menuQml.includes('text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : Commons.I18n.t("menu.previewUnavailable")'), 'font rows share the current sample and preserve the unavailable fallback')
 const previewQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/FontPreview.qml'), 'utf8')
 assert(menuQml.includes('duration: Style.duration(220)'), 'sample transitions respect the animation setting')
 assert(menuQml.includes('easing.bezierCurve: Style.easeOut'), 'sample transitions use the shared smooth easing')

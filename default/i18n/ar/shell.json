@@ -368,6 +368,7 @@
   "menu.powerProfileBalanced": "متوازن",
   "menu.powerProfilePerformance": "أداء",
   "menu.powerProfilePowerSaver": "توفير الطاقة",
+  "menu.previewUnavailable": "المعاينة غير متاحة",
   "menu.selectPrompt": "اختيار",
   "menu.selectedCount": {
     "few": "تم تحديد %1 عناصر",
