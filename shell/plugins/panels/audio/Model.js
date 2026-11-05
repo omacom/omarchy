@@ -75,8 +75,6 @@ function parseSinkAvailability(raw) {
 
 function friendlyDeviceLabel(text) {
   var label = String(text || "").trim()
-  var bracketMatch = label.match(/\[(.*?)\]$/)
-  if (bracketMatch && bracketMatch[1].trim()) return bracketMatch[1].trim()
   label = label.replace(/^sof-soundwire\s+/i, "")
   label = label.replace(/^built-?in audio\s+/i, "")
   label = label.replace(/\s+Output$/i, "")
@@ -93,6 +91,13 @@ function isGenericAlsaNick(nick) {
   return false
 }
 
+function hdmiMonitorName(desc) {
+  var text = String(desc || "").trim()
+  if (!/\b(?:HDMI|DisplayPort)\b/i.test(text)) return ""
+  var match = text.match(/\[(.*?)\]$/)
+  return match && match[1].trim() ? match[1].trim() : ""
+}
+
 function nodeProps(node) {
   return node && node.ready && node.properties ? node.properties : {}
 }
@@ -103,7 +108,9 @@ function nodeLabel(node, tr) {
   if (!node) return t("audio.unknownDevice", "Unknown")
   var p = nodeProps(node)
 
-  var desc = friendlyDeviceLabel(node.description || p["node.description"] || "")
+  var rawDesc = node.description || p["node.description"] || ""
+  var monitor = hdmiMonitorName(rawDesc)
+  var desc = monitor || friendlyDeviceLabel(rawDesc)
   var nick = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || "")
 
   if (isGenericAlsaNick(nick)) {
@@ -304,6 +311,7 @@ if (typeof module !== "undefined") {
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,
     isGenericAlsaNick: isGenericAlsaNick,
+    hdmiMonitorName: hdmiMonitorName,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,
     isHeadphones: isHeadphones,
