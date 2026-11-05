@@ -480,22 +480,62 @@ for (const text of [
 
 const currency = requireFromRoot('shell/plugins/menu/Currency.js')
 for (const [text, amount, from, to] of [
-  ['INR 100 to USD', 100, 'inr', 'usd'],
-  ['$5 to INR', 5, 'usd', 'inr'],
-  ['inr100 to usd', 100, 'inr', 'usd'],
-  ['₹100 in $', 100, 'inr', 'usd'],
-  ['100 rupees to dollars', 100, 'inr', 'usd'],
-  ['how much is $5 in inr?', 5, 'usd', 'inr'],
-  ['usd to inr', 1, 'usd', 'inr'],
-  ['1,000.50 JPY into GBP', 1000.5, 'jpy', 'gbp'],
-  ['1,00,000 inr to usd', 100000, 'inr', 'usd']
+  // Amount and currency, in either order
+  ['INR 100 to USD', 100, 'inr', 'usd'], ['100 INR to USD', 100, 'inr', 'usd'], ['inr100 to usd', 100, 'inr', 'usd'], ['100inr to usd', 100, 'inr', 'usd'], ['$5 to INR', 5, 'usd', 'inr'], ['5$ to inr', 5, 'usd', 'inr'],
+  // Symbols
+  ['₹100 in $', 100, 'inr', 'usd'], ['€5 to £', 5, 'eur', 'gbp'], ['£5 to €', 5, 'gbp', 'eur'], ['¥500 to usd', 500, 'jpy', 'usd'], ['₩1000 to usd', 1000, 'krw', 'usd'], ['₽100 to usd', 100, 'rub', 'usd'], ['₺100 to usd', 100, 'try', 'usd'], ['₫1000 to usd', 1000, 'vnd', 'usd'], ['₱100 to usd', 100, 'php', 'usd'], ['฿100 to usd', 100, 'thb', 'usd'],
+  // The other dollars
+  ['a$5 to usd', 5, 'aud', 'usd'], ['c$5 to usd', 5, 'cad', 'usd'], ['s$5 to usd', 5, 'sgd', 'usd'], ['hk$5 to usd', 5, 'hkd', 'usd'], ['nz$5 to usd', 5, 'nzd', 'usd'], ['us$5 to inr', 5, 'usd', 'inr'], ['usd$5 to inr', 5, 'usd', 'inr'],
+  // Names
+  ['100 rupees to dollars', 100, 'inr', 'usd'], ['100 rupee in dollar', 100, 'inr', 'usd'], ['rs 100 to usd', 100, 'inr', 'usd'], ['rs.100 to usd', 100, 'inr', 'usd'], ['100 rs. to usd', 100, 'inr', 'usd'], ['5 usd to rs.', 5, 'usd', 'inr'], ['5 quid to euros', 5, 'gbp', 'eur'], ['5 bucks to rupees', 5, 'usd', 'inr'], ['10 yuan to usd', 10, 'cny', 'usd'], ['10 rmb to usd', 10, 'cny', 'usd'], ['500 yen to usd', 500, 'jpy', 'usd'], ['500 won to usd', 500, 'krw', 'usd'], ['5 rubles to usd', 5, 'rub', 'usd'],
+  // Connectors, spaced and not
+  ['5 usd in inr', 5, 'usd', 'inr'], ['5 usd into inr', 5, 'usd', 'inr'], ['5 usd as inr', 5, 'usd', 'inr'], ['5 usd = inr', 5, 'usd', 'inr'], ['5usd=inr', 5, 'usd', 'inr'], ['5 usd => inr', 5, 'usd', 'inr'], ['5 usd->inr', 5, 'usd', 'inr'], ['5 usd → inr', 5, 'usd', 'inr'], ['5 usd inr', 5, 'usd', 'inr'],
+  // Questions
+  ['how much is $5 in inr?', 5, 'usd', 'inr'], ['what is 5 usd in inr', 5, 'usd', 'inr'], ["what's 5 usd in inr", 5, 'usd', 'inr'], ['whats 5 usd in inr?', 5, 'usd', 'inr'], ['convert 1,000 jpy into gbp', 1000, 'jpy', 'gbp'], ['please convert 5 usd to inr', 5, 'usd', 'inr'], ['change 5 usd to inr', 5, 'usd', 'inr'], ['exchange 5 usd to inr', 5, 'usd', 'inr'], ['please exchange 5 usd to inr', 5, 'usd', 'inr'],
+  // Punctuation, case and spacing
+  ['5 usd to inr.', 5, 'usd', 'inr'], ['5 usd to inr!', 5, 'usd', 'inr'], ['5 usd to inr?!', 5, 'usd', 'inr'], ['5 USD TO INR', 5, 'usd', 'inr'], ['  5   usd   to   inr  ', 5, 'usd', 'inr'],
+  // Amounts
+  ['1,000 usd to inr', 1000, 'usd', 'inr'], ['1,000,000 usd to inr', 1000000, 'usd', 'inr'], ['1,000.50 JPY into GBP', 1000.5, 'jpy', 'gbp'], ['1,00,000 inr to usd', 100000, 'inr', 'usd'], ['10,00,000 inr to usd', 1000000, 'inr', 'usd'], ['.5 usd to inr', 0.5, 'usd', 'inr'], ['0.5 usd to inr', 0.5, 'usd', 'inr'], ['0 usd to inr', 0, 'usd', 'inr'], ['0.00 usd to inr', 0, 'usd', 'inr'], ['007 usd to inr', 7, 'usd', 'inr'],
+  // No amount means one, when both sides are certainly currencies
+  ['usd to inr', 1, 'usd', 'inr'], ['USD in EUR', 1, 'usd', 'eur'], ['dollars to rupees', 1, 'usd', 'inr'], ['$ to inr', 1, 'usd', 'inr'], ['₹ in $', 1, 'inr', 'usd'], ['₺ to usd', 1, 'try', 'usd'], ['btc to usd', 1, 'btc', 'usd'], ['usd to btc', 1, 'usd', 'btc'], ['doge to usdt', 1, 'doge', 'usdt'], ['usd to usd', 1, 'usd', 'usd']
 ]) {
-  assertDeepEqual(currency.parse(text), { amount, from, to }, `the menu reads the conversion "${text}"`)
+  const { known, ...read } = currency.parse(text) || {}
+  assertDeepEqual(read, { amount, from, to }, `the menu reads the conversion "${text}"`)
+  assertEqual(known, 2, `"${text}" names two known currencies`)
 }
-for (const text of ['zen', '100 inr', '$5', '100 inr to', '1,25 USD to EUR', 'to usd', '$(id) to usd', '5 usd to $(id)']) {
-  assertEqual(currency.parse(text), null, `the menu leaves "${text}" to search`)
+for (const [text, known] of [
+  // An amount is enough to ask the API, whose list has what ours doesn't
+  ['5 ada to usd', 1], ['5 usd to ada', 1], ['5 try to usd', 1], ['5 usd to dogs', 1], ['2 try to sleep', 0], ['5 ada to sol', 0], ['5 cats to dogs', 0], ['5 all in one', 0], ['10 go home', 0], ['5 valueof to usd', 1]
+]) {
+  assertEqual((currency.parse(text) || {}).known, known, `"${text}" names ${known} known currencies`)
 }
-assertEqual(currency.round(1.0578803), 1.06, 'a conversion rounds money to two places')
-assertEqual(currency.round(0.0105788), 0.01058, 'a conversion keeps the digits of a small result')
-assertEqual(numbers.plain(currency.round(1.1e-7)), '0.00000011', 'a tiny conversion is written out')
+for (const text of [
+  // Not a conversion at all
+  '', ' ', null, undefined, 'zen', 'usd', '5', '100 inr', '$5', 'convert usd', 'please convert', 'how much is ram', 'what is omarchy',
+  // Unfinished, as it is on the way to being typed
+  '100 inr to', '100 inr in', '$5 to', 'to usd', 'in usd', '5 to usd', 'usd to',
+  // Ordinary menu searches that look like "x to y"
+  'go to settings', 'save as pdf', 'back to main', 'log in vpn', 'add to bar', 'set to dnd', 'move to trash', 'time to sleep',
+  // Pairs of real API codes that are really words
+  'all in one', 'link to one', 'top to one', 'try in one', 'pen to top', 'sol in dash', 'try to top',
+  // One side is a currency, but with no amount that doesn't make it a conversion
+  'usd to dogs', 'dogs to usd', 'try to usd', 'usd to top',
+  // Decimal commas stay searches, as guessing would be off by a hundred times
+  '1,25 USD to EUR', '1,00 usd to eur', '1,000,00 usd to inr', '1,0000 usd to inr', '1,5,000 usd to inr',
+  // Other malformed amounts
+  '5. usd to inr', '1.2.3 usd to inr', '-5 usd to inr', '5e3 usd to inr', '٥ usd to inr',
+  // Malformed currencies
+  'zz$5 to usd', '5 usd to x', '5 usd to 1inch', '5 usd to ₿', '5 verylongcurrencyname to usd', '__proto__ to usd', '5 usd to __proto__',
+  // More than one conversion
+  '5 usd to inr to eur', '5 usd 6 eur to inr',
+  // Anything that could be a command
+  '$(id) to usd', '5 usd to $(id)', '5 usd to `id`', '5 usd; rm to inr', "5 usd to 'inr",
+  // Too long to be typed by hand
+  '9'.repeat(100) + ' usd to inr', '9'.repeat(400) + ' usd to inr'
+]) {
+  assertEqual(currency.parse(text), null, `the menu leaves ${JSON.stringify(String(text).slice(0, 30))} to search`)
+}
+for (const [value, rounded] of [[1.0578803, 1.06], [1, 1], [0, 0], [1234567.891, 1234567.89], [473.9, 473.9], [0.0105788, 0.01058], [0.999999, 1], [1.1e-7, 1.1e-7], [1e21, 1e21]]) {
+  assertEqual(currency.round(value), rounded, `a conversion rounds ${value} to ${rounded}`)
+}
 JS

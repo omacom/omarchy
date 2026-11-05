@@ -19,8 +19,8 @@ Item {
   property string date: ""
 
   // Rates publish daily, so an open session only needs to look a few times.
-  readonly property int ratesLifetimeMs: 6 * 60 * 60 * 1000
-  readonly property int retryAfterMs: 60 * 1000
+  property int ratesLifetimeMs: 6 * 60 * 60 * 1000
+  property int retryAfterMs: 60 * 1000
 
   property var currencies: null
   property var rates: ({})
@@ -76,11 +76,12 @@ Item {
     }
 
     if (!root.currencies) {
-      // Without the list, only speak up for what plainly names two currencies,
-      // so offline "go to settings" stays an ordinary search.
-      var namesCurrencies = request.from.length === 3 && request.to.length === 3
-      root.publish(root.failedRecently("currencies") && namesCurrencies ? "failed" : "")
-      if (!root.failedRecently("currencies") && !fetchProc.running) root.fetch("currencies")
+      // Text naming no currency we know, like "5 cats to dogs", stays off the
+      // network. The list settles the rest, and only text that names two known
+      // currencies has earned a row before it arrives.
+      var listFailed = root.failedRecently("currencies")
+      root.publish(request.known < 2 ? "" : (listFailed ? "failed" : "loading"))
+      if (request.known > 0 && !listFailed && !fetchProc.running) root.fetch("currencies")
       return
     }
 
