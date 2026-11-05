@@ -775,12 +775,13 @@ Item {
   }
 
   // Each screen's bar thickness, by screen name: barSize, or more where a notch
-  // floor raises a top bar. Toasts and plugins clear the bar by it; barSize
-  // stays the configured size the widgets are drawn at.
+  // floor raises a top bar, plus the island gap when the bar floats. Toasts,
+  // panels and plugins clear the bar by it; barSize stays the configured size
+  // the widgets are drawn at.
   readonly property var screenBarSizes: {
     var sizes = ({})
     var screens = Quickshell.screens
-    for (var i = 0; i < screens.length; i++) sizes[screens[i].name] = root.thicknessFor(screens[i])
+    for (var i = 0; i < screens.length; i++) sizes[screens[i].name] = root.thicknessFor(screens[i]) + root.islandGap
     return sizes
   }
 
@@ -1779,7 +1780,7 @@ Item {
       onTriggered: barWindow.cutoutWaitOver = true
     }
 
-    // The same thickness the bar publishes for its screen (screenBarSizes).
+    // The strip's thickness on this screen; screenBarSizes adds the island gap.
     readonly property int thickness: root.thicknessFor(screen)
     // Where the center box starts along the bar, set by the drawn center
     // sections. Hovering past it, over the clock, its trailing widgets and the
