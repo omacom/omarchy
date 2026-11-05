@@ -65,6 +65,12 @@ installer=${0##*/}
 if [[ $installer == "omarchy-install-browser" && ${OMARCHY_TEST_REAL_BROWSER_INSTALL:-false} == "true" ]]; then
   exec "$ROOT/bin/omarchy-install-browser" "$@"
 fi
+if [[ $installer == "omarchy-install-terminal" && ${OMARCHY_TEST_REAL_TERMINAL_INSTALL:-false} == "true" ]]; then
+  exec "$ROOT/bin/omarchy-install-terminal" "$@"
+fi
+if [[ $installer == omarchy-install-editor-* && ${OMARCHY_TEST_REAL_EDITOR_INSTALL:-false} == "true" ]]; then
+  exec "$ROOT/bin/$installer" "$@"
+fi
 
 case $installer in
 omarchy-pkg-add|omarchy-pkg-aur-add)
@@ -296,6 +302,15 @@ for entry in "${terminal_cases[@]}"; do
 done
 pass "terminal defaults install every missing terminal before selection"
 
+rm -f "$installed_dir/ghostty"
+if OMARCHY_TEST_REAL_TERMINAL_INSTALL=true OMARCHY_TEST_INSTALL_FAIL=true \
+  omarchy-default-terminal --install ghostty >"$test_tmp/terminal-install-failure" 2>&1; then
+  fail "failed terminal installation returns an error"
+fi
+[[ $(tail -n 1 "$test_home/.config/xdg-terminals.list") == "kitty.desktop" ]] ||
+  fail "failed terminal installation preserves the default terminal"
+pass "failed terminal installation preserves the current default"
+
 for entry in "${editor_cases[@]}"; do
   read -r selection command installer <<<"$entry"
   rm -f "$installed_dir/$command"
@@ -305,6 +320,15 @@ for entry in "${editor_cases[@]}"; do
   [[ $(omarchy-default-editor) == "$command" ]] || fail "$selection becomes the default editor after installation"
 done
 pass "editor defaults install every missing editor before selection"
+
+previous_editor=$(omarchy-default-editor)
+rm -f "$installed_dir/helix"
+if OMARCHY_TEST_REAL_EDITOR_INSTALL=true OMARCHY_TEST_INSTALL_FAIL=true \
+  omarchy-default-editor --install helix >"$test_tmp/editor-install-failure" 2>&1; then
+  fail "failed editor installation returns an error"
+fi
+[[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed editor installation preserves the default editor"
+pass "failed editor installation preserves the current default"
 
 : >"$install_log"
 : >"$terminal_log"
