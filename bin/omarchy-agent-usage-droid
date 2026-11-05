@@ -1,0 +1,635 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Droid usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Factory Droid usage into one display-ready JSON record.
+
+Local stats come from Droid's per-session settings files and transcripts,
+dated by the session index. The limits are the Standard and Core rolling
+windows Droid's /limits command reads from Factory's billing endpoint. That
+endpoint is undocumented and Droid's own CLI uses it; the collector asks the
+global https://api.factory.ai host and shows local stats alone when the
+endpoint is unavailable. Legacy billing accounts have no rolling windows.
+
+The collector reads Droid's own login from the Secret Service first, and only
+falls back to FACTORY_API_KEY or ~/.config/omarchy/agents/droid.json when that
+login is missing, unreadable, or expired. It never refreshes or writes Droid's
+credentials and never changes the overage preference.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import binascii
+import ctypes
+import hashlib
+import json
+import math
+import os
+import sqlite3
+import subprocess
+import sys
+import time
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record,
+  cached_scan,
+  config_home,
+  emit,
+  local_day,
+  number,
+  open_json,
+  read_json,
+  scan_max_age,
+  token_count,
+  warn,
+)
+
+AGENT_ID = "droid"
+AGENT_NAME = "Droid"
+API_BASE = "https://api.factory.ai"
+LIMITS_PATH = "/api/billing/limits"
+ME_PATH = "/api/app/auth/me"
+FACTORY_DIR = Path.home() / ".factory"
+SESSIONS_DIR = FACTORY_DIR / "sessions"
+INDEX_DB = FACTORY_DIR / "cache" / "session-index" / "index.db"
+CONFIG_PATH = config_home() / "omarchy" / "agents" / "droid.json"
+KEYRING_FILE = FACTORY_DIR / "auth.v2.keyring"
+KEYRING_SERVICE = "Factory CLI"
+KEYRING_ACCOUNT = "auth-encryption-key"
+KEYRING_MAX_BYTES = 64 * 1024
+UNSUPPORTED_AUTH_FILES = ("auth.v2.file", "auth.v2.key", "auth.v2.loginkeychain")
+AUTH_HELP = "Sign in with Droid so the collector can read its login. If that is unavailable, set FACTORY_API_KEY or ~/.config/omarchy/agents/droid.json."
+LOGIN_HELP = "Droid's saved login could not be read. Run `droid` once on Linux, or set FACTORY_API_KEY."
+NON_KEYRING_HELP = "Droid's login is not in the Linux Secret Service keyring store this collector reads. Run `droid` on Linux, or set FACTORY_API_KEY."
+EXPIRED_HELP = "Droid rejected the saved Factory API key. Replace it at app.factory.ai -> Settings -> API keys."
+WINDOWS = (("fiveHour", "Rolling (5h)"), ("weekly", "Weekly (7-day)"), ("monthly", "Monthly"))
+
+
+def api_key() -> str:
+  key = str(os.environ.get("FACTORY_API_KEY", "")).strip()
+  if key:
+    return key
+  return str(read_json(CONFIG_PATH).get("apiKey") or "").strip()
+
+
+def key_fingerprint(key: str) -> str:
+  return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+
+
+# ---------------------------------------------------------------------- login
+#
+# Droid keeps its login in ~/.factory/auth.v2.keyring, sealed with AES-256-GCM
+# under a key in the Secret Service. Only the access token and the active
+# organization are read; the refresh token is never touched. A token the CLI
+# has let expire is answered from the cache with "run droid once" rather than
+# refreshed here.
+
+_LIBCRYPTO: Any = None
+
+
+def libcrypto() -> Any:
+  global _LIBCRYPTO
+  if _LIBCRYPTO is not None:
+    return _LIBCRYPTO
+  library = None
+  for name in ("libcrypto.so.3", "libcrypto.so"):
+    try:
+      library = ctypes.CDLL(name)
+      break
+    except OSError:
+      continue
+  if library is None:
+    raise RuntimeError("libcrypto is unavailable")
+  library.EVP_CIPHER_CTX_new.restype = ctypes.c_void_p
+  library.EVP_aes_256_gcm.restype = ctypes.c_void_p
+  library.EVP_DecryptInit_ex.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+  library.EVP_DecryptInit_ex.restype = ctypes.c_int
+  library.EVP_DecryptUpdate.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int), ctypes.c_void_p, ctypes.c_int]
+  library.EVP_DecryptUpdate.restype = ctypes.c_int
+  library.EVP_CIPHER_CTX_ctrl.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
+  library.EVP_CIPHER_CTX_ctrl.restype = ctypes.c_int
+  library.EVP_DecryptFinal_ex.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)]
+  library.EVP_DecryptFinal_ex.restype = ctypes.c_int
+  library.EVP_CIPHER_CTX_free.argtypes = [ctypes.c_void_p]
+  _LIBCRYPTO = library
+  return library
+
+
+def decrypt_gcm(key: bytes, iv: bytes, tag: bytes, ciphertext: bytes) -> bytes:
+  if len(key) != 32 or len(iv) != 16 or len(tag) != 16:
+    raise ValueError("the saved login has an unexpected shape")
+  library = libcrypto()
+  context = library.EVP_CIPHER_CTX_new()
+  if not context:
+    raise ValueError("could not open the cipher")
+  output = ctypes.create_string_buffer(len(ciphertext) + 16)
+  written = ctypes.c_int(0)
+  final = ctypes.c_int(0)
+  try:
+    key_buffer = ctypes.create_string_buffer(key, len(key))
+    iv_buffer = ctypes.create_string_buffer(iv, len(iv))
+    text_buffer = ctypes.create_string_buffer(ciphertext, len(ciphertext))
+    tag_buffer = ctypes.create_string_buffer(tag, len(tag))
+    if library.EVP_DecryptInit_ex(context, library.EVP_aes_256_gcm(), None, None, None) != 1:
+      raise ValueError("could not initialise the cipher")
+    # GCM defaults to a 12-byte IV; Droid writes 16.
+    if library.EVP_CIPHER_CTX_ctrl(context, 0x9, len(iv), None) != 1:
+      raise ValueError("could not set the cipher IV")
+    if library.EVP_DecryptInit_ex(context, None, None, ctypes.cast(key_buffer, ctypes.c_void_p), ctypes.cast(iv_buffer, ctypes.c_void_p)) != 1:
+      raise ValueError("could not set the cipher key")
+    if library.EVP_DecryptUpdate(context, ctypes.cast(output, ctypes.c_void_p), ctypes.byref(written), ctypes.cast(text_buffer, ctypes.c_void_p), len(ciphertext)) != 1:
+      raise ValueError("could not decrypt the saved login")
+    if library.EVP_CIPHER_CTX_ctrl(context, 0x11, len(tag), ctypes.cast(tag_buffer, ctypes.c_void_p)) != 1:
+      raise ValueError("could not set the authentication tag")
+    if library.EVP_DecryptFinal_ex(context, ctypes.cast(ctypes.byref(output, written.value), ctypes.c_void_p), ctypes.byref(final)) != 1:
+      raise ValueError("could not verify the saved login")
+    return output.raw[:written.value + final.value]
+  finally:
+    library.EVP_CIPHER_CTX_free(context)
+
+
+def secret_key() -> bytes:
+  env = os.environ.copy()
+  env.pop("FACTORY_API_KEY", None)
+  try:
+    result = subprocess.run(
+      ["secret-tool", "lookup", "service", KEYRING_SERVICE, "account", KEYRING_ACCOUNT],
+      capture_output=True,
+      text=True,
+      timeout=5,
+      env=env,
+    )
+  except (OSError, subprocess.SubprocessError) as exc:
+    raise ValueError("the Secret Service keyring could not be queried") from exc
+  if result.returncode != 0 or not result.stdout.strip():
+    raise ValueError("the Factory CLI login key is not in the keyring")
+  try:
+    key = base64.b64decode(result.stdout.strip(), validate=True)
+  except (ValueError, binascii.Error) as exc:
+    raise ValueError("the Factory CLI login key is malformed") from exc
+  if len(key) != 32:
+    raise ValueError("the Factory CLI login key is malformed")
+  return key
+
+
+def decrypt_keyring(raw: str) -> dict[str, Any]:
+  parts = raw.strip().split(":")
+  if len(parts) != 3:
+    raise ValueError("the saved login has an unexpected shape")
+  try:
+    iv = base64.b64decode(parts[0], validate=True)
+    tag = base64.b64decode(parts[1], validate=True)
+    ciphertext = base64.b64decode(parts[2], validate=True)
+  except (ValueError, binascii.Error) as exc:
+    raise ValueError("the saved login is not valid base64") from exc
+  document = json.loads(decrypt_gcm(secret_key(), iv, tag, ciphertext).decode("utf-8"))
+  if not isinstance(document, dict):
+    raise ValueError("the saved login is not an object")
+  return document
+
+
+def jwt_expiry(token: str) -> int:
+  parts = token.split(".")
+  if len(parts) < 2:
+    return 0
+  payload = parts[1] + "=" * (-len(parts[1]) % 4)
+  try:
+    claims = json.loads(base64.urlsafe_b64decode(payload))
+  except Exception:
+    return 0
+  exp = claims.get("exp") if isinstance(claims, dict) else None
+  if isinstance(exp, bool) or not isinstance(exp, (int, float)) or not math.isfinite(exp):
+    return 0
+  return max(0, int(exp))
+
+
+def org_identity(org: str) -> str:
+  return hashlib.sha256(("droid-org:" + org).encode("utf-8")).hexdigest()[:16]
+
+
+def droid_login() -> dict[str, Any]:
+  if not KEYRING_FILE.is_file():
+    help_text = NON_KEYRING_HELP if any((FACTORY_DIR / name).is_file() for name in UNSUPPORTED_AUTH_FILES) else ""
+    return {"token": "", "identity": "", "source": "login", "expired": False, "help": help_text}
+  try:
+    if KEYRING_FILE.stat().st_size > KEYRING_MAX_BYTES:
+      raise ValueError("the saved login is too large")
+    document = decrypt_keyring(KEYRING_FILE.read_text(encoding="utf-8"))
+    token = str(document.get("access_token") or "").strip()
+    if not token:
+      raise ValueError("the saved login has no access token")
+    org = str(document.get("active_organization_id") or "").strip()
+    expires = jwt_expiry(token)
+    return {
+      "token": token,
+      "identity": org_identity(org) if org else key_fingerprint(token),
+      "source": "login",
+      "expired": expires > 0 and expires <= int(time.time()),
+      "expiresAt": expires,
+      "help": "",
+    }
+  except Exception:
+    # The key, login file and token are credentials: never put any of them,
+    # or an exception quoting them, in the record.
+    return {"token": "", "identity": "", "source": "login", "expired": False, "help": LOGIN_HELP}
+
+
+def resolve_credential() -> dict[str, Any]:
+  # The CLI's own login is the zero-setup path every other agent uses. An
+  # explicit API key is the fallback when there is no readable, unexpired
+  # login (a locked keyring, another auth store, or a headless setup).
+  login = droid_login()
+  if login.get("token") and not login.get("expired"):
+    return login
+  key = api_key()
+  if key:
+    return {"token": key, "identity": key_fingerprint(key), "source": "api-key", "expired": False, "help": ""}
+  return login
+
+
+def fraction(value: Any) -> float:
+  if isinstance(value, bool):
+    return -1.0
+  try:
+    percent = float(value)
+  except (TypeError, ValueError, OverflowError):
+    return -1.0
+  if not math.isfinite(percent):
+    return -1.0
+  return max(0.0, min(1.0, percent / 100.0))
+
+
+def iso_reset(value: Any) -> str:
+  if value is None or isinstance(value, bool):
+    return ""
+  if isinstance(value, (int, float)):
+    if not math.isfinite(value) or value <= 0:
+      return ""
+    seconds = value / 1000 if value > 10_000_000_000 else value
+    try:
+      return datetime.fromtimestamp(seconds, timezone.utc).isoformat().replace("+00:00", "Z")
+    except (OverflowError, OSError, ValueError):
+      return ""
+  if isinstance(value, str):
+    text = value.strip()
+    if not text:
+      return ""
+    try:
+      parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+      return iso_reset(int(text)) if text.isdigit() else ""
+    if parsed.tzinfo is None:
+      parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+  return ""
+
+
+def reset_from_seconds(value: Any) -> str:
+  seconds = number(value)
+  if seconds <= 0:
+    return ""
+  return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat().replace("+00:00", "Z")
+
+
+def window_limits(pool: Any, prefix: str = "", core: bool = False) -> list[dict[str, Any]]:
+  if not isinstance(pool, dict):
+    return []
+  limits = []
+  for key, label in WINDOWS:
+    window = pool.get(key)
+    if not isinstance(window, dict):
+      continue
+    percent = fraction(window.get("usedPercent"))
+    if percent < 0:
+      continue
+    entry = {
+      "label": prefix + label,
+      "percent": percent,
+      "resetsAt": iso_reset(window.get("windowEnd")) or reset_from_seconds(window.get("secondsRemaining")),
+    }
+    # A titled "Core Session" attaches to the Standard Session row as a
+    # model-scoped window instead of drawing a second, identical row.
+    if core:
+      entry["title"] = "Core " + {"fiveHour": "Session", "weekly": "Weekly", "monthly": "Monthly"}[key]
+    limits.append(entry)
+  return limits
+
+
+def core_active(pool: Any) -> bool:
+  if not isinstance(pool, dict):
+    return False
+  for key, _ in WINDOWS:
+    window = pool.get(key)
+    if not isinstance(window, dict):
+      continue
+    if fraction(window.get("usedPercent")) > 0:
+      return True
+    if iso_reset(window.get("windowEnd")) or number(window.get("secondsRemaining")) > 0:
+      return True
+  return False
+
+
+def parse_limits(payload: dict[str, Any]) -> list[dict[str, Any]]:
+  pools = payload.get("limits") if isinstance(payload, dict) else None
+  pools = pools if isinstance(pools, dict) else {}
+  limits = window_limits(pools.get("standard"))
+  core = pools.get("core")
+  if core_active(core):
+    limits += window_limits(core, "Core ", core=True)
+  return limits
+
+
+def balance_record(payload: dict[str, Any]) -> dict[str, Any] | None:
+  cents = number(payload.get("extraUsageBalanceCents"))
+  if cents <= 0 or payload.get("extraUsageAllowed") is not True:
+    return None
+  remaining = cents / 100.0
+  return {"remaining": remaining, "funded": 0.0, "spent": 0.0, "currency": "USD", "estimated": False}
+
+
+def plan_label(payload: Any) -> str:
+  organization = payload.get("organization") if isinstance(payload, dict) else None
+  subscription = organization.get("subscription") if isinstance(organization, dict) else None
+  orb = subscription.get("orbSubscription") if isinstance(subscription, dict) else None
+  plan = orb.get("plan") if isinstance(orb, dict) else None
+  name = plan.get("name") if isinstance(plan, dict) else ""
+  return name.strip() if isinstance(name, str) and name.strip() else ""
+
+
+def fetch_json(key: str, path: str) -> Any:
+  request = urllib.request.Request(
+    API_BASE + path,
+    headers={
+      "Authorization": "Bearer " + key,
+      "Accept": "application/json",
+      "User-Agent": "omarchy-agent-usage-droid/1.0",
+    },
+  )
+  return open_json(request, timeout=10)
+
+
+def probe_limits(key: str) -> dict[str, Any]:
+  try:
+    payload = fetch_json(key, LIMITS_PATH)
+  except HttpError as error:
+    if error.transport:
+      return {"ok": False, "transport": True, "helpText": "Couldn't reach Factory's usage endpoint. Local Droid stats are still shown."}
+    if error.status in (401, 403):
+      return {"ok": False, "refused": True, "helpText": EXPIRED_HELP}
+    if error.status:
+      return {"ok": False, "helpText": f"Factory's usage endpoint returned status {error.status}. Local Droid stats are still shown."}
+    return {"ok": False, "helpText": "Factory's usage endpoint returned no usable answer. Local Droid stats are still shown."}
+  except Exception:
+    return {"ok": False, "helpText": "Factory's usage endpoint returned no usable answer. Local Droid stats are still shown."}
+
+  if not isinstance(payload, dict) or not payload:
+    return {"ok": False, "helpText": "Factory's usage endpoint returned no data. Local Droid stats are still shown."}
+  if payload.get("hasActiveSubscription") is False:
+    return {"ok": False, "noPlan": True, "helpText": "This Factory API key has no active subscription."}
+  if payload.get("usesTokenRateLimitsBilling") is False:
+    return {"ok": False, "legacy": True, "helpText": "This Factory API key uses legacy billing; Droid's rolling limits are not available."}
+
+  limits = parse_limits(payload)
+  if not limits:
+    return {"ok": False, "helpText": "Factory returned no Droid usage windows. Local Droid stats are still shown."}
+
+  tier = ""
+  try:
+    tier = plan_label(fetch_json(key, ME_PATH))
+  except Exception:
+    pass
+  return {"ok": True, "limits": limits, "tierLabel": tier, "balance": balance_record(payload)}
+
+
+def collect_limits(force: bool) -> dict[str, Any]:
+  result = {
+    "limits": [],
+    "tierLabel": "",
+    "balance": None,
+    "usageStatusText": "",
+    "authHelpText": "",
+    "retryAdvised": False,
+    "stale": False,
+    "fetchedAtMs": 0,
+    "signedIn": False,
+  }
+  credential = resolve_credential()
+  token = str(credential.get("token") or "")
+  if not token:
+    help_text = str(credential.get("help") or "")
+    if help_text:
+      result["usageStatusText"] = "Droid limits unavailable"
+      result["authHelpText"] = help_text
+      # A login file that could not be read still means Droid is set up on
+      # this machine, so the panel should show the problem instead of
+      # skipping the agent as unused.
+      result["signedIn"] = KEYRING_FILE.is_file() or any((FACTORY_DIR / name).is_file() for name in UNSUPPORTED_AUTH_FILES)
+    return result
+
+  result["signedIn"] = True
+  cache = LimitsCache(AGENT_ID, str(credential.get("identity") or key_fingerprint(token)))
+  fallback, fetched_at = cache.kept()
+
+  # The CLI renews its own access token the next time it runs. Never try the
+  # expired token on the network, and never use the refresh token here.
+  if credential.get("expired"):
+    result["limits"] = fallback
+    result["tierLabel"] = str(cache.data.get("tierLabel") or "")
+    result["balance"] = cache.data.get("balance")
+    result["fetchedAtMs"] = fetched_at
+    result["stale"] = bool(fallback)
+    result["usageStatusText"] = "Limits paused"
+    result["authHelpText"] = "Droid's login has expired. Run `droid` once to refresh it."
+    return result
+
+  # A recent answer stands in for a probe; --force skips the wait.
+  if cache.fresh(force):
+    return {
+      **result,
+      "limits": cache.limits,
+      "tierLabel": str(cache.data.get("tierLabel") or ""),
+      "balance": cache.data.get("balance"),
+      "fetchedAtMs": fetched_at,
+    }
+
+  probe = probe_limits(token)
+  if probe.get("ok"):
+    tier = str(probe.get("tierLabel") or cache.data.get("tierLabel") or "")
+    limits = probe["limits"]
+    fetched = cache.save(limits, only_if_newer=True, tierLabel=tier, balance=probe.get("balance"))
+    return {**result, "limits": limits, "tierLabel": tier, "balance": probe.get("balance"), "fetchedAtMs": fetched}
+
+  if probe.get("noPlan") or probe.get("legacy"):
+    # Do not keep an empty answer: a new subscription should show up on the
+    # next run rather than wait out a cache.
+    result["authHelpText"] = str(probe.get("helpText") or "")
+    return result
+
+  result["retryAdvised"] = bool(probe.get("transport"))
+  result["limits"] = fallback
+  result["tierLabel"] = str(cache.data.get("tierLabel") or "")
+  result["balance"] = cache.data.get("balance")
+  result["fetchedAtMs"] = fetched_at
+  result["stale"] = bool(fallback)
+  result["authHelpText"] = str(probe.get("helpText") or "")
+  if probe.get("refused"):
+    if credential.get("source") == "login":
+      result["usageStatusText"] = "Limits paused"
+      result["authHelpText"] = "Droid's login was refused. Run `droid` once to refresh it."
+    else:
+      result["usageStatusText"] = "Sign-in expired"
+      result["authHelpText"] = EXPIRED_HELP
+  elif not fallback:
+    result["usageStatusText"] = "Droid limits unavailable"
+  return result
+
+
+def session_times() -> dict[str, int]:
+  if not INDEX_DB.is_file():
+    return {}
+  try:
+    connection = sqlite3.connect(f"file:{INDEX_DB}?mode=ro", uri=True, timeout=1)
+    try:
+      rows = connection.execute("select session_id, last_event_at from sessions").fetchall()
+    finally:
+      connection.close()
+  except sqlite3.Error as exc:
+    warn(f"could not read Droid's session index ({exc})")
+    return {}
+  times = {}
+  for session_id, last_event_at in rows:
+    if isinstance(session_id, str) and session_id:
+      times[session_id] = number(last_event_at)
+  return times
+
+
+def prompt_count(settings_path: Path) -> int:
+  """Typed user messages in the session transcript, never their text."""
+  transcript = settings_path.with_name(settings_path.name.removesuffix(".settings.json") + ".jsonl")
+  if not transcript.is_file():
+    return 0
+  count = 0
+  try:
+    with transcript.open(encoding="utf-8") as handle:
+      for line in handle:
+        try:
+          event = json.loads(line)
+        except Exception:
+          continue
+        if not isinstance(event, dict) or event.get("type") != "message":
+          continue
+        message = event.get("message")
+        if not isinstance(message, dict) or message.get("role") != "user":
+          continue
+        # A context/system message carries no source; only a typed prompt does.
+        if not message.get("userMessageSource"):
+          continue
+        count += 1
+  except OSError:
+    return 0
+  return count
+
+
+def scan_sessions() -> tuple[dict[str, Any], bool]:
+  stats = Stats()
+  complete = True
+  times = session_times()
+  if not SESSIONS_DIR.is_dir():
+    return stats.snapshot(), True
+
+  for path in sorted(SESSIONS_DIR.rglob("*.settings.json")):
+    try:
+      document = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+      complete = False
+      continue
+    if not isinstance(document, dict):
+      complete = False
+      continue
+
+    # Droid's own usage for this session. Its inclusive field rolls children
+    # up, and each child has its own settings file, so using it here would
+    # count a subagent twice.
+    usage = document.get("tokenUsage")
+    usage = usage if isinstance(usage, dict) else {}
+    input_tokens = token_count(usage.get("inputTokens"))
+    output_tokens = token_count(usage.get("outputTokens"))
+    thinking_tokens = token_count(usage.get("thinkingTokens"))
+    cache_read = token_count(usage.get("cacheReadTokens"))
+    cache_write = token_count(usage.get("cacheCreationTokens"))
+    total = input_tokens + output_tokens + thinking_tokens + cache_read + cache_write
+
+    session_id = path.name.removesuffix(".settings.json")
+    prompts = prompt_count(path)
+    if total <= 0 and prompts <= 0:
+      continue
+
+    try:
+      stamp = times.get(session_id) or int(path.stat().st_mtime * 1000)
+    except OSError:
+      stamp = 0
+    model = str(document.get("model") or "Droid")
+    # Droid keeps thinking tokens apart from output; count them as output,
+    # the way pi's reasoning is already part of its output.
+    stats.add(local_day(stamp), session_id, model, input_tokens, output_tokens + thinking_tokens, cache_read, cache_write, prompts=prompts)
+
+  return stats.snapshot(), complete
+
+
+def local_stats(max_age: float) -> dict[str, Any]:
+  return cached_scan(AGENT_ID, [SESSIONS_DIR, INDEX_DB], max_age, scan_sessions)
+
+
+def main() -> None:
+  parser = argparse.ArgumentParser()
+  # --force rescans everything and probes the limits. --limits-only keeps the
+  # panel's refresh cheap by reusing the local scan for longer.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  stats = local_stats(scan_max_age(args.force, args.limits_only))
+  limits = collect_limits(args.force)
+  has_local = number(stats.get("totalSessions")) > 0 or bool(stats.get("modelUsage"))
+
+  # An unused machine prints a skipped record. Once local usage exists, a
+  # missing credential is something to fix, not an empty home.
+  if has_local and not limits["signedIn"] and not limits["usageStatusText"]:
+    limits["usageStatusText"] = "Waiting for auth"
+    limits["authHelpText"] = limits["authHelpText"] or AUTH_HELP
+
+  record = base_record(
+    AGENT_ID,
+    AGENT_NAME,
+    ready=has_local or limits["signedIn"],
+    hasLocalStats=has_local,
+    hasPromptStats=True,
+    tierLabel=limits["tierLabel"],
+    usageStatusText=limits["usageStatusText"],
+    authHelpText=limits["authHelpText"],
+    limits=limits["limits"],
+    limitsStale=limits["stale"],
+    limitsFetchedAt=limits["fetchedAtMs"],
+  )
+  record.update(stats)
+  if limits.get("balance"):
+    record["balance"] = limits["balance"]
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  emit(record)
+
+
+if __name__ == "__main__":
+  main()

@@ -34,6 +34,7 @@
         "vibe": { "enabled": true },
         "qwen": { "enabled": true },
         "opencode": { "enabled": true },
+        "droid": { "enabled": true },
         "zai": { "enabled": true },
         "ollama": { "enabled": true },
         "minimax": { "enabled": true },
