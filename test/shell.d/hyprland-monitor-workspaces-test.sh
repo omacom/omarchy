@@ -639,6 +639,22 @@ check(shows("eDP-1") == 1, "the monitor it left shows one of its own")
 ' || fail "moving a workspace to a monitor makes it that monitor's"
 pass "moving a workspace to a monitor makes it that monitor's"
 
+run_lua move_free_slot '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 11)
+hl.dispatch(hl.dsp.focus({ workspace = "11" }))
+
+hl.dispatch(m.move_to_monitor("eDP-1"))
+check(world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "the workspace takes the first free number, not the one Hyprland parked the other monitor on: " .. world.windows["0xb"].workspace)
+check(shows("DP-1") >= 11, "the monitor it left shows one of its own")
+' || fail "a workspace moved to a monitor whose slot is taken takes the first free number"
+pass "a workspace moved to a monitor whose slot is taken takes the first free number"
+
 run_lua window_to_monitor '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
