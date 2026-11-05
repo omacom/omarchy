@@ -199,6 +199,13 @@ border      = "#ffffff"
 
 The filename decides the target section, so the `[lock]` header is optional.
 
+Section overrides take the same placeholders as templates, so they can follow the theme's palette instead of hardcoding hex values, and a theme that copies one recolors with its own `colors.toml`:
+
+```toml
+text   = "{{ foreground }}"
+border = "{{ mix foreground background 40% }}"
+```
+
 The running shell reads `shell.toml` into two QML singletons:
 
 - `Color` for palette and surface roles like `Commons.Color.menu.border`.

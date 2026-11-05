@@ -216,13 +216,14 @@ add_gradient_function_value() {
   printf '%s\037%s\n' "$token" "$REPLY" >>"$value_table"
 }
 
-# Scan every template once for function tokens, instead of a grep per template
-# per function family.
+# Scan every template and shell section override once for function tokens,
+# instead of a grep per file per function family.
 add_function_values() {
   local token
   local -A seen=()
+  local -a sources=("${template_files[@]}" "${shell_overrides[@]}")
 
-  (( ${#template_files[@]} > 0 )) || return
+  (( ${#sources[@]} > 0 )) || return
 
   while IFS= read -r token; do
     [[ -n ${seen[$token]:-} ]] && continue
@@ -233,7 +234,7 @@ add_function_values() {
     else
       add_gradient_function_value "$token"
     fi
-  done < <(grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" 2>/dev/null || true)
+  done < <(grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${sources[@]}" 2>/dev/null || true)
 }
 
 strip_shell_section_header() {
@@ -303,12 +304,26 @@ apply_shell_section_override() {
   rm "$body"
 }
 
+# Collect the shell.<section>.toml files a theme ships, once, so rendering and
+# merging work on the same list. Only files with a plain section name merge.
+find_shell_section_overrides() {
+  local override section
+
+  shell_overrides=()
+  shopt -s nullglob
+  for override in "$NEXT_THEME_DIR"/shell.*.toml; do
+    section=${override##*/shell.}
+    section=${section%.toml}
+    if [[ -f $override && $section =~ ^[A-Za-z0-9_-]+$ ]]; then
+      shell_overrides+=("$override")
+    fi
+  done
+}
+
 apply_shell_section_overrides() {
   local override
 
-  shopt -s nullglob
-  for override in "$NEXT_THEME_DIR"/shell.*.toml; do
-    [[ $(basename "$override") != "shell.toml" ]] || continue
+  for override in "${shell_overrides[@]}"; do
     apply_shell_section_override "$override"
   done
 }
@@ -317,8 +332,9 @@ apply_shell_section_overrides() {
 # up whole, as the per-template sed script used to match it. A mix is rounded
 # with awk's floating point exactly as before, so no generated color moves.
 render_templates() {
-  local tpl filename
+  local tpl filename override
   local -a pairs=()
+  local -A override_outputs=()
 
   # Process user templates first, then built-in templates (user overrides
   # built-in). Don't overwrite configs the theme already ships.
@@ -329,6 +345,13 @@ render_templates() {
       rendered[$filename]=1
       pairs+=("$tpl" "$NEXT_THEME_DIR/$filename")
     fi
+  done
+
+  # Shell section overrides take the same placeholders as templates, so a theme
+  # can derive them from its palette. They render in place before merging.
+  for override in "${shell_overrides[@]}"; do
+    override_outputs[$override]=$(mktemp)
+    pairs+=("$override" "${override_outputs[$override]}")
   done
 
   (( ${#pairs[@]} > 0 )) || return
@@ -423,7 +446,13 @@ render_templates() {
       exit
     }
   ' "${pairs[@]}"
+
+  for override in "${!override_outputs[@]}"; do
+    mv "${override_outputs[$override]}" "$override"
+  done
 }
+
+find_shell_section_overrides
 
 # Only generate dynamic templates for themes with a colors.toml definition
 if [[ -f $COLORS_FILE ]]; then
