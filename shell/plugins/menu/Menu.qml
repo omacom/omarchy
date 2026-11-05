@@ -90,6 +90,8 @@ Item {
   property bool rowsLoaded: false
   property string activeMenu: "root"
   property string filterText: ""
+  // The user moved the cursor since the search last changed.
+  property bool cursorChosen: false
   // Resets of filterText reach the search line; its edits come back through setFilter.
   onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
@@ -614,9 +616,21 @@ Item {
   CurrencyLookup {
     id: currencyLookup
     query: root.dmenuActive ? "" : root.filterText
-    onAnswerChanged: {
-      root.selectedIndex = 0
-      root.rebuildDisplay()
+    onAnswerChanged: root.refreshCurrencyRow()
+  }
+
+  // An answer lands after the search it belongs to. It takes the cursor unless
+  // the user has already gone to a row, which stays selected as the rows shift.
+  function refreshCurrencyRow() {
+    var chosen = root.cursorChosen && root.selectedIndex < displayModel.count
+      ? displayModel.get(root.selectedIndex).itemId : ""
+    if (!chosen) root.selectedIndex = 0
+    root.rebuildDisplay()
+    for (var i = 0; chosen && i < displayModel.count; i++) {
+      if (displayModel.get(i).itemId === chosen) {
+        root.selectedIndex = i
+        break
+      }
     }
   }
 
@@ -855,12 +869,14 @@ Item {
     if (target < 0) return
 
     cursorActive = true
+    cursorChosen = true
     selectedIndex = target
     revealCursor()
   }
 
   function setFilter(nextFilter) {
     panel.freezeCardTop()
+    root.cursorChosen = false
     root.filterText = nextFilter
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
@@ -1084,6 +1100,7 @@ Item {
     if (!pointerGate.moved(item, mouse)) return
     if (!root.rowSelectable(index)) return
     root.cursorActive = true
+    root.cursorChosen = true
     root.selectedIndex = index
   }
 
