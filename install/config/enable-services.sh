@@ -19,3 +19,5 @@ systemctl enable systemd-oomd.service
 # Weekly trim of every filesystem's free space, as Fedora, Debian and Ubuntu
 # enable it. btrfs discard=async only trims what is freed while it is mounted.
 systemctl enable fstrim.timer
+# Runs the one trim omarchy-apply-trim queues for the next boot.
+systemctl enable omarchy-trim-backlog.service

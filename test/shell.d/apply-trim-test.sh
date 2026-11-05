@@ -168,7 +168,7 @@ pass "an unencrypted root gets the weekly timer and one backlog trim, once"
 reset_machine
 FAKE_TIMER=masked apply_trim 2>"$tmp/err"
 grep -q 'masked; leaving it masked' "$tmp/err" || fail "a masked timer is reported" "$(cat "$tmp/err")"
-! grep -q 'systemctl enable' "$calls" || fail "a masked timer is not enabled"
+! grep -q 'systemctl enable.*fstrim.timer' "$calls" || fail "a masked timer is not enabled"
 [[ -e $tmp/state/applied ]] || fail "a masked timer does not hold the rest back"
 pass "a masked fstrim.timer is its owner's choice and is left masked"
 
@@ -209,6 +209,8 @@ grep -q 'apply from the next boot' "$tmp/out" || fail "says when the flags apply
 printf pw | cryptsetup open --test-passphrase --key-file - "$image" ||
   fail "the passphrase still unlocks the header it rewrote"
 expect_enabled "a LUKS2 root"
+grep -qx 'systemctl enable --quiet omarchy-trim-backlog.service' "$calls" ||
+  fail "a LUKS2 root enables the backlog unit that runs the queued trim" "$(cat "$calls")"
 pass "a LUKS2 root gets the installer's persistent flags without the passphrase, and still unlocks"
 
 before=$(sha256sum <"$image")
@@ -322,9 +324,7 @@ mkdir -p "$tmp/state" && touch "$tmp/state/backlog"
 FAKE_VIRT=container apply_trim --backlog
 FAKE_VIRT=chroot apply_trim --backlog
 [[ ! -s $calls && -e $tmp/state/backlog ]] || fail "the backlog trims nothing in a container or a chroot"
-grep -qx 'ConditionVirtualization=!container' "$ROOT/default/systemd/system/omarchy-trim-backlog.service" ||
-  fail "the backlog unit does not start in a container"
-pass "the backlog trims nothing in a container or a chroot, and its unit does not start in a container"
+pass "the backlog trims nothing in a container or a chroot"
 rm -rf "$tmp/state"
 image=$(luks2_header backlog)
 set_header_flags "$image" $(((1 << 3) | (1 << 24)))

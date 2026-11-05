@@ -213,6 +213,12 @@ apply() {
     return 0
   fi
 
+  # The backlog unit runs the trim queued below on the next boot.
+  if ! systemctl enable --quiet omarchy-trim-backlog.service; then
+    echo "omarchy-apply-trim: could not enable omarchy-trim-backlog.service; trying again on the next update" >&2
+    return 0
+  fi
+
   install -d -m 0755 "$state_dir"
   : >"$backlog"
   : >"$applied"

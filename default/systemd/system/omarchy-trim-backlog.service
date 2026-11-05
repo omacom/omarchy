@@ -12,3 +12,6 @@ After=local-fs.target
 Type=exec
 ExecStart=/usr/bin/omarchy-apply-trim --backlog
 IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target
