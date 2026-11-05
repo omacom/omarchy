@@ -79,7 +79,7 @@ grep -qF "kind 'bar-widget' requires" <<<"$output" \
 pass "validate refuses a plugin that satisfies only one of its kinds"
 
 # A widget can choose its default bar section, but no other section name.
-for section in left center right tray; do
+for section in left centerBegin center centerEnd tray right; do
   dir=$(write_plugin "defaults-$section" '["bar-widget"]' '{"barWidget": "Widget.qml"}' "{\"defaultSection\": \"$section\"}")
   validate "$dir" >/dev/null || fail "validate accepts $section as a default bar widget section"
   pass "validate accepts $section as a default bar widget section"
@@ -87,7 +87,7 @@ done
 
 dir=$(write_plugin "defaults-bottom" '["bar-widget"]' '{"barWidget": "Widget.qml"}' '{"defaultSection": "bottom"}')
 output=$(validate "$dir") && fail "validate refuses an invalid default bar widget section" "$output"
-grep -qF "'barWidget.defaultSection' must be left, center, tray, or right" <<<"$output" \
+grep -qF "'barWidget.defaultSection' must be left, centerBegin, center, centerEnd, tray, or right" <<<"$output" \
   || fail "validate explains the default bar widget section contract" "$output"
 pass "validate refuses an invalid default bar widget section"
 

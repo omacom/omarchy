@@ -44,6 +44,13 @@ function normalizeItem(id, raw) {
 }
 
 function parseMenuJsonc(raw) {
+  return readMenuJsonc(raw) || []
+}
+
+// Like parseMenuJsonc, but null when the text is not a menu at all: what a
+// reader sees of a file caught mid-write by an update, a checkout or an
+// editor's save. A file of nothing but comments is still an empty menu.
+function readMenuJsonc(raw) {
   var stripped = stripJsonc(raw)
   if (!stripped.trim()) return []
 
@@ -51,9 +58,9 @@ function parseMenuJsonc(raw) {
   try {
     parsed = JSON.parse(stripped)
   } catch (e) {
-    return []
+    return null
   }
-  if (typeof parsed !== "object" || parsed === null) return []
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null
 
   var source = (parsed.items && typeof parsed.items === "object" && !Array.isArray(parsed.items))
     ? parsed.items
@@ -65,6 +72,17 @@ function parseMenuJsonc(raw) {
     out.push(normalizeItem(id, entry))
   }
   return out
+}
+
+// The rows a watched menu file leaves after a read. An update, a checkout or
+// an editor's save can be read mid-write, and that read must not replace good
+// rows with nothing, so it keeps the previous ones until a later read finds
+// the file whole. The shipped menu is never legitimately empty, so for it
+// (required) an empty read is mid-write too.
+function keepMenuRows(previous, raw, required) {
+  var items = readMenuJsonc(raw)
+  if (!items || (required && items.length === 0)) return previous
+  return items
 }
 
 // The root row has no JSONC entry, so the merge injects it when neither
@@ -402,6 +420,7 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
 // memo never survives to the expression after it.
 var GUARD_READERS = [
   "omarchy-bar background",
+  "omarchy-bar get omarchy.power showPercentage",
   "omarchy-bar get omarchy.clock format",
   "omarchy-bar get omarchy.clock verticalFormat",
   "omarchy-bar position",
@@ -416,7 +435,9 @@ var GUARD_READERS = [
   "omarchy-dock position",
   "omarchy-hyprland-corners",
   "omarchy-hyprland-window-transparency",
-  "omarchy-hyprland-workspace-layout-default"
+  "omarchy-hyprland-workspace-layout-default",
+  "omarchy-shell notifications isDnd",
+  "omarchy-toggle-nightlight --status"
 ]
 
 // Package and command presence account for most of what the guards ask, and
@@ -672,6 +693,7 @@ if (typeof module !== "undefined") {
     normalizeAliases: normalizeAliases,
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
+    keepMenuRows: keepMenuRows,
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,

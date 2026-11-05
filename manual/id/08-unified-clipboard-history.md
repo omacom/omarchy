@@ -1,24 +1,27 @@
-# Papan Klip & Riwayat Terpadu
+# Papan Klip Terpadu & Riwayat
 
-Biasanya di Linux, Anda memerlukan `Ctrl + Shift + C/V` untuk salin-tempel di terminal dan `Ctrl + C/V` untuk melakukannya di mana-mana. Itu sulit dibiasakan bagi siapa pun yang tidak lahir dan besar di Linux! Begitu juga peralihan dari super ke ctrl, jika Anda berasal dari Mac.
+Biasanya di Linux, kamu perlu `Ctrl + Shift + C/V` untuk menyalin dan menempel di terminal dan `Ctrl + C/V` untuk melakukannya di semua tempat lain. Itu sulit dibiasakan oleh siapa pun yang tidak lahir dan besar di Linux! Begitu juga perpindahan dari Super ke Ctrl, jika kamu datang dari Mac.
 
-Omarchy mengatasi kedua masalah dengan hotkey papan klip terpadu yang berfungsi (hampir) di mana-mana. Mereka adalah:
+Omarchy mengatasi kedua masalah itu dengan tombol pintas papan klip terpadu yang berfungsi (hampir) di semua tempat. Tombol pintas tersebut adalah:
 
-| Hotkey | Perintah |
+| Hotkey | Command |
 | ------- | ----------- |
+| Super + A | Pilih semua |
 | Super + C | Salin |
 | Super + X | Potong |
 | Super + V | Tempel |
 | Super + Ctrl + V | Riwayat papan klip |
 
-_Perlu dicatat bahwa sebagian besar kerangka agen akan menggunakan `Ctrl + V` untuk menempel gambar, tetapi `Super + V` untuk menempel teks._
+_Perlu dicatat bahwa sebagian besar agent harness akan menggunakan `Ctrl + V` untuk menempel gambar, tetapi `Super + V` untuk menempel teks._
+
+Gunakan `Super + A`, lalu `Super + C` untuk menyalin semua isi kolom teks yang sedang aktif atau aplikasi lain yang mendukung `Ctrl + A`. Di terminal, `Ctrl + A` akan berpindah ke awal baris perintah, bukan memilih teksnya.
 
 ### Riwayat papan klip
 
-Riwayat papan klip disediakan oleh shell Omarchy dan berfungsi untuk teks maupun gambar. Anda memicunya dengan `Super + Ctrl + V`, pilih entri Anda dengan return, dan kemudian itu akan ditempatkan di papan klip siap ditempel dengan `Super + V`.
+Riwayat papan klip disediakan oleh shell Omarchy dan berfungsi untuk teks maupun gambar. Kamu membukanya dengan `Super + Ctrl + V`, memilih entri dengan return, lalu entri tersebut akan ditempatkan di papan klip dan siap ditempel dengan `Super + V`.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Anda juga dapat mencari riwayat hanya dengan mulai mengetik:
+Kamu juga bisa mencari di riwayat hanya dengan mulai mengetik:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
