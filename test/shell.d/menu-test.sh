@@ -204,16 +204,38 @@ assertEqual(previewRow.previewFontFile, preview.previewFontFile, 'menu carries p
 assertEqual(previewRow.action, 'install-example', 'font previews do not change actions')
 assertEqual(previewRow.detail, 'Fonts', 'font previews preserve search paths')
 const specimens = JSON.parse(fs.readFileSync(path.join(root, 'default/fonts/previews/sources.json'), 'utf8'))
-const installFonts = defaultItems.filter(item => item.parent === 'install.style.font')
-assertEqual(installFonts.length, 6, 'all six installable fonts have specimens')
+const installFonts = defaultItems.filter(item => item.parent === 'install.style.font' || /\bomarchy-install-font\b/.test(item.action))
 for (const font of installFonts) {
-  assert(font.previewFont && font.action.includes(`'${font.previewFont}'`), `${font.id} previews its install family`)
+  assert(font.previewFontFile, `${font.id} includes an offline preview (see agents/skills/font-previews.md)`)
+  assert(font.previewFont && font.action.startsWith('omarchy-install-font ') && font.action.endsWith(` '${font.previewFont}'`), `${font.id} previews its install family`)
   const key = font.id.split('.').pop()
+  assert(specimens[key], `${font.id} records specimen provenance`)
+  assertEqual(font.previewFontFile, `default/fonts/previews/${key}.ttf`, `${font.id} points to its own specimen`)
   assertEqual(specimens[key].sourceFamily, font.previewFont, `${font.id} specimen matches its actual font family`)
+  assert(/^https:\/\//.test(specimens[key].url) && /^[0-9a-f]{64}$/.test(specimens[key].sourceSha256), `${font.id} records a source URL and hash`)
+  assert(specimens[key].licenseUrl || (specimens[key].archiveMember && specimens[key].licenseMember), `${font.id} records a rebuildable license source`)
   const asset = fs.readFileSync(path.join(root, font.previewFontFile))
   assertEqual(asset.readUInt32BE(0), 0x00010000, `${font.id} has a TrueType specimen`)
   assert(asset.length < 100000, `${font.id} specimen is small`)
-  assert(fs.existsSync(path.join(root, `default/fonts/previews/${key}.LICENSE`)), `${font.id} includes its license`)
+  const tableCount = asset.readUInt16BE(4)
+  let nameOffset = 0
+  for (let i = 0; i < tableCount; i++) {
+    const offset = 12 + i * 16
+    if (asset.toString('ascii', offset, offset + 4) === 'name') nameOffset = asset.readUInt32BE(offset + 8)
+  }
+  assert(nameOffset > 0, `${font.id} has a font name table`)
+  const names = []
+  for (let i = 0; i < asset.readUInt16BE(nameOffset + 2); i++) {
+    const offset = nameOffset + 6 + i * 12
+    const platform = asset.readUInt16BE(offset)
+    const nameId = asset.readUInt16BE(offset + 6)
+    if ((platform === 0 || platform === 3) && (nameId === 1 || nameId === 16)) {
+      const start = nameOffset + asset.readUInt16BE(nameOffset + 4) + asset.readUInt16BE(offset + 10)
+      names.push(Buffer.from(asset.subarray(start, start + asset.readUInt16BE(offset + 8))).swap16().toString('utf16le'))
+    }
+  }
+  assert(names.length > 0 && names.every(name => name === specimens[key].previewFamily && name.startsWith('Omarchy Preview ')), `${font.id} uses its private preview family, not the full installed family`)
+  assert(fs.readFileSync(path.join(root, `default/fonts/previews/${key}.LICENSE`), 'utf8').trim(), `${font.id} includes its license`)
 }
 assert(menuQml.includes('previewFontFor: function(value) { return value }'), 'installed fonts preview their provider value')
 assert(menuQml.includes('height: root.rowHeightForDetail(row.detail, row.previewFont)'), 'delegate sizing accounts for previews')
