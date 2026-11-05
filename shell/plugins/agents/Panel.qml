@@ -2518,18 +2518,30 @@ Panel {
       textFormat: Text.PlainText
       width: parent.width * 0.3
       anchors.verticalCenter: parent.verticalCenter
-      text: compact.window
-        ? root.windowDisplayTitle(compact.window.title) + " ("
-          + Commons.I18n.formatNumber(Math.round(compact.window.percent * 100)) + "%)"
-        : ""
+      text: compact.window ? root.windowDisplayTitle(compact.window.title) : ""
       color: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
       elide: Text.ElideRight
     }
 
-    Meter {
+    Text {
+      id: compactPercent
       anchors.left: compactTitle.right
+      anchors.leftMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+      textFormat: Text.PlainText
+      text: compact.window
+        ? Commons.I18n.formatNumber(Math.round(compact.window.percent * 100)) + "%"
+        : ""
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    Meter {
+      anchors.left: compactPercent.right
+      anchors.leftMargin: Style.space(4)
       anchors.right: compactValue.left
       anchors.rightMargin: Style.space(20)
       anchors.verticalCenter: parent.verticalCenter
