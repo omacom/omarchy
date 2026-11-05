@@ -146,11 +146,14 @@ prompt_clipboard=$(jq -r '.launch.promptViaClipboard // empty' <<<"$harness")
 
 # An agent with no way to take a starting prompt still opens, with the prompt
 # on the clipboard to paste as its first message, so a prompted launch from the
-# agents panel or a crash report is not lost.
+# agents panel or a crash report is not lost. Both steps are a courtesy to an
+# agent with nowhere else to put the prompt, so neither may end the launch: an
+# inline run over SSH has no Wayland clipboard, and a missing notification
+# daemon must not cost the user the agent they asked for.
 if [[ -n $prompt && -n $prompt_clipboard ]]; then
-  printf '%s' "$prompt" | wl-copy
+  printf '%s' "$prompt" | wl-copy 2>/dev/null || true
   omarchy-notification-send -g 󰅇 "$(omarchy-i18n agents.promptOnClipboard "$prompt_clipboard")" \
-    "$(omarchy-i18n agents.promptOnClipboardBody)"
+    "$(omarchy-i18n agents.promptOnClipboardBody)" || true
 fi
 
 # --local points the agent at the model `omarchy agent local use` runs, through
