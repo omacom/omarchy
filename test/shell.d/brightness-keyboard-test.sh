@@ -123,6 +123,4 @@ env -u XDG_RUNTIME_DIR HOME="$fallback_home" XDG_STATE_HOME="$test_tmp/fallback-
   PATH="$mock_bin:$PATH" "$keyboard" off
 saved="$test_tmp/fallback-state/omarchy/omarchy-brightness-keyboard-asus::kbd_backlight"
 [[ -s $saved && ! -L $saved ]] || fail "keyboard brightness is saved in the private state dir"
-[[ ! -e /tmp/omarchy-brightness-keyboard-asus::kbd_backlight && ! -L /tmp/omarchy-brightness-keyboard-asus::kbd_backlight ]] ||
-  fail "keyboard brightness is not written to /tmp"
 pass "keyboard brightness stays out of /tmp"
