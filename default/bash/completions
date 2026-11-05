@@ -36,13 +36,13 @@ _omarchy_complete() {
     candidates+=("commands")
   fi
 
-  # Alias routes (# omarchy:aliases=omarchy reboot | ...) have no binary of
-  # their own to be found by name, so offer the next word of each one that
-  # matches what is typed so far.
+  # Alias routes (# omarchy:aliases=omarchy reboot | ..., or alias= for one)
+  # have no binary of their own to be found by name, so offer the next word of
+  # each one that matches what is typed so far.
   local alias_line route
   local -a route_words
   while IFS= read -r alias_line; do
-    alias_line="${alias_line#*omarchy:aliases=}"
+    alias_line="${alias_line#*omarchy:alias*=}"
     while IFS= read -r route; do
       read -r -a route_words <<<"$route"
       [[ ${route_words[0]:-} == omarchy ]] || continue
@@ -55,7 +55,7 @@ _omarchy_complete() {
         candidates+=("$next")
       fi
     done <<<"${alias_line// | /$'\n'}"
-  done < <(grep -h '^# omarchy:aliases=' "$bin_dir"/omarchy* 2>/dev/null)
+  done < <(grep -hE '^# omarchy:alias(es)?=' "$bin_dir"/omarchy* 2>/dev/null)
 
   if [[ ${COMP_WORDS[1]:-} == "commands" ]] && (( COMP_CWORD >= 2 )); then
     candidates+=("--all" "--json" "--markdown" "--check")

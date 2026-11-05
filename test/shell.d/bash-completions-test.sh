@@ -29,4 +29,9 @@ pass "omarchy system completes its arguments beside its subcommands"
 re=$(complete_words omarchy re)
 grep -qx reboot <<<"$re" || fail "omarchy re completes the reboot alias" "$re"
 grep -qx restart <<<"$re" || fail "omarchy re still completes restart" "$re"
+# Some commands spell a single route as omarchy:alias=.
+plugin=$(complete_words omarchy plugin "")
+for word in install rm; do
+  grep -qx "$word" <<<"$plugin" || fail "omarchy plugin completes the $word alias" "$plugin"
+done
 pass "alias routes complete like commands"
