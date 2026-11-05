@@ -359,5 +359,18 @@ expect_nothing_saved "closing the lid saves nothing when every monitor's rule se
   'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto", bitdepth = 10 })'
 expect_nothing_saved "closing the lid saves nothing when a desc rule sets a monitor" \
   'hl.monitor({ output = "desc:Dell Inc. DELL U2723QE", scale = 1.5 })'
+# What this can't read as a whole rule might be a shared one, so it counts as one.
+expect_nothing_saved "closing the lid saves nothing with a rule split across lines" 'hl.monitor({
+  output = "",
+  mode = "preferred",
+  position = "auto",
+  scale = 1.6,
+})'
+expect_nothing_saved "closing the lid saves nothing with a rule naming its output through a variable" \
+  'local everywhere = ""
+hl.monitor({ output = everywhere, scale = 1.6 })'
+expect_nothing_saved "closing the lid saves nothing with rules built elsewhere" 'local rule = { output = "", scale = 1.6 }
+hl.monitor(rule)'
+expect_nothing_saved "closing the lid saves nothing with monitors.lua loading another file" 'require("my.monitors")'
 OMARCHY_TEST_MIRROR_OF=eDP-1 expect_nothing_saved "closing the lid saves nothing while a monitor mirrors another" "$stock_config"
 rm -f "$state_dir/internal-monitor-clamshell.lua"

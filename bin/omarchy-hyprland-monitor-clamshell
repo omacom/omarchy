@@ -289,11 +289,16 @@ sync_internal_scale() {
 # Whether saving a monitor's position would undo something in monitors.lua. A
 # position there means the file arranges the monitors itself. And a rule naming a
 # port doesn't inherit from a shared one, every monitor's or a desc: one, so
-# whatever a shared rule sets beyond Hyprland's defaults would be lost.
+# whatever a shared rule sets beyond Hyprland's defaults would be lost. A rule
+# that can't be read whole from one line, or one from another file, could be
+# shared, so it counts as one.
 monitors_lua_needs_keeping() {
   local rules
   rules=$(monitor_rules)
 
+  grep -Eq '\b(require|dofile|loadfile)\b' <<<"$rules" && return 0
+  grep 'hl\.monitor' <<<"$rules" |
+    grep -Evq '^[[:space:]]*hl\.monitor\(\{.*output[[:space:]]*=[[:space:]]*"[^"]*".*\}\)[[:space:]]*;?[[:space:]]*$' && return 0
   grep -oE '\bposition[[:space:]]*=[[:space:]]*[^,;}[:space:]]+' <<<"$rules" | grep -Evq '=[[:space:]]*"auto"$' && return 0
   grep -q '"desc:' <<<"$rules" && return 0
   [[ $(configured_monitor_value "" scale) =~ ^(auto)?$ && $(configured_monitor_value "" mode) =~ ^(preferred)?$ ]] || return 0
