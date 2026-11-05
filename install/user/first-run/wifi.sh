@@ -38,8 +38,10 @@ announce_network() {
   # a laptop with nothing to connect to gets prompted immediately.
   if ! nm-online -q -x -t 30; then
     notify_wifi
-    # Nothing to install or update until a link lands, so hold those prompts.
-    nm-online -q -t 3600 || return
+    # Nothing to install or update until a link lands, so hold those prompts
+    # for however long that takes. nm-online has no "forever", so wait out its
+    # timeout as often as needed.
+    until nm-online -q -t 86400; do :; done
   fi
 
   # Both setups install packages, so they wait for the link rather than for the
