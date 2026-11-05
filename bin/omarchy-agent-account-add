@@ -129,7 +129,15 @@ fi
 # have, and a login would quietly reuse it. The CLIs open their login page
 # through $BROWSER, so this points it at a private window instead.
 private_browser() {
-  browser=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/omarchy-account-browser.XXXXXX") || fail "$(omarchy-i18n agents.homeFailed)"
+  # The helper is executed as $BROWSER. A fixed or mktemp name in /tmp sits in
+  # a directory any other local account can write, so keep it in the private
+  # runtime dir, or the user's state dir when there is no session.
+  local dir=${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    mkdir -p -- "$dir" || fail "$(omarchy-i18n agents.homeFailed)"
+    chmod 700 -- "$dir" || fail "$(omarchy-i18n agents.homeFailed)"
+  fi
+  browser=$(mktemp "$dir/omarchy-account-browser.XXXXXX") || fail "$(omarchy-i18n agents.homeFailed)"
   printf '#!/bin/bash\nexec omarchy-launch-browser --private "$1"\n' >"$browser" || fail "$(omarchy-i18n agents.homeFailed)"
   chmod +x "$browser" || fail "$(omarchy-i18n agents.homeFailed)"
 }

@@ -25,6 +25,7 @@ cat >"$mock_bin/claude" <<'SH'
 #!/bin/bash
 if [[ ${1:-} == "auth" && ${2:-} == "login" ]]; then
   "${BROWSER:-omarchy-test-default-browser}" "https://claude.com/oauth/authorize"
+  [[ -z ${BROWSER:-} ]] || printf 'wrapper %s\n' "$BROWSER" >>"$OMARCHY_TEST_BROWSER_LOG"
   if [[ -n ${OMARCHY_TEST_LOGIN_HANGS:-} ]]; then
     echo $$ >"$OMARCHY_TEST_LOGIN_HANGS"
     exec sleep 30
@@ -101,7 +102,7 @@ export OMARCHY_TEST_NOTIFICATIONS="$notifications"
 export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
 # A session started by an account launch pins its home through these, and
 # a run from inside one (an agent working on Omarchy) must not inherit it.
-unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME BROWSER
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME BROWSER XDG_RUNTIME_DIR
 unset OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
 
 accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
@@ -135,6 +136,10 @@ grep -q "Added Work (work@example.com)" "$test_tmp/add-output" || fail "adding a
 grep -q "private window that opens" "$test_tmp/add-output" || fail "adding an account says to sign in within the private window"
 [[ $(head -1 "$OMARCHY_TEST_BROWSER_LOG") == "--private https://claude.com/oauth/authorize" ]] ||
   fail "a Claude login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+wrapper=$(grep '^wrapper ' "$OMARCHY_TEST_BROWSER_LOG" | head -1 | cut -d' ' -f2-)
+[[ $wrapper == "$XDG_STATE_HOME/omarchy/omarchy-account-browser."* ]] ||
+  fail "the private-window helper is kept in the state dir" "$wrapper"
+[[ $wrapper != /tmp/* ]] || fail "the private-window helper is not created in /tmp" "$wrapper"
 pass "adding an account signs in through the CLI's own login"
 
 work="$accounts/claude/work"
