@@ -594,6 +594,20 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(summary(), 'Other app')
 }
 
+{ // A closing card never takes room in the deck again on its way out: if it
+  // did, the cards below would be laid out lower for a moment and slide back.
+  const s = newCapacityScope()
+  s.admit(s.fakeNotification(1, 'First'), s.fakeNotification(2, 'Second'))
+  Object.assign(s, { Layout, gap: 6 })
+  runIn(s, 'layoutWith')
+  const key = s.keyForOriginal(2)
+  s.closeToast(key, 'dismissed')
+  const unmark = s.unmarkLeaving, laidOut = []
+  s.unmarkLeaving = k => { unmark(k); laidOut.push(key in s.layoutWith(false).placements) }
+  s.finishClose(key, 'dismissed')
+  assert.deepEqual(laidOut, [false])
+}
+
 for (const held of [true, false]) { // Capacity: at most 100 live senders, held or deferred.
   const s = newCapacityScope()
   s.pointerHolding = held
