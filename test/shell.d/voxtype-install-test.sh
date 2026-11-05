@@ -11,7 +11,7 @@ lib_path="$test_tmp/lib/voxtype"
 calls="$test_tmp/calls.log"
 mkdir -p "$stub_bin" "$lib_path"
 
-for command in gum omarchy-pkg-drop omarchy-pkg-add hyprctl omarchy-restart-shell omarchy-notification-send systemctl; do
+for command in gum omarchy-pkg-drop omarchy-pkg-add omarchy-restart-hyprctl omarchy-restart-shell omarchy-i18n omarchy-notification-send systemctl; do
   printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
 done
 printf '#!/bin/bash\nexit 1\n' >"$stub_bin/omarchy-pkg-present"
