@@ -3,8 +3,10 @@
 # omarchy:summary=Remove Dropbox and its bar plugin.
 # omarchy:requires-sudo=true
 
+set -e
+
 dropbox-cli stop 2>/dev/null || true
-omarchy-plugin-disable omarchy.dropbox
+omarchy-plugin-disable omarchy.dropbox || true
 omarchy-pkg-drop dropbox dropbox-cli python-gpgme nautilus-dropbox
 
 # Other tray apps need libappindicator too, and naming a required package fails the whole removal
