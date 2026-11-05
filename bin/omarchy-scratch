@@ -44,7 +44,7 @@ case "${1:-}" in
     omarchy-notification-send -g "note" "Saved to scratch" "$*" || true
     ;;
   paste)
-    text=$(wl-paste --no-newline 2>/dev/null || true)
+    text=$(wl-paste --no-newline --type text 2>/dev/null || true)
     if [[ -z ${text:-} ]]; then
       echo "Clipboard is empty" >&2
       exit 1
@@ -69,7 +69,8 @@ case "${1:-}" in
   open)
     file=$(scratch_file)
     touch "$file"
-    exec "${EDITOR:-nvim}" "$file"
+    read -r -a editor_command <<<"${EDITOR:-nvim}"
+    exec "${editor_command[@]}" "$file"
     ;;
   *)
     usage
