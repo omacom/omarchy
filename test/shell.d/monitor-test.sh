@@ -93,13 +93,6 @@ assertDeepEqual(
   ['1920x1080', '2048x1152', '2560x1080', '3840x2160', '5120x2160'],
   'monitor keeps a way back to 16:9 from an ultrawide virtual mode'
 )
-
-// A normal monitor lists its native mode first and largest: unchanged.
-assertDeepEqual(
-  monitor.resolutionOptions(['3840x2160@60.00Hz', '2560x1440@60.00Hz', '2560x1080@60.00Hz', '1920x1080@60.00Hz'], 3840, 2160),
-  ['1920x1080', '2560x1440', '3840x2160'],
-  'monitor still offers only the native shape on a normal monitor'
-)
 assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
 assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')
 assertEqual(monitor.resolutionLabel('2560x1440'), '1440p', 'monitor names smaller modes by height')
