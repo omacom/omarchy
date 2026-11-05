@@ -332,6 +332,17 @@ assertDeepEqual(M.pickGeocode(geocoded, 'America/New_York'), { place: { lat: 26.
 assertDeepEqual(M.pickGeocode(geocoded, 'Asia/Tokyo'), { place: { lat: 34.0, lon: -98.4 }, answered: true }, 'elsewhen falls back to the top geocode')
 assertDeepEqual(M.pickGeocode('{}', 'Asia/Tokyo'), { place: null, answered: true }, 'elsewhen treats no results as an answer')
 assertDeepEqual(M.pickGeocode('', 'Asia/Tokyo'), { place: null, answered: false }, 'elsewhen treats a failed request as unanswered')
+const links = 'Z Asia/Kolkata 5:53:28 - LMT\nL Asia/Kolkata Asia/Calcutta\nL Asia/Ho_Chi_Minh Asia/Saigon\nL Europe/Kyiv Europe/Kiev\n'
+assertEqual(M.canonicalZone(links, 'Asia/Calcutta'), 'Asia/Kolkata', 'elsewhen resolves a backward alias to its zone')
+assertEqual(M.canonicalZone(links, 'Europe/Kiev'), 'Europe/Kyiv', 'elsewhen resolves another backward alias')
+assertEqual(M.canonicalZone(links, 'Asia/Kolkata'), 'Asia/Kolkata', 'elsewhen keeps a canonical zone')
+assertEqual(M.canonicalZone('', 'Asia/Calcutta'), 'Asia/Calcutta', 'elsewhen keeps a zone when the link table is missing')
+const calcutta = JSON.stringify({ results: [
+  { latitude: -23.9, longitude: 29.4, timezone: 'Africa/Johannesburg' },
+  { latitude: 22.5, longitude: 88.4, timezone: 'Asia/Kolkata' }
+] })
+assertDeepEqual(M.pickGeocode(calcutta, M.canonicalZone(links, 'Asia/Calcutta')), { place: { lat: 22.5, lon: 88.4 }, answered: true }, 'elsewhen places an aliased zone by its canonical zone')
+assertDeepEqual(M.zoneTabCoords(tab, M.canonicalZone(links, 'Asia/Calcutta')), { lat: 22.5333, lon: 88.3667 }, 'elsewhen finds zone1970 coordinates for an aliased zone')
 assert(M.geocodeUrl('São Paulo').endsWith('name=S%C3%A3o%20Paulo'), 'elsewhen URL-encodes the geocoded label')
 
 assertEqual(M.forecastUrl([{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }]).split('&').filter(p => /^l(at|ong)itude=/.test(p)).join('&'), 'latitude=1,3&longitude=2,4', 'elsewhen batches every point into one forecast')

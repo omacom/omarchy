@@ -943,6 +943,21 @@ function pickGeocode(text, zone) {
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 
+// A backward-compatible alias (Asia/Calcutta) as the zone it links to
+// (Asia/Kolkata), from the "L target alias" lines of tzdata.zi. The geocoder and
+// zone1970.tab only know the target; any other id comes back unchanged.
+function canonicalZone(tzdataText, zone) {
+  var text = "\n" + String(tzdataText || "")
+  var tail = " " + String(zone) + "\n"
+  var at = -1
+  while ((at = text.indexOf(tail, at + 1)) >= 0) {
+    var start = text.lastIndexOf("\n", at) + 1
+    var parts = text.slice(start, at + tail.length - 1).split(" ")
+    if (parts.length === 3 && parts[0] === "L") return parts[1]
+  }
+  return String(zone)
+}
+
 // The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
 function zoneTabCoords(tabText, zone) {
   var lines = String(tabText || "").split("\n")
@@ -1365,6 +1380,7 @@ if (typeof module !== "undefined") {
     factsKey: factsKey,
     geocodeUrl: geocodeUrl,
     pickGeocode: pickGeocode,
+    canonicalZone: canonicalZone,
     zoneTabCoords: zoneTabCoords,
     forecastUrl: forecastUrl,
     parseForecast: parseForecast,
