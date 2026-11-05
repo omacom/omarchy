@@ -1,0 +1,42 @@
+#!/usr/bin/python3
+# omarchy:summary=Extract text from a saved image with Tesseract
+# omarchy:args=<image> [--language <codes>] [--layout <auto|block|sparse>] [--copy]
+# omarchy:examples=omarchy capture text-file receipt.png | omarchy capture text-file scan.png --language eng+hin --copy
+
+import argparse
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Read text from a saved image without capturing it again. Prints the result; --copy also copies it after successful OCR. Language packs must already be installed.")
+  parser.add_argument("image", type=Path)
+  parser.add_argument("--language", default=os.environ.get("OMARCHY_OCR_LANGS", "eng"))
+  parser.add_argument("--layout", choices=("auto", "block", "sparse"), default="auto")
+  parser.add_argument("--copy", action="store_true")
+  args = parser.parse_args()
+  image = args.image.expanduser().resolve(strict=True)
+  if not image.is_file():
+    raise ValueError("Choose an image file.")
+  if not re.fullmatch(r"[A-Za-z0-9_]+(?:\+[A-Za-z0-9_]+)*", args.language):
+    parser.error("language must be installed Tesseract codes joined with +")
+  mode = {"auto": "3", "block": "6", "sparse": "11"}[args.layout]
+  result = subprocess.run(["tesseract", str(image), "stdout", "--oem", "1", "--psm", mode,
+    "-l", args.language], check=True, stdout=subprocess.PIPE, text=True)
+  if not result.stdout.strip():
+    raise ValueError("No text found; try another layout or language. The clipboard was kept.")
+  if args.copy:
+    subprocess.run(["wl-copy"], input=result.stdout, text=True, check=True)
+  print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except (OSError, ValueError, subprocess.SubprocessError) as error:
+    print(f"Image text: {error}", file=sys.stderr)
+    sys.exit(1)
