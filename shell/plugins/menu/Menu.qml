@@ -608,7 +608,7 @@ Item {
   function calculationRow(result, expression) {
     return {
       itemId: "calc.result", disabled: false, kind: "calc", icon: "\u{F00EC}", iconFont: "",
-      appIcon: "", appId: "", label: result, target: "", detail: expression, path: "", childCount: 0,
+      appIcon: "", appId: "", label: Commons.I18n.formatNumber(result), target: "", detail: expression, path: "", childCount: 0,
       action: "wl-copy -- " + result, provider: "", score: -1, section: ""
     }
   }
@@ -644,10 +644,10 @@ Item {
     return {
       itemId: "currency.result", disabled: !ready, kind: "currency", icon: "\u{F0114}", iconFont: "",
       appIcon: "", appId: "", target: "", path: "", childCount: 0, provider: "", score: -1, section: "",
-      label: ready ? currencyLookup.value + " " + currencyLookup.to : waiting,
+      label: ready ? Commons.I18n.formatNumber(currencyLookup.value) + " " + currencyLookup.to : waiting,
       // Short enough that the rates' date survives the row's width, while still
       // showing how the text was read ("$" as USD).
-      detail: ready ? currencyLookup.amount + " " + currencyLookup.from + " · " + currencyLookup.date : root.filterText.trim(),
+      detail: ready ? Commons.I18n.formatNumber(currencyLookup.amount) + " " + currencyLookup.from + " · " + currencyLookup.date : root.filterText.trim(),
       action: ready ? "wl-copy -- " + currencyLookup.value : ""
     }
   }
