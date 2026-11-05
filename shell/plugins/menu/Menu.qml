@@ -784,7 +784,9 @@ Item {
 
   // Contain alone parks the cursor row flush with the viewport edge, hiding
   // the neighbor entirely and losing the fold affordance. Keep the next
-  // hidden row peeking past the cursor in the direction of travel.
+  // hidden row peeking past the cursor in the direction of travel, and show
+  // disabled rows at either end whole, since the cursor never steps onto them
+  // to scroll them in (see MenuModel.cursorScrollY).
   function revealCursor() {
     if (displayModel.count === 0) return
     resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
@@ -792,16 +794,19 @@ Item {
     var item = resultList.itemAtIndex(root.selectedIndex)
     if (!item) return
 
-    var reach = root.rowPeek + root.rowSpacing
-    if (root.selectedIndex < displayModel.count - 1) {
-      var maxY = Math.max(resultList.originY, resultList.originY + resultList.contentHeight - resultList.height)
-      var overhang = item.y + item.height + reach - (resultList.contentY + resultList.height)
-      if (overhang > 0) resultList.contentY = Math.min(resultList.contentY + overhang, maxY)
-    }
-    if (root.selectedIndex > 0) {
-      var underhang = resultList.contentY - (item.y - reach)
-      if (underhang > 0) resultList.contentY = Math.max(resultList.contentY - underhang, resultList.originY)
-    }
+    var selectable = function(index) { return root.rowSelectable(index) }
+    var y = MenuModel.cursorScrollY({
+      contentY: resultList.contentY,
+      originY: resultList.originY,
+      contentHeight: resultList.contentHeight,
+      height: resultList.height,
+      rowY: item.y,
+      rowHeight: item.height,
+      reach: root.rowPeek + root.rowSpacing,
+      after: MenuModel.rowsPast(displayModel.count, root.selectedIndex, 1, selectable),
+      before: MenuModel.rowsPast(displayModel.count, root.selectedIndex, -1, selectable)
+    })
+    if (y !== resultList.contentY) resultList.contentY = y
   }
 
   function select(delta) {
