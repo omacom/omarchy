@@ -2432,19 +2432,48 @@ Panel {
         }
 
         // Connected clients, label + signal. Hidden while idle. Clicking a row
-        // names it; the editor above stays keyboard-reachable on its own.
+        // names it; the editor above stays keyboard-reachable on its own. A
+        // label too long for the row scrolls back and forth instead of eliding,
+        // so the signal at its end stays readable; one that fits stays still.
         Repeater {
           model: root.hotspotActive ? root.hotspotClients : []
-          delegate: Text {
+          delegate: Item {
             id: clientRow
             required property var modelData
-            textFormat: Text.PlainText
             width: parent.width
-            text: (root.hotspotAliasMac === String(modelData.mac || "") ? "\u270e " : "") + Model.hotspotClientLabel(modelData, Commons.I18n.formatNumber)
-            color: Qt.darker(root.bar.foreground, 1.35)
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
-            elide: Text.ElideRight
+            height: clientText.implicitHeight
+            clip: true
+            readonly property real overflow: Math.max(0, clientText.implicitWidth - width)
+            readonly property int scrollMs: Math.max(1, Math.round(overflow / 30 * 1000))
+
+            Text {
+              id: clientText
+              textFormat: Text.PlainText
+              text: (root.hotspotAliasMac === String(clientRow.modelData.mac || "") ? "\u270e " : "") + Model.hotspotClientLabel(clientRow.modelData, Commons.I18n.formatNumber)
+              color: Qt.darker(root.bar.foreground, 1.35)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            SequentialAnimation {
+              running: clientRow.overflow > 0 && clientRow.visible
+              loops: Animation.Infinite
+              onRunningChanged: if (!running) clientText.x = 0
+              PauseAnimation { duration: 1500 }
+              NumberAnimation {
+                target: clientText; property: "x"
+                from: 0; to: -clientRow.overflow
+                duration: clientRow.scrollMs
+                easing.type: Easing.InOutSine
+              }
+              PauseAnimation { duration: 1500 }
+              NumberAnimation {
+                target: clientText; property: "x"
+                from: -clientRow.overflow; to: 0
+                duration: clientRow.scrollMs
+                easing.type: Easing.InOutSine
+              }
+            }
 
             MouseArea {
               anchors.fill: parent
