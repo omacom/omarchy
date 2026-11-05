@@ -242,6 +242,15 @@ def idle_period_limit(data):
   }
 
 
+# Whether the monthly answer says there is no quota: a limit of zero, which
+# protobuf JSON sends as a money field without its val.
+def no_monthly_quota(data):
+  try:
+    return amount(data["config"]["monthlyLimit"]) <= 0
+  except Exception:
+    return False
+
+
 # The monthly answer as one limit window: how much of the month's included
 # quota is used, and when the billing period ends.
 def monthly_limit(data):
@@ -301,16 +310,13 @@ def collect_limits(home, key, force):
     credits = open_json(urllib.request.Request(CREDITS_URL, headers=headers), timeout=8)
     weekly = credits_limit(credits)
     if weekly is None:
-      try:
-        limits = [monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8))]
-      except (KeyError, TypeError, ValueError):
-        # A unified-billing account with no monthly quota is metered on the
-        # week alone, and a week with nothing used yet leaves its percentage
-        # out like any other: 0% of a period still running.
-        weekly = idle_period_limit(credits)
-        if weekly is None:
-          raise
-        limits = [weekly]
+      monthly = open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8)
+      # A unified-billing account whose monthly answer states no quota is
+      # metered on the week alone, and a week with nothing used yet leaves its
+      # percentage out like any other: 0% of a period still running. Any
+      # other unreadable monthly answer stays a failed check.
+      idle = idle_period_limit(credits) if no_monthly_quota(monthly) else None
+      limits = [idle] if idle else [monthly_limit(monthly)]
     else:
       limits = [weekly]
       # A unified-billing account can carry both: the weekly credits and the

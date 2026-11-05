@@ -38,9 +38,14 @@ def credits(request):
 
 def monthly(request):
   token = request.get_header("Authorization").split(" ", 1)[1]
-  quota = {} if token == "token-unified-idle" else {"val": 1000}
-  return {"config": {"isUnifiedBillingUser": True, "billingPeriodStart": iso_in(-20 * 86400), "billingPeriodEnd": PERIOD_END,
-                     "monthlyLimit": quota, "used": {"val": 900}}}
+  quota = {} if token == "token-unified-idle" and monthly_answer["used"] else {"val": 1000}
+  config = {"isUnifiedBillingUser": True, "billingPeriodStart": iso_in(-20 * 86400), "billingPeriodEnd": PERIOD_END, "monthlyLimit": quota}
+  if monthly_answer["used"]:
+    config["used"] = {"val": 900}
+  return {"config": config}
+
+
+monthly_answer = {"used": True}
 
 
 ROUTES = {"cli-chat-proxy.grok.com/v1/billing?format=credits": credits, "cli-chat-proxy.grok.com/v1/billing": monthly}
@@ -195,6 +200,14 @@ record = grok()
 expect("a unified-billing account without a monthly quota reads an untouched week as 0%",
        [[limit["label"], limit["percent"], bool(limit["resetsAt"])] for limit in record["limits"]] + [record["usageStatusText"]],
        [["Weekly", 0.0, True], ""], record)
+
+# A monthly answer with a quota but no readable usage is a failed check, not
+# an untouched week: it keeps the last numbers, stale.
+monthly_answer["used"] = False
+record = grok()
+monthly_answer["used"] = True
+expect("a monthly quota without readable usage keeps the last numbers rather than reading 0%",
+       [record["limits"][0]["percent"], record["limitsStale"]], [0.0, True], record)
 
 # A unified-billing account can also carry a weekly percentage on the credits
 # answer; Grok's /usage then shows the monthly included quota beside it.
