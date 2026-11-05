@@ -1,5 +1,5 @@
 o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
-o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell omarchy.dock apps")
+o.bind("SUPER + ALT + SPACE", "Apps", "omarchy-shell shell toggle omarchy.apps")
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
 o.bind("SUPER + CTRL + C", "Capture menu", { menu = "capture" })
 o.bind("SUPER + CTRL + O", "Toggle menu", { menu = "toggle" })

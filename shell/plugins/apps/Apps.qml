@@ -9,8 +9,14 @@ import qs.Ui
 Item {
   id: root
 
-  property var appLibrary: null
-  property var dock: null
+  property var shell: null
+  property var manifest: null
+  readonly property var appLibrary: shell ? shell.appLibrary : null
+  readonly property var dock: {
+    // Services appear and disappear independently of this overlay.
+    var services = shell ? shell.services : null
+    return shell && services ? shell.firstPartyServiceFor("omarchy.dock") : null
+  }
 
   property bool opened: false
   // While an app is dragged out toward the dock, the grid steps aside so the

@@ -21,7 +21,7 @@
   //                  installed instead of vanishing from the list.
 
   // Root Menu
-  "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps","action":"omarchy-shell omarchy.dock apps"},
+  "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps","action":"omarchy-shell shell toggle omarchy.apps"},
   "learn": {"icon":"󰧑","label":"Learn"},
   "appearance": {"icon":"󰏘","label":"Appearance","aliases":["style"]},
   "trigger": {"icon":"󱓞","label":"Trigger"},
