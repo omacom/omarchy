@@ -96,8 +96,15 @@ Item {
     if (stale && !root.failedRecently(request.from) && !fetchProc.running) root.fetch(request.from)
 
     if (known && known.rates[request.to] !== undefined) {
+      // A rate that isn't a number, or an answer too big for one, has nothing
+      // worth showing or copying.
+      var converted = request.amount * known.rates[request.to]
+      if (typeof known.rates[request.to] !== "number" || !isFinite(converted)) {
+        root.publish("")
+        return
+      }
       root.publish("ready", {
-        value: Numbers.plain(Currency.round(request.amount * known.rates[request.to])),
+        value: Numbers.plain(Currency.round(converted)),
         amount: Numbers.plain(request.amount),
         from: request.from.toUpperCase(),
         to: request.to.toUpperCase(),
@@ -110,14 +117,18 @@ Item {
     }
   }
 
+  function isTable(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value)
+  }
+
   function finishFetch() {
     var key = root.fetching
     var body = null
     try { body = JSON.parse(collector.text) } catch (e) { body = null }
 
-    if (key === "currencies" && body) {
+    if (key === "currencies" && root.isTable(body) && Object.keys(body).length > 0) {
       root.currencies = body
-    } else if (body && body[key]) {
+    } else if (key !== "currencies" && root.isTable(body) && root.isTable(body[key])) {
       var next = ({})
       for (var code in root.rates) next[code] = root.rates[code]
       next[key] = { rates: body[key], date: String(body.date || ""), fetchedAt: Date.now() }

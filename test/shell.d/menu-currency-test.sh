@@ -122,6 +122,22 @@ run_steps "a pair with no rate between them stays a search" '[
   ["1 inr to chf","",""]
 ]'
 
+run_steps "rates that are not numbers have no answer" '[
+  ["1 gbp to usd","",""],
+  ["1 gbp to eur","",""],
+  ["1 gbp to inr","",""]
+]'
+
+run_steps "rate tables that are not tables count as failures" '[
+  ["1 jpy to usd","failed",""],
+  ["1 cad to usd","failed",""],
+  ["1 aud to usd","failed",""]
+]'
+
+run_steps "an answer too big for a number has no answer" '[
+  ["99999999999999999999 huge to usd","",""]
+]'
+
 run_steps "rates with no date still answer" '[
   ["2 nodate to usd","ready","4","2",""]
 ]'
@@ -149,6 +165,13 @@ if (( $(grep -c 'jsdelivr.*currencies.min.json' "$curl_log" || true) >= 2 )); th
 else
   fail "the list is retried once the window has passed" "$(<"$curl_log")"
 fi
+
+for mode in list-is-array list-is-empty list-is-html list-is-null; do
+  CURL_MODE=$mode run_steps "a list that is really $mode counts as a failure" '[
+    ["usd to inr","failed",""],
+    ["go to settings","",""]
+  ]'
+done
 
 # A failed refresh must not take away the answer that was showing, whose date
 # says how old it is. Lifetime 1ms makes every query a refresh.
