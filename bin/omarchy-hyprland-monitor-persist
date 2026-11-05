@@ -40,6 +40,10 @@ settings="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/monitors/settings"
 identity=$(omarchy-hyprland-monitor-identity "$output")
 
 mkdir -p "${settings%/*}"
+# Reading the file and replacing it is one step: closing the lid saves on its
+# own schedule, and a save overlapping another would drop that one's line.
+exec 9>"$settings.lock"
+flock 9
 touch "$settings"
 tmp=$(mktemp "$settings.XXXXXX")
 awk -F'\t' -v OFS='\t' -v identity="$identity" -v mode="$mode" -v position="$position" -v scale="$scale" -v transform="$transform" '
@@ -54,6 +58,7 @@ awk -F'\t' -v OFS='\t' -v identity="$identity" -v mode="$mode" -v position="$pos
   END { print mode, position, scale, transform, identity }
 ' "$settings" >"$tmp"
 mv "$tmp" "$settings"
+exec 9>&-
 
 # Saving never moves a monitor: the command that saved applies the change, in
 # an order that keeps monitors from overlapping. This only brings GDK_SCALE up

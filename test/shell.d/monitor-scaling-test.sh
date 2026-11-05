@@ -348,6 +348,18 @@ run_persist DP-1 "" "" 1440x0
 [[ $(setting DP-1) == "|1440x0|" ]] || fail "monitor persist leaves a scale nobody chose empty" "actual: $(setting DP-1)"
 pass "monitor persist keeps the scale when given none"
 
+# Each save reads the file and replaces it, and closing the lid saves on its own
+# schedule, so saves that overlap must not drop each other's lines.
+fresh
+for i in {1..20}; do
+  run_persist "DP-$i" "" "" "${i}x0" &
+done
+wait
+for i in {1..20}; do
+  [[ $(setting "DP-$i") == "|${i}x0|" ]] || fail "overlapping monitor saves keep every line" "lost DP-$i: $(<"$settings_file")"
+done
+pass "overlapping monitor saves keep every line"
+
 # An older monitors.lua gets the new template on top and keeps everything that
 # isn't one of Omarchy's own lines, exactly as written: rules, changed values,
 # block comments, conditionals.
