@@ -33,10 +33,8 @@ if [[ -z $state || $state == "not-found" ]]; then
 fi
 # status returns nonzero for the failed services this command is meant to
 # diagnose. Keep that output; omit the journal here to bound it separately.
-status=$(systemctl "${scope[@]}" status --no-pager --full --lines=0 -- "$unit" 2>&1 || true)
-logs=$(journalctl "${scope[@]}" --unit="$unit" --boot --lines=80 --no-pager --output=short-iso 2>&1 || true)
-status=$(printf '%s' "$status" | head -c 8192) || true
-logs=$(printf '%s' "$logs" | tail -c 24576)
+status=$(systemctl "${scope[@]}" status --no-pager --full --lines=0 -- "$unit" 2>&1 | head -c 8192) || true
+logs=$(journalctl "${scope[@]}" --unit="$unit" --boot --lines=80 --no-pager --output=short-iso 2>&1 | tail -c 24576) || true
 prompt="Diagnose why this ${scope[*]:---system} service is not working: $unit.
 Explain the evidence and propose a fix before making changes. Do not restart,
 stop, enable or modify services unless I approve the proposed action.
