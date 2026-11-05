@@ -501,6 +501,22 @@ done
 [[ ${cached[0]} == "${cached[1]}" ]] || fail "a reload that renumbers __lua binds keeps the keybindings cache" "${cached[*]}"
 printf -- '-- edited\n' >>"$home/.config/hypr/hyprland.lua"
 keybindings "$menu" "$reload_cache" >/dev/null
-[[ $(basename "$reload_cache"/omarchy/keybindings-*.records) != "${cached[1]}" ]] ||
-  fail "an edit to the Lua config refreshes the keybindings cache"
-pass "a reload that renumbers __lua binds keeps the keybindings cache, a Lua config edit refreshes it"
+cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+[[ ${cached[2]} != "${cached[1]}" ]] || fail "an edit to the Lua config refreshes the keybindings cache"
+
+# Binds can live in any module the config requires, not only under ~/.config/hypr.
+mkdir -p "$home/.config/elsewhere"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("first-thing"), { description = "My own thing" })\n' >"$home/.config/elsewhere/my_binds.lua"
+printf 'package.path = "%s/.config/elsewhere/?.lua;" .. package.path\nrequire("my_binds")\n' "$home" >>"$home/.config/hypr/hyprland.lua"
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + X" "My own thing")
+BINDS
+keybindings "$menu" "$reload_cache" >/dev/null
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tfirst-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "a bind from a required module is in the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("second-thing"), { description = "My own thing" })\n' >"$home/.config/elsewhere/my_binds.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tsecond-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "an edit to a required module refreshes the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+pass "a reload that renumbers __lua binds keeps the keybindings cache, an edit to any Lua file the config loads refreshes it"
