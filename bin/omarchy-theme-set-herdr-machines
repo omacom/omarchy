@@ -36,7 +36,7 @@ if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || ! omarchy-toggle-enabled herdr-theme-syn
 fi
 
 theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
-control_dir="$XDG_RUNTIME_DIR/omarchy-theme-sync"
+control_dir="$lock_dir/omarchy-theme-sync"
 mkdir -m 700 -p "$control_dir"
 
 # Runs on the remote machine under a login shell, so OMARCHY_PATH and PATH are set there.

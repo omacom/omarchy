@@ -212,3 +212,19 @@ done
 flock -u 8
 exec 8>&-
 pass "theme setters and Herdr share the private fallback lock"
+
+# An enabled sync also keeps its SSH control socket in the private fallback.
+mkdir -p "$fallback_home/.local/state/omarchy/current"
+printf 'demo\n' >"$fallback_home/.local/state/omarchy/current/theme.name"
+printf '#!/bin/bash\nprintf "1\\tpeer\\tpeer\\tdefault\\tenabled\\n"\n' >"$fallback_bin/herdr"
+printf '#!/bin/bash\nexit 0\n' >"$fallback_bin/omarchy-toggle-enabled"
+cat >"$fallback_bin/ssh" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$HOME/ssh-options"
+SH
+chmod +x "$fallback_bin/ssh"
+env -u XDG_RUNTIME_DIR -u OMARCHY_THEME_SYNC_FROM HOME="$fallback_home" PATH="$fallback_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-theme-set-herdr-machines" >/dev/null
+grep -Fxq "ControlPath=$fallback_home/.local/state/omarchy/omarchy-theme-sync/%C" "$fallback_home/ssh-options" ||
+  fail "sync control sockets use the private fallback"
+pass "enabled Herdr sync works without a runtime dir"
