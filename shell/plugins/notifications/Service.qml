@@ -1572,7 +1572,9 @@ Item {
                 var h = pl.height || Style.space(58)
                 if (y >= pl.y && y <= pl.y + h) { found = key; break }
               }
-              service.hoverKey = found
+              // Between cards the last one keeps hover: letting it go hid its
+              // buttons, and the cards below moved up under the pointer.
+              if (found) service.hoverKey = found
             }
 
             // Cards move under a still pointer after a dismissal: re-hit-test
