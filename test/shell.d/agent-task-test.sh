@@ -33,5 +33,17 @@ printf ' \n\t' > "$HOME/.config/omarchy/agents/tasks/empty.md"
 if run empty 2>/dev/null; then fail 'reject empty task'; fi
 python3 -c 'import sys;sys.stdout.write("a"*32769)' > "$HOME/.config/omarchy/agents/tasks/large.md"
 if run large 2>/dev/null; then fail 'reject oversized task'; fi
+python3 -c 'import sys; sys.stdout.write("a" * 32768)' > "$HOME/.config/omarchy/agents/tasks/boundary.md"
+extra=$(python3 -c 'import sys; sys.stdout.write("b" * (65536 - 32768 - len("\n\nAdditional instructions:\n")))')
+run boundary "$extra"
+python3 - <<'PY_CHECK'
+import os
+args = open(os.environ['CAPTURE'], 'rb').read().split(b'\0')
+assert args[0] == b'--prompt' and len(args[1]) == 65536, args[:1]
+PY_CHECK
+rm -f "$CAPTURE"
+if run boundary "${extra}x" 2>/dev/null; then fail 'reject combined prompt over 65536 bytes'; fi
+[[ ! -e $CAPTURE ]] || fail 'oversized combined prompt launched agent'
+pass 'combined prompt accepts exactly 65536 bytes and rejects 65537 before launch'
 if AGENT_STATUS=7 run review; then fail 'propagate launch failure'; else [[ $? == 7 ]] || fail 'wrong launch status'; fi
 pass 'invalid, missing, empty and oversized tasks do not launch; launch failures propagate'
