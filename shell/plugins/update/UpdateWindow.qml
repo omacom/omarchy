@@ -130,10 +130,11 @@ Item {
     printErrors: false
   }
 
-  // A run killed outright never wrote its exit; don't wait on it forever.
+  // Returns once the runner lets go of its lock: a run killed outright never
+  // wrote its exit, and the window must not wait on it forever.
   Process {
     id: alive
-    command: ["flock", "-n", root.stateDir + "/running", "true"]
+    command: ["flock", root.stateDir + "/running", "true"]
     onExited: code => { if (code === 0) aliveGrace.start() }
   }
 
@@ -170,7 +171,13 @@ Item {
     command: ["tail", "-c", "+1", "-F", "-s", "0.1", root.stateDir + "/out"]
     stdout: SplitParser {
       splitMarker: ""
-      onRead: data => { UpdateModel.feed(root.st, data); root.dirty = true }
+      onRead: data => {
+        UpdateModel.feed(root.st, data)
+        root.dirty = true
+        // Output proves the runner holds its lock, so watching for its release
+        // can start without racing a runner that hasn't taken it yet.
+        if (!alive.running) alive.running = true
+      }
     }
   }
 

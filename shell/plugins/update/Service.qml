@@ -58,9 +58,11 @@ Item {
   // command is a one-click install's shell command; empty opens the update.
   function open(command) {
     var w = loader.item
-    if (running()) {
-      // One at a time: the window shows what runs, and an install asked for
-      // meanwhile goes to a terminal, the way it always did.
+    // One at a time: the window shows what runs, and an install asked for
+    // meanwhile goes to a terminal, the way it always did. A window whose
+    // runner is still starting counts: active is only written once the
+    // runner holds its lock, and replacing the window would race it.
+    if (running() || (w && w.phase === "running")) {
       if (w) w.present()
       else show("", true, false)
       if (command && !(w && w.task === command)) Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
