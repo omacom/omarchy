@@ -150,12 +150,10 @@ start_watcher() {
   exec {events_fd}<>"$events"
 }
 
-HOME="$test_tmp/home" \
-  PATH="$ROOT/bin:$PATH" \
-  bash "$ROOT/migrations/1793554884.sh" >/dev/null
+HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management on
 
 HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-enabled monitor-management ||
-  fail "monitor management was not enabled by default"
+  fail "monitor management did not report enabled after it was turned on"
 
 HOME="$test_tmp/home" \
   PATH="$ROOT/bin:$PATH" \
