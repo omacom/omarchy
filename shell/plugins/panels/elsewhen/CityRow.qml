@@ -134,13 +134,17 @@ Rectangle {
     }
 
     onReleased: {
-      if (armed) row.panel.releaseRowDrag()
-      else row.panel.focusOn(row.index)
+      // End the gesture before telling the panel: focusOn/releaseRowDrag rebuild
+      // this row's delegate, and calling a component function afterwards lands in
+      // an invalid QML context (QQmlVMEMetaObject warning + TypeError).
+      var wasArmed = armed
       finish()
+      if (wasArmed) row.panel.releaseRowDrag()
+      else row.panel.focusOn(row.index)
     }
     onCanceled: {
-      row.panel.cancelRowDrag()
       finish()
+      row.panel.cancelRowDrag()
     }
   }
 
