@@ -1670,7 +1670,6 @@ Item {
                   textFormat: Text.PlainText
                   width: parent.width
                   text: row.label
-                  textFormat: Text.PlainText
                   color: row.hasCursor ? root.selectedText : root.foreground
                   font: row.hasPreview
                     ? Qt.font({ family: row.previewFamily, pointSize: root.terminalFontPointSize, weight: Font.Normal })
