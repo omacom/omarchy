@@ -323,6 +323,7 @@
   "media.playPause": "Play/pause",
   "media.previous": "Previous",
   "media.source": "Source",
+  "menu.copyAnswer": "Copy",
   "menu.currencyConverting": "Converting…",
   "menu.currencyFailed": "Couldn't get exchange rates",
   "menu.inputPrompt": "Input",

@@ -95,6 +95,8 @@ Item {
   property bool cursorChosen: false
   // setFilter is rebuilding the rows anyway, so an answer changing with it needn't.
   property bool settingFilter: false
+  // What an answer row's copy button last ran, shown as a tick for a moment.
+  property string copiedAction: ""
   // Resets of filterText reach the search line; its edits come back through setFilter.
   onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
@@ -113,7 +115,7 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null; copiedAction = "" }
   // Bound to the central [menu] section in shell.toml via Commons.Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -616,6 +618,20 @@ Item {
     }
   }
 
+  // The button on an answer row. Unlike Enter or a click on the row it leaves the
+  // menu open, for checking the answer or carrying on with another.
+  function copyAnswer(action) {
+    root.runAction(action)
+    root.copiedAction = action
+    copiedReset.restart()
+  }
+
+  Timer {
+    id: copiedReset
+    interval: 1500
+    onTriggered: root.copiedAction = ""
+  }
+
   CurrencyLookup {
     id: currencyLookup
     query: root.dmenuActive ? "" : root.filterText
@@ -882,6 +898,7 @@ Item {
   function setFilter(nextFilter) {
     panel.freezeCardTop()
     root.cursorChosen = false
+    root.copiedAction = ""
     root.settingFilter = true
     root.filterText = nextFilter
     root.settingFilter = false
@@ -1557,6 +1574,7 @@ Item {
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              readonly property bool isAnswer: (row.kind === "calc" || row.kind === "currency") && !row.disabled
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
@@ -1648,7 +1666,7 @@ Item {
 
               Row {
                 id: trail
-                width: Style.space(14)
+                width: row.isAnswer ? copyButton.width : Style.space(14)
                 anchors.right: parent.right
                 anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
@@ -1694,6 +1712,23 @@ Item {
                   root.cursorActive = true
                   root.selectedIndex = row.index
                   root.activateIndex(row.index, true)
+                }
+              }
+
+              // Above the row's MouseArea, so a click here doesn't also take the row.
+              Loader {
+                id: copyButton
+                active: row.isAnswer
+                anchors.right: parent.right
+                anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                sourceComponent: PanelActionButton {
+                  objectName: "menuAnswerCopy"
+                  iconText: root.copiedAction === row.action ? "\u{F012C}" : "\u{F018F}"
+                  tooltipText: Commons.I18n.t("menu.copyAnswer")
+                  foreground: row.hasCursor ? root.selectedText : root.foreground
+                  fontFamily: root.fontFamily
+                  onClicked: root.copyAnswer(row.action)
                 }
               }
             }
