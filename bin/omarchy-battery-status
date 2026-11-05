@@ -82,13 +82,12 @@ read_sysfs_number() {
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when there is one so the open panel stays
 # live; without one, UPower's rate, worked out from the falling charge, stands.
-if (( battery_count > 1 )); then
-  # Per-pack rates cannot stand in for the aggregate rate.
-  :
-elif microwatts=$(read_sysfs_number "$battery_path/power_now"); then
-  power_rate_raw=$(awk -v microwatts="$microwatts" 'BEGIN { print microwatts / 1000000 }')
-elif microamps=$(read_sysfs_number "$battery_path/current_now") && microvolts=$(read_sysfs_number "$battery_path/voltage_now"); then
-  power_rate_raw=$(awk -v microamps="$microamps" -v microvolts="$microvolts" 'BEGIN { print microamps * microvolts / 1000000000000 }')
+if (( battery_count == 1 )); then
+  if microwatts=$(read_sysfs_number "$battery_path/power_now"); then
+    power_rate_raw=$(awk -v microwatts="$microwatts" 'BEGIN { print microwatts / 1000000 }')
+  elif microamps=$(read_sysfs_number "$battery_path/current_now") && microvolts=$(read_sysfs_number "$battery_path/voltage_now"); then
+    power_rate_raw=$(awk -v microamps="$microamps" -v microvolts="$microvolts" 'BEGIN { print microamps * microvolts / 1000000000000 }')
+  fi
 fi
 
 # Some kernels sign power_now by direction (negative while discharging on
@@ -100,29 +99,26 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$physical_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$physical_info")
-
-if (( battery_count > 1 )); then
-  threshold_start=""
-  threshold_end=""
+# A charge limit describes one pack, not the combined battery.
+threshold_start=""
+threshold_end=""
+if (( battery_count == 1 )); then
+  threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$physical_info")
+  threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$physical_info")
+  [[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
+  [[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
 fi
-
-# Read the thresholds from the battery UPower resolved rather than a BAT* glob,
-# which misses every battery with another name.
-[[ $battery_count != 1 || -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
-[[ $battery_count != 1 || -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
 # The time to full counts to this battery's own limit, never another one's.
 charge_limit=${threshold_end:-100}
 
 # Time left is the energy left over the draw shown beside it, so the two always
-# agree; charging counts up to the charge limit. UPower's own estimate averages
-# the draw, and stands in only when the readings to do the sum are missing.
+# agree; charging counts up to the charge limit. With multiple packs, use
+# UPower's estimate: each pack can have a different charge limit.
 minutes_remaining=$(awk \
   -v energy="$energy" -v full="$energy_full" -v rate="${power_rate_raw:-0}" \
-  -v state="$state" -v limit="$charge_limit" -v fallback="$upower_hours" 'BEGIN {
+  -v packs="$battery_count" -v state="$state" -v limit="$charge_limit" -v fallback="$upower_hours" 'BEGIN {
   if (rate < 0) rate = -rate
-  if (energy != "" && full != "" && rate > 0.2) {
+  if (packs == 1 && energy != "" && full != "" && rate > 0.2) {
     hours = state == "charging" ? (full * limit / 100 - energy) / rate : energy / rate
   } else {
     hours = fallback
