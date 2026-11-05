@@ -73,6 +73,8 @@ Item {
   property bool centerHoverRevealSuppressed: false
   property int barConfigSerial: 0
   property string position: "top"
+  property bool allowPositionDrag: true
+  onAllowPositionDragChanged: if (!allowPositionDrag) clearBarMove()
   // Resolves through fontconfig at paint time (Style.font.family defaults
   // to "monospace"), so changing the system font (via `omarchy-font-set`)
   // updates the bar without a reload.
@@ -644,10 +646,12 @@ Item {
   }
 
   function beginBarMove(window) {
+    if (!allowPositionDrag) return false
     barMoveWindow = window
     barMoveScreen = window ? window.screen : null
     barMoveCandidate = position
     barMoveActive = true
+    return true
   }
 
   function updateBarMove(screenPoint) {
@@ -794,6 +798,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    allowPositionDrag = config.allowPositionDrag !== false
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -2488,9 +2493,8 @@ Item {
     pressAndHoldInterval: 200
 
     function startDrag(x, y) {
-      if (dragging) return
+      if (dragging || !root.beginBarMove(root.targetWindow(gestureArea))) return
       dragging = true
-      root.beginBarMove(root.targetWindow(gestureArea))
       var scenePoint = gestureArea.mapToItem(null, x, y)
       root.updateBarMove(root.windowScreenPoint(scenePoint, root.barMoveWindow))
     }
