@@ -98,8 +98,9 @@ API_PLAN_LABELS = {
   "max": "Max",
 }
 
-# The allowances Copilot Free meters in place of premium requests.
-FREE_ALLOWANCES = (("chat", "Monthly chat"), ("completions", "Monthly completions"))
+# The allowances Copilot Free meters in place of premium requests, with the
+# panel titles that keep the two apart.
+FREE_ALLOWANCES = (("chat", "Monthly chat", "Chat Monthly"), ("completions", "Monthly completions", "Completions Monthly"))
 
 def expand_path(value: str) -> Path:
   return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
@@ -726,11 +727,17 @@ def ask_quota(token: str) -> dict[str, Any]:
   sku = str(payload.get("access_type_sku") or "").strip().lower()
   free = sku.startswith("free_")
   allowances = []
-  for key, label in FREE_ALLOWANCES if free else ():
+  for key, label, title in FREE_ALLOWANCES if free else ():
     other = snapshots.get(key)
-    usage = snapshot_usage(other) if isinstance(other, dict) else None
-    if usage is not None and not usage[0] and usage[1] > 0:
-      allowances.append({"label": label, "entitlement": usage[1], "used": usage[2]})
+    if not isinstance(other, dict):
+      continue
+    # As with the premium allowance, one that can't be read is a failed check
+    # rather than a meter quietly dropped from the kept answer.
+    usage = snapshot_usage(other)
+    if usage is None:
+      return {"available": False, "reason": "bad-payload"}
+    if not usage[0] and usage[1] > 0:
+      allowances.append({"label": label, "title": title, "entitlement": usage[1], "used": usage[2]})
   plan = "free" if free else str(payload.get("copilot_plan") or "").strip().lower()
   return {
     "available": True,
@@ -875,6 +882,7 @@ def allowance_limits(
     parsed = parse_event_time(str(remote.get("resetsAt") or ""))
     result["limits"] = [{
       "label": str(allowance.get("label") or ""),
+      **({"title": str(allowance["title"])} if allowance.get("title") else {}),
       "percent": min(1.0, float(allowance.get("used") or 0.0) / float(allowance["entitlement"])),
       "resetsAt": parsed.isoformat() if parsed is not None and parsed > now else "",
     } for allowance in allowances]

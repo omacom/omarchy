@@ -426,6 +426,12 @@ free["quota_snapshots"] |= {
 record = copilot(routes={QUOTA_URL: free})
 expect("a Copilot Free account is labeled Free and metered on chat and completions", meter(record),
        {"limits": [["Monthly chat", 0.25, True], ["Monthly completions", 0.0, True]], "stale": False, "status": "", "retry": False, "tier": "Free"}, record)
+expect("the Free meters carry titles that keep them apart on the panel",
+       [limit.get("title") for limit in record["limits"]], ["Chat Monthly", "Completions Monthly"], record)
+del free["quota_snapshots"]["chat"]["remaining"]
+record = copilot(routes={QUOTA_URL: free})
+expect("a Free allowance that can't be read keeps the last meters, stale", meter(record),
+       {"limits": [["Monthly chat", 0.25, True], ["Monthly completions", 0.0, True]], "stale": True, "status": "", "retry": False, "tier": "Free"}, record)
 
 # A reset date that can't be read is no reset date, both live and once kept.
 damaged_reset = quota("individual", 300, 30)
