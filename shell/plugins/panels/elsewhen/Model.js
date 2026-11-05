@@ -932,19 +932,47 @@ function geocodeUrl(label) {
     + encodeURIComponent(label)
 }
 
-// { place, answered }: a place in the row's own zone beats the top result, and
-// `answered` is false when the request itself failed.
+// { place, answered }: only a result the geocoder itself keeps in the row's
+// zone is adopted. The top result may be a same-named town on another
+// continent - a geocode search for "Calcutta" answers Calcutta, South Africa
+// first, and never Kolkata - so a row whose zone id the geocoder does not echo
+// gets no coordinates here and falls back to the zone table. `answered` is
+// false when the request itself failed.
 function pickGeocode(text, zone) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
   var best = null
   for (var i = 0; i < results.length && !best; i++) if (results[i] && results[i].timezone === zone) best = results[i]
-  if (!best && results.length > 0 && results[0] && typeof results[0] === "object") best = results[0]
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 
-// The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
-function zoneTabCoords(tabText, zone) {
+// The zone's representative city from zone1970.tab (ISO 6709), the offline
+// fallback. A zone can reach the panel under a legacy link id the tab does not
+// list (`timedatectl list-timezones` offers Asia/Calcutta next to Asia/Kolkata):
+// `linksText`, the `L <zone> <link>` lines of tzdata.zi, maps the link back to
+// the tab's canonical id.
+function zoneTabCoords(tabText, zone, linksText) {
+  var place = zoneTabEntry(tabText, zone)
+  if (place || !linksText) return place
+  var canonical = canonicalZoneId(linksText, zone)
+  return canonical ? zoneTabEntry(tabText, canonical) : null
+}
+
+// tzdata.zi's `L` lines: the zone id a legacy link points at, through any chain.
+function canonicalZoneId(ziText, zone) {
+  var lines = String(ziText || "").split("\n")
+  var links = {}
+  for (var i = 0; i < lines.length; i++) {
+    var m = /^L\s+(\S+)\s+(\S+)\s*$/.exec(lines[i])
+    if (m) links[m[2]] = m[1]
+  }
+  var seen = {}
+  var at = zone
+  while (links[at] && !seen[at]) { seen[at] = true; at = links[at] }
+  return at !== zone ? at : null
+}
+
+function zoneTabEntry(tabText, zone) {
   var lines = String(tabText || "").split("\n")
   for (var i = 0; i < lines.length; i++) {
     var parts = lines[i].split("\t")
@@ -1366,6 +1394,7 @@ if (typeof module !== "undefined") {
     geocodeUrl: geocodeUrl,
     pickGeocode: pickGeocode,
     zoneTabCoords: zoneTabCoords,
+    canonicalZoneId: canonicalZoneId,
     forecastUrl: forecastUrl,
     parseForecast: parseForecast,
     weatherStale: weatherStale,
