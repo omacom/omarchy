@@ -51,7 +51,7 @@ run_layout 0x10de 0x1e04 0x040300
 pass "NVIDIA audio functions do not install graphics drivers"
 
 run_layout 0x10de 0x1e04 0x030000
-[[ $(cat "$tmp/pkgs") == $'nvidia-open-dkms\nnvidia-utils\nlib32-nvidia-utils\nlibva-nvidia-driver' ]] ||
+[[ $(cat "$tmp/pkgs") == $'linux-omarchy-nvidia-open\nnvidia-utils\nlib32-nvidia-utils\nlibva-nvidia-driver' ]] ||
   fail "GSP displays install the open driver package set"
 [[ $(cat "$tmp/etc/modprobe.d/nvidia.conf") == 'options nvidia_drm modeset=1' ]] ||
   fail "NVIDIA KMS config is written"
