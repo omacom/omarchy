@@ -484,3 +484,23 @@ output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub colle
 [[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
 grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
 pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"
+
+# Hyprland renumbers a __lua bind's arg on every reload, so a reload alone must
+# not throw the cache away. An edit to the Lua config does, since the scan of
+# that source is where a __lua bind's command comes from. A rebuilt cache
+# replaces the old file, so its name is what tells the two apart.
+reload_cache="$tmpdir/cache-reload"
+cached=()
+for callback in 66 64; do
+  stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + RETURN" "Terminal" | sed "s/^\targ: \$/\targ: $callback/")
+BINDS
+  keybindings "$menu" "$reload_cache" >/dev/null
+  cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+done
+[[ ${cached[0]} == "${cached[1]}" ]] || fail "a reload that renumbers __lua binds keeps the keybindings cache" "${cached[*]}"
+printf -- '-- edited\n' >>"$home/.config/hypr/hyprland.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+[[ $(basename "$reload_cache"/omarchy/keybindings-*.records) != "${cached[1]}" ]] ||
+  fail "an edit to the Lua config refreshes the keybindings cache"
+pass "a reload that renumbers __lua binds keeps the keybindings cache, a Lua config edit refreshes it"

@@ -688,7 +688,12 @@ keybindings_cache_key() {
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
-    hyprctl binds 2>/dev/null
+    # A __lua bind's arg is a callback id Hyprland renumbers on every reload,
+    # and the menu never reads it: its command comes from the Lua source scan.
+    # Keying on it would throw the cache away after each reload, so the key
+    # takes the Lua config files the scan reads instead.
+    hyprctl binds 2>/dev/null | awk '/^\tdispatcher: / { lua = ($2 == "__lua") } !(lua && /^\targ: /)'
+    find -L "$HOME/.config/hypr" "$OMARCHY_PATH/default/hypr" -name '*.lua' -printf '%p %s %T@\n' 2>/dev/null | sort
   } | sha256sum | awk '{ print $1 }'
 }
 
