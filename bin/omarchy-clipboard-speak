@@ -1,0 +1,54 @@
+#!/usr/bin/python3
+# omarchy:summary=Read clipboard text aloud with an installed Piper voice
+# omarchy:args=--model <voice.onnx> [--rate <0.5-2.0>] [--speaker <id>]
+# omarchy:examples=omarchy clipboard speak --model ~/Models/en_US-lessac-medium.onnx | omarchy clipboard speak --model ~/Models/voice.onnx --rate 1.25
+
+import argparse
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Read copied text aloud with a local Piper neural voice. Requires piper-tts or piper, a downloaded .onnx voice and its .onnx.json config. The clipboard is left intact.")
+  parser.add_argument("--model", type=Path, required=True)
+  parser.add_argument("--rate", type=float, default=1.0, help="Playback rate, 0.5 to 2.0 (default 1)")
+  parser.add_argument("--speaker", type=int, default=0)
+  args = parser.parse_args()
+  if not 0.5 <= args.rate <= 2.0 or args.speaker < 0:
+    parser.error("rate must be between 0.5 and 2.0, and speaker must be nonnegative")
+  model = args.model.expanduser().resolve(strict=True)
+  config = Path(str(model) + ".json")
+  if not model.is_file() or not config.is_file():
+    raise ValueError("Choose a voice file with its matching .onnx.json config beside it.")
+  engine = None
+  for candidate in ("piper-tts", "piper"):
+    if subprocess.run(["omarchy-cmd-present", candidate]).returncode == 0:
+      engine = candidate
+      break
+  if engine is None:
+    raise ValueError("Install Piper first (piper-tts or piper).")
+  text = subprocess.run(["wl-paste", "--no-newline", "--type", "text"], check=True, capture_output=True, text=True).stdout
+  if not text.strip() or len(text) > 16000:
+    raise ValueError("Copy between 1 and 16,000 characters of text first.")
+
+  with tempfile.TemporaryDirectory(prefix="omarchy-speak-") as scratch:
+    audio = Path(scratch) / "speech.wav"
+    subprocess.run([engine, "-m", str(model), "-c", str(config), "-f", str(audio),
+      "--length_scale", str(1 / args.rate), "-s", str(args.speaker)], input=text,
+      text=True, stdout=sys.stderr, check=True)
+    if not audio.is_file() or audio.stat().st_size == 0:
+      raise ValueError("Piper produced no audio.")
+    subprocess.run(["pw-play", str(audio)], check=True)
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except KeyboardInterrupt:
+    sys.exit(130)
+  except (OSError, ValueError, subprocess.SubprocessError) as error:
+    print(f"Read clipboard: {error}", file=sys.stderr)
+    sys.exit(1)
