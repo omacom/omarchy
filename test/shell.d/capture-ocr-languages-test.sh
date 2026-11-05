@@ -11,8 +11,11 @@ export OMARCHY_TESSDATA="$test_tmp/tessdata"
 mkdir -p "$test_tmp/bin" "$OMARCHY_TESSDATA" "$HOME"
 export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
 
+export GUM_OPTIONS="$test_tmp/gum-options"
+
 cat >"$test_tmp/bin/gum" <<'SH'
 #!/bin/bash
+cat > "$GUM_OPTIONS"
 printf '%s\n' "$GUM_CHOICE"
 SH
 chmod +x "$test_tmp/bin/gum"
@@ -38,5 +41,6 @@ for name in eng swe osd; do
   printf 'x\n' >"$OMARCHY_TESSDATA/$name.traineddata"
 done
 GUM_CHOICE=$'swe\neng' omarchy-capture-ocr-languages choose >/dev/null
+[[ $(cat "$GUM_OPTIONS") == $'eng\nswe' ]] || fail "the picker offers installed languages without osd"
 [[ $(omarchy-capture-ocr-languages) == "swe+eng" ]] || fail "the picker saves the languages it was given and skips osd"
 pass "the picker saves the languages it was given and skips osd"
