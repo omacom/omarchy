@@ -190,3 +190,25 @@ env -u XDG_RUNTIME_DIR HOME="$fallback_home" HERDR_APP_HOME="$fallback_home/.con
 [[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set.lock ]] ||
   fail "herdr app theme lock is kept in the private state dir"
 pass "herdr theme locks stay out of /tmp"
+
+# Every caller waits for the same private lock when no runtime dir is set.
+mkdir -p "$fallback_home/.config/omarchy/themes/lock-test"
+touch "$SYNC_TEST/background.png"
+exec 8>"$fallback_home/.local/state/omarchy/omarchy-theme-set.lock"
+flock 8
+for command in omarchy-theme-set omarchy-theme-bg-set omarchy-theme-set-herdr-app; do
+  argument=lock-test
+  [[ $command != "omarchy-theme-bg-set" ]] || argument="$SYNC_TEST/background.png"
+  [[ $command != "omarchy-theme-set-herdr-app" ]] || argument=""
+  set +e
+  env -u XDG_RUNTIME_DIR HOME="$fallback_home" HERDR_APP_HOME="$fallback_home/.config/herdr-app" \
+    OMARCHY_THEME_OFFLINE=1 PATH="$fallback_bin:$ROOT/bin:$PATH" \
+    timeout 0.3 bash "$ROOT/bin/$command" ${argument:+"$argument"} 8>&- >"$SYNC_TEST/blocked" 2>&1
+  status=$?
+  set -e
+  (( status == 124 )) || fail "$command waits for the private theme lock" "$(cat "$SYNC_TEST/blocked")"
+  [[ ! -e $fallback_home/.local/state/omarchy/current ]] || fail "a blocked caller does not stage a theme"
+done
+flock -u 8
+exec 8>&-
+pass "theme setters and Herdr share the private fallback lock"
