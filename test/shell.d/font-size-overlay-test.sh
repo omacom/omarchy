@@ -50,14 +50,14 @@ foot_section=$(awk '/^\[/ { s = $0 } /^include=.*foot\/local\.ini/ { print s; ex
 [[ $foot_section == "[main]" ]] || fail "migration adds the Foot overlay include to [main]" "include landed in section: $foot_section"
 font_line=$(grep -n '^font=' "$foot_home/.config/foot/foot.ini" | head -1 | cut -d: -f1)
 include_line=$(grep -n 'foot/local\.ini' "$foot_home/.config/foot/foot.ini" | head -1 | cut -d: -f1)
-[[ $include_line -gt $font_line ]] ||
+(( include_line > font_line )) ||
   fail "Foot overlay include comes after the shared font line" "font:$font_line include:$include_line"
 grep -qx 'include=~/.config/foot/local.ini' "$foot_home/.config/foot/foot.ini" ||
   fail "Foot include uses ~ so the shared config does not carry this home" "$(grep include= "$foot_home/.config/foot/foot.ini")"
-[[ $(grep -c 'foot/local\.ini' "$foot_home/.config/foot/foot.ini") -eq 1 ]] ||
+(( $(grep -c 'foot/local\.ini' "$foot_home/.config/foot/foot.ini") == 1 )) ||
   fail "migration adds the Foot include once" "$(cat "$foot_home/.config/foot/foot.ini")"
 run_migration "$foot_home" "$foot_home/.config"
-[[ $(grep -c 'foot/local\.ini' "$foot_home/.config/foot/foot.ini") -eq 1 ]] ||
+(( $(grep -c 'foot/local\.ini' "$foot_home/.config/foot/foot.ini") == 1 )) ||
   fail "migration does not duplicate the Foot include" "$(cat "$foot_home/.config/foot/foot.ini")"
 if command -v foot >/dev/null; then
   HOME="$foot_home" XDG_CONFIG_HOME="$foot_home/.config" foot -C >/dev/null 2>"$tmpdir/foot-check.err" ||
@@ -79,10 +79,10 @@ kitty_home="$tmpdir/kitty-home"
 mkdir -p "$kitty_home/.config/kitty"
 printf 'font_size 13\n# mentions local.conf in a comment\n' >"$kitty_home/.config/kitty/kitty.conf"
 run_size "$kitty_home" "$kitty_home/.config" 13 >/dev/null
-[[ $(grep -c '^globinclude local.conf$' "$kitty_home/.config/kitty/kitty.conf") -eq 1 ]] ||
+(( $(grep -c '^globinclude local.conf$' "$kitty_home/.config/kitty/kitty.conf") == 1 )) ||
   fail "Kitty overlay include is a relative globinclude" "$(cat "$kitty_home/.config/kitty/kitty.conf")"
 run_size "$kitty_home" "$kitty_home/.config" 14 >/dev/null
-[[ $(grep -c '^globinclude local.conf$' "$kitty_home/.config/kitty/kitty.conf") -eq 1 ]] ||
+(( $(grep -c '^globinclude local.conf$' "$kitty_home/.config/kitty/kitty.conf") == 1 )) ||
   fail "Kitty relative globinclude is not duplicated" "$(cat "$kitty_home/.config/kitty/kitty.conf")"
 grep -qx 'font_size 14.0' "$kitty_home/.config/kitty/local.conf" ||
   fail "Kitty overlay keeps the new size" "$(cat "$kitty_home/.config/kitty/local.conf")"
@@ -91,7 +91,7 @@ printf 'globinclude ~/.config/kitty/local.conf\n' >"$kitty_home/.config/kitty/ki
 run_size "$kitty_home" "$kitty_home/.config" 14 >/dev/null
 grep -qx 'globinclude local.conf' "$kitty_home/.config/kitty/kitty.conf" ||
   fail "an absolute Kitty globinclude is rewritten to local.conf" "$(cat "$kitty_home/.config/kitty/kitty.conf")"
-[[ $(grep -c 'globinclude' "$kitty_home/.config/kitty/kitty.conf") -eq 1 ]] ||
+(( $(grep -c 'globinclude' "$kitty_home/.config/kitty/kitty.conf") == 1 )) ||
   fail "rewriting Kitty globinclude does not leave the absolute line" "$(cat "$kitty_home/.config/kitty/kitty.conf")"
 pass "Kitty globinclude is relative"
 
@@ -339,7 +339,7 @@ printf 'size = 9\n' >"$xdg_home/.config/alacritty/alacritty.toml"
 run_size "$xdg_home" "$xdg" 15 >/dev/null
 
 mapfile -t ghostty_includes < <(sed -n 's/^config-file = ?"\(.*ghostty\/local\)"$/\1/p' "$xdg/ghostty/config")
-[[ ${#ghostty_includes[@]} -ge 1 ]] || fail "Ghostty config includes its overlay" "$(cat "$xdg/ghostty/config")"
+(( ${#ghostty_includes[@]} >= 1 )) || fail "Ghostty config includes its overlay" "$(cat "$xdg/ghostty/config")"
 for include in "${ghostty_includes[@]}"; do
   target=${include/#\~/$xdg_home}
   [[ $target == "$xdg/ghostty/local" && -f $target ]] ||
