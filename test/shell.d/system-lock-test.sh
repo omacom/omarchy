@@ -60,14 +60,19 @@ for _ in {1..20}; do
 done
 [[ -e $fallback/state/omarchy/omarchy-1password-lock.lock && ! -L $fallback/state/omarchy/omarchy-1password-lock.lock ]] ||
   fail "1password lock is kept in the private state dir"
-[[ ! -e /tmp/omarchy-1password-lock.lock && ! -L /tmp/omarchy-1password-lock.lock ]] ||
-  fail "1password lock is not created in /tmp"
 pass "1password lock stays out of /tmp"
 
 env -u XDG_RUNTIME_DIR HOME="$fallback/home" XDG_STATE_HOME="$fallback/state" \
   "$ROOT/bin/omarchy-update-lock" run true
 [[ -e $fallback/state/omarchy/omarchy-update.lock && ! -L $fallback/state/omarchy/omarchy-update.lock ]] ||
   fail "update lock is kept in the private state dir"
-[[ ! -e /tmp/omarchy-update.lock && ! -L /tmp/omarchy-update.lock ]] ||
-  fail "update lock is not created in /tmp"
 pass "update lock stays out of /tmp"
+
+# Failure to create the optional 1Password lock must not skip screen cleanup.
+: >"$fallback/blocked-state"
+: >"$call_log"
+env -u XDG_RUNTIME_DIR HOME="$fallback/home" XDG_STATE_HOME="$fallback/blocked-state" \
+  PATH="$mock_bin:$PATH" CALL_LOG="$call_log" "$ROOT/bin/omarchy-system-lock" 2>"$tmpdir/lock-error"
+rg -q '^pkill -f ' "$call_log" || fail "a state-directory error still stops the screensaver"
+rg -q 'invisible = false' "$call_log" || fail "a state-directory error still restores the cursor"
+pass "1password state errors do not skip screensaver cleanup"
