@@ -124,6 +124,10 @@ Panel {
   }
 
   function refresh() {
+    // Same restart as the bar clock: a day that rolled over during suspend
+    // would otherwise wait for the stale countdown before the highlight moves.
+    clock.enabled = false
+    clock.enabled = true
     root.today = new Date()
     root.goToToday()
   }
