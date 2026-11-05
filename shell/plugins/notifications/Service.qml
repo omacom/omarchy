@@ -1084,7 +1084,10 @@ Item {
     if (!handled && row) {
       // Source first, link last: a Slack message quoting a link is still a
       // Slack notification, and that link is clickable in its text.
-      var win = windowForPid(row.senderPid) || windowForSource(row.source)
+      // A browser process can own both ordinary windows and site-specific
+      // web apps. Prefer the site's window before the shared sender PID.
+      var win = Markup.hostname(row.source) ? windowForSource(row.source) : null
+      win = win || windowForPid(row.senderPid) || windowForSource(row.source)
       if (win) focusWindow(win)
       else if (Markup.hostname(row.source))
         Security.openExternalUrl("https://" + Markup.hostname(row.source) + "/")
