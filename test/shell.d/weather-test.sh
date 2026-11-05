@@ -170,4 +170,3 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
-
