@@ -6,7 +6,9 @@ omarchy-pkg-add omasnap
 rm -f "$HOME/.local/share/applications/omasnap.desktop"
 
 imv_config="$HOME/.config/imv/config"
-if [[ -f $imv_config ]]; then
+if omarchy-config-symlinked "$imv_config"; then
+  echo "Preserving symlink-managed imv config: $imv_config"
+elif [[ -f $imv_config ]]; then
   sed -i --follow-symlinks \
     -e 's/^# Edit the current image in Tensaku and quit the viewer$/# Edit the current image in Omasnap and quit the viewer/' \
     -e 's/^# Edit the current image in Satty and quit the viewer$/# Edit the current image in Omasnap and quit the viewer/' \

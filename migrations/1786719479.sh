@@ -21,7 +21,12 @@ if omarchy-cmd-missing agy &&
 fi
 
 if [[ $selected_agent == "gemini" ]]; then
-  printf '%s\n' agy >"$agent_file"
+  if omarchy-config-symlinked "$agent_file"; then
+    echo "Preserving symlink-managed default agent: $agent_file"
+    echo "Change gemini to agy there, since the Gemini agent is gone."
+  else
+    printf '%s\n' agy >"$agent_file"
+  fi
 fi
 
 # Remove Preinstalls no longer lists gemini, so Omarchy's own wrapper would
