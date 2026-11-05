@@ -49,3 +49,13 @@ grep -q "about to fail" "$stdout_log" || fail "stdout logging mode emits script 
 grep -q "Failed: $failing_script (exit code: 1)" "$stdout_log" || fail "stdout logging mode emits failure marker"
 
 pass "run_logged records failures under errexit"
+
+mode_log="$work_dir/mode.log"
+(
+  export OMARCHY_INSTALL_LOG_FILE="$mode_log"
+  source "$ROOT/install/helpers/logging.sh"
+  start_install_log
+)
+mode=$(stat -c %a "$mode_log" 2>/dev/null || stat -f %Lp "$mode_log")
+[[ $mode == "644" ]] || fail "install log is not writable by other accounts" "mode=$mode"
+pass "install log is readable without being world-writable"
