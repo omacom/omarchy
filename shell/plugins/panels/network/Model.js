@@ -57,6 +57,41 @@ function connectivityState(kind, connectivity, states, checksEnabled) {
   return "unknown"
 }
 
+// NetworkManager probes connectivity from the device it considers the default
+// route owner. A VPN with a kill switch drops whatever leaves the physical
+// interface outside the tunnel, so that probe fails and the whole machine is
+// reported "limited" while the tunnel carries working traffic. NetworkManager
+// still tracks connectivity per device, and the tunnel reads "full" in that
+// state, so a connected tunnel reporting full is the machine having internet.
+var tunnelDeviceTypes = ["wireguard", "tun", "tap", "ip-tunnel", "vpn"]
+
+function isTunnelDeviceType(type) {
+  return tunnelDeviceTypes.indexOf(String(type || "").trim().toLowerCase()) > -1
+}
+
+// Reads `nmcli -t -f DEVICE,TYPE,STATE,IP4-CONNECTIVITY,IP6-CONNECTIVITY device`.
+// nmcli escapes separators in values with a backslash; device names with a
+// colon are the only field that can carry one, and that field is not used here.
+function tunnelHasFullConnectivity(raw) {
+  var lines = String(raw || "").split(/\r?\n/)
+  for (var i = 0; i < lines.length; i++) {
+    if (!lines[i]) continue
+    var parts = lines[i].split(":")
+    if (parts.length < 5) continue
+    if (!isTunnelDeviceType(parts[1])) continue
+    if (String(parts[2]).indexOf("connected") !== 0) continue
+    if (parts[3] === "full" || parts[4] === "full") return true
+  }
+  return false
+}
+
+// Only "limited" can be explained by the tunnel: a portal still needs signing
+// into, and "none" means there is no route at all.
+function effectiveConnectivity(connectivity, tunnelCarriesInternet) {
+  if (connectivity !== "limited" || !tunnelCarriesInternet) return connectivity
+  return "full"
+}
+
 function connectionIcon(kind, signalStrength, connectivity) {
   var restricted = connectivity === "portal" || connectivity === "limited"
   if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
@@ -422,6 +457,8 @@ if (typeof module !== "undefined") {
     connectedSignalStrength: connectedSignalStrength,
     parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,
+    effectiveConnectivity: effectiveConnectivity,
+    tunnelHasFullConnectivity: tunnelHasFullConnectivity,
     captivePortalUrl: captivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,
     formatHeaderFreq: formatHeaderFreq,

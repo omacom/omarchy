@@ -325,6 +325,7 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       refresh(true)
+      updateTunnelConnectivity()
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -502,10 +503,15 @@ Panel {
   // a second curl loop or mistaking an ordinary timeout for a captive portal.
   readonly property bool connectivityChecksEnabled: networkManagerAvailable
     && Networking.canCheckConnectivity && Networking.connectivityCheckEnabled
-  readonly property string connectivity: Model.connectivityState(kind, Networking.connectivity, {
+  readonly property string nmConnectivity: Model.connectivityState(kind, Networking.connectivity, {
     Portal: NetworkConnectivity.Portal, Limited: NetworkConnectivity.Limited,
     Full: NetworkConnectivity.Full, None: NetworkConnectivity.None
   }, connectivityChecksEnabled)
+  // NetworkManager binds its probe to the physical device, so a VPN with a
+  // kill switch fails it while the tunnel carries the machine's traffic. Ask
+  // the per-device state before calling that an outage.
+  property bool tunnelCarriesInternet: false
+  readonly property string connectivity: Model.effectiveConnectivity(nmConnectivity, tunnelCarriesInternet)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
@@ -518,6 +524,7 @@ Panel {
 
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
+  onNmConnectivityChanged: updateTunnelConnectivity()
   onHasCaptivePortalChanged: {
     if (hasCaptivePortal && opened && passwordSsid === "") {
       focusSection = "portal"
@@ -536,6 +543,18 @@ Panel {
     if (connectivityChecksEnabled && kind !== "disconnected") Networking.checkConnectivity()
   }
 
+  // Only "limited" needs the per-device read. It reruns on every aggregate
+  // change, on open, and when the device list changes, so a tunnel that drops
+  // mid-session stops clearing the warning instead of staying trusted.
+  function updateTunnelConnectivity() {
+    if (nmConnectivity !== "limited" || !connectivityChecksEnabled) {
+      tunnelCarriesInternet = false
+      return
+    }
+    if (tunnelConnectivityProc.running) return
+    tunnelConnectivityProc.running = true
+  }
+
   function openCaptivePortal() {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
@@ -548,12 +567,40 @@ Panel {
 
   // Keep checking while login is needed, even with the panel closed in favour
   // of the browser. Normal connected operation relies on NM's own schedule.
+  // A visible panel also rereads a tunnel verdict, since a tunnel that stops
+  // passing traffic need not change the aggregate NetworkManager reports.
   Timer {
     id: connectivityPoll
     interval: 10000
     repeat: true
-    running: root.restricted && root.connectivityChecksEnabled
-    onTriggered: root.checkConnectivity()
+    running: root.connectivityChecksEnabled
+      && (root.restricted || (root.opened && root.nmConnectivity === "limited"))
+    onTriggered: {
+      root.checkConnectivity()
+      root.updateTunnelConnectivity()
+    }
+  }
+
+  // NetworkManager reports connectivity per device as well as in aggregate.
+  // The tunnel's own value is what tells a kill-switching VPN apart from an
+  // outage on the physical link (see Model.tunnelHasFullConnectivity). A VPN
+  // coming or going adds or drops its device, which is the event this needs;
+  // while the panel is open the poll above rereads it too.
+  Process {
+    id: tunnelConnectivityProc
+    command: ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,IP4-CONNECTIVITY,IP6-CONNECTIVITY", "device"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (root.nmConnectivity !== "limited") return
+        root.tunnelCarriesInternet = Model.tunnelHasFullConnectivity(text)
+      }
+    }
+  }
+
+  Connections {
+    target: Networking.devices
+    function onValuesChanged() { root.updateTunnelConnectivity() }
   }
 
   // The share card is its own panel plugin (omarchy.wifiqr) so a replacement
@@ -910,7 +957,12 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Component.onCompleted: refresh()
+  Component.onCompleted: {
+    refresh()
+    // A VPN already up at login leaves the aggregate limited before the shell
+    // starts, so the change signal never fires for it.
+    updateTunnelConnectivity()
+  }
 
   // Pulls everything we want about the active route's interface in one shot.
   Process {

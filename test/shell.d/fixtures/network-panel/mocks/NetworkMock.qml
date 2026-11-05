@@ -11,7 +11,10 @@ QtObject {
   property int checks: 0
   function checkConnectivity() { checks++ }
 
-  property var devices: ({ values: [wifi] })
+  property var devices: devicesModel
+  property QtObject devicesModel: QtObject {
+    property var values: [wifi]
+  }
   property QtObject wifi: QtObject {
     property int type: DeviceType.Wifi
     property string name: "test-wifi"

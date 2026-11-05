@@ -224,4 +224,19 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// A VPN kill switch fails NetworkManager's device-bound probe, so the aggregate
+// reads "limited" while the tunnel still carries the machine. Only a connected
+// tunnel reporting full connectivity may clear that state.
+const nmcliDevices = 'enp4s0:ethernet:connected:limited:none\nnordlynx:wireguard:connected (externally):full:none\n'
+assert(network.tunnelHasFullConnectivity(nmcliDevices), 'network trusts a connected tunnel that reports full connectivity')
+assertEqual(network.effectiveConnectivity('limited', true), 'full', 'network reports internet when the tunnel carries it')
+assertEqual(network.effectiveConnectivity('limited', false), 'limited', 'network keeps an outage when no tunnel carries internet')
+assertEqual(network.effectiveConnectivity('portal', true), 'portal', 'network keeps a captive portal under a tunnel')
+assertEqual(network.effectiveConnectivity('none', true), 'none', 'network keeps a disconnected state under a tunnel')
+assertEqual(network.effectiveConnectivity('full', false), 'full', 'network leaves a full aggregate alone')
+assertEqual(network.tunnelHasFullConnectivity('nordlynx:wireguard:connected (externally):limited:none\n'), false, 'network does not trust a tunnel that reports limited connectivity')
+assertEqual(network.tunnelHasFullConnectivity('nordlynx:wireguard:disconnected:full:none\n'), false, 'network ignores a disconnected tunnel')
+assertEqual(network.tunnelHasFullConnectivity('enp4s0:ethernet:connected:full:none\n'), false, 'network never reads a physical link as a tunnel')
+assertEqual(network.tunnelHasFullConnectivity('tun0:tun:connected:limited:full\n'), true, 'network trusts IPv6-only tunnel connectivity')
 JS

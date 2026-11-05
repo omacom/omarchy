@@ -58,6 +58,10 @@ JS
   # Normal assertions keep the details empty to exercise missing-route handling.
   printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' >"$stage/bin/omarchy-network-status"
   chmod +x "$stage/bin/omarchy-network-status"
+  # Per-device connectivity, so the host's own VPN or outages never decide a
+  # fixture. A fixture that needs a tunnel replaces this stub.
+  printf '#!/bin/bash\nprintf "test-wifi:wifi:connected:limited:none\\n"\n' >"$stage/bin/nmcli"
+  chmod +x "$stage/bin/nmcli"
   printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' >"$stage/bin/omarchy-network-captive-portal"
   chmod +x "$stage/bin/omarchy-network-captive-portal"
 }
@@ -99,3 +103,21 @@ while IFS= read -r args; do
   [[ $args == "-t -f IN-USE,SIGNAL device wifi list ifname test-wifi --rescan no" ]] || fail "in-use access point read never rescans" "$args"
 done <"$stage/nmcli.log"
 pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use access point, and discards stale reads"
+
+stage_panel vpn-tunnel
+# A VPN with a kill switch: the physical link cannot reach the internet on its
+# own, the tunnel can. Only the first read reports the tunnel as full, so the
+# panel's own recheck exercises a tunnel that dropped while the aggregate
+# stayed limited.
+cat >"$stage/bin/nmcli" <<'SH'
+#!/bin/bash
+count=$(cat "$NETWORK_TEST_NMCLI_LOG.reads" 2>/dev/null || echo 0)
+count=$(( count + 1 ))
+printf '%s\n' "$count" >"$NETWORK_TEST_NMCLI_LOG.reads"
+tunnel=full
+(( count % 2 == 0 )) && tunnel=limited
+printf 'test-wifi:wifi:connected:limited:none\ntun0:wireguard:connected (externally):%s:none\n' "$tunnel"
+SH
+chmod +x "$stage/bin/nmcli"
+run_panel "network tunnel"
+pass "network clears a limited aggregate while a connected tunnel reports full connectivity, and restores it when the tunnel stops"
