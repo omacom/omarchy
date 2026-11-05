@@ -1,0 +1,12 @@
+# The HP ZBook Ultra G3a's firmware marks port 5 of the USB2 root hub on its
+# 1022:1588 xHCI controller as "not used", yet the port reports a connection
+# that never answers. Each time the hub resumes, the kernel spends ~30s retrying
+# that phantom device (descriptor read error -110, address error -62), and
+# every other device on the hub stalls behind it: the Elan fingerprint reader
+# on port 4 can't open, so enrollment times out before it asks for a touch.
+# Disabling the port stops the retries. The connect_type check keeps a port the
+# firmware says is wired up untouched. Matched on the hub's bind as well as
+# add: the ports exist only once the hub driver has probed.
+ACTION=="add|bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", DRIVER=="hub", KERNEL=="*-0:1.0", \
+  ATTR{[dmi/id]product_name}=="HP ZBook Ultra G3a*", ATTRS{vendor}=="0x1022", ATTRS{device}=="0x1588", \
+  RUN+="/bin/sh -c 'for p in /sys$devpath/usb*-port5; do grep -qx \"not used\" $$p/connect_type 2>/dev/null && echo 1 > $$p/disable; done; true'"

@@ -43,6 +43,8 @@
   "agents.switchedBody": "नए %1 सत्र अब %2 का उपयोग करते हैं (%3%)।\nचल रहे सत्र %4 पर ही रहेंगे।",
   "animations.disabled": "एनिमेशन अक्षम किया गया",
   "animations.enabled": "एनिमेशन सक्षम किया गया",
+  "animations.softwareRendering": "GPU के बिना एनिमेशन बंद",
+  "animations.softwareRenderingBody": "कोई GPU उपयोग में नहीं है, इसलिए एनिमेशन, ब्लर और परछाई बंद हैं। दिखावट > एनिमेशन चालू से इन्हें फिर चालू करें।",
   "audio.micMuted": "माइक्रोफ़ोन म्यूट",
   "audio.micOn": "माइक्रोफ़ोन चालू",
   "audio.noDevices": "कोई ऑडियो उपकरण नहीं मिला",

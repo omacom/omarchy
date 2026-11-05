@@ -43,6 +43,8 @@
   "agents.switchedBody": "Yeni %1 oturumları artık %2 kullanıyor (%%3).\nÇalışan oturumlar %4 hesabında kalıyor.",
   "animations.disabled": "Animasyonlar devre dışı",
   "animations.enabled": "Animasyonlar etkin",
+  "animations.softwareRendering": "GPU olmadan animasyonlar kapalı",
+  "animations.softwareRenderingBody": "GPU kullanılmadığından animasyonlar, bulanıklık ve gölgeler kapalı. Görünüm > Animasyonlar Açık ile geri getirebilirsiniz.",
   "audio.micMuted": "Mikrofon sessize alındı",
   "audio.micOn": "Mikrofon açık",
   "audio.noDevices": "Ses aygıtı bulunamadı",

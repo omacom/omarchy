@@ -47,6 +47,8 @@
   "agents.switchedBody": "جلسات %1 الجديدة تستخدم الآن %2 (%3%).\nتبقى الجلسات الجارية على %4.",
   "animations.disabled": "عُطّلت الرسوم المتحركة",
   "animations.enabled": "فُعّلت الرسوم المتحركة",
+  "animations.softwareRendering": "الرسوم المتحركة معطّلة بدون GPU",
+  "animations.softwareRenderingBody": "لا توجد GPU مستخدمة، فعُطّلت الرسوم المتحركة والضبابية والظلال. فعّلها من المظهر > تفعيل الرسوم المتحركة.",
   "audio.micMuted": "الميكروفون مكتوم",
   "audio.micOn": "الميكروفون مفتوح",
   "audio.noDevices": "لم يُعثر على أجهزة صوتية",

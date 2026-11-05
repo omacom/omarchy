@@ -43,6 +43,8 @@
   "agents.switchedBody": "نشست‌های جدید %1 اکنون از %2 (%3%) استفاده می‌کنند.\nنشست‌های در حال اجرا روی %4 باقی می‌مانند.",
   "animations.disabled": "پویانمایی غیرفعال شد",
   "animations.enabled": "پویانمایی فعال شد",
+  "animations.softwareRendering": "پویانمایی بدون GPU خاموش است",
+  "animations.softwareRenderingBody": "GPU در حال استفاده نیست، پس پویانمایی، تاری و سایه‌ها خاموش‌اند. ظاهر > پویانمایی روشن آن‌ها را برمی‌گرداند.",
   "audio.micMuted": "میکروفون بی‌صدا",
   "audio.micOn": "میکروفون روشن",
   "audio.noDevices": "دستگاه صوتی یافت نشد",

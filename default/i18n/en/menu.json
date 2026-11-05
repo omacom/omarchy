@@ -821,6 +821,9 @@
   "install.service.nordvpn": {
     "label": "NordVPN"
   },
+  "install.service.notion": {
+    "label": "Notion"
+  },
   "install.service.once": {
     "label": "ONCE"
   },
