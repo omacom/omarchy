@@ -652,7 +652,7 @@ Item {
       label: ready ? Commons.I18n.formatNumber(currencyLookup.value) + " " + currencyLookup.to : waiting,
       // Short enough that the rates' date survives the row's width, while still
       // showing how the text was read ("$" as USD).
-      detail: ready ? Commons.I18n.formatNumber(currencyLookup.amount) + " " + currencyLookup.from + " · " + currencyLookup.date : root.filterText.trim(),
+      detail: ready ? Commons.I18n.formatNumber(currencyLookup.amount) + " " + currencyLookup.from + (currencyLookup.date ? " · " + currencyLookup.date : "") : root.filterText.trim(),
       action: ready ? "wl-copy -- " + currencyLookup.value : ""
     }
   }
