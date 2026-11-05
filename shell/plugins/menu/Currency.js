@@ -14,7 +14,9 @@ var ALIASES = {
 }
 
 var CURRENCY = "((?:[a-z]{1,2}\\$)|[$€£₹¥₩₽₺₫₱฿]|[a-z][a-z0-9]{1,7}?\\.?)"
-var AMOUNT = "(\\d[\\d,]*(?:\\.\\d+)?|\\.\\d+)"
+// Commas only as thousands groups, Indian ones included. "1,25" is a decimal in
+// much of the world, so it stays a search rather than becoming 125.
+var AMOUNT = "((?:\\d{1,3}(?:,\\d{2,3})*,\\d{3}|\\d+)(?:\\.\\d+)?|\\.\\d+)"
 var AMOUNT_FIRST = new RegExp("^" + AMOUNT + "\\s*" + CURRENCY + "$")
 var CURRENCY_FIRST = new RegExp("^" + CURRENCY + "\\s*" + AMOUNT + "$")
 var CURRENCY_ALONE = new RegExp("^" + CURRENCY + "$")

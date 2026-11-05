@@ -440,11 +440,13 @@ for (const [text, amount, from, to] of [
   ['₹100 in $', 100, 'inr', 'usd'],
   ['100 rupees to dollars', 100, 'inr', 'usd'],
   ['how much is $5 in inr?', 5, 'usd', 'inr'],
-  ['usd to inr', 1, 'usd', 'inr']
+  ['usd to inr', 1, 'usd', 'inr'],
+  ['1,000.50 JPY into GBP', 1000.5, 'jpy', 'gbp'],
+  ['1,00,000 inr to usd', 100000, 'inr', 'usd']
 ]) {
   assertDeepEqual(currency.parse(text), { amount, from, to }, `the menu reads the conversion "${text}"`)
 }
-for (const text of ['zen', '100 inr', '$5', '100 inr to', 'to usd', '$(id) to usd', '5 usd to $(id)']) {
+for (const text of ['zen', '100 inr', '$5', '100 inr to', '1,25 USD to EUR', 'to usd', '$(id) to usd', '5 usd to $(id)']) {
   assertEqual(currency.parse(text), null, `the menu leaves "${text}" to search`)
 }
 assertEqual(currency.format(1.0578803), '1.06', 'a conversion rounds money to two places')
