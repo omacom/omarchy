@@ -50,22 +50,26 @@ done
 # Like Hex: control commands exit 3 until `hex start` brings it up, and
 # `stop --print` hands back the transcript instead of pasting it.
 export HEX_STATE="$test_tmp/hex-state"
-echo listening > "$HEX_STATE"
+echo idle > "$HEX_STATE"
 cat > "$test_tmp/bin/hex" <<'SH'
 #!/bin/bash
 [[ $1 == "status" ]] || printf 'hex %s\n' "$*" >> "$DICTATION_LOG"
 if [[ $1 == "model" ]]; then
   exit "${HEX_MODEL_EXIT:-0}"
 elif [[ $1 == "start" ]]; then
-  echo listening > "$HEX_STATE"
+  echo idle > "$HEX_STATE"
 elif [[ ! -e $HEX_STATE ]]; then
   exit 3
 elif [[ $1 == "status" ]]; then
-  printf '{"desktop":{"activity":{"state":"%s"}}}\n' "$(< "$HEX_STATE")"
+  # Hex 3.3 answers --json with the state under capture, and renames a recording
+  # to "recording"; plain `hex status` is prose, so an adapter that forgets
+  # --json reads nothing.
+  [[ $2 == "--json" ]] || { printf 'Capture      %s\n' "$(< "$HEX_STATE")"; exit 0; }
+  printf '{"capture":{"state":"%s"}}\n' "$(< "$HEX_STATE")"
 elif [[ $* == "dictation start" ]]; then
-  echo dictating > "$HEX_STATE"
+  echo recording > "$HEX_STATE"
 elif [[ $* == "dictation stop --print" ]]; then
-  echo listening > "$HEX_STATE"
+  echo idle > "$HEX_STATE"
   echo hello
 fi
 SH
