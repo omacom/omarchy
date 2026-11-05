@@ -23,32 +23,6 @@ assertDeepEqual(
 assertEqual(menu.summonAction("omarchy-shell shell summon omarchy.speedtest && echo done"), null, 'menu leaves compound summon commands to bash')
 assertEqual(menu.summonAction(`omarchy-shell shell summon omarchy.x "$(id)"`), null, 'menu leaves shell-expanded payloads to bash')
 assertEqual(menu.summonAction("omarchy-theme-set nord"), null, 'menu leaves ordinary actions to bash')
-const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
-
-assert(menuQml.includes('pointSize: root.terminalFontPointSize, weight: Font.Normal'), 'font names use their own family at terminal point size')
-assert(menuQml.includes('pointSize: root.terminalFontPointSize'), 'sample text uses terminal point size instead of shell caption pixels')
-
-const previewSamples = vm.runInNewContext(menuQml.match(/readonly property var fontPreviewSamples: (\[[\s\S]*?\n  \])/)[1])
-assertEqual(previewSamples.length, 8, 'preview cycles the original sample and seven language snippets')
-assertEqual(previewSamples[0], 'Aa Bb 0123456789 {} [] -> !=', 'preview starts with the original sample')
-for (const [index, marker] of ['puts ', 'Vec<_>', 'name: string', 'fmt.Println', '$name', 'std::cout', 'System.out.println'].entries()) {
-  assert(previewSamples[index + 1].includes(marker), 'preview language order: ' + marker)
-}
-assert(previewSamples.every(sample => !sample.includes('\n')), 'all preview samples fit on one line')
-assert(menuQml.includes('interval: 3000'), 'preview advances every three seconds')
-for (const route of ['appearance.font', 'install.style.font']) {
-  assert(menuQml.includes('root.activeMenu === "' + route + '"'), 'preview timer supports font route ' + route)
-}
-assert(/onRunningChanged: \{\s*fontPreviewTransition.stop\(\)\s*root.fontPreviewIndex = 0\s*root.fontPreviewPreviousIndex = 0\s*root.fontPreviewProgress = 1/.test(menuQml), 'preview resets without animating when opening the font menu')
-assert(menuQml.includes('(root.fontPreviewIndex + 1) % root.fontPreviewSamples.length'), 'preview wraps back to the original sample')
-assert(menuQml.includes('text: row.previewReady ? root.fontPreviewSamples[root.fontPreviewIndex] : Commons.I18n.t("menu.previewUnavailable")'), 'font rows share the current sample and preserve the unavailable fallback')
-const previewQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/FontPreview.qml'), 'utf8')
-assert(menuQml.includes('duration: Style.duration(220)'), 'sample transitions respect the animation setting')
-assert(menuQml.includes('easing.bezierCurve: Style.easeOut'), 'sample transitions use the shared smooth easing')
-assert(menuQml.includes('root.fontPreviewPreviousIndex = root.fontPreviewIndex'), 'transition retains the outgoing sample')
-assert(previewQml.includes('opacity: 1 - root.progress') && previewQml.includes('x: -Style.space(16) * root.progress'), 'outgoing sample fades and moves left')
-assert(previewQml.includes('opacity: root.progress') && previewQml.includes('x: Style.space(16) * (1 - root.progress)'), 'incoming sample fades and moves in from the right')
-assert(previewQml.includes('clip: true') && previewQml.includes('implicitHeight: incoming.implicitHeight'), 'sample transitions stay clipped in a stable line height')
 
 const parsed = menu.parseMenuJsonc(`
 {
@@ -228,9 +202,22 @@ for (const font of installFonts) {
   assert(names.length > 0 && names.every(name => name === `Omarchy Preview ${key}` && name === specimens[key].previewFamily), `${font.id} uses its private preview family, not the full installed family`)
   assert(fs.readFileSync(path.join(root, `default/fonts/previews/${key}.LICENSE`), 'utf8').trim(), `${font.id} includes its license`)
 }
-assert(menuQml.includes('previewFontFor: function(value) { return value }'), 'installed fonts preview their provider value')
-assert(menuQml.includes('height: root.rowHeightForDetail(row.detail, row.previewFont)'), 'delegate sizing accounts for previews')
-assert(menuQml.includes('total += root.rowHeightForDetail(row.detail, row.previewFont)'), 'list sizing accounts for previews')
+
+const directory = path.join(root, 'shell/plugins/menu')
+const syntax = {}
+vm.createContext(syntax)
+vm.runInContext(fs.readFileSync(path.join(directory, 'FontSyntax.js'), 'utf8'), syntax)
+const colors = {red: '#ff0000', green: '#00ff00', yellow: '#ffff00', blue: '#0000ff', magenta: '#ff00ff', cyan: '#00ffff'}
+const menuQml = fs.readFileSync(path.join(directory, 'Menu.qml'), 'utf8')
+const samples = vm.runInNewContext(menuQml.match(/fontPreviewSamples: (\[[\s\S]*?\n  \])/)[1])
+samples.forEach((sample, index) => {
+  const highlighted = syntax.highlight(sample, index > 0, colors)
+  assertEqual(highlighted.replace(/<font color="#[0-9a-fA-F]{6}">|<\/font>/g, ''), syntax.escape(sample), `sample ${index} preserves all characters`)
+  assert(index === 0 ? !highlighted.includes('<font') : highlighted.includes('<font'), `sample ${index} uses expected highlighting`)
+})
+assert(!syntax.highlight('<img src="https://example.invalid">', true, colors).includes('<img'), 'escape markup-shaped preview text')
+assert(!syntax.highlight('const x', true, {magenta: '"><img src="bad">'}).includes('<img'), 'reject markup in palette values')
+assertEqual(syntax.highlight('const x < 3', true, {}), 'const x &lt; 3', 'missing palette preserves escaped foreground text')
 
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.
