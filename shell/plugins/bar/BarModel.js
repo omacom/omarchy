@@ -662,7 +662,7 @@ function peeksAt(position, edge, vertical) {
 }
 
 // Revealing the indicators can move the center box's start: beside a display
-// notch the center sections hang off the right section, so indicators in
+// notch the center sections run back from the end of the bar, so indicators in
 // centerEnd or the right section pull it toward the start. An edge that
 // followed would slip out from under a stationary pointer and close the peek,
 // and closing would slide it back and reopen it. So the edge is measured only
