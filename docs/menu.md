@@ -148,7 +148,7 @@ it with `provider:`.
 
 The `fonts` provider sets `previewFont` to the installed family. The Install > Style > Font entries additionally specify `previewFontFile`, so their previews work offline before installation. A missing font or failed asset load shows “Preview unavailable” rather than presenting the menu's fallback as a specimen. Actions, checks, and search text are independent of preview metadata.
 
-Both the font name and specimen use the previewed family at the configured default terminal's point size, not the shell's heading or caption pixel sizes. The menu detects the terminal on open and watches its standard configuration file for size changes (Ghostty, Kitty, Alacritty, and Foot). This previews the saved size, not temporary per-window zoom; missing settings use Omarchy's shipped 9 pt default.
+Both the font name and specimen use the previewed family at the point size `omarchy-display-text-size` gives terminals (the shell's base text size × 9 / 12, rounded to the nearest integer, so 9 pt by default), not the shell's heading or caption pixel sizes. The preview updates live when the text size changes; hand-edits to terminal configurations are not reflected.
 
 Bundled specimens live in `default/fonts/previews/`. They contain printable ASCII from regular-weight Nerd Fonts v3.4.0, including shaping rules, and use distinct `Omarchy Preview N` family names so they cannot shadow full installed fonts or violate reserved-name requirements. They are loaded only into the shell process and never installed into fontconfig. See the adjacent licenses and `README.md` for sources and regeneration instructions.
 

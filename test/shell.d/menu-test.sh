@@ -23,17 +23,8 @@ assertDeepEqual(
 assertEqual(menu.summonAction("omarchy-shell shell summon omarchy.speedtest && echo done"), null, 'menu leaves compound summon commands to bash')
 assertEqual(menu.summonAction(`omarchy-shell shell summon omarchy.x "$(id)"`), null, 'menu leaves shell-expanded payloads to bash')
 assertEqual(menu.summonAction("omarchy-theme-set nord"), null, 'menu leaves ordinary actions to bash')
-const terminalFont = requireFromRoot('shell/plugins/menu/TerminalFont.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
 
-assertEqual(terminalFont.pointSize('ghostty', '# font-size = 99\nfont-size = 10\n'), 10, 'preview reads Ghostty point size, not comments')
-assertEqual(terminalFont.pointSize('ghostty', 'font-size = 10\nfont-size = 12.5 # override'), 12.5, 'preview uses the last configured fractional size')
-assertEqual(terminalFont.pointSize('kitty', 'font_size   11.5'), 11.5, 'preview reads Kitty point size')
-assertEqual(terminalFont.pointSize('alacritty', '[window]\nsize = 99\n[font]\nsize = 10.5\n[other]\nsize = 42'), 10.5, 'preview reads only the Alacritty font section')
-assertEqual(terminalFont.pointSize('foot', '[main]\nfont=Example:size=12,Other:size=20\n[other]\nfont=Example:size=99'), 12, 'preview reads the primary Foot font size')
-assertEqual(terminalFont.pointSize('ghostty', 'font-size = 0\nfont-size = invalid'), 9, 'invalid or missing sizes fall back to the Omarchy default')
-assertEqual(terminalFont.configPath('ghostty'), 'ghostty/config', 'preview locates the default terminal configuration')
-assertEqual(terminalFont.configPath('unknown'), '', 'unsupported terminals have no guessed config path')
 assert(menuQml.includes('pointSize: root.terminalFontPointSize, weight: Font.Normal'), 'font names use their own family at terminal point size')
 assert(menuQml.includes('pointSize: root.terminalFontPointSize'), 'sample text uses terminal point size instead of shell caption pixels')
 

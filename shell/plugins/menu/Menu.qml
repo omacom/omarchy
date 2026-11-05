@@ -6,7 +6,6 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
-import "TerminalFont.js" as TerminalFont
 
 Item {
   id: root
@@ -21,7 +20,6 @@ Item {
   property string pendingInitialMenu: "root"
 
   function open(payloadJson) {
-    if (!terminalFontProc.running) terminalFontProc.running = true
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
@@ -52,8 +50,8 @@ Item {
   function ping() { return "ok" }
 
   property string fontFamily: Style.font.menuFamily
-  property string previewTerminal: ""
-  property real terminalFontPointSize: 9
+  // Match the px-to-pt mapping in bin/omarchy-display-text-size.
+  readonly property real terminalFontPointSize: Math.round(Style.font.baseSize * 9 / 12)
   readonly property var fontPreviewSamples: [
     "Aa Bb 0123456789 {} [] -> !=",
     'puts [1, 2, 3].map { |n| n * 2 }',
@@ -98,35 +96,12 @@ Item {
     }
   }
 
-  Component.onCompleted: terminalFontProc.running = true
-
   FontMetrics {
     id: terminalFontMetrics
     font.family: root.fontFamily
     font.pointSize: root.terminalFontPointSize
   }
 
-  Process {
-    id: terminalFontProc
-    command: ["omarchy-default-terminal"]
-    stdout: StdioCollector {
-      onStreamFinished: {
-        root.previewTerminal = text.trim()
-        terminalFontConfig.reload()
-      }
-    }
-  }
-
-  FileView {
-    id: terminalFontConfig
-    path: TerminalFont.configPath(root.previewTerminal)
-      ? (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/" + TerminalFont.configPath(root.previewTerminal) : ""
-    watchChanges: true
-    printErrors: false
-    onLoaded: root.terminalFontPointSize = TerminalFont.pointSize(root.previewTerminal, text())
-    onLoadFailed: root.terminalFontPointSize = 9
-    onFileChanged: reload()
-  }
   // JSONC menu definitions. The shell parses both at startup and merges
   // the user file on top of the defaults, so the keybind → IPC → visible
   // path doesn't have to shell out to bash + jq on every open.
