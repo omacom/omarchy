@@ -1,0 +1,175 @@
+#!/bin/bash
+
+# omarchy:summary=Draw block or braille ASCII art as a PNG logo for the boot unlock screen
+# omarchy:args=<input-art.txt> <output.png> [--color <hex>]
+# omarchy:examples=omarchy transcode logo ~/.config/omarchy/branding/screensaver.txt ~/logo.png --color '#7aa2f7'
+
+set -o pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-transcode-logo <input-art.txt> <output.png> [options]
+
+Draws ASCII art as a PNG logo, the way the Omarchy wordmark is drawn on the
+boot unlock screen: every character cell becomes 10x20 pixels, so the stock
+screensaver art comes back as the logo the themes ship.
+
+The art can use block characters (█ ▀ ▄ ▌ ▐ and the quadrants) and braille,
+which is what omarchy-ascii and omarchy-transcode-ascii write. Any other
+character has no pixels to draw and is named on stderr.
+
+Options:
+  -c, --color <hex>  Logo color as #RRGGBB (default: #ffffff)
+      --help         Show this help
+EOF
+}
+
+color="#ffffff"
+art_path=""
+output_path=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --help)
+    usage
+    exit 0
+    ;;
+  -c | --color)
+    shift
+    [[ -n $1 ]] || { echo "Missing value for --color" >&2; exit 1; }
+    color="$1"
+    ;;
+  -*)
+    echo "Unknown option: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+  *)
+    if [[ -z $art_path ]]; then
+      art_path="$1"
+    elif [[ -z $output_path ]]; then
+      output_path="$1"
+    else
+      echo "Unexpected argument: $1" >&2
+      usage >&2
+      exit 1
+    fi
+    ;;
+  esac
+  shift
+done
+
+if [[ -z $art_path || -z $output_path ]]; then
+  usage >&2
+  exit 1
+fi
+
+if [[ ! $color =~ ^#[0-9a-fA-F]{6}$ ]]; then
+  echo "Invalid color: $color (expected #RRGGBB)" >&2
+  exit 1
+fi
+
+if [[ ! -f $art_path ]]; then
+  echo "Art file not found: $art_path" >&2
+  exit 1
+fi
+
+tmp_dots=$(mktemp)
+tmp_output=$(mktemp --suffix=.png)
+trap 'rm -f "$tmp_dots" "$tmp_output"' EXIT
+
+# Every cell is a 2x4 grid of dots, the resolution of braille. A block quadrant
+# covers 1x2 of them, so ▀ and ▄ are the top and bottom halves of a cell. awk
+# reads the art as characters, which needs a UTF-8 locale whatever the caller's
+# is, and writes the inked dots, cropped to the art, as a PBM.
+if ! LC_ALL=C.UTF-8 awk '
+  BEGIN {
+    # Quadrant bits: 1 top-left, 2 top-right, 4 bottom-left, 8 bottom-right.
+    split("▘ ▝ ▀ ▖ ▌ ▞ ▛ ▗ ▚ ▐ ▜ ▄ ▙ ▟ █", glyphs, " ")
+    for (bits = 1; bits <= 15; bits++) {
+      quadrant[glyphs[bits]] = bits
+    }
+    quadrant[" "] = 0
+
+    # Braille dots 1-8 by bit, as (column, row) within the cell.
+    braille_x[0] = 0; braille_y[0] = 0
+    braille_x[1] = 0; braille_y[1] = 1
+    braille_x[2] = 0; braille_y[2] = 2
+    braille_x[3] = 1; braille_y[3] = 0
+    braille_x[4] = 1; braille_y[4] = 1
+    braille_x[5] = 1; braille_y[5] = 2
+    braille_x[6] = 0; braille_y[6] = 3
+    braille_x[7] = 1; braille_y[7] = 3
+    for (code = 0; code < 256; code++) {
+      braille[sprintf("%c", 10240 + code)] = code
+    }
+
+    min_x = min_y = -1
+  }
+
+  function ink(x, y) {
+    dot[y, x] = 1
+    if (min_x < 0 || x < min_x) min_x = x
+    if (x > max_x) max_x = x
+    if (min_y < 0 || y < min_y) min_y = y
+    if (y > max_y) max_y = y
+  }
+
+  {
+    sub(/\r$/, "")
+    for (column = 1; column <= length($0); column++) {
+      char = substr($0, column, 1)
+      x = (column - 1) * 2
+      y = (NR - 1) * 4
+
+      if (char in quadrant) {
+        bits = quadrant[char]
+        if (and(bits, 1)) { ink(x, y); ink(x, y + 1) }
+        if (and(bits, 2)) { ink(x + 1, y); ink(x + 1, y + 1) }
+        if (and(bits, 4)) { ink(x, y + 2); ink(x, y + 3) }
+        if (and(bits, 8)) { ink(x + 1, y + 2); ink(x + 1, y + 3) }
+      } else if (char in braille) {
+        code = braille[char]
+        for (bit = 0; bit < 8; bit++) {
+          if (and(code, 2 ^ bit)) ink(x + braille_x[bit], y + braille_y[bit])
+        }
+      } else if (!(char in undrawable)) {
+        undrawable[char] = 1
+        undrawable_list = undrawable_list (undrawable_list == "" ? "" : " ") char
+      }
+    }
+  }
+
+  END {
+    if (undrawable_list != "") {
+      print "Only block characters and braille can be drawn as a logo, not: " undrawable_list > "/dev/stderr"
+      exit 1
+    }
+
+    if (min_x < 0) {
+      print "No logo pixels found in: " FILENAME > "/dev/stderr"
+      exit 1
+    }
+
+    printf "P1\n%d %d\n", max_x - min_x + 1, max_y - min_y + 1
+    for (y = min_y; y <= max_y; y++) {
+      line = ""
+      for (x = min_x; x <= max_x; x++) {
+        line = line (((y, x) in dot) ? "1 " : "0 ")
+      }
+      print line
+    }
+  }
+' "$art_path" >"$tmp_dots"; then
+  exit 1
+fi
+
+# Each dot becomes 5x5 pixels in the logo color, on transparency.
+if ! magick pbm:"$tmp_dots" -negate -sample 500% -background "$color" -alpha shape "PNG32:$tmp_output"; then
+  echo "Unable to draw a logo from: $art_path" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$output_path")"
+cp "$tmp_output" "$output_path"
+echo "Wrote logo to $output_path"
