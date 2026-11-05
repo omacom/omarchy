@@ -51,6 +51,13 @@ for wrapper in "$bin_dir"/*; do
 
   [[ -n $package && -n $bin ]] || continue
 
+  # A hand-edited wrapper can run a command substitution where the bin name
+  # goes, like "$(mise which gh)". Read back as a bin name it would be escaped
+  # into a literal and break the wrapper, so leave those alone.
+  case $package$bin in
+  *'$'* | *'`'* | *'"'* | *'\'* | *'!'*) continue ;;
+  esac
+
   # The whole file has to be one of those forms exactly. A wrapper someone has
   # added a line to is left as it is rather than silently regenerated without
   # that line, and one already carrying --quiet matches nothing here, which is
