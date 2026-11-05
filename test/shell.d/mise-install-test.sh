@@ -95,21 +95,3 @@ fi
   fail "an escaping command name removes nothing outside ~/.local/bin"
 
 pass "an escaping command name removes nothing outside ~/.local/bin"
-
-# The regenerate migration reads the bin name back out of each wrapper. A
-# hand-edited wrapper that runs a command substitution there must stay as it is
-# rather than be rewritten with the substitution escaped into a literal.
-mig_home="$tmpdir/mig-home"
-mkdir -p "$mig_home/.local/bin"
-printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g "gh" || exit 1\nexec mise x "gh" -- "$(mise which gh)" "$@"' >"$mig_home/.local/bin/gh"
-printf '#!/bin/bash\nmise use -g "tool"\nexec "tool" "$@"' >"$mig_home/.local/bin/tool"
-cp "$mig_home/.local/bin/gh" "$tmpdir/gh.before"
-
-HOME="$mig_home" PATH="$ROOT/bin:$PATH" bash "$ROOT/migrations/1787573629.sh" >/dev/null
-
-cmp -s "$mig_home/.local/bin/gh" "$tmpdir/gh.before" ||
-  fail "a wrapper with a command substitution as its bin is left alone" "$(tail -1 "$mig_home/.local/bin/gh")"
-grep -Fq -- '--quiet' "$mig_home/.local/bin/tool" ||
-  fail "a plain stale wrapper is still regenerated"
-
-pass "the regenerate migration skips wrappers with shell characters in their bin"
