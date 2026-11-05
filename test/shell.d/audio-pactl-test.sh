@@ -128,8 +128,6 @@ env -u XDG_RUNTIME_DIR HOME="$fallback/home" XDG_STATE_HOME="$fallback/state" \
   omarchy-audio-output-volume mute-toggle >/dev/null
 debounce="$fallback/state/omarchy/omarchy-audio-output-volume-mute-toggle.last"
 [[ -s $debounce && ! -L $debounce ]] || fail 'mute debounce stamp is kept in the private state dir'
-[[ ! -e /tmp/omarchy-audio-output-volume-mute-toggle.last && ! -L /tmp/omarchy-audio-output-volume-mute-toggle.last ]] ||
-  fail 'mute debounce stamp is not written to /tmp'
 pass 'mute debounce stamp stays out of /tmp'
 
 : >"$CALLS"

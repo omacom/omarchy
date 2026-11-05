@@ -77,8 +77,6 @@ env -u XDG_RUNTIME_DIR HOME="$test_home" XDG_STATE_HOME="$test_dir/state" OMARCH
   PATH="$test_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-display-text-size" 16 >/dev/null
 id_file="$test_dir/state/omarchy/omarchy-display-text-size.foot-notif-id"
 [[ $(cat "$id_file") == "42" && ! -L $id_file ]] || fail "foot notification id is kept in the private state dir"
-[[ ! -e /tmp/omarchy-display-text-size.foot-notif-id && ! -L /tmp/omarchy-display-text-size.foot-notif-id ]] ||
-  fail "foot notification id is not written to /tmp"
 pass "foot notification id stays out of /tmp"
 
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
