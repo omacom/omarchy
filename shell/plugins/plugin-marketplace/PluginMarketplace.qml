@@ -48,6 +48,16 @@ Item {
       selectedPlugin.stars != null ? Commons.I18n.t("marketplace.stars").arg(Commons.I18n.formatNumber(selectedPlugin.stars, 0)) : ""
     ].filter(Boolean).join(" · ")
   }
+  // The model returns catalog keys, since it has no translator; this is where
+  // they become words, so a language change re-renders both lines.
+  readonly property string badgeLine: {
+    if (!selectedPlugin) return ""
+    var keys = MarketplaceModel.badges(selectedPlugin)
+    var text = []
+    for (var i = 0; i < keys.length; i++) text.push(marketplaceText(keys[i]))
+    return text.join(" · ")
+  }
+  readonly property string primaryActionText: selectedPlugin ? marketplaceText(MarketplaceModel.primaryAction(selectedPlugin).labelKey) : ""
   readonly property var selectedPreviewImages: selectedPlugin ? selectedPlugin.previewImages : []
   readonly property string selectedPreview: selectedPreviewImages.length > 0 ? selectedPreviewImages[Math.max(0, Math.min(previewIndex, selectedPreviewImages.length - 1))] : (selectedPlugin ? selectedPlugin.previewPath : "")
 
@@ -190,7 +200,7 @@ Item {
         anchors.bottomMargin: card.contentBottomInset
         anchors.leftMargin: card.contentLeftInset
         spacing: Style.spacing.md
-        Text { text: Commons.I18n.t("marketplace.title"); color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+        Text { text: Commons.I18n.t("marketplace.title"); textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
         TextField {
           id: search
           width: parent.width
@@ -251,6 +261,7 @@ Item {
                 anchors.topMargin: Style.spacing.xs
                 visible: root.selectedIndex == pluginRow.rowIndex
                 text: Commons.I18n.t("marketplace.selected").toUpperCase()
+                textFormat: Text.PlainText
                 color: root.accent
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -263,6 +274,7 @@ Item {
                 anchors.bottomMargin: Style.spacing.xs
                 visible: modelData.installed
                 text: Commons.I18n.t("marketplace.installedBadge").toUpperCase()
+                textFormat: Text.PlainText
                 color: root.accent
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -311,7 +323,7 @@ Item {
                   anchors.fill: parent
                   visible: !preview.visible
                   color: Util.alpha(root.foreground, 0.06)
-                  Text { anchors.centerIn: parent; text: Commons.I18n.t("marketplace.noPreview"); color: Qt.darker(root.foreground, 1.4); font.family: Style.font.family }
+                  Text { anchors.centerIn: parent; text: Commons.I18n.t("marketplace.noPreview"); textFormat: Text.PlainText; color: Qt.darker(root.foreground, 1.4); font.family: Style.font.family }
                 }
                 MouseArea { anchors.fill: parent; enabled: preview.visible; cursorShape: Qt.PointingHandCursor; onClicked: root.previewExpanded = true }
                 Button { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; visible: root.selectedPreviewImages.length > 1; focusable: true; text: "‹"; onClicked: root.previousPreview() }
@@ -325,9 +337,17 @@ Item {
               }
               Text { width: parent.width; text: root.selectedPlugin ? root.selectedPlugin.description : ""; textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight }
               Text { width: parent.width; text: root.metadataLine; textFormat: Text.PlainText; color: Qt.darker(root.foreground, 1.35); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
-              Text { width: parent.width; text: root.selectedPlugin ? MarketplaceModel.badges(root.selectedPlugin).map(function(key) { return root.marketplaceText(key) }).join(" · ") : ""; textFormat: Text.PlainText; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
+              Text {
+                width: parent.width
+                text: root.badgeLine
+                textFormat: Text.PlainText
+                color: root.accent
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                font.bold: true
+              }
               property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin) : ({ labelKey: "", operation: "" })
-              Button { text: root.marketplaceText(parent.primaryAction.labelKey); bordered: true; focusable: true; onClicked: root.choose(parent.primaryAction.operation) }
+              Button { text: root.primaryActionText; bordered: true; focusable: true; onClicked: root.choose(parent.primaryAction.operation) }
               Button { visible: root.selectedPlugin && root.selectedPlugin.installed; focusable: true; text: Commons.I18n.t("marketplace.uninstall"); onClicked: root.choose("remove") }
               }
             }
