@@ -2347,7 +2347,9 @@ Item {
       pool: sections.pool
       region: "centerBegin"
       fixedEdge: "end"
-      x: root.vertical ? Math.round((sections.width - width) / 2) : centerBox.x - width
+      // Beside the right section it starts the sections, before the gap the
+      // right section sits in, rather than butting against the center box.
+      x: root.vertical ? Math.round((sections.width - width) / 2) : (sections.besideRight ? 0 : centerBox.x - width)
       y: root.vertical ? centerBox.y - height : Math.round((sections.height - height) / 2)
     }
 
