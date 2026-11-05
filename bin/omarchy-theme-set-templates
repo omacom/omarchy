@@ -304,8 +304,8 @@ apply_shell_section_override() {
   rm "$body"
 }
 
-# Collect the shell.<section>.toml files a theme ships, once, so rendering and
-# merging work on the same list. Only files with a plain section name merge.
+# Collect the staged shell.<section>.toml files that merge: regular files with a
+# plain section name.
 find_shell_section_overrides() {
   local override section
 
@@ -323,6 +323,9 @@ find_shell_section_overrides() {
 apply_shell_section_overrides() {
   local override
 
+  # Collect again: user templates such as shell.lock.toml.tpl render new
+  # section overrides after the first collection.
+  find_shell_section_overrides
   for override in "${shell_overrides[@]}"; do
     apply_shell_section_override "$override"
   done
