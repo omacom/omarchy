@@ -1,8 +1,36 @@
 # Mac support
 
-Omarchy has built-in support for **Intel Macs**. There are a couple of known limitations at the moment, but as long as you're aware and OK with those; you can breathe some new life into your old Macs by loading Omarchy.
+## Apple Silicon Macs
 
-Please note that installing on an M-series Mac is not directly supported at this time. You can find out more about the state of this in #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY).
+Omarchy installs on M1, M2 and M3 MacBooks, both Air and Pro, and on the MacBook Neo. It goes next to macOS rather than replacing it, so you keep macOS and choose between the two when your Mac starts. Support for M4 and newer Macs is being worked on.
+
+### What you need
+
+- macOS 15 Sequoia or later
+- Free disk space for Omarchy. The installer suggests a size and lets you change it.
+- A backup of your Mac, power, and an internet connection. The install downloads several gigabytes.
+
+### Installing
+
+Download the [Omarchy M Installer](https://github.com/omacom/omarchy-mac-installer/releases) and open it, or install it with [Homebrew](https://brew.sh):
+
+```sh
+brew install omacom/mac/omarchy
+```
+
+The installer checks your Mac, shows you the plan, and makes room for Omarchy by shrinking the macOS partition. No USB drive is needed and macOS isn't wiped. When the first stage is done, it walks you through finishing setup in macOS Recovery: shut down, hold the power button until "Loading startup options" appears, choose Omarchy, and follow the steps.
+
+### Switching between Omarchy and macOS
+
+Shut down your Mac, then press and hold the power button until the startup options appear. Choose Omarchy or macOS.
+
+### More details
+
+The [installer's README](https://github.com/omacom/omarchy-mac-installer#readme) covers requirements, release channels, updating the installer and removing Omarchy.
+
+## Intel Macs
+
+Omarchy has built-in support for **Intel Macs**. There are a couple of known limitations at the moment, but as long as you're aware and OK with those; you can breathe some new life into your old Macs by loading Omarchy.
 
 In a simple test, we were able to achieve 36% performance gains on a 2019 MacBook Pro just by installing Omarchy.
 
