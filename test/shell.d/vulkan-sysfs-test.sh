@@ -28,7 +28,9 @@ printf '%s\n' "$@" >>"$OMARCHY_TEST_VULKAN_PKGS"
 SH
 # The fixture tests PCI GPUs; do not add the host's platform GPU.
 printf '#!/bin/bash\nexit 1\n' > "$stub_bin/omarchy-hw-aarch64-qualcomm"
-chmod +x "$stub_bin/omarchy-pkg-add" "$stub_bin/omarchy-hw-aarch64-qualcomm"
+export PCI_CALLS="$tmp/pci-calls"
+printf '#!/bin/bash\necho called >> "$PCI_CALLS"\nexit 1\n' > "$stub_bin/lspci"
+chmod +x "$stub_bin/lspci" "$stub_bin/omarchy-pkg-add" "$stub_bin/omarchy-hw-aarch64-qualcomm"
 
 run_vulkan() {
   : >"$tmp/pkgs"
@@ -69,8 +71,5 @@ run_vulkan
 [[ $(cat "$tmp/pkgs") == $'vulkan-intel\nvulkan-radeon' ]] || fail "3D and XGA display classes are included"
 pass "3D and XGA display classes receive their vendor drivers"
 
-grep -Fq 'OMARCHY_PCI_DEVICES_PATH' "$ROOT/install/hardware/vulkan.sh" ||
-  fail "Vulkan install reads the same sysfs override as omarchy-hw-nvidia"
-! grep -E '^[^#]*lspci' "$ROOT/install/hardware/vulkan.sh" ||
-  fail "Vulkan install no longer shells out to lspci"
+[[ ! -e $PCI_CALLS ]] || fail "Vulkan installation queries no PCI configuration space"
 pass "Vulkan install does not wake GPUs via lspci"

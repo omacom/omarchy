@@ -45,12 +45,30 @@ write_pci
 hw_t2 && fail "empty PCI space is not T2"
 pass "a machine with no PCI devices is not T2"
 
-grep -Fq 'omarchy-hw-t2' "$ROOT/install/hardware/apple/fix-t2.sh" ||
-  fail "T2 package install uses omarchy-hw-t2"
-grep -Fq 'omarchy-hw-t2' "$ROOT/install/hardware/pacman.sh" ||
-  fail "the arch-mact2 repo drop-in uses omarchy-hw-t2"
-! grep -q 'lspci' "$ROOT/install/hardware/apple/fix-t2.sh" ||
-  fail "T2 package install no longer greps lspci"
-! grep -q 'lspci' "$ROOT/install/hardware/pacman.sh" ||
-  fail "the arch-mact2 repo drop-in no longer greps lspci"
-pass "T2 install paths share one sysfs helper"
+mkdir -p "$tmp/bin" "$tmp/etc"
+export PKGS="$tmp/pkgs" SERVICES="$tmp/services" PCI_CALLS="$tmp/pci-calls"
+printf '#!/bin/bash\nprintf "%%s\n" "$@" >> "$PKGS"\n' > "$tmp/bin/omarchy-pkg-add"
+printf '#!/bin/bash\nprintf "%%s\n" "$*" >> "$SERVICES"\n' > "$tmp/bin/systemctl"
+printf '#!/bin/bash\necho called >> "$PCI_CALLS"\nexit 1\n' > "$tmp/bin/lspci"
+chmod +x "$tmp/bin/"*
+sed "s|/etc/|$tmp/etc/|g" "$ROOT/install/hardware/apple/fix-t2.sh" > "$tmp/fix-t2.sh"
+sed "s|/etc/|$tmp/etc/|g" "$ROOT/install/hardware/pacman.sh" > "$tmp/pacman.sh"
+run_install() {
+  : > "$PKGS"
+  : > "$SERVICES"
+  : > "$tmp/etc/pacman.conf"
+  for script in "$tmp/fix-t2.sh" "$tmp/pacman.sh"; do
+    OMARCHY_PCI_DEVICES_PATH="$tmp/devices" PATH="$tmp/bin:$ROOT/bin:$PATH" \
+      bash "$script" > "$tmp/output"
+  done
+}
+write_pci 0x106b:0x1801:0x068000
+run_install
+[[ $(cat "$PKGS") == $'linux-t2\nlinux-t2-headers\napple-t2-audio-config\napple-bcm-firmware-fetcher\nt2fanrd' ]] || fail "T2 hardware installs its support packages"
+[[ $(cat "$SERVICES") == "enable t2fanrd.service" ]] || fail "T2 fan service is enabled"
+grep -qxF '[arch-mact2]' "$tmp/etc/pacman.conf" || fail "T2 repository is enabled"
+[[ -f $tmp/etc/modules-load.d/t2.conf ]] || fail "T2 modules are configured"
+write_pci 0x106b:0x1803:0x068000
+run_install
+[[ ! -s $PKGS && ! -s $SERVICES && ! -s $tmp/etc/pacman.conf && ! -e $PCI_CALLS ]] || fail "non-T2 hardware skips support and repository changes without lspci"
+pass "T2 installer and repository selection follow the sysfs fixture"

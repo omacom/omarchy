@@ -44,8 +44,20 @@ write_pci
 hw && fail "empty PCI space is not bcm43xx"
 pass "a machine with no PCI devices is not bcm43xx"
 
-grep -Fq 'omarchy-hw-bcm43xx' "$ROOT/install/hardware/fix-bcm43xx.sh" ||
-  fail "Broadcom wl install uses omarchy-hw-bcm43xx"
-! grep -q lspci "$ROOT/install/hardware/fix-bcm43xx.sh" ||
-  fail "Broadcom wl install no longer greps lspci twice"
-pass "Broadcom wl install does not parse a full lspci dump"
+mkdir -p "$tmp/bin"
+export PKGS="$tmp/pkgs" PCI_CALLS="$tmp/pci-calls"
+printf '#!/bin/bash\nprintf "%%s\n" "$@" >> "$PKGS"\n' > "$tmp/bin/omarchy-pkg-add"
+printf '#!/bin/bash\necho called >> "$PCI_CALLS"\nexit 1\n' > "$tmp/bin/lspci"
+chmod +x "$tmp/bin/"*
+run_install() {
+  : > "$PKGS"
+  OMARCHY_PCI_DEVICES_PATH="$tmp/devices" PATH="$tmp/bin:$ROOT/bin:$PATH" \
+    bash "$ROOT/install/hardware/fix-bcm43xx.sh" > "$tmp/output"
+}
+write_pci 0x14e4:0x43a0
+run_install
+[[ $(cat "$PKGS") == "broadcom-wl-dkms" ]] || fail "wl hardware installs its driver"
+write_pci 0x14e4:0x43ba
+run_install
+[[ ! -s $PKGS && ! -e $PCI_CALLS ]] || fail "other hardware installs nothing and never queries lspci"
+pass "Broadcom installer selects the wl package only for supported sysfs devices"
