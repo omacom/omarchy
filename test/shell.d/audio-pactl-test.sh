@@ -122,6 +122,16 @@ grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
 
+fallback="$work/volume-fallback"
+mkdir -p "$fallback/home"
+env -u XDG_RUNTIME_DIR HOME="$fallback/home" XDG_STATE_HOME="$fallback/state" \
+  omarchy-audio-output-volume mute-toggle >/dev/null
+debounce="$fallback/state/omarchy/omarchy-audio-output-volume-mute-toggle.last"
+[[ -s $debounce && ! -L $debounce ]] || fail 'mute debounce stamp is kept in the private state dir'
+[[ ! -e /tmp/omarchy-audio-output-volume-mute-toggle.last && ! -L /tmp/omarchy-audio-output-volume-mute-toggle.last ]] ||
+  fail 'mute debounce stamp is not written to /tmp'
+pass 'mute debounce stamp stays out of /tmp'
+
 : >"$CALLS"
 (
   eval "$(sed -n '/^app_streams() {/,/^}/p' "$ROOT/bin/omarchy-audio-tuning")"
