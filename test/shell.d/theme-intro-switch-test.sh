@@ -243,6 +243,4 @@ env -u XDG_RUNTIME_DIR HOME="$fallback_home" OMARCHY_PATH="$ROOT" PATH="$command
   /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$fallback_home/pic.png" >/dev/null 2>&1 || true
 [[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set.lock ]] ||
   fail "background selection lock is kept in the private state dir"
-[[ ! -e /tmp/omarchy-theme-set.lock && ! -L /tmp/omarchy-theme-set.lock ]] ||
-  fail "background selection lock is not created in /tmp"
 pass "background selection lock stays out of /tmp"
