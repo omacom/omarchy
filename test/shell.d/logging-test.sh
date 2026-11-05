@@ -51,6 +51,8 @@ grep -q "Failed: $failing_script (exit code: 1)" "$stdout_log" || fail "stdout l
 pass "run_logged records failures under errexit"
 
 mode_log="$work_dir/mode.log"
+touch "$mode_log"
+chmod 666 "$mode_log"
 (
   export OMARCHY_INSTALL_LOG_FILE="$mode_log"
   source "$ROOT/install/helpers/logging.sh"
