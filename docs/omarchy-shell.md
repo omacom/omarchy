@@ -413,7 +413,7 @@ Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
 style = "islands"   # or "strip", the default
 ```
 
-`strip` is one full-width bar. `islands` drops the full-width strip and draws the left, center and right sections as separate capsules that float off the screen edge, with the same gap above and below them. The capsules follow the bar background: frosted with a light rim when the bar is Glassy, solid black when it is Opaque. A Clear bar and left or right bars always draw as `strip`. Any other value reads as `strip`.
+`strip` is one full-width bar. `islands` drops the full-width strip and draws the left, center and right sections as separate capsules. The strip floats off the screen edge by Hyprland's `gaps_out` on that edge, so the space above and below the capsules matches the space around windows. The capsules follow the bar background: frosted with a light rim when the bar is Glassy, filled with `[bar] background` when it is Opaque (a black background gives a dynamic island look). A Clear bar and left or right bars always draw as `strip`. Any other value reads as `strip`.
 
 A theme sets it in its `shell.toml`; a user can set it for every theme in `~/.config/omarchy/shell.toml`, whose keys win over the theme's.
 
