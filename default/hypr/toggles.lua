@@ -8,13 +8,21 @@ package.path = toggles_dir .. "/?.lua;" .. package.path
 -- versions and could carry an injected USB device name. They must never be loaded
 -- as code again: exclude them so a not-yet-migrated install cannot execute a
 -- leftover payload on reload. The migration recovers the name and deletes them.
-require_all.files(toggles_dir, nil, {
-  reload = true,
-  exclude = {
-    ["touchpad-disabled"] = true,
-    ["touchscreen-disabled"] = true,
-  },
-})
+local exclude = {
+  ["touchpad-disabled"] = true,
+  ["touchscreen-disabled"] = true,
+}
+
+-- The clamshell rule is Omarchy's own reconciliation, loaded after the monitor
+-- settings, so it must not outlast handing monitors to another manager.
+local monitor_management = io.open(paths.home .. "/.local/state/omarchy/toggles/monitor-management", "r")
+if monitor_management then
+  monitor_management:close()
+else
+  exclude["internal-monitor-clamshell"] = true
+end
+
+require_all.files(toggles_dir, nil, { reload = true, exclude = exclude })
 
 local disabled_input_device = require("default.hypr.disabled-input-device")
 disabled_input_device("touchpad")

@@ -4,6 +4,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+require_command lua
+
 test_tmp=$(mktemp -d)
 watch_pid=""
 events_fd=""
@@ -180,10 +182,37 @@ HOME="$test_tmp/home" \
 
 [[ -e $internal_toggle ]] || fail "startup recovery changed monitor state while monitor management was disabled"
 
+clamshell_rule="$test_tmp/home/.local/state/omarchy/toggles/hypr/internal-monitor-clamshell.lua"
+printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$clamshell_rule"
+
+# A reload before the reconciler has had a chance to retire the rule.
+hyprland_reload() {
+  HOME="$test_tmp/home" XDG_STATE_HOME="$test_tmp/home/.local/state" OMARCHY_PATH="$ROOT" lua - "$1" <<'LUA'
+local expected = tonumber(arg[1])
+local rules = 0
+hl = {
+  monitor = function() rules = rules + 1 end,
+  device = function() end,
+  get_windows = function() return {} end,
+  on = function() end,
+}
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.toggles")
+assert(rules == expected, "expected " .. expected .. " clamshell rules, loaded " .. rules)
+LUA
+}
+
+hyprland_reload 0 || fail "a reload applied the clamshell rule while monitor management was disabled"
+pass "a reload skips the clamshell rule while monitor management is off"
+
 HOME="$test_tmp/home" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_COMMAND_LOG="$command_log" \
   "$ROOT/bin/omarchy-hyprland-monitor-clamshell"
+
+[[ ! -e $clamshell_rule ]] || fail "the clamshell rule outlived handing monitors to another manager"
+[[ ! -e $command_log ]] || fail "retiring the clamshell rule ran monitor commands"
+pass "the clamshell reconciler retires its rule while monitor management is off"
 
 start_watcher
 await_lid_sync || fail "monitor watcher stopped syncing the lid inhibitor while monitor management was disabled"
@@ -227,6 +256,11 @@ await_log_line "clamshell continued" || fail "same monitor watcher did not resum
 await_log_line "monitor config reloaded" || fail "modeless recovery did not resume after management was re-enabled"
 
 stop_watcher
+
+printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$clamshell_rule"
+hyprland_reload 1 || fail "a reload skipped the clamshell rule while monitor management was enabled"
+rm -f "$clamshell_rule"
+pass "a reload applies the clamshell rule while monitor management is on"
 
 HOME="$test_tmp/home" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
