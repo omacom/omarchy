@@ -25,11 +25,19 @@ SH
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
 
-echo "$(basename "${!#}") $(cat)" >>"$WRITES"
+if [[ $1 == "modprobe" ]]; then
+  printf '%s\n' "$*" >>"$WRITES"
+  [[ $* != "${FAIL_MODPROBE:-}" ]] || exit 7
+else
+  echo "$(basename "${!#}") $(cat)" >>"$WRITES"
+fi
 SH
 
 printf '#!/bin/bash\n' >"$stub_bin/sleep"
-printf '#!/bin/bash\n' >"$stub_bin/lsmod"
+cat >"$stub_bin/lsmod" <<'SH'
+#!/bin/bash
+if [[ ${THC_LOADED:-0} == 1 ]]; then echo 'intel_quicki2c 1 0'; fi
+SH
 printf '#!/bin/bash\n' >"$stub_bin/omarchy-toggle-input-device"
 chmod +x "$stub_bin"/*
 
@@ -64,3 +72,25 @@ grep -F "No supported trackpad driver" "$test_tmp/error" >/dev/null ||
   fail "an unsupported trackpad must be explained"
 [[ $(<"$writes") == "$expected" ]] || fail "unsupported hardware must not trigger privileged writes"
 pass "a missing supported trackpad fails clearly without privileged writes"
+
+for failure in "modprobe -r intel_quicki2c" "modprobe intel_quicki2c"; do
+  : > "$writes"
+  result=0
+  WRITES="$writes" THC_LOADED=1 FAIL_MODPROBE="$failure" \
+    OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" PATH="$stub_bin:$PATH" \
+    bash "$restart" >"$test_tmp/output" 2>"$test_tmp/error" || result=$?
+  (( result == 7 )) || fail "a failed $failure must retain its failure status"
+  expected_calls="modprobe -r intel_quicki2c"
+  if [[ $failure == "modprobe intel_quicki2c" ]]; then
+    expected_calls+=$'\nmodprobe intel_quicki2c'
+  fi
+  [[ $(<"$writes") == "$expected_calls" ]] || fail "reload must stop at the failing command"
+  pass "failure of $failure propagates"
+done
+
+: > "$writes"
+WRITES="$writes" THC_LOADED=1 OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" \
+  PATH="$stub_bin:$PATH" bash "$restart" >"$test_tmp/output"
+[[ $(<"$writes") == $'modprobe -r intel_quicki2c\nmodprobe intel_quicki2c' ]] ||
+  fail "a successful THC reset must unload and reload the module"
+pass "a successful THC reset still succeeds"

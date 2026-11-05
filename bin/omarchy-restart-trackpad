@@ -40,8 +40,11 @@ done
 # Also try THC path
 if lsmod | grep -q intel_quicki2c; then
   echo "Reloading intel_quicki2c..."
-  sudo modprobe -r intel_quicki2c && sudo modprobe intel_quicki2c
-  reset=1
+  if sudo modprobe -r intel_quicki2c && sudo modprobe intel_quicki2c; then
+    reset=1
+  else
+    exit $?
+  fi
 fi
 
 if (( reset == 0 )); then
