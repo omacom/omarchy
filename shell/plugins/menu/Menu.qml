@@ -93,6 +93,8 @@ Item {
   property string filterText: ""
   // The user moved the cursor since the search last changed.
   property bool cursorChosen: false
+  // setFilter is rebuilding the rows anyway, so an answer changing with it needn't.
+  property bool settingFilter: false
   // Resets of filterText reach the search line; its edits come back through setFilter.
   onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
@@ -617,7 +619,9 @@ Item {
   CurrencyLookup {
     id: currencyLookup
     query: root.dmenuActive ? "" : root.filterText
-    onAnswerChanged: root.refreshCurrencyRow()
+    // With no search there is no row to change: the rows are going away with the
+    // menu, or whatever cleared the search is rebuilding them itself.
+    onAnswerChanged: if (root.filterText && !root.settingFilter) root.refreshCurrencyRow()
   }
 
   // An answer lands after the search it belongs to. It takes the cursor unless
@@ -878,7 +882,9 @@ Item {
   function setFilter(nextFilter) {
     panel.freezeCardTop()
     root.cursorChosen = false
+    root.settingFilter = true
     root.filterText = nextFilter
+    root.settingFilter = false
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
