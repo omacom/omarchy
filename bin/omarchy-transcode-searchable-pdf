@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+# omarchy:summary=Make a scanned PDF searchable while preserving the original
+# omarchy:args=<pdf> [--output <pdf>] [--language <codes>]
+# omarchy:examples=omarchy transcode searchable-pdf scan.pdf | omarchy transcode searchable-pdf scan.pdf --language eng+hin
+
+import argparse
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Add a searchable text layer to a scanned PDF. Requires OCRmyPDF and the selected Tesseract language packs. Existing output files are never replaced.")
+  parser.add_argument("pdf", type=Path)
+  parser.add_argument("--output", type=Path)
+  parser.add_argument("--language", default=os.environ.get("OMARCHY_OCR_LANGS", "eng"))
+  args = parser.parse_args()
+  source = args.pdf.expanduser().resolve(strict=True)
+  if not source.is_file() or source.suffix.lower() != ".pdf":
+    parser.error("choose a PDF file")
+  if not re.fullmatch(r"[A-Za-z0-9_]+(?:\+[A-Za-z0-9_]+)*", args.language):
+    parser.error("language must be Tesseract codes joined with +")
+  output = (args.output or source.with_name(source.stem + ".searchable.pdf")).expanduser().absolute()
+  if os.path.lexists(output):
+    raise FileExistsError(f"Output already exists: {output}")
+  if subprocess.run(["omarchy-cmd-missing", "ocrmypdf"]).returncode == 0:
+    raise ValueError("Install OCRmyPDF first: omarchy pkg add ocrmypdf")
+
+  # Generate next to the destination so publication is atomic on its filesystem.
+  # link() refuses even a destination created after the initial existence check.
+  with tempfile.TemporaryDirectory(prefix=".omarchy-ocr-", dir=output.parent) as scratch:
+    generated = Path(scratch) / "searchable.pdf"
+    subprocess.run(["ocrmypdf", "--skip-text", "--rotate-pages", "--deskew", "--output-type", "pdf",
+      "-l", args.language, str(source), str(generated)], check=True, stdout=sys.stderr)
+    os.chmod(generated, 0o600)
+    os.link(generated, output)
+  print(output)
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except (OSError, ValueError, subprocess.SubprocessError) as error:
+    print(f"Searchable PDF: {error}", file=sys.stderr)
+    sys.exit(1)
