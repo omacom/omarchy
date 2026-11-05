@@ -22,6 +22,9 @@ QtObject {
   property color urgent: "#a55555"
   property color muted: "#707880"
 
+  // Named syntax colors; replace the whole object on theme loads to refresh bindings.
+  property var syntax: ({})
+
   // Flat dictionary of "section.key" -> raw string from shell.toml.
   // Reassigning this whole property is what makes surface bindings below
   // re-evaluate when the theme swaps; mutating it in place would not.
@@ -138,6 +141,7 @@ QtObject {
 
   function loadColors(raw) {
     var lines = String(raw || "").split("\n")
+    var syntaxColors = {}
     var foundAccent = false
     var foundMuted = false
     var loadedForeground = false
@@ -149,6 +153,7 @@ QtObject {
     for (var i = 0; i < lines.length; i++) {
       var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
       if (!match) continue
+      if (/^(red|green|yellow|blue|magenta|cyan)$/.test(match[1])) syntaxColors[match[1]] = match[2]
       if (match[1] === "foreground") { foreground = match[2]; loadedForeground = true }
       else if (match[1] === "background") { background = match[2]; loadedBackground = true }
       // Prefer the explicit `accent` key; only fall back to color4 when the
@@ -166,6 +171,7 @@ QtObject {
     if (!loadedForeground && color7Value.length > 0) foreground = color7Value
     if (!foundAccent && color4Value.length > 0) accent = color4Value
     if (!foundMuted) muted = color8Value.length > 0 ? color8Value : foreground
+    syntax = syntaxColors
   }
 
   // Last theme-supplied and user-supplied shell.toml dicts, kept separate so

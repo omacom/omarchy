@@ -4,14 +4,6 @@ function escape(text) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function palette(toml) {
-  var result = {};
-  var pattern = /^\s*(red|green|yellow|blue|magenta|cyan)\s*=\s*["'](#[0-9a-fA-F]{6})["']/gm;
-  var match;
-  while ((match = pattern.exec(toml)) !== null) result[match[1]] = match[2];
-  return result;
-}
-
 function highlight(text, enabled, colors) {
   if (!enabled) return escape(text);
   // A small lexer for the fixed Ruby, Rust, TypeScript, Go, PHP, C++ and Java samples.
