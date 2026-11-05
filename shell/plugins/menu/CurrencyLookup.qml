@@ -37,7 +37,9 @@ Item {
   function fetch(key) {
     root.fetching = key
     // The API asks clients to fall back from jsDelivr to its Cloudflare copy.
-    fetchProc.command = ["bash", "-c", 'curl -fsS --max-time 5 "$1" || curl -fsS --max-time 5 "$2"', "bash",
+    // Only a finished response is printed, so bytes from an attempt that died
+    // partway cannot end up in front of the fallback's.
+    fetchProc.command = ["bash", "-c", 'body=$(curl -fsS --max-time 5 "$1") || body=$(curl -fsS --max-time 5 "$2") && printf "%s" "$body"', "bash",
       "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest" + root.apiPath(key),
       "https://latest.currency-api.pages.dev" + root.apiPath(key)]
     fetchProc.running = true

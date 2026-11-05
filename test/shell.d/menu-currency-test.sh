@@ -14,7 +14,7 @@ url="\${!#}"
 printf '%s\n' "\$url" >>"$curl_log"
 case "\$url" in
   *currencies.min.json) printf '{"usd":"US Dollar","inr":"Indian Rupee","eur":"Euro"}' ;;
-  *jsdelivr*currencies/usd.min.json) exit 22 ;;
+  *jsdelivr*currencies/usd.min.json) printf '{"date"'; exit 28 ;;
   *pages.dev*currencies/usd.min.json) printf '{"date":"2026-11-05","usd":{"inr":90,"eur":0.5}}' ;;
   *currencies/inr.min.json) printf '{"date":"2026-11-05","inr":{"usd":0.0111}}' ;;
   *) exit 22 ;;
