@@ -363,7 +363,7 @@ bring_wifi_up() {
   persist_wlan "$value"
   systemctl stop systemd-rfkill.service >/dev/null 2>&1 || true
   persist_wlan "$value"
-  load_wifi
+  load_wifi || return 1
   if ! wait_for_wifi_iface; then
     echo "BCM4377 Wi-Fi interface failed to appear" >&2
     unload_wifi || true
@@ -427,12 +427,20 @@ post() {
 resume() {
   has_bcm4377 || exit 0
 
+  local wifi_status=0
   if ! wait_for_pci_wifi_d0; then
     echo "BCM4377 Wi-Fi function is not in D0; refusing to probe brcmfmac" >&2
-    return 1
+    wifi_status=1
+  elif ! bring_wifi_up; then
+    wifi_status=1
   fi
-  bring_wifi_up
+
+  restore_bluetooth
   systemctl start --no-block omarchy-t2-bcm4377-rebind.service >/dev/null 2>&1 || true
+
+  if ((wifi_status != 0)); then
+    return "$wifi_status"
+  fi
   echo "reloaded brcmfmac after resume"
 }
 
@@ -451,7 +459,8 @@ recover() {
   if [[ -f $stamp ]] || ! loaded brcmfmac || [[ -z $(wifi_ifaces) ]]; then
     rm -f "$stamp" "$released_stamp"
     rm -rf "$connected_dir"
-    resume
+    resume || true
+    restore_bluetooth
     return
   fi
 

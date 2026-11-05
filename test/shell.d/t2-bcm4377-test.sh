@@ -627,7 +627,11 @@ run_helper "$suspend" resume
 status=$?
 set -e
 assert_status 1 "$status" "resume fails when the Wi-Fi interface does not appear"
-pass "a missing Wi-Fi interface fails the reload"
+grep -Fq $'systemctl\tstart\t--no-block\tomarchy-t2-bcm4377-rebind.service' "$calls" ||
+  fail "Bluetooth rebind is started even when Wi-Fi bringup fails" "$(cat "$calls")"
+[[ -d $sys/module/hci_bcm4377 ]] ||
+  fail "Bluetooth driver is loaded even when Wi-Fi bringup fails"
+pass "a missing Wi-Fi interface fails the reload but restores Bluetooth"
 
 setup_sysfs
 # brcmfmac is loaded but unbound (no netdev interface)
