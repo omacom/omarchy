@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default editor used by omarchy-launch-editor
-# omarchy:args=[code|cursor|zed|sublime_text|helix|vim|emacs|nvim]
+# omarchy:args=[code|cursor|zed|sublime_text|helix|vim|emacs|nvim|nano]
 # omarchy:examples=omarchy default editor | omarchy default editor code | omarchy default editor helix
 
 installing=false
@@ -33,8 +33,9 @@ helix) selection="helix"; editor="helix"; name="Helix"; glyph= ;;
 vim) selection="vim"; editor="vim"; name="Vim"; glyph= ;;
 emacs) selection="emacs"; editor="emacs"; name="Emacs"; glyph= ;;
 nvim) selection="nvim"; editor="nvim"; name="Neovim"; glyph= ;;
+nano) selection="nano"; editor="nano"; name="Nano"; glyph= ;;
 *)
-  echo "Usage: omarchy-default-editor <code|cursor|zed|sublime_text|helix|vim|emacs|nvim>"
+  echo "Usage: omarchy-default-editor <code|cursor|zed|sublime_text|helix|vim|emacs|nvim|nano>"
   exit 1
   ;;
 esac
@@ -52,6 +53,7 @@ if omarchy-cmd-missing "$editor"; then
     vim) omarchy-pkg-add vim ;;
     emacs) omarchy-install-editor-emacs ;;
     nvim) omarchy-pkg-add neovim ;;
+    nano) omarchy-pkg-add nano ;;
     esac || exit 1
   fi
 fi
