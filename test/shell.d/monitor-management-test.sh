@@ -144,7 +144,7 @@ start_watcher() {
     OMARCHY_TEST_COMMAND_LOG="$command_log" \
     OMARCHY_TEST_LID_LOG="$lid_log" \
     OMARCHY_TEST_EVENTS="$events" \
-    "$ROOT/bin/omarchy-hyprland-monitor-watch" &
+    "$ROOT/bin/omarchy-hyprland-monitor-watch" >>"$test_tmp/watcher.log" 2>&1 &
   watch_pid=$!
 
   exec {events_fd}<>"$events"
