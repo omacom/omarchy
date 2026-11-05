@@ -250,6 +250,13 @@ def collect_limits(home, key, force):
     result["usageStatusText"] = "Waiting for auth"
     return result
 
+  # A token from an external auth provider ([auth] auth_provider_command) is
+  # that provider's, not xAI's: xAI's billing refuses it, and `grok login`
+  # only stores it again, so it is no expired sign-in.
+  if str(entry.get("auth_mode") or "").lower() == "external":
+    result["authHelpText"] = "Grok signs in through an external auth provider, so xAI has no usage limits to show. Local Grok stats are still shown."
+    return result
+
   # A kept window whose reset has passed starts over empty. Its next reset is
   # xAI's to say, so it stays unknown until a probe answers.
   cache = LimitsCache(AGENT_ID, key)
