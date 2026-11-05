@@ -30,8 +30,6 @@ The [installer's README](https://github.com/omacom/omarchy-mac-installer#readme)
 
 ## Intel Macs
 
-Omarchy has built-in support for **Intel Macs**. There are a couple of known limitations at the moment, but as long as you're aware and OK with those; you can breathe some new life into your old Macs by loading Omarchy.
-
 In a simple test, we were able to achieve 36% performance gains on a 2019 MacBook Pro just by installing Omarchy.
 
  ![macbook-omarchy](images/macbook-omarchy.webp)
