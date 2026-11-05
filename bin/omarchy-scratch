@@ -41,7 +41,7 @@ case "${1:-}" in
   add)
     shift
     append_line "$@" >/dev/null
-    omarchy-notification-send -g "note" "Saved to scratch" "$*" || true
+    omarchy-notification-send -g "note" "$(omarchy-i18n scratch.saved)" "$*" || true
     ;;
   paste)
     text=$(wl-paste --no-newline --type text 2>/dev/null || true)
@@ -50,18 +50,18 @@ case "${1:-}" in
       exit 1
     fi
     append_line "$text" >/dev/null
-    omarchy-notification-send -g "note" "Clipboard saved to scratch" || true
+    omarchy-notification-send -g "note" "$(omarchy-i18n scratch.clipboardSaved)" || true
     ;;
   show)
     file=$(scratch_file)
     if [[ ! -s $file ]]; then
       echo "Nothing saved yet"
-      omarchy-notification-send -g "note" "Scratch" "Nothing saved yet" || true
+      omarchy-notification-send -g "note" "$(omarchy-i18n scratch.title)" "$(omarchy-i18n scratch.empty)" || true
       exit 0
     fi
     body=$(tail -n 8 "$file")
     printf '%s\n' "$body"
-    omarchy-notification-send -g "note" "Scratch" "$body" || true
+    omarchy-notification-send -g "note" "$(omarchy-i18n scratch.title)" "$body" || true
     ;;
   path)
     scratch_file
