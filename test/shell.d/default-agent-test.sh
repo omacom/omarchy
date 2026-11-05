@@ -218,7 +218,6 @@ declare -A declared_bins=(
   ["\"$freebuff_package\""]='"freebuff"'
   ["\"$kilo_package\""]='"kilo"'
   ["\"$commandcode_package\""]='"commandcode"'
-  ["\"$droid_package\""]='"droid"'
 )
 for tool in "${!declared_bins[@]}"; do
   grep -Fx "$tool = { version = \"latest\", lazy = true, auto_update = \"4h\", lazy_bins = [${declared_bins[$tool]}], minimum_release_age = \"0s\" }" "$lazy_config" >/dev/null ||
