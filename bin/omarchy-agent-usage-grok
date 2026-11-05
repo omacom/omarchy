@@ -254,6 +254,7 @@ def collect_limits(home, key, force):
   # that provider's, not xAI's: xAI's billing refuses it, and `grok login`
   # only stores it again, so it is no expired sign-in.
   if str(entry.get("auth_mode") or "").lower() == "external":
+    result["usageStatusText"] = "Grok limits unavailable"
     result["authHelpText"] = "Grok signs in through an external auth provider, so xAI has no usage limits to show. Local Grok stats are still shown."
     return result
 

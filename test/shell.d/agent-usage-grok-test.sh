@@ -158,8 +158,8 @@ expect("a sign-in lapsed past Grok's 30 days asks for a sign-in", record["usageS
 sandbox()
 signed_in(grok_home(), token="token-external", user="", auth_mode="external")
 record = grok()
-expect("an external auth provider's sign-in has no xAI limits and asks for no sign-in",
-       [record["usageStatusText"], record["limits"], "external auth provider" in record["authHelpText"]], ["", [], True], record)
+expect("an external auth provider's sign-in has no xAI limits, says why, and asks for no sign-in",
+       [record["usageStatusText"], record["limits"], "external auth provider" in record["authHelpText"]], ["Grok limits unavailable", [], True], record)
 
 # ------------------------------------------------------------- the answer
 
