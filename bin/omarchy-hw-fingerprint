@@ -11,6 +11,42 @@
 fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
 usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
 
+# libfprint's hwdb lists every USB id it knows, grouped under the driver that
+# claims it or under "Known unsupported devices". ELAN 04f3:0c00 on the HP
+# Pavilion Aero 13 matches ELAN:ARM-M4 below and was offered for setup, which
+# then failed with NoSuchDevice although the installed libfprint lists that id
+# as unsupported (#17672). Read the installed file instead of copying ids: a
+# libfprint fork that drives a reader ships a hwdb with the id under its driver,
+# and the reader counts again. Before libfprint is installed there is no file,
+# and every match counts as it did.
+libfprint_hwdb="${OMARCHY_LIBFPRINT_HWDB_PATH:-/usr/lib/udev/hwdb.d/60-autosuspend-libfprint-2.hwdb}"
+supported_ids=" "
+unsupported_ids=" "
+if [[ -r $libfprint_hwdb ]]; then
+  section=""
+  while IFS= read -r line; do
+    case $line in
+      "# Known unsupported devices") section="unsupported" ;;
+      "# "*) section="driver" ;;
+      usb:v????p????\*)
+        id="${line:5:4}:${line:10:4}"
+        if [[ $section == "unsupported" ]]; then
+          unsupported_ids+="${id,,} "
+        else
+          supported_ids+="${id,,} "
+        fi
+        ;;
+    esac
+  done <"$libfprint_hwdb"
+fi
+
+# An id under a driver wins, so a hwdb that lists one in both places still
+# offers the reader.
+libfprint_cannot_drive() {
+  local id="$1"
+  [[ $unsupported_ids == *" $id "* && $supported_ids != *" $id "* ]]
+}
+
 # A reader the kernel drives without USB (a Mac's Touch ID, behind its Secure
 # Enclave) is the platform's to name: each line of its fingerprint-readers file
 # is a file (a shell glob) and the value that file reads once the reader is
@@ -48,6 +84,12 @@ has_kernel_driver() {
 }
 
 for dev in "$usb_devices_path"/*; do
+  # Checked before either match, since the product string is trusted outright.
+  if [[ -r $dev/idVendor && -r $dev/idProduct ]] &&
+    libfprint_cannot_drive "$(<"$dev/idVendor"):$(<"$dev/idProduct")"; then
+    continue
+  fi
+
   # The device's own product descriptor usually names it, e.g. "Goodix
   # Fingerprint USB Device" — driver-independent and vendor-agnostic.
   if [[ -r $dev/product ]]; then

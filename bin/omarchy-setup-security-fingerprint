@@ -155,6 +155,15 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
+# Detection can only rule out a reader libfprint lists as unsupported once
+# libfprint's hwdb is installed, which on a fresh machine is the step above.
+# Ask again so a reader like ELAN 04f3:0c00 stops here, not at an enrollment
+# that fails with NoSuchDevice (#17672).
+if ! omarchy-hw-fingerprint; then
+  echo -e "\e[31mThe installed libfprint lists this fingerprint reader as unsupported, so it can't be enrolled.\e[0m"
+  exit 1
+fi
+
 # Enroll first fingerprint
 # Authenticate sudo first, and say so: with fingerprint sudo already set up it
 # asks for a touch of its own, which must not pass for the first sample.
