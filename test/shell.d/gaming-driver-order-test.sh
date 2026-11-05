@@ -61,3 +61,19 @@ for installer in omarchy-install-gaming-lutris omarchy-install-gaming-battlenet;
     fail "$installer installs no dependencies after GPU library failure" "$(<"$test_tmp/calls")"
   pass "$installer stops before dependency installation when GPU library installation fails"
 done
+
+# A fresh install used to append the wizard log at a fixed /tmp name.
+rm -rf "$test_home/Games"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/curl"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/setsid"
+chmod +x "$stub_bin/curl" "$stub_bin/setsid"
+env -u XDG_RUNTIME_DIR HOME="$test_home" XDG_STATE_HOME="$test_tmp/state" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_CALLS="$test_tmp/calls" PATH="$stub_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-install-gaming-battlenet" >"$test_tmp/output"
+log="$test_tmp/state/omarchy/omarchy-battlenet-installer.log"
+[[ -e $log && ! -L $log ]] || fail "battlenet installer log is kept in the private state dir" "$(<"$test_tmp/output")"
+[[ ! -e /tmp/omarchy-battlenet-installer.log && ! -L /tmp/omarchy-battlenet-installer.log ]] ||
+  fail "battlenet installer log is not created in /tmp"
+grep -F "Installer log: $log" "$test_tmp/output" >/dev/null ||
+  fail "battlenet installer tells the user where the log went"
+pass "battlenet installer log stays out of /tmp"
