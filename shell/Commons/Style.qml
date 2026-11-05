@@ -283,6 +283,7 @@ QtObject {
   property var fontOverrides: ({})
   property var barOverrides: ({})
   property bool barScaleWithFont: true
+  property string barStyle: "strip"
   readonly property real fontScale: Math.max(1 / 12, fontBaseSize / 12)
 
   function fontPx(mult) {
@@ -355,6 +356,9 @@ QtObject {
     readonly property int iconFont:       root.barToken("icon-font",       13)
     readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
+    // "strip" draws one full-width bar; "islands" draws a floating capsule
+    // per section on top and bottom bars. Anything else reads as "strip".
+    readonly property string style: root.barStyle
   }
 
   // Off with Hyprland's own animations, as `omarchy toggle animations` turns
@@ -414,6 +418,7 @@ QtObject {
     var nextSpacingScale = 1.0
     var nextSpacingScaleWithFont = true
     var nextBarScaleWithFont = true
+    var nextBarStyle = "strip"
     var v = values || {}
     for (var fullKey in v) {
       var dot = fullKey.indexOf(".")
@@ -429,6 +434,8 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
+        } else if (key === "style") {
+          nextBarStyle = String(raw).trim() === "islands" ? "islands" : "strip"
         } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
           || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
           || key === "icon-size" || key === "status-slot") {
@@ -461,6 +468,7 @@ QtObject {
     fontOverrides = fontOut
     barOverrides = barOut
     barScaleWithFont = nextBarScaleWithFont
+    barStyle = nextBarStyle
     spacingOverrides = spacingOut
     styleOverrides = styleOut
   }

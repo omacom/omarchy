@@ -90,6 +90,13 @@ A widget you want around but not always in view can go in the tray's drawer: dra
 
 If you'd rather pick from a menu, **Appearance → Menu Bar** has the position, and **Bar Background** picks how the bar is drawn: **Opaque Bar**, **Glassy Bar** (see-through, with what's behind it blurred), or **Clear Bar**.
 
+Some themes draw the bar as floating islands: each section becomes its own capsule instead of one full-width strip. You can turn that on for any theme by adding this to `~/.config/omarchy/shell.toml`:
+
+```toml
+[bar]
+style = "islands"
+```
+
 The same things have commands, which is what you want for a [dotfiles](31-dotfiles.md) setup:
 
 ```bash

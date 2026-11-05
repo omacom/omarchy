@@ -87,6 +87,13 @@ Item {
   property bool foregroundAnimationEnabled: true
   property color background: Commons.Color.bar.background
   readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
+  // Floating islands: a theme with `[bar] style = "islands"` in shell.toml
+  // turns a horizontal bar's full-width strip into one capsule per section,
+  // frosted when glassy and solid black when opaque.
+  readonly property bool islands: Style.bar.style === "islands" && !vertical && !transparent
+  // In islands mode the strip floats this far off its screen edge, and the
+  // capsules fill the strip, so widget highlights sit inside them.
+  readonly property int islandGap: islands ? Style.space(5) : 0
   property color urgent: Commons.Color.bar.active
 
   // A theme change cross-fades the bar's colors. Cycling the background
@@ -1724,7 +1731,7 @@ Item {
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: thickness
+    exclusiveZone: thickness + root.islandGap
 
     // While this window's widget or bar-move drag is live, the whole surface
     // takes input (mask below), so the pointer never leaves the bar surface
@@ -1824,13 +1831,13 @@ Item {
       id: barStrip
 
       x: root.position === "right" ? parent.width - barWindow.thickness : 0
-      y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
+      y: root.position === "bottom" ? parent.height - barWindow.thickness - root.islandGap : root.islandGap
       width: root.vertical ? barWindow.thickness : parent.width
       height: root.vertical ? parent.height : barWindow.thickness
 
       Rectangle {
         anchors.fill: parent
-        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+        color: root.transparent || root.islands ? "transparent" : (root.glassy ? root.glassBackground : root.background)
       }
 
       Loader {
@@ -1934,6 +1941,9 @@ Item {
 
         WidgetPool { id: horizontalPool }
 
+        IslandPill { start: leftModules.x; extent: leftModules.width }
+        IslandPill { start: rightModules.x; extent: rightModules.width }
+
         CenterModules {
           anchors.fill: parent
           window: barWindow
@@ -1942,10 +1952,11 @@ Item {
         }
 
         LeftModules {
+          id: leftModules
           window: barWindow
           pool: horizontalPool
           anchors.left: parent.left
-          anchors.leftMargin: Style.space(8)
+          anchors.leftMargin: root.islands ? Style.space(14) : Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -1954,7 +1965,7 @@ Item {
           pool: horizontalPool
           id: rightModules
           anchors.right: parent.right
-          anchors.rightMargin: Style.space(8)
+          anchors.rightMargin: root.islands ? Style.space(14) : Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -2260,6 +2271,26 @@ Item {
     }
   }
 
+  // One floating capsule behind a bar section, `extent` long from `start`,
+  // shown only in islands mode and only around a section that holds widgets.
+  component IslandPill: Rectangle {
+    property real start: 0
+    property real extent: 0
+    readonly property real pad: Style.space(6)
+
+    visible: root.islands && extent > 0
+    x: Math.round(start - pad)
+    y: 0
+    width: Math.round(extent + pad * 2)
+    height: parent.height
+    radius: height / 2
+    // Glassy: frosted see-through capsule with a light rim. Opaque: a solid
+    // black capsule, like a dynamic island.
+    color: root.glassy ? root.glassBackground : "black"
+    border.width: root.glassy ? 1 : 0
+    border.color: Qt.rgba(1, 1, 1, 0.22)
+  }
+
   component LeftModules: ModuleList {
     keys: root.layoutWidgets.sections.left
     region: "left"
@@ -2326,6 +2357,11 @@ Item {
     Connections {
       target: root
       function onCenterSectionRevealHeldChanged() { sections.syncPeekEdge() }
+    }
+
+    IslandPill {
+      start: beginList.x
+      extent: sections.active ? endList.x + endList.width - beginList.x : 0
     }
 
     ModuleList {

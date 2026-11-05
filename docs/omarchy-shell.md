@@ -404,6 +404,19 @@ size-vertical   = 28   # left/right bar width at base-size 12
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
 
+### Bar style
+
+`[bar] style` picks how a top or bottom bar is drawn:
+
+```toml
+[bar]
+style = "islands"   # or "strip", the default
+```
+
+`strip` is one full-width bar. `islands` drops the full-width strip and draws the left, center and right sections as separate capsules that float off the screen edge, with the same gap above and below them. The capsules follow the bar background: frosted with a light rim when the bar is Glassy, solid black when it is Opaque. A Clear bar and left or right bars always draw as `strip`. Any other value reads as `strip`.
+
+A theme sets it in its `shell.toml`; a user can set it for every theme in `~/.config/omarchy/shell.toml`, whose keys win over the theme's.
+
 A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its three center sections sit beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
 
 ```json
