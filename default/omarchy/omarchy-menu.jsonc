@@ -49,6 +49,7 @@
   "agent.harness.cursor-agent": {"icon":"","iconFont":"omarchy","label":"Cursor CLI","checked":"[[ \"$(omarchy-default-agent)\" == \"cursor-agent\" ]]","action":"omarchy-default-agent cursor-agent"},
   "agent.harness.dsh": {"icon":"","iconFont":"omarchy","label":"DeepSeek Harness","checked":"[[ \"$(omarchy-default-agent)\" == \"dsh\" ]]","action":"omarchy-default-agent dsh"},
   "agent.harness.devin": {"icon":"","iconFont":"omarchy","label":"Devin CLI","checked":"[[ \"$(omarchy-default-agent)\" == \"devin\" ]]","action":"omarchy-default-agent devin"},
+  "agent.harness.droid": {"icon":"󰚩","label":"Droid","checked":"[[ \"$(omarchy-default-agent)\" == \"droid\" ]]","action":"omarchy-default-agent droid"},
   "agent.harness.freebuff": {"icon":"","iconFont":"omarchy","label":"Freebuff","checked":"[[ \"$(omarchy-default-agent)\" == \"freebuff\" ]]","action":"omarchy-default-agent freebuff"},
   "agent.harness.grok": {"icon":"","iconFont":"omarchy","label":"Grok","checked":"[[ \"$(omarchy-default-agent)\" == \"grok\" ]]","action":"omarchy-default-agent grok"},
   "agent.harness.hermes": {"icon":"","iconFont":"omarchy","label":"Hermes","checked":"[[ \"$(omarchy-default-agent)\" == \"hermes\" ]]","action":"omarchy-default-agent hermes"},
