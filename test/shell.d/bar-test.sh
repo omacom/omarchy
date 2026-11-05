@@ -203,6 +203,7 @@ assertDeepEqual(bar.centerDropTarget(full, box, { x: 395 }, false), { slot: boxC
 assertDeepEqual(bar.centerDropTarget(full, box, { x: 338 }, false), { slot: indicatorsSlot, after: true }, 'a drop just before the box lands at the end of centerBegin')
 assertDeepEqual(bar.centerDropTarget(full, box, { x: 402 }, false), { slot: weatherSlot, after: false }, 'a drop just after the box lands at the start of centerEnd')
 assertDeepEqual(bar.centerDropTarget([menu, clock], box, { x: 330 }, false), { region: 'centerBegin', after: true }, 'beside the box with centerBegin empty, a drop starts centerBegin')
+assertDeepEqual(bar.centerDropTarget([menu, clock], box, { x: 150 }, false, null, 150), { region: 'centerBegin', after: true }, 'across a notch, a drop at its left edge starts an empty centerBegin')
 assertDeepEqual(bar.centerDropTarget([menu, clock], box, { x: 410 }, false), { region: 'centerEnd', after: false }, 'beside the box with centerEnd empty, a drop starts centerEnd')
 // The box grows to take in a widget dropped from outside; over the room it
 // has opened, the drop still lands in the box.

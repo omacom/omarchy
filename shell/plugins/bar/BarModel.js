@@ -185,8 +185,10 @@ function ownRoomTarget(rows, axis, vertical, source) {
 // { region, after }: after its last widget, or before its first. Over the
 // room the dragged widget (`source`, a candidate's slot) still holds, a drop
 // puts it back, so a widget picked up beside an empty box, whose reach
-// covers its inner end, isn't thrown into it as the drag starts.
-function centerDropTarget(candidates, box, point, vertical, source) {
+// covers its inner end, isn't thrown into it as the drag starts. Where
+// centerBegin's inner end isn't at the box, as around a display notch,
+// `beginEdge` gives where it is along the bar.
+function centerDropTarget(candidates, box, point, vertical, source, beginEdge) {
   var rows = Array.isArray(candidates) ? candidates : []
   if (!box) return nearestDropTarget(rows, point, vertical)
   var axis = vertical ? Number(point && point.y) : Number(point && point.x)
@@ -203,7 +205,8 @@ function centerDropTarget(candidates, box, point, vertical, source) {
   }
 
   var outside = nearestEdge(rows.filter(function(row) { return row && row.region !== "center" }), axis, vertical)
-  var beginDistance = Math.abs(axis - start)
+  var begin = isFinite(Number(beginEdge)) && beginEdge !== null && beginEdge !== undefined ? Number(beginEdge) : start
+  var beginDistance = Math.abs(axis - begin)
   var endDistance = Math.abs(axis - end)
   var edge = beginDistance <= endDistance
     ? { target: { region: "centerBegin", after: true }, distance: beginDistance }

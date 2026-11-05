@@ -520,6 +520,18 @@ Item {
     }
   }
 
+  // Where centerBegin's inner end is along the bar, in scene coordinates,
+  // where it isn't at the box (around a display notch), or undefined.
+  function centerBeginEdge(box) {
+    if (!box || !(box.beginGap > 0)) return undefined
+    try {
+      var point = box.mapToItem(null, 0, 0)
+      return (root.vertical ? point.y : point.x) - box.beginGap
+    } catch (e) {
+      return undefined
+    }
+  }
+
   function debugBarGeometry() {
     var out = []
     for (var i = 0; i < moduleSlots.length; i++) {
@@ -1091,7 +1103,7 @@ Item {
     if (drawer) return drawer
     var onBar = candidates.filter(function(row) { return row.region !== "tray" })
     var box = sourceWindow ? root.centerBoxFor(sourceWindow) : null
-    return BarModel.centerDropTarget(onBar, root.centerBoxDropRect(box), scenePoint, root.vertical, sourceSlot)
+    return BarModel.centerDropTarget(onBar, root.centerBoxDropRect(box), scenePoint, root.vertical, sourceSlot, root.centerBeginEdge(box))
   }
 
   // Where a drop lands in the tray's drawer section on a bar surface, in
@@ -2372,6 +2384,7 @@ Item {
       pool: sections.pool
       active: sections.active
       fixedEdge: sections.besideRight ? "end" : (sections.aroundNotch ? "start" : "center")
+      beginGap: sections.aroundNotch ? sections.notchEnd - sections.notchStart : 0
       crossSize: root.vertical ? sections.width : sections.height
       x: root.vertical ? 0 : (sections.besideRight ? beginList.width : (sections.aroundNotch ? sections.notchEnd : Math.round((sections.width - width) / 2)))
       y: root.vertical ? Math.round((sections.height - height) / 2) : 0
@@ -2391,6 +2404,9 @@ Item {
     property var pool: null
     property bool active: true
     property string fixedEdge: "center"
+    // How far before the box centerBegin's inner end is, across a display
+    // notch, or 0 where centerBegin meets the box.
+    property real beginGap: 0
     // The bar's thickness: the least length along the bar a drop into the
     // box reaches.
     property real crossSize: 0
