@@ -254,9 +254,13 @@ Panel {
   }
 
   function commitRowDrag() {
-    if (dragIndex >= 0 && dragTarget >= 0 && dragTarget !== dragIndex)
-      persistSettings({ cities: Model.serializeCities(Model.moveZone(zones, dragIndex, dragTarget)), zones: undefined })
+    var next = dragIndex >= 0 && dragTarget >= 0 && dragTarget !== dragIndex
+      ? Model.moveZone(zones, dragIndex, dragTarget) : null
+    // Clear the old indices before replacing the Repeater's model. Otherwise
+    // its new rows inherit the drag transform, then animate back from it.
     cancelRowDrag()
+    if (next)
+      persistSettings({ cities: Model.serializeCities(next), zones: undefined })
   }
 
   function cancelRowDrag() {
