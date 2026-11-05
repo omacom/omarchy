@@ -21,7 +21,8 @@ printf '%s\n' "$*" >>"$CLEAN_URL_NOTIFY"
 EOF
 chmod +x "$stub/wl-copy" "$stub/wl-paste" "$stub/omarchy-notification-send"
 
-export PATH="$stub:$PATH"
+export OMARCHY_PATH="$ROOT"
+export PATH="$stub:$ROOT/bin:$PATH"
 export CLEAN_URL_COPY="$stub/copied"
 export CLEAN_URL_NOTIFY="$stub/notified"
 : >"$CLEAN_URL_NOTIFY"
