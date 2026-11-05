@@ -142,6 +142,10 @@ Adding a provider means adding an entry to the `providers` map in `Menu.qml`
 (script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
 it with `provider:`.
 
+## Currency conversion
+
+Search also answers conversions such as `INR 100 to USD`, `$5 to INR` or `100 rupees in euros`, in a row above the matches whose action copies the bare number. `Currency.js` reads the text and `CurrencyLookup.qml` fetches rates from [exchange-api](https://github.com/fawazahmed0/exchange-api) through `curl`, jsDelivr first and its Cloudflare copy second. A request only ever carries a currency code, never the search text, and nothing is fetched until the text is shaped like a conversion. Codes are checked against the API's list, so `5 cats to dogs` stays an ordinary search. `$` always means USD; other dollars are `A$`, `C$` and so on, or their codes. Rates stay in memory for six hours, and each row shows the date of its rates because the API updates each base currency separately.
+
 ## Driving the menu from the CLI
 
 `bin/omarchy-menu` is a thin wrapper over the standard plugin IPC surface:

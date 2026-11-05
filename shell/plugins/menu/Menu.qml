@@ -600,6 +600,33 @@ Item {
     return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
   }
 
+  CurrencyLookup {
+    id: currencyLookup
+    query: root.dmenuActive ? "" : root.filterText
+    onAnswerChanged: {
+      root.selectedIndex = 0
+      root.rebuildDisplay()
+    }
+  }
+
+  // Sits above the search results, and Enter copies the answer. The value is
+  // plain digits, so it is safe in the action; a row still loading or failed
+  // cannot be picked.
+  function currencyRow() {
+    var status = currencyLookup.status
+    var ready = status === "ready"
+    var waiting = status === "loading" ? Commons.I18n.t("menu.currencyConverting") : Commons.I18n.t("menu.currencyFailed")
+    return {
+      itemId: "currency.result", disabled: !ready, kind: "currency", icon: "\u{F0114}", iconFont: "",
+      appIcon: "", appId: "", target: "", path: "", childCount: 0, provider: "", score: -1, section: "",
+      label: ready ? currencyLookup.value + " " + currencyLookup.to : waiting,
+      // Short enough that the rates' date survives the row's width, while still
+      // showing how the text was read ("$" as USD).
+      detail: ready ? currencyLookup.amount + " " + currencyLookup.from + " · " + currencyLookup.date : root.filterText.trim(),
+      action: ready ? "wl-copy -- " + currencyLookup.value : ""
+    }
+  }
+
   function rowSelectable(index) {
     if (index < 0 || index >= displayModel.count) return false
     return !displayModel.get(index).disabled
@@ -747,6 +774,7 @@ Item {
         for (var d = 0; d < drilldownRows.length; d++) drilldownRows[d].section = "drilldown"
       }
       rows = currentRows.concat(drilldownRows)
+      if (currencyLookup.status) rows.unshift(root.currencyRow())
     } else {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
