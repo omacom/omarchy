@@ -463,7 +463,7 @@ cp "$work/stubs/busctl" "$work/stubs/fcitx5-remote"
 chmod +x "$work/stubs/busctl" "$work/stubs/fcitx5-remote"
 cjk_output=$(TEST_SUDO_GRANT=1 omarchy-language ja </dev/null 2>&1) || fail "a CJK language switches without a reachable Fcitx" "$cjk_output"
 assert_bash_equal "$(cat "$OMARCHY_LANGUAGE_FILE")" "ja" "a CJK language switches without a reachable Fcitx"
-[[ $cjk_output == *"Setup > Typing > Input Methods"* ]] && pass "an input method that could not be added is named with where to add it" || fail "an input method that could not be added is named with where to add it" "$cjk_output"
+[[ $cjk_output == *"Setup > Keyboard > Input Methods"* ]] && pass "an input method that could not be added is named with where to add it" || fail "an input method that could not be added is named with where to add it" "$cjk_output"
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "Japanese seeds Japanese glyph forms" || fail "Japanese seeds Japanese glyph forms"
 TEST_SUDO_GRANT=1 omarchy-language ko </dev/null 2>/dev/null
 grep -q 'Noto Sans CJK JP' "$cjk_font" && pass "a second CJK language keeps the glyph forms already chosen" || fail "a second CJK language keeps the glyph forms already chosen"

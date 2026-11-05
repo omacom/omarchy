@@ -69,7 +69,7 @@ elif [[ $* == "dictation stop --print" ]]; then
   echo hello
 fi
 SH
-for command in omarchy-pkg-add omarchy-clipboard-paste-text omarchy-notification-send hyprctl omarchy-restart-shell; do
+for command in omarchy-pkg-add omarchy-clipboard-paste-text omarchy-notification-send hyprctl omarchy-restart-hyprctl omarchy-restart-shell; do
   cat > "$test_tmp/bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$DICTATION_LOG"
@@ -187,6 +187,12 @@ omarchy-install-dictation-superwhisper
 jq -e '.shortcuts | .hold == "" and .toggle == "Ctrl+Alt+Space"' "$SHORTCUT_STATE" >/dev/null || fail "installer repairs conflicting profiles with an existing toggle"
 omarchy-install-dictation-superwhisper
 pass "Superwhisper installer owns setup and saves selection only after success"
+
+: > "$DICTATION_LOG"
+omarchy-install-dictation-superwhisper --background
+grep -qx setup-user "$DICTATION_LOG" || fail "background setup still configures Superwhisper"
+if grep -E '^(superwhisper settings|omarchy-notification-send)' "$DICTATION_LOG"; then fail "background setup opens no window and sends no toast"; fi
+pass "first-run Superwhisper setup stays in the background"
 
 DICTATION_INSTALLED=superwhisper
 CONFIRM_EXIT=1 omarchy-install-dictation-voxtype

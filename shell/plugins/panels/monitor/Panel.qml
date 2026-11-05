@@ -53,11 +53,10 @@ Panel {
   //                  to offer.
   //   "refresh"    - the refresh rates its resolution offers, when one is
   //                  faster than 60Hz.
-  //   "mirror"     - Extend or Mirror, when there's a built-in display and an
+  //   "mirror"     - Mirror or Extend, when there's a built-in display and an
   //                  external one to mirror it on.
-  //   "layout"     - the arrangement of the displays; h/l moves the shown one
-  //                  to the left or right of the rest, ctrl+j/k above or
-  //                  below them.
+  //   "layout"     - the arrangement of the displays; ctrl+h/j/k/l places
+  //                  the shown one left of, below, above or right of the rest.
   // Every section is one row: j/k steps between them, h/l moves a slider or
   // walks a row of pills, identical to bluetooth's header. r opens the shown
   // display's rotate menu from anywhere, which j/k and Enter then walk.
@@ -152,6 +151,9 @@ Panel {
   // nothing to move it against: no dragging, hover or keyboard stop, and no
   // accent marking the shown display. Right-clicking it still rotates it.
   readonly property bool layoutMovable: layoutRects.length > 1
+  // The section shows when there's something to arrange or to mirror onto,
+  // not for a lone display; r still rotates that one.
+  readonly property bool layoutShown: layoutMovable || mirrorAvailable
 
   readonly property var mirroredBy: {
     var map = {}
@@ -178,7 +180,7 @@ Panel {
   // shut in clamshell, and an external one. A mirror set up in
   // the user's own monitors.lua is theirs to undo, so Extend isn't offered.
   readonly property bool mirrorAvailable: internalEnabled && externalMonitor !== "" && (!mirrorEnabled || mirrorManaged || pendingMirror !== "")
-  readonly property var mirrorModes: ["extend", "mirror"]
+  readonly property var mirrorModes: ["mirror", "extend"]
 
   function displayGlyph(entry) {
     return entry && entry.builtIn ? "󰌢" : "󰍹"
@@ -254,6 +256,7 @@ Panel {
   function sectionFirstIndex(section) {
     if (isSliderSection(section)) return -1
     if (section === "displays") return Math.max(0, currentIndex)
+    // The other choice, so arriving shows as it turns bold, and Enter switches.
     if (section === "mirror") return mirrorEnabled ? 1 : 0
     return 0
   }
@@ -278,8 +281,8 @@ Panel {
     selectedIndex = sectionFirstIndex(focusSection)
   }
 
-  // h/l: a slider moves, the picker shows the next display, a row of pills
-  // walks its pills, and the layout moves the shown display to that side.
+  // h/l: a slider moves, the picker shows the next display and a row of pills
+  // walks its pills. The layout takes ctrl+h/l instead, like ctrl+j/k.
   function moveCursorH(delta) {
     if (focusSection === "brightness") {
       if (current) adjustBrightness(current.name, delta * 5)
@@ -291,8 +294,6 @@ Panel {
       selectedIndex = next
     } else if (focusSection === "scale" || focusSection === "resolution" || focusSection === "refresh" || focusSection === "mirror") {
       selectedIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, selectedIndex + delta))
-    } else if (focusSection === "layout" && current) {
-      applyLayout(Model.placeDisplay(layoutRects, current.name, delta < 0 ? "left" : "right"), current.name)
     }
   }
 
@@ -461,31 +462,83 @@ Panel {
     root.displays = parsed.displays
   }
 
+  // One display command at a time, in the order asked: a second key press or
+  // drop while the first is still applying waits its turn instead of being
+  // lost, as starting a running Process again would lose it. A queued move
+  // waits as the work to place it, not as positions: a scale or rotation
+  // ahead of it changes the sizes it has to fit around, so it's worked out
+  // from a state read that started after everything before it landed.
+  property var queuedActions: []
+  property bool awaitingFreshState: false
+  readonly property bool actionBusy: actionProc.running || queuedActions.length > 0 || awaitingFreshState
+  // Finished commands, and how many had finished when the running state read
+  // started, so a read already under way when a command ended isn't fresh.
+  property int actionsDone: 0
+  property int readAfterActions: 0
+  property bool rereadState: false
+
+  function runAction(command) {
+    if (actionBusy) {
+      queuedActions = queuedActions.concat([{ command: command }])
+      return
+    }
+    actionProc.command = command
+    actionProc.running = true
+  }
+
+  function runNextAction() {
+    if (actionProc.running || awaitingFreshState) return
+    if (queuedActions.length === 0) {
+      // A read already under way started before this command landed.
+      if (stateProc.running) rereadState = true
+      else refresh()
+      return
+    }
+    var next = queuedActions[0]
+    if (next.layout) {
+      // Placed by the state read once a fresh one lands; see stateProc.
+      awaitingFreshState = true
+      if (stateProc.running) rereadState = true
+      else refresh()
+      return
+    }
+    queuedActions = queuedActions.slice(1)
+    actionProc.command = next.command
+    actionProc.running = true
+  }
+
+  // The queued move at the front, worked out now the state is fresh.
+  function placeQueuedLayout() {
+    awaitingFreshState = false
+    var next = queuedActions[0]
+    queuedActions = queuedActions.slice(1)
+    var rects = next.layout()
+    if (rects && !Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) {
+      pendingRects = rects
+      actionProc.command = layoutCommand(rects)
+      actionProc.running = true
+    } else {
+      runNextAction()
+    }
+  }
+
   function setScale(name, scale) {
-    cancelLayout()
-    actionProc.command = ["omarchy-hyprland-monitor-scaling", "--monitor", name, scale]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-scaling", "--monitor", name, scale])
   }
 
   function setResolution(name, resolution) {
-    cancelLayout()
-    actionProc.command = ["omarchy-hyprland-monitor-resolution", "--monitor", name, resolution]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-resolution", "--monitor", name, resolution])
   }
 
   function setMirror(enabled) {
     if (enabled === mirrorEnabled) return
-    cancelLayout()
     pendingMirror = enabled ? "on" : "off"
     mirrorSettle.restart()
-    actionProc.command = ["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-internal-mirror", enabled ? "on" : "off"])
   }
 
   function setRotation(name, degrees) {
-    cancelLayout()
-    actionProc.command = ["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)]
-    if (!actionProc.running) actionProc.running = true
+    runAction(["omarchy-hyprland-monitor-rotate", "--monitor", name, String(degrees)])
   }
 
   // The layout map's right-click menu: the display it's for, where it opened
@@ -512,9 +565,12 @@ Panel {
 
   // r: the shown display's rotate menu, opened over the middle of the map.
   function openRotateMenuForShown() {
-    var map = panel.loadedContent ? panel.loadedContent.layoutMap : null
-    if (!current || !map || !map.visible) return
-    openRotateMenu(current.name, map, map.width / 2, map.height / 2)
+    var content = panel.loadedContent
+    if (!current || !content) return
+    var map = content.layoutMap
+    // A lone display has no map, so the menu opens near the top instead.
+    if (map && map.visible) openRotateMenu(current.name, map, map.width / 2, map.height / 2)
+    else openRotateMenu(current.name, content, content.width / 2, Style.space(60))
   }
 
   function applyRotateMenu() {
@@ -522,53 +578,38 @@ Panel {
     closeRotateMenu()
   }
 
-  // ctrl+j/k on the layout: the shown display above or below the rest.
-  function moveLayoutVertical(dy) {
+  // ctrl+h/j/k/l on the layout: the shown display to that side of the rest.
+  function placeShown(side) {
     if (!current || !layoutMovable) return
-    applyLayout(Model.placeDisplay(layoutRects, current.name, dy < 0 ? "above" : "below"), current.name)
+    var name = current.name
+    applyLayout(function() { return Model.placeDisplay(layoutRects, name, side) })
   }
 
   function closeRotateMenu() {
     rotateMenuName = ""
   }
 
-  // A move first shows in the map, the display reading "Moving…" where it
-  // lands, and is applied a beat later, so the blink while Hyprland moves the
-  // outputs doesn't come out of nowhere. The map draws shownRects until the
-  // state read after the move catches up.
+  // A moved display stays where it was put in the map until the state read
+  // after the move catches up, instead of snapping back for a moment.
   property var pendingRects: null
-  property string pendingName: ""
   readonly property var shownRects: pendingRects || layoutRects
 
-  // Apply a whole arrangement, unless it leaves everything where it was.
-  // A move back to where everything is, like right then left, calls off the
-  // one still waiting.
-  function applyLayout(rects, name) {
-    if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) {
-      cancelLayout()
-      return
-    }
+  // Apply the arrangement `place` works out from layoutRects, unless it
+  // leaves everything where it was. Behind another command it waits its turn
+  // and is worked out again then, from the sizes that command left.
+  function applyLayout(place) {
+    var rects = place()
+    if (!rects || Model.sameLayout(rects, Model.normalizeLayout(Model.copyRects(layoutRects)))) return
     pendingRects = rects
-    pendingName = name || ""
-    layoutDelay.restart()
+    if (actionBusy) queuedActions = queuedActions.concat([{ layout: place }])
+    else runAction(layoutCommand(rects))
   }
 
-  // A scale, mode, rotation or mirror change resizes the displays the
-  // waiting move was worked out from, so it no longer fits: drop it.
-  function cancelLayout() {
-    layoutDelay.stop()
-    pendingRects = null
-    pendingName = ""
-  }
-
-  function commitLayout() {
-    var rects = pendingRects
-    if (!rects) return
+  function layoutCommand(rects) {
     var args = ["omarchy-hyprland-monitor-layout"]
     for (var i = 0; i < rects.length; i++)
       args.push(rects[i].name + "=" + rects[i].x + "x" + rects[i].y)
-    actionProc.command = args
-    if (!actionProc.running) actionProc.running = true
+    return args
   }
 
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
@@ -645,6 +686,14 @@ Panel {
   Process {
     id: stateProc
     command: ["omarchy-monitor-state"]
+    onRunningChanged: {
+      if (running) {
+        root.readAfterActions = root.actionsDone
+      } else if (root.rereadState) {
+        root.rereadState = false
+        Qt.callLater(root.refresh)
+      }
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -658,17 +707,20 @@ Panel {
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
+        // A queued move waits for a read that started after the last command;
+        // an older one reads again once this process has stopped.
+        if (root.awaitingFreshState) {
+          if (root.readAfterActions === root.actionsDone) root.placeQueuedLayout()
+          else root.rereadState = true
+        }
         // A mirror switch has landed once a read shows it; until then, look
         // again shortly instead of waiting for the next regular read.
-        if (root.pendingMirror !== "" && !actionProc.running) {
+        if (root.pendingMirror !== "" && !root.actionBusy) {
           if (root.mirroredNow === (root.pendingMirror === "on")) root.pendingMirror = ""
           else mirrorRecheck.restart()
         }
         // The move has landed once a read after it comes back.
-        if (!layoutDelay.running && !actionProc.running) {
-          root.pendingRects = null
-          root.pendingName = ""
-        }
+        if (!root.actionBusy) root.pendingRects = null
         root.mirrorManaged = String(lines[8] || "").trim() === "on"
       }
     }
@@ -712,16 +764,15 @@ Panel {
     onTriggered: root.pendingMirror = ""
   }
 
-  Timer {
-    id: layoutDelay
-    interval: 500
-    onTriggered: root.commitLayout()
-  }
-
   Process {
     id: actionProc
     stdout: StdioCollector { waitForEnd: true }
-    onRunningChanged: if (!running) root.refresh()
+    // The next one starts a turn later, not from inside this change.
+    onRunningChanged: {
+      if (running) return
+      root.actionsDone++
+      Qt.callLater(root.runNextAction)
+    }
   }
 
   // Applies text size via the CLI, which rewrites the shell override file;
@@ -785,7 +836,9 @@ Panel {
       property alias scrollArea: scrollArea
       property alias layoutMap: layoutMap
       reorderable: root.rotateMenuName === "" && root.cursorActive && root.focusSection === "layout"
-      onReorderRequested: function(dy) { root.moveLayoutVertical(dy) }
+      reorderableSideways: reorderable
+      onReorderRequested: function(dy) { root.placeShown(dy < 0 ? "above" : "below") }
+      onReorderSidewaysRequested: function(dx) { root.placeShown(dx < 0 ? "left" : "right") }
       onTextKey: function(t) {
         if ((t === "r" || t === "R") && root.rotateMenuName === "") root.openRotateMenuForShown()
       }
@@ -889,7 +942,7 @@ Panel {
             }
 
             // One icon per display, named in its tooltip. Plain glyphs like
-            // Extend and Mirror: the shown one in the accent, the rest dim until
+            // Mirror and Extend: the shown one in the accent, the rest dim until
             // hovered or picked, and no box either way.
             Row {
               id: picker
@@ -1243,14 +1296,13 @@ Panel {
           }
 
           // ---------- Layout ----------
-          // Shown for a single display too: right-clicking it is how it's rotated.
           PanelSeparator {
-            visible: root.layoutRects.length > 0
+            visible: root.layoutShown
             foreground: root.bar.foreground
           }
 
           Column {
-            visible: root.layoutRects.length > 0
+            visible: root.layoutShown
             width: parent.width
             spacing: Style.space(6)
 
@@ -1275,8 +1327,8 @@ Panel {
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
 
-                MirrorLink { mode: "extend"; modeIndex: 0 }
-                MirrorLink { mode: "mirror"; modeIndex: 1 }
+                MirrorLink { mode: "mirror"; modeIndex: 0 }
+                MirrorLink { mode: "extend"; modeIndex: 1 }
               }
             }
 
@@ -1306,6 +1358,26 @@ Panel {
                 enabled: root.layoutMovable
                 onHoveredChanged: if (hovered) root.pointAt("layout", 0)
               }
+
+              HoverHandler { id: layoutHover }
+            }
+
+            // The keys the map takes, while it's hovered or the keyboard is on
+            // it; a lone or mirrored map isn't a stop, so the row above shows
+            // its hint instead. Its room stays reserved and it appears without
+            // a fade, so nothing shifts as the pointer crosses the map.
+            Text {
+              readonly property bool shown: layoutHover.hovered || (root.cursorActive &&
+                (root.focusSection === "layout" || (!root.layoutMovable && root.focusSection === "mirror")))
+              width: parent.width
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+              textFormat: Text.PlainText
+              text: root.layoutMovable ? Commons.I18n.t("monitor.layoutHint") : Commons.I18n.t("monitor.rotateHint")
+              color: Qt.darker(root.bar.foreground, 1.55)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              opacity: shown ? 1 : 0
             }
           }
         }
@@ -1431,13 +1503,11 @@ Panel {
     onHovered: function(isHovered) { if (isHovered) root.pointAt("refresh", refreshPill.refreshIndex) }
   }
 
-  // The displays drawn where they sit, at their relative sizes. Drag one
-  // against another's side to move it there; it lines up with that display's
-  // start, center or end when dropped near one. Clicking one shows it above.
   // Extend puts each display beside the others; Mirror shows the built-in
   // display's picture on the external one too. Plain text like the agents
-  // panel's Autoswitch: dim until hovered or picked, bold accent when it's
-  // the current choice.
+  // panel's Autoswitch: the current choice in bold accent, the other dim
+  // until hovered or picked, when it turns bold. The current one, already
+  // bold, takes a soft underline when picked.
   component MirrorLink: Text {
     id: mirrorLink
     property string mode: ""
@@ -1452,8 +1522,8 @@ Panel {
     color: current ? Commons.Color.accent : (hot ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.55))
     font.family: root.bar.fontFamily
     font.pixelSize: Style.font.caption
-    font.bold: current
-    font.underline: hot && !current
+    font.bold: current || hot
+    font.underline: current && picked
 
     MouseArea {
       id: linkMouse
@@ -1466,9 +1536,12 @@ Panel {
     }
   }
 
+  // The displays drawn where they sit, at their relative sizes. Drag one
+  // against another's side to move it there; it lines up with that display's
+  // start, center or end when dropped near one. Clicking one shows it above.
   component LayoutMap: Item {
     id: map
-    // The keyboard is on the map: h/l moves the shown display.
+    // The keyboard is on the map: ctrl+h/j/k/l moves the shown display.
     property bool hasCursor: false
 
     readonly property var bounds: {
@@ -1569,9 +1642,7 @@ Panel {
           width: parent.width - Style.space(6)
           horizontalAlignment: Text.AlignHCenter
           textFormat: Text.PlainText
-          text: root.pendingRects && root.pendingName === screenRect.modelData.name
-            ? Commons.I18n.t("monitor.moving")
-            : [screenRect.modelData.name].concat(root.mirroredBy[screenRect.modelData.name] || []).join(" + ")
+          text: [screenRect.modelData.name].concat(root.mirroredBy[screenRect.modelData.name] || []).join(" + ")
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
@@ -1610,10 +1681,11 @@ Panel {
             // Back into layout space; snap within about 8 map pixels.
             var x = map.bounds.x + (screenRect.x - map.offsetX) / map.ratio
             var y = map.bounds.y + (screenRect.y - map.offsetY) / map.ratio
-            // Reset first: staging the move redraws the map, this box included.
+            // Reset first: applying the move redraws the map, this box included.
             screenRect.dragX = 0
             screenRect.dragY = 0
-            if (moved) root.applyLayout(Model.dropDisplay(root.layoutRects, name, x, y, Style.space(8) / map.ratio), name)
+            var snap = Style.space(8) / map.ratio
+            if (moved) root.applyLayout(function() { return Model.dropDisplay(root.layoutRects, name, x, y, snap) })
             else root.selectDisplay(name)
           }
           onCanceled: {
