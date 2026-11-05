@@ -26,9 +26,8 @@ ShellRoot {
   // A login whose intro ends on a still: the launcher is still running
   // when the background service appears, then OWE takes the background for
   // the intro and hands it back once the launcher has finished.
-  // Each step runs a set delay after the one before it ran, always in order;
-  // see switch-sequence.qml.
-  property int step: 0
+  // Wait for launcher completion instead of assuming its process exits in
+  // the gap between two timer ticks.
   readonly property var steps: [
     { delay: 100, run: function() {
       test.services = ({ "omarchy.background": retainedBackground })
@@ -37,7 +36,8 @@ ShellRoot {
       test.check(intro.cover, "the cover stays while the launcher runs")
       retainedBackground.suspended = true
     } },
-    { delay: 2000, run: function() {
+    { until: function() { return intro.startupSettled },
+      waitFor: "the intro launcher to finish", run: function() {
       test.check(intro.startupSettled, "the launcher has finished")
       retainedBackground.suspended = false
     } },
@@ -50,16 +50,5 @@ ShellRoot {
       Qt.quit()
     } }
   ]
-  Timer {
-    interval: test.steps[0].delay
-    running: true
-    onTriggered: {
-      test.steps[test.step].run()
-      test.step++
-      if (test.step < test.steps.length) {
-        interval = test.steps[test.step].delay
-        start()
-      }
-    }
-  }
+  StepSequence { steps: test.steps }
 }

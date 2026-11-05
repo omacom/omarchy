@@ -20,9 +20,8 @@ ShellRoot {
   // A switch finished while OWE still holds the desktop, as when a change
   // without an intro of its own cuts a playing one short: the cover waits for
   // the shell's wallpaper to be back and decoded before it fades.
-  // Each step runs a set delay after the one before it ran, always in order;
-  // see switch-sequence.qml.
-  property int step: 0
+  // Observe the hidden and decoding states, then wait for the cut to start
+  // and finish rather than sampling it after a fixed delay.
   readonly property var steps: [
     { delay: 100, run: function() {
       test.services = ({ "omarchy.background": retainedBackground })
@@ -40,29 +39,20 @@ ShellRoot {
       test.check(intro.themeToken === "switch", "the cover stays while the new still decodes")
       retainedBackground.ready = true
     } },
-    { delay: 100, run: function() {
+    { until: function() { return intro.themeToken === "" && intro.themeCutProgress > 0 },
+      waitFor: "the cover cut after the still decodes", run: function() {
       // The cover opens with the background's slanted cut rather than fading.
       test.check(intro.themeToken === "", "the cover opens once the still is on screen")
       test.check(intro.themeBackground !== "" && intro.themeOpacity === 1 && intro.themeCutProgress > 0,
                  "the cover stays drawn while the cut opens")
       test.check(intro.themeStatus("switch") === "pending", "the switch is pending until the cut ends")
     } },
-    { delay: 1100, run: function() {
+    { until: function() { return intro.themeStatus("switch") === "ready" },
+      waitFor: "the cover cut to finish", run: function() {
       test.check(intro.themeBackground === "" && intro.themeStatus("switch") === "ready", "the cover is gone once the cut ends")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     } }
   ]
-  Timer {
-    interval: test.steps[0].delay
-    running: true
-    onTriggered: {
-      test.steps[test.step].run()
-      test.step++
-      if (test.step < test.steps.length) {
-        interval = test.steps[test.step].delay
-        start()
-      }
-    }
-  }
+  StepSequence { steps: test.steps }
 }
