@@ -55,6 +55,9 @@
   "agents.mostlyModel": "Mostly %1",
   "agents.nameAccount": "Name this account. It signs in through a private window, so your browser's current account isn't picked up.",
   "agents.outOfCredits": "Out of credits",
+  "agents.park": "Park",
+  "agents.parkHint": "Park it to keep it from lighting the bar until it resets",
+  "agents.parked": "Parked until it resets",
   "agents.pasteCode": "If the page shows a code instead of finishing, paste it here.",
   "agents.placeholderCode": "Code",
   "agents.placeholderWork": "Work",
@@ -144,6 +147,7 @@
     "other": "%1 tokens today"
   },
   "agents.unknownModel": "Unknown",
+  "agents.unpark": "Unpark",
   "agents.use": "Use",
   "agents.waitingForAuth": "Waiting for auth",
   "agents.windowLimit": "Limit",

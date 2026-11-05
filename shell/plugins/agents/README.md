@@ -27,6 +27,13 @@ Every subscription on one page, limits first.
   endpoint that didn't answer — leaves the last known limits on show, with a
   small info mark beside the name whose tooltip says why they aren't current
   and what to do; each meter's tooltip says how old it is.
+- **Parking** — a limit that is fully spent and has a known reset can be
+  parked from its row: hovering it trades the time left for _Park_. A parked
+  limit is drawn quietly and stops lighting the bar icon, while the agent's
+  other limits still can. The park holds only for the reset it was made for
+  (kept in `~/.local/state/omarchy/agents/parked.json`), so it lapses on its
+  own once the window rolls over, or if the reset moves. _Unpark_ undoes it
+  sooner. An agent with several accounts has Use and Autoswitch instead.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the
