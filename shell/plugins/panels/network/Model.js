@@ -12,6 +12,21 @@ function wifiToggleVisible(kind, networkManagerAvailable, wifiStationAvailable) 
   return networkManagerAvailable && wifiStationAvailable && kind !== "ethernet"
 }
 
+// Device state is distinct from the route in the hero. In particular, a
+// disconnected wired device may still have a cable, and Wi-Fi is a global radio.
+function interfaceStatus(device, wifiEnabled, pending) {
+  if (pending === "connect") return "Connecting…"
+  if (pending === "disconnect") return "Disconnecting…"
+  if (pending === "configure") return "Opening configuration…"
+  if (!device.managed) return "Not managed by NetworkManager"
+  if (device.type === "wifi" && !wifiEnabled) return "Wi-Fi radio off"
+  if (device.type === "ethernet" && !device.hasLink) return "Cable unplugged"
+  if (device.state === "connecting") return "Connecting…"
+  if (device.state === "disconnecting") return "Disconnecting…"
+  if (device.connected) return "Connected"
+  return "Disconnected"
+}
+
 function wifiIconFor(strength) {
   var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
   var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
@@ -419,6 +434,7 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     wifiToggleVisible: wifiToggleVisible,
+    interfaceStatus: interfaceStatus,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,

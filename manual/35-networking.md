@@ -2,7 +2,17 @@
 
 Networking in Omarchy is handled by NetworkManager, and you drive it from the network icon in the [top bar](05-the-top-bar.md) or with `Super + Ctrl + W`.
 
-That panel scans for Wi-Fi networks, shows signal strength, and connects. When Ethernet is active, its _Wired Connection_ section opens NetworkManager's connection editor in a floating terminal; choose a profile to switch between DHCP and manual IP configuration, set addresses, gateway, and DNS, and save it. Ethernet needs nothing at all by default — plug it in and it works. There's an `omarchy network` command group too.
+That panel scans for Wi-Fi networks, shows signal strength, and connects. Ethernet needs nothing at all by default — plug it in and it works. There's an `omarchy network` command group too.
+
+## Managing interfaces
+
+Open _Setup > Network > Wi-Fi_ or _Wired_ to jump to that interface in the network panel. Its _Network Interfaces_ section lists every detected Wi-Fi and wired adapter, including disconnected adapters, unplugged Ethernet ports, and Wi-Fi with its radio off. Each row shows the interface name, type, and live connection state.
+
+Use _Connect_ or _Disconnect_ to control an individual interface. _Wi-Fi on_ and _Wi-Fi off_ control all Wi-Fi radios, even when Ethernet carries your connection and the panel's header hides the Wi-Fi switch. Disconnecting an interface does not permanently disable its saved profiles' autoconnect setting.
+
+_Configure_ opens NetworkManager's connection editor in a floating terminal. A connected interface opens its active profile; a disconnected interface opens the profile chooser, where you can edit or add a profile without first connecting a cable or enabling Wi-Fi. The editor handles DHCP or manual addresses, gateway, and DNS.
+
+Everything is keyboard-accessible: use `j`/`k` or Up/Down to move between interfaces, `h`/`l` or Left/Right to choose an action, and Enter or Space to activate it. The highlighted action stays in view as the panel scrolls. Pending changes and errors appear beside the affected interface; a failed connection never appears as connected.
 
 ## Sharing your Wi-Fi
 

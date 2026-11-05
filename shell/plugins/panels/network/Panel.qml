@@ -68,6 +68,89 @@ Panel {
   readonly property string connectionPhrase: connectionPhrases[connectionPhraseIndex % connectionPhrases.length]
   readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
+  // NetworkDevice/WiredDevice properties are supplied by Quickshell.Networking:
+  // name, type, connected, state, nmManaged, and (wired only) hasLink.
+  readonly property var interfaceDevices: networkDevices.filter(function(device) {
+    return device.type === DeviceType.Wifi || device.type === DeviceType.Wired
+  })
+  property int interfaceIndex: 0
+  property int interfaceActionIndex: 0
+  property string requestedInterfaceType: ""
+  property string radioPending: ""
+  property string radioFailure: ""
+
+  onInterfaceDevicesChanged: {
+    interfaceIndex = Math.max(0, Math.min(interfaceIndex, interfaceDevices.length - 1))
+    clampInterfaceAction()
+    if (interfaceDevices.length === 0 && focusSection === "interfaces") focusSection = "dns"
+    if (requestedInterfaceType !== "") focusRequestedInterface()
+  }
+
+  onInterfaceIndexChanged: clampInterfaceAction()
+  onFocusSectionChanged: Qt.callLater(ensureCursorVisible)
+  onInterfaceActionIndexChanged: Qt.callLater(ensureCursorVisible)
+  onSelectedIndexChanged: Qt.callLater(ensureCursorVisible)
+  onCursorActiveChanged: Qt.callLater(ensureCursorVisible)
+
+  function interfaceType(device) {
+    return device.type === DeviceType.Wifi ? "wifi" : "ethernet"
+  }
+
+  function interfaceRowAt(slot) {
+    var device = interfaceDevices[slot]
+    for (var i = 0; i < interfaceRepeater.count; i++) {
+      var row = interfaceRepeater.itemAt(i)
+      if (row && row.device === device) return row
+    }
+    return null
+  }
+
+  function clampInterfaceAction() {
+    var device = interfaceDevices[interfaceIndex]
+    var last = device && device.type === DeviceType.Wifi ? 2 : 1
+    interfaceActionIndex = Math.max(0, Math.min(interfaceActionIndex, last))
+    Qt.callLater(ensureCursorVisible)
+  }
+
+  function focusRequestedInterface() {
+    for (var i = 0; i < interfaceDevices.length; i++) {
+      if (interfaceType(interfaceDevices[i]) !== requestedInterfaceType) continue
+      interfaceIndex = i
+      interfaceActionIndex = 0
+      focusSection = "interfaces"
+      cursorActive = true
+      requestedInterfaceType = ""
+      Qt.callLater(ensureCursorVisible)
+      return
+    }
+  }
+
+  function showInterfaces(type) {
+    cancelPasswordPrompt()
+    root.open()
+    requestedInterfaceType = type
+    focusRequestedInterface()
+  }
+
+  // The entire card scrolls, not only the nearby-network list. That keeps
+  // interface controls reachable on small displays and multi-NIC machines.
+  function ensureCursorVisible() {
+    if (!opened || !cursorActive) return
+    var target = null
+    if (focusSection === "interfaces") target = interfaceRowAt(interfaceIndex)
+    else if (focusSection === "dns") target = dnsSection
+    else if (focusSection === "band") target = bandSection
+    else if (focusSection === "portal") target = portalSection
+    else if (focusSection === "header") target = heroSection
+    else if (focusSection === "wifi") target = networkList
+    if (!target) return
+    var top = target.mapToItem(column, 0, 0).y
+    var bottom = top + target.height
+    if (top < panelScroll.contentY) panelScroll.contentY = top
+    else if (bottom > panelScroll.contentY + panelScroll.height)
+      panelScroll.contentY = bottom - panelScroll.height
+    panelScroll.contentY = Math.max(0, Math.min(panelScroll.contentY, Math.max(0, panelScroll.contentHeight - panelScroll.height)))
+  }
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
@@ -112,17 +195,23 @@ Panel {
   // True while any wifi action is mid-flight. Rows
   // disable themselves on this so clicks on the other rows don't silently
   // no-op against runNetworkAction's serialized guard.
-  readonly property bool busy: actionKind !== ""
+  readonly property bool interfaceWifiBusy: {
+    for (var i = 0; i < interfaceRepeater.count; i++) {
+      var row = interfaceRepeater.itemAt(i)
+      if (row && row.isWifi && row.pending !== "") return true
+    }
+    return false
+  }
+  readonly property bool busy: actionKind !== "" || radioPending !== "" || interfaceWifiBusy
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
-  // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
-  // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  // Keyboard focus zone: header ⇄ portal ⇄ band ⇄ interfaces ⇄ DNS ⇄ Wi-Fi.
+  // h/l selects actions within the current row.
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "interfaces" | "dns" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -180,7 +269,7 @@ Panel {
 
   onCanSelectBandChanged: {
     if (!canSelectBand && focusSection === "band") {
-      focusSection = "dns"
+      focusSection = interfaceDevices.length > 0 ? "interfaces" : "dns"
       bandAutoFocused = true
     }
   }
@@ -202,9 +291,11 @@ Panel {
   }
 
   function toggleNetwork() {
-    if (!networkManagerAvailable) return
-    Networking.wifiEnabled = !Networking.wifiEnabled
-    Qt.callLater(function() { root.refresh(true) })
+    if (!networkManagerAvailable || radioProc.running || busy) return
+    radioFailure = ""
+    radioPending = Networking.wifiEnabled ? "Turning Wi-Fi off…" : "Turning Wi-Fi on…"
+    radioProc.command = ["nmcli", "radio", "wifi", Networking.wifiEnabled ? "off" : "on"]
+    radioProc.running = true
   }
 
   ShellIpc {
@@ -216,6 +307,7 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function toggleNetwork() { root.toggleNetwork() }
+    function showInterfaces(type: string) { root.showInterfaces(type) }
     // Compat routes for configs that summon the centered cards through the
     // network target; both cards are their own plugins now.
     function showQr() { root.summonWifiQr(true) }
@@ -321,6 +413,7 @@ Panel {
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
+      panelScroll.contentY = 0
       refresh(true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
@@ -780,11 +873,6 @@ Panel {
     root.close()
   }
 
-  function configureWiredConnection() {
-    if (!root.bar || root.kind !== "ethernet") return
-    root.bar.run("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote("nmtui edit"))
-    root.close()
-  }
 
   function requiresCredentials(security) {
     return Model.requiresCredentials(security, WifiSecurityType.Open, WifiSecurityType.Owe)
@@ -814,7 +902,7 @@ Panel {
   }
 
   function runNetworkAction(kind, network, callback) {
-    if (actionKind !== "" || !network) return
+    if (busy || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
     actionKind = kind
@@ -1014,6 +1102,23 @@ Panel {
     }
   }
 
+  Process {
+    id: radioProc
+    stdout: StdioCollector { id: radioStdout; waitForEnd: true }
+    stderr: StdioCollector { id: radioStderr; waitForEnd: true }
+    onExited: function(exitCode) {
+      root.radioPending = ""
+      if (exitCode !== 0) {
+        root.radioFailure = radioStderr.text.trim() || radioStdout.text.trim() || "Could not change the Wi-Fi radio"
+        if (root.opened) {
+          root.showInterfaces("wifi")
+          root.interfaceActionIndex = 2
+        }
+      }
+      root.refresh()
+    }
+  }
+
   // Poll details while the panel is open so the IP/route header catches up
   // as soon as NetworkManager finishes activating a connection.
   Timer {
@@ -1139,7 +1244,8 @@ Panel {
                 root.focusSection = "band"
                 root.bandAutoFocused = true
               } else {
-                root.focusSection = "dns"
+                root.focusSection = root.interfaceDevices.length > 0 ? "interfaces" : "dns"
+                root.interfaceIndex = 0
               }
             }
           } else if (root.focusSection === "portal") {
@@ -1147,7 +1253,8 @@ Panel {
               root.focusSection = "header"
               root.headerIndex = 0
             } else if (dy > 0) {
-              root.focusSection = root.canSelectBand ? "band" : "dns"
+              root.focusSection = root.canSelectBand ? "band" : (root.interfaceDevices.length > 0 ? "interfaces" : "dns")
+              root.interfaceIndex = 0
               root.bandAutoFocused = true
             }
           } else if (root.focusSection === "band") {
@@ -1165,14 +1272,32 @@ Panel {
             } else if (root.bandAutoFocused && root.bandPillsVisible) {
               root.bandAutoFocused = false
             } else {
+              root.focusSection = root.interfaceDevices.length > 0 ? "interfaces" : "dns"
+              root.interfaceIndex = 0
+            }
+          } else if (root.focusSection === "interfaces") {
+            if (dy < 0 && root.interfaceIndex <= 0) {
+              if (root.canSelectBand) {
+                root.focusSection = "band"
+                root.bandAutoFocused = !root.bandPillsVisible
+              } else if (root.hasCaptivePortal) {
+                root.focusSection = "portal"
+              } else if (root.headerActionCount > 0) {
+                root.focusSection = "header"
+                root.headerIndex = 0
+              }
+            } else if (dy > 0 && root.interfaceIndex >= root.interfaceDevices.length - 1) {
               root.focusSection = "dns"
+            } else {
+              root.interfaceIndex += dy
             }
           } else if (root.focusSection === "dns") {
-            // k from DNS moves up into the band section when it's on screen,
-            // then the disconnect button; otherwise stays put. j drops into the
-            // wifi list if there's anywhere to land.
+            // Interfaces sit between the band controls and DNS.
             if (dy < 0) {
-              if (root.canSelectBand) {
+              if (root.interfaceDevices.length > 0) {
+                root.focusSection = "interfaces"
+                root.interfaceIndex = root.interfaceDevices.length - 1
+              } else if (root.canSelectBand) {
                 root.focusSection = "band"
                 root.bandAutoFocused = !root.bandPillsVisible
               } else if (root.hasCaptivePortal) {
@@ -1199,8 +1324,13 @@ Panel {
           if (root.focusSection === "header") root.selectHeaderByDelta(dx)
           else if (root.focusSection === "band") { if (!root.bandAutoFocused) root.selectBandByDelta(dx) }
           else if (root.focusSection === "dns") root.selectDnsByDelta(dx)
+          else if (root.focusSection === "interfaces") {
+            root.interfaceActionIndex += dx
+            root.clampInterfaceAction()
+          }
           else if (root.focusSection === "wifi") root.selectWifiActionByDelta(dx)
         }
+        Qt.callLater(root.ensureCursorVisible)
       }
       onActivateRequested: {
         if (root.cursorActive) {
@@ -1208,6 +1338,10 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "interfaces") {
+            var row = root.interfaceRowAt(root.interfaceIndex)
+            if (row) row.activate(root.interfaceActionIndex)
+          }
           else root.activateSelected()
         }
       }
@@ -1218,15 +1352,24 @@ Panel {
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
+    Flickable {
+      id: panelScroll
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      onHeightChanged: Qt.callLater(root.ensureCursorVisible)
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
     Column {
       id: column
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.top: parent.top
+      width: panelScroll.width
       spacing: Style.space(12)
 
       // ---------- Hero: network icon · SSID + state · actions ----------
       Item {
+        id: heroSection
         width: parent.width
         implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroActions.implicitHeight)
 
@@ -1283,6 +1426,8 @@ Panel {
             id: powerSwitch
             visible: root.canToggleWifi
             checked: Networking.wifiEnabled
+            busy: root.radioPending !== ""
+            enabled: !root.busy
             hasCursor: root.toggleHeaderHasCursor
             foreground: root.bar.foreground
             Layout.alignment: Qt.AlignVCenter
@@ -1360,6 +1505,7 @@ Panel {
       }
 
       Column {
+        id: portalSection
         visible: root.hasCaptivePortal
         width: parent.width
         spacing: Style.space(6)
@@ -1456,6 +1602,7 @@ Panel {
       }
 
       Column {
+        id: bandSection
         visible: root.canSelectBand
         width: parent.width
         spacing: Style.space(10)
@@ -1579,33 +1726,33 @@ Panel {
 
       }
 
-      // Delegate IP mode, addresses, gateway, and DNS to NetworkManager's
-      // connection editor rather than duplicating profile validation here.
+      // Every native NIC remains configurable, even with no link or radio.
       PanelSeparator {
-        visible: root.kind === "ethernet"
+        visible: root.interfaceDevices.length > 0
         foreground: root.bar.foreground
       }
 
       Column {
-        visible: root.kind === "ethernet"
+        visible: root.interfaceDevices.length > 0
         width: parent.width
         spacing: Style.space(10)
 
         PanelSectionHeader {
-          text: "WIRED CONNECTION"
+          text: "NETWORK INTERFACES"
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
 
-        Button {
-          width: parent.width
-          text: "Configure IP, DHCP, gateway, and DNS"
-          iconText: "󰈀"
-          foreground: root.bar.foreground
-          fontFamily: root.bar.fontFamily
-          verticalPadding: Style.space(8)
-          bordered: true
-          onClicked: root.configureWiredConnection()
+        Repeater {
+          id: interfaceRepeater
+          // Keep delegates (and their running operations) when another NIC is
+          // added or removed; a fresh filtered array would reset every row.
+          model: Networking.devices
+          delegate: InterfaceRow {
+            required property var modelData
+            device: modelData
+            width: parent.width
+          }
         }
       }
 
@@ -1615,6 +1762,7 @@ Panel {
       }
 
       Column {
+        id: dnsSection
         width: parent.width
         spacing: Style.space(10)
 
@@ -1734,6 +1882,201 @@ Panel {
         }
       }
     }
+    }
+    }
+  }
+
+  component InterfaceRow: Column {
+    id: interfaceRow
+    required property var device
+    readonly property int slot: root.interfaceDevices.indexOf(device)
+    visible: slot >= 0
+    readonly property bool isWifi: device && device.type === DeviceType.Wifi
+    readonly property bool selected: root.cursorActive && root.focusSection === "interfaces" && root.interfaceIndex === slot
+    readonly property bool changing: device && (device.state === ConnectionState.Connecting || device.state === ConnectionState.Disconnecting)
+    readonly property bool blocked: pending !== "" || changing || !root.networkManagerAvailable || (isWifi && (root.busy || root.radioPending !== ""))
+    property string pending: ""
+    property string failure: ""
+    spacing: Style.space(6)
+
+    function setCursor(action) {
+      root.cursorActive = true
+      root.focusSection = "interfaces"
+      root.interfaceIndex = slot
+      root.interfaceActionIndex = action
+      Qt.callLater(root.ensureCursorVisible)
+    }
+
+    function activate(action) {
+      if (!device || blocked) return
+      if (action === 2 && isWifi) {
+        root.toggleNetwork()
+        return
+      }
+      failure = ""
+      if (action === 1) {
+        pending = "configure"
+        // An active UUID targets this profile. A down/unplugged NIC opens the
+        // full editor, where saved profiles can still be edited or added.
+        interfaceProc.command = ["bash", "-c",
+          "profile=$(nmcli -g GENERAL.CON-UUID device show \"$1\") || exit; " +
+          "if [[ -n $profile && $profile != -- ]]; then printf -v editor 'nmtui edit %q' \"$profile\"; " +
+          "else editor='nmtui edit'; fi; " +
+          "omarchy-launch-floating-terminal-with-presentation \"$editor\"",
+          "omarchy-network-configure", device.name]
+      } else {
+        if (!device.nmManaged) return
+        pending = device.connected ? "disconnect" : "connect"
+        interfaceProc.command = ["nmcli", "--wait", "30", "device", pending, device.name]
+      }
+      interfaceProc.running = true
+    }
+
+    RowLayout {
+      width: parent.width
+      spacing: Style.space(8)
+      Text {
+        textFormat: Text.PlainText
+        text: interfaceRow.isWifi ? "󰤨" : "󰈀"
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.icon
+        opacity: interfaceRow.device && interfaceRow.device.connected ? 1.0 : 0.55
+      }
+      Text {
+        Layout.fillWidth: true
+        textFormat: Text.PlainText
+        text: interfaceRow.device ? interfaceRow.device.name : ""
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+        elide: Text.ElideRight
+      }
+      Text {
+        textFormat: Text.PlainText
+        text: interfaceRow.isWifi ? "Wi-Fi" : "Wired"
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.caption
+        opacity: 0.6
+      }
+    }
+
+    Text {
+      width: parent.width
+      textFormat: Text.PlainText
+      text: {
+        var device = interfaceRow.device
+        if (!device) return "Device removed"
+        return Model.interfaceStatus({
+          type: root.interfaceType(device), managed: device.nmManaged,
+          connected: device.connected,
+          state: device.state === ConnectionState.Connecting ? "connecting"
+            : (device.state === ConnectionState.Disconnecting ? "disconnecting" : ""),
+          hasLink: device.type === DeviceType.Wired ? device.hasLink : false
+        }, Networking.wifiEnabled, interfaceRow.pending)
+      }
+      color: root.bar.foreground
+      font.family: root.bar.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      opacity: 0.7
+      wrapMode: Text.WordWrap
+    }
+
+    RowLayout {
+      width: parent.width
+      spacing: Style.space(6)
+      Button {
+        Layout.fillWidth: true
+        text: interfaceRow.device && interfaceRow.device.connected ? "Disconnect" : "Connect"
+        enabled: !interfaceRow.blocked && interfaceRow.device && interfaceRow.device.nmManaged
+        hasCursor: interfaceRow.selected && root.interfaceActionIndex === 0
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        fontSize: Style.font.bodySmall
+        horizontalPadding: Style.space(6)
+        bordered: true
+        Accessible.name: text + " " + (interfaceRow.device ? interfaceRow.device.name : "")
+        tooltipText: "Change the current connection; does not disable autoconnect permanently"
+        onHovered: function(on) { if (on) interfaceRow.setCursor(0) }
+        onClicked: interfaceRow.activate(0)
+      }
+      Button {
+        Layout.fillWidth: true
+        text: "Configure"
+        enabled: !interfaceRow.blocked
+        hasCursor: interfaceRow.selected && root.interfaceActionIndex === 1
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        fontSize: Style.font.bodySmall
+        horizontalPadding: Style.space(6)
+        bordered: true
+        Accessible.name: "Configure " + (interfaceRow.device ? interfaceRow.device.name : "")
+        tooltipText: "Edit IP, DHCP, gateway, DNS, and saved profiles"
+        onHovered: function(on) { if (on) interfaceRow.setCursor(1) }
+        onClicked: interfaceRow.activate(1)
+      }
+      Button {
+        visible: interfaceRow.isWifi
+        Layout.fillWidth: true
+        text: Networking.wifiEnabled ? "Wi-Fi off" : "Wi-Fi on"
+        enabled: !interfaceRow.blocked
+        hasCursor: interfaceRow.selected && root.interfaceActionIndex === 2
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        fontSize: Style.font.bodySmall
+        horizontalPadding: Style.space(6)
+        bordered: true
+        Accessible.name: Networking.wifiEnabled ? "Turn all Wi-Fi radios off" : "Turn all Wi-Fi radios on"
+        tooltipText: "Turn all Wi-Fi radios " + (Networking.wifiEnabled ? "off" : "on")
+        onHovered: function(on) { if (on) interfaceRow.setCursor(2) }
+        onClicked: interfaceRow.activate(2)
+      }
+    }
+
+    Text {
+      visible: interfaceRow.isWifi && root.radioPending !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: root.radioPending
+      color: root.bar.foreground
+      font.family: root.bar.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.WordWrap
+    }
+    Text {
+      visible: text !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: interfaceRow.failure || (interfaceRow.isWifi ? root.radioFailure : "")
+      color: root.bar.urgent
+      font.family: root.bar.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
+      Accessible.role: Accessible.AlertMessage
+    }
+
+    Process {
+      id: interfaceProc
+      onStarted: {
+        if (interfaceRow.pending === "configure") root.close()
+      }
+      stdout: StdioCollector { id: interfaceStdout; waitForEnd: true }
+      stderr: StdioCollector { id: interfaceStderr; waitForEnd: true }
+      onExited: function(exitCode) {
+        var action = interfaceRow.pending
+        interfaceRow.pending = ""
+        if (exitCode !== 0) {
+          interfaceRow.failure = interfaceStderr.text.trim() || interfaceStdout.text.trim()
+            || ("Could not " + action + " this interface")
+          if (action === "configure") {
+            root.showInterfaces(root.interfaceType(interfaceRow.device))
+            interfaceRow.setCursor(1)
+          }
+        }
+        root.refresh()
+      }
     }
   }
 
