@@ -378,7 +378,7 @@ Rectangle {
     fontFamily: row.fontFamily
     fontSize: Style.font.bodySmall
     enabled: row.removable
-    opacity: row.removable && (rowHover.hovered || removeButton._hot) ? 1 : 0
+    opacity: row.removable && (rowHover.hovered || removeButton._hot || row.picked) ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     onClicked: row.panel.removeCityAt(row.index)
@@ -401,7 +401,7 @@ Rectangle {
     hoverColor: row.foreground
     fontFamily: row.fontFamily
     fontSize: Style.font.caption
-    opacity: !row.editingPeople && (rowHover.hovered || peopleButton._hot) ? 1 : 0
+    opacity: !row.editingPeople && (rowHover.hovered || peopleButton._hot || row.picked) ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     onClicked: row.panel.startPeopleEdit(row.index)
