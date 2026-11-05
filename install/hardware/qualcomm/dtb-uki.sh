@@ -19,7 +19,7 @@ if omarchy-hw-aarch64-qualcomm; then
   uki_config=${OMARCHY_QUALCOMM_UKI_CONFIG:-/etc/kernel/uki.conf}
   dtbs=()
   for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb \
-    "$dtb_dir"/glymur*.dtb "$dtb_dir"/sc8280xp*.dtb; do
+    "$dtb_dir"/glymur*.dtb "$dtb_dir"/mahua*.dtb "$dtb_dir"/sc8280xp*.dtb; do
     if [[ -f $dtb && $dtb != *-el2.dtb ]]; then
       dtbs+=("$dtb")
     fi
