@@ -232,6 +232,10 @@ monitor = dell
 written = #rules
 handlers["window.open"]()
 assert(#rules == written, "a window opening elsewhere does not rewrite a hidden console")
+-- The same goes for a hop between screens: rewriting the rule relayouts the
+-- monitor being left, which shifts its scrolling windows.
+handlers["monitor.focused"](dell)
+assert(#rules == written, "a hop between screens does not rewrite a hidden console")
 
 -- A console nothing has opened yet has no workspace to read at all, and is
 -- sized as the console the seed is about to put a single agent into.
