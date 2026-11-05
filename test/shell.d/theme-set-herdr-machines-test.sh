@@ -196,14 +196,17 @@ mkdir -p "$fallback_home/.config/omarchy/themes/lock-test"
 touch "$SYNC_TEST/background.png"
 exec 8>"$fallback_home/.local/state/omarchy/omarchy-theme-set.lock"
 flock 8
-for command in omarchy-theme-set omarchy-theme-bg-set omarchy-theme-set-herdr-app; do
-  argument=lock-test
-  [[ $command != "omarchy-theme-bg-set" ]] || argument="$SYNC_TEST/background.png"
-  [[ $command != "omarchy-theme-set-herdr-app" ]] || argument=""
+for command in omarchy-theme-set omarchy-theme-bg-set omarchy-theme-set-herdr-app omarchy-hyprland-window-transparency; do
+  case $command in
+    omarchy-theme-bg-set) arguments=("$SYNC_TEST/background.png") ;;
+    omarchy-theme-set-herdr-app) arguments=() ;;
+    omarchy-hyprland-window-transparency) arguments=(transparent) ;;
+    *) arguments=(lock-test) ;;
+  esac
   set +e
   env -u XDG_RUNTIME_DIR HOME="$fallback_home" HERDR_APP_HOME="$fallback_home/.config/herdr-app" \
     OMARCHY_THEME_OFFLINE=1 PATH="$fallback_bin:$ROOT/bin:$PATH" \
-    timeout 0.3 bash "$ROOT/bin/$command" ${argument:+"$argument"} 8>&- >"$SYNC_TEST/blocked" 2>&1
+    timeout 0.3 bash "$ROOT/bin/$command" "${arguments[@]}" 8>&- >"$SYNC_TEST/blocked" 2>&1
   status=$?
   set -e
   (( status == 124 )) || fail "$command waits for the private theme lock" "$(cat "$SYNC_TEST/blocked")"
