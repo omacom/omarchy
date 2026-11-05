@@ -1559,6 +1559,9 @@ Item {
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
             propagateComposedEvents: true
+            // Above every card, so its cursor is the one shown: the cards' own
+            // pointing hand never would be.
+            cursorShape: Qt.PointingHandCursor
 
             // The cards cannot see hover under this region, so they are told.
             function hoverAt(x, y) {
