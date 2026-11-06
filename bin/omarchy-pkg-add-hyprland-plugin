@@ -16,11 +16,12 @@ fi
 # A plugin pins the exact Hyprland it was compiled against. Installing it past
 # a mismatch either fails on that pin or downgrades the running compositor.
 info=$(LC_ALL=C pacman -Si -- "$pkg")
+# Exported COLUMNS makes pacman wrap the list onto indented lines.
 required=$(awk '
-  /^Depends On/ {
-    sub(/^[^:]*: */, "")
-    for (i = 1; i <= NF; i++) if ($i ~ /^hyprland([<>=]|$)/) print $i
-    exit
+  depends && !/^[[:space:]]/ { exit }
+  /^Depends On/ { depends = 1; sub(/^[^:]*: */, "") }
+  depends {
+    for (i = 1; i <= NF; i++) if ($i ~ /^hyprland([<>=]|$)/) { print $i; exit }
   }
 ' <<<"$info")
 

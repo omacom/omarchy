@@ -92,6 +92,13 @@ TEST_INSTALLED="hyprland=0.57.1-1" TEST_DEPTEST_STATUS=127 \
 [[ $(<"$test_tmp/checked") == "hyprland=0.56.2" ]] || fail "the build pacman would install is the one checked" "$(<"$test_tmp/checked")"
 pass "the first repository's build is the one checked, as pacman would pick it"
 
+wrapped_info=$(printf 'Repository      : omarchy\nDepends On      : glibc  libgcc  hyprlang\n                  hyprutils  hyprland=0.56.2\nOptional Deps   : hyprland=0.1\n')
+TEST_INSTALLED="hyprland=0.57.1-1" TEST_DEPTEST_STATUS=127 TEST_SYNC_INFO=$wrapped_info \
+  run_plugin_add || fail "a pin pacman wrapped onto a second line is still checked" "$(<"$test_tmp/output")"
+[[ $(<"$test_tmp/checked") == "hyprland=0.56.2" && ! -e $test_tmp/installed ]] ||
+  fail "a pin pacman wrapped onto a second line is still checked"
+pass "a pin pacman wrapped onto a second line is still checked, and nothing past the list is"
+
 TEST_INSTALLED="hyprland=0.57.1-1" TEST_SYNC_INFO=$(sync_info omarchy "glibc  hyprland-protocols") \
   run_plugin_add || fail "a plugin with no Hyprland pin installs" "$(<"$test_tmp/output")"
 [[ ! -e $test_tmp/checked && $(<"$test_tmp/installed") == "omarchy-hyprland-titlebars" ]] ||
