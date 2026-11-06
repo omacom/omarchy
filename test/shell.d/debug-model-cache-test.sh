@@ -18,48 +18,60 @@ code = compile(command.read_text().split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0],
 
 
 def run(args, directory):
-    calls = []
-    module = ModuleType("huggingface_hub")
-    constants = ModuleType("huggingface_hub.constants")
-    constants.HF_HUB_CACHE = str(directory)
-    def scan(path):
-        calls.append(path)
-        return SimpleNamespace(size_on_disk=300, warnings=["incomplete download"], repos=[
-            SimpleNamespace(repo_id="org/small", repo_type="model", size_on_disk=100, nb_files=2, revisions={"a"}),
-            SimpleNamespace(repo_id="org/large", repo_type="model", size_on_disk=200, nb_files=3, revisions={"a", "b"})])
-    module.scan_cache_dir = scan
-    output = io.StringIO()
-    with patch.dict(sys.modules, {"huggingface_hub": module, "huggingface_hub.constants": constants}), patch.object(sys, "argv", [str(command), *args]), contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-        try:
-            exec(code, {"__name__": "__main__"})
-            status = 0
-        except SystemExit as error:
-            status = error.code
-    return status, calls, output.getvalue()
+  calls = []
+  module = ModuleType("huggingface_hub")
+  constants = ModuleType("huggingface_hub.constants")
+  constants.HF_HUB_CACHE = str(directory)
+
+  def scan(path):
+    calls.append(path)
+    return SimpleNamespace(
+      size_on_disk=300,
+      warnings=["incomplete download"],
+      repos=[
+        SimpleNamespace(repo_id="org/small", repo_type="model", size_on_disk=100, nb_files=2, revisions={"a"}),
+        SimpleNamespace(repo_id="org/large", repo_type="model", size_on_disk=200, nb_files=3, revisions={"a", "b"}),
+      ],
+    )
+
+  module.scan_cache_dir = scan
+  output = io.StringIO()
+  with (
+    patch.dict(sys.modules, {"huggingface_hub": module, "huggingface_hub.constants": constants}),
+    patch.object(sys, "argv", [str(command), *args]),
+    contextlib.redirect_stdout(output),
+    contextlib.redirect_stderr(output),
+  ):
+    try:
+      exec(code, {"__name__": "__main__"})
+      status = 0
+    except SystemExit as error:
+      status = error.code
+  return status, calls, output.getvalue()
 
 
 with tempfile.TemporaryDirectory() as tmp:
-    directory = Path(tmp) / "cache with spaces"
-    directory.mkdir()
-    sentinel = directory / "weights.bin"
-    sentinel.write_bytes(b"valuable weights")
-    status, calls, output = run(["--json", "--limit", "1"], directory)
-    report = json.loads(output)
-    assert status == 0 and calls == [directory], output
-    assert report["repositories"] == [{"id": "org/large", "type": "model", "bytes": 200, "files": 3, "revisions": 2}]
-    assert report["total_bytes"] == 300 and report["warnings"] == ["incomplete download"]
-    assert sentinel.read_bytes() == b"valuable weights" and list(directory.iterdir()) == [sentinel]
-    print("ok - sorts repositories by disk use, preserves totals when limiting rows and reports cache warnings")
+  directory = Path(tmp) / "cache with spaces"
+  directory.mkdir()
+  sentinel = directory / "weights.bin"
+  sentinel.write_bytes(b"valuable weights")
+  status, calls, output = run(["--json", "--limit", "1"], directory)
+  report = json.loads(output)
+  assert status == 0 and calls == [directory], output
+  assert report["repositories"] == [{"id": "org/large", "type": "model", "bytes": 200, "files": 3, "revisions": 2}]
+  assert report["total_bytes"] == 300 and report["warnings"] == ["incomplete download"]
+  assert sentinel.read_bytes() == b"valuable weights" and list(directory.iterdir()) == [sentinel]
+  print("ok - sorts repositories by disk use, preserves totals when limiting rows and reports cache warnings")
 
-    missing = Path(tmp) / "not created"
-    status, calls, output = run(["--cache", str(missing), "--json"], directory)
-    report = json.loads(output)
-    assert status == 0 and not calls and not report["exists"] and not missing.exists()
-    print("ok - a missing cache is reported without creating directories or scanning elsewhere")
+  missing = Path(tmp) / "not created"
+  status, calls, output = run(["--cache", str(missing), "--json"], directory)
+  report = json.loads(output)
+  assert status == 0 and not calls and not report["exists"] and not missing.exists()
+  print("ok - a missing cache is reported without creating directories or scanning elsewhere")
 
-    status, calls, output = run(["--cache", str(sentinel)], directory)
-    assert status == 1 and not calls
-    status, calls, output = run(["--limit", "0"], directory)
-    assert status == 2 and not calls
-    print("ok - file paths and invalid limits are refused before scanning")
+  status, calls, output = run(["--cache", str(sentinel)], directory)
+  assert status == 1 and not calls
+  status, calls, output = run(["--limit", "0"], directory)
+  assert status == 2 and not calls
+  print("ok - file paths and invalid limits are refused before scanning")
 PY

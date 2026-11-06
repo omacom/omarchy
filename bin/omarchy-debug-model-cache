@@ -12,46 +12,55 @@ import sys
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Report Hugging Face cache usage without deleting, downloading or loading models. Uses huggingface_hub from the active Python environment.")
-    parser.add_argument("--cache", type=Path)
-    parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("--json", action="store_true")
-    args = parser.parse_args()
-    if not 1 <= args.limit <= 1000:
-        parser.error("--limit must be between 1 and 1000")
-    try:
-        from huggingface_hub import scan_cache_dir
-        from huggingface_hub.constants import HF_HUB_CACHE
-    except ImportError:
-        raise ValueError("Activate a Python environment with huggingface_hub installed, then try again") from None
-    directory = (args.cache or Path(HF_HUB_CACHE)).expanduser().absolute()
-    report = {"cache": str(directory), "exists": directory.exists(), "total_bytes": 0, "repositories": [], "warnings": []}
-    if directory.exists():
-        if not directory.is_dir():
-            raise ValueError("The cache path must be a directory")
-        info = scan_cache_dir(directory)
-        report["total_bytes"] = info.size_on_disk
-        repositories = sorted(info.repos, key=lambda item: (-item.size_on_disk, item.repo_type, item.repo_id))
-        report["repositories"] = [{"id": repo.repo_id, "type": repo.repo_type, "bytes": repo.size_on_disk,
-                                   "files": repo.nb_files, "revisions": len(repo.revisions)}
-                                  for repo in repositories[:args.limit]]
-        report["warnings"] = [str(warning) for warning in info.warnings]
-    if args.json:
-        print(json.dumps(report, ensure_ascii=False))
-    else:
-        print(f"Cache: {directory}")
-        if not report["exists"]:
-            print("No cache exists here yet.")
-        for repo in report["repositories"]:
-            print(f"{repo['bytes'] / 1024 ** 3:.2f} GiB\t{repo['type']}\t{repo['id']}\t{repo['revisions']} revisions")
-        print(f"Valid cached repositories: {report['total_bytes'] / 1024 ** 3:.2f} GiB total")
-        for warning in report["warnings"]:
-            print(f"Cache warning: {warning}", file=sys.stderr)
+  parser = argparse.ArgumentParser(
+    description="Report Hugging Face cache usage without deleting, downloading or loading models. Uses huggingface_hub from the active Python environment."
+  )
+  parser.add_argument("--cache", type=Path)
+  parser.add_argument("--limit", type=int, default=20)
+  parser.add_argument("--json", action="store_true")
+  args = parser.parse_args()
+  if not 1 <= args.limit <= 1000:
+    parser.error("--limit must be between 1 and 1000")
+  try:
+    from huggingface_hub import scan_cache_dir
+    from huggingface_hub.constants import HF_HUB_CACHE
+  except ImportError:
+    raise ValueError("Activate a Python environment with huggingface_hub installed, then try again") from None
+  directory = (args.cache or Path(HF_HUB_CACHE)).expanduser().absolute()
+  report = {"cache": str(directory), "exists": directory.exists(), "total_bytes": 0, "repositories": [], "warnings": []}
+  if directory.exists():
+    if not directory.is_dir():
+      raise ValueError("The cache path must be a directory")
+    info = scan_cache_dir(directory)
+    report["total_bytes"] = info.size_on_disk
+    repositories = sorted(info.repos, key=lambda item: (-item.size_on_disk, item.repo_type, item.repo_id))
+    report["repositories"] = [
+      {
+        "id": repo.repo_id,
+        "type": repo.repo_type,
+        "bytes": repo.size_on_disk,
+        "files": repo.nb_files,
+        "revisions": len(repo.revisions),
+      }
+      for repo in repositories[: args.limit]
+    ]
+    report["warnings"] = [str(warning) for warning in info.warnings]
+  if args.json:
+    print(json.dumps(report, ensure_ascii=False))
+  else:
+    print(f"Cache: {directory}")
+    if not report["exists"]:
+      print("No cache exists here yet.")
+    for repo in report["repositories"]:
+      print(f"{repo['bytes'] / 1024**3:.2f} GiB\t{repo['type']}\t{repo['id']}\t{repo['revisions']} revisions")
+    print(f"Valid cached repositories: {report['total_bytes'] / 1024**3:.2f} GiB total")
+    for warning in report["warnings"]:
+      print(f"Cache warning: {warning}", file=sys.stderr)
 
 
 try:
-    main()
+  main()
 except (OSError, ValueError) as error:
-    print(f"omarchy-debug-model-cache: {error}", file=sys.stderr)
-    sys.exit(1)
+  print(f"omarchy-debug-model-cache: {error}", file=sys.stderr)
+  sys.exit(1)
 PY
