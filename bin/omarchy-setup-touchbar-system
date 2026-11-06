@@ -1,0 +1,66 @@
+#!/bin/bash
+# omarchy:summary=Install the prebuilt Touch Bar package and activate its system service
+# omarchy:hidden=true
+# omarchy:args=[--package /absolute/archive] [--user USER] [--uninstall]
+set -euo pipefail
+
+uninstall=0
+package=""
+owner=""
+configure_only=0
+while (( $# )); do
+  case "$1" in
+    --package) package=${2:?Missing package archive}; shift 2 ;;
+    --user) owner=${2:?Missing user}; shift 2 ;;
+    --uninstall) uninstall=1; shift ;;
+    --configure-user) configure_only=1; owner=${2:?Missing user}; shift 2 ;;
+    *) echo "Unknown Touch Bar setup option: $1" >&2; exit 2 ;;
+  esac
+done
+if (( ! uninstall )); then
+  "$OMARCHY_PATH/bin/omarchy-hw-touchbar" || exit 0
+fi
+root() {
+  if (( EUID == 0 )); then
+    "$@"
+  elif [[ -t 0 && -t 1 ]]; then
+    /usr/bin/sudo -- "$@"
+  else
+    /usr/bin/pkexec "$@"
+  fi
+}
+if (( uninstall )); then
+  root /usr/lib/omarchy-touchbar/activate --uninstall
+  exit 0
+fi
+if (( configure_only )); then
+  root /usr/lib/omarchy-touchbar/activate --user "$owner"
+  exit 0
+fi
+if [[ -n $package ]]; then
+  [[ $package == /* && -f $package && ! -L $package ]] || { echo 'Expected an absolute regular package archive.' >&2; exit 1; }
+  metadata=$(/usr/bin/pacman -Qp --print-format '%n %v' -- "$package")
+  read -r name version <<< "$metadata"
+  [[ $name == "omarchy-touchbar" ]] && (( $(/usr/bin/vercmp "$version" 0.3.8.omarchy1-2) >= 0 )) || { echo 'Expected the combined omarchy-touchbar package (pkgrel 2 or newer).' >&2; exit 1; }
+  root /usr/bin/pacman -U --noconfirm --ask 4 -- "$package"
+else
+  installed=$(/usr/bin/pacman -Q omarchy-touchbar 2>/dev/null || true)
+  read -r installed_name installed_version <<< "$installed"
+  if [[ $installed_name == "omarchy-touchbar" && -n $installed_version && -r /usr/share/omarchy/shell/plugins/touchbar/.omarchy-touchbar-package ]] && (( $(/usr/bin/vercmp "$installed_version" 0.3.8.omarchy1-2) >= 0 )); then
+    # Preloaded images and repeat setup need neither networking nor a compiler.
+    :
+  else
+    /usr/bin/pacman -Si omarchy-touchbar >/dev/null 2>&1 || {
+      echo 'The configured signed repositories do not publish omarchy-touchbar yet. Ask the package maintainer to publish the combined package; setup never builds from source.' >&2
+      exit 1
+    }
+    # Package-helper exception: --needed upgrades pkgrel 1; question bit 4
+    # replaces the explicitly conflicting tiny-dfr provider, nothing else.
+    root /usr/bin/pacman -S --needed --noconfirm --ask 4 -- omarchy-touchbar
+  fi
+fi
+[[ -r /usr/share/omarchy/shell/plugins/touchbar/.omarchy-touchbar-package ]] || { echo 'Installed package lacks its companion plugin; publish pkgrel 2 or newer.' >&2; exit 1; }
+[[ $(/usr/bin/omarchy-touchbar --capabilities) == "trace-animation ttfx-wipe" ]] || { echo 'Installed daemon lacks required animation capabilities.' >&2; exit 1; }
+args=()
+[[ -z $owner ]] || args=(--user "$owner")
+root /usr/lib/omarchy-touchbar/activate "${args[@]}"

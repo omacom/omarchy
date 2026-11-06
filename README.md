@@ -72,13 +72,13 @@ The manual lives in [`manual/`](manual/), which is its authoritative source.
 - [Dual Boot Install](manual/50-dual-boot-install.md)
 - [Unattended Installs](manual/51-unattended-installs.md)
 
-## Touch Bar integration proposal
+## Touch Bar integration
 
-This contribution adds `omarchy hw touchbar`, a hardware predicate for the 13-inch M1 and M2 MacBook Pros with a Touch Bar (`apple,j293` and `apple,j493`), with regression coverage that excludes other Macs and platforms. It provides a shared guard for Touch Bar installation and activation; it does not add a default package, enabled plugin or background process.
+This contribution integrates the animated Touch Bar on the 13-inch M1 and M2 MacBook Pros (`apple,j293` and `apple,j493`). Fresh system setup installs a prebuilt package only on those models, then configures its package-owned shell plugin, bindings and font hooks for the user. Existing users run `omarchy install touchbar`; `--package /absolute/archive` accepts a separately reviewed prebuilt package. Unsupported machines make no changes and request no administrator access.
 
-The companion [Omarchy Touch Bar package and plugin](https://github.com/guirossibrum/omarchy-touchbar) use hardware guards before installation, layout changes, keybindings and font synchronization. Together they provide the animated Omarchy logo, tap-to-open menu, hold-to-dictate using the configured backend, brightness/media controls and labels that follow the system font. Their README includes a video recorded on an M1 MacBook Pro. Unsupported machines skip setup before files are changed or administrator access is requested.
+The single versioned package contains both the modified tiny-dfr daemon and the [companion plugin](https://github.com/guirossibrum/omarchy-touchbar). It provides an animated Omarchy logo, tap-to-open menu, hold-to-dictate using the configured backend, brightness/media controls and labels that follow the system font. Ordinary package updates replace both together. Installation, first boot and updates never compile Rust, clone git repositories or invoke makepkg. The companion README includes a physical M1 MacBook Pro video.
 
-See [the integration proposal](docs/touchbar.md) for the package boundary, validation limits and publication requirements before this can become a default dependency. Inclusion in a specific Omarchy release is a maintainer decision.
+See [Touch Bar setup and packaging](docs/touchbar.md) for the root/user phase boundaries, backups, removal and validation limits. **Publishing the combined signed package is a required merge dependency:** setup fails clearly if the configured repositories or preloaded image cannot supply it. The recipe is release/CI input, not an installation fallback. Package ownership and inclusion in a specific Omarchy release remain maintainer decisions.
 
 ## License
 

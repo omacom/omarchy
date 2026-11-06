@@ -1,0 +1,21 @@
+#!/bin/bash -p
+# Called once during an authorized layout apply. Future font events are unprivileged.
+# Protected startup prevents inherited BASH_ENV/functions at this root boundary.
+set -euo pipefail
+[[ $- == *p* ]] || exit 126
+if (( EUID != 0 || $# != 2 )); then
+  echo 'Usage (root): setup-font-channel UID GID' >&2
+  exit 1
+fi
+font_uid=$1
+font_gid=$2
+if [[ ! $font_uid =~ ^[0-9]+$ || ! $font_gid =~ ^[0-9]+$ ]] || (( font_uid == 0 )); then
+  echo 'Expected a non-root desktop UID and numeric GID' >&2
+  exit 1
+fi
+/usr/bin/getent passwd "$font_uid" >/dev/null
+/usr/bin/getent group "$font_gid" >/dev/null
+rule="/etc/tmpfiles.d/omarchy-touchbar-font-$font_uid.conf"
+printf 'd /run/omarchy-touchbar-font-%s 0755 %s %s -\n' "$font_uid" "$font_uid" "$font_gid" >"$rule"
+/usr/bin/chmod 644 "$rule"
+/usr/bin/systemd-tmpfiles --create "$rule"
