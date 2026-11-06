@@ -11,7 +11,7 @@ for entry in HEY:hey:chrome-app.hey.com__-Default Zoom:zoom:chrome-app.zoom.us__
   grep -q "^Exec=omarchy-webapp-handler-$handler" "$desktop" || continue
 
   target=$(realpath "$desktop")
-  CLASS=$class awk '!done && /^Exec=/ { print; print "StartupWMClass=" ENVIRON["CLASS"]; done = 1; next } { print }' "$target" >"$target.omarchy-migrate" &&
-    cat "$target.omarchy-migrate" >"$target"
+  CLASS=$class awk '!done && /^Exec=/ { print; print "StartupWMClass=" ENVIRON["CLASS"]; done = 1; next } { print }' "$target" >"$target.omarchy-migrate"
+  cat "$target.omarchy-migrate" >"$target"
   rm -f "$target.omarchy-migrate"
 done
