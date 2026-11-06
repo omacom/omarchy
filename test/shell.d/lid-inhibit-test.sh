@@ -298,8 +298,9 @@ OMARCHY_TEST_DOCKED_ACTION=suspend sync_inhibit
 pass "the inhibitor follows logind's docked lid action"
 
 # logind lists DVI-A and Composite, but a missing comma fuses them into one
-# entry, so they are uncounted too.
-for connector in DVI-A-1 Composite-1; do
+# entry, so they are uncounted too. Unknown is a driver with no type for its
+# USB-C connectors (nvidia-drm on the N1x before it reported DisplayPort).
+for connector in DVI-A-1 Composite-1 Unknown-6; do
   reset_unit
   write_connectors card0-LVDS-1 connected "card0-$connector" connected
   write_monitors "[{\"name\":\"LVDS-1\",\"disabled\":true},{\"name\":\"$connector\",\"disabled\":false}]"
@@ -338,8 +339,18 @@ cat >"$fake_bin/omarchy-hyprland-monitor-modeless" <<'SH'
 exit 1
 SH
 
+# Each sync the watcher runs is logged, so the test can wait for its retries
+# and poll to have run rather than for a time.
+cat >"$fake_bin/omarchy-system-lid-inhibit" <<'SH'
+#!/bin/bash
+
+printf 'sync\n' >>"$OMARCHY_TEST_SYNC_LOG"
+exec "$OMARCHY_TEST_LID_INHIBIT" "$@"
+SH
+
 chmod +x "$fake_bin"/*
-ln -s "$lid_inhibit" "$fake_bin/omarchy-system-lid-inhibit"
+sync_log="$test_tmp/syncs"
+: >"$sync_log"
 
 start_watcher() {
   rm -f "$events"
@@ -349,6 +360,8 @@ start_watcher() {
   XDG_RUNTIME_DIR="$test_tmp" \
   HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_EVENTS="$events" \
+  OMARCHY_TEST_SYNC_LOG="$sync_log" \
+  OMARCHY_TEST_LID_INHIBIT="$lid_inhibit" \
     "$ROOT/bin/omarchy-hyprland-monitor-watch" &
   watch_pid=$!
 
@@ -358,7 +371,7 @@ start_watcher() {
 await() {
   local waited
 
-  for (( waited = 0; waited < 100; waited++ )); do
+  for (( waited = 0; waited < 200; waited++ )); do
     "$@" && return 0
     sleep 0.05
   done
@@ -368,6 +381,12 @@ await() {
 
 released() {
   ! held
+}
+
+syncs_since() {
+  local count
+  count=$(grep -c '^sync$' "$sync_log" || true)
+  (( count >= $1 + $2 ))
 }
 
 reset_unit
@@ -390,8 +409,13 @@ printf 'monitoraddedv2>>2,USB-2,Display\n' >&"$events_fd"
 await held || fail "the watcher takes the inhibitor again when the USB-C display returns"
 
 # Across the delayed retries and the docked poll, one unit stays the only one.
-sleep 3.5
-(( $(count_calls start) == 2 && $(count_calls stop) == 1 && $(count_calls refused) == 0 )) ||
+# Retries from the hotplugs above overlap the fixture rewrites, so how many
+# starts and stops those took is the scheduler's business. Once the display is
+# back and held, the world is still: later syncs must leave the unit alone.
+calls=$(wc -l <"$call_log")
+synced=$(grep -c '^sync$' "$sync_log" || true)
+await syncs_since "$synced" 3 || fail "the watcher keeps syncing through its retries and poll" "$(<"$sync_log")"
+held && [[ -z $(tail -n "+$(( calls + 1 ))" "$call_log") ]] && (( $(count_calls refused) == 0 )) ||
   fail "the watcher never stacks inhibitors across its retries and poll" "$(<"$call_log")"
 pass "the watcher keeps one inhibitor across hotplugs, retries and its poll"
 
