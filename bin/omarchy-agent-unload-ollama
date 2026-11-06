@@ -1,8 +1,9 @@
-#!/usr/bin/python3
+#!/bin/bash
 # omarchy:summary=Release memory held by loaded Ollama models without deleting downloads
 # omarchy:args=[--model <model> | --all]
 # omarchy:examples=omarchy agent unload ollama | omarchy agent unload ollama --all
 
+exec python3 /dev/fd/3 "$@" 3<<'PY'
 import argparse
 import json
 import subprocess
@@ -24,7 +25,7 @@ def request(path, payload=None):
 
 
 def main():
-  parser = argparse.ArgumentParser(description="Unload local Ollama models to release RAM/VRAM. Downloads are kept. Select a running model in a terminal, use --model, or explicitly unload all with --all.")
+  parser = argparse.ArgumentParser(prog="omarchy-agent-unload-ollama", description="Unload local Ollama models to release RAM/VRAM. Downloads are kept. Select a running model in a terminal, use --model, or explicitly unload all with --all.")
   selection = parser.add_mutually_exclusive_group()
   selection.add_argument("--model")
   selection.add_argument("--all", action="store_true")
@@ -71,3 +72,4 @@ if __name__ == "__main__":
   except (OSError, ValueError, subprocess.SubprocessError, urllib.error.URLError) as error:
     print(f"Unload Ollama: {error}", file=sys.stderr)
     sys.exit(1)
+PY

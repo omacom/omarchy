@@ -1,14 +1,20 @@
 import contextlib
 import io
 import json
-import runpy
+import os
+from pathlib import Path
+import tempfile
 import subprocess
 import sys
 import unittest
 from unittest.mock import patch
 
 ROOT = sys.argv.pop()
-APP = runpy.run_path(ROOT + "/bin/omarchy-agent-unload-ollama")
+COMMAND = ROOT + "/bin/omarchy-agent-unload-ollama"
+source = Path(COMMAND).read_text()
+python_source = source.split("<<'PY'\n", 1)[1].rsplit("\nPY\n", 1)[0]
+APP = {"__name__": "ollama_unload"}
+exec(compile(python_source, COMMAND, "exec"), APP)
 
 
 class UnloadTest(unittest.TestCase):
@@ -34,6 +40,16 @@ class UnloadTest(unittest.TestCase):
         code = 1
     return code, requests, output.getvalue(), errors.getvalue()
 
+  def test_bash_entrypoint_preserves_help_and_argument_errors(self):
+    with tempfile.TemporaryDirectory() as home:
+      env = dict(os.environ, HOME=home, XDG_CONFIG_HOME=home + "/config")
+      help_result = subprocess.run([COMMAND, "--help"], env=env, capture_output=True, text=True)
+      self.assertEqual(help_result.returncode, 0, help_result.stderr)
+      self.assertIn("omarchy-agent-unload-ollama", help_result.stdout)
+      invalid = subprocess.run([COMMAND, "--model"], env=env, capture_output=True, text=True)
+      self.assertEqual(invalid.returncode, 2)
+      self.assertIn("--model", invalid.stderr)
+
   def test_picker_unloads_only_selected_model(self):
     code, requests, _, _ = self.run_app()
     self.assertEqual(code, 0)
@@ -43,9 +59,10 @@ class UnloadTest(unittest.TestCase):
 
   def test_picker_display_reaches_the_terminal(self):
     driver = '''
-import runpy, subprocess, sys
+import subprocess, sys
 from unittest.mock import patch
-app = runpy.run_path(sys.argv[1] + "/bin/omarchy-agent-unload-ollama")
+app = {"__name__": "ollama_unload"}
+exec(compile(sys.argv[2], sys.argv[1] + "/bin/omarchy-agent-unload-ollama", "exec"), app)
 app["main"].__globals__["request"] = lambda *args: {"models": [{"name": "a:latest"}]}
 run = subprocess.run
 def picker(args, **kwargs):
@@ -53,7 +70,7 @@ def picker(args, **kwargs):
 with patch("sys.argv", ["unload"]), patch("sys.stdin.isatty", return_value=True), patch("subprocess.run", side_effect=picker):
   sys.exit(app["main"]())
 '''
-    result = subprocess.run([sys.executable, "-c", driver, ROOT], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", driver, ROOT, python_source], capture_output=True, text=True)
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("MODEL PICKER", result.stderr)
     self.assertIn("Unloaded a:latest", result.stdout)
