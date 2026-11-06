@@ -57,8 +57,8 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
 | `Super + S` | Toggle full scratchpad |
 | `Super + Alt + S` | Move window to full scratchpad |
-| `Super + Grave` | Toggle Quake console |
-| `Super + Shift + Grave` | Move window to Quake console |
+| `Super + the key above Tab` (grave on US layouts) | Toggle Quake console |
+| `Super + Shift + the key above Tab` (grave on US layouts) | Move window to Quake console |
 | `Super + Shift + Ctrl + Arrows` | Move window to the monitor in that direction |
 | `Super + Shift + Alt + Arrows` | Move workspace to the monitor in that direction |
 | `Super + Arrow`  | Move focus to window in direction of arrow, crossing to the monitor on that side at the screen's edge |
