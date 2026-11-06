@@ -32,6 +32,7 @@ else
   HOTSPOT_LOCK_WAIT="${OMARCHY_HOTSPOT_LOCK_WAIT:-30}"
 fi
 HOTSPOT_LOCK_HELD=0
+HOTSPOT_SHARED_LOCK_HELD=0
 FIREWALL_STATE_FILE="$HOTSPOT_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$HOTSPOT_STATE_DIR/forwarding.state"
 FIREWALL_TAGS=(dhcp dns-udp dns-tcp forward)
@@ -1154,8 +1155,15 @@ privileged_function() {
     forwarding-enable) printf 'forwarding_enable\n' ;;
     forwarding-restore) printf 'forwarding_restore\n' ;;
     release) printf 'hotspot_release\n' ;;
+    lock-init) printf 'lock_init\n' ;;
     *) return 1 ;;
   esac
+}
+
+# Root's one job here: leave the shared lock in the state directory.
+lock_init() {
+  require_privileged
+  hotspot_state_prepare
 }
 
 privileged_run() {
@@ -1387,7 +1395,7 @@ start() {
   band=${HOTSPOT_OPERANDS[1]:-2.4}
   save_data=$HOTSPOT_SAVE_DATA
   security=$HOTSPOT_SECURITY
-  hotspot_lock
+  hotspot_lock --shared
 
   # apply parses its arguments again, so the operands go after `--`: a name
   # starting with a dash stays a name the second time too.
@@ -1425,9 +1433,11 @@ start() {
 # every action that user starts (panel, menu, terminal, and the root instance
 # of their teardown or setup). The shared lock, a root-owned file in the
 # root-owned state directory, serializes actions across users: root creates
-# it, and everyone else opens it read-only, which is enough for flock. It
-# exists from the first privileged step on; before that there is no firewall
-# or forwarding state for two users to contend over.
+# it, and everyone else opens it read-only, which is enough for flock. A
+# start (or a toggle, which may start) creates it in one privileged step
+# before locking when it does not exist yet, so every start holds it from its
+# first step and no two first starts run their root steps side by side. A
+# stop that locked before the shared lock existed takes it once it appears.
 hotspot_user_lock_path() {
   local uid
   if (( EUID != 0 )); then
@@ -1475,14 +1485,41 @@ hotspot_take_lock() {
   flock -w "$HOTSPOT_LOCK_WAIT" "$fd" || fail "another hotspot action is still running"
 }
 
+# Have root leave the shared lock behind when it does not exist yet. Root
+# creates it while taking it, and the test override needs no shared lock.
+hotspot_shared_lock_ensure() {
+  local shared
+  [[ -z $HOTSPOT_LOCK_FILE ]] && (( EUID != 0 )) || return 0
+  shared=$(hotspot_shared_lock_path)
+  [[ -e $shared || -L $shared ]] && return 0
+  privileged_run lock-init || fail "could not create the shared hotspot lock"
+}
+
+# --shared: this action changes host state, so it must hold the shared lock
+# from its first step even on a machine that has never run a root step.
 hotspot_lock() {
-  local lock
+  local lock shared
   (( HOTSPOT_LOCK_HELD == 0 )) || return 0
+  [[ ${1:-} != --shared ]] || hotspot_shared_lock_ensure
+  shared=$(hotspot_shared_lock_path)
   while IFS= read -r lock; do
     [[ -n $lock ]] || continue
     hotspot_take_lock "$lock"
+    [[ $lock != "$shared" ]] || HOTSPOT_SHARED_LOCK_HELD=1
   done < <(hotspot_lock_paths)
   HOTSPOT_LOCK_HELD=1
+}
+
+# Take the shared lock after the fact when another action created it since
+# this one locked. Succeeds only when it was taken now.
+hotspot_take_late_shared_lock() {
+  local shared
+  (( HOTSPOT_LOCK_HELD == 1 && HOTSPOT_SHARED_LOCK_HELD == 0 )) || return 1
+  [[ -z $HOTSPOT_LOCK_FILE ]] || return 1
+  shared=$(hotspot_shared_lock_path)
+  [[ -e $shared || -L $shared ]] || return 1
+  hotspot_take_lock "$shared"
+  HOTSPOT_SHARED_LOCK_HELD=1
 }
 
 ap_down() {
@@ -1534,6 +1571,12 @@ hotspot_release() {
 stop() {
   hotspot_lock
   ap_down || return 1
+  # A first start elsewhere may have created the shared lock after this stop
+  # took its locks. Wait for that start under the shared lock, then take down
+  # whatever it brought up before releasing the host state it owns.
+  if hotspot_take_late_shared_lock; then
+    ap_down || return 1
+  fi
   hotspot_host_state_owned || return 0
   privileged_run release
 }
@@ -1541,7 +1584,7 @@ stop() {
 # Flip the current state. When nothing has been configured yet, hand over to
 # the network panel instead of inventing credentials.
 toggle() {
-  hotspot_lock
+  hotspot_lock --shared
   if profile_active; then
     stop
   elif profile_configured; then
@@ -1880,6 +1923,13 @@ case "${1:-}" in
     fi
     require_root release
     hotspot_release
+    ;;
+  lock-init)
+    if (($# != 1)); then
+      fail "invalid internal lock-init arguments"
+    fi
+    require_root lock-init
+    lock_init
     ;;
   diagnose) diagnose ;;
   generate-password) generate_password ;;
