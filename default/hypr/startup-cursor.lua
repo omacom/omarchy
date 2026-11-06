@@ -34,18 +34,14 @@ function omarchy_startup_cursor_restore(loaded)
     hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
     hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
     if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      -- The first visible frame after the reveal must already carry the named
-      -- theme: Hyprcursor must never be visible with its first-found fallback
-      -- between the config flip and the async hyprctl setcursor. Re-enable it
-      -- while cursor.invisible is still on, apply the theme, and only then
-      -- unhide with the user's real settings. A theme a plugin applies after
-      -- the reveal still wins (hyprctl setcursor is last-writer-wins); this
-      -- only guarantees Hyprcursor is never visible before the named theme is
-      -- applied and closes the ordering window.
+      -- Only setcursor loads a Hyprcursor style, and an unloaded one is a null surface to Hyprland 0.56,
+      -- so the pointer stays hidden until hyprctl has applied the theme.
       hl.config({ cursor = { invisible = true, enable_hyprcursor = true, sync_gsettings_theme = cursor.config.sync_gsettings_theme } })
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
+      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size
+        .. " && hyprctl eval " .. o.shell_quote("if omarchy_startup_cursor then hl.config({ cursor = omarchy_startup_cursor.config }) end"))
+    else
+      hl.config({ cursor = cursor.config })
     end
-    hl.config({ cursor = cursor.config })
     hl.exec_cmd("xsetroot -cursor_name left_ptr >/dev/null 2>&1 || true")
   elseif not cursor.restoring then
     -- Reload the normal Xcursor fallback before enabling Hyprcursor or GSettings.
