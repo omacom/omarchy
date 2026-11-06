@@ -43,13 +43,15 @@ hl = {
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
 -- Stands in for hyprctl: the eval chained after a setcursor runs only once that setcursor has returned.
-local function setcursor_returns(theme)
+local function chained(theme, nth)
+  local found = {}
   for _, c in ipairs(commands) do
     local eval = c:match("^hyprctl setcursor '" .. theme:gsub("%-", "%%-") .. "' %d+ && hyprctl eval '(.*)'$")
-    if eval then return assert(load(eval))() end
+    if eval then table.insert(found, eval) end
   end
-  error("no setcursor " .. theme .. " chains the reveal")
+  return assert(found[nth or #found], "no setcursor " .. theme .. " chains the reveal")
 end
+local function setcursor_returns(theme, nth) return assert(load(chained(theme, nth)))() end
 
 require("default.hypr.autostart")
 assert(not config.invisible, "loading the module must wait for user configuration")
@@ -171,14 +173,24 @@ events["config.reloaded"]()
 assert(omarchy_startup_cursor.hyprcursor == "my-xcursor", "an interrupted reveal derives the same Hyprcursor theme")
 omarchy_startup_cursor_restore(true)
 assert(config.invisible, "the reveal must wait for the derived theme to load")
--- A reload while that setcursor is in flight re-hides with Hyprcursor off, so its late completion
--- must load the style again rather than reveal one that setcursor may never have loaded.
+-- The 15 s retry while that setcursor is in flight reissues it, never the Xcursor stage that would replace
+-- the theme, and only the latest attempt's completion may reveal.
+recovery()
+assert(chained("my-xcursor", 2):match('restore%("hyprcursor"%)'), "the retry reissues the Hyprcursor setcursor")
+setcursor_returns("my-xcursor", 1)
+assert(config.invisible and omarchy_startup_cursor_pending, "a superseded attempt's completion must not reveal")
+-- A reload while it is in flight re-hides with Hyprcursor off, so its late completion must not reveal a
+-- style that setcursor may never have loaded; the reload's own retry starts over.
+local stale = chained("my-xcursor")
 omarchy_startup_cursor_pending, omarchy_startup_cursor, commands = nil, nil, {}
 config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
 events["config.reloaded"]()
 assert(omarchy_startup_cursor_pending and config.invisible and not config.enable_hyprcursor, "a reload mid-reveal keeps the pointer hidden")
-omarchy_startup_cursor_restore("hyprcursor")
-assert(config.invisible and config.enable_hyprcursor and commands[#commands]:match("^hyprctl setcursor 'my%-xcursor' 24 && "), "a completion from before the reload applies the theme again")
+assert(load(stale))()
+assert(config.invisible and not config.enable_hyprcursor and #commands == 0, "a completion from before the reload is ignored")
+recovery()
+setcursor_returns("my-xcursor")
+assert(config.invisible and config.enable_hyprcursor, "the reload's retry loads the theme again, still hidden")
 setcursor_returns("my-xcursor")
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme, "the reveal must apply the Hyprcursor theme it derived, then the user's settings")
 monitors = {}
