@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtTest
 import qs.Commons
+import qs.Commons as Commons
 import "qs/Ui"
 
 Item {
@@ -67,7 +68,7 @@ Item {
     }
 
     function test_viewport(data) {
-      Color.shellValues = data.border
+      Commons.Color.shellValues = data.border
       dropdown.popupRowHeight = data.rowHeight
       var options = []
       for (var i = 0; i < data.count; i++) options.push("Option " + (i + 1))

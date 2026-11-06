@@ -117,7 +117,7 @@ if unshare --user --map-root-user --mount true 2>/dev/null; then
   poison_dir="$test_tmp/poison"
   poison_ran="$test_tmp/poison-ran"
   mkdir -p "$poison_dir"
-  for helper in awk dirname grep install jq locale-gen mktemp rm sed tee tr; do
+  for helper in awk dirname grep install jq localedef mktemp rm sed tee tr; do
     cat >"$poison_dir/$helper" <<SH
 #!/bin/bash
 printf '%s\n' "$helper" >>"$poison_ran"
@@ -170,10 +170,10 @@ SH
   assert_trusted_path omarchy-locale-generate
 
   # A code the packaged registry knows gets as far as locale.gen, which has to
-  # be /etc's, not the caller's. locale-gen itself then fails to write the
+  # be /etc's, not the caller's. localedef then fails to add to the
   # host's locale archive, which it could do if the test ran as real root.
   if (( EUID == 0 )); then
-    skip "running as root; skipping the root locale.gen override probe, whose locale-gen would rewrite this machine's locales"
+    skip "running as root; skipping the root locale.gen override probe, whose localedef would add to this machine's locale archive"
   elif [[ $(jq -r '.sv.locale // empty' /usr/share/omarchy/default/i18n/locales.json 2>/dev/null) == "sv_SE.UTF-8" ]]; then
     OMARCHY_LOCALE_GEN="$test_tmp/override.gen" \
       as_root "$etc" "$ROOT/bin/omarchy-locale-generate" sv </dev/null >/dev/null 2>&1 || true

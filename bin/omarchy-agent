@@ -1,11 +1,15 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
-# omarchy:examples=omarchy agent | omarchy agent --inline
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
 pick=false
+use_local=false
+prefer_local=false
+local_model=""
+agent_override=""
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -18,6 +22,23 @@ while (($#)); do
     --pick)
       pick=true
       shift
+      ;;
+    --local)
+      use_local=true
+      shift
+      ;;
+    --local-model)
+      use_local=true
+      local_model=${2:?--local-model needs a recipe id}
+      shift 2
+      ;;
+    --prefer-local)
+      prefer_local=true
+      shift
+      ;;
+    --agent)
+      agent_override=${2:?--agent needs an agent id}
+      shift 2
       ;;
     --prompt)
       prompt=${2:?--prompt needs a value}
@@ -35,7 +56,51 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
-agent=$(omarchy-default-agent)
+# --agent launches a given agent instead of the default: the panel's terminal
+# button on each subscription opens the harness made for it, Codex for OpenAI.
+if [[ -n $agent_override ]]; then
+  agent=$agent_override
+  if omarchy-cmd-missing "$agent"; then
+    omarchy-notification-send "$(omarchy-i18n agents.harnessMissing "$agent")" "$(omarchy-i18n agents.harnessMissingBody "$agent")"
+    exit 1
+  fi
+else
+  agent=$(omarchy-default-agent)
+fi
+
+# --prefer-local takes the local model when one is up and the usual agent when
+# not, so the Quake console opens on whatever the machine is running. The model
+# last started wins when it is running; any other running one will do. One
+# still loading is not up yet, and opening an agent on it would only error.
+if [[ $prefer_local == "true" && $use_local != "true" ]]; then
+  local_model=$(omarchy-agent-local status --json 2>/dev/null | jq -r '
+    [.models // {} | to_entries[] | select(.value.unit == "active" and .value.sub_state == "running") | .key] as $up
+    | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null)
+  [[ -n $local_model ]] && use_local=true
+fi
+
+# Only agents with a launch-time overlay can be pointed at the local model. When
+# the default can't, or none is set, the local model opens in pi, or OpenCode
+# without pi: the agents panel launches it whether or not a default was chosen.
+if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
+  local_agent=""
+  for candidate in pi opencode; do
+    if omarchy-cmd-present "$candidate"; then
+      local_agent=$candidate
+      break
+    fi
+  done
+  if [[ -z $local_agent && $prefer_local == "true" ]]; then
+    # Preferred, not asked for: without an agent that can take the overlay,
+    # open the usual one rather than nothing.
+    use_local=false
+  elif [[ -z $local_agent ]]; then
+    omarchy-notification-send -u critical "$(omarchy-i18n agents.localUnsupported)" "$(omarchy-i18n agents.localUnsupportedBody)"
+    exit 1
+  else
+    agent=$local_agent
+  fi
+fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
@@ -202,6 +267,24 @@ commandcode)
   exit 1
   ;;
 esac
+
+# --local points the agent at the model `omarchy agent local use` runs, through
+# a launch-time overlay Omarchy owns, never by editing the agent's own config.
+# Only agents with such an overlay can be pointed there.
+if [[ $use_local == "true" ]]; then
+  mapfile -t overlay < <(omarchy-agent-local overlay "$agent" ${local_model:+"$local_model"})
+  (( ${#overlay[@]} == 3 )) || exit 1
+  case "$agent" in
+  opencode)
+    # The shared background service never sees the overlay, so run a private one.
+    model=$(jq -nc --arg model "${overlay[1]}/${overlay[2]}" '{model: $model}')
+    command=(env "OPENCODE_CONFIG=${overlay[0]}" "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)
+    ;;
+  pi)
+    command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
+    ;;
+  esac
+fi
 
 # An agent with no way to take a starting prompt still opens, with the prompt
 # on the clipboard to paste as its first message, so a prompted launch from the

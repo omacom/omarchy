@@ -698,8 +698,14 @@ hl.on("monitor.added", function(monitor)
   M.reconcile(monitor and monitor.name)
 end)
 
+-- Hyprland reports the removal from inside the monitor's teardown, where moving
+-- workspaces or focus onto a monitor that was mirroring it crashes Hyprland, so
+-- reconcile once the teardown has returned.
 hl.on("monitor.removed", function(monitor)
-  M.reconcile(nil, monitor and monitor.name)
+  local name = monitor and monitor.name
+  hl.timer(function()
+    M.reconcile(nil, name)
+  end, { type = "oneshot", timeout = 1 })
 end)
 
 o.workspaces = M
