@@ -739,6 +739,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.outputIcon()
+    tooltipShortcut: "Super + Ctrl + A"
     onPressed: function(b) {
       if (b === Qt.RightButton) root.toggleAllMuted()
       else root.toggle()

@@ -1087,6 +1087,7 @@ Panel {
     active: root.restricted
     tooltipText: root.hasCaptivePortal ? Commons.I18n.t("network.signInToNetwork")
       : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
+    tooltipShortcut: "Super + Ctrl + N"
 
     onPressed: function(b) {
       if (root.opened) root.close()
