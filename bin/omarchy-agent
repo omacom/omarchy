@@ -320,7 +320,9 @@ fi
 
 # A new session uses the current selection rather than its parent's account
 # pin. Explicit provider homes still override the selection. Defer resolving a
-# registry account until dispatch in the terminal can also protect its home.
+# registry account until dispatch in the terminal can also protect its home,
+# and call that dispatch directly with the CLI chosen above, so a user install
+# or a real CLI ahead of mise's wrapper on PATH still gets the selected account.
 case "$agent" in
 claude) home_env="CLAUDE_CONFIG_DIR" ;;
 codex) home_env="CODEX_HOME" ;;
@@ -335,7 +337,9 @@ if [[ -n $home_env ]]; then
   unset "$account_pin"
   account_env=(env -u "$home_env" -u "$account_pin")
   [[ -n ${!home_env:-} ]] && account_env+=("$home_env=${!home_env}")
-  command=("${account_env[@]}" "${command[@]}")
+  dispatch=(omarchy-agent-account-exec)
+  [[ ${command[0]} != "$agent" ]] && dispatch+=(--binary "${command[0]}")
+  command=("${account_env[@]}" "${dispatch[@]}" "$agent" "${command[@]:1}")
 fi
 
 if [[ $inline == "true" ]]; then

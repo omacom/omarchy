@@ -1,17 +1,24 @@
 #!/bin/bash
 
 # omarchy:summary=Run Claude, Codex, or Grok as the selected subscription account
-# omarchy:args=<claude|codex|grok> [args...]
+# omarchy:args=[--binary <path>] <claude|codex|grok> [args...]
 # omarchy:hidden=true
 
 set -euo pipefail
+
+# omarchy-agent passes the CLI it already chose, such as the user's own install.
+agent_binary=""
+if [[ ${1:-} == "--binary" ]]; then
+  agent_binary=${2:-}
+  shift 2 || true
+fi
 
 case "${1:-}" in
   claude) account_env="CLAUDE_CONFIG_DIR" ;;
   codex) account_env="CODEX_HOME" ;;
   grok) account_env="GROK_HOME" ;;
   *)
-    echo "Usage: omarchy-agent-account-exec <claude|codex|grok> [args...]" >&2
+    echo "Usage: omarchy-agent-account-exec [--binary <path>] <claude|codex|grok> [args...]" >&2
     exit 1
     ;;
 esac
@@ -19,11 +26,16 @@ esac
 provider=$1
 shift
 
-# mise removes its wrapper dispatch directories before calling us, so exec
-# finds the real CLI (or its first-run installer) rather than this wrapper.
-# Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
-# avoid recursion, but the agent's subprocesses need them for other providers.
-if ! agent_binary=$(type -P "$provider"); then
+# mise removes its wrapper dispatch directories before calling us, and a direct
+# call from omarchy-agent looks past them, so exec finds the real CLI (or its
+# first-run installer) rather than this wrapper. Resolve before restoring
+# dispatch on PATH: the agent's subprocesses need it for other providers.
+mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+lookup_path=:$PATH:
+lookup_path=${lookup_path//:$mise_data_dir\/command-wrappers\/bin:/:}
+lookup_path=${lookup_path#:}
+lookup_path=${lookup_path%:}
+if [[ -z $agent_binary ]] && ! agent_binary=$(PATH=$lookup_path; type -P "$provider"); then
   # A mise dispatcher can exist before its CLI or first-run installer does.
   # Omarchy declares these agents, so installing one leaves the user's config
   # alone. A user who removed the preinstalls selects it in their own config.
@@ -37,7 +49,6 @@ if ! agent_binary=$(type -P "$provider"); then
 fi
 # mise also drops its shims, leaving only the tools installed at launch. A
 # long-lived agent needs them back to find tools installed after it started.
-mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 PATH="$mise_data_dir/command-wrappers/bin:$PATH"
 if [[ :$PATH: != *":$mise_data_dir/shims:"* ]]; then
   PATH="$PATH:$mise_data_dir/shims"

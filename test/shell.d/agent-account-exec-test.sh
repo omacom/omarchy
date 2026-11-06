@@ -148,6 +148,20 @@ expected=$(printf '%s\n' "$test_tmp/accounts/claude side" "$test_tmp/accounts/co
 [[ $output == "$expected" ]] || fail "an agent's subprocess still dispatches the other provider's selected account" "$output"
 pass "an agent's subprocess still dispatches the other provider's selected account"
 
+# New sessions reach account dispatch whichever CLI the launcher picks: the
+# user's own install, or a real CLI that comes before mise's wrapper on PATH.
+printf 'claude\n' >"$account_test_home/.config/omarchy/defaults/agent"
+mkdir -p "$account_test_home/.local/bin"
+cp "$real_bin/claude" "$account_test_home/.local/bin/claude"
+output=$(run_isolated omarchy-agent --inline)
+[[ ${output%%$'\n'*} == "$test_tmp/accounts/claude side" ]] || fail "a user-installed Claude starts on the selected account" "$output"
+pass "a user-installed Claude starts on the selected account"
+rm "$account_test_home/.local/bin/claude"
+
+output=$(run_isolated env PATH="$real_bin:$mise_data/command-wrappers/bin:$ROOT/bin:$mise_bin_dir:/usr/bin" omarchy-agent --inline)
+[[ ${output%%$'\n'*} == "$test_tmp/accounts/claude side" ]] || fail "a real Claude ahead of mise's wrapper starts on the selected account" "$output"
+pass "a real Claude ahead of mise's wrapper starts on the selected account"
+
 # Give mise a real installed Claude tool directory, not just a system fallback.
 ln -s "$real_bin/claude" "$test_tmp/real/claude"
 run_isolated mise link claude@1.0.0 "$test_tmp/real" >/dev/null
