@@ -168,6 +168,27 @@ o.bind_commands = {}
 -- to run instead. The menu dispatches it as `hyprctl dispatch <expression>`.
 o.bind_expressions = {}
 
+-- Directional focus that still works on the scrolling layout while the active
+-- window is maximized (SUPER + ALT + F): Hyprland's movefocus will not leave a
+-- window that covers the workspace, but the layout's own focus message will
+-- scroll to the next window. Hyprland reports 1 for maximized and 2 for
+-- fullscreen, so only the former reroutes.
+function o.focus_direction(direction)
+  local function focus()
+    local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+    local window = hl.get_active_window()
+
+    if workspace and workspace.tiled_layout == "scrolling" and window and window.fullscreen == 1 then
+      hl.dispatch(hl.dsp.layout("focus " .. direction))
+    else
+      hl.dispatch(hl.dsp.focus({ direction = direction }))
+    end
+  end
+
+  o.bind_expressions[focus] = "o.focus_direction(" .. string.format("%q", direction) .. ")"
+  return focus
+end
+
 -- Hand the launcher the focused window's pid, which it would otherwise ask
 -- Hyprland for, to open the new terminal in that terminal's directory.
 function o.launch_terminal()
