@@ -15,4 +15,10 @@ if [[ -d /sys/firmware/efi ]] && [[ -f /usr/lib/fwupd/efi/fwupdx64.efi ]]; then
 fi
 
 fwupdmgr refresh --force
-sudo fwupdmgr update
+status=0
+sudo fwupdmgr update || status=$?
+
+# 2 means fwupdmgr found nothing to update, which is not a failure.
+if (( status != 2 )); then
+  exit $status
+fi
