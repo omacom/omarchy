@@ -18,7 +18,7 @@ printf 'model fixture' >"$fixture/model with spaces.onnx"
 
 bash "$ROOT/bin/omarchy-launch-netron" "$fixture/model with spaces.onnx" --port 8081 >/dev/null
 mapfile -d '' -t args <"$TRACE"
-[[ ${args[0]} == "--host" && ${args[1]} == "127.0.0.1" && ${args[3]} == "8081" && ${args[4]} == "--browse" && ${args[5]} == "$fixture/model with spaces.onnx" ]] || fail "Netron gets the literal model and loopback port"
+(( ${#args[@]} == 6 )) && [[ ${args[0]} == "--host" && ${args[1]} == "127.0.0.1" && ${args[2]} == "--port" && ${args[3]} == "8081" && ${args[4]} == "--browse" && ${args[5]} == "$fixture/model with spaces.onnx" ]] || fail "Netron gets the literal model and loopback port"
 bash "$ROOT/bin/omarchy-launch-netron" --no-browser "$fixture/model with spaces.onnx" >/dev/null
 mapfile -d '' -t args <"$TRACE"
 (( ${#args[@]} == 5 )) && [[ ${args[4]} == "$fixture/model with spaces.onnx" ]] || fail "headless Netron omits browser launch"
@@ -37,3 +37,14 @@ status=0
 TOOL_STATUS=7 bash "$ROOT/bin/omarchy-launch-netron" "$fixture/model with spaces.onnx" >/dev/null || status=$?
 (( status == 7 )) || fail "Netron errors reach the caller"
 pass "Netron errors reach the caller"
+
+mkdir -p "$fixture/project/models" "$fixture/elsewhere/models"
+printf 'local model' >"$fixture/project/models/network.onnx"
+printf 'other model' >"$fixture/elsewhere/models/network.onnx"
+(
+  cd -- "$fixture/project"
+  CDPATH="$fixture/elsewhere:." bash "$ROOT/bin/omarchy-launch-netron" models/network.onnx --no-browser >/dev/null
+)
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[4]} == "$fixture/project/models/network.onnx" ]] || fail "CDPATH cannot select a different model directory"
+pass "relative model files are independent of CDPATH"

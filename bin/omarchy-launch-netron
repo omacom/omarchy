@@ -39,7 +39,7 @@ done
 
 [[ $port =~ ^[0-9]{1,5}$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || { echo "Port must be between 1 and 65535" >&2; exit 2; }
 [[ -n $model && -f $model && -s $model ]] || { echo "Choose an existing, non-empty local model file" >&2; exit 1; }
-model="$(cd -- "$(dirname -- "$model")" && pwd -P)/$(basename -- "$model")"
+model="$(CDPATH= cd -- "$(dirname -- "$model")" && pwd -P)/$(basename -- "$model")"
 if omarchy-cmd-missing netron; then
   echo "Activate a Python environment with the Netron CLI installed, then try again." >&2
   exit 1
