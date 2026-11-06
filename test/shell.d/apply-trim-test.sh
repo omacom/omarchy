@@ -77,6 +77,11 @@ cat >"$stubs/systemctl" <<'EOF'
 #!/bin/bash
 echo "systemctl $*" >>"$CALLS"
 [[ $1 != is-enabled ]] || { echo "${FAKE_TIMER:-disabled}"; exit 1; }
+# FAKE_ENABLE_FAIL names one unit whose enable fails, as a masked or broken
+# one does, while everything else still answers as told.
+if [[ -n ${FAKE_ENABLE_FAIL:-} && " $* " == *" $FAKE_ENABLE_FAIL "* ]]; then
+  exit 1
+fi
 exit "${SYSTEMCTL_STATUS:-0}"
 EOF
 cat >"$stubs/fstrim" <<'EOF'
@@ -96,7 +101,7 @@ reset_machine() {
   rm -rf "$tmp/state" "$machine" "$calls"
   mkdir -p "$machine"
   touch "$calls"
-  unset FAKE_VIRT FAKE_TIMER SYSTEMCTL_STATUS FSTRIM_STATUS
+  unset FAKE_VIRT FAKE_TIMER FAKE_ENABLE_FAIL SYSTEMCTL_STATUS FSTRIM_STATUS
   echo btrfs >"$machine/fstype"
   echo /dev/nvme0n1p2 >"$machine/members"
   printf '/dev/nvme0n1p2 part\n/dev/nvme0n1 disk\n' >"$machine/stack._dev_nvme0n1p2"
@@ -177,6 +182,21 @@ SYSTEMCTL_STATUS=1 apply_trim 2>"$tmp/err" || fail "a timer that cannot be enabl
 grep -q 'could not enable fstrim.timer; trying again' "$tmp/err" || fail "a timer that cannot be enabled is reported" "$(cat "$tmp/err")"
 [[ ! -e $tmp/state/applied ]] || fail "a timer that cannot be enabled is tried again on the next update"
 pass "a timer that cannot be enabled is reported and tried again on the next update"
+
+# The queued trim runs from omarchy-trim-backlog.service, so queueing it while
+# that unit cannot be enabled would promise a trim nothing starts.
+reset_machine
+FAKE_ENABLE_FAIL=omarchy-trim-backlog.service apply_trim 2>"$tmp/err" ||
+  fail "a backlog unit that cannot be enabled does not fail the update"
+grep -q 'could not enable omarchy-trim-backlog.service; trying again' "$tmp/err" ||
+  fail "a backlog unit that cannot be enabled is reported" "$(cat "$tmp/err")"
+[[ ! -e $tmp/state/applied && ! -e $tmp/state/backlog ]] ||
+  fail "a backlog unit that cannot be enabled queues nothing and records nothing"
+: >"$calls"
+apply_trim
+[[ -e $tmp/state/applied && -e $tmp/state/backlog ]] ||
+  fail "the next update queues the trim once the unit can be enabled" "$(cat "$calls")"
+pass "a backlog unit that cannot be enabled queues nothing until an update can enable it"
 
 reset_machine
 encrypted_root LUKS1 /dev/nvme0n1p2
@@ -317,6 +337,23 @@ grep -q 'could not store allow-discards' "$tmp/err" || fail "a header it cannot 
 pass "a header it cannot write is reported, does not fail the update, and is tried again"
 
 # The backlog trim at boot.
+# ConditionPathExists only lets a service run once something starts it, so the
+# unit itself must be installable into the boot target: enabled into a throwaway
+# root, it has to leave the dependency that starts it at multi-user.target.
+reset_machine
+if command -v systemctl >/dev/null; then
+  unit_root=$tmp/unit-root
+  mkdir -p "$unit_root/usr/lib/systemd/system"
+  cp "$ROOT/default/systemd/system/omarchy-trim-backlog.service" "$unit_root/usr/lib/systemd/system/"
+  systemctl --root="$unit_root" enable omarchy-trim-backlog.service >/dev/null 2>&1
+  [[ -L $unit_root/etc/systemd/system/multi-user.target.wants/omarchy-trim-backlog.service ]] ||
+    fail "the backlog unit can be enabled into the boot target, so the queued trim runs" \
+      "$(systemctl --root="$unit_root" enable omarchy-trim-backlog.service 2>&1)"
+  pass "the backlog unit is started by the boot target, so nothing has to time the queued trim"
+else
+  skip "needs systemctl to enable the backlog unit into a boot target"
+fi
+
 reset_machine
 apply_trim --backlog
 [[ ! -s $calls ]] || fail "nothing queued, nothing trimmed"
