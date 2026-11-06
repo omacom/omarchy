@@ -186,3 +186,21 @@ assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one
 assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
 assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
 JS
+
+# Every monitor's copy of the widget fires its refresh timer at once. They
+# share one update run, and the copies that lose the lock wait for it to
+# finish so their reload afterwards sees its records.
+shared_run=$(sed -n "s/^ *'\(exec 9>.*\)', updateLockPath\]\$/\1/p" "$ROOT/shell/plugins/agents/Main.qml")
+[[ -n $shared_run ]] || fail "the shared update run is not where this test reads it from"
+lock_tmp=$(mktemp -d)
+for _ in 1 2 3; do
+  (
+    sh -c "$shared_run" "$lock_tmp/lock" sh -c 'echo run >>"$0"; sleep 0.3; echo done >>"$0"' "$lock_tmp/log"
+    echo exit >>"$lock_tmp/log"
+  ) &
+done
+wait
+shared_log=$(tr '\n' ' ' <"$lock_tmp/log")
+rm -rf "$lock_tmp"
+[[ $shared_log == "run done exit exit exit " ]] || fail "copies refreshing together did not share one update run: $shared_log"
+pass "copies refreshing together share one update run"

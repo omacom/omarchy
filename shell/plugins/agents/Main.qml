@@ -165,7 +165,7 @@ Item {
     id: limitsRetry
     interval: 30000
     repeat: false
-    onTriggered: root.runUpdate("limits", root.retryAgentIds)
+    onTriggered: root.runUpdate("limits", root.retryAgentIds, true)
   }
 
   function scheduleLimitsRetry() {
@@ -215,7 +215,7 @@ Item {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
+    onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal", null, true)
   }
 
   Process {
@@ -237,8 +237,18 @@ Item {
     }
   }
 
-  function updateCommand(kind, agentIds) {
-    var command = ["omarchy-agent-usage-update"]
+  // The bar builds this widget once per monitor, and every copy's timers fire
+  // together. The records are shared files that every copy watches, so one
+  // run serves them all: a timer-driven run takes a lock, and the copies that
+  // lose it wait for the winner to finish instead of collecting again. Runs
+  // the user asks for (opening the panel, a forced refresh) are not shared.
+  readonly property string updateLockPath: (Quickshell.env("XDG_RUNTIME_DIR") || usageDir) + "/omarchy-agent-usage-update.lock"
+  readonly property var sharedRunPrefix: ["sh", "-c",
+    'exec 9>"$0"; if flock -n 9; then "$@"; else flock 9; fi', updateLockPath]
+
+  function updateCommand(kind, agentIds, shared) {
+    var command = shared === true ? sharedRunPrefix.slice() : []
+    command.push("omarchy-agent-usage-update")
     if (kind === "force") command.push("--force")
     if (kind === "limits") command.push("--limits-only")
     var providers = settings && settings.providers ? settings.providers : {}
@@ -251,14 +261,14 @@ Item {
     return command
   }
 
-  function runUpdate(kind, agentIds) {
+  function runUpdate(kind, agentIds, shared) {
     if (updateProcess.running) {
       // Collapse queued requests to one full rerun; a forced refresh outranks
       // the cheaper kinds it might have been queued behind.
       if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
       return
     }
-    updateProcess.command = updateCommand(kind, agentIds)
+    updateProcess.command = updateCommand(kind, agentIds, shared)
     updateProcess.running = true
   }
 
