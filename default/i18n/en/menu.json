@@ -270,17 +270,23 @@
     "label": "Right Dock"
   },
   "appearance.workspace-layout": {
-    "label": "Workspace Layout",
+    "label": "Workspace Layout"
+  },
+  "appearance.workspace-layout.default": {
+    "label": "Default",
     "title": "Default Workspace Layout"
   },
-  "appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.default.dwindle": {
     "label": "Tiling"
   },
-  "appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.default.scrolling": {
     "label": "Scrolling"
   },
-  "appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.default.floating": {
     "label": "Floating"
+  },
+  "appearance.workspace-layout.enabled": {
+    "label": "Enabled Layouts"
   },
   "appearance.animations-on": {
     "label": "Animations On"

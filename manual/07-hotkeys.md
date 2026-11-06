@@ -43,7 +43,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
-| `Super + L`               | Cycle through the dwindle, scrolling, and floating layouts |
+| `Super + L`               | Cycle through the enabled layouts (dwindle, scrolling, and floating unless you change them) |
 | `Super + Alt + L`         | Cycle through the layouts in reverse |
 | `Super + P`               | Toggle pseudo window style (natural v stretch) |
 | `Super + F`                 | Go full screen              |
