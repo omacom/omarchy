@@ -2455,6 +2455,9 @@ Panel {
         // label too long for the row scrolls back and forth instead of eliding,
         // so the signal at its end stays readable; one that fits stays still,
         // and nothing moves with animations turned off.
+        // The scroll is constant reading motion like the media title's
+        // marquee, not a UI transition, so it moves at a steady 30px/s on a
+        // linear curve rather than within the 300ms transition budget.
         Repeater {
           model: hotspotClientModel
           delegate: Item {
@@ -2485,14 +2488,14 @@ Panel {
                 target: clientText; property: "x"
                 from: 0; to: -clientRow.overflow
                 duration: Style.duration(clientRow.scrollMs)
-                easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
+                easing.type: Easing.Linear
               }
               PauseAnimation { duration: Style.duration(1500) }
               NumberAnimation {
                 target: clientText; property: "x"
                 from: -clientRow.overflow; to: 0
                 duration: Style.duration(clientRow.scrollMs)
-                easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
+                easing.type: Easing.Linear
               }
             }
 
