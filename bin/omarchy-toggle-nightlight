@@ -38,18 +38,18 @@ fi
 
 if [[ ${1:-} == "--schedule" ]]; then
   schedule_result=$(omarchy-nightlight-schedule toggle) || {
-    omarchy-notification-send "Unable to configure automatic night light"
+    omarchy-notification-send "$(omarchy-i18n nightlight.configureFailed)"
     exit 1
   }
   if [[ $schedule_result == "enabled" ]]; then
     timezone=$(timedatectl show -p Timezone --value 2>/dev/null)
     if [[ -n $timezone ]]; then
-      omarchy-notification-send "Night light will follow sunset and sunrise in $timezone"
+      omarchy-notification-send "$(omarchy-i18n nightlight.followTimezone "$timezone")"
     else
-      omarchy-notification-send "Night light will follow sunset and sunrise in the selected timezone"
+      omarchy-notification-send "$(omarchy-i18n nightlight.followSelectedTimezone)"
     fi
   else
-    omarchy-notification-send "Automatic night light disabled"
+    omarchy-notification-send "$(omarchy-i18n nightlight.scheduleDisabled)"
   fi
   omarchy-shell -q nightlight refresh
   exit 0
@@ -57,7 +57,7 @@ fi
 
 if [[ ${1:-} == "--manual" ]]; then
   if ! omarchy-nightlight-schedule disable >/dev/null; then
-    omarchy-notification-send "Unable to disable automatic night light"
+    omarchy-notification-send "$(omarchy-i18n nightlight.disableFailed)"
     exit 1
   fi
   omarchy-shell -q nightlight refresh
@@ -65,29 +65,44 @@ if [[ ${1:-} == "--manual" ]]; then
 fi
 
 if ! omarchy-nightlight-schedule disable >/dev/null; then
-  omarchy-notification-send "Unable to disable automatic night light; applying a manual override"
+  omarchy-notification-send "$(omarchy-i18n nightlight.manualOverride)"
 fi
 
-# Ensure hyprsunset is running
+# Ensure hyprsunset is running. One a few seconds old may still be booting,
+# such as one started at login, so it counts as just started too.
+STARTING=false
 if ! pgrep -x hyprsunset >/dev/null; then
   setsid uwsm-app -- hyprsunset &
+  STARTING=true
+elif (( $(ps -o etimes= -p "$(pgrep -nx hyprsunset)" 2>/dev/null || echo 0) < 3 )); then
+  STARTING=true
 fi
 
 # Query the current temperature
 CURRENT_TEMP=$(current_temp)
 
-if [[ -z $CURRENT_TEMP || $CURRENT_TEMP == $OFF_TEMP ]]; then
-  TARGET_TEMP=$ON_TEMP
-else
+if [[ -n $CURRENT_TEMP ]] && (( CURRENT_TEMP < IDENTITY_TEMP )); then
   TARGET_TEMP=$OFF_TEMP
+else
+  TARGET_TEMP=$ON_TEMP
 fi
 
 # A freshly-started hyprsunset applies its default temperature at the end of
-# its boot, overriding anything set before then — so resend until it sticks
+# its boot, overriding anything set before then — so resend until it sticks. One
+# that has finished starting applies it at once, so it needs no wait.
 for _ in {1..10}; do
   hyprctl hyprsunset temperature $TARGET_TEMP >/dev/null 2>&1
+  if [[ $STARTING == "false" && $(current_temp) == "$TARGET_TEMP" ]]; then
+    break
+  fi
   sleep 0.2
   [[ $(current_temp) == "$TARGET_TEMP" ]] && break
 done
+
+# Even 6500K tints the screen, so off also resets to the identity matrix;
+# hyprsunset keeps reporting 6500K, which --status reads as off
+if (( TARGET_TEMP == OFF_TEMP )); then
+  hyprctl hyprsunset identity >/dev/null 2>&1
+fi
 
 omarchy-shell -q nightlight refresh

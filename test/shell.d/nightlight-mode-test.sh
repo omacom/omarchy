@@ -123,13 +123,14 @@ require_command quickshell
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
-mkdir "$test_tmp/bin"
+mkdir "$test_tmp/bin" "$test_tmp/home"
 cp "$SHELL_TEST_DIR/fixtures/nightlight-mode/shell.qml" "$test_tmp/shell.qml"
 cp "$SHELL_TEST_DIR/fixtures/nightlight-mode/schedule-command" "$test_tmp/bin/omarchy-nightlight-schedule"
 chmod +x "$test_tmp/bin/omarchy-nightlight-schedule"
 ln -s "$ROOT/shell/plugins/services/nightlight" "$test_tmp/Nightlight"
+ln -s "$ROOT/shell/Commons" "$test_tmp/Commons"
 
-output=$(PATH="$test_tmp/bin:$PATH" OMARCHY_NIGHTLIGHT_STATE="$test_tmp/mode" \
+output=$(HOME="$test_tmp/home" PATH="$test_tmp/bin:$PATH" OMARCHY_NIGHTLIGHT_STATE="$test_tmp/mode" \
   timeout 10 quickshell -p "$test_tmp" --no-color 2>&1) || {
   printf '%s\n' "$output" >&2
   fail "nightlight mode persistence fixture exits cleanly"

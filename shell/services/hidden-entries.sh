@@ -24,15 +24,6 @@ desktop_matches() {
   return 1
 }
 
-desktop_id_for_file() {
-  local dir=$1
-  local file=$2
-  local rel=${file#"$dir"/}
-
-  rel=${rel%.desktop}
-  printf '%s\n' "${rel//\//-}"
-}
-
 is_hidden_desktop_file() {
   local file=$1
   local in_desktop_entry=0
@@ -82,7 +73,9 @@ scan_dir() {
   [[ -d $dir ]] || return
 
   while IFS= read -r -d '' file; do
-    id=$(desktop_id_for_file "$dir" "$file")
+    id=${file#"$dir"/}
+    id=${id%.desktop}
+    id=${id//\//-}
     [[ -n ${seen_ids[$id]+set} ]] && continue
     seen_ids[$id]=1
 

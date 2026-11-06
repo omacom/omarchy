@@ -14,9 +14,12 @@ BarIconButton {
   property var indicatorHost: null
   property var activeOverride: null
   property bool alwaysRevealInactive: false
+  // An indicator with nothing to turn on, such as a remote session, shows only
+  // while it is active, never among the inactive ones a hover reveals.
+  property bool revealWhenInactive: true
   readonly property bool effectiveActive: activeOverride === null || activeOverride === undefined ? active : activeOverride === true
-  readonly property bool belongsInBlock: indicatorBlock === "active" ? effectiveActive : (indicatorBlock === "inactive" ? !effectiveActive : true)
-  readonly property bool inactiveRevealed: !effectiveActive && (alwaysRevealInactive || (!!indicatorHost && indicatorHost.revealInactiveIndicators))
+  readonly property bool belongsInBlock: indicatorBlock === "active" ? effectiveActive : (indicatorBlock === "inactive" ? !effectiveActive && revealWhenInactive : true)
+  readonly property bool inactiveRevealed: !effectiveActive && revealWhenInactive && (alwaysRevealInactive || (!!indicatorHost && indicatorHost.revealInactiveIndicators))
 
   function extractData(raw) {
     return Util.parseModuleJson(raw)
@@ -44,7 +47,6 @@ BarIconButton {
   useActiveColor: false
   maintainIndicatorReveal: indicatorBlock === "inactive"
   revealHost: indicatorHost
-  fontSize: Style.font.caption
   horizontalMargin: 5
   verticalPadding: 5
   fixedWidth: vertical ? -1 : Style.bar.statusSlot

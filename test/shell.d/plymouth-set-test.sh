@@ -73,7 +73,7 @@ else
 fi
 pass "the logo descriptor can only be opened by an unprivileged caller"
 
-# Style > Unlock picks a theme by name and hands the answer to
+# Appearance > Unlock picks a theme by name and hands the answer to
 # omarchy-launch-floating-terminal-with-presentation, which joins its arguments
 # into a script and runs that with `bash -c`. So the name is shell source
 # unless the action quotes it -- and the name is a directory name under
@@ -86,10 +86,10 @@ unlock_action=$(node -e '
   const path = require("path")
   const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
   const items = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
-  process.stdout.write(items.find(item => item.id === "style.unlock").action)
+  process.stdout.write(items.find(item => item.id === "appearance.unlock").action)
 ')
 
-[[ -n $unlock_action ]] || fail "the shipped menu still carries a style.unlock action"
+[[ -n $unlock_action ]] || fail "the shipped menu still carries a appearance.unlock action"
 
 stub_dir="$test_tmp/stubs"
 mkdir -p "$stub_dir"

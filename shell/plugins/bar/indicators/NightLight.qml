@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -63,8 +64,8 @@ Panel {
     active: root.active
     activeText: "󰔎"
     inactiveText: "󰔎"
-    activeTooltipText: "Night Light · Right-click for modes"
-    inactiveTooltipText: "Night Light · Right-click for modes"
+    activeTooltipText: I18n.t("nightlight.tooltip").arg(I18n.t("bar.dayLight"))
+    inactiveTooltipText: I18n.t("nightlight.tooltip").arg(I18n.t("bar.nightLight"))
 
     onPressed: function(button) {
       if (button === Qt.RightButton) root.toggle()
@@ -85,28 +86,30 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
+    focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(360))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight)
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 
-    PanelKeyCatcher {
+    content: PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) { root.moveCursor(dx !== 0 ? dx : dy) }
       onActivateRequested: root.selectMode(root.modeOptions[root.cursorIndex])
       onCloseRequested: root.close()
+      onTabRequested: function(direction) { root.switchPanel(direction) }
 
       Column {
-        id: content
+        id: column
         anchors.left: parent.left
         anchors.right: parent.right
         spacing: Style.space(14)
 
         PanelHero {
-          title: "Night Light"
+          title: I18n.t("bar.nightLight")
           meta: root.mode === "sunset"
-            ? "Follows sunset and sunrise"
-            : (root.mode === "nightlight" ? "Warm display · 4000K" : "Daylight display · 6500K")
+            ? I18n.t("nightlight.followSun")
+            : (root.mode === "nightlight" ? I18n.t("nightlight.warmDisplay") : I18n.t("nightlight.daylightDisplay"))
           detail: root.mode === "sunset" && root.nightlightService
             ? root.nightlightService.scheduleTimezone
             : ""
@@ -131,22 +134,22 @@ Panel {
           spacing: Style.space(8)
 
           PanelSectionHeader {
-            text: "MODE"
+            text: I18n.t("nightlight.mode")
             foreground: root.barForeground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
           }
 
           ButtonGroup {
             options: [
-              { value: "daylight", label: "Daylight" },
-              { value: "nightlight", label: "Night Light" },
-              { value: "sunset", label: "Sunset" }
+              { value: "daylight", label: I18n.t("nightlight.daylight") },
+              { value: "nightlight", label: I18n.t("bar.nightLight") },
+              { value: "sunset", label: I18n.t("nightlight.sunset") }
             ]
             value: root.mode
             cursorIndex: root.cursorIndex
             foreground: root.barForeground
-            background: Color.popups.background
-            accent: Color.accent
+            background: Commons.Color.popups.background
+            accent: Commons.Color.accent
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             focusable: false
             onChanged: function(value) { root.selectMode(value) }
@@ -158,9 +161,13 @@ Panel {
           visible: root.mode === "sunset" && root.nightlightService && root.nightlightService.nextEventAt !== ""
           width: parent.width
           textFormat: Text.PlainText
-          text: root.nightlightService
-            ? "Next: " + root.nightlightService.nextEvent + " · " + Qt.formatDateTime(new Date(root.nightlightService.nextEventAt), "ddd h:mm AP")
-            : ""
+          text: {
+            if (!root.nightlightService || root.nightlightService.nextEventAt === "") return ""
+            var time = new Date(root.nightlightService.nextEventAt).toLocaleString(Qt.locale(I18n.formatLocale), I18n.t("nightlight.eventTimeFormat"))
+            return root.nightlightService.nextEvent === "sunrise"
+              ? I18n.t("nightlight.nextSunrise").arg(time)
+              : I18n.t("nightlight.nextSunset").arg(time)
+          }
           color: Qt.darker(root.barForeground, 1.4)
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.bodySmall

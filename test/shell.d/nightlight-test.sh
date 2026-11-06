@@ -30,9 +30,15 @@ cat >"$TMPDIR/bin/hyprctl" <<'SH'
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
     printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
+    printf 'false\n' >"$HYPRSUNSET_STATE.identity"
   else
     cat "$HYPRSUNSET_STATE" 2>/dev/null || exit 1
   fi
+  exit 0
+fi
+
+if [[ ${1:-} == "hyprsunset" && ${2:-} == "identity" ]]; then
+  printf 'true\n' >"$HYPRSUNSET_STATE.identity"
   exit 0
 fi
 
@@ -54,7 +60,17 @@ cat >"$TMPDIR/bin/omarchy-notification-send" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_NOTIFICATION_LOG"
 SH
 
-chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell" "$TMPDIR/bin/omarchy-notification-send"
+cat >"$TMPDIR/bin/timedatectl" <<'SH'
+#!/bin/bash
+case ${1:-} in
+  show|list-timezones) printf 'America/Los_Angeles\n' ;;
+  set-timezone) printf 'set-timezone %s\n' "$2" >>"$OMARCHY_SHELL_LOG" ;;
+esac
+SH
+
+printf '#!/bin/bash\nread -r timezone; printf "%%s\\n" "$timezone"\n' >"$TMPDIR/bin/omarchy-menu-select"
+printf '#!/bin/bash\n[[ ${1:-} == "-n" ]] && shift\n"$@"\n' >"$TMPDIR/bin/sudo"
+chmod +x "$TMPDIR/bin/"*
 
 nightlight_cli() {
   PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
@@ -120,10 +136,27 @@ pass "nightlight toggle warms the screen from daylight"
 grep -Fqx -- '-q nightlight refresh' "$SHELL_LOG" || fail "nightlight toggle nudges the shell nightlight service"
 pass "nightlight toggle nudges the shell nightlight service"
 
+[[ $(<"$STATE.identity") == "false" ]] || fail "nightlight toggle leaves identity when warming the screen"
+pass "nightlight toggle leaves identity when warming the screen"
+
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 6500 ]] || fail "nightlight toggle restores daylight from night light"
 pass "nightlight toggle restores daylight from night light"
 
+[[ $(<"$STATE.identity") == "true" ]] || fail "nightlight toggle resets to the identity matrix when turning off"
+pass "nightlight toggle resets to the identity matrix when turning off"
+
+# hyprsunset's own default, as the shipped identity profile starts it
+printf '6000\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle warms the screen from hyprsunset's default"
+pass "nightlight toggle warms the screen from hyprsunset's default"
+
+rg -F '(temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")' "$ROOT/shell/plugins/services/nightlight/Service.qml" >/dev/null ||
+  fail "nightlight service resets to the identity matrix when turning off"
+pass "nightlight service resets to the identity matrix when turning off"
+
+printf '6500\n' >"$STATE"
 nightlight_schedule enable >/dev/null
 nightlight_cli >/dev/null
 if nightlight_schedule enabled; then
@@ -153,7 +186,58 @@ if nightlight_schedule enabled; then
 fi
 pass "nightlight manual option disables automatic mode"
 
-if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
-  fail "nightlight toggle leaves indicator refresh to the nightlight service"
+: >"$SHELL_LOG"
+PATH="$TMPDIR/bin:$ROOT/bin:$PATH" OMARCHY_SHELL_LOG="$SHELL_LOG" OMARCHY_NOTIFICATION_LOG="$NOTIFICATION_LOG" \
+  "$ROOT/bin/omarchy-menu-timezone" >/dev/null
+grep -Fqx 'set-timezone America/Los_Angeles' "$SHELL_LOG" || fail "timezone menu changes the selected timezone"
+grep -Fqx -- '-q omarchy.clock refresh' "$SHELL_LOG" || fail "timezone menu refreshes the clock"
+grep -Fqx -- '-q nightlight refresh' "$SHELL_LOG" || fail "timezone menu refreshes the solar schedule"
+pass "timezone changes refresh the clock and solar schedule"
+
+: >"$SHELL_LOG"
+mapfile -d '' -t timezone_command < <(node -e '
+  const model = require(process.env.ROOT + "/shell/plugins/panels/elsewhen/Model.js")
+  process.stdout.write(model.timezoneCommand("America/Los_Angeles").join("\0") + "\0")
+')
+PATH="$TMPDIR/bin:$ROOT/bin:$PATH" OMARCHY_SHELL_LOG="$SHELL_LOG" "${timezone_command[@]}"
+grep -Fqx 'set-timezone America/Los_Angeles' "$SHELL_LOG" || fail "Elsewhen changes the selected timezone"
+grep -Fqx -- '-q omarchy.clock refresh' "$SHELL_LOG" || fail "Elsewhen refreshes the clock"
+grep -Fqx -- '-q nightlight refresh' "$SHELL_LOG" || fail "Elsewhen refreshes the solar schedule"
+pass "Elsewhen timezone changes refresh the clock and solar schedule"
+
+# hyprsunset reports its age through ps. A boot still in progress applies its
+# default temperature on the first wait, overriding whatever was set before.
+BOOT_PENDING="$TMPDIR/boot-pending"
+printf '#!/bin/bash\n[[ $* == *etimes* ]] && echo "${HYPRSUNSET_AGE:-100}"\n' >"$TMPDIR/bin/ps"
+cat >"$TMPDIR/bin/sleep" <<'SH'
+#!/bin/bash
+printf 'sleep %s\n' "$*" >>"$OMARCHY_SHELL_LOG"
+if [[ -e $BOOT_PENDING ]]; then
+  rm -f "$BOOT_PENDING"
+  printf '6000\n' >"$HYPRSUNSET_STATE"
 fi
-pass "nightlight toggle leaves indicator refresh to the nightlight service"
+SH
+printf '#!/bin/bash\necho 4242\n' >"$TMPDIR/bin/pgrep"
+chmod +x "$TMPDIR/bin/sleep" "$TMPDIR/bin/ps" "$TMPDIR/bin/pgrep"
+toggle_from_daylight() {
+  printf '6500\n' >"$STATE"
+  : >"$SHELL_LOG"
+  BOOT_PENDING="$BOOT_PENDING" HYPRSUNSET_AGE="$1" nightlight_cli >/dev/null
+}
+
+toggle_from_daylight 100
+[[ $(<"$STATE") == 4000 ]] && ! grep -q '^sleep' "$SHELL_LOG" || fail "a hyprsunset that has finished starting applies the toggle without waiting"
+pass "a hyprsunset that has finished starting applies the toggle without waiting"
+
+: >"$BOOT_PENDING"
+toggle_from_daylight 1
+[[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a hyprsunset still booting can't undo the toggle with its default"
+pass "a hyprsunset still booting can't undo the toggle with its default"
+
+printf '#!/bin/bash\nexit 1\n' >"$TMPDIR/bin/pgrep"
+printf '#!/bin/bash\nexit 0\n' >"$TMPDIR/bin/setsid"
+chmod +x "$TMPDIR/bin/setsid"
+: >"$BOOT_PENDING"
+toggle_from_daylight 100
+[[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a freshly started hyprsunset can't undo the toggle with its default"
+pass "a freshly started hyprsunset can't undo the toggle with its default"

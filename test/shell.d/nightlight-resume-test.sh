@@ -11,12 +11,13 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 cp "$SHELL_TEST_DIR/fixtures/nightlight-resume/shell.qml" "$test_tmp/shell.qml"
-mkdir "$test_tmp/Nightlight"
+mkdir "$test_tmp/Nightlight" "$test_tmp/home"
 cp "$ROOT/shell/plugins/services/nightlight/NightlightModel.js" "$test_tmp/Nightlight/"
+ln -s "$ROOT/shell/Commons" "$test_tmp/Commons"
 # Keep the real QML timers and scheduling code, replacing only the wall clock.
 sed 's/Date.now()/root.shell.now/g' "$ROOT/shell/plugins/services/nightlight/Service.qml" >"$test_tmp/Nightlight/Service.qml"
 
-output=$(timeout 15 quickshell -p "$test_tmp" --no-color 2>&1) || {
+output=$(HOME="$test_tmp/home" timeout 15 quickshell -p "$test_tmp" --no-color 2>&1) || {
   printf '%s\n' "$output" >&2
   fail "nightlight resume fixture exits cleanly"
 }
