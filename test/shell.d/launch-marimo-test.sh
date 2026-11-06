@@ -18,7 +18,7 @@ printf 'import marimo\napp = marimo.App()\n' >"$fixture/model study.py"
 
 bash "$ROOT/bin/omarchy-launch-marimo" "$fixture/model study.py" --port 2719 --no-browser >/dev/null
 mapfile -d '' -t args <"$TRACE"
-[[ ${args[0]} == "edit" && ${args[2]} == "127.0.0.1" && ${args[4]} == "2719" && ${args[5]} == "--token" && ${args[6]} == "--no-sandbox" && ${args[7]} == "--skip-update-check" && ${args[8]} == "--headless" && ${args[9]} == "$fixture/model study.py" ]] || fail "marimo receives a literal local notebook with authentication"
+(( ${#args[@]} == 10 )) && [[ ${args[0]} == "edit" && ${args[1]} == "--host" && ${args[2]} == "127.0.0.1" && ${args[3]} == "--port" && ${args[4]} == "2719" && ${args[5]} == "--token" && ${args[6]} == "--no-sandbox" && ${args[7]} == "--skip-update-check" && ${args[8]} == "--headless" && ${args[9]} == "$fixture/model study.py" ]] || fail "marimo receives a literal local notebook with authentication"
 pass "marimo opens the selected notebook with loopback, authentication and the active environment"
 
 bash "$ROOT/bin/omarchy-launch-marimo" "$fixture/model study.py" >/dev/null
@@ -39,3 +39,14 @@ status=0
 TOOL_STATUS=7 bash "$ROOT/bin/omarchy-launch-marimo" "$fixture/model study.py" >/dev/null || status=$?
 (( status == 7 )) || fail "marimo errors reach the caller"
 pass "marimo errors reach the caller"
+
+mkdir -p "$fixture/project/notebooks" "$fixture/elsewhere/notebooks"
+printf 'local notebook' >"$fixture/project/notebooks/study.py"
+printf 'other notebook' >"$fixture/elsewhere/notebooks/study.py"
+(
+  cd -- "$fixture/project"
+  CDPATH="$fixture/elsewhere:." bash "$ROOT/bin/omarchy-launch-marimo" notebooks/study.py >/dev/null
+)
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[8]} == "$fixture/project/notebooks/study.py" ]] || fail "CDPATH cannot select a different notebook directory"
+pass "relative notebooks are independent of CDPATH"
