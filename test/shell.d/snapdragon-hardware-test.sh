@@ -73,6 +73,7 @@ run_dtb_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
 
+  OMARCHY_PROC_ROOT="$scratch/no-proc"
   OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
   OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki.conf"
   source "$dtb_setup"
@@ -117,6 +118,7 @@ run_dtb_root_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
 
+  OMARCHY_PROC_ROOT="$scratch/no-proc"
   OMARCHY_QUALCOMM_DTB_ROOT="$scratch/dtbroot"
   OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki-root.conf"
   source "$dtb_setup"
@@ -128,6 +130,55 @@ rm -r "$scratch/dtbroot/linux-omarchy"
 run_dtb_root_setup
 grep -Fq "DeviceTreeAuto=$scratch/dtbroot/qcom/x1e80100-stock.dtb" "$scratch/uki-root.conf" ||
   fail "Snapdragon DTB setup falls back to Arch Linux ARM's device trees"
+
+# An installed machine embeds only its own tree, the one whose root compatible
+# is the running device tree's byte for byte. The Acer tree also names the
+# ThinkPad T14s, as a fallback, so the T14s's list must not match inside it.
+own="$scratch/own"
+mkdir -p "$own/proc/device-tree" "$own/dtbs"
+acer='acer,swift-go14-01\0lenovo,thinkpad-t14s\0qcom,x1p42100\0qcom,x1e80100\0'
+t14s='lenovo,thinkpad-t14s\0qcom,x1e78100\0qcom,x1e80100\0'
+# A tree's compatible property: its token, length and name offset, then the
+# strings. Offset 10 is a newline byte, as a real tree's can be.
+fake_dtb() {
+  printf "\xd0\x0d\xfe\xed\0\0\0\x03\0\0\0\x$(printf "$2" | wc -c | xargs printf %02x)\0\0\0\x0a$2\0\0\0\x09" >"$1"
+}
+fake_dtb "$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$acer"
+fake_dtb "$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$t14s"
+run_own_dtb_setup() (
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-pkg-add() { :; }
+
+  OMARCHY_PROC_ROOT="$own/proc"
+  OMARCHY_QUALCOMM_DTB_DIR="$own/dtbs"
+  OMARCHY_QUALCOMM_UKI_CONFIG="$own/uki.conf"
+  source "$dtb_setup"
+)
+printf "$acer" >"$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -qx "DeviceTree=$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/uki.conf" ||
+  fail "an installed Snapdragon machine embeds only its own device tree"
+if grep -q '^DeviceTreeAuto=' "$own/uki.conf"; then
+  fail "a machine with its own device tree gets no list to choose from"
+fi
+printf "$t14s" >"$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -qx "DeviceTree=$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/uki.conf" ||
+  fail "a compatible another tree names as a fallback still finds its own tree"
+cp "$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+run_own_dtb_setup
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
+  fail "two trees with the machine's compatible leave the choice to systemd-stub"
+rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+fake_dtb "$own/dtbs/x1e80100-microsoft-denali-oled.dtb" 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0'
+printf 'microsoft,denali\0qcom,x1e80100\0' >"$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
+  fail "a machine without its own tree does not take one whose longer list ends with its own"
+rm "$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
+  fail "a machine with no running device tree keeps every tree"
 
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
 
