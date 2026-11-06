@@ -41,6 +41,23 @@ class UnloadTest(unittest.TestCase):
     self.assertEqual(len(requests), 2)
     self.assertTrue(all(url.startswith("http://127.0.0.1:11434/") for url, _ in requests))
 
+  def test_picker_display_reaches_the_terminal(self):
+    driver = '''
+import runpy, subprocess, sys
+from unittest.mock import patch
+app = runpy.run_path(sys.argv[1] + "/bin/omarchy-agent-unload-ollama")
+app["main"].__globals__["request"] = lambda *args: {"models": [{"name": "a:latest"}]}
+run = subprocess.run
+def picker(args, **kwargs):
+  return run([sys.executable, "-c", 'import sys; print("MODEL PICKER", file=sys.stderr); print("a:latest")'], **kwargs)
+with patch("sys.argv", ["unload"]), patch("sys.stdin.isatty", return_value=True), patch("subprocess.run", side_effect=picker):
+  sys.exit(app["main"]())
+'''
+    result = subprocess.run([sys.executable, "-c", driver, ROOT], capture_output=True, text=True)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("MODEL PICKER", result.stderr)
+    self.assertIn("Unloaded a:latest", result.stdout)
+
   def test_all_unloads_every_resident_model_without_delete_calls(self):
     code, requests, output, _ = self.run_app(["--all"])
     self.assertEqual(code, 0)

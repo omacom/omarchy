@@ -41,7 +41,7 @@ def main():
   else:
     model = args.model
     if model is None:
-      choice = subprocess.run(["gum", "choose", "--header", "Unload a model from memory", "--", *running], capture_output=True, text=True)
+      choice = subprocess.run(["gum", "choose", "--header", "Unload a model from memory", "--", *running], stdout=subprocess.PIPE, text=True)
       if choice.returncode in (1, 130) or not choice.stdout.strip():
         return 0
       choice.check_returncode()
