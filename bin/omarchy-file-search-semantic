@@ -108,7 +108,7 @@ def main():
 
   query = embed([args.query])[0]
   query_norm = math.hypot(*query)
-  cache_dir = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "omarchy/semantic-search"
+  cache_dir = Path(os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")) / "omarchy/semantic-search"
   results = []
   for source, raw, text, chunks in documents:
     # A model revision and content change both invalidate the cache. Do not

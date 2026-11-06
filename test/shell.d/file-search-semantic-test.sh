@@ -99,4 +99,14 @@ with (
   status, calls, output = run(args, [])
   assert status == 1 and not calls
   print("ok - rejects cloud models, unusable embeddings and binary files without partial results")
+
+  first.write_text("Travel policy")
+  fake_home = Path(tmp) / "test-home"
+  with patch.dict(os.environ, {"XDG_CACHE_HOME": ""}), patch.object(Path, "home", return_value=fake_home):
+    status, calls, output = run(
+      ["travel", str(first), "--model", "embeddinggemma", "--json"],
+      [tags, show, {"embeddings": [[1, 0]]}, {"embeddings": [[1, 0]]}],
+    )
+  assert status == 0 and list((fake_home / ".cache/omarchy/semantic-search").glob("*.json")), output
+  print("ok - an empty XDG cache setting uses the user's cache directory")
 PY
