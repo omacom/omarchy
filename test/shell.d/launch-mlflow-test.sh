@@ -10,20 +10,27 @@ mkdir -p "$fixture/bin" "$fixture/local runs"
 cat >"$fixture/bin/mlflow" <<'STUB'
 #!/bin/bash
 printf '%s\0' "$@" >"$TRACE"
+printf '%s' "${MLFLOW_ALLOW_FILE_STORE:-}" >"$TRACE.environment"
 exit "${TOOL_STATUS:-0}"
 STUB
 chmod +x "$fixture/bin/mlflow"
-export PATH="$fixture/bin:$ROOT/bin:$PATH" TRACE="$fixture/args"
+export PATH="$fixture/bin:$ROOT/bin:$PATH" TRACE="$fixture/args" MLFLOW_ALLOW_FILE_STORE=false
 
 bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/local runs" --port 5001 >/dev/null
 mapfile -d '' -t args <"$TRACE"
-[[ ${args[0]} == "server" && ${args[2]} == "$fixture/local runs" && ${args[4]} == "$fixture/local runs" && ${args[5]} == "--no-serve-artifacts" && ${args[7]} == "127.0.0.1" && ${args[9]} == "5001" ]] || fail "MLflow receives a literal local store with loopback serving"
+[[ ${args[0]} == "server" && ${args[2]} == "file://$fixture/local%20runs" && ${args[4]} == "file://$fixture/local%20runs" && ${args[5]} == "--no-serve-artifacts" && ${args[7]} == "127.0.0.1" && ${args[9]} == "5001" ]] || fail "MLflow receives a literal local store with loopback serving"
+[[ $(cat "$TRACE.environment") == "true" && $MLFLOW_ALLOW_FILE_STORE == "false" ]] || fail "legacy compatibility is enabled only in the launched process"
+mkdir "$fixture/local%20runs?phase#1"
+bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/local%20runs?phase#1" >/dev/null
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[2]} == "file://$fixture/local%2520runs%3Fphase%231" ]] || fail "legacy folder names survive URI decoding"
 pass "MLflow uses the selected local store for tracking and registry without an artifact proxy"
 
 printf 'SQLite format 3\0' >"$fixture/experiment data.db"
 bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/experiment data.db" >/dev/null
 mapfile -d '' -t args <"$TRACE"
 [[ ${args[2]} == "sqlite:///$fixture/experiment%20data.db" ]] || fail "SQLite path becomes an escaped absolute SQLite URI"
+[[ $(cat "$TRACE.environment") == "false" ]] || fail "SQLite does not enable legacy compatibility"
 printf 'SQLite format 3\0' >"$fixture/study?phase=1#100%.db"
 bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/study?phase=1#100%.db" >/dev/null
 mapfile -d '' -t args <"$TRACE"
