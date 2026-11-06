@@ -12,9 +12,9 @@ When new releases are made, a circle arrow icon will appear to the right of your
 
 _Update > Changelog_ opens the release notes for every Omarchy version, fetched from the [Omarchy releases](https://github.com/omacom/omarchy/releases) page when you open it.
 
-The last fetched copy is kept in `~/.cache/omarchy/`. Releases are grouped one feature version per page, newest first, and the changelog opens straight onto the newest version.
+The last fetched copy is kept in `~/.cache/omarchy/`. Releases are grouped one feature version per tab, newest first, and the changelog opens straight onto the newest version.
 
-Press `q` or `Esc` to pick an older one.
+Switch versions with `←`/`→` (or `h`/`l`) or by clicking a tab. Scroll with `j`/`k`, `d`/`u` for half a page, `Space`/`b` for a full page, and `g`/`G` to jump to the top or bottom. Press `q` or `Esc` to close it. Images in the release notes show as links that open in your browser.
 
 ### Four channels
 
