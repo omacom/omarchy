@@ -48,12 +48,12 @@ shell_progress() {
       echo "$finished of $total test files done${failed:+; failed so far: $failed}"
     fi'
 }
-# The kernel's log, kept beside the tests' and searched for OOM kills, which a
-# test sees only as a child that died of SIGKILL.
+# The kernel's and systemd-oomd's logs, kept beside the tests' and searched for
+# OOM kills, which a test sees only as a child that died of SIGKILL.
 pull_kernel_log() {
-  ssh_vm 'journalctl -k -b --no-pager' >"$out/kernel.txt" 2>&1 || true
+  ssh_vm 'journalctl -k -b --no-pager; journalctl -b -u systemd-oomd --no-pager' >"$out/kernel.txt" 2>&1 || true
   echo "test/ci-vm: kernel log, $(wc -l <"$out/kernel.txt") lines"
-  grep -E 'invoked oom-killer|Out of memory: Killed process' "$out/kernel.txt" | sed 's/^/test\/ci-vm: /' || true
+  grep -E 'invoked oom-killer|Out of memory: Killed process|systemd-oomd.*Killed' "$out/kernel.txt" | sed 's/^/test\/ci-vm: /' || true
 }
 cleanup() {
   ssh -o ControlPath="$state/ssh.sock" -O exit omarchy@127.0.0.1 2>/dev/null || true
