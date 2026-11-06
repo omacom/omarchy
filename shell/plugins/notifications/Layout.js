@@ -12,6 +12,18 @@ function groupKeyFor(row) {
   return String(row.groupKey || row.source || row.app || "?")
 }
 
+// The cards compute() puts in front, one per deck, worked out from row order
+// alone. A card asks this rather than its placement: showing its buttons
+// changes its height, and a placement depends on every card's height.
+function fronts(rows) {
+  var out = {}, seen = {}
+  for (var i = 0; i < rows.length; i++) {
+    var key = groupKeyFor(rows[i])
+    if (!seen[key]) { seen[key] = true; out[rows[i].key] = true }
+  }
+  return out
+}
+
 // Rows are newest-first. Returns:
 //   decks:      [{ key, rows: [row...] }] in display order, newest deck first
 //   placements: { rowKey: { y, height, scale, opacity, z, front, hidden } }
