@@ -19,6 +19,8 @@ set -uo pipefail
 # the next one in the rotation -- pass that sink explicitly.
 
 sink="${1:-$(pactl get-default-sink 2>/dev/null)}"
+# With no output at all, pactl names its own placeholder rather than nothing.
+[[ $sink == "@DEFAULT_SINK@" ]] && sink=""
 
 if [[ -z $sink || $sink == alsa_output.* ]]; then
   printf '%s\n' "$sink"

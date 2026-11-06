@@ -17,6 +17,7 @@ fi
 sink="$(omarchy-audio-output-sink)"
 if [[ -z $sink ]]; then
   echo "Could not resolve an audio sink to control." >&2
+  omarchy-osd -m "$(omarchy-i18n audio.noDevices)"
   exit 1
 fi
 

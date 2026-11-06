@@ -8,14 +8,26 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin"
 
+# The default source's volume is $MIC. With no default source, wpctl names the
+# error on stderr and still exits 0.
 cat >"$work/bin/wpctl" <<'SH'
 #!/bin/bash
 printf 'wpctl %s\n' "$*" >>"$CALLS"
+if [[ $* == *@DEFAULT_AUDIO_SOURCE@* && ! -e $MIC ]]; then
+  echo "Translate ID error: '-1' is not a valid ID (returned by default-nodes-api)" >&2
+elif [[ $1 == get-volume ]]; then
+  cat "$MIC"
+fi
 SH
 
 cat >"$work/bin/omarchy-osd" <<'SH'
 #!/bin/bash
 printf 'omarchy-osd %s\n' "$*" >>"$CALLS"
+SH
+
+cat >"$work/bin/omarchy-brightness-keyboard-mute" <<'SH'
+#!/bin/bash
+printf 'omarchy-brightness-keyboard-mute %s\n' "$*" >>"$CALLS"
 SH
 
 cat >"$work/bin/omarchy-audio-tuning" <<'SH'
@@ -62,7 +74,7 @@ OUT
 OUT
     ;;
   "get-default-sink")
-    echo "alsa_output.speakers"
+    echo "${DEFAULT_SINK:-alsa_output.speakers}"
     ;;
   "get-sink-volume "*)
     echo "Volume: front-left: 32768 /  50% / -18.06 dB"
@@ -81,7 +93,7 @@ exit 0
 SH
 chmod +x "$work/bin"/*
 
-export CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
+export CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs" MIC="$work/mic"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 calls() {
@@ -130,6 +142,35 @@ pass 'audio-output-volume reads pactl outputs in the C locale'
 grep -qx 'C pactl list sink-inputs' "$CALLS" ||
   fail 'audio-tuning app_streams reads sink-inputs in the C locale' "$(calls)"
 pass 'audio-tuning app_streams reads sink-inputs in the C locale'
+
+# --- no microphone, no output ---
+
+# With no microphone the mute key says so and leaves the mute and its LED
+# alone; with one it still toggles it.
+: >"$CALLS"
+status=0
+omarchy-audio-input-mute 2>"$work/err" || status=$?
+((status == 1)) && [[ $(<"$work/err") == "No microphone found." ]] ||
+  fail 'input mute with no microphone says so and fails' "exit $status: $(<"$work/err")"
+grep -qx 'omarchy-osd -i microphone-muted -m No microphone found' "$CALLS" && ! grep -qE 'set-mute|keyboard-mute' "$CALLS" ||
+  fail 'input mute with no microphone mutes nothing' "$(calls)"
+echo 'Volume: 1.00 [MUTED]' >"$MIC"
+: >"$CALLS"
+omarchy-audio-input-mute
+grep -qx 'wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle' "$CALLS" &&
+  grep -qx 'omarchy-osd -i microphone-muted -m Microphone muted' "$CALLS" ||
+  fail 'input mute still toggles a microphone' "$(calls)"
+rm "$MIC"
+pass 'input mute says there is no microphone, and still toggles one'
+
+# With no output pactl names its placeholder as the default sink, which is no
+# sink to control.
+: >"$CALLS"
+status=0
+DEFAULT_SINK=@DEFAULT_SINK@ XDG_RUNTIME_DIR=$work omarchy-audio-output-volume mute-toggle 2>"$work/err" || status=$?
+((status == 1)) && grep -qx 'omarchy-osd -m No audio devices found' "$CALLS" && ! grep -q ' pactl set-' "$CALLS" ||
+  fail 'the volume keys with no output say so and change nothing' "exit $status: $(<"$work/err")"$'\n'"$(calls)"
+pass 'the volume keys say there is no output'
 
 # --- omarchy-audio-sink-availability ---
 

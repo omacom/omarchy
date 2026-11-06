@@ -2,6 +2,14 @@
 
 # omarchy:summary=Toggle microphone mute. Drives the hardware mic-mute LED on laptops that expose one.
 
+# With no microphone there is no default source: wpctl prints a "Translate ID
+# error" instead of its volume and still exits 0.
+if [[ $(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null) != Volume:* ]]; then
+  echo "No microphone found." >&2
+  omarchy-osd -i microphone-muted -m "$(omarchy-i18n audio.noMicrophone)"
+  exit 1
+fi
+
 wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle >/dev/null
 
 if wpctl get-volume @DEFAULT_AUDIO_SOURCE@ | grep -q MUTED; then

@@ -18,13 +18,14 @@ awk '
 
 mkdir -p "$tmp/bin"
 # Modules number from 10 up; a load fails when its arguments name a source
-# listed in $tmp/refuse.
+# listed in $tmp/refuse. With no such device, pactl names its own placeholder
+# as the default rather than nothing.
 cat >"$tmp/bin/pactl" <<'SH'
 #!/bin/bash
 echo "pactl $*" >>"$TMP/calls"
 case $1 in
-  get-default-sink) [[ -e $TMP/no-sink ]] || echo speakers ;;
-  get-default-source) [[ -e $TMP/no-source ]] || echo mic ;;
+  get-default-sink) if [[ -e $TMP/no-sink ]]; then echo @DEFAULT_SINK@; else echo speakers; fi ;;
+  get-default-source) if [[ -e $TMP/no-source ]]; then echo @DEFAULT_SOURCE@; else echo mic; fi ;;
   load-module)
     for refused in $(cat "$TMP/refuse" 2>/dev/null); do
       [[ " $* " != *" $refused "* ]] || exit 1
@@ -99,6 +100,10 @@ grep -q 'notify .*microphone audio' "$tmp/notes" || fail "a missing default sour
 device false true
 [[ ! -s $tmp/out ]] && grep -q 'notify .*microphone audio' "$tmp/notes" || fail "a microphone-only recording without a source says so" "$(cat "$tmp/out")"
 rm "$tmp/no-source"
+touch "$tmp/no-sink"
+device true false
+[[ ! -s $tmp/out ]] && grep -q 'notify .*desktop audio' "$tmp/notes" || fail "a desktop-only recording without a sink says so" "$(cat "$tmp/out")"
+rm "$tmp/no-sink"
 pass "a requested source with no default device is named"
 
 device true false
