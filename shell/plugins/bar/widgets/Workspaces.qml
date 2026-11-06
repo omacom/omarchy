@@ -10,11 +10,22 @@ BarWidget {
   id: root
   moduleName: "omarchy.workspaces"
 
-  // Every monitor has workspaces 1-10 of its own, which Hyprland numbers in a
+  // With per-monitor workspaces enabled, each monitor has its own 1-10, in a
   // block of ten per monitor: 1-10, 11-20, and so on (see
   // default/hypr/monitor-workspaces.lua). Each bar shows its own monitor's block,
   // numbered 1-10, and the one that monitor shows, whichever monitor has focus.
   readonly property int slots: 10
+  property bool perMonitorWorkspaces: true
+
+  FileView {
+    id: workspaceScope
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/toggles/no-monitor-workspaces"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.perMonitorWorkspaces = false
+    onLoadFailed: root.perMonitorWorkspaces = true
+  }
 
   readonly property var monitor: {
     var window = root.QsWindow.window
@@ -50,6 +61,7 @@ BarWidget {
   }
 
   function slotOf(id) {
+    if (!root.perMonitorWorkspaces) return id
     return (id - 1) % root.slots + 1
   }
 
@@ -75,11 +87,11 @@ BarWidget {
     return null
   }
 
-  // The first five of the monitor's own, and any of the rest that exist. After
-  // them come workspaces that are only visiting: those of a monitor that is
-  // unplugged, which had no room to join this one's.
+  // Show the first five and any other existing workspaces. In per-monitor mode
+  // these are local slots, followed by guests from an unplugged monitor. In
+  // global mode every bar shows the same actual ids, including ids above ten.
   function workspaceIds() {
-    var base = root.block * root.slots
+    var base = root.perMonitorWorkspaces ? root.block * root.slots : 0
     var ids = [base + 1, base + 2, base + 3, base + 4, base + 5]
     var guests = []
     var values = Hyprland.workspaces.values
@@ -87,7 +99,7 @@ BarWidget {
     for (var i = 0; i < values.length; i++) {
       var id = values[i].id
       if (id <= 0) continue
-      if (root.blockOf(id) === root.block) {
+      if (!root.perMonitorWorkspaces || root.blockOf(id) === root.block) {
         if (ids.indexOf(id) === -1) ids.push(id)
       } else if (values[i].monitor && values[i].monitor.name === root.monitorName) {
         guests.push(id)
@@ -104,7 +116,7 @@ BarWidget {
   }
 
   function focusWorkspace(id) {
-    if (root.blockOf(id) === root.block) {
+    if (root.perMonitorWorkspaces && root.blockOf(id) === root.block) {
       root.dispatch("o.workspaces.focus(" + root.slotOf(id) + ", \"" + root.monitorName + "\")")
     } else {
       root.dispatch("hl.dsp.focus({ workspace = \"" + id + "\" })")
@@ -197,7 +209,10 @@ BarWidget {
     target: Hyprland
     function onRawEvent(event) {
       var name = event ? String(event.name) : ""
-      if (name === "configreloaded") root.refresh()
+      if (name === "configreloaded") {
+        workspaceScope.reload()
+        root.refresh()
+      }
       // Quickshell credits every workspace switch to the focused monitor, as
       // the event doesn't say which one switched, and misses the workspace a
       // monitor falls back to when its own is moved away. Moving workspaces
@@ -262,7 +277,7 @@ BarWidget {
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
         readonly property bool shown: root.monitor !== null && root.monitor.activeWorkspace !== null && root.monitor.activeWorkspace.id === modelData
         readonly property int slot: root.slotOf(modelData)
-        readonly property bool firstGuest: root.blockOf(modelData) !== root.block && index > 0 && root.blockOf(root.workspaceIds()[index - 1]) === root.block
+        readonly property bool firstGuest: root.perMonitorWorkspaces && root.blockOf(modelData) !== root.block && index > 0 && root.blockOf(root.workspaceIds()[index - 1]) === root.block
         required property int index
 
         // A gap sets visiting workspaces apart from the monitor's own.
@@ -270,7 +285,7 @@ BarWidget {
         Layout.topMargin: firstGuest && root.vertical ? Style.space(6) : 0
 
         bar: root.bar
-        text: shown ? root.modeGlyph(root.activeMode) : (slot === root.slots ? "0" : String(slot))
+        text: shown ? root.modeGlyph(root.activeMode) : (root.perMonitorWorkspaces && slot === root.slots ? "0" : String(slot))
         opacity: occupied || shown ? 1 : 0.5
         horizontalMargin: 6
         verticalPadding: 6
