@@ -22,8 +22,8 @@ start() {
 }
 
 # Hex pastes with a bare Ctrl+V, which terminals ignore, so take the transcript
-# and paste it with Shift+Insert, which terminals and other apps both accept,
-# like Omarchy's clipboard history. Always send the stop: Hex
+# and paste it the way SUPER + V does: Ctrl+Shift+V in terminals, Ctrl+V
+# elsewhere. Always send the stop: Hex
 # runs commands in order, but its status reports a recording only ~150ms after
 # it starts, so a quick push-to-talk tap would otherwise leave it recording.
 stop() {
@@ -36,7 +36,7 @@ stop() {
   text=$(hex dictation stop --print 2>"$error")
   result=$?
   if (( result == 0 )); then
-    omarchy-clipboard-paste-text --shift-insert "$text"
+    omarchy-clipboard-paste-text --universal "$text"
   elif (( result == no_speech || result == not_running )) || ! hex_recording; then
     # Nothing heard, Hex not running, or nothing was recording: stopping succeeded.
     result=0
