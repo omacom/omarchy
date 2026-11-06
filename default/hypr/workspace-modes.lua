@@ -362,6 +362,18 @@ local function watch()
     claim_opened(window)
     unmaximize_others(window)
     arrange({ window })
+
+    -- Hyprland doesn't look at a window's rules again while it is still opening,
+    -- so rules for floating windows, as Glassy's are, miss one the mode floated or
+    -- tagged just now. A tag change makes it look, once the window is open.
+    hl.timer(function()
+      for _, tagged in ipairs(hl.get_windows({ tag = WORKSPACE_TAG })) do
+        if tagged.address == window.address then
+          set_on_floating_workspace(tagged, false)
+          set_on_floating_workspace(tagged, true)
+        end
+      end
+    end, { type = "oneshot", timeout = 1 })
   end)
 
   -- A move is still being committed when this fires, and changing the window's

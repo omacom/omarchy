@@ -226,6 +226,7 @@ local buttons = {}
 local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false }
 local rules = {}
 local placed = {}
+local workspace_tags = {}
 local active = { id = 1 }
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
 
@@ -295,6 +296,9 @@ hl = {
     elseif action.tag then
       local name = action.tag:sub(2)
       if action.tag:sub(1, 1) == "+" then
+        if name == "omarchy-floating-workspace" then
+          workspace_tags[target.address] = (workspace_tags[target.address] or 0) + 1
+        end
         if not has_tag(target, name) then
           table.insert(target.tags, name)
         end
@@ -365,6 +369,7 @@ function state()
     config = config,
     rules = rules,
     placed = placed,
+    workspace_tags = workspace_tags,
     subscriptions = subscriptions,
     active = active,
   }
@@ -547,6 +552,10 @@ local first_position = rule.move
 local opened = window("0x1", 1, { floating = true, tags = { "omarchy-mode-opened*" } })
 state().subscriptions["window.open"][1](opened)
 assert(has_tag(opened, "omarchy-mode-floated"), "a window the open rule floated was not claimed by the mode")
+-- Hyprland skips rules while a window opens; tagging it again once open is what
+-- lets rules for floating windows, such as Glassy keeping browsers solid, apply.
+assert(has_tag(opened, "omarchy-floating-workspace"), "an opened window lost its floating workspace tag")
+assert((state().workspace_tags["0x1"] or 0) >= 2, "an opened window was not tagged again once open, so rules for floating windows missed it")
 assert(open_rule().move ~= first_position, "the next window opens exactly on top of the last")
 o.workspace_mode({ workspace = "1", mode = "dwindle" })
 assert(not opened.floating, "a window the open rule floated kept floating once the workspace tiled")
