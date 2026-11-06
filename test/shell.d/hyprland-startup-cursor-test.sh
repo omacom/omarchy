@@ -142,6 +142,28 @@ omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION, gsettings = "", "old-session", "'custom-cursor'\n"
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
+-- #17767: a hyprctl chain that times out leaves cursor.restoring set, and the
+-- pointer then stayed hidden for the session once the one-shot fallback fired.
+omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+monitors = {}
+config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
+env.XCURSOR_THEME, env.XCURSOR_PATH = "my-xcursor", "/my/icons"
+env.OMARCHY_STARTUP_CURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION = nil, nil
+dofile(os.getenv("ROOT") .. "/default/hypr/startup-cursor.lua")
+events["config.reloaded"]()
+assert(omarchy_startup_cursor_pending and config.invisible, "the fallback must keep the pointer hidden while the reveal is pending")
+command = nil
+recovery()
+assert(command and command:match("setcursor 'my%-xcursor'") and omarchy_startup_cursor_pending, "a timed-out reveal must be retried, not abandoned")
+assert(config.invisible, "a retried reveal must not show the pointer before it lands")
+local attempts = 1
+while omarchy_startup_cursor_pending and attempts < 10 do
+  recovery()
+  attempts = attempts + 1
+end
+assert(attempts > 2, "the fallback must keep retrying an unfinished reveal instead of giving up after one")
+assert(not omarchy_startup_cursor_pending and not config.invisible, "the last fallback must show the pointer rather than leave it hidden all session")
+
 io.popen = popen
 LUA
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"
