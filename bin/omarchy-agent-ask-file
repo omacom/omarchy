@@ -49,10 +49,15 @@ def main():
     raw = source.read(8193)
   if len(raw) > 8192:
     raise ValueError("File exceeds 8 KiB; select a smaller text excerpt")
-  text = raw.decode("utf-8")
-  if not text.strip() or "\0" in text or len(text.splitlines()) > 256:
+  text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+  # splitlines() also treats page breaks and Unicode paragraph separators as
+  # source lines, which would shift citations away from the editor's lines.
+  lines = text.split("\n")
+  if lines[-1] == "":
+    lines.pop()
+  if not text.strip() or "\0" in text or len(lines) > 256:
     raise ValueError("Choose non-empty UTF-8 text with no binary data and at most 256 lines")
-  numbered = "\n".join(f"{number}: {line}" for number, line in enumerate(text.splitlines(), 1))
+  numbered = "\n".join(f"{number}: {line}" for number, line in enumerate(lines, 1))
   models = request("tags").get("models", [])
   model = next((item for item in models if item.get("name") in (args.model, args.model + ":latest")), None)
   if model is None:

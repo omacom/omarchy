@@ -68,11 +68,22 @@ with tempfile.TemporaryDirectory() as tmp:
   assert document.read_text() == original and not (Path(tmp) / "surprise").exists()
   print("ok - sends the complete numbered text and question literally, preserving the source")
 
-  for raw in [b"a" * 8193, b"binary\0data", b"\xff", b"\n" * 257, b""]:
+  for raw in [b"a" * 8193, b"binary\0data", b"\xff", b"x\n" * 257, b""]:
     document.write_bytes(raw)
     status, calls, output = run(args, [])
     assert status == 1 and not calls, output
   print("ok - rejects oversized, binary, invalid UTF-8 and empty documents before contacting a model")
+
+  document.write_bytes("Heading\fDetails\u2029same line\r\nDue Friday\r\n".encode())
+  status, calls, output = run(args, [tags, show, {"done": True, "message": {"content": "Friday (line 2)."}}])
+  content = json.loads(calls[-1][1]["messages"][1]["content"])
+  assert status == 0 and content["document"] == "1: Heading\fDetails\u2029same line\n2: Due Friday", output
+  for raw in [b"x\n" * 256, b"x\n" * 255 + b"x"]:
+    document.write_bytes(raw)
+    status, calls, output = run(args, [tags, show, {"done": True, "message": {"content": "Accepted."}}])
+    content = json.loads(calls[-1][1]["messages"][1]["content"])
+    assert status == 0 and content["document"].endswith("256: x"), output
+  print("ok - page breaks preserve editor line numbers and 256 non-empty lines are accepted")
 
   document.write_text(original)
   for info in [
