@@ -644,13 +644,16 @@ Panel {
         // only move, so only the static canvas needs nudging: when the open
         // animation, the scene or the theme changes. With reduced motion the
         // clock stays stopped and the dynamic canvas holds a still frame, so
-        // it is nudged too.
+        // it is nudged too, and when the intensity, hail or wind changes.
         function repaint() { stat.requestPaint(); if (!clock.running) dyn.requestPaint() }
         onTChanged: repaint()
         onPaletteKeyChanged: repaint()
         Connections {
           target: root
           function onFxModeChanged() { skyFx.repaint() }
+          function onFxLevelChanged() { skyFx.repaint() }
+          function onFxHailChanged() { skyFx.repaint() }
+          function onFxWindyChanged() { skyFx.repaint() }
           function onOpenedChanged() { if (root.opened) skyFx.replay() }
         }
 
