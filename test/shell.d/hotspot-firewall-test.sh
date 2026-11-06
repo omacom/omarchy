@@ -833,12 +833,22 @@ extract_function() {
   ' "$source" >"$destination"
 }
 
-extract_function privileged_run "$ROOT/bin/omarchy-hotspot" "$TEST_TMP/privileged-run.sh"
-[[ -s $TEST_TMP/privileged-run.sh ]] || fail "hotspot has a privileged_run escalation path"
-[[ $(grep -c '"\$function" "\$@"' "$TEST_TMP/privileged-run.sh" || true) == 1 ]] ||
-  fail "privileged_run's root branch calls the mapped function" "$(<"$TEST_TMP/privileged-run.sh")"
-[[ $(grep -c '"\$action" "\$@"' "$TEST_TMP/privileged-run.sh" || true) == 2 ]] ||
-  fail "privileged_run escalates the action name to the helper entrypoints" "$(<"$TEST_TMP/privileged-run.sh")"
+# Unprivileged, privileged_run hands the action name and its arguments to the
+# script's own entrypoint; the root branch is probed further down.
+if (( $(id -u) != 0 )); then
+  reset_firewall_fixture
+  cat >"$TEST_TMP/escalation-argv-driver.sh" <<'DRIVER'
+self_path >"$TEST_TMP/escalation-self"
+privileged_run firewall-rollback wlan2 10.55.0.0/24 dhcp
+escalate_status=0
+privileged_run firewall-explode 2>/dev/null || escalate_status=$?
+(( escalate_status == 2 )) || { echo "unknown action: $escalate_status" >&2; exit 1; }
+DRIVER
+  run_isolated "$TEST_TMP/escalation-argv-driver.sh" </dev/null
+  [[ $(<"$PRIVILEGED_LOG") == "pkexec $(<"$TEST_TMP/escalation-self") firewall-rollback wlan2 10.55.0.0/24 dhcp" ]] ||
+    fail "privileged_run escalates the action name and arguments to the script" "$(<"$PRIVILEGED_LOG")"
+  pass "privileged_run escalates the action name and arguments, and nothing unknown"
+fi
 
 extract_function privileged_function "$ROOT/bin/omarchy-hotspot" "$TEST_TMP/privileged-function.sh"
 [[ -s $TEST_TMP/privileged-function.sh ]] || fail "hotspot maps privileged action names to functions"
@@ -890,9 +900,6 @@ else
   skip "no unprivileged user namespace; skipping the root escalation path probe"
 fi
 
-extract_function firewall_ensure "$ROOT/bin/omarchy-hotspot" "$TEST_TMP/firewall-ensure.sh"
-[[ -s $TEST_TMP/firewall-ensure.sh ]] || fail "hotspot has a firewall_ensure path"
-[[ $(<"$TEST_TMP/firewall-ensure.sh") == *"none)"* ]] || fail "firewall_ensure has an explicit none branch" "$(<"$TEST_TMP/firewall-ensure.sh")"
 cat >"$TEST_TMP/backend-none-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
@@ -1363,3 +1370,91 @@ set -e
 grep -q ' release$' "$PRIVILEGED_LOG" || fail "a failed restart releases the hotspot's host state" "$(<"$PRIVILEGED_LOG")"
 [[ ! -e $FORWARDING_STATE && $(<"$FORWARDING_STATE_VALUE") == "0" ]] || fail "a failed restart restores forwarding"
 pass "a limit change that cannot restart the AP releases its host state"
+
+# Root owns the real shared lock; these drivers stand in for root's step and
+# for the ownership check, so they run unprivileged.
+cat >"$TEST_TMP/shared-lock-common.sh" <<'DRIVER'
+HOTSPOT_LOCK_FILE=""
+HOTSPOT_LOCK_WAIT=1
+HOTSPOT_STATE_DIR="$TEST_TMP/$LOCK_CASE-state"
+XDG_RUNTIME_DIR="$TEST_TMP/$LOCK_CASE-runtime"
+mkdir -p "$HOTSPOT_STATE_DIR" "$XDG_RUNTIME_DIR"
+shared_lock="$HOTSPOT_STATE_DIR/lock"
+calls="$TEST_TMP/$LOCK_CASE-calls"
+: >"$calls"
+stat() {
+  if [[ $* == "-c %u -- $shared_lock" ]]; then echo 0; else command stat "$@"; fi
+}
+privileged_run() {
+  echo "privileged $1" >>"$calls"
+  [[ $1 != lock-init ]] || : >"$shared_lock"
+}
+shared_lock_free() {
+  local fd status=0
+  [[ -e $shared_lock ]] || return 0
+  exec {fd}<"$shared_lock"
+  flock -n "$fd" || status=$?
+  exec {fd}<&-
+  return "$status"
+}
+DRIVER
+
+# A first start creates the shared lock in one root step before anything
+# else, and holds it from then on.
+cat >"$TEST_TMP/first-start-driver.sh" <<'DRIVER'
+(( $(id -u) != 0 )) || exit 0
+LOCK_CASE=first-start
+source "$TEST_TMP/shared-lock-common.sh"
+apply() {
+  echo apply >>"$calls"
+  shared_lock_free && { echo "apply ran without the shared lock" >&2; exit 1; }
+  exit 0
+}
+(start ssid 2.4) || exit 1
+[[ $(<"$calls") == $'privileged lock-init\napply' ]] || { echo "calls: $(<"$calls")" >&2; exit 1; }
+# Once it exists, nothing escalates just to lock.
+: >"$calls"
+(start ssid 2.4) || exit 1
+[[ $(<"$calls") == apply ]] || { echo "second start: $(<"$calls")" >&2; exit 1; }
+# Actions that change no host state never escalate to create it.
+rm -f "$shared_lock"
+: >"$calls"
+(hotspot_lock) || exit 1
+[[ ! -s $calls && ! -e $shared_lock ]] || { echo "a plain lock escalated: $(<"$calls")" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/first-start-driver.sh"
+pass "a first start creates the shared lock before its first step and holds it"
+
+# A stop that locked before the shared lock existed waits for the first start
+# that created it, then takes down what that start brought up.
+cat >"$TEST_TMP/late-stop-driver.sh" <<'DRIVER'
+(( $(id -u) != 0 )) || exit 0
+LOCK_CASE=late-stop
+source "$TEST_TMP/shared-lock-common.sh"
+ap_down() {
+  echo ap_down >>"$calls"
+  # Another user's first start creates and holds the shared lock meanwhile.
+  if [[ ! -e $shared_lock ]]; then
+    : >"$shared_lock"
+    exec {other_start}<"$shared_lock"
+    flock "$other_start"
+  fi
+}
+hotspot_host_state_owned() { echo host_state >>"$calls"; return 1; }
+if (stop) 2>"$TEST_TMP/late-stop-err"; then
+  echo "stop went on while a start held the shared lock" >&2; exit 1
+fi
+grep -q "another hotspot action is still running" "$TEST_TMP/late-stop-err" || { cat "$TEST_TMP/late-stop-err" >&2; exit 1; }
+[[ $(<"$calls") == ap_down ]] || { echo "calls while blocked: $(<"$calls")" >&2; exit 1; }
+# The start finished: stop takes the AP down again under the shared lock.
+rm -f "$shared_lock"
+: >"$calls"
+ap_down() {
+  echo ap_down >>"$calls"
+  [[ -e $shared_lock ]] || : >"$shared_lock"
+}
+(stop) || exit 1
+[[ $(<"$calls") == $'ap_down\nap_down\nhost_state' ]] || { echo "calls: $(<"$calls")" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/late-stop-driver.sh"
+pass "a stop that started before the shared lock existed takes it once it appears"

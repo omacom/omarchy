@@ -243,6 +243,17 @@ Panel {
 
   onHotspotActiveChanged: {
     if (hotspotFocusIndex > hotspotFocusMax) hotspotFocusIndex = hotspotFocusMax
+    syncHotspotClientModel()
+  }
+
+  // Connected clients as rows keyed by MAC. A status poll replaces
+  // hotspotClients every two seconds; syncing in place keeps each row, and a
+  // long label's scroll, alive across polls.
+  ListModel { id: hotspotClientModel }
+  onHotspotClientsChanged: syncHotspotClientModel()
+
+  function syncHotspotClientModel() {
+    Model.syncKeyedRows(hotspotClientModel, hotspotActive ? Model.hotspotClientRows(hotspotClients, Commons.I18n.formatNumber) : [], "mac")
   }
 
   onHeaderActionCountChanged: clampHeaderIndex()
@@ -2314,18 +2325,49 @@ Panel {
           font.pixelSize: Style.font.caption
         }
 
-        // Connected clients, MAC + signal. Hidden while idle.
+        // Connected clients, MAC + signal. Hidden while idle. A label too long
+        // for the row scrolls back and forth instead of eliding, so the
+        // signal at its end stays readable; one that fits stays still, and
+        // nothing moves with animations turned off.
         Repeater {
-          model: root.hotspotActive ? root.hotspotClients : []
-          delegate: Text {
-            required property var modelData
-            textFormat: Text.PlainText
+          model: hotspotClientModel
+          delegate: Item {
+            id: hotspotClientRow
+            required property string label
             width: parent.width
-            text: Model.hotspotClientLabel(modelData, Commons.I18n.formatNumber)
-            color: Qt.darker(root.bar.foreground, 1.35)
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.caption
-            elide: Text.ElideRight
+            height: hotspotClientText.implicitHeight
+            clip: true
+            readonly property real overflow: Math.max(0, hotspotClientText.implicitWidth - width)
+            readonly property int scrollMs: Math.max(1, Math.round(overflow / 30 * 1000))
+
+            Text {
+              id: hotspotClientText
+              textFormat: Text.PlainText
+              text: hotspotClientRow.label
+              color: Qt.darker(root.bar.foreground, 1.35)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            SequentialAnimation {
+              running: hotspotClientRow.overflow > 0 && hotspotClientRow.visible && !Style.reduceMotion
+              loops: Animation.Infinite
+              onRunningChanged: if (!running) hotspotClientText.x = 0
+              PauseAnimation { duration: Style.duration(1500) }
+              NumberAnimation {
+                target: hotspotClientText; property: "x"
+                from: 0; to: -hotspotClientRow.overflow
+                duration: Style.duration(hotspotClientRow.scrollMs)
+                easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
+              }
+              PauseAnimation { duration: Style.duration(1500) }
+              NumberAnimation {
+                target: hotspotClientText; property: "x"
+                from: -hotspotClientRow.overflow; to: 0
+                duration: Style.duration(hotspotClientRow.scrollMs)
+                easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
+              }
+            }
           }
         }
       }
