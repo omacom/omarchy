@@ -137,7 +137,7 @@ for backend in voxtype superwhisper hex; do
   elif [[ $backend == "superwhisper" ]]; then
     expected=$'superwhisper start\nsuperwhisper stop\nsuperwhisper record'
   else
-    expected=$'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text hello\nhex dictation start'
+    expected=$'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text --shift-insert hello\nhex dictation start'
   fi
   [[ $(cat "$DICTATION_LOG") == "$expected" ]] || fail "adapter dispatches recording for $backend"
 done
@@ -145,18 +145,18 @@ pass "built-in adapters implement start stop and toggle"
 
 : > "$DICTATION_LOG"
 omarchy-dictation-hex toggle
-[[ $(cat "$DICTATION_LOG") == $'hex dictation stop --print\nomarchy-clipboard-paste-text hello' ]] || fail "toggling a recording Hex types its transcript"
+[[ $(cat "$DICTATION_LOG") == $'hex dictation stop --print\nomarchy-clipboard-paste-text --shift-insert hello' ]] || fail "toggling a recording Hex pastes its transcript"
 : > "$DICTATION_LOG"
 omarchy-dictation-hex start
 HEX_STATUS_LAG=1 omarchy-dictation-hex stop
-[[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text hello' ]] || fail "a quick push-to-talk tap stops Hex before its status reports the recording"
+[[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text --shift-insert hello' ]] || fail "a quick push-to-talk tap stops Hex before its status reports the recording"
 output=$(omarchy-dictation-hex stop 2>&1) && [[ -z $output ]] || fail "stopping an idle Hex succeeds quietly"
 rm "$HEX_STATE"
 omarchy-dictation-hex stop || fail "stopping Hex succeeds when it is not running, so switching away works"
 : > "$DICTATION_LOG"
 omarchy-dictation-hex start
 [[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex start\nhex dictation start' ]] || fail "starting launches a stopped Hex, then records"
-pass "Hex types its transcript itself, stops quietly when idle, and starts Hex to record"
+pass "Hex pastes its transcript itself, stops quietly when idle, and starts Hex to record"
 
 cat > "$test_tmp/bin/omarchy-dictation-future-backend" <<'SH'
 #!/bin/bash
