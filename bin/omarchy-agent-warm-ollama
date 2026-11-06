@@ -12,51 +12,52 @@ import sys
 
 
 def request(endpoint, data=None, timeout=10):
-    connection = http.client.HTTPConnection("127.0.0.1", 11434, timeout=timeout)
-    try:
-        body = None if data is None else json.dumps(data)
-        connection.request("GET" if data is None else "POST", "/api/" + endpoint,
-                           body=body, headers={"Content-Type": "application/json"})
-        response = connection.getresponse()
-        raw = response.read(2 * 1024 * 1024 + 1)
-        if len(raw) > 2 * 1024 * 1024:
-            raise ValueError("Ollama returned an oversized response")
-        result = json.loads(raw)
-        if response.status != 200 or not isinstance(result, dict) or result.get("error"):
-            raise ValueError("Ollama could not complete the request")
-        return result
-    finally:
-        connection.close()
+  connection = http.client.HTTPConnection("127.0.0.1", 11434, timeout=timeout)
+  try:
+    body = None if data is None else json.dumps(data)
+    connection.request(
+      "GET" if data is None else "POST", "/api/" + endpoint, body=body, headers={"Content-Type": "application/json"}
+    )
+    response = connection.getresponse()
+    raw = response.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+      raise ValueError("Ollama returned an oversized response")
+    result = json.loads(raw)
+    if response.status != 200 or not isinstance(result, dict) or result.get("error"):
+      raise ValueError("Ollama could not complete the request")
+    return result
+  finally:
+    connection.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Warm a downloaded model on this machine. Nothing is downloaded.")
-    parser.add_argument("model")
-    parser.add_argument("--minutes", type=int, default=10)
-    args = parser.parse_args()
-    if not 1 <= args.minutes <= 1440:
-        parser.error("--minutes must be between 1 and 1440")
-    models = request("tags").get("models", [])
-    model = next((item for item in models if item.get("name") in
-                  (args.model, args.model + ":latest")), None)
-    if model is None:
-        raise ValueError("Model is not installed; download it with Ollama first")
-    name = model["name"]
-    info = request("show", {"model": name})
-    if model.get("remote_host") or model.get("remote_model") or info.get("remote_host") or info.get("remote_model"):
-        raise ValueError("Choose a local model; cloud models cannot be warmed on this machine")
-    if "completion" not in info.get("capabilities", []):
-        raise ValueError("Choose a model with text completion support")
-    result = request("generate", {"model": name, "prompt": "", "stream": False,
-                                  "keep_alive": f"{args.minutes}m"}, timeout=600)
-    if result.get("done") is not True:
-        raise ValueError("Ollama did not confirm that loading finished")
-    print(f"Loaded {name}; requested a {args.minutes}-minute keep-alive.")
+  parser = argparse.ArgumentParser(description="Warm a downloaded model on this machine. Nothing is downloaded.")
+  parser.add_argument("model")
+  parser.add_argument("--minutes", type=int, default=10)
+  args = parser.parse_args()
+  if not 1 <= args.minutes <= 1440:
+    parser.error("--minutes must be between 1 and 1440")
+  models = request("tags").get("models", [])
+  model = next((item for item in models if item.get("name") in (args.model, args.model + ":latest")), None)
+  if model is None:
+    raise ValueError("Model is not installed; download it with Ollama first")
+  name = model["name"]
+  info = request("show", {"model": name})
+  if model.get("remote_host") or model.get("remote_model") or info.get("remote_host") or info.get("remote_model"):
+    raise ValueError("Choose a local model; cloud models cannot be warmed on this machine")
+  if "completion" not in info.get("capabilities", []):
+    raise ValueError("Choose a model with text completion support")
+  result = request(
+    "generate", {"model": name, "prompt": "", "stream": False, "keep_alive": f"{args.minutes}m"}, timeout=600
+  )
+  if result.get("done") is not True:
+    raise ValueError("Ollama did not confirm that loading finished")
+  print(f"Loaded {name}; requested a {args.minutes}-minute keep-alive.")
 
 
 try:
-    main()
+  main()
 except (OSError, ValueError, http.client.HTTPException) as error:
-    print(f"omarchy-agent-warm-ollama: {error}", file=sys.stderr)
-    sys.exit(1)
+  print(f"omarchy-agent-warm-ollama: {error}", file=sys.stderr)
+  sys.exit(1)
 PY
