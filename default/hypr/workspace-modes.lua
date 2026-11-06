@@ -468,6 +468,8 @@ local function titlebars()
 
   local colors = theme_colors()
   local window = [[window = "address:%WINDOW%"]]
+  local maximize = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'"
+  local minimize = "omarchy-hyprland-window-minimize %WINDOW%"
 
   hl.config({
     plugin = {
@@ -489,16 +491,23 @@ local function titlebars()
         button_rounding = 0,
         icon_on_hover = false,
         inactive_button_color = colors.titlebar,
-        on_double_click = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'",
+        on_double_click = maximize,
       },
     },
   })
 
+  -- The minimize and maximize buttons apps such as Chrome and Nautilus draw
+  -- themselves do what the titlebar's own do. Older builds of the plugin lack
+  -- these options.
+  if hl.get_config("plugin.hyprbars.on_minimize_request") ~= nil then
+    hl.config({ plugin = { hyprbars = { on_minimize_request = minimize, on_maximize_request = maximize } } })
+  end
+
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
-    { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },
+    { icon = "□", action = maximize },
     -- Minimized windows wait in the dock, which brings them back.
-    { icon = "−", action = "omarchy-hyprland-window-minimize %WINDOW%" },
+    { icon = "−", action = minimize },
   }) do
     hl.plugin.hyprbars.add_button({
       bg_color = colors.titlebar,
