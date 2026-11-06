@@ -55,7 +55,8 @@ hl = {
   end,
 }
 
-o = { window = function() end }
+require("default.hypr.helpers")
+o.window = function() end
 
 require(os.getenv("OMARCHY_MODULE"))
 LUA

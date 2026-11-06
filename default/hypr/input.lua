@@ -1,6 +1,7 @@
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#input
 
 local keyboard = require("default.hypr.keyboard")
+local paths = require("default.hypr.paths")
 
 -- Layouts that can't type Latin letters. Keep in sync with the list in
 -- etc/mkinitcpio.conf.d/omarchy_hooks.conf.
@@ -77,7 +78,9 @@ hl.config({
     numlock_by_default = true,
 
     touchpad = {
-      natural_scroll = false,
+      -- Match the macOS trackpad default on both Apple Silicon and Intel MacBooks.
+      natural_scroll = o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64-apple"))
+        or o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-match") .. " '^MacBook'"),
       clickfinger_behavior = true,
       scroll_factor = 0.4,
     },
