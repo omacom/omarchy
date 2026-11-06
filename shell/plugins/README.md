@@ -83,10 +83,14 @@ The carousel renders only the slices that fit on the screen plus one prefetch sl
 
 ## Lock screen
 
-Session-lock surface using Quickshell's native `WlSessionLock` and two
-separate PAM services: `omarchy-lock-password` for password auth and,
-only when fingerprints are enrolled, `omarchy-lock-fingerprint` for
-fingerprint auth. It mirrors the previous lock screen field dimensions,
+Session-lock surface using Quickshell's native `WlSessionLock` and
+separate PAM services: `omarchy-lock-password` for password auth,
+`omarchy-lock-fingerprint` for fingerprint auth, only when fingerprints
+are enrolled, and `omarchy-lock-fido2` for a security key, only when
+`omarchy-setup-security-fido2` has written it. The key is asked only
+while the lock is shown and awake: a screen blank aborts a pending touch
+and any wake asks again, with backoff when no key answers. A touch alone
+unlocks, with no password typed. It mirrors the previous lock screen field dimensions,
 colors, blurred wallpaper, placeholder, and Hyprland-driven corners.
 The plugin sets `keepLoaded: true` so a plugin hot-reload (for example
 an installed bar widget changing on disk) does not destroy the lock
