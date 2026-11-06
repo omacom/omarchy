@@ -1429,6 +1429,30 @@ DRIVER
 run_isolated "$TEST_TMP/first-start-driver.sh"
 pass "a first start creates the shared lock before its first step and holds it"
 
+# A toggle with nothing configured only opens the panel: no lock, no prompt.
+# Once a hotspot is configured, it creates the shared lock like a start.
+cat >"$TEST_TMP/toggle-unconfigured-driver.sh" <<'DRIVER'
+(( $(id -u) != 0 )) || exit 0
+LOCK_CASE=toggle-unconfigured
+source "$TEST_TMP/shared-lock-common.sh"
+profile_active() { return 1; }
+profile_configured() { return 1; }
+omarchy-shell() { echo "omarchy-shell $*" >>"$calls"; }
+(toggle) || exit 1
+[[ $(<"$calls") == "omarchy-shell shell summon omarchy.network" && ! -e $shared_lock ]] ||
+  { echo "unconfigured toggle: $(<"$calls")" >&2; exit 1; }
+: >"$calls"
+profile_configured() { return 0; }
+profile_ssid() { echo Hotspot; }
+profile_band() { echo 2.4; }
+profile_secret() { echo secret; }
+start() { cat >/dev/null; echo start >>"$calls"; }
+(toggle) || exit 1
+[[ $(<"$calls") == $'privileged lock-init\nstart' ]] || { echo "configured toggle: $(<"$calls")" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/toggle-unconfigured-driver.sh"
+pass "a toggle with nothing configured opens the panel without locking or escalating"
+
 # A stop that locked before the shared lock existed waits for the first start
 # that created it, then takes down what that start brought up.
 cat >"$TEST_TMP/late-stop-driver.sh" <<'DRIVER'
