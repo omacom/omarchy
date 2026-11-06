@@ -14,6 +14,8 @@ class CancelTest(unittest.TestCase):
     self.tmp = tempfile.TemporaryDirectory()
     self.addCleanup(self.tmp.cleanup)
     self.directory = Path(self.tmp.name)
+    self.home = self.directory / "home"
+    self.home.mkdir()
     self.defaults = self.directory / "config/omarchy/defaults"
     self.defaults.mkdir(parents=True)
     (self.defaults / "dictation").write_text("voxtype\n")
@@ -28,10 +30,10 @@ else
 fi
 ''')
     stub.chmod(0o755)
-    self.env = dict(os.environ, PATH=str(self.directory) + ":" + ROOT + "/bin:" + os.environ["PATH"], TEST_LOG=str(self.log), XDG_CONFIG_HOME=str(self.directory / "config"))
+    self.env = dict(os.environ, HOME=str(self.home), PATH=str(self.directory) + ":" + ROOT + "/bin:" + os.environ["PATH"], TEST_LOG=str(self.log), XDG_CONFIG_HOME=str(self.directory / "config"))
 
   def run_app(self, *args):
-    return subprocess.run([sys.executable, ROOT + "/bin/omarchy-dictation-cancel", *args], env=self.env, capture_output=True, text=True, timeout=10)
+    return subprocess.run([ROOT + "/bin/omarchy-dictation-cancel", *args], env=self.env, capture_output=True, text=True, timeout=10, cwd=self.directory)
 
   def test_recording_and_transcribing_are_cancelled_without_stop(self):
     for state in ("recording", "transcribing"):
@@ -55,6 +57,18 @@ fi
   def test_backend_failure_is_reported(self):
     self.env["VOXTYPE_EXIT"] = "7"
     self.assertNotEqual(self.run_app().returncode, 0)
+
+  def test_empty_config_home_uses_the_same_default_lock(self):
+    defaults = self.home / ".config/omarchy/defaults"
+    defaults.mkdir(parents=True)
+    (defaults / "dictation").write_text("voxtype\n")
+    self.env["XDG_CONFIG_HOME"] = ""
+    with (defaults / "dictation.lock").open("a") as lock:
+      fcntl.flock(lock, fcntl.LOCK_EX)
+      result = self.run_app()
+    self.assertNotEqual(result.returncode, 0)
+    self.assertIn("Dictation is busy", result.stderr)
+    self.assertFalse(self.log.exists())
 
   def test_backend_selection_lock_blocks_cancellation(self):
     with (self.defaults / "dictation.lock").open("a") as lock:

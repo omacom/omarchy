@@ -1,6 +1,7 @@
-#!/usr/bin/python3
+#!/bin/bash
 # omarchy:summary=Discard an active Voxtype recording or transcription without typing it
 
+exec python3 - "$@" <<'PY'
 import argparse
 import fcntl
 import os
@@ -15,8 +16,8 @@ def lock_expired(signum, frame):
 
 
 def main():
-  argparse.ArgumentParser(description="Cancel an active Voxtype dictation without transcribing or typing it. Uses the selected backend; other backends are reported as unsupported.").parse_args()
-  config_home = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+  argparse.ArgumentParser(prog="omarchy-dictation-cancel", description="Cancel an active Voxtype dictation without transcribing or typing it. Uses the selected backend; other backends are reported as unsupported.").parse_args()
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   lock_path = config_home / "omarchy/defaults/dictation.lock"
   lock_path.parent.mkdir(parents=True, exist_ok=True)
   # Share the backend-selection lock with `omarchy dictation` and dictation-use.
@@ -47,3 +48,4 @@ if __name__ == "__main__":
   except (OSError, ValueError, subprocess.SubprocessError) as error:
     print(f"Cancel dictation: {error}", file=sys.stderr)
     sys.exit(1)
+PY
