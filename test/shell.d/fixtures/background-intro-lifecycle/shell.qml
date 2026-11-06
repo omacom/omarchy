@@ -20,6 +20,11 @@ ShellRoot {
   BackgroundIntro { id: intro; host: test }
 
   Process {
+    id: releaseLauncher
+    command: ["touch", Quickshell.env("INTRO_TEST_LAUNCHER_RELEASE")]
+  }
+
+  Process {
     id: revealVideo
     command: ["touch", Quickshell.env("INTRO_TEST_FRAME_READY")]
   }
@@ -48,6 +53,7 @@ ShellRoot {
     } },
     { delay: 100, run: function() {
       test.check(intro.themeToken === "theme-one", "a leftover renderer still stays covered until video is revealed")
+      releaseLauncher.running = true
       revealVideo.running = true
       test.handoffDeadline = Date.now() + 3000
       handoff.start()
