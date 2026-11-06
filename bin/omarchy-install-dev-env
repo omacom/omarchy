@@ -29,6 +29,21 @@ install_node() {
   fi
 }
 
+# A failed command substitution still hands its partial stdout to bash -c.
+# Finish the download before running any of it, and keep redirects on TLS.
+run_downloaded_installer() {
+  local url=$1 installer status=0
+  shift
+  installer=$(mktemp) || return 1
+  if curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL "$url" -o "$installer"; then
+    bash "$installer" "$@" || status=$?
+  else
+    status=$?
+  fi
+  rm -f -- "$installer"
+  return "$status"
+}
+
 case "$1" in
 ruby)
   echo -e "Installing Ruby on Rails...\n"
@@ -107,7 +122,7 @@ rust)
   # Crates that generate C bindings with bindgen, including Ruby gems built
   # with rb-sys, load libclang from clang.
   omarchy-pkg-add clang
-  bash -c "$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)" -- -y
+  run_downloaded_installer https://sh.rustup.rs -y || exit 1
   ;;
 java)
   echo -e "Installing Java...\n"
@@ -120,7 +135,7 @@ zig)
   ;;
 ocaml)
   echo -e "Installing OCaml...\n"
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)"
+  run_downloaded_installer https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh || exit 1
   opam init --yes
   eval "$(opam env)"
   opam install ocaml-lsp-server odoc ocamlformat utop --yes
