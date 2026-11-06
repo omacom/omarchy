@@ -74,6 +74,8 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.bluetooth` | Bluetooth icon + popup with device list, connect/disconnect, battery | left = popup · right = toggle radio |
 | `omarchy.monitor` | Brightness and laptop display controls | left = popup |
 
+Clicking the focused workspace in `omarchy.workspaces` cycles its layout, as Super + L does. Set `cycleLayoutOnClick` to `false` to turn that off; the glyph still shows the layout and other workspaces still focus on click.
+
 The `omarchy.indicators` widget loads individual bar indicators from `indicators/`. Omit `items` (or set it to an empty array) to show all indicators in the default order, or set `items` to a subset such as `["Dnd", "Reminder", "NightLight"]`. Set `alwaysShow` to `true` to keep inactive indicators visible instead of revealing them only on hover. Multiple `omarchy.indicators` instances are allowed, so different sections can show different subsets.
 
 ## Orientation
