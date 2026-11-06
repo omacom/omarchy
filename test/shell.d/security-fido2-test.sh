@@ -145,6 +145,8 @@ case "${1:-}" in
       exec /usr/bin/tee "$2"
     elif (( $# == 2 )) && [[ $2 == "/etc/pam.d/polkit-1" ]]; then
       /usr/bin/cat >/dev/null
+    elif (( $# == 2 )) && [[ $2 == "/etc/pam.d/omarchy-lock-fido2" ]]; then
+      /usr/bin/cat >"$TEST_TMP/lock-fido2.pam"
     else
       reject "$@"
     fi
@@ -326,6 +328,18 @@ run_setup
 ! grep -Fq $'sudo\tmktemp\t' "$calls" ||
   fail "FIDO2 setup creates no stage over an existing registration" "$(cat "$calls")"
 pass "FIDO2 setup leaves an existing registration alone"
+
+# The lock screen shell starts this service itself, so it must hold the key
+# check and nothing that would wait on typed input.
+lock_pam="$test_tmp/lock-fido2.pam"
+[[ -f $lock_pam ]] || fail "FIDO2 setup writes the lock screen service"
+grep -Eq '^auth +required +pam_u2f\.so cue authfile=/etc/fido2/fido2$' "$lock_pam" ||
+  fail "the lock screen service requires the registered key" "$(cat "$lock_pam")"
+grep -Eq '^account +include +system-local-login$' "$lock_pam" ||
+  fail "the lock screen service carries the account stack" "$(cat "$lock_pam")"
+! grep -q pinverification "$lock_pam" ||
+  fail "the lock screen service asks for no PIN, which the lock has no prompt for"
+pass "FIDO2 setup writes the lock screen service"
 
 reset_run
 mkdir -p "$authdir"

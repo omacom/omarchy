@@ -1,9 +1,11 @@
 #!/bin/bash
 
-# omarchy:summary=Remove FIDO2 authentication from sudo and polkit
+# omarchy:summary=Remove FIDO2 authentication from sudo, polkit and the lock screen
 # omarchy:requires-sudo=true
 
 set -e
+
+lockpam=/etc/pam.d/omarchy-lock-fido2
 
 
 remove_pam_config() {
@@ -17,6 +19,12 @@ remove_pam_config() {
   if [[ -f /etc/pam.d/polkit-1 ]] && grep -Fq 'pam_u2f.so' /etc/pam.d/polkit-1; then
     echo "Removing FIDO2 authentication from polkit..."
     sudo sed -i '/pam_u2f\.so/d' /etc/pam.d/polkit-1
+  fi
+
+  # Remove from the lock screen
+  if [[ -e $lockpam || -L $lockpam ]]; then
+    echo "Removing FIDO2 authentication from the lock screen..."
+    sudo rm -f "$lockpam"
   fi
 }
 
