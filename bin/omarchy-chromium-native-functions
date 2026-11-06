@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Read bounded Chromium native messaging requests
+# omarchy:hidden=true
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "This is an internal function library." >&2
+  exit 64
+fi
+
+read_native_message() {
+  local prefix length payload LC_ALL=C
+  prefix=$(dd bs=1 count=4 2>/dev/null | od -An -v -tx1 | tr -d ' \n')
+  [[ ${#prefix} == 8 ]] || return 1
+  length=$((16#${prefix:6:2}${prefix:4:2}${prefix:2:2}${prefix:0:2}))
+  # These hosts accept one URL, not arbitrary browser-sized binary messages.
+  (( length > 0 && length <= 1048576 )) || return 1
+  # The sentinel retains JSON's trailing whitespace through substitution.
+  payload=$(head -c "$length"; printf '.')
+  payload=${payload%.}
+  [[ ${#payload} == "$length" ]] || return 1
+  printf '%s' "$payload"
+}

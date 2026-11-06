@@ -14,11 +14,12 @@ export OMARCHY_PATH="${OMARCHY_PATH:-$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." &
 
 # Make sure the Omarchy bin and yt-dlp are reachable when launched by the browser.
 export PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:$PATH"
+source "$OMARCHY_PATH/bin/omarchy-chromium-native-functions"
 
 DOWNLOAD_DIR="${OMARCHY_YTDLP_DIR:-$HOME/Videos}"
 
 parse_url() {
-  jq -r '.url // empty' 2>/dev/null <<<"$1" || true
+  jq -r 'if type == "object" and (.url | type) == "string" then .url else empty end' 2>/dev/null <<<"$1" || true
 }
 
 valid_url() {
@@ -170,7 +171,7 @@ download_url() {
 }
 
 main() {
-  local length payload url
+  local payload url
 
   # Detached worker: this is what actually runs yt-dlp and fires notifications.
   if [[ ${1:-} == "--download" ]]; then
@@ -178,10 +179,7 @@ main() {
   fi
 
   # Native messaging frame: 4-byte little-endian length prefix, then UTF-8 JSON.
-  length=$(head -c4 | od -An -v -tu4 --endian=little | tr -d ' ')
-  [[ -n ${length:-} ]] && ((length > 0)) || exit 0
-
-  payload=$(head -c "$length")
+  payload=$(read_native_message) || exit 0
 
   # Ack with an empty message so the extension's sendNativeMessage callback resolves cleanly.
   printf '\x02\x00\x00\x00{}'
