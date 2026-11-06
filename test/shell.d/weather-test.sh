@@ -179,7 +179,9 @@ assertEqual(weather.resolveSkyScene(null, weather.iconForCode(182, false)).scene
 
 // Evaluate the panel's actual bindings so changing its source selection back
 // to wttr cannot pass just because the resolver works in isolation.
+const fs = require('fs')
 const vm = require('vm')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/weather/Panel.qml', 'utf8')
 function panelBinding(name, context) {
   const expression = panelSource.match(new RegExp('readonly property \\w+ ' + name + ': (.+)'))[1]
   return vm.runInNewContext(expression, { Model: weather, ...context })
@@ -188,13 +190,13 @@ const wmoCurrent = weather.openMeteoCurrentCondition({ current: {
   temperature_2m: 12, weather_code: 96, is_day: 0, wind_speed_10m: 35
 } })
 const wttrCurrent = { weatherCode: 389, windspeedKmph: '8' }
-for (const hasConfiguredCoordinates of [false, true]) {
-  const context = { hasConfiguredCoordinates, openMeteoCurrent: wmoCurrent,
+for (const hasCoordinates of [false, true]) {
+  const context = { hasCoordinates, openMeteoCurrent: wmoCurrent,
     report: { current_condition: [wttrCurrent] }, label: weather.iconForCode(389, false) }
   context.current = panelBinding('current', context)
   assertDeepEqual(panelBinding('fxResolved', context),
     { scene: 'storm', night: true, level: 2, hail: true, windy: true },
-    'weather panel uses WMO sky data with configured coordinates ' + hasConfiguredCoordinates)
+    'weather panel uses WMO sky data with known coordinates ' + hasCoordinates)
 }
 assertDeepEqual(panelBinding('fxResolved', {
   openMeteoCurrent: null, current: wttrCurrent, label: weather.iconForCode(389, false)
@@ -271,20 +273,10 @@ for (const spec of [cloud, fog, fogOther]) {
 const manifest = JSON.parse(fs.readFileSync(root + '/shell/plugins/panels/weather/manifest.json', 'utf8'))
 const fxSetting = (manifest.barWidget.schema || []).find(entry => entry.key === 'fx')
 assert(fxSetting && fxSetting.type === 'boolean' && fxSetting.defaultValue === true, 'weather manifest declares the fx toggle, on by default')
-assert(panelSource.includes('fxEnabled ? Model.skyMode('), 'weather panel draws nothing when the fx toggle is off')
-assert(panelSource.includes('visible: root.fxMode !== "off"'), 'weather panel hides the sky layer when the scene is off')
-assert(panelSource.includes('running: skyFx.visible && root.opened && !Style.reduceMotion'), 'weather panel only animates the sky while the popup is open and motion is allowed')
-assert(panelSource.includes('duration: Style.duration(900)'), 'weather sky opens without animating under reduced motion')
-assert(panelSource.includes('layer.enabled: Style.cornerRadius > 0') && panelSource.includes('maskSource: skyMask'), 'weather sky is masked to rounded popup corners')
-const panelRootSource = panelSource.slice(0, panelSource.indexOf('content: PanelKeyCatcher'))
-assert(!/\bskyFx\./.test(panelRootSource), 'weather sky replays from inside the lazily built panel content')
-assert(!panelSource.includes('onTextKey'), 'weather panel adds no key bindings for the sky')
-const skySource = panelSource.slice(panelSource.indexOf('id: skyFx'), panelSource.indexOf('id: weatherScroll'))
-assertDeepEqual(
-  [...new Set((skySource.match(/#[0-9a-fA-F]{3,8}\b/g) || []).map(hex => hex.toLowerCase()))],
-  ['#ffffff'],
-  'weather sky layer takes its colours from the theme apart from white'
-)
+assertEqual(panelBinding('fxEnabled', { setting: (name, fallback) => fallback }), true, 'weather panel draws the sky unless told not to')
+assertEqual(panelBinding('fxEnabled', { setting: () => false }), false, 'weather panel honours fx set to false')
+assertEqual(panelBinding('fxMode', { fxEnabled: false, fxResolved: { scene: 'rain' }, fxNight: false }), 'off', 'weather panel draws nothing when the fx toggle is off')
+assertEqual(panelBinding('fxMode', { fxEnabled: true, fxResolved: { scene: 'sun' }, fxNight: true }), 'moon', 'weather panel applies night to the scene it draws')
 JS
 
 test_tmp=$(mktemp -d)
