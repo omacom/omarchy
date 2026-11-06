@@ -103,6 +103,14 @@ function isTaildropTarget(peer, selfUserId) {
   return owner !== "" && owner === String(selfUserId || "")
 }
 
+// The machines the panel lists: this machine leads unless the showSelf
+// setting hides it.
+function visiblePeers(peers, showSelf) {
+  var list = peers || []
+  if (showSelf !== false) return list
+  return list.filter(function(peer) { return !(peer && peer.Self) })
+}
+
 function peerFromStatus(id, peer, tr) {
   return {
     id: id,
@@ -332,6 +340,7 @@ if (typeof module !== "undefined") {
     loginPlan: loginPlan,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
+    visiblePeers: visiblePeers,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
     parseExitNodeList: parseExitNodeList,

@@ -19,7 +19,8 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "refreshIntervalSec": 30
+      "refreshIntervalSec": 30,
+      "showSelf": true
     },
     "schema": [
       {
@@ -30,6 +31,13 @@
         "max": 3600,
         "step": 5,
         "defaultValue": 30
+      },
+      {
+        "key": "showSelf",
+        "type": "boolean",
+        "label": "Show this machine",
+        "description": "List this machine first under Machines, so its Tailscale IP and DNS name can be copied like any other.",
+        "defaultValue": true
       }
     ]
   }
