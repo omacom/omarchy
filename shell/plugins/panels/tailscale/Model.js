@@ -94,7 +94,9 @@ function hasFileSharing(self) {
 // Tailscale grades every peer itself — offline, wrong owner, an OS without
 // Taildrop, no peer API — so take its word when the status carries one, and
 // fall back to same-owner for daemons too old to say.
+// Tailscale cannot send a file to the sender, so this machine is never one.
 function isTaildropTarget(peer, selfUserId) {
+  if (peer && peer.Self) return false
   var target = peer && peer.TaildropTarget
   if (typeof target === "number" && target !== 0) return target === 1
   var owner = String((peer && peer.UserID) || "")

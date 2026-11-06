@@ -5,11 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
-const fs = require('fs')
 const tailscale = requireFromRoot('shell/plugins/panels/tailscale/Model.js')
-const serviceSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Service.qml', 'utf8')
-
-assert(/if \(!fileSharing \|\| !running \|\| !peer \|\| peer\.Self\) return false/.test(serviceSource), 'tailscale never offers to Taildrop a file to this machine')
 
 assertDeepEqual(
   tailscale.filterIPv4(['100.64.0.1', 'fd7a:115c:a1e0::1', '192.168.1.2']),
@@ -108,6 +104,7 @@ assertDeepEqual(status.peers.map(peer => peer.TaildropTarget), [0, 1, 5], 'tails
 assert(tailscale.isTaildropTarget({ TaildropTarget: 1, UserID: '1001' }, '2002'), 'tailscale trusts an available Taildrop target')
 assert(!tailscale.isTaildropTarget({ TaildropTarget: 7, UserID: '1001' }, '1001'), 'tailscale skips peers Tailscale rules out')
 assert(tailscale.isTaildropTarget({ UserID: '1001' }, '1001'), 'tailscale falls back to same-owner peers without a grade')
+assert(!tailscale.isTaildropTarget(status.peers[0], status.selfUserId), 'tailscale never offers to Taildrop a file to this machine')
 assert(!tailscale.isTaildropTarget({ UserID: '1002' }, '1001'), 'tailscale skips other owners without a grade')
 
 const mullvadNodes = tailscale.parseExitNodeList(`
