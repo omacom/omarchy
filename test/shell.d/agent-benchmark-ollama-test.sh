@@ -63,7 +63,8 @@ status, calls, output = run(
 assert status == 0, output
 report = json.loads(output)
 assert report["load_seconds"] == 0.5 and report["median_tokens_per_second"] == 10
-assert len(report["runs"]) == 3 and calls[2][1]["prompt"] == ""
+assert len(report["runs"]) == 3 and calls[2][1]["prompt"] == "Reply with one word: ready."
+assert calls[2][1]["options"]["num_predict"] == 1
 assert all(call[1]["options"]["num_predict"] == 128 for call in calls[3:])
 print("ok - separates warm-up from generation and computes the median from nanosecond timings")
 

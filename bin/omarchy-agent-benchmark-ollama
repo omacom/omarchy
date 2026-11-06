@@ -68,7 +68,19 @@ def main():
     raise ValueError("Choose a local model to measure this machine's speed")
   if "completion" not in info.get("capabilities", []):
     raise ValueError("Choose a model with text completion support")
-  warm = request("generate", {"model": name, "prompt": "", "stream": False, "keep_alive": "5m"}, timeout=600)
+  # Empty-prompt load responses omit timing fields. A one-token generation
+  # returns load_duration without contributing to the measured throughput.
+  warm = request(
+    "generate",
+    {
+      "model": name,
+      "prompt": "Reply with one word: ready.",
+      "stream": False,
+      "keep_alive": "5m",
+      "options": {"num_predict": 1, "temperature": 0, "seed": 42},
+    },
+    timeout=600,
+  )
   if warm.get("done") is not True:
     raise ValueError("The warm-up did not finish")
   load_seconds = metric(warm, "load_duration") / 1e9
@@ -102,7 +114,7 @@ def main():
     print(
       f"{name}: load {load_seconds:.2f}s; median generation {report['median_tokens_per_second']:.2f} tokens/s ({args.runs} runs)"
     )
-    print("Server-reported generation time; loading and prompt processing are measured separately.")
+    print("Server-reported generation throughput excludes loading and prompt processing.")
 
 
 try:
