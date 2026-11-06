@@ -637,7 +637,7 @@ Panel {
           target: skyFx
           property: "t"
           from: 0; to: 1
-          duration: Style.duration(900)
+          duration: Style.duration(500)
           easing.type: Easing.OutCubic
         }
         // The dynamic canvas repaints on every tick and the scrolling layers
