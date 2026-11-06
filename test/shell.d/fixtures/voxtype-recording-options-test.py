@@ -13,6 +13,8 @@ class RecordingOptionsTest(unittest.TestCase):
     self.tmp = tempfile.TemporaryDirectory()
     self.addCleanup(self.tmp.cleanup)
     self.directory = Path(self.tmp.name)
+    self.home = self.directory / "home"
+    self.home.mkdir()
     self.log = self.directory / "calls"
     stub = self.directory / "voxtype"
     stub.write_text('''#!/bin/bash
@@ -24,7 +26,7 @@ else
 fi
 ''')
     stub.chmod(0o755)
-    self.env = dict(os.environ, PATH=str(self.directory) + ":" + ROOT + "/bin:" + os.environ["PATH"], TEST_LOG=str(self.log))
+    self.env = dict(os.environ, HOME=str(self.home), XDG_CONFIG_HOME=str(self.directory / "config"), PATH=str(self.directory) + ":" + ROOT + "/bin:" + os.environ["PATH"], TEST_LOG=str(self.log))
 
   def run_app(self, *args):
     return subprocess.run(["bash", ROOT + "/bin/omarchy-dictation-voxtype", *args], env=self.env, capture_output=True, text=True)
