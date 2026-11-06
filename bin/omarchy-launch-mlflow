@@ -42,7 +42,16 @@ if [[ -d $store ]]; then
 elif [[ -f $store ]]; then
   # A typo must not turn an arbitrary file into a database or an empty run store.
   [[ $(head -c 15 -- "$store") == "SQLite format 3" ]] || { echo "The experiment database must be SQLite" >&2; exit 1; }
-  store="sqlite:///$(cd -- "$(dirname -- "$store")" && pwd -P)/$(basename -- "$store")"
+  # SQLAlchemy parses a URL before opening SQLite. Escape path characters so
+  # a '?' in the filename cannot select a different database.
+  store=$(python3 - "$store" <<'PY'
+import os
+import sys
+from urllib.parse import quote
+
+print("sqlite:///" + quote(os.path.abspath(sys.argv[1]), safe="/"))
+PY
+  )
 else
   echo "Choose a regular database file or an mlruns directory" >&2
   exit 1

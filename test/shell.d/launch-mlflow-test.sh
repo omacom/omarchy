@@ -23,8 +23,12 @@ pass "MLflow uses the selected local store for tracking and registry without an 
 printf 'SQLite format 3\0' >"$fixture/experiment data.db"
 bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/experiment data.db" >/dev/null
 mapfile -d '' -t args <"$TRACE"
-[[ ${args[2]} == "sqlite:///$fixture/experiment data.db" ]] || fail "SQLite path becomes an absolute SQLite URI"
-pass "SQLite database paths with spaces become absolute SQLite URIs"
+[[ ${args[2]} == "sqlite:///$fixture/experiment%20data.db" ]] || fail "SQLite path becomes an escaped absolute SQLite URI"
+printf 'SQLite format 3\0' >"$fixture/study?phase=1#100%.db"
+bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/study?phase=1#100%.db" >/dev/null
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[2]} == "sqlite:///$fixture/study%3Fphase%3D1%23100%25.db" ]] || fail "SQLite filename characters cannot become URI options"
+pass "SQLite paths with spaces and URL characters address the intended database"
 
 rm "$TRACE"
 printf 'valuable data' >"$fixture/not a database"
