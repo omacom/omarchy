@@ -553,10 +553,10 @@ Panel {
   }
 
   // Keep checking while login is needed, even with the panel closed in favour
-  // of the browser. A routed connection that still reads limited is re-probed
-  // only while the panel is open: the service follows device changes, and this
-  // covers a tunnel that dies without its device disappearing. Normal
-  // connected operation relies on NM's own schedule.
+  // of the browser. While the panel is open, a routed connection that still
+  // reads limited is re-probed every 10s; the service's own backoff covers a
+  // closed panel, and its device handler catches a tunnel coming or going.
+  // Normal connected operation relies on NM's own schedule.
   Timer {
     id: connectivityPoll
     interval: 10000
