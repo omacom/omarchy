@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=Install the OpenClaw agent platform and its Control UI web app
-# omarchy:requires-sudo=true
 
 set -e
 
