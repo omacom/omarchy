@@ -12,7 +12,7 @@ APP = runpy.run_path(ROOT + "/bin/omarchy-launch-ai-chat")
 
 
 class ChatPickerTest(unittest.TestCase):
-  def run_app(self, extra=(), metadata=None, choice="test:latest\n", cancel=False, models=None):
+  def run_app(self, extra=(), metadata=None, choice="test:latest\n", cancel=False, models=None, picker_status=0):
     requests = []
 
     class Opener:
@@ -26,7 +26,7 @@ class ChatPickerTest(unittest.TestCase):
     def run(argv, **kwargs):
       if argv[0] == "omarchy-cmd-missing":
         return subprocess.CompletedProcess(argv, 1)
-      return subprocess.CompletedProcess(argv, 130 if cancel else 0, stdout=choice)
+      return subprocess.CompletedProcess(argv, 130 if cancel else picker_status, stdout=choice)
 
     with patch("sys.argv", ["chat", *extra]), patch("sys.stdin.isatty", return_value=True), patch("subprocess.run", side_effect=run), patch("urllib.request.build_opener", return_value=Opener()), patch("os.execvpe") as execute:
       try:
@@ -53,6 +53,28 @@ class ChatPickerTest(unittest.TestCase):
     self.assertEqual(code, 0)
     self.assertIsNone(call)
     self.assertEqual(len(requests), 1)
+
+  def test_failed_empty_picker_is_not_treated_as_cancellation(self):
+    with self.assertRaises(subprocess.CalledProcessError):
+      self.run_app(choice="", picker_status=2)
+
+  def test_picker_display_reaches_the_terminal(self):
+    driver = '''
+import runpy, subprocess, sys
+from unittest.mock import patch
+app = runpy.run_path(sys.argv[1] + "/bin/omarchy-launch-ai-chat")
+app["main"].__globals__["request"] = lambda *args: {"models": [{"name": "test:latest"}], "capabilities": ["completion"]}
+run = subprocess.run
+def picker(args, **kwargs):
+  if args[0] == "omarchy-cmd-missing":
+    return subprocess.CompletedProcess(args, 1)
+  return run([sys.executable, "-c", 'import sys; print("MODEL PICKER", file=sys.stderr); print("test:latest")'], **kwargs)
+with patch("sys.argv", ["chat"]), patch("sys.stdin.isatty", return_value=True), patch("subprocess.run", side_effect=picker), patch("os.execvpe"):
+  sys.exit(app["main"]())
+'''
+    result = subprocess.run([sys.executable, "-c", driver, ROOT], capture_output=True, text=True)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("MODEL PICKER", result.stderr)
 
   def test_missing_model_does_not_download(self):
     code, call, requests = self.run_app(["--model", "absent"])

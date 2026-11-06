@@ -35,10 +35,12 @@ def main():
     raise ValueError("No installed models. Download a text model with ollama pull first.")
   model = args.model
   if model is None:
-    choice = subprocess.run(["gum", "choose", "--header", "Chat with an installed model", "--", *models], capture_output=True, text=True)
-    if choice.returncode in (1, 130) or not choice.stdout.strip():
+    choice = subprocess.run(["gum", "choose", "--header", "Chat with an installed model", "--", *models], stdout=subprocess.PIPE, text=True)
+    if choice.returncode in (1, 130):
       return 0
     choice.check_returncode()
+    if not choice.stdout.strip():
+      return 0
     model = choice.stdout.strip()
   if model not in models:
     if model + ":latest" in models:
