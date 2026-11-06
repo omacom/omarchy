@@ -38,7 +38,7 @@ run_setup "$matching" >/dev/null
 
 (
   firmware_root="$scratch/firmware"
-  board=qcom/glymur/microsoft/surface-laptop8
+  board=qcom/glymur/microsoft/mahua
   mkdir -p "$firmware_root/$board" "$firmware_root/updates/$board"
   touch "$firmware_root/qcom/gen80100_sqe.fw.zst" "$firmware_root/qcom/gen80100_gmu.bin.xz" \
     "$firmware_root/$board/qcadsp8480.mbn" "$firmware_root/updates/$board/qcadsp8480.mbn" \

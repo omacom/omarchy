@@ -27,17 +27,18 @@ MODULES+=(msm? panel_edp? phy_qcom_edp? gpucc_glymur? gxclkctl_kaanapali?
   surface_hid_core? surface_hid? nvme?)
 
 # qcom_q6v5_pas starts the ADSP and CDSP from the initramfs and does not retry
-# once the root filesystem is up, so their firmware, which qcom-firmware-extract
-# copies from Windows, goes in the image too. msm requests the GPU's startup
-# pair when the display starts but declares no firmware for this GPU.
+# once the root filesystem is up, so their firmware, from
+# microsoft-surface-laptop-8-firmware, goes in the image too. msm requests the
+# GPU's startup pair when the display starts but declares no firmware for this
+# GPU.
 # Search like the kernel does: each suffix in every directory, then the next.
 for firmware in \
   qcom/gen80100_sqe.fw \
   qcom/gen80100_gmu.bin \
-  qcom/glymur/microsoft/surface-laptop8/qcadsp8480.mbn \
-  qcom/glymur/microsoft/surface-laptop8/adsp_dtbs.elf \
-  qcom/glymur/microsoft/surface-laptop8/qccdsp8480.mbn \
-  qcom/glymur/microsoft/surface-laptop8/cdsp_dtbs.elf; do
+  qcom/glymur/microsoft/mahua/qcadsp8480.mbn \
+  qcom/glymur/microsoft/mahua/adsp_dtbs.elf \
+  qcom/glymur/microsoft/mahua/qccdsp8480.mbn \
+  qcom/glymur/microsoft/mahua/cdsp_dtbs.elf; do
   for suffix in '' .zst .xz; do
     for directory in "${OMARCHY_SURFACE_LAPTOP8_FIRMWARE_ROOT:-/usr/lib/firmware}/updates" \
       "${OMARCHY_SURFACE_LAPTOP8_FIRMWARE_ROOT:-/usr/lib/firmware}"; do
