@@ -1,0 +1,278 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Hermes Agent usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Hermes Agent usage into one display-ready JSON record.
+
+Everything the agents panel shows for Hermes is local session stats, read
+only from the state.db in Hermes' home (HERMES_HOME, else ~/.hermes) and in
+each named profile under its root's profiles/, and in ~/.hermes whole. Hermes
+has no subscription of its own, so the record has no limits.
+
+Tokens count under the provider that bills them, so this record holds what
+Hermes ran on Nous Portal, and what it ran before it recorded a route. A
+session sent to a server you run is the local collector's, which reads it
+through harness_rows(); one sent to any other provider is not counted here.
+
+Chat sessions that arrived over messaging gateways count too: Hermes treats
+them as first-class sessions and so does this record.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sqlite3
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  NUMBER_CEILING,
+  Stats,
+  UsageRow,
+  base_record,
+  cached_scan,
+  claude_code_owner,
+  date_string,
+  emit,
+  local_day,
+  number,
+  scan_max_age,
+  url_host,
+)
+
+AGENT_ID = "hermes"
+AGENT_NAME = "Hermes"
+
+# Nous Portal's hosts (portal., inference-api., welcome-api.), the service
+# Nous Research, who make Hermes, bill.
+NOUS_HOST = "nousresearch.com"
+
+
+# Hermes' home is HERMES_HOME, its ~ and $VARs expanded, else
+# ~/.hermes<HERMES_DATA_DIR_SUFFIX>. Named profiles sit under the root's
+# profiles/: the default home, unless HERMES_HOME lies outside it, where a
+# <root>/profiles/<name> home makes <root> the root and any other home is its
+# own (hermes_constants.get_default_hermes_root). The root is the default
+# profile, so a profile home still counts the root's own state.db
+# (hermes_cli.profiles.list_profiles). The default home ~/.hermes is read
+# whatever the root, as before, and whole: its own state.db is its default
+# profile, beside its profiles/. A profile linked to the home counts once.
+def state_paths():
+  native = Path.home() / (".hermes" + os.environ.get("HERMES_DATA_DIR_SUFFIX", ""))
+  configured = os.environ.get("HERMES_HOME", "").strip()
+  home = Path(os.path.expanduser(os.path.expandvars(configured))) if configured else native
+  root = native
+  if not home.resolve().is_relative_to(native.resolve()):
+    root = home.parent.parent if home.parent.name == "profiles" else home
+  roots = dict.fromkeys((root, native, Path.home() / ".hermes"))
+  candidates = [home / "state.db", *(base / "state.db" for base in roots)]
+  for profiles in (base / "profiles" for base in roots):
+    if profiles.is_dir():
+      candidates.extend(sorted(path / "state.db" for path in profiles.iterdir() if path.is_dir()))
+
+  paths, seen = [], set()
+  for candidate in candidates:
+    if not candidate.is_file():
+      continue
+    resolved = candidate.resolve()
+    if resolved not in seen:
+      seen.add(resolved)
+      paths.append(candidate)
+  return paths
+
+
+# Hermes records where it sent each session and each request: the provider
+# it billed and the base URL it reached. Nous Portal, Hermes' own maker's
+# service, is Hermes'; any other URL is read the way every collector reads
+# Claude Code's (claude_code_owner): a provider's host is that provider's,
+# and a server you run is local's unless the model is a Claude or an Ollama
+# cloud one it only forwards. A gateway nothing here can place, or a
+# provider's own API no collector reads Hermes for (Anthropic's, OpenAI's),
+# is nobody's. A row from before Hermes kept the route ran where nothing
+# says, and stays Hermes', as every row was read before. A session Hermes
+# keeps routes for that recorded none never reached a provider, since Hermes
+# records the route with the first request it accounts, so no one bills it.
+def route_owner(provider, base_url, model):
+  url = str(base_url or "").strip()
+  if url:
+    host = url_host(url)
+    if host == NOUS_HOST or host.endswith("." + NOUS_HOST):
+      return AGENT_ID
+    return claude_code_owner(str(model or ""), url)
+  provider = str(provider or "").strip().lower()
+  return AGENT_ID if provider in ("", "nous") else None
+
+
+def columns(conn, table):
+  return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def route_columns(conn, table, alias):
+  """The route columns of a table, or NULLs where Hermes didn't keep them yet."""
+  if {"billing_provider", "billing_base_url"} <= columns(conn, table):
+    return f"{alias}.billing_provider, {alias}.billing_base_url"
+  return "NULL, NULL"
+
+
+# A column's sum over the rows whose count can be trusted: a negative row
+# would net out real usage, and text or a count past the ceiling is none.
+def trusted_sum(column):
+  return f"SUM(CASE WHEN typeof({column}) IN ('integer', 'real') AND {column} >= 0 AND {column} < {NUMBER_CEILING} THEN {column} ELSE 0 END)"
+
+
+# A time names a day only when it is a number that local_day trusts: SQLite
+# ranks text above every number, and a stray 1 is a damaged stamp, not a day
+# in 1970.
+def stamp_day(value):
+  return local_day(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def scan(path, owner):
+  """One state.db's rows that `owner` bills: a row per session, dated by its
+  start, with the tokens of each model it used and the prompts typed on each
+  day. A session counts where its route says, else where its first request
+  went, else nowhere when Hermes keeps routes and it made none."""
+  conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  try:
+    tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    usage = []
+    # A Hermes that keeps no usage table yet still has its sessions and
+    # prompts to count.
+    if "session_model_usage" in tables:
+      usage = conn.execute(
+        """SELECT smu.session_id, smu.model, {}, {}, {}, {}, {}
+           FROM session_model_usage smu
+           GROUP BY 1, 2, 3, 4""".format(route_columns(conn, "session_model_usage", "smu"),
+                                         *(trusted_sum("smu." + column) for column in ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")))
+      ).fetchall()
+    first_owner = {}
+    for session_id, model, provider, url, *_ in usage:
+      first_owner.setdefault(session_id, route_owner(provider, url, model))
+
+    model_column = "s.model" if "model" in columns(conn, "sessions") else "NULL"
+    session_routes = route_columns(conn, "sessions", "s")
+    unrouted = None if "session_model_usage" in tables and session_routes != "NULL, NULL" else AGENT_ID
+    sessions = {}
+    for session_id, started, model, provider, url in conn.execute(f"SELECT s.id, s.started_at, {model_column}, {session_routes} FROM sessions s"):
+      recorded = str(provider or "").strip() or str(url or "").strip()
+      sessions[session_id] = (stamp_day(started), route_owner(provider, url, model) if recorded else first_owner.get(session_id, unrouted))
+
+    rows = []
+    database = path.resolve()
+    key = lambda session_id: f"{database}:{session_id}"
+    for session_id, (day, billed) in sessions.items():
+      if billed == owner:
+        rows.append(UsageRow(day, key(session_id), "", "", 0, 0, 0, 0, prompts=0))
+
+    # Usage is kept per session and model, so a session's tokens land on the
+    # day it started.
+    for session_id, model, provider, url, *counts in usage:
+      if session_id not in sessions or route_owner(provider, url, model) != owner:
+        continue
+      # Counts from disk are untrusted: a negative, non-finite, absurdly
+      # large or non-numeric value counts as nothing.
+      counts = [number(count) for count in counts]
+      if sum(counts):
+        rows.append(UsageRow(sessions[session_id][0], key(session_id), str(provider or ""), str(model or "hermes"), *counts, prompts=0))
+
+    # A prompt from the future is no day's yet.
+    today = date_string(datetime.now())
+    for session_id, stamp, count in conn.execute(
+      "SELECT session_id, CASE WHEN typeof(timestamp) IN ('integer', 'real') THEN timestamp END, COUNT(*) FROM messages WHERE role = 'user' GROUP BY 1, 2"
+    ):
+      if sessions.get(session_id, (None, AGENT_ID))[1] != owner:
+        continue
+      day = stamp_day(stamp)
+      rows.append(UsageRow(day if day is not None and day <= today else None, key(session_id), "", "", 0, 0, 0, 0, prompts=count))
+    return rows
+  finally:
+    conn.close()
+
+
+def harness_sources():
+  return [path.resolve() for path in state_paths()]
+
+
+# What harness_rows() decided owners under, for cached_scan(match=...):
+# nothing beyond the databases, which record every route themselves.
+def harness_match():
+  return {}
+
+
+def scan_all(paths, owner):
+  """Every state.db's rows that `owner` bills, and the paths that couldn't
+  be read."""
+  rows, unreadable = [], []
+  for path in paths:
+    try:
+      rows.extend(scan(path, owner))
+    except sqlite3.Error as error:
+      unreadable.append(f"{path}: {error}")
+  return rows, unreadable
+
+
+def harness_rows(owner):
+  """Every state.db's rows that `owner` bills, and whether all were read."""
+  rows, unreadable = scan_all(state_paths(), owner)
+  return rows, not unreadable
+
+
+# The stats from every state.db, with the paths that couldn't be read.
+def collect_stats(paths):
+  stats = Stats()
+  rows, unreadable = scan_all(paths, AGENT_ID)
+  for row in rows:
+    stats.add_row(row, row.model)
+  return stats.snapshot(), unreadable
+
+
+# The scan is cached per day and per set of databases. A scan that couldn't
+# read every database isn't cached, so a scan served from the cache read them
+# all.
+def cached_stats(paths, max_age):
+  unreadable = []
+
+  def scan_all():
+    stats, missed = collect_stats(paths)
+    unreadable.extend(missed)
+    return stats, not missed
+
+  stats = cached_scan(AGENT_ID, [path.resolve() for path in paths], max_age, scan_all)
+  return stats, unreadable
+
+
+def collect(force=False, limits_only=False):
+  record = base_record(AGENT_ID, AGENT_NAME)
+
+  # No state.db: Hermes isn't used on this machine, which is not trouble --
+  # with sync on, another machine's Hermes still shows through its stats.
+  paths = state_paths()
+  if not paths:
+    return record
+
+  stats, unreadable = cached_stats(paths, scan_max_age(force, limits_only))
+  record.update(stats)
+  # Sessions all billed elsewhere leave Hermes nothing of its own to show.
+  record["hasLocalStats"] = bool(stats.get("modelUsage") or stats.get("totalSessions"))
+  record["ready"] = record["hasLocalStats"] or bool(unreadable)
+  if unreadable:
+    record["usageStatusText"] = "Hermes unavailable"
+    record["authHelpText"] = "Couldn't read Hermes' state.db (" + "; ".join(unreadable) + ")."
+  return record
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Hermes Agent usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="rescan every state.db, ignoring the cache")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent scan; Hermes has no limits to probe")
+  args = parser.parse_args()
+  emit(collect(args.force, args.limits_only))
+
+
+if __name__ == "__main__":
+  main()
