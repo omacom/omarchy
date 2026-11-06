@@ -41,7 +41,7 @@ review_update() {
   new_version=$(plugin_version "$dir" "$after")
 
   printf '\nUpdate available: %s\n' "$id"
-  if [[ -n $old_version && -n $new_version && $old_version != "$new_version" ]]; then
+  if [[ -n $old_version && -n $new_version && $old_version != $new_version ]]; then
     printf 'Version: %s → %s\n' "$old_version" "$new_version"
   elif [[ -n $new_version ]]; then
     printf 'Version: %s (new changes)\n' "$new_version"
@@ -78,7 +78,7 @@ update_one() {
 
   before=$(git -C "$dir" rev-parse HEAD)
   after=$(git -C "$dir" rev-parse FETCH_HEAD)
-  if [[ $before == "$after" ]]; then
+  if [[ $before == $after ]]; then
     echo "$id is up to date."
     return 0
   fi
@@ -90,7 +90,7 @@ update_one() {
     }
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) != "$before" ]]; then
+  if [[ $(git -C "$dir" rev-parse HEAD) != $before ]]; then
     echo "omarchy-plugin-update: '$id' changed while reviewing; run the update again" >&2
     return 1
   fi

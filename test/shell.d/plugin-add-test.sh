@@ -182,8 +182,10 @@ if script -qec true /dev/null >/dev/null 2>&1; then
   update_home="$TMPDIR/update-home"
   update_dir="$update_home/.config/omarchy/plugins/acme.same"
   mkdir -p "${update_dir%/*}"
+  git -C "$incoming" -c user.name=Test -c user.email=test@example.com commit --allow-empty -qm "Installed revision"
   git clone -q "$incoming" "$update_dir"
   before=$(git -C "$update_dir" rev-parse HEAD)
+  previous=$(git -C "$update_dir" rev-parse HEAD^)
   printf 'import QtQuick\nItem { property string detail: "SOURCE_BODY_MARKER" }\n' >"$incoming/Widget.qml"
   git -C "$incoming" add .
   git -C "$incoming" -c user.name=Test -c user.email=test@example.com commit -qm "Improve the weather display"
@@ -191,11 +193,14 @@ if script -qec true /dev/null >/dev/null 2>&1; then
 
   cat >"$stub_dir/gum" <<'STUB'
 #!/bin/bash
-[[ $1 == choose ]] || exit 1
+[[ $1 == "choose" ]] || exit 1
 IFS= read -r choice <"$TEST_CHOICES" || exit 130
 sed -i '1d' "$TEST_CHOICES"
-if [[ $choice == Update && -n ${TEST_FETCH_HEAD:-} ]]; then
+if [[ $choice == "Update" && -n ${TEST_FETCH_HEAD:-} ]]; then
   printf '%s\n' "$TEST_FETCH_HEAD" >"$TEST_PLUGIN/.git/FETCH_HEAD"
+fi
+if [[ $choice == "Update" && -n ${TEST_CHECKOUT:-} ]]; then
+  git -C "$TEST_PLUGIN" reset --hard -q "$TEST_CHECKOUT"
 fi
 printf '%s\n' "$choice"
 STUB
@@ -208,7 +213,7 @@ STUB
 
   review_update() {
     HOME="$update_home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
-      TEST_CHOICES="$choices" TEST_PLUGIN="$update_dir" TEST_FETCH_HEAD="${TEST_FETCH_HEAD:-}" \
+      TEST_CHOICES="$choices" TEST_PLUGIN="$update_dir" TEST_FETCH_HEAD="${TEST_FETCH_HEAD:-}" TEST_CHECKOUT="${TEST_CHECKOUT:-}" \
       script -qec 'omarchy-plugin-update acme.same' /dev/null
   }
 
@@ -216,7 +221,7 @@ STUB
   output=$(review_update)
   [[ $output == *"Improve the weather display"* && $output != *"SOURCE_BODY_MARKER"* ]] ||
     fail "plugin update starts with a concise summary instead of source code" "$output"
-  [[ $(git -C "$update_dir" rev-parse HEAD) == "$before" ]] ||
+  [[ $(git -C "$update_dir" rev-parse HEAD) == $before ]] ||
     fail "skipping an update changes the checkout"
   pass "plugin update summarizes changes and skip leaves the checkout alone"
 
@@ -224,13 +229,24 @@ STUB
   output=$(review_update)
   [[ $output == *"SOURCE_BODY_MARKER"* && ! -s $choices ]] ||
     fail "code review returns to the update choices" "$output"
-  [[ $(git -C "$update_dir" rev-parse HEAD) == "$before" ]] ||
+  [[ $(git -C "$update_dir" rev-parse HEAD) == $before ]] ||
     fail "reviewing code applies an update without confirmation"
   pass "plugin update shows code only on request and reviewing does not approve it"
 
   printf 'Update\n' >"$choices"
+  if output=$(TEST_CHECKOUT="$previous" review_update); then
+    fail "plugin update accepts a checkout changed during review" "$output"
+  fi
+  [[ $output == *"changed while reviewing"* ]] ||
+    fail "plugin update explains why a changed checkout was refused" "$output"
+  [[ $(git -C "$update_dir" rev-parse HEAD) == $previous ]] ||
+    fail "plugin update changes the checkout again after refusing a changed HEAD"
+  pass "plugin update refuses a changed HEAD even when a fast-forward would still work"
+  git -C "$update_dir" reset --hard -q "$before"
+
+  printf 'Update\n' >"$choices"
   output=$(TEST_FETCH_HEAD="$before" review_update)
-  [[ $(git -C "$update_dir" rev-parse HEAD) == "$after" ]] ||
+  [[ $(git -C "$update_dir" rev-parse HEAD) == $after ]] ||
     fail "plugin update applies the reviewed revision even if another fetch changes FETCH_HEAD" "$output"
   [[ $output == *"Updated acme.same."* ]] || fail "plugin update reports completion" "$output"
   pass "plugin update applies exactly the reviewed revision after confirmation"
@@ -239,10 +255,10 @@ STUB
   if output=$(HOME="$update_home" PATH="$stub_dir:$ROOT/bin:$PATH" omarchy-plugin-update acme.same 2>&1); then
     fail "non-interactive plugin update proceeds without --yes" "$output"
   fi
-  [[ $(git -C "$update_dir" rev-parse HEAD) == "$before" ]] ||
+  [[ $(git -C "$update_dir" rev-parse HEAD) == $before ]] ||
     fail "non-interactive review mutates the checkout"
   HOME="$update_home" PATH="$stub_dir:$ROOT/bin:$PATH" omarchy-plugin-update acme.same --yes >/dev/null
-  [[ $(git -C "$update_dir" rev-parse HEAD) == "$after" ]] ||
+  [[ $(git -C "$update_dir" rev-parse HEAD) == $after ]] ||
     fail "explicit scripted update no longer works"
   pass "plugin update requires consent and preserves the explicit --yes workflow"
 else
