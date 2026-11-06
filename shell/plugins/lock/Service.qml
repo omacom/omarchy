@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import "FingerprintModel.js" as FingerprintModel
+import "Fido2Model.js" as Fido2Model
 
 Item {
   id: root
@@ -43,6 +44,18 @@ Item {
   // The backoff the armed retry was set to; a wake shortens the timer to the
   // remaining wait, so the input guard reads the tier from here instead.
   property int fingerprintRetryBackoffMs: 0
+  // Security-key unlock. The key is only asked for while the lock is up and
+  // awake: a blank pauses it (aborting a pending touch, so the key stops
+  // blinking) and any wake starts it again. The key alone unlocks, with no
+  // password typed; the trade-off is that holding the key is then the only
+  // factor, unlike the password path.
+  property bool fido2Configured: false
+  property bool fido2Authenticating: false
+  // pam_u2f has told us it is waiting for a touch.
+  property bool fido2Prompting: false
+  property bool fido2Paused: false
+  property int fido2Streak: 0
+  property double fido2AttemptStartedMs: 0
   // Outputs the lock last saw, so only a display arriving counts as a wake.
   property int knownScreenCount: 0
   property bool previewVisible: false
@@ -70,7 +83,7 @@ Item {
   function currentlyLocked() {
     return lockRequested || sessionLock.locked || sessionLock.secure
   }
-  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
+  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating || fido2Authenticating
   // A prompt clears the unavailable notice before the attempt finishes.
   readonly property bool fingerprintUnavailable: FingerprintModel.isUnavailable(fingerprintProbeStreak) || (fingerprintConfigured && (!fingerprintAttemptReachedDevice || fingerprintAttemptFastError) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak))
 
@@ -206,12 +219,19 @@ Item {
     fingerprintProbeStreak = 0
     fingerprintPaused = false
     fingerprintSleptWhilePaused = false
+    fido2Authenticating = false
+    fido2Prompting = false
+    fido2Paused = false
+    fido2Streak = 0
+    fido2RetryTimer.stop()
+    fido2AttemptTimer.stop()
     fingerprintRecheckTimer.stop()
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintResumeTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
+    if (fido2Pam.active) fido2Pam.abort()
   }
 
   function beginLock() {
@@ -259,6 +279,7 @@ Item {
     if (lockRequested) armBlankTimer()
     resumeFingerprint()
     nudgeFingerprint()
+    resumeFido2()
   }
 
   // An attempt already running is left to finish under its own timeouts, so
@@ -350,6 +371,7 @@ Item {
 
   function runBlank() {
     pauseFingerprint()
+    pauseFido2()
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -463,6 +485,60 @@ Item {
     }
   }
 
+  function startFido2() {
+    if (!lockRequested || !sessionLock.secure || !fido2Configured || fido2Paused) return
+    if (fido2Pam.active || fido2Authenticating) return
+
+    fido2Authenticating = true
+    fido2Prompting = false
+    fido2AttemptStartedMs = Date.now()
+    if (!fido2Pam.start()) {
+      settleFido2Attempt()
+      return
+    }
+    fido2AttemptTimer.restart()
+  }
+
+  // abort() gives no completion signal; settle the attempt here.
+  function abortFido2() {
+    if (fido2Pam.active) fido2Pam.abort()
+    settleFido2Attempt(true)
+  }
+
+  // Blanking drops a pending touch so the key stops blinking behind a dark screen.
+  function pauseFido2() {
+    if (fido2Paused) return
+    fido2Paused = true
+    fido2RetryTimer.stop()
+    if (fido2Authenticating) abortFido2()
+  }
+
+  function resumeFido2() {
+    if (!fido2Paused) return
+    fido2Paused = false
+    startFido2()
+  }
+
+  // onError and onCompleted can both fire; settle each attempt once. A
+  // deliberate abort leaves the streak alone and arms no retry.
+  function settleFido2Attempt(aborted) {
+    if (!fido2Authenticating) return
+    var prompted = fido2Prompting
+    fido2Authenticating = false
+    fido2Prompting = false
+    fido2AttemptTimer.stop()
+    if (aborted || !lockRequested || !fido2Configured) return
+
+    fido2Streak = Fido2Model.nextStreak(fido2Streak, prompted, Date.now() - fido2AttemptStartedMs)
+    fido2RetryTimer.interval = Fido2Model.retryDelayMs(fido2Streak)
+    if (!fido2Paused) fido2RetryTimer.restart()
+  }
+
+  function handleFido2Finished(result) {
+    if (result === PamResult.Success && lockRequested) finishUnlock()
+    else settleFido2Attempt()
+  }
+
   WlSessionLock {
     id: sessionLock
 
@@ -475,6 +551,7 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+        root.startFido2()
       }
     }
 
@@ -513,6 +590,8 @@ Item {
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
+        fido2Configured: root.fido2Configured
+        fido2Prompting: root.fido2Prompting
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -549,6 +628,8 @@ Item {
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
+      fido2Configured: root.fido2Configured
+      fido2Prompting: false
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -601,6 +682,32 @@ Item {
 
     onError: function(error) {
       root.settleFingerprintAttempt(true)
+    }
+  }
+
+  // The key's touch prompt arrives as a PAM info message, and the password
+  // field stays usable meanwhile; pam_u2f needs no typed input without a PIN.
+  PamContext {
+    id: fido2Pam
+    config: "omarchy-lock-fido2"
+    user: root.userName
+
+    onPamMessage: {
+      if (!messageIsError) root.fido2Prompting = true
+    }
+
+    // A PIN-verified key (pinverification=1) asks for a PIN, which the lock
+    // has no prompt for; drop the attempt instead of leaving it waiting.
+    onResponseRequiredChanged: {
+      if (responseRequired) root.abortFido2()
+    }
+
+    onCompleted: function(result) {
+      root.handleFido2Finished(result)
+    }
+
+    onError: function(error) {
+      root.settleFido2Attempt()
     }
   }
 
@@ -674,6 +781,25 @@ Item {
       } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
         stop()
       }
+    }
+  }
+
+  Timer {
+    id: fido2RetryTimer
+    objectName: "fido2RetryTimer"
+    repeat: false
+    onTriggered: root.startFido2()
+  }
+
+  Timer {
+    id: fido2AttemptTimer
+    interval: Fido2Model.ATTEMPT_TIMEOUT_MS
+    repeat: false
+    onTriggered: {
+      root.logEvent("fido2-attempt-timeout")
+      if (fido2Pam.active) fido2Pam.abort()
+      // Counts as a missed touch window, not an abort, so it paces the retry.
+      root.settleFido2Attempt()
     }
   }
 
@@ -854,6 +980,25 @@ Item {
     onFileChanged: reload()
   }
 
+  FileView {
+    path: "/etc/pam.d/omarchy-lock-fido2"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.fido2Configured = true
+    onLoadFailed: root.fido2Configured = false
+    onFileChanged: reload()
+  }
+
+  onFido2ConfiguredChanged: {
+    if (fido2Configured) {
+      startFido2()
+    } else {
+      fido2RetryTimer.stop()
+      abortFido2()
+      fido2Streak = 0
+    }
+  }
+
   // No lock before PAM is known good. An answer from before then may be stale --
   // the failsafe can be cleared from a TTY -- so re-ask rather than act on it.
   onPasswordPamConfiguredChanged: {
@@ -898,6 +1043,7 @@ Item {
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
         fingerprintUnavailable: root.fingerprintUnavailable,
+        fido2: root.fido2Configured,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
