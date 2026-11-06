@@ -3,7 +3,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
-import runpy
+import os
 import subprocess
 import sys
 import tempfile
@@ -11,10 +11,23 @@ import unittest
 from unittest.mock import patch
 
 ROOT = sys.argv.pop()
-APP = runpy.run_path(ROOT + "/bin/omarchy-capture-describe")
+COMMAND = ROOT + "/bin/omarchy-capture-describe"
+source = Path(COMMAND).read_text()
+python_source = source.split("<<'PY'\n", 1)[1].rsplit("\nPY\n", 1)[0]
+APP = {"__name__": "capture_describe"}
+exec(compile(python_source, COMMAND, "exec"), APP)
 
 
 class DescribeTest(unittest.TestCase):
+  def test_bash_entrypoint_preserves_help_and_argument_errors(self):
+    with tempfile.TemporaryDirectory() as home:
+      env = dict(os.environ, HOME=home, XDG_CONFIG_HOME=home + "/config")
+      help_result = subprocess.run([COMMAND, "--help"], env=env, capture_output=True, text=True)
+      self.assertEqual(help_result.returncode, 0, help_result.stderr)
+      self.assertIn("omarchy-capture-describe", help_result.stdout)
+      invalid = subprocess.run([COMMAND, "--unknown"], env=env, capture_output=True, text=True)
+      self.assertEqual(invalid.returncode, 2)
+
   def setUp(self):
     self.tmp = tempfile.TemporaryDirectory()
     self.addCleanup(self.tmp.cleanup)

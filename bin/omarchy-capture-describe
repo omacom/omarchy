@@ -1,8 +1,9 @@
-#!/usr/bin/python3
+#!/bin/bash
 # omarchy:summary=Describe an image or screen region with an installed Ollama vision model
 # omarchy:args=[image | --region] --model <model> [--question <question>]
 # omarchy:examples=omarchy capture describe photo.png --model gemma3:4b | omarchy capture describe --region --model gemma3:4b
 
+exec python3 /dev/fd/3 "$@" 3<<'PY'
 import argparse
 import base64
 import json
@@ -22,7 +23,7 @@ def request(path, payload):
 
 
 def main():
-  parser = argparse.ArgumentParser(description="Describe an image using a downloaded local vision model. Requires Ollama on localhost. Nothing is uploaded to a cloud model or copied to the clipboard.")
+  parser = argparse.ArgumentParser(prog="omarchy-capture-describe", description="Describe an image using a downloaded local vision model. Requires Ollama on localhost. Nothing is uploaded to a cloud model or copied to the clipboard.")
   source = parser.add_mutually_exclusive_group(required=True)
   source.add_argument("image", nargs="?", type=Path)
   source.add_argument("--region", action="store_true", help="Select a screen region")
@@ -67,3 +68,4 @@ if __name__ == "__main__":
   except (OSError, ValueError, subprocess.SubprocessError, urllib.error.URLError) as error:
     print(f"Image description: {error}", file=sys.stderr)
     sys.exit(1)
+PY
