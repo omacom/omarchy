@@ -14,8 +14,46 @@ o.bind("SUPER + Home", "Restore window width", "omarchy-hyprland-window-width re
 o.bind("SUPER + L", "Cycle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 o.bind("SUPER + ALT + L", "Cycle workspace layout back", "omarchy-hyprland-workspace-layout-toggle back")
 
-o.bind("SUPER + LEFT", "Focus on left window", hl.dsp.focus({ direction = "l" }))
-o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" }))
+local function focus_direction(direction)
+  local current = hl.get_active_window()
+
+  if not current or current.floating then
+    return hl.dsp.focus({ direction = direction })
+  end
+
+  local workspace = hl.get_active_workspace()
+
+  if not workspace
+      or workspace.tiled_layout ~= "scrolling"
+      or current.fullscreen ~= 1 then
+    return hl.dsp.focus({ direction = direction })
+  end
+
+  local current_center = current.at.x + (current.size.x / 2)
+
+  for _, window in ipairs(hl.get_workspace_windows(workspace)) do
+    if window.address ~= current.address and not window.floating then
+      local center = window.at.x + (window.size.x / 2)
+      local in_direction = direction == "l"
+        and center < current_center
+        or direction == "r"
+        and center > current_center
+
+      if in_direction then
+        return hl.dsp.layout("focus " .. direction)
+      end
+    end
+  end
+
+  return hl.dsp.focus({ direction = direction })
+end
+
+o.bind("SUPER + LEFT", "Focus on left window", function()
+  hl.dispatch(focus_direction("l"))
+end)
+o.bind("SUPER + RIGHT", "Focus on right window", function()
+  hl.dispatch(focus_direction("r"))
+end)
 o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
 
