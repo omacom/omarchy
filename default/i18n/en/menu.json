@@ -279,6 +279,9 @@
   "appearance.workspace-layout.default.dwindle": {
     "label": "Tiling"
   },
+  "appearance.workspace-layout.default.master": {
+    "label": "Master"
+  },
   "appearance.workspace-layout.default.scrolling": {
     "label": "Scrolling"
   },
