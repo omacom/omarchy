@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation using Hex
+# omarchy:args=<start|stop|toggle>
+
+# Hex's control commands exit 3 when no Hex is running and never launch it.
+not_running=3
+no_speech=4
+
+# Prints what Hex is recording ("none" when idle); fails when Hex doesn't answer.
+hex_capture() {
+  local status
+  status=$(hex status --json 2>/dev/null) || return 1
+  jq -er '.capture.recording // "none"' <<< "$status"
+}
+
+hex_recording() {
+  [[ $(hex_capture) == "dictation" ]]
+}
+
+hex_idle() {
+  local capture
+  capture=$(hex_capture) && [[ $capture != "dictation" ]]
+}
+
+start() {
+  hex dictation start
+  local result=$?
+  if (( result == not_running )); then
+    hex start >/dev/null && hex dictation start
+  else
+    return "$result"
+  fi
+}
+
+# Hex pastes with a bare Ctrl+V, which terminals ignore, so take the transcript
+# and paste it the way SUPER + V does: Ctrl+Shift+V in terminals, Ctrl+V
+# elsewhere. Always send the stop: Hex
+# runs commands in order, but its status reports a recording only ~150ms after
+# it starts, so a quick push-to-talk tap would otherwise leave it recording.
+stop() {
+  local text result error
+  if omarchy-cmd-missing hex; then
+    return 0
+  fi
+  # Hold Hex's message back until it turns out to be a real failure. Without a
+  # temporary file, still send the stop and let the message through.
+  error=$(mktemp 2>/dev/null) || error=""
+  text=$(hex dictation stop --print 2>"${error:-/dev/stderr}")
+  result=$?
+  if (( result == 0 )); then
+    omarchy-clipboard-paste-text --universal "$text"
+  elif (( result == no_speech || result == not_running )) || hex_idle; then
+    # Nothing heard, Hex not running, or Hex confirms nothing is recording.
+    result=0
+  elif [[ -n $error ]]; then
+    cat "$error" >&2
+  fi
+  [[ -z $error ]] || rm -f "$error"
+  return "$result"
+}
+
+case "${1:-}" in
+  start) start ;;
+  stop) stop ;;
+  toggle)
+    if hex_recording; then
+      stop
+    else
+      start
+    fi
+    ;;
+  *) echo "Usage: omarchy dictation hex <start|stop|toggle>" >&2; exit 1 ;;
+esac
