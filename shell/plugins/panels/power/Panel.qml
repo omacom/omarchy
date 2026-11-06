@@ -28,7 +28,7 @@ Panel {
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes. The same applies
   // whenever multiple batteries widen the button past a single icon.
-  readonly property real openPanelIndicatorWidth: (showPercentage || batteries.length > 1) && !button.vertical ? button.glyphPaintedWidth : 0
+  readonly property real openPanelIndicatorWidth: (showPercentage || batteries.length > 1) && !button.vertical ? button.labelWidth : 0
   readonly property bool batteryPresent: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
@@ -49,12 +49,6 @@ Panel {
     if (root.showPercentage && !button.vertical) return Math.round(root.batteryFraction * 100) + "% " + root.batteryIcon()
     return root.batteryIcon()
   }
-
-  // Bar button slot width, in icon slots. Each percentage block needs the same
-  // doubled slot the single-battery percentage view uses, scaled per battery.
-  readonly property int buttonSlotScale: batteries.length > 1 && !button.vertical
-    ? batteries.length * 2
-    : (showPercentage && !button.vertical ? 2 : 1)
 
   function upowerStates() {
     return {
@@ -317,12 +311,13 @@ Panel {
     }
   }
 
-  BarIconButton {
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
     text: root.buttonText
-    slotSize: Style.bar.iconSlot * root.buttonSlotScale
+    // Measure the whole battery label instead of fitting it into one icon.
+    fontSize: Style.bar.iconFont
     tooltipText: ""
     onPressed: function(b) {
       if (!root.batteryPresent) return
