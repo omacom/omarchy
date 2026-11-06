@@ -29,19 +29,20 @@ end
 function omarchy_startup_cursor_restore(loaded)
   if not omarchy_startup_cursor_pending then return end
   local cursor = omarchy_startup_cursor
-  if loaded then
+  local hyprcursor = cursor.config.enable_hyprcursor and cursor.hyprcursor
+  if loaded and hyprcursor and not (loaded == "hyprcursor" and hl.get_config("cursor.enable_hyprcursor")) then
+    -- Only a setcursor made with Hyprcursor enabled loads its style, and Hyprland 0.56 draws an unloaded
+    -- one as a null surface, so the pointer stays hidden and the reveal stays pending until it returns.
+    hl.config({ cursor = { invisible = true, enable_hyprcursor = true, sync_gsettings_theme = cursor.config.sync_gsettings_theme } })
+    local complete = "if omarchy_startup_cursor and omarchy_startup_cursor.hyprcursor == " .. string.format("%q", hyprcursor)
+      .. " and omarchy_startup_cursor.size == " .. cursor.size .. ' then omarchy_startup_cursor_restore("hyprcursor") end'
+    hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(hyprcursor) .. " " .. cursor.size
+      .. " && hyprctl eval " .. o.shell_quote(complete))
+  elseif loaded then
     omarchy_startup_cursor_pending = false
     hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
     hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
-    if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      -- Only setcursor loads a Hyprcursor style, and an unloaded one is a null surface to Hyprland 0.56,
-      -- so the pointer stays hidden until hyprctl has applied the theme.
-      hl.config({ cursor = { invisible = true, enable_hyprcursor = true, sync_gsettings_theme = cursor.config.sync_gsettings_theme } })
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size
-        .. " && hyprctl eval " .. o.shell_quote("if omarchy_startup_cursor then hl.config({ cursor = omarchy_startup_cursor.config }) end"))
-    else
-      hl.config({ cursor = cursor.config })
-    end
+    hl.config({ cursor = cursor.config })
     hl.exec_cmd("xsetroot -cursor_name left_ptr >/dev/null 2>&1 || true")
   elseif not cursor.restoring then
     -- Reload the normal Xcursor fallback before enabling Hyprcursor or GSettings.

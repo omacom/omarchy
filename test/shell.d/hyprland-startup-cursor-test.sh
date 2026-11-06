@@ -77,9 +77,10 @@ assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback b
 assert(config.invisible, "wait for the normal theme before restoring visibility")
 omarchy_startup_cursor_restore(true)
 assert(config.invisible and config.enable_hyprcursor, "an unloaded Hyprcursor style must stay hidden until setcursor loads it")
-assert(command:match("xsetroot %-cursor_name left_ptr"), "restore the X11/XWayland root cursor")
+assert(omarchy_startup_cursor_pending, "the reveal stays pending, so a reload or the timer can still finish it")
 setcursor_returns("my-hyprcursor")
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
+assert(command:match("xsetroot %-cursor_name left_ptr"), "restore the X11/XWayland root cursor")
 local hyprcursor_restored = false
 for _, c in ipairs(commands) do
   if c:match("setcursor 'my%-hyprcursor'") then hyprcursor_restored = true end
@@ -168,11 +169,19 @@ omarchy_startup_cursor_pending, omarchy_startup_cursor, monitors = nil, nil, { {
 config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.hyprcursor == "my-xcursor", "an interrupted reveal derives the same Hyprcursor theme")
-monitors = {}
 omarchy_startup_cursor_restore(true)
 assert(config.invisible, "the reveal must wait for the derived theme to load")
+-- A reload while that setcursor is in flight re-hides with Hyprcursor off, so its late completion
+-- must load the style again rather than reveal one that setcursor may never have loaded.
+omarchy_startup_cursor_pending, omarchy_startup_cursor, commands = nil, nil, {}
+config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
+events["config.reloaded"]()
+assert(omarchy_startup_cursor_pending and config.invisible and not config.enable_hyprcursor, "a reload mid-reveal keeps the pointer hidden")
+omarchy_startup_cursor_restore("hyprcursor")
+assert(config.invisible and config.enable_hyprcursor and commands[#commands]:match("^hyprctl setcursor 'my%-xcursor' 24 && "), "a completion from before the reload applies the theme again")
 setcursor_returns("my-xcursor")
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme, "the reveal must apply the Hyprcursor theme it derived, then the user's settings")
+monitors = {}
 -- With no theme at all the default alias serves both, and GSettings stays unread.
 omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 env.HYPRCURSOR_THEME, env.XCURSOR_THEME = nil, ""
