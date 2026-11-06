@@ -1,0 +1,16 @@
+#!/bin/bash -p
+
+# omarchy:summary=Detect a supported Apple Silicon MacBook Pro with a Touch Bar.
+
+# This predicate can gate privileged setup. Suppress Bash startup injection and
+# use the platform and model helpers shipped beside it, independently of PATH.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir != "${BASH_SOURCE[0]}" ]] || dir=.
+
+"$dir/omarchy-hw-aarch64-apple" &&
+  /bin/bash -p -- "$dir/omarchy-hw-match-device-tree" apple,j293 apple,j493

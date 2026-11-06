@@ -72,6 +72,14 @@ The manual lives in [`manual/`](manual/), which is its authoritative source.
 - [Dual Boot Install](manual/50-dual-boot-install.md)
 - [Unattended Installs](manual/51-unattended-installs.md)
 
+## Touch Bar integration proposal
+
+This contribution adds `omarchy hw touchbar`, a hardware predicate for the 13-inch M1 and M2 MacBook Pros with a Touch Bar (`apple,j293` and `apple,j493`), with regression coverage that excludes other Macs and platforms. It provides a shared guard for Touch Bar installation and activation; it does not add a default package, enabled plugin or background process.
+
+The companion [Omarchy Touch Bar package and plugin](https://github.com/guirossibrum/omarchy-touchbar) use hardware guards before installation, layout changes, keybindings and font synchronization. Together they provide the animated Omarchy logo, tap-to-open menu, hold-to-dictate using the configured backend, brightness/media controls and labels that follow the system font. Their README includes a video recorded on an M1 MacBook Pro. Unsupported machines skip setup before files are changed or administrator access is requested.
+
+See [the integration proposal](docs/touchbar.md) for the package boundary, validation limits and publication requirements before this can become a default dependency. Inclusion in a specific Omarchy release is a maintainer decision.
+
 ## License
 
 Omarchy is released under the [MIT License](https://opensource.org/licenses/MIT).
