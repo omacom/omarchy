@@ -32,7 +32,12 @@ def main():
 
   if args.region:
     selection = subprocess.run(["slurp"], capture_output=True, text=True)
-    if selection.returncode or not selection.stdout.strip():
+    if selection.returncode:
+      diagnostic = (selection.stderr or "").strip()
+      if selection.returncode == 1 and diagnostic == "selection cancelled":
+        return 0
+      raise ValueError(f"Could not select a screen region: {diagnostic or f'slurp exited {selection.returncode}'}")
+    if not selection.stdout.strip():
       return 0
     data = subprocess.run(["grim", "-g", selection.stdout.strip(), "-"], check=True, capture_output=True).stdout
   else:

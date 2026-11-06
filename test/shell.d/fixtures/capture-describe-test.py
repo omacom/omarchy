@@ -60,10 +60,25 @@ class DescribeTest(unittest.TestCase):
     self.assertEqual(self.requests, [])
 
   def test_region_cancel_does_not_capture_or_contact_model(self):
-    with patch("subprocess.run", return_value=subprocess.CompletedProcess(["slurp"], 1, stdout="")) as run:
+    with patch("subprocess.run", return_value=subprocess.CompletedProcess(["slurp"], 1, stdout="", stderr="selection cancelled\n")) as run:
       code, output = self.run_app(source=["--region"])
     self.assertEqual((code, output), (0, ""))
     self.assertEqual(run.call_count, 1)
+    self.assertEqual(self.requests, [])
+
+  def test_region_display_failure_is_reported_before_capture_or_model_access(self):
+    result = subprocess.CompletedProcess(["slurp"], 1, stdout="", stderr="failed to create display\n")
+    with patch("subprocess.run", return_value=result) as run:
+      with self.assertRaisesRegex(ValueError, "failed to create display"):
+        self.run_app(source=["--region"])
+    self.assertEqual(run.call_count, 1)
+    self.assertEqual(self.requests, [])
+
+  def test_region_signal_failure_without_diagnostics_is_not_cancellation(self):
+    result = subprocess.CompletedProcess(["slurp"], -15, stdout="", stderr="")
+    with patch("subprocess.run", return_value=result):
+      with self.assertRaisesRegex(ValueError, "-15"):
+        self.run_app(source=["--region"])
     self.assertEqual(self.requests, [])
 
   def test_empty_response_is_failure(self):
