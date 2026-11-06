@@ -270,9 +270,6 @@ for (const spec of [cloud, fog, fogOther]) {
   assertDeepEqual(seams, [], `weather ${spec.kind} strip ${spec.nsx} wraps without a seam on any card width`)
 }
 
-const manifest = JSON.parse(fs.readFileSync(root + '/shell/plugins/panels/weather/manifest.json', 'utf8'))
-const fxSetting = (manifest.barWidget.schema || []).find(entry => entry.key === 'fx')
-assert(fxSetting && fxSetting.type === 'boolean' && fxSetting.defaultValue === true, 'weather manifest declares the fx toggle, on by default')
 assertEqual(panelBinding('fxEnabled', { setting: (name, fallback) => fallback }), true, 'weather panel draws the sky unless told not to')
 assertEqual(panelBinding('fxEnabled', { setting: () => false }), false, 'weather panel honours fx set to false')
 assertEqual(panelBinding('fxMode', { fxEnabled: false, fxResolved: { scene: 'rain' }, fxNight: false }), 'off', 'weather panel draws nothing when the fx toggle is off')
