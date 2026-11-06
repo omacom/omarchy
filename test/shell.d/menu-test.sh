@@ -151,6 +151,27 @@ assertDeepEqual(
   'menu builds display rows'
 )
 
+// ---- revealing the cursor row (#17731)
+
+// Eight rows of 50 in a 250-high list, so the deepest scroll is 150.
+const revealView = over => Object.assign({
+  contentY: 0, height: 250, originY: 0, contentHeight: 400,
+  itemY: 300, itemHeight: 50, reach: 30, count: 8, selectedIndex: 6,
+  selectableAfter: true
+}, over)
+
+assertEqual(menu.revealOffset(revealView({ selectableAfter: false })), 150, 'menu scrolls to the end when every row below the cursor is disabled')
+assertEqual(menu.revealOffset(revealView({ selectableAfter: true })), 130, 'menu keeps the peek below a cursor that has a selectable row to follow')
+assertEqual(menu.revealOffset(revealView({ selectableAfter: true, contentY: 100 })), 130, 'menu only scrolls as far as the peek needs')
+assertEqual(menu.revealOffset(revealView({ selectableAfter: false, contentY: 120, selectedIndex: 7, itemY: 350 })), 120, 'menu leaves the offset alone when the cursor is on the last row')
+assertEqual(menu.revealOffset(revealView({ selectedIndex: 0, itemY: 0, contentY: 50 })), 50, 'menu never scrolls up past a cursor already in view')
+assertEqual(
+  menu.revealOffset(revealView({ selectableAfter: false, contentHeight: 1000, count: 40, selectedIndex: 5, itemY: 250 })),
+  220,
+  'menu keeps the cursor on screen when a long disabled tail cannot all fit'
+)
+assertEqual(menu.revealOffset(revealView({ selectableAfter: false, contentHeight: 200 })), 0, 'menu does not scroll a list shorter than its view')
+
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
 
