@@ -10,8 +10,12 @@ fi
 (( EUID != 0 )) || { echo 'Run omarchy install touchbar as your desktop user.' >&2; exit 1; }
 if [[ ${1:-} == "--uninstall" ]]; then
   (( $# == 1 )) || exit 2
-  omarchy-setup-touchbar-system --uninstall
-  omarchy-setup-touchbar-user --uninstall
+  status=0
+  omarchy-setup-touchbar-system --uninstall || status=$?
+  # Package rollback/manual removal may leave user state even when its root
+  # cleanup helper is missing or fails. Attempt both, retaining any error.
+  omarchy-setup-touchbar-user --uninstall || { user_status=$?; (( status )) || status=$user_status; }
+  exit "$status"
 else
   if (( $# )) && [[ $# != 2 || $1 != "--package" ]]; then
     echo 'Usage: omarchy install touchbar [--package /absolute/archive | --uninstall]' >&2

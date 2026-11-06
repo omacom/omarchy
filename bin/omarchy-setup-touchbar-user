@@ -22,15 +22,12 @@ if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} != "runtime" ]]; then
 fi
 if (( remove )); then
   commit "$NORMALIZE | .plugins |= map(select((if type == \"string\" then . else .id end) != \$id))" --arg id "$id"
-  for event in font-set post-boot; do
-    hook="$HOME/.config/omarchy/hooks/$event.d/90-touchbar-font"
-    # Only remove this integration's recognizable hook; leave user replacements.
-    if [[ -f $hook && ! -L $hook ]] && grep -Fq 'omarchy/shell/plugins/touchbar/sync-font.sh' "$hook"; then
-      rm -- "$hook"
-    fi
-  done
+  /usr/bin/python3 "$OMARCHY_PATH/scripts/touchbar-hooks.py" --uninstall
   /usr/bin/python3 "$OMARCHY_PATH/scripts/touchbar-remove-bindings.py" "$HOME/.config/hypr/bindings.lua"
-  echo 'Restored stock tiny-dfr; kept your layouts and plugin backups.'
+  if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} == "runtime" ]]; then
+    omarchy-shell shell rescanPlugins >/dev/null
+  fi
+  echo 'Removed Touch Bar user integration; kept your layouts and backups.'
   exit 0
 fi
 [[ -f $plugin/.omarchy-touchbar-package ]] || { echo 'Combined Touch Bar package is not installed.' >&2; exit 1; }
@@ -45,12 +42,13 @@ if [[ -e $legacy || -L $legacy ]]; then
 fi
 # Package files remain the runtime source; pacman upgrades daemon and plugin in
 # one transaction. Never clone, build, or copy a stale plugin into the user tree.
-omarchy-hook-install font-set "$plugin/hooks/90-touchbar-font"
-omarchy-hook-install post-boot "$plugin/hooks/90-touchbar-font"
+/usr/bin/python3 "$OMARCHY_PATH/scripts/touchbar-hooks.py" "$plugin/hooks/90-touchbar-font"
 # No systemd session or polkit exists during ISO user provisioning. Render only
 # the user layout/bindings here; root setup already installed animated defaults.
 OMARCHY_TOUCHBAR_SKIP_INSTALL=1 /usr/bin/bash "$plugin/enable-animation.sh"
 commit "$NORMALIZE | .disabledPlugins = ((.disabledPlugins // []) | map(select(. != \$id))) | if any(.plugins[]; (if type == \"string\" then . else .id end) == \$id) then . else .plugins += [{id: \$id}] end" --arg id "$id"
-# refresh_shell_config already reloads/rescans a live shell best-effort; on an
-# offline system the next shell reads the same persistent enabled configuration.
+# Reloading settings does not discover the newly installed/migrated plugin.
+if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} == "runtime" ]]; then
+  omarchy-shell shell rescanPlugins >/dev/null
+fi
 /usr/bin/bash "$plugin/sync-font.sh"

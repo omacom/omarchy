@@ -1,21 +1,121 @@
 #!/bin/bash -p
-# Called once during an authorized layout apply. Future font events are unprivileged.
-# Protected startup prevents inherited BASH_ENV/functions at this root boundary.
+# Root-owned font channel management, also sourced by protected activation.
 set -euo pipefail
 [[ $- == *p* ]] || exit 126
-if (( EUID != 0 || $# != 2 )); then
-  echo 'Usage (root): setup-font-channel UID GID' >&2
-  exit 1
+(( EUID == 0 )) || { echo 'Font channel setup requires root.' >&2; exit 1; }
+
+touchbar_font_channels() {
+  /usr/bin/python3 -I - "$@" <<'PY'
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+
+rules = Path('/etc/tmpfiles.d')
+runtime = Path('/run')
+prefix = 'omarchy-touchbar-font-'
+
+def owned_rule(path):
+    match = re.fullmatch(r'omarchy-touchbar-font-([1-9][0-9]*)\.conf', path.name)
+    if not match:
+        return None
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, 'rb') as source:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o644:
+                return None
+            data = source.read(257)
+    except OSError:
+        return None
+    if len(data) > 256:
+        return None
+    uid = match[1]
+    content = re.fullmatch(rb'd /run/omarchy-touchbar-font-([1-9][0-9]*) 0755 \1 ([0-9]+) -\n', data)
+    if content and content[1].decode() == uid:
+        return int(uid), int(content[2])
+    return None
+
+
+def retire(path, owner):
+    uid, gid = owner
+    # This exact root-owned rule belongs to us even if a user has since put
+    # unrelated data at its runtime path. Stop recreation without deleting it.
+    path.unlink()
+    directory = runtime / f'{prefix}{uid}'
+    try:
+        descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        descriptor = None
+    except OSError:
+        print(f'Preserved unsafe font channel: {directory}', file=sys.stderr)
+        return
+    if descriptor is not None:
+        try:
+            info = os.fstat(descriptor)
+            if info.st_uid != uid or info.st_gid != gid or stat.S_IMODE(info.st_mode) != 0o755:
+                print(f'Preserved changed font channel: {directory}', file=sys.stderr)
+                return
+            children = os.listdir(descriptor)
+            if children:
+                if children != ['current-font']:
+                    print(f'Preserved extra font channel contents: {directory}', file=sys.stderr)
+                    return
+                font = os.stat('current-font', dir_fd=descriptor, follow_symlinks=False)
+                if not stat.S_ISREG(font.st_mode) or font.st_uid != uid:
+                    print(f'Preserved unsafe font state: {directory}', file=sys.stderr)
+                    return
+                os.unlink('current-font', dir_fd=descriptor)
+            os.rmdir(directory)
+        finally:
+            os.close(descriptor)
+
+
+try:
+    if rules.is_symlink() or not rules.is_dir() or runtime.is_symlink():
+        raise ValueError('Refusing unsafe font channel parent directories')
+    arguments = sys.argv[1:]
+    cleanup = arguments == ['--cleanup']
+    if not cleanup:
+        if len(arguments) != 2 or not all(re.fullmatch(r'[0-9]+', item) for item in arguments):
+            raise ValueError('Expected a non-root desktop UID and numeric GID')
+        uid, gid = map(int, arguments)
+        if uid == 0:
+            raise ValueError('Expected a non-root desktop UID')
+        subprocess.run(['/usr/bin/getent', 'passwd', str(uid)], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(['/usr/bin/getent', 'group', str(gid)], check=True, stdout=subprocess.DEVNULL)
+        rule = rules / f'{prefix}{uid}.conf'
+        if (rule.exists() or rule.is_symlink()) and owned_rule(rule) != (uid, gid):
+            raise ValueError(f'Preserved changed font rule: {rule}')
+        channel = runtime / f'{prefix}{uid}'
+        if channel.exists() or channel.is_symlink():
+            info = channel.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_gid != gid:
+                raise ValueError(f'Refusing unsafe font channel: {channel}')
+        data = f'd /run/{prefix}{uid} 0755 {uid} {gid} -\n'.encode()
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=rules, delete=False) as output:
+                temporary = Path(output.name)
+                os.fchmod(output.fileno(), 0o644)
+                output.write(data)
+            os.replace(temporary, rule)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        subprocess.run(['/usr/bin/systemd-tmpfiles', '--create', str(rule)], check=True)
+    for path in rules.glob(f'{prefix}*.conf'):
+        owner = owned_rule(path)
+        if owner is not None and (cleanup or owner[0] != uid):
+            retire(path, owner)
+except (OSError, ValueError, subprocess.SubprocessError) as error:
+    sys.exit(str(error))
+PY
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  touchbar_font_channels "$@"
 fi
-font_uid=$1
-font_gid=$2
-if [[ ! $font_uid =~ ^[0-9]+$ || ! $font_gid =~ ^[0-9]+$ ]] || (( font_uid == 0 )); then
-  echo 'Expected a non-root desktop UID and numeric GID' >&2
-  exit 1
-fi
-/usr/bin/getent passwd "$font_uid" >/dev/null
-/usr/bin/getent group "$font_gid" >/dev/null
-rule="/etc/tmpfiles.d/omarchy-touchbar-font-$font_uid.conf"
-printf 'd /run/omarchy-touchbar-font-%s 0755 %s %s -\n' "$font_uid" "$font_uid" "$font_gid" >"$rule"
-/usr/bin/chmod 644 "$rule"
-/usr/bin/systemd-tmpfiles --create "$rule"

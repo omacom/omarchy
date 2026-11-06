@@ -9,6 +9,7 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -35,27 +36,29 @@ class Setup(unittest.TestCase):
                      'omarchy-shell-config', 'omarchy-hook-install', 'omarchy-plugin-validate'):
             self.copy(ROOT / 'bin' / name, self.main / 'bin' / name)
         self.copy(ROOT / 'scripts/touchbar-remove-bindings.py', self.main / 'scripts/touchbar-remove-bindings.py')
+        self.copy(ROOT / 'scripts/touchbar-hooks.py', self.main / 'scripts/touchbar-hooks.py')
         self.copy(ROOT / 'default/touchbar/activate', self.lib / 'activate')
         self.write(self.lib / 'hardware.py', 'import os,sys\nsys.exit(0 if os.environ["SUPPORTED"] == "1" else 1)\n')
         self.stub('omarchy-hw-touchbar', '[[ $SUPPORTED == 1 ]]')
         shutil.copy2(self.tools / 'omarchy-hw-touchbar', self.main / 'bin/omarchy-hw-touchbar')
-        self.stub('omarchy-shell', 'echo "IPC $*" >> "$LOG"; exit 1')
+        self.stub('omarchy-shell', 'echo "IPC $*" >> "$LOG"; [[ ${IPC_FAIL:-0} == 0 ]]')
         self.stub('sudo', '[[ ${1:-} != -- ]] || shift; TEST_EUID=0 "$@"')
         self.stub('pkexec', 'echo "ELEVATE $*" >> "$LOG"; TEST_EUID=0 "$@"')
         self.stub('id', 'case "$1" in -u) echo 2345 ;; -g) echo 2346 ;; -un) echo testowner ;; esac')
         self.stub('pacman', '''echo "PACMAN $*" >> "$LOG"
 case "$1" in
-  -Q) [[ $INSTALLED == 1 ]] && echo 'omarchy-touchbar 0.3.8.omarchy1-2' || exit 1 ;;
-  -Qp) echo 'omarchy-touchbar 0.3.8.omarchy1-2' ;;
-  -Si) [[ $PUBLISHED == 1 ]] ;;
-  -S|-U) [[ $PACKAGE_FAIL == 0 ]] || exit 1; touch "$PAYLOAD_MARKER" ;;
+  -Q) if [[ -f $PAYLOAD_MARKER.version ]]; then cat "$PAYLOAD_MARKER.version"; else [[ $INSTALLED == 1 ]] && echo "omarchy-touchbar 0.3.8.omarchy1-${INSTALLED_RELEASE:-3}" || exit 1; fi ;;
+  -Qq) [[ ${DB_FAIL:-0} == 0 ]] ;;
+  -Qp) echo 'omarchy-touchbar 0.3.8.omarchy1-3' ;;
+  -Si) [[ $PUBLISHED == 1 ]] || exit 1; printf 'Name : omarchy-touchbar\nVersion : 0.3.8.omarchy1-%s\n' "${REPO_RELEASE:-3}" ;;
+  -S|-U) [[ $PACKAGE_FAIL == 0 ]] || exit 1; touch "$PAYLOAD_MARKER"; printf '%s\n' "${POST_INSTALL_METADATA:-omarchy-touchbar 0.3.8.omarchy1-3}" > "$PAYLOAD_MARKER.version"; [[ -z ${REMOVE_FONT_HELPER:-} ]] || rm -- "$REMOVE_FONT_HELPER" ;;
 esac''')
         self.stub('omarchy-touchbar', 'echo "NATIVE $*" >> "$LOG"; if [[ $1 == --capabilities ]]; then echo "trace-animation ttfx-wipe"; else [[ $CONFIG_FAIL == 0 ]]; fi')
         self.stub('systemctl', 'echo "SYSTEMCTL $*" >> "$LOG"; [[ $SERVICE_FAIL == 0 ]] || exit 1; [[ $1 != show ]] || echo invocation')
         self.stub('journalctl', 'echo startup')
         for compiler in ('makepkg', 'cargo', 'rustc', 'git'):
             self.stub(compiler, 'echo "FORBIDDEN compiler/source tool $0" >> "$LOG"; exit 127')
-        self.write(self.lib / 'setup-font-channel', '#!/bin/bash\necho "FONT $*" >> "$LOG"\n')
+        self.write(self.lib / 'setup-font-channel', '#!/bin/bash\ntouchbar_font_channels() { echo "FONT $*" >> "$LOG"; }\nif [[ ${BASH_SOURCE[0]} == "$0" ]]; then touchbar_font_channels "$@"; fi\n')
         self.write(self.plugin / 'manifest.json', '{"schemaVersion":1,"id":"io.github.austindixson.touchbar","name":"Touch Bar","version":"1.4.0","author":"test","license":"MIT","description":"test","kinds":["service"],"entryPoints":{"service":"Service.qml"}}')
         self.write(self.plugin / 'Service.qml', 'import QtQuick\nItem {}\n')
         self.write(self.plugin / '.omarchy-touchbar-package', 'native=pinned\nplugin=pinned\n')
@@ -86,11 +89,13 @@ esac''')
             '/usr/share/omarchy/shell/plugins/touchbar': str(self.plugin),
             '/usr/lib/omarchy-touchbar': str(self.lib),
             '/usr/share/omarchy-touchbar': str(self.work / 'share'),
+            '/usr/share/omarchy/default/touchbar': str(self.main / 'default/touchbar'),
             '/etc/tiny-dfr': str(self.work / 'etc/tiny-dfr'),
             '/etc/systemd/system': str(self.work / 'etc/systemd/system'),
             '/run/systemd/system': str(self.work / 'systemd-live'),
+            '/etc/tmpfiles.d': str(self.work / 'rules'),
         }
-        for name in ('sudo', 'pkexec', 'pacman', 'id', 'omarchy-touchbar', 'systemctl', 'journalctl'):
+        for name in ('sudo', 'pkexec', 'pacman', 'id', 'omarchy-touchbar', 'systemctl', 'journalctl', 'getent', 'systemd-tmpfiles'):
             replacements['/usr/bin/' + name] = str(self.tools / name)
         for original, replacement in replacements.items():
             text = text.replace(original, replacement)
@@ -104,6 +109,31 @@ esac''')
     def events(self):
         path = self.work / 'events'
         return path.read_text() if path.exists() else ''
+
+    def font_helper(self, destination):
+        self.copy(ROOT / 'default/touchbar/setup-font-channel', destination)
+        destination.write_text(destination.read_text().replace("runtime = Path('/run')", f"runtime = Path({str(self.work / 'run')!r})"))
+        (self.work / 'rules').mkdir(exist_ok=True)
+        (self.work / 'run').mkdir(exist_ok=True)
+        self.stub('getent', 'exit 0')
+        self.stub('systemd-tmpfiles', 'echo TMPFILES >> "$LOG"')
+        return destination
+
+    def font_rule(self, uid=None, gid=None, directory=True):
+        uid = os.getuid() if uid is None else uid
+        gid = os.getgid() if gid is None else gid
+        rule = self.work / 'rules' / f'omarchy-touchbar-font-{uid}.conf'
+        self.write(rule, f'd /run/omarchy-touchbar-font-{uid} 0755 {uid} {gid} -\n')
+        rule.chmod(0o644)
+        channel = self.work / 'run' / f'omarchy-touchbar-font-{uid}'
+        if directory:
+            channel.mkdir(mode=0o755)
+            self.write(channel / 'current-font', 'monospace')
+        return rule, channel
+
+    def run_font(self, helper, *arguments):
+        return subprocess.run([str(helper), *map(str, arguments)], env=dict(self.env, TEST_EUID='0'),
+                              capture_output=True, text=True, timeout=10)
 
     def test_unsupported_all_phases_no_effects(self):
         def snapshot():
@@ -150,6 +180,234 @@ esac''')
         self.assertEqual(self.events().count('ELEVATE'), 1, 'offline user setup requested privileges')
         for forbidden in ('makepkg', 'cargo', 'rustc', 'git clone', 'base-devel'):
             self.assertNotIn(forbidden, self.events())
+
+    def test_runtime_rescans_after_successful_reload_and_reports_failure(self):
+        result = self.run_command('omarchy-setup-touchbar-user', OMARCHY_SETUP_CONTEXT='runtime')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('IPC shell reloadConfig', self.events())
+        self.assertIn('IPC shell rescanPlugins', self.events())
+        result = self.run_command('omarchy-setup-touchbar-user', '--uninstall', OMARCHY_SETUP_CONTEXT='runtime')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.events().count('IPC shell rescanPlugins'), 2)
+        result = self.run_command('omarchy-setup-touchbar-user', OMARCHY_SETUP_CONTEXT='runtime', IPC_FAIL='1')
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_absent_package_still_cleans_user_state_without_elevation(self):
+        self.assertEqual(self.run_command('omarchy-setup-touchbar-user').returncode, 0)
+        (self.lib / 'activate').unlink()
+        result = self.run_command('omarchy-install-touchbar', '--uninstall', INSTALLED='0', SUPPORTED='0')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('ELEVATE', self.events())
+        self.assertFalse((self.home / '.config/omarchy/hooks/font-set.d/90-touchbar-font').exists())
+        result = self.run_command('omarchy-install-touchbar', '--uninstall', INSTALLED='1')
+        self.assertNotEqual(result.returncode, 0, 'present package without helper must fail')
+        result = self.run_command('omarchy-install-touchbar', '--uninstall', INSTALLED='0', DB_FAIL='1')
+        self.assertNotEqual(result.returncode, 0, 'database failure must not mean package absent')
+
+    def test_edited_hooks_backed_up_outside_runner_and_preserved_on_remove(self):
+        for event in ('font-set', 'post-boot'):
+            hook = self.home / f'.config/omarchy/hooks/{event}.d/90-touchbar-font'
+            self.write(hook, f'#!/bin/bash\necho custom-{event}\n')
+        result = self.run_command('omarchy-setup-touchbar-user')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state = self.home / '.local/state/omarchy/touchbar'
+        for event in ('font-set', 'post-boot'):
+            backups = list((state / 'backups' / event).iterdir())
+            self.assertEqual(len(backups), 1)
+            self.assertIn(f'custom-{event}', backups[0].read_text())
+        self.assertEqual(self.run_command('omarchy-setup-touchbar-user').returncode, 0)
+        self.assertEqual(len(list((state / 'backups/font-set').iterdir())), 1)
+        edited = self.home / '.config/omarchy/hooks/font-set.d/90-touchbar-font'
+        text = edited.read_text() + 'echo custom after installation\n'
+        edited.write_text(text)
+        self.assertEqual(self.run_command('omarchy-setup-touchbar-user', '--uninstall').returncode, 0)
+        self.assertEqual(edited.read_text(), text)
+        self.assertFalse((self.home / '.config/omarchy/hooks/post-boot.d/90-touchbar-font').exists())
+
+    def test_hook_symlink_and_fifo_preflight_refuses_before_overwrite(self):
+        first = self.home / '.config/omarchy/hooks/font-set.d/90-touchbar-font'
+        second = self.home / '.config/omarchy/hooks/post-boot.d/90-touchbar-font'
+        self.write(first, 'original first hook')
+        second.parent.mkdir(parents=True)
+        victim = self.work / 'victim'
+        self.write(victim, 'victim')
+        second.symlink_to(victim)
+        result = self.run_command('omarchy-setup-touchbar-user')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(first.read_text(), 'original first hook')
+        self.assertEqual(victim.read_text(), 'victim')
+        second.unlink()
+        os.mkfifo(second)
+        self.assertNotEqual(self.run_command('omarchy-setup-touchbar-user').returncode, 0)
+        self.assertEqual(first.read_text(), 'original first hook')
+
+    def test_oversized_hook_and_record_shared_prefix_are_not_owned(self):
+        hook = self.home / '.config/omarchy/hooks/font-set.d/90-touchbar-font'
+        record = self.home / '.local/state/omarchy/touchbar/font-set.hook'
+        prefix = 'x' * 65537
+        self.write(hook, prefix + 'custom hook suffix')
+        self.write(record, prefix + 'different record suffix')
+        result = self.run_command('omarchy-setup-touchbar-user', '--uninstall')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(hook.read_text(), prefix + 'custom hook suffix')
+        self.assertTrue(record.exists())
+
+    def test_custom_symlink_fifo_hooks_do_not_block_other_uninstall_cleanup(self):
+        for kind in ('symlink', 'fifo'):
+            self.assertEqual(self.run_command('omarchy-setup-touchbar-user').returncode, 0)
+            hook = self.home / '.config/omarchy/hooks/font-set.d/90-touchbar-font'
+            hook.unlink()
+            victim = self.work / 'victim'
+            self.write(victim, 'unchanged')
+            if kind == 'symlink':
+                hook.symlink_to(victim)
+            else:
+                os.mkfifo(hook)
+            bindings = self.home / '.config/hypr/bindings.lua'
+            self.write(bindings, '-- user\n-- io.github.austindixson.touchbar begin\nmanaged\n-- io.github.austindixson.touchbar end\n')
+            result = self.run_command('omarchy-setup-touchbar-user', '--uninstall', OMARCHY_SETUP_CONTEXT='runtime')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(victim.read_text(), 'unchanged')
+            self.assertTrue(hook.is_symlink() if kind == 'symlink' else stat.S_ISFIFO(hook.stat().st_mode))
+            self.assertFalse((hook.parent.parent / 'post-boot.d/90-touchbar-font').exists())
+            self.assertEqual(bindings.read_text(), '-- user\n')
+            self.assertIn('IPC shell rescanPlugins', self.events())
+            hook.unlink()
+
+    def test_pkgrel_two_requires_prebuilt_upgrade(self):
+        result = self.run_command('omarchy-setup-touchbar-system', INSTALLED_RELEASE='2')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('PACMAN -Si omarchy-touchbar', self.events())
+        self.assertIn('PACMAN -S --needed', self.events())
+
+    def test_old_repository_candidate_or_stale_installed_metadata_never_activates(self):
+        result = self.run_command('omarchy-setup-touchbar-system', INSTALLED_RELEASE='2', REPO_RELEASE='2')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('PACMAN -S --needed', self.events(), 'old candidate must be refused before transaction')
+        for metadata in ('omarchy-touchbar 0.3.8.omarchy1-2', 'other-package 0.3.8.omarchy1-3',
+                         'omarchy-touchbar', 'omarchy-touchbar 0.3.8.omarchy1-3 extra'):
+            with self.subTest(metadata=metadata):
+                result = self.run_command('omarchy-setup-touchbar-system', INSTALLED_RELEASE='2',
+                                          POST_INSTALL_METADATA=metadata)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('NATIVE', self.events())
+                self.assertNotIn('ELEVATE ' + str(self.lib / 'activate'), self.events())
+
+    def test_font_owner_replacement_retires_exact_old_rules(self):
+        helper = self.font_helper(self.work / 'font-helper')
+        old, channel = self.font_rule()
+        deleted_owner, _ = self.font_rule(os.getuid() + 10000, directory=False)
+        tampered = self.work / 'rules/omarchy-touchbar-font-987654.conf'
+        self.write(tampered, '# administrator content\n')
+        tampered.chmod(0o644)
+        new_uid, new_gid = os.getuid() + 1, os.getgid() + 1
+        result = self.run_font(helper, new_uid, new_gid)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(old.exists())
+        self.assertFalse(deleted_owner.exists(), 'deleted old account must not prevent cleanup')
+        self.assertFalse(channel.exists())
+        self.assertEqual(tampered.read_text(), '# administrator content\n')
+        new = self.work / f'rules/omarchy-touchbar-font-{new_uid}.conf'
+        self.assertTrue(new.exists())
+        self.assertIn('TMPFILES', self.events())
+
+    def test_font_cleanup_preserves_custom_runtime_and_tampered_rules(self):
+        helper = self.font_helper(self.work / 'font-helper')
+        rule, channel = self.font_rule()
+        self.write(channel / 'personal-file', 'keep')
+        tampered = self.work / 'rules/omarchy-touchbar-font-987654.conf'
+        self.write(tampered, 'not our rule\n')
+        symlink = self.work / 'rules/omarchy-touchbar-font-987655.conf'
+        symlink.symlink_to(tampered)
+        result = self.run_font(helper, '--cleanup')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(rule.exists(), 'owned recreation rule must be removed despite custom runtime data')
+        self.assertEqual((channel / 'personal-file').read_text(), 'keep')
+        self.assertEqual(tampered.read_text(), 'not our rule\n')
+        self.assertTrue(symlink.is_symlink())
+        result = self.run_font(helper, 987654, os.getgid())
+        self.assertNotEqual(result.returncode, 0, 'do not overwrite a tampered current-owner rule')
+        # An integration rule may point at a directory later replaced by a
+        # symlink. Retire the rule, never traverse/remove its target.
+        for item in channel.iterdir():
+            item.unlink()
+        channel.rmdir()
+        target = self.work / 'personal-directory'
+        target.mkdir()
+        self.write(target / 'keep', 'untouched')
+        rule, _ = self.font_rule(directory=False)
+        channel.symlink_to(target, target_is_directory=True)
+        self.assertEqual(self.run_font(helper, '--cleanup').returncode, 0)
+        self.assertFalse(rule.exists())
+        self.assertTrue(channel.is_symlink())
+        self.assertEqual((target / 'keep').read_text(), 'untouched')
+
+    def test_oversized_rule_valid_prefix_does_not_establish_ownership(self):
+        helper = self.font_helper(self.work / 'font-helper')
+        uid = os.getuid()
+        prefix = f'd /run/omarchy-touchbar-font-{uid} 0755 {uid} '
+        # A valid-looking first 257 bytes plus additional unrelated content.
+        text = prefix + '1' * (257 - len(prefix) - 3) + ' -\n' + 'custom tail'
+        rule = self.work / f'rules/omarchy-touchbar-font-{uid}.conf'
+        self.write(rule, text)
+        rule.chmod(0o644)
+        self.assertEqual(self.run_font(helper, '--cleanup').returncode, 0)
+        self.assertEqual(rule.read_text(), text)
+
+    def test_successful_stock_restore_cleans_loaded_helper_after_package_removed(self):
+        self.font_helper(self.lib / 'setup-font-channel')
+        rule, channel = self.font_rule()
+        result = self.run_command('omarchy-setup-touchbar-system', '--uninstall',
+                                  REMOVE_FONT_HELPER=str(self.lib / 'setup-font-channel'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.lib / 'setup-font-channel').exists())
+        self.assertFalse(rule.exists())
+        self.assertFalse(channel.exists())
+
+    def test_failed_stock_restore_preserves_font_rules_and_runtime(self):
+        self.font_helper(self.lib / 'setup-font-channel')
+        rule, channel = self.font_rule()
+        before = (rule.read_bytes(), (channel / 'current-font').read_bytes())
+        result = self.run_command('omarchy-setup-touchbar-system', '--uninstall', PACKAGE_FAIL='1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((rule.read_bytes(), (channel / 'current-font').read_bytes()), before)
+
+    def test_absent_package_cleanup_rules_and_user_state_preserves_custom_hook(self):
+        result = self.run_command('omarchy-setup-touchbar-user')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        edited = self.home / '.config/omarchy/hooks/font-set.d/90-touchbar-font'
+        custom = edited.read_text() + 'echo user edit with package path\n'
+        edited.write_text(custom)
+        (self.lib / 'activate').unlink()
+        fallback = self.font_helper(self.main / 'default/touchbar/setup-font-channel')
+        fallback.chmod(0o644)  # Standard root-owned main asset is not executable.
+        rule, channel = self.font_rule()
+        result = self.run_command('omarchy-install-touchbar', '--uninstall', INSTALLED='0', SUPPORTED='0')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(rule.exists())
+        self.assertFalse(channel.exists())
+        self.assertEqual(edited.read_text(), custom)
+        self.assertFalse((self.home / '.config/omarchy/hooks/post-boot.d/90-touchbar-font').exists())
+        self.assertNotIn('PACMAN -S ', self.events())
+
+    def test_missing_cleanup_helper_reports_failure_after_user_cleanup(self):
+        self.assertEqual(self.run_command('omarchy-setup-touchbar-user').returncode, 0)
+        (self.lib / 'activate').unlink()
+        self.font_rule(directory=False)
+        result = self.run_command('omarchy-install-touchbar', '--uninstall', INSTALLED='0')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.home / '.config/omarchy/hooks/font-set.d/90-touchbar-font').exists())
+
+    def test_legacy_package_uninstall_cleans_rules_after_old_helper_disappears(self):
+        self.font_helper(self.main / 'default/touchbar/setup-font-channel')
+        rule, channel = self.font_rule()
+        self.write(self.lib / 'activate', '#!/bin/bash\necho OLDRESTORE >> "$LOG"\nrm -- "$0"\n')
+        result = self.run_command('omarchy-setup-touchbar-system', '--uninstall', INSTALLED_RELEASE='2')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('OLDRESTORE', self.events())
+        self.assertFalse((self.lib / 'activate').exists())
+        self.assertFalse(rule.exists())
+        self.assertFalse(channel.exists())
 
     def test_missing_published_package_and_package_failure(self):
         result = self.run_command('omarchy-install-touchbar', INSTALLED='0', PUBLISHED='0')

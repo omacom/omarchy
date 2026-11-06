@@ -3,6 +3,9 @@
 set -euo pipefail
 [[ $- == *p* ]] || exit 126
 (( EUID == 0 )) || exit 1
+# Load the root-owned implementation before pacman removes its package. Bash
+# retains these function/heredoc bytes, so cleanup survives file removal.
+source /usr/lib/omarchy-touchbar/setup-font-channel
 
 live=0
 [[ ! -d /run/systemd/system ]] || live=1
@@ -24,6 +27,7 @@ restore_stock() {
     fi
     return 1
   fi
+  touchbar_font_channels --cleanup || return 1
 }
 if [[ ${1:-} == "--uninstall" && $# == 1 ]]; then
   restore_stock
@@ -55,7 +59,7 @@ if [[ -n $owner ]]; then
   font_uid=$(/usr/bin/id -u -- "$owner")
   font_gid=$(/usr/bin/id -g -- "$owner")
   [[ $font_uid =~ ^[0-9]+$ && $font_gid =~ ^[0-9]+$ && $font_uid != 0 ]] || exit 1
-  /usr/lib/omarchy-touchbar/setup-font-channel "$font_uid" "$font_gid"
+  touchbar_font_channels "$font_uid" "$font_gid"
   temporary=$(/usr/bin/mktemp /etc/tiny-dfr/.font-XXXXXX)
   trap '/usr/bin/rm -f -- "$temporary"' EXIT
   printf 'FontSyncUid = %s\n' "$font_uid" > "$temporary"
