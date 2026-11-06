@@ -523,18 +523,22 @@ Item {
   // The deck as it would stand with this deck open; the keyboard asks before
   // it moves.
   function layoutWith(isExpanded, deckKey) {
-    var rows = []
-    for (var i = 0; i < toasts.count; i++) {
-      var row = toasts.get(i)
-      if (!leaving[row.key]) rows.push(row)   // a card on its way out takes no space
-    }
-    return Layout.compute(rows, {
+    return Layout.compute(liveRows(), {
       expanded: isExpanded,
       openDeck: deckKey,
       gap: gap,
       deckGap: Style.space(11),
       heightOf: function(key) { return service.heights[key] || Style.space(58) }
     })
+  }
+
+  function liveRows() {
+    var rows = []
+    for (var i = 0; i < toasts.count; i++) {
+      var row = toasts.get(i)
+      if (!leaving[row.key]) rows.push(row)   // a card on its way out takes no space
+    }
+    return rows
   }
 
   // A leaving card takes no room in the layout but keeps a placement of its
@@ -547,6 +551,16 @@ Item {
     var base = layout.placements
     for (var k in base) out[k] = base[k]
     for (var key in leaving) if (departures[key]) out[key] = departures[key]
+    return out
+  }
+
+  // Which card leads each deck, the same cards `placements` marks front, but
+  // without reading heights or layoutRevision. A card's buttons follow this:
+  // showing them changes its height, which reaches `placements` through
+  // noteHeight() and would loop back into the card mid-evaluation.
+  readonly property var fronts: {
+    var out = Layout.fronts(liveRows())
+    for (var key in leaving) if (departures[key]) out[key] = !!departures[key].front
     return out
   }
 
@@ -1628,6 +1642,7 @@ Item {
               cardWidth: deck.width
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
+              front: service.fronts[model.key] === true
               hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
               selected: service.keyboardMode && service.keyboardKey === model.key
               actions: service.actionsOf(model.key, service.refsRevision)
