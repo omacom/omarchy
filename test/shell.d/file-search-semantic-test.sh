@@ -109,4 +109,30 @@ with (
     )
   assert status == 0 and list((fake_home / ".cache/omarchy/semantic-search").glob("*.json")), output
   print("ok - an empty XDG cache setting uses the user's cache directory")
+
+  multiline = Path(tmp) / "long notes.md"
+  text = "".join(f"line{number:03d} " + "x" * 72 + "\n" for number in range(1, 41))
+  multiline.write_text(text)
+  status, calls, output = run(
+    ["later passage", str(multiline), "--model", "embeddinggemma", "--limit", "1", "--json"],
+    [tags, show, {"embeddings": [[1, 0]]}, {"embeddings": [[0, 1], [0, 1], [1, 0], [0, 1]]}],
+  )
+  assert status == 0, output
+  passage = json.loads(output)[0]
+  assert passage["file"] == str(multiline) and passage["line"] == 23
+  assert passage["text"] == text[1792:2816] and "line024" in passage["text"]
+  print("ok - a later chunk can rank first with the correct excerpt and starting source line")
+
+  controlled = Path(tmp) / "notes\x1b[2J\tmore.md"
+  controlled.write_text("untrusted \x1b[2J text")
+  control_args = ["text", str(controlled), "--model", "embeddinggemma", "--limit", "1"]
+  status, calls, output = run(
+    control_args,
+    [tags, show, {"embeddings": [[1, 0]]}, {"embeddings": [[1, 0]]}],
+  )
+  assert status == 0 and "\x1b" not in output and r"\x1b[2J" in output and r"\tmore.md" in output, output
+  status, calls, output = run(control_args + ["--json"], [tags, show, {"embeddings": [[1, 0]]}])
+  passage = json.loads(output)[0]
+  assert status == 0 and passage["file"] == str(controlled) and passage["text"] == "untrusted \x1b[2J text"
+  print("ok - terminal controls in filenames and excerpts are escaped while JSON preserves the original data")
 PY

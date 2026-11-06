@@ -55,6 +55,12 @@ def vectors(value, count):
   return value
 
 
+def terminal_text(value):
+  return "".join(
+    character if character.isprintable() else character.encode("unicode_escape").decode("ascii") for character in value
+  )
+
+
 def main():
   parser = argparse.ArgumentParser(
     description="Search only files you name, using local Ollama. UTF-8 text only; 64 files, 64 KiB each, 256 KiB total. Embeddings are cached privately; source text is not cached."
@@ -156,7 +162,7 @@ def main():
   else:
     for item in selected:
       excerpt = " ".join(item["text"].split())[:180]
-      print(f"{item['score']:.3f}\t{item['file']}:{item['line']}\t{excerpt}")
+      print(f"{item['score']:.3f}\t{terminal_text(item['file'])}:{item['line']}\t{terminal_text(excerpt)}")
 
 
 try:
