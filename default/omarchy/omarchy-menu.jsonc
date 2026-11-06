@@ -136,6 +136,8 @@
   "trigger.toggle.screensaver-off": {"icon":"󱄄","label":"Screensaver Off","when":"! omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.crash-capture-on": {"icon":"󱚡","label":"Crash Capture On","when":"omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
   "trigger.toggle.crash-capture-off": {"icon":"󱚡","label":"Crash Capture Off","when":"! omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
+  "trigger.toggle.monitor-workspaces-on": {"icon":"󰍹","label":"Monitor Workspaces","description":"Give each monitor its own workspaces 1–10","when":"[[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/no-monitor-workspaces ]]","action":"omarchy-toggle-monitor-workspaces"},
+  "trigger.toggle.monitor-workspaces-off": {"icon":"󰍹","label":"Global Workspaces","description":"Use one set of workspace numbers across all monitors","when":"[[ ! -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/no-monitor-workspaces ]]","action":"omarchy-toggle-monitor-workspaces"},
   "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
   "trigger.clipboard-history": {"icon":"󰅇","label":"Clipboard History","action":"omarchy-shell shell summon omarchy.clipboard"},
   "trigger.reminder": {"icon":"󰢌","label":"Reminder","aliases":["reminder"]},
