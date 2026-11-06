@@ -1,14 +1,14 @@
-echo "Show the HP OmniBook Ultra 14's disk unlock prompt by loading its USB-C display drivers early"
+echo "Show the disk unlock prompt on Snapdragon X2 machines by loading their USB-C display drivers early"
 
-# See install/hardware/hp/fix-hp-omnibook-ultra-14-boot.sh.
+# See install/hardware/qualcomm/glymur-display.sh.
 rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1793854933}"
 
-if ! omarchy-hw-aarch64-qualcomm || ! omarchy-hw-match "OmniBook Ultra Laptop 14-kg0"; then
+if ! omarchy-hw-aarch64-qualcomm || ! omarchy-hw-match-device-tree qcom,glymur; then
   exit 0
 fi
 
 sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
-  source "$OMARCHY_PATH/install/hardware/hp/fix-hp-omnibook-ultra-14-boot.sh"
+  source "$OMARCHY_PATH/install/hardware/qualcomm/glymur-display.sh"
 '
 
 # A marker records the machine-wide rebuild: another user's run must not repeat
