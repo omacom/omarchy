@@ -18,7 +18,7 @@ export PATH="$fixture/bin:$ROOT/bin:$PATH" TRACE="$fixture/args" MLFLOW_ALLOW_FI
 
 bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/local runs" --port 5001 >/dev/null
 mapfile -d '' -t args <"$TRACE"
-[[ ${args[0]} == "server" && ${args[2]} == "file://$fixture/local%20runs" && ${args[4]} == "file://$fixture/local%20runs" && ${args[5]} == "--no-serve-artifacts" && ${args[7]} == "127.0.0.1" && ${args[9]} == "5001" ]] || fail "MLflow receives a literal local store with loopback serving"
+(( ${#args[@]} == 10 )) && [[ ${args[0]} == "server" && ${args[1]} == "--backend-store-uri" && ${args[2]} == "file://$fixture/local%20runs" && ${args[3]} == "--registry-store-uri" && ${args[4]} == "file://$fixture/local%20runs" && ${args[5]} == "--no-serve-artifacts" && ${args[6]} == "--host" && ${args[7]} == "127.0.0.1" && ${args[8]} == "--port" && ${args[9]} == "5001" ]] || fail "MLflow receives a literal local store with loopback serving"
 [[ $(cat "$TRACE.environment") == "true" && $MLFLOW_ALLOW_FILE_STORE == "false" ]] || fail "legacy compatibility is enabled only in the launched process"
 mkdir "$fixture/local%20runs?phase#1"
 bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/local%20runs?phase#1" >/dev/null
