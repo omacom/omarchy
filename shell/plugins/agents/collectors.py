@@ -3063,7 +3063,11 @@ def dsh_log_lines(path: Path) -> tuple[list[bytes], bool]:
   A torn final line or frame from a crash mid-write is dropped, as dsh's own
   reader does, without making the scan incomplete.
   """
-  data = path.read_bytes()
+  with path.open("rb") as handle:
+    data = handle.read(DSH_MAX_LOG_BYTES + 1)
+  if len(data) > DSH_MAX_LOG_BYTES:
+    warn(f"a DeepSeek Harness session log exceeds {DSH_MAX_LOG_BYTES >> 20} MiB and was not scanned")
+    return [], False
   if path.name.endswith(".zstd"):
     if zstd is None:
       warn("this Python has no Zstandard support; DeepSeek Harness sessions were not scanned")
