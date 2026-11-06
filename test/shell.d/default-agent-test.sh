@@ -218,6 +218,7 @@ declare -A declared_bins=(
   ["\"$freebuff_package\""]='"freebuff"'
   ["\"$kilo_package\""]='"kilo"'
   ["\"$commandcode_package\""]='"commandcode"'
+  ["\"$openzoo_package\""]='"openzoo"'
 )
 for tool in "${!declared_bins[@]}"; do
   grep -Fx "$tool = { version = \"latest\", lazy = true, auto_update = \"4h\", lazy_bins = [${declared_bins[$tool]}], minimum_release_age = \"0s\" }" "$lazy_config" >/dev/null ||
@@ -243,12 +244,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 22 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 32 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -262,12 +263,16 @@ pass "user setup leaves ordinary lazy wrappers to mise"
 "$ROOT/bin/omarchy-mise-install" "$grok_package" grok
 "$ROOT/bin/omarchy-mise-install" "$omp_package" omp
 "$ROOT/bin/omarchy-mise-install" "$crush_package" crush
-touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori" "$test_home/.local/bin/openzoo"
+touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
+printf '#!/bin/bash\necho user-openzoo\n' >"$test_home/.local/bin/openzoo"
+chmod +x "$test_home/.local/bin/openzoo"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse kimi openzoo; do
+for command in agy omp ori grok crush cursor-agent muse kimi; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
-pass "Remove Preinstalls deletes every optional agent lazy stub"
+[[ $("$test_home/.local/bin/openzoo") == "user-openzoo" ]] || fail "Remove Preinstalls deletes a user's openzoo install"
+rm "$test_home/.local/bin/openzoo"
+pass "Remove Preinstalls deletes every optional agent lazy stub and keeps a user's openzoo"
 
 # Cursor's installer links the same path, so anything but the mise wrapper is
 # the user's own install.
@@ -674,7 +679,7 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 pass "Muse installs visibly through mise and opens directly"
 
 saved_agent=$(<"$agent_file")
-for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode openzoo; do
   tool_var="${agent//-/_}_tool"
   package_var="${agent//-/_}_package"
   declared_tool=${!tool_var:-${!package_var}}

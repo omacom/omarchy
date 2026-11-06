@@ -81,6 +81,17 @@ def default_agent_is_openzoo() -> bool:
     return False
 
 
+def openzoo_pays_for(account: dict[str, Any] | None = None) -> bool:
+  # openzoo launches Claude Code in the primary home and never signs that
+  # home in to Anthropic, so a missing token there is paid per call. A
+  # separately registered account is a Claude login of its own: the default
+  # agent does not say how that one pays, and a missing token there is still
+  # a sign-in.
+  if account is not None and not account.get("primary"):
+    return False
+  return default_agent_is_openzoo()
+
+
 def expand_path(value: str) -> Path:
   return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
 
@@ -599,7 +610,7 @@ def probe_limits(access_token: str) -> dict[str, Any]:
   return {"ok": True, "limits": limits}
 
 
-def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json") -> dict[str, Any]:
+def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json", pay_per_call: bool = False) -> dict[str, Any]:
   # `live` says the numbers came from Anthropic just now (or within the reuse
   # window) rather than from a cache kept past a failed or impossible probe.
   # `fetchedAtMs` says when they were measured, so a stale account can say
@@ -623,11 +634,12 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
   # showing the last numbers, resetting elapsed windows to zero.
   if access_token == "":
     result["limits"] = fallback
-    # Under the openzoo agent the Claude Code CLI is real but never signed in
-    # to Anthropic: each call is paid over x402 through the local proxy, so
-    # there is no OAuth token to wait for and no limit bucket to probe.
-    # "Waiting for auth" would describe that state as broken; say what it is.
-    if default_agent_is_openzoo():
+    # pay_per_call is the account being checked, not the default agent: the
+    # primary home under openzoo never signs in to Anthropic, and each call
+    # is paid over x402 through the local proxy. A registered Claude account
+    # missing its token is still waiting for a sign-in, which is what keeps
+    # its sign-in link.
+    if pay_per_call:
       result["usageStatusText"] = "Paid per call via openzoo"
       result["authHelpText"] = "No Anthropic sign-in: openzoo pays each call over x402 from a local wallet. Spend shows in the openzoo bar widget."
     else:
@@ -716,7 +728,7 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
     cache_name = "claude-limits.json"
   else:
     cache_name = f"claude-limits-{key}.json"
-  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
+  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name, pay_per_call=openzoo_pays_for(account))
   return account_entry(account, limits, plan)
 
 
@@ -750,7 +762,7 @@ def main() -> int:
     # and registering the home later keeps its cache.
     identity = re.sub(r"[^A-Za-z0-9_-]", "", current_account_id(claude_dir))
     cache_name = f"claude-limits-{identity}.json" if identity else "claude-limits.json"
-    limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force, cache_name)
+    limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force, cache_name, pay_per_call=openzoo_pays_for())
     stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
     # Asking for a sign-in only makes sense where Claude Code is in use: its
     # config home or profile exists, or there is local usage. A machine that
