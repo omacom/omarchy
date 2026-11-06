@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# omarchy:summary=Show or choose the layouts a workspace cycles through with Super + L
+# omarchy:args=[pick | <dwindle|scrolling|floating>...]
+# omarchy:examples=omarchy hyprland workspace layout enabled | omarchy hyprland workspace layout enabled pick | omarchy hyprland workspace layout enabled dwindle scrolling
+
+set -euo pipefail
+
+# Also the order they cycle in.
+LAYOUTS=(dwindle scrolling floating)
+DEFAULT_ENABLED=(dwindle scrolling floating)
+
+ENABLED_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts/enabled"
+
+# Dwindle is Hyprland's name for it; the menu and the bar call it tiling.
+label_for() {
+  case $1 in
+    dwindle) omarchy-i18n layout.nameTiling ;;
+    scrolling) omarchy-i18n layout.nameScrolling ;;
+    floating) omarchy-i18n layout.nameFloating ;;
+  esac
+}
+
+print_enabled() {
+  local saved="" layout found=0
+
+  [[ -r $ENABLED_FILE ]] && saved=$(<"$ENABLED_FILE")
+
+  for layout in "${LAYOUTS[@]}"; do
+    if grep -qx -- "$layout" <<<"$saved"; then
+      echo "$layout"
+      found=1
+    fi
+  done
+
+  if (( ! found )); then
+    printf '%s\n' "${DEFAULT_ENABLED[@]}"
+  fi
+}
+
+save_enabled() {
+  mkdir -p "$(dirname "$ENABLED_FILE")"
+  printf '%s\n' "$@" >"$ENABLED_FILE"
+}
+
+pick() {
+  local options=() selected=() layout
+
+  for layout in "${LAYOUTS[@]}"; do
+    options+=("$(label_for "$layout")")
+  done
+
+  while read -r layout; do
+    selected+=(--selected "$(label_for "$layout")")
+  done < <(print_enabled)
+
+  omarchy-menu-select "$(omarchy-i18n layout.enabledTitle)" "${options[@]}" -- \
+    --multiple "${selected[@]}" \
+    --on-change '["omarchy-hyprland-workspace-layout-enabled","--menu-selection"]' >/dev/null || true
+}
+
+# The menu hands over the labels it showed, as a JSON array. Failing keeps the
+# checkmark on the last layout, since a cycle of nothing has nowhere to go.
+save_menu_selection() {
+  local labels layout enabled=()
+
+  labels=$(jq -r '.[]' <<<"$1")
+
+  for layout in "${LAYOUTS[@]}"; do
+    if grep -qxF -- "$(label_for "$layout")" <<<"$labels"; then
+      enabled+=("$layout")
+    fi
+  done
+
+  if (( ${#enabled[@]} == 0 )); then
+    omarchy-notification-send -g 󱂬 "$(omarchy-i18n layout.enabledKeepOne)"
+    exit 1
+  fi
+
+  save_enabled "${enabled[@]}"
+}
+
+case ${1:-} in
+  "")
+    print_enabled
+    ;;
+  pick)
+    pick
+    ;;
+  --menu-selection)
+    save_menu_selection "${2:-[]}"
+    ;;
+  *)
+    for layout in "$@"; do
+      if ! printf '%s\n' "${LAYOUTS[@]}" | grep -qx -- "$layout"; then
+        echo "Usage: omarchy-hyprland-workspace-layout-enabled [pick | <dwindle|scrolling|floating>...]" >&2
+        exit 1
+      fi
+    done
+
+    save_enabled "$@"
+    ;;
+esac
