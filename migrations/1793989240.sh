@@ -16,16 +16,20 @@ if [[ ! -L $boot_hook ]]; then
   sudo ln -sfn /usr/bin/omarchy-update-qualcomm-device-trees "$boot_hook"
 fi
 
-listed=$(<"$uki_config")
-sudo omarchy-update-qualcomm-device-trees
-
-# A changed list needs one rebuild. The marker keeps that owed across an
-# interrupted run, while another user's run finds the list current and skips it.
+# A changed list needs one rebuild. The marker records it as owed before the
+# list can change, so a run that stops in between still rebuilds on retry; an
+# unchanged list takes it back, which is what another user's run finds.
 rebuild_pending=/var/lib/omarchy/migrations/1793989240-rebuild-pending
-if [[ $(<"$uki_config") != "$listed" ]]; then
-  sudo install -Dm644 /dev/null "$rebuild_pending"
+if [[ ! -e $rebuild_pending ]]; then
+  listed=$(<"$uki_config")
+  sudo install -Dm644 /dev/null "$rebuild_pending" || exit 1
+  sudo omarchy-update-qualcomm-device-trees
+  if [[ $(<"$uki_config") == "$listed" ]]; then
+    sudo rm -f "$rebuild_pending"
+  fi
 fi
 
+# limine refreshes the list again from the hook before it builds.
 if [[ -e $rebuild_pending ]]; then
   rebuild_log=$(mktemp)
   trap 'rm -f "$rebuild_log"' EXIT
