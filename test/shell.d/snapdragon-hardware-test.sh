@@ -126,6 +126,17 @@ OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/p
   fail "the device tree refresh never stops a boot image build"
 cmp -s "$scratch/pinned.conf" "$scratch/pinned-before.conf" ||
   fail "the device tree refresh leaves a configuration without Omarchy's list alone"
+# A copy it can't finish writing never replaces the configuration (root reads
+# through the lock, so only an unprivileged run can stage the failure).
+if (( EUID != 0 )); then
+  cp -p "$scratch/uki.conf" "$scratch/locked.conf"
+  chmod 000 "$scratch/locked.conf"
+  OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/locked.conf" "$refresh" --install 2>/dev/null ||
+    fail "a failed device tree list write never stops a boot image build"
+  chmod 600 "$scratch/locked.conf"
+  cmp -s "$scratch/locked.conf" "$scratch/uki.conf" ||
+    fail "a failed device tree list write leaves the configuration as it was"
+fi
 
 # Omarchy's own kernel keeps its device trees under its package name. They come
 # before Arch Linux ARM's, so the trees match the kernel that boots.
