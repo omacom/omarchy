@@ -1,14 +1,20 @@
 import contextlib
 import io
 import json
-import runpy
+import os
+from pathlib import Path
+import tempfile
 import subprocess
 import sys
 import unittest
 from unittest.mock import patch
 
 ROOT = sys.argv.pop()
-APP = runpy.run_path(ROOT + "/bin/omarchy-launch-ai-chat")
+COMMAND = ROOT + "/bin/omarchy-launch-ai-chat"
+source = Path(COMMAND).read_text()
+python_source = source.split("<<'PY'\n", 1)[1].rsplit("\nPY\n", 1)[0]
+APP = {"__name__": "ai_chat_picker"}
+exec(compile(python_source, COMMAND, "exec"), APP)
 
 
 class ChatPickerTest(unittest.TestCase):
@@ -35,6 +41,24 @@ class ChatPickerTest(unittest.TestCase):
       except ValueError:
         return 1, execute.call_args, requests
 
+  def test_bash_launcher_keeps_chat_input_and_argument_boundaries(self):
+    with tempfile.TemporaryDirectory() as directory:
+      interpreter = Path(directory) / "python3"
+      interpreter.write_text("#!" + sys.executable + "\n" +
+        "import json, pathlib, sys\n" +
+        "print(json.dumps({'input': sys.stdin.read(), 'args': sys.argv[2:], " +
+        "'program': pathlib.Path(sys.argv[1]).read_text()}))\n")
+      interpreter.chmod(0o755)
+      env = dict(os.environ, HOME=directory, XDG_CONFIG_HOME=directory + "/config",
+                 PATH=directory + ":" + os.environ["PATH"])
+      result = subprocess.run([COMMAND, "--model", "model with spaces"], env=env,
+                              input="next chat message\n", capture_output=True, text=True)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    report = json.loads(result.stdout)
+    self.assertEqual(report["input"], "next chat message\n")
+    self.assertEqual(report["args"], ["--model", "model with spaces"])
+    self.assertIn("def main():", report["program"])
+
   def test_picker_launches_selected_model_on_loopback(self):
     with patch.dict("os.environ", {"OLLAMA_HOST": "https://another-server.invalid"}):
       code, call, requests = self.run_app()
@@ -60,9 +84,10 @@ class ChatPickerTest(unittest.TestCase):
 
   def test_picker_display_reaches_the_terminal(self):
     driver = '''
-import runpy, subprocess, sys
+import subprocess, sys
 from unittest.mock import patch
-app = runpy.run_path(sys.argv[1] + "/bin/omarchy-launch-ai-chat")
+app = {"__name__": "ai_chat_picker"}
+exec(compile(sys.argv[2], sys.argv[1] + "/bin/omarchy-launch-ai-chat", "exec"), app)
 app["main"].__globals__["request"] = lambda *args: {"models": [{"name": "test:latest"}], "capabilities": ["completion"]}
 run = subprocess.run
 def picker(args, **kwargs):
@@ -72,7 +97,7 @@ def picker(args, **kwargs):
 with patch("sys.argv", ["chat"]), patch("sys.stdin.isatty", return_value=True), patch("subprocess.run", side_effect=picker), patch("os.execvpe"):
   sys.exit(app["main"]())
 '''
-    result = subprocess.run([sys.executable, "-c", driver, ROOT], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", driver, ROOT, python_source], capture_output=True, text=True)
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("MODEL PICKER", result.stderr)
 

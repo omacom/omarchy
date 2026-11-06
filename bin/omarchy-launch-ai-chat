@@ -1,8 +1,10 @@
-#!/usr/bin/python3
+#!/bin/bash
 # omarchy:summary=Choose an installed local Ollama model and start an interactive chat
 # omarchy:args=[--model <model>]
 # omarchy:examples=omarchy launch ai-chat | omarchy launch ai-chat --model qwen3:4b
 
+# Keep terminal input available for the picker and the interactive chat.
+exec python3 /dev/fd/3 "$@" 3<<'PY'
 import argparse
 import json
 import os
@@ -22,7 +24,7 @@ def request(path, payload=None):
 
 
 def main():
-  parser = argparse.ArgumentParser(description="Start Ollama chat with an installed local text model. Run in a terminal for the model picker, or pass --model. Does not download models or use OLLAMA_HOST.")
+  parser = argparse.ArgumentParser(prog="omarchy-launch-ai-chat", description="Start Ollama chat with an installed local text model. Run in a terminal for the model picker, or pass --model. Does not download models or use OLLAMA_HOST.")
   parser.add_argument("--model")
   args = parser.parse_args()
   if not args.model and not sys.stdin.isatty():
@@ -64,3 +66,4 @@ if __name__ == "__main__":
   except (OSError, ValueError, subprocess.SubprocessError, urllib.error.URLError) as error:
     print(f"Local chat: {error}", file=sys.stderr)
     sys.exit(1)
+PY
