@@ -110,6 +110,21 @@ qml_matches "$shell_qml" 'return hasCurrentBarCapabilities\( *\) *\? *shell\.mut
   fail "bar configuration mutation does not validate the current manifest"
 pass "manifest changes revoke cached facade capabilities"
 
+# A stock plugin's facade is the shell itself, so only clones reach
+# createScopedPluginShell. Its app library and bar state are QObjects like the
+# first-party service proxies, so they must also be built before the facade
+# object: inside its property map the creation re-enters the caller's binding
+# and the clone keeps a null app library, emptying its Apps submenu.
+scoped_shell=$(sed -n '/^  function createScopedPluginShell(/,/^  function scopedPluginShellForId(/p' "$shell_qml")
+scoped_line=$(tr '\n\r\t' '   ' <<<"$scoped_shell")
+grep -Eq 'var appLibrary *= *shell\.manifestHasKind\( *manifest, *"menu" *\) *\? *shell\.pluginAppLibraryFor\( *cacheKey, *key *\) *: *null[^{]*var bar *= *shell\.pluginBarStateFor\( *cacheKey, *key *\)[^{]*pluginShellApiComponent\.createObject' <<<"$scoped_line" ||
+  fail "the scoped facade builds its app library and bar state proxies before the facade object"
+grep -Eq 'pluginShellApiComponent\.createObject\( *null, *\{ *pluginId: *key, *appLibrary: *appLibrary, *bar: *bar,' <<<"$scoped_line" ||
+  fail "the scoped facade's property map consumes the precomputed proxies"
+(( $(grep -o 'shell\.pluginAppLibraryFor(' <<<"$scoped_line" | wc -l) == 1 )) ||
+  fail "the scoped facade requests the app library exactly once per creation"
+pass "scoped facades build their QObject proxies outside the facade property map"
+
 qml_matches "$shell_qml" 'idleConfig: *shell\.publicIdleConfigFor\( *manifest *\)' ||
   fail "cloned idle services do not receive their configured timeouts"
 qml_matches "$shell_qml" 'shellApi\.idleConfig *= *shell\.publicIdleConfigFor\( *shellManifest *\)' ||
