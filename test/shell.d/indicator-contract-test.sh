@@ -17,3 +17,5 @@ if rg -q 'Plugin widget omarchy.indicators failed|Indicator loader error' "$QML_
   fail "indicator tray loads every configured indicator"
 fi
 pass "indicator tray avoids implicit-width binding loops"
+
+run_qml_fixture nightlight-tab "Night Light panel participates in bar navigation" Ui Commons

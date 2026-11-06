@@ -428,7 +428,6 @@ ShellRoot {
       if (nightLight) {
         nightLight.moduleName = "NightLight"
         root.injectBar(nightLight)
-        root.assertTrue(nightLight.fixedPosition === true, "Night Light declares a fixed indicator position")
         nightLight.triggerPress(Qt.LeftButton)
         root.assertTrue(nightlightService.enabled === true, "Night Light left click toggles the nightlight service")
         nightLight.triggerPress(Qt.RightButton)

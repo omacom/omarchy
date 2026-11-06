@@ -10,6 +10,8 @@ BarWidget {
 
   readonly property var defaultIndicatorEntries: [ "PasswordlessSudo", "ScreenRecording", "RemoteSession", "Reminder", "NightLight", "Dnd", "StayAwake" ]
   readonly property var indicatorEntries: indicatorEntriesFromSettings(settings)
+  property var nightlightPanel: null
+  readonly property var opened: nightlightPanel ? nightlightPanel.opened : undefined
   property var activeIndicatorIds: []
   property var indicatorActiveStates: ({})
   property bool indicatorAreaHovered: false
@@ -23,6 +25,14 @@ BarWidget {
   readonly property bool fixedAtStart: fixedEdge === "start"
 
   signal refreshRequested()
+
+  function open() {
+    if (nightlightPanel) nightlightPanel.open()
+  }
+
+  function close() {
+    if (nightlightPanel) nightlightPanel.close()
+  }
 
   ListModel { id: activeIndicatorModel }
   ListModel { id: fixedIndicatorModel }
@@ -526,6 +536,7 @@ BarWidget {
       onLoaded: {
         indicatorSlot.injectProps()
         indicatorSlot.syncActiveState()
+        if (indicatorSlot.indicatorId === "NightLight") root.nightlightPanel = item
       }
       onStatusChanged: if (status === Loader.Error) console.warn("Indicator loader error", indicatorSlot.indicatorId, source)
     }
@@ -557,6 +568,10 @@ BarWidget {
       }
 
       indicatorsModule.setIndicatorActive(entry, active)
+    }
+
+    Component.onDestruction: {
+      if (root.nightlightPanel === indicatorSource.item) root.nightlightPanel = null
     }
   }
 }

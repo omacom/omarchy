@@ -15,13 +15,18 @@ Panel {
   property string indicatorBlock: "single"
   property var indicatorHost: null
   property var activeOverride: null
-  readonly property bool fixedPosition: true
   property int cursorIndex: 0
 
   manageIpc: false
   implicitWidth: indicator.implicitWidth
   implicitHeight: indicator.implicitHeight
   visible: indicator.visible
+
+  function switchPanel(direction) {
+    if (bar && typeof bar.switchPanelFrom === "function")
+      return bar.switchPanelFrom(indicatorHost || root, direction)
+    return false
+  }
 
   function toggleTemperature() {
     if (root.nightlightService) root.nightlightService.setNightlight(!root.active)
