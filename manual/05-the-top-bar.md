@@ -40,7 +40,7 @@ Clicking a bar icon opens a panel, which is a proper popup with sliders, lists, 
 | Hotkey | Panel |
 | --- | --- |
 | `Super + Ctrl + A` | Audio |
-| `Super + Ctrl + W` | Network |
+| `Super + Ctrl + N` | Network |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Display |
 | `Super + Ctrl + P` | Power |
@@ -88,7 +88,7 @@ The middle of the bar is a box: whatever is in it stays centered as one group, a
 
 A widget you want around but not always in view can go in the tray's drawer: drag it onto the tray, and the drawer opens to take it. It sits there after the app icons, shows up whenever the drawer does, and keeps its drawer open while its panel is up. Drag it back out onto the bar to put it back.
 
-If you'd rather pick from a menu, **Trigger → Appearance → Menu Bar** has the position, and **Bar Background** picks how the bar is drawn: **Opaque Bar**, **Glassy Bar** (see-through, with what's behind it blurred), or **Clear Bar**.
+If you'd rather pick from a menu, **Appearance → Menu Bar** has the position, and **Bar Background** picks how the bar is drawn: **Opaque Bar**, **Glassy Bar** (see-through, with what's behind it blurred), or **Clear Bar**.
 
 The same things have commands, which is what you want for a [dotfiles](31-dotfiles.md) setup:
 
@@ -110,7 +110,7 @@ omarchy plugin disable omarchy.weather
 
 ## Hiding the bar
 
-`Super + Shift + Space` toggles the bar off and back on without killing the shell — panels and hotkeys keep working, you just get the pixels back. It's also in the menu under **Trigger → Appearance → Menu Bar → Hide Bar**.
+`Super + Shift + Space` toggles the bar off and back on without killing the shell — panels and hotkeys keep working, you just get the pixels back. It's also in the menu under **Appearance → Menu Bar → Hide Bar**.
 
 ## The config file
 

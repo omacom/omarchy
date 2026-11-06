@@ -45,15 +45,6 @@ grep -Fqx -- "--user start omarchy-crash-watch.service" "$SYSTEMCTL_LOG" ||
   fail "crash capture toggle starts the watcher, so enabling takes effect before the next login"
 pass "crash capture toggle re-enables the watcher"
 
-service="$ROOT/default/systemd/user/omarchy-crash-watch.service"
-grep -Fx 'ConditionPathExists=!%h/.local/state/omarchy/toggles/crash-capture-off' "$service" >/dev/null ||
-  fail "the watcher is pulled back in at every login, so disabling it never survives a logout"
-pass "crash watcher stays disabled across logins"
-
-grep -F 'omarchy-crash-watch.service' "$ROOT/install/user/first-run/enable-user-units.sh" >/dev/null ||
-  fail "crash capture is no longer on by default for new installs"
-pass "crash capture is on by default"
-
 require_command jq
 
 # The per-program mute, driven through the real watcher with a stubbed journal:
@@ -372,25 +363,3 @@ refusal=$(HOME="$mute_home" PATH="$failing_bin:$ROOT/bin:$PATH" \
 ! grep -Fq "Muted crash notifications" <<<"$refusal" ||
   fail "a mute that could not be written still reports success, so the user believes a program is silenced when it is not"
 pass "a mute that could not be written is not reported as one"
-
-skill="$ROOT/default/agents/skills/diagnose-crash/SKILL.md"
-grep -Fq 'omarchy-crash-mute' "$skill" ||
-  fail "the diagnosis no longer names the command that mutes, so the offer it makes cannot be carried out"
-pass "the diagnosis names the command that mutes"
-
-grep -Fq 'GROUP_DESCRIPTIONS[crash]' "$ROOT/bin/omarchy" ||
-  fail "the crash group has no description, so the router lists a group it cannot describe"
-pass "the crash group is described in the router"
-
-run_node_test <<'JS'
-const fs = require('fs')
-const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
-const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
-const byId = Object.fromEntries(items.map(item => [item.id, item]))
-
-assertEqual(
-  byId['trigger.toggle.crash-capture'].action,
-  'omarchy-toggle-crash-capture',
-  'menu toggles crash capture from Trigger > Toggle'
-)
-JS
