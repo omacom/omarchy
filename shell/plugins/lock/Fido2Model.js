@@ -11,6 +11,10 @@ var TOUCH_WINDOW_MS = 5000
 var RETRY_MS = 1000
 var ERROR_RETRY_BASE_MS = 2000
 var ERROR_RETRY_CAP_MS = 30000
+// After a wake or a nudge: long enough for an aborted attempt to release the key.
+var WAKE_DELAY_MS = 300
+// At most one nudge per cooldown, however many keys are pressed.
+var NUDGE_COOLDOWN_MS = 2000
 
 // A missed touch window retries at the normal interval; failures back off.
 function retryDelayMs(streak) {
@@ -32,6 +36,8 @@ if (typeof module !== "undefined") {
     RETRY_MS: RETRY_MS,
     ERROR_RETRY_BASE_MS: ERROR_RETRY_BASE_MS,
     ERROR_RETRY_CAP_MS: ERROR_RETRY_CAP_MS,
+    WAKE_DELAY_MS: WAKE_DELAY_MS,
+    NUDGE_COOLDOWN_MS: NUDGE_COOLDOWN_MS,
     retryDelayMs: retryDelayMs,
     nextStreak: nextStreak
   }

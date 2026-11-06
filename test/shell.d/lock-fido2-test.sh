@@ -14,6 +14,7 @@ assertEqual(model.retryDelayMs(50), model.ERROR_RETRY_CAP_MS, 'the backoff is ca
 assertEqual(model.nextStreak(2, true, model.TOUCH_WINDOW_MS), 0, 'a prompt that waited out the window resets the streak')
 assertEqual(model.nextStreak(2, true, model.TOUCH_WINDOW_MS - 1), 3, 'a prompt that failed inside the window counts as a miss')
 assertEqual(model.nextStreak(2, false, 60000), 3, 'an attempt that never prompted counts as a miss however long it took')
+assertEqual(model.WAKE_DELAY_MS < model.RETRY_MS, true, 'a nudge or wake comes sooner than a normal retry')
 JS
 
 require_quickshell "lock fido2 service test"

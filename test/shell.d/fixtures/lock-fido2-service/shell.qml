@@ -74,7 +74,16 @@ ShellRoot {
       check(!retry.running, "an attempt ending while paused arms no retry")
       service.fido2Authenticating = false
       service.resumeFido2()
-      check(!service.fido2Paused, "waking resumes the key")
+      check(!service.fido2Paused && retry.running && retry.interval === 300, "waking asks the key again after a short beat")
+
+      // Input during a backoff brings the next attempt forward, once per cooldown.
+      retry.interval = 8000
+      service.fido2LastNudgeMs = 0
+      service.nudgeFido2()
+      check(retry.running && retry.interval === 300, "input shortens a pending backoff")
+      retry.interval = 8000
+      service.nudgeFido2()
+      check(retry.interval === 8000, "a second key press inside the cooldown leaves the backoff alone")
 
       // Removing the service file mid-lock disarms everything.
       attempt(service, false, 100)
