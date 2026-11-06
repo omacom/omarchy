@@ -10,6 +10,14 @@ case ${1:-} in
   disable)
     printf 'manual\n' >"$OMARCHY_NIGHTLIGHT_STATE"
     ;;
+  evaluate)
+    if [[ -f $OMARCHY_NIGHTLIGHT_STATE && $(<"$OMARCHY_NIGHTLIGHT_STATE") == "solar" ]]; then
+      printf '%s\n' '{"scheduled":true,"night":true,"nextEvent":"sunrise","nextEventAt":"2999-01-01T00:00:00Z"}'
+    else
+      printf '%s\n' '{"scheduled":false}'
+    fi
+    exit 0
+    ;;
   *)
     printf 'Unexpected fixture command: %s\n' "$*" >&2
     exit 1

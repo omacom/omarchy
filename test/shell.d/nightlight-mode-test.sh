@@ -126,17 +126,50 @@ trap 'rm -rf "$test_tmp"' EXIT
 mkdir "$test_tmp/bin" "$test_tmp/home"
 cp "$SHELL_TEST_DIR/fixtures/nightlight-mode/shell.qml" "$test_tmp/shell.qml"
 cp "$SHELL_TEST_DIR/fixtures/nightlight-mode/schedule-command" "$test_tmp/bin/omarchy-nightlight-schedule"
-chmod +x "$test_tmp/bin/omarchy-nightlight-schedule"
+cat >"$test_tmp/bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
+  if (( $# == 2 )) && [[ -f $HYPRSUNSET_AVAILABLE ]]; then
+    cat "$HYPRSUNSET_STATE"
+    exit 0
+  fi
+  if (( $# == 3 )); then
+    printf '%s\n' "$3" >>"$HYPRSUNSET_CALL_LOG"
+    if [[ -f $HYPRSUNSET_FAIL_NEXT ]]; then
+      rm -f "$HYPRSUNSET_FAIL_NEXT"
+      /bin/sleep 0.05
+      exit 1
+    fi
+    if [[ -f $HYPRSUNSET_AVAILABLE ]]; then
+      /bin/sleep 0.05
+      printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
+      printf '%s\n' "$3" >>"$HYPRSUNSET_SUCCESS_LOG"
+      exit 0
+    fi
+  fi
+  /bin/sleep 0.05
+fi
+exit 1
+SH
+printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/pgrep"
+printf '#!/bin/bash\n[[ ${1:-} == "-lc" ]] && shift && set -- -c "$@"\nexec /bin/bash "$@"\n' >"$test_tmp/bin/bash"
+chmod +x "$test_tmp/bin/"*
+: >"$test_tmp/calls"
+: >"$test_tmp/successes"
+printf '6500\n' >"$test_tmp/display"
 ln -s "$ROOT/shell/plugins/services/nightlight" "$test_tmp/Nightlight"
 ln -s "$ROOT/shell/Commons" "$test_tmp/Commons"
 
 output=$(HOME="$test_tmp/home" PATH="$test_tmp/bin:$PATH" OMARCHY_NIGHTLIGHT_STATE="$test_tmp/mode" \
+  HYPRSUNSET_CALL_LOG="$test_tmp/calls" HYPRSUNSET_STATE="$test_tmp/display" \
+  HYPRSUNSET_SUCCESS_LOG="$test_tmp/successes" \
+  HYPRSUNSET_AVAILABLE="$test_tmp/available" HYPRSUNSET_FAIL_NEXT="$test_tmp/fail-next" \
   timeout 10 quickshell -p "$test_tmp" --no-color 2>&1) || {
   printf '%s\n' "$output" >&2
   fail "nightlight mode persistence fixture exits cleanly"
 }
 if ! grep -q "RESULT pass" <<<"$output"; then
   printf '%s\n' "$output" >&2
-  fail "manual mode wins after an in-flight Sunset write"
+  fail "failed Sunset commands recover and preserve newer manual requests"
 fi
-pass "manual mode wins after an in-flight Sunset write"
+pass "failed Sunset commands recover and preserve newer manual requests"

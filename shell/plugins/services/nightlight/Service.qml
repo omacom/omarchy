@@ -134,10 +134,20 @@ Item {
 
   Process {
     id: applyProcess
-    onExited: function() {
+    onExited: function(exitCode) {
       if (root.hasPendingTemperature) {
         root.hasPendingTemperature = false
         root.runApply(root.pendingTemperature)
+        return
+      }
+
+      if (exitCode !== 0) {
+        root.temperature = null
+        root.stateLoaded = true
+        if (root.scheduled) {
+          scheduleTimer.interval = scheduleTimer.running ? Math.min(scheduleTimer.interval, 15 * 60 * 1000) : 15 * 60 * 1000
+          scheduleTimer.restart()
+        }
         return
       }
 
