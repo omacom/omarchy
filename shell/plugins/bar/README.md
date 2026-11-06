@@ -176,7 +176,8 @@ Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (o
 - `bar.barSize` — 26 horizontal / 28 vertical
 - `bar.run(command)` — fire-and-forget bash exec (quote arguments with `Util.shellQuote` from `qs.Commons`)
 - `bar.showTooltip(target, text)` / `bar.hideTooltip(target)` — shared tooltip popup
-- `WidgetButton.tooltipShortcut` — append a shortcut to its hover tooltip, after `tooltipText` when present
+- `WidgetButton.tooltipBindingDescription` — resolve the active Hyprland shortcut with this binding description for the hover tooltip
+- `WidgetButton.tooltipShortcutFormat` — optional translated format string to format the resolved shortcut; `%1` is replaced by the shortcut
 - `bar.requestPopout(owner)` / `bar.releasePopout(owner)` — one-popup-at-a-time coordinator
 
 First-party bar widgets are manifest-backed just like third-party widgets.

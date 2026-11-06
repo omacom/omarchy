@@ -31,11 +31,23 @@ Item {
   property var revealHost: bar
   property string tooltipText: ""
   property string tooltipShortcut: ""
+  property string tooltipBindingDescription: ""
+  property string tooltipShortcutFormat: ""
   readonly property string effectiveTooltipText: {
     var text = String(root.tooltipText || "")
-    var shortcut = String(root.tooltipShortcut || "").trim()
+    var shortcut = root.tooltipBindingDescription
+      ? Commons.ShortcutHints.forAction(root.tooltipBindingDescription)
+      : String(root.tooltipShortcut || "").trim()
     if (!shortcut) return text
+    if (root.tooltipShortcutFormat) {
+      shortcut = String(root.tooltipShortcutFormat).replace("%1", shortcut)
+    }
     return text ? text + " | " + shortcut : shortcut
+  }
+  onEffectiveTooltipTextChanged: {
+    if (root.bar && (root.bar.tooltipTarget === root || root.bar.pendingTooltipTarget === root)) {
+      root.bar.showTooltip(root, root.effectiveTooltipText)
+    }
   }
   property var registeredBar: null
   // Set by the bar while its own press handler, laid over the widget for

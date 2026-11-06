@@ -263,7 +263,7 @@ BarWidget {
     fontSize: Style.font.caption
     horizontalMargin: 6
     tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
-    tooltipShortcut: "Super + I"
+    tooltipBindingDescription: "Switch input language"
     onPressed: function(button) {
       if (root.multipleInputs && button === Qt.LeftButton) {
         InputMethodState.cycle()

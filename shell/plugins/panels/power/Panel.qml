@@ -290,7 +290,7 @@ Panel {
     text: root.batteryIcon()
     labelText: root.showPercentage && !vertical ? Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%" : ""
     slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
-    tooltipShortcut: "Super + Ctrl + P"
+    tooltipBindingDescription: "Power"
     onPressed: function(b) {
       if (!root.batteryPresent) return
       if (b === Qt.RightButton) root.togglePercentage()

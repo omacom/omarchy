@@ -70,7 +70,7 @@ BarWidget {
     bar: root.bar
     text: panelLoader.item ? panelLoader.item.label : ""
     slotSize: Style.bar.statusSlot
-    tooltipShortcut: "Super + Ctrl + Alt + W"
+    tooltipBindingDescription: "Toggle weather"
 
     onPressed: function(b) {
       if (!root.bar) return
