@@ -513,12 +513,12 @@ enabled_file="${layout_file%/*}/enabled"
 [[ $(enabled | paste -sd,) == "dwindle,scrolling,floating" ]] ||
   fail "without a choice the three stock layouts are enabled" "$(enabled)"
 
-enabled floating dwindle
-[[ $(enabled | paste -sd,) == "dwindle,floating" ]] || fail "enabled layouts come back in cycle order" "$(enabled)"
+enabled master dwindle
+[[ $(enabled | paste -sd,) == "dwindle,master" ]] || fail "enabled layouts come back in cycle order" "$(enabled)"
 
 rm -f "$layout_file"
 toggle
-[[ $(saved_mode) == "floating" ]] || fail "the cycle skips a layout that is not enabled" "saved: $(cat "$layout_file" 2>&1)"
+[[ $(saved_mode) == "master" ]] || fail "the cycle skips a layout that is not enabled" "saved: $(cat "$layout_file" 2>&1)"
 toggle
 [[ ! -e $layout_file ]] || fail "the cycle wraps within the enabled layouts" "saved: $(cat "$layout_file")"
 
@@ -527,7 +527,7 @@ toggle
 [[ ! -e $layout_file ]] || fail "a layout outside the cycle moves onto its first entry" "saved: $(cat "$layout_file")"
 printf 'o.workspace_mode({ workspace = "3", mode = "scrolling" })\n' >"$layout_file"
 toggle_back back
-[[ $(saved_mode) == "floating" ]] || fail "going back, a layout outside the cycle moves onto its last entry" "saved: $(cat "$layout_file")"
+[[ $(saved_mode) == "master" ]] || fail "going back, a layout outside the cycle moves onto its last entry" "saved: $(cat "$layout_file")"
 pass "the cycle holds only the enabled layouts"
 
 # The menu hands over the labels it showed, and refusing the last one has to fail,
