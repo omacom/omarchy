@@ -28,11 +28,17 @@ function isProductName(t, at, word) {
   return !CODE_WORDS.test(before[1])
 }
 
+// "123456 is not a verification code": the sender says it is no code, so the
+// keywords right after "is not" open no window. "Do not share this code"
+// still offers its code.
+var DENIED = "\\b(?:is|are|was|were|['\u2019]s)(?:\\s+not|n['\u2019]t)\\s+(?:(?:an?|the|your)\\s+)?" +
+  "(?:" + CODE_WORDS.source + "\\s*)+"
+
 function windows(t) {
   var out = [], m
-  var re = new RegExp(CODE_WORDS.source, "gi")
+  var re = new RegExp("(" + DENIED + ")|" + CODE_WORDS.source, "gi")
   while ((m = re.exec(t)) !== null) {
-    if (!isProductName(t, m.index, m[0]))
+    if (!m[1] && !isProductName(t, m.index, m[0]))
       out.push([Math.max(0, m.index - NEAR_BEFORE), m.index + m[0].length + NEAR_AFTER])
     if (re.lastIndex === m.index) re.lastIndex++
   }
