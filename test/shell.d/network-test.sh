@@ -387,6 +387,39 @@ const persianDigits = n => String(n).replace(/[0-9]/g, d => String.fromCharCode(
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }, persianDigits), 'AA:BB:CC · -۴۲ dBm', 'network writes a hotspot client signal in the language digits')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc' }), 'AA:BB:CC', 'network labels a hotspot client without signal')
 assertEqual(network.hotspotClientLabel({}), '', 'network labels an empty hotspot client')
+assertDeepEqual(
+  network.hotspotClientRows([{ mac: 'AA:BB:CC', signal: -42 }, { signal: -50 }, { mac: 'dd:ee:ff' }]),
+  [{ mac: 'aa:bb:cc', label: 'AA:BB:CC · -42 dBm' }, { mac: 'dd:ee:ff', label: 'DD:EE:FF' }],
+  'network builds one hotspot client row per MAC'
+)
+// A ListModel stand-in that counts inserts and removes, so a test can tell a
+// row kept in place from one rebuilt.
+function fakeListModel(rows) {
+  const items = rows.map(row => Object.assign({}, row))
+  const model = {
+    inserts: 0, removes: 0,
+    get count() { return items.length },
+    get(i) { return items[i] },
+    insert(i, row) { model.inserts++; items.splice(i, 0, Object.assign({}, row)) },
+    remove(i) { model.removes++; items.splice(i, 1) },
+    move(from, to) { items.splice(to, 0, items.splice(from, 1)[0]) },
+    setProperty(i, prop, value) { items[i][prop] = value },
+    rows() { return items.map(row => Object.assign({}, row)) }
+  }
+  return model
+}
+{
+  const model = fakeListModel([{ mac: 'a', label: 'A · -40 dBm' }, { mac: 'b', label: 'B · -50 dBm' }])
+  const kept = model.get(0)
+  network.syncKeyedRows(model, [{ mac: 'a', label: 'A · -41 dBm' }, { mac: 'b', label: 'B · -50 dBm' }], 'mac')
+  assertEqual(model.inserts + model.removes, 0, 'network keeps hotspot client rows across a status poll')
+  assertEqual(model.get(0) === kept && kept.label === 'A · -41 dBm', true, 'network updates a kept hotspot client row in place')
+  network.syncKeyedRows(model, [{ mac: 'c', label: 'C' }, { mac: 'b', label: 'B · -50 dBm' }, { mac: 'c', label: 'dup' }], 'mac')
+  assertDeepEqual(model.rows(), [{ mac: 'c', label: 'C' }, { mac: 'b', label: 'B · -50 dBm' }], 'network adds, drops and orders hotspot client rows, ignoring duplicate MACs')
+  assertEqual(model.removes, 1, 'network rebuilds only the hotspot client rows that changed')
+  network.syncKeyedRows(model, [], 'mac')
+  assertEqual(model.count, 0, 'network empties the hotspot client rows when the hotspot stops')
+}
 assertEqual(network.hotspotCredentialsError('', 'abcdefgh'), 'Enter a hotspot name', 'network requires a hotspot ssid')
 assertEqual(network.hotspotCredentialsError('  ', 'abcdefgh'), 'Enter a hotspot name', 'network treats a blank hotspot ssid as missing')
 assertEqual(network.hotspotCredentialsError('Home', 'short'), 'Password needs 8+ characters', 'network rejects a short hotspot password')
