@@ -62,7 +62,7 @@ run_guard() {
   ' bash "$SHELL_TEST_DIR" 2>&1 || printf 'guard exited %s\n' "$?"
 }
 
-skipped="ok - no Wayland compositor; skipping sample runtime test"
+skipped="ok - no Wayland compositor; skipping sample runtime test # SKIP"
 
 output=$(run_guard -u WAYLAND_DISPLAY XDG_RUNTIME_DIR="$runtime_dir")
 [[ $output == "$skipped" ]] || fail "guard skips without a display" "$output"
@@ -76,7 +76,7 @@ pass "guard skips when the socket is unreachable"
 
 # Everything below needs a socket to stand in for a live or abandoned compositor.
 if (( ! socket_bound )); then
-  pass "cannot bind a Unix socket here; skipping the cases that need one"
+  skip "cannot bind a Unix socket here; skipping the cases that need one"
   exit 0
 fi
 

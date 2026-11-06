@@ -27,28 +27,7 @@ o.window("org.omarchy.about", { float = true })
 o.window("org.omarchy.about", { center = true })
 o.window("org.omarchy.about", { size = { 920, 480 } })
 
-o.window("dev.tensaku.Tensaku", { float = true })
-o.window("dev.tensaku.Tensaku", { center = true })
 o.window("omacalc", { float = true })
-
--- Fullscreen screensaver.
-o.window("org.omarchy.screensaver", { fullscreen = true })
-o.window("org.omarchy.screensaver", { float = true })
-o.window("org.omarchy.screensaver", { animation = "slide" })
-
--- No transparency on media windows.
-o.window(
-  "^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$",
-  {
-    tag = "-default-opacity",
-  }
-)
-o.window(
-  "^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$",
-  {
-    opacity = "1 1",
-  }
-)
 
 -- Popped window rounding.
 o.window({ tag = "pop" }, { rounding = 8 })
