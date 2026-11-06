@@ -177,10 +177,27 @@ check_scan_cache(adapter)
 
 record, http = agy()
 expect("Antigravity collector asks with agy's token", {r["headers"].get("authorization") for r in http.requests}, {"Bearer token-main"})
-expect("Antigravity collector sends versioned User-Agent", {r["headers"].get("user-agent") for r in http.requests}, {"antigravity/cli/1.5.1 (aidev_client)"})
+uas = {r["headers"].get("user-agent") for r in http.requests}
+check("Antigravity collector sends versioned User-Agent",
+      len(uas) == 1 and all(re.fullmatch(r"antigravity/cli/\S+ \(aidev_client\)", ua) for ua in uas), uas)
 expect("Antigravity collector sends ANTIGRAVITY ideType metadata to loadCodeAssist",
        [json.loads(r["data"] or b"{}") for r in http.requests if TIER in r["url"]],
        [{"metadata": {"ideType": "ANTIGRAVITY"}}])
+
+# The User-Agent version derives from the installed agy --version or fallback.
+old_env = os.environ.get("AGY_CLI_VERSION")
+try:
+  load_collector("agy")._CLI_VERSION = None
+  os.environ["AGY_CLI_VERSION"] = "2.26.0"
+  _, http = agy()
+  expect("Antigravity collector derives User-Agent version dynamically",
+         {r["headers"].get("user-agent") for r in http.requests}, {"antigravity/cli/2.26.0 (aidev_client)"})
+finally:
+  load_collector("agy")._CLI_VERSION = None
+  if old_env is None:
+    os.environ.pop("AGY_CLI_VERSION", None)
+  else:
+    os.environ["AGY_CLI_VERSION"] = old_env
 
 # agy's RetrieveUserQuotaSummaryRequest carries the project, which omp sends
 # from loadCodeAssist's cloudaicompanionProject, named as a string or {id}.

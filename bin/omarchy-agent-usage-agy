@@ -379,7 +379,44 @@ def extract_limits(data):
   return limits
 
 
-USER_AGENT = "antigravity/cli/1.5.1 (aidev_client)"
+DEFAULT_CLI_VERSION = "1.5.2"
+_CLI_VERSION = None
+
+
+# Google's quota service gates Gemini and Argon models behind modern CLI versions.
+# Derive the version from installed agy, falling back to the current packaged release.
+def cli_version():
+  global _CLI_VERSION
+  if _CLI_VERSION is not None:
+    return _CLI_VERSION
+  env_ver = os.environ.get("AGY_CLI_VERSION")
+  if env_ver:
+    _CLI_VERSION = env_ver.strip()
+    return _CLI_VERSION
+  try:
+    proc = subprocess.run(
+      ["agy", "--version"],
+      stdout=subprocess.PIPE,
+      stderr=subprocess.DEVNULL,
+      text=True,
+      timeout=1,
+    )
+    if proc.returncode == 0:
+      for token in proc.stdout.strip().split():
+        cleaned = token.lstrip("v")
+        if cleaned and cleaned[0].isdigit():
+          _CLI_VERSION = cleaned
+          return _CLI_VERSION
+  except Exception:
+    pass
+  _CLI_VERSION = DEFAULT_CLI_VERSION
+  return _CLI_VERSION
+
+
+def user_agent():
+  return f"antigravity/cli/{cli_version()} (aidev_client)"
+
+
 LOAD_CODE_ASSIST_BODY = {"metadata": {"ideType": "ANTIGRAVITY"}}
 
 
@@ -391,7 +428,7 @@ def post(endpoint, token, body=None):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": USER_AGENT},
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": user_agent()},
   )
   return open_json(request, timeout=8)
 
