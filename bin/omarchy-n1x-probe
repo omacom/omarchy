@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# omarchy:summary=Record N1x hardware and boot evidence to /var/log/omarchy-n1x-probe.log, on demand.
+# omarchy:requires-sudo=true
+
+log=/var/log/omarchy-n1x-probe.log
+exec > >(tee "$log") 2>&1
+
+section() {
+  echo
+  echo "===== $* ====="
+}
+
+echo "Omarchy N1x probe"
+date --iso-8601=seconds
+
+section "kernel"
+uname -a
+cat /proc/cmdline
+
+section "fastos marker"
+if [[ -r /etc/fastos-release ]]; then
+  cat /etc/fastos-release
+else
+  echo "not present"
+fi
+
+section "DMI"
+for field in sys_vendor product_name product_version board_vendor board_name board_version bios_version; do
+  if [[ -r /sys/class/dmi/id/$field ]]; then
+    printf '%s=' "$field"
+    cat "/sys/class/dmi/id/$field"
+  fi
+done
+
+section "NVIDIA PCI identity"
+lspci -Dnnk -d 10de: || true
+
+section "all PCI devices"
+lspci -Dnnk || true
+
+section "ACPI identities"
+find /sys/bus/acpi/devices -maxdepth 2 -type f \
+  \( -name hid -o -name modalias -o -name status \) -print -exec cat {} \; 2>/dev/null || true
+
+section "DRM"
+find /sys/class/drm -maxdepth 2 -type f \
+  \( -name status -o -name enabled -o -name modes -o -name modalias \) \
+  -print -exec cat {} \; 2>/dev/null || true
+
+section "modules"
+lsmod
+for module in nvidia nvidia_drm nvidia_modeset nvidia_uvm simpledrm; do
+  modinfo "$module" 2>/dev/null | sed -n '1,30p' || true
+done
+
+section "firmware failures"
+journalctl -b -k --no-pager | grep -Ei 'firmware|nvidia|drm|simpledrm|framebuffer|fbcon|acpi|i2c|hid|r8127|mt79|mlx5' || true
+
+section "network"
+ip -brief link || true
+ip -brief address || true
+
+section "boot files"
+find /boot -maxdepth 4 -type f -printf '%p %s bytes\n' 2>/dev/null | sort || true
+
+section "SSH"
+echo "sshd: $(systemctl is-enabled sshd.service 2>/dev/null || true), $(systemctl is-active sshd.service 2>/dev/null || true)"
+echo "Probe saved to $log"

@@ -14,11 +14,26 @@ declare -A LUA_BIND_ARG_MAP
 # fixed platform root, which no environment variable moves.
 key_names_file=/usr/share/omarchy-platform/key-names
 
+# The leading layout and variant, which Hyprland resolves bindings against.
+# Only names XKB could know pass, since they end up on a command line.
+leading_keyboard() {
+  local option value
+  for option in kb_layout kb_variant; do
+    value=$(hyprctl -j getoption "input:$option" 2>/dev/null | jq -r '.str // empty' 2>/dev/null)
+    value=${value%%,*}
+    [[ $value =~ ^[A-Za-z0-9_-]*$ ]] || value=""
+    printf '%s\n' "$value"
+  done
+}
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk -v key_names="$key_names_file" '
+  local layout variant
+  { read -r layout; read -r variant; } < <(leading_keyboard)
+
+  awk -v key_names="$key_names_file" -v layout="$layout" -v variant="$variant" '
     BEGIN {
       while ((getline line < key_names) > 0) {
         # Blanks around a line and a CRLF line end read the same, as in
@@ -34,8 +49,13 @@ parse_keycodes() {
         keycode_symbol[substr(fallbacks[i], 1, separator - 1)] = substr(fallbacks[i], separator + 1)
       }
 
-      # </dev/null keeps xkbcli from consuming the binding records on stdin
-      keymap_cmd = "xkbcli compile-keymap </dev/null"
+      # Name each key by what the leading layout prints on it: on JIS the key
+      # right of 0 is ^, not =. </dev/null keeps xkbcli from consuming the
+      # binding records on stdin.
+      keymap_cmd = "xkbcli compile-keymap"
+      if (layout != "") keymap_cmd = keymap_cmd " --layout " layout
+      if (layout != "" && variant != "") keymap_cmd = keymap_cmd " --variant " variant
+      keymap_cmd = keymap_cmd " </dev/null"
       section = ""
       while ((keymap_cmd | getline line) > 0) {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
@@ -55,6 +75,7 @@ parse_keycodes() {
       # as the symbol printed on it whichever key the active layout puts it on.
       for (code in keycode_symbol) {
         if (keycode_symbol[code] == "GRAVE") keycode_symbol[code] = "~"
+        if (keycode_symbol[code] == "ASCIICIRCUM") keycode_symbol[code] = "^"
       }
 
       mouse_symbol["272"] = "LEFT MOUSE BUTTON"
@@ -101,9 +122,10 @@ build_lua_bind_cache() {
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
-    # -E keeps LUA_INIT and LUA_PATH from the environment out of the scan, which
-    # loads the user's config.
-    lua -E - <<'LUA'
+    # A config the stub cannot satisfy must not leave a runaway lua behind after
+    # the menu closes, so the scan is time-boxed. -E keeps LUA_INIT and LUA_PATH
+    # from the environment out of the scan, which loads the user's config.
+    timeout 10 lua -E - <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -206,15 +228,80 @@ local function dsp_proxy(path)
   })
 end
 
+-- Stand-in for every Hyprland value the config reads while we only want its
+-- binds. It has to be safe for the loops and comparisons user configs run at
+-- load time: `ipairs` over it yields nothing (below), and comparisons,
+-- arithmetic, and concatenation degrade to harmless values instead of raising
+-- and aborting the scan halfway through the config.
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  -- A collection answers its first index and `list[#list]` (which is 0) with a
+  -- stand-in and every other number with nil, so `while list[i] do` ends.
+  __index = function(_, key)
+    if type(key) == "number" and key ~= 1 and key ~= 0 then
+      return nil
+    end
+
     return noop
   end,
   __call = function()
     return noop
   end,
+  __len = function()
+    return 0
+  end,
+  __lt = function()
+    return false
+  end,
+  __le = function()
+    return false
+  end,
+  __unm = function()
+    return 0
+  end,
+  __add = function()
+    return 0
+  end,
+  __sub = function()
+    return 0
+  end,
+  __mul = function()
+    return 0
+  end,
+  __div = function()
+    return 0
+  end,
+  __mod = function()
+    return 0
+  end,
+  __idiv = function()
+    return 0
+  end,
+  __pow = function()
+    return 0
+  end,
+  __concat = function(left, right)
+    if rawequal(left, noop) then
+      return tostring(right)
+    end
+
+    return tostring(left)
+  end,
+  __tostring = function()
+    return ""
+  end,
 })
+
+-- A stub collection is empty to `ipairs`, so a loop over it never runs its
+-- body against stand-in values.
+local raw_ipairs = ipairs
+function ipairs(list)
+  if rawequal(list, noop) then
+    return function() end, list, 0
+  end
+
+  return raw_ipairs(list)
+end
 
 hl = setmetatable({
   dsp = dsp_proxy("hl.dsp"),
@@ -235,6 +322,9 @@ hl = setmetatable({
       elseif o and o.bind_commands and o.bind_commands[bind_dispatcher] then
         kind = "exec"
         arg = o.bind_commands[bind_dispatcher]
+      elseif o and o.bind_expressions and o.bind_expressions[bind_dispatcher] then
+        kind = "lua"
+        arg = o.bind_expressions[bind_dispatcher]
       end
 
       print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))
@@ -256,7 +346,13 @@ local file = io.open(config, "r")
 
 if file then
   file:close()
+  -- Stops a runaway loop in the config long before the timeout above, which
+  -- stays the backstop for one the hook cannot reach, such as in a coroutine.
+  debug.sethook(function()
+    error("instruction limit exceeded")
+  end, "", 50000000)
   local ok, err = pcall(dofile, config)
+  debug.sethook()
   if not ok and os.getenv("DEBUG") == "1" then
     io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
   end
@@ -365,8 +461,6 @@ alternative_chord_actions() {
   cat <<'ACTIONS'
 Close window
 Calculator
-Toggle scratchpad
-Move window to scratchpad
 ACTIONS
 }
 
@@ -505,7 +599,7 @@ prioritize_entries() {
     if (match(line, /Resize window/))  prio = 35
     if (match(line, /Expand window/))  prio = 36
     if (match(line, /Shrink window/))  prio = 37
-    if (match(line, /scratchpad/))  prio = 38
+    if (match(line, /scratchpad|Quake console/))  prio = 38
     if (match(line, /notification/))  prio = 39
     if (match(line, /Toggle window transparency/))  prio = 40
     if (match(line, /Toggle workspace gaps/))  prio = 41
@@ -588,7 +682,8 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v16\n'
+    printf 'v19\n'
+    leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
