@@ -2,4 +2,33 @@
 
 # omarchy:summary=Print the name of the built-in laptop display, including disabled outputs.
 
-hyprctl monitors all -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-")).name' | head -n 1
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+touchbar_output() {
+  local name=$1 connector card key value driver matched=0
+  # Keep unrecognized names as candidates without using them in a sysfs glob.
+  [[ $name =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+  for connector in "$drm_path"/card[0-9]*-"$name"; do
+    [[ -e $connector ]] || continue
+    card=${connector%-"$name"}
+    [[ ${card##*/} =~ ^card[0-9]+$ && -r $card/device/uevent ]] || return 1
+    driver=""
+    while IFS='=' read -r key value || [[ -n $key ]]; do
+      [[ $key != "DRIVER" ]] || driver=$value
+    done <"$card/device/uevent"
+    # These DRM drivers drive the Touch Bar, not the built-in display. If
+    # another/unknown card has the same connector name, keep it conservatively.
+    case $driver in
+      adp | appletbdrm) matched=1 ;;
+      *) return 1 ;;
+    esac
+  done
+  (( matched ))
+}
+
+while IFS= read -r name; do
+  if ! touchbar_output "$name"; then
+    printf '%s\n' "$name"
+    break
+  fi
+done < <(hyprctl monitors all -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-")).name')
