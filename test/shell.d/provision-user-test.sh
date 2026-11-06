@@ -61,14 +61,3 @@ HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 ! grep -q -- '--set DOWNLOAD ' "$TEST_COMMAND_LOG" || fail "provisioning keeps a folder the user already named"
 grep -q -- '--set PICTURES ' "$TEST_COMMAND_LOG" || fail "provisioning still names the folders the user has not"
 pass "provisioning keeps a folder the user already named, in any language"
-
-# A first install marks every shipped migration complete without running it.
-[[ ! -e $test_tmp/home/.local/state/omarchy/toggles/monitor-management ]] ||
-  fail "provisioning an existing user leaves monitor management to its migration"
-
-HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
-  OMARCHY_INSTALL="$test_tmp/install" bash "$ROOT/bin/omarchy-provision-user" --first-install >/dev/null ||
-  fail "omarchy-provision-user finishes a first install"
-HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-enabled monitor-management ||
-  fail "a first install turns monitor management on"
-pass "a first install turns monitor management on"

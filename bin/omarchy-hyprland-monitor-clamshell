@@ -8,7 +8,7 @@ CLAMSHELL_FLAG="$TOGGLES_DIR/internal-monitor-clamshell.lua"
 
 # Retired, not only skipped by default/hypr/toggles.lua: writing the rule is what
 # reloads Hyprland, so one left on disk would not return with monitor management.
-if ! omarchy-toggle-enabled monitor-management; then
+if omarchy-toggle-enabled monitor-management-off; then
   rm -f "$CLAMSHELL_FLAG"
   exit 0
 fi

@@ -60,8 +60,6 @@ exec /usr/bin/sleep "$(awk -v d="${1:-0}" 'BEGIN { printf "%g", d / 15 }')"
 SH
 chmod +x "$fake_bin/sleep"
 
-HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management on
-
 monitors_file="$test_tmp/monitors.json"
 reload_log="$test_tmp/reload.log"
 recovered="$test_tmp/recovered.json"
@@ -409,18 +407,14 @@ start_management_watcher() {
   exec {events_fd}<>"$events"
 }
 
-HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management on
-
-HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-enabled monitor-management ||
-  fail "monitor management did not report enabled after it was turned on"
+management_off_flag="$test_tmp/home/.local/state/omarchy/toggles/monitor-management-off"
+[[ ! -e $management_off_flag ]] || fail "monitor management starts out on, with no flag and no setup"
 
 HOME="$test_tmp/home" \
   PATH="$ROOT/bin:$PATH" \
-  omarchy-toggle monitor-management off
+  omarchy-toggle-monitor-management off
 
-if HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-enabled monitor-management; then
-  fail "monitor management reported enabled after it was turned off"
-fi
+[[ -e $management_off_flag ]] || fail "monitor management stayed on after it was turned off"
 
 HOME="$test_tmp/home" PATH="$stub_bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-hyprland-monitor-internal" toggle || true
@@ -480,11 +474,9 @@ kill -0 "$watch_pid" 2>/dev/null || fail "monitor watcher exited while monitor m
 
 HOME="$test_tmp/home" \
   PATH="$ROOT/bin:$PATH" \
-  omarchy-toggle monitor-management on
+  omarchy-toggle-monitor-management on
 
-[[ -e $test_tmp/home/.local/state/omarchy/toggles/monitor-management ]] || fail "monitor management remained disabled after turning it on"
-HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-enabled monitor-management ||
-  fail "monitor management did not report enabled after turning it on"
+[[ ! -e $management_off_flag ]] || fail "monitor management stayed off after turning it on"
 
 printf 'monitoradded>>DP-1\n' >&"$events_fd"
 await_log_line "clamshell continued" || fail "running monitor watcher did not resume clamshell handling"
@@ -492,7 +484,7 @@ await_log_line "monitor config reloaded" || fail "running monitor watcher did no
 
 HOME="$test_tmp/home" \
   PATH="$ROOT/bin:$PATH" \
-  omarchy-toggle monitor-management off
+  omarchy-toggle-monitor-management off
 
 : >"$command_log"
 : >"$lid_log"
@@ -506,7 +498,7 @@ kill -0 "$watch_pid" 2>/dev/null || fail "monitor watcher exited instead of beco
 
 HOME="$test_tmp/home" \
   PATH="$ROOT/bin:$PATH" \
-  omarchy-toggle monitor-management on
+  omarchy-toggle-monitor-management on
 
 printf 'monitorremoved>>DP-2\n' >&"$events_fd"
 await_log_line "clamshell continued" || fail "same monitor watcher did not resume after management was re-enabled"

@@ -135,3 +135,15 @@ for virt in vm none; do
   fi
 done
 pass "a VM install starts without animations and with opaque windows"
+
+management_off_flag="$test_home/.local/state/omarchy/toggles/monitor-management-off"
+HOME="$test_home" omarchy toggle monitor-management off
+[[ -f $management_off_flag ]] || fail "monitor management off sets its off flag"
+HOME="$test_home" omarchy toggle monitor-management on
+[[ ! -e $management_off_flag ]] || fail "monitor management on clears its off flag"
+HOME="$test_home" omarchy toggle monitor-management
+[[ -f $management_off_flag ]] || fail "monitor management flips off from its default"
+if HOME="$test_home" omarchy-toggle-monitor-management sideways 2>/dev/null; then
+  fail "monitor management refuses an unknown action"
+fi
+pass "omarchy toggle monitor-management turns management on and off through the inverted flag"

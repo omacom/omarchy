@@ -7,7 +7,7 @@ TOGGLE="internal-monitor-disable"
 TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 MIRROR_TOGGLE="internal-monitor-mirror"
 
-omarchy-toggle-enabled monitor-management || exit 0
+omarchy-toggle-enabled monitor-management-off && exit 0
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 

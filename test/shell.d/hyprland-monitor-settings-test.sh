@@ -14,7 +14,6 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 mkdir -p "$tmpdir/state/omarchy/monitors" "$tmpdir/home"
-HOME="$tmpdir/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management on
 settings="$tmpdir/state/omarchy/monitors/settings"
 
 cat >"$tmpdir/fake.lua" <<'LUA'
@@ -141,7 +140,7 @@ pass "monitor settings stay out of the way when switched off in monitors.lua"
 
 # Handed to another manager, nothing saved here overrides its layout, on a
 # reload or when a monitor arrives.
-HOME="$tmpdir/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management off
+HOME="$tmpdir/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-monitor-management off
 run_lua '
 plug("eDP-1", "LG Display 0x0804", { width = 2880, height = 1800, refresh_rate = 120, scale = 2, x = 0, y = 0 })
 load_module()
@@ -150,7 +149,7 @@ handlers["monitor.added"]({ name = "eDP-1" })
 o.monitor_settings.update_gdk_scale()
 check(#applied == 0 and env.GDK_SCALE == nil, "applies nothing while monitor management is off")
 ' || fail "monitor settings stay out of the way while monitor management is off"
-HOME="$tmpdir/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management on
+HOME="$tmpdir/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-monitor-management on
 pass "monitor settings stay out of the way while monitor management is off"
 
 # Until something is saved, monitors.lua alone decides, GDK_SCALE included.

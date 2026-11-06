@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Hand automatic monitor management to another manager, or take it back
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle monitor-management off | omarchy toggle monitor-management on
+
+case "${1:-toggle}" in
+  on) omarchy-toggle monitor-management-off off ;;
+  off) omarchy-toggle monitor-management-off on ;;
+  toggle) omarchy-toggle monitor-management-off toggle ;;
+  *)
+    echo "Usage: omarchy-toggle-monitor-management [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
