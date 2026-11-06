@@ -107,8 +107,8 @@ shell_pids() {
 }
 
 stop_shell() {
-  local dir=$1 grace=30 pid deadline
-  local -a pids
+  local dir=$1 grace=30 pid deadline parent command
+  local -a pids argv
 
   # A shell that cannot answer ping cannot answer its IPC quit request either.
   # Keep the usual teardown grace for responsive shells with a large bar.
@@ -119,6 +119,18 @@ stop_shell() {
 
   mapfile -t pids < <(shell_pids "$dir")
   (( ${#pids[@]} > 0 )) || return 0
+  # Tell each shell's launcher this is a deliberate stop before signalling
+  # its child. Otherwise it can respawn while another checkout is stopping.
+  for pid in "${pids[@]}"; do
+    parent=$(ps -o ppid= -p "$pid")
+    parent=${parent//[[:space:]]/}
+    [[ $parent =~ ^[0-9]+$ ]] || continue
+    mapfile -d '' -t argv 2>/dev/null <"/proc/$parent/cmdline" || continue
+    command=${argv[1]:-}
+    if [[ ${command##*/} == "omarchy-launch-shell" ]]; then
+      kill -TERM "$parent" 2>/dev/null || true
+    fi
+  done
   kill -TERM "${pids[@]}" 2>/dev/null || true
   deadline=$((SECONDS + 5))
   while (( SECONDS < deadline )); do

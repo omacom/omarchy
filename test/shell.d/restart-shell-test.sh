@@ -7,8 +7,13 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
 restart_pid_one=""
 restart_pid_two=""
+restart_launcher_pid=""
 
 cleanup() {
+  [[ -n $restart_launcher_pid ]] && kill "$restart_launcher_pid" 2>/dev/null || true
+  if [[ -f $test_tmp/supervisors ]]; then
+    while read -r pid; do kill "$pid" 2>/dev/null || true; done <"$test_tmp/supervisors"
+  fi
   [[ -n $restart_pid_one ]] && kill "$restart_pid_one" 2>/dev/null || true
   [[ -n $restart_pid_two ]] && kill "$restart_pid_two" 2>/dev/null || true
   rm -rf "$test_tmp"
@@ -37,6 +42,14 @@ printf '%s\n' "$*" >>"$OMARCHY_TEST_IPC_LOG"
 
 case "$*" in
   *'shell ping')
+    if [[ ${OMARCHY_TEST_QS_SUPERVISED:-0} == 1 ]]; then
+      if [[ $OMARCHY_PATH != "$OMARCHY_TEST_SESSION_PATH" || -f $OMARCHY_TEST_QS_STATE.fresh ]]; then
+        echo ok
+      else
+        exit 1
+      fi
+      exit 0
+    fi
     [[ $* == *"-p $OMARCHY_TEST_SESSION_PATH/shell"* ]] &&
       grep -Fx '303' "$OMARCHY_TEST_QS_STATE" >/dev/null &&
       printf 'ok\n'
@@ -67,20 +80,29 @@ case " $* " in
   *' list '*)
     if [[ ${OMARCHY_TEST_QS_HANG:-0} == 1 ]]; then
       pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
-      if [[ $pid != 303 ]] && kill -0 "$pid" 2>/dev/null; then
-        jq -nc --arg config "$OMARCHY_TEST_SESSION_PATH/shell/shell.qml" --argjson pid "$pid" '[{config_path:$config,pid:$pid}]'
-      else
-        echo '[]'
-      fi
+      {
+        if [[ $pid != 303 ]] && kill -0 "$pid" 2>/dev/null; then
+          jq -nc --arg config "$OMARCHY_TEST_SESSION_PATH/shell/shell.qml" --argjson pid "$pid" '[{config_path:$config,pid:$pid}]'
+        fi
+        if [[ ${OMARCHY_TEST_QS_SUPERVISED:-0} == 1 && -s $strays ]]; then
+          jq -R -s -c 'split("\n") | map(select(length > 0) | split(" ") | {config_path: (.[0] + "/shell.qml"), pid: (.[1] | tonumber)})' "$strays"
+        fi
+      } | jq -sc 'add // []'
       exit 0
     fi
     [[ -f $strays ]] && jq -R -s -c 'split("\n") | map(select(length > 0) | split(" ") | {config_path: (.[0] + "/shell.qml"), pid: (.[1] | tonumber)})' "$strays"
     ;;
   *' kill -p '*)
-    [[ ${OMARCHY_TEST_QS_HANG:-0} != 1 ]] || exec sleep 30
+    [[ ${OMARCHY_TEST_QS_HANG:-0} != 1 || $3 != "$OMARCHY_TEST_SESSION_PATH/shell" ]] || exec sleep 30
     if [[ $3 != "$OMARCHY_TEST_SESSION_PATH/shell" ]]; then
       pid=$(awk -v dir="$3" '$1 == dir { print $2; exit }' "$strays" 2>/dev/null)
       [[ $pid =~ ^[0-9]+$ ]] || exit 1
+      if [[ ${OMARCHY_TEST_QS_SUPERVISED:-0} == 1 ]]; then
+        sleep 2.2
+        kill "$pid" 2>/dev/null
+        : >"$strays"
+        exit 124
+      fi
       # The instance outlasts the client's timeout and exits a moment later.
       (
         sleep 0.5
@@ -100,6 +122,11 @@ case " $* " in
     ;;
   *' -n -p '*)
     printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
+    if [[ ${OMARCHY_TEST_QS_SUPERVISED:-0} == 1 && ! -f $OMARCHY_TEST_QS_STATE.fresh ]]; then
+      printf '%s\n' "$PPID" >>"$OMARCHY_TEST_SUPERVISORS"
+      printf '%s\n' "$$" >"$OMARCHY_TEST_QS_STATE"
+      exec sleep 30
+    fi
     printf '303\n' >"$OMARCHY_TEST_QS_STATE"
     [[ ! -f $strays ]] || cp "$strays" "$strays.at-launch"
     ;;
@@ -120,6 +147,7 @@ if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
   fi
 elif [[ ${1:-} == "dispatch" && ${2:-} == hl.dsp.exec_cmd* ]]; then
   printf '%s\n' "${2:-}" >>"$OMARCHY_TEST_DISPATCH_LOG"
+  [[ ${OMARCHY_TEST_QS_SUPERVISED:-0} != 1 ]] || touch "$OMARCHY_TEST_QS_STATE.fresh"
   OMARCHY_PATH="$OMARCHY_TEST_SESSION_PATH" \
     env -u OMARCHY_TEST_TRANSIENT_ENV omarchy-launch-shell
   printf 'ok\n'
@@ -145,6 +173,7 @@ cat >"$restart_bin/systemctl" <<'SH'
 if [[ ${1:-} == "--user" && ${2:-} == "show-environment" ]]; then
   printf 'OMARCHY_PATH=%s\n' "$OMARCHY_TEST_SESSION_PATH"
 elif [[ ${1:-} == "--user" && ${2:-} == "try-restart" ]]; then
+  [[ ${OMARCHY_TEST_QS_SUPERVISED:-0} != 1 ]] || touch "$OMARCHY_TEST_SUPERVISORS.invites"
   exit 0
 else
   exit 1
@@ -384,3 +413,48 @@ grep -F 'Hyprland is not responding' "$test_tmp/compositor-hang.out" >/dev/null 
   fail "restart does not report the unresponsive compositor" "$(cat "$test_tmp/compositor-hang.out")"
 [[ ! -s $restart_log ]] || fail "restart touches shells without knowing the compositor lock state"
 pass "restart refuses promptly when the compositor cannot report lock state"
+
+# Use the real supervisor: a forced child exit used to respawn after one
+# second, while a second checkout was still shutting down. The new instance
+# escaped the captured cleanup list and made restart fail before restoration.
+cat >"$restart_bin/logger" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$restart_bin/logger"
+sed -e 's/^    grace=1$/    grace=0.2/' -e 's/SECONDS + 30/SECONDS + 3/g' \
+  "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/restart-race"
+chmod +x "$test_tmp/restart-race"
+kill "$restart_pid_two" 2>/dev/null || true
+wait "$restart_pid_two" 2>/dev/null || true
+sleep 30 &
+restart_pid_two=$!
+touch "$worktree_root/shell/shell.qml"
+printf '%s %s\n' "$worktree_root/shell" "$restart_pid_two" >"$test_tmp/race-strays"
+: >"$restart_state"
+: >"$dispatch_log"
+rm -f "$restart_state.fresh" "$restart_state.locked"
+
+supervised() {
+  PATH="$restart_bin:$PATH" OMARCHY_PATH="$restart_root" XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_QS_STRAYS="$test_tmp/race-strays" OMARCHY_TEST_SUPERVISORS="$test_tmp/supervisors" \
+  OMARCHY_TEST_QS_HANG=1 OMARCHY_TEST_QS_SUPERVISED=1 "$@"
+}
+supervised "$ROOT/bin/omarchy-launch-shell" >"$test_tmp/supervisor.out" 2>&1 &
+restart_launcher_pid=$!
+for _ in {1..100}; do
+  [[ -s $restart_state ]] && break
+  sleep 0.05
+done
+[[ -s $restart_state ]] || fail "the real supervisor starts the hung instance"
+supervised timeout 12 "$test_tmp/restart-race" || fail "restart coordinates supervision while another checkout stops"
+wait "$restart_launcher_pid" || fail "the stopped supervisor exits cleanly"
+restart_launcher_pid=""
+wait "$restart_pid_two" 2>/dev/null || true
+restart_pid_two=""
+[[ $(<"$restart_state") == 303 && -s $dispatch_log ]] || fail "restart did not dispatch a fresh shell after cleanup"
+[[ -f $test_tmp/supervisors.invites ]] || fail "restart skipped invitation restoration after the forced stop"
+pass "restart stops the supervisor before a slow second checkout and completes restoration"
