@@ -38,7 +38,7 @@ The font channel tracks one explicitly registered desktop owner at a time becaus
 
 ## Package provenance and publication
 
-`packaging/omarchy-touchbar/PKGBUILD` is release/CI input only. Version `0.3.8.omarchy1-2` targets aarch64 and pins both git inputs:
+The canonical [omarchy-pkgs recipe](https://github.com/omacom/omarchy-pkgs/tree/master/pkgbuilds/omarchy-touchbar) is release/CI input only. Omarchy owns and tests the activation, font-channel and release-rendering helpers in `default/touchbar/`; the package recipe retrieves those files from an immutable Omarchy revision with SHA-256 verification, rather than maintaining duplicate copies. Version `0.3.8.omarchy1-2` targets aarch64 and pins both git inputs:
 
 - Native fork: `guirossibrum/tiny-dfr` at `6b77e96f8cef5ddf5c6c5c5b4a003b477f342ec9`.
 - Companion plugin: `guirossibrum/omarchy-touchbar` at `1c1f34ac84459017b320123b57f5e14e7427ab7a`.

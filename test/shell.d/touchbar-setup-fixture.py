@@ -35,7 +35,7 @@ class Setup(unittest.TestCase):
                      'omarchy-shell-config', 'omarchy-hook-install', 'omarchy-plugin-validate'):
             self.copy(ROOT / 'bin' / name, self.main / 'bin' / name)
         self.copy(ROOT / 'scripts/touchbar-remove-bindings.py', self.main / 'scripts/touchbar-remove-bindings.py')
-        self.copy(ROOT / 'packaging/omarchy-touchbar/activate', self.lib / 'activate')
+        self.copy(ROOT / 'default/touchbar/activate', self.lib / 'activate')
         self.write(self.lib / 'hardware.py', 'import os,sys\nsys.exit(0 if os.environ["SUPPORTED"] == "1" else 1)\n')
         self.stub('omarchy-hw-touchbar', '[[ $SUPPORTED == 1 ]]')
         shutil.copy2(self.tools / 'omarchy-hw-touchbar', self.main / 'bin/omarchy-hw-touchbar')
@@ -120,7 +120,7 @@ esac''')
         injection = self.work / 'bash-env'
         self.write(injection, f'touch {marker}\n')
         font_helper = self.work / 'protected-font-channel'
-        self.copy(ROOT / 'packaging/omarchy-touchbar/setup-font-channel', font_helper)
+        self.copy(ROOT / 'default/touchbar/setup-font-channel', font_helper)
         for helper in (self.lib / 'activate', font_helper):
             environment = dict(self.env, BASH_ENV=str(injection))
             result = subprocess.run([str(helper)], env=environment, capture_output=True, timeout=5)
