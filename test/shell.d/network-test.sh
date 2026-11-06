@@ -45,6 +45,7 @@ assertEqual(network.effectiveConnectivity('limited', false), 'limited', 'network
 assertEqual(network.effectiveConnectivity('portal', true), 'portal', 'network never overrides a captive portal')
 assert(network.routedProbeSucceeded(0, '204'), 'network accepts the expected connectivity response')
 assert(!network.routedProbeSucceeded(0, '200'), 'network rejects an unexpected success response')
+assert(!network.routedProbeSucceeded(0, '301'), 'network rejects a redirect response')
 assert(!network.routedProbeSucceeded(47, '204'), 'network rejects a failed connectivity probe')
 
 assertDeepEqual(

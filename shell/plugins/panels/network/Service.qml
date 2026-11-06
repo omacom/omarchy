@@ -8,7 +8,7 @@ Item {
   id: root
 
   property bool routedConnectivity: false
-  property bool checksEnabled: Networking.backend === NetworkBackendType.NetworkManager
+  readonly property bool checksEnabled: Networking.backend === NetworkBackendType.NetworkManager
     && Networking.canCheckConnectivity && Networking.connectivityCheckEnabled
   readonly property bool limited: Networking.connectivity === NetworkConnectivity.Limited
   property string probeStatus: ""
@@ -43,7 +43,8 @@ Item {
   // route, so connectivityChanged never fires again, and switching an exit
   // node keeps the same device. Neither case has a signal to bind to, so this
   // is the last-resort poll: one shared probe that backs off to five minutes,
-  // and only while NM says limited. The panel probes every 10s while open.
+  // and only while NM says limited. The panel probes every 10s while open and
+  // limited.
   property int refreshInterval: 15000
 
   Timer {
@@ -78,6 +79,8 @@ Item {
       onStreamFinished: root.probeStatus = text.trim()
     }
     onExited: function(exitCode) {
+      // A device or connectivity change while curl was in flight makes this
+      // answer stale: keep the current one and probe again.
       if (root.probeGenerationAtStart !== root.probeGeneration || !root.limited || !root.checksEnabled) {
         Qt.callLater(root.probe)
         return
