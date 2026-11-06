@@ -56,6 +56,7 @@ Item {
   property bool fido2Paused: false
   property int fido2Streak: 0
   property double fido2AttemptStartedMs: 0
+  property double fido2LastNudgeMs: 0
   // Outputs the lock last saw, so only a display arriving counts as a wake.
   property int knownScreenCount: 0
   property bool previewVisible: false
@@ -223,6 +224,7 @@ Item {
     fido2Prompting = false
     fido2Paused = false
     fido2Streak = 0
+    fido2LastNudgeMs = 0
     fido2RetryTimer.stop()
     fido2AttemptTimer.stop()
     fingerprintRecheckTimer.stop()
@@ -280,6 +282,7 @@ Item {
     resumeFingerprint()
     nudgeFingerprint()
     resumeFido2()
+    nudgeFido2()
   }
 
   // An attempt already running is left to finish under its own timeouts, so
@@ -513,10 +516,28 @@ Item {
     if (fido2Authenticating) abortFido2()
   }
 
+  // The aborted attempt may still hold the key for a moment, so the first
+  // attempt after a wake waits a beat instead of failing fast into a backoff.
   function resumeFido2() {
     if (!fido2Paused) return
     fido2Paused = false
-    startFido2()
+    if (lockRequested && fido2Configured && !fido2Authenticating) armFido2Retry(Fido2Model.WAKE_DELAY_MS)
+  }
+
+  function armFido2Retry(delayMs) {
+    fido2RetryTimer.interval = delayMs
+    fido2RetryTimer.restart()
+  }
+
+  // Input while a backoff is pending brings the next attempt forward, so a
+  // key that was not ready a moment ago is asked again as soon as the user
+  // acts. The cooldown keeps held-down keys from turning into a retry loop.
+  function nudgeFido2() {
+    if (!lockRequested || !fido2Configured || fido2Paused || fido2Authenticating || !fido2RetryTimer.running) return
+    var now = Date.now()
+    if (now - fido2LastNudgeMs < Fido2Model.NUDGE_COOLDOWN_MS) return
+    fido2LastNudgeMs = now
+    armFido2Retry(Fido2Model.WAKE_DELAY_MS)
   }
 
   // onError and onCompleted can both fire; settle each attempt once. A
