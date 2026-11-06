@@ -6,7 +6,7 @@ require_command lua
 
 lua - <<'LUA' || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command, imported, commands = {}, nil, nil, false, {}
+local events, recovery, command, imported, commands, trace = {}, nil, nil, false, {}, {}
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
@@ -23,7 +23,12 @@ hl = {
   get_config = function(key) return config[key:match("%.(.+)")] end,
   env = function(name, value) env[name] = value end,
   config = function(values)
-    for name, value in pairs(values.cursor) do config[name] = value end
+    local call = {}
+    for name, value in pairs(values.cursor) do
+      config[name] = value
+      call[name] = value
+    end
+    table.insert(trace, { config = call })
   end,
   timer = function(callback, options)
     assert(options.timeout == 15000 and options.type == "oneshot")
@@ -39,6 +44,7 @@ hl = {
     end
     command = value
     table.insert(commands, value)
+    table.insert(trace, { cmd = value })
   end,
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
@@ -151,7 +157,7 @@ omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 env.HYPRCURSOR_THEME, env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_THEME = nil, "my-xcursor", nil
 env.OMARCHY_STARTUP_CURSOR_SESSION, env.XCURSOR_PATH = "", "/my/icons"
 config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
-commands = {}
+commands, trace = {}, {}
 events["config.reloaded"]()
 assert(env.HYPRCURSOR_THEME == "my-xcursor" and omarchy_startup_cursor.hyprcursor == "my-xcursor", "an unset Hyprcursor theme follows the Xcursor theme instead of the first-found fallback")
 omarchy_startup_cursor_restore(true)
@@ -160,6 +166,24 @@ for _, c in ipairs(commands) do
   if c:match("setcursor 'my%-xcursor' 24$") then hyprcursor_applied = true end
 end
 assert(hyprcursor_applied, "the reveal must apply the Hyprcursor theme it derived")
+-- The reveal must apply the named theme while the pointer is still hidden: it
+-- re-enables Hyprcursor first, because between that config flip and the async
+-- setcursor Hyprcursor would otherwise show its first-found fallback (#17315).
+-- A plugin theme applied after the reveal still wins; the order only keeps
+-- Hyprcursor from ever being visible unnamed.
+local hidden_hyprcursor, named_at, revealed_settings
+for i, entry in ipairs(trace) do
+  if entry.cmd and entry.cmd:match("setcursor 'my%-xcursor' 24$") then
+    named_at = named_at or i
+  elseif entry.config and entry.config.enable_hyprcursor and entry.config.invisible then
+    hidden_hyprcursor = hidden_hyprcursor or i
+  elseif entry.config and not entry.config.invisible and entry.config.enable_hyprcursor and entry.config.sync_gsettings_theme then
+    revealed_settings = revealed_settings or i
+  end
+end
+assert(hidden_hyprcursor and named_at and revealed_settings
+  and hidden_hyprcursor < named_at and named_at < revealed_settings,
+  "reveal in order: re-enable Hyprcursor hidden, setcursor the named theme, then unhide with the user's settings")
 -- With no theme at all the default alias serves both, and GSettings stays unread.
 omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 env.HYPRCURSOR_THEME, env.XCURSOR_THEME = nil, ""
