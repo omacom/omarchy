@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# omarchy:summary=Show or set the layout of workspaces without one of their own: dwindle, scrolling, or floating
-# omarchy:args=[dwindle|scrolling|floating]
+# omarchy:summary=Show or set the layout of workspaces without one of their own: dwindle, master, scrolling, or floating
+# omarchy:args=[dwindle|master|scrolling|floating]
 # omarchy:examples=omarchy hyprland workspace layout default | omarchy hyprland workspace layout default scrolling
 
 # Layout changes replace one notification instead of stacking a new one for
@@ -29,10 +29,11 @@ fi
 
 case $1 in
   dwindle) MESSAGE=$(omarchy-i18n layout.defaultTiling) ;;
+  master) MESSAGE=$(omarchy-i18n layout.defaultMaster) ;;
   scrolling) MESSAGE=$(omarchy-i18n layout.defaultScrolling) ;;
   floating) MESSAGE=$(omarchy-i18n layout.defaultFloating) ;;
   *)
-    echo "Usage: omarchy-hyprland-workspace-layout-default [dwindle|scrolling|floating]" >&2
+    echo "Usage: omarchy-hyprland-workspace-layout-default [dwindle|master|scrolling|floating]" >&2
     exit 1
     ;;
 esac
