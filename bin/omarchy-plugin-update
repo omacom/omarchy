@@ -12,6 +12,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
 UPDATED_ANY=0
+MIGRATED_ANY=0
 
 fail() {
   echo "omarchy-plugin-update: $*" >&2
@@ -37,45 +38,80 @@ valid_plugin_id() {
 }
 
 update_one() {
-  local id="$1"
-  local dir="$PLUGINS_DIR/$id"
+  local dir="$1"
+  local folder_id old_id old_head incoming_id incoming_manifest new_id from_id migrated status
+  local merged=0
+  folder_id=$(basename "$dir")
+  old_id=$(jq -er '.id | strings' "$dir/manifest.json") || return 1
+  valid_plugin_id "$old_id" || return 1
+  old_head=$(git -C "$dir" rev-parse HEAD) || return 1
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
-    echo "omarchy-plugin-update: fetch failed for '$id'" >&2
+    echo "omarchy-plugin-update: fetch failed for '$old_id'" >&2
     return 1
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
-    echo "$id is up to date."
+  if [[ $old_head != $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+    incoming_manifest=$(git -C "$dir" show FETCH_HEAD:manifest.json) || return 1
+    incoming_id=$(jq -er '.id | strings' <<<"$incoming_manifest") || return 1
+    if [[ $incoming_id != $old_id ]] || { [[ $folder_id != $old_id ]] && jq -e --arg old "$folder_id" '(.renamedFrom // []) | index($old) != null' <<<"$incoming_manifest" >/dev/null; }; then
+      if [[ -n $(git -C "$dir" status --porcelain) ]]; then
+        echo "omarchy-plugin-update: commit or discard local changes before migrating '$old_id'" >&2
+        return 1
+      fi
+    fi
+
+    if (( ! ASSUME_YES )); then
+      echo "Changes for $old_id:"
+      if omarchy-cmd-present delta; then
+        git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
+      else
+        git -C "$dir" diff HEAD FETCH_HEAD
+      fi
+      echo
+      confirm "Update $old_id?" || {
+        echo "Skipped $old_id."
+        return 0
+      }
+    fi
+
+    if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
+      echo "omarchy-plugin-update: cannot fast-forward '$old_id'; you have local changes in $dir" >&2
+      return 1
+    fi
+    merged=1
+  elif [[ $folder_id == $old_id ]] || ! jq -e --arg old "$folder_id" '(.renamedFrom // []) | index($old) != null' "$dir/manifest.json" >/dev/null; then
+    echo "$old_id is up to date."
     return 0
   fi
 
-  if (( ! ASSUME_YES )); then
-    echo "Changes for $id:"
-    if omarchy-cmd-present delta; then
-      git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
-    else
-      git -C "$dir" diff HEAD FETCH_HEAD
-    fi
-    echo
-    confirm "Update $id?" || {
-      echo "Skipped $id."
-      return 0
-    }
-  fi
-
-  if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
-    echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
-    return 1
-  fi
-
   if ! omarchy-plugin-validate "$dir"; then
-    git -C "$dir" reset --hard ORIG_HEAD >/dev/null
-    echo "omarchy-plugin-update: update of '$id' failed validation; rolled back" >&2
+    if (( merged )); then
+      git -C "$dir" reset --hard "$old_head" >/dev/null
+    fi
+    echo "omarchy-plugin-update: update of '$old_id' failed validation" >&2
     return 1
   fi
 
-  echo "Updated $id."
+  new_id=$(jq -er '.id | strings' "$dir/manifest.json") || return 1
+  from_id="$old_id"
+  if [[ $new_id == $old_id && $folder_id != $new_id ]] && jq -e --arg old "$folder_id" '(.renamedFrom // []) | index($old) != null' "$dir/manifest.json" >/dev/null; then
+    from_id="$folder_id"
+  fi
+  if [[ $new_id != $from_id ]]; then
+    if migrated=$(omarchy-plugin-id migrate "$dir" "$from_id"); then
+      echo "Migrated $from_id to $migrated."
+      MIGRATED_ANY=1
+    else
+      status=$?
+      if (( merged && status != 3 )); then
+        git -C "$dir" reset --hard "$old_head" >/dev/null
+      fi
+      echo "omarchy-plugin-update: ID migration of '$from_id' did not finish" >&2
+      return 1
+    fi
+  fi
+  echo "Updated $new_id."
   UPDATED_ANY=1
 }
 
@@ -107,14 +143,14 @@ done
 targets=()
 if [[ -n $id ]]; then
   valid_plugin_id "$id" || fail "invalid plugin id '$id'"
-  [[ -d $PLUGINS_DIR/$id ]] || fail "plugin '$id' is not installed"
-  [[ -d $PLUGINS_DIR/$id/.git ]] ||
+  dir=$(omarchy-plugin-id directory "$id") || exit 1
+  [[ -d $dir/.git ]] ||
     fail "plugin '$id' is not a git checkout, so there is nothing to pull from"
-  targets=("$id")
+  targets=("$dir")
 else
   for dir in "$PLUGINS_DIR"/*/; do
     [[ -d $dir/.git ]] || continue
-    targets+=("$(basename "$dir")")
+    targets+=("${dir%/}")
   done
   if (( ${#targets[@]} == 0 )); then
     echo "No git-managed plugins installed."
@@ -123,11 +159,14 @@ else
 fi
 
 rc=0
-for id in "${targets[@]}"; do
-  update_one "$id" || rc=1
+for dir in "${targets[@]}"; do
+  update_one "$dir" || rc=1
 done
 
 if (( UPDATED_ANY )); then
+  if (( MIGRATED_ANY )); then
+    omarchy-shell shell reloadConfig >/dev/null
+  fi
   omarchy-shell shell rescanPlugins >/dev/null
 fi
 exit $rc

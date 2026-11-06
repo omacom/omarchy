@@ -67,8 +67,9 @@ if [[ -z $id ]]; then
   [[ -n $id ]] || fail "nothing selected"
 fi
 valid_plugin_id "$id" || fail "invalid plugin id '$id'"
+id=$(omarchy-plugin-id resolve "$id")
 
-target="$PLUGINS_DIR/$id"
+target=$(omarchy-plugin-id directory "$id") || exit 1
 [[ -e $target || -L $target ]] || fail "plugin '$id' is not installed"
 
 was_enabled=""

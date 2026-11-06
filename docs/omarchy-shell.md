@@ -97,6 +97,14 @@ bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+### Renaming a third-party plugin
+
+A Git-managed plugin can opt into an ID change by declaring previous IDs in its new manifest, for example `"id": "author.new-name", "renamedFrom": ["author.old-name"]`. Previous IDs must be unique, valid, non-reserved plugin IDs and must differ from the new ID. An ID change without this declaration is refused.
+
+`omarchy plugin update` migrates the checkout directory and the plugin references in `shell.json` together: enabled plugins, bar selection and placement, disabled state, and clone-source restoration records. Settings and placement order are preserved. The update requires a clean checkout for a rename and refuses an existing destination, another installed plugin with either ID, or saved configuration already using the new ID. Resolve the reported conflict and retry; the updater does not combine two plugins' settings.
+
+Successful migrations record `pluginIdAliases` in `shell.json`. Plugin manager commands, bar commands, and shell lifecycle calls continue accepting the old ID. A manifest's `renamedFrom` alone grants no alias or access to another plugin's configuration. An actually installed ID takes precedence over an alias. If an update is interrupted after saving the references, the shell can discover the new manifest at the old path; rerun the update to finish moving the directory.
+
 ## Elsewhen
 
 Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately after the clock, before Weather; the placement migration uses `omarchy bar put omarchy.elsewhen --after omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.

@@ -19,6 +19,7 @@ fi
 
 id="${1:-}"
 [[ -n $id ]] || fail "plugin id is required"
+id=$(omarchy-plugin-id resolve "$id")
 shift
 
 if (( $# > 0 )) && omarchy-plugin-catalog | jq -e --arg id "$id" '
@@ -51,11 +52,13 @@ while (( $# > 0 )); do
     --before)
       before="${2:-}"
       [[ -n $before ]] || fail "--before requires a widget id"
+      before=$(omarchy-plugin-id resolve "$before")
       shift 2
       ;;
     --after)
       after="${2:-}"
       [[ -n $after ]] || fail "--after requires a widget id"
+      after=$(omarchy-plugin-id resolve "$after")
       shift 2
       ;;
     *)

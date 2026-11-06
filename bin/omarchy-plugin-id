@@ -1,0 +1,212 @@
+#!/bin/bash
+
+# omarchy:summary=Resolve installed plugin identities and apply declared ID migrations
+# omarchy:hidden=true
+
+python3 - "$@" <<'PY'
+import fcntl
+import json
+import os
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+plugins = Path.home() / ".config/omarchy/plugins"
+config = plugins.parent / "shell.json"
+
+def valid_id(value):
+  return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", value) and ".." not in value
+
+def user_id(value):
+  return valid_id(value) and not value.startswith("omarchy.")
+
+def installations():
+  found = {}
+  if plugins.is_dir():
+    for folder in plugins.iterdir():
+      if folder.name.startswith("."):
+        continue
+      try:
+        manifest = json.loads((folder / "manifest.json").read_text())
+        key = manifest.get("id")
+      except (OSError, ValueError, AttributeError):
+        continue
+      if user_id(key):
+        found.setdefault(key, []).append(folder)
+  return found
+
+def read_config():
+  raw = config.read_bytes() if config.exists() else None
+  value = json.loads(raw) if raw is not None else {}
+  if not isinstance(value, dict):
+    raise ValueError("shell.json must contain an object")
+  return raw, value
+
+def aliases(value):
+  mapping = value.get("pluginIdAliases", {})
+  if not isinstance(mapping, dict) or any(not user_id(k) or not user_id(v) for k, v in mapping.items()):
+    raise ValueError("pluginIdAliases must map non-reserved plugin IDs")
+  return mapping
+
+def resolve(key, found):
+  # Bar commands also accept custom module names, which are not plugin IDs.
+  if not valid_id(key):
+    return key
+  if key in found or key.startswith("omarchy."):
+    return key
+  original = key
+  _, value = read_config()
+  mapping = aliases(value)
+  seen = set()
+  while key in mapping:
+    if key in seen:
+      raise ValueError("cyclic pluginIdAliases")
+    seen.add(key)
+    key = mapping[key]
+    if key in found:
+      break
+  folder = plugins / original
+  if (folder.exists() or folder.is_symlink()) and not any(p.resolve() == folder.resolve() for p in found.get(key, [])):
+    return original
+  return key
+
+def directory(key, found):
+  if not valid_id(key):
+    raise ValueError("invalid plugin id")
+  key = resolve(key, found)
+  matches = found.get(key, [])
+  if len(matches) > 1:
+    raise ValueError("more than one installed plugin has id '" + key + "'")
+  if matches:
+    return matches[0]
+  folder = plugins / key
+  if folder.is_dir():
+    return folder
+  raise ValueError("plugin '" + key + "' is not installed")
+
+def replace_file(path, data, mode):
+  fd, name = tempfile.mkstemp(prefix=".plugin-id-", dir=path.parent)
+  try:
+    with os.fdopen(fd, "wb") as out:
+      os.fchmod(out.fileno(), mode)
+      out.write(data)
+      out.flush()
+      os.fsync(out.fileno())
+    os.replace(name, path)
+    parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+      os.fsync(parent)
+    finally:
+      os.close(parent)
+  finally:
+    if os.path.exists(name):
+      os.unlink(name)
+
+def migrate(folder, old_id):
+  if not user_id(old_id) or folder.is_symlink() or folder.parent.resolve() != plugins.resolve():
+    raise ValueError("ID migration requires an installed, non-symlink plugin folder")
+  manifest = json.loads((folder / "manifest.json").read_text())
+  new_id = manifest.get("id")
+  previous = manifest.get("renamedFrom", [])
+  if not isinstance(previous, list) or any(not user_id(key) or key == new_id for key in previous):
+    raise ValueError("renamedFrom must list non-reserved previous plugin IDs")
+  if not user_id(new_id) or new_id == old_id or old_id not in previous:
+    raise ValueError("manifest must declare renamedFrom including '" + old_id + "'")
+  target = plugins / new_id
+  if target.exists() or target.is_symlink():
+    raise ValueError("migration destination already exists: " + str(target))
+  found = installations()
+  for key in (old_id, new_id):
+    if any(p.resolve() != folder.resolve() for p in found.get(key, [])):
+      raise ValueError("plugin id '" + key + "' is already installed elsewhere")
+
+  lock_fd = os.open(plugins.parent / ".plugin-id.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+  with os.fdopen(lock_fd, "r+") as lock:
+    info = os.fstat(lock.fileno())
+    if info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_mode & 0o077:
+      raise ValueError("unsafe plugin migration lock")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    original, value = read_config()
+    mapping = aliases(value)
+    refs = []
+
+    def entry_id(entry):
+      return entry.get("id") if isinstance(entry, dict) else entry
+
+    def entries(items):
+      if not isinstance(items, list):
+        raise ValueError("plugin reference lists must be arrays")
+      refs.extend(entry_id(item) for item in items)
+      for index, item in enumerate(items):
+        if isinstance(item, dict) and item.get("id") == old_id:
+          item["id"] = new_id
+        elif item == old_id:
+          items[index] = new_id
+
+    for field in ("plugins", "disabledPlugins", "cloneSourceRestores"):
+      if field in value:
+        entries(value[field])
+    bar = value.get("bar", {})
+    if not isinstance(bar, dict) or not isinstance(bar.get("layout", {}), dict):
+      raise ValueError("bar and bar.layout must be objects")
+    refs.append(bar.get("id"))
+    if bar.get("id") == old_id:
+      bar["id"] = new_id
+    for section in ("left", "centerBegin", "center", "centerEnd", "right", "tray"):
+      if section in bar.get("layout", {}):
+        entries(bar["layout"][section])
+    # An authorized, already-committed migration can resume its directory move.
+    resumed = mapping.get(old_id) == new_id and old_id not in refs
+    if new_id in refs and not resumed:
+      raise ValueError("the new plugin id already has saved configuration")
+    if old_id in mapping and mapping[old_id] != new_id:
+      raise ValueError("the old plugin id already aliases another plugin")
+    if new_id in mapping:
+      raise ValueError("the new plugin id is already used as an alias")
+    value["pluginIdAliases"] = {k: new_id if v == old_id else v for k, v in mapping.items()}
+    value["pluginIdAliases"][old_id] = new_id
+    updated = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode()
+    destination = config.resolve()
+    mode = stat.S_IMODE(destination.stat().st_mode) if original is not None else 0o600
+    if original is not None and not os.access(destination, os.W_OK):
+      raise ValueError("shell.json is not writable")
+    if (config.read_bytes() if config.exists() else None) != original:
+      raise ValueError("shell.json changed during migration; try again")
+    # Commit references first. ID-based directory lookup keeps this state usable
+    # after interruption, and the alias record authorizes resuming the move.
+    replace_file(destination, updated, mode)
+    try:
+      subprocess.run(["mv", "-T", "--no-clobber", "--", str(folder), str(target)], check=True)
+      if folder.exists() or folder.is_symlink():
+        raise ValueError("migration destination appeared during the move")
+    except (OSError, subprocess.CalledProcessError, ValueError):
+      try:
+        if config.read_bytes() != updated:
+          raise ValueError("shell.json changed after migration commit")
+        if original is None:
+          destination.unlink()
+        else:
+          replace_file(destination, original, mode)
+      except (OSError, ValueError):
+        print("omarchy-plugin-id: migration references are committed; retry the update to finish the directory move", file=sys.stderr)
+        sys.exit(3)
+      raise
+  return new_id
+
+try:
+  command, *args = sys.argv[1:]
+  if command == "resolve" and len(args) == 1:
+    print(resolve(args[0], installations()))
+  elif command == "directory" and len(args) == 1:
+    print(directory(args[0], installations()))
+  elif command == "migrate" and len(args) == 2:
+    print(migrate(Path(args[0]), args[1]))
+  else:
+    raise ValueError("expected resolve <id>, directory <id>, or migrate <folder> <old-id>")
+except (OSError, ValueError, subprocess.CalledProcessError) as error:
+  print("omarchy-plugin-id: " + str(error), file=sys.stderr)
+  sys.exit(1)
+PY

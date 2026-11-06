@@ -175,3 +175,160 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# Exercise real Git updates and configuration migration, including interruption
+# between the durable config commit and the directory move. Only shell IPC is
+# stubbed; all identity, validation, Git and filesystem operations are real.
+ROOT="$ROOT" MIGRATION_TMP="$TMPDIR/migrations" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import time
+
+root = Path(os.environ["ROOT"])
+base = Path(os.environ["MIGRATION_TMP"])
+base.mkdir()
+old, new = "acme.old-name", "acme.new-name"
+
+def run(args, env=None, ok=True):
+  result = subprocess.run(args, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+  if ok and result.returncode:
+    raise AssertionError(result.stdout)
+  if not ok and not result.returncode:
+    raise AssertionError("unexpected success: " + result.stdout)
+  return result
+
+def fixture(name, declaration=True):
+  case = base / name
+  upstream = case / "upstream"
+  upstream.mkdir(parents=True)
+  manifest = {"schemaVersion": 1, "id": old, "name": "Rename test", "version": "1.0",
+              "kinds": ["bar-widget"], "entryPoints": {"barWidget": "Widget.qml"}}
+  (upstream / "manifest.json").write_text(json.dumps(manifest))
+  (upstream / "Widget.qml").write_text("import QtQuick\nItem {}\n")
+  run(["git", "-C", str(upstream), "init", "-q"])
+  def commit():
+    run(["git", "-C", str(upstream), "add", "."])
+    run(["git", "-C", str(upstream), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "Plugin version"])
+  commit()
+  home = case / "home"
+  plugins = home / ".config/omarchy/plugins"
+  plugins.mkdir(parents=True)
+  run(["git", "clone", "-q", str(upstream), str(plugins / old)])
+  config = plugins.parent / "shell.json"
+  original = {"plugins": [{"id": old, "custom": {"text": old}}], "disabledPlugins": [old],
+              "cloneSourceRestores": [old], "bar": {"id": old, "layout": {
+                "left": [{"id": "omarchy.menu"}], "right": [{"id": old, "value": 42}, {"id": "omarchy.clock"}]}}}
+  config.write_text(json.dumps(original))
+  manifest["id"] = new
+  if declaration:
+    manifest["renamedFrom"] = [old]
+  (upstream / "manifest.json").write_text(json.dumps(manifest))
+  commit()
+  stubs = case / "stubs"
+  stubs.mkdir()
+  shell = stubs / "omarchy-shell"
+  shell.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$HOME/ipc.log"\nif [[ $2 == "listPlugins" ]]; then echo "[]"; else echo ok; fi\n')
+  shell.chmod(0o755)
+  env = dict(os.environ, HOME=str(home), OMARCHY_PATH=str(root), PATH=str(stubs)+":"+str(root / "bin")+":"+os.environ["PATH"])
+  return case, plugins, config, original, env
+
+def update(env, key=old, ok=True):
+  return run([str(root / "bin/omarchy-plugin-update"), key, "--yes"], env, ok)
+
+def unchanged(plugins, config, original):
+  assert json.loads(config.read_text()) == original
+  assert json.loads((plugins / old / "manifest.json").read_text())["id"] == old
+  assert not (plugins / new).exists()
+
+case, plugins, config, original, env = fixture("success")
+update(env)
+value = json.loads(config.read_text())
+assert value["plugins"] == [{"id": new, "custom": {"text": old}}]
+assert value["disabledPlugins"] == value["cloneSourceRestores"] == [new]
+assert value["bar"]["id"] == new
+assert value["bar"]["layout"]["right"] == [{"id": new, "value": 42}, {"id": "omarchy.clock"}]
+assert value["pluginIdAliases"] == {old: new}
+assert (plugins / new).is_dir() and not (plugins / old).exists()
+update(env, new)
+update(env, old)
+for command in ("omarchy-plugin-enable", "omarchy-plugin-disable"):
+  run([str(root / "bin" / command), old], env)
+assert "enablePlugin " + new in (case / "home/ipc.log").read_text()
+assert "setPluginEnabled " + new in (case / "home/ipc.log").read_text()
+assert run([str(root / "bin/omarchy-bar"), "get", old, "value"], env).stdout.strip() == "42"
+value["bar"]["layout"]["right"].append({"id": "custom module", "type": "command", "value": 7})
+config.write_text(json.dumps(value))
+assert run([str(root / "bin/omarchy-bar"), "get", "custom module", "value"], env).stdout.strip() == "7"
+run([str(root / "bin/omarchy-plugin-id"), "directory", "../outside"], env, ok=False)
+# A second rename flattens older aliases without changing settings.
+latest = "acme.latest-name"
+upstream = case / "upstream"
+manifest = json.loads((upstream / "manifest.json").read_text())
+manifest.update(id=latest, renamedFrom=[old, new])
+(upstream / "manifest.json").write_text(json.dumps(manifest))
+run(["git", "-C", str(upstream), "add", "."])
+run(["git", "-C", str(upstream), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "Rename again"])
+update(env, old)
+assert json.loads(config.read_text())["pluginIdAliases"] == {old: latest, new: latest}
+assert run([str(root / "bin/omarchy-plugin-id"), "resolve", old], env).stdout.strip() == latest
+run([str(root / "bin/omarchy-plugin-remove"), old, "--yes"], env)
+assert not (plugins / latest).exists()
+print("PASS: declared renames preserve settings, placement and state; old IDs support update, enable, disable, bar get and removal", flush=True)
+
+for kind in ("undeclared", "target-directory", "target-symlink", "duplicate-id", "saved-target", "dirty", "read-only", "move-failure"):
+  case, plugins, config, original, env = fixture(kind, kind != "undeclared")
+  if kind == "target-directory":
+    (plugins / new).mkdir()
+  elif kind == "target-symlink":
+    (plugins / new).symlink_to(case / "missing")
+  elif kind == "duplicate-id":
+    other = plugins / "different-folder"
+    other.mkdir()
+    (other / "manifest.json").write_text(json.dumps({"id": new}))
+  elif kind == "saved-target":
+    original["plugins"].append({"id": new, "setting": "keep"})
+    config.write_text(json.dumps(original))
+  elif kind == "dirty":
+    (plugins / old / "local.txt").write_text("keep my edits")
+  elif kind == "read-only":
+    config.chmod(0o400)
+  elif kind == "move-failure":
+    stub = case / "stubs/mv"
+    stub.write_text("#!/bin/bash\nexit 1\n")
+    stub.chmod(0o755)
+  result = update(env, ok=False)
+  assert json.loads(config.read_text()) == original, result.stdout
+  assert json.loads((plugins / old / "manifest.json").read_text())["id"] == old, result.stdout
+  if kind == "dirty":
+    assert (plugins / old / "local.txt").read_text() == "keep my edits"
+  print("PASS: rename safely refuses " + kind, flush=True)
+
+case, plugins, config, original, env = fixture("interruption")
+marker = case / "moving"
+stub = case / "stubs/mv"
+stub.write_text('#!/bin/bash\ntouch "'+str(marker)+'"\nexec sleep 30\n')
+stub.chmod(0o755)
+with (case / "interrupted.log").open("w") as log:
+  process = subprocess.Popen([str(root / "bin/omarchy-plugin-update"), old, "--yes"], env=env, stdout=log, stderr=log, start_new_session=True)
+  try:
+    deadline = time.monotonic() + 10
+    while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
+      time.sleep(0.02)
+    assert marker.exists(), (case / "interrupted.log").read_text()
+    assert os.getpgid(process.pid) == process.pid
+  finally:
+    if process.poll() is None:
+      os.killpg(process.pid, signal.SIGKILL)
+    process.wait()
+assert json.loads(config.read_text())["plugins"][0]["id"] == new
+assert (plugins / old).is_dir()
+assert run([str(root / "bin/omarchy-plugin-id"), "directory", new], env).stdout.strip() == str(plugins / old)
+stub.unlink()
+update(env, new)
+assert (plugins / new).is_dir() and not (plugins / old).exists()
+assert json.loads(config.read_text())["plugins"][0]["custom"] == {"text": old}
+print("PASS: interrupted config-first migration resolves the manifest and resumes its directory move", flush=True)
+PY
