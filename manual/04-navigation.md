@@ -36,7 +36,7 @@ Omarchy's default layout is called dwindle. It keeps all the windows you open on
 
 But you can also choose to turn a workspace into the scrolling layout where windows are lined up side-by-side, beyond the visible edge of the display. You turn a single workspace into this layout via `Super + L`.
 
-Pressing `Super + L` again turns the workspace floating, where windows overlap freely and you place them yourself, and a third press returns it to dwindle. `Super + Alt + L` goes through them the other way. A window that floats anyway — one you popped out with `Super + T`, or an app that always opens floating — keeps floating when the workspace goes back to tiling. The top bar marks the workspace you're on with its layout: a square for dwindle, a circle for scrolling, a triangle for floating, and a centered pane for master. Clicking that mark cycles the layout too.
+Pressing `Super + L` again turns the workspace floating, where windows overlap freely and you place them yourself, and a third press returns it to dwindle. `Super + Alt + L` goes through them the other way. A window that floats anyway — one you popped out with `Super + T`, or an app that always opens floating — keeps floating when the workspace goes back to tiling. The top bar marks the workspace you're on with its layout: a square for dwindle, a circle for scrolling, a triangle for floating, a centered pane for master, and an eye in a ring for monocle. Clicking that mark cycles the layout too.
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
@@ -58,9 +58,9 @@ A floating workspace works like a traditional desktop: windows overlap, and you 
 
 A floating workspace also shows a dock, with your pinned apps, everything that's running, and a grid of every app behind the apps button, which `Super + Alt + Space` and _Apps_ in the Omarchy menu open too. Right-click an app on the grid, or press `Delete`, to uninstall it. Click an app to open it, or to bring its window forward; click again to cycle through its windows. Middle-click opens a new window. Drag an icon along the dock to move it; dragging a running app in among the others keeps it there. Right-click to keep an app in the dock, take it out, or quit it. The dock gets out of the way of a fullscreen window. Right-click the apps button to move the dock to another edge or have it hide until the pointer reaches its edge. The position is also under _Appearance > Dock > Dock Position_, and `omarchy dock position left` and `omarchy dock autohide on` set both from a terminal. Apps you keep in the dock are faded while they aren't running.
 
-New workspaces, and any you haven't given a layout of their own with `Super + L`, use the default layout. Changing the default resets every workspace without windows to it, while one with windows on it keeps the layout it has. A window minimized to the dock still counts as a window on the workspace it left. Pick it under _Appearance > Workspace Layout > Default_: Tiling, Master, Scrolling, or Floating. `omarchy-hyprland-workspace-layout-default scrolling` sets it from a terminal.
+New workspaces, and any you haven't given a layout of their own with `Super + L`, use the default layout. Changing the default resets every workspace without windows to it, while one with windows on it keeps the layout it has. A window minimized to the dock still counts as a window on the workspace it left. Pick it under _Appearance > Workspace Layout > Default_: Tiling, Master, Monocle, Scrolling, or Floating. `omarchy-hyprland-workspace-layout-default scrolling` sets it from a terminal.
 
-`Super + L` cycles through dwindle, scrolling, and floating until you choose otherwise under _Appearance > Workspace Layout > Enabled Layouts_, which also offers the master layout. Clicking the current workspace in the top bar follows the same list.
+`Super + L` cycles through dwindle, scrolling, and floating until you choose otherwise under _Appearance > Workspace Layout > Enabled Layouts_, which also offers the master and monocle layouts. Clicking the current workspace in the top bar follows the same list.
 
 ### Grouping windows
 
