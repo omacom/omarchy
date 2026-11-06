@@ -21,10 +21,14 @@ Item {
   property int renderedIndex: -1
   property bool linkHovered: false
   property bool loading: false
-  property string statusText: ""
+  property bool failed: false
+  property bool offline: false
 
   readonly property var renderedGroup: renderedIndex >= 0 && renderedIndex < groups.length ? groups[renderedIndex] : []
 
+  // Shares the [menu] surface tokens, like the other overlays. Links and the
+  // selected chip take the menu's selected text (the theme accent by
+  // default); dates, rules and placeholders take the theme's muted color.
   property color background: Commons.Color.menu.background
   property color foreground: Commons.Color.menu.text
   property color border: Commons.Color.menu.border
@@ -32,6 +36,8 @@ Item {
   property color scrim: Commons.Color.menu.scrim
   property color selectedBackground: Commons.Color.menu.selectedBackground
   property color selectedText: Commons.Color.menu.selectedText
+  property color muted: Commons.Color.muted
+  property color placeholder: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.06)
   readonly property int cornerRadius: Style.cornerRadius
   property string fontFamily: Style.font.menuFamily
   property int contentMargin: Style.spacing.panelPadding
@@ -56,7 +62,8 @@ Item {
     root.currentIndex = 0
     root.renderedIndex = -1
     root.loading = true
-    root.statusText = ""
+    root.failed = false
+    root.offline = false
     fetchProc.running = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -105,13 +112,12 @@ Item {
     if (!value) return ""
     var date = new Date(value)
     if (isNaN(date.getTime())) return String(value)
-    return date.toLocaleDateString()
+    return date.toLocaleDateString(Qt.locale(I18n.formatLocale))
   }
 
-  function releaseMarkdown(release) {
-    var date = root.formatDate(release.date)
-    var heading = "## " + (release.tag || "") + (date ? " — " + date : "")
-    return heading + "\n\n" + String(release.body || "")
+  function openLink(url) {
+    if (/^https?:\/\//i.test(url))
+      Qt.openUrlExternally(url)
   }
 
   function scrollBy(delta) {
@@ -127,12 +133,13 @@ Item {
     } catch (e) {
       parsed = null
     }
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      root.statusText = "Could not load the Omarchy changelog."
+    if (!parsed || !Array.isArray(parsed.groups) || parsed.groups.length === 0) {
+      root.failed = true
       return
     }
-    root.statusText = ""
-    root.groups = parsed
+    root.failed = false
+    root.offline = parsed.offline === true
+    root.groups = parsed.groups
     root.currentIndex = 0
     root.renderSelected()
     versionScroller.positionViewAtBeginning()
@@ -148,7 +155,7 @@ Item {
     onExited: function(code) {
       if (code !== 0 && root.loading) {
         root.loading = false
-        root.statusText = "Could not load the Omarchy changelog."
+        root.failed = true
       }
     }
   }
@@ -236,7 +243,7 @@ Item {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: "Changelog"
+            text: I18n.t("changelog.title")
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
@@ -248,11 +255,10 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: root.loading ? "Loading…" : (root.groups.length > 0 ? root.groups.length + " versions" : "")
-            color: root.foreground
+            text: root.groups.length > 0 ? I18n.tn("changelog.versions", root.groups.length).arg(I18n.formatNumber(root.groups.length)) : ""
+            color: root.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
-            opacity: 0.7
           }
 
           ListView {
@@ -288,6 +294,7 @@ Item {
                 color: parent.selected ? root.selectedText : root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
+                font.bold: parent.selected
               }
 
               MouseArea {
@@ -305,9 +312,9 @@ Item {
 
           Text {
             anchors.centerIn: parent
-            visible: root.loading || root.statusText !== ""
+            visible: root.loading || root.failed
             textFormat: Text.PlainText
-            text: root.loading ? "Loading changelog…" : root.statusText
+            text: root.loading ? I18n.t("changelog.loading") : I18n.t("changelog.failed")
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -316,7 +323,7 @@ Item {
           Flickable {
             id: contentFlick
             anchors.fill: parent
-            visible: !root.loading && root.statusText === ""
+            visible: !root.loading && !root.failed
             contentWidth: width
             contentHeight: notes.height + Style.space(12)
             flickableDirection: Flickable.VerticalFlick
@@ -331,10 +338,12 @@ Item {
               cursorShape: root.linkHovered ? Qt.PointingHandCursor : Qt.ArrowCursor
             }
 
-            // One Text per release, rebuilt whenever the version changes: the
-            // Repeater drops the old delegates when it gets a new array, so no
-            // long-lived Text has a large document swapped and reflowed in
-            // place under the render thread, and each document stays small.
+            // Every release is a column of blocks from `omarchy-changelog
+            // --data`, rebuilt whenever the version changes: the Repeaters drop
+            // the old delegates when they get a new array, so no long-lived
+            // Text has a large document swapped and reflowed in place under the
+            // render thread. Images are their own items, never inline in the
+            // Markdown (see print_data in bin/omarchy-changelog).
             Column {
               id: notes
               width: contentFlick.width
@@ -344,52 +353,196 @@ Item {
               Text {
                 width: parent.width
                 textFormat: Text.PlainText
-                text: "Omarchy " + root.versionLabel(root.renderedGroup)
+                text: I18n.t("changelog.version").arg(root.versionLabel(root.renderedGroup))
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.display
                 font.bold: true
               }
 
+              Text {
+                visible: root.offline
+                width: parent.width
+                textFormat: Text.PlainText
+                text: I18n.t("changelog.offline")
+                color: root.muted
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+              }
+
               Repeater {
                 model: root.renderedGroup
 
                 Column {
+                  id: release
+
                   required property int index
                   required property var modelData
 
                   width: notes.width
                   spacing: root.contentSpacing
 
-                  Rectangle {
-                    visible: index > 0
+                  Rule { visible: release.index > 0 }
+
+                  Row {
                     width: parent.width
-                    height: 1
-                    color: root.border
-                    opacity: 0.6
+                    spacing: root.contentSpacing
+
+                    Text {
+                      anchors.baseline: releaseDate.baseline
+                      textFormat: Text.PlainText
+                      text: release.modelData.tag || ""
+                      color: root.foreground
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.title
+                      font.bold: true
+                    }
+
+                    Text {
+                      id: releaseDate
+                      textFormat: Text.PlainText
+                      text: root.formatDate(release.modelData.date)
+                      color: root.muted
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.body
+                    }
                   }
 
-                  Text {
-                    width: parent.width
-                    textFormat: Text.MarkdownText
-                    text: root.releaseMarkdown(modelData)
-                    color: root.foreground
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.body
-                    wrapMode: Text.Wrap
-                    linkColor: root.selectedBackground
-                    onLinkHovered: function(link) {
-                      root.linkHovered = link !== ""
-                    }
-                    onLinkActivated: function(url) {
-                      if (/^https?:\/\//i.test(url))
-                        Qt.openUrlExternally(url)
+                  Repeater {
+                    model: release.modelData.blocks || []
+
+                    // The loaded block reads its data as `parent.block`.
+                    Loader {
+                      required property var modelData
+
+                      width: release.width
+                      property var block: modelData
+                      sourceComponent: modelData.type === "image" ? imageBlock
+                        : modelData.type === "rule" ? ruleBlock
+                        : markdownBlock
                     }
                   }
                 }
               }
             }
           }
+        }
+      }
+    }
+  }
+
+  component Rule: Rectangle {
+    width: parent ? parent.width : 0
+    height: 1
+    color: root.muted
+    opacity: 0.6
+  }
+
+  Component {
+    id: ruleBlock
+
+    Item {
+      height: root.contentSpacing
+
+      Rule { anchors.verticalCenter: parent.verticalCenter }
+    }
+  }
+
+  Component {
+    id: markdownBlock
+
+    Text {
+      readonly property var block: parent ? parent.block : ({})
+
+      textFormat: Text.MarkdownText
+      text: block.text || ""
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.body
+      wrapMode: Text.Wrap
+      linkColor: root.selectedText
+      onLinkHovered: function(link) {
+        root.linkHovered = link !== ""
+      }
+      onLinkActivated: function(url) {
+        root.openLink(url)
+      }
+    }
+  }
+
+  // Release notes link screenshots and GIFs from GitHub. AnimatedImage shows
+  // both. A GIF plays only while it is on screen and the overlay is open, and
+  // frames are decoded as they play rather than all held in memory. The size
+  // the notes declare reserves the space before the image arrives, so the text
+  // below it doesn't jump; an image wider than the card is scaled down to fit.
+  Component {
+    id: imageBlock
+
+    Item {
+      id: imageItem
+
+      readonly property var block: parent ? parent.block : ({})
+      readonly property real naturalWidth: picture.implicitWidth > 0 ? picture.implicitWidth : (imageItem.block.width || 0)
+      readonly property real naturalHeight: picture.implicitHeight > 0 ? picture.implicitHeight : (imageItem.block.height || 0)
+      readonly property bool sized: naturalWidth > 0 && naturalHeight > 0
+      readonly property bool broken: picture.status === AnimatedImage.Error
+      readonly property bool inView: {
+        contentFlick.contentY
+        contentFlick.height
+        notes.height
+        var top = imageItem.mapToItem(notes, 0, 0).y
+        return top + imageItem.height > contentFlick.contentY && top < contentFlick.contentY + contentFlick.height
+      }
+
+      height: broken ? fallback.implicitHeight
+        : sized ? picture.width * naturalHeight / naturalWidth
+        : picture.status === AnimatedImage.Ready ? 0 : Style.space(160)
+
+      Rectangle {
+        visible: !imageItem.broken && picture.status !== AnimatedImage.Ready
+        width: picture.width
+        height: parent.height
+        radius: root.cornerRadius
+        color: root.placeholder
+      }
+
+      AnimatedImage {
+        id: picture
+        visible: !imageItem.broken
+        width: imageItem.naturalWidth > 0 ? Math.min(imageItem.width, imageItem.naturalWidth) : imageItem.width
+        height: parent.height
+        source: imageItem.block.src || ""
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        cache: false
+        smooth: true
+        playing: root.opened && imageItem.inView
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.openLink(imageItem.block.src)
+        }
+      }
+
+      // An image that can't load leaves its link, as the notes would.
+      Text {
+        id: fallback
+        visible: imageItem.broken
+        width: parent.width
+        textFormat: Text.PlainText
+        text: imageItem.block.alt || imageItem.block.src || ""
+        color: root.selectedText
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        font.underline: true
+        wrapMode: Text.WrapAnywhere
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.openLink(imageItem.block.src)
         }
       }
     }

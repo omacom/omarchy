@@ -13,12 +13,6 @@ for arg in "$@"; do
   esac
 done
 
-# The graphical viewer is a stock QML plugin. A bare `omarchy changelog`
-# just summons it; the plugin fetches its own data through `--data`.
-if (( ! data_mode )); then
-  exec omarchy-shell shell summon omarchy.changelog
-fi
-
 releases_url="https://api.github.com/repos/omacom/omarchy/releases?per_page=100"
 cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/changelog-releases.json"
 
@@ -59,57 +53,109 @@ fetch_releases() {
   rm -f "$pages"
 }
 
-offline=0
-if ! fetch_releases; then
-  if [[ -s $cache_file ]]; then
-    offline=1
-  else
-    echo "Could not fetch the Omarchy changelog from GitHub." >&2
-    exit 1
-  fi
-fi
-
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-
-# Group the releases by feature version, so every page of the changelog holds
-# one vMAJOR.MINOR line with all of its patch and RC releases. The releases
-# endpoint answers newest first; the index keeps that order stable through the
-# grouping sort.
+# Print the changelog for the overlay as {offline, groups}. Releases are
+# grouped by feature version, so every tab holds one vMAJOR.MINOR line with all
+# of its patch and RC releases; the releases endpoint answers newest first, and
+# the index keeps that order stable through the grouping sort.
 #
-# Release notes embed remote screenshots and GIFs. The viewer renders Markdown
-# with Qt's text engine, which fetches each image asynchronously and re-lays
-# the whole document out as each one lands, and a version switch during those
-# loads can crash the shell's render thread. Images become plain links instead.
-jq '
-  def image_links:
-    gsub("!\\[[^\\]]*\\]\\((?<src>[^)\\s]+)[^)]*\\)"; "[Image](\(.src))")
-    | gsub("<img\\b(?<attrs>[^>]*)>"; (
-        .attrs
-        | ((capture("\\bsrc=\"(?<v>[^\"]*)\"") | .v) // "") as $src
-        | ((capture("\\balt=\"(?<v>[^\"]*)\"") | .v) // "") as $alt
-        | "[Image" + (if $alt == "" then "" else ": " + $alt end) + "](" + $src + ")"));
+# Each release body is split into blocks the overlay lays out one by one:
+# Markdown text, images, and horizontal rules. Images stay out of the Markdown
+# because Qt's text engine fetches them asynchronously and re-lays the whole
+# document out as each one lands, and a version switch during those loads
+# crashed the shell's render thread. Rules are split out so the overlay can
+# draw them in theme colors; Qt draws Markdown rules in its own palette. An
+# image sharing a line with text becomes a link.
+print_data() {
+  local offline=false
 
-  to_entries
-  | map(select(.value.tag_name | test("^v[0-9]+\\.[0-9]+")))
-  | map(
-      (.value.tag_name | ltrimstr("v") | split("-")[0] | split(".")) as $parts
-      | { i: .key,
-          tag: .value.tag_name,
-          date: (.value.published_at // ""),
-          body: (.value.body // "" | image_links),
-          major: ($parts[0] | tonumber),
-          minor: ($parts[1] | tonumber) })
-  | sort_by(.major, .minor)
-  | group_by(.major, .minor)
-  | reverse
-  | map(sort_by(.i))
-' "$cache_file" >"$tmp/groups.json"
-group_count=$(jq 'length' "$tmp/groups.json")
-if (( group_count == 0 )); then
-  echo "No Omarchy releases found." >&2
-  exit 1
+  if ! fetch_releases; then
+    if [[ -s $cache_file ]]; then
+      offline=true
+    else
+      echo "Could not fetch the Omarchy changelog from GitHub." >&2
+      exit 1
+    fi
+  fi
+
+  jq --argjson offline "$offline" '
+    def attr($name):
+      (capture("\\b" + $name + "=\"(?<v>[^\"]*)\"") | .v) // "";
+
+    def number_attr($name):
+      attr($name) | (tonumber? // 0);
+
+    def image_block:
+      if test("^\\s*<img\\b[^>]*>\\s*$") then
+        { type: "image", src: attr("src"), alt: attr("alt"),
+          width: number_attr("width"), height: number_attr("height") }
+      elif test("^\\s*!\\[[^\\]]*\\]\\([^)\\s]+[^)]*\\)\\s*$") then
+        capture("!\\[(?<alt>[^\\]]*)\\]\\((?<src>[^)\\s]+)")
+        | { type: "image", src, alt: "", width: 0, height: 0 }
+      else
+        null
+      end;
+
+    def inline_image_links:
+      gsub("!\\[(?<alt>[^\\]]*)\\]\\((?<src>[^)\\s]+)[^)]*\\)";
+        "[" + (if .alt == "" then .src else .alt end) + "](" + .src + ")")
+      | gsub("<img\\b(?<attrs>[^>]*)>"; (
+          .attrs as $attrs
+          | ($attrs | attr("src")) as $src
+          | ($attrs | attr("alt")) as $alt
+          | "[" + (if $alt == "" then $src else $alt end) + "](" + $src + ")"));
+
+    def flush:
+      if (.text | join("\n") | test("\\S")) then
+        .blocks += [{ type: "markdown", text: (.text | join("\n")) }]
+      else
+        .
+      end
+      | .text = [];
+
+    def blocks:
+      gsub("\r"; "")
+      | split("\n")
+      | reduce .[] as $line ({ blocks: [], text: [], fence: false, blank: true };
+          if ($line | test("^\\s{0,3}(```|~~~)")) then
+            .fence = (.fence | not) | .text += [$line]
+          elif .fence then
+            .text += [$line]
+          elif ($line | image_block) != null then
+            flush | .blocks += [$line | image_block]
+          elif .blank and ($line | test("^\\s{0,3}(-{3,}|\\*{3,}|_{3,})\\s*$")) then
+            flush | .blocks += [{ type: "rule" }]
+          else
+            .text += [$line | inline_image_links]
+          end
+          | .blank = ($line | test("^\\s*$")))
+      | flush
+      | .blocks;
+
+    { offline: $offline,
+      groups: (
+        to_entries
+        | map(select(.value.tag_name | test("^v[0-9]+\\.[0-9]+")))
+        | map(
+            (.value.tag_name | ltrimstr("v") | split("-")[0] | split(".")) as $parts
+            | { i: .key,
+                tag: .value.tag_name,
+                date: (.value.published_at // ""),
+                blocks: (.value.body // "" | blocks),
+                major: ($parts[0] | tonumber),
+                minor: ($parts[1] | tonumber) })
+        | sort_by(.major, .minor)
+        | group_by(.major, .minor)
+        | reverse
+        | map(sort_by(.i))) }
+    | if (.groups | length) == 0 then error("No Omarchy releases found.") else . end
+  ' "$cache_file"
+}
+
+# The changelog itself is the omarchy.changelog overlay. A bare
+# `omarchy changelog` summons it, and the overlay reads its data back
+# through `--data`.
+if (( data_mode )); then
+  print_data
+else
+  omarchy-shell shell summon omarchy.changelog
 fi
-
-# In data mode the plugin owns presentation: hand it the grouped JSON.
-cat "$tmp/groups.json"
