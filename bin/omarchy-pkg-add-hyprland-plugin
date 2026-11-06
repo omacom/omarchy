@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Install a Hyprland plugin package, unless its build cannot load into the installed Hyprland
+# omarchy:args=<package>
+# omarchy:examples=omarchy pkg add-hyprland-plugin omarchy-hyprland-titlebars
+# omarchy:requires-sudo=true
+
+set -e
+
+pkg=${1:?Usage: omarchy-pkg-add-hyprland-plugin <package>}
+
+if omarchy-pkg-present "$pkg"; then
+  exit 0
+fi
+
+# A plugin pins the exact Hyprland it was compiled against. Installing it past
+# a mismatch either fails on that pin or downgrades the running compositor.
+info=$(LC_ALL=C pacman -Si -- "$pkg")
+required=$(awk '
+  /^Depends On/ {
+    sub(/^[^:]*: */, "")
+    for (i = 1; i <= NF; i++) if ($i ~ /^hyprland([<>=]|$)/) print $i
+    exit
+  }
+' <<<"$info")
+
+status=0
+if [[ -n $required ]]; then
+  pacman -T -- "$required" >/dev/null || status=$?
+fi
+
+if (( status == 0 )); then
+  omarchy-pkg-add "$pkg"
+elif (( status == 127 )); then
+  installed=$(pacman -Q hyprland 2>/dev/null) || installed="no hyprland"
+  echo -e "\e[33mSkipped $pkg: it loads only into $required, and $installed is installed. Add it with \"omarchy-pkg-add $pkg\" once they match.\e[0m"
+else
+  exit "$status"
+fi
