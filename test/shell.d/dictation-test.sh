@@ -50,7 +50,8 @@ done
 # Like Hex: control commands exit 3 until `hex start` brings it up,
 # `stop --print` hands back the transcript instead of pasting it and exits 1
 # when nothing is recording, and `status --json` reports a recording a moment
-# after it starts (HEX_STATUS_LAG keeps it reporting idle).
+# after it starts (HEX_STATUS_LAG keeps it reporting idle; HEX_STATUS_EXIT
+# makes it fail to answer).
 export HEX_STATE="$test_tmp/hex-state"
 echo idle > "$HEX_STATE"
 cat > "$test_tmp/bin/hex" <<'SH'
@@ -63,6 +64,7 @@ elif [[ $1 == "start" ]]; then
 elif [[ ! -e $HEX_STATE ]]; then
   exit 3
 elif [[ $* == "status --json" ]]; then
+  [[ -z ${HEX_STATUS_EXIT:-} ]] || exit "$HEX_STATUS_EXIT"
   if [[ $(< "$HEX_STATE") == "dictating" && -z ${HEX_STATUS_LAG:-} ]]; then
     echo '{"capture":{"state":"recording","recording":"dictation"}}'
   else
@@ -151,6 +153,13 @@ omarchy-dictation-hex start
 HEX_STATUS_LAG=1 omarchy-dictation-hex stop
 [[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text --universal hello' ]] || fail "a quick push-to-talk tap stops Hex before its status reports the recording"
 output=$(omarchy-dictation-hex stop 2>&1) && [[ -z $output ]] || fail "stopping an idle Hex succeeds quietly"
+if HEX_STATUS_EXIT=5 omarchy-dictation-hex stop 2>/dev/null; then
+  fail "a failed stop is reported when Hex can't confirm nothing is recording"
+fi
+: > "$DICTATION_LOG"
+omarchy-dictation-hex start
+TMPDIR="$test_tmp/missing" omarchy-dictation-hex stop 2>/dev/null
+[[ $(cat "$DICTATION_LOG") == $'hex dictation start\nhex dictation stop --print\nomarchy-clipboard-paste-text --universal hello' ]] || fail "Hex still stops when no temporary file can be made"
 rm "$HEX_STATE"
 omarchy-dictation-hex stop || fail "stopping Hex succeeds when it is not running, so switching away works"
 : > "$DICTATION_LOG"

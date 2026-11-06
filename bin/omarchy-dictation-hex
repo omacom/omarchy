@@ -7,8 +7,20 @@
 not_running=3
 no_speech=4
 
+# Prints what Hex is recording ("none" when idle); fails when Hex doesn't answer.
+hex_capture() {
+  local status
+  status=$(hex status --json 2>/dev/null) || return 1
+  jq -er '.capture.recording // "none"' <<< "$status"
+}
+
 hex_recording() {
-  [[ $(hex status --json 2>/dev/null | jq -r '.capture.recording // empty') == "dictation" ]]
+  [[ $(hex_capture) == "dictation" ]]
+}
+
+hex_idle() {
+  local capture
+  capture=$(hex_capture) && [[ $capture != "dictation" ]]
 }
 
 start() {
@@ -31,19 +43,20 @@ stop() {
   if omarchy-cmd-missing hex; then
     return 0
   fi
-  # Hold Hex's message back until it turns out to be a real failure.
-  error=$(mktemp)
-  text=$(hex dictation stop --print 2>"$error")
+  # Hold Hex's message back until it turns out to be a real failure. Without a
+  # temporary file, still send the stop and let the message through.
+  error=$(mktemp 2>/dev/null) || error=""
+  text=$(hex dictation stop --print 2>"${error:-/dev/stderr}")
   result=$?
   if (( result == 0 )); then
     omarchy-clipboard-paste-text --universal "$text"
-  elif (( result == no_speech || result == not_running )) || ! hex_recording; then
-    # Nothing heard, Hex not running, or nothing was recording: stopping succeeded.
+  elif (( result == no_speech || result == not_running )) || hex_idle; then
+    # Nothing heard, Hex not running, or Hex confirms nothing is recording.
     result=0
-  else
+  elif [[ -n $error ]]; then
     cat "$error" >&2
   fi
-  rm -f "$error"
+  [[ -z $error ]] || rm -f "$error"
   return "$result"
 }
 
