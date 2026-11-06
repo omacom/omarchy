@@ -54,11 +54,12 @@ cat >"$pop_tmp/bin/hyprctl" <<'SH'
 case "$1" in
   activewindow) cat "$POP_TMP/active.json" ;;
   clients) cat "$POP_TMP/clients.json" ;;
+  workspaces) printf '[{"id": 1, "tiledLayout": "%s"}]\n' "$(cat "$POP_TMP/layout")" ;;
   getoption)
     case "$2" in
       general:layout) echo '{"str": "dwindle"}' ;;
       general:border_size) echo '{"int": 2}' ;;
-      general:gaps_in) echo '{"css": "5 5 5 5"}' ;;
+      general:gaps_in) printf '{"css": "%s %s %s %s"}\n' "$(cat "$POP_TMP/gaps")" "$(cat "$POP_TMP/gaps")" "$(cat "$POP_TMP/gaps")" "$(cat "$POP_TMP/gaps")" ;;
       dwindle:default_split_ratio) echo '{"float": 1.0}' ;;
     esac
     ;;
@@ -74,16 +75,20 @@ tile() {
 }
 
 # Pops 0xa out of the first layout, then back in over the second, and prints
-# what the script asked Hyprland for on the way back.
+# what the script asked Hyprland for on the way back. AFTER_GAPS changes the
+# gap while the window is out.
 round_trip() {
   local before="$1" after="$2"
 
   rm -rf "$pop_tmp/hyprctl.log" "$pop_tmp/run"/*
+  echo "${LAYOUT:-dwindle}" >"$pop_tmp/layout"
+  echo 5 >"$pop_tmp/gaps"
   echo "$before" | jq -s . >"$pop_tmp/clients.json"
   echo "$before" | jq -s '.[] | select(.address == "0xa")' >"$pop_tmp/active.json"
   POP_TMP="$pop_tmp" XDG_RUNTIME_DIR="$pop_tmp/run" PATH="$pop_tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop"
 
   rm -f "$pop_tmp/hyprctl.log"
+  echo "${AFTER_GAPS:-5}" >"$pop_tmp/gaps"
   echo "$after" | jq -s . >"$pop_tmp/clients.json"
   echo "$after" | jq -s '.[] | select(.address == "0xa")' >"$pop_tmp/active.json"
   POP_TMP="$pop_tmp" XDG_RUNTIME_DIR="$pop_tmp/run" PATH="$pop_tmp/bin:$PATH" "$ROOT/bin/omarchy-hyprland-window-pop"
@@ -113,3 +118,13 @@ log=$(round_trip "$(tile 0xa 12 40 621 780; tile 0xb 647 40 621 383; tile 0xc 64
 grep -q -- "--batch" <<<"$log" && fail "a layout that changed while popped out retiles plainly" "$log"
 grep -q 'address:0xa", action = "toggle"' <<<"$log" || fail "a layout that changed while popped out retiles plainly" "$log"
 pass "a layout that changed while popped out retiles plainly"
+
+# The split is read with the gap it was laid out with, not one changed since.
+log=$(AFTER_GAPS=0 round_trip "$(tile 0xa 12 40 747 780; tile 0xb 773 40 495 780)" "$popped$(printf '\n'; tile 0xb 12 40 1256 780)")
+grep -q 'splitratio 0.2' <<<"$log" || fail "a gap changed while popped out keeps the split's size" "$log"
+pass "a gap changed while popped out keeps the split's size"
+
+# A workspace switched to scrolling (Super+L) while general:layout stays dwindle.
+log=$(LAYOUT=scrolling round_trip "$(tile 0xa 12 40 621 780; tile 0xb 647 40 621 780)" "$popped$(printf '\n'; tile 0xb 12 40 1256 780)")
+grep -q -- "--batch" <<<"$log" && fail "a scrolling workspace retiles plainly" "$log"
+pass "a scrolling workspace retiles plainly"

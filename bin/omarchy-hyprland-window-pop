@@ -25,14 +25,30 @@ hypr_dispatch() {
   hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
 }
 
-# Records every tile on the window's workspace, the window's own slot included.
+# Workspaces pick their own layout (Super+L), so general:layout can say dwindle
+# while this one scrolls.
+workspace_layout() {
+  hyprctl workspaces -j | jq -r --argjson workspace "$1" '.[] | select(.id == $workspace) | .tiledLayout'
+}
+
+# Records every tile on the window's workspace, the window's own slot included,
+# with the border and gap they were laid out with.
 remember_layout() {
-  hyprctl clients -j | jq -c --arg addr "$addr" '
-    (.[] | select(.address == $addr) | .workspace.id) as $workspace
-    | {
-        workspace: $workspace,
-        tiles: [.[] | select(.workspace.id == $workspace and .floating == false) | { address, at, size }]
-      }
+  local workspace border gaps_in
+
+  workspace=$(echo "$active" | jq ".workspace.id")
+  [[ $(workspace_layout "$workspace") == "dwindle" ]] || return 1
+
+  border=$(hyprctl getoption general:border_size -j | jq ".int")
+  gaps_in=$(hyprctl getoption general:gaps_in -j | jq '.css // .int | tostring | split(" ")[0] | tonumber')
+
+  hyprctl clients -j | jq -c --argjson workspace "$workspace" --argjson border "$border" --argjson gaps_in "$gaps_in" '
+    {
+      workspace: $workspace,
+      border: $border,
+      gaps_in: $gaps_in,
+      tiles: [.[] | select(.workspace.id == $workspace and .floating == false) | { address, at, size }]
+    }
   '
 }
 
@@ -42,20 +58,17 @@ remember_layout() {
 # time: float every tile, retile the first, then split each tile in the side
 # and ratio it had. All of it goes to Hyprland as one batch.
 rebuild_commands() {
-  local state="$1" border gaps_in split_ratio
+  local state="$1" split_ratio
 
-  border=$(hyprctl getoption general:border_size -j | jq ".int")
-  gaps_in=$(hyprctl getoption general:gaps_in -j | jq '.css // .int | tostring | split(" ")[0] | tonumber')
   split_ratio=$(hyprctl getoption dwindle:default_split_ratio -j | jq ".float")
 
-  hyprctl clients -j | jq -r --argjson state "$state" --arg addr "$addr" \
-    --argjson border "$border" --argjson gaps_in "$gaps_in" \
-    --argjson split_ratio "$split_ratio" '
+  hyprctl clients -j | jq -r --argjson state "$state" --arg addr "$addr" --argjson split_ratio "$split_ratio" '
     def dispatch($lua): "dispatch \($lua)";
     def target($a): "{ window = \"address:\($a)\" }";
     def toggle($a): dispatch("hl.dsp.window.float({ window = \"address:\($a)\", action = \"toggle\" })");
     def focus($a): dispatch("hl.dsp.focus(\(target($a)))");
     def layout($msg): dispatch("hl.dsp.layout(\"\($msg)\")");
+    $state.border as $border | $state.gaps_in as $gaps_in |
 
     # A tile grown to the box its layout node owns: its border, plus half the gap
     # to a neighbor. Dwindle splits the area inside the outer gaps, so a tile
@@ -136,7 +149,7 @@ restore_layout() {
   state=$(<"$state_file")
   rm -f "$state_file"
 
-  [[ $(hyprctl getoption general:layout -j | jq -r ".str") == "dwindle" ]] || return 1
+  [[ $(workspace_layout "$(echo "$state" | jq ".workspace")") == "dwindle" ]] || return 1
 
   commands=$(rebuild_commands "$state")
   [[ -n $commands ]] || return 1
@@ -155,7 +168,7 @@ if [[ $pinned == "true" ]]; then
 elif [[ -n $addr ]]; then
   if [[ $floating == "false" ]]; then
     mkdir -p "$state_dir"
-    remember_layout >"$state_file"
+    remember_layout >"$state_file" || rm -f "$state_file"
   fi
 
   hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
