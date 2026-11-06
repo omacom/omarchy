@@ -17,138 +17,151 @@ import tempfile
 
 
 def request(endpoint, data=None):
-    connection = http.client.HTTPConnection("127.0.0.1", 11434, timeout=600 if endpoint == "embed" else 10)
-    try:
-        connection.request("GET" if data is None else "POST", "/api/" + endpoint,
-                           body=None if data is None else json.dumps(data),
-                           headers={"Content-Type": "application/json"})
-        response = connection.getresponse()
-        raw = response.read(8 * 1024 * 1024 + 1)
-        if len(raw) > 8 * 1024 * 1024:
-            raise ValueError("Ollama returned an oversized response")
-        result = json.loads(raw)
-        if response.status != 200 or not isinstance(result, dict) or result.get("error"):
-            raise ValueError("Ollama could not complete the request; ensure the passages fit the embedding model")
-        return result
-    finally:
-        connection.close()
+  connection = http.client.HTTPConnection("127.0.0.1", 11434, timeout=600 if endpoint == "embed" else 10)
+  try:
+    connection.request(
+      "GET" if data is None else "POST",
+      "/api/" + endpoint,
+      body=None if data is None else json.dumps(data),
+      headers={"Content-Type": "application/json"},
+    )
+    response = connection.getresponse()
+    raw = response.read(8 * 1024 * 1024 + 1)
+    if len(raw) > 8 * 1024 * 1024:
+      raise ValueError("Ollama returned an oversized response")
+    result = json.loads(raw)
+    if response.status != 200 or not isinstance(result, dict) or result.get("error"):
+      raise ValueError("Ollama could not complete the request; ensure the passages fit the embedding model")
+    return result
+  finally:
+    connection.close()
 
 
 def vectors(value, count):
-    if not isinstance(value, list) or len(value) != count:
-        raise ValueError("Ollama returned the wrong number of embeddings")
-    dimension = None
-    for vector in value:
-        if not isinstance(vector, list) or not vector or (dimension is not None and len(vector) != dimension):
-            raise ValueError("Embedding dimensions do not match")
-        dimension = len(vector)
-        if any(isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number) for number in vector):
-            raise ValueError("Embedding contains invalid numbers")
-        norm = math.hypot(*vector)
-        if not norm or not math.isfinite(norm):
-            raise ValueError("Embedding has no usable direction")
-    return value
+  if not isinstance(value, list) or len(value) != count:
+    raise ValueError("Ollama returned the wrong number of embeddings")
+  dimension = None
+  for vector in value:
+    if not isinstance(vector, list) or not vector or (dimension is not None and len(vector) != dimension):
+      raise ValueError("Embedding dimensions do not match")
+    dimension = len(vector)
+    if any(
+      isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number) for number in vector
+    ):
+      raise ValueError("Embedding contains invalid numbers")
+    norm = math.hypot(*vector)
+    if not norm or not math.isfinite(norm):
+      raise ValueError("Embedding has no usable direction")
+  return value
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Search only files you name, using local Ollama. UTF-8 text only; 64 files, 64 KiB each, 256 KiB total. Embeddings are cached privately; source text is not cached.")
-    parser.add_argument("query")
-    parser.add_argument("files", nargs="+", type=Path)
-    parser.add_argument("--model", required=True)
-    parser.add_argument("--limit", type=int, default=5)
-    parser.add_argument("--json", action="store_true")
-    args = parser.parse_args()
-    if not args.query.strip() or len(args.query.encode("utf-8")) > 1024 or not 1 <= args.limit <= 20 or len(args.files) > 64:
-        parser.error("use a 1-1024 byte query, 1-64 files and a limit of 1-20")
-    documents = []
-    total = 0
-    for source in dict.fromkeys(args.files):
-        if not source.is_file():
-            raise ValueError(f"Not a text file: {source}")
-        with source.open("rb") as stream:
-            raw = stream.read(65537)
-        total += len(raw)
-        if len(raw) > 65536 or total > 262144:
-            raise ValueError("Files exceed the search size limit; select fewer or smaller files")
-        text = raw.decode("utf-8")
-        if "\0" in text:
-            raise ValueError(f"Binary data in {source}")
-        chunks = [(start, text[start:start + 1024]) for start in range(0, len(text), 896) if text[start:start + 1024].strip()]
-        if chunks:
-            documents.append((source, raw, text, chunks))
-    if not documents:
-        raise ValueError("No non-empty text to search")
-    models = request("tags").get("models", [])
-    model = next((item for item in models if item.get("name") in (args.model, args.model + ":latest")), None)
-    if model is None:
-        raise ValueError("Embedding model is not installed; download it with Ollama first")
-    name = model["name"]
-    info = request("show", {"model": name})
-    if any(item.get(key) for item in (model, info) for key in ("remote_host", "remote_model")):
-        raise ValueError("Choose a local embedding model to keep the files on this machine")
-    if "embedding" not in info.get("capabilities", []):
-        raise ValueError("Choose a model with embedding support")
+  parser = argparse.ArgumentParser(
+    description="Search only files you name, using local Ollama. UTF-8 text only; 64 files, 64 KiB each, 256 KiB total. Embeddings are cached privately; source text is not cached."
+  )
+  parser.add_argument("query")
+  parser.add_argument("files", nargs="+", type=Path)
+  parser.add_argument("--model", required=True)
+  parser.add_argument("--limit", type=int, default=5)
+  parser.add_argument("--json", action="store_true")
+  args = parser.parse_args()
+  if (
+    not args.query.strip()
+    or len(args.query.encode("utf-8")) > 1024
+    or not 1 <= args.limit <= 20
+    or len(args.files) > 64
+  ):
+    parser.error("use a 1-1024 byte query, 1-64 files and a limit of 1-20")
+  documents = []
+  total = 0
+  for source in dict.fromkeys(args.files):
+    if not source.is_file():
+      raise ValueError(f"Not a text file: {source}")
+    with source.open("rb") as stream:
+      raw = stream.read(65537)
+    total += len(raw)
+    if len(raw) > 65536 or total > 262144:
+      raise ValueError("Files exceed the search size limit; select fewer or smaller files")
+    text = raw.decode("utf-8")
+    if "\0" in text:
+      raise ValueError(f"Binary data in {source}")
+    chunks = [
+      (start, text[start : start + 1024]) for start in range(0, len(text), 896) if text[start : start + 1024].strip()
+    ]
+    if chunks:
+      documents.append((source, raw, text, chunks))
+  if not documents:
+    raise ValueError("No non-empty text to search")
+  models = request("tags").get("models", [])
+  model = next((item for item in models if item.get("name") in (args.model, args.model + ":latest")), None)
+  if model is None:
+    raise ValueError("Embedding model is not installed; download it with Ollama first")
+  name = model["name"]
+  info = request("show", {"model": name})
+  if any(item.get(key) for item in (model, info) for key in ("remote_host", "remote_model")):
+    raise ValueError("Choose a local embedding model to keep the files on this machine")
+  if "embedding" not in info.get("capabilities", []):
+    raise ValueError("Choose a model with embedding support")
 
-    def embed(texts):
-        return vectors(request("embed", {"model": name, "input": texts, "truncate": False}).get("embeddings"), len(texts))
+  def embed(texts):
+    return vectors(request("embed", {"model": name, "input": texts, "truncate": False}).get("embeddings"), len(texts))
 
-    query = embed([args.query])[0]
-    query_norm = math.hypot(*query)
-    cache_dir = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "omarchy/semantic-search"
-    results = []
-    for source, raw, text, chunks in documents:
-        # A model revision and content change both invalidate the cache. Do not
-        # cache when a daemon cannot identify its model revision.
-        digest = model.get("digest")
-        key = hashlib.sha256(json.dumps(["chunks-1024-896-v1", name, digest]).encode() + b"\0" + raw).hexdigest()
-        cache = cache_dir / (key + ".json")
+  query = embed([args.query])[0]
+  query_norm = math.hypot(*query)
+  cache_dir = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "omarchy/semantic-search"
+  results = []
+  for source, raw, text, chunks in documents:
+    # A model revision and content change both invalidate the cache. Do not
+    # cache when a daemon cannot identify its model revision.
+    digest = model.get("digest")
+    key = hashlib.sha256(json.dumps(["chunks-1024-896-v1", name, digest]).encode() + b"\0" + raw).hexdigest()
+    cache = cache_dir / (key + ".json")
+    saved = None
+    if digest:
+      try:
+        if cache.stat().st_size <= 8 * 1024 * 1024:
+          saved = vectors(json.loads(cache.read_text()), len(chunks))
+          if len(saved[0]) != len(query):
+            saved = None
+      except (OSError, ValueError):
         saved = None
-        if digest:
-            try:
-                if cache.stat().st_size <= 8 * 1024 * 1024:
-                    saved = vectors(json.loads(cache.read_text()), len(chunks))
-                    if len(saved[0]) != len(query):
-                        saved = None
-            except (OSError, ValueError):
-                saved = None
-        if saved is None:
-            saved = []
-            for start in range(0, len(chunks), 16):
-                saved.extend(embed([chunk for _, chunk in chunks[start:start + 16]]))
-            vectors(saved, len(chunks))
-            if any(len(vector) != len(query) for vector in saved):
-                raise ValueError("Query and document embedding dimensions do not match")
-            if digest:
-                temporary = None
-                try:
-                    cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-                    with tempfile.NamedTemporaryFile(mode="w", dir=cache_dir, delete=False) as stream:
-                        temporary = Path(stream.name)
-                        json.dump(saved, stream, allow_nan=False)
-                    temporary.replace(cache)
-                except OSError:
-                    pass  # A read-only cache must not prevent a search.
-                finally:
-                    if temporary is not None:
-                        temporary.unlink(missing_ok=True)
-        for (start, chunk), vector in zip(chunks, saved):
-            norm = math.hypot(*vector)
-            score = sum((left / query_norm) * (right / norm) for left, right in zip(query, vector))
-            results.append({"file": str(source), "line": text.count("\n", 0, start) + 1,
-                            "score": score, "text": chunk})
-    results.sort(key=lambda item: item["score"], reverse=True)
-    selected = results[:args.limit]
-    if args.json:
-        print(json.dumps(selected, ensure_ascii=False, allow_nan=False))
-    else:
-        for item in selected:
-            excerpt = " ".join(item["text"].split())[:180]
-            print(f"{item['score']:.3f}\t{item['file']}:{item['line']}\t{excerpt}")
+    if saved is None:
+      saved = []
+      for start in range(0, len(chunks), 16):
+        saved.extend(embed([chunk for _, chunk in chunks[start : start + 16]]))
+      vectors(saved, len(chunks))
+      if any(len(vector) != len(query) for vector in saved):
+        raise ValueError("Query and document embedding dimensions do not match")
+      if digest:
+        temporary = None
+        try:
+          cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+          with tempfile.NamedTemporaryFile(mode="w", dir=cache_dir, delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump(saved, stream, allow_nan=False)
+          temporary.replace(cache)
+        except OSError:
+          pass  # A read-only cache must not prevent a search.
+        finally:
+          if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    for (start, chunk), vector in zip(chunks, saved):
+      norm = math.hypot(*vector)
+      score = sum((left / query_norm) * (right / norm) for left, right in zip(query, vector))
+      results.append({"file": str(source), "line": text.count("\n", 0, start) + 1, "score": score, "text": chunk})
+  results.sort(key=lambda item: item["score"], reverse=True)
+  selected = results[: args.limit]
+  if args.json:
+    print(json.dumps(selected, ensure_ascii=False, allow_nan=False))
+  else:
+    for item in selected:
+      excerpt = " ".join(item["text"].split())[:180]
+      print(f"{item['score']:.3f}\t{item['file']}:{item['line']}\t{excerpt}")
 
 
 try:
-    main()
+  main()
 except (OSError, ValueError, http.client.HTTPException) as error:
-    print(f"omarchy-file-search-semantic: {error}", file=sys.stderr)
-    sys.exit(1)
+  print(f"omarchy-file-search-semantic: {error}", file=sys.stderr)
+  sys.exit(1)
 PY
