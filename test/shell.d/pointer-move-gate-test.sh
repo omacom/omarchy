@@ -4,12 +4,7 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-require_compositor "pointer movement gate runtime test"
-
-if ! command -v quickshell >/dev/null 2>&1; then
-  skip "quickshell not installed; skipping pointer movement gate runtime test"
-  exit 0
-fi
+require_quickshell "pointer movement gate runtime test"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -28,3 +23,19 @@ if ! grep -q "RESULT pass" <<<"$output"; then
 fi
 
 pass "pointer movement gate runtime behavior is correct"
+
+qml_fixture_scratch
+trap 'rm -rf "$test_tmp"; qml_fixture_cleanup' EXIT
+cat >"$QML_FIXTURE_TMP/menu.jsonc" <<'EOF'
+{
+  "one": {"label": "One", "action": "true"},
+  "two": {"label": "Two"},
+  "two.only": {"label": "Two Only", "action": "true"},
+  "three": {"label": "Three"},
+  "three.a": {"label": "Three A", "action": "true"},
+  "three.b": {"label": "Three B", "action": "true"},
+  "three.c": {"label": "Three C", "action": "true"}
+}
+EOF
+MENU_FIXTURE_FILE="$QML_FIXTURE_TMP/menu.jsonc" \
+  run_qml_fixture menu-pointer "a click into a submenu selects the row left under the pointer" Ui Commons
