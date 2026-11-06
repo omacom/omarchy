@@ -187,10 +187,14 @@ recovery()
 assert(armed == 1, "a retry that has not revealed arms the next one")
 setcursor_returns("my-xcursor", 1, "restore(true)")
 assert(config.invisible and config.enable_hyprcursor, "the reload's retry loads the theme again, still hidden")
+assert(load(stale))()
+assert(config.invisible and omarchy_startup_cursor_pending, "a completion from before the reload is ignored once the new state has its own attempt")
 -- A retry while the Hyprcursor setcursor is in flight reissues it, never the Xcursor stage that would replace
 -- the theme, and a slow first completion still finishes the reveal.
 recovery()
 assert(armed == 2 and #commands == 4 and commands[4]:find('restore("hyprcursor")', 1, true), "the retry reissues the Hyprcursor setcursor")
+omarchy_startup_cursor_restore()
+assert(#commands == 4, "once the Hyprcursor stage has begun, the shell's restore must not rerun the Xcursor stage")
 setcursor_returns("my-xcursor", 1, '"hyprcursor"')
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme, "the reveal must apply the Hyprcursor theme it derived, then the user's settings")
 monitors = {}
