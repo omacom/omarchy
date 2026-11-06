@@ -474,7 +474,7 @@ kill -0 "$watch_pid" 2>/dev/null || fail "monitor watcher exited while monitor m
 
 HOME="$test_tmp/home" \
   PATH="$ROOT/bin:$PATH" \
-  omarchy-toggle-monitor-management on
+  omarchy-toggle monitor-management-off off
 
 [[ ! -e $management_off_flag ]] || fail "monitor management stayed off after turning it on"
 
@@ -498,7 +498,7 @@ kill -0 "$watch_pid" 2>/dev/null || fail "monitor watcher exited instead of beco
 
 HOME="$test_tmp/home" \
   PATH="$ROOT/bin:$PATH" \
-  omarchy-toggle-monitor-management on
+  omarchy-toggle monitor-management-off off
 
 printf 'monitorremoved>>DP-2\n' >&"$events_fd"
 await_log_line "clamshell continued" || fail "same monitor watcher did not resume after management was re-enabled"

@@ -149,7 +149,7 @@ handlers["monitor.added"]({ name = "eDP-1" })
 o.monitor_settings.update_gdk_scale()
 check(#applied == 0 and env.GDK_SCALE == nil, "applies nothing while monitor management is off")
 ' || fail "monitor settings stay out of the way while monitor management is off"
-HOME="$tmpdir/home" PATH="$ROOT/bin:$PATH" omarchy-toggle-monitor-management on
+HOME="$tmpdir/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management-off off
 pass "monitor settings stay out of the way while monitor management is off"
 
 # Until something is saved, monitors.lua alone decides, GDK_SCALE included.
