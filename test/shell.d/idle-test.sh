@@ -33,3 +33,16 @@ HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" allow-idle >/dev/null
 [[ ! -f $test_home/.local/state/omarchy/indicators/stay-awake ]] || fail "Stay Awake toggle persists disabled state"
 
 pass "Stay Awake toggle persists state"
+
+require_quickshell "idle service runtime test"
+
+qml_fixture_scratch
+trap 'qml_fixture_cleanup; rm -rf "$test_tmp"' EXIT
+
+# The service acts on the session once it goes idle; these keep it to itself.
+for stub in omarchy-shell omarchy-launch-screensaver omarchy-system-lock omarchy-system-wake; do
+  printf '#!/bin/bash\n' >"$QML_FIXTURE_TMP/bin/$stub"
+  chmod +x "$QML_FIXTURE_TMP/bin/$stub"
+done
+
+run_qml_fixture idle-service "idle service keeps reporting idle when its timings change on a running monitor" Commons
