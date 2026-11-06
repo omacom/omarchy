@@ -89,7 +89,7 @@ omarchy-pkg-drop t3code-bin t3code-nightly-bin
 # running, so it leaves opening the new one to the user.
 if ((launch)); then
   echo "Opening T3 Code..."
-  setsid uwsm-app -- gtk-launch t3code >/dev/null 2>&1 &
+  omarchy-launch-after-done uwsm-app -- gtk-launch t3code
 fi
 
 echo ""

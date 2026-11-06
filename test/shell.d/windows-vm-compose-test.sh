@@ -510,3 +510,30 @@ df() {
 unset -f df
 [[ $(cat "$df_log") == "$external_storage" ]] || fail "free-space used home filesystem"
 pass "disk-space checks follow the storage symlink target"
+
+# Inside the installer presentation the progress page opens only once the Done
+# prompt has its key, so the browser does not take that key.
+launch_list="$TMPDIR/launch-after-done"
+: >"$launch_list"
+(
+  export OMARCHY_LAUNCH_AFTER_DONE=$launch_list
+  prepare_user_mount_sources() { :; }
+  check_prerequisites() { :; }
+  available_storage_gb() { echo 100; }
+  write_compose() { :; }
+  write_credentials() { :; }
+  priv() { :; }
+  sleep() { :; }
+  omarchy-pkg-add() { :; }
+  xdg-open() { touch "$TMPDIR/opened"; }
+  gum() {
+    case $1 in
+    choose) head -n 1 ;;
+    input) echo 2 ;;
+    esac
+  }
+  install_windows
+) >/dev/null
+[[ ! -e $TMPDIR/opened ]] && grep -Fq 'xdg-open http://127.0.0.1:8006' "$launch_list" ||
+  fail "the install progress page waits for the Done prompt" "$(<"$launch_list")"
+pass "the install progress page waits for the Done prompt"

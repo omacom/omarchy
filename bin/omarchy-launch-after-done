@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Open an app, or inside the installer presentation once its Done prompt has its key
+# omarchy:args=<command> [args...]
+# omarchy:hidden=true
+
+# A window that opens while the Done prompt waits takes the key meant for it,
+# so inside the presentation the launch goes on the list it opens as it exits.
+# An app the presentation started directly keeps the variable after the list
+# is gone. -f leaves the terminal's session at once: the terminal closes right
+# after the list runs, and its hangup kills a launch still in that session.
+printf -v launch '%q ' "$@"
+if [[ -f ${OMARCHY_LAUNCH_AFTER_DONE-} ]]; then
+  echo "setsid -f $launch</dev/null >/dev/null 2>&1" >>"$OMARCHY_LAUNCH_AFTER_DONE"
+else
+  setsid -f "$@" </dev/null >/dev/null 2>&1
+fi

@@ -27,10 +27,10 @@ omarchy-webapp-install OpenClaw "http://127.0.0.1:18789" \
 # that is already onboarded goes straight to the app.
 if [[ -f $HOME/.openclaw/openclaw.json ]]; then
   echo "Opening OpenClaw..."
-  setsid uwsm-app -- gtk-launch OpenClaw >/dev/null 2>&1 &
+  omarchy-launch-after-done uwsm-app -- gtk-launch OpenClaw
 elif omarchy-openclaw-onboard && [[ -f $HOME/.openclaw/openclaw.json ]]; then
   echo "Opening OpenClaw..."
-  setsid uwsm-app -- gtk-launch OpenClaw >/dev/null 2>&1 &
+  omarchy-launch-after-done uwsm-app -- gtk-launch OpenClaw
 fi
 
 echo ""

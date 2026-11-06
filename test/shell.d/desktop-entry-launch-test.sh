@@ -64,7 +64,7 @@ assert_detached_installer_launch() {
   : >"$OMARCHY_TEST_LOG"
   bash "$ROOT/bin/$script"
 
-  wait_for_launch "launch:uwsm-app -- gtk-launch $desktop_id" ||
+  wait_for_launch "launch:-f uwsm-app -- gtk-launch $desktop_id" ||
     fail "$script launches its desktop entry through setsid and gtk-launch in a UWSM scope"
   pass "$script detaches its scoped desktop-entry launch"
 }
@@ -80,7 +80,7 @@ presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
 
 [[ $presentation_command == *'echo Installing\ Example\ App...;'* ]] ||
   fail "generic installer shell-quotes the display name" "$presentation_command"
-[[ $presentation_command == *'omarchy-pkg-add alpha beta && (setsid uwsm-app -- gtk-launch Disk\ Usage >/dev/null 2>&1 &)'* ]] ||
+[[ $presentation_command == *'omarchy-pkg-add alpha beta && omarchy-launch-after-done uwsm-app -- gtk-launch Disk\ Usage'* ]] ||
   fail "generic installer waits for packages and detaches only the scoped launch" "$presentation_command"
 pass "generic installer waits for packages and detaches only the scoped launch"
 
@@ -88,7 +88,7 @@ pass "generic installer waits for packages and detaches only the scoped launch"
 bash -c "$presentation_command"
 grep -Fxq 'pkg:alpha beta' "$OMARCHY_TEST_LOG" ||
   fail "generic installer passes every package to the package helper"
-wait_for_launch 'launch:uwsm-app -- gtk-launch Disk Usage' ||
+wait_for_launch 'launch:-f uwsm-app -- gtk-launch Disk Usage' ||
   fail "generic installer preserves a desktop ID containing spaces"
 pass "generic installer preserves a desktop ID containing spaces"
 
@@ -233,3 +233,64 @@ fi
 grep -Fxq 'pkg:alpha; echo PWNED' "$OMARCHY_TEST_LOG" ||
   fail "install-and-launch hands a hostile package list to the package helper as arguments" "$(<"$OMARCHY_TEST_LOG")"
 pass "install-and-launch does not run extra commands from a package list"
+
+# The real presentation, its terminal replaced by running the script here. A
+# window that opens while the Done prompt waits takes the key meant for it.
+presentation_bin="$test_tmp/presentation-bin"
+mkdir -p "$presentation_bin" "$test_home/.openclaw"
+touch "$test_home/.openclaw/openclaw.json"
+ln -s "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$presentation_bin/"
+cat >"$presentation_bin/setsid" <<'SH'
+#!/bin/bash
+if [[ $* == *' xdg-terminal-exec '* ]]; then
+  exec bash -c "${!#}"
+fi
+printf 'launch:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
+SH
+# Long enough for a launch started before the prompt to be logged first.
+cat >"$presentation_bin/omarchy-show-done" <<'SH'
+#!/bin/bash
+sleep 0.1
+printf 'done:%s\n' "$1" >>"$OMARCHY_TEST_LOG"
+SH
+cat >"$presentation_bin/omarchy-setup-slack" <<'SH'
+#!/bin/bash
+exit "${OMARCHY_TEST_SLACK_SETUP_STATUS:-0}"
+SH
+cat >"$presentation_bin/omarchy-hw-x86" <<'SH'
+#!/bin/bash
+exit "${OMARCHY_TEST_X86_STATUS:-0}"
+SH
+for command in omarchy-show-logo omarchy-restart-gum; do
+  printf '#!/bin/bash\n' >"$presentation_bin/$command"
+done
+for command in omarchy-install-openclaw-cli omarchy-install-hermes-cli omarchy-webapp-install omarchy-cmd-missing sudo curl; do
+  printf '#!/bin/bash\nexit 0\n' >"$presentation_bin/$command"
+done
+chmod +x "$presentation_bin"/*
+
+assert_opens_after_done() {
+  local name="$1" expected="$2"
+  shift 2
+
+  : >"$OMARCHY_TEST_LOG"
+  PATH="$presentation_bin:$PATH" "$@" >"$test_tmp/presentation.out" 2>&1 || true
+  [[ $(grep -E '^(done|launch):' "$OMARCHY_TEST_LOG" | cut -d' ' -f1 | paste -sd ' ') == "$expected" ]] ||
+    fail "$name opens its app only once the Done prompt has its key" "$(cat "$OMARCHY_TEST_LOG" "$test_tmp/presentation.out")"
+}
+
+for installer in omarchy-install-service-slack omarchy-install-ai-chatgpt omarchy-install-ai-claude omarchy-install-ai-hermes \
+  omarchy-install-ai-openclaw omarchy-install-editor-vscode omarchy-install-editor-zed omarchy-install-editor-emacs \
+  omarchy-install-service-1password omarchy-install-service-signal \
+  omarchy-install-gaming-steam omarchy-install-gaming-heroic omarchy-install-gaming-lutris omarchy-install-gaming-retroarch \
+  omarchy-install-gaming-xbox-cloud omarchy-install-gaming-battlenet; do
+  assert_opens_after_done "$installer" "done:0 launch:-f" omarchy-launch-floating-terminal-with-presentation "$installer"
+done
+OMARCHY_TEST_SLACK_SETUP_STATUS=1 assert_opens_after_done "Slack after a failed theme setup" "done:0 launch:-f" \
+  omarchy-launch-floating-terminal-with-presentation omarchy-install-service-slack
+assert_opens_after_done omarchy-install-and-launch "done:0 launch:-f" omarchy-install-and-launch "Example App" "alpha beta" "Disk Usage"
+assert_opens_after_done "a failed command" "done:1 launch:-f" \
+  omarchy-launch-floating-terminal-with-presentation 'omarchy-launch-after-done uwsm-app -- gtk-launch code; false'
+assert_opens_after_done "Ctrl-C" "launch:-f" \
+  omarchy-launch-floating-terminal-with-presentation 'omarchy-launch-after-done uwsm-app -- gtk-launch code; (exit 130)'
+pass "installers in the presentation open their app only once the Done prompt has its key"

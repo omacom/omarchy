@@ -103,4 +103,4 @@ fi
 # into the user journal. Accepted: the token is single-use with a ten-minute
 # expiry against a loopback-only gateway, and journal access already implies
 # access to ~/.openclaw itself.
-exec omarchy-launch-webapp "$url"
+exec omarchy-launch-after-done omarchy-launch-webapp "$url"

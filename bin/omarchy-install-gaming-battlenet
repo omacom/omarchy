@@ -60,7 +60,7 @@ app launcher.
 EOF
 
   log="/tmp/omarchy-battlenet-installer.log"
-  setsid -f sh -c "umu-run '$installer' >'$log' 2>&1" </dev/null >/dev/null 2>&1
+  omarchy-launch-after-done sh -c "umu-run '$installer' >'$log' 2>&1"
   echo "Installer log: $log"
   launched_installer=1
 fi

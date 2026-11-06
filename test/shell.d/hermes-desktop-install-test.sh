@@ -135,6 +135,7 @@ exec /usr/bin/git "$@"
 MOCK
 cat >"$test_tmp/bin/setsid" <<'MOCK'
 #!/bin/bash
+[[ $1 == -f ]] && shift
 exec "$@"
 MOCK
 cat >"$test_tmp/bin/cp" <<'MOCK'

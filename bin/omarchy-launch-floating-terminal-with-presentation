@@ -9,6 +9,13 @@ source omarchy-restart-gum
 
 cmd="$*"
 # 130 is the user bailing with Ctrl-C; anything else gets the Done/Failed prompt.
-presentation_script="omarchy-show-logo; $cmd; code=\$?; if (( code != 130 )); then omarchy-show-done \$code; fi"
+# Apps the command opens through omarchy-launch-after-done open as the script
+# exits, once the prompt has its key. Closing the window at the prompt opens
+# them too: the HUP trap keeps the hangup from ending the shell part-way
+# through them.
+presentation_script="launch_after_done=\$(mktemp)
+trap 'OMARCHY_LAUNCH_AFTER_DONE= bash \"\$launch_after_done\"; rm -f \"\$launch_after_done\"' EXIT
+export OMARCHY_LAUNCH_AFTER_DONE=\$launch_after_done
+omarchy-show-logo; $cmd; code=\$?; if (( code != 130 )); then trap : HUP; omarchy-show-done \$code; fi"
 
 exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy -e bash -c "$presentation_script"
