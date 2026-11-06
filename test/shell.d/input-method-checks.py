@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -68,6 +69,19 @@ class InputMethodTest(unittest.TestCase):
         self.assertEqual(set(keys["Hotkey/TriggerKeys"].values()), {"Zenkaku_Hankaku", "Hangul"})
         self.assertEqual(keys["Hotkey/AltTriggerKeys"], {"0": "Shift_L"})
 
+  def test_positional_engines_stay_on_qwerty_under_other_latin_layouts(self):
+    self.assertEqual(setup.engine_layout("hangul", "us-dvorak"), "us")
+    self.assertEqual(setup.engine_layout("chewing", "fr"), "us")
+    self.assertEqual(setup.engine_layout("hangul", "us"), "")
+    self.assertEqual(setup.engine_layout("hangul", "kr"), "")
+    self.assertEqual(setup.engine_layout("chewing", "jp"), "")
+    self.assertEqual(setup.engine_layout("pinyin", "us-dvorak"), "")
+    self.assertEqual(setup.engine_layout("mozc", "de"), "")
+    self.vconsole.write_text("XKBLAYOUT=de\n")
+    self.seed("hangul")
+    data = setup.sections((self.config / "fcitx5/profile").read_text())
+    self.assertEqual(data["Groups/0/Items/1"], {"Name": "hangul", "Layout": "us"})
+
   def test_vconsole_variants_quotes_and_japanese_without_preference(self):
     self.preference.unlink()
     self.vconsole.write_text('XKBLAYOUT="jp" # JIS\n')
@@ -128,6 +142,15 @@ class InputMethodTest(unittest.TestCase):
     setup.defaults(self.config, fresh=False)
     self.assertEqual(path.read_text(), "[Behavior]\nActiveByDefault=True\n\n[Hotkey/TriggerKeys]\n0=Zenkaku_Hankaku\n1=Hangul\n")
     self.assertFalse(setup.defaults(self.config, fresh=False))
+
+  def test_korean_right_alt_preference_reaches_fcitx_with_its_variant(self):
+    self.preference.write_text("INPUT_METHOD=hangul\nXKB_LAYOUT=kr:kr104\n")
+    self.assertEqual(setup.selection(), ("hangul", "kr-kr104"))
+    self.seed()
+    data = setup.sections((self.config / "fcitx5/profile").read_text())
+    self.assertEqual(data["Groups/0/Items/0"]["Name"], "keyboard-kr-kr104")
+    # Hangul must keep Right Alt as 한/영 to switch back, so no US override.
+    self.assertEqual(data["Groups/0/Items/1"], {"Name": "hangul", "Layout": ""})
 
   def test_lao_preference_keeps_a_latin_fcitx_keyboard(self):
     self.preference.write_text("INPUT_METHOD=none\nXKB_LAYOUT=la\n")
@@ -214,6 +237,40 @@ class InputMethodTest(unittest.TestCase):
     original = font.read_bytes()
     setup.font_default(self.config, "hangul")
     self.assertEqual(font.read_bytes(), original)
+
+  def test_hong_kong_cangjie_reaches_the_hong_kong_glyphs(self):
+    setup.font_default(self.config, "cangjie5")
+    font = (self.config / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text()
+    self.assertIn("Noto Sans CJK HK", font)
+    self.assertIn("Noto Sans Mono CJK HK", font)
+
+  def test_a_chosen_cjk_variant_replaces_the_seeded_one(self):
+    setup.font_default(self.config, "mozc")
+    setup.font_set(self.config, "HK")
+    font = (self.config / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text()
+    self.assertNotIn("CJK JP", font)
+    for family, face in [("Liberation Sans", "Sans"), ("Liberation Serif", "Serif"), ("JetBrainsMono Nerd Font", "Sans Mono")]:
+      self.assertIn(f"<alias><family>{family}</family><accept><family>Noto {face} CJK HK</family></accept></alias>", font)
+    with self.assertRaises(ValueError):
+      setup.font_set(self.config, "XX")
+
+  def test_font_command_sets_seeds_and_clears_the_variant(self):
+    font = self.config / "fontconfig/conf.d/50-omarchy-input-method.conf"
+    def command(*args):
+      with patch.object(sys, "argv", ["configure.py", "font", *args]):
+        setup.main()
+    command("--seed", "kr")
+    self.assertIn("Noto Sans CJK KR", font.read_text())
+    command("--seed", "jp")
+    self.assertIn("Noto Sans CJK KR", font.read_text())
+    command("sc")
+    self.assertIn("Noto Sans CJK SC", font.read_text())
+    command("default")
+    self.assertNotIn("CJK", font.read_text())
+    command("--seed", "kr")
+    self.assertNotIn("CJK", font.read_text())
+    with self.assertRaises(SystemExit), patch("sys.stderr"):
+      command("cn")
 
 
 if __name__ == "__main__":

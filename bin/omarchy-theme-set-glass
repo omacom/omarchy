@@ -28,9 +28,11 @@ regex() {
 remove_block() {
   local file="$1" open="$2" close="$3"
   local begin end
+  # Theme switches wait on this, and a freshly rendered file has no block, so
+  # look for one before building its sed addresses.
+  [[ -f $file ]] && grep -qF "$open omarchy-glass begin" "$file" || return 0
   begin=$(regex "$open omarchy-glass begin")
   end=$(regex "$open omarchy-glass end$close")
-  [[ -f $file ]] && grep -qF "$open omarchy-glass begin" "$file" || return 0
 
   local added_newline=false
   grep -qxF "$open omarchy-glass begin after a line without a newline$close" "$file" && added_newline=true

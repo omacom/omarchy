@@ -20,6 +20,9 @@ local paths = require("default.hypr.paths")
 
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
+local OPENED_TAG = "omarchy-mode-opened"
+local OPEN_RULE = "omarchy-floating-open-"
+local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
 
 local M = {}
@@ -27,7 +30,11 @@ local M = {}
 local modes = {}
 local default_mode = nil
 local watching = false
+-- Set up once per config load, on the first floating workspace.
+local floating_ready = false
+local set_up_floating
 local cascade = 0
+local open_rules = 0
 
 local function set_floating(window, floating)
   hl.dispatch(hl.dsp.window.float({ action = floating and "on" or "off", window = window }))
@@ -152,6 +159,144 @@ local function tile_for_mode(window, mine)
   set_floating(window, false)
 end
 
+-- The floating workspaces as ranges of ids, for window rules to match.
+local function floating_ranges()
+  local ranges = {}
+
+  if default_mode == "floating" then
+    local tiled = {}
+    for id, mode in pairs(modes) do
+      local n = tonumber(id)
+      if n and n >= 1 and mode ~= "floating" then
+        table.insert(tiled, n)
+      end
+    end
+    table.sort(tiled)
+
+    local from = 1
+    for _, n in ipairs(tiled) do
+      if n > from then
+        table.insert(ranges, { from, n - 1 })
+      end
+      from = n + 1
+    end
+    table.insert(ranges, { from, LAST_WORKSPACE })
+  else
+    for id, mode in pairs(modes) do
+      local n = tonumber(id)
+      if n and n >= 1 and mode == "floating" then
+        table.insert(ranges, { n, n })
+      end
+    end
+    table.sort(ranges, function(a, b) return a[1] < b[1] end)
+  end
+
+  return ranges
+end
+
+-- The size the mode gives a window, and where it opens: centered, and stepped
+-- from the last one so windows opened one after another do not stack exactly
+-- on each other. The window's own size is not settled when the rule places it,
+-- so the position is worked out from the size the rule gives it.
+local OPEN_WIDTH = "min(1100,monitor_w*0.64)"
+local OPEN_HEIGHT = "min(760,monitor_h*0.68)"
+
+local function open_position()
+  local step = cascade * 24 - 48
+  return string.format("(monitor_w-%s)/2+(%d) (monitor_h-%s)/2+(%d)", OPEN_WIDTH, step, OPEN_HEIGHT, step)
+end
+
+-- Matches every window but those of apps with float rules of their own,
+-- directly or through a tag a float rule matches.
+local function not_floating_on_their_own(match)
+  local floating = o.floating_apps or { class = {}, title = {}, tags = {}, tagged = {} }
+  local excluded = { class = {}, title = {} }
+  for _, key in ipairs({ "class", "title" }) do
+    for _, pattern in ipairs(floating[key]) do
+      table.insert(excluded[key], pattern)
+    end
+  end
+  for tag in pairs(floating.tags) do
+    for _, tagged in ipairs(floating.tagged[tag] or {}) do
+      table.insert(excluded[tagged.key], tagged.pattern)
+    end
+  end
+
+  for _, key in ipairs({ "class", "title" }) do
+    local patterns = excluded[key]
+    if #patterns > 0 then
+      local alternatives = {}
+      for _, pattern in ipairs(patterns) do
+        table.insert(alternatives, "(?:" .. pattern .. ")")
+      end
+      match[key] = "negative:" .. table.concat(alternatives, "|")
+    end
+  end
+  return match
+end
+
+-- A window opening on a floating workspace floats from its first frame, at the
+-- size the mode gives it, so it pops in from its own middle the way a tiled
+-- window does, instead of opening tiled and shrinking into place. Modal
+-- dialogs, and apps with float rules of their own, float on their own account
+-- and are left to it, at their own size and outside the mode's claim.
+local function sync_open_rules()
+  local ranges = floating_ranges()
+
+  for i, range in ipairs(ranges) do
+    hl.window_rule({
+      name = OPEN_RULE .. i,
+      enabled = true,
+      match = not_floating_on_their_own({ workspace = string.format("r[%d-%d]", range[1], range[2]), modal = false }),
+      float = true,
+      size = OPEN_WIDTH .. " " .. OPEN_HEIGHT,
+      move = open_position(),
+      tag = "+" .. OPENED_TAG,
+    })
+  end
+
+  for i = #ranges + 1, open_rules do
+    hl.window_rule({ name = OPEN_RULE .. i, enabled = false })
+  end
+
+  open_rules = math.max(open_rules, #ranges)
+end
+
+-- Personal rules can follow saved workspace modes in hyprland.lua. Keep the
+-- exclusions current before their first window opens, including tag rules.
+o.floating_apps_changed = sync_open_rules
+
+-- A rule's tag leaves with the rule, so a window the open rule floated is
+-- claimed for good as it opens, and the mode tiles it again when it ends. A
+-- rule's tags are listed with a trailing "*", and a strict tag query passes
+-- them over, so the window's own list is read.
+local function claim_opened(window)
+  for _, tag in ipairs(window.tags or {}) do
+    if tag == OPENED_TAG or tag == OPENED_TAG .. "*" then
+      set_claimed(window, true)
+      -- The next window the rule opens steps on from this one.
+      cascade = (cascade + 1) % 5
+      sync_open_rules()
+      return
+    end
+  end
+end
+
+-- A maximized window has a floating workspace to itself until another one
+-- opens there, which brings it back to its own size so the two can share it.
+local function unmaximize_others(window)
+  local id = window.workspace and window.workspace.id
+  if not floating_workspace(id) then
+    return
+  end
+
+  for _, other in ipairs(hl.get_workspace_windows(tostring(id))) do
+    if other.address ~= window.address and (other.fullscreen or 0) == 1 then
+      hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "unset", window = other }))
+    end
+  end
+end
+
 -- The workspace is passed in when a window is still on its way to it.
 local function arrange(windows, workspace)
   local floating = {}
@@ -203,6 +348,8 @@ local function watch()
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
   hl.on("window.open", function(window)
+    claim_opened(window)
+    unmaximize_others(window)
     arrange({ window })
   end)
 
@@ -230,12 +377,16 @@ function o.workspace_mode(spec)
   watch()
 
   -- The default for every workspace that has no mode of its own, chosen under
-  -- Trigger > Appearance > Workspace Layout. A tiled default is Hyprland's own
+  -- Appearance > Workspace Layout. A tiled default is Hyprland's own
   -- layout; a floating one is arranged once the saved modes have all loaded.
   if spec.default then
     default_mode = spec.default
     if spec.default ~= "floating" then
       hl.config({ general = { layout = spec.default } })
+    end
+    sync_open_rules()
+    if anything_floats() then
+      set_up_floating()
     end
     return
   end
@@ -250,7 +401,12 @@ function o.workspace_mode(spec)
 
   modes[workspace] = spec.mode
 
+  if anything_floats() then
+    set_up_floating()
+  end
+
   arrange(hl.get_workspace_windows(workspace))
+  sync_open_rules()
   update_input()
 end
 
@@ -287,17 +443,22 @@ local function theme_colors()
   }
 end
 
--- Titlebars come from omarchy-hyprland-titlebars, loaded only while something
--- floats. Hyprland keeps a plugin loaded after the config stops asking for it,
--- but resets its options, and the plugin draws nothing until enabled here.
+-- Titlebars come from omarchy-hyprland-titlebars, loaded once something floats.
 -- The plugin reloads the config once it is in, which is the pass that finds its
--- options here.
-local function titlebars()
+-- options here. Its options reset on every load, so it draws nothing until enabled.
+local function titlebars_installed()
   local file = io.open(TITLEBARS, "r")
   if not file then
-    return
+    return false
   end
   file:close()
+  return true
+end
+
+local function titlebars()
+  if not titlebars_installed() then
+    return
+  end
 
   hl.plugin.load(TITLEBARS)
 
@@ -336,6 +497,8 @@ local function titlebars()
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
     { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },
+    -- Minimized windows wait in the dock, which brings them back.
+    { icon = "−", action = "omarchy-hyprland-window-minimize %WINDOW%" },
   }) do
     hl.plugin.hyprbars.add_button({
       bg_color = colors.titlebar,
@@ -345,6 +508,18 @@ local function titlebars()
       action = button.action,
     })
   end
+end
+
+-- Hyprland unloads a plugin the config stops asking for, and bringing this one
+-- back costs a cascade of reloads, so once in it stays asked for all session.
+local function titlebars_loaded()
+  for _, plugin in ipairs(hl.get_loaded_plugins and hl.get_loaded_plugins() or {}) do
+    if plugin.name == "hyprbars" then
+      return true
+    end
+  end
+
+  return false
 end
 
 -- Runs once every saved mode has loaded. A reload is a fresh start on this side
@@ -365,9 +540,22 @@ function M.apply()
     update_input()
   end
 
-  if not anything_floats() then
+  if anything_floats() then
+    set_up_floating()
+  elseif titlebars_loaded() and titlebars_installed() then
+    hl.plugin.load(TITLEBARS)
+  end
+end
+
+-- What floating workspaces need on top of the rest of the config: shadows,
+-- opaque windows, and titlebars. Run while the config loads when something
+-- floats already, and otherwise the moment a workspace starts floating, so
+-- Super + L brings titlebars without reloading Hyprland.
+set_up_floating = function()
+  if floating_ready then
     return
   end
+  floating_ready = true
 
   -- Overlapping windows need depth to tell apart, and a translucent window over
   -- another is hard to read.
