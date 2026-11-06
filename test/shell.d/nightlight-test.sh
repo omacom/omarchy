@@ -528,6 +528,7 @@ if compositor_reachable && command -v quickshell >/dev/null 2>&1; then
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if (( $# == 2 )) && [[ -f $HYPRSUNSET_AVAILABLE ]]; then
     cat "$HYPRSUNSET_STATE"
+    cat "$HYPRSUNSET_STATE" >>"$HYPRSUNSET_PROBE_LOG"
     exit 0
   fi
   if (( $# == 3 )); then
@@ -553,13 +554,14 @@ SH
     chmod +x "$test_tmp/bin/"*
     : >"$test_tmp/calls"
     : >"$test_tmp/successes"
+    : >"$test_tmp/probes"
     printf '6500\n' >"$test_tmp/display"
     ln -s "$ROOT/shell/plugins/services/nightlight" "$test_tmp/Nightlight"
     ln -s "$ROOT/shell/Commons" "$test_tmp/Commons"
 
     output=$(HOME="$test_tmp/home" PATH="$test_tmp/bin:$PATH" OMARCHY_NIGHTLIGHT_STATE="$test_tmp/mode" \
       HYPRSUNSET_CALL_LOG="$test_tmp/calls" HYPRSUNSET_STATE="$test_tmp/display" \
-      HYPRSUNSET_SUCCESS_LOG="$test_tmp/successes" \
+      HYPRSUNSET_SUCCESS_LOG="$test_tmp/successes" HYPRSUNSET_PROBE_LOG="$test_tmp/probes" \
       HYPRSUNSET_AVAILABLE="$test_tmp/available" HYPRSUNSET_FAIL_NEXT="$test_tmp/fail-next" \
       timeout 10 quickshell -p "$test_tmp" --no-color 2>&1) || {
       printf '%s\n' "$output" >&2

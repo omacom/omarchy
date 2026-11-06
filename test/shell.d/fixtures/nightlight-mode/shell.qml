@@ -58,7 +58,7 @@ ShellRoot {
 
   Process {
     id: recoveryCount
-    command: ["bash", "-c", 'until [[ $(<"$HYPRSUNSET_STATE") == "4000" ]]; do sleep 0.05; done; wc -l < "$HYPRSUNSET_CALL_LOG"']
+    command: ["bash", "-c", 'until grep -qx 4000 "$HYPRSUNSET_PROBE_LOG"; do sleep 0.05; done; wc -l < "$HYPRSUNSET_CALL_LOG"']
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
