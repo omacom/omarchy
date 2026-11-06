@@ -584,6 +584,51 @@ function hotspotClientLabel(client, formatNumber) {
   return label
 }
 
+// One row per connected client for the panel's list, keyed by MAC.
+function hotspotClientRows(clients, formatNumber) {
+  var rows = []
+  var list = Array.isArray(clients) ? clients : []
+  for (var i = 0; i < list.length; i++) {
+    var mac = String((list[i] && list[i].mac) || "").toLowerCase()
+    if (mac) rows.push({ mac: mac, label: hotspotClientLabel(list[i], formatNumber) })
+  }
+  return rows
+}
+
+// Brings a ListModel-like `model` (count, get, insert, remove, move,
+// setProperty) in line with `rows`, matched on `key`. A row that stays keeps
+// its delegate, and whatever is animating in it, instead of being rebuilt
+// each time a status poll hands over a fresh array.
+function syncKeyedRows(model, rows, key) {
+  var wanted = []
+  var seen = {}
+  var list = Array.isArray(rows) ? rows : []
+  for (var i = 0; i < list.length; i++) {
+    var id = list[i] ? list[i][key] : undefined
+    if (id === undefined || id === null || id === "" || seen.hasOwnProperty(id)) continue
+    seen[id] = true
+    wanted.push(list[i])
+  }
+  for (var j = model.count - 1; j >= 0; j--) {
+    if (!seen.hasOwnProperty(model.get(j)[key])) model.remove(j)
+  }
+  for (var n = 0; n < wanted.length; n++) {
+    var at = -1
+    for (var m = n; m < model.count; m++) {
+      if (model.get(m)[key] === wanted[n][key]) { at = m; break }
+    }
+    if (at < 0) {
+      model.insert(n, wanted[n])
+      continue
+    }
+    if (at !== n) model.move(at, n, 1)
+    var current = model.get(n)
+    for (var prop in wanted[n]) {
+      if (current[prop] !== wanted[n][prop]) model.setProperty(n, prop, wanted[n][prop])
+    }
+  }
+}
+
 function hotspotCredentialsError(ssid, password, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   if (String(ssid || "").trim() === "") return t("network.hotspotNameRequired", "Enter a hotspot name")
@@ -645,6 +690,8 @@ if (typeof module !== "undefined") {
     hotspotLimitLabel: hotspotLimitLabel,
     hotspotAtCapacity: hotspotAtCapacity,
     hotspotClientLabel: hotspotClientLabel,
+    hotspotClientRows: hotspotClientRows,
+    syncKeyedRows: syncKeyedRows,
     hotspotCredentialsError: hotspotCredentialsError
   }
 }

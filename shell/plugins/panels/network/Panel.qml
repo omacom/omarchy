@@ -266,6 +266,25 @@ Panel {
 
   onHotspotActiveChanged: {
     if (hotspotFocusIndex > hotspotFocusMax) hotspotFocusIndex = hotspotFocusMax
+    syncHotspotClientModel()
+  }
+
+  // Connected clients as rows keyed by MAC. A status poll replaces
+  // hotspotClients every two seconds; syncing in place keeps each row, and a
+  // long label's scroll, alive across polls.
+  ListModel { id: hotspotClientModel }
+  onHotspotClientsChanged: syncHotspotClientModel()
+
+  // The full client record behind a row, for naming it.
+  function hotspotClientFor(mac) {
+    for (var i = 0; i < hotspotClients.length; i++) {
+      if (String(hotspotClients[i].mac || "").toLowerCase() === mac) return hotspotClients[i]
+    }
+    return { mac: mac }
+  }
+
+  function syncHotspotClientModel() {
+    Model.syncKeyedRows(hotspotClientModel, hotspotActive ? Model.hotspotClientRows(hotspotClients, Commons.I18n.formatNumber) : [], "mac")
   }
 
   onHeaderActionCountChanged: clampHeaderIndex()
@@ -2557,12 +2576,14 @@ Panel {
         // Connected clients, label + signal. Hidden while idle. Clicking a row
         // names it; the editor above stays keyboard-reachable on its own. A
         // label too long for the row scrolls back and forth instead of eliding,
-        // so the signal at its end stays readable; one that fits stays still.
+        // so the signal at its end stays readable; one that fits stays still,
+        // and nothing moves with animations turned off.
         Repeater {
-          model: root.hotspotActive ? root.hotspotClients : []
+          model: hotspotClientModel
           delegate: Item {
             id: clientRow
-            required property var modelData
+            required property string mac
+            required property string label
             width: parent.width
             height: clientText.implicitHeight
             clip: true
@@ -2572,36 +2593,36 @@ Panel {
             Text {
               id: clientText
               textFormat: Text.PlainText
-              text: (root.hotspotAliasMac === String(clientRow.modelData.mac || "") ? "\u270e " : "") + Model.hotspotClientLabel(clientRow.modelData, Commons.I18n.formatNumber)
+              text: (root.hotspotAliasMac.toLowerCase() === clientRow.mac ? "\u270e " : "") + clientRow.label
               color: Qt.darker(root.bar.foreground, 1.35)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
             }
 
             SequentialAnimation {
-              running: clientRow.overflow > 0 && clientRow.visible
+              running: clientRow.overflow > 0 && clientRow.visible && !Style.reduceMotion
               loops: Animation.Infinite
               onRunningChanged: if (!running) clientText.x = 0
-              PauseAnimation { duration: 1500 }
+              PauseAnimation { duration: Style.duration(1500) }
               NumberAnimation {
                 target: clientText; property: "x"
                 from: 0; to: -clientRow.overflow
-                duration: clientRow.scrollMs
-                easing.type: Easing.InOutSine
+                duration: Style.duration(clientRow.scrollMs)
+                easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
               }
-              PauseAnimation { duration: 1500 }
+              PauseAnimation { duration: Style.duration(1500) }
               NumberAnimation {
                 target: clientText; property: "x"
                 from: -clientRow.overflow; to: 0
-                duration: clientRow.scrollMs
-                easing.type: Easing.InOutSine
+                duration: Style.duration(clientRow.scrollMs)
+                easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
               }
             }
 
             MouseArea {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
-              onClicked: root.beginHotspotAlias(clientRow.modelData)
+              onClicked: root.beginHotspotAlias(root.hotspotClientFor(clientRow.mac))
             }
           }
         }
