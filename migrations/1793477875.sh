@@ -22,38 +22,15 @@ if omarchy-default-dictation >/dev/null 2>&1 && [[ -f $bindings ]]; then
 fi
 
 # Superwhisper needs a recording shortcut of its own; move it off Alt + Space,
-# which Omarchy now binds for every dictation backend. A user who never set
-# Superwhisper up has no preferences to move.
-#
-# Edit its files rather than calling `superwhisper shortcuts set`: that reloads
-# Hyprland and rolls back on any config error, and a compositor upgraded by this
-# same update is still running the old binary, which rejects keys new to the
-# upgraded config until the next login. The service regenerates shortcuts.lua
-# from shortcuts.active.json and reloads Hyprland when it starts.
+# which Omarchy now binds for every dictation backend. Edit its files because
+# `superwhisper shortcuts set` rolls back on any Hyprland config error, and the
+# compositor this update just upgraded runs the old binary until the next login.
+# Restarting the service regenerates its bindings and reloads Hyprland.
 superwhisper_config="$HOME/.config/superwhisper"
-superwhisper_preferences="$superwhisper_config/preferences.json"
-if omarchy-cmd-present superwhisper && [[ -f $superwhisper_preferences ]]; then
-  toggle=$(jq -r '.toggleRecordingShortcut // empty' "$superwhisper_preferences")
-  if [[ $toggle == "Alt+Space" ]]; then
-    superwhisper_running=false
-    if systemctl --user is-active --quiet superwhisper.service; then
-      superwhisper_running=true
-      systemctl --user stop superwhisper.service
-    fi
-
-    updated=$(mktemp "$superwhisper_preferences.XXXXXX")
-    jq '.toggleRecordingShortcut = "Ctrl+Alt+Space"' "$superwhisper_preferences" > "$updated"
-    mv "$updated" "$superwhisper_preferences"
-
-    superwhisper_active="$superwhisper_config/shortcuts.active.json"
-    if [[ -f $superwhisper_active ]]; then
-      updated=$(mktemp "$superwhisper_active.XXXXXX")
-      jq -c '.toggle = "Ctrl+Alt+Space"' "$superwhisper_active" > "$updated"
-      mv "$updated" "$superwhisper_active"
-    fi
-
-    if [[ $superwhisper_running == "true" ]]; then
-      systemctl --user start superwhisper.service
-    fi
+if omarchy-cmd-present superwhisper && [[ -f $superwhisper_config/preferences.json ]]; then
+  sed -i 's/"Alt+Space"/"Ctrl+Alt+Space"/' "$superwhisper_config/preferences.json"
+  if [[ -f $superwhisper_config/shortcuts.active.json ]]; then
+    sed -i 's/"Alt+Space"/"Ctrl+Alt+Space"/' "$superwhisper_config/shortcuts.active.json"
   fi
+  systemctl --user try-restart superwhisper.service
 fi
