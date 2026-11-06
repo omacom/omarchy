@@ -518,6 +518,10 @@ pkill -f "$stub_bin/wf-recorder" 2>/dev/null || true
 [[ -s $wf_args ]] || fail "wf-recorder records when gpu-screen-recorder cannot start"
 grep -Fxq -- '-o' "$wf_args" && grep -Fxq DP-1 "$wf_args" && grep -Fxq 48000 "$wf_args" ||
   fail "wf-recorder records the focused monitor at 48 kHz" "$(<"$wf_args")"
+# wf-recorder acts on a stop only after its next frame, and by default it asks
+# for a frame only when the screen changes.
+grep -Fxq -- '-D' "$wf_args" ||
+  fail "wf-recorder records every frame, so a stop on a still screen ends it" "$(<"$wf_args")"
 [[ $(<"$wf_runtime/omarchy-screenrecord-pid") == "$(<"$wf_pid")" ]] ||
   fail "the recorder pid is the wf-recorder that is recording" "$(ls -a "$wf_runtime")"
 [[ $(<"$wf_runtime/omarchy-screenrecord-filename") == "$wf_recordings"/* ]] ||
