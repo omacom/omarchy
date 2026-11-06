@@ -50,7 +50,7 @@ _omarchy_bolt_value() {
   while IFS= read -r line || [[ -n $line ]]; do
     if [[ $line =~ ^\[(.*)\]$ ]]; then
       section=${BASH_REMATCH[1]}
-    elif [[ $section == "$group" && $line == "$key="* ]]; then
+    elif [[ $section == $group && $line == $key=* ]]; then
       printf '%s\n' "${line#*=}"
       return 0
     fi

@@ -68,7 +68,7 @@ assert_rules() {
   else
     [[ -f $rules ]] || fail "$description" "no rules file in the image"
     actual=$(<"$rules")
-    [[ $actual == "${expected%$'\n'}" ]] ||
+    [[ $actual == $expected ]] ||
       fail "$description" "expected:"$'\n'"$expected"$'\n'"actual:"$'\n'"$actual"
   fi
   pass "$description"
