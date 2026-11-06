@@ -1056,6 +1056,10 @@ Panel {
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
   readonly property bool picking: addStage === "pick" || (blankSlate && addStage === "")
+  // A subscription can't be picked until the check says whether it would be
+  // a first sign-in or another account.
+  readonly property bool checkingAccounts: checkProcess.running
+    && addProviders.some(function(p) { return p.providerId !== "local" && !addChecks[p.providerId] })
   // The + in the hero turns into the X that leaves adding. A first setup has
   // nothing to go back to until an agent is chosen.
   readonly property bool addButtonShown: !blankSlate || !picking
@@ -1437,10 +1441,28 @@ Panel {
       wrapMode: Text.WordWrap
     }
 
+    Text {
+      id: checkSpinner
+      visible: root.picking && root.checkingAccounts
+      anchors.horizontalCenter: parent.horizontalCenter
+      textFormat: Text.PlainText
+      text: "󰦖"
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.display
+
+      RotationAnimator on rotation {
+        running: checkSpinner.visible && !Style.reduceMotion
+        from: 0; to: 360
+        duration: Style.duration(800)
+        loops: Animation.Infinite
+      }
+    }
+
     // Pick: each agent by a large mark over its name, three across.
     Row {
       id: choiceRow
-      visible: root.picking
+      visible: root.picking && !root.checkingAccounts
       width: parent.width
       spacing: Style.space(10)
 

@@ -238,7 +238,9 @@ Item {
   }
 
   function updateCommand(kind, agentIds) {
-    var command = ["omarchy-agent-usage-update"]
+    // Every collector starts at once, and at the shell's own priority they
+    // take the CPU the panel needs to draw as it opens.
+    var command = ["nice", "-n", "19", "omarchy-agent-usage-update"]
     if (kind === "force") command.push("--force")
     if (kind === "limits") command.push("--limits-only")
     var providers = settings && settings.providers ? settings.providers : {}
