@@ -152,6 +152,7 @@
   "appearance.workspace-layout": {"icon":"󱂬","label":"Workspace Layout"},
   "appearance.workspace-layout.default": {"icon":"󰓎","label":"Default","title":"Default Workspace Layout"},
   "appearance.workspace-layout.default.dwindle": {"icon":"󱓻","label":"Tiling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"dwindle\" ]]","action":"omarchy-hyprland-workspace-layout-default dwindle"},
+  "appearance.workspace-layout.default.master": {"icon":"","label":"Master","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"master\" ]]","action":"omarchy-hyprland-workspace-layout-default master"},
   "appearance.workspace-layout.default.scrolling": {"icon":"󰝥","label":"Scrolling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"scrolling\" ]]","action":"omarchy-hyprland-workspace-layout-default scrolling"},
   "appearance.workspace-layout.default.floating": {"icon":"󰔶","label":"Floating","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"floating\" ]]","action":"omarchy-hyprland-workspace-layout-default floating"},
   "appearance.workspace-layout.enabled": {"icon":"󰄵","label":"Enabled Layouts","action":"omarchy-hyprland-workspace-layout-enabled pick"},

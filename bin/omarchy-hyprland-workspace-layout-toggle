@@ -56,6 +56,10 @@ case $NEW_MODE in
     SET_MESSAGE=$(omarchy-i18n layout.workspaceTiling)
     UNSAVED_MESSAGE=$(omarchy-i18n layout.workspaceTilingUnsaved)
     ;;
+  master)
+    SET_MESSAGE=$(omarchy-i18n layout.workspaceMaster)
+    UNSAVED_MESSAGE=$(omarchy-i18n layout.workspaceMasterUnsaved)
+    ;;
   scrolling)
     SET_MESSAGE=$(omarchy-i18n layout.workspaceScrolling)
     UNSAVED_MESSAGE=$(omarchy-i18n layout.workspaceScrollingUnsaved)
