@@ -778,14 +778,6 @@ Panel {
     printErrors: false
   }
 
-  // tzdata.zi's `L` lines map a legacy link id (Asia/Calcutta) to the zone the
-  // tab lists, so a machine set to the link still gets coordinates offline.
-  FileView {
-    id: zoneLinks
-    path: "/usr/share/zoneinfo/tzdata.zi"
-    printErrors: false
-  }
-
   Process {
     id: geoProc
     property var rows: []
@@ -797,7 +789,7 @@ Panel {
         geoProc.rows.forEach(function(row, i) {
           var key = Model.factsKey(row)
           var found = Model.pickGeocode(answers[i] || "", row.id)
-          var place = found.place || Model.zoneTabCoords(zoneTab.text(), row.id, zoneLinks.text())
+          var place = found.place || Model.zoneTabCoords(zoneTab.text(), row.id)
           if (!place) return
           if (found.answered) nextGeo[key] = place
           else nextFallback[key] = place

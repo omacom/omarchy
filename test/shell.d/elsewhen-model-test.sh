@@ -319,17 +319,14 @@ assertEqual(M.homeCityAfterTap('Nashville', CHI, '', ''), null, 'elsewhen stores
 assertEqual(M.homeCityAfterTap('  Nashville  ', CHI, '', CHI), 'Nashville', 'elsewhen trims a tapped name')
 
 // ---- coordinates and weather
-const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\n'
+const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\nCI\t+0519-00402\tAfrica/Abidjan\nTH\t+1345+10031\tAsia/Bangkok\n'
 assertDeepEqual(M.zoneTabCoords(tab, 'America/New_York'), { lat: 40.7142, lon: -74.0064 }, 'elsewhen reads seconds-precision zone1970 coordinates')
 assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Kolkata'), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads minutes-precision zone1970 coordinates')
 assertEqual(M.zoneTabCoords(tab, 'Nowhere/Else'), null, 'elsewhen has no fallback for an unknown zone')
-const links = '# version 2026e\nZ Asia/Yangon\t6:52\t- LMT 1929\nL Asia/Kolkata Asia/Calcutta\nL Asia/Yangon Asia/Rangoon\n'
-assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Calcutta', links), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads a legacy link id through tzdata.zi')
-assertEqual(M.zoneTabCoords(tab, 'Asia/Rangoon', links), null, 'elsewhen resolves a link chain and still misses an unlisted zone')
-assertEqual(M.zoneTabCoords(tab, 'Asia/Calcutta'), null, 'elsewhen keeps no coordinates for a legacy id without the link table')
-assertEqual(M.canonicalZoneId(links, 'Asia/Calcutta'), 'Asia/Kolkata', 'elsewhen maps a legacy id to its canonical zone')
-assertEqual(M.canonicalZoneId(links, 'Asia/Kolkata'), null, 'elsewhen leaves a canonical zone alone')
-assertEqual(M.canonicalZoneId('L Asia/B Iowa\nL Asia/C Asia/B\nL Asia/B Asia/A', 'Asia/A'), 'Asia/C', 'elsewhen follows a link chain to its end')
+assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Calcutta'), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads a legacy link id through the places table')
+assertEqual(M.zoneTabCoords(tab, 'Asia/Rangoon'), null, 'elsewhen returns null when a legacy zone target is missing from the table')
+assertEqual(M.zoneTabCoords(tab, 'Iceland'), null, 'elsewhen leaves coordinates unknown for same-clock links that cross places')
+assertEqual(M.zoneTabCoords(tab, 'Indian/Christmas'), null, 'elsewhen omits same-clock merges like Christmas Island')
 
 const geocoded = JSON.stringify({ results: [
   { latitude: 34.0, longitude: -98.4, timezone: 'America/Chicago' },

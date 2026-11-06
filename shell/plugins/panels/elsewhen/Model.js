@@ -946,30 +946,103 @@ function pickGeocode(text, zone) {
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 
+// Legacy zone ids that are known pure renames of a canonical zone1970.tab id,
+// preserving the representative place.
+//
+// Deliberately NOT in the table: cross-place links that tzdata merges solely
+// because two places share a clock (e.g. Iceland -> Africa/Abidjan,
+// Atlantic/Reykjavik, Atlantic/Faeroe, Atlantic/Faroe, Arctic/Longyearbyen,
+// Europe/Uzhgorod, Europe/Zaporozhye, Indian/Christmas, Indian/Cocos,
+// Indian/Maldives, Indian/Mahe, Indian/Mauritius, Indian/Reunion, Indian/Comoro,
+// Indian/Chagos, Australia/Currie, America/Montreal, America/Cambridge_Bay,
+// America/Pangnirtung, America/Yellowknife, America/Nipigon, America/Thunder_Bay,
+// America/Rainy_River, America/Rankin_Inlet, America/Resolute, Asia/Choibalsan,
+// Pacific/Johnston). A legacy id not in the table yields null coordinates so
+// its location stays unknown rather than being misplaced to another place.
+// Even a stale table entry is fail-safe: if the target has no zone1970.tab row,
+// zoneTabEntry returns null.
+var LEGACY_ZONE_PLACES = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Dacca": "Asia/Dhaka",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Asia/Ulan_Bator": "Asia/Ulaanbaatar",
+  "Asia/Istanbul": "Europe/Istanbul",
+  "Europe/Kiev": "Europe/Kyiv",
+  "US/Eastern": "America/New_York",
+  "US/Michigan": "America/Detroit",
+  "US/East-Indiana": "America/Indiana/Indianapolis",
+  "US/Central": "America/Chicago",
+  "US/Mountain": "America/Denver",
+  "US/Arizona": "America/Phoenix",
+  "US/Pacific": "America/Los_Angeles",
+  "US/Alaska": "America/Anchorage",
+  "US/Aleutian": "America/Adak",
+  "US/Hawaii": "Pacific/Honolulu",
+  "US/Samoa": "Pacific/Pago_Pago",
+  "Canada/Atlantic": "America/Halifax",
+  "Canada/Eastern": "America/Toronto",
+  "Canada/Central": "America/Winnipeg",
+  "Canada/Mountain": "America/Edmonton",
+  "Canada/Pacific": "America/Vancouver",
+  "Canada/Saskatchewan": "America/Regina",
+  "Canada/Newfoundland": "America/St_Johns",
+  "Canada/Yukon": "America/Whitehorse",
+  "Mexico/BajaNorte": "America/Tijuana",
+  "Mexico/BajaSur": "America/Mazatlan",
+  "Mexico/General": "America/Mexico_City",
+  "Brazil/Acre": "America/Rio_Branco",
+  "Brazil/DeNoronha": "America/Noronha",
+  "Brazil/East": "America/Sao_Paulo",
+  "Brazil/West": "America/Manaus",
+  "Chile/Continental": "America/Santiago",
+  "Chile/EasterIsland": "Pacific/Easter",
+  "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
+  "America/Catamarca": "America/Argentina/Catamarca",
+  "America/Cordoba": "America/Argentina/Cordoba",
+  "America/Jujuy": "America/Argentina/Jujuy",
+  "America/Mendoza": "America/Argentina/Mendoza",
+  "America/Godthab": "America/Nuuk",
+  "America/Santa_Isabel": "America/Tijuana",
+  "Pacific/Enderbury": "Pacific/Kanton",
+  "Kwajalein": "Pacific/Kwajalein",
+  "Cuba": "America/Havana",
+  "Egypt": "Africa/Cairo",
+  "Eire": "Europe/Dublin",
+  "GB": "Europe/London",
+  "GB-Eire": "Europe/Dublin",
+  "Hongkong": "Asia/Hong_Kong",
+  "Iran": "Asia/Tehran",
+  "Israel": "Asia/Jerusalem",
+  "Jamaica": "America/Jamaica",
+  "Japan": "Asia/Tokyo",
+  "Korea": "Asia/Seoul",
+  "Kuwait": "Asia/Kuwait",
+  "Libya": "Africa/Tripoli",
+  "Navajo": "America/Denver",
+  "NZ": "Pacific/Auckland",
+  "NZ-CHAT": "Pacific/Chatham",
+  "Poland": "Europe/Warsaw",
+  "Portugal": "Europe/Lisbon",
+  "PRC": "Asia/Shanghai",
+  "ROC": "Asia/Taipei",
+  "ROK": "Asia/Seoul",
+  "Singapore": "Asia/Singapore",
+  "Taiwan": "Asia/Taipei",
+  "Turkey": "Europe/Istanbul",
+  "W-SU": "Europe/Moscow"
+}
+
 // The zone's representative city from zone1970.tab (ISO 6709), the offline
 // fallback. A zone can reach the panel under a legacy link id the tab does not
 // list (`timedatectl list-timezones` offers Asia/Calcutta next to Asia/Kolkata):
-// `linksText`, the `L <zone> <link>` lines of tzdata.zi, maps the link back to
-// the tab's canonical id.
-function zoneTabCoords(tabText, zone, linksText) {
+// LEGACY_ZONE_PLACES maps known pure renames back to the tab's canonical id.
+function zoneTabCoords(tabText, zone) {
   var place = zoneTabEntry(tabText, zone)
-  if (place || !linksText) return place
-  var canonical = canonicalZoneId(linksText, zone)
+  if (place) return place
+  var canonical = LEGACY_ZONE_PLACES[zone]
   return canonical ? zoneTabEntry(tabText, canonical) : null
-}
-
-// tzdata.zi's `L` lines: the zone id a legacy link points at, through any chain.
-function canonicalZoneId(ziText, zone) {
-  var lines = String(ziText || "").split("\n")
-  var links = {}
-  for (var i = 0; i < lines.length; i++) {
-    var m = /^L\s+(\S+)\s+(\S+)\s*$/.exec(lines[i])
-    if (m) links[m[2]] = m[1]
-  }
-  var seen = {}
-  var at = zone
-  while (links[at] && !seen[at]) { seen[at] = true; at = links[at] }
-  return at !== zone ? at : null
 }
 
 function zoneTabEntry(tabText, zone) {
@@ -1394,7 +1467,6 @@ if (typeof module !== "undefined") {
     geocodeUrl: geocodeUrl,
     pickGeocode: pickGeocode,
     zoneTabCoords: zoneTabCoords,
-    canonicalZoneId: canonicalZoneId,
     forecastUrl: forecastUrl,
     parseForecast: parseForecast,
     weatherStale: weatherStale,
