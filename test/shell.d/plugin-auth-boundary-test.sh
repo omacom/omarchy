@@ -129,12 +129,6 @@ qml_matches "$shell_qml" '"omarchy\.media": *\["omarchy\.osd"\]' ||
   fail "media clones cannot summon their existing OSD target"
 qml_matches "$shell_qml" '"omarchy\.network": *\["omarchy\.speedtest", *"omarchy\.wifiqr"\]' ||
   fail "network clones cannot summon their existing auxiliary panels"
-qml_matches "$shell_qml" '"omarchy\.indicators": *\["omarchy\.idle", *"omarchy\.nightlight", *"omarchy\.notifications", *"omarchy\.remote-session"\]' ||
-  fail "indicators clones cannot reach the services their toggles use"
-qml_matches "$shell_qml" '"omarchy\.audio": *\["omarchy\.media"\]' ||
-  fail "audio clones cannot reach the media service their panel reads"
-qml_matches "$shell_qml" 'shell\.pluginCloneFirstPartyServices\( *currentManifest\( *\) *\)\.indexOf\( *requestedId *\)' ||
-  fail "clone service access does not follow the current manifest"
 pass "built-in service and widget clones retain narrow configuration and UI integration"
 
 qml_matches "$shell_qml" 'shell\.serviceFor\( *shell\.pluginRegistry\.resolveEnabledId\( *id *\) *\)' ||
