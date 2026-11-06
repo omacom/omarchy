@@ -10,8 +10,13 @@ y=${4:-}
 
 active=$(hyprctl activewindow -j)
 pinned=$(echo "$active" | jq ".pinned")
+floating=$(echo "$active" | jq ".floating")
 addr=$(echo "$active" | jq -r ".address")
 window="address:$addr"
+
+# The tiles a popped-out window left, so popping it back in can rebuild them.
+state_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-window-pop"
+state_file="$state_dir/$addr"
 
 hypr_dispatch() {
   local lua="$1"
@@ -20,11 +25,139 @@ hypr_dispatch() {
   hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
 }
 
+# Records every tile on the window's workspace, the window's own slot included.
+remember_layout() {
+  hyprctl clients -j | jq -c --arg addr "$addr" '
+    (.[] | select(.address == $addr) | .workspace.id) as $workspace
+    | {
+        workspace: $workspace,
+        tiles: [.[] | select(.workspace.id == $workspace and .floating == false) | { address, at, size }]
+      }
+  '
+}
+
+# Dwindle retiles a window by splitting whichever tile has focus, which puts a
+# window whose old neighbor was a group of tiles in the wrong place. Instead,
+# recover the split tree from the recorded tiles and rebuild it one split at a
+# time: float every tile, retile the first, then split each tile in the side
+# and ratio it had. All of it goes to Hyprland as one batch.
+rebuild_commands() {
+  local state="$1" border gaps_in split_ratio
+
+  border=$(hyprctl getoption general:border_size -j | jq ".int")
+  gaps_in=$(hyprctl getoption general:gaps_in -j | jq '.css // .int | tostring | split(" ")[0] | tonumber')
+  split_ratio=$(hyprctl getoption dwindle:default_split_ratio -j | jq ".float")
+
+  hyprctl clients -j | jq -r --argjson state "$state" --arg addr "$addr" \
+    --argjson border "$border" --argjson gaps_in "$gaps_in" \
+    --argjson split_ratio "$split_ratio" '
+    def dispatch($lua): "dispatch \($lua)";
+    def target($a): "{ window = \"address:\($a)\" }";
+    def toggle($a): dispatch("hl.dsp.window.float({ window = \"address:\($a)\", action = \"toggle\" })");
+    def focus($a): dispatch("hl.dsp.focus(\(target($a)))");
+    def layout($msg): dispatch("hl.dsp.layout(\"\($msg)\")");
+
+    # A tile grown to the box its layout node owns: its border, plus half the gap
+    # to a neighbor. Dwindle splits the area inside the outer gaps, so a tile
+    # at the edge of the workspace owns only its border there.
+    def boxes:
+      (map(.at[0]) | min) as $left | (map(.at[1]) | min) as $top
+      | (map(.at[0] + .size[0]) | max) as $right | (map(.at[1] + .size[1]) | max) as $bottom
+      | def pad(edge; outer): if (edge - outer | fabs) <= 1 then $border else $border + $gaps_in end;
+        map({
+          leaf: .address,
+          box: {
+            x1: (.at[0] - pad(.at[0]; $left)),
+            y1: (.at[1] - pad(.at[1]; $top)),
+            x2: (.at[0] + .size[0] + pad(.at[0] + .size[0]; $right)),
+            y2: (.at[1] + .size[1] + pad(.at[1] + .size[1]; $bottom))
+          }
+        });
+
+    # Splits a group of boxes on the first straight line that no box crosses.
+    def tree:
+      if length == 1 then .[0]
+      else
+        . as $nodes
+        | [
+            ("x", "y") as $axis
+            | ($nodes | map(.box[$axis + "2"]) | unique[]) as $cut
+            | {
+                axis: $axis,
+                a: [$nodes[] | select(.box[$axis + "2"] <= $cut + 2)],
+                b: [$nodes[] | select(.box[$axis + "1"] >= $cut - 2)]
+              }
+            | select((.a | length) > 0 and (.b | length) > 0 and (.a | length) + (.b | length) == ($nodes | length))
+          ]
+        | first // error("not a split layout")
+        | .axis as $axis
+        | { axis, a: (.a | tree), b: (.b | tree) }
+        | .box = {
+            x1: ([.a.box.x1, .b.box.x1] | min), y1: ([.a.box.y1, .b.box.y1] | min),
+            x2: ([.a.box.x2, .b.box.x2] | max), y2: ([.a.box.y2, .b.box.y2] | max)
+          }
+        | .ratio = (2 * (.a.box[$axis + "2"] - .box[$axis + "1"]) / (.box[$axis + "2"] - .box[$axis + "1"]) * 1000 | round / 1000)
+      end;
+
+    def leaves: if .leaf then [.leaf] else (.a | leaves) + (.b | leaves) end;
+
+    # $tiled is the one tile already standing where this node goes.
+    def split($tiled):
+      if .leaf then []
+      else
+        (if (.a | leaves | index($tiled)) != null
+          then { new: (.b | leaves[0]), side: (if .axis == "x" then "r" else "d" end), a: $tiled, b: (.b | leaves[0]) }
+          else { new: (.a | leaves[0]), side: (if .axis == "x" then "l" else "u" end), a: (.a | leaves[0]), b: $tiled }
+        end) as $step
+        # A new split starts at the default ratio, and splitratio only takes a change.
+        | ((.ratio - $split_ratio) * 1000 | round / 1000) as $change
+        | [focus($tiled), layout("preselect \($step.side)"), toggle($step.new)]
+          + (if $change == 0 then [] else [focus($step.new), layout("splitratio \($change)")] end)
+          + (.a | split($step.a)) + (.b | split($step.b))
+      end;
+
+    ($state.tiles | map(.address) | sort) as $recorded
+    | [.[] | select(.workspace.id == $state.workspace and .floating == false) | .address] as $standing
+    | if ([$standing[], $addr] | sort) != $recorded or (any(.[]; .address == $addr and .workspace.id == $state.workspace) | not)
+      then empty
+      else
+        ($state.tiles | boxes | tree) as $tree
+        | ($tree | leaves[0]) as $first
+        | [($standing[] | toggle(.)), toggle($first)] + ($tree | split($first)) + [focus($addr)]
+        | join(" ; ")
+      end
+  ' 2>/dev/null
+}
+
+restore_layout() {
+  local state commands
+
+  [[ -f $state_file ]] || return 1
+  state=$(<"$state_file")
+  rm -f "$state_file"
+
+  [[ $(hyprctl getoption general:layout -j | jq -r ".str") == "dwindle" ]] || return 1
+
+  commands=$(rebuild_commands "$state")
+  [[ -n $commands ]] || return 1
+
+  hyprctl --batch "$commands" >/dev/null
+}
+
 if [[ $pinned == "true" ]]; then
   hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
-  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+
+  if ! restore_layout; then
+    hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+  fi
+
   hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
 elif [[ -n $addr ]]; then
+  if [[ $floating == "false" ]]; then
+    mkdir -p "$state_dir"
+    remember_layout >"$state_file"
+  fi
+
   hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
   hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizeactive exact "$width" "$height" "$window"
 
