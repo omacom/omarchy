@@ -138,3 +138,23 @@ grep -Fq 'must be http or https' "$tmpdir/err" ||
   fail "interactive webapp install refuses before fetching the URL" "$(cat "$tmpdir/curl-log")"
 [[ ! -e $(desktop_for Evil) ]] || fail "interactive webapp install writes no desktop file"
 pass "interactive webapp install refuses a bad URL before fetching it"
+
+# Every shipped web app launcher names the window its default URL opens, or
+# the dock and titlebars cannot match the window to the launcher.
+for desktop in "$ROOT"/applications/*.desktop; do
+  exec_line=$(grep -m1 '^Exec=omarchy-\(launch-webapp\|webapp-handler-\)' "$desktop") || continue
+
+  if [[ $exec_line == "Exec=omarchy-launch-webapp "* ]]; then
+    url=${exec_line#Exec=omarchy-launch-webapp }
+    url=${url%% *}
+  else
+    handler=${exec_line#Exec=}
+    handler=${handler%% *}
+    url=$(grep -m1 '^ *web_url="' "$ROOT/bin/$handler" | cut -d'"' -f2)
+  fi
+
+  expected=$("$ROOT/bin/omarchy-webapp-window-class" "$url")
+  grep -Fxq "StartupWMClass=$expected" "$desktop" ||
+    fail "$(basename "$desktop") names the window of $url as $expected" "$(cat "$desktop")"
+done
+pass "shipped web app launchers name the window their default URL opens"
