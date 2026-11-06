@@ -38,7 +38,7 @@ done
 [[ $port =~ ^[0-9]{1,5}$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || { echo "Port must be between 1 and 65535" >&2; exit 2; }
 logdir=${logdir:-runs}
 [[ -d $logdir ]] || { echo "Training log directory does not exist: $logdir" >&2; exit 1; }
-logdir=$(cd -- "$logdir" && pwd -P)
+logdir=$(CDPATH= cd -- "$logdir" && pwd -P)
 if omarchy-cmd-missing tensorboard; then
   echo "Activate a Python environment with TensorBoard installed, then try again." >&2
   exit 1
