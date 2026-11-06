@@ -500,3 +500,49 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# Only the enabled layouts are in the cycle, whichever way it goes, and a layout
+# outside it moves onto its nearest end.
+enabled() {
+  env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" NOTIFICATION_LOG="$notification_log" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-workspace-layout-enabled" "$@"
+}
+
+enabled_file="${layout_file%/*}/enabled"
+
+[[ $(enabled | paste -sd,) == "dwindle,scrolling,floating" ]] ||
+  fail "without a choice the three stock layouts are enabled" "$(enabled)"
+
+enabled floating dwindle
+[[ $(enabled | paste -sd,) == "dwindle,floating" ]] || fail "enabled layouts come back in cycle order" "$(enabled)"
+
+rm -f "$layout_file"
+toggle
+[[ $(saved_mode) == "floating" ]] || fail "the cycle skips a layout that is not enabled" "saved: $(cat "$layout_file" 2>&1)"
+toggle
+[[ ! -e $layout_file ]] || fail "the cycle wraps within the enabled layouts" "saved: $(cat "$layout_file")"
+
+printf 'o.workspace_mode({ workspace = "3", mode = "scrolling" })\n' >"$layout_file"
+toggle
+[[ ! -e $layout_file ]] || fail "a layout outside the cycle moves onto its first entry" "saved: $(cat "$layout_file")"
+printf 'o.workspace_mode({ workspace = "3", mode = "scrolling" })\n' >"$layout_file"
+toggle_back back
+[[ $(saved_mode) == "floating" ]] || fail "going back, a layout outside the cycle moves onto its last entry" "saved: $(cat "$layout_file")"
+pass "the cycle holds only the enabled layouts"
+
+# The menu hands over the labels it showed, and refusing the last one has to fail,
+# since a failed command is what keeps its checkmark on.
+enabled --menu-selection '["Tiling","Floating"]'
+[[ $(paste -sd, "$enabled_file") == "dwindle,floating" ]] ||
+  fail "a menu selection is saved by layout, not label" "$(cat "$enabled_file")"
+: >"$notification_log"
+if enabled --menu-selection '[]'; then
+  fail "the last enabled layout cannot be turned off"
+fi
+[[ $(paste -sd, "$enabled_file") == "dwindle,floating" ]] || fail "a refused selection changes nothing" "$(cat "$enabled_file")"
+grep -q "at least one" "$notification_log" || fail "a refused selection says why" "$(cat "$notification_log")"
+if enabled sideways 2>/dev/null; then
+  fail "an unknown layout is refused"
+fi
+rm -f "$enabled_file"
+pass "the menu saves enabled layouts and keeps at least one"
