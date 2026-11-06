@@ -282,6 +282,9 @@
   "appearance.workspace-layout.default.master": {
     "label": "Master"
   },
+  "appearance.workspace-layout.default.monocle": {
+    "label": "Monocle"
+  },
   "appearance.workspace-layout.default.scrolling": {
     "label": "Scrolling"
   },

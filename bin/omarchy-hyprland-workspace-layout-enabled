@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Show or choose the layouts a workspace cycles through with Super + L
-# omarchy:args=[pick | <dwindle|master|scrolling|floating>...]
+# omarchy:args=[pick | <dwindle|master|scrolling|monocle|floating>...]
 # omarchy:examples=omarchy hyprland workspace layout enabled | omarchy hyprland workspace layout enabled pick | omarchy hyprland workspace layout enabled dwindle master
 
 set -euo pipefail
 
 # Also the order they cycle in.
-LAYOUTS=(dwindle master scrolling floating)
+LAYOUTS=(dwindle master scrolling monocle floating)
 DEFAULT_ENABLED=(dwindle scrolling floating)
 
 ENABLED_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts/enabled"
@@ -18,6 +18,7 @@ label_for() {
     dwindle) omarchy-i18n layout.nameTiling ;;
     master) omarchy-i18n layout.nameMaster ;;
     scrolling) omarchy-i18n layout.nameScrolling ;;
+    monocle) omarchy-i18n layout.nameMonocle ;;
     floating) omarchy-i18n layout.nameFloating ;;
   esac
 }
@@ -94,7 +95,7 @@ case ${1:-} in
   *)
     for layout in "$@"; do
       if ! printf '%s\n' "${LAYOUTS[@]}" | grep -qx -- "$layout"; then
-        echo "Usage: omarchy-hyprland-workspace-layout-enabled [pick | <dwindle|master|scrolling|floating>...]" >&2
+        echo "Usage: omarchy-hyprland-workspace-layout-enabled [pick | <dwindle|master|scrolling|monocle|floating>...]" >&2
         exit 1
       fi
     done
