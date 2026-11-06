@@ -14,11 +14,50 @@ bracketed=$(awk '/^\[/ { in_tools = ($0 == "[tools]"); next } in_tools && /^"[^"
 [[ -z $bracketed ]] || fail "no table-valued mise declaration carries bracket options" "$bracketed"
 pass "mise declarations keep their backend options inside the table"
 
+real_mise=$(PATH=/usr/local/bin:/usr/bin command -v mise || true)
+
+# A lazy tool's first command installs it through mise's registry install when
+# the registry lists that command, and that install leaves out Node, itself
+# lazy, so an npm backend refuses to install. Each such tool must be kept out of
+# that automatic install, leaving its first command to the lazy install, which
+# installs Node with it. The real mise's registry says which tools those are.
+if [[ -n $real_mise ]]; then
+  mise_version=$("$real_mise" --version 2>/dev/null | cut -d' ' -f1)
+fi
+if [[ -z $real_mise ]]; then
+  skip "mise is not installed; skipping the npm registry tool check"
+elif [[ $(printf '%s\n' 2026.10.11 "$mise_version" | sort -V | head -n1) != "2026.10.11" ]]; then
+  skip "mise $mise_version is older than the 2026.10.11 lazy defaults need; skipping the npm registry tool check"
+else
+  lazy_registry_tools=$(python3 -I -c '
+import sys, tomllib
+config = tomllib.load(open(sys.argv[1], "rb"))
+kept_out = config.get("settings", {}).get("auto_install_disable_tools", [])
+for key, spec in config["tools"].items():
+  if ":" not in key and isinstance(spec, dict) and spec.get("lazy") and key not in kept_out:
+    print(key)
+' "$tools_config")
+
+  registry_root="$test_tmp/registry"
+  mkdir -p "$registry_root/etc/mise" "$registry_root/home"
+  npm_registry_tools=""
+  for tool in $lazy_registry_tools; do
+    entry=$(env -i HOME="$registry_root/home" PATH=/usr/local/bin:/usr/bin MISE_SYSTEM_DIR="$registry_root/etc/mise" \
+      "$real_mise" registry --json "$tool") ||
+      fail "mise's registry knows Omarchy's declared tool $tool"
+    if python3 -I -c 'import json, sys; entry = json.loads(sys.argv[1]); sys.exit(not (entry.get("bins") and entry["backends"][0].startswith("npm:")))' "$entry"; then
+      npm_registry_tools+="$tool "
+    fi
+  done
+  [[ -z $npm_registry_tools ]] ||
+    fail "npm-backed registry tools are kept out of mise's automatic install" "first runs that fail on Node: $npm_registry_tools"
+  pass "npm-backed registry tools are kept out of mise's automatic install"
+fi
+
 # Ask the real mise which backend options it resolves for each declaration that
 # has some, in a throwaway home whose only config is that declaration. mise
 # reports a tool's options only once it resolves a version, which takes the
 # network, so the check is skipped without it.
-real_mise=$(PATH=/usr/local/bin:/usr/bin command -v mise || true)
 if [[ -z $real_mise ]]; then
   skip "mise is not installed; skipping the backend option resolution check"
 elif ! curl -sfI --max-time 5 https://registry.npmjs.org/ >/dev/null 2>&1; then
