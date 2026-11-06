@@ -195,12 +195,19 @@ mock_bin="$tmpdir/bin"
 call_log="$tmpdir/calls"
 mkdir -p "$mock_bin"
 
-for command in hyprctl pkill timeout omarchy-notification-send; do
+for command in hyprctl pkill omarchy-notification-send; do
   cat >"$mock_bin/$command" <<'MOCK'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$CALL_LOG"
 MOCK
 done
+
+# A screensaver that does not exit within its second.
+cat >"$mock_bin/timeout" <<'MOCK'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$CALL_LOG"
+exit 124
+MOCK
 
 cat >"$mock_bin/omarchy-shell" <<'MOCK'
 #!/bin/bash
@@ -266,13 +273,20 @@ assert_one_request
 pass "system lock succeeds with its matching secure receipt"
 
 mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
-[[ ${shutdown[0]} == "pkill -x ttfx" ]] || fail "system lock stops ttfx before closing its terminal"
-[[ ${shutdown[1]} == "timeout 1s pidwait -x ttfx" ]] || fail "system lock waits for ttfx"
-[[ ${shutdown[2]} == "pkill -f [o]rg.omarchy.screensaver" ]] || fail "system lock closes the terminal after ttfx"
+[[ ${shutdown[0]} == "pkill -f [/]usr/lib/omarchy-screensaver/omarchy-screensaver" ]] ||
+  fail "system lock stops the native screensaver" "calls: ${shutdown[*]}"
+[[ ${shutdown[1]} == "timeout 1s pidwait -f [/]usr/lib/omarchy-screensaver/omarchy-screensaver" ]] ||
+  fail "system lock waits for the native screensaver to clean up" "calls: ${shutdown[*]}"
+[[ ${shutdown[2]} == "pkill -KILL -f [/]usr/lib/omarchy-screensaver/omarchy-screensaver" ]] ||
+  fail "system lock force-stops a stuck native screensaver" "calls: ${shutdown[*]}"
+rg -A1 '^pkill -KILL ' "$call_log" | rg -q 'invisible = false' ||
+  fail "system lock shows the cursor a killed screensaver left hidden" "$(<"$call_log")"
+pass "system lock gives the screensaver a second to restore the cursor before killing it, then restores it itself"
+
 secure_line=$(grep -n '^omarchy-shell lock result ' "$call_log" | head -1 | cut -d: -f1)
-cleanup_line=$(grep -n '^pkill -x ttfx$' "$call_log" | cut -d: -f1)
+cleanup_line=$(grep -n '^pkill -f ' "$call_log" | head -1 | cut -d: -f1)
 ((secure_line < cleanup_line)) || fail "screensaver cleanup follows the secure receipt"
-pass "successful lock preserves screensaver shutdown ordering after security"
+pass "successful lock stops the screensaver only after security"
 
 rc=0
 SECURE_AFTER=3 run_lock || rc=$?
