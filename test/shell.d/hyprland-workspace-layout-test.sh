@@ -532,14 +532,14 @@ pass "the cycle holds only the enabled layouts"
 
 # The menu hands over the labels it showed, and refusing the last one has to fail,
 # since a failed command is what keeps its checkmark on.
-enabled --menu-selection '["Tiling","Floating"]'
-[[ $(paste -sd, "$enabled_file") == "dwindle,floating" ]] ||
+enabled --menu-selection '["Tiling","Monocle"]'
+[[ $(paste -sd, "$enabled_file") == "dwindle,monocle" ]] ||
   fail "a menu selection is saved by layout, not label" "$(cat "$enabled_file")"
 : >"$notification_log"
 if enabled --menu-selection '[]'; then
   fail "the last enabled layout cannot be turned off"
 fi
-[[ $(paste -sd, "$enabled_file") == "dwindle,floating" ]] || fail "a refused selection changes nothing" "$(cat "$enabled_file")"
+[[ $(paste -sd, "$enabled_file") == "dwindle,monocle" ]] || fail "a refused selection changes nothing" "$(cat "$enabled_file")"
 grep -q "at least one" "$notification_log" || fail "a refused selection says why" "$(cat "$notification_log")"
 if enabled sideways 2>/dev/null; then
   fail "an unknown layout is refused"
