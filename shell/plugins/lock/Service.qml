@@ -798,6 +798,7 @@ Item {
         stop()
         root.fingerprintSleptWhilePaused = true
         root.resumeFingerprint()
+        root.resumeFido2()
         root.armBlankTimer(idleBlankTimer.resumeMs)
       } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
         stop()
@@ -975,6 +976,7 @@ Item {
       var screens = root.realScreenCount()
       if (screens > root.knownScreenCount) {
         root.resumeFingerprint()
+        root.resumeFido2()
         if (root.lockRequested) root.armBlankTimer()
       }
       root.knownScreenCount = screens
