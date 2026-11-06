@@ -105,13 +105,13 @@ transcode_video() {
   case "$format" in
   mp4)
     if [[ $resolution == "4k" ]]; then
-      ffmpeg -i "$input" -vf "$scale" -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
+      ffmpeg -protocol_whitelist file,pipe -i "$input" -vf "$scale" -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
     else
-      ffmpeg -i "$input" -vf "$scale" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
+      ffmpeg -protocol_whitelist file,pipe -i "$input" -vf "$scale" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
     fi
     ;;
   gif)
-    ffmpeg -i "$input" -vf "fps=10,$scale:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$output"
+    ffmpeg -protocol_whitelist file,pipe -i "$input" -vf "fps=10,$scale:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$output"
     ;;
   *)
     echo "Invalid video format: $format" >&2
@@ -171,6 +171,10 @@ main() {
 
   [[ -n $input ]] || return 1
   [[ -f $input ]] || { echo "File not found: $input" >&2; return 1; }
+
+  # A relative filename can look like a decoder option or a network URL.
+  # Resolve it while it is still a filesystem path, before file/magick/ffmpeg.
+  input=$(realpath -e -- "$input") || return 1
 
   type=$(media_type "$input")
 

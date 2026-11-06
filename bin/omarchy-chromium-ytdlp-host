@@ -140,7 +140,7 @@ download_url() {
     # Square, center-cropped thumbnail so the notification preview isn't stretched.
     local preview
     preview="$(mktemp --suffix=.jpg)"
-    ffmpeg -y -i "$filepath" -ss 00:00:00.1 -vframes 1 \
+    ffmpeg -y -protocol_whitelist file,pipe -i "$filepath" -ss 00:00:00.1 -vframes 1 \
       -vf "crop='min(iw,ih)':'min(iw,ih)',scale=256:256" -q:v 2 \
       "$preview" -loglevel quiet 2>/dev/null || true
 
