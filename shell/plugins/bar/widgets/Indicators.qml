@@ -11,7 +11,10 @@ BarWidget {
   readonly property var defaultIndicatorEntries: [ "PasswordlessSudo", "ScreenRecording", "RemoteSession", "Reminder", "NightLight", "Dnd", "StayAwake" ]
   readonly property var indicatorEntries: indicatorEntriesFromSettings(settings)
   property var nightlightPanel: null
+  // An absent panel must not become a bar navigation target.
   readonly property var opened: nightlightPanel ? nightlightPanel.opened : undefined
+  readonly property bool popoutSwitchClosing: nightlightPanel ? nightlightPanel.popoutSwitchClosing === true : false
+  readonly property Item openPanelIndicatorItem: nightlightPanel
   property var activeIndicatorIds: []
   property var indicatorActiveStates: ({})
   property bool indicatorAreaHovered: false
@@ -32,6 +35,10 @@ BarWidget {
 
   function close() {
     if (nightlightPanel) nightlightPanel.close()
+  }
+
+  function closeForPopoutSwitch() {
+    if (nightlightPanel) nightlightPanel.closeForPopoutSwitch()
   }
 
   ListModel { id: activeIndicatorModel }
@@ -571,7 +578,10 @@ BarWidget {
     }
 
     Component.onDestruction: {
-      if (root.nightlightPanel === indicatorSource.item) root.nightlightPanel = null
+      if (root.nightlightPanel === indicatorSource.item) {
+        root.close()
+        root.nightlightPanel = null
+      }
     }
   }
 }

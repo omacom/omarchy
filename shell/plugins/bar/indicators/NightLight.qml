@@ -15,6 +15,7 @@ Panel {
   property string indicatorBlock: "single"
   property var indicatorHost: null
   property var activeOverride: null
+  readonly property var barIdentity: indicatorHost && typeof indicatorHost.closeForPopoutSwitch === "function" ? indicatorHost : root
   property int cursorIndex: 0
 
   manageIpc: false
@@ -24,7 +25,7 @@ Panel {
 
   function switchPanel(direction) {
     if (bar && typeof bar.switchPanelFrom === "function")
-      return bar.switchPanelFrom(indicatorHost || root, direction)
+      return bar.switchPanelFrom(barIdentity, direction)
     return false
   }
 
@@ -88,7 +89,7 @@ Panel {
   KeyboardPanel {
     id: panel
     anchorItem: indicator
-    owner: root
+    owner: root.barIdentity
     bar: root.bar
     open: root.opened
     focusTarget: panel.loadedContent

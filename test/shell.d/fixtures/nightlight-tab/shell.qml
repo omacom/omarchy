@@ -126,6 +126,10 @@ ShellRoot {
       stop()
       nightlight.open()
       Qt.callLater(function() {
+        if (root.bar.activePopout !== indicators.activeItem || !indicators.panelOpen) {
+          root.finish(false, "Night Light did not register its bar widget as the popup owner")
+          return
+        }
         if (!nightlight.opened || !nightlight.switchPanel(1) || !neighbourSlot.activeItem.opened || nightlight.opened) {
           root.finish(false, "Tab from Night Light did not open the neighbouring panel")
           return
@@ -139,11 +143,10 @@ ShellRoot {
           root.finish(false, "the Night Light panel cannot be summoned by its bar widget")
           return
         }
-        nightlight.close()
         indicators.activeItem.settings = { items: ["Dnd"] }
         Qt.callLater(function() {
-          root.finish(root.bar.findPanelWidget("omarchy.indicators") === null,
-            "indicators without Night Light must not be a panel navigation target")
+          root.finish(root.bar.findPanelWidget("omarchy.indicators") === null && root.bar.activePopout !== indicators.activeItem,
+            "removing Night Light must release its popup and navigation target")
         })
       })
     }
