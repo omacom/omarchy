@@ -27,6 +27,7 @@ macbook12-spi-driver-dkms
 nvidia-580xx-dkms
 nvidia-dkms
 nvidia-open-dkms
+linux-omarchy-nvidia-open
 nvidia-580xx-utils
 nvidia-utils
 lib32-nvidia-580xx-utils
@@ -84,3 +85,8 @@ t2fanrd
 
 # Framework 16
 qmk-hid
+
+# Elgato Cam Link 4K virtual camera
+v4l2loopback-dkms
+v4l2loopback-utils
+v4l2-relayd

@@ -43,6 +43,8 @@
   "agents.switchedBody": "Nye %1-økter bruker nå %2 (%3%).\nKjørende økter blir værende på %4.",
   "animations.disabled": "Animasjoner deaktivert",
   "animations.enabled": "Animasjoner aktivert",
+  "animations.softwareRendering": "Animasjoner av uten GPU",
+  "animations.softwareRenderingBody": "Ingen GPU i bruk, så animasjoner, uskarphet og skygger er av. Utseende > Animasjoner på slår dem på igjen.",
   "audio.micMuted": "Mikrofon dempet",
   "audio.micOn": "Mikrofon på",
   "audio.noDevices": "Ingen lydenheter funnet",

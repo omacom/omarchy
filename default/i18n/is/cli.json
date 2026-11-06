@@ -43,6 +43,8 @@
   "agents.switchedBody": "Nýjar %1-lotur nota nú %2 (%3%).\nLotur í gangi halda áfram á %4.",
   "animations.disabled": "Hreyfingar slökktar",
   "animations.enabled": "Hreyfingar virkjaðar",
+  "animations.softwareRendering": "Hreyfingar slökktar án GPU",
+  "animations.softwareRenderingBody": "GPU er ekki í notkun, svo hreyfingar, þoka og skuggar eru slökkt. Útlit > Hreyfingar á virkjar þau aftur.",
   "audio.micMuted": "Hljóðnemi þaggaður",
   "audio.micOn": "Hljóðnemi kveiktur",
   "audio.noDevices": "Engin hljóðtæki fundust",
