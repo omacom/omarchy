@@ -84,7 +84,36 @@ read = limits({"groups": [
 ]})
 expect("Antigravity collector orders the windows, reads used from remaining, and omits an unused 3P window",
        [(entry["label"], entry.get("title"), round(entry["percent"], 2)) for entry in read],
-       [("Session (5-hour)", "Session", 0.1), ("Weekly (7-day)", "Weekly", 0.05), ("Claude/GPT Weekly", "Claude/GPT Weekly", 0.02)], read)
+       [("Session (5-hour)", "Session", 0.1), ("Gemini Weekly", "Gemini Weekly", 0.05), ("Claude/GPT Weekly", "Claude/GPT Weekly", 0.02)], read)
+
+# Argon's weekly quota is separate on Pro plans; wherever listed it never
+# stands in for the plan's Gemini group, and sits right after Gemini Weekly.
+read = limits({"groups": [
+  {"displayName": "Gemini 4 Argon", "buckets": [
+    {"bucketId": "gemini-argon-wtu-weekly", "displayName": "Gemini 4 Argon Weekly Limit", "window": "weekly", "resetTime": "2026-09-18T13:15:33Z", "remainingFraction": 0.1},
+  ]},
+  {"displayName": "Claude and GPT models", "buckets": [
+    {"bucketId": "3p-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "resetTime": "2026-09-18T12:56:14Z", "remainingFraction": 0.75},
+  ]},
+  {"displayName": "Gemini Models", "buckets": [
+    {"bucketId": "gemini-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "resetTime": "2026-09-17T18:19:42Z", "remainingFraction": 0.5},
+  ]},
+]})
+expect("Antigravity collector presents all three weekly limits as peer rows with Argon ahead of 3P",
+       [(entry["label"], entry.get("title"), round(entry["percent"], 2)) for entry in read],
+       [("Gemini Weekly", "Gemini Weekly", 0.5), ("Argon Weekly", "Argon Weekly", 0.9), ("Claude/GPT Weekly", "Claude/GPT Weekly", 0.25)], read)
+
+# When the answer names no Gemini group at all (e.g. older responses with 3P
+# only), those stay the scoped allowances they are, never mislabeled as Weekly.
+read = limits({"groups": [
+  {"displayName": "Claude and GPT models", "buckets": [
+    {"bucketId": "3p-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "resetTime": "2026-09-18T12:56:14Z", "remainingFraction": 0.98},
+    {"bucketId": "3p-5h", "displayName": "Five Hour Limit Remaining", "window": "5h", "resetTime": "2026-09-15T22:16:22Z", "remainingFraction": 1.0},
+  ]},
+]})
+expect("Antigravity collector reads an answer with no Gemini group as allowances only, never as the plan's meters",
+       [(entry["label"], entry.get("title"), round(entry["percent"], 2)) for entry in read],
+       [("Claude/GPT Weekly", "Claude/GPT Weekly", 0.02)], read)
 
 read = limits({"groups": [
   {"displayName": "Claude and GPT models", "buckets": [{"window": "5h", "remainingFraction": 1.0}]},
@@ -148,6 +177,10 @@ check_scan_cache(adapter)
 
 record, http = agy()
 expect("Antigravity collector asks with agy's token", {r["headers"].get("authorization") for r in http.requests}, {"Bearer token-main"})
+expect("Antigravity collector sends versioned User-Agent", {r["headers"].get("user-agent") for r in http.requests}, {"antigravity/cli/1.5.1 (aidev_client)"})
+expect("Antigravity collector sends ANTIGRAVITY ideType metadata to loadCodeAssist",
+       [json.loads(r["data"] or b"{}") for r in http.requests if TIER in r["url"]],
+       [{"metadata": {"ideType": "ANTIGRAVITY"}}])
 
 # agy's RetrieveUserQuotaSummaryRequest carries the project, which omp sends
 # from loadCodeAssist's cloudaicompanionProject, named as a string or {id}.

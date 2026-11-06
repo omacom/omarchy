@@ -131,7 +131,7 @@ write_json(home() / "omp-report.json", {"reports": [{"provider": "google-antigra
 record, asked = agy()
 expect("Antigravity collector takes omp's limits from omp usage, sending omp's lapsed token nowhere",
        [asked, record["limitsStale"], record["usageStatusText"], record["authHelpText"], [(entry["title"], entry["percent"]) for entry in record["limits"]]],
-       [[], False, "", "", [("Session", 0.6), ("Weekly", 0.3), ("Claude/GPT Weekly", 0.1)]], record)
+       [[], False, "", "", [("Session", 0.6), ("Gemini Weekly", 0.3), ("Claude/GPT Weekly", 0.1)]], record)
 
 check("omp usage runs with nothing on its stdin", not (home() / "omp-stdin").exists())
 
