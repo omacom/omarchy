@@ -1584,6 +1584,12 @@ stop() {
 # Flip the current state. When nothing has been configured yet, hand over to
 # the network panel instead of inventing credentials.
 toggle() {
+  # Nothing configured: only the panel opens, which changes no host state,
+  # so it needs neither a lock nor the root step that creates one.
+  if ! profile_active && ! profile_configured; then
+    omarchy-shell shell summon omarchy.network 2>/dev/null || true
+    return 0
+  fi
   hotspot_lock --shared
   if profile_active; then
     stop
