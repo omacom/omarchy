@@ -24,6 +24,10 @@ local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
+-- GNOME's default titlebar buttons, which GTK apps draw themselves.
+local GNOME_BUTTONS = "'appmenu:close'"
+local FLOATING_BUTTONS = "'appmenu:minimize,maximize,close'"
+local BUTTONS_CHANGED = paths.state_home .. "/omarchy/floating-window-buttons"
 
 local M = {}
 
@@ -455,6 +459,24 @@ local function titlebars_installed()
   return true
 end
 
+-- GNOME's default leaves the titlebars GTK apps draw with a close button alone.
+-- A floating window can be minimized and maximized from them too, so they show
+-- both while something floats. A layout someone chose stays as it is: only the
+-- default is changed, and only a change made here is undone.
+local function show_window_buttons(show)
+  local get = "gsettings get org.gnome.desktop.wm.preferences button-layout"
+  local set = "gsettings set org.gnome.desktop.wm.preferences button-layout "
+
+  -- Hyprland reads a command opening with "[" as exec rules, hence test.
+  if show then
+    hl.exec_cmd(string.format([[test "$(%s)" = "%s" && %s"%s" && mkdir -p "%s" && touch "%s"]],
+      get, GNOME_BUTTONS, set, FLOATING_BUTTONS, BUTTONS_CHANGED:match("^(.*)/"), BUTTONS_CHANGED))
+  else
+    hl.exec_cmd(string.format([[test -e "%s" && rm -f "%s" && test "$(%s)" = "%s" && %s"%s"]],
+      BUTTONS_CHANGED, BUTTONS_CHANGED, get, FLOATING_BUTTONS, set, GNOME_BUTTONS))
+  end
+end
+
 local function titlebars()
   if not titlebars_installed() then
     return
@@ -501,6 +523,7 @@ local function titlebars()
   -- these options.
   if hl.get_config("plugin.hyprbars.on_minimize_request") ~= nil then
     hl.config({ plugin = { hyprbars = { on_minimize_request = minimize, on_maximize_request = maximize } } })
+    show_window_buttons(true)
   end
 
   for _, button in ipairs({
@@ -551,8 +574,12 @@ function M.apply()
 
   if anything_floats() then
     set_up_floating()
-  elseif titlebars_loaded() and titlebars_installed() then
-    hl.plugin.load(TITLEBARS)
+  else
+    show_window_buttons(false)
+
+    if titlebars_loaded() and titlebars_installed() then
+      hl.plugin.load(TITLEBARS)
+    end
   end
 end
 
