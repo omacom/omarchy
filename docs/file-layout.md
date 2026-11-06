@@ -105,6 +105,7 @@ applications/icons/*           ──►  omarchy-settings    /usr/share/icons/h
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
   ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_hooks,thunderbolt_module,thunderbolt_hook}.conf
   ├─ initcpio/install/omarchy-thunderbolt          (Bolt-approved Thunderbolt devices at the unlock prompt)
+  ├─ systemd/system/omarchy-thunderbolt-boot.{path,service}  (rebuild the image when Bolt's store changes)
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools,omarchy-agent-accounts}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,

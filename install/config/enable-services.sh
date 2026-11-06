@@ -16,3 +16,6 @@ systemctl enable sddm.service
 # whole session down. [Install] pulls in systemd-oomd.socket via Also=, which
 # is what the user manager reports app.slice candidacy over.
 systemctl enable systemd-oomd.service
+# Keep the Thunderbolt devices authorized at the disk unlock prompt in step with
+# Bolt: rebuild the boot image when Bolt stores, forgets or changes a device.
+systemctl enable omarchy-thunderbolt-boot.path

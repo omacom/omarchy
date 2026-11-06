@@ -14,8 +14,8 @@
 # iommu with the domain's IOMMU DMA protection on. The rule also needs the
 # domain at the user level; in secure mode boltd answers a key challenge, which
 # stays with boltd. Manual devices and anything Bolt never stored wait for boltd
-# as before, and a device enrolled later reaches the prompt with the next image
-# rebuild.
+# as before. omarchy-thunderbolt-boot.path rebuilds the image when Bolt stores,
+# forgets or changes a device, so the rules follow Bolt's current decisions.
 
 build() {
   local store=${OMARCHY_BOLT_STORE:-/var/lib/boltd} device uuid policy iommu rules=""
