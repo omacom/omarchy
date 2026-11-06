@@ -485,6 +485,12 @@ assert_output_contains "theme preview shows selected text sample" "$preview_outp
 assert_output_contains "theme preview shows practical terminal samples" "$preview_output" "Terminal/UI samples"
 assert_output_contains "theme preview shows ANSI palette strips" "$preview_output" "ANSI palette strips"
 
+handmade_theme="$PI_TMPDIR/.config/omarchy/themes/Walk Handmade Theme"
+mkdir -p "$handmade_theme"
+cp "$NEXT_THEME/colors.toml" "$handmade_theme/colors.toml"
+preview_output=$(OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "Walk Handmade Theme" --no-color 2>&1 || true)
+assert_output_contains "theme preview finds a theme by the name omarchy theme list shows" "$preview_output" "File:  $handmade_theme/colors.toml"
+
 tokyo_fg=$(awk -F'"' '/^foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_light_fg=$(awk -F'"' '/^light_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_bright_fg=$(awk -F'"' '/^bright_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")

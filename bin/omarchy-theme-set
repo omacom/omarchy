@@ -376,7 +376,7 @@ report_ignored_theme_files() {
   echo "A theme installed from a git repo cannot supply Lua, a terminal config, or vscode.json." >&2
 }
 
-THEME_NAME=$(echo "$1" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+THEME_NAME=$(echo "$1" | sed -E 's/<[^>]+>//g')
 THEME_HEADLESS=0
 if [[ ${OMARCHY_THEME_HEADLESS:-} == "1" || ${OMARCHY_THEME_OFFLINE:-} == "1" ]]; then
   THEME_HEADLESS=1
@@ -386,6 +386,10 @@ if [[ -z $THEME_NAME || $THEME_NAME == .* || $THEME_NAME == */* ]]; then
   echo "Invalid theme name: $1"
   exit 1
 fi
+
+# The name may be the one omarchy-theme-list shows rather than the folder's own.
+THEME_DIR=$(omarchy-theme-dir "$THEME_NAME")
+THEME_NAME=${THEME_DIR##*/}
 
 if [[ ! -d $OMARCHY_THEMES_PATH/$THEME_NAME ]] && [[ ! -d $USER_THEMES_PATH/$THEME_NAME ]]; then
   echo "Theme '$THEME_NAME' does not exist"
