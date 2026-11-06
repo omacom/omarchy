@@ -169,6 +169,7 @@ exec_count() {
 }
 
 OMARCHY_PATH="$test_root" \
+OMARCHY_SHELL_WATCHDOG=1 \
 HOME="$test_home" \
 XDG_CONFIG_HOME="$test_home/.config" \
 XDG_CACHE_HOME="$test_home/.cache" \

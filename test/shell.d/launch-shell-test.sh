@@ -218,3 +218,42 @@ launch_pid=""
 [[ -f $qs_terminated ]] || fail "the running shell is signalled when the supervisor is"
 [[ $(launches) == 1 ]] || fail "the signalled shell is not relaunched" "$(<"$qs_log")"
 pass "stopping the supervisor stops the shell it is watching"
+
+# Exercise the real pipe timeout, with only the deadline shortened. A timer
+# delayed while IPC still answers must not restart a working desktop; EOF is
+# a deliberate shutdown. Only missing beats together with failed IPC recover.
+watchdog_bin="$test_tmp/watchdog"
+sed -e 's/wait_seconds=60/wait_seconds=0.2/' -e 's/wait_seconds=30/wait_seconds=0.2/' \
+  "$ROOT/bin/omarchy-shell-watchdog" >"$watchdog_bin"
+chmod +x "$watchdog_bin"
+cat >"$fake_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_IPC_HEALTHY:-0} == 1 ]]
+SH
+cat >"$fake_bin/systemd-run" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_RECOVERY_LOG"
+SH
+chmod +x "$fake_bin/omarchy-shell" "$fake_bin/systemd-run"
+export OMARCHY_TEST_RECOVERY_LOG="$test_tmp/recovery.log"
+export OMARCHY_TEST_LOGGER_LOG="$logger_log"
+: >"$OMARCHY_TEST_RECOVERY_LOG"
+
+PATH="$fake_bin:$PATH" "$watchdog_bin" </dev/null
+[[ ! -s $OMARCHY_TEST_RECOVERY_LOG ]] || fail "watchdog treats EOF as a hang"
+pass "closing the shell heartbeat pipe does not request recovery"
+
+{ for _ in {1..8}; do echo; sleep 0.05; done; } |
+  PATH="$fake_bin:$PATH" "$watchdog_bin"
+[[ ! -s $OMARCHY_TEST_RECOVERY_LOG ]] || fail "watchdog restarts a shell that sends heartbeats"
+pass "heartbeats keep the watchdog asleep without IPC probes"
+
+sleep 0.35 | PATH="$fake_bin:$PATH" OMARCHY_TEST_IPC_HEALTHY=1 "$watchdog_bin"
+[[ ! -s $OMARCHY_TEST_RECOVERY_LOG ]] || fail "watchdog restarts a shell whose IPC still responds"
+pass "a delayed heartbeat alone does not restart the shell"
+
+sleep 0.35 | PATH="$fake_bin:$PATH" "$watchdog_bin"
+[[ $(wc -l <"$OMARCHY_TEST_RECOVERY_LOG") == 1 ]] || fail "watchdog does not request exactly one recovery"
+grep -Fx -- "--user --collect --unit=omarchy-shell-watchdog-recovery $ROOT/bin/omarchy-restart-shell" \
+  "$OMARCHY_TEST_RECOVERY_LOG" >/dev/null || fail "watchdog does not recover outside the shell's process tree"
+pass "missing heartbeats and failed IPC request one independent shell recovery"

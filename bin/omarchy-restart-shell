@@ -26,7 +26,13 @@ fi
 # ask the lock service rather than merely pinging the shell: only a locker
 # that reports the lock secure or in progress is worth preserving.
 relock=0
-if omarchy-hyprland-session-locked; then
+timeout --kill-after=1s 2s omarchy-hyprland-session-locked
+lock_status=$?
+if (( lock_status == 124 || lock_status == 137 )); then
+  echo "Hyprland is not responding; cannot safely restart the shell." >&2
+  exit 1
+fi
+if (( lock_status == 0 )); then
   locking=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
     jq -r '.secure or .requested' 2>/dev/null)
   if [[ $locking == "true" ]]; then
@@ -95,15 +101,56 @@ omarchy_shell_dirs() {
     jq -r '.[].config_path | select(endswith("/shell/shell.qml")) | rtrimstr("/shell.qml")' 2>/dev/null)
 }
 
-while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+shell_pids() {
+  quickshell list -a -j 2>/dev/null |
+    jq -r --arg dir "$1/shell.qml" '.[] | select(.config_path == $dir) | .pid' 2>/dev/null
+}
+
+stop_shell() {
+  local dir=$1 grace=30 pid deadline
+  local -a pids
+
+  # A shell that cannot answer ping cannot answer its IPC quit request either.
+  # Keep the usual teardown grace for responsive shells with a large bar.
+  if ! OMARCHY_PATH="${dir%/shell}" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
+    grace=1
+  fi
+  while timeout "$grace" quickshell kill -p "$dir" --any-display >/dev/null 2>&1; do :; done
+
+  mapfile -t pids < <(shell_pids "$dir")
+  (( ${#pids[@]} > 0 )) || return 0
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  deadline=$((SECONDS + 5))
+  while (( SECONDS < deadline )); do
+    for pid in "${pids[@]}"; do
+      kill -0 "$pid" 2>/dev/null && break
+      pid=""
+    done
+    [[ -z $pid ]] && return 0
+    sleep 0.1
+  done
+
+  # Re-read the instance list before escalating, so a replacement is never
+  # killed merely because it uses the same configuration.
+  while IFS= read -r pid; do
+    [[ " ${pids[*]} " == *" $pid "* ]] && kill -KILL "$pid" 2>/dev/null
+  done < <(shell_pids "$dir")
+  return 0
+}
+
+stop_shell "$CONFIG_DIR"
 while IFS= read -r dir; do
-  timeout 30 quickshell kill -p "$dir" --any-display >/dev/null 2>&1
+  stop_shell "$dir"
 done < <(omarchy_shell_dirs)
 
 deadline=$((SECONDS + 30))
 while (( SECONDS < deadline )) && [[ -n $(omarchy_shell_dirs) ]]; do
   sleep 0.1
 done
+if [[ -n $(omarchy_shell_dirs) ]]; then
+  echo "Omarchy shell did not stop after restart was requested." >&2
+  exit 1
+fi
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.

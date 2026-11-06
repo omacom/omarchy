@@ -65,9 +65,19 @@ strays=${OMARCHY_TEST_QS_STRAYS:-/nonexistent}
 
 case " $* " in
   *' list '*)
+    if [[ ${OMARCHY_TEST_QS_HANG:-0} == 1 ]]; then
+      pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
+      if [[ $pid != 303 ]] && kill -0 "$pid" 2>/dev/null; then
+        jq -nc --arg config "$OMARCHY_TEST_SESSION_PATH/shell/shell.qml" --argjson pid "$pid" '[{config_path:$config,pid:$pid}]'
+      else
+        echo '[]'
+      fi
+      exit 0
+    fi
     [[ -f $strays ]] && jq -R -s -c 'split("\n") | map(select(length > 0) | split(" ") | {config_path: (.[0] + "/shell.qml"), pid: (.[1] | tonumber)})' "$strays"
     ;;
   *' kill -p '*)
+    [[ ${OMARCHY_TEST_QS_HANG:-0} != 1 ]] || exec sleep 30
     if [[ $3 != "$OMARCHY_TEST_SESSION_PATH/shell" ]]; then
       pid=$(awk -v dir="$3" '$1 == dir { print $2; exit }' "$strays" 2>/dev/null)
       [[ $pid =~ ^[0-9]+$ ]] || exit 1
@@ -100,6 +110,7 @@ cat >"$restart_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
+  [[ ${OMARCHY_TEST_COMPOSITOR_HANG:-0} != 1 ]] || exec sleep 30
   # Hyprland reports an active session lock as a reason the monitor cannot hand
   # a client the whole screen, not as a workspace.
   if [[ ${OMARCHY_TEST_SESSION_LOCKED:-0} == 1 ]]; then
@@ -329,3 +340,47 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# A blocked GUI thread cannot process Quickshell's IPC quit. Use a real child
+# as the stuck instance, so success requires the command to signal it.
+restart_hung="$test_tmp/restart-hung"
+sed -e 's/grace=30/grace=0.2/' -e 's/grace=1/grace=0.2/' \
+  "$ROOT/bin/omarchy-restart-shell" >"$restart_hung"
+chmod +x "$restart_hung"
+bash -c 'trap "" TERM; exec sleep 30' &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+OMARCHY_TEST_QS_HANG=1 \
+  timeout 10 "$restart_hung" || fail "restart recovers a shell that never answers IPC quit"
+
+! kill -0 "$restart_pid_one" 2>/dev/null || fail "restart left the unresponsive shell alive"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart did not replace the unresponsive shell"
+kill -0 "$restart_pid_two" 2>/dev/null || fail "recovering a hung shell stopped an unrelated config"
+pass "restart signals an unresponsive shell and leaves unrelated configs alone"
+
+# A compositor stuck in a display commit cannot report whether its lock is
+# held. Recovery must return an error without killing clients or waiting forever.
+: >"$restart_log"
+if PATH="$restart_bin:$PATH" OMARCHY_PATH="$restart_root" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" OMARCHY_TEST_COMPOSITOR_HANG=1 \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/compositor-hang.out" 2>&1; then
+  fail "restart succeeds without a compositor lock-state answer"
+fi
+grep -F 'Hyprland is not responding' "$test_tmp/compositor-hang.out" >/dev/null ||
+  fail "restart does not report the unresponsive compositor" "$(cat "$test_tmp/compositor-hang.out")"
+[[ ! -s $restart_log ]] || fail "restart touches shells without knowing the compositor lock state"
+pass "restart refuses promptly when the compositor cannot report lock state"
