@@ -3664,14 +3664,14 @@ def finite(value: Any) -> float:
 def jwt_claims(token: Any) -> dict[str, Any]:
   """The claims a JWT carries, read without checking its signature (only
   ever to tell whose it is, or when it lapses), {} for anything else."""
-  if not isinstance(token, str):
+  if not isinstance(token, str) or len(token) > 65536:
     return {}
   parts = token.split(".")
   if len(parts) != 3:
     return {}
   try:
-    claims = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
-  except (ValueError, UnicodeDecodeError):
+    claims = json.loads(base64.b64decode(parts[1] + "=" * (-len(parts[1]) % 4), altchars=b"-_", validate=True))
+  except (ValueError, UnicodeDecodeError, RecursionError):
     return {}
   return claims if isinstance(claims, dict) else {}
 
