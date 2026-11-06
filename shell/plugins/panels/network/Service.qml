@@ -27,20 +27,30 @@ Item {
     probeProcess.running = true
   }
 
+  // Re-probe without dropping the current answer, so a device change does not
+  // flash the warning while curl is in flight.
+  function reprobe() {
+    probeGeneration++
+    probe()
+  }
+
   property int probeGeneration: 0
   property int probeGenerationAtStart: -1
 
   onLimitedChanged: reset()
   onChecksEnabledChanged: reset()
 
-  Component.onCompleted: reset()
-
-  Timer {
-    interval: 10000
-    repeat: true
-    running: root.limited && root.checksEnabled
-    onTriggered: root.probe()
+  // NetworkManager keeps its aggregate at limited while a tunnel carries the
+  // route, so connectivityChanged never fires again. A tunnel appearing or
+  // disappearing is a device-list change, and it is the event that changes the
+  // answer. The panel re-probes on open for a tunnel that dies with its device
+  // still listed.
+  Connections {
+    target: Networking.devices
+    function onValuesChanged() { root.reprobe() }
   }
+
+  Component.onCompleted: reset()
 
   Process {
     id: probeProcess

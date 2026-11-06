@@ -537,6 +537,9 @@ Panel {
 
   function checkConnectivity() {
     if (connectivityChecksEnabled && kind !== "disconnected") Networking.checkConnectivity()
+    // NetworkManager's own probe stays limited behind a tunnel, so every
+    // re-check also asks the shared service for the routed answer.
+    if (service && typeof service.probe === "function") service.probe()
   }
 
   function openCaptivePortal() {
@@ -550,12 +553,16 @@ Panel {
   }
 
   // Keep checking while login is needed, even with the panel closed in favour
-  // of the browser. Normal connected operation relies on NM's own schedule.
+  // of the browser. A routed connection that still reads limited is re-probed
+  // only while the panel is open: the service follows device changes, and this
+  // covers a tunnel that dies without its device disappearing. Normal
+  // connected operation relies on NM's own schedule.
   Timer {
     id: connectivityPoll
     interval: 10000
     repeat: true
-    running: root.hasCaptivePortal && root.connectivityChecksEnabled
+    running: root.connectivityChecksEnabled
+      && (root.hasCaptivePortal || (root.opened && root.connectivity === "limited"))
     onTriggered: root.checkConnectivity()
   }
 
