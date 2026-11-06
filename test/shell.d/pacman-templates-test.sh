@@ -187,7 +187,7 @@ expected = [
 ]
 assert copies == expected, events
 hook = events.index('step:omarchy-hook pre-refresh-pacman')
-upgrade = 'step:pacman -Syyuu --noconfirm'
+upgrade = 'step:pacman -Syyuu --noconfirm --overwrite /boot/dtbs/*'
 if channel in ('stable', 'rc'):
   # The -dev pair is edge's: an old build of it in a stable or rc repository is
   # left to the channel switch's swap.

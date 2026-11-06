@@ -64,5 +64,7 @@ if [[ $channel == "stable" || $channel == "rc" ]]; then
   ignore=(--ignore omarchy-dev,omarchy-settings-dev)
 fi
 
-# Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}"
+# Reset all package DBs and then update. /boot stays put when a snapshot restore
+# rolls back the package database, so a newer kernel's device trees can be there
+# unowned, and the kernel's own upgrade has to take them back.
+omarchy-update-pacman -Syyuu --noconfirm --overwrite '/boot/dtbs/*' "${ignore[@]}"
