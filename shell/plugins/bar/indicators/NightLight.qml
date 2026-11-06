@@ -29,6 +29,12 @@ Panel {
     return false
   }
 
+  function open() {
+    if (indicatorHost && typeof indicatorHost.activateNightlightPanel === "function")
+      indicatorHost.activateNightlightPanel(root)
+    controller.show()
+  }
+
   function toggleTemperature() {
     if (root.nightlightService) root.nightlightService.setNightlight(!root.active)
   }

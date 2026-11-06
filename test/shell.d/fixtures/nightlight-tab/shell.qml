@@ -8,6 +8,8 @@ ShellRoot {
   readonly property string rootPath: Quickshell.env("OMARCHY_PATH")
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var bar: null
+  property var indicatorsSlot: null
+  property var neighbourSlot: null
   property int attempts: 0
 
   function findNightlight(item) {
@@ -19,6 +21,13 @@ ShellRoot {
       if (found) return found
     }
     return null
+  }
+
+  function collectNightlights(item, found) {
+    if (!item) return
+    if (item.moduleName === "NightLight" && typeof item.switchPanel === "function") found.push(item)
+    var children = item.children || []
+    for (var i = 0; i < children.length; i++) collectNightlights(children[i], found)
   }
 
   function finish(ok, message) {
@@ -143,11 +152,44 @@ ShellRoot {
           root.finish(false, "the Night Light panel cannot be summoned by its bar widget")
           return
         }
-        indicators.activeItem.settings = { items: ["Dnd"] }
-        Qt.callLater(function() {
-          root.finish(root.bar.findPanelWidget("omarchy.indicators") === null && root.bar.activePopout !== indicators.activeItem,
-            "removing Night Light must release its popup and navigation target")
-        })
+        root.indicatorsSlot = indicators
+        root.neighbourSlot = neighbourSlot
+        root.attempts = 0
+        indicators.activeItem.settings = { items: ["NightLight", "NightLight"] }
+        duplicateProbe.start()
+      })
+    }
+  }
+
+  Timer {
+    id: duplicateProbe
+    interval: 50
+    repeat: true
+    onTriggered: {
+      var nightlights = []
+      root.collectNightlights(root.indicatorsSlot.activeItem, nightlights)
+      if (nightlights.length !== 2) {
+        if (++root.attempts < 80) return
+        stop()
+        root.finish(false, "both Night Light indicators did not load")
+        return
+      }
+      stop()
+      nightlights[0].open()
+      nightlights[1].triggerPress(Qt.RightButton)
+      if (nightlights[0].opened || !nightlights[1].opened) {
+        root.finish(false, "opening a second Night Light leaves the first popup open")
+        return
+      }
+      if (!nightlights[1].switchPanel(1) || !root.neighbourSlot.activeItem.opened || nightlights[1].opened) {
+        root.finish(false, "Tab from a second Night Light did not open the neighbouring panel")
+        return
+      }
+      nightlights[0].open()
+      root.indicatorsSlot.activeItem.settings = { items: ["Dnd"] }
+      Qt.callLater(function() {
+        root.finish(root.bar.findPanelWidget("omarchy.indicators") === null && root.bar.activePopout !== root.indicatorsSlot.activeItem,
+          "removing Night Light must release its popup and navigation target")
       })
     }
   }

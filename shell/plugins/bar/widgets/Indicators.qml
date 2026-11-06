@@ -29,6 +29,12 @@ BarWidget {
 
   signal refreshRequested()
 
+  function activateNightlightPanel(panel) {
+    if (nightlightPanel === panel) return
+    if (nightlightPanel && nightlightPanel.opened) nightlightPanel.close()
+    nightlightPanel = panel
+  }
+
   function open() {
     if (nightlightPanel) nightlightPanel.open()
   }
@@ -543,7 +549,7 @@ BarWidget {
       onLoaded: {
         indicatorSlot.injectProps()
         indicatorSlot.syncActiveState()
-        if (indicatorSlot.indicatorId === "NightLight") root.nightlightPanel = item
+        if (indicatorSlot.indicatorId === "NightLight" && !root.nightlightPanel) root.nightlightPanel = item
       }
       onStatusChanged: if (status === Loader.Error) console.warn("Indicator loader error", indicatorSlot.indicatorId, source)
     }
