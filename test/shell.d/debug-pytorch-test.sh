@@ -17,41 +17,60 @@ code = compile(command.read_text().split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0],
 
 
 def run(args, cuda=False, hip=None, xpu=False, failure=False):
-    calls = []
-    module = ModuleType("torch")
-    module.__version__ = "test-build"
-    module.version = SimpleNamespace(cuda="13.0" if cuda and not hip else None, hip=hip)
-    module.no_grad = contextlib.nullcontext
-    module.cuda = SimpleNamespace(is_available=lambda: cuda, device_count=lambda: 1, get_device_name=lambda index: "Test GPU")
-    module.xpu = SimpleNamespace(is_available=lambda: xpu, device_count=lambda: 1, get_device_name=lambda index: "Test XPU")
-    class Matrix:
-        def __matmul__(self, other):
-            if failure:
-                raise RuntimeError("missing GPU kernel")
-            return self
-        def sum(self):
-            return self
-        def item(self):
-            return 32768
-    def ones(size, device):
-        calls.append((size, device))
-        return Matrix()
-    module.ones = ones
-    output = io.StringIO()
-    with patch.dict(sys.modules, {"torch": module}), patch.object(sys, "argv", [str(command), *args]), contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-        try:
-            exec(code, {"__name__": "__main__"})
-            status = 0
-        except SystemExit as error:
-            status = error.code
-    return status, calls, output.getvalue()
+  calls = []
+  module = ModuleType("torch")
+  module.__version__ = "test-build"
+  module.version = SimpleNamespace(cuda="13.0" if cuda and not hip else None, hip=hip)
+  module.no_grad = contextlib.nullcontext
+  module.cuda = SimpleNamespace(
+    is_available=lambda: cuda, device_count=lambda: 1, get_device_name=lambda index: "Test GPU"
+  )
+  module.xpu = SimpleNamespace(
+    is_available=lambda: xpu, device_count=lambda: 1, get_device_name=lambda index: "Test XPU"
+  )
+
+  class Matrix:
+    def __matmul__(self, other):
+      if failure:
+        raise RuntimeError("missing GPU kernel")
+      return self
+
+    def sum(self):
+      return self
+
+    def item(self):
+      return 32768
+
+  def ones(size, device):
+    calls.append((size, device))
+    return Matrix()
+
+  module.ones = ones
+  output = io.StringIO()
+  with (
+    patch.dict(sys.modules, {"torch": module}),
+    patch.object(sys, "argv", [str(command), *args]),
+    contextlib.redirect_stdout(output),
+    contextlib.redirect_stderr(output),
+  ):
+    try:
+      exec(code, {"__name__": "__main__"})
+      status = 0
+    except SystemExit as error:
+      status = error.code
+  return status, calls, output.getvalue()
 
 
-for parameters, expected in [({}, "cpu"), ({"cuda": True}, "cuda"), ({"cuda": True, "hip": "7.0"}, "cuda"), ({"xpu": True}, "xpu")]:
-    status, calls, output = run(["--json"], **parameters)
-    report = json.loads(output)
-    assert status == 0 and report["device"] == expected and calls == [((32, 32), expected)], output
-    assert report["rocm_build"] == parameters.get("hip") and report["matrix_check"] == "passed"
+for parameters, expected in [
+  ({}, "cpu"),
+  ({"cuda": True}, "cuda"),
+  ({"cuda": True, "hip": "7.0"}, "cuda"),
+  ({"xpu": True}, "xpu"),
+]:
+  status, calls, output = run(["--json"], **parameters)
+  report = json.loads(output)
+  assert status == 0 and report["device"] == expected and calls == [((32, 32), expected)], output
+  assert report["rocm_build"] == parameters.get("hip") and report["matrix_check"] == "passed"
 print("ok - selects CPU, CUDA, ROCm and XPU correctly and checks the selected device")
 
 status, calls, output = run(["--require-gpu"])
