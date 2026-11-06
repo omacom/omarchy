@@ -71,9 +71,10 @@ tdlm() {
   [[ -z $TMUX ]] && { echo "You must start tmux to use tdlm."; return 1; }
 
   local ai="$1"
-  local ai2="$2"
+  local ai2="${2:-}"
   local base_dir="$PWD"
   local first=true
+  local tdl_command
 
   # Rename the session to the current directory name (replace dots/colons which tmux disallows)
   tmux rename-session "$(basename "$base_dir" | tr '.:' '--')"
@@ -82,13 +83,17 @@ tdlm() {
     [[ -d $dir ]] || continue
     local dirpath="${dir%/}"
 
+    printf -v tdl_command 'tdl %q' "$ai"
+    [[ -n $ai2 ]] && printf -v tdl_command '%s %q' "$tdl_command" "$ai2"
+
     if $first; then
       # Reuse the current window for the first project
-      tmux send-keys -t "$TMUX_PANE" "cd '$dirpath' && tdl $ai $ai2" C-m
+      printf -v tdl_command 'cd %q && %s' "$dirpath" "$tdl_command"
+      tmux send-keys -t "$TMUX_PANE" "$tdl_command" C-m
       first=false
     else
       local pane_id=$(tmux new-window -c "$dirpath" -P -F '#{pane_id}')
-      tmux send-keys -t "$pane_id" "tdl $ai $ai2" C-m
+      tmux send-keys -t "$pane_id" "$tdl_command" C-m
     fi
   done
 }
