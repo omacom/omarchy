@@ -117,8 +117,15 @@ function inputLabel(state, fallback) {
   return labels[state.current] || shortLabel(state.language || state.name, {})
 }
 
-// The label says nothing of Caps Lock beyond its badge, so the tooltip spells
-// it out between the name and the shortcut.
+// A layout label follows the case Caps Lock types in, EN with it on and en with
+// it off. An input method's own label (한, あ) has no case, so it carries ⇪.
+function capsLabel(label, layoutLabel, capsLock) {
+  if (!label) return label
+  if (label === layoutLabel) return capsLock ? label.toUpperCase() : label.toLowerCase()
+  return capsLock ? label + "⇪" : label
+}
+
+// The tooltip spells Caps Lock out between the name and the shortcut.
 function inputTooltip(state, layout, multipleLayouts, capsLock, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var multipleInputs = !!(state && state.methods && state.methods.length > 1)
@@ -132,7 +139,7 @@ function inputTooltip(state, layout, multipleLayouts, capsLock, tr) {
 // Hyprland reports the lock per keyboard, and pressing Caps Lock on one
 // keyboard gives the seat no event that would make it the one the label
 // describes. Any typed keyboard holding the lock means the next capitals are a
-// keypress away, so that lights the badge.
+// keypress away, so that counts.
 function capsLockOn(typed) {
   return (typed || []).some(function (keyboard) {
     return !!keyboard && keyboard.capsLock === true
@@ -158,6 +165,7 @@ if (typeof module !== "undefined") {
     shortLabel: shortLabel,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
+    capsLabel: capsLabel,
     capsLockOn: capsLockOn,
     showIndicator: showIndicator
   }

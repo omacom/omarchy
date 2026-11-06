@@ -21,7 +21,7 @@ assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Key
 assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', false), 'French', 'a single layout tooltip stays compact')
 
 // Caps Lock is spelled out in the tooltip, between the name and the shortcut,
-// in every input mode the badge shows on.
+// in every input mode.
 assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'English (US)', false, true), 'English (US) · Caps Lock on · Super + I', 'Caps Lock sits between the layout and the shortcut')
 assertEqual(model.inputTooltip(japanese, 'English (US)', false, true), 'Mozc · Caps Lock on · Super + I', 'Caps Lock shows beside an input method too')
 assertEqual(model.inputTooltip({ methods: ['keyboard-us', 'hangul'], current: 'hangul', name: 'Hangul' }, 'Korean', false, true), 'Hangul · Caps Lock on · Super + I', 'Caps Lock shows in Hangul mode')
@@ -29,10 +29,19 @@ assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', true, tru
 assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', false, true), 'French · Caps Lock on', 'a single layout names Caps Lock without a shortcut')
 assertEqual(model.inputTooltip(japanese, 'English (US)', false, false), 'Mozc · Super + I', 'Caps Lock off leaves the tooltip as it was')
 assertEqual(model.inputTooltip(japanese, 'English (US)', false, true, (key, english) => key === 'bar.capsLockOn' ? 'Verr. Maj.' : english), 'Mozc · Verr. Maj. · Super + I', 'the Caps Lock words come from the catalog')
+// The layout label takes the case Caps Lock types in; an input method's label
+// has no case, so it carries ⇪ instead.
+assertEqual(model.capsLabel('EN', 'EN', false), 'en', 'a layout label reads lowercase with Caps Lock off')
+assertEqual(model.capsLabel('EN', 'EN', true), 'EN', 'a layout label reads uppercase with Caps Lock on')
+assertEqual(model.capsLabel('FR', 'FR', false), 'fr', 'every layout follows the same case')
+assertEqual(model.capsLabel('한', 'EN', false), '한', 'Hangul keeps its label with Caps Lock off')
+assertEqual(model.capsLabel('한', 'EN', true), '한⇪', 'Hangul carries ⇪ with Caps Lock on')
+assertEqual(model.capsLabel('あ', 'EN', true), 'あ⇪', 'Kana carries ⇪ with Caps Lock on')
+assertEqual(model.capsLabel('', 'EN', true), '', 'no label stays empty')
 assertEqual(model.capsLockOn([{ name: 'kb', capsLock: true }]), true, 'a keyboard reporting Caps Lock has it on')
 assertEqual(model.capsLockOn([{ name: 'kb', capsLock: false }]), false, 'a keyboard reporting no Caps Lock has it off')
 assertEqual(model.capsLockOn([{ name: 'kb' }]), false, 'an older Hyprland that reports no lock reads as off')
-assertEqual(model.capsLockOn([{ name: 'laptop', capsLock: false }, { name: 'usb', capsLock: true }]), true, 'Caps Lock on a second keyboard lights the badge')
+assertEqual(model.capsLockOn([{ name: 'laptop', capsLock: false }, { name: 'usb', capsLock: true }]), true, 'Caps Lock on a second keyboard counts')
 assertEqual(model.capsLockOn([]), false, 'no keyboard means no Caps Lock')
 assertEqual(model.capsLockOn(undefined), false, 'no reading means no Caps Lock')
 assertEqual(model.showIndicator('EN', false, false, true), true, 'one layout shows the widget while Caps Lock is on')
@@ -225,11 +234,11 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   }
   const keyboard = (name, capsLock) => ({ name, layout: 'us,kr', active_keymap: 'English (US)', active_layout_index: 0, capsLock })
   assert(capsReading([keyboard('power-button', false), keyboard('usb-keyboard', true)]).capsLock, 'Caps Lock is read off the keyboard being typed on')
-  assert(!capsReading([keyboard('power-button', true), keyboard('usb-keyboard', false)]).capsLock, 'a button reporting Caps Lock does not light the badge')
+  assert(!capsReading([keyboard('power-button', true), keyboard('usb-keyboard', false)]).capsLock, 'a button reporting Caps Lock does not count as Caps Lock')
   assert(!capsReading([keyboard('power-button', true)]).capsLock, 'Caps Lock clears once the last keyboard is unplugged')
   {
     const second = capsReading([keyboard('at-translated-set-2-keyboard', false), keyboard('usb-keyboard', true)], 'at-translated-set-2-keyboard')
-    assert(second.capsLock && second.keyboardName === 'at-translated-set-2-keyboard', 'Caps Lock on a second keyboard lights the badge while the label keeps its keyboard')
+    assert(second.capsLock && second.keyboardName === 'at-translated-set-2-keyboard', 'Caps Lock on a second keyboard counts while the label keeps its keyboard')
   }
   {
     const single = l => ({ name: 'at-translated-set-2-keyboard', layout: 'us', active_keymap: 'English (US)', active_layout_index: 0, capsLock: l })

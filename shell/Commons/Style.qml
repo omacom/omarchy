@@ -355,10 +355,6 @@ QtObject {
     readonly property int iconFont:       root.barToken("icon-font",       13)
     readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
-    // The filled badge a text label sits on to show a state, as the keyboard
-    // label does for Caps Lock.
-    readonly property int badgeHeight:    root.barToken("badge-height",    14)
-    readonly property int badgeRadius:    root.barToken("badge-radius",    3)
   }
 
   // Off with Hyprland's own animations, as `omarchy toggle animations` turns
@@ -435,8 +431,7 @@ QtObject {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
         } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
           || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
-          || key === "icon-size" || key === "status-slot"
-          || key === "badge-height" || key === "badge-radius") {
+          || key === "icon-size" || key === "status-slot") {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }

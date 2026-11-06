@@ -4,7 +4,6 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import qs.Ui
 import qs.Commons
-import qs.Commons as Commons
 import "KeyboardLayoutModel.js" as KeyboardLayoutModel
 
 BarWidget {
@@ -267,25 +266,13 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  // Caps Lock fills the label with the accent and turns its text to the
-  // background, whichever input mode it shows, 한 and あ included.
-  Rectangle {
-    anchors.centerIn: button
-    width: button.labelWidth + Style.spaceReal(3) * 2
-    height: Style.bar.badgeHeight
-    radius: Style.bar.badgeRadius
-    color: Commons.Color.accent
-    visible: root.capsLock && button.labelWidth > 0
-  }
-
   WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.inputLabel
+    text: KeyboardLayoutModel.capsLabel(root.inputLabel, root.layoutLabel, root.capsLock)
     fontSize: Style.font.caption
     horizontalMargin: 6
-    foreground: root.capsLock ? Commons.Color.background : (root.bar ? root.bar.barForeground : Commons.Color.foreground)
     tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts, root.capsLock, I18n.t)
     onPressed: function(button) {
       if (root.multipleInputs && button === Qt.LeftButton) {
