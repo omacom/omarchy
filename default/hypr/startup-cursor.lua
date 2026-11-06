@@ -25,11 +25,12 @@ local function normal_path()
   return table.concat(kept, ":")
 end
 
--- Retry the stage that stalled; rerunning the Xcursor stage over a loaded Hyprcursor theme would replace it.
+-- Retry the stalled stage until the reveal lands, never the Xcursor one over a loaded Hyprcursor theme.
 local function retry()
   if omarchy_startup_cursor_pending then
     omarchy_startup_cursor.restoring = false
     omarchy_startup_cursor_restore(omarchy_startup_cursor.loaded)
+    if omarchy_startup_cursor_pending then hl.timer(retry, { timeout = 15000, type = "oneshot" }) end
   end
 end
 
@@ -39,15 +40,14 @@ function omarchy_startup_cursor_restore(loaded)
   local cursor = omarchy_startup_cursor
   local hyprcursor = cursor.config.enable_hyprcursor and cursor.hyprcursor
   if loaded and hyprcursor and not (loaded == "hyprcursor" and cursor.attempt) then
-    -- Only a setcursor made with Hyprcursor enabled loads its style, and Hyprland 0.56 draws an unloaded
-    -- one as a null surface, so the reveal waits for this attempt's setcursor; a reload or retry discards it.
-    cursor.loaded, cursor.attempt = true, math.random(0)
+    -- Only a setcursor made with Hyprcursor enabled loads its style, and Hyprland 0.56 draws an unloaded one as a
+    -- null surface; only a reload turns it off again, so a completion is trusted only in the Lua state that sent it.
+    cursor.loaded, cursor.attempt = true, cursor.attempt or math.random(0)
     hl.config({ cursor = { invisible = true, enable_hyprcursor = true, sync_gsettings_theme = cursor.config.sync_gsettings_theme } })
     local complete = "if omarchy_startup_cursor and omarchy_startup_cursor.attempt == " .. cursor.attempt
       .. ' then omarchy_startup_cursor_restore("hyprcursor") end'
     hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(hyprcursor) .. " " .. cursor.size
       .. " && hyprctl eval " .. o.shell_quote(complete))
-    hl.timer(retry, { timeout = 15000, type = "oneshot" })
   elseif loaded then
     omarchy_startup_cursor_pending = false
     hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
