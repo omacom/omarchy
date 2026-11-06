@@ -36,6 +36,14 @@ else
 fi
 SH
 chmod +x "$stage/bin/owe"
+# The crossfades under test need their length, and a session that renders on
+# the CPU (the CI VM) turns Hyprland's animations off, which zeroes every
+# Style.duration. This also keeps the fixtures off the live compositor.
+cat >"$stage/bin/hyprctl" <<'SH'
+#!/bin/bash
+echo '{"bool":true}'
+SH
+chmod +x "$stage/bin/hyprctl"
 output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" INTRO_TEST_LOG="$stage/starts" INTRO_TEST_COVER="$stage/cover.ppm" INTRO_TEST_FRAME_READY="$stage/video-ready" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "background intro fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "background intro lifecycle assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
