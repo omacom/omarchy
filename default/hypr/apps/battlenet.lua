@@ -14,3 +14,14 @@ o.window({ class = "^steam_app_battlenet$", title = "^Battle\\.net Setup$" }, {
   no_blur = true,
   no_shadow = true,
 })
+
+-- Games started from the launcher (World of Warcraft and the rest) share its class
+-- and Proton prefix. When follow_mouse focuses the launcher, Wine asks to activate
+-- the running game, and the global focus_on_activate then hands it focus back and
+-- warps the cursor onto it, so the launcher can't be hovered while a game is open.
+-- The launcher's own windows (Battle.net, Battle.net - Chats and Groups, Blizzard
+-- dialogs) keep focus_on_activate. A running game is no longer raised by Play; it
+-- is marked urgent instead.
+o.window({ class = "^steam_app_battlenet$", title = "negative:^(Battle\\.net|Blizzard).*$" }, {
+  focus_on_activate = false,
+})
