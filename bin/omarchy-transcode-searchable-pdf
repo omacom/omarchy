@@ -1,9 +1,12 @@
-#!/usr/bin/python3
+#!/bin/bash
 # omarchy:summary=Make a scanned PDF searchable while preserving the original
 # omarchy:args=<pdf> [--output <pdf>] [--language <codes>]
 # omarchy:examples=omarchy transcode searchable-pdf scan.pdf | omarchy transcode searchable-pdf scan.pdf --language eng+hin
 
+exec python3 - "$@" <<'PY'
 import argparse
+import ctypes
+import errno
 import os
 from pathlib import Path
 import re
@@ -12,8 +15,29 @@ import sys
 import tempfile
 
 
+def publish_pdf(generated, output):
+  try:
+    os.link(generated, output)
+  except OSError as error:
+    if error.errno not in (errno.EPERM, errno.EOPNOTSUPP, errno.ENOSYS):
+      raise
+    # FAT/exFAT cannot create hard links. Linux's no-replace rename publishes
+    # the completed file atomically and refuses a destination created mid-OCR.
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+      rename = libc.renameat2
+    except AttributeError:
+      raise OSError(errno.ENOTSUP, "Atomic no-replace rename is unavailable", str(output)) from error
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    at_fdcwd, rename_noreplace = -100, 1
+    if rename(at_fdcwd, os.fsencode(generated), at_fdcwd, os.fsencode(output), rename_noreplace) != 0:
+      code = ctypes.get_errno()
+      raise OSError(code, os.strerror(code), str(output))
+
+
 def main():
-  parser = argparse.ArgumentParser(description="Add a searchable text layer to a scanned PDF. Requires OCRmyPDF and the selected Tesseract language packs. Existing output files are never replaced.")
+  parser = argparse.ArgumentParser(prog="omarchy-transcode-searchable-pdf", description="Add a searchable text layer to a scanned PDF. Requires OCRmyPDF and the selected Tesseract language packs. Existing output files are never replaced.")
   parser.add_argument("pdf", type=Path)
   parser.add_argument("--output", type=Path)
   parser.add_argument("--language", default=os.environ.get("OMARCHY_OCR_LANGS", "eng"))
@@ -30,13 +54,13 @@ def main():
     raise ValueError("Install OCRmyPDF first: omarchy pkg aur add ocrmypdf")
 
   # Generate next to the destination so publication is atomic on its filesystem.
-  # link() refuses even a destination created after the initial existence check.
+  # Both publication paths refuse a destination created after the existence check.
   with tempfile.TemporaryDirectory(prefix=".omarchy-ocr-", dir=output.parent) as scratch:
     generated = Path(scratch) / "searchable.pdf"
     subprocess.run(["ocrmypdf", "--skip-text", "--rotate-pages", "--deskew", "--output-type", "pdf",
       "-l", args.language, str(source), str(generated)], check=True, stdout=sys.stderr)
     os.chmod(generated, 0o600)
-    os.link(generated, output)
+    publish_pdf(generated, output)
   print(output)
   return 0
 
@@ -47,3 +71,4 @@ if __name__ == "__main__":
   except (OSError, ValueError, subprocess.SubprocessError) as error:
     print(f"Searchable PDF: {error}", file=sys.stderr)
     sys.exit(1)
+PY
