@@ -23,10 +23,13 @@ caller_uid=""
 state_base=""
 state_dir=""
 idle_owner_file=""
+idle_previous_file=""
 inhibit_pid_file=""
 launch_control_file=""
 launch_pending=0
 launch_token=""
+idle_lock_fd=""
+idle_temporary=""
 
 fail_state_boundary() {
   echo "Refusing to use an unsafe Omarchy update inhibitor state path." >&2
@@ -109,6 +112,7 @@ initialize_state_boundary() {
 
   state_dir="$state_base/omarchy-update-stay-awake"
   idle_owner_file="$state_dir/idle-owner"
+  idle_previous_file="$state_dir/idle-previous"
   inhibit_pid_file="$state_dir/inhibit-pid"
   launch_control_file="$state_dir/launch-control"
 }
@@ -208,7 +212,7 @@ rollback_pending_launch() {
   fi
 
   # A signal may interrupt either parent-side atomic write before its rename.
-  rm -f -- "$state_dir"/.launch-control.* "$state_dir"/.idle-owner.*
+  rm -f -- "$state_dir"/.launch-control.* "$state_dir"/.idle-owner.* "$state_dir"/.idle-previous.*
   stop_locked || return 1
   launch_pending=0
 }
@@ -217,6 +221,7 @@ cleanup_pending_launch() {
   local status=$?
 
   trap - EXIT HUP INT TERM
+  release_idle_state
   if ! rollback_pending_launch; then
     echo "Failed to roll back the pending Omarchy update sleep inhibitor." >&2
     (( status != 0 )) || status=1
@@ -359,14 +364,76 @@ terminate_inhibitor() {
   return 1
 }
 
+# Share the state writer lock with the shell and CLI. Acquire it only after the
+# long-lived inhibitor has launched so that process never inherits it.
+lock_idle_state() {
+  mkdir -p -- "${stay_awake_state%/*}" || return
+  exec {idle_lock_fd}>>"$stay_awake_state.lock" || return
+  flock "$idle_lock_fd"
+}
+
+release_idle_state() {
+  [[ -z $idle_temporary ]] || rm -f -- "$idle_temporary"
+  idle_temporary=""
+  [[ -z $idle_lock_fd ]] || exec {idle_lock_fd}>&-
+  idle_lock_fd=""
+}
+
+write_idle_state() {
+  idle_temporary=$(mktemp "${stay_awake_state%/*}/.stay-awake.XXXXXXXX") || return
+  printf '%s' "$1" >"$idle_temporary" || return
+  mv -fT -- "$idle_temporary" "$stay_awake_state" || return
+  idle_temporary=""
+}
+
+claim_idle_state() {
+  local idle_owner="$1" previous=""
+  lock_idle_state || return
+  if [[ -f $stay_awake_state && ! -L $stay_awake_state ]]; then
+    [[ -s $stay_awake_state ]] || return 0
+    previous=$(head -c 64 -- "$stay_awake_state") || return
+    [[ ! $previous =~ ^[0-9]+:[0-9]+:[0-9]+$ ]] || return 0
+  fi
+  # Preserve the absolute deadline even if it expires during the update.
+  if [[ $previous =~ ^[0-9]{1,16}$ ]]; then
+    atomic_write_state "$idle_previous_file" "$previous" || return
+  fi
+  atomic_write_state "$idle_owner_file" "$idle_owner" || return
+  write_idle_state "$idle_owner"
+}
+
+restore_idle_state() {
+  local idle_owner="" current_idle_owner="" previous=""
+  lock_idle_state || return
+  if [[ -e $idle_owner_file || -L $idle_owner_file ]]; then
+    idle_owner=$(read_state_record "$idle_owner_file" 1 2>/dev/null || true)
+    if [[ ! $idle_owner =~ ^[0-9]+:[0-9]+:[0-9]+$ ]]; then
+      echo "Ignoring unsafe Omarchy update idle ownership state." >&2
+      rm -f -- "$idle_owner_file" "$idle_previous_file"
+      return 1
+    fi
+    if [[ -f $stay_awake_state && ! -L $stay_awake_state ]]; then
+      current_idle_owner=$(head -c 64 -- "$stay_awake_state") || return
+    fi
+    if [[ $current_idle_owner == "$idle_owner" ]]; then
+      if [[ -e $idle_previous_file || -L $idle_previous_file ]]; then
+        previous=$(read_state_record "$idle_previous_file") || return
+        [[ $previous =~ ^[0-9]{1,16}$ ]] || return 1
+        write_idle_state "$previous" || return
+      else
+        rm -f -- "$stay_awake_state" || return
+      fi
+    fi
+  fi
+  rm -f -- "$idle_owner_file" "$idle_previous_file"
+}
+
 stop_locked() {
   local inhibit_record=""
   local inhibit_pid=""
   local recorded_start_time=""
   local recorded_owner=""
   local token=""
-  local idle_owner=""
-  local current_idle_owner=""
   local current_start=""
   local failed=0
   local remove_inhibit_state=1
@@ -379,21 +446,8 @@ stop_locked() {
     return 1
   fi
 
-  if [[ -e $idle_owner_file || -L $idle_owner_file ]]; then
-    idle_owner=$(read_state_record "$idle_owner_file" 1 2>/dev/null || true)
-    if [[ $idle_owner =~ ^[0-9]+:[0-9]+:[0-9]+$ ]]; then
-      if [[ -f $stay_awake_state ]]; then
-        current_idle_owner=$(<"$stay_awake_state")
-      fi
-      if [[ $current_idle_owner == "$idle_owner" ]]; then
-        omarchy-toggle-idle allow-idle >/dev/null 2>&1 || true
-      fi
-    else
-      echo "Ignoring unsafe Omarchy update idle ownership state." >&2
-      failed=1
-    fi
-    rm -f -- "$idle_owner_file"
-  fi
+  restore_idle_state || failed=1
+  release_idle_state
 
   if [[ -e $inhibit_pid_file || -L $inhibit_pid_file ]]; then
     inhibit_record=$(read_state_record "$inhibit_pid_file" 1 2>/dev/null || true)
@@ -549,16 +603,8 @@ start_locked() {
     state_file_is_private "$launch_control_file" || return 1
     rm -f -- "$launch_control_file"
   fi
-  if [[ ! -f $stay_awake_state ]]; then
-    atomic_write_state "$idle_owner_file" "$idle_owner" || return 1
-    mkdir -p "$(dirname "$stay_awake_state")" || return 1
-    # The idle toggle uses this marker. Publish its owner in the same write so
-    # cancellation cannot leave an unowned Stay Awake setting behind.
-    if ! printf '%s\n' "$idle_owner" >"$stay_awake_state"; then
-      omarchy-toggle-idle allow-idle >/dev/null 2>&1 || true
-      return 1
-    fi
-  fi
+  claim_idle_state "$idle_owner" || return 1
+  release_idle_state
   launch_pending=0
   trap - EXIT
 }
