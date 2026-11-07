@@ -190,7 +190,7 @@ n1x_acpi n1x-acpi
 n1x_pci n1x-gpu
 n1x_acpi n1x-both
 n1x_pci n1x-both
-n1x_pci other-nvidia 0x2e03
+n1x_pci other-nvidia 0x2b85
 expect n1x-acpi aarch64 aarch64-n1x "the N1x's ACPI I2C controllers name it"
 expect n1x-gpu aarch64 aarch64-n1x "the N1x's GPU names it"
 expect n1x-both aarch64 aarch64-n1x "both N1x signatures agree"
