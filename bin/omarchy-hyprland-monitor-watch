@@ -6,6 +6,8 @@ SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
 MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
 
+# The reconciler stands down by itself while monitor management is off. The lid
+# inhibitor does not: it changes no layout, and only this watcher keeps it in step.
 sync_clamshell() {
   (
     flock -n 9 || exit 0
@@ -37,6 +39,11 @@ recover_modeless() {
     local delay=3 state reloaded unanswered=0
 
     while true; do
+      if omarchy-toggle-enabled monitor-management-off; then
+        sleep 2
+        continue
+      fi
+
       omarchy-hyprland-monitor-modeless
       state=$?
 
@@ -50,7 +57,9 @@ recover_modeless() {
 
       reloaded=0
       # Reloading into half-replaced package config is what the guard prevents.
-      if (( state == 0 )) && ! omarchy-hyprland-reload-guard paused; then
+      if (( state == 0 )) &&
+        ! omarchy-toggle-enabled monitor-management-off &&
+        ! omarchy-hyprland-reload-guard paused; then
         omarchy-restart-hyprctl
         reloaded=1
       fi
