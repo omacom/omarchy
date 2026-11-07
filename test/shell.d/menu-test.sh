@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const fs = require('fs')
+const vm = require('vm')
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
 
@@ -48,6 +49,8 @@ assertDeepEqual(
     kind: 'action',
     icon: '',
     iconFont: '',
+    previewFont: '',
+    previewFontFile: '',
     label: 'Themes',
     title: '',
     target: '',
@@ -136,6 +139,8 @@ assertDeepEqual(
     kind: 'action',
     icon: '',
     iconFont: '',
+    previewFont: '',
+    previewFontFile: '',
     appIcon: '',
     appId: '',
     label: 'Theme picker',
@@ -153,6 +158,66 @@ assertDeepEqual(
 
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
+
+const preview = menu.normalizeItem('font.example', {
+  label: 'Example', action: 'install-example', previewFont: 'Example Mono',
+  previewFontFile: 'default/fonts/previews/example.ttf'
+})
+const previewRow = menu.displayRow({ [preview.id]: preview }, [preview.id], {}, {}, preview, 'Fonts')
+assertEqual(previewRow.previewFont, 'Example Mono', 'menu carries preview font families')
+assertEqual(previewRow.previewFontFile, preview.previewFontFile, 'menu carries preview font files')
+assertEqual(previewRow.action, 'install-example', 'font previews do not change actions')
+assertEqual(previewRow.detail, 'Fonts', 'font previews preserve search paths')
+const specimens = JSON.parse(fs.readFileSync(path.join(root, 'default/fonts/previews/sources.json'), 'utf8'))
+const installFonts = defaultItems.filter(item => item.parent === 'install.style.font' || /\bomarchy-install-font\b/.test(item.action))
+for (const font of installFonts) {
+  assert(font.previewFontFile, `${font.id} includes an offline preview (see agents/skills/font-previews.md)`)
+  assert(font.previewFont && font.action.startsWith('omarchy-install-font ') && font.action.endsWith(` '${font.previewFont}'`), `${font.id} previews its install family`)
+  const key = font.id.split('.').pop()
+  assert(specimens[key], `${font.id} records specimen provenance`)
+  assertEqual(font.previewFontFile, `default/fonts/previews/${key}.ttf`, `${font.id} points to its own specimen`)
+  assertEqual(specimens[key].sourceFamily, font.previewFont, `${font.id} specimen matches its actual font family`)
+  assert(/^https:\/\//.test(specimens[key].url) && /^[0-9a-f]{64}$/.test(specimens[key].sourceSha256), `${font.id} records a source URL and hash`)
+  assert(specimens[key].licenseUrl || (specimens[key].archiveMember && specimens[key].licenseMember), `${font.id} records a rebuildable license source`)
+  const asset = fs.readFileSync(path.join(root, font.previewFontFile))
+  assertEqual(asset.readUInt32BE(0), 0x00010000, `${font.id} has a TrueType specimen`)
+  assert(asset.length < 100000, `${font.id} specimen is small`)
+  const tableCount = asset.readUInt16BE(4)
+  let nameOffset = 0
+  for (let i = 0; i < tableCount; i++) {
+    const offset = 12 + i * 16
+    if (asset.toString('ascii', offset, offset + 4) === 'name') nameOffset = asset.readUInt32BE(offset + 8)
+  }
+  assert(nameOffset > 0, `${font.id} has a font name table`)
+  const names = []
+  for (let i = 0; i < asset.readUInt16BE(nameOffset + 2); i++) {
+    const offset = nameOffset + 6 + i * 12
+    const platform = asset.readUInt16BE(offset)
+    const nameId = asset.readUInt16BE(offset + 6)
+    if ((platform === 0 || platform === 3) && (nameId === 1 || nameId === 16)) {
+      const start = nameOffset + asset.readUInt16BE(nameOffset + 4) + asset.readUInt16BE(offset + 10)
+      names.push(Buffer.from(asset.subarray(start, start + asset.readUInt16BE(offset + 8))).swap16().toString('utf16le'))
+    }
+  }
+  assert(names.length > 0 && names.every(name => name === `Omarchy Preview ${key}` && name === specimens[key].previewFamily), `${font.id} uses its private preview family, not the full installed family`)
+  assert(fs.readFileSync(path.join(root, `default/fonts/previews/${key}.LICENSE`), 'utf8').trim(), `${font.id} includes its license`)
+}
+
+const directory = path.join(root, 'shell/plugins/menu')
+const syntax = {}
+vm.createContext(syntax)
+vm.runInContext(fs.readFileSync(path.join(directory, 'FontSyntax.js'), 'utf8'), syntax)
+const colors = {red: '#ff0000', green: '#00ff00', yellow: '#ffff00', blue: '#0000ff', magenta: '#ff00ff', cyan: '#00ffff'}
+const menuQml = fs.readFileSync(path.join(directory, 'Menu.qml'), 'utf8')
+const samples = vm.runInNewContext(menuQml.match(/fontPreviewSamples: (\[[\s\S]*?\n  \])/)[1])
+samples.forEach((sample, index) => {
+  const highlighted = syntax.highlight(sample, index > 0, colors)
+  assertEqual(highlighted.replace(/<font color="#[0-9a-fA-F]{6}">|<\/font>/g, ''), syntax.escape(sample), `sample ${index} preserves all characters`)
+  assert(index === 0 ? !highlighted.includes('<font') : highlighted.includes('<font'), `sample ${index} uses expected highlighting`)
+})
+assert(!syntax.highlight('<img src="https://example.invalid">', true, colors).includes('<img'), 'escape markup-shaped preview text')
+assert(!syntax.highlight('const x', true, {magenta: '"><img src="bad">'}).includes('<img'), 'reject markup in palette values')
+assertEqual(syntax.highlight('const x < 3', true, {}), 'const x &lt; 3', 'missing palette preserves escaped foreground text')
 
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.

@@ -338,6 +338,7 @@
   "menu.powerProfileBalanced": "subalansuotas",
   "menu.powerProfilePerformance": "našumas",
   "menu.powerProfilePowerSaver": "energijos taupymas",
+  "menu.previewUnavailable": "Peržiūra nepasiekiama",
   "menu.selectPrompt": "Pasirinkti",
   "menu.selectedCount": {
     "few": "%1 pasirinkta",

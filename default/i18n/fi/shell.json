@@ -328,6 +328,7 @@
   "menu.powerProfileBalanced": "tasapainotettu",
   "menu.powerProfilePerformance": "suorituskyky",
   "menu.powerProfilePowerSaver": "virransäästö",
+  "menu.previewUnavailable": "Esikatselu ei ole saatavilla",
   "menu.selectPrompt": "Valitse",
   "menu.selectedCount": {
     "one": "%1 valittu",

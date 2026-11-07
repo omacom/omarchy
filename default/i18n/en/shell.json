@@ -328,6 +328,7 @@
   "menu.powerProfileBalanced": "balanced",
   "menu.powerProfilePerformance": "performance",
   "menu.powerProfilePowerSaver": "power-saver",
+  "menu.previewUnavailable": "Preview unavailable",
   "menu.selectPrompt": "Select",
   "menu.selectedCount": {
     "one": "%1 selected",

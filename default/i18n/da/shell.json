@@ -328,6 +328,7 @@
   "menu.powerProfileBalanced": "balanceret",
   "menu.powerProfilePerformance": "ydelse",
   "menu.powerProfilePowerSaver": "strømbesparende",
+  "menu.previewUnavailable": "Forhåndsvisning ikke tilgængelig",
   "menu.selectPrompt": "Vælg",
   "menu.selectedCount": {
     "one": "%1 valgt",

@@ -338,6 +338,7 @@
   "menu.powerProfileBalanced": "uravnoteženo",
   "menu.powerProfilePerformance": "performanse",
   "menu.powerProfilePowerSaver": "štednja energije",
+  "menu.previewUnavailable": "Pregled nije dostupan",
   "menu.selectPrompt": "Odaberi",
   "menu.selectedCount": {
     "few": "%1 odabrano",
