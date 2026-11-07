@@ -34,8 +34,11 @@ Item {
   readonly property int cellGutter: Style.spacing.sm
   readonly property int cellPadding: Style.spacing.lg
   // Space between the highlight's edge and the icon above / the name below.
-  // The same on every side, so the icon and name sit centered in it.
-  readonly property int hoverPadding: Math.min(Style.spacing.md, cellPadding)
+  // The same above and below, so the icon and name sit centered in it.
+  readonly property int hoverPadding: Math.min(Style.spacing.sm, cellPadding)
+  // How far the highlight stays in from the cell's sides: it ends just past the
+  // widest name that fits, so it hugs the app rather than filling the cell.
+  readonly property int hoverInsetX: cellGutter + Style.spacing.md - Style.spacing.sm
   readonly property int cellWidth: Math.round(iconSize * 2.2)
   readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight
   readonly property int maxColumns: 7
@@ -159,7 +162,8 @@ Item {
   function selectIndex(index) {
     if (root.apps.length === 0) return
     var next = Math.max(0, Math.min(root.apps.length - 1, index))
-    if (next !== root.selectedIndex) root.selectedIndex = next
+    if (next === root.selectedIndex) return
+    root.selectedIndex = next
     grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
   }
 
@@ -368,27 +372,31 @@ Item {
           // composing Japanese, Chinese or Korean) only reach text-input items.
           FilterInput {
             id: filterInput
-            anchors.fill: parent
+            // Inset from the box's sides and centered in it, as the text was
+            // before it became an input.
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: Style.spacing.controlPaddingX
+            anchors.rightMargin: Style.spacing.controlPaddingX
+            anchors.verticalCenter: parent.verticalCenter
             keyHandler: keyCatcher
             // Input-method commits bypass key handling, so the dialog has to refuse them here.
             readOnly: !!root.uninstallEntry
             color: Commons.Color.menu.text
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
-            leftPadding: Style.spacing.controlPaddingX
-            rightPadding: Style.spacing.controlPaddingX
             text: root.filterText
             onTextChanged: if (text !== root.filterText) root.setFilter(text)
           }
 
-          // The search line reads as a search until something is typed into it.
+          // The hint shown while the box is empty. It also steps aside while an
+          // input method is composing, when the text is still empty.
           Text {
+            anchors.left: filterInput.left
+            anchors.right: filterInput.right
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.filterText === "" && !filterInput.preeditText
             textFormat: Text.PlainText
-            anchors.fill: filterInput
-            anchors.leftMargin: filterInput.leftPadding
-            anchors.rightMargin: filterInput.rightPadding
-            verticalAlignment: Text.AlignVCenter
-            visible: !root.filterText && !filterInput.preeditText
             text: Commons.I18n.t("dock.searchApps")
             color: Commons.Color.menu.text
             opacity: 0.58
@@ -426,22 +434,33 @@ Item {
 
               // The selection marks the whole app, icon and name together.
               // Every app gets the same highlight, whatever its name: it is
-              // sized for the icon plus the name's two-line slot, with the same
-              // padding above and below. Declared first, so it is drawn behind
-              // the icon and the name.
+              // sized for the icon plus the name's two-line slot. The icon and
+              // name sit centered in it, so the space above the icon and below
+              // the name is the same. Declared first, so it is drawn behind the
+              // icon and the name.
               Rectangle {
-                x: root.cellGutter
-                y: icon.y - root.hoverPadding
-                width: cell.width - root.cellGutter * 2
+                x: root.hoverInsetX
+                y: root.cellPadding - root.hoverPadding
+                width: cell.width - root.hoverInsetX * 2
                 height: root.hoverPadding * 2 + icon.height + Style.spacing.md + root.labelHeight
                 radius: Style.cornerRadius
-                color: cell.selected ? Commons.Color.menu.selectedBackground : "transparent"
+                color: Commons.Color.menu.selectedBackground
+                // It fades in and out rather than switching on and off. The
+                // colour stays fixed and the opacity moves, so it never passes
+                // through a darker in-between shade.
+                opacity: cell.selected ? 1 : 0
+                visible: opacity > 0
+
+                Behavior on opacity { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
               }
 
               Image {
                 id: icon
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: root.cellPadding
+                // The icon-to-name block is centered in the highlight: a name
+                // shorter than its two-line slot moves the block down by half
+                // of what it leaves unused.
+                y: root.cellPadding + Math.round((root.labelHeight - label.contentHeight) / 2)
                 width: root.iconSize
                 height: root.iconSize
                 sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
@@ -460,19 +479,18 @@ Item {
                 anchors.topMargin: Style.spacing.md
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: parent.width - (root.cellGutter + Style.spacing.md) * 2
-                // A fixed two-line slot with the name centered in it, so short
-                // and long names sit the same way in every highlight.
-                height: root.labelHeight
                 textFormat: Text.PlainText
                 text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
                 color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
                 font.family: Style.font.menuFamily
                 font.pixelSize: Style.font.body
                 horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+                verticalAlignment: Text.AlignTop
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
+
+                Behavior on color { ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
               }
 
               MouseArea {
