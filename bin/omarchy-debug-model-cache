@@ -11,6 +11,12 @@ from pathlib import Path
 import sys
 
 
+def terminal_text(value):
+  return "".join(
+    character if character.isprintable() else character.encode("unicode_escape").decode("ascii") for character in value
+  )
+
+
 def main():
   parser = argparse.ArgumentParser(
     description="Report Hugging Face cache usage without deleting, downloading or loading models. Uses huggingface_hub from the active Python environment."
@@ -48,19 +54,19 @@ def main():
   if args.json:
     print(json.dumps(report, ensure_ascii=False))
   else:
-    print(f"Cache: {directory}")
+    print(f"Cache: {terminal_text(str(directory))}")
     if not report["exists"]:
       print("No cache exists here yet.")
     for repo in report["repositories"]:
-      print(f"{repo['bytes'] / 1024**3:.2f} GiB\t{repo['type']}\t{repo['id']}\t{repo['revisions']} revisions")
+      print(f"{repo['bytes'] / 1024**3:.2f} GiB\t{terminal_text(repo['type'])}\t{terminal_text(repo['id'])}\t{repo['revisions']} revisions")
     print(f"Valid cached repositories: {report['total_bytes'] / 1024**3:.2f} GiB total")
     for warning in report["warnings"]:
-      print(f"Cache warning: {warning}", file=sys.stderr)
+      print(f"Cache warning: {terminal_text(warning)}", file=sys.stderr)
 
 
 try:
   main()
 except (OSError, ValueError) as error:
-  print(f"omarchy-debug-model-cache: {error}", file=sys.stderr)
+  print(f"omarchy-debug-model-cache: {terminal_text(str(error))}", file=sys.stderr)
   sys.exit(1)
 PY
