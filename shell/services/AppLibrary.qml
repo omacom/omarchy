@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import qs.Commons
 import "AppSearch.js" as AppSearch
 
@@ -249,6 +250,17 @@ Item {
   Connections {
     target: ToplevelManager
     function onActiveToplevelChanged() { root.maybeFinishLaunchFeedback() }
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      // Layer-shell apps never appear in ToplevelManager. Their UI mapping
+      // finishes a launch too, before a delayed OSD can cover the overlay.
+      // Ignore our own surfaces, including the launch OSD itself.
+      if (event.name === "openlayer" && String(event.data).indexOf("omarchy-") !== 0)
+        root.closeLaunchFeedback(root.launchSerial)
+    }
   }
 
   Timer {
