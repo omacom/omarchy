@@ -3,7 +3,7 @@
 # omarchy:summary=Pick one or multiple options from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels>]
+# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --checkbox <label> --width <pixels> --maxheight <pixels>]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
@@ -17,6 +17,9 @@
 # JSON appended, applies immediately, and needs no Apply row. A successful
 # command may print a JSON array of actual selections to update the checkmarks.
 # --selected takes a returned value (label plus any subtext), and can be repeated.
+
+# --checkbox adds an unchecked checkbox to a single-choice menu and returns
+# {"value": "selection", "checked": true|false} instead of plain text.
 
 set -euo pipefail
 
@@ -32,6 +35,7 @@ options=()
 menu_width=""
 menu_maxheight=""
 multiple=0
+checkbox=""
 on_change="[]"
 change_key=""
 selected=()
@@ -56,6 +60,14 @@ while (( $# > 0 )); do
             exit 1
           fi
           change_key="$1"
+          ;;
+        --checkbox)
+          shift
+          if (( $# == 0 )) || [[ -z $1 ]]; then
+            echo "omarchy-menu-select: --checkbox requires a label" >&2
+            exit 2
+          fi
+          checkbox="$1"
           ;;
         --multiple)
           multiple=1
@@ -104,6 +116,11 @@ if (( ${#options[@]} == 0 )); then
   exit 1
 fi
 
+if (( multiple )) && [[ -n $checkbox ]]; then
+  echo "omarchy-menu-select: --checkbox cannot be combined with --multiple" >&2
+  exit 2
+fi
+
 selection_file=$(mktemp)
 done_file=$(mktemp)
 rm -f "$done_file"
@@ -120,13 +137,14 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
     selected => decode_json($ARGV[7]),
     onChange => decode_json($ARGV[8]),
     changeKey => $ARGV[9],
+    checkbox => decode("UTF-8", $ARGV[10]),
     selectionFile => decode("UTF-8", $ARGV[2]),
     doneFile => decode("UTF-8", $ARGV[3])
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key" "$checkbox")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 

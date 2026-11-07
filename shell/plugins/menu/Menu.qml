@@ -75,6 +75,10 @@ Item {
   readonly property bool dmenuActive: mode === "select" || mode === "input"
   property string dmenuPrompt: ""
   property var dmenuOptions: []
+  property string dmenuCheckboxLabel: ""
+  property bool dmenuCheckboxChecked: false
+  readonly property bool hasDmenuCheckbox: mode === "select" && dmenuCheckboxLabel !== ""
+  readonly property real dmenuCheckboxSpace: hasDmenuCheckbox ? checkboxRow.height + contentSpacing : 0
   property bool dmenuMultiple: false
   property var dmenuSelected: []
   // What the last confirmed change applied; a failed change returns the checks here.
@@ -138,7 +142,7 @@ Item {
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
-    ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
+    ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight + dmenuCheckboxSpace), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
 
   function finishRequest(selection) {
@@ -183,7 +187,7 @@ Item {
   // derived from the card height, which this value feeds.
   function availableRowsHeight() {
     var top = panel.cardTop >= 0 ? panel.cardTop : Style.gapsOut
-    var available = panel.height - top - Style.gapsOut - root.contentMargin * 2 - root.headerHeight - root.contentSpacing
+    var available = panel.height - top - Style.gapsOut - root.contentMargin * 2 - root.headerHeight - root.contentSpacing - root.dmenuCheckboxSpace
     // The starting menu sets the ceiling along with the offset: drilling into
     // a longer submenu scrolls behind the fold instead of growing the card.
     if (panel.maxRowsHeight >= 0) available = Math.min(available, panel.maxRowsHeight)
@@ -932,7 +936,8 @@ Item {
     applySerial = requestSerial
     opened = false
     filterText = ""
-    root.finishRequest(value)
+    root.finishRequest(root.hasDmenuCheckbox
+      ? JSON.stringify({ value: value, checked: root.dmenuCheckboxChecked }) : value)
   }
 
   function applySelected(id, action) {
@@ -979,6 +984,8 @@ Item {
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
+    dmenuCheckboxLabel = mode === "select" && !payload.multiple ? String(payload.checkbox || "") : ""
+    dmenuCheckboxChecked = false
     dmenuMultiple = mode === "select" && payload.multiple === true
     dmenuOnChange = dmenuMultiple && Array.isArray(payload.onChange)
       && payload.onChange.every(function(arg) { return typeof arg === "string" }) ? payload.onChange : []
@@ -1331,7 +1338,10 @@ Item {
             return
           }
 
-          if (event.key === Qt.Key_Delete) {
+          if (event.key === Qt.Key_Tab && root.hasDmenuCheckbox) {
+            root.dmenuCheckboxChecked = !root.dmenuCheckboxChecked
+            event.accepted = true
+          } else if (event.key === Qt.Key_Delete) {
             root.requestDeleteSelected()
             event.accepted = true
           } else if (event.key === Qt.Key_Escape) {
@@ -1427,6 +1437,73 @@ Item {
             elide: Text.ElideRight
           }
 
+        }
+
+        Rectangle {
+          id: checkboxRow
+          visible: root.hasDmenuCheckbox
+          width: parent.width
+          height: Math.max(Style.space(40), checkboxLabel.implicitHeight + Style.space(16))
+          radius: root.cornerRadius
+          color: checkboxMouse.containsMouse ? root.selectedBackground : "transparent"
+          Accessible.role: Accessible.CheckBox
+          Accessible.name: root.dmenuCheckboxLabel
+          Accessible.checkable: true
+          Accessible.checked: root.dmenuCheckboxChecked
+          Accessible.onPressAction: root.dmenuCheckboxChecked = !root.dmenuCheckboxChecked
+
+          Rectangle {
+            id: checkboxIndicator
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(18)
+            height: width
+            radius: Style.space(3)
+            color: "transparent"
+            border.width: 1
+            border.color: root.foreground
+            Text {
+              anchors.centerIn: parent
+              text: root.dmenuCheckboxChecked ? "✓" : ""
+              textFormat: Text.PlainText
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              color: root.foreground
+            }
+          }
+          Text {
+            id: checkboxLabel
+            anchors.left: checkboxIndicator.right
+            anchors.leftMargin: Style.space(10)
+            anchors.right: checkboxShortcut.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.dmenuCheckboxLabel
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            color: root.foreground
+          }
+          Text {
+            id: checkboxShortcut
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Tab" // i18n: ignore — keyboard key name
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            color: root.foreground
+            opacity: 0.58
+          }
+          MouseArea {
+            id: checkboxMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.dmenuCheckboxChecked = !root.dmenuCheckboxChecked
+          }
         }
 
         Item {
