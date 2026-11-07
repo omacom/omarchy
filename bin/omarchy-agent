@@ -325,9 +325,11 @@ case "$agent" in
 claude) home_env="CLAUDE_CONFIG_DIR" ;;
 codex) home_env="CODEX_HOME" ;;
 grok) home_env="GROK_HOME" ;;
+agy) home_env="AGY_DIR" ;;
 *) home_env="" ;;
 esac
 if [[ -n $home_env ]]; then
+  [[ $agent == "agy" ]] && omarchy-agent-account-state sync agy >/dev/null 2>&1 || true
   account_pin="OMARCHY_AGENT_${agent^^}_HOME"
   if [[ -v $account_pin && ${!home_env:-} == "${!account_pin}" ]]; then
     unset "$home_env"

@@ -1,20 +1,20 @@
 #!/bin/bash
 
-# omarchy:summary=Rename a Claude, Codex, or Grok subscription account
-# omarchy:args=[claude|codex|grok] <account> <name>
-# omarchy:examples=omarchy agent account rename primary Hey | omarchy agent account rename codex side Side project
+# omarchy:summary=Rename a Claude, Codex, Grok, or Antigravity subscription account
+# omarchy:args=[claude|codex|grok|agy] <account> <name>
+# omarchy:examples=omarchy agent account rename primary Hey | omarchy agent account rename codex side Side project | omarchy agent account rename agy side Work
 
 set -uo pipefail
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account rename primary Hey`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" && ${1:-} != "agy" ]]; then
   default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+  [[ $default == "claude" || $default == "codex" || $default == "grok" || $default == "agy" ]] && set -- "$default" "$@"
 fi
 
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]] || (( $# < 3 )); then
-  echo "Usage: omarchy-agent-account-rename [claude|codex|grok] <account> <name>" >&2
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" && ${1:-} != "agy" ]] || (( $# < 3 )); then
+  echo "Usage: omarchy-agent-account-rename [claude|codex|grok|agy] <account> <name>" >&2
   exit 1
 fi
 

@@ -18,13 +18,14 @@ mkdir -p "$account_test_home" "$real_bin" "$registry_dir"
 
 # Use real mise dispatch and real account resolution, with fake agent binaries.
 # No shell functions, login startup files, credentials, or network are involved.
-for provider in claude codex grok; do
+for provider in claude codex grok agy; do
   cat >"$real_bin/$provider" <<'SH'
 #!/bin/bash
 case "${0##*/}" in
   claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-default}" ;;
   codex) printf '%s\n' "${CODEX_HOME:-default}" ;;
   grok) printf '%s\n' "${GROK_HOME:-default}" ;;
+  agy) printf '%s\n' "${AGY_DIR:-default}" ;;
 esac
 if (($#)); then
   printf '%s\n' "$@"
