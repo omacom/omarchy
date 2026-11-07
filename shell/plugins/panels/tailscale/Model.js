@@ -39,6 +39,19 @@ function displayHostName(hostName, dnsName, tr) {
   return shortDnsName(dnsName) || host || translator(tr)("tailscale.unknown", "Unknown")
 }
 
+// Exit node rows name an identifier, not a friendly label: the value shown
+// must match `tailscale exit-node list`, tsui and the admin console so it can
+// be cross-referenced and typed into `tailscale set --exit-node=`. MACHINES
+// rows keep displayHostName, where the OS hostname reads better.
+function exitNodeLabel(peer, tr) {
+  var unknown = translator(tr)("tailscale.unknown", "Unknown")
+  if (!peer) return unknown
+  if (peer.AddMullvad === true || peer.MullvadRegion === true || peer.Mullvad === true) {
+    return String(peer.DisplayName || unknown)
+  }
+  return shortDnsName(peer.DNSName) || String(peer.DisplayName || peer.HostName || unknown)
+}
+
 function isMullvadHost(name) {
   var value = String(name || "").toLowerCase()
   var suffix = ".mullvad.ts.net"
@@ -253,7 +266,7 @@ function parseStatus(raw, tr) {
       return String(a.HostName).localeCompare(String(b.HostName))
     })
     exitNodes.sort(function(a, b) {
-      return String(a.HostName).localeCompare(String(b.HostName))
+      return exitNodeLabel(a, tr).localeCompare(exitNodeLabel(b, tr))
     })
 
     return {
@@ -315,6 +328,7 @@ if (typeof module !== "undefined") {
     cleanDnsName: cleanDnsName,
     shortDnsName: shortDnsName,
     displayHostName: displayHostName,
+    exitNodeLabel: exitNodeLabel,
     osIcon: osIcon,
     accountLabel: accountLabel,
     loginPlan: loginPlan,
