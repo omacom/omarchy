@@ -2284,13 +2284,19 @@ CODEX_WINDOW_DAYS = 30
 # that missed the responses only Codex 0.163's token_usage_record lines name,
 # version 5 those with no session, version 6 those that left a built-in
 # rollout unread without saying so, version 7 those that booked a
-# switched-to model's first requests to the model before it, and version 8
-# those that read no turns from a rollout naming no session_meta.
-CODEX_ROLLOUT_SCHEMA = 8
+# switched-to model's first requests to the model before it, version 8
+# those that read no turns from a rollout naming no session_meta, and version
+# 9 those that counted the prompts of another agent's imported turns.
+CODEX_ROLLOUT_SCHEMA = 9
 
 _CODEX_MARKERS = (
   '"token_count"', '"token_usage_record"', '"turn_context"', '"thread_settings_applied"', '"session_meta"', '"user_message"', '"UserMessage"',
+  '"task_started"', '"turn_started"',
 )
+
+# The turn id Codex gives each turn it imports from another agent's session
+# (codex-rs external-agent-migration): that agent's work, not a prompt typed here.
+_CODEX_IMPORTED_TURN = "external-import-turn-"
 
 # What a token_usage_record's running total is compared by.
 _CODEX_USAGE_FIELDS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
@@ -2403,7 +2409,7 @@ def _codex_resume(handle: Any, previous: dict[str, Any]) -> dict[str, Any] | Non
     if not (
       type(offset) is int and info.st_size > previous["size"] and info.st_size >= offset
       and state["file"] == [info.st_dev, info.st_ino]
-      and isinstance(state["model"], str) and all(type(state[flag]) is bool for flag in ("meta", "typed", "records", "done"))
+      and isinstance(state["model"], str) and all(type(state[flag]) is bool for flag in ("meta", "typed", "imported", "records", "done"))
       and all(isinstance(day, str) for day in state["pending"]) and all(isinstance(key, str) for key in state["responses"])
       and state["head"] == _codex_digest(handle, offset)
     ):
@@ -2466,6 +2472,7 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
   current_model = "local"
   seen_meta = False
   typed = True
+  imported = False
   pending_prompts: list[str] = []
   previous_total_usage = None
   # Codex 0.163 writes a token_usage_record for every response it is billed
@@ -2494,6 +2501,7 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
         current_model = state["model"]
         seen_meta = state["meta"]
         typed = state["typed"]
+        imported = state["imported"]
         pending_prompts = list(state["pending"])
         previous_total_usage = state["total"]
         seen_records = state["records"]
@@ -2552,6 +2560,11 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
               break
             seen_meta = True
             current_model = "codex"
+          payload = obj(entry.get("payload"))
+          if entry.get("type") == "event_msg" and payload.get("type") in ("task_started", "turn_started"):
+            # The turn's prompts are imported until a turn Codex ran starts.
+            imported = str(payload.get("turn_id") or "").startswith(_CODEX_IMPORTED_TURN)
+            continue
           if _codex_typed_prompt(entry):
             # A prompt with no time is the file's; one whose time can't be
             # trusted counts nowhere.
@@ -2559,7 +2572,7 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
             if timestamp is None:
               resumable = False
             day = local_day(stat_result.st_mtime if timestamp is None else timestamp)
-            if typed and day is not None:
+            if typed and not imported and day is not None:
               pending_prompts.append(day)
             continue
           if entry.get("type") == "turn_context":
@@ -2633,7 +2646,7 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
         opened = os.fstat(handle.fileno())
         resume = {
           "file": [opened.st_dev, opened.st_ino], "offset": offset, "head": _codex_digest(handle, offset),
-          "model": current_model, "meta": seen_meta, "typed": typed, "pending": list(pending_prompts),
+          "model": current_model, "meta": seen_meta, "typed": typed, "imported": imported, "pending": list(pending_prompts),
           "total": previous_total_usage, "records": seen_records, "responses": sorted(seen_responses), "done": done,
         }
   except _CODEX_READ_ERRORS:
