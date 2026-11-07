@@ -102,28 +102,39 @@ pass "a fresh install registers every native messaging host for Chromium and Bra
 
 # --- WhatsApp Slim ---
 
-# The content script switches WhatsApp Web to its system theme mode, which it
-# only reads at startup, so it reloads once; with the mode already set it must
-# not reload again, or the page would never finish loading.
+# The content script switches WhatsApp Web to its system theme mode when no
+# choice is stored. WhatsApp only reads that mode at startup, so the script
+# reloads once; with the mode already set it must not reload again, or the
+# page would never finish loading. Light and Dark store "false", which must
+# be left alone. The mock getItem returns undefined when the key is missing,
+# so the script has to treat that like a browser's null.
 if command -v node >/dev/null; then
   reloads=$(node - "$ROOT/default/chromium/extensions/whatsapp-slim/system-theme.js" <<'JS'
 const fs = require("fs")
 const source = fs.readFileSync(process.argv[2], "utf8")
-const values = new Map()
-const reloads = []
-global.localStorage = {
-  getItem: key => values.get(key),
-  setItem: (key, value) => values.set(key, value),
+
+function scenario(preset) {
+  const values = new Map()
+  const reloads = []
+  if (preset !== undefined) values.set("system-theme-mode", preset)
+  global.localStorage = {
+    getItem: key => values.get(key),
+    setItem: (key, value) => values.set(key, value),
+  }
+  for (const run of [1, 2]) {
+    global.location = { reload: () => reloads.push(run) }
+    eval(source)
+  }
+  return `${values.get("system-theme-mode")}:${reloads.join(",")}`
 }
-for (const run of [1, 2]) {
-  global.location = { reload: () => reloads.push(run) }
-  eval(source)
-}
-process.stdout.write(`${values.get("system-theme-mode")}:${reloads.join(",")}`)
+
+process.stdout.write(`${scenario()} ${scenario("false")}`)
 JS
   )
-  [[ $reloads == "true:1" ]] || fail "WhatsApp selects its system theme mode and reloads only once" "$reloads"
-  pass "WhatsApp follows the system theme through its slim extension"
+  read -r fresh explicit <<<"$reloads"
+  [[ $fresh == "true:1" ]] || fail "WhatsApp selects its system theme mode and reloads only once" "$fresh"
+  [[ $explicit == "false:" ]] || fail "WhatsApp keeps an explicit light or dark theme" "$explicit"
+  pass "WhatsApp follows the system theme unless a light or dark theme was chosen"
 else
   skip "node is not installed; skipping the WhatsApp Slim content script check"
 fi
