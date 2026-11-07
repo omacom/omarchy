@@ -43,6 +43,7 @@ cat >"$fake_bin/quickshell" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 printf 'watcher=%s popup=%s background=%s\n' \
   "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
+[[ -n ${OMARCHY_TEST_QS_MALLOC_LOG:-} ]] && printf '%s\n' "${MALLOC_CONF-unset}" >"$OMARCHY_TEST_QS_MALLOC_LOG"
 
 launches=$(wc -l <"$OMARCHY_TEST_QS_LOG")
 status=$(awk -v n="$launches" 'NR == n { print; found = 1 } END { if (!found) print "0" }' <<<"$OMARCHY_TEST_QS_STATUSES")
@@ -132,6 +133,63 @@ pass "a shell that exits cleanly is left alone"
 pass "the shell launches with Quickshell's config watcher and reload popup off"
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
+
+# Ask jemalloc itself which options it took from the shell's MALLOC_CONF, so a
+# misspelled option, which jemalloc ignores with a warning, fails here.
+qs_malloc_log="$test_tmp/quickshell-malloc.log"
+jemalloc=/usr/lib/libjemalloc.so.2
+
+launch_with_malloc_conf() {
+  : >"$qs_log"
+  : >"$qs_env_log"
+  env -u MALLOC_CONF ${1:+"MALLOC_CONF=$1"} \
+    PATH="$fake_bin:$PATH" \
+    HOME="$launch_home" \
+    OMARCHY_PATH="$shell_root" \
+    OMARCHY_TEST_QS_LOG="$qs_log" \
+    OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+    OMARCHY_TEST_QS_MALLOC_LOG="$qs_malloc_log" \
+    OMARCHY_TEST_QS_STATUSES=0 \
+    OMARCHY_TEST_LOGGER_LOG="$logger_log" \
+    OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
+    timeout 30 "$ROOT/bin/omarchy-launch-shell"
+}
+
+jemalloc_options() {
+  MALLOC_CONF=$1 LD_PRELOAD=$jemalloc python3 -I -c '
+import ctypes
+je = ctypes.CDLL(None)
+thp = ctypes.c_char_p()
+narenas = ctypes.c_uint()
+background = ctypes.c_bool()
+for name, value in ((b"opt.thp", thp), (b"opt.narenas", narenas), (b"opt.background_thread", background)):
+    size = ctypes.c_size_t(ctypes.sizeof(value))
+    if je.mallctl(name, ctypes.byref(value), ctypes.byref(size), None, 0):
+        raise SystemExit("mallctl failed for " + name.decode())
+print(thp.value.decode(), narenas.value, "background" if background.value else "foreground")
+' 2>&1
+}
+
+if [[ -f $jemalloc ]]; then
+  # The arena count is jemalloc's own default, which depends on the CPU.
+  defaults=$(jemalloc_options "") || fail "jemalloc reports its defaults" "$defaults"
+  default_narenas=$(cut -d' ' -f2 <<<"$defaults")
+
+  launch_with_malloc_conf "" || fail "a launch with jemalloc options succeeds"
+  options=$(jemalloc_options "$(<"$qs_malloc_log")") || fail "jemalloc reports the options it parsed" "$options"
+  # Programs the shell starts inherit MALLOC_CONF, and fewer arenas would slow
+  # every multithreaded jemalloc program among them, so it keeps the default.
+  [[ $options == "never $default_narenas background" ]] ||
+    fail "the shell runs jemalloc without huge pages, purging in the background, on default arenas" "$options"
+  pass "the shell runs jemalloc without huge pages, purging in the background, on default arenas"
+
+  launch_with_malloc_conf "thp:always,narenas:4" || fail "a launch with the user's own jemalloc options succeeds"
+  options=$(jemalloc_options "$(<"$qs_malloc_log")") || fail "jemalloc reports the options it parsed" "$options"
+  [[ $options == "always 4 background" ]] || fail "a MALLOC_CONF the user set overrides the shell's" "$options"
+  pass "a MALLOC_CONF the user set overrides the shell's"
+else
+  skip "jemalloc not installed; skipping the shell's allocator options"
+fi
 
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
