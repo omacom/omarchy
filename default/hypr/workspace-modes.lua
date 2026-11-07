@@ -17,6 +17,7 @@
 
 require("default.hypr.helpers")
 local paths = require("default.hypr.paths")
+local workspace_order = require("default.hypr.workspace-order")
 
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
@@ -149,6 +150,7 @@ end
 -- A pinned window is one the user asked to keep above everything, and tiling it
 -- would unpin it as well, so the mode leaves it be.
 local function tile_for_mode(window, mine)
+  workspace_order.clear(window)
   set_on_floating_workspace(window, false)
 
   if not mine[window.address] or window.pinned then
@@ -392,6 +394,11 @@ function o.workspace_mode(spec)
   end
 
   local workspace = tostring(spec.workspace)
+  local windows = hl.get_workspace_windows(workspace)
+  local order = workspace_order.capture(windows, workspace, claimed(), true)
+  if spec.mode == "floating" then
+    workspace_order.remember(order, workspace)
+  end
 
   -- Floating keeps whatever tiled layout the workspace had, so nothing has to be
   -- chosen for it on the way back out.
@@ -405,7 +412,10 @@ function o.workspace_mode(spec)
     set_up_floating()
   end
 
-  arrange(hl.get_workspace_windows(workspace))
+  arrange(windows)
+  if spec.mode ~= "floating" then
+    workspace_order.restore(order)
+  end
   sync_open_rules()
   update_input()
 end
