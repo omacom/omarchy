@@ -800,6 +800,9 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
+  "install.service.omacloud": {
+    "label": "Omacloud"
+  },
   "install.service.spotify": {
     "label": "Spotify"
   },
@@ -1075,6 +1078,9 @@
   },
   "remove.service.dropbox": {
     "label": "Dropbox"
+  },
+  "remove.service.omacloud": {
+    "label": "Omacloud"
   },
   "remove.service.tailscale": {
     "label": "Tailscale"
