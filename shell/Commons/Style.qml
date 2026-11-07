@@ -350,6 +350,13 @@ QtObject {
       var v = Number(root.barOverrides["notch-height"])
       return (isFinite(v) && v > 0) ? Math.round(v) : 0
     }
+    // Calibrated notch cutout width in logical px, for panels the platform
+    // describes without one or with a wrong one (see BarModel.notchSpan).
+    // 0 means take the description's. Physical alignment, like notchHeight.
+    readonly property int notchWidth: {
+      var v = Number(root.barOverrides["notch-width"])
+      return (isFinite(v) && v > 0) ? Math.round(v) : 0
+    }
     readonly property int iconSlot:       root.barToken("icon-slot",       27)
     readonly property int iconCanvas:     root.barToken("icon-canvas",     16)
     readonly property int iconFont:       root.barToken("icon-font",       13)
@@ -429,7 +436,7 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
-        } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
+        } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height" || key === "notch-width"
           || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
           || key === "icon-size" || key === "status-slot") {
           var b = parseInt(raw, 10)

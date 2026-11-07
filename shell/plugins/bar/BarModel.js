@@ -185,8 +185,10 @@ function ownRoomTarget(rows, axis, vertical, source) {
 // { region, after }: after its last widget, or before its first. Over the
 // room the dragged widget (`source`, a candidate's slot) still holds, a drop
 // puts it back, so a widget picked up beside an empty box, whose reach
-// covers its inner end, isn't thrown into it as the drag starts.
-function centerDropTarget(candidates, box, point, vertical, source) {
+// covers its inner end, isn't thrown into it as the drag starts. Where
+// centerBegin's inner end isn't at the box, as around a display notch,
+// `beginEdge` gives where it is along the bar.
+function centerDropTarget(candidates, box, point, vertical, source, beginEdge) {
   var rows = Array.isArray(candidates) ? candidates : []
   if (!box) return nearestDropTarget(rows, point, vertical)
   var axis = vertical ? Number(point && point.y) : Number(point && point.x)
@@ -203,7 +205,8 @@ function centerDropTarget(candidates, box, point, vertical, source) {
   }
 
   var outside = nearestEdge(rows.filter(function(row) { return row && row.region !== "center" }), axis, vertical)
-  var beginDistance = Math.abs(axis - start)
+  var begin = isFinite(Number(beginEdge)) && beginEdge !== null && beginEdge !== undefined ? Number(beginEdge) : start
+  var beginDistance = Math.abs(axis - begin)
   var endDistance = Math.abs(axis - end)
   var edge = beginDistance <= endDistance
     ? { target: { region: "centerBegin", after: true }, distance: beginDistance }
@@ -549,11 +552,13 @@ function dragDistanceOutside(point, width, height) {
 // Display cutouts (a camera notch at the top of a laptop panel) are described
 // by the platform's own package, in /usr/share/omarchy-platform/display-cutouts.json:
 //
-//   { "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64 } ] }
+//   { "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64, "cutoutWidth": 370 } ] }
 //
 // A panel matches a screen whose connector name starts with `connector` and
 // whose mode is width x height physical pixels; `top` is how many physical rows
-// at its top the cutout covers. Anything malformed is dropped.
+// at its top the cutout covers, and the optional `cutoutWidth` how many
+// physical columns, centered on the panel. Anything malformed is dropped; a
+// malformed cutoutWidth alone is left out.
 function parseCutouts(text) {
   var parsed
   try {
@@ -570,29 +575,33 @@ function parseCutouts(text) {
     var top = Number(panel.top)
     if (typeof panel.connector !== "string" || panel.connector === "") continue
     if (!(width > 0) || !(height > 0) || !(top > 0) || top >= height) continue
-    cutouts.push({ connector: panel.connector, width: width, height: height, top: top })
+    var cutout = { connector: panel.connector, width: width, height: height, top: top }
+    var cutoutWidth = Number(panel.cutoutWidth)
+    if (cutoutWidth > 0 && cutoutWidth < width) cutout.cutoutWidth = cutoutWidth
+    cutouts.push(cutout)
   }
   return cutouts
 }
 
-// The cutout at the top of this screen, in logical pixels, or 0. `mode` is the
+// The described panel this screen is, as { panel, scale } where scale turns
+// the panel's physical pixels into logical ones, or null. `mode` is the
 // output's physical mode as Hyprland reports it ({ width, height, transform }).
 // Qt's devicePixelRatio is a whole number even at a fractional scale, so the
 // logical size times it rebuilds the mode only at whole scales; that stands in
 // just until Hyprland's answer arrives. A mode Hyprland reports that matches no
 // panel has no cutout.
-function cutoutTop(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) {
+function cutoutPanel(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) {
   var name = String(screenName || "")
   var logical = Number(logicalWidth)
   var logicalTall = Number(logicalHeight)
-  if (!(logical > 0) || !(logicalTall > 0)) return 0
+  if (!(logical > 0) || !(logicalTall > 0)) return null
   var width = Number(mode && mode.width)
   var height = Number(mode && mode.height)
   if (width > 0 && height > 0) {
     // Turned a quarter or upside down, the cutout is on another edge.
     var transform = Number(mode.transform) || 0
-    if (transform !== 0 && transform !== 4) return 0
-    if ((width > height) !== (logical > logicalTall)) return 0
+    if (transform !== 0 && transform !== 4) return null
+    if ((width > height) !== (logical > logicalTall)) return null
   } else {
     var scale = Number(devicePixelRatio) > 0 ? Number(devicePixelRatio) : 1
     width = Math.round(logical * scale)
@@ -604,9 +613,15 @@ function cutoutTop(cutouts, screenName, logicalWidth, logicalHeight, devicePixel
     if (name.indexOf(panel.connector) !== 0) continue
     // Logical sizes are rounded, so a rebuilt mode can be a couple of pixels off.
     if (Math.abs(width - panel.width) <= 4 && Math.abs(height - panel.height) <= 4)
-      return Math.ceil(panel.top * logical / width)
+      return { panel: panel, scale: logical / width }
   }
-  return 0
+  return null
+}
+
+// The cutout at the top of this screen, in logical pixels, or 0.
+function cutoutTop(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) {
+  var match = cutoutPanel(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode)
+  return match ? Math.ceil(match.panel.top * match.scale) : 0
 }
 
 // The height a top bar on this screen must reach to cover its cutout, or a
@@ -620,10 +635,26 @@ function notchFloor(cutouts, position, screenName, logicalWidth, logicalHeight, 
   return Number(calibrated) > 0 ? Math.round(Number(calibrated)) : top
 }
 
-// A cutout covers the middle of a top bar, so that bar draws its center
-// section beside the right one.
-function centerBesideRight(cutouts, position, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) {
+// How wide, in logical pixels, the cutout in the middle of a top bar on this
+// screen is: its described cutoutWidth, or a calibrated [bar] notch-width in
+// its place, or 0 where neither says. Like the floor, a calibration reaches
+// only a screen with a cutout. The bar splits its center sections around
+// this span, centerBegin ending at its left edge and the center box starting
+// at its right one.
+function notchSpan(cutouts, position, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode, calibrated) {
+  if (position !== "top") return 0
+  var match = cutoutPanel(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode)
+  if (!match) return 0
+  if (Number(calibrated) > 0) return Math.round(Number(calibrated))
+  return match.panel.cutoutWidth > 0 ? Math.ceil(match.panel.cutoutWidth * match.scale) : 0
+}
+
+// A cutout of unknown width covers the middle of a top bar, so that bar draws
+// its center sections beside the right one. One of known width splits them
+// around it instead (notchSpan).
+function centerBesideRight(cutouts, position, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode, calibratedWidth) {
   return position === "top" && cutoutTop(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) > 0
+    && !(notchSpan(cutouts, position, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode, calibratedWidth) > 0)
 }
 
 // Whether a top bar can't tell its floor yet: Hyprland hasn't reported the
@@ -693,6 +724,7 @@ if (typeof module !== "undefined") {
     peeksAt: peeksAt,
     fullscreenOn: fullscreenOn,
     centerBesideRight: centerBesideRight,
+    notchSpan: notchSpan,
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,
     isDrawnSlot: isDrawnSlot,
