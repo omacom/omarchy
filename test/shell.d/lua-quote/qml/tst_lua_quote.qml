@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../../../shell/Commons"
+import "../../../../shell/Commons/Lua.js" as Lua
 
 // A monitor name reaches the Lua expression the bar dispatches, so a quote, a
 // backslash or a control character must stay inside the literal instead of
@@ -9,26 +9,26 @@ TestCase {
   name: "LuaQuote"
 
   function test_plainConnectorName() {
-    compare(Util.luaQuote("DP-1"), "\"DP-1\"")
+    compare(Lua.quote("DP-1"), "\"DP-1\"")
   }
 
   function test_emptyName() {
-    compare(Util.luaQuote(""), "\"\"")
+    compare(Lua.quote(""), "\"\"")
   }
 
   function test_quoteAndBackslash() {
-    compare(Util.luaQuote("DP-1\""), "\"DP-1\\\"\"")
-    compare(Util.luaQuote("DP\\1"), "\"DP\\\\1\"")
+    compare(Lua.quote("DP-1\""), "\"DP-1\\\"\"")
+    compare(Lua.quote("DP\\1"), "\"DP\\\\1\"")
   }
 
   function test_controlCharacters() {
-    compare(Util.luaQuote("DP-1\nx"), "\"DP-1\\nx\"")
-    compare(Util.luaQuote("DP-1\tx"), "\"DP-1\\tx\"")
-    compare(Util.luaQuote("DP\u0001"), "\"DP\\001\"")
+    compare(Lua.quote("DP-1\nx"), "\"DP-1\\nx\"")
+    compare(Lua.quote("DP-1\tx"), "\"DP-1\\tx\"")
+    compare(Lua.quote("DP\u0001"), "\"DP\\001\"")
   }
 
   function test_expressionCannotLeaveTheLiteral() {
-    compare(Util.luaQuote("\" }); os.execute(\"id\") --"),
+    compare(Lua.quote("\" }); os.execute(\"id\") --"),
             "\"\\\" }); os.execute(\\\"id\\\") --\"")
   }
 }
