@@ -161,3 +161,18 @@ write_sep 396400000 not-ready
 assert_detects "a USB reader found by vendor is detected while Touch ID reads not-ready"
 
 rm -f "$platform_root/fingerprint-readers"
+
+# Microarray MAFP (3274:8012) reports "MAFP General Device" with no fingerprint
+# token; vendor was missing from the allowlist and the product branch skipped it.
+write_usb_devices '3274:8012:MAFP General Device '
+assert_detects "a Microarray MAFP reader is detected by its product string"
+
+write_usb_devices '1234:5678:MAFP General Device'
+assert_detects "an MAFP product string is detected without the vendor id"
+
+write_usb_devices '3274:8012'
+assert_detects "a Microarray MAFP reader is detected by its vendor id"
+
+write_usb_devices '3274:8012'
+bind_driver '1-0/1-0:1.0' uvcvideo
+assert_rejects "a Microarray vendor guess bound to a kernel driver is rejected"
