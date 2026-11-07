@@ -1335,8 +1335,11 @@ Item {
             root.requestDeleteSelected()
             event.accepted = true
           } else if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
-            else root.cancel()
+            if (root.filterText) {
+              root.setFilter("")
+            } else if (root.dmenuActive || !root.goBack()) {
+              root.cancel()
+            }
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
