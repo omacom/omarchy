@@ -56,9 +56,13 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
-# and anything resolving "monospace" all read from here. This file is loaded
-# after the package-owned default, and prepend_first puts the chosen family at
-# the head of the list so it wins over the family that default prefers.
+# and anything resolving "monospace" all read from here. 50-user.conf loads
+# this file after the user's conf.d but before the package-owned
+# 51-omarchy.conf. The guard below scopes the rule to requests headed by
+# "monospace" so explicit families that only gained "monospace" from
+# 48-guessfamily.conf keep the family they asked for, and prepend puts the
+# chosen font at the head without touching the rest: a CJK fallback the
+# preference accepted earlier stays in the list behind it.
 fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
 mkdir -p "$(dirname "$fontconfig_file")"
 cat >"$fontconfig_file" <<XML
@@ -69,7 +73,10 @@ cat >"$fontconfig_file" <<XML
     <test name="family" qual="any">
       <string>monospace</string>
     </test>
-    <edit name="family" mode="prepend_first" binding="strong">
+    <test name="family" qual="first" compare="eq">
+      <string>monospace</string>
+    </test>
+    <edit name="family" mode="prepend" binding="strong">
       <string>$font_name</string>
     </edit>
   </match>
