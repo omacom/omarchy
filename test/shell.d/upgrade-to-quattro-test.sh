@@ -156,6 +156,31 @@ pass "Omarchy 4 upgrade recognises exactly the root= pins that hold"
 )
 pass "Omarchy 4 upgrade pins root= on machines the transaction moves to limine"
 
+# Quattro's initramfs unlocks with the classic encrypt hook, which reads one
+# cryptdevice= and ignores rd.luks.*, so the pin must name the root volume for it.
+(
+  eval "$(sed -n '/^encrypt_hook_cryptdevice() {$/,/^}$/p;/^preserve_kernel_cmdline_root() {$/,/^}$/p' "$upgrade_to_quattro")"
+  default_limine=$(mktemp)
+  trap 'rm -f "$default_limine"' EXIT
+  as_root() { [[ $1 == "test" ]] || command cat >"$default_limine"; }
+  cat() { [[ $1 == /proc/cmdline ]] && printf '%s\n' "$proc_cmdline"; }
+  kernel_cmdline_root_pinned() { return 1; }
+  log() { :; }
+  pin() {
+    proc_cmdline=$1
+    preserve_kernel_cmdline_root
+    grep -F 'KERNEL_CMDLINE[default]+=' "$default_limine"
+  }
+
+  pinned=$(pin "rd.luks.name=aaaa=root root=/dev/mapper/root rw")
+  [[ $pinned == *" cryptdevice=UUID=aaaa:root"* && $pinned == *" rd.luks.name=aaaa=root "* ]] ||
+    fail "Omarchy 4 upgrade pins rd.luks.name with its cryptdevice equivalent" "$pinned"
+  pinned=$(pin "rd.luks.name=aaaa=root rd.luks.name=bbbb=home root=/dev/mapper/root rw")
+  [[ $pinned == *" cryptdevice=UUID=aaaa:root"* && $pinned != *"cryptdevice=UUID=bbbb"* ]] ||
+    fail "Omarchy 4 upgrade gives the encrypt hook the root volume among several" "$pinned"
+)
+pass "Omarchy 4 upgrade pins encrypted-root parameters the encrypt hook reads"
+
 # Lazydocker is optional on fresh installs, but a pre-quattro install keeps it.
 lazydocker_body=$(function_body migrate_lazydocker_package)
 [[ -n $lazydocker_body ]] || fail "upgrade has a Lazydocker replacement step"
