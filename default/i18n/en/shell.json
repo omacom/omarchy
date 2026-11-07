@@ -500,6 +500,8 @@
   "tailscale.disconnect": "Disconnect",
   "tailscale.disconnectedMeta": "Tailscale is disconnected",
   "tailscale.exitNodeFailed": "Exit node selection failed",
+  "tailscale.exitNodeOffline": "Exit node %1 is offline, so internet traffic is blocked. Click to stop using it.",
+  "tailscale.exitNodeOfflineRow": "%1 · offline",
   "tailscale.exitNodes": "EXIT NODES",
   "tailscale.listConnectionsFailed": "Could not list Tailscale connections",
   "tailscale.loadingMachines": "Loading machines…",
