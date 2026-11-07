@@ -35,6 +35,12 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
+### Mouse and touchpad settings
+
+For the mouse and touchpad, you don't have to write config at all. _Setup > Config > Mouse & Touchpad_ in the Omarchy menu (or `omarchy setup touchpad`) opens a settings window. Its _Mouse_ page sets pointer speed, acceleration, natural scrolling, scroll speed, and left-handed buttons for every mouse; on a computer without a touchpad, that is the only page. The touchpad pages cover natural scrolling, scroll speed, tap to click, two-finger and corner clicks, tap-and-drag, three-finger drag, pointer speed and acceleration, multi-finger gestures, per-app scroll speeds, and per-device overrides when you use more than one touchpad. Changes apply the moment you make them, and the window has a scroll list, click pad, and drag target on the side for trying them out.
+
+The window only saves what you change, to `~/.config/omarchy/touchpad.json`, and everything else keeps following Omarchy's defaults. Pointer settings on the touchpad pages apply to touchpads only, and those on the _Mouse_ page to mice only, so each keeps its own speed. The window is the source of truth for whatever you change in it: those settings win over the same options in `~/.config/hypr/input.lua`, and a gesture set there replaces one in `input.lua` that uses the same swipe. Options you haven't touched in the window keep whatever `input.lua` says, and the window marks the ones that file also sets; resetting one hands it back to `input.lua`.
+
 You can [see all the input options](https://wiki.hypr.land/Configuring/Basics/Variables/#input) on the Hyprland wiki for inputs.
 
 CapsLock works as a normal Caps Lock, and `Shift + CapsLock` is the compose key for [quick emojis](07-hotkeys.md#quick-emojis) and [other completions](07-hotkeys.md#quick-completions). If you'd rather have the compose key elsewhere, replace `omarchy:shift_caps_compose` in `kb_options`. For example, this moves the compose key to Right Alt:
@@ -63,7 +69,7 @@ Swipe on the trackpad to move around the desktop:
 | Four fingers left / right | Move the active window to the previous / next workspace |
 | Four fingers down | Toggle fullscreen |
 
-To change one, unset it in `~/.config/hypr/input.lua` before adding your own [touchpad gesture](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), since Hyprland won't take two gestures on the same fingers and direction:
+The _Gestures_ page of the mouse and touchpad settings window lists these and lets you change, remove, or add to them; _Restore defaults_ brings them back. To change one by hand, unset it in `~/.config/hypr/input.lua` before adding your own [touchpad gesture](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), since Hyprland won't take two gestures on the same fingers and direction:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "up", action = "unset" })

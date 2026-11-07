@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Configure the mouse, and touchpad scrolling, tapping, pointer speed, gestures, and per-app scroll speeds
+
+omarchy-shell shell summon omarchy.touchpad

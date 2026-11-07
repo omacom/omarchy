@@ -19,6 +19,10 @@ if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.dictation")
   require_optional.module("default.hypr.bindings.applications")
 end
+-- Let Setup > Config > Mouse & Touchpad gestures replace Omarchy's default gestures
+-- and ones the user's files add. The settings themselves apply from
+-- default.hypr.toggles, after those files.
+require("default.hypr.touchpad").watch()
 if _G.omarchy_default_gestures ~= false then
   require("default.hypr.gestures")
 end
