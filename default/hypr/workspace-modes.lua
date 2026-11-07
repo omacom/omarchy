@@ -332,6 +332,11 @@ local function update_input()
 
   input.floating = active
 
+  -- Read it again on the way in, so a change made since loading is the one restored.
+  if active then
+    input.follow_mouse = hl.get_config("input.follow_mouse")
+  end
+
   hl.config({ input = { follow_mouse = active and 0 or input.follow_mouse } })
 end
 
