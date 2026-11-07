@@ -46,12 +46,11 @@ o.bind("SUPER + PRINT", "Color picker", "pkill hyprpicker || hyprpicker -a")
 o.bind("SUPER + CTRL + PRINT", "Extract text (OCR) from screenshot", "omarchy-capture-text")
 
 -- Keyboard control for the slurp region picker (see omarchy-capture-region).
--- The binds are enabled exactly as long as a selection layer is on screen
--- (slurp opens one per monitor), so they cannot leak or get stuck.
+-- The binds are enabled exactly as long as this command's selection layer is
+-- on screen. slurp opens one layer per monitor, so track each layer by address.
 -- They are disabled rather than unbound, since Hyprland's unbind() removes every
 -- bind on the chord, the user's own included. Without descriptions, the
 -- keybindings menu leaves them out.
-local selection_layers = 0
 local selection_keys = {
   ["RETURN"] = "--take-window",
   ["CTRL + RETURN"] = "--take-fullscreen",
@@ -70,28 +69,72 @@ local function selection_bind_alive(keybind)
   return keybind ~= nil and tostring(keybind) ~= "HL.Keybind(expired)"
 end
 
+local function is_capture_region_selection(layer)
+  if layer.namespace ~= "selection" then
+    return false
+  end
+
+  local process_root = "/proc/" .. tostring(layer.pid)
+  local comm = io.open(process_root .. "/comm", "r")
+  if not comm then
+    return false
+  end
+
+  local name = comm:read("*l")
+  comm:close()
+  if name ~= "slurp" then
+    return false
+  end
+
+  local environ = io.open(process_root .. "/environ", "rb")
+  if not environ then
+    return false
+  end
+
+  local values = environ:read("*a") or ""
+  environ:close()
+  for value in values:gmatch("[^%z]+") do
+    if value == "OMARCHY_CAPTURE_REGION_PICKER=1" then
+      return true
+    end
+  end
+
+  return false
+end
+
+local capture_region_selection_layers = {}
+local capture_region_selection_layer_count = 0
+
 hl.on("layer.opened", function(layer)
-  if layer.namespace == "selection" then
-    selection_layers = selection_layers + 1
-    if selection_layers == 1 then
-      for keys, mode in pairs(selection_keys) do
-        if not selection_bind_alive(selection_binds[keys]) then
-          selection_binds[keys] = hl.bind(keys, hl.dsp.exec_cmd("omarchy-capture-region " .. mode))
-        end
-        selection_binds[keys]:set_enabled(true)
+  if not is_capture_region_selection(layer) or capture_region_selection_layers[layer.address] then
+    return
+  end
+
+  capture_region_selection_layers[layer.address] = true
+  capture_region_selection_layer_count = capture_region_selection_layer_count + 1
+
+  if capture_region_selection_layer_count == 1 then
+    for keys, mode in pairs(selection_keys) do
+      if not selection_bind_alive(selection_binds[keys]) then
+        selection_binds[keys] = hl.bind(keys, hl.dsp.exec_cmd("omarchy-capture-region " .. mode))
       end
+      selection_binds[keys]:set_enabled(true)
     end
   end
 end)
 
 hl.on("layer.closed", function(layer)
-  if layer.namespace == "selection" and selection_layers > 0 then
-    selection_layers = selection_layers - 1
-    if selection_layers == 0 then
-      for _, keybind in pairs(selection_binds) do
-        if selection_bind_alive(keybind) then
-          keybind:set_enabled(false)
-        end
+  if not capture_region_selection_layers[layer.address] then
+    return
+  end
+
+  capture_region_selection_layers[layer.address] = nil
+  capture_region_selection_layer_count = capture_region_selection_layer_count - 1
+
+  if capture_region_selection_layer_count == 0 then
+    for _, keybind in pairs(selection_binds) do
+      if selection_bind_alive(keybind) then
+        keybind:set_enabled(false)
       end
     end
   end
