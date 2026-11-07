@@ -19,9 +19,16 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "refreshIntervalSec": 30
+      "refreshIntervalSec": 30,
+      "showOfflinePeers": false
     },
     "schema": [
+      {
+        "key": "showOfflinePeers",
+        "type": "boolean",
+        "label": "Show offline peers",
+        "defaultValue": false
+      },
       {
         "key": "refreshIntervalSec",
         "type": "integer",
