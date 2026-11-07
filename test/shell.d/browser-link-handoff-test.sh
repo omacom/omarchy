@@ -17,7 +17,7 @@ export XDG_CONFIG_DIRS="$test_tmp/etc"
 export XDG_DATA_HOME="$test_tmp/data"
 export XDG_DATA_DIRS="$test_tmp/system"
 export XDG_CURRENT_DESKTOP=Hyprland
-export PATH="$mock_bin:$ROOT/bin:$PATH"
+export PATH="$mock_bin:$ROOT/default/omarchy/wrappers:$ROOT/bin:$PATH"
 unset BROWSER
 
 for command in chromium firefox omarchy-notification-send update-desktop-database; do
@@ -57,9 +57,29 @@ if command -v gio >/dev/null; then
 fi
 pass "xdg-open and the desktop portal send links to the link entry"
 
-omarchy-default-browser chromium || fail "changing the default browser succeeds behind the link entry"
+[[ $(xdg-settings check default-web-browser firefox.desktop) == "yes" ]] ||
+  fail "xdg-settings check recognizes the configured browser"
+[[ $(xdg-settings check default-web-browser chromium.desktop) == "no" ]] ||
+  fail "xdg-settings check reports no for a non-default browser"
+[[ $(xdg-settings get default-web-browser) == "firefox.desktop" ]] ||
+  fail "xdg-settings get returns the configured browser"
+[[ $(xdg-settings check default-url-scheme-handler https firefox.desktop) == "yes" ]] ||
+  fail "xdg-settings check recognizes the configured https handler"
+[[ $(xdg-settings get default-url-scheme-handler https) == "firefox.desktop" ]] ||
+  fail "xdg-settings get returns the configured https handler"
+pass "xdg-settings queries the configured browser behind the link entry"
+
+xdg-settings set default-web-browser chromium.desktop ||
+  fail "setting the default browser via xdg-settings succeeds behind the link entry"
+[[ $(xdg-settings check default-web-browser chromium.desktop) == "yes" ]] ||
+  fail "xdg-settings check recognizes the browser set via xdg-settings"
+[[ $(xdg-settings get default-web-browser) == "chromium.desktop" ]] ||
+  fail "xdg-settings get returns the browser set via xdg-settings"
 [[ $(omarchy-cmd-default-browser) == "chromium.desktop" ]] || fail "a change of default browser takes effect"
-pass "a change of default browser takes effect"
+[[ $(omarchy-default-browser) == "chromium" ]] || fail "the default browser reads back by name after xdg-settings set"
+[[ $(xdg-mime query default x-scheme-handler/https) == "omarchy-browser.desktop" ]] ||
+  fail "xdg-settings keeps the link entry in front of the browser"
+pass "setting the default browser via xdg-settings succeeds behind the link entry"
 
 rm "$XDG_CONFIG_HOME/mimeapps.list"
 [[ $(omarchy-cmd-default-browser) != "omarchy-browser.desktop" ]] ||
