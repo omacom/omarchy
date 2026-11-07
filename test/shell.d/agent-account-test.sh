@@ -251,8 +251,37 @@ omarchy-agent-account-use claude work >/dev/null
 [[ $(cat "$work/.credentials.json") == "$main_login" ]] || fail "the previous login keeps a home of its own"
 [[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.primary) | .id') == "work" ]] ||
   fail "the account in the primary home is the primary"
-grep -q "New Claude sessions now use Work Running sessions move with it" "$notifications" || fail "switching says where new sessions go"
+grep -q "New Claude sessions now use Work Sessions running in ~/.claude move with it" "$notifications" || fail "switching says where new sessions go"
 pass "use makes an account active and says so"
+
+# Nothing is traded while a sign-in is writing a login, and the notice says
+# the running sessions stayed.
+exec 7>"$accounts/.claude.signin.lock"
+flock 7
+omarchy-agent-account-use claude main >/dev/null
+[[ $(cat "$HOME/.claude/.credentials.json") == "$work_login" ]] || fail "a sign-in in progress keeps logins where they are"
+grep -q "New Claude sessions now use Main Running sessions stay on Work" "$notifications" ||
+  fail "the notice says running sessions stayed when nothing was traded"
+flock -u 7
+exec 7>&-
+omarchy-agent-account-use claude work >/dev/null
+pass "switching waits for a sign-in to finish writing"
+
+# A switch cut short is finished by the next command, so no login is lost.
+registry=$(cat "$accounts/claude.json")
+jq '{
+  logins: {($home + "/.claude/.credentials.json"): $main, ($work + "/.credentials.json"): $workl},
+  identities: {},
+  registry: (.active = "main" | .accounts |= map(if .id == "main" then .primary = true | .home = "" elif .id == "work" then .primary = false | .home = $work else . end))
+}' --arg home "$HOME" --arg work "$work" --arg main "$main_login" --arg workl "$work_login" <<<"$registry" >"$accounts/.claude-swap.json"
+printf '%s' "$work_login" >"$HOME/.claude/.credentials.json"
+printf '%s' "$work_login" >"$work/.credentials.json"
+omarchy-agent-account-mode claude manual >/dev/null
+[[ ! -e $accounts/.claude-swap.json && $(cat "$HOME/.claude/.credentials.json") == "$main_login" && $(cat "$work/.credentials.json") == "$work_login" ]] ||
+  fail "an interrupted switch is completed from its journal"
+[[ $(jq -r .active "$accounts/claude.json") == "main" ]] || fail "the registry matches the logins after recovery"
+omarchy-agent-account-use claude work >/dev/null
+pass "an interrupted switch is finished rather than lost"
 
 [[ $(omarchy-agent-account-exec claude --version) == "claude home=default args=--version" ]] || fail "claude at a prompt starts as the active account"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"

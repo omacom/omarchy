@@ -258,6 +258,8 @@ class Locked:
     accounts_root().mkdir(parents=True, exist_ok=True)
     self.handle = open(accounts_root() / f".{self.provider}.lock", "w")
     fcntl.flock(self.handle, fcntl.LOCK_EX)
+    if self.provider == "claude" and swap_journal().exists():
+      finish_swap(read_json(swap_journal()))
     self.registry = load(self.provider)
     return self.registry
 
@@ -535,20 +537,55 @@ def refresh(provider: str) -> None:
 # Claude reads its login before every request, so a session follows whatever
 # its home holds. Trading logins with the primary home moves every session
 # there, and keeps each refresh token in one place. A home with a session of
-# its own keeps its login, so that session isn't moved somewhere unexpected.
-def move_running_sessions(registry: dict[str, Any], account: dict[str, Any]) -> None:
+# its own keeps its login, so that session isn't moved somewhere unexpected,
+# and nothing is traded while a sign-in is writing a login.
+def move_running_sessions(registry: dict[str, Any], account: dict[str, Any]) -> bool:
   holder = next(a for a in registry["accounts"] if a.get("primary"))
   here, there = primary_home("claude"), account_home("claude", account)
-  logins = [home / ".credentials.json" for home in (here, there)]
-  if holder is account or not all(p.is_file() for p in logins) or home_in_use("claude", there):
-    return
-  texts = [p.read_text() for p in logins]
-  identities = [read_json(claude_account_file(home)) or {} for home in (here, there)]
-  for home, login, mine, theirs in zip((here, there), reversed(texts), identities, reversed(identities)):
-    write_private(home / ".credentials.json", login)
-    write_private(claude_account_file(home), json.dumps({**mine, "oauthAccount": theirs.get("oauthAccount")}, indent=2))
+  if holder is account or not all((h / ".credentials.json").is_file() for h in (here, there)):
+    return False
+  if home_in_use("claude", there) or signing_in("claude"):
+    return False
+  identities = [(read_json(claude_account_file(h)) or {}).get("oauthAccount") for h in (here, there)]
   holder["home"], account["home"] = str(there), ""
   holder["primary"], account["primary"] = False, True
+  # Written first, so a swap cut short is finished by the next command
+  # rather than leaving one login in both homes.
+  plan = {
+    "logins": {str(h / ".credentials.json"): (o / ".credentials.json").read_text() for h, o in ((here, there), (there, here))},
+    "identities": {str(claude_account_file(h)): i for h, i in ((here, identities[1]), (there, identities[0]))},
+    "registry": registry,
+  }
+  write_private(swap_journal(), json.dumps(plan))
+  finish_swap(plan)
+  return True
+
+
+def swap_journal() -> Path:
+  return accounts_root() / ".claude-swap.json"
+
+
+def finish_swap(plan: dict[str, Any]) -> None:
+  for path, login in plan["logins"].items():
+    write_private(Path(path), login)
+  for path, identity in plan["identities"].items():
+    data = read_json(Path(path)) or {}
+    data["oauthAccount"] = identity
+    write_private(Path(path), json.dumps(data, indent=2))
+  save("claude", plan["registry"])
+  swap_journal().unlink(missing_ok=True)
+
+
+# omarchy-agent-account-add holds this while a sign-in writes a login, from
+# choosing the home to the CLI finishing.
+def signing_in(provider: str) -> bool:
+  with open(accounts_root() / f".{provider}.signin.lock", "w") as handle:
+    try:
+      fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+      return True
+    fcntl.flock(handle, fcntl.LOCK_UN)
+  return False
 
 
 def write_private(path: Path, text: str) -> None:
@@ -559,7 +596,7 @@ def write_private(path: Path, text: str) -> None:
   os.replace(tmp, path)
 
 
-def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], bool]:
   with Locked(provider) as registry:
     previous = active(registry)
     if target == "next":
@@ -570,11 +607,10 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
-    if provider == "claude":
-      move_running_sessions(registry, account)
+    moved = provider == "claude" and move_running_sessions(registry, account)
     if not account.get("primary"):
       link_shared(provider, account_home(provider, account))
-    return previous, account
+    return previous, account, moved
 
 
 # Whether a running session was started in this home. Removing it would pull
@@ -829,12 +865,11 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
     if decision["action"] == "switch":
       registry["active"] = target["id"]
-      if provider == "claude":
-        move_running_sessions(registry, target)
+      moved = provider == "claude" and move_running_sessions(registry, target)
       if not target.get("primary"):
         link_shared(provider, account_home(provider, target))
-      if target.get("primary") and provider == "claude":
-        notify(headline, tr("omarchy-i18n agents.switchedBodyMoved", "%1 sessions now use %2 (%3%), running ones included.", name, target["label"], round(decision["toPeak"])))
+      if moved:
+        notify(headline, tr("omarchy-i18n agents.switchedBodyMoved", "%1 sessions now use %2 (%3%), including those running in ~/.claude.", name, target["label"], round(decision["toPeak"])))
       else:
         notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
       return True
@@ -918,8 +953,8 @@ def main(argv: list[str]) -> int:
       print(json.dumps(register(provider, args[1], Path(args[2]))))
     elif command == "use":
       provider = provider_arg(args)
-      previous, account = use(provider, args[1] if len(args) > 1 else "next")
-      print(json.dumps({"previous": previous, "active": account}))
+      previous, account, moved = use(provider, args[1] if len(args) > 1 else "next")
+      print(json.dumps({"previous": previous, "active": account, "moved": moved}))
     elif command == "remove":
       provider = provider_arg(args)
       if len(args) < 2:

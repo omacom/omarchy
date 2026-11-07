@@ -32,8 +32,9 @@ label=$(jq -r .active.label <<<"$result")
 if [[ $(jq -r .previous.id <<<"$result") == "$(jq -r .active.id <<<"$result")" ]]; then
   echo "New $name sessions already use $active."
 else
-  # Claude sessions in the primary home follow its login; the others stay put.
-  if [[ $1 == "claude" && $(jq -r .active.primary <<<"$result") == "true" ]]; then
+  # Claude sessions in the primary home follow its login; sessions started in
+  # another account's home stay put.
+  if [[ $(jq -r .moved <<<"$result") == "true" ]]; then
     body=$(omarchy-i18n agents.runningMove)
   else
     body=$(omarchy-i18n agents.runningStayOn "$previous")

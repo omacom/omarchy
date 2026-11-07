@@ -149,6 +149,10 @@ login() {
 # primary home through the normal browser, an added one through a private
 # window. Its home is never recreated or removed.
 if [[ -n $reauth ]]; then
+  # Switching accounts trades logins between homes, so none is traded while
+  # this one is chosen and signed in to.
+  signin_lock="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts/.$provider.signin.lock"
+  mkdir -p "${signin_lock%/*}" && exec 8>"$signin_lock" && flock 8 || fail "$(omarchy-i18n agents.homeFailed)"
   if [[ $reauth == ":primary" ]]; then
     account_home="$HOME/.$provider"
   else
