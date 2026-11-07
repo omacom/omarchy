@@ -1826,7 +1826,8 @@ Item {
     // The bar itself, along its screen edge.
     Item {
       id: barStrip
-      visible: !barWindow.underFullscreen
+      // Keep slots alive so fullscreen does not unload widgets or panel shortcuts.
+      opacity: barWindow.underFullscreen ? 0 : 1
 
       x: root.position === "right" ? parent.width - barWindow.thickness : 0
       y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
