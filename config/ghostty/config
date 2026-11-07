@@ -12,6 +12,8 @@ window-padding-x = 14
 window-padding-y = 14
 confirm-close-surface=false
 resize-overlay = never
+# No toast on each config reload (every theme change) or clipboard copy
+app-notifications = no-clipboard-copy,no-config-reload
 gtk-toolbar-style = flat
 
 # Cursor styling
