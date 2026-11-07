@@ -38,10 +38,32 @@ PanelWindow {
     return mode
   }
   readonly property bool shown: !!dock && dock.isFloating(workspaceId) && fullscreenMode < 2
+  // A special workspace, such as the scratchpad, open over the workspace on
+  // this screen: its windows sit above the workspace's, and the dock's too.
+  readonly property string specialWorkspace: {
+    var ipc = monitor ? monitor.lastIpcObject : null
+    return ipc && ipc.specialWorkspace && ipc.specialWorkspace.name ? String(ipc.specialWorkspace.name) : ""
+  }
+  // Whether a window on the workspace, or on a special workspace open over it,
+  // reaches over the dock: its client area, the border around it, and the
+  // titlebar above it on a floating workspace, against where the dock's icons
+  // sit when it is out.
+  readonly property bool covered: {
+    if (!shown || !screen) return false
+    var windows = []
+    var toplevels = Hyprland.toplevels.values
+    for (var i = 0; i < toplevels.length; i++) {
+      var ipc = toplevels[i].lastIpcObject
+      if (!toplevels[i].workspace || !ipc) continue
+      windows.push({ workspaceId: toplevels[i].workspace.id, workspaceName: toplevels[i].workspace.name, at: ipc.at, size: ipc.size, hidden: ipc.hidden, mapped: ipc.mapped, tags: ipc.tags })
+    }
+    return DockModel.coversDock(windows, shownBodyBox(), { workspaceId: workspaceId, special: specialWorkspace })
+  }
   // With auto-hide on, the dock waits off screen until the pointer reaches its
   // edge, and stays while the pointer, a menu, or a drag still needs it. A
-  // maximized window hides the dock the same way, so it can still be called up.
-  readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1)
+  // maximized window hides the dock the same way, so it can still be called up,
+  // and so does any window that covers it.
+  readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1 || covered)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
   readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
@@ -91,6 +113,20 @@ PanelWindow {
     var x = window.position === "right" ? screen.width - right - window.width : left
     var y = window.position === "bottom" ? screen.height - bottom - window.height : top
     return Qt.point(x, y)
+  }
+
+  // Where the icons sit when the dock is out, in Hyprland's global layout
+  // coordinates, whether it is out now or tucked away: the body's own
+  // placement below, without the tuck.
+  function shownBodyBox() {
+    var at = window.origin()
+    var x = window.position === "left" ? window.gap
+      : window.position === "right" ? window.width - body.width - window.gap
+      : Math.round((window.width - body.width) / 2)
+    var y = window.position === "top" ? window.gap
+      : window.position === "bottom" ? window.height - body.height - window.gap
+      : Math.round((window.height - body.height) / 2)
+    return Qt.rect(screen.x + at.x + x, screen.y + at.y + y, body.width, body.height)
   }
 
   // An app from the app grid lands where the pointer is, once it is over the

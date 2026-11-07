@@ -341,7 +341,36 @@ Item {
         Hyprland.refreshWorkspaces()
         Hyprland.refreshToplevels()
       }
+      // Nor where windows are, which decides whether one covers the dock, nor
+      // a special workspace opening over a monitor.
+      else if (name === "activespecialv2") {
+        Hyprland.refreshMonitors()
+        Hyprland.refreshToplevels()
+      }
+      else if (root.watchingCover && root.coverEvents.indexOf(name) !== -1) Hyprland.refreshToplevels()
     }
+  }
+
+  // A window covering the dock hides it (DockWindow.covered). Hyprland
+  // announces windows opening, closing, gaining focus and changing workspace or
+  // floating, but not a floating window being moved or resized, so while a dock
+  // is out on a floating workspace with nothing else hiding it, the window list
+  // is also refreshed a few times a second.
+  readonly property var coverEvents: ["openwindow", "closewindow", "movewindowv2", "changefloatingmode", "activewindowv2", "minimized"]
+  readonly property bool watchingCover: {
+    if (root.autohide) return false
+    var windows = docks.instances
+    for (var i = 0; i < windows.length; i++) {
+      if (windows[i].shown && windows[i].fullscreenMode === 0) return true
+    }
+    return false
+  }
+
+  Timer {
+    interval: 250
+    repeat: true
+    running: root.watchingCover
+    onTriggered: Hyprland.refreshToplevels()
   }
 
   ShellIpc {
