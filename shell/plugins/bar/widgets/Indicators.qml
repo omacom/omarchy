@@ -15,7 +15,7 @@ BarWidget {
   property bool indicatorAreaHovered: false
   property bool indicatorItemHovered: false
   readonly property bool alwaysShowIndicators: setting("alwaysShow", false) === true
-  readonly property bool revealInactiveIndicators: alwaysShowIndicators || indicatorAreaHovered || indicatorItemHovered || (bar && bar.centerSectionRevealHeld === true && bar.centerHoverRevealSuppressed !== true)
+  readonly property bool revealInactiveIndicators: alwaysShowIndicators || indicatorAreaHovered || indicatorItemHovered || (bar && (typeof bar.centerSectionRevealFor === "function" ? bar.centerSectionRevealFor(root) : bar.centerSectionRevealHeld === true) && bar.centerHoverRevealSuppressed !== true)
   // The active block sits against the widget's fixed edge, and everything that
   // grows the widget (revealed inactive icons, newly active ones) goes on its
   // far side, so the icons already showing keep their click targets. A
