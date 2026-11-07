@@ -18,7 +18,7 @@ Use `Super + A`, then `Super + C` to copy everything in a focused text field or 
 
 ### Clipboard history
 
-The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, select your entry with return, and then that'll be placed on the clipboard ready to paste on `Super + V`.
+The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, select your entry with return, and then that'll be placed on the clipboard ready to paste on `Super + V`. Pasting an image while a terminal is focused types the file path instead, since terminals can only receive text — handy for handing screenshots to CLI tools and agent harnesses.
 
  ![clipboard-history](images/clipboard-history.webp)
 
