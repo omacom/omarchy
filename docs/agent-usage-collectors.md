@@ -12,7 +12,7 @@ New collectors build on the shared module, [`shell/plugins/agents/collectors.py`
   - `--limits-only` (the panel's near-limit refresh) reuses a local scan for `LIMITS_ONLY_REUSE_SECONDS = 900`, but asks for limits like a normal run.
   - `--force` (a person pressing refresh) reuses nothing.
 - The record is printed on stdout. Diagnostics go to stderr and never carry a credential.
-- A collector never writes to an agent's own files. Credentials are only read, and a token is refreshed only where the agent's own CLI does the same under its lock, never by rewriting another harness's store.
+- A collector never writes to an agent's own files. Credentials are only read, and a token is refreshed only where the agent's own CLI does the same under its lock, or by running that CLI to do it (the Claude collector runs `claude auth status`), never by rewriting another harness's store.
 
 ## The shared module
 
@@ -41,6 +41,7 @@ Its main entry points, each documented where it is defined:
 - `trusted_endpoint(url)`: whether an endpoint override a person set (`CURSOR_API_ENDPOINT`, `MUSE_KEY_ENDPOINT`, …) may carry a credential: https anywhere, plain http only to this machine. Every override that moves where a token goes passes through it.
 - `cursor_token(auth_path=None, state_db=None)`, with `jwt_claims()`, `token_lapsed()`, `account_key()` and `finite()`: the Cursor account the Cursor and Grok Bot collectors both ask as (an exported `CURSOR_AUTH_TOKEN`; with `CURSOR_API_KEY` exported, only the token the CLI traded that key for, never the key itself; else the CLI's `auth.json` at `CURSOR_AUTH_PATH` or its default, then the editor's `state.vscdb`, a lapsed sign-in giving way to one that isn't), and reading any JWT's claims, expiry and subject.
 - `registered_accounts(id)` and `account_entry(account, limits, plan, **extra)`: the accounts `omarchy agent account` registered, and one entry of the record's `accounts`.
+- `find_installed_command(name)`: an agent CLI a collector may run, the first on `PATH` that isn't a mise shim, an account wrapper or a launcher that would install or update the tool first, else the binary `mise which` names offline.
 - `local_day()`, `token_count()`, `usage_tokens()`, `number()`, `now_ms()`, `stamp()`, `age_below()`, `read_json()`, `write_json()`, `cache_root()`: reading untrusted values and files the same way everywhere.
 
 `test/shell.d/agent-usage-shared-test.sh` holds the module to this contract directly. Something goes in the module only once two collectors need it.
@@ -76,7 +77,7 @@ The panel acts on a small vocabulary in `usageStatusText`, so the same situation
 | `""` | Healthy, or a failed check that kept the last good limits (`limitsStale` says the rest) |
 | `"Waiting for auth"` | The agent is in use but has no credential for its limits |
 | `"Sign-in expired"` | The credential was refused, or a refresh token lapsed; signing in again is needed |
-| `"Limits paused"` | An access token lapsed that the agent's own CLI renews the next time it runs; signing in again is not needed |
+| `"Limits paused"` | An access token lapsed that the agent's own CLI renews the next time it runs (or didn't renew when the collector ran it); signing in again is not needed |
 | `"<Name> limits unavailable"` | A check failed with nothing kept to show |
 | `"<Name> unavailable"` | The agent's stats source failed (an unreadable database, a billing API that answered nothing) with nothing kept to show |
 | `"Balance unavailable"` | A prepaid balance couldn't be read and none was kept |
