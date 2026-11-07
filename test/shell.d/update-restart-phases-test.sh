@@ -14,7 +14,11 @@ cat >"$SUDO_TEST_ROOT/bin/gum" <<'STUB'
 printf 'prompt:%s\n' "$*" >>"$SUDO_TEST_LOG"
 exit 1
 STUB
-chmod +x "$SUDO_TEST_ROOT/bin/gum"
+cat >"$SUDO_TEST_ROOT/bin/pgrep" <<'STUB'
+#!/bin/bash
+[[ ${SUDO_TEST_HYPRLAND_RUNNING:-1} == "1" ]]
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/gum" "$SUDO_TEST_ROOT/bin/pgrep"
 mkdir -p "$SUDO_TEST_HOME/.local/state/omarchy"
 touch "$SUDO_TEST_HOME/.local/state/omarchy/reboot-required" "$SUDO_TEST_HOME/.local/state/omarchy/restart-sshd-required"
 
@@ -31,6 +35,14 @@ for mode in --services-only --reboot-only; do
   fi
   pass "restart $mode performs only its selected phase"
 done
+reset_boundary
+SUDO_TEST_HYPRLAND_RUNNING=0 PATH="$SUDO_TEST_ROOT/bin:$PATH" "$SUDO_TEST_ROOT/bin/omarchy-update-restart" --services-only >"$boundary_tmp/output" 2>&1
+grep -q '^step:omarchy-restart-sshd ' "$SUDO_TEST_LOG" || fail "headless service phase skipped a marked service"
+if grep -q '^step:omarchy-restart-shell ' "$SUDO_TEST_LOG"; then fail "headless service phase waited on a shell nothing can start"; fi
+if grep -q 'All plugins have been reloaded' "$boundary_tmp/output"; then fail "headless service phase claimed a shell reload"; fi
+grep -q 'no shell to restart' "$boundary_tmp/output" || fail "headless service phase did not explain the skipped restart"
+pass "headless service phase skips the shell restart"
+
 reset_boundary
 OMARCHY_UPDATE_UNATTENDED=1 PATH="$SUDO_TEST_ROOT/bin:$PATH" "$SUDO_TEST_ROOT/bin/omarchy-update-restart" --reboot-only >"$boundary_tmp/output" 2>&1
 if grep -Eq "^(prompt:|step:omarchy-restart-|step:omarchy-system)" "$SUDO_TEST_LOG"; then
