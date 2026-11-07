@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import qs.Commons
 import qs.Ui
 
@@ -43,6 +44,11 @@ BarWidget {
       root.updateAvailable = exitCode === 0
     }
   }
+
+  // Recheck as soon as NetworkManager reports full internet connectivity, so a
+  // check that ran before Wi-Fi came up doesn't hide the icon for six hours.
+  readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
+  onOnlineChanged: if (online) root.refresh()
 
   Timer {
     interval: 21600000
