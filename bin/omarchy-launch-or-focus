@@ -1,16 +1,30 @@
 #!/bin/bash
 
 # omarchy:summary=Launch an app or focus an existing window matching a pattern
-# omarchy:args=<window-pattern> <launch-command>
+# omarchy:args=[--class] <window-pattern> <launch-command>
+
+class_only=0
+if [[ ${1:-} == "--class" ]]; then
+  class_only=1
+  shift
+fi
 
 if (($# == 0)); then
-  echo "Usage: omarchy-launch-or-focus [window-pattern] [launch-command]"
+  echo "Usage: omarchy-launch-or-focus [--class] [window-pattern] [launch-command]"
   exit 1
 fi
 
 WINDOW_PATTERN="$1"
 LAUNCH_COMMAND="${2:-"uwsm-app -- $WINDOW_PATTERN"}"
-WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|select((.class|test("\\b" + $p + "\\b";"i")) or (.title|test("\\b" + $p + "\\b";"i")))|.address' | head -n1)
+
+# --class matches the window class alone, for callers whose pattern identifies a
+# surface rather than names an app to the user. The default also matches titles,
+# which is what lets a hand-run pattern find the app it names.
+if ((class_only)); then
+  WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|select(.class|test($p;"i"))|.address' | head -n1)
+else
+  WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|select((.class|test("\\b" + $p + "\\b";"i")) or (.title|test("\\b" + $p + "\\b";"i")))|.address' | head -n1)
+fi
 
 if [[ -n $WINDOW_ADDRESS ]]; then
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"
