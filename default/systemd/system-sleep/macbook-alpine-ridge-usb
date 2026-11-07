@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# MacBookPro14,1: repeat the Alpine Ridge USB-C runtime-PM policy after resume.
+# The controller's power cycle does not always keep power/control=on, and a
+# plug then takes VBUS without being enumerated. Installed only on that model.
+# See install/hardware/apple/fix-alpine-ridge-usb.sh.
+
+[[ ${1:-} == "post" ]] || exit 0
+
+product_path=${OMARCHY_DMI_PRODUCT_PATH:-/sys/class/dmi/id/product_name}
+product=$(cat "$product_path" 2>/dev/null || true)
+[[ $product == "MacBookPro14,1" ]] || exit 0
+
+pci_root=${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}
+usb_root=${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}
+
+shopt -s nullglob
+
+for pci in "$pci_root"/*; do
+  [[ -f $pci/vendor && -f $pci/device && -f $pci/power/control ]] || continue
+  [[ $(cat "$pci/vendor") == "0x8086" && $(cat "$pci/device") == "0x15d4" ]] || continue
+  echo on > "$pci/power/control"
+done
+
+for usb in "$usb_root"/*; do
+  [[ -f $usb/idVendor && -f $usb/serial && -f $usb/power/control ]] || continue
+  [[ $(cat "$usb/idVendor") == "1d6b" ]] || continue
+  pci="$pci_root/$(cat "$usb/serial")"
+  [[ -f $pci/vendor && -f $pci/device ]] || continue
+  [[ $(cat "$pci/vendor") == "0x8086" && $(cat "$pci/device") == "0x15d4" ]] || continue
+  echo on > "$usb/power/control"
+done
