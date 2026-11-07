@@ -571,6 +571,7 @@ prioritize_entries() {
     if (match(line, /Theme menu/))  prio = 7
     if (match(line, /Full screen/))  prio = 8
     if (match(line, /Full width/))  prio = 9
+    if (match(line, /Full height/))  prio = 9
     if (match(line, /Close window/))  prio = 10
     if (match(line, /Close all windows/))  prio = 11
     if (match(line, /Lock system/))  prio = 12
