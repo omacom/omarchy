@@ -168,6 +168,6 @@ def main():
 try:
   main()
 except (OSError, ValueError, http.client.HTTPException) as error:
-  print(f"omarchy-file-search-semantic: {error}", file=sys.stderr)
+  print(f"omarchy-file-search-semantic: {terminal_text(str(error))}", file=sys.stderr)
   sys.exit(1)
 PY

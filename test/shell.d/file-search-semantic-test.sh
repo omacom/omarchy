@@ -135,4 +135,9 @@ with (
   passage = json.loads(output)[0]
   assert status == 0 and passage["file"] == str(controlled) and passage["text"] == "untrusted \x1b[2J text"
   print("ok - terminal controls in filenames and excerpts are escaped while JSON preserves the original data")
+
+  controlled.unlink()
+  status, calls, output = run(control_args, [])
+  assert status == 1 and not calls and "\x1b" not in output and r"\x1b[2J" in output, output
+  print("ok - file errors also escape terminal controls before reporting them")
 PY
