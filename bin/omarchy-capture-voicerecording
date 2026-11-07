@@ -1,0 +1,239 @@
+#!/bin/bash
+
+# omarchy:summary=Start or stop a microphone-only voice recording
+# omarchy:group=capture
+# omarchy:args=[--stop-recording]
+#
+# Records the default input -- the same microphone a screen recording picks up
+# with --with-microphone-audio -- without capturing the screen.
+# gpu-screen-recorder always needs a video source, so this records through
+# ffmpeg's PulseAudio input, which PipeWire serves.
+
+[[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
+OUTPUT_DIR="${OMARCHY_VOICERECORD_DIR:-${XDG_MUSIC_DIR:-$HOME/Music}}"
+
+STOP_RECORDING="false"
+# Private for the same reason as the screen recording state: the stop path reads
+# this back and writes, moves, and deletes at the path it names.
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+RECORDING_FILE="$RUNTIME_DIR/omarchy-voicerecord-filename"
+# ffmpeg runs under this name so the menu, the bar, and this script can find
+# the recorder without matching any other ffmpeg that happens to be running.
+# Every lookup is limited to this user's processes.
+RECORDER_NAME="omarchy-voicerecorder"
+# An .m4a is unreadable until ffmpeg writes its index on a clean exit, so write
+# one-second fragments and flush each one: a recorder that has to be
+# force-killed still leaves everything but the last second playable. The
+# cleanup below writes a regular .m4a.
+FRAGMENT_ARGS=(-movflags +empty_moov+default_base_moof -frag_duration 1000000 -flush_packets 1)
+# Tenths of a second ffmpeg gets to open the microphone and create the file
+STARTUP_TIMEOUT=100
+# Set while a recorder is starting or a cleaned-up copy is being written, so a
+# run interrupted partway leaves neither a recorder nobody tracks nor a stray
+# copy behind
+STARTING_PID=""
+STAGING=""
+
+for arg in "$@"; do
+  case "$arg" in
+  --stop-recording) STOP_RECORDING="true" ;;
+  esac
+done
+
+mkdir -p "$RUNTIME_DIR" || exit 1
+# XDG_STATE_HOME may be outside a private home; protect existing fallbacks too.
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$RUNTIME_DIR" || exit 1
+fi
+
+# The recorder has exited before the audio cleanup runs, so without this a
+# recording started while the last one is still being saved would overlap its
+# stop. Hold the lock through the whole start or stop instead.
+exec 9>"$RUNTIME_DIR/omarchy-voicerecord.lock" || exit 1
+flock 9 || exit 1
+
+start_voicerecording() {
+  if [[ ! -d $OUTPUT_DIR ]]; then
+    omarchy-notification-send -u critical -t 3000 "Voice recording directory does not exist: $OUTPUT_DIR"
+    return 1
+  fi
+
+  # A recording stopped within a second of starting leaves this second's name
+  # taken, so never reuse a name; -n makes ffmpeg refuse to overwrite one too.
+  local base="$OUTPUT_DIR/voicerecording-$(date +'%Y-%m-%d_%H-%M-%S')"
+  local filename="$base.m4a"
+  local n=1
+  while [[ -e $filename ]]; do
+    n=$((n + 1))
+    filename="$base-$n.m4a"
+  done
+
+  # fd 9 is the lock, which must not outlive this script
+  (exec -a "$RECORDER_NAME" ffmpeg -n -hide_banner -loglevel error -nostdin -f pulse -i default -c:a aac \
+    "${FRAGMENT_ARGS[@]}" "$filename" 9>&-) &
+  local pid=$!
+  STARTING_PID=$pid
+
+  # Bounded, since this holds the lock: an ffmpeg stuck connecting to the audio
+  # server would otherwise leave nothing able to stop it.
+  local waited=0
+  while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]] && ((waited < STARTUP_TIMEOUT)); do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+
+  if kill -0 $pid 2>/dev/null && [[ -f $filename ]] && echo "$filename" >"$RECORDING_FILE"; then
+    STARTING_PID=""
+    toggle_voicerecording_indicator
+    omarchy-notification-send -g 󰍰 "Voice recording started" "Stop from the Capture menu (or click this)" \
+      --exec omarchy-capture-voicerecording --stop-recording
+  else
+    # Without the state file the stop couldn't find the recording, so don't
+    # leave a recorder running either
+    STARTING_PID=""
+    end_process $pid
+    omarchy-notification-send -u critical -t 3000 "Voice recording failed to start" "Could not record from the default microphone"
+    return 1
+  fi
+}
+
+stop_voicerecording() {
+  local filename
+  filename=$(cat "$RECORDING_FILE" 2>/dev/null)
+
+  signal_recorder -SIGINT # SIGINT lets ffmpeg finish writing the file
+
+  # Wait a maximum of 5 seconds to finish before hard killing
+  local count=0
+  while voicerecording_active && ((count < 50)); do
+    sleep 0.1
+    count=$((count + 1))
+  done
+
+  local force_killed="false"
+  if voicerecording_active; then
+    signal_recorder -9
+    force_killed="true"
+  fi
+
+  # The recorder is gone, so the bar can stop showing it before the cleanup runs
+  rm -f "$RECORDING_FILE"
+  toggle_voicerecording_indicator
+
+  if [[ ! -f $filename ]]; then
+    omarchy-notification-send -u critical -t 5000 "Voice recording stopped" "Its file couldn't be found, so nothing was saved"
+    return 1
+  fi
+
+  echo "$filename"
+
+  if ! finalize_recording "$filename"; then
+    omarchy-notification-send -u critical -t 5000 "Voice recording may be damaged" "It couldn't be cleaned up, so it was kept exactly as recorded. Click to try opening it." \
+      --exec mpv --player-operation-mode=pseudo-gui -- "$filename"
+    return 1
+  fi
+
+  if [[ $force_killed == "true" ]]; then
+    omarchy-notification-send -u critical -t 5000 "Voice recording force-stopped" "The recorder didn't stop in time, so the last second may be missing. Click to open." \
+      --exec mpv --player-operation-mode=pseudo-gui -- "$filename"
+  else
+    omarchy-notification-send -g 󰍰 "Voice recording saved" "Open with Super + Alt + , (or click this)" -t 10000 \
+      --exec mpv --player-operation-mode=pseudo-gui -- "$filename"
+  fi
+}
+
+toggle_voicerecording_indicator() {
+  omarchy-shell -q omarchy.indicators refresh
+}
+
+voicerecording_active() {
+  pgrep -u "$UID" -f "^$RECORDER_NAME " >/dev/null
+}
+
+signal_recorder() {
+  pkill "$1" -u "$UID" -f "^$RECORDER_NAME "
+}
+
+# TERM, then KILL if it hasn't gone within a second, then reap it
+end_process() {
+  if kill "$1" 2>/dev/null; then
+    local count=0
+    while kill -0 "$1" 2>/dev/null && ((count < 10)); do
+      sleep 0.1
+      count=$((count + 1))
+    done
+
+    # Only if it's still there, so a PID already reaped and reused is left alone
+    if kill -0 "$1" 2>/dev/null; then
+      kill -9 "$1" 2>/dev/null
+    fi
+  fi
+  wait "$1" 2>/dev/null
+}
+
+# True when the file has an audio stream that decodes from start to end.
+# Counting packets isn't enough: a damaged recording still has them.
+decodes() {
+  ffmpeg -nostdin -v error -xerror -i "$1" -map 0:a:0 -f null - >/dev/null 2>&1
+}
+
+# Replaces the recording with its cleaned-up audio, or fails and leaves it
+# exactly as recorded when nothing that fully decodes comes out
+finalize_recording() {
+  # Same cleanup as screen recordings: hard-mute the first 400ms to drop the
+  # PipeWire capture-open pop, fade in over 50ms to avoid a click, then normalize
+  # to -14 LUFS. loudnorm resamples to 192kHz internally, so set the rate back.
+  # loudnorm fails on clips too short or too quiet to measure (under about 0.4s,
+  # or silent and under 3s), so keep those as recorded, rewritten from fragments
+  # into a regular .m4a. A damaged recording fails both, since the rewrite only
+  # counts if it decodes.
+  replace_with_ffmpeg_output "$1" -af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11" \
+    -ar 48000 -c:a aac ||
+    replace_with_ffmpeg_output "$1" -c:a copy
+}
+
+# Replaces FILE with what ffmpeg makes of it given ARGS, if that decodes to audio
+replace_with_ffmpeg_output() {
+  local latest=$1
+  shift
+
+  # A fresh file from mktemp, never a name that something else could already
+  # have put there for ffmpeg -y to write through. Like every other writer
+  # here, it trusts that only this user can change the recordings directory.
+  local processed
+  processed=$(mktemp --tmpdir="$(dirname -- "$latest")" --suffix=.m4a ".$(basename -- "${latest%.m4a}").XXXXXX") || return 1
+  STAGING=$processed
+
+  # -nostdin, or a q typed in the terminal that ran the stop would end ffmpeg
+  # early and leave a cut-short recording in place of the original
+  if ffmpeg -nostdin -loglevel quiet -y -i "$latest" "$@" "$processed" 2>/dev/null && decodes "$processed" &&
+    chmod --reference="$latest" "$processed" && mv -f "$processed" "$latest"; then
+    STAGING=""
+  else
+    rm -f "$processed"
+    STAGING=""
+    return 1
+  fi
+}
+
+clean_up_interrupted() {
+  if [[ -n $STARTING_PID ]]; then
+    end_process "$STARTING_PID"
+  fi
+  if [[ -n $STAGING ]]; then
+    rm -f "$STAGING"
+  fi
+}
+
+trap clean_up_interrupted EXIT
+trap 'exit 1' INT TERM HUP
+
+if voicerecording_active; then
+  stop_voicerecording
+elif [[ $STOP_RECORDING == "true" ]]; then
+  # Nothing is recording, so an indicator still showing one is stale
+  toggle_voicerecording_indicator
+  exit 1
+else
+  start_voicerecording
+fi
