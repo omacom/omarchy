@@ -5,7 +5,46 @@
 # omarchy:name=lock
 # omarchy:examples=omarchy system lock
 
-omarchy-shell lock lock >/dev/null
+warn_unsecured() {
+  local msg="$1"
+  local localized_msg="${2:-$msg}"
+  local title
+  title="$(omarchy-i18n lock.sessionUnsecured)"
+  echo "omarchy-system-lock: $msg" >&2
+  # The shell is the notification server, so a hung shell would hold the D-Bus call for 25s.
+  timeout --kill-after=1s 2s omarchy-notification-send -u critical -g 󰌾 \
+    "$title" \
+    "$localized_msg" 2>/dev/null || \
+    hyprctl notify 3 5000 "rgb(ff5555)" "${title}: ${localized_msg}" >/dev/null 2>&1 || true
+}
+
+lock_reply=$(omarchy-shell lock lock 2>/dev/null) || {
+  warn_unsecured "Failed to contact lock service." "$(omarchy-i18n lock.failedToContact)"
+  exit 1
+}
+
+case $lock_reply in
+  ok)
+    ;;
+  missing-pam)
+    echo "omarchy-system-lock: /etc/pam.d/omarchy-lock-password is missing. Run 'omarchy-apply-lock' to configure it." >&2
+    warn_unsecured \
+      "Lock screen password PAM service is missing. Run omarchy-apply-lock to configure it." \
+      "$(omarchy-i18n lock.missingPam)"
+    exit 1
+    ;;
+  failed)
+    warn_unsecured "Lock service refused to lock the session." "$(omarchy-i18n lock.refused)"
+    exit 1
+    ;;
+  *)
+    raw_response=${lock_reply:-empty response}
+    warn_unsecured \
+      "Unexpected response from lock service: $raw_response" \
+      "$(omarchy-i18n lock.unexpectedResponse "$raw_response")"
+    exit 1
+    ;;
+esac
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
