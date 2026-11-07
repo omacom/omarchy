@@ -20,6 +20,14 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  // Charge limit (UPower threshold): ON = healthy limit (usually 75-80%),
+  // OFF = full 100% charge. Reflects UPower state; persisted by UPower across reboots.
+  property bool chargeLimitEnabled: true
+  property bool chargeLimitSupported: false
+  property string chargeLimitEnd: "80"
+  property bool chargeLimitBusy: false
+  property bool chargeLimitCursor: false
+  property bool chargeLimitRefreshPending: false
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -40,7 +48,23 @@ Panel {
   }
 
   function selectProfileByDelta(delta) {
+    if (chargeLimitCursor) {
+      if (delta > 0 && profiles.length > 0) {
+        chargeLimitCursor = false
+        profileIndex = 0
+      }
+      return
+    }
+    if (chargeLimitSupported && delta < 0 && profileIndex === 0) {
+      chargeLimitCursor = true
+      return
+    }
     profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+  }
+
+  function activateCursor() {
+    if (chargeLimitCursor) setChargeLimit(!chargeLimitEnabled)
+    else activateSelectedProfile()
   }
 
   function activateSelectedProfile() {
@@ -145,6 +169,40 @@ Panel {
     if (!batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+    refreshChargeLimit()
+  }
+
+  function refreshChargeLimit() {
+    if (!batteryPresent) return
+    if (chargeLimitSetProc.running) {
+      chargeLimitRefreshPending = true
+      return
+    }
+    if (chargeLimitProc.running) return
+    chargeLimitRefreshPending = false
+    chargeLimitProc.running = true
+  }
+
+  function updateChargeLimit(raw) {
+    if (chargeLimitSetProc.running || chargeLimitRefreshPending) return
+    var next = Model.parseKeyValue(raw)
+    if (Object.keys(next).length === 0) return
+    if (next.supported !== undefined) {
+      chargeLimitSupported = (next.supported === "true")
+      if (!chargeLimitSupported) chargeLimitCursor = false
+    }
+    if (next.enabled !== undefined) chargeLimitEnabled = (next.enabled === "true")
+    if (next.end !== undefined && next.end !== "") chargeLimitEnd = next.end
+  }
+
+  function setChargeLimit(enabled) {
+    if (chargeLimitBusy || chargeLimitSetProc.running) return
+    chargeLimitBusy = true
+    if (chargeLimitProc.running) chargeLimitRefreshPending = true
+    // Optimistic flip; corrected on refresh if the call fails.
+    chargeLimitEnabled = enabled
+    chargeLimitSetProc.command = ["omarchy-battery-charge-limit", enabled ? "80" : "full"]
+    chargeLimitSetProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -205,6 +263,7 @@ Panel {
       refresh()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
+      chargeLimitCursor = false
       cursorActive = false
     }
   }
@@ -231,6 +290,28 @@ Panel {
     id: systemProc
     command: ["omarchy-system-stats"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateKeyValue(text, "system") }
+  }
+
+  Process {
+    id: chargeLimitProc
+    command: ["omarchy-battery-charge-limit", "status", "--shell"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateChargeLimit(text) }
+    onExited: {
+      if (root.chargeLimitRefreshPending && !root.chargeLimitSetProc.running) {
+        root.chargeLimitRefreshPending = false
+        root.refreshChargeLimit()
+      }
+    }
+  }
+
+  Process {
+    id: chargeLimitSetProc
+    onExited: {
+      root.chargeLimitBusy = false
+      if (root.chargeLimitProc.running) root.chargeLimitRefreshPending = true
+      else root.refreshChargeLimit()
+      root.refresh()
+    }
   }
 
   Process {
@@ -318,7 +399,7 @@ Panel {
         if (dx !== 0) root.selectProfileByDelta(dx)
         else if (dy !== 0) root.selectProfileByDelta(dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -463,6 +544,42 @@ Panel {
           }
         }
 
+        // ---------- Charge limit toggle ----------
+        Column {
+          visible: root.chargeLimitSupported
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSeparator {
+            foreground: root.bar.foreground
+          }
+
+          PanelSectionHeader {
+            text: "CHARGE LIMIT"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Toggle {
+            width: parent.width
+            label: "Limit charge to " + root.chargeLimitEnd + "%"
+            description: root.chargeLimitEnabled
+              ? "Healthy limit active. Turn off for a full 100% charge."
+              : "Full 100% charge. Turn on to restore the healthy limit."
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            checked: root.chargeLimitEnabled
+            hasCursor: root.cursorActive && root.chargeLimitCursor
+            onHovered: function(h) {
+              if (h) {
+                root.cursorActive = true
+                root.chargeLimitCursor = true
+              }
+            }
+            onClicked: root.setChargeLimit(!root.chargeLimitEnabled)
+          }
+        }
+
         // ---------- Power profile picker ----------
         PanelSeparator {
           foreground: root.bar.foreground
@@ -503,11 +620,12 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && !root.chargeLimitCursor && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.chargeLimitCursor = false
                     root.profileIndex = index
                   }
                 }
