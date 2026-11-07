@@ -16,4 +16,8 @@ if o.dictation_installed() then
   -- A modifier's mask changes between its press and release. Match the keysym
   -- independently of that mask; AltGr layouts use a different keysym.
   o.bind_hold("ALT + Alt_R", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop", { ignore_mods = true })
+  -- AltGr types characters, so it records only once held alone past the repeat
+  -- delay, which any other key cancels. Hyprland treats it as an ordinary key,
+  -- so AltGr + 2 is a partial match that would swallow the 2 unless non-consuming.
+  o.bind_hold("ISO_Level3_Shift", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop", { ignore_mods = true, long_press = true, non_consuming = true })
 end
