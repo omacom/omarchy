@@ -45,29 +45,31 @@ ShellRoot {
       var recheck = timer(service, 1000, false)
       service.lockRequested = true
 
-      service.applyFingerprintProbe("Could not activate remote peer")
+      service.applyFingerprintProbe("Could not activate remote peer", 0)
       check(!service.fingerprintConfigured, "unknown cannot invent an enrollment")
       check(recheck.running && recheck.interval === 1000, "unknown schedules a paced probe")
 
-      service.applyFingerprintProbe("Could not activate remote peer")
-      service.applyFingerprintProbe("No devices available")
+      service.applyFingerprintProbe("Could not activate remote peer", 0)
+      service.applyFingerprintProbe("No devices available", 0)
       check(!service.fingerprintConfigured && service.fingerprintUnavailable, "an initial outage shows unavailable without inventing enrollment")
       service.nudgeFingerprint()
       check(recheck.interval === 250, "input promptly retries an initial unknown probe")
 
-      service.applyFingerprintProbe("Fingerprints for user test on Goodix:\n - #0: right-index-finger")
+      service.applyFingerprintProbe("Fingerprints for user test on Goodix:\n - #0: right-index-finger", 0)
       check(service.fingerprintConfigured, "a real enrollment row enables fingerprint")
+      service.applyFingerprintProbe("User test has no fingers enrolled.", 1)
+      check(service.fingerprintConfigured, "a failed probe cannot discard the known enrollment")
       check(!service.fingerprintUnavailable && !recheck.running, "a definitive enrollment clears probe notice and recheck")
-      service.applyFingerprintProbe("ListEnrolledFingers failed: Timeout was reached")
+      service.applyFingerprintProbe("ListEnrolledFingers failed: Timeout was reached", 0)
       check(service.fingerprintConfigured, "unknown preserves a known enrollment")
-      service.applyFingerprintProbe("No devices available")
-      service.applyFingerprintProbe("ListEnrolledFingers failed: Timeout was reached")
+      service.applyFingerprintProbe("No devices available", 0)
+      service.applyFingerprintProbe("ListEnrolledFingers failed: Timeout was reached", 0)
       check(!service.fingerprintUnavailable && !recheck.running, "known enrollment uses PAM recovery without competing probe retries")
 
       service.fingerprintAuthenticating = true
       retry.start()
       reach.start()
-      service.applyFingerprintProbe("User test has no fingers enrolled for Goodix MOC Fingerprint Sensor.")
+      service.applyFingerprintProbe("User test has no fingers enrolled for Goodix MOC Fingerprint Sensor.", 0)
       check(!service.fingerprintConfigured, "empty enrollment is not a fingerprint")
       check(!retry.running, "empty enrollment stops authentication retries")
       check(!service.fingerprintAuthenticating && !reach.running, "empty enrollment closes the attempt and reach timer")
@@ -235,12 +237,87 @@ ShellRoot {
       service.resetAuthenticationState()
       check(!retry.running && !reach.running && !recheck.running, "unlock reset stops every fingerprint timer")
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
-      service.applyFingerprintProbe("Daemon is restarting")
+      service.applyFingerprintProbe("Daemon is restarting", 0)
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()
       service.destroy()
+    }
+  }
+
+  property var probeService: null
+  property var probeProcess: null
+  property int probePhase: 0
+  property double probeStartedAt: 0
+
+  function finish() {
+    probeDeadline.stop()
+    if (probeService) {
+      probeService.lockRequested = false
+      probeService.resetAuthenticationState()
+      probeService.destroy()
+      probeService = null
+    }
+    var payload = JSON.stringify({ ok: failures.length === 0, checks: checks, failures: failures })
+    var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
+    Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", resultPath])
+  }
+
+  function startDeadlineProbe() {
+    var component = Qt.createComponent("file://" + Quickshell.env("OMARCHY_QML_PROBE_SERVICE"), Component.PreferSynchronous)
+    if (component.status !== Component.Ready) throw new Error(component.errorString())
+    probeService = component.createObject(host, { omarchyPath: rootPath })
+    if (!probeService) throw new Error(component.errorString())
+    var objects = probeService.data || []
+    for (var i = 0; i < objects.length; i++) {
+      if (objects[i].command && String(objects[i].command).indexOf("fprintd-list") >= 0) probeProcess = objects[i]
+    }
+    if (!probeProcess) throw new Error("Missing production discovery Process")
+    probeProcess.running = false
+    probeSettle.start()
+  }
+
+  Timer {
+    id: probeSettle
+    interval: 100
+    onTriggered: {
+      root.probeService.fingerprintConfigured = true
+      var command = root.probeProcess.command
+      command[2] = "export OMARCHY_TIMEOUT_CHECK=1; " + command[2]
+      root.probeProcess.command = command
+      root.probeProcess.exited.connect(function(exitCode) {
+        Qt.callLater(function() {
+          try {
+            if (root.probePhase === 1) {
+              root.check(exitCode === 124 || exitCode === 137, "stalled discovery exits through the production timeout")
+              root.check(Date.now() - root.probeStartedAt >= 4500, "the real discovery deadline is exercised")
+              root.check(root.probeService.fingerprintConfigured, "timed-out partial output preserves known enrollment through onExited")
+              root.probePhase = 2
+              root.probeService.refreshFingerprintStatus()
+            } else if (root.probePhase === 2) {
+              root.check(exitCode === 0 && !root.probeService.fingerprintConfigured, "a later discovery retries and applies a definitive result")
+              root.finish()
+            }
+          } catch (error) {
+            root.failures.push(String(error))
+            root.finish()
+          }
+        })
+      })
+      root.probePhase = 1
+      root.probeStartedAt = Date.now()
+      probeDeadline.start()
+      root.probeService.refreshFingerprintStatus()
+    }
+  }
+
+  Timer {
+    id: probeDeadline
+    interval: 8000
+    onTriggered: {
+      root.failures.push("stalled discovery did not finish and retry within its deadline")
+      root.finish()
     }
   }
 
@@ -250,12 +327,11 @@ ShellRoot {
     onTriggered: {
       try {
         root.run()
+        root.startDeadlineProbe()
       } catch (error) {
         root.failures.push(String(error))
+        root.finish()
       }
-      var payload = JSON.stringify({ ok: root.failures.length === 0, checks: root.checks, failures: root.failures })
-      var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
-      Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", root.resultPath])
     }
   }
 }
