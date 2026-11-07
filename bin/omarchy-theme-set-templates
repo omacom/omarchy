@@ -222,7 +222,7 @@ add_function_values() {
   local token
   local -A seen=()
 
-  (( ${#template_files[@]} > 0 )) || return
+  (( ${#template_files[@]} + ${#background_templates[@]} > 0 )) || return
 
   while IFS= read -r token; do
     [[ -n ${seen[$token]:-} ]] && continue
@@ -233,7 +233,7 @@ add_function_values() {
     else
       add_gradient_function_value "$token"
     fi
-  done < <(grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" 2>/dev/null || true)
+  done < <(grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" "${background_templates[@]}" 2>/dev/null || true)
 }
 
 strip_shell_section_header() {
@@ -328,6 +328,14 @@ render_templates() {
     if [[ ! -f $NEXT_THEME_DIR/$filename && -z ${rendered[$filename]:-} ]]; then
       rendered[$filename]=1
       pairs+=("$tpl" "$NEXT_THEME_DIR/$filename")
+    fi
+  done
+
+  # Background templates render beside their images in the staged copy. A
+  # shipped output wins, and a symlinked directory must never be written to.
+  for tpl in "${background_templates[@]}"; do
+    if [[ ! -f ${tpl%.tpl} && ! -L ${tpl%.tpl} ]]; then
+      pairs+=("$tpl" "${tpl%.tpl}")
     fi
   done
 
@@ -433,6 +441,10 @@ if [[ -f $COLORS_FILE ]]; then
 
   shopt -s nullglob
   template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
+  background_templates=()
+  if [[ -d $NEXT_THEME_DIR/backgrounds && ! -L $NEXT_THEME_DIR/backgrounds ]]; then
+    background_templates=("$NEXT_THEME_DIR/backgrounds"/*.svg.tpl)
+  fi
 
   # Parsing and alias/fallback resolution (legacy colorN names, derived
   # shades, mode/theme_type) is shared with every other colors.toml consumer.
@@ -447,6 +459,9 @@ if [[ -f $COLORS_FILE ]]; then
   add_function_values
   render_templates
 
+  if (( ${#background_templates[@]} > 0 )); then
+    rm -- "${background_templates[@]}"
+  fi
   rm "$value_table" "$mix_table"
 fi
 

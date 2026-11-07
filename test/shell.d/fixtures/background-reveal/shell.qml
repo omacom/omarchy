@@ -24,14 +24,16 @@ ShellRoot {
 
   BackgroundPlugin.Background { id: background }
 
-  Timer {
-    interval: 800
-    running: true
-    onTriggered: {
-      shell.check(background.ready, "the first background is on screen before the switch")
-      background.setBackground(Quickshell.env("HOME") + "/next.png", false)
-      shell.started = true
-    }
+  function begin() {
+    if (shell.started || !background.ready) return
+    background.setBackground(Quickshell.env("HOME") + "/next.png", false)
+    shell.started = true
+  }
+
+  Component.onCompleted: shell.begin()
+  Connections {
+    target: background
+    function onReadyChanged() { shell.begin() }
   }
 
   FrameAnimation {
