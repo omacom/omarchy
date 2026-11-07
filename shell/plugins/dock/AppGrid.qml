@@ -376,8 +376,26 @@ Item {
             color: Commons.Color.menu.text
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
+            leftPadding: Style.spacing.controlPaddingX
+            rightPadding: Style.spacing.controlPaddingX
             text: root.filterText
             onTextChanged: if (text !== root.filterText) root.setFilter(text)
+          }
+
+          // The search line reads as a search until something is typed into it.
+          Text {
+            textFormat: Text.PlainText
+            anchors.fill: filterInput
+            anchors.leftMargin: filterInput.leftPadding
+            anchors.rightMargin: filterInput.rightPadding
+            verticalAlignment: Text.AlignVCenter
+            visible: !root.filterText && !filterInput.preeditText
+            text: Commons.I18n.t("dock.searchApps")
+            color: Commons.Color.menu.text
+            opacity: 0.58
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.heading
+            elide: Text.ElideRight
           }
         }
 
