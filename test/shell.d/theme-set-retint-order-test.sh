@@ -73,6 +73,33 @@ done
 for command in omarchy-theme-set-templates omarchy-theme-set-herdr-machines; do
   ln -sf noop "$commands/$command"
 done
+# Model the synchronous Herdr barrier in the full theme-switch integration test.
+# A held Herdr must prevent terminal-adaptive apps from restarting until release.
+rm -f "$commands/omarchy-theme-set-herdr"
+cat >"$commands/omarchy-theme-set-herdr" <<'STUB'
+#!/bin/bash
+echo herdr-start >>"$TEST_LOG"
+if [[ ${TEST_HERDR_HOLD:-} == "1" ]]; then
+  touch "$TEST_TMP/herdr-started"
+  for attempt in {1..150}; do
+    [[ ! -f $TEST_TMP/herdr-release ]] || break
+    sleep 0.02
+  done
+fi
+[[ ${TEST_HERDR_FAIL:-} != "1" ]] || exit 1
+echo herdr-done >>"$TEST_LOG"
+STUB
+# Simulate a timeout without making every test wait five seconds.
+cat >"$commands/timeout" <<'STUB'
+#!/bin/bash
+if [[ $1 == "5" && $2 == "omarchy-theme-set-herdr" ]]; then
+  echo herdr-timeout-5 >>"$TEST_LOG"
+  [[ ${TEST_HERDR_TIMEOUT:-} != "1" ]] || exit 124
+fi
+exec /usr/bin/timeout "$@"
+STUB
+chmod +x "$commands/omarchy-theme-set-herdr" "$commands/timeout"
+
 cat >"$commands/omarchy-notification-send" <<'STUB'
 #!/bin/bash
 echo "notify: $*" >>"$TEST_LOG"
@@ -162,6 +189,34 @@ wait_for_detached_work
 grep -q 'Theme retint failed: omarchy-theme-set-vscode' "$home/.local/state/omarchy/theme-set.log" ||
   fail "a failed detached retint is named in the theme-set log"
 pass "terminals retint during an intro and the other apps follow without holding up the switch"
+
+# Verify the real theme-set path, not the removed apply_running_theme function.
+rm -f "$test_tmp/herdr-started" "$test_tmp/herdr-release"
+: >"$log"
+TEST_HERDR_HOLD=1 OMARCHY_THEME_SKIP_BACKGROUND=1 switch_theme beta &
+herdr_switch_pid=$!
+for attempt in {1..100}; do
+  [[ ! -f $test_tmp/herdr-started ]] || break
+  sleep 0.02
+done
+[[ -f $test_tmp/herdr-started ]] || fail "Herdr refresh starts before visible retints"
+! grep -Eq '^(omarchy-restart-terminal|omarchy-theme-set-foot|omarchy-theme-set-tmux|omarchy-restart-opencode)$' "$log" ||
+  fail "visible retints must not race Herdr" "$(cat "$log")"
+touch "$test_tmp/herdr-release"
+wait "$herdr_switch_pid" || fail "theme change resumes after Herdr"
+for command in omarchy-restart-terminal omarchy-theme-set-foot omarchy-theme-set-tmux omarchy-restart-opencode; do
+  grep -qx "$command" "$log" || fail "$command runs after Herdr" "$(cat "$log")"
+done
+wait_for_detached_work
+pass "Herdr completes before terminal-adaptive applications retint"
+
+# Herdr can time out without preventing the rest of the theme refresh.
+TEST_HERDR_TIMEOUT=1 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme beta
+grep -qx herdr-timeout-5 "$log" || fail "Herdr reload has a five-second timeout" "$(cat "$log")"
+grep -qx omarchy-restart-opencode "$log" || fail "Herdr timeout does not block OpenCode" "$(cat "$log")"
+wait_for_detached_work
+pass "Herdr timeout does not block a theme switch"
+
 
 rm -f "$test_tmp/release"
 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme beta
