@@ -31,7 +31,16 @@ done
 
 cd "${OMARCHY_PATH:-$(pwd)}"
 mkdir -p migrations
-migration_file="migrations/$(git log -1 --format=%cd --date=unix).sh"
+
+# Wall-clock time, not HEAD's committer date: branches cut from the same commit
+# used to collide on one migration id and silently skip (#13516).
+migration_id=$(date +%s)
+migration_file="migrations/${migration_id}.sh"
+while [[ -e $migration_file ]]; do
+  ((++migration_id))
+  migration_file="migrations/${migration_id}.sh"
+done
+
 touch "$migration_file"
 
 if (( ! no_edit )); then
