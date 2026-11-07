@@ -267,7 +267,12 @@ cat >"$FONT_TMPDIR/.config/kitty/kitty.conf" <<'EOF'
 font_family JetBrainsMono Nerd Font
 font_size 12.0
 EOF
+# Shaped like the shipped config/alacritty/alacritty.toml, whose style entries a greedy family match deleted.
 cat >"$FONT_TMPDIR/.config/alacritty/alacritty.toml" <<'EOF'
+[font]
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
 size = 12
 EOF
 cat >"$FONT_TMPDIR/.config/ghostty/config" <<'EOF'
@@ -293,6 +298,10 @@ grep -qx 'font_size 12.0' "$FONT_TMPDIR/.config/kitty/kitty.conf" || fail "font 
 pass "font set preserves kitty size"
 grep -qx 'size = 12' "$FONT_TMPDIR/.config/alacritty/alacritty.toml" || fail "font set preserves alacritty size"
 pass "font set preserves alacritty size"
+for style in Regular Bold Italic; do
+  grep -qF "family = \"Test Font\", style = \"$style\"" "$FONT_TMPDIR/.config/alacritty/alacritty.toml" || fail "font set keeps alacritty style = \"$style\" and swaps its family"
+done
+pass "font set keeps alacritty font styles and swaps every family"
 grep -qx 'font-size = 12' "$FONT_TMPDIR/.config/ghostty/config" || fail "font set preserves ghostty size"
 pass "font set preserves ghostty size"
 
