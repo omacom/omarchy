@@ -3,5 +3,12 @@
 # omarchy:summary=Match against the computer's DMI product name or product family (case-insensitive).
 # omarchy:args=<pattern>
 
-grep -qi -- "$1" /sys/class/dmi/id/product_name 2>/dev/null ||
-grep -qi -- "$1" /sys/class/dmi/id/product_family 2>/dev/null
+# Without a pattern the greps below match every readable DMI file, turning a
+# forgotten argument into a hardware "yes" for any caller using this in an if.
+if [[ -z ${1:-} ]]; then
+  echo "Usage: omarchy-hw-match <pattern>" >&2
+  exit 1
+else
+  grep -qi -- "$1" /sys/class/dmi/id/product_name 2>/dev/null ||
+  grep -qi -- "$1" /sys/class/dmi/id/product_family 2>/dev/null
+fi
