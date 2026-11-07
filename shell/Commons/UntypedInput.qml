@@ -22,6 +22,15 @@ Singleton {
   // its old value when onNodeIdChanged runs.
   readonly property int nodeId: active ? source.id : -1
 
+  readonly property bool sourceEventsRunning: events.running
+  property bool globalMuteActive: false
+  signal sourceEvent()
+  signal sourceDisconnected()
+  onGlobalMuteActiveChanged: {
+    events.running = active || globalMuteActive
+    if (globalMuteActive) sourceEvent()
+  }
+
   property bool known: false
   property real volume: 0
   property bool muted: false
@@ -46,7 +55,7 @@ Singleton {
     pendingVolume = null
     pendingMute = null
     quickExits = 0
-    events.running = nodeId >= 0
+    events.running = nodeId >= 0 || globalMuteActive
     refresh()
   }
 
@@ -131,12 +140,16 @@ Singleton {
     environment: ({ LC_ALL: "C" })
     onRunningChanged: if (running) root.subscribedAt = Date.now()
     onExited: {
+      root.sourceDisconnected()
       root.quickExits = Date.now() - root.subscribedAt < 1000 ? root.quickExits + 1 : 0
-      if (root.nodeId >= 0 && root.quickExits < 5) resubscribe.start()
+      if ((root.nodeId >= 0 || root.globalMuteActive) && root.quickExits < 5) resubscribe.start()
     }
     stdout: SplitParser {
       onRead: function(line) {
-        if (String(line).indexOf(" on source #") !== -1) root.refresh()
+        if (String(line).indexOf(" on source #") !== -1) {
+          root.refresh()
+          root.sourceEvent()
+        }
       }
     }
   }
@@ -144,9 +157,10 @@ Singleton {
   Timer {
     id: resubscribe
     interval: 2000
-    onTriggered: if (root.nodeId >= 0 && !events.running) {
+    onTriggered: if ((root.nodeId >= 0 || root.globalMuteActive) && !events.running) {
       events.running = true
       root.refresh()
+      root.sourceEvent()
     }
   }
 }
