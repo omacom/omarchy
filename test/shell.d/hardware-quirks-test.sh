@@ -211,6 +211,9 @@ machine() {
     synaptics-chroot) synaptics; FAKE_MODPROBE_RESOLVES=1 ;;
     synaptics-psmouse-loaded) synaptics; FAKE_LSMOD="psmouse 217088 0" ;;
     synaptics-modprobe-fails) synaptics; FAKE_MODPROBE_STATUS=1 ;;
+    g15-5530) dmi sys_vendor "Dell Inc."; dmi product_name "Dell G15 5530" ;;
+    g15-5530-not-x86) dmi sys_vendor "Dell Inc."; dmi product_name "Dell G15 5530"; FAKE_PLATFORM=aarch64 ;;
+    g15-5535) dmi sys_vendor "Dell Inc."; dmi product_name "Dell G15 5535" ;;
     surface-intel) surface "Surface Laptop 3"; FAKE_LSMOD="pinctrl_tigerlake 32768 0" ;;
     surface-intel-no-pinctrl) surface "Surface Laptop 3" ;;
     # What lsmod reports on a Surface Pro 11, where the Intel module list would break mkinitcpio.
@@ -299,6 +302,7 @@ leaves=(
   hardware/fix-synaptic-touchpad.sh
   hardware/surface.sh
   hardware/fix-surface-keyboard.sh
+  hardware/dell-g15-touchpad.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
@@ -345,6 +349,10 @@ hardware/surface.sh|surface-snapdragon|0
 hardware/fix-surface-keyboard.sh|surface-intel|0|wrote etc/mkinitcpio.conf.d/surface_device_modules.conf
 hardware/fix-surface-keyboard.sh|surface-intel-no-pinctrl|0
 hardware/fix-surface-keyboard.sh|surface-snapdragon|0
+hardware/dell-g15-touchpad.sh|g15-5530|0|wrote etc/mkinitcpio.conf.d/dell_g15_touchpad.conf|wrote etc/modprobe.d/dell-g15-touchpad.conf
+hardware/dell-g15-touchpad.sh|g15-5530+unreadable|0
+hardware/dell-g15-touchpad.sh|g15-5530-not-x86|0
+hardware/dell-g15-touchpad.sh|g15-5535|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1|0|pkg-add pipewire-libcamera|wrote etc/udev/rules.d/70-thinkpad-t14s-camera.rules
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n2|0|pkg-add pipewire-libcamera|wrote etc/udev/rules.d/70-thinkpad-t14s-camera.rules
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1+unreadable|0
