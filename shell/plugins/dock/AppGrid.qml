@@ -397,8 +397,11 @@ Item {
                     root.openMenu(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                     return
                   }
-                  root.menuEntry = null
-                  root.launch(cell.index)
+                  // A click while the app's menu is open only closes that menu;
+                  // the app it landed on opens on the next click, once the menu
+                  // is gone.
+                  if (root.menuEntry) root.menuEntry = null
+                  else root.launch(cell.index)
                 }
               }
             }
