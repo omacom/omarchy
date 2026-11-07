@@ -40,6 +40,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Ctrl + L` | Lock computer |
 | `Super + W` or `Super + Q` | Close window             |
 | `Ctrl + Alt + Del` | Close all windows |
+| `Super + Ctrl + Alt + K` | Kill a window's app by clicking it (Escape cancels) |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
