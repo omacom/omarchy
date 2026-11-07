@@ -229,6 +229,18 @@ expect("DeepSeek counts a dsh prompt per typed message, not per step or schedule
        [record["totalPrompts"], record["modelUsage"].get("deepseek-flash", {}).get("inputTokens")], [3 + 2, 12417 + 14423 + 15426 + 16429 + 1000], record)
 shutil.rmtree(project / "s10")
 
+# The compressed input itself and uncompressed logs need the same cap, before
+# decompression or splitting into lines. A sparse file keeps the fixture small.
+import collectors
+for extension in (".jsonl", ".jsonl.zstd"):
+  oversized = home() / ("oversized" + extension)
+  with oversized.open("wb") as handle:
+    handle.truncate(collectors.DSH_MAX_LOG_BYTES + 1)
+  with contextlib.redirect_stderr(io.StringIO()):
+    oversized_result = collectors.dsh_log_lines(oversized)
+  check("oversized " + extension + " input is an incomplete scan", oversized_result == ([], False))
+  oversized.unlink()
+
 # A frame that inflates past the cap (64 MiB, far beyond any real log) is
 # never read in full: the log counts nothing, and the scan, incomplete, isn't
 # kept for the next run.
