@@ -42,8 +42,15 @@ screen_contains() {
     rm -f "$snapshot"
     return 1
   fi
-  tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null
-  local status=$?
+  local status=1 mode
+  # Sparse segmentation can miss a clear caption against a busy wallpaper.
+  # Retry as one text block using the same captured pixels.
+  for mode in 11 6; do
+    if tesseract "$snapshot" stdout --psm "$mode" 2>/dev/null | grep -Fi -- "$text" >/dev/null; then
+      status=0
+      break
+    fi
+  done
   rm -f "$snapshot"
   return $status
 }
