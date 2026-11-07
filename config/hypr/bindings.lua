@@ -1,5 +1,5 @@
 -- Keep only your personal keybinding overrides here. Add new bindings with
--- o.bind or replace defaults with o.rebind.
+-- o.bind, which also replaces defaults for the same press/release event.
 
 -- See current bindings and descriptions:
 --   omarchy menu keybindings --print
@@ -15,9 +15,12 @@
 -- Add a new binding.
 -- o.bind("SUPER + SHIFT + R", "SSH", "alacritty -e ssh your-server")
 
--- Change an existing binding. o.rebind takes the same arguments as o.bind.
+-- Change an existing binding without unbinding it first.
 -- This example replaces the default file manager with Flea.
--- o.rebind("SUPER + SHIFT + F", "File manager", { launch = "flea" })
+-- o.bind("SUPER + SHIFT + F", "File manager", { launch = "flea" })
+
+-- Use o.rebind to replace every event on a key, including press and release.
+-- To deliberately stack actions on the same event, pass { append = true }.
 
 -- Disable a default binding without replacing it.
 -- hl.unbind("SUPER + SHIFT + B")
