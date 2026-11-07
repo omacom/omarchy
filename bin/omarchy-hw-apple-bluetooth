@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Detect the Apple Broadcom Bluetooth controller that misses its first reset
+# omarchy:hidden=true
+
+# iMac17,1 (and the same USB controller in other 2015 Macs) exposes Bluetooth as
+# 05ac:8294, "Bluetooth USB Host Controller". A warm reboot leaves the chip
+# powered, btusb's first HCI commands time out, and BlueZ reports no adapter.
+# The kernel should retry that reset; until it does, callers recover the chip.
+# Only this ID is recognized: it is the one that was verified. 05ac:8290 fails
+# the same way on 2015 MacBooks and can be added once that is tested.
+
+set -u
+
+vid=05ac
+pid=8294
+usb_root="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+
+for dev in "$usb_root"/[0-9]*-[0-9]*; do
+  [[ -r $dev/idVendor && -r $dev/idProduct ]] || continue
+  [[ $(basename "$dev") == *:* ]] && continue
+  if [[ $(<"$dev/idVendor") == $vid && $(<"$dev/idProduct") == $pid ]]; then
+    printf '%s\n' "$dev"
+    exit 0
+  fi
+done
+
+exit 1
