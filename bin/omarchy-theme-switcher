@@ -18,6 +18,11 @@ preview_dir="$CACHE_PATH/previews"
 signature_file="$CACHE_PATH/signature"
 fast_signature_file="$CACHE_PATH/fast-signature"
 
+umask 077
+if ! mkdir -p "$CACHE_PATH" || ! chmod 700 "$CACHE_PATH"; then
+  echo "Unable to secure the theme preview cache: $CACHE_PATH" >&2
+  exit 1
+fi
 mkdir -p "$preview_dir"
 
 find_preview() {
