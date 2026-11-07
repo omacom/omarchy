@@ -30,7 +30,11 @@ local STATE_DIR = paths.state_home .. "/omarchy/monitors"
 local STATE_FILE = STATE_DIR .. "/workspaces"
 local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
 
-local M = { slots = SLOTS }
+-- Enabled by default; opting out restores Hyprland's global workspace ids.
+-- Read at config load, before bindings are built and reload reconciliation runs.
+local disabled = io.open(paths.state_home .. "/omarchy/toggles/no-monitor-workspaces", "r")
+local M = { slots = SLOTS, enabled = disabled == nil }
+if disabled then disabled:close() end
 
 -- Identity -> block, kept across sessions.
 local blocks = {}
@@ -81,7 +85,9 @@ local function load_merged()
   file:close()
 end
 
-load_merged()
+if M.enabled then
+  load_merged()
+end
 
 local function save_merged()
   local ids = {}
@@ -302,6 +308,8 @@ end
 
 -- The workspace id of a slot on a monitor.
 function M.workspace_id(monitor, slot)
+  if not M.enabled then return slot end
+
   local by_connector = assign(connected())
   return (by_connector[monitor.name] or 0) * SLOTS + slot
 end
@@ -438,6 +446,11 @@ end
 -- Go to a slot on a monitor, the focused one unless named.
 function M.focus(slot, monitor_name)
   return action(function()
+    if not M.enabled then
+      hl.dispatch(hl.dsp.focus({ workspace = tostring(slot) }))
+      return
+    end
+
     local monitor = target_monitor(monitor_name)
     if not monitor then
       return
@@ -464,7 +477,7 @@ function M.move_window(slot, follow)
     end
 
     local id = M.workspace_id(monitor, slot)
-    reclaim(monitor, id)
+    if M.enabled then reclaim(monitor, id) end
     hl.dispatch(hl.dsp.window.move({ workspace = tostring(id), follow = follow ~= false, window = "address:" .. window.address }))
   end, "o.workspaces.move_window(" .. slot .. (follow == false and ", false" or "") .. ")")
 end
@@ -488,6 +501,7 @@ function M.move_to_monitor(direction)
     local id = workspace.id
     local from = hl.get_active_monitor()
     hl.dispatch(hl.dsp.workspace.move({ monitor = target.name }))
+    if not M.enabled then return end
 
     local moved = hl.get_workspace(id)
     if not moved or not moved.monitor or (from and moved.monitor.name == from.name) then
@@ -527,10 +541,38 @@ function M.move_window_to_monitor(direction)
   end, "o.workspaces.move_window_to_monitor(" .. literal(direction) .. ")")
 end
 
+-- Bring workspaces above ten back within reach of the number keys, under their
+-- own slot when it is free and the first free number otherwise.
+function M.compact()
+  return action(function()
+    if M.enabled then
+      return
+    end
+
+    -- An unplug origin could claim a workspace that later reuses the id. Forget
+    -- them here, not at load: this runs only once the reload has taken.
+    os.remove(MERGED_FILE)
+
+    local strays = {}
+    for _, workspace in ipairs(hl.get_workspaces()) do
+      if regular(workspace) and workspace.id > SLOTS then
+        strays[#strays + 1] = workspace
+      end
+    end
+    table.sort(strays, function(left, right) return left.id < right.id end)
+
+    for _, workspace in ipairs(strays) do
+      adopt(workspace, 0)
+    end
+  end, "o.workspaces.compact()")
+end
+
 -- Put every workspace whose monitor is plugged in back on it, and every monitor
 -- on a workspace of its own. `added` names a monitor that just arrived, which
 -- leaves whatever Hyprland put it on; `gone` one being removed.
 function M.reconcile(added, gone)
+  if not M.enabled then return end
+
   local monitors = connected(gone)
   if #monitors == 0 then
     return
@@ -675,6 +717,8 @@ function M.reconcile(added, gone)
 end
 
 hl.on("hyprland.start", function()
+  if not M.enabled then return end
+
   -- Windows don't outlive a session, so neither do the workspaces that held them.
   merged = {}
   save_merged()
@@ -684,7 +728,7 @@ end)
 -- A workspace created under a remembered number is a new one; the one that
 -- came from elsewhere has gone.
 hl.on("workspace.created", function(workspace)
-  if workspace and merged[workspace.id] then
+  if M.enabled and workspace and merged[workspace.id] then
     merged[workspace.id] = nil
     save_merged()
   end
