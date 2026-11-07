@@ -791,6 +791,9 @@
   "install.browser.firefox": {
     "label": "Firefox"
   },
+  "install.browser.mullvad": {
+    "label": "Mullvad Browser"
+  },
   "install.browser.zen": {
     "label": "Zen"
   },
