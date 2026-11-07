@@ -81,6 +81,7 @@ Item {
   property var dmenuSaved: []
   property string dmenuChangeKey: ""
   property var dmenuOnChange: []
+  property var dmenuConfirmedSelections: ({})
   property string selectionFile: ""
   property string doneFile: ""
   property int dmenuWidth: 300
@@ -350,6 +351,12 @@ Item {
     // Rows carry a fourth field (the English name) so searching "danish"
     // finds the row labeled with its native name; mergeProviderRows turns
     // it into an alias.
+    "agent-harnesses": {
+      volatile: true,
+      script: "current=$(\"$OMARCHY_PATH/bin/omarchy-default-agent\" 2>/dev/null); \"$OMARCHY_PATH/bin/omarchy-agent-list\" --json 2>/dev/null | jq -r --arg current \"$current\" '.[] | [.name, .id, (if .id == $current then .id else \"\" end), (.icon // \"\"), (.iconFont // \"\")] | @tsv'",
+      icon: "󰚩",
+      actionFor: function(value) { return "omarchy-default-agent " + Util.shellQuote(value) }
+    },
     "languages": {
       script: "current=$(omarchy-language 2>/dev/null); omarchy-language list 2>/dev/null | while IFS=$'\\t' read -r name code english; do [[ -z $code ]] && continue; printf '%s\\t%s\\t%s\\t%s\\n' \"$name\" \"$code\" \"$current\" \"$english\"; done",
       icon: "\uf1ab",
@@ -441,6 +448,8 @@ Item {
       var label = spec.labelFor ? spec.labelFor(rawLabel) : rawLabel
       var value = parts[1] || parts[0] || ""
       var current = parts[2] || ""
+      var icon = providerKey === "agent-harnesses" ? (parts[3] || "") : ""
+      var iconFont = providerKey === "agent-harnesses" ? (parts[4] || "") : ""
       if (!label) continue
       // Distinct values can slugify alike — Fira Code and Fira-Code both give
       // fira-code — and a repeated id is dropped, which would silently lose a
@@ -453,7 +462,8 @@ Item {
         id: rowId,
         parent: menuId,
         kind: "action",
-        icon: (value === current) ? "✓" : (spec.icon || ""),
+        icon: (value === current) ? "✓" : (icon || spec.icon || ""),
+        iconFont: iconFont,
         label: label,
         title: "",
         target: "",
@@ -461,7 +471,7 @@ Item {
         action: spec.actionFor(value),
         provider: "",
         aliases: [],
-        searchTerms: (parts[3] ? [parts[3]] : []).concat(label !== rawLabel ? [rawLabel] : []),
+        searchTerms: (providerKey !== "agent-harnesses" && parts[3] ? [parts[3]] : []).concat(label !== rawLabel ? [rawLabel] : []),
         when: "",
         checked: "",
         disabled: "",
@@ -871,7 +881,13 @@ Item {
           root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
         } else {
           var value = MenuModel.dmenuValue(root.dmenuOptions[Number(picked.itemId.substring(6))])
-          var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(), value)
+          // Without a callback the local selection is the only record of what
+          // is checked, so each choice toggles against it. With one, the choice
+          // toggles against what the setting has confirmed plus what is queued.
+          var base = root.dmenuOnChange.length > 0
+            ? selectionProc.requestedSelection(dmenuChangeKey)
+            : root.dmenuSelected
+          var selected = MenuModel.toggleDmenuSelection(base, value)
           if (root.dmenuOnChange.length > 0) {
             selectionProc.enqueue(selected)
           } else {
@@ -983,10 +999,18 @@ Item {
     dmenuOnChange = dmenuMultiple && Array.isArray(payload.onChange)
       && payload.onChange.every(function(arg) { return typeof arg === "string" }) ? payload.onChange : []
     dmenuChangeKey = String(payload.changeKey || JSON.stringify(dmenuOnChange))
-    dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, Array.isArray(payload.selected) ? payload.selected : [], dmenuOnChange.length > 0)
-    dmenuSaved = dmenuSelected
+    var requested = MenuModel.dmenuSelections(dmenuOptions, Array.isArray(payload.selected) ? payload.selected : [], dmenuOnChange.length > 0)
+    var confirmed = dmenuConfirmedSelections[dmenuChangeKey]
+    var pending = selectionProc.hasPending(dmenuChangeKey)
+    dmenuSaved = pending && Array.isArray(confirmed) ? MenuModel.dmenuSelections(dmenuOptions, confirmed, true) : requested
+    if (!pending) {
+      var refreshed = Object.assign({}, dmenuConfirmedSelections)
+      refreshed[dmenuChangeKey] = requested
+      dmenuConfirmedSelections = refreshed
+    }
+    dmenuSelected = dmenuSaved
     if (dmenuOnChange.length > 0)
-      dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(), true)
+      dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(dmenuChangeKey), true)
     selectionFile = String(payload.selectionFile || "")
     doneFile = String(payload.doneFile || "")
     requestActive = !!doneFile
@@ -1068,22 +1092,29 @@ Item {
     property int serial: 0
     property string changeKey: ""
     property var selected: []
+    property var options: []
     property var queue: []
     property string collected: ""
 
-    function requestedSelection() {
+    function hasPending(changeKey) {
+      if (running && this.changeKey === changeKey) return true
+      return queue.some(function(change) { return change.key === changeKey })
+    }
+
+    function requestedSelection(changeKey) {
       for (var i = queue.length - 1; i >= 0; i--) {
-        if (queue[i].key === root.dmenuChangeKey) return queue[i].selected
+        if (queue[i].key === changeKey) return queue[i].selected
       }
-      if (running && changeKey === root.dmenuChangeKey) return selected
-      return root.dmenuSelected
+      if (running && this.changeKey === changeKey) return selected
+      var confirmed = root.dmenuConfirmedSelections[changeKey]
+      return Array.isArray(confirmed) ? confirmed : root.dmenuSelected
     }
 
     function enqueue(values) {
       var selected = MenuModel.dmenuSelections(root.dmenuOptions, values, true)
       queue = queue.concat([{
         serial: root.requestSerial, key: root.dmenuChangeKey, selected: selected,
-        command: root.dmenuOnChange.concat([JSON.stringify(selected)])
+        options: root.dmenuOptions, command: root.dmenuOnChange.concat([JSON.stringify(selected)])
       }])
       if (!running) startNext()
     }
@@ -1095,6 +1126,7 @@ Item {
       serial = change.serial
       changeKey = change.key
       selected = change.selected
+      options = change.options
       collected = ""
       command = change.command
       running = true
@@ -1105,14 +1137,20 @@ Item {
       onStreamFinished: selectionProc.collected = text
     }
     onExited: function(exitCode) {
+      var applied = selected
+      if (exitCode === 0 && collected.trim()) {
+        try { applied = JSON.parse(collected) } catch (error) { applied = selected }
+      }
+      if (exitCode === 0 && Array.isArray(applied)) {
+        applied = MenuModel.dmenuSelections(options, applied, true)
+        var confirmed = Object.assign({}, root.dmenuConfirmedSelections)
+        confirmed[changeKey] = applied
+        root.dmenuConfirmedSelections = confirmed
+      }
       if (changeKey === root.dmenuChangeKey && root.dmenuActive && root.dmenuOnChange.length > 0) {
         if (exitCode === 0) {
-          var applied = selected
-          if (collected.trim()) {
-            try { applied = JSON.parse(collected) } catch (error) { applied = root.dmenuSelected }
-          }
-          if (Array.isArray(applied))
-            root.dmenuSelected = MenuModel.dmenuSelections(root.dmenuOptions, applied, true)
+          root.dmenuSelected = Array.isArray(applied)
+            ? MenuModel.dmenuSelections(root.dmenuOptions, applied, true) : root.dmenuSelected
           root.dmenuSaved = root.dmenuSelected
         } else {
           root.dmenuSelected = root.dmenuSaved
@@ -1151,6 +1189,9 @@ Item {
     path: root.defaultMenuPath
     watchChanges: true
     printErrors: false
+    // A watched read can catch the file mid-write (an update, a checkout, an
+    // editor's save). keepMenuRows holds the previous rows until a read finds
+    // the file whole, so a partial default menu never empties the shell's.
     onLoaded: { root.defaultMenuItems = MenuModel.keepMenuRows(root.defaultMenuItems, text(), true); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
     // A user file that loaded first held its evaluation for this one.
     onLoadFailed: { root.defaultMenuSettled = true; if (root.userMenuSettled) root.evaluateGuards() }
