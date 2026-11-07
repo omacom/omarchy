@@ -36,6 +36,17 @@ local set_up_floating
 local cascade = 0
 local open_rules = 0
 
+-- Window Opacity is a toggle file, and choosing it reloads the config.
+local function glassy()
+  local file = io.open(paths.state_home .. "/omarchy/toggles/hypr/window-glassy.lua", "r")
+  if file then
+    file:close()
+    return true
+  end
+
+  return false
+end
+
 local function set_floating(window, floating)
   hl.dispatch(hl.dsp.window.float({ action = floating and "on" or "off", window = window }))
 end
@@ -351,6 +362,18 @@ local function watch()
     claim_opened(window)
     unmaximize_others(window)
     arrange({ window })
+
+    -- Hyprland doesn't look at a window's rules again while it is still opening,
+    -- so rules for floating windows, as Glassy's are, miss one the mode floated or
+    -- tagged just now. A tag change makes it look, once the window is open.
+    hl.timer(function()
+      for _, tagged in ipairs(hl.get_windows({ tag = WORKSPACE_TAG })) do
+        if tagged.address == window.address then
+          set_on_floating_workspace(tagged, false)
+          set_on_floating_workspace(tagged, true)
+        end
+      end
+    end, { type = "oneshot", timeout = 1 })
   end)
 
   -- A move is still being committed when this fires, and changing the window's
@@ -566,6 +589,21 @@ set_up_floating = function()
   end
 
   o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+
+  -- Glassy asks for see-through windows, so on a floating workspace every window
+  -- fades as a whole, as Glassy fades Nautilus, and its titlebar turns to frosted
+  -- glass with it. Video and pictures stay solid. Terminals paint their own glass
+  -- already, and browsers stay solid as they do on tiled workspaces; a floating
+  -- workspace floats everything, so the float match keeps tiled windows out.
+  if glassy() then
+    o.window({ tag = WORKSPACE_TAG, class = "negative:^(mpv|imv)$" }, {
+      opacity = "0.86 override 0.8 override",
+      tag = "+transparent-window",
+    })
+    for _, tag in ipairs({ "terminal", "chromium-based-browser", "firefox-based-browser", "pip" }) do
+      o.window({ tag = tag, float = true }, { opacity = "1.0 override 1.0 override" })
+    end
+  end
 
   titlebars()
 end
