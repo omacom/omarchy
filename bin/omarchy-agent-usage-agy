@@ -64,7 +64,7 @@ AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or open
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
 DEFAULT_CLOUD_CODE_URL = "https://daily-cloudcode-pa.googleapis.com"
-DEFAULT_USER_AGENT = "antigravity/cli/1.5.3 (aidev_client; os_type=linux; arch=amd64; auth_method=consumer)"
+DEFAULT_USER_AGENT = "antigravity/cli/1.5.3"
 
 
 def app_root():
