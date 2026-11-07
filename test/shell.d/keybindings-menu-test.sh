@@ -134,6 +134,67 @@ rendered=$(keybindings)
   fail "a shared chord does not change where its entry ranks" "$rendered"
 pass "a shared chord does not change where its entry ranks"
 
+# A media key reads as what is printed on it, and renaming it must not lift it
+# out of the tail. A keysym the menu has no name for keeps its XKB name.
+stub_hyprctl <<BINDS
+$(exec_bind 0 "XF86AudioRaiseVolume" "Volume up" "true")
+$(exec_bind 1 "XF86AudioMute" "Switch audio output" "true")
+$(exec_bind 0 "XF86Launch5" "Launch five" "true")
+$(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
+BINDS
+
+rendered=$(keybindings)
+grep -q '^VOLUME UP  *→ Volume up$' <<<"$rendered" &&
+  grep -q '^SHIFT + MUTE  *→ Switch audio output$' <<<"$rendered" &&
+  grep -q '^XF86Launch5  *→ Launch five$' <<<"$rendered" ||
+  fail "a media key reads as the label printed on it" "$rendered"
+pass "a media key reads as the label printed on it"
+
+(( $(grep -n '→ Reveal active window on top$' <<<"$rendered" | cut -d: -f1) <
+   $(grep -n '→ Volume up$' <<<"$rendered" | cut -d: -f1) )) ||
+  fail "a renamed media key stays in the tail" "$rendered"
+pass "a renamed media key stays in the tail"
+
+# Bound by keycode, a media key arrives as an upper-cased keysym and still takes
+# its label. The Pause/Break key resolves to PAUSE, the label of a media key, but
+# what ranks an entry is the keysym, so it stays out of the media tail.
+cat >"$stub_bin/xkbcli" <<'KEYMAP'
+#!/bin/bash
+cat <<'END'
+xkb_keycodes "test" {
+	<PAUS> = 127;
+	<I172> = 172;
+};
+xkb_symbols "test" {
+	key <PAUS> {	[ Pause, Break ] };
+	key <I172> {	[ XF86AudioPlay, XF86AudioPause ] };
+};
+END
+KEYMAP
+chmod +x "$stub_bin/xkbcli"
+
+keycode_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: \n\tkeycode: %s\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: true\n' "$1" "$2" "$3"
+}
+
+stub_hyprctl <<BINDS
+$(keycode_bind 0 172 "Play")
+$(keycode_bind 0 127 "Pause the game")
+$(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
+BINDS
+
+rendered=$(keybindings)
+rm "$stub_bin/xkbcli"
+
+grep -q '^PLAY  *→ Play$' <<<"$rendered" ||
+  fail "a media key bound by keycode takes its label too" "$rendered"
+pass "a media key bound by keycode takes its label too"
+
+(( $(grep -n '→ Pause the game$' <<<"$rendered" | cut -d: -f1) <
+   $(grep -n '→ Reveal active window on top$' <<<"$rendered" | cut -d: -f1) )) ||
+  fail "a key named like a media key stays out of the tail" "$rendered"
+pass "a key named like a media key stays out of the tail"
+
 # The same key written as a keycode arrives by the other road: Hyprland reports
 # the code and the keymap resolves it, after the rename above has run.
 stub_hyprctl <<'BINDS'
@@ -298,7 +359,7 @@ pass "keybinding descriptions show in the Omarchy language"
 
 # A platform package names keys the way its keyboards print them. On a MacBook
 # XF86MonBrightnessUp/Down are the F2/F1 keys, so without the names the menu
-# shows rows like "SHIFT + XF86MonBrightnessUp". The menu reads them from the
+# shows rows like "SHIFT + BRIGHTNESS UP". The menu reads them from the
 # fixed platform root; copies of it read a fixture root with key names, one
 # saved with CRLF line ends and blanks around a line, and (the copy above) none.
 platform=$tmpdir/platform
@@ -355,8 +416,8 @@ BINDS
 # blind to the names would serve.
 names_cache=$tmpdir/cache-names
 output=$(keybindings "$menu" "$names_cache")
-tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
-  fail "without key names the brightness key keeps its own name" "$output"
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + BRIGHTNESS UP → Keyboard brightness up' ||
+  fail "without key names the brightness key takes its media label" "$output"
 
 output=$(keybindings "$platform/with-names" "$names_cache")
 
@@ -388,13 +449,13 @@ tr -s ' ' <<<"$output" | grep -qF 'SHIFT + F2 → Keyboard brightness up' && tr 
   fail "key names saved with CRLF line ends and blanks around them still apply" "$output"
 pass "keybindings menu reads key names saved with CRLF line ends"
 
-# Without a platform package the keys keep their own names, and a cache made
-# with the names is not reused.
+# Without a platform package the keys take the media label printed on most
+# keyboards, and a cache made with the platform names is not reused.
 output=$(keybindings "$menu" "$names_cache")
-tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
-  fail "without key names the brightness key keeps its own name" "$output"
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + BRIGHTNESS UP → Keyboard brightness up' ||
+  fail "without key names the brightness key takes its media label" "$output"
 grep -qF 'SHIFT + F2' <<<"$output" && fail "without key names nothing is renamed F2" "$output"
-pass "keybindings menu keeps keysym names without a platform package"
+pass "keybindings menu uses media labels without a platform package"
 
 # The menu learns about Lua-only binds by running the user's hyprland.lua under
 # a stub `hl`. That stub has to survive whatever a config does at load time, or
