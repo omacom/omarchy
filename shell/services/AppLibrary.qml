@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import "AppSearch.js" as AppSearch
+import "AppLaunch.js" as AppLaunch
 
 // Shared desktop-application library: the sorted entry list with hidden-entry
 // filtering, the icon fallback index, launch feedback, and entry removal.
@@ -26,9 +27,11 @@ Item {
   property int launchSerial: 0
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
+  property string launchDesktopId: ""
+  property string launchStartupClass: ""
   // True while the launch OSD is on screen. It outlives the launch that opened
-  // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
-  // down.
+  // it: a new launch must not clear the flag, or an OSD left up by the
+  // previous one is orphaned and nothing takes it down.
   property bool launchOsdOpen: false
   property string launchOsdMessage: ""
 
@@ -77,7 +80,10 @@ Item {
   function launch(desktopId, name) {
     var id = String(desktopId || "")
     if (!id) return
-    root.beginLaunchFeedback(name)
+    root.rememberLaunchIdentity(id)
+    // Focusing an app that already has a window never produces the toplevel
+    // change this OSD waits on, so the "Launching …" banner stays up.
+    if (!root.launchedAppHasWindow()) root.beginLaunchFeedback(name)
     // A terminal app goes through Omarchy's TUI launcher, which names its
     // terminal window after the command (org.omarchy.nvim), so the dock and
     // titlebars can tell Neovim from the terminal it runs in.
@@ -172,6 +178,21 @@ Item {
     try { return ToplevelManager.toplevels.values.length } catch (e) { return 0 }
   }
 
+  function rememberLaunchIdentity(desktopId) {
+    var id = root.normalizeDesktopId(desktopId)
+    root.launchDesktopId = id
+    var entry = DesktopEntries.byId(desktopId) || DesktopEntries.byId(id)
+    root.launchStartupClass = String((entry && entry.startupClass) || "")
+  }
+
+  function launchedAppHasWindow() {
+    try {
+      return AppLaunch.appHasWindow(ToplevelManager.toplevels.values, root.launchDesktopId, root.launchStartupClass)
+    } catch (e) {
+      return false
+    }
+  }
+
   function beginLaunchFeedback(name) {
     root.launchSerial++
     root.launchToplevelCount = root.toplevelCount()
@@ -255,9 +276,22 @@ Item {
     id: launchDelay
     interval: 2000
     onTriggered: {
-      if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
+      var action = AppLaunch.launchDelayAction(
+        launchTimeout.running,
+        root.toplevelCount(),
+        root.launchToplevelCount,
+        ToplevelManager.activeToplevel === root.launchActiveToplevel,
+        root.launchedAppHasWindow()
+      )
+      if (action === "ignore") return
+      if (action === "finish") {
+        root.closeLaunchFeedback(root.launchSerial)
+        return
+      }
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      // A finite duration so a show IPC that arrives after close cannot sit
+      // on screen forever. The span matches the time the timeout has left.
+      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: launchTimeout.interval - launchDelay.interval })])
     }
   }
 
