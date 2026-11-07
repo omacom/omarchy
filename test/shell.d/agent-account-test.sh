@@ -255,7 +255,7 @@ pass "use makes an account active and says so"
   fail "an agent finds mise tools installed after it started"
 pass "account dispatch follows the active account"
 
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
+[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode bypassPermissions" ]] ||
   fail "omarchy-agent starts Claude as the active account"
 omarchy-agent-account-use codex side >/dev/null
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
