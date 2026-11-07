@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=View training logs in TensorBoard on this machine
+# omarchy:args=[log-directory] [--port <1-65535>]
+# omarchy:examples=omarchy launch tensorboard runs | omarchy launch tensorboard 'experiment logs' --port 6007
+
+set -euo pipefail
+
+logdir=""
+port=6006
+while (( $# > 0 )); do
+  case "$1" in
+  --help | -h)
+    echo "Usage: omarchy launch tensorboard [log-directory=runs] [--port <1-65535>]"
+    echo "Uses TensorBoard from the active environment. Stop it with Ctrl+C."
+    exit 0
+    ;;
+  --port)
+    (( $# >= 2 )) || { echo "--port needs a value" >&2; exit 2; }
+    port=$2
+    shift 2
+    ;;
+  --)
+    shift
+    (( $# == 1 )) && [[ -z $logdir ]] || { echo "Choose one log directory" >&2; exit 2; }
+    logdir=$1
+    shift
+    ;;
+  -*) echo "Unknown option: $1" >&2; exit 2 ;;
+  *)
+    [[ -z $logdir ]] || { echo "Choose one log directory" >&2; exit 2; }
+    logdir=$1
+    shift
+    ;;
+  esac
+done
+
+[[ $port =~ ^[0-9]{1,5}$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || { echo "Port must be between 1 and 65535" >&2; exit 2; }
+logdir=${logdir:-runs}
+[[ -d $logdir ]] || { echo "Training log directory does not exist: $logdir" >&2; exit 1; }
+logdir=$(CDPATH= cd -P -- "$logdir" && pwd -P)
+if omarchy-cmd-missing tensorboard; then
+  echo "Activate a Python environment with TensorBoard installed, then try again." >&2
+  exit 1
+fi
+
+echo "TensorBoard: http://127.0.0.1:$port (Ctrl+C to stop)"
+exec tensorboard --logdir "$logdir" --host 127.0.0.1 --port "$port"
