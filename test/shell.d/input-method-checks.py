@@ -156,6 +156,13 @@ class InputMethodTest(unittest.TestCase):
     self.preference.write_text("INPUT_METHOD=none\nXKB_LAYOUT=la\n")
     self.assertEqual(setup.selection(), ("none", "us"))
 
+  def test_catalan_preference_reaches_fcitx_with_its_variant(self):
+    self.vconsole.write_text("XKBLAYOUT=es\n")
+    self.preference.write_text("INPUT_METHOD=none\nXKB_LAYOUT=es:cat\n")
+    self.assertEqual(setup.selection(), ("none", "es-cat"))
+    self.vconsole.write_text("XKBLAYOUT=fr\n")
+    self.assertEqual(setup.selection(), ("none", "fr"))
+
   def test_korean_preference_yields_to_a_later_keyboard_change(self):
     self.preference.write_text("INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n")
     self.assertEqual(setup.selection(), ("hangul", "kr"))
