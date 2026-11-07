@@ -24,8 +24,9 @@ local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
+local LAYOUTS_DIR = paths.state_home .. "/omarchy/workspace-layouts"
 
-local M = {}
+local M = { layouts_dir = LAYOUTS_DIR }
 
 local modes = {}
 local default_mode = nil
@@ -408,6 +409,88 @@ function o.workspace_mode(spec)
   arrange(hl.get_workspace_windows(workspace))
   sync_open_rules()
   update_input()
+end
+
+-- The bar and the dock each read a workspace's layout once and keep it until a
+-- layout command asks them to look again. A layout that moved to another number
+-- asks too, once for however many a reconcile moves at a time.
+local refresh_asked = false
+local function refresh_shell()
+  if refresh_asked then
+    return
+  end
+  refresh_asked = true
+  hl.timer(function()
+    refresh_asked = false
+    hl.exec_cmd("omarchy-shell -q omarchy.workspaces refresh")
+    hl.exec_cmd("omarchy-shell -q omarchy.dock refresh")
+  end, { type = "oneshot", timeout = 1 })
+end
+
+-- Whether a layout is saved for a workspace number. Hyprland drops a workspace
+-- once it is empty, and its layout stays saved for the next one opened under
+-- the number.
+function M.saved(id)
+  local file = io.open(LAYOUTS_DIR .. "/" .. tostring(id) .. ".lua")
+  if file then
+    file:close()
+  end
+  return file ~= nil
+end
+
+-- Forget the layout saved for a workspace number with no workspace under it,
+-- so the next one there follows the default.
+function M.forget(id)
+  id = tostring(id)
+  os.remove(LAYOUTS_DIR .. "/" .. id .. ".lua")
+  if not modes[id] then
+    return
+  end
+
+  modes[id] = nil
+  hl.workspace_rule({ workspace = id, layout = hl.get_config("general.layout") or "dwindle" })
+  sync_open_rules()
+  refresh_shell()
+end
+
+-- Per-monitor workspaces renumber a workspace as it joins another monitor's
+-- block, and the mode it was given goes with it, saved file and all. The number
+-- it leaves goes back to the default layout, so whatever opens under it later
+-- starts fresh. The number it takes has nothing saved for it, as per-monitor
+-- workspaces leave a number with a saved layout to the next workspace opened
+-- under it, so a workspace with no mode of its own has nothing to change.
+function M.renumber(from, to)
+  from, to = tostring(from), tostring(to)
+  local mode = modes[from]
+  if not mode then
+    return
+  end
+
+  modes[from] = nil
+  modes[to] = mode
+
+  -- The old file goes once the new one is written. A layout that cannot be
+  -- saved under the new number stays saved under the old one, as it would have
+  -- before, rather than being lost on the next reload.
+  local saved = io.open(LAYOUTS_DIR .. "/" .. to .. ".lua", "w")
+  if saved then
+    local written = saved:write(string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', to, mode)) ~= nil
+    written = saved:close() and written
+    if written then
+      os.remove(LAYOUTS_DIR .. "/" .. from .. ".lua")
+    end
+  end
+
+  -- A floating workspace tiles in the default layout once it stops floating,
+  -- rather than in whatever its new number was last set to.
+  local default_layout = hl.get_config("general.layout") or "dwindle"
+  hl.workspace_rule({ workspace = to, layout = mode ~= "floating" and mode or default_layout })
+  hl.workspace_rule({ workspace = from, layout = default_layout })
+
+  arrange(hl.get_workspace_windows(to))
+  sync_open_rules()
+  update_input()
+  refresh_shell()
 end
 
 local function theme_colors()
