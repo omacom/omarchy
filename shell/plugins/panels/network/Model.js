@@ -14,9 +14,15 @@ function parseNetworkStatus(raw) {
   }
 }
 
+// NetworkManager turns dBm into its 0-100 strength with two formulas: scan
+// results map -100..-40 dBm linearly onto 0..100, and the connected access
+// point's station refresh uses dBm + 120 (floor 30 at -90 dBm). The same link
+// reads 83 after a scan and 70 between scans at -50 dBm. These cut-offs sit
+// where both formulas land on the same bars: full from -60 dBm (-64 for scan
+// results), three from -70, two from about -80, one down to about -90.
 function wifiIconFor(strength) {
   var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
-  var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
+  var index = strength >= 60 ? 4 : strength >= 50 ? 3 : strength >= 35 ? 2 : strength >= 15 ? 1 : 0
   return icons[index]
 }
 
