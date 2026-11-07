@@ -136,9 +136,12 @@ target_dir="$PLUGINS_DIR/$new_id"
 mkdir -p "$PLUGINS_DIR"
 stage=$(mktemp -d "$PLUGINS_DIR/.clone.XXXXXX")
 clone_complete=0
+enable_attempted=0
 cleanup() {
   [[ -d ${stage:-} ]] && rm -rf "$stage"
-  (( clone_complete )) || rm -rf "$target_dir"
+  # Once the enable call has been sent the shell may have already applied it,
+  # so deleting the clone would leave shell.json pointing at a missing plugin.
+  (( clone_complete || enable_attempted )) || rm -rf "$target_dir"
 }
 trap cleanup EXIT
 copy_plugin "$source_dir" "$source_manifest" "$stage"
@@ -156,7 +159,10 @@ for (( attempt = 0; attempt < 40; attempt++ )); do
   sleep 0.05
 done
 (( discovered )) || fail "cloned plugin '$new_id' was not discovered"
-omarchy-plugin-enable "$new_id" >/dev/null
+enable_attempted=1
+if ! omarchy-plugin-enable "$new_id" >/dev/null; then
+  fail "could not enable '$new_id'; the clone is kept at $target_dir, retry with: omarchy plugin enable $new_id (raise OMARCHY_SHELL_IPC_TIMEOUT if the shell is slow to load it)"
+fi
 clone_complete=1
 omarchy-notification-send -g 󰐱 \
   "$(omarchy-i18n plugin.editingClone)" \
