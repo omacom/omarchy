@@ -10,7 +10,15 @@ DISABLE_TOGGLE="internal-monitor-disable"
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 # Every active external monitor shows the internal display, as a Mac mirrors
 # all its displays.
-mapfile -t EXTERNALS < <(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name')
+# Each name is read from its own JSON field: a name carrying a newline would
+# otherwise become two array entries, and both halves would pass the guard below
+# as if they were monitors.
+externals_json=$(hyprctl monitors -j | jq -c '[.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name]')
+external_count=$(jq 'length' <<<"$externals_json")
+EXTERNALS=()
+for ((i = 0; i < external_count; i++)); do
+  EXTERNALS+=("$(jq -r --argjson index "$i" '.[$index]' <<<"$externals_json")")
+done
 
 on() {
   if (( ${#EXTERNALS[@]} == 0 )); then
