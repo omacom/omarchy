@@ -1,0 +1,15 @@
+#!/bin/bash
+# Called only from systemd-suspend.service ExecStopPost, after controller cleanup.
+set -euo pipefail
+export PATH=/usr/bin:/usr/sbin
+if [[ ${SERVICE_RESULT:-} != success ]]; then
+  echo 'macbook-touchbar: Skipping recovery because suspend did not succeed.'
+  exit 0
+fi
+if [[ -d /run/macbook-suspend/state ]]; then
+  echo 'macbook-touchbar: Skipping recovery because controller cleanup is pending.' >&2
+  exit 0
+fi
+echo 'macbook-touchbar: Checking panel state after successful suspend and cleanup.'
+exec /usr/bin/timeout --signal=TERM --kill-after=2s 8s \
+  /usr/bin/python3 -I /usr/local/libexec/omarchy-macbookpro13-3/unpark.py --apply --if-parked

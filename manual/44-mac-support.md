@@ -48,10 +48,11 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 - MacBook Pro 13-inch (2016, four Thunderbolt 3 ports) – Model: A1708
 - MacBook Pro 15-inch (2016) – Model: A1707
 
-#### Known Issues
+#### Community support and remaining issues
 
-- Touch Bar is non-functional
-- Sound is not functioning
+For the 2016 15-inch **MacBookPro13,3**, the [community setup guide](44a-macbookpro13-3.md) covers Wi-Fi configuration, the audio driver, T1Bridge, keyboard typing suppression and optional sleep/Touch Bar recovery. Speakers and Touch Bar output have been demonstrated with that combination; these components are not all installed automatically.
+
+The experimental sleep workaround remains undocked-only, takes about 13 seconds to wake and has unresolved battery retention. Its results do not establish support for every T1 model.
 
 #### Devices with T2 Chip
 
