@@ -13,6 +13,24 @@ fail() {
   exit 1
 }
 
+
+ensure_entry_points() {
+  local source_dir="$1"
+  local target_dir="$2"
+  local manifest="$3"
+  local ep
+  while IFS= read -r ep; do
+    [[ -n $ep ]] || continue
+    [[ $ep != /* && $ep != *".."* ]] || fail "invalid entry point path: $ep"
+    if [[ ! -e $target_dir/$ep ]]; then
+      [[ -e $source_dir/$ep ]] || fail "entry point missing from source: $ep"
+      mkdir -p "$(dirname "$target_dir/$ep")"
+      cp -aL "$source_dir/$ep" "$target_dir/$ep"
+    fi
+    [[ -e $target_dir/$ep ]] || fail "cloned plugin is missing entry point: $ep"
+  done < <(jq -r '.entryPoints[]' "$manifest")
+}
+
 copy_plugin() {
   local source_dir="$1"
   local manifest="$2"
@@ -20,6 +38,7 @@ copy_plugin() {
 
   if [[ ${manifest##*/} == "manifest.json" ]]; then
     cp -aL "$source_dir/." "$target_dir/"
+    ensure_entry_points "$source_dir" "$target_dir" "$target_dir/manifest.json"
     return
   fi
 
@@ -48,6 +67,7 @@ copy_plugin() {
       (.omarchy.clonePaths[]? | {source: .source, target: .target})
     ] | unique_by(.target)[] | [.source, .target] | @tsv
   ' "$manifest")
+  ensure_entry_points "$source_dir" "$target_dir" "$target_dir/manifest.json"
 }
 
 update_manifest() {
