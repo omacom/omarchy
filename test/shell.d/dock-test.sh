@@ -170,7 +170,14 @@ cat >"$mock_bin/hyprctl" <<STUB
 #!/bin/bash
 case "\$1" in
   clients) printf '[{"address":"0xabc","workspace":{"id":3}}]\n' ;;
-  activewindow) printf '{"address":"0xdef","workspace":{"id":5}}\n' ;;
+  activewindow)
+    if [[ -f "$TMPDIR/activewindow.seen" ]]; then
+      printf '{}\n'
+    else
+      touch "$TMPDIR/activewindow.seen"
+      printf '{"address":"0xdef","workspace":{"id":5}}\n'
+    fi
+    ;;
   workspaces) printf '[{"id":1},{"id":3}]\n' ;;
   dispatch|eval) printf '%s\n' "\$2" >>"$TMPDIR/hyprctl.log" ;;
 esac
@@ -180,6 +187,7 @@ printf '#!/bin/bash\n[[ $1 == 9 ]] && echo dwindle || echo floating\n' >"$mock_b
 chmod +x "$mock_bin/omarchy-hyprland-workspace-layout-current"
 minimize() { PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-hyprland-window-minimize "$@"; }
 
+rm -f "$TMPDIR/activewindow.seen"
 minimize 0xabc
 grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-3", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
   fail "minimize remembers the workspace the window left" "$(cat "$TMPDIR/hyprctl.log")"
@@ -188,6 +196,7 @@ grep -qxF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false,
 [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "previous_per_monitor" })) hl.dispatch(hl.dsp.focus({ workspace = "3" }))' ]] ||
   fail "minimize drops focus on the workspace the window left by bouncing through the former one and back" "$(cat "$TMPDIR/hyprctl.log")"
 : >"$TMPDIR/hyprctl.log"
+rm -f "$TMPDIR/activewindow.seen"
 minimize
 grep -qF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-5", window = "address:0xdef" })' "$TMPDIR/hyprctl.log" &&
   grep -qF 'address:0xdef' "$TMPDIR/hyprctl.log" && [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "previous_per_monitor" })) hl.dispatch(hl.dsp.focus({ workspace = "5" }))' ]] ||
@@ -224,6 +233,34 @@ minimize 0xabc
 [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "previous_per_monitor" })) hl.dispatch(hl.dsp.focus({ workspace = "3" }))' ]] ||
   fail "minimize still bounces through the former workspace when it is the only workspace" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize hops through the former workspace even when few are open"
+
+# On a fresh session with no former workspace, previous_per_monitor no-ops
+# and the minimized window keeps keyboard focus. Minimize detects that the
+# window is still active after the move and clears focus by focusing the
+# current monitor.
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":1}}]\n' ;;
+  activewindow)
+    if [[ -f "$TMPDIR/activewindow.fresh" ]]; then
+      printf '{"address":"0xabc","workspace":{"id":-99}}\n'
+    else
+      touch "$TMPDIR/activewindow.fresh"
+      printf '{"address":"0xabc","workspace":{"id":1}}\n'
+    fi
+    ;;
+  dispatch|eval) shift; printf '%s\n' "\$*" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+rm -f "$TMPDIR/activewindow.fresh"
+minimize
+grep -qF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })' "$TMPDIR/hyprctl.log" &&
+  grep -qF 'hl.dispatch(hl.dsp.focus({ workspace = "previous_per_monitor" })) hl.dispatch(hl.dsp.focus({ workspace = "1" }))' "$TMPDIR/hyprctl.log" &&
+  [[ $(tail -1 "$TMPDIR/hyprctl.log") == "focusmonitor current" ]] ||
+  fail "minimize clears focus by focusing current monitor when the window stays active" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize clears focus when the monitor has no former workspace"
 
 cat >"$mock_bin/hyprctl" <<STUB
 #!/bin/bash

@@ -40,6 +40,11 @@ hyprctl dispatch "hl.dsp.window.move({ workspace = \"special:minimized\", follow
 # one SUPER+CTRL+TAB returns to — resolved by Hyprland itself, so the round
 # trip ends from it and leaves that record as it found it; hopping through a
 # concrete workspace would rewrite it. On a monitor with nothing before this
-# one (a fresh session) the selector resolves to nothing, both hops are
-# no-ops, and focus stays with the moved window.
+# one (a fresh session) the selector resolves to nothing and both hops are
+# no-ops, so fall back to focusing the current monitor to clear focus from
+# the hidden window.
 hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"previous_per_monitor\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
+
+if [[ $(hyprctl activewindow -j | jq -r '.address // empty') == $ADDRESS ]]; then
+  hyprctl dispatch focusmonitor current >/dev/null
+fi
