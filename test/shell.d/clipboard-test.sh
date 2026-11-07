@@ -104,7 +104,22 @@ assertDeepEqual(
     previewImage: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     path: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     mime: 'text/plain',
-    index: 0
+    pinned: false,
+    meta: '',
+    sourceApp: '',
+    timeLabel: '',
+    colorR: 0,
+    colorG: 0,
+    colorB: 0,
+    colorA: 1,
+    colorHex: '',
+    colorRgb: '',
+    colorHsl: '',
+    url: '',
+    email: '',
+    index: 0,
+    historyIndex: 0,
+    hasOcr: false
   },
   'clipboard display rows show file uri entries as files'
 )
@@ -148,6 +163,105 @@ const hugeFileRow = clipboard.displayRows([{ type: 'text', text: hugeFileList.jo
 assert(
   hugeFileRow.entryType === 'file' && hugeFileRow.fullText.split('\n').every(path => path.endsWith('.mp4')),
   'clipboard display rows cap a huge file list without truncating a path'
+)
+
+const settings = clipboard.defaultSettings()
+const pinned = clipboard.addEntry([], { type: 'text', text: 'pin', pinned: true, title: 'Pinned' }, settings, 1000)
+assertDeepEqual(
+  pinned,
+  [{ type: 'text', text: 'pin', title: 'Pinned', pinned: true }],
+  'clipboard addEntry keeps pin and title'
+)
+assertDeepEqual(
+  clipboard.addEntry(pinned, { type: 'text', text: 'pin' }, settings, 2000),
+  [{ type: 'text', text: 'pin', title: 'Pinned', pinned: true }],
+  'clipboard addEntry keeps pin and title when the same text is copied again'
+)
+
+const now = 90 * 86400000
+const pruned = clipboard.pruneHistory([
+  { type: 'text', text: 'old', capturedAtMs: 1 },
+  { type: 'text', text: 'recent', capturedAtMs: now - 86400000 },
+  { type: 'text', text: 'pinned', capturedAtMs: 1, pinned: true },
+  { type: 'text', text: 'legacy' }
+], { retentionDays: 30, maxEntries: 500 }, now)
+assertDeepEqual(
+  pruned.map(entry => entry.text),
+  ['recent', 'pinned', 'legacy'],
+  'clipboard retention prunes old unpinned entries and keeps pins and legacy entries'
+)
+
+assertEqual(clipboard.entryKind({ type: 'text', text: 'https://example.com/a' }), 'link', 'clipboard classifies links')
+assertEqual(clipboard.entryKind({ type: 'text', text: 'person@example.com' }), 'email', 'clipboard classifies email addresses')
+assertEqual(clipboard.entryKind({ type: 'text', text: '#ff8800' }), 'color', 'clipboard classifies colours')
+assertEqual(clipboard.entryKind({ type: 'text', text: 'file:///tmp/a.png' }), 'file', 'clipboard classifies file URIs')
+
+const color = clipboard.parseColor('#f80')
+assert(color && color.hex === '#ff8800' && color.rgb === 'rgb(255, 136, 0)', 'clipboard parses and converts colours')
+assertEqual(clipboard.parseColor('not a colour'), null, 'clipboard ignores non-colour text')
+
+const mixed = [
+  { type: 'text', text: 'newest', capturedAtMs: 9000 },
+  { type: 'text', text: 'pinned', capturedAtMs: 1000, pinned: true },
+  { type: 'text', text: 'https://example.com', capturedAtMs: 8000 },
+  { type: 'image', path: '/tmp/shot.png', mime: 'image/png', ocr: 'invoice total', capturedAtMs: 7000 },
+  { type: 'text', text: '#00ff00', capturedAtMs: 6000 }
+]
+const allRows = clipboard.displayRows(mixed, '', 'all', 50, null, null, null, 10000)
+assertDeepEqual(
+  allRows.map(row => row.previewText),
+  ['pinned', 'newest', 'https://example.com', 'Screenshot', '#00ff00'],
+  'clipboard display rows put pins first'
+)
+assertDeepEqual(
+  clipboard.displayRows(mixed, '', 'link', 50, null, null, null, 10000).map(row => row.url),
+  ['https://example.com'],
+  'clipboard display rows filter by type'
+)
+assertEqual(
+  clipboard.displayRows(mixed, 'invoice', 'all', 50, null, null, null, 10000).length,
+  1,
+  'clipboard display rows search extracted image text'
+)
+
+const edited = clipboard.updateEntry([{ type: 'text', text: 'a', pinned: true, capturedAtMs: 5 }], 0, { text: 'b' })
+assertDeepEqual(
+  edited,
+  [{ type: 'text', text: 'b', pinned: true, capturedAtMs: 5 }],
+  'clipboard edit keeps pin and timestamp'
+)
+assertEqual(clipboard.updateEntry([{ type: 'text', text: 'a' }], 0, { text: '  ' }), null, 'clipboard edit rejects empty text')
+
+assertDeepEqual(
+  clipboard.removeSince([
+    { type: 'text', text: 'recent', capturedAtMs: 9900 },
+    { type: 'text', text: 'older', capturedAtMs: 1000 },
+    { type: 'text', text: 'legacy' }
+  ], 5000).map(entry => entry.text),
+  ['older', 'legacy'],
+  'clipboard removes only entries inside the requested time window'
+)
+
+const parsedSettings = clipboard.parseSettings('{"retentionDays":7,"maxEntries":50,"primaryAction":"copy","textRecognition":false,"disabledApps":["KeePassXC","",4]}')
+assertDeepEqual(
+  parsedSettings,
+  {
+    retentionDays: 7,
+    maxEntries: 50,
+    primaryAction: 'copy',
+    textRecognition: false,
+    disabledApps: ['KeePassXC']
+  },
+  'clipboard settings validates values'
+)
+assert(clipboard.isAppDisabled(parsedSettings, 'keepassxc'), 'clipboard disabled apps match case-insensitively')
+assertDeepEqual(
+  clipboard.removedImagePaths([
+    { type: 'image', path: '/tmp/a.png' },
+    { type: 'image', path: '/tmp/b.png' }
+  ], [{ type: 'image', path: '/tmp/b.png' }]),
+  ['/tmp/a.png'],
+  'clipboard reports removed image captures'
 )
 JS
 
@@ -219,6 +333,10 @@ pass "clipboard capture records normal text events"
 capture_output=$(printf 'closing app copy' | WL_PASTE_TEXT="stale read" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
 [[ $capture_output == '{"type":"text","text":"closing app copy"}' ]] || fail "clipboard capture records watched text from stdin"
 pass "clipboard capture records watched text from stdin"
+
+WL_COPY_OUT="$TMPDIR/copied-text" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/copy-arg.sh" 'hello "world"'
+[[ $(cat "$TMPDIR/copied-text") == 'hello "world"' ]] || fail "clipboard copy helper copies one argument as plain text"
+pass "clipboard copy helper copies one argument as plain text"
 
 # The stall scenarios below rely on the timeout stub shortening capture.sh's
 # 2s read bounds; the outer 4s timeout only guards against them not firing.
