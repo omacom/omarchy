@@ -53,3 +53,9 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     hype \
     signed
 fi
+
+# Only remove the legacy Omarchy-managed AFK wrapper after opting out.
+if [[ -f $HOME/.local/state/omarchy/preinstalls-removed && -f $HOME/.local/bin/afk && ! -L $HOME/.local/bin/afk ]] &&
+  grep -Fq 'mise use -g --quiet "forgejo:mooglest/public[api_url=https://git.mooglest.com/api/v1]"' "$HOME/.local/bin/afk"; then
+  rm -f "$HOME/.local/bin/afk"
+fi
