@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Remove the GeForce NOW Flatpak app and its data.
+# omarchy:summary=Remove the GeForce NOW Flatpak app and its data, or its web app.
 # omarchy:group=remove
 # omarchy:name=gaming geforce-now
 
@@ -9,6 +9,8 @@ set -e
 if omarchy-cmd-present flatpak && flatpak info com.nvidia.geforcenow &>/dev/null; then
   flatpak uninstall -y --delete-data com.nvidia.geforcenow
 fi
+
+omarchy-webapp-remove "GeForce NOW" 2>/dev/null || true
 
 echo ""
 echo "GeForce NOW removed."
