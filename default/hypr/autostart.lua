@@ -1,5 +1,3 @@
-require("default.hypr.startup-cursor")
-
 hl.on("hyprland.start", function()
   -- Slow app launch fix -- set systemd and D-Bus activation vars before
   -- starting session services.
