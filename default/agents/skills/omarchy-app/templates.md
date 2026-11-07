@@ -404,6 +404,7 @@ QString Translator::pluralCategory(const QString &language, long long count) {
     }
     if (code == "he") return n == 1 ? "one" : n == 2 ? "two" : "other";
     if (code == "ga") return n == 1 ? "one" : n == 2 ? "two" : n >= 3 && n <= 6 ? "few" : n >= 7 && n <= 10 ? "many" : "other";
+    if (code == "zgh") return (n <= 1 || (n >= 11 && n <= 99)) ? "one" : "other";
     return n == 1 ? "one" : "other";
 }
 
