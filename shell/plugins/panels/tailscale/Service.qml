@@ -43,6 +43,7 @@ Item {
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
+  readonly property bool showSelf: setting("showSelf", true) !== false
   readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
 
@@ -85,7 +86,14 @@ Item {
   // "still loading" apart from "this tailnet has no machines".
   property bool peersLoaded: false
 
-  function publishPeers(next) {
+  // The last full list, so turning showSelf back on needs no new status fetch.
+  property var _allPeers: []
+
+  onShowSelfChanged: publishPeers(_allPeers)
+
+  function publishPeers(all) {
+    _allPeers = all
+    var next = Model.visiblePeers(all, showSelf)
     var sig = JSON.stringify(next)
     if (sig === _peersSig) return
     _peersSig = sig

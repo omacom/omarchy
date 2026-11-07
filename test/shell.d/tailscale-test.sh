@@ -26,6 +26,7 @@ const status = tailscale.parseStatus(JSON.stringify({
   AuthURL: '',
   TailscaleIPs: ['100.74.97.73', 'fd7a:115c:a1e0::ff32:6149'],
   Self: {
+    ID: 'self-id',
     HostName: 'dhh-fd',
     DNSName: 'dhh-fd.tail32f559.ts.net.',
     TailscaleIPs: ['100.74.97.73'],
@@ -83,24 +84,29 @@ const status = tailscale.parseStatus(JSON.stringify({
 
 assert(status.ok && status.running, 'tailscale parses running status')
 assertEqual(status.selfIp, '100.74.97.73', 'tailscale parses self IP')
-assertDeepEqual(status.peers.map(peer => peer.HostName), ['alpha', 'zed'], 'tailscale filters offline and Mullvad peers and sorts online peers')
-assertDeepEqual(status.peers[0].TailscaleIPv6, ['fd7a:115c:a1e0::1901:334b'], 'tailscale preserves peer IPv6 addresses for copy menu')
-assert(status.peers[1].ExitNodeOption && status.peers[1].ExitNode, 'tailscale preserves exit node flags')
-assertDeepEqual(status.exitNodes.map(peer => peer.HostName), ['zed'], 'tailscale lists only online tailnet exit nodes')
+assertDeepEqual(status.peers.map(peer => peer.HostName), ['dhh-fd', 'alpha', 'zed'], 'tailscale lists this machine first, then online peers sorted, without offline and Mullvad peers')
+assertDeepEqual(status.peers.map(peer => peer.Self), [true, false, false], 'tailscale marks only this machine as Self')
+assertDeepEqual(tailscale.visiblePeers(status.peers, true), status.peers, 'tailscale lists this machine by default')
+assertDeepEqual(tailscale.visiblePeers(status.peers, false).map(peer => peer.Self), [false, false], 'tailscale hides this machine when showSelf is off')
+assert(status.peers[0].Online && status.peers[0].id === 'self-id', 'tailscale lists this machine as online under its own node id')
+assertDeepEqual(status.peers[1].TailscaleIPv6, ['fd7a:115c:a1e0::1901:334b'], 'tailscale preserves peer IPv6 addresses for copy menu')
+assert(status.peers[2].ExitNodeOption && status.peers[2].ExitNode, 'tailscale preserves exit node flags')
+assertDeepEqual(status.exitNodes.map(peer => peer.HostName), ['zed'], 'tailscale lists only online tailnet exit nodes, never this machine')
 assert(tailscale.isMullvadPeer({ HostName: 'al-tia-wg-003', DNSName: 'al-tia-wg-003.mullvad.ts.net.' }), 'tailscale detects Mullvad status peers')
 
 assert(status.fileSharing, 'tailscale reads Taildrop capability from the status capability map')
 assertEqual(status.selfUserId, '1001', 'tailscale records the owning user of this machine')
-assertDeepEqual(status.peers.map(peer => peer.UserID), ['1001', '1002'], 'tailscale records the owning user of each peer')
+assertDeepEqual(status.peers.map(peer => peer.UserID), ['1001', '1001', '1002'], 'tailscale records the owning user of each peer')
 assert(
   tailscale.hasFileSharing({ Capabilities: ['https://tailscale.com/cap/file-sharing'] }),
   'tailscale reads Taildrop capability from the legacy capability list'
 )
 assert(!tailscale.hasFileSharing({ CapMap: { funnel: null } }), 'tailscale reports no Taildrop without the capability')
-assertDeepEqual(status.peers.map(peer => peer.TaildropTarget), [1, 5], 'tailscale records how Tailscale grades each Taildrop target')
+assertDeepEqual(status.peers.map(peer => peer.TaildropTarget), [0, 1, 5], 'tailscale records how Tailscale grades each Taildrop target')
 assert(tailscale.isTaildropTarget({ TaildropTarget: 1, UserID: '1001' }, '2002'), 'tailscale trusts an available Taildrop target')
 assert(!tailscale.isTaildropTarget({ TaildropTarget: 7, UserID: '1001' }, '1001'), 'tailscale skips peers Tailscale rules out')
 assert(tailscale.isTaildropTarget({ UserID: '1001' }, '1001'), 'tailscale falls back to same-owner peers without a grade')
+assert(!tailscale.isTaildropTarget(status.peers[0], status.selfUserId), 'tailscale never offers to Taildrop a file to this machine')
 assert(!tailscale.isTaildropTarget({ UserID: '1002' }, '1001'), 'tailscale skips other owners without a grade')
 
 const mullvadNodes = tailscale.parseExitNodeList(`
