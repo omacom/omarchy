@@ -40,6 +40,7 @@ from collectors import (  # noqa: E402
   HttpError,
   LimitsCache,
   Stats,
+  account_entry,
   base_record,
   cached_scan,
   canonical_roots,
@@ -51,6 +52,7 @@ from collectors import (  # noqa: E402
   opencode_db,
   pi_session_roots,
   read_json,
+  registered_accounts,
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
@@ -62,6 +64,7 @@ AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or open
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
 DEFAULT_CLOUD_CODE_URL = "https://daily-cloudcode-pa.googleapis.com"
+DEFAULT_USER_AGENT = "antigravity/cli/1.5.3 (aidev_client; os_type=linux; arch=amd64; auth_method=consumer)"
 
 
 def app_root():
@@ -129,7 +132,7 @@ def login():
     "expiresAt": expires.timestamp() if expires else 0,
     "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
     "authMethod": str(data.get("auth_method") or "consumer"),
-    "email": email_of(data.get("id_token")),
+    "email": email_of(data.get("id_token")) or str(data.get("id_token_email") or ""),
   }
 
 
@@ -303,36 +306,40 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or g.get("name") or "").lower()), None)
+  if not gemini and not any("claude" in str(g.get("displayName") or g.get("name") or "").lower() for g in groups):
+    gemini = groups[0]
+  if gemini and not listed(gemini, "buckets"):
     return None
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
-    if not isinstance(bucket, dict) or used(bucket) is None:
-      continue
-    window = str(bucket.get("window") or "").lower()
-    bucket_id = str(bucket.get("bucketId") or "").lower()
-    name = str(bucket.get("displayName") or "").lower()
-    if window == "5h" or "5h" in bucket_id or "five" in name:
-      session = bucket
-    elif window == "weekly" or "weekly" in bucket_id or "week" in name:
-      weekly = bucket
-  if session:
-    limits.append({"label": "Session (5-hour)", "title": "Session", "percent": used(session), "resetsAt": reset_of(session)})
-  if weekly:
-    limits.append({"label": "Weekly (7-day)", "title": "Weekly", "percent": used(weekly), "resetsAt": reset_of(weekly)})
+  if gemini:
+    for bucket in gemini.get("buckets") or []:
+      if not isinstance(bucket, dict) or used(bucket) is None:
+        continue
+      window = str(bucket.get("window") or "").lower()
+      bucket_id = str(bucket.get("bucketId") or bucket.get("id") or "").lower()
+      name = str(bucket.get("displayName") or bucket.get("name") or "").lower()
+      if window == "5h" or "5h" in bucket_id or "five" in name:
+        session = bucket
+      elif window == "weekly" or "weekly" in bucket_id or "week" in name:
+        weekly = bucket
+    if session:
+      limits.append({"label": "Session (5-hour)", "title": "Session", "percent": used(session), "resetsAt": reset_of(session)})
+    if weekly:
+      limits.append({"label": "Weekly (7-day)", "title": "Weekly", "percent": used(weekly), "resetsAt": reset_of(weekly)})
 
   for group in groups:
     if group is gemini:
       continue
-    group_name = str(group.get("displayName") or "").strip()
-    short = "Claude/GPT" if "claude" in group_name.lower() else (group_name or "3P")
+    group_name = str(group.get("displayName") or group.get("name") or "").strip()
+    short = "Claude/GPT" if "claude" in group_name.lower() or "3p" in group_name.lower() else (group_name or "3P")
     buckets = group.get("buckets")
     for bucket in buckets if isinstance(buckets, list) else []:
       if isinstance(bucket, dict) and (used(bucket) or 0) > 0:
-        title = f"{short} {'Weekly' if 'week' in str(bucket.get('window') or '').lower() else 'Session'}"
+        window_name = str(bucket.get("window") or "").lower()
+        title = f"{short} {'Weekly' if 'week' in window_name else 'Session'}"
         limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket)})
   return limits
 
@@ -345,7 +352,11 @@ def post(endpoint, token, body=None):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={
+      "Authorization": f"Bearer {token}",
+      "Content-Type": "application/json",
+      "User-Agent": DEFAULT_USER_AGENT,
+    },
   )
   return open_json(request, timeout=8)
 
@@ -420,7 +431,7 @@ def collect_limits(entries, force):
   refused, failure = [], None
   for entry in fresh:
     try:
-      assist = post("loadCodeAssist", entry["accessToken"])
+      assist = post("loadCodeAssist", entry["accessToken"], {"metadata": {"ideType": "ANTIGRAVITY"}})
       tier = extract_tier(assist)
       limits = extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"], project_body(assist)))
       if limits is None:
@@ -732,6 +743,41 @@ def cached_local_stats(root, max_age):
   return cached_scan(AGENT_ID, [root, opencode_db(), *session_roots()], max_age, scan)
 
 
+def account_login(account):
+  if account.get("primary"):
+    state = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
+    main_backup = state / "omarchy" / "agents" / "accounts" / "agy" / "main" / "antigravity-oauth-token"
+    if not account.get("active") and main_backup.is_file():
+      data = read_json(main_backup) or {}
+    else:
+      return login()
+  else:
+    home = Path(account.get("home") or "")
+    data = read_json(home / "antigravity-oauth-token") or {}
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  expires = parse_time(token.get("expiry") or data.get("expiry"))
+  if not data:
+    return None
+  return {
+    "source": "agy",
+    "accessToken": str(token.get("access_token") or data.get("access_token") or ""),
+    "expiresAt": expires.timestamp() if expires else 0,
+    "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
+    "authMethod": str(data.get("auth_method") or "consumer"),
+    "email": email_of(data.get("id_token")) or str(data.get("id_token_email") or ""),
+  }
+
+
+def account_limits(account, force):
+  entry = account_login(account)
+  lims = collect_limits([entry] if entry else [], force) if entry else {
+    "limits": [], "tierLabel": "", "usageStatusText": "Waiting for auth",
+    "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0, "retryAdvised": False,
+  }
+  tier = lims["tierLabel"] or account.get("plan") or ""
+  return account_entry(account, lims, tier)
+
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true")
@@ -740,19 +786,29 @@ def main():
 
   stats = cached_local_stats(app_root(), scan_max_age(args.force, args.limits_only))
 
-  # Nobody signed in to Antigravity here and no local history: no limits and
-  # no plan, and the panel skips the record.
-  entries = logins()
-  ready = bool(entries) or bool(stats.get("hasLocalStats"))
-  limits = collect_limits(entries, args.force) if ready else {
-    "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
-  }
-  tier = limits["tierLabel"]
-  agy = next((e for e in entries if e["source"] == "agy"), None)
-  if not tier and agy and agy["authMethod"] == "enterprise":
-    tier = "Enterprise"
-  elif not tier and agy and agy["authMethod"] in ("cloud", "vertex"):
-    tier = "Cloud"
+  registered = registered_accounts(AGENT_ID)
+  accounts = [account_limits(account, args.force) for account in registered]
+  current = next((a for a in accounts if a["active"]), None)
+  if current:
+    tier = current["plan"]
+    limits = current
+    stale, fetched_at = current["stale"], current["fetchedAt"]
+    ready = True
+  else:
+    # Nobody signed in to Antigravity here and no local history: no limits and
+    # no plan, and the panel skips the record.
+    entries = logins()
+    ready = bool(entries) or bool(stats.get("hasLocalStats"))
+    limits = collect_limits(entries, args.force) if ready else {
+      "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
+    }
+    tier = limits["tierLabel"]
+    agy = next((e for e in entries if e["source"] == "agy"), None)
+    if not tier and agy and agy["authMethod"] == "enterprise":
+      tier = "Enterprise"
+    elif not tier and agy and agy["authMethod"] in ("cloud", "vertex"):
+      tier = "Cloud"
+    stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
 
   record = base_record(
     AGENT_ID, AGENT_NAME,
@@ -763,10 +819,13 @@ def main():
     limits=limits["limits"],
     # Stale says limits were kept past a failed check; with none kept there
     # is nothing to be stale.
-    limitsStale=not limits["live"] and bool(limits["limits"]),
-    limitsFetchedAt=limits["fetchedAtMs"],
-    retryAdvised=limits["retryAdvised"],
+    limitsStale=stale,
+    limitsFetchedAt=fetched_at,
+    retryAdvised=limits.get("retryAdvised", False),
   )
+  if accounts:
+    record["accounts"] = accounts
+    record["accountSwitch"] = registered[0]["switch"]
   record.update(stats)
   emit(record)
 
