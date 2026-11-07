@@ -148,7 +148,7 @@ Panel {
   readonly property var forecastDays: buildForecastDays()
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
 
-  readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
+  readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, locationState.country || reportCountry)
 
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
@@ -258,9 +258,10 @@ Panel {
     configuredLocationState = {
       name: location.name,
       latitude: location.latitude,
-      longitude: location.longitude
+      longitude: location.longitude,
+      country: location.country
     }
-    persistLocation(location.name, location.latitude, location.longitude)
+    persistLocation(location.name, location.latitude, location.longitude, location.country)
   }
 
   function clearLocation() {
@@ -275,18 +276,19 @@ Panel {
     configuredLocationState = {
       name: suggestion.name,
       latitude: suggestion.latitude,
-      longitude: suggestion.longitude
+      longitude: suggestion.longitude,
+      country: suggestion.country
     }
-    persistLocation(suggestion.name, suggestion.latitude, suggestion.longitude)
+    persistLocation(suggestion.name, suggestion.latitude, suggestion.longitude, suggestion.country)
   }
 
   function finishSavingLocation() {
     if (savingLocation && savingLocationQueryStarted) cancelEditingLocation()
   }
 
-  function persistLocation(name, latitude, longitude) {
+  function persistLocation(name, latitude, longitude, country) {
     if (name && latitude !== null && longitude !== null)
-      locationSaveProc.command = ["omarchy-weather-location", "--set", name, latitude + "," + longitude]
+      locationSaveProc.command = ["omarchy-weather-location", "--set", name, latitude + "," + longitude].concat(country ? [country] : [])
     else if (name)
       locationSaveProc.command = ["omarchy-weather-location", "--set", name]
     else
