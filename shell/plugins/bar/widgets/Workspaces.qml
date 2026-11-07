@@ -271,6 +271,9 @@ BarWidget {
 
         bar: root.bar
         text: shown ? root.modeGlyph(root.activeMode) : (slot === root.slots ? "0" : String(slot))
+        tooltipBindingDescription: shown ? "Cycle workspace layout"
+          : (root.blockOf(modelData) === root.block
+            ? "Switch to workspace " + String(slot === root.slots ? 10 : slot) : "")
         opacity: occupied || shown ? 1 : 0.5
         horizontalMargin: 6
         verticalPadding: 6
