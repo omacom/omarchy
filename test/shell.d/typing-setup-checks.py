@@ -120,6 +120,13 @@ class TypingSetupTest(unittest.TestCase):
       self.assertIn("Setup > Keyboard > Input Methods", "".join(call.args[0] for call in error.write.call_args_list))
       self.assertIn("Noto Sans CJK SC", (Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text())
 
+  def test_vietnamese_language_seeds_bamboo_without_cjk_font(self):
+    with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}):
+      with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing, "save_inputs") as save:
+        typing.seed_language("bamboo")
+      save.assert_called_once_with(["bamboo"])
+      self.assertFalse((Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").exists())
+
   def test_failed_font_write_restores_the_input_group(self):
     before = [["keyboard-us", ""]]
     with patch.object(typing.setup, "live_group", return_value=("Default", "us", before)), patch.object(typing.setup, "available_methods", return_value=[["mozc", "Mozc"]]), patch.object(typing, "set_inputs"), patch.object(typing.setup, "font_default", side_effect=OSError("read-only")), patch.object(typing.setup, "live_set") as setter:

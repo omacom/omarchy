@@ -53,7 +53,7 @@ class InputMethodTest(unittest.TestCase):
     setup.configure(argparse.Namespace(seed=True, defaults=False))
 
   def test_every_installer_engine_is_seeded_and_inactive(self):
-    for method in ("mozc", "hangul", "pinyin", "chewing"):
+    for method in ("mozc", "hangul", "pinyin", "chewing", "bamboo"):
       with self.subTest(method=method):
         profile = self.config / "fcitx5/profile"
         profile.unlink(missing_ok=True)
