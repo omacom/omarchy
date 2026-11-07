@@ -162,6 +162,9 @@ class InputMethodTest(unittest.TestCase):
     self.assertEqual(setup.selection(), ("none", "es-cat"))
     self.vconsole.write_text("XKBLAYOUT=fr\n")
     self.assertEqual(setup.selection(), ("none", "fr"))
+    # A later layout list leaves Catalan behind, as keyboard.lua does.
+    self.vconsole.write_text("XKBLAYOUT=es,us\n")
+    self.assertEqual(setup.selection(), ("none", "es"))
 
   def test_korean_preference_yields_to_a_later_keyboard_change(self):
     self.preference.write_text("INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n")

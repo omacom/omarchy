@@ -180,6 +180,7 @@ TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr:kr104\n' assert_input
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=la\n' assert_input "Lao selection gets Lao behind US on the desktop" "[us,la] [,] [$toggle_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=es:cat\n' assert_input "Catalan selection adds the middle-dot L variant to its Spanish keymap" "[es] [cat] [$base_options]" $'XKBLAYOUT=es\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=es:cat\n' assert_input "a later layout overrides the Catalan preference" "[fr] [] [$base_options]" $'XKBLAYOUT=fr\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=es:cat\n' assert_input "a later layout list overrides the Catalan preference" "[es,us] [] [$base_options]" $'XKBLAYOUT=es,us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=xx\n' assert_input "an unknown desktop override is ignored" "[us] [] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later US variant overrides the Korean preference" "[us] [intl] [$base_options]" $'XKBLAYOUT=us\nXKBVARIANT=intl\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later layout overrides the Korean preference" "[de] [nodeadkeys] [$base_options]" $'XKBLAYOUT=de\nXKBVARIANT=nodeadkeys\n'
