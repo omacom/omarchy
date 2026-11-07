@@ -4,7 +4,6 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "DockModel.js" as DockModel
 
 // Every app on one grid. Type to narrow it, arrows to move, Enter to launch.
 Item {
@@ -29,26 +28,16 @@ Item {
   property string filterText: ""
   property int selectedIndex: 0
   property var apps: []
-  // Apps installed or removed while the grid is closed are picked up when it
-  // next opens.
-  property bool appsStale: false
-
-  // The search line is a TextInput; keep it showing what the filter holds when
-  // the grid clears or resets the filter itself.
-  onFilterTextChanged: if (filterInput.text !== root.filterText) filterInput.text = root.filterText
 
   readonly property int iconSize: Math.round(56 * Style.fontScale)
-  // A name wraps to two lines at most; a cell always has room for both so the
-  // icons of a row line up whatever their names are.
   readonly property int labelHeight: Math.ceil(labelMetrics.height) * 2
-  readonly property int labelGap: Style.spacing.md
-  // The gap between neighbouring tiles, and the air above and below a tile's
-  // content. The selected tile hugs its own icon and name, so it is padded
-  // evenly on every side whether the name takes one line or two.
   readonly property int cellGutter: Style.spacing.sm
-  readonly property int tilePaddingY: Style.spacing.xl
+  readonly property int cellPadding: Style.spacing.lg
+  // Space between the highlight's edge and the icon above / the name below.
+  // The same on every side, so the icon and name sit centered in it.
+  readonly property int hoverPadding: Math.min(Style.spacing.md, cellPadding)
   readonly property int cellWidth: Math.round(iconSize * 2.2)
-  readonly property int cellHeight: DockModel.gridCellHeight(root.cellGutter, root.tilePaddingY, root.iconSize, root.labelGap, root.labelHeight)
+  readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight
   readonly property int maxColumns: 7
   readonly property int visibleRows: 4
   readonly property int borderWidth: Math.max(1, Style.space(2))
@@ -63,30 +52,21 @@ Item {
   readonly property int cardWidth: Math.min(panel.width - screenMargin * 2, maxColumns * cellWidth + inset * 2)
   readonly property int columns: Math.max(1, Math.floor((cardWidth - inset * 2) / cellWidth))
   readonly property int gridWidth: columns * cellWidth
-  // Like the menu, the grid ends mid-row: the next row peeks in below the last
-  // whole one, cut through its icons and faded by the scrim, which tells the
-  // eye there is more below the fold. A screen too short for that just cuts a row where it ends.
-  readonly property int rowPeek: cellGutter + tilePaddingY + Math.round(iconSize * 0.75)
-  readonly property int cardHeight: Math.min(panel.height - screenMargin * 2, inset * 2 + headerHeight + headerSpacing + visibleRows * cellHeight + rowPeek)
+  readonly property int cardHeight: Math.min(panel.height - screenMargin * 2, inset * 2 + headerHeight + headerSpacing + visibleRows * cellHeight)
 
   function open() {
     root.selectedIndex = 0
-    pointerGate.reset()
     if (root.appLibrary) root.appLibrary.refreshIcons()
     // The cells from last time are reused when nothing changed, so the grid
     // opens with its icons already drawn.
     if (root.appsStale || root.filterText !== "" || root.apps.length === 0) {
       root.filterText = ""
-      root.rebuild(true)
+      root.rebuild()
     } else {
       grid.positionViewAtBeginning()
     }
     root.opened = true
-    root.focusSearch()
-  }
-
-  function focusSearch() {
-    Qt.callLater(function() { filterInput.forceActiveFocus() })
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function close() {
@@ -123,7 +103,7 @@ Item {
 
   function cancelUninstall() {
     root.uninstallEntry = null
-    root.focusSearch()
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function confirmUninstall() {
@@ -143,77 +123,25 @@ Item {
     else root.open()
   }
 
-  // Fills the grid from the library. A new search starts from the top; an app
-  // list that changed under an open grid keeps the user where they were.
-  function rebuild(fromTop) {
+  function rebuild() {
     root.appsStale = false
     var rows = root.appLibrary ? root.appLibrary.sortedEntries(root.filterText) : []
     root.apps = rows.map(function(row) { return row.entry })
     root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
-    if (fromTop) {
-      grid.positionViewAtBeginning()
-    } else {
-      // The view settles on its new size first, then keeps the selection in sight.
-      Qt.callLater(function() {
-        grid.returnToBounds()
-        root.revealIndex(root.selectedIndex)
-      })
-    }
-  }
-
-  // Contain alone parks the selected row flush with the viewport edge, hiding
-  // its neighbour entirely and losing the fold. Keep the next hidden row
-  // peeking past the selection in the direction of travel, as the menu does.
-  function revealIndex(index) {
-    if (index < 0 || index >= root.apps.length) return
-    grid.positionViewAtIndex(index, GridView.Contain)
-
-    var item = grid.itemAtIndex(index)
-    if (!item) return
-
-    var row = Math.floor(index / root.columns)
-    var lastRow = Math.floor((root.apps.length - 1) / root.columns)
-    grid.contentY = DockModel.gridPeekedContentY(grid, item, root.rowPeek, row < lastRow, row > 0)
+    grid.positionViewAtBeginning()
   }
 
   function setFilter(text) {
     root.filterText = text
     root.selectedIndex = 0
-    root.menuEntry = null
-    pointerGate.reset()
-    root.rebuild(true)
-  }
-
-  // Moves the keyboard selection. The grid scrolls under a pointer that has
-  // not moved, so the gate is reset to keep that from reselecting a cell.
-  function selectIndex(index) {
-    if (root.apps.length === 0) return
-    root.selectedIndex = Math.max(0, Math.min(root.apps.length - 1, index))
-    pointerGate.reset()
-    root.revealIndex(root.selectedIndex)
+    root.rebuild()
   }
 
   function select(delta) {
-    root.selectIndex(root.selectedIndex + delta)
+    if (root.apps.length === 0) return
+    root.selectedIndex = Math.max(0, Math.min(root.apps.length - 1, root.selectedIndex + delta))
+    grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
   }
-
-  // Up and Down stop at the top and bottom rows rather than jumping to the
-  // first or last app. A move that would leave the grid goes as far as it can:
-  // below a short last row, to its last app; above, to the first row in the
-  // same column.
-  function selectRows(rows) {
-    var count = root.apps.length
-    if (count === 0) return
-    var next = DockModel.gridStepRows(root.selectedIndex, count, root.columns, rows)
-    if (next !== root.selectedIndex) root.selectIndex(next)
-  }
-
-  function selectFromPointer(index, item, mouse) {
-    if (root.dragging || !pointerGate.moved(item, mouse)) return
-    root.selectedIndex = index
-  }
-
-  readonly property int pageRows: Math.max(1, root.visibleRows - 1)
 
   function launch(index) {
     var entry = root.apps[index]
@@ -229,15 +157,14 @@ Item {
     font.pixelSize: Style.font.body
   }
 
-  PointerMoveGate {
-    id: pointerGate
-    referenceItem: card
-  }
+  // Apps installed or removed while the grid is closed are picked up when it
+  // next opens.
+  property bool appsStale: false
 
   Connections {
     target: root.appLibrary
     function onAppsChanged() {
-      if (root.opened) root.rebuild(false)
+      if (root.opened) root.rebuild()
       else root.appsStale = true
     }
   }
@@ -310,14 +237,12 @@ Item {
       Item {
         id: keyCatcher
         anchors.fill: parent
+        focus: true
 
-        // Focus is on filterInput, which forwards every key here first. What
-        // is left unaccepted is typed into the search line.
+        Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
           if (root.uninstallEntry) {
-            // Swallow the rest too, or it would type into the search line behind the dialog.
-            uninstallConfirm.handleKey(event)
-            event.accepted = true
+            if (uninstallConfirm.handleKey(event)) event.accepted = true
             return
           }
           if (event.key === Qt.Key_Delete) {
@@ -333,26 +258,13 @@ Item {
           } else if (Util.readingKey(event) === Qt.Key_Right) {
             root.select(1)
           } else if (event.key === Qt.Key_Up) {
-            root.selectRows(-1)
+            root.select(-root.columns)
           } else if (event.key === Qt.Key_Down) {
-            root.selectRows(1)
-          } else if (event.key === Qt.Key_PageUp) {
-            root.selectRows(-root.pageRows)
-          } else if (event.key === Qt.Key_PageDown) {
-            root.selectRows(root.pageRows)
-          } else if (event.key === Qt.Key_Home) {
-            root.selectIndex(0)
-          } else if (event.key === Qt.Key_End) {
-            root.selectIndex(root.apps.length - 1)
-          } else if (event.key === Qt.Key_Tab) {
-            root.select(1)
-          } else if (event.key === Qt.Key_Backtab) {
-            root.select(-1)
+            root.select(root.columns)
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.launch(root.selectedIndex)
-          } else if (event.text === " " && !root.filterText) {
-            // A search never starts with a space; it would hide the hint
-            // and match nothing new.
+          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
+            root.setFilter(root.filterText + event.text)
           } else {
             return
           }
@@ -377,44 +289,15 @@ Item {
           color: Util.alpha(Commons.Color.menu.text, 0.06)
 
           Text {
-            id: searchGlyph
             anchors.left: parent.left
-            anchors.leftMargin: Style.spacing.controlPaddingX
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: "󰍉"
-            color: Commons.Color.menu.text
-            opacity: 0.58
-            font.family: Style.font.family
-            font.pixelSize: Style.font.heading
-          }
-
-          // A TextInput, not a Text fed by key events: input methods (fcitx5
-          // composing Japanese, Chinese or Korean) only reach text-input items.
-          FilterInput {
-            id: filterInput
-            anchors.left: searchGlyph.right
-            anchors.leftMargin: Style.spacing.md
             anchors.right: parent.right
+            anchors.leftMargin: Style.spacing.controlPaddingX
             anchors.rightMargin: Style.spacing.controlPaddingX
             anchors.verticalCenter: parent.verticalCenter
-            keyHandler: keyCatcher
-            // Input-method commits bypass key handling, so the dialog has to refuse them here.
-            readOnly: !!root.uninstallEntry
-            color: Commons.Color.menu.text
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.heading
-            onTextChanged: if (text !== root.filterText) root.setFilter(text)
-          }
-
-          Text {
-            anchors.fill: filterInput
-            verticalAlignment: Text.AlignVCenter
-            visible: !root.filterText && !filterInput.preeditText
             textFormat: Text.PlainText
-            text: Commons.I18n.t("dock.searchApps")
+            text: root.filterText || Commons.I18n.t("dock.searchApps")
             color: Commons.Color.menu.text
-            opacity: 0.58
+            opacity: root.filterText ? 1 : 0.58
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
@@ -434,17 +317,6 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
-            // The menu's wheel: pixels for a touchpad, a row a notch for a mouse.
-            WheelHandler {
-              target: null
-              onWheel: function(event) {
-                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.cellHeight
-                var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
-                grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - delta))
-                event.accepted = true
-              }
-            }
-
             delegate: Item {
               id: cell
 
@@ -454,40 +326,27 @@ Item {
               property point pressPoint
               // A press that wanders is a drag in the making, not a click.
               property bool moved: false
-              // Mirrors the mouse over the cell, so the under-cursor state and
-              // the keyboard selection render through the same tile, icon and
-              // label; PointerMoveGate stays the single place pointer movement
-              // is trusted.
-              property bool hovering: false
 
               width: root.cellWidth
               height: root.cellHeight
 
-              // The selection is a tile around the icon and the name. It ends
-              // where the name does, so a one-line name is padded the same
-              // below as the icon is above, not out to the edge of the cell.
+              // The selection marks the whole app, icon and name together.
+              // It wraps exactly the icon-to-name block with the same padding
+              // above and below, so the icon is centered in it. Declared
+              // first, so it is drawn behind the icon and the name.
               Rectangle {
-                id: tile
                 x: root.cellGutter
-                y: root.cellGutter
+                y: icon.y - root.hoverPadding
                 width: cell.width - root.cellGutter * 2
-                height: DockModel.gridTileHeight(root.tilePaddingY, root.iconSize, root.labelGap, label.contentHeight)
+                height: root.hoverPadding * 2 + icon.height + (label.y - (icon.y + icon.height)) + label.contentHeight
                 radius: Style.cornerRadius
-                color: cell.selected ? Commons.Color.menu.selectedBackground
-                  : (cell.hovering ? Style.hoverFill : "transparent")
-
-                Behavior on color {
-                  PropertyAnimation {
-                    duration: Style.duration(120)
-                    easing.type: Easing.InOutQuad
-                  }
-                }
+                color: cell.selected ? Commons.Color.menu.selectedBackground : "transparent"
               }
 
               Image {
                 id: icon
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: tile.y + root.tilePaddingY
+                y: root.cellPadding
                 width: root.iconSize
                 height: root.iconSize
                 sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
@@ -498,69 +357,40 @@ Item {
                 asynchronous: false
                 smooth: true
                 mipmap: true
-                // The icon scales up slightly on hover and dips on press, never
-                // jumping at first render since the Behavior only animates
-                // changes. Hover and press use the same track so only one
-                // transforms the icon at a time.
-                scale: cellMouse.pressed && !cell.moved ? 0.92 : (cell.hovering ? 1.03 : 1)
-                Behavior on scale {
-                  PropertyAnimation {
-                    duration: Style.duration(120)
-                    easing.type: Easing.InOutQuad
-                  }
-                }
               }
 
               Text {
                 id: label
                 anchors.top: icon.bottom
-                anchors.topMargin: root.labelGap
+                anchors.topMargin: Style.spacing.md
                 anchors.horizontalCenter: parent.horizontalCenter
-                width: tile.width - Style.spacing.md * 2
+                width: parent.width - (root.cellGutter + Style.spacing.md) * 2
                 textFormat: Text.PlainText
                 text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
-                color: cell.selected ? Commons.Color.menu.selectedText
-                  : (cell.hovering ? Style.hoverFillFor(Commons.Color.menu.text, Commons.Color.accent)
-                  : Commons.Color.menu.text)
+                color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
                 font.family: Style.font.menuFamily
                 font.pixelSize: Style.font.body
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignTop
-                // Breaks between words when it can, and inside a long one when
-                // it must, so an unbroken name never runs past its tile.
-                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                wrapMode: Text.Wrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
-
-                Behavior on color {
-                  PropertyAnimation {
-                    duration: Style.duration(120)
-                    easing.type: Easing.InOutQuad
-                  }
-                }
               }
 
               MouseArea {
-                id: cellMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 // The grid would otherwise take a dragging press for a scroll.
                 preventStealing: true
-                onContainsMouseChanged: cell.hovering = containsMouse
+                onContainsMouseChanged: if (containsMouse && !root.dragging) root.selectedIndex = cell.index
                 onPressed: function(event) {
                   cell.moved = false
                   cell.pressPoint = Qt.point(event.x, event.y)
                 }
-                // Hover selects only when the pointer itself moves. Cells that
-                // scroll or rebuild under a resting pointer would otherwise
-                // pull the selection away from the keyboard.
                 onPositionChanged: function(event) {
-                  if (!(pressedButtons & Qt.LeftButton)) {
-                    root.selectFromPointer(cell.index, cellMouse, event)
-                    return
-                  }
+                  if (!(pressedButtons & Qt.LeftButton)) return
                   if (!cell.moved && Math.hypot(event.x - cell.pressPoint.x, event.y - cell.pressPoint.y) > Style.space(4)) cell.moved = true
                   if (cell.moved) root.dragTo(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                 }
@@ -571,7 +401,6 @@ Item {
                 onClicked: function(event) {
                   if (cell.moved) return
                   if (event.button === Qt.RightButton) {
-                    root.selectedIndex = cell.index
                     root.openMenu(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                     return
                   }
@@ -579,41 +408,6 @@ Item {
                   root.launch(cell.index)
                 }
               }
-            }
-          }
-
-          // Scroll scrims, as in the menu. The clipped row marks the fold at
-          // rest; these keep both edges honest once the grid has been scrolled
-          // and rows hide above as well as below. Strength tracks the distance
-          // still hidden past each edge rather than a clock, so a jump lands
-          // with the fade already applied.
-          Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: Math.min(Style.space(28), parent.height / 2)
-            visible: opacity > 0
-            opacity: grid.contentHeight > grid.height
-              ? Math.max(0, Math.min(1, (grid.contentY - grid.originY) / height))
-              : 0
-            gradient: Gradient {
-              GradientStop { position: 0; color: Commons.Color.menu.background }
-              GradientStop { position: 1; color: Util.alpha(Commons.Color.menu.background, 0) }
-            }
-          }
-
-          Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: Math.min(Style.space(28), parent.height / 2)
-            visible: opacity > 0
-            opacity: grid.contentHeight > grid.height
-              ? Math.max(0, Math.min(1, (grid.originY + grid.contentHeight - grid.height - grid.contentY) / height))
-              : 0
-            gradient: Gradient {
-              GradientStop { position: 0; color: Util.alpha(Commons.Color.menu.background, 0) }
-              GradientStop { position: 1; color: Commons.Color.menu.background }
             }
           }
 

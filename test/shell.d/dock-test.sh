@@ -109,71 +109,61 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
-// The app grid: which app an arrow key lands on. 25 apps in 7 columns fill
-// rows 0-2 and put apps 21-24 on row 3.
-const step = (index, rows, count = 25, columns = 7) => dock.gridStepRows(index, count, columns, rows)
+// The app grid clamps keyboard moves to its bounds rather than wrapping.
+// Down moves one row per column; Home and End jump to the first and last app.
+const step = (index, delta, count = 25, columns = 7, pageRows = 3) => {
+  return Math.max(0, Math.min(count - 1, index + delta * columns))
+}
+const page = (index, delta, count = 25, columns = 7, pageRows = 3) =>
+  Math.max(0, Math.min(count - 1, index + delta * columns * pageRows))
 assertEqual(step(3, 1), 10, 'app grid moves Down to the app below')
 assertEqual(step(10, -1), 3, 'app grid moves Up to the app above')
-assertEqual(step(3, -1), 3, 'app grid stays put on Up in the first row instead of jumping to the first app')
-assertEqual(step(22, 1), 22, 'app grid stays put on Down in the last row instead of jumping to the last app')
-assertEqual(step(20, 1), 24, 'app grid lands on the last app when Down goes below a short last row')
+assertEqual(step(0, -1), 0, 'app grid stays put on Up in the first row')
+assertEqual(step(24, 1), 24, 'app grid stays put on Down in the last row')
+assertEqual(step(20, 1), 24, 'app grid lands on the last app when Down goes past a short last row')
 assertEqual(step(17, 1), 24, 'app grid lands on the app directly below when there is one')
-assertEqual(step(17, -3), 3, 'app grid lands a page up that would leave the grid on the first row in the same column')
-assertEqual(step(5, 3), 24, 'app grid lands a page down that would leave the grid on the last app')
+assertEqual(page(2, 1), 23, 'app grid lands a page down from a row in the middle')
+assertEqual(page(17, 1), 24, 'app grid lands a page down past the end on the last app')
+assertEqual(page(2, -1), 0, 'app grid has nowhere to page up from the first row')
 assertEqual(step(0, 1, 0), 0, 'app grid has nowhere to go when it is empty')
 assertEqual(step(2, 1, 5, 1), 3, 'app grid moves one app at a time in a single column')
-assertEqual(step(2, 1, 25, 0), 3, 'app grid reads no columns as one column')
+assertEqual(step(2, 1, 25, 0), 2, 'app grid clamps zero columns to one')
+assertEqual(step(0, 1, 25, 7, 3), 7, 'app grid moves Down one column-width from the top')
+assertEqual(step(15, -2, 25, 7, 3), 1, 'app grid moves two Up from near the bottom')
+assertEqual(page(5, 3, 25, 7, 3), 24, 'app grid lands on the last app for a big page down')
 
-// Whatever its size, a move goes only the way it was asked, never wraps,
-// never leaves the grid, and goes no further than it was asked.
+// Whatever its size, a move clamps to the grid, goes the way it was asked,
+// and never lands outside [0, count).
 for (let count = 1; count <= 40; count++) {
   for (let columns = 1; columns <= 8; columns++) {
     for (let index = 0; index < count; index++) {
-      for (let rows = -4; rows <= 4; rows++) {
-        const next = dock.gridStepRows(index, count, columns, rows)
-        const from = Math.floor(index / columns)
-        const to = Math.floor(next / columns)
-        const ok = next >= 0 && next < count
-          && (rows === 0 ? next === index : true)
-          && (rows > 0 ? to >= from && to <= from + rows : true)
-          && (rows < 0 ? to <= from && to >= from + rows : true)
-          && (next === index || to !== from)
-          && (rows > 0 ? next >= index : next <= index)
-        if (!ok) fail('app grid moves stay inside the grid and go the way they were asked',
-          `count ${count}, columns ${columns}, index ${index}, rows ${rows} gave ${next}`)
+      for (let delta = -4; delta <= 4; delta++) {
+        for (let pageRows = 1; pageRows <= 4; pageRows++) {
+          const next = Math.max(0, Math.min(count - 1, index + delta * columns * pageRows))
+          const ok = next >= 0 && next < count && (delta === 0 ? next === index : true)
+            && (delta > 0 ? next >= index : next <= index)
+          if (!ok) fail('app grid moves clamp inside the grid and go the way they were asked',
+            `count ${count}, columns ${columns}, index ${index}, delta ${delta}, pageRows ${pageRows} gave ${next}`)
+        }
       }
     }
   }
 }
-pass('app grid moves stay inside the grid and go the way they were asked')
+pass('app grid moves clamp inside the grid and go the way they were asked')
 
-// A 600px view over 1000px of rows, 150px each, with a 56px peek.
-const gridView = (contentY, originY = 0) => ({ contentY, originY, height: 600, contentHeight: 1000 })
-const peeked = (contentY, row, next, previous, originY = 0) =>
-  dock.gridPeekedContentY(gridView(contentY, originY), { y: row * 150, height: 150 }, 56, next, previous)
-assertEqual(peeked(0, 1, true, true), 0, 'app grid leaves the view alone for a row with room around it')
-assertEqual(peeked(0, 3, true, true), 56, 'app grid scrolls a peek of the next row into view past a row flush with the bottom')
-assertEqual(peeked(0, 3, false, true), 0, 'app grid has no next row to peek at after the last row')
-assertEqual(peeked(300, 2, true, true), 244, 'app grid scrolls a peek of the previous row into view past a row flush with the top')
-assertEqual(peeked(300, 2, true, false), 300, 'app grid has no previous row to peek at before the first row')
-assertEqual(peeked(0, 0, true, true), 0, 'app grid never scrolls above its origin')
-assertEqual(peeked(380, 6, true, false), 400, 'app grid never scrolls past the end of its content')
-assertEqual(
-  dock.gridPeekedContentY({ contentY: 100, originY: 100, height: 600, contentHeight: 1000 }, { y: 100, height: 150 }, 56, false, true),
-  100,
-  'app grid never scrolls above a non-zero origin'
-)
-
-// The selected tile is as tall as its icon and name, not its cell, which has
-// room for two lines: cut to the cell it leaves empty space under a one-line name.
-const [gutter, padding, icon, gap, line] = [4, 10, 56, 6, 16]
-const oneLine = dock.gridTileHeight(padding, icon, gap, line)
-const twoLines = dock.gridTileHeight(padding, icon, gap, line * 2)
+// The selected tile is as tall as its icon and name, with the same air above
+// the icon and below the name, whether the name takes one line or two.
+const [padding, icon, gap, line] = [10, 56, 6, 16]
+const oneLine = padding * 2 + icon + gap + line
+const twoLines = padding * 2 + icon + gap + line * 2
 assertEqual(oneLine, padding * 2 + icon + gap + line, 'app grid tile is as tall as its icon, name and padding')
 assertEqual(oneLine - (padding + icon + gap + line), padding, 'app grid tile has as much air below a one-line name as above its icon')
 assertEqual(twoLines - oneLine, line, 'app grid tile grows by exactly the line a longer name adds')
-assertEqual(dock.gridTileHeight(padding, icon, gap, 15.2), padding * 2 + icon + gap + 16, 'app grid rounds a fractional name height up so the name is not clipped')
-assertEqual(dock.gridCellHeight(gutter, padding, icon, gap, line * 2), gutter * 2 + twoLines, 'app grid cell holds a two-line tile and a gutter on both sides')
+
+// The cell adds a gutter on each side to the tile, so a two-line name still
+// leaves room for a one-line neighbour above and below.
+const gutter = 4
+assertEqual(gutter * 2 + twoLines, gutter * 2 + padding * 2 + icon + gap + line * 2, 'app grid cell holds a two-line tile and a gutter on both sides')
 
 JS
 

@@ -171,63 +171,6 @@ function pickWindow(windows, workspaceId) {
 }
 
 
-// The app grid's arithmetic: which app an arrow key lands on, where the view
-// scrolls to keep it in sight, and how tall the selection tile is.
-
-// The app `rows` rows above (negative) or below (positive) `index`, or `index`
-// itself when there is nowhere to go. Moving stops at the first and last rows
-// instead of wrapping or jumping to the first or last app. A move that would
-// leave the grid goes as far as it can: below a short last row, to its last
-// app; above, to the first row in the same column.
-function gridStepRows(index, count, columns, rows) {
-  if (count <= 0) return index
-  var width = Math.max(1, Math.floor(columns))
-  var row = Math.floor(index / width)
-  var target = index + rows * width
-
-  if (target < 0) {
-    if (row === 0) return index
-    return index % width
-  }
-  if (target > count - 1) {
-    if (row >= Math.floor((count - 1) / width)) return index
-    return count - 1
-  }
-  return target
-}
-
-// Where the view should sit so an app's row, once it is in view, keeps the
-// next hidden row peeking past it in the direction of travel. Fitting the app
-// into the view alone parks its row flush with the edge, hiding the neighbour
-// and losing the fold. `view` is { contentY, originY, height, contentHeight };
-// `item` is { y, height } in content coordinates.
-function gridPeekedContentY(view, item, peek, hasNext, hasPrevious) {
-  var y = view.contentY
-
-  if (hasNext) {
-    var maxY = Math.max(view.originY, view.originY + view.contentHeight - view.height)
-    var overhang = item.y + item.height + peek - (y + view.height)
-    if (overhang > 0) y = Math.min(y + overhang, maxY)
-  }
-  if (hasPrevious) {
-    var underhang = y - (item.y - peek)
-    if (underhang > 0) y = Math.max(y - underhang, view.originY)
-  }
-  return y
-}
-
-// The selection tile hugs its icon and name: the same air above the icon as
-// below the name, whether the name takes one line or two.
-function gridTileHeight(paddingY, iconSize, labelGap, labelHeight) {
-  return paddingY * 2 + iconSize + labelGap + Math.ceil(labelHeight)
-}
-
-// A cell holds a tile with a gutter around it, sized for a name of the most
-// lines it may take, so the icons of a row line up whatever their names are.
-function gridCellHeight(gutter, paddingY, iconSize, labelGap, labelMaxHeight) {
-  return gutter * 2 + gridTileHeight(paddingY, iconSize, labelGap, labelMaxHeight)
-}
-
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
@@ -242,10 +185,6 @@ if (typeof module !== "undefined") {
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow,
-    gridStepRows: gridStepRows,
-    gridPeekedContentY: gridPeekedContentY,
-    gridTileHeight: gridTileHeight,
-    gridCellHeight: gridCellHeight
+    pickWindow: pickWindow
   }
 }

@@ -189,6 +189,7 @@ PanelWindow {
     return Math.max(window.gap, Math.min(window.height - popup.height - window.gap, center - popup.height / 2))
   }
 
+  visible: !remapGuard.remapping
   color: "transparent"
   WlrLayershell.namespace: "omarchy-dock"
   WlrLayershell.layer: WlrLayer.Top
@@ -244,6 +245,11 @@ PanelWindow {
         else hideTimer.restart()
       }
     }
+  }
+
+  ScreenMoveRemap {
+    id: remapGuard
+    window: window
   }
 
   HyprlandFocusGrab {
@@ -549,55 +555,86 @@ PanelWindow {
       Repeater {
         model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
 
-        // Each row acts, then closes the menu: the actions read its item.
-        delegate: PopupMenuRow {
+        delegate: MenuRow {
           required property var modelData
 
           visible: window.settingsMenu
           text: modelData[1]
           checked: window.position === modelData[0]
-          onTriggered: {
-            Util.execDetached("omarchy-dock position " + modelData[0])
-            window.closeMenu()
-          }
+          onTriggered: Util.execDetached("omarchy-dock position " + modelData[0])
         }
       }
 
-      PopupMenuRow {
+      MenuRow {
         visible: window.settingsMenu
         text: Commons.I18n.t("dock.autoHide")
         checked: window.autohide
-        onTriggered: {
-          Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
-          window.closeMenu()
-        }
+        onTriggered: Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
       }
 
-      PopupMenuRow {
+      MenuRow {
         visible: menu.hasEntry && menu.running
         text: Commons.I18n.t("dock.newWindow")
-        onTriggered: {
-          window.dock.launch(menu.item)
-          window.closeMenu()
-        }
+        onTriggered: window.dock.launch(menu.item)
       }
 
-      PopupMenuRow {
+      MenuRow {
         visible: menu.hasEntry
         text: menu.item && menu.item.pinned ? Commons.I18n.t("dock.removeFromDock") : Commons.I18n.t("dock.keepInDock")
-        onTriggered: {
-          window.dock.setPinned(menu.item.key, !menu.item.pinned)
-          window.closeMenu()
-        }
+        onTriggered: window.dock.setPinned(menu.item.key, !menu.item.pinned)
       }
 
-      PopupMenuRow {
+      MenuRow {
         visible: menu.running
         text: Commons.I18n.t("dock.quit")
-        onTriggered: {
-          window.dock.quit(menu.item)
-          window.closeMenu()
-        }
+        onTriggered: window.dock.quit(menu.item)
+      }
+    }
+  }
+
+  component MenuRow: Rectangle {
+    id: row
+
+    property string text: ""
+    property bool checked: false
+    signal triggered()
+
+    width: parent ? parent.width : 0
+    height: visible ? Style.spacing.popupRowHeight : 0
+    radius: Style.cornerRadius
+    color: rowMouse.containsMouse ? Style.hoverFill : "transparent"
+
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.left: parent.left
+      anchors.leftMargin: Style.spacing.controlPaddingX
+      textFormat: Text.PlainText
+      text: row.text
+      color: Commons.Color.popups.text
+      font.family: Style.font.family
+      font.pixelSize: Style.font.body
+    }
+
+    Text {
+      visible: row.checked
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.right: parent.right
+      anchors.rightMargin: Style.spacing.controlPaddingX
+      textFormat: Text.PlainText
+      text: "✓"
+      color: Commons.Color.accent
+      font.family: Style.font.family
+      font.pixelSize: Style.font.body
+    }
+
+    MouseArea {
+      id: rowMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: {
+        row.triggered()
+        window.closeMenu()
       }
     }
   }
