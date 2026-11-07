@@ -772,7 +772,9 @@ Item {
       }
     }
 
-    for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
+    // One append, one count change: the height binding walks every row each
+    // time the count moves, so appending row by row is quadratic.
+    if (rows.length) displayModel.append(rows)
     layoutSerial += 1
 
     root.settleCursor()
