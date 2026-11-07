@@ -61,6 +61,16 @@ QtObject {
       console.warn("PluginRegistry: invalid plugin id '" + id + "' at " + sourcePath)
       return null
     }
+    if (manifest.renamedFrom !== undefined) {
+      if (!Array.isArray(manifest.renamedFrom)) return null
+      var previousIds = []
+      for (var previous of manifest.renamedFrom) {
+        if (typeof previous !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(previous)
+            || previous.indexOf("..") !== -1 || previous.indexOf("omarchy.") === 0
+            || previous === id || previousIds.indexOf(previous) !== -1) return null
+        previousIds.push(previous)
+      }
+    }
     if (!Array.isArray(manifest.kinds) || manifest.kinds.length === 0) {
       console.warn("PluginRegistry: kinds must be a non-empty array at " + sourcePath)
       return null
@@ -168,8 +178,28 @@ QtObject {
       && config.disabledPlugins.indexOf(Util.canonicalWidgetId(String(id))) !== -1
   }
 
-  function resolveEnabledId(id) {
+  // Only the updater's saved migration record grants an alias. An installed
+  // manifest cannot claim another plugin's settings by advertising old IDs.
+  function resolveMigratedId(id) {
     var key = Util.canonicalWidgetId(String(id || ""))
+    if (installedPlugins[key] || key.indexOf("omarchy.") === 0) return key
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    var aliases = config && Util.isPlainObject(config.pluginIdAliases) ? config.pluginIdAliases : {}
+    var seen = []
+    while (typeof aliases[key] === "string") {
+      if (seen.indexOf(key) !== -1) return String(id || "")
+      seen.push(key)
+      var next = aliases[key]
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(next) || next.indexOf("..") !== -1 || next.indexOf("omarchy.") === 0)
+        return String(id || "")
+      key = next
+      if (installedPlugins[key]) return key
+    }
+    return String(id || "")
+  }
+
+  function resolveEnabledId(id) {
+    var key = resolveMigratedId(id)
     // Callers keep using the built-in id after cloning; the enabled local
     // manifest is the implementation that should receive the call.
     for (var candidate in installedPlugins) {
@@ -495,7 +525,7 @@ QtObject {
   }
 
   function setEnabled(id, value, placement) {
-    var key = Util.canonicalWidgetId(String(id))
+    var key = resolveMigratedId(id)
     lastEnableError = ""
     if (!shellConfigMutator) {
       console.warn("PluginRegistry.setEnabled called before shellConfigMutator wired")

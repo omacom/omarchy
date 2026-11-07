@@ -52,6 +52,16 @@ ID=$(jq -r '.id // ""' "$MANIFEST")
 [[ $ID != *".."* ]] || fail "invalid plugin id '$ID'"
 [[ $ID != omarchy.* ]] || fail "plugin id '$ID' uses the reserved omarchy.* namespace"
 
+jq -e '
+  if has("renamedFrom") then
+    .id as $id | .renamedFrom
+    | type == "array" and length == (unique | length)
+      and all(.[]; type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$")
+        and (contains("..") | not) and (startswith("omarchy.") | not) and . != $id)
+  else true end
+' "$MANIFEST" >/dev/null 2>&1 \
+  || fail "'renamedFrom' must list unique, non-reserved previous IDs different from '$ID'"
+
 # kinds must be a non-empty array.
 jq -e '(.kinds | type) == "array" and (.kinds | length) > 0' "$MANIFEST" >/dev/null 2>&1 \
   || fail "'kinds' must be a non-empty array"
