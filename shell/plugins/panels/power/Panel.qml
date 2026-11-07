@@ -384,7 +384,7 @@ Panel {
           Text {
             id: heroPercent
             textFormat: Text.PlainText
-            text: root.reading(root.batteryInfo.percentage) || "—"
+            text: Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%"
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.displayLarge
