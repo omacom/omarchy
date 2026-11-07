@@ -20,6 +20,10 @@ Item {
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  property string refocusScript: root.omarchyPath + "/shell/plugins/clipboard/refocus-run.sh"
+  // The window that had focus when the panel opened, so a paste goes back to
+  // it even if the pointer moved over another window while clicking.
+  property string targetWindow: ""
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -41,6 +45,8 @@ Item {
   property int historyLimit: 500
 
   function open(payloadJson) {
+    root.targetWindow = ""
+    activeWindowProc.running = true
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
@@ -132,7 +138,7 @@ Item {
   }
 
   function rebuildDisplay() {
-    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber)
+    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber, Quickshell.env("HOME"))
 
     displayModel.clear()
     for (var i = 0; i < rows.length; i++) {
@@ -142,6 +148,7 @@ Item {
         fullText: row.fullText,
         previewText: row.previewText,
         previewImage: row.previewImage ? Util.fileUrl(row.previewImage) : "",
+        textImage: row.textImage ? (row.textImageRemote ? row.textImage : String(Util.fileUrl(row.textImage))) : "",
         path: row.path,
         mime: row.mime,
         historyIndex: row.index
@@ -224,9 +231,9 @@ Item {
     if (!row) return
     root.opened = false
     if (row.entryType === "image") {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
+      Quickshell.execDetached([root.refocusScript, root.targetWindow, root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      Quickshell.execDetached([root.refocusScript, root.targetWindow, root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
     }
   }
 
@@ -276,6 +283,15 @@ Item {
       currentProc.running = true
       textWatchProc.running = true
       imageWatchProc.running = true
+    }
+  }
+
+  Process {
+    id: activeWindowProc
+    command: ["sh", "-c", "hyprctl activewindow -j | jq -r '.address // empty'"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.targetWindow = text.trim()
     }
   }
 
@@ -552,7 +568,7 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                visible: parent.activeRow && !parent.activeRow.previewImage
+                visible: parent.activeRow && !parent.activeRow.previewImage && !textImagePreview.shown
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
                 anchors.rightMargin: 0
@@ -565,6 +581,22 @@ Item {
                 wrapMode: Text.WrapAnywhere
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignTop
+              }
+
+              // Text that is an image path or link: show the image once it
+              // loads, otherwise the text above stays visible. Only the active
+              // row is loaded, so a remote link is fetched when selected.
+              SizedImage {
+                id: textImagePreview
+                readonly property bool shown: parent.activeRow && !parent.activeRow.previewImage
+                  && parent.activeRow.textImage !== "" && status === Image.Ready
+                visible: shown
+                anchors.fill: parent
+                anchors.leftMargin: root.contentMargin
+                url: parent.activeRow && !parent.activeRow.previewImage ? parent.activeRow.textImage : ""
+                verticalAlignment: Image.AlignTop
+                asynchronous: true
+                smooth: true
               }
 
               SizedImage {
