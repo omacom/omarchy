@@ -441,6 +441,9 @@
   "trigger.share.receive": {
     "label": "Receive"
   },
+  "trigger.share.clean-url": {
+    "label": "Clean Link"
+  },
   "trigger.tests.network-speedtest": {
     "label": "Network Speed Test"
   },

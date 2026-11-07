@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# omarchy:summary=Strip tracking parameters from a shared link
+# omarchy:group=clipboard
+# omarchy:name=clean-url
+# omarchy:args=[--copy] [url]
+# omarchy:examples=omarchy clipboard clean-url --copy 'https://example.com/a?utm_source=x&id=1'
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-clipboard-clean-url [--copy] [url]" >&2
+}
+
+copy=0
+url=""
+
+while (($#)); do
+  case "$1" in
+    --copy)
+      copy=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      url="${1-}"
+      shift || true
+      break
+      ;;
+    -*)
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ -n $url ]]; then
+        usage
+        exit 1
+      fi
+      url="$1"
+      ;;
+  esac
+  shift
+done
+
+if (($#)); then
+  usage
+  exit 1
+fi
+
+fail() {
+  echo "$1" >&2
+  if ((copy)); then
+    omarchy-notification-send -g "link" "$(omarchy-i18n clipboard.linkNotCleaned)" "$1" || true
+  fi
+  exit 1
+}
+
+if [[ -z $url ]]; then
+  if ! url=$(wl-paste --no-newline 2>/dev/null); then
+    fail "No URL on the clipboard"
+  fi
+fi
+
+url="${url#"${url%%[![:space:]]*}"}"
+url="${url%"${url##*[![:space:]]}"}"
+
+if [[ $url != http://* && $url != https://* ]]; then
+  fail "Not an http(s) URL"
+fi
+
+if [[ $url == *[[:space:]]* ]]; then
+  fail "Not an http(s) URL"
+fi
+
+rest=${url#https://}
+rest=${rest#http://}
+host=${rest%%[/?#]*}
+if [[ -z $host ]]; then
+  fail "Not an http(s) URL"
+fi
+
+cleaned=$(perl -e '
+  my $url = $ARGV[0];
+  my ($base, $frag) = split /#/, $url, 2;
+  my ($path, $query) = split /\?/, $base, 2;
+  if (!defined $query) {
+    print $url;
+    exit 0;
+  }
+  my @drop = qw(
+    fbclid gclid gbraid wbraid dclid msclkid mc_eid mc_cid igshid
+    _hsenc _hsmi mkt_tok vero_conv vero_id yclid twclid ttclid
+    si spm ref_src ref_url oly_enc_id oly_anon_id _ga _gl wickedid
+  );
+  my %drop = map { $_ => 1 } @drop;
+  my @kept;
+  for my $pair (split /&/, $query) {
+    next if $pair eq "";
+    my ($key) = split /=/, $pair, 2;
+    $key =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg;
+    next if $drop{$key} || $key =~ /^utm_/ || $key =~ /^fb_action_/ || $key eq "fb_source";
+    push @kept, $pair;
+  }
+  my $out = $path;
+  $out .= "?" . join("&", @kept) if @kept;
+  $out .= "#" . $frag if defined $frag && length($frag);
+  print $out;
+' "$url")
+
+printf '%s\n' "$cleaned"
+
+if ((copy)); then
+  printf '%s' "$cleaned" | wl-copy
+  omarchy-notification-send -g "link" "$(omarchy-i18n clipboard.linkCleaned)" "$cleaned" || true
+fi
