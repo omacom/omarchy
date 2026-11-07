@@ -237,6 +237,26 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
   }
 
 
+# /activity answers for completed UTC days only, so today is never in its
+# history and the panel would read zero for it all day. This machine's own
+# sessions stand in for today until the day is done and the account's numbers
+# take over. Today's numbers are then this machine's alone, so todayScope
+# tells the panel to add them across synced devices while the rest of the
+# account-wide record still merges by widest value.
+def with_local_today(stats: dict[str, Any], local: dict[str, Any], today: datetime) -> dict[str, Any]:
+  day = today.strftime("%Y-%m-%d")
+  local_days = {entry.get("date"): entry.get("messageCount") for entry in local.get("recentDays") or [] if isinstance(entry, dict)}
+  merged = dict(stats)
+  merged["todayScope"] = "device"
+  merged["todayTotalTokens"] = number(local.get("todayTotalTokens"))
+  merged["todayTokensByModel"] = dict(local.get("todayTokensByModel") or {})
+  merged["recentDays"] = [
+    dict(entry, messageCount=number(local_days.get(day))) if isinstance(entry, dict) and entry.get("date") == day else entry
+    for entry in stats.get("recentDays") or []
+  ]
+  return merged
+
+
 def activity_stats(key: str, today: datetime, max_age: float) -> tuple[dict[str, Any] | None, bool]:
   """Tier 2: 30-day account history via management key, or None.
 
@@ -573,6 +593,7 @@ def scan(args: Any) -> dict[str, Any]:
     # synced device reports the same truth, so aggregation must merge them by
     # widest value, not sum them. Tier 1 is machine-local instead.
     stats["scope"] = "account"
+    stats = with_local_today(stats, cached_local_stats(max_age)[0], today)
   else:
     stats, complete = cached_local_stats(max_age)
     has_prompt_stats = True
