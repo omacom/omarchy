@@ -8,6 +8,10 @@
 -- mode to whatever turns up on that port next. omarchy-hyprland-monitor-persist
 -- writes the file; nothing here writes it.
 --
+-- Closing the laptop lid also saves the position of any monitor without one
+-- (omarchy-hyprland-monitor-clamshell), so the arrangement holds when the panel
+-- comes back, and nothing is saved for a scale nobody chose.
+--
 -- Applied while the config loads, after hypr/monitors.lua, so a choice made in
 -- the panel wins over a rule written there and a reload settles on it in one
 -- go. Applied again when a monitor arrives, skipping one that already runs as
