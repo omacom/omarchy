@@ -60,7 +60,7 @@ mapfile -t shipped_comments <<'LINES'
 -- Or for ultrawide monitors like 34" 3440x1440 or 49" 5120x1440.
 -- Portrait/rotated secondary monitor (transform: 1 = 90°, 3 = 270°)
 -- Portrait/rotated secondary monitor (transform: 1 = 90°, 3 = 270°).
--- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+-- See https://wiki.hypr.land/Configuring/Core/Monitors/
 -- sizes X11/XWayland windows, which Omarchy leaves unscaled so they stay
 -- Straight 1x setup for low-resolution displays like 1080p, 1440p, or ultrawides: both 1.
 -- Straight 1x setup for low-resolution displays like 1080p or 1440p.
