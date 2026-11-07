@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# omarchy:summary=Play audio on every connected output at once
+# omarchy:group=audio
+# omarchy:args=[on|off|toggle|status]
+# omarchy:examples=omarchy audio output combine on | omarchy audio output combine off
+
+set -uo pipefail
+
+sink_name=omarchy_combined_output
+# The virtual sink a speaker tuning hosts in front of the real speakers, fixed
+# by default/audio/filter-chain-host.conf and every shipped tuning.
+tuning_sink=omarchy_speaker_tuning
+state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-audio-output-combine.previous"
+
+# The module is the state: it exists exactly while the combined output does.
+module_id() {
+  LC_ALL=C timeout 2 pactl list short modules 2>/dev/null |
+    awk -v needle="sink_name=$sink_name" '$2 == "module-combine-sink" && index($0, needle) {print $1; exit}'
+}
+
+is_on() {
+  [[ -n $(module_id) ]]
+}
+
+# A speaker tuning fronts the real speakers: sharing onto the hardware would
+# play around the tuning, so the hardware stays out and the tuning sink, which
+# is where the output list points, stands in for it.
+fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
+
+# Sinks a person would call an output: a real ALSA or Bluetooth device whose
+# port is plugged in. Virtual sinks -- EasyEffects, the combined sink itself --
+# are left out, since sharing into one would route the mix back into the
+# processing graph.
+available_sinks() {
+  LC_ALL=C timeout 2 pactl -f json list sinks 2>/dev/null |
+    jq -r --arg fronted "$fronted" '.[]
+      | select((.name // "") | test("^(alsa_output|bluez_output)\\."))
+      | select($fronted == "" or .name != $fronted)
+      | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))
+      | .name' 2>/dev/null
+  if [[ -n $fronted ]]; then
+    printf '%s\n' "$tuning_sink"
+  fi
+}
+
+sink_index() {
+  LC_ALL=C timeout 2 pactl list short sinks 2>/dev/null |
+    awk -v name="$1" '$2 == name {print $1; exit}'
+}
+
+# Select an output through the command the panel uses, which also moves the
+# playing streams onto it.
+select_sink() {
+  local name="$1" index
+  index=$(sink_index "$name")
+  [[ -n $index ]] || return 1
+  omarchy-audio-output-set-default "$index" "$name"
+}
+
+# A combine sink comes up at the level it was last used at, which can be full
+# volume, so the mix takes the level of the output it replaces. Applied twice:
+# before selecting, so moved streams never start too loud, and again after,
+# because the stored level can land a moment after the sink appears.
+match_level() {
+  local volume="$1" mute="$2"
+  if [[ -n $volume ]]; then
+    timeout 2 pactl set-sink-volume "$sink_name" "${volume}%" >/dev/null 2>&1 || true
+  fi
+  # Explicitly both ways: the sink remembers its own mute from its last use, so
+  # an output that was never muted must not come back silent.
+  if [[ -n $mute ]]; then
+    timeout 2 pactl set-sink-mute "$sink_name" "$([[ $mute == "yes" ]] && echo 1 || echo 0)" >/dev/null 2>&1 || true
+  fi
+}
+
+start() {
+  if is_on; then
+    return 0
+  fi
+
+  local -a sinks
+  mapfile -t sinks < <(available_sinks)
+  if (( ${#sinks[@]} < 2 )); then
+    echo "Connect a second audio output first." >&2
+    return 1
+  fi
+
+  local previous level_sink volume mute
+  previous=$(timeout 2 pactl get-default-sink 2>/dev/null)
+  if [[ -z $previous || $previous == "$sink_name" ]]; then
+    previous=${sinks[0]}
+  fi
+
+  # The mix starts at the level of the output it replaces: a fresh sink would
+  # otherwise come up at 100%, which is a nasty surprise in a pair of earbuds.
+  # A tuning sink is not where loudness lives -- its own volume is the level
+  # going *into* the processing, and the speakers behind it carry the level the
+  # user controls -- so resolve it the way the panel slider and the volume keys
+  # do, and read the physical sink.
+  level_sink=$(omarchy-audio-output-sink "$previous" 2>/dev/null)
+  if [[ -z $level_sink ]]; then
+    level_sink=$previous
+  fi
+  volume=$(LC_ALL=C timeout 2 pactl get-sink-volume "$level_sink" 2>/dev/null |
+    sed -n 's/.*\/ *\([0-9]\+\)%.*/\1/p' | head -1)
+  # pactl says "yes" only in the C locale; a translated session must not look
+  # unmuted when it is muted.
+  mute=$(LC_ALL=C timeout 2 pactl get-sink-mute "$level_sink" 2>/dev/null | awk '{print $2}')
+
+  local slaves
+  slaves=$(IFS=,; echo "${sinks[*]}")
+  if ! timeout 2 pactl load-module module-combine-sink "sink_name=$sink_name" "slaves=$slaves" >/dev/null 2>&1; then
+    echo "Could not create the combined output." >&2
+    return 1
+  fi
+
+  printf '%s\n' "$previous" >"$state_file"
+  match_level "$volume" "$mute"
+  if ! select_sink "$sink_name"; then
+    stop >/dev/null 2>&1 || true
+    echo "Could not select the combined output." >&2
+    return 1
+  fi
+  match_level "$volume" "$mute"
+}
+
+stop() {
+  local module previous current
+  module=$(module_id)
+  if [[ -z $module ]]; then
+    rm -f "$state_file"
+    return 0
+  fi
+
+  current=$(timeout 2 pactl get-default-sink 2>/dev/null)
+  previous=$(cat "$state_file" 2>/dev/null || true)
+
+  if ! timeout 2 pactl unload-module "$module" >/dev/null 2>&1; then
+    echo "Could not remove the combined output." >&2
+    return 1
+  fi
+  rm -f "$state_file"
+
+  # Only put the default back when it was on the combined output. A switch the
+  # user made in the meantime is theirs to keep.
+  if [[ $current == "$sink_name" ]]; then
+    if [[ -n $previous ]] && [[ -n $(sink_index "$previous") ]]; then
+      select_sink "$previous" || true
+    else
+      local fallback
+      fallback=$(available_sinks | sed -n '1p')
+      if [[ -n $fallback ]]; then
+        select_sink "$fallback" || true
+      fi
+    fi
+  fi
+}
+
+case ${1:-toggle} in
+  on) start ;;
+  off) stop ;;
+  toggle)
+    if is_on; then
+      stop
+    else
+      start
+    fi
+    ;;
+  status)
+    if is_on; then
+      echo on
+    else
+      echo off
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-audio-output-combine [on|off|toggle|status]" >&2
+    exit 2
+    ;;
+esac
