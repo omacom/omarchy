@@ -732,6 +732,24 @@ if rg -q 'hyprctl' "$ROOT/shell/plugins/bar/widgets/Workspaces.qml"; then
 fi
 pass "clicking a workspace spawns no process"
 
+run_node_test <<'JS'
+const source = require('fs').readFileSync(root + '/shell/plugins/bar/widgets/Workspaces.qml', 'utf8')
+const cycle = source.match(/function cycleLayout\(\) \{([\s\S]*?)\n  \}/)
+const focusedChanged = source.match(/function onFocusedChanged\(\) \{([\s\S]*?)\n    \}/)
+assert(cycle && focusedChanged, 'the layout click and its focus handler can be extracted')
+const calls = []
+const timer = { running: false, restart() { this.running = true }, stop() { this.running = false } }
+const widget = { monitorName: 'DP-2', monitor: { focused: false }, bar: { run: command => calls.push(command) } }
+const hyprland = { dispatch: request => calls.push(request) }
+const run = body => new Function('root', 'Hyprland', 'toggleAfterFocus', body)(widget, hyprland, timer)
+run(cycle[1])
+calls.push('focused')
+widget.monitor.focused = true
+run(focusedChanged[1])
+run(focusedChanged[1])
+assertDeepEqual(calls, ['hl.dsp.focus({ monitor = "DP-2" })', 'focused', 'omarchy-hyprland-workspace-layout-toggle'], 'another monitor\'s layout toggles once, after Hyprland reports it focused')
+JS
+
 if ! rg -q 'runProgram\(\["hyprctl", "switchxkblayout", name, String\(next\)\]\)' "$ROOT/shell/plugins/bar/widgets/KeyboardLayout.qml"; then
   fail "keyboard layout switch must pass the device name as an argv element"
 fi
