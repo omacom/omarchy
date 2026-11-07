@@ -254,6 +254,16 @@ function parentPathFor(items, id) {
   return pathFor(items, entry.parent)
 }
 
+function searchDetail(items, entry) {
+  var description = String((entry && entry.description) || "").trim()
+  var label = String((entry && entry.label) || "").trim()
+
+  if (entry && entry.kind === "app" && description && description.toLowerCase() !== label.toLowerCase())
+    return description
+
+  return parentPathFor(items, entry ? entry.id : "")
+}
+
 function isDescendantOf(items, id, ancestorId) {
   if (ancestorId === "root") return id !== "root"
 
@@ -703,6 +713,7 @@ if (typeof module !== "undefined") {
     depthFor: depthFor,
     pathFor: pathFor,
     parentPathFor: parentPathFor,
+    searchDetail: searchDetail,
     isDescendantOf: isDescendantOf,
     childCount: childCount,
     isVisible: isVisible,
