@@ -146,14 +146,26 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
+
 # libfprint-git tracks upstream ahead of the Arch release, so a new reader only
 # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
 # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
 # one transaction, so a failed install leaves the existing driver in place.
+# We explicitly exempt foreign providers (e.g., libfprint-tod from AUR) from
+# this replacement path to prevent breaking vendor-specific downstream packages.
 if omarchy-pkg-missing libfprint-git fprintd usbutils; then
-  echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
+  if pacman -Qqm libfprint &>/dev/null; then
+    # Only notify if missing framework packages actually need to be provisioned
+    if omarchy-pkg-missing fprintd usbutils; then
+      echo "Installing required framework packages..."
+      sudo pacman -S --needed --noconfirm -- fprintd usbutils
+    fi
+  else
+    echo "Installing required packages..."
+    sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
+  fi
 fi
+
 
 # Enroll first fingerprint
 # Authenticate sudo first, and say so: with fingerprint sudo already set up it
