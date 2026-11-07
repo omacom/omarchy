@@ -3,7 +3,7 @@
 # omarchy:summary=Pick one or multiple options from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels>]
+# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels> --timeout <seconds>]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
@@ -35,12 +35,21 @@ multiple=0
 on_change="[]"
 change_key=""
 selected=()
+request_timeout=0
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
     shift
     while (( $# > 0 )); do
       case "$1" in
+        --timeout)
+          shift
+          if [[ ! ${1:-} =~ ^[1-9][0-9]{0,3}$ ]] || (( 10#$1 > 3600 )); then
+            echo "omarchy-menu-select: --timeout must be 1 to 3600 seconds" >&2
+            exit 1
+          fi
+          request_timeout=$1
+          ;;
         --on-change)
           shift
           if (( $# == 0 )); then
@@ -104,10 +113,19 @@ if (( ${#options[@]} == 0 )); then
   exit 1
 fi
 
-selection_file=$(mktemp)
-done_file=$(mktemp)
-rm -f "$done_file"
-trap 'rm -f "$selection_file" "$done_file"' EXIT
+request_dir=$(mktemp -d)
+selection_file="$request_dir/selection"
+done_file="$request_dir/done"
+cancel_payload=$(jq -nc --arg doneFile "$done_file" '{doneFile: $doneFile}')
+cleanup() {
+  timeout --kill-after=1s 2s omarchy-shell -q shell cancelQueued omarchy.menu "$done_file" >/dev/null 2>&1 || true
+  # A stale cancellation must not dismiss a picker that replaced this one.
+  timeout --kill-after=1s 2s omarchy-shell -q shell call omarchy.menu cancelRequest "$cancel_payload" >/dev/null 2>&1 || true
+  rm -rf "$request_dir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 options_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${options[@]}")
 selected_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${selected[@]}")
@@ -130,9 +148,17 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 
+deadline=$((SECONDS + request_timeout))
 while [[ ! -e $done_file ]]; do
+  if (( request_timeout > 0 && SECONDS >= deadline )); then
+    exit 124
+  fi
   sleep 0.05
 done
+
+if (( request_timeout > 0 && SECONDS >= deadline )); then
+  exit 124
+fi
 
 if [[ -s $selection_file ]]; then
   cat "$selection_file"
