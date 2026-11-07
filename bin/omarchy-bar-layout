@@ -1,0 +1,306 @@
+#!/bin/bash
+
+# omarchy:summary=Switch the bar between classic, notch, floating, island and split layouts
+# omarchy:args=<classic|notch|floating|island|split> | cycle [prev] | get | list | radius <0|8|12|20|pill|N> [mode] | set <mode|common> <key> <value> | reload | menu
+# omarchy:examples=omarchy bar layout island | omarchy bar layout cycle prev | omarchy bar layout radius pill island | omarchy bar layout set floating margin 10 | omarchy bar layout set common opacity 0.9
+
+set -euo pipefail
+
+# The mode is one word in $DIR/mode, which survives restarts. Every other
+# tunable (radius, margin, padding, ...) lives in $DIR/layout.json. The bar
+# watches both files and is also nudged over IPC, so a change lands at once.
+DIR=${OMARCHY_BAR_LAYOUT_DIR:-$HOME/.config/omarchy/bar-layout}
+MODE_FILE=$DIR/mode
+OPTIONS_FILE=$DIR/layout.json
+
+# Kept in step with BarLayout.js, which is what the bar reads.
+MODES=(classic notch floating island split)
+KEYS=(radius margin padding spacing border shadow opacity background)
+
+usage() {
+  cat <<USAGE
+Usage: omarchy bar layout <command> [args...]
+
+  <mode>                               Apply a layout: ${MODES[*]}
+  cycle [prev]                         Switch to the next (or previous) layout
+  get                                  Print the current layout
+  list                                 List layouts, the current one marked
+  radius <0|8|12|20|pill|N> [mode]     Corner radius in px (default mode: notch)
+  set <mode|common> <key> <value>      Set a tunable for one layout, or for all
+                                       of them with 'common'
+  reload                               Re-read the files after hand-editing
+                                       layout.json
+  menu                                 Open the layout picker
+
+Keys: ${KEYS[*]}
+
+  radius                               a number, 'pill', or a preset
+  margin padding spacing               px
+  border shadow                        true or false (on/off, yes/no)
+  opacity                              0 to 1
+  background                           #rrggbb or #rrggbbaa; 'theme' keeps the
+                                       theme's own bar background
+
+Values are clamped to what the bar can draw.
+
+Examples:
+  omarchy bar layout island
+  omarchy bar layout cycle prev
+  omarchy bar layout radius pill island
+  omarchy bar layout set floating margin 10
+  omarchy bar layout set common opacity 0.9
+USAGE
+}
+
+die() {
+  echo "omarchy-bar-layout: $*" >&2
+  exit 1
+}
+
+is_mode() {
+  local mode
+
+  for mode in "${MODES[@]}"; do
+    [[ $mode == "$1" ]] && return 0
+  done
+
+  return 1
+}
+
+# The mode a word means, with the same aliases as BarLayout.js. Prints nothing
+# for a word that is no mode.
+resolve_mode() {
+  local value=${1,,}
+
+  case $value in
+    panel) value=island ;;
+    islands | split-islands) value="split" ;;
+    flat | default) value=classic ;;
+  esac
+
+  if is_mode "$value"; then
+    printf '%s\n' "$value"
+  fi
+}
+
+canonical() {
+  local mode
+
+  mode=$(resolve_mode "$1")
+  [[ -n $mode ]] || die "unknown layout '$1' (choose: ${MODES[*]})"
+  printf '%s\n' "$mode"
+}
+
+# What the bar shows: the mode file's word, or classic when it is missing or
+# unreadable, just as BarLayout.normalizeMode falls back.
+current() {
+  local value=""
+  local mode
+
+  if [[ -r $MODE_FILE ]]; then
+    read -r value <"$MODE_FILE" || true
+  fi
+
+  mode=$(resolve_mode "$value")
+  printf '%s\n' "${mode:-classic}"
+}
+
+# Ask the running shell to re-read both files. Best effort (-q): the bar also
+# watches them, and reads them again at the next start.
+nudge() {
+  omarchy-shell -q omarchy.bar reloadLayout
+}
+
+# Overwrite in place (same inode) rather than rename, which file watchers can
+# lose. The bar ignores the empty read of a write caught half-way.
+write_in_place() {
+  local target=$1
+  local content=$2
+
+  mkdir -p "$(dirname -- "$target")"
+  printf '%s\n' "$content" >"$target"
+}
+
+apply() {
+  local mode
+
+  mode=$(canonical "$1")
+  write_in_place "$MODE_FILE" "$mode"
+  nudge
+  echo "bar layout: $mode"
+}
+
+cmd_cycle() {
+  local direction=${1:-next}
+  local now count index=0 step
+
+  case $direction in
+    next) step=1 ;;
+    prev | previous | back | --reverse) step=-1 ;;
+    *) die "cycle takes 'prev' or nothing" ;;
+  esac
+
+  now=$(current)
+  count=${#MODES[@]}
+  while (( index < count )) && [[ ${MODES[index]} != "$now" ]]; do
+    index=$(( index + 1 ))
+  done
+
+  apply "${MODES[(index + step + count) % count]}"
+}
+
+cmd_list() {
+  local now mode
+
+  now=$(current)
+  for mode in "${MODES[@]}"; do
+    if [[ $mode == "$now" ]]; then
+      echo "* $mode"
+    else
+      echo "  $mode"
+    fi
+  done
+}
+
+ensure_options() {
+  mkdir -p "$DIR"
+  if [[ ! -s $OPTIONS_FILE ]]; then
+    printf '{}\n' >"$OPTIONS_FILE"
+  fi
+
+  jq -e 'type == "object"' "$OPTIONS_FILE" >/dev/null 2>&1 ||
+    die "$OPTIONS_FILE is not a JSON object; fix it or delete it"
+}
+
+# Edit layout.json with a jq program: validated before and after, in place.
+edit_options() {
+  local program=$1
+  local result
+  shift
+
+  ensure_options
+  result=$(jq -S "$@" "$program" "$OPTIONS_FILE") || die "could not update $OPTIONS_FILE"
+  jq -e 'type == "object"' <<<"$result" >/dev/null || die "refusing to write an invalid $OPTIONS_FILE"
+  write_in_place "$OPTIONS_FILE" "$result"
+}
+
+# A whole number of px, as JSON.
+whole_value() {
+  local text=${1%px}
+
+  [[ $text =~ ^[0-9]{1,4}$ ]] || return 1
+  echo $(( 10#$text ))
+}
+
+# A number, as JSON. Leading zeros and a trailing 'px' are tolerated.
+number_value() {
+  local text=${1%px}
+
+  [[ $text =~ ^-?[0-9]{1,4}([.][0-9]{1,4})?$ ]] || return 1
+  awk -v n="$text" 'BEGIN { printf "%g\n", n + 0 }'
+}
+
+boolean_value() {
+  case ${1,,} in
+    true | on | yes | 1) echo true ;;
+    false | off | no | 0) echo false ;;
+    *) return 1 ;;
+  esac
+}
+
+radius_value() {
+  case ${1,,} in
+    square | none) echo 0 ;;
+    sm | small) echo 8 ;;
+    md | medium) echo 12 ;;
+    lg | large) echo 20 ;;
+    pill | full) echo '"pill"' ;;
+    *) whole_value "$1" || die "radius must be 0, 8, 12, 20, pill or a number of px" ;;
+  esac
+}
+
+background_value() {
+  local text=${1,,}
+
+  if [[ $text == "theme" ]]; then
+    echo '"theme"'
+  elif [[ $text =~ ^#([0-9a-f]{6}|[0-9a-f]{8})$ ]]; then
+    jq -cn --arg v "$text" '$v'
+  else
+    die "background must be #rrggbb, #rrggbbaa or theme"
+  fi
+}
+
+# The JSON for a value of a key, or a refusal that says what the key takes.
+value_for() {
+  local key=$1
+  local value=$2
+
+  case $key in
+    radius) radius_value "$value" ;;
+    margin | spacing) whole_value "$value" || die "$key takes a number of px" ;;
+    padding) number_value "$value" || die "padding takes a number of px (-1 for the theme's own)" ;;
+    opacity) number_value "$value" || die "opacity takes a number from 0 to 1" ;;
+    border | shadow) boolean_value "$value" || die "$key takes true or false" ;;
+    background) background_value "$value" ;;
+  esac
+}
+
+cmd_radius() {
+  local value=${1:-}
+  local mode=${2:-notch}
+  local json
+
+  [[ -n $value ]] || die "usage: radius <0|8|12|20|pill|N> [mode]"
+  mode=$(canonical "$mode")
+  [[ $mode != "classic" ]] || die "classic has no corners to round"
+
+  json=$(radius_value "$value")
+  # shellcheck disable=SC2016 # $mode and $v are jq variables, not shell ones
+  edit_options '.[$mode] = ((.[$mode] // {}) + {radius: $v})' --arg mode "$mode" --argjson v "$json"
+  nudge
+  echo "radius for $mode: $json"
+}
+
+cmd_set() {
+  local mode=${1:-}
+  local key=${2:-}
+  local value=${3:-}
+  local candidate known=false json
+
+  (( $# == 3 )) || die "usage: set <mode|common> <key> <value>"
+  if [[ $mode != "common" ]]; then
+    mode=$(canonical "$mode")
+  fi
+
+  for candidate in "${KEYS[@]}"; do
+    [[ $candidate == "$key" ]] && known=true
+  done
+  [[ $known == "true" ]] || die "unknown key '$key' (choose: ${KEYS[*]})"
+
+  json=$(value_for "$key" "$value")
+  # shellcheck disable=SC2016
+  edit_options '.[$mode] = ((.[$mode] // {}) + {($key): $v})' --arg mode "$mode" --arg key "$key" --argjson v "$json"
+  nudge
+  echo "$mode.$key = $json"
+}
+
+command=${1:-}
+if (( $# > 0 )); then
+  shift
+fi
+
+case $command in
+  "" | -h | --help | help) usage ;;
+  cycle) cmd_cycle "$@" ;;
+  get | current | status) current ;;
+  list) cmd_list ;;
+  radius) cmd_radius "$@" ;;
+  set) cmd_set "$@" ;;
+  reload)
+    nudge
+    echo "asked the shell to re-read $DIR"
+    ;;
+  menu) omarchy-menu summon appearance.top-bar.layout ;;
+  *) apply "$command" ;;
+esac

@@ -179,6 +179,24 @@
   "appearance.top-bar.position.right": {
     "label": "Right Bar"
   },
+  "appearance.top-bar.layout": {
+    "label": "Bar Layout"
+  },
+  "appearance.top-bar.layout.classic": {
+    "label": "Classic"
+  },
+  "appearance.top-bar.layout.notch": {
+    "label": "Notch"
+  },
+  "appearance.top-bar.layout.floating": {
+    "label": "Floating"
+  },
+  "appearance.top-bar.layout.island": {
+    "label": "Island"
+  },
+  "appearance.top-bar.layout.split": {
+    "label": "Split Islands"
+  },
   "appearance.windows": {
     "label": "Windows"
   },
