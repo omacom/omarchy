@@ -25,7 +25,7 @@ def keyboard_catalog():
     mappings.setdefault(fields[0], layout + (":" + variant if variant != "-" else ""))
   # The console names systemd's table lacks convert as keyboard_xkb_settings in
   # omarchy-provision-owner does, so a choice types what it did at install.
-  mappings.update({"bg-cp1251": "bg:phonetic", "colemak": "us:colemak", "cz": "cz:qwerty",
+  mappings.update({"bg-cp1251": "bg:phonetic", "colemak": "us:colemak", "mod-dh-ansi-us": "us:colemak_dh", "cz": "cz:qwerty",
                    "kyrgyz": "kg", "de_CH-latin1": "ch", "no-latin1": "no"})
   catalog = {}
   for choice in choices.splitlines():

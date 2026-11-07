@@ -45,7 +45,7 @@ args=("\$@")
 case \${args[0]} in
   list-keymaps)
     [[ \$("$stub_bin/next-mode" "$tmp/list-modes") == normal ]] || { echo "Failed to connect to bus" >&2; exit 1; }
-    printf '%s\n' bg-cp1251 colemak cz de-latin1 dk fr pl ua us
+    printf '%s\n' bg-cp1251 colemak cz de-latin1 dk fr mod-dh-ansi-us pl ua us
     ;;
   set-keymap)
     echo "localectl set-keymap \${args[1]}" >>"$tmp/calls"
@@ -172,6 +172,13 @@ echo no-xkb >"$tmp/firstboot-modes"
 form || fail "Colemak is set" "$(cat "$tmp/screen" "$tmp/log")"
 grep -qx 'XKBLAYOUT=us' "$conf" && grep -qx 'XKBVARIANT=colemak' "$conf" ||
   fail "Colemak is the us layout's colemak variant" "$(cat "$conf")"
+
+fresh_root
+answers 'English (US, Colemak-DH)|mod-dh-ansi-us'
+echo no-xkb >"$tmp/firstboot-modes"
+form || fail "Colemak-DH is set" "$(cat "$tmp/screen" "$tmp/log")"
+grep -qx 'XKBLAYOUT=us' "$conf" && grep -qx 'XKBVARIANT=colemak_dh' "$conf" ||
+  fail "Colemak-DH is the us layout's colemak_dh variant" "$(cat "$conf")"
 # The desktop must type what the console does, or the shared password differs:
 # kbd's cz is QWERTY and bg-cp1251 phonetic, unlike XKB's defaults.
 fresh_root
