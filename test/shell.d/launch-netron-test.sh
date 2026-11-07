@@ -48,3 +48,15 @@ printf 'other model' >"$fixture/elsewhere/models/network.onnx"
 mapfile -d '' -t args <"$TRACE"
 [[ ${args[4]} == "$fixture/project/models/network.onnx" ]] || fail "CDPATH cannot select a different model directory"
 pass "relative model files are independent of CDPATH"
+
+mkdir -p "$fixture/other/models"
+ln -s "$fixture/other/models" "$fixture/project/link"
+printf 'intended model' >"$fixture/other/network.onnx"
+printf 'decoy model' >"$fixture/project/network.onnx"
+(
+  cd -- "$fixture/project"
+  bash "$ROOT/bin/omarchy-launch-netron" link/../network.onnx --no-browser >/dev/null
+)
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[4]} == "$fixture/other/network.onnx" ]] || fail "symlink traversal opens the model that passed validation"
+pass "symlinks followed by parent traversal preserve the selected model"
