@@ -85,6 +85,9 @@ Item {
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
+  // Optional {x, y, width, height} in the screen's logical coordinates: the card
+  // centers on it instead of the screen, e.g. over the window a command menu is for.
+  property var dmenuAnchor: null
   property bool requestActive: false
   property bool rowsLoaded: false
   property string activeMenu: "root"
@@ -992,6 +995,7 @@ Item {
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
+    dmenuAnchor = MenuModel.dmenuAnchor(payload.anchor)
     activeMenu = "root"
     navStack = []
     filterText = ""
@@ -1283,7 +1287,14 @@ Item {
     // card may grow from there. Closing or changing screens unfreezes both.
     property int cardTop: -1
     property int maxRowsHeight: -1
-    readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
+    readonly property var anchor: root.dmenuActive ? root.dmenuAnchor : null
+    // Centered on the anchor when there is one, but never off the screen.
+    function centerIn(start, length, size, total) {
+      return Math.max(Style.gapsOut, Math.min(Math.round(start + (length - size) / 2), total - size - Style.gapsOut))
+    }
+    readonly property int centeredTop: anchor
+      ? centerIn(anchor.y, anchor.height, root.cardHeight, height)
+      : Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
     readonly property int effectiveCardTop: cardTop >= 0 ? cardTop : centeredTop
     function freezeCardTop() {
       if (shown && cardTop < 0) {
@@ -1309,7 +1320,9 @@ Item {
       width: root.cardWidth
       height: Math.min(root.cardHeight, panel.height - Style.gapsOut - panel.effectiveCardTop)
       radius: root.cornerRadius
-      anchors.horizontalCenter: parent.horizontalCenter
+      x: panel.anchor
+        ? panel.centerIn(panel.anchor.x, panel.anchor.width, width, panel.width)
+        : Math.round((panel.width - width) / 2)
       y: panel.effectiveCardTop
       color: root.background
       borderSpec: root.borderSpec
