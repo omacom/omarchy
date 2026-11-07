@@ -337,8 +337,15 @@ function o.window(match, rules)
   end
 end
 
+-- Decide before registering rules: a title change can reapply a class-matched
+-- opacity without reapplying the later tag-matched opaque override.
+local windows_opaque = file_exists(paths.state_home .. "/omarchy/toggles/hypr/window-opaque.lua")
+
 -- Opt a window in to Omarchy's standard active/inactive transparency. The tag
--- lets Appearance > Windows > Window Opacity turn these windows opaque or glassy.
+-- keeps the window available to the global opacity modes.
 function o.transparent_window(match, opacity)
+  if windows_opaque then
+    opacity = "1 1"
+  end
   o.window(match, { opacity = opacity or "0.985 0.96", tag = "+transparent-window" })
 end
