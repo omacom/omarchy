@@ -380,3 +380,138 @@ KERNEL_MODULES="" assert_hooks "a busybox encrypt Mac without plymouth keeps enc
 mac_etc "$legacy_luks_without_plymouth"
 KERNEL_MODULES="" OMARCHY_INITCPIO_INSTALL="$test_tmp/initcpio-install-without" \
   assert_hooks "without the plymouth hook a busybox encrypt Mac stays on its own line" aarch64-apple "$legacy_luks_without_plymouth"
+
+# Exercise the reusable repair, never the one-shot migration. Its entire PATH
+# is an allowlist: removing a fixture builder must not expose the host's one.
+repair="$test_tmp/repair"
+repair_command="$ROOT/bin/omarchy-repair-apple-plymouth"
+mkdir -p "$repair/bin" "$repair/home" "$repair/runtime" "$repair/tmp"
+for tool in bash rm install; do
+  ln -s "$(command -v "$tool")" "$repair/bin/$tool"
+done
+for tool in cat find sort mktemp; do
+  cat >"$repair/bin/$tool" <<'SH'
+#!/bin/bash
+[[ ${TEST_FAIL_TOOL:-} != "${0##*/}" ]] || exit 42
+exec "/usr/bin/${0##*/}" "$@"
+SH
+  chmod +x "$repair/bin/$tool"
+done
+for tool in omarchy-hw-platform omarchy-cmd-present; do
+  ln -s "$ROOT/bin/$tool" "$repair/bin/$tool"
+done
+cat >"$repair/bin/sudo" <<'SH'
+#!/bin/bash
+# No arbitrary dispatch, even if this fixture accidentally inherits host PATH.
+case $1 in
+  mkinitcpio|limine-mkinitcpio) exec "$TEST_REPAIR_ROOT/bin/$1" "${@:2}" ;;
+  install)
+    (( $# == 4 )) && [[ $2 == "-Dm644" && $3 == "/dev/null" && $4 == "$TEST_REPAIR_ROOT/rebuilt" ]] || exit 125
+    exec "$TEST_REPAIR_ROOT/bin/install" "${@:2}"
+    ;;
+  *) exit 125 ;;
+esac
+SH
+make_builder() {
+  cat >"$repair/bin/$1" <<'SH'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$TEST_REPAIR_ROOT/build-log"
+exit "${TEST_BUILD_STATUS:-0}"
+SH
+  chmod +x "$repair/bin/$1"
+}
+chmod +x "$repair/bin/sudo"
+make_builder mkinitcpio
+make_builder limine-mkinitcpio
+
+new_repair() {
+  new_etc
+  sed -i "s/^HOOKS=.*/HOOKS=($legacy_luks_without_plymouth)/" "$etc/mkinitcpio.conf"
+  sed -i "s|/etc/vconsole.conf|$repair/vconsole.conf|g" "$etc/mkinitcpio.conf.d/omarchy_hooks.conf"
+  rm -f "$repair/build-log" "$repair/rebuilt"
+}
+run_repair() {
+  local platform=${1:-aarch64-apple}
+  env -i HOME="$repair/home" XDG_CONFIG_HOME="$repair/home/.config" \
+    XDG_STATE_HOME="$repair/home/.local/state" XDG_RUNTIME_DIR="$repair/runtime" TMPDIR="$repair/tmp" \
+    PATH="$repair/bin:$test_tmp/platforms/$platform/bin" OMARCHY_PATH="$ROOT" \
+    OMARCHY_PROC_ROOT="$test_tmp/platforms/$platform/proc" OMARCHY_PCI_DEVICES_PATH="$devices" \
+    OMARCHY_MKINITCPIO_CONF="$etc/mkinitcpio.conf" OMARCHY_MKINITCPIO_CONF_DIR="$etc/mkinitcpio.conf.d" \
+    OMARCHY_INITCPIO_INSTALL="$initcpio_install" OMARCHY_PLYMOUTH_REBUILD_MARKER="$repair/rebuilt" \
+    KERNELVERSION=6.99.0-test TEST_REPAIR_ROOT="$repair" \
+    TEST_FAIL_TOOL="${TEST_FAIL_TOOL:-}" TEST_BUILD_STATUS="${TEST_BUILD_STATUS:-0}" \
+    /bin/bash "$repair_command"
+}
+assert_repair_pending() {
+  local description=$1
+  if run_repair "${2:-aarch64-apple}" >"$repair/output" 2>"$repair/error"; then
+    fail "$description" "repair incorrectly returned success"
+  fi
+  [[ ! -e $repair/rebuilt ]] || fail "$description" "repair incorrectly recorded completion"
+  pass "$description"
+}
+
+new_repair
+# The asahi hook is enough even when the runtime detector is not installed.
+rm "$repair/bin/omarchy-hw-platform"
+run_repair no-detector >/dev/null
+run_repair no-detector >/dev/null
+[[ $(<"$repair/build-log") == "mkinitcpio -P" && -f $repair/rebuilt ]] || fail "the repair builds a legacy image once without a detector"
+pass "the repair builds a legacy image once without a detector"
+ln -s "$ROOT/bin/omarchy-hw-platform" "$repair/bin/omarchy-hw-platform"
+
+new_repair
+# The Mac predicate must work independently of an asahi token in HOOKS.
+sed -i 's/ asahi / /' "$etc/mkinitcpio.conf"
+run_repair >/dev/null
+[[ $(<"$repair/build-log") == "mkinitcpio -P" && -f $repair/rebuilt ]] || fail "a Mac encrypt line rebuilds without an asahi hook"
+pass "a Mac encrypt line rebuilds without an asahi hook"
+
+new_repair
+rm "$repair/bin/mkinitcpio"
+run_repair >/dev/null
+[[ $(<"$repair/build-log") == "limine-mkinitcpio " && -f $repair/rebuilt ]] || fail "the repair uses the fallback builder with no host lookup"
+pass "the repair uses the fallback builder with no host lookup"
+make_builder mkinitcpio
+
+for hooks in "$legacy_luks_with_plymouth" "$apple_hooks" "base asahi udev filesystems fsck"; do
+  new_repair
+  sed -i "s/^HOOKS=.*/HOOKS=($hooks)/" "$etc/mkinitcpio.conf"
+  run_repair >/dev/null
+  [[ ! -e $repair/build-log && ! -e $repair/rebuilt ]] || fail "an unaffected line is not rebuilt: $hooks"
+done
+new_repair
+printf ':\n' >"$etc/mkinitcpio.conf.d/00-omarchy-hooks.conf"
+run_repair >/dev/null
+[[ ! -e $repair/build-log && ! -e $repair/rebuilt ]] || fail "a held-back Plymouth drop-in is not rebuilt"
+pass "unaffected lines and a held-back Plymouth drop-in are not rebuilt"
+
+new_repair
+printf 'return 1\n' >"$etc/mkinitcpio.conf"
+assert_repair_pending "a config read failure stays pending"
+new_repair
+printf 'false\nHOOKS=(base asahi encrypt)\n' >"$etc/mkinitcpio.conf"
+assert_repair_pending "a config error before a successful assignment stays pending"
+new_repair
+assert_repair_pending "a platform detector failure stays pending" contradiction
+new_repair
+printf 'return 1\n' >"$etc/mkinitcpio.conf.d/99-broken.conf"
+assert_repair_pending "a composed config failure stays pending"
+new_repair
+printf 'false\n:\n' >"$etc/mkinitcpio.conf.d/99-broken.conf"
+assert_repair_pending "an error inside a composed drop-in stays pending"
+for tool in mktemp cat find sort; do
+  new_repair
+  TEST_FAIL_TOOL=$tool assert_repair_pending "a $tool failure during composition stays pending"
+  [[ ! -e $repair/build-log ]] || fail "a $tool failure must not reach a builder"
+done
+new_repair
+rm "$repair/bin/mkinitcpio" "$repair/bin/limine-mkinitcpio"
+assert_repair_pending "an affected machine without either builder stays pending"
+make_builder mkinitcpio
+make_builder limine-mkinitcpio
+new_repair
+TEST_BUILD_STATUS=42 assert_repair_pending "a failed builder leaves no completion marker"
+run_repair >/dev/null
+[[ $(<"$repair/build-log") == $'mkinitcpio -P\nmkinitcpio -P' && -f $repair/rebuilt ]] || fail "a failed build is retried successfully"
+pass "a failed build is retried successfully"
