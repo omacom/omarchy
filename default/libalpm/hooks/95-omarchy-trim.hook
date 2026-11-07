@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = omarchy
+Target = omarchy-dev
+
+[Action]
+Description = Letting TRIM reach the drive...
+When = PostTransaction
+Exec = /usr/bin/omarchy-apply-trim
