@@ -159,6 +159,15 @@ expect("Synthetic reads the documented subscription bucket",
 expect("Synthetic fills a limited rolling window and skips an unreadable one",
        [entry["percent"] for entry in parse_quotas({"rollingFiveHourLimit": {"remaining": 900, "max": 1000, "limited": True}, "weeklyTokenLimit": {"percentRemaining": True}})],
        [1.0])
+# Weekly plans answer with planWeeklyLimit beside a subscription bucket that
+# stays at zero however much is used, as the credit system's did.
+expect("Synthetic reads a weekly plan and leaves the idle subscription bucket out",
+       [[entry["label"], round(entry["percent"], 3), entry["resetsAt"]] for entry in parse_quotas({
+         "subscription": {"requests": 0, "limit": 500, "renewsAt": "2099-08-17T00:00:00Z"},
+         "search": {"hourly": {"requests": 25, "limit": 250, "renewsAt": "2099-08-16T03:00:00Z"}},
+         "planWeeklyLimit": {"percentRemaining": 86.8, "nextRegenAt": "2099-08-16T04:00:00Z", "nextRegenPercent": 2},
+       })],
+       [["Weekly plan", 0.132, ""], ["Search (hourly)", 0.1, "2099-08-16T03:00:00Z"]])
 
 # SYNTHETIC_API_BASE_URL moves the endpoint, never the key onto plain HTTP
 # to another machine, nor into a URL that isn't one.
