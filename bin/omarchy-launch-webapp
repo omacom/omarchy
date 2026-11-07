@@ -13,11 +13,14 @@ esac
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
 # omarchy-launch-browser does, so a browser it resolved is one this can start.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+# Like omarchy-launch-browser, keep an env prefix's variables for the launch
+# and take the browser from the word after them.
+source omarchy-cmd-browser-exec
 browser_exec=""
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$browser"
   [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+  browser_from_desktop_entry "$entry"
   break
 done
 
@@ -30,6 +33,6 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
-  exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
+if ! env "${handoff_env[@]}" omarchy-cmd-browser-handoff "$handoff_browser" --app="$1" "${@:2}"; then
+  exec setsid uwsm-app -- "${browser_command[@]}" --app="$1" "${@:2}"
 fi
