@@ -26,6 +26,24 @@ result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --back
 [[ $result == "#ffffff" ]] || fail "transparent bar text keeps text color on dark wallpaper" "expected #ffffff, got $result"
 pass "transparent bar text keeps text color on dark wallpaper"
 
+# Pills: the text sits on the pill, so a pill is composited over the sampled
+# strip before the pick. The wallpaper here is dark.
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$dark_top" --screen 100x100 --blend '#f5f5f5' 0.9)
+[[ $result == "#101010" ]] || fail "bar text follows a light translucent pill over a dark wallpaper" "expected #101010, got $result"
+pass "bar text follows a light translucent pill over a dark wallpaper"
+
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$dark_top" --screen 100x100 --blend '#f5f5f5' 0.1)
+[[ $result == "#ffffff" ]] || fail "bar text follows the wallpaper through a faint pill" "expected #ffffff, got $result"
+pass "bar text follows the wallpaper through a faint pill"
+
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$TMPDIR/missing.png" --screen 100x100 --blend '#f5f5f5' 1)
+[[ $result == "#101010" ]] || fail "an opaque pill decides the bar text without sampling the wallpaper" "expected #101010, got $result"
+pass "an opaque pill decides the bar text without sampling the wallpaper"
+
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$light_top" --screen 100x100 --blend 'nope' 0.5)
+[[ $result == "#ffffff" ]] || fail "a malformed pill colour falls back to the text color" "expected #ffffff, got $result"
+pass "a malformed pill colour falls back to the text color"
+
 result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$TMPDIR/missing.png" --screen 100x100)
 [[ $result == "#ffffff" ]] || fail "transparent bar text falls back to text color when sampling fails" "expected #ffffff, got $result"
 pass "transparent bar text falls back to text color when sampling fails"

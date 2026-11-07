@@ -19,6 +19,7 @@ QtObject {
   property string position: "top"
   property bool vertical: false
   property int barSize: 0
+  property bool pillsOn: false
   property bool transparent: false
   property bool foregroundAnimationEnabled: true
   property bool centerSectionRevealHeld: false
