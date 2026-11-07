@@ -1794,9 +1794,16 @@ Item {
     WlrLayershell.layer: WlrLayer.Top
 
     // Whether the active workspace on this screen holds a real fullscreen
-    // window, which fades the bar out.
+    // window, which fades the bar out. The monitor comes from the monitor
+    // list, not monitorFor(): an output that is removed and added back, as
+    // un-mirroring does, is a new monitor object, and only the list's binding
+    // sees it.
     readonly property bool underFullscreen: {
-      var monitor = Hyprland.monitorFor(screen)
+      var monitors = Hyprland.monitors.values
+      var monitor = null
+      for (var i = 0; i < monitors.length; i++) {
+        if (screen && monitors[i].name === screen.name) monitor = monitors[i]
+      }
       var workspace = monitor ? monitor.activeWorkspace : null
       return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
     }
