@@ -15,6 +15,7 @@ fi
 # variable per session costs several hundred forks on each theme switch.
 TMUX_COMMANDS=()
 TMUX_SESSIONS=()
+CLIENTS_RELOAD_CONFIG=false
 declare -A THEME_COLORS=()
 
 # tmux takes single-quoted text literally; a single quote inside one closes
@@ -95,6 +96,50 @@ theme_osc_sequences() {
   omarchy-theme-osc "$COLORS_TOML"
 }
 
+# Whether an attached client runs a terminal that reloads its own config on
+# theme change (ghostty, kitty). The skipped settings below apply to the whole
+# server, so one matching client decides for every session on it; with no
+# clients attached there is nothing to ask, so callers keep stamping.
+load_tmux_clients() {
+  local termname
+
+  while IFS= read -r termname; do
+    case $termname in
+    *ghostty* | *kitty*) CLIENTS_RELOAD_CONFIG=true ;;
+    esac
+  done < <(tmux list-clients -F "#{client_termname}" 2>/dev/null)
+}
+
+# Stamp a style and record it, so the skip path only unsets values this
+# script wrote and never a window-style the user set in tmux.conf.
+stamp_tmux_window_style() {
+  local style="$1"
+  local value="$2"
+
+  queue_tmux_command set-option -g "$style" "$value"
+  queue_tmux_command set-option -g "@omarchy_${style//-/_}" "$value"
+}
+
+# Undo an earlier stamp: reset the palette entries, default colors and cursor
+# the push set in each pane now, then queue the style unsets. The style change
+# has to come after the pane writes for tmux to pick up the reset palette.
+clear_tmux_window_style() {
+  local style current recorded pane_tty
+
+  while IFS= read -r pane_tty; do
+    [[ $pane_tty == /dev/pts/* ]] || continue
+    printf '\033]104;0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15\007\033]110\007\033]111\007\033]112\007' >"$pane_tty" 2>/dev/null || true
+  done < <(tmux list-panes -a -F "#{pane_tty}" 2>/dev/null | sort -u)
+
+  for style in window-style window-active-style; do
+    current=$(tmux show-option -gv "$style" 2>/dev/null) || continue
+    recorded=$(tmux show-option -gv "@omarchy_${style//-/_}" 2>/dev/null) || continue
+    [[ $current == "$recorded" ]] || continue
+    queue_tmux_command set-option -gu "$style"
+    queue_tmux_command set-option -gu "@omarchy_${style//-/_}"
+  done
+}
+
 sync_tmux_window_style() {
   local foreground="${THEME_COLORS[foreground]}"
   local background="${THEME_COLORS[background]}"
@@ -102,8 +147,19 @@ sync_tmux_window_style() {
 
   [[ -f $COLORS_TOML && -n $foreground && -n $background ]] || return
 
-  queue_tmux_command set-option -g window-style "fg=$foreground,bg=$background"
-  queue_tmux_command set-option -g window-active-style "fg=$foreground,bg=$background"
+  # Ghostty and kitty reload their own config on theme change, so stamping an
+  # explicit background through tmux is redundant for them — and destructive:
+  # terminal transparency only blends cells using the default background, so a
+  # stamped bg turns every pane opaque for its lifetime.
+  if [[ $CLIENTS_RELOAD_CONFIG == true ]]; then
+    # Skipping new stamps is not enough: an earlier run (before the upgrade,
+    # while detached, or under another terminal) may have stamped the previous
+    # theme, which would then stick. Clear only what this script wrote.
+    clear_tmux_window_style
+  else
+    stamp_tmux_window_style window-style "fg=$foreground,bg=$background"
+    stamp_tmux_window_style window-active-style "fg=$foreground,bg=$background"
+  fi
 
   # Apps like nvim clear the per-pane cursor colour with OSC 112. Without a
   # global fallback, tmux then resets the outer terminal's cursor, which in
@@ -118,6 +174,10 @@ sync_tmux_pane_colors() {
   local pane_tty theme_osc
 
   [[ -f $COLORS_TOML ]] || return
+
+  # Same transparency reason as the window-style skip above: the OSC push
+  # lands an explicit background on every cell of self-reloading terminals.
+  [[ $CLIENTS_RELOAD_CONFIG == true ]] && return
 
   theme_osc=$(theme_osc_sequences)
   [[ -n $theme_osc ]] || return
@@ -149,6 +209,7 @@ refresh_tmux_clients() {
 }
 
 load_tmux_sessions
+load_tmux_clients
 load_theme_colors
 
 sync_theme_environment
