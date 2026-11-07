@@ -56,6 +56,16 @@ or re-icon a row without re-declaring its action, and an overridden entry
 keeps its original position in the list. New ids append. A `root` entry is
 injected if neither file declares one.
 
+An extension can supply a top-level `order` array to move root-menu entries ahead of the others without redefining their fields:
+
+```json
+{
+  "order": ["apps", "install", "remove", "learn"]
+}
+```
+
+Listed root entries appear first in that order. Entries not listed retain their relative order afterward. Unknown ids, submenu ids, non-string values and duplicates are ignored. An empty or absent list keeps the normal order. This works with either the flat entry format or an `items` object; submenu and provider row ordering is unaffected.
+
 The sample extension at `config/omarchy/extensions/omarchy-menu.jsonc`
 (refreshed into `~/.config/`) documents the format in its header and ships
 only comments, so the default state adds nothing.
