@@ -323,6 +323,8 @@
   "media.playPause": "Play/pause",
   "media.previous": "Previous",
   "media.source": "Source",
+  "menu.calculatorCopied": "Copied to clipboard",
+  "menu.calculatorCopy": "Copy to clipboard",
   "menu.inputPrompt": "Input",
   "menu.nothingHere": "Nothing here yet",
   "menu.powerProfileBalanced": "balanced",
