@@ -74,21 +74,30 @@ wait_for_screensaver_window() {
   done
 }
 
-mapfile -t monitors < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
+# Read each field on its own, NUL between them: a monitor and its special
+# workspace used to share one space-separated line, so a name like "DP-1 extra"
+# split into a valid monitor and a valid workspace, both checks passed, and the
+# launcher targeted the wrong one. JSON keeps the fields apart whatever bytes a
+# name carries, so the checks below see the name the compositor reported.
+monitors=()
+special_workspaces=()
+while IFS= read -r -d '' monitor_name && IFS= read -r -d '' special_workspace; do
+  monitors+=("$monitor_name")
+  special_workspaces+=("$special_workspace")
+done < <(hyprctl monitors -j | jq -j '.[] | .name, "\u0000", (.specialWorkspace.name // ""), "\u0000"')
 
 # Validate every name up front, before moving focus or launching a terminal: a
 # refusal on a later monitor would otherwise leave an earlier screen on the
 # wrong monitor, with the close-time focus restore never reached.
-for entry in "${monitors[@]}"; do
-  read -r monitor_name special_workspace <<<"$entry"
-  require_safe_monitor_name "$monitor_name"
-  require_safe_workspace_name "${special_workspace:-special:screensaver-$monitor_name}"
+for index in "${!monitors[@]}"; do
+  require_safe_monitor_name "${monitors[index]}"
+  require_safe_workspace_name "${special_workspaces[index]:-special:screensaver-${monitors[index]}}"
 done
 
-for entry in "${monitors[@]}"; do
-  read -r m special <<<"$entry"
+for index in "${!monitors[@]}"; do
+  m=${monitors[index]}
   # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
-  workspace=${special:-special:screensaver-$m}
+  workspace=${special_workspaces[index]:-special:screensaver-$m}
   hypr_focus_monitor "$m"
 
   case $terminal in

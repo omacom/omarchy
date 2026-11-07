@@ -146,6 +146,34 @@ grep -q "os.execute" "$tmpdir/calls" && fail "an unsafe output name cannot injec
 grep -q "hl.dsp.focus" "$tmpdir/calls" && fail "an unsafe output name does not move focus before refusing" "$(<"$tmpdir/calls")"
 pass "an unsafe output name is refused before the Lua dispatch"
 
+# A space in the name used to split it into a monitor and a workspace that each
+# passed a check meant for one, so the launcher targeted the wrong monitor.
+printf '[{"name":"DP-1 extra","specialWorkspace":{"name":""}}]\n' >"$tmpdir/monitors.json"
+: >"$tmpdir/calls"
+set +e
+PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test timeout 10 "$ROOT/bin/omarchy-launch-screensaver" force >/dev/null 2>"$tmpdir/err"
+status=$?
+set -e
+(( status == 1 )) || fail "an output name with a space is refused with exit 1, not split" "status=$status $(<"$tmpdir/calls")"
+grep -q "Refusing unsafe monitor name" "$tmpdir/err" || fail "an output name with a space is refused with the monitor message" "stderr=$(<"$tmpdir/err")"
+grep -q "exec_cmd" "$tmpdir/calls" && fail "an output name with a space never reaches the Lua dispatch" "$(<"$tmpdir/calls")"
+grep -q "hl.dsp.focus" "$tmpdir/calls" && fail "an output name with a space does not move focus before refusing" "$(<"$tmpdir/calls")"
+pass "an output name with a space is refused, not read as a monitor and a workspace"
+
+# A newline in the name printed a second line that looked like its own
+# connector, so each half passed the check by itself.
+printf '[{"name":"DP-1\\nextra","specialWorkspace":{"name":""}}]\n' >"$tmpdir/monitors.json"
+: >"$tmpdir/calls"
+set +e
+PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test timeout 10 "$ROOT/bin/omarchy-launch-screensaver" force >/dev/null 2>"$tmpdir/err"
+status=$?
+set -e
+(( status == 1 )) || fail "an output name with a newline is refused with exit 1, not split into two names" "status=$status $(<"$tmpdir/calls")"
+grep -q "Refusing unsafe monitor name" "$tmpdir/err" || fail "an output name with a newline is refused with the monitor message" "stderr=$(<"$tmpdir/err")"
+grep -q "exec_cmd" "$tmpdir/calls" && fail "an output name with a newline never reaches the Lua dispatch" "$(<"$tmpdir/calls")"
+grep -q "hl.dsp.focus" "$tmpdir/calls" && fail "an output name with a newline does not move focus before refusing" "$(<"$tmpdir/calls")"
+pass "an output name with a newline is refused as one name"
+
 workspace_name='special:x]]);os.execute([[id]]);--'
 printf '[{"name":"DP-1","specialWorkspace":{"name":"%s"}}]\n' "$workspace_name" >"$tmpdir/monitors.json"
 : >"$tmpdir/calls"
