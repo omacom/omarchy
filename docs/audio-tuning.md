@@ -72,6 +72,8 @@ Only the first *defined* key is consulted, in the order `match_command`,
 `match_sku`, `match_dmi` — keys below a defined one are ignored, and a tuning
 defining none never matches.
 
+For a device where speakers and wired headphones share an ALSA sink, set `sink_port="analog-output-speaker"` as well as `sink_pattern`. Omarchy installs a port-watching host for that profile: the graph runs only while that exact port is active. Selecting headphones or losing the device stops the graph and routes application streams on the tuning back to the physical sink. Returning to speakers restarts the graph and routes streams on that device through it; HDMI, Bluetooth, USB and other separately selected outputs keep their routing. Installing with headphones connected leaves the service enabled, waiting for speakers. An unknown or missing active port never enables DSP. Profiles without `sink_port` keep the existing host behavior. Hardware matching still ignores the live port, so installing dependencies in the ISO chroot continues to work.
+
 `sink_pattern` is required whichever method you use, since the graph's target sink
 is substituted from it. The graph must also keep two fixed properties: the sink
 node is named `omarchy_speaker_tuning` (the install checks for that exact name,
