@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# omarchy:summary=Back up or recover shell configuration when plugins break
+# omarchy:group=debug
+# omarchy:name=recovery
+# omarchy:args=<status|backup|disable-third-party|restore-last>
+# omarchy:examples=omarchy debug recovery status|omarchy debug recovery disable-third-party
+
+set -euo pipefail
+
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shell.json"
+DEFAULTS_FILE="$OMARCHY_PATH/config/omarchy/shell.json"
+RECOVERY_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/recovery"
+
+fail() {
+  echo "omarchy-debug-recovery: $*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'USAGE'
+Usage: omarchy debug recovery <status|backup|disable-third-party|restore-last>
+
+Back up or recover the shell configuration without requiring a running shell.
+
+  status              Show the current shell config and recovery backups
+  backup              Save the current effective shell config
+  disable-third-party Back up the config, then remove third-party plugins
+  restore-last        Restore the newest recovery backup
+USAGE
+}
+
+[[ ${1:-} == "-h" || ${1:-} == "--help" ]] && { usage; exit 0; }
+action="${1:-}"
+[[ -n $action ]] || { usage >&2; exit 1; }
+
+require_jq() {
+  command -v jq >/dev/null 2>&1 || fail "jq is required"
+}
+
+source_config() {
+  if [[ -s $CONFIG_FILE ]]; then
+    printf '%s\n' "$CONFIG_FILE"
+  else
+    printf '%s\n' "$DEFAULTS_FILE"
+  fi
+}
+
+validate_config() {
+  local file="$1"
+  [[ -f $file ]] || return 1
+  jq -e . "$file" >/dev/null 2>&1
+}
+
+latest_backup() {
+  [[ -d $RECOVERY_DIR ]] || return 1
+  find "$RECOVERY_DIR" -maxdepth 1 -type f -name 'shell-*.json' -printf '%T@ %p\n' 2>/dev/null \
+    | sort -nr | sed -n '1s/^[^ ]* //p'
+}
+
+backup_config() {
+  local source backup_tmp
+  source="$(source_config)"
+  validate_config "$source" || fail "shell configuration is missing or invalid: $source"
+
+  mkdir -p "$RECOVERY_DIR"
+  backup_tmp=$(mktemp "$RECOVERY_DIR/shell-XXXXXX.json")
+  if ! jq -S . "$source" >"$backup_tmp"; then
+    rm -f "$backup_tmp"
+    fail "could not create a valid recovery backup"
+  fi
+
+  printf '%s\n' "$backup_tmp"
+}
+
+third_party_ids() {
+  local plugin_dir manifest id
+  local -a ids=()
+  plugin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins"
+
+  [[ -d $plugin_dir ]] || { printf '[]\n'; return; }
+
+  while IFS= read -r -d '' manifest; do
+    id="$(jq -r '.id // empty' "$manifest" 2>/dev/null || true)"
+    [[ -n $id ]] && ids+=("$id")
+  done < <(find "$plugin_dir" -mindepth 2 -maxdepth 2 -type f -name manifest.json -print0 2>/dev/null)
+
+  if (( ${#ids[@]} == 0 )); then
+    printf '[]\n'
+  else
+    printf '%s\n' "${ids[@]}" | jq -Rsc 'split("\n") | map(select(length > 0)) | unique'
+  fi
+}
+
+write_config() {
+  local program="$1" source tmp ids_json
+  source="$(source_config)"
+  validate_config "$source" || fail "shell configuration is missing or invalid: $source"
+  ids_json="$(third_party_ids)"
+
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  tmp=$(mktemp "${CONFIG_FILE}.XXXXXX")
+  if ! jq -S -e --argjson ids "$ids_json" "$program" "$source" >"$tmp"; then
+    rm -f "$tmp"
+    fail "could not produce a valid shell configuration"
+  fi
+  mv "$tmp" "$CONFIG_FILE"
+}
+
+status() {
+  local source backup count third_party
+  source="$(source_config)"
+  backup="$(latest_backup || true)"
+  count=0
+  [[ -d $RECOVERY_DIR ]] && count=$(find "$RECOVERY_DIR" -maxdepth 1 -type f -name 'shell-*.json' | wc -l)
+  third_party="$(third_party_ids)"
+
+  printf 'Shell configuration: %s\n' "$source"
+  if validate_config "$source"; then
+    echo "Configuration status: valid"
+  else
+    echo "Configuration status: invalid or missing"
+  fi
+  printf 'Third-party plugins: %s\n' "$(jq 'length' <<<"$third_party")"
+  printf 'Recovery backups: %s\n' "$count"
+  [[ -n $backup ]] && printf 'Latest backup: %s\n' "$backup"
+}
+
+require_jq
+
+case "$action" in
+status)
+  status
+  ;;
+backup)
+  backup=$(backup_config)
+  printf 'Recovery backup created: %s\n' "$backup"
+  ;;
+disable-third-party)
+  backup=$(backup_config)
+  write_config '
+    def third_party_id($id):
+      (($id | type) == "string")
+      and ((($id | startswith("omarchy.")) | not) or (($ids | index($id)) != null));
+
+    def without_third_party($entries):
+      if ($entries | type) == "array" then
+        $entries | map(select((.id // "") as $id | (third_party_id($id) | not)))
+      else
+        $entries
+      end;
+
+    .plugins = without_third_party(.plugins)
+    | .bar.layout.left = without_third_party(.bar.layout.left)
+    | .bar.layout.center = without_third_party(.bar.layout.center)
+    | .bar.layout.right = without_third_party(.bar.layout.right)
+    | (.bar.id // "") as $bar_id
+    | if (third_party_id($bar_id)) then del(.bar.id) else . end
+    | (.bar.centerAnchor // "") as $center_anchor
+    | if (third_party_id($center_anchor)) then .bar.centerAnchor = "omarchy.clock" else . end
+  '
+  printf 'Third-party plugins disabled. Recovery backup: %s\n' "$backup"
+  ;;
+restore-last)
+  backup="$(latest_backup || true)"
+  [[ -n $backup ]] || fail "no recovery backup exists"
+  validate_config "$backup" || fail "latest recovery backup is invalid: $backup"
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  tmp=$(mktemp "${CONFIG_FILE}.XXXXXX")
+  cp -- "$backup" "$tmp"
+  mv "$tmp" "$CONFIG_FILE"
+  printf 'Restored shell configuration from: %s\n' "$backup"
+  ;;
+*)
+  usage >&2
+  exit 1
+  ;;
+esac
