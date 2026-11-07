@@ -11,6 +11,15 @@ fi
 
 direction="${1:-up}"
 
+case "$direction" in
+  up | down | cycle | off | restore)
+    ;;
+  *)
+    echo "Usage: $(basename "$0") [--no-osd] <up|down|cycle|off|restore>" >&2
+    exit 1
+    ;;
+esac
+
 # Find keyboard backlight device (look for *kbd_backlight* pattern in leds class).
 device=""
 for candidate in /sys/class/leds/*kbd_backlight*; do
