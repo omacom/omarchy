@@ -35,6 +35,12 @@ end
 table.insert(kept, 1, bin_dir)
 hl.env("PATH", table.concat(kept, ":"))
 
+-- The shell's login cover continues the boot splash in this colour.
+local splash_background = o.splash_background()
+if splash_background then
+  hl.env("OMARCHY_SPLASH_BACKGROUND", "#" .. splash_background)
+end
+
 -- Hardware-specific environment.
 require("default.hypr.nvidia")
 
