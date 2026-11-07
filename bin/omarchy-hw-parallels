@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true inside a Parallels virtual machine
+
+[[ $(systemd-detect-virt --vm 2>/dev/null) == "parallels" ]]
