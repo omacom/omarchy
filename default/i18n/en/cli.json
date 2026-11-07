@@ -104,6 +104,8 @@
   "crash.captureDisabled": "Crash capture disabled",
   "crash.captureEnabled": "Crash capture enabled",
   "crash.diagnose": "Click to diagnose with AI",
+  "crash.diagnosisUnavailable": "AI diagnosis unavailable",
+  "crash.noDefaultAgent": "No default AI coding agent is installed or configured.",
   "crash.processCrashed": "Process crashed: %1",
   "default.browserSet": "%1 is now the default browser",
   "default.editorSet": "%1 is now the default editor",
