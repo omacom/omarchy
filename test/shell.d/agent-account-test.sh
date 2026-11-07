@@ -79,6 +79,7 @@ SH
 
 cat >"$mock_bin/omarchy-agent-usage-update" <<'SH'
 #!/bin/bash
+[[ -z ${OMARCHY_TEST_USAGE_LINGERS:-} ]] || { echo $$ >"$OMARCHY_TEST_USAGE_LINGERS"; exec sleep 20; }
 SH
 
 cat >"$mock_bin/omarchy-default-agent" <<'SH'
@@ -267,9 +268,6 @@ exec 7>&-
 omarchy-agent-account-use claude work >/dev/null
 pass "switching waits for a sign-in to finish writing"
 
-# Nothing a sign-in starts keeps the lock once it's done.
-grep -q '8>&- &' "$(command -v omarchy-agent-account-add)" || fail "background work started by a sign-in doesn't inherit its lock"
-
 # A switch cut short is finished by the next command, so no login is lost.
 registry=$(cat "$accounts/claude.json")
 jq '{
@@ -285,6 +283,18 @@ omarchy-agent-account-mode claude manual >/dev/null
 [[ $(jq -r .active "$accounts/claude.json") == "main" ]] || fail "the registry matches the logins after recovery"
 omarchy-agent-account-use claude work >/dev/null
 pass "an interrupted switch is finished rather than lost"
+
+# The refresh a sign-in starts outlives it, but mustn't keep the lock, or a
+# switch it triggers couldn't move running sessions.
+OMARCHY_TEST_USAGE_LINGERS="$test_tmp/refresh-pid" OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
+  omarchy-agent-account-add --reauth work claude </dev/null >"$test_tmp/reauth-output" 2>&1 ||
+  fail "signing in again works" "$(cat "$test_tmp/reauth-output")"
+for _ in {1..50}; do [[ -s $test_tmp/refresh-pid ]] && break; sleep 0.1; done
+refresh=$(cat "$test_tmp/refresh-pid")
+kill -0 "$refresh" || fail "the sign-in's background refresh is still running for this check"
+flock -n "$accounts/.claude.signin.lock" true || fail "nothing a sign-in starts keeps its lock once it's done"
+kill "$refresh" 2>/dev/null; wait "$refresh" 2>/dev/null || true
+pass "a sign-in lets go of its lock when it ends"
 
 [[ $(omarchy-agent-account-exec claude --version) == "claude home=default args=--version" ]] || fail "claude at a prompt starts as the active account"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
