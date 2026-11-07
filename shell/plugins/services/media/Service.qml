@@ -11,7 +11,11 @@ Item {
 
   property var shell: null
   property string preferredPlayerKey: ""
+  // When preferredPlayerKey was last set. A preference older than another
+  // player's most recent playback is stale and must not win over it.
+  property double preferredAt: 0
   property var playerStartedAt: ({})
+  property var playerLastActiveAt: ({})
   property var pendingTrackOsd: null
   property int playSerial: 0
 
@@ -123,10 +127,17 @@ Item {
       }
     }
 
-    if (preferredPlayerKey && !alive[preferredPlayerKey]) preferredPlayerKey = ""
+    if (preferredPlayerKey && !alive[preferredPlayerKey]) setPreferred("")
 
+    // playerStartedAt still holds the previous sync's playing set here, which
+    // is what lets a player that just stopped be stamped at its stop.
+    playerLastActiveAt = MediaModel.lastActiveStamps(players, playerLastActiveAt, playerStartedAt, Date.now())
     playSerial = serial
     playerStartedAt = next
+  }
+
+  function mostRecentlyActivePlayer() {
+    return MediaModel.mostRecentlyActivePlayer(players, playerLastActiveAt)
   }
 
   function orderedSourcePlayers() {
@@ -200,7 +211,10 @@ Item {
     }
 
     if (preferred && preferred.isPlaying) return preferred
-    return oldestPlayingPlayer(true) || oldestPlayingPlayer(false) || MediaModel.idlePlayer(players, preferred, playerHasPlaybackStream)
+    // Between the preference and the player last seen playing, the newer signal goes first: a stale
+    // preference (Spotify paused by the headphones hours ago) loses to whatever was watched since.
+    var recencyPicks = MediaModel.recencyOrderedFallbacks(preferred, preferredAt, mostRecentlyActivePlayer(), playerLastActiveAt)
+    return oldestPlayingPlayer(true) || oldestPlayingPlayer(false) || MediaModel.idlePlayer(players, preferred, playerHasPlaybackStream, recencyPicks)
   }
 
   function labelFor(player) {
@@ -256,10 +270,15 @@ Item {
     trackOsdTimer.restart()
   }
 
+  function setPreferred(key) {
+    preferredPlayerKey = key || ""
+    preferredAt = key ? Date.now() : 0
+  }
+
   function selectPlayer(key) {
     var player = playerForKey(key)
     if (!player || !hasMetadata(player)) return false
-    preferredPlayerKey = playerKey(player)
+    setPreferred(playerKey(player))
     return true
   }
 
@@ -305,7 +324,7 @@ Item {
     var currentKey = playerKey(current)
     var nextKey = playerKey(next)
 
-    preferredPlayerKey = nextKey
+    setPreferred(nextKey)
 
     if (transferPlayback && currentWasPlaying && next && nextKey !== currentKey) {
       var nextWasPlaying = next.isPlaying
@@ -396,7 +415,7 @@ Item {
       }
     }
 
-    if (handled && key) preferredPlayerKey = key
+    if (handled && key) setPreferred(key)
     if (showFeedback !== false)
       scheduleOsd(actionLabel, iconName, player, handled && (action === "next" || action === "previous"), beforeTrackSignature)
     return handled
