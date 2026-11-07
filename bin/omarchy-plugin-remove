@@ -33,6 +33,26 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+# True only for a git checkout that holds nothing upstream lacks: no
+# uncommitted, untracked or ignored files, and no commit or stash of its own.
+# `omarchy plugin update` merges FETCH_HEAD without moving the remote-tracking
+# refs, so FETCH_HEAD counts as upstream too. Anything git cannot answer counts
+# as local.
+upstream_only_checkout() {
+  local dir="$1"
+  local upstream=(--remotes)
+  local changes
+
+  [[ -d $dir/.git ]] || return 1
+  changes=$(git -C "$dir" status --porcelain --untracked-files=normal --ignored) || return 1
+  [[ -z $changes ]] || return 1
+  if git -C "$dir" rev-parse -q --verify FETCH_HEAD >/dev/null; then
+    upstream+=(FETCH_HEAD)
+  fi
+  changes=$(git -C "$dir" rev-list -n 1 --all --not "${upstream[@]}") || return 1
+  [[ -z $changes ]]
+}
+
 id=""
 
 while (( $# > 0 )); do
@@ -84,9 +104,14 @@ if [[ -f $target/manifest.json ]]; then
   cloned_from=$(jq -r '.omarchy.clonedFrom // empty' "$target/manifest.json")
 fi
 
+disposable=0
+if [[ ! -L $target ]] && upstream_only_checkout "$target"; then
+  disposable=1
+fi
+
 if [[ -L $target ]]; then
   confirm "$(omarchy-i18n plugin.confirmUnlink "$id" "$(readlink "$target")")" || fail "aborted"
-elif [[ -d $target/.git ]]; then
+elif (( disposable )); then
   confirm "$(omarchy-i18n plugin.confirmDelete "$id")" || fail "aborted"
 else
   confirm "$(omarchy-i18n plugin.confirmRemove "$id")" || fail "aborted"
@@ -99,7 +124,7 @@ fi
 if [[ -L $target ]]; then
   rm -f "$target"
   echo "Unlinked $id."
-elif [[ -d $target/.git ]]; then
+elif (( disposable )); then
   rm -rf "$target"
   echo "Removed $id."
 else
