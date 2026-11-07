@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Open a tray item's own context menu when it has no D-Bus menu
+# omarchy:args=<item-id> <x> <y>
+# omarchy:hidden=true
+
+# Wine and other menu-less items only answer the SNI ContextMenu call, which Quickshell doesn't expose to QML.
+
+set -euo pipefail
+
+item_id=${1:-}
+x=${2:-}
+y=${3:-}
+
+if [[ -z $item_id || ! $x =~ ^-?[0-9]+$ || ! $y =~ ^-?[0-9]+$ ]]; then
+  exit 2
+fi
+
+registered_items=$(
+  busctl --user --timeout=1 --json=short get-property \
+    org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
+    org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems |
+    jq -r '.data[]'
+)
+
+matches=()
+while IFS= read -r registered_item; do
+  [[ -n $registered_item ]] || continue
+  service=${registered_item%%/*}
+  object_path=/${registered_item#*/}
+
+  # A hung app must not stall the lookup for every other item.
+  props=$(
+    busctl --user --timeout=1 --json=short call "$service" "$object_path" \
+      org.freedesktop.DBus.Properties GetAll s org.kde.StatusNotifierItem 2>/dev/null
+  ) || continue
+
+  [[ $(jq -r '.data[0].Id.data // empty' <<<"$props") == "$item_id" ]] || continue
+
+  case $(jq -r '.data[0].Menu.data // empty' <<<"$props") in
+    "" | / | /NO_DBUSMENU) matches+=("$service $object_path") ;;
+    *) exit 3 ;;
+  esac
+done <<<"$registered_items"
+
+if ((${#matches[@]} == 0)); then
+  exit 4
+elif ((${#matches[@]} > 1)); then
+  # Quickshell gives no bus address, so picking one could open another instance's menu.
+  echo "omarchy-tray-context-menu: ${#matches[@]} tray items share id $item_id; not guessing which" >&2
+  exit 5
+else
+  read -r service object_path <<<"${matches[0]}"
+  busctl --user --timeout=1 -- call "$service" "$object_path" org.kde.StatusNotifierItem ContextMenu ii "$x" "$y"
+fi

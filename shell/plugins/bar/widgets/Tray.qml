@@ -142,9 +142,17 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
-      var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
-      item.display(anchorItem.QsWindow.window, point.x, point.y)
+    if (!item) return
+
+    // Items without a D-Bus menu (Wine advertises /NO_DBUSMENU) draw their own through ContextMenu(), at screen coordinates.
+    if (TrayModel.usesNativeContextMenu(item)) {
+      var globalPoint = anchorItem.mapToGlobal(mouse.x, mouse.y)
+      Quickshell.execDetached([
+        Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-tray-context-menu",
+        String(item.id || ""),
+        String(Math.round(globalPoint.x)),
+        String(Math.round(globalPoint.y))
+      ])
       return
     }
 
