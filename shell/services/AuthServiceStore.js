@@ -43,3 +43,12 @@ function destroyAll() {
   var keys = ids()
   for (var i = 0; i < keys.length; i++) destroy(keys[i])
 }
+
+// A scalar query keeps authentication QObjects private to this import.
+function hasActiveLock() {
+  var keys = ids()
+  for (var i = 0; i < keys.length; i++) {
+    if (services[keys[i]].locked === true) return true
+  }
+  return false
+}
