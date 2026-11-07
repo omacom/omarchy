@@ -18,6 +18,13 @@ Item {
   property int maxValue: 100
   property bool hasProgress: true
   property int duration: 1200
+  // The launch-feedback OSD is serial-tagged: AppLibrary stamps each launch's
+  // serial into the show payload, and closeLaunch records the highest closed
+  // serial. A close spawned ahead of its own show (the two ride separate
+  // processes with no arrival ordering) still wins: the late show reads as
+  // already closed and is dropped instead of opening with duration 0.
+  property int launch: 0
+  property int closedLaunch: 0
 
   readonly property bool mediaOsd: iconKey.indexOf("media") === 0 || iconKey.indexOf("player") === 0
 
@@ -74,11 +81,26 @@ Item {
   function open(payloadJson) {
     try {
       var p = JSON.parse(payloadJson || "{}")
+      if (p.launch !== undefined) {
+        var serial = Number(p.launch)
+        if (!(serial > closedLaunch)) return
+        launch = serial
+      } else {
+        // A launch-less show replaces whatever the launch OSD was showing;
+        // its closeLaunch must no longer take this OSD down.
+        launch = 0
+      }
       show(p.icon || "", p.message || "", p.value === undefined ? "" : String(p.value), p.max === undefined ? "100" : String(p.max), p.progressText || "", p.duration === undefined ? "1200" : String(p.duration))
     } catch (e) {}
   }
 
-  function close() { opened = false }
+  function close() {
+    // A manual close also closes the launch it is showing, so a show of that
+    // launch still in flight cannot reopen the OSD behind it.
+    if (launch > closedLaunch) closedLaunch = launch
+    launch = 0
+    opened = false
+  }
 
   Timer {
     id: hideTimer
@@ -119,7 +141,18 @@ Item {
       root.open(payloadJson)
       return "ok"
     }
-    function close(): string { root.close(); return "ok" }
+    function close(): string {
+      root.close()
+      return "ok"
+    }
+    // AppLibrary's launch feedback closes through here with the launch's
+    // serial, so the close wins however the two IPC calls arrive.
+    function closeLaunch(serial: string): string {
+      var n = parseInt(serial, 10)
+      if (n > root.closedLaunch) root.closedLaunch = n
+      if (root.launch > 0 && root.launch <= n) root.close()
+      return "ok"
+    }
     function state(): string { return root.opened ? "open" : "closed" }
     function ping(): string { return "ok" }
   }

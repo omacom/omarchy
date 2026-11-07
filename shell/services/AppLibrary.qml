@@ -186,7 +186,10 @@ Item {
     launchDelay.stop()
     launchTimeout.stop()
     if (root.launchOsdOpen) {
-      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
+      // Serial-tagged: the show rides its own process and may still be in
+      // flight, so closeLaunch records the serial and the late show is
+      // dropped instead of opening with duration 0 and never hiding.
+      Quickshell.execDetached(["omarchy-shell", "osd", "closeLaunch", String(serial)])
       root.launchOsdOpen = false
     }
   }
@@ -257,7 +260,7 @@ Item {
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0, launch: root.launchSerial })])
     }
   }
 
