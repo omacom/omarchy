@@ -1,8 +1,9 @@
-// weather.json holds {"name": ..., "latitude": ..., "longitude": ...} (see
-// omarchy-weather-location, which owns the format). Missing, blank, or
+// weather.json holds {"name": ..., "latitude": ..., "longitude": ...} and,
+// when known, the location's country (see omarchy-weather-location, which
+// owns the format). Missing, blank, or
 // unparseable means the location is auto-detected (see isAutoLocation).
 function parseLocationFile(raw) {
-  var unset = { name: "", latitude: null, longitude: null }
+  var unset = { name: "", latitude: null, longitude: null, country: "" }
   try {
     var data = JSON.parse(String(raw || ""))
     if (!data || typeof data !== "object") return unset
@@ -10,10 +11,12 @@ function parseLocationFile(raw) {
     var latitude = parseFloat(data.latitude)
     var longitude = parseFloat(data.longitude)
     var hasCoordinates = !isNaN(latitude) && !isNaN(longitude)
+    var rawCountry = typeof data.country === "string" ? data.country : (typeof data.country_code === "string" ? data.country_code : "")
     return {
       name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
       latitude: hasCoordinates ? latitude : null,
-      longitude: hasCoordinates ? longitude : null
+      longitude: hasCoordinates ? longitude : null,
+      country: rawCountry.replace(/^\s+|\s+$/g, "")
     }
   } catch (e) {
     return unset
@@ -58,11 +61,15 @@ function parseGeocodingResults(raw) {
       var r = results[i]
       if (!r || !r.name || r.latitude === undefined || r.longitude === undefined) continue
       var region = [r.admin1, r.country].filter(function(part) { return !!part }).join(", ")
+      var country = typeof r.country_code === "string" && r.country_code.replace(/^\s+|\s+$/g, "") !== ""
+        ? r.country_code.replace(/^\s+|\s+$/g, "")
+        : (typeof r.country === "string" ? r.country.replace(/^\s+|\s+$/g, "") : "")
       out.push({
         name: String(r.name),
         description: region,
         latitude: r.latitude,
-        longitude: r.longitude
+        longitude: r.longitude,
+        country: country
       })
     }
     return out
@@ -73,14 +80,14 @@ function parseGeocodingResults(raw) {
 
 function locationCommit(text, suggestions, selectedIndex) {
   var name = String(text || "").replace(/^\s+|\s+$/g, "")
-  if (name === "") return { name: "", latitude: null, longitude: null }
+  if (name === "") return { name: "", latitude: null, longitude: null, country: "" }
 
   var choices = suggestions || []
   var index = Math.max(0, Math.min(parseInt(selectedIndex, 10) || 0, choices.length - 1))
   var suggestion = choices[index]
-  if (suggestion) return suggestion
+  if (suggestion) return { name: suggestion.name, latitude: suggestion.latitude, longitude: suggestion.longitude, country: String(suggestion.country || "") }
 
-  return { name: name, latitude: null, longitude: null }
+  return { name: name, latitude: null, longitude: null, country: "" }
 }
 
 function isFutureForecastDate(dateString, todayString) {
@@ -127,17 +134,20 @@ function countryUsesImperial(countryName) {
     .toLowerCase()
   if (!country) return null
   if (country === "us" || country === "usa" || country === "united states" || country === "united states of america") return true
-  if (country === "liberia" || country === "myanmar" || country === "burma") return true
+  if (country === "lr" || country === "liberia" || country === "mm" || country === "myanmar" || country === "burma") return true
   return false
 }
 
-function shouldUseImperial(unitOverride, localeName, countryName) {
+function shouldUseImperial(unitOverride, localeName, countryName, fallbackCountryName) {
   var unit = normalizedUnit(unitOverride)
   if (unit === "imperial") return true
   if (unit === "metric") return false
 
   var countryPreference = countryUsesImperial(countryName)
   if (countryPreference !== null) return countryPreference
+
+  var fallbackPreference = countryUsesImperial(fallbackCountryName)
+  if (fallbackPreference !== null) return fallbackPreference
 
   return localeUsesImperial(localeName)
 }
