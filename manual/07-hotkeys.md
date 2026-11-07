@@ -45,6 +45,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + O`               | Toggle popping window into sticky'n'floating |
 | `Super + L`               | Cycle through the dwindle, scrolling, and floating layouts |
 | `Super + Alt + L`         | Cycle through the layouts in reverse |
+| `Display`                 | Cycle through the layouts, like `Super + L` |
 | `Super + P`               | Toggle pseudo window style (natural v stretch) |
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |
