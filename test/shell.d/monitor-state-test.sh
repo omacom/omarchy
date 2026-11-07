@@ -134,3 +134,16 @@ monitor_state "$clamshell"
 jq -e 'map(.brightness) == [null, 42]' <<<"${state_lines[7]-}" >/dev/null ||
   fail "monitor state reads each enabled display's brightness" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state reads each enabled display's brightness"
+
+# A headless output can be named with a newline in it. It must still answer one
+# line per field, or the panel reads every later field one slot early.
+newline_name='[
+  { "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": false, "width": 1920, "height": 1080 },
+  { "name": "DP-1\nphantom", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+]'
+
+monitor_state "$newline_name"
+assert_line_count "a name with a newline still answers one line per field"
+assert_line 2 "DP-1 phantom" "a newline in a monitor name is folded into its own line"
+assert_line 5 "DP-1 phantom" "the focused monitor is folded the same way"
+pass "monitor state folds a newline instead of adding a phantom line"

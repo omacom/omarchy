@@ -124,3 +124,14 @@ set -e
 (( status != 0 )) || fail "scaling rejects a focused monitor name with Lua metacharacters"
 [[ ! -s $eval_log ]] || fail "an unsafe focused monitor name is not eval'd as Lua"
 pass "scaling refuses an unsafe focused monitor name"
+
+# A name carrying a newline must not be split into two safe-looking monitors.
+printf '%s\n' '[{"name":"eDP-1"},{"name":"DP-3\nHEAD"}]' >"$monitors_json"
+rm -f "$mirror_flag"
+set +e
+run_monitor omarchy-hyprland-monitor-internal-mirror on >/dev/null 2>&1
+status=$?
+set -e
+(( status != 0 )) || fail "mirror on rejects an external name carrying a newline"
+[[ ! -e $mirror_flag ]] || fail "a name with a newline is not written as Lua"
+pass "mirror on refuses an external name that carries a newline"
