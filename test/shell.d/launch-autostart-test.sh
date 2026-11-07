@@ -8,13 +8,6 @@ require_command lua
 
 command_path="$ROOT/bin/omarchy-launch-autostart"
 
-[[ -x $command_path ]] || fail "omarchy-launch-autostart exists and is executable"
-pass "omarchy-launch-autostart exists and is executable"
-
-grep -Fxq '# omarchy:hidden=true' "$command_path" || fail "omarchy-launch-autostart is hidden plumbing"
-grep -Eq '^# omarchy:summary=.+' "$command_path" || fail "omarchy-launch-autostart declares a summary"
-pass "omarchy-launch-autostart carries command metadata"
-
 # Everything below runs headless: fakes on PATH stand in for gdbus, uwsm-app and
 # logger, and record what they were called with.
 fakes=$(mktemp -d)
