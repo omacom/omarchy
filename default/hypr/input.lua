@@ -74,7 +74,11 @@ hl.config({
 
     repeat_rate = 40,
     repeat_delay = 250,
-    numlock_by_default = true,
+    -- Apple Wireless HID IDs (05ac:0255, spoofed over Bluetooth by Keychron and
+    -- other compact keyboards) have APPLE_NUMLOCK_EMULATION enabled in
+    -- hid_apple, which turns the right half of the keyboard into a numpad
+    -- whenever NumLock is on.
+    numlock_by_default = false,
 
     touchpad = {
       natural_scroll = false,
