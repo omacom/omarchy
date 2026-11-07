@@ -37,7 +37,7 @@ Si un atajo predeterminado no te conviene (digamos que quieres `Super + Shift + 
 | `Super + Space` | Menú de Omarchy (aplicaciones y todo lo demás) |
 | `Super + Alt + Space` | Cuadrícula de aplicaciones |
 | `Super + Escape` | Menú del sistema (suspender, reiniciar, etc.) |
-| `Super + Ctrl + L` | Bloquear computadora |
+| `Super + Ctrl + L` | Bloquear ordenador |
 | `Super + W` or `Super + Q` | Cerrar ventana |
 | `Ctrl + Alt + Del` | Cerrar todas las ventanas |
 | `Super + T` | Alternar ventana entre mosaico/flotante |

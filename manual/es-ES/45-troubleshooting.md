@@ -61,4 +61,4 @@ Para que aparezca la solicitud de aprobación completa, Ajustes > Avanzado > Usa
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 
-O si no has abierto 1Password desde que arrancó la computadora, la solicitud no aparecerá.
+O si no has abierto 1Password desde que arrancó el ordenador, la solicitud no aparecerá.

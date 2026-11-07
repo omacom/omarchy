@@ -10,7 +10,7 @@ Luego responde las preguntas de configuración, y confírmalas así:
 
  ![install-config](images/install-config.webp)
 
-Luego selecciona una unidad para tu instalación, y relájate a ver el espectáculo de la instalación. Puede terminar en menos de un minuto en las máquinas modernas más rápidas, pero no debería tardar más de 5 minutos ni en una computadora más vieja.
+Luego selecciona una unidad para tu instalación, y relájate a ver el espectáculo de la instalación. Puede terminar en menos de un minuto en las máquinas modernas más rápidas, pero no debería tardar más de 5 minutos ni en un ordenador más viejo.
 
  ![install-done](images/install-done.webp)
 
@@ -22,7 +22,7 @@ El cifrado completo del disco no te permitirá ingresar la contraseña desde un 
 
 ### Instalar para otro propietario
 
-Si estás configurando una máquina para alguien más — un familiar, un empleado nuevo, un comprador — no deberías responder las preguntas personales en su lugar. Presiona `Ctrl + C` en la primera pantalla del instalador (la de selección de teclado), y Omarchy te ofrecerá preparar la máquina para otro propietario. El sistema se instala de inmediato, pero toda la configuración personal — distribución del teclado, nombre de usuario, contraseña — se pospone hasta que la máquina arranca por primera vez. La unidad sigue cifrada de forma predeterminada, y la contraseña que el nuevo propietario elija en ese primer arranque también se convierte en la contraseña de cifrado. (Una máquina que ya has estado usando también puede entregarse sin reinstalar — consulta [restablecer la computadora](48-security.md).)
+Si estás configurando una máquina para alguien más — un familiar, un empleado nuevo, un comprador — no deberías responder las preguntas personales en su lugar. Presiona `Ctrl + C` en la primera pantalla del instalador (la de selección de teclado), y Omarchy te ofrecerá preparar la máquina para otro propietario. El sistema se instala de inmediato, pero toda la configuración personal — distribución del teclado, nombre de usuario, contraseña — se pospone hasta que la máquina arranca por primera vez. La unidad sigue cifrada de forma predeterminada, y la contraseña que el nuevo propietario elija en ese primer arranque también se convierte en la contraseña de cifrado. (Una máquina que ya has estado usando también puede entregarse sin reinstalar — consulta [restablecer el ordenador](48-security.md).)
 
 ### Instalaciones desatendidas
 
@@ -30,9 +30,9 @@ La ISO también puede instalarse completamente sola — sin teclado, sin asisten
 
 ### Instalaciones sin cifrado
 
-Omarchy se instala con cifrado de forma predeterminada. Es la opción segura y responsable para cualquier computadora que pueda perderse o ser robada. ¡No quieres que cualquiera con acceso a tu hardware pueda obtener tus datos!
+Omarchy se instala con cifrado de forma predeterminada. Es la opción segura y responsable para cualquier ordenador que pueda perderse o ser robado. ¡No quieres que cualquiera con acceso a tu hardware pueda obtener tus datos!
 
-Pero en circunstancias especiales, como instalaciones remotas de Omarchy en computadoras protegidas o instalaciones desechables sin datos sensibles, quizá quieras instalar sin cifrado. Puedes presionar `Ctrl + C` en la confirmación de formateo del disco para cambiar a una instalación sin cifrado.
+Pero en circunstancias especiales, como instalaciones remotas de Omarchy en ordenadores protegidos o instalaciones desechables sin datos sensibles, quizá quieras instalar sin cifrado. Puedes presionar `Ctrl + C` en la confirmación de formateo del disco para cambiar a una instalación sin cifrado.
 
 ### Idioma
 

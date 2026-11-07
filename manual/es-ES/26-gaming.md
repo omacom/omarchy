@@ -62,9 +62,9 @@ Instala el soporte para controles Bluetooth de Xbox seleccionando _Instalar > Vi
 
 El [cliente Moonlight](https://github.com/moonlight-stream/moonlight-qt) viene preinstalado con Omarchy, así que puedes transmitir juegos desde una PC con Windows que ejecute [Sunshine](https://app.lizardbyte.dev/Sunshine/) de inmediato. Lanza Moonlight con `Super + Space`.
 
-Si tanto tu computadora con Omarchy como la PC de juegos remota están conectadas por cable, la experiencia es indistinguible de jugar localmente. Sube la resolución a la nativa, pon la frecuencia de actualización a 120Hz y maximiza la tasa de bits: esta es la mejor forma de jugar shooters competitivos como Fortnite en Linux.
+Si tanto tu ordenador con Omarchy como la PC de juegos remota están conectados por cable, la experiencia es indistinguible de jugar localmente. Sube la resolución a la nativa, pon la frecuencia de actualización a 120Hz y maximiza la tasa de bits: esta es la mejor forma de jugar shooters competitivos como Fortnite en Linux.
 
-También puedes convertir una computadora con Omarchy en el host ejecutando `omarchy install service sunshine`, lo cual instala Sunshine y abre los puertos de streaming de Moonlight para tu LAN y Tailscale.
+También puedes convertir un ordenador con Omarchy en el host ejecutando `omarchy install service sunshine`, lo cual instala Sunshine y abre los puertos de streaming de Moonlight para tu LAN y Tailscale.
 
 ## Battle.net
 

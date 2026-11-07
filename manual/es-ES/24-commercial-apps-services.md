@@ -24,13 +24,13 @@ Inicias Spotify usando `Super + Shift + M`. Como con 1Password, el atajo primero
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) es una gran forma de sincronizar archivos entre computadoras manteniendo una copia de seguridad en la nube. Para configurarlo, selecciona _Instalar > Servicio > Dropbox_ desde el menú de Omarchy. Una vez que esté en ejecución, pasa el cursor sobre la bandeja en la esquina superior derecha de la barra y haz clic derecho en el ícono de Dropbox para terminar la configuración.
+[Dropbox](https://www.dropbox.com/) es una gran forma de sincronizar archivos entre ordenadores manteniendo una copia de seguridad en la nube. Para configurarlo, selecciona _Instalar > Servicio > Dropbox_ desde el menú de Omarchy. Una vez que esté en ejecución, pasa el cursor sobre la bandeja en la esquina superior derecha de la barra y haz clic derecho en el ícono de Dropbox para terminar la configuración.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) es una VPN en malla que hace súper simple acceder de forma segura a todas tus computadoras y servidores por internet. Para configurarlo, selecciona _Instalar > Servicio > Tailscale_ desde el menú de Omarchy.
+[Tailscale](https://tailscale.com/) es una VPN en malla que hace súper simple acceder de forma segura a todos tus ordenadores y servidores por internet. Para configurarlo, selecciona _Instalar > Servicio > Tailscale_ desde el menú de Omarchy.
 
-Recibe un panel en la barra, una aplicación web para la consola de administración y Taildrop para enviar archivos entre tus computadoras; consulta [redes](35-networking.md).
+Recibe un panel en la barra, una aplicación web para la consola de administración y Taildrop para enviar archivos entre tus ordenadores; consulta [redes](35-networking.md).
 
 ## ONCE
 

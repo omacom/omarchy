@@ -2,7 +2,7 @@
 
 ### Chips Apple M1/M2
 
-[Asahi Alarm](https://asahi-alarm.org/) es una versión de Arch para computadoras Apple M1/M2 construida sobre [Asahi Linux](https://asahilinux.org/). Puedes lograr que Omarchy funcione sobre eso con algo de esfuerzo. Consulta [la guía impulsada por usuarios](https://github.com/omarchy-mac/omarchy-mac).
+[Asahi Alarm](https://asahi-alarm.org/) es una versión de Arch para ordenadores Apple M1/M2 construida sobre [Asahi Linux](https://asahilinux.org/). Puedes lograr que Omarchy funcione sobre eso con algo de esfuerzo. Consulta [la guía impulsada por usuarios](https://github.com/omarchy-mac/omarchy-mac).
 
 ### Máquina virtual de Apple
 

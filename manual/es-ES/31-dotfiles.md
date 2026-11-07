@@ -11,7 +11,7 @@ Aquí tienes una lista de los archivos clave en `~/.config` y lo que controlan:
 | `~/.config/hypr/hyprland.lua` | La configuración principal de Hyprland. Carga los valores predeterminados de Omarchy además de tus archivos de sobrescritura de abajo. [Más información sobre las configuraciones de Hyprland](https://wiki.hypr.land/Configuring/).  |
 | `~/.config/hypr/bindings.lua` | Tus propias asignaciones de teclas y sobrescrituras de los valores predeterminados. |
 | `~/.config/hypr/monitors.lua` | Ajustes del monitor que el panel del monitor no cubre, como la rotación, modos adicionales o mantener un monitor apagado. |
-| `~/.config/hypr/input.lua` | Controla la distribución de tu teclado, el mouse y la configuración del trackpad. |
+| `~/.config/hypr/input.lua` | Controla la distribución de tu teclado, el ratón y la configuración del trackpad. |
 | `~/.config/hypr/looknfeel.lua` | Controla los espacios, los bordes, las animaciones y el resto de la apariencia. |
 | `~/.config/hypr/autostart.lua` | Controla los procesos adicionales que se inician con la sesión. |
 | `~/.config/omarchy/shell.json` | Controla el shell de Omarchy: la posición de la barra, el diseño y los widgets, además de los tiempos del protector de pantalla, el bloqueo y la inactividad. |
@@ -68,7 +68,7 @@ Los exports de la sesión de escritorio pertenecen a `~/.config/uwsm/env.d/`. Es
 
 ### Cambiar los archivos internos de Omarchy
 
-Mira, esta es tu computadora. Puedes hacer lo que quieras con ella, pero te aconsejaría no hacer cambios directamente en los archivos de `/usr/share/omarchy`. Pertenecen al paquete de pacman de Omarchy, así que tus cambios simplemente se sobrescribirán en la próxima actualización. Te conviene más simplemente sobrescribir cualquier valor predeterminado que no te guste en la carpeta `~/.config/*`.
+Mira, este es tu ordenador. Puedes hacer lo que quieras con él, pero te aconsejaría no hacer cambios directamente en los archivos de `/usr/share/omarchy`. Pertenecen al paquete de pacman de Omarchy, así que tus cambios simplemente se sobrescribirán en la próxima actualización. Te conviene más simplemente sobrescribir cualquier valor predeterminado que no te guste en la carpeta `~/.config/*`.
 
 Puedes cambiar casi todo de esa manera, como las asignaciones de teclas predeterminadas. Solo edita `~/.config/hypr/bindings.lua` para, digamos, reemplazar [Obsidian](https://obsidian.md/) con [Joplin](https://joplinapp.org/) (instálalo con `omarchy-pkg-add joplin-bin`):
 

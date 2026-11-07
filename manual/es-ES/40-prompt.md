@@ -4,4 +4,4 @@ Omarchy trae por defecto un prompt mínimo de [Starship](https://starship.rs/). 
 
  ![prompt](images/prompt.webp)
 
-Si quieres más información o más estilo, puedes cambiar la configuración de [Starship.rs](https://starship.rs/) en `~/.config/starship.toml`. Hay mucho que puedes hacer. Solo no te pases (o sí pásate, haz lo que quieras, ¡es tu computadora!)
+Si quieres más información o más estilo, puedes cambiar la configuración de [Starship.rs](https://starship.rs/) en `~/.config/starship.toml`. Hay mucho que puedes hacer. Solo no te pases (o sí pásate, haz lo que quieras, ¡es tu ordenador!)

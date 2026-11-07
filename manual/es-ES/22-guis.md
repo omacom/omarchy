@@ -10,7 +10,7 @@ Al hacer doble clic se siguen valores predeterminados sensatos: las imágenes se
 
 ## Disktree
 
-Cuando la unidad se llena y no tienes idea de qué la está devorando, abre [Disktree](https://github.com/tobi/disktree) desde el lanzador de aplicaciones (`Super + Space`). Muestra un mapa de árbol gráfico de tu directorio personal. Los bloques más grandes ocupan más espacio; entra a los directorios con el teclado o el mouse, marca lo que debe desaparecer y revisa tus selecciones antes de eliminar cualquier cosa. Ejecuta `disktree --disk` para escanear todo el disco.
+Cuando la unidad se llena y no tienes idea de qué la está devorando, abre [Disktree](https://github.com/tobi/disktree) desde el lanzador de aplicaciones (`Super + Space`). Muestra un mapa de árbol gráfico de tu directorio personal. Los bloques más grandes ocupan más espacio; entra a los directorios con el teclado o el ratón, marca lo que debe desaparecer y revisa tus selecciones antes de eliminar cualquier cosa. Ejecuta `disktree --disk` para escanear todo el disco.
 
 ## Obsidian
 

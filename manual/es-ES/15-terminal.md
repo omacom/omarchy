@@ -1,6 +1,6 @@
 # Terminal
 
-[Foot](https://codeberg.org/dnkl/foot) es la terminal predeterminada de Omarchy. Es rápida, ligera y compatible hasta con computadoras viejas. Sin embargo, no admite pestañas ni divisiones nativas.
+[Foot](https://codeberg.org/dnkl/foot) es la terminal predeterminada de Omarchy. Es rápida, ligera y compatible hasta con ordenadores viejos. Sin embargo, no admite pestañas ni divisiones nativas.
 
 Si usas Tmux, quizá no te importe, pero si no, también admitimos por completo _Alacritty_, _Ghostty_ y _Kitty_ como opciones. Elige tu preferencia en _Instalar > Terminal_ en el menú de Omarchy.
 

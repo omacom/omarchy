@@ -34,7 +34,7 @@ SSH está desactivado hasta que lo actives con _Configuración > Seguridad > SSH
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) es una VPN en malla que hace que conectarte a todas tus computadoras y servidores por internet sea simple y seguro. Instálala con _Instalar > Servicio > Tailscale_.
+[Tailscale](https://tailscale.com/) es una VPN en malla que hace que conectarte a todos tus ordenadores y servidores por internet sea simple y seguro. Instálala con _Instalar > Servicio > Tailscale_.
 
 Eso te da un panel de Tailscale en la barra, que conecta y desconecta la tailnet, cambia de cuenta y elige un nodo de salida: tanto tus propias máquinas como las regiones de Mullvad aparecen en la lista. También explora tus máquinas, y ahí es donde vive Taildrop: selecciona una máquina y presiona `s` para enviarle archivos, o `c`, `n` y `d` para copiar su IP, su nombre o su nombre DNS completo. El equivalente en la terminal es `omarchy tailscale send <machine> [file...]`, y los archivos que te envíen llegan a `~/Downloads` automáticamente. La notificación que anuncia una llegada espera hasta que hagas clic para abrirla o la descartes, así que un archivo que llegue mientras no estás en la máquina seguirá ahí para que respondas cuando regreses.
 

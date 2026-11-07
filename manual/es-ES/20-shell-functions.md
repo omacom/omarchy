@@ -36,13 +36,13 @@ Los mismos layouts están disponibles para Herdr como `hdl`, `hds`, `hdlm` y `hs
 
 ## Reenvío de puertos SSH
 
-Ideal para hacer desarrollo web con privilegios de contexto seguro de localhost contra una computadora remota.
+Ideal para hacer desarrollo web con privilegios de contexto seguro de localhost contra un ordenador remoto.
 
 - `fip`: Reenvía uno o más puertos desde un host remoto a localhost vía SSH.
 - `dip`: Desconecta uno o más puertos reenviados.
 - `lip`: Lista todos los reenvíos de puertos SSH activos.
 
-Digamos que inicias un servidor de desarrollo en el puerto `3000` en una computadora accesible como `nyc-dev`, entonces puedes ejecutar `fip nyc-dev 3000` para reenviar ese puerto, de modo que `localhost:3000` en realidad llegue a `nyc-dev:3000`, pero sin necesidad de certificados SSL para establecer el contexto seguro necesario para probar web sockets o cosas por el estilo.
+Digamos que inicias un servidor de desarrollo en el puerto `3000` en un ordenador accesible como `nyc-dev`, entonces puedes ejecutar `fip nyc-dev 3000` para reenviar ese puerto, de modo que `localhost:3000` en realidad llegue a `nyc-dev:3000`, pero sin necesidad de certificados SSL para establecer el contexto seguro necesario para probar web sockets o cosas por el estilo.
 
 ## Reconexión SSH
 

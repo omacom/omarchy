@@ -26,7 +26,7 @@ Desde la terminal, `omarchy screenshot` abre la misma superposición, y puedes e
 
 ### Controlar el selector desde el teclado
 
-Mientras la selección está abierta, no tienes que usar el mouse para nada:
+Mientras la selección está abierta, no tienes que usar el ratón para nada:
 
 | Tecla | Función |
 | --- | -------- |

@@ -2,7 +2,7 @@
 
 Omarchy ofrece una forma fácil de ejecutar Windows mediante una máquina virtual de Docker. Puedes instalarla usando _Instalar > Windows_ desde el menú de Omarchy (`Super + Space`).
 
-Tu computadora necesita virtualización KVM para esto, algo que la mayoría tiene, pero a veces está desactivada en la BIOS, y el instalador te dirá si ese es el caso. También vas a querer espacio en disco: lo que le des a Windows, más unos 10GB para la imagen misma.
+Tu ordenador necesita virtualización KVM para esto, algo que la mayoría tiene, pero a veces está desactivada en la BIOS, y el instalador te dirá si ese es el caso. También vas a querer espacio en disco: lo que le des a Windows, más unos 10GB para la imagen misma.
 
 El instalador pregunta cuánta RAM, cuántos núcleos de CPU y cuánto disco entregar (64GB o más es el mínimo sensato), y luego un nombre de usuario y contraseña de Windows. Déjalos en blanco y obtendrás `docker` / `admin`. La descarga tarda un rato —10-15 minutos es normal— y puedes seguir el progreso en el navegador en `http://127.0.0.1:8006`. El navegador pide el mismo nombre de usuario y contraseña antes de abrir la consola.
 
@@ -34,7 +34,7 @@ Mantén las rutas del disco y de compartición como directorios separados y que 
 
 Antes de que la máquina virtual inicie, Omarchy abre y fija esos dos directorios, y luego monta con bind los inodos exactos de los directorios sobre anclas privadas por usuario bajo `/var/lib/omarchy/windows/mounts`. Docker solo ve esas anclas protegidas por root. Esto conserva las ubicaciones personalizadas del disco a la vez que impide que otro proceso que se ejecute como tú intercambie una ruta ya comprobada antes de que el contenedor privilegiado la consuma. Los directorios existentes del disco y compartido se ajustan a modo `0700` durante la migración para que otras cuentas locales no puedan explorar su contenido.
 
-Los puertos de la máquina virtual están vinculados solo a localhost, así que nada en tu red puede llegar a la computadora Windows. La consola web también requiere el nombre de usuario y la contraseña de Windows configurados, lo que impide que otra cuenta local maneje la máquina virtual mediante el puerto 8006.
+Los puertos de la máquina virtual están vinculados solo a localhost, así que nada en tu red puede llegar al ordenador Windows. La consola web también requiere el nombre de usuario y la contraseña de Windows configurados, lo que impide que otra cuenta local maneje la máquina virtual mediante el puerto 8006.
 
 ## Límites y licencias
 
@@ -42,7 +42,7 @@ No hay paso directo de GPU con esta configuración, así que no es adecuada para
 
 La versión instalada es Windows 11 Pro, sin activar. Necesitarás tu propia clave de licencia para usar las funciones restringidas.
 
-Si esta computadora vino con Windows, la clave OEM sigue en el firmware incluso después de instalar Omarchy. Imprímela con `omarchy windows key`. Esa clave está vinculada a esta computadora: activará Windows reinstalado en este hardware, pero por lo general no activará la máquina virtual.
+Si este ordenador vino con Windows, la clave OEM sigue en el firmware incluso después de instalar Omarchy. Imprímela con `omarchy windows key`. Esa clave está vinculada a este ordenador: activará Windows reinstalado en este hardware, pero por lo general no activará la máquina virtual.
 
 Puedes cambiar la asignación de recursos después volviendo a ejecutar `omarchy-windows-vm install`, lo cual reescribe la configuración de la máquina virtual a partir de tus respuestas. El archivo compose mismo ahora vive en `/var/lib/omarchy/windows/docker-compose.yml` y pertenece a root: eso es deliberado, para que un proceso que se ejecute como tú no pueda reescribirlo y hacer que el arranque privilegiado monte todo tu disco en el contenedor. Si necesitas editarlo a mano (por ejemplo para montar un dispositivo USB), edítalo con `sudo` y consulta todas las opciones en [el proyecto Dockur Windows](https://github.com/dockur/windows).
 

@@ -8,7 +8,7 @@ Las notificaciones de la misma app o sitio se apilan en un mazo, para que un can
 
 Las tarjetas ofrecen lo que traen: _Copiar código_ para los códigos de verificación (que se mantienen fuera del [historial del portapapeles](08-unified-clipboard-history.md) y se borran después de un minuto), además de los botones que proporcione la app. Los enlaces en el texto de una notificación se abren al hacer clic en ellos.
 
-Para usarlas sin el mouse, presiona `Super + Ctrl + ,`. La notificación más reciente queda seleccionada y sus botones numerados: presiona un número para usar uno, `Enter` para hacer clic en la notificación, `↑` y `↓` para moverte entre notificaciones, `Delete` para descartar una y `Esc` para devolver el teclado. También se libera por sí sola después de unos segundos sin actividad.
+Para usarlas sin el ratón, presiona `Super + Ctrl + ,`. La notificación más reciente queda seleccionada y sus botones numerados: presiona un número para usar uno, `Enter` para hacer clic en la notificación, `↑` y `↓` para moverte entre notificaciones, `Delete` para descartar una y `Esc` para devolver el teclado. También se libera por sí sola después de unos segundos sin actividad.
 
 Silenciar las notificaciones las retiene, excepto las confirmaciones propias de Omarchy, las alertas de emergencia y los códigos de verificación, que pediste hace un momento. Vuelve a poner las últimas en pantalla, retenidas o no, con `Super + Shift + Alt + ,`. El historial se conserva durante un día.
 

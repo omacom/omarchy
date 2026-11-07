@@ -6,7 +6,7 @@ Si Chromium no es de tu gusto, no estás atado a él. En _Instalar > Navegador_ 
 
 ## Hacer uno el predeterminado
 
-Instalar un navegador no lo promueve. Una vez que esté en la computadora, ve a _Setup > Defaults > Browser_ y elígelo: el menú solo lista los navegadores que realmente tienes instalados, y marca el predeterminado actual con una palomita.
+Instalar un navegador no lo promueve. Una vez que esté en el ordenador, ve a _Setup > Defaults > Browser_ y elígelo: el menú solo lista los navegadores que realmente tienes instalados, y marca el predeterminado actual con una marca de verificación.
 
 Desde la terminal es:
 

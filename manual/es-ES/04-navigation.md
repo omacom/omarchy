@@ -1,6 +1,6 @@
 # Navegación
 
-Todo en Omarchy sucede con el teclado: ¡TODO! Cuando el sistema arranca por primera vez, literalmente no puedes hacer nada solo con el mouse. Pero puedes presionar `Super + Space` para mostrar el menú de Omarchy y desde ahí puedes hacer prácticamente todo.
+Todo en Omarchy sucede con el teclado: ¡TODO! Cuando el sistema arranca por primera vez, literalmente no puedes hacer nada solo con el ratón. Pero puedes presionar `Super + Space` para mostrar el menú de Omarchy y desde ahí puedes hacer prácticamente todo.
 
 Pero el menú de Omarchy ni siquiera está pensado para ser la forma principal de operar el sistema la mayor parte del tiempo. ¡Podemos hacerlo más rápido! Todas las aplicaciones más importantes están vinculadas directamente a atajos individuales. Inicias la terminal con `Super + Return` y un navegador con `Super + Shift + Return`. Prueba hacer una tras otra y verás la magia del mosaico de Hyprland en acción:
 
@@ -22,7 +22,7 @@ Si presionas `Super + Shift + 2`, moverás la aplicación enfocada actual al seg
 
 Con más de un monitor, cada monitor tiene sus propios espacios de trabajo del 1 al 10. `Super + 2` va al segundo espacio de trabajo del monitor en el que estás, y la barra superior de cada monitor muestra sus propios espacios de trabajo y el que está mostrando. `Super + Tab` recorre en ciclo los espacios de trabajo del monitor en el que estás. `Super + Shift + Ctrl + Arrows` mueve la ventana en la que estás al monitor en esa dirección, al espacio de trabajo que está mostrando, y `Super + Shift + Alt + Arrows` mueve el espacio de trabajo en el que estás al monitor en esa dirección, donde toma el mismo número si está libre. Un monitor conserva sus espacios de trabajo cuando lo desconectas: se unen a los de otra pantalla, numerados después de los que ya tiene, y regresan con sus números anteriores cuando el monitor vuelve.
 
-Si mantienes presionado `Super` y usas el mouse para hacer clic en una ventana, podrás reacomodar dónde queda. Si mantienes presionado `Super` y usas el botón derecho del mouse, puedes redimensionar la ventana libremente.
+Si mantienes presionado `Super` y usas el ratón para hacer clic en una ventana, podrás reacomodar dónde queda. Si mantienes presionado `Super` y usas el botón derecho del ratón, puedes redimensionar la ventana libremente.
 
 Cierras una ventana con `Super + W` o `Super + Q` (y cierras todas las ventanas con `Ctrl + Alt + Delete`).
 
@@ -88,4 +88,4 @@ Para sacar una ventana del scratchpad o de la consola, envíala directamente a o
 
 ### ¡Cuesta un poco acostumbrarse!
 
-Cuesta un poco acostumbrarse a navegar tu escritorio así, pero una vez que lo hagas, ¡será difícil volver a una experiencia de escritorio tradicional manejada con el mouse!
+Cuesta un poco acostumbrarse a navegar tu escritorio así, pero una vez que lo hagas, ¡será difícil volver a una experiencia de escritorio tradicional controlada con el ratón!

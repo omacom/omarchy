@@ -269,7 +269,7 @@
   "reset.passphrasePlaceholder": "Frase de contraseña actual de cifrado de disco",
   "reset.passphrasePrompt": "Frase de contraseña> ",
   "reset.passphraseWrong": "Esa frase de contraseña no desbloquea %1. Inténtalo de nuevo.",
-  "reset.question": "¿Restablecer esta computadora al estado de fábrica?",
+  "reset.question": "¿Restablecer este ordenador al estado de fábrica?",
   "reset.rebootLater": "Reiniciar después",
   "reset.rebootNow": "Reiniciar ahora",
   "reset.rebootQuestion": "¿Reiniciar para completar el restablecimiento?",

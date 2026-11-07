@@ -89,11 +89,11 @@ Esto es sobre el bloqueo y el protector de pantalla, no sobre la energía. La su
 
 ### El protector de pantalla
 
-El protector de pantalla de Omarchy es arte ASCII que pasa por efectos de texto aleatorios, una instancia por monitor. Cualquier tecla o movimiento del mouse lo cierra.
+El protector de pantalla de Omarchy es arte ASCII que pasa por efectos de texto aleatorios, una instancia por monitor. Cualquier tecla o movimiento del ratón lo cierra.
 
 Puedes iniciarlo cuando quieras desde _Sistema > Protector de pantalla_ (`Super + Esc`), lo que lo fuerza a aparecer incluso si desactivaste el protector de pantalla por inactividad. Por defecto no tiene ningún atajo de teclado asignado.
 
-`omarchy toggle screensaver` es lo que desactiva el de inactividad, si prefieres pasar directamente de trabajar a bloqueado. Cualquier tecla, clic, desplazamiento o movimiento del mouse lo cierra.
+`omarchy toggle screensaver` es lo que desactiva el de inactividad, si prefieres pasar directamente de trabajar a bloqueado. Cualquier tecla, clic, desplazamiento o movimiento del ratón lo cierra.
 
 El logotipo que dibuja lo puedes cambiar tú, en _Apariencia > Marca > Protector de pantalla_. Sube un png o svg y Omarchy lo convierte a ASCII. Consulta [marca](41-branding.md).
 

@@ -14,6 +14,6 @@ Puedes eliminar la autenticación con huella dactilar en _Eliminar > Seguridad >
 
 ### Autenticación con Fido2
 
-Si usas un dispositivo Fido2, puedes configurarlo para la autenticación de `sudo` usando _Configuración > Seguridad > Fido2_ en el menú de Omarchy (`Super + Space`). Sin embargo, cubre `sudo` y las solicitudes de autorización del sistema, no el desbloqueo de tu computadora.
+Si usas un dispositivo Fido2, puedes configurarlo para la autenticación de `sudo` usando _Configuración > Seguridad > Fido2_ en el menú de Omarchy (`Super + Space`). Sin embargo, cubre `sudo` y las solicitudes de autorización del sistema, no el desbloqueo de tu ordenador.
 
 Puedes eliminar la autenticación con fido2 en _Eliminar > Seguridad > Fido2_ en el menú de Omarchy.
