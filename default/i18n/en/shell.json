@@ -544,6 +544,8 @@
   "weather.feels": "FEELS",
   "weather.fetching": "Fetching forecast…",
   "weather.humid": "HUMID",
+  "weather.live": "LIVE",
+  "weather.radar": "RADAR",
   "weather.searchCity": "Search city",
   "weather.wind": "WIND",
   "wifiqr.generateFailed": "Could not generate the Wi-Fi QR code",

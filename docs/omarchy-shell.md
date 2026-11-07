@@ -101,6 +101,31 @@ The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately after the clock, before Weather; the placement migration uses `omarchy bar put omarchy.elsewhen --after omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
 
+## Weather radar
+
+The weather widget's `radarEnabled` boolean setting defaults to `true`. It uses the same inline `shell.json` settings as the widget's `unit` and `refreshMinutes` settings. `omarchy bar set omarchy.weather radarEnabled false --json` disables it, and the same command with `true` enables it. The weather manifest declares its default and boolean schema. With radar disabled, the panel has no radar block and sends no requests to NWS, IEM, or MIERUNE.
+
+When enabled, opening the weather panel sends the location's coordinates rounded to two decimal places to `api.weather.gov` for NWS station discovery, including locations outside NWS coverage. Supported locations then request station scan times and radar tiles from `mesonet.agron.iastate.edu`, and monochrome basemap tiles from `tile.mierune.co.jp`. Tile coordinates identify the viewed area. Closing cancels metadata work and unloads tile objects after the close transition while retaining scan metadata. Disabling radar destroys its component and cache. Qt owns tile networking and its in-memory image cache; radar adds no persistent tile cache or download-size limit for images. Metadata curl requests have a 1 MiB response limit and a 15-second timeout.
+
+A visible credit directly below the map reads "MIERUNE Inc. © OpenMapTiles © OpenStreetMap contributors" and links to each provider, including the OpenStreetMap copyright and license page. The wording follows [MIERUNE's examples](https://github.com/MIERUNE/tiles) and the [OSMF attribution guidelines](https://osmfoundation.org/wiki/Licence/Attribution_Guidelines). The map uses theme background and foreground colors. The radar ramp represents reflectivity intensity.
+
+The two fragment shaders preserve the stippled radar and subdued basemap without adding per-dot QML items. Build their checked-in `.qsb` files from the repository root with `qsb` from `qt6-shadertools`:
+
+```bash
+for shader in shell/plugins/panels/weather/{basemap,radar}.frag; do
+  /usr/lib/qt6/bin/qsb --qt6 -o "$shader.qsb" "$shader"
+done
+```
+
+Qt 6.11.2 reproduces these binaries. Rebuild both sources and compare the generated files before committing shader changes.
+
+`scripts/weather-radar-palette.py` regenerates `n0b-palette.png` from IEM's color curve at pinned revision `99b2b6e452bb08471cd1cf7a5f60d61668997976` and verifies the source's SHA-256 checksum. It requires Python and Pillow (`python-pillow`). The script preserves the original PNG metadata and encoding for byte-identical output. From the repository root:
+
+```bash
+python3 scripts/weather-radar-palette.py --output /tmp/n0b-palette.png
+cmp shell/plugins/panels/weather/n0b-palette.png /tmp/n0b-palette.png
+```
+
 ## IPC
 
 The shell exposes a `shell` target (the host also registers
