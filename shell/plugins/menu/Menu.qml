@@ -118,6 +118,16 @@ Item {
   property color scrim: Commons.Color.menu.scrim
   property color selectedBackground: Commons.Color.menu.selectedBackground
   property color selectedText: Commons.Color.menu.selectedText
+  readonly property color resultSelectedText: {
+    var fill = Qt.tint(root.background, root.selectedBackground)
+    var base = root.luminance(fill)
+    for (var color of [root.selectedText, root.foreground]) {
+      var text = root.luminance(Qt.tint(fill, color))
+      if ((Math.max(base, text) + 0.05) / (Math.min(base, text) + 0.05) >= 4.5)
+        return color
+    }
+    return base > 0.179 ? "black" : "white"
+  }
   property color selectedBorder: Commons.Color.menu.selectedBorder
   property var selectedBorderSpec: Border.surfaceSpec("menu", "selected-border", selectedBorder, 0)
   readonly property real rowReservedBorderLeft: Border.left(selectedBorderSpec)
@@ -175,6 +185,13 @@ Item {
   // dmenu rows carry caller-supplied subtext that must always be visible.
   function rowHeightForDetail(detail) {
     return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
+  }
+
+  function luminance(color) {
+    function linear(value) {
+      return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * linear(color.r) + 0.7152 * linear(color.g) + 0.0722 * linear(color.b)
   }
 
   // Height the card can devote to rows before running off the screen — or
@@ -449,11 +466,13 @@ Item {
       while (takenIds[rowId]) rowId += "-"
       takenIds[rowId] = true
 
+      var isCurrent = value === current
       providerRows.push({
         id: rowId,
         parent: menuId,
         kind: "action",
-        icon: (value === current) ? "✓" : (spec.icon || ""),
+        icon: isCurrent ? "✓" : (spec.icon || ""),
+        providerCurrent: isCurrent,
         label: label,
         title: "",
         target: "",
@@ -642,7 +661,7 @@ Item {
 
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
       displayModel.append({
-        itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
+        itemId: "dmenu.apply", disabled: false, kind: "dmenu", checkable: false, checked: false, icon: "", iconFont: "",
         appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
         detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
         action: "", provider: "", score: -1, section: ""
@@ -660,11 +679,14 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
+      var checked = root.dmenuMultiple && root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1
       displayModel.append({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
-        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
+        checkable: root.dmenuMultiple,
+        checked: checked,
+        icon: root.dmenuMultiple ? (checked ? "✓" : "○") : icon,
         iconFont: "",
         appIcon: "",
         appId: "",
@@ -698,12 +720,16 @@ Item {
         displayModel.setProperty(i, "detail", Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)))
       } else if (row.kind === "dmenu") {
         var value = MenuModel.dmenuValue(root.dmenuOptions[Number(row.itemId.substring(6))])
-        displayModel.setProperty(i, "icon", root.dmenuSelected.indexOf(value) !== -1 ? "✓" : "○")
+        var checked = root.dmenuSelected.indexOf(value) !== -1
+        displayModel.setProperty(i, "checked", checked)
+        displayModel.setProperty(i, "icon", checked ? "✓" : "○")
       }
     }
   }
 
   function rebuildDisplay() {
+    // Rebuilding the model destroys the focused delegate.
+    if (resultList.activeFocus) filterInput.forceActiveFocus()
     if (root.dmenuActive) {
       root.rebuildDmenuDisplay()
       return
@@ -815,6 +841,13 @@ Item {
     cursorActive = true
     selectedIndex = target
     revealCursor()
+    if (resultList.activeFocus) focusSelectedResult()
+  }
+
+  function focusSelectedResult() {
+    if (!cursorActive || !rowSelectable(selectedIndex)) return
+    resultList.currentIndex = selectedIndex
+    if (resultList.currentItem) resultList.currentItem.forceActiveFocus()
   }
 
   function setFilter(nextFilter) {
@@ -870,6 +903,7 @@ Item {
         if (picked.itemId === "dmenu.apply") {
           root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
         } else {
+          if (resultList.activeFocus && resultList.currentIndex !== index) root.focusSelectedResult()
           var value = MenuModel.dmenuValue(root.dmenuOptions[Number(picked.itemId.substring(6))])
           var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(), value)
           if (root.dmenuOnChange.length > 0) {
@@ -906,6 +940,7 @@ Item {
     if (!root.cursorActive || root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return
     var row = displayModel.get(root.selectedIndex)
     if (!row || row.kind !== "app") return
+    filterInput.forceActiveFocus()
     root.deleteTarget = { appId: row.appId, label: row.label }
     deleteConfirm.selectedIndex = 1
     root.deleteConfirmOpen = true
@@ -1039,6 +1074,7 @@ Item {
   }
 
   function selectFromPointer(index, item, mouse) {
+    if (resultList.activeFocus) return
     if (!pointerGate.moved(item, mouse)) return
     if (!root.rowSelectable(index)) return
     root.cursorActive = true
@@ -1322,7 +1358,7 @@ Item {
         anchors.fill: parent
         z: root.deleteConfirmOpen ? 20 : 0
 
-        // Focus is on filterInput, which forwards every key here first.
+        // Search and focused result rows forward menu keys here.
         Keys.onPressed: function(event) {
           if (root.deleteConfirmOpen) {
             // Swallow the rest too, or it would type into the search line behind the dialog.
@@ -1337,6 +1373,10 @@ Item {
           } else if (event.key === Qt.Key_Escape) {
             if (root.filterText) root.setFilter("")
             else root.cancel()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            if (resultList.activeFocus) filterInput.forceActiveFocus()
+            else root.focusSelectedResult()
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
@@ -1406,6 +1446,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             keyHandler: keyCatcher
+            Accessible.name: root.dmenuActive ? root.dmenuPrompt : Commons.I18n.t("common.search")
             // Input-method commits bypass key handling, so the dialog has to refuse them here.
             readOnly: root.deleteConfirmOpen
             color: root.foreground
@@ -1435,6 +1476,7 @@ Item {
 
           ListView {
             id: resultList
+            Accessible.role: Accessible.List
             anchors.fill: parent
             model: displayModel
             clip: true
@@ -1487,10 +1529,31 @@ Item {
               required property string action
               required property int childCount
               required property bool disabled
+              required property bool checkable
+              required property bool checked
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+
+              enabled: !row.disabled && !root.deleteConfirmOpen
+              Accessible.role: Accessible.ListItem
+              Accessible.name: row.label
+              Accessible.description: row.detail
+              Accessible.focusable: row.enabled
+              Accessible.selected: row.hasCursor
+              Accessible.checkable: row.checkable
+              Accessible.checked: row.checked
+              Accessible.onPressAction: row.activate(false)
+              Keys.forwardTo: [filterInput]
+
+              function activate(fromPointer) {
+                if (!root.opened || !row.visible || !row.enabled || resultList.itemAtIndex(row.index) !== row) return
+                if (!fromPointer) root.disarmPointer()
+                root.cursorActive = true
+                root.selectedIndex = row.index
+                root.activateIndex(row.index, fromPointer)
+              }
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
@@ -1499,7 +1562,8 @@ Item {
               opacity: row.disabled ? 0.4 : 1
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
-              borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
+              borderSpec: row.activeFocus ? Border.controlSpec("focus", root.foreground, Commons.Color.accent)
+                : row.hasCursor ? root.selectedBorderSpec : Border.none()
 
               Rectangle {
                 visible: false
@@ -1559,7 +1623,7 @@ Item {
                   textFormat: Text.PlainText
                   width: parent.width
                   text: row.label
-                  color: row.hasCursor ? root.selectedText : root.foreground
+                  color: row.hasCursor ? root.resultSelectedText : root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
                   font.weight: Font.Medium
@@ -1572,8 +1636,8 @@ Item {
                   // A parent path's separator points along the reading direction.
                   text: Commons.I18n.rightToLeft && row.kind !== "dmenu" ? row.detail.replace(/ › /g, " ‹ ") : row.detail
                   visible: (root.filterText || row.kind === "dmenu") && row.detail.length > 0
-                  color: root.foreground
-                  opacity: 0.52
+                  color: row.hasCursor ? labelText.color : root.foreground
+                  opacity: row.hasCursor ? 1 : 0.52
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
                   elide: Text.ElideRight
@@ -1623,12 +1687,7 @@ Item {
                 onPositionChanged: function(mouse) {
                   root.selectFromPointer(row.index, row, mouse)
                 }
-                onClicked: {
-                  if (row.disabled) return
-                  root.cursorActive = true
-                  root.selectedIndex = row.index
-                  root.activateIndex(row.index, true)
-                }
+                onClicked: row.activate(true)
               }
             }
           }

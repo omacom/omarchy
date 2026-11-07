@@ -393,6 +393,8 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
   return {
     itemId: entry.id,
     disabled: isDisabled(disabledResults, entry),
+    checkable: typeof entry.providerCurrent === "boolean",
+    checked: entry.providerCurrent === true,
     kind: entry.kind,
     icon: entry.icon,
     iconFont: entry.iconFont || "",
