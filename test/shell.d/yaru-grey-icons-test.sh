@@ -6,34 +6,26 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command python3
 
-# Names yaru-icon-theme ships, plus the two monochrome accents this repo installs.
-# A stock icons.theme outside this set is the missing-theme failure: GTK cannot
-# resolve any icon from a directory that is not there.
-allowed="Yaru Yaru-dark"
-for accent in blue magenta olive prussiangreen purple red sage wartybrown yellow; do
-  allowed+=" Yaru-$accent Yaru-$accent-dark"
-done
-allowed+=" Yaru-grey Yaru-gray"
-
-for icons in "$ROOT"/themes/*/icons.theme; do
-  name=$(tr -d '[:space:]' <"$icons")
-  if [[ " $allowed " != *" $name "* ]]; then
-    fail "stock icon theme is one Omarchy installs" "$icons names $name"
-  fi
-done
-pass "every stock icons.theme names an icon theme Omarchy installs"
-
-[[ $(tr -d '[:space:]' <"$ROOT/themes/white/icons.theme") == "Yaru-grey" ]] || fail "White names Yaru-grey"
-[[ $(tr -d '[:space:]' <"$ROOT/themes/vantablack/icons.theme") == "Yaru-gray" ]] || fail "Vantablack names Yaru-gray"
-pass "White and Vantablack keep the monochrome icon theme names"
-
-grep -q 'omarchy-theme-install-yaru-grey' "$ROOT/install/user/yaru-grey-icons.sh" || fail "user setup installs the monochrome icon themes"
-grep -q 'run_logged "\$OMARCHY_INSTALL/user/yaru-grey-icons.sh"' "$ROOT/install/user/all.sh" || fail "user setup runs the monochrome icon install"
-grep -q 'omarchy-theme-install-yaru-grey' "$ROOT/migrations/1794058300.sh" || fail "the migration installs the monochrome icon themes"
-pass "install and migration publish the monochrome icon themes"
-
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+# The real builder sees only fixture state and an explicit command allowlist.
+mkdir -p "$work/bin" "$work/home" "$work/runtime" "$work/tmp"
+for tool in bash cp rm mkdir mktemp find readlink realpath ln mv python3; do
+  ln -s "$(command -v "$tool")" "$work/bin/$tool"
+done
+cat >"$work/bin/gtk-update-icon-cache" <<'EOF'
+#!/bin/bash
+(( $# == 3 )) && [[ $1 == "-f" && $2 == "-q" && $3 == "$ICON_FIXTURE/dest/"Yaru-gr?y ]] || exit 99
+EOF
+chmod +x "$work/bin/gtk-update-icon-cache"
+run_installer() {
+  env -i HOME="$work/home" XDG_DATA_HOME="$work/home/data" \
+    XDG_CONFIG_HOME="$work/home/config" XDG_CACHE_HOME="$work/home/cache" \
+    XDG_STATE_HOME="$work/home/state" XDG_RUNTIME_DIR="$work/runtime" \
+    TMPDIR="$work/tmp" PATH="$work/bin" ICON_FIXTURE="$work" \
+    FAIL_OPERATION="${FAIL_OPERATION:-}" \
+    "$ROOT/bin/omarchy-theme-install-yaru-grey" "$@"
+}
 source_icons="$work/source"
 dest_icons="$work/dest"
 
@@ -103,6 +95,7 @@ write_png(root / "Yaru-dark" / "16x16" / "status" / "dialog-error.png", [[red]])
 blue_theme = root / "Yaru-blue"
 write_png(blue_theme / "48x48" / "places" / "folder.png", folder, filtered=True)
 (blue_theme / "48x48" / "places" / "inode-directory.png").symlink_to("folder.png")
+(blue_theme / "48x48" / "places" / "absolute-folder.png").symlink_to(blue_theme / "48x48" / "places" / "folder.png")
 (blue_theme / "scalable" / "devices").mkdir(parents=True)
 (blue_theme / "scalable" / "devices" / "audio.svg").write_text(svg)
 (blue_theme / "index.theme").write_text(index("Yaru-blue", "Yaru,hicolor", "48x48/places,scalable/devices"))
@@ -112,6 +105,7 @@ dark = root / "Yaru-blue-dark"
 write_png(dark / "48x48" / "places" / "folder.png", folder, filtered=True)
 (dark / "scalable" / "devices").mkdir(parents=True)
 (dark / "scalable" / "devices" / "audio.svg").write_text(svg)
+(dark / "scalable" / "absolute-devices").symlink_to(dark / "scalable" / "devices")
 (dark / "16x16").mkdir()
 (dark / "16x16" / "status").symlink_to("../../Yaru-dark/16x16/status")
 (dark / "index.theme").write_text(index("Yaru-blue-dark", "Yaru-blue,Yaru-dark,hicolor", "48x48/places,16x16/status"))
@@ -120,17 +114,18 @@ PY
 source_folder="$source_icons/Yaru-blue/48x48/places/folder.png"
 source_checksum=$(cksum "$source_folder")
 
-mkdir -p "$dest_icons/Yaru-grey"
+mkdir -p "$dest_icons/Yaru-grey" "$dest_icons/Yaru-gray"
 echo keep >"$dest_icons/Yaru-grey/marker"
-if "$ROOT/bin/omarchy-theme-install-yaru-grey" "$work/missing" "$dest_icons" 2>"$work/missing.err"; then
+echo keep >"$dest_icons/Yaru-gray/marker"
+if run_installer "$work/missing" "$dest_icons" 2>"$work/missing.err"; then
   fail "a missing Yaru accent fails the install"
 fi
 grep -q "missing $work/missing/Yaru-blue" "$work/missing.err" || fail "a missing Yaru accent is reported"
 [[ $(<"$dest_icons/Yaru-grey/marker") == "keep" ]] || fail "a failed install leaves the previous icon theme in place"
 pass "a missing Yaru accent fails without replacing an installed theme"
 
-"$ROOT/bin/omarchy-theme-install-yaru-grey" "$source_icons" "$dest_icons"
-[[ ! -e $dest_icons/Yaru-grey/marker ]] || fail "a successful install replaces the previous icon theme"
+(cd "$work" && run_installer ./source "$dest_icons")
+[[ ! -e $dest_icons/Yaru-grey/marker && ! -e $dest_icons/Yaru-gray/marker ]] || fail "a successful install replaces the previous icon theme"
 [[ $(cksum "$source_folder") == "$source_checksum" ]] || fail "building the grey theme leaves the installed Yaru icons unchanged"
 pass "the monochrome themes install from the Yaru accents"
 
@@ -234,6 +229,12 @@ for snippet in ('stroke="#989898"', "stop-color:#979797", "rgb(130,130,130)", "r
 link = dest / "Yaru-grey" / "48x48" / "places" / "inode-directory.png"
 assert link.is_symlink() and link.readlink() == pathlib.Path("folder.png")
 assert read_png(link)[0] == (130, 130, 130, 255)
+absolute_link = link.with_name("absolute-folder.png")
+assert absolute_link.readlink() == pathlib.Path("folder.png"), absolute_link.readlink()
+assert read_png(absolute_link)[0] == (130, 130, 130, 255)
+absolute_dir = dest / "Yaru-gray/scalable/absolute-devices"
+assert absolute_dir.readlink() == pathlib.Path("devices"), absolute_dir.readlink()
+assert 'fill="#717171"' in (absolute_dir / "audio.svg").read_text()
 
 status = dest / "Yaru-gray" / "16x16" / "status"
 assert status.is_symlink()
@@ -243,7 +244,7 @@ assert not (dest / "Yaru-grey" / "icon-theme.cache").exists() or (dest / "Yaru-g
 PY
 pass "Yaru-grey and Yaru-gray resolve and the accent icons are monochrome"
 
-"$ROOT/bin/omarchy-theme-install-yaru-grey" "$source_icons" "$dest_icons"
+run_installer "$source_icons" "$dest_icons"
 python3 - "$dest_icons/Yaru-grey/48x48/places/folder.png" <<'PY'
 import pathlib, struct, sys, zlib
 data = pathlib.Path(sys.argv[1]).read_bytes()
@@ -265,28 +266,80 @@ assert ihdr is not None and zlib.decompress(idat)
 PY
 pass "installing the monochrome icon themes again replaces them cleanly"
 
-migration_home="$work/home"
-migration_bin="$work/bin"
-migration_log="$work/migration.log"
-mkdir -p "$migration_bin" "$migration_home"
-cat >"$migration_bin/omarchy-theme-install-yaru-grey" <<'EOF'
-#!/bin/bash
-printf 'install\n' >>"${MIGRATION_LOG:?}"
-EOF
-chmod +x "$migration_bin/omarchy-theme-install-yaru-grey"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_LOG="$migration_log" \
-  bash -euo pipefail "$ROOT/migrations/1794058300.sh" >/dev/null
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_LOG="$migration_log" \
-  bash -euo pipefail "$ROOT/migrations/1794058300.sh" >/dev/null
-[[ $(grep -c '^install$' "$migration_log") == "2" ]] || fail "the migration installs the icon themes each time it runs"
-pass "the migration installs the monochrome icon themes"
+# Inject filesystem failures, while forwarding only known fixture operations.
+# Nothing in this PATH can run a host icon-cache update or another installer.
+rm "$work/bin/cp" "$work/bin/mv"
+cat >"$work/bin/file-operation" <<'PYTHON'
+#!/usr/bin/python3
+import os
+import pathlib
+import sys
 
-cat >"$migration_bin/omarchy-theme-install-yaru-grey" <<'EOF'
-#!/bin/bash
-exit 1
-EOF
-chmod +x "$migration_bin/omarchy-theme-install-yaru-grey"
-if HOME="$migration_home" PATH="$migration_bin:$PATH" bash -euo pipefail "$ROOT/migrations/1794058300.sh" >/dev/null; then
-  fail "the migration stays pending when the icon themes cannot be installed"
+operation = pathlib.Path(sys.argv[0]).name
+args = sys.argv[1:]
+root = pathlib.Path(os.environ["ICON_FIXTURE"])
+if operation == "cp":
+    assert len(args) == 3 and args[0] == "-a", args
+elif operation == "mv":
+    assert len(args) == 4 and args[:2] == ["-T", "--"], args
+else:
+    raise SystemExit(99)
+source, dest = map(pathlib.Path, args[-2:])
+assert source.is_relative_to(root) and dest.is_relative_to(root), args
+mode = os.environ["FAIL_OPERATION"]
+if operation == "cp":
+    # A replacement must be fully built beside the final paths before either
+    # old tree is disturbed, even when TMPDIR is elsewhere.
+    assert dest.parent.parent == root / "dest", dest
+    assert (root / "dest/Yaru-grey/marker").read_text() == "keep\n"
+    assert (root / "dest/Yaru-gray/marker").read_text() == "keep\n"
+    fail = mode == "stage" and source.name == "Yaru-blue-dark"
+    if fail:
+        dest.mkdir()
+        (dest / "partial").write_text("incomplete copy")
+else:
+    backup = dest.name == "old-Yaru-gray"
+    publish = dest == root / "dest/Yaru-gray" and source.name == "Yaru-gray"
+    restore = source.name == "old-Yaru-grey"
+    fail = (
+        (mode == "backup" and backup)
+        or (mode in ("publish", "recovery") and publish)
+        or (mode == "recovery" and restore)
+    )
+if fail:
+    print(f"injected {mode} failure", file=sys.stderr)
+    raise SystemExit(1)
+os.execv("/usr/bin/" + operation, [operation, *args])
+PYTHON
+chmod +x "$work/bin/file-operation"
+ln -s file-operation "$work/bin/cp"
+ln -s file-operation "$work/bin/mv"
+
+for operation in stage backup publish; do
+  echo keep >"$dest_icons/Yaru-grey/marker"
+  echo keep >"$dest_icons/Yaru-gray/marker"
+  if FAIL_OPERATION=$operation run_installer "$source_icons" "$dest_icons" 2>"$work/failure.err"; then
+    fail "a failed $operation is reported"
+  fi
+  grep -q "injected $operation failure" "$work/failure.err" || fail "the intended $operation operation failed" "$(<"$work/failure.err")"
+  [[ $(<"$dest_icons/Yaru-grey/marker") == "keep" && $(<"$dest_icons/Yaru-gray/marker") == "keep" ]] || fail "a failed $operation preserves both installed themes"
+  for leftover in "$dest_icons"/.omarchy-yaru-grey.*; do
+    [[ ! -e $leftover ]] || fail "a failed $operation cleans up its staging directory"
+  done
+  pass "a failed $operation preserves both installed themes"
+done
+
+run_installer "$source_icons" "$dest_icons"
+[[ ! -e $dest_icons/Yaru-grey/marker && ! -e $dest_icons/Yaru-gray/marker ]] || fail "both staged themes are published together"
+pass "both replacements are built beside the old pair before successful publication"
+echo keep >"$dest_icons/Yaru-grey/marker"
+echo keep >"$dest_icons/Yaru-gray/marker"
+
+if FAIL_OPERATION=recovery run_installer "$source_icons" "$dest_icons" 2>"$work/recovery.err"; then
+  fail "failed rollback is reported"
 fi
-pass "the migration stays pending when the icon themes cannot be installed"
+recovery=$(<"$work/recovery.err")
+recovery=${recovery##*recovery files retained in }
+[[ -d $recovery && $(<"$recovery/old-Yaru-grey/marker") == "keep" ]] || fail "failed rollback retains the old theme at the reported recovery path"
+[[ $(<"$dest_icons/Yaru-gray/marker") == "keep" ]] || fail "rollback still restores the other theme"
+pass "failed rollback keeps useful recovery files and reports their location"

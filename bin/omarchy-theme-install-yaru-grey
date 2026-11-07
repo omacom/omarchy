@@ -27,11 +27,37 @@ for theme in Yaru-blue Yaru-blue-dark; do
   fi
 done
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-yaru-grey.XXXXXX")
+source_icons=$(readlink -f "$source_icons")
+
+# Both builds and the backups stay on the destination filesystem, so publication
+# only renames directories and never copies over a working theme.
+mkdir -p "$dest_icons"
+work=$(mktemp -d "$dest_icons/.omarchy-yaru-grey.XXXXXX")
+publishing=false
 cleanup() {
+  local status=$? theme
+  local rollback_failed=false
+  if [[ $publishing == "true" ]]; then
+    for theme in Yaru-grey Yaru-gray; do
+      if [[ -e $work/old-$theme || -L $work/old-$theme ]]; then
+        if ! { rm -rf "${dest_icons:?}/${theme:?}" && mv -T -- "$work/old-$theme" "$dest_icons/$theme"; }; then
+          rollback_failed=true
+        fi
+      elif [[ ! -e $work/$theme && ! -L $work/$theme ]]; then
+        # This replacement had no previous theme to restore.
+        rm -rf "${dest_icons:?}/${theme:?}" || rollback_failed=true
+      fi
+    done
+  fi
+  if [[ $rollback_failed == "true" ]]; then
+    echo "omarchy-theme-install-yaru-grey: recovery files retained in $work" >&2
+    return 1
+  fi
   rm -rf "$work"
+  return "$status"
 }
 trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
 
 # Copy one accent, point links that leave it at the installed original, then
 # drop the colour. Publishing waits until both themes have been built.
@@ -51,6 +77,9 @@ build_variant() {
     if target=$(readlink -f "$source_theme/$rel"); then
       if [[ $target != "$source_theme" && $target != "$source_theme"/* ]]; then
         ln -sfn "$target" "$link"
+      elif [[ $(readlink "$link") == /* ]]; then
+        # Absolute aliases inside an accent must follow its recoloured copy.
+        ln -sfn "$(realpath -s --relative-to="${link%/*}" "$dest_theme${target#"$source_theme"}")" "$link"
       fi
     fi
   done < <(find "$dest_theme" -type l -print0)
@@ -304,10 +333,16 @@ PY
 build_variant Yaru-blue Yaru-grey 115
 build_variant Yaru-blue-dark Yaru-gray 100
 
-mkdir -p "$dest_icons"
-rm -rf "$dest_icons/Yaru-grey" "$dest_icons/Yaru-gray"
-mv "$work/Yaru-grey" "$dest_icons/Yaru-grey"
-mv "$work/Yaru-gray" "$dest_icons/Yaru-gray"
+publishing=true
+for theme in Yaru-grey Yaru-gray; do
+  if [[ -e $dest_icons/$theme || -L $dest_icons/$theme ]]; then
+    mv -T -- "$dest_icons/$theme" "$work/old-$theme"
+  fi
+done
+for theme in Yaru-grey Yaru-gray; do
+  mv -T -- "$work/$theme" "$dest_icons/$theme"
+done
+publishing=false
 
 gtk-update-icon-cache -f -q "$dest_icons/Yaru-grey" >/dev/null 2>&1 || true
 gtk-update-icon-cache -f -q "$dest_icons/Yaru-gray" >/dev/null 2>&1 || true
