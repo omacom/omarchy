@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Connect OneDrive to open local Office documents in Microsoft web apps
+
+set -euo pipefail
+
+echo "Connect OneDrive to open local Word, Excel, and PowerPoint documents."
+echo "Each opening uploads a new copy to 'Omarchy Uploads' in OneDrive."
+echo "Edits are saved in OneDrive; the original local file is unchanged."
+echo "Sign into the same Microsoft account in your default web-app browser."
+gum confirm "Connect OneDrive and install the Microsoft web apps?" || exit 0
+
+omarchy-pkg-add rclone
+umask 077
+directory="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/microsoft-office"
+mkdir -p "$directory"
+config="$directory/rclone.conf"
+pending=$(mktemp "$directory/rclone.XXXXXX.conf")
+trap 'rm -f "$pending"' EXIT
+
+# Use a separate config so existing rclone remotes are left alone. rclone owns
+# OAuth and token refresh; --no-output suppresses the resulting credentials.
+rclone --config "$pending" config create office onedrive access_scopes 'Files.ReadWrite offline_access' --all --no-output
+rclone --config "$pending" config dump | jq -e '.office.type == "onedrive" and ((.office.region // "global") == "global") and ((.office.tenant_url // "") == "")' >/dev/null || {
+  echo "Only the commercial Microsoft cloud is supported." >&2
+  exit 1
+}
+rclone --config "$pending" lsd office: >/dev/null
+mv "$pending" "$config"
+omarchy-install-service-microsoft
+
+if gum confirm "Make Word, Excel, and PowerPoint the defaults for local Office documents?"; then
+  xdg-mime default 'Microsoft Word.desktop' application/msword application/vnd.openxmlformats-officedocument.wordprocessingml.document
+  xdg-mime default 'Microsoft Excel.desktop' application/vnd.ms-excel application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+  xdg-mime default 'Microsoft PowerPoint.desktop' application/vnd.ms-powerpoint application/vnd.openxmlformats-officedocument.presentationml.presentation
+fi
+
+echo "Connected. Open a document with Microsoft Word, Excel, or PowerPoint from your file manager."
