@@ -49,5 +49,7 @@ theme_color() {
 
 bg=$(theme_color background)
 text=$(theme_color foreground)
+bar=$(theme_color accent foreground)
+track=$(theme_color selection background)
 
-exec omarchy-plymouth-set "$bg" "$text" "$theme_dir/unlock.png"
+exec omarchy-plymouth-set "$bg" "$text" "$theme_dir/unlock.png" "${bar:-$text}" "${track:-$bg}"
