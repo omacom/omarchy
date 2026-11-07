@@ -454,12 +454,14 @@ var GUARD_READERS = [
 // constraint (`bash>=1`) is not a name any set can answer, so it goes to
 // pacman itself; no shipped guard writes one.
 //
-// `pacman -Qi` wraps a long list across continuation lines whenever COLUMNS
-// is set in the environment, which a login shell may well have done, so the
-// parser follows the indented lines rather than reading the first one and
-// dropping half of what is installed.
+// expac reads names and provides straight from the local database, one per
+// line, the versions already dropped from the provides. `pacman -Qi` prints
+// them too, but it also works out what requires each package, and takes
+// several times as long over it. A package that provides nothing leaves an
+// empty line after its name; sed drops those before they are stored, since an
+// empty subscript is an error that would end the loop filling the set.
 //
-// Building the set is most of the batch's runtime (~75ms of `-Qi` over a
+// Building the set still reads every installed package (~17ms of expac over a
 // thousand packages), yet it only changes when a transaction does. So it is
 // kept in $XDG_RUNTIME_DIR, stamped with the local database directory's
 // identity and change times: every install, removal and upgrade adds, removes
@@ -471,17 +473,14 @@ var GUARD_READERS = [
 // with another set.
 //
 // A build that failed is used for this run, as before, but never stored:
-// only when both queries succeed does it end with a `/` line, which no
+// only when the query succeeds does it end with a `/` line, which no
 // package name can contain.
 //
 // The database is wherever pacman.conf's DBPath puts it, so pacman-conf
 // names the directory the stamp and lock are read from; one that cannot be
 // named is never cached.
 function guardPackageSnapshot() {
-  var build = '{ set -o pipefail; pacman -Qq && LC_ALL=C pacman -Qi'
-    + " | awk '/^[A-Za-z]/ { provides = ($0 ~ /^Provides/); sub(/^[^:]*: /, \"\") }"
-    + ' provides && $0 != "None" { n = split($0, p, " ");'
-    + ' for (i = 1; i <= n; i++) { sub(/[<>=].*/, "", p[i]); print p[i] } }\' && echo /; } 2>/dev/null'
+  var build = "{ set -o pipefail; expac -l '\\n' '%n\\n%S' | sed '/^$/d' && echo /; } 2>/dev/null"
   var stamp = 'stat -c "%d:%i:%.9Y:%.9Z" -- "$__omarchy_pkg_db/local" 2>/dev/null'
 
   return '__omarchy_pkg_db=${OMARCHY_PACMAN_DB_PATH:-$(pacman-conf DBPath 2>/dev/null)} || __omarchy_pkg_db=""\n'
