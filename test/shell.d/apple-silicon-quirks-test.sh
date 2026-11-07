@@ -94,3 +94,4 @@ pass "direct boot and hibernation step aside on Apple Silicon"
 output=$(UNAME_M=x86_64 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" help 2>&1) || true
 [[ $output != *"x86_64 machine"* && $output == *"install"* ]] || fail "Windows VM runs as before on x86_64" "$output"
 pass "Windows VM runs as before on x86_64"
+

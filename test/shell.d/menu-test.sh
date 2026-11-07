@@ -216,6 +216,11 @@ assertDeepEqual(
   [],
   'menu never hides an Install row because the software is already there'
 )
+assertEqual(
+  defaultById['install.ai.mlx'].when,
+  'omarchy-hw-aarch64-apple',
+  'menu hides the MLX row off every machine that is not an Apple Silicon Mac'
+)
 assert(
   defaultItems.filter(item => item.id.startsWith('remove.')).every(item => !item.disabled),
   'menu hides Remove rows rather than dimming them'
