@@ -195,3 +195,47 @@ pass "physical monitor detection ignores disconnected external displays"
 write_connectors DP-1 connected
 has_external_monitor || fail "external-only systems still report a connected display"
 pass "physical monitor detection still supports external-only systems"
+
+write_named_connectors() {
+  rm -rf "$drm_path"
+  mkdir -p "$drm_path"
+
+  while (( $# )); do
+    mkdir -p "$drm_path/$1"
+    printf '%s\n' "$2" >"$drm_path/$1/status"
+    shift 2
+  done
+}
+
+# Back a card with a USB device of the given vendor, bound at an interface as sysfs does unless "device" is given.
+attach_usb_device() {
+  local card="$1" vendor="$2" bound="${3:-interface}" usb="$tmp_dir/usb-$1"
+
+  rm -rf "$usb"
+  mkdir -p "$usb/1-3:1.0" "$drm_path/$card"
+  printf '%s\n' "$vendor" >"$usb/idVendor"
+  [[ $bound == "device" ]] || usb="$usb/1-3:1.0"
+  ln -sfn "$usb" "$drm_path/$card/device"
+}
+
+write_named_connectors card0-eDP-1 connected card1-DP-1 disconnected card2-USB-2 connected
+attach_usb_device card2 05ac
+if has_external_monitor; then
+  fail "a T2 Touch Bar on its own DRM card is not an external display"
+fi
+write_named_connectors card1-eDP-1 connected card0-USB-1 connected
+attach_usb_device card0 05ac device
+if has_external_monitor; then
+  fail "a Touch Bar whose driver binds the whole USB device is not an external display"
+fi
+pass "physical monitor detection ignores the Apple Touch Bar"
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 connected card1-DP-1 connected
+attach_usb_device card0 05ac
+has_external_monitor || fail "a real DP display still counts when a Touch Bar is present"
+write_named_connectors card0-eDP-1 connected card3-USB-1 connected
+attach_usb_device card3 1d50
+has_external_monitor || fail "a GUD USB display is an external display"
+write_named_connectors card0-eDP-1 connected card3-USB-1 connected
+has_external_monitor || fail "a USB connector with no USB device behind it is an external display"
+pass "physical monitor detection still finds real displays beside or instead of a Touch Bar"
