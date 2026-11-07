@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Disable core dump storage and generation explicitly
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+case "${1:-}" in
+  --help | -h)
+    echo "Usage: omarchy-setup-security-coredumps"
+    echo "Disables Omarchy crash diagnostics. Reboot required to apply limits to existing sessions."
+    exit 0
+    ;;
+  "") ;;
+  *) echo "Usage: omarchy-setup-security-coredumps" >&2; exit 2 ;;
+esac
+if (( $# > 1 )); then
+  echo "Usage: omarchy-setup-security-coredumps" >&2
+  exit 2
+fi
+
+echo "Disables Omarchy crash diagnostics. Reboot required to apply limits to existing sessions."
+# Restrict core dump creation across limits and systemd
+sudo mkdir -p /etc/security/limits.d
+sudo tee /etc/security/limits.d/99-no-core.conf >/dev/null <<'EOF'
+* hard core 0
+* soft core 0
+EOF
+
+sudo mkdir -p /etc/systemd/system.conf.d
+sudo tee /etc/systemd/system.conf.d/99-no-core.conf >/dev/null <<'EOF'
+[Manager]
+DefaultLimitCORE=0
+EOF
+
+sudo mkdir -p /etc/systemd/coredump.conf.d
+sudo tee /etc/systemd/coredump.conf.d/99-no-core.conf >/dev/null <<'EOF'
+[Coredump]
+Storage=none
+ProcessSizeMax=0
+EOF
+
+sudo systemctl daemon-reload
+echo "Reboot to apply core limits to existing services and login sessions."
