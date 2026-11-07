@@ -17,6 +17,14 @@ trap cleanup EXIT
 
 TMPDIR=$(mktemp -d)
 test_home="$TMPDIR/home"
+
+# The bar toggle nudges the running shell; keep that off the live desktop.
+stub_bin="$TMPDIR/bin"
+mkdir -p "$stub_bin"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-shell"
+chmod +x "$stub_bin/omarchy-shell"
+export PATH="$stub_bin:$PATH"
+
 flag="$test_home/.local/state/omarchy/toggles/example"
 bar_flag="$test_home/.local/state/omarchy/toggles/bar-off"
 
@@ -40,6 +48,22 @@ HOME="$test_home" omarchy-toggle example toggle
 [[ ! -f $flag ]] || fail "generic toggle flips enabled state off"
 pass "generic toggle flips enabled state off"
 
+# Help and names that read as an option or leave the toggles dir touch nothing,
+# while nested names like crash mute's crash-ignore/<program> keep working.
+guard_home="$TMPDIR/guard-home"
+guard_state="$guard_home/.local/state/omarchy"
+help=$(HOME="$guard_home" omarchy-toggle --help)
+[[ $help == Usage:* ]] || fail "generic toggle --help prints usage"
+for name in -- ../escape /abs a/../b; do
+  if HOME="$guard_home" omarchy-toggle "$name" on 2>/dev/null; then
+    fail "generic toggle rejects the flag name $name"
+  fi
+done
+[[ ! -e $guard_state ]] || fail "generic toggle help and rejected names create nothing"
+HOME="$guard_home" omarchy-toggle crash-ignore/-h on
+[[ -f $guard_state/toggles/crash-ignore/-h ]] || fail "generic toggle accepts nested flag names"
+pass "generic toggle prints help and only accepts names inside the toggles dir"
+
 HOME="$test_home" omarchy-toggle-bar on
 [[ -f $bar_flag ]] || fail "bar on enables bar-off toggle"
 pass "bar on enables bar-off toggle"
@@ -56,11 +80,8 @@ pass "bar off disables bar-off toggle"
 # give it this checkout to copy from and a hyprctl that answers without a
 # compositor.
 export OMARCHY_PATH="$ROOT"
-stub_bin="$TMPDIR/bin"
-mkdir -p "$stub_bin"
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/hyprctl"
 chmod +x "$stub_bin/hyprctl"
-export PATH="$stub_bin:$PATH"
 
 gaps_flag="$test_home/.local/state/omarchy/toggles/hypr/window-no-gaps.lua"
 
