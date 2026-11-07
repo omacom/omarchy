@@ -2,7 +2,13 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+# omarchy-update hands its per-run log path through the environment; the
+# fixed /tmp path is only a fallback for analyzing a log by hand.
+update_log="${OMARCHY_UPDATE_LOG_FILE:-/tmp/omarchy-update.log}"
+
+if [[ ! -f $update_log ]]; then
+  exit 0
+fi
 
 # Check for initramfs generation failure
 if grep -q "Updating linux initcpios" "$update_log"; then
