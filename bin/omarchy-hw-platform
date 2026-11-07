@@ -14,6 +14,13 @@
 # must never pass for a Mac. Each compatible string is a NUL-separated list, and
 # only a token's vendor prefix counts.
 #
+# A Snapdragon laptop also boots through UEFI, which its setup relies on: the
+# device trees go into a UKI that Limine starts, and the DSP and GPU firmware
+# comes from the Windows partition. Phones, handhelds and Chromebooks built on
+# Snapdragon chips name "qcom,<soc>" too but start from the Android bootloader
+# or depthcharge with no UEFI, so they are plain aarch64. A fixture that names
+# no sysfs root cannot show UEFI and keeps the device tree's answer.
+#
 # The NVIDIA N1x laptops boot with ACPI and no device tree. They are the ARM
 # machines whose CPU-side I2C controllers are ACPI NVDA0200 (MediaTek MT8901 IP)
 # or whose on-package GPU is PCI 10de:2e06 (GB20B "RTX Spark N1X"); either one
@@ -248,8 +255,10 @@ case $vendor in
     [[ $machine == "aarch64" ]] || contradiction "$vendor_source names $vendor hardware but the CPU is $machine"
     if [[ $vendor == "apple" ]]; then
       echo aarch64-apple
-    else
+    elif [[ -z $sys || -d $sys/firmware/efi ]]; then
       echo aarch64-qualcomm
+    else
+      echo aarch64
     fi
     ;;
   *)
