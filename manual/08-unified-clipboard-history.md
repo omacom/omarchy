@@ -18,6 +18,8 @@ Use `Super + A`, then `Super + C` to copy everything in a focused text field or 
 
 ### Clipboard history
 
+The last copy remains available for normal pasting after you close its source application. It is kept temporarily in memory until another copy replaces it or your desktop session ends. Copies marked as sensitive are excluded. This temporary copy is separate from the history below, which keeps previous entries across sessions.
+
 The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, select your entry with return, and then that'll be placed on the clipboard ready to paste on `Super + V`.
 
  ![clipboard-history](images/clipboard-history.webp)
