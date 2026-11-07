@@ -110,6 +110,7 @@ test_home="$TMPDIR/home"
 stub_bin="$TMPDIR/bin"
 log="$TMPDIR/quickshell.log"
 exec_log="$TMPDIR/exec.log"
+export OMARCHY_TEST_RECOVERY_LOG="$TMPDIR/recovery.log"
 mkdir -p "$test_root" "$test_home" "$stub_bin"
 
 # Nobody touches the seat while the test watches, so a long enough window
@@ -149,6 +150,9 @@ stub pkill 'exit 1'
 stub killall 'exit 1'
 stub omarchy-powerprofiles-set 'exit 0'
 stub powerprofilesctl 'exit 0'
+# A stalled scratch shell must record its recovery request without starting
+# a service that restarts the canonical desktop from the user manager's env.
+stub systemd-run 'printf "%s\n" "$*" >>"$OMARCHY_TEST_RECOVERY_LOG"'
 # The shell runs some commands under `bash -lc`, and a login shell resets PATH
 # and OMARCHY_PATH from /etc/omarchy.conf, which would put the session's
 # checkout and its real commands back ahead of these stubs.
@@ -169,6 +173,7 @@ exec_count() {
 }
 
 OMARCHY_PATH="$test_root" \
+OMARCHY_SHELL_WATCHDOG=1 \
 HOME="$test_home" \
 XDG_CONFIG_HOME="$test_home/.config" \
 XDG_CACHE_HOME="$test_home/.cache" \
@@ -442,5 +447,6 @@ if (( ${#unexpected[@]} > 0 )) && [[ -s $events ]]; then
   watch_window "$events"
 fi
 
+[[ ! -s $OMARCHY_TEST_RECOVERY_LOG ]] || fail "the idle shell did not request recovery" "$(cat "$OMARCHY_TEST_RECOVERY_LOG")"
 (( ${#unexpected[@]} == 0 )) || fail "an idle shell starts no processes" "$(report "$events")"
 pass "an idle shell starts no processes over ${IDLE_WINDOW}s"
