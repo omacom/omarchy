@@ -423,9 +423,15 @@ PanelWindow {
     function forwardBarClick(px, py, button) {
       if (button !== Qt.LeftButton && button !== Qt.RightButton && button !== Qt.MiddleButton) return false
       var target = pressTargetAt(px, py)
-      if (!target) return false
-      target.triggerPress(button)
-      return true
+      if (target) {
+        target.triggerPress(button)
+        return true
+      }
+      // A third-party panel's bar facade lists only its own plugin's targets,
+      // so the host bar presses any other module under the pointer.
+      if (!root.anchorWindow || !root.bar || typeof root.bar.forwardBarClick !== "function") return false
+      var p = barPoint(px, py)
+      return root.bar.forwardBarClick(root.anchorWindow, p.x, p.y, button)
     }
 
     // This overlay takes presses on the bar strip too, so the bar button under

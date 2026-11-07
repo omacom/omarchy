@@ -319,6 +319,26 @@ Item {
     }
   }
 
+  // A third-party panel sees only its own plugin's click targets, so a click
+  // on another bar module would only close it. The host hit-tests the whole
+  // bar for it instead, and only while that plugin's panel is the one open,
+  // pressing the target without handing it out.
+  function forwardPluginBarClick(pluginId, window, x, y, button) {
+    if (button !== Qt.LeftButton && button !== Qt.RightButton && button !== Qt.MiddleButton) return false
+    if (!root.pluginOwnsBarObject(pluginId, root.activePopout)) return false
+    if (!window || !window.contentItem) return false
+    for (var i = clickTargets.length - 1; i >= 0; i--) {
+      var target = clickTargets[i]
+      if (!target || typeof target.triggerPress !== "function" || target.visible === false || target.opacity === 0 || !target.mapToItem) continue
+      if (!root.targetBelongsToWindow(target, window)) continue
+      if (Util.itemContainsPoint(target, window.contentItem, x, y)) {
+        target.triggerPress(button)
+        return true
+      }
+    }
+    return false
+  }
+
   function registerPluginClickTarget(pluginId, target) {
     if (!root.markPluginObject(pluginId, target, "clickTarget")) return
     root.registerClickTarget(target)
@@ -381,6 +401,7 @@ Item {
       _notePopoutCard: function(card) { root.notePopoutCard(card) },
       _popoutCardFor: function(owner) { return root.popoutCardFor(owner) },
       _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
+      _forwardBarClick: function(window, x, y, button) { return root.forwardPluginBarClick(key, window, x, y, button) },
       _moduleWidgets: function(requestedId) {
         return String(requestedId || "") === String(moduleName || "")
           ? root.moduleWidgets(moduleName) : []
