@@ -506,6 +506,10 @@ assertEqual(bar.expandPath('~/module.qml', '/home/dhh'), '/home/dhh/module.qml',
 assertEqual(bar.expandPath('$HOME/module.qml', '/home/dhh'), '/home/dhh/module.qml', 'bar expands HOME paths')
 assert(bar.customModuleSafeName('local.weather'), 'bar accepts safe custom module names')
 assert(!bar.customModuleSafeName('../escape'), 'bar rejects path traversal custom module names')
+// #15346: an empty text drew the module's whole JSON line on the bar.
+assertEqual(bar.customCommandLabel({ text: '', class: 'ok' }), '', 'a command module with an empty text shows nothing')
+assertEqual(bar.customCommandLabel({ class: 'ok' }), '', 'a command module with no text shows nothing')
+assertEqual(bar.customCommandLabel({ text: 0 }), '0', 'a command module shows a text of 0')
 assertEqual(bar.customModuleType({ id: 'custom', exec: 'date' }), 'command', 'bar infers command custom modules')
 assertEqual(bar.customModuleType({ id: 'custom', source: '~/Custom.qml' }), 'qml', 'bar infers qml custom modules')
 assertEqual(

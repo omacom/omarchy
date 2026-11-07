@@ -70,6 +70,14 @@ function customModuleSafeName(name) {
   return value !== "" && value.indexOf("..") === -1 && value[0] !== "/"
 }
 
+// A command module's label is its parsed output's text, never the raw line:
+// an empty or missing text hides the module, as Waybar does, and output that
+// is not JSON already parses to {text: raw} (Util.parseModuleJson).
+function customCommandLabel(data) {
+  var text = isPlainObject(data) ? data.text : undefined
+  return text === undefined || text === null ? "" : String(text)
+}
+
 function customModuleType(entry) {
   var settings = entrySettings(entry)
   var type = String(settings.type || "")
@@ -722,6 +730,7 @@ if (typeof module !== "undefined") {
     moduleString: moduleString,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
+    customCommandLabel: customCommandLabel,
     customModuleType: customModuleType,
     customModulePath: customModulePath
   }
