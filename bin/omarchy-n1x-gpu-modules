@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Print the modules that start this N1x laptop's GPU in load order, or fail if one it needs isn't built.
+# omarchy:hidden=true
+
+# The Surface Laptop Ultra's firmware (7.x) boots the GSP, but leaves the GPU's
+# display carveouts (its IORT RMR ranges, 0x200000000-0x2ffffffff and
+# 0xa1600000-0xb7ffffff) out of the EFI memory map, where the Dell and ASUS
+# firmware list them as reserved. Those pages then have no struct page, so
+# nvidia-drm's first vmap() of one fails ("NVRM: failed to map pages!",
+# "Unable to allocate LUT memory from sysmem") and the SoC resets. Its GPU needs
+# the n1x_carveout_memmap module, which gives the carveouts a memmap and has to
+# load first. No package ships it yet. Discussion:
+# https://github.com/omacom/omarchy/discussions/15885
+
+set -euo pipefail
+
+modules=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
+
+if omarchy-hw-match "Surface Laptop Ultra"; then
+  mapfile -t pkgbases < <(grep -lFx linux-omarchy "${OMARCHY_KERNEL_MODULES_DIR:-/usr/lib/modules}"/*/pkgbase 2>/dev/null || true)
+  (( ${#pkgbases[@]} )) || { echo "No linux-omarchy module tree found" >&2; exit 1; }
+
+  for pkgbase in "${pkgbases[@]}"; do
+    if [[ -z $(find "${pkgbase%/pkgbase}" -name 'n1x_carveout_memmap.ko*' -print -quit) ]]; then
+      echo "n1x_carveout_memmap isn't built for ${pkgbase%/pkgbase}" >&2
+      exit 1
+    fi
+  done
+
+  modules=(n1x_carveout_memmap "${modules[@]}")
+fi
+
+echo "${modules[*]}"
