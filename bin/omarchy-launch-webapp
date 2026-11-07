@@ -1,25 +1,66 @@
 #!/bin/bash
 
-# omarchy:summary=Launch a URL as a web app in the default supported browser
+# omarchy:summary=Launch a URL as a web app in a Chromium-based browser
 # omarchy:args=<url>
 
 browser=$(omarchy-cmd-default-browser)
 
-case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
-esac
-
-# Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
-# omarchy-launch-browser does, so a browser it resolved is one this can start.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-browser_exec=""
-for data_dir in "${data_dirs[@]}"; do
-  entry="$data_dir/applications/$browser"
-  [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-  break
-done
+
+# The first Exec= word of an installed entry, which is the command
+# omarchy-launch-browser starts. A user entry shadows a system entry of the same
+# name, as in omarchy-cmd-default-browser.
+entry_exec() {
+  local data_dir
+
+  for data_dir in "${data_dirs[@]}"; do
+    if [[ -r $data_dir/applications/$1 ]]; then
+      sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$1" | head -1
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# A browser that takes Chromium's --app= flag, read from its entry rather than
+# from its name: every Chromium build generates that entry from
+# chrome/installer/linux/common/desktop.template, the only one that spells the
+# MIME type application/xhtml_xml. Chrome, Chromium, Brave, Vivaldi, Helium and
+# forks Omarchy has no name for carry it; Firefox, Zen and LibreWolf do not.
+chromium_based() {
+  local data_dir
+
+  for data_dir in "${data_dirs[@]}"; do
+    if [[ -r $data_dir/applications/$1 ]]; then
+      grep -q '^MimeType=.*application/xhtml_xml' "$data_dir/applications/$1"
+      return
+    fi
+  done
+
+  return 1
+}
+
+browser_exec=$(entry_exec "$browser")
+
+# A web app opens in the default browser unless that browser cannot: a URL
+# handed to Firefox or Zen is an ordinary tab, not the app window a web app
+# promises. Chromium is not always the one installed, so fall back to the other
+# Chromium-based browsers Omarchy knows how to install, in the order it prefers.
+if [[ -z $browser_exec ]] || ! chromium_based "$browser"; then
+  browser_exec=""
+
+  for candidate in chromium.desktop google-chrome.desktop brave-browser.desktop \
+    brave-origin.desktop vivaldi-stable.desktop helium.desktop \
+    microsoft-edge.desktop opera.desktop; do
+    candidate_exec=$(entry_exec "$candidate")
+
+    if [[ -n $candidate_exec ]] && omarchy-cmd-present "$candidate_exec"; then
+      browser_exec=$candidate_exec
+      break
+    fi
+  done
+fi
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
 # which fails a keybinding silently. A web app runs in a Chromium-based
