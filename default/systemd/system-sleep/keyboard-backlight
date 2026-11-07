@@ -1,20 +1,47 @@
 #!/bin/bash
 
-# Turn off keyboard backlight before hibernate to prevent hang on power-off.
-# The ASUS keyboard controller can block S4 shutdown if LEDs are active.
-
+# Save/restore keyboard backlight across suspend and hibernate. This hook owns
+# its own receipt instead of brightnessctl -s/-r, which is also used by the
+# lock/idle keyboard off/restore path.
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+state_dir="${OMARCHY_KBD_SLEEP_STATE_DIR:-/run/omarchy}"
+state_file="$state_dir/keyboard-backlight-sleep.state"
 
-if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
-  device=""
-  for candidate in /sys/class/leds/*kbd_backlight*; do
-    if [[ -e "$candidate" ]]; then
-      device="$(basename "$candidate")"
-      break
+find_kbd_device() {
+  local dir candidate
+  dir="${OMARCHY_KBD_BACKLIGHT_DIR:-/sys/class/leds}"
+  for candidate in "$dir"/*kbd_backlight*; do
+    if [[ -e $candidate ]]; then
+      basename "$candidate"
+      return 0
     fi
   done
+  return 1
+}
 
-  if [[ -n "$device" ]]; then
-    brightnessctl -d "$device" set 0 >/dev/null 2>&1
-  fi
-fi
+case ${1:-} in
+  pre)
+    # Never let a failed new save fall back to an older sleep cycle.
+    rm -f "$state_file"
+    device=$(find_kbd_device) || exit 0
+    current=$(brightnessctl -d "$device" get 2>/dev/null) || exit 0
+    [[ $current =~ ^[0-9]+$ ]] || exit 0
+
+    mkdir -p "$state_dir" 2>/dev/null || exit 0
+    tmp="$state_file.$$"
+    printf '%s\t%s\n' "$device" "$current" >"$tmp" || exit 0
+    mv -f "$tmp" "$state_file"
+
+    # The ASUS keyboard controller can block S4 shutdown with LEDs active.
+    if [[ $sleep_action == "hibernate" ]]; then
+      brightnessctl -d "$device" set 0 >/dev/null 2>&1 || true
+    fi
+    ;;
+  post)
+    [[ -f $state_file ]] || exit 0
+    IFS=$'\t' read -r device saved <"$state_file" || exit 0
+    rm -f "$state_file"
+    [[ -n $device && $saved =~ ^[0-9]+$ ]] || exit 0
+    brightnessctl -d "$device" set "$saved" >/dev/null 2>&1 || true
+    ;;
+esac

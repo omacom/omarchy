@@ -1,61 +1,115 @@
 #!/bin/bash
 
-# omarchy:summary=Monitor sleep preparation and lock before suspend
+# omarchy:summary=Monitor sleep preparation and restore session state after resume
 # omarchy:group=system
 # omarchy:hidden=true
 
-consume_sleep_events() {
-  local line sleep_lock
-  sleep_lock="$OMARCHY_PATH/bin/omarchy-system-sleep-lock"
+prepare_sleep() {
+  local line
+  local layout_helper="$OMARCHY_PATH/bin/omarchy-hyprland-keyboard-layout"
+  local sleep_lock="$OMARCHY_PATH/bin/omarchy-system-sleep-lock"
 
   while IFS= read -r line; do
     if [[ $line == *"boolean true"* ]]; then
-      "$sleep_lock"
+      # Hyprland IPC can stall on lid transitions; never let it eat the lock's budget.
+      timeout --kill-after=0.1s 0.4s "$layout_helper" save >/dev/null 2>&1 || true
+      # logind suspends whether or not the lock succeeded, so the resume edge is still coming.
+      "$sleep_lock" || true
+      return 0
+    fi
+  done
+
+  # The producer ended without a prepare edge, so no sleep is coming to resume from.
+  return 1
+}
+
+resume_sleep() {
+  local line
+  local layout_helper="$OMARCHY_PATH/bin/omarchy-hyprland-keyboard-layout"
+  local wake_helper="$OMARCHY_PATH/bin/omarchy-system-wake"
+
+  while IFS= read -r line; do
+    if [[ $line == *"boolean false"* ]]; then
+      # Nothing re-arms the inhibitor until this returns, so a stall here
+      # would leave the next suspend unlocked.
+      timeout --kill-after=0.1s 2s "$layout_helper" restore >/dev/null 2>&1 || true
+      # The system-sleep hook owns keyboard brightness for this sleep cycle.
+      # Do not consume the separate lock/idle brightness receipt here.
+      timeout --kill-after=0.1s 5s "$wake_helper" --skip-keyboard >/dev/null 2>&1 || true
       return 0
     fi
   done
 }
 
-monitor_sleep_events() {
+start_event_monitor() {
+  local role="$1"
+  # exec, so the coproc PID the cleanup kills is dbus-monitor itself.
+  OMARCHY_SLEEP_EVENT_ROLE="$role" exec dbus-monitor --system    "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
+}
+
+monitor_prepare_inhibited() {
   local monitor_fd monitor_pid status
 
-  coproc SLEEP_EVENTS {
-    exec dbus-monitor --system \
-      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
-  }
-  monitor_fd=${SLEEP_EVENTS[0]}
-  monitor_pid=$SLEEP_EVENTS_PID
+  coproc PREPARE_EVENTS { start_event_monitor prepare; }
+  monitor_fd=${PREPARE_EVENTS[0]}
+  monitor_pid=$PREPARE_EVENTS_PID
 
-  cleanup_monitor() {
+  cleanup_prepare_monitor() {
     kill "$monitor_pid" 2>/dev/null || true
     wait "$monitor_pid" 2>/dev/null || true
   }
-  trap cleanup_monitor EXIT
+  trap cleanup_prepare_monitor EXIT
 
-  consume_sleep_events <&"$monitor_fd"
+  prepare_sleep <&"$monitor_fd"
   status=$?
-  cleanup_monitor
+  cleanup_prepare_monitor
   trap - EXIT
-
   return "$status"
 }
 
+monitor_one_sleep_cycle() {
+  local resume_fd resume_pid prepare_status
+
+  # Subscribe to the resume edge before acquiring/using the delay inhibitor.
+  # This producer stays alive while the machine sleeps, so PrepareForSleep=false
+  # cannot be lost in the service restart gap.
+  coproc RESUME_EVENTS { start_event_monitor resume; }
+  resume_fd=${RESUME_EVENTS[0]}
+  resume_pid=$RESUME_EVENTS_PID
+
+  cleanup_resume_monitor() {
+    kill "$resume_pid" 2>/dev/null || true
+    wait "$resume_pid" 2>/dev/null || true
+  }
+  trap cleanup_resume_monitor EXIT
+
+  systemd-inhibit     --what=sleep     --mode=delay     --who=Omarchy     --why="Lock screen before suspend"     "$OMARCHY_PATH/bin/omarchy-system-sleep-monitor" --inhibited
+  prepare_status=$?
+
+  # Waiting for resume after a failed prepare would leave the next suspend with
+  # no inhibitor and no lock, so restart and re-arm instead.
+  if (( prepare_status == 0 )); then
+    # The inhibitor has been released. The process and its pre-existing D-Bus
+    # subscription survive suspend and consume the resume edge afterwards.
+    resume_sleep <&"$resume_fd"
+  fi
+  cleanup_resume_monitor
+  trap - EXIT
+
+  return "$prepare_status"
+}
+
 case ${1:-} in
-  --consume)
-    consume_sleep_events
-    exit 0
+  --consume-prepare)
+    prepare_sleep
+    ;;
+  --consume-resume)
+    resume_sleep
     ;;
   --inhibited)
-    monitor_sleep_events
-    exit 0
+    monitor_prepare_inhibited
+    ;;
+  *)
+    monitor_one_sleep_cycle
     ;;
 esac
-
-sleep_monitor="$OMARCHY_PATH/bin/omarchy-system-sleep-monitor"
-
-exec systemd-inhibit \
-  --what=sleep \
-  --mode=delay \
-  --who=Omarchy \
-  --why="Lock screen before suspend" \
-  "$sleep_monitor" --inhibited
