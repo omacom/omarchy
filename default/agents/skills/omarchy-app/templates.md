@@ -576,7 +576,7 @@ for the plural forms of counted strings.
 
 One flat JSON object per language, keyed by the English exactly as it appears
 in `qsTr()`, with Omarchy's language codes as file names
-(`$OMARCHY_PATH/default/i18n/locales.json` lists all 50: `da`, `de`, `pt-BR`,
+(`$OMARCHY_PATH/default/i18n/locales.json` lists all 51: `da`, `de`, `pt-BR`,
 `zh-CN`, ...). Keep `%1` placeholders, which `.arg()` fills, so a translation
 can reorder them. A counted string's value is an object of plural forms keyed
 by CLDR category: English gives `one` and `other` in `en.json`, and each
