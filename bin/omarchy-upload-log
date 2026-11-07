@@ -5,8 +5,16 @@
 # omarchy:hidden=true
 
 LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+
+# /tmp is world-writable and these names are fixed, so whatever another local
+# process leaves at either path -- a symlink above all -- must not be written
+# through: every write below would truncate and replace whatever it points at.
+# mktemp creates each one fresh in the same directory instead, and both are
+# owner-only because what they collect is the machine's identity and, for the
+# boot types, the whole journal.
+SYSTEM_INFO=$(mktemp /tmp/omarchy-system-info.XXXXXXXX) || exit 1
+TEMP_LOG=$(mktemp /tmp/omarchy-upload-log.XXXXXXXX) || { rm -f "$SYSTEM_INFO"; exit 1; }
+trap 'rm -f "$SYSTEM_INFO" "$TEMP_LOG"' EXIT
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then
