@@ -89,6 +89,7 @@ function deviceRow(d) {
   if (!d) return null
   return {
     address: d.address || "",
+    dbusPath: d.dbusPath || "",
     name: d.name || "",
     deviceName: d.deviceName || "",
     connected: !!d.connected,
