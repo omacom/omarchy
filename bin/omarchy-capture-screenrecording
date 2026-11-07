@@ -282,16 +282,16 @@ start_cancelled() {
   [[ -e $CANCEL_FILE ]]
 }
 
-# gpu-screen-recorder prints this when the VAAPI driver for the render node
-# will not initialize. On a hybrid Intel+NVIDIA laptop that node is the iGPU,
-# so a missing Intel driver (the NVIDIA one does not stand in for it) lands
-# here. -fallback-cpu-encoding keeps the recording on the CPU; the line is the
-# only signal that the driver is missing. offset is the byte count already in
-# the file, so an older debug log cannot raise this again.
-stderr_has_vaapi_init_failure() {
-  local err_file=$1 offset=$2
-  [[ -f $err_file ]] || return 1
-  tail -c +$((offset + 1)) "$err_file" | grep -q 'vaInitialize failed'
+# Read stderr in fixed-size chunks while startup is pending. Keep only enough
+# overlap to recognize the VAAPI line across chunks, even without newlines.
+# The FIFO is unlinked before launch; no recording-sized log is kept on disk.
+read_startup_stderr() {
+  local chunk=""
+  IFS= read -r -t "$1" -N 4096 chunk <&"$gsr_stderr" || :
+  gsr_tail+=$chunk
+  [[ $gsr_tail == *"vaInitialize failed"* ]] && vaapi_failed=true
+  (( ${#gsr_tail} <= 18 )) || gsr_tail=${gsr_tail: -18}
+  [[ -n $chunk ]]
 }
 
 # Which VAAPI package is absent for a display-class GPU, read from sysfs the
@@ -323,24 +323,24 @@ vaapi_failure_description() {
     esac
   done
 
-  if [[ $nullglob_was == false ]]; then
+  if [[ $nullglob_was == "false" ]]; then
     shopt -u nullglob
   fi
 
   local missing=() saw=false
-  if [[ $intel == true ]]; then
+  if [[ $intel == "true" ]]; then
     saw=true
     if [[ ! -e $dri/iHD_drv_video.so && ! -e $dri/i965_drv_video.so ]]; then
       missing+=("$(omarchy-i18n capture.vaapiMissingIntel)")
     fi
   fi
-  if [[ $amd == true ]]; then
+  if [[ $amd == "true" ]]; then
     saw=true
     if [[ ! -e $dri/radeonsi_drv_video.so && ! -e $dri/r600_drv_video.so ]]; then
       missing+=("$(omarchy-i18n capture.vaapiMissingAmd)")
     fi
   fi
-  if [[ $nvidia == true ]]; then
+  if [[ $nvidia == "true" ]]; then
     saw=true
     if [[ ! -e $dri/nvidia_drv_video.so ]]; then
       missing+=("$(omarchy-i18n capture.vaapiMissingNvidia)")
@@ -357,7 +357,7 @@ vaapi_failure_description() {
       fi
     done
     omarchy-i18n capture.vaapiMissingDrivers "$hint"
-  elif [[ $saw == true ]]; then
+  elif [[ $saw == "true" ]]; then
     omarchy-i18n capture.vaapiInitFailed
   else
     omarchy-i18n capture.vaapiUnknownGpu
@@ -422,13 +422,14 @@ start_screenrecording() {
   local filename="$OUTPUT_DIR/screenrecording-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
   local backend pid=""
   local vaapi_failed=false
-  local gsr_err="" err_offset=0
+  local gsr_err="" err_offset=0 gsr_stderr="" gsr_tail=""
 
   for backend in $(recorder_backends); do
     [[ $backend == "wf-recorder" && $target == "portal" ]] && continue
     echo "===== $(date '+%F %T') args: $* backend: $backend target: $target =====" >>"$LOG_FILE"
     gsr_err=""
     err_offset=0
+    gsr_tail=""
 
     if [[ $backend == "wf-recorder" ]]; then
       launch_wf_recorder "$target" "$filename" || continue
@@ -447,64 +448,110 @@ start_screenrecording() {
 
       [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
 
-      # The debug log is /dev/null unless OMARCHY_SCREENRECORD_DEBUG=true, which
-      # drops "vaInitialize failed" on the way to the CPU fallback. Keep this
-      # start's stderr, and ignore bytes already in a debug log from before.
       if [[ $LOG_FILE == "/dev/null" ]]; then
-        gsr_err="$RUNTIME_DIR/omarchy-screenrecord-gsr.err"
-        : >"$gsr_err"
+        # Open separate read/write descriptors with a temporary bootstrap end
+        # so opening the FIFO cannot block. Only the recorder keeps its writer;
+        # the drainer then sees EOF when that recorder exits.
+        local fifo_dir bootstrap="" stderr_writer=""
+        fifo_dir=$(mktemp -d "$RUNTIME_DIR/omarchy-screenrecord-stderr.XXXXXX") || return 1
+        if ! mkfifo "$fifo_dir/pipe"; then
+          rmdir "$fifo_dir"
+          return 1
+        fi
+        if exec {bootstrap}<>"$fifo_dir/pipe" &&
+          exec {gsr_stderr}<"$fifo_dir/pipe" &&
+          exec {stderr_writer}>"$fifo_dir/pipe"; then
+          exec {bootstrap}>&-
+        else
+          [[ -z $stderr_writer ]] || exec {stderr_writer}>&-
+          [[ -z $gsr_stderr ]] || exec {gsr_stderr}<&-
+          [[ -z $bootstrap ]] || exec {bootstrap}>&-
+          rm -rf "$fifo_dir"
+          return 1
+        fi
+        if ! rm -rf "$fifo_dir"; then
+          exec {gsr_stderr}<&-
+          exec {stderr_writer}>&-
+          return 1
+        fi
+        gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- {gsr_stderr}<&- 2>&"$stderr_writer" {stderr_writer}>&- &
+        pid=$!
+        exec {stderr_writer}>&-
       else
         gsr_err=$LOG_FILE
-        if [[ -f $gsr_err ]]; then
-          err_offset=$(stat -c %s "$gsr_err")
-        fi
+        [[ ! -f $gsr_err ]] || err_offset=$(stat -c %s "$gsr_err")
+        gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$gsr_err" &
+        pid=$!
       fi
-
-      gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$gsr_err" &
-      pid=$!
     fi
 
-    local ticks=0
+    local started_at=${EPOCHREALTIME/./} recorder_ended=false
     while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]]; do
       start_cancelled && break
-      if [[ $target != "portal" ]] && (( ++ticks > READY_TIMEOUT_TICKS )); then
+      if [[ $target != "portal" ]] && (( ${EPOCHREALTIME/./} - started_at > READY_TIMEOUT_TICKS * 200000 )); then
         end_launched_recorder "$pid"
         wf_audio_cleanup
         rm -f "$filename"
-        if [[ -n $gsr_err ]] && stderr_has_vaapi_init_failure "$gsr_err" "$err_offset"; then
-          vaapi_failed=true
-        fi
-        continue 2
+        recorder_ended=true
+        break
       fi
-      sleep 0.2
+      if [[ -n $gsr_stderr ]]; then
+        read_startup_stderr 0.2
+      else
+        sleep 0.2
+      fi
     done
 
-    if start_cancelled; then
+    if start_cancelled && [[ $recorder_ended == "false" ]]; then
       end_launched_recorder "$pid"
+      recorder_ended=true
+    fi
+
+    if [[ -n $gsr_stderr ]]; then
+      # Consume the buffered startup bytes before deciding whether to warn.
+      # Cap this last drain so a noisy recorder cannot delay a successful start.
+      local chunks=0
+      while (( chunks++ < 16 )) && read_startup_stderr 0.01; do :; done
+      if [[ $recorder_ended == "false" ]] && kill -0 "$pid" 2>/dev/null; then
+        # Keep reading after startup, discarding everything. Closing the read
+        # end here would give a later recorder stderr write SIGPIPE. This is
+        # not a pipeline: pid remains the recorder, not its drainer.
+        (
+          # Retain a read end if cat fails, so its exit cannot break the
+          # recorder's pipe. A builtin discard loop then takes over.
+          if ! cat <&"$gsr_stderr" >/dev/null 2>/dev/null; then
+            while IFS= read -r -N 4096 <&"$gsr_stderr"; do :; done
+          fi
+        ) 9>&- &
+      fi
+      exec {gsr_stderr}<&-
+      gsr_stderr=""
+    elif [[ -n $gsr_err ]] && tail -c +$((err_offset + 1)) "$gsr_err" | grep -q 'vaInitialize failed'; then
+      vaapi_failed=true
+    fi
+
+    if start_cancelled; then
       wf_audio_cleanup
       rm -f "$filename"
       return 1
     fi
 
-    if [[ -n $gsr_err ]] && stderr_has_vaapi_init_failure "$gsr_err" "$err_offset"; then
-      vaapi_failed=true
-    fi
-
-    if kill -0 $pid 2>/dev/null; then
+    if [[ $recorder_ended == "false" ]] && kill -0 $pid 2>/dev/null; then
       echo "$pid" >"$REC_PID_FILE"
       echo "$filename" >"$RECORDING_FILE"
       toggle_screenrecording_indicator
-      if [[ $vaapi_failed == true ]]; then
+      if [[ $vaapi_failed == "true" ]]; then
         notify_vaapi_failure
       fi
       return 0
     fi
 
+    [[ $recorder_ended == "true" ]] || wait "$pid" 2>/dev/null
     wf_audio_cleanup
     rm -f "$filename"
   done
 
-  if [[ $vaapi_failed == true ]]; then
+  if [[ $vaapi_failed == "true" ]]; then
     notify_vaapi_failure
   fi
   return 1
