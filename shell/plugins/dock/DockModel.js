@@ -136,6 +136,16 @@ function dropIndex(fromIndex, offset, slotSize, count) {
   return Math.max(0, Math.min(count - 1, target))
 }
 
+// A window address as Hyprland spells it, or nothing. The dock writes it into
+// a dispatch string, and notifications read a window the same way: only hex
+// with an 0x prefix names a window.
+function windowAddress(value) {
+  var address = String(value || "")
+  if (!address) return ""
+  if (address.indexOf("0x") !== 0) address = "0x" + address
+  return /^0x[0-9a-f]+$/i.test(address) ? address : ""
+}
+
 // The pins to save for the dock's order: the pinned apps in that order, then
 // pins the dock is not showing, because their app is not installed, as they
 // were. pinned holds the pinned desktop ids as keys.
@@ -184,6 +194,7 @@ if (typeof module !== "undefined") {
     orderItems: orderItems,
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
+    windowAddress: windowAddress,
     pinsInOrder: pinsInOrder,
     pickWindow: pickWindow
   }
