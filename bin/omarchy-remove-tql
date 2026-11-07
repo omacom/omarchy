@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Remove tql and its launcher, keeping your saved connections in ~/.config/tql
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-drop tql
+OMARCHY_REMOVE_NOTIFY=false omarchy-tui-remove tql
+
+echo ""
+echo "tql has been removed. Your saved connections are still in ~/.config/tql."
