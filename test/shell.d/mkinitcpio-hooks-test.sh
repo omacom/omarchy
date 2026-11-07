@@ -225,6 +225,42 @@ drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci
 assert_composed "a T2 Mac is unchanged" x86 \
   "$omarchy_hooks" "t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
 
+# The installer records a module as absent when any installed kernel lacks it,
+# then zz-omarchy-kernel-modules.conf removes it for every kernel. linux-omarchy
+# has no t2bce stack, so the same drop-in was stripping the internal keyboard
+# from the linux-t2 image. The later keyboard drop-in puts back each module
+# this kernel ships.
+installer_filter=$(cat <<'CONF'
+# Written by the Omarchy installer. The installed kernel has no such
+# modules, and mkinitcpio fails on a module it cannot find.
+_omarchy_absent=(t2bce_vhci)
+_omarchy_kept=()
+for _omarchy_module in "${MODULES[@]}"; do
+  [[ " ${_omarchy_absent[*]} " == *" $_omarchy_module "* ]] || _omarchy_kept+=("$_omarchy_module")
+done
+MODULES=("${_omarchy_kept[@]}")
+unset _omarchy_absent _omarchy_kept _omarchy_module
+CONF
+)
+t2_modules="thunderbolt t2bce_dma t2bce_core t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd"
+new_etc
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in zz-omarchy-kernel-modules.conf <<<"$installer_filter"
+KERNEL_MODULES="$t2_modules" assert_composed "linux-t2 keeps the internal keyboard after the installer filter" x86 \
+  "$omarchy_hooks" "usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt t2bce_dma t2bce_core t2bce_vhci" ""
+new_etc
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in zz-omarchy-kernel-modules.conf <<<"$installer_filter"
+KERNEL_MODULES="thunderbolt usbhid hid_apple hid_generic xhci_pci xhci_hcd" \
+  assert_composed "a kernel without t2bce_vhci still builds after the installer filter" x86 \
+  "$omarchy_hooks" "usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
+installer_filter_hid=${installer_filter/_omarchy_absent=(t2bce_vhci)/_omarchy_absent=(t2bce_vhci hid_apple)}
+new_etc
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in zz-omarchy-kernel-modules.conf <<<"$installer_filter_hid"
+KERNEL_MODULES="$t2_modules" assert_composed "linux-t2 keeps hid_apple when the installer filter drops it too" x86 \
+  "$omarchy_hooks" "usbhid hid_generic xhci_pci xhci_hcd thunderbolt t2bce_dma t2bce_core t2bce_vhci hid_apple" ""
+
 new_etc
 drop_in macbook_spi_modules.conf <<<"MODULES=(applespi intel_lpss_pci spi_pxa2xx_platform)"
 assert_composed "an SPI keyboard MacBook is unchanged" x86 \
