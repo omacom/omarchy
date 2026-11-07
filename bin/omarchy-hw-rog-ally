@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Detect the original 2023 ASUS ROG Ally (RC71L), not the Ally X.
+
+# The 2023 "ROG Ally" (RC71L, Z1 and Z1 Extreme) reports product_name
+# "ROG Ally RC71L", "ROG Ally RC71L_RC71L", or "ROG Ally RC71L_Action", and
+# board_name RC71L. Handheld Daemon matches that product_name prefix and keeps
+# later boards separate: Ally X is "ROG Ally X RC72LA…", Xbox Ally is RC73Y/RC73X.
+# https://github.com/hhd-dev/hhd/blob/master/src/hhd/device/rog_ally/__init__.py
+#
+# sys_vendor is the same string omarchy-hw-asus-rog requires. Paths are
+# overridable so tests never read the machine running them.
+
+vendor_file=${OMARCHY_DMI_SYS_VENDOR_PATH:-/sys/class/dmi/id/sys_vendor}
+product_file=${OMARCHY_DMI_PRODUCT_NAME_PATH:-/sys/class/dmi/id/product_name}
+board_file=${OMARCHY_DMI_BOARD_NAME_PATH:-/sys/class/dmi/id/board_name}
+
+vendor=$(cat "$vendor_file" 2>/dev/null || true)
+product=$(cat "$product_file" 2>/dev/null || true)
+board=$(cat "$board_file" 2>/dev/null || true)
+
+[[ $vendor == "ASUSTeK COMPUTER INC." ]] || exit 1
+[[ $product == "ROG Ally RC71L"* || $board == "RC71L" ]]

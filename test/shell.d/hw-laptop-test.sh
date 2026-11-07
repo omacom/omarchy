@@ -22,11 +22,22 @@ printf '%s\n' "${OMARCHY_TEST_LID_STATE:-}"
 SH
 chmod +x "$stub_bin/busctl"
 
+# Empty product identity, so the ROG Ally fallback inside omarchy-hw-laptop
+# cannot see the machine running the test. Ally cases live in hw-rog-ally-test.sh.
+dmi_identity="$test_tmp/dmi"
+mkdir -p "$dmi_identity"
+: >"$dmi_identity/sys_vendor"
+: >"$dmi_identity/product_name"
+: >"$dmi_identity/board_name"
+
 run_laptop() {
   OMARCHY_DMI_CHASSIS_TYPE_PATH="$dmi_chassis" \
+    OMARCHY_DMI_SYS_VENDOR_PATH="$dmi_identity/sys_vendor" \
+    OMARCHY_DMI_PRODUCT_NAME_PATH="$dmi_identity/product_name" \
+    OMARCHY_DMI_BOARD_NAME_PATH="$dmi_identity/board_name" \
     OMARCHY_ACPI_LID_PATH="$acpi_lid" \
     OMARCHY_INPUT_CLASS_PATH="$input_class" \
-    PATH="$stub_bin:$PATH" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-hw-laptop"
 }
 
