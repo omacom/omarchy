@@ -28,6 +28,21 @@ Item {
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
 
+  // A retimed IdleMonitor can reuse its notification's address and never rebind isIdle; pulsing it off sends the pointer through null.
+  // While idle that pulse would read as the user coming back, so retiming waits until they have.
+  function retimeIdleMonitor() {
+    var timeout = Math.max(1, root.firstIdleTimeoutSeconds)
+    if (idleMonitor.isIdle || idleMonitor.timeout === timeout) return
+
+    idleMonitor.timeout = timeout
+    if (root.idleEnabled) {
+      root.logEvent("idle-monitor-rearm", "timeout=" + timeout)
+      idleMonitorRearmTimer.restart()
+    }
+  }
+
+  onFirstIdleTimeoutSecondsChanged: retimeIdleMonitor()
+
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
@@ -168,6 +183,7 @@ Item {
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       timers: {
+        idleMonitorRearm: idleMonitorRearmTimer.running,
         screensaver: screensaverTimer.running,
         lock: lockTimer.running,
         screensaverLaunchGrace: screensaverLaunchGraceTimer.running
@@ -228,10 +244,18 @@ Item {
 
   IdleMonitor {
     id: idleMonitor
-    enabled: root.idleEnabled && root.idleTimersEnabled
-    timeout: Math.max(1, root.firstIdleTimeoutSeconds)
+    enabled: root.idleEnabled && root.idleTimersEnabled && !idleMonitorRearmTimer.running
     respectInhibitors: true
-    onIsIdleChanged: root.handleIdleChanged()
+    onIsIdleChanged: {
+      root.handleIdleChanged()
+      if (!isIdle) root.retimeIdleMonitor()
+    }
+  }
+
+  Timer {
+    id: idleMonitorRearmTimer
+    interval: 150
+    repeat: false
   }
 
   Timer {
@@ -313,6 +337,7 @@ Item {
 
   Component.onCompleted: {
     logEvent("service-ready")
+    retimeIdleMonitor()
     refreshStayAwakeState()
   }
 
