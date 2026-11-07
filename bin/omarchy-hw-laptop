@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Returns true when running on a laptop (has a lid or laptop chassis).
+# omarchy:summary=Returns true when running on a laptop (has a lid or laptop chassis) or the original ROG Ally.
 
 acpi_lid="${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}"
 input_class="${OMARCHY_INPUT_CLASS_PATH:-/sys/class/input}"
@@ -37,5 +37,14 @@ read -r chassis_type <"$dmi_chassis" 2>/dev/null || true
 case $chassis_type in
 8 | 9 | 10 | 14 | 30 | 31 | 32) exit 0 ;;
 esac
+
+# No lid, and a chassis type outside that list. The original ROG Ally (RC71L)
+# has no lid. linux-hardware.org and inxi classify published RC71L probes as
+# tablets, which is SMBIOS type 30 and already accepted above. A unit that
+# reports Hand Held (11) or any other type still needs the same dock and
+# internal-display recovery. The Ally X is not included.
+if omarchy-hw-rog-ally; then
+  exit 0
+fi
 
 exit 1
