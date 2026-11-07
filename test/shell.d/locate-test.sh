@@ -25,7 +25,7 @@ directives = [line.strip() for line in drop_in.read_text().splitlines() if line.
 check(len(directives) == 3 and directives[:2] == ["[Service]", "ExecStart="] and directives[2].startswith("ExecStart="),
       "locate drop-in replaces the command and preserves upstream service restrictions")
 command = shlex.split(directives[2].removeprefix("ExecStart="))
-options = ["--prune-bind-mounts=no", "--add-prunepaths=/.snapshots"]
+options = ["--prune-bind-mounts=no", "--add-prunepaths=/.snapshots", "--add-prunefs=fuse.rclone smb3 ceph"]
 check(command == ["/usr/bin/updatedb", *options],
       "locate service runs updatedb directly with fixed Btrfs options")
 
