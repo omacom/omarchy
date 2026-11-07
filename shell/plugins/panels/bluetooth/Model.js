@@ -85,9 +85,9 @@ function sortedByLabel(devices) {
 // var property, and BlueZ churn (discovery timeouts, unpair) can destroy the
 // object while a delegate is still incubating, which segfaults quickshell.
 // Actions resolve the backend object via Panel.deviceFor().
-function deviceRow(d) {
+function deviceRow(d, upowerDevices) {
   if (!d) return null
-  return {
+  var row = {
     address: d.address || "",
     name: d.name || "",
     deviceName: d.deviceName || "",
@@ -97,6 +97,32 @@ function deviceRow(d) {
     battery: d.battery !== undefined ? d.battery : 0,
     pairing: !!d.pairing
   }
+  if (!row.batteryAvailable) {
+    var hid = hidBattery(row.address, upowerDevices)
+    if (hid >= 0) {
+      row.batteryAvailable = true
+      row.battery = hid
+    }
+  }
+  return row
+}
+
+// Apple's Magic Trackpad, Mouse and Keyboard report their charge inside HID
+// reports rather than through BlueZ's Battery1, so BlueZ never sets
+// batteryAvailable for them. The kernel exposes that charge as a
+// hid-<address>-battery power supply, which UPower lists; match it by address.
+// Returns the 0..1 charge, or -1 when UPower has no HID battery for the device.
+function hidBattery(address, upowerDevices) {
+  var wanted = normalizedAddress(address)
+  if (wanted === "") return -1
+  var values = toArray(upowerDevices)
+  for (var i = 0; i < values.length; i++) {
+    var u = values[i]
+    if (!u || !u.isPresent) continue
+    var match = String(u.nativePath || "").match(/^hid-((?:[0-9a-f]{2}[:_-]){5}[0-9a-f]{2})-battery/i)
+    if (match && normalizedAddress(match[1]) === wanted) return Math.max(0, Math.min(1, u.percentage))
+  }
+  return -1
 }
 
 function deviceLists(devices) {
@@ -167,6 +193,7 @@ if (typeof module !== "undefined") {
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
+    hidBattery: hidBattery,
     deviceLists: deviceLists,
     cloneMap: cloneMap,
     pendingAction: pendingAction,
