@@ -32,22 +32,29 @@ const items = dock.buildItems(['chromium', 'Alacritty'], [
   app('chromium', 2),
   app('signal', 3),
   app('org.omarchy.agent', 4, { hasEntry: false }),
-  app('foot', 5, { workspaceId: -98 })
+  app('foot', 5, { workspaceId: -98 }),
+  app('street-brawl-companion', 8, { hasEntry: false }),
+  app('polkit-helper', 9, { noDisplay: true })
 ])
 assertDeepEqual(
   items.map(item => [item.key, item.pinned, item.windows.map(window => window.id)]),
   [
     ['chromium', true, [2]],
     ['Alacritty', true, []],
-    ['signal', false, [1, 3]]
+    ['signal', false, [1, 3]],
+    ['street-brawl-companion', false, [8]]
   ],
-  'dock lists pinned apps first, then running apps grouped by app, leaving out helpers and special workspaces'
+  'dock lists pinned apps first, then running apps grouped by app, with or without an entry, leaving out helpers and special workspaces'
 )
 
 assert(!dock.isDockWindow(app('foot', 6, { workspaceId: 0 })), 'dock leaves out windows without a regular workspace')
 assert(
   dock.isDockWindow(app('xeyes', 7, { hasEntry: false, workspaceId: -99, minimized: true })),
   'dock keeps a minimized window without a desktop entry, so it can come back'
+)
+assert(
+  ['hyprland-share-picker', 'ch.wysbd.hyprland-preview-share-picker', 'TUI.float'].every(key => !dock.isDockWindow(app(key, 10, { hasEntry: false }))),
+  'dock leaves out the share pickers and TUI windows no desktop entry claims'
 )
 assertEqual(dock.dropIndex(2, 0, 40, 6), 2, 'dock keeps a barely dragged app in its slot')
 assertEqual(dock.dropIndex(2, 85, 40, 6), 4, 'dock lands a dragged app as many slots on as the pointer went')
@@ -65,6 +72,11 @@ assertDeepEqual(
   dock.pinsInOrder(['chromium', 'slack', 'Alacritty', 'signal'], Object.assign({ slack: true }, pinned), allPins),
   ['chromium', 'slack', 'Alacritty', 'signal', 'spotify-not-installed'],
   'dock pins a running app dragged in among the pins'
+)
+assertDeepEqual(
+  dock.pinsAfterMove(['chromium', 'street-brawl-companion', 'Alacritty'], ['chromium', 'Alacritty'], 'street-brawl-companion', false),
+  ['chromium', 'Alacritty'],
+  'dock moves an app without a desktop entry without pinning it'
 )
 
 assertDeepEqual(
