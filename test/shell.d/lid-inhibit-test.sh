@@ -263,7 +263,7 @@ sync_inhibit
 [[ ! -s $call_log ]] || fail "a display switched off in the monitor config takes no inhibitor" "$(<"$call_log")"
 pass "a USB-C display switched off in the monitor config takes no inhibitor"
 
-# Machines logind already handles must behave exactly as before.
+# A laptop on its own panel has no external display to stand in for.
 reset_unit
 write_connectors card2-eDP-1 connected
 write_monitors '[{"name":"eDP-1","disabled":false}]'
@@ -271,12 +271,15 @@ sync_inhibit
 [[ ! -s $call_log ]] || fail "the built-in panel alone takes no inhibitor" "$(<"$call_log")"
 pass "the built-in panel alone takes no inhibitor"
 
+# logind stops counting HDMI and DisplayPort when DPMS off from the lock
+# screen's blank makes the connector read disabled, so they need the inhibitor
+# too, or a closed, docked laptop suspends 5 s after every lock.
 reset_unit
-write_connectors card0-eDP-1 connected card0-HDMI-A-1 connected card0-DP-1 connected
-write_monitors '[{"name":"eDP-1","disabled":true},{"name":"HDMI-A-1","disabled":false},{"name":"DP-1","disabled":false}]'
+write_connectors card0-eDP-1 connected card0-DP-1 connected
+write_monitors '[{"name":"eDP-1","disabled":true},{"name":"DP-1","disabled":false}]'
 sync_inhibit
-[[ ! -s $call_log ]] || fail "displays logind counts take no inhibitor" "$(<"$call_log")"
-pass "HDMI and DisplayPort displays, which logind counts, take no inhibitor"
+held || fail "a DisplayPort display takes the inhibitor" "$(<"$call_log")"
+pass "a DisplayPort display takes the inhibitor"
 
 reset_unit
 write_connectors card2-USB-2 connected

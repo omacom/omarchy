@@ -1,28 +1,30 @@
 #!/bin/bash
 
-# omarchy:summary=Keep logind from suspending on lid close while a display it misses is in use
+# omarchy:summary=Keep logind from suspending on lid close while an external display is in use
 # omarchy:group=system
 # omarchy:hidden=true
 
-# systemd-logind treats a closed lid as docked only when an external display is
-# on a connector type it lists (HDMI, DisplayPort, DVI, VGA...). USB-C displays
-# arrive on "USB" connectors on Apple Silicon, and on "Unknown" ones from drivers
-# with no type for theirs (nvidia-drm before 615.78.08-3 on the N1x). Left alone,
-# logind suspends a laptop still in use on one. Holding its handle-lid-switch
-# inhibitor while such a display is in use leaves the lid to Omarchy's
-# clamshell handling, as HandleLidSwitchDocked=ignore would. Once released, a
-# lid that is still shut suspends at once: logind rechecks a closed lid after
-# every event.
+# systemd-logind treats a closed lid as docked only while an external display is
+# on a connector type it lists (HDMI, DisplayPort, DVI, VGA...) and that
+# connector reads enabled. Both checks miss displays still in use. USB-C
+# displays arrive on "USB" connectors on Apple Silicon, and on "Unknown" ones
+# from drivers with no type for theirs (nvidia-drm before 615.78.08-3 on the
+# N1x). And DPMS off, which the lock screen sends 5 s after it locks, makes an
+# HDMI or DisplayPort connector read disabled, so logind stops counting it too.
+# Left alone, logind suspends a laptop still in use on any of these. Holding its
+# handle-lid-switch inhibitor while an external display is in use leaves the
+# lid to Omarchy's clamshell handling, as HandleLidSwitchDocked=ignore would.
+# Once released, a lid that is still shut suspends at once: logind rechecks a
+# closed lid after every event.
 
 UNIT="omarchy-lid-inhibit.service"
 drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 cgroup_path="${OMARCHY_CGROUP_PATH:-/proc/self/cgroup}"
 
-# Connected connectors of the external types logind does not count, by the name
-# Hyprland gives them (card2-USB-2 is USB-2). DVI-A and Composite are on its
-# list, but a missing comma there fuses them into one entry. An internal panel
-# has a type of its own, so a connected Unknown connector is external.
-uncounted_outputs() {
+# Connected external connectors, by the name Hyprland gives them (card2-USB-2 is
+# USB-2). An internal panel has a type of its own, so every other connected
+# connector is external, Unknown ones included.
+external_outputs() {
   local status connector
 
   for status in "$drm_path"/card*-*/status; do
@@ -31,8 +33,7 @@ uncounted_outputs() {
     connector=${connector##*/}
 
     case $connector in
-      card*-USB-* | card*-Unknown-* | card*-DVI-A-* | card*-Composite-*) ;;
-      *) continue ;;
+      card*-eDP-* | card*-LVDS-* | card*-DSI-*) continue ;;
     esac
 
     [[ $(<"$status") == "connected" ]] && printf '%s\n' "${connector#card*-}"
@@ -44,7 +45,7 @@ held() {
 }
 
 in_use=0
-outputs=$(uncounted_outputs)
+outputs=$(external_outputs)
 
 # In use means enabled in Hyprland: a display switched off in the monitor config
 # should not keep a closed laptop awake, while one blanked by DPMS still should,
