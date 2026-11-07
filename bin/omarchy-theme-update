@@ -4,7 +4,18 @@
 
 mapfile -t themes < <(omarchy-theme-extras)
 
+rc=0
 for theme in "${themes[@]}"; do
-  echo "Updating: $(basename "$theme")"
-  git -C "$theme" pull
+  (
+    name=$(basename "$theme")
+    exec 9>"${theme%/*}/.${name}.install.lock"
+    if flock -n 9; then
+      echo "Updating: $name"
+      git -C "$theme" pull
+    else
+      echo "Skipping $name: another theme installation or update is running." >&2
+      exit 1
+    fi
+  ) || rc=1
 done
+exit "$rc"
