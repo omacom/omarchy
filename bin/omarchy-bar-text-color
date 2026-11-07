@@ -38,6 +38,45 @@ fallback() {
   exit 0
 }
 
+# A wallpaper's bar strip has the same mean colour every time it is asked for,
+# and sampling it costs a few hundred milliseconds of ImageMagick on every
+# switch to a transparent bar, bar move or theme change, which reads as a dead
+# key press. Remember the chosen colour per wallpaper (path, size and mtime),
+# screen size, bar edge and size, and colour pair. Only a finished sample is
+# remembered, so a failed or timed-out one is retried next time.
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/bar-text-color"
+cache_file=""
+
+remember_key() {
+  local stamp
+  stamp=$(stat -c '%s:%Y' "$background_path" 2>/dev/null) || return 1
+  cache_file="$cache_dir/$(printf '%s\n' "$position" "$bar_size" "$text_color" "$background_color" \
+    "$background_path" "$stamp" "$screen_size" | sha256sum | cut -c1-40)"
+}
+
+remembered() {
+  local color
+  [[ -n $cache_file && -r $cache_file ]] || return 1
+  color=$(<"$cache_file")
+  valid_hex "$color" || return 1
+  printf '%s\n' "$color"
+}
+
+remember() {
+  local tmp
+  [[ -n $cache_file ]] || return 0
+  mkdir -p "$cache_dir" 2>/dev/null || return 0
+  # Old wallpapers and themes leave entries behind; they are tiny, so sweep
+  # rarely rather than on every call.
+  find "$cache_dir" -maxdepth 1 -type f -mtime +30 -delete 2>/dev/null || true
+  tmp=$(mktemp "$cache_dir/.remember.XXXXXX" 2>/dev/null) || return 0
+  if printf '%s\n' "$1" >"$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$cache_file" 2>/dev/null || rm -f "$tmp"
+  else
+    rm -f "$tmp"
+  fi
+}
+
 contrast() {
   local color="$1"
   local sample="$2"
@@ -89,6 +128,11 @@ fi
 screen_width=${BASH_REMATCH[1]}
 screen_height=${BASH_REMATCH[2]}
 ((screen_width > 0 && screen_height > 0 && bar_size > 0)) || fallback
+
+if remember_key && color=$(remembered); then
+  printf '%s\n' "$color"
+  exit 0
+fi
 
 # Only the bar strip's mean colour is needed, so sample on a canvas no wider than
 # 1920 px; a 6K or 8K screen would otherwise add a full-size intermediate image.
@@ -142,6 +186,13 @@ sample=$(printf '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BAS
 text_contrast=$(contrast "$text_color" "$sample")
 background_contrast=$(contrast "$background_color" "$sample")
 
-awk -v text="$text_contrast" -v background="$background_contrast" 'BEGIN { exit !(background > text) }' \
-  && printf '%s\n' "$background_color" \
-  || printf '%s\n' "$text_color"
+if awk -v text="$text_contrast" -v background="$background_contrast" 'BEGIN { exit !(background > text) }'; then
+  color=$background_color
+else
+  color=$text_color
+fi
+
+# Answer first: remembering is best-effort and must never cost the caller the
+# colour it already has.
+printf '%s\n' "$color"
+remember "$color"
