@@ -30,6 +30,8 @@ video/x-ogm+ogg=mpv.desktop
 video/x-theora+ogg=mpv.desktop
 application/ogg=mpv.desktop
 
+text/markdown=omawrite.desktop
+text/x-markdown=omawrite.desktop
 text/plain=nvim.desktop
 text/english=nvim.desktop
 text/x-makefile=nvim.desktop
