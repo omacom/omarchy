@@ -20,6 +20,19 @@ Item {
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
+  // The box behind the apps, like the bar's background: opaque, glassy, or
+  // none, the default.
+  readonly property string background: dockConfig.background === "opaque" || dockConfig.background === "glassy" ? dockConfig.background : "none"
+  // The look the blur behind the dock was last synced for. A background set by
+  // editing shell.json skips the CLI, so the dock syncs Hyprland's blur itself.
+  property string glassSyncedLook: ""
+  onBackgroundChanged: syncGlass()
+
+  function syncGlass() {
+    if (root.background === root.glassSyncedLook) return
+    root.glassSyncedLook = root.background
+    Util.execDetached("omarchy-dock sync-glass")
+  }
 
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
@@ -312,6 +325,7 @@ Item {
   Component.onCompleted: {
     refresh()
     syncItemModel()
+    syncGlass()
   }
 
   Process {

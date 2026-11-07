@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the dock shown on floating workspaces
 # omarchy:group=dock
-# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
+# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | background [opaque|glassy|none] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
 # omarchy:examples=omarchy dock position left | omarchy dock pin org.gnome.Nautilus
 
 set -euo pipefail
@@ -18,6 +18,9 @@ Usage: omarchy dock <command> [args...]
   autohide [on|off|toggle]             Hide the dock until the pointer reaches
                                        its edge; prints on or off when given
                                        none
+  background [opaque|glassy|none]      Box behind the dock's apps: glassy
+                                       shows what is behind it blurred;
+                                       prints the current one when given none
   pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
@@ -66,6 +69,50 @@ cmd_autohide() {
   echo "Dock auto-hide turned $value"
 }
 
+# The box behind the apps is opaque, glassy, or none, like the bar's
+# background. None, the dock as it always was, is the default.
+current_background() {
+  jq -r '.dock.background // "none"' "$(source_file)"
+}
+
+cmd_background() {
+  if (( $# == 0 )); then
+    current_background
+    return
+  fi
+
+  local background="$1"
+  (( $# == 1 )) || fail "background takes a single value"
+  [[ $background =~ ^(opaque|glassy|none)$ ]] || fail "background must be opaque, glassy, or none"
+
+  local previous
+  previous=$(current_background)
+  commit "$NORMALIZE | .dock.background = \$background" --arg background "$background"
+  if ! sync_glass; then
+    commit "$NORMALIZE | .dock.background = \$background" --arg background "$previous"
+    fail "could not change the blur behind the dock"
+  fi
+  echo "Dock background set to $background"
+}
+
+# Hyprland blurs behind the dock only while the dock-glassy toggle is on, so it
+# follows the dock background, reloading Hyprland only when it changes. The
+# toggle sits where Hyprland reads it, under XDG_STATE_HOME.
+sync_glass() {
+  local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
+  local flag="$dir/dock-glassy.lua"
+
+  if [[ $(current_background) == "glassy" ]]; then
+    [[ ! -f $flag ]] || return 0
+    mkdir -p "$dir" && cp "$OMARCHY_PATH/default/hypr/toggles/dock-glassy.lua" "$flag" || return 1
+  else
+    [[ -f $flag ]] || return 0
+    rm -f "$flag" || return 1
+  fi
+
+  hyprctl reload >/dev/null 2>&1 || true
+}
+
 cmd_pinned() {
   if (( $# == 0 )); then
     jq -r --slurpfile defaults "$DEFAULTS_FILE" "$PINNED | .[]" "$(source_file)"
@@ -110,6 +157,10 @@ command="${1:-}"
 case "$command" in
   position) cmd_position "$@" ;;
   autohide) cmd_autohide "$@" ;;
+  background) cmd_background "$@" ;;
+  # Internal: the shell runs this when it loads a dock background, so one set
+  # by editing shell.json gets its blur too.
+  sync-glass) sync_glass || fail "could not change the blur behind the dock" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

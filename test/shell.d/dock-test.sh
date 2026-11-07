@@ -159,6 +159,33 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
+# The box behind the apps is opaque, glassy, or none. A glassy one needs
+# Hyprland's blur, so the dock-glassy toggle follows it.
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s/hyprctl.log"\n' "$TMPDIR" >"$mock_bin/hyprctl"
+chmod +x "$mock_bin/hyprctl"
+dock_glass="$home/.local/state/omarchy/toggles/hypr/dock-glassy.lua"
+[[ $(omarchy_dock background) == "none" ]] || fail "a dock has no background by default"
+omarchy_dock background glassy >/dev/null
+[[ $(omarchy_dock background) == "glassy" && -f $dock_glass ]] || fail "a glassy dock turns on Hyprland's blur behind it"
+grep -qx 'reload' "$TMPDIR/hyprctl.log" || fail "a glassy dock reloads Hyprland"
+: >"$TMPDIR/hyprctl.log"
+omarchy_dock background opaque >/dev/null
+[[ $(omarchy_dock background) == "opaque" && ! -f $dock_glass ]] || fail "an opaque dock turns the blur off again"
+grep -qx 'reload' "$TMPDIR/hyprctl.log" || fail "turning the dock's blur off reloads Hyprland"
+: >"$TMPDIR/hyprctl.log"
+omarchy_dock background none >/dev/null
+[[ $(omarchy_dock background) == "none" && ! -s $TMPDIR/hyprctl.log ]] || fail "Hyprland reloads only when the dock's glass changes"
+if omarchy_dock background frosted 2>/dev/null; then
+  fail "an unknown dock background is refused"
+fi
+# A background edited into shell.json gets its blur when the shell syncs it.
+jq '.dock.background = "glassy"' "$home/.config/omarchy/shell.json" >"$TMPDIR/edited.json" &&
+  mv "$TMPDIR/edited.json" "$home/.config/omarchy/shell.json"
+omarchy_dock sync-glass
+[[ -f $dock_glass ]] || fail "syncing a hand-edited glassy dock turns its blur on"
+rm -f "$TMPDIR/hyprctl.log"
+pass "dock background is set through omarchy-dock, and Hyprland's blur follows a glassy one"
+
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
 # not beside the minimized one.
