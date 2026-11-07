@@ -56,6 +56,7 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-zenbook-a16-firmware.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/oem-firmware.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/firmware.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/camera.sh"
+run_logged "$OMARCHY_INSTALL/hardware/qualcomm/reboot-watchdog.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-yoga-pro7-bass-speakers.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/yoga-slim7x.sh"

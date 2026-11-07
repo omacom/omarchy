@@ -176,7 +176,8 @@ require_platform_fixtures "Snapdragon setup under the real detector"
 
 kernel_params_setup="$ROOT/install/hardware/qualcomm/kernel-params.sh"
 initramfs_setup="$ROOT/install/hardware/qualcomm/initramfs.sh"
-for script in "$kernel_params_setup" "$initramfs_setup"; do
+reboot_watchdog_setup="$ROOT/install/hardware/qualcomm/reboot-watchdog.sh"
+for script in "$kernel_params_setup" "$initramfs_setup" "$reboot_watchdog_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
 done
 
@@ -202,10 +203,12 @@ run_leaves_on() (
   OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$out/boot-hooks"
   OMARCHY_QUALCOMM_MKINITCPIO_DIR="$out/mkinitcpio.conf.d"
   OMARCHY_QUALCOMM_INITCPIO_INSTALL_DIR="$out/initcpio-install"
+  OMARCHY_QUALCOMM_SYSTEM_CONF_DIR="$out/system.conf.d"
   source "$firmware_setup"
   source "$dtb_setup"
   source "$out/kernel-params.sh"
   source "$initramfs_setup"
+  source "$reboot_watchdog_setup"
 )
 
 run_leaves_on aarch64-qualcomm
@@ -214,6 +217,8 @@ snapdragon="$scratch/on/aarch64-qualcomm"
   fail "a Snapdragon device tree gets the firmware setup"
 grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
   fail "a Snapdragon device tree gets the device tree list"
+grep -Fqx "RebootWatchdogSec=off" "$snapdragon/system.conf.d/60-omarchy-qualcomm-reboot-watchdog.conf" ||
+  fail "a Snapdragon device tree stops asking its watchdog for ten minutes at shutdown"
 (
   declare -A KERNEL_CMDLINE=([default]="quiet splash")
   source "$snapdragon/limine-entry-tool.d/qualcomm-snapdragon.conf"
@@ -264,7 +269,7 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
 
 for platform in aarch64 aarch64-apple x86; do
   run_leaves_on "$platform"
-  for written in modprobe.d uki.conf boot-hooks limine-entry-tool.d mkinitcpio.conf.d initcpio-install; do
+  for written in modprobe.d uki.conf boot-hooks limine-entry-tool.d mkinitcpio.conf.d initcpio-install system.conf.d; do
     [[ ! -e $scratch/on/$platform/$written ]] ||
       fail "$platform gets no Snapdragon setup ($written)"
   done
