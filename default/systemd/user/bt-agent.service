@@ -18,6 +18,10 @@ ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=on-failure
 RestartSec=2
+# bt-agent handles SIGTERM as a reload and keeps running, so stopping it
+# would wait out the stop timeout and stall logout. SIGINT is its exit.
+KillSignal=SIGINT
+TimeoutStopSec=5s
 
 [Install]
 WantedBy=graphical-session.target
