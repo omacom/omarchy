@@ -99,15 +99,15 @@ BarWidget {
     return ids.concat(guests)
   }
 
-  function dispatch(expression) {
-    if (root.bar) root.bar.run("hyprctl dispatch " + Util.shellQuote(expression))
-  }
-
+  // Straight down the socket this widget already holds open for
+  // Hyprland.workspaces, rather than out through the bar to a new process. The
+  // expressions are the ones tiling.lua binds, deliberately, so a click and the
+  // keybinding cannot drift apart.
   function focusWorkspace(id) {
     if (root.blockOf(id) === root.block) {
-      root.dispatch("o.workspaces.focus(" + root.slotOf(id) + ", \"" + root.monitorName + "\")")
+      Hyprland.dispatch("o.workspaces.focus(" + root.slotOf(id) + ", \"" + root.monitorName + "\")")
     } else {
-      root.dispatch("hl.dsp.focus({ workspace = \"" + id + "\" })")
+      Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + id + "\" })")
     }
   }
 
@@ -175,14 +175,21 @@ BarWidget {
   }
 
   // The layout commands act on the focused workspace, so a click on another
-  // monitor's bar focuses that monitor first.
+  // monitor's bar focuses that monitor first, and toggles once Hyprland reports
+  // it focused. A focus that never arrives drops the toggle.
   function cycleLayout() {
     if (!root.bar) return
-    var command = "omarchy-hyprland-workspace-layout-toggle"
     if (root.monitor && !root.monitor.focused) {
-      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + root.monitorName + "\" })") + " >/dev/null && " + command
+      toggleAfterFocus.restart()
+      Hyprland.dispatch("hl.dsp.focus({ monitor = \"" + root.monitorName + "\" })")
+    } else {
+      root.bar.run("omarchy-hyprland-workspace-layout-toggle")
     }
-    root.bar.run(command)
+  }
+
+  Timer {
+    id: toggleAfterFocus
+    interval: 1000
   }
 
   Component.onCompleted: refresh()
@@ -191,6 +198,11 @@ BarWidget {
   Connections {
     target: root.monitor
     function onActiveWorkspaceChanged() { root.showActiveMode() }
+    function onFocusedChanged() {
+      if (!toggleAfterFocus.running || !root.monitor.focused) return
+      toggleAfterFocus.stop()
+      root.bar.run("omarchy-hyprland-workspace-layout-toggle")
+    }
   }
 
   Connections {
