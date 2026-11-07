@@ -90,9 +90,14 @@ fi
 
 if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
   display_name="${entry_name:-$desktop_name}"
-  quoted_package="$(printf '%q' "$package_name")"
-  quoted_display="$(printf '%q' "$display_name")"
-  exec omarchy-launch-floating-terminal-with-presentation "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
+  if uninstall_output="$(pkexec /usr/bin/pacman -Rns --noconfirm -- "$package_name" 2>&1)"; then
+    omarchy-notification-send "$(omarchy-i18n launcher.uninstalled)" "$display_name"
+  else
+    # pacman's last line names the reason, e.g. the package that depends on it.
+    omarchy-notification-send -u critical "$(omarchy-i18n launcher.uninstallFailed "$display_name")" "$(tail -1 <<<"$uninstall_output")"
+    exit 1
+  fi
+  exit 0
 fi
 
 if omarchy-cmd-present flatpak && flatpak info "${desktop_file_name%.desktop}" >/dev/null 2>&1; then
