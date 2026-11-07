@@ -18,6 +18,10 @@ sed '/^presize_window$/,$d' "$about" >"$tmp_dir/about.bash"
 
 export HOME="$tmp_dir/home"
 export PATH="$ROOT/bin:$PATH"
+# The launcher keeps its translated config in the runtime directory, and once
+# About has been opened for real, the fastfetch stand-ins below would be asked
+# about that file instead of answering for themselves.
+export XDG_RUNTIME_DIR="$tmp_dir/runtime"
 mkdir -p "$HOME/.config/omarchy/branding"
 printf '%s\n' '████████' '████████' >"$HOME/.config/omarchy/branding/about.txt"
 
