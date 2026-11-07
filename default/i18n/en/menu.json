@@ -306,6 +306,12 @@
   "trigger.toggle.notifications-off": {
     "label": "Silence Notifications"
   },
+  "trigger.toggle.meeting-on": {
+    "label": "Meeting Mode On"
+  },
+  "trigger.toggle.meeting-off": {
+    "label": "Meeting Mode Off"
+  },
   "trigger.toggle.nightlight-on": {
     "label": "Nightlight On"
   },
