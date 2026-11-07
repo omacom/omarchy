@@ -559,6 +559,137 @@ LUA
 keybinding_texts=$(cd "$fix" && python3 -c 'import importlib.util,json,sys; from pathlib import Path; spec=importlib.util.spec_from_file_location("s", sys.argv[1]); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print(json.dumps(sorted(m.keybinding_descriptions(Path(".")))))' "$ROOT/scripts/i18n-sync.py")
 assert_bash_equal "$keybinding_texts" '["Bar panel %1", "Keybindings", "Start dictation", "Stop dictation", "Switch to workspace %1", "Toggle nightlight"]' "keybinding descriptions are extracted from the bind calls"
 
+# A manual chapter gets the menu labels it names: each italic path in the
+# English source maps through the menu catalog to the target language's
+# labels, while a path the menu no longer has, or one the language has not
+# translated yet, is left out rather than guessed at.
+glossary=$work/glossary
+mkdir -p "$glossary/default/i18n/en" "$glossary/default/i18n/da"
+cat >"$glossary/default/i18n/en/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Appearance"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dock Position"},
+  "appearance.animations-on": {"label": "Animations On"},
+  "install": {"label": "Install"},
+  "install.service": {"label": "Service"},
+  "install.service.microsoft": {"label": "Microsoft"},
+  "setup": {"label": "Setup"},
+  "setup.input": {"label": "Input"}
+}
+JSON
+cat >"$glossary/default/i18n/da/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Udseende"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dockplacering"},
+  "install": {"label": "Installer"},
+  "install.service": {"label": "Tjeneste"},
+  "install.service.microsoft": {"label": "Microsoft"}
+}
+JSON
+manual_paths=$'Name _Appearance > Dock > Dock Position_ and _Install > Service > Microsoft_, but not _Appearance > Animations_ or _Setup > Input_.\n'
+glossary_json=$(cd "$glossary" && python3 -c 'import importlib.util,json,sys; from pathlib import Path; spec=importlib.util.spec_from_file_location("s", sys.argv[1]); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print(json.dumps(m.manual_menu_glossary(Path("."), "da", sys.stdin.read()), ensure_ascii=False, sort_keys=True))' "$ROOT/scripts/i18n-sync.py" <<<"$manual_paths")
+assert_bash_equal "$glossary_json" '{"Appearance > Dock > Dock Position": "Udseende > Dock > Dockplacering", "Install > Service > Microsoft": "Installer > Tjeneste > Microsoft"}' "manual chapters get a glossary of their menu paths in the localized labels"
+glossary_misses=$(cd "$glossary" && python3 -c 'import importlib.util,json,sys; from pathlib import Path; spec=importlib.util.spec_from_file_location("s", sys.argv[1]); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); glossary=m.manual_menu_glossary(Path("."), "da", "Name _Appearance > Dock > Dock Position_ and _Install > Service > Microsoft_.\n"); print(json.dumps(m.glossary_misses("Brug _Udseende >\nDock > Dockplacering_.\n", glossary), ensure_ascii=False))' "$ROOT/scripts/i18n-sync.py")
+assert_bash_equal "$glossary_misses" '["Install > Service > Microsoft -> Installer > Tjeneste > Microsoft"]' "a missing glossary path is only a warning, and spacing around the separators is tolerated"
+
+# A backfill retranslates only the chapters whose current translation misses
+# a glossary path; a chapter that already matches is left alone. The run
+# reports a remaining miss as a warning without failing the language.
+backfill=$work/backfill
+mkdir -p "$backfill/default/i18n/en" "$backfill/default/i18n/da" "$backfill/manual/da"
+printf '{"en": {"englishName": "English"}, "da": {"englishName": "Danish"}}\n' >"$backfill/default/i18n/locales.json"
+cat >"$backfill/default/i18n/en/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Appearance"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dock Position"}
+}
+JSON
+cat >"$backfill/default/i18n/da/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Udseende"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dockplacering"}
+}
+JSON
+printf '# Hello\n\nOpen _Appearance > Dock > Dock Position_.\n' >"$backfill/manual/01-hello.md"
+printf '# Hej\n\nÅbn _Appearance > Dock > Dock Position_.\n' >"$backfill/manual/da/01-hello.md"
+printf '# Good\n\nOpen _Appearance > Dock > Dock Position_.\n' >"$backfill/manual/02-good.md"
+printf '# Godt\n\nÅbn _Udseende > Dock > Dockplacering_.\n' >"$backfill/manual/da/02-good.md"
+python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" manifest >/dev/null
+backfill_pending=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" pending --backfill-manual | jq -c '.jobs.da.pending')
+assert_bash_equal "$backfill_pending" '["manual:01-hello.md"]' "backfill-manual marks only chapters with a glossary miss"
+cat >"$work/stubs/muse" <<'STUB'
+#!/bin/bash
+echo '{"markdown":"# Hej\n\nÅbn _Appearance > Dock > Dock Position_.\n"}'
+STUB
+chmod +x "$work/stubs/muse"
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" translate --locale da --model test --backfill-manual --done-file "$work/backfill-done.json" >"$work/backfill.log" 2>&1; then
+  pass "backfill-manual completes even when a glossary path is still missing"
+else
+  fail "backfill-manual completes even when a glossary path is still missing" "$(cat "$work/backfill.log")"
+fi
+grep -q 'warning: manual:01-hello.md: Appearance > Dock > Dock Position -> Udseende > Dock > Dockplacering' "$work/backfill.log" && pass "a missing glossary path is reported as a warning" || fail "a missing glossary path is reported as a warning" "$(cat "$work/backfill.log")"
+assert_bash_equal "$(jq -c '.da' "$work/backfill-done.json")" '["manual:01-hello.md"]' "backfill-manual marks the retranslated chapter done and leaves the matching one alone"
+# The report a backfill's summary runs names what is left over, so a partial
+# backfill is visible instead of silent.
+report=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$backfill" glossary-report)
+assert_bash_equal "$report" $'Manual chapters still missing a menu path: 1.\n- da: 1 (manual:01-hello.md)' "the backfill report names the chapters that still miss a menu path"
+rm -f "$work/stubs/muse"
+
+# A label translated in this same run has to count. While it is missing the
+# glossary omits the path, so the chapter is not a target yet; once the
+# catalog write lands, the backfill retranslates the chapter that names it.
+late=$work/late
+mkdir -p "$late/default/i18n/en" "$late/default/i18n/da" "$late/manual/da"
+printf '{"en": {"englishName": "English"}, "da": {"englishName": "Danish"}}\n' >"$late/default/i18n/locales.json"
+cp "$ROOT/default/i18n/plural.jq" "$late/default/i18n/plural.jq"
+cat >"$late/default/i18n/en/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Appearance"},
+  "appearance.dock": {"label": "Dock"},
+  "appearance.dock.position": {"label": "Dock Position"}
+}
+JSON
+cat >"$late/default/i18n/da/menu.json" <<'JSON'
+{
+  "appearance": {"label": "Udseende"},
+  "appearance.dock": {"label": "Dock"}
+}
+JSON
+printf '# Hello\n\nOpen _Appearance > Dock > Dock Position_.\n' >"$late/manual/01-hello.md"
+printf '# Hej\n\nÅbn _Appearance > Dock > Dock Position_.\n' >"$late/manual/da/01-hello.md"
+python3 "$ROOT/scripts/i18n-sync.py" --root "$late" manifest >/dev/null
+late_before=$(python3 "$ROOT/scripts/i18n-sync.py" --root "$late" pending --backfill-manual | jq -c '.jobs.da.pending')
+assert_bash_equal "$late_before" '["menu:appearance.dock.position.label"]' "a chapter is not a backfill target while its menu label is still missing"
+cat >"$work/stubs/muse" <<'STUB'
+#!/bin/bash
+prompt_file=""
+while (( $# > 0 )); do
+  if [[ $1 == "--prompt-file" ]]; then
+    prompt_file=$2
+    break
+  fi
+  shift
+done
+if [[ $(cat "$prompt_file") == *"<chapter>"* ]]; then
+  printf '%s\n' '{"markdown":"# Hej\n\nÅbn _Udseende > Dock > Dockplacering_.\n"}'
+else
+  printf '%s\n' '{"menu:appearance.dock.position.label":"Dockplacering"}'
+fi
+STUB
+chmod +x "$work/stubs/muse"
+if python3 "$ROOT/scripts/i18n-sync.py" --root "$late" translate --locale da --model test --backfill-manual --done-file "$work/late-done.json" >"$work/late.log" 2>&1; then
+  pass "a backfill retranslates a chapter once this run fills its menu label"
+else
+  fail "a backfill retranslates a chapter once this run fills its menu label" "$(cat "$work/late.log")"
+fi
+assert_bash_equal "$(cat "$late/manual/da/01-hello.md")" $'# Hej\n\nÅbn _Udseende > Dock > Dockplacering_.' "the chapter uses the menu label this run just translated"
+assert_bash_equal "$(jq -c '.da' "$work/late-done.json")" '["manual:01-hello.md","menu:appearance.dock.position.label"]' "the backfill records both the new menu label and the chapter it unlocked"
+rm -f "$work/stubs/muse"
+
 # Any display-text property name counts, both arms of a ternary count, and a
 # bare list item counts; identifiers and lines marked "i18n: ignore" do not.
 cat >"$fix/shell/Panel.qml" <<'QML'
