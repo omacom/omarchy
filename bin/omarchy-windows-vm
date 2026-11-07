@@ -142,8 +142,9 @@ with_vm_lock() {
 valid_ram() { [[ $1 =~ ^[0-9]{1,3}G$ ]]; }
 valid_cores() { [[ $1 =~ ^[0-9]{1,2}$ ]] && ((10#$1 >= 1)); }
 valid_disk() { [[ $1 =~ ^[0-9]{1,4}G$ ]]; }
-valid_username() { [[ $1 =~ ^[A-Za-z0-9_-]{1,20}$ ]]; }
-valid_tz() { [[ $1 =~ ^[A-Za-z0-9_/.+-]{1,64}$ ]]; }
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+valid_username() { (LC_ALL=C; [[ $1 =~ ^[A-Za-z0-9_-]{1,20}$ ]]); }
+valid_tz() { (LC_ALL=C; [[ $1 =~ ^[A-Za-z0-9_/.+-]{1,64}$ ]]); }
 valid_password() { [[ $1 =~ ^[[:print:]]{1,64}$ ]]; }
 
 # The only privileged sub-actions __priv may dispatch. A bash command name

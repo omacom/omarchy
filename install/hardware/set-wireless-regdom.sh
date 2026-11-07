@@ -15,10 +15,11 @@ fi
 
 country="${timezone%%/*}"
 zone_tab=/usr/share/zoneinfo/zone.tab
-if [[ ! $country =~ ^[A-Z]{2}$ && -n $timezone && -f $zone_tab ]]; then
+# A bracket range follows the locale's collation, not ASCII; compare in C.
+if ! (LC_ALL=C; [[ $country =~ ^[A-Z]{2}$ ]]) && [[ -n $timezone && -f $zone_tab ]]; then
   country=$(awk -v tz="$timezone" '$3 == tz {print $1; exit}' "$zone_tab")
 fi
 
-if [[ $country =~ ^[A-Z]{2}$ ]]; then
+if (LC_ALL=C; [[ $country =~ ^[A-Z]{2}$ ]]); then
   echo "WIRELESS_REGDOM=\"$country\"" | sudo tee -a "$regdom_file" >/dev/null
 fi

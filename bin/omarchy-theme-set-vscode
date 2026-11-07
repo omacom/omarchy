@@ -158,7 +158,8 @@ set_theme() {
 
     # Only install a well-formed publisher.name id; a malformed one skips the
     # install without skipping the colorTheme write below.
-    if [[ $extension =~ ^[a-zA-Z0-9._-]+$ ]] &&
+    # A bracket range follows the locale's collation, not ASCII; compare in C.
+    if (LC_ALL=C; [[ $extension =~ ^[a-zA-Z0-9._-]+$ ]]) &&
       ! extension_installed "$editor_cmd" "$ext_base" "$extension"; then
       "$editor_cmd" --install-extension "$extension" >/dev/null 2>&1
     fi

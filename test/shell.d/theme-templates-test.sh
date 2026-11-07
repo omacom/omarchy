@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -76,3 +77,15 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
   [[ -f $next/$name ]] || fail "every built-in template renders ($name)"
 done
 pass "theme templates render every built-in template"
+
+# Mix keys are read with POSIX classes, not bracket ranges: under tr_TR.UTF-8
+# `[A-Za-z]` misses `i`, and a mix of a key such as bright_red stayed unrendered.
+if turkish_locale "$test_tmp/locales"; then
+  printf 'bright_red = "#ff0000"\n' >>"$next/colors.toml"
+  printf '{{ mix background bright_red 30%% }}\n' >"$themed/turkish.txt.tpl"
+  HOME="$home" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" in_turkish "$ROOT/bin/omarchy-theme-set-templates"
+  [[ $(<"$next/turkish.txt") == "#4d0000" ]] || fail "a mix of a key spelled with an i renders under tr_TR.UTF-8" "$(<"$next/turkish.txt")"
+  pass "theme templates render a mix the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi

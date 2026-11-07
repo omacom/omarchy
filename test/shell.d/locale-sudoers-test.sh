@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/locale-test.sh"
 
 generator="$ROOT/bin/omarchy-locale-generate"
 registry="$ROOT/default/i18n/locales.json"
@@ -58,6 +59,18 @@ for status in 1 4 135; do
   [[ $(cat "$LOCALE_GEN_LOG") == *" da_DK.UTF-8" ]] || fail "the failure is localedef's, not an earlier refusal" "$(cat "$LOCALE_GEN_LOG")"
 done
 pass "omarchy-locale-generate fails when the locale is not generated"
+
+# The code check is a bracket range, which follows the locale's collation, so it
+# is pinned to C: under tr_TR.UTF-8 an unpinned `[a-z]` misses `i` and `I`
+# and every registry code reads as malformed.
+if turkish_locale "$work/locales"; then
+  : >"$LOCALE_GEN_LOG"
+  in_turkish run it || fail "omarchy-locale-generate accepts a registry code under tr_TR.UTF-8"
+  grep -qx 'it_IT.UTF-8 UTF-8' "$OMARCHY_LOCALE_GEN" || fail "the code's locale is enabled under tr_TR.UTF-8" "$(cat "$OMARCHY_LOCALE_GEN")"
+  pass "omarchy-locale-generate reads a code the same under tr_TR.UTF-8"
+else
+  skip "no tr_TR.UTF-8 locale that misses i in [a-z] can be built here; skipping the locale-pinning check"
+fi
 
 for bad in "" "xx" "../da" "da;id" "da sv" "DA"; do
   : >"$LOCALE_GEN_LOG"

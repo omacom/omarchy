@@ -14,7 +14,9 @@ COLORS_FILE="$NEXT_THEME_DIR/colors.toml"
 
 declare -A THEME_COLORS
 
-MIX_TOKEN_PATTERN='\{\{[[:space:]]*mix(_strip|_rgb)?[[:space:]]+[A-Za-z0-9_]+[[:space:]]+[A-Za-z0-9_]+[[:space:]]+[0-9]+([.][0-9]+)?%?[[:space:]]*\}\}'
+# [[:alnum:]_], not [A-Za-z0-9_]: a bracket range follows the locale's collation
+# and misses `i` under tr_TR.UTF-8; a key outside the theme's colors mixes nothing.
+MIX_TOKEN_PATTERN='\{\{[[:space:]]*mix(_strip|_rgb)?[[:space:]]+[[:alnum:]_]+[[:space:]]+[[:alnum:]_]+[[:space:]]+[0-9]+([.][0-9]+)?%?[[:space:]]*\}\}'
 GRADIENT_TOKEN_PATTERN='\{\{[[:space:]]*(hypr_gradient|gradient_start|shell_gradient)[[:space:]]+[^}]+[[:space:]]*\}\}'
 
 # Convert hex color to decimal RGB (e.g., "#1e1e2e" -> "30,30,46")
@@ -262,7 +264,8 @@ apply_shell_section_override() {
   section=$(basename "$override")
   section="${section#shell.}"
   section="${section%.toml}"
-  [[ $section =~ ^[A-Za-z0-9_-]+$ ]] || return
+  # A bracket range follows the locale's collation, not ASCII; compare in C.
+  (LC_ALL=C; [[ $section =~ ^[A-Za-z0-9_-]+$ ]]) || return
 
   tmp=$(mktemp)
   body=$(mktemp)
