@@ -210,5 +210,34 @@ if (publicManifestMatch) {
   check(raw.__sourceDir === '/plugins/acme.demo', 'a plugin editing its manifest copy cannot move the registry entry')
 }
 
+const loaderBlock = shellSource.match(/property Loader panelLoader: Loader \{([\s\S]*?)\n      \}/)
+check(!!loaderBlock, 'shell.qml declares the panelLoader Loader')
+if (loaderBlock) {
+  const statusBlock = loaderBlock[1].match(/onStatusChanged: \{([\s\S]*)\}/)
+  check(!!statusBlock, 'panelLoader has an onStatusChanged handler')
+  if (statusBlock) {
+    // The original bug: the handler read a bare errorString that is not in
+    // scope there, so the report crashed and the panel stayed hidden. The
+    // handler is run with errorString out of scope again.
+    const warns = []
+    const hides = []
+    const handler = new Function(
+      'status', 'Loader', 'Component', 'Qt', 'shell', 'panelEntry', 'console',
+      statusBlock[1]
+    )
+    handler(
+      4,
+      { Error: 4 },
+      { PreferSynchronous: 0 },
+      { createComponent: () => ({ errorString: () => 'qs:///plugin/Main.qml:5 module "somemodule" is not installed' }) },
+      { hide: (id) => hides.push(id) },
+      { pluginId: 'test.broken-panel', sourceUrl: 'file:///plugin/Main.qml' },
+      { warn: (...parts) => warns.push(parts.join(' ')) }
+    )
+    check(warns.length === 1 && warns[0].includes('test.broken-panel'), 'broken panel report names the plugin')
+    check(hides.join(',') === 'test.broken-panel', 'broken panel is hidden after the report')
+  }
+}
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
