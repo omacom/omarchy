@@ -1661,11 +1661,14 @@ Item {
   }
 
   // Hyprland's window list does not follow fullscreen on its own, and each
-  // BarPanel reads it to drop its input under a fullscreen window.
+  // BarPanel reads it to hide under a fullscreen window.
   Connections {
     target: Hyprland
     function onRawEvent(event) {
-      if (event && String(event.name) === "fullscreen") Hyprland.refreshToplevels()
+      var name = event ? String(event.name) : ""
+      if (name === "fullscreen") Hyprland.refreshToplevels()
+      // Quickshell does not refresh the monitor's special workspace on its own.
+      else if (name === "activespecial") Hyprland.refreshMonitors()
     }
   }
 
@@ -1793,12 +1796,13 @@ Item {
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
-    // Whether the active workspace on this screen holds a real fullscreen
-    // window, which fades the bar out.
+    // Fullscreen on either visible workspace hides this screen's bar.
     readonly property bool underFullscreen: {
       var monitor = Hyprland.monitorFor(screen)
       var workspace = monitor ? monitor.activeWorkspace : null
-      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+      var special = monitor ? monitor.lastIpcObject.specialWorkspace : null
+      return !!monitor && BarModel.fullscreenOn(Hyprland.toplevels.values,
+        workspace ? workspace.id : null, special && special.name ? special.id : null)
     }
 
     // Idle, only the strip takes input, so the clear expanse passes clicks
@@ -1822,6 +1826,8 @@ Item {
     // The bar itself, along its screen edge.
     Item {
       id: barStrip
+      // Keep slots alive so fullscreen does not unload widgets or panel shortcuts.
+      opacity: barWindow.underFullscreen ? 0 : 1
 
       x: root.position === "right" ? parent.width - barWindow.thickness : 0
       y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
