@@ -411,6 +411,24 @@ assert(
   'provider merge leaves rows belonging to another provider alone'
 )
 
+// Going back lands on the row that was drilled into, not the top of the list.
+const backItems = menu.mergeMenuSources(menu.parseMenuJsonc(`
+{
+  "items": {
+    "root": { "label": "Go" },
+    "style": { "label": "Style" },
+    "style.bar": { "label": "Menu Bar" },
+    "style.bar.position": { "label": "Position", "action": "omarchy-bar-position" },
+    "learn": { "label": "Learn" }
+  }
+}
+`), []).items
+const rootRows = ['style', 'learn']
+assertEqual(menu.nearestRowIndex(backItems, rootRows, 'learn'), 1, 'menu back lands on the row that was entered')
+assertEqual(menu.nearestRowIndex(backItems, rootRows, 'style.bar.position'), 0, 'menu back from a search drilldown lands on the branch it was under')
+assertEqual(menu.nearestRowIndex(backItems, rootRows, 'missing'), -1, 'menu back leaves the cursor alone for a row it cannot find')
+assertEqual(menu.nearestRowIndex(backItems, [], 'style'), -1, 'menu back copes with an empty list')
+
 // Every glyph the menu draws in the Omarchy font is one the font carries. The
 // ranges come from the font itself, so a new glyph needs no edit here.
 const fontRanges = require('child_process')
