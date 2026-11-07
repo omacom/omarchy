@@ -276,25 +276,3 @@ function shortestTurn(from, to) {
   var d = ((to - from) % 360 + 360) % 360
   return d > 180 ? d - 360 : d
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    AXIAL_TILT: AXIAL_TILT,
-    SYNODIC_MONTH: SYNODIC_MONTH,
-    decimateRing: decimateRing,
-    scalePx: scalePx,
-    project: project,
-    subsolarPoint: subsolarPoint,
-    solarElevation: solarElevation,
-    isDaylight: isDaylight,
-    terminator: terminator,
-    declutter: declutter,
-    moonPhase: moonPhase,
-    moonLitOutline: moonLitOutline,
-    limbCrossing: limbCrossing,
-    visibleSegments: visibleSegments,
-    clipRingToDisc: clipRingToDisc,
-    layoutLabels: layoutLabels,
-    shortestTurn: shortestTurn
-  }
-}

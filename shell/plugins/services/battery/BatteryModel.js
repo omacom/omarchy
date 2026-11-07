@@ -33,13 +33,3 @@ function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
   // A change signal that arrived during the read is newer than its reply.
   return signalsAtStart === signalsNow ? parseActiveProfile(replyText) : current
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    batteryPercentage: batteryPercentage,
-    isDischarging: isDischarging,
-    shouldWarnLowBattery: shouldWarnLowBattery,
-    parseActiveProfile: parseActiveProfile,
-    profileAfterRead: profileAfterRead
-  }
-}
