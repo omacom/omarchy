@@ -494,16 +494,17 @@ local function titlebars()
     },
   })
 
+  -- Close, maximize, and minimize, from the Nerd Font: heavier than text glyphs.
   for _, button in ipairs({
-    { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
-    { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },
+    { icon = "\u{F00D}", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
+    { icon = "\u{F05AF}", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },
     -- Minimized windows wait in the dock, which brings them back.
-    { icon = "−", action = "omarchy-hyprland-window-minimize %WINDOW%" },
+    { icon = "\u{F05B0}", action = "omarchy-hyprland-window-minimize %WINDOW%" },
   }) do
     hl.plugin.hyprbars.add_button({
       bg_color = colors.titlebar,
       fg_color = colors.foreground,
-      size = 20,
+      size = 28,
       icon = button.icon,
       action = button.action,
     })
