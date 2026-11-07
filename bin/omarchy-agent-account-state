@@ -749,6 +749,14 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
   except Exception:
     pass
 
+  def finish_success() -> int:
+    try:
+      sys.stdout.buffer.write(b"\n")
+      sys.stdout.buffer.flush()
+    except Exception:
+      pass
+    return 0
+
   try:
     while time.time() - start_time < timeout_sec:
       if token_file.is_file() and token_file.stat().st_size > 0:
@@ -756,7 +764,7 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
           data = json.loads(token_file.read_text(encoding="utf-8"))
           if isinstance(data, dict) and (data.get("token") or data.get("id_token_email")):
             time.sleep(0.3)
-            return 0
+            return finish_success()
         except Exception:
           pass
 
@@ -765,12 +773,12 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
         if pid_res != 0:
           time.sleep(0.2)
           if token_file.is_file() and token_file.stat().st_size > 0:
-            return 0
+            return finish_success()
           code = os.waitstatus_to_exitcode(status) if hasattr(os, "waitstatus_to_exitcode") else (status >> 8)
           return code if code != 0 else 1
       except ChildProcessError:
         if token_file.is_file() and token_file.stat().st_size > 0:
-          return 0
+          return finish_success()
         return 1
 
       r_list = [master]
@@ -787,7 +795,7 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
         if not data:
           time.sleep(0.2)
           if token_file.is_file() and token_file.stat().st_size > 0:
-            return 0
+            return finish_success()
           break
         buffer += data
         try:
@@ -822,7 +830,7 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
           except OSError:
             pass
 
-    return 0 if (token_file.is_file() and token_file.stat().st_size > 0) else 1
+    return finish_success() if (token_file.is_file() and token_file.stat().st_size > 0) else 1
 
   finally:
     cleanup_child()

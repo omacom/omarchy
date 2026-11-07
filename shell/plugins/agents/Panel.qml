@@ -494,13 +494,13 @@ Panel {
   // talking, and only two things in it matter here: a code to confirm in the
   // browser (Grok), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
-    var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|done|error) (.*)$/)
+    var text = String(line).replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, "").replace(/\r/g, "")
+    var tagged = text.match(/(?:^|@)@omarchy (status|done|error) (.*)$/)
     if (tagged) {
       if (tagged[1] === "status") {
-        addStatus = tagged[2]
+        addStatus = tagged[2].trim()
       } else {
-        addResult = tagged[2]
+        addResult = tagged[2].trim()
         addStage = tagged[1]
         if (tagged[1] === "done") {
           usage.refreshLimits()
