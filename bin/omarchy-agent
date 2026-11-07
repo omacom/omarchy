@@ -214,7 +214,16 @@ dsh)
   # The browser UI has no prompt option, and the headless profile would run the
   # prompt with full access in a window that closes with its answer, so a
   # prompt goes to the clipboard below instead.
-  command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
+  #
+  # The server holds 127.0.0.1:3080, so another one cannot start while it runs.
+  # Reopen its UI in the default browser it opened in, which keeps its sign-in,
+  # with no terminal window to run.
+  if (exec 3<>/dev/tcp/127.0.0.1/3080) 2>/dev/null; then
+    command=(omarchy-launch-browser "http://127.0.0.1:3080/")
+    inline=true
+  else
+    command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
+  fi
   prompt_via_clipboard="DeepSeek Harness"
   ;;
 mcode)
