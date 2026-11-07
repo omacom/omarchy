@@ -57,7 +57,11 @@ disable)
     printf '%s\n' "$ignore_line" >>"$miserc"
   fi
   # A user reshim retires the lazy shims built from Omarchy's declarations.
-  mise reshim
+  # Without mise there are no shims to retire, and the opt-out still applies
+  # once mise is back.
+  if omarchy-cmd-present mise; then
+    mise reshim
+  fi
   ;;
 enable)
   if [[ -f $miserc ]] && grep -qxF "$ignore_line" "$miserc"; then

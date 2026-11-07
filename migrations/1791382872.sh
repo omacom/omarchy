@@ -57,9 +57,11 @@ fi
 
 # The declarations reach every user, so keep them out for a user who removed the
 # preinstalls. Either way, create the replacement shims before removing a wrapper.
+# Without mise there are no shims to create, and the wrappers, which run mise,
+# no longer work anyway.
 if [[ -f $HOME/.local/state/omarchy/preinstalls-removed ]]; then
   "$OMARCHY_PATH/bin/omarchy-mise-default-tools" disable
-else
+elif omarchy-cmd-present mise; then
   mise reshim --system
 fi
 
@@ -89,6 +91,7 @@ remove_legacy_wrapper muse muse 'http:muse[url=https://api.meta.ai/muse-launcher
 # lazy or update itself. Drop only exact latest requests, since a pinned version
 # is the user's choice, and keep the installs for the declarations to reuse.
 # After an opt-out those entries are what still provides the tools, so they stay.
-if [[ ! -f $HOME/.local/state/omarchy/preinstalls-removed ]]; then
+# Only mise can edit its config, so without it the entries stay too.
+if [[ ! -f $HOME/.local/state/omarchy/preinstalls-removed ]] && omarchy-cmd-present mise; then
   mise unuse -g --no-prune "${wrapper_packages[@]/%/@latest}"
 fi
