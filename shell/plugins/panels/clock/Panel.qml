@@ -138,6 +138,14 @@ Panel {
     root.goToToday()
   }
 
+  // The same catch-up for the calendar's own clock, which is how today moves
+  // after a sleep that crossed midnight. Its onDateChanged keeps a browsed
+  // month, where refresh() would send it back to today.
+  function resync() {
+    clock.enabled = false
+    clock.enabled = true
+  }
+
   function goToToday() {
     root.viewYear = today.getFullYear()
     root.viewMonth = today.getMonth()

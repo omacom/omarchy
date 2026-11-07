@@ -40,6 +40,17 @@ BarWidget {
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
+  // SystemClock waits out the rest of the minute on a timer that stops during
+  // suspend, so after a wake the label kept the time from before it for up to a
+  // minute. Re-enabling the clock re-reads the time and arms its next tick from
+  // now, and onDateChanged below puts the result on the label. Unlike refresh()
+  // this leaves a month the user is browsing in the calendar where it is.
+  function resync() {
+    clock.enabled = false
+    clock.enabled = true
+    if (panelLoader.item && panelLoader.item.resync) panelLoader.item.resync()
+  }
+
   function cycleFormat() {
     var current = String(configuredFormat)
     var next = Model.nextClockFormat(formatRing, current)
@@ -142,6 +153,7 @@ BarWidget {
     target: "omarchy.clock"
 
     function refresh(): void { root.broadcast("refresh") }
+    function resync(): void { root.broadcast("resync") }
     function cycleFormat(): void { root.cycleFormat() }
     function toggleWeekStart(): void { root.toggleWeekStart() }
     function open(): void { root.open() }
