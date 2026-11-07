@@ -63,8 +63,12 @@ platform_root_copy "$ROOT/bin/omarchy-brightness-display" "$brightness_display" 
 sed -i "s|/sys/class/drm|$test_tmp/drm|g" "$brightness_display"
 grep -qF "$test_tmp/drm/card" "$brightness_display" || fail "omarchy-brightness-display reads DRM connectors from the fixture"
 
+# Kernel backlights come from a fixture directory, empty unless a case adds one.
+backlight_dir="$test_tmp/backlight"
+mkdir -p "$backlight_dir"
+
 run_brightness() {
-  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" OMARCHY_BACKLIGHT_PATH="$backlight_dir" \
     PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
 }
 
@@ -220,3 +224,27 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# An Apple Cinema Display dims through the backlight appledisplay registers;
+# another external monitor beside it keeps using DDC.
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' '[
+  {"name":"DP-1","focused":false,"make":"HPN","model":"OMEN X 25f"},
+  {"name":"DP-2","focused":true,"make":"Apple Computer Inc","model":"LED Cinema"}
+]'
+SH
+mkdir -p "$backlight_dir/appledisplay0"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/"*
+: >"$call_log"
+brightness=$(run_brightness --monitor DP-2) || fail "an Apple Cinema Display reports its USB backlight" "no brightness backend"
+(( brightness == 40 )) || fail "an Apple Cinema Display reports its USB backlight" "actual: $brightness"
+run_brightness --no-osd --monitor DP-2 60%
+grep -Fx 'brightnessctl -d appledisplay0 set 60%' "$call_log" >/dev/null || \
+  fail "an Apple Cinema Display is set through its USB backlight" "$(<"$call_log")"
+! grep -q '^ddcutil' "$call_log" || fail "an Apple Cinema Display is not probed over DDC" "$(<"$call_log")"
+pass "an Apple Cinema Display uses its USB backlight"
+
+brightness=$(DDC_CONNECTOR=DP-1 run_brightness --monitor DP-1)
+(( brightness == 50 )) || fail "another external monitor keeps DDC beside a Cinema Display" "actual: $brightness"
+pass "another external monitor keeps DDC beside a Cinema Display"

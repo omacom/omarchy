@@ -1,0 +1,10 @@
+# Apple's Cinema Displays from before the Studio Display (the aluminium Cinema
+# HD and the LED Cinema) take brightness over USB. The kernel's appledisplay
+# driver turns that into a backlight, but usbhid binds the interface first, so
+# appledisplay never gets it and the display looks like it has fixed
+# brightness. Hand the interface over whenever usbhid takes it; the product IDs
+# are exactly the ones appledisplay supports. modprobe first: the bind can
+# arrive before the module has loaded.
+ACTION=="bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", DRIVER=="usbhid", \
+  ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="9218|9219|921c|921d|9222|9226|9236", \
+  RUN+="/bin/sh -c '/usr/bin/modprobe -q appledisplay; echo %k > /sys/bus/usb/drivers/usbhid/unbind; echo %k > /sys/bus/usb/drivers/appledisplay/bind'"
