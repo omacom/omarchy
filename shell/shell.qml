@@ -1817,6 +1817,11 @@ ShellRoot {
       shell.reloadPlugins()
     }
 
+    // For icon themes that rewrite their files, e.g. re-coloured on theme-set.
+    function reloadIcons(): void {
+      shell.appLibrary.reloadIcons()
+    }
+
     function reloadConfig(): string {
       userConfigFile.reload()
       return "ok"

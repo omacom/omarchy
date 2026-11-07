@@ -118,6 +118,7 @@ or `omarchy.power`. There is no `bar` target.
 | `togglePanelAt <section> <index>`     | toggle the panel at a bar position; any center section counts `centerBegin`, `center` and `centerEnd` as one |
 | `call <id> <method> <arg>`            | call an already-loaded plugin   |
 | `rescanPlugins`                       | re-walk plugin dirs and hot-reload plugin code |
+| `reloadIcons`                         | rescan app icons and reload them from disk, for icon themes that rewrite their files |
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | cycle the bar background from clear to glassy to opaque |

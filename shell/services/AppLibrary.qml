@@ -22,6 +22,13 @@ Item {
   // whenever the app list changes, so newly installed apps get their icon live.
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
+  // An icon on screen is cached by its URL, so an icon theme that rewrites its
+  // files in place (re-coloured on a theme switch, say) leaves the dock showing
+  // the old pixels. reloadIcons() bumps this generation, which iconFileUrl()
+  // appends to the URL, so every indexed icon loads again from disk.
+  property int iconGeneration: 0
+  property bool iconReloadPending: false
+  property bool iconRescanQueued: false
 
   property int launchSerial: 0
   property int launchToplevelCount: 0
@@ -58,11 +65,11 @@ Item {
     var value = String(icon || "")
     if (value.length === 0) return Quickshell.iconPath("application-x-executable", true)
     if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
-    if (value.charAt(0) === "/") return Util.fileUrl(value)
+    if (value.charAt(0) === "/") return root.iconFileUrl(value)
     // Prefer the context-limited app/device index. An unconstrained themed
     // lookup can resolve an app name such as "zoom" to an action icon instead.
     var found = root.iconIndex[value]
-    if (found) return Util.fileUrl(found)
+    if (found) return root.iconFileUrl(found)
     var themed = Quickshell.iconPath(value, true)
     if (themed.length > 0) return themed
     return Quickshell.iconPath("application-x-executable", true)
@@ -72,6 +79,20 @@ Item {
   // their icons; consumers call this when they open so icons appear live.
   function refreshIcons() {
     if (!iconIndexScan.running) iconIndexScan.running = true
+  }
+
+  function iconFileUrl(path) {
+    var url = Util.fileUrl(path)
+    return root.iconGeneration > 0 ? url + "?g=" + root.iconGeneration : url
+  }
+
+  // Rescan the icon dirs, then reload every indexed icon even where its path
+  // is unchanged. A scan already running may have read the old files, so it
+  // is followed by a fresh one before the generation moves.
+  function reloadIcons() {
+    root.iconReloadPending = true
+    if (iconIndexScan.running) root.iconRescanQueued = true
+    else iconIndexScan.running = true
   }
 
   function launch(desktopId, name) {
@@ -221,7 +242,16 @@ Item {
     onStarted: root.pendingIconIndex = ({})
     // Swapping the property re-evaluates every iconSource() binding, so
     // newly found icons appear without rebuilding the list.
-    onExited: root.iconIndex = root.pendingIconIndex
+    onExited: {
+      root.iconIndex = root.pendingIconIndex
+      if (root.iconRescanQueued) {
+        root.iconRescanQueued = false
+        iconIndexDebounce.restart()
+      } else if (root.iconReloadPending) {
+        root.iconReloadPending = false
+        root.iconGeneration++
+      }
+    }
   }
 
   // Coalesces bursts of app-list changes (a package install touches many
