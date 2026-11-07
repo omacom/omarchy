@@ -1,0 +1,223 @@
+#!/bin/bash
+
+# omarchy:summary=Set the battery charge limit
+# omarchy:args=<80|90|100>
+# omarchy:examples=omarchy battery limit-set 80 | omarchy battery limit-set 100
+
+set -euo pipefail
+
+# Whenever this runs as root — invoked directly through the passwordless
+# sudoers rule, or re-execed by require_root below — sudo's secure_path decides
+# where a bare helper resolves, and a dev link (etc/sudoers.d/omarchy-dev-path)
+# prepends a user-writable checkout bin/ to it. Every helper this script calls
+# by bare name (install, cat) is a system tool, never an omarchy-* command, so
+# pin PATH to trusted system directories and keep root from resolving one out
+# of that checkout. The unprivileged wrapper phase keeps the caller's PATH so
+# it can still find sudo/pkexec.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+STATE_FILE=/etc/omarchy/battery-limit
+
+usage() {
+  echo "Usage: omarchy-battery-limit-set <80|90|100>" >&2
+}
+
+# The path etc/sudoers.d/omarchy-battery-limit names. The privileged half
+# always runs from there rather than from whichever copy was invoked, so the
+# rule matches even where $OMARCHY_PATH points at a checkout.
+PACKAGED_PATH=/usr/bin/omarchy-battery-limit-set
+
+# True when sudo would run this exact command without stopping for a password.
+# `sudo -l` on its own reports whether a command is permitted, which the blanket
+# %wheel rule answers yes to for everything; the long listing prints the matched
+# entry's tags, so !authenticate is the grant in
+# etc/sudoers.d/omarchy-battery-limit and nothing else. Listing runs nothing
+# and, under -n, prompts for nothing, so a machine whose omarchy-settings
+# predates that file falls through to polkit instead of dying on a password
+# prompt it has no terminal to show.
+sudo_grants_passwordless() {
+  sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
+}
+
+require_root() {
+  if (( EUID == 0 )); then
+    return
+  elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
+    # A terminal can carry sudo's own password prompt. Without one, sudo is
+    # right only where the grant reaches; polkit can at least put a prompt on
+    # screen, and offer to authenticate as someone else.
+    exec sudo "$PACKAGED_PATH" "$@"
+  else
+    exec pkexec "$PACKAGED_PATH" "$@"
+  fi
+}
+
+# Kept as functions so fixture tests can exercise the transaction without
+# running sudo or granting access to this machine's sysfs and /etc.
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+LOCK_FILE=/run/omarchy-battery-limit.lock
+
+read_threshold() { cat "$1"; }
+write_threshold() { printf '%s\n' "$2" > "$1"; }
+valid_threshold() { [[ $1 =~ ^(0|[1-9][0-9]?|100)$ ]]; }
+
+restore_battery() {
+  local end_path=$1 old_end=$2 old_start=$3 start_path current_start
+  start_path="${end_path%/*}/charge_control_start_threshold"
+  # A rejected write may have left this battery unchanged. Do not turn a
+  # read-only control into a spurious rollback failure by writing it again.
+  if [[ $(read_threshold "$end_path") == "$old_end" ]] &&
+    { [[ -z $old_start ]] || [[ $(read_threshold "$start_path") == "$old_start" ]]; }; then
+    return 0
+  fi
+  if [[ -n $old_start ]]; then
+    current_start=$(read_threshold "$start_path") || return 1
+    valid_threshold "$current_start" || return 1
+    # Some drivers couple the thresholds. Lower start before restoring an
+    # end below it, then restore the exact original pair after writing end.
+    if (( current_start > old_end )); then
+      write_threshold "$start_path" "$old_start" || return 1
+    fi
+  fi
+  # The end write may have been rejected after start was lowered. Restore
+  # start without retrying an unchanged, possibly read-only end control.
+  if [[ $(read_threshold "$end_path") != "$old_end" ]]; then
+    write_threshold "$end_path" "$old_end" || return 1
+  fi
+  if [[ -n $old_start && $(read_threshold "$start_path") != "$old_start" ]]; then
+    write_threshold "$start_path" "$old_start" || return 1
+  fi
+  [[ $(read_threshold "$end_path") == "$old_end" ]] &&
+    { [[ -z $old_start ]] || [[ $(read_threshold "$start_path") == "$old_start" ]]; }
+}
+
+# The subshell owns both the lock and traps, including on an interrupted apply.
+apply_limit() (
+  local limit=$1 threshold battery start_path end_value start_value i
+  local target_start=$(( $1 - 5 ))
+  local -a thresholds=() ends=() starts=()
+  local touched=0 staged="" committed=false
+
+  exec 9>"$LOCK_FILE"
+  flock -x 9
+
+  for threshold in "$power_supply_path"/*/charge_control_end_threshold; do
+    [[ -e $threshold ]] || continue
+    battery=${threshold%/*}
+    # Peripheral batteries do not power the machine. Keep unscoped older drivers.
+    [[ -r $battery/scope && $(<"$battery/scope") == "Device" ]] && continue
+    end_value=$(read_threshold "$threshold")
+    valid_threshold "$end_value" || { echo "Error: invalid current threshold at $threshold." >&2; exit 1; }
+    start_path="${threshold%/*}/charge_control_start_threshold"
+    start_value=""
+    if [[ -e $start_path ]]; then
+      start_value=$(read_threshold "$start_path")
+      valid_threshold "$start_value" || { echo "Error: invalid current threshold at $start_path." >&2; exit 1; }
+    fi
+    thresholds+=("$threshold")
+    ends+=("$end_value")
+    starts+=("$start_value")
+  done
+  if (( ${#thresholds[@]} == 0 )); then
+    echo "Error: no battery on this machine exposes a charge limit (charge_control_end_threshold)." >&2
+    exit 1
+  fi
+
+  finish_apply() {
+    local status=$? rollback_failed=false
+    trap - EXIT
+    # Ignore a second interrupt while restoring the first interrupted write.
+    trap '' INT TERM
+    if [[ $committed == "false" ]] && (( touched > 0 )); then
+      for (( i=touched-1; i>=0; i-- )); do
+        if ! restore_battery "${thresholds[i]}" "${ends[i]}" "${starts[i]}"; then
+          echo "Error: could not restore previous thresholds for ${thresholds[i]%/*}." >&2
+          rollback_failed=true
+        fi
+      done
+      if [[ $rollback_failed == "false" ]]; then
+        echo "Previous battery thresholds restored; saved limit unchanged." >&2
+      fi
+      status=1
+    fi
+    if [[ -n $staged ]]; then rm -f "$staged"; fi
+    exit "$status"
+  }
+  trap finish_apply EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
+  # Prepare persistence before touching hardware. Rename only after every
+  # battery confirms the requested value; a short/failed save keeps the old file.
+  install -d -m 0755 "${STATE_FILE%/*}"
+  staged=$(mktemp "${STATE_FILE%/*}/.battery-limit.XXXXXX")
+  printf '%s\n' "$limit" > "$staged"
+  chmod 0644 "$staged"
+  # The settings package ships the unit on new and existing installations.
+  # Enable it only when the user explicitly saves a charge limit.
+  systemctl enable omarchy-battery-limit.service
+
+  for (( i=0; i<${#thresholds[@]}; i++ )); do
+    touched=$((i + 1))
+    start_path="${thresholds[i]%/*}/charge_control_start_threshold"
+    # Keep a five-point recharge gap where the driver exposes a start control.
+    # Otherwise an old 75% start can leave a battery at 78% idle after choosing
+    # 90%. Lower start first when decreasing the limit; raise end first when
+    # increasing it so drivers requiring start < end accept both transitions.
+    if [[ -n ${starts[i]} ]] && (( target_start < starts[i] )); then
+      if ! write_threshold "$start_path" "$target_start" ||
+        [[ $(read_threshold "$start_path") != "$target_start" ]]; then
+        echo "Error: battery did not accept charging start $target_start at $start_path." >&2
+        exit 1
+      fi
+    fi
+    if ! write_threshold "${thresholds[i]}" "$limit" ||
+      [[ $(read_threshold "${thresholds[i]}") != "$limit" ]]; then
+      echo "Error: battery did not accept charge limit $limit at ${thresholds[i]}." >&2
+      exit 1
+    fi
+    if [[ -n ${starts[i]} && $(read_threshold "$start_path") != "$target_start" ]]; then
+      if ! write_threshold "$start_path" "$target_start" ||
+        [[ $(read_threshold "$start_path") != "$target_start" ]]; then
+        echo "Error: battery did not accept charging start $target_start at $start_path." >&2
+        exit 1
+      fi
+    fi
+    # A driver can couple the controls in either direction.
+    if [[ $(read_threshold "${thresholds[i]}") != "$limit" ]]; then
+      echo "Error: charging start changed the requested maximum at ${thresholds[i]}." >&2
+      exit 1
+    fi
+  done
+
+  # Do not let a signal separate the successful rename from the commit flag.
+  trap '' INT TERM
+  mv -fT "$staged" "$STATE_FILE"
+  committed=true
+)
+
+main() {
+  # Validate before any elevation so a bad argument never reaches sudo/pkexec,
+  # and so the check can be exercised without root.
+  if (( $# != 1 )); then
+    usage
+    exit 2
+  fi
+
+  case "$1" in
+  80 | 90 | 100)
+    limit="$1"
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+  esac
+
+  require_root "$limit"
+  apply_limit "$limit"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then main "$@"; fi
