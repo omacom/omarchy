@@ -97,3 +97,22 @@
 .search-result-file-title {
   color: var(--interactive-accent);
 }
+
+/* Standalone data file source view */
+.datafile-source-view.mod-cm6 {
+  --datafile-active-line: color-mix(in srgb, var(--text-selection) 70%, var(--background-primary));
+}
+
+.datafile-source-view.mod-cm6 .cm-selectionLayer .cm-selectionBackground {
+  background: var(--text-selection) !important;
+}
+
+.datafile-source-view.mod-cm6 .cm-content ::selection {
+  background: transparent !important;
+  color: var(--text-normal) !important;
+}
+
+.datafile-source-view.mod-cm6 .cm-activeLine,
+.datafile-source-view.mod-cm6 .cm-gutterElement.cm-activeLineGutter {
+  background: var(--datafile-active-line);
+}
