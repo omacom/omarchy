@@ -109,6 +109,62 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
+// The app grid clamps keyboard moves to its bounds rather than wrapping.
+// Down moves one row per column; Home and End jump to the first and last app.
+const step = (index, delta, count = 25, columns = 7, pageRows = 3) => {
+  return Math.max(0, Math.min(count - 1, index + delta * columns))
+}
+const page = (index, delta, count = 25, columns = 7, pageRows = 3) =>
+  Math.max(0, Math.min(count - 1, index + delta * columns * pageRows))
+assertEqual(step(3, 1), 10, 'app grid moves Down to the app below')
+assertEqual(step(10, -1), 3, 'app grid moves Up to the app above')
+assertEqual(step(0, -1), 0, 'app grid stays put on Up in the first row')
+assertEqual(step(24, 1), 24, 'app grid stays put on Down in the last row')
+assertEqual(step(20, 1), 24, 'app grid lands on the last app when Down goes past a short last row')
+assertEqual(step(17, 1), 24, 'app grid lands on the app directly below when there is one')
+assertEqual(page(2, 1), 23, 'app grid lands a page down from a row in the middle')
+assertEqual(page(17, 1), 24, 'app grid lands a page down past the end on the last app')
+assertEqual(page(2, -1), 0, 'app grid has nowhere to page up from the first row')
+assertEqual(step(0, 1, 0), 0, 'app grid has nowhere to go when it is empty')
+assertEqual(step(2, 1, 5, 1), 3, 'app grid moves one app at a time in a single column')
+assertEqual(step(2, 1, 25, 0), 2, 'app grid clamps zero columns to one')
+assertEqual(step(0, 1, 25, 7, 3), 7, 'app grid moves Down one column-width from the top')
+assertEqual(step(15, -2, 25, 7, 3), 1, 'app grid moves two Up from near the bottom')
+assertEqual(page(5, 3, 25, 7, 3), 24, 'app grid lands on the last app for a big page down')
+
+// Whatever its size, a move clamps to the grid, goes the way it was asked,
+// and never lands outside [0, count).
+for (let count = 1; count <= 40; count++) {
+  for (let columns = 1; columns <= 8; columns++) {
+    for (let index = 0; index < count; index++) {
+      for (let delta = -4; delta <= 4; delta++) {
+        for (let pageRows = 1; pageRows <= 4; pageRows++) {
+          const next = Math.max(0, Math.min(count - 1, index + delta * columns * pageRows))
+          const ok = next >= 0 && next < count && (delta === 0 ? next === index : true)
+            && (delta > 0 ? next >= index : next <= index)
+          if (!ok) fail('app grid moves clamp inside the grid and go the way they were asked',
+            `count ${count}, columns ${columns}, index ${index}, delta ${delta}, pageRows ${pageRows} gave ${next}`)
+        }
+      }
+    }
+  }
+}
+pass('app grid moves clamp inside the grid and go the way they were asked')
+
+// The selected tile is as tall as its icon and name, with the same air above
+// the icon and below the name, whether the name takes one line or two.
+const [padding, icon, gap, line] = [10, 56, 6, 16]
+const oneLine = padding * 2 + icon + gap + line
+const twoLines = padding * 2 + icon + gap + line * 2
+assertEqual(oneLine, padding * 2 + icon + gap + line, 'app grid tile is as tall as its icon, name and padding')
+assertEqual(oneLine - (padding + icon + gap + line), padding, 'app grid tile has as much air below a one-line name as above its icon')
+assertEqual(twoLines - oneLine, line, 'app grid tile grows by exactly the line a longer name adds')
+
+// The cell adds a gutter on each side to the tile, so a two-line name still
+// leaves room for a one-line neighbour above and below.
+const gutter = 4
+assertEqual(gutter * 2 + twoLines, gutter * 2 + padding * 2 + icon + gap + line * 2, 'app grid cell holds a two-line tile and a gutter on both sides')
+
 JS
 
 home="$TMPDIR/home"
