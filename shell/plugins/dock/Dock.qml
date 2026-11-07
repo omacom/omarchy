@@ -55,8 +55,12 @@ Item {
   // out until it is. Windows are matched to the desktop entry that claims them.
   readonly property var items: {
     var appsRevision = DesktopEntries.applications.values.length
+    var library = root.appLibrary
     var pinned = (root.pendingPins || DockModel.pinnedIds(dockConfig, defaultDockConfig)).filter(function(id) {
-      return !!DesktopEntries.byId(id)
+      var entry = DesktopEntries.byId(id)
+      if (!entry) return false
+      // A blocked app is left out of the dock as it is out of the launcher.
+      return !(library && library.isBlockedEntry(entry))
     })
 
     var windows = []

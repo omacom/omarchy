@@ -278,9 +278,21 @@ function childCount(items, itemOrder, id) {
   return count
 }
 
+// A row under a submenu its `when:` hid is hidden too, so search and routes
+// can't reach what the menu itself no longer shows.
+function hiddenByGuard(items, whenResults, entry) {
+  var current = entry
+  for (var depth = 0; current && depth < 32; depth++) {
+    if (current.when && whenResults && whenResults[current.id] === false) return true
+    current = current.parent ? item(items, current.parent) : null
+  }
+  return false
+}
+
 function isVisible(items, itemOrder, whenResults, entry, depth) {
   if (!entry) return false
   if (entry.when && whenResults && whenResults[entry.id] === false) return false
+  if (!depth && hiddenByGuard(items, whenResults, entry)) return false
   if (entry.kind !== "menu" && entry.kind !== "link") return true
   if (entry.provider) return true
 
@@ -706,6 +718,7 @@ if (typeof module !== "undefined") {
     isDescendantOf: isDescendantOf,
     childCount: childCount,
     isVisible: isVisible,
+    hiddenByGuard: hiddenByGuard,
     isDisabled: isDisabled,
     labelFor: labelFor,
     searchableToken: searchableToken,

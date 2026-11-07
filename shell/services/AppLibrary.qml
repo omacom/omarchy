@@ -16,6 +16,11 @@ Item {
   property var configuredHiddenEntryIds: ({})
   property var desktopHiddenEntryIds: ({})
 
+  // Apps on this person's blocked list (/etc/omarchy/blocked-apps/<user>),
+  // which a grown-up keeps under Setup > Users: hidden here, and denied to them
+  // by omarchy-user-apps-apply where a program can be.
+  property var blockedEntryIds: ({})
+
   // Maps an icon name to a file on disk (e.g. "omacut" -> ".../apps/omacut.svg").
   // Used as a fallback for icons that Qt's themed lookup misses because they were
   // installed after this process started (its icon cache never re-scans). Refreshed
@@ -46,7 +51,22 @@ Item {
 
   function isHiddenEntry(entry) {
     var id = String((entry && entry.id) || "")
-    return root.configuredHiddenEntryIds[id] === true || root.desktopHiddenEntryIds[id] === true
+    return root.blockedEntryIds[id] === true || root.configuredHiddenEntryIds[id] === true || root.desktopHiddenEntryIds[id] === true
+  }
+
+  function isBlockedEntry(entry) {
+    return root.blockedEntryIds[String((entry && entry.id) || "")] === true
+  }
+
+  function loadBlocked(rawText) {
+    var next = ({})
+    var lines = String(rawText || "").split(/\n/)
+    for (var i = 0; i < lines.length; i++) {
+      var id = root.normalizeDesktopId(lines[i])
+      if (id.length > 0 && id.charAt(0) !== "#") next[id] = true
+    }
+    root.blockedEntryIds = next
+    root.appsChanged()
   }
 
   function sortedEntries(query) {
@@ -230,6 +250,15 @@ Item {
     id: iconIndexDebounce
     interval: 750
     onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+  }
+
+  FileView {
+    path: "/etc/omarchy/blocked-apps/" + (Quickshell.env("USER") || "")
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadBlocked(text())
+    onFileChanged: reload()
+    onLoadFailed: root.loadBlocked("")
   }
 
   FileView {

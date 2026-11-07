@@ -4,6 +4,13 @@
 
 set -euo pipefail
 
+# A child's account can't run an update, so it is never offered one: the bar
+# and first run both ask here.
+if [[ " $(id -nG) " == *" omarchy-child "* ]]; then
+  echo "Omarchy is up to date"
+  exit 1
+fi
+
 updates=()
 
 if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then

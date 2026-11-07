@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# omarchy:summary=List the theme collections this person's picker offers
+# omarchy:args=[--allowed]
+# omarchy:hidden=true
+
+# Collections are default/omarchy/theme-collections/<name> lists of theme
+# directories; General is every theme in none of them. A grown-up picks each
+# person's under Setup > Users > (person) > Themes, kept in
+# /etc/omarchy/theme-collections/<user>; without one a child sees Kids and
+# anyone else sees everything.
+#
+# With --allowed, prints the theme names the person may see, or exits 3 when
+# every theme is theirs.
+
+set -euo pipefail
+
+: "${THEME_COLLECTIONS_SETTINGS:=/etc/omarchy/theme-collections}"
+collections_dir=$OMARCHY_PATH/default/omarchy/theme-collections
+user=${USER:-$(id -un)}
+
+collection_names() {
+  local file
+  for file in "$collections_dir"/*; do
+    [[ -f $file ]] && echo "${file##*/}"
+  done
+}
+
+chosen() {
+  local name
+  if [[ -f $THEME_COLLECTIONS_SETTINGS/$user ]]; then
+    while read -r name; do
+      [[ $name == "general" || -f $collections_dir/$name ]] && echo "$name"
+    done <"$THEME_COLLECTIONS_SETTINGS/$user"
+  elif [[ " $(id -nG) " == *" omarchy-child "* ]]; then
+    echo kids
+  else
+    echo general
+    collection_names
+  fi
+}
+
+members() {
+  grep -v '^[[:space:]]*\(#\|$\)' "$collections_dir/$1"
+}
+
+installed() {
+  {
+    find "$HOME/.config/omarchy/themes" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null || true
+    find "$OMARCHY_PATH/themes" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
+  } | sort -u
+}
+
+if [[ ${1:-} != "--allowed" ]]; then
+  chosen
+  exit 0
+fi
+
+mapfile -t picked < <(chosen)
+mapfile -t all_collections < <(collection_names)
+# Every collection and General together is everything.
+if [[ " ${picked[*]} " == *" general "* ]] && (( ${#picked[@]} == ${#all_collections[@]} + 1 )); then
+  exit 3
+fi
+
+{
+  for name in "${picked[@]}"; do
+    if [[ $name == "general" ]]; then
+      installed | grep -vxF -f <(for c in "${all_collections[@]}"; do members "$c"; done)
+    else
+      members "$name"
+    fi
+  done
+} | awk '!seen[$0]++'

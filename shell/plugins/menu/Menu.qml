@@ -85,6 +85,8 @@ Item {
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
+  // An input for a password: shown as bullets, never handed to an input method.
+  property bool dmenuSecret: false
   property bool requestActive: false
   property bool rowsLoaded: false
   property string activeMenu: "root"
@@ -153,10 +155,13 @@ Item {
     root.selectionFile = ""
     root.doneFile = ""
 
+    // The answer goes over stdin, never argv, where any process could read it.
     if (selection === null || selection === undefined) {
-      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
+      resultProc.answer = ""
+      resultProc.command = ["bash", "-c", ': > "$1"', "menu-result", activeDoneFile]
     } else {
-      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
+      resultProc.answer = String(selection)
+      resultProc.command = ["bash", "-c", 'IFS= read -r answer; printf \'%s\\n\' "$answer" > "$1"; : > "$2"', "menu-result", activeSelectionFile, activeDoneFile]
     }
     resultProc.running = true
   }
@@ -355,6 +360,21 @@ Item {
       icon: "\uf1ab",
       volatile: true,
       actionFor: function(value) { return "omarchy-language " + Util.shellQuote(value) }
+    },
+    // Everyone else with an account, for System > Switch User.
+    "switch-users": {
+      script: "me=$(id -un); omarchy-user-list 2>/dev/null | while read -r name _; do [[ -z $name || $name == \"$me\" ]] && continue; printf '%s\\t%s\\t\\n' \"$name\" \"$name\"; done",
+      icon: "\uf007",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-user-switch " + Util.shellQuote(value) }
+    },
+    // People with an account; the ✓ marks you. A child sees only themselves,
+    // since only their own password is theirs to change.
+    "users": {
+      script: "me=$(id -un); adult=0; [[ \" $(id -nG) \" == *' wheel '* ]] && adult=1; omarchy-user-list 2>/dev/null | while read -r name _; do [[ -z $name ]] && continue; (( adult )) || [[ $name == \"$me\" ]] || continue; printf '%s\\t%s\\t%s\\n' \"$name\" \"$name\" \"$me\"; done",
+      icon: "\uf007",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-user-manage " + Util.shellQuote(value) }
     }
   })
 
@@ -992,6 +1012,7 @@ Item {
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
+    dmenuSecret = mode === "input" && payload.secret === true
     activeMenu = "root"
     navStack = []
     filterText = ""
@@ -1019,6 +1040,7 @@ Item {
   function openRoute(initialMenu) {
     var id = root.resolveRoute(initialMenu)
     var entry = root.items[id]
+    if (entry && MenuModel.hiddenByGuard(root.items, root.whenResults, entry)) return "hidden"
     // If the resolved id is an action (i.e. the user invoked an alias for
     // a leaf, e.g. `omarchy menu summon screenrecord-stop`), run it directly
     // instead of opening an action with no children.
@@ -1125,6 +1147,12 @@ Item {
 
   Process {
     id: resultProc
+    property string answer: ""
+    stdinEnabled: true
+    onStarted: {
+      write(answer + "\n")
+      answer = ""
+    }
     onExited: {
       if (root.applySerial === root.requestSerial)
         root.opened = false
@@ -1408,6 +1436,9 @@ Item {
             keyHandler: keyCatcher
             // Input-method commits bypass key handling, so the dialog has to refuse them here.
             readOnly: root.deleteConfirmOpen
+            echoMode: root.mode === "input" && root.dmenuSecret ? TextInput.Password : TextInput.Normal
+            passwordCharacter: "\u2022"
+            inputMethodHints: root.mode === "input" && root.dmenuSecret ? (Qt.ImhHiddenText | Qt.ImhSensitiveData | Qt.ImhNoPredictiveText) : Qt.ImhNone
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading

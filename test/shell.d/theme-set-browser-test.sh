@@ -130,3 +130,18 @@ refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 [[ $refreshed == "brave brave-origin chromium google-chrome " ]] ||
   fail "setter refreshes exactly the running browsers (got: $refreshed)"
 pass "setter refreshes exactly the running browsers"
+
+# A child (not in wheel) changes theme without the privileged write, which
+# would ask a grown-up's password in their session.
+rm -f "$CALL_LOG" "$policy_tmp/color.json"
+cat > "$TMP_BIN/id" <<'FAKE'
+#!/bin/bash
+echo "kid omarchy-child"
+FAKE
+chmod +x "$TMP_BIN/id"
+HOME="$TMPDIR" PATH="$stat_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" STAT_OWNER="root:root 644" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+[[ ! -e $CALL_LOG ]] || fail "a child's theme change leaves the machine-wide browser accent alone"
+rm -f "$TMP_BIN/id"
+pass "a child's theme change leaves the machine-wide browser accent alone"

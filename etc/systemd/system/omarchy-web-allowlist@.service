@@ -1,0 +1,10 @@
+# The resolver for one person with the web allowlist on, answering only the
+# domains on their list (omarchy-web-allowlist-apply writes its config and
+# redirects their DNS to it).
+[Unit]
+Description=Web allowlist resolver for %i
+After=systemd-resolved.service
+
+[Service]
+ExecStart=/usr/bin/dnsmasq --keep-in-foreground --conf-file=/run/omarchy-web-allowlist/%i.conf
+Restart=on-failure

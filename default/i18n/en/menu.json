@@ -38,6 +38,9 @@
   "system.lock": {
     "label": "Lock"
   },
+  "system.switch-user": {
+    "label": "Switch User"
+  },
   "system.suspend": {
     "label": "Suspend"
   },
@@ -664,6 +667,12 @@
   },
   "setup.plugin.remove": {
     "label": "Remove Plugin"
+  },
+  "setup.users": {
+    "label": "Users"
+  },
+  "setup.users.add": {
+    "label": "Add"
   },
   "setup.security": {
     "label": "Security"
@@ -1297,8 +1306,5 @@
   },
   "update.password.drive": {
     "label": "Drive Encryption"
-  },
-  "update.password.user": {
-    "label": "User"
   }
 }

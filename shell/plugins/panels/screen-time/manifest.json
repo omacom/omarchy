@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.screen-time",
+  "name": "Screen Time",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Today's screen time in the bar: the minutes left, a panel with the day, and math problems that earn more. The parent's controls live in omarchy.screen-time-parent.",
+  "kinds": ["service", "bar-widget", "panel"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml",
+    "panel": "Countdown.qml"
+  },
+  "barWidget": {
+    "displayName": "Screen Time",
+    "description": "The remaining screen time for today.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

@@ -862,20 +862,64 @@ Panel {
     else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
   }
 
+  // A child's account joins new networks as their own, which needs no
+  // administrator; known networks and adults take the shared path.
+  property bool childAccount: false
+
+  Process {
+    command: ["id", "-nG"]
+    running: true
+    stdout: StdioCollector {
+      onStreamFinished: root.childAccount = (" " + String(text || "").trim() + " ").indexOf(" omarchy-child ") !== -1
+    }
+  }
+
+  function ownKeyMgmt(network) {
+    if (!root.childAccount || !network || network.known) return null
+    return Model.ownKeyMgmt(network.security, WifiSecurityType)
+  }
+
+  function connectOwn(network, keyMgmt, passphrase) {
+    ownConnect.secret = passphrase
+    ownConnect.command = ["bash", "-c", Model.ownConnectScript, "nmcli-own", network.name || "", keyMgmt]
+    ownConnect.running = true
+  }
+
   function connectDirectly(ssid) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      var keyMgmt = root.ownKeyMgmt(network)
+      if (keyMgmt !== null) root.connectOwn(network, keyMgmt, "")
+      else network.connect()
+    })
   }
 
   function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      var keyMgmt = root.ownKeyMgmt(network)
+      if (keyMgmt !== null) root.connectOwn(network, keyMgmt, passphrase)
+      else network.connectWithPsk(passphrase)
+    })
   }
 
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
       enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
+      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity,
+        root.childAccount ? "user:" + Quickshell.env("USER") : ""]
       enterpriseConnect.running = true
     })
+  }
+
+  // Creates and activates a child's own network (see Model.ownConnectScript).
+  // The password goes over stdin, never argv.
+  Process {
+    id: ownConnect
+    property string secret: ""
+    stdinEnabled: true
+    onStarted: {
+      write(secret + "\n")
+      secret = ""
+    }
   }
 
   // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).

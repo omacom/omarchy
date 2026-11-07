@@ -1,0 +1,210 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Hold each person with the web allowlist on to the sites on it, as root
+# omarchy:requires-sudo=true
+
+# A person's allowlist (/etc/omarchy/web-allowlist/<user>: "on" or "off" on the
+# first line, then one domain per line) is kept by a grown-up from the screen
+# time panel. Browser policy is machine-wide, so it is held in the network
+# instead, by uid: each person with it on gets a dnsmasq answering only the
+# allowed domains (and their subdomains), every DNS packet they send is
+# redirected to it, DNS-over-TLS from them is dropped, and resolved's own
+# socket is denied to them so their lookups take that path. Chromium's
+# DNS-over-HTTPS, which would go around it, is turned off while anyone has it
+# on. A site reached by its bare IP address is not caught; this keeps a child
+# to the sites agreed on, it does not stop a determined one.
+#
+# Run whenever a list changes and at boot. --socket-only puts back just the
+# ACL on resolved's socket, which a resolved restart recreates without it: the
+# resolved drop-in runs that as root, and starting resolvers from there would
+# wait on resolved's own start.
+
+set -uo pipefail
+
+: "${WEB_ALLOWLIST_DIR:=/etc/omarchy/web-allowlist}"
+: "${WEB_ALLOWLIST_RUN:=/run/omarchy-web-allowlist}"
+: "${WEB_ALLOWLIST_RESOLVED_SOCKET:=/run/systemd/resolve/io.systemd.Resolve}"
+: "${WEB_ALLOWLIST_UPSTREAM:=127.0.0.53}"
+: "${WEB_ALLOWLIST_POLICY_DIRS:=/etc/chromium/policies/managed:/etc/opt/chrome/policies/managed:/etc/opt/edge/policies/managed:/etc/brave/policies/managed}"
+: "${WEB_ALLOWLIST_FIREFOX_DIRS:=/usr/lib/firefox/distribution:/opt/zen-browser/distribution}"
+: "${WEB_ALLOWLIST_DBUS_POLICY:=/etc/dbus-1/system.d/omarchy-web-allowlist.conf}"
+
+(( EUID == 0 )) || [[ -n ${WEB_ALLOWLIST_TESTING:-} ]] || { echo "omarchy-web-allowlist-apply must run as root." >&2; exit 1; }
+
+valid_domain() {
+  [[ $1 =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]]
+}
+
+# Each person's resolver listens on its own port, by uid.
+port_for() {
+  echo $(( 20000 + $1 % 10000 ))
+}
+
+# "<user> <uid>" for everyone whose allowlist is on.
+enabled_users() {
+  local list user uid
+  for list in "$WEB_ALLOWLIST_DIR"/*; do
+    [[ -f $list ]] || continue
+    user=${list##*/}
+    [[ $(head -1 "$list") == "on" ]] || continue
+    uid=$(id -u -- "$user" 2>/dev/null) || continue
+    echo "$user $uid"
+  done
+}
+
+resolver_config() {
+  local user=$1 uid=$2 domain
+  echo "port=$(port_for "$uid")"
+  echo "listen-address=127.0.0.1"
+  echo "bind-interfaces"
+  echo "no-resolv"
+  echo "no-hosts"
+  echo "user=nobody"
+  # Every name not allowed below is answered as not existing.
+  echo "address=/#/"
+  tail -n +2 "$WEB_ALLOWLIST_DIR/$user" | while read -r domain; do
+    domain=${domain,,}
+    if valid_domain "$domain"; then
+      echo "server=/$domain/$WEB_ALLOWLIST_UPSTREAM"
+    fi
+  done
+}
+
+ruleset() {
+  local user uid port
+  echo "table inet omarchy_web_allowlist"
+  echo "delete table inet omarchy_web_allowlist"
+  echo "table inet omarchy_web_allowlist {"
+  echo "  chain output_nat {"
+  echo "    type nat hook output priority -100;"
+  while read -r user uid; do
+    [[ -n $user ]] || continue
+    port=$(port_for "$uid")
+    echo "    meta skuid $uid udp dport 53 redirect to :$port"
+    echo "    meta skuid $uid tcp dport 53 redirect to :$port"
+  done <<<"$enabled"
+  echo "  }"
+  echo "  chain output_filter {"
+  echo "    type filter hook output priority 0;"
+  # Each resolver answers its own person alone: anyone else asking its port
+  # directly would get the sites on another child's list.
+  while read -r user uid; do
+    [[ -n $user ]] || continue
+    port=$(port_for "$uid")
+    echo "    meta skuid $uid tcp dport 853 drop"
+    echo "    meta skuid $uid udp dport 853 drop"
+    echo "    ip daddr 127.0.0.1 udp dport $port meta skuid != $uid drop"
+    echo "    ip daddr 127.0.0.1 tcp dport $port meta skuid != $uid drop"
+  done <<<"$enabled"
+  echo "  }"
+  echo "}"
+}
+
+# resolved's own socket, which would answer them without going through DNS.
+socket_acls() {
+  local list user
+  [[ -S $WEB_ALLOWLIST_RESOLVED_SOCKET || -n ${WEB_ALLOWLIST_TESTING:-} ]] || return 0
+  for list in "$WEB_ALLOWLIST_DIR"/*; do
+    [[ -f $list ]] || continue
+    user=${list##*/}
+    getent passwd "$user" >/dev/null || continue
+    if grep -q "^$user " <<<"$enabled"; then
+      setfacl -m "u:$user:---" -- "$WEB_ALLOWLIST_RESOLVED_SOCKET" || status=1
+    else
+      setfacl -x "u:$user" -- "$WEB_ALLOWLIST_RESOLVED_SOCKET" 2>/dev/null
+    fi
+  done
+}
+
+status=0
+enabled=$(enabled_users)
+
+if [[ ${1:-} == "--socket-only" ]]; then
+  socket_acls
+  exit "$status"
+fi
+
+if [[ -n $enabled ]] && omarchy-cmd-missing dnsmasq; then
+  pacman -S --needed --noconfirm dnsmasq >/dev/null || { echo "Could not install dnsmasq for the web allowlist." >&2; exit 1; }
+fi
+
+mkdir -p "$WEB_ALLOWLIST_RUN" && chmod 755 "$WEB_ALLOWLIST_RUN" || exit 1
+
+# Resolvers: one per person with the list on, restarted when their list moved.
+while read -r user uid; do
+  [[ -n $user ]] || continue
+  config=$WEB_ALLOWLIST_RUN/$user.conf
+  if ! cmp -s <(resolver_config "$user" "$uid") "$config"; then
+    resolver_config "$user" "$uid" >"$config.tmp" && mv -f "$config.tmp" "$config" || status=1
+    systemctl restart "omarchy-web-allowlist@$user.service" || status=1
+  else
+    systemctl start "omarchy-web-allowlist@$user.service" || status=1
+  fi
+done <<<"$enabled"
+
+for config in "$WEB_ALLOWLIST_RUN"/*.conf; do
+  [[ -f $config ]] || continue
+  user=${config##*/}
+  user=${user%.conf}
+  grep -q "^$user " <<<"$enabled" && continue
+  systemctl stop "omarchy-web-allowlist@$user.service" 2>/dev/null
+  rm -f "$config"
+done
+
+# The redirect, replaced whole so a rule never outlives the list behind it.
+ruleset | nft -f - || status=1
+
+socket_acls
+
+# resolved also answers over D-Bus, sending the lookup as itself; a person
+# with the list on may not ask it there.
+if [[ -n $enabled ]]; then
+  {
+    echo '<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">'
+    echo '<busconfig>'
+    while read -r user uid; do
+      [[ -n $user ]] && printf '  <policy user="%s">\n    <deny send_destination="org.freedesktop.resolve1"/>\n  </policy>\n' "$user"
+    done <<<"$enabled"
+    echo '</busconfig>'
+  } >"$WEB_ALLOWLIST_DBUS_POLICY.tmp"
+else
+  : >"$WEB_ALLOWLIST_DBUS_POLICY.tmp"
+fi
+if ! cmp -s "$WEB_ALLOWLIST_DBUS_POLICY.tmp" "$WEB_ALLOWLIST_DBUS_POLICY" 2>/dev/null; then
+  if [[ -s $WEB_ALLOWLIST_DBUS_POLICY.tmp ]]; then
+    chmod 644 "$WEB_ALLOWLIST_DBUS_POLICY.tmp" && mv -f "$WEB_ALLOWLIST_DBUS_POLICY.tmp" "$WEB_ALLOWLIST_DBUS_POLICY" || status=1
+  else
+    rm -f "$WEB_ALLOWLIST_DBUS_POLICY"
+  fi
+  busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1 || status=1
+fi
+rm -f "$WEB_ALLOWLIST_DBUS_POLICY.tmp"
+
+# Secure DNS in the browser would go around the redirect.
+IFS=: read -ra policy_dirs <<<"$WEB_ALLOWLIST_POLICY_DIRS"
+for dir in "${policy_dirs[@]}"; do
+  [[ -d $dir && ! -L $dir ]] || continue
+  if [[ -n $enabled ]]; then
+    printf '{"DnsOverHttpsMode": "off"}\n' >"$dir/web-allowlist.json.tmp" && chmod 644 "$dir/web-allowlist.json.tmp" &&
+      mv -f "$dir/web-allowlist.json.tmp" "$dir/web-allowlist.json" || status=1
+  else
+    rm -f "$dir/web-allowlist.json"
+  fi
+done
+
+# Firefox and Zen take DNS-over-HTTPS from their distribution policies, which
+# Omarchy installs; it is turned off and locked there too while a list is on.
+IFS=: read -ra firefox_dirs <<<"$WEB_ALLOWLIST_FIREFOX_DIRS"
+for dir in "${firefox_dirs[@]}"; do
+  policies=$dir/policies.json
+  [[ -f $policies && ! -L $policies ]] || continue
+  if [[ -n $enabled ]]; then
+    jq '.policies.DNSOverHTTPS = {"Enabled": false, "Locked": true}' "$policies" >"$policies.tmp"
+  else
+    jq 'if .policies.DNSOverHTTPS == {"Enabled": false, "Locked": true} then del(.policies.DNSOverHTTPS) else . end' "$policies" >"$policies.tmp"
+  fi && { cmp -s "$policies.tmp" "$policies" || { chmod 644 "$policies.tmp" && mv -f "$policies.tmp" "$policies"; }; } || status=1
+  rm -f "$policies.tmp"
+done
+
+exit "$status"
