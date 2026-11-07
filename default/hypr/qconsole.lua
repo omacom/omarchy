@@ -152,8 +152,14 @@ hl.on("monitor.layout_changed", function()
   refit()
 end)
 
+-- A hidden console is sized by workspace.special_active as it opens, so a hop
+-- between screens has nothing to fit. Rewriting the rule then would still
+-- relayout the monitor being left, shifting its scrolling windows.
 hl.on("monitor.focused", function()
-  refit()
+  local ws = hl.get_workspace(CONSOLE)
+  if ws and ws.visible then
+    refit()
+  end
 end)
 
 -- Special workspaces open on the monitor they are toggled on, not on whichever
