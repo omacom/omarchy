@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import "FingerprintModel.js" as FingerprintModel
+import "../bar/widgets/KeyboardLayoutModel.js" as KeyboardLayoutModel
 
 Item {
   id: root
@@ -61,6 +62,10 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Hyprland holds the Caps Lock state and Quickshell has no signal for it, so
+  // the lock asks when it opens and after each Caps Lock key press.
+  property bool capsLockOn: false
+  property bool capsLockRefreshPending: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
 
@@ -229,6 +234,7 @@ Item {
     Qt.callLater(function() {
       root.refreshBackground()
       root.refreshFingerprintStatus()
+      root.refreshCapsLock()
     })
 
     return true
@@ -353,6 +359,27 @@ Item {
     if (!blankProcess.running) blankProcess.running = true
   }
 
+  function refreshCapsLock() {
+    if (capsLockProcess.running) capsLockRefreshPending = true
+    else capsLockProcess.running = true
+  }
+
+  function applyCapsLock(text) {
+    var devices
+    try {
+      devices = JSON.parse(String(text || ""))
+    } catch (error) {
+      return
+    }
+    // The main flag can sit on fcitx5's virtual keyboard or a power button, so
+    // ask every keyboard someone types on. That also covers a laptop with an
+    // external keyboard.
+    var keyboards = devices && Array.isArray(devices.keyboards) ? devices.keyboards : []
+    capsLockOn = keyboards.some(function(keyboard) {
+      return !!keyboard && KeyboardLayoutModel.isTypedKeyboard(keyboard.name) && !!keyboard.capsLock
+    })
+  }
+
   function submitPassword(value) {
     var password = String(value || "")
     if (!lockRequested || authenticatingPassword || password.length === 0) return
@@ -384,6 +411,9 @@ Item {
     failedAttempts += 1
     failureMessage = I18n.t("lock.authenticationFailed").arg(I18n.formatNumber(failedAttempts))
     runWake()
+    // The field is disabled while checking, so a Caps Lock release then never
+    // reached it. Ask again before the next attempt.
+    refreshCapsLock()
   }
 
   function startFingerprint() {
@@ -521,8 +551,10 @@ Item {
         passwordText: root.enteredPassword
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
+        capsLockOn: root.capsLockOn
         onClearFailureRequested: root.failureMessage = ""
         onWakeRequested: root.runWake()
+        onCapsLockPressed: root.refreshCapsLock()
       }
 
     }
@@ -764,6 +796,19 @@ Item {
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
   }
 
+  Process {
+    id: capsLockProcess
+    command: ["hyprctl", "devices", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyCapsLock(text)
+    }
+    onExited: {
+      if (!root.capsLockRefreshPending) return
+      root.capsLockRefreshPending = false
+      root.refreshCapsLock()
+    }
+  }
+
   Timer {
     id: idleBlankTimer
     readonly property int idleMs: 5000
@@ -898,6 +943,7 @@ Item {
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
         fingerprintUnavailable: root.fingerprintUnavailable,
+        capsLock: root.capsLockOn,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
