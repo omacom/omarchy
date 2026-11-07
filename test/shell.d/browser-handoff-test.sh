@@ -7,6 +7,15 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_command python3
 require_command socat
 
+# Exercise the real client against Mozilla's D-Bus wire contract on a private
+# bus. The peer decodes the payload independently and never opens a browser.
+if command -v dbus-run-session >/dev/null && /usr/bin/python3 -c 'from gi.repository import Gio, GLib' 2>/dev/null; then
+  dbus-run-session -- /usr/bin/python3 "$ROOT/test/shell.d/fixtures/browser-handoff/zen-dbus.py" \
+    "$ROOT/bin/omarchy-cmd-zen-handoff" || fail "Zen D-Bus handoff preserves the launch and fallback contracts"
+else
+  skip "Zen D-Bus handoff tests need dbus-run-session and system Python GObject"
+fi
+
 # The handoff only stands in for the packaged browser itself.
 if [[ $(type -P chromium) != "/usr/bin/chromium" ]]; then
   skip "browser handoff needs /usr/bin/chromium"
