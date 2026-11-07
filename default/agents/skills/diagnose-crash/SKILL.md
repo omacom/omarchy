@@ -73,6 +73,45 @@ never invent function names to fill the gap. An unsymbolized stack still has
 shape: which library each frame belongs to, and whether the crash came from a
 signal handler, a main loop, or a worker thread.
 
+## Check whether it is already known
+
+Before writing your report, find out whether this crash is already reported or
+fixed. This holds for every crash, not just Omarchy's, because the answer may
+be "update" or "follow that issue" rather than a new report.
+
+Record what is installed: `omarchy-version`, `omarchy-channel-current`, and the
+crashing package (`pacman -Qo <binary>`, then `pacman -Qi` for its version).
+
+Search on the binary name, the signal, the top symbolized frames, and any
+distinctive error string from the journal. For Omarchy, search issues **and**
+pull requests, both open and closed:
+
+```bash
+gh search issues --repo omacom/omarchy "<binary> <signal>"
+gh search prs --repo omacom/omarchy "<top frame or error string>"
+gh search commits --repo omacom/omarchy "<binary>"
+```
+
+When the crashing code is Omarchy's, also check whether the default branch
+(`gh repo view omacom/omarchy --json defaultBranchRef -q .defaultBranchRef.name`)
+or a newer release (`gh release list --repo omacom/omarchy --limit 5`) already
+contains a fix. Merged on the default branch and not yet released means it ships
+in a coming update. It is not something to report again.
+
+If `gh` is missing, or `gh auth status` fails, do not install or authenticate
+it. Give the user search links instead, such as
+`https://github.com/omacom/omarchy/issues?q=is%3Aissue+<terms>` and
+`https://github.com/omacom/omarchy/pulls?q=is%3Apr+<terms>`.
+
+For a program Omarchy only installs, look for its upstream tracker the same way
+(the project's own issue tracker, or `https://gitlab.archlinux.org` for Arch
+packaging). Search there, read only.
+
+If you find a match, say so in the report and link it. Suggest a thumbs-up, or a
+comment that carries only new information (a symbolized stack, a narrower
+trigger, the version where it regressed), instead of a new issue. Post nothing
+without the user's explicit yes.
+
 ## Report
 
 1. What crashed, and what it was doing at the time.
@@ -81,6 +120,7 @@ signal handler, a main loop, or a worker thread.
 3. Whether any user data was lost, and where it can be recovered from. Check the
    trash before concluding anything is gone.
 4. Whether it is likely to recur, and what would avoid or fix it.
+5. Any existing issue, pull request or released fix you found, with links.
 
 Be straight about the limits of the evidence. If the cause is genuinely
 ambiguous, say so rather than assembling confidence out of guesswork.
