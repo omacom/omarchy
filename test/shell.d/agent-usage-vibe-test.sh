@@ -344,6 +344,24 @@ expect("Vibe meters both allowances from the billing API",
        [(entry["title"], entry["percent"], entry["resetsAt"]) for entry in fresh["limits"]],
        [("Vibe", 0.25, RESET), ("API", 0.0, RESET)], fresh)
 
+expect("Vibe's balance is the Vibe Code allowance, in its own currency", fresh["balance"],
+       {"remaining": 382.5, "funded": 510.0, "spent": 127.5, "currency": "EUR", "estimated": False}, fresh)
+
+sandbox()
+keyed()
+vibe_budget(budget_answer())
+record, _ = vibe_budget(None, mode=500)
+expect("Vibe keeps the balance past a failed check", [record["limitsStale"], record["balance"]["spent"]], [True, 127.5], record)
+
+edit_limits_cache("vibe", resets_past=True)
+record, _ = vibe_budget(None, mode=500)
+expect("Vibe's spend starts over once the allowance has reset", [record["balance"]["spent"], record["balance"]["remaining"]], [0.0, 510.0], record)
+
+sandbox()
+keyed()
+record, _ = vibe_budget(budget_answer(pool(25.0, 510.0) | {"currency": "<b>EUR</b>"}))
+check("Vibe shows no balance in a currency it can't trust", len(record["limits"]) == 2 and not record.get("balance"), record)
+
 sandbox()
 os.environ.pop("MISTRAL_API_KEY", None)
 (home() / ".vibe").mkdir(parents=True, exist_ok=True)

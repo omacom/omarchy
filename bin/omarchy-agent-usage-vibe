@@ -677,6 +677,19 @@ def is_moment(value):
   return True
 
 
+def balance_of(limits, allowance_info):
+  """The Vibe Code allowance as a ledger, read off its meter so that spend starts
+  over when a kept window's reset passes. Mistral reports a percentage of a budget,
+  so this is what the allowance has covered, not an invoice."""
+  info = obj(allowance_info)
+  funded, currency = finite(info.get("funded")), info.get("currency")
+  window = next((entry for entry in limits if entry.get("title") == "Vibe"), None)
+  if not window or funded <= 0 or not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
+    return None
+  spent = round(funded * finite(window.get("percent")), 2)
+  return {"remaining": round(max(0.0, funded - spent), 2), "funded": round(funded, 2), "spent": spent, "currency": currency, "estimated": False}
+
+
 def fetch_budget(key):
   """The allowances, as {"ok": True, "limits": [...]}, or {"ok": False, ...}
   saying why not."""
@@ -697,16 +710,21 @@ def fetch_budget(key):
     return {"ok": False, "detail": "Mistral's billing API returned an invalid response. Local stats are still shown."}
   if not isinstance(answer, dict) or not ("vibe_budget" in answer or "api_budget" in answer):
     return {"ok": False, "detail": "Mistral's billing API returned an invalid response. Local stats are still shown."}
-  return {"ok": True, "limits": allowance("Vibe", answer.get("vibe_budget")) + allowance("API", answer.get("api_budget"))}
+  vibe_budget = obj(answer.get("vibe_budget"))
+  return {
+    "ok": True,
+    "limits": allowance("Vibe", vibe_budget) + allowance("API", answer.get("api_budget")),
+    "allowance": {"funded": finite(vibe_budget.get("initial_budget")), "currency": vibe_budget.get("currency")},
+  }
 
 
 def collect_limits(key, force):
   """The allowances now, or the last known ones past a failed check."""
-  result = {"limits": [], "live": False, "fetchedAt": 0, "usageStatusText": "", "authHelpText": "", "retryAdvised": False}
+  result = {"limits": [], "balance": None, "live": False, "fetchedAt": 0, "usageStatusText": "", "authHelpText": "", "retryAdvised": False}
   cache = LimitsCache(AGENT_ID, key)
 
   def reuse():
-    result.update(limits=cache.limits, live=True, fetchedAt=cache.fetched_at)
+    result.update(limits=cache.limits, balance=balance_of(cache.limits, cache.data.get("allowance")), live=True, fetchedAt=cache.fetched_at)
     return result
 
   if cache.fresh(force, allow_empty=True):
@@ -719,12 +737,12 @@ def collect_limits(key, force):
         return reuse()
     probe = fetch_budget(key)
     if probe["ok"]:
-      fetched_at = cache.save(probe["limits"], only_if_newer=True)
-      result.update(limits=probe["limits"], live=True, fetchedAt=fetched_at)
+      fetched_at = cache.save(probe["limits"], only_if_newer=True, allowance=probe.get("allowance"))
+      result.update(limits=probe["limits"], balance=balance_of(probe["limits"], probe.get("allowance")), live=True, fetchedAt=fetched_at)
       return result
 
   kept, fetched_at = cache.kept()
-  result.update(limits=kept, fetchedAt=fetched_at, retryAdvised=bool(probe.get("transport")))
+  result.update(limits=kept, balance=balance_of(kept, cache.data.get("allowance")), fetchedAt=fetched_at, retryAdvised=bool(probe.get("transport")))
   if probe.get("refused"):
     result.update(usageStatusText="Sign-in expired", authHelpText=probe["detail"])
   elif kept:
@@ -821,6 +839,8 @@ def main():
       usageStatusText=limits["usageStatusText"],
       authHelpText=limits["authHelpText"],
     )
+    if limits["balance"]:
+      record["balance"] = limits["balance"]
     if limits["retryAdvised"]:
       record["retryAdvised"] = True
   emit(record)
