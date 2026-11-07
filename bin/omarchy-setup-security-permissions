@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Remove excessive access to sensitive system files explicitly
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( $# > 0 )); then
+  if (( $# == 1 )) && [[ $1 == "--help" || $1 == "-h" ]]; then
+    echo "Usage: omarchy-setup-security-permissions"
+    echo "Removes excessive permissions; preserves stricter administrator modes."
+    exit 0
+  else
+    echo "Usage: omarchy-setup-security-permissions" >&2
+    exit 2
+  fi
+fi
+
+sudo chmod go-rwx /root
+for file in /etc/shadow /etc/gshadow /etc/ssh/sshd_config; do
+  if [[ -f $file ]]; then
+    sudo chmod go-rwx,a-x "$file"
+  fi
+done
+for file in /etc/passwd /etc/group; do
+  if [[ -f $file ]]; then
+    sudo chmod go-w,a-x "$file"
+  fi
+done
