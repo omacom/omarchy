@@ -59,6 +59,17 @@ if run_interactive -p 2222; then
 fi
 pass "missing destination is not interactive"
 
+# The fns are bash, but zsh users source them from .zshrc too. zsh reads a
+# bare-letter substring offset as a history modifier, and its `argv` is the
+# positional parameters, which the shift loop empties before ssh -G runs.
+if command -v zsh >/dev/null; then
+  zsh -c "source '$fns'; _ssh_interactive \"\$@\"" _ -F /dev/null -p 2222 user@host ||
+    fail "option parsing works when sourced into zsh"
+  pass "option parsing works when sourced into zsh"
+else
+  skip "zsh not installed; skipping option parsing when sourced into zsh"
+fi
+
 # --- reconnect behavior, run on a pty with a fake ssh ---
 
 fake_dir=$(mktemp -d)
