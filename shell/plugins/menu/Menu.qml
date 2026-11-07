@@ -782,6 +782,13 @@ Item {
     })
   }
 
+  // Whether a selectable row sits below `index`. The cursor wraps, so a row
+  // above it does not count as one still to come.
+  function selectableAfter(index) {
+    for (var i = index + 1; i < displayModel.count; i++) if (root.rowSelectable(i)) return true
+    return false
+  }
+
   // Contain alone parks the cursor row flush with the viewport edge, hiding
   // the neighbor entirely and losing the fold affordance. Keep the next
   // hidden row peeking past the cursor in the direction of travel.
@@ -792,16 +799,18 @@ Item {
     var item = resultList.itemAtIndex(root.selectedIndex)
     if (!item) return
 
-    var reach = root.rowPeek + root.rowSpacing
-    if (root.selectedIndex < displayModel.count - 1) {
-      var maxY = Math.max(resultList.originY, resultList.originY + resultList.contentHeight - resultList.height)
-      var overhang = item.y + item.height + reach - (resultList.contentY + resultList.height)
-      if (overhang > 0) resultList.contentY = Math.min(resultList.contentY + overhang, maxY)
-    }
-    if (root.selectedIndex > 0) {
-      var underhang = resultList.contentY - (item.y - reach)
-      if (underhang > 0) resultList.contentY = Math.max(resultList.contentY - underhang, resultList.originY)
-    }
+    resultList.contentY = MenuModel.revealOffset({
+      contentY: resultList.contentY,
+      height: resultList.height,
+      originY: resultList.originY,
+      contentHeight: resultList.contentHeight,
+      itemY: item.y,
+      itemHeight: item.height,
+      reach: root.rowPeek + root.rowSpacing,
+      count: displayModel.count,
+      selectedIndex: root.selectedIndex,
+      selectableAfter: root.selectableAfter(root.selectedIndex)
+    })
   }
 
   function select(delta) {
