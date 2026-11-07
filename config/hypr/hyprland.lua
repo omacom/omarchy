@@ -13,6 +13,11 @@ dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/boo
 -- Disable Omarchy's default touchpad gestures. Add your own in hypr/input.lua.
 -- omarchy_default_gestures = false
 
+-- Move every monitor to the same workspace slot with Super + N, instead of only
+-- the focused one. With two monitors, Super + 3 shows the third workspace of
+-- each monitor's own block at once.
+-- omarchy_workspaces_span = true
+
 -- Load Omarchy defaults.
 require("default.hypr.omarchy")
 
