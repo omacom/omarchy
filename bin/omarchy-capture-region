@@ -41,12 +41,19 @@ active_workspace() {
   hyprctl monitors -j | jq -r '.[] | select(.focused == true) | .activeWorkspace.id'
 }
 
+# The focused monitor's workspace, plus the special workspace shown over it.
+# A shown special workspace only appears under specialWorkspace, and Hyprland
+# reports its windows as not hidden even while it is closed.
+visible_workspaces() {
+  hyprctl monitors -j | jq -c '[.[] | select(.focused == true) | .activeWorkspace.id, (select((.specialWorkspace.name // "") != "") | .specialWorkspace.id)]'
+}
+
 # Hidden group members and windows stacked at identical geometry collapse to
 # one rectangle: slurp cannot tell them apart, and duplicates would stall the
 # Tab cycle on the first copy.
 window_rects() {
-  hyprctl clients -j | jq -r --arg ws "$(active_workspace)" \
-    '[.[] | select(.workspace.id == ($ws | tonumber) and .hidden != true) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"] | unique[]'
+  hyprctl clients -j | jq -r --argjson ws "$(visible_workspaces)" \
+    '[.[] | select(.workspace.id as $id | ($ws | index($id)) and .hidden != true) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"] | unique[]'
 }
 
 monitor_rects() {
