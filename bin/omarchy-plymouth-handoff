@@ -142,6 +142,8 @@ def main():
       time.sleep(INTERVAL)
   finally:
     waited = time.monotonic() - started
+    # Once a compositor has drawn it holds master, so the console can't come
+    # back on any display, and restoring tty1's text mode would only race it.
     if drawn:
       log(f"Display taken over after {waited:.2f}s, quitting Plymouth and keeping its frame")
       quit = plymouth("quit", "--retain-splash")
