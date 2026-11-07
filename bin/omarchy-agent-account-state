@@ -150,11 +150,17 @@ def identity(provider: str, home: Path) -> dict[str, str]:
   if provider == "claude":
     account = (read_json(claude_account_file(home)) or {}).get("oauthAccount") or {}
     login = (read_json(home / ".credentials.json") or {}).get("claudeAiOauth") or {}
+    subscription = str(login.get("subscriptionType") or "")
+    plan = plan_label(str(login.get("rateLimitTier") or ""), subscription)
+    # Max 20x is now called Ultra; only the profile's display name says so.
+    name = account.get("planDisplayName")
+    if subscription.lower() == "max" and isinstance(name, str) and 0 < len(name.strip()) <= 32 and name.isprintable():
+      plan = " ".join(name.split())
     return {
       "accountId": str(account.get("accountUuid") or ""),
       "email": str(account.get("emailAddress") or ""),
       "org": str(account.get("organizationName") or ""),
-      "plan": plan_label(str(login.get("rateLimitTier") or ""), str(login.get("subscriptionType") or "")),
+      "plan": plan,
     }
 
   if provider == "grok":
