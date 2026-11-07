@@ -52,4 +52,29 @@ high_temp=75
 speed_curve=linear
 always_full_speed=false
 EOF
+
+  # Apple T2 Internal Keyboard / Trackpad
+  #
+  # The T2 internal trackpad uses the Magic Trackpad 2 architecture (hid-magicmouse)
+  # bridged over USB via t2bce_vhci. libinput's fallback [Apple Touchpads USB] rule
+  # sets AttrTouchSizeRange=150:130 (calibrated for older bcm5974 hardware). Because the
+  # Magic Trackpad reports touch contact sizes of 10-20, libinput 1.32+ discards
+  # touch and motion events as noise while clicks continue to pass.
+  #
+  # Override AttrTouchSizeRange to 20:10 matching the Apple Magic Trackpad v2 quirks.
+  mkdir -p /etc/libinput
+  touch /etc/libinput/local-overrides.quirks
+  if ! grep -q '\[Apple Internal Magic Trackpad (T2)\]' /etc/libinput/local-overrides.quirks; then
+    cat >> /etc/libinput/local-overrides.quirks <<'EOF'
+
+[Apple Internal Magic Trackpad (T2)]
+MatchUdevType=touchpad
+MatchVendor=0x05AC
+MatchName=*Apple Internal Keyboard / Trackpad*
+AttrTouchSizeRange=20:10
+AttrPalmPressureThreshold=190
+AttrPalmSizeThreshold=900
+AttrThumbSizeThreshold=800
+EOF
+  fi
 fi
