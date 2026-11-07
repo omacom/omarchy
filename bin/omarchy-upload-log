@@ -1,12 +1,224 @@
 #!/bin/bash
 
 # omarchy:summary=Upload logs to logs.omarchy.org
-# omarchy:args=<log-file>
+# omarchy:args=[--full] [--redact <src> <dest>] [install|this-boot|last-boot|installed|system-info]
+# omarchy:examples=omarchy upload-log this-boot | omarchy upload-log --full last-boot
 # omarchy:hidden=true
 
-LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+# logs.omarchy.org is an unauthenticated paste: anyone with the URL can read it
+# for 24 hours, and there is no delete. Boot journals and install logs routinely
+# contain credential-like values (tokens in command lines, Wi-Fi PSKs, archinstall
+# passwords), so the upload is scrubbed and the default boot scope is warnings
+# and errors. --full opts into the complete journal and is still scrubbed.
+# --redact copies a file without uploading, so omarchy-debug can scrub the
+# copy it posts and leave the local log alone.
+
+FULL=false
+REDACT_SRC=""
+REDACT_DEST=""
+MODE=""
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-upload-log [--full] [--redact <src> <dest>] [install|this-boot|last-boot|installed|system-info]
+  install      Upload installation logs (default)
+  this-boot    Upload warnings and errors from the current boot
+  last-boot    Upload warnings and errors from the previous boot
+  installed    Upload system info and installed packages
+  system-info  Same as installed
+  --full       Include the complete boot journal (this-boot and last-boot)
+  --redact     Copy <src> to <dest> with credential-like values removed. Does not upload.
+EOF
+}
+
+# Copies src to dest with credential-like values replaced. Prints how many
+# replacements were made. A best-effort scrub of shapes that show up in
+# journals and install logs, not a general secret scanner.
+redact_into() {
+  local src="$1" dest="$2" count_file count
+
+  [[ -f $src ]] || {
+    echo "Error: nothing to redact ($src)" >&2
+    return 1
+  }
+
+  count_file=$(mktemp)
+  # gensub() and IGNORECASE are gawk. Plain awk is mawk in the Ubuntu CLI suite,
+  # and mawk aborts the upload with "function gensub never defined".
+  if ! gawk -v count_file="$count_file" '
+    function apply(s, re, repl,    out, piece, piece2, n) {
+      out = ""
+      n = 0
+      while (match(s, re)) {
+        if (RLENGTH == 0) break
+        piece = substr(s, RSTART, RLENGTH)
+        piece2 = gensub(re, repl, 1, piece)
+        # Reason: psk=[REDACTED] still matches the assignment rule, and the
+        # replacement is identical. Stopping here would leave a later secret
+        # on the same line. Copy the match and keep scanning after it.
+        if (piece2 == piece) {
+          out = out substr(s, 1, RSTART + RLENGTH - 1)
+          s = substr(s, RSTART + RLENGTH)
+          continue
+        }
+        out = out substr(s, 1, RSTART - 1) piece2
+        s = substr(s, RSTART + RLENGTH)
+        n++
+        if (n > 1000) break
+      }
+      count += n
+      return out s
+    }
+
+    function scrub_tokens(s,    n) {
+      n = gsub(/gh[opurs]_[A-Za-z0-9]{20,}/, "[REDACTED]", s)
+      n += gsub(/github_pat_[A-Za-z0-9_]{20,}/, "[REDACTED]", s)
+      n += gsub(/glpat-[A-Za-z0-9_-]{20,}/, "[REDACTED]", s)
+      n += gsub(/xox[baprs]-[A-Za-z0-9-]{10,}/, "[REDACTED]", s)
+      n += gsub(/sk_live_[A-Za-z0-9]+/, "[REDACTED]", s)
+      n += gsub(/sk_test_[A-Za-z0-9]+/, "[REDACTED]", s)
+      n += gsub(/sk-[A-Za-z0-9]{20,}/, "[REDACTED]", s)
+      n += gsub(/akia[0-9a-z]{16}/, "[REDACTED]", s)
+      n += gsub(/tskey-[A-Za-z0-9-]{8,}/, "[REDACTED]", s)
+      n += gsub(/npm_[A-Za-z0-9]{36}/, "[REDACTED]", s)
+      n += gsub(/ya29\.[A-Za-z0-9_-]{10,}/, "[REDACTED]", s)
+      count += n
+      return s
+    }
+
+    BEGIN {
+      IGNORECASE = 1
+      count = 0
+      in_key = 0
+      # Quoted keys from install configs and JSON, then assignment forms
+      # (journal command lines, nmcli, wg-quick). A quoted value includes
+      # backslash-escaped quotes, so the rest of that secret stays in the
+      # match. An unquoted value stops at a delimiter so the rest of the
+      # line stays readable.
+      json_key = "\"!?(([A-Za-z0-9]+_)*)(password|passwd|pwd|psk|secret|token|api[-_]?key|private[-_]?key|client[-_]?secret)\""
+      json_re = "(" json_key ")[[:space:]]*:[[:space:]]*\"(\\\\.|[^\"\\\\])*\""
+      sq_key = "'\''!?(([A-Za-z0-9]+_)*)(password|passwd|pwd|psk|secret|token|api[-_]?key|private[-_]?key|client[-_]?secret)'\''"
+      sq_re = "(" sq_key ")[[:space:]]*:[[:space:]]*'\''(\\\\.|[^\\'\''])*'\''"
+      # pwd is not an assignment key. IGNORECASE would treat sudo PWD=/home/...
+      # as a password and redact the working directory.
+      assign_key = "[A-Za-z0-9_.-]*(client[-_]?secret|private[-_]?key|preshared[-_]?key|auth[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|api[-_]?key|password|passwd|psk|secret|token)"
+      assign_prefix = "(^|[^A-Za-z0-9_])(" assign_key ")"
+      dq_assign_re = assign_prefix "[[:space:]]*[=:][[:space:]]*\"(\\\\.|[^\"\\\\])*\""
+      sq_assign_re = assign_prefix "[[:space:]]*[=:][[:space:]]*'\''(\\\\.|[^\\'\''])*'\''"
+      assign_re = assign_prefix "[[:space:]]*[=:][[:space:]]*[^[:space:]&\"'\'',;]+"
+      # Passed as strings. A /regexp/ argument is evaluated against $0 before
+      # the function runs, so it arrives as 0 or 1 and then matches digits.
+      url_re = "([A-Za-z][A-Za-z0-9+.-]*://)[^[:space:]/@:]+:[^[:space:]/@]+@"
+      auth_re = "(authorization|proxy-authorization)[[:space:]]*[:=][[:space:]]*(bearer|basic)[[:space:]]+[^[:space:]]+"
+      bearer_re = "bearer[[:space:]]+[A-Za-z0-9._~+/-]{8,}"
+    }
+
+    {
+      line = $0
+      if (in_key) {
+        if (line ~ /-----END [A-Z0-9 ]*PRIVATE KEY-----/) {
+          in_key = 0
+          print line
+        } else {
+          print "[REDACTED]"
+        }
+        next
+      }
+      if (line ~ /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/) {
+        count++
+        if (line ~ /-----END [A-Z0-9 ]*PRIVATE KEY-----/) {
+          print "[REDACTED PRIVATE KEY]"
+        } else {
+          in_key = 1
+          print line
+        }
+        next
+      }
+
+      line = apply(line, url_re, "\\1[REDACTED]@")
+      line = apply(line, auth_re, "\\1: \\2 [REDACTED]")
+      line = apply(line, json_re, "\\1: \"[REDACTED]\"")
+      line = apply(line, sq_re, "\\1: '\''[REDACTED]'\''")
+      line = apply(line, dq_assign_re, "\\1\\2=[REDACTED]")
+      line = apply(line, sq_assign_re, "\\1\\2=[REDACTED]")
+      line = apply(line, assign_re, "\\1\\2=[REDACTED]")
+      line = apply(line, bearer_re, "Bearer [REDACTED]")
+      line = scrub_tokens(line)
+      print line
+    }
+
+    END { print count > count_file }
+  ' "$src" >"$dest"; then
+    rm -f "$dest" "$count_file"
+    echo "Error: failed to redact $src" >&2
+    return 1
+  fi
+
+  chmod 600 "$dest"
+  count=$(cat "$count_file")
+  rm -f "$count_file"
+  printf '%s\n' "$count"
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --full)
+      FULL=true
+      shift
+      ;;
+    --redact)
+      REDACT_SRC=${2:-}
+      REDACT_DEST=${3:-}
+      if [[ -z $REDACT_SRC || -z $REDACT_DEST ]]; then
+        usage >&2
+        exit 1
+      fi
+      redact_into "$REDACT_SRC" "$REDACT_DEST"
+      exit
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -n $MODE ]]; then
+        echo "Unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      MODE=$1
+      shift
+      ;;
+  esac
+done
+
+if [[ -z $MODE && $# -gt 0 ]]; then
+  MODE=$1
+  shift
+fi
+if (($# > 0)); then
+  echo "Unexpected argument: $1" >&2
+  usage >&2
+  exit 1
+fi
+MODE=${MODE:-install}
+
+umask 077
+TEMP_LOG=$(mktemp)
+SYSTEM_INFO=$(mktemp)
+cleanup() {
+  rm -f "$TEMP_LOG" "$SYSTEM_INFO"
+}
+trap cleanup EXIT
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then
@@ -40,7 +252,7 @@ else
 fi
 
 same_or_prefix_log() {
-  local a="$1" b="$2" size_a size_b min_size
+  local a=$1 b=$2 size_a size_b min_size
   [[ -s $a && -s $b ]] || return 1
   cmp -s "$a" "$b" && return 0
 
@@ -56,7 +268,20 @@ same_or_prefix_log() {
   cmp -n "$min_size" "$a" "$b" >/dev/null 2>&1
 }
 
-case "$LOG_TYPE" in
+# Info and debug lines are where command lines, URLs, and secrets land.
+# Warnings and errors are enough for a support paste unless the user opts in.
+append_boot_journal() {
+  local boot=$1
+  if [[ $FULL == "true" ]]; then
+    journalctl -b "$boot" --no-pager >>"$TEMP_LOG" 2>/dev/null || true
+  else
+    journalctl -b "$boot" -p warning --no-pager >>"$TEMP_LOG" 2>/dev/null || true
+  fi
+}
+
+upload_label=""
+
+case "$MODE" in
 install)
   # In the live ISO before reboot, the target system is mounted at /mnt so the
   # omarchy install log lives at /mnt/var/log/omarchy-install.log. On the
@@ -92,37 +317,34 @@ install)
     exit 1
   fi
 
-  echo "Uploading installation log to logs.omarchy.org..."
+  upload_label="installation log"
   ;;
 
 this-boot)
-  # Combine system info with boot logs
   cat "$SYSTEM_INFO" >"$TEMP_LOG"
-  journalctl -b 0 >>"$TEMP_LOG" 2>/dev/null
+  append_boot_journal 0
 
   if [[ ! -s $TEMP_LOG ]]; then
     echo "Error: No logs found for current boot"
     exit 1
   fi
 
-  echo "Uploading current boot logs to logs.omarchy.org..."
+  upload_label="current boot logs"
   ;;
 
 last-boot)
-  # Combine system info with previous boot logs
   cat "$SYSTEM_INFO" >"$TEMP_LOG"
-  journalctl -b -1 >>"$TEMP_LOG" 2>/dev/null
+  append_boot_journal -1
 
   if [[ ! -s $TEMP_LOG ]]; then
     echo "Error: No logs found for previous boot"
     exit 1
   fi
 
-  echo "Uploading previous boot logs to logs.omarchy.org..."
+  upload_label="previous boot logs"
   ;;
 
 installed|system-info)
-  # System info plus all installed packages
   cat "$SYSTEM_INFO" >"$TEMP_LOG"
   {
     echo ""
@@ -137,19 +359,43 @@ installed|system-info)
     exit 1
   fi
 
-  echo "Uploading system information to logs.omarchy.org..."
+  upload_label="system information"
   ;;
 
 *)
-  echo "Usage: $0 [install|this-boot|last-boot|installed|system-info]"
-  echo "  install      - Upload installation logs (default)"
-  echo "  this-boot    - Upload logs from current boot"
-  echo "  last-boot    - Upload logs from previous boot"
-  echo "  installed    - Upload system info and installed packages"
+  usage >&2
   exit 1
   ;;
 esac
 
+redacted=$(mktemp)
+if ! removed=$(redact_into "$TEMP_LOG" "$redacted"); then
+  rm -f "$redacted"
+  exit 1
+fi
+# Reason: curl posts TEMP_LOG. A failed rename would leave the scrubbed copy
+# aside and upload the original, while still reporting that values were removed.
+if ! mv -f "$redacted" "$TEMP_LOG"; then
+  rm -f "$redacted"
+  echo "Error: failed to replace the log with the redacted copy" >&2
+  exit 1
+fi
+chmod 600 "$TEMP_LOG"
+
+echo "Uploading ${upload_label} to logs.omarchy.org..."
+if [[ $MODE == "this-boot" || $MODE == "last-boot" ]]; then
+  if [[ $FULL == "true" ]]; then
+    echo "Scope: complete boot journal (--full). Credential-like values are still removed."
+  else
+    echo "Scope: warnings and errors from that boot. Pass --full for the complete journal."
+  fi
+fi
+if (( removed == 1 )); then
+  echo "Removed 1 credential-like value from the upload."
+elif (( removed > 1 )); then
+  echo "Removed $removed credential-like values from the upload."
+fi
+echo "This paste is public for 24 hours. Anyone with the link can read it, and it cannot be deleted early."
 echo ""
 
 URL=$(curl -sf -F "file=@$TEMP_LOG" -Fexpires=24 https://logs.omarchy.org/)
