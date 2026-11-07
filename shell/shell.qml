@@ -64,6 +64,11 @@ ShellRoot {
   property var shellConfig: builtinShellConfig
   // shell.json has text the shell could not use; persisting would replace it with defaults.
   property bool userConfigUnreadable: false
+  // The last user config read or written, kept when shell.json is emptied so the next
+  // change repairs the file instead of writing the defaults over it.
+  property var lastUserConfig: null
+  // A missing shell.json is a reset to defaults; an empty one is a truncated write.
+  property bool userConfigMissing: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -95,7 +100,16 @@ ShellRoot {
       }
     }
     userConfigUnreadable = !!userText.trim() && !user
-    shellConfig = user || defaults
+    if (user) {
+      lastUserConfig = user
+      shellConfig = user
+    } else if (!userText.trim() && !userConfigMissing && lastUserConfig) {
+      console.warn("shell.json is empty; keeping the last loaded config")
+      shellConfig = lastUserConfig
+    } else {
+      if (userConfigMissing) lastUserConfig = null
+      shellConfig = defaults
+    }
   }
 
   function loadDefaults(raw) {
@@ -124,6 +138,7 @@ ShellRoot {
       console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
       return
     }
+    lastUserConfig = payload
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
@@ -151,8 +166,14 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
-    onLoadFailed: function(error) { shell.applyShellConfig() }
+    onLoaded: {
+      shell.userConfigMissing = false
+      shell.applyShellConfig()
+    }
+    onLoadFailed: function(error) {
+      shell.userConfigMissing = error === FileViewError.FileNotFound
+      shell.applyShellConfig()
+    }
     onFileChanged: reload()
   }
 
