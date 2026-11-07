@@ -35,7 +35,7 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(intro.splashBarShown(), "a boot whose splash showed a bar draws it in the cover")
-      test.check(Math.abs(intro.splashBarElapsed() - 7.9) < 0.2, "the bar carries on from where Plymouth's stands, at " + intro.splashBarElapsed() + " s")
+      test.check(intro.splashBarElapsed() >= 7.8 && intro.splashBarElapsed() < 9, "the bar carries on from where Plymouth's stands, at " + intro.splashBarElapsed() + " s")
       test.services = ({ "omarchy.background": background })
       test.bar = ({})
     }

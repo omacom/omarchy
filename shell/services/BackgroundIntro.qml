@@ -37,6 +37,7 @@ Item {
   property bool splashBarFilling: false
   property bool splashBarFull: false
   property real splashBarStart: 0
+  property bool splashBarWaited: false
   readonly property int splashBarFillDuration: Style.duration(350)
   property string themeBackground: sessionConsumed && !Util.isVideoPath(startupBackgroundPath) ? startupBackgroundPath : ""
   property var themeNativeSize: null
@@ -83,6 +84,11 @@ Item {
     for (var panel of startupCovers.instances)
       if (panel.readyFrames < 2) return
     if (splashBackground && !splashKnown) return
+    // A bar the helper just reported is drawn on the next frame; fill it then.
+    if (splashBar && !splashBarShown() && !splashBarWaited) {
+      splashBarWait.start()
+      return
+    }
     liftStartupCover()
   }
 
@@ -209,6 +215,15 @@ Item {
     themeBackground = ""
     themeColors = ""
     themeShell = ""
+  }
+
+  Timer {
+    id: splashBarWait
+    interval: 500
+    onTriggered: {
+      root.splashBarWaited = true
+      root.revealStartup()
+    }
   }
 
   // A cover that never gets to draw its fill must not hold the desktop.
@@ -385,6 +400,7 @@ Item {
       required property var modelData
       property int readyFrames: 0
       readonly property bool splashBarShown: splash.barStarted
+      onSplashBarShownChanged: root.revealStartup()
       screen: modelData
       visible: root.startupPending
       color: "transparent"
@@ -488,7 +504,9 @@ Item {
             barRun.stop()
             barRun.from = barOffset(BootSplash.progressAt(elapsed))
             barRun.to = barOffset(BootSplash.progressLimit)
-            barRun.duration = Math.max(0, (BootSplash.progressDuration - elapsed) * 1000)
+            // With animations off the bar holds where Plymouth's stood.
+            barRun.to = Style.reduceMotion ? barRun.from : barRun.to
+            barRun.duration = Style.reduceMotion ? 0 : Math.max(0, (BootSplash.progressDuration - elapsed) * 1000)
             progressBar.x = barRun.from
             barRun.start()
           }
@@ -532,7 +550,7 @@ Item {
           Timer {
             interval: 1000
             repeat: true
-            running: splash.barStarted && !root.splashBarFilling
+            running: splash.barStarted && !root.splashBarFilling && !Style.reduceMotion
             onTriggered: splash.queueBar()
           }
 
