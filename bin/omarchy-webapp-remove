@@ -53,7 +53,7 @@ fi
 icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
 desktop_file=$(path_for_web_app "$APP_NAME")
 rm -f "${desktop_file:-$DESKTOP_DIR/$APP_NAME.desktop}"
-rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
+rm -f "$ICON_DIR/$icon_name."{png,svg,xpm} "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
 
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
   omarchy-notification-send -g  "$(omarchy-i18n webapp.removed)" "$APP_NAME"

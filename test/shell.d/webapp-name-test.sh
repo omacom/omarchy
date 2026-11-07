@@ -23,6 +23,11 @@ run_remove() {
     "$ROOT/bin/omarchy-webapp-remove" "$@"
 }
 
+run_remove_all() {
+  HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-webapp-remove-all" "$@"
+}
+
 apps_dir="$tmp_dir/home/.local/share/applications"
 icons_dir="$tmp_dir/home/.local/share/icons/hicolor/256x256/apps"
 
@@ -124,3 +129,57 @@ noise=$(HOME="$tmp_dir/empty" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=fa
 [[ -n $noise ]] &&
   fail "webapp remove stays quiet with no applications directory" "$noise"
 pass "webapp remove stays quiet when there is no applications directory"
+
+# Local icon files keep their format during installation. Removing the app
+# must clean up each format supported by the icon theme, not just PNG files.
+printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' |
+  base64 -d >"$tmp_dir/icon.png"
+printf '%s\n' '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="blue"/></svg>' >"$tmp_dir/icon.svg"
+cat >"$tmp_dir/icon.xpm" <<'XPM'
+/* XPM */
+static char *icon[] = {"1 1 1 1", "b c blue", "b"};
+XPM
+
+mkdir -p "$icons_dir"
+for extension in png svg xpm; do
+  app_name="Local $extension"
+  icon_file="$icons_dir/local-$extension.$extension"
+  neighbor="$icons_dir/local-$extension-other.$extension"
+  backup="$icon_file.bak"
+  cp "$tmp_dir/icon.$extension" "$neighbor"
+  cp "$tmp_dir/icon.$extension" "$backup"
+
+  run_install "$app_name" "https://example.com" "$tmp_dir/icon.$extension" >/dev/null
+  cmp -s "$tmp_dir/icon.$extension" "$icon_file" ||
+    fail "webapp install copies the local $extension icon"
+  run_remove "$app_name" >/dev/null
+
+  [[ ! -e $icon_file ]] || fail "webapp remove deletes its local $extension icon"
+  [[ ! -e $apps_dir/$app_name.desktop ]] || fail "webapp remove deletes the $extension launcher"
+  cmp -s "$tmp_dir/icon.$extension" "$neighbor" ||
+    fail "webapp remove preserves a neighboring $extension icon"
+  cmp -s "$tmp_dir/icon.$extension" "$backup" ||
+    fail "webapp remove preserves the $extension icon backup"
+  pass "webapp remove cleans up its local $extension icon and preserves neighboring icons and backups"
+done
+
+# Bulk removal must clean up the same formats and leave ordinary launchers alone.
+printf '%s\n' '[Desktop Entry]' 'Name=Unrelated App' 'Exec=foot' 'Type=Application' >"$tmp_dir/unrelated.desktop"
+cp "$tmp_dir/unrelated.desktop" "$apps_dir/Unrelated App.desktop"
+for extension in png svg xpm; do
+  run_install "Local $extension" "https://example.com" "$tmp_dir/icon.$extension" >/dev/null
+done
+run_remove_all "$apps_dir" >/dev/null
+cmp -s "$tmp_dir/unrelated.desktop" "$apps_dir/Unrelated App.desktop" ||
+  fail "webapp remove-all preserves an ordinary launcher"
+for extension in png svg xpm; do
+  app_name="Local $extension"
+  icon_file="$icons_dir/local-$extension.$extension"
+  [[ ! -e $icon_file ]] || fail "webapp remove-all deletes its local $extension icon"
+  [[ ! -e $apps_dir/$app_name.desktop ]] || fail "webapp remove-all deletes the $extension launcher"
+  cmp -s "$tmp_dir/icon.$extension" "$icons_dir/local-$extension-other.$extension" ||
+    fail "webapp remove-all preserves a neighboring $extension icon"
+  cmp -s "$tmp_dir/icon.$extension" "$icon_file.bak" ||
+    fail "webapp remove-all preserves the $extension icon backup"
+  pass "webapp remove-all cleans up its local $extension icon and preserves neighboring icons and backups"
+done
