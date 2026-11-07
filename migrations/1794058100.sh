@@ -1,18 +1,54 @@
-echo "Install the WirePlumber hook that keeps Bluetooth audio alive across resume"
+echo "Install the WirePlumber service that keeps Bluetooth audio alive across resume"
 
-# Fresh installs publish this from install/config/wireplumber-sleep.sh and then
-# mark migrations complete. Existing installs never rerun that script.
+# Fresh installs publish this from install/config/wireplumber-sleep.sh.
+unit=omarchy-wireplumber-sleep.service
+unit_src="$OMARCHY_PATH/default/systemd/system/$unit"
+unit_dst="/etc/systemd/system/$unit"
+legacy_hook=/usr/lib/systemd/system-sleep/wireplumber-bluetooth
+legacy_archive=/etc/systemd/omarchy-retired-hooks/wireplumber-bluetooth
 
-hook_src="${OMARCHY_WIREPLUMBER_SLEEP_HOOK_SRC:-$OMARCHY_PATH/default/systemd/system-sleep/wireplumber-bluetooth}"
-hook_dst="${OMARCHY_WIREPLUMBER_SLEEP_HOOK_DST:-/usr/lib/systemd/system-sleep/wireplumber-bluetooth}"
-
-if [[ ! -f $hook_src ]]; then
-  echo "Missing WirePlumber sleep hook source: $hook_src" >&2
+if [[ ! -f $unit_src ]]; then
+  echo "Missing WirePlumber sleep unit source: $unit_src" >&2
   exit 1
 fi
 
-if [[ -f $hook_dst && -x $hook_dst ]] && cmp -s "$hook_src" "$hook_dst"; then
+# Classify before enabling anything: uncertain custom hooks must not run in
+# parallel with the new unit. Unrelated administrator behavior stays active.
+legacy_kind=none
+if [[ -e $legacy_hook || -L $legacy_hook ]]; then
+  legacy_hash=$(sha256sum -- "$legacy_hook" 2>/dev/null || true)
+  if [[ ! -f $legacy_hook || ! -r $legacy_hook ]]; then
+    legacy_kind=manual
+  elif [[ ${legacy_hash%% *} == "ac33c9bb2754a7810fdf33d2a312c8562ceac2d0355cf81c2c6bdf5a75683af3" ]]; then
+    legacy_kind=stock
+  elif grep -Eq '^[[:space:]]*(exec[[:space:]]+)?(/usr/bin/)?omarchy-system-sleep-wireplumber([[:space:]]|$)' "$legacy_hook"; then
+    legacy_kind=obsolete
+  elif grep -Fq 'omarchy-system-sleep-wireplumber' "$legacy_hook"; then
+    legacy_kind=manual
+  else
+    legacy_kind=unrelated
+  fi
+fi
+if [[ $legacy_kind == "manual" ]]; then
+  echo "Customized WirePlumber sleep hook needs manual review; preserved at $legacy_hook" >&2
+  exit 1
+fi
+
+unit_link="/etc/systemd/system/sleep.target.wants/$unit"
+if [[ -f $unit_dst ]] && cmp -s "$unit_src" "$unit_dst" && [[ -L $unit_link && $unit_link -ef $unit_dst ]] && [[ $legacy_kind == "none" || $legacy_kind == "unrelated" ]]; then
   exit 0
 fi
 
-sudo install -Dm755 "$hook_src" "$hook_dst"
+sudo install -Dm644 "$unit_src" "$unit_dst"
+sudo systemctl enable "$unit"
+
+# Stock bytes may be removed; customized direct invocations are archived
+# without overwrite outside system-sleep, which ignores no executable suffix.
+case $legacy_kind in
+  stock) sudo rm -- "$legacy_hook" ;;
+  obsolete)
+    sudo mkdir -p -- "${legacy_archive%/*}"
+    sudo mv --backup=numbered -- "$legacy_hook" "$legacy_archive"
+    echo "Preserved customized obsolete WirePlumber sleep hook under ${legacy_archive%/*}"
+    ;;
+esac
