@@ -6,6 +6,8 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
+import "Calc.js" as Calc
+import "../../Commons/Numbers.js" as Numbers
 
 Item {
   id: root
@@ -89,6 +91,12 @@ Item {
   property bool rowsLoaded: false
   property string activeMenu: "root"
   property string filterText: ""
+  // The user moved the cursor since the search last changed.
+  property bool cursorChosen: false
+  // setFilter is rebuilding the rows anyway, so an answer changing with it needn't.
+  property bool settingFilter: false
+  // What an answer row's copy button last ran, shown as a tick for a moment.
+  property string copiedAction: ""
   // Resets of filterText reach the search line; its edits come back through setFilter.
   onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
@@ -107,7 +115,7 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null; copiedAction = "" }
   // Bound to the central [menu] section in shell.toml via Commons.Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -600,6 +608,71 @@ Item {
     return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
   }
 
+  // Pinned above the search results; Enter copies the answer. The action only
+  // ever holds a number, since that is all Calc.evaluate returns.
+  function calculationRow(result, expression) {
+    return {
+      itemId: "calc.result", disabled: false, kind: "calc", icon: "\u{F00EC}", iconFont: "",
+      appIcon: "", appId: "", label: Commons.I18n.formatNumber(result), target: "", detail: expression, path: "", childCount: 0,
+      action: "wl-copy -- " + Numbers.plain(result), provider: "", score: -1, section: ""
+    }
+  }
+
+  // The button on an answer row. Unlike Enter or a click on the row it leaves the
+  // menu open, for checking the answer or carrying on with another.
+  function copyAnswer(action) {
+    root.runAction(action)
+    root.copiedAction = action
+    copiedReset.restart()
+  }
+
+  Timer {
+    id: copiedReset
+    interval: 1500
+    onTriggered: root.copiedAction = ""
+  }
+
+  CurrencyLookup {
+    id: currencyLookup
+    query: root.dmenuActive ? "" : root.filterText
+    // With no search there is no row to change: the rows are going away with the
+    // menu, or whatever cleared the search is rebuilding them itself.
+    onAnswerChanged: if (root.filterText && !root.settingFilter) root.refreshCurrencyRow()
+  }
+
+  // An answer lands after the search it belongs to. It takes the cursor unless
+  // the user has already gone to a row, which stays selected as the rows shift.
+  function refreshCurrencyRow() {
+    var chosen = root.cursorChosen && root.selectedIndex < displayModel.count
+      ? displayModel.get(root.selectedIndex).itemId : ""
+    if (!chosen) root.selectedIndex = 0
+    root.rebuildDisplay()
+    for (var i = 0; chosen && i < displayModel.count; i++) {
+      if (displayModel.get(i).itemId === chosen) {
+        root.selectedIndex = i
+        break
+      }
+    }
+  }
+
+  // Sits above the search results, and Enter copies the answer. The value is
+  // plain digits, so it is safe in the action; a row still loading or failed
+  // cannot be picked.
+  function currencyRow() {
+    var status = currencyLookup.status
+    var ready = status === "ready"
+    var waiting = status === "loading" ? Commons.I18n.t("menu.currencyConverting") : Commons.I18n.t("menu.currencyFailed")
+    return {
+      itemId: "currency.result", disabled: !ready, kind: "currency", icon: "\u{F0114}", iconFont: "",
+      appIcon: "", appId: "", target: "", path: "", childCount: 0, provider: "", score: -1, section: "",
+      label: ready ? Commons.I18n.formatNumber(currencyLookup.value) + " " + currencyLookup.to : waiting,
+      // Short enough that the rates' date survives the row's width, while still
+      // showing how the text was read ("$" as USD).
+      detail: ready ? Commons.I18n.formatNumber(currencyLookup.amount) + " " + currencyLookup.from + (currencyLookup.date ? " · " + currencyLookup.date : "") : root.filterText.trim(),
+      action: ready ? "wl-copy -- " + currencyLookup.value : ""
+    }
+  }
+
   function rowSelectable(index) {
     if (index < 0 || index >= displayModel.count) return false
     return !displayModel.get(index).disabled
@@ -747,6 +820,10 @@ Item {
         for (var d = 0; d < drilldownRows.length; d++) drilldownRows[d].section = "drilldown"
       }
       rows = currentRows.concat(drilldownRows)
+      if (currencyLookup.status) rows.unshift(root.currencyRow())
+
+      var calculation = Calc.evaluate(query)
+      if (calculation) rows.unshift(root.calculationRow(calculation, query))
     } else {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
@@ -813,13 +890,18 @@ Item {
     if (target < 0) return
 
     cursorActive = true
+    cursorChosen = true
     selectedIndex = target
     revealCursor()
   }
 
   function setFilter(nextFilter) {
     panel.freezeCardTop()
+    root.cursorChosen = false
+    root.copiedAction = ""
+    root.settingFilter = true
     root.filterText = nextFilter
+    root.settingFilter = false
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
@@ -1042,6 +1124,7 @@ Item {
     if (!pointerGate.moved(item, mouse)) return
     if (!root.rowSelectable(index)) return
     root.cursorActive = true
+    root.cursorChosen = true
     root.selectedIndex = index
   }
 
@@ -1491,6 +1574,7 @@ Item {
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              readonly property bool isAnswer: (row.kind === "calc" || row.kind === "currency") && !row.disabled
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
@@ -1582,7 +1666,7 @@ Item {
 
               Row {
                 id: trail
-                width: Style.space(14)
+                width: row.isAnswer ? copyButton.width : Style.space(14)
                 anchors.right: parent.right
                 anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
@@ -1628,6 +1712,23 @@ Item {
                   root.cursorActive = true
                   root.selectedIndex = row.index
                   root.activateIndex(row.index, true)
+                }
+              }
+
+              // Above the row's MouseArea, so a click here doesn't also take the row.
+              Loader {
+                id: copyButton
+                active: row.isAnswer
+                anchors.right: parent.right
+                anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                sourceComponent: PanelActionButton {
+                  objectName: "menuAnswerCopy"
+                  iconText: root.copiedAction === row.action ? "\u{F012C}" : "\u{F018F}"
+                  tooltipText: Commons.I18n.t("menu.copyAnswer")
+                  foreground: row.hasCursor ? root.selectedText : root.foreground
+                  fontFamily: root.fontFamily
+                  onClicked: root.copyAnswer(row.action)
                 }
               }
             }
