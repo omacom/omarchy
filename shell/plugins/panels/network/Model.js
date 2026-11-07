@@ -57,6 +57,14 @@ function connectivityState(kind, connectivity, states, checksEnabled) {
   return "unknown"
 }
 
+function effectiveConnectivity(connectivity, routedConnectivity) {
+  return connectivity === "limited" && routedConnectivity ? "full" : connectivity
+}
+
+function routedProbeSucceeded(exitCode, statusCode) {
+  return exitCode === 0 && String(statusCode).trim() === "204"
+}
+
 function connectionIcon(kind, signalStrength, connectivity) {
   var restricted = connectivity === "portal" || connectivity === "limited"
   if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
@@ -422,6 +430,8 @@ if (typeof module !== "undefined") {
     connectedSignalStrength: connectedSignalStrength,
     parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,
+    effectiveConnectivity: effectiveConnectivity,
+    routedProbeSucceeded: routedProbeSucceeded,
     captivePortalUrl: captivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,
     formatHeaderFreq: formatHeaderFreq,

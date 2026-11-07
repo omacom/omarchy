@@ -62,6 +62,38 @@ JS
   chmod +x "$stage/bin/omarchy-network-captive-portal"
 }
 
+# stage_service: a disposable shell that loads the real network Service.qml
+# against the NetworkMock singleton and a fake curl, driven by
+# fixtures/network-panel/service.qml. No host network is touched.
+stage_service() {
+  stage="$scratch/service"
+  mkdir -p "$stage/network" "$stage/bin" "$stage/home"
+  cp -r "$fixtures/mocks" "$stage/mocks"
+  cp "$fixtures/service.qml" "$stage/shell.qml"
+  cp "$ROOT/shell/plugins/panels/network/Model.js" "$stage/network/Model.js"
+  node - "$ROOT" "$stage" <<'JS'
+const fs = require('fs')
+const [root, stage] = process.argv.slice(2)
+let source = fs.readFileSync(`${root}/shell/plugins/panels/network/Service.qml`, 'utf8')
+// Keep the installed enums and the real timer/process wiring. Only replace the
+// singleton and expose the private timer in the disposable copy.
+source = source.replace('import Quickshell.Networking', 'import Quickshell.Networking\nimport "../mocks"')
+source = source.replace(/\bNetworking\./g, 'NetworkMock.')
+source = source.replace('  id: root', `  id: root
+  property alias testTimer: probeTimer`)
+source = source.replace('  Timer {\n', '  Timer {\n    id: probeTimer\n')
+fs.writeFileSync(`${stage}/network/Service.qml`, source)
+JS
+  cat >"$stage/bin/curl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >> "$NETWORK_TEST_CURL_LOG"
+status=$(<"$NETWORK_TEST_CURL_STATUS")
+printf '%s' "$status"
+SH
+  chmod +x "$stage/bin/curl"
+  printf '204' >"$stage/status"
+}
+
 # run_panel <description>: run the staged fixture to completion.
 run_panel() {
   local output
@@ -74,11 +106,27 @@ run_panel() {
   fi
 }
 
+# run_service <description>: run the staged service fixture to completion.
+run_service() {
+  local output
+  output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
+    NETWORK_TEST_CURL_STATUS="$stage/status" NETWORK_TEST_CURL_LOG="$stage/curl.log" \
+    timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "$1 fixture exits cleanly" "$output"
+  [[ $output == *"RESULT pass"* ]] || fail "$1 runtime assertions pass" "$output"
+  if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+    fail "$1 fixture has no QML errors" "$output"
+  fi
+}
+
 stage_panel captive-portal
 run_panel "network portal"
 [[ -f $stage/browser.log ]] || fail "portal action launches the browser"
 [[ $(<"$stage/browser.log") == "http://ping.omacom.io/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
 pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"
+
+stage_service
+run_service "network routed probe"
+pass "network routed probe rejects redirects, backs off, and re-probes on device changes"
 
 stage_panel owe-transition
 # Answers in call order: 57, then a slow stale 11, then 33. Never touches the

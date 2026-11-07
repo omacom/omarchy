@@ -48,9 +48,11 @@ Panel {
   property real routerPingLatency: -1
   property real internetPingLatency: -1
   property int internetPingPacketLoss: 0
+  readonly property var service: bar && bar.shell && typeof bar.shell.firstPartyServiceFor === "function"
+    ? bar.shell.firstPartyServiceFor("omarchy.network") : null
   readonly property int pingHistoryWindow: 24
   readonly property int pingAverageWindow: 5
-  readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, connectivity)
+  readonly property bool hasInternetPing: Model.internetPingReadable(internetPingSamples, effectiveConnectivity)
   // Every stat row stays mounted whether or not there is data behind it, so a
   // sample arriving late never reflows the grid. This says whether the numbers
   // are real yet or the row should read "--".
@@ -506,9 +508,10 @@ Panel {
     Portal: NetworkConnectivity.Portal, Limited: NetworkConnectivity.Limited,
     Full: NetworkConnectivity.Full, None: NetworkConnectivity.None
   }, connectivityChecksEnabled)
+  readonly property string effectiveConnectivity: Model.effectiveConnectivity(connectivity, service ? service.routedConnectivity : false)
   readonly property bool hasCaptivePortal: connectivity === "portal"
-  readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
-  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
+  readonly property bool restricted: hasCaptivePortal || effectiveConnectivity === "limited"
+  readonly property string icon: Model.connectionIcon(kind, signalStrength, effectiveConnectivity)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
   // stays up, and a real network switch already passes through "disconnected".
@@ -534,6 +537,9 @@ Panel {
 
   function checkConnectivity() {
     if (connectivityChecksEnabled && kind !== "disconnected") Networking.checkConnectivity()
+    // NetworkManager's own probe stays limited behind a tunnel, so every
+    // re-check also asks the shared service for the routed answer.
+    if (service && typeof service.probe === "function") service.probe()
   }
 
   function openCaptivePortal() {
@@ -547,12 +553,16 @@ Panel {
   }
 
   // Keep checking while login is needed, even with the panel closed in favour
-  // of the browser. Normal connected operation relies on NM's own schedule.
+  // of the browser. While the panel is open, a routed connection that still
+  // reads limited is re-probed every 10s; the service's own backoff covers a
+  // closed panel, and its device handler catches a tunnel coming or going.
+  // Normal connected operation relies on NM's own schedule.
   Timer {
     id: connectivityPoll
     interval: 10000
     repeat: true
-    running: root.restricted && root.connectivityChecksEnabled
+    running: root.connectivityChecksEnabled
+      && (root.hasCaptivePortal || (root.opened && root.connectivity === "limited"))
     onTriggered: root.checkConnectivity()
   }
 
@@ -1886,7 +1896,7 @@ Panel {
         id: networkIcon
         textFormat: Text.PlainText
         text: row.net ? Model.connectionIcon("wifi", row.net.signal,
-          row.isConnected && root.kind === "wifi" ? root.connectivity : "") : ""
+          row.isConnected && root.kind === "wifi" ? root.effectiveConnectivity : "") : ""
         color: row.statusColor
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.title
