@@ -101,7 +101,17 @@ Panel {
     dailyForecastRetries = 0
     forecastProc.running = false
     dailyForecastProc.running = false
-    Qt.callLater(refresh)
+    refreshSoon.restart()
+  }
+
+  // The deferred refresh is owned by this object, so a panel torn down before
+  // it runs takes the pending call with it. Qt.callLater() holds no such tie:
+  // a widget destroyed in between -- a screen unplugged, or its bar grown too
+  // short for it -- left the call to fire into a dead context and warn.
+  Timer {
+    id: refreshSoon
+    interval: 0
+    onTriggered: root.refresh()
   }
 
   property FileView locationFile: FileView {
