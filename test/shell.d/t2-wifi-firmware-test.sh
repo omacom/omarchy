@@ -346,7 +346,13 @@ env -i ROOT="$ROOT" HOME="$HOME" TMPDIR="$TMPDIR" \
 
 # Signal tests only target processes created in a fresh PID namespace. The
 # namespace tears down any remaining fixture descendants even on a failure.
-env -i ROOT="$ROOT" HOME="$HOME" TMPDIR="$TMPDIR" \
-  XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" PATH="$stub_bin" \
-  /usr/bin/unshare --user --map-root-user --pid --fork --mount-proc \
-  python3 -I -B "$SHELL_TEST_DIR/fixtures/t2-wifi-signals.py" "$test_tmp"
+in_new_pid_namespace=(
+  env -i ROOT="$ROOT" HOME="$HOME" TMPDIR="$TMPDIR"
+  XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" PATH="$stub_bin"
+  /usr/bin/unshare --user --map-root-user --pid --fork --mount-proc
+)
+if "${in_new_pid_namespace[@]}" /usr/bin/true 2>/dev/null; then
+  "${in_new_pid_namespace[@]}" python3 -I -B "$SHELL_TEST_DIR/fixtures/t2-wifi-signals.py" "$test_tmp"
+else
+  skip "T2 Wi-Fi signal tests need unprivileged user/PID namespaces"
+fi
