@@ -137,17 +137,24 @@ Item {
   function iconIndexScanCommand() {
     // List app/device icons across the XDG icon dirs and /usr/share/pixmaps as
     // "<path>" lines. Some desktop entries, such as Print Settings, use device
-    // icons like "printer" instead of app icons. SVGs are emitted before PNGs
-    // so the parser, which keeps the first hit per name, prefers scalable icons.
+    // icons like "printer" instead of app icons. Themed icons come first and
+    // unthemed ones last: the icon theme spec still allows a bare icon file in
+    // an icon base directory, but Qt has no lookup for it, so index it as a
+    // fallback without letting it shadow a themed icon. The parser keeps the
+    // first hit per name; SVGs are emitted before PNGs within each group so
+    // scalable icons are preferred.
     return [
       'dirs="$HOME/.icons $HOME/.local/share/icons";',
       'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
       '{',
       '  for base in $dirs; do',
-      '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
+      '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) \\( -name "*.svg" -o -name "*.png" \\) -printf "0\\t%p\\n" 2>/dev/null;',
       '  done;',
-      '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
-      '} | awk \'/\\.svg$/ { print; next } { png[++n] = $0 } END { for (i = 1; i <= n; i++) print png[i] }\''
+      '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) -printf "0\\t%p\\n" 2>/dev/null;',
+      '  for base in $dirs; do',
+      '    [[ -d $base ]] && find "$base" -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) -printf "1\\t%p\\n" 2>/dev/null;',
+      '  done;',
+      '} | awk -F \'\\t\' \'{ if ($2 ~ /\\.svg$/) svg[$1, ++ns[$1]] = $2; else png[$1, ++np[$1]] = $2 } END { for (r = 0; r <= 1; r++) { for (i = 1; i <= ns[r]; i++) print svg[r, i]; for (i = 1; i <= np[r]; i++) print png[r, i] } }\''
     ].join(' ')
   }
 
