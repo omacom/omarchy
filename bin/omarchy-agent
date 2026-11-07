@@ -118,6 +118,20 @@ if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg
   exit 1
 fi
 
+# Only dsh itself on the loopback port counts, so another service there is
+# never opened as its UI.
+dsh_ui_running() {
+  local pid
+
+  for pid in $(ss -ltnpH "src 127.0.0.1:3080" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2); do
+    if [[ $(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null) == *dsh* ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 case "$agent" in
@@ -216,6 +230,11 @@ dsh)
   # prompt goes to the clipboard below instead.
   command=(env DSH_PERMISSION_MODE=danger-full-access dsh web)
   prompt_via_clipboard="DeepSeek Harness"
+  # The UI is a server on a fixed port, so a second launch cannot bind it.
+  # Reopen the running one instead; the browser kept its session cookie.
+  if dsh_ui_running; then
+    reopen_url="http://127.0.0.1:3080/"
+  fi
   ;;
 mcode)
   # The TUI has no no-approval flag; permission options belong to exec mode.
@@ -341,7 +360,9 @@ if [[ -n $home_env ]]; then
   fi
 fi
 
-if [[ $inline == "true" ]]; then
+if [[ -n ${reopen_url:-} ]]; then
+  exec omarchy-launch-browser "$reopen_url"
+elif [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent

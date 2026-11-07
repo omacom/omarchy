@@ -5,7 +5,8 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+fixture_pids=()
+trap 'kill "${fixture_pids[@]}" 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
 
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
@@ -127,6 +128,19 @@ SH
 for command in gum hyprctl omarchy-webapp-remove-all omarchy-tui-remove-all omarchy-pkg-drop; do
   ln -s omarchy-test-noop "$mock_bin/$command"
 done
+
+cat >"$mock_bin/ss" <<'SH'
+#!/bin/bash
+if [[ -n ${OMARCHY_TEST_LISTENER_PID:-} ]]; then
+  echo "LISTEN 0 511 127.0.0.1:3080 0.0.0.0:* users:((\"node\",pid=$OMARCHY_TEST_LISTENER_PID,fd=20))"
+fi
+exit 0
+SH
+
+cat >"$mock_bin/omarchy-launch-browser" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_BROWSER_LOG"
+SH
 
 chmod +x "$mock_bin"/*
 
@@ -798,6 +812,29 @@ assert_launched dsh "opens its browser UI for a prompt" env DSH_PERMISSION_MODE=
 [[ $(<"$clipboard_log") == '-n --help; echo literal' ]] || fail "DSH launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"DeepSeek Harness takes no starting prompt"* ]] || fail "DSH launcher says where the prompt went"
+# DSH's UI is a server on a fixed port, so a second press reopens the running
+# one rather than starting a server that cannot bind the port.
+bash -c 'exec -a dsh sleep 60' >/dev/null 2>&1 &
+dsh_pid=$!
+fixture_pids+=("$dsh_pid")
+: >"$launch_log"
+: >"$clipboard_log"
+OMARCHY_TEST_LISTENER_PID=$dsh_pid OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser" omarchy-agent-prompt "Review this"
+[[ ! -s $launch_log ]] || fail "DSH launcher starts no second server while one is running"
+[[ $(tr '\0' ' ' <"$test_tmp/browser") == "http://127.0.0.1:3080/ " ]] || fail "DSH launcher reopens the running UI"
+[[ $(<"$clipboard_log") == "Review this" ]] || fail "DSH launcher still puts the prompt on the clipboard when reopening"
+kill "$dsh_pid"
+pass "DSH launcher reopens the running UI"
+
+sleep 60 >/dev/null 2>&1 &
+other_pid=$!
+fixture_pids+=("$other_pid")
+: >"$test_tmp/browser"
+OMARCHY_TEST_LISTENER_PID=$other_pid OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser" omarchy-agent
+assert_launched dsh "ignores another service on its port" env DSH_PERMISSION_MODE=danger-full-access dsh web
+[[ ! -s $test_tmp/browser ]] || fail "DSH launcher does not open another service as its UI"
+kill "$other_pid"
+pass "DSH launcher ignores another service on its port"
 assert_launch mcode mcode -- "Review this project"
 assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 : >"$notification_history"
