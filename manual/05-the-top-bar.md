@@ -22,7 +22,7 @@ Nearly every widget does something on left, right, and middle click, and several
 | Weather | Forecast popup | Full weather as a notification | Middle: refresh |
 | Audio | Audio panel | Mute | Middle: panel · scroll: volume |
 | Microphone | Mute the mic | — | Middle: audio panel · scroll: input volume |
-| Network | Network panel | — | — |
+| Network | Network panel | Toggle the radio | — |
 | Bluetooth | Bluetooth panel | Toggle the radio | — |
 | Display | Display panel | — | Scroll: brightness |
 | Power | Power panel | Toggle the battery percentage | — |
