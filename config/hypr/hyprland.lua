@@ -12,6 +12,12 @@ dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/boo
 --
 -- Disable Omarchy's default touchpad gestures. Add your own in hypr/input.lua.
 -- omarchy_default_gestures = false
+--
+-- Keep Super+number on global workspaces 1-10. Each monitor's own 1-10 is
+-- the default. Turn this on when your workspace rules, shortcuts, or a cloned
+-- workspace indicator still use the older global numbers. A migration turns
+-- it on for an existing setup that does.
+-- omarchy_global_workspaces = true
 
 -- Load Omarchy defaults.
 require("default.hypr.omarchy")

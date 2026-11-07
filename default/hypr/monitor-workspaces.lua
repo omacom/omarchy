@@ -24,6 +24,7 @@
 -- the block they stay guests, and the bar lists them after the monitor's own.
 
 local paths = require("default.hypr.paths")
+local global_workspaces = require("default.hypr.global-workspaces")
 
 local SLOTS = 10
 local STATE_DIR = paths.state_home .. "/omarchy/monitors"
@@ -435,9 +436,16 @@ local function literal(value)
   return string.format("%q", value)
 end
 
--- Go to a slot on a monitor, the focused one unless named.
+-- Go to a slot on a monitor, the focused one unless named. With global
+-- workspaces, an unqualified number is that workspace wherever it is, which
+-- is what Super+number did before each monitor had its own.
 function M.focus(slot, monitor_name)
   return action(function()
+    if global_workspaces.enabled() and monitor_name == nil then
+      hl.dispatch(hl.dsp.focus({ workspace = tostring(slot) }))
+      return
+    end
+
     local monitor = target_monitor(monitor_name)
     if not monitor then
       return
@@ -458,6 +466,13 @@ end
 function M.move_window(slot, follow)
   return action(function()
     local window = hl.get_active_window()
+    if global_workspaces.enabled() then
+      if window then
+        hl.dispatch(hl.dsp.window.move({ workspace = tostring(slot), follow = follow ~= false, window = "address:" .. window.address }))
+      end
+      return
+    end
+
     local monitor = hl.get_active_monitor()
     if not window or not monitor then
       return
@@ -474,6 +489,14 @@ end
 -- keeps its number and stays a guest until its own monitor wants it back.
 function M.move_to_monitor(direction)
   return action(function()
+    if global_workspaces.enabled() then
+      local target = hl.get_monitor(direction)
+      if target then
+        hl.dispatch(hl.dsp.workspace.move({ monitor = target.name }))
+      end
+      return
+    end
+
     local workspace = hl.get_active_workspace()
     if not regular(workspace) then
       return
@@ -531,6 +554,13 @@ end
 -- on a workspace of its own. `added` names a monitor that just arrived, which
 -- leaves whatever Hyprland put it on; `gone` one being removed.
 function M.reconcile(added, gone)
+  global_workspaces.publish()
+  -- Leave numbered workspaces where the user's rules and indicators expect
+  -- them. Per-monitor reconciliation would give each one a block id.
+  if global_workspaces.enabled() then
+    return
+  end
+
   local monitors = connected(gone)
   if #monitors == 0 then
     return
@@ -709,5 +739,7 @@ hl.on("monitor.removed", function(monitor)
 end)
 
 o.workspaces = M
+
+global_workspaces.publish()
 
 return M
