@@ -1,0 +1,46 @@
+#!/usr/bin/python3
+# omarchy:summary=Remove an account from CLIProxyAPI
+# omarchy:args=<account>
+# omarchy:examples=omarchy agent cliproxy remove claude-work@example.com.json
+"""Delete one account from the CLIProxyAPI the agents panel reads, by the id
+the panel lists it under (the proxy's auth file name). The proxy stops
+serving it at once, and it comes back only by signing it in again. Errors go
+to stderr with a non-zero exit, which the panel turns into a notification.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+import urllib.parse
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import HttpError, cliproxy_request, cliproxy_settings, trusted_endpoint  # noqa: E402
+
+
+def main() -> int:
+  if len(sys.argv) != 2 or not sys.argv[1].strip():
+    print("Usage: omarchy-agent-cliproxy-remove <account>", file=sys.stderr)
+    return 1
+  account = sys.argv[1].strip()
+  url, key = cliproxy_settings()
+  if not key or not trusted_endpoint(url):
+    print("CLIProxyAPI isn't set up: see `cliproxy.json` in the agents panel's README.", file=sys.stderr)
+    return 1
+  try:
+    cliproxy_request(url, key, "auth-files?" + urllib.parse.urlencode({"name": account}), method="DELETE")
+  except HttpError as error:
+    print(f"CLIProxyAPI didn't remove {account}" + (f" (status {error.status})." if error.status else ": it couldn't be reached."), file=sys.stderr)
+    return 1
+  except ValueError:
+    # The proxy answered without JSON; the refresh shows whether it went.
+    pass
+  print(f"Removed {account} from CLIProxyAPI.")
+  subprocess.Popen(["omarchy-agent-usage-update", "--force", "cliproxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

@@ -1,0 +1,187 @@
+#!/usr/bin/python3
+# omarchy:summary=Sign a Claude or Codex account in to CLIProxyAPI
+# omarchy:args=[--events] <claude|codex>
+# omarchy:examples=omarchy agent cliproxy add claude | omarchy agent cliproxy add codex
+"""Sign a new Claude or Codex account in to the CLIProxyAPI the agents panel
+reads (see omarchy-agent-usage-cliproxy for how it is configured).
+
+The proxy runs the OAuth login itself: its management API hands out the
+provider's sign-in page and a state, saves the account once the provider
+redirects back, and reports the state's progress. The redirect goes to a
+localhost port, which a proxy on this machine catches on its own; a proxy on
+another machine can't, so the address the browser lands on is pasted back
+here (one line on stdin) and handed to the proxy.
+
+--events is for the agents panel, as in omarchy-agent-account-add: progress
+arrives as `@@omarchy status|paste|done|error <detail>` lines, and the result
+also lands as a notification in case the panel has closed.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+from typing import Any
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import HttpError, cliproxy_request, cliproxy_settings, trusted_endpoint  # noqa: E402
+
+# The panel's name for each provider, and the proxy's route for its sign-in.
+PROVIDERS = {"claude": ("Claude", "anthropic-auth-url"), "codex": ("Codex", "codex-auth-url")}
+POLL_SECONDS = 2
+# The proxy gives up on a sign-in after a few minutes of its own; this only
+# stops a run whose proxy stopped answering.
+GIVE_UP_SECONDS = 15 * 60
+
+
+# What a person reads, in the Omarchy language, as omarchy-agent-account-state
+# reads it: each lookup is written as "omarchy-i18n <key>", the form the
+# catalog check finds references by, and carries its English for when the
+# lookup can't run.
+def tr(lookup: str, english: str, *args: str) -> str:
+  key = lookup.split()[1]
+  values = [str(arg) for arg in args]
+  try:
+    text = subprocess.run(["omarchy-i18n", key, *values], capture_output=True, text=True, check=True).stdout.strip()
+  except (OSError, subprocess.CalledProcessError):
+    text = ""
+  if not text or text == key:
+    text = english
+    for index in range(len(values), 0, -1):
+      text = text.replace(f"%{index}", values[index - 1])
+  return text
+
+
+class Reporter:
+  """Progress for a person at a terminal, or tagged lines for the panel."""
+
+  def __init__(self, events: bool, name: str) -> None:
+    self.events = events
+    self.name = name
+
+  def line(self, tag: str, text: str) -> None:
+    print(f"@@omarchy {tag} {text}" if self.events else text, flush=True)
+
+  def status(self, text: str) -> None:
+    self.line("status", text)
+
+  def done(self, text: str) -> None:
+    self.line("done", text)
+    if self.events:
+      subprocess.run(["omarchy-notification-send", "-g", "󰚩", text], check=False)
+
+  def fail(self, text: str) -> int:
+    if self.events:
+      self.line("error", text)
+      subprocess.run(["omarchy-notification-send", "-g", "󰚩", "-u", "critical", tr("omarchy-i18n agents.addFailed", "Couldn't add the %1 account", self.name), text], check=False)
+    else:
+      print(text, file=sys.stderr)
+    return 1
+
+
+def loopback(url: str) -> bool:
+  return (urllib.parse.urlsplit(url).hostname or "").lower() in ("localhost", "127.0.0.1", "::1")
+
+
+def callback_body(pasted: str, state: str) -> dict[str, str]:
+  """What the proxy needs from a pasted line: the whole address the browser
+  landed on, or the code a provider's page shows (Anthropic's reads
+  `code#state`)."""
+  pasted = pasted.strip()
+  if "://" in pasted:
+    return {"redirect_url": pasted}
+  return {"code": pasted.split("#", 1)[0], "state": state}
+
+
+def forward_pastes(url: str, key: str, state: str, report: Reporter) -> None:
+  # stdin closes with the panel's process, which ends the loop.
+  for line in sys.stdin:
+    if not line.strip():
+      continue
+    try:
+      cliproxy_request(url, key, "oauth-callback", method="POST", body=callback_body(line, state))
+    except HttpError as error:
+      if error.status:
+        report.status(tr("omarchy-i18n agents.proxyPasteRefused", "CLIProxyAPI didn't take that (status %1). Paste the whole address again.", error.status))
+        continue
+      if error.transport:
+        report.status(tr("omarchy-i18n agents.proxyUnreachable", "Couldn't reach CLIProxyAPI at %1.", url))
+        continue
+    # Taken, or answered with something other than JSON: the status the
+    # proxy reports next says which.
+    report.status(tr("omarchy-i18n agents.proxyChecking", "Checking the sign-in…"))
+
+
+def wait_for_account(url: str, key: str, state: str) -> str | None:
+  """None once the proxy saved the account, else why it didn't."""
+  deadline = time.monotonic() + GIVE_UP_SECONDS
+  while time.monotonic() < deadline:
+    time.sleep(POLL_SECONDS)
+    try:
+      answer = cliproxy_request(url, key, "get-auth-status?" + urllib.parse.urlencode({"state": state}))
+    except (HttpError, ValueError):
+      # A blip on the way to the proxy isn't the sign-in failing.
+      continue
+    status = str(answer.get("status") or "") if isinstance(answer, dict) else ""
+    if status == "ok":
+      return None
+    if status == "error":
+      return str(answer.get("error") or "")
+  return ""
+
+
+def add(provider: str, events: bool) -> int:
+  name, route = PROVIDERS[provider]
+  report = Reporter(events, name)
+  url, key = cliproxy_settings()
+  if not key:
+    return report.fail(tr("omarchy-i18n agents.proxyNotConfigured", "Set up CLIProxyAPI first: put its management key in ~/.config/omarchy/agents/cliproxy.json."))
+  if not trusted_endpoint(url):
+    return report.fail(tr("omarchy-i18n agents.proxyUntrusted", "The management key is only sent over HTTPS, or plain HTTP to this machine; %1 is neither.", url))
+
+  # A proxy on this machine listens for the provider's redirect itself.
+  local = loopback(url)
+  try:
+    answer = cliproxy_request(url, key, route + ("?is_webui=true" if local else ""))
+  except HttpError as error:
+    return report.fail(tr("omarchy-i18n agents.proxyRefusedKey", "CLIProxyAPI refused the management key.") if error.status in (401, 403) else tr("omarchy-i18n agents.proxyUnreachable", "Couldn't reach CLIProxyAPI at %1.", url))
+  except ValueError:
+    return report.fail(tr("omarchy-i18n agents.proxyUnreachable", "Couldn't reach CLIProxyAPI at %1.", url))
+  page = str(answer.get("url") or "") if isinstance(answer, dict) else ""
+  state = str(answer.get("state") or "") if isinstance(answer, dict) else ""
+  if not page.startswith("https://") or not state:
+    return report.fail(tr("omarchy-i18n agents.proxyUnreachable", "Couldn't reach CLIProxyAPI at %1.", url))
+
+  # Your main browser is probably signed in to an account you already have,
+  # which the login would quietly reuse.
+  report.status(tr("omarchy-i18n agents.signInPrivate", "Sign in as the account you're adding in the private window that opens."))
+  print(page, flush=True)
+  subprocess.Popen(["omarchy-launch-browser", "--private", page], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  if not local:
+    report.line("paste", tr("omarchy-i18n agents.proxyPasteAddress", "When the browser lands on a page that won't load, paste its address here."))
+    threading.Thread(target=forward_pastes, args=(url, key, state, report), daemon=True).start()
+
+  failure = wait_for_account(url, key, state)
+  if failure is not None:
+    return report.fail(tr("omarchy-i18n agents.proxySignInFailed", "CLIProxyAPI couldn't finish the %1 sign-in: %2", name, failure) if failure else tr("omarchy-i18n agents.signInFailed", "The %1 sign-in didn't finish.", name))
+  subprocess.Popen(["omarchy-agent-usage-update", "--force", "cliproxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+  report.done(tr("omarchy-i18n agents.proxyAdded", "Added a %1 account to CLIProxyAPI.", name))
+  return 0
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Sign a Claude or Codex account in to CLIProxyAPI")
+  parser.add_argument("--events", action="store_true")
+  parser.add_argument("provider", choices=sorted(PROVIDERS))
+  args = parser.parse_args()
+  return add(args.provider, args.events)
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

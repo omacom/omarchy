@@ -2835,6 +2835,36 @@ def codex_providers_path() -> Path:
   return Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state")) / "omarchy" / "agents" / "local-codex-providers.json"
 
 
+# The plans as Codex's own /status names them (SubscriptionDisplay::Status in
+# Codex 0.163's TUI), keyed by the wire planType: "pro" is the 200 plan, and
+# a "team" workspace is what Codex sells as Business.
+CODEX_PLAN_NAMES = {
+  "free": "Free",
+  "go": "Go",
+  "plus": "Plus",
+  "pro": "Pro 200",
+  "prolite": "Pro 100",
+  "promax": "Pro 500",
+  "team": "Business",
+  "self_serve_business_usage_based": "Business",
+  "self_serve_business_prolite": "Business Premium",
+  "business": "Enterprise",
+  "enterprise_cbp_automation": "Enterprise (Automation)",
+  "enterprise_cbp_usage_based": "Enterprise",
+  "ent26": "Enterprise",
+  "enterprise": "Enterprise",
+  "edu": "Edu",
+  "edu_plus": "Edu Plus",
+  "edu_pro": "Edu Pro",
+}
+
+
+def codex_plan_name(plan: Any) -> str:
+  # A plan newer than this table keeps its wire name, made readable.
+  plan = str(plan or "")
+  return CODEX_PLAN_NAMES.get(plan, plan.replace("_", " "))
+
+
 def codex_provider_urls() -> dict[str, str]:
   """provider id -> base_url, for every Codex provider config.toml has named.
 
@@ -3645,6 +3675,35 @@ def trusted_endpoint(url: str) -> bool:
     return False
   loopback = (parts.hostname or "").lower() in ("localhost", "127.0.0.1", "::1")
   return parts.scheme == "https" or (parts.scheme == "http" and loopback)
+
+
+# --------------------------------------------------------------- cliproxy
+
+CLIPROXY_DEFAULT_URL = "http://127.0.0.1:8317"
+
+
+def cliproxy_settings() -> tuple[str, str]:
+  """A CLIProxyAPI's base URL and management key: CLIPROXY_URL and
+  CLIPROXY_MANAGEMENT_KEY, else `url` and `managementKey` in
+  ~/.config/omarchy/agents/cliproxy.json, the URL defaulting to the port the
+  proxy listens on out of the box. The key is "" when none is set."""
+  config = read_json(config_home() / "omarchy" / "agents" / "cliproxy.json")
+  url = str(os.environ.get("CLIPROXY_URL") or config.get("url") or CLIPROXY_DEFAULT_URL).strip().rstrip("/")
+  key = str(os.environ.get("CLIPROXY_MANAGEMENT_KEY") or config.get("managementKey") or "").strip()
+  return url, key
+
+
+def cliproxy_request(url: str, key: str, path: str, method: str = "GET", body: Any = None, timeout: float = 10) -> Any:
+  """One call to the proxy's management API (`path` under /v0/management),
+  through open_json. The caller checks trusted_endpoint(url) first, since the
+  key rides on every call."""
+  request = urllib.request.Request(
+    f"{url}/v0/management/{path}",
+    data=None if body is None else json.dumps(body).encode(),
+    headers={"Authorization": f"Bearer {key}", "Accept": "application/json", "Content-Type": "application/json"},
+    method=method,
+  )
+  return open_json(request, timeout=timeout)
 
 
 # ---------------------------------------------------------------- sign-ins
