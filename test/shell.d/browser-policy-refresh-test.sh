@@ -141,6 +141,8 @@ POLICY_STATUS=1 run_theme_set "$tmpdir/m3" || rc=$?
 [[ -f $tmpdir/m3/brave ]] || fail "a failed policy write still refreshes running browsers"
 pass "a failed policy write still fails theme-set-browser"
 
+unset CHROME_USER_DATA_DIR CHROME_CONFIG_HOME
+
 # With no live owner on the default profile, a refresh would start a browser
 # there instead of reaching one. pid_max is never handed out.
 printf 'brave\n' > "$running"
@@ -159,3 +161,20 @@ for case in "no lock:" "a dead pid:$(uname -n)-$(</proc/sys/kernel/pid_max)" "an
   [[ ! -e $markers/brave ]] || fail "theme-set-browser skips the refresh for a profile with $label"
   pass "theme-set-browser skips the refresh for a profile with $label"
 done
+
+# A browser on another data directory holds that directory's lock, not the
+# default profile's, so its refresh still runs.
+rm -f "$tmpdir/.config/BraveSoftware/Brave-Browser/SingletonLock"
+rc=0
+CHROME_CONFIG_HOME=$tmpdir/elsewhere run_theme_set "$tmpdir/other-env" || rc=$?
+(( rc == 0 )) && [[ -f $tmpdir/other-env/brave ]] ||
+  fail "theme-set-browser refreshes a browser on a data directory from the environment" "exit $rc"
+pass "theme-set-browser refreshes a browser on a data directory from the environment"
+
+printf -- '--user-data-dir=%s\n' "$tmpdir/elsewhere" > "$tmpdir/.config/brave-flags.conf"
+rc=0
+run_theme_set "$tmpdir/other-flags" || rc=$?
+rm "$tmpdir/.config/brave-flags.conf"
+(( rc == 0 )) && [[ -f $tmpdir/other-flags/brave ]] ||
+  fail "theme-set-browser refreshes a browser on a data directory from its flags file" "exit $rc"
+pass "theme-set-browser refreshes a browser on a data directory from its flags file"
