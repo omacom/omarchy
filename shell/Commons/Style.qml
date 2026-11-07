@@ -32,6 +32,10 @@ QtObject {
 
   property int cornerRadius: 0
   property int gapsOut: 5
+  // Hyprland's own top and bottom gaps_out, unhalved: the space between a
+  // window and the screen's top or bottom edge.
+  property int gapsOutTop: 10
+  property int gapsOutBottom: 10
 
   // ---------------------------------------------------------- state tokens
   //
@@ -283,6 +287,7 @@ QtObject {
   property var fontOverrides: ({})
   property var barOverrides: ({})
   property bool barScaleWithFont: true
+  property string barStyle: "strip"
   readonly property real fontScale: Math.max(1 / 12, fontBaseSize / 12)
 
   function fontPx(mult) {
@@ -355,6 +360,9 @@ QtObject {
     readonly property int iconFont:       root.barToken("icon-font",       13)
     readonly property int iconSize:       Math.min(iconCanvas, root.barToken("icon-size", 12))
     readonly property int statusSlot:     root.barToken("status-slot",     21)
+    // "strip" draws one full-width bar; "islands" draws a floating capsule
+    // per section on top and bottom bars. Anything else reads as "strip".
+    readonly property string style: root.barStyle
   }
 
   // Off with Hyprland's own animations, as `omarchy toggle animations` turns
@@ -397,6 +405,11 @@ QtObject {
       var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
       var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
       if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+      // CSS order: top, right, bottom, left; one or two values repeat.
+      var top = Number(parts.length > 0 ? parts[0] : json.int)
+      var bottom = Number(parts.length > 2 ? parts[2] : (parts.length > 0 ? parts[0] : json.int))
+      if (isFinite(top) && top >= 0) gapsOutTop = Math.round(top)
+      if (isFinite(bottom) && bottom >= 0) gapsOutBottom = Math.round(bottom)
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
@@ -414,6 +427,7 @@ QtObject {
     var nextSpacingScale = 1.0
     var nextSpacingScaleWithFont = true
     var nextBarScaleWithFont = true
+    var nextBarStyle = "strip"
     var v = values || {}
     for (var fullKey in v) {
       var dot = fullKey.indexOf(".")
@@ -429,6 +443,8 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
+        } else if (key === "style") {
+          nextBarStyle = String(raw).trim() === "islands" ? "islands" : "strip"
         } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
           || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
           || key === "icon-size" || key === "status-slot") {
@@ -461,6 +477,7 @@ QtObject {
     fontOverrides = fontOut
     barOverrides = barOut
     barScaleWithFont = nextBarScaleWithFont
+    barStyle = nextBarStyle
     spacingOverrides = spacingOut
     styleOverrides = styleOut
   }
