@@ -25,6 +25,7 @@ Item {
   readonly property string startupBackgroundPath: Quickshell.env("OMARCHY_STARTUP_BACKGROUND")
   property string themeBackground: sessionConsumed && !Util.isVideoPath(startupBackgroundPath) ? startupBackgroundPath : ""
   property var themeNativeSize: null
+  property bool themePaletteReady: false
   property string themeColors: ""
   property string themeShell: ""
   property real themeOpacity: 1
@@ -80,6 +81,11 @@ Item {
     function onPluginsChanged() { root.finishStartup() }
   }
 
+  function prepareThemeCover(fromPath, token) {
+    prepareTheme(fromPath, token, "", "")
+    themePaletteReady = false
+  }
+
   function prepareTheme(fromPath, token, colors, shell) {
     framePoll.stop()
     themeFade.stop()
@@ -93,6 +99,7 @@ Item {
       themeNativeSize = backgroundService && backgroundService.nativeSizes ? backgroundService.nativeSizes[backgroundService.displayedBackground] : null
     }
     themeBackground = fromPath
+    themePaletteReady = true
     themeColors = colors
     themeShell = shell
     themeOpacity = 1
@@ -102,6 +109,12 @@ Item {
 
   function revealTheme() {
     if (!themeToken && !cover) return
+    // A slow staging operation may outlive the cover fallback. Release only
+    // its cover; no palette is ready until activation has been published.
+    if (themeToken && !themePaletteReady) {
+      cancelTheme()
+      return
+    }
     themeFinishing = false
     framePoll.stop()
     themeFallback.stop()
@@ -113,6 +126,7 @@ Item {
     }
     cover = false
     themeToken = ""
+    themePaletteReady = false
     themeColors = ""
     themeShell = ""
     if (startupPending) {
@@ -160,6 +174,7 @@ Item {
     themeToken = ""
     transitionToken = ""
     themeBackground = ""
+    themePaletteReady = false
     themeColors = ""
     themeShell = ""
   }
