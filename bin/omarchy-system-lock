@@ -5,7 +5,14 @@
 # omarchy:name=lock
 # omarchy:examples=omarchy system lock
 
-omarchy-shell lock lock >/dev/null
+# IPC success alone does not mean the lock was accepted: the shell also returns
+# refusals such as missing-pam on stdout. Keep the screensaver up on failure.
+lock_result=$(omarchy-shell lock lock)
+lock_status=$?
+if (( lock_status == 0 )) && [[ $lock_result != "ok" ]]; then
+  printf 'omarchy-system-lock: lock request failed (%s)\n' "${lock_result:-empty response}" >&2
+  lock_status=1
+fi
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
@@ -19,10 +26,14 @@ if pgrep -x "1password" >/dev/null && omarchy-cmd-present 1password; then
   ) 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-1password-lock.lock" &
 fi
 
+# Preserve the screensaver if the session lock was not accepted. Independent
+# keyboard-layout and password-manager protection above still run on failure.
 # Avoid running screensaver when locked
 screensaver='[/]usr/lib/omarchy-screensaver/omarchy-screensaver'
-if pkill -f "$screensaver" 2>/dev/null; then
+if (( lock_status == 0 )) && pkill -f "$screensaver" 2>/dev/null; then
   timeout 1s pidwait -f "$screensaver" 2>/dev/null || pkill -KILL -f "$screensaver" 2>/dev/null || true
   # It hid the cursor, and a killed or failed exit leaves it hidden.
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' >/dev/null 2>&1 || hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
 fi
+
+exit "$lock_status"
