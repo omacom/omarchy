@@ -76,6 +76,17 @@ released=$(grep -c '^released$' "$stage/polls" || true)
 (( released <= 1 )) || fail "the frame poll stops once nothing waits for the intro ($released owe render-status runs in the second after the cover was released)"
 pass "the cover stays while waiting, remains off when OWE recreates the background service, and stops polling after a still intro"
 
+# A login with no intro whose shell was not up for OWE's handoff: OWE draws
+# the still and keeps the shell's background off, so nothing else releases
+# the cover before the ten-second fallback.
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/still-renderer.qml" "$stage/shell.qml"
+output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" INTRO_TEST_LOG="$stage/starts" INTRO_TEST_POLLS="$stage/renderer-polls" INTRO_TEST_MARK="$stage/renderer-mark" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "still renderer fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "OWE's still releases the startup cover once the launcher has finished" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "still renderer fixture has no QML errors" "$output"
+fi
+pass "OWE's still releases the startup cover once the launcher has finished"
+
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/finish-handoff.qml" "$stage/shell.qml"
 mkdir -p "$stage/home/.local/state/omarchy"
 printf 'finish-session\n' >"$stage/home/.local/state/omarchy/background-intro.session-id"
