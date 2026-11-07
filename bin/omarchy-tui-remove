@@ -35,7 +35,13 @@ fi
 
 icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
 rm -f "$DESKTOP_DIR/$APP_NAME.desktop"
-rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
+# The icon keeps the format it was installed with, so the formats the icon
+# theme uses are removed here too. The installer names the icon after the
+# sanitized app name, and only that name is safe to match: a name the user
+# typed can hold a glob or a path. A name that sanitizes to nothing left the
+# icon at the empty name, and these are those files.
+rm -f "$ICON_DIR/$icon_name".png "$ICON_DIR/$icon_name".svg "$ICON_DIR/$icon_name".xpm
+rm -f "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
   omarchy-notification-send -g  "$(omarchy-i18n tui.removed)" "$APP_NAME"
 fi
