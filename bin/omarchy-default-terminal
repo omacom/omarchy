@@ -11,8 +11,29 @@ if [[ ${1:-} == "--install" ]]; then
 fi
 
 if (($# == 0)); then
+  # The launcher is authoritative: its preference list skips absent terminals.
   desktop_id=$(xdg-terminal-exec --print-id 2>/dev/null || true)
   desktop_id=${desktop_id%%:*}
+
+  # A customized launcher may not implement --print-id. Only report a known
+  # installed preference in that case; never turn an absent first entry into
+  # a checked menu row while the launcher falls back to another terminal.
+  if [[ -z $desktop_id && -r ~/.config/xdg-terminals.list ]]; then
+    while IFS= read -r line || [[ -n $line ]]; do
+      case "$line" in
+      Alacritty.desktop) candidate=alacritty ;;
+      foot.desktop) candidate=foot ;;
+      com.mitchellh.ghostty.desktop) candidate=ghostty ;;
+      kitty.desktop) candidate=kitty ;;
+      *) continue ;;
+      esac
+      if ! omarchy-cmd-missing "$candidate"; then
+        desktop_id=$line
+        break
+      fi
+    done <~/.config/xdg-terminals.list
+  fi
+
   case "$desktop_id" in
   Alacritty.desktop) echo "alacritty" ;;
   foot.desktop) echo "foot" ;;
