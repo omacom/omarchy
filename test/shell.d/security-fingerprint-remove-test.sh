@@ -14,9 +14,13 @@ output="$test_tmp/output"
 
 (( $(grep -Fxc 'sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"' "$remove") == 1 )) ||
   fail "fingerprint removal has one fixed deletion path"
+(( $(grep -Fc 'sudo rm -f /etc/systemd/system/fprintd.service.d/20-controlvault-start-timeout.conf' "$remove") == 1 )) ||
+  fail "fingerprint removal deletes the ControlVault start timeout"
 sed -e "s|/etc/pam.d/|$test_tmp/etc/pam.d/|g" \
   -e "s|/var/lib/fprint/|$test_tmp/fprint/|g" \
-  -e "s|/usr/bin/id|$test_tmp/trusted-id|g" "$remove" >"$copy"
+  -e "s|/usr/bin/id|$test_tmp/trusted-id|g" \
+  -e "s|/etc/systemd/system/fprintd.service.d|$test_tmp/systemd|g" \
+  -e "s|/usr/lib/systemd/system-sleep/|$test_tmp/system-sleep/|g" "$remove" >"$copy"
 
 cat >"$test_tmp/trusted-id" <<'SH'
 #!/bin/bash
@@ -50,9 +54,20 @@ fi
 if [[ $* == "omarchy-lifecycle-dispatch disable-fingerprint" ]]; then
   exit "${TEST_HOOK_FAIL:-0}"
 fi
-[[ $# == 4 && $1 == rm && $2 == -rf && $3 == -- && $4 == "$TEST_FPRINT/$TEST_EXPECTED_USER" ]] || exit 91
-[[ ${TEST_DELETE_FAIL:-0} == 0 ]] || exit 92
-exec /usr/bin/rm -rf -- "$4"
+if [[ $# == 4 && $1 == rm && $2 == -rf && $3 == -- && $4 == "$TEST_FPRINT/$TEST_EXPECTED_USER" ]]; then
+  [[ ${TEST_DELETE_FAIL:-0} == 0 ]] || exit 92
+  exec /usr/bin/rm -rf -- "$4"
+fi
+if [[ $# == 3 && $1 == rm && $2 == -f && $3 == "$TEST_SYSTEMD/20-controlvault-start-timeout.conf" ]]; then
+  exec /usr/bin/rm -f -- "$3"
+fi
+if [[ $# == 3 && $1 == rm && $2 == -f && $3 == "$TEST_SYSTEMD/10-stop-timeout.conf" ]]; then
+  exec /usr/bin/rm -f -- "$3"
+fi
+if [[ $# == 3 && $1 == rmdir && $2 == --ignore-fail-on-non-empty && $3 == "$TEST_SYSTEMD" ]]; then
+  exec /usr/bin/rmdir --ignore-fail-on-non-empty "$3"
+fi
+[[ $# == 2 && $1 == systemctl && $2 == daemon-reload ]] || exit 91
 SH
 # TEST_DISABLE_HOOK is what disable-fingerprint resolves to as the user.
 cat >"$test_tmp/bin/omarchy-lifecycle-dispatch" <<'SH'
@@ -92,7 +107,7 @@ run_remove() {
   local sudo_env=()
   [[ -v SUDO_UID ]] && sudo_env=("SUDO_UID=$SUDO_UID")
   local fixture_env=(
-    "TEST_LOG=$log" "TEST_FPRINT=$test_tmp/fprint" "TEST_EXPECTED_USER=$expected"
+    "TEST_LOG=$log" "TEST_FPRINT=$test_tmp/fprint" "TEST_SYSTEMD=$test_tmp/systemd" "TEST_EXPECTED_USER=$expected"
     "TEST_DIRECT_USER=$direct_user" "TEST_SUDO_USER=$sudo_user" "TEST_SUDO_UID=${SUDO_UID:-}"
     "TEST_ID_FAIL=${id_fail:-0}" "TEST_DELETE_FAIL=${delete_fail:-0}"
     "TEST_PACKAGE_FAIL=${package_fail:-0}" "TEST_PRINTS_FAIL=${prints_fail:-0}" "TEST_FPRINTD=${fprintd:-1}"
@@ -121,7 +136,7 @@ run_remove || fail "direct user removal succeeds" "$(cat "$output")"
   fail "only the invoking user's local files are deleted"
 grep -Fxq 'id -un' "$log" || fail "direct user is resolved through id"
 grep -Fq "sudo rm -rf -- $test_tmp/fprint/alice" "$log" || fail "deletion precedes package drop"
-[[ $(tail -n 1 "$log") == 'package fprintd libfprint libfprint-git' ]] || fail "packages drop after deletion"
+[[ $(tail -n 1 "$log") == 'package fprintd libfprint libfprint-git libfprint-tod libfprint-2-tod1-broadcom' ]] || fail "packages drop after deletion"
 grep -Fq "alice's local saved fingerprints have been removed" "$output" || fail "success describes local saved files"
 pass "direct user ignores spoofed USER and leaves other accounts alone"
 
@@ -149,7 +164,7 @@ pass "prints are deleted in the reader first, and a delete that can't run doesn'
 # local files go and before the packages; a failure is reported, not fatal.
 run_remove || fail "removal on a platform with the hook succeeds" "$(cat "$output")"
 calls=$(grep -E '^(sudo rm|sudo omarchy-lifecycle-dispatch|package )' "$log")
-[[ $calls == "sudo rm -rf -- $test_tmp/fprint/alice"$'\nsudo omarchy-lifecycle-dispatch disable-fingerprint\npackage fprintd libfprint libfprint-git' ]] ||
+[[ $calls == "sudo rm -rf -- $test_tmp/fprint/alice"$'\nsudo omarchy-lifecycle-dispatch disable-fingerprint\npackage fprintd libfprint libfprint-git libfprint-tod libfprint-2-tod1-broadcom' ]] ||
   fail "the platform turns its reader off after the local files go and before the packages" "$calls"
 ! grep -q 'may still be turned on' "$output" || fail "a hook that worked warns about nothing" "$(cat "$output")"
 hook_fail=1
@@ -202,6 +217,19 @@ pass "absolute system id ignores malicious PATH id"
 
 run_remove || fail "missing fingerprint directory is idempotent" "$(cat "$output")"
 pass "missing user directory succeeds"
+
+mkdir -p "$test_tmp/systemd" "$test_tmp/fprint/alice"
+printf '[Service]\nTimeoutStartSec=240\n' >"$test_tmp/systemd/20-controlvault-start-timeout.conf"
+run_remove || fail "ControlVault start timeout removal succeeds" "$(cat "$output")"
+[[ ! -e $test_tmp/systemd/20-controlvault-start-timeout.conf ]] ||
+  fail "ControlVault start timeout file is removed"
+[[ ! -d $test_tmp/systemd ]] ||
+  fail "empty fprintd drop-in directory is removed"
+grep -Fq "sudo rm -f $test_tmp/systemd/20-controlvault-start-timeout.conf" "$log" ||
+  fail "ControlVault start timeout removal deletes the drop-in"
+grep -Fq 'sudo systemctl daemon-reload' "$log" ||
+  fail "ControlVault start timeout removal reloads systemd"
+pass "ControlVault start timeout is removed and systemd is reloaded"
 
 delete_fail=1
 run_remove && fail "deletion failure must fail removal"
