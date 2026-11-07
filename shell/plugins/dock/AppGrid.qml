@@ -32,6 +32,9 @@ Item {
   // scrolls under a still pointer changes what is hovered, but not this, so
   // it never steals the selection from the keyboard.
   property point lastPointer: Qt.point(-1, -1)
+  // False until the first sample after open records where the pointer already
+  // rests. That sample is not a move, so it must not change the selection.
+  property bool pointerPrimed: false
   // 0 → 1 each time the grid opens; drives the card's entrance.
   property real enter: 1
 
@@ -43,6 +46,10 @@ Item {
   readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight
   readonly property int maxColumns: 7
   readonly property int visibleRows: 4
+  // How many rows a page key moves: the rows that fit in the grid's view.
+  // visibleRows is only how tall the card wants to be; a short screen or a
+  // large text size leaves fewer rows in grid.height.
+  readonly property int pageRows: Math.max(1, Math.floor(grid.height / cellHeight))
   readonly property int borderWidth: Math.max(1, Style.space(2))
   readonly property int contentMargin: Style.spacing.panelPadding
   readonly property int inset: contentMargin + borderWidth
@@ -65,8 +72,14 @@ Item {
 
   readonly property var currentEntry: root.selectedIndex >= 0 && root.selectedIndex < root.apps.length ? root.apps[root.selectedIndex] : null
 
+  // Resets of filterText reach the search line; its edits come back through setFilter.
+  onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
+
   function open() {
     root.selectedIndex = 0
+    // The pointer may have moved while the grid was closed, and lastPointer
+    // still says where it was. Forget that until the resting pointer is sampled.
+    root.pointerPrimed = false
     if (root.appLibrary) root.appLibrary.refreshIcons()
     // The cells from last time are reused when nothing changed, so the grid
     // opens with its icons already drawn.
@@ -77,7 +90,7 @@ Item {
       grid.positionViewAtBeginning()
     }
     root.opened = true
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function close() {
@@ -129,7 +142,7 @@ Item {
 
   function cancelUninstall() {
     root.uninstallEntry = null
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function confirmUninstall() {
@@ -294,9 +307,8 @@ Item {
       Item {
         id: keyCatcher
         anchors.fill: parent
-        focus: true
 
-        Keys.priority: Keys.BeforeItem
+        // Focus is on filterInput, which forwards every key here first.
         Keys.onPressed: function(event) {
           if (root.uninstallEntry) {
             if (uninstallConfirm.handleKey(event)) event.accepted = true
@@ -321,17 +333,19 @@ Item {
           } else if (event.key === Qt.Key_Down) {
             root.select(root.columns)
           } else if (event.key === Qt.Key_PageUp) {
-            root.select(-root.columns * root.visibleRows)
+            root.select(-root.columns * root.pageRows)
           } else if (event.key === Qt.Key_PageDown) {
-            root.select(root.columns * root.visibleRows)
+            root.select(root.columns * root.pageRows)
           } else if (event.key === Qt.Key_Home) {
             root.jumpTo(0)
           } else if (event.key === Qt.Key_End) {
             root.jumpTo(root.apps.length - 1)
+          } else if (event.key === Qt.Key_Tab) {
+            root.select(1)
+          } else if (event.key === Qt.Key_Backtab) {
+            root.select(-1)
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.launch(root.selectedIndex)
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-            root.setFilter(root.filterText + event.text)
           } else {
             return
           }
@@ -365,17 +379,37 @@ Item {
           Behavior on color { ColorAnimation { duration: Style.duration(120) } }
           Behavior on border.color { ColorAnimation { duration: Style.duration(120) } }
 
-          Text {
-            id: searchText
+          // A text input, not a Text fed by key events: input methods (fcitx5
+          // composing Japanese, Chinese or Korean) only reach text-input items.
+          // Navigation keys are forwarded to keyCatcher; everything it leaves
+          // unaccepted is typed here.
+          FilterInput {
+            id: filterInput
             anchors.left: parent.left
             anchors.leftMargin: Style.spacing.controlPaddingX
             anchors.right: trailing.left
             anchors.rightMargin: Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: root.filterText || Commons.I18n.t("dock.searchApps")
+            keyHandler: keyCatcher
+            // Input-method commits bypass key handling, so the dialog has to refuse them here.
+            readOnly: !!root.uninstallEntry
             color: Commons.Color.menu.text
-            opacity: root.filterText ? 1 : 0.5
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.heading
+            onTextChanged: if (text !== root.filterText) root.setFilter(text)
+          }
+
+          // The hint shown while the box is empty. It also steps aside while an
+          // input method is composing, when the text is still empty.
+          Text {
+            anchors.left: filterInput.left
+            anchors.right: filterInput.right
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.filterText === "" && !filterInput.preeditText
+            textFormat: Text.PlainText
+            text: Commons.I18n.t("dock.searchApps")
+            color: Commons.Color.menu.text
+            opacity: 0.5
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
@@ -400,7 +434,7 @@ Item {
                 id: countText
                 anchors.centerIn: parent
                 textFormat: Text.PlainText
-                text: root.apps.length
+                text: Commons.I18n.formatNumber(root.apps.length)
                 color: Commons.Color.menu.text
                 opacity: 0.65
                 font.family: Style.font.menuFamily
@@ -489,6 +523,14 @@ Item {
                 onPointChanged: {
                   if (!hovered || root.dragging) return
                   var at = cell.mapToItem(panel.contentItem, point.position.x, point.position.y)
+                  // Opening under a resting pointer, or reopening after the
+                  // pointer moved while the grid was closed, reports this cell
+                  // immediately. Record that spot and leave the selection alone.
+                  if (!root.pointerPrimed) {
+                    root.lastPointer = at
+                    root.pointerPrimed = true
+                    return
+                  }
                   if (Math.abs(at.x - root.lastPointer.x) < 1 && Math.abs(at.y - root.lastPointer.y) < 1) return
                   root.lastPointer = at
                   if (root.selectedIndex !== cell.index) root.selectedIndex = cell.index
