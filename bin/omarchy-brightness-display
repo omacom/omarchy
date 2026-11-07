@@ -68,7 +68,7 @@ use_backlight_display() {
 
 if (( $# == 0 )); then
   if use_apple_display; then
-    omarchy-brightness-display-apple
+    omarchy-brightness-display-apple --monitor "$monitor"
     exit
   elif use_ddc_display; then
     omarchy-brightness-display-ddc "$monitor"
@@ -103,9 +103,9 @@ flock -n "$lock_fd" || exit 0
 
 if use_apple_display; then
   if (( no_osd )); then
-    omarchy-brightness-display-apple --no-osd "$step"
+    omarchy-brightness-display-apple --no-osd --monitor "$monitor" "$step"
   else
-    omarchy-brightness-display-apple "$step"
+    omarchy-brightness-display-apple --monitor "$monitor" "$step"
   fi
 elif use_ddc_display; then
   brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
