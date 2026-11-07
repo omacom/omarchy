@@ -36,19 +36,19 @@ The pull request carries the evidence: put the before/after screenshots, and the
 
 Motion goes wrong in a frame or two, too fast to see at full speed: two texts showing at once in a crossfade, a blank frame between two panels, a card that jumps instead of morphing, a panel growing from the wrong point. Record the change and read it a frame at a time. Follow [`motion.md`](motion.md) for what the motion should be.
 
-Run the branch's shell, not the installed one. The running shell loads plugins from `$OMARCHY_PATH`, and its launcher relaunches it if killed, so stop it and start the worktree's through Hyprland. This takes over the desktop, so tell whoever is at it first with `omarchy-notification-send` and wait a few seconds.
+Run the branch's shell, not the installed one. The running shell loads plugins from `$OMARCHY_PATH`, and its launcher relaunches it if killed, so stop it and start the worktree's through Hyprland, with the worktree's `bin/` first on `PATH`. The shell runs Omarchy commands by name, so without it the bar calls the installed ones, and a flag the installed copy lacks can start something real: an older `omarchy-capture-screenrecording` takes `--status` for a request to record and opens a region selection that freezes the screen. This takes over the desktop, so tell whoever is at it first with `omarchy-notification-send` and wait a few seconds.
 
-Put their shell back with `omarchy-restart-shell` as soon as the check is done, before you turn to anything else, and never end a turn with the worktree's shell running. While it runs, `omarchy-shell` cannot reach the desktop, so theme switches and updates fail without a word, and the user cannot tell why. `omarchy-restart-shell` stops every Omarchy shell, the worktree's included, and starts the session's own. A check usually spans several tool calls, so a `trap` in one of them does not cover it; relaunching between edits is fine, but the restore is yours to run.
+Put their shell back with `omarchy-restart-shell` as soon as the check is done, before you turn to anything else, and never end a turn with the worktree's shell running. While it runs, `omarchy-shell` cannot reach the desktop, so theme switches and updates fail without a word, and the user cannot tell why. `omarchy-restart-shell` stops every Omarchy shell, the worktree's included, and starts the session's own; run the worktree's copy, since an installed one from before that change leaves the worktree's shell running beside the new one. A check usually spans several tool calls, so a `trap` in one of them does not cover it; relaunching between edits is fine, but the restore is yours to run.
 
 ```bash
 WT=/path/to/worktree
 while timeout 30 quickshell kill -p "$OMARCHY_PATH/shell" --any-display >/dev/null 2>&1; do :; done
-hyprctl dispatch "hl.dsp.exec_cmd(\"env OMARCHY_PATH=$WT omarchy-launch-shell\")"
+hyprctl dispatch "hl.dsp.exec_cmd(\"env OMARCHY_PATH=$WT PATH=$WT/bin:\$PATH omarchy-launch-shell\")"
 # A starting shell answers one ping and then drops calls while plugins load:
 # wait for several answers in a row, a second apart.
-OMARCHY_PATH=$WT omarchy-shell shell ping
+OMARCHY_PATH=$WT PATH="$WT/bin:$PATH" omarchy-shell shell ping
 # ... record ...
-omarchy-restart-shell
+"$WT/bin/omarchy-restart-shell"
 ```
 
 Drive it without touching the mouse:
