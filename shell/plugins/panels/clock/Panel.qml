@@ -252,6 +252,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.clock")
     anchorItem: root.anchorItem
     owner: root.barIdentity
     bar: root.bar
@@ -404,6 +405,7 @@ Panel {
                   width: Style.space(70)
                   anchors.verticalCenter: parent.verticalCenter
                   placeholderText: Commons.I18n.t("clock.year")
+                  accessibleName: Commons.I18n.t("clock.born")
                   foreground: root.contentForeground
                   font.family: root.contentFontFamily
                   inputMethodHints: Qt.ImhDigitsOnly
@@ -428,6 +430,7 @@ Panel {
                   width: Style.space(60)
                   anchors.verticalCenter: parent.verticalCenter
                   placeholderText: "90"
+                  accessibleName: Commons.I18n.t("clock.liveTo")
                   foreground: root.contentForeground
                   font.family: root.contentFontFamily
                   inputMethodHints: Qt.ImhDigitsOnly

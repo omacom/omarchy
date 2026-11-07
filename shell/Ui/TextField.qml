@@ -37,6 +37,15 @@ TextField {
   readonly property bool _hot: hovered || hasCursor
   readonly property var _borderSpec: Border.controlSpec(_focused ? "focus" : (_hot ? "hover-cursor" : "normal"), root.foreground, root.accent)
 
+  // What goes in the field ("City"), never its example: placeholder text is
+  // often a sample ("90", "Work") and disappears once the user types, so it
+  // stays the description, as in Qt Quick Controls' own TextField. Qt never
+  // reports a name for a password field, so it rides in the description there.
+  property string accessibleName: ""
+
+  Accessible.name: accessibleName
+  Accessible.description: password && accessibleName !== "" ? accessibleName : placeholderText
+
   echoMode: password ? TextInput.Password : TextInput.Normal
   font.family: Style.font.family
   font.pixelSize: Style.font.body
