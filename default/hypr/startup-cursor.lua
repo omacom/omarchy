@@ -51,6 +51,27 @@ function omarchy_startup_cursor_restore(loaded)
   end
 end
 
+-- A restore whose hyprctl chain times out leaves that chain unfinished, so
+-- cursor.restoring stays set and blocks every later attempt: the pointer then
+-- stays hidden for the session once the one-shot fallback has fired (#17767).
+-- Keep asking until the reveal lands, and after a minute show the pointer with
+-- the saved theme anyway: a hidden cursor for the session is worse than a theme
+-- that did not apply.
+local RESTORE_ATTEMPTS = 4
+
+local function schedule_restore(attempts)
+  hl.timer(function()
+    if not omarchy_startup_cursor_pending then return end
+    omarchy_startup_cursor.restoring = false
+    if attempts <= 1 then
+      omarchy_startup_cursor_restore(true)
+      return
+    end
+    omarchy_startup_cursor_restore()
+    schedule_restore(attempts - 1)
+  end, { timeout = 15000, type = "oneshot" })
+end
+
 hl.on("config.reloaded", function()
   local recover = false
   if omarchy_startup_cursor_pending == nil then
@@ -89,12 +110,7 @@ hl.on("config.reloaded", function()
   if omarchy_startup_cursor_pending then
     -- Keep the temporary cursor private to the compositor, including GSettings.
     hl.config({ cursor = { invisible = true, enable_hyprcursor = false, sync_gsettings_theme = false } })
-    hl.timer(function()
-      if omarchy_startup_cursor_pending then
-        omarchy_startup_cursor.restoring = false
-        omarchy_startup_cursor_restore()
-      end
-    end, { timeout = 15000, type = "oneshot" })
+    schedule_restore(RESTORE_ATTEMPTS)
     if recover then omarchy_startup_cursor_restore() end
   end
 end)
