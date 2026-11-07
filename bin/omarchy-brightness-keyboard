@@ -26,19 +26,28 @@ if [[ -z $device ]]; then
 fi
 
 # The level from before the first "off" since the last "restore", so the lock
-# blanking again after a resume cannot save its own 0 over it.
-saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
+# blanking again after a resume cannot save its own 0 over it. It is kept in
+# the state directory, not the runtime one: a reboot taken while the keys are
+# blanked brings the LED back at 0 (systemd-backlight saves the level it reads
+# at shutdown), and the next wake still knows the level to restore.
+saved="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/brightness-keyboard-$device"
+# Where earlier versions kept the record, for a blank taken before an update.
+legacy_saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
 
-if [[ $direction == "off" || $direction == "restore" ]]; then
-  # The lock runs blank and wake as separate processes that can overlap.
-  exec {lock_fd}>"$saved.lock" || exit 1
-  flock "$lock_fd" || exit 1
+# The lock runs blank and wake as separate processes that can overlap, and an
+# idle timeout's wake can run while a brightness key steps the level, so every
+# change to the level or its record takes the lock.
+exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device.lock" || exit 1
+flock "$lock_fd" || exit 1
+
+if [[ ! -s $saved && -s $legacy_saved ]]; then
+  mkdir -p "${saved%/*}" 2>/dev/null && mv -f "$legacy_saved" "$saved" 2>/dev/null
 fi
 
 if [[ $direction == "off" ]]; then
   if [[ ! -s $saved ]]; then
     level="$(brightnessctl -d "$device" get)"
-    if [[ $level =~ ^[0-9]+$ ]] && ! echo "$level" >"$saved"; then
+    if [[ $level =~ ^[0-9]+$ ]] && ! { mkdir -p "${saved%/*}" && echo "$level" >"$saved"; }; then
       rm -f "$saved"
     fi
   fi
@@ -59,6 +68,17 @@ fi
 max_brightness="$(brightnessctl -d "$device" max)"
 current_brightness="$(brightnessctl -d "$device" get)"
 
+# A key pressed while the keys are blanked steps from the level a wake would
+# bring back, not from the blank, whichever of the two runs first.
+blanked=0
+if [[ -s $saved ]]; then
+  level="$(<"$saved")"
+  if [[ $level =~ ^[0-9]+$ ]]; then
+    current_brightness=$level
+    blanked=1
+  fi
+fi
+
 # Calculate step as 10% of max brightness. Keyboards with many levels (e.g. 512)
 # need larger steps; keyboards with few levels (e.g. 3) fall back to step=1.
 step=$(( max_brightness / 10 ))
@@ -75,6 +95,9 @@ else
   (( new_brightness < 0 )) && new_brightness=0
 fi
 
-# Set the new brightness.
-brightnessctl -d "$device" set "$new_brightness" >/dev/null
+# Set the new brightness. The keys chose it, so a blank's record is spent.
+brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
+(( blanked )) && rm -f "$saved"
+# The OSD must not hold the lock.
+exec {lock_fd}>&-
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
