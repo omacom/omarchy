@@ -26,6 +26,9 @@ answer = {"percent": None, "end": None}
 # format, its amounts money fields of {"val": n}.
 def credits(request):
   token = request.get_header("Authorization").split(" ", 1)[1]
+  # xAI turns away a token minted by an external auth provider.
+  if token == "token-external":
+    return 401
   config = {"currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY", "end": answer["end"] or PERIOD_END}, "billingPeriodEnd": PERIOD_END}
   if USED.get(token):
     config["creditUsagePercent"] = USED[token]
@@ -148,6 +151,15 @@ expect("a lapsed token with nothing cached says to start Grok, with no limits to
 signed_in(grok_home(), expires=iso_in(-31 * 86400), refresh_token="r")
 record = grok()
 expect("a sign-in lapsed past Grok's 30 days asks for a sign-in", record["usageStatusText"], "Sign-in expired", record)
+
+# A Grok signed in through an external auth provider holds that provider's
+# token, which xAI's billing doesn't know: no xAI limits, and no sign-in to
+# redo, since `grok login` would only store the same token again.
+sandbox()
+signed_in(grok_home(), token="token-external", user="", auth_mode="external")
+record = grok()
+expect("an external auth provider's sign-in has no xAI limits, says why, and asks for no sign-in",
+       [record["usageStatusText"], record["limits"], "external auth provider" in record["authHelpText"]], ["Grok limits unavailable", [], True], record)
 
 # ------------------------------------------------------------- the answer
 
