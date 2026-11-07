@@ -96,7 +96,8 @@ omarchy-migrate --pending
 Exit behavior:
 
 - `0` — one or more migrations are pending
-- non-zero — no migrations are pending
+- `1` — no migrations are pending
+- `2` — the migrations directory under `$OMARCHY_PATH` is missing, so pending migrations cannot be listed
 
 Output is one pending migration per line:
 
