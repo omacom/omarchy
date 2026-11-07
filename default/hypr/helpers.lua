@@ -144,6 +144,12 @@ function o.bind(keys, description, dispatcher, options)
 
   dispatcher = command_from(dispatcher, description)
 
+  -- Hyprland raises "Invalid process string" each time an empty exec_cmd runs,
+  -- so an empty command binds nothing, as in o.rebind(keys, description, "").
+  if dispatcher == "" then
+    return
+  end
+
   if type(dispatcher) == "string" then
     dispatcher = hl.dsp.exec_cmd(dispatcher)
   end
