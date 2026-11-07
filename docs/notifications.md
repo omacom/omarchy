@@ -30,7 +30,7 @@ The surface is one fixed-width `WlrLayer.Overlay` window per output (namespace `
 
 ## Toast lifecycle
 
-A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stretched up to 30s by a longer `expire_timeout`. Its time pauses while the deck is open; a content update restarts it. Left-click activates; right-click, middle-click, or the close mark on hover dismisses.
+A card stays at least 5s (low), 8s (normal), or until dismissed (critical), stretched up to 30s by a longer `expire_timeout`. Critical from a browser (Chromium, Google Chrome, Firefox and the like) counts as normal here: the browser relays a web push that asked for attention, and only a sender's own critical waits until dismissed. Its time pauses while the deck is open; a content update restarts it. Left-click activates; right-click, middle-click, or the close mark on hover dismisses.
 
 A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `default` action; the sender's window by pid; a window showing the source (exact class, then for a site a browser window whose title names it); the site itself; the first link in the text; `omarchy-hyprland-focus-app` by app name.
 
@@ -38,7 +38,7 @@ A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `d
 
 The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), three JSON files it reads with `FileView` once at startup and rewrites whole:
 
-- `live.json`: the rows on screen, oldest first, put back after a shell restart with a 20s grace (critical ones still wait). At most 100.
+- `live.json`: the rows on screen, oldest first, put back after a shell restart with a 20s grace (critical ones still wait, a browser's excepted as on arrival). At most 100.
 - `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb.
 - `quiet.json`: `{ dnd }`.
 
