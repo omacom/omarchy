@@ -62,6 +62,13 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+# A running Foot gets a restart reminder; the stubbed sender returns no id, as when no notification daemon answers.
+mkdir -p "$test_home/.config/foot"
+printf '[main]\nfont=monospace:size=9\n' >"$test_home/.config/foot/foot.ini"
+printf '#!/bin/bash\nexit 0\n' >"$test_dir/bin/pgrep"
+run_command omarchy-display-text-size 16 || fail "size change succeeds when the Foot reminder returns no id"
+pass "an unsent Foot reminder doesn't fail an applied size change"
+
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
 # is installed, so a command on PATH is not enough: ask Kitty itself.
 if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
