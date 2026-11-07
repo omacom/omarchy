@@ -32,16 +32,46 @@ function M.forced()
   return nil
 end
 
+-- Long comments use the same arbitrary number of equals signs as long
+-- strings. Quoted comment markers must survive (for example in monitor names).
+local function long_string_end(text, start)
+  local equals = text:match("^%[(=*)%[", start)
+  if equals == nil then return nil end
+  local _, last = text:find("]" .. equals .. "]", start + #equals + 2, true)
+  return last or #text
+end
+
 local function strip_comments(text)
-  local lines = {}
-  for line in (text .. "\n"):gmatch("(.-)\n") do
-    local cut = line:find("%-%-")
-    if cut then
-      line = line:sub(1, cut - 1)
+  local parts = {}
+  local index = 1
+  while index <= #text do
+    local char = text:sub(index, index)
+    if char == '"' or char == "'" then
+      local last = index + 1
+      while last <= #text do
+        local next_char = text:sub(last, last)
+        if next_char == "\\" then
+          last = last + 2
+        elseif next_char == char then
+          last = last + 1
+          break
+        else
+          last = last + 1
+        end
+      end
+      parts[#parts + 1] = text:sub(index, last - 1)
+      index = last
+    elseif text:sub(index, index + 1) == "--" then
+      local last = long_string_end(text, index + 2)
+      index = last and last + 1 or (text:find("\n", index + 2, true) or (#text + 1))
+      parts[#parts + 1] = " "
+    else
+      local last = long_string_end(text, index) or index
+      parts[#parts + 1] = text:sub(index, last)
+      index = last + 1
     end
-    lines[#lines + 1] = line
   end
-  return table.concat(lines, "\n")
+  return table.concat(parts)
 end
 
 local function read_file(path)
@@ -56,7 +86,7 @@ end
 
 local function files_named(dir, name)
   local found = {}
-  local pipe = io.popen("find -L " .. quote(dir) .. " -type f -name " .. quote(name) .. " 2>/dev/null")
+  local pipe = io.popen("find -L " .. quote(dir) .. " -name '.*' -prune -o -type f -name " .. quote(name) .. " -print 2>/dev/null")
   if not pipe then
     return found
   end
@@ -130,16 +160,45 @@ local function indicator_uses_global_ids(text)
   return text:find("String(modelData)", 1, true) ~= nil
 end
 
+-- jq is part of the base install. Parse shell.json rather than searching for
+-- ids in text, so an installed but inactive clone cannot change shortcuts.
+local function json_lines(path, filter)
+  local lines = {}
+  local pipe = io.popen("jq -r " .. quote(filter) .. " " .. quote(path) .. " 2>/dev/null")
+  if not pipe then return lines end
+  for line in pipe:lines() do lines[#lines + 1] = line end
+  if not pipe:close() then return {} end
+  return lines
+end
+
 local function cloned_indicator_uses_global_ids()
-  local plugins = paths.config_home .. "/omarchy/plugins"
-  for _, manifest_path in ipairs(files_named(plugins, "manifest.json")) do
-    local manifest = read_file(manifest_path) or ""
-    if manifest:find('"clonedFrom"%s*:%s*"omarchy%.workspaces"') then
-      local dir = manifest_path:match("^(.*)/") or "."
-      for _, qml in ipairs(files_named(dir, "*.qml")) do
-        local text = read_file(qml)
-        if text and indicator_uses_global_ids(text) then
-          return true
+  local config = paths.config_home .. "/omarchy"
+  local active = json_lines(config .. "/shell.json", [=[
+    select(.version == 1) |
+    (.disabledPlugins // []) as $disabled |
+    [.bar.layout // {} | .left, .centerBegin, .center, .centerEnd, .right, .tray | .[]? |
+      (if type == "object" then .id else . end) |
+      select(type == "string") |
+      select(. as $id | $disabled | index($id) == null)] | unique[]
+  ]=])
+
+  for _, id in ipairs(active) do
+    -- PluginRegistry discovers one directory per id. Do not descend into the
+    -- hidden backups kept by plugin-remove, even if shell.json is stale.
+    if id:match("^[%w][%w._-]*$") then
+      local dir = config .. "/plugins/" .. id
+      local entrypoints = json_lines(dir .. "/manifest.json", 'select(.id == "' .. id .. [[" and
+        .schemaVersion == 1 and has("name") and has("version") and
+        (.kinds | type) == "array" and (.kinds | index("bar-widget")) != null and
+        .omarchy.clonedFrom == "omarchy.workspaces" and (.entryPoints | type) == "object" and
+        all(.entryPoints[]; type == "string" and length > 0 and
+          (startswith("/") | not) and (contains("..") | not))) | .entryPoints.barWidget | select(type == "string")]])
+      for _, entrypoint in ipairs(entrypoints) do
+        -- Inspect the loaded widget, not unused QML copied alongside it (a
+        -- full-bar clone also carries dormant copies of the built-in widgets).
+        if entrypoint ~= "" and entrypoint:sub(1, 1) ~= "/" and not entrypoint:find("..", 1, true) then
+          local text = read_file(dir .. "/" .. entrypoint)
+          if text and indicator_uses_global_ids(text) then return true end
         end
       end
     end

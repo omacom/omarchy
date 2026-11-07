@@ -9,6 +9,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
+require_command jq
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
@@ -792,7 +793,8 @@ check(global_flag() == "0\n", "the bar is told per-monitor won")
 pass "omarchy_global_workspaces = false keeps per-monitor numbering"
 
 run_lua global-clone '
-write_config("omarchy/plugins/me.workspaces/manifest.json", "{\n  \"omarchy\": { \"clonedFrom\": \"omarchy.workspaces\" }\n}\n")
+write_config("omarchy/shell.json", [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]])
+write_config("omarchy/plugins/me.workspaces/manifest.json", [[{"schemaVersion":1,"id":"me.workspaces","name":"Workspaces","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Workspaces.qml"},"omarchy":{"clonedFrom":"omarchy.workspaces"}}]])
 write_config("omarchy/plugins/me.workspaces/Workspaces.qml", "readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData\ntext: focused ? glyph : (modelData === 10 ? \"0\" : String(modelData))\n")
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 4)
@@ -808,7 +810,9 @@ check(world.focused == "DP-1" and shows("DP-1") == 4, "Super + 4 still matches t
 pass "an older cloned workspace indicator keeps the workspace ids it compares"
 
 run_lua updated-clone '
-write_config("omarchy/plugins/me.workspaces/manifest.json", "{\n  \"omarchy\": { \"clonedFrom\": \"omarchy.workspaces\" }\n}\n")
+write_config("omarchy/shell.json", [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]])
+write_config("omarchy/plugins/me.workspaces/manifest.json", [[{"schemaVersion":1,"id":"me.workspaces","name":"Workspaces","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Workspaces.qml"},"omarchy":{"clonedFrom":"omarchy.workspaces"}}]])
+write_config("omarchy/plugins/me.workspaces/Unused.qml", [[Hyprland.focusedWorkspace.id === modelData; String(modelData)]])
 write_config("omarchy/plugins/me.workspaces/Workspaces.qml", "readonly property bool shown: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData\nfunction slotOf(id) { return id }\ntext: String(slot)\n")
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 2)
@@ -836,3 +840,91 @@ hl.dispatch(m.move_to_monitor("r"))
 check(world.windows["0xa"].workspace == 2 and on(2) == "DP-1", "moving to the monitor on the right kept number 2, not " .. tostring(world.windows["0xa"].workspace))
 ' || fail "moving a workspace to another monitor keeps its number in global mode"
 pass "moving a workspace to another monitor keeps its number in global mode"
+
+# Exercise the reusable detector directly, without running the migration.
+run_lua detector-comments '
+local rule = [[hl.workspace_rule({ workspace = "4", monitor = "DP-1" })]]
+local cases = {
+  { "-- " .. rule, false },
+  { "--[[\n" .. rule .. "\n]]", false },
+  { "--[==[\n" .. rule .. "\n]]\n]==]", false },
+  { "--[[" .. rule, false },
+  { "--[[ignored]] " .. rule, true },
+  { [[hl.workspace_rule({ workspace = "4", monitor = "desc:Dell -- Desk" })]], true },
+  { [[local label = "escaped \" -- marker"; ]] .. rule, true },
+  { [==[local label = [=[--[[not a comment]]=]; ]==] .. rule, true },
+  { [[hl.keyword("workspace", "7, monitor:HDMI-A-1") -- trailing]], true },
+}
+for index, case in ipairs(cases) do
+  write_config("hypr/hyprland.lua", case[1])
+  package.loaded["default.hypr.global-workspaces"] = nil
+  check(require("default.hypr.global-workspaces").detected() == case[2], "comment/quote case " .. index)
+end
+' || fail "disabled Lua rules are ignored while quoted comment markers stay intact"
+pass "disabled Lua rules are ignored while quoted comment markers stay intact"
+
+run_lua detector-clones '
+local legacy = [[Hyprland.focusedWorkspace.id === modelData; text: String(modelData)]]
+local manifest = [[{"schemaVersion":1,"id":"me.workspaces","name":"Workspaces","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Workspaces.qml"},"omarchy":{"clonedFrom":"omarchy.workspaces"}}]]
+write_config("omarchy/plugins/me.workspaces/manifest.json", manifest)
+write_config("omarchy/plugins/me.workspaces/Workspaces.qml", legacy)
+write_config("omarchy/plugins/.me.workspaces.bak/manifest.json", [[{"schemaVersion":1,"id":"me.workspaces","name":"Workspaces","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Workspaces.qml"},"omarchy":{"clonedFrom":"omarchy.workspaces"}}]])
+write_config("omarchy/plugins/.me.workspaces.bak/Workspaces.qml", legacy)
+write_config("omarchy/plugins/me.bar/manifest.json", [[{"schemaVersion":1,"id":"me.bar","name":"Bar","version":"1.0.0","kinds":["bar"],"entryPoints":{"bar":"Bar.qml"},"omarchy":{"clonedFrom":"omarchy.bar"}}]])
+write_config("omarchy/plugins/me.bar/widgets/Workspaces.qml", legacy)
+local cases = {
+  { [[{"version":1}]], false },
+  { [[{"version":1,"bar":{"layout":{"left":[{"id":"omarchy.workspaces"}]}}}]], false },
+  { [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}},"disabledPlugins":["me.workspaces"]}]], false },
+  { [[{"version":1,"bar":{"layout":{"left":[{"id":".me.workspaces.bak"}]}}}]], false },
+  { [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]], true },
+  { [[{"version":1,"bar":{"layout":{"right":["me.workspaces"]}}}]], true },
+  { [[{"version":1,"bar":{"layout":{"tray":[{"id":"me.workspaces"}]}}}]], true },
+  { [[{"version":1,"bar":{"id":"me.bar","layout":{"left":[]}}}]], false },
+  { [[{"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]], false },
+  { [[not json]], false },
+}
+for index, case in ipairs(cases) do
+  write_config("omarchy/shell.json", case[1])
+  package.loaded["default.hypr.global-workspaces"] = nil
+  check(require("default.hypr.global-workspaces").detected() == case[2], "active clone case " .. index)
+end
+write_config("omarchy/shell.json", [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]])
+local invalid_manifests = {
+  (manifest:gsub([=[%["bar%-widget"%]]=], [=["bar-widget"]=])),
+  (manifest:gsub([=["barWidget":"Workspaces.qml"]=], [=["barWidget":"Workspaces.qml","service":"../unsafe.qml"]=])),
+}
+for index, invalid in ipairs(invalid_manifests) do
+  write_config("omarchy/plugins/me.workspaces/manifest.json", invalid)
+  package.loaded["default.hypr.global-workspaces"] = nil
+  check(not require("default.hypr.global-workspaces").detected(), "invalid manifest case " .. index)
+end
+' || fail "only selected, enabled workspace clone entrypoints can keep global ids"
+pass "only selected, enabled workspace clone entrypoints can keep global ids"
+
+run_node_test <<'JS'
+// Execute the widget functions with detached Hyprland data and a command sink.
+const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
+const hyprland = { focusedWorkspace: { id: 4 }, workspaces: { values: [{ id: 4 }, { id: 11 }, { id: 27 }, { id: 11 }, { id: -99 }, { id: 0 }] } }
+const calls = []
+const widget = { globalWorkspaces: true, slots: 10, block: 1, monitorName: 'DP-1', monitor: { focused: false, activeWorkspace: { id: 11 } }, bar: { run: command => calls.push(command) } }
+const util = { shellQuote: text => "'" + text + "'" }
+for (const name of ['activeWorkspaceId', 'currentId', 'blockOf', 'slotOf', 'globalWorkspaceIds', 'workspaceIds', 'cycleLayout', 'focusWorkspace']) {
+  const match = source.match(new RegExp(`\\n  function ${name}\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}`))
+  if (!match) fail('workspace widget function is available', name)
+  const fn = new Function('root', 'Hyprland', 'Util', 'id', match[1])
+  widget[name] = id => fn(widget, hyprland, util, id)
+}
+widget.dispatch = expression => calls.push(expression)
+assertDeepEqual(widget.workspaceIds(), [1, 2, 3, 4, 5, 11, 27], 'global bars keep all existing positive workspace ids, once and in order')
+assertEqual(widget.currentId(), 4, 'a global bar shows the focused workspace on another monitor')
+widget.cycleLayout()
+assertEqual(calls.pop(), 'omarchy-hyprland-workspace-layout-toggle', 'a global glyph cycles the shown workspace without focusing the clicked monitor')
+widget.focusWorkspace(27)
+assertEqual(calls.pop(), 'hl.dsp.focus({ workspace = "27" })', 'an existing global workspace above ten can be selected')
+widget.globalWorkspaces = false
+assertEqual(widget.currentId(), 11, 'a per-monitor bar still follows its own monitor')
+assertDeepEqual(widget.workspaceIds(), [11, 12, 13, 14, 15], 'a per-monitor bar retains its own block')
+widget.cycleLayout()
+assert(calls.pop().startsWith('hyprctl dispatch '), 'a per-monitor glyph still focuses its monitor before toggling')
+JS

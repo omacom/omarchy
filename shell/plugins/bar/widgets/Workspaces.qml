@@ -100,22 +100,23 @@ BarWidget {
     return null
   }
 
-  // The first five of the monitor's own, and any of the rest that exist. After
-  // them come workspaces that are only visiting: those of a monitor that is
-  // unplugged, which had no room to join this one's.
+  // Existing workspaces can still have ids above ten when switching from
+  // per-monitor mode. Keep them visible and selectable along with the first five.
   function globalWorkspaceIds() {
     var ids = [1, 2, 3, 4, 5]
     var values = Hyprland.workspaces.values
 
     for (var i = 0; i < values.length; i++) {
       var id = values[i].id
-      if (id > 0 && id <= 10 && ids.indexOf(id) === -1) ids.push(id)
+      if (id > 0 && ids.indexOf(id) === -1) ids.push(id)
     }
 
     ids.sort(function(left, right) { return left - right })
     return ids
   }
 
+  // The first five of the monitor's own, and any of the rest that exist,
+  // followed by guests from unplugged monitors.
   function workspaceIds() {
     if (root.globalWorkspaces) return root.globalWorkspaceIds()
 
@@ -219,11 +220,12 @@ BarWidget {
   }
 
   // The layout commands act on the focused workspace, so a click on another
-  // monitor's bar focuses that monitor first.
+  // monitor's bar focuses that monitor first in per-monitor mode. Global mode
+  // shows the focused workspace everywhere, so it must keep focus where it is.
   function cycleLayout() {
     if (!root.bar) return
     var command = "omarchy-hyprland-workspace-layout-toggle"
-    if (root.monitor && !root.monitor.focused) {
+    if (!root.globalWorkspaces && root.monitor && !root.monitor.focused) {
       command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + root.monitorName + "\" })") + " >/dev/null && " + command
     }
     root.bar.run(command)
