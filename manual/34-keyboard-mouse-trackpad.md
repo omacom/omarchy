@@ -37,7 +37,7 @@ o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 
 You can [see all the input options](https://wiki.hypr.land/Configuring/Basics/Variables/#input) on the Hyprland wiki for inputs.
 
-CapsLock works as a normal Caps Lock, and `Shift + CapsLock` is the compose key for [quick emojis](07-hotkeys.md#quick-emojis) and [other completions](07-hotkeys.md#quick-completions). If you'd rather have the compose key elsewhere, replace `omarchy:shift_caps_compose` in `kb_options`. For example, this moves the compose key to Right Alt:
+CapsLock works as a normal Caps Lock, and `Shift + CapsLock` is the compose key for [quick emojis](07-hotkeys.md#quick-emojis), [accents](07-hotkeys.md#accents-and-special-characters), and [other completions](07-hotkeys.md#quick-completions). If you'd rather have the compose key elsewhere, replace `omarchy:shift_caps_compose` in `kb_options`. For example, this moves the compose key to Right Alt:
 
 ```lua
 hl.config({
