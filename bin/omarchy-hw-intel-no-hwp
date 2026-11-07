@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Detect an Intel CPU without hardware P-states (pre-Skylake)
+
+# power-profiles-daemon steers the CPU through energy_performance_preference,
+# which only exists with HWP. Without it every profile is a no-op.
+
+cpuinfo="${OMARCHY_CPUINFO:-/proc/cpuinfo}"
+pstate="${OMARCHY_CPU_ROOT:-/sys/devices/system/cpu}/intel_pstate"
+
+omarchy-hw-intel &&
+  [[ -d $pstate ]] &&
+  ! grep -qEm1 "^flags.* hwp( |$)" "$cpuinfo"
