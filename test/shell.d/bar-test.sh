@@ -301,6 +301,19 @@ assert(Math.abs(Object.values(retarget).reduce((sum, share) => sum + share, 0) -
 assert(Math.abs(retarget['right:1'] - 0.2) < 1e-9, 'the new target holds what the others have given up')
 assertDeepEqual(bar.fadeShares({ 'right:0': 0.5, 'centerEnd:1': 0.5 }, 'centerEnd:1', 0), { 'right:0': 0.5, 'centerEnd:1': 0.5 }, 'a move to another section hands the room over the same way')
 
+// The open-panel mark's length along the bar, with Style.space(10) and
+// Style.space(12) at 1px a unit.
+const indicatorLength = ({ vertical = false, width = 0, height = 0, mark = null, hint }) =>
+  bar.panelIndicatorLength(vertical, width, height, mark, hint, 10, 12)
+assertEqual(indicatorLength({ width: 21, height: 30 }), 12, 'a 21px status slot keeps its 12px mark')
+assertEqual(indicatorLength({ width: 27, height: 30 }), 15, 'a 27px icon slot keeps its 15px mark')
+assertEqual(indicatorLength({ width: 200, height: 30 }), 188, 'a wide module is underlined across its content')
+assertEqual(indicatorLength({ width: 10, height: 30 }), 10, 'a narrow slot still gets the minimum mark')
+assertEqual(indicatorLength({ vertical: true, width: 200, height: 40 }), 22, 'a vertical bar keeps the 55% mark along the module')
+assertEqual(indicatorLength({ width: 200, height: 30, hint: 30 }), 30, 'a module\'s own hint wins over the default')
+assertEqual(indicatorLength({ width: 200, height: 30, hint: 0 }), 188, 'a zero hint falls back to the default')
+assertEqual(indicatorLength({ width: 200, height: 30, mark: { width: 20, height: 20 } }), 11, 'a module naming a mark item is measured from that item, not the whole module')
+
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
 assertEqual(bar.normalizePosition('sideways'), 'top', 'bar defaults invalid positions')
 assertDeepEqual(bar.entrySettings({ id: 'omarchy.clock', format: 'HH:mm' }), { format: 'HH:mm' }, 'bar extracts entry settings')

@@ -2869,12 +2869,9 @@ Item {
     // dot should be along the bar, so it tracks what the module paints
     // instead of a fraction of whatever slot it happens to fill.
     readonly property real panelIndicatorExtent: {
-      var mark = panelIndicatorItem
-      if (mark) return Math.max(Style.space(10), Math.round((root.vertical ? mark.height : mark.width) * 0.55))
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
-      if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
-      return Math.max(Style.space(10), Math.round((root.vertical ? slot.widgetHeight : slot.widgetWidth) * 0.55))
+      return BarModel.panelIndicatorLength(root.vertical, slot.widgetWidth, slot.widgetHeight, panelIndicatorItem, hint, Style.space(10), Style.space(12))
     }
     // A module holding several things a panel can open from (the tray's
     // icons) names the one whose panel is open, and the mark sits under it
