@@ -114,7 +114,11 @@ Item {
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
 
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
+    // The lock plugin owns display power while the session is locked: it blanks
+    // once and only re-arms that blank from its own wake. A wake from here
+    // would leave the lock screen lit until the user unlocks, so skip it and
+    // let the lock plugin decide.
+    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-system-wake")
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
