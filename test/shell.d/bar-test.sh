@@ -27,9 +27,11 @@ assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are non
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
 // Hovering the clock, or anything past it, leaves the indicators hidden; the
-// rest of the bar up to the clock's start opens them.
+// rest of the bar up to the clock's start opens them. Once open, crossing the
+// clock toward the indicators revealed past it keeps them out.
 assertEqual(bar.peeksAt({ x: 400, y: 10 }, 1000, false), true, 'the peek opens left of the clock')
 assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut over and right of the clock')
+assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false, true), true, 'an open peek holds over the clock and the indicators past it')
 assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar opens the peek above the clock')
 assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
 assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')
@@ -48,15 +50,17 @@ assertEqual(bar.fullscreenOn([{ workspace: null, lastIpcObject: null }], 4), fal
 const notchBoxEnd = revealed => revealed ? 900 : 1000
 function peekRun(pointers) {
   let edge = notchBoxEnd(false)
+  let held = false
   return pointers.map(pointer => {
-    const held = bar.peeksAt(pointer, edge, false)
+    held = bar.peeksAt(pointer, edge, false, held)
     edge = bar.nextPeekEdge(edge, notchBoxEnd(held), held)
     return held
   })
 }
 const between = { x: 950, y: 10 }
+const past = { x: 1050, y: 10 }
 assertEqual(peekRun([between, between, between, between]).join(), 'true,true,true,true', 'a reveal that moves the clock does not close the peek under a still pointer')
-assertEqual(peekRun([between, { x: 1050, y: 10 }, { x: 1050, y: 10 }]).join(), 'true,false,false', 'leaving past the clock closes the peek for good')
+assertEqual(peekRun([between, past, past]).join(), 'true,true,true', 'crossing past the clock keeps the peek open for the pointer to reach the indicators')
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.

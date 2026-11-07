@@ -654,11 +654,13 @@ function barSizeFor(sizes, screenName, fallback) {
 }
 
 // The indicator peek opens over the bar from its start up to where the center
-// box starts, and stays shut past it, over the clock and the panel icons.
-// `position` is the pointer's point on the bar surface.
-function peeksAt(position, edge, vertical) {
+// box starts, and stays shut past it, over the clock and the panel icons. Once
+// open it holds anywhere on the bar: the indicators reveal past the clock, so a
+// pointer heading for them has to cross it. `position` is the pointer's point
+// on the bar surface; `open` is whether the peek is already showing.
+function peeksAt(position, edge, vertical, open) {
   if (!position) return false
-  return (vertical ? position.y : position.x) < edge
+  return open === true || (vertical ? position.y : position.x) < edge
 }
 
 // Revealing the indicators can move the center box's start: beside a display
