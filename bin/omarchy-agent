@@ -194,16 +194,17 @@ ori)
   [[ -n ${prompt:-} ]] && command+=(--interactive --prompt "$prompt")
   ;;
 pi)
+  # pi reads a leading install, remove, update or list as its own command, so
+  # -- keeps a one-word prompt like "update" a message, and a dash literal.
   command=(pi)
-  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 kimi)
-  # --prompt is non-interactive print mode only; it cannot combine with --yolo.
-  if [[ -n ${prompt:-} ]]; then
-    command=(kimi --prompt "$prompt")
-  else
-    command=(kimi --yolo)
-  fi
+  # Kimi takes no starting prompt for an interactive session: --prompt prints
+  # one answer and exits, and the window closes with it. A prompt goes to the
+  # clipboard below instead.
+  command=(kimi --yolo)
+  prompt_via_clipboard="Kimi"
   ;;
 qwen)
   # Bind the value so a prompt starting with a dash stays literal.
@@ -281,7 +282,8 @@ if [[ $use_local == "true" ]]; then
     command=(env "OPENCODE_CONFIG=${overlay[0]}" "OPENCODE_CONFIG_CONTENT=$model" "${command[@]}" --standalone)
     ;;
   pi)
-    command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
+    # Ahead of the -- before a prompt, or pi reads them as part of the message.
+    command=(pi --extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}" "${command[@]:1}")
     ;;
   esac
 fi
