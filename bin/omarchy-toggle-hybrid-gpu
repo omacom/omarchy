@@ -112,6 +112,29 @@ case "$gpu_mode" in
     omarchy-system reboot
   fi
   ;;
+"Vfio")
+  # supergfxd persists the sleep hook's transient Vfio request. A resume that
+  # cannot confirm the switch back leaves the saved mode there, and Vfio is
+  # not one of the two modes this script cycles between. Put the saved mode
+  # back to the Integrated end it came from so the cycle works again.
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n gpu.restoreIntegrated)"; then
+    # The installed hook is the copy that left the machine in Vfio, and only
+    # the Hybrid arm installs a new one. Replace it before Integrated arms it.
+    sudo mkdir -p /usr/lib/systemd/system-sleep
+    if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/force-igpu" \
+      /usr/lib/systemd/system-sleep/force-igpu 0755; then
+      echo "Could not install the force-igpu system-sleep hook" >&2
+      exit 1
+    fi
+
+    if ! sudo sed -i 's/"mode": ".*"/"mode": "Integrated"/' /etc/supergfxd.conf; then
+      echo "Could not restore the Integrated GPU mode" >&2
+      exit 1
+    fi
+
+    omarchy-system reboot
+  fi
+  ;;
 *)
   echo "Hybrid GPU not found or in unknown mode."
   exit 1
