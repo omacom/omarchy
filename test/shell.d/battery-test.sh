@@ -12,6 +12,9 @@ assertEqual(battery.batteryPercentage({ isPresent: true, percentage: 0.126 }), 1
 assertEqual(battery.batteryPercentage({ isPresent: false, percentage: 0.5 }), -1, 'battery reports missing battery')
 assert(battery.isDischarging({ isPresent: true, state: discharging }, true, discharging), 'battery detects discharging state')
 assert(!battery.isDischarging({ isPresent: true, state: discharging }, false, discharging), 'battery requires on-battery state')
+assert(battery.drainingOnPower({ isPresent: true, state: discharging }, false, discharging), 'battery notices draining while UPower reports external power')
+assert(!battery.drainingOnPower({ isPresent: true, state: discharging }, true, discharging), 'battery leaves draining on battery to UPower')
+assert(!battery.drainingOnPower({ isPresent: true, state: 2 }, false, discharging), 'battery charging on external power is not draining')
 
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, false),
@@ -27,6 +30,21 @@ assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.4, state: discharging }, true, discharging, 10, true),
   { level: 40, notify: false, notifiedLowBattery: false },
   'battery clears notified state after recovery'
+)
+
+// An online supply must not suppress the warning once discharge has settled.
+const lowOnPower = { isPresent: true, percentage: 0.08, state: discharging }
+assert(!battery.shouldWarnLowBattery(lowOnPower, false, discharging, 10, false, false).notify, 'battery waits out stale discharge after plugging in')
+assertDeepEqual(
+  battery.shouldWarnLowBattery(lowOnPower, false, discharging, 10, false, true),
+  { level: 8, notify: true, notifiedLowBattery: true },
+  'battery warns when sustained discharge on external power reaches the threshold'
+)
+assert(!battery.shouldWarnLowBattery(lowOnPower, false, discharging, 10, true, true).notify, 'battery does not repeat the warning on external power')
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ ...lowOnPower, state: 2 }, false, discharging, 10, true, true),
+  { level: 8, notify: false, notifiedLowBattery: false },
+  'battery clears the warning when charging resumes even before the hold resets'
 )
 
 const reply = profile => JSON.stringify({ type: 's', data: profile })
