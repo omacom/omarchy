@@ -25,18 +25,38 @@ local function normal_path()
   return table.concat(kept, ":")
 end
 
+-- Retry the stalled stage until the reveal lands, never the Xcursor one over a loaded Hyprcursor theme.
+local function retry()
+  if omarchy_startup_cursor_pending then
+    omarchy_startup_cursor.restoring = omarchy_startup_cursor.loaded
+    omarchy_startup_cursor_restore(omarchy_startup_cursor.loaded)
+    if omarchy_startup_cursor_pending then hl.timer(retry, { timeout = 15000, type = "oneshot" }) end
+  end
+end
+
 -- Hyprland polls cursor.invisible, so its first frames need a blank cursor too.
 function omarchy_startup_cursor_restore(loaded)
   if not omarchy_startup_cursor_pending then return end
   local cursor = omarchy_startup_cursor
-  if loaded then
+  local hyprcursor = cursor.config.enable_hyprcursor and cursor.hyprcursor
+  if loaded and hyprcursor and not (loaded == "hyprcursor" and cursor.attempt) then
+    -- Only a setcursor made with Hyprcursor enabled loads its style, and Hyprland 0.56 draws an unloaded one as a null
+    -- surface; only a reload turns it off again, so a completion counts only in the Lua state that sent it.
+    if not cursor.attempt then
+      cursor.attempt = (tonumber(os.getenv("OMARCHY_STARTUP_CURSOR_ATTEMPT")) or 0) + 1
+      hl.env("OMARCHY_STARTUP_CURSOR_ATTEMPT", tostring(cursor.attempt))
+    end
+    cursor.loaded = true
+    hl.config({ cursor = { invisible = true, enable_hyprcursor = true, sync_gsettings_theme = cursor.config.sync_gsettings_theme } })
+    local complete = "if omarchy_startup_cursor and omarchy_startup_cursor.attempt == " .. cursor.attempt
+      .. ' then omarchy_startup_cursor_restore("hyprcursor") end'
+    hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(hyprcursor) .. " " .. cursor.size
+      .. " && hyprctl eval " .. o.shell_quote(complete))
+  elseif loaded then
     omarchy_startup_cursor_pending = false
     hl.env("OMARCHY_STARTUP_CURSOR_SESSION", "")
     hl.env("OMARCHY_STARTUP_CURSOR_THEME", "")
     hl.config({ cursor = cursor.config })
-    if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
-    end
     hl.exec_cmd("xsetroot -cursor_name left_ptr >/dev/null 2>&1 || true")
   elseif not cursor.restoring then
     -- Reload the normal Xcursor fallback before enabling Hyprcursor or GSettings.
@@ -62,16 +82,19 @@ hl.on("config.reloaded", function()
     omarchy_startup_cursor_pending = cold or interrupted or recover
     if omarchy_startup_cursor_pending then
       local hyprcursor = hl.get_config("cursor.enable_hyprcursor")
+      local xcursor = normal_theme(interrupted)
       omarchy_startup_cursor = {
         config = {
           invisible = hl.get_config("cursor.invisible"),
           enable_hyprcursor = hyprcursor,
           sync_gsettings_theme = hl.get_config("cursor.sync_gsettings_theme"),
         },
-        hyprcursor = os.getenv("HYPRCURSOR_THEME"),
+        -- The startup window leaves no Hyprcursor style loaded and only setcursor loads one,
+        -- so the reveal always names a theme, following the Xcursor one when none is set (#16941).
+        hyprcursor = cursor_theme(os.getenv("HYPRCURSOR_THEME")) or xcursor,
         size = tonumber((hyprcursor and os.getenv("HYPRCURSOR_SIZE")) or os.getenv("XCURSOR_SIZE")) or 24,
         path = normal_path(),
-        xcursor = normal_theme(interrupted),
+        xcursor = xcursor,
       }
       if omarchy_startup_cursor.size <= 0 then omarchy_startup_cursor.size = 24 end
       -- Compositor environment survives Lua reloads; a session id prevents stale inheritance.
@@ -89,12 +112,7 @@ hl.on("config.reloaded", function()
   if omarchy_startup_cursor_pending then
     -- Keep the temporary cursor private to the compositor, including GSettings.
     hl.config({ cursor = { invisible = true, enable_hyprcursor = false, sync_gsettings_theme = false } })
-    hl.timer(function()
-      if omarchy_startup_cursor_pending then
-        omarchy_startup_cursor.restoring = false
-        omarchy_startup_cursor_restore()
-      end
-    end, { timeout = 15000, type = "oneshot" })
+    hl.timer(retry, { timeout = 15000, type = "oneshot" })
     if recover then omarchy_startup_cursor_restore() end
   end
 end)
