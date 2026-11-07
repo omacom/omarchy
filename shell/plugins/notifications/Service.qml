@@ -965,12 +965,13 @@ Item {
     return out
   }
 
-  readonly property var browserClasses: /^(chrome|chromium|firefox|zen|brave|edge|vivaldi|helium)/
+  readonly property var browserClasses: /^(chrome|chromium|firefox|zen|brave|edge|microsoft-edge|msedge-|vivaldi|helium)/
 
   // Every Chrome window title ends "- Google Chrome"; left on, a google.com
-  // notification would match every Chrome window.
+  // notification would match every Chrome window. Edge puts a zero-width
+  // space inside "Microsoft Edge".
   readonly property var browserSuffix:
-    /\s*[-–—|]\s*(google chrome|chromium|mozilla firefox|firefox|zen browser|brave origin|brave|microsoft edge|vivaldi|helium)\s*$/
+    /\s*[-–—|]\s*(google chrome|chromium|mozilla firefox|firefox|zen browser|brave origin|brave|microsoft\u200b? edge|vivaldi|helium)\s*$/
 
   // Labels that name nobody: common subdomains and public suffixes.
   readonly property var genericLabels: ({ www: 1, app: 1, web: 1, my: 1, m: 1,
