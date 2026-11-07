@@ -277,8 +277,9 @@ measure_layout() {
   [[ -n $needle ]] || return 1
 
   plain=$(printf '%s' "$rendered" | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g')
-  found=$(printf '%s' "$plain" | LC_ALL=C.UTF-8 awk -v needle="$needle" \
-    'index($0, needle) { print NR, index($0, needle); exit }')
+  # Through the environment, because awk -v reads backslashes as escapes.
+  found=$(printf '%s' "$plain" | NEEDLE="$needle" LC_ALL=C.UTF-8 awk \
+    'index($0, ENVIRON["NEEDLE"]) { print NR, index($0, ENVIRON["NEEDLE"]); exit }')
   [[ -n $found ]] || return 1
   read -r LOGO_ROW LOGO_COLUMN <<<"$found"
   LOGO_ROW=$(( LOGO_ROW - offset ))

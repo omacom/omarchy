@@ -248,6 +248,16 @@ for pad in "2 2" "4 5" "0 0" "6 10"; do
 done
 pass "the logo is found wherever fastfetch drew it"
 
+# ASCII art is full of backslashes, and the longest line is the one looked for.
+printf '%s\n' '  /\_/\' ' ( o.o )' '  > ^ <  \`.' >"$LOGO_FILE"
+eval "fastfetch() { render_with_padding 2 3; }"
+LAYOUT_ROWS=""
+measure_layout 2>"$tmp_dir/backslash.err" || fail "a logo with backslashes is found" "not measured"
+[[ $LOGO_ROW == "3" && $LOGO_COLUMN == "4" && ! -s $tmp_dir/backslash.err ]] ||
+  fail "a logo with backslashes is found" "measured $LOGO_ROW/$LOGO_COLUMN: $(<"$tmp_dir/backslash.err")"
+pass "a logo with backslashes is found"
+printf '%s\n' '████████' '██    ██' '████████' >"$LOGO_FILE"
+
 # A render that does not contain the file's own text is not this logo, whatever
 # the reason — a config that restyled it, a placeholder fastfetch substituted.
 fastfetch() { printf 'something else entirely\n'; }
