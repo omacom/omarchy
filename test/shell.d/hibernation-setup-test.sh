@@ -16,6 +16,7 @@ sed -e "s|/sys/power/|$rtmp/sys/|g" \
   -e "s|/swap/swapfile|$rtmp/swapfile|g" \
   -e "s|/usr/lib/systemd/system-sleep|$rtmp/sleep|g" \
   -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
+  -e "s|/etc/UPower|$rtmp/UPower|g" \
   "$ROOT/bin/omarchy-hibernation-setup" >"$rtmp/setup"
 
 for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled omarchy-cmd-missing gum; do
@@ -23,7 +24,10 @@ for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled omarchy-cmd-missi
 done
 printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
 printf '#!/bin/bash\n[[ $1 == --show ]] && echo "$SWAP_FILE_PATH"\nexit 0\n' >"$rtmp/bin/swapon"
-printf '#!/bin/bash\n[[ $1 == inspect-internal ]] && echo 4242\nexit 0\n' >"$rtmp/bin/btrfs"
+printf '#!/bin/bash\n[[ $1 == inspect-internal ]] && echo "${MAP_OFFSET-4242}"\nexit 0\n' >"$rtmp/bin/btrfs"
+# Not a laptop unless a case says so, and service restarts are only recorded.
+printf '#!/bin/bash\n[[ ${BATTERY:-0} == 1 ]]\n' >"$rtmp/bin/omarchy-battery-present"
+printf '#!/bin/bash\necho "systemctl $*" >>"$CALL_LOG"\n' >"$rtmp/bin/systemctl"
 printf '#!/bin/bash\n[[ $2 == SOURCE ]] && echo "$SWAP_SOURCE"\n[[ $2 == UUID ]] && echo "$SWAP_UUID"\nexit 0\n' >"$rtmp/bin/findmnt"
 
 # Root ownership is not the test's to give.
@@ -75,7 +79,7 @@ machine() {
 }
 
 setup() {
-  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="$uuid" \
+  env PATH="$rtmp/bin:$PATH" OMARCHY_PATH="$ROOT" CALL_LOG="$rtmp/calls" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="$uuid" \
     DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" \
     bash "$rtmp/setup" "$@" >"$rtmp/out" 2>&1
 }
@@ -131,6 +135,62 @@ for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=42
   [[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup leaves a drop-in it does not own alone" "$(<"$drop_in")"
 done
 pass "setup leaves device-mapper and hand-edited drop-ins alone"
+
+# On a laptop, setup makes a critical battery hibernate instead of suspending
+# into it, but only once resume can restore the session.
+upower=$rtmp/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf
+laptop() { BATTERY=1 SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup "$@"; }
+
+machine 'KERNEL_CMDLINE[default]+=" resume=UUID='"$uuid"' resume_offset="'
+MAP_OFFSET= laptop || fail "setup with an empty resume offset succeeds" "$(<"$rtmp/out")"
+[[ ! -e $upower ]] || fail "a laptop with an empty resume offset gets no critical battery action"
+rm -f "$drop_in"
+laptop || fail "setup without resume parameters succeeds" "$(<"$rtmp/out")"
+[[ ! -e $upower ]] || fail "a laptop without resume parameters gets no critical battery action"
+pass "the critical battery action waits until resume can restore the session"
+
+machine "$uuid_line"
+: >"$rtmp/calls"
+laptop || fail "setup on a laptop set up before succeeds" "$(<"$rtmp/out")"
+cmp -s "$ROOT/default/upower/omarchy-critical-hibernate.conf" "$upower" ||
+  fail "a laptop set up before gets the critical battery action" "$(<"$rtmp/out")"
+grep -qx 'systemctl try-restart upower.service' "$rtmp/calls" || fail "UPower is restarted to read the new action"
+: >"$rtmp/calls"
+laptop
+[[ ! -s $rtmp/calls ]] || fail "an installed action is left alone" "$(<"$rtmp/calls")"
+pass "a rerun on a laptop installs the critical battery action once"
+
+rm -rf "$rtmp/UPower"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup
+[[ ! -e $upower ]] || fail "a machine without a battery gets no critical battery action"
+pass "a machine without a battery gets no critical battery action"
+
+# The migration reruns setup on laptops; a failed install fails setup, so the
+# migration stays pending instead of being marked done.
+mkdir -p "$rtmp/UPower" && : >"$rtmp/UPower/UPower.conf.d"
+if laptop; then
+  fail "setup reports a failed install of the critical battery action" "$(<"$rtmp/out")"
+fi
+rm -rf "$rtmp/UPower"
+pass "a failed install of the critical battery action fails setup"
+
+# Removing hibernation takes the action back.
+laptop
+sed -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
+  -e "s|/etc/fstab|$rtmp/fstab|g" \
+  -e "s|/etc/UPower|$rtmp/UPower|g" \
+  -e "s|SWAP_SUBVOLUME=\"/swap\"|SWAP_SUBVOLUME=\"$rtmp/swap\"|" \
+  "$ROOT/bin/omarchy-hibernation-remove" >"$rtmp/remove"
+! grep -Eq '/etc/|"/swap"' "$rtmp/remove" || fail "remove reaches only the scratch root" "$(grep -E '/etc/|\"/swap\"' "$rtmp/remove")"
+mkdir -p "$rtmp/yes"
+printf '#!/bin/bash\nexit 0\n' >"$rtmp/yes/gum"
+chmod +x "$rtmp/yes/gum"
+: >"$rtmp/calls"
+env PATH="$rtmp/yes:$rtmp/bin:$PATH" CALL_LOG="$rtmp/calls" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "remove succeeds" "$(<"$rtmp/out")"
+[[ ! -e $upower ]] || fail "removing hibernation removes the critical battery action"
+grep -qx 'systemctl try-restart upower.service' "$rtmp/calls" || fail "UPower is restarted after the action is removed"
+pass "removing hibernation removes the critical battery action"
 rm -rf "$rtmp"
 
 if [[ ! -f /sys/power/image_size ]]; then
