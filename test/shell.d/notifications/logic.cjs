@@ -345,7 +345,7 @@ function runIn(scope, ...names) {
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'replayKey', 'actionsOf', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
@@ -810,15 +810,67 @@ for (const replay of [false, true]) { // Replay and startup restore share held r
   assert.equal(s.toasts.count, 2)
 }
 
-{ // Repeated replay creates distinct cards; restore cannot overwrite an admitted key.
+{ // Repeated replay never stacks a second copy; restore cannot overwrite an admitted key.
   const s = newCapacityScope()
   s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
   s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Replay' }], true)
   s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Stale startup' }], false)
   s.drainCallLater()
-  assert.deepEqual(summaries(s.toasts.rows), ['Replay', 'Original'])
-  assert.equal(new Set(s.toasts.rows.map(r => r.key)).size, 2)
-  assert.equal(new Set(s.toasts.rows.map(r => r.groupKey)).size, 2, 'the replayed card is its own deck')
+  assert.deepEqual(summaries(s.toasts.rows), ['Original'])
+  assert.equal(s.liveCount(), 1)
+  // Once the shown copy expires, the same entry may be replayed again.
+  s.finishClose(s.toasts.get(0).key, 'expired')
+  s.drainCallLater()
+  assert.equal(s.liveCount(), 0)
+  s.restoreRows([{ key: 'same', app: 'notify-send', summary: 'Original' }], true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Original'])
+}
+
+{ // A muted replacement saved under its shown card's key replays beside it.
+  const s = newCapacityScope()
+  s.admit(s.fakeNotification(1, 'Shown'))
+  const mutedKey = s.keyForOriginal(1)
+  s.toasts.get(0).ts -= 5 // the card on screen predates its saved update
+  s.doNotDisturb = true
+  s.handleNotification(s.fakeNotification(1, 'Muted update'))
+  assert.deepEqual(summaries(s.toasts.rows), ['Shown'], 'the muted update leaves the shown card alone')
+  assert.equal(s.historyEntries.length, 1, 'the muted update is saved to history')
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Muted update', 'Shown'])
+  assert.equal(s.liveCount(), 2)
+  // Pressing the shortcut again stacks nothing: the saved update is already on screen.
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.equal(s.liveCount(), 2)
+  // The shown card expiring changes nothing while the replayed copy is up.
+  s.finishClose(mutedKey, 'expired')
+  s.drainCallLater()
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Muted update'])
+}
+
+{ // A closed original never replays over its newer saved update.
+  const s = newCapacityScope()
+  s.admit(s.fakeNotification(1, 'Original'))
+  const key = s.keyForOriginal(1)
+  s.doNotDisturb = true
+  s.handleNotification(s.fakeNotification(1, 'Update'))
+  // The closed original predates the update that was saved under its key.
+  s.liveEntries[0].ts -= 5
+  s.finishClose(key, 'dismissed')
+  s.drainCallLater()
+  // History now holds the dismissed original and, newer, its muted update.
+  assert.equal(s.historyEntries.length, 2)
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.deepEqual(summaries(s.toasts.rows), ['Update'])
+  // And a second replay adds nothing while that copy is up.
+  s.restoreRows(s.historyEntries, true)
+  s.drainCallLater()
+  assert.equal(s.liveCount(), 1)
 }
 
 { // Clearing pending rows cancels their callbacks even if replay reuses the exact key.
