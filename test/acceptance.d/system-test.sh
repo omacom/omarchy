@@ -28,14 +28,30 @@ verify_kernel_headers() {
   local kernel=linux-omarchy
   local release
   release=$(uname -r)
-  omarchy-pkg-present linux-t2 && kernel=linux-t2
 
-  [[ $(cat "/usr/lib/modules/$release/pkgbase") == "$kernel" ]] ||
-    fail "the installed system boots the supported kernel" "$release is not $kernel"
-  omarchy-pkg-present "$kernel-headers" || fail "kernel headers are installed" "$kernel-headers is missing"
-  [[ $(cat "/usr/lib/modules/$release/build/include/config/kernel.release") == "$release" ]] ||
-    fail "headers match the running kernel" "$release has missing or mismatched headers"
-  pass "the running $kernel kernel has matching headers ($release)"
+  if omarchy-hw-aarch64-apple; then
+    # The Mac's image and omarchy-mac-boot own its kernel and boot chain, and
+    # headers are optional there, so only check headers that are installed.
+    kernel=$(cat "/usr/lib/modules/$release/pkgbase") ||
+      fail "the running kernel names its package" "/usr/lib/modules/$release/pkgbase is missing"
+
+    if omarchy-pkg-present "$kernel-headers"; then
+      [[ $(cat "/usr/lib/modules/$release/build/include/config/kernel.release") == "$release" ]] ||
+        fail "headers match the running kernel" "$release has mismatched headers"
+      pass "the running $kernel kernel has matching headers ($release)"
+    else
+      pass "the running $kernel kernel has no optional headers installed ($release)"
+    fi
+  else
+    omarchy-pkg-present linux-t2 && kernel=linux-t2
+
+    [[ $(cat "/usr/lib/modules/$release/pkgbase") == "$kernel" ]] ||
+      fail "the installed system boots the supported kernel" "$release is not $kernel"
+    omarchy-pkg-present "$kernel-headers" || fail "kernel headers are installed" "$kernel-headers is missing"
+    [[ $(cat "/usr/lib/modules/$release/build/include/config/kernel.release") == "$release" ]] ||
+      fail "headers match the running kernel" "$release has missing or mismatched headers"
+    pass "the running $kernel kernel has matching headers ($release)"
+  fi
 }
 
 verify_defaults() {
@@ -57,7 +73,8 @@ verify_defaults() {
   [[ -n $(omarchy-font-current) ]] || fail "a monospace font is configured"
   pass "a monospace font is configured"
 
-  [[ $(xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling uses Chromium"
+  [[ $(XDG_CURRENT_DESKTOP=Hyprland xdg-mime query default x-scheme-handler/http) == "omarchy-browser.desktop" ]] || fail "Hyprland routes HTTP links through the running default browser"
+  [[ $(XDG_CURRENT_DESKTOP= xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling defaults to Chromium"
   [[ $(xdg-mime query default inode/directory) == "org.gnome.Nautilus.desktop" ]] || fail "directory MIME handling uses Nautilus"
   pass "desktop MIME handlers are configured"
 }
