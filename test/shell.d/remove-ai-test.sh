@@ -107,6 +107,7 @@ mkdir -p "$HOME/Documents"
 pass "LM Studio removal refuses a pointer aimed at the home directory"
 
 # T3 Code bootstraps the agents it drives; their state outlives it.
+unset T3CODE_HOME
 fresh_home
 mkdir -p "$HOME/.config/t3code" "$HOME/.t3" "$HOME/.grok" "$HOME/.local/share/opencode" "$HOME/.npm"
 touch "$HOME/.claude.json"
@@ -146,6 +147,82 @@ echo "#!/bin/sh" >"$HOME/.local/bin/t3"
 "$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null
 [[ -f $HOME/.local/bin/t3 ]] || fail "T3 Code removal keeps a t3 the user put there"
 pass "T3 Code removal keeps a t3 the user put there"
+
+# A relative link resolves from its own directory, not from wherever removal runs.
+fresh_home
+mkdir -p "$HOME/.t3/bin" "$HOME/.local/bin"
+ln -s .t3/bin/t3 "$HOME/.local/bin/t3"
+(cd "$HOME" && "$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null)
+[[ -L $HOME/.local/bin/t3 ]] || fail "T3 Code removal keeps a relative t3 link that points elsewhere"
+pass "T3 Code removal resolves a relative t3 link from its own directory"
+
+# Installation and removal must agree on a relocated home, including the
+# literal link the installer writes, without taking the default home's data.
+# A trailing slash on either side still names the same home.
+for spellings in "/:" ":/"; do
+  fresh_home
+  t3_home="$HOME/custom t3 home"
+  mkdir -p "$t3_home/bin" "$HOME/.t3" "$HOME/.local/bin"
+  touch "$t3_home/workspace" "$HOME/.t3/other-workspace"
+  ln -s "$t3_home${spellings%:*}/bin/t3" "$HOME/.local/bin/t3"
+  T3CODE_HOME="$t3_home${spellings#*:}" "$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null
+  [[ ! -e $t3_home && ! -L $HOME/.local/bin/t3 ]] || fail "T3 Code removal deletes the configured home and its launcher link" "$spellings"
+  [[ -f $HOME/.t3/other-workspace ]] || fail "T3 Code removal preserves the default home when another home is configured"
+done
+pass "T3 Code removal follows a custom home and preserves the default home's data"
+
+fresh_home
+mkdir -p "$tmp_dir/linked-t3-data"
+touch "$tmp_dir/linked-t3-data/workspace"
+ln -s "$tmp_dir/linked-t3-data" "$HOME/.t3"
+T3CODE_HOME="$HOME/.t3/" "$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null
+[[ ! -L $HOME/.t3 && -f $tmp_dir/linked-t3-data/workspace ]] || fail "T3 Code removal unlinks a symlinked home without deleting its target"
+pass "T3 Code removal keeps the contents behind a symlinked home"
+
+# rm refuses dot endings, so reject them before removing packages or app files.
+for ending in . ./ child/.. child/../; do
+  fresh_home
+  : >"$TEST_LOG"
+  t3_home="$HOME/custom t3 home"
+  mkdir -p "$t3_home/child" "$HOME/.local/share/t3code" "$HOME/.local/share/applications" "$HOME/.local/bin"
+  touch "$t3_home/workspace" "$HOME/.local/share/t3code/T3-Code.AppImage" "$HOME/.local/share/applications/t3code.desktop"
+  ln -s "$t3_home/$ending/bin/t3" "$HOME/.local/bin/t3"
+  if T3CODE_HOME="$t3_home/$ending" "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/dot-home.log" 2>&1; then
+    fail "T3 Code removal refuses a data home ending in a dot component" "$ending"
+  fi
+  [[ ! -s $TEST_LOG && -f $t3_home/workspace && -f $HOME/.local/share/t3code/T3-Code.AppImage &&
+    -f $HOME/.local/share/applications/t3code.desktop && -L $HOME/.local/bin/t3 ]] ||
+    fail "T3 Code removal refuses dot endings before changing anything" "$ending"
+done
+: >"$TEST_LOG"
+if T3CODE_HOME=/ "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/dot-home.log" 2>&1 || [[ -s $TEST_LOG ]]; then
+  fail "T3 Code removal refuses / as its data home before changing anything"
+fi
+# Command substitution drops a trailing newline, which would let a sibling of
+# the home pass for an entry inside it.
+mkdir -p "$HOME"$'\n/data'
+if T3CODE_HOME="$HOME"$'\n/data' "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/dot-home.log" 2>&1 || [[ -s $TEST_LOG ]]; then
+  fail "T3 Code removal refuses a data home with a newline before changing anything"
+fi
+[[ -d "$HOME"$'\n/data' ]] || fail "T3 Code removal keeps the sibling a newline would have named"
+rm -rf "$HOME"$'\n'
+pass "T3 Code removal refuses dot endings and newlines before making changes"
+
+# rm -rf only takes a configured home that is an entry inside the user's home,
+# even where the command runs with sudo. One anywhere else, such as on another
+# drive, stays in place while the app itself still goes.
+fresh_home
+mkdir -p "$HOME/Documents" "$tmp_dir/outside/t3"
+ln -s "$HOME" "$tmp_dir/home-alias"
+ln -s "$tmp_dir/outside" "$HOME/outside-link"
+for outside_home in "$tmp_dir/home-alias" "$HOME" "$tmp_dir/outside/t3" "$HOME/outside-link/t3"; do
+  mkdir -p "$HOME/.local/share/t3code"
+  T3CODE_HOME="$outside_home" "$ROOT/bin/omarchy-remove-ai-t3-code" >"$tmp_dir/outside-home.log"
+  [[ -d $HOME/Documents && -d $tmp_dir/outside/t3 ]] || fail "T3 Code removal leaves a home outside the user's home in place" "$outside_home"
+  [[ ! -e $HOME/.local/share/t3code ]] || fail "T3 Code removal still removes the app with a home outside the user's home" "$outside_home"
+  grep -q "left in place" "$tmp_dir/outside-home.log" || fail "T3 Code removal says where it left the data" "$outside_home"
+done
+pass "T3 Code removal leaves a home outside the user's home in place and removes the app"
 
 # Perplexity's other products (the CLI, Comet) share the perplexity-* prefix;
 # the desktop app owns only its rpc-server runtime and Electron caches. The
