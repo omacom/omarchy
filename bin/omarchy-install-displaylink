@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Install the DisplayLink driver for USB-C docking stations.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing the DisplayLink driver..."
+omarchy-pkg-aur-add evdi-dkms displaylink
+
+echo "Starting the DisplayLink Manager service..."
+sudo systemctl enable --now displaylink.service
+
+# The driver claims docks as they arrive, so one that was already connected
+# needs to be replugged before its monitors are read.
+if omarchy-hw-displaylink; then
+  echo
+  echo "Replug the dock and its monitors will be picked up."
+else
+  echo
+  echo "Plug the dock in and each of its monitors becomes its own output."
+fi
