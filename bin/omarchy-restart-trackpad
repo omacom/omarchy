@@ -22,6 +22,8 @@ omarchy-toggle-input-device touchpad cycle
 
 driver="${OMARCHY_I2C_HID_DRIVER_PATH:-/sys/bus/i2c/drivers/i2c_hid_acpi}"
 
+reset=0
+
 for dev in "$driver"/i2c-*; do
   [[ -e $dev ]] || continue
   is_touchpad "$dev" || continue
@@ -32,10 +34,20 @@ for dev in "$driver"/i2c-*; do
   sleep 1
   echo "$I2C_DEVICE" | sudo tee "$driver/bind" > /dev/null
   echo "Done"
+  reset=1
 done
 
 # Also try THC path
 if lsmod | grep -q intel_quicki2c; then
   echo "Reloading intel_quicki2c..."
-  sudo modprobe -r intel_quicki2c && sudo modprobe intel_quicki2c
+  if sudo modprobe -r intel_quicki2c && sudo modprobe intel_quicki2c; then
+    reset=1
+  else
+    exit $?
+  fi
+fi
+
+if (( reset == 0 )); then
+  echo "No supported trackpad driver found to reset (need i2c_hid_acpi or intel_quicki2c)." >&2
+  exit 1
 fi
