@@ -36,6 +36,18 @@ export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 export POWERPROFILES_LOG="$tmp_dir/calls"
 export OMARCHY_POWERPROFILES_STATE_DIR="$tmp_dir/state"
 
+cat >"$tmp_dir/bin/omarchy-hw-aarch64-apple" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$tmp_dir/bin/omarchy-hw-aarch64-apple"
+
+cat >"$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply"
+
 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
 [[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "power profile stores AC preference"
 [[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "power profile applies selected AC preference"
@@ -72,3 +84,70 @@ pass "power profile retains performance as AC default"
 "$ROOT/bin/omarchy-powerprofiles-init"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
+
+cat >"$tmp_dir/bin/omarchy-hw-aarch64-apple" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$tmp_dir/bin/omarchy-hw-aarch64-apple"
+
+export OMARCHY_POWERPROFILES_APPLE_LOCK="$tmp_dir/apple-global.lock"
+touch "$OMARCHY_POWERPROFILES_APPLE_LOCK"
+
+cat >"$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$1" >>"$APPLE_APPLY_LOG"
+exit 0
+EOF
+chmod +x "$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply"
+
+export APPLE_APPLY_LOG="$tmp_dir/apple-apply"
+: >"$APPLE_APPLY_LOG"
+
+POWERPROFILES_SET_FAIL=0 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
+[[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "apple path still calls powerprofilesctl"
+[[ $(tail -n 1 "$APPLE_APPLY_LOG") == "balanced" ]] || fail "apple path applies caps even when PPD succeeds"
+[[ $(<"$tmp_dir/state/apple-cpufreq-active") == "balanced" ]] ||
+  fail "apple path records the applied profile in user state"
+pass "apple path always applies cpufreq caps and records applied profile"
+
+printf 'power-saver\n' >"$tmp_dir/state/ac"
+printf 'performance\n' >"$tmp_dir/state/apple-cpufreq-active"
+active=""
+while IFS=$'\t' read -r name is_active; do
+  [[ $is_active == 1 ]] || continue
+  active=$name
+  break
+done < <("$ROOT/bin/omarchy-powerprofiles-list" --active-state)
+[[ $active == "performance" ]] ||
+  fail "apple list marks the applied profile, not the saved preference" "active=$active"
+pass "apple list reads apple-cpufreq-active for --active-state"
+
+cpufreq_fixture="$tmp_dir/cpufreq"
+mkdir -p "$cpufreq_fixture/policy0"
+printf '%s\n' 4056000 >"$cpufreq_fixture/policy0/cpuinfo_max_freq"
+printf '%s\n' 696000 >"$cpufreq_fixture/policy0/cpuinfo_min_freq"
+printf '%s\n' "696000 2424000 3420000 4056000" >"$cpufreq_fixture/policy0/scaling_available_frequencies"
+printf '%s\n' 696000 >"$cpufreq_fixture/policy0/scaling_min_freq"
+printf '%s\n' 4056000 >"$cpufreq_fixture/policy0/scaling_max_freq"
+printf '%s\n' 'apple-cpufreq' >"$tmp_dir/scaling_driver"
+if unshare --user --map-root-user true 2>/dev/null; then
+  unshare -Ur env \
+    OMARCHY_APPLE_CPUFREQ_SYSFS_ROOT="$cpufreq_fixture" \
+    OMARCHY_APPLE_CPUFREQ_DRIVER_FILE="$tmp_dir/scaling_driver" \
+    "$ROOT/bin/omarchy-powerprofiles-apple-cpufreq-apply" balanced ||
+    fail "apple apply could not cap frequencies in a root namespace"
+  [[ $(<"$cpufreq_fixture/policy0/scaling_max_freq") == "3420000" ]] ||
+    fail "apple apply caps scaling_max_freq to the profile step"
+  pass "apple apply caps scaling_max_freq per profile"
+else
+  pass "apple apply caps scaling_max_freq per profile (skipped: user namespaces unavailable)"
+fi
+
+bash -n "$ROOT/bin/omarchy-powerprofiles-apple-cpufreq-apply" ||
+  fail "apple-cpufreq apply script has a syntax error"
+bash -n "$ROOT/bin/omarchy-powerprofiles-list" ||
+  fail "powerprofiles-list script has a syntax error after apple fallback"
+[[ -f $ROOT/etc/sudoers.d/omarchy-powerprofiles-apple-cpufreq ]] ||
+  fail "apple-cpufreq sudoers drop-in is missing"
+pass "apple-cpufreq helper scripts and sudoers drop-in are present"

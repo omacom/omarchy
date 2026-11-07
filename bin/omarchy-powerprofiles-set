@@ -55,7 +55,27 @@ if [[ -z ${profile:-} ]] || ! profile_available "$profile"; then
   fi
 fi
 
-powerprofilesctl set "$profile" || exit
+# power-profiles-daemon toggles /sys/devices/system/cpu/cpufreq/boost, which
+# apple-cpufreq rejects on Apple Silicon. PPD can still exit 0 without changing
+# scaling_max_freq, so always cap frequencies on Apple and record the profile
+# for omarchy-powerprofiles-list.
+if omarchy-hw-aarch64-apple 2>/dev/null; then
+  apple_lock=${OMARCHY_POWERPROFILES_APPLE_LOCK:-/run/omarchy/powerprofiles-apple-cpufreq.lock}
+  mkdir -p "$state_dir"
+  (
+    flock -w 30 9 || {
+      echo "omarchy-powerprofiles-set: another profile change is in progress" >&2
+      exit 1
+    }
+    powerprofilesctl set "$profile" 2>/dev/null || true
+    omarchy-powerprofiles-apple-cpufreq-apply "$profile" || exit 1
+    tmp=$(mktemp -p "$state_dir" apple-cpufreq-active.XXXXXX)
+    printf '%s\n' "$profile" >"$tmp"
+    mv -f "$tmp" "$state_dir/apple-cpufreq-active"
+  ) 9>>"$apple_lock" || exit 1
+else
+  powerprofilesctl set "$profile" || exit 1
+fi
 omarchy-shell -q battery refreshPowerProfile >/dev/null 2>&1 || true
 
 if [[ -n $requested_profile ]]; then

@@ -8,10 +8,38 @@ if [[ ${1:-} != "" && ${1:-} != "--active-state" ]]; then
   exit 1
 fi
 
-powerprofilesctl list 2>/dev/null |
-  awk -v with_state="${1:+1}" '/^\s*[* ]\s*[a-zA-Z0-9-]+:$/ {
+with_state=${1:+1}
+state_dir=${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/powerprofiles}
+
+resolved_active=""
+if omarchy-hw-aarch64-apple 2>/dev/null && [[ -r $state_dir/apple-cpufreq-active ]]; then
+  resolved_active=$(<"$state_dir/apple-cpufreq-active")
+fi
+
+mapfile -t lines < <(powerprofilesctl list 2>/dev/null |
+  awk -v with_state="${with_state:-}" '/^\s*[* ]\s*[a-zA-Z0-9-]+:$/ {
     active = ($1 == "*") ? 1 : 0
     gsub(/^[*[:space:]]+|:$/, "")
-    print $0 (with_state ? "\t" active : "")
-  }' |
-  tac
+    print $0 "\t" active
+  }')
+
+if [[ -z $resolved_active ]]; then
+  printf '%s\n' "${lines[@]}" | awk -F'\t' -v ws="$with_state" '{
+    if (ws) print $1 "\t" $2; else print $1
+  }' | tac
+  exit 0
+fi
+
+while IFS=$'\t' read -r name _; do
+  [[ -n $name ]] || continue
+  if [[ $name == "$resolved_active" ]]; then
+    active=1
+  else
+    active=0
+  fi
+  if [[ -n $with_state ]]; then
+    printf '%s\t%s\n' "$name" "$active"
+  else
+    printf '%s\n' "$name"
+  fi
+done < <(printf '%s\n' "${lines[@]}" | awk -F'\t' '{print $1}' | tac)
