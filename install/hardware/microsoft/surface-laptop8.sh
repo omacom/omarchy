@@ -1,8 +1,8 @@
-# Microsoft Surface Laptop 8 (13.8-inch, Snapdragon X2 Elite) board-specific setup.
+# Microsoft Surface Laptop 8 (13.8-inch and 15-inch, Snapdragon X2 Elite) board-specific setup.
 
 mkinitcpio_dir=${OMARCHY_SURFACE_LAPTOP8_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 
-if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,surface-laptop-8-13p8; then
+if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,surface-laptop-8-13p8 microsoft,surface-laptop-8-15; then
   echo "Detected Microsoft Surface Laptop 8, applying board-specific support..."
 
   # Bring up the panel and the keyboard before disk unlock. As in

@@ -30,11 +30,13 @@ compatible() {
   printf '%b' "$2" >"$1/proc/device-tree/compatible"
 }
 
-matching="$scratch/matching"
-compatible "$matching" 'microsoft,surface-laptop-8-13p8\0qcom,mahua\0'
-run_setup "$matching" >/dev/null
-[[ $(<"$matching/packages.log") == $'add microsoft-surface-laptop-8-support\nusb4 --no-rebuild' ]] ||
-  fail "Surface Laptop 8 setup adds its hardware support, then copies the USB4 router firmware without stopping on failure"
+for model in 13p8 15; do
+  matching="$scratch/matching-$model"
+  compatible "$matching" "microsoft,surface-laptop-8-$model\\0qcom,mahua\\0"
+  run_setup "$matching" >/dev/null
+  [[ $(<"$matching/packages.log") == $'add microsoft-surface-laptop-8-support\nusb4 --no-rebuild' ]] ||
+    fail "Surface Laptop 8 ($model) setup adds its hardware support, then copies the USB4 router firmware without stopping on failure"
+done
 
 (
   firmware_root="$scratch/firmware"
