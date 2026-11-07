@@ -1,0 +1,3 @@
+# Machine-local Ghostty overrides. Not part of the shared desktop config.
+# `omarchy font size` updates the size in this file.
+font-size = 9

@@ -1,0 +1,3 @@
+# Machine-local Alacritty overrides. Not part of the shared desktop config.
+[font]
+size = 9
