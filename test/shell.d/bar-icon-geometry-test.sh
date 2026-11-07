@@ -66,8 +66,10 @@ ShellRoot {
   }
 
   function checkIcon(icon, name) {
-    if (icon.implicitWidth !== Style.bar.iconSlot) {
-      fail(name + " slot width is " + icon.implicitWidth)
+    var sideBearing = (icon.implicitWidth - icon.glyphPaintedWidth) / 2
+    var expectedBearing = (Style.bar.iconSlot - Style.bar.iconSize) / 2
+    if (icon.bar.vertical ? icon.implicitWidth !== Style.bar.sizeVertical : Math.abs(sideBearing - expectedBearing) > 0.05) {
+      fail(name + " slot width or horizontal side bearing is incorrect")
       return false
     }
     if (icon.opticalSize !== Style.bar.iconCanvas) {
@@ -89,6 +91,18 @@ ShellRoot {
     if (!checkIcon(power, "power")) return false
     if (!checkIcon(elsewhen, "elsewhen")) return false
     if (!checkIcon(menu, "menu")) return false
+    var monitorBatteryGap = (monitor.implicitWidth - monitor.glyphPaintedWidth
+      + power.implicitWidth - power.glyphPaintedWidth) / 2
+    var audioMonitorGap = (audio.implicitWidth - audio.glyphPaintedWidth
+      + monitor.implicitWidth - monitor.glyphPaintedWidth) / 2
+    if (Math.abs(monitorBatteryGap - audioMonitorGap) > 0.05) {
+      fail("battery and monitor have a larger visible gap than adjacent icons")
+      return false
+    }
+    if (labelledPower.implicitWidth !== Style.bar.iconSlot * 2) {
+      fail("battery percentage loses its double-width slot")
+      return false
+    }
     var sourceRatio = sourceMetrics.tightBoundingRect.width / sourceMetrics.tightBoundingRect.height
     if (Math.abs(bluetooth.glyphPaintedWidth / bluetooth.glyphPaintedHeight - sourceRatio) > 0.01) {
       fail("the glyph's aspect ratio changes")
@@ -220,6 +234,29 @@ ShellRoot {
   function runGeometryTests() {
     if (testsStarted) return
     testsStarted = true
+    Style.applyShellValues({ "bar.icon-font": "16" })
+    Qt.callLater(function() {
+      if (Style.bar.iconFont !== 16 || Style.font.body !== 12) {
+        fail("icon font override does not preserve text size")
+        return
+      }
+      if (!checkIcon(bluetooth, "horizontal icon override")) return
+      if (!checkIcon(verticalIcon, "vertical icon override")) return
+      Style.applyShellValues({ "bar.icon-font": "16", "font.base-size": "18" })
+      Qt.callLater(function() {
+        if (Style.bar.iconFont !== 24) {
+          fail("icon font override does not scale with text size")
+          return
+        }
+        if (!checkIcon(bluetooth, "horizontal scaled icon override")) return
+        if (!checkIcon(verticalIcon, "vertical scaled icon override")) return
+        Style.applyShellValues({})
+        Qt.callLater(runDefaultGeometryTests)
+      })
+    })
+  }
+
+  function runDefaultGeometryTests() {
     if (!checkGeometry()) return
     var labelBaseline = plainLabel.baselineY
     root.customWidth = 23

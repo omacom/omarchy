@@ -15,6 +15,8 @@ active           = "{{ red }}"
 scale-with-font  = true
 size-horizontal  = 26
 size-vertical    = 28
+# Glyph font size, independent of bar text and scaled with the base font.
+# icon-font       = 13
 
 [hyprland]
 # Shared Hyprland-derived border tokens. Surface sections reference these so
