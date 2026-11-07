@@ -11,9 +11,11 @@ consume_sleep_events() {
   while IFS= read -r line; do
     if [[ $line == *"boolean true"* ]]; then
       "$sleep_lock"
-      return 0
+      return $?
     fi
   done
+  # A closed event stream is a failure, not a completed lock request.
+  return 1
 }
 
 monitor_sleep_events() {
@@ -43,11 +45,11 @@ monitor_sleep_events() {
 case ${1:-} in
   --consume)
     consume_sleep_events
-    exit 0
+    exit $?
     ;;
   --inhibited)
     monitor_sleep_events
-    exit 0
+    exit $?
     ;;
 esac
 
