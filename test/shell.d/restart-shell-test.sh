@@ -60,22 +60,23 @@ cat >"$restart_bin/quickshell" <<'SH'
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 
-# Other configs' instances, one "<config dir> <pid>" per line.
+# Other configs' instances, one "<config dir><tab><pid>" per line, so a
+# config dir may hold spaces.
 strays=${OMARCHY_TEST_QS_STRAYS:-/nonexistent}
 
 case " $* " in
   *' list '*)
-    [[ -f $strays ]] && jq -R -s -c 'split("\n") | map(select(length > 0) | split(" ") | {config_path: (.[0] + "/shell.qml"), pid: (.[1] | tonumber)})' "$strays"
+    [[ -f $strays ]] && jq -R -s -c 'split("\n") | map(select(length > 0) | split("\t") | {config_path: (.[0] + "/shell.qml"), pid: (.[1] | tonumber)})' "$strays"
     ;;
   *' kill -p '*)
     if [[ $3 != "$OMARCHY_TEST_SESSION_PATH/shell" ]]; then
-      pid=$(awk -v dir="$3" '$1 == dir { print $2; exit }' "$strays" 2>/dev/null)
+      pid=$(awk -F'\t' -v dir="$3" '$1 == dir { print $2; exit }' "$strays" 2>/dev/null)
       [[ $pid =~ ^[0-9]+$ ]] || exit 1
       # The instance outlasts the client's timeout and exits a moment later.
       (
         sleep 0.5
         kill "$pid" 2>/dev/null
-        awk -v dir="$3" '$1 != dir' "$strays" >"$strays.next"
+        awk -F'\t' -v dir="$3" '$1 != dir' "$strays" >"$strays.next"
         mv "$strays.next" "$strays"
       ) &
       exit 124
@@ -303,7 +304,7 @@ sleep 30 &
 restart_pid_one=$!
 sleep 30 &
 restart_pid_two=$!
-printf '%s %s\n%s %s\n' "$worktree_root/shell" "$restart_pid_one" "$other_root/shell" "$restart_pid_two" >"$test_tmp/strays"
+printf '%s\t%s\n%s\t%s\n' "$worktree_root/shell" "$restart_pid_one" "$other_root/shell" "$restart_pid_two" >"$test_tmp/strays"
 printf '303\n' >"$restart_state"
 rm -f "$restart_state.locked" "$test_tmp/notification-checks"
 : >"$restart_log"
@@ -323,9 +324,59 @@ OMARCHY_TEST_SESSION_PATH="$restart_root" \
 if kill -0 "$restart_pid_one" 2>/dev/null; then
   fail "restart stops a worktree's shell" "$(cat "$restart_log")"
 fi
-! grep -q "^$worktree_root/shell " "$test_tmp/strays.at-launch" || fail "restart waits for a slow worktree shell to exit before launching"
+! grep -q "^$worktree_root/shell"$'\t' "$test_tmp/strays.at-launch" || fail "restart waits for a slow worktree shell to exit before launching"
 kill -0 "$restart_pid_two" 2>/dev/null || fail "restart leaves a Quickshell config outside Omarchy running"
 wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# A shell that exits non-zero on its way out would be relaunched by its own
+# launcher, beside the replacement the restart starts (#17341). The restart has
+# the launcher stand down first, whatever its checkout's path. This launcher stands in for the real one:
+# TERM stops its shell and exits, while a shell that dies under it is relaunched.
+fake_launcher_dir="$test_tmp/fake-launcher"
+mkdir -p "$fake_launcher_dir"
+cat >"$fake_launcher_dir/omarchy-launch-shell" <<'SH'
+#!/bin/bash
+sleep 30 &
+child=$!
+printf '%s\n' "$child" >"$1"
+trap 'kill "$child" 2>/dev/null; printf "stood down\n" >"$2"; exit 0' TERM
+wait "$child"
+printf 'relaunched after %s\n' "$?" >"$2"
+SH
+chmod +x "$fake_launcher_dir/omarchy-launch-shell"
+"$fake_launcher_dir/omarchy-launch-shell" "$test_tmp/fake-shell-pid" "$test_tmp/fake-launcher-outcome" &
+fake_launcher_pid=$!
+for (( waited = 0; waited < 100; waited++ )); do
+  [[ -s $test_tmp/fake-shell-pid ]] && break
+  sleep 0.05
+done
+restart_pid_one=$(<"$test_tmp/fake-shell-pid")
+# A dev checkout's path can hold a space, which must not hide its launcher.
+spaced_root="$test_tmp/dev tree"
+mkdir -p "$spaced_root/shell" "$spaced_root/bin"
+ln -s "$ROOT/bin/omarchy-launch-shell" "$spaced_root/bin/omarchy-launch-shell"
+printf '%s\t%s\n' "$spaced_root/shell" "$restart_pid_one" >"$test_tmp/strays"
+printf '303\n' >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks" "$test_tmp/fake-launcher-outcome"
+: >"$restart_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_STRAYS="$test_tmp/strays" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart with a supervised worktree shell succeeds"
+
+wait "$fake_launcher_pid" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$test_tmp/fake-launcher-outcome") == "stood down" ]] ||
+  fail "restart has a shell's launcher stand down instead of relaunching it" "$(cat "$test_tmp/fake-launcher-outcome" 2>/dev/null)"
+pass "restart has a shell's launcher stand down instead of relaunching it"
