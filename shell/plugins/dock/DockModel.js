@@ -53,6 +53,21 @@ function isMinimizedWorkspace(name) {
 // claims it, and so does a terminal entry for the command Omarchy's TUI
 // launcher named it after (org.omarchy.nvim for nvim). Entries are
 // { id, execString, command, runInTerminal }.
+// A web app's window class carries the launching browser's own prefix
+// (chrome-, msedge-, brave-, ...), but the shipped and generated desktop
+// entries hard-code the chrome- prefix. Map the other browsers' prefixes back
+// to chrome- so a window can be retried against those entries; empty when the
+// class carries no known browser prefix.
+var BROWSER_PREFIXES = ["chromium-", "msedge-", "brave-origin-", "brave-", "opera-", "vivaldi-stable-", "vivaldi-"]
+
+function chromeWebAppClass(appId) {
+  var className = String(appId || "")
+  for (var i = 0; i < BROWSER_PREFIXES.length; i++)
+    if (className.indexOf(BROWSER_PREFIXES[i]) === 0)
+      return "chrome-" + className.slice(BROWSER_PREFIXES[i].length)
+  return ""
+}
+
 function claimingEntryId(appId, entries) {
   var id = String(appId || "")
   if (!id) return ""
@@ -179,6 +194,7 @@ if (typeof module !== "undefined") {
     pinnedIds: pinnedIds,
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
+    chromeWebAppClass: chromeWebAppClass,
     claimingEntryId: claimingEntryId,
     buildItems: buildItems,
     orderItems: orderItems,
