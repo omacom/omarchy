@@ -293,6 +293,14 @@ o.floating_apps = { class = {}, title = {}, tags = {}, tagged = {} }
 -- Helpers reload before workspace modes, so discard the previous config's hook.
 o.floating_apps_changed = nil
 
+-- A rule naming a title as well as a class floats only that app's windows with
+-- that title, such as its file chooser, so only the title is recorded: the
+-- class would pass over every window of the app, and its main window would
+-- open tiled.
+local function floating_keys(match)
+  return type(match.title) == "string" and { "title" } or { "class" }
+end
+
 function o.window(match, rules)
   local floating_changed = false
   rules.match = rules.match or {}
@@ -312,7 +320,7 @@ function o.window(match, rules)
       o.floating_apps.tags[rules.match.tag] = true
       floating_changed = true
     end
-    for _, key in ipairs({ "class", "title" }) do
+    for _, key in ipairs(floating_keys(rules.match)) do
       if type(rules.match[key]) == "string" then
         table.insert(o.floating_apps[key], rules.match[key])
         floating_changed = true
@@ -323,7 +331,7 @@ function o.window(match, rules)
   if type(rules.tag) == "string" and rules.tag:sub(1, 1) == "+" then
     local tag = rules.tag:sub(2)
     o.floating_apps.tagged[tag] = o.floating_apps.tagged[tag] or {}
-    for _, key in ipairs({ "class", "title" }) do
+    for _, key in ipairs(floating_keys(rules.match)) do
       if type(rules.match[key]) == "string" then
         table.insert(o.floating_apps.tagged[tag], { key = key, pattern = rules.match[key] })
         floating_changed = true
