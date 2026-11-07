@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# systemd-timesyncd learns about network changes only from systemd-networkd,
+# which Omarchy replaces with NetworkManager. So a clock that is wrong after a
+# resume (the battery ran out and the RTC reset, or another OS rewrote it)
+# stays wrong until timesyncd's next poll, up to 34 minutes later. Resync as
+# soon as a connection that can reach the internet comes up, the same restart
+# omarchy-update-time does by hand.
+
+action=$2
+stamp=${OMARCHY_RESYNC_TIME_STAMP:-/run/omarchy-resync-time}
+
+# Only connections with a gateway: loopback, container bridges and other
+# local-only links come up without one, which NetworkManager passes as 0.0.0.0.
+has_gateway() {
+  [[ -n $1 && $1 != "0.0.0.0" && $1 != "::" ]]
+}
+
+if [[ $action == "up" ]] && { has_gateway "${IP4_GATEWAY:-}" || has_gateway "${IP6_GATEWAY:-}"; }; then
+  read -r uptime _ </proc/uptime
+  uptime=${uptime%.*}
+  last=$(cat "$stamp" 2>/dev/null)
+  [[ $last =~ ^[0-9]+$ ]] || last=-10
+
+  # Several connections can come up together; one restart covers them all and
+  # keeps timesyncd clear of its start limit (5 starts in 10 seconds).
+  if (( uptime - last >= 10 )); then
+    echo "$uptime" >"$stamp"
+    # NetworkManager waits for dispatcher scripts; enqueue rather than wait.
+    systemctl --no-block try-restart systemd-timesyncd.service 2>/dev/null || true
+  fi
+fi
