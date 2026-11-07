@@ -16,6 +16,10 @@ ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
 # bluetoothPanel and starts scanning; outside that window bluez refuses
 # inbound pair attempts at a lower layer.
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+# Arch builds bluez-tools from 2017 source, where bt-agent takes SIGTERM as
+# its PIN reload signal and keeps running, so logout and shutdown wait out
+# the stop timeout. SIGINT unregisters the agent and exits.
+KillSignal=SIGINT
 Restart=on-failure
 RestartSec=2
 
