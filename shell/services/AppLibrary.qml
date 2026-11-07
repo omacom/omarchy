@@ -59,12 +59,12 @@ Item {
     if (value.length === 0) return Quickshell.iconPath("application-x-executable", true)
     if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
     if (value.charAt(0) === "/") return Util.fileUrl(value)
-    // Prefer the context-limited app/device index. An unconstrained themed
-    // lookup can resolve an app name such as "zoom" to an action icon instead.
-    var found = root.iconIndex[value]
-    if (found) return Util.fileUrl(found)
+    // Prefer the active theme to the index of all installed themes. Keep the
+    // app/device fallback for names such as "zoom" that match an action icon.
     var themed = Quickshell.iconPath(value, true)
-    if (themed.length > 0) return themed
+    var found = root.iconIndex[value]
+    if (themed.length > 0 && (!found || !/[/]actions(?:@2x)?[/]/.test(themed))) return themed
+    if (found) return Util.fileUrl(found)
     return Quickshell.iconPath("application-x-executable", true)
   }
 
