@@ -97,6 +97,23 @@ bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+## Dock launcher
+
+`dock.launcher` in `shell.json` (`omarchy dock launcher <plugin-id>`) names a `menu`, `panel` or `overlay` plugin that the dock's apps button opens in place of the built-in app grid. The button, `omarchy-shell omarchy.dock apps`, and a tap of Super on a floating workspace toggle it with `shell.toggle()`, and clicking anything else in the dock hides it. An auto-hidden dock stays out on that screen while the launcher is open. A launcher that is not installed, is switched off, or is of another kind leaves the grid in its place.
+
+`open(payloadJson)` receives where to hang from, in logical pixels relative to the screen:
+
+```json
+{
+  "screen": "DP-1",
+  "position": "bottom",
+  "dock": { "x": 812, "y": 1328, "width": 936, "height": 64 },
+  "button": { "x": 812, "y": 1328, "width": 64, "height": 64 }
+}
+```
+
+`dock` and `button` are left out when the dock is not on screen, as on a tiled workspace; the launcher then places itself on `screen`. Both are given where an auto-hidden dock comes out to. A launcher that covers the screen to catch clicks outside itself should leave `dock` out of its input region, so the button can close it and the other apps stay clickable.
+
 ## Elsewhen
 
 Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately after the clock, before Weather; the placement migration uses `omarchy bar put omarchy.elsewhen --after omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
