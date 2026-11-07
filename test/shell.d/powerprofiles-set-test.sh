@@ -21,6 +21,12 @@ fi
 EOF
 chmod +x "$tmp_dir/bin/powerprofilesctl"
 
+cat >"$tmp_dir/bin/omarchy-hw-aarch64-apple" <<'EOF'
+#!/bin/bash
+[[ ${OMARCHY_TEST_APPLE_SILICON:-0} == 1 ]]
+EOF
+chmod +x "$tmp_dir/bin/omarchy-hw-aarch64-apple"
+
 cat >"$tmp_dir/bin/busctl" <<'EOF'
 #!/bin/bash
 
@@ -31,6 +37,9 @@ else
 fi
 EOF
 chmod +x "$tmp_dir/bin/busctl"
+
+printf '#!/bin/bash\nexit 0\n' >"$tmp_dir/bin/omarchy-shell"
+chmod +x "$tmp_dir/bin/omarchy-shell"
 
 export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 export POWERPROFILES_LOG="$tmp_dir/calls"
@@ -72,3 +81,9 @@ pass "power profile retains performance as AC default"
 "$ROOT/bin/omarchy-powerprofiles-init"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
+
+calls_before=$(wc -l <"$tmp_dir/calls")
+OMARCHY_TEST_APPLE_SILICON=1 "$ROOT/bin/omarchy-powerprofiles-set" ac performance
+[[ $(wc -l <"$tmp_dir/calls") == "$calls_before" ]] || fail "apple silicon still asks power-profiles-daemon to change profile"
+[[ $(<"$tmp_dir/state/ac") == "power-saver" ]] || fail "apple silicon records a profile it cannot apply"
+pass "apple silicon leaves the power profile daemon alone"

@@ -27,6 +27,13 @@ case "$action" in
   *) usage ;;
 esac
 
+# apple-cpufreq rejects the boost write power-profiles-daemon uses to change
+# profiles, so every selection fails and the panel snaps back to balanced.
+# There is nothing to apply on this hardware; remember nothing and stay quiet.
+if omarchy-hw-aarch64-apple; then
+  exit 0
+fi
+
 mapfile -t profiles < <(omarchy-powerprofiles-list)
 
 profile_available() {
