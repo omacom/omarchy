@@ -556,6 +556,9 @@
   "setup.default.agent.opencode": {
     "label": "OpenCode"
   },
+  "setup.default.agent.openzoo": {
+    "label": "openzoo"
+  },
   "setup.default.agent.ori": {
     "label": "Ori"
   },

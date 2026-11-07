@@ -69,6 +69,16 @@ expect("Claude counts each API message once, its token kinds kept apart, and ask
   "today": 58793, "usage": {"cacheCreationInputTokens": 29311, "cacheReadInputTokens": 28857, "inputTokens": 4, "outputTokens": 621}, "status": "Waiting for auth",
 }, record)
 
+# Under the openzoo agent the Claude Code CLI is real but never signed in to
+# Anthropic, so a missing token is paid per call, not a sign-in to wait for.
+agent = home() / ".config" / "omarchy" / "defaults" / "agent"
+agent.parent.mkdir(parents=True, exist_ok=True)
+agent.write_text("openzoo\n")
+record = claude()
+expect("Claude collector describes openzoo as paid per call instead of waiting for auth",
+       record["usageStatusText"], "Paid per call via openzoo", record)
+agent.unlink()
+
 # Transcripts only ever grow, so a refresh reads what was appended since the
 # last one and takes the rest from the index.
 transcript(message("message-3", 1, 6, cache_read=200, event="event-4"), mode="a")
@@ -598,6 +608,33 @@ sandbox()
 (home() / ".claude").mkdir()
 record = claude()
 expect("Claude asks a signed-out Claude Code home to sign in", [record["ready"], record["usageStatusText"]], [False, "Waiting for auth"], record)
+
+# openzoo pays the primary home it launches. A separately registered Claude
+# account is a login of its own: a missing token still waits for auth, and a
+# lapsed one is still expired, so each keeps its sign-in link.
+sandbox()
+agent = home() / ".config" / "omarchy" / "defaults" / "agent"
+agent.parent.mkdir(parents=True, exist_ok=True)
+agent.write_text("openzoo\n")
+accounts = state_home() / "omarchy" / "agents" / "accounts"
+work = accounts / "claude" / "work"
+side = accounts / "claude" / "side"
+side.mkdir(parents=True)
+write_json(side / ".credentials.json", {"claudeAiOauth": {"accessToken": "stale", "expiresAt": 1000, "refreshTokenExpiresAt": 1000}})
+registry("claude", [
+  {"id": "main", "label": "Main", "home": "", "primary": True},
+  {"id": "work", "label": "Work", "home": str(work), "primary": False},
+  {"id": "side", "label": "Side", "home": str(side), "primary": False},
+], active="work")
+record = claude()
+by_id = {account["id"]: account for account in record["accounts"]}
+expect("openzoo still describes the primary home as paid per call",
+       by_id["main"]["usageStatusText"], "Paid per call via openzoo", record)
+expect("a separately registered Claude account missing its token still waits for auth under openzoo",
+       [by_id["work"]["usageStatusText"], "claude auth login" in by_id["work"]["authHelpText"], record["usageStatusText"]],
+       ["Waiting for auth", True, "Waiting for auth"], record)
+expect("a separately registered Claude account with a lapsed sign-in stays expired under openzoo",
+       by_id["side"]["usageStatusText"], "Sign-in expired", record)
 
 # ------------------------------------------------------------- cost-state
 
