@@ -383,7 +383,11 @@ def finite_number(value):
 # Business seat. Its snapshot gives a reset time but no period, so no
 # frequency is inferred from the plan or date, and the meter is titled for
 # what it is. The amounts give the share; remainingPercent only has
-# whole-percent precision, so it stands in only for a cap of zero.
+# whole-percent precision, so it stands in only when the amounts are
+# missing. A zero cap reports "nothing remaining" once additional spending
+# is turned off: no amount can be consumed against it, and that answer
+# carries no reset, so reading it as spent out would alarm the seat
+# forever (#18049). A seat still reporting a share keeps that share.
 def spend_limit(snapshot):
   if not isinstance(snapshot, dict):
     return None
@@ -394,6 +398,8 @@ def spend_limit(snapshot):
   else:
     remaining = finite_number(snapshot.get("remainingPercent"))
     if remaining is None:
+      return None
+    if cap == 0 and remaining <= 0:
       return None
     share = 1 - remaining / 100
   reset = number(snapshot.get("resetsAt"))
