@@ -106,7 +106,7 @@ fi
 case $platform:$operation in
   aarch64-raspberrypi:setup-system | aarch64-raspberrypi:update-prepare | aarch64-raspberrypi:update-verify)
     implementation=/usr/lib/omarchy/pi
-    package=omarchy-pi
+    package=raspberrypi-4-support
     required=(setup-system update-prepare update-verify)
     ;;
   aarch64-apple:setup-system | aarch64-apple:setup-user | aarch64-apple:post-install | aarch64-apple:pre-remove | \

@@ -1,6 +1,6 @@
 # Lifecycle dispatch
 
-Omarchy owns the boot lifecycle flows: the owner wizard, account creation, LUKS discovery, retry journals, snapshots, the migration runner and the update flow. Some platforms boot through a chain those flows can't drive generically. Apple Silicon Macs boot m1n1 → U-Boot → Limine, keep the install key on an ext4 boot partition and name it on the kernel command line. For those platforms, the flows call a small fixed set of operations through `bin/omarchy-lifecycle-dispatch`, and a platform boot package implements them as root-owned entrypoints. System and user setup, and the installers of apps a platform needs to adjust, call a few more, which a platform's runtime package implements, so its own setup runs from Omarchy's without an inline platform branch. Raspberry Pi 4 uses the generic UEFI/Limine boot chain, with required setup and update checks supplied by `omarchy-pi`. Platforms without a registered operation keep the generic path.
+Omarchy owns the boot lifecycle flows: the owner wizard, account creation, LUKS discovery, retry journals, snapshots, the migration runner and the update flow. Some platforms boot through a chain those flows can't drive generically. Apple Silicon Macs boot m1n1 → U-Boot → Limine, keep the install key on an ext4 boot partition and name it on the kernel command line. For those platforms, the flows call a small fixed set of operations through `bin/omarchy-lifecycle-dispatch`, and a platform boot package implements them as root-owned entrypoints. System and user setup, and the installers of apps a platform needs to adjust, call a few more, which a platform's runtime package implements, so its own setup runs from Omarchy's without an inline platform branch. Raspberry Pi 4 uses the generic UEFI/Limine boot chain, with required setup and update checks supplied by `raspberrypi-4-support`. Platforms without a registered operation keep the generic path.
 
 ## The command
 
@@ -56,7 +56,7 @@ Registration is code in `bin/omarchy-lifecycle-dispatch`, not configuration. No 
 
 | Platform | Implementation directory | Package | Required operations |
 | --- | --- | --- | --- |
-| `aarch64-raspberrypi`: `setup-system`, `update-prepare`, `update-verify` | `/usr/lib/omarchy/pi` | `omarchy-pi` | all three |
+| `aarch64-raspberrypi`: `setup-system`, `update-prepare`, `update-verify` | `/usr/lib/omarchy/pi` | `raspberrypi-4-support` | all three |
 | `aarch64-apple` | `/usr/lib/omarchy/mac-boot` | `omarchy-mac-boot` | all its operations |
 | `aarch64-apple`: `setup-system`, `setup-user`, `post-install`, `pre-remove`, `enable-fingerprint`, `disable-fingerprint` | `/usr/lib/omarchy/mac` | `omarchy-mac` | none |
 | `x86`, `aarch64`, `aarch64-qualcomm`, `aarch64-n1x`, `aarch64-gb10` | none | none | none: every operation is a no-op, and callers keep their generic path |
@@ -148,7 +148,7 @@ A platform's runtime package describes its hardware in files under the platform 
 
 ## Raspberry Pi 4
 
-`aarch64-raspberrypi` identifies a Raspberry Pi 4 Model B. `omarchy-pi`, from omacom/omarchy-pkgs, checks UEFI and the Pi Device Tree during `setup-system`, and the mounted FAT ESP and installed kernel’s Limine UKI during `update-prepare` and `update-verify`. All three are required, including on a machine with no package record. The entrypoints live in `/usr/lib/omarchy/pi`. Provisioning, encryption, factory reset and snapshots keep the generic Limine implementation. The package does not manage the separate Pi UEFI firmware media. See [raspberry-pi.md](raspberry-pi.md) for the boot prerequisites and validation limits.
+`aarch64-raspberrypi` identifies a Raspberry Pi 4 Model B. `raspberrypi-4-support`, from omacom/omarchy-pkgs, checks UEFI and the Pi Device Tree during `setup-system`, and the mounted FAT ESP and installed kernel’s Limine UKI during `update-prepare` and `update-verify`. All three are required, including on a machine with no package record. The entrypoints live in `/usr/lib/omarchy/pi`. Provisioning, encryption, factory reset and snapshots keep the generic Limine implementation. The package does not manage the separate Pi UEFI firmware media. See [raspberry-pi.md](raspberry-pi.md) for the boot prerequisites and validation limits.
 
 ## Snapdragon
 

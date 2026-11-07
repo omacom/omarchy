@@ -6,11 +6,11 @@ The Pi 4 Model B is `aarch64-raspberrypi`. The proposed integration uses the exi
 
 The Pi needs separately prepared UEFI firmware media, configured to pass a Pi 4 Device Tree with working VC4/V3D nodes. ACPI-only mode cannot provide the graphics path this desktop needs. The kernel package ships its mainline tree at `/boot/dtbs/linux-omarchy/broadcom/bcm2711-rpi-4-b.dtb`; how the firmware receives and fixes up that tree must be qualified on the board. The installer runs `omarchy-pi-check --live` before disk cleanup and refuses a missing UEFI interface, missing Pi 4 tree or missing V3D render device.
 
-The official ISO is not a native Pi EEPROM-bootable SD image. Neither Omarchy nor `omarchy-pi` flashes the EEPROM or manages the separate firmware media. Keep that media separate from the target disk. A supported firmware release and its exact settings still need to be established before this path is advertised for installation.
+The official ISO is not a native Pi EEPROM-bootable SD image. Neither Omarchy nor `raspberrypi-4-support` flashes the EEPROM or manages the separate firmware media. Keep that media separate from the target disk. A supported firmware release and its exact settings still need to be established before this path is advertised for installation.
 
 ## Package and updates
 
-`install/omarchy-aarch64-raspberrypi.packages` adds `omarchy-pi` from the usual Omarchy aarch64 repository. Its recipe lives in `omacom/omarchy-pkgs`, alongside the `linux-omarchy-aarch64` recipe with Pi drivers and the Pi 4 device tree. The ISO carries this package in the live system and in its existing offline platform package set. The target keeps Omarchy's disk layout, encryption, provisioning and snapshot flows.
+`install/omarchy-aarch64-raspberrypi.packages` adds `raspberrypi-4-support` from the usual Omarchy aarch64 repository. Its recipe lives in `omacom/omarchy-pkgs`, alongside the `linux-omarchy-aarch64` recipe with Pi drivers and the Pi 4 device tree. The ISO carries this package in the live system and in its existing offline platform package set. The target keeps Omarchy's disk layout, encryption, provisioning and snapshot flows.
 
 The package provides:
 
