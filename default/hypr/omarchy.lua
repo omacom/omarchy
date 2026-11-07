@@ -8,6 +8,7 @@ require("default.hypr.autostart")
 -- Before any monitor rule, so every one of them passes through it.
 require("default.hypr.wide-gamut")
 require("default.hypr.monitors")
+require("default.hypr.hooks")
 require("default.hypr.monitor-workspaces")
 if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.media")
