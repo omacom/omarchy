@@ -1,0 +1,126 @@
+#!/bin/bash
+set -eu
+
+omarchy-cmd-present vivaldi-stable || exit 0
+
+JSON=${VIVALDI_OMARCHY_JSON:-$HOME/.local/state/omarchy/vivaldi/theme.json}
+
+# Serialize refreshes for this channel. A refresh reads the palette and the
+# Hyprland look before it publishes, and the theme setter releases its lock
+# before the app hooks run, so two refreshes can otherwise interleave: an older
+# read that publishes after a newer one puts the running Vivaldi back on the old
+# palette. Hold the lock from before the first read through the native write
+# below, so a waiting refresh reads the current state instead of a stale one.
+channel_dir=$(dirname "$JSON")
+install -d -m 0700 "$channel_dir"
+exec 9>"$channel_dir/.lock"
+flock 9
+
+# A palette key can be absent (accent is optional); under set -e a missing key
+# must fall through to the guard below, not abort the refresh.
+bg=$(omarchy-theme-color background || true)
+fg=$(omarchy-theme-color foreground || true)
+accent=$(omarchy-theme-color accent || true)
+lighter_bg=$(omarchy-theme-color lighter_background || true)
+[[ -n $bg && -n $fg && -n $accent && -n $lighter_bg ]] || exit 0
+
+# Capture the effective Hyprland look-and-feel. Hyprland is the source of truth
+# (merge of every sourced config plus runtime keyword changes), so read it
+# directly rather than parsing ~/.config/hypr/*.lua.
+# Vivaldi's corner rounding is disabled at -1 ("Disabled"); a radius of 0 would
+# still round controls (--radiusRounded stays 2px), so Hyprland's "no rounding"
+# (rounding 0, the Omarchy default) maps to -1 rather than 0.
+radius=-1
+dim_blurred=false
+blur=0
+contrast=0
+# Vivaldi stores its theme transparency as alpha (1.0 is opaque). Left empty
+# when Hyprland has no window opacity configured, so the theme keeps the
+# transparency the user chose in Vivaldi.
+alpha=
+
+read_appearance() {
+  local rounding dim blur_enabled blur_size blur_contrast opacity opacity_option opacity_set
+  rounding=$(hyprctl -j getoption decoration:rounding 2>/dev/null | jq -r '.int // empty' || true)
+  if [[ $rounding =~ ^[0-9]+$ ]]; then
+    if (( rounding == 0 )); then
+      radius=-1
+    else
+      # Vivaldi caps corner rounding at 14.
+      radius=$(( rounding > 14 ? 14 : rounding ))
+    fi
+  fi
+  dim=$(hyprctl -j getoption decoration:dim_inactive 2>/dev/null | jq -r '.bool // empty' || true)
+  if [[ $dim == "true" ]]; then
+    dim_blurred=true
+  fi
+  # Blur intensity and contrast only describe the current look while Hyprland
+  # has blur on; with it off, Vivaldi gets zero so the chrome matches.
+  blur_enabled=$(hyprctl -j getoption decoration:blur:enabled 2>/dev/null |
+    jq -r '.bool // empty' || true)
+  if [[ $blur_enabled == "true" ]]; then
+    blur_size=$(hyprctl -j getoption decoration:blur:size 2>/dev/null |
+      jq -r '.int // empty' || true)
+    if [[ $blur_size =~ ^[0-9]+$ ]]; then
+      # Vivaldi's blur intensity runs 0..10.
+      blur=$(( blur_size > 10 ? 10 : blur_size ))
+    fi
+    blur_contrast=$(hyprctl -j getoption decoration:blur:contrast 2>/dev/null |
+      jq -r '.float // empty' || true)
+    if [[ $blur_contrast =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+      # Hyprland contrast is centered on 1.0; Vivaldi's is centered on 0 with a
+      # -10..20 range.
+      contrast=$(awk -v c="$blur_contrast" 'BEGIN {
+        v = (c - 1) * 10
+        if (v < -10) v = -10
+        if (v > 20) v = 20
+        printf "%.0f", v
+      }')
+    fi
+  fi
+
+  # Hyprland's window opacity is its closest thing to Vivaldi's transparency, so
+  # mirror it as the theme alpha. Only an opacity the user set counts:
+  # Hyprland's default of 1.0 says nothing about how transparent the theme
+  # should look.
+  opacity_option=$(hyprctl -j getoption decoration:active_opacity 2>/dev/null || true)
+  opacity=$(jq -r '.float // empty' <<<"$opacity_option" || true)
+  opacity_set=$(jq -r '.set // empty' <<<"$opacity_option" || true)
+  if [[ $opacity_set == "true" && $opacity =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    alpha=$(awk -v a="$opacity" 'BEGIN {
+      if (a < 0) a = 0
+      if (a > 1) a = 1
+      printf "%.2f", a
+    }')
+  fi
+}
+
+read_appearance
+
+# Only the loader code is shared. Each user's browser reads its own private
+# channel through Vivaldi's file API, so updates need neither sudo nor a shared
+# writable resource. Publish a complete JSON even when refreshes overlap.
+staged=$(mktemp "$channel_dir/.theme.XXXXXX")
+trap 'rm -f "$staged"' EXIT
+jq -n \
+  --arg bg "$bg" --arg fg "$fg" --arg accent "$accent" --arg lighter_bg "$lighter_bg" \
+  --argjson radius "$radius" --argjson dimBlurred "$dim_blurred" \
+  --argjson blur "$blur" --argjson contrast "$contrast" \
+  --argjson alpha "${alpha:-null}" \
+  '{
+    schemaVersion: 1,
+    colors: { bg: $bg, fg: $fg, accent: $accent, lighterBg: $lighter_bg },
+    radius: $radius,
+    dimBlurred: $dimBlurred,
+    blur: $blur,
+    contrast: $contrast,
+    alpha: $alpha
+  }' > "$staged"
+mv -fT "$staged" "$JSON"
+
+# Reliable path: persist the same colors and appearance into Vivaldi's own
+# theme preferences, so the theme survives even when the live loader is
+# missing or Vivaldi was upgraded in a way that dropped it. The command skips
+# itself while Vivaldi runs, and reads the channel written above for the
+# Hyprland-derived appearance.
+omarchy-theme-set-vivaldi
