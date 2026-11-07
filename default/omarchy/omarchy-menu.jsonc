@@ -132,6 +132,7 @@
   "trigger.toggle.notifications-off": {"icon":"󰂛","label":"Silence Notifications","when":"[[ $(omarchy-shell notifications isDnd) != on ]]","action":"omarchy-toggle-notification-silencing"},
   "trigger.toggle.nightlight-on": {"icon":"󰔎","label":"Nightlight On","when":"[[ $(omarchy-toggle-nightlight --status) != *'\"enabled\":true'* ]]","action":"omarchy-toggle-nightlight"},
   "trigger.toggle.nightlight-off": {"icon":"󰔎","label":"Nightlight Off","when":"[[ $(omarchy-toggle-nightlight --status) == *'\"enabled\":true'* ]]","action":"omarchy-toggle-nightlight"},
+  "trigger.toggle.automatic-nightlight": {"icon":"󰖨","label":"Sunset Nightlight","checked":"[[ $(omarchy-toggle-nightlight --status) == *'\"scheduled\":true'* ]]","action":"omarchy-toggle-nightlight --schedule"},
   "trigger.toggle.screensaver-on": {"icon":"󱄄","label":"Screensaver On","when":"omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.screensaver-off": {"icon":"󱄄","label":"Screensaver Off","when":"! omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.crash-capture-on": {"icon":"󱚡","label":"Crash Capture On","when":"omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},

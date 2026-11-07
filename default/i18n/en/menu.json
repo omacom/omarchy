@@ -312,6 +312,9 @@
   "trigger.toggle.nightlight-off": {
     "label": "Nightlight Off"
   },
+  "trigger.toggle.automatic-nightlight": {
+    "label": "Sunset Nightlight"
+  },
   "trigger.toggle.screensaver-on": {
     "label": "Screensaver On"
   },
