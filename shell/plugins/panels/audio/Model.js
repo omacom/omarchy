@@ -273,6 +273,178 @@ function isUntypedSource(node, sourceAvailability) {
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
 
+var MEDIA_ACTION_NAMES = ["previous", "playPause", "next"]
+
+function mediaMetadataPresent(title, artist) {
+  return !!(title || artist)
+}
+
+var MEDIA_COMMIT_DELAY = 90
+var MEDIA_CLEAR_DELAY = 2000
+
+function mediaHandoffDelays() {
+  return { commit: MEDIA_COMMIT_DELAY, clear: MEDIA_CLEAR_DELAY }
+}
+
+function emptyMediaCache() {
+  return {
+    playerKey: "",
+    title: "",
+    artist: "",
+    playing: false,
+    canGoPrevious: false,
+    canPlayPause: false,
+    canGoNext: false
+  }
+}
+
+function mediaCacheHasMetadata(cache) {
+  return !!cache && mediaMetadataPresent(cache.title, cache.artist)
+}
+
+// What the active player shows right now, or null when there is none.
+function mediaLiveState(player, playerKey) {
+  if (!player) return null
+  return {
+    playerKey: String(playerKey || ""),
+    title: String(player.trackTitle || ""),
+    artist: String(player.trackArtist || ""),
+    playing: !!player.isPlaying,
+    canGoPrevious: !!player.canGoPrevious,
+    canPlayPause: !!(player.canTogglePlaying || player.canPlay || player.canPause),
+    canGoNext: !!player.canGoNext
+  }
+}
+
+function mediaHandoffResult(cache, commitTimer, clearTimer) {
+  return { cache: cache, commitTimer: commitTimer || "", clearTimer: clearTimer || "" }
+}
+
+function clearedMediaHandoff() {
+  return mediaHandoffResult(emptyMediaCache(), "stop", "stop")
+}
+
+function syncMediaHandoff(cache, live) {
+  if (live && mediaMetadataPresent(live.title, live.artist)) {
+    // MPRIS fields often arrive in separate signals. Commit them together
+    // after a short settling window so title and artist change as one unit.
+    return mediaHandoffResult(cache, "restart", "stop")
+  }
+  // Chromium may briefly unregister and replace its MPRIS player while
+  // skipping. Keep the last complete presentation unless the gap persists.
+  if (mediaCacheHasMetadata(cache)) return mediaHandoffResult(cache, "stop", "restart")
+  return clearedMediaHandoff()
+}
+
+function refreshMediaHandoff(cache, live) {
+  if (!live || !mediaMetadataPresent(live.title, live.artist)) {
+    // Retain the last complete presentation and action target during a
+    // transient MPRIS handoff instead of mixing the replacement player's state.
+    return mediaHandoffResult(cache)
+  }
+  return mediaHandoffResult({
+    playerKey: live.playerKey,
+    title: cache.title,
+    artist: cache.artist,
+    playing: live.playing,
+    canGoPrevious: live.canGoPrevious,
+    canPlayPause: live.canPlayPause,
+    canGoNext: live.canGoNext
+  })
+}
+
+function commitMediaHandoff(cache, live) {
+  if (!live || !mediaMetadataPresent(live.title, live.artist)) return syncMediaHandoff(cache, live)
+  var titled = refreshMediaHandoff(cache, live).cache
+  titled.title = live.title
+  titled.artist = live.artist
+  return mediaHandoffResult(titled)
+}
+
+// One step of the panel's media handoff. Events: "sync" (the active player or
+// its metadata changed), "refresh" (its playback state changed), "commit" (the
+// settling window ended) and "clearExpired" (a gap outlasted the handoff
+// window). Returns the next cache and what to do with each timer: "restart",
+// "stop", or "" to leave it.
+function mediaHandoffStep(cache, live, event) {
+  var current = cache || emptyMediaCache()
+  if (event === "sync") return syncMediaHandoff(current, live)
+  if (event === "refresh") return refreshMediaHandoff(current, live)
+  if (event === "commit") return commitMediaHandoff(current, live)
+  if (event === "clearExpired") {
+    if (live && mediaMetadataPresent(live.title, live.artist)) return commitMediaHandoff(current, live)
+    return clearedMediaHandoff()
+  }
+  return mediaHandoffResult(current)
+}
+
+// What the media section shows. Text comes from the cache once it holds a
+// track, so a handoff cannot flash the replacement player's partial metadata;
+// playback state and controls follow the live player whenever it has a track.
+function mediaPresentation(cache, live, playerKeys) {
+  var current = cache || emptyMediaCache()
+  var useLive = !!live && mediaMetadataPresent(live.title, live.artist)
+  var cached = mediaCacheHasMetadata(current)
+  var state = useLive ? live : current
+  var targetAvailable = mediaTargetAvailable(useLive, current.playerKey, playerKeys)
+  return {
+    visible: useLive || cached,
+    live: useLive,
+    title: cached ? current.title : (live ? live.title : ""),
+    artist: cached ? current.artist : (live ? live.artist : ""),
+    playing: state.playing,
+    canGoPrevious: state.canGoPrevious && targetAvailable,
+    canPlayPause: state.canPlayPause && targetAvailable,
+    canGoNext: state.canGoNext && targetAvailable,
+    targetAvailable: targetAvailable,
+    targetKey: useLive ? live.playerKey : current.playerKey
+  }
+}
+
+// Live controls act on the player they show. Cached controls belong to a
+// player that may have closed, and the media service falls back to another
+// player for a key it cannot find, so they only act while theirs is open.
+function mediaTargetAvailable(useLivePresentation, cachedKey, playerKeys) {
+  if (useLivePresentation) return true
+  return !!cachedKey && (playerKeys || []).indexOf(cachedKey) >= 0
+}
+
+function mediaActionEnabled(player, action) {
+  if (!player) return false
+  if (action === "previous") return !!player.canGoPrevious
+  if (action === "next") return !!player.canGoNext
+  if (action === "playPause") return !!(player.canTogglePlaying || player.canPlay || player.canPause)
+  return false
+}
+
+function mediaActionNames() {
+  return MEDIA_ACTION_NAMES.slice()
+}
+
+function mediaActions(player) {
+  return mediaActionNames().map(function(action) {
+    return { action: action, enabled: mediaActionEnabled(player, action) }
+  })
+}
+
+function firstEnabledMediaControl(player) {
+  var controls = mediaActions(player)
+  if (controls[1].enabled) return 1
+  for (var i = 0; i < controls.length; i++) if (controls[i].enabled) return i
+  return 0
+}
+
+function nextEnabledMediaControl(player, index, delta) {
+  var controls = mediaActions(player)
+  var i = index
+  for (var step = 0; step < controls.length; step++) {
+    i += delta
+    if (i < 0 || i >= controls.length) return Math.max(0, Math.min(controls.length - 1, index))
+    if (controls[i].enabled) return i
+  }
+  return index
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -299,6 +471,18 @@ if (typeof module !== "undefined") {
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
     streamRepresentsPlayer: streamRepresentsPlayer,
-    isUntypedSource: isUntypedSource
+    isUntypedSource: isUntypedSource,
+    mediaMetadataPresent: mediaMetadataPresent,
+    mediaHandoffDelays: mediaHandoffDelays,
+    emptyMediaCache: emptyMediaCache,
+    mediaLiveState: mediaLiveState,
+    mediaHandoffStep: mediaHandoffStep,
+    mediaPresentation: mediaPresentation,
+    mediaActionEnabled: mediaActionEnabled,
+    mediaTargetAvailable: mediaTargetAvailable,
+    mediaActionNames: mediaActionNames,
+    mediaActions: mediaActions,
+    firstEnabledMediaControl: firstEnabledMediaControl,
+    nextEnabledMediaControl: nextEnabledMediaControl
   }
 }
