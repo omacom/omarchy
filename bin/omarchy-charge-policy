@@ -1,0 +1,847 @@
+#!/usr/bin/python3
+
+# omarchy:group=battery
+# omarchy:name=charge-policy
+# omarchy:summary=Optimized charging for Apple SMC batteries, applied only while its unit is running
+# omarchy:args=[run|once|status|charge-now|cancel-charge-now|hold-now|cancel-hold-now|restore]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+"""Optimized battery charging for the Apple SMC charge thresholds.
+
+Userspace policy for the J313 MacBook Air (M1, 2020). It writes the standard
+power-supply attributes and does not touch the SMC driver:
+
+    /sys/class/power_supply/macsmc-battery/charge_control_end_threshold
+    /sys/class/power_supply/macsmc-battery/charge_control_start_threshold
+
+The macsmc-power driver programs the limit through the SMC. Writes to the
+start attribute are ignored; while a limit is active the driver reports the
+start as five points under the end. On the 7.2.10 driver running here, every
+end threshold below 100 is written as CHLS_FORCE_DISCHARGE|percent, so a pack
+already above the ceiling is discharged down to it. That driver does not
+offer charge_behaviour auto-discharge. This policy therefore leaves both
+thresholds at 100 on that driver and pauses with inhibit-charge once the
+battery is at the 80% hold. A driver that lists auto-discharge keeps the
+ceiling and the discharge bit separate; there the hold is end 80, start 75,
+and charge_behaviour stays auto.
+
+What the firmware does not do is decide when to hold. The driver clears the
+charge-behaviour inhibitors at probe and leaves the limit at 100 until
+userspace says otherwise. This program is that decision: learn when a long
+plug-in usually ends, keep the battery at the 80% hold until shortly before
+that departure, and raise the limit so the last 20% finishes in time. With no
+routine yet it charges to full, then holds if the machine stays on power.
+"Charge to full now" covers the current plug-in only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import json
+import os
+import signal
+import sys
+import time
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import NamedTuple
+
+BATTERY_DIR = Path("/sys/class/power_supply/macsmc-battery")
+AC_ONLINE_PATH = Path("/sys/class/power_supply/macsmc-ac/online")
+STATE_PATH = Path(
+    os.environ.get("SMC_CHARGE_STATE", "/var/lib/omarchy-charge-policy/state.json")
+)
+STATUS_PATH = Path(
+    os.environ.get("SMC_CHARGE_STATUS", "/run/omarchy-charge-policy/status")
+)
+
+# Apple's optimized-charging hold, and the five-point hysteresis the driver
+# reflects in charge_control_start_threshold (CHWA_CHLS_FIXED_START_OFFSET).
+HOLD_END = 80
+HOLD_START = 75
+FULL_END = 100
+FULL_START = 100
+
+# A plug-in this long is the "extended period" Apple delays past 80% for.
+EXTENDED_SESSION_S = 2 * 60 * 60
+# Only those extended sessions become departure samples.
+MIN_DEPARTURE_SESSION_S = EXTENDED_SESSION_S
+# Once the machine is clearly desk-bound, hold without waiting out the 2h.
+RARELY_SESSION_S = 30 * 60
+RARELY_AC_RATIO = 0.85
+RARELY_MIN_OBSERVED_S = 24 * 60 * 60
+# Last 20% (80 → 100) on a 30W M1 Air adapter, plus slack, when the SMC
+# does not report time_to_full_now.
+TOPUP_DEFAULT_S = 50 * 60
+TOPUP_SLACK_S = 10 * 60
+TOPUP_HYSTERESIS_S = 15 * 60
+# Still treat a just-missed departure as "leaving now".
+DEPARTURE_GRACE_S = 60 * 60
+# One full charge this often so the gauge can correct itself.
+CALIBRATION_S = 14 * 24 * 60 * 60
+HISTORY_S = 28 * 24 * 60 * 60
+MIN_SAME_WEEKDAY = 2
+MIN_ANY_DAY = 4
+MAX_SPREAD_MIN = 90
+DEBOUNCE_S = 60
+MAX_SAMPLE_GAP_S = 24 * 60 * 60
+MAX_DEPARTURES = 200
+DAY_MINUTES = 24 * 60
+
+REASON_DETAIL = {
+    "charging-on-hold": "Charging on hold until the predicted departure",
+    "charging-on-hold-rarely-on-battery": "Charging on hold; this Mac stays on power",
+    "charge-to-full": "Charging to full ahead of the predicted departure",
+    "charge-to-full-now": "Charging to full now for this plug-in",
+    "charge-to-full-learning": "Charging to full while the daily routine is still unknown",
+    "charge-to-full-calibration": "Charging to full to refresh the state-of-charge estimate",
+}
+
+BEHAVIOUR_AUTO = "auto"
+BEHAVIOUR_INHIBIT = "inhibit-charge"
+
+
+class Sample(NamedTuple):
+    ac_online: bool
+    capacity: int | None = None
+    status: str | None = None
+    time_to_full_s: int | None = None
+    charge_full_uah: int | None = None
+    current_ua: int | None = None
+    behaviour: str | None = None
+
+
+class Decision(NamedTuple):
+    start: int
+    end: int
+    reason: str
+    departure: int | None = None
+    behaviour: str = BEHAVIOUR_AUTO
+
+    @property
+    def detail(self) -> str:
+        if (
+            self.reason.startswith("charging-on-hold")
+            and self.behaviour == BEHAVIOUR_INHIBIT
+        ):
+            return "Charging on hold; thresholds stay at 100 so the pack is not discharged"
+        if (
+            self.reason.startswith("charging-on-hold")
+            and self.end == FULL_END
+            and self.behaviour == BEHAVIOUR_AUTO
+        ):
+            return "Charging toward the 80% hold"
+        return REASON_DETAIL[self.reason]
+
+
+def log(message: str) -> None:
+    print(f"omarchy-charge-policy: {message}", flush=True)
+
+
+def fresh_state(now: int) -> dict:
+    return {
+        "version": 1,
+        "departures": [],
+        "plugged_since": None,
+        "ac_online": None,
+        "offline_streak": 0,
+        "last_full_at": now,
+        "charge_to_full_now": False,
+        "last_reason": None,
+        "last_behaviour": None,
+        "inhibit_hold": False,
+        "hold_now": False,
+        "ac_seconds": 0,
+        "battery_seconds": 0,
+        "last_sample_at": None,
+    }
+
+
+def ensure_state(state: dict | None, now: int) -> dict:
+    base = fresh_state(now)
+    if not state:
+        return base
+    merged = dict(base)
+    merged.update(state)
+    merged["departures"] = list(state.get("departures") or [])
+    if merged.get("last_full_at") is None:
+        merged["last_full_at"] = now
+    return merged
+
+
+def circular_distance(a: int, b: int) -> int:
+    delta = abs(a - b) % DAY_MINUTES
+    return min(delta, DAY_MINUTES - delta)
+
+
+def circular_median(minutes: list[int]) -> int | None:
+    if not minutes:
+        return None
+    best = minutes[0]
+    best_cost = None
+    for candidate in minutes:
+        cost = sum(circular_distance(candidate, minute) for minute in minutes)
+        if best_cost is None or cost < best_cost:
+            best_cost = cost
+            best = candidate
+    return best
+
+
+def spread_minutes(minutes: list[int], center: int) -> float:
+    if not minutes:
+        return 0.0
+    return sum(circular_distance(center, minute) for minute in minutes) / len(minutes)
+
+
+def parse_modes(text: str | None) -> tuple[str | None, set[str]]:
+    """Split a charge_behaviour attribute into the active mode and the offered set."""
+    if not text:
+        return None, set()
+    active = None
+    modes: set[str] = set()
+    for token in text.split():
+        name = token
+        if name.startswith("[") and name.endswith("]") and len(name) > 2:
+            name = name[1:-1]
+            active = name
+        modes.add(name)
+    return active, modes
+
+
+def ceiling_without_discharge(sample: Sample) -> bool:
+    """True when an end threshold below 100 does not force the pack down.
+
+    linux-aurora 5eae607d5e70 and 659fced438cc list auto-discharge and preserve
+    the CHLS force-discharge bit across a threshold write. The 7.2.10 driver
+    on this machine (parent 80374c2d267c) ORs that bit into every ceiling and
+    does not list the mode.
+    """
+    _, modes = parse_modes(sample.behaviour)
+    return "auto-discharge" in modes
+
+
+def pause_for_hold(state: dict, sample: Sample) -> bool:
+    """80% pause with a resume at 75%, matching the driver's start offset."""
+    capacity = sample.capacity
+    if capacity is None:
+        return bool(state.get("inhibit_hold"))
+    if capacity >= HOLD_END:
+        return True
+    return bool(state.get("inhibit_hold")) and capacity > HOLD_START
+
+
+def is_full(sample: Sample) -> bool:
+    if sample.status == "Full":
+        return True
+    return sample.capacity is not None and sample.capacity >= 100
+
+
+def topup_seconds(sample: Sample) -> int:
+    """How early to lift the hold so the battery can reach 100%.
+
+    Below 80% the hold still allows charging, so the delayed part is only
+    the last 20%. time_to_full_now below 80% includes that first stretch and
+    would lift the hold too soon.
+    """
+    if sample.capacity is not None and sample.capacity >= HOLD_END:
+        if sample.time_to_full_s:
+            return sample.time_to_full_s + TOPUP_SLACK_S
+        if (
+            sample.charge_full_uah
+            and sample.current_ua
+            and sample.current_ua > 100_000
+            and sample.capacity < 100
+        ):
+            remaining_uah = sample.charge_full_uah * (100 - sample.capacity) / 100
+            return int(remaining_uah / sample.current_ua * 3600) + TOPUP_SLACK_S
+    return TOPUP_DEFAULT_S
+
+
+def _recent(departures: list[dict], now: int) -> list[dict]:
+    return [item for item in departures if now - int(item["t"]) <= HISTORY_S]
+
+
+def typical_minute(departures: list[dict], weekday: int, now: int) -> int | None:
+    recent = _recent(departures, now)
+    same = [int(item["minute"]) for item in recent if int(item["weekday"]) == weekday]
+    if len(same) >= MIN_SAME_WEEKDAY:
+        center = circular_median(same)
+        if center is not None and spread_minutes(same, center) <= MAX_SPREAD_MIN:
+            return center
+    any_day = [int(item["minute"]) for item in recent]
+    if len(any_day) >= MIN_ANY_DAY:
+        center = circular_median(any_day)
+        if center is not None and spread_minutes(any_day, center) <= MAX_SPREAD_MIN:
+            return center
+    return None
+
+
+def next_departure(departures: list[dict], now: int) -> int | None:
+    """Unix time of the next learned departure, or None when the routine is loose."""
+    local = datetime.fromtimestamp(now).astimezone()
+    best: datetime | None = None
+    for offset in range(0, 8):
+        day = local + timedelta(days=offset)
+        minute = typical_minute(departures, day.weekday(), now)
+        if minute is None:
+            continue
+        candidate = day.replace(
+            hour=minute // 60,
+            minute=minute % 60,
+            second=0,
+            microsecond=0,
+        )
+        earliest = local - timedelta(seconds=DEPARTURE_GRACE_S)
+        if candidate < earliest:
+            continue
+        if candidate < local:
+            candidate = local
+        if best is None or candidate < best:
+            best = candidate
+    if best is None:
+        return None
+    return int(best.timestamp())
+
+
+def _local_stamp(when: int) -> tuple[int, int]:
+    local = datetime.fromtimestamp(when).astimezone()
+    return local.weekday(), local.hour * 60 + local.minute
+
+
+def _attribute_time(state: dict, now: int) -> None:
+    previous = state.get("last_sample_at")
+    previous_ac = state.get("ac_online")
+    if previous is None or previous_ac is None:
+        return
+    delta = now - int(previous)
+    if delta <= 0 or delta > MAX_SAMPLE_GAP_S:
+        return
+    if previous_ac:
+        state["ac_seconds"] = int(state["ac_seconds"]) + delta
+    else:
+        state["battery_seconds"] = int(state["battery_seconds"]) + delta
+
+
+def _effective_online(state: dict, raw_online: bool, now: int) -> bool:
+    """Ignore a one-sample AC blip. A long gap (suspend) is a real edge."""
+    if raw_online:
+        state["offline_streak"] = 0
+        return True
+    state["offline_streak"] = int(state.get("offline_streak") or 0) + 1
+    previous_at = state.get("last_sample_at")
+    gap = now - int(previous_at) if previous_at is not None else DEBOUNCE_S
+    if state.get("ac_online") is True and gap < DEBOUNCE_S and state["offline_streak"] < 2:
+        return True
+    return False
+
+
+def _close_plug_session(state: dict, now: int) -> None:
+    plugged_since = state.get("plugged_since")
+    previous_at = state.get("last_sample_at")
+    gap = now - int(previous_at) if previous_at is not None else 0
+    # After suspend the unplug happened near the last on-power sample, not at wake.
+    unplug_at = int(previous_at) if gap >= DEBOUNCE_S and previous_at is not None else now
+    if plugged_since is not None:
+        duration = unplug_at - int(plugged_since)
+        if duration >= MIN_DEPARTURE_SESSION_S:
+            weekday, minute = _local_stamp(unplug_at)
+            state["departures"].append(
+                {
+                    "t": unplug_at,
+                    "minute": minute,
+                    "weekday": weekday,
+                    "duration_s": int(duration),
+                }
+            )
+            if len(state["departures"]) > MAX_DEPARTURES:
+                state["departures"] = state["departures"][-MAX_DEPARTURES:]
+    state["plugged_since"] = None
+    state["charge_to_full_now"] = False
+
+
+def observe(state: dict, sample: Sample, now: int) -> Sample:
+    """Update routine state. Returns the sample with a debounced AC bit."""
+    _attribute_time(state, now)
+    online = _effective_online(state, sample.ac_online, now)
+    previous = state.get("ac_online")
+    if previous is True and not online:
+        _close_plug_session(state, now)
+    elif online and state.get("plugged_since") is None:
+        state["plugged_since"] = now
+    if not online:
+        state["plugged_since"] = None
+    state["ac_online"] = online
+    if is_full(sample):
+        state["last_full_at"] = now
+    state["last_sample_at"] = now
+    if online == sample.ac_online:
+        return sample
+    return sample._replace(ac_online=online)
+
+
+def finish(reason: str, departure: int | None = None) -> Decision:
+    return Decision(FULL_START, FULL_END, reason, departure, behaviour=BEHAVIOUR_AUTO)
+
+
+def hold(reason: str, departure: int | None, state: dict, sample: Sample) -> Decision:
+    if ceiling_without_discharge(sample):
+        return Decision(HOLD_START, HOLD_END, reason, departure, behaviour=BEHAVIOUR_AUTO)
+    if pause_for_hold(state, sample):
+        # Publishing the ceiling would set CHLS_FORCE_DISCHARGE on 7.2.10.
+        return Decision(FULL_START, FULL_END, reason, departure, behaviour=BEHAVIOUR_INHIBIT)
+    return Decision(FULL_START, FULL_END, reason, departure, behaviour=BEHAVIOUR_AUTO)
+
+
+def decide(state: dict, sample: Sample, now: int) -> Decision:
+    if state.get("charge_to_full_now") and sample.ac_online:
+        return finish("charge-to-full-now")
+
+    if state.get("hold_now"):
+        return hold("charging-on-hold", None, state, sample)
+
+    last_full = state.get("last_full_at")
+    if (
+        sample.ac_online
+        and not is_full(sample)
+        and last_full is not None
+        and now - int(last_full) >= CALIBRATION_S
+    ):
+        return finish("charge-to-full-calibration")
+
+    departure = next_departure(state.get("departures") or [], now)
+    window = topup_seconds(sample)
+    if departure is not None:
+        until = departure - now
+        keep_topup = (
+            state.get("last_reason") == "charge-to-full"
+            and until <= window + TOPUP_HYSTERESIS_S
+        )
+        if until <= window or keep_topup:
+            return finish("charge-to-full", departure)
+        return hold("charging-on-hold", departure, state, sample)
+
+    session_age = 0
+    if sample.ac_online and state.get("plugged_since") is not None:
+        session_age = max(0, now - int(state["plugged_since"]))
+    observed = int(state["ac_seconds"]) + int(state["battery_seconds"])
+    ac_ratio = (int(state["ac_seconds"]) / observed) if observed else 0.0
+    parked = sample.ac_online and (
+        session_age >= EXTENDED_SESSION_S
+        or (
+            observed >= RARELY_MIN_OBSERVED_S
+            and ac_ratio >= RARELY_AC_RATIO
+            and session_age >= RARELY_SESSION_S
+        )
+    )
+    if parked:
+        return hold("charging-on-hold-rarely-on-battery", None, state, sample)
+    return finish("charge-to-full-learning")
+
+
+def reduce(state: dict | None, sample: Sample, now: int) -> tuple[dict, Decision]:
+    state = ensure_state(state, now)
+    sample = observe(state, sample, now)
+    decision = decide(state, sample, now)
+    state["last_reason"] = decision.reason
+    state["last_behaviour"] = decision.behaviour
+    state["inhibit_hold"] = decision.behaviour == BEHAVIOUR_INHIBIT
+    return state, decision
+
+
+def read_text(path: Path) -> str | None:
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return None
+
+
+def read_int(path: Path) -> int | None:
+    text = read_text(path)
+    if text is None or text == "":
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
+def read_sample(
+    battery_dir: Path = BATTERY_DIR,
+    ac_online_path: Path = AC_ONLINE_PATH,
+) -> Sample:
+    ac = read_int(ac_online_path)
+    if ac is None:
+        ac = 0
+        for supply in Path("/sys/class/power_supply").iterdir():
+            if read_text(supply / "type") == "Mains" and read_int(supply / "online") == 1:
+                ac = 1
+                break
+    time_to_full = read_int(battery_dir / "time_to_full_now")
+    if time_to_full == 0:
+        time_to_full = None
+    return Sample(
+        ac_online=bool(ac),
+        capacity=read_int(battery_dir / "capacity"),
+        status=read_text(battery_dir / "status"),
+        time_to_full_s=time_to_full,
+        charge_full_uah=read_int(battery_dir / "charge_full"),
+        current_ua=read_int(battery_dir / "current_now"),
+        behaviour=read_text(battery_dir / "charge_behaviour"),
+    )
+
+
+def write_plan(
+    current_start: int | None,
+    current_end: int | None,
+    new_start: int,
+    new_end: int,
+) -> list[str]:
+    """Attribute write order. Lower the start first; raise the end first.
+
+    The macsmc driver accepts the end threshold on its own and ignores the
+    start write. The order still satisfies drivers that require start <= end
+    at every step (100/100 → 75/80, and back).
+    """
+    if current_end == new_end:
+        return []
+    if current_end is not None and new_end > current_end:
+        return ["end", "start"]
+    if current_start is not None and current_end is not None and new_start > current_end:
+        return ["end", "start"]
+    return ["start", "end"]
+
+
+def apply_thresholds(
+    start: int,
+    end: int,
+    battery_dir: Path = BATTERY_DIR,
+) -> list[str]:
+    end_path = battery_dir / "charge_control_end_threshold"
+    start_path = battery_dir / "charge_control_start_threshold"
+    current_end = read_int(end_path)
+    current_start = read_int(start_path)
+    plan = write_plan(current_start, current_end, start, end)
+    paths = {"end": end_path, "start": start_path}
+    values = {"end": end, "start": start}
+    for step_name in plan:
+        path = paths[step_name]
+        path.write_text(f"{values[step_name]}\n")
+    return plan
+
+
+def apply_behaviour(mode: str, battery_dir: Path = BATTERY_DIR) -> bool:
+    """Select auto or inhibit-charge. Never selects auto-discharge."""
+    if mode not in (BEHAVIOUR_AUTO, BEHAVIOUR_INHIBIT):
+        raise ValueError(mode)
+    path = battery_dir / "charge_behaviour"
+    active, modes = parse_modes(read_text(path))
+    if active == mode:
+        return False
+    if modes and mode not in modes:
+        log(f"charge_behaviour {mode} is not offered ({read_text(path)})")
+        return False
+    path.write_text(mode + "\n")
+    return True
+
+
+def apply_decision(decision: Decision, battery_dir: Path = BATTERY_DIR) -> None:
+    """Clear a force-discharge ceiling before pausing; release the pause before a top-up."""
+    if decision.behaviour == BEHAVIOUR_AUTO:
+        apply_behaviour(decision.behaviour, battery_dir)
+        apply_thresholds(decision.start, decision.end, battery_dir)
+    else:
+        apply_thresholds(decision.start, decision.end, battery_dir)
+        apply_behaviour(decision.behaviour, battery_dir)
+
+
+def restore_charging(battery_dir: Path = BATTERY_DIR) -> None:
+    """Leave the pack able to charge: auto, and no partial ceiling."""
+    apply_behaviour(BEHAVIOUR_AUTO, battery_dir)
+    apply_thresholds(FULL_START, FULL_END, battery_dir)
+
+
+def _with_state_lock(path: Path, action: Callable[[], Decision]) -> Decision:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path.with_suffix(".lock"), "a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            return action()
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def load_state(path: Path, now: int) -> dict:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        data = None
+    return ensure_state(data if isinstance(data, dict) else None, now)
+
+
+def save_state(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+    os.chmod(temporary, 0o644)
+    os.replace(temporary, path)
+
+
+def write_status(path: Path, sample: Sample, decision: Decision, now: int) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        log(f"cannot write status: {error}")
+        return
+    departure = ""
+    if decision.departure is not None:
+        departure = datetime.fromtimestamp(decision.departure).astimezone().isoformat(
+            timespec="minutes"
+        )
+    lines = [
+        f"reason={decision.reason}",
+        f"detail={decision.detail}",
+        f"behaviour={decision.behaviour}",
+        f"start={decision.start}",
+        f"end={decision.end}",
+        f"ac_online={int(sample.ac_online)}",
+        f"capacity={'' if sample.capacity is None else sample.capacity}",
+        f"status={sample.status or ''}",
+        f"departure={departure}",
+        f"updated={datetime.fromtimestamp(now).astimezone().isoformat(timespec='seconds')}",
+        "",
+    ]
+    temporary = path.with_suffix(".tmp")
+    try:
+        temporary.write_text("\n".join(lines))
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, path)
+    except OSError as error:
+        log(f"cannot write status: {error}")
+
+
+def format_decision(decision: Decision) -> str:
+    when = ""
+    if decision.departure is not None:
+        local = datetime.fromtimestamp(decision.departure).astimezone()
+        when = f", departure {local.strftime('%a %H:%M')}"
+    return (
+        f"{decision.detail}: end {decision.end}%, start {decision.start}%, "
+        f"{decision.behaviour}{when}"
+    )
+
+
+def step(
+    state_path: Path,
+    battery_dir: Path,
+    ac_online_path: Path,
+    status_path: Path | None,
+    now: int,
+    dry_run: bool,
+) -> Decision:
+    def action() -> Decision:
+        sample = read_sample(battery_dir, ac_online_path)
+        state = load_state(state_path, now)
+        previous_reason = state.get("last_reason")
+        previous_behaviour = state.get("last_behaviour")
+        state, decision = reduce(state, sample, now)
+        save_state(state_path, state)
+        if status_path is not None:
+            write_status(status_path, sample, decision, now)
+        if decision.reason != previous_reason or decision.behaviour != previous_behaviour:
+            log(format_decision(decision))
+        if dry_run:
+            return decision
+        try:
+            apply_decision(decision, battery_dir)
+        except OSError as error:
+            log(f"failed to apply the charging policy: {error}")
+            return decision
+        readback = read_int(battery_dir / "charge_control_end_threshold")
+        if readback is not None and readback != decision.end:
+            log(f"end threshold read back {readback} after writing {decision.end}")
+        return decision
+
+    return _with_state_lock(state_path, action)
+
+
+def set_flag(state_path: Path, key: str, enabled: bool, now: int) -> None:
+    def action() -> Decision:
+        state = load_state(state_path, now)
+        state[key] = enabled
+        save_state(state_path, state)
+        return finish("charge-to-full-now")
+
+    _with_state_lock(state_path, action)
+
+
+class Stop(BaseException):
+    pass
+
+
+def run_loop(interval: int, dry_run: bool, state_path: Path, status_path: Path | None) -> None:
+    stop = False
+
+    def request_stop(signum: int, _frame: object) -> None:
+        nonlocal stop
+        stop = True
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+    endpoint = BATTERY_DIR / "charge_control_end_threshold"
+    announced = False
+    while not stop and not endpoint.exists():
+        if not announced:
+            log("waiting for macsmc-battery charge thresholds")
+            announced = True
+        time.sleep(1)
+    if stop:
+        return
+    log("watching macsmc-battery charge thresholds")
+    while not stop:
+        step(
+            state_path,
+            BATTERY_DIR,
+            AC_ONLINE_PATH,
+            status_path,
+            int(time.time()),
+            dry_run,
+        )
+        deadline = time.monotonic() + interval
+        while not stop and time.monotonic() < deadline:
+            time.sleep(min(1.0, max(0.0, deadline - time.monotonic())))
+    if not dry_run:
+        try:
+            restore_charging(BATTERY_DIR)
+            log("restored auto charging and a 100% ceiling")
+        except OSError as error:
+            log(f"could not restore charging on the way out: {error}")
+
+
+def status_report(state_path: Path, status_path: Path) -> str:
+    live = read_sample()
+    end = read_int(BATTERY_DIR / "charge_control_end_threshold")
+    start = read_int(BATTERY_DIR / "charge_control_start_threshold")
+    lines = [
+        f"battery capacity {live.capacity}%  {live.status or 'unknown'}",
+        f"ac online {int(live.ac_online)}",
+        f"sysfs end {end}  start {start}  behaviour {live.behaviour or ''}",
+    ]
+    text = read_text(status_path)
+    if text:
+        lines.append(text)
+    elif state_path.exists():
+        state = load_state(state_path, int(time.time()))
+        lines.append(
+            f"last reason {state.get('last_reason')}  "
+            f"departures {len(state.get('departures') or [])}  "
+            f"charge to full now {int(bool(state.get('charge_to_full_now')))}"
+        )
+    else:
+        lines.append("policy has not recorded a sample yet")
+    return "\n".join(lines)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Optimized battery charging via the SMC charge_control thresholds. "
+            "Holds at 80%% when a long plug-in is expected and raises the limit "
+            "to 100%% in time for the usual departure."
+        )
+    )
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--state",
+        type=Path,
+        default=STATE_PATH,
+        help="path to the routine state file",
+    )
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    run = sub.add_parser("run", parents=[common], help="apply the policy until stopped")
+    run.add_argument("--interval", type=int, default=30)
+    run.add_argument("--dry-run", action="store_true")
+
+    once = sub.add_parser("once", parents=[common], help="sample once and apply the policy")
+    once.add_argument("--dry-run", action="store_true")
+
+    sub.add_parser("status", parents=[common], help="show the live thresholds and the last decision")
+    sub.add_parser(
+        "charge-now",
+        parents=[common],
+        help="charge to 100%% for this plug-in, then resume the policy",
+    )
+    sub.add_parser(
+        "cancel-charge-now",
+        parents=[common],
+        help="clear a charge-to-full-now override",
+    )
+    sub.add_parser(
+        "hold-now",
+        parents=[common],
+        help="pause at the 80%% hold until cancel-hold-now, without force-discharge",
+    )
+    sub.add_parser(
+        "cancel-hold-now",
+        parents=[common],
+        help="clear a hold-now override",
+    )
+    sub.add_parser(
+        "restore",
+        parents=[common],
+        help="set charge_behaviour auto and both thresholds to 100",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    now = int(time.time())
+    status_path = STATUS_PATH if os.environ.get("SMC_CHARGE_STATUS", "") != "-" else None
+    if args.cmd == "status":
+        print(status_report(args.state, STATUS_PATH))
+        return 0
+    if args.cmd == "charge-now":
+        set_flag(args.state, "charge_to_full_now", True, now)
+        step(args.state, BATTERY_DIR, AC_ONLINE_PATH, status_path, now, dry_run=False)
+        return 0
+    if args.cmd == "cancel-charge-now":
+        set_flag(args.state, "charge_to_full_now", False, now)
+        step(args.state, BATTERY_DIR, AC_ONLINE_PATH, status_path, now, dry_run=False)
+        return 0
+    if args.cmd == "hold-now":
+        set_flag(args.state, "hold_now", True, now)
+        step(args.state, BATTERY_DIR, AC_ONLINE_PATH, status_path, now, dry_run=False)
+        return 0
+    if args.cmd == "cancel-hold-now":
+        set_flag(args.state, "hold_now", False, now)
+        step(args.state, BATTERY_DIR, AC_ONLINE_PATH, status_path, now, dry_run=False)
+        return 0
+    if args.cmd == "restore":
+        try:
+            restore_charging(BATTERY_DIR)
+        except OSError as error:
+            log(f"could not restore charging: {error}")
+            return 1
+        return 0
+    if args.cmd == "once":
+        step(
+            args.state,
+            BATTERY_DIR,
+            AC_ONLINE_PATH,
+            None if args.dry_run else status_path,
+            now,
+            args.dry_run,
+        )
+        return 0
+    if args.cmd == "run":
+        run_loop(args.interval, args.dry_run, args.state, None if args.dry_run else status_path)
+        return 0
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
