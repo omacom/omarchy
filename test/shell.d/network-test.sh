@@ -52,7 +52,7 @@ assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'networ
 // same link, and a strong -50 dBm link shows full bars either way.
 const scanStrength = dbm => Math.round(100 - (Math.abs(Math.min(Math.max(dbm, -100), -40) + 40) * 100) / 60)
 const stationStrength = dbm => Math.min(Math.max(dbm, -90), -20) + 120
-for (const dbm of [-44, -50, -56, -70]) {
+for (const dbm of [-44, -50, -56, -66, -70, -74, -82, -88]) {
   assertEqual(network.wifiIconFor(stationStrength(dbm)), network.wifiIconFor(scanStrength(dbm)), `network shows the same bars for ${dbm} dBm from either NetworkManager formula`)
 }
 assertEqual(network.wifiIconFor(stationStrength(-50)), network.wifiIconFor(100), 'network shows full bars for a -50 dBm link')
