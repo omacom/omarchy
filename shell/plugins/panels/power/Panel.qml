@@ -20,6 +20,10 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  property string conservationState: "unsupported"
+  property bool conservationFocused: false
+  property bool conservationFailed: false
+  readonly property bool conservationSupported: conservationState === "on" || conservationState === "off"
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -145,6 +149,7 @@ Panel {
     if (!batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+    if (!conservationProc.running && !conservationAction.running) conservationProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -174,6 +179,13 @@ Panel {
     if (!profile || actionProc.running) return
     actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
     actionProc.running = true
+  }
+
+  function toggleConservation() {
+    if (!conservationSupported || conservationAction.running || conservationProc.running) return
+    conservationFailed = false
+    conservationAction.command = [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-conservation", conservationState === "on" ? "off" : "on"]
+    conservationAction.running = true
   }
 
   function togglePercentage() {
@@ -206,6 +218,7 @@ Panel {
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+      conservationFocused = false
     }
   }
 
@@ -231,6 +244,29 @@ Panel {
     id: systemProc
     command: ["omarchy-system-stats"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateKeyValue(text, "system") }
+  }
+
+  Process {
+    id: conservationProc
+    command: [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-conservation", "status"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.conservationState = text.trim()
+        if (!root.conservationSupported) root.conservationFocused = false
+      }
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.conservationState = "unsupported"
+    }
+  }
+
+  Process {
+    id: conservationAction
+    onExited: function(exitCode) {
+      root.conservationFailed = exitCode !== 0
+      root.refresh()
+    }
   }
 
   Process {
@@ -315,10 +351,14 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
+        if (dy !== 0 && root.conservationSupported) root.conservationFocused = dy > 0
+        else if (!root.conservationFocused) root.selectProfileByDelta(dx !== 0 ? dx : dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: {
+        if (!root.cursorActive) return
+        if (root.conservationFocused) root.toggleConservation()
+        else root.activateSelectedProfile()
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -503,15 +543,37 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && !root.conservationFocused && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
                     root.profileIndex = index
+                    root.conservationFocused = false
                   }
                 }
               }
+            }
+          }
+        }
+
+        Toggle {
+          width: parent.width
+          visible: root.conservationSupported
+          enabled: !conservationAction.running
+          checked: root.conservationState === "on"
+          label: Commons.I18n.t("power.conservationMode")
+          description: conservationAction.running ? Commons.I18n.t("power.conservationChanging")
+            : root.conservationFailed ? Commons.I18n.t("power.conservationFailed")
+            : Commons.I18n.t("power.conservationDescription")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          hasCursor: root.cursorActive && root.conservationFocused
+          onClicked: root.toggleConservation()
+          onHovered: function(h) {
+            if (h) {
+              root.cursorActive = true
+              root.conservationFocused = true
             }
           }
         }
