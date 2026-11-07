@@ -80,6 +80,12 @@ assert_detects "a reader is detected by an existing product-name match"
 write_usb_devices '27c6:1234'
 assert_detects "a reader is detected by an existing vendor match"
 
+# A FocalTech power-button reader names neither its function nor its vendor in
+# the product string, so it is pinned by vendor:product. FocalTech also makes
+# touchscreens, which is why the pair, not the vendor, carries it.
+write_usb_devices '2808:079a:FocalTech FT9769DL ESS'
+assert_detects "a FocalTech power-button reader is detected by vendor:product"
+
 bind_driver() {
   local dev="$1" driver="$2"
 
@@ -92,6 +98,12 @@ bind_driver() {
 write_usb_devices '27c6:1234'
 bind_driver '1-0/1-0:1.0' uvcvideo
 assert_rejects "a vendor guess bound to a kernel driver is rejected"
+
+# Same guard as the vendor list: the pair pins the reader's descriptor, not the
+# vendor, so a 2808 touchscreen that binds usbhid still must not read as a reader.
+write_usb_devices '2808:079a:FocalTech FT9769DL ESS'
+bind_driver '1-0/1-0:1.0' usbhid
+assert_rejects "a FocalTech pair bound to a kernel driver is rejected"
 
 write_usb_devices '27c6:1234'
 bind_driver '1-0/1-0:1.0' usbfs
