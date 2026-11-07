@@ -285,6 +285,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("accessibility.power")
     anchors.fill: parent
     bar: root.bar
     text: root.batteryIcon()
@@ -300,6 +301,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.power")
     anchorItem: button
     owner: root
     bar: root.bar

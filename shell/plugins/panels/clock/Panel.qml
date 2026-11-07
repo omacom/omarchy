@@ -252,6 +252,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.clock")
     anchorItem: root.anchorItem
     owner: root.barIdentity
     bar: root.bar

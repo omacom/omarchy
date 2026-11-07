@@ -651,6 +651,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("bluetooth.title")
     anchors.fill: parent
     bar: root.bar
     text: root.icon
@@ -662,6 +663,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("bluetooth.title")
     anchorItem: button
     owner: root
     bar: root.bar
