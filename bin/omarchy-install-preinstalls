@@ -33,6 +33,14 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     exit 1
   fi
 
+  # An explicit restore opts back into the full shipped set, not just the
+  # region's initial subset. Keep the exclusion record if package setup fails.
+  skipped="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped"
+  if [[ -f $skipped ]]; then
+    rm -f "$skipped"
+    omarchy-refresh-applications || exit 1
+  fi
+
   # Last, so a failure above leaves the opt-out intact rather than restoring
   # keybindings for apps that never came back
   rm -f ~/.local/state/omarchy/preinstalls-removed
