@@ -389,7 +389,8 @@ Panel {
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude Code" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "agy", providerName: "Antigravity" }
   ].concat(localFits ? [{ providerId: "local", providerName: Commons.I18n.t("agents.localAi") }] : [])
 
   // Local AI offers the catalog's recipes that fit this machine and aren't
@@ -463,10 +464,10 @@ Panel {
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
-    // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
+    // Claude and Antigravity logins offer pasting a code back from their OAuth page,
+    // and their prompt for it has no newline to read it by, so the field is
     // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    addNeedsPaste = addProvider === "claude" || addProvider === "agy"
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
@@ -515,7 +516,7 @@ Panel {
     }
     var code = text.match(/^\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
     if (code) addCode = code[1]
-    if (/paste code/i.test(text)) addNeedsPaste = true
+    if (/paste.*code/i.test(text) || /authorization code/i.test(text)) addNeedsPaste = true
     var url = text.match(/(https:\/\/\S+)/)
     if (url && addUrl === "") addUrl = url[1]
   }
@@ -637,10 +638,10 @@ Panel {
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
-    // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
+    // Claude and Antigravity logins offer pasting a code back from their OAuth page,
+    // and their prompt for it has no newline to read it by, so the field is
     // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    addNeedsPaste = addProvider === "claude" || addProvider === "agy"
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
