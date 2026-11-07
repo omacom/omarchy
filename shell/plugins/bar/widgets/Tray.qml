@@ -319,7 +319,9 @@ BarWidget {
               x: root.fixedAtStart ? root.sectionExtent : 0
               anchors.verticalCenter: parent.verticalCenter
               spacing: root.trayItemGap
-              layer.enabled: true
+              // Qt's software renderer draws a layered item off its position (shifted
+              // up and clipped, or not at all), so only layer on a GPU backend.
+              layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
 
               Repeater {
                 model: root.drawerItems
@@ -410,7 +412,9 @@ BarWidget {
               y: root.fixedAtStart ? root.sectionExtent : 0
               anchors.horizontalCenter: parent.horizontalCenter
               spacing: root.trayItemGap
-              layer.enabled: true
+              // Qt's software renderer draws a layered item off its position (shifted
+              // up and clipped, or not at all), so only layer on a GPU backend.
+              layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
 
               Repeater {
                 model: root.drawerItems
