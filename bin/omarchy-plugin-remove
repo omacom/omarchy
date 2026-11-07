@@ -93,7 +93,8 @@ else
 fi
 
 if [[ $was_enabled == "true" ]]; then
-  omarchy-shell shell setPluginEnabled "$id" false >/dev/null
+  result=$(omarchy-shell shell setPluginEnabled "$id" false)
+  [[ $result == "ok" ]] || fail "$result"
 fi
 
 if [[ -L $target ]]; then
