@@ -60,6 +60,12 @@ Item {
   // The look the blur behind the bar was last synced for. A background set by
   // editing shell.json skips the CLI, so the bar syncs Hyprland's blur itself.
   property string glassSyncedLook: ""
+  // The background the config asks for: opaque, glassy or none.
+  property string backgroundLook: "opaque"
+  // Popups follow the config directly, so they are see-through only while the
+  // background is glassy. `glassy` can't say that: the bar holds it through a
+  // change to clear, until its clear text color is ready.
+  readonly property bool popupsGlassy: backgroundLook === "glassy"
   // One bar surface exists per monitor and each reports into this count, so a
   // pointer crossing from one monitor's bar to another's stays counted however
   // the enter and leave interleave. A single shared bool would be left false by
@@ -82,7 +88,9 @@ Item {
   property color themeForeground: Commons.Color.bar.text
   property color themeContrastForeground: Commons.Color.background
   property color transparentForeground: Commons.Color.bar.text
-  property color foreground: themeForeground
+  // Panel and popup text. On a glassy bar it moves away from the card's color,
+  // so labels keep their contrast over a see-through card.
+  property color foreground: popupsGlassy ? Commons.Color.popups.glassText : themeForeground
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
   property color background: Commons.Color.bar.background
@@ -233,6 +241,7 @@ Item {
     api.foreground = Qt.binding(function() { return root.foreground })
     api.barForeground = Qt.binding(function() { return root.barForeground })
     api.background = Qt.binding(function() { return root.background })
+    api.popupsGlassy = Qt.binding(function() { return root.popupsGlassy })
     api.urgent = Qt.binding(function() { return root.urgent })
     api.fontFamily = Qt.binding(function() { return root.fontFamily })
     api.position = Qt.binding(function() { return root.position })
@@ -797,6 +806,7 @@ Item {
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
+    backgroundLook = look
     setRequestedTransparency(look === "none")
     // A bar going clear waits for its text color before dropping its
     // background, so a glassy one stays glassy until then rather than
