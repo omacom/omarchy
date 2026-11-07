@@ -44,3 +44,13 @@ mkdir -p "$fixture/project/runs" "$fixture/elsewhere/runs"
 mapfile -d '' -t args <"$TRACE"
 [[ ${args[1]} == "$fixture/project/runs" ]] || fail "CDPATH cannot redirect or contaminate the log directory"
 pass "relative log directories are independent of CDPATH"
+
+mkdir -p "$fixture/other/models" "$fixture/other/runs"
+ln -s "$fixture/other/models" "$fixture/project/link"
+(
+  cd -- "$fixture/project"
+  bash "$ROOT/bin/omarchy-launch-tensorboard" link/../runs >/dev/null
+)
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[1]} == "$fixture/other/runs" ]] || fail "symlink traversal selects the checked log directory"
+pass "symlinks followed by parent traversal preserve the selected log directory"
