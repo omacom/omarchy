@@ -234,8 +234,14 @@ wf_audio_device() {
   fi
 }
 
+# Each source has whole sentences of its own: passing its English name into one
+# shared sentence would leave that word in English in every translation.
 wf_audio_unavailable() {
-  omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingWithoutAudio "$1")" "$(omarchy-i18n capture.audioNotAdded "$1")" >/dev/null 2>&1
+  if [[ $1 == "desktop" ]]; then
+    omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingWithoutDesktopAudio)" "$(omarchy-i18n capture.desktopAudioNotAdded)" >/dev/null 2>&1
+  else
+    omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingWithoutMicrophoneAudio)" "$(omarchy-i18n capture.microphoneAudioNotAdded)" >/dev/null 2>&1
+  fi
 }
 
 wf_audio_cleanup() {
