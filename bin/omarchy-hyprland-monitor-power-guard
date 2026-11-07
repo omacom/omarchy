@@ -1,0 +1,930 @@
+#!/bin/bash
+
+# omarchy:summary=Move windows off external monitors that lose power
+# omarchy:hidden=true
+
+# Some monitors keep their hotplug line high after they lose power. Hyprland
+# then keeps the output enabled even though nothing is being displayed, and
+# windows disappear onto the dark screen. Probe the monitor's DDC/CI power
+# state, disable the output after a confirmed loss, and restore the saved
+# layout when the monitor answers again.
+#
+# There is no hotplug event for this failure, so polling is the only signal
+# available. Keep the interval conservative and make the service opt-in: most
+# desktops never need it.
+
+set -uo pipefail
+umask 077
+
+readonly INTERVAL=${MONITOR_POWER_GUARD_INTERVAL:-5}
+readonly CONFIRM_DELAY=${MONITOR_POWER_GUARD_CONFIRM_DELAY:-0.5}
+readonly DDC_TIMEOUT=${MONITOR_POWER_GUARD_DDC_TIMEOUT:-1}
+readonly DDC_SLEEP=${MONITOR_POWER_GUARD_DDC_SLEEP:-0.1}
+readonly RESUME_GRACE=${MONITOR_POWER_GUARD_RESUME_GRACE:-5}
+readonly LOCK_WAIT=${MONITOR_POWER_GUARD_LOCK_WAIT:-10}
+
+readonly DRM_PATH=${OMARCHY_DRM_PATH:-/sys/class/drm}
+readonly STATE_ROOT=${MONITOR_POWER_GUARD_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/monitor-power-guard}
+readonly SUSPENDED_DIR=$STATE_ROOT/suspended
+readonly DDC_OK_DIR=$STATE_ROOT/ddc-ok
+readonly RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+readonly LOCK_FILE=$RUNTIME_DIR/omarchy-monitor-power-guard.lock
+
+MODE=run
+MONITORS=
+DDC_STATUS=
+DDC_KIND=
+DDC_DETAIL=
+LAST_TICK=0
+LAST_DPMS_ON=0
+DPMS_UNTIL=0
+
+declare -A RESTORE_UNTIL=()
+declare -A NO_FALLBACK_UNTIL=()
+declare -A UNSUPPORTED_NOTIFIED=()
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-hyprland-monitor-power-guard [--once] [--restore-all]
+
+Without an option, watch external displays until the service is stopped.
+  --once         Run one check and exit.
+  --restore-all  Restore every saved output and clear the guard's state. Used
+                 when the feature is turned off.
+EOF
+}
+
+log() {
+  printf '%s omarchy-monitor-power-guard: %s\n' "$(date '+%F %T')" "$*"
+}
+
+die() {
+  log "$*" >&2
+  exit 1
+}
+
+is_number() {
+  [[ $1 =~ ^[0-9]+([.][0-9]+)?$ ]]
+}
+
+positive_number() {
+  is_number "$1" && awk -v n="$1" 'BEGIN { exit !(n > 0) }'
+}
+
+is_int() {
+  [[ $1 =~ ^[0-9]+$ ]]
+}
+
+validate_config() {
+  is_int "$INTERVAL" && (( INTERVAL >= 1 )) || die "MONITOR_POWER_GUARD_INTERVAL must be a positive integer"
+  is_number "$CONFIRM_DELAY" || die "MONITOR_POWER_GUARD_CONFIRM_DELAY must be a number"
+  positive_number "$DDC_TIMEOUT" || die "MONITOR_POWER_GUARD_DDC_TIMEOUT must be a positive number"
+  positive_number "$DDC_SLEEP" || die "MONITOR_POWER_GUARD_DDC_SLEEP must be a positive number"
+  is_int "$RESUME_GRACE" || die "MONITOR_POWER_GUARD_RESUME_GRACE must be an integer"
+  is_int "$LOCK_WAIT" || die "MONITOR_POWER_GUARD_LOCK_WAIT must be an integer"
+}
+
+refresh_signature() {
+  local lock
+  lock=$(ls -1t "$RUNTIME_DIR"/hypr/*/hyprland.lock 2>/dev/null | head -n 1) || return 1
+  [[ -n $lock ]] || return 1
+  export HYPRLAND_INSTANCE_SIGNATURE=${lock%/hyprland.lock}
+  HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE##*/}
+}
+
+hyprctl_safe() {
+  timeout 5 hyprctl "$@"
+}
+
+load_monitors() {
+  local attempt
+  for attempt in 1 2 3; do
+    MONITORS=$(hyprctl_safe monitors all -j 2>/dev/null) || MONITORS=
+    if [[ -n $MONITORS ]] && jq -e . >/dev/null 2>&1 <<<"$MONITORS"; then
+      return 0
+    fi
+    refresh_signature || true
+    sleep 0.2
+  done
+  MONITORS=
+  return 1
+}
+
+monitor_json() {
+  local output=$1
+  [[ -n $MONITORS ]] || return 1
+  jq -c --arg output "$output" 'first(.[] | select(.name == $output)) // empty' <<<"$MONITORS" 2>/dev/null
+}
+
+monitor_live() {
+  local output=$1 monitor
+  monitor=$(monitor_json "$output") || return 1
+  [[ -n $monitor ]] || return 1
+  jq -e '(.disabled // false) != true and (.width // 0) > 0 and (.height // 0) > 0 and .dpmsStatus == true' \
+    <<<"$monitor" >/dev/null 2>&1
+}
+
+any_dpms_on() {
+  jq -e 'any(.[]; ((.name | test("^HEADLESS-")) | not) and ((.mirrorOf // "none") == "none") and (.disabled // false) != true and .dpmsStatus == true)' \
+    <<<"$MONITORS" >/dev/null 2>&1
+}
+
+any_output_enabled() {
+  jq -e 'any(.[]; ((.name | test("^HEADLESS-")) | not) and ((.mirrorOf // "none") == "none") and (.disabled // false) != true)' \
+    <<<"$MONITORS" >/dev/null 2>&1
+}
+
+other_live_output_count() {
+  local output=$1
+  jq -r --arg output "$output" '
+    [ .[]
+      | select(.name != $output)
+      | select((.name | test("^HEADLESS-")) | not)
+      | select((.disabled // false) != true and (.width // 0) > 0 and (.height // 0) > 0 and .dpmsStatus == true)
+      | select((.mirrorOf // "none") == "none")
+    ] | length' <<<"$MONITORS" 2>/dev/null
+}
+
+external_outputs() {
+  jq -r '.[] | select((.name | test("^(eDP|LVDS|DSI|HEADLESS)-")) | not) | select((.disabled // false) != true) | select((.mirrorOf // "none") == "none") | .name' \
+    <<<"$MONITORS" 2>/dev/null
+}
+
+safe_output() {
+  [[ $1 =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+state_file() {
+  printf '%s/%s.json\n' "$SUSPENDED_DIR" "$1"
+}
+
+state_exists() {
+  local file
+  file=$(state_file "$1")
+  [[ -s $file ]] && jq -e . "$file" >/dev/null 2>&1
+}
+
+state_get() {
+  local output=$1 query=$2 file
+  file=$(state_file "$output")
+  jq -r "$query" "$file" 2>/dev/null
+}
+
+clear_state() {
+  rm -f "$(state_file "$1")"
+}
+
+write_state() {
+  local output=$1 reason=$2 config=$3 edid=$4 description=$5 file temporary
+  file=$(state_file "$output")
+  mkdir -p "$SUSPENDED_DIR" || return 1
+  temporary=$(mktemp "$file.tmp.XXXXXX") || return 1
+
+  if jq -n \
+    --arg output "$output" \
+    --arg saved_at "$(date -Is)" \
+    --arg reason "$reason" \
+    --argjson config "$config" \
+    --arg edid "$edid" \
+    --arg description "$description" \
+    '{output: $output, saved_at: $saved_at, reason: $reason, edid: $edid, description: $description, config: $config}' >"$temporary" 2>/dev/null; then
+    mv -f "$temporary" "$file"
+  else
+    rm -f "$temporary"
+    return 1
+  fi
+}
+
+drm_dir() {
+  local output=$1 directory
+  for directory in "$DRM_PATH"/card*-"$output"; do
+    if [[ -d $directory ]]; then
+      printf '%s\n' "$directory"
+      return 0
+    fi
+  done
+  return 1
+}
+
+drm_status() {
+  local output=$1 directory status
+  directory=$(drm_dir "$output") || {
+    printf 'unknown\n'
+    return 1
+  }
+
+  if [[ -r $directory/status ]] && IFS= read -r status <"$directory/status"; then
+    printf '%s\n' "$status"
+  else
+    printf 'unknown\n'
+    return 1
+  fi
+}
+
+drm_edid_hash() {
+  local output=$1 directory file
+  directory=$(drm_dir "$output") || return 1
+  file=$directory/edid
+  [[ -s $file ]] || return 1
+  md5sum "$file" 2>/dev/null | awk '{print $1}'
+}
+
+monitor_description() {
+  local output=$1 monitor
+  monitor=$(monitor_json "$output" 2>/dev/null) || return 1
+  jq -r '.description // empty' <<<"$monitor" 2>/dev/null
+}
+
+identity_for() {
+  local output=$1 edid description
+  edid=$(drm_edid_hash "$output" 2>/dev/null) || edid=""
+  if [[ -n $edid ]]; then
+    printf 'edid:%s\n' "$edid"
+    return 0
+  fi
+
+  # Some setups expose a zero-byte DRM EDID even though Hyprland still knows
+  # the monitor's description. Use that as a weaker identity only when EDID is
+  # unavailable; a replacement with a different description must not inherit
+  # the saved layout.
+  description=$(monitor_description "$output") || description=""
+  [[ -n $description ]] || return 1
+  printf 'desc:%s\n' "$(printf '%s' "$description" | md5sum | awk '{print $1}')"
+}
+
+ddc_bus() {
+  local output=$1 directory link resolved base
+  directory=$(drm_dir "$output") || return 1
+  link=$directory/ddc
+  [[ -e $link ]] || return 1
+  resolved=$(readlink -f "$link") || return 1
+  base=${resolved##*/}
+  [[ $base =~ ^i2c-([0-9]+)$ ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+ddc_marker_file() {
+  printf '%s/%s\n' "$DDC_OK_DIR" "$1"
+}
+
+mark_ddc_ok() {
+  local output=$1 identity file saved
+  identity=$(identity_for "$output") || return 0
+  [[ -n $identity ]] || return 0
+  file=$(ddc_marker_file "$output")
+  if [[ -s $file ]]; then
+    saved=$(cat "$file" 2>/dev/null) || saved=""
+    [[ $saved == "$identity" ]] && return 0
+  fi
+  mkdir -p "$DDC_OK_DIR" 2>/dev/null || return 0
+  printf '%s\n' "$identity" >"$file" 2>/dev/null || true
+}
+
+ddc_known() {
+  local output=$1 file saved current_edid current_description current_hash
+  file=$(ddc_marker_file "$output")
+  [[ -s $file ]] || return 1
+  saved=$(cat "$file" 2>/dev/null) || return 1
+  [[ -n $saved ]] || return 1
+
+  if [[ $saved == edid:* ]]; then
+    current_edid=$(drm_edid_hash "$output" 2>/dev/null) || current_edid=""
+    # An unreadable EDID during an outage is not a readable mismatch.
+    [[ -z $current_edid || $saved == "edid:$current_edid" ]]
+    return
+  fi
+
+  if [[ $saved == desc:* ]]; then
+    current_description=$(monitor_description "$output") || current_description=""
+    [[ -n $current_description ]] || return 1
+    current_hash=$(printf '%s' "$current_description" | md5sum | awk '{print $1}')
+    [[ $saved == "desc:$current_hash" ]]
+    return
+  fi
+
+  return 1
+}
+
+ddc_failure() {
+  case $DDC_KIND in
+    timeout | comm | no_device) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+probe_power() {
+  local bus=$1 output=$2 text rc detail current
+  DDC_STATUS=error
+  DDC_KIND=
+  DDC_DETAIL=
+
+  text=$(LC_ALL=C timeout -k 1 "$DDC_TIMEOUT" ddcutil --bus "$bus" --skip-ddc-checks \
+    --sleep-multiplier "$DDC_SLEEP" --maxtries 1,1,1 getvcp D6 --brief 2>&1)
+  rc=$?
+  detail=$(tr '\n' ' ' <<<"$text" | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')
+
+  if (( rc != 0 )); then
+    if (( rc == 124 || rc == 137 )); then
+      DDC_KIND=timeout
+      DDC_DETAIL="timeout after ${DDC_TIMEOUT}s"
+    else
+      DDC_DETAIL=$detail
+      case $detail in
+        *"Permission denied"* | *EACCES*) DDC_KIND=permission ;;
+        *"Device or resource busy"* | *flock* | *"Max wait time"* | *EBUSY*) DDC_KIND=busy ;;
+        *"does not exist"*) DDC_KIND=no_bus ;;
+        *"ENXIO"* | *"No such device"* | *"Unable to open"*) DDC_KIND=no_device ;;
+        *"VCP D6 ERR"* | *"DDC communication failed"* | *"No monitor detected"* | *checksum* | *NAK*) DDC_KIND=comm ;;
+        *) DDC_KIND=other ;;
+      esac
+    fi
+    return 1
+  fi
+
+  current=$(awk '
+    $1 == "VCP" && toupper($2) == "D6" {
+      for (i = 3; i <= NF; i++) {
+        if ($i == "SNC" || $i == "C" || $i == "NC") continue
+        if ($i ~ /^([xX]|0[xX])[0-9a-fA-F]+$/ || $i ~ /^[0-9]+$/) {
+          print $i
+          exit
+        }
+      }
+    }' <<<"$text")
+
+  if [[ -z $current ]]; then
+    DDC_KIND=parse
+    DDC_DETAIL=$detail
+    return 1
+  fi
+
+  if [[ $current =~ ^0?[xX]([0-9a-fA-F]+)$ ]]; then
+    current=$((16#${BASH_REMATCH[1]}))
+  elif [[ $current =~ ^[0-9]+$ ]]; then
+    current=$((10#$current))
+  else
+    DDC_KIND=parse
+    DDC_DETAIL="unparsed D6 value: $current"
+    return 1
+  fi
+
+  mark_ddc_ok "$output"
+  DDC_DETAIL=$(printf 'D6=0x%02x' "$current")
+
+  case $current in
+    1)
+      DDC_STATUS=on
+      return 0
+      ;;
+    2 | 3 | 4 | 5)
+      DDC_STATUS=off
+      return 0
+      ;;
+    *)
+      DDC_STATUS=error
+      DDC_KIND=other
+      DDC_DETAIL=$(printf 'D6=0x%02x (unexpected)' "$current")
+      return 1
+      ;;
+  esac
+}
+
+notify() {
+  local title=$1 body=${2-}
+  if [[ -n $body ]]; then
+    timeout 3 omarchy-notification-send -g 󰍹 -u low "$title" "$body" >/dev/null 2>&1 || true
+  else
+    timeout 3 omarchy-notification-send -g 󰍹 -u low "$title" >/dev/null 2>&1 || true
+  fi
+}
+
+capture_config() {
+  local monitor=$1
+  jq -c '
+    . as $monitor
+    | ($monitor.width // 0) as $width
+    | ($monitor.height // 0) as $height
+    | ($monitor.refreshRate // 0) as $refresh
+    | {
+        mode: (
+          [ ($monitor.availableModes // [])[]
+            | capture("(?<width>[0-9]+)x(?<height>[0-9]+)@(?<hz>[0-9.]+)Hz")?
+            | select((.width | tonumber) == $width and (.height | tonumber) == $height)
+            | . + {distance: (((.hz | tonumber) - $refresh) | fabs)}
+          ]
+          | sort_by(.distance)
+          | .[0]
+          | if . == null then "" else (.width + "x" + .height + "@" + (.hz | sub("\\.0+$"; ""))) end
+        ),
+        position: ((($monitor.x // 0) | tostring) + "x" + (($monitor.y // 0) | tostring)),
+        scale: ($monitor.scale // 1),
+        transform: ($monitor.transform // 0),
+        vrr: (if ($monitor.vrr // false) then 1 else 0 end),
+        cm: ($monitor.colorManagementPreset // ""),
+        sdrbrightness: ($monitor.sdrBrightness // 0),
+        sdrsaturation: ($monitor.sdrSaturation // 0)
+      }' <<<"$monitor" 2>/dev/null
+}
+
+safe_config() {
+  local monitor=$1 scale
+  scale=$(jq -r '.scale // 1' <<<"$monitor" 2>/dev/null)
+  is_number "$scale" && positive_number "$scale" || scale=1
+  jq -n --argjson scale "$scale" \
+    '{mode: "preferred", position: "auto", scale: $scale, transform: 0, vrr: 0, cm: "", sdrbrightness: 0, sdrsaturation: 0}'
+}
+
+restore_config_for() {
+  local output=$1 monitor=$2 saved_edid current_edid saved_description current_description config
+  saved_edid=$(state_get "$output" '.edid // ""')
+  current_edid=$(drm_edid_hash "$output" 2>/dev/null) || current_edid=""
+  saved_description=$(state_get "$output" '.description // ""')
+  current_description=$(monitor_description "$output" 2>/dev/null) || current_description=""
+
+  if [[ -n $saved_edid ]]; then
+    # An unreadable EDID is not a readable mismatch. Keep the saved layout when
+    # the monitor is merely powered off; only a different readable identity is
+    # a replacement.
+    if [[ -n $current_edid && $saved_edid != "$current_edid" ]]; then
+      safe_config "$monitor"
+      return
+    fi
+  elif [[ -n $saved_description ]]; then
+    # Some setups expose no EDID. The Hyprland description is the fallback
+    # identity, so a replacement with a different description gets the safe
+    # layout instead of the old monitor's layout.
+    if [[ -n $current_description && $saved_description != "$current_description" ]]; then
+      safe_config "$monitor"
+      return
+    fi
+  else
+    # No saved identity cannot prove this is the same monitor.
+    safe_config "$monitor"
+    return
+  fi
+
+  config=$(state_get "$output" '.config // {}')
+  if jq -e '((.mode // "") | length) > 0' <<<"$config" >/dev/null 2>&1; then
+    printf '%s\n' "$config"
+  else
+    safe_config "$monitor"
+  fi
+}
+
+restore_lua_for() {
+  local output=$1 config=$2 mode position scale transform vrr cm sdrbrightness sdrsaturation
+  local transform_part= vrr_part= cm_part= brightness_part= saturation_part=
+  mode=$(jq -r '.mode // empty' <<<"$config" 2>/dev/null)
+  position=$(jq -r '.position // empty' <<<"$config" 2>/dev/null)
+  scale=$(jq -r '.scale // 1' <<<"$config" 2>/dev/null)
+  transform=$(jq -r '.transform // 0' <<<"$config" 2>/dev/null)
+  vrr=$(jq -r '.vrr // 0' <<<"$config" 2>/dev/null)
+  cm=$(jq -r '.cm // empty' <<<"$config" 2>/dev/null)
+  sdrbrightness=$(jq -r '.sdrbrightness // 0' <<<"$config" 2>/dev/null)
+  sdrsaturation=$(jq -r '.sdrsaturation // 0' <<<"$config" 2>/dev/null)
+
+  [[ -n $mode ]] || mode=preferred
+  [[ -n $position ]] || position=auto
+  [[ $mode =~ ^[A-Za-z0-9._@+-]+$ ]] || mode=preferred
+  [[ $position =~ ^(auto|-?[0-9]+x-?[0-9]+)$ ]] || position=auto
+  is_number "$scale" && positive_number "$scale" || scale=1
+  is_int "$transform" || transform=0
+  [[ $vrr == 0 || $vrr == 1 ]] || vrr=0
+  [[ $cm =~ ^[A-Za-z0-9_-]+$ ]] || cm=""
+  is_number "$sdrbrightness" || sdrbrightness=0
+  is_number "$sdrsaturation" || sdrsaturation=0
+  (( transform != 0 )) && transform_part=", transform = $transform"
+  (( vrr != 0 )) && vrr_part=", vrr = $vrr"
+  [[ -n $cm ]] && cm_part=", cm = \"$cm\""
+  positive_number "$sdrbrightness" && brightness_part=", sdrbrightness = $sdrbrightness"
+  positive_number "$sdrsaturation" && saturation_part=", sdrsaturation = $sdrsaturation"
+
+  printf 'hl.monitor({ output = "%s", mode = "%s", position = "%s", scale = %s%s%s%s%s%s, disabled = false })\n' \
+    "$output" "$mode" "$position" "$scale" "$transform_part" "$vrr_part" "$cm_part" "$brightness_part" "$saturation_part"
+}
+
+wait_for_disabled() {
+  local output=$1 attempt monitor
+  for ((attempt = 0; attempt < 20; attempt++)); do
+    load_monitors || true
+    monitor=$(monitor_json "$output" 2>/dev/null) || monitor=""
+    if [[ -z $monitor ]] || jq -e '.disabled == true' <<<"$monitor" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+wait_for_live() {
+  local output=$1 attempt
+  for ((attempt = 0; attempt < 20; attempt++)); do
+    load_monitors || true
+    monitor_live "$output" && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+ddc_verified_on() {
+  local output=$1 bus
+  monitor_live "$output" || return 1
+  bus=$(ddc_bus "$output" 2>/dev/null) || return 1
+  probe_power "$bus" "$output" || return 1
+  [[ $DDC_STATUS == "on" ]]
+}
+
+disable_existing() {
+  local output=$1 now other
+  safe_output "$output" || return 0
+  load_monitors || return 0
+  any_dpms_on || return 0
+  now=$EPOCHSECONDS
+  other=$(other_live_output_count "$output") || other=0
+  is_int "$other" || other=0
+  if (( other <= 0 )); then
+    RESTORE_UNTIL[$output]=$((now + 60))
+    log "refusing to disable $output: no other active display is available"
+    return 0
+  fi
+  hyprctl_safe eval "hl.monitor({ output = \"$output\", disabled = true })" >/dev/null 2>&1 || true
+  wait_for_disabled "$output" || true
+  RESTORE_UNTIL[$output]=$((now + 10))
+  log "disabled $output again while its monitor is dark"
+}
+
+disable_output() {
+  local output=$1 reason=$2 monitor config edid description other now
+  safe_output "$output" || return 1
+
+  # The probes before this point may have taken several seconds. Re-read the
+  # monitor list so the fallback and DPMS checks cannot act on a stale snapshot.
+  load_monitors || {
+    log "could not refresh the monitor list before disabling $output"
+    return 0
+  }
+  monitor=$(monitor_json "$output") || return 1
+  [[ -n $monitor ]] || return 1
+
+  if ! any_dpms_on; then
+    log "session is DPMS-off; not moving windows off $output"
+    return 0
+  fi
+
+  other=$(other_live_output_count "$output") || other=0
+  is_int "$other" || other=0
+  if (( other <= 0 )); then
+    now=$EPOCHSECONDS
+    NO_FALLBACK_UNTIL[$output]=$((now + 60))
+    log "refusing to disable $output: no other active display is available"
+    return 0
+  fi
+
+  config=$(capture_config "$monitor" 2>/dev/null) || config=""
+  if [[ -z $config ]] || ! jq -e '((.mode // "") | length) > 0' <<<"$config" >/dev/null 2>&1; then
+    config=$(safe_config "$monitor")
+  fi
+  edid=$(drm_edid_hash "$output" 2>/dev/null) || edid=""
+  description=$(jq -r '.description // empty' <<<"$monitor" 2>/dev/null) || description=""
+
+  write_state "$output" "$reason" "$config" "$edid" "$description" || {
+    log "could not save state for $output; leaving it enabled"
+    return 1
+  }
+
+  if ! hyprctl_safe eval "hl.monitor({ output = \"$output\", disabled = true })" >/dev/null 2>&1; then
+    clear_state "$output"
+    log "could not disable $output"
+    return 1
+  fi
+
+  if wait_for_disabled "$output"; then
+    log "disabled $output (reason: $reason); windows moved to another display"
+    if [[ $reason == "unreachable" ]]; then
+      notify "$(omarchy-i18n monitor.powerGuardLost)" "$(omarchy-i18n monitor.powerGuardLostBody)"
+    else
+      notify "$(omarchy-i18n monitor.powerGuardTurnedOff)" "$(omarchy-i18n monitor.powerGuardLostBody)"
+    fi
+    return 0
+  fi
+
+  # wait_for_disabled can time out even though Hyprland applied the change just
+  # after the last poll. Re-read once before discarding the state: a disabled
+  # output with no state file has no way back.
+  load_monitors || true
+  monitor=$(monitor_json "$output" 2>/dev/null) || monitor=""
+  if [[ -z $monitor ]] || jq -e '.disabled == true' <<<"$monitor" >/dev/null 2>&1; then
+    log "could not observe the disable of $output, but it is disabled; keeping its saved state"
+    return 0
+  fi
+
+  clear_state "$output"
+  log "could not disable $output; leaving it enabled"
+  return 1
+}
+
+disable_suspended() {
+  local output=$1 monitor bus
+  safe_output "$output" || return 0
+  monitor=$(monitor_json "$output" 2>/dev/null) || monitor=""
+  [[ -n $monitor ]] || return 0
+  if jq -e '.disabled == true' <<<"$monitor" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  bus=$(ddc_bus "$output" 2>/dev/null) || return 0
+  probe_power "$bus" "$output" || true
+  if [[ $DDC_STATUS == "on" ]]; then
+    restore_output "$output" || true
+    return 0
+  fi
+
+  if [[ $DDC_STATUS == "error" ]] && ddc_failure && ddc_known "$output"; then
+    sleep "$CONFIRM_DELAY"
+    probe_power "$bus" "$output" || true
+  fi
+
+  if [[ $DDC_STATUS == "on" ]]; then
+    restore_output "$output" || true
+    return 0
+  fi
+
+  if [[ $DDC_STATUS == "off" ]] || { [[ $DDC_STATUS == "error" ]] && ddc_failure && ddc_known "$output"; }; then
+    disable_existing "$output"
+  else
+    log "DDC probe for enabled $output is inconclusive ($DDC_KIND: $DDC_DETAIL); leaving it enabled"
+  fi
+}
+
+restore_output() {
+  local output=$1 monitor config lua safe other
+  safe_output "$output" || return 1
+  state_exists "$output" || return 1
+  monitor=$(monitor_json "$output" 2>/dev/null) || return 1
+  [[ -n $monitor ]] || return 1
+
+  config=$(restore_config_for "$output" "$monitor")
+  lua=$(restore_lua_for "$output" "$config") || return 1
+  hyprctl_safe eval "$lua" >/dev/null 2>&1 || true
+
+  if ! wait_for_live "$output"; then
+    safe=$(safe_config "$monitor")
+    if [[ $config != "$safe" ]]; then
+      log "saved layout for $output did not take; trying the safe layout"
+      lua=$(restore_lua_for "$output" "$safe") || lua=""
+      if [[ -n $lua ]]; then
+        hyprctl_safe eval "$lua" >/dev/null 2>&1 || true
+        wait_for_live "$output" || true
+      fi
+    fi
+  fi
+
+  if ! monitor_live "$output"; then
+    log "could not restore $output; keeping its saved state"
+    RESTORE_UNTIL[$output]=$((EPOCHSECONDS + 30))
+    return 1
+  fi
+
+  if ! ddc_verified_on "$output"; then
+    if [[ $DDC_STATUS == "off" ]] || { [[ $DDC_STATUS == "error" ]] && ddc_failure && ddc_known "$output"; }; then
+      other=$(other_live_output_count "$output") || other=0
+      is_int "$other" || other=0
+      if (( other <= 0 )); then
+        log "not disabling $output again: no other active display is available"
+        RESTORE_UNTIL[$output]=$((EPOCHSECONDS + 60))
+        return 1
+      fi
+      log "monitor $output is live but DDC says it is still off; disabling it again"
+      hyprctl_safe eval "hl.monitor({ output = \"$output\", disabled = true })" >/dev/null 2>&1 || true
+      wait_for_disabled "$output" || true
+      RESTORE_UNTIL[$output]=$((EPOCHSECONDS + 30))
+    else
+      log "DDC could not confirm $output is on ($DDC_KIND: $DDC_DETAIL); keeping it enabled and its saved state"
+      RESTORE_UNTIL[$output]=$((EPOCHSECONDS + 30))
+    fi
+    return 1
+  fi
+
+  clear_state "$output"
+  log "restored $output"
+  notify "$(omarchy-i18n monitor.powerGuardRestored)" "$(omarchy-i18n monitor.powerGuardRestoredBody "$output")"
+  return 0
+}
+
+restore_all() {
+  local file output monitor config lua
+  for file in "$SUSPENDED_DIR"/*.json; do
+    [[ -e $file ]] || continue
+    output=${file##*/}
+    output=${output%.json}
+    safe_output "$output" || continue
+
+    monitor=$(monitor_json "$output" 2>/dev/null) || monitor=""
+    if [[ -n $monitor ]] && jq -e '.disabled == true' <<<"$monitor" >/dev/null 2>&1; then
+      # Turning the guard off is best effort, but a replacement monitor on the
+      # same port must not inherit an unsupported layout from the old one.
+      config=$(restore_config_for "$output" "$monitor")
+      lua=$(restore_lua_for "$output" "$config") || lua=""
+      if [[ -n $lua ]]; then
+        hyprctl_safe eval "$lua" >/dev/null 2>&1 || true
+        wait_for_live "$output" || true
+      fi
+    fi
+
+    clear_state "$output"
+    rm -f "$(ddc_marker_file "$output")"
+    log "released $output"
+  done
+  return 0
+}
+
+check_suspended() {
+  local file output now monitor bus
+  for file in "$SUSPENDED_DIR"/*.json; do
+    [[ -e $file ]] || continue
+    output=${file##*/}
+    output=${output%.json}
+    safe_output "$output" || continue
+
+    now=$EPOCHSECONDS
+    (( now < ${RESTORE_UNTIL[$output]:-0} )) && continue
+    monitor=$(monitor_json "$output" 2>/dev/null) || monitor=""
+    [[ -n $monitor ]] || continue
+
+    bus=$(ddc_bus "$output" 2>/dev/null) || continue
+    if jq -e '.disabled == true' <<<"$monitor" >/dev/null 2>&1; then
+      probe_power "$bus" "$output" || true
+      [[ $DDC_STATUS == "on" ]] && restore_output "$output"
+    else
+      disable_suspended "$output"
+    fi
+  done
+}
+
+check_active_output() {
+  local output=$1 monitor drm bus now attempt
+  safe_output "$output" || return 0
+  state_exists "$output" && return 0
+
+  now=$EPOCHSECONDS
+  (( now < ${NO_FALLBACK_UNTIL[$output]:-0} )) && return 0
+
+  monitor=$(monitor_json "$output" 2>/dev/null) || monitor=""
+  [[ -n $monitor ]] || return 0
+  jq -e '(.disabled // false) != true' <<<"$monitor" >/dev/null 2>&1 || return 0
+
+  drm=$(drm_status "$output" 2>/dev/null) || drm=unknown
+  [[ $drm == "connected" ]] || return 0
+
+  bus=$(ddc_bus "$output" 2>/dev/null) || {
+    if [[ ${UNSUPPORTED_NOTIFIED[$output]:-0} != 1 ]]; then
+      notify "$(omarchy-i18n monitor.powerGuardUnsupported)" "$(omarchy-i18n monitor.powerGuardUnsupportedBody)"
+      UNSUPPORTED_NOTIFIED[$output]=1
+    fi
+    return 0
+  }
+
+  probe_power "$bus" "$output" || true
+  case $DDC_STATUS in
+    on)
+      NO_FALLBACK_UNTIL[$output]=0
+      UNSUPPORTED_NOTIFIED[$output]=0
+      ;;
+    off)
+      sleep "$CONFIRM_DELAY"
+      probe_power "$bus" "$output" || true
+      case $DDC_STATUS in
+        off) disable_output "$output" "off" ;;
+        on) NO_FALLBACK_UNTIL[$output]=0 ;;
+        error)
+          if ddc_failure && ddc_known "$output"; then
+            # The monitor answered off, then stopped answering. That is still
+            # the power-loss case, not a reason to put it back in service.
+            disable_output "$output" "unreachable"
+          else
+            log "confirmation for $output was inconclusive ($DDC_KIND: $DDC_DETAIL); leaving it enabled"
+          fi
+          ;;
+        *) log "confirmation for $output was inconclusive ($DDC_KIND: $DDC_DETAIL); leaving it enabled" ;;
+      esac
+      ;;
+    error)
+      if ! ddc_failure; then
+        log "DDC probe for $output is inconclusive ($DDC_KIND: $DDC_DETAIL); leaving it enabled"
+        return 0
+      fi
+      if ! ddc_known "$output"; then
+        if [[ ${UNSUPPORTED_NOTIFIED[$output]:-0} != 1 ]]; then
+          notify "$(omarchy-i18n monitor.powerGuardUnsupported)" "$(omarchy-i18n monitor.powerGuardUnsupportedBody)"
+          UNSUPPORTED_NOTIFIED[$output]=1
+        fi
+        return 0
+      fi
+
+      # This monitor has answered DDC before. A timeout or communication
+      # failure now is evidence of the power-loss case, but require two more
+      # probes so a single slow bus read cannot move windows.
+      for attempt in 1 2; do
+        sleep "$CONFIRM_DELAY"
+        probe_power "$bus" "$output" || true
+        case $DDC_STATUS in
+          on)
+            NO_FALLBACK_UNTIL[$output]=0
+            return 0
+            ;;
+          off)
+            disable_output "$output" "unreachable"
+            return 0
+            ;;
+          error)
+            if ! ddc_failure; then
+              log "DDC probe for $output is inconclusive ($DDC_KIND: $DDC_DETAIL); leaving it enabled"
+              return 0
+            fi
+            ;;
+        esac
+      done
+      disable_output "$output" "unreachable"
+      ;;
+  esac
+}
+
+check_once() {
+  local now output
+  load_monitors || return 1
+
+  if ! any_dpms_on; then
+    LAST_DPMS_ON=0
+    # Ordinary screen sleep leaves an enabled output behind. If every output
+    # is disabled, however, a saved monitor may be the only way back and still
+    # deserves a DDC check.
+    if ! any_output_enabled; then
+      check_suspended
+      load_monitors || true
+    fi
+    return 0
+  fi
+
+  if [[ $MODE == "run" ]]; then
+    now=$EPOCHSECONDS
+    if (( LAST_DPMS_ON == 0 )); then
+      DPMS_UNTIL=$((now + 2))
+    fi
+    LAST_DPMS_ON=1
+    (( now < DPMS_UNTIL )) && return 0
+  else
+    LAST_DPMS_ON=1
+  fi
+
+  check_suspended
+  load_monitors || return 1
+
+  while IFS= read -r output; do
+    [[ -n $output ]] || continue
+    check_active_output "$output"
+  done < <(external_outputs)
+}
+
+main() {
+  case ${1:-} in
+    "") MODE=run ;;
+    --once) MODE=once ;;
+    --restore-all) MODE=restore ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+
+  validate_config
+  mkdir -p "$RUNTIME_DIR" "$STATE_ROOT" "$SUSPENDED_DIR" || die "could not create the guard state directory"
+
+  exec 9>"$LOCK_FILE" || die "could not open the guard lock"
+  flock -w "$LOCK_WAIT" 9 || die "another monitor power guard instance is running"
+
+  if [[ $MODE == "restore" ]]; then
+    load_monitors || true
+    restore_all
+    exit 0
+  fi
+
+  if [[ $MODE == "once" ]]; then
+    check_once
+    exit $?
+  fi
+
+  trap 'exit 0' TERM INT
+  while true; do
+    now=$EPOCHSECONDS
+    if (( LAST_TICK > 0 && now - LAST_TICK > INTERVAL * 2 + 2 )); then
+      log "detected resume after ${RESUME_GRACE}s; deferring display checks"
+      sleep "$RESUME_GRACE"
+    fi
+
+    check_once || log "could not read the Hyprland monitor list; will retry"
+    LAST_TICK=$EPOCHSECONDS
+    sleep "$INTERVAL"
+  done
+}
+
+main "$@"
