@@ -76,6 +76,47 @@ grep -qFx 'snapper -c root cleanup number' "$test_tmp/calls.log" ||
   fail "snapshot create prunes older snapshots"
 pass "snapshot create snapshots every configured Snapper config"
 
+cat >"$fake_bin/snapper" <<'STUB'
+#!/bin/bash
+printf 'snapper %s\n' "$*" >>"$TEST_LOG"
+if [[ $* == *"list-configs"* ]]; then
+  printf 'config,subvolume\n%s,/home\n' "$TEST_CONFIG"
+elif [[ $* == *" create "* ]]; then
+  echo "$TEST_ERROR" >&2
+  exit 5
+fi
+STUB
+
+for config in root home; do
+  : >"$test_tmp/calls.log"
+  status=0
+  stderr=$(TEST_LOG="$test_tmp/calls.log" TEST_CONFIG="$config" \
+    TEST_ERROR='IO Error (.snapshots is not a btrfs subvolume).' PATH="$fake_bin:$PATH" \
+    bash "$snapshot" create 2>&1 >/dev/null) || status=$?
+
+  (( status == 5 )) || fail "snapshot create preserves Snapper's failure status" "got $status"
+  grep -qF 'IO Error (.snapshots is not a btrfs subvolume).' <<<"$stderr" ||
+    fail "snapshot create preserves the original diagnostic" "$stderr"
+  grep -qF "sudo snapper -c \"$config\" get-config" <<<"$stderr" ||
+    fail "snapshot recovery identifies the affected config" "$stderr"
+  grep -qF 'back it up and move it aside' <<<"$stderr" ||
+    fail "snapshot recovery preserves existing snapshot data" "$stderr"
+  grep -qF 'sudo btrfs subvolume create <subvolume>/.snapshots' <<<"$stderr" ||
+    fail "snapshot recovery explains how to recreate the subvolume" "$stderr"
+  ! grep -q ' cleanup ' "$test_tmp/calls.log" ||
+    fail "snapshot create does not prune after creation fails"
+done
+pass "snapshot create explains regular snapshot directories for the affected config"
+
+status=0
+stderr=$(TEST_LOG="$test_tmp/calls.log" TEST_CONFIG=root \
+  TEST_ERROR='IO Error (No space left on device).' PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create 2>&1 >/dev/null) || status=$?
+(( status == 5 )) || fail "snapshot create preserves unrelated failure status" "got $status"
+[[ $stderr == 'IO Error (No space left on device).' ]] ||
+  fail "snapshot create does not suggest subvolume repairs for unrelated failures" "$stderr"
+pass "snapshot create preserves unrelated errors without subvolume recovery advice"
+
 # Snapper being deliberately absent is the one skip that stays quiet, and the
 # update has to keep treating it as such.
 cat >"$fake_bin/omarchy-cmd-missing" <<'STUB'
