@@ -1056,7 +1056,15 @@ Panel {
               }
 
               HoverHandler {
-                onHoveredChanged: if (hovered) root.pointAt("brightness", -1)
+                onHoveredChanged: {
+                  if (root.reflowingText) return
+                  Cursor.applyHover(
+                    hovered,
+                    root.cursorActive && root.focusSection === "brightness" && root.selectedIndex === -1,
+                    function() { root.pointAt("brightness", -1) },
+                    function() { root.cursorActive = false }
+                  )
+                }
               }
             }
           }
@@ -1124,7 +1132,15 @@ Panel {
               }
 
               HoverHandler {
-                onHoveredChanged: if (hovered) root.pointAt("textsize", -1)
+                onHoveredChanged: {
+                  if (root.reflowingText) return
+                  Cursor.applyHover(
+                    hovered,
+                    root.cursorActive && root.focusSection === "textsize" && root.selectedIndex === -1,
+                    function() { root.pointAt("textsize", -1) },
+                    function() { root.cursorActive = false }
+                  )
+                }
               }
             }
           }
@@ -1457,7 +1473,15 @@ Panel {
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pill)
 
     onClicked: if (root.current) root.setScale(root.current.name, scaleValue)
-    onHovered: function(isHovered) { if (isHovered) root.pointAt("scale", pill.scaleIndex) }
+    onHovered: function(isHovered) {
+      if (root.reflowingText) return
+      Cursor.applyHover(
+        isHovered,
+        root.cursorActive && root.focusSection === "scale" && root.selectedIndex === pill.scaleIndex,
+        function() { root.pointAt("scale", pill.scaleIndex) },
+        function() { root.cursorActive = false }
+      )
+    }
   }
 
   component ResolutionPill: Button {
