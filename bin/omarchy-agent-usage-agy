@@ -288,13 +288,16 @@ def listed(data, key):
   return data.get(key) is None or isinstance(data[key], list)
 
 
-# The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
-# other groups (Claude and GPT models) are scoped allowances, shown once
-# they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
-# groups or the Gemini buckets that aren't a list) is None, a failed check
-# rather than a plan without quotas; another group's buckets of the wrong
-# shape skip that group.
+# The Gemini group's 5-hour and weekly buckets are the plan's own limits.
+# When the answer names no Gemini group at all — Google's quota endpoint can
+# list only the Claude and GPT pool — those stay the scoped allowances they
+# are, and the plan's Session and Weekly meters are simply absent. The other
+# groups (Claude and GPT models) are scoped allowances, shown once they have
+# been touched. An answer that lists its buckets without groups lists the
+# Gemini ones. An answer of another shape (not an object, an error, groups or
+# the Gemini buckets that aren't a list) is None, a failed check rather than
+# a plan without quotas; another group's buckets of the wrong shape skip that
+# group.
 def extract_limits(data):
   if not isinstance(data, dict) or "error" in data or not listed(data, "groups") or not listed(data, "buckets"):
     return None
@@ -303,26 +306,27 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), None)
+  if gemini is not None and not listed(gemini, "buckets"):
     return None
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
-    if not isinstance(bucket, dict) or used(bucket) is None:
-      continue
-    window = str(bucket.get("window") or "").lower()
-    bucket_id = str(bucket.get("bucketId") or "").lower()
-    name = str(bucket.get("displayName") or "").lower()
-    if window == "5h" or "5h" in bucket_id or "five" in name:
-      session = bucket
-    elif window == "weekly" or "weekly" in bucket_id or "week" in name:
-      weekly = bucket
-  if session:
-    limits.append({"label": "Session (5-hour)", "title": "Session", "percent": used(session), "resetsAt": reset_of(session)})
-  if weekly:
-    limits.append({"label": "Weekly (7-day)", "title": "Weekly", "percent": used(weekly), "resetsAt": reset_of(weekly)})
+  if gemini is not None:
+    for bucket in gemini.get("buckets") or []:
+      if not isinstance(bucket, dict) or used(bucket) is None:
+        continue
+      window = str(bucket.get("window") or "").lower()
+      bucket_id = str(bucket.get("bucketId") or "").lower()
+      name = str(bucket.get("displayName") or "").lower()
+      if window == "5h" or "5h" in bucket_id or "five" in name:
+        session = bucket
+      elif window == "weekly" or "weekly" in bucket_id or "week" in name:
+        weekly = bucket
+    if session:
+      limits.append({"label": "Session (5-hour)", "title": "Session", "percent": used(session), "resetsAt": reset_of(session)})
+    if weekly:
+      limits.append({"label": "Weekly (7-day)", "title": "Weekly", "percent": used(weekly), "resetsAt": reset_of(weekly)})
 
   for group in groups:
     if group is gemini:
