@@ -289,8 +289,21 @@ grep -qx -- "--private https://accounts.google.com/o/oauth2/auth" "$OMARCHY_TEST
 omarchy-agent-account-use agy side >/dev/null
 [[ $(omarchy-agent-account-exec agy --version) == "agy home=$accounts/agy/side args=--version" ]] || fail "agy starts as the active Antigravity account" "$(omarchy-agent-account-exec agy --version)"
 grep -q "agyside@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Side token was synced to primary home"
+
+# Simulate a running session refreshing the active account's token in primary home
+printf '{"auth_method":"consumer","id_token_email":"agyside@example.com","token":{"access_token":"token-refreshed","refresh_token":"ref-refreshed","expiry":"2035-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state sync agy
+grep -q "token-refreshed" "$accounts/agy/side/antigravity-oauth-token" ||
+  fail "running session token refresh syncs back to account home"
+grep -q "token-refreshed" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "running session token refresh is preserved in primary home"
+
 omarchy-agent-account-use agy main >/dev/null
 grep -q "me@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Main token was restored after switching back to main"
+omarchy-agent-account-use agy side >/dev/null
+grep -q "token-refreshed" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Refreshed token is applied when switching back to side"
+omarchy-agent-account-use agy main >/dev/null
 pass "Antigravity accounts are added and used like the others"
 
 # ---------------------------------------------------------------------- routing
@@ -391,6 +404,7 @@ OMARCHY_TEST_LOGIN_UUID=u-agytemp OMARCHY_TEST_LOGIN_EMAIL=agytemp@example.com \
   omarchy-agent-account-add agy Temp </dev/null >/dev/null
 omarchy-agent-account-use agy temp >/dev/null
 omarchy-agent-account-remove agy temp </dev/null >/dev/null
+[[ ! -d $accounts/agy/temp ]] || fail "removing an active account deletes its directory on disk"
 grep -q "me@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
   fail "removing the active Antigravity account restores Main credentials"
 pass "remove forgets an added account without touching shared files"

@@ -648,17 +648,68 @@ def apply_token_to_primary(content: str) -> None:
       pass
 
 
-def switch_credentials(provider: str, from_account: dict[str, Any], to_account: dict[str, Any]) -> None:
+def agy_token_identity(raw: str) -> dict[str, str]:
+  if not raw:
+    return {}
+  try:
+    data = json.loads(raw)
+  except Exception:
+    return {}
+  if not isinstance(data, dict):
+    return {}
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  claims = jwt_claims(str(data.get("id_token") or token.get("id_token") or ""))
+  email = str(data.get("id_token_email") or claims.get("email") or "")
+  return {
+    "accountId": email or str(claims.get("sub") or ""),
+    "email": email,
+  }
+
+
+def token_expiry(raw: str) -> float:
+  if not raw:
+    return 0.0
+  try:
+    data = json.loads(raw)
+  except Exception:
+    return 0.0
+  if not isinstance(data, dict):
+    return 0.0
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  val = token.get("expiry") or data.get("expiry")
+  if val is None or val == "" or isinstance(val, bool):
+    return 0.0
+  try:
+    if isinstance(val, (int, float)) or str(val).isdigit():
+      stamp = float(val)
+      return stamp / 1000.0 if stamp > 1e12 else stamp
+    return dt.datetime.fromisoformat(str(val).replace("Z", "+00:00")).timestamp()
+  except Exception:
+    return 0.0
+
+
+def switch_credentials(
+  provider: str,
+  from_account: dict[str, Any] | None,
+  to_account: dict[str, Any],
+) -> None:
   if provider != "agy":
     return
-  curr = current_primary_token()
-  if curr:
-    if from_account.get("primary"):
-      save_main_token(curr)
-    else:
-      from_home = account_home("agy", from_account)
-      from_home.mkdir(parents=True, exist_ok=True)
-      (from_home / "antigravity-oauth-token").write_text(curr, encoding="utf-8")
+  if from_account is not None:
+    curr = current_primary_token()
+    if curr:
+      curr_ident = agy_token_identity(curr)
+      from_id = from_account.get("accountId") or from_account.get("email")
+      matches_from = bool(not from_id or
+        curr_ident.get("accountId") == from_id or
+        (from_account.get("email") and curr_ident.get("email") == from_account.get("email")))
+      if matches_from:
+        if from_account.get("primary"):
+          save_main_token(curr)
+        else:
+          from_home = account_home("agy", from_account)
+          from_home.mkdir(parents=True, exist_ok=True)
+          (from_home / "antigravity-oauth-token").write_text(curr, encoding="utf-8")
   if to_account.get("primary"):
     token = load_main_token()
     apply_token_to_primary(token)
@@ -674,18 +725,49 @@ def sync_credentials(provider: str, target_home: Path | None = None) -> None:
     return
   with Locked(provider, save_on_exit=False) as registry:
     acc = active(registry)
+    curr = current_primary_token()
+    curr_ident = agy_token_identity(curr)
     if acc.get("primary"):
-      curr = current_primary_token()
-      if curr:
-        save_main_token(curr)
-      else:
-        token = load_main_token()
-        apply_token_to_primary(token)
+      main_saved = load_main_token()
+      main_ident = agy_token_identity(main_saved)
+      account_id = acc.get("accountId") or acc.get("email") or main_ident.get("accountId")
+      matches_curr = bool(curr and (not account_id or
+        curr_ident.get("accountId") == account_id or
+        (acc.get("email") and curr_ident.get("email") == acc.get("email"))))
+      if matches_curr:
+        exp_curr = token_expiry(curr)
+        exp_saved = token_expiry(main_saved)
+        if main_saved and exp_saved > exp_curr:
+          apply_token_to_primary(main_saved)
+        elif curr != main_saved:
+          save_main_token(curr)
+      elif main_saved:
+        apply_token_to_primary(main_saved)
     else:
       home = account_home("agy", acc)
       token_file = home / "antigravity-oauth-token"
-      if token_file.is_file():
-        apply_token_to_primary(token_file.read_text(encoding="utf-8"))
+      saved_text = token_file.read_text(encoding="utf-8") if token_file.is_file() else ""
+      account_id = acc.get("accountId") or acc.get("email")
+      matches_curr = bool(curr and account_id and (
+        curr_ident.get("accountId") == account_id or
+        (acc.get("email") and curr_ident.get("email") == acc.get("email"))))
+      if matches_curr:
+        exp_curr = token_expiry(curr)
+        exp_saved = token_expiry(saved_text)
+        if saved_text and exp_saved > exp_curr:
+          apply_token_to_primary(saved_text)
+        elif saved_text and exp_curr > exp_saved:
+          home.mkdir(parents=True, exist_ok=True)
+          token_file.write_text(curr, encoding="utf-8")
+        elif curr != saved_text:
+          primary_file = primary_home("agy") / "antigravity-oauth-token"
+          if token_file.is_file() and primary_file.is_file() and token_file.stat().st_mtime > primary_file.stat().st_mtime:
+            apply_token_to_primary(saved_text)
+          else:
+            home.mkdir(parents=True, exist_ok=True)
+            token_file.write_text(curr, encoding="utf-8")
+      elif saved_text:
+        apply_token_to_primary(saved_text)
 
 
 def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> int:
@@ -903,7 +985,7 @@ def remove(provider: str, target: str) -> dict[str, Any]:
       new_active = registry["accounts"][0]
       registry["active"] = new_active["id"]
       if provider == "agy":
-        switch_credentials("agy", account, new_active)
+        switch_credentials("agy", None, new_active)
     return account
 
 
