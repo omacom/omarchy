@@ -387,6 +387,12 @@ kill "$session"; wait "$session" 2>/dev/null || true
 omarchy-agent-account-remove claude work </dev/null >/dev/null
 [[ ! -e $work && -d $HOME/.claude/projects && -f $HOME/.claude/settings.json ]] || fail "removing an account deletes its home and nothing it links to"
 [[ -z $(omarchy-agent-account-home claude) ]] || fail "removing the active account falls back to the primary"
+OMARCHY_TEST_LOGIN_UUID=u-agytemp OMARCHY_TEST_LOGIN_EMAIL=agytemp@example.com \
+  omarchy-agent-account-add agy Temp </dev/null >/dev/null
+omarchy-agent-account-use agy temp >/dev/null
+omarchy-agent-account-remove agy temp </dev/null >/dev/null
+grep -q "me@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "removing the active Antigravity account restores Main credentials"
 pass "remove forgets an added account without touching shared files"
 
 # A registry that can't be saved leaves the new login pending for recovery,

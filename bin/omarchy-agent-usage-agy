@@ -752,6 +752,11 @@ def account_login(account):
     else:
       return login()
   else:
+    if account.get("active"):
+      curr = login()
+      acc_email = account.get("email")
+      if curr and acc_email and curr.get("email") == acc_email:
+        return curr
     home = Path(account.get("home") or "")
     data = read_json(home / "antigravity-oauth-token") or {}
   token = data.get("token") if isinstance(data.get("token"), dict) else {}

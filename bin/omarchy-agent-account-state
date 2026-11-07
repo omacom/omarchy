@@ -599,26 +599,33 @@ def save_main_token(content: str) -> None:
   os.chmod(backup, 0o600)
 
 
-def load_main_token() -> str:
-  backup = primary_token_backup("agy")
-  if backup.is_file():
-    return backup.read_text(encoding="utf-8")
+def current_primary_token() -> str:
   primary_file = primary_home("agy") / "antigravity-oauth-token"
   if primary_file.is_file():
-    token = primary_file.read_text(encoding="utf-8")
-    save_main_token(token)
-    return token
+    txt = primary_file.read_text(encoding="utf-8").strip()
+    if txt:
+      return txt
   if shutil.which("secret-tool"):
     try:
       raw = subprocess.check_output(
         ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
         text=True, stderr=subprocess.DEVNULL, timeout=3,
-      )
-      if raw.strip():
-        save_main_token(raw)
+      ).strip()
+      if raw:
         return raw
     except Exception:
       pass
+  return ""
+
+
+def load_main_token() -> str:
+  backup = primary_token_backup("agy")
+  if backup.is_file():
+    return backup.read_text(encoding="utf-8")
+  curr = current_primary_token()
+  if curr:
+    save_main_token(curr)
+    return curr
   return ""
 
 
@@ -644,10 +651,14 @@ def apply_token_to_primary(content: str) -> None:
 def switch_credentials(provider: str, from_account: dict[str, Any], to_account: dict[str, Any]) -> None:
   if provider != "agy":
     return
-  if from_account.get("primary"):
-    primary_file = primary_home("agy") / "antigravity-oauth-token"
-    if primary_file.is_file():
-      save_main_token(primary_file.read_text(encoding="utf-8"))
+  curr = current_primary_token()
+  if curr:
+    if from_account.get("primary"):
+      save_main_token(curr)
+    else:
+      from_home = account_home("agy", from_account)
+      from_home.mkdir(parents=True, exist_ok=True)
+      (from_home / "antigravity-oauth-token").write_text(curr, encoding="utf-8")
   if to_account.get("primary"):
     token = load_main_token()
     apply_token_to_primary(token)
@@ -661,20 +672,20 @@ def switch_credentials(provider: str, from_account: dict[str, Any], to_account: 
 def sync_credentials(provider: str, target_home: Path | None = None) -> None:
   if provider != "agy":
     return
-  registry = load("agy")
-  acc = active(registry)
-  if acc.get("primary"):
-    primary_file = primary_home("agy") / "antigravity-oauth-token"
-    if primary_file.is_file():
-      save_main_token(primary_file.read_text(encoding="utf-8"))
+  with Locked(provider, save_on_exit=False) as registry:
+    acc = active(registry)
+    if acc.get("primary"):
+      curr = current_primary_token()
+      if curr:
+        save_main_token(curr)
+      else:
+        token = load_main_token()
+        apply_token_to_primary(token)
     else:
-      token = load_main_token()
-      apply_token_to_primary(token)
-  else:
-    home = account_home("agy", acc)
-    token_file = home / "antigravity-oauth-token"
-    if token_file.is_file():
-      apply_token_to_primary(token_file.read_text(encoding="utf-8"))
+      home = account_home("agy", acc)
+      token_file = home / "antigravity-oauth-token"
+      if token_file.is_file():
+        apply_token_to_primary(token_file.read_text(encoding="utf-8"))
 
 
 def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> int:
@@ -889,7 +900,10 @@ def remove(provider: str, target: str) -> dict[str, Any]:
       shutil.rmtree(home, ignore_errors=True)
     registry["accounts"] = [a for a in registry["accounts"] if a["id"] != account["id"]]
     if registry["active"] == account["id"]:
-      registry["active"] = registry["accounts"][0]["id"]
+      new_active = registry["accounts"][0]
+      registry["active"] = new_active["id"]
+      if provider == "agy":
+        switch_credentials("agy", account, new_active)
     return account
 
 
@@ -1180,7 +1194,18 @@ def main(argv: list[str]) -> int:
       provider = provider_arg(args)
       registry = load(provider)
       for account in registry["accounts"]:
-        print("\t".join([account["id"], str(account_home(provider, account)), "1" if account["id"] == registry["active"] else "0"]))
+        print("\t".join([
+          account["id"],
+          str(account_home(provider, account)),
+          "1" if account["id"] == registry["active"] else "0",
+          "1" if account.get("primary") else "0",
+        ]))
+    elif command == "backup-main":
+      provider = provider_arg(args)
+      if provider == "agy":
+        curr = current_primary_token()
+        if curr:
+          save_main_token(curr)
     elif command == "refresh":
       for provider in ([provider_arg(args)] if args else list(PROVIDERS)):
         if registry_path(provider).exists() or (accounts_root() / provider).is_dir():

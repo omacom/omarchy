@@ -101,9 +101,18 @@ fail() {
 # half-made home behind.
 home=""
 browser=""
+restore_token_target=""
+restore_token_bak=""
+restore_keyring=""
 cleanup() {
   [[ -n $browser ]] && rm -f "$browser"
   [[ -n $home && -d $home && $home == */.pending/* ]] && rm -rf "$home"
+  if [[ -n $restore_token_target && -f $restore_token_bak ]]; then
+    mv -f "$restore_token_bak" "$restore_token_target" 2>/dev/null || true
+  fi
+  if [[ -n $restore_keyring ]] && command -v secret-tool >/dev/null 2>&1; then
+    printf '%s' "$restore_keyring" | secret-tool store --label=Antigravity service gemini username antigravity 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 trap 'pkill -TERM -P $$; exit 130' TERM INT
@@ -152,8 +161,14 @@ login() {
 # window. Its home is never recreated or removed.
 if [[ -n $reauth ]]; then
   if [[ $reauth == ":primary" ]]; then
-    account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' '$3 == "1" || $1 == "main" { print $2; exit }')
-    [[ -n $account_home ]] || account_home="$HOME/.$provider"
+    account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' '$4 == "1" { print $2; exit }')
+    if [[ -z $account_home ]]; then
+      if [[ $provider == "agy" ]]; then
+        account_home="$HOME/.gemini/antigravity-cli"
+      else
+        account_home="$HOME/.$provider"
+      fi
+    fi
   else
     account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id { print $2 }')
   fi
@@ -162,34 +177,38 @@ if [[ -n $reauth ]]; then
   if [[ $account_home == "$HOME/.$provider" || ( $provider == "agy" && $account_home == "$HOME/.gemini/antigravity-cli" ) ]]; then
     say "$(omarchy-i18n agents.signInAgainBrowser "$name")"
     if [[ $provider == "agy" ]]; then
-      cp "$account_home/antigravity-oauth-token" "$account_home/.antigravity-oauth-token.bak" 2>/dev/null || true
-      rm -f "$account_home/antigravity-oauth-token"
-      secret_tool_val=""
+      restore_token_target="$account_home/antigravity-oauth-token"
+      restore_token_bak="$account_home/.antigravity-oauth-token.bak"
+      cp "$restore_token_target" "$restore_token_bak" 2>/dev/null || true
+      rm -f "$restore_token_target"
       if command -v secret-tool >/dev/null 2>&1; then
-        secret_tool_val=$(secret-tool lookup service gemini username antigravity 2>/dev/null || true)
+        restore_keyring=$(secret-tool lookup service gemini username antigravity 2>/dev/null || true)
         secret-tool clear service gemini username antigravity 2>/dev/null || true
       fi
       if ! interruptible omarchy-agent-account-state login agy "$account_home"; then
-        mv "$account_home/.antigravity-oauth-token.bak" "$account_home/antigravity-oauth-token" 2>/dev/null || true
-        if [[ -n $secret_tool_val ]] && command -v secret-tool >/dev/null 2>&1; then
-          printf '%s' "$secret_tool_val" | secret-tool store --label=Antigravity service gemini username antigravity 2>/dev/null || true
-        fi
         fail "$(omarchy-i18n agents.signInFailed "$name")"
       fi
-      rm -f "$account_home/.antigravity-oauth-token.bak"
+      rm -f "$restore_token_bak"
+      restore_token_target=""
+      restore_token_bak=""
+      restore_keyring=""
+      omarchy-agent-account-state backup-main agy >/dev/null 2>&1 || true
     else
       login || fail "$(omarchy-i18n agents.signInFailed "$name")"
     fi
   else
     say "$(omarchy-i18n agents.signInAgainPrivate)"
     if [[ $provider == "agy" ]]; then
-      cp "$account_home/antigravity-oauth-token" "$account_home/.antigravity-oauth-token.bak" 2>/dev/null || true
-      rm -f "$account_home/antigravity-oauth-token"
+      restore_token_target="$account_home/antigravity-oauth-token"
+      restore_token_bak="$account_home/.antigravity-oauth-token.bak"
+      cp "$restore_token_target" "$restore_token_bak" 2>/dev/null || true
+      rm -f "$restore_token_target"
       if ! interruptible omarchy-agent-account-state login agy "$account_home" --private; then
-        mv "$account_home/.antigravity-oauth-token.bak" "$account_home/antigravity-oauth-token" 2>/dev/null || true
         fail "$(omarchy-i18n agents.signInFailed "$name")"
       fi
-      rm -f "$account_home/.antigravity-oauth-token.bak"
+      rm -f "$restore_token_bak"
+      restore_token_target=""
+      restore_token_bak=""
     else
       private_browser
       interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
@@ -209,7 +228,7 @@ if ! primary_signed_in "$provider"; then
   say "$(omarchy-i18n agents.signInBrowser "$name")"
   login_ok=false
   if [[ $provider == "agy" ]]; then
-    primary_home=$(omarchy-agent-account-state homes agy | awk -F'\t' '$1 == "main" { print $2; exit }')
+    primary_home=$(omarchy-agent-account-state homes agy | awk -F'\t' '$4 == "1" { print $2; exit }')
     [[ -n $primary_home ]] || primary_home="$HOME/.gemini/antigravity-cli"
     if interruptible omarchy-agent-account-state login agy "$primary_home"; then
       login_ok=true
