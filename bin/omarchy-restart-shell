@@ -18,6 +18,21 @@ if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   [[ -n $hypr_dir ]] && export HYPRLAND_INSTANCE_SIGNATURE=${hypr_dir##*/}
 fi
 
+# A shell under heavy startup or lock-surface load can take several seconds to
+# answer IPC, so give lock queries a 10s cap rather than 0.5s, clamped to the
+# remaining recovery deadline during relock.
+lock_ipc_timeout=10
+
+# The outer timeout bounds the whole call: omarchy-shell can spend its own
+# timeout on the socket and then the same again falling back to qs ipc.
+lock_ipc() {
+  local timeout=$1
+  shift
+  OMARCHY_PATH="$session_omarchy_path" \
+    OMARCHY_SHELL_IPC_TIMEOUT="${timeout}s" \
+    timeout --kill-after=0.1s "${timeout}s" omarchy-shell "$@"
+}
+
 # Restarting a live lock client would kill the lock screen and strand the
 # session behind Hyprland's failsafe. But a LOCK session without an active
 # locker — the shell died, or its crash handler re-execed a fresh instance
@@ -27,7 +42,7 @@ fi
 # that reports the lock secure or in progress is worth preserving.
 relock=0
 if omarchy-hyprland-session-locked; then
-  locking=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
+  locking=$(lock_ipc "$lock_ipc_timeout" lock status 2>/dev/null |
     jq -r '.secure or .requested' 2>/dev/null)
   if [[ $locking == "true" ]]; then
     echo "Refusing to restart Omarchy shell while the session is locked." >&2
@@ -43,16 +58,22 @@ fi
 # recovery never claims success while the failsafe is still up. The deadline
 # is generous because slow plugin discovery delays the lock IPC target.
 relock_session() {
-  local state deadline=$((SECONDS + 30))
+  local state remaining timeout deadline=$((SECONDS + 30))
 
-  while (( SECONDS < deadline )); do
-    state=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
+  while (( (remaining = deadline - SECONDS) > 0 )); do
+    timeout=$(( remaining < lock_ipc_timeout ? remaining : lock_ipc_timeout ))
+    state=$(lock_ipc "$timeout" lock status 2>/dev/null |
       jq -r 'if .secure == true then "secure" elif .requested == true then "locking" else "idle" end' 2>/dev/null)
 
     case $state in
       secure) return 0 ;;
       locking) ;;
-      *) OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock lock >/dev/null 2>&1 ;;
+      *)
+        remaining=$((deadline - SECONDS))
+        (( remaining > 0 )) || break
+        timeout=$(( remaining < lock_ipc_timeout ? remaining : lock_ipc_timeout ))
+        lock_ipc "$timeout" lock lock >/dev/null 2>&1
+        ;;
     esac
 
     sleep 0.1
