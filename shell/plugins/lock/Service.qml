@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import "FingerprintModel.js" as FingerprintModel
+import "LockPaintModel.js" as LockPaintModel
 
 Item {
   id: root
@@ -61,6 +62,13 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  property var lockPaint: LockPaintModel.initialState()
+  property int lockSurfaceSerial: 0
+  property int lockPaintJournalQuery: 0
+  property int lockPaintJournalExit: -1
+  property string lockPaintJournalText: ""
+  property bool lockPaintJournalGotExit: false
+  property bool lockPaintJournalGotText: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
 
@@ -214,12 +222,70 @@ Item {
     if (fingerprintPam.active) fingerprintPam.abort()
   }
 
+  function takeLockSurfaceToken() {
+    lockSurfaceSerial += 1
+    return lockSurfaceSerial
+  }
+
+  // frameSwapped is not proof of a present: Qt emits it when eglSwapBuffers
+  // fails. The shell log since this lock began is what makes a frame trustworthy.
+  function applyLockPaint(event) {
+    var prior = lockPaint
+    var result = LockPaintModel.reduce(prior, event || {})
+    lockPaint = result.state
+    if (event && (event.type === "reset" || event.type === "begin")) {
+      lockPaintJournalQuery += 1
+      if (lockPaintJournal.running) lockPaintJournal.running = false
+    }
+    if (result.queryJournal) queryLockPaintJournal(result.state.generation, result.state.startedAtSec)
+    if (result.settle === "start") {
+      lockPaintSettleTimer.generation = result.state.generation
+      lockPaintSettleTimer.interval = LockPaintModel.PAINT_SETTLE_MS
+      if (!lockPaintSettleTimer.running) lockPaintSettleTimer.start()
+    } else if (result.settle === "stop") {
+      lockPaintSettleTimer.stop()
+    }
+    if (!prior.unpainted && result.state.unpainted) logEvent("lock-unpainted")
+  }
+
+  function queryLockPaintJournal(generation, sinceSec) {
+    if (!(sinceSec > 0)) return
+    lockPaintJournalGotExit = false
+    lockPaintJournalGotText = false
+    lockPaintJournalText = ""
+    lockPaintJournalExit = -1
+    lockPaintJournalQuery += 1
+    lockPaintJournal.generation = generation
+    lockPaintJournal.query = lockPaintJournalQuery
+    lockPaintJournal.command = ["journalctl", "--user", "-t", "omarchy-shell", "--since", "@" + sinceSec, "-o", "cat", "--no-pager"]
+    if (!lockPaintJournal.running) lockPaintJournal.running = true
+  }
+
+  // Stdout can finish before or after the exit status. A failure in the text
+  // counts even when journalctl itself exits non-zero; an empty failure does
+  // not count as a clean log.
+  function finishLockPaintJournal() {
+    if (!lockPaintJournalGotExit || !lockPaintJournalGotText) return
+    if (lockPaintJournal.query === 0 || lockPaintJournal.query !== lockPaintJournalQuery) return
+    var exitCode = lockPaintJournalExit
+    var body = lockPaintJournalText
+    lockPaintJournalGotExit = false
+    lockPaintJournalGotText = false
+    lockPaintJournalText = ""
+    var result = "unavailable"
+    if (exitCode === 0 || LockPaintModel.journalShowsPresentFailure(body)) {
+      result = LockPaintModel.journalShowsPresentFailure(body) ? "failed" : "clean"
+    }
+    applyLockPaint({ type: "journal", generation: lockPaintJournal.generation, result: result })
+  }
+
   function beginLock() {
     if (!passwordPamConfigured) {
       logEvent("lock-denied: missing-pam")
       return false
     }
 
+    applyLockPaint({ type: "begin", nowMs: Date.now() })
     resetAuthenticationState()
     lockRequested = true
     armBlankTimer()
@@ -244,6 +310,7 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
+    applyLockPaint({ type: "reset" })
     logEvent("unlocked")
     runWake()
   }
@@ -470,6 +537,7 @@ Item {
 
     onSecureStateChanged: {
       root.logEvent("secure=" + secure)
+      root.applyLockPaint({ type: "secure", secure: secure })
       if (secure) {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
@@ -487,6 +555,8 @@ Item {
         pendingSessionLockTimer.stop()
       }
 
+      if (!locked) root.applyLockPaint({ type: "reset" })
+
       if (!locked && root.lockRequested) {
         root.lockRequested = false
         root.pendingSessionLock = false
@@ -503,7 +573,35 @@ Item {
       Binding { target: lockSurface.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
       Binding { target: lockSurface.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
 
+      // The Wayland lock surface is up once this exists. Its window is not a
+      // property of WlSessionLockSurface; the content item is parented to it.
+      property int paintToken: 0
+      property int paintGeneration: 0
+      property var paintWindow: contentItem && contentItem.window ? contentItem.window : null
       color: Commons.Color.background
+
+      Component.onCompleted: {
+        paintToken = root.takeLockSurfaceToken()
+        paintGeneration = root.lockPaint.generation
+        root.applyLockPaint({ type: "surface", delta: 1, generation: paintGeneration, surface: paintToken })
+      }
+      Component.onDestruction: root.applyLockPaint({ type: "surface", delta: -1, generation: paintGeneration, surface: paintToken })
+
+      Connections {
+        target: lockSurface.paintWindow
+        ignoreUnknownSignals: true
+        function onFrameSwapped() {
+          root.applyLockPaint({ type: "frame", generation: lockSurface.paintGeneration, surface: lockSurface.paintToken })
+        }
+        function onSceneGraphError(error, message) {
+          root.applyLockPaint({
+            type: "graphics-failed",
+            generation: lockSurface.paintGeneration,
+            surface: lockSurface.paintToken,
+            error: String(message || error || "")
+          })
+        }
+      }
 
       LockView {
         id: lockView
@@ -790,6 +888,35 @@ Item {
   }
 
   Timer {
+    id: lockPaintSettleTimer
+    repeat: false
+    property int generation: 0
+    onTriggered: root.applyLockPaint({ type: "settle", generation: generation })
+  }
+
+  // One-shot readout of this lock's own log. A follow would race the lines
+  // Qt already wrote; by the time the session is secure they are in the journal.
+  Process {
+    id: lockPaintJournal
+    property int generation: 0
+    property int query: 0
+    command: ["true"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.lockPaintJournalText = String(text || "")
+        root.lockPaintJournalGotText = true
+        root.finishLockPaintJournal()
+      }
+    }
+    onExited: function(exitCode) {
+      root.lockPaintJournalExit = exitCode
+      root.lockPaintJournalGotExit = true
+      root.finishLockPaintJournal()
+    }
+  }
+
+  Timer {
     id: sessionLockStabilizeTimer
     interval: 500
     repeat: false
@@ -894,6 +1021,8 @@ Item {
         pending: root.pendingSessionLock,
         sessionLocked: sessionLock.locked,
         secure: sessionLock.secure,
+        painted: !!root.lockPaint.painted,
+        unpainted: !!root.lockPaint.unpainted,
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
