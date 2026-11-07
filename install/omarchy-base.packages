@@ -46,9 +46,9 @@ ffmpegthumbnailer
 fontconfig
 foot
 fzf
+gcr
 git
 gliff
-gnome-keyring
 gnome-themes-extra
 grim
 gpu-screen-recorder
@@ -108,6 +108,7 @@ omarchy-local-ai
 omarchy-power-profiles-daemon
 omarchy-screensaver
 omasnap
+oo7
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
 pacman-contrib
