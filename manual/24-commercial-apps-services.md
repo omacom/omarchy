@@ -39,3 +39,7 @@ It gets a panel in the bar, a web app for the admin console, and Taildrop for se
 ## NordVPN
 
 [NordVPN](https://nordvpn.com/) is a standard VPN service that lets you exit your traffic from most regions around the world. To set it up, select _Install > Service > NordVPN_ from the Omarchy menu. After the reboot it asks for, run `nordvpn login` to authenticate.
+
+## Superwhisper
+
+[Superwhisper](https://superwhisper.com/) is a voice-to-text app that turns your speech into polished text, with cloud processing or local models running on your own GPU. It ships as the default dictation backend on fresh installs, so hold `Right Alt` or press `Alt + Space` and start talking. If you switched to another backend, select _Setup > Defaults > Dictation > Superwhisper_ from the Omarchy menu to install it and make it the default again. Run `superwhisper` to open its settings — see [dictation](11-text-extraction-dictation.md).
