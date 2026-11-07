@@ -2,13 +2,60 @@
 
 set -euo pipefail
 
+# No session variables, credentials, or developer command lookup reach fixtures.
+if [[ ${1:-} != "--isolated" ]]; then
+  exec /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /bin/bash "$0" --isolated
+fi
+
 source "$(dirname "$0")/base-test.sh"
 
 tmp_dir=$(mktemp -d)
-trap 'rm -rf "$tmp_dir"' EXIT
-
 stub_bin="$tmp_dir/bin"
-mkdir -p "$stub_bin"
+tool_bin="$tmp_dir/tools"
+mkdir -p "$stub_bin" "$tool_bin" "$tmp_dir/home" "$tmp_dir/tmp"
+export HOME="$tmp_dir/home" TMPDIR="$tmp_dir/tmp"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
+export XDG_CACHE_HOME="$HOME/.cache" XDG_STATE_HOME="$HOME/.local/state"
+export OMARCHY_TEST_SANDBOX="$tmp_dir" OMARCHY_TEST_PID_LOG="$tmp_dir/fixture-pids"
+
+stop_fixture_recorders() {
+  local pid state
+  [[ -f $OMARCHY_TEST_PID_LOG ]] || return 0
+  while read -r pid; do
+    if [[ $pid =~ ^[0-9]+$ ]] && grep -qzxF "OMARCHY_TEST_SANDBOX=$tmp_dir" "/proc/$pid/environ" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      for _ in {1..100}; do
+        [[ -r /proc/$pid/stat ]] || break
+        state=$(<"/proc/$pid/stat")
+        [[ ${state##*) } != "Z "* ]] || break
+        sleep 0.01
+      done
+      [[ ! -r /proc/$pid/stat ]] || {
+        state=$(<"/proc/$pid/stat")
+        [[ ${state##*) } == "Z "* ]] || fail "owned fixture $pid exits after cleanup"
+      }
+      wait "$pid" 2>/dev/null || true
+    fi
+  done <"$OMARCHY_TEST_PID_LOG"
+  : >"$OMARCHY_TEST_PID_LOG"
+}
+cleanup() {
+  stop_fixture_recorders
+  rm -rf "$tmp_dir"
+}
+trap cleanup EXIT
+
+# Only these harmless tools and checkout helpers are discoverable. In
+# particular an installed recorder can never become an accidental fallback.
+for tool in awk bash cat chmod cmp date diff dirname env flock grep jq ln ls mkdir mkfifo mktemp mv python3 readlink rm rmdir sed sleep stat tac tail touch wc; do
+  ln -s "$(command -v "$tool")" "$tool_bin/$tool"
+done
+for tool in omarchy-capture-webcam-list omarchy-hw-webcam omarchy-capture-screenrecording-with-webcam omarchy-capture-webcam-resize omarchy-i18n omarchy-cmd-present; do
+  ln -s "$ROOT/bin/$tool" "$tool_bin/$tool"
+done
+# A failed or cancelled start may clean its webcam; there is no live overlay.
+printf '#!/bin/bash\nexit 1\n' >"$stub_bin/pkill"
+chmod +x "$stub_bin/pkill"
 
 cat >"$stub_bin/v4l2-ctl" <<'SH'
 #!/bin/bash
@@ -37,6 +84,9 @@ case "$1" in
     printf '\n%s\n' "Metadata Only: Sensor"
     printf '\t%s\n' "/dev/video9"
   fi
+  ;;
+--list-formats-ext)
+  printf '%s\n' "Size: Discrete 1280x720" "Size: Discrete 1920x1080"
   ;;
 --device)
   case "$2" in
@@ -77,7 +127,7 @@ SH
 
 chmod +x "$stub_bin"/*
 
-export PATH="$stub_bin:$ROOT/bin:$PATH"
+export PATH="$stub_bin:$tool_bin"
 # The resize helper anchors to a region file here, so keep it out of the real one
 export XDG_RUNTIME_DIR="$tmp_dir"
 export OMARCHY_TEST_MENU_ARGS="$tmp_dir/menu-args"
@@ -260,6 +310,29 @@ cat >"$stub_bin/hyprctl" <<'SH'
 
 case $1 in
 clients)
+  if [[ -n ${OMARCHY_TEST_OVERLAY_MODE:-} ]]; then
+    # Wait for the mpv fixture to publish its state, not for a fast worker.
+    for _ in {1..1000}; do
+      [[ ! -s $OMARCHY_TEST_MPV_ARGS ]] || break
+      sleep 0.01
+    done
+    [[ -s $OMARCHY_TEST_MPV_ARGS ]] || exit 1
+    if [[ ! -e $OMARCHY_TEST_OVERLAY_READY ]]; then
+      if [[ -e $OMARCHY_TEST_OVERLAY_ABORTED ]]; then
+        # A dead process can have been alive at the preceding running check.
+        # Synchronize that one race so subsequent map polls are a regression.
+        read -r pid <"$OMARCHY_TEST_MPV_PIDS"
+        for _ in {1..1000}; do
+          [[ -r /proc/$pid/stat ]] || break
+          state=$(<"/proc/$pid/stat")
+          [[ ${state##*) } != "Z "* ]] || break
+          sleep 0.01
+        done
+      fi
+      printf '[]\n'
+      exit 0
+    fi
+  fi
   printf '[{"address":"0xabc","title":"%s","size":[%s,%s],"monitor":2}]\n' \
     "${OMARCHY_TEST_CLIENT_TITLE:-WebcamOverlay}" \
     "${OMARCHY_TEST_CLIENT_WIDTH:-178}" \
@@ -390,11 +463,12 @@ SH
 
 cat >"$stub_bin/gpu-screen-recorder" <<'SH'
 #!/bin/bash
+echo "$$" >>"$OMARCHY_TEST_PID_LOG"
 for i in "$@"; do
   [[ -n ${take_next:-} ]] && { : >"$i"; break; }
   [[ $i == "-o" ]] && take_next=1
 done
-sleep 5
+exec sleep 30
 SH
 
 cat >"$stub_bin/omarchy-shell" <<'SH'
@@ -414,7 +488,7 @@ tmp_state_before=$(stat -c '%y %s' "$tmp_state" 2>/dev/null || true)
 OMARCHY_SCREENRECORD_DIR="$recording_dir" \
   "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
 
-pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+stop_fixture_recorders
 
 [[ $(stat -c '%y %s' "$tmp_state" 2>/dev/null) == "$tmp_state_before" ]] ||
   fail "screen recording keeps no state under a fixed /tmp name"
@@ -443,7 +517,7 @@ env -u XDG_RUNTIME_DIR \
   OMARCHY_SCREENRECORD_DIR="$recording_dir" \
   "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
 
-pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+stop_fixture_recorders
 
 [[ $(stat -c '%y %s' "$tmp_state" 2>/dev/null) == "$tmp_state_before" ]] ||
   fail "without a runtime dir, screen recording still keeps no state under a fixed /tmp name"
@@ -482,6 +556,130 @@ mode=$(stat -c '%a' "$state_home/omarchy" 2>/dev/null || stat -f '%Lp' "$state_h
 [[ $mode == "700" ]] || fail "fallback directory is private even when it already existed" "mode: $mode"
 pass "fallback directory is private even when it already existed"
 
+# Webcam startup runs the real recording command with the same camera,
+# Hyprland, recorder, notification, HOME and owned-process fixtures above.
+# No camera is opened: mpv only logs its command and becomes a child-free sleep.
+overlay="$tmp_dir/overlay"
+mkdir -p "$overlay/runtime/hypr/overlay-test" "$overlay/recordings"
+args="$overlay/mpv-args"
+probe="$overlay/probe"
+log="$overlay/runtime/omarchy-screenrecord.log"
+polls="$overlay/polls"
+marker="$overlay/runtime/hypr/overlay-test/omarchy-software-rendering"
+
+cat >"$stub_bin/mpv" <<'SH'
+#!/bin/bash
+printf '%s\n' "$$" >>"$OMARCHY_TEST_PID_LOG"
+printf '%s\n' "$$" >>"$OMARCHY_TEST_MPV_PIDS"
+printf '%s\n' "$*" >>"$OMARCHY_TEST_MPV_ARGS"
+case $OMARCHY_TEST_OVERLAY_MODE in
+abort)
+  : >"$OMARCHY_TEST_OVERLAY_ABORTED"
+  exit 134
+  ;;
+abort-once)
+  if [[ ! -e $OMARCHY_TEST_OVERLAY_ABORTED ]]; then
+    : >"$OMARCHY_TEST_OVERLAY_ABORTED"
+    exit 134
+  fi
+  : >"$OMARCHY_TEST_OVERLAY_READY"
+  ;;
+hang) ;;
+*) : >"$OMARCHY_TEST_OVERLAY_READY" ;;
+esac
+exec /usr/bin/sleep 30
+SH
+
+cat >"$stub_bin/omarchy-hw-software-rendering" <<'SH'
+#!/bin/bash
+printf 'probe\n' >>"$OMARCHY_TEST_GPU_PROBE"
+exit "$OMARCHY_TEST_GPU_STATUS"
+SH
+
+cat >"$stub_bin/omarchy-capture-region" <<'SH'
+#!/bin/bash
+printf '1,2 800x600\n'
+SH
+
+cat >"$stub_bin/sleep" <<'SH'
+#!/bin/bash
+if [[ -n ${OMARCHY_TEST_OVERLAY_MODE:-} && $1 == "0.05" ]]; then
+  # Count the real wait loop's calls, independently of scheduling speed.
+  printf '%s\n' "$(wc -l <"$OMARCHY_TEST_MPV_ARGS")" >>"$OMARCHY_TEST_OVERLAY_POLLS"
+fi
+exec /usr/bin/sleep "$@"
+SH
+chmod +x "$stub_bin/mpv" "$stub_bin/omarchy-hw-software-rendering" "$stub_bin/omarchy-capture-region" "$stub_bin/sleep"
+
+gpu_args="av://v4l2:/dev/video1 --profile=low-latency --untimed --no-cache --demuxer-lavf-o=video_size=1280x720,framerate=30 --vf=lavfi=[crop=ih*8/9:ih] --title=WebcamOverlay --wayland-app-id=WebcamOverlay-medium --no-border --no-audio --no-osc --osd-level=0 --really-quiet"
+software_args="$gpu_args --vo=gpu --gpu-api=opengl --gpu-context=wayland --gpu-sw=yes --demuxer-lavf-probe-info=auto --demuxer-lavf-analyzeduration=0 --video-latency-hacks=no"
+
+run_overlay() {
+  local mode=$1 status=$2 target=${3:---fullscreen}
+  stop_fixture_recorders
+  rm -f "$args" "$probe" "$log" "$polls" "$overlay/pids" "$overlay/ready" "$overlay/aborted" "$overlay/runtime/omarchy-screenrecord-region"
+  rm -f "$overlay/recordings/"*
+  : >"$OMARCHY_TEST_HYPRCTL_ARGS"
+  XDG_RUNTIME_DIR="$overlay/runtime" HYPRLAND_INSTANCE_SIGNATURE=overlay-test \
+    OMARCHY_SCREENRECORD_DIR="$overlay/recordings" OMARCHY_SCREENRECORD_DEBUG=true \
+    OMARCHY_TEST_MPV_ARGS="$args" OMARCHY_TEST_MPV_PIDS="$overlay/pids" \
+    OMARCHY_TEST_GPU_PROBE="$probe" OMARCHY_TEST_GPU_STATUS="$status" \
+    OMARCHY_TEST_OVERLAY_MODE="$mode" OMARCHY_TEST_OVERLAY_POLLS="$polls" \
+    OMARCHY_TEST_OVERLAY_READY="$overlay/ready" OMARCHY_TEST_OVERLAY_ABORTED="$overlay/aborted" \
+    "$ROOT/bin/omarchy-capture-screenrecording" "$target" --resolution=0x0 --with-webcam --webcam-device=/dev/video1 --webcam-size=medium \
+    >"$overlay/output" 2>"$overlay/stderr"
+  [[ ! -s $overlay/stderr ]] || fail "webcam startup prints no errors ($mode, probe $status)" "$(cat "$overlay/stderr")"
+  [[ -s $overlay/runtime/omarchy-screenrecord-pid ]] || fail "webcam startup reaches the recorder"
+  stop_fixture_recorders
+}
+
+run_overlay map 1 --region
+[[ $(<"$args") == "$gpu_args" ]] || fail "a GPU overlay keeps mpv's default renderer" "$(cat "$args")"
+[[ $(<"$probe") == "probe" ]] || fail "a GPU overlay probes once"
+! grep -q 'webcam overlay:' "$log" || fail "a GPU overlay logs no software fallback" "$(cat "$log")"
+[[ $(<"$overlay/runtime/omarchy-screenrecord-region") == "800x600+1+2" ]] || fail "region capture still anchors the overlay"
+grep -Fq 'x = 133, y = 150' "$OMARCHY_TEST_HYPRCTL_ARGS" || fail "the GPU overlay still resizes to medium"
+pass "a GPU overlay keeps mpv's default renderer and region anchor"
+
+run_overlay map 2
+[[ $(<"$args") == "$gpu_args" ]] || fail "an unreadable renderer still tries the GPU once" "$(cat "$args")"
+[[ ! -e $overlay/runtime/omarchy-screenrecord-region ]] || fail "monitor capture writes no region file"
+pass "an unreadable renderer still tries the GPU once"
+
+run_overlay hang 1
+[[ $(<"$args") == "$gpu_args" ]] || fail "a live unmapped GPU overlay is not replaced" "$(cat "$args")"
+(( $(wc -l <"$polls") == 40 )) || fail "a live GPU overlay receives its full map wait" "$(cat "$polls")"
+pass "a live unmapped GPU overlay receives its full map wait and is not replaced"
+
+run_overlay map 0
+[[ $(<"$args") == "$software_args" ]] || fail "a software rasterizer launches the software overlay once" "$(cat "$args")"
+grep -Fxq 'webcam overlay: Wayland software rendering (no GPU acceleration)' "$log" || fail "software startup explains why it skips the GPU"
+! grep -q 'retrying' "$log" || fail "a software rasterizer does not try the GPU first"
+pass "a software rasterizer launches the Wayland software overlay once"
+
+printf 'llvmpipe\n' >"$marker"
+run_overlay map 1
+[[ $(<"$args") == "$software_args" ]] || fail "a CPU-rendered session launches the software overlay once" "$(cat "$args")"
+[[ ! -e $probe ]] || fail "a CPU-rendered session does not probe Mesa again"
+pass "a CPU-rendered session launches software rendering without another Mesa probe"
+rm "$marker"
+
+run_overlay abort-once 1 --region
+[[ $(<"$args") == "$gpu_args"$'\n'"$software_args" ]] || fail "an exited GPU overlay retries once with the software command" "$(cat "$args")"
+grep -Fxq 'webcam overlay: GPU renderer exited before the window mapped; retrying with Wayland software rendering' "$log" || fail "the GPU exit explains its software retry"
+# At most one poll can race with mpv's exit. A broken wait-until-timeout
+# implementation makes all 40 calls before launching the software retry.
+gpu_polls=0
+[[ ! -f $polls ]] || gpu_polls=$(grep -c '^1$' "$polls" || true)
+(( gpu_polls <= 1 )) || fail "an exited GPU skips the remaining map wait" "$gpu_polls GPU polls"
+grep -Fq 'x = 133, y = 150' "$OMARCHY_TEST_HYPRCTL_ARGS" || fail "the software retry still resizes to medium"
+pass "an exited GPU retries once with software rendering without waiting out the map timeout"
+
+run_overlay abort 0
+[[ $(<"$args") == "$software_args" ]] || fail "a failed software overlay is not retried" "$(cat "$args")"
+grep -Fxq 'webcam overlay: software renderer exited before the window mapped' "$log" || fail "a failed software overlay is logged"
+pass "a failed software overlay is logged once and recording still starts"
+
 # gpu-screen-recorder aborts before recording on a GPU it does not know, such
 # as Apple Silicon's. wf-recorder takes over when it is installed, on the same
 # monitor, and its pid is the one stop and status act on.
@@ -493,13 +691,14 @@ SH
 
 cat >"$stub_bin/wf-recorder" <<'SH'
 #!/bin/bash
+echo "$$" >>"$OMARCHY_TEST_PID_LOG"
 printf '%s\n' "$@" >"$OMARCHY_TEST_WF_ARGS"
 echo "$$" >"$OMARCHY_TEST_WF_PID"
 for i in "$@"; do
   [[ -n ${take_next:-} ]] && { : >"$i"; break; }
   [[ $i == "-f" ]] && take_next=1
 done
-sleep 5
+exec sleep 30
 SH
 chmod +x "$stub_bin/gpu-screen-recorder" "$stub_bin/wf-recorder"
 
@@ -513,7 +712,7 @@ XDG_RUNTIME_DIR="$wf_runtime" OMARCHY_TEST_WF_ARGS="$wf_args" OMARCHY_TEST_WF_PI
   OMARCHY_SCREENRECORD_DIR="$wf_recordings" \
   "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
 
-pkill -f "$stub_bin/wf-recorder" 2>/dev/null || true
+stop_fixture_recorders
 
 [[ -s $wf_args ]] || fail "wf-recorder records when gpu-screen-recorder cannot start"
 grep -Fxq -- '-o' "$wf_args" && grep -Fxq DP-1 "$wf_args" && grep -Fxq 48000 "$wf_args" ||
