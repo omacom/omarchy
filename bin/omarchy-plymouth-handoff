@@ -44,8 +44,9 @@ def log(message):
 
 
 def plymouth(*args):
+  # Short enough that a deactivate and a quit both fit in TimeoutStartSec.
   try:
-    return subprocess.run(["plymouth", *args], timeout=10).returncode == 0
+    return subprocess.run(["plymouth", *args], timeout=5).returncode == 0
   except subprocess.TimeoutExpired:
     return False
 

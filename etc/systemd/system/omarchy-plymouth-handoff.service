@@ -12,5 +12,5 @@ ExecCondition=/usr/bin/plymouth --ping
 ExecStart=/usr/bin/omarchy-plymouth-handoff
 # Plymouth must never keep the display: if the handoff failed or never ran,
 # quit it the way plymouth-quit.service would.
-ExecStopPost=-/bin/bash -c '[[ $$SERVICE_RESULT == "success" ]] || /usr/bin/plymouth quit'
+ExecStopPost=-/bin/bash -c '[[ $$SERVICE_RESULT == "success" ]] || timeout 5 /usr/bin/plymouth quit'
 TimeoutStartSec=15
