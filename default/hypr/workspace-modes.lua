@@ -369,6 +369,34 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
+  -- When a fullscreen or maximized window on a floating workspace gains focus, lower
+  -- the rest of its workspace so it is drawn in front, clearing m_allowedOverFullscreen
+  -- on siblings while preserving their relative stacking order.
+  hl.on("window.active", function(window)
+    if not window or (window.fullscreen or 0) == 0 or not window.workspace then
+      return
+    end
+
+    local id = window.workspace.id
+    if not floating_workspace(id) then
+      return
+    end
+
+    local windows = hl.get_windows()
+    for i = #windows, 1, -1 do
+      local other = windows[i]
+      if other.address ~= window.address and other.workspace and tostring(other.workspace.id) == tostring(id) then
+        hl.dispatch(hl.dsp.window.alter_zorder({ mode = "bottom", window = other }))
+      end
+    end
+
+    -- Each lower replays the pointer, which can focus a sibling under it before that one is lowered too.
+    local active = hl.get_active_window()
+    if not active or active.address ~= window.address then
+      hl.dispatch(hl.dsp.focus({ window = "address:" .. window.address }))
+    end
+  end)
+
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)
 end
