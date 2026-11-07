@@ -520,6 +520,9 @@
   "setup.default.agent.devin": {
     "label": "Devin CLI"
   },
+  "setup.default.agent.droid": {
+    "label": "Droid"
+  },
   "setup.default.agent.dsh": {
     "label": "DeepSeek Harness"
   },
