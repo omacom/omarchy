@@ -411,6 +411,84 @@ assert(
   'provider merge leaves rows belonging to another provider alone'
 )
 
+// The maps live in QML `var` properties, where an in-place write is
+// occasionally dropped by the engine, so both merges must hand back fresh
+// objects for the caller to assign in one shot.
+assert(
+  /var merged = MenuModel\.mergeAppRows\(root\.items, root\.itemOrder, appRows\)\s*\n\s*root\.items = merged\.items\s*\n\s*root\.itemOrder = merged\.itemOrder/.test(menuQml),
+  'menu assigns the rebuilt app item map instead of mutating it in place'
+)
+assert(
+  /var merged = MenuModel\.swapProviderRows\(root\.items, root\.itemOrder, menuId, providerRows\)\s*\n[\s\S]*?root\.items = merged\.items\s*\n\s*root\.itemOrder = merged\.itemOrder/.test(menuQml),
+  'menu assigns the rebuilt provider item map instead of mutating it in place'
+)
+assert(
+  !/root\.items\[[^\]]+\] =/.test(menuQml) && !/delete root\.items\[/.test(menuQml),
+  'menu never writes into the item map held by the var property'
+)
+
+for (const functionName of ['openExistingMenu', 'openDmenu']) {
+  const openMatch = menuQml.match(new RegExp(`function ${functionName}\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}`))
+  assert(openMatch, `menu ${functionName} function exists`)
+  assert(
+    openMatch[1].indexOf('root.disarmPointer()') < openMatch[1].indexOf('opened = true')
+      && !openMatch[1].includes('pointerGate.allowInitialSample()'),
+    `menu ${functionName} ignores a stale hidden-pointer position when becoming visible`
+  )
+}
+assert(
+  /function selectFromPointer\(index, item, mouse\)[\s\S]*pointerGate\.moved\(item, mouse\)[\s\S]*root\.selectedIndex = index/.test(menuQml),
+  'menu only selects from pointer after real movement'
+)
+assert(
+  /onPositionChanged: function\(mouse\) \{\s*root\.selectFromPointer\(row\.index, row, mouse\)\s*\}/.test(menuQml),
+  'menu row hover routes through pointer movement gate'
+)
+assert(
+  /dmenuSaved = dmenuSelected\s*\n\s*if \(dmenuOnChange\.length > 0\)/.test(menuQml)
+    && /root\.dmenuSaved = root\.dmenuSelected\s*\n\s*\} else \{\s*root\.dmenuSelected = root\.dmenuSaved/.test(menuQml),
+  'a failed immediate change restores the confirmed checks, even after reopening onto queued ones'
+)
+assert(
+  /onEntered: root\.selectFromPointer\(row\.index, row, \{\s*x: mouseArea\.mouseX,\s*y: mouseArea\.mouseY\s*\}\)/.test(menuQml),
+  'menu samples pointer movement immediately when entering a row'
+)
+assert(
+  /function activateIndex\(index, fromPointer\)[\s\S]*root\.setActiveMenu\(row\.target \|\| row\.itemId, true, fromPointer\)/.test(menuQml)
+    && /onClicked:[\s\S]*root\.activateIndex\(row\.index, true\)/.test(menuQml),
+  'mouse activation carries pointer intent into subordinate menus'
+)
+// Both menu files load separately at startup; evaluating after the first
+// alone ran the whole guard batch twice.
+assert(
+  /function rebuildItemsFromSources\(skipGuards\)[\s\S]*?if \(!skipGuards && root\.defaultMenuSettled && root\.userMenuSettled\) root\.evaluateGuards\(\)/.test(menuQml)
+    && /onLoaded: \{ root\.defaultMenuItems = [^}]*root\.defaultMenuSettled = true; root\.rebuildItemsFromSources\(\) \}/.test(menuQml)
+    && /onLoadFailed: \{ root\.defaultMenuSettled = true; if \(root\.userMenuSettled\) root\.evaluateGuards\(\) \}/.test(menuQml)
+    && /onLoaded: \{ root\.userMenuItems = [^}]*root\.userMenuSettled = true; root\.rebuildItemsFromSources\(\) \}/.test(menuQml)
+    && /onLoadFailed: \{ root\.userMenuItems = \[\]; root\.userMenuSettled = true; root\.rebuildItemsFromSources\(\) \}/.test(menuQml),
+  'menu evaluates guards once both menu files have answered, not once per file at startup'
+)
+assert(
+  /function openExistingMenu\([\s\S]*?root\.evaluateGuards\(\)/.test(menuQml),
+  'menu still evaluates guards on every open, settled or not'
+)
+
+const keybindingHints = menu.parseKeybindingHints([
+  'SUPER + CTRL + L\tomarchy-system-lock',
+  'SUPER + ALT + L\tomarchy-system-lock',
+  'SUPER + SHIFT + RETURN\tuwsm-app -- omarchy-launch-browser',
+  'XF86AudioMute\tomarchy-audio-output-volume  mute-toggle',
+  'SUPER + code:10\ttoString',
+  'not a bind',
+  ''
+].join('\n'))
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-system-lock'), 'Super + Ctrl + L', 'a keybinding hint names the first chord bound to the command')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-launch-browser'), 'Super + Shift + Return', 'a keybinding hint ignores the uwsm-app launcher prefix')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-audio-output-volume mute-toggle'), 'XF86AudioMute', 'a keybinding hint keeps mixed-case key names and spacing-insensitive commands')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'toString'), 'Super + code:10', 'a keybinding hint treats Object member names as plain commands')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'constructor'), '', 'an unbound command spelled like an Object member gets no hint')
+assertEqual(menu.keybindingHintFor(keybindingHints, 'omarchy-launch-editor'), '', 'an unbound command gets no hint')
+assertEqual(menu.keybindingHintFor(menu.parseKeybindingHints(''), 'omarchy-system-lock'), '', 'a missing bind file gives no hints')
 // Every glyph the menu draws in the Omarchy font is one the font carries. The
 // ranges come from the font itself, so a new glyph needs no edit here.
 const fontRanges = require('child_process')

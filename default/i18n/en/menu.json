@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.keybinding-hints-on": {
+    "label": "Key Hints On"
+  },
+  "trigger.toggle.keybinding-hints-off": {
+    "label": "Key Hints Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },

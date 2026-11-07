@@ -44,6 +44,8 @@ Item {
     userMenuFile.reload()
     languageFile.reload()
     menuCatalogFile.reload()
+    keybindingHintsFile.reload()
+    keybindingHintsOffFlag.reload()
     return "ok"
   }
 
@@ -136,7 +138,7 @@ Item {
   property bool searchDivider: false
   property int layoutSerial: 0
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
-  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
+  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider, keybindingHints, keybindingHintsEnabled)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
@@ -177,6 +179,24 @@ Item {
     return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
   }
 
+  // Keybinding hints: the selected row names the key that runs its action.
+  // default/hypr/helpers.lua rewrites the bind file on every Hyprland config
+  // load, so a rebound key shows its new chord without the shell asking.
+  // `omarchy toggle menu keybinding hints` turns them off.
+  readonly property string stateHome: Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")
+  property var keybindingHints: ({})
+  property bool keybindingHintsEnabled: true
+  readonly property int keybindingHintHeight: Style.font.bodySmall + Style.space(5)
+
+  function keybindingHintFor(action, _hints, _enabled) {
+    if (root.dmenuActive || !root.keybindingHintsEnabled) return ""
+    return MenuModel.keybindingHintFor(root.keybindingHints, action)
+  }
+
+  function rowHeightFor(detail, keybindingHint, hasCursor) {
+    return root.rowHeightForDetail(detail) + (hasCursor && keybindingHint ? root.keybindingHintHeight : 0)
+  }
+
   // Height the card can devote to rows before running off the screen — or
   // past the frozen top edge once a search has pinned the card in place.
   // Uses panel.cardTop rather than effectiveCardTop: the centered top is
@@ -208,21 +228,27 @@ Item {
     return totals[full - 1] + root.rowSpacing + peek
   }
 
-  function rowListHeight(_serial, _count, _filter, _divider) {
+  function rowListHeight(_serial, _count, _filter, _divider, _hints, _hintsEnabled) {
     if (displayModel.count === 0) return root.baseRowHeight
 
     var totals = []
     var total = 0
     var previousSection = ""
+    // Room for the selected row's hint is held from the start, so moving the
+    // cursor onto a bound row never resizes the card.
+    var hintRoom = 0
 
     for (var i = 0; i < displayModel.count; i++) {
       var row = displayModel.get(i)
       if (i > 0) total += root.rowSpacing
       if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
       total += root.rowHeightForDetail(row.detail)
+      if (!hintRoom && root.keybindingHintFor(row.action)) hintRoom = root.keybindingHintHeight
       previousSection = row.section
       totals.push(total)
     }
+
+    for (var t = 0; t < totals.length; t++) totals[t] += hintRoom
 
     return foldedListHeight(totals, availableRowsHeight())
   }
@@ -963,6 +989,10 @@ Item {
     cursorActive = true
     root.disarmPointer()
     root.evaluateGuards()
+    // Hyprland writes the bind file after the shell may already have looked
+    // for it, and a watch on a path that does not exist yet never fires.
+    keybindingHintsFile.reload()
+    keybindingHintsOffFlag.reload()
     opened = true
     rebuildDisplay()
     invalidateVolatileProvider(activeMenu)
@@ -1186,6 +1216,27 @@ Item {
     printErrors: false
     onLoaded: { root.menuCatalog = root.parseCatalog(text()); root.rebuildItemsFromSources(true) }
     onLoadFailed: { root.menuCatalog = ({}); root.rebuildItemsFromSources(true) }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: keybindingHintsFile
+    path: root.stateHome + "/omarchy/keybinding-commands"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.keybindingHints = MenuModel.parseKeybindingHints(text())
+    onLoadFailed: root.keybindingHints = ({})
+    onFileChanged: reload()
+  }
+
+  // The hints are on unless this flag exists (omarchy-toggle-menu-keybinding-hints).
+  FileView {
+    id: keybindingHintsOffFlag
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles/menu-keybinding-hints-off"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.keybindingHintsEnabled = false
+    onLoadFailed: root.keybindingHintsEnabled = true
     onFileChanged: reload()
   }
 
@@ -1491,9 +1542,10 @@ Item {
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              readonly property string keybindingHint: root.keybindingHintFor(row.action, root.keybindingHints, root.keybindingHintsEnabled)
 
               width: ListView.view.width
-              height: root.rowHeightForDetail(row.detail)
+              height: root.rowHeightFor(row.detail, row.keybindingHint, row.hasCursor)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
@@ -1574,6 +1626,18 @@ Item {
                   visible: (root.filterText || row.kind === "dmenu") && row.detail.length > 0
                   color: root.foreground
                   opacity: 0.52
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: row.keybindingHint
+                  visible: row.hasCursor && row.keybindingHint.length > 0
+                  color: root.selectedText
+                  opacity: 0.6
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
                   elide: Text.ElideRight
