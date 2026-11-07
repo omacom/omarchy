@@ -160,7 +160,7 @@ PanelWindow {
   // Clickable region is the whole screen. Clicks in the bar strip are
   // forwarded to registered bar buttons so switching between panel icons
   // works in one click even when the overlay surface is above the bar.
-  readonly property real _barStripSize: bar ? barThickness + gap : 0
+  readonly property real _barStripSize: bar ? barReach + gap : 0
   mask: Region {
     width: root.screenW
     height: root.screenH
@@ -180,7 +180,7 @@ PanelWindow {
   // full-width top bar, the content x maps directly to screen x; the y
   // returned here has the bar's internal padding baked in (e.g. ~13px
   // from vertical centering of the widget row), which is why `cardOrigin`
-  // below uses `barThickness` for the perpendicular axis instead of this y.
+  // below uses `barReach` for the perpendicular axis instead of this y.
   readonly property point anchorScreenPos: {
     anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
@@ -191,10 +191,10 @@ PanelWindow {
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barThickness + gap + margin : margin * 2))
+    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barReach + gap + margin : margin * 2))
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barThickness + gap + margin : margin * 2))
+    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barReach + gap + margin : margin * 2))
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -226,13 +226,16 @@ PanelWindow {
   // wrappers, padding). The bar window spans its whole screen, so its
   // dimensions say nothing about the strip; the painted strip hugs the
   // bar's anchored screen edge at the bar's thickness for this screen
-  // (notch floor included), so `barThickness` gives the strip's inner edge
+  // (notch floor included), so `barReach` gives the strip's inner edge
   // regardless of how the bar's internal widgets are positioned. For the
   // parallel axis (along the bar) the anchor item's reported position is
   // still consistent with the bar content origin, so it's accurate for
   // centering the card under the icon.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize)
+  // A floating bar hangs its edge margin off the screen edge, so the strip's
+  // inner edge is that much further in.
+  readonly property real barReach: barThickness + (bar && bar.barMargins ? (bar.barMargins[barPos] || 0) : 0)
   // Bar window dimensions, only for mapping overlay coordinates into
   // bar-window content coordinates in barPoint() below.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
@@ -242,22 +245,22 @@ PanelWindow {
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
       x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barThickness - drawnHeight - gap : barThickness + gap
+      y = barPos === "bottom" ? screenH - barReach - drawnHeight - gap : barReach + gap
     } else if (centerOnBar) {
-      x = barPos === "left" ? barThickness + gap : screenW - barThickness - contentWidth - gap
+      x = barPos === "left" ? barReach + gap : screenW - barReach - contentWidth - gap
       y = screenH / 2 - drawnHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barThickness - drawnHeight - gap
+      y = screenH - barReach - drawnHeight - gap
     } else if (barPos === "left") {
-      x = barThickness + gap
+      x = barReach + gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else if (barPos === "right") {
-      x = screenW - barThickness - contentWidth - gap
+      x = screenW - barReach - contentWidth - gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barThickness + gap
+      y = barReach + gap
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
     y = Math.max(margin, Math.min(y, screenH - drawnHeight - margin))

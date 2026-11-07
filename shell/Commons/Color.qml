@@ -80,6 +80,12 @@ QtObject {
     property color background: root.composed("bar.background", "bar.background-alpha", root.background, 1.0)
     property color text: root.pick("bar.text", root.foreground)
     property color active: root.pick("bar.active", root.urgent)
+    // Pills default to the bar background itself, alpha included, so every
+    // theme gets them with no new keys. The border is off until a theme gives
+    // it an alpha.
+    property color pill: root.composed("bar.pill", "bar.pill-alpha", root.pick("bar.background", root.background), root.pickAlpha("bar.background-alpha", 1.0))
+    property color pillText: root.pick("bar.pill-text", root.bar.text)
+    property color pillBorder: root.composed("bar.pill-border", "bar.pill-border-alpha", root.foreground, 0.0)
   }
   readonly property QtObject popups: QtObject {
     property color background: root.composed("popups.background", "popups.background-alpha", root.background, 1.0)
