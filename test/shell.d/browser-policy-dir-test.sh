@@ -297,6 +297,7 @@ unset -f cleanup
 pass "omarchy-theme-set-browser-policy's EXIT trap never leaks a failure status"
 
 policy_files=(
+  "$ROOT/bin/omarchy-apply-browser-policy"
   "$ROOT/bin/omarchy-install-browser"
   "$ROOT/bin/omarchy-provision-owner"
   "$ROOT/bin/omarchy-theme-set-browser"
@@ -329,3 +330,16 @@ printf 'not json\n' >"$fx_merge/policies.json"
 browser_policy_firefox_skip_default_check "$fx_merge"
 [[ $(<"$fx_merge/policies.json") == "not json" ]] || fail "an unreadable Firefox policies.json is left alone"
 pass "Firefox's default browser check is merged into existing policies"
+
+# The pacman hook hands its targets to omarchy-apply-browser-policy, which sets
+# up the directory each one maps to. A target with no directory, or one outside
+# the hardened list, would install or upgrade without Omarchy's policy.
+hook_targets=$(sed -n 's/^Target = //p' "$ROOT/default/libalpm/hooks/60-omarchy-apply-browser-policy.hook")
+[[ -n $hook_targets ]] || fail "the browser policy hook names its browser packages"
+while read -r package; do
+  policy_dir=$(browser_policy_managed_dir_for_package "$package") ||
+    fail "the browser policy hook's $package target maps to a policy directory"
+  [[ " ${BROWSER_POLICY_MANAGED_DIRS[*]} " == *" $policy_dir "* ]] ||
+    fail "the browser policy hook's $package target maps to a hardened policy directory" "$policy_dir"
+done <<<"$hook_targets"
+pass "every browser the policy hook targets maps to a hardened policy directory"
