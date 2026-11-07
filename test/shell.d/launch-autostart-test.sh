@@ -34,11 +34,18 @@ EOF
 # "--timeout 15" as one word, which real gdbus rejects at once) cannot pass as
 # the right call. The exit status is per bus name: FAKE_GDBUS_FAIL lists the
 # names whose wait should time out.
+# A NameHasOwner call answers from the same list, and a wait on a name in
+# FAKE_GDBUS_SLOW sleeps past a one-second budget first.
 cat >"$fakes/gdbus" <<'EOF'
 #!/bin/bash
 { printf '%s\n' "$@"; echo; } >>"$FAKE_LOG_DIR/gdbus"
 [[ -e "$FAKE_LOG_DIR/uwsm-app" ]] && echo launched-before-wait >>"$FAKE_LOG_DIR/gdbus"
 name="${@: -1}"
+if [[ $1 == "call" ]]; then
+  if [[ " ${FAKE_GDBUS_FAIL:-} " == *" $name "* ]]; then echo "(false,)"; else echo "(true,)"; fi
+  exit 0
+fi
+[[ " ${FAKE_GDBUS_SLOW:-} " == *" $name "* ]] && sleep 1.2
 [[ " ${FAKE_GDBUS_FAIL:-} " == *" $name "* ]] && exit 1
 exit 0
 EOF
@@ -47,7 +54,7 @@ chmod +x "$fakes/uwsm-app" "$fakes/logger" "$fakes/gdbus"
 # Each run gets its own HOME, so the shell.json under test is the only one.
 run_command() {
   FAKE_LOG_DIR=$(mktemp -d -p "$fakes")
-  HOME="$FAKE_HOME" PATH="$fakes:$PATH" FAKE_LOG_DIR="$FAKE_LOG_DIR" FAKE_GDBUS_FAIL="${FAKE_GDBUS_FAIL:-}" "$command_path" "$@"
+  HOME="$FAKE_HOME" PATH="$fakes:$PATH" FAKE_LOG_DIR="$FAKE_LOG_DIR" FAKE_GDBUS_FAIL="${FAKE_GDBUS_FAIL:-}" FAKE_GDBUS_SLOW="${FAKE_GDBUS_SLOW:-}" "$command_path" "$@"
 }
 
 write_shell_config() {
@@ -126,6 +133,12 @@ calls_are "$notifications_wait" ||
   fail "autostart skips the tray wait when no bar widget is a tray" "$(gdbus_calls)"
 pass "autostart skips the tray wait when no bar widget is a tray"
 
+write_shell_config '{"version":1,"bar":{"layout":{"left":[],"center":[],"right":["omarchy.tray"]}}}'
+run_command my-app
+calls_are "$notifications_wait$tray_wait" ||
+  fail "autostart waits for a tray listed as a bare string entry" "$(gdbus_calls)"
+pass "autostart waits for a tray listed as a bare string entry"
+
 write_shell_config '{"version":1,"bar":{"layout":{"left":[],"center":[],"right":[{"id":"mihailo.tray"}]}}}'
 run_command my-app
 calls_are "$notifications_wait$tray_wait" ||
@@ -161,6 +174,19 @@ grep -Fq -- '-t omarchy-autostart' "$FAKE_LOG_DIR/logger" ||
 grep -Fq 'was not available after waiting up to 15s' "$FAKE_LOG_DIR/logger" ||
   fail "autostart's journal line stays true when gdbus fails for any reason" "$(cat "$FAKE_LOG_DIR/logger")"
 pass "autostart reports a timed-out wait to the journal"
+
+# The notification wait used the whole budget while the tray watcher was up
+# all along: the tray is asked once, not blamed.
+FAKE_GDBUS_FAIL="org.freedesktop.Notifications"
+FAKE_GDBUS_SLOW="org.freedesktop.Notifications"
+OMARCHY_AUTOSTART_TIMEOUT=1 run_command my-service
+(( $(wc -l <"$FAKE_LOG_DIR/logger") == 1 )) || fail "a tray that is up is not reported missing after a spent budget" "$(cat "$FAKE_LOG_DIR/logger")"
+grep -Fq 'org.freedesktop.Notifications' "$FAKE_LOG_DIR/logger" ||
+  fail "the spent budget still reports the service that was missing" "$(cat "$FAKE_LOG_DIR/logger")"
+owner_check=$(awk '/^$/ { call++; next } call == 1 && NR > 1 { print }' "$FAKE_LOG_DIR/gdbus" | head -1)
+[[ $owner_check == "call" ]] || fail "a spent budget asks the bus once instead of waiting" "$(gdbus_calls)"
+pass "a tray that is up is not reported missing after a spent budget"
+FAKE_GDBUS_SLOW=""
 
 # Both missing: two lines, one per name.
 FAKE_GDBUS_FAIL="org.freedesktop.Notifications org.kde.StatusNotifierWatcher"

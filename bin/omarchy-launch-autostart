@@ -31,19 +31,27 @@
 # A daemon that will claim a name itself must not go through here or it waits
 # for itself; autostart it with o.exec_on_start(o.launch(...)).
 
-timeout=15
+timeout=${OMARCHY_AUTOSTART_TIMEOUT:-15}
 shell_config="$HOME/.config/omarchy/shell.json"
 
+name_owned() {
+  [[ $(gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.NameHasOwner "$1" 2>/dev/null) == "(true,)" ]]
+}
+
 # Waits for one bus name with whatever is left of the budget. Extra arguments
-# go to gdbus wait. Returns 1 when the name did not appear in time.
+# go to gdbus wait. Returns 1 when the name is not there in time. With no
+# budget left it still asks the bus once, so a service that came up during an
+# earlier wait is never reported missing.
 wait_for_name() {
   local name="$1"
   shift
   local remaining=$((timeout - SECONDS))
   if (( remaining < 1 )); then
-    return 1
+    name_owned "$name"
+  else
+    gdbus wait --session "$@" --timeout "$remaining" "$name" >/dev/null 2>&1
   fi
-  gdbus wait --session "$@" --timeout "$remaining" "$name" >/dev/null 2>&1
 }
 
 report_missing() {
@@ -60,8 +68,10 @@ if ! wait_for_name org.freedesktop.Notifications "${notification_args[@]}"; then
 fi
 
 # Skip the tray wait only when the layout is readable and lists no tray widget;
-# a missing or unreadable file means the default layout, which has one.
-if ! jq -e '.bar.layout | objects | [.. | objects | .id? | strings] | any(endswith(".tray")) | not' "$shell_config" >/dev/null 2>&1; then
+# a missing or unreadable file means the default layout, which has one. A
+# layout entry is either a bare id string or an object with an id, and every
+# string under the layout is collected to cover both.
+if ! jq -e '.bar.layout | objects | [.. | strings] | any(endswith(".tray")) | not' "$shell_config" >/dev/null 2>&1; then
   if ! wait_for_name org.kde.StatusNotifierWatcher; then
     report_missing org.kde.StatusNotifierWatcher "$1"
   fi
