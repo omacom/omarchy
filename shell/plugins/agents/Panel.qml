@@ -796,6 +796,26 @@ Panel {
     return out
   }
 
+  // The soonest moment any measured window rolls over, or 0 when none is
+  // still running.
+  function nextResetMs(list, now) {
+    var soonest = 0
+    for (var i = 0; i < list.length; i++) {
+      var limits = list[i] ? (list[i].limits || []) : []
+      for (var j = 0; j < limits.length; j++) {
+        var reset = new Date(String((limits[j] || {}).resetsAt || "")).getTime()
+        if (isFinite(reset) && reset > now && (soonest === 0 || reset < soonest)) soonest = reset
+      }
+    }
+    return soonest
+  }
+
+  // A timer's interval is a 32-bit count of milliseconds, a little under 25
+  // days. A reset further off than that is waited for in more than one go.
+  function resetTickDelay(dueMs, now) {
+    return Math.max(0, Math.min(dueMs - now, 2147483647))
+  }
+
   // The window that decides how much room is left — the fullest one, since
   // that is what stops the next prompt.
   function bindingWindow(p) {
@@ -1105,9 +1125,8 @@ Panel {
     if (addStage !== "running") addStage = ""
     resetKeys()
     if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
-    nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
+    if (!advanceClock()) usage.refreshLimits()
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
@@ -1160,7 +1179,101 @@ Panel {
     interval: 30000
     running: root.opened
     repeat: true
-    onTriggered: root.nowMs = Date.now()
+    onTriggered: root.advanceClock()
+  }
+
+  // The bar icon reads the same clock, and with the panel closed nothing
+  // moves it: a window that has reset would keep the icon lit until the
+  // panel is next opened. The record says when each window rolls over, so
+  // wait for the soonest one, then move the clock and ask for the new
+  // window's numbers rather than leave an assumed zero standing until the
+  // next refresh. That is one extra limits run per window that rolls over,
+  // against the twenty the regular refresh makes in a five-hour session.
+  // One further run goes out when that fetch was answered by reuse, below.
+  //
+  // Due a few seconds past the reset itself, so the provider has rolled the
+  // window over before it is asked. 0 while no window is running.
+  readonly property double resetDueMs: {
+    var reset = nextResetMs(providers, nowMs - 3000)
+    return reset > 0 ? reset + 3000 : 0
+  }
+  onResetDueMsChanged: armResetTimer()
+  Component.onCompleted: armResetTimer()
+
+  Timer {
+    id: resetTimer
+    onTriggered: root.advanceClock()
+  }
+
+  // Measured from the wall clock rather than nowMs, which may be hours old
+  // on a closed panel.
+  function armResetTimer() {
+    if (resetDueMs > 0) {
+      resetTimer.interval = resetTickDelay(resetDueMs, Date.now())
+      resetTimer.restart()
+    } else {
+      resetTimer.stop()
+    }
+  }
+
+  // A reuse cache can answer the reset fetch with a probe that ran just
+  // before the deadline: numbers measured while the old window still ran,
+  // dressed up as live. That leaves the new window with assumed or old
+  // numbers until the next regular refresh, so wait out the collectors'
+  // probe reuse guard and ask again — only the providers whose record still
+  // predates the reset: one probed at the deadline itself was answered
+  // really and is skipped. The guard is 15s of probe reuse, so 20s from the
+  // deadline turns any record left behind into a real probe. A rare run
+  // beside the one the reset makes.
+  readonly property double resetFetchGuardMs: 20000
+
+  property double refetchResetDueMs: 0
+  Timer {
+    id: resetRefetchTimer
+    onTriggered: root.refetchResetLimits()
+  }
+
+  function refetchResetLimits() {
+    var due = refetchResetDueMs
+    refetchResetDueMs = 0
+    if (due <= 0) return
+    var stale = []
+    for (var i = 0; i < providers.length; i++) {
+      var p = providers[i]
+      if (p && p.limits && p.limits.length > 0 && Number(p.limitsFetchedAt) > 0 && Number(p.limitsFetchedAt) < due)
+        stale.push(p.providerId)
+    }
+    if (stale.length > 0) usage.refreshLimits(stale)
+  }
+
+  // Capture the pending deadline before moving the clock: the new clock can
+  // rebind resetDueMs and cancel its timer before that timer gets to fire.
+  // Every clock update comes through here so that reset still gets fetched.
+  function advanceClock() {
+    var due = resetDueMs
+    var now = Date.now()
+    nowMs = now
+    if (due > 0 && now >= due) {
+      refetchResetDueMs = due
+      resetRefetchTimer.interval = resetFetchGuardMs
+      resetRefetchTimer.restart()
+      usage.refreshLimits()
+      return true
+    }
+    // An early timer or a wait capped by the interval limit needs another
+    // arm even when the deadline binding has not changed.
+    if (due > 0) armResetTimer()
+    return false
+  }
+
+  // QML timers do not count time asleep. Check the wall clock on resume,
+  // fetching a missed reset or rearming a future one for its remaining wait.
+  readonly property var idleService: bar?.shell?.firstPartyServiceFor("omarchy.idle")
+
+  Connections {
+    target: root.idleService
+    ignoreUnknownSignals: true
+    function onResumed() { root.advanceClock() }
   }
 
   Timer {
