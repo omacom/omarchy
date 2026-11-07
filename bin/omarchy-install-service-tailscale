@@ -3,6 +3,11 @@
 # omarchy:summary=Install the Tailscale mesh VPN service and a web app for the Tailscale Admin Console.
 # omarchy:requires-sudo=true
 
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
 echo -e "\nInstalling Tailscale..."
 omarchy-pkg-add tailscale
 
