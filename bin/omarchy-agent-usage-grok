@@ -237,13 +237,19 @@ def untouched_week(data):
   return {"label": "Weekly", "percent": 0.0, "resetsAt": parse_time(period["end"]).isoformat()}
 
 
+# A monthly answer that says the account has no included quota, as opposed to
+# one that can't be read.
+class NoMonthlyQuota(ValueError):
+  pass
+
+
 # The monthly answer as one limit window: how much of the month's included
 # quota is used, and when the billing period ends.
 def monthly_limit(data):
   config = data["config"]
   quota = amount(config["monthlyLimit"])
   if quota <= 0:
-    raise ValueError("no monthly quota")
+    raise NoMonthlyQuota("no monthly quota")
   return {
     "label": "Monthly",
     "percent": max(0.0, min(1.0, amount(config["used"]) / quota)),
@@ -298,10 +304,11 @@ def collect_limits(home, key, force):
     if weekly is None:
       try:
         limits = [monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8))]
-      except (KeyError, ValueError):
+      except NoMonthlyQuota:
         # A unified-billing account with no monthly quota is metered by the
         # week alone, so a current week without a percentage is one with
-        # nothing used yet: 0%, as for any other account.
+        # nothing used yet: 0%, as for any other account. A monthly answer
+        # that can't be read is no answer, and keeps what was known before.
         limits = [untouched_week(credits)]
     else:
       limits = [weekly]

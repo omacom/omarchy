@@ -31,7 +31,7 @@ def credits(request):
     config["creditUsagePercent"] = USED[token]
   if answer["percent"] is not None:
     config["creditUsagePercent"] = answer["percent"]
-  if token in ("token-unified", "token-weekly-only"):
+  if token in ("token-unified", "token-weekly-only", "token-broken-monthly"):
     config["isUnifiedBillingUser"] = True
   return {"config": config}
 
@@ -39,9 +39,12 @@ def credits(request):
 def monthly(request):
   # A unified-billing account without a monthly quota answers with zeros,
   # which protobuf JSON would drop; xAI sends them as {"val": 0}.
-  if request.get_header("Authorization").split(" ", 1)[1] == "token-weekly-only":
+  token = request.get_header("Authorization").split(" ", 1)[1]
+  if token == "token-weekly-only":
     return {"config": {"billingPeriodStart": iso_in(-6 * 86400), "billingPeriodEnd": iso_in(24 * 86400),
                        "monthlyLimit": {"val": 0}, "used": {"val": 0}}}
+  if token == "token-broken-monthly":
+    return {"config": {"monthlyLimit": {"val": 1000}}}
   return {"config": {"isUnifiedBillingUser": True, "billingPeriodStart": iso_in(-20 * 86400), "billingPeriodEnd": PERIOD_END,
                      "monthlyLimit": {"val": 1000}, "used": {"val": 900}}}
 
@@ -199,6 +202,14 @@ record = grok()
 expect("a unified-billing account without a monthly quota reads an untouched week as 0%",
        [record["usageStatusText"], [[limit["label"], limit["percent"]] for limit in record["limits"]], bool(record["limits"][0]["resetsAt"])],
        ["", [["Weekly", 0.0]], True], record)
+
+# A monthly answer with a quota but without its usage can't be read. That is
+# no answer, not an untouched week: the account isn't one metered by the week.
+sandbox()
+signed_in(grok_home(), token="token-broken-monthly")
+record = grok()
+expect("an unreadable monthly answer is no answer, not an untouched week",
+       [record["limits"], record["usageStatusText"]], [[], "Grok limits unavailable"], record)
 
 # A unified-billing account can also carry a weekly percentage on the credits
 # answer; Grok's /usage then shows the monthly included quota beside it.
