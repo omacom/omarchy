@@ -513,6 +513,115 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// A reload that lost the tray host puts it back without rearranging the
+// rest of a custom layout. One the user switched off, or placed themselves,
+// stays as they left it.
+function clone(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+const custom = {
+  version: 1,
+  idle: { lock: 300 },
+  bar: {
+    position: 'top',
+    layout: {
+      left: [{ id: 'omarchy.menu' }, { id: 'custom.workspaces' }],
+      right: [
+        { id: 'omarchy.keyboard-layout' },
+        { id: 'omarchy.bluetooth' },
+        { id: 'omarchy.network' },
+        { id: 'omarchy.audio' },
+        { id: 'omarchy.monitor' },
+        { id: 'omarchy.power', showPercentage: true },
+        { id: 'jankeesvw.notification-center' }
+      ],
+      tray: []
+    }
+  },
+  plugins: [{ id: 'custom.notes' }]
+}
+const restored = clone(custom)
+assert(bar.ensureTrayWidget(restored), 'a layout missing the tray is repaired')
+assertDeepEqual(restored.bar.layout.right.map(entry => entry.id), [
+  'omarchy.keyboard-layout',
+  'omarchy.tray',
+  'omarchy.bluetooth',
+  'omarchy.network',
+  'omarchy.audio',
+  'omarchy.monitor',
+  'omarchy.power',
+  'jankeesvw.notification-center'
+], 'the tray returns after the keyboard layout, and the other widgets stay')
+assertEqual(
+  restored.bar.layout.right.find(entry => entry.id === 'omarchy.power').showPercentage,
+  true,
+  'a restored layout keeps widget settings'
+)
+assertDeepEqual(restored.bar.layout.left, custom.bar.layout.left, 'a restored layout leaves the other sections alone')
+assertDeepEqual(restored.bar.layout.tray, [], 'a restored layout leaves the tray drawer alone')
+assertDeepEqual(restored.plugins, custom.plugins, 'a restored layout leaves plugins alone')
+assert(!bar.ensureTrayWidget(restored), 'repairing a layout that has the tray changes nothing more')
+
+const placed = clone(custom)
+placed.bar.layout.left.push({ id: 'omarchy.tray', pinned: ['telegram'] })
+placed.bar.layout.right.shift()
+const placedBefore = clone(placed)
+assert(!bar.ensureTrayWidget(placed), 'a tray the user placed on the left stays there')
+assertDeepEqual(placed, placedBefore, 'a custom tray placement is not rewritten')
+
+const parked = {
+  version: 1,
+  bar: {
+    layout: {
+      right: [{ id: 'omarchy.bluetooth' }],
+      tray: [{ id: 'custom.drawer' }, { id: 'omarchy.tray', pinned: ['discord'] }]
+    }
+  }
+}
+assert(bar.ensureTrayWidget(parked), 'a tray parked in its own drawer is moved onto the bar')
+assertDeepEqual(parked.bar.layout.right, [
+  { id: 'omarchy.tray', pinned: ['discord'] },
+  { id: 'omarchy.bluetooth' }
+], 'a parked tray keeps its settings and leads the right section')
+assertDeepEqual(parked.bar.layout.tray, [{ id: 'custom.drawer' }], 'widgets the user put in the drawer stay there')
+
+const switchedOff = clone(custom)
+switchedOff.disabledPlugins = ['omarchy.tray']
+const switchedOffBefore = clone(switchedOff)
+assert(!bar.ensureTrayWidget(switchedOff), 'a tray the user switched off stays off')
+assertDeepEqual(switchedOff, switchedOffBefore, 'switching the tray off is left recorded')
+
+const cloneOff = clone(custom)
+cloneOff.disabledPlugins = ['local.tray']
+const cloneOffBefore = clone(cloneOff)
+assert(!bar.ensureTrayWidget(cloneOff, { trayIds: ['omarchy.tray', 'local.tray'] }), 'a tray clone the user switched off is not replaced with the built-in')
+assertDeepEqual(cloneOff, cloneOffBefore, 'a switched-off tray clone leaves the custom layout untouched')
+
+const foreign = clone(custom)
+foreign.bar.id = 'third.bar'
+const foreignBefore = clone(foreign)
+assert(!bar.ensureTrayWidget(foreign, { managedBar: false }), 'another bar option keeps its own layout')
+assertDeepEqual(foreign, foreignBefore, 'an unmanaged layout is not given a tray')
+
+const leading = clone(custom)
+leading.bar.layout.right[0] = { id: 'omarchy.bluetooth' }
+assert(bar.ensureTrayWidget(leading), 'a right section that does not lead with the keyboard still gets a tray')
+assertEqual(leading.bar.layout.right[0].id, 'omarchy.tray', 'the tray takes the inner edge when the keyboard does not lead')
+assertEqual(leading.bar.layout.right[1].id, 'omarchy.bluetooth', 'the widget that led the section stays next to the tray')
+
+const staleOff = clone(custom)
+staleOff.bar.layout.right.splice(1, 0, { id: 'omarchy.tray' })
+staleOff.disabledPlugins = ['omarchy.audio', 'omarchy.tray']
+assert(bar.ensureTrayWidget(staleOff), 'a tray that is on the bar clears a stale switched-off record')
+assertDeepEqual(staleOff.disabledPlugins, ['omarchy.audio'], 'only the tray is cleared from the switched-off list')
+assertEqual(staleOff.bar.layout.right.filter(entry => entry.id === 'omarchy.tray').length, 1, 'clearing the record does not add a second tray')
+
+const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
+assert(/function applyShellConfig\(\) \{[\s\S]*?repairTrayWidget\(/.test(shellSource), 'reloading shell config repairs a missing tray')
+assert(/function onScanFinished\(\) \{[\s\S]*?repairTrayWidget\(/.test(shellSource), 'the tray is repaired once plugin manifests are known')
+assert(/isTray\(key\)\) addDisabled\(config, key\)/.test(fs.readFileSync(root + '/shell/services/PluginRegistry.qml', 'utf8')), 'disabling the tray records it as switched off')
+assert(/registry\.isTray\(removal\.id\)/.test(fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')), 'dragging the tray off the bar records it as switched off')
 JS
 
 put_tmp=$(mktemp -d)
