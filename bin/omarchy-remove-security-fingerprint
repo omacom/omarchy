@@ -57,6 +57,40 @@ remove_resume_hook() {
 }
 
 
+validity_backend=false
+if omarchy-cmd-present omarchy-hw-fingerprint-validity && omarchy-hw-fingerprint-validity; then
+  validity_backend=true
+elif [[ -f /etc/systemd/system/python3-validity.service || -f /etc/udev/rules.d/60-python-validity.rules ]]; then
+  validity_backend=true
+fi
+
+remove_validity_config() {
+  echo "Removing Validity fingerprint authentication..."
+  sudo systemctl stop open-fprintd.service python3-validity.service 2>/dev/null || true
+  sudo systemctl disable open-fprintd.service python3-validity.service 2>/dev/null || true
+
+  sudo rm -f /etc/udev/rules.d/60-python-validity.rules
+  sudo rm -f /etc/systemd/system/python3-validity.service
+  sudo rm -rf /etc/systemd/system/python3-validity.service.d
+  sudo rm -f /etc/systemd/system/open-fprintd.service.d/after-validity.conf
+  sudo rm -f /etc/systemd/system/open-fprintd.service.d/10-stop-timeout.conf
+  if [[ -d /etc/systemd/system/open-fprintd.service.d ]]; then
+    sudo rmdir --ignore-fail-on-non-empty /etc/systemd/system/open-fprintd.service.d
+  fi
+  if [[ -f /etc/pacman.conf ]] && grep -Fxq 'IgnorePkg = fprintd' /etc/pacman.conf; then
+    echo "Removing Validity IgnoredPkg override..."
+    sudo sed -i '/^IgnorePkg = fprintd$/d' /etc/pacman.conf
+  fi
+  sudo rm -f /usr/lib/systemd/system-sleep/python-validity-wakeup
+  sudo rm -f /usr/lib/systemd/system-sleep/fprint_wakeup
+  sudo systemctl stop python3-validity-suspend-hotfix.service 2>/dev/null || true
+  sudo systemctl disable python3-validity-suspend-hotfix.service 2>/dev/null || true
+  sudo systemctl unmask python3-validity-suspend-hotfix.service 2>/dev/null || true
+  sudo rm -rf /var/lib/python-validity
+  sudo systemctl daemon-reload 2>/dev/null || true
+  sudo systemctl unmask fprintd 2>/dev/null || true
+}
+
 echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 
 # A match-on-chip reader (Touch ID among them) keeps the prints in the device as
@@ -81,16 +115,23 @@ remove_pam_config
 remove_lock_fingerprint_pam
 remove_resume_hook
 
+if [[ $validity_backend == true ]]; then
+  remove_validity_config
+  echo "Removing Validity packages..."
+  omarchy-pkg-drop python-validity open-fprintd
+  echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"
+else
 sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"
 
-# A platform that turned its reader on for setup turns it off again. Failing to
-# doesn't stop the removal, but the owner is told the reader may stay on.
-if ! disable_hook=$(omarchy-lifecycle-dispatch --resolve disable-fingerprint) ||
-  { [[ -n $disable_hook ]] && ! sudo omarchy-lifecycle-dispatch disable-fingerprint; }; then
-  echo -e "\e[33mThe fingerprint reader may still be turned on at the next boot.\e[0m"
+  # A platform that turned its reader on for setup turns it off again. Failing to
+  # doesn't stop the removal, but the owner is told the reader may stay on.
+  if ! disable_hook=$(omarchy-lifecycle-dispatch --resolve disable-fingerprint) ||
+    { [[ -n $disable_hook ]] && ! sudo omarchy-lifecycle-dispatch disable-fingerprint; }; then
+    echo -e "\e[33mThe fingerprint reader may still be turned on at the next boot.\e[0m"
+  fi
+
+  echo "Removing fingerprint packages..."
+  omarchy-pkg-drop fprintd libfprint libfprint-git
+
+  echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"
 fi
-
-echo "Removing fingerprint packages..."
-omarchy-pkg-drop fprintd libfprint libfprint-git
-
-echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"

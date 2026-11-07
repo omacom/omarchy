@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when a Validity fingerprint reader is present
+# omarchy:hidden=true
+
+# Known python-validity USB sensors:
+# Supported pairs only:
+#   138a:0090, 138a:0097, 138a:009d
+#   06cb:009a
+# ThinkPad T470 (138a:0097) and siblings use a Validity sensor that libfprint
+# does not drive. Those are handled by python-validity + open-fprintd instead
+# of fprintd/libfprint, so Omarchy needs to tell the two apart.
+
+usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+
+is_supported_validity_pair() {
+  local vendor=$1 product=$2
+  case "$vendor:$product" in
+    138a:0090|138a:0097|138a:009d|06cb:009a) return 0 ;;
+  esac
+  return 1
+}
+
+for dev in "$usb_devices_path"/*; do
+  if [[ -r $dev/idVendor && -r $dev/idProduct ]]; then
+    vendor=$(<"$dev/idVendor")
+    product=$(<"$dev/idProduct")
+    if is_supported_validity_pair "$vendor" "$product"; then
+      exit 0
+    fi
+  fi
+
+  # python-validity only drives the exact readers listed here.  Do not
+  # accept every 138a device that happens to have no kernel driver.
+done
+
+exit 1

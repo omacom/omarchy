@@ -117,8 +117,7 @@ hl.config({
     -- Let a fresh shell re-acquire the session lock after the lock client
     -- died, so omarchy-restart-shell can recover the LOCK failsafe.
     allow_session_lock_restore = true,
-    -- Don't chime on every terminal BEL (tab-completion misses, TUI alerts).
-    bell_sound = "none",
+    -- bell_sound requires Hyprland 0.57+; omit it on 0.56.x.
   },
 
   cursor = {
