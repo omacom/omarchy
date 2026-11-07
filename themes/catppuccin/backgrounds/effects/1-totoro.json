@@ -1,0 +1,26 @@
+{
+  "eyes": [
+    {
+      "center": [1783, 1295],
+      "radius": [40, 36],
+      "color": "#cba4f5",
+      "pupil": {
+        "radius": [16, 15],
+        "color": "#171723",
+        "rest": [6.5, -1.5],
+        "highlight": { "radius": 5, "offset": [-6.5, -3.5], "color": "#cba4f5" }
+      }
+    },
+    {
+      "center": [2072, 1295],
+      "radius": [40, 36],
+      "color": "#d4a8f4",
+      "pupil": {
+        "radius": [16, 15],
+        "color": "#171723",
+        "rest": [-6, -3.5],
+        "highlight": { "radius": 5, "offset": [-3.5, -2.5], "color": "#d4a8f4" }
+      }
+    }
+  ]
+}

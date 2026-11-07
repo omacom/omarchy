@@ -22,6 +22,12 @@ omarchy theme install <url>     # Install from git repo
 Additional user backgrounds for any theme (stock or custom) go in
 `~/.config/omarchy/backgrounds/<theme-slug>/`.
 
+## Background Effects
+
+A still background can carry effects the shell draws over it, such as eyes that follow the pointer. They live in a JSON file beside the image, paired by name: `backgrounds/totoro.webp` takes `backgrounds/effects/totoro.json`, in a theme's `backgrounds/` or in `~/.config/omarchy/backgrounds/<theme-slug>/`. Coordinates and sizes are in the image's own pixels. Start from `/usr/share/omarchy/themes/catppuccin/backgrounds/effects/1-totoro.json`; the format and how to measure an eye are in `docs/theming.md` in the Omarchy repo.
+
+With the file beside the background on screen, each save shows at once. A mistake is skipped and explained in `journalctl --user -t omarchy-shell`. Appearance > Animations off keeps effects still. The file is data only, so a theme installed from a repo keeps it.
+
 ## What a Theme Installed From a Repo May Not Contain
 
 A theme the user wrote by hand in `~/.config/omarchy/themes` is unrestricted, as

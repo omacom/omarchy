@@ -46,6 +46,19 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  // The pointer over the desktop, in global coordinates, for background
+  // effects that follow it (BackgroundEffects.qml). Each new still, and each
+  // return from a video, starts on the image's own pose until the pointer
+  // moves again. With animations off, effects stay in that pose.
+  property point pointer: Qt.point(0, 0)
+  property bool pointerTracking: false
+  readonly property bool followsPointer: {
+    if (Style.reduceMotion) return false
+    for (var panel of backgrounds.instances) {
+      if (panel.effectsWantPointer) return true
+    }
+    return false
+  }
   readonly property bool ready: {
     if (isVideo(displayedBackground)) return true
     if (backgrounds.instances.length === 0) return false
@@ -216,6 +229,24 @@ Item {
   }
 
   onReadyChanged: maybeFinishTransition()
+  onDisplayedBackgroundChanged: pointerTracking = false
+  onSuspendedChanged: if (suspended) pointerTracking = false
+  // Animations off, or no effect left to follow: the next one starts from the
+  // image's pose, not from where the pointer was back then.
+  onFollowsPointerChanged: if (!followsPointer) pointerTracking = false
+
+  EffectsSidecar {
+    id: effectsSidecar
+    background: root.isVideo(root.displayedBackground) ? "" : root.displayedBackground
+    version: root.backgroundVersion
+  }
+
+  // A held button reports motion even with hover off, so the gate is here.
+  function trackPointer(x, y) {
+    if (!followsPointer) return
+    pointer = Qt.point(x, y)
+    pointerTracking = true
+  }
 
   function prepareBackground(path) {
     path = String(path || "").trim()
@@ -410,6 +441,7 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      readonly property bool effectsWantPointer: effects.wantsPointer
       // A function, not a binding: onStatusChanged can run before a binding
       // on the same status has caught up.
       function incomingReady() {
@@ -487,6 +519,22 @@ Item {
         onStatusChanged: panel.maybeStartReveal()
       }
 
+      // Above the outgoing frame, which shows the same still during a
+      // reveal, so effects hold their pose until the new still covers them.
+      BackgroundEffects {
+        id: effects
+        anchors.fill: parent
+        visible: active && base.ready
+        effects: effectsSidecar.effects
+        imageSize: {
+          var native = root.nativeSizes[root.displayedBackground]
+          return native ? Qt.size(native.width, native.height) : Qt.size(0, 0)
+        }
+        screenOrigin: Qt.point(panel.modelData.x, panel.modelData.y)
+        pointer: root.pointer
+        tracking: root.pointerTracking
+      }
+
       Item {
         id: incomingLayer
         anchors.fill: parent
@@ -557,7 +605,13 @@ Item {
         }
       }
 
-      DesktopClicks { service: root }
+      DesktopClicks {
+        service: root
+        hoverEnabled: root.followsPointer
+        onPositionChanged: function(mouse) {
+          root.trackPointer(panel.modelData.x + mouse.x, panel.modelData.y + mouse.y)
+        }
+      }
     }
   }
 
