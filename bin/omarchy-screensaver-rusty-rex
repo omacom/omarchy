@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# omarchy:summary=Run the screensaver as the Rusty Rex runner game, one on every display
+# omarchy:hidden=true
+
+if [[ $1 != "force" ]] && { omarchy-toggle-enabled screensaver-off || [[ $(omarchy-shell lock isLocked 2>/dev/null) == "true" ]]; }; then
+  exit 0
+fi
+
+# The idle service and the menu can both start the screensaver at once, so only the one holding the lock runs.
+# The games inherit it, so it stays held for as long as any of them is up.
+exec {lock}>"$XDG_RUNTIME_DIR/omarchy-screensaver-rusty-rex.lock"
+flock -n "$lock" || exit 0
+
+games=()
+
+# When one game quits, the screensaver is over on every display.
+stop_games() {
+  kill "${games[@]}" 2>/dev/null
+}
+
+trap stop_games EXIT
+trap exit SIGINT SIGTERM SIGHUP SIGQUIT
+
+game_windows() {
+  hyprctl clients -j | jq '[.[] | select(.class == "org.omarchy.screensaver")] | length'
+}
+
+games_running() {
+  local game
+  for game in "${games[@]}"; do
+    kill -0 "$game" 2>/dev/null || return 1
+  done
+}
+
+focus_monitor() {
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
+}
+
+focused=$(omarchy-hyprland-monitor-focused)
+
+# A new window opens on the focused display, so each game waits for its window before the next display is focused.
+while read -r monitor; do
+  focus_monitor "$monitor"
+  rusty-rex --screensaver --runner omarchy --banner ~/.config/omarchy/branding/screensaver.txt &
+  games+=($!)
+
+  # A game that quits while the others are starting ends the screensaver there.
+  for _ in {1..50}; do
+    games_running || exit 0
+    (($(game_windows) >= ${#games[@]})) && break
+    sleep 0.1
+  done
+done < <(hyprctl monitors -j | jq -r '.[].name')
+
+focus_monitor "$focused"
+
+games_running && wait -n "${games[@]}"

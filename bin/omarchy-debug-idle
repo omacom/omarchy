@@ -32,7 +32,7 @@ journalctl -t omarchy-shell -n "$lines" --no-pager --quiet 2>/dev/null || true
 
 section "Relevant processes"
 ps -eo pid=,args= \
-  | grep -E 'quickshell -n -p|omarchy-system-sleep-monitor|systemd-inhibit.*Lock screen before suspend|omarchy-screensaver' \
+  | grep -E 'quickshell -n -p|omarchy-system-sleep-monitor|systemd-inhibit.*Lock screen before suspend|omarchy-screensaver|rusty-rex --screensaver' \
   | grep -v grep || true
 
 section "Sleep lock service"
@@ -51,6 +51,8 @@ if hyprctl layers -j 2>/dev/null | jq -e '[.. | objects | select(.namespace? == 
   echo "running-layer"
 elif pgrep -f '[/]usr/lib/omarchy-screensaver/omarchy-screensaver' >/dev/null; then
   echo "running-process"
+elif pgrep -f '^rusty-rex --screensaver' >/dev/null; then
+  echo "running-rusty-rex"
 elif omarchy-toggle-enabled screensaver-off; then
   echo "disabled"
 else
