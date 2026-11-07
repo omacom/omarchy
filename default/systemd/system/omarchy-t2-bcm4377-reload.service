@@ -1,0 +1,18 @@
+[Unit]
+Description=Reload BCM4377 Wi-Fi after resume and rebind Bluetooth
+Documentation=https://github.com/omacom/omarchy/issues/11264
+# Started by omarchy-t2-bcm4377-suspend after wake. Not installed into a
+# boot target: systemctl restart of this name is what a second wake reuses.
+# A late D0 or a transient modprobe failure is retried. Past that limit the
+# unit fails and recover runs the resume once more. Recover does not start
+# this unit, so the two cannot cycle.
+OnFailure=omarchy-t2-bcm4377-recover.service
+StartLimitIntervalSec=200
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+Restart=on-failure
+RestartSec=2
+ExecStart=/usr/bin/omarchy-t2-bcm4377-suspend resume
+TimeoutStartSec=60
