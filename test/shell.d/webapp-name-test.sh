@@ -8,6 +8,10 @@ tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 mkdir -p "$tmp_dir/bin" "$tmp_dir/home"
 
+# The commands in bin/ read $OMARCHY_PATH, the way the ones that already
+# source a helper under install/ do.
+export OMARCHY_PATH="$ROOT"
+
 for stub in gtk-update-icon-cache update-desktop-database omarchy-notification-send; do
   printf '#!/bin/bash\n:\n' >"$tmp_dir/bin/$stub"
   chmod +x "$tmp_dir/bin/$stub"
