@@ -54,6 +54,13 @@ assertEqual(dock.dropIndex(2, 85, 40, 6), 4, 'dock lands a dragged app as many s
 assertEqual(dock.dropIndex(2, -500, 40, 6), 0, 'dock lands an app dragged past the start in the first slot')
 assertEqual(dock.dropIndex(2, 500, 40, 6), 5, 'dock lands an app dragged past the end in the last slot')
 
+assertEqual(dock.windowAddress('0x1a2b'), '0x1a2b', 'dock passes a Hyprland window address through')
+assertEqual(dock.windowAddress('1a2b'), '0x1a2b', 'dock gives a bare address its 0x prefix')
+assertEqual(dock.windowAddress('0x1A2B'), '0x1A2B', 'dock keeps an uppercase address as notifications accept it')
+assertEqual(dock.windowAddress('0x'), '', 'dock refuses an 0x with no digits behind it')
+assertEqual(dock.windowAddress(''), '', 'dock has no address for a window without one')
+assertEqual(dock.windowAddress('0xabc")os.execute("calc")--'), '', 'dock refuses anything but hex in a window address')
+
 const allPins = ['chromium', 'Alacritty', 'spotify-not-installed', 'signal']
 const pinned = { chromium: true, Alacritty: true, signal: true }
 assertDeepEqual(

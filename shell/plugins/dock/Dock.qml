@@ -187,12 +187,13 @@ Item {
   // A window the dock brings forward lands on top of the others, focused; a
   // minimized one first comes back to the workspace in front of the user.
   function bringForward(window) {
-    var address = String(window.address || "")
+    // Only a Hyprland address reaches the dispatch, as notifications require:
+    // anything else brings the window forward through Quickshell instead.
+    var address = DockModel.windowAddress(window.address)
     if (!address) {
       window.toplevel.activate()
       return
     }
-    if (address.indexOf("0x") !== 0) address = "0x" + address
     var target = "window = \"address:" + address + "\""
     var steps = []
     var after = []
