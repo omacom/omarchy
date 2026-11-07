@@ -61,6 +61,8 @@
     "shift-f2": "space.rename",
     "alt-shift-up": "agent.prev",
     "alt-shift-down": "agent.next",
+    "alt-shift-left": "agent.prev",
+    "alt-shift-right": "agent.next",
     "alt-enter": "pane.split:down",
     "alt-shift-enter": "pane.split:right",
     "alt-escape": "pane.close",
