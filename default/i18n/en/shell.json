@@ -50,6 +50,7 @@
     "other": "Merged from %1 devices"
   },
   "agents.modelMonthly": "%1 Monthly",
+  "agents.modelParked": "%1 parked until it resets",
   "agents.modelSession": "%1 Session",
   "agents.modelWeekly": "%1 Weekly",
   "agents.mostlyModel": "Mostly %1",

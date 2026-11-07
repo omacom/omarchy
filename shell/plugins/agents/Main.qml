@@ -236,6 +236,7 @@ Item {
 
   function recordsChanged() {
     dataRevision++
+    endSharedParks()
     scheduleLimitsRetry()
     scheduleSync()
   }
@@ -505,6 +506,24 @@ Item {
       delete next[id][title]
       if (Object.keys(next[id]).length === 0) delete next[id]
     }
+    parkedLimits = next
+    parkedFile.setText(JSON.stringify(next) + "\n")
+  }
+
+  // Parks are made while an agent has one account, and its record doesn't
+  // say which one that is. Once a second account is added, a park can't be
+  // tied to either of them, so it ends rather than carry over to whichever
+  // account is left later.
+  function endSharedParks() {
+    var next = null
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      var id = record ? String(record.id || "") : ""
+      if (id === "" || !parkedLimits[id] || !Array.isArray(record.accounts) || record.accounts.length < 2) continue
+      if (!next) next = Object.assign({}, parkedLimits)
+      delete next[id]
+    }
+    if (!next) return
     parkedLimits = next
     parkedFile.setText(JSON.stringify(next) + "\n")
   }

@@ -33,7 +33,9 @@ Every subscription on one page, limits first.
   other limits still can. The park holds only for the reset it was made for
   (kept in `~/.local/state/omarchy/agents/parked.json`), so it lapses on its
   own once the window rolls over, or if the reset moves. _Unpark_ undoes it
-  sooner. An agent with several accounts has Use and Autoswitch instead.
+  sooner. A spent model allowance parks from the row it's drawn on, leaving
+  the row's own limit counting. An agent with several accounts has Use and
+  Autoswitch instead, and adding a second account ends its parks.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the

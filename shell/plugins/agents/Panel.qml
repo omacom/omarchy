@@ -996,9 +996,10 @@ Panel {
   }
 
   // A spent limit can be parked so it stops lighting the bar until it
-  // resets. A model's allowance on the same row parks with it.
+  // resets. A model's allowance on the same row parks with it. Parks belong
+  // to an agent with one account; a second one ends them (Main.qml).
   function isParked(p, w) {
-    if (!p || !w || w.resetAt === "") return false
+    if (!p || !w || w.resetAt === "" || providerAccounts(p).length >= 2) return false
     var parked = usage.parkedLimits[p.providerId]
     if (!parked) return false
     var part = scopedPart(w.title)
@@ -1034,13 +1035,33 @@ Panel {
     return best
   }
 
+  // A row is parked as a whole: its own window and the model allowances
+  // drawn on it, so a spent model can be parked without its row being full.
+  function rowWindows(row) {
+    var out = row ? [row] : []
+    var scoped = row && row.scoped ? row.scoped : []
+    for (var i = 0; i < scoped.length; i++)
+      out.push({ title: scoped[i].title + " " + row.title, percent: scoped[i].percent, resetAt: scoped[i].resetAt })
+    return out
+  }
+
+  // What Park on the row would park: whatever on it is spent and still
+  // lighting the bar. The rest of the row keeps counting.
+  function rowParkable(p, row) {
+    return rowWindows(row).filter(function(w) { return canPark(p, w) && !isParked(p, w) })
+  }
+
+  function rowParked(p, row) {
+    return rowWindows(row).some(function(w) { return isParked(p, w) })
+  }
+
   // Every row the keyboard can park or unpark, in page order.
   readonly property var parkEntries: {
     var out = []
     for (var i = 0; i < providers.length; i++) {
       var windows = displayWindows(providers[i])
       for (var j = 0; j < windows.length; j++)
-        if (isParked(providers[i], windows[j]) || canPark(providers[i], windows[j]))
+        if (rowParked(providers[i], windows[j]) || rowParkable(providers[i], windows[j]).length > 0)
           out.push({ provider: providers[i], window: windows[j] })
     }
     return out
@@ -1052,10 +1073,14 @@ Panel {
     return -1
   }
 
-  function toggleParked(p, w) {
-    if (!p || !w) return
-    if (isParked(p, w)) usage.setLimitParked(p.providerId, w.title, "", false)
-    else if (canPark(p, w)) usage.setLimitParked(p.providerId, w.title, w.resetAt, true)
+  // Park takes whatever on the row is spent; once nothing is left to park,
+  // Unpark lets all of it light the bar again.
+  function toggleParked(p, row) {
+    if (!p || !row) return
+    var spent = rowParkable(p, row)
+    var windows = spent.length > 0 ? spent : rowWindows(row).filter(function(w) { return isParked(p, w) })
+    for (var i = 0; i < windows.length; i++)
+      usage.setLimitParked(p.providerId, windows[i].title, windows[i].resetAt, spent.length > 0)
   }
 
   function resetMsFor(w) {
@@ -3024,7 +3049,8 @@ Panel {
     property real fetchedAt: 0
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool parked: root.isParked(provider, window)
-    readonly property bool parkable: parked || root.canPark(provider, window)
+    readonly property bool parkOffered: root.rowParkable(provider, window).length > 0
+    readonly property bool parkable: parkOffered || root.rowParked(provider, window)
     readonly property bool alarming: !parked && !!window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
@@ -3048,8 +3074,15 @@ Panel {
             : compact.fetchedAt > 0 ? Commons.I18n.t("agents.lastUpdatedJustNow") : Commons.I18n.t("agents.lastUpdatedUnknown"))
         for (var i = 0; i < compact.scoped.length; i++)
           lines.push(root.scopedAllowanceText(compact.scoped[i], compact.window ? compact.window.title : ""))
-        if (compact.parked) lines.push(Commons.I18n.t("agents.parked"))
-        else if (compact.parkable) lines.push(Commons.I18n.t("agents.parkHint"))
+        var onRow = root.rowWindows(compact.window)
+        if (compact.parked) {
+          lines.push(Commons.I18n.t("agents.parked"))
+        } else {
+          for (var j = 1; j < onRow.length; j++)
+            if (root.isParked(compact.provider, onRow[j]))
+              lines.push(Commons.I18n.t("agents.modelParked").arg(compact.scoped[j - 1].title))
+        }
+        if (compact.parkOffered) lines.push(Commons.I18n.t("agents.parkHint"))
         return lines.join("\n")
       }
     }
@@ -3128,7 +3161,7 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         picked: compact.picked
-        text: compact.parked ? Commons.I18n.t("agents.unpark") : Commons.I18n.t("agents.park")
+        text: compact.parkOffered ? Commons.I18n.t("agents.park") : Commons.I18n.t("agents.unpark")
         onClicked: root.toggleParked(compact.provider, compact.window)
       }
     }

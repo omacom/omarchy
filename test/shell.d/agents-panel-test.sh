@@ -115,7 +115,8 @@ const fn = name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\
 const panelRoot = { nowMs: Date.parse('2026-11-05T12:00:00Z') }
 const usage = { parkedLimits: {} }
 eval(['windowIsLong', 'windowSpanMs', 'windowTitle', 'limitWindow', 'limitWindows', 'scopedPart', 'displayWindows',
-  'providerAccounts', 'isParked', 'sameReset', 'canPark', 'alarmWindow'].map(fn).join('\n').replaceAll('root.nowMs', 'panelRoot.nowMs'))
+  'providerAccounts', 'isParked', 'sameReset', 'canPark', 'alarmWindow', 'rowWindows', 'rowParkable', 'rowParked',
+  'toggleParked'].map(fn).join('\n').replaceAll('root.nowMs', 'panelRoot.nowMs'))
 
 const reset = '2026-12-01T01:00:00+01:00'
 const copilot = { providerId: 'copilot', limits: [{ label: 'Monthly allowance', percent: 1, resetsAt: reset }] }
@@ -152,6 +153,8 @@ const noReset = { providerId: 'grok', limits: [{ label: 'Monthly', percent: 1, r
 assert(!canPark(noReset, limitWindows(noReset)[0]), 'a limit with no known reset cannot be parked')
 const accounts = { ...copilot, accounts: [{ id: 'a' }, { id: 'b' }] }
 assert(!canPark(accounts, monthly), 'an agent with several accounts switches accounts instead')
+usage.parkedLimits = { copilot: { Monthly: reset } }
+assertEqual(alarmWindow(accounts).title, 'Monthly', 'a park made with one account no longer hides the limit once there are two')
 
 const claude = { providerId: 'claude', limits: [
   { label: 'Weekly (7-day)', percent: 1, resetsAt: '2026-11-10T00:00:00Z' },
@@ -162,6 +165,22 @@ usage.parkedLimits = { claude: { Weekly: '2026-11-10T00:00:00Z' } }
 assertEqual(alarmWindow(claude).title, 'Opus Monthly', "a model's allowance on a parked row parks with it")
 usage.parkedLimits = { claude: { Weekly: '2026-11-10T00:00:00Z', 'Opus Monthly': '2026-12-01T00:00:00Z' } }
 assertEqual(alarmWindow(claude), null, 'a model allowance on its own row parks under its own title')
+
+const fable = { providerId: 'claude', limits: [
+  { label: 'Weekly (7-day)', percent: 0.6, resetsAt: '2026-11-10T00:00:00Z' },
+  { label: 'Fable Weekly', title: 'Fable Weekly', percent: 1, resetsAt: '2026-11-10T00:00:00Z' }
+] }
+usage.parkedLimits = {}
+const [weeklyRow] = displayWindows(fable)
+assertDeepEqual(rowParkable(fable, weeklyRow).map(w => w.title), ['Fable Weekly'], 'a spent model on a row with room left can be parked')
+usage.parkedLimits = { claude: { 'Fable Weekly': '2026-11-10T00:00:00Z' } }
+assert(alarmWindow(fable).percent < 0.9, 'parking the spent model calms the bar')
+fable.limits[0].percent = 0.95
+assertEqual(alarmWindow(fable).title, 'Weekly', "the row's own window still lights the bar")
+const unparked = []
+usage.setLimitParked = (id, title, resetAt, parked) => unparked.push([title, parked])
+toggleParked(fable, displayWindows(fable)[0])
+assertDeepEqual(unparked, [['Fable Weekly', false]], "unparking the row ends the model's park")
 JS
 
 # Parks are saved beside the usage records, and lapsed ones are dropped.
@@ -176,6 +195,12 @@ setLimitParked('copilot', 'Monthly', '2999-12-01T00:00:00Z', true)
 assertDeepEqual(JSON.parse(saved), { codex: { Weekly: '2999-01-01T00:00:00Z' }, copilot: { Monthly: '2999-12-01T00:00:00Z' } }, 'parking saves the reset and drops lapsed parks')
 setLimitParked('copilot', 'Monthly', '', false)
 assertDeepEqual(parkedLimits, { codex: { Weekly: '2999-01-01T00:00:00Z' } }, 'unparking removes the agent once nothing of it is parked')
+
+eval(source.match(/function endSharedParks\([^]*?\n  \}/)[0])
+parkedLimits = { codex: { Weekly: '2999-01-01T00:00:00Z' }, copilot: { Monthly: '2999-12-01T00:00:00Z' } }
+const agents = [{ record: { id: 'codex', accounts: [{ id: 'main' }, { id: 'work' }] } }, { record: { id: 'copilot' } }]
+endSharedParks()
+assertDeepEqual(JSON.parse(saved), { copilot: { Monthly: '2999-12-01T00:00:00Z' } }, "a second account ends the agent's parks")
 JS
 
 # A rewrite may briefly leave an incomplete file; lifecycle state must survive it.
