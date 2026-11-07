@@ -39,6 +39,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
 | Dock          | `omarchy.dock`            | `service`               | `dock/Dock.qml`                       |
+| Changelog     | `omarchy.changelog`       | `overlay`               | `changelog/Changelog.qml`             |
 
 First-party bar-only widgets also carry manifests next to their QML files,
 e.g. `bar/widgets/Workspaces.manifest.json`. Rich popup widgets live in their

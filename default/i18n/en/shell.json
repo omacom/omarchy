@@ -187,6 +187,15 @@
   "bluetooth.turnOn": "Turn Bluetooth on",
   "bluetooth.turnOnToScan": "Turn Bluetooth on to scan",
   "bluetooth.turnedOff": "Turned Off",
+  "changelog.failed": "Could not load the Omarchy changelog.",
+  "changelog.loading": "Loading changelog…",
+  "changelog.offline": "Couldn't reach GitHub: showing the last fetched changelog.",
+  "changelog.title": "Changelog",
+  "changelog.version": "Omarchy %1",
+  "changelog.versions": {
+    "one": "%1 version",
+    "other": "%1 versions"
+  },
   "clipboard.deleteHistory": "Delete entire clipboard history?",
   "clipboard.empty": "Clipboard is empty",
   "clipboard.files": {
