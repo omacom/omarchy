@@ -80,10 +80,19 @@ pci_devices() {
 # sources the result once. Do the same on a platform fixture and print what the
 # image is built from. The drop-ins read /etc/vconsole.conf, so point them at
 # $vconsole, which only the cases that need a layout write.
+#
+# Plymouth's install hook is mocked. Omarchy installs it, and the legacy LUKS
+# line gains plymouth only when the file is there; the suite must not depend on
+# the machine running the test having /usr/lib/initcpio/install/plymouth.
 vconsole="$test_tmp/vconsole.conf"
+initcpio_install="$test_tmp/initcpio-install"
+mkdir -p "$initcpio_install" "$test_tmp/initcpio-install-without"
+printf '#!/bin/bash\n' >"$initcpio_install/plymouth"
 compose() {
   local fixture="$test_tmp/platforms/$1" config="$test_tmp/buildconfig" conf
   local -a conf_files=()
+  local install_dir=$initcpio_install
+  [[ -z ${OMARCHY_INITCPIO_INSTALL:-} ]] || install_dir=$OMARCHY_INITCPIO_INSTALL
   mapfile -d '' conf_files < <(LC_ALL=C.UTF-8 find "$etc/mkinitcpio.conf.d" -maxdepth 1 -xtype f -name '*.conf' -print0 |
     sed -z 's/.*\///' | LC_ALL=C.UTF-8 sort -zVu)
   cat -- "$etc/mkinitcpio.conf" >"$config"
@@ -94,7 +103,8 @@ compose() {
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
-  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
+  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" \
+    OMARCHY_INITCPIO_INSTALL="$install_dir" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
   ' -- "$config"
@@ -163,6 +173,42 @@ assert_hooks "busybox encrypt off Apple Silicon still gets the Omarchy baseline"
 new_etc
 sed -i "s/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck)/" "$etc/mkinitcpio.conf"
 assert_hooks "a Mac with a stock busybox line and no asahi hook gets the systemd baseline" aarch64-apple "$apple_hooks"
+
+# The line a pre-4.5 Asahi install actually stores. Plymouth was never in the
+# file; the old drop-in supplied it at build time, and 4.5 stopped doing so
+# (#18009). It comes back after udev, and the rest of the line stays, including
+# asahi and busybox encrypt. The same insert applies off a Mac when asahi marks
+# the root, and with no detector at all. It does not apply when the plymouth
+# install hook is absent, or when the line has no passphrase prompt.
+legacy_luks_without_plymouth="base asahi udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt filesystems fsck"
+legacy_luks_with_plymouth="base asahi udev plymouth autodetect microcode modconf kms keyboard keymap consolefont block encrypt filesystems fsck"
+legacy_luks_no_asahi="base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt filesystems fsck"
+legacy_luks_no_asahi_with_plymouth="base udev plymouth autodetect microcode modconf kms keyboard keymap consolefont block encrypt filesystems fsck"
+for platform in aarch64-apple no-detector aarch64 x86; do
+  new_etc
+  sed -i "s/^HOOKS=.*/HOOKS=($legacy_luks_without_plymouth)/" "$etc/mkinitcpio.conf"
+  assert_hooks "a legacy LUKS line gains plymouth after udev ($platform)" "$platform" "$legacy_luks_with_plymouth"
+done
+new_etc
+sed -i "s/^HOOKS=.*/HOOKS=($legacy_luks_without_plymouth)/" "$etc/mkinitcpio.conf"
+OMARCHY_INITCPIO_INSTALL="$test_tmp/initcpio-install-without" \
+  assert_hooks "a legacy LUKS line stays without plymouth when the hook is not installed" aarch64-apple "$legacy_luks_without_plymouth"
+new_etc
+sed -i "s/^HOOKS=.*/HOOKS=($legacy_luks_no_asahi)/" "$etc/mkinitcpio.conf"
+assert_hooks "a Mac whose busybox encrypt line omitted plymouth gains it" aarch64-apple "$legacy_luks_no_asahi_with_plymouth"
+for platform in x86 aarch64 no-detector; do
+  new_etc
+  sed -i "s/^HOOKS=.*/HOOKS=($legacy_luks_no_asahi)/" "$etc/mkinitcpio.conf"
+  assert_hooks "busybox encrypt without asahi still gets the Omarchy baseline ($platform)" "$platform" "$omarchy_hooks"
+done
+new_etc
+sed -i "s/^HOOKS=.*/HOOKS=(base asahi encrypt filesystems fsck)/" "$etc/mkinitcpio.conf"
+assert_hooks "a legacy LUKS line without udev gains plymouth before encrypt" aarch64-apple \
+  "base asahi plymouth encrypt filesystems fsck"
+new_etc
+sed -i "s/^HOOKS=.*/HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block asahi sd-encrypt filesystems fsck)/" "$etc/mkinitcpio.conf"
+assert_hooks "an asahi systemd line without busybox encrypt does not gain plymouth here" aarch64-apple \
+  "base systemd autodetect microcode modconf kms keyboard sd-vconsole block asahi sd-encrypt filesystems fsck"
 
 # A platform fragment sorts after the baseline and before omarchy_hooks.conf,
 # as omarchy-mac-boot's 90- drop-ins do. Its hooks must reach the image.
@@ -326,3 +372,11 @@ pass "a non-Latin layout stays out of the Mac image"
 printf 'KEYMAP=us\nXKBLAYOUT=us\n' >"$vconsole"
 mac_etc "$legacy_encrypted"
 KERNEL_MODULES="" assert_hooks "a busybox encrypt Mac keeps its own line with the Apple drop-ins" aarch64-apple "$legacy_encrypted"
+# The Apple package inserts plymouth only after systemd, so a legacy encrypt
+# line would still miss it without the baseline insert. encrypt stays: sd-encrypt
+# cannot parse cryptdevice=. With no plymouth install hook, the line is untouched.
+mac_etc "$legacy_luks_without_plymouth"
+KERNEL_MODULES="" assert_hooks "a busybox encrypt Mac without plymouth keeps encrypt and gains plymouth" aarch64-apple "$legacy_luks_with_plymouth"
+mac_etc "$legacy_luks_without_plymouth"
+KERNEL_MODULES="" OMARCHY_INITCPIO_INSTALL="$test_tmp/initcpio-install-without" \
+  assert_hooks "without the plymouth hook a busybox encrypt Mac stays on its own line" aarch64-apple "$legacy_luks_without_plymouth"
