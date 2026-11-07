@@ -433,3 +433,43 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+# Universal copy/paste send Ctrl + Shift to terminals, and to windows tagged
+# terminal-clipboard that aren't themed as terminals.
+universal_chord() {
+  OMARCHY_PATH="$ROOT" TEST_KEYS="$1" TEST_TAGS="$2" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local binds = {}
+o = { bind = function(keys, _, dispatcher) binds[keys] = dispatcher end }
+
+local window = { tags = {} }
+for tag in os.getenv("TEST_TAGS"):gmatch("[^,]+") do
+  table.insert(window.tags, tag)
+end
+
+hl = {
+  dsp = { send_key_state = function(key) return key.mods .. " " .. key.key end },
+  dispatch = function(action) print(action) end,
+  timer = function() end,
+  get_active_window = function() return window end,
+}
+
+require("default.hypr.bindings.clipboard")
+binds[os.getenv("TEST_KEYS")]()
+LUA
+}
+
+require_command lua
+
+[[ $(universal_chord "SUPER + V" "terminal*") == "CTRL SHIFT V" ]] || fail "Super + V pastes with Ctrl + Shift + V in terminals"
+pass "Super + V pastes with Ctrl + Shift + V in terminals"
+
+[[ $(universal_chord "SUPER + V" "terminal-clipboard*") == "CTRL SHIFT V" ]] || fail "Super + V pastes with Ctrl + Shift + V in terminal-clipboard windows"
+pass "Super + V pastes with Ctrl + Shift + V in terminal-clipboard windows"
+
+[[ $(universal_chord "SUPER + C" "terminal-clipboard") == "CTRL SHIFT C" ]] || fail "Super + C copies with Ctrl + Shift + C in terminal-clipboard windows"
+pass "Super + C copies with Ctrl + Shift + C in terminal-clipboard windows"
+
+[[ $(universal_chord "SUPER + V" "chromium-based-browser*") == "CTRL V" ]] || fail "Super + V pastes with Ctrl + V outside terminals"
+pass "Super + V pastes with Ctrl + V outside terminals"
