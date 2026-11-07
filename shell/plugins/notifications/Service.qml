@@ -816,12 +816,14 @@ Item {
   }
 
   function finishClose(key, reason) {
-    unmarkLeaving(key)
     var at = rowIndexFor(key)
-    if (!liveKeys[key]) return
+    if (!liveKeys[key]) { unmarkLeaving(key); return }
     releaseLive(key)
     release(key, reason)
     if (at >= 0) toasts.remove(at)
+    // Only once its row is gone: unmarked first, the row took room in the
+    // layout again for a moment, and the cards below went back down.
+    unmarkLeaving(key)
     delete heights[key]
     delete fresh[key]
     // A placeholder (the empty-history notice) was never recorded.
