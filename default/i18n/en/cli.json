@@ -189,6 +189,12 @@
   "layout.workspaceTiling": "Workspace layout set to tiling",
   "layout.workspaceTilingUnsaved": "Workspace layout set to tiling but could not be saved",
   "lock.didNotLock": "Screen did not lock before suspend",
+  "lock.missingPam": "No lock screen is configured. Run omarchy-apply-lock to set it up.",
+  "lock.notConfirmed": "Screen did not lock",
+  "lock.notSecuredTimeout": "The shell did not secure the session within %1s.",
+  "lock.requestEnded": "The lock request ended before the session was secured.",
+  "lock.requestLost": "The shell no longer has the lock request.",
+  "lock.requestNotAccepted": "The shell could not accept the lock request.",
   "lock.unlockedNoLockScreen": "The session was left unlocked (no lock screen is configured).",
   "lock.unlockedTimeout": "The session was left unlocked (the shell did not secure the session within %1ms).",
   "migrate.clickToRun": {

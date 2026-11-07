@@ -195,18 +195,25 @@ mock_bin="$tmpdir/bin"
 call_log="$tmpdir/calls"
 mkdir -p "$mock_bin"
 
-for command in hyprctl pkill omarchy-notification-send; do
+for command in hyprctl pkill; do
   cat >"$mock_bin/$command" <<'MOCK'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$CALL_LOG"
 MOCK
 done
 
-# A screensaver that does not exit within its second.
-cat >"$mock_bin/timeout" <<'MOCK'
+cat >"$mock_bin/omarchy-notification-send" <<'MOCK'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$CALL_LOG"
-exit 124
+if [[ -n ${NOTIFY_STALL:-} ]]; then exec sleep 30; fi
+MOCK
+
+# A screensaver that does not exit within its second. Other timeouts are real.
+cat >"$mock_bin/timeout" <<MOCK
+#!/bin/bash
+printf '%s %s\n' "\${0##*/}" "\$*" >>"\$CALL_LOG"
+if [[ \$2 == "pidwait" ]]; then exit 124; fi
+exec "$real_timeout" "\$@"
 MOCK
 
 cat >"$mock_bin/omarchy-shell" <<'MOCK'
@@ -321,3 +328,25 @@ assert_failure "$rc"
 ((elapsed >= 8 && elapsed <= 13)) || fail "an accepted never-secure request ends within the command's deadline" "$elapsed seconds"
 grep -q 'did not secure the session' "$tmpdir/stderr" || fail "never-secure failure reports its deadline"
 pass "an accepted requested:true lock that never secures fails and notifies within ten seconds"
+
+i18n_root="$tmpdir/omarchy/default/i18n"
+mkdir -p "$i18n_root/de"
+cp -r "$ROOT/default/i18n/en" "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$i18n_root/"
+printf '{"lock.notConfirmed": "Bildschirm nicht gesperrt"}\n' >"$i18n_root/de/cli.json"
+printf 'de\n' >"$tmpdir/language"
+rc=0
+OMARCHY_PATH="$tmpdir/omarchy" OMARCHY_LANGUAGE_FILE="$tmpdir/language" LOCK_REPLY=missing-pam run_lock || rc=$?
+((rc == 1)) || fail "a missing lock screen fails the lock" "exit $rc"
+grep -q '^omarchy-notification-send -u critical -g 󰌾 Bildschirm nicht gesperrt .*omarchy-apply-lock' "$call_log" ||
+  fail "a missing lock screen warns in the user's language and points to omarchy-apply-lock" "$(<"$call_log")"
+grep -q 'omarchy-apply-lock' "$tmpdir/stderr" || fail "a missing lock screen logs how to fix it" "$(<"$tmpdir/stderr")"
+pass "a missing lock screen warns in the user's language and points to omarchy-apply-lock"
+
+started=$SECONDS
+rc=0
+NOTIFY_STALL=1 LOCK_REPLY=dropped run_lock || rc=$?
+((rc == 1)) || fail "a dropped lock fails while notifications stall" "exit $rc"
+((SECONDS - started <= 5)) || fail "a stalled notification does not hold the lock command" "$((SECONDS - started)) seconds"
+grep -q '^hyprctl notify 3 5000 rgb(ff5555) Screen did not lock: ' "$call_log" ||
+  fail "a stalled notification falls back to a Hyprland notification" "$(<"$call_log")"
+pass "a stalled notification falls back to Hyprland within seconds"

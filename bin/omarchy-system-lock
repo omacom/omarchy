@@ -24,12 +24,16 @@ lock_state() {
     <<<"$(lock_ipc 0.5s lock result "$request_id")" 2>/dev/null
 }
 
+# The journal gets the reason in English ($1), the notification the user's
+# language ($2). The shell is the notification server, so a hung shell gets
+# two seconds before the warning goes through Hyprland instead.
 report_unsecured() {
+  local title
+  title=$(omarchy-i18n lock.notConfirmed)
   printf 'omarchy-system-lock: the session lock was not confirmed (%s)\n' "$1" >&2
 
-  omarchy-notification-send -u critical -g 󰌾 \
-    "Screen did not lock" \
-    "The session lock could not be confirmed ($1)." >/dev/null 2>&1 || true
+  timeout --kill-after=1s 2s omarchy-notification-send -u critical -g 󰌾 "$title" "$2" >/dev/null 2>&1 ||
+    hyprctl notify 3 5000 "rgb(ff5555)" "$title: $2" >/dev/null 2>&1 || true
 
   exit 1
 }
@@ -61,12 +65,12 @@ close_screensaver() {
 }
 
 if [[ $(jq -r '.reason // empty' <<<"$lock_reply" 2>/dev/null) == "missing-pam" ]]; then
-  report_unsecured "no lock screen is configured"
+  report_unsecured "no lock screen is configured; run omarchy-apply-lock" "$(omarchy-i18n lock.missingPam)"
 fi
 
 request_id=$(jq -er '.requestId | select(type == "string" and length > 0)' <<<"$lock_reply" 2>/dev/null)
 if [[ -z $request_id ]]; then
-  report_unsecured "the shell could not accept a tracked lock request"
+  report_unsecured "the shell could not accept a tracked lock request" "$(omarchy-i18n lock.requestNotAccepted)"
 fi
 
 # A status snapshot cannot distinguish never-secured from already-unlocked.
@@ -75,11 +79,11 @@ while (( SECONDS < deadline )); do
   case $(lock_state) in
     secured) close_screensaver; exit 0 ;;
     pending) ;;
-    failed) report_unsecured "the lock request ended before securing the session" ;;
-    *) report_unsecured "the shell no longer has the tracked lock request" ;;
+    failed) report_unsecured "the lock request ended before securing the session" "$(omarchy-i18n lock.requestEnded)" ;;
+    *) report_unsecured "the shell no longer has the tracked lock request" "$(omarchy-i18n lock.requestLost)" ;;
   esac
 
   sleep 0.1
 done
 
-report_unsecured "the shell did not secure the session within ${lock_timeout}s"
+report_unsecured "the shell did not secure the session within ${lock_timeout}s" "$(omarchy-i18n lock.notSecuredTimeout "$lock_timeout")"
