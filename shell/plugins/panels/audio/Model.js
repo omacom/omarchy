@@ -83,6 +83,21 @@ function friendlyDeviceLabel(text) {
   return label
 }
 
+function isGenericAlsaNick(nick) {
+  if (!nick) return true
+  var s = nick.trim()
+  if (/^usb\s*audio(\s*#\d+|\s*codec)?$/i.test(s)) return true
+  if (/^alc\d+/i.test(s)) return true
+  return false
+}
+
+function hdmiMonitorName(desc) {
+  var text = String(desc || "").trim()
+  if (!/\b(?:HDMI|DisplayPort)\b/i.test(text)) return ""
+  var match = text.match(/\[(.*?)\]$/)
+  return match && match[1].trim() ? match[1].trim() : ""
+}
+
 function nodeProps(node) {
   return node && node.ready && node.properties ? node.properties : {}
 }
@@ -92,9 +107,22 @@ function nodeLabel(node, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   if (!node) return t("audio.unknownDevice", "Unknown")
   var p = nodeProps(node)
-  var nickname = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || p["device.profile.description"] || "")
-  if (nickname) return nickname
-  return friendlyDeviceLabel(node.description || p["node.description"] || node.name || t("audio.unknownDevice", "Unknown"))
+
+  var rawDesc = node.description || p["node.description"] || ""
+  var monitor = hdmiMonitorName(rawDesc)
+  var desc = monitor || friendlyDeviceLabel(rawDesc)
+  var nick = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || "")
+
+  if (isGenericAlsaNick(nick)) {
+    return desc || friendlyDeviceLabel(p["device.profile.description"] || node.name || t("audio.unknownDevice", "Unknown"))
+  }
+
+  if (desc && nick && desc !== nick && desc.indexOf(nick) !== -1) {
+    return desc
+  }
+
+  if (nick) return nick
+  return desc || friendlyDeviceLabel(p["device.profile.description"] || node.name || t("audio.unknownDevice", "Unknown"))
 }
 
 function isHeadphones(node) {
@@ -282,6 +310,8 @@ if (typeof module !== "undefined") {
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,
+    isGenericAlsaNick: isGenericAlsaNick,
+    hdmiMonitorName: hdmiMonitorName,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,
     isHeadphones: isHeadphones,
