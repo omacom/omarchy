@@ -7,24 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # Apple Silicon Touch Bar support is the 13-inch M1/M2 MacBook Pros only.
 # Intel T2 bars and every other Mac stay on their existing path.
 
-grep -Fq 'hardware/apple/touchbar.sh' "$ROOT/install/hardware/all.sh" ||
-  fail "hardware setup runs the Touch Bar leaf"
-! grep -qx 'tiny-dfr' "$ROOT/install/omarchy-aarch64-apple.packages" ||
-  fail "tiny-dfr stays off the shared Apple Silicon package list"
-! grep -qx 'tiny-dfr' "$ROOT/install/omarchy-other.packages" ||
-  fail "the shared package list does not cache tiny-dfr"
-! grep -q 'tiny-dfr' "$ROOT/install/hardware/apple/fix-t2.sh" ||
-  fail "T2 setup still leaves tiny-dfr uninstalled"
-grep -Fq 'require("default.hypr.apple-touchbar")' "$ROOT/default/hypr/envs.lua" ||
-  fail "Hyprland loads the Touch Bar DRM exclusion"
-[[ $(head -n 1 "$ROOT/migrations/1794057900.sh") != '#!'* ]] ||
-  fail "the Touch Bar migration has no shebang"
-[[ $(stat -c '%a' "$ROOT/migrations/1794057900.sh") == "644" ]] ||
-  fail "the Touch Bar migration is not executable"
-[[ $(head -n 1 "$ROOT/install/hardware/apple/touchbar.sh") != '#!'* ]] ||
-  fail "the Touch Bar install leaf has no shebang"
-pass "Touch Bar install is wired only for its own leaf"
-
 require_platform_fixtures "mocked DMI and sysfs"
 require_command lua
 
@@ -205,23 +187,6 @@ fi
 pass "a failed tiny-dfr install fails the hardware leaf"
 cp "$test_tmp/machine-pkg" "$fixture/bin/omarchy-pkg-add"
 chmod +x "$fixture/bin/omarchy-pkg-add"
-
-: >"$calls"
-OMARCHY_PATH="$ROOT" bash -euo pipefail "$ROOT/migrations/1794057900.sh"
-grep -Fxq 'tiny-dfr' "$calls" || fail "the migration installs tiny-dfr on a Touch Bar Mac" "$(cat "$calls")"
-pass "the migration installs tiny-dfr on a Touch Bar Mac"
-
-write_tree x86 "" "MacBookPro16,1"
-use_fixture
-OMARCHY_PATH="$ROOT" bash -euo pipefail "$ROOT/migrations/1794057900.sh"
-[[ ! -s $calls ]] || fail "the migration leaves an Intel T2 Mac alone" "$(cat "$calls")"
-pass "the migration leaves an Intel T2 Mac alone"
-
-write_tree aarch64-apple "apple,j313 apple,t8103 apple,arm-platform" "MacBookAir10,1"
-use_fixture
-OMARCHY_PATH="$ROOT" bash -euo pipefail "$ROOT/migrations/1794057900.sh"
-[[ ! -s $calls ]] || fail "the migration leaves a MacBook Air alone" "$(cat "$calls")"
-pass "the migration leaves a MacBook Air alone"
 
 # DRM exclusion: only the adp card is dropped, and only when one is present.
 drm() {

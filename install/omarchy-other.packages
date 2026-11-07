@@ -83,6 +83,9 @@ linux-t2
 linux-t2-headers
 t2fanrd
 
+# Apple Silicon Touch Bar support (installed only on matching Macs)
+tiny-dfr
+
 # Framework 16
 qmk-hid
 
