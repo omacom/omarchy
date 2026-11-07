@@ -37,7 +37,7 @@ Use the package in the guest rather than installing another copy from the Guest 
 Switch to a text console with `Ctrl+Alt+F3` and log in as your normal user. If VirtualBox does not pass the shortcut through, use its soft keyboard. Enter `bash` before following the shell commands below if your normal shell is Nushell.
 
 ```bash
-systemctl --user status wayland-wm@Hyprland.desktop.service --no-pager
+systemctl --user status wayland-wm@hyprland.desktop.service --no-pager
 hyprctl instances
 journalctl --user -b -t omarchy-shell --no-pager -n 80
 ```
