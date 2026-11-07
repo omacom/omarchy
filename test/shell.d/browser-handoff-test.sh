@@ -56,6 +56,12 @@ expected=$(printf 'START\0%s\0browser\0--app=https://example.test/a b' "$test_tm
   fail "the handoff sends the working directory and arguments as Chromium's singleton expects" "$(od -c <"$received")"
 pass "a command line is handed to the running browser over its singleton socket"
 
+# Google account support adds startup flags the running browser already has.
+printf '%s\n' '--oauth2-client-id=test-client-id' '--oauth2-client-secret=test-client-secret' >>"$flags_file"
+"$ROOT/bin/omarchy-cmd-browser-handoff" chromium --app=https://example.test ||
+  fail "Google account startup flags allow a handoff to the running browser"
+pass "Google account startup flags allow a handoff to the running browser"
+
 ! "$ROOT/bin/omarchy-cmd-browser-handoff" chromium --user-data-dir=/elsewhere https://example.test ||
   fail "another data directory is left to a browser of its own"
 mkdir -p "$test_tmp/wrapper"
