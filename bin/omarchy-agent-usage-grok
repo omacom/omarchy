@@ -242,8 +242,31 @@ def monthly_limit(data):
   }
 
 
+# Grok reports remaining prepaid credits under config.prepaidBalance in cents
+# (e.g. 1960 for a $20 top-up with $0.40 spent). A balance is converted to
+# dollars; since Grok does not report the amount originally purchased, funded
+# is left at zero so the panel does not overstate credits purchased.
+def prepaid_balance(data):
+  config = (data or {}).get("config") if isinstance(data, dict) else None
+  if not isinstance(config, dict) or "prepaidBalance" not in config:
+    return None
+  try:
+    cents = amount(config.get("prepaidBalance"))
+  except ValueError:
+    return None
+  if cents <= 0:
+    return None
+  return {
+    "remaining": round(cents / 100, 2),
+    "funded": 0,
+    "spent": 0,
+    "currency": "USD",
+    "estimated": False,
+  }
+
+
 def collect_limits(home, key, force):
-  result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0}
+  result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0, "balance": None}
   entry = login(home)
   token = str(entry.get("key") or "")
   if not token:
@@ -254,10 +277,12 @@ def collect_limits(home, key, force):
   # xAI's to say, so it stays unknown until a probe answers.
   cache = LimitsCache(AGENT_ID, key)
   fallback, result["fetchedAtMs"] = cache.kept()
+  fallback_balance = cache.data.get("balance") if isinstance(cache.data.get("balance"), dict) else None
 
   expires = parse_time(entry.get("expires_at"))
   if expires and expires.timestamp() <= time.time():
     result["limits"] = fallback
+    result["balance"] = fallback_balance
     # The access token lives six hours and Grok mints a new one from its
     # refresh token whenever it starts, so a lapsed one is routine, not a
     # sign-out: the limits are paused, the last numbers kept as stale, until
@@ -278,14 +303,16 @@ def collect_limits(home, key, force):
   # A panel opened and shut repeatedly reuses an answer this recent rather
   # than asking xAI again.
   if cache.fresh(force):
-    result.update(limits=fallback, live=True, authHelpText="")
+    result.update(limits=fallback, balance=fallback_balance, live=True, authHelpText="")
     return result
 
   headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
   limits = []
+  balance = None
   try:
     credits = open_json(urllib.request.Request(CREDITS_URL, headers=headers), timeout=8)
     weekly = credits_limit(credits)
+    balance = prepaid_balance(credits)
     if weekly is None:
       limits = [monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8))]
     else:
@@ -316,11 +343,12 @@ def collect_limits(home, key, force):
   except Exception:
     result["authHelpText"] = "Grok's usage endpoint answered without a usable limit. Local Grok stats are still shown."
 
-  if limits:
-    result.update(limits=limits, live=True, fetchedAtMs=cache.save(limits), authHelpText="")
+  if limits or balance:
+    result.update(limits=limits, balance=balance, live=True, fetchedAtMs=cache.save(limits, balance=balance), authHelpText="")
   else:
     result["limits"] = fallback
-    if not result["usageStatusText"] and not result["limits"]:
+    result["balance"] = fallback_balance
+    if not result["usageStatusText"] and not result["limits"] and not result["balance"]:
       result["usageStatusText"] = "Grok limits unavailable"
   return result
 
@@ -339,7 +367,8 @@ def cache_key(home, fallback):
 def account_limits(account, force):
   home = home_of(account)
   limits = collect_limits(home, cache_key(home, account["id"]), force)
-  return account_entry(account, limits, plan(home))
+  extra = {"balance": limits["balance"]} if limits.get("balance") else {}
+  return account_entry(account, limits, plan(home), **extra)
 
 
 def main():
@@ -359,7 +388,7 @@ def main():
     home = default_home()
     tier = plan(home)
     limits = collect_limits(home, cache_key(home, "main"), args.force)
-    stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
+    stale, fetched_at = not limits["live"] and bool(limits["limits"] or limits.get("balance")), limits["fetchedAtMs"]
 
   # With accounts registered, the primary is ~/.grok by definition.
   stats_home = Path.home() / ".grok" if accounts else default_home()
@@ -369,8 +398,8 @@ def main():
   in_use = bool(accounts) or bool(login(stats_home)) or stats["totalSessions"] > 0
   # A missing sign-in is only news where Grok has been set up: a machine
   # with no Grok home at all says nothing.
-  if not in_use and not stats_home.exists() and not limits["limits"]:
-    limits = {"limits": [], "usageStatusText": "", "authHelpText": ""}
+  if not in_use and not stats_home.exists() and not limits["limits"] and not limits.get("balance"):
+    limits = {"limits": [], "usageStatusText": "", "authHelpText": "", "balance": None}
     stale, fetched_at = False, 0
   record = base_record(
     AGENT_ID,
@@ -383,6 +412,8 @@ def main():
     limitsStale=stale,
     limitsFetchedAt=fetched_at,
   )
+  if limits.get("balance"):
+    record["balance"] = limits["balance"]
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
   record.update(stats)
