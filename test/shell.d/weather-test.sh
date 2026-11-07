@@ -63,6 +63,15 @@ assertEqual(weather.shouldUseImperial('', 'en_US', 'Denmark'), false, 'weather p
 assertEqual(weather.shouldUseImperial('', 'da_DK', 'United States of America'), true, 'weather prefers reported imperial country over metric locale')
 assertEqual(weather.shouldUseImperial('metric', 'en_US', 'United States of America'), false, 'weather metric override wins')
 assertEqual(weather.shouldUseImperial('imperial', 'da_DK', 'Denmark'), true, 'weather imperial override wins')
+assertEqual(weather.windSpeedUnit('', false, 'nb_NO', 'Norway'), 'm/s', 'weather picks m/s for Norwegian locale and country')
+assertEqual(weather.windSpeedUnit('', false, 'sv_SE', 'Sweden'), 'm/s', 'weather picks m/s for Swedish locale')
+assertEqual(weather.windSpeedUnit('', false, 'en_NO', 'Norway'), 'm/s', 'weather picks m/s for Norway country even with English locale')
+assertEqual(weather.windSpeedUnit('', false, 'de_DE', 'Germany'), 'km/h', 'weather picks km/h for German locale')
+assertEqual(weather.windSpeedUnit('', true, 'en_US', 'United States'), 'mph', 'weather picks mph for imperial')
+assertEqual(weather.windSpeedUnit('m/s', false, 'de_DE', 'Germany'), 'm/s', 'weather wind unit override wins')
+assertEqual(weather.windSpeedUnit('km/h', false, 'nb_NO', 'Norway'), 'km/h', 'weather km/h override wins')
+assertEqual(weather.windSpeedValue({ windspeedKmph: '22', windspeedMiles: '13', windspeedMps: '6' }, 'm/s'), '6', 'weather extracts wind speed in m/s')
+assertEqual(weather.windSpeedValue({ windspeedKmph: '22', windspeedMiles: '13' }, 'm/s'), '6', 'weather converts km/h to m/s when m/s is missing')
 assertEqual(weather.dayName('2026-05-25'), 'Monday', 'weather derives day names')
 
 const openMeteo = {
@@ -91,7 +100,7 @@ assertDeepEqual(
 
 assertDeepEqual(
   weather.openMeteoCurrentCondition({ current: { temperature_2m: 21.4, apparent_temperature: 19.8, wind_speed_10m: 14.3, relative_humidity_2m: 63 } }),
-  { temp_C: '21', temp_F: '71', FeelsLikeC: '20', FeelsLikeF: '68', windspeedKmph: '14', windspeedMiles: '9', humidity: '63' },
+  { temp_C: '21', temp_F: '71', FeelsLikeC: '20', FeelsLikeF: '68', windspeedKmph: '14', windspeedMiles: '9', windspeedMps: '4', humidity: '63' },
   'weather normalizes open-meteo current conditions to the wttr shape'
 )
 assertEqual(weather.openMeteoCurrentCondition({}), null, 'weather returns no current conditions without open-meteo data')
