@@ -140,3 +140,10 @@ printf 'Exec=custom-slack\n' >"$override"
 "$ROOT/bin/omarchy-remove-service-slack"
 [[ $(<"$override") == "Exec=custom-slack" ]] || fail "removal keeps custom launchers"
 pass "removal keeps custom launchers"
+
+printf '#!/bin/bash\n' >"$scratch/bin/sudo"
+chmod +x "$scratch/bin/sudo"
+if "$ROOT/bin/omarchy-remove-service-1password" >/dev/null 2>&1; then
+  fail "failed 1Password package removal returns an error"
+fi
+pass "failed 1Password package removal returns an error"
