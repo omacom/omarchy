@@ -17,7 +17,10 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string backgroundLink: home + "/.local/state/omarchy/current/background"
   readonly property string transitionCache: home + "/.cache/omarchy/background-transitions"
-  readonly property string themeSetLock: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy-theme-set.lock"
+  // Same file omarchy-theme-set locks. Without a runtime dir it is under the
+  // private state directory, not a fixed name in /tmp.
+  readonly property string themeSetLockDir: Quickshell.env("XDG_RUNTIME_DIR") || (home + "/.local/state/omarchy")
+  readonly property string themeSetLock: themeSetLockDir + "/omarchy-theme-set.lock"
 
   // The change in progress, named by its cover's token.
   property string token: ""
@@ -200,7 +203,10 @@ Item {
   // taken and runs before it is released, so no new intro can start between.
   Process {
     id: reloadLock
-    command: ["flock", root.themeSetLock, "bash", "-c", 'echo locked; read -r go; [[ $go != reload ]] || exec omarchy-restart-hyprctl']
+    command: ["bash", "-c",
+      'dir=${XDG_RUNTIME_DIR:-$HOME/.local/state/omarchy}; if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then mkdir -p "$dir" && chmod 700 "$dir" || exit 1; fi; exec flock "$dir/omarchy-theme-set.lock" bash -c ' +
+      "'echo locked; read -r go; [[ $go != reload ]] || exec omarchy-restart-hyprctl'"
+    ]
     stdinEnabled: true
     stdout: SplitParser {
       onRead: {
