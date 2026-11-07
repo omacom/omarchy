@@ -1,40 +1,70 @@
 #!/bin/bash
 
-# omarchy:summary=Launch an autostart app once the shell's notification service is on the bus
+# omarchy:summary=Launch an autostart app once the shell's notification and tray services are on the bus
 # omarchy:hidden=true
 
 # Autostart apps fire on hyprland.start, the same event that launches the shell,
-# and the shell needs a few seconds before it claims org.freedesktop.Notifications.
-# Apps that probe for that name once at process start (Chromium and every web
-# app, Electron) keep a missing answer for their whole lifetime: Chromium draws
-# its own bare popup windows for the rest of the session. Wait for the name,
-# bounded, before the launch.
+# and the shell needs a few seconds before its plugins claim their bus names.
+# Apps that probe for a name once at process start keep a missing answer for
+# their whole lifetime: Chromium (and every web app) and Electron check for
+# org.freedesktop.Notifications and then draw their own bare popup windows for
+# the rest of the session, and Electron's tray icon checks for
+# org.kde.StatusNotifierWatcher once and never registers if it is not there.
+# Wait for both names, bounded by one shared budget, before the launch.
 #
 # With the shell's notifications plugin turned off, --activate starts a
 # D-Bus-activatable daemon (mako, dunst and swaync all ship a service file for
-# this name) so the wait ends at once. Never with the plugin on: an installed
+# that name) so the wait ends at once. Never with the plugin on: an installed
 # daemon would be activated during the shell's own startup and claim the name
 # first, and every app would then notify outside Omarchy.
 #
-# Past the deadline the app launches anyway: a disabled notifications plugin
-# must cost a delay, never a missing app. Leave one journal line saying why
-# login was slower, so the wait can be traced back to the missing service.
+# The tray watcher comes from whichever bar widget is a tray, so a bar layout
+# with no widget whose id ends in ".tray" skips that wait. That suffix covers
+# the stock omarchy.tray and forks of it kept under another id; a tray widget
+# named otherwise only costs a slower login, never a missing app.
+#
+# Past the deadline the app launches anyway: a disabled feature must cost a
+# delay, never a missing app. Leave one journal line per missing service, so
+# the slower login can be traced back to it.
 #
 # Only correct at session start. Keybind launches go through o.launch directly.
-# A daemon that will claim the name itself must not go through here or it waits
+# A daemon that will claim a name itself must not go through here or it waits
 # for itself; autostart it with o.exec_on_start(o.launch(...)).
 
 timeout=15
-name=org.freedesktop.Notifications
 shell_config="$HOME/.config/omarchy/shell.json"
 
-wait_args=(--session)
+# Waits for one bus name with whatever is left of the budget. Extra arguments
+# go to gdbus wait. Returns 1 when the name did not appear in time.
+wait_for_name() {
+  local name="$1"
+  shift
+  local remaining=$((timeout - SECONDS))
+  if (( remaining < 1 )); then
+    return 1
+  fi
+  gdbus wait --session "$@" --timeout "$remaining" "$name" >/dev/null 2>&1
+}
+
+report_missing() {
+  logger -t omarchy-autostart "$1 was not available after waiting up to ${timeout}s; launching $2 without it."
+}
+
+notification_args=()
 if jq -e '.disabledPlugins? | arrays | index("omarchy.notifications")' "$shell_config" >/dev/null 2>&1; then
-  wait_args+=(--activate)
+  notification_args+=(--activate)
 fi
 
-if ! gdbus wait "${wait_args[@]}" --timeout "$timeout" "$name" >/dev/null 2>&1; then
-  logger -t omarchy-autostart "$name was not available after waiting up to ${timeout}s; launching $1 without it."
+if ! wait_for_name org.freedesktop.Notifications "${notification_args[@]}"; then
+  report_missing org.freedesktop.Notifications "$1"
+fi
+
+# Skip the tray wait only when the layout is readable and lists no tray widget;
+# a missing or unreadable file means the default layout, which has one.
+if ! jq -e '.bar.layout | objects | [.. | objects | .id? | strings] | any(endswith(".tray")) | not' "$shell_config" >/dev/null 2>&1; then
+  if ! wait_for_name org.kde.StatusNotifierWatcher; then
+    report_missing org.kde.StatusNotifierWatcher "$1"
+  fi
 fi
 
 exec uwsm-app -- "$@"
