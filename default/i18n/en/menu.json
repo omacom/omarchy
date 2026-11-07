@@ -77,6 +77,9 @@
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
+  "learn.phux-keybindings": {
+    "label": "Phux"
+  },
   "learn.community": {
     "label": "Community"
   },
@@ -892,6 +895,12 @@
   },
   "install.ai.perplexity": {
     "label": "Perplexity"
+  },
+  "install.ai.phux": {
+    "label": "Phux"
+  },
+  "install.ai.phux-rune": {
+    "label": "Phux Rune"
   },
   "install.ai.t3-code": {
     "label": "T3 Code"
