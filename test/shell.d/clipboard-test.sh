@@ -433,3 +433,6 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+python3 "$ROOT/test/shell.d/fixtures/clipboard-assist-test.py" "$ROOT"
+pass "clipboard assistance previews edits and preserves the clipboard on inference failures"
