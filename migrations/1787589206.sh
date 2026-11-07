@@ -16,5 +16,5 @@ if [[ -f /etc/pacman.conf ]] &&
     omarchy-update-keyring
   fi
 
-  sudo sed -i "/^\[omarchy\]/,/^\[/{/^$omarchy_sig_override$/d}" /etc/pacman.conf
+  sudo sed -i --follow-symlinks "/^\[omarchy\]/,/^\[/{/^$omarchy_sig_override$/d}" /etc/pacman.conf
 fi

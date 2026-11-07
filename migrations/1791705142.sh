@@ -12,7 +12,7 @@ for state_home in "$HOME/.local/state" "${XDG_STATE_HOME:-}"; do
   toggles_dir="$state_home/omarchy/toggles/hypr"
   [[ -f $toggles_dir/no-animations.lua ]] || continue
 
-  sed -i '/^o\.window("\.\*", { opacity = "1 1" })$/d' "$toggles_dir/no-animations.lua"
+  sed -i --follow-symlinks '/^o\.window("\.\*", { opacity = "1 1" })$/d' "$toggles_dir/no-animations.lua"
 
   if [[ ! -f $toggles_dir/window-opaque.lua && ! -f $toggles_dir/window-glassy.lua ]]; then
     cp "$OMARCHY_PATH/default/hypr/toggles/window-opaque.lua" "$toggles_dir/"

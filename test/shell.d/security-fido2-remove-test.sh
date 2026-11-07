@@ -61,7 +61,7 @@ case "${1:-}" in
     exec /usr/bin/rm -rf "$TEST_AUTHDIR"
     ;;
   sed)
-    if (( $# != 4 )) || [[ $2 != "-i" ]]; then
+    if (( $# != 5 )) || [[ $2 != "-i" || $3 != "--follow-symlinks" ]]; then
       reject "$@"
     fi
     ;;

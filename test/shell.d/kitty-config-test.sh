@@ -62,6 +62,27 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+# Link the other stock terminal configs from a dotfiles checkout, as a dotfiles
+# manager would; the edits must land in the targets and leave the links alone.
+dotfiles="$test_dir/dotfiles"
+linked_configs=(alacritty/alacritty.toml ghostty/config foot/foot.ini)
+for config in "${linked_configs[@]}"; do
+  mkdir -p "$dotfiles/$(dirname "$config")" "$test_home/.config/$(dirname "$config")"
+  cp "$ROOT/config/$config" "$dotfiles/$config"
+  ln -s "$dotfiles/$config" "$test_home/.config/$config"
+done
+run_command omarchy-font-set 'Test Font'
+run_command omarchy-display-text-size 16
+for config in "${linked_configs[@]}"; do
+  [[ -L $test_home/.config/$config ]] || fail "$config stays a symlink"
+done
+grep -q 'family = "Test Font"' "$dotfiles/alacritty/alacritty.toml" || fail "alacritty font lands in the symlink target"
+grep -qx 'size = 12' "$dotfiles/alacritty/alacritty.toml" || fail "alacritty size lands in the symlink target"
+grep -qx 'font-family = "Test Font"' "$dotfiles/ghostty/config" || fail "ghostty font lands in the symlink target"
+grep -qx 'font-size = 12' "$dotfiles/ghostty/config" || fail "ghostty size lands in the symlink target"
+grep -qx 'font=Test Font:size=12' "$dotfiles/foot/foot.ini" || fail "foot font and size land in the symlink target"
+pass "font controls write through symlinked terminal configs and keep them linked"
+
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
 # is installed, so a command on PATH is not enough: ask Kitty itself.
 if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
