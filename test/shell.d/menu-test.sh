@@ -180,6 +180,48 @@ assert(
   'menu keeps a better-matching menu entry above a weaker app match'
 )
 
+// Management rows are named after their target, so "edg" prefix-matches
+// Remove > Browser > Edge while it only substring-matches Microsoft Edge.
+const managed = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
+  { id: 'apps.microsoft-edge', parent: 'apps', kind: 'app', label: 'Microsoft Edge', description: '', aliases: [] },
+  { id: 'apps.rustdesk', parent: 'apps', kind: 'app', label: 'RustDesk', description: '', aliases: [] },
+  { id: 'apps.google-chrome', parent: 'apps', kind: 'app', label: 'Google Chrome', description: '', aliases: [] }
+])
+// Ranks the whole menu the way Menu.qml does, visibility aside.
+const searchRank = (query, withApps = true) => {
+  const matches = managed.itemOrder.map(id => managed.items[id]).filter(entry => menu.matchesQuery(entry, query, true))
+  const apps = withApps ? matches.filter(entry => entry.kind === 'app') : []
+  return matches
+    .map(entry => ({ id: entry.id, score: menu.searchScore(managed.items, entry, query, apps) }))
+    .sort((a, b) => a.score - b.score)
+    .map(row => row.id)
+}
+const ranksAbove = (query, first, rest) => rest.every(id => searchRank(query).indexOf(first) < searchRank(query).indexOf(id))
+assert(
+  ranksAbove('edg', 'apps.microsoft-edge', ['install.browser.edge', 'remove.browser.edge', 'setup.default.browser.edge', 'update.channel.edge']),
+  'menu ranks an installed app above the management rows named after it'
+)
+assert(
+  ranksAbove('rust', 'apps.rustdesk', ['install.development.rust', 'remove.development.rust']),
+  'menu ranks an app above exact-labeled management rows for a prefix of its name'
+)
+assert(
+  ranksAbove('chr', 'apps.google-chrome', ['install.browser.chrome', 'remove.browser.chrome', 'setup.default.browser.chrome']),
+  'menu ranks a vendor-prefixed app above the management rows named after it'
+)
+const managementOrder = (query, withApps) => searchRank(query, withApps).filter(id => /^(install|remove|setup|update)\./.test(id))
+assertDeepEqual(
+  managementOrder('edg', true),
+  managementOrder('edg', false),
+  'menu keeps the relative order of management rows it demotes'
+)
+// Management rows not named after a matching app keep their rank.
+for (const [query, id] of [['net', 'setup.network'], ['audio', 'update.hardware.audio'], ['edi', 'setup.default.editor'], ['time', 'update.time']]) {
+  assertEqual(searchRank(query)[0], id, `menu keeps ${id} first for "${query}"`)
+}
+// "Go" counts as named after Google Chrome, but only drops below that app.
+assert(ranksAbove('go', 'install.development.go', ['system.logout']), 'menu keeps Install > Go above Logout for "go"')
+
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
 // An installed app must never capture a menu route (SUPER+ESCAPE opens the
 // `system` menu), while its keywords keep working for search.

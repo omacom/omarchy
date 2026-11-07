@@ -364,7 +364,22 @@ function matchesQuery(entry, query, visible) {
   return true
 }
 
-function searchScore(items, entry, query) {
+var MANAGEMENT_MENUS = ["install", "remove", "setup", "update"]
+
+function isManagementRow(items, id) {
+  return MANAGEMENT_MENUS.some(function(menuId) { return isDescendantOf(items, id, menuId) })
+}
+
+// Install, Remove, Setup and Update label their rows after the target alone
+// ("Remove > Browser > Edge" is just "Edge"), so a product name can match them
+// more literally than the app, whose label carries a vendor prefix ("Microsoft
+// Edge"). A row named after a matching app sinks to just below that app; other
+// management rows keep their rank.
+function namedAfter(app, entry) {
+  return (" " + app.label.toLowerCase()).indexOf(" " + entry.label.toLowerCase()) >= 0
+}
+
+function matchTier(entry, query) {
   var needle = String(query || "").toLowerCase().trim()
   var label = entry.label.toLowerCase()
   var nameText = nameSearchText(entry)
@@ -384,6 +399,19 @@ function searchScore(items, entry, query) {
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
   if (entry.kind === "app") score -= 5
+
+  return score
+}
+
+// matchingApps: the app rows that match the query, so management rows named
+// after one of them rank below it.
+function searchScore(items, entry, query, matchingApps) {
+  var score = matchTier(entry, query)
+  if (entry.kind !== "app" && isManagementRow(items, entry.id)) {
+    (matchingApps || []).forEach(function(app) {
+      if (namedAfter(app, entry)) score = Math.max(score, matchTier(app, query) + 1)
+    })
+  }
 
   return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
 }
