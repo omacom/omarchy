@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Enable audit watches for sensitive system configuration
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+case "${1:-}" in
+  --help | -h)
+    echo "Usage: omarchy-setup-security-audit"
+    echo "Enables audit logging; this can increase disk usage and CPU load."
+    exit 0
+    ;;
+  "") ;;
+  *) echo "Usage: omarchy-setup-security-audit" >&2; exit 2 ;;
+esac
+if (( $# > 1 )); then
+  echo "Usage: omarchy-setup-security-audit" >&2
+  exit 2
+fi
+
+echo "Enables audit logging; this can increase disk usage and CPU load."
+if omarchy-cmd-missing auditctl || omarchy-cmd-missing augenrules; then
+  echo "Install the audit package before enabling audit watches." >&2
+  exit 1
+fi
+
+rules=$(mktemp)
+trap 'rm -f "$rules"' EXIT
+for path in /etc/passwd /etc/group /etc/shadow /etc/gshadow /etc/sudoers /etc/sudoers.d /etc/pam.d /etc/security /etc/sysctl.conf /etc/sysctl.d /etc/modprobe.d /etc/ssh/sshd_config /etc/ssh/sshd_config.d; do
+  if [[ -e $path ]]; then
+    printf -- '-w %s -p wa -k omarchy-config\n' "$path" >>"$rules"
+  fi
+done
+printf -- '-a always,exit -F arch=b64 -S execve -C uid!=euid -F euid=0 -k omarchy-priv-esc\n' >>"$rules"
+if omarchy-hw-x86; then
+  printf -- '-a always,exit -F arch=b32 -S execve -C uid!=euid -F euid=0 -k omarchy-priv-esc\n' >>"$rules"
+fi
+
+sudo install -Dm600 "$rules" /etc/audit/rules.d/99-omarchy-hardening.rules
+sudo systemctl enable --now auditd.service
+sudo augenrules --load
