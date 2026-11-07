@@ -96,6 +96,14 @@
     "decimal": ".",
     "zeroDigit": "0"
   },
+  "es-ES": {
+    "name": "Español (España)",
+    "englishName": "Spanish (Spain)",
+    "formatLocale": "es-ES",
+    "locale": "es_ES.UTF-8",
+    "decimal": ",",
+    "zeroDigit": "0"
+  },
   "fil": {
     "name": "Filipino",
     "englishName": "Filipino",
