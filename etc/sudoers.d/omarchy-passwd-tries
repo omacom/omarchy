@@ -1,1 +1,2 @@
 Defaults passwd_tries=10
+Defaults !pam_silent
