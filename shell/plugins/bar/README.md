@@ -175,7 +175,7 @@ Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (o
 - `bar.vertical` — boolean shortcut
 - `bar.barSize` — 26 horizontal / 28 vertical
 - `bar.run(command)` — fire-and-forget bash exec (quote arguments with `Util.shellQuote` from `qs.Commons`)
-- `bar.showTooltip(target, text)` / `bar.hideTooltip(target)` — shared tooltip popup
+- `bar.showTooltip(target, text)` / `bar.hideTooltip(target)` — shared tooltip popup. The target must be visible and expose a `tooltipHovered` bool that is true while the pointer is over it, as `BarWidget` and `WidgetButton` do; a plain `Item` without one gets no tooltip
 - `bar.requestPopout(owner)` / `bar.releasePopout(owner)` — one-popup-at-a-time coordinator
 
 First-party bar widgets are manifest-backed just like third-party widgets.
