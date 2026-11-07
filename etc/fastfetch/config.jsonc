@@ -69,7 +69,7 @@
     },
     {
       "type": "command",
-      "key": "\ue900 OS",
+      "key": "\udbc0\udc00 OS",
       "keyColor": "blue",
       "text": "version=$(omarchy-version) && echo \"Omarchy $version\""
     },
