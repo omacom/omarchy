@@ -1356,13 +1356,22 @@ Item {
           } else if (event.key === Qt.Key_PageDown) {
             root.select(6)
             event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || Util.readingKey(event) === Qt.Key_Right) {
+          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (root.dmenuActive) {
               if (root.mode === "input") root.applyDmenuSelection(root.filterText)
               else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
             else root.settleCursor()
             event.accepted = true
+          } else if (Util.readingKey(event) === Qt.Key_Right) {
+            // Right is navigation only: follow a submenu or link, never run an action or submit dmenu.
+            if (!root.dmenuActive && root.cursorActive) {
+              var row = displayModel.get(root.selectedIndex)
+              if (row && (row.kind === "menu" || row.kind === "link")) {
+                root.activateIndex(root.selectedIndex)
+                event.accepted = true
+              }
+            }
           }
         }
 
