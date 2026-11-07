@@ -423,6 +423,16 @@ cmd_move() {
   echo "Moved $id"
 }
 
+# Missing catalog/schema entries keep the historical string encoding.
+bar_setting_type() {
+  local id="$1" key="$2" catalog
+  catalog=$(omarchy-plugin-catalog 2>/dev/null) || return 0
+  jq -r --arg id "$id" --arg key "$key" '
+    first(.[] | select(.id == $id) | (.barWidget.schema // [])[]
+      | select(.key == $key) | .type) // empty
+  ' <<<"$catalog" 2>/dev/null || true
+}
+
 cmd_set() {
   local id="${1:-}"
   local key="${2:-}"
@@ -445,6 +455,13 @@ cmd_set() {
   if [[ $value_is_json == "true" ]]; then
     value_json=$(jq -cn --argjson value "$value" '$value') ||
       fail "invalid JSON value: $value"
+  elif [[ $(bar_setting_type "$id" "$key") == "boolean" ]]; then
+    # QML boolean settings require a JSON boolean, not a quoted string.
+    case "${value,,}" in
+      true | 1 | yes | on) value_json=true ;;
+      false | 0 | no | off) value_json=false ;;
+      *) fail "setting $key expects a boolean (true/false), got: $value" ;;
+    esac
   else
     value_json=$(jq -cn --arg value "$value" '$value')
   fi
