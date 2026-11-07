@@ -159,8 +159,7 @@ Item {
   function selectIndex(index) {
     if (root.apps.length === 0) return
     var next = Math.max(0, Math.min(root.apps.length - 1, index))
-    if (next === root.selectedIndex) return
-    root.selectedIndex = next
+    if (next !== root.selectedIndex) root.selectedIndex = next
     grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
   }
 
