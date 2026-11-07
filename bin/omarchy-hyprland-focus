@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set window focus: theme or dim
+# omarchy:args=[theme|dim]
+# omarchy:examples=omarchy hyprland focus | omarchy hyprland focus dim
+
+TOGGLES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
+
+if (( $# == 0 )); then
+  if [[ -f $TOGGLES_DIR/focus-dim.lua ]]; then
+    echo "dim"
+  else
+    echo "theme"
+  fi
+  exit 0
+fi
+
+if (( $# != 1 )); then
+  echo "Usage: omarchy-hyprland-focus [theme|dim]" >&2
+  exit 1
+fi
+
+case $1 in
+  theme) LABEL=$(omarchy-i18n focus.followTheme) ;;
+  dim) LABEL=$(omarchy-i18n focus.dim) ;;
+  *)
+    echo "Usage: omarchy-hyprland-focus [theme|dim]" >&2
+    exit 1
+    ;;
+esac
+
+# Toggle files load after the theme and personal settings. Removing this flag
+# restores their border and dimming settings; window-no-gaps.lua still takes precedence.
+if [[ $1 == "dim" ]]; then
+  mkdir -p "$TOGGLES_DIR" && cp "$OMARCHY_PATH/default/hypr/toggles/focus-dim.lua" "$TOGGLES_DIR/focus-dim.lua" || exit 1
+else
+  rm -f "$TOGGLES_DIR/focus-dim.lua" || exit 1
+fi
+
+hyprctl reload >/dev/null || exit 1
+omarchy-notification-send -g 󰘇 "$LABEL"
