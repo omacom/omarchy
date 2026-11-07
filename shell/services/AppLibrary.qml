@@ -12,6 +12,9 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // The shell that owns this library; launch feedback drives the OSD plugin
+  // through it in-process rather than through a spawned omarchy-shell call.
+  property var shell: null
 
   property var configuredHiddenEntryIds: ({})
   property var desktopHiddenEntryIds: ({})
@@ -27,8 +30,8 @@ Item {
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
   // True while the launch OSD is on screen. It outlives the launch that opened
-  // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
-  // down.
+  // it: closeLaunchFeedback() normally takes it down, and its own duration
+  // (the rest of launchTimeout) dismisses it if a show lands after that close.
   property bool launchOsdOpen: false
   property string launchOsdMessage: ""
 
@@ -186,7 +189,7 @@ Item {
     launchDelay.stop()
     launchTimeout.stop()
     if (root.launchOsdOpen) {
-      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
+      root.shell.hide("omarchy.osd")
       root.launchOsdOpen = false
     }
   }
@@ -257,7 +260,7 @@ Item {
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      root.shell.summon("omarchy.osd", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: launchTimeout.interval - launchDelay.interval }))
     }
   }
 
