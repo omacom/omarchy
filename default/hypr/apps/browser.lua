@@ -6,5 +6,9 @@ o.window({ tag = "chromium-based-browser" }, { tile = true })
 -- Video apps: remove the chromium browser tag so they can float.
 o.window("(^.+-youtube\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { tag = "-chromium-based-browser" })
 
+-- Chromium-based browsers show one classless dialog per failed profile database. Tiled, a handful
+-- squeeze every other window off the screen. Title alone: floating workspaces exempt every class named here.
+o.window({ title = "^Profile error occurred$" }, { tag = "+floating-window" })
+
 -- Hide screen sharing notification windows.
 o.window({ title = ".*is sharing.*" }, { workspace = "special silent" })
