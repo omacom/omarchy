@@ -236,8 +236,8 @@ pass "minimize hops through the former workspace even when few are open"
 
 # On a fresh session with no former workspace, previous_per_monitor no-ops
 # and the minimized window keeps keyboard focus. Minimize detects that the
-# window is still active after the move and clears focus by focusing the
-# current monitor.
+# window is still active after the move and hops focus through another
+# workspace and back, which lands it cleared on the emptied workspace.
 cat >"$mock_bin/hyprctl" <<STUB
 #!/bin/bash
 case "\$1" in
@@ -258,8 +258,8 @@ rm -f "$TMPDIR/activewindow.fresh"
 minimize
 grep -qF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })' "$TMPDIR/hyprctl.log" &&
   grep -qF 'hl.dispatch(hl.dsp.focus({ workspace = "previous_per_monitor" })) hl.dispatch(hl.dsp.focus({ workspace = "1" }))' "$TMPDIR/hyprctl.log" &&
-  [[ $(tail -1 "$TMPDIR/hyprctl.log") == "focusmonitor current" ]] ||
-  fail "minimize clears focus by focusing current monitor when the window stays active" "$(cat "$TMPDIR/hyprctl.log")"
+  [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "2", on_current_monitor = true })) hl.dispatch(hl.dsp.focus({ workspace = "1" }))' ]] ||
+  fail "minimize clears focus by hopping through another workspace when the window stays active" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize clears focus when the monitor has no former workspace"
 
 cat >"$mock_bin/hyprctl" <<STUB

@@ -41,10 +41,20 @@ hyprctl dispatch "hl.dsp.window.move({ workspace = \"special:minimized\", follow
 # trip ends from it and leaves that record as it found it; hopping through a
 # concrete workspace would rewrite it. On a monitor with nothing before this
 # one (a fresh session) the selector resolves to nothing and both hops are
-# no-ops, so fall back to focusing the current monitor to clear focus from
-# the hidden window.
+# no-ops, leaving focus with the hidden window: the window is still active
+# after the round trip. Focusing this workspace again or the monitor we are
+# on is a no-op upstream (changeWorkspace returns on the same workspace,
+# focusmonitor refuses the focused one), so the only dispatch that clears
+# keyboard focus here is a hop through another workspace. Bounce through the
+# next one and back; the former-workspace record is empty on that monitor,
+# so the concrete hop has nothing to rewrite.
 hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"previous_per_monitor\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
 
 if [[ $(hyprctl activewindow -j | jq -r '.address // empty') == $ADDRESS ]]; then
-  hyprctl dispatch focusmonitor current >/dev/null
+  if (( WORKSPACE == 1 )); then
+    OTHER_WORKSPACE=2
+  else
+    OTHER_WORKSPACE=1
+  fi
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"$OTHER_WORKSPACE\", on_current_monitor = true })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
 fi
