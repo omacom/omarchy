@@ -222,6 +222,8 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    idleBlankTimer.blanked = false
+    idleBlankTimer.graceDeadline = 0
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -243,20 +245,44 @@ Item {
     pendingSessionLockTimer.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
+    idleBlankTimer.blanked = false
+    idleBlankTimer.graceDeadline = 0
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
   }
 
   function armBlankTimer(delayMs) {
+    var now = Date.now()
+    // Bursts of wake input must not shorten the first-wake grace back to the
+    // idle interval before the user has had time to type.
+    if (!delayMs && idleBlankTimer.graceDeadline > now) {
+      if (now + idleBlankTimer.idleMs <= idleBlankTimer.graceDeadline) {
+        if (!idleBlankTimer.running) {
+          idleBlankTimer.interval = idleBlankTimer.graceDeadline - now
+          idleBlankTimer.armedAt = now
+          idleBlankTimer.restart()
+        }
+        return
+      }
+      idleBlankTimer.graceDeadline = 0
+    }
     idleBlankTimer.interval = delayMs || idleBlankTimer.idleMs
-    idleBlankTimer.armedAt = Date.now()
+    idleBlankTimer.armedAt = now
     idleBlankTimer.restart()
   }
 
   function runWake() {
     if (!wakeProcess.running) wakeProcess.running = true
-    if (lockRequested) armBlankTimer()
+    if (lockRequested) {
+      if (idleBlankTimer.blanked) {
+        idleBlankTimer.blanked = false
+        idleBlankTimer.graceDeadline = Date.now() + idleBlankTimer.wakeMs
+        armBlankTimer(idleBlankTimer.wakeMs)
+      } else {
+        armBlankTimer()
+      }
+    }
     resumeFingerprint()
     nudgeFingerprint()
   }
@@ -349,6 +375,8 @@ Item {
   }
 
   function runBlank() {
+    idleBlankTimer.blanked = true
+    idleBlankTimer.graceDeadline = 0
     pauseFingerprint()
     if (!blankProcess.running) blankProcess.running = true
   }
@@ -771,6 +799,11 @@ Item {
     // panel lights (on NVIDIA it waits out a VT switch and a modeset), so the
     // idle run-up blanked the lock just as it appeared.
     readonly property int resumeMs: 15000
+    // Displays take seconds to light after DPMS off, so the first wake after a
+    // blank gets a longer grace before the idle countdown reblanks.
+    readonly property int wakeMs: 15000
+    property bool blanked: false
+    property double graceDeadline: 0
     interval: idleMs
     repeat: false
     property double armedAt: 0

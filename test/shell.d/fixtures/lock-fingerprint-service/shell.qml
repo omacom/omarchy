@@ -237,6 +237,37 @@ ShellRoot {
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
+
+      // First wake after blank grants a longer grace so the user can type
+      // before reblanking; bursts of wake input preserve that deadline. Move
+      // the armed grace back 7s so the burst reads as seconds after the first
+      // wake even though both run inside the same wall-clock millisecond: a
+      // burst that re-granted the grace would land the deadline 7s later and
+      // fail the exact match.
+      service.lockRequested = true
+      service.runBlank()
+      service.runWake()
+      check(blankTimer.interval === 15000, "first wake after a blank arms the longer grace")
+      blankTimer.armedAt -= 7000
+      blankTimer.graceDeadline -= 7000
+      var initialDeadline = blankTimer.armedAt + blankTimer.interval
+      blankTimer.stop()
+
+      blankTimer.start()
+      service.runWake()
+      service.runWake()
+      check(blankTimer.interval === 15000 && blankTimer.armedAt + blankTimer.interval === initialDeadline,
+        "burst of wake inputs preserves the long grace deadline")
+
+      blankTimer.graceDeadline = Date.now() - 1000
+      service.runWake()
+      check(blankTimer.interval === 5000, "wake input after grace consumed re-arms normal 5s interval")
+      blankTimer.stop()
+
+      service.runBlank()
+      service.runWake()
+      check(blankTimer.interval === 15000, "wake after blanking again arms the longer grace")
+      blankTimer.stop()
     } finally {
       service.lockRequested = false
       service.resetAuthenticationState()
