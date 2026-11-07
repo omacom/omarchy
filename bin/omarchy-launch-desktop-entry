@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Launch an application by its desktop entry id
+# omarchy:args=<desktop-id>
+# omarchy:hidden=true
+
+# The caller's XDG_ACTIVATION_TOKEN lets an app that is already running raise
+# its window for the click that launched it. gtk-launch replaces the token with
+# one of its own, which carries no input and is refused, whenever the entry asks
+# for startup notification; gio launch keeps it. A D-Bus activatable app is
+# activated over D-Bus instead, where GLib only sends a token of its own, so
+# activate it here with the caller's. gtk-launch stays as the fallback for ids
+# that don't map to a file name, such as entries in a subdirectory.
+id=${1%.desktop}
+token=${XDG_ACTIVATION_TOKEN:-}
+
+file=""
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+for dir in "${data_dirs[@]}"; do
+  if [[ -f "$dir/applications/$id.desktop" ]]; then
+    file="$dir/applications/$id.desktop"
+    break
+  fi
+done
+
+activate_over_dbus() {
+  [[ $token =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+  grep -qx "DBusActivatable=true" "$file" || return 1
+
+  local object_path="/${id//./\/}"
+  gdbus call --session --dest "$id" --object-path "${object_path//-/_}" \
+    --method org.freedesktop.Application.Activate \
+    "{'activation-token': <'$token'>, 'desktop-startup-id': <'$token'>}" >/dev/null 2>&1
+}
+
+if [[ -z $file ]]; then
+  gtk-launch "$id.desktop"
+elif ! activate_over_dbus; then
+  gio launch "$file"
+fi
