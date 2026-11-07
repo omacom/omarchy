@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default file manager selected via Omarchy defaults.
+# omarchy:args=[path]
+
+default_file_manager=$(omarchy-default-file-manager)
+
+case "$default_file_manager" in
+nautilus | nemo | dolphin | flea | thunar) file_manager=$default_file_manager ;;
+*) file_manager="" ;;
+esac
+
+# A default whose package has been removed must not leave the keys dead: take
+# the first file manager the machine still has, Omarchy's own default first.
+if [[ -z $file_manager ]] || omarchy-cmd-missing "$file_manager"; then
+  file_manager=""
+  for candidate in nautilus nemo dolphin thunar flea; do
+    if omarchy-cmd-present "$candidate"; then
+      file_manager=$candidate
+      break
+    fi
+  done
+fi
+
+[[ -n $file_manager ]] || exit 1
+
+case "$file_manager" in
+nautilus) set -- nautilus --new-window "$@" ;;
+flea) set -- flea --gui "$@" ;;
+*) set -- "$file_manager" "$@" ;;
+esac
+
+exec setsid uwsm-app -- "$@"
