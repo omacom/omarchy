@@ -24,11 +24,11 @@ done
 exec "$@"
 SH
 
-cat >"$mock_bin/dbus-monitor" <<'SH'
+cat >"$mock_bin/gdbus" <<'SH'
 #!/bin/bash
 
 echo "$$" >"$PRODUCER_PID_FILE"
-printf '   boolean true\n'
+printf '%s\n' '/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (true,)'
 exec sleep 30
 SH
 
@@ -40,9 +40,20 @@ SH
 
 chmod +x \
   "$mock_bin/systemd-inhibit" \
-  "$mock_bin/dbus-monitor" \
+  "$mock_bin/gdbus" \
   "$mock_omarchy/bin/omarchy-system-sleep-lock"
 ln -s "$sleep_monitor" "$mock_omarchy/bin/omarchy-system-sleep-monitor"
+
+# Resuming broadcasts PrepareForSleep(false), and logind's property changes
+# arrive on the same object; neither is a sleep.
+printf '%s\n' \
+  "/org/freedesktop/login1: org.freedesktop.DBus.Properties.PropertiesChanged ('org.freedesktop.login1.Manager', {'PreparingForSleep': <true>}, @as [])" \
+  '/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false,)' |
+  OMARCHY_PATH="$mock_omarchy" LOCK_LOG="$lock_log" "$sleep_monitor" --consume
+
+[[ ! -e $lock_log ]] ||
+  fail "sleep monitor ignores resume and property changes"
+pass "sleep monitor ignores resume and property changes"
 
 start_us=${EPOCHREALTIME//[!0-9]/}
 OMARCHY_PATH="$mock_omarchy" \
@@ -68,14 +79,14 @@ pass "sleep monitor reaps its event producer"
 
 # Terminating the monitor must also clean up the producer instead of orphaning
 # it under the user systemd instance.
-cat >"$mock_bin/dbus-monitor" <<'SH'
+cat >"$mock_bin/gdbus" <<'SH'
 #!/bin/bash
 
 sleep 0.1
 echo "$$" >"$PRODUCER_PID_FILE"
 exec sleep 30
 SH
-chmod +x "$mock_bin/dbus-monitor"
+chmod +x "$mock_bin/gdbus"
 rm -f "$producer_pid_file"
 
 OMARCHY_PATH="$mock_omarchy" \
