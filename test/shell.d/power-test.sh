@@ -43,4 +43,34 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
+
+// Several packs.
+const pack = (nativePath, fields) => Object.assign({ ready: true, isPresent: true, isLaptopBattery: true, nativePath, energyCapacity: 20, energy: 10, changeRate: 0 }, fields)
+const display = { isPresent: true, percentage: 0.49, state: states.Charging }
+const metadata = power.parsePackMetadata(power.parseKeyValue('pack.0.path\tBAT0\npack.0.holdsCharge\tfalse\npack.0.atLimit\tfalse\npack.1.path\tBAT1\npack.1.cycles\t27\npack.1.thresholdStart\t75\npack.1.thresholdEnd\t80\npack.1.atLimit\ttrue\n'))
+assertEqual(metadata.BAT1.cycles, '27', 'power keys pack metadata by device name')
+assert(metadata.BAT1.holdsCharge && !metadata.BAT0.holdsCharge, 'power takes a pack as holding charge unless told otherwise')
+
+const packs = power.laptopDevices([
+  pack('/sys/class/power_supply/BAT1', { energyCapacity: 50 }),
+  pack('hidpp_battery_0', { isLaptopBattery: false }),
+  pack('BAT2', { energyCapacity: 0 }),
+  pack('BAT0')
+])
+assertDeepEqual(packs.map(power.deviceName), ['BAT0', 'BAT1'], 'power lists laptop packs in name order, without a mouse or an empty bay')
+
+assertEqual(power.headlineBattery(packs, display, ''), display, 'power uses the display device while every pack holds charge')
+assertEqual(power.headlineBattery(packs, display, 'BAT1').energyCapacity, 50, 'power describes the one pack still holding charge')
+assertEqual(power.headlineBattery(packs, display, 'BAT2'), display, 'power keeps the display device when the named pack is gone')
+
+const limited = pack('BAT1', { percentage: 0.77, state: states.PendingCharge })
+assertEqual(power.packSummary(limited, false, states, metadata.BAT1), '77% · Holding', 'power labels a pack at its limit')
+assertEqual(power.packSummary(pack('BAT0', { percentage: 0.05, state: states.PendingCharge }), false, states, {}), '5% · Waiting to charge', 'power labels a pack waiting to charge')
+assertEqual(power.packSummary(pack('BAT0', { percentage: 0 }), false, states, metadata.BAT0), '0% · Not holding charge', 'power labels a dead pack')
+assertEqual(power.formatThreshold(metadata.BAT1), '75-80%', 'power formats a pack limit')
+
+const charging = { isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0 }
+assertEqual(power.batteryIcon(charging, false, states, true), power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states), 'power shows the plain icon when the packs are holding')
+assertEqual(power.modeLabel(charging, false, states, undefined, false), 'Charging', 'power takes the packs\' limit check over the display device')
+assertEqual(power.packSummary(limited, false, states, metadata.BAT1, (key, english) => key, (v) => '<' + v + '>'), '<77>% · power.holding', 'power translates and localizes a pack summary')
 JS
