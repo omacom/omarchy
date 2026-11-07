@@ -22,6 +22,8 @@ splash = {panel: 46, external: 47}
 assert handoff(splash, {panel: 46, external: 47}) == (False, False), "nothing drawn yet"
 assert handoff(splash, {panel: 52, external: 47}) == (True, False), "one display still shows the splash"
 assert handoff(splash, {panel: 52, external: 0}) == (True, True), "a display the compositor turned off no longer shows it"
+assert handoff(splash, {panel: 0, external: 0}) == (False, False), "displays turned off are not a compositor's frame"
+assert handoff(splash, {external: 53}) == (True, False), "a display that couldn't be read still counts as the splash"
 assert handoff(splash, {panel: 52, external: 53}) == (True, True), "both drawn over"
 assert handoff({}, {dark: 0}) == (False, False), "a text splash: nothing drawn yet"
 assert handoff({}, {dark: 60}) == (True, True), "a text splash: the compositor's first frame"
