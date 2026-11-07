@@ -423,4 +423,11 @@ const missingGlyphs = fontGlyphRows
   .filter(({ code }) => !fontRanges.some(([start, end = start]) => code >= start && code <= end))
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
+
+// Select headings group the options after them and vanish with them under a search.
+const headed = [{ heading: 'Repositories' }, 'x\tapi\tmain', 'x\tweb', { heading: 'Folders' }, 'notes']
+assertDeepEqual(menu.dmenuRows(headed, '').map(row => row.heading ? '# ' + row.label : row.label), ['# Repositories', 'api', 'web', '# Folders', 'notes'], 'select headings sit over their options')
+assertDeepEqual(menu.dmenuRows(headed, 'note').map(row => row.heading ? '# ' + row.label : row.label), ['# Folders', 'notes'], 'a search drops headings left with nothing under them')
+assertDeepEqual(menu.dmenuRows(headed, '').filter(row => !row.heading).map(row => row.index), [1, 2, 4], 'select rows keep their option index for the returned value')
+assertDeepEqual(menu.dmenuSelections(headed, ['notes', 'api\tmain']), ['api\tmain', 'notes'], 'headings are never selectable values')
 JS
