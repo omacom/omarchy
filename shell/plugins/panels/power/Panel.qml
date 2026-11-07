@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeThresholdActive)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), root.chargeThresholdActive, Commons.I18n.t)
   }
 
   function profileIcon(name) {
@@ -64,16 +64,46 @@ Panel {
 
   readonly property bool fullyCharged: {
     var device = UPower.displayDevice
-    return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
+    // Raw, not debounced: self-cancels against chargeThresholdActive()'s own
+    // FullyCharged-at-low-fraction check on the same instantaneous read.
+    return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.rawChargeThresholdActive
   }
   readonly property bool discharging: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent && UPower.onBattery)
   }
-  readonly property bool chargeThresholdActive: {
+
+  // Instant and unfiltered; noisy on some hardware, so never drive UI with
+  // this directly — see the debounced chargeThresholdActive below.
+  readonly property bool rawChargeThresholdActive: {
     var device = UPower.displayDevice
     return Model.chargeThresholdActive(device, root.discharging, upowerStates())
   }
+
+  readonly property int chargeThresholdConfirmDelay: 30000
+
+  property var chargeThresholdActiveSince: null
+  property bool chargeThresholdActive: false
+
+  function updateChargeThresholdConfirmation() {
+    var next = Model.nextChargeThresholdState(
+      root.rawChargeThresholdActive, root.chargeThresholdActiveSince, Date.now(), root.chargeThresholdConfirmDelay)
+    root.chargeThresholdActiveSince = next.activeSince
+    root.chargeThresholdActive = next.confirmed
+  }
+
+  onRawChargeThresholdActiveChanged: root.updateChargeThresholdConfirmation()
+
+  // Ticks only while a confirmation is pending.
+  Timer {
+    interval: 1000
+    repeat: true
+    running: root.chargeThresholdActiveSince !== null && !root.chargeThresholdActive
+    onTriggered: root.updateChargeThresholdConfirmation()
+  }
+
+  Component.onCompleted: root.updateChargeThresholdConfirmation()
+
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
