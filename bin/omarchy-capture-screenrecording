@@ -485,10 +485,11 @@ start_screenrecording() {
       fi
     fi
 
-    local started_at=${EPOCHREALTIME/./} recorder_ended=false
+    # Bash supplies six fractional digits, but the separator follows the locale.
+    local started_at=${EPOCHREALTIME//[!0123456789]/} recorder_ended=false
     while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]]; do
       start_cancelled && break
-      if [[ $target != "portal" ]] && (( ${EPOCHREALTIME/./} - started_at > READY_TIMEOUT_TICKS * 200000 )); then
+      if [[ $target != "portal" ]] && (( ${EPOCHREALTIME//[!0123456789]/} - started_at > READY_TIMEOUT_TICKS * 200000 )); then
         end_launched_recorder "$pid"
         wf_audio_cleanup
         rm -f "$filename"

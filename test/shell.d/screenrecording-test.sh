@@ -929,11 +929,42 @@ kill -0 "$pid" || fail "detached recorder survives later stderr without SIGPIPE"
 [[ ! -e $notice && ! -e $runtime/omarchy-screenrecord-gsr.err ]] || fail "later stderr is discarded without a warning or log"
 pass "detached recorder keeps its own pid and later stderr is drained without SIGPIPE"
 
-reset_case
-record stall
-! started || fail "a recorder that never becomes ready records no state"
-[[ ! -e $runtime/omarchy-screenrecord-gsr.err ]] || fail "timed-out startup removes diagnostics"
-pass "a timed-out startup cleans its diagnostics"
+# Run the actual startup body with a synthetic clock, not a native locale.
+# Unsetting EPOCHREALTIME makes it assignable in this disposable Bash process.
+sed '/^mkdir -p "\$RUNTIME_DIR" || exit 1$/,$d' "$ROOT/bin/omarchy-capture-screenrecording" >"$tmp_dir/clock-recorder"
+cat >>"$tmp_dir/clock-recorder" <<'SH'
+unset EPOCHREALTIME
+EPOCHREALTIME="1794080000${OMARCHY_TEST_CLOCK_SEPARATOR}900000"
+clock_checks=0
+start_cancelled() {
+  if [[ -v started_at && $recorder_ended == "false" ]]; then
+    clock_checks=$((clock_checks + 1))
+    if (( clock_checks == 1 )); then
+      EPOCHREALTIME="1794080001${OMARCHY_TEST_CLOCK_SEPARATOR}100000"
+    else
+      EPOCHREALTIME="1794080020${OMARCHY_TEST_CLOCK_SEPARATOR}100000"
+    fi
+    # Safely end a broken timeout rather than leaving its recorder running.
+    (( clock_checks <= 2 )) || touch "$CANCEL_FILE"
+  fi
+  [[ -e $CANCEL_FILE ]]
+}
+start_screenrecording
+# Both conversions must agree: wait at 0.2 seconds, time out at 19.2 seconds.
+(( clock_checks == 2 )) && [[ ! -e $CANCEL_FILE ]]
+SH
+for separator in '.' ',' '٫'; do
+  for mode in stall flood; do
+    reset_case
+    OMARCHY_TEST_CLOCK_SEPARATOR="$separator" OMARCHY_TEST_GSR_MODE="$mode" \
+      bash "$tmp_dir/clock-recorder" --fullscreen --resolution=0x0 >"$tmp_dir/recorder-output" 2>&1 ||
+      fail "startup times out across '$separator' clock separators with $mode stderr" "$(cat "$tmp_dir/recorder-output")"
+    ! started || fail "a recorder that never becomes ready records no state"
+    [[ ! -e $runtime/omarchy-screenrecord-gsr.err && -z $(compgen -G "$runtime/omarchy-screenrecord-stderr.*") ]] ||
+      fail "timed-out startup removes its diagnostics"
+    pass "startup waits within budget and times out across '$separator' clock separators with $mode stderr"
+  done
+done
 
 reset_case
 add_gpu 00 0x8086 0x030000
