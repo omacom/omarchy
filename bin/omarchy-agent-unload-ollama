@@ -43,9 +43,11 @@ def main():
     model = args.model
     if model is None:
       choice = subprocess.run(["gum", "choose", "--header", "Unload a model from memory", "--", *running], stdout=subprocess.PIPE, text=True)
-      if choice.returncode in (1, 130) or not choice.stdout.strip():
+      if choice.returncode in (1, 130):
         return 0
       choice.check_returncode()
+      if not choice.stdout.strip():
+        return 0
       model = choice.stdout.strip()
     if model not in running:
       if model + ":latest" in running:

@@ -82,6 +82,11 @@ with patch("sys.argv", ["unload"]), patch("sys.stdin.isatty", return_value=True)
     self.assertTrue(all(url.endswith("generate") for url, _ in requests[1:]))
     self.assertIn("download is kept", output)
 
+  def test_picker_failure_is_not_treated_as_cancellation(self):
+    with patch("sys.argv", ["unload"]), patch("sys.stdin.isatty", return_value=True), patch.dict(APP, request=lambda *args: {"models": [{"name": "a:latest"}]}), patch("subprocess.run", return_value=subprocess.CompletedProcess(["gum"], 2, stdout="")):
+      with self.assertRaises(subprocess.CalledProcessError):
+        APP["main"]()
+
   def test_default_tag_resolves_loaded_model(self):
     code, requests, _, _ = self.run_app(["--model", "a"])
     self.assertEqual(code, 0)
