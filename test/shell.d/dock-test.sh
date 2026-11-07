@@ -129,6 +129,24 @@ if omarchy_dock position diagonal 2>/dev/null; then
 fi
 pass "dock position is set and read through omarchy-dock"
 
+[[ $(omarchy_dock show-on) == "floating" ]] || fail "dock defaults to floating workspaces"
+omarchy_dock show-on all >/dev/null
+[[ $(omarchy_dock show-on) == "all" ]] || fail "dock workspace mode reads back"
+jq -e '.dock.showOn == "all" and .dock.position == "left"' "$home/.config/omarchy/shell.json" >/dev/null || fail "dock workspace mode preserves other settings"
+cp "$home/.config/omarchy/shell.json" "$TMPDIR/before-invalid-show-on.json"
+for invalid in tiled ALL ''; do
+  if omarchy_dock show-on "$invalid" >/dev/null 2>&1; then
+    fail "dock workspace mode rejects invalid values"
+  fi
+done
+if omarchy_dock show-on all floating >/dev/null 2>&1; then
+  fail "dock workspace mode rejects extra arguments"
+fi
+cmp -s "$home/.config/omarchy/shell.json" "$TMPDIR/before-invalid-show-on.json" || fail "invalid workspace modes leave config unchanged"
+omarchy_dock show-on floating >/dev/null
+[[ $(omarchy_dock show-on) == "floating" ]] || fail "dock can return to floating workspaces"
+pass "dock workspace visibility is saved and validated through omarchy-dock"
+
 default_pins=$(jq -r '.dock.pinned[]' "$ROOT/config/omarchy/shell.json" | paste -sd " ")
 [[ -n $default_pins && $(omarchy_dock pinned | paste -sd " ") == "$default_pins" ]] || fail "dock pins start from the defaults"
 omarchy_dock unpin spotify >/dev/null
