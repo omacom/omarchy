@@ -34,3 +34,9 @@ PY
 
 OMARCHY_QML_BAR_WIDGETS="$bar_widgets" \
   run_qml_fixture bar-widget-contract "bar widget contracts pass" Ui Commons
+
+if rg -q 'PopupCard.qml.*Unable to assign' "$QML_FIXTURE_LOG"; then
+  rg 'PopupCard.qml.*Unable to assign' "$QML_FIXTURE_LOG" >&2
+  fail "a popup whose bar has no size builds without binding warnings"
+fi
+pass "a popup whose bar has no size builds without binding warnings"

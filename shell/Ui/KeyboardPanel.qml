@@ -232,7 +232,7 @@ PanelWindow {
   // still consistent with the bar content origin, so it's accurate for
   // centering the card under the icon.
   readonly property real barThickness: !bar ? 0
-    : (typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize)
+    : Number(typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize) || 0
   // Bar window dimensions, only for mapping overlay coordinates into
   // bar-window content coordinates in barPoint() below.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW

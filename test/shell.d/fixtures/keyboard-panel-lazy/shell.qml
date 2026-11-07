@@ -45,6 +45,16 @@ ShellRoot {
     Item { id: eagerChild }
   }
 
+  // A bar object with no barSize, as a plugin may hand a panel.
+  QtObject { id: sizelessBar; property string position: "top" }
+
+  KeyboardPanel {
+    id: sizeless
+    anchorItem: anchor
+    bar: sizelessBar
+    visible: false
+  }
+
   Timer {
     interval: 100
     running: true
@@ -66,6 +76,7 @@ ShellRoot {
       lazy.open = false
 
       test.check(eager.loadedContent === null && eagerChild.parent !== null, "panels with direct children still build them eagerly")
+      test.check(sizeless.barThickness === 0, "a panel whose bar has no size reads a bar thickness of 0")
 
       console.log(test.failed ? "RESULT fail" : "RESULT pass")
       Qt.quit()
