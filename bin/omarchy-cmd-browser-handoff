@@ -41,7 +41,15 @@ socket="$config/$profile/SingletonSocket"
 [[ -S $socket && -O $socket ]] || exit 1
 
 reply=$({
-  printf 'START\0%s\0browser' "$PWD"
+  printf 'START\0%s' "$PWD"
+  # Edge's own second process sends two fields after the directory, a time in
+  # microseconds since 1601 and one it ignores. It reads a message without them
+  # only for a single argument, so a handoff with a flag as well would have the
+  # flag taken as a field and dropped.
+  if [[ $profile == "microsoft-edge" ]]; then
+    printf '\0%s\0%s' "$((${EPOCHREALTIME//[!0-9]/} + 11644473600000000))" 0
+  fi
+  printf '\0browser'
   printf '\0%s' "$@"
 } | socat -t2 - "UNIX-CONNECT:$socket" 2>/dev/null)
 
