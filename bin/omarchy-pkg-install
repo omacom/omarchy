@@ -22,5 +22,7 @@ if [[ -n $pkg_names ]]; then
 
   # Convert newline-separated selections to space-separated for pacman
   echo "$pkg_names" | tr '\n' ' ' | xargs sudo pacman -S --noconfirm
-  omarchy-show-done $?
+  code=$?
+  omarchy_sudo_keepalive_stop
+  omarchy-show-done $code
 fi
