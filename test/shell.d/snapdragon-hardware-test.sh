@@ -201,6 +201,7 @@ run_leaves_on() (
   OMARCHY_QUALCOMM_UKI_CONFIG="$out/uki.conf"
   OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$out/boot-hooks"
   OMARCHY_QUALCOMM_MKINITCPIO_DIR="$out/mkinitcpio.conf.d"
+  OMARCHY_QUALCOMM_INITCPIO_INSTALL_DIR="$out/initcpio-install"
   source "$firmware_setup"
   source "$dtb_setup"
   source "$out/kernel-params.sh"
@@ -241,9 +242,29 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
   done
 )
 
+(
+  # The hook quiets mkinitcpio's efivarfs mount, which fails on Snapdragon
+  # until the QSEECOM driver loads, in the image's copy of init_functions.
+  HOOKS=(base)
+  source "$snapdragon/mkinitcpio.conf.d/qualcomm-platform.conf"
+  [[ ${HOOKS[*]} == "base omarchy-quiet-efivars" ]] ||
+    fail "a Snapdragon device tree runs omarchy-quiet-efivars after base"
+
+  BUILDROOT="$scratch/buildroot"
+  mkdir -p "$BUILDROOT"
+  printf '%s\n' 'mount_setup() {' \
+    '    if [ -e /sys/firmware/efi ]; then' \
+    '        mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o nosuid,nodev,noexec' \
+    '    fi' '}' >"$BUILDROOT/init_functions"
+  source "$snapdragon/initcpio-install/omarchy-quiet-efivars"
+  build
+  grep -Fqx '        mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o nosuid,nodev,noexec 2>/dev/null' "$BUILDROOT/init_functions" ||
+    fail "omarchy-quiet-efivars quiets mkinitcpio's efivarfs mount"
+)
+
 for platform in aarch64 aarch64-apple x86; do
   run_leaves_on "$platform"
-  for written in modprobe.d uki.conf boot-hooks limine-entry-tool.d mkinitcpio.conf.d; do
+  for written in modprobe.d uki.conf boot-hooks limine-entry-tool.d mkinitcpio.conf.d initcpio-install; do
     [[ ! -e $scratch/on/$platform/$written ]] ||
       fail "$platform gets no Snapdragon setup ($written)"
   done
