@@ -26,7 +26,7 @@ hl = {
     for name, value in pairs(values.cursor) do config[name] = value end
   end,
   timer = function(callback, options)
-    assert(options.timeout == 15000 and options.type == "oneshot")
+    assert((options.timeout == 15000 or options.timeout == 10000) and options.type == "oneshot")
     recovery = callback
   end,
   exec_cmd = function(value)
@@ -126,6 +126,18 @@ assert(omarchy_startup_cursor_pending, "a stale completion must not acknowledge 
 omarchy_startup_cursor.size = old_size
 omarchy_startup_cursor_restore(true)
 assert(not config.invisible and config.sync_gsettings_theme)
+-- A hyprctl that keeps timing out must not hide the pointer for the whole session.
+assert(orphan("saved-custom") == "saved-custom")
+omarchy_startup_cursor_restore()
+for _ = 1, 5 do
+  command = nil
+  recovery()
+  assert(command and command:match("setcursor 'saved%-custom'"), "each timeout must retry the restore")
+  assert(omarchy_startup_cursor_pending and config.invisible, "retries must keep the pointer hidden until one succeeds")
+end
+command = nil
+recovery()
+assert(not omarchy_startup_cursor_pending and not config.invisible, "the last retry must reveal the pointer")
 assert(orphan(nil) == "custom-cursor", "recover a nonblank user GSettings theme when no snapshot survives")
 omarchy_startup_cursor_restore(true)
 gsettings = "'omarchy-startup'\n"
