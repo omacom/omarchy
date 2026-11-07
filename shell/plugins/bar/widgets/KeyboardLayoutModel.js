@@ -117,11 +117,40 @@ function inputLabel(state, fallback) {
   return labels[state.current] || shortLabel(state.language || state.name, {})
 }
 
-function inputTooltip(state, layout, multipleLayouts) {
+// Lua dispatchers carry opaque IDs, but retain the action's description.
+function switchShortcut(text) {
+  var shortcuts = []
+  String(text || "").split(/\n\s*\n/).forEach(function (block) {
+    var fields = {}
+    block.split("\n").forEach(function (line) {
+      var field = line.match(/^\s+(modmask|key|keycode|description|submap):\s*(.*?)\s*$/)
+      if (field) fields[field[1]] = field[2]
+    })
+    if (fields.description !== "Switch input language" || fields.submap) return
+    if (!/^\d+$/.test(fields.modmask || "")) return
+    var mask = Number(fields.modmask)
+    if (mask > 77 || (mask & ~77)) return
+    var key = (fields.key || "").split(/\s+\+\s+/).pop()
+    if (!key && /^[1-9]\d*$/.test(fields.keycode || "")) key = "code:" + fields.keycode
+    if (!key) return
+    var chord = []
+    var modifiers = [[64, "Super"], [4, "Ctrl"], [8, "Alt"], [1, "Shift"]]
+    modifiers.forEach(function (modifier) {
+      if (mask & modifier[0]) chord.push(modifier[1])
+    })
+    chord.push(key.length === 1 ? key.toUpperCase() : key)
+    var shortcut = chord.join(" + ")
+    if (shortcuts.indexOf(shortcut) === -1) shortcuts.push(shortcut)
+  })
+  return shortcuts.join(" / ")
+}
+
+function inputTooltip(state, layout, multipleLayouts, shortcut) {
+  var suffix = shortcut ? " · " + shortcut : ""
   if (!state || !state.methods || state.methods.length < 2)
-    return layout + (multipleLayouts ? " · Super + I" : "")
+    return layout + (multipleLayouts ? suffix : "")
   var name = state.current && state.current.indexOf("keyboard-") === 0 ? layout : (state.name || layout)
-  return name.replace(/^Keyboard - /, "") + " · Super + I"
+  return name.replace(/^Keyboard - /, "") + suffix
 }
 
 function showIndicator(layoutLabel, multipleLayouts, multipleInputs) {
@@ -141,6 +170,7 @@ if (typeof module !== "undefined") {
     shortLabel: shortLabel,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
+    switchShortcut: switchShortcut,
     showIndicator: showIndicator
   }
 }

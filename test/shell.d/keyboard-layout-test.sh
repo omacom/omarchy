@@ -14,10 +14,10 @@ assertEqual(model.inputLabel({ ...japanese, current: 'keyboard-us' }, 'EN'), 'EN
 assertEqual(model.inputLabel({}, 'EN'), 'EN', 'a stopped input service retains the keyboard label')
 assertEqual(model.inputLabel({ current: 'hangul' }, 'EN'), '한', 'Korean input has a distinct label')
 assertEqual(model.inputLabel({ current: 'custom', language: 'vi' }, 'EN'), 'VI', 'other engines use their reported language')
-assertEqual(model.inputTooltip(japanese, 'English (US)', false), 'Mozc · Super + I', 'input tooltip shows only its name and shortcut')
-assertEqual(model.inputTooltip(japanese, 'English (US)', true), 'Mozc · Super + I', 'multiple layouts keep the input tooltip compact')
-assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'English (US)', false), 'English (US) · Super + I', 'Latin input omits the redundant keyboard prefix')
-assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'Danish', true), 'Danish · Super + I', 'direct input tooltip follows the active compositor layout')
+assertEqual(model.inputTooltip(japanese, 'English (US)', false, 'Super + I'), 'Mozc · Super + I', 'input tooltip shows only its name and shortcut')
+assertEqual(model.inputTooltip(japanese, 'English (US)', true, 'Super + I'), 'Mozc · Super + I', 'multiple layouts keep the input tooltip compact')
+assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'English (US)', false, 'Super + I'), 'English (US) · Super + I', 'Latin input omits the redundant keyboard prefix')
+assertEqual(model.inputTooltip({ ...japanese, current: 'keyboard-us', name: 'Keyboard - English (US)' }, 'Danish', true, 'Super + Alt + I'), 'Danish · Super + Alt + I', 'direct input tooltip follows the active compositor layout')
 assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', false), 'French', 'a single layout tooltip stays compact')
 assertEqual(model.showIndicator('EN', false, false), false, 'English alone stays hidden')
 assertEqual(model.showIndicator('ENG', false, false), false, 'English before the brief table loads stays hidden')
@@ -25,7 +25,33 @@ assertEqual(model.showIndicator('FR', false, false), false, 'French alone stays 
 assertEqual(model.showIndicator('EN', false, true), true, 'Latin with another input mode stays available')
 assertEqual(model.showIndicator('EN', true, false), true, 'multiple keyboard layouts stay available')
 assertEqual(model.showIndicator('FR', true, false), true, 'French and English layouts stay available')
-assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', true), 'French · Super + I', 'multiple layouts advertise their switching shortcut')
+assertEqual(model.inputTooltip({ methods: ['keyboard-fr'] }, 'French', true, 'Super + I'), 'French · Super + I', 'multiple layouts advertise their switching shortcut')
+
+// Native Lua bindings keep a description even when their dispatcher is opaque.
+const binding = (mask, key, description = 'Switch input language', submap = '') =>
+  `bindd
+\tmodmask: ${mask}
+\tsubmap: ${submap}
+\tkey: ${key}
+\tkeycode: 0
+\tdescription: ${description}
+\tdispatcher: HL.Dispatcher(exec_cmd)
+\targ: 265
+
+`
+const rebound = model.switchShortcut(binding(72, 'I'))
+assertEqual(rebound, 'Super + Alt + I', 'the tooltip resolves a rebound shortcut from live bindings')
+assertEqual(model.inputTooltip({}, 'Danish', true, rebound), 'Danish · Super + Alt + I', 'the layout tooltip advertises the actual shortcut')
+assertEqual(model.switchShortcut(binding(64, 'SUPER + I')), 'Super + I', 'legacy Lua display keys do not duplicate modifiers')
+assertEqual(model.switchShortcut(binding(5, 'space')), 'Ctrl + Shift + space', 'modifier combinations and keysyms survive')
+assertEqual(model.switchShortcut(binding(64, 'I') + binding(72, 'I') + binding(64, 'I')), 'Super + I / Super + Alt + I', 'multiple shortcuts are deduplicated')
+assertEqual(model.switchShortcut(binding(64, 'I', 'Switch input language back')), '', 'the backwards action is not advertised as the forward action')
+assertEqual(model.switchShortcut(binding(64, 'I', 'Switch input language', 'resize')), '', 'a submap-only binding is not advertised globally')
+assertEqual(model.switchShortcut(binding(128, 'I') + binding('', 'I')), '', 'unknown or missing modifier masks do not invent a shortcut')
+assertEqual(model.switchShortcut(binding(64, '').replace('keycode: 0', 'keycode: 31')), 'Super + code:31', 'a physical-key binding retains its explicit code')
+assertEqual(model.switchShortcut(''), '', 'an empty or failed query resolves no shortcut')
+assertEqual(model.inputTooltip({}, 'Danish', true, ''), 'Danish', 'an unbound action leaves only the layout name')
+assertEqual(model.inputTooltip(japanese, 'English (US)', false, ''), 'Mozc', 'an unresolved input-method shortcut leaves only the engine name')
 
 // Trimmed from xkbcli list, keeping the format of every section it prints,
 // including the options nested under an option group: those quote their
@@ -163,16 +189,19 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
 {
   const widget = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/KeyboardLayout.qml'), 'utf8')
   assert(!/Component\.onCompleted: \{[\s\S]*?briefsProc\.running = true/.test(widget), 'the xkb layout table is not read at startup')
-  const load = new Function('state', 'briefsProc', widget.match(/function loadBriefs\(\) \{([\s\S]*?)\n  \}/)[1].replace(/\b(needsBriefs|briefsRequested)\b/g, 'state.$1'))
+  const load = new Function('state', 'briefsProc', 'InputMethodState', widget.match(/function loadBriefs\(\) \{([\s\S]*?)\n  \}/)[1].replace(/\b(needsBriefs|briefsRequested)\b/g, 'state.$1'))
+  let shortcutRequests = 0
+  const inputState = { requestKeybindings: () => shortcutRequests++ }
   const proc = { running: false }
   const state = { needsBriefs: false, briefsRequested: false }
-  load(state, proc)
+  load(state, proc, inputState)
   assert(!proc.running, 'a seat with one layout and one input method never reads the table')
+  assertEqual(shortcutRequests, 0, 'a hidden indicator never requests keybindings')
   state.needsBriefs = true
-  load(state, proc)
+  load(state, proc, inputState)
   assert(proc.running, 'the table is read once a label needs it')
   proc.running = false
-  load(state, proc)
+  load(state, proc, inputState)
   assert(!proc.running, 'the table is read only once')
   assert(widget.includes('onNeedsBriefsChanged: loadBriefs()'), 'the table loads as soon as a label is needed')
 
@@ -194,5 +223,39 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   const several = widgetState('us,dk')
   assert(needs(several.layoutsRead, several.multipleLayouts, false), 'a first reading of several layouts needs the table')
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
+}
+
+{
+  const source = require('fs').readFileSync(path.join(root, 'shell/Commons/InputMethodState.qml'), 'utf8')
+  const query = { running: false }
+  const output = { text: '' }
+  const shared = { keybindings: '', bindingsRequested: false, bindingsPending: false }
+  for (const name of ['requestKeybindings', 'refreshKeybindings']) {
+    const body = source.match(new RegExp('function ' + name + '\\(\\) \\{([\\s\\S]*?)\\n  \\}'))[1]
+    shared[name] = new Function('bindingsQuery', 'with (this) {' + body + '}').bind(shared, query)
+  }
+  const exited = new Function('root', 'bindingsOutput', 'exitCode', 'exitStatus',
+    source.match(/id: bindingsQuery[\s\S]*?onExited: function\(exitCode, exitStatus\) \{([\s\S]*?)\n    \}/)[1])
+  shared.requestKeybindings()
+  assert(query.running, 'the first visible indicator starts the shared binding query')
+  query.running = false
+  shared.requestKeybindings()
+  assert(!query.running, 'another monitor does not repeat the initial binding query')
+  shared.keybindings = 'old bindings'
+  shared.refreshKeybindings()
+  shared.refreshKeybindings()
+  assertEqual(shared.keybindings, '', 'a reload immediately invalidates the old shortcut')
+  query.running = false
+  output.text = 'superseded bindings'
+  exited(shared, output, 0, 0)
+  assert(query.running && shared.keybindings === '', 'an in-flight reload discards the superseded result and re-queries')
+  query.running = false
+  output.text = 'new bindings'
+  exited(shared, output, 0, 0)
+  assertEqual(shared.keybindings, 'new bindings', 'the latest completed query supplies the shortcut')
+  shared.refreshKeybindings()
+  query.running = false
+  exited(shared, output, 1, 0)
+  assertEqual(shared.keybindings, '', 'a failed query leaves no stale shortcut')
 }
 JS
