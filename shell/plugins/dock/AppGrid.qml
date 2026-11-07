@@ -170,6 +170,7 @@ Item {
     id: panel
     shown: root.opened
     WlrLayershell.namespace: "omarchy-dock-apps"
+    onDismissRequested: if (root.menuEntry) root.menuEntry = null; else root.close()
     Rectangle {
       anchors.fill: parent
       color: Commons.Color.menu.scrim
