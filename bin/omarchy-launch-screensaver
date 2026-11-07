@@ -118,7 +118,15 @@ for index in "${!monitors[@]}"; do
   wait_for_screensaver_window
 done
 
-hypr_focus_monitor "$focused"
+# A compositor can report no focused monitor while outputs come and go. There is
+# then no monitor to hand focus back to, and refusing the empty name would fail a
+# launch that had already opened every screensaver.
+hypr_restore_focus() {
+  [[ -n $focused ]] || return 0
+  hypr_focus_monitor "$focused"
+}
+
+hypr_restore_focus
 
 # Emptying a special workspace focuses its monitor, so the last screensaver to close would take focus
 # with it. Hand focus back to the monitor that had it once they are all gone.
@@ -127,5 +135,5 @@ hypr_focus_monitor "$focused"
   while hyprctl clients -j | SCREENSAVER=org.omarchy.screensaver jq -e 'any(.[]; .mapped and .class == env.SCREENSAVER)' >/dev/null; do
     IFS= read -r -u "$events" line || exit
   done
-  hypr_focus_monitor "$focused"
+  hypr_restore_focus
 ) >/dev/null 2>&1 &

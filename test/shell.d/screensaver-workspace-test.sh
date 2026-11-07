@@ -45,7 +45,7 @@ exec cat "$TEST_DIR/events"
 SH
 printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/pgrep"
 printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/omarchy-toggle-enabled"
-printf '#!/bin/bash\necho "${FOCUSED_NAME:-DP-1}"\n' >"$tmpdir/bin/omarchy-hyprland-monitor-focused"
+printf '#!/bin/bash\necho "${FOCUSED_NAME-DP-1}"\n' >"$tmpdir/bin/omarchy-hyprland-monitor-focused"
 printf '#!/bin/bash\necho foot.desktop\n' >"$tmpdir/bin/xdg-terminal-exec"
 chmod +x "$tmpdir/bin/"*
 
@@ -226,3 +226,17 @@ set -e
 grep -q "Refusing unsafe monitor name" "$tmpdir/err" || fail "an unsafe focused monitor name is refused with the monitor message" "stderr=$(<"$tmpdir/err")"
 grep -q "os.execute" "$tmpdir/calls" && fail "an unsafe focused monitor name cannot inject Lua" "$(<"$tmpdir/calls")"
 pass "an unsafe focused monitor name is refused before the Lua dispatch"
+
+# A compositor can report no focused monitor while outputs come and go. That is
+# not an unsafe name: the screensavers still open and the launcher still exits 0.
+printf '[{"name":"DP-1","specialWorkspace":{"name":""}}]\n' >"$tmpdir/monitors.json"
+: >"$tmpdir/calls"
+: >"$tmpdir/spawned"
+set +e
+FOCUSED_NAME='' PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test timeout 10 "$ROOT/bin/omarchy-launch-screensaver" force >/dev/null 2>"$tmpdir/err"
+status=$?
+set -e
+(( status == 0 )) || fail "no focused monitor still launches the screensaver and exits 0" "status=$status stderr=$(<"$tmpdir/err")"
+grep -q "Refusing unsafe monitor name" "$tmpdir/err" && fail "an empty focused monitor is not refused as unsafe" "stderr=$(<"$tmpdir/err")"
+(( $(grep -c "exec_cmd" "$tmpdir/calls") == 1 )) || fail "no focused monitor still opens the screensaver" "$(<"$tmpdir/calls")"
+pass "no focused monitor still launches the screensaver and exits 0"
