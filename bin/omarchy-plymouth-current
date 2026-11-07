@@ -4,8 +4,12 @@
 # omarchy:examples=omarchy plymouth current
 
 # omarchy-plymouth-set installs the theme's unlock.png as a byte-for-byte
-# copy of logo.png, so matching it back identifies the current theme.
+# copy of logo.png, so matching it back identifies the current theme. A
+# selected theme lives in omarchy-custom; the packaged omarchy one is default.
 installed_logo=/usr/share/plymouth/themes/omarchy/logo.png
+if [[ $(plymouth-set-default-theme) == "omarchy-custom" ]]; then
+  installed_logo=/usr/share/plymouth/themes/omarchy-custom/logo.png
+fi
 
 if cmp -s "$OMARCHY_PATH/default/plymouth/logo.png" "$installed_logo"; then
   echo default
