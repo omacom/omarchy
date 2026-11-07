@@ -378,6 +378,17 @@ function canForgetNetwork(network) {
   return !!(network && network.known && !network.connected)
 }
 
+// NetworkManager can already be activating a saved network when the panel
+// opens (resume, autoconnect). A second connect() aborts that attempt.
+// Arguments are primitives so a QML binding tracks the live network object.
+function wifiRowActivity(connected, stateChanging, state, connectingState, disconnectingState) {
+  if (state === disconnectingState) return "disconnecting"
+  if (state === connectingState) return "connecting"
+  if (!stateChanging) return ""
+  if (connected) return "disconnecting"
+  return "connecting"
+}
+
 // The password arrives on stdin and reaches nmcli through the scriptable
 // `connection edit` editor -- argv is world-readable in /proc, so the secret
 // must never be an argument (printf is a bash builtin, so no process spawns
@@ -445,6 +456,7 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
+    wifiRowActivity: wifiRowActivity,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase

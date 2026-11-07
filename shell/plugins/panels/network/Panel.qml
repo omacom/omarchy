@@ -434,6 +434,7 @@ Panel {
     // connectedWifiNetwork when handed null, so a row left stale by scan churn
     // would otherwise tear down whatever is connected now instead.
     if (net.connected) { disconnectRow(net.ssid); return }
+    if (wifiRowActivityForSsid(net.ssid) === "connecting") return
     if (requiresCredentials(net.security) && !net.known) { openPasswordPrompt(net.ssid); return }
     connectDirectly(net.ssid)
   }
@@ -796,6 +797,18 @@ Panel {
       identityText = ""
     }
     passwordSsid = ssid
+  }
+
+  function wifiRowActivityForSsid(ssid) {
+    var network = networkForSsid(ssid)
+    if (!network) return ""
+    return Model.wifiRowActivity(
+      !!network.connected,
+      !!network.stateChanging,
+      network.state,
+      ConnectionState.Connecting,
+      ConnectionState.Disconnecting
+    )
   }
 
   function networkForSsid(ssid) {
@@ -1784,6 +1797,16 @@ Panel {
     currentFill: root.selectedFill
     // Gate on the matching *Kind/*Reason being non-empty so a hidden-SSID
     // row (ssid == "") doesn't match the "" defaults of actionSsid etc.
+    readonly property var liveNetwork: net ? root.networkForSsid(net.ssid) : null
+    // Read the live fields in this binding so it updates when NetworkManager
+    // changes them. wifiRowActivity only sees the values passed in.
+    readonly property string externalActivity: Model.wifiRowActivity(
+      !!(liveNetwork && liveNetwork.connected),
+      !!(liveNetwork && liveNetwork.stateChanging),
+      liveNetwork ? liveNetwork.state : -1,
+      ConnectionState.Connecting,
+      ConnectionState.Disconnecting
+    )
     readonly property bool isBusy: root.actionKind !== "" && root.actionSsid === (net ? net.ssid : "")
     readonly property bool isFailed: root.failureReason !== "" && root.failureSsid === (net ? net.ssid : "")
     readonly property bool isPasswordOpen: root.passwordSsid !== "" && root.passwordSsid === (net ? net.ssid : "")
@@ -1818,8 +1841,8 @@ Panel {
     readonly property string statusText: {
       if (!net) return ""
       if (isPasswordOpen) return ""
-      if (isBusy && root.actionKind === "connect") return Commons.I18n.t("network.connecting")
-      if (isBusy && root.actionKind === "disconnect") return Commons.I18n.t("network.disconnecting")
+      if (externalActivity === "connecting" || (isBusy && root.actionKind === "connect")) return Commons.I18n.t("network.connecting")
+      if (externalActivity === "disconnecting" || (isBusy && root.actionKind === "disconnect")) return Commons.I18n.t("network.disconnecting")
       if (isBusy && root.actionKind === "forget") return Commons.I18n.t("network.forgetting")
       if (isFailed) return root.failureReason || Commons.I18n.t("network.failed")
       if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return Commons.I18n.t("network.signInRequired")
@@ -1829,7 +1852,7 @@ Panel {
 
     readonly property color statusColor: {
       if (isFailed) return root.bar.urgent
-      if (isBusy) return root.bar.foreground
+      if (isBusy || externalActivity !== "") return root.bar.foreground
       if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return root.bar.urgent
       if (isConnected) return root.bar.foreground
       return Qt.darker(root.bar.foreground, 1.5)
@@ -1865,6 +1888,9 @@ Panel {
           root.disconnectRow(row.net.ssid)
           return
         }
+        // An autoconnect or resume is already in CONFIG/EAP. connect() here
+        // starts a second activation and aborts the first.
+        if (row.externalActivity === "connecting") return
         if (row.requiresCredentials && !row.isKnown) {
           root.openPasswordPrompt(row.net.ssid)
           return

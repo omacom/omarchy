@@ -202,6 +202,13 @@ assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reas
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, false, reasons), false, 'network does not reprompt an open network on auth timeout')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiClientFailed, true, reasons), false, 'network does not reprompt on generic connection failures')
 
+assertEqual(network.wifiRowActivity(false, true, 'connecting', 'connecting', 'disconnecting'), 'connecting', 'network shows an in-progress autoconnect')
+assertEqual(network.wifiRowActivity(false, false, 'connecting', 'connecting', 'disconnecting'), 'connecting', 'network shows a connecting state with no transition flag')
+assertEqual(network.wifiRowActivity(false, false, 'disconnected', 'connecting', 'disconnecting'), '', 'network leaves an idle saved network unlabeled')
+assertEqual(network.wifiRowActivity(true, false, 'connected', 'connecting', 'disconnecting'), '', 'network leaves a settled connection unlabeled')
+assertEqual(network.wifiRowActivity(true, true, 'connected', 'connecting', 'disconnecting'), 'disconnecting', 'network shows a disconnect already in progress')
+assertEqual(network.wifiRowActivity(false, false, 'disconnecting', 'connecting', 'disconnecting'), 'disconnecting', 'network shows an explicit disconnecting state')
+
 assertEqual(network.bandLabel('2.4'), '2.4ghz', 'network labels the 2.4GHz band')
 assertEqual(network.bandLabel('6'), '6ghz', 'network labels the 6GHz band')
 assertEqual(network.bandLabel('auto'), 'Auto', 'network labels the automatic band choice')
