@@ -5,6 +5,8 @@
 # omarchy:examples=omarchy remove browser firefox | omarchy remove browser brave
 # omarchy:requires-sudo=true
 
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
 set_fallback_default_browser() {
   local current_browser
   current_browser=$(omarchy-cmd-default-browser)
@@ -62,6 +64,10 @@ zen)
   echo "Removing Zen..."
   set_fallback_default_browser zen.desktop
   omarchy-pkg-drop zen-browser-bin
+
+  if omarchy-pkg-missing zen-browser-bin; then
+    browser_policy_remove_zen_policies
+  fi
   ;;
 *)
   echo "Usage: omarchy-remove-browser <chrome|brave|brave-origin|edge|firefox|zen>"
