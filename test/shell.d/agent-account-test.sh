@@ -304,6 +304,29 @@ grep -q "me@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
 omarchy-agent-account-use agy side >/dev/null
 grep -q "token-refreshed" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Refreshed token is applied when switching back to side"
 omarchy-agent-account-use agy main >/dev/null
+
+# Signing in with a different account on Main updates Main's login
+printf '{"auth_method":"consumer","id_token_email":"newmain@example.com","token":{"access_token":"token-newmain","refresh_token":"ref-newmain","expiry":"2030-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state refresh agy
+list=$(omarchy-agent-account-list agy --json)
+[[ $(jq -r '.[0].accounts[] | select(.primary) | .email' <<<"$list") == "newmain@example.com" ]] ||
+  fail "refreshing adopts an intentional sign-in change on Main" "$list"
+omarchy-agent-account-state sync agy
+grep -q "newmain@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "sync preserves an intentional sign-in change on Main"
+
+# Leftover secondary credential is rejected and Main is restored
+printf '{"auth_method":"consumer","id_token_email":"agyside@example.com","token":{"access_token":"token-side","refresh_token":"ref-side","expiry":"2030-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state sync agy
+grep -q "newmain@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "sync restores Main when a secondary account's token was left in primary"
+
+# Restore original Main login for subsequent tests
+printf '{"auth_method":"consumer","id_token_email":"me@example.com","token":{"access_token":"token-main","refresh_token":"ref-main","expiry":"2030-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state refresh agy
 pass "Antigravity accounts are added and used like the others"
 
 # ---------------------------------------------------------------------- routing

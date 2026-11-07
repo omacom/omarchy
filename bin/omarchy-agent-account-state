@@ -206,23 +206,70 @@ def primary_token_backup(provider: str) -> Path:
   return accounts_root() / provider / "main" / "antigravity-oauth-token"
 
 
+def secondary_account_active(provider: str) -> bool:
+  reg = read_json(accounts_root() / f"{provider}.json")
+  if not isinstance(reg, dict):
+    return False
+  act_id = reg.get("active")
+  accounts = reg.get("accounts") or []
+  acc = next((a for a in accounts if isinstance(a, dict) and a.get("id") == act_id), None)
+  return bool(acc and not acc.get("primary"))
+
+
+def token_data_email(data: dict[str, Any]) -> str:
+  if not isinstance(data, dict):
+    return ""
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  claims = jwt_claims(str(data.get("id_token") or token.get("id_token") or ""))
+  return str(data.get("id_token_email") or claims.get("email") or claims.get("sub") or "")
+
+
 def agy_identity(home: Path) -> dict[str, str]:
   data = None
   if home == primary_home("agy"):
-    main_backup = primary_token_backup("agy")
-    if main_backup.is_file():
-      data = read_json(main_backup)
+    reg = read_json(accounts_root() / "agy.json") or {}
+    sec_active = False
+    secondary_accounts: list[dict[str, Any]] = []
+    if isinstance(reg, dict):
+      act_id = reg.get("active")
+      accounts = reg.get("accounts") or []
+      secondary_accounts = [a for a in accounts if isinstance(a, dict) and not a.get("primary")]
+      act_acc = next((a for a in accounts if isinstance(a, dict) and a.get("id") == act_id), None)
+      sec_active = bool(act_acc and not act_acc.get("primary"))
+    if sec_active:
+      main_backup = primary_token_backup("agy")
+      if main_backup.is_file():
+        data = read_json(main_backup)
+    if not isinstance(data, dict):
+      candidate = read_json(home / "antigravity-oauth-token")
+      if isinstance(candidate, dict):
+        cand_email = token_data_email(candidate)
+        if any((a.get("email") and cand_email == a.get("email")) or (a.get("accountId") and cand_email == a.get("accountId")) for a in secondary_accounts):
+          candidate = None
+      if isinstance(candidate, dict):
+        data = candidate
     if not isinstance(data, dict):
       try:
         raw = subprocess.check_output(
           ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
           text=True, stderr=subprocess.DEVNULL, timeout=3,
         )
-        data = json.loads(raw) if raw.strip() else None
+        if raw.strip():
+          parsed = json.loads(raw)
+          if isinstance(parsed, dict):
+            cand_email = token_data_email(parsed)
+            if not any((a.get("email") and cand_email == a.get("email")) or (a.get("accountId") and cand_email == a.get("accountId")) for a in secondary_accounts):
+              data = parsed
       except Exception:
         data = None
+    if not isinstance(data, dict):
+      main_backup = primary_token_backup("agy")
+      if main_backup.is_file():
+        data = read_json(main_backup)
+  else:
+    data = read_json(home / "antigravity-oauth-token")
   if not isinstance(data, dict):
-    data = read_json(home / "antigravity-oauth-token") or {}
+    data = {}
   token = data.get("token") if isinstance(data.get("token"), dict) else {}
   claims = jwt_claims(str(data.get("id_token") or token.get("id_token") or ""))
   email = str(data.get("id_token_email") or claims.get("email") or "")
@@ -585,6 +632,16 @@ def rename(provider: str, target: str, label: str) -> dict[str, Any]:
 def refresh(provider: str) -> None:
   recover(provider)
   with Locked(provider) as registry:
+    if provider == "agy" and not secondary_account_active("agy"):
+      curr = current_primary_token()
+      curr_ident = agy_token_identity(curr)
+      secondary_accounts = [a for a in registry.get("accounts", []) if not a.get("primary")]
+      if curr and not any(
+        (a.get("accountId") and curr_ident.get("accountId") == a.get("accountId")) or
+        (a.get("email") and curr_ident.get("email") == a.get("email"))
+        for a in secondary_accounts
+      ):
+        save_main_token(curr)
     for account in registry["accounts"]:
       account.update(identity(provider, account_home(provider, account)))
 
@@ -730,17 +787,33 @@ def sync_credentials(provider: str, target_home: Path | None = None) -> None:
     if acc.get("primary"):
       main_saved = load_main_token()
       main_ident = agy_token_identity(main_saved)
-      account_id = acc.get("accountId") or acc.get("email") or main_ident.get("accountId")
-      matches_curr = bool(curr and (not account_id or
-        curr_ident.get("accountId") == account_id or
-        (acc.get("email") and curr_ident.get("email") == acc.get("email"))))
-      if matches_curr:
-        exp_curr = token_expiry(curr)
-        exp_saved = token_expiry(main_saved)
-        if main_saved and exp_saved > exp_curr:
+      secondary_accounts = [a for a in registry.get("accounts", []) if not a.get("primary")]
+      curr_belongs_to_secondary = bool(
+        curr and any(
+          (a.get("accountId") and curr_ident.get("accountId") == a.get("accountId")) or
+          (a.get("email") and curr_ident.get("email") == a.get("email"))
+          for a in secondary_accounts
+        )
+      )
+      if curr_belongs_to_secondary:
+        if main_saved:
           apply_token_to_primary(main_saved)
-        elif curr != main_saved:
+      elif curr:
+        account_id = acc.get("accountId") or acc.get("email") or main_ident.get("accountId")
+        matches_main = bool(not account_id or
+          curr_ident.get("accountId") == account_id or
+          (acc.get("email") and curr_ident.get("email") == acc.get("email")))
+        if matches_main:
+          exp_curr = token_expiry(curr)
+          exp_saved = token_expiry(main_saved)
+          if main_saved and exp_saved > exp_curr:
+            apply_token_to_primary(main_saved)
+          elif curr != main_saved:
+            save_main_token(curr)
+        else:
           save_main_token(curr)
+          acc.update(curr_ident)
+          save(provider, registry)
       elif main_saved:
         apply_token_to_primary(main_saved)
     else:
@@ -1288,6 +1361,10 @@ def main(argv: list[str]) -> int:
         curr = current_primary_token()
         if curr:
           save_main_token(curr)
+          with Locked(provider) as registry:
+            primary_acc = next((a for a in registry.get("accounts", []) if a.get("primary")), None)
+            if primary_acc:
+              primary_acc.update(identity(provider, primary_home("agy")))
     elif command == "refresh":
       for provider in ([provider_arg(args)] if args else list(PROVIDERS)):
         if registry_path(provider).exists() or (accounts_root() / provider).is_dir():
