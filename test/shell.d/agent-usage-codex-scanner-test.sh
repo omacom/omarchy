@@ -387,8 +387,9 @@ expect("Codex counts a compressed rollout, once while Codex swaps its compressio
 
 # ------------------------------------------------------- pi and opencode
 
-# pi and omp replies count on the openai-codex provider or the Responses API
-# pi drives for it, written compact as pi writes them, and no other provider.
+# pi and omp replies count on the current openai provider, the legacy
+# openai-codex provider or its API, written compact as pi writes them.
+# Custom providers with an openai prefix still belong elsewhere.
 # Two messages sharing an id at different times are two messages, and a fork
 # naming its parent through a symlinked spelling of pi's tree still repeats it.
 new_home()
@@ -408,13 +409,15 @@ write_pi_session(root / "pi.jsonl", [
   compact("deadbeef", "openai-codex", 10),
   compact("deadbeef", "openai-codex", 8, timestamp=STAMP.replace(":00:00", ":00:01")),
   compact("api", "openai", 20, api="openai-codex-responses"),
+  compact("current", "openai", 30, api="openai-responses"),
+  compact("custom", "openai-local", 999, api="openai-responses"),
   compact("other", "anthropic", 999),
 ])
 write_pi_session(root / "fork.jsonl", [compact("deadbeef", "openai-codex", 10)], parent=home() / "pi-alias" / "sessions" / "project" / "pi.jsonl")
 opencode_db(message=[("c1", "ses_1", json.dumps(json.loads(oc_v1("openai", 5, model="gpt-5.2-codex")), separators=(",", ":")))])
 record = codex()
 expect("Codex counts compact pi replies on its provider or API, an id reused at another time, a fork once, and compact opencode rows",
-       [record["todayTotalTokens"], record["todayPrompts"], record["totalSessions"]], [43, 4, 2], record)
+       [record["todayTotalTokens"], record["todayPrompts"], record["totalSessions"]], [73, 5, 2], record)
 
 # ------------------------------------------------------------- scan cache
 
