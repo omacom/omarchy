@@ -24,6 +24,7 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  property bool scanned: false
   property string lastEnableError: ""
 
   signal pluginsChanged()
@@ -670,6 +671,7 @@ QtObject {
     installedPlugins = merged
     registryRevision++
     scanning = false
+    scanned = true
     pluginsChanged()
     scanFinished()
   }
@@ -697,10 +699,12 @@ QtObject {
   // any plugin watcher whose parent is no longer a shell; a live shell's
   // watcher — parented to it — is left alone. The [i] keeps this script's
   // own command line from matching its search.
+  // The shell's first scan has normally finished by now, and another would
+  // re-sync every plugin while login waits on the shell.
   property Process watcherReaper: Process {
     onExited: {
       localPluginWatcher.running = true
-      registry.rescan()
+      if (!registry.scanned) registry.rescan()
     }
   }
 
