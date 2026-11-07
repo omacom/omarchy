@@ -1106,6 +1106,9 @@
   "remove.ai.grok-bot": {
     "label": "Grok Bot"
   },
+  "remove.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
   "remove.ai.lm-studio": {
     "label": "LM Studio"
   },
