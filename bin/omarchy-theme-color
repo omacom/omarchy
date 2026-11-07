@@ -143,6 +143,15 @@ parse_colors_file() {
     key="${key//[\"\' ]/}"                # strip quotes and spaces from key
     [[ $key && $key != \#* ]] || continue # skip empty lines and comments
 
+    # Only unquoted opacity declarations can contain a TOML comment. Keep
+    # quoted contents intact so invalid suffixes cannot become valid numbers.
+    if [[ $key == "terminal_opacity" ]]; then
+      value="${value#"${value%%[![:space:]]*}"}"
+      if [[ $value != [\"\']* ]]; then
+        value="${value%%#*}"
+      fi
+    fi
+
     if [[ $value == *[\"\']* ]]; then
       value="${value#*[\"\']}"
       value="${value%%[\"\']*}" # extract value between quotes (ignores inline comments)
@@ -171,6 +180,31 @@ parse_colors_file() {
   done <"$COLORS_FILE"
 
   return 0
+}
+
+resolve_terminal_opacity() {
+  local declared="${THEME_COLORS[terminal_opacity]+set}"
+  local opacity="${THEME_COLORS[terminal_opacity]-1.0}" terminal
+
+  if [[ ! $opacity =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]]; then
+    printf 'omarchy-theme-color: invalid terminal_opacity %q; ignoring override\n' "$opacity" >&2
+    opacity="1.0"
+    declared=""
+  fi
+  THEME_COLORS[terminal_opacity]="$opacity"
+
+  # Keep the scalar fallback for custom templates, but never make a stock
+  # template look explicitly opaque when the theme declared no valid setting.
+  # Recompute every helper so palette data cannot supply a config directive.
+  for terminal in alacritty foot ghostty kitty; do
+    THEME_COLORS[terminal_opacity_$terminal]="# opacity is not set by this theme"
+  done
+  if [[ $declared ]]; then
+    THEME_COLORS[terminal_opacity_alacritty]="opacity = $opacity"
+    THEME_COLORS[terminal_opacity_foot]="alpha=$opacity"
+    THEME_COLORS[terminal_opacity_ghostty]="background-opacity = $opacity"
+    THEME_COLORS[terminal_opacity_kitty]="background_opacity $opacity"
+  fi
 }
 
 resolve_theme_colors() {
@@ -277,6 +311,7 @@ resolve_theme_colors() {
   done
 
   resolve_theme_mode
+  resolve_terminal_opacity
   THEME_COLORS[theme_type]="${THEME_COLORS[mode]}"
 }
 
