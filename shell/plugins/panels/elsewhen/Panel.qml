@@ -778,18 +778,26 @@ Panel {
     printErrors: false
   }
 
+  FileView {
+    id: zoneAliasFile
+    path: "/usr/share/zoneinfo/tzdata.zi"
+    printErrors: false
+  }
+
   Process {
     id: geoProc
     property var rows: []
     stdout: StdioCollector {
       onStreamFinished: {
         var answers = text.split("\n\u001e\n")
+        var aliases = Model.zoneAliases(zoneAliasFile.text())
         var nextGeo = Object.assign({}, root.geo)
         var nextFallback = {}
         geoProc.rows.forEach(function(row, i) {
           var key = Model.factsKey(row)
-          var found = Model.pickGeocode(answers[i] || "", row.id)
-          var place = found.place || Model.zoneTabCoords(zoneTab.text(), row.id)
+          var zone = Model.canonicalZone(row.id, aliases)
+          var found = Model.pickGeocode(answers[i] || "", zone)
+          var place = found.place || Model.zoneTabCoords(zoneTab.text(), zone)
           if (!place) return
           if (found.answered) nextGeo[key] = place
           else nextFallback[key] = place

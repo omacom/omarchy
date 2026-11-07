@@ -329,9 +329,29 @@ const geocoded = JSON.stringify({ results: [
   { latitude: 26.4, longitude: -80.1, timezone: 'America/New_York' }
 ] })
 assertDeepEqual(M.pickGeocode(geocoded, 'America/New_York'), { place: { lat: 26.4, lon: -80.1 }, answered: true }, 'elsewhen prefers a geocode in the row\'s own zone')
-assertDeepEqual(M.pickGeocode(geocoded, 'Asia/Tokyo'), { place: { lat: 34.0, lon: -98.4 }, answered: true }, 'elsewhen falls back to the top geocode')
+assertDeepEqual(M.pickGeocode(geocoded, 'Asia/Tokyo'), { place: null, answered: true }, 'elsewhen refuses a geocode from another zone')
 assertDeepEqual(M.pickGeocode('{}', 'Asia/Tokyo'), { place: null, answered: true }, 'elsewhen treats no results as an answer')
 assertDeepEqual(M.pickGeocode('', 'Asia/Tokyo'), { place: null, answered: false }, 'elsewhen treats a failed request as unanswered')
+
+// #17782: searching "Calcutta" tops out at a hamlet in Mpumalanga, so the top
+// result must not place the marker when no result carries the row's zone.
+const calcutta = JSON.stringify({ results: [
+  { latitude: -24.98317, longitude: 31.23485, timezone: 'Africa/Johannesburg' },
+  { latitude: 40.6734, longitude: -80.57646, timezone: 'America/New_York' }
+] })
+assertDeepEqual(M.pickGeocode(calcutta, 'Asia/Kolkata'), { place: null, answered: true }, 'elsewhen ignores a geocode that names another continent')
+
+const zi = ['# version 2026a', 'L Asia/Kolkata Asia/Calcutta', 'L Australia/Sydney Australia/ACT', 'Z Asia/Kolkata 5:53 - IST'].join('\n')
+assertEqual(M.canonicalZone('Asia/Calcutta', M.zoneAliases(zi)), 'Asia/Kolkata', 'elsewhen follows a legacy zone to its canonical one')
+assertEqual(M.canonicalZone('Australia/ACT', M.zoneAliases(zi)), 'Australia/Sydney', 'elsewhen follows a second legacy zone')
+assertEqual(M.canonicalZone('Asia/Tokyo', M.zoneAliases(zi)), 'Asia/Tokyo', 'elsewhen leaves a canonical zone alone')
+assertEqual(M.canonicalZone('Asia/Kolkata', {}), 'Asia/Kolkata', 'elsewhen works without an alias table')
+assertDeepEqual(M.zoneAliases(''), {}, 'elsewhen reads no aliases from an empty tzdata.zi')
+assertDeepEqual(M.zoneAliases('Z Asia/Kolkata 5:53 - IST'), {}, 'elsewhen reads aliases only from L lines')
+assertEqual(
+  M.canonicalZone('Argentina/Buenos_Aires', M.zoneAliases(['L America/Argentina/Buenos_Aires America/Buenos_Aires', 'L America/Argentina/Buenos_Aires Argentina/Buenos_Aires'].join('\n'))),
+  'America/Argentina/Buenos_Aires', 'elsewhen follows a chain of aliases without looping')
+assertDeepEqual(M.zoneTabCoords(tab, M.canonicalZone('Asia/Calcutta', M.zoneAliases(zi))), { lat: 22.5333, lon: 88.3667 }, 'elsewhen places a legacy zone at its canonical zone coordinates')
 assert(M.geocodeUrl('São Paulo').endsWith('name=S%C3%A3o%20Paulo'), 'elsewhen URL-encodes the geocoded label')
 
 assertEqual(M.forecastUrl([{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }]).split('&').filter(p => /^l(at|ong)itude=/.test(p)).join('&'), 'latitude=1,3&longitude=2,4', 'elsewhen batches every point into one forecast')
