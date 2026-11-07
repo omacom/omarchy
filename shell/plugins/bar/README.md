@@ -62,7 +62,7 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.media` | MPRIS now-playing — scrolling track + artist, cover-art popup | left = play/pause · middle = next · scroll = prev/next · right = popup |
 | `omarchy.indicators` | Manual state indicators | left = indicator action |
 | `omarchy.system-update` | Available update indicator | left = update |
-| `omarchy.tray` | System tray | hover = reveal drawer · right on chevron = manage |
+| `omarchy.tray` | System tray | hover = reveal drawer · right = the icon's menu, ending in Manage tray icons · right on chevron = manage |
 | `omarchy.weather` | Weather icon + popup with forecast | left = popup · right = full notification |
 | `omarchy.microphone` | Mic icon + scroll volume | left = mute toggle · middle = audio panel · scroll = source volume |
 
@@ -75,6 +75,8 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.monitor` | Brightness and laptop display controls | left = popup |
 
 The `omarchy.indicators` widget loads individual bar indicators from `indicators/`. Omit `items` (or set it to an empty array) to show all indicators in the default order, or set `items` to a subset such as `["Dnd", "Reminder", "NightLight"]`. Set `alwaysShow` to `true` to keep inactive indicators visible instead of revealing them only on hover. Multiple `omarchy.indicators` instances are allowed, so different sections can show different subsets.
+
+The `omarchy.tray` widget keeps icons on neither its `pinned` nor its `hidden` list in the drawer. Set `unlisted` to `visible` to keep every such icon in the bar instead, including those of apps started later. In either mode the chevron shows only while the drawer has something in it (unpinned icons, widgets in the tray section, or the slot a widget drag offers) or while every icon is hidden; the manager opens from it on right-click, and from **Manage tray icons** at the end of any tray icon's menu.
 
 ## Orientation
 
