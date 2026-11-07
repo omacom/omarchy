@@ -420,6 +420,12 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Disable Touchscreen"
   },
+  "trigger.hardware.rotation-lock-on": {
+    "label": "Lock Rotation"
+  },
+  "trigger.hardware.rotation-lock-off": {
+    "label": "Unlock Rotation"
+  },
   "trigger.reminder.set": {
     "label": "Set one"
   },

@@ -1,0 +1,13 @@
+[Unit]
+Description=Rotate the Chuwi MiniBook X display to follow the accelerometer
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionFirmware=smbios-field(product_name = "MiniBook X")
+
+[Service]
+ExecStart=/usr/bin/omarchy-chuwi-minibook-x-autorotate
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
