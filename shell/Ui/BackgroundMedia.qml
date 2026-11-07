@@ -16,6 +16,7 @@ Item {
   // than decoding at the file's native size first.
   property bool constrainDecode: false
   property size decodeSize: Qt.size(0, 0)
+  property int fillMode: Image.PreserveAspectCrop
   readonly property var current: imageLoader.item
   readonly property bool ready: current ? current.ready : false
   // The file behind path could not be loaded, as when it was deleted.
@@ -39,7 +40,7 @@ Item {
       readonly property bool ready: status === Image.Ready
       readonly property bool failed: status === Image.Error
       source: !root.constrainDecode || root.decodeSize.width > 0 ? root.imageUrl : ""
-      fillMode: Image.PreserveAspectCrop
+      fillMode: root.fillMode
       asynchronous: true
       cache: root.cached
       sourceSize.width: root.constrainDecode ? root.decodeSize.width : (root.version > 0 ? width : 0)
