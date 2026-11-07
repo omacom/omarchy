@@ -82,7 +82,9 @@ placement=$(jq -cn \
     + (if $after == "" then {} else {after: $after} end)
   ')
 
-result=$(omarchy-shell shell enablePlugin "$id" "$placement")
+# Enabling usually follows a plugin add or change, and the reload that sets off
+# can hold the shell past omarchy-shell's 2s default.
+result=$(OMARCHY_SHELL_IPC_TIMEOUT=${OMARCHY_SHELL_IPC_TIMEOUT:-10s} omarchy-shell shell enablePlugin "$id" "$placement")
 if [[ $result == "unknown" ]]; then
   fail "plugin '$id' is not known; run: omarchy-shell shell rescanPlugins"
 elif [[ $result != "ok" ]]; then
