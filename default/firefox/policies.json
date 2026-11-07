@@ -6,12 +6,16 @@
         "Value": true,
         "Status": "default"
       },
-      "media.ffmpeg.vaapi.enabled": {
+      "layers.acceleration.disabled": {
         "Value": true,
         "Status": "default"
       },
+      "media.ffmpeg.vaapi.enabled": {
+        "Value": false,
+        "Status": "default"
+      },
       "media.hardware-video-decoding.force-enabled": {
-        "Value": true,
+        "Value": false,
         "Status": "default"
       },
       "widget.disable-swipe-tracker": {
