@@ -106,6 +106,13 @@ assertEqual(model.shortLabel('English (US)', {}), 'ENG', 'the label survives an 
 assertEqual(model.shortLabel('constructor', {}), 'CON', 'a description naming a built-in still falls back')
 assertEqual(model.shortLabel('', briefs), '', 'no keymap means no label')
 
+// French and French (BEPO) share the fr brief, so only the variant tells them
+// apart, read back as the config writes it.
+assertEqual(model.variantLabel('fr,fr', ',bepo', 1), 'bepo', 'a variant of a repeated layout is named by its variant')
+assertEqual(model.variantLabel('fr,fr', ',bepo', 0), 'fr', 'the repeated layout without a variant is named by its layout')
+assertEqual(model.variantLabel('us,fr', ',bepo', 1), '', 'a layout listed once keeps its brief')
+assertEqual(model.variantLabel('us', '', 3), '', 'an index past the list names nothing')
+
 // The seat as hyprctl reports it, virtual keyboards already filtered out: the
 // buttons libinput calls keyboards sit beside the one being typed on, and the
 // main flag lands on either, or on the virtual keyboard that isn't here.
@@ -194,5 +201,13 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   const several = widgetState('us,dk')
   assert(needs(several.layoutsRead, several.multipleLayouts, false), 'a first reading of several layouts needs the table')
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
+
+  const variants = { typedKeyboardName: '', multipleLayouts: true, layoutsRead: false }
+  variants.typedKeyboards = keyboards => keyboards
+  variants.selectKeyboard = typed => typed[0]
+  reading(variants, model, JSON.stringify({ keyboards: [{ name: 'at-translated-set-2-keyboard', layout: 'fr,fr', variant: ',bepo', active_keymap: 'French (BEPO)', active_layout_index: 1 }] }))
+  assertEqual(model.variantLabel(variants.layoutCodes, variants.layoutVariants, variants.layoutIndex), 'bepo', 'a reading carries the variants the label needs')
+  reading(variants, model, JSON.stringify({ keyboards: [] }))
+  assertEqual(model.variantLabel(variants.layoutCodes, variants.layoutVariants, variants.layoutIndex), '', 'an unplugged keyboard takes its variant label with it')
 }
 JS
