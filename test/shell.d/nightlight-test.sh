@@ -21,9 +21,12 @@ trap 'rm -rf "$TMPDIR"' EXIT
 mkdir -p "$TMPDIR/bin"
 STATE="$TMPDIR/hyprsunset-temp"
 SHELL_LOG="$TMPDIR/omarchy-shell-log"
+HYPRCTL_LOG="$TMPDIR/hyprctl-log"
 
 cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
+
+printf '%s\n' "$*" >>"$HYPRCTL_LOG"
 
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
@@ -58,6 +61,7 @@ chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
 nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
+  HYPRCTL_LOG="$HYPRCTL_LOG" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
@@ -78,6 +82,39 @@ pass "nightlight status reports identity temperature as disabled"
 
 [[ $(nightlight_status 6500 | jq -r .enabled) == "false" ]] || fail "nightlight status reports daylight temperature as disabled"
 pass "nightlight status reports daylight temperature as disabled"
+
+# A resume drops the compositor's colour transform while hyprsunset keeps its
+# temperature. Pushing the value it already holds is not a change, so the
+# reapply nudges it.
+reapply_from() {
+  printf '%s\n' "$1" >"$STATE"
+  : >"$SHELL_LOG"
+  : >"$HYPRCTL_LOG"
+  nightlight_cli --reapply
+}
+reapply_from 4000
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight reapply leaves the temperature it found"
+writes=$(grep -E '^hyprsunset temperature [0-9]+$' "$HYPRCTL_LOG")
+[[ $(grep -c . <<<"$writes") == 2 ]] ||
+  fail "nightlight reapply pushes a temperature twice, to make hyprsunset apply it again" "writes: $writes"
+[[ $(sed -n '2p' <<<"$writes") == 'hyprsunset temperature 4000' ]] ||
+  fail "nightlight reapply does not end on the temperature it found" "writes: $writes"
+[[ $(sed -n '1p' <<<"$writes") != $(sed -n '2p' <<<"$writes") ]] ||
+  fail "nightlight reapply pushes the value it already holds, which changes nothing" "writes: $writes"
+pass "nightlight reapply makes hyprsunset apply the transform again after a resume"
+
+reapply_from 6500
+[[ $(<"$STATE") == 6500 ]] || fail "nightlight reapply changed a temperature it should leave alone"
+! grep -qE '^hyprsunset temperature [0-9]+$' "$HYPRCTL_LOG" ||
+  fail "nightlight reapply pushed a temperature on a machine with night light off"
+pass "nightlight reapply leaves night light off alone"
+
+rm -f "$STATE"
+: >"$HYPRCTL_LOG"
+nightlight_cli --reapply
+! grep -qE '^hyprsunset temperature [0-9]+$' "$HYPRCTL_LOG" ||
+  fail "nightlight reapply pushed a temperature to a hyprsunset that is not running"
+pass "nightlight reapply does nothing when hyprsunset does not answer"
 
 printf '6500\n' >"$STATE"
 : >"$SHELL_LOG"

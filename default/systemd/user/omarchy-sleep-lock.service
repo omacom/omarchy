@@ -12,6 +12,13 @@ ConditionEnvironment=WAYLAND_DISPLAY
 [Service]
 Type=simple
 ExecStart=/usr/bin/omarchy-system-sleep-monitor
+# The monitor exits on the pre-sleep edge, so this unit restarts after the
+# machine thaws (RestartSec is a monotonic timer and user.slice is frozen while
+# asleep). A resume drops hyprsunset's colour transform while it keeps its
+# temperature, so the screen comes back untinted with the bar still reporting
+# night light as on (#16052). Bounded, because a compositor that is not answering
+# yet must not hold up the unit.
+ExecStartPost=-/usr/bin/timeout 5 /usr/bin/omarchy-toggle-nightlight --reapply
 Restart=always
 RestartSec=2
 
