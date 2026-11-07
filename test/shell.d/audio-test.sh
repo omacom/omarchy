@@ -42,6 +42,74 @@ assertEqual(audio.sinkGlyph(headphones), '󰋋', 'audio uses headphone sink glyp
 assert(audio.sourceGlyph({ ready: true, properties: { 'device.icon-name': 'camera-webcam' } }).length > 0, 'audio maps webcam source glyph')
 
 assertEqual(audio.friendlyStreamLabel('spotify'), 'Spotify', 'audio normalizes known stream labels')
+
+assertDeepEqual(
+  audio.routeCommand(64, '101'),
+  ['pw-metadata', '-n', 'default', '64', 'target.object', '101'],
+  'audio pins a stream to an output'
+)
+assertDeepEqual(
+  audio.routeCommand(64, audio.DEFAULT_ROUTE),
+  ['pw-metadata', '-n', 'default', '64', 'target.object', '-1'],
+  'audio hands a stream back to the default output'
+)
+const routeMetadata = [
+  "update: id:120 key:'target.object' value:'sink.a' type:'(null)'",
+  "update: id:121 key:'target.object' value:'-1' type:'(null)'",
+  "update: id:122 key:'volume' value:'0.5' type:'(null)'"
+].join('\n')
+const routeTargets = audio.parseRouteTargets(routeMetadata)
+
+assertDeepEqual(routeTargets, { '120': 'sink.a', '121': '-1' }, 'audio reads routing out of the default metadata object')
+assertDeepEqual(audio.parseRouteTargets(''), {}, 'audio handles empty metadata')
+assertEqual(audio.routeTargetOf({ id: 120 }, routeTargets), 'sink.a', 'audio reads a pinned stream')
+assertEqual(audio.routeTargetOf({ id: 121 }, routeTargets), audio.DEFAULT_ROUTE, 'audio reads a cleared pin as following the default')
+assertEqual(audio.routeTargetOf({ id: 999 }, routeTargets), audio.DEFAULT_ROUTE, 'audio reads an unlisted stream as following the default')
+assert(audio.routeIsPinned({ id: 120 }, routeTargets), 'audio reports a pinned stream')
+assert(!audio.routeIsPinned({ id: 999 }, routeTargets), 'audio reports an unpinned stream')
+
+const routeSinks = [
+  { ready: true, name: 'sink.a', nickname: 'Speakers', properties: { 'object.serial': 101 } },
+  { ready: true, name: 'sink.b', nickname: 'HDMI', properties: { 'object.serial': 202 } }
+]
+assertDeepEqual(audio.routeOptions(routeSinks), [audio.DEFAULT_ROUTE, '101', '202'], 'audio offers the default output first')
+assertEqual(audio.nextRouteTarget(audio.routeOptions(routeSinks), audio.DEFAULT_ROUTE), '101', 'audio cycles from the default to the first output')
+assertEqual(audio.nextRouteTarget(audio.routeOptions(routeSinks), '202'), audio.DEFAULT_ROUTE, 'audio cycles from the last output back to the default')
+assertEqual(audio.routeLabel({ id: 999 }, routeSinks, null, routeTargets), 'Follow default output', 'audio labels an unpinned stream')
+assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, routeTargets), 'Speakers', 'audio labels a pinned stream by device')
+assertEqual(audio.routeLabel({ id: 999 }, routeSinks, routeSinks[1], routeTargets), 'HDMI', 'audio prefers the linked output over the pin')
+assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '101' }), 'Speakers', 'audio resolves serial targets to device labels')
+
+{
+  const fs = require('fs')
+  const vm = require('vm')
+  const source = fs.readFileSync(path.join(root, 'shell/plugins/panels/audio/Panel.qml'), 'utf8')
+  const panel = { audioSinks: routeSinks, routeTargets: {}, pendingRoutes: {}, routeGeneration: 0 }
+  let reads = 0
+  const writer = { running: false, command: null }
+  const context = { root: panel, Model: audio, routeWriteProc: writer, routeTargetsProc: { restart() { reads++ } } }
+  for (const name of ['cycleStreamRoute', 'runNextRoute', 'acceptRouteSnapshot']) {
+    const method = source.match(new RegExp('^  function ' + name + '\\([^]*?^  \x7d', 'm'))
+    if (!method) fail('audio panel provides ' + name)
+    panel[name] = vm.runInNewContext('(' + method[0] + ')', context)
+  }
+  panel.cycleStreamRoute({ id: 120 })
+  assertEqual(writer.command[5], '101', 'first route write uses the sink serial')
+  panel.cycleStreamRoute({ id: 120 })
+  assertEqual(writer.command[5], '101', 'rapid clicks wait for the running writer')
+  assertEqual(panel.pendingRoutes['120'], '202', 'rapid clicks advance from the optimistic target')
+  assertEqual(reads, 0, 'metadata is not read before route writes complete')
+  panel.acceptRouteSnapshot('', 0)
+  assertEqual(panel.routeTargets['120'], '202', 'a stale metadata read cannot overwrite a newer click')
+  writer.running = false
+  panel.runNextRoute()
+  assertEqual(writer.command[5], '202', 'the queued route starts after the first writer finishes')
+  writer.running = false
+  panel.runNextRoute()
+  assertEqual(reads, 1, 'metadata refresh follows the final write')
+  panel.acceptRouteSnapshot("update: id:120 key:'target.object' value:'101'", 2)
+  assertEqual(panel.routeTargets['120'], '101', 'external metadata changes update the current target')
+}
 assert(audio.streamRepresentsMprisPlayer('Chromium', 'Chromium Browser'), 'audio matches related stream and MPRIS labels')
 
 const players = [
@@ -147,3 +215,82 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
 }
 JS
+
+require_command jq
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+mkdir -p "$scratch/bin"
+cat >"$scratch/bin/timeout" <<'STUB'
+#!/bin/bash
+shift
+"$@"
+STUB
+cat >"$scratch/bin/wpctl" <<'STUB'
+#!/bin/bash
+printf 'wpctl %s\n' "$*" >>"$AUDIO_SWITCH_LOG"
+STUB
+cat >"$scratch/bin/pactl" <<'STUB'
+#!/bin/bash
+if [[ $* == "-f json list sink-inputs" ]]; then
+  cat "$AUDIO_INPUTS"
+elif [[ $* == "list sink-inputs" ]]; then
+  cat "${AUDIO_INPUTS%.json}.txt"
+else
+  printf 'pactl %s\n' "$*" >>"$AUDIO_SWITCH_LOG"
+fi
+STUB
+cat >"$scratch/bin/pw-metadata" <<'STUB'
+#!/bin/bash
+[[ ${AUDIO_METADATA_FAIL:-0} == "0" ]] || exit 1
+cat "$AUDIO_METADATA"
+STUB
+chmod +x "$scratch/bin/"*
+cat >"$scratch/inputs.json" <<'JSON'
+[
+  {"index":11,"properties":{"application.name":"Call","object.id":"120"}},
+  {"index":12,"properties":{"application.name":"Music","object.id":"121"}},
+  {"index":13,"properties":{"application.name":"Browser","object.id":"122"}},
+  {"index":14,"properties":{"application.name":"EasyEffects","object.id":"123"}},
+  {"index":15,"properties":{"object.id":"124"}},
+  {"index":16,"properties":{"application.name":"Unknown node"}}
+]
+JSON
+cat >"$scratch/inputs.txt" <<'INPUTS'
+Sink Input #11
+  application.name = "Call"
+  object.id = "120"
+Sink Input #12
+  application.name = "Music"
+  object.id = "121"
+Sink Input #13
+  application.name = "Browser"
+  object.id = "122"
+Sink Input #14
+  application.name = "EasyEffects"
+  object.id = "123"
+Sink Input #15
+  object.id = "124"
+Sink Input #16
+  application.name = "Unknown node"
+INPUTS
+cat >"$scratch/metadata" <<'META'
+update: id:120 key:'target.object' value:'101' type:'(null)'
+update: id:121 key:'target.object' value:'-1' type:'(null)'
+update: id:122 key:'volume' value:'0.5' type:'(null)'
+META
+export AUDIO_SWITCH_LOG="$scratch/switch.log" AUDIO_INPUTS="$scratch/inputs.json" AUDIO_METADATA="$scratch/metadata"
+PATH="$scratch/bin:$PATH" bash "$ROOT/bin/omarchy-audio-output-set-default" 42 sink.new
+expected=$(printf 'wpctl set-default 42\npactl set-default-sink sink.new\npactl move-sink-input 12 sink.new\npactl move-sink-input 13 sink.new')
+[[ $(<"$AUDIO_SWITCH_LOG") == "$expected" ]] || fail "changing the default preserves pins and DSP streams while moving followers" "$(<"$AUDIO_SWITCH_LOG")"
+pass "changing the default preserves pins and DSP streams while moving followers"
+
+printf "update: id:120 key:'target.object' value:'-1' type:'(null)'\n" >"$AUDIO_METADATA"
+: >"$AUDIO_SWITCH_LOG"
+PATH="$scratch/bin:$PATH" bash "$ROOT/bin/omarchy-audio-output-set-default" 42 sink.new
+grep -Fx 'pactl move-sink-input 11 sink.new' "$AUDIO_SWITCH_LOG" >/dev/null || fail "clearing a pin makes its stream follow the next default"
+pass "clearing a pin makes its stream follow the next default"
+
+: >"$AUDIO_SWITCH_LOG"
+AUDIO_METADATA_FAIL=1 PATH="$scratch/bin:$PATH" bash "$ROOT/bin/omarchy-audio-output-set-default" 42 sink.new
+! grep -q 'move-sink-input' "$AUDIO_SWITCH_LOG" || fail "unreadable pin metadata does not force streams onto the default"
+pass "unreadable pin metadata does not force streams onto the default"

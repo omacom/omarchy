@@ -15,18 +15,26 @@ fi
 timeout 2 wpctl set-default "$node_id" 2>/dev/null || true
 timeout 2 pactl set-default-sink "$sink_name" 2>/dev/null || true
 
-# Move only real application streams. A DSP filter-chain's own output is also a
-# sink input but carries no application.name, and moving it would rewire the
-# processing itself -- onto headphones, or into its own virtual sink, which is a
-# cycle. EasyEffects' output stream must stay put for the same reason.
-# pactl translates its headers; parse them in the C locale.
-LC_ALL=C timeout 2 pactl list sink-inputs 2>/dev/null | awk '
-  /^Sink Input #/ {id = substr($3, 2)}
-  /application\.name = / {
-    app = $0
-    sub(/.*application\.name = "/, "", app)
-    sub(/"$/, "", app)
-    if (app != "EasyEffects") print id
-  }' | while read -r input; do
-  [[ -n $input ]] && timeout 2 pactl move-sink-input "$input" "$sink_name" 2>/dev/null || true
-done
+# Pulse stream indices differ from PipeWire node ids used by target.object.
+# If pins cannot be read, leave stream movement to the session manager.
+metadata=$(timeout 2 pw-metadata -n default 2>/dev/null) || exit 0
+pinned_nodes=$(awk -F "'" '
+  $2 == "target.object" && $4 != "" && $4 != "-1" {
+    node = $1
+    sub(/.*id:/, "", node)
+    sub(/ .*/, "", node)
+    if (node ~ /^[0-9]+$/) print node
+  }' <<<"$metadata")
+
+# DSP and EasyEffects streams keep their processing links, and pinned apps
+# keep their explicit output while the remaining applications follow default.
+LC_ALL=C timeout 2 pactl -f json list sink-inputs 2>/dev/null |
+  jq -r --arg pins "$pinned_nodes" '
+    ($pins | split("\n")) as $pinned |
+    .[] |
+    select(.properties["object.id"] != null) |
+    select(.properties["application.name"] != null and .properties["application.name"] != "EasyEffects") |
+    select((.properties["object.id"] | tostring) as $node | $pinned | index($node) | not) |
+    .index' | while read -r input; do
+    [[ -n $input ]] && timeout 2 pactl move-sink-input "$input" "$sink_name" 2>/dev/null || true
+  done

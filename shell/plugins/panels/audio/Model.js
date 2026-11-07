@@ -273,6 +273,84 @@ function isUntypedSource(node, sourceAvailability) {
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
 
+// Per application output routing.
+//
+// The mixer sets each stream's volume and mute but leaves it on whatever the
+// default output happens to be. Routing writes a pipewire metadata key against
+// the stream's node id, which moves the running stream and is remembered by
+// wireplumber for the next stream that application opens. Clearing it writes
+// -1, which hands the stream back to the default output.
+var DEFAULT_ROUTE = "__default__"
+
+// pw-metadata writes target.object into the separate "default" metadata
+// object rather than back into the node's own properties, so the current
+// routing has to be read from there. Lines look like:
+//   update: id:120 key:'target.object' value:'alsa_output.analog-stereo' ...
+function parseRouteTargets(raw) {
+  var targets = {}
+  var pattern = /id:(\d+)\s+key:'target\.object'\s+value:'([^']*)'/g
+  var match
+  while ((match = pattern.exec(String(raw || ""))) !== null) {
+    targets[match[1]] = match[2]
+  }
+  return targets
+}
+
+function routeTargetOf(node, targets) {
+  if (!node) return DEFAULT_ROUTE
+  var target = targets ? targets[String(node.id)] : undefined
+  if (target === undefined || target === null || target === "" || String(target) === "-1") return DEFAULT_ROUTE
+  return String(target)
+}
+
+function routeCommand(nodeId, sinkSerial) {
+  var value = !sinkSerial || sinkSerial === DEFAULT_ROUTE ? "-1" : String(sinkSerial)
+  return ["pw-metadata", "-n", "default", String(nodeId), "target.object", value]
+}
+
+function routeOptions(sinks) {
+  var options = [DEFAULT_ROUTE]
+  var list = sinks || []
+  for (var i = 0; i < list.length; i++) {
+    var serial = nodeProps(list[i])["object.serial"]
+    if (serial !== undefined && serial !== null) options.push(String(serial))
+  }
+  return options
+}
+
+function nextRouteTarget(options, current) {
+  var list = options || []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] === current) return list[(i + 1) % list.length]
+  }
+  return list.length > 0 ? list[0] : DEFAULT_ROUTE
+}
+
+function sinkNamed(sinks, name) {
+  var list = sinks || []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && (String(list[i].name) === String(name)
+      || String(nodeProps(list[i])["object.serial"]) === String(name))) return list[i]
+  }
+  return null
+}
+
+// Prefer where the stream is linked, and fall back to the pinned preference,
+// because a link group is not always resolved for a stream that just started.
+// tr as in outputVolumeName.
+function routeLabel(node, sinks, linkedSink, targets, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (linkedSink) return nodeLabel(linkedSink, tr)
+  var target = routeTargetOf(node, targets)
+  if (target === DEFAULT_ROUTE) return t("audio.route.followDefault", "Follow default output")
+  var sink = sinkNamed(sinks, target)
+  return sink ? nodeLabel(sink, tr) : String(target)
+}
+
+function routeIsPinned(node, targets) {
+  return routeTargetOf(node, targets) !== DEFAULT_ROUTE
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -281,6 +359,15 @@ if (typeof module !== "undefined") {
     rowSnapshot: rowSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
+    DEFAULT_ROUTE: DEFAULT_ROUTE,
+    parseRouteTargets: parseRouteTargets,
+    routeTargetOf: routeTargetOf,
+    routeCommand: routeCommand,
+    routeOptions: routeOptions,
+    nextRouteTarget: nextRouteTarget,
+    sinkNamed: sinkNamed,
+    routeLabel: routeLabel,
+    routeIsPinned: routeIsPinned,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,
