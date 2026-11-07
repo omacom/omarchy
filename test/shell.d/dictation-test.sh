@@ -276,7 +276,18 @@ pass "selection updates are atomic for concurrent readers"
 
 lua - <<'LUA' || fail "dictation shortcuts require a selection without limiting backend names"
 local root = os.getenv("ROOT")
+package.path = root .. "/?.lua;" .. package.path
 local selected, installed, bindings = nil, true, {}
+local real_open = io.open
+io.open = function(path, mode)
+  if path == "/etc/vconsole.conf" then
+    local file = io.tmpfile()
+    file:write(os.getenv("TEST_VCONSOLE") or "XKBLAYOUT=us\n")
+    file:seek("set")
+    return file
+  end
+  return real_open(path, mode)
+end
 io.popen = function(command)
   assert(command == "omarchy-default-dictation 2>/dev/null")
   return { read = function() return selected end, close = function() end }
@@ -312,6 +323,53 @@ assert(#bindings == 0, "a selected backend that is not installed leaves applicat
 assert(not o.dictation_installed(), "personal dictation keys release their keys once the backend is gone")
 LUA
 pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
+
+# A Swedish layout (Hyprland's list, or Fcitx while Hyprland stays on US)
+# uses Right Alt as AltGr. The hold bind matches the first layout's Alt_R,
+# so it would start dictation instead of typing @.
+altgr_bindings() {
+  TEST_VCONSOLE="$1" lua - <<'LUA'
+local root = os.getenv("ROOT")
+package.path = root .. "/?.lua;" .. package.path
+local bindings = {}
+local real_open = io.open
+io.open = function(path, mode)
+  if path == "/etc/vconsole.conf" then
+    local file = io.tmpfile()
+    file:write(os.getenv("TEST_VCONSOLE") or "XKBLAYOUT=us\n")
+    file:seek("set")
+    return file
+  end
+  return real_open(path, mode)
+end
+io.popen = function()
+  return { read = function() return "voxtype" end, close = function() end }
+end
+o = {
+  cmd_missing = function() return false end,
+  bind = function(keys, _, command) table.insert(bindings, keys .. " " .. command) end,
+  bind_hold = function(keys, _, press, _, release)
+    table.insert(bindings, keys .. " " .. press)
+    table.insert(bindings, keys .. " " .. release)
+  end,
+}
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+for _, binding in ipairs(bindings) do print(binding) end
+LUA
+}
+
+us_se=$(altgr_bindings $'XKBLAYOUT=us,se\n')
+[[ $us_se == *"ALT + SPACE omarchy-dictation toggle"* ]] || fail "Alt + Space stays when Swedish is configured" "$us_se"
+[[ $us_se != *"Alt_R"* ]] || fail "Right Alt is left for AltGr when Swedish follows US" "$us_se"
+pass "Right Alt dictation is not bound when a configured layout uses it as AltGr"
+
+mkdir -p "$XDG_CONFIG_HOME/fcitx5"
+printf '[Groups/0/Items/0]\nName=keyboard-us\n[Groups/0/Items/1]\nName=keyboard-se\n' > "$XDG_CONFIG_HOME/fcitx5/profile"
+fcitx_se=$(altgr_bindings $'XKBLAYOUT=us\n')
+[[ $fcitx_se == *"ALT + SPACE omarchy-dictation toggle"* && $fcitx_se != *"Alt_R"* ]] ||
+  fail "Fcitx Swedish leaves Right Alt to AltGr" "$fcitx_se"
+rm -f "$XDG_CONFIG_HOME/fcitx5/profile"
+pass "Fcitx Swedish leaves Right Alt to AltGr and keeps Alt + Space"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"
