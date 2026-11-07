@@ -16,6 +16,7 @@ run_logged "$OMARCHY_INSTALL/hardware/nvidia.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia-apps.sh"
 run_logged "$OMARCHY_INSTALL/hardware/vulkan.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/intel/fix-hdmi-audio-kabylake.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/video-acceleration.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/lpmd.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/thermald.sh"
