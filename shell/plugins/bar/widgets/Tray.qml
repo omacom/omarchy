@@ -565,6 +565,15 @@ BarWidget {
     }
   }
 
+  // An app re-registering its tray item while it starts up takes the open menu's item
+  // with it; close the card rather than leave it empty and holding the focus grab.
+  Connections {
+    target: SystemTray.items
+    function onValuesChanged() {
+      if (root.trayMenuOpen && SystemTray.items.values.indexOf(root.activeTrayItem) === -1) root.close()
+    }
+  }
+
   QsMenuOpener {
     id: trayMenuOpener
     menu: root.activeTrayItem ? root.activeTrayItem.menu : null
