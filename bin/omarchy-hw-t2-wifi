@@ -9,15 +9,14 @@
 # image and installs the renamed files, then reloads brcmfmac. It does not ship
 # Apple's firmware.
 #
-# sudo drops the session's OMARCHY_PATH. The packaged tree is the one that
-# belongs with this command.
+# sudo drops the session environment. The shared bootstrap restores the
+# configured tree, including an authorized dev-linked checkout.
 
 set -euo pipefail
 
 if [[ -z ${OMARCHY_PATH:-} ]]; then
-  OMARCHY_PATH=/usr/share/omarchy
+  source /usr/share/omarchy/default/bash/env-bootstrap
 fi
-export OMARCHY_PATH
 
 mode=install
 while (($#)); do
@@ -97,30 +96,99 @@ reload_wifi_modules() {
   modprobe hci_bcm4377 || true
 }
 
+t2_workdir="" t2_loop="" t2_mnt="" t2_tar_work="" t2_child=""
+t2_launching=0 t2_pending_signal=""
+
+finish_on_signal() {
+  if (( t2_launching )); then
+    t2_pending_signal=$1
+  else
+    exit "$1"
+  fi
+}
+
+# Wait on our own process group so a signal interrupts the wait immediately,
+# rather than waiting for a foreground downloader to finish first.
+run_step() {
+  local status=0
+  # With job control off the async child is not a group leader, so setsid
+  # execs in place instead of forking a wrapper whose PID is not the new PGID.
+  set +m
+  t2_launching=1
+  setsid --wait -- "$@" <&0 &
+  t2_child=$!
+  t2_launching=0
+  [[ -z $t2_pending_signal ]] || exit "$t2_pending_signal"
+  wait "$t2_child" || status=$?
+  t2_child=""
+  return "$status"
+}
+
+cleanup_t2_wifi() {
+  trap '' HUP INT TERM
+  if [[ -n $t2_child ]]; then
+    # Before setsid creates the group, -PID names no group: a newly allocated
+    # child PID cannot alias an existing PGID. Stop only that child as fallback.
+    kill -TERM -- "-$t2_child" 2>/dev/null || kill -TERM "$t2_child" 2>/dev/null || true
+    for _ in {1..10}; do
+      kill -0 -- "-$t2_child" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL -- "-$t2_child" 2>/dev/null || true
+    wait "$t2_child" 2>/dev/null || true
+    t2_child=""
+  fi
+  # losetup may have completed just before a signal interrupted its wait.
+  if [[ -z $t2_loop && -n $t2_workdir && -s $t2_workdir/loop ]]; then
+    read -r t2_loop <"$t2_workdir/loop" || true
+  fi
+  if [[ -n $t2_mnt ]] && mountpoint -q "$t2_mnt" 2>/dev/null; then
+    if ! umount "$t2_mnt"; then
+      echo "Could not unmount recovery image at $t2_mnt; keeping $t2_workdir for recovery" >&2
+      return
+    fi
+  fi
+  if [[ -n $t2_loop ]]; then
+    if ! losetup -d "$t2_loop"; then
+      echo "Could not detach $t2_loop; keeping $t2_workdir for recovery" >&2
+      return
+    fi
+  fi
+  [[ -z $t2_mnt ]] || rm -rf "$t2_mnt"
+  [[ -z $t2_workdir ]] || rm -rf "$t2_workdir"
+  [[ -z $t2_tar_work ]] || rm -rf "$t2_tar_work"
+  t2_workdir="" t2_loop="" t2_mnt="" t2_tar_work=""
+}
+trap cleanup_t2_wifi EXIT
+trap 'finish_on_signal 129' HUP
+trap 'finish_on_signal 130' INT
+trap 'finish_on_signal 143' TERM
+
 install_from_tree() {
   local tree=$1
-  local work tar status=0
+  local tar status=0
 
   if [[ ! -d $tree/wifi ]]; then
     echo "Apple firmware tree has no wifi directory: $tree" >&2
     return 1
   fi
 
-  work="$(mktemp -d)"
-  tar="$work/firmware.tar"
-  if ! python3 "$OMARCHY_PATH/install/hardware/apple/t2-wifi-rename.py" "$tree" "$tar"; then
+  t2_tar_work="$(mktemp -d)"
+  tar="$t2_tar_work/firmware.tar"
+  if ! run_step python3 "$OMARCHY_PATH/install/hardware/apple/t2-wifi-rename.py" "$tree" "$tar"; then
     status=1
   elif ! mkdir -p "$firmware_dir"; then
     status=1
   elif ! tar -xf "$tar" -C "$firmware_dir"; then
     status=1
   fi
-  rm -rf "$work"
+  rm -rf "$t2_tar_work"
+  t2_tar_work=""
   return "$status"
 }
 
 download_and_install() {
-  local routes parent avail workdir="" loop="" mnt="" dmg board mlb
+  local routes parent avail dmg board mlb
 
   routes="$(ip route show default 2>/dev/null || true)"
   if [[ -z $routes ]]; then
@@ -143,66 +211,57 @@ download_and_install() {
   board="${OMARCHY_T2_WIFI_BOARD_ID:-Mac-827FAC58A8FDFA22}"
   mlb="${OMARCHY_T2_WIFI_MLB:-00000000000000000}"
 
-  workdir="$(mktemp -d "$parent/omarchy-t2-wifi.XXXXXX")"
-  mnt="$(mktemp -d)"
-  cleanup_download() {
-    if [[ -n $mnt ]] && mountpoint -q "$mnt" 2>/dev/null; then
-      umount "$mnt" || true
-    fi
-    if [[ -n $loop ]]; then
-      losetup -d "$loop" || true
-    fi
-    rm -rf "$mnt" "$workdir"
-  }
-  trap cleanup_download RETURN
+  t2_workdir="$(mktemp -d "$parent/omarchy-t2-wifi.XXXXXX")"
+  t2_mnt="$(mktemp -d)"
 
   if [[ -n ${OMARCHY_T2_WIFI_RECOVERY_CMD:-} ]]; then
-    "$OMARCHY_T2_WIFI_RECOVERY_CMD" download -b "$board" -m "$mlb" -n BaseSystem -o "$workdir" || return 1
+    run_step "$OMARCHY_T2_WIFI_RECOVERY_CMD" download -b "$board" -m "$mlb" -n BaseSystem -o "$t2_workdir" || return 1
   else
-    python3 "$OMARCHY_PATH/install/hardware/apple/macrecovery.py" \
-      download -b "$board" -m "$mlb" -n BaseSystem -o "$workdir" || return 1
+    run_step python3 "$OMARCHY_PATH/install/hardware/apple/macrecovery.py" \
+      download -b "$board" -m "$mlb" -n BaseSystem -o "$t2_workdir" || return 1
   fi
 
-  dmg="$workdir/BaseSystem.dmg"
+  dmg="$t2_workdir/BaseSystem.dmg"
   if [[ ! -f $dmg ]]; then
     echo "The recovery download did not produce BaseSystem.dmg" >&2
     return 1
   fi
 
-  omarchy-pkg-add dmg2img || return 1
-  dmg2img -s "$dmg" "$workdir/fw.img" || return 1
-  loop="$(losetup --find --show --partscan "$workdir/fw.img")" || return 1
-  if [[ -z $loop || ! -b $loop ]]; then
+  run_step omarchy-pkg-add dmg2img || return 1
+  run_step dmg2img -s "$dmg" "$t2_workdir/fw.img" || return 1
+  run_step losetup --find --show --partscan "$t2_workdir/fw.img" >"$t2_workdir/loop" || return 1
+  read -r t2_loop <"$t2_workdir/loop" || return 1
+  if [[ -z $t2_loop || ! -b $t2_loop ]]; then
     echo "Could not attach the recovery image to a loop device" >&2
     return 1
   fi
 
-  local parts=() attempt part firmware_root=""
-  for attempt in 1 2 3 4 5; do
+  local parts=() part firmware_root=""
+  for _ in 1 2 3 4 5; do
     parts=()
     while IFS= read -r part; do
       [[ -n $part ]] || continue
       parts+=("$part")
-    done < <(lsblk -lnpo NAME,TYPE "$loop" | awk '$2 == "part" { print $1 }')
+    done < <(lsblk -lnpo NAME,TYPE "$t2_loop" | awk '$2 == "part" { print $1 }')
     if (( ${#parts[@]} > 0 )); then
       break
     fi
     sleep 0.2
   done
   if (( ${#parts[@]} == 0 )); then
-    parts=("$loop")
+    parts=("$t2_loop")
   fi
 
   for part in "${parts[@]}"; do
-    if mountpoint -q "$mnt"; then
-      umount "$mnt" || true
+    if mountpoint -q "$t2_mnt"; then
+      umount "$t2_mnt" || true
     fi
-    if mount -o ro "$part" "$mnt"; then
-      if [[ -d $mnt/usr/share/firmware/wifi ]]; then
-        firmware_root="$mnt/usr/share/firmware"
+    if run_step mount -o ro "$part" "$t2_mnt"; then
+      if [[ -d $t2_mnt/usr/share/firmware/wifi ]]; then
+        firmware_root="$t2_mnt/usr/share/firmware"
         break
       fi
-      umount "$mnt" || true
+      umount "$t2_mnt" || true
     fi
   done
 
@@ -248,7 +307,7 @@ fi
 echo "T2 Wi-Fi firmware for $product_name is missing; trying a macOS volume"
 
 if omarchy-cmd-present apple-bcm-firmware-fetcher; then
-  timeout 180 apple-bcm-firmware-fetcher || true
+  run_step timeout 180 apple-bcm-firmware-fetcher || true
 fi
 
 if t2_wifi_present "$stem"; then
@@ -261,7 +320,7 @@ if [[ $product_name == "iMacPro1,1" ]]; then
   exit 0
 fi
 
-if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == 1 && ${OMARCHY_T2_WIFI_BEST_EFFORT:-} == 1 ]]; then
+if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == "1" && ${OMARCHY_T2_WIFI_BEST_EFFORT:-} == "1" ]]; then
   echo "T2 Wi-Fi firmware is still missing. First boot skips the recovery download; run 'omarchy hw t2 wifi' once this machine has a connection." >&2
   exit 0
 fi
@@ -279,7 +338,7 @@ if t2_wifi_present "$stem"; then
 fi
 
 echo "T2 Wi-Fi firmware and NVRAM for $product_name are still missing. With a network connection, run: omarchy hw t2 wifi" >&2
-if [[ ${OMARCHY_T2_WIFI_BEST_EFFORT:-} == 1 ]]; then
+if [[ ${OMARCHY_T2_WIFI_BEST_EFFORT:-} == "1" ]]; then
   exit 0
 fi
 exit 1

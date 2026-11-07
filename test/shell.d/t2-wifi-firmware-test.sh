@@ -10,17 +10,6 @@ wifi="$ROOT/bin/omarchy-hw-t2-wifi"
 leaf="$ROOT/install/hardware/apple/fix-t2-wifi.sh"
 all="$ROOT/install/hardware/all.sh"
 
-grep -q 'run_logged "$OMARCHY_INSTALL/hardware/apple/fix-t2-wifi.sh"' "$all" ||
-  fail "hardware setup installs T2 Wi-Fi firmware"
-awk '
-  /fix-t2\.sh/ { t2 = NR }
-  /fix-t2-wifi\.sh/ { wifi = NR }
-  END { exit !(t2 && wifi && t2 < wifi) }
-' "$all" || fail "T2 Wi-Fi firmware runs after the fetcher package is installed"
-grep -q 'OMARCHY_T2_WIFI_BEST_EFFORT=1 omarchy-hw-t2-wifi' "$leaf" ||
-  fail "hardware setup does not fail when the recovery image cannot be fetched"
-pass "T2 Wi-Fi firmware is part of hardware setup"
-
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
@@ -33,6 +22,59 @@ stdout="$test_tmp/stdout"
 stderr="$test_tmp/stderr"
 tree="$test_tmp/firmware-tree"
 mkdir -p "$stub_bin" "$firmware_dir"
+export HOME="$test_tmp/home" TMPDIR="$test_tmp/tmp"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_CACHE_HOME="$HOME/.cache"
+export XDG_DATA_HOME="$HOME/.local/share" XDG_STATE_HOME="$HOME/.local/state"
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
+mkdir -p "$HOME" "$TMPDIR" "$XDG_RUNTIME_DIR" "$test_tmp/work"
+for command in cat dirname mktemp mkdir rm tar timeout setsid awk sleep python3; do
+  ln -s "$(command -v "$command")" "$stub_bin/$command"
+done
+
+# Never fall through to the host fetcher or a privileged command.
+cat >"$stub_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+[[ $1 == "apple-bcm-firmware-fetcher" && -x $T2_STUB_BIN/$1 ]]
+SH
+for command in sudo umount lsblk; do
+  printf '#!/bin/bash\necho "unexpected privileged command" >&2\nexit 99\n' >"$stub_bin/$command"
+done
+cat >"$stub_bin/mountpoint" <<'SH'
+#!/bin/bash
+exit 1
+SH
+cat >"$stub_bin/df" <<'SH'
+#!/bin/bash
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\nfixture 8000000 0 8000000 0%% /\n'
+SH
+
+# Execute setup orchestration with a failing leaf command, rather than reading
+# source lines. Nothing except this leaf is permitted to run.
+set +e
+(
+  set -e
+  run_logged() {
+    if [[ $1 == "$leaf" ]]; then
+      # shellcheck disable=SC1090
+      source "$1"
+    fi
+  }
+  omarchy-hw-t2-wifi() {
+    [[ $OMARCHY_T2_WIFI_BEST_EFFORT == "1" ]] || exit 99
+    printf 'called\n' >"$test_tmp/setup-called"
+    return 1
+  }
+  export OMARCHY_INSTALL="$ROOT/install"
+  # shellcheck disable=SC1090
+  source "$all"
+  printf 'continued\n' >"$test_tmp/setup-continued"
+)
+setup_status=$?
+set -e
+(( setup_status == 0 )) || fail "hardware setup survives the firmware command failing"
+[[ -s $test_tmp/setup-called && -s $test_tmp/setup-continued ]] ||
+  fail "hardware setup calls the firmware command and continues after failure"
+pass "hardware setup runs T2 Wi-Fi best-effort even when the command fails"
 
 cat >"$stub_bin/lspci" <<'SH'
 #!/bin/bash
@@ -65,7 +107,7 @@ SH
 cat >"$stub_bin/ip" <<'SH'
 #!/bin/bash
 
-if [[ $1 == route && $2 == show && $3 == default ]]; then
+if [[ $1 == "route" && $2 == "show" && $3 == "default" ]]; then
   if (( ${T2_ROUTE:-1} == 1 )); then
     echo 'default via 10.0.0.1 dev eth0'
   fi
@@ -105,7 +147,9 @@ echo "mount $*" >>"$T2_WIFI_LOG"
 exit 1
 SH
 
-chmod +x "$stub_bin"/*
+for stub in "$stub_bin"/*; do
+  [[ -L $stub ]] || chmod +x "$stub"
+done
 
 set_machine() {
   printf '%s\n' "$1" >"$dmi_vendor"
@@ -134,14 +178,20 @@ run_wifi() {
   done
 
   set +e
-  env \
+  env -i \
+    HOME="$HOME" TMPDIR="$TMPDIR" \
+    XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+    XDG_DATA_HOME="$XDG_DATA_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" \
+    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
     OMARCHY_PATH="$ROOT" \
     OMARCHY_DMI_PRODUCT_NAME="$dmi_product" \
     OMARCHY_DMI_SYS_VENDOR="$dmi_vendor" \
     OMARCHY_T2_WIFI_FIRMWARE_DIR="$firmware_dir" \
     OMARCHY_T2_WIFI_RECOVERY_CMD="$stub_bin/recovery" \
+    OMARCHY_T2_WIFI_WORKDIR_PARENT="$test_tmp/work" \
     T2_WIFI_LOG="$log" \
-    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    T2_STUB_BIN="$stub_bin" \
+    PATH="$stub_bin" \
     "${env_vars[@]}" \
     "$wifi" "${args[@]}" >"$stdout" 2>"$stderr"
   status=$?
@@ -289,3 +339,14 @@ rm -f "$dmi_product" "$dmi_vendor"
 run_wifi 0 T2_HARDWARE=1
 run_wifi 1 T2_HARDWARE=1 --check
 pass "missing DMI is not a T2 Wi-Fi install"
+
+env -i ROOT="$ROOT" HOME="$HOME" TMPDIR="$TMPDIR" \
+  XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" PATH="$stub_bin" \
+  python3 -I -B "$SHELL_TEST_DIR/fixtures/t2-wifi-recovery.py" "$test_tmp"
+
+# Signal tests only target processes created in a fresh PID namespace. The
+# namespace tears down any remaining fixture descendants even on a failure.
+env -i ROOT="$ROOT" HOME="$HOME" TMPDIR="$TMPDIR" \
+  XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" PATH="$stub_bin" \
+  /usr/bin/unshare --user --map-root-user --pid --fork --mount-proc \
+  python3 -I -B "$SHELL_TEST_DIR/fixtures/t2-wifi-signals.py" "$test_tmp"
