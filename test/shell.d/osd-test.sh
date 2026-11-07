@@ -12,6 +12,10 @@ assertEqual(osd.iconFor('volume-high', 1), osd.iconFor('', 100), 'osd maps high 
 assertEqual(osd.iconFor('logout', 50), '󰍃', 'osd maps logout icon')
 assertEqual(osd.iconFor('custom-symbol', 50), 'custom-symbol', 'osd preserves unknown explicit icons')
 assertEqual(osd.widestIcon, osd.iconFor('volume-high', 100), 'osd sizes the icon column to a glyph it can show')
+assertEqual(osd.iconFor('keyboard', -1), '󰌌', 'keyboard keeps the plain glyph when no value is shown')
+assertEqual(osd.iconFor('keyboard', 0), '󰌐', 'keyboard backlight shows the off glyph at zero percent')
+assertEqual(osd.iconFor('keyboard', 50), '󰃞', 'keyboard backlight shows a brighter glyph at medium')
+assertEqual(osd.iconFor('keyboard', 100), '󰃠', 'keyboard backlight shows the brightest glyph at full')
 
 assertDeepEqual(
   osd.stateForShow('volume', '', '75', '100', '', '800'),
