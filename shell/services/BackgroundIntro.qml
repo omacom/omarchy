@@ -23,6 +23,9 @@ Item {
   property string themeToken: ""
   property string transitionToken: ""
   readonly property string startupBackgroundPath: Quickshell.env("OMARCHY_STARTUP_BACKGROUND")
+  // Set by the compositor while Omarchy's Plymouth theme is active: the cover
+  // then continues the boot splash instead of starting from black.
+  readonly property string splashBackground: Quickshell.env("OMARCHY_SPLASH_BACKGROUND") || ""
   property string themeBackground: sessionConsumed && !Util.isVideoPath(startupBackgroundPath) ? startupBackgroundPath : ""
   property var themeNativeSize: null
   property string themeColors: ""
@@ -315,10 +318,28 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
 
-      Rectangle {
+      Item {
         anchors.fill: parent
-        color: "black"
         opacity: root.startupOpacity
+
+        Rectangle {
+          anchors.fill: parent
+          color: root.splashBackground || "black"
+        }
+
+        // Centred where Plymouth draws it. Plymouth doubles the logo on a dense
+        // panel, which the compositor's own scale is the nearest sign of here.
+        Image {
+          readonly property real dpr: modelData.devicePixelRatio || 1
+          readonly property real splashScale: dpr >= 1.5 ? 2 : 1
+          anchors.centerIn: parent
+          visible: root.splashBackground !== ""
+          source: visible ? Util.fileUrl("/usr/share/plymouth/themes/omarchy/logo.png") : ""
+          width: implicitWidth * splashScale / dpr
+          height: implicitHeight * splashScale / dpr
+          smooth: true
+          cache: false
+        }
       }
 
       FrameAnimation {
