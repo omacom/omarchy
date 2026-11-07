@@ -1,0 +1,3 @@
+module Quickshell.Services.Polkit
+PolkitAgent 1.0 PolkitAgent.qml
+singleton PolkitHarness 1.0 PolkitHarness.qml

@@ -1,0 +1,2 @@
+module Quickshell.Wayland
+WlrKeyboardFocusPlaceholder 1.0 WlrKeyboardFocusPlaceholder.qml
