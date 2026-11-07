@@ -12,9 +12,9 @@ sessions that ran on the `mistral` provider. Vibe also drives other providers
 (a local llama.cpp server out of the box), so a Vibe session only counts when
 the model it ran on is served by Mistral; one on a server you run is the
 local collector's, which reads it through harness_rows(). The plan comes from the whoami
-answer Vibe caches in whoami_cache.json. Mistral publishes no usage limits
-to read, so the record carries no meters. The agents panel only ever reads
-the JSON this prints.
+answer Vibe caches in whoami_cache.json, and the meters from Mistral's billing
+API, asked with the API key Vibe uses: the plan's monthly Vibe Code and API
+allowances. The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
@@ -25,6 +25,7 @@ import re
 import sys
 import time
 import tomllib
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -33,13 +34,17 @@ from urllib.parse import urlparse
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
 from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
   Stats,
   UsageRow,
   base_record,
   cached_scan,
   claude_code_owner,
   emit,
+  finite,
   obj,
+  open_json,
   opencode_db,
   pi_session_roots,
   read_json,
@@ -62,6 +67,12 @@ PROVIDER = "mistral"
 # The alias an unpinned Vibe config resolves to when it is configured, as
 # Vibe's own resolve_default_model_alias does.
 DEFAULT_MODEL_ALIAS = "mistral-medium-3.5"
+
+# The credential only ever goes to this fixed host, whatever api_base a Vibe
+# provider names.
+BUDGET_URL = "https://api.mistral.ai/v1/billing/budget"
+API_KEY_NAME = "MISTRAL_API_KEY"
+AUTH_HELP_BAD_KEY = "Mistral refused the API key Vibe uses. Run vibe --setup to set a new one. Local stats are still shown."
 
 # Version 1 kept only the sessions Mistral served, so it named no owner,
 # version 2 gave a mistral-backend provider to Mistral wherever its api_base
@@ -612,6 +623,117 @@ def tier_label():
   return ""
 
 
+# ---------------------------------------------------------------- limits
+
+
+def api_key():
+  """The key Vibe would send: the environment, then Vibe's .env. One Vibe keeps
+  in the system keyring isn't read, which only leaves the meters out."""
+  key = os.environ.get(API_KEY_NAME, "").strip()
+  if key:
+    return key
+  try:
+    lines = (vibe_home() / ".env").read_text(encoding="utf-8").splitlines()
+  except (OSError, UnicodeDecodeError):
+    return ""
+  for line in lines:
+    name, _, value = line.strip().removeprefix("export ").partition("=")
+    if name.strip() == API_KEY_NAME:
+      return value.strip().strip("'\"")
+  return ""
+
+
+def allowance(title, detail):
+  """One monthly allowance's window. A plan without it has no budget to measure
+  against, and Vibe shows no meter for one either. A percentage that can't be
+  trusted leaves the meter out too, as it would otherwise claim nothing is used."""
+  detail = obj(detail)
+  raw = detail.get("usage_percentage")
+  used = finite(raw)
+  if isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw != used or used < 0:
+    return []
+  if finite(detail.get("initial_budget")) <= 0:
+    return []
+  reset = detail.get("reset_at")
+  return [{
+    "label": f"{title} monthly allowance",
+    "title": title,
+    # Pay-as-you-go carries on past a full allowance, and Mistral doesn't report
+    # what it has cost, so the meter stops at full.
+    "percent": min(used / 100, 1.0),
+    "resetsAt": reset if is_moment(reset) else "",
+  }]
+
+
+def is_moment(value):
+  """Whether a reset time reads as a moment. epoch_seconds() won't do: a reset lies
+  ahead, past the bound it holds a session's start to."""
+  if not isinstance(value, str):
+    return False
+  try:
+    datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+  except ValueError:
+    return False
+  return True
+
+
+def fetch_budget(key):
+  """The allowances, as {"ok": True, "limits": [...]}, or {"ok": False, ...}
+  saying why not."""
+  request = urllib.request.Request(BUDGET_URL, headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})
+  try:
+    answer = open_json(request, timeout=15)
+  except HttpError as error:
+    if error.status == 401:
+      return {"ok": False, "refused": True, "detail": AUTH_HELP_BAD_KEY}
+    # A member without the see_org_inference_usage permission, or a plan the
+    # API doesn't serve: nothing to show, which is no trouble.
+    if error.status in (403, 404):
+      return {"ok": True, "limits": []}
+    if error.transport:
+      return {"ok": False, "transport": True, "detail": "Couldn't reach Mistral's billing API. Retrying shortly."}
+    if error.status:
+      return {"ok": False, "detail": f"Mistral's billing API returned HTTP {error.status}. Local stats are still shown."}
+    return {"ok": False, "detail": "Mistral's billing API returned an invalid response. Local stats are still shown."}
+  if not isinstance(answer, dict) or not ("vibe_budget" in answer or "api_budget" in answer):
+    return {"ok": False, "detail": "Mistral's billing API returned an invalid response. Local stats are still shown."}
+  return {"ok": True, "limits": allowance("Vibe", answer.get("vibe_budget")) + allowance("API", answer.get("api_budget"))}
+
+
+def collect_limits(key, force):
+  """The allowances now, or the last known ones past a failed check."""
+  result = {"limits": [], "live": False, "fetchedAt": 0, "usageStatusText": "", "authHelpText": "", "retryAdvised": False}
+  cache = LimitsCache(AGENT_ID, key)
+
+  def reuse():
+    result.update(limits=cache.limits, live=True, fetchedAt=cache.fetched_at)
+    return result
+
+  if cache.fresh(force, allow_empty=True):
+    return reuse()
+  with cache.lock():
+    if not force:
+      # Another run may have asked while this one waited for the lock.
+      cache.reload()
+      if cache.fresh(force, allow_empty=True):
+        return reuse()
+    probe = fetch_budget(key)
+    if probe["ok"]:
+      fetched_at = cache.save(probe["limits"], only_if_newer=True)
+      result.update(limits=probe["limits"], live=True, fetchedAt=fetched_at)
+      return result
+
+  kept, fetched_at = cache.kept()
+  result.update(limits=kept, fetchedAt=fetched_at, retryAdvised=bool(probe.get("transport")))
+  if probe.get("refused"):
+    result.update(usageStatusText="Sign-in expired", authHelpText=probe["detail"])
+  elif kept:
+    result["authHelpText"] = probe["detail"]
+  elif not cache.fetched_at:
+    result.update(usageStatusText="Mistral Vibe limits unavailable", authHelpText=probe["detail"])
+  return result
+
+
 # ---------------------------------------------------- pi, omp, and opencode
 
 
@@ -672,8 +794,8 @@ def cached_local_stats(max_age):
 
 def main():
   parser = argparse.ArgumentParser(description="Print the Mistral Vibe usage record as JSON")
-  # --force rescans everything. --limits-only only promises fresh limits, and
-  # Mistral offers none, so it reuses a scan far longer than a normal run.
+  # --force rescans and asks again. --limits-only only promises fresh limits, so
+  # it reuses a scan far longer than a normal run.
   parser.add_argument("--force", action="store_true")
   parser.add_argument("--limits-only", action="store_true")
   args = parser.parse_args()
@@ -681,13 +803,26 @@ def main():
   stats = cached_local_stats(scan_max_age(args.force, args.limits_only))
   tier = tier_label()
 
-  # Mistral publishes no usage limits, so there is nothing to wait for or
-  # fail at: the status stays empty and local stats show alone. A machine
-  # with neither Mistral usage nor a cached plan prints a record the panel
+  # With no key to read, the status stays empty and local stats show alone: Vibe
+  # may be signed in through the keyring, so it isn't waiting for anything. A
+  # machine with no key, Mistral usage or cached plan prints a record the panel
   # skips.
   in_use = stats["totalSessions"] > 0
   record = base_record(AGENT_ID, AGENT_NAME, ready=in_use or bool(tier), hasLocalStats=in_use, tierLabel=tier)
   record.update(stats)
+  key = api_key()
+  if key:
+    limits = collect_limits(key, args.force)
+    record.update(
+      ready=True,
+      limits=limits["limits"],
+      limitsStale=bool(limits["limits"]) and not limits["live"],
+      limitsFetchedAt=limits["fetchedAt"],
+      usageStatusText=limits["usageStatusText"],
+      authHelpText=limits["authHelpText"],
+    )
+    if limits["retryAdvised"]:
+      record["retryAdvised"] = True
   emit(record)
   return 0
 
