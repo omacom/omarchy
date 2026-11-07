@@ -63,6 +63,12 @@ cat > "$scratch/bin/fprintd-verify" <<'STUB'
 echo verify >> "$CALL_LOG"
 exit "${VERIFY_STATUS:-1}"
 STUB
+# Always stub listing too: setup tests must never contact the host's fprintd.
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+printf 'Fingerprints for user on Validity Fingerprint Sensor:\n'
+printf '%s\n' "${ENROLLED_FINGERS:-has no fingers enrolled}"
+STUB
 # fprintd on D-Bus: SCAN_TYPE is the default reader's scan type and READER_NAME
 # its name; with SCAN_TYPE unset, fprintd doesn't answer. Never the host's own fprintd.
 cat > "$scratch/bin/busctl" <<'STUB'
@@ -325,3 +331,21 @@ pass "a failed sudo stops setup with a reason, before enrolling"
   'Verify result: verify-unknown-error (done)' | verify_progress "Swipe it again.") == $'  Too fast. Swipe it again.\n  That one didn\'t read. Swipe it again.\n  ✗ The check stopped (verify-unknown-error).' ]] ||
   fail "any verify result that isn't done is a retry"
 pass "every retry keeps the step going, and only a finished failure says it stopped"
+
+# A working enrollment can predate authentication setup. Reusing it still
+# verifies before PAM, and an unsuccessful verify never overwrites the print.
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" ENROLLED_FINGERS=' - #0: right-index-finger' SCAN_TYPE=press VERIFY_STATUS=0 \
+  "$setup_script" > "$scratch/output" 2>&1 || fail "an existing fingerprint configures authentication"
+[[ $(grep -E '^(enroll|verify|apply-lock)$' "$CALL_LOG") == $'verify\napply-lock' ]] ||
+  fail "an existing print is verified before setup without enrollment"
+! grep -q 'first fingerprint\|until it says Enrolled\|Fingerprint enrolled successfully' "$scratch/output" ||
+  fail "reusing a print does not ask for enrollment or claim a new one"
+grep -qF "Now let's verify that it's working correctly. Touch the sensor." "$scratch/output" ||
+  fail "reusing a print keeps the reader's verify instruction"
+pass "an existing fingerprint is reused and verified without enrollment"
+
+ENROLLED_FINGERS=' - #0: right-index-finger' run_setup
+grep -qx verify "$CALL_LOG" && ! grep -qx enroll "$CALL_LOG" ||
+  fail "failed verification does not overwrite an existing enrollment"
+pass "failed verification of an existing print leaves PAM and enrollment alone"
