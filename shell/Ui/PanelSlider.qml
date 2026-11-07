@@ -26,6 +26,13 @@ Item {
   property int tickCount: 0
   property color tickColor: bar ? bar.background : Commons.Color.background
 
+  // Corner rounding for the three drawn parts. The defaults are the pill shape
+  // the panels have always used; a caller that wants square controls sets them
+  // to 0 rather than copying this component.
+  property real trackRadius: trackHeight / 2
+  property real tickRadius: 1
+  property real knobRadius: knobSize / 2
+
   onValueChanged: if (!dragging) liveValue = value
 
   signal moved(real value)
@@ -56,7 +63,7 @@ Item {
     anchors.leftMargin: root.knobSize / 2
     anchors.rightMargin: root.knobSize / 2
     height: root.trackHeight
-    radius: height / 2
+    radius: root.trackRadius
     color: root.trackColor
   }
 
@@ -81,7 +88,7 @@ Item {
       required property int index
       width: Math.max(1, Style.space(2))
       height: root.trackHeight + Style.space(4)
-      radius: 1
+      radius: root.tickRadius
       color: root.tickColor
       anchors.verticalCenter: track.verticalCenter
       x: root.trackX(index / (root.tickCount - 1)) - width / 2
@@ -92,7 +99,7 @@ Item {
     id: knob
     width: root.knobSize
     height: root.knobSize
-    radius: root.knobSize / 2
+    radius: root.knobRadius
     color: root.knobColor
     borderSpec: Border.flat(root.bar ? root.bar.background : "#101315", Math.max(1, Style.space(2)))
     anchors.verticalCenter: track.verticalCenter
