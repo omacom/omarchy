@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer has an Intel GPU limited to GLES 2.0 (Gen4/Gen5).
+
+# Intel Gen4 and Gen5 iGPUs (GM45, Ironlake, etc.) run Mesa's crocus driver,
+# which only exposes GLES 2.0 on these generations. Sandy Bridge and later are
+# excluded: they get GLES 3.0 from crocus/iris. Gen3 (Mesa's i915 driver) is
+# out of scope.
+#
+# Device IDs are sourced from Mesa's include/pci_ids/crocus_pci_ids.h.
+#
+# Read the cached sysfs IDs rather than lspci, which reads PCI config space and
+# resumes runtime-suspended GPUs.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/vendor") == "0x8086" ]] || continue
+  [[ $(< "$device/class") == 0x03* ]] || continue
+
+  case $(< "$device/device") in
+    # Gen4 i965
+    0x29a2 | 0x2992 | 0x2982 | 0x2972 | 0x2a02 | 0x2a12)
+      exit 0
+      ;;
+    # Gen4.5 g4x
+    0x2a42 | 0x2e02 | 0x2e12 | 0x2e22 | 0x2e32 | 0x2e42 | 0x2e92)
+      exit 0
+      ;;
+    # Gen5 Ironlake
+    0x0042 | 0x0046)
+      exit 0
+      ;;
+  esac
+done
+
+exit 1
