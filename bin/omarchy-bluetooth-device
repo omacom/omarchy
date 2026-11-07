@@ -29,15 +29,55 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+# Retries a failed lookup so a transient bluetoothd hiccup is never read as device
+# state. Returns 2 only when BlueZ positively reports the device as uncached.
+device_lookup() {
+  local attempt output
+  for attempt in 1 2 3; do
+    if output=$(timeout 2s bluetoothctl info "$address" 2>&1); then
+      printf '%s\n' "$output"
+      return 0
+    fi
+    # Only this exact line means uncached; "DeviceSet <address> not available" is an adapter error.
+    [[ $'\n'$output == *$'\n'"Device $address not available"* ]] && return 2
+    sleep 1
+  done
+  return 1
+}
+
+# Paired can describe temporary encryption; only Bonded means saved keys.
+if [[ $action == "pair" || $action == "connect" ]]; then
+  power_on
+  lookup_status=0
+  device_info=$(device_lookup) || lookup_status=$?
+  if (( lookup_status == 1 )); then
+    # Guessing either way can loop an unbonded device or untrust a bonded one.
+    echo "Could not read Bluetooth state for $address" >&2
+    exit 1
+  elif [[ $device_info == *$'\n\tBonded: yes\n'* ]]; then
+    action=connect
+  else
+    action=pair
+  fi
+fi
+
 case "$action" in
   pair)
-    power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
+    systemctl --user start bt-agent.service
+    timeout 10s bluetoothctl untrust "$address" >/dev/null 2>&1 || true
+    # Clear temporary encryption so Pair negotiates saved keys.
+    if [[ $device_info == *$'\n\tPaired: yes\n'* ]]; then
+      timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
+    fi
+    timeout 20s bluetoothctl pair "$address" >/dev/null
+    if [[ $(device_lookup) != *$'\n\tBonded: yes\n'* ]]; then
+      echo "Bluetooth pairing did not save a bond for $address" >&2
+      exit 1
+    fi
     trust_device
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
     ;;
   connect)
-    power_on
     trust_device
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
     ;;
