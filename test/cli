@@ -63,6 +63,14 @@ pass "main help does not show group counts"
 output=$("$CLI" commands)
 assert_output_contains "commands lists documented commands" "$output" "omarchy theme set <theme-name>"
 
+output=$(COLUMNS=120 "$CLI" commands)
+row=$(grep -m1 '^  omarchy theme set <theme-name> ' <<<"$output")
+if [[ $row =~ ^("  omarchy theme set <theme-name>"[ ]+) ]] && (( ${#BASH_REMATCH[1]} <= 64 )); then
+  pass "commands keeps summaries within half the terminal width"
+else
+  fail "commands keeps summaries within half the terminal width"
+fi
+
 "$CLI" commands --json | jq -e '.ok == true and (.commands | length >= 200)' >/dev/null
 pass "commands --json is valid JSON with full bin coverage"
 
