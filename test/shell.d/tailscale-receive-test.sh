@@ -34,7 +34,8 @@ receive() {
   shift
 
   rm -f "$WORKDIR/notifications/"*
-  OMARCHY_PATH="$ROOT" PATH="$WORKDIR/bin:$ROOT/bin:$PATH" "$@" "$ROOT/bin/omarchy-tailscale-receive" --once "$downloads"
+  # A HOME of its own, or a TMPDIR under the real one shortens every save path to ~.
+  HOME="$WORKDIR/home" OMARCHY_PATH="$ROOT" PATH="$WORKDIR/bin:$ROOT/bin:$PATH" "$@" "$ROOT/bin/omarchy-tailscale-receive" --once "$downloads"
 
   for _ in {1..50}; do
     (($(find "$WORKDIR/notifications" -type f | wc -l) >= expected)) && break
