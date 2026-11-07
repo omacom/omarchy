@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Print when the boot splash's progress bar started filling
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Omarchy's Plymouth theme shows its progress bar only after the disk password,
+# and fakes its progress from the moment the password is entered. Plymouth
+# cannot hand that moment over, so the login cover estimates it to carry the bar
+# on, in milliseconds since the epoch so a reader busy starting up still gets
+# the moment right. Prints nothing when no password was asked, as Plymouth then
+# drew no bar.
+root=${OMARCHY_SYSTEM_ROOT:-}
+
+# The encrypt hook asks for the password unless a key file opens the disk:
+# one named on the kernel line, or the /crypto_keyfile.bin it tries on its own.
+# It runs before systemd, which keeps no record of it, so the disk opened just
+# before systemd started on the real root. A systemd initramfs, which names its
+# disks with rd.luks instead, shows no bar here.
+cmdline=" $(<"$root/proc/cmdline") "
+if [[ $cmdline != *" cryptdevice="* || $cmdline == *" cryptkey="* || -e $root/crypto_keyfile.bin ]]; then
+  exit 0
+fi
+
+# The uptime below counts time asleep and systemd's timestamp does not, so a
+# machine suspended since boot can no longer place the start.
+if (( $(cat "$root/sys/power/suspend_stats/success" 2>/dev/null || echo 0) > 0 )); then
+  exit 0
+fi
+started=$(systemctl show -p UserspaceTimestampMonotonic --value)
+(( started > 0 )) || exit 0
+
+# Opening the disk is one argon2id derivation, which Omarchy's installer and
+# omarchy-drive-password both size to take 2 s.
+now=$EPOCHREALTIME
+read -r uptime _ <"$root/proc/uptime"
+awk -v now="$now" -v uptime="$uptime" -v started="$started" 'BEGIN { printf "%.0f\n", (now - uptime + started / 1000000 - 2) * 1000 }'

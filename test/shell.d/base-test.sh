@@ -33,6 +33,10 @@ unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
 # into tests of agent accounts the same way.
 unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
 
+# The session's boot splash colour would put a test shell's startup cover on
+# the boot splash, with the machine's own progress bar to fill.
+unset OMARCHY_SPLASH_BACKGROUND
+
 pass() {
   printf 'ok - %s\n' "$1"
 }

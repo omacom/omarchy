@@ -10,7 +10,7 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/services" "$stage/bin" "$stage/home"
 printf 'P6\n1 1\n255\n\377\377\377' >"$stage/cover.ppm"
-cp "$ROOT/shell/services/BackgroundIntro.qml" "$stage/services/"
+cp "$ROOT/shell/services/BackgroundIntro.qml" "$ROOT/shell/services/BootSplash.js" "$stage/services/"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/shell.qml" "$stage/shell.qml"
 # The launcher ends after 2 s, or, with INTRO_TEST_LAUNCHER_RELEASE, once the
@@ -90,7 +90,7 @@ pass "a finished switch keeps its cover until OWE hands back a decoded still"
 require_command magick
 switch="$stage/switch"
 mkdir -p "$switch/services" "$switch/bin" "$switch/home/.local/state/omarchy/current" "$switch/media/intros"
-cp "$ROOT/shell/services/BackgroundIntro.qml" "$ROOT/shell/services/BackgroundSwitch.qml" "$switch/services/"
+cp "$ROOT/shell/services/BackgroundIntro.qml" "$ROOT/shell/services/BackgroundSwitch.qml" "$ROOT/shell/services/BootSplash.js" "$switch/services/"
 ln -s "$ROOT/shell/Commons" "$switch/Commons"
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/switch-sequence.qml" "$switch/shell.qml"
 for name in old new plain other frame; do
