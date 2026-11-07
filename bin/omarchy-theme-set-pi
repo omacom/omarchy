@@ -56,7 +56,9 @@ write_setting_theme() {
   if [[ -f $PI_SETTINGS_PATH ]]; then
     tmp=$(mktemp "$PI_SETTINGS_PATH.XXXXXX")
     jq '.theme = "omarchy-system"' "$PI_SETTINGS_PATH" >"$tmp"
-    mv "$tmp" "$PI_SETTINGS_PATH"
+    # Write through a dotfile symlink instead of replacing its directory entry.
+    cat "$tmp" >"$PI_SETTINGS_PATH"
+    rm -f "$tmp"
   else
     cat >"$PI_SETTINGS_PATH" <<EOF
 {
@@ -73,4 +75,5 @@ mv "$tmp" "$PI_THEME_PATH"
 
 if (( PI_ACTIVATE == 1 )); then
   write_setting_theme
+  omarchy-done mark theme-activate-pi
 fi
