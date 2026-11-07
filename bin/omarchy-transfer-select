@@ -1,0 +1,254 @@
+#!/bin/bash
+
+# omarchy:summary=Choose what to export in a transfer archive
+
+set -euo pipefail
+
+source omarchy-transfer-functions
+
+FOLDER_ICON=$'\U000f024b'
+FILE_ICON=$'\U000f0214'
+SECRET_ICON=$'\U000f0306'
+PACKAGE_ICON=$'\U000f03d3'
+WIFI_ICON=$'\U000f05a9'
+LOCK_ICON=$'\U000f033e'
+START_ICON=$'\U000f0207'
+CONFIG_ICON=$'\U000f0493'
+
+START_LABEL="Start Export"
+NEXT_LABEL="Next"
+BACK_LABEL="Back"
+CONFIG_LABEL="Open Config File"
+EXPORT_NOW_LABEL="Export with Config"
+STEPS_LABEL="Choose Step by Step"
+STEP_ICON=$'\U000f0054'
+BACK_ICON=$'\U000f004d'
+
+declare -A PAGE_TITLE=([settings]="Settings" [files]="Files" [secrets]="Keys & Secrets" [options]="Options")
+PAGE_ORDER=(settings files secrets options)
+
+# Which wizard page a config path belongs to: settings, files or secrets.
+transfer_category() {
+  local path=${1#./}
+  path=${path%/}
+  if transfer_is_secret "$path"; then
+    echo secrets
+    return
+  fi
+  case $path in
+    .config|.config/*|.local/share/applications|.local/share/applications/*|.local/share/fonts|.local/share/fonts/*|.local/share/icons|.local/share/icons/*) echo settings ;;
+    .bashrc|.bash_profile|.zshrc|.profile|.inputrc|.gitconfig) echo settings ;;
+    *) echo files ;;
+  esac
+}
+
+declare -A OPTION_LABEL=(
+  [packages]="Package lists"
+  [wifi]="Wi-Fi networks"
+  [encrypt]="Encrypt archive"
+)
+declare -A OPTION_SUBTEXT=(
+  [packages]="Official and AUR package lists"
+  [wifi]="Needs sudo and encryption"
+  [encrypt]="Required for secrets and Wi-Fi"
+)
+declare -A OPTION_ICON=(
+  [packages]=$PACKAGE_ICON
+  [wifi]=$WIFI_ICON
+  [encrypt]=$LOCK_ICON
+)
+OPTION_KEYS=(packages wifi encrypt)
+
+option_value() {
+  case "$1" in
+    packages) echo "$OPT_PACKAGES" ;;
+    wifi) echo "$OPT_WIFI" ;;
+    encrypt) echo "$OPT_ENCRYPT" ;;
+  esac
+}
+
+# Print "<path>\t<size>" for every include entry, measuring in parallel.
+entry_sizes() {
+  # shellcheck disable=SC2016
+  printf '%s\0' "$@" | xargs -0 -P 8 -I{} bash -c '
+    p=$HOME/$1
+    if [[ -e $p || -L $p ]]; then
+      s=$(timeout 2 du -sh -- "$p" 2>/dev/null | cut -f1) || s=""
+      printf "%s\t%s\n" "$1" "${s:-size unknown}"
+    else
+      printf "%s\tnot present\n" "$1"
+    fi
+  ' _ {}
+}
+
+# Apply the ticked rows of one page: only that page's entries (or options) change.
+apply_selection() {
+  local page=$1 json=${2:-[]} label state path key want
+  local -A picked=()
+
+  while IFS= read -r label; do
+    picked[$label]=1
+  done < <(jq -r '.[] | split("\t")[0]' <<<"$json")
+
+  transfer_load_conf
+
+  if [[ $page == "options" ]]; then
+    for key in "${OPTION_KEYS[@]}"; do
+      if [[ -n ${picked[${OPTION_LABEL[$key]}]:-} ]]; then want=yes; else want=no; fi
+      [[ $(option_value "$key") == "$want" ]] || transfer_conf_set_option "$key" "$want"
+    done
+    return 0
+  fi
+
+  while IFS=$'\t' read -r state path; do
+    [[ -n $path ]] || continue
+    [[ $(transfer_category "$path") == "$page" ]] || continue
+    if [[ -n ${picked[$path]:-} ]]; then want=on; else want=off; fi
+    [[ $state == "$want" ]] || transfer_conf_set_include "$path" "$want"
+  done < <(transfer_conf_entries)
+}
+
+launch_export() {
+  setsid -f omarchy-launch-floating-terminal-with-presentation omarchy-transfer-export >/dev/null 2>&1
+}
+
+launch_config() {
+  setsid -f omarchy-transfer-config >/dev/null 2>&1
+}
+
+# Pages with entries, in order, from the freshly loaded config: sets PAGES and ENTRY_STATE/ENTRY_PATHS per page.
+load_pages() {
+  local state path page
+  transfer_load_conf
+  PAGES=()
+  declare -gA PAGE_ENTRIES=() PAGE_STATES=()
+  while IFS=$'\t' read -r state path; do
+    [[ -n $path ]] || continue
+    page=$(transfer_category "$path")
+    PAGE_ENTRIES[$page]+="$path"$'\n'
+    PAGE_STATES[$page]+="$state"$'\n'
+  done < <(transfer_conf_entries)
+  for page in "${PAGE_ORDER[@]}"; do
+    if [[ $page == "options" || -n ${PAGE_ENTRIES[$page]:-} ]]; then PAGES+=("$page"); fi
+  done
+}
+
+load_sizes() {
+  local path size
+  [[ -s $SIZE_FILE ]] || return 0
+  while IFS=$'\t' read -r path size; do
+    SIZE[$path]=$size
+  done <"$SIZE_FILE"
+}
+
+# Show one step page; prints the chosen action label (empty and non-zero on Escape).
+show_page() {
+  local idx=$1 total=$2 page=$3
+  local -a paths states rows selected actions
+  local i path icon subtext key
+
+  if [[ $page == "options" ]]; then
+    for key in "${OPTION_KEYS[@]}"; do
+      rows+=("${OPTION_ICON[$key]}"$'\t'"${OPTION_LABEL[$key]}"$'\t'"${OPTION_SUBTEXT[$key]}")
+      [[ $(option_value "$key") == yes ]] && selected+=(--selected "${OPTION_LABEL[$key]}"$'\t'"${OPTION_SUBTEXT[$key]}")
+    done
+  else
+    mapfile -t paths <<<"${PAGE_ENTRIES[$page]%$'\n'}"
+    mapfile -t states <<<"${PAGE_STATES[$page]%$'\n'}"
+    load_sizes
+    for i in "${!paths[@]}"; do
+      path=${paths[i]}
+      subtext=${SIZE[$path]:-size unknown}
+      if [[ $page == "secrets" ]]; then
+        icon=$SECRET_ICON
+        subtext="Needs encryption, $subtext"
+      elif [[ -d $HOME/$path ]]; then
+        icon=$FOLDER_ICON
+      else
+        icon=$FILE_ICON
+      fi
+      rows+=("$icon"$'\t'"$path"$'\t'"$subtext")
+      [[ ${states[i]} == on ]] && selected+=(--selected "$path"$'\t'"$subtext")
+    done
+  fi
+
+  if (( idx == total )); then
+    actions=(--action "$START_ICON"$'\t'"$START_LABEL")
+  else
+    actions=(--action "$STEP_ICON"$'\t'"$NEXT_LABEL")
+  fi
+  (( idx > 1 )) && actions+=(--action "$BACK_ICON"$'\t'"$BACK_LABEL")
+  actions+=(--action "$CONFIG_ICON"$'\t'"$CONFIG_LABEL")
+
+  local on_change
+  on_change=$(jq -nc --arg page "$page" '["omarchy-transfer-select", "--apply", $page]')
+
+  printf '%s\n' "${rows[@]}" | omarchy-menu-select "Export $idx/$total · ${PAGE_TITLE[$page]}" -- --width 440 --multiple "${selected[@]}" --on-change "$on_change" --change-key omarchy-transfer-select "${actions[@]}"
+}
+
+wizard() {
+  local idx=1 choice
+
+  SIZE_FILE=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/omarchy-transfer-sizes.XXXXXX")
+  trap 'rm -f -- "$SIZE_FILE"' EXIT
+  declare -gA SIZE=()
+
+  local -a all_paths=()
+  local state path
+  transfer_load_conf
+  while IFS=$'\t' read -r state path; do
+    [[ -n $path ]] && all_paths+=("$path")
+  done < <(transfer_conf_entries)
+  if (( ${#all_paths[@]} > 0 )); then
+    entry_sizes "${all_paths[@]}" >"$SIZE_FILE" 2>/dev/null &
+    disown
+  fi
+
+  choice=$(printf '%s\n' \
+    "$START_ICON"$'\t'"$EXPORT_NOW_LABEL"$'\t'"Use the config file as it is" \
+    "$STEP_ICON"$'\t'"$STEPS_LABEL"$'\t'"Review settings, files, keys, options" \
+    "$CONFIG_ICON"$'\t'"$CONFIG_LABEL"$'\t'"Edit includes and excludes by hand" |
+    omarchy-menu-select "Export" -- --width 440) || return 0
+
+  choice=${choice%%$'\t'*}
+
+  case $choice in
+    "$EXPORT_NOW_LABEL") launch_export; return 0 ;;
+    "$CONFIG_LABEL") launch_config; return 0 ;;
+    "$STEPS_LABEL") ;;
+    *) return 0 ;;
+  esac
+
+  while true; do
+    load_pages
+    (( idx > ${#PAGES[@]} )) && idx=${#PAGES[@]}
+    (( idx >= 1 )) || idx=1
+    choice=$(show_page "$idx" "${#PAGES[@]}" "${PAGES[idx-1]}") || return 0
+    choice=${choice%%$'\t'*}
+    case $choice in
+      "$NEXT_LABEL") idx=$((idx + 1)) ;;
+      "$BACK_LABEL") idx=$((idx - 1)) ;;
+      "$START_LABEL") launch_export; return 0 ;;
+      "$CONFIG_LABEL") launch_config; return 0 ;;
+      *) return 0 ;;
+    esac
+  done
+}
+
+main() {
+  if [[ ${1:-} == "--apply" ]]; then
+    apply_selection "${2:?page required}" "${3:-[]}"
+    return 0
+  fi
+
+  if (( $# > 0 )); then
+    echo "Usage: omarchy transfer select" >&2
+    return 1
+  fi
+
+  wizard
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

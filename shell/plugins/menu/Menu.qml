@@ -81,6 +81,9 @@ Item {
   property var dmenuSaved: []
   property string dmenuChangeKey: ""
   property var dmenuOnChange: []
+  property var dmenuActions: []
+  property string dmenuPendingAction: ""
+  property bool dmenuActionPending: false
   property string selectionFile: ""
   property string doneFile: ""
   property int dmenuWidth: 300
@@ -680,6 +683,32 @@ Item {
       })
     }
 
+    // Action rows follow the options with their own glyph and no checkmark.
+    // They are never filtered out and return just their label.
+    for (var a = 0; a < root.dmenuActions.length; a++) {
+      var actionParts = String(root.dmenuActions[a] || "").split("\t")
+      var actionIcon = actionParts.length > 1 ? actionParts.shift() : ""
+      var actionLabel = actionParts.shift() || ""
+      displayModel.append({
+        itemId: "dmenu.action." + a,
+        disabled: false,
+        kind: "dmenu",
+        icon: actionIcon,
+        iconFont: "",
+        appIcon: "",
+        appId: "",
+        label: actionLabel,
+        target: "",
+        detail: actionParts.join("\t"),
+        path: "",
+        childCount: 0,
+        action: "",
+        provider: "",
+        score: root.dmenuOptions.length + a,
+        section: ""
+      })
+    }
+
     layoutSerial += 1
 
     if (displayModel.count === 0) selectedIndex = 0
@@ -695,8 +724,8 @@ Item {
     for (var i = 0; i < displayModel.count; i++) {
       var row = displayModel.get(i)
       if (row.itemId === "dmenu.apply") {
-        displayModel.setProperty(i, "detail", Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)))
-      } else if (row.kind === "dmenu") {
+        displayModel.setProperty(i, "detail", root.dmenuSelected.length + " selected")
+      } else if (row.kind === "dmenu" && row.itemId.indexOf("dmenu.action.") !== 0) {
         var value = MenuModel.dmenuValue(root.dmenuOptions[Number(row.itemId.substring(6))])
         displayModel.setProperty(i, "icon", root.dmenuSelected.indexOf(value) !== -1 ? "✓" : "○")
       }
@@ -869,6 +898,8 @@ Item {
       if (root.dmenuMultiple) {
         if (picked.itemId === "dmenu.apply") {
           root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
+        } else if (picked.itemId.indexOf("dmenu.action.") === 0) {
+          root.finishDmenuAction(picked.label)
         } else {
           var value = MenuModel.dmenuValue(root.dmenuOptions[Number(picked.itemId.substring(6))])
           var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(), value)
@@ -935,6 +966,17 @@ Item {
     root.finishRequest(value)
   }
 
+  // With --on-change, wait for the queued change commands so the last toggle
+  // is written before the action is returned.
+  function finishDmenuAction(label) {
+    if (root.dmenuOnChange.length > 0 && (selectionProc.running || selectionProc.queue.length > 0)) {
+      root.dmenuPendingAction = label
+      root.dmenuActionPending = true
+      return
+    }
+    root.applyDmenuSelection(label)
+  }
+
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
@@ -982,6 +1024,9 @@ Item {
     dmenuMultiple = mode === "select" && payload.multiple === true
     dmenuOnChange = dmenuMultiple && Array.isArray(payload.onChange)
       && payload.onChange.every(function(arg) { return typeof arg === "string" }) ? payload.onChange : []
+    dmenuActions = dmenuMultiple && Array.isArray(payload.actions) ? payload.actions : []
+    dmenuActionPending = false
+    dmenuPendingAction = ""
     dmenuChangeKey = String(payload.changeKey || JSON.stringify(dmenuOnChange))
     dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, Array.isArray(payload.selected) ? payload.selected : [], dmenuOnChange.length > 0)
     dmenuSaved = dmenuSelected
@@ -1120,6 +1165,10 @@ Item {
         root.updateDmenuChecks()
       }
       startNext()
+      if (root.dmenuActionPending && !running && queue.length === 0) {
+        root.dmenuActionPending = false
+        if (root.dmenuActive) root.applyDmenuSelection(root.dmenuPendingAction)
+      }
     }
   }
 

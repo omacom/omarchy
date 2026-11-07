@@ -1,0 +1,444 @@
+#!/bin/bash
+
+# omarchy:summary=Export packages, configs and files into one archive for a new install
+# omarchy:args=[--dry-run] [<target-dir>]
+# omarchy:examples=omarchy transfer export --dry-run | omarchy transfer export /run/media/$USER/USB
+
+set -euo pipefail
+
+source omarchy-transfer-functions
+
+dry_run=false
+target=""
+problems=0
+
+while (( $# > 0 )); do
+  case $1 in
+    --dry-run)
+      dry_run=true
+      ;;
+    -h|--help)
+      echo "Usage: omarchy-transfer-export [--dry-run] [<target-dir>]"
+      exit 0
+      ;;
+    -*)
+      transfer_die "Unknown option: $1"
+      ;;
+    *)
+      [[ -z $target ]] || transfer_die "Only one target directory allowed"
+      target=$1
+      ;;
+  esac
+  shift
+done
+
+(( EUID != 0 )) || transfer_die "Do not run as root. Run it as the user whose files you want to export."
+
+# Report a blocking problem: fatal normally, collected during a dry run.
+problem() {
+  if [[ $dry_run == true ]]; then
+    printf 'Problem: %s\n' "$*"
+    problems=$((problems + 1))
+  else
+    transfer_die "$*"
+  fi
+}
+
+transfer_load_conf
+
+# Standalone restore tool and instructions, embedded in the archive and written next to it.
+COMPANION_RESTORE=omarchy-transfer-restore.sh
+COMPANION_README=omarchy-transfer-README.txt
+restore_src=${OMARCHY_PATH:-}/default/transfer/restore.sh
+readme_src=${OMARCHY_PATH:-}/default/transfer/README.txt
+
+for cmd in tar zstd; do
+  omarchy-cmd-present "$cmd" || transfer_die "Missing required command: $cmd"
+done
+
+if [[ $OPT_ENCRYPT == yes ]]; then
+  omarchy-cmd-present age || transfer_die "Missing required command: age (needed for encryption)"
+  if ! ( : </dev/tty ) 2>/dev/null; then
+    if [[ $dry_run == true ]]; then
+      transfer_warn "Encryption asks for a passphrase and needs a terminal"
+    else
+      transfer_die "Encryption asks for a passphrase and needs a terminal. Set encrypt = no in $TRANSFER_CONF or run from a terminal."
+    fi
+  fi
+fi
+
+# Ask for the target when none was given.
+if [[ -z $target ]]; then
+  [[ -t 0 && -t 2 ]] || transfer_die "No target directory given. Usage: omarchy-transfer-export [--dry-run] <target-dir>"
+  omarchy-cmd-present gum || transfer_die "Missing required command: gum"
+  downloads=$(xdg-user-dir DOWNLOAD 2>/dev/null || true)
+  [[ -n $downloads && $downloads != "$HOME" ]] || downloads=$HOME/Downloads
+  mounts=("$downloads")
+  shopt -s nullglob
+  for dir in "/run/media/$USER"/*/; do
+    mounts+=("${dir%/}")
+  done
+  shopt -u nullglob
+  other="Other path…"
+  choice=$(gum choose --header "Export to" "${mounts[@]}" "$other") || exit 1
+  if [[ $choice == "$other" ]]; then
+    target=$(gum input --placeholder "/path/to/folder") || exit 1
+  else
+    target=$choice
+  fi
+  [[ -n $target ]] || transfer_die "No target directory given"
+fi
+
+# shellcheck disable=SC2088
+if [[ $target == '~' ]]; then
+  target=$HOME
+elif [[ $target == '~/'* ]]; then
+  target=$HOME/${target#'~/'}
+fi
+
+home_real=$(realpath -- "$HOME")
+target_real=$(realpath -m -- "$target")
+
+# Keep only include paths that exist, and secrets only when encrypting.
+includes=()
+for path in "${INCLUDES[@]}"; do
+  if [[ $OPT_ENCRYPT != yes ]] && transfer_is_secret "$path"; then
+    transfer_warn "Encryption is off, dropping secret path: $path"
+  elif [[ $path == "." ]]; then
+    while IFS= read -r -d '' entry; do
+      includes+=("$entry")
+    done < <(cd "$HOME" && find . -mindepth 1 -maxdepth 1 -printf '%P\0')
+  elif [[ -e $HOME/$path || -L $HOME/$path ]]; then
+    includes+=("$path")
+  else
+    transfer_info "Skipping missing path: $path"
+  fi
+done
+
+use_packages=false
+if [[ $OPT_PACKAGES == yes ]]; then
+  if omarchy-cmd-present pacman; then
+    use_packages=true
+  else
+    transfer_warn "pacman not found, skipping package lists"
+  fi
+fi
+
+use_wifi=false
+wifi_backend=none
+wifi_dir=""
+wifi_note=""
+if [[ $OPT_WIFI == yes ]]; then
+  if [[ $OPT_ENCRYPT != yes ]]; then
+    wifi_note="needs encrypt = yes"
+  else
+    wifi_backend=$(transfer_wifi_backend)
+    case $wifi_backend in
+      networkmanager) wifi_dir=${OMARCHY_TRANSFER_NM_DIR:-/etc/NetworkManager/system-connections} ;;
+      iwd) wifi_dir=${OMARCHY_TRANSFER_IWD_DIR:-/var/lib/iwd} ;;
+      *) wifi_note="neither NetworkManager nor iwd is running" ;;
+    esac
+    if [[ -n $wifi_dir ]]; then
+      if [[ -d $wifi_dir ]]; then
+        use_wifi=true
+      else
+        wifi_note="$wifi_dir not found"
+        wifi_backend=none
+      fi
+    fi
+  fi
+  if [[ $use_wifi == false ]]; then
+    transfer_warn "Skipping Wi-Fi: $wifi_note"
+  fi
+fi
+
+if (( ${#includes[@]} > 0 )); then
+  mapfile -t includes < <(printf '%s\n' "${includes[@]}" | awk '!seen[$0]++')
+fi
+
+(( ${#includes[@]} > 0 )) || [[ $use_packages == true || $use_wifi == true ]] || transfer_die "Nothing to export"
+
+# Query package lists once.
+pkg_official=""
+pkg_aur=""
+official_count=0
+aur_count=0
+if [[ $use_packages == true ]]; then
+  pkg_official=$(pacman -Qqen | grep -v -- '-debug$' || true)
+  pkg_aur=$(pacman -Qqem | grep -v -- '-debug$' || true)
+  [[ -z $pkg_official ]] || official_count=$(wc -l <<<"$pkg_official")
+  [[ -z $pkg_aur ]] || aur_count=$(wc -l <<<"$pkg_aur")
+fi
+
+# Tar exclude arguments. Names are archived as ./path, so each pattern gets both forms.
+tar_excludes=(--no-anchored "--exclude=omarchy-transfer-*.tar.zst*" "--exclude=.omarchy-transfer-*.tar.zst*")
+du_excludes=("--exclude=omarchy-transfer-*.tar.zst*" "--exclude=.omarchy-transfer-*.tar.zst*")
+listed_excludes=("omarchy-transfer-*.tar.zst*")
+# The companion files written next to the archive never go into one.
+for companion in "$COMPANION_RESTORE" "$COMPANION_README"; do
+  for pattern in "$companion" ".$companion.part"; do
+    tar_excludes+=("--exclude=$pattern")
+    du_excludes+=("--exclude=$pattern")
+  done
+  listed_excludes+=("$companion")
+done
+
+target_rel=""
+if [[ $target_real == "$home_real"/* ]]; then
+  target_rel=${target_real#"$home_real"/}
+  tar_excludes+=(--anchored "--exclude=$target_rel" "--exclude=./$target_rel")
+  du_excludes+=("--exclude=$target_rel")
+  listed_excludes+=("$target_rel (export target)")
+fi
+
+if [[ $OPT_ENCRYPT != yes ]]; then
+  for secret in "${TRANSFER_SECRETS[@]}"; do
+    tar_excludes+=(--anchored "--exclude=$secret" "--exclude=./$secret")
+    du_excludes+=("--exclude=$secret")
+  done
+fi
+
+for pattern in "${EXCLUDES[@]}"; do
+  pattern=${pattern#./}
+  [[ -n $pattern ]] || continue
+  if [[ $pattern == */* && $pattern != "*"* ]]; then
+    tar_excludes+=(--anchored "--exclude=$pattern" "--exclude=./$pattern")
+  else
+    tar_excludes+=(--no-anchored "--exclude=$pattern" "--exclude=./$pattern")
+  fi
+  du_excludes+=("--exclude=$pattern")
+  listed_excludes+=("$pattern")
+done
+
+# Estimate the source size (pessimistic, the archive is compressed).
+estimate=1
+if (( ${#includes[@]} > 0 )); then
+  estimate=$(cd "$HOME" && du -scb "${du_excludes[@]}" -- "${includes[@]}" 2>/dev/null | tail -n 1 | cut -f1 || true)
+  estimate=${estimate:-1}
+  (( estimate >= 1 )) || estimate=1
+fi
+
+stamp=$(date +%Y%m%d-%H%M%S)
+host=$(uname -n)
+host=${host//[^A-Za-z0-9._-]/_}
+name="omarchy-transfer-$host-$stamp.tar.zst"
+[[ $OPT_ENCRYPT == yes ]] && name+=".age"
+out="$target_real/$name"
+
+# Free space and filesystem limits, checked on the nearest existing parent of the target.
+probe=$target_real
+while [[ ! -d $probe && $probe != "/" ]]; do
+  probe=$(dirname -- "$probe")
+done
+free=$(df -B1 --output=avail -- "$probe" | tail -n 1 | tr -d ' ')
+if (( free < estimate )); then
+  problem "Not enough free space in $target_real: $(transfer_human "$free") free, up to $(transfer_human "$estimate") needed"
+fi
+fstype=$(stat -f -c %T -- "$probe" 2>/dev/null || true)
+if [[ $fstype == msdos || $fstype == vfat ]] && (( estimate > 4294967295 )); then
+  problem "$target_real is FAT32, which cannot hold files over 4 GiB (estimated $(transfer_human "$estimate")). Use an exFAT or ext4 target."
+fi
+
+if (( estimate > 3221225472 )); then
+  transfer_warn "Large archive (about $(transfer_human "$estimate") before compression). Switch off big folders with Super + Space > Setup > Transfer > Choose What to Export."
+fi
+
+if [[ $dry_run == true ]]; then
+  echo "Include:"
+  (( ${#includes[@]} == 0 )) || printf '  %s\n' "${includes[@]}"
+  echo "Exclude:"
+  printf '  %s\n' "${listed_excludes[@]}"
+  echo "Estimated size: $(transfer_human "$estimate")"
+  if [[ $use_packages == true ]]; then
+    echo "Packages: $official_count official, $aur_count AUR"
+  else
+    echo "Packages: no"
+  fi
+  if [[ $use_wifi == true ]]; then
+    echo "Wi-Fi: yes ($wifi_backend, $wifi_dir)"
+  elif [[ -n $wifi_note ]]; then
+    echo "Wi-Fi: no ($wifi_note)"
+  else
+    echo "Wi-Fi: no"
+  fi
+  echo "Encrypted: $OPT_ENCRYPT"
+  echo "Output: $out"
+  echo "Output: $target_real/$COMPANION_RESTORE"
+  echo "Output: $target_real/$COMPANION_README"
+  (( problems == 0 )) || exit 1
+  exit 0
+fi
+
+mkdir -p -- "$target" || transfer_die "Cannot create $target"
+target_real=$(realpath -- "$target")
+out="$target_real/$name"
+[[ ! -e $out ]] || transfer_die "Archive already exists: $out (wait a second and retry)"
+
+# Metadata and Wi-Fi go through a private runtime directory, never through the target.
+base=${OMARCHY_TRANSFER_TMPDIR:-}
+if [[ -z $base ]]; then
+  if [[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR && -w $XDG_RUNTIME_DIR ]]; then
+    base=$XDG_RUNTIME_DIR
+  else
+    base=$HOME/.cache/omarchy
+  fi
+fi
+mkdir -p -- "$base" || transfer_die "Cannot create $base"
+work=$(mktemp -d "$base/transfer-export.XXXXXX") || transfer_die "Cannot create a working directory in $base"
+chmod 700 "$work"
+transfer_cleanup_register "$work"
+
+# The working directory may live inside $HOME (cache fallback); never archive it.
+work_real=$(realpath -- "$work")
+if [[ $work_real == "$home_real"/* ]]; then
+  tar_excludes+=(--anchored "--exclude=${work_real#"$home_real"/}" "--exclude=./${work_real#"$home_real"/}")
+fi
+
+part="$target_real/.$name.part"
+transfer_cleanup_register "$part"
+
+meta_dir=$work/omarchy-transfer
+mkdir -p "$meta_dir"
+tar_members=(-C "$work" omarchy-transfer)
+
+if [[ $use_packages == true ]]; then
+  printf '%s\n' "$pkg_official" | sed '/^$/d' >"$meta_dir/packages-official.txt"
+  printf '%s\n' "$pkg_aur" | sed '/^$/d' >"$meta_dir/packages-aur.txt"
+  transfer_info "Package lists: $official_count official, $aur_count AUR"
+fi
+
+if [[ $use_wifi == true ]]; then
+  transfer_info "Archiving Wi-Fi settings (sudo)"
+  mkdir -p "$work/wifi/$wifi_backend"
+  chmod 700 "$work/wifi" "$work/wifi/$wifi_backend"
+  sudo tar -C "$wifi_dir" -cf - . | tar -C "$work/wifi/$wifi_backend" --no-same-owner -xf - || transfer_die "Could not read Wi-Fi settings from $wifi_dir"
+  chmod -R u+rwX,go-rwx "$work/wifi"
+  tar_members+=(-C "$work" wifi)
+fi
+
+# Files that were still the unmodified Omarchy default at export time.
+list_pristine() {
+  local rel src inc candidate_file=$work/candidates
+  : >"$candidate_file"
+  {
+    [[ ! -d $TRANSFER_SKEL ]] || (cd "$TRANSFER_SKEL" && find . -type f -printf '%P\0')
+    [[ ! -d ${OMARCHY_PATH:-}/config ]] || (cd "$OMARCHY_PATH/config" && find . -type f -printf '.config/%P\0')
+  } | sort -zu | while IFS= read -r -d '' rel; do
+    [[ -f $HOME/$rel && ! -L $HOME/$rel ]] || continue
+    for inc in "${includes[@]}"; do
+      if [[ $rel == "$inc" || $rel == "$inc"/* ]]; then
+        src=$(transfer_default_source "$rel") || continue 2
+        if cmp -s -- "$HOME/$rel" "$src"; then
+          printf './%s\0' "$rel"
+        fi
+        continue 2
+      fi
+    done
+  done >"$candidate_file"
+  [[ -s $candidate_file ]] || return 0
+  # Let tar apply the exact exclude rules the export uses.
+  tar -C "$HOME" -cvf /dev/null --null -T "$candidate_file" "${tar_excludes[@]}" 2>/dev/null | sed 's,^\./,,' || true
+}
+
+if (( ${#includes[@]} > 0 )); then
+  list_pristine >"$meta_dir/pristine.list"
+else
+  : >"$meta_dir/pristine.list"
+fi
+
+cp -- "$TRANSFER_CONF" "$meta_dir/transfer.conf"
+
+have_restore=false
+have_readme=false
+if [[ -f $restore_src ]]; then
+  cp -- "$restore_src" "$meta_dir/restore.sh"
+  chmod 755 "$meta_dir/restore.sh"
+  have_restore=true
+else
+  transfer_warn "restore.sh not found at $restore_src, skipping it"
+fi
+if [[ -f $readme_src ]]; then
+  cp -- "$readme_src" "$meta_dir/README.txt"
+  chmod 644 "$meta_dir/README.txt"
+  have_readme=true
+else
+  transfer_warn "README.txt not found at $readme_src, skipping it"
+fi
+
+version=$(omarchy-version 2>/dev/null || true)
+{
+  echo "format=$TRANSFER_FORMAT"
+  echo "omarchy_version=${version:-unknown}"
+  echo "date=$(date -Iseconds)"
+  echo "host=$(uname -n)"
+  echo "user=$(id -un)"
+  echo "home=$HOME"
+  echo "encrypted=$OPT_ENCRYPT"
+  if [[ $use_wifi == true ]]; then
+    echo "wifi=$wifi_backend"
+  else
+    echo "wifi=none"
+  fi
+} >"$meta_dir/meta"
+
+if (( ${#includes[@]} > 0 )); then
+  home_names=()
+  for path in "${includes[@]}"; do
+    home_names+=("./$path")
+  done
+  tar_members+=(-C "$HOME" --transform 's,^\./,home/,S' "${tar_excludes[@]}" "${home_names[@]}")
+fi
+
+progress=()
+if [[ -t 2 ]]; then
+  progress=(
+    "--checkpoint=1000"
+    "--checkpoint-action=exec=[ -e $(printf '%q' "$part") ] || exit 0; p=\$((TAR_CHECKPOINT*10240*100/$estimate)); [ \$p -gt 99 ] && p=99; printf '\\r  Archiving: %d%%' \$p >&2"
+  )
+fi
+
+transfer_info "Estimated size: $(transfer_human "$estimate")"
+if [[ $OPT_ENCRYPT == yes ]]; then
+  transfer_info "Encrypting archive (age will ask for a passphrase)"
+fi
+
+set +e
+if [[ $OPT_ENCRYPT == yes ]]; then
+  tar -cf - --xattrs --acls "${progress[@]}" "${tar_members[@]}" | zstd -T0 -3 --check -q | age -p -o "$part"
+else
+  tar -cf - --xattrs --acls "${progress[@]}" "${tar_members[@]}" | zstd -T0 -3 --check -q -o "$part"
+fi
+rcs=("${PIPESTATUS[@]}")
+set -e
+[[ ! -t 2 ]] || echo >&2
+
+if (( rcs[0] > 1 )); then
+  rm -f -- "$part"
+  transfer_die "Archiving failed (tar exit ${rcs[0]}); an unreadable file stops the export"
+elif (( rcs[1] != 0 || rcs[2] != 0 )); then
+  rm -f -- "$part"
+  transfer_die "Writing the archive failed"
+elif (( rcs[0] == 1 )); then
+  transfer_warn "Some files changed while archiving"
+fi
+
+sync -f -- "$part"
+mv -f -- "$part" "$out"
+
+size=$(stat -c %s -- "$out")
+transfer_info "Transfer archive written: $out ($(transfer_human "$size"))"
+
+# Companion files: atomic, and only their own names are replaced.
+write_companion() { # <source> <name> <mode>
+  local dest=$target_real/$2 tmp=$target_real/.$2.part
+  transfer_cleanup_register "$tmp"
+  if cp -- "$1" "$tmp" && chmod "$3" "$tmp" && mv -f -- "$tmp" "$dest"; then
+    transfer_info "Written: $dest"
+  else
+    rm -f -- "$tmp"
+    transfer_warn "Could not write $dest"
+  fi
+}
+[[ $have_restore == false ]] || write_companion "$restore_src" "$COMPANION_RESTORE" 755
+[[ $have_readme == false ]] || write_companion "$readme_src" "$COMPANION_README" 644
+omarchy-notification-send "Transfer export finished" "$out" >/dev/null 2>&1 || true
