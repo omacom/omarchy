@@ -69,6 +69,12 @@ cat >"$stub_bin/omarchy-hw-x86" <<'SH'
 [[ $FAKE_PLATFORM == "x86" ]]
 SH
 
+cat >"$stub_bin/systemd-detect-virt" <<'SH'
+#!/bin/bash
+printf '%s\n' "$FAKE_VIRT"
+[[ $FAKE_VIRT != "none" ]]
+SH
+
 cat >"$stub_bin/omarchy-hw-aarch64-qualcomm" <<'SH'
 #!/bin/bash
 [[ $FAKE_PLATFORM == "aarch64-qualcomm" ]]
@@ -184,6 +190,7 @@ machine() {
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
   FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE=""
+  FAKE_VIRT=none FAKE_DEFERRED_HARDWARE=0
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
@@ -193,6 +200,12 @@ machine() {
   case $name in
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
     no-dmi) rm -rf "$hw/dmi" ;;
+    virtualbox) FAKE_VIRT=oracle ;;
+    virtualbox-first-boot) FAKE_VIRT=oracle FAKE_DEFERRED_HARDWARE=1 ;;
+    virtualbox-aarch64) FAKE_VIRT=oracle FAKE_PLATFORM=aarch64 ;;
+    virtualbox-pkg-fails) FAKE_VIRT=oracle FAKE_PKG_ADD_STATUS=1 ;;
+    vmware) FAKE_VIRT=vmware ;;
+    qemu) FAKE_VIRT=kvm ;;
     macbookpro13) dmi product_name "MacBookPro13,2" ;;
     macbook8) dmi product_name "MacBook8,1" ;;
     macbookpro15) dmi product_name "MacBookPro15,1" ;;
@@ -245,6 +258,7 @@ machine() {
     chmod 000 "$hw/dmi"/*
   fi
   export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE
+  export FAKE_VIRT FAKE_DEFERRED_HARDWARE
 }
 
 snapshot() {
@@ -268,6 +282,7 @@ run_leaf() {
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
+    OMARCHY_IMAGE_DEFERRED_HARDWARE="$FAKE_DEFERRED_HARDWARE" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
     printf '%s\n' "$status"
@@ -279,6 +294,7 @@ run_leaf() {
 # n1x.sh drops every kernel but linux-omarchy, so its gate is the one thing
 # standing between it and any other machine.
 leaves=(
+  hardware/virtualbox.sh
   hardware/apple/fix-spi-keyboard.sh
   hardware/n1x.sh
   hardware/fix-synaptic-touchpad.sh
@@ -313,6 +329,13 @@ while IFS='|' read -r leaf name want; do
   got=$(run_leaf "$leaf")
   [[ $got == "$want" ]] || fail "install/$leaf on $name: $want" "got: $got"
 done <<'ROWS'
+hardware/virtualbox.sh|virtualbox|0|pkg-add virtualbox-guest-utils|sudo systemctl enable vboxservice.service
+hardware/virtualbox.sh|virtualbox-first-boot|0|pkg-add virtualbox-guest-utils|sudo systemctl enable vboxservice.service|sudo systemctl start --no-block vboxservice.service
+hardware/virtualbox.sh|virtualbox-aarch64|0
+hardware/virtualbox.sh|vmware|0
+hardware/virtualbox.sh|qemu|0
+# A failed package install must not try to enable a unit that may not exist.
+hardware/virtualbox.sh|virtualbox-pkg-fails|1|pkg-add virtualbox-guest-utils
 hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbook8|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbookpro13+unreadable|0
