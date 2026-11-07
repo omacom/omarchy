@@ -29,12 +29,17 @@ fi
 mkdir -p "$(dirname "$user_config_file")"
 
 if [[ -f $user_config_file ]]; then
-  cp -f "$user_config_file" "$backup_config_file"
-  cp -f "$default_config_file" "$user_config_file"
+  if ! cmp -s "$user_config_file" "$default_config_file"; then
+    # Create backup
+    cp -fd "$user_config_file" "$backup_config_file"
 
-  if cmp -s "$user_config_file" "$backup_config_file"; then
-    rm "$backup_config_file"
-  else
+    # Replace config with default content (--remove-destination is used to prevent symlinked content override if $user_config_file is a symlink)
+    if [[ -L $user_config_file ]]; then
+      cp --remove-destination "$default_config_file" "$user_config_file"
+    else
+      cp -f "$default_config_file" "$user_config_file"
+    fi
+
     echo -e "\e[31mReplaced $user_config_file with new Omarchy default.\nSaved backup as ${backup_config_file}.\n\n\e[32mChanges:\e[0m"
     diff "$user_config_file" "$backup_config_file" || true
   fi
