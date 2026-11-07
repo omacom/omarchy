@@ -9,9 +9,9 @@ omarchy_pacman_templates() {
   case ${1:-} in
     x86) echo "$OMARCHY_PATH/default/pacman" ;;
     aarch64 | aarch64-apple) echo "$OMARCHY_PATH/default/pacman/$1" ;;
-    # Snapdragon, the N1x and the GB10 use Arch Linux ARM and Omarchy's aarch64
+    # Snapdragon, the N1x, GB10 and Pi use Arch Linux ARM and Omarchy's aarch64
     # repository like any other ARM machine, so they share its templates.
-    aarch64-qualcomm | aarch64-n1x | aarch64-gb10) echo "$OMARCHY_PATH/default/pacman/aarch64" ;;
+    aarch64-qualcomm | aarch64-n1x | aarch64-gb10 | aarch64-raspberrypi) echo "$OMARCHY_PATH/default/pacman/aarch64" ;;
     *)
       echo "Error: Unknown platform '${1:-}'." >&2
       return 1
@@ -24,7 +24,7 @@ omarchy_pacman_templates() {
 # unless they choose another channel.
 omarchy_pacman_default_channel() {
   case ${1:-} in
-    x86 | aarch64 | aarch64-qualcomm | aarch64-n1x | aarch64-gb10) echo stable ;;
+    x86 | aarch64 | aarch64-qualcomm | aarch64-n1x | aarch64-gb10 | aarch64-raspberrypi) echo stable ;;
     aarch64-apple) echo edge ;;
     *)
       echo "Error: Unknown platform '${1:-}'." >&2

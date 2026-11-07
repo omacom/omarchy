@@ -79,6 +79,13 @@ omarchy-update-requires-free-space
 if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   authorize_update
 
+  # A Pi must still have its UEFI boot files before any package changes. Other
+  # platforms register no preflight and keep their existing update path.
+  platform_prepare=$(omarchy-lifecycle-dispatch --resolve update-prepare)
+  if [[ -n $platform_prepare ]]; then
+    sudo omarchy-lifecycle-dispatch update-prepare
+  fi
+
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
   # after it frees nothing until that snapshot ages out.
   omarchy-update-pkg-prune

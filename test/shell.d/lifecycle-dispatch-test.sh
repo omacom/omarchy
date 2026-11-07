@@ -28,7 +28,7 @@ install_implementation() {
   for operation in "${operations[@]}"; do
     cat >"$root/$implementation/$operation" <<SH
 #!/bin/bash
-{ printf '%s' "$operation"; printf ' %q' "\$@"; echo; } >>"$tmp/ran"
+{ printf '%s' "$operation"; if (( \$# )); then printf ' %q' "\$@"; fi; echo; } >>"$tmp/ran"
 env >"$tmp/env"
 [[ ! -e $tmp/fail-with ]] || exit "\$(cat "$tmp/fail-with")"
 SH
@@ -345,3 +345,23 @@ if unshare --user --map-root-user true 2>/dev/null; then
 else
   skip "no unprivileged user namespace; skipping the root refusal of the user operations"
 fi
+
+fake_platform "$tmp/aarch64-raspberrypi" aarch64-raspberrypi
+implementation=usr/lib/omarchy/pi
+operations=(setup-system update-prepare update-verify)
+install_implementation "$tmp/pi"
+for operation in "${operations[@]}"; do
+  rm -f "$tmp/ran"
+  on aarch64-raspberrypi "$tmp/pi" "$operation" || fail "Pi: $operation runs"
+  [[ $(cat "$tmp/ran") == "$operation" ]] || fail "Pi: $operation uses its own package"
+  status=0
+  on aarch64-raspberrypi "$empty" "$operation" >"$tmp/error" 2>&1 || status=$?
+  (( status == 1 )) || fail "Pi: missing $operation must fail, not warn and continue" "$(cat "$tmp/error")"
+done
+on aarch64-raspberrypi "$tmp/pi" provision-prepare || fail "Pi keeps generic provisioning"
+[[ -z $(on aarch64-raspberrypi "$tmp/pi" --resolve reset-prepare) ]] || fail "Pi keeps generic reset"
+chmod o+w "$tmp/pi/$implementation/update-verify"
+if on aarch64-raspberrypi "$tmp/pi" update-verify >"$tmp/error" 2>&1; then
+  fail "Pi: an untrusted verifier is refused"
+fi
+pass "Pi setup and update operations require trusted tooling; provisioning and reset stay generic"

@@ -277,6 +277,10 @@ world gb10-image aarch64
 pid1 gb10-image chroot
 manifest gb10-image $'format=1\nplatform=aarch64-gb10\n'
 expect gb10-image aarch64-gb10 "a GB10 image's manifest reads as aarch64-gb10"
+world pi-image aarch64 apple,j416c apple,arm-platform
+pid1 pi-image chroot
+manifest pi-image $'format=1\nplatform=aarch64-raspberrypi\n'
+expect pi-image aarch64-raspberrypi "a Pi image's manifest selects Pi packages on an Apple build host"
 
 # Comments and keys a later format adds are ignored.
 world commented aarch64
@@ -452,7 +456,7 @@ pass "no unit runs in a private PID namespace"
 if (( EUID == 0 )); then
   skip "running as root, where image setup ignores fixture roots; skipping the manifest names"
 else
-  for platform in x86 aarch64 aarch64-apple aarch64-qualcomm aarch64-n1x aarch64-gb10; do
+  for platform in x86 aarch64 aarch64-apple aarch64-qualcomm aarch64-n1x aarch64-gb10 aarch64-raspberrypi; do
     image_root="$test_tmp/image-names/$platform"
     mkdir -p "$image_root/var/lib/omarchy/image"
     chmod 755 "$image_root/var/lib/omarchy/image"
