@@ -12,7 +12,15 @@ fi
 config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
 mkdir -p "${config%/*}"
 exec 9> "$config.lock"
-if ! flock -w 5 9; then
+# A stop waits for a start that is still running, which may be slow while the
+# backend starts up; giving up would leave push-to-talk recording after the key
+# is up.
+if [[ $1 == "stop" ]]; then
+  wait=60
+else
+  wait=5
+fi
+if ! flock -w "$wait" 9; then
   echo "Dictation is busy; try again." >&2
   exit 1
 fi
