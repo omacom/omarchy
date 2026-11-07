@@ -152,6 +152,8 @@ logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy
 
 The hardware-conditional `force-igpu` and `keyboard-backlight` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`.
 
+`wireplumber-bluetooth` is a trampoline to `omarchy-system-sleep-wireplumber`. `install/config/wireplumber-sleep.sh` publishes it for a new install, and a migration publishes it for an existing one. omarchy-settings does not list it, because the behavior ships in the omarchy package and the hook only execs that command. Before sleep, when a paired Bluetooth audio device is present and PipeWire is older than 1.6.11, it masks and stops WirePlumber so the Bluetooth plugin is not running while the controller resets, then starts it again after the adapter is powered. See issue #11280.
+
 ### Platform root
 
 A platform's runtime package (omarchy-mac on Apple Silicon, say) adds its desktop files under a fixed root that only the one installed platform package owns. Omarchy ships nothing there, and a missing root or file means no platform additions. No environment variable moves it; tests reach fixtures through test-only seams, never through a desktop session's environment.

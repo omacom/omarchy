@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# systemd executes every executable in system-sleep around suspend. The
+# behavior lives in the omarchy package so later releases can change it
+# without another copy of this trampoline.
+if [[ -x /usr/bin/omarchy-system-sleep-wireplumber ]]; then
+  exec /usr/bin/omarchy-system-sleep-wireplumber "$@"
+fi
+
+exit 0
