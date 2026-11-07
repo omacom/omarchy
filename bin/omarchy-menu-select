@@ -18,6 +18,9 @@
 # command may print a JSON array of actual selections to update the checkmarks.
 # --selected takes a returned value (label plus any subtext), and can be repeated.
 
+# Options piped in on stdin stay off every command line, where any user on the
+# machine could read them; options given as arguments are on this one's.
+
 set -euo pipefail
 
 if (( $# < 1 )); then
@@ -105,28 +108,34 @@ if (( ${#options[@]} == 0 )); then
 fi
 
 selection_file=$(mktemp)
+options_file=$(mktemp)
 done_file=$(mktemp)
 rm -f "$done_file"
-trap 'rm -f "$selection_file" "$done_file"' EXIT
+trap 'rm -f "$selection_file" "$options_file" "$done_file"' EXIT
 
-options_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${options[@]}")
+# The options reach the shell in a private file rather than in the payload:
+# Linux refuses a single argument of 128 KiB or more, and every user on the
+# machine can read a process's arguments in /proc/<pid>/cmdline. printf is a
+# builtin, so they reach perl through a pipe, not as its arguments.
+printf '%s\0' "${options[@]}" | perl -0 -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { chomp; decode("UTF-8", $_) } <STDIN>])' >"$options_file"
 selected_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${selected[@]}")
 payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   my $payload = {
     mode => "select",
     prompt => decode("UTF-8", $ARGV[0]),
-    options => decode_json($ARGV[1]),
+    optionsFile => decode("UTF-8", $ARGV[1]),
     multiple => $ARGV[6] ? JSON::PP::true : JSON::PP::false,
     selected => decode_json($ARGV[7]),
     onChange => decode_json($ARGV[8]),
     changeKey => $ARGV[9],
     selectionFile => decode("UTF-8", $ARGV[2]),
+    selectionFileCreated => JSON::PP::true,
     doneFile => decode("UTF-8", $ARGV[3])
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key")
+' "$prompt" "$options_file" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 
