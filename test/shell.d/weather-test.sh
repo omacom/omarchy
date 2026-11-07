@@ -161,3 +161,16 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
+
+# Layout wiring for #17630: long-language stats must widen the panel (or
+# elide the location), not collide with the temperature unit. Keep this
+# compatible with a later narrow-screen scale (#11238 / #6991): fittedContentWidth
+# still caps to the available card width.
+panel_qml="$ROOT/shell/plugins/panels/weather/Panel.qml"
+grep -q 'property real heroNeededWidth' "$panel_qml" || fail "weather panel tracks the hero width it needs"
+grep -q 'Math.max(Style.space(480), root.heroNeededWidth' "$panel_qml" || fail "weather panel grows past 480 when the hero needs it"
+grep -q 'elide: Text.ElideRight' "$panel_qml" || fail "weather location elides instead of spilling past the panel"
+# The hero halves stay opposite-anchored (narrow-screen scale can still shrink
+# them later); the Binding is what keeps them from overlapping today.
+grep -q 'heroLeft.implicitWidth' "$panel_qml" || fail "weather heroNeededWidth Binding reads heroLeft.implicitWidth"
+pass "weather panel grows for long language labels and elides the location (#17630)"
