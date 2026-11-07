@@ -1,0 +1,158 @@
+#!/bin/bash
+
+# omarchy:summary=Save open windows so the next login reopens them
+# omarchy:args=[--always]
+
+# omarchy-system runs this before it closes windows to log out, reboot or shut
+# down; it saves only with the reopen-windows toggle on. --always saves anyway,
+# for a one-off "reboot and reopen". omarchy-session-restore reads it at login.
+
+if [[ ${1:-} != "--always" ]] && ! omarchy-toggle-enabled reopen-windows; then
+  exit 0
+fi
+
+state_dir="$HOME/.local/state/omarchy/session"
+clients=$(hyprctl clients -j) || exit 1
+monitors=$(hyprctl monitors -j) || exit 1
+
+windows=$(jq -c '[
+  .[]
+  | select(.pid > 0 and .class != "" and (.workspace.name | startswith("special") | not))
+  | {address, class, title, pid, workspace: (.workspace.name | tostring)}
+]' <<<"$clients")
+
+# The .desktop Exec for a window class, without field codes like %U.
+desktop_exec() {
+  local class=$1 file="" dir
+
+  for dir in "$HOME/.local/share/applications" /usr/share/applications; do
+    if [[ -f "$dir/$class.desktop" ]]; then
+      file="$dir/$class.desktop"
+      break
+    fi
+  done
+  [[ -z $file ]] && file=$(grep -lsx "StartupWMClass=$class" "$HOME"/.local/share/applications/*.desktop /usr/share/applications/*.desktop | head -n1)
+  [[ -n $file ]] && sed -n 's/^Exec=//p' "$file" | head -n1 | sed -E 's/ +%[a-zA-Z]//g'
+}
+
+# Interactive shells a terminal runs: session leaders on a tty, as in
+# omarchy-cmd-terminal-cwd. One per terminal window, tab or split.
+terminal_shells() {
+  local pid=$1 children_file child stat session tty_nr
+
+  for children_file in /proc/"$pid"/task/*/children; do
+    [[ -r $children_file ]] || continue
+    read -ra children <"$children_file" || true
+    for child in "${children[@]}"; do
+      read -r stat 2>/dev/null <"/proc/$child/stat" || continue
+      read -r _ _ _ session tty_nr _ <<<"${stat##*) }"
+      if (( session == child && tty_nr != 0 )) && grep -Fqsx "$(readlink -f "/proc/$child/exe")" /etc/shells; then
+        echo "$child"
+      fi
+    done
+  done | sort -n
+}
+
+descendants() {
+  local children_file child
+
+  for children_file in /proc/"$1"/task/*/children; do
+    [[ -r $children_file ]] || continue
+    read -ra children <"$children_file" || true
+    for child in "${children[@]}"; do
+      echo "$child"
+      descendants "$child"
+    done
+  done
+}
+
+# The command that resumes the coding agent session a process runs, if any.
+# Claude Code records its session per pid; Grok keeps its session folder open.
+agent_resume() {
+  local pid=$1 id fd
+
+  case $(cat "/proc/$pid/comm" 2>/dev/null) in
+    claude)
+      id=$(jq -r '.sessionId // empty' "$HOME/.claude/sessions/$pid.json" 2>/dev/null)
+      [[ -n $id ]] && echo "claude --resume $id"
+      ;;
+    grok)
+      for fd in /proc/"$pid"/fd/*; do
+        if [[ $(readlink "$fd" 2>/dev/null) =~ /\.grok/sessions/[^/]+/([0-9a-f-]{36}) ]]; then
+          echo "grok --resume ${BASH_REMATCH[1]}"
+          return
+        fi
+      done
+      ;;
+  esac
+}
+
+# The agent resume command for the first agent running under a shell.
+shell_agent_resume() {
+  local pid resume
+
+  for pid in $(descendants "$1"); do
+    resume=$(agent_resume "$pid")
+    if [[ -n $resume ]]; then
+      echo "$resume"
+      return
+    fi
+  done
+}
+
+launches=()
+while read -r pid; do
+  pid_windows=$(jq -c --argjson pid "$pid" '[.[] | select(.pid == $pid)]' <<<"$windows")
+  mapfile -t shells < <(terminal_shells "$pid")
+
+  if (( ${#shells[@]} > 0 )); then
+    # A terminal: reopen one window per shell in the same folder, on the
+    # workspace of the window it pairs with (extra tabs join the last one).
+    mapfile -t workspaces < <(jq -r '.[].workspace' <<<"$pid_windows")
+    for i in "${!shells[@]}"; do
+      workspace=${workspaces[i]:-${workspaces[-1]}}
+      dir=$(readlink -f "/proc/${shells[i]}/cwd" 2>/dev/null)
+      [[ -d $dir ]] || dir=$HOME
+      command="xdg-terminal-exec --dir=$(printf '%q' "$dir")"
+      # An agent session resumes inside the shell, so the terminal stays
+      # open on a prompt when the agent exits.
+      resume=$(shell_agent_resume "${shells[i]}")
+      [[ -n $resume ]] && command+=" -- $(printf '%q' "$SHELL") -ic $(printf '%q' "$resume; exec $SHELL")"
+      launches+=("$(jq -nc --arg workspace "$workspace" --arg command "$command" \
+        '{workspace: $workspace, command: $command, class: null}')")
+    done
+  else
+    class=$(jq -r '.[0].class' <<<"$pid_windows")
+    command=$(desktop_exec "$class")
+    if [[ -z $command ]]; then
+      mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null
+      (( ${#argv[@]} > 0 )) && command=$(printf '%q ' "${argv[@]}")
+    fi
+    [[ -n $command ]] && launches+=("$(jq -nc --arg workspace "$(jq -r '.[0].workspace' <<<"$pid_windows")" \
+      --arg command "$command" --arg class "$class" '{workspace: $workspace, command: $command, class: $class}')")
+  fi
+done < <(jq -r '[.[].pid] | unique | .[]' <<<"$windows")
+
+# Agents in Herdr Desktop panes. herdr-core brings its panes back after a
+# reboot as shells; restore types the resume command into the same pane.
+herdr_panes=()
+for pid in $(pgrep -u "$UID" -x 'claude|grok'); do
+  pane=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^HC_TERMINAL_ID=//p')
+  [[ -n $pane ]] || continue
+  resume=$(agent_resume "$pid")
+  [[ -n $resume ]] || continue
+  herdr_panes+=("$(jq -nc --arg pane "$pane" --arg dir "$(readlink -f "/proc/$pid/cwd")" --arg resume "$resume" \
+    '{pane: $pane, dir: $dir, resume: $resume}')")
+done
+
+mkdir -p "$state_dir"
+printf '%s\n' "${launches[@]}" | jq -s \
+  --argjson herdr "$(printf '%s\n' "${herdr_panes[@]}" | jq -s 'map(select(. != null))')" \
+  --argjson windows "$windows" \
+  --argjson monitors "$monitors" '{
+    windows: [$windows[] | {class, title, workspace}],
+    launches: map(select(. != null)),
+    herdr: $herdr,
+    active: [$monitors[] | {monitor: .name, workspace: (.activeWorkspace.name | tostring)}],
+    focused: ([$monitors[] | select(.focused) | .name] | first)
+  }' >"$state_dir/windows.json.tmp" && mv "$state_dir/windows.json.tmp" "$state_dir/windows.json"

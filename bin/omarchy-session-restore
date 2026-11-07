@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# omarchy:summary=Reopen the windows saved at the last logout, reboot or shutdown
+
+# Runs once at login from autostart. A saved file exists only when the user
+# asked for it (the reopen-windows toggle, or Reboot & Reopen Windows). It is
+# consumed, so a Hyprland restart without a logout does not open everything twice.
+
+state_dir="$HOME/.local/state/omarchy/session"
+saved="$state_dir/windows.json"
+
+[[ -f $saved ]] || exit 0
+mv "$saved" "$state_dir/windows.last.json"
+saved="$state_dir/windows.last.json"
+
+lua_string() {
+  jq -Rnr --arg value "$1" '$value | @json'
+}
+
+running=$(hyprctl clients -j | jq -c '[.[].class] | unique')
+
+while read -r launch; do
+  class=$(jq -r '.class // empty' <<<"$launch")
+  # An app that autostarted is already open; it only needs placing below.
+  [[ -n $class ]] && jq -e --arg class "$class" 'index($class)' <<<"$running" >/dev/null && continue
+
+  command="uwsm-app -- $(jq -r '.command' <<<"$launch")"
+  workspace="$(jq -r '.workspace' <<<"$launch") silent"
+  hyprctl dispatch "hl.dsp.exec_cmd($(lua_string "$command"), { workspace = $(lua_string "$workspace") })" >/dev/null
+done < <(jq -c '.launches[]' "$saved")
+
+# Put each window on its saved workspace as it appears, matching the class and
+# then the title. Apps with several windows open them all on one workspace, and
+# autostarted apps open wherever their rules say.
+wants=$(jq -c '.windows' "$saved")
+used="[]"
+for (( tries = 0; tries < 30; tries++ )); do
+  plan=$(jq -n --argjson wants "$wants" --argjson used "$used" --argjson clients "$(hyprctl clients -j)" '
+    reduce $wants[] as $want ({moves: [], left: [], used: $used};
+      . as $state
+      | [$clients[] | select(.class == $want.class) | select(.address as $a | $state.used | any(. == $a) | not)] as $same
+      | ([$same[] | select(.title == $want.title)] + $same | first) as $client
+      | if $client == null then
+          .left += [$want]
+        else
+          .used += [$client.address]
+          | if ($client.workspace.name | tostring) != $want.workspace then
+              .moves += [{address: $client.address, workspace: $want.workspace}]
+            else . end
+        end)')
+
+  while read -r move; do
+    address=$(jq -r '.address' <<<"$move")
+    workspace=$(jq -r '.workspace' <<<"$move")
+    hyprctl dispatch "hl.dsp.window.move({ workspace = $(lua_string "$workspace"), follow = false, window = $(lua_string "address:$address") })" >/dev/null
+  done < <(jq -c '.moves[]' <<<"$plan")
+
+  wants=$(jq -c '.left' <<<"$plan")
+  used=$(jq -c '.used' <<<"$plan")
+  [[ $wants == "[]" ]] && break
+  sleep 2
+done
+
+# Show the same workspace on each monitor as before, then refocus the monitor.
+while read -r monitor workspace; do
+  hyprctl dispatch "hl.dsp.focus({ monitor = $(lua_string "$monitor") })" >/dev/null
+  hyprctl dispatch "hl.dsp.focus({ workspace = $(lua_string "$workspace") })" >/dev/null
+done < <(jq -r '.active[] | "\(.monitor) \(.workspace)"' "$saved")
+
+focused=$(jq -r '.focused // empty' "$saved")
+[[ -n $focused ]] && hyprctl dispatch "hl.dsp.focus({ monitor = $(lua_string "$focused") })" >/dev/null
+
+# Agents in Herdr Desktop panes. herdr-core recovers each pane as a shell with
+# the same id once Herdr Desktop starts it; type the resume command there.
+herdr_core="$HOME/.local/bin/herdr-core"
+mapfile -t panes < <(jq -c '.herdr // [] | .[]' "$saved")
+for (( tries = 0; ${#panes[@]} > 0 && tries < 60; tries++ )); do
+  waiting=()
+  for pane in "${panes[@]}"; do
+    id=$(jq -r '.pane' <<<"$pane")
+    info=$("$herdr_core" get "$id" 2>/dev/null)
+    # Right after recovery a pane is live with no pid until its shell starts.
+    if jq -e '.state == "live" and .pid != null and (.foreground == null or (.foreground.name | test("^(bash|zsh|fish|sh|nu)$")))' <<<"$info" >/dev/null 2>&1; then
+      "$herdr_core" send "$id" "cd $(jq -r '.dir | @sh' <<<"$pane") && $(jq -r '.resume' <<<"$pane")" >/dev/null
+    elif [[ -z $info ]] || ! jq -e '.state == "finished"' <<<"$info" >/dev/null 2>&1; then
+      waiting+=("$pane")
+    fi
+  done
+  panes=("${waiting[@]}")
+  (( ${#panes[@]} > 0 )) && sleep 2
+done
+exit 0
