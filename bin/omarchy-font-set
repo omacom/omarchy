@@ -38,6 +38,7 @@ if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
   else
     printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
   fi
+  sed --follow-symlinks -i -E "s/^[[:space:]]*(bold_font|italic_font|bold_italic_font)[[:space:]]+.*/\1 auto/" ~/.config/kitty/kitty.conf
   pkill -USR1 kitty
 fi
 

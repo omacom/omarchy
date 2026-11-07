@@ -62,6 +62,15 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+printf 'font_family Old Font\nbold_font auto\nbold_font Old Font\n  italic_font Old Font\nbold_italic_font Old Font\n' >"$kitty_config"
+run_command omarchy-font-set 'Test Font'
+! grep -q 'Old Font' "$kitty_config" || fail "font command resets explicit faces when updating the family override"
+cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
+printf 'bold_font Old Font\n' >>"$kitty_config"
+run_command omarchy-font-set 'Test Font'
+grep -qx 'bold_font auto' "$kitty_config" || fail "font command resets explicit faces when adding the family override"
+pass "font command resets explicit Kitty faces so they follow the new family"
+
 # try-omarchy VMs put a wrapper named kitty on PATH that exits 127 until Kitty
 # is installed, so a command on PATH is not enough: ask Kitty itself.
 if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; then
