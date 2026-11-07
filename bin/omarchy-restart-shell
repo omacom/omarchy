@@ -25,11 +25,17 @@ fi
 # and a restart plus re-lock is the only way back in without a reboot. So
 # ask the lock service rather than merely pinging the shell: only a locker
 # that reports the lock secure or in progress is worth preserving.
+#
+# A surface that was created and became secure without a present is that
+# same trap with the client still alive. Hyprland will not clear it, and
+# there is no prompt to answer. `unpainted` is that report. A lock that has
+# painted, or one that is still coming up, stays protected — a missing or
+# stale `unpainted` flag included.
 relock=0
 if omarchy-hyprland-session-locked; then
   locking=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
-    jq -r '.secure or .requested' 2>/dev/null)
-  if [[ $locking == "true" ]]; then
+    jq -r 'if .unpainted == true and .painted != true and .secure == true then "unpainted" elif (.secure == true or .requested == true) then "preserve" else "absent" end' 2>/dev/null)
+  if [[ $locking == "preserve" ]]; then
     echo "Refusing to restart Omarchy shell while the session is locked." >&2
     exit 1
   fi

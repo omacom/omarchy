@@ -46,7 +46,9 @@ case "$*" in
     printf 'ok\n'
     ;;
   *'lock status')
-    if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
+    if [[ -f $OMARCHY_TEST_QS_STATE.status ]]; then
+      cat "$OMARCHY_TEST_QS_STATE.status"
+    elif [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
       printf '{"secure": true, "requested": true}\n'
     else
       printf '{"secure": false, "requested": false}\n'
@@ -90,6 +92,7 @@ case " $* " in
     ;;
   *' -n -p '*)
     printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
+    rm -f "$OMARCHY_TEST_QS_STATE.status"
     printf '303\n' >"$OMARCHY_TEST_QS_STATE"
     [[ ! -f $strays ]] || cp "$strays" "$strays.at-launch"
     ;;
@@ -329,3 +332,71 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# A status that names a painted lock, or a lock that has not finished coming
+# up, is still a lock the user can answer. `unpainted` without `secure` is the
+# in-progress report and must not become a way around the guard.
+refuse_locked_restart() {
+  local description="$1"
+  local status_json="$2"
+
+  printf '303\n' >"$restart_state"
+  printf '%s\n' "$status_json" >"$restart_state.status"
+  : >"$restart_log"
+
+  local error
+  error=$(PATH="$restart_bin:$PATH" \
+    OMARCHY_PATH="$restart_root" \
+    XDG_RUNTIME_DIR="$runtime_dir" \
+    OMARCHY_TEST_SESSION_LOCKED=1 \
+    OMARCHY_TEST_QS_STATE="$restart_state" \
+    OMARCHY_TEST_QS_LOG="$restart_log" \
+    OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+    OMARCHY_TEST_IPC_LOG="$ipc_log" \
+    OMARCHY_TEST_SESSION_PATH="$restart_root" \
+    "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "$description"
+  [[ $error == "Refusing to restart Omarchy shell while the session is locked." ]] || fail "$description explains the refusal" "$error"
+  [[ $(<"$restart_state") == 303 ]] || fail "$description preserves the running shell"
+  [[ ! -s $restart_log ]] || fail "$description does not stop or launch Quickshell" "$(cat "$restart_log")"
+  rm -f "$restart_state.status"
+  pass "$description"
+}
+
+refuse_locked_restart "restart preserves a lock that has painted" \
+  '{"secure":true,"requested":true,"painted":true,"unpainted":false}'
+refuse_locked_restart "restart preserves a painted lock even when unpainted is also set" \
+  '{"secure":true,"requested":true,"painted":true,"unpainted":true}'
+refuse_locked_restart "restart preserves a lock that is still coming up" \
+  '{"secure":false,"requested":true,"painted":false,"unpainted":true}'
+
+# The surface exists and the session is secure, but nothing was presented.
+# Restart has to proceed and take the lock back, same as a dead lock client.
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked"
+printf '%s\n' '{"secure":true,"requested":true,"painted":false,"unpainted":true}' >"$restart_state.status"
+: >"$restart_log"
+: >"$ipc_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_SESSION_LOCKED=1 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart recovers a secure lock whose surface never painted"
+
+if kill -0 "$restart_pid_one" 2>/dev/null; then
+  fail "unpainted-lock recovery stops the lock client that never presented"
+fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "unpainted-lock recovery leaves one fresh shell instance"
+grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "unpainted-lock recovery re-acquires the session lock" "$(cat "$ipc_log")"
+grep -F "ipc -n -p $restart_root/shell call -- lock status" "$ipc_log" >/dev/null || fail "unpainted-lock recovery waits for the replacement lock to become secure"
+pass "restart recovers a secure lock whose surface never painted"
