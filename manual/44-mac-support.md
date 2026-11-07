@@ -35,7 +35,7 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 3. Select the orange EFI Boot device
 4. Proceed with the [install as normal](02-getting-started.md)
 
-The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models.
+The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models. On a T2 Mac, Wi-Fi firmware is copied from a macOS volume still on the disk, or downloaded from an Apple recovery image when that volume is already gone and a network is available.
 
 ### Known Limitations
 
@@ -69,7 +69,7 @@ The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued 
 - MacBook Pro 13-inch (2020, two Thunderbolt 3 ports) – Model: A2265
 - MacBook Pro 15-inch (2020) – Model: A1990
 
-On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support.
+On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support. Wi-Fi and Bluetooth firmware is copied from macOS when a volume is still present. A full-disk install that already erased macOS downloads that firmware from an Apple recovery image when it has a network connection; otherwise run `omarchy hw t2 wifi` once the machine is online (a USB Ethernet adapter is enough). The 2017 iMac Pro is the exception: a recovery image does not contain the NVRAM that model uses, so its firmware still has to come from an installed macOS.
 
 #### iMac Retina 5K (2017)
 

@@ -1,0 +1,285 @@
+#!/bin/bash
+
+# omarchy:summary=Install T2 Broadcom Wi-Fi firmware when no macOS volume is left
+# omarchy:requires-sudo=true
+
+# apple-bcm-firmware-fetcher only reads a macOS volume. A full-disk install that
+# already erased macOS has nothing to read, so brcmfmac finds no firmware or
+# NVRAM and the radio never lists networks. This downloads an Apple recovery
+# image and installs the renamed files, then reloads brcmfmac. It does not ship
+# Apple's firmware.
+#
+# sudo drops the session's OMARCHY_PATH. The packaged tree is the one that
+# belongs with this command.
+
+set -euo pipefail
+
+if [[ -z ${OMARCHY_PATH:-} ]]; then
+  OMARCHY_PATH=/usr/share/omarchy
+fi
+export OMARCHY_PATH
+
+mode=install
+while (($#)); do
+  case $1 in
+    --check)
+      mode=check
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+dmi_product_path="${OMARCHY_DMI_PRODUCT_NAME:-/sys/class/dmi/id/product_name}"
+dmi_vendor_path="${OMARCHY_DMI_SYS_VENDOR:-/sys/class/dmi/id/sys_vendor}"
+firmware_dir="${OMARCHY_T2_WIFI_FIRMWARE_DIR:-/usr/lib/firmware/brcm}"
+export OMARCHY_T2_WIFI_FIRMWARE_DIR="$firmware_dir"
+product_name="$(cat "$dmi_product_path" 2>/dev/null || true)"
+sys_vendor="$(cat "$dmi_vendor_path" 2>/dev/null || true)"
+
+# Island and chip revision brcmfmac asks for, from the t2linux model table and
+# the driver's 4364 B2/B3 split. A1989 is MacBookPro15,2: BCM4364 revision B2,
+# island maui. 2017 Touch Bar Macs (BCM43602) are not in this list.
+t2_wifi_stem() {
+  case $1 in
+    MacBookPro15,1 | MacBookPro15,3) printf '%s\n' "brcmfmac4364b2-pcie.apple,kauai" ;;
+    MacBookPro15,2) printf '%s\n' "brcmfmac4364b2-pcie.apple,maui" ;;
+    Macmini8,1) printf '%s\n' "brcmfmac4364b2-pcie.apple,lanai" ;;
+    iMacPro1,1) printf '%s\n' "brcmfmac4364b2-pcie.apple,ekans" ;;
+    MacBookPro16,1) printf '%s\n' "brcmfmac4364b3-pcie.apple,bali" ;;
+    MacBookPro16,2) printf '%s\n' "brcmfmac4364b3-pcie.apple,trinidad" ;;
+    MacBookPro16,4) printf '%s\n' "brcmfmac4364b3-pcie.apple,borneo" ;;
+    MacPro7,1) printf '%s\n' "brcmfmac4364b3-pcie.apple,kahana" ;;
+    iMac20,1) printf '%s\n' "brcmfmac4364b3-pcie.apple,hanauma" ;;
+    iMac20,2) printf '%s\n' "brcmfmac4364b3-pcie.apple,kure" ;;
+    MacBookAir8,1 | MacBookAir8,2) printf '%s\n' "brcmfmac4355c1-pcie.apple,hawaii" ;;
+    MacBookPro15,4) printf '%s\n' "brcmfmac4377b3-pcie.apple,formosa" ;;
+    MacBookAir9,1) printf '%s\n' "brcmfmac4377b3-pcie.apple,fiji" ;;
+    MacBookPro16,3) printf '%s\n' "brcmfmac4377b3-pcie.apple,tahiti" ;;
+    *) return 1 ;;
+  esac
+}
+
+t2_wifi_present() {
+  local stem=$1
+
+  [[ -d $firmware_dir ]] || return 1
+  compgen -G "${firmware_dir}/${stem}*.bin" >/dev/null || return 1
+  compgen -G "${firmware_dir}/${stem}*.txt" >/dev/null
+}
+
+t2_pci_present() {
+  local pci_info
+
+  # Read the whole listing. A grep -q on the pipe kills a chatty lspci with
+  # SIGPIPE, and pipefail then looks like "no T2 chip".
+  pci_info="$(lspci -nn 2>/dev/null || true)"
+  [[ $pci_info =~ 106b:180[12] ]]
+}
+
+finish_not_applicable() {
+  if [[ $mode == "check" ]]; then
+    exit 1
+  fi
+  exit 0
+}
+
+reload_wifi_modules() {
+  # brcmfmac only reads firmware and NVRAM when it loads. brcmfmac_wcc is the
+  # T2 companion module; it has to come out first.
+  modprobe -r brcmfmac_wcc || true
+  modprobe -r brcmfmac || true
+  modprobe brcmfmac || true
+  modprobe -r hci_bcm4377 || true
+  modprobe hci_bcm4377 || true
+}
+
+install_from_tree() {
+  local tree=$1
+  local work tar status=0
+
+  if [[ ! -d $tree/wifi ]]; then
+    echo "Apple firmware tree has no wifi directory: $tree" >&2
+    return 1
+  fi
+
+  work="$(mktemp -d)"
+  tar="$work/firmware.tar"
+  if ! python3 "$OMARCHY_PATH/install/hardware/apple/t2-wifi-rename.py" "$tree" "$tar"; then
+    status=1
+  elif ! mkdir -p "$firmware_dir"; then
+    status=1
+  elif ! tar -xf "$tar" -C "$firmware_dir"; then
+    status=1
+  fi
+  rm -rf "$work"
+  return "$status"
+}
+
+download_and_install() {
+  local routes parent avail workdir="" loop="" mnt="" dmg board mlb
+
+  routes="$(ip route show default 2>/dev/null || true)"
+  if [[ -z $routes ]]; then
+    echo "No network route, so the Apple recovery image was not downloaded" >&2
+    return 1
+  fi
+
+  parent="${OMARCHY_T2_WIFI_WORKDIR_PARENT:-/var/tmp}"
+  avail="$(df -Pk "$parent" 2>/dev/null | awk 'NR > 1 { print $4; exit }')"
+  avail="${avail:-0}"
+  # The recovery image is about 753 MB and dmg2img expands a second copy.
+  if (( avail < 4000000 )); then
+    echo "Not enough free space in $parent to download a macOS recovery image" >&2
+    return 1
+  fi
+
+  # Sonoma (macOS 14). t2linux recommends it for complete BCM4364 firmware, and
+  # it is the image that produced working Wi-Fi on a wiped MacBookPro15,2.
+  # The board id is Apple's public recovery catalog entry, not this machine.
+  board="${OMARCHY_T2_WIFI_BOARD_ID:-Mac-827FAC58A8FDFA22}"
+  mlb="${OMARCHY_T2_WIFI_MLB:-00000000000000000}"
+
+  workdir="$(mktemp -d "$parent/omarchy-t2-wifi.XXXXXX")"
+  mnt="$(mktemp -d)"
+  cleanup_download() {
+    if [[ -n $mnt ]] && mountpoint -q "$mnt" 2>/dev/null; then
+      umount "$mnt" || true
+    fi
+    if [[ -n $loop ]]; then
+      losetup -d "$loop" || true
+    fi
+    rm -rf "$mnt" "$workdir"
+  }
+  trap cleanup_download RETURN
+
+  if [[ -n ${OMARCHY_T2_WIFI_RECOVERY_CMD:-} ]]; then
+    "$OMARCHY_T2_WIFI_RECOVERY_CMD" download -b "$board" -m "$mlb" -n BaseSystem -o "$workdir" || return 1
+  else
+    python3 "$OMARCHY_PATH/install/hardware/apple/macrecovery.py" \
+      download -b "$board" -m "$mlb" -n BaseSystem -o "$workdir" || return 1
+  fi
+
+  dmg="$workdir/BaseSystem.dmg"
+  if [[ ! -f $dmg ]]; then
+    echo "The recovery download did not produce BaseSystem.dmg" >&2
+    return 1
+  fi
+
+  omarchy-pkg-add dmg2img || return 1
+  dmg2img -s "$dmg" "$workdir/fw.img" || return 1
+  loop="$(losetup --find --show --partscan "$workdir/fw.img")" || return 1
+  if [[ -z $loop || ! -b $loop ]]; then
+    echo "Could not attach the recovery image to a loop device" >&2
+    return 1
+  fi
+
+  local parts=() attempt part firmware_root=""
+  for attempt in 1 2 3 4 5; do
+    parts=()
+    while IFS= read -r part; do
+      [[ -n $part ]] || continue
+      parts+=("$part")
+    done < <(lsblk -lnpo NAME,TYPE "$loop" | awk '$2 == "part" { print $1 }')
+    if (( ${#parts[@]} > 0 )); then
+      break
+    fi
+    sleep 0.2
+  done
+  if (( ${#parts[@]} == 0 )); then
+    parts=("$loop")
+  fi
+
+  for part in "${parts[@]}"; do
+    if mountpoint -q "$mnt"; then
+      umount "$mnt" || true
+    fi
+    if mount -o ro "$part" "$mnt"; then
+      if [[ -d $mnt/usr/share/firmware/wifi ]]; then
+        firmware_root="$mnt/usr/share/firmware"
+        break
+      fi
+      umount "$mnt" || true
+    fi
+  done
+
+  if [[ -z $firmware_root ]]; then
+    echo "The recovery image has no Apple Wi-Fi firmware" >&2
+    return 1
+  fi
+
+  install_from_tree "$firmware_root"
+}
+
+stem=""
+if ! stem="$(t2_wifi_stem "$product_name")"; then
+  finish_not_applicable
+fi
+if [[ $sys_vendor != Apple* ]]; then
+  finish_not_applicable
+fi
+if ! t2_pci_present; then
+  finish_not_applicable
+fi
+
+if [[ $mode == "check" ]]; then
+  if t2_wifi_present "$stem"; then
+    exit 1
+  fi
+  exit 0
+fi
+
+if t2_wifi_present "$stem"; then
+  exit 0
+fi
+
+# Installing under /usr needs root. A writable directory (the test fixture)
+# can be filled as the current user.
+if (( EUID != 0 )); then
+  parent_dir="$(dirname "$firmware_dir")"
+  if [[ ! -w $firmware_dir && ! -w $parent_dir ]]; then
+    exec sudo -- "$0" "$@"
+  fi
+fi
+
+echo "T2 Wi-Fi firmware for $product_name is missing; trying a macOS volume"
+
+if omarchy-cmd-present apple-bcm-firmware-fetcher; then
+  timeout 180 apple-bcm-firmware-fetcher || true
+fi
+
+if t2_wifi_present "$stem"; then
+  reload_wifi_modules
+  exit 0
+fi
+
+if [[ $product_name == "iMacPro1,1" ]]; then
+  echo "This iMac Pro needs Wi-Fi firmware from an installed macOS. A recovery image does not include the NVRAM it uses." >&2
+  exit 0
+fi
+
+if [[ ${OMARCHY_IMAGE_DEFERRED_HARDWARE:-} == 1 && ${OMARCHY_T2_WIFI_BEST_EFFORT:-} == 1 ]]; then
+  echo "T2 Wi-Fi firmware is still missing. First boot skips the recovery download; run 'omarchy hw t2 wifi' once this machine has a connection." >&2
+  exit 0
+fi
+
+if [[ -n ${OMARCHY_T2_WIFI_FIRMWARE_TREE:-} ]]; then
+  install_from_tree "$OMARCHY_T2_WIFI_FIRMWARE_TREE" || true
+else
+  echo "No macOS volume has the firmware. Downloading an Apple recovery image"
+  download_and_install || true
+fi
+
+if t2_wifi_present "$stem"; then
+  reload_wifi_modules
+  exit 0
+fi
+
+echo "T2 Wi-Fi firmware and NVRAM for $product_name are still missing. With a network connection, run: omarchy hw t2 wifi" >&2
+if [[ ${OMARCHY_T2_WIFI_BEST_EFFORT:-} == 1 ]]; then
+  exit 0
+fi
+exit 1
