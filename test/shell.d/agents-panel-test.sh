@@ -49,6 +49,34 @@ for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
 }
 JS
 
+# The settings list writes the whole bar entry back, so the settings that
+# were already in it have to survive the write.
+run_node_test <<'JS'
+const fs = require('fs')
+const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const saveSource = panelSource.match(/function saveProviderEnabled\([^]*?\n  \}/)[0]
+
+const written = []
+const fakeRoot = {
+  moduleName: 'omarchy.agents',
+  settings: { refreshIntervalSec: 300, providers: { codex: { enabled: true } } },
+  bar: { shell: { updateEntryInline: (id, entry) => written.push([id, entry]) } }
+}
+const save = new Function('root', saveSource + '\nreturn saveProviderEnabled')(fakeRoot)
+
+save('claude', false)
+assertEqual(written.length, 1, 'the toggle writes the entry once')
+assertEqual(written[0][0], 'omarchy.agents', 'the entry is the widget own')
+assertEqual(written[0][1].refreshIntervalSec, 300, 'the settings already in the entry survive the write')
+assertEqual(written[0][1].providers.codex.enabled, true, 'the other agents keep their state')
+assertEqual(written[0][1].providers.claude.enabled, false, 'the toggled agent is written')
+
+fakeRoot.settings = {}
+written.length = 0
+save('claude', true)
+assertEqual(written[0][1].providers.claude.enabled, true, 'a first write still lands')
+JS
+
 # The panel reads a window out of a label, and that guess cannot survive a
 # model name — "Opus 5 (1M context)" parses as a one-minute window. A collector
 # that states the title outright is taken at its word.
