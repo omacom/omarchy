@@ -14,9 +14,10 @@ Item {
   property var manifest: null
 
   property bool opened: false
-  property string step: "minutes"
-  property string minutes: ""
+  property string step: "when"
+  property var when: null
   property string filterText: ""
+  property date now: new Date()
   property string fontFamily: Style.font.menuFamily
 
   property color background: Commons.Color.menu.background
@@ -28,8 +29,16 @@ Item {
   property int contentMargin: Style.spacing.panelPadding
   property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
   property int cardWidth: Math.min(Style.space(300), panel.width - Style.gapsOut * 2)
-  property int cardHeight: Math.min(contentMargin * 2 + headerHeight, panel.height - Style.gapsOut * 2)
-  readonly property string promptText: root.step === "message" ? I18n.t("reminders.messagePrompt") : I18n.t("reminders.minutesPrompt")
+  property int hintHeight: Style.font.body + Style.spacing.controlPaddingY * 2
+  property int cardHeight: Math.min(contentMargin * 2 + headerHeight + hintHeight, panel.height - Style.gapsOut * 2)
+  readonly property string promptText: root.step === "message" ? I18n.t("reminders.messagePrompt") : I18n.t("reminders.whenPrompt")
+  readonly property var pendingWhen: root.step === "message" ? root.when : ReminderFlowModel.parseWhen(root.filterText)
+  readonly property string hintText: {
+    if (root.pendingWhen) return ReminderFlowModel.describe(root.pendingWhen, root.now, I18n.t)
+    return root.filterText.trim()
+      ? I18n.t("reminders.notRecognized").arg(I18n.t("reminders.examples"))
+      : I18n.t("reminders.examples")
+  }
 
   function open(payloadJson) {
     var payload = ({})
@@ -37,9 +46,10 @@ Item {
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
 
     root.opened = true
-    root.step = "minutes"
-    root.minutes = ""
+    root.step = "when"
+    root.when = null
     root.filterText = ""
+    root.now = new Date()
 
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -66,20 +76,23 @@ Item {
   function submit() {
     var selection = root.filterText
 
-    if (root.step === "minutes") {
-      var nextMinutes = ReminderFlowModel.validMinutes(selection)
-
+    if (root.step === "when") {
       if (!selection.trim()) {
         root.dismiss()
         return
       }
 
-      if (!nextMinutes) {
-        Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-notification-send", I18n.t("reminders.invalidTitle"), I18n.t("reminders.invalidBody")])
+      var nextWhen = ReminderFlowModel.parseWhen(selection)
+      if (!nextWhen) {
+        Quickshell.execDetached([
+          root.omarchyPath + "/bin/omarchy-notification-send",
+          I18n.t("reminders.invalidTitle"),
+          I18n.t("reminders.invalidBody").arg(I18n.t("reminders.examples"))
+        ])
         return
       }
 
-      root.minutes = nextMinutes
+      root.when = nextWhen
       root.step = "message"
       root.filterText = ""
       Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -87,10 +100,17 @@ Item {
     }
 
     if (root.step === "message") {
-      var args = [root.omarchyPath + "/bin/omarchy-reminder"].concat(ReminderFlowModel.reminderArgs(root.minutes, selection))
+      var args = [root.omarchyPath + "/bin/omarchy-reminder"].concat(ReminderFlowModel.scheduleArgs(root.when, selection, new Date()))
       root.dismiss()
       Quickshell.execDetached(args)
     }
+  }
+
+  Timer {
+    interval: 15000
+    repeat: true
+    running: root.opened
+    onTriggered: root.now = new Date()
   }
 
   OverlayWindow {
@@ -155,12 +175,29 @@ Item {
           textFormat: Text.PlainText
           anchors.left: parent.left
           anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
+          anchors.top: parent.top
+          height: root.headerHeight
+          verticalAlignment: Text.AlignVCenter
           text: root.filterText || root.promptText
           color: root.foreground
           opacity: root.filterText ? 1 : 0.58
           font.family: root.fontFamily
           font.pixelSize: Style.font.heading
+          elide: Text.ElideRight
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          height: root.hintHeight
+          verticalAlignment: Text.AlignVCenter
+          text: root.hintText
+          color: root.foreground
+          opacity: 0.58
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
           elide: Text.ElideRight
         }
       }

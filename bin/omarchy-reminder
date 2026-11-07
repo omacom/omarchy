@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Set and show lightweight desktop notification reminders
-# omarchy:args=[-i|--interactive] | <minutes> [message] | show [-j|--json] | clear
-# omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 30 "Check the oven" | omarchy reminder show | omarchy reminder show --json | omarchy reminder clear
+# omarchy:args=[-i|--interactive] | <minutes|time> [message] | show [-j|--json] | clear
+# omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 30 "Check the oven" | omarchy reminder 3:30pm "Call mom" | omarchy reminder "tomorrow 9am" | omarchy reminder show | omarchy reminder show --json | omarchy reminder clear
 
 set -euo pipefail
 
@@ -19,6 +19,88 @@ format_remaining() {
     omarchy-i18n reminder.durationSeconds "$remainder"
   fi
   echo
+}
+
+# Normalize a clock time like 3pm, 3:30 p.m., 15:30, noon, or "tomorrow at 9am"
+# to "HH:MM" or "tomorrow HH:MM". Fails for anything else, so GNU date never
+# gets to read input like "1h" as a timezone.
+normalize_clock_time() {
+  local words when prefix=""
+
+  read -r -a words <<<"${1,,}"
+  when="${words[*]}"
+
+  if [[ $when =~ ^tomorrow\ (.+)$ ]] || [[ $when =~ ^(.+)\ tomorrow$ ]]; then
+    prefix="tomorrow "
+    when=${BASH_REMATCH[1]}
+  fi
+  when=${when#at }
+
+  case $when in
+  noon) when="12:00" ;;
+  midnight) when="00:00" ;;
+  esac
+
+  if [[ $when =~ ^([0-9]{1,2}(:[0-9]{2})?)\ ?([ap])\.?m?\.?$ ]]; then
+    when="${BASH_REMATCH[1]} ${BASH_REMATCH[3]}m"
+  elif [[ ! $when =~ ^[0-9]{1,2}:[0-9]{2}$ ]]; then
+    return 1
+  fi
+
+  when=$(TZ=UTC date -d "2000-01-01 $when" +%H:%M 2>/dev/null) || return 1
+  echo "$prefix$when"
+}
+
+next_day() {
+  date -d "$1 12:00 tomorrow" +%F
+}
+
+# UTC offset a day before <day> <HH:MM>, i.e. before any daylight-saving change on that day.
+offset_before_day() {
+  date -d "@$(($(TZ=UTC date -d "$1 $2" +%s) - 86400))" +%z
+}
+
+# Epoch for a wall-clock HH:MM on a calendar day, resolving daylight-saving
+# edges the way JavaScript dates do so the timer matches the prompt's preview:
+# a skipped time is read at the offset in force before the jump, and a
+# repeated time takes its first occurrence (GNU date picks either, by zone).
+local_time_epoch() {
+  local day=$1 clock=$2 at_earlier_offset as_parsed
+
+  at_earlier_offset=$(date -d "$day $clock $(offset_before_day "$day" "$clock")" +%s 2>/dev/null) || return 1
+
+  if ! as_parsed=$(date -d "$day $clock" +%s 2>/dev/null); then
+    echo "$at_earlier_offset"
+  elif ((at_earlier_offset < as_parsed)) && [[ $(date -d "@$at_earlier_offset" '+%F %H:%M') == "$day $clock" ]]; then
+    echo "$at_earlier_offset"
+  else
+    echo "$as_parsed"
+  fi
+}
+
+# Epoch for a clock time at or after <now>, rolling a time that has already
+# passed today over to tomorrow.
+clock_time_epoch() {
+  local now=$1 clock day target
+
+  clock=$(normalize_clock_time "$2") || return 1
+  day=$(date -d "@$now" +%F)
+
+  if [[ $clock == tomorrow\ * ]]; then
+    local_time_epoch "$(next_day "$day")" "${clock#tomorrow }"
+    return
+  fi
+
+  target=$(local_time_epoch "$day" "$clock") || return 1
+  if ((target <= now)); then
+    local_time_epoch "$(next_day "$day")" "$clock"
+  else
+    echo "$target"
+  fi
+}
+
+local_clock() {
+  LC_TIME="$(omarchy-language locale)" date -d "@$1" '+%-I:%M %p'
 }
 
 active_reminder_timers() {
@@ -131,7 +213,7 @@ clear_reminders() {
 
 usage() {
   echo "Usage: omarchy-reminder [-i|--interactive]"
-  echo "       omarchy-reminder <minutes> [message]"
+  echo "       omarchy-reminder <minutes|time> [message]"
   echo "       omarchy-reminder show [-j|--json]"
   echo "       omarchy-reminder clear"
 }
@@ -162,36 +244,54 @@ clear)
   ;;
 esac
 
-minutes=${1:-}
+when=${1:-}
 shift || true
 message="$*"
 custom_message="$message"
+set_at=$(date +%s)
 
-if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]] || ((minutes == 0)); then
+if [[ $when =~ ^[0-9]+$ ]] && ((10#$when > 0)); then
+  minutes=$((10#$when))
+  timer_spec="--on-active=${minutes}m"
+  confirmation=$(omarchy-i18n reminder.willRemindAt "$(date -d "@$((set_at + minutes * 60))" +%H:%M)")
+  confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$minutes")
+  default_message=$(omarchy-i18n --count "$minutes" reminder.minutesUp "$minutes")
+elif [[ -n $when ]] && target=$(clock_time_epoch "$set_at" "$when"); then
+  minutes=$(((target - set_at + 59) / 60))
+  timer_spec="--on-calendar=$(TZ=UTC date -d "@$target" '+%F %T UTC')"
+  remind_clock=$(local_clock "$target")
+  if [[ $(date -d "@$target" +%F) == $(date -d "@$set_at" +%F) ]]; then
+    confirmation=$(omarchy-i18n reminder.willRemindTodayAt "$remind_clock")
+  else
+    confirmation=$(omarchy-i18n reminder.willRemindTomorrowAt "$remind_clock")
+  fi
+  confirmation_title=$(omarchy-i18n reminder.setForTime "$remind_clock")
+  default_message=$(omarchy-i18n reminder.itsTime "$remind_clock")
+else
   usage
   exit 1
 fi
 
 if [[ -z $message ]]; then
-  message=$(omarchy-i18n --count "$minutes" reminder.minutesUp "$minutes")
+  message=$default_message
 fi
 
-set_at=$(date +%s)
-remind_at=$(date -d "+${minutes} minutes" +%H:%M)
 unit="omarchy-reminder-${minutes}m-$set_at"
 reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
 message_file="$reminder_dir/$unit.message"
-confirmation=$(omarchy-i18n reminder.willRemindAt "$remind_at")
-confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$minutes")
 
 mkdir -p "$reminder_dir"
 
 if [[ -n $custom_message ]]; then
   printf "%s" "$custom_message" >"$message_file"
-  confirmation_title=$(omarchy-i18n --count "$minutes" reminder.customInMinutes "$custom_message" "$minutes")
+  if [[ $when =~ ^[0-9]+$ ]]; then
+    confirmation_title=$(omarchy-i18n --count "$minutes" reminder.customInMinutes "$custom_message" "$minutes")
+  else
+    confirmation_title=$(omarchy-i18n reminder.customAtTime "$custom_message" "$remind_clock")
+  fi
 fi
 
-systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
+systemd-run --user --quiet --collect "$timer_spec" --unit="$unit" \
   bash -c 'omarchy-notification-send -g 󰢌 "$(omarchy-i18n reminder.title)" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"
 
 refresh_indicator
