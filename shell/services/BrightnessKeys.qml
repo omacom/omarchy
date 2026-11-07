@@ -38,7 +38,7 @@ Item {
     if (!(max > 0)) return false
     var current = Math.round(100 * readNumber(brightnessFile) / max)
 
-    setProc.command = ["brightnessctl", "-q", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]
+    setProc.command = ["brightnessctl", "-q", "-n1", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]
     setProc.running = true
     return true
   }
