@@ -119,7 +119,9 @@ transfer.import_provider("claude", payload["providers"]["claude"], False)
 registry = state.load("claude")
 assert [(a["id"], a["label"]) for a in registry["accounts"]] == [("main", "Personal"), ("work", "Work"), ("third", "Third")]
 assert registry["active"] == "work", "renaming preserves the selected identity"
-assert state.read_json(state.primary_home("claude") / ".credentials.json")["claudeAiOauth"]["accessToken"] == "destination-token"
+main = state.find(registry, "main")
+assert state.read_json(state.account_home("claude", main) / ".credentials.json")["claudeAiOauth"]["accessToken"] == "destination-token"
+state.use("claude", "main")
 
 # Explicit replacement rolls back credentials and new homes if commit fails.
 original_save = state.save

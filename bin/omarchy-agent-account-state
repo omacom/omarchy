@@ -532,6 +532,33 @@ def refresh(provider: str) -> None:
       account.update(identity(provider, account_home(provider, account)))
 
 
+# Claude reads its login before every request, so a session follows whatever
+# its home holds. Trading logins with the primary home moves every session
+# there, and keeps each refresh token in one place. A home with a session of
+# its own keeps its login, so that session isn't moved somewhere unexpected.
+def move_running_sessions(registry: dict[str, Any], account: dict[str, Any]) -> None:
+  holder = next(a for a in registry["accounts"] if a.get("primary"))
+  here, there = primary_home("claude"), account_home("claude", account)
+  logins = [home / ".credentials.json" for home in (here, there)]
+  if holder is account or not all(p.is_file() for p in logins) or home_in_use("claude", there):
+    return
+  texts = [p.read_text() for p in logins]
+  identities = [read_json(claude_account_file(home)) or {} for home in (here, there)]
+  for home, login, mine, theirs in zip((here, there), reversed(texts), identities, reversed(identities)):
+    write_private(home / ".credentials.json", login)
+    write_private(claude_account_file(home), json.dumps({**mine, "oauthAccount": theirs.get("oauthAccount")}, indent=2))
+  holder["home"], account["home"] = str(there), ""
+  holder["primary"], account["primary"] = False, True
+
+
+def write_private(path: Path, text: str) -> None:
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    handle.write(text)
+  os.chmod(tmp, 0o600)
+  os.replace(tmp, path)
+
+
 def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
   with Locked(provider) as registry:
     previous = active(registry)
@@ -543,6 +570,8 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
+    if provider == "claude":
+      move_running_sessions(registry, account)
     if not account.get("primary"):
       link_shared(provider, account_home(provider, account))
     return previous, account
@@ -800,9 +829,14 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
     if decision["action"] == "switch":
       registry["active"] = target["id"]
+      if provider == "claude":
+        move_running_sessions(registry, target)
       if not target.get("primary"):
         link_shared(provider, account_home(provider, target))
-      notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
+      if target.get("primary") and provider == "claude":
+        notify(headline, tr("omarchy-i18n agents.switchedBodyMoved", "%1 sessions now use %2 (%3%), running ones included.", name, target["label"], round(decision["toPeak"])))
+      else:
+        notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
       return True
     notify(
       headline,

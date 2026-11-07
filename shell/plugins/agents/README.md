@@ -31,8 +31,9 @@ Every subscription on one page, limits first.
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the
   others get a _Use_ link. Hovering the line also reveals Autoswitch, which
-  moves new sessions over on their own once the active account reaches its
-  threshold; while it's on it stands in for Use, which shows only when you're
+  moves sessions over on their own once the active account reaches its
+  threshold (Claude's running sessions included, since they read their login
+  before every request); while it's on it stands in for Use, which shows only when you're
   on the line, and clicking it again goes back to notifying. Click a name to
   rename the account in place.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
