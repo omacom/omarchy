@@ -25,6 +25,54 @@ Panel {
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
   readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
+  // The battery's real charge limits, read from the kernel. UPower's own
+  // ChargeStartThreshold/ChargeEndThreshold report hwdb defaults (75/80) even
+  // when no limit is applied, so they cannot tell whether a hold is possible.
+  // Missing files (no charge-control support) leave both empty: never held.
+  readonly property string batterySysfsPath: {
+    var devices = UPower.devices ? UPower.devices.values : []
+    for (var i = 0; i < devices.length; i++) {
+      var d = devices[i]
+      if (d && d.isLaptopBattery && d.nativePath) return "/sys/class/power_supply/" + d.nativePath
+    }
+    return ""
+  }
+  property string limitStartRaw: ""
+  property string limitEndRaw: ""
+  readonly property var batteryLimits: ({
+    start: parseInt(root.limitStartRaw, 10),
+    end: parseInt(root.limitEndRaw, 10)
+  })
+
+  FileView {
+    id: limitStartFile
+    path: root.batterySysfsPath ? root.batterySysfsPath + "/charge_control_start_threshold" : ""
+    watchChanges: false
+    printErrors: false
+    onLoaded: root.limitStartRaw = text()
+    onLoadFailed: root.limitStartRaw = ""
+  }
+
+  FileView {
+    id: limitEndFile
+    path: root.batterySysfsPath ? root.batterySysfsPath + "/charge_control_end_threshold" : ""
+    watchChanges: false
+    printErrors: false
+    onLoaded: root.limitEndRaw = text()
+    onLoadFailed: root.limitEndRaw = ""
+  }
+
+  // sysfs attributes do not emit inotify events, so re-read the limits on
+  // every power-source change, the moment a limit starts to matter.
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() {
+      if (!root.batterySysfsPath) return
+      limitStartFile.reload()
+      limitEndFile.reload()
+    }
+  }
+
   readonly property bool batteryPresent: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
@@ -50,12 +98,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.batteryLimits)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.batteryLimits)
   }
 
   function profileIcon(name) {
@@ -72,7 +120,7 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.batteryLimits)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
