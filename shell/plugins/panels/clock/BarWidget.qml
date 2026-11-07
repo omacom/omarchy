@@ -35,7 +35,14 @@ BarWidget {
   readonly property string displayText: formatted(displayDate)
   readonly property var verticalLines: displayText.split("\n")
 
+  // Called on wake and unlock (omarchy-system-wake). SystemClock counts down
+  // to its next tick on the monotonic clock, which stops during suspend, so
+  // the countdown armed before sleep can still be up to a minute out after
+  // resume. Restarting the clock schedules the next tick from the current
+  // wall time, so the label is right now and stays on the minute boundary.
   function refresh() {
+    clock.enabled = false
+    clock.enabled = true
     displayDate = new Date()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
