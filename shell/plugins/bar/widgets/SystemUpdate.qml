@@ -10,9 +10,13 @@ BarWidget {
   moduleName: "omarchy.system-update"
 
   property bool updateAvailable: false
+  // A refresh asked for while a check is running (say, the network coming back
+  // during a check that started offline) runs once that check exits.
+  property bool refreshPending: false
 
   function refresh() {
-    if (!updateProc.running) updateProc.running = true
+    if (updateProc.running) refreshPending = true
+    else updateProc.running = true
   }
 
   function clear() { updateAvailable = false }
@@ -42,6 +46,10 @@ BarWidget {
     command: ["omarchy-update-available"]
     onExited: function(exitCode) {
       root.updateAvailable = exitCode === 0
+      if (root.refreshPending) {
+        root.refreshPending = false
+        Qt.callLater(root.refresh)
+      }
     }
   }
 
