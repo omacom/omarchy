@@ -5,3 +5,9 @@ source "$OMARCHY_PATH/default/bash/aliases"
 source "$OMARCHY_PATH/default/bash/functions"
 source "$OMARCHY_PATH/default/bash/init"
 [[ $- == *i* ]] && bind -f "$OMARCHY_PATH/default/bash/inputrc"
+
+if [[ $- == *i* && -t 0 && -t 1 && -z $OMARCHY_TASK_SCREENSAVER_ACTIVE ]] && omarchy-toggle-enabled screensaver-task-on; then
+  if [[ -s "$HOME/.config/omarchy/branding/screensaver.txt" ]] && python3 -c 'import pyte' >/dev/null 2>&1; then
+    exec omarchy-screensaver-auto --shell bash
+  fi
+fi
