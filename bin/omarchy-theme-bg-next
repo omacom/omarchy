@@ -3,6 +3,8 @@
 # omarchy:summary=Cycle to the next background for the current theme
 # omarchy:examples=omarchy theme bg next
 
+source omarchy-theme-bg-companions
+
 THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 THEME_BACKGROUNDS_PATH="$HOME/.local/state/omarchy/current/theme/backgrounds/"
 USER_BACKGROUNDS_PATH="$HOME/.config/omarchy/backgrounds/$THEME_NAME/"
@@ -26,6 +28,8 @@ else
   if [[ -z $CURRENT_BACKGROUND && -L $CURRENT_BACKGROUND_LINK ]]; then
     CURRENT_BACKGROUND=$(readlink "$CURRENT_BACKGROUND_LINK")
   fi
+  # A playing theme loop stands for its still.
+  CURRENT_BACKGROUND=$(theme_bg_still_for "$CURRENT_BACKGROUND")
 
   # Find current background index
   INDEX=-1

@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# omarchy:summary=Point the background at the current still's theme loop, or back at the still
+# omarchy:args=[--still background|--still-only]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# While a theme loop plays the background link names the loop, so OWE plays it
+# like any video background; theme memory, intros and the picker map it back
+# to its still. omarchy-theme-bg-companions describes the layout.
+source omarchy-theme-bg-companions
+
+current_background_link="$HOME/.local/state/omarchy/current/background"
+
+# The rest owns the link: it reads it and may rewrite it.
+apply_live_background() {
+  local current target selected
+
+  # Every writer of the link takes the same lock, so a pick or theme switch
+  # made while this runs is never replaced by the loop of the background
+  # before it.
+  mkdir -p "$HOME/.local/state/omarchy"
+  exec 8>"$HOME/.local/state/omarchy/background-loop.lock"
+  flock 8
+
+  current=$(readlink -f "$current_background_link" 2>/dev/null) || return 0
+
+  if [[ ${1:-} == "--still-only" ]]; then
+    # A shell starting up begins a theme loop again from its still, which is
+    # what an intro pairs with. It isn't running yet, so only the link changes.
+    target=$(theme_bg_still_for "$current")
+    [[ $target == "$current" ]] || ln -nsf "$target" "$current_background_link"
+    printf '%s\n' "$target"
+  elif ! theme_bg_loops_on && [[ $current != */backgrounds/loops/* ]]; then
+    # With live backgrounds off and no loop left to stop, there is nothing to do.
+    :
+  else
+    # The shell may hold a selection it has not linked yet, so it is asked
+    # first. It agrees to the swap only while that selection is still what it
+    # shows and no other change is under way; whatever ends that change runs
+    # this again. The link is written here, under the lock.
+    selected=$(omarchy-shell shell selectedBackground 2>/dev/null || true)
+    if [[ -n $selected ]]; then
+      target=$(theme_bg_live_target "$(theme_bg_still_for "$selected")")
+      # The shell may already show the loop while the link names its still, as
+      # when a theme switch relinked the still after a swap; the shell then
+      # agrees to keep what it shows and the link catches up.
+      if [[ $target != "$selected" || ($target == */backgrounds/loops/* && $(readlink -f "$target") != "$current") ]] &&
+        [[ $(omarchy-shell shell replaceBackground "$selected" "$target" 2>/dev/null) == "ok" ]]; then
+        ln -nsf "$target" "$current_background_link"
+      fi
+    else
+      target=$(theme_bg_live_target "$(theme_bg_still_for "$current")")
+      # Moving the link cancels a playing intro; whatever ends it runs this again.
+      if [[ $target != "$current" && $(owe status 2>/dev/null | jq -r '.intro' 2>/dev/null) != "true" ]]; then
+        ln -nsf "$target" "$current_background_link"
+        omarchy-shell -q background set "$target" || true
+      fi
+    fi
+  fi
+}
+
+if [[ ${1:-} == "--still" ]]; then
+  theme_bg_still_for "${2:-}"
+else
+  apply_live_background "$@"
+fi

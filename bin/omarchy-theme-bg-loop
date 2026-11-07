@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable live backgrounds
+# omarchy:args=<enable|disable|toggle|status>
+# omarchy:examples=omarchy theme bg loop toggle | omarchy theme bg loop disable
+
+set -euo pipefail
+
+source omarchy-theme-bg-companions
+toggle=$theme_bg_loops_toggle
+
+# A loop ends on the frame before its first, which is its still, so one turned
+# off while it plays runs on to that end and the still takes over unseen. The
+# switch is asked for a tenth of a second early, about what it takes to land. A
+# loop longer than a wait anyone would sit through gives way at once instead.
+finish_loop_cycle() {
+  local link current paused pos duration remaining
+  link="$HOME/.local/state/omarchy/current/background"
+  current=$(readlink "$link" 2>/dev/null) || return 0
+  [[ $current == */backgrounds/loops/* ]] || return 0
+  read -r paused pos < <(owe render-status 2>/dev/null | jq -r '"\(.paused) \(.time_pos)"') || return 0
+  [[ $paused == "false" ]] || return 0
+  duration=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$current") || return 0
+  remaining=$(awk -v d="$duration" -v p="$pos" 'BEGIN { if (p < 0 || p > d) exit 1; if (d - p > 20) exit 1; r = d - p - 0.1; printf "%.3f", (r > 0 ? r : 0) }') || return 0
+  sleep "$remaining"
+}
+
+case ${1:-} in
+  enable)
+    mkdir -p "$(dirname "$toggle")"
+    touch "$toggle"
+    omarchy-theme-bg-loop-apply
+    ;;
+  disable)
+    rm -f "$toggle"
+    finish_loop_cycle
+    omarchy-theme-bg-loop-apply
+    ;;
+  toggle)
+    if [[ -f $toggle ]]; then
+      omarchy-theme-bg-loop disable
+    else
+      omarchy-theme-bg-loop enable
+    fi
+    ;;
+  status)
+    [[ -f $toggle ]]
+    ;;
+  *)
+    echo "Usage: omarchy-theme-bg-loop <enable|disable|toggle|status>" >&2
+    exit 1
+    ;;
+esac
