@@ -17,13 +17,19 @@ key_names_file=/usr/share/omarchy-platform/key-names
 # The leading layout and variant, which Hyprland resolves bindings against.
 # Only names XKB could know pass, since they end up on a command line.
 leading_keyboard() {
-  local option value
-  for option in kb_layout kb_variant; do
-    value=$(hyprctl -j getoption "input:$option" 2>/dev/null | jq -r '.str // empty' 2>/dev/null)
-    value=${value%%,*}
-    [[ $value =~ ^[A-Za-z0-9_-]*$ ]] || value=""
-    printf '%s\n' "$value"
-  done
+  local batch_json layout="" variant=""
+  batch_json=$(hyprctl -j --batch "getoption input:kb_layout ; getoption input:kb_variant" 2>/dev/null) || true
+  if [[ -n $batch_json ]]; then
+    {
+      read -r layout
+      read -r variant
+    } < <(jq -r '.[0].str // "", .[1].str // ""' <<<"$batch_json" 2>/dev/null)
+  fi
+  layout="${layout%%,*}"
+  [[ $layout =~ ^[A-Za-z0-9_-]*$ ]] || layout=""
+  variant="${variant%%,*}"
+  [[ $variant =~ ^[A-Za-z0-9_-]*$ ]] || variant=""
+  printf '%s\n%s\n' "$layout" "$variant"
 }
 
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
