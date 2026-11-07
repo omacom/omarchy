@@ -36,63 +36,68 @@ _omarchy_complete() {
     candidates+=("commands")
   fi
 
+  # Alias routes (# omarchy:aliases=omarchy reboot | ..., or alias= for one)
+  # have no binary of their own to be found by name, so offer the next word of
+  # each one that matches what is typed so far.
+  local alias_line route
+  local -a route_words
+  while IFS= read -r alias_line; do
+    alias_line="${alias_line#*omarchy:alias*=}"
+    while IFS= read -r route; do
+      read -r -a route_words <<<"$route"
+      [[ ${route_words[0]:-} == omarchy ]] || continue
+      for ((i = 1; i < COMP_CWORD; i++)); do
+        [[ ${route_words[i]:-} == "${COMP_WORDS[i]}" ]] || continue 2
+      done
+      next="${route_words[COMP_CWORD]:-}"
+      if [[ -n $next && -z ${seen[$next]:-} ]]; then
+        seen[$next]=1
+        candidates+=("$next")
+      fi
+    done <<<"${alias_line// | /$'\n'}"
+  done < <(grep -hE '^# omarchy:alias(es)?=' "$bin_dir"/omarchy* 2>/dev/null)
+
   if [[ ${COMP_WORDS[1]:-} == "commands" ]] && (( COMP_CWORD >= 2 )); then
     candidates+=("--all" "--json" "--markdown" "--check")
   fi
 
-  if (( ${#candidates[@]} == 0 )); then
-    local command_prefix command_path first_arg_index n j
-    for ((n = COMP_CWORD - 1; n >= 0; n--)); do
-      command_prefix="omarchy"
-      for ((j = 1; j <= n; j++)); do
-        part="${COMP_WORDS[j]}"
-        [[ -z $part || $part == -* ]] && continue
-        command_prefix+="-$part"
-      done
-
-      command_path="$bin_dir/$command_prefix"
-      if [[ -x $command_path ]]; then
-        first_arg_index=$((n + 1))
-        break
-      fi
+  # A command's own arguments are offered beside any subcommands named after
+  # it: omarchy system takes logout, reboot and shutdown as well as having
+  # omarchy-system-lock and the rest as siblings.
+  local command_prefix command_path first_arg_index n j
+  for ((n = COMP_CWORD - 1; n >= 0; n--)); do
+    command_prefix="omarchy"
+    for ((j = 1; j <= n; j++)); do
+      part="${COMP_WORDS[j]}"
+      [[ -z $part || $part == -* ]] && continue
+      command_prefix+="-$part"
     done
 
-    if [[ -n ${command_path:-} && -x $command_path ]]; then
-      local args spec alt token actual alts value match current_arg_index
-      args=$(grep -m 1 '^# omarchy:args=' "$command_path" 2>/dev/null)
-      args="${args#*omarchy:args=}"
-      current_arg_index=$((COMP_CWORD - first_arg_index))
+    command_path="$bin_dir/$command_prefix"
+    if [[ -x $command_path ]]; then
+      first_arg_index=$((n + 1))
+      break
+    fi
+  done
 
-      alts="${args// | /$'\n'}"
-      while IFS= read -r alt; do
-        read -r -a spec <<<"$alt"
-        match=true
+  if [[ -n ${command_path:-} && -x $command_path ]]; then
+    local args spec alt token actual alts value match current_arg_index
+    args=$(grep -m 1 '^# omarchy:args=' "$command_path" 2>/dev/null)
+    args="${args#*omarchy:args=}"
+    current_arg_index=$((COMP_CWORD - first_arg_index))
 
-        for ((j = 0; j < current_arg_index; j++)); do
-          token="${spec[j]:-}"
-          actual="${COMP_WORDS[first_arg_index + j]:-}"
-          if [[ -z $token ]]; then
-            match=false
-            break
-          fi
+    alts="${args// | /$'\n'}"
+    while IFS= read -r alt; do
+      read -r -a spec <<<"$alt"
+      match=true
 
-          if [[ $token == \<*\> || $token == \[*\] ]]; then
-            value="${token#<}"
-            value="${value#\[}"
-            value="${value%>}"
-            value="${value%\]}"
-            if [[ $value == *"|"* ]]; then
-              [[ " ${value//|/ } " == *" $actual "* ]] || match=false
-            fi
-          elif [[ $token != "$actual" ]]; then
-            match=false
-          fi
-        done
-
-        [[ $match == true ]] || continue
-
-        token="${spec[current_arg_index]:-}"
-        [[ -n $token ]] || continue
+      for ((j = 0; j < current_arg_index; j++)); do
+        token="${spec[j]:-}"
+        actual="${COMP_WORDS[first_arg_index + j]:-}"
+        if [[ -z $token ]]; then
+          match=false
+          break
+        fi
 
         if [[ $token == \<*\> || $token == \[*\] ]]; then
           value="${token#<}"
@@ -100,20 +105,37 @@ _omarchy_complete() {
           value="${value%>}"
           value="${value%\]}"
           if [[ $value == *"|"* ]]; then
-            read -r -a spec <<<"${value//|/ }"
-            for actual in "${spec[@]}"; do
-              [[ -n ${seen[$actual]:-} ]] && continue
-              seen[$actual]=1
-              candidates+=("$actual")
-            done
+            [[ " ${value//|/ } " == *" $actual "* ]] || match=false
           fi
-        else
-          [[ -n ${seen[$token]:-} ]] && continue
-          seen[$token]=1
-          candidates+=("$token")
+        elif [[ $token != "$actual" ]]; then
+          match=false
         fi
-      done <<<"$alts"
-    fi
+      done
+
+      [[ $match == true ]] || continue
+
+      token="${spec[current_arg_index]:-}"
+      [[ -n $token ]] || continue
+
+      if [[ $token == \<*\> || $token == \[*\] ]]; then
+        value="${token#<}"
+        value="${value#\[}"
+        value="${value%>}"
+        value="${value%\]}"
+        if [[ $value == *"|"* ]]; then
+          read -r -a spec <<<"${value//|/ }"
+          for actual in "${spec[@]}"; do
+            [[ -n ${seen[$actual]:-} ]] && continue
+            seen[$actual]=1
+            candidates+=("$actual")
+          done
+        fi
+      else
+        [[ -n ${seen[$token]:-} ]] && continue
+        seen[$token]=1
+        candidates+=("$token")
+      fi
+    done <<<"$alts"
   fi
 
   if (( ${#candidates[@]} > 0 )); then
