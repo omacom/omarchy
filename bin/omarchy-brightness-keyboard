@@ -26,8 +26,15 @@ if [[ -z $device ]]; then
 fi
 
 # The level from before the first "off" since the last "restore", so the lock
-# blanking again after a resume cannot save its own 0 over it.
-saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
+# blanking again after a resume cannot save its own 0 over it. Keep it out of
+# /tmp: another local account can plant that fixed name and the next open
+# follows it.
+state_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  mkdir -p "$state_dir" || exit 1
+  chmod 700 "$state_dir" || exit 1
+fi
+saved="$state_dir/omarchy-brightness-keyboard-$device"
 
 if [[ $direction == "off" || $direction == "restore" ]]; then
   # The lock runs blank and wake as separate processes that can overlap.
