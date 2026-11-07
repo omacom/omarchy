@@ -282,6 +282,94 @@ start_cancelled() {
   [[ -e $CANCEL_FILE ]]
 }
 
+# gpu-screen-recorder prints this when the VAAPI driver for the render node
+# will not initialize. On a hybrid Intel+NVIDIA laptop that node is the iGPU,
+# so a missing Intel driver (the NVIDIA one does not stand in for it) lands
+# here. -fallback-cpu-encoding keeps the recording on the CPU; the line is the
+# only signal that the driver is missing. offset is the byte count already in
+# the file, so an older debug log cannot raise this again.
+stderr_has_vaapi_init_failure() {
+  local err_file=$1 offset=$2
+  [[ -f $err_file ]] || return 1
+  tail -c +$((offset + 1)) "$err_file" | grep -q 'vaInitialize failed'
+}
+
+# Which VAAPI package is absent for a display-class GPU, read from sysfs the
+# way the hw detectors do. lspci would resume a runtime-suspended dGPU.
+# Returns the notification body. An installed driver that still will not
+# initialize is a different sentence: this does not choose Intel's package by
+# generation.
+vaapi_failure_description() {
+  local dri=${OMARCHY_DRI_DRIVERS_PATH:-/usr/lib/dri}
+  local pci=${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}
+  local device vendor class
+  local intel=false amd=false nvidia=false
+  local nullglob_was=false
+
+  if shopt -q nullglob; then
+    nullglob_was=true
+  fi
+  shopt -s nullglob
+
+  for device in "$pci"/*; do
+    [[ -r $device/vendor && -r $device/class ]] || continue
+    read -r vendor <"$device/vendor"
+    read -r class <"$device/class"
+    [[ $class == 0x03* ]] || continue
+    case $vendor in
+    0x8086) intel=true ;;
+    0x1002) amd=true ;;
+    0x10de) nvidia=true ;;
+    esac
+  done
+
+  if [[ $nullglob_was == false ]]; then
+    shopt -u nullglob
+  fi
+
+  local missing=() saw=false
+  if [[ $intel == true ]]; then
+    saw=true
+    if [[ ! -e $dri/iHD_drv_video.so && ! -e $dri/i965_drv_video.so ]]; then
+      missing+=("$(omarchy-i18n capture.vaapiMissingIntel)")
+    fi
+  fi
+  if [[ $amd == true ]]; then
+    saw=true
+    if [[ ! -e $dri/radeonsi_drv_video.so && ! -e $dri/r600_drv_video.so ]]; then
+      missing+=("$(omarchy-i18n capture.vaapiMissingAmd)")
+    fi
+  fi
+  if [[ $nvidia == true ]]; then
+    saw=true
+    if [[ ! -e $dri/nvidia_drv_video.so ]]; then
+      missing+=("$(omarchy-i18n capture.vaapiMissingNvidia)")
+    fi
+  fi
+
+  if ((${#missing[@]} > 0)); then
+    local hint="" piece
+    for piece in "${missing[@]}"; do
+      if [[ -n $hint ]]; then
+        hint+=$'\n'"$piece"
+      else
+        hint=$piece
+      fi
+    done
+    omarchy-i18n capture.vaapiMissingDrivers "$hint"
+  elif [[ $saw == true ]]; then
+    omarchy-i18n capture.vaapiInitFailed
+  else
+    omarchy-i18n capture.vaapiUnknownGpu
+  fi
+}
+
+notify_vaapi_failure() {
+  omarchy-notification-send -u critical -t 10000 \
+    "$(omarchy-i18n capture.vaapiUnavailable)" \
+    "$(vaapi_failure_description)"
+}
+
 # Stops a recorder this start launched: TERM, two seconds to exit, then KILL.
 end_launched_recorder() {
   local pid=$1 waited=0 state
@@ -333,10 +421,14 @@ start_screenrecording() {
 
   local filename="$OUTPUT_DIR/screenrecording-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
   local backend pid=""
+  local vaapi_failed=false
+  local gsr_err="" err_offset=0
 
   for backend in $(recorder_backends); do
     [[ $backend == "wf-recorder" && $target == "portal" ]] && continue
     echo "===== $(date '+%F %T') args: $* backend: $backend target: $target =====" >>"$LOG_FILE"
+    gsr_err=""
+    err_offset=0
 
     if [[ $backend == "wf-recorder" ]]; then
       launch_wf_recorder "$target" "$filename" || continue
@@ -355,7 +447,20 @@ start_screenrecording() {
 
       [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
 
-      gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
+      # The debug log is /dev/null unless OMARCHY_SCREENRECORD_DEBUG=true, which
+      # drops "vaInitialize failed" on the way to the CPU fallback. Keep this
+      # start's stderr, and ignore bytes already in a debug log from before.
+      if [[ $LOG_FILE == "/dev/null" ]]; then
+        gsr_err="$RUNTIME_DIR/omarchy-screenrecord-gsr.err"
+        : >"$gsr_err"
+      else
+        gsr_err=$LOG_FILE
+        if [[ -f $gsr_err ]]; then
+          err_offset=$(stat -c %s "$gsr_err")
+        fi
+      fi
+
+      gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$gsr_err" &
       pid=$!
     fi
 
@@ -366,6 +471,9 @@ start_screenrecording() {
         end_launched_recorder "$pid"
         wf_audio_cleanup
         rm -f "$filename"
+        if [[ -n $gsr_err ]] && stderr_has_vaapi_init_failure "$gsr_err" "$err_offset"; then
+          vaapi_failed=true
+        fi
         continue 2
       fi
       sleep 0.2
@@ -378,10 +486,17 @@ start_screenrecording() {
       return 1
     fi
 
+    if [[ -n $gsr_err ]] && stderr_has_vaapi_init_failure "$gsr_err" "$err_offset"; then
+      vaapi_failed=true
+    fi
+
     if kill -0 $pid 2>/dev/null; then
       echo "$pid" >"$REC_PID_FILE"
       echo "$filename" >"$RECORDING_FILE"
       toggle_screenrecording_indicator
+      if [[ $vaapi_failed == true ]]; then
+        notify_vaapi_failure
+      fi
       return 0
     fi
 
@@ -389,6 +504,9 @@ start_screenrecording() {
     rm -f "$filename"
   done
 
+  if [[ $vaapi_failed == true ]]; then
+    notify_vaapi_failure
+  fi
   return 1
 }
 
