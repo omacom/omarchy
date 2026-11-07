@@ -26,6 +26,15 @@ BarWidget {
   // Connector -> block, from the file Hyprland keeps them in.
   property var blocks: ({})
 
+  // Set when a workspace rule or an older cloned indicator still uses global
+  // workspace numbers. The bar then lists those numbers, as it did before
+  // each monitor had its own 1-10. See default/hypr/global-workspaces.lua.
+  property bool globalWorkspaces: false
+
+  function readGlobal(text) {
+    root.globalWorkspaces = String(text || "").trim() === "1"
+  }
+
   function readBlocks(text) {
     var next = {}
     var lines = String(text || "").split("\n")
@@ -45,6 +54,15 @@ BarWidget {
     onLoadFailed: root.readBlocks("")
   }
 
+  FileView {
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitors/global-workspaces"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.readGlobal(text())
+    onLoadFailed: root.readGlobal("")
+  }
+
   function blockOf(id) {
     return Math.floor((id - 1) / root.slots)
   }
@@ -55,6 +73,13 @@ BarWidget {
 
   function activeWorkspaceId() {
     return root.monitor && root.monitor.activeWorkspace ? root.monitor.activeWorkspace.id : -1
+  }
+
+  // Global mode follows the focused workspace. Per-monitor mode follows the
+  // workspace this bar's monitor is showing.
+  function currentId() {
+    if (root.globalWorkspaces) return Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
+    return root.activeWorkspaceId()
   }
 
   // Until Hyprland has written the file, the workspace a monitor shows is in
@@ -78,7 +103,22 @@ BarWidget {
   // The first five of the monitor's own, and any of the rest that exist. After
   // them come workspaces that are only visiting: those of a monitor that is
   // unplugged, which had no room to join this one's.
+  function globalWorkspaceIds() {
+    var ids = [1, 2, 3, 4, 5]
+    var values = Hyprland.workspaces.values
+
+    for (var i = 0; i < values.length; i++) {
+      var id = values[i].id
+      if (id > 0 && id <= 10 && ids.indexOf(id) === -1) ids.push(id)
+    }
+
+    ids.sort(function(left, right) { return left - right })
+    return ids
+  }
+
   function workspaceIds() {
+    if (root.globalWorkspaces) return root.globalWorkspaceIds()
+
     var base = root.block * root.slots
     var ids = [base + 1, base + 2, base + 3, base + 4, base + 5]
     var guests = []
@@ -104,6 +144,10 @@ BarWidget {
   }
 
   function focusWorkspace(id) {
+    if (root.globalWorkspaces) {
+      root.dispatch("hl.dsp.focus({ workspace = \"" + id + "\" })")
+      return
+    }
     if (root.blockOf(id) === root.block) {
       root.dispatch("o.workspaces.focus(" + root.slotOf(id) + ", \"" + root.monitorName + "\")")
     } else {
@@ -123,7 +167,7 @@ BarWidget {
     // Holds at either end rather than wrapping, so a touchpad swipe that runs
     // long stops on the last workspace.
     var ids = root.workspaceIds()
-    var index = ids.indexOf(root.activeWorkspaceId())
+    var index = ids.indexOf(root.currentId())
     if (index === -1) return
     var target = ids[Util.clamp(index - wheel.steps, 0, ids.length - 1)]
     if (target !== ids[index]) root.focusWorkspace(target)
@@ -150,7 +194,7 @@ BarWidget {
   property int modeProcGeneration: 0
 
   function showActiveMode() {
-    var mode = root.modeCache[root.activeWorkspaceId()]
+    var mode = root.modeCache[root.globalWorkspaces ? root.currentId() : root.activeWorkspaceId()]
     if (mode !== undefined) root.activeMode = mode
     else readMode()
   }
@@ -160,7 +204,7 @@ BarWidget {
       root.modeStale = true
       return
     }
-    var id = root.activeWorkspaceId()
+    var id = root.globalWorkspaces ? root.currentId() : root.activeWorkspaceId()
     if (id === -1) return
     root.modeProcWorkspace = id
     root.modeProcGeneration = root.modeGeneration
@@ -195,6 +239,13 @@ BarWidget {
 
   Connections {
     target: Hyprland
+    function onFocusedWorkspaceChanged() {
+      if (root.globalWorkspaces) root.showActiveMode()
+    }
+  }
+
+  Connections {
+    target: Hyprland
     function onRawEvent(event) {
       var name = event ? String(event.name) : ""
       if (name === "configreloaded") root.refresh()
@@ -220,7 +271,7 @@ BarWidget {
         // A read that started before a refresh may predate the change.
         if (!mode || root.modeProcGeneration !== root.modeGeneration) return
         root.modeCache[root.modeProcWorkspace] = mode
-        if (root.modeProcWorkspace === root.activeWorkspaceId()) root.activeMode = mode
+        if (root.modeProcWorkspace === (root.globalWorkspaces ? root.currentId() : root.activeWorkspaceId())) root.activeMode = mode
       }
     }
     onExited: {
@@ -260,8 +311,13 @@ BarWidget {
 
         readonly property var workspace: root.workspaceById(modelData)
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
-        readonly property bool shown: root.monitor !== null && root.monitor.activeWorkspace !== null && root.monitor.activeWorkspace.id === modelData
+        readonly property bool shown: root.globalWorkspaces
+          ? Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
+          : root.monitor !== null && root.monitor.activeWorkspace !== null && root.monitor.activeWorkspace.id === modelData
         readonly property int slot: root.slotOf(modelData)
+        readonly property string numberText: root.globalWorkspaces
+          ? (modelData === 10 ? "0" : String(modelData))
+          : (slot === root.slots ? "0" : String(slot))
         readonly property bool firstGuest: root.blockOf(modelData) !== root.block && index > 0 && root.blockOf(root.workspaceIds()[index - 1]) === root.block
         required property int index
 
@@ -270,7 +326,7 @@ BarWidget {
         Layout.topMargin: firstGuest && root.vertical ? Style.space(6) : 0
 
         bar: root.bar
-        text: shown ? root.modeGlyph(root.activeMode) : (slot === root.slots ? "0" : String(slot))
+        text: shown ? root.modeGlyph(root.activeMode) : numberText
         opacity: occupied || shown ? 1 : 0.5
         horizontalMargin: 6
         verticalPadding: 6

@@ -247,8 +247,26 @@ end
 
 -- A fresh config load, as a reload or the next session gives.
 function load_module()
+  package.loaded["default.hypr.paths"] = nil
+  package.loaded["default.hypr.global-workspaces"] = nil
   package.loaded["default.hypr.monitor-workspaces"] = nil
   return require("default.hypr.monitor-workspaces")
+end
+
+function write_config(relative, text)
+  local path = os.getenv("XDG_CONFIG_HOME") .. "/" .. relative
+  local dir = assert(path:match("^(.*)/"), relative)
+  os.execute("mkdir -p '" .. dir:gsub("'", "'\\''") .. "'")
+  local file = assert(io.open(path, "w"))
+  file:write(text)
+  file:close()
+end
+
+function global_flag()
+  local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/global-workspaces")
+  local content = file and file:read("a") or ""
+  if file then file:close() end
+  return content
 end
 
 function plug(name, id, description, active)
@@ -297,8 +315,9 @@ LUA
 
 run_lua() {
   local state="$tmpdir/state-$1"
-  mkdir -p "$state/omarchy"
-  ROOT="$ROOT" XDG_STATE_HOME="$state" lua -e "dofile('$tmpdir/fake.lua')" -e "$2"
+  local config="$tmpdir/config-$1"
+  mkdir -p "$state/omarchy" "$config"
+  ROOT="$ROOT" XDG_STATE_HOME="$state" XDG_CONFIG_HOME="$config" lua -e "dofile('$tmpdir/fake.lua')" -e "$2"
 }
 
 # --- Which monitor owns which block -------------------------------------------
@@ -660,3 +679,160 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+# --- Global numbers kept for an existing shortcut workflow --------------------
+
+run_lua global-keys '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 4)
+world.focused = "eDP-1"
+window("0xa", 4)
+monitor_named("DP-1").active = 4
+_G.omarchy_global_workspaces = true
+local m = load_module()
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 4 and on(4) == "DP-1", "workspace 4 stayed 4, not " .. tostring(world.windows["0xa"].workspace))
+check(shows("DP-1") == 4 and shows("eDP-1") == 1, "each monitor kept the workspace it was showing")
+
+hl.dispatch(m.focus(4))
+check(world.focused == "DP-1" and shows("DP-1") == 4 and shows("eDP-1") == 1, "Super + 4 selects workspace 4 from the other monitor")
+hl.dispatch(m.focus(1))
+check(world.focused == "eDP-1" and shows("eDP-1") == 1, "Super + 1 selects workspace 1")
+
+world.active_window = "0xa"
+hl.dispatch(m.move_window(6, false))
+check(world.windows["0xa"].workspace == 6 and shows("DP-1") == 4 and world.focused == "eDP-1", "a silent move uses the global number and stays behind")
+check(global_flag() == "1\n", "the bar is told these numbers are global: [" .. global_flag() .. "]")
+check(o.bind_expressions[m.focus(4)] == "o.workspaces.focus(4)", "the menu still replays Super + 4")
+' || fail "Super + number keeps selecting global workspaces when that mode is on"
+pass "Super + number keeps selecting global workspaces when that mode is on"
+
+run_lua global-rule '
+write_config("hypr/monitors.lua", "hl.workspace_rule({\n  workspace = \"4\",\n  monitor = \"desc:Dell Inc. DELL U2723QE\",\n})\n")
+write_config("hypr/hyprland.lua", "-- hl.workspace_rule({ workspace = \"9\", monitor = \"DP-9\" })\n")
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "Dell", 4)
+world.focused = "eDP-1"
+window("0xa", 4)
+monitor_named("DP-1").active = 4
+local layouts = os.getenv("XDG_STATE_HOME") .. "/omarchy/workspace-layouts"
+os.execute("mkdir -p " .. layouts)
+local layout = layouts .. "/4.lua"
+local file = assert(io.open(layout, "w"))
+file:write("o.workspace_mode({ workspace = \"4\", mode = \"scrolling\" })\n")
+file:close()
+
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(world.windows["0xa"].workspace == 4 and on(4) == "DP-1", "a pinned workspace 4 was renumbered to " .. tostring(world.windows["0xa"].workspace))
+hl.dispatch(m.focus(4))
+check(world.focused == "DP-1" and shows("eDP-1") == 1, "Super + 4 follows the workspace the rule pinned")
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 4, "a reload leaves the saved layout on workspace 4")
+local saved = assert(io.open(layout))
+check(saved:read("a"):find("workspace = \"4\"", 1, true) ~= nil, "the saved layout file is not rewritten")
+saved:close()
+check(global_flag() == "1\n", "a pinned global workspace tells the bar")
+' || fail "workspace rules that pin global numbers keep those shortcuts, indicators, and layouts"
+pass "workspace rules that pin global numbers keep those shortcuts, indicators, and layouts"
+
+run_lua global-keyword '
+write_config("hypr/hyprland.lua", "hl.keyword(\"workspace\", \"7, monitor:HDMI-A-1, default:true\")\n")
+plug("eDP-1", 0, "Panel", 1)
+plug("HDMI-A-1", 1, "Portrait", 7)
+world.focused = "HDMI-A-1"
+window("0xa", 7)
+local m = load_module()
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 7 and on(7) == "HDMI-A-1", "a conf-style rule kept workspace 7, not " .. tostring(world.windows["0xa"].workspace))
+' || fail "a Hyprland workspace keyword that pins a global number is kept"
+pass "a Hyprland workspace keyword that pins a global number is kept"
+
+run_lua laptop-default '
+write_config("hypr/hyprland.lua", "hl.workspace_rule({ workspace = \"1\", monitor = \"eDP-1\", default = true })\n")
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 2)
+world.focused = "DP-1"
+window("0xa", 2)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 12 and on(12) == "DP-1", "workspace 1 on the laptop does not freeze numbering, got " .. tostring(world.windows["0xa"].workspace))
+check(global_flag() == "0\n", "the bar stays per-monitor")
+' || fail "pinning workspace 1 to the laptop leaves per-monitor workspaces in place"
+pass "pinning workspace 1 to the laptop leaves per-monitor workspaces in place"
+
+run_lua block-rule '
+write_config("hypr/hyprland.lua", "hl.workspace_rule({ workspace = \"12\", monitor = \"DP-1\" })\n")
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 2)
+world.focused = "DP-1"
+window("0xa", 2)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 12, "a block-numbered rule still joins the monitor, got " .. tostring(world.windows["0xa"].workspace))
+check(global_flag() == "0\n", "block numbers do not turn global mode on")
+' || fail "rules that already use per-monitor block numbers stay on that numbering"
+pass "rules that already use per-monitor block numbers stay on that numbering"
+
+run_lua global-off '
+write_config("hypr/monitors.lua", "hl.workspace_rule({ workspace = \"4\", monitor = \"DP-1\" })\n")
+_G.omarchy_global_workspaces = false
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 2)
+world.focused = "DP-1"
+window("0xa", 2)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 12, "opting out still renumbers, got " .. tostring(world.windows["0xa"].workspace))
+check(global_flag() == "0\n", "the bar is told per-monitor won")
+' || fail "omarchy_global_workspaces = false keeps per-monitor numbering"
+pass "omarchy_global_workspaces = false keeps per-monitor numbering"
+
+run_lua global-clone '
+write_config("omarchy/plugins/me.workspaces/manifest.json", "{\n  \"omarchy\": { \"clonedFrom\": \"omarchy.workspaces\" }\n}\n")
+write_config("omarchy/plugins/me.workspaces/Workspaces.qml", "readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData\ntext: focused ? glyph : (modelData === 10 ? \"0\" : String(modelData))\n")
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 4)
+world.focused = "eDP-1"
+window("0xa", 4)
+monitor_named("DP-1").active = 4
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(world.windows["0xa"].workspace == 4, "an older cloned indicator lost workspace 4, now " .. tostring(world.windows["0xa"].workspace))
+hl.dispatch(m.focus(4))
+check(world.focused == "DP-1" and shows("DP-1") == 4, "Super + 4 still matches the number the clone draws")
+' || fail "an older cloned workspace indicator keeps the workspace ids it compares"
+pass "an older cloned workspace indicator keeps the workspace ids it compares"
+
+run_lua updated-clone '
+write_config("omarchy/plugins/me.workspaces/manifest.json", "{\n  \"omarchy\": { \"clonedFrom\": \"omarchy.workspaces\" }\n}\n")
+write_config("omarchy/plugins/me.workspaces/Workspaces.qml", "readonly property bool shown: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData\nfunction slotOf(id) { return id }\ntext: String(slot)\n")
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 2)
+world.focused = "DP-1"
+window("0xa", 2)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["config.reloaded"]()
+check(world.windows["0xa"].workspace == 12, "a clone that already uses slots was kept global, got " .. tostring(world.windows["0xa"].workspace))
+check(global_flag() == "0\n", "the bar stays per-monitor for a slot-based clone")
+' || fail "a cloned indicator that already understands slots keeps per-monitor numbers"
+pass "a cloned indicator that already understands slots keeps per-monitor numbers"
+
+run_lua global-move '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.neighbours = { ["eDP-1"] = { r = "DP-1" }, ["DP-1"] = { l = "eDP-1" } }
+world.focused = "eDP-1"
+_G.omarchy_global_workspaces = true
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 2)
+hl.dispatch(hl.dsp.focus({ workspace = "2" }))
+hl.dispatch(m.move_to_monitor("r"))
+check(world.windows["0xa"].workspace == 2 and on(2) == "DP-1", "moving to the monitor on the right kept number 2, not " .. tostring(world.windows["0xa"].workspace))
+' || fail "moving a workspace to another monitor keeps its number in global mode"
+pass "moving a workspace to another monitor keeps its number in global mode"
