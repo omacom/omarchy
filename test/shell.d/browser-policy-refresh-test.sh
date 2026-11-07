@@ -82,6 +82,15 @@ run_theme_set() {
   return "$rc"
 }
 
+# A running browser holds its default profile's lock, which names this host and
+# its pid. This shell stands in for the browser's pid.
+lock_profile() {
+  mkdir -p "$tmpdir/.config/$1"
+  ln -sfn "$2" "$tmpdir/.config/$1/SingletonLock"
+}
+lock_profile chromium "$(uname -n)-$$"
+lock_profile BraveSoftware/Brave-Browser "$(uname -n)-$$"
+
 # A browser that answers promptly still gets its refresh.
 printf 'brave\n' > "$running"
 rc=0
@@ -131,3 +140,22 @@ POLICY_STATUS=1 run_theme_set "$tmpdir/m3" || rc=$?
 (( rc == 1 )) || fail "a failed policy write still fails theme-set-browser" "exit $rc"
 [[ -f $tmpdir/m3/brave ]] || fail "a failed policy write still refreshes running browsers"
 pass "a failed policy write still fails theme-set-browser"
+
+# With no live owner on the default profile, a refresh would start a browser
+# there instead of reaching one. pid_max is never handed out.
+printf 'brave\n' > "$running"
+for case in "no lock:" "a dead pid:$(uname -n)-$(</proc/sys/kernel/pid_max)" "another host:not-$(uname -n)-$$"; do
+  label=${case%%:*}
+  owner=${case#*:}
+  if [[ -z $owner ]]; then
+    rm "$tmpdir/.config/BraveSoftware/Brave-Browser/SingletonLock"
+  else
+    lock_profile BraveSoftware/Brave-Browser "$owner"
+  fi
+  markers=$tmpdir/unowned-${label// /-}
+  rc=0
+  run_theme_set "$markers" || rc=$?
+  (( rc == 0 )) || fail "theme-set-browser succeeds without refreshing a profile with $label" "exit $rc"
+  [[ ! -e $markers/brave ]] || fail "theme-set-browser skips the refresh for a profile with $label"
+  pass "theme-set-browser skips the refresh for a profile with $label"
+done
