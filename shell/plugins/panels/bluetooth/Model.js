@@ -138,6 +138,20 @@ function withPendingAction(actions, address, action) {
   return next
 }
 
+// The pending-action timeout keeps the row of the pair/connect the panel is
+// still watching: that run clears its own row when the helper exits, and pair
+// plus connect can outlast the timeout.
+function expirePendingActions(actions, runningAddress) {
+  return withPendingAction(({}), runningAddress, pendingAction(actions, runningAddress))
+}
+
+// The helper's pair runs pair, trust and connect, so a pair that fails once
+// the device is paired failed at connecting, and the advice should say so.
+function failedConnectionStep(action, device) {
+  if (action === "pair" && device && (device.paired || device.bonded)) return "connect"
+  return action
+}
+
 function visibleSections(lists, discovering) {
   var sections = []
   if (lists && lists.connected && lists.connected.length > 0) sections.push("connected")
@@ -171,6 +185,8 @@ if (typeof module !== "undefined") {
     cloneMap: cloneMap,
     pendingAction: pendingAction,
     withPendingAction: withPendingAction,
+    expirePendingActions: expirePendingActions,
+    failedConnectionStep: failedConnectionStep,
     visibleSections: visibleSections,
     sectionDevices: sectionDevices
   }
