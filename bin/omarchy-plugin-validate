@@ -5,9 +5,9 @@
 # omarchy:args=<plugin-folder>
 # omarchy:examples=omarchy plugin validate ./my-plugin
 
-# Mirrors the checks in shell/services/PluginRegistry.qml so the CLI refuses to
-# install anything the running shell would silently reject (or worse, load
-# unsafely). The shell never trusts manifests blindly; neither do we.
+# Mirrors runtime checks in shell/services/PluginRegistry.qml and validates CLI
+# lifecycle hooks before installation. The shell never trusts manifests blindly;
+# neither do we.
 
 set -o pipefail
 
@@ -23,6 +23,7 @@ Usage: omarchy plugin validate <plugin-folder>
 Checks a plugin folder's manifest.json against the schema the shell enforces:
 schemaVersion, required fields, safe relative entry points that exist, an entry
 point for each kind that needs one, no symlinks, and an id that is not reserved.
+Also validates optional CLI pre-remove hooks without executing plugin code.
 Exits 0 if valid — handy for plugin authors before publishing.
 USAGE
   exit 0
@@ -34,6 +35,9 @@ PLUGIN_DIR="${1:-}"
 MANIFEST="$PLUGIN_DIR/manifest.json"
 [[ -f $MANIFEST ]] || fail "missing manifest.json in $PLUGIN_DIR"
 jq -e . "$MANIFEST" >/dev/null 2>&1 || fail "manifest.json is not valid JSON: $MANIFEST"
+
+pre_remove="$(dirname -- "${BASH_SOURCE[0]}")/omarchy-plugin-pre-remove"
+"$pre_remove" "$PLUGIN_DIR" --check >/dev/null || fail "invalid pre-remove hook declaration"
 
 # schemaVersion must be exactly the JSON number 1 (the only version the registry
 # understands). jq's == is type-aware, so the string "1" is correctly rejected
@@ -112,7 +116,7 @@ done
 # copied plugin back at arbitrary files on disk after it lands in the trusted
 # plugins directory. The .git dir is skipped: installed plugins are git
 # checkouts, and git's internals are never loaded by the shell.
-link=$(find "$PLUGIN_DIR" -name .git -prune -o -type l -print -quit 2>/dev/null)
+link=$(find "$PLUGIN_DIR/" -name .git -prune -o -type l -print -quit 2>/dev/null)
 [[ -z $link ]] || fail "symlinks are not allowed inside a plugin folder: $link"
 
 exit 0
