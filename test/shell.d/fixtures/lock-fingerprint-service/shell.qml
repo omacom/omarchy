@@ -26,6 +26,15 @@ ShellRoot {
     throw new Error("Missing timer: " + interval + ", repeat=" + repeat)
   }
 
+  function fingerprintProbe(service) {
+    var objects = service.data || []
+    for (var i = 0; i < objects.length; i++) {
+      var command = objects[i].command
+      if (command && String(command).indexOf("fprintd-list") !== -1) return objects[i]
+    }
+    return null
+  }
+
   function resumeWatch(service) {
     var objects = service.data || []
     for (var i = 0; i < objects.length; i++) {
@@ -229,6 +238,52 @@ ShellRoot {
       check(!resumeTimer.running, "unlock reset drops a pending resume")
       service.lockRequested = true
       service.fingerprintConfigured = true
+      service.pauseFingerprint()
+
+      // No reader and no logind signal: this is the function the monitor calls.
+      // Closing the earlier grace makes this wake record its own.
+      service.resumeFingerprint()
+      var holdTimer = timer(service, 30000, false)
+      service.fingerprintResumedAtMs = 0
+      service.fingerprintAuthenticating = true
+      service.fingerprintAttemptReachedDevice = true
+      reach.start()
+      retry.start()
+      recheck.start()
+      service.prepareFingerprintForSleep(true)
+      check(service.fingerprintPreparingForSleep, "prepare-for-sleep blocks new fingerprint claims")
+      check(service.lastEvent === "fingerprint-released", "prepare-for-sleep releases without a live PAM claim")
+      check(!service.fingerprintAuthenticating && !reach.running, "prepare-for-sleep drops the in-flight verify")
+      check(!retry.running && !recheck.running, "prepare-for-sleep stops claim retries and the enrollment recheck")
+      check(holdTimer.running, "a missed wake cannot leave the claim blocked")
+      service.armFingerprintRetry(250)
+      check(!retry.running, "a retry during the suspend window does not claim the reader")
+      service.fingerprintCheckDeferred = false
+      service.refreshFingerprintStatus()
+      check(service.fingerprintCheckDeferred, "the enrollment probe waits until resume")
+      service.prepareFingerprintForSleep(true)
+      check(service.fingerprintPreparingForSleep && !retry.running, "a repeated suspend signal does not restart the verify")
+      // Wake runs the deferred probe. Hold it off so a fast "no" cannot stop the verify the wake just armed.
+      var probe = fingerprintProbe(service)
+      if (probe && !probe.running) probe.command = ["sleep", "30"]
+      service.prepareFingerprintForSleep(false)
+      check(!service.fingerprintPreparingForSleep && !service.fingerprintCheckDeferred, "resume clears the hold and runs the deferred probe")
+      check(service.fingerprintResumedAtMs > 0, "resume opens the grace window")
+      check(retry.running && retry.interval === 250, "resume arms one fresh verify")
+      check(!holdTimer.running, "resume cancels the missed-wake hold")
+      var resumedAt = service.fingerprintResumedAtMs
+      service.prepareFingerprintForSleep(false)
+      check(service.fingerprintResumedAtMs === resumedAt && retry.running, "a duplicate wake does not cancel the fresh verify")
+
+      service.pauseFingerprint()
+      service.fingerprintAuthenticating = true
+      reach.start()
+      service.prepareFingerprintForSleep(true)
+      check(service.fingerprintPaused && !service.fingerprintAuthenticating && !reach.running, "suspend releases a claim the blank left running")
+      service.prepareFingerprintForSleep(false)
+      blankTimer.stop()
+      check(!service.fingerprintPaused && retry.running && retry.interval === 250, "resume after a blanked suspend restarts the verify")
+      check(!service.fingerprintPreparingForSleep && !holdTimer.running, "a blanked resume clears the suspend hold")
       service.pauseFingerprint()
 
       service.lockRequested = false

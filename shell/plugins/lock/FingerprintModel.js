@@ -62,6 +62,30 @@ function inResumeGrace(nowMs, resumedAtMs) {
   return elapsed >= 0 && elapsed < RESUME_GRACE_MS
 }
 
+// dbus-monitor prints the PrepareForSleep boolean on its own line. The signal
+// header is not a sleep edge. null means this line should be ignored.
+function prepareForSleepSignal(line) {
+  var text = String(line || "")
+  if (text.indexOf("boolean true") !== -1) return true
+  if (text.indexOf("boolean false") !== -1) return false
+  return null
+}
+
+// A verify left running across suspend leaves fprintd holding the device, and
+// every post-resume Claim is denied. The true edge releases that claim; the
+// false edge may start one new verify. A repeated edge does nothing.
+function sleepClaimTransition(sleeping, preparingForSleep) {
+  if (!!sleeping === !!preparingForSleep) return "none"
+  return sleeping ? "release" : "restart"
+}
+
+// No new claim for the whole PrepareForSleep window, including a lock taken
+// inside it. That window is while logind is still waiting, so the release
+// finishes before the reader is powered down.
+function mayStartClaim(preparingForSleep) {
+  return !preparingForSleep
+}
+
 // A few consecutive misses avoid reporting a single claim conflict.
 function isUnavailable(streak) {
   return streak >= UNAVAILABLE_AFTER
@@ -84,6 +108,9 @@ if (typeof module !== "undefined") {
     spannedSleep: spannedSleep,
     classifyProbe: classifyProbe,
     inResumeGrace: inResumeGrace,
+    prepareForSleepSignal: prepareForSleepSignal,
+    sleepClaimTransition: sleepClaimTransition,
+    mayStartClaim: mayStartClaim,
     retryDelayMs: retryDelayMs,
     nextStreak: nextStreak,
     isUnavailable: isUnavailable
