@@ -23,14 +23,14 @@ wait_scratch_shell
 # Registration is asynchronous; wait until the panels answer.
 for _ in {1..80}; do
   plugins=$(scratch_ipc shell listPlugins 2>/dev/null || true)
-  if jq -e 'map(.id) | contains(["omarchy.audio","omarchy.bluetooth","omarchy.monitor","omarchy.network"])' <<<"$plugins" >/dev/null 2>&1; then
+  if jq -e 'map(.id) | contains(["omarchy.agents","omarchy.audio","omarchy.bluetooth","omarchy.monitor","omarchy.network"])' <<<"$plugins" >/dev/null 2>&1; then
     break
   fi
   kill -0 "$SCRATCH_PID" 2>/dev/null || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "panel test shell registers its panels"; }
   sleep 0.1
 done
 
-panels=(omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network)
+panels=(omarchy.agents omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network)
 # The power panel hides itself without a battery, so it can only be
 # timed where one exists.
 if "$ROOT/bin/omarchy-battery-present" >/dev/null 2>&1; then
