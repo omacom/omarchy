@@ -631,11 +631,16 @@ ShellRoot {
       }
     }
 
+    // The app library and bar state proxies are QObjects like the service
+    // proxies above: creating one while a plugin binding evaluates re-enters
+    // the binding and leaves the facade holding a null proxy.
+    var appLibrary = shell.manifestHasKind(manifest, "menu") ? shell.pluginAppLibraryFor(cacheKey, key) : null
+    var bar = shell.pluginBarStateFor(cacheKey, key)
+
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: key,
-      appLibrary: shell.manifestHasKind(manifest, "menu")
-        ? shell.pluginAppLibraryFor(cacheKey, key) : null,
-      bar: shell.pluginBarStateFor(cacheKey, key),
+      appLibrary: appLibrary,
+      bar: bar,
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
       _serviceLookup: function(requestedId) {
