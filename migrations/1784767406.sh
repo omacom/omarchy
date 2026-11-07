@@ -1,4 +1,6 @@
 echo "Remove the obsolete Voxtype Hyprland toggle"
+omarchy-edition-desktop || exit 0
+
 
 rm -f "$HOME/.local/state/omarchy/toggles/hypr/voxtype.lua"
 

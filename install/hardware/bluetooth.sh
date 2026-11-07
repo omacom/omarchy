@@ -1,3 +1,5 @@
+omarchy-edition-desktop || return 0
+
 systemctl enable bluetooth.service
 
 # An image's first boot runs this after the adapter has brought up (or queued)

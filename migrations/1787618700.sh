@@ -1,5 +1,7 @@
 echo "Store Hyprland input-device names as data instead of generated Lua"
 
+omarchy-edition-desktop || exit 0
+
 # omarchy-toggle-input-device used to interpolate hyprctl device names into
 # hyprctl eval and a generated Lua file. Those names come from USB descriptors,
 # so recover the plain device name as data and delete the generated Lua. A name

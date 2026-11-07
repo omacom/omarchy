@@ -1,0 +1,196 @@
+# Omarchy Server package list, pacstrapped by the ISO for the server edition.
+# The ISO builder also reads this file when constructing the offline mirror.
+#
+# Derived from omarchy-base.packages by subtraction: the compositor, the shell,
+# GUI applications, the audio/bluetooth/printing stacks, fonts beyond the
+# console, and the capture pipeline all come out. What stays is the CLI, the TUI
+# toolbox, containers, networking, security, and the theming plumbing that the
+# terminal side of a theme needs.
+#
+# Only eight entries are not in omarchy-base.packages. Keep that true, or teach
+# test/shell.d/server-packages-test.sh about the new one:
+#   openssh              - the desktop gets it from the ISO's archinstall.packages, and
+#                          the server edition cannot assume that list.
+#   rsync                - the transport a headless box is administered over.
+#   lazyjournal          - the [L] door. The desktop reads logs in a window; a server
+#                          reads them in the terminal it is already in.
+#   dua-cli              - disk usage analyzer, CLI replacement for baobab
+#   lazydocker           - Docker TUI for the [D] door
+#   mkinitcpio-dropbear  - SSH server in initramfs for remote LUKS unlock
+#   mkinitcpio-netconf   - network configuration in initramfs
+#   mkinitcpio-utils     - utilities for initramfs (including encryptssh hook)
+
+bash-completion
+bat
+btop
+docker
+docker-buildx
+docker-compose
+dosfstools
+dua-cli
+expac
+eza
+fakeroot
+fastfetch
+fd
+fzf
+git
+gum
+herdr
+inetutils
+inotify-tools
+inxi
+jq
+kernel-modules-hook
+lazydocker
+lazygit
+lazyjournal
+less
+libyaml
+lua51
+luarocks
+man-db
+mkinitcpio-dropbear
+mkinitcpio-netconf
+mkinitcpio-utils
+mise-bin
+networkmanager
+nvim
+omarchy-nvim
+openssh
+pacman-contrib
+plocate
+ripgrep
+rsync
+starship
+tldr
+tmux
+tree-sitter-cli
+ttfx
+tzupdate
+ufw
+ufw-docker
+unzip
+usage
+whois
+yay
+zoxide
+
+# Packages dropped from omarchy-base.packages for the server edition.
+# Every base package is either retained above or listed here.
+# dropped: aether
+# dropped: alsa-utils
+# dropped: asdcontrol
+# dropped: avahi
+# dropped: base-devel
+# dropped: bluez
+# dropped: bluez-tools
+# dropped: bluez-utils
+# dropped: bolt
+# dropped: brightnessctl
+# dropped: chromium
+# dropped: cliamp
+# dropped: cups
+# dropped: cups-filters
+# dropped: cups-pk-helper
+# dropped: ddcutil
+# dropped: disktree-bin
+# dropped: dotnet-runtime
+# dropped: evince
+# dropped: exfatprogs
+# dropped: fcitx5
+# dropped: fcitx5-chewing
+# dropped: fcitx5-chinese-addons
+# dropped: fcitx5-gtk
+# dropped: fcitx5-hangul
+# dropped: fcitx5-mozc
+# dropped: fcitx5-qt
+# dropped: fcitx5-table-extra
+# dropped: ffmpeg
+# dropped: ffmpegthumbnailer
+# dropped: fontconfig
+# dropped: foot
+# dropped: gliff
+# dropped: gnome-disk-utility
+# dropped: gnome-keyring
+# dropped: gnome-themes-extra
+# dropped: gpu-screen-recorder
+# dropped: grim
+# dropped: gvfs-mtp
+# dropped: gvfs-nfs
+# dropped: gvfs-smb
+# dropped: hype
+# dropped: hyprland
+# dropped: hyprland-guiutils
+# dropped: hyprland-preview-share-picker
+# dropped: hyprpicker
+# dropped: hyprsunset
+# dropped: imagemagick
+# dropped: imv
+# dropped: libreoffice-fresh
+# dropped: libsecret
+# dropped: libvips
+# dropped: localsend
+# dropped: mariadb-libs
+# dropped: monologue
+# dropped: moonlight-qt
+# dropped: mpv
+# dropped: mpv-mpris
+# dropped: nautilus
+# dropped: nautilus-python
+# dropped: noto-fonts
+# dropped: noto-fonts-cjk
+# dropped: noto-fonts-emoji
+# dropped: nss-mdns
+# dropped: obsidian
+# dropped: omacalc
+# dropped: omacut
+# dropped: omarchy-hyprland-titlebars
+# dropped: omarchy-power-profiles-daemon
+# dropped: omarchy-screensaver
+# dropped: omasnap
+# dropped: omawrite
+# dropped: owe
+# dropped: pamixer
+# dropped: pinta
+# dropped: plymouth
+# dropped: postgresql-libs
+# dropped: python-gobject
+# dropped: python-poetry-core
+# dropped: qemu-user-static-binfmt
+# dropped: qrencode
+# dropped: qt6-base
+# dropped: qt6-declarative
+# dropped: qt6-imageformats
+# dropped: qt6-multimedia
+# dropped: qt6-svg
+# dropped: qt6-wayland
+# dropped: quickshell
+# dropped: rtkit
+# dropped: ruby
+# dropped: sddm
+# dropped: signed
+# dropped: slurp
+# dropped: socat
+# dropped: superwhisper-bin
+# dropped: sushi
+# dropped: system-config-printer
+# dropped: tesseract
+# dropped: tesseract-data-eng
+# dropped: tobi-try
+# dropped: ttf-ia-writer
+# dropped: ttf-jetbrains-mono-nerd-basic
+# dropped: udiskie
+# dropped: uwsm
+# dropped: vi
+# dropped: wireless-regdb
+# dropped: wireplumber
+# dropped: wl-clipboard
+# dropped: woff2-font-awesome
+# dropped: wtype
+# dropped: xdg-desktop-portal-gtk
+# dropped: xdg-desktop-portal-hyprland
+# dropped: xdg-terminal-exec
+# dropped: yaru-icon-theme
+# dropped: yt-dlp
+# dropped: zbar

@@ -1,5 +1,7 @@
 echo "Expose GNOME Keyring to sandboxed apps through the Secret portal"
 
+omarchy-edition-desktop || exit 0
+
 portal_dir="${XDG_CONFIG_HOME:-$HOME/.config}/xdg-desktop-portal"
 portal_config="$portal_dir/hyprland-portals.conf"
 generic_config="$portal_dir/portals.conf"

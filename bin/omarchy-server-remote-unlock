@@ -1,0 +1,187 @@
+#!/bin/bash
+
+# omarchy:summary=Enable, disable, or check remote LUKS unlock via SSH in the initramfs
+# omarchy:args=enable|disable|status [--static-ip=<IPv4/prefix>] [--interface=<name>] [--gateway=<IPv4>]
+# omarchy:examples=omarchy server remote-unlock enable | omarchy server remote-unlock enable --static-ip=192.168.1.100/24 --interface=enp1s0 --gateway=192.168.1.1 | omarchy server remote-unlock disable
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: omarchy-server-remote-unlock enable|disable|status [options]
+
+Enable remote LUKS unlock using the busybox encrypt hook and Limine UKIs.
+Requires the server edition, an encrypted root, and ~/.ssh/authorized_keys.
+
+Options (enable only):
+  --static-ip=<IPv4/prefix>  Static address instead of DHCP (prefix 1..32)
+  --interface=<name>        Required for static IP; optionally pins DHCP
+  --gateway=<IPv4>          Optional static gateway, required for off-subnet access
+
+Dropbear listens on port 22; custom ports are unsupported by the packaged hook.
+Connect with: ssh -t root@<server-ip>
+The login shell prompts for the LUKS passphrase; no remote command is needed.
+USAGE
+}
+
+die() { echo "Error: $*" >&2; exit 1; }
+
+ipv4() {
+  local octet
+  [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+  local IFS=.
+  for octet in $1; do
+    [[ $octet == "0" || $octet != 0* ]] || return 1
+    (( ${#octet} <= 3 && 10#$octet <= 255 )) || return 1
+  done
+}
+
+ACTION=${1:-}
+if [[ $ACTION == "--help" || $ACTION == "-h" ]]; then
+  usage
+  exit 0
+fi
+case $ACTION in enable|disable|status) ;; *) usage >&2; exit 1 ;; esac
+shift
+STATIC_IP="" INTERFACE="" GATEWAY=""
+for arg in "$@"; do
+  [[ $ACTION == "enable" ]] || die "Options are only accepted with enable."
+  case $arg in
+    --static-ip=*) STATIC_IP=${arg#*=}; [[ -n $STATIC_IP ]] || die "Empty static IP." ;;
+    --interface=*) INTERFACE=${arg#*=}; [[ -n $INTERFACE ]] || die "Empty interface." ;;
+    --gateway=*) GATEWAY=${arg#*=}; [[ -n $GATEWAY ]] || die "Empty gateway." ;;
+    *) die "Unknown option '$arg'." ;;
+  esac
+done
+if [[ -n $INTERFACE ]]; then
+  [[ $INTERFACE =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,14}$ && $INTERFACE != "lo" ]] || die "Invalid network interface."
+fi
+IP_CONFIG=dhcp
+if [[ -n $STATIC_IP ]]; then
+  [[ $STATIC_IP == */* && -n $INTERFACE ]] || die "Static IP requires IPv4/prefix and --interface."
+  ADDRESS=${STATIC_IP%/*} PREFIX=${STATIC_IP##*/}
+  ipv4 "$ADDRESS" || die "Invalid static IPv4 address."
+  [[ $PREFIX =~ ^([1-9]|[12][0-9]|3[0-2])$ ]] || die "Prefix must be 1..32."
+  if [[ -n $GATEWAY ]]; then
+    ipv4 "$GATEWAY" || die "Invalid gateway IPv4 address."
+  fi
+  MASK=$(( (0xffffffff << (32 - PREFIX)) & 0xffffffff ))
+  printf -v NETMASK '%d.%d.%d.%d' "$(( (MASK >> 24) & 255 ))" "$(( (MASK >> 16) & 255 ))" "$(( (MASK >> 8) & 255 ))" "$(( MASK & 255 ))"
+  IP_CONFIG="$ADDRESS::$GATEWAY:$NETMASK::$INTERFACE:none"
+else
+  [[ -z $GATEWAY ]] || die "--gateway requires --static-ip."
+  [[ -z $INTERFACE ]] || IP_CONFIG=":::::$INTERFACE:dhcp"
+fi
+
+omarchy-edition-server || die "Remote LUKS unlock is only available on the server edition."
+
+HOOK_CONF=/etc/mkinitcpio.conf.d/zz-omarchy-remote-unlock.conf
+NETWORK_CONF=/etc/limine-entry-tool.d/zz-omarchy-remote-unlock.conf
+ROOT_KEY=/etc/dropbear/root_key
+
+check_boot_chain() {
+  local implementation
+  implementation=$(omarchy-lifecycle-dispatch --resolve setup-boot) || die "Cannot resolve the platform boot chain."
+  [[ -z $implementation ]] || die "Remote unlock is not implemented for this platform boot chain."
+  if ! omarchy-cmd-present limine-mkinitcpio limine-entry-tool || ! sudo test -f /boot/limine.conf; then
+    die "Requires an installed Limine boot chain."
+  fi
+}
+
+check_hooks() (
+  local conf hook found=0
+  HOOKS=()
+  [[ -f /etc/mkinitcpio.conf ]] || die "Missing mkinitcpio configuration."
+  source /etc/mkinitcpio.conf
+  for conf in /etc/mkinitcpio.conf.d/*.conf; do
+    [[ ! -f $conf ]] || source "$conf"
+  done
+  for hook in "${HOOKS[@]}"; do
+    case $hook in
+      systemd|sd-encrypt) die "Requires busybox encrypt hooks; systemd initramfs is unsupported." ;;
+      encrypt|encryptssh) found=1 ;;
+    esac
+  done
+  (( found )) || die "No encrypt hook in the effective mkinitcpio configuration."
+)
+
+check_limine_config() {
+  local conf line param seen_ip=0
+  for conf in /usr/share/limine-entry-tool.d/*.conf /etc/limine-entry-tool.conf /etc/limine-entry-tool.d/*.conf /etc/default/limine; do
+    [[ -f $conf ]] || continue
+    while IFS= read -r line || [[ -n $line ]]; do
+      if [[ $line =~ ^[[:space:]]*KERNEL_CMDLINE\[([^]]+)\] ]]; then
+        [[ ${BASH_REMATCH[1]} == "default" ]] || die "Per-kernel Limine command lines are unsupported; configure remote unlock manually."
+      fi
+      if [[ $conf == "/etc/default/limine" && $line =~ ^[[:space:]]*KERNEL_CMDLINE(\[default\])?[[:space:]]*= ]]; then
+        die "/etc/default/limine overrides drop-ins; use KERNEL_CMDLINE[default]+= before enabling."
+      fi
+    done <"$conf"
+  done
+  cmdline=$(sudo limine-entry-tool --get-cmdline default)
+  [[ " $cmdline " == *" cryptdevice="* && " $cmdline " == *" root="* ]] || die "Limine must specify cryptdevice= and root= for encryptssh."
+  for param in $cmdline; do
+    [[ $param == ip=* ]] || continue
+    if (( seen_ip )) || [[ ! -f $NETWORK_CONF ]] || ! grep -Fxq "KERNEL_CMDLINE[default]+=\" $param\"" "$NETWORK_CONF"; then
+      die "Existing Limine ip= configuration conflicts; configure remote unlock manually."
+    fi
+    seen_ip=1
+  done
+}
+
+rebuild() {
+  local log result=0
+  log=$(mktemp)
+  sudo limine-mkinitcpio 2>&1 | tee "$log" || result=1
+  if grep -q 'mkinitcpio failed for kernel' "$log"; then result=1; fi
+  rm -f "$log"
+  (( result == 0 )) || die "Boot image rebuild failed; fix the error and repeat $ACTION before rebooting."
+}
+
+case $ACTION in
+  enable)
+    [[ -s $HOME/.ssh/authorized_keys ]] || die "No SSH keys found in ~/.ssh/authorized_keys."
+    root_source=$(findmnt -nro SOURCE /)
+    root_source=${root_source%%\[*}
+    lsblk -sno TYPE "$root_source" | grep -qx crypt || die "No encrypted root filesystem detected."
+    check_boot_chain
+    check_hooks
+    check_limine_config
+    omarchy-pkg-add mkinitcpio-dropbear mkinitcpio-netconf mkinitcpio-utils
+    sudo mkdir -p /etc/dropbear /etc/mkinitcpio.conf.d /etc/limine-entry-tool.d
+    sudo install -m 600 "$HOME/.ssh/authorized_keys" "$ROOT_KEY"
+    sudo tee "$HOOK_CONF" >/dev/null <<'CONF'
+# Sort after omarchy_hooks.conf; encryptssh replaces encrypt.
+_omarchy_hooks=()
+for _omarchy_hook in "${HOOKS[@]}"; do
+  case $_omarchy_hook in
+    netconf|dropbear) ;;
+    encrypt|encryptssh) _omarchy_hooks+=(netconf dropbear encryptssh) ;;
+    *) _omarchy_hooks+=("$_omarchy_hook") ;;
+  esac
+done
+HOOKS=("${_omarchy_hooks[@]}")
+unset _omarchy_hooks _omarchy_hook
+CONF
+    printf 'KERNEL_CMDLINE[default]+=" ip=%s"\n' "$IP_CONFIG" | sudo tee "$NETWORK_CONF" >/dev/null
+    rebuild
+    echo "Remote unlock configured on port 22. Connect during boot: ssh -t root@<server-ip>"
+    echo "Verify the host fingerprints printed by the packaged dropbear build hook before connecting."
+    ;;
+  disable)
+    check_boot_chain
+    sudo rm -f "$HOOK_CONF" "$NETWORK_CONF"
+    rebuild
+    echo "Remote unlock disabled. Packages and /etc/dropbear keys are retained."
+    ;;
+  status)
+    if [[ -f $HOOK_CONF ]]; then
+      echo "Status: CONFIGURED (boot connectivity not verified)"
+      echo "Port: 22"
+      [[ ! -f $NETWORK_CONF ]] || cat "$NETWORK_CONF"
+    else
+      echo "Status: DISABLED"
+    fi
+    ;;
+esac

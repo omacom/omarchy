@@ -20,11 +20,20 @@ mkdir -p "$state" "$themes"
 marker="omarchy-theme-staging-marker"
 
 set_theme() {
-  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
     OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
     XDG_RUNTIME_DIR="$test_tmp" \
     bash "$ROOT/bin/omarchy-theme-set" "$1" 2>"$test_tmp/stderr" || return $?
 }
+
+mkdir -p "$test_tmp/bin"
+cat >"$test_tmp/bin/omarchy-server-issue" <<SH
+#!/bin/bash
+touch "$test_tmp/issue-called"
+echo "banner authorization rejected" >&2
+exit 73
+SH
+chmod +x "$test_tmp/bin/omarchy-server-issue"
 
 staged() {
   printf '%s' "$state/theme/$1"
@@ -87,6 +96,8 @@ printf '# notes\n' >"$hostile/README.md"
 ln -s /etc/hostname "$hostile/unlock.png"
 
 set_theme hostile || fail "omarchy-theme-set applies a theme that ships disallowed files"
+[[ ! -e $test_tmp/issue-called ]] || fail "headless user theme initialization leaves the system banner to root setup"
+pass "headless user theme initialization never requests a privileged banner write"
 
 assert_staged colors.toml "the theme's colors.toml is staged"
 grep -q '#7aa2f7' "$(staged colors.toml)" || fail "the staged colors.toml is the theme's palette"

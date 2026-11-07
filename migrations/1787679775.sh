@@ -1,4 +1,6 @@
 echo "Drop saved workspace layouts belonging to named workspaces"
+omarchy-edition-desktop || exit 0
+
 
 # omarchy-hyprland-workspace-layout-toggle acted on whatever id activeworkspace
 # reported, and a named workspace reports a negative one. Hyprland reads a
