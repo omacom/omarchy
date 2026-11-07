@@ -112,12 +112,12 @@ Item {
     root.dock.setPinned(key, !root.dock.isPinned(key))
   }
 
-  // Ctrl+P or Ctrl+Space toggle the pin. Ctrl+P is matched by its
-  // physical key too (xkb keycode 33), so it still works on a non-Latin layout
-  // such as Persian, where the key reports a different letter.
+  // Ctrl+P toggles the pin. It's matched by its physical key too (xkb keycode 33),
+  // so it still works on a non-Latin layout such as Persian, where the key
+  // reports a different letter.
   function isPinKey(event) {
     if (!(event.modifiers & Qt.ControlModifier)) return false
-    return event.key === Qt.Key_P || event.key === Qt.Key_Space || event.nativeScanCode === 33
+    return event.key === Qt.Key_P || event.nativeScanCode === 33
   }
 
   function requestUninstall(entry) {

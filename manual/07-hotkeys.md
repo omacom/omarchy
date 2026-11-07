@@ -41,7 +41,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Ctrl + P` / `Ctrl + Space` | Toggle pin (keep in dock / remove from dock) |
+| `Ctrl + P` | Toggle pin (keep in dock / remove from dock) |
 | `Home` / `End` | Jump to first / last app |
 | `Page Up` / `Page Down` | Move by full page (visible rows × columns) |
 | `↑` / `↓` | Move up/down by column |
