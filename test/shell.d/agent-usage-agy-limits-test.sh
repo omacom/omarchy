@@ -87,10 +87,12 @@ expect("Antigravity collector orders the windows, reads used from remaining, and
        [("Session (5-hour)", "Session", 0.1), ("Weekly (7-day)", "Weekly", 0.05), ("Claude/GPT Weekly", "Claude/GPT Weekly", 0.02)], read)
 
 read = limits({"groups": [
+  {"displayName": "Gemini 4 Argon", "buckets": [{"window": "weekly", "remainingFraction": 0.65}]},
   {"displayName": "Claude and GPT models", "buckets": [{"window": "5h", "remainingFraction": 1.0}]},
   {"displayName": "Gemini Models", "buckets": [{"window": "weekly", "remainingFraction": 0.5}]},
 ]})
-expect("Antigravity collector finds the Gemini group wherever it is listed", [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5)], read)
+expect("Antigravity collector finds the Gemini group wherever it is listed, distinct from Gemini 4 Argon",
+       [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5), ("Gemini 4 Argon Weekly", 0.35)], read)
 
 read = limits({"buckets": [
   {"window": "5h", "remaining_fraction": 0.4, "reset_time": "2026-09-15T19:31:46Z"},
@@ -148,6 +150,9 @@ check_scan_cache(adapter)
 
 record, http = agy()
 expect("Antigravity collector asks with agy's token", {r["headers"].get("authorization") for r in http.requests}, {"Bearer token-main"})
+expect("Antigravity collector sends ANTIGRAVITY ideType metadata to loadCodeAssist",
+       [json.loads(r["data"] or b"{}") for r in http.requests if TIER in r["url"]],
+       [{"metadata": {"ideType": "ANTIGRAVITY"}}])
 
 # agy's RetrieveUserQuotaSummaryRequest carries the project, which omp sends
 # from loadCodeAssist's cloudaicompanionProject, named as a string or {id}.
