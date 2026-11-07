@@ -1,10 +1,10 @@
--- Floating windows.
+-- Floating dialogs, viewers and explicitly floating TUI apps.
 o.window({ tag = "floating-window" }, { float = true })
 o.window({ tag = "floating-window" }, { center = true })
 o.window({ tag = "floating-window" }, { size = { 875, 600 } })
 
 o.window(
-  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Evince|Omarchy|About|TUI.float|imv|mpv)",
+  "(org.gnome.NautilusPreviewer|org.gnome.Evince|About|TUI.float|imv|mpv)",
   {
     tag = "+floating-window",
   }
