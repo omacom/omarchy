@@ -525,7 +525,7 @@
     "label": "Desactivar plugin"
   },
   "setup.plugin.add": {
-    "label": "Agregar plugin"
+    "label": "Añadir plugin"
   },
   "setup.plugin.clone": {
     "label": "Clonar plugin"
@@ -768,7 +768,7 @@
     "label": "Xbox Cloud Gaming"
   },
   "install.gaming.xbox-controllers": {
-    "label": "Controles Xbox"
+    "label": "Mandos Xbox"
   },
   "install.gaming.battlenet": {
     "label": "Battle.net"
@@ -984,7 +984,7 @@
     "label": "Xbox Cloud Gaming"
   },
   "remove.gaming.xbox-controllers": {
-    "label": "Controles Xbox (󰂯)"
+    "label": "Mandos Xbox (󰂯)"
   },
   "remove.gaming.battlenet": {
     "label": "Battle.net"
@@ -1149,10 +1149,10 @@
     "label": "Captura de fallos desactivada"
   },
   "trigger.hardware.laptop-display-on": {
-    "label": "Pantalla de la laptop activada"
+    "label": "Pantalla del portátil activada"
   },
   "trigger.hardware.laptop-display-off": {
-    "label": "Pantalla de la laptop desactivada"
+    "label": "Pantalla del portátil desactivada"
   },
   "trigger.hardware.mirror-display-on": {
     "label": "Duplicación de pantalla activada"
@@ -1254,10 +1254,10 @@
     "label": "Desactivar luz nocturna"
   },
   "trigger.toggle.screensaver-on": {
-    "label": "Activar salvapantallas"
+    "label": "Activar protector de pantalla"
   },
   "trigger.toggle.screensaver-off": {
-    "label": "Desactivar salvapantallas"
+    "label": "Desactivar protector de pantalla"
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Activar captura de fallos"
