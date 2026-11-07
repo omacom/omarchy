@@ -24,18 +24,23 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
-# Only a private launch needs the browser's flag, and probing a Firefox-family
-# browser's --help starts the whole binary, so ordinary launches skip it and
-# leave their arguments as they are.
+# Only a private launch needs the browser's flag. Matching the browser's name
+# keeps every launch from executing the browser as a probe: a --help probe
+# starts the whole binary, and current Chrome builds crash with SIGTRAP on it,
+# which turned each private launch into a crash notification and a core dump.
 private_flag="--private"
 if [[ " $* " == *" --private "* ]]; then
-  if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
-    private_flag="--private-window"
-  elif [[ $browser_exec =~ edge ]]; then
-    private_flag="--inprivate"
-  else
-    private_flag="--incognito"
-  fi
+  case $(basename "$browser_exec") in
+    *firefox* | librewolf* | waterfox* | floorp* | zen*)
+      private_flag="--private-window"
+      ;;
+    *edge*)
+      private_flag="--inprivate"
+      ;;
+    *)
+      private_flag="--incognito"
+      ;;
+  esac
 fi
 
 if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
