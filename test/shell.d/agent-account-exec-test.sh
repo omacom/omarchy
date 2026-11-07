@@ -179,6 +179,7 @@ pass "account dispatch preserves the agent exit status"
 mv "$real_bin/grok" "$test_tmp/grok-fixture"
 cat >"$real_bin/mise" <<'SH'
 #!/bin/bash
+[[ ${MISE_MINIMUM_RELEASE_AGE-unset} == "${OMARCHY_TEST_RELEASE_AGE-unset}" ]] || exit 99
 case "$1" in
   install | use)
     [[ ${OMARCHY_TEST_INSTALL_FAIL:-} != "yes" ]] || exit 42
@@ -186,7 +187,6 @@ case "$1" in
     cp "$HOME/../grok-fixture" "$HOME/../real/bin/grok"
     ;;
   which)
-    [[ ${MISE_MINIMUM_RELEASE_AGE:-} == "0" ]] || exit 99
     printf '%s\n' "$HOME/../real/bin/grok"
     ;;
   *) exit 99 ;;
