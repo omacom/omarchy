@@ -1,10 +1,12 @@
 import QtQuick
 import qs.Commons
 
-// Rectangle-compatible surface with Omarchy border specs. Uses native
-// Rectangle.border for cheap flat/uniform borders and BorderOverlay for
-// gradients or per-side widths.
-Rectangle {
+// Item-based surface with Omarchy border specs. Its color/radius/border
+// subset is Rectangle-like, but it is not a Rectangle: plugins using
+// Rectangle-only properties (gradient, corner radii, border.pixelAligned,
+// antialiasing) must use a native Rectangle instead. Native flat/uniform
+// borders stay cheap; gradients and per-side widths use BorderOverlay.
+CornerRectangle {
   id: root
 
   property var borderSpec: Border.none()
@@ -22,10 +24,10 @@ Rectangle {
   readonly property real contentRightInset: borderRight + rightPadding
   readonly property real contentBottomInset: borderBottom + bottomPadding
   readonly property real contentLeftInset: borderLeft + leftPadding
-  readonly property bool usesOverlayBorder: Border.needsOverlay(borderSpec)
+  readonly property bool usesOverlayBorder: Border.needsOverlay(borderSpec) || (customCorners && !Border.isNone(borderSpec))
 
   border.color: Border.canUseNative(borderSpec) ? Border.color(borderSpec) : "transparent"
-  border.width: Border.canUseNative(borderSpec) ? Border.uniformWidth(borderSpec) : 0
+  border.width: !customCorners && Border.canUseNative(borderSpec) ? Border.uniformWidth(borderSpec) : 0
 
   Loader {
     anchors.fill: parent
@@ -33,7 +35,8 @@ Rectangle {
 
     sourceComponent: BorderOverlay {
       anchors.fill: parent
-      radius: root.radius
+      radius: root.effectiveRadius
+      roundingPower: root.roundingPower
       borderSpec: root.borderSpec
     }
   }
