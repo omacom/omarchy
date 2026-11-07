@@ -84,6 +84,13 @@ function availableScales(scales, width, height) {
 // 1080p, so nothing comes out stretched. Odd legacy and tiled modes stay out,
 // and the list stops at a handful. The current resolution always shows, so the
 // panel can mark it.
+//
+// The largest mode counts as native because a real display's preferred mode
+// (the first one listed) is its largest. A virtual display (a VM's) can list
+// sizes larger than the screen behind it, and then the largest and the first
+// mode have different shapes. Nothing says which shape the screen has, so the
+// row falls back to 16:9, the shape of nearly every external screen, and to the
+// shape it is on now, so the way back to a normal size is always there.
 var RESOLUTION_LIMIT = 5
 var RESOLUTION_MIN_HEIGHT = 1080
 
@@ -91,12 +98,16 @@ function resolutionOptions(availableModes, width, height) {
   if (!Array.isArray(availableModes)) return []
 
   var sizes = {}
+  var first = null
   for (var i = 0; i < availableModes.length; i++) {
     var match = /^(\d+)x(\d+)@/.exec(String(availableModes[i]))
     if (!match) continue
     var w = Number(match[1])
     var h = Number(match[2])
-    if (w > 0 && h > 0) sizes[w + "x" + h] = { w: w, h: h }
+    if (w > 0 && h > 0) {
+      sizes[w + "x" + h] = { w: w, h: h }
+      if (!first) first = sizes[w + "x" + h]
+    }
   }
 
   var all = Object.keys(sizes).map(function(key) { return sizes[key] })
@@ -104,9 +115,15 @@ function resolutionOptions(availableModes, width, height) {
   all.sort(function(a, b) { return b.w * b.h - a.w * a.h || b.w - a.w })
 
   var native = all[0]
-  var aspect = native.w / native.h
+  var aspects = [native.w / native.h]
+  if (Math.abs(first.w / first.h - aspects[0]) >= 0.01) {
+    aspects = [16 / 9]
+    if (Number(width) > 0 && Number(height) > 0) aspects.push(Number(width) / Number(height))
+  }
   var options = all.filter(function(size) {
-    return size.h >= RESOLUTION_MIN_HEIGHT && Math.abs(size.w / size.h - aspect) < 0.01
+    return size.h >= RESOLUTION_MIN_HEIGHT && aspects.some(function(aspect) {
+      return Math.abs(size.w / size.h - aspect) < 0.01
+    })
   }).slice(0, RESOLUTION_LIMIT).map(function(size) { return size.w + "x" + size.h })
 
   var current = Number(width) + "x" + Number(height)
