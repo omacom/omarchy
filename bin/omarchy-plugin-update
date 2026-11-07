@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Update installed git-managed plugins
+# omarchy:summary=Update installed plugins
 # omarchy:group=plugin
 # omarchy:args=[id] [--yes]
 
@@ -39,6 +39,17 @@ valid_plugin_id() {
 update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
+
+  if [[ ! -d $dir/.git && -f $dir/.omarchy-package.json ]]; then
+    local result=0
+    update_archive "$id" || result=$?
+    case "$result" in
+    0) UPDATED_ANY=1 ;;
+    2) ;; # Already current or declined.
+    *) return 1 ;;
+    esac
+    return 0
+  fi
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
@@ -79,6 +90,61 @@ update_one() {
   UPDATED_ANY=1
 }
 
+# The checkout updater above stays unchanged; archives are replaced only after
+# validation and a second local-edit check immediately before the replacement.
+update_archive() (
+  local id="$1" dir="$PLUGINS_DIR/$1" stage url commit checksum current installed=0 archive_lock
+  [[ ! -L $dir ]] || { echo "omarchy-plugin-update: archive directory is now a symlink: $dir" >&2; return 1; }
+  source "$OMARCHY_PATH/install/helpers/plugin-archive.sh"
+  exec {archive_lock}>"$PLUGINS_DIR/.archive.lock" || return 1
+  flock "$archive_lock" || return 1
+  jq -e '.schemaVersion == 1 and (.repository | type == "string") and
+    (.commit | test("^[a-f0-9]{40,64}$")) and (.checksum | test("^[a-f0-9]{64}$"))' \
+    "$dir/.omarchy-package.json" >/dev/null || return 1
+  url=$(jq -r '.repository' "$dir/.omarchy-package.json") || return 1
+  commit=$(jq -r '.commit' "$dir/.omarchy-package.json") || return 1
+  checksum=$(jq -r '.checksum' "$dir/.omarchy-package.json") || return 1
+  current=$(plugin_archive_checksum "$dir") || return 1
+  if [[ $current != "$checksum" ]]; then
+    echo "omarchy-plugin-update: local changes in $dir; leaving the archive untouched" >&2
+    return 1
+  fi
+  omarchy-git-url-check "$url" || return 1
+  stage=$(mktemp -d "$PLUGINS_DIR/.update.tmp.XXXXXX") || return 1
+  trap 'if [[ -d $stage/previous ]] && (( ! installed )); then
+    mv -T "$stage/previous" "$dir" || { echo "Previous plugin retained at $stage/previous" >&2; exit 1; }
+  fi
+  rm -rf "$stage"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  git clone --depth=1 --no-checkout -- "$url" "$stage/repository" || return 1
+  if [[ $(git -C "$stage/repository" rev-parse HEAD) == "$commit" ]]; then
+    echo "$id is up to date."
+    return 2
+  fi
+  plugin_archive_export "$stage/repository" "$stage/package" "$url" || return 1
+  if [[ $(jq -r '.id' "$stage/package/manifest.json") != "$id" ]]; then
+    echo "omarchy-plugin-update: archive changed plugin id; leaving $id untouched" >&2
+    return 1
+  fi
+  if (( ! ASSUME_YES )); then
+    echo "Changes for $id:"
+    diff -ru --exclude=.omarchy-package.json "$dir" "$stage/package" || [[ $? == 1 ]] || return 1
+    confirm "Update $id?" || { echo "Skipped $id."; return 2; }
+  fi
+  current=$(plugin_archive_checksum "$dir") || return 1
+  if [[ $current != "$checksum" ]]; then
+    echo "omarchy-plugin-update: local changes in $dir; leaving the archive untouched" >&2
+    return 1
+  fi
+  mv "$dir" "$stage/previous" || return 1
+  mv -T "$stage/package" "$dir" || return 1
+  # Read by the EXIT trap.
+  # shellcheck disable=SC2034
+  installed=1
+  echo "Updated $id."
+)
+
 id=""
 
 while (( $# > 0 )); do
@@ -108,16 +174,16 @@ targets=()
 if [[ -n $id ]]; then
   valid_plugin_id "$id" || fail "invalid plugin id '$id'"
   [[ -d $PLUGINS_DIR/$id ]] || fail "plugin '$id' is not installed"
-  [[ -d $PLUGINS_DIR/$id/.git ]] ||
-    fail "plugin '$id' is not a git checkout, so there is nothing to pull from"
+  [[ -d $PLUGINS_DIR/$id/.git || -f $PLUGINS_DIR/$id/.omarchy-package.json ]] ||
+    fail "plugin '$id' is not a managed installation, so there is nothing to update"
   targets=("$id")
 else
   for dir in "$PLUGINS_DIR"/*/; do
-    [[ -d $dir/.git ]] || continue
+    [[ -d $dir/.git || -f $dir/.omarchy-package.json ]] || continue
     targets+=("$(basename "$dir")")
   done
   if (( ${#targets[@]} == 0 )); then
-    echo "No git-managed plugins installed."
+    echo "No managed plugins installed."
     exit 0
   fi
 fi
