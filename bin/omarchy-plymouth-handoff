@@ -1,0 +1,156 @@
+#!/usr/bin/python3
+# omarchy:summary=Keep the boot splash on screen until the login screen or session has drawn over it
+# omarchy:hidden=true
+"""Hand the display from Plymouth to whatever SDDM starts, without a gap.
+
+Run as root by omarchy-plymouth-handoff.service before SDDM starts. Plymouth
+stops drawing and gives up DRM master, but keeps its last frame on screen. The
+compositor SDDM starts, the greeter's or the autologin session's, takes master
+and replaces that frame with its own. Once it has, Plymouth quits with
+--retain-splash, which leaves the console alone. GDM does the same with
+`plymouth deactivate` and `plymouth quit --retain-splash`.
+
+If nothing draws within the timeout, Plymouth quits as plymouth-quit.service
+would, restoring the console, so a session that never starts can't leave the
+frozen splash on screen.
+"""
+
+import array
+import fcntl
+import glob
+import os
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import time
+
+TIMEOUT = 10
+INTERVAL = 0.05
+
+
+def ioc_rw(nr, size):
+  return (3 << 30) | (size << 16) | (ord("d") << 8) | nr
+
+
+DRM_IOCTL_DROP_MASTER = (ord("d") << 8) | 0x1F
+DRM_IOCTL_MODE_GETRESOURCES = ioc_rw(0xA0, 64)
+DRM_IOCTL_MODE_GETCRTC = ioc_rw(0xA1, 104)
+
+
+def log(message):
+  print(message, flush=True)
+
+
+def plymouth(*args):
+  try:
+    return subprocess.run(["plymouth", *args], timeout=10).returncode == 0
+  except subprocess.TimeoutExpired:
+    return False
+
+
+def open_cards():
+  cards = {}
+  for path in sorted(glob.glob("/dev/dri/card[0-9]*")):
+    try:
+      fd = os.open(path, os.O_RDWR | os.O_CLOEXEC)
+    except OSError:
+      continue
+    # The first opener of a device with no master becomes master, which would
+    # lock the compositor out. Plymouth holds master while this runs, but
+    # never keep it.
+    try:
+      fcntl.ioctl(fd, DRM_IOCTL_DROP_MASTER)
+    except OSError:
+      pass
+    cards[path] = fd
+  return cards
+
+
+def crtc_ids(fd):
+  resources = bytearray(64)
+  fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, resources)
+  count = struct.unpack_from("I", resources, 36)[0]
+  ids = array.array("I", [0] * count)
+  resources = bytearray(64)
+  struct.pack_into("Q", resources, 8, ids.buffer_info()[0])
+  struct.pack_into("I", resources, 36, count)
+  fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, resources)
+  return list(ids)
+
+
+def scanout(cards):
+  # Which framebuffer each CRTC is showing; 0 when it shows none.
+  shown = {}
+  for path, fd in cards.items():
+    try:
+      for crtc in crtc_ids(fd):
+        request = bytearray(104)
+        struct.pack_into("I", request, 12, crtc)
+        fcntl.ioctl(fd, DRM_IOCTL_MODE_GETCRTC, request)
+        shown[(path, crtc)] = struct.unpack_from("I", request, 16)[0]
+    except OSError:
+      continue
+  return shown
+
+
+def handoff(splash, shown):
+  # (drawn, done): drawn once anything replaced Plymouth's frame or lit a
+  # display it left dark; done once every display it lit shows something else.
+  replaced = [crtc for crtc, fb in splash.items() if shown.get(crtc) != fb]
+  fresh = [crtc for crtc, fb in shown.items() if fb and crtc not in splash]
+  drawn = bool(replaced or fresh)
+  if splash:
+    return drawn, len(replaced) == len(splash)
+  return drawn, drawn
+
+
+def notify_ready():
+  address = os.environ.get("NOTIFY_SOCKET")
+  if not address:
+    return
+  if address.startswith("@"):
+    address = "\0" + address[1:]
+  with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notify:
+    notify.connect(address)
+    notify.sendall(b"READY=1")
+
+
+def main():
+  signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+  cards = open_cards()
+  if not plymouth("deactivate"):
+    # Still holding master, Plymouth would keep the compositor off the display.
+    log("Plymouth would not deactivate, quitting it to the console")
+    plymouth("quit")
+    notify_ready()
+    return
+
+  splash = {crtc: fb for crtc, fb in scanout(cards).items() if fb}
+  log(f"Plymouth deactivated, its frame on {len(splash)} display(s)")
+  notify_ready()
+
+  started = time.monotonic()
+  drawn = False
+  try:
+    # Polled: nothing signals a scanout change to anyone but the compositor
+    # that made it. Bounded by TIMEOUT, once per boot.
+    while time.monotonic() - started < TIMEOUT:
+      drawn, done = handoff(splash, scanout(cards))
+      if done:
+        break
+      time.sleep(INTERVAL)
+  finally:
+    waited = time.monotonic() - started
+    if drawn:
+      log(f"Display taken over after {waited:.2f}s, quitting Plymouth and keeping its frame")
+      plymouth("quit", "--retain-splash")
+    else:
+      log(f"Nothing took over the display within {waited:.2f}s, quitting Plymouth to the console")
+      plymouth("quit")
+
+
+if __name__ == "__main__":
+  main()

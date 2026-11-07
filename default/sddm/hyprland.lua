@@ -67,6 +67,18 @@ if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
   kb_options = "grp:alts_toggle"
 end
 
+-- The greeter's background, which omarchy-plymouth-set keeps the boot splash's,
+-- so the screen holds that colour from the splash until the greeter draws.
+local function greeter_background()
+  local file = io.open("/usr/share/sddm/themes/omarchy/Main.qml", "r")
+  if not file then
+    return "000000"
+  end
+  local color = file:read("*a"):match('color:%s*"#(%x%x%x%x%x%x)"')
+  file:close()
+  return color or "000000"
+end
+
 hl.config({
   input = {
     kb_layout = kb_layout,
@@ -77,7 +89,7 @@ hl.config({
   misc = {
     disable_hyprland_logo = true,
     disable_splash_rendering = true,
-    background_color = "rgb(000000)",
+    background_color = "rgb(" .. greeter_background() .. ")",
     force_default_wallpaper = 0,
   },
 

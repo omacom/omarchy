@@ -1,0 +1,16 @@
+# Keeps the boot splash on screen until SDDM's greeter or autologin session has
+# drawn over it (bin/omarchy-plymouth-handoff). Pulled in by SDDM's drop-in.
+[Unit]
+Description=Hand the boot splash to the login screen
+After=plymouth-start.service systemd-user-sessions.service
+# Stopped before a shutdown splash starts, so two Plymouths never overlap.
+Before=sddm.service plymouth-halt.service plymouth-kexec.service plymouth-poweroff.service plymouth-reboot.service
+
+[Service]
+Type=notify
+ExecCondition=/usr/bin/plymouth --ping
+ExecStart=/usr/bin/omarchy-plymouth-handoff
+# Plymouth must never keep the display: if the handoff failed or never ran,
+# quit it the way plymouth-quit.service would.
+ExecStopPost=-/bin/bash -c '[[ $$SERVICE_RESULT == "success" ]] || /usr/bin/plymouth quit'
+TimeoutStartSec=15
