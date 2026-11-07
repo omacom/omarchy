@@ -158,6 +158,46 @@ Item {
   property int refsRevision: 0
   property int keySeed: 0
 
+  // Session-only rows retain their sender objects in refs, never in a model.
+  property var centerEntries: []
+  readonly property int centerCount: centerEntries.length
+  // Bound retained snapshots and sender objects independently of the popup deck.
+  readonly property int maxCenterNotifications: Store.HISTORY_LIMIT
+
+  function addToCenter(row) {
+    var entries = [row].concat(centerEntries.filter(function(entry) { return entry.key !== row.key }))
+    var evicted = entries.slice(maxCenterNotifications)
+    centerEntries = entries.slice(0, maxCenterNotifications)
+    for (var i = 0; i < evicted.length; i++) finishClose(evicted[i].key, "dismissed")
+  }
+
+  function centerRow(key) {
+    for (var i = 0; i < centerEntries.length; i++)
+      if (centerEntries[i].key === key) return centerEntries[i]
+    return null
+  }
+
+  function removeCenter(key) {
+    centerEntries = centerEntries.filter(function(row) { return row.key !== key })
+  }
+
+  function restoreCenter(key) {
+    var entry = centerRow(key)
+    if (!entry || liveCount() >= maxLiveNotifications) return
+    var row = Store.normalise(entry)
+    row.duration = durationFor(row.urgency, row.expireTimeout)
+    removeCenter(key)
+    storePut(row)
+    showRow(row)
+  }
+
+  function clearCenter() {
+    var keys = centerEntries.map(function(row) { return row.key })
+    for (var i = 0; i < keys.length; i++) finishClose(keys[i], "dismissed")
+  }
+
+  function shelfToast(key) { closeToast(key, "shelved") }
+
   ListModel {
     id: toasts
     onCountChanged: {
@@ -173,7 +213,9 @@ Item {
   readonly property int maxLiveNotifications: 100
   property var liveKeys: Object.create(null)
 
-  function liveCount() { return Object.keys(liveKeys).length }
+  function liveCount() {
+    return Object.keys(liveKeys).length - centerEntries.length
+  }
 
   function reserveLive(key) {
     if (!key) return false
@@ -466,7 +508,7 @@ Item {
   function at(key, what) {
     var target = placements[key]
     if (!target) return 0
-    var to = target[what]
+    var to = target[what] === undefined ? 0 : target[what]
     if (t >= 1) return to
     var from = was[key]
     if (!from || from[what] === undefined) return to
@@ -481,7 +523,7 @@ Item {
   function snapshot() {
     var snap = {}
     for (var key in placements)
-      snap[key] = { y: at(key, "y"), scale: at(key, "scale"),
+      snap[key] = { x: at(key, "x"), y: at(key, "y"), scale: at(key, "scale"),
                     opacity: at(key, "opacity"), height: at(key, "height") }
     return snap
   }
@@ -596,6 +638,11 @@ Item {
     if (previous !== notification) watchNotification(notification, key)
     if (previous && previous !== notification) {
       try { previous.tracked = false } catch (e) {}
+    }
+
+    if (centerRow(key)) {
+      centerEntries = centerEntries.map(function(entry) { return entry.key === key ? row : entry })
+      return
     }
 
     // Quiet still records it (unless ephemeral), straight to history.
@@ -764,6 +811,7 @@ Item {
       return
     }
     var snap = snapshot(), deckNow = deckHeight
+    var exitDuration = reason === "shelved" ? 250 : leaveDuration
     var staying = 0
     for (var r = 0; r < toasts.count; r++) if (!next[toasts.get(r).key]) staying++
     var gone = {}
@@ -774,13 +822,14 @@ Item {
       // Under the cards closing in, so the one taking its place covers it on
       // the way up. Its text goes first, or it would read through them; the
       // last card keeps its words, with nothing to cover it.
-      gone[keys[j]] = { y: from.y - travel, scale: from.scale, opacity: 0, height: from.height,
+      gone[keys[j]] = { x: reason === "shelved" ? notificationWidth + marginsFor(targetDisplayName).right : 0,
+                        y: reason === "shelved" ? from.y : from.y - travel, scale: from.scale, opacity: 0, height: from.height,
                         z: 0, front: staying === 0, hidden: place ? place.hidden === true : true,
-                        leaving: true, until: Date.now() + Style.duration(leaveDuration) }
+                        leaving: true, until: Date.now() + Style.duration(exitDuration) }
     }
     departures = gone
     leaving = next
-    retarget(snap, deckNow, leaveDuration)
+    retarget(snap, deckNow, exitDuration)
     if (!departureDeadline.running) departureDeadline.start()
   }
 
@@ -816,23 +865,33 @@ Item {
   }
 
   function finishClose(key, reason) {
-    unmarkLeaving(key)
+    if (centerRow(key) && (reason === "expired" || reason === "shelved")) return
     var at = rowIndexFor(key)
-    if (!liveKeys[key]) return
-    releaseLive(key)
-    release(key, reason)
-    if (at >= 0) toasts.remove(at)
+    if (!liveKeys[key]) { unmarkLeaving(key); return }
+    if (at >= 0 && (reason === "shelved" || reason === "expired") && key.indexOf("placeholder") !== 0) {
+      var row = Store.normalise(toasts.get(at))
+      addToCenter(row)
+      storeDrop(key)
+      toasts.remove(at)
+    } else {
+      removeCenter(key)
+      releaseLive(key)
+      release(key, reason)
+      if (at >= 0) toasts.remove(at)
+      if (key.indexOf("placeholder") !== 0) storeClose(key, reason)
+    }
+    // Remove the model row before clearing its departure, so bindings never
+    // briefly lay a departing card back into the deck.
+    unmarkLeaving(key)
     delete heights[key]
     delete fresh[key]
-    // A placeholder (the empty-history notice) was never recorded.
-    if (key.indexOf("placeholder") !== 0) storeClose(key, reason)
     layoutRevision += 1
   }
 
   // Over a snapshot of the keys, never over the model's count: closeToast marks
   // a row leaving rather than removing it, so a count loop never progresses.
   function clearAll(reason, instant) {
-    var keys = Object.keys(liveKeys)
+    var keys = Object.keys(liveKeys).filter(function(key) { return !service.centerRow(key) })
     closeToasts(keys, reason, instant)
     return keys.length
   }
@@ -873,8 +932,8 @@ Item {
   // to go to. Focusing an app by its name alone does not count.
   function clickable(key) {
     var at = rowIndexFor(key)
-    if (at < 0) return false
-    var row = toasts.get(at)
+    var row = at >= 0 ? toasts.get(at) : centerRow(key)
+    if (!row) return false
     if (Security.parseExecArgv(row.execArgv)) return true
     var ref = refs[key]
     var actions = (ref && ref.actions) || []
@@ -914,7 +973,8 @@ Item {
   // An --action button: its argv runs like the click command does.
   function runExecAction(key, index) {
     var at = rowIndexFor(key)
-    var actions = Security.parseExecActions(at >= 0 ? toasts.get(at).execActions : "")
+    var row = at >= 0 ? toasts.get(at) : centerRow(key)
+    var actions = Security.parseExecActions(row ? row.execActions : "")
     if (!actions || index < 0 || index >= actions.length) return
     Util.execArgv(actions[index].argv)
     closeToast(key, "activated")
@@ -1070,7 +1130,7 @@ Item {
   // action, then its window, then its site.
   function activate(key, instant) {
     var at = rowIndexFor(key)
-    var row = at >= 0 ? toasts.get(at) : null
+    var row = at >= 0 ? toasts.get(at) : centerRow(key)
     var argv = Security.parseExecArgv(row ? row.execArgv : "")
     if (argv) {
       // Detached through bash positional parameters, never a shell string, and
@@ -1139,8 +1199,9 @@ Item {
 
   function copyCode(value, key) {
     var at = rowIndexFor(String(key || ""))
-    var codes = at >= 0 ? String(toasts.get(at).codes) : ""
-    if (at < 0 || codes.split(" ").indexOf(String(value)) < 0) return
+    var row = at >= 0 ? toasts.get(at) : centerRow(String(key || ""))
+    var codes = row ? String(row.codes) : ""
+    if (!row || codes.split(" ").indexOf(String(value)) < 0) return
     copySecret(value)
     // A copied code finishes its card unless it carried several, a moment
     // after the press so the button's tick is seen.
@@ -1459,6 +1520,18 @@ Item {
       return keys.length ? "ok" : "none"
     }
 
+    function shelf(summary: string): string {
+      for (var i = 0; i < toasts.count; i++) {
+        if (String(toasts.get(i).summary).indexOf(summary) !== -1) {
+          service.shelfToast(String(toasts.get(i).key)); return "ok"
+        }
+      }
+      return "none"
+    }
+
+    function restore(key: string): void { service.restoreCenter(key) }
+    function clearCenter(): void { service.clearCenter() }
+    function center(): string { return JSON.stringify(service.centerEntries) }
     function count(): string { return String(toasts.count) }
 
     // Open the deck as hovering would, or close it again. A headless session
@@ -1540,7 +1613,14 @@ Item {
         // Room for the arrival's scale animation, and the gap from the edge.
         readonly property int motionInset: Style.spacing.sm
         width: service.notificationWidth + motionInset + surface.margins.right
-        height: deck.y + deck.height + motionInset
+        height: {
+          var bottom = deck.height
+          for (var key in service.departures) {
+            var place = service.departures[key]
+            bottom = Math.max(bottom, place.y + place.height)
+          }
+          return deck.y + bottom + motionInset
+        }
         clip: true
 
         Item {
@@ -1652,6 +1732,7 @@ Item {
               onTargetHeightChanged: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
               Component.onCompleted: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
 
+              onShelved: { service.stopKeyboard(); service.shelfToast(model.key) }
               onExpired: service.closeToast(model.key, "expired")
               onActivated: { service.stopKeyboard(); service.activate(model.key) }
               onDismissed: { service.stopKeyboard(); service.closeToast(model.key, "dismissed") }

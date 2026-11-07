@@ -20,6 +20,7 @@ Item {
   property var place: ({ y: 0, scale: 1, opacity: 1, z: 1, front: true, hidden: false })
   property var scene: null                   // owns the clock; without it the card stands still
   property bool expanded: false
+  property bool centerMode: false
   property bool sole: false                  // the only card on screen
   property bool paused: false
   property bool hovered: false
@@ -47,8 +48,9 @@ Item {
   function ago() {
     var t = Number(row.ts || 0) * 1000
     if (!t) return ""
+    if (centerMode) return Qt.locale(I18n.formatLocale).toString(new Date(t), I18n.t("notifications.centerTimestampFormat"))
     var s = Math.max(0, (now - t) / 1000)
-    if (s < 300) return ""
+    if (s < 300 && !centerMode) return ""
     if (s < 3600) return I18n.t("notifications.minutesAgo").arg(I18n.formatNumber(Math.round(s / 60)))
     var then = new Date(t)
     var locale = Qt.locale(I18n.formatLocale)
@@ -65,6 +67,7 @@ Item {
   signal expired()
   signal activated()
   signal dismissed()
+  signal shelved()
   signal codeCopied(string code)
   signal actionInvoked(string identifier)
   signal execInvoked(int index)
@@ -206,6 +209,7 @@ Item {
   property real drawnHeight: targetHeight
 
 
+  x: scene ? scene.at(row.key, "x") : 0
   y: scene ? scene.at(row.key, "y") : 0
   z: place.z
   scale: scene ? scene.at(row.key, "scale") : 1
@@ -448,7 +452,7 @@ Item {
                 anchors.centerIn: parent
                 text: card.ago()
                 color: card.dimColor
-                opacity: card.hovered ? 0 : 1
+                opacity: card.hovered && !card.centerMode ? 0 : 1
                 visible: opacity > 0.01
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
@@ -461,8 +465,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 implicitWidth: closeMark.implicitWidth + Style.space(6)
                 implicitHeight: closeMark.implicitHeight
-                enabled: card.hovered
-                opacity: card.hovered ? 1 : 0
+                enabled: card.hovered && !card.centerMode
+                opacity: card.hovered && !card.centerMode ? 1 : 0
                 visible: opacity > 0.01
                 readonly property bool hot: card.pointerOver(shut)
                 Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
@@ -483,6 +487,17 @@ Item {
                   onClicked: card.dismissed()
                 }
               }
+            }
+            PanelActionButton {
+              visible: !card.centerMode
+              iconText: "\u{f0142}"
+              tooltipText: I18n.t("notifications.moveToCenter")
+              foreground: card.dimColor
+              hoverColor: Commons.Color.notifications.text
+              fontSize: Style.font.body
+              size: Style.space(20)
+              anchors.verticalCenter: parent.verticalCenter
+              onClicked: card.shelved()
             }
           }
         }
