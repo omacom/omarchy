@@ -341,6 +341,16 @@ if [[ -n $home_env ]]; then
   fi
 fi
 
+# Notification hooks run without terminal IO and cannot indefinitely delay launch.
+(
+  # Keep the supervisor alive so descendants can finish TERM cleanup.
+  timeout --kill-after=1s 5s bash -c 'trap "sleep 2" TERM; OMARCHY_HOOK_REPORT_STATUS=1 omarchy-hook "$@"' bash agent-launch "$agent" "$PWD" </dev/null >/dev/null 2>&1
+  hook_status=$?
+  if (( hook_status != 0 )); then
+    printf 'agent-launch hook failed or timed out (status %s)\n' "$hook_status" | logger --tag omarchy-agent-hook || true
+  fi
+) </dev/null 2>/dev/null || true
+
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else
