@@ -41,7 +41,7 @@ hl = {
     table.insert(commands, value)
   end,
 }
-o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
+o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end, cmd_present = function() return true end }
 
 require("default.hypr.autostart")
 assert(not config.invisible, "loading the module must wait for user configuration")
