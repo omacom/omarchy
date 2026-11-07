@@ -18,6 +18,9 @@ Item {
 
   property var row: ({})
   property var place: ({ y: 0, scale: 1, opacity: 1, z: 1, front: true, hidden: false })
+  // Leads its deck. Given apart from `place`, which depends on this card's own
+  // height, because the buttons this shows change that height.
+  property bool front: true
   property var scene: null                   // owns the clock; without it the card stands still
   property bool expanded: false
   property bool sole: false                  // the only card on screen
@@ -529,7 +532,7 @@ Item {
                 leftMargin: plate.borderLeft; rightMargin: plate.borderRight
                 bottomMargin: plate.borderBottom }
 
-      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
+      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.front)
       readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
       readonly property int rows: Math.ceil(card.allDeeds.length / columns)
       readonly property real rule: 1
