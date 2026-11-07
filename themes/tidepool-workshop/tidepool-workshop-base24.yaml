@@ -1,0 +1,38 @@
+system: "base24"
+name: "Tidepool Workshop"
+slug: "tidepool-workshop"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "light"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- observation tray / sea-glass paper ---
+  base00: "#E7F6EE" # Salt Paper - default background
+  base01: "#D2EEE5" # Sea-glass Tray - lighter background
+  base02: "#B9DED7" # Shallow Pool - selection background
+  base03: "#607B78" # Pebble Note - comments / muted text
+  base04: "#365D60" # Field Sketch - dark foreground
+  base05: "#173C43" # Kelp Ink - default foreground
+  base06: "#173C43" # Specimen Lettering - light foreground
+  base07: "#09272D" # Deep Pool - brightest foreground
+
+  # --- shoreline specimens and field tools ---
+  base08: "#C94F43" # Coral Shell - red / error
+  base09: "#D76D38" # Copper Bucket - orange / warning
+  base0A: "#A87800" # Sand Ochre - yellow
+  base0B: "#3F8455" # Kelp Frond - green
+  base0C: "#008C95" # Tidal Glass - cyan
+  base0D: "#2677A8" # Ocean Label - blue
+  base0E: "#8660A5" # Anemone Violet - purple
+  base0F: "#80614C" # Driftwood - brown / special
+
+  # --- base24 extension ---
+  base10: "#DFF1F3" # Enamel Fold - darker background
+  base11: "#DFF1F3" # Tray Recess - darkest background
+  base12: "#E36A5A" # Bright Coral Shell - bright red
+  base13: "#C68E00" # Bright Sand Ochre - bright orange / yellow
+  base14: "#4A9C64" # Bright Kelp Frond - bright green
+  base15: "#00A5B0" # Bright Tidal Glass - bright cyan
+  base16: "#2D8CC6" # Bright Ocean Label - bright blue
+  base17: "#9E71C3" # Bright Anemone Violet - bright purple
