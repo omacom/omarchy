@@ -13,11 +13,76 @@ usbguard_shipped=1791573373 # when usbguard joined the default packages
 # The access every Omarchy path granted with `usbguard add-user`.
 usbguard_grant=$'Devices=list,modify,listen\nPolicy=list\nExceptions=listen'
 
+# Reverting has already removed the approval UI. Make the owned daemon
+# permissive before any fallible boot or Bolt work, and keep it that way across
+# reboot until boot-time deny is gone. Preserve its original config and rules.
+usb_removal=/var/lib/omarchy/usb-authorization-removal
+usb_removal_override=/etc/systemd/system/usbguard.service.d/omarchy-removal.conf
+
+# Publish complete files so a crash during a retry cannot truncate the policy
+# that the next boot needs to authorize input.
+usb_removal_write() {
+  local path=$1 mode=$2 temporary
+  temporary=$(sudo mktemp "$path.XXXXXX") || return 1
+  if sudo tee "$temporary" >/dev/null && sudo chmod "$mode" "$temporary" && sudo mv -fT "$temporary" "$path"; then
+    return 0
+  else
+    sudo rm -f "$temporary"
+    return 1
+  fi
+}
+
+# Leave a USBGuard the user set up before Omarchy shipped it. pacman resets the
+# install date on every upgrade, so ask its log when usbguard first arrived.
+usbguard_from_omarchy() {
+  local first
+
+  # Another user may already have completed this removal and enabled the new
+  # lock policy. A stale per-user legacy marker must not uninstall its daemon.
+  [[ ! -e /etc/omarchy/usb-lock.enabled && ! -e /etc/omarchy/usb-lock.disabled ]] || return 1
+  # A previous user's failed cleanup already established ownership. Its
+  # root-only recovery directory is shared even when this user has no grant.
+  if [[ -d $usb_removal && ! -L $usb_removal && $(stat -c '%u:%a' "$usb_removal") == "0:700" ]]; then
+    return 0
+  fi
+  if [[ -f $usb_state/policy-generated-by-omarchy ]]; then
+    return 0
+  fi
+  first=$(grep -m1 -oP '^\[\K[^]]+(?=\] \[ALPM\] installed usbguard )' /var/log/pacman.log) || return 1
+  (( $(date -d "$first" +%s) >= usbguard_shipped )) || return 1
+  [[ $(sudo cat "/etc/usbguard/IPCAccessControl.d/$USER" 2>/dev/null) == "$usbguard_grant" ]]
+}
+
+if omarchy-pkg-present usbguard && usbguard_from_omarchy; then
+  sudo install -d -m700 "$usb_removal"
+  printf 'allow\n' | usb_removal_write "$usb_removal/rules.conf" 600
+  usb_removal_write "$usb_removal/daemon.conf" 600 <<EOF
+RuleFile=$usb_removal/rules.conf
+ImplicitPolicyTarget=allow
+PresentDevicePolicy=apply-policy
+PresentControllerPolicy=keep
+InsertedDevicePolicy=apply-policy
+AuthorizedDefault=all
+RestoreControllerDeviceState=false
+IPCAllowedUsers=root
+EOF
+  sudo install -d -m755 "${usb_removal_override%/*}"
+  usb_removal_write "$usb_removal_override" 644 <<EOF
+[Service]
+ExecStart=
+ExecStart=/usr/bin/usbguard-daemon -f -s -c $usb_removal/daemon.conf
+EOF
+  sudo systemctl daemon-reload
+  sudo systemctl reset-failed usbguard.service
+  sudo systemctl enable usbguard.service
+  sudo systemctl restart usbguard.service
+fi
+
 # The approval watchers. Their unit files are gone, so systemctl disable can't
 # find them; drop the enablement links directly.
 for unit in omarchy-usb-authorization.service omarchy-thunderbolt-authorization.service; do
   systemctl --user stop "$unit" 2>/dev/null || true
-  rm -f "$HOME"/.config/systemd/user/*.wants/"$unit"
+  rm -f "$HOME"/.config/systemd/user/*.{wants,requires}/"$unit"
 done
 rm -f "$HOME/.config/systemd/user/omarchy-usb-authorization.service"
 systemctl --user daemon-reload
@@ -166,24 +231,11 @@ if [[ -e $usb_boot_drop_in || -e $usb_boot_pending ]] || grep -Fqx '# Omarchy US
   sudo sed -i '/^# Omarchy USB authorization begin$/,/^# Omarchy USB authorization end$/d' /etc/default/limine
   sudo limine-mkinitcpio
   if ! usb_boot_cleared; then
-    echo "A boot entry still has $usb_boot_parameter, so USBGuard stays until it is rebuilt. Run omarchy-migrate to retry."
+    echo "A boot entry still has $usb_boot_parameter, so USBGuard stays permissive until it is rebuilt. Run omarchy-migrate to retry."
     exit 1
   fi
   sudo rm -f "$usb_boot_pending"
 fi
-
-# Leave a USBGuard the user set up before Omarchy shipped it. pacman resets the
-# install date on every upgrade, so ask its log when usbguard first arrived.
-usbguard_from_omarchy() {
-  local first
-
-  if [[ -f $usb_state/policy-generated-by-omarchy ]]; then
-    return 0
-  fi
-  first=$(grep -m1 -oP '^\[\K[^]]+(?=\] \[ALPM\] installed usbguard )' /var/log/pacman.log) || return 1
-  (( $(date -d "$first" +%s) >= usbguard_shipped )) || return 1
-  [[ $(sudo cat "/etc/usbguard/IPCAccessControl.d/$USER" 2>/dev/null) == "$usbguard_grant" ]]
-}
 
 if omarchy-pkg-present usbguard && usbguard_from_omarchy; then
   sudo systemctl disable --now usbguard.service
@@ -201,6 +253,12 @@ if omarchy-pkg-present usbguard && usbguard_from_omarchy; then
     fi
   done < <(sudo find /etc/usbguard/IPCAccessControl.d -maxdepth 1 -type f -print0 2>/dev/null)
   sudo rmdir /etc/usbguard/IPCAccessControl.d /etc/usbguard 2>/dev/null || true
+fi
+
+if [[ -d $usb_removal ]] && ! omarchy-pkg-present usbguard; then
+  sudo rm -f "$usb_removal_override"
+  sudo rm -rf "$usb_removal"
+  sudo systemctl daemon-reload
 fi
 
 for action in /usr/share/polkit-1/actions/org.omarchy.usb.policy /usr/share/polkit-1/actions/org.omarchy.thunderbolt.policy; do

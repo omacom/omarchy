@@ -1,0 +1,30 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Prepare or restore installed Thunderbolt lock protection
+
+# Privileged Bash prevents startup files and exported functions running as root.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 )) || exit 126
+export PATH=/usr/bin:/bin LC_ALL=C
+unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
+source /usr/share/omarchy/install/helpers/thunderbolt-lock.sh
+(( $# == 1 )) || exit 64
+source /usr/share/omarchy/install/helpers/thunderbolt-lock-setup.sh
+if [[ $1 == "guard" ]]; then
+  tb_guard
+else
+  exec 9>"$TB_LOCK"
+  flock -x 9
+  case $1 in
+    defaults) tb_lock_defaults ;;
+    install) tb_lock_defaults later ;;
+    disable) tb_lock_disable ;;
+    recover) tb_config_restore ;;
+    *) exit 64 ;;
+  esac
+fi

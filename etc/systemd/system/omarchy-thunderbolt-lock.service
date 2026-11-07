@@ -1,0 +1,30 @@
+[Unit]
+Description=Thunderbolt authorization with the Omarchy lock screen
+Wants=bolt.service
+After=bolt.service polkit.service
+ConditionPathExists=/etc/omarchy/thunderbolt-lock.enabled
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-thunderbolt-lock-daemon
+RuntimeDirectory=omarchy-thunderbolt-lock
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+Restart=on-failure
+RestartSec=2
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/omarchy/thunderbolt-lock /run/lock
+# Controller paths vary by platform. The helper pins and validates the
+# Thunderbolt key/authorized attributes beneath this common device subtree.
+ReadOnlyPaths=/sys
+ReadWritePaths=/sys/devices
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

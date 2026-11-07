@@ -95,6 +95,13 @@ scrub_legacy_degraded_state() {
   rm -rf /var/lib/NetworkManager/* /var/lib/tailscale /var/lib/iwd
   rm -f /var/lib/sddm/state.conf /etc/sddm.conf.d/autologin.conf
 
+  # Early boot has no desktop environment; use the installed root-owned helpers.
+  source /usr/share/omarchy/install/helpers/usb-lock.sh || abort "could not load USB policy"
+  usb_lock_reset_root / || abort "could not reset USB protection"
+  source /usr/share/omarchy/install/helpers/thunderbolt-lock.sh || abort "could not load Thunderbolt policy"
+  source /usr/share/omarchy/install/helpers/thunderbolt-lock-setup.sh || abort "could not load Thunderbolt setup"
+  tb_lock_reset_root / || abort "could not clear Thunderbolt approvals"
+
   # Fresh machine identity from the next boot on.
   systemd-id128 new >/etc/machine-id 2>/dev/null || :>/etc/machine-id
 
