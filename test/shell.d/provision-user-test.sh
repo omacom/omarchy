@@ -23,9 +23,17 @@ chmod +x "$mock_bin"/*
 mkdir -p "$test_tmp/install/user"
 : >"$test_tmp/install/user/all.sh"
 
+mkdir -p "$test_tmp/home/.config/omarchy"
+printf '{}\n' >"$test_tmp/home/.config/omarchy/shell.json"
+chmod 644 "$test_tmp/home/.config/omarchy/shell.json"
+
 HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
   OMARCHY_INSTALL="$test_tmp/install" bash "$ROOT/bin/omarchy-provision-user" >/dev/null ||
   fail "omarchy-provision-user finishes"
+
+[[ $(stat -c '%a' "$test_tmp/home/.config/omarchy/shell.json") == "600" ]] ||
+  fail "provisioning makes the skel copy of shell.json private"
+pass "provisioning makes the skel copy of shell.json private"
 
 for skill in omarchy diagnose-crash; do
   link="$test_tmp/home/.gemini/config/skills/$skill"
