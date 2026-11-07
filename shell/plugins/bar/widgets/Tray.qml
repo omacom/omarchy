@@ -382,8 +382,7 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           y: root.fixedAtStart ? root.revealExtent : 0
-          text: root.fixedAtStart ? "\uf054" : "\uf053"
-          textRotation: 90
+          text: root.fixedAtStart ? "\uf078" : "\uf077"
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
           }
