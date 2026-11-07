@@ -36,3 +36,162 @@ assertEqual(tray.shownSpan(0, 10, 50, 30), null, 'a section still outside the dr
 assertDeepEqual(tray.shownSpan(0, 50, 50.5, 0), { start: 50, length: 0 }, 'an empty section shows on the drawer\'s edge once within a pixel of it')
 assertEqual(tray.shownSpan(0, 50, 52, 0), null, 'an empty section further out shows nothing')
 JS
+
+run_node_test "tray deferred menu lifecycle" <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const tray = requireFromRoot('shell/plugins/bar/widgets/TrayModel.js')
+const source = fs.readFileSync(root + '/shell/plugins/bar/widgets/Tray.qml', 'utf8')
+
+assert(
+  !tray.menuModelHasChildren({ values: [] }),
+  'empty QsMenuOpener ObjectModel is not ready'
+)
+assert(
+  tray.menuModelHasChildren({ values: [{ text: 'Open' }] }),
+  'non-empty QsMenuOpener ObjectModel is ready'
+)
+assert(
+  !tray.menuModelHasChildren({ length: 1 }),
+  'array-style length on the ObjectModel itself is not treated as readiness'
+)
+
+
+const sync = source.slice(
+  source.indexOf('function syncTrayMenuOpen()'),
+  source.indexOf('function openTrayMenu(')
+)
+function syncMenuWithState(rows, pending, open) {
+  const state = {
+    TrayModel: tray,
+    trayMenuOpener: { children: { values: rows } },
+    trayMenuPending: pending,
+    trayMenuOpen: open
+  }
+  vm.runInNewContext(sync + '\n' + 'syncTrayMenuOpen()', state)
+  return { pending: state.trayMenuPending, open: state.trayMenuOpen }
+}
+assertDeepEqual(
+  syncMenuWithState([], true, false),
+  { pending: true, open: false },
+  'pending click with no rows never grabs focus'
+)
+assertDeepEqual(
+  syncMenuWithState([{ text: 'Open' }], true, false),
+  { pending: false, open: true },
+  'ready rows consume the click and open once'
+)
+assertDeepEqual(
+  syncMenuWithState([{ text: 'Open' }], false, false),
+  { pending: false, open: false },
+  'rows arriving after cancellation or timeout cannot reopen the menu'
+)
+assertDeepEqual(
+  syncMenuWithState([], false, true),
+  { pending: false, open: false },
+  'losing all rows releases an open menu grab'
+)
+assertDeepEqual(
+  syncMenuWithState([{ text: 'Open' }], false, true),
+  { pending: false, open: true },
+  'already open populated menu stays open'
+)
+
+const open = source.slice(
+  source.indexOf('function syncTrayMenuOpen()'),
+  source.indexOf('function trayIconSource(')
+)
+function rightClickItem(item, rows) {
+  const state = {
+    TrayModel: tray,
+    trayMenuOpener: { children: { values: rows } },
+    trayMenuPending: true,
+    trayMenuOpen: false,
+    activeTrayItem: null,
+    activeTrayAnchor: null,
+    timerRestarted: false,
+    resetTrayMenu: function() {},
+    trayMenuPendingTimer: { restart: function() { state.timerRestarted = true } }
+  }
+  vm.runInNewContext(open + '\n' + 'openTrayMenu(item, {}, {})', Object.assign(state, { item: item }))
+  return {
+    pending: state.trayMenuPending,
+    open: state.trayMenuOpen,
+    active: state.activeTrayItem === item,
+    timer: state.timerRestarted
+  }
+}
+assertDeepEqual(
+  rightClickItem({ menu: null }, []),
+  { pending: false, open: false, active: false, timer: false },
+  'right-clicking an unready item opens nothing and drops an earlier pending click'
+)
+assertDeepEqual(
+  rightClickItem({ menu: {} }, []),
+  { pending: true, open: false, active: true, timer: true },
+  'right-clicking an item whose rows have not arrived waits for them instead of grabbing focus'
+)
+assertDeepEqual(
+  rightClickItem({ menu: {} }, [{ text: 'Open' }]),
+  { pending: false, open: true, active: true, timer: true },
+  'right-clicking an item whose rows are ready opens its menu at once'
+)
+
+const closeBody = /^  function close\(\) \{\n([\s\S]*?)^  \}/m.exec(source)
+assert(!!closeBody, 'close() method exists')
+const pendingClose = {
+  managePopupOpen: true,
+  trayMenuOpen: true,
+  trayMenuPending: true
+}
+// Run the *production* close body so another method cannot satisfy a
+// string-search assertion for a missing cancellation.
+vm.runInNewContext('function close() {\n' + closeBody[1] + '}\nclose()', pendingClose)
+assertDeepEqual(pendingClose, {
+  managePopupOpen: false,
+  trayMenuOpen: false,
+  trayMenuPending: false
+}, 'close() releases a pending menu as well as existing popups')
+
+const trayItemSource = source.slice(source.indexOf('component TrayItem: Item {'))
+const exitedHandler = /onExited:\s*\{([\s\S]*?)\n\s*\}\n\s*onPressed:/.exec(trayItemSource)
+assert(!!exitedHandler, 'tray mouse exit handler exists')
+const clickedIcon = {}
+let tooltipHidden = false
+const activeRoot = {
+  trayMenuPending: true,
+  trayMenuOpen: false,
+  bar: { hideTooltip: function(icon) { tooltipHidden = icon === clickedIcon } }
+}
+vm.runInNewContext(exitedHandler[1], { root: activeRoot, trayItemRoot: clickedIcon })
+assert(tooltipHidden, 'pointer exit still hides the originating icon tooltip')
+assert(activeRoot.trayMenuPending && !activeRoot.trayMenuOpen,
+  'moving toward a slow menu must not cancel its pending click')
+
+const detachedRoot = { trayMenuPending: true, bar: null }
+vm.runInNewContext(exitedHandler[1], { root: detachedRoot, trayItemRoot: clickedIcon })
+assert(detachedRoot.trayMenuPending,
+  'pointer exit during bar teardown does not cancel a pending menu')
+
+const clickedHandler = /onClicked: function\(mouse\) \{\n([\s\S]*?)\n      \}\n      onWheel:/.exec(trayItemSource)
+assert(!!clickedHandler, 'tray mouse click handler exists')
+function clickIcon(button) {
+  const state = {
+    Qt: { LeftButton: 1, RightButton: 2, MiddleButton: 4 },
+    root: { trayMenuPending: true },
+    trayItemRoot: {
+      displayMenu: function() {},
+      modelData: { onlyMenu: false, activate: function() {}, secondaryActivate: function() {} }
+    },
+    mouse: { button: button, accepted: false }
+  }
+  vm.runInNewContext(clickedHandler[1], state)
+  return state.root.trayMenuPending
+}
+assert(!clickIcon(1), 'activating another tray icon drops a pending menu, so it cannot open over what was activated')
+assert(!clickIcon(4), 'middle-clicking another tray icon drops a pending menu')
+assert(clickIcon(2), 'a right-click is left to openTrayMenu, which owns the pending state')
+
+
+// These isolated production-JS transitions are not a live QML/compositor test.
+JS
