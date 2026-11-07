@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -519,6 +520,17 @@ Panel {
     repeat: true
     triggeredOnStart: true
     onTriggered: {
+      if (root.autoLocation) root.detectLocation()
+      root.refresh()
+    }
+  }
+
+  // A fetch made before the network came up gives up after its retries, and
+  // the bar would stay without an icon until the next refresh tick.
+  Connections {
+    target: Networking
+    function onConnectivityChanged() {
+      if (Networking.connectivity !== NetworkConnectivity.Full || root.label !== "") return
       if (root.autoLocation) root.detectLocation()
       root.refresh()
     }
