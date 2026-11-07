@@ -20,6 +20,8 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(typing.keyboard_values(["us:intl", "fr"]), ("us,fr", "intl,"))
     self.assertEqual(typing.keyboard_values(["ru:phonetic"]), ("us,ru", ",phonetic"))
     self.assertEqual(typing.keyboard_values(["ru:phonetic", "us"]), ("us,ru", ",phonetic"))
+    self.assertEqual(typing.keyboard_values(["ru", "us:dvorak"]), ("us,ru", "dvorak,"))
+    self.assertEqual(typing.keyboard_values(["ru", "us:rus", "us:dvorak"]), ("us,ru,us", "dvorak,,rus"))
     with self.assertRaises(ValueError):
       typing.keyboard_values([])
 
