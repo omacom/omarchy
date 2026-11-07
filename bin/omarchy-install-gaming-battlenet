@@ -3,7 +3,7 @@
 # omarchy:summary=Install Battle.net standalone via umu-launcher + GE-Proton (no Steam, no Lutris, no Heroic).
 # omarchy:requires-sudo=true
 
-set -e
+set -eo pipefail
 
 PREFIX="$HOME/Games/battlenet"
 LAUNCHER="$PREFIX/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
@@ -53,16 +53,23 @@ else
 
   cat <<'EOF'
 
-Launching the Battle.net setup wizard. Click through it normally — the
-default install path is fine. When it finishes, Battle.net will be in your
-app launcher.
+Preparing the Battle.net runtime. The first run downloads Proton and the
+Steam Runtime and initializes the Windows environment. This may take several
+minutes. Keep this terminal open until preparation finishes.
 
 EOF
 
   log="/tmp/omarchy-battlenet-installer.log"
-  setsid -f sh -c "umu-run '$installer' >'$log' 2>&1" </dev/null >/dev/null 2>&1
   echo "Installer log: $log"
-  launched_installer=1
+  if umu-run wineboot --init 2>&1 | tee "$log"; then
+    launched_installer=1
+  else
+    status=$?
+    if (( status != 130 )); then
+      echo "Battle.net runtime preparation failed. See $log for details." >&2
+    fi
+    exit "$status"
+  fi
 fi
 
 mkdir -p "$HOME/.local/share/applications"
@@ -71,12 +78,10 @@ install -m 644 "$OMARCHY_PATH/default/applications/battlenet.desktop" \
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 
 if (( launched_installer )); then
+  setsid -f sh -c 'exec umu-run "$1" >>"$2" 2>&1' sh "$installer" "$log" </dev/null >/dev/null 2>&1
   cat <<EOF
 
-The Battle.net installer is running in the background. After it finishes,
-find Battle.net in your app launcher, or run:
-
-  omarchy-launch-battlenet
+Preparation complete. Launching the setup wizard...
 
 EOF
 else
