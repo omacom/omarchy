@@ -228,6 +228,15 @@ def credits_limit(data):
   }
 
 
+# A current weekly period the credits answer gives no percentage for: nothing
+# used yet. Anything else is no answer.
+def untouched_week(data):
+  period = data["config"]["currentPeriod"]
+  if "WEEK" not in str(period.get("type")) or parse_time(period["end"]).timestamp() <= time.time():
+    raise ValueError("no current week")
+  return {"label": "Weekly", "percent": 0.0, "resetsAt": parse_time(period["end"]).isoformat()}
+
+
 # The monthly answer as one limit window: how much of the month's included
 # quota is used, and when the billing period ends.
 def monthly_limit(data):
@@ -287,7 +296,13 @@ def collect_limits(home, key, force):
     credits = open_json(urllib.request.Request(CREDITS_URL, headers=headers), timeout=8)
     weekly = credits_limit(credits)
     if weekly is None:
-      limits = [monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8))]
+      try:
+        limits = [monthly_limit(open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8))]
+      except (KeyError, ValueError):
+        # A unified-billing account with no monthly quota is metered by the
+        # week alone, so a current week without a percentage is one with
+        # nothing used yet: 0%, as for any other account.
+        limits = [untouched_week(credits)]
     else:
       limits = [weekly]
       # A unified-billing account can carry both: the weekly credits and the
