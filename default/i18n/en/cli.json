@@ -252,6 +252,8 @@
   "reminder.title": "Reminder",
   "reminder.upcoming": "Upcoming reminders",
   "reminder.willRemindAt": "You'll be reminded at %1",
+  "reopenWindows.disabled": "Windows won't reopen after logout or reboot",
+  "reopenWindows.enabled": "Windows reopen after logout or reboot",
   "reset.confirmPassphrase": "Confirm your disk encryption passphrase to authorize the re-key.",
   "reset.eraseAccounts": "All user accounts and everything in /home",
   "reset.eraseIdentity": "Machine identity (network connections, host keys, machine-id)",

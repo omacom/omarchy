@@ -23,6 +23,9 @@ hl.on("hyprland.start", function()
   -- it with a tty environment, and agents in its panes can't read the clipboard.
   hl.exec_cmd(o.launch("herdr server"))
 
+  -- Reopen the windows saved at the last logout, reboot or shutdown.
+  hl.exec_cmd("sleep 2 && omarchy-session-restore")
+
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
 end)

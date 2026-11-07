@@ -15,6 +15,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
+| Reopen windows after logout or reboot (off by default) | — | `omarchy toggle reopen-windows` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
 | Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
@@ -23,6 +24,17 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
+
+### Reopen windows
+
+Omarchy can reopen your windows at the next login, the way macOS does. It's off until you ask for it, in one of two ways:
+
+- _System > Reboot & Reopen Windows_ in the Omarchy menu reboots once and brings everything back
+- `omarchy toggle reopen-windows` (or _Trigger > Toggle_) turns it on for every logout, reboot, and shutdown from the Omarchy menu
+
+Omarchy notes which apps are open and on which workspace, then opens them again on the same workspaces and brings each monitor back to the workspace it was showing. Terminals reopen in the folder their shell was in. A Claude Code or Grok session running in a terminal, or in a [Herdr](https://herdr.dev) Desktop pane, picks up where it left off, and the shell stays open when you quit the agent. Apps bring back their own content the way they always do, so a browser restores its tabs only if its own "continue where you left off" setting is on.
+
+It only reopens apps. Anything unsaved in an app that doesn't restore itself is gone, and any other command that was running in a terminal does not run again.
 
 _Appearance_ holds the menu bar and animations, plus a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, the default workspace layout, and under _Windows_, window gaps (`Super + Shift + Backspace`) and the 1-window square aspect (`Super + Ctrl + Backspace`).
 

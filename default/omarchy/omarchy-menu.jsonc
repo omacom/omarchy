@@ -39,6 +39,7 @@
   "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available && ! omarchy-sleep-disabled","action":"systemctl hibernate"},
   "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system logout"},
   "system.reboot": {"icon":"󰜉","label":"Reboot","action":"omarchy-system reboot"},
+  "system.reboot-reopen": {"icon":"󰑓","label":"Reboot & Reopen Windows","when":"! omarchy-toggle-enabled reopen-windows","action":"omarchy-session-save --always && omarchy-system reboot"},
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system shutdown"},
 
   // Learn
@@ -134,6 +135,8 @@
   "trigger.toggle.nightlight-off": {"icon":"󰔎","label":"Nightlight Off","when":"[[ $(omarchy-toggle-nightlight --status) == *'\"enabled\":true'* ]]","action":"omarchy-toggle-nightlight"},
   "trigger.toggle.screensaver-on": {"icon":"󱄄","label":"Screensaver On","when":"omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
   "trigger.toggle.screensaver-off": {"icon":"󱄄","label":"Screensaver Off","when":"! omarchy-toggle-enabled screensaver-off","action":"omarchy-toggle-screensaver"},
+  "trigger.toggle.reopen-windows-on": {"icon":"󰑓","label":"Reopen Windows On","when":"! omarchy-toggle-enabled reopen-windows","action":"omarchy-toggle-reopen-windows"},
+  "trigger.toggle.reopen-windows-off": {"icon":"󰑓","label":"Reopen Windows Off","when":"omarchy-toggle-enabled reopen-windows","action":"omarchy-toggle-reopen-windows"},
   "trigger.toggle.crash-capture-on": {"icon":"󱚡","label":"Crash Capture On","when":"omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
   "trigger.toggle.crash-capture-off": {"icon":"󱚡","label":"Crash Capture Off","when":"! omarchy-toggle-enabled crash-capture-off","action":"omarchy-toggle-crash-capture"},
   "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},

@@ -50,6 +50,9 @@
   "system.reboot": {
     "label": "Reboot"
   },
+  "system.reboot-reopen": {
+    "label": "Reboot & Reopen Windows"
+  },
   "system.shutdown": {
     "label": "Shutdown"
   },
@@ -317,6 +320,12 @@
   },
   "trigger.toggle.screensaver-off": {
     "label": "Screensaver Off"
+  },
+  "trigger.toggle.reopen-windows-on": {
+    "label": "Reopen Windows On"
+  },
+  "trigger.toggle.reopen-windows-off": {
+    "label": "Reopen Windows Off"
   },
   "trigger.toggle.crash-capture-on": {
     "label": "Crash Capture On"
