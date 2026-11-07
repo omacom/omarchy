@@ -457,6 +457,12 @@ bright_foreground #ffffff
 EOF
 pass "legacy short palette resolves every canonical neutral color"
 
+WHITESPACE_COLORS_FILE="$PI_TMPDIR/whitespace-colors.toml"
+printf '\taccent\t= "#112233"\n\t# comment\nbackground = "#445566"' >"$WHITESPACE_COLORS_FILE"
+actual=$("$ROOT/bin/omarchy-theme-color" --file "$WHITESPACE_COLORS_FILE" --raw 2>&1)
+[[ $actual == $'accent\t#112233\nbackground\t#445566' ]] || fail "palette keeps tab-indented keys and an unterminated last line"
+pass "palette keeps tab-indented keys and an unterminated last line"
+
 LEGACY_THEME_HOME="$PI_TMPDIR/legacy-theme-home"
 LEGACY_NEXT_THEME="$LEGACY_THEME_HOME/.local/state/omarchy/current/next-theme"
 mkdir -p "$LEGACY_NEXT_THEME"
