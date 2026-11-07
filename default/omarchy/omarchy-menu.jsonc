@@ -205,6 +205,7 @@
   "setup.default.agent.dsh": {"icon":"","iconFont":"omarchy","label":"DeepSeek Harness","checked":"[[ \"$(omarchy-default-agent)\" == \"dsh\" ]]","action":"omarchy-default-agent dsh"},
   "setup.default.agent.devin": {"icon":"","iconFont":"omarchy","label":"Devin CLI","checked":"[[ \"$(omarchy-default-agent)\" == \"devin\" ]]","action":"omarchy-default-agent devin"},
   "setup.default.agent.freebuff": {"icon":"","iconFont":"omarchy","label":"Freebuff","checked":"[[ \"$(omarchy-default-agent)\" == \"freebuff\" ]]","action":"omarchy-default-agent freebuff"},
+  "setup.default.agent.goose": {"icon":"","iconFont":"omarchy","label":"Goose","checked":"[[ \"$(omarchy-default-agent)\" == \"goose\" ]]","action":"omarchy-default-agent goose"},
   "setup.default.agent.grok": {"icon":"","iconFont":"omarchy","label":"Grok","checked":"[[ \"$(omarchy-default-agent)\" == \"grok\" ]]","action":"omarchy-default-agent grok"},
   "setup.default.agent.hermes": {"icon":"","iconFont":"omarchy","label":"Hermes","checked":"[[ \"$(omarchy-default-agent)\" == \"hermes\" ]]","action":"omarchy-default-agent hermes"},
   "setup.default.agent.kilo": {"icon":"","iconFont":"omarchy","label":"Kilo","checked":"[[ \"$(omarchy-default-agent)\" == \"kilo\" ]]","action":"omarchy-default-agent kilo"},
