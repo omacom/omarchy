@@ -29,9 +29,56 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+# The shell keeps the adapter pairable only while the Bluetooth panel is open,
+# since the pairing agent auto-accepts. A pairing this command starts needs it
+# on as well, or a Low Energy device pairs without bonding and is forgotten at
+# disconnect. The shell owns the property, so it is asked to hold pairing for
+# the length of this command. Without a shell to ask, commands share the
+# property through a lock: each holds it shared while pairing, the first one
+# to find it off leaves a marker, and the last one out (the only one able to
+# take it exclusively) turns it back off.
+pairing_lock_dir="${XDG_RUNTIME_DIR:-/tmp}"
+pairing_lock="$pairing_lock_dir/omarchy-bluetooth-pairable.lock"
+pairing_restore_marker="$pairing_lock_dir/omarchy-bluetooth-pairable.restore"
+pairing_token=""
+holding_lock=0
+
+hold_pairing() {
+  # The shell answers a hold with a token for that hold alone, so the release
+  # below cannot take another pairing's hold away. A request that got no
+  # answer leaves nothing to release; the shell expires such a hold itself.
+  if pairing_token=$(omarchy-shell omarchy.bluetooth holdPairing 2>/dev/null) &&
+    [[ $pairing_token =~ ^[0-9a-f]{32}$ ]]; then
+    return
+  fi
+  pairing_token=""
+  exec 8>>"$pairing_lock" || return 0
+  flock -s 8 || return 0
+  holding_lock=1
+  if [[ $(timeout 2s bluetoothctl show 2>/dev/null) != *"Pairable: yes"* ]]; then
+    : >"$pairing_restore_marker"
+    timeout 5s bluetoothctl pairable on >/dev/null 2>&1 || true
+  fi
+}
+
+release_pairing() {
+  if [[ -n $pairing_token ]]; then
+    omarchy-shell -q omarchy.bluetooth releasePairing "$pairing_token" >/dev/null 2>&1 || true
+  fi
+  (( holding_lock )) || return 0
+  flock -u 8 || true
+  if flock -x -n 8 && [[ -e $pairing_restore_marker ]]; then
+    rm -f "$pairing_restore_marker"
+    timeout 5s bluetoothctl pairable off >/dev/null 2>&1 || true
+  fi
+  exec 8>&-
+}
+
 case "$action" in
   pair)
     power_on
+    trap release_pairing EXIT
+    hold_pairing
     timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
     trust_device
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
