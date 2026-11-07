@@ -432,6 +432,7 @@
   "notifications.copyCode": "Copy code",
   "notifications.copyThisCode": "Copy %1",
   "notifications.minutesAgo": "%1m",
+  "notifications.more": "More",
   "notifications.noneRecent": "No recent notifications",
   "notifications.redactedBody": "Code hidden",
   "notifications.redactedSummary": "Verification notification",

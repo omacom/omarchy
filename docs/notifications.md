@@ -7,7 +7,7 @@ The shell is the notification daemon: `shell/plugins/notifications/Service.qml` 
 | File | Role |
 |---|---|
 | `Service.qml` | The daemon: admission, quiet rules, the scene clock, click routing, IPC, one layer surface per output |
-| `Toast.qml`, `DeedButton.qml` | One card and its buttons; a card is positioned by the service and animates nothing itself |
+| `Toast.qml`, `DeedButton.qml`, `ActionMenu.qml` | One card and its buttons; a card is positioned by the service and animates nothing itself |
 | `Store.js` | Notification snapshots, normalisation, what a stored row keeps, the stored file formats, restore |
 | `Markup.js` | Safe body markup, source lifting (`web:app.slack.com`), one-line previews |
 | `Detect.js` | Verification codes and links |
@@ -94,7 +94,7 @@ flags map onto that call:
 |---|---|---|
 | `-g` / `--glyph` | hint `omarchy-glyph` | Nerd Font glyph for the icon slot when no image icon resolves |
 | `--exec <program> [args…]` | hint `omarchy-exec-argv` | the click command; consumes the rest of the line, so it comes last. Each word is a discrete argument the shell runs without re-parsing (see below) |
-| `--action <label> <program> [words…]` | hint `omarchy-actions` | a button, up to three; the first is also the click. Its words end at the next `--action`, `--with` or `--exec`. Cannot be combined with `--exec` |
+| `--action <label> <program> [words…]` | hint `omarchy-actions` | an action, up to nine; the first is also the click. Its words end at the next `--action`, `--with` or `--exec`. Cannot be combined with `--exec` |
 | `--with <args…>` | appended to every action | the data the actions act on; consumes the rest of the line, so it comes last |
 | `--image` | hint `image-path` | the standard freedesktop image hint |
 | `-i` / `--icon` | `app_icon` | themed icon name for the toast |
@@ -196,7 +196,7 @@ The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv
 
 Keybindings live in `default/hypr/bindings/utilities.lua`: `Super+comma` variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`, `showHistory` (put the last few back on screen), `keyboard`, and the silencing toggle.
 
-`keyboard` (`Super+Ctrl+comma`) is the only way the notifications take the keyboard: a card that grabbed focus as it arrived would swallow whatever you were typing. It selects the newest card and opens its deck, and the surface on that display takes exclusive keyboard focus. Arrows (or `j`/`k`, `Tab`) move through the cards deck by deck, `1`–`9` press a button in `Delivery.deeds` order (the card numbers them), `Enter` clicks the card, `Delete` dismisses it and selects the next, and `Escape`, any choice, or ten idle seconds end it. While it lasts the deck stays open and new cards wait, as under the pointer. `invokeAction <n>` presses button `n` on the newest card without the mode.
+`keyboard` (`Super+Ctrl+comma`) lets notifications take the keyboard: a card that grabbed focus as it arrived would swallow whatever you were typing. It selects the newest card and opens its deck, and the surface on that display takes exclusive keyboard focus. Arrows (or `j`/`k`, `Tab`) move through the cards deck by deck, `1`–`9` press a button in `Delivery.deeds` order (the card numbers them), `Enter` clicks the card, `Delete` dismisses it and selects the next, and `Escape`, any choice, or ten idle seconds end it. While it lasts the deck stays open and new cards wait, as under the pointer. `invokeAction <n>` presses button `n` on the newest card without the mode.
 
 The `notifications` IPC target also answers `ping` (used by `omarchy-notification-wait`), `dismiss <summary>`, `count`, and two for scripts and visual checks: `expand` (open the deck and hover its front card, as the pointer would) and `probe` (what the daemon thinks is true).
 
@@ -235,3 +235,15 @@ timers and mutations make). `omarchy-reminder -i` summons the
 `omarchy.reminders` overlay (`shell/plugins/reminders/ReminderFlow.qml`), a
 two-step minutes/message prompt that shells back out to `omarchy-reminder` to
 do the setting.
+
+## Notification actions
+
+Notification cards show the first available action directly and collect any remaining actions under **More**. The ordering remains copy-code actions, Omarchy command actions, then application actions. The menu preserves each action's identifier and command arguments; it changes presentation rather than the sender protocol or history format. One-action cards retain their single button, and cards with no actions have no action bar.
+
+In notification keyboard mode, **M** opens More, arrows move through its entries, **Enter** invokes the selected entry, and **Escape** closes the menu. Number keys and the `notifications invokeAction` IPC method retain the original full-list indices. The menu opens inside the card, below its button bar, so the deck's hover region, input mask and clipping cover it like the rest of the card; a separate popup surface would take the pointer from the deck. Opening it with the pointer takes no keyboard focus. An open menu pauses expiry. It closes when an entry is chosen, when the pointer moves onto another card, when the deck shuts (the grace after the pointer leaves is longer while a menu is open), and when its notification closes or is replaced. The deck does not scroll, so the menu shows as many whole rows as fit between the bar and the bottom of the screen and scrolls the rest, following the keyboard's row. When not even one row fits under the bar, it opens upwards over the card's own content instead, which adds no height. Labels are plain text.
+
+Recording notifications include **Show in Files**, using `omarchy file reveal <file>`. The helper asks `org.freedesktop.FileManager1.ShowItems` to select the file and falls back to opening its containing folder when that interface is unavailable. It passes a percent-encoded file URI as a separate D-Bus argument, preserving spaces, punctuation, Unicode and symlink identity.
+
+Recording menus also offer **Copy to Clipboard** through `omarchy file copy <file>`, which puts the file's URI on the clipboard as `text/uri-list`, as file managers do: pasting into Files copies the file, and into a browser or chat attaches it.
+
+Recording menus also offer **Move to Trash** through `omarchy file trash <file>`. The helper uses GIO trash, preserves restoration metadata, and reports failure through a critical notification. It never falls back to permanent deletion.
