@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default agent inside the qconsole Herdr session
+# omarchy:hidden=true
+
+# Herdr names the workspace after the pane's cwd, so name it after the console.
+[[ -n ${HERDR_WORKSPACE_ID:-} ]] &&
+  herdr workspace rename "$HERDR_WORKSPACE_ID" qconsole >/dev/null 2>&1 || true
+
+# Every pane starts a fresh agent, falling back to a shell when none is set.
+# --pick offers the agent choice instead of an error on a fresh install, and
+# --prefer-local takes the local model when one is running; both are what the
+# console asked of omarchy-agent before it became a Herdr session.
+omarchy-agent --inline --pick --prefer-local || exec "${SHELL:-/bin/sh}"
