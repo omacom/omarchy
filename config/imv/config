@@ -14,3 +14,6 @@
 
 # Edit the current image in Omasnap and quit the viewer
 <Ctrl+e> = exec omasnap "$imv_current_file" & ; quit
+
+# Close the viewer with Escape
+<Escape> = quit
