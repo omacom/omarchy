@@ -273,6 +273,22 @@ function isUntypedSource(node, sourceAvailability) {
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
 
+// Keep the actual default visible even if its ports are unavailable.
+function availableSources(candidates, source, availability) {
+  var list = []
+  for (var i = 0; i < candidates.length; i++) {
+    var node = candidates[i]
+    if (!node || !node.name || availability[String(node.name)] !== false) list.push(node)
+  }
+  if (source && list.indexOf(source) < 0) list.unshift(source)
+  return list
+}
+
+// Bridge a missing graph, but let an all-unplugged graph clear stale inputs.
+function sourcesWithCache(sources, candidates, cached) {
+  return sources.length > 0 || candidates.length > 0 ? sources : cached
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -299,6 +315,8 @@ if (typeof module !== "undefined") {
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
     streamRepresentsPlayer: streamRepresentsPlayer,
+    availableSources: availableSources,
+    sourcesWithCache: sourcesWithCache,
     isUntypedSource: isUntypedSource
   }
 }

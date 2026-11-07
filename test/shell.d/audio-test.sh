@@ -69,6 +69,31 @@ assert(!audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: tr
 assert(!audio.isUntypedSource({ name: '', isSink: false, isStream: false }, { '': true }), 'a nameless node is never an untyped source')
 assert(!audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: false }, {}), 'nothing is untyped before the listing')
 
+// Filter current inputs before deciding whether a missing graph needs the cache.
+const jack = { id: 1, name: 'headset_mic' }
+const virtualMic = { id: 2, name: 'virtual_mic' }
+const unknownMic = { id: 3, name: 'unknown_mic' }
+const inputAvailability = { headset_mic: false, virtual_mic: true }
+const candidates = [jack, virtualMic, unknownMic]
+assertDeepEqual(audio.availableSources(candidates, null, inputAvailability), [virtualMic, unknownMic],
+  'audio filters unavailable inputs and keeps available or unlisted inputs')
+assertDeepEqual(audio.availableSources(candidates, jack, inputAvailability), [jack, virtualMic, unknownMic],
+  'audio retains the actual default even when unavailable')
+assertDeepEqual(audio.availableSources(candidates, virtualMic, inputAvailability), [virtualMic, unknownMic],
+  'audio does not duplicate an available default')
+assertDeepEqual(audio.availableSources([], jack, inputAvailability), [jack],
+  'audio retains a default missing from the candidates')
+let cachedInputs = [virtualMic]
+assertDeepEqual(audio.sourcesWithCache([], [], cachedInputs), [virtualMic],
+  'zero candidates can restore cached inputs during graph teardown')
+const unplugged = audio.availableSources([jack], null, inputAvailability)
+cachedInputs = audio.sourcesWithCache(unplugged, [jack], cachedInputs)
+assertDeepEqual(cachedInputs, [], 'all-unplugged candidates clear stale cached inputs')
+assertDeepEqual(audio.sourcesWithCache([], [], cachedInputs), [],
+  'a later graph teardown cannot resurrect the cleared inputs')
+assertDeepEqual(audio.sourcesWithCache([jack], [], [virtualMic]), [jack],
+  'an actual default takes precedence over the cache without candidates')
+
 const nodes = requireFromRoot('shell/Commons/AudioNodesModel.js')
 
 for (const name of ['quickshell', 'quickshell-peak-monitor'])
