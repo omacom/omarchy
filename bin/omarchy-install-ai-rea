@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Install REA, the reverse-engineering CLI and MCP server for agents
+
+set -e
+
+echo "Installing REA..."
+# REA and npx need Node, which may still be lazy on a fresh desktop. Keep a
+# declared default or existing user selection out of the user's config.
+if omarchy-mise-default-tools declares node; then
+  mise install node
+else
+  node_versions=$(mise ls --current --json node)
+  if jq -e 'length > 0' <<<"$node_versions" >/dev/null; then
+    mise install node
+  else
+    mise use -g node
+  fi
+fi
+
+# Like the other agent tools, take REA's newest release without waiting out a
+# release cooldown. mise refuses npm packages with under 1,000 weekly downloads,
+# and npm reports none for rea-agents, so approve it by name.
+MISE_MINIMUM_RELEASE_AGE=0 mise use -g "npm:rea-agents[allow_low_downloads=true]"
+version=$(rea --version)
+
+# Setup registers the command it was launched from, and mise's shim launches
+# REA from inside one version's directory, which an update removes from under
+# the agents (https://github.com/morluto/rea/issues/4847). Run through npx,
+# setup registers `npx -y rea-agents@<version> mcp` instead, pinned to the
+# release mise just installed. It asks which agents to register with, and
+# backs up each configuration it changes.
+if npx -y "rea-agents@$version" setup; then
+  echo ""
+  echo "REA has been installed."
+else
+  echo ""
+  echo "REA has been installed, but no agent was set up."
+  echo "Run 'npx -y rea-agents@$version setup' to register it with your agents;"
+  echo "the AI chapter of the manual has this command too."
+fi

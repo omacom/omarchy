@@ -34,6 +34,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E91D` — Kimi, from <https://simpleicons.org/icons/kimi.svg>
 - `U+E91E` — Crush, the heartbit from <https://github.com/charmbracelet/crush/blob/main/internal/oauth/callback/heartbit.svg>, its eyes and mouth cut out
 - `U+E91F` — Muse Code, from <https://simpleicons.org/icons/meta.svg>: Meta publishes no separate Muse mark and dev.meta.ai uses this one
+- `U+E920` — REA, the R from REA's favicon <https://github.com/morluto/rea/blob/4e3953cc45ce9c21786a7a6fc495d2350aa85d24/website/public/assets/favicon.svg>, without its background tile
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
