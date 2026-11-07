@@ -50,3 +50,15 @@ printf 'other notebook' >"$fixture/elsewhere/notebooks/study.py"
 mapfile -d '' -t args <"$TRACE"
 [[ ${args[8]} == "$fixture/project/notebooks/study.py" ]] || fail "CDPATH cannot select a different notebook directory"
 pass "relative notebooks are independent of CDPATH"
+
+mkdir -p "$fixture/other/models"
+ln -s "$fixture/other/models" "$fixture/project/link"
+printf 'intended notebook' >"$fixture/other/study.py"
+printf 'decoy notebook' >"$fixture/project/study.py"
+(
+  cd -- "$fixture/project"
+  bash "$ROOT/bin/omarchy-launch-marimo" link/../study.py >/dev/null
+)
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[8]} == "$fixture/other/study.py" ]] || fail "symlink traversal opens the notebook that passed validation"
+pass "symlinks followed by parent traversal preserve the selected notebook"

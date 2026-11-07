@@ -39,7 +39,7 @@ done
 
 [[ $port =~ ^[0-9]{1,5}$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || { echo "Port must be between 1 and 65535" >&2; exit 2; }
 [[ $notebook == *.py && -f $notebook && -s $notebook ]] || { echo "Choose an existing, non-empty local .py notebook" >&2; exit 1; }
-notebook="$(CDPATH= cd -- "$(dirname -- "$notebook")" && pwd -P)/$(basename -- "$notebook")"
+notebook="$(CDPATH= cd -P -- "$(dirname -- "$notebook")" && pwd -P)/$(basename -- "$notebook")"
 if omarchy-cmd-missing marimo; then
   echo "Activate a Python environment with marimo installed, then try again." >&2
   exit 1
