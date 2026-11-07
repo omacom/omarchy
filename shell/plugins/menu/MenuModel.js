@@ -399,6 +399,7 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
     appIcon: entry.appIcon || "",
     appId: entry.appId || "",
     label: labelFor(entry, checkedResults, disabledResults),
+    labelFont: entry.labelFont || "",
     target: target,
     detail: detail || "",
     path: pathFor(items, entry.id),
