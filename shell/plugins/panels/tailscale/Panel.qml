@@ -592,6 +592,8 @@ Panel {
               id: hero
               width: parent.width
               title: tailscale.installed ? (tailscale.selfName || "Tailscale") : "Tailscale"
+              // The machine name, shown exactly as Tailscale reports it.
+              translate: false
               meta: tailscale.active ? root.heroPhraseText : Commons.I18n.t("tailscale.disconnectedMeta")
               foreground: root.foreground
               fontFamily: root.fontFamily
