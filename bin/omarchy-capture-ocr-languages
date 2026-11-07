@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set the languages Capture Text asks Tesseract for
+# omarchy:args=[choose|<langs>]
+# omarchy:examples=omarchy capture ocr-languages | omarchy capture ocr-languages eng+swe | omarchy capture ocr-languages choose
+
+# One line in ~/.config/omarchy/ocr-languages, Tesseract's -l form
+# (eng, or eng+chi_sim). Unset means English, which is what Capture Text
+# used before this existed. OMARCHY_OCR_LANGS still overrides it for one run.
+
+set -euo pipefail
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+config="$config_home/omarchy/ocr-languages"
+tessdata="${OMARCHY_TESSDATA:-/usr/share/tessdata}"
+
+valid() {
+  [[ $1 =~ ^[A-Za-z][A-Za-z0-9_]*(\+[A-Za-z][A-Za-z0-9_]*)*$ ]]
+}
+
+current() {
+  local line=""
+  if [[ -f $config ]]; then
+    IFS= read -r line <"$config" || true
+  fi
+  if valid "$line"; then
+    printf '%s\n' "$line"
+  else
+    printf 'eng\n'
+  fi
+}
+
+write_langs() {
+  if ! valid "$1"; then
+    echo "Usage: omarchy capture ocr-languages [choose|<langs>]" >&2
+    exit 1
+  fi
+  mkdir -p "${config%/*}"
+  local tmp
+  tmp=$(mktemp "${config%/*}/ocr-languages.XXXXXX")
+  printf '%s\n' "$1" >"$tmp"
+  mv "$tmp" "$config"
+}
+
+if (($# > 1)); then
+  echo "Usage: omarchy capture ocr-languages [choose|<langs>]" >&2
+  exit 1
+fi
+
+if (($# == 0)); then
+  current
+  exit 0
+fi
+
+if [[ $1 == "choose" ]]; then
+  shopt -s nullglob
+  langs=()
+  for file in "$tessdata"/*.traineddata; do
+    name=${file##*/}
+    name=${name%.traineddata}
+    [[ $name == "osd" ]] && continue
+    langs+=("$name")
+  done
+  if ((${#langs[@]} == 0)); then
+    echo "No Tesseract languages are installed." >&2
+    exit 1
+  fi
+  picked=$(printf '%s\n' "${langs[@]}" | gum choose --no-limit --header "OCR languages") || exit 0
+  [[ -n $picked ]] || exit 0
+  joined=$(printf '%s\n' "$picked" | paste -sd+ -)
+  write_langs "$joined"
+  current
+  exit 0
+fi
+
+write_langs "$1"
+current

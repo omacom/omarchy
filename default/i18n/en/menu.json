@@ -348,6 +348,9 @@
   "trigger.capture.text": {
     "label": "Text"
   },
+  "trigger.capture.text-languages": {
+    "label": "Text Languages"
+  },
   "trigger.capture.qr": {
     "label": "QR Code"
   },
