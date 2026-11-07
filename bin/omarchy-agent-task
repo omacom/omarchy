@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# omarchy:summary=Run a saved task with the default coding agent
+# omarchy:args=[--inline] [<name> [instructions...]]
+# omarchy:examples=omarchy agent task | omarchy agent task review | omarchy agent task --inline release "Check version 2"
+
+set -euo pipefail
+
+inline=()
+if [[ ${1:-} == "--inline" ]]; then
+  inline=(--inline)
+  shift
+fi
+
+tasks="$HOME/.config/omarchy/agents/tasks"
+if (($# == 0)); then
+  shopt -s nullglob
+  for file in "$tasks"/*.md; do
+    name=${file##*/}
+    name=${name%.md}
+    [[ $name =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ && -f $file ]] && printf '%s\n' "$name"
+  done
+  exit 0
+fi
+
+name=$1
+shift
+if [[ ! $name =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]]; then
+  echo "Task names may contain letters, numbers, underscores and dashes." >&2
+  exit 1
+fi
+
+file="$tasks/$name.md"
+if [[ ! -f $file || ! -r $file ]]; then
+  echo "Save the task instructions in $file first." >&2
+  exit 1
+fi
+
+# Keep the prompt below Linux's per-argument limit. Read at most one byte over
+# the budget, including for a task file that is being edited while we read it.
+prompt=$(LC_ALL=C head -c 32769 -- "$file" && printf ".")
+prompt=${prompt%.}
+if [[ -z ${prompt//[[:space:]]/} ]] || (( $(printf '%s' "$prompt" | wc -c) > 32768 )); then
+  echo "Saved tasks must contain 1–32768 bytes of instructions." >&2
+  exit 1
+fi
+if (($#)); then
+  prompt+=$'\n\nAdditional instructions:\n'
+  prompt+="$*"
+fi
+if (( $(printf '%s' "$prompt" | wc -c) > 65536 )); then
+  echo "Task and additional instructions exceed 65536 bytes." >&2
+  exit 1
+fi
+
+# Task files are instructions, never shell programs or templates to evaluate.
+exec omarchy-agent "${inline[@]}" --prompt "$prompt"
