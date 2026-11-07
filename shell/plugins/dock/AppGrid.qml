@@ -454,6 +454,11 @@ Item {
               property point pressPoint
               // A press that wanders is a drag in the making, not a click.
               property bool moved: false
+              // Mirrors the mouse over the cell, so the under-cursor state and
+              // the keyboard selection render through the same tile, icon and
+              // label; PointerMoveGate stays the single place pointer movement
+              // is trusted.
+              property bool hovering: false
 
               width: root.cellWidth
               height: root.cellHeight
@@ -468,7 +473,15 @@ Item {
                 width: cell.width - root.cellGutter * 2
                 height: DockModel.gridTileHeight(root.tilePaddingY, root.iconSize, root.labelGap, label.contentHeight)
                 radius: Style.cornerRadius
-                color: cell.selected ? Commons.Color.menu.selectedBackground : "transparent"
+                color: cell.selected ? Commons.Color.menu.selectedBackground
+                  : (cell.hovering ? Style.hoverFill : "transparent")
+
+                Behavior on color {
+                  PropertyAnimation {
+                    duration: Style.duration(120)
+                    easing.type: Easing.InOutQuad
+                  }
+                }
               }
 
               Image {
@@ -485,11 +498,16 @@ Item {
                 asynchronous: false
                 smooth: true
                 mipmap: true
-                // The icon gives a little under the press, then comes back.
-                scale: cellMouse.pressed && !cell.moved ? 0.92 : 1
+                // The icon scales up slightly on hover and dips on press, never
+                // jumping at first render since the Behavior only animates
+                // changes. Hover and press use the same track so only one
+                // transforms the icon at a time.
+                scale: cellMouse.pressed && !cell.moved ? 0.92 : (cell.hovering ? 1.03 : 1)
                 Behavior on scale {
-                  id: pressScale
-                  NumberAnimation { duration: Style.duration(pressScale.targetValue < 1 ? 80 : 140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+                  PropertyAnimation {
+                    duration: Style.duration(120)
+                    easing.type: Easing.InOutQuad
+                  }
                 }
               }
 
@@ -501,7 +519,9 @@ Item {
                 width: tile.width - Style.spacing.md * 2
                 textFormat: Text.PlainText
                 text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
-                color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
+                color: cell.selected ? Commons.Color.menu.selectedText
+                  : (cell.hovering ? Style.hoverFillFor(Commons.Color.menu.text, Commons.Color.accent)
+                  : Commons.Color.menu.text)
                 font.family: Style.font.menuFamily
                 font.pixelSize: Style.font.body
                 horizontalAlignment: Text.AlignHCenter
@@ -511,6 +531,13 @@ Item {
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 maximumLineCount: 2
                 elide: Text.ElideRight
+
+                Behavior on color {
+                  PropertyAnimation {
+                    duration: Style.duration(120)
+                    easing.type: Easing.InOutQuad
+                  }
+                }
               }
 
               MouseArea {
@@ -521,6 +548,7 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 // The grid would otherwise take a dragging press for a scroll.
                 preventStealing: true
+                onContainsMouseChanged: cell.hovering = containsMouse
                 onPressed: function(event) {
                   cell.moved = false
                   cell.pressPoint = Qt.point(event.x, event.y)
