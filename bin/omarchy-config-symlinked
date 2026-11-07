@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether a dotfile manager links a config file or a folder above it
+# omarchy:args=<path>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Dotfile managers link a config, or a folder above it, into a place of their
+# own, which may be read-only. Writing through the link edits or fails on their
+# copy, and replacing it detaches the config, so callers leave such a config to
+# the user. Links at $HOME and above it don't count: they move the whole home.
+path=$(realpath -ms -- "$1")
+
+while [[ $path != "$HOME" && $path != / ]]; do
+  if [[ -L $path ]]; then
+    exit 0
+  fi
+  path=$(dirname "$path")
+done
+
+exit 1
