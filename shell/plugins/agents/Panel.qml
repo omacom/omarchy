@@ -643,8 +643,10 @@ Panel {
     addNeedsPaste = addProvider === "claude"
     addResult = ""
     addStage = "running"
+    // By id, so it finds the account's home at sign-in time: switching
+    // trades Claude logins between homes, so which one is primary can change.
     addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
-      account && account.primary !== true ? String(account.id) : ":primary", p.providerId]
+      account ? String(account.id) : ":primary", p.providerId]
     addProcess.running = true
   }
 

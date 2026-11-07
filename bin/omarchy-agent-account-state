@@ -258,6 +258,8 @@ class Locked:
     accounts_root().mkdir(parents=True, exist_ok=True)
     self.handle = open(accounts_root() / f".{self.provider}.lock", "w")
     fcntl.flock(self.handle, fcntl.LOCK_EX)
+    if self.provider == "claude" and swap_journal().exists():
+      finish_swap(read_json(swap_journal()))
     self.registry = load(self.provider)
     return self.registry
 
@@ -532,7 +534,69 @@ def refresh(provider: str) -> None:
       account.update(identity(provider, account_home(provider, account)))
 
 
-def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
+# Claude reads its login before every request, so a session follows whatever
+# its home holds. Trading logins with the primary home moves every session
+# there, and keeps each refresh token in one place. A home with a session of
+# its own keeps its login, so that session isn't moved somewhere unexpected,
+# and nothing is traded while omarchy-agent-account-add signs in to a home.
+def move_running_sessions(registry: dict[str, Any], account: dict[str, Any]) -> bool:
+  holder = next(a for a in registry["accounts"] if a.get("primary"))
+  here, there = primary_home("claude"), account_home("claude", account)
+  if holder is account or not all((h / ".credentials.json").is_file() for h in (here, there)):
+    return False
+  if home_in_use("claude", there):
+    return False
+  # Held for the whole trade, so a sign-in waits for it before choosing a home.
+  lock = open(accounts_root() / ".claude.signin.lock", "w")
+  try:
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+  except BlockingIOError:
+    lock.close()
+    return False
+  with lock:
+    trade_logins(registry, holder, account, here, there)
+  return True
+
+
+def trade_logins(registry: dict[str, Any], holder: dict[str, Any], account: dict[str, Any], here: Path, there: Path) -> None:
+  identities = [(read_json(claude_account_file(h)) or {}).get("oauthAccount") for h in (here, there)]
+  holder["home"], account["home"] = str(there), ""
+  holder["primary"], account["primary"] = False, True
+  # Written first, so a swap cut short is finished by the next command
+  # rather than leaving one login in both homes.
+  plan = {
+    "logins": {str(h / ".credentials.json"): (o / ".credentials.json").read_text() for h, o in ((here, there), (there, here))},
+    "identities": {str(claude_account_file(h)): i for h, i in ((here, identities[1]), (there, identities[0]))},
+    "registry": registry,
+  }
+  write_private(swap_journal(), json.dumps(plan))
+  finish_swap(plan)
+
+
+def swap_journal() -> Path:
+  return accounts_root() / ".claude-swap.json"
+
+
+def finish_swap(plan: dict[str, Any]) -> None:
+  for path, login in plan["logins"].items():
+    write_private(Path(path), login)
+  for path, identity in plan["identities"].items():
+    data = read_json(Path(path)) or {}
+    data["oauthAccount"] = identity
+    write_private(Path(path), json.dumps(data, indent=2))
+  save("claude", plan["registry"])
+  swap_journal().unlink(missing_ok=True)
+
+
+def write_private(path: Path, text: str) -> None:
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    handle.write(text)
+  os.chmod(tmp, 0o600)
+  os.replace(tmp, path)
+
+
+def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], bool]:
   with Locked(provider) as registry:
     previous = active(registry)
     if target == "next":
@@ -543,9 +607,10 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
+    moved = provider == "claude" and move_running_sessions(registry, account)
     if not account.get("primary"):
       link_shared(provider, account_home(provider, account))
-    return previous, account
+    return previous, account, moved
 
 
 # Whether a running session was started in this home. Removing it would pull
@@ -800,9 +865,13 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
     if decision["action"] == "switch":
       registry["active"] = target["id"]
+      moved = provider == "claude" and move_running_sessions(registry, target)
       if not target.get("primary"):
         link_shared(provider, account_home(provider, target))
-      notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
+      if moved:
+        notify(headline, tr("omarchy-i18n agents.switchedBodyMoved", "%1 sessions now use %2 (%3%), including those running in ~/.claude.", name, target["label"], round(decision["toPeak"])))
+      else:
+        notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
       return True
     notify(
       headline,
@@ -884,8 +953,8 @@ def main(argv: list[str]) -> int:
       print(json.dumps(register(provider, args[1], Path(args[2]))))
     elif command == "use":
       provider = provider_arg(args)
-      previous, account = use(provider, args[1] if len(args) > 1 else "next")
-      print(json.dumps({"previous": previous, "active": account}))
+      previous, account, moved = use(provider, args[1] if len(args) > 1 else "next")
+      print(json.dumps({"previous": previous, "active": account, "moved": moved}))
     elif command == "remove":
       provider = provider_arg(args)
       if len(args) < 2:

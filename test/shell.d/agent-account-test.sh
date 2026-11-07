@@ -79,6 +79,7 @@ SH
 
 cat >"$mock_bin/omarchy-agent-usage-update" <<'SH'
 #!/bin/bash
+[[ -z ${OMARCHY_TEST_USAGE_LINGERS:-} ]] || { echo $$ >"$OMARCHY_TEST_USAGE_LINGERS"; exec sleep 20; }
 SH
 
 cat >"$mock_bin/omarchy-default-agent" <<'SH'
@@ -241,12 +242,61 @@ pass "Grok accounts are added and used like the others"
 
 # ---------------------------------------------------------------------- routing
 
+work_login=$(cat "$work/.credentials.json")
+main_login=$(cat "$HOME/.claude/.credentials.json")
 omarchy-agent-account-use claude work >/dev/null
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "the active account's home is what launches use"
-grep -q "New Claude sessions now use Work Running sessions stay on" "$notifications" || fail "switching says where new sessions go"
+# Claude reads its login before every request, so trading logins with the
+# primary home moves the sessions running there too.
+[[ -z $(omarchy-agent-account-home claude) && $(cat "$HOME/.claude/.credentials.json") == "$work_login" ]] ||
+  fail "the active Claude account's login moves into the primary home"
+[[ $(cat "$work/.credentials.json") == "$main_login" ]] || fail "the previous login keeps a home of its own"
+[[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.primary) | .id') == "work" ]] ||
+  fail "the account in the primary home is the primary"
+grep -q "New Claude sessions now use Work Sessions running in ~/.claude move with it" "$notifications" || fail "switching says where new sessions go"
 pass "use makes an account active and says so"
 
-[[ $(omarchy-agent-account-exec claude --version) == "claude home=$work args=--version" ]] || fail "claude at a prompt starts as the active account"
+# Nothing is traded while a sign-in is writing a login, and the notice says
+# the running sessions stayed.
+exec 7>"$accounts/.claude.signin.lock"
+flock 7
+omarchy-agent-account-use claude main >/dev/null
+[[ $(cat "$HOME/.claude/.credentials.json") == "$work_login" ]] || fail "a sign-in in progress keeps logins where they are"
+grep -q "New Claude sessions now use Main Running sessions stay on Work" "$notifications" ||
+  fail "the notice says running sessions stayed when nothing was traded"
+flock -u 7
+exec 7>&-
+omarchy-agent-account-use claude work >/dev/null
+pass "switching waits for a sign-in to finish writing"
+
+# A switch cut short is finished by the next command, so no login is lost.
+registry=$(cat "$accounts/claude.json")
+jq '{
+  logins: {($home + "/.claude/.credentials.json"): $main, ($work + "/.credentials.json"): $workl},
+  identities: {},
+  registry: (.active = "main" | .accounts |= map(if .id == "main" then .primary = true | .home = "" elif .id == "work" then .primary = false | .home = $work else . end))
+}' --arg home "$HOME" --arg work "$work" --arg main "$main_login" --arg workl "$work_login" <<<"$registry" >"$accounts/.claude-swap.json"
+printf '%s' "$work_login" >"$HOME/.claude/.credentials.json"
+printf '%s' "$work_login" >"$work/.credentials.json"
+omarchy-agent-account-mode claude manual >/dev/null
+[[ ! -e $accounts/.claude-swap.json && $(cat "$HOME/.claude/.credentials.json") == "$main_login" && $(cat "$work/.credentials.json") == "$work_login" ]] ||
+  fail "an interrupted switch is completed from its journal"
+[[ $(jq -r .active "$accounts/claude.json") == "main" ]] || fail "the registry matches the logins after recovery"
+omarchy-agent-account-use claude work >/dev/null
+pass "an interrupted switch is finished rather than lost"
+
+# The refresh a sign-in starts outlives it, but mustn't keep the lock, or a
+# switch it triggers couldn't move running sessions.
+OMARCHY_TEST_USAGE_LINGERS="$test_tmp/refresh-pid" OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
+  omarchy-agent-account-add --reauth work claude </dev/null >"$test_tmp/reauth-output" 2>&1 ||
+  fail "signing in again works" "$(cat "$test_tmp/reauth-output")"
+for _ in {1..50}; do [[ -s $test_tmp/refresh-pid ]] && break; sleep 0.1; done
+refresh=$(cat "$test_tmp/refresh-pid")
+kill -0 "$refresh" || fail "the sign-in's background refresh is still running for this check"
+flock -n "$accounts/.claude.signin.lock" true || fail "nothing a sign-in starts keeps its lock once it's done"
+kill "$refresh" 2>/dev/null; wait "$refresh" 2>/dev/null || true
+pass "a sign-in lets go of its lock when it ends"
+
+[[ $(omarchy-agent-account-exec claude --version) == "claude home=default args=--version" ]] || fail "claude at a prompt starts as the active account"
 [[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
 # mise strips its shims before running a wrapper, so the agent would only see
@@ -255,7 +305,7 @@ pass "use makes an account active and says so"
   fail "an agent finds mise tools installed after it started"
 pass "account dispatch follows the active account"
 
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
+[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=default args=--permission-mode auto" ]] ||
   fail "omarchy-agent starts Claude as the active account"
 omarchy-agent-account-use codex side >/dev/null
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
@@ -268,7 +318,7 @@ pass "next cycles through accounts"
 
 # With Claude as the default agent, the provider can be left out.
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-use work >/dev/null
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "use without a provider picks the default agent's account"
+[[ $(jq -r .active "$accounts/claude.json") == "work" ]] || fail "use without a provider picks the default agent's account"
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-use main >/dev/null
 [[ -z $(omarchy-agent-account-home claude) ]] || fail "use without a provider switches back to Main"
 OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent-account-use main >/dev/null
@@ -287,9 +337,10 @@ rename_output=$(omarchy-agent-account-rename claude work Day job)
   fail "rename suggests a use command that names the provider" "$rename_output"
 [[ $(omarchy-agent-account-list claude --json | jq -c '.[0] | {active, renamed: (.accounts[] | select(.id == "day-job") | .label)}') == '{"active":"day-job","renamed":"Day job"}' ]] ||
   fail "renaming changes the label and the id it answers to, and the active account follows"
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "renaming leaves the account's home where running sessions expect it"
+[[ -z $(omarchy-agent-account-home claude) ]] || fail "renaming leaves the account's home where running sessions expect it"
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-rename day-job Work >/dev/null
-[[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "a renamed account can be renamed back"
+[[ -z $(omarchy-agent-account-home claude) ]] || fail "a renamed account can be renamed back"
+omarchy-agent-account-use claude main >/dev/null
 omarchy-agent-account-rename claude main Personal >/dev/null
 [[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.primary) | "\(.id) \(.home)"') == "personal $HOME/.claude" ]] ||
   fail "the primary account can be renamed and keeps ~/.claude"
@@ -317,7 +368,6 @@ pass "mode sets how switching happens"
 if omarchy-agent-account-remove claude main </dev/null >/dev/null 2>&1; then
   fail "the primary account can't be removed"
 fi
-omarchy-agent-account-use claude work >/dev/null
 # A session still running in the account keeps its login until it quits.
 CLAUDE_CONFIG_DIR="$work" sleep 30 &
 session=$!
@@ -328,7 +378,7 @@ fi
 kill "$session"; wait "$session" 2>/dev/null || true
 omarchy-agent-account-remove claude work </dev/null >/dev/null
 [[ ! -e $work && -d $HOME/.claude/projects && -f $HOME/.claude/settings.json ]] || fail "removing an account deletes its home and nothing it links to"
-[[ -z $(omarchy-agent-account-home claude) ]] || fail "removing the active account falls back to the primary"
+[[ -z $(omarchy-agent-account-home claude) ]] || fail "removing an account leaves the primary active"
 pass "remove forgets an added account without touching shared files"
 
 # A registry that can't be saved leaves the new login pending for recovery,
