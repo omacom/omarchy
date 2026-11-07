@@ -774,6 +774,19 @@ for (const holding of [false, true]) { // Silencing closes a muted update; only 
   assert.equal(s.toasts.count, 1)
 }
 
+{ // A browser's critical push times out; a critical alert from anyone else waits.
+  const s = newCapacityScope()
+  for (const [id, app, duration] of [[1, 'Chromium', 8000], [2, 'Google Chrome', 8000], [3, 'notify-send', 0], [4, 'Slack', 0]]) {
+    const n = s.fakeNotification(id, app + ' critical', 2)
+    n.appName = app
+    s.admit(n)
+    s.drainCallLater()
+    assert.equal(s.toasts.get(s.rowIndexFor(s.keyForOriginal(id))).duration, duration, app)
+    // Restored after a restart or replayed from history, the same rule holds.
+    assert.equal(Store.restored({ key: 'r' + id, app, urgency: 2 }).duration, duration && Store.RESTORE_GRACE, app)
+  }
+}
+
 const storedRows = count => Array.from({ length: count }, (_, i) => ({ key: 'stored-' + i, summary: 'Stored ' + i }))
 for (const replay of [false, true]) { // Replay and startup restore share held reservations.
   const s = newCapacityScope()
