@@ -381,6 +381,8 @@
   "webapp.namePlaceholder": "My favorite web app",
   "webapp.removed": "Web app removed",
   "webapp.selectRemove": "Select web app to remove",
+  "window.minimizeFloatingHint": "Press Super + L until this workspace is floating.",
+  "window.minimizeNeedsFloating": "Only floating workspaces can minimize windows",
   "window.noSavedWidth": "No saved width found for %1 on workspace %2",
   "window.restoreWidthHint": "Restore using Super + Home on this workspace.",
   "window.saveWidthHint": "Use Super + Alt + Home to save one for this workspace.",

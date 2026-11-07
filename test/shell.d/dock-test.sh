@@ -173,6 +173,9 @@ STUB
 chmod +x "$mock_bin/hyprctl"
 printf '#!/bin/bash\n[[ $1 == 9 ]] && echo dwindle || echo floating\n' >"$mock_bin/omarchy-hyprland-workspace-layout-current"
 chmod +x "$mock_bin/omarchy-hyprland-workspace-layout-current"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$TMPDIR/notify.log" >"$mock_bin/omarchy-notification-send"
+chmod +x "$mock_bin/omarchy-notification-send"
+: >"$TMPDIR/notify.log"
 minimize() { PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-hyprland-window-minimize "$@"; }
 
 minimize 0xabc
@@ -204,8 +207,11 @@ grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-7", window = "addr
   fail "minimize remembers the workspace it leaves this time" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize remembers only the workspace the window is leaving"
 
+[[ ! -s $TMPDIR/notify.log ]] || fail "minimize stays quiet on a floating workspace" "$(cat "$TMPDIR/notify.log")"
+pass "minimize stays quiet on a floating workspace"
+
 # A tiled workspace has no dock to bring a window back from, so nothing there
-# is minimized.
+# is minimized, and the user is told why instead of the key doing nothing.
 cat >"$mock_bin/hyprctl" <<STUB
 #!/bin/bash
 case "\$1" in
@@ -217,3 +223,6 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+grep -qF 'Only floating workspaces can minimize windows' "$TMPDIR/notify.log" ||
+  fail "minimize explains why it leaves a tiled window alone" "$(cat "$TMPDIR/notify.log")"
+pass "minimize explains why it leaves a tiled window alone"
