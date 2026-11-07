@@ -29,16 +29,38 @@ fi
 SH
 printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"$SIGNAL_LOG"\n' >"$test_dir/bin/pkill"
 printf '#!/bin/bash\nexit 1\n' >"$test_dir/bin/omarchy-cmd-present"
+cat >"$test_dir/bin/pgrep" <<'SH'
+#!/bin/bash
+[[ ${FOOT_RUNNING:-0} == "1" && $1 == "-x" && $2 == "foot" ]]
+SH
+cat >"$test_dir/bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+[[ $1 == "display.restartFootForFontSize" ]] || exit 64
+printf '%s\n' "$1" >>"$I18N_LOG"
+printf '%s\n' "Localized Foot restart notice"
+SH
+cat >"$test_dir/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+{
+  printf '%s\n' "call"
+  printf 'arg=%s\n' "$@"
+} >>"$NOTIFICATION_LOG"
+printf '%s\n' 417
+SH
 chmod +x "$test_dir/bin/"*
 
 run_command() {
   env HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
-    FACTOR_FILE="$test_dir/factor" SIGNAL_LOG="$test_dir/signals" "$ROOT/bin/omarchy-display-text-size" "$@"
+    FACTOR_FILE="$test_dir/factor" SIGNAL_LOG="$test_dir/signals" \
+    I18N_LOG="$test_dir/i18n" NOTIFICATION_LOG="$test_dir/notifications" \
+    XDG_RUNTIME_DIR="$test_dir/runtime" FOOT_RUNNING="${FOOT_RUNNING:-0}" \
+    "$ROOT/bin/omarchy-display-text-size" "$@"
 }
 
 reset_fixture() {
-  rm -rf "$test_home" "$test_dir/factor" "$test_dir/signals" "$test_dir/dotfiles-ghostty"
-  mkdir -p "$(dirname "$ghostty_config")" "$(dirname "$alacritty_config")"
+  rm -rf "$test_home" "$test_dir/factor" "$test_dir/signals" "$test_dir/dotfiles-ghostty" \
+    "$test_dir/runtime" "$test_dir/i18n" "$test_dir/notifications"
+  mkdir -p "$test_dir/runtime" "$(dirname "$ghostty_config")" "$(dirname "$alacritty_config")"
   printf 'size = 9\n' >"$alacritty_config"
 }
 
@@ -89,3 +111,20 @@ for args in 20 reset; do
   grep -qx 'font-size = 13' "$ghostty_config" || fail "$args leaves Ghostty alone when GSettings fails"
 done
 pass "a refused GSettings write changes nothing else"
+
+reset_fixture
+mkdir -p "$test_home/.config/foot"
+printf 'font=monospace:size=9\n' >"$test_home/.config/foot/foot.ini"
+FOOT_RUNNING=1 run_command 20 || fail "size succeeds with Foot running"
+grep -qx 'font=monospace:size=15' "$test_home/.config/foot/foot.ini" || fail "size updates Foot's config"
+grep -qx 'display.restartFootForFontSize' "$test_dir/i18n" || fail "the Foot notice uses its localization key"
+grep -qx 'arg=Localized Foot restart notice' "$test_dir/notifications" || fail "the translated Foot notice is sent"
+[[ $(<"$test_dir/runtime/omarchy-display-text-size.foot-notif-id") == "417" ]] || fail "the Foot notification id is retained"
+
+FOOT_RUNNING=1 run_command reset || fail "reset succeeds with Foot running"
+grep -qx 'font=monospace:size=9' "$test_home/.config/foot/foot.ini" || fail "reset restores Foot's config"
+[[ $(grep -c '^call$' "$test_dir/notifications") == "2" ]] || fail "size and reset each notify running Foot"
+[[ $(grep -c '^display.restartFootForFontSize$' "$test_dir/i18n") == "2" ]] || fail "both Foot notices use localization"
+grep -qx 'arg=-r' "$test_dir/notifications" || fail "the Foot notice replaces the previous notification"
+grep -qx 'arg=417' "$test_dir/notifications" || fail "the previous Foot notification id is reused"
+pass "Foot sizing and reset retain localized replacement notices"
