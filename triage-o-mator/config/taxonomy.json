@@ -1,0 +1,43 @@
+{
+  "issue_categories": [
+    "bug",
+    "hardware-specific",
+    "support-question",
+    "feature-request",
+    "duplicate",
+    "docs",
+    "needs-info",
+    "resolved",
+    "stale",
+    "out-of-scope",
+    "invalid"
+  ],
+  "pr_categories": [
+    "merge-ready",
+    "trivial",
+    "needs-revision",
+    "duplicate-pr",
+    "out-of-scope",
+    "needs-maintainer-call",
+    "stale",
+    "invalid"
+  ],
+  "actions": [
+    "label-only",
+    "comment-request-info",
+    "comment-explain-close",
+    "close-duplicate",
+    "close-stale",
+    "close-out-of-scope",
+    "close-resolved",
+    "approve-merge-candidate",
+    "request-changes",
+    "escalate-maintainer",
+    "no-action-needed"
+  ],
+  "confidence": [
+    "low",
+    "medium",
+    "high"
+  ]
+}
