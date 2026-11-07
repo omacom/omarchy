@@ -114,3 +114,23 @@ grep -q '^after-reader$' "$stdin_calls" ||
   -f $stdin_home/.local/state/omarchy/migrations/200-after.sh ]] ||
   fail "migration runner marks both stdin-isolated migrations complete"
 pass "migration queue uses a private file descriptor instead of migration stdin"
+
+# A transaction that outlasts the wait has to fail rather than look applied:
+# omarchy-update runs its post-update hooks next, against un-migrated state.
+lock_home="$test_tmp/lock-home"
+lock_calls="$test_tmp/lock-calls"
+lock_file="$test_tmp/db.lck"
+mkdir -p "$lock_home"
+: >"$lock_file"
+ln -s /bin/true "$stub_bin/sleep"
+
+if OMARCHY_PACMAN_LOCK="$lock_file" TEST_CALLS="$lock_calls" \
+  run_migrate "$lock_home" "$test_root" >"$test_tmp/locked.out" 2>&1; then
+  fail "omarchy-migrate fails when the pacman transaction outlasts the wait"
+fi
+[[ ! -s $lock_calls ]] || fail "omarchy-migrate runs no migration while pacman holds its lock"
+grep -q 'Omarchy migrations did not run' "$test_tmp/locked.out" ||
+  fail "omarchy-migrate says the migrations did not run" "$(cat "$test_tmp/locked.out")"
+run_migrate "$lock_home" "$test_root" --pending >/dev/null ||
+  fail "omarchy-migrate leaves the migrations pending after a locked run"
+pass "omarchy-migrate fails instead of skipping migrations under a pacman lock"
