@@ -141,7 +141,7 @@ Cursor keeps no token counts on disk, so everything comes from the dashboard RPC
 
 The week of tokens is reused for 20 seconds (15 minutes on a near-limit refresh). A failed check keeps the account's last good meters, plan, and week of tokens. Tokens by day and by model cover the last seven local days, one aggregation call per day.
 
-The meters are Cursor's own percentages, so they always agree with the Cursor dashboard. The included total is the Monthly row; the auto-bucket and named model meters and the on-demand budget run on the same billing cycle and show in its tooltip. Spend is never divided into an allowance here: bonus usage the model providers hand out is spend with no allowance behind it, so dollars over the plan limit read far past 100% while Cursor's own meters do not. The on-demand meter is the exception and is a real ratio: dollars spent against the on-demand limit the account sets.
+The meters are Cursor's own percentages, so they always agree with the Cursor dashboard. The included total is the Monthly row; the auto-bucket and named model meters and the on-demand budget run on the same billing cycle and show in its tooltip. The auto and named meters break that total down, so one of them filling up does not light the bar icon; the on-demand budget is a cap of its own, so it can. Spend is never divided into an allowance here: bonus usage the model providers hand out is spend with no allowance behind it, so dollars over the plan limit read far past 100% while Cursor's own meters do not. The on-demand meter is the exception and is a real ratio: dollars spent against the on-demand limit the account sets.
 
 ### Grok Bot
 

@@ -313,10 +313,12 @@ def summarize_limits(period: dict[str, Any], plan_info: dict[str, Any] | None = 
   totalSpend/limit reads well past 100% while Cursor's own meters do not.
 
   Every meter runs on the billing cycle, unless the plan says its included
-  allowance is weekly. The included total is the Monthly (or Weekly) row;
-  the model meters and the on-demand budget are titled after it, so the
-  panel attaches them to that row rather than showing four rows that each
-  read "Monthly". The on-demand budget always runs on the billing cycle.
+  allowance is weekly. The included total is the Monthly (or Weekly) row.
+  The auto and named model meters are a breakdown of that total: they are
+  marked supplementary and titled after the row, so the panel draws them
+  as ticks and they do not light the bar. The on-demand budget is a dollar
+  cap of its own. It is titled the same way, so it draws as a tick, and it
+  does light the bar. It always runs on the billing cycle.
   """
   plan = usage_section(period, "planUsage")
   spend = usage_section(period, "spendLimitUsage")
@@ -326,13 +328,16 @@ def summarize_limits(period: dict[str, Any], plan_info: dict[str, Any] | None = 
     window, included_resets_at = "Weekly", weekly_reset((plan_info or {}).get("includedUsageResetsAt"))
   limits = []
 
-  for label, title, key in (
-    ("Included total", window, "totalPercentUsed"),
-    ("Auto models", f"Auto models {window}", "autoPercentUsed"),
-    ("Named models", f"Named models {window}", "apiPercentUsed"),
+  for label, title, key, supplementary in (
+    ("Included total", window, "totalPercentUsed", False),
+    ("Auto models", f"Auto models {window}", "autoPercentUsed", True),
+    ("Named models", f"Named models {window}", "apiPercentUsed", True),
   ):
     if key in plan:
-      limits.append({"label": label, "title": title, "percent": fraction(plan.get(key)), "resetsAt": included_resets_at})
+      limit = {"label": label, "title": title, "percent": fraction(plan.get(key)), "resetsAt": included_resets_at}
+      if supplementary:
+        limit["supplementary"] = True
+      limits.append(limit)
 
   limit_cents = number(spend.get("individualLimit"))
   if limit_cents > 0:
