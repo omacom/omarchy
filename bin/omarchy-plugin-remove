@@ -117,7 +117,21 @@ fi
 omarchy-shell shell rescanPlugins >/dev/null
 
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
-  echo "Restored $cloned_from."
+  # The clone is already gone, so a shell that does not answer costs only the report.
+  source_enabled=$(omarchy-shell shell listPlugins 2>/dev/null | jq -r --arg id "$cloned_from" '
+    .[] | select(.id == $id) | .enabled
+  ' 2>/dev/null) || source_enabled=""
+  # A widget that is also a menu is back in the bar even while disabledPlugins keeps it from loading.
+  if [[ $source_enabled == "true" ]]; then
+    source_enabled=$(omarchy-shell shell listShellConfig 2>/dev/null | jq -r --arg id "$cloned_from" '
+      if (.disabledPlugins | arrays // []) | index($id) then "false" else "true" end
+    ' 2>/dev/null) || source_enabled=""
+  fi
+  if [[ $source_enabled == "true" ]]; then
+    echo "Restored $cloned_from."
+  elif [[ $source_enabled == "false" ]]; then
+    echo "$cloned_from is still disabled. Enable it with: omarchy plugin enable $cloned_from"
+  fi
 elif [[ $was_enabled == "true" ]]; then
   echo "Plugin was enabled and was unloaded from omarchy-shell."
 fi
