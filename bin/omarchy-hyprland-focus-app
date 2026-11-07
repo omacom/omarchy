@@ -17,7 +17,7 @@ app=${1:-}
 # by class first, then fall back to the launch-time title of agent windows.
 # Among several matches take the one focused last, which is also the window a
 # browser hands a new tab to.
-address=$(
+read -r address floating < <(
   hyprctl clients -j 2>/dev/null |
     jq -r --arg pattern "$app" \
       'def matches($value): ($value // "") | test($pattern; "i");
@@ -25,10 +25,19 @@ address=$(
        first(
          (.[] | select(matches(.class))),
          (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))
-       ).address // empty'
+       ) | "\(.address) \(.floating // false)"'
 )
 
 [[ -n $address ]] || exit 1
 
-hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
-  hyprctl dispatch focuswindow "address:$address" >/dev/null
+if hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
+  hyprctl dispatch focuswindow "address:$address" >/dev/null; then
+  # Focus leaves a floating window where it was in the stacking order, under
+  # any window over it, such as the app a link was clicked in. Raise it the way
+  # the dock does.
+  if [[ $floating == "true" ]]; then
+    hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"address:$address\" })" >/dev/null 2>&1
+  fi
+else
+  exit 1
+fi
