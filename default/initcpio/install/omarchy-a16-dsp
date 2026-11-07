@@ -1,0 +1,34 @@
+#!/bin/bash
+
+build() {
+  local module firmware directory suffix found previous="" ordered=0
+  for module in "${HOOKS[@]}"; do
+    if [[ $module == "omarchy-a16-dsp" && $previous == "udev" ]]; then ordered=1; fi
+    previous=$module
+  done
+  (( ordered )) && [[ " ${HOOKS[*]} " != *" systemd "* ]] ||
+    die "A16 DSP startup must follow udev, before root activation"
+
+  for module in qcom_q6v5_pas qcom_glink_smem qrtr_smd qcom_pd_mapper pmic_glink qcom_battmgr ucsi_glink pmic_glink_altmode; do
+    add_module "$module" || die "Missing A16 DSP module: $module"
+  done
+  for firmware in qcadsp8480.mbn adsp_dtbs.elf qccdsp8480.mbn cdsp_dtbs.elf; do
+    found=0
+    for directory in /usr/lib/firmware/updates /usr/lib/firmware; do
+      for suffix in '' .zst .xz; do
+        if [[ -f $directory/qcom/glymur/ASUSTeK/UX3607OA/$firmware$suffix ]]; then
+          add_file "$directory/qcom/glymur/ASUSTeK/UX3607OA/$firmware$suffix" || die "Cannot include A16 DSP firmware: $firmware"
+          found=1
+          break 2
+        fi
+      done
+    done
+    (( found )) || die "Missing A16 DSP firmware: $firmware"
+  done
+  add_binary tr || die "Cannot include tr for A16 board detection"
+  add_runscript || die "Cannot include A16 DSP startup hook"
+}
+
+help() {
+  echo "Start the ASUS Zenbook A16's DSPs before root activation."
+}
