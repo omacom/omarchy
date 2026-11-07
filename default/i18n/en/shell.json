@@ -550,5 +550,8 @@
   "wifiqr.generating": "Generating QR code…",
   "wifiqr.passwordFailed": "Could not read the Wi-Fi password",
   "wifiqr.scanToJoin": "Scan to join this network",
-  "wifiqr.showPassword": "Show password"
+  "wifiqr.showPassword": "Show password",
+  "menu.renameApp": "Rename %1",
+  "menu.applicationName": "Application name",
+  "menu.rename": "Rename"
 }

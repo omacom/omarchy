@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# omarchy:summary=Rename an application in the launcher
+# omarchy:args=<desktop-id> <name>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+desktop_id="${1-}"
+new_name="${2-}"
+
+if [[ -z $desktop_id || -z $new_name ]]; then
+  echo "Usage: omarchy-rename-launcher-entry <desktop-id> <name>" >&2
+  exit 1
+fi
+
+# Desktop IDs are basenames here. Reject path syntax before using the value in
+# a path so direct callers cannot escape an XDG applications directory.
+if [[ $desktop_id == "." || $desktop_id == ".." || $desktop_id == */* || $desktop_id == *\\* || $desktop_id =~ [[:cntrl:]] ]]; then
+  echo "Invalid launcher entry id: $desktop_id" >&2
+  exit 1
+fi
+
+# A Desktop Entry string is line-oriented. Newlines and other separators would
+# turn a display name into additional keys, so refuse them rather than trying
+# to interpret surprising input from a direct command invocation.
+if [[ $new_name =~ [[:cntrl:]] ]]; then
+  echo "Application names cannot contain control characters" >&2
+  exit 1
+fi
+
+if [[ $new_name == [[:space:]]* || $new_name == *[[:space:]] ]]; then
+  echo "Application names cannot begin or end with whitespace" >&2
+  exit 1
+fi
+
+source "$OMARCHY_PATH/default/launchers/entries.sh"
+user_applications_dir=$launcher_user_dir
+if ! source_file=$(launcher_find_entry "$desktop_id"); then
+  echo "Could not find launcher entry: $desktop_id" >&2
+  exit 1
+fi
+for dir in "${launcher_dirs[@]}"; do
+  relative=${source_file#"$dir/"}
+  if (( ${#relative} < ${#source_file} )); then
+    desktop_file_name=${relative//\//-}
+    break
+  fi
+done
+
+mkdir -p "$user_applications_dir"
+target_file="$user_applications_dir/$desktop_file_name"
+if [[ -L $target_file ]]; then
+  echo "Refusing to replace symlinked launcher entry: $target_file" >&2
+  exit 1
+fi
+
+managed_override=false
+if [[ $source_file != $target_file ]]; then
+  managed_override=true
+fi
+
+temp_file="$(mktemp --tmpdir="$user_applications_dir" ".${desktop_file_name}.XXXXXX")"
+trap 'rm -f -- "$temp_file"' EXIT
+
+# Backslashes are escaped for the Desktop Entry string value. The QML field is
+# single-line, while the validation above keeps direct callers single-line too.
+escaped_name="${new_name//\\/\\\\}"
+in_desktop_entry=false
+desktop_entry_found=false
+name_written=false
+
+while IFS= read -r line || [[ -n $line ]]; do
+  line=${line%$'\r'}
+  if [[ $line == "[Desktop Entry]" && $desktop_entry_found == "false" ]]; then
+    in_desktop_entry=true
+    desktop_entry_found=true
+    printf '%s\n' "$line"
+    if [[ $managed_override == "true" ]]; then
+      printf 'X-Omarchy-Renamed=true\n'
+      printf 'X-Omarchy-RenameSource=%s\n' "$source_file"
+    fi
+  elif [[ $in_desktop_entry == "true" && $line == \[* ]]; then
+    if [[ $name_written == "false" ]]; then
+      printf 'Name=%s\n' "$escaped_name"
+      name_written=true
+    fi
+    in_desktop_entry=false
+    printf '%s\n' "$line"
+  elif [[ $in_desktop_entry == "true" && $line =~ ^Name(\[[^]]+\])?= ]]; then
+    if [[ $name_written == "false" ]]; then
+      printf 'Name=%s\n' "$escaped_name"
+      name_written=true
+    fi
+  elif [[ $managed_override == "true" && $in_desktop_entry == "true" && ( $line == "X-Omarchy-Renamed="* || $line == "X-Omarchy-RenameSource="* ) ]]; then
+    # Replace any source marker with the one written directly after the group.
+    continue
+  else
+    printf '%s\n' "$line"
+  fi
+done <"$source_file" >"$temp_file"
+
+if [[ $desktop_entry_found == "false" ]]; then
+  echo "Invalid launcher entry (missing [Desktop Entry]): $desktop_file_name" >&2
+  exit 1
+fi
+
+if [[ $in_desktop_entry == "true" && $name_written == "false" ]]; then
+  printf 'Name=%s\n' "$escaped_name" >>"$temp_file"
+fi
+
+chmod 0644 "$temp_file"
+mv -f -- "$temp_file" "$target_file"
+trap - EXIT
+update-desktop-database "$user_applications_dir" &>/dev/null || true
