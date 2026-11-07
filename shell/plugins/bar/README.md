@@ -18,6 +18,8 @@ The bar config lives under the `bar:` key of [`~/.config/omarchy/shell.json`](..
 
 The bar is configured directly on the bar itself: drag empty bar space (or click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to cycle the bar background from clear to glassy to opaque, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar background`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
 
+The two click cycles — the empty-space double-click and the layout cycle a press on the active workspace number runs — answer to `omarchy bar clicks`: on its own it prints whether each is on, and `omarchy bar clicks background off` or `omarchy bar clicks layout off` turns one off. By hand it is `"bar": { "clicks": { "background": false, "layout": false } }` in the user shell.json.
+
 Example `shell.json` (bar subtree only shown):
 
 ```json
