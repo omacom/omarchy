@@ -3,7 +3,6 @@
 # omarchy:summary=Install Hermes Desktop for the default agent; its runtime provides the hermes command
 # omarchy:args=<--check|--now|--retire-mise>
 # omarchy:examples=omarchy install hermes cli --now | omarchy install hermes cli --check
-# omarchy:requires-sudo=true
 
 # There is one Hermes on a machine, and it is the desktop app's. hermes-desktop
 # ships upstream's installer and the release it was built from, and that
