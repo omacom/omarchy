@@ -823,6 +823,21 @@ Item {
 
   onBarConfigChanged: applyBarConfig()
 
+  // The screens that get a bar: the outputs named in `bar.monitors`, or every
+  // screen when it's unset. A bar is only built where it shows, so its widgets
+  // and their processes don't run on screens without one. When none of the
+  // named outputs is connected (a laptop off its dock), every screen gets the
+  // bar rather than none.
+  readonly property var barScreens: {
+    var screens = Quickshell.screens
+    var monitors = Util.isPlainObject(barConfig) && Array.isArray(barConfig.monitors) ? barConfig.monitors : []
+    if (monitors.length === 0) return screens
+    var matched = Array.prototype.filter.call(screens, function(screen) {
+      return monitors.indexOf(String(screen.name)) !== -1
+    })
+    return matched.length > 0 ? matched : screens
+  }
+
   function layoutEntries(region) {
     var serial = barConfigSerial
     var entries = layoutConfig ? layoutConfig[region] : null
@@ -1670,7 +1685,7 @@ Item {
   }
 
   Variants {
-    model: Quickshell.screens
+    model: root.barScreens
 
     delegate: Component {
       BarPanel {

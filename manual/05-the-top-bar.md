@@ -137,6 +137,8 @@ Every widget is one entry in one of the five layout arrays, and its settings sit
 
 `center` is the box in the middle of the bar: everything in it is centered on the screen as one group. `centerBegin` and `centerEnd` hang off either side of the box, which is how the clock stays dead center even as the weather and update badge come and go. Put more than one widget in `center` and they're centered together; leave it empty and `centerBegin` and `centerEnd` meet in the middle of the bar.
 
+The bar shows on every monitor by default. To keep it on some of them, list their output names (from `hyprctl monitors`) under `bar.monitors`, such as `"monitors": ["DP-3"]`. If none of the listed monitors is connected, the bar comes back on all of them.
+
 One rule worth internalizing: **once you have your own `shell.json`, it's canonical**. Until you customize anything, the shell reads Omarchy's default file. The moment you drag a widget, run `omarchy bar`, or edit the file yourself, you own it — there's no deep merge, so new default widgets in future Omarchy releases won't appear on your bar automatically. `omarchy bar defaults` puts the shipped layout back whenever you want a clean slate.
 
 The same file also holds your idle timings at the top level, outside the `bar` key: `idle.screensaver` and `idle.lock`, both in seconds since you went idle. So the default screensaver kicks in at 150 seconds and the lock at 300.
