@@ -181,6 +181,107 @@ signed_in(pending, "interrupted", "interrupted@example.com")
 assert state.recover("claude") == []
 assert not pending.exists()
 
+# An older unwrapped CLI may expose its pending home without a guardian claim.
+pending = state.begin("claude", "Legacy pending", 999999999)
+signed_in(pending, "legacy-pending", "legacy-pending@example.com")
+legacy = subprocess.Popen(["sleep", "30"], env=dict(os.environ, CLAUDE_CONFIG_DIR=str(pending)))
+try:
+  assert state.home_in_use("claude", pending), "the legacy CLI exposes its pending home"
+  try:
+    state.register("claude", "Legacy pending", pending)
+  except state.AccountError:
+    pass
+  else:
+    raise AssertionError("direct registration must preserve an unwrapped legacy CLI's home")
+  assert pending.is_dir() and state.find(state.load("claude"), "legacy-pending") is None
+finally:
+  legacy.terminate()
+  legacy.wait(timeout=5)
+assert [a["id"] for a in state.recover("claude")] == ["legacy-pending"]
+state.remove("claude", "legacy-pending")
+print("ok - direct registration preserves a legacy unwrapped CLI's pending home and recovery resumes after exit")
+
+# A session can replace itself with a program that removes both home variables.
+# Its guardian's claim must still block recovery and direct registration.
+def claim_only_session(home, check):
+  import select, time
+  ready_read, ready_write = os.pipe()
+  release_read, release_write = os.pipe()
+  env = dict(os.environ, OMARCHY_AGENT_CLAUDE_HOME=str(home), CLAIM_READY=str(ready_write), CLAIM_RELEASE=str(release_read))
+  env.pop("CLAUDE_CONFIG_DIR", None)
+  child = "import os; os.write(int(os.environ['CLAIM_READY']), b'1'); os.read(int(os.environ['CLAIM_RELEASE']), 1)"
+  command = "import os,sys; env={k:v for k,v in os.environ.items() if k not in ('CLAUDE_CONFIG_DIR','OMARCHY_AGENT_CLAUDE_HOME')}; os.execve(sys.executable, [sys.executable,'-c'," + repr(child) + "], env)"
+  launcher = subprocess.Popen([os.environ["STATE"], "exec", "claude", sys.executable, "-c", command], env=env, pass_fds=(ready_write, release_read), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  os.close(ready_write)
+  os.close(release_read)
+  try:
+    assert select.select([ready_read], [], [], 5)[0], "claimed CLI reached its ready handshake"
+    assert os.read(ready_read, 1) == b"1"
+    assert not state.home_in_use("claude", home), "legacy environment scan must not mask this claim-only case"
+    check()
+  finally:
+    if launcher.poll() is None:
+      os.write(release_write, b"1")
+    launcher.wait(timeout=5)
+    os.close(ready_read)
+    os.close(release_write)
+    launcher.communicate()
+  deadline = time.monotonic() + 5
+  while True:
+    try:
+      claim = state.session_claim("claude", home, exclusive=True)
+    except BlockingIOError:
+      assert time.monotonic() < deadline, "guardian releases the finished session"
+      time.sleep(0.01)
+    else:
+      os.close(claim)
+      break
+
+pending = state.begin("claude", "Claimed pending", 999999999)
+signed_in(pending, "claimed-pending", "claimed-pending@example.com")
+def check_pending_claim():
+  assert state.recover("claude") == [], "recovery must not move a claimed pending home"
+  assert pending.is_dir() and (pending / state.LOGIN_RECEIPT).is_file()
+  try:
+    state.register("claude", "Claimed pending", pending)
+  except state.AccountError:
+    pass
+  else:
+    raise AssertionError("direct registration must not move a claimed pending home")
+  credentials = pending / ".credentials.json"
+  saved = credentials.read_bytes()
+  credentials.unlink()
+  try:
+    state.register("claude", "Claimed pending", pending)
+  except state.AccountError:
+    pass
+  else:
+    raise AssertionError("registration must not delete an unfinished claimed login")
+  assert pending.is_dir(), "unfinished-login cleanup respects the live claim"
+  credentials.write_bytes(saved)
+claim_only_session(pending, check_pending_claim)
+assert [a["id"] for a in state.recover("claude")] == ["claimed-pending"], "recovery resumes after the claimed CLI exits"
+print("ok - recovery and direct registration preserve claimed pending logins after the owner exits and the CLI sanitizes its environment")
+
+# A registered home may retain a receipt after interrupted registration.
+entry = state.find(state.load("claude"), "claimed-pending")
+home = Path(entry["home"])
+state.write_receipt(home, {"entry": entry})
+def check_moved_claim():
+  assert state.recover("claude") == []
+  assert (home / state.LOGIN_RECEIPT).is_file(), "moved-home recovery must not mutate a claimed home"
+  try:
+    state.remove("claude", entry["id"])
+  except state.AccountError:
+    pass
+  else:
+    raise AssertionError("a claimed recovered account must remain protected from removal")
+claim_only_session(home, check_moved_claim)
+assert state.recover("claude") == []
+assert not (home / state.LOGIN_RECEIPT).exists(), "receipt cleanup resumes when the claimed session exits"
+state.remove("claude", entry["id"])
+print("ok - moved-home recovery preserves live session claims and resumes receipt cleanup after exit")
+
 # Leave a completed login for the real add command to recover below.
 pending = state.begin("claude", "Retry")
 signed_in(pending, "retry", "retry@example.com")
