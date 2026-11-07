@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:summary=Detect an Apple Silicon MacBook Pro with a Touch Bar
+
+# The only Apple Silicon machines with a Touch Bar are the 13-inch MacBook
+# Pros: M1 MacBookPro17,1 (board j293) and M2 Mac14,7 (board j493). Later
+# MacBook Pros, Airs, and desktops have no Touch Bar. Intel T2 Macs expose
+# Apple DMI names too, and their bar is the kernel's own; the platform gate
+# below is what keeps this false there, so tiny-dfr is never installed for them.
+# Either identity is enough: the DMI product name, or a device-tree board id
+# under proc or sysfs. A fixture root replaces the live tree entirely.
+
+set -euo pipefail
+
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir != "${BASH_SOURCE[0]}" ]] || dir=.
+
+if ! "$dir/omarchy-hw-aarch64-apple"; then
+  exit 1
+fi
+
+if (( EUID == 0 )); then
+  sys=/sys
+  proc=/proc
+else
+  if [[ -n ${OMARCHY_SYS_ROOT:-} || -n ${OMARCHY_PROC_ROOT:-} ]]; then
+    sys=${OMARCHY_SYS_ROOT:-}
+    proc=${OMARCHY_PROC_ROOT:-}
+  else
+    sys=/sys
+    proc=/proc
+  fi
+fi
+
+touchbar_product() {
+  case $1 in
+    MacBookPro17,1 | Mac14,7) return 0 ;;
+  esac
+  return 1
+}
+
+touchbar_board() {
+  case $1 in
+    apple,j293 | apple,j493) return 0 ;;
+  esac
+  return 1
+}
+
+trim() {
+  local value=$1
+  value=${value//$'\0'/}
+  value=${value%$'\r'}
+  value=${value#"${value%%[![:space:]]*}"}
+  value=${value%"${value##*[![:space:]]}"}
+  printf '%s' "$value"
+}
+
+if [[ -n $sys && -f $sys/class/dmi/id/product_name ]]; then
+  IFS= read -r product_name <"$sys/class/dmi/id/product_name" || product_name=""
+  if touchbar_product "$(trim "$product_name")"; then
+    exit 0
+  fi
+fi
+
+sources=()
+[[ -n $proc ]] && sources+=("$proc/device-tree/compatible")
+[[ -n $sys ]] && sources+=("$sys/firmware/devicetree/base/compatible")
+
+for source in "${sources[@]}"; do
+  [[ -f $source && -r $source ]] || continue
+  mapfile -d '' -t tokens <"$source"
+  for token in "${tokens[@]}"; do
+    if touchbar_board "$(trim "$token")"; then
+      exit 0
+    fi
+  done
+done
+
+exit 1
