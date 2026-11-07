@@ -17,6 +17,10 @@ assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loose
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
 assertEqual(dock.normalizePosition(undefined), 'bottom', 'dock sits at the bottom by default')
 assert(dock.isVertical('right') && !dock.isVertical('top'), 'dock runs vertically on the left and right')
+assertEqual(dock.dimension(undefined, 36, 16, 96), 36, 'dock size uses its default')
+assertEqual(dock.dimension('42', 36, 16, 96), 42, 'dock size accepts a configured value')
+assertEqual(dock.dimension(200, 36, 16, 96), 96, 'dock size is capped')
+assertEqual(dock.dimension('invalid', 36, 16, 96), 36, 'dock size rejects invalid values')
 
 assertDeepEqual(
   dock.pinnedIds({ pinned: ['chromium', 'org.gnome.Nautilus.desktop', 'chromium', ''] }, { pinned: ['spotify'] }),
