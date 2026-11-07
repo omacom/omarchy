@@ -120,11 +120,15 @@ Item {
     visible: root.labelVisible && !root.iconLabel
     anchors.centerIn: parent
     // Centering the line box puts the figures above the bar's middle, since
-    // the box keeps room for descenders. Center the figure height instead, so
-    // labels line up with the icons beside them.
+    // the box keeps room for descenders and Qt rounds it up. Center the figures
+    // where they paint instead, so labels line up with the icons beside them:
+    // up from the baseline, which is the ascent for a single line, by the ink
+    // the digit covers. The ascent and the height are read here so this follows
+    // the label when its font changes: a call's result alone does not.
     anchors.verticalCenterOffset: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
       ? 0
-      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
+      : label.height / 2 - labelMetrics.ascent
+        - labelMetrics.tightBoundingRect("0").top - labelMetrics.tightBoundingRect("0").height / 2
     text: root.text
     color: root.active && root.useActiveColor ? root.activeColor : root.foreground
     font.family: root.fontFamily
