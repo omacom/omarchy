@@ -135,8 +135,11 @@ files committed.
    reads the disk (the `Theme` takes the theme directory as an argument).
 3. Look at it. Take a screenshot with `omarchy capture screenshot fullscreen
    save` and check the window against the theme before calling it done.
-   Switch the language once (`omarchy language da`) and look again: longer
-   words must not clip, and nothing should still be in English.
+   Switch the language once and look again: longer words must not clip, and
+   nothing should still be in English. This changes the user's own desktop
+   language and restarts the shell, so put theirs back when you're done:
+   `previous=$(omarchy language)`, `omarchy language da`, look, then
+   `omarchy language "$previous"`.
 4. Drive the real QML offscreen when a change is about interaction. A small
    harness in the scratchpad that loads `qrc:/Main.qml` with
    `QT_QPA_PLATFORM=offscreen`, sends mouse and key events, and saves
