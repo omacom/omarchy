@@ -35,6 +35,7 @@ from collectors import (  # noqa: E402
   cached_scan,
   config_home,
   cursor_auth_path,
+  cursor_cli_token,
   cursor_token,
   emit,
   empty_bucket,
@@ -76,6 +77,33 @@ def fraction(value: Any) -> float:
 # sign-in is worth saying; without them the machine doesn't use Cursor at all.
 def cursor_in_use(auth_path: Path) -> bool:
   return any(path.is_dir() for path in (auth_path.parent, config_home() / "Cursor", Path.home() / ".cursor"))
+
+
+# Enterprise/team accounts only answer GetCurrentPeriodUsage when asked about
+# their team (and pooled usage). The team id travels with the CLI's own
+# config, written beside the default CLI auth.json, so it belongs to that one
+# account alone: an exported bearer, a moved auth path, or the editor's
+# sign-in may be a different account, whose team the CLI config says nothing
+# about. Only when the selected token is that same default CLI account's is
+# its team the right one to ask about.
+def team_context(token: str) -> dict[str, Any]:
+  if not token:
+    return {}
+  cli = cursor_cli_token(config_home() / "cursor" / "auth.json")
+  if account_key(token) != account_key(cli):
+    return {}
+  for path in (config_home() / "cursor" / "cli-config.json", Path.home() / ".cursor" / "cli-config.json"):
+    try:
+      data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+      continue
+    if not isinstance(data, dict):
+      continue
+    auth = data.get("authInfo") if isinstance(data.get("authInfo"), dict) else {}
+    team = number(auth.get("teamId"))
+    if team > 0:
+      return {"team_id": team, "include_pooled_usage": True}
+  return {}
 
 
 # ------------------------------------------------------------------ record
@@ -135,8 +163,8 @@ class CursorClient:
       raise CursorError("Cursor's dashboard returned malformed JSON.")
     return parsed
 
-  def period(self) -> dict[str, Any]:
-    return self.call("GetCurrentPeriodUsage", {})
+  def period(self, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    return self.call("GetCurrentPeriodUsage", context or {})
 
   # None when the plan couldn't be asked, so the last known one stands.
   def plan_info(self) -> dict[str, Any] | None:
@@ -326,13 +354,36 @@ def summarize_limits(period: dict[str, Any], plan_info: dict[str, Any] | None = 
     window, included_resets_at = "Weekly", weekly_reset((plan_info or {}).get("includedUsageResetsAt"))
   limits = []
 
-  for label, title, key in (
-    ("Included total", window, "totalPercentUsed"),
-    ("Auto models", f"Auto models {window}", "autoPercentUsed"),
-    ("Named models", f"Named models {window}", "apiPercentUsed"),
-  ):
-    if key in plan:
-      limits.append({"label": label, "title": title, "percent": fraction(plan.get(key)), "resetsAt": included_resets_at})
+  # Enterprise/team accounts report the team's spend caps instead of the
+  # individual planUsage percentages: the included allowance and the team's
+  # pooled credit balance.
+  overall_limit = number(spend.get("overallLimit"))
+  if overall_limit > 0:
+    overall_used = number(spend.get("overallUsed", spend.get("totalSpend")))
+    limits.append({
+      "label": "Included usage", "title": "Monthly included",
+      "percent": min(1.0, overall_used / overall_limit), "resetsAt": resets_at,
+    })
+
+  pooled_limit = number(spend.get("pooledLimit"))
+  pooled_used = number(spend.get("pooledUsed"))
+  # The pooled credit must show even at zero used, so a fresh team still sees
+  # the credit it has to spend this cycle.
+  if pooled_limit > 0:
+    limits.append({
+      "label": "Pooled usage", "title": "Pooled included",
+      "percent": min(1.0, pooled_used / pooled_limit), "resetsAt": resets_at,
+    })
+
+  # Individual plans fall back to Cursor's own percentage markers.
+  if not limits:
+    for label, title, key in (
+      ("Included total", window, "totalPercentUsed"),
+      ("Auto models", f"Auto models {window}", "autoPercentUsed"),
+      ("Named models", f"Named models {window}", "apiPercentUsed"),
+    ):
+      if key in plan:
+        limits.append({"label": label, "title": title, "percent": fraction(plan.get(key)), "resetsAt": included_resets_at})
 
   limit_cents = number(spend.get("individualLimit"))
   if limit_cents > 0:
@@ -423,8 +474,9 @@ def scan(api_base_url: str, auth_path: Path, limits_only: bool, state_db: Path |
     record.update(week_stats(client, today, key, scan_age))
     return record
 
+  context = team_context(token)
   try:
-    period = client.period()
+    period = client.period(context)
     plan = client.plan_info()
     # Only the plan says the included allowance is weekly, and the week's
     # reset with it, so one last known weekly keeps its limits, stale,
