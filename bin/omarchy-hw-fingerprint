@@ -27,6 +27,21 @@ if [[ -r $platform_readers ]]; then
   done <"$platform_readers"
 fi
 
+# M1-family Touch ID used to be recorded as unsupported:m1-family even with
+# the sensor up. A present enclave device and an okay mesa fingerprint node
+# are enough for the Security menu to offer setup.
+sep_bio=${OMARCHY_SEP_BIO:-/dev/sep-bio}
+device_tree=${OMARCHY_DEVICE_TREE:-/proc/device-tree}
+if [[ -e $sep_bio ]]; then
+  for node in "$device_tree"/soc/*/fingerprint@*; do
+    [[ -r $node/compatible ]] || continue
+    tr '\0' '\n' <"$node/compatible" | grep -Fxq apple,mesa-fingerprint || continue
+    if [[ ! -r $node/status || $(tr -d '\0' <"$node/status") == okay ]]; then
+      exit 0
+    fi
+  done
+fi
+
 # libfprint drives every reader it supports from userspace over libusb, so a
 # real reader sits there with no kernel driver bound to any of its interfaces.
 # The other things these vendors build — Synaptics webcam bridges (usbio-bridge
