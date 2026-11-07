@@ -40,6 +40,21 @@ Item {
   property int rowHeight: Math.max(Style.space(50), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
   property int historyLimit: 500
 
+  // Injected by the shell; the copy toast sits just inside the bar's edge.
+  property var shell: null
+  readonly property var bar: root.shell ? root.shell.bar : null
+  readonly property string barPosition: root.bar ? String(root.bar.position || "top") : "top"
+  readonly property int barSize: root.bar && root.bar.barHidden !== true ? Math.max(0, root.bar.barSize || 0) : 0
+
+  // A short "Copied" confirmation for every new copy, since copying gives no
+  // feedback of its own. Not for pastes from this picker (they copy the entry
+  // back first), while the picker is open, or for the selection the watchers
+  // report when they start.
+  property bool toastShown: false
+  property string toastMessage: ""
+  property string toastImage: ""
+  property real toastQuietUntil: 0
+
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
@@ -88,6 +103,27 @@ Item {
 
   function addClipboardJson(line) {
     root.addClipboardEntry(ClipboardHistory.parseEntryJson(line))
+  }
+
+  // A copy the watchers just reported, as opposed to the startup snapshot.
+  function addCopiedJson(line) {
+    var entry = ClipboardHistory.parseEntryJson(line)
+    root.addClipboardEntry(entry)
+    root.showCopyToast(entry)
+  }
+
+  function showCopyToast(entry) {
+    if (!entry || root.opened || Date.now() < root.toastQuietUntil) return
+    var image = entry.type === "image"
+    root.toastImage = image ? Util.fileUrl(entry.path) : ""
+    root.toastMessage = image ? "" : ClipboardHistory.toastText(entry, 48, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber)
+    root.toastShown = true
+    toastTimer.restart()
+  }
+
+  function quietToast(ms) {
+    root.toastQuietUntil = Date.now() + ms
+    root.toastShown = false
   }
 
   function requestClearHistory() {
@@ -222,6 +258,7 @@ Item {
 
   function applySelected(row) {
     if (!row) return
+    root.quietToast(1500)
     root.opened = false
     if (row.entryType === "image") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
@@ -273,6 +310,8 @@ Item {
     id: initProc
     command: ["pkill", "-f", "wl-paste .*--watch .*/shell/plugins/clipboard/capture\\.sh"]
     onExited: {
+      // wl-paste --watch reports the current selection as it starts.
+      root.quietToast(2000)
       currentProc.running = true
       textWatchProc.running = true
       imageWatchProc.running = true
@@ -293,7 +332,7 @@ Item {
     command: ["setpriv", "--pdeathsig", "TERM", "wl-paste", "--type", "text", "--watch", root.captureScript, "text"]
     onExited: watchRestartTimer.restart()
     stdout: SplitParser {
-      onRead: function(data) { root.addClipboardJson(data) }
+      onRead: function(data) { root.addCopiedJson(data) }
     }
   }
 
@@ -302,7 +341,7 @@ Item {
     command: ["setpriv", "--pdeathsig", "TERM", "wl-paste", "--type", "image/png", "--watch", root.captureScript, "image/png"]
     onExited: watchRestartTimer.restart()
     stdout: SplitParser {
-      onRead: function(data) { root.addClipboardJson(data) }
+      onRead: function(data) { root.addCopiedJson(data) }
     }
   }
 
@@ -314,8 +353,89 @@ Item {
     interval: 1000
     repeat: false
     onTriggered: {
+      root.quietToast(2000)
       if (!textWatchProc.running) textWatchProc.running = true
       if (!imageWatchProc.running) imageWatchProc.running = true
+    }
+  }
+
+  Timer {
+    id: toastTimer
+    interval: 1200
+    onTriggered: root.toastShown = false
+  }
+
+  // Click-through and focus-less. Like the OSD it shares a layer namespace
+  // with, it appears and goes at once: it fires on every copy.
+  OverlayWindow {
+    id: toastWindow
+    shown: root.toastShown
+    shownKeyboardFocus: WlrKeyboardFocus.None
+    WlrLayershell.namespace: "omarchy-osd"
+    mask: Region {}
+
+    BorderSurface {
+      id: toastCard
+      readonly property int pad: Style.space(10)
+      readonly property int gap: Style.space(8)
+      readonly property bool alongTop: root.barPosition !== "bottom"
+      width: toastCard.borderLeft + pad + toastRow.implicitWidth + pad + toastCard.borderRight
+      height: toastCard.borderTop + pad + toastRow.implicitHeight + pad + toastCard.borderBottom
+      anchors.horizontalCenter: parent.horizontalCenter
+      y: alongTop
+        ? (root.barPosition === "top" ? root.barSize : 0) + gap
+        : parent.height - root.barSize - gap - height
+      color: Util.alpha(Commons.Color.background, 0.97)
+      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
+      radius: Style.cornerRadius
+
+      Row {
+        id: toastRow
+        x: toastCard.borderLeft + toastCard.pad
+        y: toastCard.borderTop + toastCard.pad
+        spacing: Style.space(8)
+
+        Text {
+          textFormat: Text.PlainText
+          text: "󰅇"
+          color: Commons.Color.popups.border
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.title
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        SizedImage {
+          visible: root.toastImage !== ""
+          width: visible ? Style.space(22) : 0
+          height: Style.space(22)
+          url: root.toastImage
+          asynchronous: true
+          smooth: true
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          text: root.toastImage !== "" ? Commons.I18n.t("clipboard.imageCopied") : Commons.I18n.t("clipboard.copied")
+          color: Commons.Color.popups.text
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          font.bold: true
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          visible: root.toastMessage !== ""
+          text: root.toastMessage
+          color: Util.alpha(Commons.Color.popups.text, 0.65)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          width: Math.min(implicitWidth, Style.space(360))
+          elide: Text.ElideRight
+          anchors.verticalCenter: parent.verticalCenter
+        }
+      }
     }
   }
 

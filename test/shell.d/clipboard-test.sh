@@ -149,6 +149,9 @@ assert(
   hugeFileRow.entryType === 'file' && hugeFileRow.fullText.split('\n').every(path => path.endsWith('.mp4')),
   'clipboard display rows cap a huge file list without truncating a path'
 )
+
+assertEqual(clipboard.toastText({ type: 'text', text: 'x'.repeat(100) }, 10), 'xxxxxxxxx…', 'clipboard toast text is capped with an ellipsis')
+assertEqual(clipboard.toastText({ type: 'text', text: 'file:///home/dhh/report.pdf' }, 48), 'report.pdf', 'clipboard toast text names a copied file')
 JS
 
 TMPDIR=$(mktemp -d)
