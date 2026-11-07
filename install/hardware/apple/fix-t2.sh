@@ -1,4 +1,4 @@
-# Detect T2 MacBook models using PCI IDs
+# Detect T2 Macs using PCI IDs
 # Vendor: 106b (Apple), Device IDs: 1801 or 1802 (T2 Security Chip)
 if lspci -nn | grep "106b:180[12]" >/dev/null; then
   echo "Detected MacBook with T2 chip. Installing support items..."
@@ -37,8 +37,11 @@ if lspci -nn | grep "106b:180[12]" >/dev/null; then
 KERNEL_CMDLINE[default]+=" intel_iommu=on iommu=pt pm_async=off mem_sleep_default=deep"
 EOF
 
-  # t2fanrd only reads sections for detected fans, so Fan2 is harmless on
-  # single-fan models and required on dual-fan MacBooks.
+  # t2fanrd reads one [FanN] section per detected fan and exits with
+  # "Missing FanN in config file" when a detected fan has none. Sections past
+  # that count are never read, so four is safe on machines with fewer fans
+  # and covers the 4-fan Mac Pro 2019. The count is not readable here:
+  # applesmc may not be loaded yet.
   cat > /etc/t2fand.conf <<'EOF'
 [Fan1]
 low_temp=55
@@ -47,6 +50,18 @@ speed_curve=linear
 always_full_speed=false
 
 [Fan2]
+low_temp=55
+high_temp=75
+speed_curve=linear
+always_full_speed=false
+
+[Fan3]
+low_temp=55
+high_temp=75
+speed_curve=linear
+always_full_speed=false
+
+[Fan4]
 low_temp=55
 high_temp=75
 speed_curve=linear
