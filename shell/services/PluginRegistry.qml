@@ -585,7 +585,12 @@ QtObject {
       }
 
       if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
-      else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
+      else if (location.kind === "bar") {
+        config.bar.layout[location.section].splice(location.index, 1)
+        // The tray is put back when a reload finds the layout without a host.
+        // Switching it off has to be recorded, or the next reload undoes it.
+        if (isTray(key)) addDisabled(config, key)
+      }
       else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
 
       // Dropping the layout entry is the whole story for a widget. Anything

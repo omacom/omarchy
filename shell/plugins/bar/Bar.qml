@@ -1402,7 +1402,12 @@ Item {
     if (index < 0) return
     list.splice(index, 1)
     writeLayout(expected, function(config) {
-      BarModel.removeEntry(config, { region: removal.region, index: index, id: removal.id }, function(entry) { return Util.normalizeLayoutEntry(entry) })
+      if (!BarModel.removeEntry(config, { region: removal.region, index: index, id: removal.id }, function(entry) { return Util.normalizeLayoutEntry(entry) })) return
+      // Dragging the tray off the bar is the user switching it off. Record
+      // that, or the next config reload puts the host back.
+      var registry = root.shell && root.shell.pluginRegistry
+      if (registry && typeof registry.isTray === "function" && registry.isTray(removal.id) && typeof registry.addDisabled === "function")
+        registry.addDisabled(config, removal.id)
     })
   }
 

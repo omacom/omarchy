@@ -270,6 +270,11 @@ ShellRoot {
     root.assertEqual(registry.lastEnableError, "the tray cannot go in its own drawer", "a refused tray enable says why")
     root.assertDeepEqual(root.config.bar.layout.right, [], "a refused tray enable changes nothing")
 
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [{ id: "omarchy.tray" }, { id: "omarchy.audio" }] } }, plugins: [] }
+    registry.setEnabled("omarchy.tray", false)
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.audio" }], "disabling the tray removes it from the layout")
+    root.assertDeepEqual(root.config.disabledPlugins, ["omarchy.tray"], "disabling the tray records that the user switched it off")
+
     root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
     registry.setEnabled("third.widget", true, { section: "right", index: 0 })
     root.assertDeepEqual(root.config.bar.layout.right, [{ id: "third.widget" }], "enabling with placement is one registry transition")
