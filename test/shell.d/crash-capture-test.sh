@@ -54,6 +54,7 @@ watch_bin="$TMPDIR/watch-bin"
 watch_home="$TMPDIR/watch-home"
 NOTIFY_LOG="$TMPDIR/notify-log"
 JOURNAL_ENTRIES="$TMPDIR/journal-entries"
+PS_ENTRIES="$TMPDIR/ps-entries"
 
 mkdir -p "$watch_bin" "$watch_home"
 
@@ -77,21 +78,33 @@ cat >"$watch_bin/omarchy-notification-send" <<'SH'
 printf '%s\n' "$*" >>"$NOTIFY_LOG"
 SH
 
+cat >"$watch_bin/ps" <<'SH'
+#!/bin/bash
+if [[ -n ${PS_ENTRIES:-} && -f $PS_ENTRIES ]]; then
+  cat "$PS_ENTRIES"
+  exit 0
+fi
+exec /bin/ps "$@"
+SH
+
 chmod +x "$watch_bin/journalctl" "$watch_bin/omarchy-default-agent" \
-  "$watch_bin/omarchy-notification-wait" "$watch_bin/omarchy-notification-send"
+  "$watch_bin/omarchy-notification-wait" "$watch_bin/omarchy-notification-send" \
+  "$watch_bin/ps"
 
 reset_entries() {
   : >"$JOURNAL_ENTRIES"
+  rm -f "$PS_ENTRIES"
 }
 
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" cmdline="${3:-}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg cmdline "$cmdline" \
     '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV",
+      COREDUMP_CMDLINE: (if $cmdline != "" then $cmdline else null end)}' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -105,6 +118,7 @@ run_watch() {
 
   PATH="$watch_bin:$ROOT/bin:$PATH" \
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
+  PS_ENTRIES="$PS_ENTRIES" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
     "$ROOT/bin/omarchy-crash-watch" || status=$?
@@ -180,6 +194,59 @@ run_watch
 announced nautilus ||
   fail "a muted crash stops the watcher reading the journal, losing every crash after it"
 pass "a muted crash does not stop the watcher reading the next one"
+
+# Chromium/Electron zygote aborts during parent exit or policy refresh have no
+# user state and must not announce as app crashes (#17207).
+reset_entries
+crash_entry chromium /usr/lib/chromium/chromium "/usr/lib/chromium/chromium --type=zygote"
+run_watch
+! announced chromium ||
+  fail "a zygote abort announces itself as an application crash"
+pass "a zygote abort is ignored and never announces as a crash"
+
+# Recoverable child processes whose main application process is still alive must
+# not announce as an app crash (#16819).
+reset_entries
+cat >"$PS_ENTRIES" <<'EOF'
+spotify /opt/spotify/spotify
+spotify /opt/spotify/spotify --type=gpu-process
+EOF
+crash_entry spotify /opt/spotify/spotify "/opt/spotify/spotify --type=gpu-process"
+run_watch
+! announced spotify ||
+  fail "a child process crash whose main app is alive announces as an application crash"
+pass "a recoverable child process whose main application is alive is ignored"
+
+# Surviving child processes must not hide crashes when the main process has died.
+reset_entries
+cat >"$PS_ENTRIES" <<'EOF'
+spotify /opt/spotify/spotify --type=gpu-process
+spotify /opt/spotify/spotify --type=utility
+EOF
+crash_entry spotify /opt/spotify/spotify "/opt/spotify/spotify --type=gpu-process"
+run_watch
+announced spotify ||
+  fail "surviving child processes hide the crash when the main app is dead"
+pass "surviving child processes do not hide the crash when the main application has died"
+
+# Another app sharing the same comm (e.g. Brave Origin vs Brave) must not hide a crash.
+reset_entries
+cat >"$PS_ENTRIES" <<'EOF'
+brave /opt/brave-origin-bin/brave
+EOF
+crash_entry brave /usr/bin/brave "/usr/bin/brave --type=gpu-process"
+run_watch
+announced brave ||
+  fail "an unrelated app with the same comm hides the crash"
+pass "an unrelated binary with the same comm does not hide a child process crash"
+
+# A child process whose main application is no longer in the process table still announces.
+reset_entries
+crash_entry deadapp /usr/bin/deadapp "/usr/bin/deadapp --type=gpu-process"
+run_watch
+announced deadapp ||
+  fail "a child process crash whose main app is dead fails to announce"
+pass "a child process crash whose main application has died still announces"
 
 # A process can set its own comm to anything prctl takes, slashes included, and
 # a crash with no recorded executable falls back to it. A name that climbed out
