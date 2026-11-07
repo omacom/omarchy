@@ -293,6 +293,8 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.equal(Delivery.barThickness(bar, 'plain', 26), 26)
   assert.equal(Delivery.barThickness({ barHidden: true }, 'plain', 26), 0)
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
+  // A screen bar.monitors leaves without a bar reports 0, and toasts there clear nothing.
+  assert.equal(Delivery.barThickness({ barHidden: false, barSize: 26, barSizeFor: () => 0 }, 'bare', 26), 0)
   for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
 }

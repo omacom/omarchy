@@ -116,6 +116,7 @@ assertEqual(bar.barSizeFor(sizes, 'DP-1', 26), 26, 'another screen reports its o
 assertEqual(bar.barSizeFor(sizes, 'HDMI-A-1', 26), 26, 'a screen without a surface falls back to the configured size')
 assertEqual(bar.barSizeFor({}, 'eDP-1', 26), 26, 'no published sizes fall back to the configured size')
 assertEqual(bar.barSizeFor(sizes, 'constructor', 26), 26, 'inherited object keys are no screen')
+assertEqual(bar.barSizeFor({ ...sizes, 'DP-2': 0 }, 'DP-2', 26), 0, 'a screen bar.monitors leaves out reports no bar')
 
 // The plugin facade copies the sizes, holding no reference into the bar.
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
@@ -130,7 +131,7 @@ const Util = { isPlainObject: value => value !== null && typeof value === 'objec
 const detachedBarSizes = new Function('Util', detached[1], detached[2])
 const live = { 'eDP-1': 40, 'DP-1': 26, broken: 'x', none: 0 }
 const copy = detachedBarSizes.call(null, Util, live)
-assertDeepEqual(copy, { 'eDP-1': 40, 'DP-1': 26 }, 'the plugin facade copies each screen\'s thickness')
+assertDeepEqual(copy, { 'eDP-1': 40, 'DP-1': 26, none: 0 }, 'the plugin facade copies each screen\'s thickness, a screen without a bar included')
 assert(copy !== live, 'the copy is detached from the bar\'s map')
 assertDeepEqual(detachedBarSizes.call(null, Util, undefined), {}, 'a bar without per-screen sizes gives an empty map')
 
@@ -139,4 +140,5 @@ const stateBarSizeFor = new Function('barSizes', 'barSize', apiFor[1], apiFor[2]
 assertEqual(stateBarSizeFor(copy, 26, 'eDP-1'), 40, 'a plugin reads a notch screen\'s thickness')
 assertEqual(stateBarSizeFor(copy, 26, 'HDMI-A-1'), 26, 'a plugin falls back to barSize for a screen with none')
 assertEqual(stateBarSizeFor({}, 26, 'eDP-1'), 26, 'a plugin under a bar without per-screen sizes gets barSize')
+assertEqual(stateBarSizeFor(copy, 26, 'none'), 0, 'a plugin clears nothing on a screen without a bar')
 JS

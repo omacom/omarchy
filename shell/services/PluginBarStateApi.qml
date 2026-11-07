@@ -14,10 +14,10 @@ QtObject {
   property string position: "top"
 
   // The bar's thickness on the screen with this name, to clear the bar by;
-  // barSize for a screen the bar reports none for.
+  // barSize for a screen the bar reports none for, 0 for one it leaves out.
   function barSizeFor(screenName) {
     var name = String(screenName || "")
-    var size = barSizes && Object.prototype.hasOwnProperty.call(barSizes, name) ? Number(barSizes[name]) : 0
-    return size > 0 ? size : barSize
+    var size = barSizes && Object.prototype.hasOwnProperty.call(barSizes, name) ? Number(barSizes[name]) : NaN
+    return isFinite(size) && size >= 0 ? size : barSize
   }
 }

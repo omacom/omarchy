@@ -767,12 +767,15 @@ Item {
   }
 
   // Each screen's bar thickness, by screen name: barSize, or more where a notch
-  // floor raises a top bar. Toasts and plugins clear the bar by it; barSize
-  // stays the configured size the widgets are drawn at.
+  // floor raises a top bar, and 0 on a screen bar.monitors leaves without a
+  // bar. Toasts and plugins clear the bar by it; barSize stays the configured
+  // size the widgets are drawn at.
   readonly property var screenBarSizes: {
     var sizes = ({})
     var screens = Quickshell.screens
-    for (var i = 0; i < screens.length; i++) sizes[screens[i].name] = root.thicknessFor(screens[i])
+    var shown = Array.prototype.map.call(root.barScreens, function(screen) { return String(screen.name) })
+    for (var i = 0; i < screens.length; i++)
+      sizes[screens[i].name] = shown.indexOf(String(screens[i].name)) !== -1 ? root.thicknessFor(screens[i]) : 0
     return sizes
   }
 
