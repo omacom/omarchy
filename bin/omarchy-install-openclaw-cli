@@ -35,9 +35,9 @@ prefix="$HOME/.openclaw"
 runtime_command="$prefix/bin/openclaw"
 command_path="$HOME/.local/bin/openclaw"
 seed=/usr/share/openclaw
-# The services a run stopped, kept until a run completes: one that fails after
-# the stop leaves them stopped, and the next would take them for stopped by the
-# user.
+# The original service states, kept until each move completes. Upstream service
+# installation starts and enables a unit, which a retry must not mistake for
+# the user's choice. Bare role files from earlier versions mean it was running.
 stopped_dir="$HOME/.local/state/omarchy/openclaw-stopped"
 
 # Usable means the command answers, not that the file is there: upstream's
@@ -169,6 +169,20 @@ unit_path() {
   echo "$HOME/.config/systemd/user/openclaw-$1.service"
 }
 
+# Read state as data, never as shell code. A partial or invalid record cannot
+# safely tell a retry whether the user wanted the service running or enabled.
+saved_service_state() {
+  local state
+  state=$(<"$stopped_dir/$1.state") || return 1
+  case "$state" in
+  "true true"|"true false"|"false true"|"false false") printf '%s\n' "$state" ;;
+  *)
+    echo "Could not read the saved OpenClaw $1 service state at $stopped_dir/$1.state." >&2
+    return 1
+    ;;
+  esac
+}
+
 # Stopped before anything is installed: still running the old code from deleted
 # files, such a service holds the state directory the newer runtime has to
 # migrate, which upstream's installer does the moment it finds one loaded.
@@ -266,20 +280,7 @@ rehome_services() {
       echo "Could not move the OpenClaw $role service to $prefix. Finish with: openclaw $role install --force" >&2
       return 1
     fi
-    # Installing a service enables and starts it; one the user had left
-    # stopped or disabled goes back to that.
-    if [[ " ${running[*]} " != *" $role "* ]]; then
-      systemctl --user stop "openclaw-$role.service" || true
-    fi
-    if [[ " ${enabled[*]} " != *" $role "* ]]; then
-      systemctl --user disable "openclaw-$role.service" 2>/dev/null || true
-    fi
-    if [[ $role == gateway && " ${running[*]} " == *" gateway "* ]]; then
-      settle_gateway || return 1
-    fi
-    if systemctl --user is-active --quiet "openclaw-$role.service"; then
-      rm -f "$stopped_dir/$role"
-    fi
+    restore_service "$role" moved || return 1
   done
 }
 
@@ -315,6 +316,13 @@ case "$mode" in
   exit 1
   ;;
 esac
+
+# Keep concurrent installs from replacing the original service states with the
+# installer's choices. The lock stays outside the recovery directory, which
+# removal deletes, and is held through service restoration.
+mkdir -p "${stopped_dir%/*}"
+exec {install_lock}>"${stopped_dir%/*}/openclaw-install.lock"
+flock "$install_lock"
 
 # Refused before anything is installed or touched: the command's name, what
 # PATH finds, and a gateway running another OpenClaw all have to be clear. Each
@@ -357,20 +365,44 @@ if package_is_openclaw; then
   exit 0
 fi
 
-# What the old package installed, and what of it was running and enabled, read
-# before anything changes.
+# Record what the old package installed before anything changes. An unfinished
+# move keeps its first snapshot: the current state may be the installer's.
 moving=()
 running=()
-enabled=()
 stopped=()
 for role in gateway node; do
+  state=
+  if [[ -e $stopped_dir/$role.state ]]; then
+    state=$(saved_service_state "$role")
+  fi
   if [[ -f $(unit_path "$role") ]] && on_old_package "$(unit_path "$role")"; then
     moving+=("$role")
-    if systemctl --user is-active --quiet "openclaw-$role.service"; then
-      running+=("$role")
+    if [[ -z $state ]]; then
+      was_running=false was_enabled=false
+      if active_state=$(systemctl --user is-active "openclaw-$role.service"); then
+        was_running=true
+      fi
+      if enabled_state=$(systemctl --user is-enabled "openclaw-$role.service"); then
+        was_enabled=true
+      fi
+      # A failed query is not a stopped or disabled service. Unlike quiet
+      # status, a known state distinguishes those answers from a lost manager.
+      case "$active_state" in
+      active|reloading|refreshing|inactive|failed|activating|deactivating|maintenance) ;;
+      *) echo "Could not read the OpenClaw $role service's running state; nothing was stopped." >&2; exit 1 ;;
+      esac
+      case "$enabled_state" in
+      enabled|enabled-runtime|linked|linked-runtime|alias|static|indirect|disabled|masked|masked-runtime|generated|transient|not-found) ;;
+      *) echo "Could not read the OpenClaw $role service's enabled state; nothing was stopped." >&2; exit 1 ;;
+      esac
+      [[ ! -e $stopped_dir/$role ]] || was_running=true
+      state="$was_running $was_enabled"
+      mkdir -p "$stopped_dir"
+      printf '%s\n' "$state" >"$stopped_dir/$role.state.tmp"
+      mv -f "$stopped_dir/$role.state.tmp" "$stopped_dir/$role.state"
     fi
-    if systemctl --user is-enabled --quiet "openclaw-$role.service"; then
-      enabled+=("$role")
+    if [[ $state == "true "* ]]; then
+      running+=("$role")
     fi
   fi
 done
@@ -392,10 +424,6 @@ fi
 mkdir -p "${command_path%/*}"
 ln -sfn "$runtime_command" "$command_path"
 
-rehome_services
-
-# A service a failed run stopped was running before it, so it runs again now,
-# whether this run moved it or an earlier one already had.
 # One whose file is in none of the directories the running user manager loads
 # units from was removed since; its cached state could still call it loaded, and
 # this caller's environment can name other directories. Without the list it is tried.
@@ -415,22 +443,79 @@ unit_removed() {
 # whichever file it was loaded from, is the runtime's.
 manager_runs_runtime() {
   local argv
-  argv=$(systemctl --user show -P ExecStart "openclaw-$1.service" 2>/dev/null | sed -n 's/.*argv\[\]=\([^;]*\) ;.*/\1/p' | head -1)
-  [[ -n $argv ]] && runs_runtime <(printf 'ExecStart=%s\n' "$argv")
+  argv=$(systemctl --user show -P ExecStart "openclaw-$1.service" 2>/dev/null | sed -n 's/.*argv\[\]=\([^;]*\) ;.*/\1/p' | head -1) || return 2
+  [[ -n $argv ]] || return 2
+  # A manager still on the old package has not completed the move; it is not
+  # evidence that the user replaced the service with another OpenClaw.
+  on_old_package <(printf 'ExecStart=%s\n' "$argv") && return 2
+  runs_runtime <(printf 'ExecStart=%s\n' "$argv") && return 0
+  return 1
 }
 
-for role in gateway node; do
-  if [[ -e $stopped_dir/$role ]]; then
-    if ! unit_removed "$role"; then
+# Restore both choices even when the unit was already rewritten by a failed
+# run. Legacy bare markers restore only running state; they knew no enablement.
+restore_service() {
+  local role=$1 state="true unknown" action runtime_owned=false owner
+  if unit_removed "$role"; then
+    rm -f "$stopped_dir/$role" "$stopped_dir/$role.state"
+    return
+  fi
+  if [[ -e $stopped_dir/$role.state ]]; then
+    state=$(saved_service_state "$role") || return 1
+    owner=0
+    manager_runs_runtime "$role" || owner=$?
+    # Upstream writes the unit before reloading, so an installer stopped between
+    # the two leaves the manager on the old command until something reloads it.
+    if (( owner == 2 )) && systemctl --user daemon-reload; then
+      owner=0
+      manager_runs_runtime "$role" || owner=$?
+    fi
+    if (( owner == 0 )); then
+      runtime_owned=true
+    elif (( owner == 2 )); then
+      echo "Could not confirm the OpenClaw $role service's command; its original state is kept for the next run." >&2
+      return 1
+    else
+      # The user replaced the service since the move. Its new command owns
+      # its state, and the old restart marker must not act on it either.
+      rm -f "$stopped_dir/$role" "$stopped_dir/$role.state"
+      return
+    fi
+  fi
+  if [[ $state == "true "* ]]; then
+    # A just-installed gateway may be restarting or need doctor; let its
+    # health check below wait and repair it, as it did during the move.
+    if [[ $role != "gateway" || ${2:-} != "moved" ]]; then
       if ! systemctl --user is-active --quiet "openclaw-$role.service" && ! systemctl --user start "openclaw-$role.service"; then
         echo "Could not start the OpenClaw $role service again. Start it with: systemctl --user start openclaw-$role.service" >&2
-        exit 1
-      fi
-      if [[ $role == gateway ]] && manager_runs_runtime gateway && ! settle_gateway; then
-        exit 1
+        return 1
       fi
     fi
-    rm -f "$stopped_dir/$role"
+  elif ! systemctl --user stop "openclaw-$role.service"; then
+    echo "Could not restore the stopped OpenClaw $role service; its original state is kept for the next run." >&2
+    return 1
+  fi
+  action=
+  if [[ $state == *" true" ]]; then
+    action=enable
+  elif [[ $state == *" false" ]]; then
+    action=disable
+  fi
+  if [[ -n $action ]] && ! systemctl --user "$action" "openclaw-$role.service"; then
+    echo "Could not $action the OpenClaw $role service; its original state is kept for the next run." >&2
+    return 1
+  fi
+  if [[ $role == "gateway" && $state == "true "* ]] && { [[ $runtime_owned == "true" ]] || manager_runs_runtime gateway; } && ! settle_gateway; then
+    return 1
+  fi
+  rm -f "$stopped_dir/$role" "$stopped_dir/$role.state"
+}
+
+rehome_services
+
+for role in gateway node; do
+  if [[ -e $stopped_dir/$role || -e $stopped_dir/$role.state ]]; then
+    restore_service "$role" || exit 1
   fi
 done
 

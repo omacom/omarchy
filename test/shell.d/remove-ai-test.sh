@@ -279,7 +279,8 @@ fresh_openclaw_home() {
     "$HOME/.openclaw/openclaw.json" \
     "$HOME/.local/share/applications/OpenClaw.desktop" \
     "$HOME/.local/share/icons/hicolor/256x256/apps/openclaw.png" \
-    "$HOME/.local/state/omarchy/openclaw-stopped/gateway"
+    "$HOME/.local/state/omarchy/openclaw-stopped/gateway" \
+    "$HOME/.local/state/omarchy/openclaw-stopped/gateway.state"
   ln -s ../openclaw-gateway.service \
     "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service"
   ln -s ../openclaw-node.service \
@@ -445,7 +446,7 @@ chmod +x "$tmp_dir/bin/omarchy-pkg-drop"
 if "$ROOT/bin/omarchy-remove-ai-openclaw" >/dev/null 2>&1; then
   fail "OpenClaw removal fails when the package cannot be dropped"
 fi
-[[ ! -e $HOME/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+[[ ! -e $HOME/.local/state/omarchy/openclaw-stopped/gateway && ! -e $HOME/.local/state/omarchy/openclaw-stopped/gateway.state ]] ||
   fail "OpenClaw removal drops a service's restart record with the service, before anything else can fail"
 mv "$tmp_dir/omarchy-pkg-drop.real" "$tmp_dir/bin/omarchy-pkg-drop"
 pass "OpenClaw removal drops a service's restart record with the service, before anything else can fail"
