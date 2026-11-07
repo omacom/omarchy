@@ -189,6 +189,7 @@ PanelWindow {
     return Math.max(window.gap, Math.min(window.height - popup.height - window.gap, center - popup.height / 2))
   }
 
+  visible: !remapGuard.remapping
   color: "transparent"
   WlrLayershell.namespace: "omarchy-dock"
   WlrLayershell.layer: WlrLayer.Top
@@ -244,6 +245,11 @@ PanelWindow {
         else hideTimer.restart()
       }
     }
+  }
+
+  ScreenMoveRemap {
+    id: remapGuard
+    window: window
   }
 
   HyprlandFocusGrab {

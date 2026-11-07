@@ -28,28 +28,32 @@ Item {
   property string filterText: ""
   property int selectedIndex: 0
   property var apps: []
+  // Where the pointer last really moved, in panel coordinates. A grid that
+  // scrolls under a still pointer changes what is hovered, but not this, so
+  // it never steals the selection from the keyboard.
+  property point lastPointer: Qt.point(-1, -1)
+  // 0 → 1 each time the grid opens; drives the card's entrance.
+  property real enter: 1
 
   readonly property int iconSize: Math.round(56 * Style.fontScale)
   readonly property int labelHeight: Math.ceil(labelMetrics.height) * 2
   readonly property int cellGutter: Style.spacing.sm
   readonly property int cellPadding: Style.spacing.lg
-  // Space between the highlight's edge and the icon above / the name below.
-  // The same above and below, so the icon and name sit centered in it.
-  readonly property int hoverPadding: Math.min(Style.spacing.sm, cellPadding)
-  // How far the highlight stays in from the cell's sides: it ends just past the
-  // widest name that fits, so it hugs the app rather than filling the cell.
-  readonly property int hoverInsetX: cellGutter + Style.spacing.md - Style.spacing.sm
   readonly property int cellWidth: Math.round(iconSize * 2.2)
   readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight
   readonly property int maxColumns: 7
   readonly property int visibleRows: 4
-  // How many rows a page key moves: the rows that fit in the grid's view.
-  readonly property int pageRows: Math.max(1, Math.floor(grid.height / cellHeight))
   readonly property int borderWidth: Math.max(1, Style.space(2))
   readonly property int contentMargin: Style.spacing.panelPadding
   readonly property int inset: contentMargin + borderWidth
   readonly property int headerHeight: Math.max(Style.space(36), Style.font.heading + Style.spacing.controlPaddingY * 2)
-  readonly property int headerSpacing: Style.spacing.xl
+  readonly property int headerSpacing: Style.spacing.lg
+  readonly property int tileInset: Style.spacing.xs
+  // The edge fades reach a little past the grid's own edge. The grid clips to
+  // whole pixels and a fade does not, so a fade that stops exactly at the edge
+  // can fall a pixel short and leave one row of the icon at full strength: a
+  // thin bright line under every half-hidden app.
+  readonly property int fadeBleed: Math.max(2, Math.ceil(Style.space(2)))
   readonly property int screenMargin: Style.space(40)
 
   // The card fits whole columns, and the grid sits centered in it so any
@@ -59,9 +63,10 @@ Item {
   readonly property int gridWidth: columns * cellWidth
   readonly property int cardHeight: Math.min(panel.height - screenMargin * 2, inset * 2 + headerHeight + headerSpacing + visibleRows * cellHeight)
 
+  readonly property var currentEntry: root.selectedIndex >= 0 && root.selectedIndex < root.apps.length ? root.apps[root.selectedIndex] : null
+
   function open() {
     root.selectedIndex = 0
-    root.pointerKnown = false
     if (root.appLibrary) root.appLibrary.refreshIcons()
     // The cells from last time are reused when nothing changed, so the grid
     // opens with its icons already drawn.
@@ -72,7 +77,7 @@ Item {
       grid.positionViewAtBeginning()
     }
     root.opened = true
-    Qt.callLater(function() { filterInput.forceActiveFocus() })
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function close() {
@@ -100,6 +105,21 @@ Item {
     root.close()
   }
 
+  // Keep the app in the dock, or take it out, from the keyboard.
+  function togglePin(entry) {
+    if (!entry || !root.dock) return
+    var key = String(entry.id || "")
+    root.dock.setPinned(key, !root.dock.isPinned(key))
+  }
+
+  // Ctrl+P or Ctrl+Space toggle the pin. Ctrl+P is matched by its
+  // physical key too (xkb keycode 33), so it still works on a non-Latin layout
+  // such as Persian, where the key reports a different letter.
+  function isPinKey(event) {
+    if (!(event.modifiers & Qt.ControlModifier)) return false
+    return event.key === Qt.Key_P || event.key === Qt.Key_Space || event.nativeScanCode === 33
+  }
+
   function requestUninstall(entry) {
     if (!entry) return
     root.menuEntry = null
@@ -109,7 +129,7 @@ Item {
 
   function cancelUninstall() {
     root.uninstallEntry = null
-    Qt.callLater(function() { filterInput.forceActiveFocus() })
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function confirmUninstall() {
@@ -129,22 +149,12 @@ Item {
     else root.open()
   }
 
-  // A new search or opening the grid starts from the top. With keepView, an
-  // app installed or removed while the user is browsing leaves them where they
-  // were, and the selected app stays in sight.
-  function rebuild(keepView) {
+  function rebuild() {
     root.appsStale = false
-    var scrolled = grid.contentY - grid.originY
     var rows = root.appLibrary ? root.appLibrary.sortedEntries(root.filterText) : []
     root.apps = rows.map(function(row) { return row.entry })
     root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
-    // Positioning the view also lays the new cells out, so the content height
-    // is current when the old position is put back.
     grid.positionViewAtBeginning()
-    if (keepView) {
-      grid.contentY = grid.originY + Math.min(scrolled, Math.max(0, grid.contentHeight - grid.height))
-      if (root.apps.length > 0) grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
-    }
   }
 
   function setFilter(text) {
@@ -153,66 +163,16 @@ Item {
     root.rebuild()
   }
 
-  // Move the keyboard selection by `delta` apps along the grid, clamped to the
-  // first and last app.
   function select(delta) {
-    root.selectIndex(root.selectedIndex + delta)
-  }
-
-  function selectIndex(index) {
     if (root.apps.length === 0) return
-    var next = Math.max(0, Math.min(root.apps.length - 1, index))
-    if (next === root.selectedIndex) return
-    root.selectedIndex = next
+    root.selectedIndex = Math.max(0, Math.min(root.apps.length - 1, root.selectedIndex + delta))
     grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
   }
 
-  // Move the keyboard selection by `rows` rows (negative to go up), clamped so
-  // the arrow never jumps sideways across the grid. Going past the first row
-  // stays put; going past the last row lands on its last app, and a move that
-  // would leave a short last row steps to the app directly below if one exists.
-  // The view is kept in place so the selected tile stays in sight.
-  function selectRows(rows) {
-    var count = root.apps.length
-    if (count === 0) return
-    var width = Math.max(1, root.columns)
-    var index = root.selectedIndex
-    var row = Math.floor(index / width)
-    var target = index + rows * width
-
-    if (target < 0) {
-      if (row === 0) return
-      index = index % width
-    } else if (target > count - 1) {
-      if (row >= Math.floor((count - 1) / width)) return
-      index = count - 1
-    } else {
-      index = target
-    }
-    if (index !== root.selectedIndex) {
-      root.selectedIndex = index
-      grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
-    }
-  }
-
-  // Only a pointer that really moves may change the selection. A resting
-  // pointer is also reported when the cells move under it, because the grid
-  // scrolled or opened, and that must not take the selection away from the
-  // keyboard. A real move changes the pointer's place in the panel; a cell
-  // sliding under a still pointer does not.
-  property point pointerAt
-  property bool pointerKnown: false
-
-  function pointerMovedTo(point) {
-    var moved = root.pointerKnown && (point.x !== root.pointerAt.x || point.y !== root.pointerAt.y)
-    root.pointerAt = point
-    root.pointerKnown = true
-    return moved
-  }
-
-  function hoverCell(index, point) {
-    if (root.dragging) return
-    if (root.pointerMovedTo(point)) root.selectedIndex = index
+  function jumpTo(index) {
+    if (root.apps.length === 0) return
+    root.selectedIndex = Math.max(0, Math.min(root.apps.length - 1, index))
+    grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
   }
 
   function launch(index) {
@@ -236,21 +196,39 @@ Item {
   Connections {
     target: root.appLibrary
     function onAppsChanged() {
-      if (root.opened) root.rebuild(true)
+      if (root.opened) root.rebuild()
       else root.appsStale = true
     }
   }
+
+  NumberAnimation {
+    id: enterAnimation
+    target: root
+    property: "enter"
+    from: 0
+    to: 1
+    duration: Style.duration(180)
+    easing.type: Easing.OutCubic
+  }
+
+  onOpenedChanged: if (opened) enterAnimation.restart()
 
   OverlayWindow {
     id: panel
     shown: root.opened
     WlrLayershell.namespace: "omarchy-dock-apps"
+
     Rectangle {
+      id: scrim
+
+      // Steps aside while an app is dragged out, so the dock shows through.
+      property real dragFade: root.dragging ? 0 : 1
+
       anchors.fill: parent
       color: Commons.Color.menu.scrim
-      opacity: root.dragging ? 0 : 1
+      opacity: dragFade * root.enter
 
-      Behavior on opacity {
+      Behavior on dragFade {
         id: scrimFade
         NumberAnimation { duration: Style.duration(scrimFade.targetValue > 0 ? 150 : 100); easing.type: Easing.OutCubic }
       }
@@ -267,16 +245,23 @@ Item {
 
     BorderSurface {
       id: card
+
+      property real dragFade: root.dragging ? 0 : 1
+
       width: root.cardWidth
       height: root.cardHeight
-      anchors.centerIn: parent
+      x: Math.round((parent.width - width) / 2)
+      y: Math.round((parent.height - height) / 2)
       radius: Style.cornerRadius
       color: Commons.Color.menu.background
       borderSpec: Border.surfaceSpec("menu", "border", Commons.Color.menu.border, root.borderWidth)
       padding: root.contentMargin
-      opacity: root.dragging ? 0 : 1
+      opacity: dragFade * root.enter
+      // Settles into place as it fades in.
+      scale: 0.97 + 0.03 * root.enter
+      transformOrigin: Item.Center
 
-      Behavior on opacity {
+      Behavior on dragFade {
         id: cardFade
         NumberAnimation { duration: Style.duration(cardFade.targetValue > 0 ? 150 : 100); easing.type: Easing.OutCubic }
       }
@@ -319,32 +304,34 @@ Item {
           }
           if (event.key === Qt.Key_Delete) {
             root.requestUninstall(root.apps[root.selectedIndex])
+          } else if (root.isPinKey(event)) {
+            root.togglePin(root.currentEntry)
           } else if (event.key === Qt.Key_Escape) {
             if (root.menuEntry) root.menuEntry = null
             else if (root.filterText) root.setFilter("")
             else root.close()
+          } else if (Util.editsFilter(event, root.filterText)) {
+            root.setFilter(Util.editedFilter(event, root.filterText))
           } else if (Util.readingKey(event) === Qt.Key_Left) {
             root.select(-1)
           } else if (Util.readingKey(event) === Qt.Key_Right) {
             root.select(1)
           } else if (event.key === Qt.Key_Up) {
-            root.selectRows(-1)
+            root.select(-root.columns)
           } else if (event.key === Qt.Key_Down) {
-            root.selectRows(1)
+            root.select(root.columns)
           } else if (event.key === Qt.Key_PageUp) {
-            root.selectRows(-root.pageRows)
+            root.select(-root.columns * root.visibleRows)
           } else if (event.key === Qt.Key_PageDown) {
-            root.selectRows(root.pageRows)
+            root.select(root.columns * root.visibleRows)
           } else if (event.key === Qt.Key_Home) {
-            root.selectIndex(0)
+            root.jumpTo(0)
           } else if (event.key === Qt.Key_End) {
-            root.selectIndex(root.apps.length - 1)
-          } else if (event.key === Qt.Key_Tab) {
-            root.select(1)
-          } else if (event.key === Qt.Key_Backtab) {
-            root.select(-1)
+            root.jumpTo(root.apps.length - 1)
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.launch(root.selectedIndex)
+          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
+            root.setFilter(root.filterText + event.text)
           } else {
             return
           }
@@ -354,61 +341,118 @@ Item {
 
       Column {
         width: root.gridWidth
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: Math.round((parent.width - width) / 2)
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: card.contentTopInset
-        anchors.bottomMargin: card.contentBottomInset
+        anchors.topMargin: Math.round(card.contentTopInset)
+        anchors.bottomMargin: Math.round(card.contentBottomInset)
         spacing: root.headerSpacing
 
+        // ── Search ────────────────────────────────────────────────────────
         Rectangle {
+          id: searchBox
+
+          readonly property bool filtering: root.filterText !== ""
+
           x: root.cellGutter
           width: parent.width - root.cellGutter * 2
           height: root.headerHeight
           radius: Style.cornerRadius
-          color: Util.alpha(Commons.Color.menu.text, 0.06)
+          color: Util.alpha(Commons.Color.menu.text, filtering ? 0.09 : 0.06)
+          border.width: Style.normalBorderWidth
+          border.color: filtering ? Util.alpha(Commons.Color.accent, 0.55) : Util.alpha(Commons.Color.menu.text, 0.08)
 
-          // A TextInput, not a Text fed by key events: input methods (fcitx5
-          // composing Japanese, Chinese or Korean) only reach text-input items.
-          FilterInput {
-            id: filterInput
-            // Inset from the box's sides and centered in it, as the text was
-            // before it became an input.
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: Style.spacing.controlPaddingX
-            anchors.rightMargin: Style.spacing.controlPaddingX
-            anchors.verticalCenter: parent.verticalCenter
-            keyHandler: keyCatcher
-            // Input-method commits bypass key handling, so the dialog has to refuse them here.
-            readOnly: !!root.uninstallEntry
-            color: Commons.Color.menu.text
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.heading
-            text: root.filterText
-            onTextChanged: if (text !== root.filterText) root.setFilter(text)
-          }
+          Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+          Behavior on border.color { ColorAnimation { duration: Style.duration(120) } }
 
-          // The hint shown while the box is empty. It also steps aside while an
-          // input method is composing, when the text is still empty.
           Text {
-            anchors.left: filterInput.left
-            anchors.right: filterInput.right
+            id: searchText
+            anchors.left: parent.left
+            anchors.leftMargin: Style.spacing.controlPaddingX
+            anchors.right: trailing.left
+            anchors.rightMargin: Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.filterText === "" && !filterInput.preeditText
             textFormat: Text.PlainText
-            text: Commons.I18n.t("dock.searchApps")
+            text: root.filterText || Commons.I18n.t("dock.searchApps")
             color: Commons.Color.menu.text
-            opacity: 0.58
+            opacity: root.filterText ? 1 : 0.5
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
           }
+
+          Row {
+            id: trailing
+            anchors.right: parent.right
+            anchors.rightMargin: Style.spacing.controlPaddingX
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.spacing.sm
+
+            // How many apps are on the grid, or match what is typed.
+            Rectangle {
+              anchors.verticalCenter: parent.verticalCenter
+              height: countText.implicitHeight + Style.spacing.xs * 2
+              width: Math.max(height, countText.implicitWidth + Style.spacing.md * 2)
+              radius: height / 2
+              color: Util.alpha(Commons.Color.menu.text, 0.08)
+
+              Text {
+                id: countText
+                anchors.centerIn: parent
+                textFormat: Text.PlainText
+                text: root.apps.length
+                color: Commons.Color.menu.text
+                opacity: 0.65
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.body
+              }
+            }
+
+            // Clears the search; Escape does the same.
+            Rectangle {
+              id: clearButton
+
+              visible: searchBox.filtering
+              anchors.verticalCenter: parent.verticalCenter
+              width: Math.round(Style.font.heading * 1.1)
+              height: width
+              radius: width / 2
+              color: Util.alpha(Commons.Color.menu.text, clearMouse.containsMouse ? 0.18 : 0.08)
+
+              Behavior on color { ColorAnimation { duration: Style.duration(100) } }
+
+              Repeater {
+                model: [45, -45]
+
+                delegate: Rectangle {
+                  required property int modelData
+
+                  anchors.centerIn: parent
+                  width: Math.round(clearButton.width * 0.5)
+                  height: Math.max(1, Style.space(2))
+                  radius: height / 2
+                  rotation: modelData
+                  color: Commons.Color.menu.text
+                  opacity: 0.85
+                }
+              }
+
+              MouseArea {
+                id: clearMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.setFilter("")
+              }
+            }
+          }
         }
 
+        // ── Grid ──────────────────────────────────────────────────────────
         Item {
+          id: gridArea
           width: parent.width
-          height: parent.height - root.headerHeight - parent.spacing
+          height: Math.max(0, Math.floor(parent.height - root.headerHeight - parent.spacing))
 
           GridView {
             id: grid
@@ -419,12 +463,17 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
+            onContentYChanged: scrollFade.restart()
+
             delegate: Item {
               id: cell
 
               required property int index
               required property var modelData
               readonly property bool selected: index === root.selectedIndex
+              readonly property bool hovered: hover.hovered && !root.dragging
+              readonly property string entryId: String(modelData.id || "")
+              readonly property bool pinned: !!root.dock && root.dock.isPinned(entryId)
               property point pressPoint
               // A press that wanders is a drag in the making, not a click.
               property bool moved: false
@@ -432,84 +481,115 @@ Item {
               width: root.cellWidth
               height: root.cellHeight
 
-              // The selection marks the whole app, icon and name together.
-              // Every app gets the same highlight, whatever its name: it is
-              // sized for the icon plus the name's two-line slot. The icon and
-              // name sit centered in it, so the space above the icon and below
-              // the name is the same. Declared first, so it is drawn behind the
-              // icon and the name.
-              Rectangle {
-                x: root.hoverInsetX
-                y: root.cellPadding - root.hoverPadding
-                width: cell.width - root.hoverInsetX * 2
-                height: root.hoverPadding * 2 + icon.height + Style.spacing.md + root.labelHeight
-                radius: Style.cornerRadius
-                color: Commons.Color.menu.selectedBackground
-                // It fades in and out rather than switching on and off. The
-                // colour stays fixed and the opacity moves, so it never passes
-                // through a darker in-between shade.
-                opacity: cell.selected ? 1 : 0
-                visible: opacity > 0
-
-                Behavior on opacity { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+              // Hovering marks the app, but only when the pointer itself moved:
+              // the grid scrolling under a still pointer, or the grid opening
+              // beneath it, leaves the keyboard's choice alone.
+              HoverHandler {
+                id: hover
+                onPointChanged: {
+                  if (!hovered || root.dragging) return
+                  var at = cell.mapToItem(panel.contentItem, point.position.x, point.position.y)
+                  if (Math.abs(at.x - root.lastPointer.x) < 1 && Math.abs(at.y - root.lastPointer.y) < 1) return
+                  root.lastPointer = at
+                  if (root.selectedIndex !== cell.index) root.selectedIndex = cell.index
+                }
               }
 
-              Image {
-                id: icon
-                anchors.horizontalCenter: parent.horizontalCenter
-                // The icon-to-name block is centered in the highlight: a name
-                // shorter than its two-line slot moves the block down by half
-                // of what it leaves unused.
-                y: root.cellPadding + Math.round((root.labelHeight - label.contentHeight) / 2)
-                width: root.iconSize
-                height: root.iconSize
-                sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
-                source: root.appLibrary ? root.appLibrary.iconSource(cell.modelData.icon) : ""
-                fillMode: Image.PreserveAspectFit
-                // Loaded with the cell, from Qt's image cache after the first
-                // open, so icons do not pop in after the grid has appeared.
-                asynchronous: false
-                smooth: true
-                mipmap: true
-              }
+              Item {
+                id: body
 
-              Text {
-                id: label
-                anchors.top: icon.bottom
-                anchors.topMargin: Style.spacing.md
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: parent.width - (root.cellGutter + Style.spacing.md) * 2
-                textFormat: Text.PlainText
-                text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
-                color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
-                font.family: Style.font.menuFamily
-                font.pixelSize: Style.font.body
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignTop
-                wrapMode: Text.Wrap
-                maximumLineCount: 2
-                elide: Text.ElideRight
+                // The tile wraps the icon and the name with the same room above
+                // and below, however many lines the name takes. The name keeps
+                // the place it has always had in the cell; only the tile follows.
+                readonly property real tileY: root.tileInset
+                readonly property real tilePad: root.cellPadding - root.tileInset
+                readonly property real tileHeight: label.y + label.contentHeight + tilePad - tileY
 
-                Behavior on color { ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+                anchors.fill: parent
+                scale: cellMouse.pressed && !cell.moved ? 0.96 : 1
+                transformOrigin: Item.Center
+
+                Behavior on scale { NumberAnimation { duration: Style.duration(90); easing.type: Easing.OutCubic } }
+
+                // The app the keyboard or pointer is on: a full tile. The
+                // pointer moves the selection, so hovering and selecting are one
+                // highlight, and it switches at once, with no fade.
+                Rectangle {
+                  x: root.tileInset
+                  y: body.tileY
+                  width: parent.width - root.tileInset * 2
+                  height: body.tileHeight
+                  radius: Style.cornerRadius
+                  color: Commons.Color.menu.selectedBackground
+                  border.width: Style.normalBorderWidth
+                  border.color: Util.alpha(Commons.Color.menu.selectedText, 0.3)
+                  visible: cell.selected
+                }
+
+                Image {
+                  id: icon
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  y: root.cellPadding
+                  width: root.iconSize
+                  height: root.iconSize
+                  sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
+                  source: root.appLibrary ? root.appLibrary.iconSource(cell.modelData.icon) : ""
+                  fillMode: Image.PreserveAspectFit
+                  // Loaded with the cell, from Qt's image cache after the first
+                  // open, so icons do not pop in after the grid has appeared.
+                  asynchronous: false
+                  smooth: true
+                  mipmap: true
+                }
+
+                Text {
+                  id: label
+                  anchors.top: parent.top
+                  anchors.topMargin: root.cellPadding + root.iconSize + Style.spacing.md
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  width: parent.width - (root.cellGutter + Style.spacing.md) * 2
+                  textFormat: Text.PlainText
+                  text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
+                  color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
+                  opacity: cell.selected ? 1 : 0.86
+                  font.family: Style.font.menuFamily
+                  font.pixelSize: Style.font.body
+                  horizontalAlignment: Text.AlignHCenter
+                  verticalAlignment: Text.AlignTop
+                  wrapMode: Text.Wrap
+                  maximumLineCount: 2
+                  elide: Text.ElideRight
+                }
+
+                // An app kept in the dock wears a dot.
+                Rectangle {
+                  visible: cell.pinned
+                  anchors.top: parent.top
+                  anchors.right: parent.right
+                  anchors.topMargin: root.tileInset + Style.spacing.md
+                  anchors.rightMargin: root.tileInset + Style.spacing.md
+                  width: Style.space(6)
+                  height: width
+                  radius: width / 2
+                  color: Commons.Color.accent
+                  opacity: 0.9
+                }
               }
 
               MouseArea {
+                id: cellMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 // The grid would otherwise take a dragging press for a scroll.
                 preventStealing: true
-                onContainsMouseChanged: if (containsMouse) root.hoverCell(cell.index, cell.mapToItem(panel.contentItem, mouseX, mouseY))
                 onPressed: function(event) {
                   cell.moved = false
                   cell.pressPoint = Qt.point(event.x, event.y)
                 }
                 onPositionChanged: function(event) {
-                  if (!(pressedButtons & Qt.LeftButton)) {
-                    root.hoverCell(cell.index, cell.mapToItem(panel.contentItem, event.x, event.y))
-                    return
-                  }
+                  if (!(pressedButtons & Qt.LeftButton)) return
                   if (!cell.moved && Math.hypot(event.x - cell.pressPoint.x, event.y - cell.pressPoint.y) > Style.space(4)) cell.moved = true
                   if (cell.moved) root.dragTo(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                 }
@@ -530,6 +610,62 @@ Item {
             }
           }
 
+          // Edges fade out where the grid keeps going, instead of cutting
+          // an icon in half.
+          Rectangle {
+            anchors.top: parent.top
+            anchors.topMargin: -root.fadeBleed
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: Style.spacing.xl + root.fadeBleed
+            opacity: grid.contentY > 1 ? 1 : 0
+            gradient: Gradient {
+              GradientStop { position: 0; color: Commons.Color.menu.background }
+              GradientStop { position: 1; color: Util.alpha(Commons.Color.menu.background, 0) }
+            }
+
+            Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+          }
+
+          Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: -root.fadeBleed
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: Style.spacing.xl + root.fadeBleed
+            opacity: grid.contentY + grid.height < grid.contentHeight - 1 ? 1 : 0
+            gradient: Gradient {
+              GradientStop { position: 0; color: Util.alpha(Commons.Color.menu.background, 0) }
+              GradientStop { position: 1; color: Commons.Color.menu.background }
+            }
+
+            Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+          }
+
+          // A slim scroll indicator in the card's margin, there while the grid
+          // moves and gone a moment after.
+          Rectangle {
+            id: scrollBar
+
+            readonly property bool overflowing: grid.contentHeight > grid.height + 1
+
+            anchors.left: parent.right
+            anchors.leftMargin: Style.spacing.xs
+            width: Math.max(2, Style.space(3))
+            radius: width / 2
+            color: Util.alpha(Commons.Color.menu.text, 0.4)
+            y: grid.visibleArea.yPosition * gridArea.height
+            height: Math.max(Style.space(24), grid.visibleArea.heightRatio * gridArea.height)
+            opacity: overflowing && (grid.moving || scrollFade.running) ? 1 : 0
+
+            Behavior on opacity { NumberAnimation { duration: Style.duration(180) } }
+          }
+
+          Timer {
+            id: scrollFade
+            interval: 700
+          }
+
           Text {
             anchors.centerIn: parent
             visible: root.apps.length === 0
@@ -541,8 +677,10 @@ Item {
             font.pixelSize: Style.font.title
           }
         }
+
       }
     }
+
     // The dragged app's icon, under the pointer.
     Image {
       visible: root.dragging && !!root.dragEntry
@@ -555,6 +693,7 @@ Item {
       fillMode: Image.PreserveAspectFit
       smooth: true
       mipmap: true
+      scale: 1.1
     }
 
     // Right-click on an app: open it, or keep it in the dock or take it out.
@@ -563,8 +702,14 @@ Item {
 
       readonly property var entry: root.menuEntry
       readonly property bool pinned: !!entry && !!root.dock && root.dock.isPinned(String(entry.id || ""))
+      // 0 → 1 as the menu opens.
+      property real appear: 1
 
       visible: !!entry && !root.dragging
+      opacity: appear
+      scale: 0.96 + 0.04 * appear
+      transformOrigin: Item.Center
+      onVisibleChanged: if (visible) appearAnimation.restart()
       width: Math.max(Style.space(160), menuColumn.implicitWidth) + padding * 2
       height: menuColumn.implicitHeight + padding * 2
       // Opens along the reading direction from the pointer.
@@ -576,6 +721,16 @@ Item {
       color: Commons.Color.popups.background
       borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
       padding: Style.spacing.sm
+
+      NumberAnimation {
+        id: appearAnimation
+        target: menu
+        property: "appear"
+        from: 0
+        to: 1
+        duration: Style.duration(120)
+        easing.type: Easing.OutCubic
+      }
 
       Column {
         id: menuColumn
