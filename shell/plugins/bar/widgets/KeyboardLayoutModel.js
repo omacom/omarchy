@@ -117,15 +117,39 @@ function inputLabel(state, fallback) {
   return labels[state.current] || shortLabel(state.language || state.name, {})
 }
 
-function inputTooltip(state, layout, multipleLayouts) {
-  if (!state || !state.methods || state.methods.length < 2)
-    return layout + (multipleLayouts ? " · Super + I" : "")
-  var name = state.current && state.current.indexOf("keyboard-") === 0 ? layout : (state.name || layout)
-  return name.replace(/^Keyboard - /, "") + " · Super + I"
+// A layout label follows the case Caps Lock types in, EN with it on and en with
+// it off. An input method's own label (한, あ) has no case, so it carries ⇪.
+function capsLabel(label, layoutLabel, capsLock) {
+  if (!label) return label
+  if (label === layoutLabel) return capsLock ? label.toUpperCase() : label.toLowerCase()
+  return capsLock ? label + "⇪" : label
 }
 
-function showIndicator(layoutLabel, multipleLayouts, multipleInputs) {
-  return multipleInputs || (layoutLabel !== "" && multipleLayouts)
+// The tooltip spells Caps Lock out between the name and the shortcut.
+function inputTooltip(state, layout, multipleLayouts, capsLock, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var multipleInputs = !!(state && state.methods && state.methods.length > 1)
+  var engine = multipleInputs && state.current && state.current.indexOf("keyboard-") !== 0
+  var parts = [String(engine ? (state.name || layout) : layout).replace(/^Keyboard - /, "")]
+  if (capsLock) parts.push(t("bar.capsLockOn", "Caps Lock on"))
+  if (multipleInputs || multipleLayouts) parts.push("Super + I")
+  return parts.join(" · ")
+}
+
+// Hyprland reports the lock per keyboard, and pressing Caps Lock on one
+// keyboard gives the seat no event that would make it the one the label
+// describes. Any typed keyboard holding the lock means the next capitals are a
+// keypress away, so that counts.
+function capsLockOn(typed) {
+  return (typed || []).some(function (keyboard) {
+    return !!keyboard && keyboard.capsLock === true
+  })
+}
+
+// A seat with one layout and one input method keeps the widget hidden, except
+// while Caps Lock is on, which is then the one thing the label has to say.
+function showIndicator(layoutLabel, multipleLayouts, multipleInputs, capsLock) {
+  return multipleInputs || (layoutLabel !== "" && (multipleLayouts || !!capsLock))
 }
 
 function layoutIndex(keyboard) {
@@ -141,6 +165,8 @@ if (typeof module !== "undefined") {
     shortLabel: shortLabel,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
+    capsLabel: capsLabel,
+    capsLockOn: capsLockOn,
     showIndicator: showIndicator
   }
 }
