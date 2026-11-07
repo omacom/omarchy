@@ -457,7 +457,8 @@ ShellRoot {
     if (!Util.isPlainObject(sizes)) return copy
     for (var name in sizes) {
       var size = Number(sizes[name])
-      if (size > 0) copy[name] = size
+      // 0 is a screen the bar leaves out, which plugins must clear by nothing.
+      if (isFinite(size) && size >= 0) copy[name] = size
     }
     return copy
   }

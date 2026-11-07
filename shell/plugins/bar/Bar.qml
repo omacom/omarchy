@@ -767,12 +767,15 @@ Item {
   }
 
   // Each screen's bar thickness, by screen name: barSize, or more where a notch
-  // floor raises a top bar. Toasts and plugins clear the bar by it; barSize
-  // stays the configured size the widgets are drawn at.
+  // floor raises a top bar, and 0 on a screen bar.monitors leaves without a
+  // bar. Toasts and plugins clear the bar by it; barSize stays the configured
+  // size the widgets are drawn at.
   readonly property var screenBarSizes: {
     var sizes = ({})
     var screens = Quickshell.screens
-    for (var i = 0; i < screens.length; i++) sizes[screens[i].name] = root.thicknessFor(screens[i])
+    var shown = Array.prototype.map.call(root.barScreens, function(screen) { return String(screen.name) })
+    for (var i = 0; i < screens.length; i++)
+      sizes[screens[i].name] = shown.indexOf(String(screens[i].name)) !== -1 ? root.thicknessFor(screens[i]) : 0
     return sizes
   }
 
@@ -822,6 +825,21 @@ Item {
   readonly property var layoutWidgets: BarModel.layoutWidgets(layoutConfig, widgetMemo)
 
   onBarConfigChanged: applyBarConfig()
+
+  // The screens that get a bar: the outputs named in `bar.monitors`, or every
+  // screen when it's unset. A bar is only built where it shows, so its widgets
+  // and their processes don't run on screens without one. When none of the
+  // named outputs is connected (a laptop off its dock), every screen gets the
+  // bar rather than none.
+  readonly property var barScreens: {
+    var screens = Quickshell.screens
+    var monitors = Util.isPlainObject(barConfig) && Array.isArray(barConfig.monitors) ? barConfig.monitors : []
+    if (monitors.length === 0) return screens
+    var matched = Array.prototype.filter.call(screens, function(screen) {
+      return monitors.indexOf(String(screen.name)) !== -1
+    })
+    return matched.length > 0 ? matched : screens
+  }
 
   function layoutEntries(region) {
     var serial = barConfigSerial
@@ -1670,7 +1688,7 @@ Item {
   }
 
   Variants {
-    model: Quickshell.screens
+    model: root.barScreens
 
     delegate: Component {
       BarPanel {
