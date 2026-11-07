@@ -72,6 +72,10 @@ The manual lives in [`manual/`](manual/), which is its authoritative source.
 - [Dual Boot Install](manual/50-dual-boot-install.md)
 - [Unattended Installs](manual/51-unattended-installs.md)
 
+## Laptop panel detection
+
+Touch Bar DRM outputs are distinguished from the laptop panel so a docked lid close targets the actual screen. See [the detection fix](docs/touchbar-panel-detection.md) for the hardware boundary and validation limits.
+
 ## License
 
 Omarchy is released under the [MIT License](https://opensource.org/licenses/MIT).
