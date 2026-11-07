@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# omarchy:summary=Repair the installer filter and rebuild T2 keyboard initramfs images.
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# The installer used to remove a module from every image when any installed
+# kernel lacked it. Keep modules the kernel being built actually ships.
+filter="${OMARCHY_INITRAMFS_MODULES_CONF:-/etc/mkinitcpio.conf.d/zz-omarchy-kernel-modules.conf}"
+boot_images="${OMARCHY_T2_BOOT_IMAGES:-/boot/EFI/Linux:/efi/EFI/Linux}"
+
+[[ -e $filter || -L $filter ]] || exit 0
+if [[ ! -f $filter || ! -r $filter ]]; then
+  echo "Cannot read the installer module filter: $filter" >&2
+  exit 1
+fi
+if grep -Eq '(^|[[:space:](])t2bce_vhci([[:space:])]|$)' "$filter"; then
+  :
+else
+  status=$?
+  (( status == 1 )) && exit 0
+  exit "$status"
+fi
+
+# Only replace the complete, unchanged installer template. Custom additions
+# can be boot-critical and must survive; the later T2 drop-in restores the
+# keyboard modules even when the filter is custom and left alone.
+if absent_line=$(grep -E '^_omarchy_absent=\([A-Za-z0-9_-]+( [A-Za-z0-9_-]+)*\)$' "$filter"); then
+  :
+else
+  status=$?
+  (( status == 1 )) || exit "$status"
+fi
+absent=${absent_line#'_omarchy_absent=('}
+absent=${absent%')'}
+expected=$(cat <<'CONF'
+# Written by the Omarchy installer. The installed kernel has no such
+# modules, and mkinitcpio fails on a module it cannot find.
+_omarchy_absent=(@ABSENT@)
+_omarchy_kept=()
+for _omarchy_module in "${MODULES[@]}"; do
+  [[ " ${_omarchy_absent[*]} " == *" $_omarchy_module "* ]] || _omarchy_kept+=("$_omarchy_module")
+done
+MODULES=("${_omarchy_kept[@]}")
+unset _omarchy_absent _omarchy_kept _omarchy_module
+CONF
+)
+expected=${expected/@ABSENT@/$absent}
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+generated=0
+if [[ $absent_line == _omarchy_absent=\(*\) && " $absent " == *" t2bce_vhci "* ]]; then
+  if cmp -s "$filter" <(printf '%s\n' "$expected"); then
+    generated=1
+  else
+    status=$?
+    (( status == 1 )) || exit "$status"
+  fi
+fi
+if (( generated )); then
+  rewritten="$work/filter.conf"
+  cat >"$rewritten" <<'CONF'
+# Written by the Omarchy installer. A module is left out only when the kernel
+# being built does not ship it, so mkinitcpio does not fail on a missing name
+# and linux-t2 keeps t2bce_vhci for the internal keyboard.
+_omarchy_absent=(@ABSENT@)
+_omarchy_kept=()
+for _omarchy_module in "${MODULES[@]}"; do
+  if [[ " ${_omarchy_absent[*]} " == *" $_omarchy_module "* ]] &&
+    [[ $(modinfo -k "${KERNELVERSION:-$(uname -r)}" -F filename "$_omarchy_module" 2>/dev/null) != /* ]]; then
+    continue
+  fi
+  _omarchy_kept+=("$_omarchy_module")
+done
+MODULES=("${_omarchy_kept[@]}")
+unset _omarchy_absent _omarchy_kept _omarchy_module
+CONF
+  sed -i "s/@ABSENT@/${absent}/" "$rewritten"
+  sudo cp "$rewritten" "$filter"
+  sudo chmod 644 "$filter"
+fi
+
+if ! omarchy-cmd-present limine-mkinitcpio; then
+  echo "limine-mkinitcpio is not installed; the T2 boot image was not rebuilt" >&2
+  exit 1
+fi
+
+echo "The installer filter was dropping t2bce_vhci from linux-t2; rebuilding the boot image"
+sudo limine-mkinitcpio
+
+# ESPs are commonly root-readable only. Discover images with privilege too,
+# rather than let an unreadable directory look like an empty caller-side glob.
+# Missing directories allow relocated boot files; an existing directory that
+# cannot be listed, or a non-directory boot path, must leave the repair pending.
+IFS=':' read -r -a boot_dirs <<<"$boot_images"
+# The listing belongs to the caller's scratch directory, not the ESP.
+# shellcheck disable=SC2024
+if ! sudo /bin/bash -euo pipefail -c '
+for dir; do
+  [[ -n $dir ]] || continue
+  [[ -e $dir || -L $dir ]] || continue
+  [[ -d $dir ]] || exit 1
+  /usr/bin/find -H "$dir" -maxdepth 1 -name "*linux-t2*.efi" \( -type f -o -type l \) -print0
+done
+' -- "${boot_dirs[@]}" >"$work/images"; then
+  echo "Could not discover the linux-t2 boot images" >&2
+  exit 1
+fi
+
+# A successful fallback cannot vouch for the normal image, or for another
+# ESP's image. Inspect every discovered image, treating an unreadable one as a
+# failed repair too. With boot files elsewhere, only the rebuild can attest.
+while IFS= read -r -d '' uki; do
+  if ! omarchy-cmd-present lsinitcpio || ! listing=$(sudo lsinitcpio "$uki"); then
+    echo "Could not inspect the linux-t2 boot image: $uki" >&2
+    exit 1
+  fi
+  if ! grep -Eq '(^|/)t2bce_vhci\.ko(\.(gz|xz|zst))?$' <<<"$listing"; then
+    echo "The linux-t2 boot image still has no t2bce_vhci after the rebuild: $uki" >&2
+    exit 1
+  fi
+done <"$work/images"

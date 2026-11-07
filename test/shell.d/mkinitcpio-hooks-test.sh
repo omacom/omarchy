@@ -7,7 +7,20 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_platform_fixtures "the composed mkinitcpio HOOKS"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+trap 'if [[ -n ${images:-} && -d $images/esp ]]; then chmod u+rwx "$images/esp"; fi; rm -rf "$test_tmp"' EXIT
+
+home="$test_tmp/home"
+mkdir -p "$home"/{config,cache,data,state,runtime,tmp}
+# No installed Omarchy or effectful host command is reachable by the fixtures.
+safe_bin="$test_tmp/safe-bin"
+mkdir -p "$safe_bin"
+for cmd in cat cmp grep mktemp rm sed stat; do
+  ln -s "$(command -v "$cmd")" "$safe_bin/$cmd"
+done
+clean_env=(/usr/bin/env -i HOME="$home" XDG_CONFIG_HOME="$home/config"
+  XDG_CACHE_HOME="$home/cache" XDG_DATA_HOME="$home/data"
+  XDG_STATE_HOME="$home/state" XDG_RUNTIME_DIR="$home/runtime"
+  TMPDIR="$home/tmp" LC_ALL=C.UTF-8 OMARCHY_PATH="$ROOT")
 
 for platform in aarch64-apple aarch64-qualcomm aarch64 x86; do
   fake_platform "$test_tmp/platforms/$platform" "$platform"
@@ -43,6 +56,10 @@ SH
 chmod +x "$test_tmp/modinfo"
 for fixture in "$test_tmp"/platforms/*; do
   cp "$test_tmp/modinfo" "$fixture/bin/"
+  if [[ $fixture != */no-detector ]]; then
+    ln -s "$ROOT/bin/omarchy-hw-platform" "$fixture/bin/omarchy-hw-platform"
+    ln -s "$ROOT/bin/omarchy-hw-aarch64-qualcomm" "$fixture/bin/omarchy-hw-aarch64-qualcomm"
+  fi
 done
 
 # mkinitcpio's stock mkinitcpio.conf, which the baseline replaces, plus every
@@ -92,9 +109,9 @@ compose() {
   done
   sed -i "s|/etc/vconsole.conf|$vconsole|g" "$config"
 
-  local path="$fixture/bin:$ROOT/bin:$PATH"
-  [[ $1 != "no-detector" ]] || path="$fixture/bin"
-  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
+  "${clean_env[@]}" PATH="$fixture/bin:$safe_bin" KERNELVERSION=6.99.0-test \
+    KERNEL_MODULES="${KERNEL_MODULES-thunderbolt}" KERNEL_BUILTINS="${KERNEL_BUILTINS-}" \
+    OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" /bin/bash -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
   ' -- "$config"
@@ -225,6 +242,42 @@ drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci
 assert_composed "a T2 Mac is unchanged" x86 \
   "$omarchy_hooks" "t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
 
+# The installer records a module as absent when any installed kernel lacks it,
+# then zz-omarchy-kernel-modules.conf removes it for every kernel. linux-omarchy
+# has no t2bce stack, so the same drop-in was stripping the internal keyboard
+# from the linux-t2 image. The later keyboard drop-in puts back each module
+# this kernel ships.
+installer_filter=$(cat <<'CONF'
+# Written by the Omarchy installer. The installed kernel has no such
+# modules, and mkinitcpio fails on a module it cannot find.
+_omarchy_absent=(t2bce_vhci)
+_omarchy_kept=()
+for _omarchy_module in "${MODULES[@]}"; do
+  [[ " ${_omarchy_absent[*]} " == *" $_omarchy_module "* ]] || _omarchy_kept+=("$_omarchy_module")
+done
+MODULES=("${_omarchy_kept[@]}")
+unset _omarchy_absent _omarchy_kept _omarchy_module
+CONF
+)
+t2_modules="thunderbolt t2bce_dma t2bce_core t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd"
+new_etc
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in zz-omarchy-kernel-modules.conf <<<"$installer_filter"
+KERNEL_MODULES="$t2_modules" assert_composed "linux-t2 keeps the internal keyboard after the installer filter" x86 \
+  "$omarchy_hooks" "usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt t2bce_dma t2bce_core t2bce_vhci" ""
+new_etc
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in zz-omarchy-kernel-modules.conf <<<"$installer_filter"
+KERNEL_MODULES="thunderbolt usbhid hid_apple hid_generic xhci_pci xhci_hcd" \
+  assert_composed "a kernel without t2bce_vhci still builds after the installer filter" x86 \
+  "$omarchy_hooks" "usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
+installer_filter_hid=${installer_filter/_omarchy_absent=(t2bce_vhci)/_omarchy_absent=(t2bce_vhci hid_apple)}
+new_etc
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in zz-omarchy-kernel-modules.conf <<<"$installer_filter_hid"
+KERNEL_MODULES="$t2_modules" assert_composed "linux-t2 keeps hid_apple when the installer filter drops it too" x86 \
+  "$omarchy_hooks" "usbhid hid_generic xhci_pci xhci_hcd thunderbolt t2bce_dma t2bce_core t2bce_vhci hid_apple" ""
+
 new_etc
 drop_in macbook_spi_modules.conf <<<"MODULES=(applespi intel_lpss_pci spi_pxa2xx_platform)"
 assert_composed "an SPI keyboard MacBook is unchanged" x86 \
@@ -326,3 +379,135 @@ pass "a non-Latin layout stays out of the Mac image"
 printf 'KEYMAP=us\nXKBLAYOUT=us\n' >"$vconsole"
 mac_etc "$legacy_encrypted"
 KERNEL_MODULES="" assert_hooks "a busybox encrypt Mac keeps its own line with the Apple drop-ins" aarch64-apple "$legacy_encrypted"
+
+rm -f "$vconsole"
+
+# Exercise the reusable repair, not the one-time migration. Fake sudo accepts
+# only these scratch-file operations and never forwards arbitrary commands.
+repair="$test_tmp/repair"
+repair_bin="$repair/bin"
+filter="$repair/filter.conf"
+images="$repair/images"
+calls="$repair/calls"
+mkdir -p "$repair_bin" "$images/esp" "$images/other-esp"
+ln -s "$ROOT/bin/omarchy-cmd-present" "$repair_bin/omarchy-cmd-present"
+for cmd in limine-mkinitcpio lsinitcpio; do
+  printf '#!/bin/bash\nexit 97\n' >"$repair_bin/$cmd"
+  chmod +x "$repair_bin/$cmd"
+done
+cat >"$repair_bin/sudo" <<'SH'
+#!/bin/bash
+set -euo pipefail
+discovery='
+for dir; do
+  [[ -n $dir ]] || continue
+  [[ -e $dir || -L $dir ]] || continue
+  [[ -d $dir ]] || exit 1
+  /usr/bin/find -H "$dir" -maxdepth 1 -name "*linux-t2*.efi" \( -type f -o -type l \) -print0
+done
+'
+if [[ $# == 9 && $1 == "/bin/bash" && $2 == "-euo" && $3 == "pipefail" && $4 == "-c" && $5 == "$discovery" &&
+      $6 == "--" && $7 == "$TEST_REPAIR/images/esp" && $8 == "$TEST_REPAIR/images/other-esp" && $9 == "$TEST_REPAIR/images/absent" ]]; then
+  # The script and all roots are exact known arguments, not arbitrary sudo.
+  /bin/bash -euo pipefail -c "$discovery" -- "$7" "$8" "$9"
+elif [[ $# == 1 && $1 == "limine-mkinitcpio" ]]; then
+  printf 'rebuild\n' >>"$TEST_REPAIR/calls"
+  exit "${REBUILD_STATUS:-0}"
+elif [[ $# == 3 && $1 == "chmod" && $2 == "644" && $3 == "$TEST_REPAIR/filter.conf" ]]; then
+  /usr/bin/chmod 644 "$3"
+elif [[ $# == 3 && $1 == "cp" && $2 == "$TMPDIR"/* && $3 == "$TEST_REPAIR/filter.conf" ]]; then
+  /usr/bin/cp -- "$2" "$3"
+elif [[ $# == 2 && $1 == "lsinitcpio" && $2 == "$TEST_REPAIR"/images/*linux-t2*.efi ]]; then
+  [[ ! -e $2.unreadable ]] || exit 1
+  /usr/bin/cat -- "$2"
+else
+  echo "Refusing unexpected fixture sudo: $*" >&2
+  exit 97
+fi
+SH
+chmod +x "$repair_bin/sudo"
+
+run_repair() {
+  "${clean_env[@]}" PATH="$repair_bin:$safe_bin" TEST_REPAIR="$repair" \
+    REBUILD_STATUS="${REBUILD_STATUS:-0}" OMARCHY_INITRAMFS_MODULES_CONF="$filter" \
+    OMARCHY_T2_BOOT_IMAGES="$images/esp:$images/other-esp:$images/absent" \
+    /bin/bash "$ROOT/bin/omarchy-repair-t2-initramfs"
+}
+
+generated=${installer_filter/_omarchy_absent=(t2bce_vhci)/_omarchy_absent=(t2bce_vhci thunderbolt)}
+printf '%s\nMODULES+=(nvme)\n' "$generated" >"$filter"
+cp "$filter" "$repair/custom.conf"
+run_repair >"$repair/out" 2>"$repair/err"
+cmp -s "$filter" "$repair/custom.conf" || fail "the T2 repair preserves custom boot additions"
+new_etc
+drop_in zz-omarchy-kernel-modules.conf <"$filter"
+KERNEL_MODULES="$t2_modules" assert_composed "custom boot additions survive the repair and the later T2 drop-in" x86 \
+  "$omarchy_hooks" "nvme t2bce_dma t2bce_core t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd" ""
+
+printf '%s\n' "$generated" >"$filter"
+chmod 000 "$filter"
+if run_repair >"$repair/out" 2>"$repair/err"; then
+  fail "an unreadable installer filter cannot count as repaired"
+fi
+chmod 644 "$filter"
+pass "an unreadable installer filter cannot count as repaired"
+run_repair >"$repair/out" 2>"$repair/err"
+new_etc
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in zz-omarchy-kernel-modules.conf <"$filter"
+KERNEL_MODULES="${t2_modules/thunderbolt /}" assert_composed "the repaired filter keeps available T2 modules and drops absent thunderbolt" x86 \
+  "$omarchy_hooks" "t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd t2bce_dma t2bce_core" ""
+KERNEL_MODULES="thunderbolt usbhid hid_apple hid_generic xhci_pci xhci_hcd" \
+  assert_composed "the repaired filter still drops modules the kernel lacks" x86 \
+  "$omarchy_hooks" "usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
+
+normal="$images/esp/omarchy_linux-t2.efi"
+fallback="$images/esp/omarchy_linux-t2-fallback.efi"
+module='usr/lib/modules/test/kernel/drivers/staging/t2bce/t2bce_vhci.ko.zst'
+printf '%s\n' "$module" >"$fallback"
+: >"$normal"
+if run_repair >"$repair/out" 2>"$repair/err"; then
+  fail "a working fallback cannot hide a broken normal image"
+fi
+grep -Fq "$normal" "$repair/err" || fail "the repair identifies the broken normal image"
+pass "a working fallback cannot hide a broken normal image"
+
+printf '%s\n' "$module" >"$normal"
+: >"$normal.unreadable"
+if run_repair >"$repair/out" 2>"$repair/err"; then
+  fail "an unreadable normal image cannot count as repaired"
+fi
+pass "an unreadable normal image cannot count as repaired"
+rm "$normal.unreadable"
+printf '%s\n' "$module.disabled" >"$normal"
+if run_repair >"$repair/out" 2>"$repair/err"; then
+  fail "a similarly named file cannot count as the T2 module"
+fi
+pass "a similarly named file cannot count as the T2 module"
+
+printf '%s\n' "$module" >"$normal"
+: >"$images/other-esp/omarchy_linux-t2.efi"
+if run_repair >"$repair/out" 2>"$repair/err"; then
+  fail "a good first ESP cannot hide a broken image on another ESP"
+fi
+printf '%s\n' "$module" >"$images/other-esp/omarchy_linux-t2.efi"
+run_repair >"$repair/out" 2>"$repair/err"
+pass "all discovered T2 boot images must carry the module"
+
+if REBUILD_STATUS=1 run_repair >"$repair/out" 2>"$repair/err"; then
+  fail "a failed rebuild cannot count as repaired"
+fi
+pass "a failed rebuild cannot count as repaired"
+
+chmod 000 "$images/esp"
+if run_repair >"$repair/out" 2>"$repair/err"; then
+  fail "an unlistable ESP cannot masquerade as no boot images"
+fi
+chmod 755 "$images/esp"
+pass "an unlistable ESP cannot masquerade as no boot images"
+
+printf '%s\n' "${generated/t2bce_vhci thunderbolt/thunderbolt}" >"$filter"
+: >"$calls"
+run_repair >"$repair/out" 2>"$repair/err"
+[[ ! -s $calls ]] || fail "a non-T2 installer filter does not trigger a rebuild"
+pass "a non-T2 installer filter does not trigger a rebuild"
