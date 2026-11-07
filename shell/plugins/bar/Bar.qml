@@ -3172,7 +3172,8 @@ Item {
     // Writable, as on any widget: its host hands it the same values.
     property string moduleName: root.entryId(entry)
     property var settings: root.entrySettings(entry)
-    property string outputText: ""
+    property string outputRaw: ""
+    property var outputData: ({})
     property string outputTooltip: ""
     property bool outputActive: false
 
@@ -3185,13 +3186,14 @@ Item {
       var data = Util.parseModuleJson(raw)
       var klass = data.class || data.alt || ""
 
-      outputText = data.text || String(raw || "").trim()
+      outputRaw = String(raw || "")
+      outputData = data
       outputTooltip = data.tooltip || String(setting("tooltip", ""))
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
 
     bar: root
-    text: outputText || String(setting("text", ""))
+    text: BarModel.customCommandText(outputRaw, outputData, String(setting("text", "")))
     tooltipText: outputTooltip || String(setting("tooltip", ""))
     active: outputActive
     keepSpace: setting("keepSpace", false) === true
