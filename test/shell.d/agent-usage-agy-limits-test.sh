@@ -92,6 +92,20 @@ read = limits({"groups": [
 ]})
 expect("Antigravity collector finds the Gemini group wherever it is listed", [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5)], read)
 
+# Argon's own weekly quota is a group whose name also says Gemini: wherever
+# it is listed it never stands in for the plan's group, and it sits right
+# after Weekly, ahead of the Claude and GPT allowance.
+read = limits({"groups": [
+  {"displayName": "Gemini 4 Argon", "buckets": [
+    {"bucketId": "gemini-argon-wtu-weekly", "displayName": "Gemini 4 Argon Weekly Limit", "window": "weekly", "resetTime": "2026-09-18T13:15:33Z", "remainingFraction": 0.1},
+  ]},
+  {"displayName": "Claude and GPT models", "buckets": [{"window": "weekly", "remainingFraction": 0.75}]},
+  {"displayName": "Gemini Models", "buckets": [{"window": "weekly", "remainingFraction": 0.5}]},
+]})
+expect("Antigravity collector shows Argon's weekly quota as its own line after Weekly",
+       [(entry["label"], round(entry["percent"], 2)) for entry in read],
+       [("Weekly (7-day)", 0.5), ("Argon Weekly", 0.9), ("Claude/GPT Weekly", 0.25)], read)
+
 read = limits({"buckets": [
   {"window": "5h", "remaining_fraction": 0.4, "reset_time": "2026-09-15T19:31:46Z"},
   {"window": "weekly", "remainingFraction": "plenty"},
