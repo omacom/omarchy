@@ -22,7 +22,7 @@ polkit=/etc/pam.d/polkit-1
 
 is_omarchy_vulnerable_stack() {
   local file=$1 line
-  local re_gate='^auth[[:space:]]+\[success=1 default=ignore\][[:space:]]+pam_exec\.so quiet /usr/bin/omarchy-hw-laptop-closed[[:space:]]*$'
+  local re_gate='^auth[[:space:]]+\[success=1 default=ignore\][[:space:]]+pam_exec\.so quiet( quiet_log)? /usr/bin/omarchy-hw-laptop-closed[[:space:]]*$'
   local re_fprintd='^auth[[:space:]]+sufficient[[:space:]]+pam_fprintd\.so[[:space:]]*$'
   local re_u2f='^auth[[:space:]]+sufficient[[:space:]]+pam_u2f\.so cue authfile=/etc/fido2/fido2[[:space:]]*$'
   local re_bare='^(auth|account|password|session)[[:space:]]+required[[:space:]]+pam_unix\.so[[:space:]]*$'
