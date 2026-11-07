@@ -15,12 +15,11 @@ fzf_args=(
   --color 'pointer:green,marker:green'
 )
 
-pkg_names=$(pacman -Slq | fzf "${fzf_args[@]}")
+mapfile -t pkg_names < <(pacman -Slq | fzf "${fzf_args[@]}")
 
-if [[ -n $pkg_names ]]; then
+if (( ${#pkg_names[@]} > 0 )); then
   source omarchy-sudo-keepalive
 
-  # Convert newline-separated selections to space-separated for pacman
-  echo "$pkg_names" | tr '\n' ' ' | xargs sudo pacman -S --noconfirm
+  sudo pacman -S --noconfirm -- "${pkg_names[@]}"
   omarchy-show-done $?
 fi
