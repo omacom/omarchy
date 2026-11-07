@@ -20,6 +20,11 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  property var chargeLimit: Model.parseChargeLimit("")
+  readonly property var chargeLimitOptions: Model.chargeLimitOptions(chargeLimit.end)
+  property int chargeLimitIndex: 0
+  // Which button row the keyboard cursor is on: 0 = power profile, 1 = charge limit.
+  property int cursorRow: 0
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -41,6 +46,31 @@ Panel {
 
   function selectProfileByDelta(delta) {
     profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+  }
+
+  function moveCursor(dx, dy) {
+    if (dy !== 0 && chargeLimit.supported) {
+      cursorRow = dy > 0 ? 1 : 0
+    } else if (cursorRow === 1) {
+      chargeLimitIndex = Model.clampIndex(chargeLimitIndex + (dx !== 0 ? dx : dy), chargeLimitOptions.length)
+    } else {
+      selectProfileByDelta(dx !== 0 ? dx : dy)
+    }
+  }
+
+  function activateCursor() {
+    if (cursorRow === 1) setChargeLimit(chargeLimitOptions[chargeLimitIndex].enabled)
+    else activateSelectedProfile()
+  }
+
+  function refreshChargeLimit() {
+    if (!chargeLimitProc.running) chargeLimitProc.running = true
+  }
+
+  function setChargeLimit(enabled) {
+    if (chargeLimitSetProc.running || enabled === chargeLimit.enabled) return
+    chargeLimitSetProc.command = ["omarchy-battery-charge-limit", enabled ? "on" : "off"]
+    chargeLimitSetProc.running = true
   }
 
   function activateSelectedProfile() {
@@ -203,9 +233,13 @@ Panel {
       }
 
       refresh()
+      // Only Omarchy's own commands change the limit in practice, so read it once
+      // per open and after each change rather than on the 5s refresh tick.
+      refreshChargeLimit()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+      cursorRow = 0
     }
   }
 
@@ -236,6 +270,24 @@ Panel {
   Process {
     id: actionProc
     onExited: root.refresh()
+  }
+
+  Process {
+    id: chargeLimitProc
+    command: ["omarchy-battery-charge-limit", "status"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.chargeLimit = Model.parseChargeLimit(text)
+        if (!root.cursorActive) root.chargeLimitIndex = root.chargeLimit.enabled ? 0 : 1
+      }
+    }
+  }
+
+  Process {
+    id: chargeLimitSetProc
+    // Re-read rather than assume: the firmware or polkit can refuse the change.
+    onExited: root.refreshChargeLimit()
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
@@ -315,10 +367,9 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
+        root.moveCursor(dx, dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -503,12 +554,65 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.cursorRow === 0 && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.cursorRow = 0
                     root.profileIndex = index
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // ---------- Charge limit ----------
+        PanelSeparator {
+          visible: root.chargeLimit.supported
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.chargeLimit.supported
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: "CHARGE LIMIT"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Row {
+            id: chargeLimitRow
+            width: parent.width
+            spacing: Style.space(6)
+
+            Repeater {
+              model: root.chargeLimitOptions
+              Button {
+                required property var modelData
+                required property int index
+                width: (chargeLimitRow.width - chargeLimitRow.spacing) / 2
+                iconText: modelData.icon
+                iconSize: Style.font.title
+                text: modelData.label
+                fontSize: Style.font.bodySmall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                horizontalPadding: Style.spacing.controlPaddingX
+                verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                bordered: true
+                active: root.chargeLimit.enabled === modelData.enabled
+                hasCursor: root.cursorActive && root.cursorRow === 1 && root.chargeLimitIndex === index
+                onClicked: root.setChargeLimit(modelData.enabled)
+                onHovered: function(h) {
+                  if (h) {
+                    root.cursorActive = true
+                    root.cursorRow = 1
+                    root.chargeLimitIndex = index
                   }
                 }
               }
