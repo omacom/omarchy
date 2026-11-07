@@ -2,4 +2,9 @@
 
 # omarchy:summary=Show the current battery status notification
 
-omarchy-notification-send -g 󰁹 -u low "$(omarchy-battery-status)"
+status=$(omarchy-battery-status)
+
+# A machine without a battery has no status, and the toast would be blank.
+if [[ -n $status ]]; then
+  omarchy-notification-send -g 󰁹 -u low "$status"
+fi
