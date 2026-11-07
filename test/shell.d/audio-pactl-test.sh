@@ -121,6 +121,9 @@ grep -qx 'C pactl get-sink-volume alsa_output.speakers' "$CALLS" ||
 grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
+grep -qx 'omarchy-osd -i volume-medium -p 50' "$CALLS" ||
+  fail 'audio-output-volume shows the speaker for its volume band' "$(calls)"
+pass 'audio-output-volume shows the speaker for its volume band'
 
 : >"$CALLS"
 (
