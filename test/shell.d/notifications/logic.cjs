@@ -287,14 +287,23 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.ok(!Delivery.omarchyGlyph(''))
   assert.ok(!Delivery.omarchyGlyph(''))
 
-  // The deck clears the bar only on the top and right edges it touches.
+  // Each edge reserves the bar only on that edge, including hidden bars.
   const bar = { barHidden: false, barSize: 26, barSizeFor: name => name === 'notched' ? 40 : 26 }
   assert.equal(Delivery.barThickness(bar, 'notched', 26), 40)
   assert.equal(Delivery.barThickness(bar, 'plain', 26), 26)
   assert.equal(Delivery.barThickness({ barHidden: true }, 'plain', 26), 0)
   assert.equal(Delivery.barThickness(null, 'plain', 28), 28)
   for (const [position, thickness, top, right] of [['top', 26, 36, 10], ['right', 40, 10, 50], ['bottom', 26, 10, 10], ['left', 26, 10, 10]])
-    assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
+    assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) },
+      { top, right, bottom: position === 'bottom' ? thickness + 10 : 10,
+        left: position === 'left' ? thickness + 10 : 10 }, position)
+  // Mirror a changing-height card at draw time: its bottom stays pinned even
+  // while the deck resizes, and negative arrival offsets enter from below.
+  for (const [height, deckHeight] of [[58, 58], [100, 240], [150, 300]]) {
+    assert.equal(Delivery.cardY(0, height, deckHeight, true) + height, deckHeight)
+    assert.equal(Delivery.cardY(-24, height, deckHeight, true) + height, deckHeight + 24)
+    assert.equal(Delivery.cardY(80, height, deckHeight, false), 80)
+  }
 }
 
 // --------------------------------------------------- Service.qml functions
@@ -317,6 +326,19 @@ function runIn(scope, ...names) {
   vm.createContext(scope)
   vm.runInContext(names.map(fn).join('\n'), scope)
   return scope
+}
+
+{ // Arrow keys follow screen direction; Tab still walks newest-first.
+  const Qt = { Key_Down: 1, Key_Up: 2, Key_J: 3, Key_K: 4, Key_Tab: 5, Key_Backtab: 6 }
+  for (const growUp of [false, true]) {
+    const steps = []
+    const s = runIn({ Qt, growUp, keyboardMode: true, keyboardKey: '', keyboardIdle: { restart() {} },
+      moveSelection: step => steps.push(step) }, 'keyboardPressed')
+    for (const key of [Qt.Key_Down, Qt.Key_Up, Qt.Key_J, Qt.Key_K, Qt.Key_Tab, Qt.Key_Backtab])
+      assert.equal(s.keyboardPressed(key, ''), true)
+    const down = growUp ? -1 : 1
+    assert.deepEqual(steps, [down, -down, down, -down, 1, -1])
+  }
 }
 
 { // Hostile compositor metadata must not become Lua; only a hex address dispatches.
@@ -566,7 +588,7 @@ const summaries = rows => Array.from(rows, row => row.summary)
   const other = s.fakeNotification(9, 'Other app')
   other.appName = 'Other'
   s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
-  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
+  Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10, bottom: 10, left: 10 }),
     Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
   runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
   for (const row of s.toasts.rows) s.heights[row.key] = 100
@@ -577,6 +599,9 @@ const summaries = rows => Array.from(rows, row => row.summary)
   s.moveSelection(1)
   // 300 tall, 10 down, 6 apart: two 100-tall cards fit, the third would end at 322...
   assert.equal(summary(), 'Card 4')
+  s.marginsFor = () => ({ top: 10, bottom: 100 })
+  assert.equal(s.reachable(s.keyboardKey), false, 'a bottom bar also limits the space for expanded cards')
+  s.marginsFor = () => ({ top: 10, bottom: 10 })
   // ...so Down skips the rest of that deck for the next one, which fits once it opens.
   s.moveSelection(1)
   assert.equal(summary(), 'Other app')
