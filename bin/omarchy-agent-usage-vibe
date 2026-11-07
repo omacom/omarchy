@@ -626,6 +626,13 @@ def tier_label():
 # ---------------------------------------------------------------- limits
 
 
+def dotenv_value(value):
+  """A .env value as Vibe's dotenv reads it: without its quotes or a trailing comment."""
+  value = value.strip()
+  closing = value.find(value[0], 1) if value[:1] in ("'", '"') else -1
+  return value[1:closing] if closing > 0 else re.split(r"\s+#", value, maxsplit=1)[0].strip()
+
+
 def api_key():
   """The key Vibe would send: the environment, then Vibe's .env. One Vibe keeps
   in the system keyring isn't read, which only leaves the meters out."""
@@ -639,7 +646,7 @@ def api_key():
   for line in lines:
     name, _, value = line.strip().removeprefix("export ").partition("=")
     if name.strip() == API_KEY_NAME:
-      return value.strip().strip("'\"")
+      return dotenv_value(value)
   return ""
 
 

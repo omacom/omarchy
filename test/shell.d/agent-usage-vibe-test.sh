@@ -370,6 +370,12 @@ record, http = vibe_budget(budget_answer())
 expect("Vibe asks with the key in Vibe's .env", [len(record["limits"]), http.requests[-1]["headers"].get("authorization")],
        [2, "Bearer from-dotenv"], record)
 
+# As Vibe's own dotenv reads them: a working key isn't reported as refused.
+for line in ("MISTRAL_API_KEY=from-dotenv # personal key", "MISTRAL_API_KEY='from-dotenv' # personal key", 'export MISTRAL_API_KEY="from-dotenv"'):
+  (home() / ".vibe" / ".env").write_text(f"{line}\n")
+  _, http = vibe_budget(budget_answer())
+  expect(f"Vibe reads the key from: {line}", http.requests[-1]["headers"].get("authorization"), "Bearer from-dotenv")
+
 sandbox()
 os.environ.pop("MISTRAL_API_KEY", None)
 record, http = vibe_budget(budget_answer())
