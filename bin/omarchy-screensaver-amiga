@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Run the native FS-UAE Amiga Demos screensaver
+# omarchy:args=[--check]
+# omarchy:hidden=true
+
+controller="$OMARCHY_PATH/shell/plugins/services/idle/state.py"
+if [[ ! -f $controller ]]; then
+  if [[ -d /usr/lib/omarchy-amiga-runtime ]]; then
+    controller="/usr/lib/omarchy-amiga-runtime/controller/state.py"
+  else
+    controller="$HOME/.local/lib/omarchy-amiga-runtime/controller/state.py"
+  fi
+fi
+exec python3 "$controller" "$@"

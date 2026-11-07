@@ -105,6 +105,8 @@
   "appearance.branding.about.text": {"icon":"","label":"Edit Text","action":"omarchy-branding-about text"},
   "appearance.branding.about.image": {"icon":"","label":"Set From Image","action":"omarchy-branding-about image"},
   "appearance.branding.about.default": {"icon":"","label":"Restore Default","action":"omarchy-branding-about reset"},
+  "appearance.branding.screensaver.omarchy": {"icon":"󱄄","label":"Default","checked":"omarchy-setup-screensaver --is-default","action":"omarchy-setup-screensaver default"},
+  "appearance.branding.screensaver.amiga": {"icon":"󰊗","label":"Amiga","checked":"omarchy-setup-screensaver --is-amiga","action":"omarchy-setup-screensaver amiga"},
   "appearance.branding.screensaver.text": {"icon":"","label":"Edit Text","action":"omarchy-branding-screensaver text"},
   "appearance.branding.screensaver.image": {"icon":"","label":"Set From Image","action":"omarchy-branding-screensaver image"},
   "appearance.branding.screensaver.default": {"icon":"","label":"Restore Default","action":"omarchy-branding-screensaver reset"},

@@ -1,0 +1,32 @@
+#!/bin/bash
+# Build the private backend from a clean pinned archive, never the working tree.
+set -euo pipefail
+if (( $# != 3 )); then
+  echo "Usage: build-fs-uae <upstream-git-checkout> <empty-build-dir> <prefix>" >&2
+  exit 1
+fi
+source_repo=$(realpath "$1")
+build=$(realpath -m "$2")
+prefix=$(realpath -m "$3")
+patch_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+revision=4ae7ddaec50b567ed80d71ffbff067cb58e945a3
+[[ ! -e $build ]] || { echo "Build directory must not exist" >&2; exit 1; }
+mkdir -p "$build/source"
+git -C "$source_repo" archive "$revision" | tar -x -C "$build/source"
+cd "$build/source"
+patch -p1 < "$patch_dir/suppress-warning-hud.patch"
+patch -p1 < "$patch_dir/frame-readiness.patch"
+cp "$patch_dir/frame-observer.c" src/fs-uae/omarchy-frame.c
+printf '\nfs_uae_SOURCES += src/fs-uae/omarchy-frame.c\n' >> Makefile.am
+autoreconf -fi
+# Fixed sandbox prefix: no build-machine paths embedded in the emulator.
+CXXFLAGS='-O2 -std=gnu++11' ./configure --disable-jit --prefix=/opt/amiga/fs-uae
+make -j3
+make DESTDIR="$build/stage" install
+mkdir -p "$prefix/lib/omarchy-amiga-runtime" "$prefix/share/licenses/omarchy-amiga-runtime"
+cp -a "$build/stage/opt/amiga/fs-uae" "$prefix/lib/omarchy-amiga-runtime/"
+for license in COPYING libmpeg2/COPYING libfsemu/COPYING glad/LICENSE gamemode/LICENSE.txt libinih/LICENSE.txt manymouse/LICENSE.txt; do
+  cp "$license" "$prefix/share/licenses/omarchy-amiga-runtime/FS-UAE-${license//\//-}"
+done
+printf '%s\n' "$revision" > "$prefix/lib/omarchy-amiga-runtime/fs-uae/SOURCE_REVISION"
+printf '1\n' > "$prefix/lib/omarchy-amiga-runtime/fs-uae/FRAME_PROTOCOL"

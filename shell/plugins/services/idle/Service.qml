@@ -27,6 +27,67 @@ Item {
   readonly property int screensaverDelaySeconds: IdleModel.delayAfterFirstIdle(screensaverTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
+  // Authentication services are deliberately absent from PluginShellApi.
+  // Only a recent, successful lock IPC response may authorize the input guard.
+  property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  property bool lockActive: true
+  property double lockCheckedAt: 0
+  property double lockProbeStartedAt: 0
+  readonly property int lockStatusMaxAge: 1000
+  // Lock polling runs only while an Amiga session is starting or on screen,
+  // so the idle shell spawns nothing when Amiga is unused.
+  property bool amigaWatching: false
+  property double amigaTouchedAt: 0
+  readonly property int amigaWatchGrace: 5000
+
+  function invalidateLockStatus() {
+    root.lockActive = true
+    root.lockCheckedAt = 0
+    amigaScreensaver.dismiss()
+  }
+
+  function lockStatusAllowsAmiga() {
+    var age = Date.now() - root.lockCheckedAt
+    if (root.lockActive || root.lockCheckedAt <= 0 || age < 0 || age >= root.lockStatusMaxAge) {
+      root.invalidateLockStatus()
+      return false
+    }
+    return true
+  }
+
+  function refreshLockStatus() {
+    if (lockStatusProbe.running) return
+    root.lockProbeStartedAt = Date.now()
+    lockStatusProbe.outputReady = false
+    lockStatusProbe.exitReady = false
+    lockStatusProbe.running = true
+  }
+
+  function acceptLockStatus(text, exitCode, exitStatus) {
+    // Age from request start, not completion: delayed replies cannot renew a lease.
+    var age = Date.now() - root.lockProbeStartedAt
+    if (exitCode !== 0 || exitStatus !== 0 || String(text).trim() !== "false"
+        || age < 0 || age >= root.lockStatusMaxAge) {
+      root.invalidateLockStatus()
+      return
+    }
+    root.lockCheckedAt = root.lockProbeStartedAt
+    root.lockActive = false
+  }
+
+  function watchAmiga() {
+    root.amigaTouchedAt = Date.now()
+    if (root.amigaWatching) return
+    root.amigaWatching = true
+    root.refreshLockStatus()
+  }
+
+  function settleAmigaWatch() {
+    var quiet = Date.now() - root.amigaTouchedAt
+    if (amigaScreensaver.open || (quiet >= 0 && quiet < root.amigaWatchGrace)) return
+    root.amigaWatching = false
+    root.invalidateLockStatus()
+  }
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
@@ -70,6 +131,8 @@ Item {
   }
 
   function lockSystem(reason) {
+    root.invalidateLockStatus()
+    root.lockProbeStartedAt = 0 // Reject any unlocked reply already in flight.
     logEvent("lock-system", reason || "requested")
     screensaverTimer.stop()
     lockTimer.stop()
@@ -260,6 +323,51 @@ Item {
     }
   }
 
+  Timer {
+    interval: 250
+    running: root.amigaWatching
+    repeat: true
+    onTriggered: {
+      root.settleAmigaWatch()
+      if (root.amigaWatching) root.refreshLockStatus()
+    }
+  }
+
+  Timer {
+    interval: 100
+    running: root.amigaWatching
+    repeat: true
+    onTriggered: root.lockStatusAllowsAmiga()
+  }
+
+  Process {
+    id: lockStatusProbe
+    // Bound the whole canonical IPC helper, including any nested qs process.
+    command: ["timeout", "--kill-after=0.2s", "0.8s", root.omarchyPath + "/bin/omarchy-shell", "lock", "isLocked"]
+    property bool outputReady: false
+    property bool exitReady: false
+    property int resultCode: -1
+    property int resultStatus: -1
+    function finish() {
+      if (outputReady && exitReady)
+        root.acceptLockStatus(lockStatusOutput.text, resultCode, resultStatus)
+    }
+    stdout: StdioCollector {
+      id: lockStatusOutput
+      waitForEnd: true
+      onStreamFinished: {
+        lockStatusProbe.outputReady = true
+        lockStatusProbe.finish()
+      }
+    }
+    onExited: function(exitCode, exitStatus) {
+      resultCode = exitCode
+      resultStatus = exitStatus
+      exitReady = true
+      finish()
+    }
+  }
+
   Process {
     id: screensaverProcess
     onExited: function(exitCode, exitStatus) {
@@ -316,8 +424,68 @@ Item {
     refreshStayAwakeState()
   }
 
+  // The controller runs inside screensaverProcess for the whole Amiga session,
+  // so its exit drives the same dismissal path as the native screensaver.
+  AmigaScreensaver {
+    id: amigaScreensaver
+  }
+
   ShellIpc {
     target: "idle"
+
+    function amigaRuntime(userPrefix: bool): string {
+      var directory = userPrefix ? root.home + "/.local/lib" : "/usr/lib"
+      return amigaScreensaver.configure("file://" + directory + "/omarchy-amiga-runtime/guard/Guard.qml")
+    }
+
+    function amigaBegin(owner: string, monitor: string): string {
+      root.watchAmiga()
+      if (!root.lockStatusAllowsAmiga()) {
+        root.refreshLockStatus()
+        return "locked"
+      }
+      return amigaScreensaver.begin(owner, monitor)
+    }
+
+    function amigaPoll(owner: string): string {
+      root.watchAmiga()
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.poll(owner)
+    }
+
+    function amigaPresent(owner: string, monitor: string, appId: string, title: string): string {
+      root.watchAmiga()
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.present(owner, monitor, appId, title)
+    }
+
+    function amigaCommit(owner: string): string {
+      root.watchAmiga()
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.commit(owner)
+    }
+
+    function amigaDirect(owner: string): string {
+      root.watchAmiga()
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.direct(owner)
+    }
+
+    function amigaAudioApplied(owner: string, revision: int, muted: bool): string {
+      root.watchAmiga()
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.audioApplied(owner, revision, muted)
+    }
+
+    function amigaCover(owner: string): string {
+      root.watchAmiga()
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.cover(owner)
+    }
+
+    function amigaEnd(owner: string): string {
+      return amigaScreensaver.end(owner)
+    }
 
     function status(): string {
       return root.statusJson()
