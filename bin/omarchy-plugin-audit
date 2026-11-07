@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# omarchy:summary=Audit a plugin checkout or Git repo before installing it
+# omarchy:group=plugin
+# omarchy:args=<plugin-directory|git-url>
+# omarchy:examples=omarchy plugin audit https://github.com/acme/omarchy-weather.git | omarchy plugin audit ~/.config/omarchy/plugins/acme.weather
+
+set -euo pipefail
+
+fail() {
+  echo "omarchy-plugin-audit: $*" >&2
+  exit 1
+}
+
+[[ $# == 1 ]] || fail "Usage: omarchy plugin audit <plugin-directory|git-url>"
+
+plugin_dir=$1
+if [[ ! -d $plugin_dir ]]; then
+  # Keep the install workflow in one place. The add command clones to a staging
+  # directory, validates the manifest, then calls this command again with that
+  # directory for the static review and final install decision.
+  exec omarchy-plugin-add "$plugin_dir"
+else
+  [[ -f $plugin_dir/manifest.json ]] || fail "manifest.json is missing"
+
+  manifest_value() {
+    # Metadata appears in the interactive header: keep it one line and never
+    # pass repository-supplied terminal escapes or bidi controls to Gum.
+    jq -r "$1 // \"\"" "$plugin_dir/manifest.json" |
+      LC_ALL=C tr -cd '\40-\176'
+  }
+
+  clean() {
+    # Plugin source is untrusted. Do not let control bytes in a filename or source line
+    # rewrite the terminal while its audit is being displayed.
+    LC_ALL=C tr -cd '\11\12\40-\176'
+  }
+
+  matches() {
+    local pattern=$1
+    (
+      cd "$plugin_dir" || exit 1
+      # Ignore rules must not hide loadable code. Drain all output so errors
+      # after the first two matches still fail the audit.
+      { rg --hidden --no-ignore --no-config --color=never -n -i -e "$pattern" . \
+        -g '!manifest.json' -g '!.git/**' -g '!README*' -g '!docs/**' -g '!test/**' -g '!tests/**' \
+        -g '!*.png' -g '!*.jpg' -g '!*.jpeg' -g '!*.gif' -g '!*.svg' || [[ $? == 1 ]]; } |
+        sed -n '1,2p' |
+        clean
+    ) || fail "source scan failed; audit incomplete"
+  }
+
+  finding_count=0
+  print_finding() {
+    local severity=$1
+    local title=$2
+    local detail=$3
+    local evidence=$4
+
+    ((finding_count += 1))
+    printf '[%s] %s\n' "$severity" "$title"
+    printf '  %s\n' "$detail"
+    [[ -z $evidence ]] || printf '%s\n' "$evidence" | sed 's/^/  /'
+    printf '\n'
+  }
+
+  id=$(manifest_value '.id')
+  name=$(manifest_value '.name')
+  version=$(manifest_value '.version')
+
+  printf 'Plugin security audit: %s (%s)\n' "$name" "$version"
+  printf 'ID: %s\n' "$id"
+  printf 'Static heuristic review only — inspect the code and trust the publisher before enabling it.\n\n'
+
+  evidence=$(matches '(^|[^[:alnum:]_])(sudo|pkexec|doas)([^[:alnum:]_]|$)|/etc/(sudoers|shadow)|setuid')
+  [[ -z $evidence ]] || print_finding HIGH "Privilege or protected-system access" "The plugin references privilege escalation or protected system paths." "$evidence"
+
+  evidence=$(matches 'systemctl|crontab|systemd/user|\.config/autostart|XDG_CONFIG_HOME.*/autostart')
+  [[ -z $evidence ]] || print_finding HIGH "Persistence mechanism" "The plugin can create or control software that continues running after the current session." "$evidence"
+
+  evidence=$(matches '(^|[^[:alnum:]_])(curl|wget|nc|ncat)([^[:alnum:]_]|$)|urllib|requests\.|http\.client|socket\.|XMLHttpRequest|WebSocket')
+  [[ -z $evidence ]] || print_finding MEDIUM "Network access" "The plugin contains code that can contact network services or open sockets." "$evidence"
+
+  evidence=$(matches 'eval[[:space:]]*\(|os\.system|subprocess\.(run|Popen|call)|execDetached|(^|[^[:alnum:]_])Process[[:space:]]*\{')
+  [[ -z $evidence ]] || print_finding MEDIUM "External command execution" "The plugin can start other programs. Review the command arguments and any input that reaches them." "$evidence"
+
+  evidence=$(matches '\.ssh|\.aws|\.gnupg|keyring|credentials|secret|password')
+  [[ -z $evidence ]] || print_finding MEDIUM "Sensitive-data access" "The plugin references credentials or common credential-storage locations. Confirm that access is necessary." "$evidence"
+
+  executables=$(cd "$plugin_dir" && find . -type f -perm /111 -not -path './.git/*' -printf '%p\n' | sed -n '1,4p' | clean) || fail "executable scan failed; audit incomplete"
+  [[ -z $executables ]] || print_finding LOW "Executable files" "Executable files are included in the checkout. They are not run by the audit, but may be run when the plugin is enabled." "$executables"
+
+  if (( finding_count == 0 )); then
+    printf '[INFO] No heuristic findings\n  No checked pattern was found. This is not a safety guarantee.\n'
+  else
+    printf 'Summary: %d finding(s). Review the evidence above before deciding whether to install.\n' "$finding_count"
+  fi
+fi
