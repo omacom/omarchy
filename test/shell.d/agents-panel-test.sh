@@ -67,23 +67,29 @@ assertDeepEqual(
     { label: 'Opus 5 (1M context) Weekly', title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.78, resetAt: '' },
-    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '' }
+    { title: 'Session', percent: 0.78, spanMs: 5 * 3600000, resetAt: '' },
+    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, spanMs: 0, resetAt: '' }
   ],
   'agents panel titles a limit off the collector when it states one'
 )
 
 assertDeepEqual(
   limitWindows({ limits: [{ label: 'Weekly (7-day)', percent: 0.12, resetsAt: '' }] }),
-  [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
+  [{ title: 'Weekly', percent: 0.12, spanMs: 7 * 24 * 3600000, resetAt: '' }],
   'agents panel still reads a window out of a label that carries no title'
+)
+
+assertEqual(
+  limitWindows({ limits: [{ label: 'Monthly', percent: 0.08, resetsAt: '' }] })[0].spanMs,
+  0,
+  'a calendar month has no fixed length, so it gets no pace'
 )
 
 const resetAt = new Date(panelRoot.nowMs + 1000).toISOString()
 const measured = { limits: [{ label: 'Session (5-hour)', percent: 0.78, resetsAt: resetAt }] }
 assertEqual(limitWindows(measured)[0].percent, 0.78, 'usage remains until the reset time')
 panelRoot.nowMs += 1000
-assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, resetAt: '' }], 'usage resets at the deadline while the panel stays open')
+assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, spanMs: 5 * 3600000, resetAt: '' }], 'usage resets at the deadline while the panel stays open')
 assertEqual(measured.limits[0].percent, 0.78, 'display reset leaves the measured record intact')
 
 // A model's weekly allowance rides under the Weekly row; one whose window has
@@ -96,12 +102,44 @@ assertDeepEqual(
     { label: 'Opus Monthly', title: 'Opus Monthly', percent: 0.5, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.94, resetAt: '', scoped: [] },
-    { title: 'Weekly', percent: 0.25, resetAt: 'w', scoped: [{ title: 'Fable', percent: 0.09, resetAt: 'w' }] },
-    { title: 'Opus Monthly', percent: 0.5, resetAt: '', scoped: [] }
+    { title: 'Session', percent: 0.94, spanMs: 5 * 3600000, resetAt: '', scoped: [] },
+    { title: 'Weekly', percent: 0.25, spanMs: 7 * 24 * 3600000, resetAt: 'w', scoped: [{ title: 'Fable', percent: 0.09, resetAt: 'w' }] },
+    { title: 'Opus Monthly', percent: 0.5, spanMs: 0, resetAt: '', scoped: [] }
   ],
   'agents panel shows a model-scoped window under the window it runs on'
 )
+JS
+
+# Pace compares the share of a window used with the share of it that has run.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const HOUR = 3600000
+const panelRoot = { nowMs: Date.now() }
+const start = source.indexOf('function resetMsFor')
+const end = source.indexOf('function paceText')
+assert(start > 0 && end > start, 'agents panel exposes its pace helper')
+eval(source.slice(start, end).replaceAll('root.nowMs', 'panelRoot.nowMs').replaceAll('root.resetMsFor', 'resetMsFor'))
+const window = (percent, elapsedHours) => ({
+  percent, spanMs: 5 * HOUR, resetAt: new Date(panelRoot.nowMs + (5 - elapsedHours) * HOUR).toISOString()
+})
+
+// 60% of the quota one hour into five: three times the even pace, empty in 40 minutes.
+let pace = paceFor(window(0.6, 1))
+assertEqual(pace.ratio.toFixed(2), '3.00', 'sixty percent in a fifth of the window is three times the even pace')
+assertEqual(Math.round(pace.runsOutMs / 60000), 40, 'that pace empties the quota forty minutes later')
+assert(pace.early, 'running out before the reset is flagged')
+
+pace = paceFor(window(0.1, 2.5))
+assert(!pace.early, 'under the even pace lasts until the reset')
+assertEqual(pace.ratio.toFixed(2), '0.20', 'ten percent halfway through is a fifth of the even pace')
+
+assertEqual(paceFor(window(0.5, 0.1)), null, 'the first few percent of a window are too early to judge')
+assertEqual(paceFor(window(0, 2)), null, 'unused quota has no pace')
+assertEqual(paceFor(window(1, 2)), null, 'a full quota has already run out')
+assertEqual(paceFor({ ...window(0.5, 2), spanMs: 0 }), null, 'a window of unknown length has no pace')
+assertEqual(paceFor({ percent: 0.5, spanMs: 5 * HOUR, resetAt: '' }), null, 'a window with no reset time has no pace')
+assertEqual(paceFor({ ...window(0.5, 2), spanMs: HOUR }), null, 'a reset further out than the window is long is not judged')
 JS
 
 # A rewrite may briefly leave an incomplete file; lifecycle state must survive it.

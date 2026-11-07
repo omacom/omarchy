@@ -717,6 +717,11 @@ Panel {
       || text.indexOf("month") >= 0 || text.indexOf("30-day") >= 0
   }
 
+  function windowIsMonthly(label) {
+    var text = String(label || "").toLowerCase()
+    return text.indexOf("month") >= 0 || text.indexOf("30-day") >= 0
+  }
+
   function windowSpanMs(label) {
     var text = String(label || "").toLowerCase()
     if (text.indexOf("month") >= 0 || text.indexOf("30-day") >= 0) return 30 * 24 * 3600 * 1000
@@ -747,6 +752,10 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
+      // No length, no pace: a collector-stated title means the label is a
+      // model name, and a calendar month is 28 to 31 days, not the 30 the
+      // label reads as.
+      spanMs: String(title || "") !== "" || windowIsMonthly(label) ? 0 : windowSpanMs(label),
       resetAt: expired ? "" : String(resetAt || "")
     }
   }
@@ -811,6 +820,31 @@ Panel {
     if (!w || w.resetAt === "") return -1
     var ms = new Date(w.resetAt).getTime()
     return isFinite(ms) ? ms - root.nowMs : -1
+  }
+
+  // How fast a window is being used against the time it has run. Even use
+  // reaches the cap exactly at the reset; faster runs out early, and `runsOutMs`
+  // is when, at the pace so far. Null where it can't be judged: no known
+  // length, nothing used or already full, or too early in the window for the
+  // ratio to mean anything.
+  function paceFor(w) {
+    var remaining = resetMsFor(w)
+    if (!w || !(w.spanMs > 0) || !(remaining > 0) || !(w.percent > 0) || w.percent >= 1) return null
+    var elapsed = w.spanMs - remaining
+    var fraction = elapsed / w.spanMs
+    if (fraction < 0.05) return null
+    return {
+      fraction: fraction,
+      ratio: w.percent / fraction,
+      runsOutMs: elapsed / w.percent - elapsed,
+      early: w.percent > fraction
+    }
+  }
+
+  function paceText(pace, remainingMs) {
+    var ratio = Commons.I18n.formatNumber(pace.ratio, 1)
+    if (!pace.early) return Commons.I18n.t("agents.paceWithin").arg(ratio)
+    return Commons.I18n.t("agents.paceRunsOut").arg(ratio).arg(formatDuration(pace.runsOutMs)).arg(formatDuration(remainingMs - pace.runsOutMs))
   }
 
   function formatDuration(ms) {
@@ -2488,6 +2522,7 @@ Panel {
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
+    readonly property var pace: root.paceFor(window)
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
 
     HoverHandler { id: compactHover }
@@ -2503,6 +2538,7 @@ Panel {
             ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
         }
+        if (compact.pace) lines.push(root.paceText(compact.pace, compact.resetMs))
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
             ? Commons.I18n.t("agents.lastUpdatedAgo").arg(root.formatDuration(root.nowMs - compact.fetchedAt))
@@ -2531,8 +2567,9 @@ Panel {
       anchors.rightMargin: Style.space(20)
       anchors.verticalCenter: parent.verticalCenter
       value: compact.window ? compact.window.percent : -1
-      alarming: compact.alarming
+      alarming: compact.alarming || (!!compact.pace && compact.pace.early)
       markers: compact.scoped
+      pace: compact.pace ? compact.pace.fraction : -1
     }
 
     // Sized to the widest time left ("19h 40m"), so every meter ends in the
@@ -2570,6 +2607,10 @@ Panel {
     // Other allowances on the same clock, drawn as ticks across the track.
     property var markers: []
 
+    // How far through its window the allowance is, as a fraction: where the
+    // fill would be if used evenly. -1 draws nothing.
+    property real pace: -1
+
     implicitHeight: thickness
 
     Rectangle {
@@ -2590,6 +2631,19 @@ Panel {
       Behavior on width {
         NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
       }
+    }
+
+    Rectangle {
+      visible: meter.pace >= 0
+      width: Math.max(2, Math.round(meter.thickness * 0.4))
+      radius: width / 2
+      height: meter.thickness * 2.2
+      anchors.verticalCenter: meterTrack.verticalCenter
+      readonly property real along: root.clamp(meterTrack.width * root.clamp(meter.pace, 0, 1) - width / 2, 0, meterTrack.width - width)
+      x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
+      // The accent shows against both the track and the fill, which the
+      // foreground and dim colors blend into.
+      color: Commons.Color.accent
     }
 
     Repeater {
