@@ -91,3 +91,10 @@ grep -q 'uv' "$mise_log" && fail "Python removal does not remove the independent
 [[ -e $test_home/.local/bin/uv && -e $test_home/.local/bin/uvx && -e $test_home/.cargo/bin/uv ]] ||
   fail "Python removal preserves uv commands"
 pass "Python removal preserves the default uv tool"
+
+mkdir -p "$test_home/.mix/archives/phx_new-1.8.0"
+: >"$mise_log"
+bash "$ROOT/bin/omarchy-remove-dev-env" phoenix >/dev/null
+[[ ! -e $test_home/.mix/archives/phx_new-1.8.0 ]] || fail "Phoenix removal drops the phx_new archive"
+[[ -s $mise_log ]] && fail "Phoenix removal leaves Elixir and Erlang installed" "$(<"$mise_log")"
+pass "Phoenix removal leaves Elixir and Erlang installed"
