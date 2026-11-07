@@ -4,61 +4,72 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 
 python3 - "$ROOT" <<'PY'
-import contextlib
-import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
-from types import ModuleType, SimpleNamespace
-from unittest.mock import patch
+import tempfile
 
 command = Path(sys.argv[1]) / "bin/omarchy-debug-pytorch"
-code = compile(command.read_text().split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0], str(command), "exec")
+fixture = tempfile.TemporaryDirectory()
+directory = Path(fixture.name)
+interpreter = directory / "python3"
+interpreter.write_text('#!/bin/bash\nprintf selected >"$OMARCHY_TEST_PYTHON_TRACE"\nexec "$OMARCHY_TEST_PYTHON" "$@"\n')
+interpreter.chmod(0o700)
+(directory / "torch.py").write_text("""
+import contextlib
+import json
+import os
+from pathlib import Path
+from types import SimpleNamespace
+
+config = json.loads(os.environ["OMARCHY_TEST_TORCH_CONFIG"])
+__version__ = "test-build"
+version = SimpleNamespace(cuda="13.0" if config["cuda"] and not config["hip"] else None, hip=config["hip"])
+no_grad = contextlib.nullcontext
+cuda = SimpleNamespace(
+  is_available=lambda: config["cuda"], device_count=lambda: 1, get_device_name=lambda index: "Test GPU"
+)
+xpu = SimpleNamespace(
+  is_available=lambda: config["xpu"], device_count=lambda: 1, get_device_name=lambda index: "Test XPU"
+)
+
+class Matrix:
+  def __matmul__(self, other):
+    if config["failure"]:
+      raise RuntimeError("missing GPU kernel")
+    return self
+
+  def sum(self):
+    return self
+
+  def item(self):
+    return 32768
+
+def ones(size, device):
+  Path(os.environ["OMARCHY_TEST_TORCH_TRACE"]).write_text(json.dumps([list(size), device]))
+  return Matrix()
+""")
 
 
 def run(args, cuda=False, hip=None, xpu=False, failure=False):
+  trace = directory / "trace.json"
+  trace.unlink(missing_ok=True)
+  selected = directory / "interpreter.txt"
+  selected.unlink(missing_ok=True)
+  env = dict(os.environ, PATH=f"{directory}:{os.environ['PATH']}", PYTHONPATH=str(directory))
+  env["OMARCHY_TEST_TORCH_CONFIG"] = json.dumps({"cuda": cuda, "hip": hip, "xpu": xpu, "failure": failure})
+  env["OMARCHY_TEST_TORCH_TRACE"] = str(trace)
+  env["OMARCHY_TEST_PYTHON"] = sys.executable
+  env["OMARCHY_TEST_PYTHON_TRACE"] = str(selected)
+  result = subprocess.run(["bash", str(command), *args], env=env, text=True, capture_output=True)
+  assert selected.exists(), "the launcher must use python3 from the active PATH"
   calls = []
-  module = ModuleType("torch")
-  module.__version__ = "test-build"
-  module.version = SimpleNamespace(cuda="13.0" if cuda and not hip else None, hip=hip)
-  module.no_grad = contextlib.nullcontext
-  module.cuda = SimpleNamespace(
-    is_available=lambda: cuda, device_count=lambda: 1, get_device_name=lambda index: "Test GPU"
-  )
-  module.xpu = SimpleNamespace(
-    is_available=lambda: xpu, device_count=lambda: 1, get_device_name=lambda index: "Test XPU"
-  )
-
-  class Matrix:
-    def __matmul__(self, other):
-      if failure:
-        raise RuntimeError("missing GPU kernel")
-      return self
-
-    def sum(self):
-      return self
-
-    def item(self):
-      return 32768
-
-  def ones(size, device):
-    calls.append((size, device))
-    return Matrix()
-
-  module.ones = ones
-  output = io.StringIO()
-  with (
-    patch.dict(sys.modules, {"torch": module}),
-    patch.object(sys, "argv", [str(command), *args]),
-    contextlib.redirect_stdout(output),
-    contextlib.redirect_stderr(output),
-  ):
-    try:
-      exec(code, {"__name__": "__main__"})
-      status = 0
-    except SystemExit as error:
-      status = error.code
-  return status, calls, output.getvalue()
+  if trace.exists():
+    size, device = json.loads(trace.read_text())
+    calls.append((tuple(size), device))
+  return result.returncode, calls, result.stdout + result.stderr
 
 
 for parameters, expected in [
@@ -71,7 +82,7 @@ for parameters, expected in [
   report = json.loads(output)
   assert status == 0 and report["device"] == expected and calls == [((32, 32), expected)], output
   assert report["rocm_build"] == parameters.get("hip") and report["matrix_check"] == "passed"
-print("ok - selects CPU, CUDA, ROCm and XPU correctly and checks the selected device")
+print("ok - the real launcher selects the active interpreter and checks CPU, CUDA, ROCm and XPU")
 
 status, calls, output = run(["--require-gpu"])
 assert status == 1 and not calls
@@ -84,4 +95,5 @@ print("ok - GPU-required and unavailable-device requests fail before allocation,
 status, calls, output = run(["--json"], cuda=True, failure=True)
 assert status == 1 and "missing GPU kernel" in output and "matrix_check" not in output
 print("ok - a real operation failure is reported instead of trusting availability alone")
+fixture.cleanup()
 PY
