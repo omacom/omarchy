@@ -323,10 +323,55 @@ mapfile -d '' -t menu_args <"$menu_log"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
 pass "--pick opens the agent defaults menu when none is set"
 
+# The aliases file defines zd only when zoxide is available, so stub it here.
+cat >"$mock_bin/zoxide" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$mock_bin/z" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"${OMARCHY_TEST_Z_LOG:?}"
+exit 0
+SH
+chmod +x "$mock_bin/zoxide" "$mock_bin/z"
+
 source "$ROOT/default/bash/aliases"
 [[ $(alias a) == "alias a='omarchy-agent --inline'" ]] ||
   fail "terminal alias launches the default agent inline"
 pass "terminal alias launches the default agent inline"
+
+# Option arguments like -- or -P must reach builtin cd, not zoxide: sourced
+# scripts use $(cd -- dir && pwd) and expect clean output (issue #18004).
+z_log="$test_tmp/z-calls"
+: >"$z_log"
+export OMARCHY_TEST_Z_LOG="$z_log"
+out=$(zd -- "$test_home" && pwd)
+[[ $out == "$test_home" ]] || fail "cd -- <dir> runs builtin cd cleanly: [$out]"
+[[ ! -s $z_log ]] || fail "cd -- <dir> must not reach zoxide"
+pass "cd -- <dir> runs builtin cd cleanly"
+
+out=$(zd -P "$test_home" && pwd)
+[[ $out == "$test_home" ]] || fail "cd -P <dir> runs builtin cd cleanly: [$out]"
+[[ ! -s $z_log ]] || fail "cd -P <dir> must not reach zoxide"
+pass "cd -P <dir> runs builtin cd cleanly"
+
+: >"$z_log"
+( zd "$test_home" ) || fail "cd <dir> changes into an existing directory"
+[[ ! -s $z_log ]] || fail "cd <dir> with an existing directory must not reach zoxide"
+pass "cd <dir> with an existing directory runs builtin cd"
+
+: >"$z_log"
+zd - >/dev/null || fail "cd - still works through zoxide"
+mapfile -d '' -t z_args <"$z_log"
+[[ ${z_args[*]} == "-" ]] || fail "cd - still goes through zoxide: ${z_args[*]}"
+pass "cd - still goes through zoxide"
+
+: >"$z_log"
+zd no-such-dir >/dev/null || fail "cd <query> still works through zoxide"
+mapfile -d '' -t z_args <"$z_log"
+[[ ${z_args[*]} == "no-such-dir" ]] || fail "cd <query> goes through zoxide: ${z_args[*]}"
+pass "cd <query> goes through zoxide"
+unset OMARCHY_TEST_Z_LOG
 
 grep -Fq 'o.bind("SUPER + SHIFT + CTRL + A", "Agent", "omarchy-agent --pick")' \
   "$ROOT/default/hypr/bindings/utilities.lua" ||

@@ -19,8 +19,8 @@ if command -v zoxide &> /dev/null; then
   zd() {
     if (( $# == 0 )); then
       builtin cd ~ || return
-    elif [[ -d $1 ]]; then
-      builtin cd "$1" || return
+    elif [[ $1 == -* && $1 != - ]] || [[ -d $1 ]]; then
+      builtin cd "$@" || return
     else
       if ! z "$@"; then
         echo "Error: Directory not found"
