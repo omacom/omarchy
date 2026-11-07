@@ -12,6 +12,10 @@ assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-
 assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'bluetooth normalizes BlueZ and PipeWire address formats')
 assert(!bluetooth.hasHumanName({ name: 'AA:BB:CC:DD:EE:FF' }), 'bluetooth rejects address-only device labels')
 assert(bluetooth.hasHumanName({ deviceName: 'MX Master 3S' }), 'bluetooth accepts human device labels')
+assert(bluetooth.rfkillSoftBlocked('blocked\n'), 'bluetooth reads a soft-blocked radio as off')
+assert(bluetooth.rfkillSoftBlocked('unblocked\nblocked\n'), 'bluetooth reads any blocked switch as off')
+assert(!bluetooth.rfkillSoftBlocked('unblocked\nunblocked\n'), 'bluetooth does not mistake "unblocked" for blocked')
+assert(!bluetooth.rfkillSoftBlocked(''), 'bluetooth treats no switches as missing, not off')
 
 const devices = [
   { name: 'Speaker', connected: false, paired: true, address: '2' },
