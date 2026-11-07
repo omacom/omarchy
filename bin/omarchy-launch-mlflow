@@ -54,11 +54,11 @@ elif [[ -f $store ]]; then
   # SQLAlchemy parses a URL before opening SQLite. Escape path characters so
   # a '?' in the filename cannot select a different database.
   store=$(python3 - "$store" <<'PY'
-import os
+from pathlib import Path
 import sys
 from urllib.parse import quote
 
-print("sqlite:///" + quote(os.path.abspath(sys.argv[1]), safe="/"))
+print("sqlite:///" + quote(str(Path(sys.argv[1]).resolve(strict=True)), safe="/"))
 PY
   )
 else

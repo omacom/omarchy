@@ -50,3 +50,15 @@ status=0
 TOOL_STATUS=7 bash "$ROOT/bin/omarchy-launch-mlflow" "$fixture/local runs" >/dev/null || status=$?
 (( status == 7 )) || fail "MLflow errors reach the caller"
 pass "MLflow errors reach the caller"
+
+mkdir -p "$fixture/project" "$fixture/other/models"
+ln -s "$fixture/other/models" "$fixture/project/link"
+printf 'SQLite format 3\0' >"$fixture/other/experiment.db"
+printf 'SQLite format 3\0' >"$fixture/project/experiment.db"
+(
+  cd -- "$fixture/project"
+  bash "$ROOT/bin/omarchy-launch-mlflow" link/../experiment.db >/dev/null
+)
+mapfile -d '' -t args <"$TRACE"
+[[ ${args[2]} == "sqlite:///$fixture/other/experiment.db" ]] || fail "symlink traversal opens the database that passed validation"
+pass "symlinks followed by parent traversal preserve the selected database"
