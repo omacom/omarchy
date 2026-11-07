@@ -137,6 +137,8 @@ BarWidget {
 
   function modeGlyph(mode) {
     if (mode === "scrolling") return "󰝥"
+    if (mode === "master") return ""
+    if (mode === "monocle") return "󰮕"
     if (mode === "floating") return "󰔶"
     return "󱓻"
   }
