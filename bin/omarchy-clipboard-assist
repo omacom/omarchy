@@ -6,10 +6,51 @@
 exec python3 - "$@" <<'PY'
 import argparse
 import json
+import os
+import selectors
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
+
+
+MAX_CLIPBOARD_CHARS = 32_000
+CLIPBOARD_READ_TIMEOUT = 2
+
+
+def read_clipboard():
+  argv = ["wl-paste", "--no-newline", "--type", "text"]
+  # Allow four UTF-8 bytes per character and one sentinel byte. Do not drain
+  # an oversized producer or accept partial input from a stalled owner.
+  byte_limit = MAX_CLIPBOARD_CHARS * 4
+  deadline = time.monotonic() + CLIPBOARD_READ_TIMEOUT
+  data = bytearray()
+  with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as reader:
+    assert reader.stdout is not None
+    try:
+      with selectors.DefaultSelector() as selector:
+        selector.register(reader.stdout, selectors.EVENT_READ)
+        while True:
+          remaining = deadline - time.monotonic()
+          if remaining <= 0 or not selector.select(remaining):
+            raise TimeoutError("Clipboard read timed out.")
+          chunk = os.read(reader.stdout.fileno(), min(16384, byte_limit + 1 - len(data)))
+          if not chunk:
+            break
+          data.extend(chunk)
+          if len(data) > byte_limit:
+            raise ValueError("Copy between 1 and 32,000 characters of text first.")
+      try:
+        code = reader.wait(timeout=max(0, deadline - time.monotonic()))
+      except subprocess.TimeoutExpired as error:
+        raise TimeoutError("Clipboard read timed out.") from error
+      if code:
+        raise subprocess.CalledProcessError(code, argv)
+    finally:
+      if reader.poll() is None:
+        reader.kill()
+  return data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def request(path, payload):
@@ -33,8 +74,8 @@ def main():
   if args.task == "translate" and not args.language:
     parser.error("translate requires --language")
 
-  text = subprocess.run(["wl-paste", "--no-newline", "--type", "text"], check=True, capture_output=True, text=True).stdout
-  if not text.strip() or len(text) > 32000:
+  text = read_clipboard()
+  if not text.strip() or len(text) > MAX_CLIPBOARD_CHARS:
     raise ValueError("Copy between 1 and 32,000 characters of text first.")
   model = request("show", {"model": args.model})
   if model.get("remote_host") or model.get("remote_model"):

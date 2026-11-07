@@ -7,7 +7,7 @@ import tempfile
 import subprocess
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = sys.argv.pop()
 COMMAND = ROOT + "/bin/omarchy-clipboard-assist"
@@ -18,6 +18,40 @@ exec(compile(python_source, COMMAND, "exec"), APP)
 
 
 class ClipboardAssistTest(unittest.TestCase):
+  @contextlib.contextmanager
+  def paste_process(self, script):
+    with tempfile.TemporaryDirectory() as directory:
+      root = Path(directory)
+      home = root / "home"
+      home.mkdir()
+      paste = root / "wl-paste"
+      paste.write_text(f"#!{sys.executable}\n" + script)
+      paste.chmod(0o755)
+      with patch.dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"),
+                      PATH=directory + os.pathsep + os.environ["PATH"]):
+        yield root
+
+  def test_stalled_clipboard_is_rejected_before_contacting_model(self):
+    request = Mock(side_effect=AssertionError("a partial clipboard reached the model"))
+    with self.paste_process('import sys, time\nsys.stdout.write("partial")\nsys.stdout.flush()\ntime.sleep(0.8)\n'), \
+         patch.dict(APP, request=request, CLIPBOARD_READ_TIMEOUT=0.2), \
+         patch("sys.argv", ["assist", "summarize", "--model", "test"]):
+      with self.assertRaisesRegex(TimeoutError, "Clipboard read timed out"):
+        APP["main"]()
+    request.assert_not_called()
+
+  def test_oversized_clipboard_reader_is_stopped_before_draining(self):
+    script = ('import sys\nfrom pathlib import Path\n'
+              'for _ in range(64):\n    sys.stdout.buffer.write(b"x" * 65536)\n'
+              'sys.stdout.buffer.flush()\nPath(sys.argv[0]).with_name("finished").touch()\n')
+    request = Mock(side_effect=AssertionError("an oversized clipboard reached the model"))
+    with self.paste_process(script) as root, patch.dict(APP, request=request), \
+         patch("sys.argv", ["assist", "summarize", "--model", "test"]):
+      with self.assertRaisesRegex(ValueError, "32,000 characters"):
+        APP["main"]()
+      self.assertFalse((root / "finished").exists())
+    request.assert_not_called()
+
   def run_app(self, extra=(), answer="Edited text", remote=False, text="Original text"):
     requests, copies = [], []
 
@@ -37,7 +71,7 @@ class ClipboardAssistTest(unittest.TestCase):
         copies.append(kwargs["input"])
       return subprocess.CompletedProcess(argv, 0, stdout=text)
 
-    with patch("sys.argv", ["assist", *extra, "--model", "test:latest"]), patch("subprocess.run", side_effect=run), patch("urllib.request.build_opener", return_value=Opener()), contextlib.redirect_stdout(io.StringIO()) as output:
+    with patch("sys.argv", ["assist", *extra, "--model", "test:latest"]), patch.dict(APP, read_clipboard=lambda: text), patch("subprocess.run", side_effect=run), patch("urllib.request.build_opener", return_value=Opener()), contextlib.redirect_stdout(io.StringIO()) as output:
       try:
         APP["main"]()
       except ValueError:
@@ -91,10 +125,11 @@ class ClipboardAssistTest(unittest.TestCase):
     self.assertIn("Hindi", requests[-1][1]["system"])
 
   def test_missing_language_rejected_before_reading_clipboard(self):
-    with patch("sys.argv", ["assist", "translate", "--model", "test"]), patch("subprocess.run") as run, contextlib.redirect_stderr(io.StringIO()):
+    read = Mock()
+    with patch("sys.argv", ["assist", "translate", "--model", "test"]), patch.dict(APP, read_clipboard=read), contextlib.redirect_stderr(io.StringIO()):
       with self.assertRaises(SystemExit):
         APP["main"]()
-      run.assert_not_called()
+      read.assert_not_called()
 
 
 unittest.main()
