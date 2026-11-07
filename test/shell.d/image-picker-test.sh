@@ -351,4 +351,78 @@ updateCtx.deleteSelectionPath = '/p/alpha.png'
 updateCtx.themeRows = 'new-rows'
 updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
+
+// Run the wheel handler itself against the real step accumulator: a notch, a
+// touchpad's smaller deltas, and the states where nothing may move.
+const wheelFns = [
+  imagePickerQml.match(/function wheelSelect\(wheel\) \{[\s\S]*?\n  \}/)[0],
+  fs.readFileSync(path.join(root, 'shell/Commons/Util.qml'), 'utf8').match(/function wheelSteps\(accumulator, delta\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+const pixelStep = Number(imagePickerQml.match(/property real wheelPixelStep: (\d+)/)[1])
+function wheelContext(rightToLeft) {
+  const ctx = {
+    opened: true,
+    layoutSettled: true,
+    deleteConfirmOpen: false,
+    wheelAccumulator: 0,
+    wheelPixelStep: pixelStep,
+    wheelAxis: "",
+    moves: [],
+    selectAdjacent(direction) { this.moves.push(direction) },
+    Commons: { I18n: { rightToLeft: !!rightToLeft } }
+  }
+  ctx.root = ctx
+  require('vm').runInNewContext(`${wheelFns}; wheelSelect`, ctx)
+  ctx.Util = { wheelSteps: ctx.wheelSteps }
+  return ctx
+}
+const notch = { pixelDelta: { y: 0, x: 0 }, angleDelta: { y: -120, x: 0 } }
+
+let scrolling = wheelContext()
+scrolling.wheelSelect(notch)
+assertDeepEqual(scrolling.moves, [1], 'wheel down selects the next image')
+assertEqual(scrolling.wheelAccumulator, 0, 'a full notch leaves nothing to accumulate')
+scrolling.wheelSelect({ pixelDelta: { y: 0, x: 0 }, angleDelta: { y: 120, x: 0 } })
+assertDeepEqual(scrolling.moves, [1, -1], 'wheel up selects the previous image')
+
+scrolling = wheelContext()
+scrolling.wheelSelect({ pixelDelta: { y: -pixelStep, x: 0 }, angleDelta: { y: 0, x: 0 } })
+assertDeepEqual(scrolling.moves, [1], `${pixelStep}px of touchpad travel moves one card`)
+scrolling = wheelContext()
+scrolling.wheelSelect({ pixelDelta: { y: -pixelStep / 2, x: 0 }, angleDelta: { y: 0, x: 0 } })
+assertDeepEqual(scrolling.moves, [], 'a touchpad nudge under a step moves nothing')
+scrolling.wheelSelect({ pixelDelta: { y: -pixelStep / 2, x: 0 }, angleDelta: { y: 0, x: 0 } })
+assertDeepEqual(scrolling.moves, [1], "touchpad deltas add up to one step")
+
+// Switching axes discards the other axis's pending travel: half a vertical
+// flick then a horizontal swipe must not combine into a step — in a
+// right-to-left layout the two gestures point opposite ways.
+scrolling = wheelContext()
+scrolling.wheelSelect({ pixelDelta: { y: -pixelStep / 2, x: 0 }, angleDelta: { y: 0, x: 0 } })
+assertDeepEqual(scrolling.moves, [], 'half a vertical step moves nothing yet')
+scrolling.wheelSelect({ pixelDelta: { y: 0, x: -pixelStep / 2 }, angleDelta: { y: 0, x: 0 } })
+assertDeepEqual(scrolling.moves, [], 'a horizontal swipe spends no vertical travel left pending')
+assertEqual(scrolling.wheelAccumulator, -60, 'the axis switch starts the accumulator fresh; half a step is 60 units')
+scrolling.wheelSelect({ pixelDelta: { y: 0, x: -pixelStep / 2 }, angleDelta: { y: 0, x: 0 } })
+assertDeepEqual(scrolling.moves, [1], 'the swipe completes on its own axis')
+
+scrolling = wheelContext()
+scrolling.deleteConfirmOpen = true
+scrolling.wheelSelect(notch)
+assertDeepEqual(scrolling.moves, [], 'the wheel moves nothing while the delete confirmation is open')
+scrolling.deleteConfirmOpen = false
+scrolling.layoutSettled = false
+scrolling.wheelSelect(notch)
+assertDeepEqual(scrolling.moves, [], 'the wheel moves nothing before the picker has revealed')
+scrolling.layoutSettled = true
+scrolling.opened = false
+scrolling.wheelSelect(notch)
+assertDeepEqual(scrolling.moves, [], 'the wheel moves nothing once the picker has closed')
+
+let swipe = wheelContext()
+swipe.wheelSelect({ pixelDelta: { y: 0, x: 0 }, angleDelta: { y: 0, x: 120 } })
+assertDeepEqual(swipe.moves, [-1], 'a rightward swipe selects the previous image')
+swipe = wheelContext(true)
+swipe.wheelSelect({ pixelDelta: { y: 0, x: 0 }, angleDelta: { y: 0, x: 120 } })
+assertDeepEqual(swipe.moves, [1], 'a rightward swipe runs the other way in a right-to-left layout')
 JS

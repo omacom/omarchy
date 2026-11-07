@@ -34,6 +34,17 @@ Item {
   property int applySerial: 0
   property string doneFile: ""
   property string filterText: ""
+  // Half a wheel step left over from the last scroll, so a touchpad's small
+  // deltas add up to a whole card before anything moves.
+  property real wheelAccumulator: 0
+  // The axis travel is accumulating on; a swipe across axes starts the
+  // accumulator fresh so one gesture's leftover never pays for the other.
+  property string wheelAxis: ""
+  // Pixels of touchpad travel that move the selection one card. A mouse wheel
+  // reports 120 units per detent, which wheelSteps already treats as one card;
+  // touchpads report pixels, so they are scaled onto the same notch here.
+  // Lower is more sensitive: 20 is a nudge, 12 barely has to move.
+  property real wheelPixelStep: 20
   property var doneFilesToRelease: []
   // Themes open from rows the shell already holds, so the picker shows without
   // waiting on omarchy-theme-switcher; each open refreshes them behind it.
@@ -66,7 +77,7 @@ Item {
   readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
   onPreviewRadiusChanged: updateVisibleItems()
 
-  onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false }
+  onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false; wheelAccumulator = 0; wheelAxis = "" }
 
   PreviewHold {
     id: previewHold
@@ -168,6 +179,49 @@ Item {
         return
       }
     }
+  }
+
+  // The wheel moves the selection the way Left/Right do: one card per notch,
+  // with smaller deltas accumulated by Util.wheelSteps (the same helper the
+  // workspaces widget scrolls with). A mouse reports 120 units per detent and
+  // a touchpad reports pixels, so touchpad travel is scaled onto that notch by
+  // wheelPixelStep instead of counting raw pixels as wheel units. A horizontal
+  // swipe drives the horizontal carousel and follows the reading direction,
+  // like the arrow keys do through Util.readingKey. The guards mirror the key
+  // handler: nothing moves before the reveal or while the delete confirmation
+  // owns the screen.
+  function wheelSelect(wheel) {
+    if (!root.opened || !root.layoutSettled || root.deleteConfirmOpen) return
+
+    var fromPixels = !!(wheel.pixelDelta.y || wheel.pixelDelta.x)
+    var delta = wheel.pixelDelta.y || wheel.angleDelta.y
+    var horizontal = false
+    if (!delta) {
+      delta = wheel.pixelDelta.x || wheel.angleDelta.x
+      horizontal = true
+    }
+    if (!delta) return
+    if (fromPixels) delta *= 120 / root.wheelPixelStep
+
+    // A new axis starts fresh: half a vertical flick must not be spent by the
+    // next horizontal swipe, which in a right-to-left layout points the other
+    // way. A mouse always arrives as a full notch, so this discards nothing.
+    var axis = horizontal ? "horizontal" : "vertical"
+    if (axis !== root.wheelAxis) {
+      root.wheelAccumulator = 0
+      root.wheelAxis = axis
+    }
+
+    var step = Util.wheelSteps(root.wheelAccumulator, delta)
+    root.wheelAccumulator = step.remainder
+    if (step.steps === 0) return
+
+    // Scroll down or right reads as "next" along the way text is read, which a
+    // right-to-left carousel runs backwards along x only.
+    var forward = delta > 0 ? -1 : 1
+    if (horizontal && Commons.I18n.rightToLeft) forward = -forward
+
+    for (var i = 0; i < Math.abs(step.steps); i++) root.selectAdjacent(forward)
   }
 
   function updateFilter(nextFilterText) {
@@ -638,6 +692,7 @@ Item {
       anchors.fill: parent
       enabled: root.opened && root.imagesLoaded
       onClicked: root.cancel()
+      onWheel: function(wheel) { root.wheelSelect(wheel) }
     }
 
     // Count presented frames while the card pre-renders below; two frames
@@ -666,7 +721,12 @@ Item {
       height: root.expandedHeight + Style.space(30) + root.bottomChromeHeight
       anchors.centerIn: parent
 
-        MouseArea { anchors.fill: parent; enabled: root.layoutSettled; onClicked: {} }
+        MouseArea {
+          anchors.fill: parent
+          enabled: root.layoutSettled
+          onClicked: {}
+          onWheel: function(wheel) { root.wheelSelect(wheel) }
+        }
 
         Item {
           id: carousel
