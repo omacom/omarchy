@@ -238,6 +238,8 @@ Item {
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
+    // A copy per widget, so a widget cannot change the bar's own margins.
+    api.barMargins = Qt.binding(function() { return Object.assign({}, root.barMargins) })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
@@ -714,6 +716,23 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+  // A detached bar floats barMargins away from every screen edge it touches
+  // and rounds its corners by radiusFor(). Every side is 0 by default, which
+  // anchors the bar flush against its edge with square corners. The keys are
+  // the position names, so barMargins[position] is the anchored edge's gap.
+  //
+  // bar.floating in shell.json switches the gap on or off; unset, the theme's
+  // margin decides. Without a theme margin a floating bar keeps Hyprland's
+  // gaps_out, and an unset radius follows Hyprland's rounding.
+  property var floatingSetting: undefined
+  readonly property bool floating: BarModel.barFloating(floatingSetting, Style.bar.margins, position)
+  readonly property var barMargins: floating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, position) : BarModel.NO_MARGINS
+  readonly property bool floatInGap: BarModel.floatsInGap(floating, Style.bar.margins, position)
+  // The corner radius of a bar `thickness` thick. Each surface passes its own:
+  // one floored at a display cutout is taller than barSize and rounds further.
+  function radiusFor(thickness) {
+    return BarModel.barRadius(floating, Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined, Style.cornerRadius, thickness)
+  }
 
   // Display cutouts (a camera notch) the platform's own package describes in
   // the fixed platform root, which no environment variable moves. Most machines
@@ -757,13 +776,23 @@ Item {
     }) : null
   }
 
+  // How far a panel's camera cutout reaches into the top bar on a screen. A
+  // theme margin sits the bar that far below the edge, so the cutout reaches
+  // that much less into it, and not at all once the margin clears it. A bar
+  // floating in the gap reserves only what a flush bar reserves, so it keeps
+  // the flush floor, or floating it would move the windows.
+  function notchReachFor(screen) {
+    if (root.vertical || !screen) return 0
+    return BarModel.notchReach(BarModel.notchFloor(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen), Style.bar.notchHeight), root.floatInGap ? 0 : root.barMargins.top)
+  }
+
   // How thick the bar is on a screen. A top bar shorter than a panel's camera
   // cutout leaves a sliver of every window peeking out beside the camera, so
   // the cutout is this panel's minimum sensible top-bar height. An
   // intentionally taller bar still wins.
   function thicknessFor(screen) {
     if (root.vertical || !screen) return root.barSize
-    return Math.max(root.barSize, BarModel.notchFloor(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen), Style.bar.notchHeight))
+    return Math.max(root.barSize, root.notchReachFor(screen))
   }
 
   // Each screen's bar thickness, by screen name: barSize, or more where a notch
@@ -794,6 +823,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    floatingSetting = typeof config.floating === "boolean" ? config.floating : undefined
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -1358,15 +1388,9 @@ Item {
   function moduleRemoveDistance(screenPoint) {
     var screen = barDragScreen
     if (!screen) return 0
-    var thickness = thicknessFor(screen)
-    var x = screenPoint.x
-    var y = screenPoint.y
-    if (vertical) {
-      if (position === "right") x -= Math.max(0, screen.width - thickness)
-      return BarModel.dragDistanceOutside({ x: x, y: y }, thickness, screen.height)
-    }
-    if (position === "bottom") y -= Math.max(0, screen.height - thickness)
-    return BarModel.dragDistanceOutside({ x: x, y: y }, screen.width, thickness)
+    // A floating strip sits inside its margins (BarModel.stripRect).
+    var strip = BarModel.stripRect(position, barMargins, thicknessFor(screen), screen.width, screen.height)
+    return BarModel.dragDistanceOutside({ x: screenPoint.x - strip.x, y: screenPoint.y - strip.y }, strip.width, strip.height)
   }
 
   // Arming closes the dragged widget's room, and disarming opens it again
@@ -1517,13 +1541,20 @@ Item {
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
-      colorHex(root.themeContrastForeground)
+      colorHex(root.themeContrastForeground),
+      // A detached bar no longer covers the strip at the screen edge, so the
+      // sample has to move in with it or the contrast is picked against pixels
+      // the bar does not sit on.
+      "--inset",
+      [root.barMargins.top, root.barMargins.right,
+       root.barMargins.bottom, root.barMargins.left].join(" ")
     ]
     transparentForegroundProc.running = true
   }
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarMarginsChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1724,7 +1755,8 @@ Item {
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: thickness
+    // A floating bar reserves its theme margin as well (reservedMargin).
+    exclusiveZone: thickness + BarModel.reservedMargin(root.floatInGap, root.barMargins, root.position)
 
     // While this window's widget or bar-move drag is live, the whole surface
     // takes input (mask below), so the pointer never leaves the bar surface
@@ -1758,7 +1790,9 @@ Item {
 
     readonly property var panelMode: root.panelModeFor(screen)
 
-    readonly property bool centerBesideRight: BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
+    // Only while the cutout still reaches into the bar: a top margin that
+    // clears it leaves the center section in the middle.
+    readonly property bool centerBesideRight: BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode) && root.notchReachFor(screen) > 0
 
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false
@@ -1819,33 +1853,49 @@ Item {
       id: noInputRegion
     }
 
-    // The bar itself, along its screen edge.
+    // A detached bar sits inside every edge it touches: the one it hangs from
+    // and the two it spans. The remaining side is the bar's own far face,
+    // which no margin applies to. The strip sits in this frame as a flush bar
+    // sits in the window.
     Item {
-      id: barStrip
+      id: barFrame
+      anchors.fill: parent
+      anchors.topMargin: root.position === "bottom" ? 0 : root.barMargins.top
+      anchors.bottomMargin: root.position === "top" ? 0 : root.barMargins.bottom
+      anchors.leftMargin: root.position === "right" ? 0 : root.barMargins.left
+      anchors.rightMargin: root.position === "left" ? 0 : root.barMargins.right
 
-      x: root.position === "right" ? parent.width - barWindow.thickness : 0
-      y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
-      width: root.vertical ? barWindow.thickness : parent.width
-      height: root.vertical ? parent.height : barWindow.thickness
+      // The bar itself, along its screen edge.
+      Item {
+        id: barStrip
 
-      Rectangle {
-        anchors.fill: parent
-        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
-      }
+        x: root.position === "right" ? parent.width - barWindow.thickness : 0
+        y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
+        width: root.vertical ? barWindow.thickness : parent.width
+        height: root.vertical ? parent.height : barWindow.thickness
 
-      Loader {
-        anchors.fill: parent
-        sourceComponent: root.vertical ? verticalBar : horizontalBar
+        // Carries the bar's background, which is what lets radiusFor() round
+        // the corners.
+        Rectangle {
+          anchors.fill: parent
+          color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+          radius: root.radiusFor(barWindow.thickness)
+        }
 
-        // A child of the loader, not a sibling of the sections: an ancestor stays
-        // hovered while the pointer is over a widget, where a sibling would lose
-        // hover to the section the pointer entered.
-        HoverHandler {
-          readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
-          onPeekingChanged: root.setBarHovered(peeking)
-          // Unplugging a monitor destroys its bar without a leave event, which
-          // would strand this surface's tally and hold the peek open for good.
-          Component.onDestruction: if (peeking) root.setBarHovered(false)
+        Loader {
+          anchors.fill: parent
+          sourceComponent: root.vertical ? verticalBar : horizontalBar
+
+          // A child of the loader, not a sibling of the sections: an ancestor stays
+          // hovered while the pointer is over a widget, where a sibling would lose
+          // hover to the section the pointer entered.
+          HoverHandler {
+            readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
+            onPeekingChanged: root.setBarHovered(peeking)
+            // Unplugging a monitor destroys its bar without a leave event, which
+            // would strand this surface's tally and hold the peek open for good.
+            Component.onDestruction: if (peeking) root.setBarHovered(false)
+          }
         }
       }
     }
@@ -2243,11 +2293,17 @@ Item {
         required property string modelData
         readonly property bool edgeVertical: modelData === "left" || modelData === "right"
         readonly property int edgeSize: edgeVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+        // Where the bar would sit on that edge, floating margins included. A
+        // theme margin can float the bar on one edge and not another, so the
+        // floating state is the target edge's.
+        readonly property bool edgeFloating: BarModel.barFloating(root.floatingSetting, Style.bar.margins, modelData)
+        readonly property var edgeMargins: edgeFloating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, modelData) : BarModel.NO_MARGINS
 
-        x: modelData === "right" ? parent.width - edgeSize : 0
-        y: modelData === "bottom" ? parent.height - edgeSize : 0
-        width: edgeVertical ? edgeSize : parent.width
-        height: edgeVertical ? parent.height : edgeSize
+        x: modelData === "right" ? parent.width - edgeSize - edgeMargins.right : edgeMargins.left
+        y: modelData === "bottom" ? parent.height - edgeSize - edgeMargins.bottom : edgeMargins.top
+        width: edgeVertical ? edgeSize : parent.width - edgeMargins.left - edgeMargins.right
+        height: edgeVertical ? parent.height - edgeMargins.top - edgeMargins.bottom : edgeSize
+        radius: BarModel.barRadius(edgeFloating, Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined, Style.cornerRadius, edgeSize)
         color: root.transparent ? "transparent" : root.background
         borderSpec: Border.flat(root.barForeground, 1)
         visible: opacity > 0

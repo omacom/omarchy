@@ -644,6 +644,13 @@ function cutoutPending(cutouts, position, screenName, logicalWidth, logicalHeigh
   return described && !(cutoutTop(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) > 0)
 }
 
+// How far a cutout reaches into a top bar that sits `margin` below the screen
+// edge: the floor less the margin, and nothing once the margin clears it.
+function notchReach(floor, margin) {
+  var reach = Number(floor) - Math.max(0, Number(margin) || 0)
+  return reach > 0 ? reach : 0
+}
+
 // The bar's thickness on the screen with this name, from the sizes a bar
 // publishes by screen name, or `fallback` (its configured size) for a screen
 // it has none for.
@@ -686,6 +693,97 @@ function fullscreenOn(toplevels, workspaceId) {
   return false
 }
 
+// Floating bar. `setting` is bar.floating from shell.json: true, false, or
+// unset. Unset, a theme's [bar] margin decides, and is used as given. Without
+// a theme margin the bar floats inside the space a flush bar already has:
+// half of Hyprland's gaps_out from the screen edge, so the gap is the same on
+// both sides of the bar, and the full gaps_out at its ends, so they line up
+// with the windows.
+// Frozen: plugins see it as bar.barMargins, and one writing to it would
+// move every flush bar.
+var NO_MARGINS = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 })
+
+function hasMargin(margins) {
+  return !!margins && (margins.top > 0 || margins.right > 0 || margins.bottom > 0 || margins.left > 0)
+}
+
+// Whether a theme margin moves the bar at all: only the edge it is anchored
+// to and the two it spans take a gap, so a margin on the far side alone
+// leaves it flush.
+function hasEdgeMargin(margins, position) {
+  if (!margins) return false
+  var edge = normalizePosition(position)
+  var vertical = edge === "left" || edge === "right"
+  return margins[edge] > 0 || (vertical ? margins.top > 0 || margins.bottom > 0 : margins.left > 0 || margins.right > 0)
+}
+
+function barFloating(setting, themeMargins, position) {
+  if (setting === true || setting === false) return setting
+  return hasEdgeMargin(themeMargins, position)
+}
+
+function barMargins(floating, themeMargins, gaps, position) {
+  if (!floating) return NO_MARGINS
+  if (hasEdgeMargin(themeMargins, position)) return themeMargins
+  if (!hasMargin(gaps)) return NO_MARGINS
+  var edge = normalizePosition(position)
+  var margins = { top: gaps.top, right: gaps.right, bottom: gaps.bottom, left: gaps.left }
+  margins[edge] = Math.round(gaps[edge] / 2)
+  return margins
+}
+
+// Corner radius of the bar background: only while it floats, a flush bar
+// stays square. A theme's [bar] radius wins over Hyprland's rounding, and
+// neither rounds past half the bar's thickness.
+function barRadius(floating, themeRadius, hyprRadius, barSize) {
+  if (!floating) return 0
+  var radius = themeRadius === undefined || themeRadius === null ? hyprRadius : themeRadius
+  radius = Number(radius)
+  if (!isFinite(radius) || radius < 0) radius = 0
+  return Math.min(radius, Math.floor(Number(barSize) / 2) || 0)
+}
+
+// The default floating bar keeps the windows where a flush bar leaves them:
+// it reserves only what a flush bar reserves, so switching floating on or off
+// never moves a window. A theme margin is reserved on top of the bar instead.
+function floatsInGap(floating, themeMargins, position) {
+  return floating === true && !hasEdgeMargin(themeMargins, position)
+}
+
+// Where the strip sits on its screen. The bar window spans the screen and
+// sits on its edge; the strip hangs from the anchored edge inside the margins
+// of the edges it touches: that one and the two it spans. The remaining side
+// is the bar's own far face, which no margin applies to.
+function stripRect(position, margins, thickness, screenWidth, screenHeight) {
+  var edge = normalizePosition(position)
+  var m = margins || NO_MARGINS
+  var size = Number(thickness) || 0
+  if (edge === "left" || edge === "right") {
+    return {
+      x: edge === "right" ? screenWidth - m.right - size : m.left,
+      y: m.top,
+      width: size,
+      height: screenHeight - m.top - m.bottom
+    }
+  }
+  return {
+    x: m.left,
+    y: edge === "bottom" ? screenHeight - m.bottom - size : m.top,
+    width: screenWidth - m.left - m.right,
+    height: size
+  }
+}
+
+// What the bar reserves past its own thickness. The window sits on the screen
+// edge, so its zone counts from there: a theme margin is reserved on top of
+// the bar. Floating inside the gap, the bar reserves nothing more, the margin
+// it floats in comes out of the gap the windows already keep, so floating
+// never moves a window.
+function reservedMargin(inGap, margins, position) {
+  if (inGap) return 0
+  return (margins || NO_MARGINS)[normalizePosition(position)] || 0
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
@@ -695,8 +793,17 @@ if (typeof module !== "undefined") {
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,
+    barFloating: barFloating,
+    barMargins: barMargins,
+    floatsInGap: floatsInGap,
+    hasEdgeMargin: hasEdgeMargin,
+    NO_MARGINS: NO_MARGINS,
+    stripRect: stripRect,
+    reservedMargin: reservedMargin,
+    barRadius: barRadius,
     isDrawnSlot: isDrawnSlot,
     notchFloor: notchFloor,
+    notchReach: notchReach,
     parseCutouts: parseCutouts,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
