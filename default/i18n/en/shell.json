@@ -299,6 +299,7 @@
   "elsewhen.remove": "Remove",
   "elsewhen.searchCities": "Search cities…",
   "elsewhen.searchingPlaces": "Searching places…",
+  "elsewhen.solarNoonAt": "Sun highest %1",
   "elsewhen.sunriseAt": "Sunrise %1",
   "elsewhen.sunsetAt": "Sunset %1",
   "elsewhen.timezoneChanged": "Now in %1, and the clock is on %2",

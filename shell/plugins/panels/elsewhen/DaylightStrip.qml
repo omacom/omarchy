@@ -7,8 +7,9 @@ import "Model.js" as Model
 import "Sun.js" as Sun
 
 // A city's 24 hours, midnight to midnight: its real daylight lit, a marker at
-// now (the sun by day, tonight's moon by night), and sunrise/sunset arrows
-// while the row is hovered. Dragging along it scrubs every clock.
+// now (the sun by day, tonight's moon by night), a pin at solar noon, and
+// sunrise/sunset arrows while the row is hovered. Dragging along it scrubs
+// every clock.
 Item {
   id: strip
 
@@ -37,8 +38,10 @@ Item {
   readonly property bool mirrored: LayoutMirroring.enabled
   function stripFraction(fraction) { return mirrored ? 1 - fraction : fraction }
 
-  // Which arrow's time is showing: its index, or Model.NO_CHIP.
+  // Which mark's time is showing: an arrow index, noonChip, or Model.NO_CHIP.
+  // Arrows take 0 and 1. Noon keeps 2, so a row with one arrow still opens it.
   property int shownChip: Model.NO_CHIP
+  readonly property int noonChip: 2
 
   signal scrubStarted(real fraction)
   signal scrubMoved(real fraction)
@@ -76,6 +79,16 @@ Item {
     if (up !== null) out.push({ x: up, minutes: sun.riseMinutes, rising: true, label: Commons.I18n.t("elsewhen.sunriseAt") })
     if (down !== null) out.push({ x: down, minutes: sun.setMinutes, rising: false, label: Commons.I18n.t("elsewhen.sunsetAt") })
     return out
+  }
+
+  // Where the sun is highest. The band edges already show sunrise and sunset;
+  // noon has no edge of its own, so the pin stays up. Still there in polar day
+  // and night: the sun has a highest point whether or not it crosses the horizon.
+  readonly property var noonMark: {
+    if (!sun || sun.noonMinutes === null || sun.noonMinutes === undefined) return null
+    var at = Sun.eventMark(sun.noonMinutes)
+    if (at === null) return null
+    return { x: at, minutes: sun.noonMinutes, label: Commons.I18n.t("elsewhen.solarNoonAt") }
   }
 
   // Read from the band that is drawn, so the sun never sits in the dark.
@@ -160,6 +173,65 @@ Item {
     }
     onReleased: finish()
     onCanceled: finish()
+  }
+
+  // Solar noon: a sun sitting on the minute the sun is highest, in the gap
+  // above the track. Tap it for the time. Arrows are later siblings, so a
+  // sunrise that lands on the same minute keeps the click.
+  Item {
+    id: noonPin
+    readonly property var mark: strip.noonMark
+    readonly property bool covered: mark !== null && strip.ready
+      && Model.arrowCovered(noonPin.x, noonPin.width,
+                            nowMarker.x + nowMarker.width / 2, nowMarker.width, Style.space(4))
+
+    visible: mark !== null && !covered
+    width: Style.space(14)
+    height: Style.space(11)
+    anchors.bottom: track.top
+    x: mark ? Math.round(strip.width * strip.stripFraction(mark.x) - width / 2) : 0
+
+    onCoveredChanged: if (covered && strip.shownChip === strip.noonChip) strip.dismissChips()
+
+    Rectangle {
+      id: noonStem
+      width: Math.max(2, Style.space(1))
+      radius: width / 2
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: noonDot.bottom
+      anchors.bottom: parent.bottom
+      color: strip.daylightMarker
+    }
+
+    Rectangle {
+      id: noonDot
+      width: Style.space(7)
+      height: width
+      radius: width / 2
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: parent.top
+      color: strip.daylightMarker
+    }
+
+    HoverHandler {
+      cursorShape: Qt.PointingHandCursor
+    }
+
+    TapHandler {
+      property int atPress: Model.NO_CHIP
+      onPressedChanged: if (pressed) atPress = strip.shownChip
+      onTapped: strip.shownChip = Model.chipAfterTap(atPress, strip.noonChip)
+    }
+
+    PanelToolTip {
+      visible: strip.shownChip === strip.noonChip && noonPin.mark !== null
+      delay: 0
+      closePolicy: Popup.NoAutoClose
+      text: noonPin.mark
+        ? noonPin.mark.label.arg(Model.formatMinuteOfDay(noonPin.mark.minutes, strip.hour24, strip.words))
+        : ""
+      fontFamily: strip.fontFamily
+    }
   }
 
   // Sunrise and sunset, just outside the lit band they point at.
