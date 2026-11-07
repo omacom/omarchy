@@ -19,6 +19,12 @@ case "${1:-}" in
     ;;
 esac
 
+# Mobile broadband modems expose their data link as a WWAN netdev. It has no
+# wireless/ directory, so without this check it would read as Ethernet.
+is_mobile() {
+  grep -qx 'DEVTYPE=wwan' "/sys/class/net/$1/uevent" 2>/dev/null
+}
+
 print_status() {
   local device nm state ssid signal freq
 
@@ -26,6 +32,11 @@ print_status() {
 
   if [[ -z $device ]]; then
     printf 'disconnected\t\t\t\n'
+    return
+  fi
+
+  if is_mobile "$device"; then
+    printf 'mobile\t%s\t\t\n' "$device"
     return
   fi
 
@@ -121,6 +132,8 @@ print_verbose() {
         printf 'bitrate\t%s %s\n' "$(awk '/tx bitrate:/ { print $3; exit }' <<<"$link")" "$(awk '/tx bitrate:/ { print $4; exit }' <<<"$link")"
       fi
     fi
+  elif is_mobile "$iface"; then
+    printf 'type\tmobile\n'
   else
     printf 'type\tethernet\n'
     [[ -r /sys/class/net/$iface/speed ]] && printf 'speed\t%s\n' "$(cat /sys/class/net/$iface/speed)"
