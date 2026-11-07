@@ -2,4 +2,12 @@
 
 # omarchy:summary=Restart the hyprsunset service (used for blue light filtering/night light).
 
-omarchy-restart-app hyprsunset
+pkill -x hyprsunset 2>/dev/null || true
+
+# A replacement that starts before the old process releases the compositor's CTM manager exits at once.
+for _ in {1..50}; do
+  pgrep -x hyprsunset >/dev/null || break
+  sleep 0.1
+done
+
+setsid hyprsunset >/dev/null 2>&1 &
