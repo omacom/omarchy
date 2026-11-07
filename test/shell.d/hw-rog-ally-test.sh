@@ -43,15 +43,16 @@ run_laptop() {
 
 vendor="ASUSTeK COMPUTER INC."
 
-write_dmi "$vendor" "ROG Ally RC71L" "RC71L"
+# Leave the board empty so only the product-name branch can match these cases.
+write_dmi "$vendor" "ROG Ally RC71L" ""
 run_ally || fail "product ROG Ally RC71L is the original Ally"
 pass "product ROG Ally RC71L is the original Ally"
 
-write_dmi "$vendor" "ROG Ally RC71L_RC71L" "RC71L"
+write_dmi "$vendor" "ROG Ally RC71L_RC71L" ""
 run_ally || fail "product ROG Ally RC71L_RC71L is the original Ally"
 pass "product ROG Ally RC71L_RC71L is the original Ally"
 
-write_dmi "$vendor" "ROG Ally RC71L_Action" "RC71L"
+write_dmi "$vendor" "ROG Ally RC71L_Action" ""
 run_ally || fail "product ROG Ally RC71L_Action is the original Ally"
 pass "product ROG Ally RC71L_Action is the original Ally"
 
