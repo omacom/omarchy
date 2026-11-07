@@ -64,11 +64,11 @@ Two ways to drive it:
   The payload can carry `imageDirs`, `imageRows`, `selectedImage`,
   `selectionFile`, `doneFile`, `showLabels`, `filterable`. Best for
   in-shell callers that already speak JSON.
-- Direct IPC target: `omarchy-shell image-selector open <imageDirs> <imageRowsB64> <selectedImage> <selectionFile> <doneFile> <showLabels> <filterable>`.
-  Positional args; `imageRowsB64` is base64-encoded so embedded newlines /
-  tabs survive the bash argv handoff. This is what `omarchy-menu-images`
-  uses. Colors come from the central shell theme singleton; there is no
-  per-call override surface.
+- Direct IPC target: `omarchy-shell image-selector open <imageDirs> <imageRowsFile> <selectedImage> <selectionFile> <doneFile> <showLabels> <filterable>`.
+  Positional args; `imageRowsFile` is the path of a file holding the rows,
+  which the call reads before it returns, so a large image list never travels
+  as an argument. This is what `omarchy-menu-images` uses. Colors come from
+  the central shell theme singleton; there is no per-call override surface.
 
 The selection round-trip remains file-based: callers create a
 `selection_file` and `done_file` (both `mktemp`), pass the paths, and
