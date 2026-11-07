@@ -1,0 +1,192 @@
+#!/bin/bash
+
+# omarchy:summary=Cap T2 MacBook CPU package power on battery and AC
+# omarchy:args=[0|1]
+# omarchy:examples=omarchy battery cpu limit 0
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# On a T2 MacBook a big parallel build can spike the CPU past what the power
+# source sustains: the voltage droops until the BMS cuts all power (a hard
+# shutdown with nothing in the journal). power-saver only hints EPP, it never
+# caps frequency or package power, so this caps the CPU hard while
+# discharging and clamps the package limits on AC.
+#
+# Invoked as root with no args from the udev power-supply rule on plug/unplug,
+# the udev powercap rule once the RAPL zone registers at boot, the
+# system-sleep hook, and thermald's ExecStartPre. It then reads the power state
+# itself: AC when any Mains or USB supply is online, as omarchy-power-present
+# decides. Runs are serialized by a lock, so concurrent boot-time runs cannot
+# save one run's capped values as the AC defaults. An explicit 0 (battery) or
+# 1 (AC) overrides the state. Exits quietly on anything but a T2 MacBook with
+# Intel pstate.
+#
+# The RAPL package limits (PL1 long-term, PL2 short-term) are what actually
+# bound the draw: no-turbo and max-perf-pct only cap frequency, and an 8-core
+# i9 at base clock still pulls far more than a battery-safe 25-35W. They are
+# written through constraint_*_power_limit_uw; constraint_*_max_power_uw is
+# the read-only hardware ceiling. RAPL is best-effort: it can be absent, or
+# locked by the BIOS, in which case a warning is logged and the frequency cap
+# still applies.
+#
+# On AC the firmware limits are too high as well: a MacBookPro16,1
+# (i9-9980HK, 45W TDP) boots with PL1=100W/PL2=125W, above its 96W charger,
+# and hard-cut on AC with those limits. So AC restores the saved frequency
+# policy but never more than 45W/60W; firmware limits already below that are
+# kept.
+
+set -euo pipefail
+
+sys_root="${OMARCHY_SYSFS_ROOT:-/sys}"
+state_dir="${OMARCHY_BATTERY_CPU_STATE_DIR:-/var/lib/omarchy/battery-cpu-limit}"
+
+pstate_no_turbo="$sys_root/devices/system/cpu/intel_pstate/no_turbo"
+pstate_max_pct="$sys_root/devices/system/cpu/intel_pstate/max_perf_pct"
+rapl_pl1="$sys_root/class/powercap/intel-rapl:0/constraint_0_power_limit_uw"
+rapl_pl2="$sys_root/class/powercap/intel-rapl:0/constraint_1_power_limit_uw"
+
+bat_max_pct=50
+bat_pl1=25000000
+bat_pl2=35000000
+ac_pl1_max=45000000
+ac_pl2_max=60000000
+
+# Firmware values, only a fallback: the real saved AC policy wins whenever the
+# state files exist.
+ac_no_turbo_fallback=0
+ac_max_pct_fallback=100
+
+fail() {
+  echo "omarchy-battery-cpu-limit: error: $*" >&2
+  exit 1
+}
+
+if (( $# > 1 )); then
+  fail "usage: omarchy battery cpu-limit [0|1]"
+fi
+
+if (( $# == 1 )); then
+  [[ $1 == 0 || $1 == 1 ]] || fail "state must be 0 (battery) or 1 (AC)"
+fi
+
+# AC when any Mains or USB supply is online, the omarchy-power-present
+# contract. A machine that exposes no external supply at all gives no sign of
+# discharging, so it keeps the AC policy.
+read_online() {
+  local supply type found=0
+  for supply in "$sys_root"/class/power_supply/*; do
+    type=$(cat "$supply/type" 2>/dev/null) || continue
+    [[ $type == Mains || $type == USB ]] || continue
+    found=1
+    if [[ $(cat "$supply/online" 2>/dev/null) == 1 ]]; then
+      echo 1
+      return
+    fi
+  done
+  if (( found )); then echo 0; else echo 1; fi
+}
+
+# Apple T2 security chip (PCI 106b:1801 or 106b:1802), as fix-t2.sh detects it.
+t2_mac() {
+  local dev
+  for dev in "$sys_root"/bus/pci/devices/*; do
+    [[ $(cat "$dev/vendor" 2>/dev/null) == 0x106b ]] || continue
+    [[ $(cat "$dev/device" 2>/dev/null) == 0x180[12] ]] && return 0
+  done
+  return 1
+}
+
+[[ -f $pstate_no_turbo && -f $pstate_max_pct ]] || exit 0
+t2_mac || exit 0
+
+battery_found=0
+for supply in "$sys_root"/class/power_supply/*; do
+  [[ $(cat "$supply/type" 2>/dev/null) == Battery ]] && battery_found=1
+done
+(( battery_found )) || exit 0
+
+# Save the AC policy before anything is capped: at that point the live values
+# are still the firmware/boot policy, including on a boot that starts on
+# battery. Each knob is saved individually so a later version that tracks a new
+# knob never re-snapshots (and contaminates) the knobs it already saved. PL1
+# and PL2 are only saved when RAPL exists, and only restored when saved.
+mkdir -p "$state_dir"
+exec 9>"$state_dir/lock"
+flock 9
+
+if (( $# == 1 )); then
+  online=$1
+else
+  online=$(read_online)
+fi
+
+save_knob() {
+  local path=$1 name=$2
+  [[ -f $state_dir/$name ]] && return 0
+  [[ -r $path ]] || return 0
+  cat "$path" >"$state_dir/$name"
+}
+save_knob "$pstate_no_turbo" no-turbo
+save_knob "$pstate_max_pct" max-pct
+save_knob "$rapl_pl1" pl1
+save_knob "$rapl_pl2" pl2
+
+set_value() {
+  local path=$1 value=$2 label=$3 actual
+  echo "$value" >"$path" || fail "cannot write $label ($path)"
+  actual=$(cat "$path") || fail "cannot read back $label ($path)"
+  [[ $actual == "$value" ]] || fail "$label not applied (want $value, got $actual)"
+  echo "omarchy-battery-cpu-limit: $label=$actual"
+}
+
+# The saved firmware limit, clamped to the AC ceiling. A missing or zero
+# (unset) firmware value gets the ceiling.
+ac_limit() {
+  local name=$1 ceiling=$2 saved=0
+  [[ -r $state_dir/$name ]] && saved=$(cat "$state_dir/$name")
+  if [[ $saved =~ ^[0-9]+$ ]] && (( saved > 0 && saved < ceiling )); then
+    echo "$saved"
+  else
+    echo "$ceiling"
+  fi
+}
+
+# RAPL can be absent or BIOS-locked: try it, warn, move on.
+try_rapl() {
+  local path=$1 value=$2 label=$3 actual
+  if [[ ! -e $path ]]; then
+    echo "omarchy-battery-cpu-limit: warning: $label not available, skipping" >&2
+    return 0
+  fi
+  if ! echo "$value" >"$path" 2>/dev/null; then
+    echo "omarchy-battery-cpu-limit: warning: $label not writable, skipping" >&2
+    return 0
+  fi
+  actual=$(cat "$path" 2>/dev/null) || {
+    echo "omarchy-battery-cpu-limit: warning: cannot read back $label" >&2
+    return 0
+  }
+  if [[ $actual == "$value" ]]; then
+    echo "omarchy-battery-cpu-limit: $label=$actual"
+  else
+    echo "omarchy-battery-cpu-limit: warning: $label not applied (want $value, got $actual)" >&2
+  fi
+}
+
+if (( online == 0 )); then
+  echo "omarchy-battery-cpu-limit: on battery, capping CPU package power"
+  set_value "$pstate_no_turbo" 1 no-turbo
+  set_value "$pstate_max_pct" "$bat_max_pct" max-perf-pct
+  try_rapl "$rapl_pl1" "$bat_pl1" PL1
+  try_rapl "$rapl_pl2" "$bat_pl2" PL2
+else
+  echo "omarchy-battery-cpu-limit: on AC, restoring saved policy (package power clamped)"
+  want_turbo=$ac_no_turbo_fallback
+  want_pct=$ac_max_pct_fallback
+  [[ -r $state_dir/no-turbo ]] && want_turbo=$(cat "$state_dir/no-turbo")
+  [[ -r $state_dir/max-pct ]] && want_pct=$(cat "$state_dir/max-pct")
+  set_value "$pstate_no_turbo" "$want_turbo" no-turbo
+  set_value "$pstate_max_pct" "$want_pct" max-perf-pct
+  try_rapl "$rapl_pl1" "$(ac_limit pl1 "$ac_pl1_max")" PL1
+  try_rapl "$rapl_pl2" "$(ac_limit pl2 "$ac_pl2_max")" PL2
+fi
