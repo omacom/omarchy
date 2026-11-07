@@ -253,6 +253,13 @@ pass "use makes an account active and says so"
 # tools installed before it started.
 [[ :$(MISE_DATA_DIR="$test_tmp/mise" OMARCHY_TEST_SHOW_PATH=1 omarchy-agent-account-exec claude): == *":$test_tmp/mise/shims:"* ]] ||
   fail "an agent finds mise tools installed after it started"
+# Newer mise leaves its wrapper directory on PATH; dispatch must still run the
+# CLI rather than the wrapper, which would reorder PATH behind the system's.
+mkdir -p "$test_tmp/mise/command-wrappers/bin"
+printf '#!/bin/bash\necho "wrapper ran again"\n' >"$test_tmp/mise/command-wrappers/bin/claude"
+chmod +x "$test_tmp/mise/command-wrappers/bin/claude"
+[[ $(MISE_DATA_DIR="$test_tmp/mise" PATH="$test_tmp/mise/command-wrappers/bin:$PATH" omarchy-agent-account-exec claude --version) == "claude home=$work args=--version" ]] ||
+  fail "dispatch runs the CLI, not a mise wrapper left on PATH"
 pass "account dispatch follows the active account"
 
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||

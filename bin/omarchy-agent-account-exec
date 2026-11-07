@@ -31,6 +31,18 @@ if [[ -z ${!account_env:-} ]]; then
   fi
 fi
 
+# mise 2026.10.23 and later keep their wrapper directory on PATH, so the lookup
+# below would find this wrapper again rather than the CLI. Run a second time, the
+# wrapper puts the inherited PATH ahead of the project's mise tools, and a system
+# ruby or python shadows the pinned one in everything the agent runs.
+mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+PATH=":$PATH:"
+while [[ $PATH == *":$mise_data_dir/command-wrappers/bin:"* ]]; do
+  PATH=${PATH/":$mise_data_dir/command-wrappers/bin:"/:}
+done
+PATH=${PATH#:}
+PATH=${PATH%:}
+
 # Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
 # avoid recursion, but the agent's subprocesses need them for other providers.
 if ! agent_binary=$(type -P "$provider"); then
@@ -47,7 +59,6 @@ if ! agent_binary=$(type -P "$provider"); then
 fi
 # mise also drops its shims, leaving only the tools installed at launch. A
 # long-lived agent needs them back to find tools installed after it started.
-mise_data_dir=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 PATH="$mise_data_dir/command-wrappers/bin:$PATH"
 if [[ :$PATH: != *":$mise_data_dir/shims:"* ]]; then
   PATH="$PATH:$mise_data_dir/shims"
