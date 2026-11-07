@@ -1011,7 +1011,7 @@ var LEGACY_ZONE_PLACES = {
   "Egypt": "Africa/Cairo",
   "Eire": "Europe/Dublin",
   "GB": "Europe/London",
-  "GB-Eire": "Europe/Dublin",
+  "GB-Eire": "Europe/London",
   "Hongkong": "Asia/Hong_Kong",
   "Iran": "Asia/Tehran",
   "Israel": "Asia/Jerusalem",

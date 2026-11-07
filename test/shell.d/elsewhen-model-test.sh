@@ -319,11 +319,12 @@ assertEqual(M.homeCityAfterTap('Nashville', CHI, '', ''), null, 'elsewhen stores
 assertEqual(M.homeCityAfterTap('  Nashville  ', CHI, '', CHI), 'Nashville', 'elsewhen trims a tapped name')
 
 // ---- coordinates and weather
-const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\nCI\t+0519-00402\tAfrica/Abidjan\nTH\t+1345+10031\tAsia/Bangkok\n'
+const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\nGB\t+513030-0000731\tEurope/London\nCI\t+0519-00402\tAfrica/Abidjan\nTH\t+1345+10031\tAsia/Bangkok\n'
 assertDeepEqual(M.zoneTabCoords(tab, 'America/New_York'), { lat: 40.7142, lon: -74.0064 }, 'elsewhen reads seconds-precision zone1970 coordinates')
 assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Kolkata'), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads minutes-precision zone1970 coordinates')
 assertEqual(M.zoneTabCoords(tab, 'Nowhere/Else'), null, 'elsewhen has no fallback for an unknown zone')
 assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Calcutta'), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads a legacy link id through the places table')
+assertDeepEqual(M.zoneTabCoords(tab, 'GB-Eire'), { lat: 51.5083, lon: -0.1253 }, 'elsewhen resolves GB-Eire to London, not Dublin')
 assertEqual(M.zoneTabCoords(tab, 'Asia/Rangoon'), null, 'elsewhen returns null when a legacy zone target is missing from the table')
 assertEqual(M.zoneTabCoords(tab, 'Iceland'), null, 'elsewhen leaves coordinates unknown for same-clock links that cross places')
 assertEqual(M.zoneTabCoords(tab, 'Indian/Christmas'), null, 'elsewhen omits same-clock merges like Christmas Island')
