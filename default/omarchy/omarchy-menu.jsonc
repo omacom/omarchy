@@ -22,6 +22,7 @@
 
   // Root Menu
   "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps","action":"omarchy-shell omarchy.dock apps"},
+  "downloads": {"icon": "","label": "Downloads","action": "uwsm-app -- xdg-open \"$(xdg-user-dir DOWNLOAD)\""},
   "learn": {"icon":"󰧑","label":"Learn"},
   "appearance": {"icon":"󰏘","label":"Appearance","aliases":["style"]},
   "trigger": {"icon":"󱓞","label":"Trigger"},
