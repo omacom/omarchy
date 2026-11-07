@@ -120,3 +120,13 @@ chmod +x "$SKIP_BIN/omarchy-toggle-enabled"
 EDITOR_PROBE_LOG="$TEST_HOME/editor-probes.log" PATH="$SKIP_BIN:$FAKE_BIN:$ROOT/bin:$PATH" HOME="$TEST_HOME" \
   "$ROOT/bin/omarchy-theme-set-vscode" || fail "VS Code theme sync succeeds when the last editor is skipped by its toggle"
 pass "VS Code theme sync succeeds when the last editor is skipped by its toggle"
+
+tpl="$ROOT/default/themed/vscode-theme.json.tpl"
+rg -Fq '"comment": {"foreground": "{{ muted }}"' "$tpl" || fail "generated VS Code theme still uses muted for comments"
+rg -Fq '"button.secondaryBackground": "{{ mix background foreground 12% }}"' "$tpl" ||
+  fail "generated VS Code theme does not use muted as a secondary-button fill"
+rg -Fq '"commandCenter.activeBackground": "{{ mix background foreground 12% }}"' "$tpl" ||
+  fail "generated VS Code theme does not use muted as a command-center fill"
+rg -Fq '"extensionButton.background": "{{ mix background foreground 12% }}"' "$tpl" ||
+  fail "generated VS Code theme does not use muted as an extension-button fill"
+pass "generated VS Code theme keeps muted for comment text, not button fills"
