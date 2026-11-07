@@ -37,7 +37,7 @@ exit 0
 SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+printf '%s\n' "$@" >"$OMARCHY_TEST_BROWSER_LAUNCH"
 SH
 cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
@@ -118,8 +118,112 @@ pass "an ordinary launch doesn't probe the browser's flags"
 
 launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
-grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
+[[ $(sed '1,/^--$/d' "$launch_log") == $'chromium\n--incognito' ]] || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100%% %U
+EOF
+
+rm -f "$focus_log"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/wrapped"
+
+expected=$(printf '%s\n' /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100% https://example.test/wrapped)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "wrapped Exec launcher runs the whole unquoted Exec line, then the URL"
+grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
+  fail "wrapped Exec launcher focuses the real browser, not env"
+pass "browser launcher resolves env-wrapped desktop Exec lines"
+
+rm -f "$help_log"
+launch --private
+[[ -s $help_log ]] || fail "a wrapped private launch probes the real browser, not env"
+expected=$(printf '%s\n' /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100% --incognito)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "a wrapped private launch passes the real browser's private flag"
+pass "a wrapped private launch passes the real browser's private flag"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Name=Work\sChromium
+Exec=/usr/bin/env -u BROWSER chromium --name %c -- https://start.example.test/ %U
+EOF
+
+rm -f "$help_log"
+launch --private
+[[ -s $help_log ]] || fail "a private launch probes the browser behind env -u, not the name it unsets"
+expected=$(printf '%s\n' /usr/bin/env -u BROWSER chromium --name "Work Chromium" https://start.example.test/ --incognito)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "a private launch expands %c and keeps its flag an option despite the Exec line's --"
+pass "a private launch finds the browser behind env options and keeps its flag an option"
+
+cat >"$mock_bin/firefox" <<'SH'
+#!/bin/bash
+[[ $1 != "--help" ]] || { printf 'probed\n' >>"$OMARCHY_TEST_BROWSER_HELP"; echo MOZ_LOG; }
+SH
+chmod +x "$mock_bin/firefox"
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env -S "LABEL='Work Browser' MOZ_ENABLE_WAYLAND=1 firefox" %u
+EOF
+
+rm -f "$help_log"
+launch --private
+[[ -s $help_log ]] || fail "a private launch probes the browser inside env -S, not env"
+expected=$(printf '%s\n' /usr/bin/env -S "LABEL='Work Browser' MOZ_ENABLE_WAYLAND=1 firefox" --private-window)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "a private launch passes the private flag of the browser inside env -S"
+pass "a private launch finds the browser inside env -S"
+
+cp "$mock_bin/chromium" "$mock_bin/flatpak"
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env GDK_BACKEND=wayland flatpak run --branch=stable --arch=x86_64 --command=firefox --file-forwarding org.mozilla.firefox @@u %u @@
+EOF
+
+launch --private
+expected=$(printf '%s\n' /usr/bin/env GDK_BACKEND=wayland flatpak run --branch=stable --arch=x86_64 --command=firefox --file-forwarding org.mozilla.firefox @@u @@ --private-window)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "a private launch of a Flatpak Firefox passes --private-window from its app id"
+pass "a private launch names a Flatpak browser's flag from its app id"
+
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+exec "$@"
+SH
+chmod +x "$mock_bin/setsid"
+launch_webapp() {
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+    bash "$ROOT/bin/omarchy-launch-webapp" "$@"
+}
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" %U
+EOF
+
+launch_webapp "https://discord.com/channels/@me" --start-maximized
+expected=$(printf '%s\n' -- /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" \
+  --app=https://discord.com/channels/@me --start-maximized)
+[[ $(<"$launch_log") == "$expected" ]] ||
+  fail "web app launcher runs the whole Exec line, then --app and the caller's arguments" "$(cat "$launch_log")"
+pass "web app launcher resolves env-wrapped desktop Exec lines"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Name=Chromium
+Exec=chromium --class=%c --desktop=%k -- %U
+EOF
+
+launch_webapp "https://example.test/app"
+expected=$(printf '%s\n' -- chromium --class=Chromium "--desktop=$test_home/.local/share/applications/chromium.desktop" \
+  --app=https://example.test/app)
+[[ $(<"$launch_log") == "$expected" ]] ||
+  fail "web app launcher expands %c and %k and keeps --app ahead of the Exec line's --" "$(cat "$launch_log")"
+pass "web app launcher expands %c and %k and keeps --app an option"
 
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
 # from the same ones; a browser outside ~/.local and /usr used to resolve and
@@ -141,7 +245,7 @@ EOF
 
 rm -f "$launch_log"
 launch "https://example.test/vivaldi"
-grep -F -- ' -- vivaldi https://example.test/vivaldi' "$launch_log" >/dev/null ||
+[[ $(sed '1,/^--$/d' "$launch_log") == $'vivaldi\nhttps://example.test/vivaldi' ]] ||
   fail "a browser in XDG_DATA_DIRS launches from its desktop entry" "$(cat "$launch_log")"
 pass "browser launcher reads Exec= from the data dirs the resolver searched"
 
