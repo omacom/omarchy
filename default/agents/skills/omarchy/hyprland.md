@@ -44,6 +44,13 @@ Prefer `{ menu = ... }` and `{ panel = ... }` over running `omarchy-menu toggle 
 
 View current bindings: `omarchy menu keybindings --print`
 
+`hyprctl binds` reports an `o.bind(...)` binding as dispatcher `__lua`,
+not `exec` plus the command; the label passed to `o.bind` appears as
+`description`. A tool that needs to find its own binds again (e.g. on
+reinstall) gives them a distinctive description and matches on that, not
+on dispatcher or command. Parse the plain output, not `hyprctl -j binds`,
+which emits invalid JSON for binds on Hyprland 0.56.0.
+
 **IMPORTANT: When re-binding an existing key:**
 
 1. First check existing bindings: `omarchy menu keybindings --print`
