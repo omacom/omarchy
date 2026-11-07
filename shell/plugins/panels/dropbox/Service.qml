@@ -129,7 +129,7 @@ Item {
 
   function openFile(file) {
     if (!file || !file.path) return
-    Quickshell.execDetached(["uwsm-app", "--", "nautilus", "--select", fileUri(String(file.path))])
+    Util.execApp(["uwsm-app", "--", "nautilus", "--select", fileUri(String(file.path))])
   }
 
   function fileUri(path) {
@@ -143,7 +143,7 @@ Item {
     var match = String(text || "").match(/https?:\/\/\S+/)
     if (match && match[0]) {
       _loginUrlOpened = true
-      Qt.openUrlExternally(match[0])
+      Util.openUrl(match[0])
       actionStatus = I18n.t("dropbox.openedLogin")
       actionStatusTimer.restart()
       return true

@@ -32,6 +32,13 @@ for (const u of bad) {
 for (const u of ['https://example.com', 'http://example.com/path?q=1', 'https://xn--bcher-kva.example', 'https://example.com/a%40b',
                  'https://sub.example.co.uk/', 'https://x0.example.com/', 'mailto:user@example.com'])
   assert.ok(S.safeExternalUrl(u), u)
+{
+  const opened = []
+  const open = url => { opened.push(url); return true }
+  assert.equal(S.openExternalUrl('HTTPS://Example.COM.:443/a', open), true)
+  for (const url of bad) assert.equal(S.openExternalUrl(url, open), false)
+  assert.deepEqual(opened, ['https://example.com:443/a'], 'only validated URLs reach the external launch helper')
+}
 assert.equal(S.safeHttpUrl('HTTPS://Example.COM.:443/a'), 'https://example.com:443/a')
 assert.equal(S.safeMailtoUrl('mailto:user@example.com?attach=/etc/passwd'), '')
 

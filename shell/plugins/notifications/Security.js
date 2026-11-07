@@ -42,9 +42,9 @@ function hostOf(raw) {
   var u=safeHttpUrl(raw), m=u.match(/^https?:\/\/([^/:?#]+)/)
   return m ? m[1] : ''
 }
-function openExternalUrl(raw) {
+function openExternalUrl(raw, open) {
   var safe=safeExternalUrl(raw)
-  return safe ? Qt.openUrlExternally(safe) : false
+  return safe ? open(safe) : false
 }
 
 // The omarchy-exec-argv hint (omarchy-notification-send --exec). Structural
