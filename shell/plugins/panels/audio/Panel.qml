@@ -986,7 +986,7 @@ Panel {
 
             Item {
               width: parent.width
-              implicitHeight: Math.max(microphoneHeader.implicitHeight, microphonePercent.implicitHeight)
+              implicitHeight: Math.max(microphoneHeader.implicitHeight, microphonePercent.implicitHeight, microphoneSwitch.implicitHeight)
 
               PanelSectionHeader {
                 id: microphoneHeader
@@ -997,18 +997,73 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
               }
 
-              Text {
-                id: microphonePercent
-                textFormat: Text.PlainText
-                text: root.inputLevelKnown ? Commons.I18n.formatNumber(Math.round((inputSlider.dragging ? inputSlider.liveValue : root.inputVolume) * 100)) + "%" : "–"
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
+              // The level and MUTED cross-fade in one box as wide as the wider of
+              // the two, so the switch next to it stays put when the label changes.
+              Item {
+                id: microphoneLabel
+                width: Math.max(widestPercent.advanceWidth, microphoneMuted.implicitWidth)
+                height: microphonePercent.implicitHeight
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
-                opacity: root.inputMuted ? 0.5 : 1.0
+
+                TextMetrics {
+                  id: widestPercent
+                  font: microphonePercent.font
+                  text: "100%"
+                }
+
+                Text {
+                  id: microphonePercent
+                  textFormat: Text.PlainText
+                  text: root.inputLevelKnown ? Commons.I18n.formatNumber(Math.round((inputSlider.dragging ? inputSlider.liveValue : root.inputVolume) * 100)) + "%" : "–"
+                  color: Qt.darker(root.bar.foreground, 1.4)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  opacity: root.inputMuted ? 0 : 1.0
+                  Behavior on opacity { NumberAnimation { duration: Style.duration(160) } }
+                }
+
+                Text {
+                  id: microphoneMuted
+                  textFormat: Text.PlainText
+                  text: Commons.I18n.t("audio.level.muted").toUpperCase()
+                  color: microphonePercent.color
+                  font: microphonePercent.font
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  opacity: root.inputMuted ? 0.5 : 0
+                  Behavior on opacity { NumberAnimation { duration: Style.duration(160) } }
+                }
+              }
+
+              // A muted microphone only showed as a dimmer slider, which is easy
+              // to miss while the level meter below keeps moving, so the input
+              // gets its own on/off switch. Sized off the header label like the
+              // network panel's band switch; the keyboard keeps `m` on the slider.
+              ToggleSwitch {
+                id: microphoneSwitch
+                visible: root.hasInput
+                trackHeight: Math.round(microphoneHeader.font.pixelSize * 1.2)
+                cursorPad: Style.space(3)
+                anchors.right: microphoneLabel.left
+                // The cursor ring takes part of the gap to the label.
+                anchors.rightMargin: Style.space(6) - cursorPad
+                anchors.verticalCenter: microphoneLabel.verticalCenter
+                checked: !root.inputMuted
+                foreground: root.bar.foreground
+                // A muted mic is easy to miss, so off shows in the urgent color.
+                urgentWhenOff: true
+                onToggled: root.toggleInputMute()
+
+                PanelToolTip {
+                  visible: microphoneSwitch.containsMouse
+                  text: root.inputMuted ? Commons.I18n.t("audio.unmute") : Commons.I18n.t("audio.mute")
+                  fontFamily: root.bar.fontFamily
+                }
               }
             }
 
@@ -1209,10 +1264,12 @@ Panel {
       anchors.rightMargin: Style.space(6)
       spacing: Style.space(8)
 
+      // The active input shows the muted mic too, in the switch's red.
       Text {
+        readonly property bool muted: sourceRow.isActive && root.inputMuted
         textFormat: Text.PlainText
-        text: root.sourceGlyph(sourceRow.node)
-        color: root.bar.foreground
+        text: muted ? root.inputIcon() : root.sourceGlyph(sourceRow.node)
+        color: muted ? Commons.Color.urgent : root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.title
         width: Style.space(22)
