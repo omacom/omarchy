@@ -89,6 +89,11 @@ if [[ -n ${agent_installer:-} ]]; then
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
 else
+  # Agents ship several builds a week, so mise's release cooldown would hold a
+  # new version back for days after it ships. Exported rather than set on the
+  # install line alone, so the probe resolves the same version the install
+  # activates. The installers above do not go through mise.
+  export MISE_MINIMUM_RELEASE_AGE=0
   # omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
   # lines of their own and older ones after an inline variable; either way
   # running one installs the tool it wraps. A symlink is the user's own install.
