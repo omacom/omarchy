@@ -32,6 +32,19 @@ nvim | vim | nano | micro | hx | helix | fresh)
   fi
   ;;
 *)
-  exec setsid uwsm-app -- "$editor" -- "$@"
+  if [[ $inline == "true" ]]; then
+    wait_flag=()
+    case "${editor##*/}" in
+    code | code-insiders | codium | cursor | windsurf | zed | zeditor | gnome-text-editor | gedit)
+      wait_flag=(--wait)
+      ;;
+    subl)
+      wait_flag=(-w)
+      ;;
+    esac
+    exec setsid -w uwsm-app -- "$editor" "${wait_flag[@]}" -- "$@"
+  else
+    exec setsid uwsm-app -- "$editor" -- "$@"
+  fi
   ;;
 esac
