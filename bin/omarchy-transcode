@@ -124,7 +124,8 @@ copy_to_clipboard() {
   local output="$1"
   local uri
 
-  uri="file://$(realpath -- "$output")"
+  # Escape filesystem names so #, ?, and % remain part of the pasted path.
+  uri=$(python3 -I -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).resolve().as_uri())' "$output")
   printf '%s\n' "$uri" | wl-copy --type text/uri-list
 }
 
