@@ -36,6 +36,7 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testNetworkList: networkList
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
@@ -43,10 +44,12 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
+  readonly property Item testNetworkList: panel.loadedContent ? panel.loadedContent.testNetworkList : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
   property alias testPoll: connectivityPoll
   property alias testApPoll: activeApSignalPoll
-  property alias testBarButton: button`)
+  property alias testBarButton: button
+  property alias testActionTimeout: actionTimeout`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
@@ -99,3 +102,7 @@ while IFS= read -r args; do
   [[ $args == "-t -f IN-USE,SIGNAL device wifi list ifname test-wifi --rescan no" ]] || fail "in-use access point read never rescans" "$args"
 done <"$stage/nmcli.log"
 pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use access point, and discards stale reads"
+
+stage_panel password-scan
+run_panel "network password scan"
+pass "network scans preserve credential entry and publish the latest rows after stale submission or timeout"
