@@ -267,6 +267,9 @@ exec 7>&-
 omarchy-agent-account-use claude work >/dev/null
 pass "switching waits for a sign-in to finish writing"
 
+# Nothing a sign-in starts keeps the lock once it's done.
+grep -q '8>&- &' "$(command -v omarchy-agent-account-add)" || fail "background work started by a sign-in doesn't inherit its lock"
+
 # A switch cut short is finished by the next command, so no login is lost.
 registry=$(cat "$accounts/claude.json")
 jq '{
