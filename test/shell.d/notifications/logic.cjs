@@ -340,6 +340,28 @@ function runIn(scope, ...names) {
   assert.equal(at('Notes Desktop'), undefined)
 }
 
+{ // Chromium's main window and web apps share the notification sender PID.
+  const calls = []
+  const row = { source: 'web.whatsapp.com', senderPid: 42, app: 'Chromium' }
+  const windows = ['chromium', 'chrome-web.whatsapp.com__-Default'].map((c, i) => ({
+    lastIpcObject: { class: c, title: '', address: '0x' + (i + 1), pid: 42, focusHistoryID: i }
+  }))
+  const s = runIn({
+    Hyprland: { toplevels: { values: windows }, dispatch: x => calls.push(x) },
+    Security: S, Markup: M, rowIndexFor: () => 0, toasts: { get: () => row },
+    invokeSenderAction: () => false, closeToast: () => {},
+    browserClasses: /^(chrome|chromium)/, brandsOf: () => []
+  }, 'activate', 'openWindows', 'windowForPid', 'windowForSource', 'mostRecent', 'focusWindow')
+  s.activate('web')
+  assert.match(calls.pop(), /address:0x2/, 'the matching web app wins over the shared browser PID')
+  row.source = 'unmatched.example'
+  s.activate('web')
+  assert.match(calls.pop(), /address:0x1/, 'without a matching site window, retain the PID fallback')
+  row.source = 'Chromium'
+  s.activate('native')
+  assert.match(calls.pop(), /address:0x1/, 'native notifications retain PID targeting')
+}
+
 // Admission, close and replay run for real; only the ListModel, QObject
 // signals, the deferred event loop and external effects are faked.
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
