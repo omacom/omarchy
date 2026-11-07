@@ -190,6 +190,21 @@ for name, expected in [("node", True), ("nvim", False)]:
     child.terminate()
     child.wait()
 
+# A missing or relative home is the session's own: the answer must not depend
+# on where the check runs, as the SSH receiver runs it from the home itself.
+started_in = os.getcwd()
+for extra, cwd, expected in [({"HOME": ""}, "/", False), ({"CLAUDE_CONFIG_DIR": ".claude"}, "/", False), ({"CLAUDE_CONFIG_DIR": ".claude"}, str(Path.home()), True)]:
+  child = subprocess.Popen([sys.executable, "-c", code], env=dict(child_env, **extra), cwd=cwd, stdout=subprocess.PIPE, text=True)
+  try:
+    assert child.stdout.readline().strip() == "ready"
+    for checked_from in [Path.home(), Path("/")]:
+      os.chdir(checked_from)
+      assert transfer.home_in_use("claude", state.primary_home("claude")) == expected, (extra, cwd, str(checked_from))
+  finally:
+    child.terminate()
+    child.wait()
+os.chdir(started_in)
+
 # Abrupt receiver death after copying files is recovered on the next refresh.
 machine("interrupted")
 transfer.write_json(Path.home() / ".claude.json", {"mcpServers": {"local": "interrupted-settings"}})

@@ -556,11 +556,17 @@ def home_in_use(provider: str, home: Path) -> bool:
   for environ in Path("/proc").glob("[0-9]*/environ"):
     try:
       entries = environ.read_bytes().split(b"\0")
+      for entry in entries:
+        if not entry.startswith(wanted) or entry == wanted:
+          continue
+        path = Path(entry[len(wanted):].decode(errors="replace"))
+        # A relative path is the session's own, read from its working directory.
+        if not path.is_absolute():
+          path = Path(os.readlink(environ.parent / "cwd")) / path
+        if path.resolve() == resolved:
+          return True
     except OSError:
       continue
-    for entry in entries:
-      if entry.startswith(wanted) and Path(entry[len(wanted):].decode(errors="replace")).resolve() == resolved:
-        return True
   return False
 
 

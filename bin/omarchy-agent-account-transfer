@@ -10,6 +10,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import pwd
 import re
 import shlex
 import shutil
@@ -200,11 +201,16 @@ def home_in_use(provider: str, home: Path) -> bool:
         continue
       configured = next((v[len(home_key):].decode() for v in env if v.startswith(home_key)), "")
       selected_pin = next((v[len(pinned_key):].decode() for v in env if v.startswith(pinned_key)), "")
-      process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "")
+      # Without a HOME, the CLI falls back to the account's home directory.
+      process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "") or pwd.getpwuid(proc.stat().st_uid).pw_dir
       selected = Path(configured or selected_pin) if configured or selected_pin else Path(process_home) / f".{provider}"
+      # A relative path is the session's own, read from its working directory.
+      # The receiver may run beside an older backend, so this stays local.
+      if not selected.is_absolute():
+        selected = Path(os.readlink(proc / "cwd")) / selected
       if selected.resolve() == home.resolve():
         return True
-    except (OSError, UnicodeError):
+    except (OSError, UnicodeError, KeyError):
       continue
   return False
 
