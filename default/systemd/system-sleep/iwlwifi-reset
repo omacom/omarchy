@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# Intel BE200 (8086:272b) Wi-Fi 7 cards fail to recover their PCIe link from D3cold
+# on modern standby (s2idle), causing the PCIe bridge to timeout and driver crash.
+# Unload before suspend and reload after wake to cleanly re-enumerate the device.
+
+state_file="${OMARCHY_IWLWIFI_STATE_FILE:-/run/iwlwifi-suspended}"
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+
+log() {
+  logger -t iwlwifi-reset "$*"
+}
+
+run_modprobe() {
+  local out
+  if ! out=$(modprobe "$@" 2>&1); then
+    log "modprobe $* failed: $out"
+    return 1
+  fi
+  [[ -n $out ]] && log "$out"
+  return 0
+}
+
+is_affected_device() {
+  lspci -nn 2>/dev/null | grep -q '\[8086:272b\]'
+}
+
+case "$1" in
+  pre)
+    # Only unload before suspend on affected BE200 hardware, not on full hibernate
+    if [[ $sleep_action != "hibernate" ]] && is_affected_device && lsmod | grep -q "^iwlwifi"; then
+      log "Pre-suspend: unloading wifi drivers"
+      opmode="iwlwifi"
+      if lsmod | grep -q "^iwlmld"; then
+        opmode="iwlmld"
+      elif lsmod | grep -q "^iwlmvm"; then
+        opmode="iwlmvm"
+      elif lsmod | grep -q "^iwldvm"; then
+        opmode="iwldvm"
+      fi
+
+      # A marker left by a failed reload on resume still names the opmode to restore.
+      if [[ $opmode == "iwlwifi" && -s $state_file ]]; then
+        opmode=$(<"$state_file")
+      fi
+
+      if [[ $opmode != "iwlwifi" ]]; then
+        run_modprobe -r "$opmode" || true
+      fi
+
+      if run_modprobe -r iwlwifi; then
+        echo "$opmode" > "$state_file"
+      else
+        log "Failed to unload iwlwifi before suspend"
+        if [[ $opmode != "iwlwifi" ]] && ! run_modprobe "$opmode"; then
+          echo "$opmode" > "$state_file"
+        else
+          rm -f "$state_file"
+        fi
+      fi
+    fi
+    ;;
+  post)
+    if [[ -f $state_file ]]; then
+      opmode=$(cat "$state_file" 2>/dev/null)
+      log "Post-resume: reloading wifi drivers ($opmode)"
+      if run_modprobe iwlwifi; then
+        if [[ -n $opmode && $opmode != "iwlwifi" ]]; then
+          if run_modprobe "$opmode"; then
+            rm -f "$state_file"
+          else
+            log "Failed to reload $opmode on resume"
+          fi
+        else
+          rm -f "$state_file"
+        fi
+      else
+        log "Failed to reload iwlwifi on resume"
+      fi
+    elif ! lsmod | grep -q "^iwlwifi" && is_affected_device; then
+      log "Post-resume: reloading iwlwifi (Intel BE200 detected)"
+      run_modprobe iwlwifi || true
+    fi
+    ;;
+esac
