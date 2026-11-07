@@ -44,6 +44,8 @@
   "agents.switchedBody": "Nové relácie %1 teraz používajú %2 (%3%).\nBežiace relácie zostanú na %4.",
   "animations.disabled": "Animácie vypnuté",
   "animations.enabled": "Animácie zapnuté",
+  "animations.softwareRendering": "Animácie vypnuté bez GPU",
+  "animations.softwareRenderingBody": "Nepoužíva sa GPU, takže animácie, rozmazanie a tiene sú vypnuté. Znova ich zapnete cez Vzhľad > Animácie zapnuté.",
   "audio.micMuted": "Mikrofón stlmený",
   "audio.micOn": "Mikrofón zapnutý",
   "audio.noDevices": "Nenašli sa žiadne zvukové zariadenia",

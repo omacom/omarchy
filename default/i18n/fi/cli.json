@@ -43,6 +43,8 @@
   "agents.switchedBody": "Uudet %1-istunnot käyttävät nyt valintaa %2 (%3%).\nKäynnissä olevat istunnot pysyvät tilillä %4.",
   "animations.disabled": "Animaatiot pois käytöstä",
   "animations.enabled": "Animaatiot käytössä",
+  "animations.softwareRendering": "Animaatiot pois käytöstä ilman GPU:ta",
+  "animations.softwareRenderingBody": "GPU ei ole käytössä, joten animaatiot, sumennus ja varjot ovat pois käytöstä. Ulkoasu > Animaatiot käytössä palauttaa ne.",
   "audio.micMuted": "Mikrofoni mykistetty",
   "audio.micOn": "Mikrofoni päällä",
   "audio.noDevices": "Äänilaitteita ei löytynyt",

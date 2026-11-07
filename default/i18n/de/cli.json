@@ -43,6 +43,8 @@
   "agents.switchedBody": "Neue %1-Sitzungen nutzen jetzt %2 (%3%).\nLaufende Sitzungen bleiben bei %4.",
   "animations.disabled": "Animationen deaktiviert",
   "animations.enabled": "Animationen aktiviert",
+  "animations.softwareRendering": "Animationen ohne GPU deaktiviert",
+  "animations.softwareRenderingBody": "Keine GPU in Verwendung, daher sind Animationen, Blur und Schatten deaktiviert. Darstellung > Animationen ein schaltet sie wieder ein.",
   "audio.micMuted": "Mikrofon stummgeschaltet",
   "audio.micOn": "Mikrofon ein",
   "audio.noDevices": "Keine Audiogeräte gefunden",

@@ -43,6 +43,8 @@
   "agents.switchedBody": "নতুন %1 সেশনে এখন %2 (%3%) ব্যবহার হবে।\nচলমান সেশনগুলো %4-এই থাকবে।",
   "animations.disabled": "অ্যানিমেশন বন্ধ",
   "animations.enabled": "অ্যানিমেশন চালু",
+  "animations.softwareRendering": "GPU ছাড়া অ্যানিমেশন বন্ধ",
+  "animations.softwareRenderingBody": "কোনো GPU ব্যবহৃত হচ্ছে না, তাই অ্যানিমেশন, ব্লার ও ছায়া বন্ধ আছে। চেহারা > অ্যানিমেশন চালু করলে সেগুলো ফিরে আসবে।",
   "audio.micMuted": "মাইক্রোফোন মিউট করা",
   "audio.micOn": "মাইক্রোফোন চালু",
   "audio.noDevices": "কোনো অডিও ডিভাইস পাওয়া যায়নি",

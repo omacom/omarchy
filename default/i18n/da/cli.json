@@ -43,6 +43,8 @@
   "agents.switchedBody": "Nye %1-sessioner bruger nu %2 (%3%).\nKørende sessioner bliver på %4.",
   "animations.disabled": "Animationer deaktiveret",
   "animations.enabled": "Animationer aktiveret",
+  "animations.softwareRendering": "Animationer deaktiveret uden GPU",
+  "animations.softwareRenderingBody": "Ingen GPU i brug, så animationer, sløring og skygger er slået fra. Udseende > Animationer Til slår dem til igen.",
   "audio.micMuted": "Mikrofon slået fra",
   "audio.micOn": "Mikrofon slået til",
   "audio.noDevices": "Ingen lydenheder fundet",

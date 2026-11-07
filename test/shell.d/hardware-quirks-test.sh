@@ -74,6 +74,17 @@ cat >"$stub_bin/omarchy-hw-aarch64-qualcomm" <<'SH'
 [[ $FAKE_PLATFORM == "aarch64-qualcomm" ]]
 SH
 
+# The device tree's compatible strings come from the fake machine.
+cat >"$stub_bin/omarchy-hw-match-device-tree" <<'SH'
+#!/bin/bash
+for wanted in "$@"; do
+  for entry in $FAKE_COMPATIBLE; do
+    [[ ${entry,,} == "${wanted,,}" ]] && exit 0
+  done
+done
+exit 1
+SH
+
 cat >"$stub_bin/omarchy-hw-aarch64-n1x" <<'SH'
 #!/bin/bash
 [[ $FAKE_PLATFORM == "aarch64-n1x" ]]
@@ -109,6 +120,47 @@ cat >"$stub_bin/omarchy-pkg-drop" <<'SH'
 printf 'pkg-drop %s\n' "$*" >>"$CALLS"
 SH
 
+# The firmware the device tree names that is not installed yet.
+cat >"$stub_bin/qcom-firmware-extract" <<'SH'
+#!/bin/bash
+if [[ $1 == "--list-missing" && -n $FAKE_MISSING_FIRMWARE ]]; then
+  printf '%b\n' "$FAKE_MISSING_FIRMWARE"
+fi
+SH
+
+# What qualcomm/oem-firmware.sh asks pacman: whether an installed package
+# provides a name (-T), and which repository package does (-Sp). Like pacman,
+# -Sp takes the first of several providers. A package counts as installed once
+# pkg-add was called with it.
+cat >"$stub_bin/pacman" <<'SH'
+#!/bin/bash
+name=${!#}
+providers=$(awk -v name="$name" '$1 == name { print $2 }' "$FAKE_PROVIDERS")
+case $1 in
+  -T)
+    for package in $providers; do
+      grep -qx "pkg-add $package" "$CALLS" && exit 0
+    done
+    echo "$name"
+    exit 127
+    ;;
+  -Sp)
+    [[ -n $providers ]] || exit 1
+    head -1 <<<"$providers"
+    ;;
+esac
+SH
+
+# Firmware folder names and the OEM firmware packages that provide them, the
+# folder the two Surfaces share listing the Laptop 7 first.
+cat >"$test_tmp/providers" <<'TXT'
+qcom-firmware-x1e80100-microsoft microsoft-surface-laptop-7-firmware
+qcom-firmware-x1e80100-microsoft microsoft-surface-pro-11-firmware
+qcom-firmware-x1e80100-microsoft-romulus microsoft-surface-laptop-7-firmware
+qcom-firmware-x1e80100-microsoft-denali microsoft-surface-pro-11-firmware
+qcom-firmware-x1e80100-lenovo-91b6 lenovo-ideacentre-mini-x-firmware
+TXT
+
 cat >"$stub_bin/dell-xps13-sidecar-amps-apply" <<'SH'
 #!/bin/bash
 exit "$FAKE_APPLY_STATUS"
@@ -142,7 +194,7 @@ machine() {
   printf '%s\n' '-- User look and feel' >"$root/home/.config/hypr/looknfeel.lua"
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
-  FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0
+  FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
@@ -163,13 +215,32 @@ machine() {
     surface-intel-no-pinctrl) surface "Surface Laptop 3" ;;
     # What lsmod reports on a Surface Pro 11, where the Intel module list would break mkinitcpio.
     surface-snapdragon) surface "Surface Pro, 11th Edition"; FAKE_PLATFORM=aarch64-qualcomm FAKE_LSMOD="pinctrl_sm8550_lpass_lpi 12288 1" ;;
+    surface-pro-11-no-firmware)
+      surface "Surface Pro, 11th Edition"; FAKE_PLATFORM=aarch64-qualcomm
+      FAKE_MISSING_FIRMWARE="qcom/x1e80100/microsoft/Denali/qcadsp8380.mbn\nqcom/x1e80100/microsoft/Denali/adsp_dtb.mbn\nqcom/x1e80100/microsoft/qcdxkmsuc8380.mbn"
+      ;;
+    surface-laptop-7-no-firmware)
+      surface "Surface Laptop, 7th Edition"; FAKE_PLATFORM=aarch64-qualcomm
+      FAKE_MISSING_FIRMWARE="qcom/x1e80100/microsoft/Romulus/qcadsp8380.mbn\nqcom/x1e80100/microsoft/qcdxkmsuc8380.mbn"
+      ;;
+    # Copied from Windows: the manifest qcom-firmware-extract keeps, nothing missing.
+    surface-pro-11-from-windows)
+      surface "Surface Pro, 11th Edition"; FAKE_PLATFORM=aarch64-qualcomm
+      printf '%s 0 /windows 2026-01-01T00:00:00Z\n' qcom/x1e80100/microsoft/Denali/qcadsp8380.mbn \
+        qcom/x1e80100/microsoft/qcdxkmsuc8380.mbn >"$hw/qcom-firmware-manifest"
+      ;;
+    ideacentre-mini-x-no-firmware) dmi product_name 91B6; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/LENOVO/91B6/qcadsp8380.mbn" ;;
+    snapdragon-unpackaged) dmi product_name "Aspire A14-11M"; FAKE_PLATFORM=aarch64-qualcomm FAKE_MISSING_FIRMWARE="qcom/x1e80100/ACER/AL14-31P/qcadsp8380.mbn" ;;
     t14s-21n1) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n2) dmi product_name 21N20000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
     t14-gen4) dmi product_name 21F60000US ;;
-    yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm ;;
+    yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,yoga-slim7x qcom,x1e80100" ;;
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
+    omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
+    anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
+    glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
     xps13-wcl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Wildcat Lake [Intel Graphics]" ;;
     xps13-dx13261) xps13 DX13261; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
@@ -187,7 +258,7 @@ machine() {
   if [[ $1 == *+unreadable ]]; then
     chmod 000 "$hw/dmi"/*
   fi
-  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS
+  export FAKE_PLATFORM FAKE_LSMOD FAKE_LSPCI FAKE_MODPROBE_RESOLVES FAKE_MODPROBE_STATUS FAKE_PKG_ADD_STATUS FAKE_APPLY_STATUS FAKE_MISSING_FIRMWARE FAKE_COMPATIBLE
 }
 
 snapshot() {
@@ -202,13 +273,15 @@ run_leaf() {
   : >"$calls"
   before=$(snapshot)
   HOME="$root/home" OMARCHY_PATH="$ROOT" PATH="$stub_bin:$ROOT/bin:$PATH" STUB_BIN="$stub_bin" CALLS="$calls" \
-    FAKE_HW="$hw" FAKE_ROOT="$root" \
+    FAKE_HW="$hw" FAKE_ROOT="$root" FAKE_PROVIDERS="$test_tmp/providers" \
+    OMARCHY_QCOM_FIRMWARE_MANIFEST="$hw/qcom-firmware-manifest" \
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
+    OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
@@ -230,6 +303,8 @@ leaves=(
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
+  hardware/qualcomm/glymur-display.sh
+  hardware/qualcomm/oem-firmware.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
@@ -284,10 +359,23 @@ hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenboo
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|yoga-slim7x|0
+# A machine's own folder picks its package before the folder the Surfaces share.
+hardware/qualcomm/oem-firmware.sh|surface-pro-11-no-firmware|0|pkg-add microsoft-surface-pro-11-firmware
+hardware/qualcomm/oem-firmware.sh|surface-laptop-7-no-firmware|0|pkg-add microsoft-surface-laptop-7-firmware
+hardware/qualcomm/oem-firmware.sh|surface-pro-11-from-windows|0|pkg-add microsoft-surface-pro-11-firmware
+hardware/qualcomm/oem-firmware.sh|ideacentre-mini-x-no-firmware|0|pkg-add lenovo-ideacentre-mini-x-firmware
+hardware/qualcomm/oem-firmware.sh|snapdragon-unpackaged|0
+hardware/qualcomm/oem-firmware.sh|yoga-slim7x|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/zenbook-a16.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
+hardware/qualcomm/glymur-display.sh|omnibook-ultra-14|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+# The device tree names the chip, so unreadable DMI does not matter.
+hardware/qualcomm/glymur-display.sh|omnibook-ultra-14+unreadable|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|anduril-bluechip|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|glymur-not-qualcomm|0
+hardware/qualcomm/glymur-display.sh|yoga-slim7x|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl|0|pkg-add linux-firmware-cirrus-dx13260
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl+unreadable|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-wcl|0
