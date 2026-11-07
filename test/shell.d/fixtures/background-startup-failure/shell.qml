@@ -28,7 +28,8 @@ ShellRoot {
     }
   }
   Timer {
-    interval: 11000
+    // Just past the 1.5s deadline the staged copy uses, plus its fade.
+    interval: 2500
     running: true
     onTriggered: {
       test.check(!background.ready, "the missing wallpaper never becomes ready")
