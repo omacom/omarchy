@@ -214,6 +214,11 @@ ShellRoot {
       fail("vector icons do not use the shared visual size")
       return false
     }
+    var aboveBaselineBottom = aboveBaseline.ink.y + aboveBaseline.ink.height
+    if (aboveBaselineBottom > -1) {
+      fail("a glyph above the baseline measures down to it: bottom " + aboveBaselineBottom)
+      return false
+    }
     return true
   }
 
@@ -437,6 +442,7 @@ ShellRoot {
   BarIconButton { id: labelledPower; bar: testBar; text: "󰁹"; labelText: "100%"; slotSize: Style.bar.iconSlot * 2 }
   BarIconButton { id: rotatedIcon; bar: verticalBar; text: "\uf053"; textRotation: 90 }
   OpticalGlyph { id: plainLabel; width: 30; height: 20; text: "12"; fontSize: 12 }
+  OpticalGlyph { id: aboveBaseline; width: 16; height: 16; text: "\u00b0"; paintedSize: Style.bar.iconSize }
   DropboxIcon { id: dropbox; iconSize: Style.bar.iconSize / aspectRatio; artworkScale: 1 }
   TailscaleIcon { id: tailscale; iconSize: Style.bar.iconSize }
   BarIconButton {
