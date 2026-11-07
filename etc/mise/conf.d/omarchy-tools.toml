@@ -34,6 +34,7 @@ node = { version = "latest", lazy = true, minimum_release_age = "0s" }
 "npm:command-code" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["commandcode"], minimum_release_age = "0s" }
 "npm:freebuff" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["freebuff"], minimum_release_age = "0s" }
 oh-my-pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
+"pipx:mistral-vibe" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["vibe"], minimum_release_age = "0s" }
 opencode = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 ori = { version = "latest", lazy = true, minimum_release_age = "0s" }
 pi = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
