@@ -235,3 +235,12 @@ handed_over "$sky  false" || fail "a theme switch during an intro hands its cove
 ! grep -q '^shell: background themeTransition ' "$log" || fail "no ordinary transition runs under the playing intro"
 ! grep -qE '^owe: intro(-prepare)? ' "$log" || fail "the theme's still without an intro plays none"
 pass "a theme switch to a still without an intro while one plays keeps its cover"
+
+fallback_home="$test_tmp/fallback-home"
+mkdir -p "$fallback_home"
+printf 'x\n' >"$fallback_home/pic.png"
+env -u XDG_RUNTIME_DIR HOME="$fallback_home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" \
+  /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$fallback_home/pic.png" >/dev/null 2>&1 || true
+[[ -e $fallback_home/.local/state/omarchy/omarchy-theme-set.lock && ! -L $fallback_home/.local/state/omarchy/omarchy-theme-set.lock ]] ||
+  fail "background selection lock is kept in the private state dir"
+pass "background selection lock stays out of /tmp"
