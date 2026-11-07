@@ -648,6 +648,25 @@ GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI
 grep -q 'org.gnome.desktop.interface color-scheme prefer-light' "$PI_TMPDIR/gsettings.log" || fail "gnome sync reads mode from colors.toml"
 pass "gnome sync reads mode from colors.toml"
 
+printf 'Not-An-Icon-Theme\n' >"$CURRENT_THEME/icons.theme"
+GSETTINGS_LOG="$PI_TMPDIR/gsettings-missing-icons.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -qx 'set org.gnome.desktop.interface icon-theme Adwaita' "$PI_TMPDIR/gsettings-missing-icons.log" || fail "gnome sync falls back to Adwaita for an icon theme that is not installed"
+pass "gnome sync falls back to Adwaita for an icon theme that is not installed"
+
+mkdir -p "$PI_TMPDIR/.local/share/icons/Not-An-Icon-Theme"
+touch "$PI_TMPDIR/.local/share/icons/Not-An-Icon-Theme/index.theme"
+GSETTINGS_LOG="$PI_TMPDIR/gsettings-user-icons.log" XDG_DATA_HOME="$PI_TMPDIR/.local/share" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -qx 'set org.gnome.desktop.interface icon-theme Not-An-Icon-Theme' "$PI_TMPDIR/gsettings-user-icons.log" || fail "gnome sync applies an icon theme installed in the user's icons"
+pass "gnome sync applies an icon theme installed in the user's icons"
+rm -rf "$PI_TMPDIR/.local/share/icons/Not-An-Icon-Theme"
+
+mkdir -p "$PI_TMPDIR/data/icons/Not-An-Icon-Theme"
+touch "$PI_TMPDIR/data/icons/Not-An-Icon-Theme/index.theme"
+GSETTINGS_LOG="$PI_TMPDIR/gsettings-data-icons.log" XDG_DATA_DIRS="$PI_TMPDIR/data:/usr/share" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -qx 'set org.gnome.desktop.interface icon-theme Not-An-Icon-Theme' "$PI_TMPDIR/gsettings-data-icons.log" || fail "gnome sync applies an icon theme installed in an XDG data directory"
+pass "gnome sync applies an icon theme installed in an XDG data directory"
+rm -rf "$PI_TMPDIR/data" "$CURRENT_THEME/icons.theme"
+
 cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
 #!/bin/bash
 [[ $1 == "code" ]]
