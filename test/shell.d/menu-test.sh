@@ -424,3 +424,23 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# Disabled rows past the last selectable one (or before the first) never take
+# the cursor, so moving it has to scroll them in whole.
+run_node_test <<'JS'
+const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+
+// Install: fourteen 42px rows 8px apart in a 470px list, the last one
+// (Preinstalls) disabled until the preinstalls are removed.
+assertEqual(menu.rowsPast(14, 12, 1, index => index !== 13), 'disabled', 'rowsPast sees only disabled rows past the cursor, without wrapping')
+
+const install = { originY: 0, contentHeight: 14 * 50 - 8, height: 470, rowHeight: 42, reach: 30 }
+const scroll = (row, contentY, after, before) =>
+  menu.cursorScrollY(Object.assign({}, install, { rowY: row * 50, contentY, after, before }))
+
+// Each row starts where stepping onto it parks it: flush with the edge it
+// came in from.
+assertEqual(scroll(12, 12 * 50 + 42 - 470, 'disabled', 'selectable'), install.contentHeight - install.height, 'the last selectable row scrolls a disabled last row in whole')
+assertEqual(scroll(1, 50, 'selectable', 'disabled'), 0, 'the first selectable row scrolls a disabled first row in whole')
+assertEqual(scroll(1, 0, 'disabled', 'selectable'), 50 - install.reach, 'a disabled tail taller than the list scrolls only as far as the cursor row stays in view')
+JS

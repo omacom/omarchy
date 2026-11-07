@@ -313,6 +313,52 @@ function labelFor(entry, checkedResults, disabledResults) {
   return marked ? entry.label + " ✓" : entry.label
 }
 
+// What lies past row `index` in `direction` among `count` rows: "none" at the
+// end of the list, "selectable" when some row there can take the cursor, and
+// "disabled" when only rows the cursor steps over remain. Unlike the cursor,
+// this does not wrap.
+function rowsPast(count, index, direction, selectable) {
+  var step = direction < 0 ? -1 : 1
+  var next = index + step
+  if (next < 0 || next >= count) return "none"
+
+  for (var i = next; i >= 0 && i < count; i += step) {
+    if (selectable(i)) return "selectable"
+  }
+  return "disabled"
+}
+
+// Where the list scrolls to show the cursor row, given the list geometry
+// (contentY, originY, contentHeight, height), the cursor row (rowY,
+// rowHeight), how far a neighbor peeks past it (reach), and what lies past it
+// each way (after, before: see rowsPast).
+//
+// A selectable neighbor peeks past the cursor, which keeps the fold
+// affordance. Disabled rows after the last selectable one, or before the
+// first, are different: the cursor never lands on them, so stepping would
+// never scroll them in. The list goes to that end instead, as far as the
+// cursor row and the peek on its other side stay in view.
+function cursorScrollY(view) {
+  var minY = view.originY
+  var maxY = Math.max(minY, minY + view.contentHeight - view.height)
+  var y = view.contentY
+
+  if (view.after !== "none") {
+    var down = view.after === "disabled"
+      ? view.rowY - view.reach
+      : view.rowY + view.rowHeight + view.reach - view.height
+    if (down > y) y = Math.min(down, maxY)
+  }
+  if (view.before !== "none") {
+    var up = view.before === "disabled"
+      ? view.rowY + view.rowHeight + view.reach - view.height
+      : view.rowY - view.reach
+    if (up < y) y = Math.max(up, minY)
+  }
+
+  return y
+}
+
 function searchableToken(value) {
   return String(value || "").replace(/[._-]+/g, " ")
 }
@@ -708,6 +754,8 @@ if (typeof module !== "undefined") {
     isVisible: isVisible,
     isDisabled: isDisabled,
     labelFor: labelFor,
+    rowsPast: rowsPast,
+    cursorScrollY: cursorScrollY,
     searchableToken: searchableToken,
     leafIdFor: leafIdFor,
     nameSearchText: nameSearchText,
