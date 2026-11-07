@@ -4,6 +4,7 @@ Name=Browser
 Comment=Open links in the running default browser and focus it
 Exec=omarchy-launch-browser %U
 Terminal=false
+StartupNotify=true
 Type=Application
 NoDisplay=true
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
