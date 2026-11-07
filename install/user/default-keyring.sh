@@ -1,26 +1,8 @@
-KEYRING_DIR="$HOME/.local/share/keyrings"
-KEYRING_FILE="$KEYRING_DIR/Default_keyring.keyring"
-DEFAULT_FILE="$KEYRING_DIR/default"
-
-mkdir -p "$KEYRING_DIR"
-
-if [[ ! -f $KEYRING_FILE ]]; then
-  cat > "$KEYRING_FILE" <<EOF
-[keyring]
-display-name=Default keyring
-ctime=$(date +%s)
-mtime=0
-lock-on-idle=false
-lock-after=false
-EOF
+# PAM creates an encrypted login keyring when a login password is available.
+# Autologin enrolls through GNOME's password prompt in the graphical first run.
+# Never replace an existing collection or change its default alias here.
+keyring_dir="${XDG_DATA_HOME:-$HOME/.local/share}/keyrings"
+if [[ ! -d $keyring_dir && -d $HOME/.gnome2/keyrings ]]; then
+  keyring_dir="$HOME/.gnome2/keyrings"
 fi
-
-if [[ ! -f $DEFAULT_FILE ]]; then
-  cat > "$DEFAULT_FILE" <<EOF
-Default_keyring
-EOF
-fi
-
-chmod 700 "$KEYRING_DIR"
-chmod 600 "$KEYRING_FILE"
-chmod 644 "$DEFAULT_FILE"
+install -d -m 700 "$keyring_dir"

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Encrypt or unlock the application keyring using GNOME's password prompt
+# omarchy:args=[--migrate]
+
+# Keep password entry entirely in GNOME's native prompt, on one D-Bus connection.
+exec /usr/bin/python3 "$OMARCHY_PATH/default/omarchy/keyring.py" "$@"
