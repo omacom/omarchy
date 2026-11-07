@@ -74,6 +74,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   chromium) command=chromium ;;
   firefox) command=firefox ;;
   zen-browser-bin) command=zen-browser ;;
+  helium-browser-bin) command=helium-browser ;;
   cursor-bin) command=cursor ;;
   sublime-text-4) command=subl ;;
   vim) command=vim ;;
@@ -91,6 +92,7 @@ omarchy-install-browser)
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
   zen) command=zen-browser ;;
+  helium) command=helium-browser ;;
   esac
   ;;
 omarchy-install-terminal)
@@ -165,6 +167,7 @@ browser_cases=(
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
   'zen zen-browser browser:zen'
+  'helium helium-browser browser:helium'
 )
 
 terminal_cases=(
@@ -208,6 +211,13 @@ for entry in "${browser_cases[@]}"; do
   [[ $(omarchy-default-browser) == "$selection" ]] || fail "$selection becomes the default browser after installation"
 done
 pass "browser defaults install every missing browser before selection"
+
+: >"$install_log"
+rm -f "$installed_dir/helium-browser"
+OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install helium >/dev/null
+[[ $(<"$install_log") == "pkg:helium-browser-bin" ]] || fail "Helium installs its actual package"
+[[ $(omarchy-default-browser) == "helium" ]] || fail "Helium becomes default after its installer succeeds"
+pass "Helium uses its package installer and desktop ID"
 
 : >"$install_log"
 : >"$setup_log"
@@ -321,3 +331,17 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+webapp_config="$test_home/.config/omarchy/webapp-browser"
+[[ $(omarchy-default-webapp-browser) == "auto" && ! -e $webapp_config ]] ||
+  fail "the web app browser starts in automatic mode without writing a config"
+touch "$installed_dir/helium-browser"
+omarchy-default-webapp-browser helium
+[[ $(omarchy-default-webapp-browser) == "helium.desktop" ]] || fail "a web app browser selection persists its desktop ID"
+if omarchy-default-webapp-browser zen >/dev/null 2>&1; then fail "Zen cannot be selected as an app-mode browser"; fi
+rm -f "$installed_dir/vivaldi-stable"
+if omarchy-default-webapp-browser vivaldi >/dev/null 2>&1; then fail "a missing browser cannot be selected for web apps"; fi
+[[ $(omarchy-default-webapp-browser) == "helium.desktop" ]] || fail "a rejected selection keeps the previous web app browser"
+omarchy-default-webapp-browser auto
+[[ $(omarchy-default-webapp-browser) == "auto" ]] || fail "automatic mode can be restored"
+pass "web app browser selection accepts only installed app-mode browsers"
