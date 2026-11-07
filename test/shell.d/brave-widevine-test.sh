@@ -20,7 +20,7 @@ mkdir -p "$stub_bin" "$test_tmp/home" "$omarchy_path/install/helpers" "$omarchy_
 printf 'browser_policy_setup_dir() { :; }\nas_root() { sudo "$@"; }\n' >"$omarchy_path/install/helpers/browser-policy.sh"
 cp "$ROOT/config/chromium-flags.conf" "$omarchy_path/config/"
 
-for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp omarchy-theme-set-browser omarchy-lifecycle-dispatch; do
+for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp omarchy-install-chromium-theme omarchy-theme-set-browser omarchy-lifecycle-dispatch; do
   printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
 done
 cat >"$stub_bin/sudo" <<'SH'
