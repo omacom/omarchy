@@ -16,6 +16,50 @@ fail() {
   exit 1
 }
 
+# A missing target or function means the running shell has not loaded code the
+# caller just asked for. During a package update that is the mixed-version
+# window: report it once per action instead of leaving a keybinding silently
+# dead. Quiet callers are probes and stay silent.
+notify_missing() {
+  local target="$1" method="$2" stamp_dir stamp_file key interval now last headline body
+
+  (( QUIET )) && return 0
+
+  interval=${OMARCHY_SHELL_NOTIFY_INTERVAL:-300}
+  [[ $interval =~ ^[0-9]+$ ]] || interval=300
+
+  stamp_dir=${OMARCHY_SHELL_NOTIFY_DIR:-${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/omarchy-shell-notify}
+  key="${target}.${method}"
+  key=${key//[^A-Za-z0-9._-]/_}
+  stamp_file="$stamp_dir/$key"
+
+  # The runtime directory is private, but the /tmp fallback is shared: another
+  # user could precreate the directory or plant a stamp-file symlink. Only
+  # write into a directory this user owns, and never through a symlink.
+  mkdir -p "$stamp_dir" 2>/dev/null || return 0
+  [[ -O $stamp_dir && ! -L $stamp_dir ]] || return 0
+
+  now=$(date +%s)
+  if [[ -f $stamp_file && ! -L $stamp_file ]]; then
+    read -r last <"$stamp_file" || last=0
+    if [[ $last =~ ^[0-9]+$ ]] && (( now - last < interval )); then
+      return 0
+    fi
+  fi
+
+  [[ -L $stamp_file ]] && return 0
+  printf '%s\n' "$now" >"$stamp_file" 2>/dev/null || return 0
+
+  headline=$(omarchy-i18n shell.actionUnavailable 2>/dev/null || true)
+  body=$(omarchy-i18n shell.actionUnavailableBody "$target.$method" 2>/dev/null || true)
+
+  # Never hold up the failed IPC call on the notification bus, and never let a
+  # notification failure change the result the caller sees.
+  (
+    omarchy-notification-send -u normal "$headline" "$body" >/dev/null 2>&1 || true
+  ) &
+}
+
 if (( $# == 0 )) || [[ $1 == "-h" || $1 == "--help" ]]; then
   cat <<USAGE
 Usage: omarchy-shell [-q] <target> <method> [args...]
@@ -117,7 +161,11 @@ elif (( ipc_status != 0 )); then
 fi
 
 case $output in
-  "Target not found." | "Function not found." | "Too few arguments provided"* | "Too many arguments provided"*)
+  "Target not found." | "Function not found.")
+    notify_missing "$1" "$2"
+    fail "$output"
+    ;;
+  "Too few arguments provided"* | "Too many arguments provided"*)
     fail "$output"
     ;;
   # A starting shell answers on stdout and exits 0, so a ping reads it as up
