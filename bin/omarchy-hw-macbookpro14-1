@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Match the Apple MacBook Pro 14,1 (13-inch 2017, no Touch Bar) with its Alpine Ridge Thunderbolt controller.
+
+product_name="${OMARCHY_DMI_PRODUCT_NAME:-/sys/class/dmi/id/product_name}"
+
+grep -qix "MacBookPro14,1" "$product_name" 2>/dev/null &&
+  lspci -n 2>/dev/null | grep -q "8086:1578"
