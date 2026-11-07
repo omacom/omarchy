@@ -9,6 +9,7 @@ session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's
 : "${session_omarchy_path:=$OMARCHY_PATH}"
 
 CONFIG_DIR="$session_omarchy_path/shell"
+proc_root=${OMARCHY_PROC_ROOT:-/proc}
 [[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
 
 # Allow running from outside the session (e.g. over ssh) by deriving the
@@ -104,6 +105,142 @@ deadline=$((SECONDS + 30))
 while (( SECONDS < deadline )) && [[ -n $(omarchy_shell_dirs) ]]; do
   sleep 0.1
 done
+
+# The waits above are the graceful stop. A wedged shell never answers that IPC
+# kill, stays alive, and quickshell -n then refuses with "already running".
+# What survives is stopped with signals. The launcher is stood down first: the
+# shell's death is not a clean exit, so the supervisor would otherwise take it
+# for a crash and start a second shell beside the replacement.
+shell_process_state() {
+  awk '/^State:/ { print $2; exit }' "$proc_root/$1/status" 2>/dev/null
+}
+
+quickshell_pid_alive() {
+  local state
+
+  [[ $1 =~ ^[0-9]+$ ]] && (( $1 > 1 )) || return 1
+  [[ $(awk '/^Name:/ { print $2; exit }' "$proc_root/$1/status" 2>/dev/null) == "quickshell" ]] || return 1
+  state=$(shell_process_state "$1")
+  [[ -n $state && $state != "Z" ]]
+}
+
+# The parent is the supervisor only when that process is omarchy-launch-shell.
+# Any other parent (a terminal, a test, pid 1) is left alone.
+launch_shell_pid() {
+  local arg
+
+  [[ $1 =~ ^[0-9]+$ ]] && (( $1 > 1 )) || return 1
+  [[ -r $proc_root/$1/cmdline ]] || return 1
+  while IFS= read -r -d '' arg || [[ -n $arg ]]; do
+    [[ ${arg##*/} == "omarchy-launch-shell" ]] && return 0
+  done <"$proc_root/$1/cmdline"
+  return 1
+}
+
+omarchy_shell_config() {
+  [[ $1 == "$CONFIG_DIR" || -x ${1%/shell}/bin/omarchy-launch-shell ]]
+}
+
+# The registry still lists a crash-relaunched shell that no longer has -p in
+# its argv. The process table finds a shell whose instance lock is gone, so
+# the registry no longer shows it, but which still occupies this config.
+leftover_shell_pids() {
+  local line pid dir arg previous
+
+  while IFS= read -r line; do
+    pid=${line%% *}
+    dir=${line#* }
+    [[ $pid == "$dir" ]] && continue
+    omarchy_shell_config "$dir" && [[ $pid =~ ^[0-9]+$ ]] && printf '%s\n' "$pid"
+  done < <(quickshell list -a -j 2>/dev/null |
+    jq -r '.[] | select(.config_path | endswith("/shell/shell.qml")) | "\(.pid) \(.config_path | rtrimstr("/shell.qml"))"' 2>/dev/null)
+
+  for pid in "$proc_root"/[0-9]*; do
+    pid=${pid##*/}
+    [[ $(awk '/^Name:/ { print $2; exit }' "$proc_root/$pid/status" 2>/dev/null) == "quickshell" ]] || continue
+    [[ -r $proc_root/$pid/cmdline ]] || continue
+    previous=""
+    while IFS= read -r -d '' arg || [[ -n $arg ]]; do
+      if [[ $previous == "-p" || $previous == "--path" ]]; then
+        omarchy_shell_config "${arg%/}" && printf '%s\n' "$pid"
+      fi
+      previous=$arg
+    done <"$proc_root/$pid/cmdline"
+  done
+}
+
+process_gone() {
+  local state
+
+  [[ -e $proc_root/$1 ]] || return 0
+  state=$(shell_process_state "$1")
+  [[ -z $state || $state == "Z" ]]
+}
+
+stop_wedged_shells() {
+  local pid ppid attempt
+  local -a shell_pids=() launcher_pids=() alive=()
+
+  mapfile -t shell_pids < <(leftover_shell_pids | sort -un)
+  for pid in "${shell_pids[@]}"; do
+    quickshell_pid_alive "$pid" || continue
+    alive+=("$pid")
+    ppid=$(awk '/^PPid:/ { print $2; exit }' "$proc_root/$pid/status" 2>/dev/null || true)
+    launch_shell_pid "$ppid" && launcher_pids+=("$ppid")
+  done
+  shell_pids=("${alive[@]}")
+  (( ${#shell_pids[@]} > 0 )) || return 0
+
+  echo "Shell did not answer the IPC kill, stopping it with signals." >&2
+
+  if (( ${#launcher_pids[@]} > 0 )); then
+    for pid in "${launcher_pids[@]}"; do
+      launch_shell_pid "$pid" && kill -TERM "$pid" 2>/dev/null || true
+    done
+    # The launcher's trap has to run before the shell dies, or the supervisor
+    # reaps a non-zero exit and relaunches.
+    sleep 0.1
+  fi
+
+  for signal in TERM KILL; do
+    alive=()
+    for pid in "${shell_pids[@]}"; do
+      quickshell_pid_alive "$pid" && alive+=("$pid")
+    done
+    shell_pids=("${alive[@]}")
+    (( ${#shell_pids[@]} > 0 )) || break
+    kill -"$signal" "${shell_pids[@]}" 2>/dev/null || true
+    for (( attempt = 0; attempt < 20; attempt++ )); do
+      alive=()
+      for pid in "${shell_pids[@]}"; do
+        quickshell_pid_alive "$pid" && alive+=("$pid")
+      done
+      shell_pids=("${alive[@]}")
+      (( ${#shell_pids[@]} > 0 )) || break 2
+      sleep 0.1
+    done
+  done
+
+  for pid in "${launcher_pids[@]}"; do
+    for (( attempt = 0; attempt < 20; attempt++ )); do
+      process_gone "$pid" && break
+      launch_shell_pid "$pid" || break
+      if (( attempt == 5 )); then
+        kill -KILL "$pid" 2>/dev/null || true
+      else
+        kill -TERM "$pid" 2>/dev/null || true
+      fi
+      sleep 0.1
+    done
+  done
+
+  if (( ${#shell_pids[@]} > 0 )); then
+    echo "Omarchy shell did not exit after being signalled." >&2
+    return 1
+  fi
+}
+
+stop_wedged_shells || exit 1
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
