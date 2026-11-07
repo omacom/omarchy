@@ -73,6 +73,12 @@ never invent function names to fill the gap. An unsymbolized stack still has
 shape: which library each frame belongs to, and whether the crash came from a
 signal handler, a main loop, or a worker thread.
 
+## Reproduce without raising a new notification
+
+A crash your reproduction causes is announced like any other, and the notification cannot be told apart from a real recurrence, so it gets diagnosed in turn. If you re-run anything only to confirm a crash, run it as `prlimit --core=1:1 <command>`. The kernel treats a core limit of exactly 1 as a reason to drop the dump before systemd-coredump runs, so there is no new notification. `ulimit -c 0` and `--core=0` do not work here: core dumps are piped to systemd-coredump, the kernel does not apply a limit of 0 to a pipe, and systemd-coredump still records the crash and raises the notification.
+
+The reproduction leaves no core, so use this to confirm a crash, not to collect a new one. If you need a fresh core, run the command without the limit and expect a notification for it. Every process your command starts inherits the limit, whatever it is called. A program that `systemd-run` or `omarchy-launch-browser` starts as a separate service does not, so run the binary itself. A browser that is already running may take the command over in its existing process, which the limit never reached. Say in your report that you reproduced the crash.
+
 ## Report
 
 1. What crashed, and what it was doing at the time.
