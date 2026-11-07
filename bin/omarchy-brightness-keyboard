@@ -29,11 +29,9 @@ fi
 # blanking again after a resume cannot save its own 0 over it.
 saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
 
-if [[ $direction == "off" || $direction == "restore" ]]; then
-  # The lock runs blank and wake as separate processes that can overlap.
-  exec {lock_fd}>"$saved.lock" || exit 1
-  flock "$lock_fd" || exit 1
-fi
+# Blank, restore, and brightness changes can overlap in separate processes.
+exec {lock_fd}>"$saved.lock" || exit 1
+flock "$lock_fd" || exit 1
 
 if [[ $direction == "off" ]]; then
   if [[ ! -s $saved ]]; then
@@ -76,5 +74,7 @@ else
 fi
 
 # Set the new brightness.
-brightnessctl -d "$device" set "$new_brightness" >/dev/null
+brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
+rm -f "$saved" || exit 1
+exec {lock_fd}>&-
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
