@@ -1300,5 +1300,8 @@
   },
   "update.password.user": {
     "label": "User"
+  },
+  "setup.plugin.browse": {
+    "label": "Plugin Marketplace"
   }
 }
