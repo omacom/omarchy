@@ -116,6 +116,11 @@ cat >"$browser_bin/omarchy-cmd-present" <<'FAKE'
 [[ -x ${BROWSER_BIN:?}/$1 ]]
 FAKE
 chmod +x "$browser_bin"/*
+# Each one holds its default profile, with this shell standing in for its pid.
+for profile in chromium google-chrome BraveSoftware/Brave-Browser BraveSoftware/Brave-Origin; do
+  mkdir -p "$TMPDIR/.config/$profile"
+  ln -s "$(uname -n)-$$" "$TMPDIR/.config/$profile/SingletonLock"
+done
 
 printf '{"BrowserThemeColor": "#ff0000"}\n' >"$policy_tmp/color.json"
 refresh_log="$TMPDIR/refreshes"
