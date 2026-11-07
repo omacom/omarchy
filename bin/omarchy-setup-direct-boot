@@ -11,7 +11,9 @@ if omarchy-hw-aarch64-apple; then
   exit 1
 fi
 
-if [[ ! -d /sys/firmware/efi ]]; then
+sys_root="${OMARCHY_SYS_ROOT:-/sys}"
+
+if [[ ! -d "$sys_root/firmware/efi" ]]; then
   echo "Error: System is not booted in UEFI mode" >&2
   exit 1
 fi
@@ -21,7 +23,7 @@ if ! efibootmgr &>/dev/null; then
   exit 1
 fi
 
-bios_vendor=$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)
+bios_vendor=$(cat "$sys_root/class/dmi/id/bios_vendor" 2>/dev/null)
 
 case "${bios_vendor,,}" in
   *"american megatrends"*)
@@ -34,34 +36,91 @@ case "${bios_vendor,,}" in
     ;;
 esac
 
+format_kernel_name() {
+  local file="$1"
+  local name="${file%.efi}"
+  name="${name#omarchy_}"
+  name="${name#omarchy-}"
+  name=$(sed -E 's/^[0-9a-f]{32}[_-]//' <<<"$name")
+
+  if [[ $name =~ (.*)[_-]fallback$ ]]; then
+    echo "${BASH_REMATCH[1]} (fallback)"
+  else
+    echo "$name"
+  fi
+}
+
 boot_num=$(omarchy-boot-direct --number | head -1)
 
 if [[ -n $boot_num ]]; then
-  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n directBoot.disable)"; then
-    echo "Removing EFI boot entry $boot_num"
-    sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null
-  fi
+  change_label="$(omarchy-i18n directBoot.changeKernel)"
+  disable_label="$(omarchy-i18n directBoot.disableAction)"
+  header="$(omarchy-i18n directBoot.currentlyEnabled "$boot_num")"
 
-  exit 0
+  action=$(gum choose "$change_label" "$disable_label" --header "$header") || exit 0
+
+  if [[ $action == "$disable_label" ]]; then
+    if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n directBoot.disable)"; then
+      echo "Removing EFI boot entry $boot_num"
+      sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null
+    fi
+    exit 0
+  fi
+fi
+
+mapfile -t uki_files < <(sudo find /boot/EFI/Linux/ -maxdepth 1 -name "omarchy*.efi" -printf "%f\n" 2>/dev/null | sort)
+
+if (( ${#uki_files[@]} == 0 )); then
+  echo "Error: No Omarchy UKI found in /boot/EFI/Linux/" >&2
+  exit 1
+fi
+
+if (( ${#uki_files[@]} == 1 )); then
+  selected_uki="${uki_files[0]}"
+  kernel_display=$(format_kernel_name "$selected_uki")
 else
-  uki_file=$(sudo find /boot/EFI/Linux/ -name "omarchy*.efi" -printf "%f\n" 2>/dev/null | head -1)
+  options=()
+  default_choice=""
+  for file in "${uki_files[@]}"; do
+    kname=$(format_kernel_name "$file")
+    opt="$kname ($file)"
+    options+=("$opt")
+    if [[ -z $default_choice && $kname == "linux" ]]; then
+      default_choice="$opt"
+    fi
+  done
 
-  if [[ -z $uki_file ]]; then
-    echo "Error: No Omarchy UKI found in /boot/EFI/Linux/" >&2
-    exit 1
+  if [[ -z $default_choice ]]; then
+    default_choice="${options[0]}"
   fi
 
-  boot_source=$(findmnt -n -o SOURCE /boot)
-  disk=$(echo "$boot_source" | sed 's/p\?[0-9]*$//')
-  part=$(echo "$boot_source" | grep -o 'p\?[0-9]*$' | sed 's/^p//')
+  header="$(omarchy-i18n directBoot.selectKernel)"
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header "$header" --selected "$default_choice") || exit 0
+  selected_uki=$(echo "$choice" | sed -n 's/.*(\([^()]*\))$/\1/p')
+  if [[ -z $selected_uki ]]; then
+    selected_uki="$choice"
+  fi
+  kernel_display=$(format_kernel_name "$selected_uki")
+fi
 
-  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n directBoot.setup)"; then
-    echo "Creating EFI boot entry for $uki_file"
+boot_source=$(findmnt -n -o SOURCE /boot)
+disk=$(echo "$boot_source" | sed 's/p\?[0-9]*$//')
+part=$(echo "$boot_source" | grep -o 'p\?[0-9]*$' | sed 's/^p//')
 
-    sudo efibootmgr --create \
-      --disk "$disk" \
-      --part "$part" \
-      --label "Omarchy" \
-      --loader "\\EFI\\Linux\\$uki_file"
+if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n directBoot.setup)"; then
+  echo "Creating EFI boot entry for $selected_uki"
+
+  if sudo efibootmgr --create \
+    --disk "$disk" \
+    --part "$part" \
+    --label "Omarchy" \
+    --loader "\\EFI\\Linux\\$selected_uki"; then
+    if [[ -n $boot_num ]]; then
+      echo "Removing existing EFI boot entry $boot_num"
+      sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null
+    fi
+  else
+    echo "Error: Failed to create EFI boot entry" >&2
+    exit 1
   fi
 fi
