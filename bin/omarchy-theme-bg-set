@@ -29,3 +29,8 @@ if [[ $(omarchy-shell shell switchBackground "$BACKGROUND" "$INTRO" 2>/dev/null)
   ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
   omarchy-shell -q background set "$BACKGROUND"
 fi
+
+# Download this wallpaper's intro, if it has one that isn't here yet, so it plays
+# the next time this wallpaper is chosen, arrives with its theme or at login.
+# The download must not hold the theme lock.
+setsid -f omarchy-theme-bg-boot-intro --fetch "$BACKGROUND" </dev/null >/dev/null 2>&1 9>&-

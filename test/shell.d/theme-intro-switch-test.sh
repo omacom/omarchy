@@ -106,7 +106,16 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
   exit 1
 fi
 STUB
-chmod +x "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
+# Downloads are only logged; everything else reaches the real command.
+cat >"$commands/omarchy-theme-bg-boot-intro" <<STUB
+#!/bin/bash
+if [[ \$1 == --fetch ]]; then
+  printf 'fetch: %s\\n' "\$2" >>"\$TEST_LOG"
+  exit 0
+fi
+exec "$ROOT/bin/omarchy-theme-bg-boot-intro" "\$@"
+STUB
+chmod +x "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe" "$commands/omarchy-theme-bg-boot-intro"
 
 # OMARCHY_THEME_WAIT=1 keeps the retints from running on behind the switch,
 # where they would still be writing into $test_tmp as it is removed.
@@ -138,11 +147,16 @@ set_theme beta
 [[ $(readlink "$state/background") == "$sky" ]] || fail "reselecting the current theme cycles its background"
 grep -q '^shell: background themeTransition ' "$log" || fail "cycling to a background without an intro uses the normal still transition"
 ! grep -q ' playThemeIntro ' "$log" || fail "cycling to a background without an intro plays none"
+for attempt in {1..100}; do
+  grep -Fxq "fetch: $sky" "$log" && break
+  sleep 0.02
+done
+grep -Fxq "fetch: $sky" "$log" || fail "cycling to a background fetches its intro" "$(cat "$log")"
 set_theme beta
 handed_over "$road $clip true" || fail "cycling to a background with an intro plays it" "$(cat "$log")"
 OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
 ! grep -q ' playThemeIntro ' "$log" || fail "theme refresh does not play an intro"
-pass "same-theme cycling plays the next background's intro and refresh keeps the still"
+pass "same-theme cycling plays the next background's intro, fetches a missing one, and refresh keeps the still"
 
 printf '%s\n' "$road" >"$home/.local/state/omarchy/theme-backgrounds/beta"
 mkdir -p "$home/.local/state/omarchy/toggles"
