@@ -15,6 +15,11 @@ cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
 [[ $1 == "qmk_hid" ]]
 EOF
 
+cat >"$FAKE_BIN/omarchy-hw-framework16" <<'EOF'
+#!/bin/bash
+[[ -z $NOT_FRAMEWORK16 ]]
+EOF
+
 cat >"$FAKE_BIN/qmk_hid" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$QMK_LOG"
@@ -38,7 +43,7 @@ qmk_calls() {
 }
 
 expected_calls() {
-  printf '%s\n' "via --rgb-effect 1" "via --rgb-hue $1" "via --rgb-saturation $2" "via --rgb-brightness 100" "via --save"
+  printf -- '--vid 32ac --pid 0012 via %s\n' "--rgb-effect 1" "--rgb-hue $1" "--rgb-saturation $2" "--rgb-brightness 100" "--save"
 }
 
 # Hue and saturation are what Python's colorsys gave for each colour.
@@ -55,3 +60,8 @@ echo "not-a-colour" >"$CURRENT_THEME/keyboard.rgb"
 apply_keyboard_color
 [[ -z $(qmk_calls) ]] || fail "Framework 16 keyboard ignores a malformed colour" "$(qmk_calls)"
 pass "Framework 16 keyboard ignores a malformed colour"
+
+echo "#7aa2f7" >"$CURRENT_THEME/keyboard.rgb"
+NOT_FRAMEWORK16=1 apply_keyboard_color
+[[ -z $(qmk_calls) ]] || fail "Only a Framework 16 gets the keyboard colour" "$(qmk_calls)"
+pass "Only a Framework 16 gets the keyboard colour"
