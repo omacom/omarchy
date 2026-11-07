@@ -1560,6 +1560,8 @@ Item {
                 id: headingText
                 visible: row.isHeading
                 text: row.label
+                width: Math.min(implicitWidth, parent.width - anchors.leftMargin - Style.space(40))
+                elide: Text.ElideRight
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 anchors.left: parent.left
