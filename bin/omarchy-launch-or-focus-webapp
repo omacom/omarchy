@@ -10,6 +10,12 @@ fi
 
 WINDOW_PATTERN="$1"
 shift
-LAUNCH_COMMAND="omarchy-launch-webapp $@"
+# omarchy-launch-or-focus runs this string through eval, so each argument has to
+# arrive quoted or a & ; or ` in a URL is read as shell syntax instead of data.
+if (($# > 0)); then
+  LAUNCH_COMMAND="omarchy-launch-webapp $(printf '%q ' "$@")"
+else
+  LAUNCH_COMMAND="omarchy-launch-webapp"
+fi
 
 exec omarchy-launch-or-focus "$WINDOW_PATTERN" "$LAUNCH_COMMAND"
