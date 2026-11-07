@@ -1,0 +1,204 @@
+#!/bin/bash
+
+# omarchy:summary=Record lock, idle, display and sleep transitions to a crash-safe trail
+# omarchy:hidden=true
+
+# Lock and idle failures are races: the shell loses its outputs mid-lock, a
+# wake lands while the session is locked, a resume beats the lock surface. What
+# decides them is the order of the transitions just before, which a snapshot
+# taken once the machine is stuck no longer shows. This keeps that order on
+# disk, each line flushed before the next, because the hangs most worth
+# reading end the boot before journald writes out its last seconds.
+#
+# Only names and states are recorded: the shell's own lock and idle events,
+# monitor add/remove with each monitor's mode, and sleep entry and resume.
+# Never window titles, clipboard, input or configuration values.
+#
+# Each line starts with the time the recorder read the event, in UTC to the
+# microsecond. The sources reach it with different delays (the shell's lines
+# pass through journald first), so a line that carries its own time adds it as
+# src=: when the event happened, which is what orders a race. Lock and idle
+# events carry the shell's own timestamp, the shell's other lines journald's.
+
+set -uo pipefail
+
+export TZ=UTC0
+
+TRAIL=${OMARCHY_STATE_TRAIL:-$HOME/.local/state/omarchy/state-trail.log}
+readonly max_bytes=${OMARCHY_STATE_TRAIL_MAX_BYTES:-524288}
+
+mkdir -p "$(dirname "$TRAIL")"
+
+# Sets the variable named by $1 to the Unix time $2, with the fractional part
+# EPOCHREALTIME and journald give, as an ISO timestamp in UTC. printf -v keeps
+# it in this process: a subshell per line costs a fork on every event.
+iso_time() {
+  printf -v "$1" '%(%Y-%m-%dT%H:%M:%S)T.%sZ' "${2%[.,]*}" "${2#*[.,]}"
+}
+
+# Prints a line stamped with the time it is read.
+emit() {
+  local stamp
+
+  iso_time stamp "$EPOCHREALTIME"
+  printf '%s %s\n' "$stamp" "$1"
+}
+
+# Records a line stamped now, for what the recorder itself observes.
+record_now() {
+  local stamp
+
+  iso_time stamp "$EPOCHREALTIME"
+  record "$stamp $1"
+}
+
+# Called from the event loop and from the snapshots running beside it. The lock
+# keeps append, flush and rotation one step, or two writers past the limit
+# would both rotate and the second would replace the saved history with the
+# few lines written in between.
+record() {
+  {
+    flock 9
+    printf '%s\n' "$1" >>"$TRAIL"
+    # Flush this line before taking the next: a hard hang loses whatever is
+    # still in the page cache, and that is the part of the trail that matters.
+    sync -d "$TRAIL" 2>/dev/null
+
+    if (( $(stat -c %s "$TRAIL" 2>/dev/null || echo 0) > max_bytes )); then
+      mv -f "$TRAIL" "$TRAIL.1"
+    fi
+  } 9>>"$TRAIL.lock"
+}
+
+# The lock and idle services log every transition under the shell's journal
+# tag, and the launcher logs each shell exit there too. The Wayland fatal error
+# is the line that ends the shell in most lock crashes, so it is kept as well.
+shell_events() {
+  local journald_time message rest src
+
+  # short-unix lines are "<time> <host> omarchy-shell[<pid>]: <message>", and
+  # Quickshell prefixes the message with its level and category, as in
+  # "DEBUG qml: omarchy lock <timestamp> secure=true".
+  journalctl --user -f -n 0 -o short-unix -t omarchy-shell 2>/dev/null | while IFS= read -r line; do
+    journald_time=${line%% *}
+    message=${line#*]: }
+    message=${message#"${message%%[![:space:]]*}"}
+
+    case "$message" in
+      *"qml: omarchy lock "*)
+        rest=${message#*qml: omarchy lock }
+        emit "lock src=${rest%% *} ${rest#* }"
+        ;;
+      *"qml: omarchy idle "*)
+        rest=${message#*qml: omarchy idle }
+        emit "idle src=${rest%% *} ${rest#* }"
+        ;;
+      "Omarchy shell exited"*|"Giving up on the Omarchy shell"*|*"Wayland connection experienced a fatal error"*)
+        iso_time src "$journald_time"
+        emit "shell src=$src $message"
+        ;;
+    esac
+  done
+}
+
+# The service's environment may lack HYPRLAND_INSTANCE_SIGNATURE, and a
+# Hyprland restart replaces it, so fall back to the newest running instance.
+hyprland_signature() {
+  local runtime=${XDG_RUNTIME_DIR:-/run/user/$UID} signature=${HYPRLAND_INSTANCE_SIGNATURE:-}
+
+  if [[ -z $signature || ! -S $runtime/hypr/$signature/.socket2.sock ]]; then
+    signature=$(hyprctl instances -j 2>/dev/null | jq -r 'max_by(.time) // empty | .instance' 2>/dev/null)
+  fi
+
+  [[ -n $signature && -S $runtime/hypr/$signature/.socket2.sock ]] || return 1
+  printf '%s\n' "$signature"
+}
+
+# Follows the event socket across Hyprland restarts. The same instance closing
+# its socket means the session is ending, so that stops the source.
+monitor_events() {
+  local signature previous="" tries
+
+  while true; do
+    signature=""
+    for (( tries = 0; tries < 10; tries++ )); do
+      signature=$(hyprland_signature) && break
+      sleep 1
+    done
+
+    if [[ -z $signature ]]; then
+      emit "trail monitor events unavailable: no running Hyprland instance"
+      return
+    elif [[ $signature == "$previous" ]]; then
+      emit "trail monitor events stopped: Hyprland closed its event socket"
+      return
+    fi
+
+    [[ -z $previous ]] || emit "trail monitor events reconnected to a new Hyprland instance"
+    previous=$signature
+
+    socat -U - "UNIX-CONNECT:${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr/$signature/.socket2.sock" 2>/dev/null |
+      while IFS= read -r event; do
+        case "$event" in
+          monitoraddedv2\>\>*|monitorremovedv2\>\>*)
+            emit "monitor $event"
+            ;;
+        esac
+      done
+  done
+}
+
+sleep_events() {
+  dbus-monitor --system \
+    "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'" 2>/dev/null |
+    while IFS= read -r line; do
+      case "$line" in
+        *"boolean true"*) emit "sleep entering" ;;
+        *"boolean false"*) emit "sleep resumed" ;;
+      esac
+    done
+}
+
+# Taken after the event that prompted it, so it shows where the state landed.
+lock_status() {
+  local status
+
+  if status=$(timeout 2 omarchy-shell lock status 2>/dev/null) && [[ -n $status ]]; then
+    record_now "lock-status $status"
+  else
+    record_now "lock-status unavailable"
+  fi
+}
+
+monitor_status() {
+  local status signature
+
+  if signature=$(hyprland_signature) &&
+    status=$(HYPRLAND_INSTANCE_SIGNATURE=$signature timeout 2 hyprctl monitors all -j 2>/dev/null |
+      jq -c 'map({name, disabled, dpms: .dpmsStatus, mode: "\(.width)x\(.height)@\(.refreshRate * 100 | round / 100)"})' 2>/dev/null); then
+    record_now "monitor-status $status"
+  else
+    record_now "monitor-status unavailable"
+  fi
+}
+
+record_now "trail started"
+
+{
+  shell_events &
+  monitor_events &
+  sleep_events &
+  wait
+} | {
+  # Snapshots run beside the loop: a shell that stops answering mid-failure
+  # holds each query for its timeout, and the events arriving meanwhile are
+  # the ones a hang would otherwise take with it.
+  while IFS= read -r event; do
+    record "$event"
+    case "${event#* }" in
+      "lock "*|"sleep resumed") lock_status & ;;
+      "monitor "*) monitor_status & ;;
+    esac
+  done
+  wait
+}

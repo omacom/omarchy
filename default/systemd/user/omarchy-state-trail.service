@@ -1,0 +1,18 @@
+[Unit]
+Description=Record lock, idle, display and sleep transitions for bug reports
+# Reads the shell's journal and Hyprland's event socket, both up only after
+# graphical-session.target.
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+# Set by omarchy-toggle-state-trail, which also installs and enables this unit.
+ConditionPathExists=%h/.local/state/omarchy/toggles/state-trail
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-state-trail
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
