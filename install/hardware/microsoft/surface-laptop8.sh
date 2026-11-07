@@ -53,7 +53,7 @@ unset firmware directory suffix
 CONF
 
   # Wi-Fi board data, audio, the device tree's hardware ID, sleep and touchpad.
-  omarchy-pkg-add surface-laptop-8-support
+  omarchy-pkg-add microsoft-surface-laptop-8-support
 
   # USB4 docks: the router firmware is copied out of the Windows USB4 driver;
   # thunderbolt_qcom declares it, so mkinitcpio adds it to the image. Without
