@@ -12,3 +12,6 @@ rdma-core
 # NVIDIA's GPU profilers.
 nsight-compute
 nsight-systems
+# Whole-system, CPU and GPU power from the firmware, as hwmon sensors. NVML
+# reports the GPU alone.
+spark-hwmon-dkms
