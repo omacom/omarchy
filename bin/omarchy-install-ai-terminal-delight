@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Install Terminal Delight from its official installer
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Terminal Delight's own installer puts the AppImage at
+# ~/.local/bin/terminal-delight with a launcher entry. The app updates itself
+# from then on, and follows the Omarchy theme by itself, so nothing here touches
+# theming. Downloaded whole before it runs, so a dropped connection can never
+# run half a script.
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+curl -fsSL --retry 3 https://terminal-delight.brownfamilysports.com/install.sh -o "$installer"
+sh "$installer"
+
+echo "Opening Terminal Delight..."
+setsid uwsm-app -- gtk-launch terminal-delight >/dev/null 2>&1 &
+
+echo ""
+echo "Terminal Delight has been installed. It updates itself."
