@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# omarchy:summary=Compact the occupied workspaces of every monitor, closing the gaps in their numbering
+# omarchy:args=[--dry-run]
+# omarchy:examples=omarchy hyprland workspace compact | omarchy hyprland workspace compact --dry-run
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-hyprland-workspace-compact [--dry-run]" >&2
+  exit 1
+}
+
+dry_run=false
+case "${1:-}" in
+  "")
+    ;;
+  --dry-run)
+    dry_run=true
+    ;;
+  -h | --help)
+    echo "Usage: omarchy-hyprland-workspace-compact [--dry-run]"
+    exit 0
+    ;;
+  *)
+    usage
+    ;;
+esac
+(( $# <= 1 )) || usage
+
+# Occupied workspaces (id > 0 with windows) are packed per monitor into the
+# lowest consecutive numbering, starting from the monitor's lowest occupied
+# workspace (persistent or not). Hyprland workspace numbers are global, so a
+# destination number is never one that exists on another monitor, nor an empty or
+# persistent workspace of this one, nor one already planned for another
+# workspace: those are taken, and the workspace stays where it is when no lower
+# free number is available. Persistent workspaces are anchors that keep their own
+# number. Special/scratchpad workspaces have negative ids and never participate.
+# Workspaces are renumbered in place (workspace.change_id), which keeps their
+# monitor, windows and visibility, so no window moves and no focus changes.
+PLAN_JQ=$(cat <<'JQ'
+def next_free($taken; $start):
+  if ($taken | index($start)) then next_free($taken; $start + 1) else $start end;
+
+def destinations($taken; $start):
+  def step($ids; $next; $acc):
+    if ($ids | length) == 0 then $acc
+    else
+      $ids[0] as $id
+      | next_free($taken; $next) as $free
+      | (if $free < $id then $free else $id end) as $dest
+      | step($ids[1:]; $dest + 1; ($acc + [[$id, $dest]]))
+    end;
+  step(.; $start; []);
+
+def plan:
+  [ .[] | select((.id | type) == "number" and .id > 0) ] as $all
+  | ($all | group_by(.monitor)) as $groups
+  | reduce $groups[] as $group ({ reserved: [], moves: [] };
+      $group[0].monitor as $monitor
+      | ($group | map(select(.windows > 0) | .id) | min) as $start
+      | ($group | map(select(.windows > 0 and .ispersistent != true) | .id) | sort) as $movable
+      | ([ $all[] | select(.monitor != $monitor or (.windows == 0 or .ispersistent == true)) | .id ]
+          + .reserved) as $taken
+      | ($group | map({ key: (.id | tostring), value: .windows }) | from_entries) as $windows
+      | ($movable | if length == 0 then [] else destinations($taken; $start) end) as $dests
+      | .reserved += [ $dests[] | .[1] ]
+      | .moves += [ $dests[]
+          | select(.[0] != .[1])
+          | { monitor: $monitor, source: .[0], destination: .[1],
+              windows: $windows[(.[0] | tostring)] } ])
+  | .moves;
+
+plan
+JQ
+)
+
+workspaces_json=$(hyprctl workspaces -j)
+
+jq -e 'type == "array"' >/dev/null <<<"$workspaces_json"
+
+plan=$(jq -r "$PLAN_JQ" <<<"$workspaces_json")
+
+if $dry_run; then
+  if ! jq -e 'length > 0' >/dev/null <<<"$plan"; then
+    echo "No gaps between occupied workspaces."
+    exit 0
+  fi
+
+  jq -r '
+    group_by(.monitor)
+    | .[]
+    | .[0].monitor as $monitor
+    | .[] as $move
+    | "[\($monitor)] \($move.source) -> \($move.destination) (\($move.windows) window\(if $move.windows == 1 then "" else "s" end))"
+  ' <<<"$plan"
+  exit 0
+fi
+
+moves=()
+while IFS=$'\t' read -r source destination; do
+  moves+=("dispatch hl.dsp.workspace.change_id({ workspace = \"$source\", id = $destination })")
+done < <(jq -r '.[] | [.source, .destination] | @tsv' <<<"$plan")
+
+if ((${#moves[@]} == 0)); then
+  exit 0
+fi
+
+printf -v batch '%s;' "${moves[@]}"
+hyprctl --batch "${batch%;}" >/dev/null
