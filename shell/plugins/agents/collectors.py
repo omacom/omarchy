@@ -2032,6 +2032,45 @@ def _claude_code_read_transcripts(files: list[Path], previous: dict[str, Any]) -
   return current, order, not unreadable_count
 
 
+def claude_code_transcripts(projects: Path) -> Iterator[Path]:
+  """Every transcript under `projects`, by its real path, in the order
+  rglob("*.jsonl") gives (a directory's files as it is found, then depth
+  first), since the last one read wins a tie. Unlike rglob it follows a
+  symlinked project folder, entering each real directory once, so a directory
+  behind several links is read once and a link back to an ancestor ends."""
+  entered: set[str] = set()
+  stack: list[str] = []
+
+  def entries(directory: str) -> list[os.DirEntry]:
+    try:
+      with os.scandir(directory) as found:
+        return list(found)
+    except OSError:
+      return []
+
+  def is_dir(entry: os.DirEntry) -> bool:
+    try:
+      return entry.is_dir()
+    except OSError:
+      return False
+
+  def enter(directory: str) -> Iterator[Path]:
+    real_directory = os.path.realpath(directory)
+    if real_directory in entered:
+      return
+    entered.add(real_directory)
+    stack.append(directory)
+    for entry in entries(directory):
+      if entry.name.endswith(".jsonl") and not is_dir(entry):
+        yield Path(real_directory) / entry.name
+
+  yield from enter(str(projects))
+  while stack:
+    for entry in entries(stack.pop()):
+      if is_dir(entry):
+        yield from enter(entry.path)
+
+
 _DEFAULT_INDEX = object()
 
 
@@ -2086,7 +2125,7 @@ def claude_code_usage(
   # Directory order, as before: when one API message shows up in several
   # transcripts with the same output count, the last file visited wins, and
   # the numbers must not move because the scan got faster.
-  files = list(projects.rglob("*.jsonl")) if projects.is_dir() else []
+  files = list(claude_code_transcripts(projects))
   if not index_file:
     current, order, complete = _claude_code_read_transcripts(files, {})
   else:
