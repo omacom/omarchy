@@ -484,3 +484,59 @@ output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub colle
 [[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
 grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
 pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"
+
+# Hyprland renumbers a __lua bind's arg on every reload, so a reload alone must
+# not throw the cache away. An edit to the Lua config does, since the scan of
+# that source is where a __lua bind's command comes from. A rebuilt cache
+# replaces the old file, so its name is what tells the two apart.
+reload_cache="$tmpdir/cache-reload"
+cached=()
+for callback in 66 64; do
+  stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + RETURN" "Terminal" | sed "s/^\targ: \$/\targ: $callback/")
+BINDS
+  keybindings "$menu" "$reload_cache" >/dev/null
+  cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+done
+[[ ${cached[0]} == "${cached[1]}" ]] || fail "a reload that renumbers __lua binds keeps the keybindings cache" "${cached[*]}"
+printf -- '-- edited\n' >>"$home/.config/hypr/hyprland.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+cached+=("$(basename "$reload_cache"/omarchy/keybindings-*.records)")
+[[ ${cached[2]} != "${cached[1]}" ]] || fail "an edit to the Lua config refreshes the keybindings cache"
+
+# Binds can live in any module the config requires, not only under ~/.config/hypr.
+mkdir -p "$home/.config/elsewhere"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("first-thing"), { description = "My own thing" })\n' >"$home/.config/elsewhere/my_binds.lua"
+printf 'package.path = "%s/.config/override/?.lua;%s/.config/elsewhere/?.lua;" .. package.path\nrequire("my_binds")\n' "$home" "$home" >>"$home/.config/hypr/hyprland.lua"
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + X" "My own thing")
+BINDS
+keybindings "$menu" "$reload_cache" >/dev/null
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tfirst-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "a bind from a required module is in the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("second-thing"), { description = "My own thing" })\n' >"$home/.config/elsewhere/my_binds.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tsecond-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "an edit to a required module refreshes the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+# A module added earlier on package.path overrides the one the scan found.
+mkdir -p "$home/.config/override"
+printf 'hl.bind("SUPER + X", hl.dsp.exec_cmd("third-thing"), { description = "My own thing" })\n' >"$home/.config/override/my_binds.lua"
+keybindings "$menu" "$reload_cache" >/dev/null
+grep -qP '→ My own thing\texec\tthird-thing$' "$reload_cache"/omarchy/keybindings-*.records ||
+  fail "a module added earlier on package.path refreshes the keybindings cache" "$(cat "$reload_cache"/omarchy/keybindings-*.records)"
+pass "a reload that renumbers __lua binds keeps the keybindings cache, an edit to any Lua file the config loads refreshes it"
+
+# A Lua file edited while the scan runs may be newer than the records built
+# from it, so those records are shown but not cached under the edited state.
+real_lua=$(command -v lua)
+printf '#!/bin/bash\n"%s" "$@"\nstatus=$?\nprintf -- "-- edited mid-scan\\n" >>"%s"\nexit $status\n' "$real_lua" "$home/.config/override/my_binds.lua" >"$stub_bin/lua"
+chmod +x "$stub_bin/lua"
+rm -rf "$tmpdir/cache-race"
+output=$(keybindings "$menu" "$tmpdir/cache-race")
+rm -f "$stub_bin/lua"
+grep -q 'SUPER + X  *→ My own thing' <<<"$output" || fail "a scan raced by an edit still shows the menu" "$output"
+if compgen -G "$tmpdir/cache-race/omarchy/keybindings-*.records" >/dev/null; then
+  fail "a scan raced by an edit is not cached" "$(ls "$tmpdir/cache-race/omarchy")"
+fi
+pass "a scan raced by an edit shows the menu without caching it"
