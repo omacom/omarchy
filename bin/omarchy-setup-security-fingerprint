@@ -138,6 +138,47 @@ verify_progress() {
   done
 }
 
+verify_fingerprint() (
+  local attempt output status
+  local output_file
+  output_file=$(mktemp)
+  # Subshell confines traps to verification; cleanup also runs on interrupts.
+  trap 'rm -f "$output_file"' EXIT
+  trap 'exit 143' TERM
+
+  # Some readers are still owned by the enroll operation for a moment after it
+  # returns. Give that handoff one settle interval, then retry only errors that
+  # mean the device could not be claimed. A real no-match must fail immediately
+  # so a wrong swipe never turns into several seconds of retries.
+  sleep 0.5
+
+  for attempt in 1 2 3 4 5; do
+    : >"$output_file"
+
+    # Keep fprintd's interactive prompts visible while retaining its output for
+    # failure classification. The filters only print; inspect fprintd's
+    # PIPESTATUS explicitly.
+    fprintd-verify 2>&1 | tee "$output_file" | verify_progress "$again"
+    status=${PIPESTATUS[0]}
+
+    if (( status == 0 )); then
+      return 0
+    fi
+
+    output=$(<"$output_file")
+    # fprintd 1.94.5 emits this literal, untranslated prefix from Claim.
+    # Other failures (including VerifyStart errors) must not restart a swipe.
+    if [[ $output == *"failed to claim device:"* ]]; then
+      (( attempt < 5 )) && sleep 0.5
+      continue
+    fi
+
+    return 1
+  done
+
+  return 1
+)
+
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
 # Bail before installing anything if there's no reader to talk to.
@@ -226,9 +267,7 @@ if (( enroll_status == 0 )); then
 
   # Verify
   echo -e "\nNow let's verify that it's working correctly. $start\n"
-  fprintd-verify | verify_progress "$again"
-  verify_status=${PIPESTATUS[0]}
-  if (( verify_status == 0 )); then
+  if verify_fingerprint; then
     # PAM comes last, once a print is enrolled and verified. Detection only
     # proves a reader is there, not that libfprint can drive it — an Elan MOC
     # sensor outside the elanmoc table gets this far and then fails to enroll.
