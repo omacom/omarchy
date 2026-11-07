@@ -617,11 +617,160 @@ assert(bar.ensureTrayWidget(staleOff), 'a tray that is on the bar clears a stale
 assertDeepEqual(staleOff.disabledPlugins, ['omarchy.audio'], 'only the tray is cleared from the switched-off list')
 assertEqual(staleOff.bar.layout.right.filter(entry => entry.id === 'omarchy.tray').length, 1, 'clearing the record does not add a second tray')
 
-const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
-assert(/function applyShellConfig\(\) \{[\s\S]*?repairTrayWidget\(/.test(shellSource), 'reloading shell config repairs a missing tray')
-assert(/function onScanFinished\(\) \{[\s\S]*?repairTrayWidget\(/.test(shellSource), 'the tray is repaired once plugin manifests are known')
-assert(/isTray\(key\)\) addDisabled\(config, key\)/.test(fs.readFileSync(root + '/shell/services/PluginRegistry.qml', 'utf8')), 'disabling the tray records it as switched off')
-assert(/registry\.isTray\(removal\.id\)/.test(fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')), 'dragging the tray off the bar records it as switched off')
+// Execute the production QML functions with only QObject construction and the
+// FileView IO boundary replaced. In particular, the saved config is not built
+// by a test mutator: the real drag, facade, host writer and reload all run.
+function qmlScope(relativePath, names, state = {}, indent = '  ') {
+  const source = fs.readFileSync(path.join(root, relativePath), 'utf8')
+  const functions = names.split(' ').map(name => {
+    const start = source.indexOf(`${indent}function ${name}(`)
+    if (start < 0) throw new Error(`missing QML function ${name}`)
+    const end = source.indexOf(`\n${indent}}`, start)
+    return source.slice(start, end + indent.length + 2)
+  }).join('\n')
+  require('vm').runInNewContext(functions, state, { filename: relativePath })
+  return state
+}
+const util = qmlScope('shell/Commons/Util.qml', 'isPlainObject canonicalWidgetId cloneJson normalizeLayoutEntry normalizeLayoutSection', { barSections: bar.sections })
+function trayFixture(barId = 'local.bar', config = custom) {
+  let saved = JSON.stringify(config)
+  const writes = []
+  const registry = qmlScope('shell/services/PluginRegistry.qml', 'isTray isDisabled addDisabled barEntryId findBarLocation findEntryLocation ensureConfigShape setEnabled', {
+    Util: util, installedPlugins: {}, scanning: false, registryRevision: 0, pluginsChanged() {}
+  })
+  for (const [id, file, clonedFrom] of [
+    ['omarchy.bar', 'shell/plugins/bar/manifest.json'],
+    ['omarchy.tray', 'shell/plugins/bar/widgets/Tray.manifest.json'],
+    ['local.bar', 'shell/plugins/bar/manifest.json', 'omarchy.bar'],
+    ['local.tray', 'shell/plugins/bar/widgets/Tray.manifest.json', 'omarchy.tray']
+  ]) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
+    manifest.id = id
+    manifest.__isFirstParty = !clonedFrom
+    if (clonedFrom) manifest.omarchy = { clonedFrom }
+    registry.installedPlugins[id] = manifest
+  }
+  registry.installedPlugins['local.other-bar'] = { id: 'local.other-bar', kinds: ['bar'] }
+  const host = qmlScope('shell/shell.qml', 'applyShellConfig repairTrayWidget barLayoutIsManaged trayHostIds persistShellConfig mutateShellConfig mutatePluginBarConfig manifestHasKind pluginHasBarCapabilities pluginShellCapabilityProfile publicBarConfig publicIdleConfigFor createScopedPluginShell', {
+    Util: util, BarModel: bar, pluginRegistry: registry, shellConfig: clone(config),
+    defaultsConfig: clone(custom), builtinShellConfig: clone(custom),
+    userConfigUnreadable: false, userConfigActive: true, pluginScanFinished: true,
+    restoringTrayWidget: false, pluginReloadPending: false, pluginReloading: false,
+    _pluginShellApis: {}, _pluginShellApiDescriptors: {},
+    pluginFirstPartyServiceFor() { return null }, pluginBarStateFor() { return null },
+    _syncServices() {}, syncPanelEntries() {}, syncPluginWidgets() {},
+    userConfigFile: {
+      text() { return saved },
+      setText(text) { writes.push(JSON.parse(text)); if (!host.failWrites) saved = text }
+    },
+    pluginShellApiComponent: {
+      createObject(parent, properties) {
+        return qmlScope('shell/services/PluginShellApi.qml', 'mutateShellConfig', properties)
+      }
+    }
+  })
+  host.shell = host
+  Object.defineProperty(host, 'barConfig', { get() { return host.shellConfig.bar } })
+  qmlScope('shell/shell.qml', 'onScanFinished', host, '    ')
+  registry.shellConfigMutator = edit => host.mutateShellConfig(edit)
+  const api = barId === 'omarchy.bar' ? host
+    : host.createScopedPluginShell(registry.installedPlugins[barId], barId, true, true)
+  const layout = Object.fromEntries(bar.sections.map(section => [section, util.normalizeLayoutSection(config.bar.layout[section])]))
+  const widgetState = bar.layoutWidgets(layout, {})
+  const barRoot = qmlScope('shell/plugins/bar/Bar.qml', 'commitBarRemoval writeLayout', {
+    shell: api, Util: util, BarModel: bar, layoutWidgets: widgetState, widgetMemo: {}, barRemoval: null
+  })
+  barRoot.root = barRoot
+  return {
+    host, registry, api, barRoot, writes, saved: () => JSON.parse(saved),
+    drag(id, region = 'right') {
+      const key = widgetState.sections[region].find(key => widgetState.entries[key].id === id)
+      barRoot.barRemoval = { key, region, id }
+      barRoot.commitBarRemoval()
+    }
+  }
+}
+for (const barId of ['omarchy.bar', 'local.bar', 'local.other-bar']) {
+  for (const trayId of ['omarchy.tray', 'local.tray']) {
+    for (const section of bar.sections) {
+      const config = clone(custom)
+      config.bar.id = barId
+      config.disabledPlugins = ['omarchy.idle', 'prior.disabled']
+      config.cloneSourceRestores = ['unrelated.clone']
+      config.extra = { untouched: true }
+      config.bar.layout[section] = [42, {}, ...(config.bar.layout[section] || []),
+        section === 'left' ? trayId : { id: trayId, pinned: ['discord'] }]
+      const fixture = trayFixture(barId, config)
+      fixture.drag(trayId, section)
+      const expected = clone(config)
+      expected.bar.layout[section].pop()
+      expected.disabledPlugins.push(trayId)
+      assertEqual(fixture.writes.length, 1, `${barId} removes ${trayId} from ${section} in one save`)
+      assertDeepEqual(fixture.saved(), expected, 'the saved removal includes only its tray opt-out and keeps unrelated config')
+      fixture.host.applyShellConfig()
+      fixture.host.applyShellConfig()
+      fixture.barRoot.commitBarRemoval()
+      assertDeepEqual(fixture.host.shellConfig, expected, 'the removed tray stays off through repeated reloads')
+      assertEqual(fixture.writes.length, 1, 'reload and repeated commit do not write again')
+      assertEqual(fixture.barRoot.widgetMemo.expected, null, 'the drag instance hint is cleared after saving')
+      if (barId !== 'omarchy.bar')
+        assertEqual(fixture.api.pluginRegistry, undefined, 'cloned and replacement bars do not receive the host registry')
+    }
+  }
+}
+const trayConfig = clone(restored)
+trayConfig.bar.id = 'local.bar'
+trayConfig.disabledPlugins = ['omarchy.idle']
+const movedTray = trayFixture('local.bar', trayConfig)
+movedTray.api.mutateShellConfig(config => {
+  bar.moveEntry(config, { from: { region: 'right', index: 1, id: 'omarchy.tray' }, to: { region: 'left', index: -1 } })
+  config.disabledPlugins = ['omarchy.lock']
+  config.idle = { lock: 0 }
+})
+assertDeepEqual(movedTray.saved().disabledPlugins, ['omarchy.idle'], 'moving a tray does not disable it or permit injected disabled records')
+assertDeepEqual(movedTray.saved().idle, trayConfig.idle, 'a bar mutator cannot change nonbar or authentication settings')
+const duplicateTray = clone(trayConfig)
+duplicateTray.bar.layout.left.push('omarchy.tray')
+const duplicateFixture = trayFixture('local.bar', duplicateTray)
+duplicateFixture.drag('omarchy.tray')
+assertDeepEqual(duplicateFixture.saved().disabledPlugins, ['omarchy.idle'], 'removing one of two tray occurrences leaves the remaining host enabled')
+const ordinary = trayFixture('local.bar', trayConfig)
+ordinary.drag('omarchy.bluetooth')
+assertDeepEqual(ordinary.saved().disabledPlugins, ['omarchy.idle'], 'removing an ordinary widget does not add a disabled record')
+const stale = trayFixture('local.bar', trayConfig)
+stale.host.shellConfig.bar.layout.right[1] = { id: 'replacement.widget' }
+stale.drag('omarchy.tray')
+assertDeepEqual(stale.saved().disabledPlugins, ['omarchy.idle'], 'a stale drag cannot disable a tray it did not remove')
+const unprivileged = trayFixture('local.bar', trayConfig)
+unprivileged.registry.installedPlugins['local.bar'].kinds = ['panel']
+assertEqual(unprivileged.api.mutateShellConfig(config => { config.bar = {} }), false, 'a stale bar facade loses its mutation capability')
+assertEqual(unprivileged.writes.length, 0, 'a revoked bar facade cannot save config')
+const panel = unprivileged.host.createScopedPluginShell({ id: 'local.panel', kinds: ['panel'] }, 'local.panel', true, false)
+assertEqual(panel.mutateShellConfig(config => { config.bar = {} }), false, 'an ordinary plugin cannot mutate the bar')
+const failedWrite = trayFixture('local.bar', trayConfig)
+failedWrite.host.failWrites = true
+failedWrite.drag('omarchy.tray')
+assertDeepEqual(failedWrite.saved(), trayConfig, 'a failed FileView write leaves the previous serialized config intact')
+assertDeepEqual(failedWrite.host.shellConfig.disabledPlugins, ['omarchy.idle', 'omarchy.tray'], 'optimistic memory carries the same complete mutation as the attempted save')
+failedWrite.host.applyShellConfig()
+assertDeepEqual(failedWrite.host.shellConfig, trayConfig, 'reload after a failed write reads the previous complete config')
+assertEqual(failedWrite.barRoot.widgetMemo.expected, null, 'a failed save clears the drag instance hint')
+const disabled = trayFixture('omarchy.bar', trayConfig)
+disabled.registry.setEnabled('omarchy.tray', false)
+disabled.host.applyShellConfig()
+assertDeepEqual(disabled.saved().disabledPlugins, ['omarchy.idle', 'omarchy.tray'], 'settings disables the tray durably through the real registry mutator')
+for (const barId of ['omarchy.bar', 'local.bar', 'local.other-bar']) {
+  const config = clone(custom)
+  config.bar.id = barId
+  const reload = trayFixture(barId, config)
+  reload.host.pluginScanFinished = false
+  reload.host.applyShellConfig()
+  assertEqual(reload.writes.length, 0, 'config loaded before plugin discovery is not repaired early')
+  reload.host.onScanFinished()
+  const managed = barId !== 'local.other-bar'
+  assertEqual(reload.writes.length, managed ? 1 : 0, 'scan completion repairs managed bars and leaves another bar option alone')
+  if (managed) assert(reload.saved().bar.layout.right.some(entry => entry.id === 'omarchy.tray'), 'the real scan callback saves the restored tray')
+}
 JS
 
 put_tmp=$(mktemp -d)

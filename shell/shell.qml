@@ -469,7 +469,23 @@ ShellRoot {
     shell.mutateShellConfig(function(config) {
       var scoped = { bar: JSON.parse(JSON.stringify(config.bar || {})) }
       mutator(scoped)
-      if (Util.isPlainObject(scoped.bar)) config.bar = JSON.parse(JSON.stringify(scoped.bar))
+      if (!Util.isPlainObject(scoped.bar)) return
+      var nextBar = JSON.parse(JSON.stringify(scoped.bar))
+      // Copied bar code only receives this facade, not the plugin registry.
+      // Record a removed tray on the host, in the same save as its layout
+      // removal. Ignore any non-bar fields the plugin's mutator wrote.
+      var previousLayout = config.bar && config.bar.layout || {}
+      for (var s = 0; s < Util.barSections.length; s++) {
+        var entries = previousLayout[Util.barSections[s]]
+        if (!Array.isArray(entries)) continue
+        for (var i = 0; i < entries.length; i++) {
+          var id = shell.pluginRegistry.barEntryId(entries[i])
+          if (shell.pluginRegistry.isTray(id)
+              && !shell.pluginRegistry.findBarLocation({ bar: nextBar }, id, "").found)
+            shell.pluginRegistry.addDisabled(config, id)
+        }
+      }
+      config.bar = nextBar
     })
     return true
   }
