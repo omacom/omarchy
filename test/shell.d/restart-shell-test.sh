@@ -9,15 +9,22 @@ restart_pid_one=""
 restart_pid_two=""
 restart_pid_three=""
 restart_pid_four=""
+restart_pid_five=""
 
 cleanup() {
   [[ -n $restart_pid_one ]] && kill -KILL "$restart_pid_one" 2>/dev/null || true
   [[ -n $restart_pid_two ]] && kill -KILL "$restart_pid_two" 2>/dev/null || true
   [[ -n $restart_pid_three ]] && kill -KILL "$restart_pid_three" 2>/dev/null || true
   [[ -n $restart_pid_four ]] && kill -KILL "$restart_pid_four" 2>/dev/null || true
+  [[ -n $restart_pid_five ]] && kill -KILL "$restart_pid_five" 2>/dev/null || true
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
+
+# The runtime directory and quickshell stub cannot isolate a /proc scan. Expose
+# only fixture processes, keeping the real desktop shell and its launcher out.
+export OMARCHY_PROC_ROOT="$test_tmp/proc"
+mkdir -p "$OMARCHY_PROC_ROOT"
 
 restart_root="$test_tmp/restart-root"
 restart_bin="$restart_root/bin"
@@ -357,8 +364,11 @@ if [[ ${OMARCHY_TEST_IGNORE_TERM:-0} == 1 ]]; then
 else
   trap '[[ -n $signal_file ]] && printf term >"$signal_file"; exit 0' TERM
 fi
-while :; do sleep 60; done
+# Wait in Bash itself: a sleep child would survive this fixture's SIGKILL.
+exec 3<>"${0%/*}/wait"
+while :; do read -r -t 60 -u 3 ignored; done
 SH
+mkfifo "$wedged_bin/wait"
 cat >"$wedged_bin/omarchy-launch-shell" <<'SH'
 #!/bin/bash
 outcome=$1
@@ -403,6 +413,13 @@ disown "$restart_pid_three"
 OMARCHY_TEST_IGNORE_TERM=1 "$wedged_bin/quickshell" -p "$test_tmp/other-config" "$test_tmp/other-signal" >/dev/null 2>&1 &
 restart_pid_four=$!
 disown "$restart_pid_four"
+for pid in "$restart_pid_one" "$restart_pid_two" "$restart_pid_three" "$restart_pid_four"; do
+  ln -s "/proc/$pid" "$OMARCHY_PROC_ROOT/$pid"
+done
+# Even an exact config match outside the fixture process table must stay alive.
+OMARCHY_TEST_IGNORE_TERM=1 "$wedged_bin/quickshell" -p "$wedged_root/shell" "$test_tmp/unlisted-signal" >/dev/null 2>&1 &
+restart_pid_five=$!
+disown "$restart_pid_five"
 : >"$restart_state"
 rm -f "$test_tmp/strays" "$restart_state.locked" "$test_tmp/notification-checks"
 : >"$restart_log"
@@ -430,12 +447,15 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 kill -0 "$restart_pid_three" 2>/dev/null || fail "restart leaves a shell whose path only contains this config"
 kill -0 "$restart_pid_four" 2>/dev/null || fail "restart leaves a Quickshell config that is not Omarchy"
-kill -KILL "$restart_pid_three" "$restart_pid_four" 2>/dev/null || true
-wait "$restart_pid_three" "$restart_pid_four" 2>/dev/null || true
+kill -0 "$restart_pid_five" 2>/dev/null || fail "restart cannot discover an Omarchy shell outside the fixture process table"
+kill -KILL "$restart_pid_three" "$restart_pid_four" "$restart_pid_five" 2>/dev/null || true
+wait "$restart_pid_three" "$restart_pid_four" "$restart_pid_five" 2>/dev/null || true
 restart_pid_three=""
 restart_pid_four=""
+restart_pid_five=""
 grep -F "stopping it with signals" "$test_tmp/wedged.err" >/dev/null ||
   fail "restart says when it stops a wedged shell with signals" "$(cat "$test_tmp/wedged.err")"
 [[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "restart launches one shell after stopping a wedged one"
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a wedged shell leaves one fresh session shell"
 pass "restart signals away a wedged shell without relaunching it"
+pass "restart process discovery is restricted to the fixture process table"
