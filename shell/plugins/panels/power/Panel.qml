@@ -203,13 +203,106 @@ Panel {
       }
 
       refresh()
+      refreshHistory()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+    } else {
+      // A read queued behind one still running isn't needed once closed.
+      historyPending = false
     }
   }
 
   onBatteryPresentChanged: if (!batteryPresent) close()
+
+  // ---------- Charge history ----------
+  // UPower keeps each battery's charge history on disk. The display device
+  // has none, so the chart reads the one laptop battery directly, and stays
+  // hidden on a machine with two packs rather than draw one of them.
+  readonly property int historyHours: 6
+  readonly property var historyBattery: {
+    var devices = UPower.devices.values
+    var found = null
+    for (var i = 0; i < devices.length; i++) {
+      if (!devices[i].isLaptopBattery) continue
+      if (found) return null
+      found = devices[i]
+    }
+    return found
+  }
+  property var historyEntries: []
+  property var historyPoints: []
+  property bool historyPending: false
+  // Set once UPower answers with no usable history. Until then the chart's
+  // room is kept, so a first open doesn't grow the panel when the reply lands.
+  property bool historyMissing: false
+  readonly property bool historyShown: historyBattery !== null && !historyMissing
+
+  function refreshHistory() {
+    // Also the deferred rerun below, which can land after the panel closed.
+    if (!opened) return
+    if (!historyBattery) {
+      historyPoints = []
+      return
+    }
+    // A read already running may have been sent before the change this
+    // refresh is for, so run another once it finishes.
+    if (historyProc.running) {
+      historyPending = true
+      return
+    }
+    historyPending = false
+    var path = Model.historyDevicePath(historyBattery.nativePath)
+    if (!path) return
+    // A day beyond the window finds the level in force when it opens: UPower
+    // writes a row only when the level changes.
+    var span = historyHours * 3600
+    historyProc.command = ["busctl", "--json=short", "call", "org.freedesktop.UPower", path,
+      "org.freedesktop.UPower.Device", "GetHistory", "suu", "charge", String(span + 86400), "500"]
+    historyProc.running = true
+  }
+
+  function updateHistory(raw) {
+    var entries = Model.parseHistory(raw)
+    if (entries === null || !historyBattery) {
+      historyEntries = []
+      historyPoints = []
+      historyMissing = true
+      return
+    }
+    historyEntries = entries
+    placeHistory()
+  }
+
+  // Lays the readings out on a window ending now. Run again when the pointer
+  // enters the chart, so a panel left open with nothing changing doesn't
+  // read times, or draw a window, from when the history was fetched.
+  function placeHistory() {
+    if (!historyBattery) return
+    historyPoints = Model.historyPoints(historyEntries, Date.now() / 1000, historyHours * 3600, historyBattery.percentage * 100)
+    historyMissing = historyPoints.length < 2
+  }
+
+  // Ten minutes a column over six hours: UPower writes a reading only when
+  // the level moves, so the chart was never finer than that.
+  readonly property int historyBarCount: 36
+  readonly property var historyBars: Model.historyBars(historyPoints, historyBarCount)
+
+  Process {
+    id: historyProc
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateHistory(text) }
+    // Deferred: the process still reports running while it signals exit.
+    onExited: if (root.historyPending) Qt.callLater(root.refreshHistory)
+  }
+
+  // UPower writes a row on each change, so the open chart follows the same
+  // changes rather than polling.
+  Connections {
+    target: UPower.displayDevice
+    enabled: root.opened
+    function onPercentageChanged() { root.refreshHistory() }
+    function onStateChanged() { root.refreshHistory() }
+  }
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -396,29 +489,27 @@ Panel {
           }
         }
 
-        // ---------- Battery progress bar ----------
+        // ---------- Charge bar ----------
+        // With UPower history for the battery, the bar grows into a chart of
+        // the last few hours in the same track and colour: a column per ten
+        // minutes, each filled to the level then like the bar's fill, the
+        // last one the level now. Without history it stays the plain bar.
         Item {
+          id: chargeBar
           width: parent.width
-          implicitHeight: Style.space(8)
+          implicitHeight: root.historyShown ? Style.space(24) : Style.space(8)
 
           Rectangle {
             id: barTrack
             anchors.fill: parent
+            // As a chart each column carries its own track instead.
+            visible: !root.historyShown
             radius: height / 2
             color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
           }
 
-          Rectangle {
-            id: barFill
-            anchors.left: barTrack.left
-            anchors.verticalCenter: barTrack.verticalCenter
-            height: barTrack.height
-            radius: barTrack.radius
-            color: root.batteryFillColor
-            width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
-
-            Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
-            Behavior on color { ColorAnimation { duration: Style.duration(220) } }
+          Item {
+            anchors.fill: parent
 
             // Subtle pulse while charging — visible signal that energy is flowing in.
             SequentialAnimation on opacity {
@@ -428,6 +519,94 @@ Panel {
               NumberAnimation { from: 1.0; to: 0.55; duration: Style.duration(950); easing.type: Easing.InOutSine }
               NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
             }
+
+            Rectangle {
+              id: barFill
+              visible: !root.historyShown
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              height: barTrack.height
+              radius: barTrack.radius
+              color: root.batteryFillColor
+              width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
+
+              Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
+              Behavior on color { ColorAnimation { duration: Style.duration(220) } }
+            }
+
+            // Each column is a slot of its own, in the track the agents
+            // panel's meters use and with the theme's corners, filled from
+            // the bottom to the level.
+            Item {
+              visible: root.historyShown
+              anchors.fill: parent
+
+              Repeater {
+                model: root.historyBarCount
+
+                Rectangle {
+                  id: slot
+                  required property int index
+                  readonly property var level: root.historyBars[index]
+                  // Time runs with the reading direction.
+                  x: (LayoutMirroring.enabled ? root.historyBarCount - 1 - index : index) * (chargeBar.barWidth + chargeBar.barGap)
+                  width: chargeBar.barWidth
+                  height: parent.height
+                  radius: Math.min(Style.cornerRadius, width / 2)
+                  color: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
+
+                  Rectangle {
+                    visible: slot.level !== null
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: Math.max(1, Math.round((slot.level || 0) / 100 * slot.height))
+                    // A short fill rounds less rather than standing taller
+                    // than its level.
+                    radius: Math.min(slot.radius, height / 2)
+                    color: root.batteryFillColor
+                    // The column being read stays full; the rest step back.
+                    opacity: chargeBar.hoverIndex < 0 || chargeBar.hoverIndex === slot.index ? 1 : 0.6
+                  }
+                }
+              }
+            }
+          }
+
+          readonly property real barGap: Math.max(1, Style.spaceReal(2))
+          readonly property real barWidth: (width - barGap * (root.historyBarCount - 1)) / root.historyBarCount
+
+          // Hovering a column reads it: that column stays full while the rest
+          // step back, and the tooltip gives its level and how long ago it
+          // was. Nothing animates, since it follows the pointer.
+          HoverHandler {
+            id: chartHover
+            enabled: root.historyShown
+            onHoveredChanged: if (hovered) root.placeHistory()
+          }
+
+          readonly property int hoverColumn: Math.max(0, Math.min(root.historyBarCount - 1,
+            Math.floor(chartHover.point.position.x / (barWidth + barGap))))
+          readonly property int hoverIndex: {
+            if (!chartHover.hovered) return -1
+            var index = LayoutMirroring.enabled ? root.historyBarCount - 1 - hoverColumn : hoverColumn
+            return root.historyBars[index] === null ? -1 : index
+          }
+          readonly property string hoverText: hoverIndex >= 0
+            ? Model.historyReadout(root.historyPoints, (hoverIndex + 1) / root.historyBarCount, root.historyHours * 3600,
+                function(key, english) { return Commons.I18n.t(key, english) },
+                function(value) { return Commons.I18n.formatNumber(value) })
+            : ""
+
+          // Above the chart, because below is where the pointer is.
+          PanelToolTip {
+            visible: chargeBar.hoverText !== ""
+            delay: 0
+            text: chargeBar.hoverText
+            fontFamily: root.bar.fontFamily
+            x: Math.max(0, Math.min(chargeBar.width - width,
+              chargeBar.hoverColumn * (chargeBar.barWidth + chargeBar.barGap) + chargeBar.barWidth / 2 - width / 2))
+            y: -height - Style.space(4)
           }
         }
 
