@@ -139,6 +139,8 @@ BarWidget {
             anchors.margins: Style.space(2)
             crop: true
             url: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
+            // A player's art URL arrives as sent, image://icon/ included.
+            asynchronous: Util.loadsOffThread(url)
             visible: url != ""
           }
 
