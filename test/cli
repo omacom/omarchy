@@ -802,6 +802,35 @@ assert_output_contains "a --help behind -- belongs to the command and still forw
 output=$("$TMPDIR/omarchy" parenthelp --helpme x--help)
 assert_output_contains "help lookalike tokens do not trigger help" "$output" "parenthelp-parent-ran args=[--helpme x--help]"
 
+# A mistyped child of a flags-only parent (`omarchy update firmwre`) must fail
+# instead of running the parent, directly or through the parent's alias.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Flags-only parent test\n'
+  printf '# omarchy:alias=omarchy flagparent-alias\n'
+  printf '# omarchy:args=[-y]\n'
+  printf 'echo "flagparent-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-flagparent"
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Flags-only parent child test\n'
+  printf 'echo flagparent-child-ran\n'
+} >"$TMPDIR/omarchy-flagparent-child"
+chmod +x "$TMPDIR/omarchy-flagparent" "$TMPDIR/omarchy-flagparent-child"
+
+for route in flagparent flagparent-alias; do
+  status=0
+  output=$("$TMPDIR/omarchy" "$route" chlid 2>&1) || status=$?
+  if [[ $output == *"flagparent-ran"* ]] || (( status != 127 )); then
+    printf 'Actual output (status %s):\n%s\n' "$status" "$output" >&2
+    fail "a mistyped child of omarchy $route does not run the parent"
+  fi
+  assert_output_contains "a mistyped child of omarchy $route is reported" "$output" "Unknown Omarchy command: omarchy flagparent chlid"
+done
+
+output=$("$TMPDIR/omarchy" flagparent -y)
+assert_output_contains "a flags-only parent still takes its flags" "$output" "flagparent-ran args=[-y]"
+
 # Alias and metadata-moved routes resolve by loading only the commands that can
 # own a route under their first word, then dispatch exactly like a full load.
 {
