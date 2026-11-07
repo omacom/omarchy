@@ -15,4 +15,12 @@ if [[ -d /sys/firmware/efi ]] && [[ -f /usr/lib/fwupd/efi/fwupdx64.efi ]]; then
 fi
 
 fwupdmgr refresh --force
-sudo fwupdmgr update
+
+# fwupdmgr answers 2 for "nothing to do", which is what an up-to-date machine
+# prints to say "No updatable devices". Only a real failure should end this
+# script, and the update wrapper, non-zero.
+status=0
+sudo fwupdmgr update || status=$?
+if (( status != 0 && status != 2 )); then
+  exit "$status"
+fi
