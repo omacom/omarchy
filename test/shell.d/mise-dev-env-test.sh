@@ -91,3 +91,18 @@ grep -q 'uv' "$mise_log" && fail "Python removal does not remove the independent
 [[ -e $test_home/.local/bin/uv && -e $test_home/.local/bin/uvx && -e $test_home/.cargo/bin/uv ]] ||
   fail "Python removal preserves uv commands"
 pass "Python removal preserves the default uv tool"
+
+# The .NET launcher in /usr/local/bin picks the user's mise SDK over the
+# runtime-only /usr/bin/dotnet, but leaves packaged apps like Pinta on it.
+mkdir -p "$test_tmp/usr/bin" "$test_tmp/sdk"
+printf '#!/bin/bash\necho "system $*"\n' >"$test_tmp/usr/bin/dotnet"
+printf '#!/bin/bash\necho "sdk $*"\n' >"$test_tmp/sdk/dotnet"
+printf '#!/bin/bash\n[[ -n $TEST_SDK ]] && echo "$TEST_SDK"\n' >"$mock_bin/mise"
+sed "s#/usr/bin/dotnet#$test_tmp/usr/bin/dotnet#" "$ROOT/default/dotnet/dotnet" >"$test_tmp/dotnet"
+chmod +x "$test_tmp/usr/bin/dotnet" "$test_tmp/sdk/dotnet" "$mock_bin/mise" "$test_tmp/dotnet"
+
+[[ $(TEST_SDK="$test_tmp/sdk/dotnet" "$test_tmp/dotnet" build) == "sdk build" ]] || fail ".NET launcher runs the mise SDK"
+[[ $(TEST_SDK="" "$test_tmp/dotnet" build) == "system build" ]] || fail ".NET launcher falls back without a mise SDK"
+[[ $(TEST_SDK="$test_tmp/sdk/dotnet" "$test_tmp/dotnet" /usr/lib/pinta/Pinta.dll) == "system /usr/lib/pinta/Pinta.dll" ]] ||
+  fail ".NET launcher keeps Pinta on the system runtime"
+pass ".NET launcher prefers the mise SDK and keeps Pinta on the system runtime"

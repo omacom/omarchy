@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Installed to /usr/local/bin by `omarchy install dev-env dotnet`. Pinta pulls
+# in dotnet-runtime, whose /usr/bin/dotnet has no SDK, and SSH commands and
+# login shells put mise's shims after /usr/bin. Sitting ahead of both, this
+# hands dotnet to the user's mise SDK when one is active.
+#
+# Packaged apps (Pinta runs `dotnet /usr/lib/pinta/Pinta.dll`) stay on the
+# system runtime they were built against.
+if [[ $1 != /usr/lib/* ]] && sdk=$(mise which dotnet 2>/dev/null); then
+  exec "$sdk" "$@"
+else
+  exec /usr/bin/dotnet "$@"
+fi

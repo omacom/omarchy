@@ -99,6 +99,7 @@ dotnet)
   echo -e "Removing .NET...\n"
   mise uninstall dotnet --all
   mise rm -g dotnet
+  sudo rm -f /usr/local/bin/dotnet
   ;;
 ocaml)
   echo -e "Removing OCaml...\n"
