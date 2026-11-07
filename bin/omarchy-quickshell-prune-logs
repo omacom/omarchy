@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# omarchy:summary=Prune stale Quickshell instance log dirs under the user runtime tmpfs
+# omarchy:hidden=true
+
+# Each Quickshell instance writes under $XDG_RUNTIME_DIR/quickshell/by-id/ and
+# never removes dead instances. Over weeks those logs fill the runtime tmpfs
+# and break uwsm-app / systemd --user scopes (issue #13287). Keep only dirs
+# still referenced by a live by-pid symlink.
+
+set -euo pipefail
+
+# Canonical, so by-id paths compare equal to the readlink -f'd by-pid targets.
+runtime=$(readlink -f -- "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}")
+by_id=$runtime/quickshell/by-id
+by_pid=$runtime/quickshell/by-pid
+
+[[ -d $by_id ]] || exit 0
+
+declare -A keep=()
+
+if [[ -d $by_pid ]]; then
+  for link in "$by_pid"/*; do
+    [[ -e $link || -L $link ]] || continue
+    pid=${link##*/}
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$link"
+      continue
+    fi
+
+    if [[ -L $link ]]; then
+      target=$(readlink -f "$link" 2>/dev/null || true)
+      [[ -n $target ]] && keep[$target]=1
+    fi
+  done
+fi
+
+for dir in "$by_id"/*; do
+  [[ -d $dir ]] || continue
+  if [[ -n ${keep[$dir]+x} ]]; then
+    continue
+  fi
+  rm -rf -- "$dir"
+done
