@@ -315,6 +315,7 @@
   "lock.checking": "Checking…",
   "lock.enterPassword": "Enter Password",
   "lock.fingerprintUnavailable": "Fingerprint reader unavailable",
+  "lock.fingerprintNotRecognized": "Fingerprint not recognized",
   "media.mediaSource": "Media source",
   "media.next": "Next",
   "media.nothingPlaying": "Nothing playing",
