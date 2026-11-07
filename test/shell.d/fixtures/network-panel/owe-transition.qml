@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Networking
 import qs.Commons
 import qs.Commons as Commons
 import "mocks"
@@ -110,6 +111,36 @@ ShellRoot {
 
   function finalChecks() {
     check(panel.activeApSignal === -1 && !panel.testApPoll.running, "final disconnect clears the reading")
+    NetworkMock.wifi.mode = WifiDeviceMode.AccessPoint
+    NetworkMock.wifi.connected = true
+    Qt.callLater(hotspotChecks)
+  }
+
+  function hotspotChecks() {
+    check(panel.kind === "disconnected" && !panel.testApPoll.running, "a connected hotspot has no uplink, so it shows disconnected")
+    NetworkMock.devices = { values: [NetworkMock.wifi, station] }
+    Qt.callLater(idleStationBesideHotspotChecks)
+  }
+
+  function idleStationBesideHotspotChecks() {
+    check(panel.wifiDevice === station && panel.kind === "disconnected", "an idle station on a second radio is the one the panel drives, not the hotspot")
+    station.networks = test.listed
+    station.connected = true
+    Qt.callLater(stationBesideHotspotChecks)
+  }
+
+  QtObject {
+    id: station
+    property int type: DeviceType.Wifi
+    property int mode: WifiDeviceMode.Station
+    property string name: "test-wifi-2"
+    property bool connected: false
+    property bool scannerEnabled: false
+    property var networks: ({ values: [] })
+  }
+
+  function stationBesideHotspotChecks() {
+    check(panel.wifiDevice === station && panel.kind === "wifi", "a station on a second radio is the uplink, not the hotspot listed before it")
     if (!failed) console.log("RESULT pass")
     done.start()
   }
