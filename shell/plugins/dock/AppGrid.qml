@@ -40,6 +40,8 @@ Item {
   readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight
   readonly property int maxColumns: 7
   readonly property int visibleRows: 4
+  // How many rows a page key moves: the rows that fit in the grid's view.
+  readonly property int pageRows: Math.max(1, Math.floor(grid.height / cellHeight))
   readonly property int borderWidth: Math.max(1, Style.space(2))
   readonly property int contentMargin: Style.spacing.panelPadding
   readonly property int inset: contentMargin + borderWidth
@@ -56,6 +58,7 @@ Item {
 
   function open() {
     root.selectedIndex = 0
+    root.pointerKnown = false
     if (root.appLibrary) root.appLibrary.refreshIcons()
     // The cells from last time are reused when nothing changed, so the grid
     // opens with its icons already drawn.
@@ -66,7 +69,7 @@ Item {
       grid.positionViewAtBeginning()
     }
     root.opened = true
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function close() {
@@ -103,7 +106,7 @@ Item {
 
   function cancelUninstall() {
     root.uninstallEntry = null
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function confirmUninstall() {
@@ -123,12 +126,22 @@ Item {
     else root.open()
   }
 
-  function rebuild() {
+  // A new search or opening the grid starts from the top. With keepView, an
+  // app installed or removed while the user is browsing leaves them where they
+  // were, and the selected app stays in sight.
+  function rebuild(keepView) {
     root.appsStale = false
+    var scrolled = grid.contentY - grid.originY
     var rows = root.appLibrary ? root.appLibrary.sortedEntries(root.filterText) : []
     root.apps = rows.map(function(row) { return row.entry })
     root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
+    // Positioning the view also lays the new cells out, so the content height
+    // is current when the old position is put back.
     grid.positionViewAtBeginning()
+    if (keepView) {
+      grid.contentY = grid.originY + Math.min(scrolled, Math.max(0, grid.contentHeight - grid.height))
+      if (root.apps.length > 0) grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+    }
   }
 
   function setFilter(text) {
@@ -137,10 +150,66 @@ Item {
     root.rebuild()
   }
 
+  // Move the keyboard selection by `delta` apps along the grid, clamped to the
+  // first and last app.
   function select(delta) {
+    root.selectIndex(root.selectedIndex + delta)
+  }
+
+  function selectIndex(index) {
     if (root.apps.length === 0) return
-    root.selectedIndex = Math.max(0, Math.min(root.apps.length - 1, root.selectedIndex + delta))
+    var next = Math.max(0, Math.min(root.apps.length - 1, index))
+    if (next === root.selectedIndex) return
+    root.selectedIndex = next
     grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+  }
+
+  // Move the keyboard selection by `rows` rows (negative to go up), clamped so
+  // the arrow never jumps sideways across the grid. Going past the first row
+  // stays put; going past the last row lands on its last app, and a move that
+  // would leave a short last row steps to the app directly below if one exists.
+  // The view is kept in place so the selected tile stays in sight.
+  function selectRows(rows) {
+    var count = root.apps.length
+    if (count === 0) return
+    var width = Math.max(1, root.columns)
+    var index = root.selectedIndex
+    var row = Math.floor(index / width)
+    var target = index + rows * width
+
+    if (target < 0) {
+      if (row === 0) return
+      index = index % width
+    } else if (target > count - 1) {
+      if (row >= Math.floor((count - 1) / width)) return
+      index = count - 1
+    } else {
+      index = target
+    }
+    if (index !== root.selectedIndex) {
+      root.selectedIndex = index
+      grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+    }
+  }
+
+  // Only a pointer that really moves may change the selection. A resting
+  // pointer is also reported when the cells move under it, because the grid
+  // scrolled or opened, and that must not take the selection away from the
+  // keyboard. A real move changes the pointer's place in the panel; a cell
+  // sliding under a still pointer does not.
+  property point pointerAt
+  property bool pointerKnown: false
+
+  function pointerMovedTo(point) {
+    var moved = root.pointerKnown && (point.x !== root.pointerAt.x || point.y !== root.pointerAt.y)
+    root.pointerAt = point
+    root.pointerKnown = true
+    return moved
+  }
+
+  function hoverCell(index, point) {
+    if (root.dragging) return
+    if (root.pointerMovedTo(point)) root.selectedIndex = index
   }
 
   function launch(index) {
@@ -164,7 +233,7 @@ Item {
   Connections {
     target: root.appLibrary
     function onAppsChanged() {
-      if (root.opened) root.rebuild()
+      if (root.opened) root.rebuild(true)
       else root.appsStale = true
     }
   }
@@ -251,20 +320,28 @@ Item {
             if (root.menuEntry) root.menuEntry = null
             else if (root.filterText) root.setFilter("")
             else root.close()
-          } else if (Util.editsFilter(event, root.filterText)) {
-            root.setFilter(Util.editedFilter(event, root.filterText))
           } else if (Util.readingKey(event) === Qt.Key_Left) {
             root.select(-1)
           } else if (Util.readingKey(event) === Qt.Key_Right) {
             root.select(1)
           } else if (event.key === Qt.Key_Up) {
-            root.select(-root.columns)
+            root.selectRows(-1)
           } else if (event.key === Qt.Key_Down) {
-            root.select(root.columns)
+            root.selectRows(1)
+          } else if (event.key === Qt.Key_PageUp) {
+            root.selectRows(-root.pageRows)
+          } else if (event.key === Qt.Key_PageDown) {
+            root.selectRows(root.pageRows)
+          } else if (event.key === Qt.Key_Home) {
+            root.selectIndex(0)
+          } else if (event.key === Qt.Key_End) {
+            root.selectIndex(root.apps.length - 1)
+          } else if (event.key === Qt.Key_Tab) {
+            root.select(1)
+          } else if (event.key === Qt.Key_Backtab) {
+            root.select(-1)
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.launch(root.selectedIndex)
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-            root.setFilter(root.filterText + event.text)
           } else {
             return
           }
@@ -288,19 +365,19 @@ Item {
           radius: Style.cornerRadius
           color: Util.alpha(Commons.Color.menu.text, 0.06)
 
-          Text {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: Style.spacing.controlPaddingX
-            anchors.rightMargin: Style.spacing.controlPaddingX
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: root.filterText || Commons.I18n.t("dock.searchApps")
+          // A TextInput, not a Text fed by key events: input methods (fcitx5
+          // composing Japanese, Chinese or Korean) only reach text-input items.
+          FilterInput {
+            id: filterInput
+            anchors.fill: parent
+            keyHandler: keyCatcher
+            // Input-method commits bypass key handling, so the dialog has to refuse them here.
+            readOnly: !!root.uninstallEntry
             color: Commons.Color.menu.text
-            opacity: root.filterText ? 1 : 0.58
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
-            elide: Text.ElideRight
+            text: root.filterText
+            onTextChanged: if (text !== root.filterText) root.setFilter(text)
           }
         }
 
@@ -331,14 +408,15 @@ Item {
               height: root.cellHeight
 
               // The selection marks the whole app, icon and name together.
-              // It wraps exactly the icon-to-name block with the same padding
-              // above and below, so the icon is centered in it. Declared
-              // first, so it is drawn behind the icon and the name.
+              // Every app gets the same highlight, whatever its name: it is
+              // sized for the icon plus the name's two-line slot, with the same
+              // padding above and below. Declared first, so it is drawn behind
+              // the icon and the name.
               Rectangle {
                 x: root.cellGutter
                 y: icon.y - root.hoverPadding
                 width: cell.width - root.cellGutter * 2
-                height: root.hoverPadding * 2 + icon.height + (label.y - (icon.y + icon.height)) + label.contentHeight
+                height: root.hoverPadding * 2 + icon.height + Style.spacing.md + root.labelHeight
                 radius: Style.cornerRadius
                 color: cell.selected ? Commons.Color.menu.selectedBackground : "transparent"
               }
@@ -365,13 +443,16 @@ Item {
                 anchors.topMargin: Style.spacing.md
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: parent.width - (root.cellGutter + Style.spacing.md) * 2
+                // A fixed two-line slot with the name centered in it, so short
+                // and long names sit the same way in every highlight.
+                height: root.labelHeight
                 textFormat: Text.PlainText
                 text: root.appLibrary ? root.appLibrary.entryName(cell.modelData) : ""
                 color: cell.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
                 font.family: Style.font.menuFamily
                 font.pixelSize: Style.font.body
                 horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignTop
+                verticalAlignment: Text.AlignVCenter
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
@@ -384,13 +465,16 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 // The grid would otherwise take a dragging press for a scroll.
                 preventStealing: true
-                onContainsMouseChanged: if (containsMouse && !root.dragging) root.selectedIndex = cell.index
+                onContainsMouseChanged: if (containsMouse) root.hoverCell(cell.index, cell.mapToItem(panel.contentItem, mouseX, mouseY))
                 onPressed: function(event) {
                   cell.moved = false
                   cell.pressPoint = Qt.point(event.x, event.y)
                 }
                 onPositionChanged: function(event) {
-                  if (!(pressedButtons & Qt.LeftButton)) return
+                  if (!(pressedButtons & Qt.LeftButton)) {
+                    root.hoverCell(cell.index, cell.mapToItem(panel.contentItem, event.x, event.y))
+                    return
+                  }
                   if (!cell.moved && Math.hypot(event.x - cell.pressPoint.x, event.y - cell.pressPoint.y) > Style.space(4)) cell.moved = true
                   if (cell.moved) root.dragTo(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                 }
