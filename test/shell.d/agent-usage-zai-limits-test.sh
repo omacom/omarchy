@@ -164,6 +164,19 @@ expect("Z.ai collector prefers omp's .env to pi's", list(load_collector("zai").c
 (home() / ".omp" / "agent" / ".env").write_bytes(b"ZAI_API_KEY=\xff\xfe\n")
 expect("Z.ai collector skips a .env that isn't UTF-8", list(load_collector("zai").credentials()), ["pi-env", "zhipu"])
 
+# The China coding plan's key: pi saves it under zai-coding-cn and reads it
+# from ZAI_CODING_CN_API_KEY, omp saves it under zhipu-coding-plan. Each asks
+# the BigModel host.
+sandbox()
+pi_auth(None, "zai-coding-cn", "pi-saved-cn")
+expect("Z.ai collector reads pi's China coding plan key for the BigModel host", list(load_collector("zai").credentials()), ["pi-saved-cn", "zhipu"])
+sandbox()
+pi_auth(home() / ".omp" / "agent", "zhipu-coding-plan", "omp-saved-cn")
+expect("Z.ai collector reads omp's China coding plan key for the BigModel host", list(load_collector("zai").credentials()), ["omp-saved-cn", "zhipu"])
+sandbox()
+os.environ["ZAI_CODING_CN_API_KEY"] = "env-cn"
+expect("Z.ai collector reads ZAI_CODING_CN_API_KEY for the BigModel host", list(load_collector("zai").credentials()), ["env-cn", "zhipu"])
+
 # A Zhipu key asks BigModel's host, with the raw key as its Authorization:
 # the endpoint takes no Bearer prefix.
 sandbox()
