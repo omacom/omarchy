@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -euo pipefail
+
+nvme_sysfs="${OMARCHY_MACBOOK_NVME_SYSFS:-/sys/class/nvme}"
+root_disk="${OMARCHY_MACBOOK_ROOT_DISK:-}"
+if [[ -z $root_disk ]]; then
+  root_source=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+  root_source=${root_source%%\[*}
+  if [[ -n $root_source ]]; then
+    root_disk=$(lsblk -rsno NAME,TYPE "$root_source" 2>/dev/null |
+      awk '$2 == "disk" { print $1 }' | sort -u) || root_disk=""
+  fi
+fi
+
+# A multi-disk or unknown root must not select an arbitrary controller. Resolve
+# the namespace through sysfs rather than assuming its number is a PCI address.
+settings=()
+if [[ $root_disk =~ ^nvme[0-9]+n[0-9]+$ ]]; then
+  shopt -s nullglob
+  for namespace in "$nvme_sysfs"/nvme*/"$root_disk"; do
+    setting="${namespace%/*}/device/d3cold_allowed"
+    [[ -d $namespace && -f $setting ]] && settings+=("$setting")
+  done
+fi
+
+if (( ${#settings[@]} == 1 )); then
+  if [[ ${1:-} == "--print-target" ]]; then
+    printf '%s\n' "${settings[0]}"
+  else
+    printf '0\n' >"${settings[0]}"
+    echo "Disabled D3cold for the controller backing $root_disk"
+  fi
+elif [[ ${1:-} != "--print-target" ]]; then
+  echo "No unambiguous NVMe root controller; nothing to change"
+fi
