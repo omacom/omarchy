@@ -15,7 +15,6 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
-repair_command="$ROOT/bin/omarchy-realtime-repair"
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 
@@ -24,6 +23,28 @@ state="$test_dir/state"
 proc_root="$test_dir/proc"
 calls="$test_dir/calls"
 mkdir -p "$stub_bin"
+
+# The script's machine paths are literals so a caller cannot redirect root's
+# chmod, install, rm or prlimit through them. Run a copy with those literals
+# pointed at this test's scratch tree.
+repair_command="$test_dir/omarchy-realtime-repair"
+python3 - "$ROOT/bin/omarchy-realtime-repair" "$repair_command" "$proc_root" "$state/pending" "$state/lock" <<'PY'
+import shlex
+import sys
+from pathlib import Path
+
+source, target, proc_root, pending, lock = map(Path, sys.argv[1:])
+text = source.read_text()
+for old, new in (
+    ('proc_root=/proc', f'proc_root={shlex.quote(str(proc_root))}'),
+    ('pending=/var/lib/omarchy/realtime-repair-pending', f'pending={shlex.quote(str(pending))}'),
+    ('lock=/run/omarchy-realtime-repair.lock', f'lock={shlex.quote(str(lock))}'),
+):
+    assert text.count(old) == 1, f'machine path moved: {old}'
+    text = text.replace(old, new)
+target.write_text(text)
+target.chmod(source.stat().st_mode & 0o777)
+PY
 
 # The caller is a stubbed regular user, whoever runs the suite: as root, the
 # caller and root's own services would otherwise be the same account.
@@ -195,8 +216,7 @@ python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])'
 
 repair() {
   XDG_RUNTIME_DIR=${run_runtime_dir:-$runtime_dir} DBUS_SESSION_BUS_ADDRESS='' \
-    OMARCHY_PROC_ROOT=$proc_root OMARCHY_REALTIME_REPAIR_PENDING=$state/pending \
-    OMARCHY_REALTIME_REPAIR_LOCK=$state/lock \
+    OMARCHY_PROC_ROOT=$proc_root \
     STATE=$state CALLS=$calls RTKIT_BUDGET=200000 MY_UID=${run_uid:-$my_uid} ME=${run_user:-$me} \
     PATH="$stub_bin:$ROOT/bin:$PATH" "$repair_command" >"${run_out:-$test_dir/out}" 2>&1
 }
