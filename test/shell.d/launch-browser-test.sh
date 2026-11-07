@@ -145,6 +145,29 @@ grep -F -- ' -- vivaldi https://example.test/vivaldi' "$launch_log" >/dev/null |
   fail "a browser in XDG_DATA_DIRS launches from its desktop entry" "$(cat "$launch_log")"
 pass "browser launcher reads Exec= from the data dirs the resolver searched"
 
+# A wrapped entry has to launch whole; taking the first word ran `env --app=<url>`.
+cat >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env LIBVA_DRIVER_NAME=iHD vivaldi "--profile-directory=Work Profile" %U
+EOF
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+exec "$@"
+SH
+cat >"$mock_bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '<%s>' "$@" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+SH
+chmod +x "$mock_bin/setsid" "$mock_bin/uwsm-app"
+rm -f "$launch_log"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app-env"
+[[ $(<"$launch_log") == "<--><env><LIBVA_DRIVER_NAME=iHD><vivaldi><--profile-directory=Work Profile><--app=https://example.test/app-env>" ]] ||
+  fail "a web app launches its browser's full Exec= command" "$(cat "$launch_log")"
+rm -f "$mock_bin/setsid"
+cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
+pass "a web app launches its browser's full Exec= command"
+
 # With nothing to launch, the failure has to be visible from a keybinding,
 # where stderr goes nowhere, and must never reach uwsm-app as an empty command.
 rm -f "$XDG_CONFIG_HOME/mimeapps.list" "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
