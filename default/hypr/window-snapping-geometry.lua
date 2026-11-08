@@ -91,6 +91,133 @@ function G.tile_of(box, area, gaps)
   return nil
 end
 
+-- The quarters of the screen each tile covers.
+local CELLS = {
+  left = { "top-left", "bottom-left" }, right = { "top-right", "bottom-right" },
+  top = { "top-left", "top-right" }, bottom = { "bottom-left", "bottom-right" },
+  ["top-left"] = { "top-left" }, ["top-right"] = { "top-right" },
+  ["bottom-left"] = { "bottom-left" }, ["bottom-right"] = { "bottom-right" },
+}
+local QUARTERS = { "top-left", "top-right", "bottom-left", "bottom-right" }
+
+-- The one tile the snapped tiles leave free, for a new window to open into:
+-- the right half beside a left half, the last quarter beside three. Nil when
+-- the free space is no single tile (two diagonal quarters, nothing free), or
+-- when the snapped windows overlap and there is no layout to complete.
+function G.fill(tiles)
+  local used, any = {}, false
+  for _, tile in ipairs(tiles) do
+    local cells = CELLS[tile]
+    if not cells then
+      return nil
+    end
+    for _, cell in ipairs(cells) do
+      if used[cell] then
+        return nil
+      end
+      used[cell], any = true, true
+    end
+  end
+  if not any then
+    return nil
+  end
+  local free = {}
+  for _, cell in ipairs(QUARTERS) do
+    if not used[cell] then
+      free[cell] = true
+    end
+  end
+  for _, tile in ipairs(G.TILES) do
+    local cells = CELLS[tile]
+    if cells then
+      local count = 0
+      for _ in pairs(free) do count = count + 1 end
+      local matches = #cells == count
+      for _, cell in ipairs(cells) do
+        matches = matches and free[cell] == true
+      end
+      if matches then
+        return tile
+      end
+    end
+  end
+  return nil
+end
+
+-- Whether tiles fill the whole screen, each quarter exactly once.
+function G.full(tiles)
+  local used = {}
+  for _, tile in ipairs(tiles) do
+    for _, cell in ipairs(CELLS[tile] or {}) do
+      if used[cell] then
+        return false
+      end
+      used[cell] = true
+    end
+  end
+  for _, cell in ipairs(QUARTERS) do
+    if not used[cell] then
+      return false
+    end
+  end
+  return true
+end
+
+-- How a half makes room for one more window: the window there keeps the first
+-- quarter, the new one takes the second. Nil for anything but a half.
+local SPLITS = {
+  left = { "top-left", "bottom-left" }, right = { "top-right", "bottom-right" },
+  top = { "top-left", "top-right" }, bottom = { "bottom-left", "bottom-right" },
+}
+
+function G.split(tile)
+  local split = SPLITS[tile]
+  if split then
+    return split[1], split[2]
+  end
+end
+
+-- What a quarter leaves when its window closes, in a layout that filled the
+-- screen: the quarter sharing its half, same column first (the way halves
+-- split), grows back into that half, as long as the half then holds only it.
+-- Returns the quarter that grows and the half it grows into, or nil.
+local PARTNERS = {
+  ["top-left"] = { { "bottom-left", "left" }, { "top-right", "top" } },
+  ["bottom-left"] = { { "top-left", "left" }, { "bottom-right", "bottom" } },
+  ["top-right"] = { { "bottom-right", "right" }, { "top-left", "top" } },
+  ["bottom-right"] = { { "top-right", "right" }, { "bottom-left", "bottom" } },
+}
+
+function G.merge(closed, remaining)
+  -- Only a layout that filled the screen exactly, never one with stacked windows.
+  local before = { closed }
+  for _, tile in ipairs(remaining) do table.insert(before, tile) end
+  if not G.full(before) then
+    return nil
+  end
+  for _, option in ipairs(PARTNERS[closed] or {}) do
+    local partner, half = option[1], option[2]
+    local holders, crowded = 0, false
+    for _, tile in ipairs(remaining) do
+      if tile == partner then
+        holders = holders + 1
+      else
+        for _, cell in ipairs(CELLS[tile] or {}) do
+          for _, mine in ipairs(CELLS[half]) do
+            if cell == mine then
+              crowded = true
+            end
+          end
+        end
+      end
+    end
+    if holders == 1 and not crowded then
+      return partner, half
+    end
+  end
+  return nil
+end
+
 local OPPOSITE = { left = "right", right = "left", top = "bottom", bottom = "top" }
 local AXIS = { left = "h", right = "h", top = "v", bottom = "v" }
 

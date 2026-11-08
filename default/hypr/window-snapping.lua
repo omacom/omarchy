@@ -9,6 +9,11 @@
 --                    edge shared with another monitor it snaps after a pause, so
 --                    a window can still be dragged across.
 --   Drag away        a snapped window gets back the size it had before.
+--   Open a window    beside snapped ones, it fills the tile they leave free (the
+--                    right half next to a left half); with none free, it shares
+--                    the half used last (the third terminal takes a quarter).
+--   Close a window   that held a quarter: the window sharing its half grows back.
+--                    Only snapped windows are arranged; nothing else moves.
 --
 -- The tile maths is in window-snapping-geometry.lua. The drags come from the
 -- titlebars plugin (omarchy-hyprland-titlebars): its hyprbars.drag_* events,
@@ -337,6 +342,122 @@ local function dropped(window)
     end
   end, { type = "oneshot", timeout = 1 })
 end
+
+-- Opening a window. When the windows snapped on its workspace and monitor leave
+-- exactly one tile free, it opens there: beside a window on the left half, in
+-- the right half. When they fill the screen, the half used most recently makes
+-- room, keeping its top (or left) quarter. Only a window the floating mode
+-- opened (its open rule tags it), not a dialog or an app that floats on its own.
+local OPENED_TAG = "omarchy-mode-opened"
+
+local function opened_by_mode(window)
+  for _, tag in ipairs(window.tags or {}) do
+    if tag:gsub("%*$", "") == OPENED_TAG then
+      return true
+    end
+  end
+  return false
+end
+
+local function join(window)
+  if not snappable(window) or (window.fullscreen or 0) ~= 0 then
+    return
+  end
+  local monitor = window.monitor
+  local tiles, halves = {}, {}
+  for _, other in ipairs(hl.get_workspace_windows(tostring(window.workspace.id)) or {}) do
+    if other.address ~= window.address and snappable(other) and other.monitor and other.monitor.name == monitor.name then
+      if (other.fullscreen or 0) ~= 0 then
+        return -- a maximized window has the workspace to itself
+      end
+      local tile = G.tile_of(G.outer_box(client_of(other), extents(other)), area(monitor), gaps())
+      if tile then
+        table.insert(tiles, tile)
+        if G.split(tile) then
+          table.insert(halves, { window = other, tile = tile })
+        end
+      end
+    end
+  end
+
+  local tile = G.fill(tiles)
+  if tile then
+    M.place(window, tile, monitor)
+    return
+  end
+
+  -- Nothing free: when the snapped windows fill the screen exactly, the half
+  -- used most recently makes room, keeping its first quarter.
+  if #halves == 0 or not G.full(tiles) then
+    return
+  end
+  local function recency(entry)
+    local id = entry.window.focus_history_id
+    return (type(id) == "number" and id >= 0) and id or math.huge
+  end
+  table.sort(halves, function(a, b) return recency(a) < recency(b) end)
+  local half = halves[1]
+  local keep, give = G.split(half.tile)
+  if takes(half.window, keep, monitor) and takes(window, give, monitor) then
+    M.place(half.window, keep, monitor)
+    M.place(window, give, monitor)
+  end
+end
+
+function M.opened(window)
+  if opened_by_mode(window) then
+    join(window)
+  end
+end
+
+-- Closing a window that held a quarter of a layout filling the screen gives its
+-- space back: the window in the same half grows back into the half.
+function M.closed(window)
+  if not snappable(window) then
+    return
+  end
+  local monitor = window.monitor
+  local remaining, holders, decorations = {}, {}, nil
+  for _, other in ipairs(hl.get_workspace_windows(tostring(window.workspace.id)) or {}) do
+    if other.address ~= window.address and snappable(other) and other.monitor and other.monitor.name == monitor.name then
+      local around = extents(other)
+      local tile = G.tile_of(G.outer_box(client_of(other), around), area(monitor), gaps())
+      if tile then
+        table.insert(remaining, tile)
+        holders[tile] = other
+        decorations = decorations or around
+      end
+    end
+  end
+  -- A closing window has lost its titlebar already, so its tile is measured
+  -- with a snapped neighbour's: they share the same decorations.
+  if not decorations then
+    return
+  end
+  local closed = G.tile_of(G.outer_box(client_of(window), decorations), area(monitor), gaps())
+  if not closed then
+    return
+  end
+  local partner, half = G.merge(closed, remaining)
+  if partner then
+    M.place(holders[partner], half, monitor)
+  end
+end
+
+hl.on("window.close", function(window)
+  M.closed(window)
+end)
+
+-- After Omarchy's own handling of the new window (workspace-modes.lua).
+hl.on("window.open", function(window)
+  local address = window.address
+  hl.timer(function()
+    local current = by_address(address)
+    if current then
+      M.opened(current)
+    end
+  end, { type = "oneshot", timeout = 1 })
+end)
 
 -- Once the titlebars plugin is in. Hyprland loads it after the config pass that
 -- asks for it and reloads, and this module runs again on that reload.

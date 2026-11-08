@@ -869,7 +869,8 @@ hl.get_window = function(selector)
 end
 hl.plugin.hyprbars = {
   add_button = function() end,
-  extents = function() return { left = 2, top = 32, right = 2, bottom = 2 } end,
+  -- A closing window has lost its titlebar, as in Hyprland.
+  extents = function(w) if w.closing then return { left = 0, top = 0, right = 0, bottom = 0 } end return { left = 2, top = 32, right = 2, bottom = 2 } end,
   limits = function() return minimum and { min = minimum } or {} end,
 }
 function snap_window(address, workspace)
@@ -932,6 +933,20 @@ local big, laptop = { x = 1280, y = 0, w = 2560, h = 1440 }, { { x = 0, y = 0, w
 assert(G.shared_side("left", big, laptop, { x = 1285, y = 360 }), "the part of an edge across from a smaller monitor is shared")
 assert(not G.shared_side("left", big, laptop, { x = 1285, y = 1000 }), "the part of an edge below a smaller monitor is not shared")
 assert(G.shared_side("right", { x = 0, y = 0, w = 1280, h = 720 }, { big }, { x = 1279, y = 360 }), "the edge of a smaller monitor next to a larger one is shared")
+assert(G.fill({ "left" }) == "right", "beside a left half, the right half is free")
+assert(G.fill({ "top-left", "top-right", "bottom-left" }) == "bottom-right", "beside three quarters, the fourth is free")
+assert(G.fill({ "left", "top-right" }) == "bottom-right", "beside a half and a quarter, the last quarter is free")
+assert(G.fill({ "top-left", "bottom-right" }) == nil, "two diagonal quarters leave no single tile")
+assert(G.fill({ "bottom-right" }) == nil, "three free quarters are no single tile")
+assert(G.fill({ "left", "top-left" }) == nil, "overlapping windows have no layout to complete")
+assert(G.full({ "left", "right" }) and G.full({ "left", "top-right", "bottom-right" }), "halves and quarters can fill the screen")
+assert(not G.full({ "left" }) and not G.full({ "left", "right", "top-left" }), "a gap or an overlap is no full layout")
+local keep, give = G.split("right")
+assert(keep == "top-right" and give == "bottom-right" and G.split("top-left") == nil, "a half splits into its quarters, a quarter does not")
+local grows, into = G.merge("bottom-right", { "left", "top-right" })
+assert(grows == "top-right" and into == "right", "a closed quarter gives its half back to the quarter above it")
+assert(G.merge("bottom-right", { "top-left", "bottom-left", "top-right", "top-right" }) == nil, "stacked windows are no layout to grow back")
+assert(G.merge("left", { "right" }) == nil, "a closed half leaves the other half as it is")
 local tag = G.tag(1100, 760, 1261, 1356)
 local back = G.parse_tag(tag)
 assert(back.w == 1100 and back.h == 760 and back.snapped_w == 1261 and back.snapped_h == 1356, "a restore tag reads back what it holds")
@@ -961,6 +976,79 @@ assert(focus and focus.direction == "l" and not find("place"), "a tiled workspac
   fail "Super + arrows snap on a floating workspace and move focus elsewhere"
 fi
 pass "Super + arrows snap on a floating workspace and move focus elsewhere"
+
+# A window opening beside a snapped one fills the tile left free, and keeps its
+# own size for later; a dialog opens where it would anyway.
+if ! run_lua "$snap_setup"'
+focused = snap_window("0x1", 1)
+o.snap.key("left")
+local dialog = snap_window("0x3", 1)
+dialog.tags = { "omarchy-floating-workspace" }
+o.snap.opened(dialog)
+assert(dialog.at.x == 500 and not has_restore_tag(dialog), "a dialog was moved into the free half")
+
+local new = snap_window("0x2", 1)
+new.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(new)
+assert(new.at.x == 1287 and new.at.y == 72 and new.size.x == 1261, "the new window did not open in the right half")
+assert(has_restore_tag(new) == "snap-restore:1100x760/1261x1356", "the new window lost its own size")
+dialog.workspace = { id = 9 } -- out of the way
+
+-- Both halves taken: the third window shares the half used last.
+focused.focus_history_id, new.focus_history_id = 2, 1
+local third = snap_window("0x4", 1)
+third.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(third)
+assert(new.at.x == 1287 and new.size.y == 656, "the right half, used last, did not keep its top quarter")
+assert(third.at.x == 1287 and third.at.y == 772 and third.size.y == 656, "the third window did not take the bottom-right quarter")
+assert(focused.size.y == 1356, "the left half was split instead")
+
+-- The fourth shares the only half left; the fifth finds nothing to share.
+third.focus_history_id = 1
+local fourth = snap_window("0x5", 1)
+fourth.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(fourth)
+assert(focused.size.y == 656 and fourth.at.x == 12 and fourth.at.y == 772, "the fourth window did not take the bottom-left quarter")
+local fifth = snap_window("0x6", 1)
+fifth.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(fifth)
+assert(fifth.at.x == 500 and not has_restore_tag(fifth), "a fifth window was squeezed into four quarters")
+
+-- Two windows stacked on the same half are no layout to rearrange.
+for _, held in ipairs({ focused, new, third, fourth, fifth }) do held.workspace = { id = 9 } end
+local first, second = snap_window("0x7", 1), snap_window("0x8", 1)
+focused = first; o.snap.key("left")
+focused = second; o.snap.key("left")
+local another = snap_window("0x9", 1)
+another.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(another)
+assert(first.size.y == 1356 and second.size.y == 1356 and another.at.x == 500, "two windows on the same half were rearranged")
+'; then
+  fail "a new window fills the tile left free, or shares the half used last"
+fi
+pass "a new window fills the tile left free, or shares the half used last"
+
+# Closing a window that held a quarter gives its space back to the window
+# sharing its half; closing a half leaves the other half as it is.
+if ! run_lua "$snap_setup"'
+local left, top, bottom = snap_window("0x1", 1), snap_window("0x2", 1), snap_window("0x3", 1)
+focused = left; o.snap.key("left")
+focused = top; o.snap.key("right"); o.snap.key("top")
+focused = bottom; o.snap.key("right"); o.snap.key("bottom")
+assert(top.size.y == 656 and bottom.at.y == 772, "setup: the right half was not two quarters")
+bottom.closing = true
+o.snap.closed(bottom)
+assert(top.at.y == 72 and top.size.y == 1356 and top.at.x == 1287, "the top-right window did not grow back into the right half")
+assert(has_restore_tag(top) == "snap-restore:1100x760/1261x1356", "the window that grew back lost its own size")
+assert(left.size.y == 1356 and left.at.x == 12, "the left half moved")
+bottom.workspace = { id = 9 }
+top.closing = true
+o.snap.closed(top)
+assert(left.size.x == 1261, "closing a half changed the other one")
+'; then
+  fail "closing a quarter gives its space back to the window sharing its half"
+fi
+pass "closing a quarter gives its space back to the window sharing its half"
 
 # A tile a window can't fill leaves it alone: no move, no flicker.
 if ! run_lua "$snap_setup"'
