@@ -23,6 +23,9 @@ if [[ ! -f $HOME/.local/state/omarchy/current/theme/herdr-app.json ]]; then
   omarchy-theme-refresh
 fi
 
+# Give the app the same keys as the terminal herdr before it first opens.
+omarchy-refresh-herdr-app
+
 echo "Opening Herdr..."
 setsid uwsm-app -- "$HOME/.local/bin/herdr-app" >/dev/null 2>&1 &
 
