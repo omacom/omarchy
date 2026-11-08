@@ -95,10 +95,10 @@ chmod +x "$mock_bin/nm-online" "$mock_bin/omarchy-update-available" \
 # checkupdates'.
 offers_update() {
   : >"$test_tmp/calls"
-  OMARCHY_PATH="$1" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
+  OMARCHY_PATH="$1" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
     OMARCHY_TEST_OMARCHY_UPDATE="$2" OMARCHY_TEST_CHECKUPDATES="$3" \
     bash -c 'source "$1"; wait' _ "$ROOT/install/user/first-run/wifi.sh"
-  grep -Fq -- '--exec omarchy-launch-floating-terminal-with-presentation omarchy-update' "$test_tmp/calls"
+  grep -Fq -- '--exec omarchy-provision-first-run-card update --run' "$test_tmp/calls"
 }
 
 installed=/usr/share/omarchy
@@ -130,7 +130,7 @@ cat >"$mock_bin/omarchy-done" <<'SH'
 SH
 chmod +x "$mock_bin/omarchy-default-agent" "$mock_bin/omarchy-done"
 offers_update "$checkout" 1 2 || true
-grep -Fq -- '--exec omarchy menu summon setup.default.agent' "$test_tmp/calls" ||
+grep -Fq -- '--exec omarchy-provision-first-run-card agent --run' "$test_tmp/calls" ||
   fail "first run invites a default agent once there is a connection"
 pass "first run invites a default agent once there is a connection"
 
@@ -141,9 +141,9 @@ offers_git_setup() {
   rm -rf "$home" && mkdir -p "$home"
   [[ -z $1 ]] || HOME="$home" git config --global user.name "$1"
   [[ -z $2 ]] || HOME="$home" git config --global user.email "$2"
-  HOME="$home" PATH="$mock_bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
+  HOME="$home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" \
     bash "$ROOT/install/user/first-run/git.sh"
-  grep -Fq 'omarchy-setup-git' "$test_tmp/calls"
+  grep -Fq -- '--exec omarchy-provision-first-run-card git --run' "$test_tmp/calls"
 }
 
 offers_git_setup "" "" || fail "first run offers git setup on a fresh account"
@@ -152,3 +152,39 @@ if offers_git_setup "Jane" "jane@example.com"; then
   fail "first run offers no git setup when the install already set an identity"
 fi
 pass "first run offers git setup only when the identity is missing"
+
+# A step started from its card brings the card back when it ends undone:
+# failed, interrupted, or its window closed. Done, or answered no (which exits
+# cleanly), it stays gone.
+cat >"$mock_bin/omarchy-setup-git" <<'SH'
+#!/bin/bash
+sleep "${OMARCHY_TEST_STEP_SLEEP:-0}"
+exit "$OMARCHY_TEST_STEP_STATUS"
+SH
+chmod +x "$mock_bin/omarchy-setup-git"
+
+# Arguments: the step's exit status. Prints the card command's own.
+run_git_step() {
+  : >"$test_tmp/calls"
+  local status=0
+  PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" OMARCHY_TEST_STEP_STATUS="$1" \
+    omarchy-provision-first-run-card git --step || status=$?
+  echo "$status"
+}
+
+[[ $(run_git_step 0) == 0 && ! -s $test_tmp/calls ]] || fail "a finished step does not bring its card back"
+[[ $(run_git_step 1) == 1 ]] || fail "a failed step keeps its exit status"
+grep -Fq -- '--exec omarchy-provision-first-run-card git --run' "$test_tmp/calls" || fail "a failed step brings its card back"
+[[ $(run_git_step 130) == 130 && -s $test_tmp/calls ]] || fail "an interrupted step brings its card back"
+
+: >"$test_tmp/calls"
+PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_CALLS="$test_tmp/calls" OMARCHY_TEST_STEP_STATUS=0 OMARCHY_TEST_STEP_SLEEP=1 \
+  omarchy-provision-first-run-card git --step &
+step_pid=$!
+sleep 0.3
+kill -HUP "$step_pid"
+status=0
+wait "$step_pid" || status=$?
+(( status == 129 )) || fail "a step whose window closes reports the hangup" "$status"
+grep -Fq -- '--exec omarchy-provision-first-run-card git --run' "$test_tmp/calls" || fail "a step whose window closes brings its card back"
+pass "a step started from its card brings the card back only when it ends undone"

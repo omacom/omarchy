@@ -64,7 +64,7 @@ run_invitation_hook
 [[ -f $test_home/.local/state/omarchy/done/fingerprint-setup-invitation ]] || fail "fingerprint invitation records completion"
 [[ -f $hook_path ]] || fail "fingerprint invitation keeps its hook installed"
 [[ $(grep -c '^notification$' "$log_file") -eq 1 ]] || fail "fingerprint invitation sends one notification"
-grep -qx 'exec:omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-fingerprint' "$log_file" ||
+grep -qx 'exec:omarchy-provision-first-run-card fingerprint --run' "$log_file" ||
   fail "fingerprint invitation attaches the setup to the notification"
 grep -q '^systemd-run:' "$log_file" && fail "fingerprint invitation needs no unit to hold an unanswered toast"
 

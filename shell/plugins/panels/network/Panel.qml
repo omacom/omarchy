@@ -98,6 +98,9 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  // Opened by the first-run Wi-Fi card. Closing it still offline, and not
+  // mid-connect, brings the card back; opened any other way, it never does.
+  property bool cardOpened: false
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -219,6 +222,8 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function toggleNetwork() { root.toggleNetwork() }
+    // The first-run Wi-Fi card's click; see cardOpened.
+    function openFromCard() { root.cardOpened = true; root.open() }
     // Compat routes for configs that summon the centered cards through the
     // network target; both cards are their own plugins now.
     function showQr() { root.summonWifiQr(true) }
@@ -349,6 +354,11 @@ Panel {
       internetPingLatency = -1
       internetPingPacketLoss = 0
       setScannerEnabled(false)
+      if (cardOpened) {
+        cardOpened = false
+        if (kind === "disconnected" && actionKind !== "connect")
+          Quickshell.execDetached(["omarchy-provision-first-run-card", "wifi"])
+      }
     }
   }
 

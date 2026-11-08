@@ -18,12 +18,16 @@ Item {
   // Plugin lifecycle hooks. The host calls open(payloadJson) after
   // `omarchy-shell shell summon omarchy.menu ...` and close() when hidden.
   property string pendingInitialMenu: "root"
+  // The first-run card this menu was opened by ("agent"). Closing without a
+  // choice brings that card back; opened any other way, it is empty.
+  property string firstRunCard: ""
 
   function open(payloadJson) {
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
+    root.firstRunCard = payload.card === "agent" ? payload.card : ""
     // A shell that started mid-update may never have read the shipped menu
     // whole; reading it again here keeps the menu from opening empty.
     if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
@@ -107,7 +111,12 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) {
+    deleteConfirmOpen = false
+    deleteTarget = null
+    if (firstRunCard) Quickshell.execDetached(["omarchy-provision-first-run-card", firstRunCard])
+    firstRunCard = ""
+  }
   // Bound to the central [menu] section in shell.toml via Commons.Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -894,6 +903,7 @@ Item {
       var appId = row.appId
       var label = row.label
       applySerial = requestSerial
+      root.firstRunCard = ""
       opened = false
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
@@ -939,6 +949,7 @@ Item {
     if (!id) { cancel(); return }
 
     applySerial = requestSerial
+    root.firstRunCard = ""
     opened = false
     filterText = ""
     root.runAction(action)
