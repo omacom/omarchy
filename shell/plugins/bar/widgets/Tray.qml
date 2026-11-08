@@ -444,7 +444,12 @@ BarWidget {
     }
   }
 
-  PopupCard {
+  // Panels, not PopupCards: a PopupCard is an xdg-popup hanging off the bar's
+  // layer surface, which Hyprland's glassy blur rule (it matches the
+  // omarchy-bar and omarchy-keyboard-panel namespaces) does not blur. A
+  // KeyboardPanel is a layer surface of its own, so it blurs like every other
+  // panel does.
+  KeyboardPanel {
     id: managePopup
     anchorItem: root
     owner: root
@@ -570,21 +575,24 @@ BarWidget {
     menu: root.activeTrayItem ? root.activeTrayItem.menu : null
   }
 
-  PopupCard {
+  KeyboardPanel {
     id: trayMenuPopup
     anchorItem: root.activeTrayAnchor || root
     owner: root
     bar: root.bar
     open: root.trayMenuOpen
-    // The card fades out over 140ms (visible stays true for that whole time --
-    // see PopupCard's own visible: open || card.opacity > 0), so resetting on
+    // The card fades out over 120ms (visible stays true for that whole time --
+    // see KeyboardPanel's own visible: open || card.opacity > 0), so resetting on
     // "open" would swap a live submenu for the root menu mid-fade: a visible
     // flash, and a resize/reposition if the two have different geometry. Wait
     // for the fade to actually finish. Switching to a different tray item
     // still resets immediately, from openTrayMenu() itself.
     onVisibleChanged: if (!visible) root.resetTrayMenu()
     padding: Style.space(8)
-    borderColor: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
+    // KeyboardPanel has no borderColor; its border comes from borderSpec.
+    borderSpec: Border.localOrSurfaceSpec("popups", "border",
+      Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45),
+      Commons.Color.popups.border, Math.max(1, Style.space(2)))
     contentWidth: trayMenuPopup.fittedContentWidth(Style.space(232))
     contentHeight: trayMenuPopup.fittedContentHeight(menuHeaderHeight + trayMenuColumn.implicitHeight, Style.space(420))
 
