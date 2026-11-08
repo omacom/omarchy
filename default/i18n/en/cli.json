@@ -373,6 +373,7 @@
     "one": "Remove %1 orphaned package?",
     "other": "Remove %1 orphaned packages?"
   },
+  "update.resetConfig": "Reset %1 to Omarchy defaults? This replaces your configuration.",
   "update.whatsNew": "What's new: %1",
   "weather.status": "%1  ·  Temp %2  ·  Wind %3",
   "weather.unavailable": "Weather unavailable",
