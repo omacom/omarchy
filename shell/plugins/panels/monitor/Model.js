@@ -157,6 +157,22 @@ function refreshOptions(availableModes, width, height) {
   })
 }
 
+// The mode a display is running, as the WIDTHxHEIGHT@RATE that
+// omarchy-hyprland-monitor-resolution takes, or "" when the display doesn't
+// advertise it, so that command couldn't set it again.
+function currentMode(availableModes, width, height, refreshRate) {
+  if (!Array.isArray(availableModes)) return ""
+
+  var prefix = Number(width) + "x" + Number(height) + "@"
+  for (var i = 0; i < availableModes.length; i++) {
+    var mode = String(availableModes[i])
+    if (mode.indexOf(prefix) !== 0) continue
+    var rate = parseFloat(mode.slice(prefix.length))
+    if (Math.abs(rate - Number(refreshRate)) < 0.01) return prefix + rate
+  }
+  return ""
+}
+
 // ---- Layout ----
 // Rects are { name, x, y, w, h } in Hyprland's layout space: logical pixels,
 // after each display's scale.
@@ -353,6 +369,7 @@ if (typeof module !== "undefined") {
     resolutionOptions: resolutionOptions,
     resolutionLabel: resolutionLabel,
     refreshOptions: refreshOptions,
+    currentMode: currentMode,
     displayTitle: displayTitle,
     logicalRect: logicalRect,
     copyRects: copyRects,

@@ -92,6 +92,10 @@ assertDeepEqual(
   'monitor offers no rates when none is faster than 60Hz'
 )
 
+// Hyprland reports the rate a mode runs at more precisely than it lists it.
+assertEqual(monitor.currentMode(gaming, 2560, 1440, 59.95100), '2560x1440@59.95', 'monitor names the advertised mode a display runs, for going back to it')
+assertEqual(monitor.currentMode(gaming, 2560, 1440, 75), '', 'monitor names no mode the display does not advertise')
+
 assertEqual(monitor.displayTitle({ name: 'eDP-1', make: 'LG Display', model: '0x0804' }), 'Built-in Display', 'monitor names the built-in panel by what it is')
 assertEqual(monitor.displayTitle({ name: 'DP-1', make: 'Apple Computer Inc', model: 'ProDisplayXDR' }), 'ProDisplayXDR', 'monitor names an external display by its model')
 assertEqual(monitor.displayTitle({ name: 'HDMI-A-1', make: 'Dell Inc.', model: '0x40F3' }), 'Dell Inc.', 'monitor falls back to the make when the model is a code')
