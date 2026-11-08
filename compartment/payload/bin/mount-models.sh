@@ -11,11 +11,11 @@ DATA_DEV=$(blkid -L llm-weights) || { echo "no llm-weights device"; exit 1; }
 ROOT_SRC=$(findmnt -n -o SOURCE / | sed 's/[0-9]*$//;s/p$//')
 VERITY_DEV=""
 for d in /dev/vd?; do
-  [[ $d == "$DATA_DEV" ]] && continue
-  [[ $d == "$ROOT_SRC" ]] && continue
+  [[ $d == $DATA_DEV ]] && continue
+  [[ $d == $ROOT_SRC ]] && continue
   VERITY_DEV="$d"; break
 done
-[[ -n "$VERITY_DEV" ]] || { echo "no verity device"; exit 1; }
+[[ -n $VERITY_DEV ]] || { echo "no verity device"; exit 1; }
 echo "data=$DATA_DEV verity=$VERITY_DEV root=$ROOT_SRC"
 
 if ! dmsetup status models-verity >/dev/null 2>&1; then

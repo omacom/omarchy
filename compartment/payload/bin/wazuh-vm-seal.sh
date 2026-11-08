@@ -42,7 +42,7 @@ flock_and_log() { # acquire lock, then log; prevents concurrent seals
 }
 
 # ---- Validate ---- 
-if [[ -e "$LOCKFILE" ]]; then
+if [[ -e $LOCKFILE ]]; then
   # a previous seal that crashed races; take the lock below anyway
   :
 fi
@@ -64,7 +64,7 @@ shift $((OPTIND-1))
 log INFO "seal invoked: attacker=${ATTACKER_IP:-none} base=${BASE_IP} conf=${CONF}"
 
 # ---- 1. Input validation: only allow sane IPv4 for the attacker ------------
-if [[ -n "$ATTACKER_IP" ]]; then
+if [[ -n $ATTACKER_IP ]]; then
   if ! echo "$ATTACKER_IP" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
     log WARN "invalid attacker IP '$ATTACKER_IP'; skipping block"
     ATTACKER_IP=""
@@ -114,7 +114,7 @@ KNOWN_MALWARE_PATTERNS="${KNOWN_MALWARE_PATTERNS:-reptile|diamorphine}"
 PIDS="$(ps -eo pid,args 2>/dev/null | grep -E "$KNOWN_MALWARE_PATTERNS" \
         | grep -v grep | grep -v "^ *$$ " | awk '{print $1}' | tr '\n' ' ')"
 
-if [[ -n "$PIDS" ]]; then
+if [[ -n $PIDS ]]; then
   log INFO "killing known-malware PIDs: ${PIDS}"
   for p in $PIDS; do
     sudo -n kill -9 "$p" 2>/dev/null && log INFO "killed $p" \
