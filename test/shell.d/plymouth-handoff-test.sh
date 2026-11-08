@@ -84,6 +84,9 @@ assert not m.gated({**auto, "Autologin/Session": "plasma.desktop"}, home), "anot
 with open(f"{home}/.config/hypr/hyprland.lua", "w") as f:
   f.write('dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")\n')
 assert not m.gated(auto, home), "a Hyprland config without Omarchy's defaults never asks"
+with open(f"{home}/.config/hypr/hyprland.lua", "w") as f:
+  f.write('-- require("default.hypr.omarchy")\n')
+assert not m.gated(auto, home), "commented out, Omarchy's defaults never load"
 greeter = {"General/DisplayServer": "wayland", "Wayland/CompositorCommand": "start-hyprland -- --config /usr/share/sddm/hyprland.lua"}
 assert m.gated(greeter, home), "Omarchy's greeter asks"
 assert not m.gated({**greeter, "General/DisplayServer": "x11"}, home), "an X11 greeter never runs the Wayland command"

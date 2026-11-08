@@ -320,7 +320,7 @@ def runs_omarchy_config(user, home=None):
   try:
     home = home or pwd.getpwnam(user).pw_dir
     with open(f"{home}/.config/hypr/hyprland.lua") as config:
-      return 'require("default.hypr.omarchy")' in config.read()
+      return any('require("default.hypr.omarchy")' in line.split("--", 1)[0] for line in config)
   except (KeyError, OSError):
     return False
 
