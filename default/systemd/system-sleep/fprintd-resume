@@ -3,7 +3,16 @@
 # Suspend can wedge fprintd's claim; restart it after resume to clear it.
 # Upstream: https://gitlab.freedesktop.org/libfprint/fprintd/-/issues/173
 
-if [[ $1 == "post" ]]; then
+if [[ ${1:-} == "post" ]]; then
+  # An interrupted stop on ControlVault 3 Plus can leave a claim that only
+  # a reboot clears. Let its interrupted verify time out on resume instead.
+  for device in /sys/bus/usb/devices/*; do
+    [[ -r $device/idVendor && -r $device/idProduct ]] || continue
+    if [[ $(<"$device/idVendor") == "0a5c" && $(<"$device/idProduct") == "5865" ]]; then
+      exit 0
+    fi
+  done
+
   # user.slice stays frozen until this hook returns; enqueue rather than wait.
   systemctl --no-block try-restart fprintd.service 2>/dev/null || true
 fi
