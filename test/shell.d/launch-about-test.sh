@@ -4,6 +4,9 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Start with color enabled; the no-color scenarios opt in below.
+unset NO_COLOR
+
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
@@ -15,7 +18,10 @@ sed '/^presize_window$/,$d' "$about" >"$tmp_dir/about.bash"
 
 export HOME="$tmp_dir/home"
 export PATH="$ROOT/bin:$PATH"
-unset NO_COLOR
+# The launcher keeps its translated config in the runtime directory, and once
+# About has been opened for real, the fastfetch stand-ins below would be asked
+# about that file instead of answering for themselves.
+export XDG_RUNTIME_DIR="$tmp_dir/runtime"
 mkdir -p "$HOME/.config/omarchy/branding"
 printf '%s\n' '████████' '████████' >"$HOME/.config/omarchy/branding/about.txt"
 
@@ -215,11 +221,13 @@ measure_layout() {
   LOGO_COLOR=$logo_color
 }
 fastfetch() {
-  case ${1:-} in
-    --list-config-paths) printf '%s\n' "${config_paths[@]}" ;;
-    --logo) for i in $(seq 29); do printf '%065d\n' 0; done ;;
-    *) return 1 ;;
-  esac
+  if [[ ${1:-} == --list-config-paths ]]; then
+    printf '%s\n' "${config_paths[@]}"
+  elif [[ " $* " == *" --logo none "* ]]; then
+    for i in $(seq 29); do printf '%065d\n' 0; done
+  else
+    return 1
+  fi
 }
 hyprctl() {
   [[ $1 == "clients" ]] && printf '[{"class":"org.omarchy.about","address":"0x1","size":[800,600]}]\n'
@@ -304,3 +312,32 @@ mapfile -d '' -t fetched_args <"$tmp_dir/fastfetch-args"
 [[ ${#fetched_args[@]} == 6 && ${fetched_args[0]} == --logo-type && ${fetched_args[1]} == file && ${fetched_args[3]} == "$LOGO_FILE" ]] ||
   fail "the default About config still receives the branding file"
 pass "default About configuration still uses its branding file"
+
+mkdir -p "${ABOUT_CONFIG%/*}"
+printf '%s\n' '{"modules":["title"]}' > "$ABOUT_CONFIG"
+about_fastfetch --pipe false
+mapfile -d '' -t fetched_args <"$tmp_dir/fastfetch-args"
+[[ "${fetched_args[*]}" == "--logo-type file --logo $LOGO_FILE -c $ABOUT_CONFIG --pipe false" ]] ||
+  fail "the translated About configuration retains its branding file"
+pass "the translated About configuration retains its branding file"
+
+# The CPU row splits in two only when the whole line would overrun the box, and
+# the continuation row prints nothing otherwise, which fastfetch hides.
+mkdir -p "$tmp_dir/cpu-bin"
+cat >"$tmp_dir/cpu-bin/fastfetch" <<'STUB'
+#!/bin/bash
+printf '[{"result":{"cpu":"%s","cores":{"online":16},"coreTypes":%s,"frequency":{"base":0,"max":4032}}}]\n' "$CPU_NAME" "${CPU_CORE_TYPES:-[]}"
+STUB
+chmod +x "$tmp_dir/cpu-bin/fastfetch"
+about_cpu() { PATH="$tmp_dir/cpu-bin:$PATH" omarchy-branding-about-cpu "$1"; }
+
+# "(16) @ 4.03 GHz" is 15 columns, so a 31-column name makes the line exactly 47.
+export CPU_NAME="AMD Ryzen 7 7840U w/ Radeon 780"
+[[ $(about_cpu name) == "$CPU_NAME (16) @ 4.03 GHz" && -z $(about_cpu details) ]] ||
+  fail "a CPU line that fits the box stays on one row" "name: $(about_cpu name) details: $(about_cpu details)"
+pass "a CPU line that fits the box stays on one row"
+
+export CPU_NAME="Qualcomm Snapdragon X2 Elite X2E-88/90-100" CPU_CORE_TYPES='[{"count":12},{"count":6}]'
+[[ $(about_cpu name) == "$CPU_NAME" && $(about_cpu details) == "(12+6) @ 4.03 GHz" ]] ||
+  fail "a CPU line that overruns the box splits under its name" "name: $(about_cpu name) details: $(about_cpu details)"
+pass "a CPU line that overruns the box splits under its name"
