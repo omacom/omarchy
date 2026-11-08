@@ -701,7 +701,8 @@ Item {
         // Before the insert: the delegate measures itself while it is built.
         service.fresh[key] = true
         service.arriving = key
-        toasts.insert(0, row)
+        // A queued card waits its turn behind the ones already showing.
+        toasts.insert(row.queued ? toasts.count : 0, row)
         service.arriving = ""
         // It drops in from just above where it lands, from under the bar for
         // the top card, and fades in on the way.
@@ -1185,7 +1186,7 @@ Item {
       storeDrop(row.key)
       return
     }
-    liveEntries = Store.putLive(liveEntries, Store.persistable(row))
+    liveEntries = Store.putLive(liveEntries, Store.persistable(row), row.queued)
     saveSoon("live")
   }
 

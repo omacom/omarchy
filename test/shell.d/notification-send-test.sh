@@ -99,6 +99,13 @@ load
 [[ $(send --print-id=1 "Body") != "42" ]] || fail "--print-id=… does not print the id"
 pass "notification wrapper supports --transient"
 
+: >"$args_file"
+send --queue "Setup Git" "Identification for code commits." >/dev/null
+load
+[[ $(hint_value omarchy-queue) == "true" ]] || fail "notification wrapper sets the queue hint from --queue" "$(hint_value omarchy-queue)"
+[[ ${args[11]} == "Setup Git" && ${args[12]} == "Identification for code commits." ]] || fail "--queue takes no value" "${args[11]} / ${args[12]}"
+pass "notification wrapper supports --queue"
+
 # Options may follow the headline and description (Taildrop appends -u critical
 # and -g after the two positionals); they still land on the call, and urgency
 # stays a single hint rather than doubling.

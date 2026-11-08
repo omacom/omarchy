@@ -1,5 +1,5 @@
 notify_update() {
-  omarchy-notification-send -u critical -g  "$(omarchy-i18n firstRun.updateTitle)" "$(omarchy-i18n firstRun.updateBody)" \
+  omarchy-notification-send --queue -u critical -g  "$(omarchy-i18n firstRun.updateTitle)" "$(omarchy-i18n firstRun.updateBody)" \
     --exec omarchy-launch-floating-terminal-with-presentation omarchy-update
 }
 
@@ -23,7 +23,7 @@ update_pending() {
 }
 
 notify_wifi() {
-  omarchy-notification-send -u critical -g 󰖩 "$(omarchy-i18n firstRun.wifiTitle)" "$(omarchy-i18n firstRun.wifiBody)" \
+  omarchy-notification-send --queue -u critical -g 󰖩 "$(omarchy-i18n firstRun.wifiTitle)" "$(omarchy-i18n firstRun.wifiBody)" \
     --exec omarchy-shell shell toggle omarchy.network
 }
 
