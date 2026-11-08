@@ -62,6 +62,27 @@ if not kb_options:find("grp:alts_toggle", 1, true) then
   end
 end
 
+-- If the user chose Alt + Shift to switch the input language, also register
+-- the group switch with XKB so the chord toggles the layout group outside the
+-- compositor's binding layer. The shortcut itself is bound by
+-- default/hypr/bindings/input-method.lua.
+local paths = require("default.hypr.paths")
+local file = io.open(paths.config_home .. "/omarchy/keyboard-shortcut", "r")
+local shortcut = nil
+if file then
+  -- Same parsing as default/hypr/bindings/input-method.lua: first line, trimmed.
+  -- An empty file reads as nil, which is treated as no shortcut chosen.
+  local line = file:read("*l")
+  file:close()
+  if line then
+    shortcut = line:gsub("^%s+", ""):gsub("%s+$", "")
+  end
+end
+
+if shortcut == "ALT + SHIFT" then
+  kb_options = kb_options .. ",grp:alt_shift_toggle"
+end
+
 hl.config({
   input = {
     kb_layout = kb_layout,

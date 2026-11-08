@@ -124,3 +124,21 @@ for (const line of lines) {
 }
 JS
 pass "every shortcut menu route resolves in the menu"
+
+# The input-language shortcut selector is a Setup > Typing action that routes to
+# the right command.
+run_node_test <<'JS'
+const fs = require('fs')
+const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const entries = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
+const items = {}
+const order = []
+for (const entry of entries) { items[entry.id] = entry; order.push(entry.id) }
+items.root = items.root || { id: 'root' }
+
+const routeId = menu.resolveRoute(items, order, 'setup.typing.keyboard-shortcuts')
+const entry = items[routeId]
+assert(entry && entry.action === 'omarchy-menu-keyboard-shortcuts', 'setup.typing.keyboard-shortcuts routes to omarchy-menu-keyboard-shortcuts')
+assert(entry && entry.parent === 'setup.typing', 'it lives under Setup > Typing')
+JS
+pass "the input language shortcut selector is routable from Setup > Typing"
