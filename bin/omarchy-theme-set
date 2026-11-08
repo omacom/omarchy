@@ -517,12 +517,15 @@ else
 fi
 
 # The shared staging/current symlinks are updated and the shell has accepted
-# the transition. Let another theme selection queue only behind that critical
-# section, not behind slower app-retint hooks and selector cache warmups.
-# Take the visible-retint lock before letting the next switch in, so its
-# visible batch runs after this one and an older theme never lands last.
+# the transition. Let another theme selection in now, so it waits only for
+# this critical section and the previous switch's visible retints below, not
+# for slower app-retint hooks and selector cache warmups. Taking the
+# visible-retint lock before letting it in runs its visible batch after this
+# one, so an older theme never lands last. A hung visible retint (a frozen
+# terminal) would otherwise hold up every later switch, so give up waiting
+# after ten seconds and retint unordered, as before this lock.
 exec 7>"$THEME_VISIBLE_LOCK"
-flock 7
+flock -w 10 7 || true
 flock -u 9
 
 # What the user is looking at: the terminals and the programs drawn inside
