@@ -414,3 +414,22 @@ autoswitch >/dev/null
   fail "with every account over, a free home goes before a busy one" "$(active) $(login "$HOME/.claude")"
 kill "$sleeper"; wait "$sleeper" 2>/dev/null || true
 pass "with every account over, a busy home is still never handed a worse login"
+
+# Left to itself, the reconnect job runs as a systemd unit of its own, so a
+# oneshot service or the panel that ran the switch can't take it down.
+unset OMARCHY_AGENT_ACCOUNT_RECONNECT
+cat >"$test_tmp/bin/systemd-run" <<'SH2'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_RECONNECTS"
+SH2
+chmod +x "$test_tmp/bin/systemd-run"
+: >"$reconnects"
+for home in "$HOME/.claude" "$accounts/claude/work" "$accounts/claude/side"; do
+  echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
+done
+three main
+weekly 0.97 "$week" 0.10 "$day" 0.40 "$week"
+autoswitch >/dev/null
+grep -q -- "^--user .* -- $ROOT/bin/omarchy-agent-account-reconnect $HOME/.claude $accounts/claude/work$" "$reconnects" ||
+  fail "the reconnect job starts as a user unit, from beside the switcher" "$(cat "$reconnects")"
+pass "the reconnect job runs as a unit of its own"

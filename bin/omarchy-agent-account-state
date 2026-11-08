@@ -648,16 +648,29 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], boo
 
 # After a trade, Claude drops each moved session's Remote Control link, since
 # its account changed. omarchy-agent-account-reconnect runs /remote-control
-# again in each of them once it is idle. It runs on its own, so the switch
-# returns at once, and starts with no descriptor of ours (Popen closes them),
-# so it can't keep the registry or sign-in lock.
+# again in each of them once it is idle, for up to half an hour, so the
+# switch returns at once. It starts with no descriptor of ours (Popen closes
+# them), so it can't keep the registry or sign-in lock, and as a unit of its
+# own where systemd-run can make one: a oneshot service or the panel that ran
+# the switch would otherwise take it down when it exits.
 def reconnect_later(homes: list[Path]) -> None:
   if not homes:
     return
-  command = os.environ.get("OMARCHY_AGENT_ACCOUNT_RECONNECT") or "omarchy-agent-account-reconnect"
+  command = os.environ.get("OMARCHY_AGENT_ACCOUNT_RECONNECT")
+  launch = [command] if command else []
+  if not command:
+    beside = Path(__file__).resolve().with_name("omarchy-agent-account-reconnect")
+    command = str(beside) if os.access(beside, os.X_OK) else "omarchy-agent-account-reconnect"
+    launch = [command]
+    if shutil.which("systemd-run"):
+      launch = ["systemd-run", "--user", "--quiet", "--collect", "--description=Reconnect Remote Control after a Claude account switch", f"--setenv=PATH={os.environ.get('PATH', '')}", "--", command]
   try:
-    subprocess.Popen([command, *map(str, homes)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-  except OSError:
+    if launch[0] == "systemd-run":
+      if subprocess.run([*launch, *map(str, homes)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode == 0:
+        return
+      launch = [command]
+    subprocess.Popen([*launch, *map(str, homes)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+  except (OSError, subprocess.SubprocessError):
     pass
 
 
