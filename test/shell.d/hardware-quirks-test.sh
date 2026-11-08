@@ -372,7 +372,7 @@ hardware/qualcomm/oem-firmware.sh|surface-pro-11-from-windows|0|pkg-add microsof
 hardware/qualcomm/oem-firmware.sh|ideacentre-mini-x-no-firmware|0|pkg-add lenovo-ideacentre-mini-x-firmware
 hardware/qualcomm/oem-firmware.sh|snapdragon-unpackaged|0
 hardware/qualcomm/oem-firmware.sh|yoga-slim7x|0
-hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/zenbook-a16.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
+hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
