@@ -35,6 +35,14 @@ desktop_exec() {
   [[ -n $file ]] && sed -n 's/^Exec=//p' "$file" | head -n1 | sed -E 's/ +%[a-zA-Z]//g'
 }
 
+# A Chromium web app's class names its URL: brave-x.com__stevederico-Default
+# is https://x.com/stevederico, with each / in the path written as _.
+webapp_launch() {
+  if [[ $1 =~ ^(brave|chrome|chromium|google-chrome|microsoft-edge|vivaldi|helium|opera)-([^_]+)__(.*)-[^-]+$ ]]; then
+    echo "omarchy-launch-webapp $(printf '%q' "https://${BASH_REMATCH[2]}/${BASH_REMATCH[3]//_//}")"
+  fi
+}
+
 # Interactive shells a terminal runs: session leaders on a tty, as in
 # omarchy-cmd-terminal-cwd. One per terminal window, tab or split.
 terminal_shells() {
@@ -161,14 +169,18 @@ while read -r pid; do
         end
       | .[]' <<<"$pid_windows")
   else
-    class=$(jq -r '.[0].class' <<<"$pid_windows")
-    command=$(desktop_exec "$class")
-    if [[ -z $command ]]; then
-      mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null
-      (( ${#argv[@]} > 0 )) && command=$(printf '%q ' "${argv[@]}")
-    fi
-    [[ -n $command ]] && launches+=("$(jq -nc --arg workspace "$(jq -r '.[0].workspace' <<<"$pid_windows")" \
-      --arg command "$command" --arg class "$class" '{workspace: $workspace, command: $command, class: $class}')")
+    # One launch per class: a browser's web app windows share its process.
+    while read -r class; do
+      workspace=$(jq -r --arg class "$class" 'first(.[] | select(.class == $class)) | .workspace' <<<"$pid_windows")
+      command=$(webapp_launch "$class")
+      [[ -z $command ]] && command=$(desktop_exec "$class")
+      if [[ -z $command ]]; then
+        mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null
+        (( ${#argv[@]} > 0 )) && command=$(printf '%q ' "${argv[@]}")
+      fi
+      [[ -n $command ]] && launches+=("$(jq -nc --arg workspace "$workspace" \
+        --arg command "$command" --arg class "$class" '{workspace: $workspace, command: $command, class: $class}')")
+    done < <(jq -r '[.[].class] | unique | .[]' <<<"$pid_windows")
   fi
 done < <(jq -r '[.[].pid] | unique | .[]' <<<"$windows")
 
