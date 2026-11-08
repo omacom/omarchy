@@ -11,7 +11,9 @@ declare -A LUA_BIND_ARG_MAP
 
 # A platform package can name keys the way its keyboards print them: one
 # "<keysym> <name>" per line (on a MacBook, XF86MonBrightnessUp is F2), in the
-# fixed platform root, which no environment variable moves.
+# fixed platform root, which no environment variable moves. "<keysym> -" says
+# its keyboards have no such key, and the menu leaves that key's rows out; the
+# binding itself still works.
 key_names_file=/usr/share/omarchy-platform/key-names
 
 # The leading layout and variant, which Hyprland resolves bindings against.
@@ -39,7 +41,10 @@ parse_keycodes() {
         # Blanks around a line and a CRLF line end read the same, as in
         # displays.conf.
         gsub(/^[ \t\r]+|[ \t\r]+$/, "", line)
-        if (split(line, name_parts, /[ \t]+/) == 2 && name_parts[1] ~ /^[A-Za-z0-9_]+$/ && name_parts[2] ~ /^[A-Za-z0-9_]+$/) key_name[name_parts[1]] = name_parts[2]
+        if (split(line, name_parts, /[ \t]+/) == 2 && name_parts[1] ~ /^[A-Za-z0-9_]+$/) {
+          if (name_parts[2] ~ /^[A-Za-z0-9_]+$/) key_name[name_parts[1]] = name_parts[2]
+          else if (name_parts[2] == "-") key_absent[name_parts[1]] = 1
+        }
       }
       close(key_names)
 
@@ -99,6 +104,7 @@ parse_keycodes() {
         rest = substr($0, first + 1)
         second = index(rest, ",")
         key = second > 0 ? substr(rest, 1, second - 1) : rest
+        if (key in key_absent) next
         if (key in key_name) $0 = substr($0, 1, first) key_name[key] (second > 0 ? substr(rest, second) : "")
       }
 
@@ -682,7 +688,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v19\n'
+    printf 'v20\n'
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
