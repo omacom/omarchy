@@ -345,11 +345,7 @@ and/or a working user systemd instance:
   `install/user/first-run/gtk-primary-paste.sh` — GNOME/GTK settings that
   need the dconf daemon.
 - `install/user/first-run/audio-tuning.sh` — apply speaker tuning.
-- `install/user/first-run/welcome.sh` — keybindings toast that greets the
-  first login and opens the cheatsheet when clicked. The caller runs
-  `omarchy-notification-wait` once before this and the Wi-Fi step, so both
-  toasts land on a live notification server. It is the one onboarding toast
-  sent without `--queue`, so it stays on top of the rest.
+- `install/user/first-run/welcome.sh` — keybindings toast that greets the first login and opens the cheatsheet when clicked. The caller runs `omarchy-notification-wait` once before this and the Wi-Fi step, so both toasts land on a live notification server. It is the one onboarding toast sent without `--queue`, so it stays on top of the rest.
 - `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`) and the update toast. Each invitation is sent only once.
 
 The entire sequence has one idempotency marker:
