@@ -146,7 +146,7 @@ update_manifest "$stage" "$source_id" "$new_id" "$display_name"
 mv "$stage" "$target_dir"
 stage=""
 
-omarchy-shell shell rescanPlugins >/dev/null
+omarchy-shell -q shell rescanPlugins
 discovered=0
 for (( attempt = 0; attempt < 40; attempt++ )); do
   if omarchy-plugin-list --json | jq -e --arg id "$new_id" 'any(.[]; .id == $id)' >/dev/null; then
