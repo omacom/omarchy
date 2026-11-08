@@ -55,7 +55,20 @@ profile {
 }
 ```
 
-Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~/.config/hypr/autostart.lua`. The 4000K/6500K pair used by the toggle is fixed, so the config file is where you go if you want a different temperature.
+Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~/.config/hypr/autostart.lua`.
+
+To have the toggle warm the screen to a different temperature, such as the one your time profile uses, set it in a top-level `nightlight` block in `~/.config/omarchy/shell.json`:
+
+```json
+{
+  "version": 1,
+  "nightlight": {
+    "temperature": 4500
+  }
+}
+```
+
+The toggle menu, `omarchy toggle nightlight` and the bar indicator all use it. It must be a whole number from 1000 up to 5999; anything else falls back to 4000K. Toggling off always goes back to 6500K.
 
 ### Do not disturb
 
