@@ -123,7 +123,7 @@ function inputLabel(state, fallback) {
 function shortcutLabel(raw) {
   var labels = { "ALT + SHIFT": "Alt + Shift", "SUPER + I": "Super + I" }
   var line = String(raw || "").split("\n")[0].trim()
-  return labels[line] || labels["SUPER + I"]
+  return typeof labels[line] === "string" ? labels[line] : labels["SUPER + I"]
 }
 
 function inputTooltip(state, layout, multipleLayouts, shortcut) {
