@@ -100,6 +100,10 @@ export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
 export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
+# A trade starts the Remote Control reconnect job; this one only says where.
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"$OMARCHY_TEST_RECONNECTS"\n' >"$mock_bin/reconnect-stub"
+chmod +x "$mock_bin/reconnect-stub"
+export OMARCHY_AGENT_ACCOUNT_RECONNECT="$mock_bin/reconnect-stub" OMARCHY_TEST_RECONNECTS="$test_tmp/reconnects"
 # A session started by an account launch pins its home through these, and
 # a run from inside one (an agent working on Omarchy) must not inherit it.
 unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME BROWSER
@@ -253,6 +257,8 @@ omarchy-agent-account-use claude work >/dev/null
 [[ $(omarchy-agent-account-list claude --json | jq -r '.[0].accounts[] | select(.primary) | .id') == "work" ]] ||
   fail "the account in the primary home is the primary"
 grep -q "New Claude sessions now use Work Sessions running in ~/.claude move with it" "$notifications" || fail "switching says where new sessions go"
+for _ in {1..50}; do [[ -s $test_tmp/reconnects ]] && break; sleep 0.1; done
+[[ $(cat "$test_tmp/reconnects") == "$HOME/.claude $work" ]] || fail "a trade reconnects Remote Control in both homes' sessions" "$(cat "$test_tmp/reconnects" 2>/dev/null)"
 pass "use makes an account active and says so"
 
 # Nothing is traded while a sign-in is writing a login, and the notice says

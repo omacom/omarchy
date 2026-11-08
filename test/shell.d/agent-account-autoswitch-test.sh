@@ -291,21 +291,31 @@ pass "manual mode doesn't nag before the threshold"
 # ------------------------------------------- sessions running in a target home
 
 # A trade hands the target's home the login ~/.claude held. With logins in
-# every home and a session holding a home open.
+# every home, a session holding a home open, and the reconnect job stubbed.
+reconnects="$test_tmp/reconnects"
+cat >"$test_tmp/bin/reconnect-stub" <<'SH2'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_RECONNECTS"
+SH2
+chmod +x "$test_tmp/bin/reconnect-stub"
+export OMARCHY_AGENT_ACCOUNT_RECONNECT="$test_tmp/bin/reconnect-stub" OMARCHY_TEST_RECONNECTS="$reconnects"
 for home in "$HOME/.claude" "$accounts/claude/work" "$accounts/claude/side"; do
   echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
 done
 login() { jq -r .claudeAiOauth.refreshToken "$1/.credentials.json"; }
 CLAUDE_CONFIG_DIR="$accounts/claude/work" sleep 300 &
 sleeper=$!
+waited_reconnect() { for _ in {1..50}; do [[ -s $reconnects ]] && return 0; sleep 0.1; done; return 1; }
 
 # Work has the most room but a session of its own, which a trade would move
 # onto Main's 97%. Side's home is free, so Side is taken and traded with.
+: >"$reconnects"
 three main
 weekly 0.97 "$week" 0.10 "$day" 0.40 "$week"
 autoswitch >/dev/null
 [[ $(active) == "side" && $(login "$HOME/.claude") == "side" && $(login "$accounts/claude/work") == "work" ]] ||
   fail "a target whose home is free goes before one a trade would strand" "$(active) $(login "$HOME/.claude")"
+waited_reconnect && grep -qx "$HOME/.claude $accounts/claude/side" "$reconnects" || fail "the moved homes' Remote Control is reconnected" "$(cat "$reconnects")"
 pass "a busy target's home is skipped for a free one"
 
 # Put Main's login back in ~/.claude for the next cases.
@@ -315,6 +325,7 @@ done
 
 # Only Work has room. New sessions go to it, ~/.claude stays where it is,
 # and nothing is traded onto Work's running session.
+: >"$reconnects"
 three main
 weekly 0.97 "$week" 0.10 "$day" 0.98 "$week"
 autoswitch >/dev/null
@@ -322,6 +333,7 @@ autoswitch >/dev/null
   fail "a trade never moves a running session onto a login over the threshold"
 grep -q "Sessions in ~/.claude stay on Main until the ones already running as Work quit" "$notifications" ||
   fail "the notice says why ~/.claude's sessions stayed" "$(cat "$notifications")"
+[[ ! -s $reconnects ]] || fail "nothing to reconnect when nothing moved"
 pass "a trade that would strand a running session waits"
 
 # Once Work's session quits, the next check makes the move it owed.
@@ -331,6 +343,7 @@ autoswitch >/dev/null
   fail "the owed move happens once the target's home is free"
 [[ $(jq -r '.accounts[] | select(.primary) | .id' "$accounts/claude.json") == "work" ]] || fail "the registry follows the owed move"
 grep -q "Sessions running in ~/.claude move with it" "$notifications" || fail "the owed move is announced" "$(cat "$notifications")"
+waited_reconnect || fail "the owed move reconnects Remote Control"
 pass "an owed move happens once the target's home is free"
 
 # Leaving early hands a busy home a login still under the threshold, so the

@@ -646,6 +646,21 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], boo
     return previous, account, bool(homes), homes
 
 
+# After a trade, Claude drops each moved session's Remote Control link, since
+# its account changed. omarchy-agent-account-reconnect runs /remote-control
+# again in each of them once it is idle. It runs on its own, so the switch
+# returns at once, and starts with no descriptor of ours (Popen closes them),
+# so it can't keep the registry or sign-in lock.
+def reconnect_later(homes: list[Path]) -> None:
+  if not homes:
+    return
+  command = os.environ.get("OMARCHY_AGENT_ACCOUNT_RECONNECT") or "omarchy-agent-account-reconnect"
+  try:
+    subprocess.Popen([command, *map(str, homes)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+  except OSError:
+    pass
+
+
 # Whether a running session was started in this home. Removing it would pull
 # the login out from under that session, which must never be touched.
 def home_in_use(provider: str, home: Path) -> bool:
@@ -1048,7 +1063,8 @@ def main(argv: list[str]) -> int:
       print(json.dumps(register(provider, args[1], Path(args[2]))))
     elif command == "use":
       provider = provider_arg(args)
-      previous, account, moved, _ = use(provider, args[1] if len(args) > 1 else "next")
+      previous, account, moved, homes = use(provider, args[1] if len(args) > 1 else "next")
+      reconnect_later(homes)
       print(json.dumps({"previous": previous, "active": account, "moved": moved}))
     elif command == "remove":
       provider = provider_arg(args)
@@ -1073,7 +1089,8 @@ def main(argv: list[str]) -> int:
       # knows which usage records to collect again.
       for provider in ([provider_arg(args)] if args else list(PROVIDERS)):
         if registry_path(provider).exists():
-          changed, _ = autoswitch(provider)
+          changed, homes = autoswitch(provider)
+          reconnect_later(homes)
           if changed:
             print(provider)
     else:
