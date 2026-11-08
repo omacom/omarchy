@@ -122,6 +122,14 @@ nightlight_cli >/dev/null
 [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle ignores a temperature it would read back as off"
 pass "nightlight toggle ignores a temperature it would read back as off"
 
+for unversioned in '{"nightlight": {"temperature": 4500}}' '{"version": "1", "nightlight": {"temperature": 4500}}'; do
+  printf '%s\n' "$unversioned" >"$TMPDIR/home/.config/omarchy/shell.json"
+  printf '6500\n' >"$STATE"
+  nightlight_cli >/dev/null
+  [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle ignores a shell.json the shell rejects: $unversioned" "$(<"$STATE")"
+done
+pass "nightlight toggle ignores a shell.json without version 1, as the shell does"
+
 for broken in '' '  \n' '{"version": 1, "nightlight": {"temperature": 4500}}\n{oops'; do
   printf "$broken" >"$TMPDIR/home/.config/omarchy/shell.json"
   printf '6500\n' >"$STATE"
