@@ -123,9 +123,21 @@ omarchy compartment-drill                       # integrity watch drill
 - **Read-only weights** — dm-verity hash tree; manifest signed into the guest.
 - **Vault-signer** — networkless VM, Ed25519 only, every transaction requires
   interactive host approval (`omarchy compartment <name> vault-sign '<json>'`).
-- **Host hardening** — sysctl, auditd watchpoints on libvirt/VM images/keys,
-  ufw deny from whonix-int, usbguard, AIDE, optional Wazuh active response
-  (`compartment/host/wazuh/ossec-ar-snippets.conf`).
+- **Host hardening** (`omarchy-compartment-setup`, idempotent):
+  - sysctl: `90-compartment-ai.conf` + `99-hardening.conf` (ipv6/bpf/perf/suid_dumpable)
+  - auditd: `hardening.rules` (identity, logins, syscalls, libvirt, network) + `compartment-ai.rules` (watchpoints on VM images, keys, registry, sudoers, sshd, compartment payload)
+  - ufw: deny new connections from `virbr-whx`, allow DNS/DHCP only
+  - usbguard: generates device policy, blocks new devices
+  - AIDE: file-integrity DB initialized on first run
+  - AppArmor: enabled automatically when already in the kernel LSM list; otherwise prints the required kernel cmdline
+  - Wazuh: if `wazuh-agent` is installed, prints the active-response merge step (`compartment/host/wazuh/ossec-ar-snippets.conf` → `ossec.conf`, then restart)
+
+### Manual steps the installer cannot do
+
+- **AppArmor first-time enable**: add `lsm=landlock,lockdown,yama,integrity,apparmor,bpf apparmor=1` to the kernel cmdline, reboot, then `sudo systemctl enable --now apparmor`.
+- **Secure Boot**: `sudo sbctl create-keys && sudo sbctl enroll-keys` then reboot and enable SB in firmware setup.
+- **TPM-LUKS binding**: `sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 /dev/<luks-partition>` so the disk unlocks only on this machine's measured boot.
+- **Wazuh manager**: run a Wazuh manager (e.g. a dedicated VM), point `wazuh-agent` at it, then merge the AR snippets.
 
 ## Troubleshooting
 
