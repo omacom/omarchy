@@ -795,6 +795,9 @@ def clears_at(limits: Any, now: dt.datetime) -> dt.datetime | None:
 # Points under the threshold where an account counts as near its limit, and
 # where the panel starts checking it more often.
 NEAR = 15
+# How much sooner another account must free up, when every account is over
+# the threshold, before switching to it.
+EARLIER = dt.timedelta(minutes=15)
 
 
 # The whole switching policy, with no I/O: given the registry and the per
@@ -823,6 +826,9 @@ NEAR = 15
 # The account left behind is at least threshold - NEAR, so it can't qualify
 # to come back until its own window resets, and the new one has to climb
 # NEAR points before it leaves early in turn: no ping-pong.
+#
+# With every account at or over the threshold, it goes to the one that frees
+# up first (available_at), so work resumes as early as it can; see below.
 #
 # `alert` remembers the last thing said, so a shell restart or the next
 # refresh doesn't repeat it.
@@ -866,7 +872,7 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
   if early:
     return {"action": "clear"} if registry.get("alert") else None
   alert = f"exhausted:{current['id']}"
-  if registry.get("alert") == alert or len(registry["accounts"]) < 2:
+  if len(registry["accounts"]) < 2:
     return None
   # Only when every account is known to be over. One that's signed out or
   # couldn't be checked might have room, so there's nothing honest to say.
@@ -877,6 +883,31 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
     reset = available_at(usage.get(account["id"]), threshold, now)
     if reset and (soonest is None or reset < soonest[0]):
       soonest = (reset, account)
+
+  # With every account over, work resumes soonest on the account that frees
+  # up first, so go there. Only for one that frees up at least EARLIER before
+  # the active one: the account switched to is then the soonest itself, so
+  # nothing moves again until a window resets, and a reset time that shifts a
+  # little between checks can't bounce the switch back. One whose move would
+  # strand a running session comes after one that wouldn't, as above.
+  mine = available_at(usage.get(current["id"]), threshold, now)
+  waits = []
+  for account in registry["accounts"]:
+    reset = available_at(usage.get(account["id"]), threshold, now)
+    if account["id"] == current["id"] or reset is None or (mine is not None and reset > mine - EARLIER):
+      continue
+    strands = account["id"] in busy and not account.get("primary")
+    waits.append(((strands, reset), account))
+  if waits:
+    waits.sort(key=lambda w: w[0])
+    (strands, reset), target = waits[0]
+    action = "switch" if registry["switch"] == "auto" else "notify"
+    alert = f"{action}:{current['id']}:{target['id']}"
+    if registry.get("alert") == alert:
+      return None
+    return {"action": action, "alert": alert, "from": current, "to": target, "fromPeak": current_peak, "toPeak": peak(usage.get(target["id"]), now), "strands": strands, "freesAt": reset}
+  if registry.get("alert") == alert:
+    return None
   return {"action": "exhausted", "alert": alert, "from": current, "fromPeak": current_peak, "soonest": soonest}
 
 
@@ -962,6 +993,12 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> tuple[bool, lis
 
     target = decision["to"]
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
+    frees = decision.get("freesAt")
+    if frees is not None and decision["strands"] and registry["switch"] == "auto":
+      # New sessions go there, ~/.claude waits: say that, not "now use".
+      frees = None
+    if frees is not None:
+      headline = tr("omarchy-i18n agents.allOver", "All %1 accounts are over %2%", name, threshold)
     if decision["action"] == "switch":
       homes: list[Path] = []
       if provider == "claude" and not decision["strands"]:
@@ -975,7 +1012,9 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> tuple[bool, lis
       registry["active"] = target["id"]
       if not target.get("primary"):
         link_shared(provider, account_home(provider, target))
-      if homes:
+      if frees is not None:
+        notify(headline, tr("omarchy-i18n agents.switchedToSoonest", "%1 sessions now use %2, the first to free up, in %3.", name, target["label"], duration(frees - now)))
+      elif homes:
         notify(headline, tr("omarchy-i18n agents.switchedBodyMoved", "%1 sessions now use %2 (%3%), including those running in ~/.claude.", name, target["label"], round(decision["toPeak"])))
       elif provider == "claude" and decision["strands"]:
         notify(headline, tr("omarchy-i18n agents.switchedBodyStranded", "New %1 sessions now use %2 (%3%).\nSessions in ~/.claude stay on %4 until the ones already running as %2 quit.", name, target["label"], round(decision["toPeak"]), source["label"]))
@@ -983,9 +1022,13 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> tuple[bool, lis
         notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
       return True, homes
     registry["alert"] = decision["alert"]
+    if frees is not None:
+      offer = tr("omarchy-i18n agents.offerSoonest", "%1 frees up first, in %2. Click to switch to it.", target["label"], duration(frees - now))
+    else:
+      offer = tr("omarchy-i18n agents.offerSwitch", "%1 is at %2%. Click to switch new sessions to it.", target["label"], round(decision["toPeak"]))
     notify(
       headline,
-      tr("omarchy-i18n agents.offerSwitch", "%1 is at %2%. Click to switch new sessions to it.", target["label"], round(decision["toPeak"])),
+      offer,
       ["omarchy-agent-account-use", provider, target["id"]],
     )
     return False, []

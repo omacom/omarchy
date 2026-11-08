@@ -107,14 +107,36 @@ pass "a window past its reset counts as empty"
 
 # ------------------------------------------------------------------- exhausted
 
+# Every account over: work resumes soonest on the one that frees up first.
 registry main auto
 record 0.97 "$later" 0.98 "$soon"
-[[ -z $(autoswitch) && $(active) == "main" ]] || fail "with nowhere to go, auto mode stays put"
-grep -q "All Claude accounts are over 95% Staying on Main. Work resets in 1h 1[12]m." "$notifications" ||
-  fail "exhaustion names the account that frees up first" "$(cat "$notifications")"
+[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "with every account over, auto mode goes to the one that frees up first"
+grep -q "All Claude accounts are over 95% Claude sessions now use Work, the first to free up, in 1h 1[12]m." "$notifications" ||
+  fail "the switch says when the account frees up" "$(cat "$notifications")"
+pass "with every account over, the one that frees up first is used"
+
+# It is the soonest itself now, so it stays, and says so once.
 autoswitch >/dev/null
-[[ ! -s $notifications ]] || fail "exhaustion is said once"
-pass "all accounts over the threshold is said once"
+[[ $(active) == "work" ]] && grep -q "All Claude accounts are over 95% Staying on Work. Work resets in 1h 1[12]m." "$notifications" ||
+  fail "the account that frees up first stays" "$(active) $(cat "$notifications")"
+autoswitch >/dev/null
+[[ $(active) == "work" && ! -s $notifications ]] || fail "exhaustion is said once"
+pass "all accounts over the threshold is said once, without bouncing"
+
+# A reset time a few minutes sooner isn't worth a switch.
+registry main auto
+record 0.97 "$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=80)).isoformat())')" 0.98 "$soon"
+autoswitch >/dev/null
+[[ $(active) == "main" ]] || fail "an account freeing up only minutes sooner isn't switched to"
+pass "a switch while every account is over needs a real head start"
+
+# Manual mode offers it as a click.
+registry main manual
+record 0.97 "$later" 0.98 "$soon"
+[[ -z $(autoswitch) && $(active) == "main" ]] || fail "manual mode doesn't switch when every account is over"
+grep -q "Work frees up first, in 1h 1[12]m. Click to switch to it. --exec omarchy-agent-account-use claude work" "$notifications" ||
+  fail "manual mode offers the account that frees up first" "$(cat "$notifications")"
+pass "manual mode offers the account that frees up first"
 
 # Work's session is nearly empty and resets soon, but its full weekly window
 # is what holds it over the threshold, so that reset is when it frees up.
@@ -375,3 +397,20 @@ flock -u 7
 exec 7>&-
 [[ $(autoswitch) == "claude" && $(active) == "side" && $(login "$HOME/.claude") == "side" ]] || fail "the switch happens on the next check"
 pass "a switch waits for a sign-in rather than leaving ~/.claude behind"
+
+# Every account over, and the one freeing up first has a session in its home:
+# the next soonest with a free home takes ~/.claude's sessions, and Work's own
+# session keeps the login that frees up first.
+for home in "$HOME/.claude" "$accounts/claude/work" "$accounts/claude/side"; do
+  echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
+done
+CLAUDE_CONFIG_DIR="$accounts/claude/work" sleep 300 &
+sleeper=$!
+two_hours=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=2)).isoformat())')
+three main
+weekly 0.97 "$week" 0.98 "$soon" 0.99 "$two_hours"
+autoswitch >/dev/null
+[[ $(active) == "side" && $(login "$HOME/.claude") == "side" && $(login "$accounts/claude/work") == "work" ]] ||
+  fail "with every account over, a free home goes before a busy one" "$(active) $(login "$HOME/.claude")"
+kill "$sleeper"; wait "$sleeper" 2>/dev/null || true
+pass "with every account over, a busy home is still never handed a worse login"
