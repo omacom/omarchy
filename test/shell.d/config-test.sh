@@ -370,11 +370,21 @@ mkdir -p "$linked_home/dotfiles" "$linked_home/.config/omarchy"
 printf '{"bar":{"position":"top"}}\n' >"$linked_home/dotfiles/shell.json"
 chmod 640 "$linked_home/dotfiles/shell.json"
 ln -s "$linked_home/dotfiles/shell.json" "$linked_home/.config/omarchy/shell.json"
+linked_config="$linked_home/dotfiles/shell.json"
+linked_metadata=$(stat -c '%u:%g:%a' "$linked_config")
+linked_xattr=false
+if python3 -c 'import os,sys; os.setxattr(sys.argv[1], "user.omarchy-test", b"keep")' "$linked_config" 2>/dev/null; then
+  linked_xattr=true
+fi
 HOME="$linked_home" OMARCHY_PATH="$ROOT" omarchy-bar position bottom
 [[ -L $linked_home/.config/omarchy/shell.json ]] || fail "bar update keeps a dotfiles symlink"
-[[ $(stat -c '%a' "$linked_home/dotfiles/shell.json") == 640 ]] || fail "bar update keeps the config mode"
-[[ $(jq -r '.bar.position' "$linked_home/dotfiles/shell.json") == "bottom" ]] || fail "bar update writes through the symlink"
-pass "shell config writes through a dotfiles symlink and keeps its mode"
+[[ $(stat -c '%u:%g:%a' "$linked_config") == "$linked_metadata" ]] || fail "bar update keeps the config owner, group and mode"
+[[ $(jq -r '.bar.position' "$linked_config") == "bottom" ]] || fail "bar update writes through the symlink"
+if [[ $linked_xattr == true ]]; then
+  python3 -c 'import os,sys; assert os.getxattr(sys.argv[1], "user.omarchy-test") == b"keep"' "$linked_config" ||
+    fail "bar update keeps the linked config extended attribute"
+fi
+pass "shell config writes through a dotfiles symlink and keeps its metadata"
 
 failing_jq_bin="$TMPDIR/failing-jq"
 mkdir -p "$failing_jq_bin"

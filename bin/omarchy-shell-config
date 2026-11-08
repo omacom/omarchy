@@ -60,11 +60,12 @@ commit() {
   target=$(realpath -m -- "$CONFIG_FILE") || fail "could not resolve shell config"
   mkdir -p "$(dirname "$target")" || fail "could not create shell config directory"
   # Stage beside the resolved target for an atomic replace that keeps dotfile
-  # symlinks. mktemp creates 0600; retain an existing target's permissions.
+  # symlinks. mktemp creates 0600; retain an existing target's metadata.
   _SHELL_CONFIG_TMP=$(mktemp "$(dirname "$target")/.shell-config.XXXXXX") || fail "could not stage shell config"
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
   if [[ -e $target ]]; then
-    chmod --reference="$target" "$_SHELL_CONFIG_TMP" || fail "could not preserve shell config mode"
+    cp --attributes-only --preserve=mode,ownership,xattr -- "$target" "$_SHELL_CONFIG_TMP" ||
+      fail "could not preserve shell config metadata"
   fi
   mv -- "$_SHELL_CONFIG_TMP" "$target" || fail "could not publish shell config"
   _SHELL_CONFIG_TMP=""
