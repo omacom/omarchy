@@ -26,14 +26,13 @@ stop_fixture_recorders() {
       kill "$pid" 2>/dev/null || true
       for _ in {1..100}; do
         [[ -r /proc/$pid/stat ]] || break
-        state=$(<"/proc/$pid/stat")
+        state=$(cat "/proc/$pid/stat" 2>/dev/null) || break
         [[ ${state##*) } != "Z "* ]] || break
         sleep 0.01
       done
-      [[ ! -r /proc/$pid/stat ]] || {
-        state=$(<"/proc/$pid/stat")
+      if state=$(cat "/proc/$pid/stat" 2>/dev/null); then
         [[ ${state##*) } == "Z "* ]] || fail "owned fixture $pid exits after cleanup"
-      }
+      fi
       wait "$pid" 2>/dev/null || true
     fi
   done <"$OMARCHY_TEST_PID_LOG"
