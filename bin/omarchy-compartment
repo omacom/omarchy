@@ -7,9 +7,21 @@
 set -euo pipefail
 
 CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
+CAI_REPO="https://github.com/TerexitariusStomp/compartment-ai"
+
 if [[ ! -f $CAI/scripts/vmctl ]]; then
   echo "compartment-ai not installed — run: omarchy install compartment-ai" >&2
   exit 1
 fi
+
+if [[ -d $CAI/.git ]]; then
+  url="$(git -C "$CAI" remote get-url origin 2>/dev/null || true)"
+  url="${url%.git}"
+  if [[ $url != "$CAI_REPO" && $url != "git@github.com:TerexitariusStomp/compartment-ai" ]]; then
+    echo "error: $CAI is not a clone of $CAI_REPO" >&2
+    exit 1
+  fi
+fi
+
 export PATH="$CAI/scripts:$PATH"
 exec vmctl "$@"

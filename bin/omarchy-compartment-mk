@@ -7,8 +7,30 @@
 set -euo pipefail
 NAME="${1:?usage: omarchy compartment mk <name>}"
 CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
+CAI_REPO="https://github.com/TerexitariusStomp/compartment-ai"
+CAI_REF="v1.0.0"
+CAI_SHA="ef35747751eec211900d9e3d9b11902ef4ec2140"
+
 if [[ ! -f $CAI/scripts/mk-ai-vm.sh ]]; then
   echo "compartment-ai not installed — run: omarchy install compartment-ai" >&2
   exit 1
 fi
-exec sudo bash "$CAI/scripts/mk-ai-vm.sh" "$NAME"
+
+if [[ -d $CAI/.git ]]; then
+  url="$(git -C "$CAI" remote get-url origin 2>/dev/null || true)"
+  url="${url%.git}"
+  if [[ $url != "$CAI_REPO" && $url != "git@github.com:TerexitariusStomp/compartment-ai" ]]; then
+    echo "error: $CAI is not a clone of $CAI_REPO" >&2
+    exit 1
+  fi
+fi
+
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/compartment-ai.XXXXXX")"
+trap 'rm -rf "$STAGE"' EXIT
+git clone --quiet --depth 1 --branch "$CAI_REF" "$CAI_REPO.git" "$STAGE/compartment-ai"
+head="$(git -C "$STAGE/compartment-ai" rev-parse HEAD)"
+if [[ $head != "$CAI_SHA" ]]; then
+  echo "error: $CAI_REF resolved to $head, expected $CAI_SHA" >&2
+  exit 1
+fi
+sudo bash "$STAGE/compartment-ai/scripts/mk-ai-vm.sh" "$NAME"
