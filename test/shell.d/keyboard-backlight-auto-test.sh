@@ -90,6 +90,31 @@ r = kb.evaluate(state, 1, 11 * hour, cfg)
 r = kb.evaluate(r.state, 1, 11 * hour + 5 * s, cfg)
 assertEqual(r.set, 2, 'drops an expired saved manual off')
 
+// The keys changed the level while the shell was down: that's the user's
+state = kb.initialState(0, 2, 0, 2, 1 * hour)
+assertEqual(state.manualOffSince, 1 * hour, 'takes an off made while the shell was down as a manual off')
+r = kb.evaluate(state, 1, 1 * hour, cfg)
+r = kb.evaluate(r.state, 1, 1 * hour + 5 * s, cfg)
+assertEqual(r.set, null, 'keeps an off made while the shell was down')
+state = kb.initialState(1, 2, 0, 2, 1 * hour)
+assertEqual(state.level, 1, 'remembers a level picked while the shell was down')
+assertEqual(state.manualOffSince, 0, 'a level picked while the shell was down is not an off')
+assertEqual(kb.initialState(0, 2, 0, 0, 1 * hour).manualOffSince, 0, 'an unchanged off is not a manual off')
+assertEqual(kb.initialState(0, 2, 0, null, 1 * hour).manualOffSince, 0, 'no last level means nothing to compare')
+
+// A bright period clears the hold when it ends, not at the next dark, so a
+// restart in between doesn't bring the hold back
+state = kb.initialState(2, 2, 0)
+r = kb.evaluate(state, 1, 0, cfg)
+r = kb.evaluate(r.state, 1, 5 * s, cfg)
+state = kb.observeBrightness(r.state, 0, 10 * s)
+r = kb.evaluate(state, 70, 1 * min, cfg)
+r = kb.evaluate(r.state, 70, 1 * min + 5 * s, cfg)
+assertEqual(r.nextCheckMs, 10 * min, 'checks again when the bright period clears the hold')
+r = kb.evaluate(r.state, 70, 11 * min + 5 * s, cfg)
+assertEqual(r.state.manualOffSince, 0, 'clears the hold once the room has been bright long enough')
+assertEqual(r.nextCheckMs, -1, 'schedules nothing once the hold is cleared')
+
 // Session wake: the restored level is a baseline, not the user's choice.
 // Blanked while bright and off, woken in the dark with 0 restored: turns on.
 state = kb.initialState(0, 2, 0)

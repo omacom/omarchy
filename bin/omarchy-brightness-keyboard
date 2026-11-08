@@ -88,3 +88,7 @@ fi
 # Set the new brightness.
 brightnessctl -d "$device" set "$new_brightness" >/dev/null
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
+
+# Tell the automatic keyboard backlight right away, so a choice made in steady
+# light is kept (and a manual off held across a shell restart).
+omarchy-shell -q omarchy.keyboard-backlight refresh

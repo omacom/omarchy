@@ -44,8 +44,12 @@ function parseLux(line) {
   return Number(match[1].replace(",", "."))
 }
 
-function initialState(brightness, maxLevel, manualOffSince) {
-  return {
+// lastLevel is the level the service last knew of before the shell restarted
+// (null when there is none). A different level now was set by the keys while
+// the shell was down, including firmware-handled keys that nothing announces,
+// so it's taken as the user's choice like any other.
+function initialState(brightness, maxLevel, manualOffSince, lastLevel, now) {
+  var state = {
     applied: "",
     pending: "",
     pendingSince: 0,
@@ -55,6 +59,11 @@ function initialState(brightness, maxLevel, manualOffSince) {
     manualOffSince: manualOffSince > 0 ? manualOffSince : 0,
     held: false
   }
+  if (lastLevel === null || lastLevel === undefined || brightness === null || brightness === undefined) return state
+
+  state.expected = lastLevel
+  if (lastLevel > 0) state.level = lastLevel
+  return observeBrightness(state, brightness, now)
 }
 
 function copy(state) {
@@ -125,7 +134,9 @@ function apply(state, want, now, cfg) {
 
 // After the session blanked the keyboard and restored it on wake, the restored
 // level is the session's, not the user's: take it as the new baseline and
-// decide again from the current light, keeping any held manual off.
+// decide again from the current light, keeping any held manual off. The same
+// goes for a write that failed or was dropped: the level it left is nobody's
+// choice.
 function resume(state, brightness) {
   var next = copy(state)
   next.expected = brightness
@@ -135,9 +146,16 @@ function resume(state, brightness) {
   return next
 }
 
+// The room has been bright since brightSince, and it isn't already settling
+// toward dark.
+function brightClearing(state) {
+  return state.manualOffSince > 0 && state.applied === "off" && state.pending !== "on" && state.brightSince > 0
+}
+
 function nextCheckMs(state, now, cfg) {
   var delays = []
   if (state.pending !== "") delays.push(Math.max(0, state.pendingSince + cfg.settleMs - now))
+  if (brightClearing(state)) delays.push(Math.max(0, state.brightSince + cfg.brightClearMs - now))
   if (state.held && state.manualOffSince > 0) delays.push(Math.max(0, state.manualOffSince + cfg.manualOffMaxMs - now))
   return delays.length ? Math.min.apply(null, delays) : -1
 }
@@ -150,6 +168,9 @@ function evaluate(state, lux, now, cfg) {
   var result = { state: next, set: null }
 
   if (next.manualOffSince > 0 && !manualOffActive(next, now, cfg)) next.manualOffSince = 0
+  // Cleared as soon as the bright period is over rather than at the next dark,
+  // so the saved hold doesn't outlive it across a restart.
+  if (brightClearing(next) && now - next.brightSince >= cfg.brightClearMs) next.manualOffSince = 0
 
   var want = lux === null || lux === undefined ? "" : wantFor(lux, cfg)
 
