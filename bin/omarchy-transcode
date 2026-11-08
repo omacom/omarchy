@@ -88,9 +88,58 @@ transcode_picture() {
   esac
 }
 
+# iPhone recordings mark spatial audio (apple_apac) as the default track and
+# keep a stereo AAC track beside it. FFmpeg has no decoder for apple_apac, so
+# taking the default track aborts the whole transcode. Prefer the default
+# track when it can be decoded, otherwise the first track that can.
+# Prints the stream index. Returns 2 when every audio track is undecodable,
+# 3 when the file has no audio, and 1 when probing fails.
+decodable_audio_index() {
+  local input="$1"
+  local -A decoders=()
+  local probe name index codec is_default chosen="" fallback=""
+  local saw_audio=0
+
+  probe=$(ffprobe -v error -select_streams a \
+    -show_entries stream=index,codec_name:stream_disposition=default \
+    -of csv=p=0 -- "$input") || return 1
+
+  while read -r name; do
+    [[ -n $name ]] || continue
+    decoders[$name]=1
+  # The flag field is six characters: V, A, S, and F, X, B, D. AAC's line ends
+  # in D, so a class of only V, A, S and "." would treat it as undecodable.
+  done < <(ffmpeg -hide_banner -decoders | awk '$1 ~ /^[VASFXBD.]{6}$/ { print $2 }')
+
+  while IFS=',' read -r index codec is_default; do
+    [[ -n $index ]] || continue
+    saw_audio=1
+    if [[ -z ${decoders[$codec]:-} ]]; then
+      continue
+    fi
+    if [[ -z $chosen && $is_default == "1" ]]; then
+      chosen=$index
+    fi
+    if [[ -z $fallback ]]; then
+      fallback=$index
+    fi
+  done <<<"$probe"
+
+  if [[ -n $chosen ]]; then
+    printf '%s\n' "$chosen"
+  elif [[ -n $fallback ]]; then
+    printf '%s\n' "$fallback"
+  elif (( saw_audio == 1 )); then
+    return 2
+  else
+    return 3
+  fi
+}
+
 transcode_video() {
   local input="$1" format="$2" resolution="$3" output="$4"
-  local scale
+  local scale audio_index="" audio_status=0
+  local -a args
 
   case "$resolution" in
   4k) scale='scale=-2:2160' ;;
@@ -104,11 +153,30 @@ transcode_video() {
 
   case "$format" in
   mp4)
-    if [[ $resolution == "4k" ]]; then
-      ffmpeg -i "$input" -vf "$scale" -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
-    else
-      ffmpeg -i "$input" -vf "$scale" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
+    audio_index=$(decodable_audio_index "$input") || audio_status=$?
+    if (( audio_status == 1 )); then
+      return 1
     fi
+    if (( audio_status == 2 )); then
+      echo "No decodable audio track: $input" >&2
+      return 1
+    fi
+
+    args=(ffmpeg -i "$input" -map 0:v:0)
+    if [[ -n $audio_index ]]; then
+      args+=(-map "0:$audio_index")
+    fi
+    args+=(-vf "$scale")
+    if [[ $resolution == "4k" ]]; then
+      args+=(-c:v libx265 -preset slow -crf 24)
+    else
+      args+=(-c:v libx264 -preset fast -crf 23)
+    fi
+    if [[ -n $audio_index ]]; then
+      args+=(-c:a aac -b:a 192k)
+    fi
+    args+=(-movflags +faststart "$output")
+    "${args[@]}"
     ;;
   gif)
     ffmpeg -i "$input" -vf "fps=10,$scale:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$output"

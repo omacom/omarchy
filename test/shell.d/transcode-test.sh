@@ -1,0 +1,78 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+require_command ffmpeg
+require_command ffprobe
+require_command python3
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+# Keep the desktop quiet. The command under test notifies and copies the
+# result; neither is what this check is about.
+mkdir -p "$test_tmp/bin"
+cat >"$test_tmp/bin/omarchy-notification-send" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+cat >"$test_tmp/bin/wl-copy" <<'STUB'
+#!/bin/bash
+cat >/dev/null
+STUB
+chmod +x "$test_tmp/bin/omarchy-notification-send" "$test_tmp/bin/wl-copy"
+
+# An iPhone recording marks spatial audio as the default track and keeps a
+# stereo AAC track beside it. FFmpeg has no apple_apac decoder, so a real
+# file aborts before any video is written. This fixture is that shape: the
+# first audio sample entry wears the apac fourcc and its AAC descriptor is
+# blank, so probing reports apple_apac, while the second track stays AAC.
+python3 - "$test_tmp/spatial.mov" <<'PY'
+import subprocess
+import sys
+
+destination = sys.argv[1]
+source = destination + ".src.mov"
+subprocess.check_call([
+    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+    "-f", "lavfi", "-i", "color=c=black:s=32x32:r=30:d=1",
+    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=1",
+    "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000:duration=1",
+    "-map", "0:v:0", "-map", "1:a:0", "-map", "2:a:0",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a:0", "aac", "-c:a:1", "aac",
+    "-disposition:a:0", "default", "-disposition:a:1", "0",
+    source,
+])
+data = bytearray(open(source, "rb").read())
+starts = []
+cursor = 0
+while True:
+    found = data.find(b"stsd", cursor)
+    if found < 0:
+        break
+    starts.append(found)
+    cursor = found + 4
+audio = starts[1]
+data[audio + 16:audio + 20] = b"apac"
+descriptor = data.find(b"esds", audio)
+size = int.from_bytes(data[descriptor - 4:descriptor], "big")
+body = descriptor + 8
+end = descriptor - 4 + size
+data[body:end] = b"\x00" * (end - body)
+open(destination, "wb").write(data)
+PY
+
+probe=$(ffprobe -v error -select_streams a -show_entries stream=codec_name:stream_disposition=default -of csv=p=0 "$test_tmp/spatial.mov")
+[[ $probe == $'apple_apac,1\naac,0' ]] || fail "fixture matches an iPhone spatial recording" "$probe"
+
+output="$test_tmp/spatial-720p.mp4"
+if ! PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-transcode" "$test_tmp/spatial.mov" mp4 720p >"$test_tmp/log" 2>&1; then
+  fail "transcode finishes when the default audio track has no decoder" "$(cat "$test_tmp/log")"
+fi
+[[ -f $output ]] || fail "transcode writes the mp4 beside the recording" "$(cat "$test_tmp/log")"
+
+codec=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$output")
+[[ $codec == "aac" ]] || fail "transcode uses the AAC track when spatial audio is the default" "$codec"
+pass "transcode uses the AAC track when spatial audio is the default"
