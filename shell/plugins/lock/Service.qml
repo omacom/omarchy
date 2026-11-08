@@ -43,6 +43,9 @@ Item {
   property bool fingerprintPreparingForSleep: false
   // fprintd-list activates the daemon. Hold that probe until the machine is awake.
   property bool fingerprintCheckDeferred: false
+  // Bumped when a probe is discarded on the way into suspend, so its exit
+  // cannot be read as a fresh enrollment answer.
+  property int fingerprintProbeEpoch: 0
   // When the armed retry is due, so time spent blank counts toward it.
   property double fingerprintRetryDueMs: 0
   // The backoff the armed retry was set to; a wake shortens the timer to the
@@ -163,7 +166,13 @@ Item {
       fingerprintCheckDeferred = true
       return
     }
-    if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
+    if (fingerprintCheckProc.running) {
+      fingerprintCheckDeferred = true
+      return
+    }
+    fingerprintCheckDeferred = false
+    fingerprintCheckProc.probeEpoch = fingerprintProbeEpoch
+    fingerprintCheckProc.running = true
   }
 
   // Only definitive enrollment results may disable authentication.
@@ -250,7 +259,9 @@ Item {
   function finishUnlock() {
     if (!root.currentlyLocked()) return
 
-    clearFingerprintSleepHold()
+    // The hold is the machine's suspend, not this lock. Clearing it here would
+    // let a relock inside the delay window claim the reader with no second
+    // PrepareForSleep(true) to release it.
     lockRequested = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
@@ -354,14 +365,32 @@ Item {
     fingerprintUnreachedStreak = 0
   }
 
+  // omarchy-system-sleep-lock calls this from inside the delay inhibitor, then
+  // polls status until the claim is released. A normal lock must not come here:
+  // it shares `lock lock` with the keybinding and with shell restart.
+  function prepareSleepLock() {
+    if (!passwordPamConfigured) return "missing-pam"
+    prepareFingerprintForSleep(true)
+    if (currentlyLocked()) noteSleepRequested()
+    if (!currentlyLocked() && !beginLock()) return "failed"
+    return "ok"
+  }
+
   // Drop the verify while logind is still delaying suspend, so fprintd can
   // release the device before the reader is powered down. abort() reports
-  // nothing; the attempt is closed here and no retry is armed.
+  // nothing and schedules the helper's destruction; the attempt is closed
+  // here and no retry is armed. The inhibitor polls the paused state on a later
+  // IPC call. This cannot acknowledge fprintd's device release after disconnect.
   function releaseFingerprintClaim() {
     fingerprintPreparingForSleep = true
+    if (fingerprintRecheckTimer.running || fingerprintCheckProc.running) fingerprintCheckDeferred = true
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     fingerprintRecheckTimer.stop()
+    if (fingerprintCheckProc.running) {
+      fingerprintProbeEpoch += 1
+      fingerprintCheckProc.running = false
+    }
     if (fingerprintPam.active) {
       fingerprintPam.abort()
       logEvent("fingerprint-released: claim")
@@ -373,13 +402,36 @@ Item {
     // only fires when the machine stayed awake, and a missed wake cannot leave
     // the reader blocked for the rest of the session.
     fingerprintSleepHoldTimer.restart()
+    armFingerprintSleepMonitor()
+  }
+
+  // A repeated suspend edge must not restart the verify or the missed-wake
+  // timer, but the inhibitor asks again until the probe process has exited.
+  function ensureFingerprintClaimReleased() {
+    if (!fingerprintPreparingForSleep) return
+    if (fingerprintCheckProc.running) {
+      fingerprintCheckDeferred = true
+      fingerprintProbeEpoch += 1
+      fingerprintCheckProc.running = false
+    }
+    if (fingerprintPam.active) fingerprintPam.abort()
+    fingerprintAuthenticating = false
+    fingerprintReachTimer.stop()
+  }
+
+  function armFingerprintSleepMonitor() {
+    fingerprintSleepMonitorRestart.stop()
+    if (!fingerprintSleepMonitor.running) fingerprintSleepMonitor.running = true
   }
 
   // PrepareForSleep(true) releases the claim. PrepareForSleep(false) starts
   // one fresh verify. A repeated signal is ignored.
   function prepareFingerprintForSleep(sleeping) {
     var transition = FingerprintModel.sleepClaimTransition(sleeping, fingerprintPreparingForSleep)
-    if (transition === "none") return
+    if (transition === "none") {
+      if (sleeping) ensureFingerprintClaimReleased()
+      return
+    }
     if (transition === "release") {
       releaseFingerprintClaim()
       return
@@ -396,6 +448,8 @@ Item {
   function clearFingerprintSleepHold() {
     fingerprintPreparingForSleep = false
     fingerprintSleepHoldTimer.stop()
+    fingerprintSleepMonitorRestart.stop()
+    if (fingerprintSleepMonitor.running) fingerprintSleepMonitor.running = false
   }
 
   // A suspended PAM conversation may be orphaned by the daemon restart.
@@ -569,7 +623,6 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
-        root.clearFingerprintSleepHold()
         root.resetAuthenticationState()
         root.runWake()
       }
@@ -735,13 +788,15 @@ Item {
     }
   }
 
-  // The sleep inhibitor exits on the way into suspend, so it never delivers
-  // the wake. Follow PrepareForSleep for the life of the shell instead.
+  // Started only once the inhibitor has asked for the release, so an idle
+  // shell does not keep a dbus-monitor. logind emits PrepareForSleep(false)
+  // after that inhibitor drops, which is after this process is running.
+  // The true edge is handled by prepareSleepLock; a late copy is idempotent.
   Process {
     id: fingerprintSleepMonitor
     command: ["dbus-monitor", "--system",
       "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
-    running: true
+    running: false
     stdout: SplitParser {
       onRead: function(line) {
         var sleeping = FingerprintModel.prepareForSleepSignal(line)
@@ -750,7 +805,7 @@ Item {
       }
     }
     onExited: function(exitCode) {
-      fingerprintSleepMonitorRestart.restart()
+      if (root.fingerprintPreparingForSleep) fingerprintSleepMonitorRestart.restart()
     }
   }
 
@@ -845,9 +900,18 @@ Item {
   // Keep fprintd errors distinguishable from an explicit empty enrollment.
   Process {
     id: fingerprintCheckProc
-    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C fprintd-list \"$USER\" 2>&1; else echo no; fi"]
+    property int probeEpoch: 0
+    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C exec fprintd-list \"$USER\" 2>&1; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
-    onExited: root.applyFingerprintProbe(fingerprintCheckStdout.text)
+    // running = false sends SIGTERM and returns before the process exits.
+    // A release bumps the epoch first, so this exit is not a new enrollment.
+    onExited: function(exitCode) {
+      if (fingerprintCheckProc.probeEpoch !== root.fingerprintProbeEpoch) {
+        if (root.fingerprintCheckDeferred && !root.fingerprintPreparingForSleep) root.refreshFingerprintStatus()
+        return
+      }
+      root.applyFingerprintProbe(fingerprintCheckStdout.text)
+    }
   }
 
   // Retries a probe that could not reach fprintd, paced like the attempt
@@ -998,10 +1062,15 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
-      // omarchy-system-sleep-lock asks for the lock before every suspend.
+      // omarchy-system-sleep-lock uses prepareSleep. This remains the ordinary
+      // lock, shared with the keybinding and with restart recovery.
       if (root.currentlyLocked()) root.noteSleepRequested()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
       return "ok"
+    }
+
+    function prepareSleep(): string {
+      return root.prepareSleepLock()
     }
 
     function isLocked(): string {
@@ -1020,6 +1089,7 @@ Item {
         fingerprint: root.fingerprintConfigured,
         fingerprintUnavailable: root.fingerprintUnavailable,
         authenticating: root.authenticating,
+        fingerprintSleepReady: root.fingerprintPreparingForSleep && !fingerprintPam.active && !fingerprintCheckProc.running,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
       })
