@@ -4,5 +4,6 @@ omarchy-input-method configure --seed
 # binding so the choice file matches what the desktop already listens to.
 mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy"
 if [[ ! -s "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/keyboard-shortcut" ]]; then
-  printf 'SUPER + I\n' > "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/keyboard-shortcut"
+  # Use the shipped default so new users get it; existing users keep their config.
+  cp "$OMARCHY_PATH/config/omarchy/defaults/keyboard-shortcut" "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/keyboard-shortcut"
 fi

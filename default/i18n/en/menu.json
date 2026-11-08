@@ -462,6 +462,18 @@
   "setup.input": {
     "label": "Input"
   },
+  "setup.typing": {
+    "label": "Typing"
+  },
+  "setup.typing.keyboard": {
+    "label": "Keyboard Layouts"
+  },
+  "setup.typing.keyboard-shortcuts": {
+    "label": "Keyboard Shortcuts"
+  },
+  "setup.typing.input": {
+    "label": "Input Methods"
+  },
   "setup.language": {
     "label": "Language"
   },

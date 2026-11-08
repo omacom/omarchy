@@ -39,6 +39,17 @@ echo "$*" >> "$HYPRCTL_LOG"
 EOF
 chmod +x "$TMPDIR/stubs/hyprctl"
 
+# omarchy-i18n returns the English string for the test key
+cat > "$TMPDIR/stubs/omarchy-i18n" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "keyboard.inputLanguageShortcut" ]]; then
+  echo "Input language shortcut"
+else
+  echo "$1"
+fi
+EOF
+chmod +x "$TMPDIR/stubs/omarchy-i18n"
+
 export FAKE_ARGS_FILE="$TMPDIR/menu-args"
 export HYPRCTL_LOG="$TMPDIR/hyprctl.log"
 export PATH="$TMPDIR/stubs:$PATH"

@@ -70,3 +70,13 @@ end
 -- Shift + I still steps the other direction; it is unaffected by the
 -- choice and never conflicts.
 o.bind("SUPER + SHIFT + I", "Switch input language back", "omarchy-input-method cycle back")
+
+-- Pass the tmux/Herdr prefix through and return to direct input, so the next
+-- key reaches the multiplexer instead of the engine's composition.
+-- This binding is independent of the chosen input-language shortcut.
+o.bind("CTRL + SPACE", "Direct input for the terminal prefix", function()
+  if active_window_is_terminal() then
+    -- Wait for the local controller reply before dispatching the next key.
+    o.shell_succeeds("timeout 0.3 fcitx5-remote --check -c")
+  end
+end, { non_consuming = true })

@@ -176,6 +176,7 @@
   "keybindings.herdrTitle": "Herdr keybindings",
   "keybindings.title": "Keybindings",
   "keybindings.tmuxTitle": "Tmux keybindings",
+  "keyboard.inputLanguageShortcut": "Input language shortcut",
   "language.changed": "Language is now set to %1",
   "language.newApps": "Apps you open from now on use it too; restart any that are already open",
   "layout.defaultFloating": "Default layout set to floating",
