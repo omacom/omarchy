@@ -591,10 +591,22 @@ local function listed(list, monitor)
   return false
 end
 
+-- Two screens share an edge when they overlap horizontally and one's bottom
+-- meets the other's top. A gap between them is not a shared edge.
+local function shares_edge(monitor, other)
+  local width, height = monitor_span(monitor)
+  local owidth, oheight = monitor_span(other)
+  if not ranges_overlap(monitor.x, monitor.x + width, other.x, other.x + owidth) then
+    return false
+  end
+  return math.abs((other.y + oheight) - monitor.y) <= 1 or math.abs(other.y - (monitor.y + height)) <= 1
+end
+
 -- at.y is the client top. The title bar hangs above it, so at.y is the bottom
--- of the title bar. A monitor stacked on this one joins the range once the
--- title bar is against the shared edge, so the drag can cross onto it. The
--- outer edges of the column still stop.
+-- of the title bar. Each screen keeps its own range. A title bar found in a
+-- gap is pulled onto the nearest screen, so the gap is never an allowed
+-- position. A neighbor joins the range only when the screens share an edge
+-- and the title bar is against that edge, which is what lets a drag cross.
 local function titlebar_limits(window, monitors, bar)
   local x1 = window.at.x
   local x2 = window.at.x + window.size.x
@@ -626,19 +638,33 @@ local function titlebar_limits(window, monitors, bar)
   end
 
   if #touched == 0 then
-    touched = pool
+    local nearest
+    local nearest_distance
+    for _, monitor in ipairs(pool) do
+      local min_y, max_y = monitor_titlebar_range(monitor, bar)
+      local distance = 0
+      if window.at.y < min_y then
+        distance = min_y - window.at.y
+      elseif window.at.y > max_y then
+        distance = window.at.y - max_y
+      end
+      if not nearest or distance < nearest_distance then
+        nearest = monitor
+        nearest_distance = distance
+      end
+    end
+    touched = { nearest }
   else
     local extra = {}
     for _, monitor in ipairs(touched) do
       local min_y, max_y = monitor_titlebar_range(monitor, bar)
-      local width, height = monitor_span(monitor)
+      local _, height = monitor_span(monitor)
       for _, other in ipairs(pool) do
-        if not listed(touched, other) and not listed(extra, other) then
-          local owidth, oheight = monitor_span(other)
-          local shares_column = ranges_overlap(monitor.x, monitor.x + width, other.x, other.x + owidth)
-          local above = other.y + oheight <= monitor.y + 1
-          local below = other.y >= monitor.y + height - 1
-          if shares_column and ((above and window.at.y <= min_y + 1) or (below and window.at.y >= max_y - 1)) then
+        if not listed(touched, other) and not listed(extra, other) and shares_edge(monitor, other) then
+          local _, oheight = monitor_span(other)
+          local above = math.abs((other.y + oheight) - monitor.y) <= 1
+          local below = math.abs(other.y - (monitor.y + height)) <= 1
+          if (above and window.at.y <= min_y + 1) or (below and window.at.y >= max_y - 1) then
             table.insert(extra, other)
           end
         end
@@ -652,12 +678,14 @@ local function titlebar_limits(window, monitors, bar)
   local columns = {}
   local column_of = {}
   for i, monitor in ipairs(touched) do
-    local width = monitor_span(monitor)
+    local width, height = monitor_span(monitor)
     local found
     for j = 1, i - 1 do
       local other = touched[j]
-      local owidth = monitor_span(other)
-      if ranges_overlap(monitor.x, monitor.x + width, other.x, other.x + owidth) then
+      local owidth, oheight = monitor_span(other)
+      local same_x = ranges_overlap(monitor.x, monitor.x + width, other.x, other.x + owidth)
+      local same_y = ranges_overlap(monitor.y, monitor.y + height, other.y, other.y + oheight)
+      if same_x and (same_y or shares_edge(monitor, other)) then
         found = column_of[j]
         break
       end
