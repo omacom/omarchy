@@ -1087,6 +1087,29 @@ def set_mode(provider: str, mode: str, threshold: str | None) -> dict[str, Any]:
 # ------------------------------------------------------------- autoswitch
 
 
+SCOPED_WINDOW_RE = re.compile(r"^.+ (Session|Weekly|Monthly)$")
+
+
+def is_scoped_limit(limit: dict[str, Any]) -> bool:
+  if limit.get("scoped") is True:
+    return True
+  title = str(limit.get("title") or "")
+  if SCOPED_WINDOW_RE.match(title):
+    return True
+  label = str(limit.get("label") or "")
+  if SCOPED_WINDOW_RE.match(label):
+    return True
+  return False
+
+
+def core_limits(limits: Any) -> list[dict[str, Any]]:
+  if not isinstance(limits, list):
+    return []
+  known = [l for l in limits if isinstance(l, dict) and isinstance(l.get("percent"), (int, float))]
+  general = [l for l in known if not is_scoped_limit(l)]
+  return general if general else known
+
+
 def window_open(limit: dict[str, Any], now: dt.datetime) -> bool:
   raw = str(limit.get("resetsAt") or "")
   if not raw:
@@ -1102,21 +1125,23 @@ def window_open(limit: dict[str, Any], now: dt.datetime) -> bool:
 
 # How spent an account is: its fullest window that hasn't reset yet, in
 # percent. A window whose reset has passed counts as empty even when the
-# numbers are stale, since that's exactly what a reset means. None when
-# nothing is known at all.
+# numbers are stale, since that's exactly what a reset means. A model-scoped
+# allowance (such as Claude/GPT in Antigravity) does not exhaust the account
+# when general plan windows still have room. None when nothing is known at all.
 def peak(limits: Any, now: dt.datetime) -> float | None:
   if not isinstance(limits, list):
     return None
-  known = [l for l in limits if isinstance(l, dict) and isinstance(l.get("percent"), (int, float))]
-  if not known:
+  candidates = core_limits(limits)
+  if not candidates:
     return None
-  open_windows = [float(l["percent"]) * 100 for l in known if window_open(l, now)]
+  open_windows = [float(l["percent"]) * 100 for l in candidates if window_open(l, now)]
   return max(open_windows) if open_windows else 0.0
 
 
 def next_reset(limits: Any, now: dt.datetime) -> dt.datetime | None:
   times = []
-  for limit in limits if isinstance(limits, list) else []:
+  candidates = core_limits(limits) if isinstance(limits, list) else []
+  for limit in candidates:
     try:
       when = dt.datetime.fromisoformat(str(limit.get("resetsAt") or "").replace("Z", "+00:00"))
     except Exception:
@@ -1131,12 +1156,12 @@ def next_reset(limits: Any, now: dt.datetime) -> dt.datetime | None:
 # When an account over the threshold drops back under it: once every window
 # holding it there has reset, which is the latest of those resets. A 10%
 # session resetting in an hour doesn't help an account whose weekly window is
-# full for six more days. None when a blocking window never says.
+# full for six more days. Scoped allowances on other models are ignored.
+# None when a blocking window never says.
 def available_at(limits: Any, threshold: float, now: dt.datetime) -> dt.datetime | None:
   latest = None
-  for limit in limits if isinstance(limits, list) else []:
-    if not isinstance(limit, dict) or not isinstance(limit.get("percent"), (int, float)):
-      continue
+  candidates = core_limits(limits) if isinstance(limits, list) else []
+  for limit in candidates:
     if float(limit["percent"]) * 100 < threshold or not window_open(limit, now):
       continue
     try:

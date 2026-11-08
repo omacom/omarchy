@@ -340,7 +340,7 @@ def extract_limits(data):
       if isinstance(bucket, dict) and (used(bucket) or 0) > 0:
         window_name = str(bucket.get("window") or "").lower()
         title = f"{short} {'Weekly' if 'week' in window_name else 'Session'}"
-        limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket)})
+        limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket), "scoped": True})
   return limits
 
 

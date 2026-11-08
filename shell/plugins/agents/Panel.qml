@@ -798,12 +798,18 @@ Panel {
   }
 
   // The window that decides how much room is left — the fullest one, since
-  // that is what stops the next prompt.
+  // that is what stops the next prompt. A model-scoped allowance ("Fable",
+  // "Claude/GPT") only stops that model, so general windows come first.
   function bindingWindow(p) {
     var windows = limitWindows(p)
-    var best = null
+    var general = []
     for (var i = 0; i < windows.length; i++) {
-      if (!best || windows[i].percent > best.percent) best = windows[i]
+      if (!scopedPart(windows[i].title)) general.push(windows[i])
+    }
+    var candidates = general.length > 0 ? general : windows
+    var best = null
+    for (var j = 0; j < candidates.length; j++) {
+      if (!best || candidates[j].percent > best.percent) best = candidates[j]
     }
     return best
   }
