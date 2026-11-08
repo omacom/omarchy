@@ -51,10 +51,13 @@ exec tail -n 0 -f "$TMPDIR/sensor"
 EOF
 
 # Writes land a little after the call, like a real sysfs write through logind,
-# and fail while $TMPDIR/write-fails exists.
+# and fail (counted in $TMPDIR/failures) while $TMPDIR/write-fails exists.
 cat > "$TMPDIR/bin/brightnessctl" <<EOF
 #!/bin/bash
-[[ -e $TMPDIR/write-fails ]] && exit 1
+if [[ -e $TMPDIR/write-fails ]]; then
+  echo fail >> "$TMPDIR/failures"
+  exit 1
+fi
 level=\${@: -1}
 sleep 0.2
 echo "\$level" > "$led/brightness"
@@ -125,6 +128,18 @@ manual_off_saved() {
 
 manual_off_cleared() {
   ! manual_off_saved
+}
+
+failures() {
+  if [[ -f $TMPDIR/failures ]]; then
+    wc -l < "$TMPDIR/failures"
+  else
+    echo 0
+  fi
+}
+
+failures_are() {
+  (( $(failures) == $1 ))
 }
 
 writes_are() {
@@ -252,15 +267,31 @@ settle 70
 wait_for "turns off before a failing write" writes_are "2 0 2 0 2 2 0 2 0"
 touch "$TMPDIR/write-fails"
 settle 1
-sleep 0.6
-sense 0
-sleep 0.4
+wait_for "the write fails" failures_are 1
+sleep 0.2
 manual_off_saved && fail "a failed write is not taken as a manual off"
 pass "a failed write is not taken as a manual off"
+
+# In steady light nothing else would decide again, so it's retried, but only a
+# few times.
+wait_for "a failed write is retried" failures_are 4
+sleep 1.5
+failures_are 4 || fail "a failed write is retried a bounded number of times" "failures: $(failures)"
+pass "a failed write is retried a bounded number of times"
 rm "$TMPDIR/write-fails"
 settle 0
 wait_for "turns on once writes work again" writes_are "2 0 2 0 2 2 0 2 0 2"
 pass "turns on once writes work again"
+
+# A write that fails once and then works lands with no new reading.
+touch "$TMPDIR/write-fails"
+settle 70
+wait_for "the write to turn off fails" failures_are 5
+rm "$TMPDIR/write-fails"
+wait_for "a failed write is retried until it lands" writes_are "2 0 2 0 2 2 0 2 0 2 0"
+pass "a failed write is retried until it lands"
+settle 0
+wait_for "turns back on in the dark after the retry" writes_are "2 0 2 0 2 2 0 2 0 2 0 2"
 
 # The keys turn it off in steady dark, and the shell restarts before anything
 # saw it (firmware-handled keys announce nothing): the off is still held.
@@ -270,7 +301,7 @@ rm -f "$state_dir/keyboard-backlight-manual-off"
 start_shell
 wait_for "monitor-sensor starts again" monitor_running
 settle 0
-writes_stay "2 0 2 0 2 2 0 2 0 2" || fail "an off made while the shell was down is held" "writes: $(writes)"
+writes_stay "2 0 2 0 2 2 0 2 0 2 0 2" || fail "an off made while the shell was down is held" "writes: $(writes)"
 manual_off_saved || fail "an off made while the shell was down is saved"
 pass "an off made while the shell was down is held"
 
@@ -287,14 +318,14 @@ wait_for "monitor-sensor starts while blanked" monitor_running
 settle 70
 sleep 0.4
 settle 0
-writes_stay "2 0 2 0 2 2 0 2 0 2" || fail "a shell restarted while blanked writes nothing" "writes: $(writes)"
+writes_stay "2 0 2 0 2 2 0 2 0 2 0 2" || fail "a shell restarted while blanked writes nothing" "writes: $(writes)"
 manual_off_saved && fail "a shell restarted while blanked does not take the blank as a manual off"
 pass "a shell restarted while blanked writes nothing"
 rm "$runtime/omarchy-brightness-keyboard-test::kbd_backlight"
 echo 2 > "$led/brightness"
 ipc resume
 settle 70
-wait_for "decides again after the wake" writes_are "2 0 2 0 2 2 0 2 0 2 0"
+wait_for "decides again after the wake" writes_are "2 0 2 0 2 2 0 2 0 2 0 2 0"
 pass "decides again after the wake"
 
 # Toggling off still releases the sensor after the early restart

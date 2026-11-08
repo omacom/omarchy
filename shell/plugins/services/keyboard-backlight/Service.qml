@@ -44,6 +44,7 @@ Item {
   property var state: null
   property var lux: null
   property int pendingLevel: -1
+  property int writeRetries: 0
   property string savedManualOff: ""
   property string savedLevel: ""
 
@@ -183,6 +184,15 @@ Item {
     // A queued level waits for no blank or closed lid that came meanwhile.
     var queued = level >= 0 && root.active && !root.paused && !root.lidClosed
     if (exitCode !== 0 || (level >= 0 && !queued)) resync()
+
+    // A write that failed (not one skipped for a blank, 75) is tried again a
+    // few times, since in steady light nothing else would decide again.
+    if (exitCode === 0) {
+      root.writeRetries = 0
+    } else if (exitCode !== 75 && !queued && root.writeRetries < 3) {
+      root.writeRetries++
+      retryTimer.restart()
+    }
     if (queued) setLevel(level)
   }
 
@@ -339,6 +349,12 @@ Item {
     id: restartTimer
     interval: 5000
     onTriggered: root.syncMonitor()
+  }
+
+  Timer {
+    id: retryTimer
+    interval: root.tuning.settleMs
+    onTriggered: root.step()
   }
 
   // Acts on a settled reading or an expired manual off when the sensor has
