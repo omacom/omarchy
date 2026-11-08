@@ -29,10 +29,16 @@ fi
 # blanking again after a resume cannot save its own 0 over it.
 saved="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device"
 
+# The lock runs blank and wake as separate processes that can overlap, and the
+# automatic keyboard backlight writes under the same lock. A key press waits for
+# an automatic write in flight, so it steps from the level that write sets
+# rather than having it land on top. Those writes are short; after two seconds
+# the key goes ahead anyway rather than lag or be lost.
+exec {lock_fd}>"$saved.lock" || exit 1
 if [[ $direction == "off" || $direction == "restore" ]]; then
-  # The lock runs blank and wake as separate processes that can overlap.
-  exec {lock_fd}>"$saved.lock" || exit 1
   flock "$lock_fd" || exit 1
+else
+  flock -w 2 "$lock_fd" || true
 fi
 
 # off and restore bracket session blanking (lock, idle wake). The automatic
@@ -87,6 +93,7 @@ fi
 
 # Set the new brightness.
 brightnessctl -d "$device" set "$new_brightness" >/dev/null
+exec {lock_fd}>&-
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
 
 # Tell the automatic keyboard backlight right away, so a choice made in steady

@@ -315,3 +315,19 @@ auto_keyboard restore
 wait_for "the wake restores the lit level" brightness_is 1
 manual_off_saved && fail "a write in flight when the lock blanks is not taken as the user's"
 pass "the wake restores the lit level"
+
+# Bright and off, then dark, and a key press lands while the write that lights
+# the keys (at the level 1 picked above) is still in flight: the key waits for
+# it and steps up from it, rather than stepping from 0 and being overwritten.
+sense 70
+sleep 0.4
+sense 70
+wait_for "turns off in bright light before the key press" brightness_is 0
+sense 0
+sleep 0.4
+sense 0
+sleep 0.1
+auto_keyboard up
+sleep 1
+brightness_is 2 || fail "a key press during an automatic write steps from the level it sets" "brightness: $(< "$auto_tmp/leds/test::kbd_backlight/brightness")"
+pass "a key press during an automatic write steps from the level it sets"
