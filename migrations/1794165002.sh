@@ -6,7 +6,7 @@ omarchy-pkg-add papers
 # still wins, so point any Evince association there at Papers too.
 user_mimeapps="$HOME/.config/mimeapps.list"
 if [[ -f $user_mimeapps ]] && grep -q "org.gnome.Evince.desktop" "$user_mimeapps"; then
-  sed -i 's/org\.gnome\.Evince\.desktop/org.gnome.Papers.desktop/g' "$user_mimeapps"
+  sed --follow-symlinks -i 's/org\.gnome\.Evince\.desktop/org.gnome.Papers.desktop/g' "$user_mimeapps"
 fi
 
 omarchy-pkg-drop evince
