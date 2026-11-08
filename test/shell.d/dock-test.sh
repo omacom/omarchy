@@ -250,6 +250,7 @@ case "\$1" in
       printf '{"address":"0xabc","workspace":{"id":1}}\n'
     fi
     ;;
+  workspaces) printf '[{"id":1}]\n' ;;
   dispatch|eval) shift; printf '%s\n' "\$*" >>"$TMPDIR/hyprctl.log" ;;
 esac
 STUB
@@ -261,6 +262,33 @@ grep -qF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, 
   [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "2", on_current_monitor = true })) hl.dispatch(hl.dsp.focus({ workspace = "1" }))' ]] ||
   fail "minimize clears focus by hopping through another workspace when the window stays active" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize clears focus when the monitor has no former workspace"
+
+cat >"$mock_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  clients) printf '[{"address":"0xabc","workspace":{"id":2}}]\n' ;;
+  activewindow)
+    if [[ -f "$TMPDIR/activewindow.multi" ]]; then
+      printf '{"address":"0xabc","workspace":{"id":-99}}\n'
+    else
+      touch "$TMPDIR/activewindow.multi"
+      printf '{"address":"0xabc","workspace":{"id":2}}\n'
+    fi
+    ;;
+  workspaces) printf '[{"id":1},{"id":2}]\n' ;;
+  dispatch|eval) shift; printf '%s\n' "\$*" >>"$TMPDIR/hyprctl.log" ;;
+esac
+STUB
+: >"$TMPDIR/hyprctl.log"
+rm -f "$TMPDIR/activewindow.multi"
+minimize
+grep -qF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0xabc" })' "$TMPDIR/hyprctl.log" &&
+  grep -qF 'hl.dispatch(hl.dsp.focus({ workspace = "previous_per_monitor" })) hl.dispatch(hl.dsp.focus({ workspace = "2" }))' "$TMPDIR/hyprctl.log" &&
+  [[ $(tail -1 "$TMPDIR/hyprctl.log") == 'hl.dispatch(hl.dsp.focus({ workspace = "3", on_current_monitor = true })) hl.dispatch(hl.dsp.focus({ workspace = "2" }))' ]] &&
+  ! grep -qF 'workspace = "1", on_current_monitor = true' "$TMPDIR/hyprctl.log" &&
+  ! grep -qF 'workspace = "2", on_current_monitor = true' "$TMPDIR/hyprctl.log" ||
+  fail "minimize hops through an unused workspace across multiple monitors" "$(cat "$TMPDIR/hyprctl.log")"
+pass "minimize hops through an unused workspace across multiple monitors"
 
 cat >"$mock_bin/hyprctl" <<STUB
 #!/bin/bash
