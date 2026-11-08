@@ -12,7 +12,9 @@ ShellRoot {
   }
 
   Component.onCompleted: {
-    var url = Quickshell.env("OMARCHY_PATH") + "/shell/plugins/services/keyboard-backlight/Service.qml"
+    // Loaded from inside this config, where the test links Commons and
+    // plugins in, so the service's qs.Commons import resolves.
+    var url = Qt.resolvedUrl("plugins/services/keyboard-backlight/Service.qml")
     var component = Qt.createComponent(url, Component.PreferSynchronous)
     if (component.status !== Component.Ready) {
       console.error("KEYBOARD_BACKLIGHT_LOAD_FAILED " + component.errorString())

@@ -29,6 +29,8 @@ echo 0 > "$led/brightness"
 echo 2 > "$led/max_brightness"
 : > "$TMPDIR/sensor"
 cp "$SHELL_TEST_DIR/fixtures/keyboard-backlight-auto/shell.qml" "$TMPDIR/config/shell.qml"
+ln -s "$ROOT/shell/Commons" "$TMPDIR/config/Commons"
+ln -s "$ROOT/shell/plugins" "$TMPDIR/config/plugins"
 
 cat > "$TMPDIR/bin/omarchy-hw-ambient-light" <<'EOF'
 #!/bin/bash

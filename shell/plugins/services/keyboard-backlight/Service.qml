@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "KeyboardBacklightModel.js" as KeyboardBacklightModel
+import qs.Commons
 
 Item {
   id: root
@@ -350,7 +351,7 @@ Item {
     onExited: function(exitCode) { root.finishWrite(exitCode) }
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.keyboard-backlight"
 
     function sync(): void {
