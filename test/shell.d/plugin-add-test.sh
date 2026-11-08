@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+calls="$TMPDIR/calls"
 
 write_plugin() {
   local dir="$1"
@@ -35,6 +36,14 @@ stub_dir="$TMPDIR/stubs"
 mkdir -p "$stub_dir"
 cat >"$stub_dir/omarchy-shell" <<'STUB'
 #!/bin/bash
+[[ -n ${OMARCHY_TEST_CALLS:-} ]] && printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
+if [[ ${1:-} == shell && ${2:-} == listPlugins ]]; then
+  find "$HOME/.config/omarchy/plugins" -mindepth 2 -maxdepth 2 -name manifest.json -type f -print0 2>/dev/null |
+    xargs -0 -r jq '{id: .id, name: .name, version: .version, kinds: .kinds, enabled: false, canDisable: true, firstParty: false, clonedFrom: ""}' |
+    jq -s .
+elif [[ ${1:-} == shell && ${2:-} == enablePlugin ]]; then
+  printf 'ok\n'
+fi
 exit 0
 STUB
 chmod +x "$stub_dir/omarchy-shell"
@@ -56,6 +65,84 @@ grep -qF "plugin id 'acme.same' is already used by" <<<"$output" ||
 [[ ! -e $test_home/.config/omarchy/plugins/acme.same ]] ||
   fail "plugin add leaves a target behind after refusing a duplicate id"
 pass "plugin add refuses an installed manifest id regardless of directory name"
+
+new_home() {
+  test_home="$TMPDIR/home-$1"
+  mkdir -p "$test_home"
+}
+
+run_add() {
+  HOME="$test_home" OMARCHY_PATH="$ROOT" OMARCHY_TEST_CALLS="$calls" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" omarchy-plugin-add "$@"
+}
+
+assert_no_stage() {
+  local stage
+  stage=$(find "$test_home/.config/omarchy/plugins" -maxdepth 1 -name '.add.tmp.*' -print -quit 2>/dev/null || true)
+  [[ -z $stage ]] || fail "plugin add leaves a staging directory after failure"
+}
+
+valid_source="$TMPDIR/valid-source"
+write_plugin "$valid_source" acme.local "Local source"
+git -C "$valid_source" init -q
+git -C "$valid_source" add .
+git -C "$valid_source" -c user.name=Test -c user.email=test@example.com commit -qm Initial
+
+new_home failed-clone
+if run_add "$TMPDIR/does-not-exist" --yes >/dev/null 2>&1; then
+  fail "plugin add accepts a failed clone"
+fi
+assert_no_stage
+[[ ! -e $test_home/.config/omarchy/plugins/acme.local ]] || fail "failed clone installs a plugin"
+pass "failed clones leave no installed plugin or staging directory"
+
+invalid_source="$TMPDIR/invalid-source"
+mkdir -p "$invalid_source"
+printf '{invalid\n' >"$invalid_source/manifest.json"
+git -C "$invalid_source" init -q
+git -C "$invalid_source" add .
+git -C "$invalid_source" -c user.name=Test -c user.email=test@example.com commit -qm Initial
+new_home invalid
+if run_add "$invalid_source" --yes >/dev/null 2>&1; then
+  fail "plugin add accepts an invalid manifest"
+fi
+assert_no_stage
+[[ -z $(find "$test_home/.config/omarchy/plugins" -mindepth 1 -maxdepth 1 ! -name '.*' -print -quit 2>/dev/null) ]] ||
+  fail "invalid manifest leaves a visible installed plugin"
+pass "invalid manifests leave no installed plugin or registry-visible directory"
+
+new_home existing-destination
+mkdir -p "$test_home/.config/omarchy/plugins/acme.local"
+printf 'keep\n' >"$test_home/.config/omarchy/plugins/acme.local/sentinel"
+if run_add "$valid_source" --yes >/dev/null 2>&1; then
+  fail "plugin add overwrites an existing destination"
+fi
+grep -q '^keep$' "$test_home/.config/omarchy/plugins/acme.local/sentinel" ||
+  fail "plugin add modifies an existing destination"
+assert_no_stage
+pass "existing destinations are rejected without modification"
+
+new_home local-path
+: >"$calls"
+run_add "$valid_source" --yes >/dev/null
+[[ -f $test_home/.config/omarchy/plugins/acme.local/manifest.json ]] ||
+  fail "local path plugin is not installed"
+grep -Fqx 'shell discoverPlugins acme.local' "$calls" ||
+  fail "local path add does not request targeted discovery"
+pass "local repository paths install through targeted discovery"
+
+new_home remote-url
+: >"$calls"
+run_add "file://$valid_source" --yes --enable >/dev/null
+[[ -f $test_home/.config/omarchy/plugins/acme.local/manifest.json ]] ||
+  fail "URL plugin is not installed"
+grep -Fqx 'shell discoverPlugins acme.local' "$calls" ||
+  fail "URL add does not request targeted discovery"
+grep -Fq 'shell enablePlugin acme.local {}' "$calls" ||
+  fail "add --enable does not enable the discovered plugin"
+(( $(grep -Fc 'shell discoverPlugins acme.local' "$calls") == 1 )) ||
+  fail "add --enable requests explicit discovery more than once"
+pass "URL add --enable discovers once and then enables the new plugin"
 
 # --- URL transport-helper guard -------------------------------------------
 #
@@ -175,3 +262,72 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+(
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+test_home="$TMPDIR/home"
+stub_dir="$TMPDIR/bin"
+calls="$TMPDIR/calls"
+mkdir -p "$test_home/.config/omarchy/plugins" "$stub_dir"
+
+cat >"$stub_dir/omarchy-shell" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_CALLS"
+if [[ ${1:-} == shell && ${2:-} == listPlugins ]]; then
+  printf '%s\n' "${OMARCHY_TEST_PLUGINS:-[]}"
+elif [[ ${1:-} == shell && ${2:-} == setPluginEnabled ]]; then
+  printf 'ok\n'
+fi
+SH
+chmod +x "$stub_dir/omarchy-shell"
+
+write_version() {
+  local dir="$1"
+  local version="$2"
+  jq -n --arg version "$version" '{
+    schemaVersion: 1,
+    id: "acme.lifecycle",
+    name: "Lifecycle",
+    version: $version,
+    kinds: ["service"],
+    entryPoints: {service: "Service.qml"}
+  }' >"$dir/manifest.json"
+  printf 'import QtQuick\nItem { property string version: "%s" }\n' "$version" >"$dir/Service.qml"
+}
+
+upstream="$TMPDIR/upstream"
+mkdir -p "$upstream"
+git -C "$upstream" init -q
+write_version "$upstream" 1
+git -C "$upstream" add .
+git -C "$upstream" -c user.name=Test -c user.email=test@example.com commit -qm v1
+git clone -q "$upstream" "$test_home/.config/omarchy/plugins/acme.lifecycle"
+write_version "$upstream" 2
+git -C "$upstream" add .
+git -C "$upstream" -c user.name=Test -c user.email=test@example.com commit -qm v2
+
+HOME="$test_home" OMARCHY_PATH="$ROOT" OMARCHY_TEST_CALLS="$calls" \
+  PATH="$stub_dir:$ROOT/bin:$PATH" omarchy-plugin-update acme.lifecycle --yes >/dev/null
+[[ $(jq -r .version "$test_home/.config/omarchy/plugins/acme.lifecycle/manifest.json") == 2 ]] ||
+  fail "plugin update does not install changed plugin contents"
+grep -Fqx 'shell rescanPlugins' "$calls" ||
+  fail "plugin update does not request full reload semantics"
+! grep -q 'discoverPlugins' "$calls" ||
+  fail "plugin update is mistaken for new-plugin discovery"
+pass "plugin update retains full reload semantics for changed contents"
+
+: >"$calls"
+plugins='[{"id":"acme.lifecycle","enabled":true}]'
+HOME="$test_home" OMARCHY_PATH="$ROOT" OMARCHY_TEST_CALLS="$calls" \
+  OMARCHY_TEST_PLUGINS="$plugins" PATH="$stub_dir:$ROOT/bin:$PATH" \
+  omarchy-plugin-remove acme.lifecycle --yes >/dev/null
+[[ ! -e $test_home/.config/omarchy/plugins/acme.lifecycle ]] ||
+  fail "plugin remove leaves its git checkout installed"
+grep -Fqx 'shell setPluginEnabled acme.lifecycle false' "$calls" ||
+  fail "plugin remove does not disable a loaded plugin first"
+grep -Fqx 'shell rescanPlugins' "$calls" ||
+  fail "plugin remove does not retain full reload semantics"
+pass "plugin remove disables its plugin and retains the existing full reload path"
+
+)
