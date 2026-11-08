@@ -303,9 +303,10 @@ function routeTargetOf(node, targets) {
   return String(target)
 }
 
+// After "--", so the -1 that clears a route is not read as an option.
 function routeCommand(nodeId, sinkSerial) {
   var value = !sinkSerial || sinkSerial === DEFAULT_ROUTE ? "-1" : String(sinkSerial)
-  return ["pw-metadata", "-n", "default", String(nodeId), "target.object", value]
+  return ["pw-metadata", "-n", "default", "--", String(nodeId), "target.object", value]
 }
 
 function routeOptions(sinks) {

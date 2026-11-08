@@ -45,12 +45,12 @@ assertEqual(audio.friendlyStreamLabel('spotify'), 'Spotify', 'audio normalizes k
 
 assertDeepEqual(
   audio.routeCommand(64, '101'),
-  ['pw-metadata', '-n', 'default', '64', 'target.object', '101'],
+  ['pw-metadata', '-n', 'default', '--', '64', 'target.object', '101'],
   'audio pins a stream to an output'
 )
 assertDeepEqual(
   audio.routeCommand(64, audio.DEFAULT_ROUTE),
-  ['pw-metadata', '-n', 'default', '64', 'target.object', '-1'],
+  ['pw-metadata', '-n', 'default', '--', '64', 'target.object', '-1'],
   'audio hands a stream back to the default output'
 )
 const routeMetadata = [
@@ -94,16 +94,16 @@ assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '101' }), '
     panel[name] = vm.runInNewContext('(' + method[0] + ')', context)
   }
   panel.cycleStreamRoute({ id: 120 })
-  assertEqual(writer.command[5], '101', 'first route write uses the sink serial')
+  assertEqual(writer.command.at(-1), '101', 'first route write uses the sink serial')
   panel.cycleStreamRoute({ id: 120 })
-  assertEqual(writer.command[5], '101', 'rapid clicks wait for the running writer')
+  assertEqual(writer.command.at(-1), '101', 'rapid clicks wait for the running writer')
   assertEqual(panel.pendingRoutes['120'], '202', 'rapid clicks advance from the optimistic target')
   assertEqual(reads, 0, 'metadata is not read before route writes complete')
   panel.acceptRouteSnapshot('', 0)
   assertEqual(panel.routeTargets['120'], '202', 'a stale metadata read cannot overwrite a newer click')
   writer.running = false
   panel.runNextRoute()
-  assertEqual(writer.command[5], '202', 'the queued route starts after the first writer finishes')
+  assertEqual(writer.command.at(-1), '202', 'the queued route starts after the first writer finishes')
   writer.running = false
   panel.runNextRoute()
   assertEqual(reads, 1, 'metadata refresh follows the final write')
