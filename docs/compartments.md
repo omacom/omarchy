@@ -75,10 +75,10 @@ Without the pack, the guest installs agents at first boot (slower, over Tor).
 
 ### Hermes backend pack (optional)
 
-Hermes Agent needs CPython 3.14 (standalone build) + venv. See the companion
-notes in `docs/HANDOFF.md` history or build per upstream Hermes docs, then
-pack `hermes-agent/` (excl. venv/.git) to
-`~/.cache/omarchy/compartment/hermes-pack.tar.gz`.
+Hermes Agent needs CPython 3.14 (python-build-standalone) + a venv with its
+dependencies. Pack `hermes-agent/` (excl. venv/.git) to
+`~/.cache/omarchy/compartment/hermes-pack.tar.gz`. Without the pack the guest
+falls back to `provision-agents.sh` at first boot.
 
 ### Debian .debs (optional speedup)
 
@@ -160,3 +160,28 @@ omarchy compartment-drill                       # integrity watch drill
 - Codex `/v1/responses` may fail on some llama.cpp builds — OpenCode chat
   completions is the proven path
 - Claude Code requires cloud auth — treat as cloud-walled, not local
+- virt-customize is upload-only on this stack — all provisioning runs inside
+  the first real boot via `bootstrap-firstboot.service` (qemu-nbd crashes
+  the desktop; never use it for image edits)
+
+## Vault signer (optional crypto compartment)
+
+`omarchy-compartment-vault` builds a Debian cloud-image VM with **no NIC** —
+the security guarantee. Signing happens over a virtio-serial channel:
+
+- Host side: `compartment/bin/tx-relay` validates the tx schema
+  (to/value/chain_id allowlist), prompts for interactive approval, returns
+  the signature. Reach it via `omarchy compartment <name> vault-sign '<json>'`
+  or `vault-pubkey`.
+- Guest side: `clef` (or your chain's signer) + `sign-daemon.py`
+  (`compartment/payload/bin/`, unit `sign-daemon.service`) minding the
+  `/dev/virtio-ports/signer` channel.
+
+Setup: `apt install clef jq socat` in the vault VM, import keys into its
+keystore (keys live ONLY there — the crypto compartment holds zero key
+material), enable `sign-daemon.service`. virtio-serial ports are
+single-open — the daemon must own the port; never `cat` it from a shell.
+
+Migration checklist: generate/import keys in vault-signer → delete key
+material from any crypto compartment → test unsigned tx → approval prompt →
+signature → broadcast over Tor.
