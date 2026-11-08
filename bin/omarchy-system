@@ -49,8 +49,9 @@ exit_session() {
     omarchy-state clear re*-required
   fi
 
-  # Remember open windows so the next login reopens them.
-  omarchy-session-save
+  # Remember open windows so the next login reopens them. Bounded, so a slow
+  # save can never keep the power request below from running.
+  timeout 10s omarchy-session-save
 
   # Proceed as soon as apps exit, with a bound for unresponsive windows.
   timeout 2s omarchy-hyprland-window-close-all --wait

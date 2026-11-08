@@ -17,6 +17,13 @@ lua_string() {
   jq -Rnr --arg value "$1" '$value | @json'
 }
 
+# Show the same workspace on each monitor as before, up front, so windows
+# appear where they were instead of the view jumping there at the end.
+while read -r monitor workspace; do
+  hyprctl dispatch "hl.dsp.focus({ monitor = $(lua_string "$monitor") })" >/dev/null
+  hyprctl dispatch "hl.dsp.focus({ workspace = $(lua_string "$workspace") })" >/dev/null
+done < <(jq -r '.active[] | "\(.monitor) \(.workspace)"' "$saved")
+
 running=$(hyprctl clients -j | jq -c '[.[].class] | unique')
 
 while read -r launch; do
@@ -29,25 +36,30 @@ while read -r launch; do
   hyprctl dispatch "hl.dsp.exec_cmd($(lua_string "$command"), { workspace = $(lua_string "$workspace") })" >/dev/null
 done < <(jq -c '.launches[]' "$saved")
 
-# Put each window on its saved workspace as it appears, matching the class and
-# then the title. Apps with several windows open them all on one workspace, and
-# autostarted apps open wherever their rules say.
+# Put each window on its saved workspace as it appears. Exact titles match
+# first, so a window is never claimed by another entry of its class. A class
+# match alone waits until the class is down to one window and one entry, or
+# until the last 20 seconds, when a title has had its chance to settle.
 wants=$(jq -c '.windows' "$saved")
 used="[]"
 for (( tries = 0; tries < 30; tries++ )); do
-  plan=$(jq -n --argjson wants "$wants" --argjson used "$used" --argjson clients "$(hyprctl clients -j)" '
+  late=$(( tries >= 20 ))
+  plan=$(jq -n --argjson wants "$wants" --argjson used "$used" --argjson late "$late" --argjson clients "$(hyprctl clients -j)" '
+    def free($state; $class): [$clients[] | select(.class == $class) | select(.address as $a | $state.used | any(. == $a) | not)];
+    def take($want; $client):
+      .used += [$client.address]
+      | if ($client.workspace.name | tostring) != $want.workspace then
+          .moves += [{address: $client.address, workspace: $want.workspace}]
+        else . end;
     reduce $wants[] as $want ({moves: [], left: [], used: $used};
-      . as $state
-      | [$clients[] | select(.class == $want.class) | select(.address as $a | $state.used | any(. == $a) | not)] as $same
-      | ([$same[] | select(.title == $want.title)] + $same | first) as $client
-      | if $client == null then
-          .left += [$want]
-        else
-          .used += [$client.address]
-          | if ($client.workspace.name | tostring) != $want.workspace then
-              .moves += [{address: $client.address, workspace: $want.workspace}]
-            else . end
-        end)')
+      ([free(.; $want.class)[] | select(.title == $want.title)] | first) as $client
+      | if $client == null then .left += [$want] else take($want; $client) end)
+    | . as $titled
+    | reduce $titled.left[] as $want ($titled + {left: []};
+        free(.; $want.class) as $same
+        | if ($same | length) > 0 and ($late == 1 or (($same | length) == 1 and ([$titled.left[] | select(.class == $want.class)] | length) == 1)) then
+            take($want; $same[0])
+          else .left += [$want] end)')
 
   while read -r move; do
     address=$(jq -r '.address' <<<"$move")
@@ -61,12 +73,7 @@ for (( tries = 0; tries < 30; tries++ )); do
   sleep 2
 done
 
-# Show the same workspace on each monitor as before, then refocus the monitor.
-while read -r monitor workspace; do
-  hyprctl dispatch "hl.dsp.focus({ monitor = $(lua_string "$monitor") })" >/dev/null
-  hyprctl dispatch "hl.dsp.focus({ workspace = $(lua_string "$workspace") })" >/dev/null
-done < <(jq -r '.active[] | "\(.monitor) \(.workspace)"' "$saved")
-
+# Then refocus the monitor that had focus.
 focused=$(jq -r '.focused // empty' "$saved")
 [[ -n $focused ]] && hyprctl dispatch "hl.dsp.focus({ monitor = $(lua_string "$focused") })" >/dev/null
 

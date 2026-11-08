@@ -39,7 +39,7 @@
   "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available && ! omarchy-sleep-disabled","action":"systemctl hibernate"},
   "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system logout"},
   "system.reboot": {"icon":"󰜉","label":"Reboot","action":"omarchy-system reboot"},
-  "system.reboot-reopen": {"icon":"󰑓","label":"Reboot & Reopen Windows","when":"! omarchy-toggle-enabled reopen-windows","action":"omarchy-session-save --always && omarchy-system reboot"},
+  "system.reboot-reopen": {"icon":"󰑓","label":"Reboot & Reopen Windows","when":"! omarchy-toggle-enabled reopen-windows","action":"timeout 10s omarchy-session-save --always; omarchy-system reboot"},
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system shutdown"},
 
   // Learn

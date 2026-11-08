@@ -68,18 +68,33 @@ descendants() {
 
 # The command that resumes the coding agent session a process runs, if any.
 # Claude Code records its session per pid; Grok keeps its session folder open.
+# An added account runs with its own home (CLAUDE_CONFIG_DIR / GROK_HOME),
+# which the resume command carries too.
 agent_resume() {
-  local pid=$1 id fd
+  local pid=$1 home_env default_home home account="" id fd
 
   case $(cat "/proc/$pid/comm" 2>/dev/null) in
-    claude)
-      id=$(jq -r '.sessionId // empty' "$HOME/.claude/sessions/$pid.json" 2>/dev/null)
-      [[ -n $id ]] && echo "claude --resume $id"
+    claude) home_env=CLAUDE_CONFIG_DIR default_home=$HOME/.claude ;;
+    grok) home_env=GROK_HOME default_home=$HOME/.grok ;;
+    *) return ;;
+  esac
+
+  home=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n "s/^$home_env=//p" | tail -n1)
+  if [[ -n $home ]]; then
+    account="$home_env=$(printf '%q' "$home") "
+  else
+    home=$default_home
+  fi
+
+  case $home_env in
+    CLAUDE_CONFIG_DIR)
+      id=$(jq -r '.sessionId // empty' "$home/sessions/$pid.json" 2>/dev/null)
+      [[ -n $id ]] && echo "${account}claude --resume $id"
       ;;
-    grok)
+    GROK_HOME)
       for fd in /proc/"$pid"/fd/*; do
-        if [[ $(readlink "$fd" 2>/dev/null) =~ /\.grok/sessions/[^/]+/([0-9a-f-]{36}) ]]; then
-          echo "grok --resume ${BASH_REMATCH[1]}"
+        if [[ $(readlink "$fd" 2>/dev/null) =~ ^"$home"/sessions/[^/]+/([0-9a-f-]{36}) ]]; then
+          echo "${account}grok --resume ${BASH_REMATCH[1]}"
           return
         fi
       done
@@ -101,26 +116,50 @@ shell_agent_resume() {
 }
 
 launches=()
+terminal_pids=()
 while read -r pid; do
   pid_windows=$(jq -c --argjson pid "$pid" '[.[] | select(.pid == $pid)]' <<<"$windows")
   mapfile -t shells < <(terminal_shells "$pid")
 
   if (( ${#shells[@]} > 0 )); then
-    # A terminal: reopen one window per shell in the same folder, on the
-    # workspace of the window it pairs with (extra tabs join the last one).
-    mapfile -t workspaces < <(jq -r '.[].workspace' <<<"$pid_windows")
-    for i in "${!shells[@]}"; do
-      workspace=${workspaces[i]:-${workspaces[-1]}}
-      dir=$(readlink -f "/proc/${shells[i]}/cwd" 2>/dev/null)
+    terminal_pids+=("$pid")
+    # A terminal: reopen one window per shell in the same folder. A process
+    # that owns several windows (Ghostty) does not say which window holds which
+    # shell, so a window whose title shows a shell's folder takes that shell
+    # first. Only shells left over are paired in order, and extra tabs join the
+    # last window's workspace.
+    shell_info=$(for shell in "${shells[@]}"; do
+      dir=$(readlink -f "/proc/$shell/cwd" 2>/dev/null)
       [[ -d $dir ]] || dir=$HOME
+      jq -nc --arg dir "$dir" --arg resume "$(shell_agent_resume "$shell")" '{dir: $dir, resume: $resume}'
+    done | jq -sc .)
+
+    while read -r shell; do
+      dir=$(jq -r '.dir' <<<"$shell")
+      resume=$(jq -r '.resume' <<<"$shell")
       command="xdg-terminal-exec --dir=$(printf '%q' "$dir")"
       # An agent session resumes inside the shell, so the terminal stays
       # open on a prompt when the agent exits.
-      resume=$(shell_agent_resume "${shells[i]}")
       [[ -n $resume ]] && command+=" -- $(printf '%q' "$SHELL") -ic $(printf '%q' "$resume; exec $SHELL")"
-      launches+=("$(jq -nc --arg workspace "$workspace" --arg command "$command" \
+      launches+=("$(jq -nc --arg workspace "$(jq -r '.workspace' <<<"$shell")" --arg command "$command" \
         '{workspace: $workspace, command: $command, class: null}')")
-    done
+    done < <(jq -c --arg home "$HOME" --argjson shells "$shell_info" '
+      def tilde: if startswith($home) then "~" + .[($home | length):] else . end;
+      def shows($title): (.dir | tilde) == $title or (.dir | split("/") | last) == $title;
+      . as $windows
+      | if ($windows | map(.workspace) | unique | length) == 1 then
+          $shells | map(. + {workspace: $windows[0].workspace})
+        else
+          reduce range(0; $windows | length) as $w ({left: [range(0; $shells | length)], free: [], out: []};
+            $windows[$w].title as $title
+            | ([.left[] | select($shells[.] | shows($title))] | first) as $s
+            | if $s == null then .free += [$w]
+              else .left -= [$s] | .out += [$shells[$s] + {workspace: $windows[$w].workspace}] end)
+          | . as $pairs
+          | reduce range(0; $pairs.left | length) as $k ($pairs.out;
+              . + [$shells[$pairs.left[$k]] + {workspace: $windows[$pairs.free[$k] // $pairs.free[-1] // ($windows | length - 1)].workspace}])
+        end
+      | .[]' <<<"$pid_windows")
   else
     class=$(jq -r '.[0].class' <<<"$pid_windows")
     command=$(desktop_exec "$class")
@@ -149,9 +188,12 @@ mkdir -p "$state_dir"
 printf '%s\n' "${launches[@]}" | jq -s \
   --argjson herdr "$(printf '%s\n' "${herdr_panes[@]}" | jq -s 'map(select(. != null))')" \
   --argjson windows "$windows" \
+  --argjson terminals "$(printf '%s\n' "${terminal_pids[@]}" | jq -s 'map(select(. != null))')" \
   --argjson monitors "$monitors" '{
-    windows: [$windows[] | {class, title, workspace}],
-    launches: map(select(. != null)),
+    # Terminals open straight onto their saved workspaces, so restore only
+    # places other windows. Terminals launch first: they are up the fastest.
+    windows: [$windows[] | select(.pid as $pid | $terminals | index($pid) | not) | {class, title, workspace}],
+    launches: (map(select(. != null)) | sort_by(.class != null)),
     herdr: $herdr,
     active: [$monitors[] | {monitor: .name, workspace: (.activeWorkspace.name | tostring)}],
     focused: ([$monitors[] | select(.focused) | .name] | first)
