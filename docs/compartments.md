@@ -118,6 +118,17 @@ omarchy compartment-drill                       # integrity watch drill
   allowlist; the host policy gate refuses unknown intents before transmission.
 - **DLP firewall** — ModSecurity rules block secrets/PII patterns before
   requests reach the model; your literal denylist via `omarchy-compartment-pii`.
+- **Canaries** — `dlp/canary-sigs.txt` ships empty; generate per compartment
+  from canarytoken decoy contents so any honeypot read reaching the model
+  trips a CANARY alert.
+- **Seal chain** — `vm-seal-local` (guest) delegates to `wazuh-vm-seal.sh`:
+  blocks attacker IPs, blackholes the gateway route, kills known-malware
+  markers, reboots to snapshot. Host-side `host-seal.sh` is the Wazuh
+  active-response target that destroys a tripped compartment VM.
+- **Watchdog coverage** — auditd watchpoints + AIDE + usbguard on the host;
+  `omarchy-compartment-drill` verifies the integrity chain end-to-end.
+  Wazuh agent (optional) provides alerting → active response; merge
+  `compartment/host/wazuh/ossec-ar-snippets.conf` into `ossec.conf`.
 - **Sandboxed agents** — firejail profile: loopback-only network, workspace as
   the only writable area, credential dirs blacklisted.
 - **Read-only weights** — dm-verity hash tree; manifest signed into the guest.

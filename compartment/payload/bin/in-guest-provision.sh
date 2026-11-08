@@ -35,7 +35,7 @@ chown -R agent:agent /home/agent || echo "FAIL:chown-home"
 mkdir -p /home/agent/.ssh
 touch /home/agent/.ssh/authorized_keys
 chown -R agent:agent /home/agent/.ssh && chmod 700 /home/agent/.ssh && chmod 600 /home/agent/.ssh/authorized_keys
-chmod 755 /usr/local/bin/vm-exec /usr/local/bin/agent-sandbox /usr/local/bin/vm-seal-local /usr/local/bin/llama-server /usr/local/bin/mount-models.sh
+chmod 755 /usr/local/bin/vm-exec /usr/local/bin/agent-sandbox /usr/local/bin/vm-seal-local /usr/local/bin/wazuh-vm-seal.sh /usr/local/bin/llama-server /usr/local/bin/mount-models.sh
 chown -R root:fw /etc/modsecurity/dlp && chmod 750 /etc/modsecurity/dlp && chmod 640 /etc/modsecurity/dlp/* || echo "FAIL:dlp-perms"
 
 echo "PHASE:apache"
