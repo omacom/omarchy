@@ -18,7 +18,9 @@ frozen splash on screen.
 import array
 import fcntl
 import glob
+import mmap
 import os
+import pwd
 import signal
 import socket
 import struct
@@ -28,6 +30,16 @@ import time
 
 TIMEOUT = 10
 INTERVAL = 0.05
+# Where a compositor that runs Omarchy's config asks for the display, right
+# before it opens it, so Plymouth keeps animating until then.
+SOCKET = "/run/omarchy-plymouth-handoff.sock"
+# When the splash's progress bar started, as Plymouth last drew it, in
+# CLOCK_MONOTONIC milliseconds, and the device scale it drew at, for whoever
+# carries the bar on.
+BAR_START = "/run/omarchy-boot-splash-bar"
+# How long a gated compositor has to ask, from SDDM's start.
+RELEASE_TIMEOUT = 15
+THEME = "/usr/share/plymouth/themes/omarchy"
 
 
 def ioc_rw(nr, size):
@@ -37,6 +49,13 @@ def ioc_rw(nr, size):
 DRM_IOCTL_DROP_MASTER = (ord("d") << 8) | 0x1F
 DRM_IOCTL_MODE_GETRESOURCES = ioc_rw(0xA0, 64)
 DRM_IOCTL_MODE_GETCRTC = ioc_rw(0xA1, 104)
+DRM_IOCTL_MODE_GETENCODER = ioc_rw(0xA6, 20)
+DRM_IOCTL_MODE_GETCONNECTOR = ioc_rw(0xA7, 80)
+DRM_IOCTL_MODE_MAP_DUMB = ioc_rw(0xB3, 16)
+DRM_IOCTL_MODE_GETFB2 = ioc_rw(0xCE, 104)
+DRM_IOCTL_GEM_CLOSE = (1 << 30) | (8 << 16) | (ord("d") << 8) | 0x09
+DRM_FORMAT_XRGB8888 = 0x34325258
+DRM_FORMAT_ARGB8888 = 0x34325241
 
 
 def log(message):
@@ -116,20 +135,302 @@ def notify_ready():
     notify.sendall(b"READY=1")
 
 
+
+def ids(fd, offset_ptr, offset_count):
+  resources = bytearray(64)
+  fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, resources)
+  count = struct.unpack_from("I", resources, offset_count)[0]
+  found = array.array("I", [0] * count)
+  resources = bytearray(64)
+  struct.pack_into("Q", resources, offset_ptr, found.buffer_info()[0])
+  struct.pack_into("I", resources, offset_count, count)
+  fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, resources)
+  return list(found)
+
+
+def millimetres(fd, crtc):
+  # The physical size of the connector driven by this CRTC; (0, 0) when unknown.
+  for connector in ids(fd, 16, 40):
+    request = bytearray(80)
+    struct.pack_into("I", request, 48, connector)
+    fcntl.ioctl(fd, DRM_IOCTL_MODE_GETCONNECTOR, request)
+    encoder = struct.unpack_from("I", request, 44)[0]
+    if not encoder:
+      continue
+    enc = bytearray(20)
+    struct.pack_into("I", enc, 0, encoder)
+    fcntl.ioctl(fd, DRM_IOCTL_MODE_GETENCODER, enc)
+    if struct.unpack_from("I", enc, 8)[0] == crtc:
+      return struct.unpack_from("II", request, 64)
+  return 0, 0
+
+
+def device_scale(width, height, mm_width, mm_height):
+  # Plymouth's get_device_scale() for a native driver.
+  if (mm_width, mm_height) in ((160, 90), (160, 100), (16, 9), (16, 10)) or not mm_width or not mm_height:
+    return 1
+  inches = (mm_width ** 2 + mm_height ** 2) ** 0.5 / 25.4
+  dpi = (width ** 2 + height ** 2) ** 0.5 / inches
+  return 2 if dpi / (110 if inches >= 20 else 135) > 1.625 else 1
+
+
+def png_size(path):
+  with open(path, "rb") as image:
+    header = image.read(24)
+  return struct.unpack(">II", header[16:24])
+
+
+def bar_geometry(width, height, scale, theme=THEME):
+  # Where omarchy.script's layout() puts the progress bar, in device pixels:
+  # (x, y of the bar's middle row, full width).
+  logo_w, logo_h = png_size(f"{theme}/logo.png")
+  _, entry_h = png_size(f"{theme}/entry.png")
+  _, box_h = png_size(f"{theme}/progress_box.png")
+  bar_w, bar_h = png_size(f"{theme}/progress_bar.png")
+  w, h = width / scale, height / scale
+  logo_y = h / 2 - logo_h / 2
+  entry_y = logo_y + logo_h + 40
+  box_y = entry_y + entry_h / 2 - box_h / 2
+  bar_y = box_y + (box_h - bar_h) / 2
+  bar_x = w / 2 - bar_w / 2
+  return int(bar_x * scale), int((bar_y + bar_h / 2) * scale), bar_w * scale
+
+
+def bar_fill(row, x, full, background):
+  # How many device pixels of the bar are filled along its middle row, from a
+  # row of (r, g, b) pixels; None when no bar is drawn there.
+  first = row[x]
+  if max(abs(a - b) for a, b in zip(first, background)) < 8:
+    return None
+  filled = 0
+  while filled < full and x + filled < len(row) and max(abs(a - b) for a, b in zip(row[x + filled], first)) < 24:
+    filled += 1
+  return filled
+
+
+def elapsed_for(progress, limit=0.7, duration=15.0):
+  # omarchy.script's fake progress, limit * (1 - (1 - t / duration)^2), inverted.
+  if progress >= limit:
+    return duration
+  return duration * (1 - (1 - progress / limit) ** 0.5)
+
+
+def omarchy_theme():
+  try:
+    with open("/etc/plymouth/plymouthd.conf") as conf:
+      return any(line.strip().replace(" ", "") == "Theme=omarchy" for line in conf)
+  except OSError:
+    return False
+
+
+def configured_scale():
+  # Plymouth's DeviceScale= override, from its config or the distribution's defaults.
+  for path in ("/etc/plymouth/plymouthd.conf", "/usr/share/plymouth/plymouthd.defaults"):
+    try:
+      with open(path) as conf:
+        for line in conf:
+          key, _, value = line.strip().partition("=")
+          if key.strip() == "DeviceScale" and value.strip().isdigit():
+            return int(value.strip())
+    except OSError:
+      continue
+  return 0
+
+
+def sample_bar(line, corner, width, height, scale, theme=THEME):
+  # The bar's progress in a frame's pixels, sampled where omarchy.script's
+  # layout() puts it at this device scale; None when no bar is drawn there.
+  x, y, full = bar_geometry(width, height, scale, theme)
+  if not 0 <= x < x + int(full) <= width or not 0 <= y < height:
+    return None
+  row = [(line(y)[i + 2], line(y)[i + 1], line(y)[i]) for i in range(0, width * 4, 4)]
+  filled = bar_fill(row, x, int(full), (corner[2], corner[1], corner[0]))
+  if filled is None:
+    return None
+  # Plymouth rounds the bar down to whole image pixels.
+  return min(1.0, (filled / scale + 0.5) / (full / scale))
+
+
+def read_bar(cards, splash):
+  # What Plymouth's last frame shows of the bar, (progress, device scale), from
+  # the first display that has one. Plymouth picks its scale from the panel's
+  # density unless configured, and may keep a guess made before the native
+  # driver took over, so the other scale is tried when the first finds no bar.
+  if not omarchy_theme():
+    return None
+  for (path, crtc), fb in splash.items():
+    fd = cards.get(path)
+    handle = 0
+    try:
+      request = bytearray(104)
+      struct.pack_into("I", request, 12, crtc)
+      fcntl.ioctl(fd, DRM_IOCTL_MODE_GETCRTC, request)
+      width, height = struct.unpack_from("H", request, 40)[0], struct.unpack_from("H", request, 50)[0]
+      info = bytearray(104)
+      struct.pack_into("I", info, 0, fb)
+      fcntl.ioctl(fd, DRM_IOCTL_MODE_GETFB2, info)
+      fmt, handle, pitch = struct.unpack_from("I", info, 12)[0], struct.unpack_from("I", info, 20)[0], struct.unpack_from("I", info, 36)[0]
+      if not handle or fmt not in (DRM_FORMAT_XRGB8888, DRM_FORMAT_ARGB8888) or pitch < width * 4:
+        continue
+      dumb = bytearray(16)
+      struct.pack_into("I", dumb, 0, handle)
+      fcntl.ioctl(fd, DRM_IOCTL_MODE_MAP_DUMB, dumb)
+      offset = struct.unpack_from("Q", dumb, 8)[0]
+      first = configured_scale() or device_scale(width, height, *millimetres(fd, crtc))
+      with mmap.mmap(fd, pitch * height, mmap.MAP_SHARED, mmap.PROT_READ, offset=offset) as pixels:
+        corner = pixels[2 * pitch + 8:2 * pitch + 12]
+        line = lambda y: pixels[y * pitch:y * pitch + width * 4]
+        for scale in (first, 2 if first == 1 else 1):
+          progress = sample_bar(line, corner, width, height, scale)
+          if progress is not None:
+            return progress, scale
+    except (OSError, ValueError, IndexError, struct.error):
+      continue
+    finally:
+      if handle:
+        try:
+          fcntl.ioctl(fd, DRM_IOCTL_GEM_CLOSE, struct.pack("II", handle, 0))
+        except OSError:
+          pass
+  return None
+
+
+def sddm_settings():
+  settings = {}
+  files = sorted(glob.glob("/usr/lib/sddm/sddm.conf.d/*.conf")) + sorted(glob.glob("/etc/sddm.conf.d/*.conf")) + ["/etc/sddm.conf"]
+  for path in files:
+    section = ""
+    try:
+      with open(path) as conf:
+        for line in conf:
+          line = line.strip()
+          if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+          elif "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            settings[f"{section}/{key.strip()}"] = value.strip()
+    except OSError:
+      continue
+  return settings
+
+
+def runs_omarchy_config(user, home=None):
+  # Whether this user's Hyprland config still loads Omarchy's defaults, whose
+  # default/hypr/plymouth-release.lua asks for the display.
+  try:
+    home = home or pwd.getpwnam(user).pw_dir
+    with open(f"{home}/.config/hypr/hyprland.lua") as config:
+      return 'require("default.hypr.omarchy")' in config.read()
+  except (KeyError, OSError):
+    return False
+
+
+def gated(settings=None, home=None):
+  # Whether the compositor SDDM starts next runs Omarchy's Hyprland config,
+  # which asks for the display itself. Any other takes the display as it
+  # starts, and opening it while Plymouth still holds it would fail, so for
+  # those Plymouth lets go as SDDM starts.
+  settings = sddm_settings() if settings is None else settings
+  user, session = settings.get("Autologin/User"), settings.get("Autologin/Session")
+  if user and session:
+    session = session if session.endswith(".desktop") else session + ".desktop"
+    return session in ("omarchy.desktop", "hyprland-uwsm.desktop", "hyprland.desktop") and runs_omarchy_config(user, home)
+  return settings.get("General/DisplayServer") == "wayland" and "/usr/share/sddm/hyprland.lua" in settings.get("Wayland/CompositorCommand", "")
+
+
+def listen():
+  try:
+    os.unlink(SOCKET)
+  except FileNotFoundError:
+    pass
+  server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_CLOEXEC)
+  server.bind(SOCKET)
+  os.chmod(SOCKET, 0o666)
+  server.listen(4)
+  return server
+
+
+def asker_uids(settings=None):
+  # Who may ask: the autologin user, or the greeter's sddm user.
+  settings = sddm_settings() if settings is None else settings
+  names = [settings.get("Autologin/User") or "", "sddm"]
+  uids = set()
+  for name in names:
+    try:
+      uids.add(pwd.getpwnam(name).pw_uid)
+    except KeyError:
+      pass
+  return uids
+
+
+def wait_for_release(server, uids, timeout=RELEASE_TIMEOUT):
+  # The connection of the compositor that asks, or None once the timeout
+  # passes. Anyone else is turned away and the wait goes on.
+  deadline = time.monotonic() + timeout
+  while (remaining := deadline - time.monotonic()) > 0:
+    server.settimeout(remaining)
+    try:
+      client, _ = server.accept()
+    except socket.timeout:
+      return None
+    client.settimeout(2)
+    try:
+      uid = struct.unpack("3i", client.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
+      if uid in uids and client.recv(64).startswith(b"release"):
+        return client
+    except OSError:
+      pass
+    client.close()
+  return None
+
+
+def record_bar(cards, splash, deactivated):
+  try:
+    os.unlink(BAR_START)
+  except FileNotFoundError:
+    pass
+  bar = read_bar(cards, splash)
+  if bar is None:
+    return None
+  progress, scale = bar
+  start = deactivated - elapsed_for(progress)
+  with open(BAR_START + ".tmp", "w") as out:
+    out.write(f"{round(start * 1000)} {scale}\n")
+  os.chmod(BAR_START + ".tmp", 0o644)
+  os.rename(BAR_START + ".tmp", BAR_START)
+  return progress
+
+
 def main():
   signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
   cards = open_cards()
   drawn = False
   started = time.monotonic()
+  server = client = None
   try:
+    if gated():
+      server = listen()
+      notify_ready()
+      client = wait_for_release(server, asker_uids())
+      if client is None:
+        log(f"Nothing asked for the display within {RELEASE_TIMEOUT}s")
+
     if not plymouth("deactivate"):
       # Still holding master, Plymouth would keep the compositor off the display.
       log("Plymouth would not deactivate")
       return
+    deactivated = time.monotonic()
 
     splash = {crtc: fb for crtc, fb in scanout(cards).items() if fb}
-    log(f"Plymouth deactivated, its frame on {len(splash)} display(s)")
+    progress = record_bar(cards, splash, deactivated) if client else None
+    if client:
+      try:
+        client.sendall(b"released\n")
+      except OSError:
+        pass
+      client.close()
+    log(f"Plymouth deactivated, its frame on {len(splash)} display(s)" + (f", its bar at {progress:.3f}" if progress is not None else ""))
     notify_ready()
 
     # Polled: nothing signals a scanout change to anyone but the compositor
@@ -141,6 +442,12 @@ def main():
         break
       time.sleep(INTERVAL)
   finally:
+    if server:
+      server.close()
+      try:
+        os.unlink(SOCKET)
+      except FileNotFoundError:
+        pass
     waited = time.monotonic() - started
     # Once a compositor has drawn it holds master, so the console can't come
     # back on any display, and restoring tty1's text mode would only race it.

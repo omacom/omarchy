@@ -67,6 +67,15 @@ if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
   kb_options = "grp:alts_toggle"
 end
 
+-- Plymouth keeps the boot splash animating until the greeter's compositor asks
+-- for the display, as the session's does in default/hypr/plymouth-release.lua.
+do
+  local _, err = io.open("/run/omarchy-plymouth-handoff.sock", "r")
+  if err and not err:find("No such file", 1, true) then
+    os.execute("/usr/bin/omarchy-plymouth-release")
+  end
+end
+
 -- The greeter's background, which omarchy-plymouth-set keeps the boot splash's,
 -- so the screen holds that colour from the splash until the greeter draws.
 local function greeter_background()

@@ -1,0 +1,20 @@
+#!/usr/bin/python3 -IS
+# omarchy:summary=Ask the boot splash to let go of the display, right before the compositor takes it
+# omarchy:hidden=true
+"""Run by Hyprland's config as it starts, before it opens the display.
+
+omarchy-plymouth-handoff keeps Plymouth drawing until a compositor asks for
+the display, so the splash keeps animating for as long as it can. Returns
+once Plymouth has stopped drawing, or at once when no handoff is waiting.
+"""
+
+import socket
+
+try:
+  with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as handoff:
+    handoff.settimeout(12)
+    handoff.connect("/run/omarchy-plymouth-handoff.sock")
+    handoff.sendall(b"release\n")
+    handoff.recv(64)
+except OSError:
+  pass
