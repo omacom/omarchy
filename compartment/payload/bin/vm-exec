@@ -109,11 +109,11 @@ case "$INTENT" in
     ;;
   pull)
     # bounded download: workspace/<basename> -> stdout only.
-    # O_NOFOLLOW open refuses symlinks outright — nothing outside the
-    # workspace can be read even if the agent plants one.
+    # O_NOFOLLOW refuses symlinks; O_NONBLOCK + fstat refuses fifos/devices
+    # without hanging; copyfileobj streams in 1MiB chunks (no full-file RAM).
     NAME="$(transfer_name "${1:-}")"
     cd "$WORKSPACE" || die "no workspace"
-    python3 -c 'import os,sys;fd=os.open(sys.argv[1],os.O_RDONLY|os.O_NOFOLLOW);sys.stdout.buffer.write(os.fdopen(fd,"rb").read())' "$NAME"       || die "pull: not a regular file"
+    python3 -c 'import os,sys,stat,shutil;fd=os.open(sys.argv[1],os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK);assert stat.S_ISREG(os.fstat(fd).st_mode);shutil.copyfileobj(os.fdopen(fd,"rb",buffering=0),sys.stdout.buffer,1048576)' "$NAME" || die "pull: not a regular file"
     ;;
   sign-request)
     # write unsigned-tx JSON to the virtio-serial signer channel
