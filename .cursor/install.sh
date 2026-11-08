@@ -51,8 +51,8 @@ ensure_checkout() {
   local marker="${3:-.git}"
 
   if [[ -e $dest/$marker ]]; then
-    git -C "$dest" pull --ff-only || true
-    return 0
+    git -C "$dest" pull --ff-only
+    return
   fi
 
   mkdir -p "$(dirname "$dest")"
