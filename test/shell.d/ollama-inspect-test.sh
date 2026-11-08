@@ -7,7 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 python3 - "$ROOT/bin/omarchy-agent-inspect-ollama" <<'PY'
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-import runpy
+import subprocess
 import sys
 import threading
 
@@ -46,8 +46,13 @@ with HTTPServer(("127.0.0.1", 0), Ollama) as server:
   worker = threading.Thread(target=server.serve_forever)
   worker.start()
   try:
-    inspect = runpy.run_path(sys.argv[1])["report_for"]
-    inspect.__globals__["PORT"] = server.server_port
+    def inspect(model):
+      output = subprocess.check_output(
+        [sys.executable, sys.argv[1], model, "--port", str(server.server_port), "--json"],
+        timeout=5,
+      )
+      return json.loads(output)
+
     report = inspect("gemma4:latest")
     assert report == {
       "model": "gemma4:latest",
@@ -63,6 +68,12 @@ with HTTPServer(("127.0.0.1", 0), Ollama) as server:
     report = inspect("gemma4")
     assert not report["loaded"] and report["active_context_tokens"] is None, report
     assert report["max_context_tokens"] == 131072, report
+
+    invalid = subprocess.run(
+      [sys.executable, sys.argv[1], "gemma4", "--port", "65536"],
+      capture_output=True, timeout=5,
+    )
+    assert invalid.returncode == 2 and b"between 1 and 65535" in invalid.stderr, invalid.stderr
   finally:
     server.shutdown()
     worker.join()

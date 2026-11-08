@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Show an installed Ollama model's capabilities and active context
-# omarchy:args=<model> [--json]
+# omarchy:args=<model> [--port <local-port>] [--json]
 # omarchy:examples=omarchy agent inspect ollama gemma4 | omarchy agent inspect ollama gemma4 --json
 
 import argparse
@@ -13,8 +13,8 @@ PORT = 11434
 MAX_RESPONSE = 2 * 1024 * 1024
 
 
-def request(endpoint, data=None):
-  connection = http.client.HTTPConnection("127.0.0.1", PORT, timeout=5)
+def request(port, endpoint, data=None):
+  connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
   try:
     method = "GET" if data is None else "POST"
     body = None if data is None else json.dumps(data)
@@ -45,15 +45,15 @@ def context_size(value):
   return value if type(value) is int and value > 0 else None
 
 
-def report_for(model):
-  info = request("show", {"model": model})
+def report_for(model, port):
+  info = request(port, "show", {"model": model})
   details = info.get("details")
   metadata = info.get("model_info")
   if not isinstance(details, dict):
     details = {}
   if not isinstance(metadata, dict):
     metadata = {}
-  running = request("ps").get("models")
+  running = request(port, "ps").get("models")
   if not isinstance(running, list):
     raise ValueError("Ollama returned no running-model list")
   loaded = None
@@ -88,9 +88,12 @@ def display_text(value):
 def main():
   parser = argparse.ArgumentParser(description="Compare an installed Ollama model's maximum and active context without loading it.")
   parser.add_argument("model")
+  parser.add_argument("--port", type=int, default=PORT, help="Ollama port on 127.0.0.1 (default: 11434)")
   parser.add_argument("--json", action="store_true")
   args = parser.parse_args()
-  report = report_for(args.model)
+  if not 1 <= args.port <= 65535:
+    parser.error("--port must be between 1 and 65535")
+  report = report_for(args.model, args.port)
   if args.json:
     print(json.dumps(report))
     return
