@@ -536,7 +536,7 @@ Panel {
     targets[String(node.id)] = next
     root.routeTargets = targets
     var pending = Object.assign({}, root.pendingRoutes)
-    pending[String(node.id)] = next
+    pending[String(node.id)] = Model.queuedRoute(node, next)
     root.pendingRoutes = pending
     root.routeGeneration++
     root.runNextRoute()
@@ -551,10 +551,14 @@ Panel {
     }
     var id = ids[0]
     var pending = Object.assign({}, root.pendingRoutes)
-    var target = pending[id]
+    var route = pending[id]
     delete pending[id]
     root.pendingRoutes = pending
-    routeWriteProc.command = Model.routeCommand(id, target)
+    if (!Model.queuedRouteIsCurrent(root.nodes, id, route)) {
+      root.runNextRoute()
+      return
+    }
+    routeWriteProc.command = Model.routeCommand(id, route.target)
     routeWriteProc.running = true
   }
 

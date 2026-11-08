@@ -84,7 +84,8 @@ assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '101' }), '
   const fs = require('fs')
   const vm = require('vm')
   const source = fs.readFileSync(path.join(root, 'shell/plugins/panels/audio/Panel.qml'), 'utf8')
-  const panel = { audioSinks: routeSinks, routeTargets: {}, pendingRoutes: {}, routeGeneration: 0 }
+  const call = { id: 120, ready: true, name: 'call', properties: { 'object.serial': 500 } }
+  const panel = { audioSinks: routeSinks, nodes: [call], routeTargets: {}, pendingRoutes: {}, routeGeneration: 0 }
   let reads = 0
   const writer = { running: false, command: null }
   const context = { root: panel, Model: audio, routeWriteProc: writer, routeTargetsProc: { restart() { reads++ } } }
@@ -93,11 +94,11 @@ assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '101' }), '
     if (!method) fail('audio panel provides ' + name)
     panel[name] = vm.runInNewContext('(' + method[0] + ')', context)
   }
-  panel.cycleStreamRoute({ id: 120 })
+  panel.cycleStreamRoute(call)
   assertEqual(writer.command.at(-1), '101', 'first route write uses the sink serial')
-  panel.cycleStreamRoute({ id: 120 })
+  panel.cycleStreamRoute(call)
   assertEqual(writer.command.at(-1), '101', 'rapid clicks wait for the running writer')
-  assertEqual(panel.pendingRoutes['120'], '202', 'rapid clicks advance from the optimistic target')
+  assertEqual(panel.pendingRoutes['120'].target, '202', 'rapid clicks advance from the optimistic target')
   assertEqual(reads, 0, 'metadata is not read before route writes complete')
   panel.acceptRouteSnapshot('', 0)
   assertEqual(panel.routeTargets['120'], '202', 'a stale metadata read cannot overwrite a newer click')
@@ -109,6 +110,14 @@ assertEqual(audio.routeLabel({ id: 120 }, routeSinks, null, { '120': '101' }), '
   assertEqual(reads, 1, 'metadata refresh follows the final write')
   panel.acceptRouteSnapshot("update: id:120 key:'target.object' value:'101'", 2)
   assertEqual(panel.routeTargets['120'], '101', 'external metadata changes update the current target')
+  writer.running = true
+  panel.cycleStreamRoute(call)
+  panel.nodes = [{ id: 120, ready: true, name: 'other', properties: { 'object.serial': 501 } }]
+  writer.running = false
+  const lastWrite = writer.command
+  panel.runNextRoute()
+  assert(!writer.running && writer.command === lastWrite, 'a queued route is dropped once another stream reuses its id')
+  assertEqual(reads, 2, 'metadata refresh follows a dropped route')
 }
 assert(audio.streamRepresentsMprisPlayer('Chromium', 'Chromium Browser'), 'audio matches related stream and MPRIS labels')
 

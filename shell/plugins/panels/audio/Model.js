@@ -309,6 +309,24 @@ function routeCommand(nodeId, sinkSerial) {
   return ["pw-metadata", "-n", "default", "--", String(nodeId), "target.object", value]
 }
 
+// PipeWire hands a gone node's id to the next node but never reuses an
+// object.serial, so a queued route keeps the serial of the stream it was chosen
+// for and runs only while that stream still holds the id.
+function queuedRoute(node, target) {
+  var serial = nodeProps(node)["object.serial"]
+  return { target: target, serial: serial === undefined || serial === null ? "" : String(serial) }
+}
+
+function queuedRouteIsCurrent(nodes, id, route) {
+  if (!route || route.serial === "") return false
+  var list = nodes || []
+  for (var i = 0; i < list.length; i++) {
+    var node = list[i]
+    if (node && String(node.id) === String(id)) return String(nodeProps(node)["object.serial"]) === route.serial
+  }
+  return false
+}
+
 function routeOptions(sinks) {
   var options = [DEFAULT_ROUTE]
   var list = sinks || []
@@ -364,6 +382,8 @@ if (typeof module !== "undefined") {
     parseRouteTargets: parseRouteTargets,
     routeTargetOf: routeTargetOf,
     routeCommand: routeCommand,
+    queuedRoute: queuedRoute,
+    queuedRouteIsCurrent: queuedRouteIsCurrent,
     routeOptions: routeOptions,
     nextRouteTarget: nextRouteTarget,
     sinkNamed: sinkNamed,
