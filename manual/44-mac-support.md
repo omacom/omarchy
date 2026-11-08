@@ -49,7 +49,7 @@ Check `lsusb -t` before and after sleep. A Gigabit USB adapter connected at `480
 
 See [the upstream investigation](https://github.com/omacom/omarchy/issues/10593) and [the proposed module fix](https://github.com/omacom/omarchy/pull/10758) for current status. Independent RTC-triggered testing on one MacBookPro14,1 verified quick wake and over 900 Mbps after resume with the proposed module and s2idle; the package proposal remains unmerged as of November 8, 2026. Other models, Thunderbolt peripherals and overnight battery use need separate validation.
 
-Test lid-open wake separately from an alarm or keyboard wake. On the tested machine, opening the lid still required a keypress even after restoring the older suspend hook. Investigation found that the kernel rejected enabling the embedded controller's wake interrupt because it was not registered as wake-capable. A model-specific local helper corrected that error and passed one physical lid-open test. Boot persistence, repeated cycles and battery effects still need validation; this is not yet a shipped Omarchy fix.
+Test lid-open wake separately from an alarm or keyboard wake. On the tested machine, opening the lid still required a keypress even after restoring the older suspend hook. Investigation found that the kernel rejected enabling the embedded controller's wake interrupt because it was not registered as wake-capable. A model-specific local helper corrected that error and passed a physical lid-open test. It then loaded automatically after reboot, followed by two more completed lid cycles. Longer-term reliability and battery effects still need validation; this is not yet a shipped Omarchy fix.
 
 #### Devices with T1 Chip
 
