@@ -26,7 +26,7 @@ trim() {
 is_known() {
   local opt
   for opt in "${options[@]}"; do
-    [[ $opt == $1 ]] && return 0
+    [[ $1 == $opt ]] && return 0
   done
   return 1
 }
@@ -56,7 +56,7 @@ is_known "$current" || current="$DEFAULT"
 # would show up as a menu row.
 labels=()
 for opt in "${options[@]}"; do
-  if [[ $opt == $current ]]; then
+  if [[ $current == $opt ]]; then
     labels+=("$opt $CHECK")
   else
     labels+=("$opt")
@@ -74,7 +74,7 @@ picked="$(trim "${picked%"$CHECK"}")"
 if ! is_known "$picked"; then
   echo "Unknown input language shortcut: $picked" >&2
   exit 1
-elif [[ $picked == $stored ]]; then
+elif [[ $stored == $picked ]]; then
   printf 'Input language switcher is already %s\n' "$picked"
 else
   # Persist the choice to the config file the Hyprland config reads. Write to a
