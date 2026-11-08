@@ -36,11 +36,11 @@ After that first post-boot resume, a bounded `omarchy network speedtest down` ru
 
 The module's observed benefit was retaining the normal Thunderbolt driver and USB controller without the older hook, blacklist or D3cold guard. These results are separate from the module author's reported 28 successful cycles.
 
-## Lid-open wake: separate embedded-controller setting
+## Lid-open wake: unresolved after an EC wake trial
 
 The three RTC-triggered tests above validated resume after an alarm. A later physical lid-close/open test exposed a separate problem: opening the lid left the machine suspended until a keypress. The user waited approximately 15 seconds with the lid open before pressing a key. A user-session observer received `PrepareForSleep=false` and produced post-resume samples only after that keypress. From the first sample, Hyprland reported the internal display enabled with DPMS on and the backlight reported normal power. Journal ordering alone had initially suggested that the lid caused wake; a queued lid-open event can be processed when another input wakes the machine.
 
-The lid device's wake flag was enabled and `acpi.ec_no_wakeup` was already `N`, but the embedded controller at `/sys/bus/acpi/devices/PNP0C09:00/physical_node/power/wakeup` was `disabled`. Enabling that EC device wake flag was the only change for the next physical test. The machine stayed asleep until lid opening, then woke the screen promptly without a keypress, as confirmed by the user. USB Ethernet remained at `5000M`. No lock-screen or Hyprland changes were needed.
+The lid device's wake flag was enabled and `acpi.ec_no_wakeup` was already `N`, but the embedded controller at `/sys/bus/acpi/devices/PNP0C09:00/physical_node/power/wakeup` was `disabled`. Enabling that EC device wake flag was the only change for the next physical test. The machine stayed asleep until lid opening, then woke the screen promptly without a keypress, as confirmed by the user. USB Ethernet remained at `5000M`. No lock-screen or Hyprland changes were made for that test.
 
 The local persistent rule was scoped to the tested model and embedded-controller driver:
 
@@ -48,9 +48,9 @@ The local persistent rule was scoped to the tested model and embedded-controller
 ACTION=="add|bind", SUBSYSTEM=="platform", KERNEL=="PNP0C09:00", DRIVER=="acpi-ec", PROGRAM=="/usr/bin/cat /sys/class/dmi/id/product_name", RESULT=="MacBookPro14,1", ATTR{power/wakeup}="enabled"
 ```
 
-It was installed as `/etc/udev/rules.d/71-macbook-lid-wakeup.rules`. `udevadm verify` passed. While awake, the flag was temporarily disabled and a targeted add event was emitted for this existing EC device; the installed rule restored `enabled` without rebinding the driver. Reboot persistence of this rule has not been separately exercised. The previous rule/flag were backed up so this setting can be reverted independently of the Thunderbolt module.
+It was installed as `/etc/udev/rules.d/71-macbook-lid-wakeup.rules`. `udevadm verify` passed. While awake, the flag was temporarily disabled and a targeted add event was emitted for this existing EC device; the installed rule restored `enabled` without rebinding the driver. After a subsequent reboot, the EC wake flag remained `enabled`, but the user reported the lid-open failure again. The observed sleep used s2idle, lid wake remained enabled, `acpi.ec_no_wakeup` remained `N`, and both Thunderbolt modules were loaded; Ethernet still used USB `5000M`. The rule therefore persisted, but it did not reliably solve lid-open wake. The previous rule/flag were backed up so this setting can be reverted independently of the Thunderbolt module.
 
-This records two instrumented physical lid cycles, one before and one after the EC change, in addition to the three RTC comparison cycles. It does not establish the same requirement on other Macs or measure overnight battery behavior and other possible EC wake sources. The local EC rule is a separate configuration change; it is not part of the unchanged module/package tested above.
+The initial evidence records two instrumented physical lid cycles, one before and one after the EC change, in addition to the three RTC comparison cycles. The later failure contradicts treating the EC setting as a confirmed fix; lid-open wake remains unresolved. The single successful cycle does not establish causation. It does not establish the same requirement on other Macs or measure overnight battery behavior and other possible EC wake sources. The local EC rule is a separate configuration change; it is not part of the unchanged module/package tested above.
 
 ## Interpretation and limits
 

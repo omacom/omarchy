@@ -49,7 +49,7 @@ Check `lsusb -t` before and after sleep. A Gigabit USB adapter connected at `480
 
 See [the upstream investigation](https://github.com/omacom/omarchy/issues/10593) and [the proposed module fix](https://github.com/omacom/omarchy/pull/10758) for current status. Independent RTC-triggered testing on one MacBookPro14,1 verified quick wake and over 900 Mbps after resume with the proposed module and s2idle; the package proposal remains unmerged as of November 8, 2026. Other models, Thunderbolt peripherals and overnight battery use need separate validation.
 
-Test lid-open wake separately from an alarm or keyboard wake. On the tested machine, opening the lid still required a keypress because the embedded controller's wake setting was disabled, even though lid wake was enabled. Enabling EC wake restored lid-triggered resume. Check `/sys/bus/acpi/devices/PNP0C09:00/physical_node/power/wakeup` when diagnosing that symptom; this was a separate local configuration fix, and other models need their own validation.
+Test lid-open wake separately from an alarm or keyboard wake. On the tested machine, opening the lid sometimes still required a keypress. Enabling the embedded controller's wake setting was followed by one successful test, but the symptom returned after reboot while that setting remained enabled. Lid-open wake remains unresolved; successful RTC wake and fast USB after resume do not establish reliable lid-triggered wake.
 
 #### Devices with T1 Chip
 
