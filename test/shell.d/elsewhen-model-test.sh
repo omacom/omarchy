@@ -319,7 +319,7 @@ assertEqual(M.homeCityAfterTap('Nashville', CHI, '', ''), null, 'elsewhen stores
 assertEqual(M.homeCityAfterTap('  Nashville  ', CHI, '', CHI), 'Nashville', 'elsewhen trims a tapped name')
 
 // ---- coordinates and weather
-const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\n'
+const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\nPG\t-0930+14710\tPacific/Port_Moresby\n'
 assertDeepEqual(M.zoneTabCoords(tab, 'America/New_York'), { lat: 40.7142, lon: -74.0064 }, 'elsewhen reads seconds-precision zone1970 coordinates')
 assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Kolkata'), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads minutes-precision zone1970 coordinates')
 assertEqual(M.zoneTabCoords(tab, 'Nowhere/Else'), null, 'elsewhen has no fallback for an unknown zone')
@@ -348,10 +348,28 @@ assertEqual(M.canonicalZone('Asia/Tokyo', M.zoneAliases(zi)), 'Asia/Tokyo', 'els
 assertEqual(M.canonicalZone('Asia/Kolkata', {}), 'Asia/Kolkata', 'elsewhen works without an alias table')
 assertDeepEqual(M.zoneAliases(''), {}, 'elsewhen reads no aliases from an empty tzdata.zi')
 assertDeepEqual(M.zoneAliases('Z Asia/Kolkata 5:53 - IST'), {}, 'elsewhen reads aliases only from L lines')
-assertEqual(
-  M.canonicalZone('Argentina/Buenos_Aires', M.zoneAliases(['L America/Argentina/Buenos_Aires America/Buenos_Aires', 'L America/Argentina/Buenos_Aires Argentina/Buenos_Aires'].join('\n'))),
-  'America/Argentina/Buenos_Aires', 'elsewhen follows a chain of aliases without looping')
+const chained = M.zoneAliases(['L America/Argentina/Buenos_Aires America/Buenos_Aires', 'L America/Buenos_Aires Argentina/Buenos_Aires'].join('\n'))
+assertEqual(M.canonicalZone('Argentina/Buenos_Aires', chained), 'America/Argentina/Buenos_Aires', 'elsewhen follows one alias to another')
+assertEqual(M.canonicalZone('Cycle/B', { 'Cycle/A': 'Cycle/B', 'Cycle/B': 'Cycle/A' }), 'Cycle/B', 'elsewhen stops on a cyclic alias pair')
 assertDeepEqual(M.zoneTabCoords(tab, M.canonicalZone('Asia/Calcutta', M.zoneAliases(zi))), { lat: 22.5333, lon: 88.3667 }, 'elsewhen places a legacy zone at its canonical zone coordinates')
+
+// The geocoder answers with tzdata's own name for a place, which can be a link
+// the row never uses: a Chuuk result says Pacific/Chuuk, not Pacific/Truk.
+const trukZi = M.zoneAliases(['L Pacific/Port_Moresby Pacific/Chuuk', 'L Pacific/Port_Moresby Pacific/Truk'].join('\n'))
+const chuuk = JSON.stringify({ results: [
+  { latitude: 7.4167, longitude: 151.7833, timezone: 'Pacific/Chuuk' }
+] })
+assertDeepEqual(M.pickGeocode(chuuk, 'Pacific/Port_Moresby', trukZi), { place: { lat: 7.4167, lon: 151.7833 }, answered: true }, 'elsewhen accepts a linked name for the row\'s zone')
+
+// A link can cross a border: Pacific/Truk points at Pacific/Port_Moresby,
+// whose coordinates are in Papua New Guinea, not Micronesia.
+const countryOf = { 'Pacific/Truk': 'FM', 'Pacific/Port_Moresby': 'PG', 'Asia/Calcutta': 'IN', 'Asia/Kolkata': 'IN' }
+const country = function(zone) { return countryOf[zone] || '' }
+assertEqual(M.fallbackZone('Pacific/Truk', 'Pacific/Port_Moresby', country), 'Pacific/Truk', 'elsewhen keeps a link that crosses a border off the target\'s coordinates')
+assertEqual(M.zoneTabCoords(tab, M.fallbackZone('Pacific/Truk', 'Pacific/Port_Moresby', country)), null, 'elsewhen shows no marker rather than place a city in another country')
+assertEqual(M.fallbackZone('Asia/Calcutta', 'Asia/Kolkata', country), 'Asia/Kolkata', 'elsewhen uses a rename\'s canonical coordinates')
+assertEqual(M.fallbackZone('Asia/Kolkata', 'Asia/Kolkata', country), 'Asia/Kolkata', 'elsewhen leaves a canonical zone alone in the fallback')
+assertEqual(M.fallbackZone('Etc/GMT+5', 'Etc/GMT+5', country), 'Etc/GMT+5', 'elsewhen falls back for a zone without a country')
 assert(M.geocodeUrl('São Paulo').endsWith('name=S%C3%A3o%20Paulo'), 'elsewhen URL-encodes the geocoded label')
 
 assertEqual(M.forecastUrl([{ lat: 1, lon: 2 }, { lat: 3, lon: 4 }]).split('&').filter(p => /^l(at|ong)itude=/.test(p)).join('&'), 'latitude=1,3&longitude=2,4', 'elsewhen batches every point into one forecast')

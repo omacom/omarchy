@@ -935,12 +935,16 @@ function geocodeUrl(label) {
 // { place, answered }: only a result in the row's own zone is a place, and
 // `answered` is false when the request itself failed. A name match alone is not
 // enough: "Calcutta" tops out at a hamlet in Mpumalanga, so taking the first
-// result puts the marker in southern Africa (#17782).
-function pickGeocode(text, zone) {
+// result puts the marker in southern Africa (#17782). The geocoder answers with
+// whichever name tzdata gives the place, which for a legacy row name can be a
+// link: a Chuuk result says Pacific/Chuuk, never Pacific/Truk.
+function pickGeocode(text, zone, aliases) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
   for (var i = 0; i < results.length; i++) {
-    if (results[i] && results[i].timezone === zone) return { place: { lat: results[i].latitude, lon: results[i].longitude }, answered: true }
+    if (results[i] && canonicalZone(results[i].timezone, aliases) === zone) {
+      return { place: { lat: results[i].latitude, lon: results[i].longitude }, answered: true }
+    }
   }
   return { place: null, answered: true }
 }
@@ -968,6 +972,17 @@ function canonicalZone(zone, aliases) {
     name = aliases[name]
   }
   return name
+}
+
+// A link's target is only this row's place when both name the same country.
+// Pacific/Truk is a link to Pacific/Port_Moresby, but Truk is in Micronesia:
+// the target's Papua New Guinea coordinates would move the marker, the weather
+// and the daylight strip to another country. Keep the row's own zone there,
+// whose zone1970.tab entry is absent, so the marker waits for a geocode.
+function fallbackZone(rowId, canonical, countryOf) {
+  var country = countryOf(rowId)
+  if (country === "" || countryOf(canonical) === country) return canonical
+  return rowId
 }
 
 // The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
@@ -1394,6 +1409,7 @@ if (typeof module !== "undefined") {
     pickGeocode: pickGeocode,
     zoneAliases: zoneAliases,
     canonicalZone: canonicalZone,
+    fallbackZone: fallbackZone,
     zoneTabCoords: zoneTabCoords,
     forecastUrl: forecastUrl,
     parseForecast: parseForecast,

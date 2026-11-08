@@ -6,6 +6,7 @@ import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "GlobeModel.js" as Solar
+import "Greetings.js" as Greet
 
 // A bar button that opens a panel of clocks, one row per city, and zooms into
 // a globe. QML has no Intl, so a `date` probe supplies each zone's offset and
@@ -796,8 +797,8 @@ Panel {
         geoProc.rows.forEach(function(row, i) {
           var key = Model.factsKey(row)
           var zone = Model.canonicalZone(row.id, aliases)
-          var found = Model.pickGeocode(answers[i] || "", zone)
-          var place = found.place || Model.zoneTabCoords(zoneTab.text(), zone)
+          var found = Model.pickGeocode(answers[i] || "", zone, aliases)
+          var place = found.place || Model.zoneTabCoords(zoneTab.text(), Model.fallbackZone(row.id, zone, Greet.countryFor))
           if (!place) return
           if (found.answered) nextGeo[key] = place
           else nextFallback[key] = place
