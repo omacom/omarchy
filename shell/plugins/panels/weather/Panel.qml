@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -511,6 +512,13 @@ Panel {
       }
     }
   }
+
+  // Refetch the moment NetworkManager reports full internet connectivity, so a
+  // slow Wi-Fi join at boot or wake doesn't leave the bar empty until the next
+  // scheduled refresh. Restarting the timer fetches at once (triggeredOnStart)
+  // and counts the next scheduled refresh from there.
+  readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
+  onOnlineChanged: if (online) refreshTimer.restart()
 
   Timer {
     id: refreshTimer
