@@ -1009,6 +1009,17 @@ function resolveUnits(setting, auto) {
   return String(auto).toUpperCase() === "F" ? "F" : "C"
 }
 
+// The units nobody has picked, decided the way the weather panel decides
+// them: the country the machine's timezone is in, when there is one, then the
+// locale. Only the United States, Liberia and Myanmar read Fahrenheit, so an
+// English (US) desktop in Lisbon still shows Celsius.
+function autoUnits(country, localeImperial) {
+  var code = String(country === undefined || country === null ? "" : country)
+    .trim().toUpperCase()
+  if (code !== "") return code === "US" || code === "LR" || code === "MM" ? "F" : "C"
+  return localeImperial === true ? "F" : "C"
+}
+
 // Only a 12-hour pattern has an AM/PM designator once quoted literals are stripped.
 function usesTwentyFourHour(timeFormat) {
   var pattern = String(timeFormat === undefined || timeFormat === null ? "" : timeFormat)
@@ -1371,6 +1382,7 @@ if (typeof module !== "undefined") {
     weatherStale: weatherStale,
     mergeFacts: mergeFacts,
     resolveUnits: resolveUnits,
+    autoUnits: autoUnits,
     usesTwentyFourHour: usesTwentyFourHour,
     resolveHour24: resolveHour24,
     formatTemp: formatTemp,
