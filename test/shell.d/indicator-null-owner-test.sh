@@ -23,13 +23,18 @@ mkdir -p "$imports/qs" "$imports/home"
 ln -s "$ROOT/shell/Commons" "$imports/qs/Commons"
 ln -s "$ROOT/shell/Ui" "$imports/qs/Ui"
 
+runner_status=0
 output=$(HOME="$imports/home" XDG_CONFIG_HOME="$imports/home/.config" XDG_STATE_HOME="$imports/home/.state" \
   QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
-  "$qml_test_runner" -import "$imports" -input "$SHELL_TEST_DIR/fixtures/indicator-null-owner" -o -,txt 2>&1) || true
+  "$qml_test_runner" -import "$imports" -input "$SHELL_TEST_DIR/fixtures/indicator-null-owner" -o -,txt 2>&1) || runner_status=$?
 
-if printf '%s\n' "$output" | rg -q 'module "Quickshell" is not installed|module "Quickshell.Io" is not installed'; then
-  skip "Quickshell Qt module not installed; skipping indicator null-owner test"
+if printf '%s\n' "$output" | rg -q 'module "Quickshell(\.Io)?" (is not installed|plugin "[^"]+" not found)'; then
+  skip "Quickshell Qt plugin unavailable to qmltestrunner; skipping indicator null-owner test"
   exit 0
+fi
+
+if (( runner_status != 0 )); then
+  fail "indicator test runner exits successfully, including cleanup" "$output"
 fi
 
 if printf '%s\n' "$output" | rg -q "Cannot read property 'bar' of null"; then
