@@ -357,6 +357,7 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    if (passwordSsid === "") syncWifiNetworks()
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
@@ -708,7 +709,12 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    wifiNetworks = Model.sortWifiRows(nets)
+    // The list holds still while a passphrase is being typed. A new array
+    // resets the ListView, which scrolls it to the top and rebuilds every
+    // row, and a re-sort moves the prompted one: the field the user is
+    // typing into is destroyed, often out of sight, and focus goes with it.
+    // Closing the prompt syncs again and catches up.
+    if (passwordSsid === "") wifiNetworks = Model.sortWifiRows(nets)
     wifiStationAvailable = !!wifiDevice
     scanning = false
   }
@@ -1667,6 +1673,14 @@ Panel {
           readonly property string sectionTitle: root.wifiSectionTitle(index)
           width: ListView.view.width
           height: delegateColumn.implicitHeight
+
+          // Opening the prompt grows the row after the list scrolled to it,
+          // which can leave the field below the fold. Keep it in view.
+          onHeightChanged: {
+            if (root.passwordSsid === "" || root.passwordSsid !== modelData.ssid) return
+            var view = ListView.view, at = index
+            Qt.callLater(function() { if (view) view.positionViewAtIndex(at, ListView.Contain) })
+          }
 
           Column {
             id: delegateColumn
