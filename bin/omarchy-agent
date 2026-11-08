@@ -70,12 +70,15 @@ fi
 
 # A default compartment routes agent launches through `omarchy compartment
 # <name>` — the agent runs inside the VM, not on the host. Explicit --agent
-# overrides stay host-side (the user picked the binary, not the compartment).
+# overrides and --local/--local-model requests stay host-side (the user picked
+# a specific binary or the host's local model, not the compartment default).
 compartment_file="$HOME/.config/omarchy/defaults/compartment"
-if [[ -z $agent_override && -f $compartment_file ]]; then
+if [[ -z $agent_override && $use_local != "true" && -z $local_model && -f $compartment_file ]]; then
   read -r compartment <"$compartment_file"
   if [[ -n $compartment && $compartment != "none" ]]; then
-    if [[ $inline == "true" ]]; then
+    if [[ -n ${prompt:-} ]]; then
+      exec omarchy-compartment "$compartment" prompt "$prompt"
+    elif [[ $inline == "true" ]]; then
       exec omarchy-compartment "$compartment" agent
     else
       exec omarchy-launch-tui --app-id=org.omarchy.agent omarchy-compartment "$compartment" attach
