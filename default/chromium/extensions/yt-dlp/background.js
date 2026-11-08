@@ -28,15 +28,16 @@ function forgetStream(tabId) {
   return onTab(tabId, () => chrome.storage.session.remove(streamKey(tabId)));
 }
 
-// Remember the stream manifest each tab's player fetches. yt-dlp can't find a
-// video on many course and members-only sites, because the player lives in a
-// cross-origin iframe that builds the manifest URL in script, but the browser
-// still sees the request. Within one player document the first manifest wins,
-// since it is the master playlist when there is one, which lets yt-dlp pick the
-// best quality; a new player document, like the next lesson's iframe, replaces
-// it. Each stream records the page it was seen on, and is only ever used for
-// that page. Session storage outlives the service worker, which Chromium stops
-// when it goes idle.
+// Remember the stream manifest each player on a tab's page fetches. yt-dlp can't
+// find a video on many course and members-only sites, because the player lives
+// in a cross-origin iframe that builds the manifest URL in script, but the
+// browser still sees the request. Streams are kept per frame, so an ad or preview
+// player elsewhere on the page never displaces the lesson's. Within one frame the
+// first manifest of its current document wins, since it is the master playlist
+// when there is one, which lets yt-dlp pick the best quality; a new document in
+// that frame, like the next lesson loading into the same iframe, replaces it. The
+// streams belong to the page they were seen on and are only ever used for it.
+// Session storage outlives the service worker, which Chromium stops when idle.
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
     const { tabId } = details;
@@ -50,16 +51,22 @@ chrome.webRequest.onBeforeRequest.addListener(
     if (!STREAM_PATTERN.test(details.url)) return;
 
     const key = streamKey(tabId);
-    const player = details.documentId || `frame:${details.frameId}`;
+    const { frameId } = details;
+    const documentId = details.documentId || '';
     onTab(tabId, async () => {
-      const stored = (await chrome.storage.session.get(key))[key];
-      if (stored && stored.player === player) return;
-
       const tab = await chrome.tabs.get(tabId);
+      let stored = (await chrome.storage.session.get(key))[key];
+      if (!stored || !samePage(stored.page, tab.url)) stored = { page: tab.url, seen: 0, streams: {} };
+
+      const current = stored.streams[frameId];
+      if (current && current.document === documentId) return;
+
       // CDNs that sign their streams often check the Referer, and the player
       // frame's origin is what the site's own requests carry.
       const referer = details.initiator && details.initiator !== 'null' ? `${details.initiator}/` : '';
-      await chrome.storage.session.set({ [key]: { url: details.url, referer, player, page: tab.url } });
+      stored.seen += 1;
+      stored.streams[frameId] = { url: details.url, referer, document: documentId, seen: stored.seen };
+      await chrome.storage.session.set({ [key]: stored });
     });
   },
   { urls: ['http://*/*', 'https://*/*'], types: ['main_frame', 'sub_frame', 'xmlhttprequest', 'media', 'other'] }
@@ -81,6 +88,43 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   forgetStream(tabId);
 });
 
+// How much each frame looks like the player the user is watching: a playing
+// video beats one that has played, which beats one that hasn't, and a bigger
+// video beats a smaller one. Runs inside every frame of the page.
+function scorePlayback() {
+  let best = 0;
+  for (const video of document.querySelectorAll('video')) {
+    const rect = video.getBoundingClientRect();
+    const area = Math.min(Math.round(rect.width * rect.height), 1e7);
+    const playing = !video.paused && !video.ended ? 1 : 0;
+    const played = video.currentTime > 0 ? 1 : 0;
+    best = Math.max(best, playing * 1e9 + played * 1e8 + area);
+  }
+  return best;
+}
+
+// Pick the stream of the frame that is playing; failing that, the first stream
+// the page fetched, which is usually its main player.
+async function chooseStream(tabId, streams) {
+  const candidates = Object.entries(streams);
+  if (candidates.length < 2) return candidates.length ? candidates[0][1] : null;
+
+  const scores = new Map();
+  try {
+    const results = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: scorePlayback });
+    for (const { frameId, documentId, result } of results) scores.set(String(frameId), { documentId, score: result || 0 });
+  } catch (_) {
+    // Frames we can't script just keep their place in fetch order.
+  }
+
+  const score = ([frameId, stream]) => {
+    const frame = scores.get(frameId);
+    return frame && (!frame.documentId || !stream.document || frame.documentId === stream.document) ? frame.score : 0;
+  };
+  candidates.sort((a, b) => score(b) - score(a) || a[1].seen - b[1].seen);
+  return candidates[0][1];
+}
+
 function sendUrl(url, tab) {
   if (!url || !/^https?:/i.test(url)) return;
 
@@ -89,7 +133,8 @@ function sendUrl(url, tab) {
   onTab(tabId, async () => {
     const stored = (await chrome.storage.session.get(key))[key];
     // Only a stream seen on this very page may stand in for it.
-    const stream = stored && samePage(stored.page, url) ? stored : {};
+    const streams = stored && samePage(stored.page, url) ? stored.streams : {};
+    const stream = (await chooseStream(tabId, streams)) || {};
 
     // The native messaging host runs yt-dlp and owns all the desktop
     // notifications, so we just hand off the URLs and ignore the reply. It
