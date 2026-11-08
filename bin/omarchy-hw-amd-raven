@@ -5,7 +5,12 @@
 # These are family 17h models 11h (Raven Ridge), 18h (Picasso) and 20h (Dali),
 # which /proc/cpuinfo prints in decimal. They share one SMU mailbox layout,
 # which is what omarchy-powerprofiles-cpu-limits relies on.
-cpuinfo="${OMARCHY_CPUINFO_PATH:-/proc/cpuinfo}"
+#
+# Unprivileged tests may point at a fixture; root reads only the live file.
+cpuinfo=/proc/cpuinfo
+if (( EUID != 0 )) && [[ -n ${OMARCHY_CPUINFO_PATH:-} ]]; then
+  cpuinfo=$OMARCHY_CPUINFO_PATH
+fi
 
 awk -F': *' '
   /^vendor_id/ && vendor == "" { vendor = $2 }
