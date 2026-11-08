@@ -13,6 +13,7 @@
 --                    right half next to a left half); with none free, it shares
 --                    the half used last (the third terminal takes a quarter).
 --   Close a window   that held a quarter: the window sharing its half grows back.
+--   Super + L        into floating, windows keep the places tiling gave them.
 --                    Only snapped windows are arranged; nothing else moves.
 --
 -- The tile maths is in window-snapping-geometry.lua. The drags come from the
@@ -359,7 +360,7 @@ local function opened_by_mode(window)
   return false
 end
 
-local function join(window)
+local function join(window, side)
   if not snappable(window) or (window.fullscreen or 0) ~= 0 then
     return
   end
@@ -395,7 +396,14 @@ local function join(window)
     local id = entry.window.focus_history_id
     return (type(id) == "number" and id >= 0) and id or math.huge
   end
-  table.sort(halves, function(a, b) return recency(a) < recency(b) end)
+  -- A window that comes from one side (a scrolling column off the screen) goes
+  -- to the half on that side; otherwise the half used most recently.
+  table.sort(halves, function(a, b)
+    if (a.tile == side) ~= (b.tile == side) then
+      return a.tile == side
+    end
+    return recency(a) < recency(b)
+  end)
   local half = halves[1]
   local keep, give = G.split(half.tile)
   if takes(half.window, keep, monitor) and takes(window, give, monitor) then
@@ -442,6 +450,64 @@ function M.closed(window)
   if partner then
     M.place(holders[partner], half, monitor)
   end
+end
+
+-- A window the floating mode has just floated keeps the place tiling gave it,
+-- instead of joining a pile in the middle: a box close to a tile snaps to it
+-- (within 5% of the screen: a scrolling layout's columns are near halves), any
+-- other box on screen stays as it is. `tiled` is its client box while tiled,
+-- read before anything floated. Dragged away, it takes
+-- `restore_w` x `restore_h`, the mode's comfortable size. False when the box is
+-- off screen or too small for the window: the mode places it as before.
+function M.adopt(window, tiled, restore_w, restore_h)
+  local monitor = window.monitor
+  if not monitor or not tiled or tiled.w < 1 or tiled.h < 1 then
+    return false
+  end
+  local usable = area(monitor)
+  local border = tonumber(hl.get_config("general.border_size")) or 0
+  local outer = { x = tiled.x - border, y = tiled.y - border, w = tiled.w + 2 * border, h = tiled.h + 2 * border }
+  if outer.x < usable.x - 1 or outer.y < usable.y - 1 or outer.x + outer.w > usable.x + usable.w + 1 or outer.y + outer.h > usable.y + usable.h + 1 then
+    return false
+  end
+  local tile = G.near_tile(outer, usable, gaps(), math.floor(math.min(usable.w, usable.h) * 0.05))
+  if tile then
+    outer = G.tile_box(usable, tile, gaps())
+  end
+  -- The titlebar arrives with the floating: it takes the top of the box.
+  local decorations = extents(window)
+  local bar = plugin() and tonumber(hl.get_config("plugin.hyprbars.bar_height")) or 0
+  if decorations.top <= decorations.left and bar > 0 then
+    decorations = { left = decorations.left, top = decorations.top + bar, right = decorations.right, bottom = decorations.bottom }
+  end
+  local client = G.client_box(outer, decorations)
+  if fits(window, client) == false then
+    return false
+  end
+  hl.dispatch(hl.dsp.window.resize({ x = client.w, y = client.h, relative = false, window = window }))
+  hl.dispatch(hl.dsp.window.move({ x = client.x, y = client.y, relative = false, window = window }))
+  retag(window, restore_w, restore_h, client.w, client.h)
+  return true
+end
+
+-- Windows a workspace switching to floating could not keep in place (a
+-- scrolling column off the screen) join the snapped ones as a new window would,
+-- one at a time, once the kept ones are in their tiles. Each entry is a window's
+-- address and its client box while tiled, which says the side it comes from.
+function M.join(entries)
+  hl.timer(function()
+    for _, entry in ipairs(entries) do
+      local window = by_address(entry.address)
+      if window and window.monitor then
+        local side = nil
+        if entry.box then
+          local usable = area(window.monitor)
+          side = (entry.box.x + entry.box.w / 2 < usable.x + usable.w / 2) and "left" or "right"
+        end
+        join(window, side)
+      end
+    end
+  end, { type = "oneshot", timeout = 1 })
 end
 
 hl.on("window.close", function(window)

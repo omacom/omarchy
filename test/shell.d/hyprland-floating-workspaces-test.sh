@@ -943,6 +943,8 @@ assert(G.full({ "left", "right" }) and G.full({ "left", "top-right", "bottom-rig
 assert(not G.full({ "left" }) and not G.full({ "left", "right", "top-left" }), "a gap or an overlap is no full layout")
 local keep, give = G.split("right")
 assert(keep == "top-right" and give == "bottom-right" and G.split("top-left") == nil, "a half splits into its quarters, a quarter does not")
+assert(G.near_tile({ x = 40, y = 40, w = 1240, h = 1390 }, area, gaps, 70) == "left", "a box near the left half is the left half")
+assert(G.near_tile({ x = 400, y = 40, w = 1240, h = 1390 }, area, gaps, 70) == nil, "a box far from every tile is none")
 local grows, into = G.merge("bottom-right", { "left", "top-right" })
 assert(grows == "top-right" and into == "right", "a closed quarter gives its half back to the quarter above it")
 assert(G.merge("bottom-right", { "top-left", "bottom-left", "top-right", "top-right" }) == nil, "stacked windows are no layout to grow back")
@@ -1049,6 +1051,30 @@ assert(left.size.x == 1261, "closing a half changed the other one")
   fail "closing a quarter gives its space back to the window sharing its half"
 fi
 pass "closing a quarter gives its space back to the window sharing its half"
+
+# Switching a tiled workspace to floating keeps its windows where tiling had
+# them, as snapped tiles, instead of piling them up in the middle; one off the
+# screen (a scrolling column) joins them as a new window would.
+if ! run_lua "$snap_setup"'
+local half = window("0x1", 2)
+half.monitor, half.at, half.size = hl.get_monitors()[1], { x = 12, y = 42 }, { x = 1261, y = 1386 }
+half.tags = { "snap-restore:640x480/1261x1356" }
+local right = window("0x3", 2)
+right.monitor, right.at, right.size = hl.get_monitors()[1], { x = 1287, y = 42 }, { x = 1261, y = 1386 }
+local away = window("0x2", 2)
+away.monitor, away.at, away.size = hl.get_monitors()[1], { x = 2600, y = 42 }, { x = 800, y = 1386 }
+o.workspace_mode({ workspace = "2", mode = "floating" })
+assert(half.floating and half.at.x == 12 and half.at.y == 72 and half.size.x == 1261 and half.size.y == 1356, "the left tile did not stay the left half, titlebar inside")
+assert(has_restore_tag(half) == "snap-restore:1100x760/1261x1356", "a kept window lost the comfortable size it goes back to")
+local restore_tags = 0
+for _, tag in ipairs(half.tags) do if tag:match("^snap%-restore:") then restore_tags = restore_tags + 1 end end
+assert(restore_tags == 1, "a kept window carries more than one snap-restore tag")
+assert(away.floating and away.at.x >= 1287 and away.size.y < 1356, "a window off the screen to the right did not join the right half as a quarter")
+assert(right.size.y == away.size.y and right.at.y < away.at.y, "the right half did not make room for the window from off the screen")
+'; then
+  fail "switching a tiled workspace to floating keeps its windows in place"
+fi
+pass "switching a tiled workspace to floating keeps its windows in place"
 
 # A tile a window can't fill leaves it alone: no move, no flicker.
 if ! run_lua "$snap_setup"'

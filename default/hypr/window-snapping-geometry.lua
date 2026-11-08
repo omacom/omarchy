@@ -78,6 +78,22 @@ function G.outer_box(client, e)
   return { x = client.x - e.left, y = client.y - e.top, w = client.w + e.left + e.right, h = client.h + e.top + e.bottom }
 end
 
+-- The tile an outer box nearly fills: every edge within `slack` pixels of the
+-- tile's, as a tiled layout's windows are (a scrolling layout's 49% columns are
+-- halves). Nil when no tile is that close.
+function G.near_tile(box, area, gaps, slack)
+  for _, tile in ipairs(G.TILES) do
+    if tile ~= "max" then
+      local t = G.tile_box(area, tile, gaps)
+      if math.abs(t.x - box.x) <= slack and math.abs(t.y - box.y) <= slack
+          and math.abs((t.x + t.w) - (box.x + box.w)) <= slack and math.abs((t.y + t.h) - (box.y + box.h)) <= slack then
+        return tile
+      end
+    end
+  end
+  return nil
+end
+
 -- Which tile an outer box fills, if any (within a pixel).
 function G.tile_of(box, area, gaps)
   for _, tile in ipairs(G.TILES) do
