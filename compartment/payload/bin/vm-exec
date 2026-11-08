@@ -1,0 +1,123 @@
+#!/bin/sh
+# vm-exec — forced-command intent dispatcher for AI compartments.
+# Installed at /usr/local/bin/vm-exec, invoked via authorized_keys:
+#   command="/usr/local/bin/vm-exec",no-agent-forwarding,no-X11-forwarding
+# Parses $SSH_ORIGINAL_COMMAND (or argv when run directly) against a
+# per-compartment whitelist read from /etc/compartment/compartment.yaml.
+# No raw-shell verb exists by design.
+set -u
+
+COMPARTMENT_YAML="${COMPARTMENT_YAML:-/etc/compartment/compartment.yaml}"
+WORKSPACE="${AGENT_WORKSPACE:-/home/agent/workspace}"
+LEDGER_FIFO="${LEDGER_FIFO:-/home/agent/vm-exec.log}"
+SANDBOX="/usr/local/bin/agent-sandbox"
+
+log() { echo "$(date -Is) $*" >> "$LEDGER_FIFO" 2>/dev/null || true; }
+
+die() { echo "vm-exec: refused: $*" >&2; log "REFUSE $*"; exit 2; }
+
+# --- intent allowlist (grep simple 'intents:' block of compartment.yaml) ---
+allowed() {
+  [ -f "$COMPARTMENT_YAML" ] || return 1
+  sed -n '/^intents:/,/^[a-z]/p' "$COMPARTMENT_YAML" | grep -qx "  - $1"
+}
+
+# --- taint state: egress intents denied when untrusted+private both lit ----
+TAINT_FILE="/run/vm-taint"
+taint_egress_ok() {
+  [ -f "$TAINT_FILE" ] || return 0
+  ! grep -q 'UNTRUSTED' "$TAINT_FILE" || ! grep -q 'PRIVATE' "$TAINT_FILE"
+}
+
+# --- tool attestation: refuse if agent binaries drifted from recorded hash --
+attest() {
+  manifest=/etc/compartment/tool-hashes.sha256
+  [ -f "$manifest" ] || return 0
+  sha256sum -c --quiet "$manifest" >/dev/null 2>&1 \
+    || die "tool attestation failed (binary modified)"
+}
+
+[ $# -eq 0 ] && set -- ${SSH_ORIGINAL_COMMAND:-}
+[ $# -eq 0 ] && die "no intent"
+
+INTENT="$1"; shift
+allowed "$INTENT" || die "intent '$INTENT' not in compartment policy"
+attest
+
+case "$INTENT" in
+  hermes)
+    exec "$SANDBOX" hermes -- "$@"
+    ;;
+  attach)
+    # interactive TUI; pty expected from ssh -t
+    exec tmux new-session -A -s hermes "$SANDBOX hermes"
+    ;;
+  devin)
+    taint_egress_ok || die "devin: egress denied (session tainted untrusted+private)"
+    exec "$SANDBOX" devin -- "$@"
+    ;;
+  attach-devin)
+    taint_egress_ok || die "devin: egress denied (session tainted untrusted+private)"
+    exec tmux new-session -A -s devin "$SANDBOX devin"
+    ;;
+  status)
+    systemctl is-active llama-server 2>/dev/null
+    systemctl is-active context-firewall 2>/dev/null
+    uptime
+    df -h "$WORKSPACE" | tail -1
+    ;;
+  git)
+    cd "$WORKSPACE" || die "no workspace"
+    # bypass Whonix uwt wrapper — call the real binary directly
+    GITBIN=/usr/lib/git-core/git; [ -x "$GITBIN" ] || GITBIN=/usr/bin/git
+    exec "$GITBIN" "$@"
+    ;;
+  agent)
+    # run an agent inside the sandbox, anchored to the workspace.
+    # optional first arg selects the agent; otherwise the compartment default.
+    DEFAGENT=$(cat /etc/compartment/default-agent 2>/dev/null || echo opencode)
+    case "$1" in hermes|opencode|claude|codex|devin) DEFAGENT="$1"; shift ;; esac
+    cd "$WORKSPACE" || die "no workspace"
+    exec "$SANDBOX" "$DEFAGENT" "$@"
+    ;;
+  sign-request)
+    # write unsigned-tx JSON to the virtio-serial signer channel
+    [ -n "$1" ] && [ -f "$1" ] || die "sign-request <unsigned-tx.json>"
+    jq -e '.to and .value and .chain_id' "$1" >/dev/null 2>&1 \
+      || die "not a tx-shaped payload"
+    [ "$(wc -c < "$1")" -lt 16384 ] || die "payload >16KB"
+    exec socat -T 60 "$1" /dev/vport-signer
+    ;;
+  prompt)
+    # direct inference smoke-test through the DLP context firewall :8081 -> :8080
+    MSG=${*:-say ok}
+    curl -sS -m 120 http://127.0.0.1:8081/v1/chat/completions \
+      -H 'Content-Type: application/json' \
+      -d "{\"model\":\"ornith\",\"messages\":[{\"role\":\"user\",\"content\":\"$MSG\"}],\"max_tokens\":64}" \
+      | tee /tmp/prompt-raw.json | jq -r '.choices[0].message.content // .' 2>/dev/null \
+      || head -c 600 /tmp/prompt-raw.json
+    ;;
+  prompt-resp)
+    # diagnostic: exercise /v1/responses (codex wire API) through the DLP firewall
+    MSG=${*:-say ok}
+    curl -sS -m 120 -w "\nHTTP %{http_code}\n" http://127.0.0.1:8081/v1/responses \
+      -H 'Content-Type: application/json' \
+      -d "{\"model\":\"ornith\",\"input\":\"$MSG\",\"max_output_tokens\":32}" | head -c 800
+    ;;
+  attest)
+    # vTPM measured-boot attestation: PCRs + timestamp appended to ledger
+    echo "$(date -Is) ATTEST $(tpm2_pcrread 2>/dev/null | sha256sum | cut -d' ' -f1)" \
+      | tee -a "$WORKSPACE/../attestations.log" 2>/dev/null \
+      || echo "$(date -Is) no-tpm"
+    ;;
+  seal)
+    exec /usr/local/bin/vm-seal-local
+    ;;
+  wipe-memory)
+    rm -rf /home/agent/.hermes/memories /home/agent/.hermes/sessions 2>/dev/null
+    echo "memory wiped"
+    ;;
+  *)
+    die "unhandled intent '$INTENT'"
+    ;;
+esac

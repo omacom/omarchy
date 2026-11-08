@@ -1,0 +1,10 @@
+#!/bin/sh
+# agent-sandbox — Firejail wrapper for agent binaries (hermes, devin).
+# Thin shim: real isolation lives in /etc/firejail/agent.profile (declarative).
+set -u
+export ANTHROPIC_BASE_URL=http://127.0.0.1:8081
+export ANTHROPIC_AUTH_TOKEN=local
+export ANTHROPIC_API_KEY=local
+export ANTHROPIC_MODEL=ornith
+export OPENAI_BASE_URL=http://127.0.0.1:8081/v1
+exec /usr/bin/firejail --quiet --profile=/etc/firejail/agent.profile "$@"

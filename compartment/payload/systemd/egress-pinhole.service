@@ -1,0 +1,11 @@
+[Unit]
+Description=Compartment egress pinhole (per-provider outbound allowlist)
+After=whonix-firewall.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/compartment/egress-pinhole.nft
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

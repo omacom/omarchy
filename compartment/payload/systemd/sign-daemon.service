@@ -1,0 +1,14 @@
+[Unit]
+Description=Vault signing daemon (virtio-serial channel)
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/sign-daemon.py
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vault
+
+[Install]
+WantedBy=multi-user.target

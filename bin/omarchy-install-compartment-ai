@@ -1,72 +1,49 @@
 #!/bin/bash
 
 # omarchy:summary=Set up private AI compartments on Omarchy (idempotent)
-# omarchy:args=
 
-# Mirrors omarchy-install-* convention: installs the compartment-ai companion
-# (host scripts + guest payload) under XDG_DATA_HOME, then runs its setup.
-# Privileged steps run from a fresh clone of the pinned release tag, verified
-# by commit, never from the mutable checkout.
+# Installs the compartment payload (shipped in $OMARCHY_PATH/compartment),
+# then runs the privileged setup steps. All privileged code is Omarchy's own —
+# nothing is fetched or executed from external repositories.
 
 set -euo pipefail
-CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
-CAI_REPO="https://github.com/TerexitariusStomp/compartment-ai"
-CAI_REF="v1.0.0"
-CAI_SHA="ef35747751eec211900d9e3d9b11902ef4ec2140"
-
-origin_is_companion() {
-  local url
-  url="$(git -C "$1" remote get-url origin 2>/dev/null)" || return 1
-  url="${url%.git}"
-  [[ $url == "$CAI_REPO" || $url == "git@github.com:TerexitariusStomp/compartment-ai" ]]
-}
-
-if [[ -d $CAI/.git ]]; then
-  if ! origin_is_companion "$CAI"; then
-    echo "error: $CAI exists but its origin is not $CAI_REPO" >&2
-    echo "refusing to run its scripts with privileges; remove it or fix the remote and retry" >&2
-    exit 1
-  fi
-  echo "==> updating compartment-ai -> $CAI_REF"
-  git -C "$CAI" fetch --depth 1 origin "refs/tags/$CAI_REF:refs/tags/$CAI_REF"
-  git -C "$CAI" checkout --quiet --detach "$CAI_REF"
-else
-  echo "==> cloning compartment-ai $CAI_REF -> $CAI"
-  mkdir -p "$(dirname "$CAI")"
-  git clone --quiet --depth 1 --branch "$CAI_REF" "$CAI_REPO.git" "$CAI"
-fi
-
-STAGE="$(mktemp -d "${TMPDIR:-/tmp}/compartment-ai.XXXXXX")"
-trap 'rm -rf "$STAGE"' EXIT
-echo "==> staging verified $CAI_REF for privileged steps"
-git clone --quiet --depth 1 --branch "$CAI_REF" "$CAI_REPO.git" "$STAGE/compartment-ai"
-head="$(git -C "$STAGE/compartment-ai" rev-parse HEAD)"
-if [[ $head != "$CAI_SHA" ]]; then
-  echo "error: $CAI_REF resolved to $head, expected $CAI_SHA" >&2
-  exit 1
-fi
-STAGED="$STAGE/compartment-ai"
 
 echo "==> compartment-ai setup"
 echo "    bases:    Whonix-CLI (verified) + Whonix-AI template"
 echo "    weights:  llm-weights-data/verity (dm-verity RO)"
 echo "    intents:  forced-command vm-exec + host policy gate"
 echo
-echo "==> [1/5] host hardening"
-sudo bash "$STAGED/scripts/deploy-host-hardening.sh"
-echo "==> [2/5] weights disk (model + manifest + verity)"
+
+echo "==> [1/6] host hardening"
+omarchy-compartment-setup
+
+echo "==> [2/6] weights disk (model + manifest + verity)"
 if [[ ! -f /var/lib/libvirt/images/whonix/llm-weights-data.qcow2 ]]; then
-  sudo bash "$STAGED/scripts/mk-weights-disk.sh"
+  omarchy-compartment-weights
 else
   echo "weights disk exists — skipping"
 fi
-echo "==> [3/5] AI template (Whonix-CLI base + payload)"
-sudo bash "$STAGED/scripts/mk-ai-template-vc.sh"
-echo "==> [4/5] first compartment (hermes-coding)"
+
+echo "==> [3/6] AI template (Whonix-CLI base + payload)"
+omarchy-compartment-template
+
+echo "==> [4/6] first compartment (hermes-coding)"
 if ! sudo virsh -c qemu:///system dominfo hermes-coding >/dev/null 2>&1; then
-  sudo bash "$STAGED/scripts/mk-ai-vm.sh" coding
+  omarchy-compartment-mk coding
 else
   echo "hermes-coding exists — skipping"
 fi
-echo "==> [5/5] boot + register"
-bash "$STAGED/scripts/vm-ai-up.sh" hermes-coding
+
+echo "==> [5/6] boot + register"
+omarchy-compartment-up hermes-coding
+
+echo "==> [6/6] vault-signer (optional — networkless signing VM)"
+if ! sudo virsh -c qemu:///system dominfo vault-signer >/dev/null 2>&1; then
+  omarchy-compartment-vault
+else
+  echo "vault-signer exists — skipping"
+fi
+
+echo
+echo "done. manage with: omarchy compartment <name> <intent>"
+echo "pick a default for 'omarchy agent' with: omarchy default compartment <name>"

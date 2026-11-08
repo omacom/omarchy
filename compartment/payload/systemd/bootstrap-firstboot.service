@@ -1,0 +1,14 @@
+[Unit]
+Description=Compartment-AI first boot provisioning
+After=local-fs.target
+ConditionPathExists=!/var/lib/bootstrap.done
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/local/bin/in-guest-provision.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

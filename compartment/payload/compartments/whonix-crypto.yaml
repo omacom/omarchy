@@ -1,0 +1,24 @@
+# compartment.yaml — Whonix-Crypto policy
+name: whonix-crypto
+persistence: persistent
+workspace: /home/agent/workspace
+
+intents:
+  - hermes
+  - attach
+  - status
+  - git
+  - sign-request   # virtio-serial path to vault-signer (human-gated)
+  - seal
+  - wipe-memory
+
+egress:
+  tor: true
+  rpc_allowlist:   # enforced at Whonix-Gateway firewall, per-IP rules
+    - "<chain-rpc-endpoint-1>"
+    - "<chain-rpc-endpoint-2>"
+
+rules:
+  unsigned_tx_only: true         # agent may build, never sign
+  sign_requires_human: true
+  rpc_replies_taint_untrusted: true

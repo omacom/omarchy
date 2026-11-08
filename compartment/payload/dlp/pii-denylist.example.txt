@@ -1,0 +1,9 @@
+# pii-denylist.txt — one literal string per line. Root-owned 0600; readable
+# only by the 'fw' (context-firewall) user. Generated per-VM from the
+# host-side personal denylist at provision time — NOT on the weights disk.
+# Replace these placeholders with YOUR strings (names, emails, handles,
+# phone numbers, addresses). Literal match — include common variants.
+YOUR-LEGAL-NAME
+your.email@example.com
+your-handle-on-socials
++1-555-YOUR-PHONE

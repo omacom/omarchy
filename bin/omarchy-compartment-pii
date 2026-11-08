@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Fill the compartment PII denylist (literal strings never sent to models)
+# omarchy:hidden=true
+
+# Collects literal PII strings and pushes the denylist into every stopped
+# compartment image (root:fw 640 inside the guest — the agent can never read
+# the list it is checked against). Stored at
+# ~/.config/omarchy/compartment/pii-denylist.txt — never committed anywhere.
+
+set -euo pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+OMARCHY_PATH="${OMARCHY_PATH%/}"
+OUT="$HOME/.config/omarchy/compartment/pii-denylist.txt"
+IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
+
+if (($# >= 1)); then
+  [[ -f $1 ]] || { echo "no such file: $1" >&2; exit 1; }
+  mkdir -p "$(dirname "$OUT")"
+  cp "$1" "$OUT"
+else
+  echo "Enter your literal PII strings, one per line. Blank line ends input."
+  echo "Good candidates: email addresses, full name, home address, phone, bank,"
+  echo "employer, usernames, any string that must NEVER reach an LLM context."
+  echo "(These stay local; the denylist lives only inside your VMs.)"
+  mkdir -p "$(dirname "$OUT")"
+  : > "$OUT"
+  while IFS= read -r -p "> " line; do
+    [[ -z $line ]] && break
+    printf '%s\n' "$line" >> "$OUT"
+  done
+fi
+
+echo "==> $(wc -l < "$OUT") strings in denylist; pushing to stopped compartments"
+for img in "$IMGDIR"/*.qcow2; do
+  name=$(basename "$img" .qcow2)
+  if sudo virsh -c qemu:///system domstate "$name" 2>/dev/null | grep -q running; then
+    echo "  skip (running): $name"; continue
+  fi
+  sudo virt-customize -a "$img" --upload "$OUT":/etc/modsecurity/dlp 2>/dev/null \
+    && echo "  updated: $name"
+done
+echo "done. compartments get the denylist on next boot / next provision."

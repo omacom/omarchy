@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# omarchy:summary=Build the read-only dm-verity model weights disk for compartments
+# omarchy:hidden=true
+
+# Creates llm-weights-data.qcow2 + llm-weights-verity.qcow2 + verity-manifest.json
+# in the compartment image dir. Model + hermes payload come from the user's
+# ~/.hermes (COMPARTMENT_MODELS / HERMES_HOME override).
+
+set -euo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  exec sudo env OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}" \
+    COMPARTMENT_MODELS="${COMPARTMENT_MODELS:-$HOME/.hermes/models}" \
+    HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}" bash "$0" "$@"
+fi
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+OMARCHY_PATH="${OMARCHY_PATH%/}"
+PAYLOAD="$OMARCHY_PATH/compartment/payload"
+MODELS="${COMPARTMENT_MODELS:?set COMPARTMENT_MODELS or run as the desktop user}"
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+echo "[1/6] staging payload"
+mkdir -p "$WORK/root/opt/models" "$WORK/root/opt/bootstrap"
+shopt -s nullglob
+for m in "$MODELS"/*.gguf; do cp "$m" "$WORK/root/opt/models/"; done
+(cd "$WORK/root/opt/models" && sha256sum *.gguf > MODELS.SHA256)
+
+echo "[2/6] bootstrap payload (bin, systemd, firejail, modsec, ssh, compartments, dlp, hermes tarball)"
+cp -r "$PAYLOAD/bin" "$PAYLOAD/systemd" "$PAYLOAD/firejail" "$PAYLOAD/modsecurity" \
+      "$PAYLOAD/ssh" "$PAYLOAD/compartments" "$WORK/root/opt/bootstrap/" 2>/dev/null || true
+cp -r "$PAYLOAD/dlp" "$WORK/root/opt/bootstrap/"
+if [ -d "$HERMES_HOME/hermes-agent" ]; then
+  tar -C "$HERMES_HOME" -czf "$WORK/root/opt/bootstrap/hermes-agent.tar.zst" \
+      --exclude='hermes-agent/venv' --exclude='hermes-agent/.git' hermes-agent
+fi
+
+echo "[3/6] build ext4 data image (10G sparse)"
+truncate -s 10G "$WORK/data.img"
+mkfs.ext4 -q -L llm-weights -d "$WORK/root" "$WORK/data.img"
+
+echo "[4/6] dm-verity hash tree"
+truncate -s 1G "$WORK/verity.img"
+VERITY_OUT=$(veritysetup format "$WORK/data.img" "$WORK/verity.img" 2>&1)
+ROOT_HASH=$(echo "$VERITY_OUT" | awk '/^Root hash/{print $3}')
+SALT=$(echo "$VERITY_OUT" | awk '/^Salt/{print $2}')
+[ -n "$ROOT_HASH" ] || { echo "verity format failed"; exit 1; }
+
+echo "[5/6] manifest"
+jq -n --arg rh "$ROOT_HASH" --arg salt "${SALT:-}" --arg date "$(date -Is)" \
+  '{root_hash:$rh,salt:$salt,created:$date,image:"llm-weights-data.qcow2",verity:"llm-weights-verity.qcow2"}' \
+  > "$WORK/verity-manifest.json"
+sha256sum "$WORK/data.img" "$WORK/verity.img" >> "$WORK/root/opt/models/MODELS.SHA256" || true
+
+echo "[6/6] convert to qcow2 + install"
+qemu-img convert -f raw -O qcow2 "$WORK/data.img" "$IMGDIR/llm-weights-data.qcow2"
+qemu-img convert -f raw -O qcow2 "$WORK/verity.img" "$IMGDIR/llm-weights-verity.qcow2"
+install -m 0644 "$WORK/verity-manifest.json" "$IMGDIR/verity-manifest.json"
+chmod 0444 "$IMGDIR/llm-weights-"*.qcow2
+echo "done. root hash: $ROOT_HASH"
+cat "$IMGDIR/verity-manifest.json"

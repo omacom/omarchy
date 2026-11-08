@@ -1,0 +1,114 @@
+#!/bin/bash
+
+# omarchy:summary=Provision the Whonix-AI template image (payload uploads, domain XML)
+# omarchy:hidden=true
+
+# virt-customize uploads only — provisioning executes at first boot inside the
+# real VM via bootstrap-firstboot.service. Requires the weights disk first.
+# Optional speedups: DEBS_DIR with .debs, agent/hermes packs in the cache dir.
+
+set -euo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  exec sudo env OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}" \
+    DEBS_DIR="${DEBS_DIR:-}" \
+    AGENT_PACK="${AGENT_PACK:-$HOME/.cache/omarchy/compartment/agent-pack.tar.gz}" \
+    HERMES_PACK="${HERMES_PACK:-$HOME/.cache/omarchy/compartment/hermes-pack.tar.gz}" \
+    LLAMA_SERVER="${LLAMA_SERVER:-$HOME/.cache/omarchy/compartment/llama-server}" \
+    bash "$0" "$@"
+fi
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+OMARCHY_PATH="${OMARCHY_PATH%/}"
+PAYLOAD="$OMARCHY_PATH/compartment/payload"
+DEBS="${DEBS_DIR:-}"
+IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
+OUT="$IMGDIR/Whonix-AI.qcow2"
+XML=/tmp/Whonix-AI-Template.xml
+PACK_DIR=/tmp/compartment-packs
+mkdir -p "$PACK_DIR"
+
+[ -f "$OUT" ] || { echo "missing $OUT — copy Whonix-Workstation-CLI.qcow2 to $OUT first"; exit 1; }
+[ -f "$IMGDIR/llm-weights-data.qcow2" ] || { echo "run omarchy-compartment-weights first"; exit 1; }
+
+UPLOADS=(
+  --mkdir /home/agent --mkdir /home/agent/workspace --mkdir /home/agent/.ssh
+  --mkdir /etc/compartment --mkdir /etc/modsecurity/dlp --mkdir /opt/models
+  --mkdir /opt/bootstrap --mkdir /mnt/weights --mkdir /var/cache/apt/archives
+  --upload "$PAYLOAD/bin/vm-exec:/usr/local/bin"
+  --upload "$PAYLOAD/bin/agent-sandbox:/usr/local/bin"
+  --upload "$PAYLOAD/bin/vm-seal-local:/usr/local/bin"
+  --upload "$PAYLOAD/systemd/llama-server.service:/etc/systemd/system"
+  --upload "$PAYLOAD/systemd/context-firewall.service:/etc/systemd/system"
+  --upload "$PAYLOAD/systemd/hermes-backend.service:/etc/systemd/system"
+  --upload "$PAYLOAD/systemd/models-mount.service:/etc/systemd/system"
+  --upload "$PAYLOAD/systemd/bootstrap-firstboot.service:/etc/systemd/system"
+  --upload "$PAYLOAD/firejail/agent.profile:/etc/firejail"
+  --upload "$PAYLOAD/modsecurity/dlp-rules.conf:/etc/modsecurity"
+  --upload "$PAYLOAD/modsecurity/apache-fw.conf:/etc/compartment"
+  --upload "$PAYLOAD/dlp/bip39-wordlist.txt:/etc/modsecurity/dlp"
+  --upload "$PAYLOAD/dlp/canary-sigs.example.txt:/etc/modsecurity/dlp"
+  --upload "$PAYLOAD/dlp/pii-denylist.example.txt:/etc/modsecurity/dlp"
+  --upload "$PAYLOAD/compartments/hermes-coding.yaml:/etc/compartment"
+  --upload "$PAYLOAD/ssh/sshd_config.d-agent.conf:/etc/compartment"
+  --upload "$IMGDIR/verity-manifest.json:/etc/compartment"
+)
+
+echo "[1/4] optional packs"
+if [ -f "${LLAMA_SERVER:-}" ]; then
+  UPLOADS+=(--upload "$LLAMA_SERVER:/usr/local/bin/llama-server")
+  echo "  staged llama-server"
+else
+  echo "  no llama-server binary — build per docs/compartments.md or set LLAMA_SERVER"
+fi
+if [ -n "$DEBS" ] && [ -d "$DEBS" ] && ls "$DEBS"/*.deb >/dev/null 2>&1; then
+  tar -C "$DEBS" -czf "$PACK_DIR/debs.tar.gz" .
+  UPLOADS+=(--upload "$PACK_DIR/debs.tar.gz:/var/cache/apt/archives")
+else
+  echo "  no DEBS_DIR — guest will apt over Tor at first boot"
+fi
+for pair in "agent-pack.tar.gz:$AGENT_PACK" "hermes-pack.tar.gz:$HERMES_PACK"; do
+  name="${pair%%:*}"; src="${pair#*:}"
+  if [ -f "$src" ]; then
+    cp "$src" "$PACK_DIR/$name"
+    UPLOADS+=(--upload "$PACK_DIR/$name:/var/lib")
+    echo "  staged $name"
+  fi
+done
+
+echo "[2/4] virt-customize uploads"
+virt-customize -a "$OUT" "${UPLOADS[@]}"
+
+echo "[3/4] domain XML"
+virsh -c qemu:///system dumpxml Whonix-Workstation > /tmp/ws.xml
+sed -e "s|<name>.*</name>|<name>Whonix-AI-Template</name>|" \
+    -e '/<uuid>/d' \
+    -e '/<mac address/d' \
+    -e "s|<memory unit='KiB'>[0-9]*</memory>|<memory unit='KiB'>10485760</memory>|" \
+    -e "s|<currentMemory unit='KiB'>[0-9]*</currentMemory>|<currentMemory unit='KiB'>10485760</currentMemory>|" \
+    -e "s|<vcpu[^>]*>[0-9]*</vcpu>|<vcpu placement='static'>10</vcpu>|" \
+    -e "s|volume='Whonix-Workstation.qcow2'|volume='Whonix-AI.qcow2'|" \
+    /tmp/ws.xml > "$XML"
+python3 - "$XML" <<'EOF'
+import sys
+p=sys.argv[1]; s=open(p).read()
+add='''    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='/var/lib/libvirt/images/whonix/llm-weights-data.qcow2'/>
+      <target dev='vdb' bus='virtio'/><readonly/>
+    </disk>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='/var/lib/libvirt/images/whonix/llm-weights-verity.qcow2'/>
+      <target dev='vdc' bus='virtio'/><readonly/>
+    </disk>
+    <tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>
+  </devices>'''
+s=s.replace('</devices>',add)
+open(p,'w').write(s)
+EOF
+virsh -c qemu:///system define "$XML"
+virsh -c qemu:///system pool-refresh whonix || true
+
+echo "[4/4] done: Whonix-AI standalone + Whonix-AI-Template defined"
+echo "NOTE: provisioning runs INSIDE the first booted fork via bootstrap-firstboot.service"

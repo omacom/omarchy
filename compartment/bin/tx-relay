@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+# tx-relay — host-side relay to the vault-signer virtio-serial channel.
+# Deterministic schema validation + human approval prompt + signature return.
+# Usage: tx-relay pubkey
+#        tx-relay sign '{"to":"0x...","value":"0","chain_id":1,"data":"0x"}'
+import json, os, socket, sys, hashlib
+
+SOCK = "/var/lib/libvirt/channels/vault-signer.sock"
+ALLOWED_CHAINS = {1, 8453, 42161, 10}
+MAX_PAYLOAD = 16384
+
+def die(msg):
+    print(json.dumps({"status": "error", "reason": msg}))
+    sys.exit(1)
+
+def valid_tx(t):
+    return (isinstance(t.get("to"), str) and t["to"].startswith("0x") and len(t["to"]) == 42
+            and isinstance(t.get("value"), (int, str)) and int(str(t["value"]), 0) >= 0
+            and t.get("chain_id") in ALLOWED_CHAINS
+            and len(json.dumps(t)) < MAX_PAYLOAD)
+
+def send(s, obj):
+    s.sendall((json.dumps(obj) + "\n").encode())
+
+def recvline(s):
+    buf = b""
+    while not buf.endswith(b"\n"):
+        chunk = s.recv(4096)
+        if not chunk:
+            die("signer-disconnected")
+        buf += chunk
+    return json.loads(buf.decode().strip())
+
+def main():
+    if len(sys.argv) < 2:
+        die("usage")
+    cmd = sys.argv[1]
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        s.connect(SOCK)
+    except OSError as e:
+        die(f"connect: {e}")
+    s.settimeout(300)
+
+    def resp():
+        for _ in range(5):
+            r = recvline(s)
+            if r.get("status") != "ready":
+                return r
+        return r
+
+    if cmd == "pubkey":
+        send(s, {"req": "pubkey"})
+        print(json.dumps(resp()))
+        return
+
+    if cmd == "sign":
+        if len(sys.argv) < 3:
+            die("no-tx")
+        try:
+            tx = json.loads(sys.argv[2])
+        except json.JSONDecodeError:
+            die("bad-json")
+        if not valid_tx(tx):
+            die("schema")
+        send(s, {"req": "sign", **tx})
+        pend = resp()
+        if pend.get("status") != "pending":
+            print(json.dumps(pend)); return
+        # human approval gate — requires interactive yes on the host TTY
+        print(f"approve tx? {json.dumps(tx)}  [y/N] ", end="", file=sys.stderr, flush=True)
+        ok = sys.stdin.readline().strip().lower() == "y"
+        send(s, {"req": "approve", "id": pend["id"], "ok": ok})
+        print(json.dumps(resp()))
+        return
+
+    die("unknown-cmd")
+
+if __name__ == "__main__":
+    main()

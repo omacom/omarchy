@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Package agent CLIs (claude/codex/opencode) for offline compartment install
+# omarchy:hidden=true
+
+# Bundles the standalone agent binaries from the user's mise installs into
+# ~/.cache/omarchy/compartment/agent-pack.tar.gz — picked up by
+# omarchy-compartment-template on the next template build.
+
+set -euo pipefail
+
+MISE="${MISE_DATA_DIR:-$HOME/.local/share/mise}/installs"
+OUT_DIR="$HOME/.cache/omarchy/compartment"
+OUT="$OUT_DIR/agent-pack.tar.gz"
+STAGE="$(mktemp -d)"; mkdir -p "$STAGE/bin"
+
+cp -a "$(find "$MISE/claude" -name claude -type f | head -1)" "$STAGE/bin/claude"
+cp -a "$(find "$MISE/codex" -path '*/bin/codex' -type f | head -1)" "$STAGE/bin/codex"
+# native linux-x64 build (guest is glibc Debian; .exe is a node launcher)
+OPENCODE_BIN=$(find "$MISE/opencode" -path '*cli-linux-x64@*/bin/opencode' -type f | head -1)
+[ -n "$OPENCODE_BIN" ] || OPENCODE_BIN=$(find "$MISE/opencode" -path '*/bin/opencode' -type f | head -1)
+cp -a "$OPENCODE_BIN" "$STAGE/bin/opencode"
+chmod +x "$STAGE"/bin/*
+
+mkdir -p "$OUT_DIR"
+tar -C "$STAGE" -czf "$OUT" .
+echo "packaged -> $OUT ($(du -sh "$OUT" | cut -f1))"
+rm -rf "$STAGE"

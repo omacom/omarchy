@@ -6,22 +6,71 @@
 
 set -euo pipefail
 
-CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
-CAI_REPO="https://github.com/TerexitariusStomp/compartment-ai"
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+OMARCHY_PATH="${OMARCHY_PATH%/}"
+COMP="$OMARCHY_PATH/compartment"
 
-if [[ ! -f $CAI/scripts/vmctl ]]; then
-  echo "compartment-ai not installed — run: omarchy install compartment-ai" >&2
-  exit 1
-fi
+# vmctl — dumb-router CLI: relays whitelisted intents to compartment VMs.
+# Usage: omarchy-compartment <vm> <intent> [args...]
+# Special host-side verbs: up | down | status | push | pull | tunnel | list |
+# ledger-verify | vault-sign | vault-pubkey
 
-if [[ -d $CAI/.git ]]; then
-  url="$(git -C "$CAI" remote get-url origin 2>/dev/null || true)"
-  url="${url%.git}"
-  if [[ $url != "$CAI_REPO" && $url != "git@github.com:TerexitariusStomp/compartment-ai" ]]; then
-    echo "error: $CAI is not a clone of $CAI_REPO" >&2
-    exit 1
-  fi
-fi
+REG="$HOME/.config/vmctl/vms"          # lines: name ip user keyfile
+LEDGER_DIR="${COMPARTMENT_LEDGER:-/var/lib/omarchy-compartment/ledger}"
+POLICY_DIR="${VMCTL_POLICY_DIR:-$COMP/payload/compartments}"
+TX_RELAY="$COMP/bin/tx-relay"
+mkdir -p "$REG.d" 2>/dev/null || true
+[ -f "$REG" ] || touch "$REG"
 
-export PATH="$CAI/scripts:$PATH"
-exec vmctl "$@"
+die() { echo "omarchy-compartment: $*" >&2; exit 2; }
+[ $# -ge 1 ] || die "usage: omarchy compartment <vm|list> <intent|cmd> [args]"
+
+# Host-side policy gate (authoritative): refuse out-of-policy intents BEFORE
+# transmission — a compromised VM cannot escalate a policy it doesn't hold.
+policy_ok() {
+  local yaml="$POLICY_DIR/$1.yaml"
+  [ -f "$yaml" ] || return 0   # no policy file -> in-guest gate still applies
+  sed -n '/^intents:/,/^[a-z]/p' "$yaml" | grep -qx "  - $2"
+}
+vmrec() { grep -E "^$1 " "$REG" || die "unknown compartment '$1' (see: omarchy compartment list)"; }
+vmip()  { vmrec "$1" | awk '{print $2}'; }
+vmkey() { vmrec "$1" | awk '{print $4}'; }
+vmuser(){ vmrec "$1" | awk '{print $3}'; }
+
+ledger_commit() {
+  [ -d "$LEDGER_DIR" ] || return 0
+  local vm="$1" intent="$2" rc="$3"
+  cd "$LEDGER_DIR"
+  [ -d .git ] || git init -q
+  printf '%s\t%s\t%s\t%s\n' "$(date -Is)" "$vm" "$intent" "$rc" >> ledger.log
+  git add ledger.log && git commit -qm "$vm $intent rc=$rc" >/dev/null 2>&1 || true
+}
+
+VM="$1"; shift
+if [[ $VM == "list" ]]; then cat "$REG"; exit 0; fi
+[ $# -ge 1 ] || die "missing intent"
+CMD="$1"; shift
+
+IP=$(vmip "$VM"); KEY=$(vmkey "$VM"); USER_=$(vmuser "$VM")
+SSH="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5"
+
+case "$CMD" in
+  up)      sudo virsh -c qemu:///system start "$VM" ;;
+  down)    sudo virsh -c qemu:///system shutdown "$VM" ;;
+  push)    [ $# -eq 1 ] || die "push <file>"; scp -i "$KEY" -o IdentitiesOnly=yes "$1" "$USER_@$IP:workspace/" ;;
+  pull)    [ $# -eq 1 ] || die "pull <remote-path>"; scp -i "$KEY" -o IdentitiesOnly=yes "$USER_@$IP:$1" . ;;
+  tunnel)  PORT="${1:-8765}"; echo "forwarding localhost:$PORT -> $VM:$PORT (Ctrl-C to close)"
+           exec ssh -i "$KEY" -o IdentitiesOnly=yes -N -L "$PORT:127.0.0.1:8765" "$USER_@$IP" ;;
+  attach)  exec $SSH -t "$USER_@$IP" attach ;;
+  attach-devin) exec $SSH -t "$USER_@$IP" attach-devin ;;
+  ledger-verify) cd "$LEDGER_DIR" && git fsck --full && git log --oneline | head -30; exit $? ;;
+  vault-sign)  [ $# -eq 1 ] || die "vault-sign <tx-json>"
+               sudo python3 "$TX_RELAY" sign "$1" ;;
+  vault-pubkey) sudo python3 "$TX_RELAY" pubkey ;;
+  *)       policy_ok "$VM" "$CMD" || die "intent '$CMD' refused by host policy ($VM)"
+           rc=0; $SSH "$USER_@$IP" "$CMD $*" || rc=$?
+           ledger_commit "$VM" "$CMD $*" "$rc"; exit $rc ;;
+esac
+rc=$?
+ledger_commit "$VM" "$CMD $*" "$rc"
+exit $rc

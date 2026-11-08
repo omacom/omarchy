@@ -5,32 +5,44 @@
 # omarchy:examples=omarchy compartment mk research | omarchy compartment mk trading
 
 set -euo pipefail
-NAME="${1:?usage: omarchy compartment mk <name>}"
-CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
-CAI_REPO="https://github.com/TerexitariusStomp/compartment-ai"
-CAI_REF="v1.0.0"
-CAI_SHA="ef35747751eec211900d9e3d9b11902ef4ec2140"
 
-if [[ ! -f $CAI/scripts/mk-ai-vm.sh ]]; then
-  echo "compartment-ai not installed — run: omarchy install compartment-ai" >&2
-  exit 1
-fi
+NAME="hermes-${1:?usage: omarchy compartment mk <name>}"
+IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
+TEMPLATE_BASE="$IMGDIR/Whonix-AI.qcow2"
+REG="$HOME/.config/vmctl/vms"
+KEYDIR="$HOME/.ssh/vmctl"
 
-if [[ -d $CAI/.git ]]; then
-  url="$(git -C "$CAI" remote get-url origin 2>/dev/null || true)"
-  url="${url%.git}"
-  if [[ $url != "$CAI_REPO" && $url != "git@github.com:TerexitariusStomp/compartment-ai" ]]; then
-    echo "error: $CAI is not a clone of $CAI_REPO" >&2
-    exit 1
-  fi
-fi
+[ -f "$TEMPLATE_BASE" ] || { echo "missing $TEMPLATE_BASE — run: omarchy install compartment-ai" >&2; exit 1; }
+[[ $NAME =~ ^[a-z0-9-]+$ ]] || { echo "invalid compartment name: $1" >&2; exit 2; }
 
-STAGE="$(mktemp -d "${TMPDIR:-/tmp}/compartment-ai.XXXXXX")"
-trap 'rm -rf "$STAGE"' EXIT
-git clone --quiet --depth 1 --branch "$CAI_REF" "$CAI_REPO.git" "$STAGE/compartment-ai"
-head="$(git -C "$STAGE/compartment-ai" rev-parse HEAD)"
-if [[ $head != "$CAI_SHA" ]]; then
-  echo "error: $CAI_REF resolved to $head, expected $CAI_SHA" >&2
-  exit 1
-fi
-sudo bash "$STAGE/compartment-ai/scripts/mk-ai-vm.sh" "$NAME"
+mkdir -p "$HOME/.config/vmctl" "$KEYDIR"
+echo "[1/4] overlay"
+sudo qemu-img create -f qcow2 -b "$TEMPLATE_BASE" -F qcow2 "$IMGDIR/$NAME.qcow2"
+
+echo "[2/4] domain XML (clone of template with new name/mac/uuid)"
+sudo mkdir -p "/var/lib/swtpm-$NAME"
+sudo virsh -c qemu:///system dumpxml Whonix-AI-Template > "/tmp/$NAME.xml"
+sed -e "s|<name>.*</name>|<name>$NAME</name>|" \
+    -e '/<uuid>/d' \
+    -e '/<mac address/d' \
+    "/tmp/$NAME.xml" > "/tmp/$NAME.new.xml" && mv "/tmp/$NAME.new.xml" "/tmp/$NAME.xml"
+sed -i -e "s|$TEMPLATE_BASE|$IMGDIR/$NAME.qcow2|" \
+       -e "s|volume='Whonix-AI.qcow2'|volume='$NAME.qcow2'|" \
+       -e "s|volume='Whonix-Workstation.qcow2'|volume='$NAME.qcow2'|" "/tmp/$NAME.xml"
+virt-xml "/tmp/$NAME.xml" --add-device --network network=whonix-int,model=virtio 2>/dev/null \
+  || sed -i "s|</devices>|  <interface type='network'><source network='whonix-int'/><model type='virtio'/></interface>\n  </devices>|" "/tmp/$NAME.xml"
+sudo virsh -c qemu:///system define "/tmp/$NAME.xml"
+
+echo "[3/4] coordinator keypair -> agent authorized_keys"
+[ -f "$KEYDIR/$NAME" ] || \
+  ssh-keygen -t ed25519 -N '' -C "vmctl-$NAME" -f "$KEYDIR/$NAME" -q
+PUB=$(cat "$KEYDIR/$NAME.pub")
+sudo virt-customize -a "$IMGDIR/$NAME.qcow2" \
+  --mkdir /home/agent/.ssh \
+  --append-line "/home/agent/.ssh/authorized_keys:command=\"/usr/local/bin/vm-exec\",no-agent-forwarding,no-X11-forwarding $PUB"
+
+echo "[4/4] register"
+IP=$(sudo virsh -c qemu:///system domifaddr "$NAME" --source agent 2>/dev/null | awk 'NR==3{split($4,a,"/");print a[1]}')
+[ -z "$IP" ] && IP="PENDING-BOOT"
+echo "$NAME $IP agent $KEYDIR/$NAME" >> "$REG"
+echo "created $NAME (ip: $IP)"
