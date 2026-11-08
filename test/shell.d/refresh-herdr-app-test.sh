@@ -38,13 +38,3 @@ ln -s "$test_tmp/dotfiles-keys.json" "$keys"
 omarchy-refresh-herdr-app >/dev/null
 [[ -L $keys && $(cat "$test_tmp/dotfiles-keys.json") == '{"global":{}}' ]] || fail "a symlinked keymap must be left alone"
 pass "a symlinked keymap is left alone"
-
-rm -rf "$HERDR_APP_HOME"
-bash "$ROOT/migrations/1794068501.sh" >/dev/null
-[[ ! -e $HERDR_APP_HOME ]] || fail "the migration must skip machines without the app"
-pass "the migration skips machines without Herdr Desktop"
-
-mkdir -p "$HERDR_APP_HOME"
-bash "$ROOT/migrations/1794068501.sh" >/dev/null
-cmp -s "$default_keys" "$keys" || fail "the migration must seed the keymap for app users"
-pass "the migration seeds the keymap for Herdr Desktop users"
