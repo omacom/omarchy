@@ -1525,6 +1525,20 @@ ShellRoot {
 
   // Each installed plugin's manifest, as text, from before a rescan.
   property var pluginFingerprints: null
+  // A rescan asked for while another scan ran; it stays a rescan.
+  property bool pluginRescanPending: false
+
+  // The watcher names a plugin by its folder, which need not be its manifest
+  // id (Superwhisper's superwhisper-panel folder holds superwhisper.panel).
+  function localPluginLoaded(dirName) {
+    var dir = String(shell.pluginRegistry.pluginsDir || "").replace(/\/+$/, "") + "/" + dirName
+    var installed = shell.pluginRegistry.installedPlugins || ({})
+    for (var id in installed) {
+      var source = String((installed[id] && installed[id].__sourceDir) || "").replace(/\/+$/, "")
+      if (source === dir) return true
+    }
+    return false
+  }
 
   function pluginFingerprintMap() {
     var map = ({})
@@ -1540,7 +1554,7 @@ ShellRoot {
   // (Superwhisper's setup) otherwise closed the menu and blanked the wallpaper.
   function rescanPlugins() {
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
-      shell.pluginReloadPending = true
+      shell.pluginRescanPending = true
       return
     }
     shell.pluginFingerprints = shell.pluginFingerprintMap()
@@ -1574,7 +1588,7 @@ ShellRoot {
     function onLocalPluginChanged(pluginId) {
       // An edit to a plugin the shell already runs needs its fresh code; a
       // plugin that just appeared only needs adding.
-      if (shell.pluginRegistry.installedPlugins && shell.pluginRegistry.installedPlugins[pluginId])
+      if (shell.localPluginLoaded(pluginId))
         shell.localPluginNeedsReload = true
       console.log("Local plugin changed:", pluginId)
       localPluginReloadTimer.restart()
@@ -1584,6 +1598,7 @@ ShellRoot {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
         shell.pluginFingerprints = null
+        shell.pluginRescanPending = false
         Qt.callLater(shell.reloadPlugins)
         return
       }
@@ -1593,6 +1608,7 @@ ShellRoot {
         var after = shell.pluginFingerprintMap()
         for (var known in before) {
           if (after[known] !== before[known]) {
+            shell.pluginRescanPending = false
             Qt.callLater(shell.reloadPlugins)
             return
           }
@@ -1602,6 +1618,10 @@ ShellRoot {
       shell._syncServices()
       shell.syncPanelEntries()
       shell.syncPluginWidgets()
+      if (shell.pluginRescanPending) {
+        shell.pluginRescanPending = false
+        Qt.callLater(shell.rescanPlugins)
+      }
     }
   }
 
