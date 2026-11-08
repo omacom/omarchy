@@ -1,0 +1,8 @@
+#!/bin/bash
+# systemd generator — runs at every boot before units are loaded.
+# virt-customize uploads cannot create symlinks, so this ensures the
+# firstboot provisioner is wanted. tmpfiles.d does the same; two
+# independent boot-time mechanisms so bring-up cannot silently skip.
+mkdir -p /etc/systemd/system/multi-user.target.wants
+ln -sfn /etc/systemd/system/bootstrap-firstboot.service \
+  /etc/systemd/system/multi-user.target.wants/bootstrap-firstboot.service

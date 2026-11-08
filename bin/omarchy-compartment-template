@@ -35,7 +35,7 @@ trap 'rm -rf "$PACK_DIR"' EXIT
 
 UPLOADS=(
   --mkdir /home/agent --mkdir /home/agent/workspace --mkdir /home/agent/.ssh
-  --mkdir /etc/compartment --mkdir /etc/modsecurity/dlp --mkdir /opt/models
+  --mkdir /etc/compartment --mkdir /etc/modsecurity/dlp --mkdir /etc/systemd/system-generators --mkdir /opt/models
   --mkdir /opt/bootstrap --mkdir /mnt/weights --mkdir /var/cache/apt/archives
   --upload "$PAYLOAD/bin/vm-exec:/usr/local/bin"
   --upload "$PAYLOAD/bin/agent-sandbox:/usr/local/bin"
@@ -65,6 +65,7 @@ UPLOADS=(
   # systemd-tmpfiles-setup (always enabled, sysinit) link the unit into
   # multi-user.target.wants — the enable step virt-customize cannot do
   --upload "$PAYLOAD/tmpfiles/compartment-bringup.conf:/etc/tmpfiles.d"
+  --upload "$PAYLOAD/systemd-generators/compartment-bringup:/etc/systemd/system-generators"
   --upload "$IMGDIR/verity-manifest.json:/etc/compartment"
 )
 

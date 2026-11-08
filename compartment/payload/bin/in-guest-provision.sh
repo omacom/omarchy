@@ -19,6 +19,8 @@ if ! command -v apache2 >/dev/null 2>&1 || ! command -v firejail >/dev/null 2>&1
     apparmor-utils dmsetup cryptsetup || echo "FAIL:apt-fallback"
 fi
 
+chmod +x /usr/local/bin/vm-exec /usr/local/bin/agent-sandbox /usr/local/bin/vm-seal-local /usr/local/bin/wazuh-vm-seal.sh /usr/local/bin/mount-models.sh /usr/local/bin/provision-agents.sh /usr/local/bin/in-guest-provision.sh /etc/systemd/system-generators/compartment-bringup 2>/dev/null || true
+
 echo "PHASE:moves"
 mkdir -p /etc/ssh/sshd_config.d /etc/apache2/conf-available /etc/apache2/conf-enabled
 mv /etc/compartment/sshd_config.d-agent.conf /etc/ssh/sshd_config.d/50-agent.conf 2>/dev/null || echo "FAIL:sshd-conf"
