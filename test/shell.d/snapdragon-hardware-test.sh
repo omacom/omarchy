@@ -63,6 +63,7 @@ run_internal_firmware_setup 0
 mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/x1e80100-test.dtb"
 : >"$scratch/dtbs/x1e80100-test-el2.dtb"
+: >"$scratch/dtbs/mahua-test.dtb"
 cat >"$scratch/uki.conf" <<'CONF'
 [UKI]
 SecureBootPrivateKey=/secure/db.key
@@ -94,6 +95,8 @@ grep -Fq 'PCRPrivateKey=/secure/pcr.key' "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup keeps one managed UKI block"
 grep -Fq "DeviceTreeAuto=$scratch/dtbs/x1e80100-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the matching device tree"
+grep -Fq "$scratch/dtbs/mahua-test.dtb" "$scratch/uki.conf" ||
+  fail "Snapdragon DTB setup lists the Mahua device trees"
 if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
   fail "Snapdragon DTB setup excludes EL2-only device trees"
 fi
