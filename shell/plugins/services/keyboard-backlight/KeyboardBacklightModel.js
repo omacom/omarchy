@@ -152,6 +152,15 @@ function brightClearing(state) {
   return state.manualOffSince > 0 && state.applied === "off" && state.pending !== "on" && state.brightSince > 0
 }
 
+// Readings stop being evaluated while the session has the keys blanked or the
+// lid is closed, so the room can't be known to have stayed bright meanwhile:
+// the bright period starts over at the next bright reading.
+function interrupt(state) {
+  var next = copy(state)
+  next.brightSince = 0
+  return next
+}
+
 function nextCheckMs(state, now, cfg) {
   var delays = []
   if (state.pending !== "") delays.push(Math.max(0, state.pendingSince + cfg.settleMs - now))
@@ -173,6 +182,7 @@ function evaluate(state, lux, now, cfg) {
   if (brightClearing(next) && now - next.brightSince >= cfg.brightClearMs) next.manualOffSince = 0
 
   var want = lux === null || lux === undefined ? "" : wantFor(lux, cfg)
+  if (want === "off" && next.applied === "off" && next.brightSince === 0) next.brightSince = now
 
   if (want === "on" && next.applied === "on" && next.held && next.manualOffSince === 0) {
     result = apply(next, "on", now, cfg)
@@ -197,6 +207,7 @@ if (typeof module !== "undefined") {
     initialState: initialState,
     observeBrightness: observeBrightness,
     resume: resume,
+    interrupt: interrupt,
     evaluate: evaluate
   }
 }

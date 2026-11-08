@@ -115,6 +115,36 @@ r = kb.evaluate(r.state, 70, 11 * min + 5 * s, cfg)
 assertEqual(r.state.manualOffSince, 0, 'clears the hold once the room has been bright long enough')
 assertEqual(r.nextCheckMs, -1, 'schedules nothing once the hold is cleared')
 
+// Time blanked or under a closed lid isn't known to be bright, so it doesn't
+// count toward clearing a hold. A short bright spell, a long blank, then a
+// wake into the dark keeps the hold.
+state = kb.initialState(2, 2, 0)
+r = kb.evaluate(state, 1, 0, cfg)
+r = kb.evaluate(r.state, 1, 5 * s, cfg)
+state = kb.observeBrightness(r.state, 0, 10 * s)
+r = kb.evaluate(state, 70, 1 * min, cfg)
+r = kb.evaluate(r.state, 70, 1 * min + 5 * s, cfg)
+state = kb.resume(kb.interrupt(r.state), 0)
+r = kb.evaluate(state, 1, 20 * min, cfg)
+r = kb.evaluate(r.state, 1, 20 * min + 5 * s, cfg)
+assertEqual(r.set, null, 'a blank does not count as bright time')
+assertEqual(r.state.held, true, 'keeps holding after a blank that followed a short bright spell')
+
+// The same under a closed lid, where nothing is re-applied: the bright period
+// starts over at the first bright reading after it opens.
+state = kb.initialState(2, 2, 0)
+r = kb.evaluate(state, 1, 0, cfg)
+r = kb.evaluate(r.state, 1, 5 * s, cfg)
+state = kb.observeBrightness(r.state, 0, 10 * s)
+r = kb.evaluate(state, 70, 1 * min, cfg)
+r = kb.evaluate(r.state, 70, 1 * min + 5 * s, cfg)
+state = kb.interrupt(r.state)
+r = kb.evaluate(state, 70, 20 * min, cfg)
+assertEqual(r.state.manualOffSince, 10 * s, 'a closed lid does not count as bright time')
+assertEqual(r.nextCheckMs, 10 * min, 'the bright period starts over when the lid opens')
+r = kb.evaluate(r.state, 70, 30 * min, cfg)
+assertEqual(r.state.manualOffSince, 0, 'clears the hold once bright long enough after the lid opens')
+
 // Session wake: the restored level is a baseline, not the user's choice.
 // Blanked while bright and off, woken in the dark with 0 restored: turns on.
 state = kb.initialState(0, 2, 0)

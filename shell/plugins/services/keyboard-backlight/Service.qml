@@ -199,6 +199,7 @@ Item {
 
   function applyLid(closed) {
     var opened = root.lidClosed && !closed
+    if (closed && !root.lidClosed && root.state) root.state = KeyboardBacklightModel.interrupt(root.state)
     root.lidClosed = closed
     if (root.lidRecheck) {
       root.lidRecheck = false
@@ -222,6 +223,7 @@ Item {
   function pause() {
     if (root.active && root.state && !root.paused) {
       observe(Date.now())
+      root.state = KeyboardBacklightModel.interrupt(root.state)
       save()
     }
     root.paused = true
