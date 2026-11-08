@@ -133,7 +133,9 @@ printf '%s\n' "$*" >>"$STUB_LOG"
 SH
 cat >"$work/stubs/omarchy-refresh-pacman" <<'SH'
 #!/bin/bash
-printf 'refresh %s\n' "$*" >>"$STUB_LOG"
+printf 'refresh' >>"$STUB_LOG"
+if (( $# > 0 )); then printf ' %s' "$@" >>"$STUB_LOG"; fi
+printf '\n' >>"$STUB_LOG"
 [[ -z ${REFRESH_FAILS:-} ]]
 SH
 chmod +x "$work/stubs/"*
@@ -149,8 +151,9 @@ for platform in aarch64 x86; do
 done
 pass "omarchy-reinstall-pkgs installs the platform's default set"
 
-# Reinstall requests the platform's default channel explicitly; a failed refresh
-# stops the reinstall.
+# Reinstall leaves the channel to the refresh, which keeps a known current
+# channel and falls back to the platform's default. Here it must be called
+# without a channel so it can decide; its own tests cover what it picks.
 reinstall_on() {
   local platform=$1
   export STUB_LOG="$work/channel.log"
@@ -160,23 +163,15 @@ reinstall_on() {
 }
 for platform in x86 aarch64 aarch64-apple; do
   reinstall_on "$platform" || fail "$platform: reinstall completes" "$(cat "$work/channel.out")"
-  if [[ $platform == "aarch64-apple" ]]; then expected_channel=edge; else expected_channel=stable; fi
-  [[ $(head -n 1 "$STUB_LOG") == "refresh $expected_channel" ]] || fail "$platform: reinstall refreshes on $expected_channel" "$(cat "$STUB_LOG")"
+  [[ $(head -n 1 "$STUB_LOG") == "refresh" ]] ||
+    fail "$platform: reinstall does not force a channel" "$(cat "$STUB_LOG")"
   expected="-Syu --noconfirm --ask 4 --needed $(tr '\n' ' ' <"$work/$platform.packages")"
   [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] || fail "$platform: reinstall installs the platform's set"
 done
-pass "omarchy-reinstall-pkgs explicitly refreshes the platform's default channel"
+pass "omarchy-reinstall-pkgs leaves the channel to the refresh"
 
 if REFRESH_FAILS=1 reinstall_on aarch64; then
   fail "reinstall stops when the refresh fails"
 fi
-[[ $(cat "$STUB_LOG") == "refresh stable" ]] || fail "reinstall runs nothing after a failed refresh" "$(cat "$STUB_LOG")"
+[[ $(cat "$STUB_LOG") == "refresh" ]] || fail "reinstall runs nothing after a failed refresh" "$(cat "$STUB_LOG")"
 pass "omarchy-reinstall-pkgs stops when the refresh fails"
-
-export STUB_LOG="$work/undetected.log"
-: >"$STUB_LOG"
-if PATH="$failing_bin:$work/stubs:$ROOT/bin:$PATH" omarchy-reinstall-pkgs >/dev/null 2>&1; then
-  fail "reinstall stops when the platform cannot be told"
-fi
-! grep -q -- '--needed' "$STUB_LOG" || fail "reinstall installs nothing when the platform cannot be told" "$(cat "$STUB_LOG")"
-pass "omarchy-reinstall-pkgs stops when the platform cannot be told"
