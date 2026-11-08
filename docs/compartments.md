@@ -42,9 +42,7 @@ These are NOT shipped in the repo — build or fetch them first:
 
 ### Model weights
 
-Place GGUF model(s) in `~/.hermes/models/` (override with
-`COMPARTMENT_MODELS`). Any OpenAI-compatible GGUF works; the default tested
-model is `Ornith-1.5-9B-uncensored.Q4_K_M.gguf` (~6 GB). mmproj files are picked up automatically.
+Place GGUF model(s) in `~/.hermes/models/` (override with `COMPARTMENT_MODELS`). Any OpenAI-compatible GGUF works; the default tested model is `Ornith-1.5-9B-uncensored.Q4_K_M.gguf` (~6 GB). mmproj files are picked up automatically.
 
 ### llama-server binary
 
@@ -67,15 +65,11 @@ Without the pack, the guest installs agents at first boot (slower, over Tor).
 
 ### Hermes backend pack (optional)
 
-Hermes Agent needs CPython 3.14 (python-build-standalone) + a venv with its dependencies. Pack `hermes-agent/` (excl. venv/.git) to
-`~/.cache/omarchy/compartment/hermes-pack.tar.gz`. Without the pack the guest
-falls back to `provision-agents.sh` at first boot.
+Hermes Agent needs CPython 3.14 (python-build-standalone) + a venv with its dependencies. Pack `hermes-agent/` (excl. venv/.git) to `~/.cache/omarchy/compartment/hermes-pack.tar.gz`. Without the pack the guest falls back to `provision-agents.sh` at first boot.
 
 ### Debian .debs (optional speedup)
 
-`DEBS_DIR=/path/to/debs omarchy-compartment-template` uploads a debs tarball
-for offline `dpkg -i` at first boot. Without it the guest runs
-`apt-get install` over Whonix Tor — slower but fully automatic.
+`DEBS_DIR=/path/to/debs omarchy-compartment-template` uploads a debs tarball for offline `dpkg -i` at first boot. Without it the guest runs `apt-get install` over Whonix Tor — slower but fully automatic.
 
 ## Install
 
@@ -83,9 +77,7 @@ for offline `dpkg -i` at first boot. Without it the guest runs
 omarchy install compartment-ai
 ```
 
-Steps: host hardening → weights disk (dm-verity) → Whonix-AI template →
-`hermes-coding` compartment → boot → `vault-signer` VM. Idempotent — existing
-resources are detected and skipped, failures abort.
+Steps: host hardening → weights disk (dm-verity) → Whonix-AI template → `hermes-coding` compartment → boot → `vault-signer` VM. Idempotent — existing resources are detected and skipped, failures abort.
 
 ## Daily use
 
@@ -114,9 +106,7 @@ omarchy compartment-drill                       # integrity watch drill
 - **Seal chain** — `vm-seal-local` (guest) delegates to `wazuh-vm-seal.sh`:
   blocks attacker IPs, blackholes the gateway route, kills known-malware markers, reboots to snapshot. Host-side `host-seal.sh` is the Wazuh active-response target that destroys a tripped compartment VM.
 - **Watchdog coverage** — auditd watchpoints + AIDE + usbguard on the host;
-  `omarchy-compartment-drill` verifies the integrity chain end-to-end.
-  Wazuh agent (optional) provides alerting → active response; merge
-  `compartment/host/wazuh/ossec-ar-snippets.conf` into `ossec.conf`.
+  `omarchy-compartment-drill` verifies the integrity chain end-to-end. Wazuh agent (optional) provides alerting → active response; merge `compartment/host/wazuh/ossec-ar-snippets.conf` into `ossec.conf`.
 - **Sandboxed agents** — firejail profile: loopback-only network, workspace as
   the only writable area, credential dirs blacklisted.
 - **Read-only weights** — dm-verity hash tree; manifest signed into the guest.
@@ -155,14 +145,12 @@ Field notes from live provisioning — every gotcha hit and fixed — live in [`
 
 ## Vault signer (optional crypto compartment)
 
-`omarchy-compartment-vault` builds a Debian cloud-image VM with **no NIC** —
-the security guarantee. Signing happens over a virtio-serial channel:
+`omarchy-compartment-vault` builds a Debian cloud-image VM with **no NIC** — the security guarantee. Signing happens over a virtio-serial channel:
 
 - Host side: `compartment/bin/tx-relay` validates the tx schema
   (to/value/chain_id allowlist), prompts for interactive approval, returns the signature. Reach it via `omarchy compartment <name> vault-sign '<json>'` or `vault-pubkey`.
 - Guest side: `clef` (or your chain's signer) + `sign-daemon.py`
-  (`compartment/payload/bin/`, unit `sign-daemon.service`) minding the
-  `/dev/virtio-ports/signer` channel.
+  (`compartment/payload/bin/`, unit `sign-daemon.service`) minding the `/dev/virtio-ports/signer` channel.
 
 Setup: `apt install clef jq socat` in the vault VM, import keys into its keystore (keys live ONLY there — the crypto compartment holds zero key material), enable `sign-daemon.service`. virtio-serial ports are single-open — the daemon must own the port; never `cat` it from a shell.
 

@@ -45,10 +45,6 @@ default_agent() {
 transfer_name() {
   local n="${1:-}"
   [[ -n $n && $n != */* && $n != .* && $n != *..* ]] || die "bad transfer name '$n'"
-  # resolve symlinks: the target must stay inside the workspace
-  local real
-  real=$(realpath -m "$WORKSPACE/$n")
-  [[ $real == $WORKSPACE/* && $real != $WORKSPACE ]] || die "transfer escapes workspace"
   printf '%s' "$n"
 }
 
@@ -98,17 +94,26 @@ case "$INTENT" in
     exec "$SANDBOX" "$DEFAGENT" "$@"
     ;;
   push)
-    # bounded upload: stdin -> workspace/<basename> only
+    # bounded upload: stdin -> workspace/<basename> only.
+    # cd pins the workspace inode; mv rename(2) replaces a planted symlink
+    # itself instead of following it outside the workspace.
     NAME="$(transfer_name "${1:-}")"
-    [[ -d $WORKSPACE ]] || die "no workspace"
-    cat > "$WORKSPACE/$NAME"
-    echo "pushed $NAME"
+    [[ -d $WORKSPACE/$NAME ]] && die "target is a directory"
+    cd "$WORKSPACE" || die "no workspace"
+    TMP=$(mktemp) || die "mktemp failed"
+    if cat > "$TMP" && mv -f "$TMP" "./$NAME"; then
+      echo "pushed $NAME"
+    else
+      rm -f "$TMP"; die "push failed"
+    fi
     ;;
   pull)
-    # bounded download: workspace/<basename> -> stdout only
+    # bounded download: workspace/<basename> -> stdout only.
+    # O_NOFOLLOW open refuses symlinks outright — nothing outside the
+    # workspace can be read even if the agent plants one.
     NAME="$(transfer_name "${1:-}")"
-    [[ -f $WORKSPACE/$NAME ]] || die "no such file '$NAME'"
-    cat "$WORKSPACE/$NAME"
+    cd "$WORKSPACE" || die "no workspace"
+    python3 -c 'import os,sys;fd=os.open(sys.argv[1],os.O_RDONLY|os.O_NOFOLLOW);sys.stdout.buffer.write(os.fdopen(fd,"rb").read())' "$NAME"       || die "pull: not a regular file"
     ;;
   sign-request)
     # write unsigned-tx JSON to the virtio-serial signer channel

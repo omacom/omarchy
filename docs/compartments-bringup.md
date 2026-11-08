@@ -1,19 +1,20 @@
 # AI compartments — bring-up field notes
 
-Hard-won operational notes from live provisioning of the compartment stack. Command names below map to the Omarchy implementation: `omarchy compartment` →
-`omarchy compartment`, `omarchy-compartment-mk` → `omarchy-compartment-mk`,
-`omarchy-compartment-up` → `omarchy-compartment-up`,
-`omarchy-compartment-weights` → `omarchy-compartment-weights`,
-`omarchy-compartment-template` → `omarchy-compartment-template`,
-`omarchy-compartment-setup` → `omarchy-compartment-setup`,
-`omarchy-compartment-vault` → `omarchy-compartment-vault`,
-`omarchy-compartment-agent-pack` → `omarchy-compartment-agent-pack`,
-`omarchy-compartment-pii` → `omarchy-compartment-pii`,
-`omarchy-compartment-drill` → `omarchy-compartment-drill`,
-`omarchy compartment <name> vault-sign` → `omarchy compartment <name> vault-sign|vault-pubkey`.
-Project payload lives at `$OMARCHY_PATH/compartment` (installed:
-`/usr/share/omarchy/compartment`). Companion-repo paths (`$OMARCHY_PATH/compartment`)
-below refer to that tree.
+Hard-won operational notes from live provisioning of the compartment stack. Command names below map to the Omarchy implementation:
+
+- `omarchy compartment` → `omarchy compartment`
+- `omarchy-compartment-mk` → `omarchy-compartment-mk`
+- `omarchy-compartment-up` → `omarchy-compartment-up`
+- `omarchy-compartment-weights` → `omarchy-compartment-weights`
+- `omarchy-compartment-template` → `omarchy-compartment-template`
+- `omarchy-compartment-setup` → `omarchy-compartment-setup`
+- `omarchy-compartment-vault` → `omarchy-compartment-vault`
+- `omarchy-compartment-agent-pack` → `omarchy-compartment-agent-pack`
+- `omarchy-compartment-pii` → `omarchy-compartment-pii`
+- `omarchy-compartment-drill` → `omarchy-compartment-drill`
+- `omarchy compartment <name> vault-sign` → `omarchy compartment <name> vault-sign|vault-pubkey`
+
+Project payload lives at `$OMARCHY_PATH/compartment` (installed: `/usr/share/omarchy/compartment`). Companion-repo paths (`$OMARCHY_PATH/compartment`) below refer to that tree.
 
 ## DONE (verified this session)
 
