@@ -26,9 +26,9 @@ BarWidget {
   // Connector -> block, from the file Hyprland keeps them in.
   property var blocks: ({})
 
-  // Set when a workspace rule or an older cloned indicator still uses global
-  // workspace numbers. The bar then lists those numbers, as it did before
-  // each monitor had its own 1-10. See default/hypr/global-workspaces.lua.
+  // The user opts into global numbers before loading the Hyprland defaults.
+  // The bar reads the same choice used for shortcuts and reconciliation.
+  // See default/hypr/global-workspaces.lua.
   property bool globalWorkspaces: false
 
   function readGlobal(text) {
