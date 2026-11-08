@@ -64,8 +64,14 @@ chrome.webRequest.onBeforeRequest.addListener(
       // CDNs that sign their streams often check the Referer, and the player
       // frame's origin is what the site's own requests carry.
       const referer = details.initiator && details.initiator !== 'null' ? `${details.initiator}/` : '';
-      stored.seen += 1;
-      stored.streams[frameId] = { url: details.url, referer, document: documentId, seen: stored.seen };
+      // A frame keeps the place it first took, so the next lesson loading into
+      // the main player still ranks ahead of an ad that loaded in the meantime.
+      let seen = current && current.seen;
+      if (!seen) {
+        stored.seen += 1;
+        seen = stored.seen;
+      }
+      stored.streams[frameId] = { url: details.url, referer, document: documentId, seen };
       await chrome.storage.session.set({ [key]: stored });
     });
   },
