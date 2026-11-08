@@ -84,8 +84,10 @@ assertEqual(refresh.pendingSpecs(null, false, 80, 50).length, 0, 'refresh rate h
 
 // A power change that lands mid-command is queued, not dropped: the remaining
 // specs go first, then the monitors are read again for the new power state.
-assertEqual(refresh.nextStep(true, 1, true), 'wait', 'refresh rate waits while a query or eval runs')
-assertEqual(refresh.nextStep(false, 1, true), 'apply', 'refresh rate finishes the specs it has first')
-assertEqual(refresh.nextStep(false, 0, true), 'query', 'refresh rate re-reads after a power change it was too busy for')
-assertEqual(refresh.nextStep(false, 0, false), 'idle', 'refresh rate stops when nothing changed')
+assertEqual(refresh.nextStep(true, true, 1, true), 'wait', 'refresh rate waits while a query or eval runs')
+assertEqual(refresh.nextStep(true, false, 1, true), 'apply', 'refresh rate finishes the specs it has first')
+assertEqual(refresh.nextStep(true, false, 0, true), 'query', 'refresh rate re-reads after a power change it was too busy for')
+assertEqual(refresh.nextStep(true, false, 0, false), 'idle', 'refresh rate stops when nothing changed')
+assertEqual(refresh.nextStep(false, false, 1, false), 'drop', 'refresh rate applies nothing a running query returns after it is turned off')
+assertEqual(refresh.nextStep(false, true, 0, true), 'drop', 'refresh rate forgets a queued re-read once turned off')
 JS

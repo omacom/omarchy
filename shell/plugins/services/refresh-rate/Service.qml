@@ -46,9 +46,15 @@ Item {
   }
 
   function settle() {
-    var step = RefreshRateModel.nextStep(busy, pending.length, refreshQueued)
-    if (step === "apply") applyNext()
-    else if (step === "query") refresh()
+    var step = RefreshRateModel.nextStep(active, busy, pending.length, refreshQueued)
+    if (step === "apply") {
+      applyNext()
+    } else if (step === "query") {
+      refresh()
+    } else if (step === "drop") {
+      pending = []
+      refreshQueued = false
+    }
   }
 
   function applyNext() {
@@ -98,7 +104,10 @@ Item {
 
   // Only power changes apply a rate, so a rate picked in the display panel
   // holds until the next one.
-  onActiveChanged: refresh()
+  onActiveChanged: {
+    if (active) refresh()
+    else settle()
+  }
   onChargedChanged: refresh()
   Component.onCompleted: refresh()
 

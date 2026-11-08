@@ -76,7 +76,10 @@ function pendingSpecs(monitors, onBattery, percent, threshold) {
 // What the service does once a query or eval stops: finish applying the specs
 // it has, then re-read the monitors if a power change arrived while it was
 // busy, since those specs were built for the power state before the change.
-function nextStep(busy, pendingCount, refreshQueued) {
+// Once turned off it drops that work, including specs from a query that was
+// already running, so no rate changes after the feature is disabled.
+function nextStep(active, busy, pendingCount, refreshQueued) {
+  if (!active) return (pendingCount > 0 || refreshQueued) ? "drop" : "idle"
   if (busy) return "wait"
   if (pendingCount > 0) return "apply"
   return refreshQueued ? "query" : "idle"
