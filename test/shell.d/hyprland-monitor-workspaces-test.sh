@@ -49,9 +49,9 @@ local function create(id, monitor)
   return workspace
 end
 
--- A named workspace has no id, as on Hyprland 0.57.
-function create_named(name, monitor)
-  local workspace = { name = name, monitor = monitor }
+-- A named workspace has no id on Hyprland 0.57, and a negative one before it.
+function create_named(name, monitor, id)
+  local workspace = { id = id, name = name, monitor = monitor }
   world.workspaces[#world.workspaces + 1] = workspace
   return workspace
 end
@@ -640,3 +640,15 @@ check(on(2) == "eDP-1", "a numbered workspace was not placed")
 check(shows("DP-1") == "name:B", "the monitor left its named workspace: " .. tostring(shows("DP-1")))
 ' || fail "a named workspace does not break reconcile and its monitor stays on it"
 pass "a named workspace does not break reconcile and its monitor stays on it"
+
+run_lua named-negative '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+create_named("name:B", "DP-1", -1337)
+monitor_named("DP-1").active = "name:B"
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(shows("DP-1") == "name:B", "the monitor left its named workspace: " .. tostring(shows("DP-1")))
+' || fail "a monitor stays on a named workspace that has a negative id"
+pass "a monitor stays on a named workspace that has a negative id"

@@ -542,7 +542,7 @@ function M.reconcile(added, gone)
       local block = by_connector[monitor.name]
       local active = monitor.active_workspace
       local own = regular(active) and block_of_id(active.id) == block
-      local named = active and not active.special and active.id == nil
+      local named = active and not active.special and not regular(active)
 
       -- A workspace whose monitor is unplugged stays in view where it was put,
       -- unless this monitor has only just arrived on it. An empty one is only
