@@ -4,10 +4,51 @@
 # omarchy:examples=omarchy clipboard speak --model ~/Models/en_US-lessac-medium.onnx | omarchy clipboard speak --model ~/Models/voice.onnx --rate 1.25
 
 import argparse
+import os
 from pathlib import Path
+import selectors
 import subprocess
 import sys
 import tempfile
+import time
+
+
+MAX_CLIPBOARD_CHARS = 16_000
+CLIPBOARD_READ_TIMEOUT = 2
+
+
+def read_clipboard():
+  argv = ["wl-paste", "--no-newline", "--type", "text"]
+  # Allow four UTF-8 bytes per character and one sentinel byte. Do not drain
+  # an oversized producer or accept partial input from a stalled owner.
+  byte_limit = MAX_CLIPBOARD_CHARS * 4
+  deadline = time.monotonic() + CLIPBOARD_READ_TIMEOUT
+  data = bytearray()
+  with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as reader:
+    assert reader.stdout is not None
+    try:
+      with selectors.DefaultSelector() as selector:
+        selector.register(reader.stdout, selectors.EVENT_READ)
+        while True:
+          remaining = deadline - time.monotonic()
+          if remaining <= 0 or not selector.select(remaining):
+            raise TimeoutError("Clipboard read timed out.")
+          chunk = os.read(reader.stdout.fileno(), min(16384, byte_limit + 1 - len(data)))
+          if not chunk:
+            break
+          data.extend(chunk)
+          if len(data) > byte_limit:
+            raise ValueError("Copy between 1 and 16,000 characters of text first.")
+      try:
+        code = reader.wait(timeout=max(0, deadline - time.monotonic()))
+      except subprocess.TimeoutExpired as error:
+        raise TimeoutError("Clipboard read timed out.") from error
+      if code:
+        raise subprocess.CalledProcessError(code, argv)
+    finally:
+      if reader.poll() is None:
+        reader.kill()
+  return data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def main():
@@ -29,8 +70,8 @@ def main():
       break
   if engine is None:
     raise ValueError("Install Piper first (piper-tts or piper).")
-  text = subprocess.run(["wl-paste", "--no-newline", "--type", "text"], check=True, capture_output=True, text=True).stdout
-  if not text.strip() or len(text) > 16000:
+  text = read_clipboard()
+  if not text.strip() or len(text) > MAX_CLIPBOARD_CHARS:
     raise ValueError("Copy between 1 and 16,000 characters of text first.")
 
   with tempfile.TemporaryDirectory(prefix="omarchy-speak-") as scratch:

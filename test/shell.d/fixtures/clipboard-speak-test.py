@@ -1,5 +1,6 @@
 import contextlib
 import io
+import os
 from pathlib import Path
 import runpy
 import subprocess
@@ -34,14 +35,14 @@ class SpeakTest(unittest.TestCase):
         self.assertTrue(Path(argv[1]).is_file())
       return subprocess.CompletedProcess(argv, 0, stdout=text)
 
-    with patch("sys.argv", ["speak", "--model", str(self.model), *extra]), patch("subprocess.run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+    with patch("sys.argv", ["speak", "--model", str(self.model), *extra]), patch("subprocess.run", side_effect=run), patch.dict(APP["main"].__globals__, read_clipboard=lambda: text), contextlib.redirect_stdout(io.StringIO()):
       APP["main"]()
 
   def test_synthesis_before_playback_without_copying(self):
     self.run_app(["--rate", "1.25", "--speaker", "2"])
     programs = [call[0][0] for call in self.calls]
-    self.assertEqual(programs, ["omarchy-cmd-present", "wl-paste", "piper-tts", "pw-play"])
-    argv, kwargs = self.calls[2]
+    self.assertEqual(programs, ["omarchy-cmd-present", "piper-tts", "pw-play"])
+    argv, kwargs = self.calls[1]
     self.assertEqual(kwargs["input"], "Read these words")
     self.assertEqual(argv[argv.index("--length_scale") + 1], "0.8")
     self.assertEqual(argv[-1], "2")
@@ -64,6 +65,27 @@ class SpeakTest(unittest.TestCase):
       with self.assertRaises(ValueError):
         self.run_app(text=text)
       self.assertNotIn("piper-tts", [call[0][0] for call in self.calls])
+
+  def test_stalled_selection_is_rejected(self):
+    self.make_selection('import time\nprint("partial", flush=True)\ntime.sleep(5)\n')
+    with patch.dict(os.environ, PATH=self.tmp.name + os.pathsep + os.environ["PATH"]), \
+         patch.dict(APP["read_clipboard"].__globals__, CLIPBOARD_READ_TIMEOUT=0.2):
+      with self.assertRaisesRegex(TimeoutError, "Clipboard read timed out"):
+        APP["read_clipboard"]()
+
+  def test_selection_is_bounded_before_it_can_finish(self):
+    self.make_selection('import sys\nfrom pathlib import Path\n'
+                        'for _ in range(64):\n  sys.stdout.buffer.write(b"x" * 65536)\n'
+                        'Path(sys.argv[0]).with_name("finished").touch()\n')
+    with patch.dict(os.environ, PATH=self.tmp.name + os.pathsep + os.environ["PATH"]):
+      with self.assertRaisesRegex(ValueError, "16,000 characters"):
+        APP["read_clipboard"]()
+    self.assertFalse((Path(self.tmp.name) / "finished").exists())
+
+  def make_selection(self, script):
+    paste = Path(self.tmp.name) / "wl-paste"
+    paste.write_text(f"#!{sys.executable}\n" + script)
+    paste.chmod(0o755)
 
   def test_missing_voice_config_rejected(self):
     Path(str(self.model) + ".json").unlink()
