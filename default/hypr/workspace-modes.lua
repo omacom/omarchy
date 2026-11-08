@@ -724,7 +724,31 @@ end
 
 -- The drag position is absolute from where the drag started. The pointer has
 -- to move with the window, or the next motion puts the window back past the
--- limit and it flashes. Only a visible window under the pointer does that.
+-- limit and it flashes. The title bar is the strip above the client, so it
+-- ends at at.y. The pointer follows only while that window is the one being
+-- dragged: it moved by the same amount as the pointer, and the pointer is on
+-- its title bar. A correction at any other time leaves the pointer where it is.
+local previous_cursor_y = nil
+local previous_at_y = {}
+
+local function pointer_on_titlebar(window, cursor, bar)
+  return window.visible ~= false
+    and cursor
+    and cursor.x >= window.at.x
+    and cursor.x <= window.at.x + window.size.x
+    and cursor.y >= window.at.y - bar
+    and cursor.y <= window.at.y
+end
+
+local function titlebar_being_dragged(window, cursor, bar)
+  local before = previous_at_y[window.address]
+  if not before or previous_cursor_y == nil or not pointer_on_titlebar(window, cursor, bar) then
+    return false
+  end
+  local moved = window.at.y - before
+  return math.abs(moved) > 0.5 and math.abs(moved - (cursor.y - previous_cursor_y)) <= 1.5
+end
+
 local function keep_titlebars_on_screen(bar)
   -- The layout tests call the timer immediately with a partial hl, and a
   -- missing cursor must not stop floating mode from loading.
@@ -734,6 +758,9 @@ local function keep_titlebars_on_screen(bar)
 
   local cursor = hl.get_cursor_pos()
   local monitors = hl.get_monitors()
+  local sampled = cursor and { x = cursor.x, y = cursor.y } or nil
+  local output_y = sampled and sampled.y or nil
+  local next_at_y = {}
 
   for _, window in ipairs(hl.get_windows({ tag = WORKSPACE_TAG })) do
     if window.floating and window.mapped and not window.hidden and (window.fullscreen or 0) == 0 and window.monitor then
@@ -746,14 +773,8 @@ local function keep_titlebars_on_screen(bar)
       end
 
       local dy = target_y - window.at.y
+      local follow = titlebar_being_dragged(window, sampled, bar)
       if dy > 0.5 or dy < -0.5 then
-        local on_title = window.visible ~= false
-          and cursor
-          and cursor.x >= window.at.x
-          and cursor.x <= window.at.x + window.size.x
-          and cursor.y >= window.at.y - bar
-          and cursor.y <= window.at.y + bar
-
         hl.dispatch(hl.dsp.window.move({
           window = window,
           x = window.at.x,
@@ -761,13 +782,18 @@ local function keep_titlebars_on_screen(bar)
           relative = false,
         }))
 
-        if on_title and hl.dsp.cursor and hl.dsp.cursor.move then
-          cursor.y = cursor.y + dy
-          hl.dispatch(hl.dsp.cursor.move({ x = cursor.x, y = cursor.y }))
+        if follow and hl.dsp.cursor and hl.dsp.cursor.move then
+          output_y = output_y + dy
+          hl.dispatch(hl.dsp.cursor.move({ x = sampled.x, y = output_y }))
         end
       end
+
+      next_at_y[window.address] = target_y
     end
   end
+
+  previous_at_y = next_at_y
+  previous_cursor_y = output_y
 end
 
 -- What floating workspaces need on top of the rest of the config: shadows,
