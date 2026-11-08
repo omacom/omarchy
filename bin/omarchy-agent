@@ -76,8 +76,10 @@ compartment_file="$HOME/.config/omarchy/defaults/compartment"
 if [[ -z $agent_override && $use_local != "true" && -z $local_model && -f $compartment_file ]]; then
   read -r compartment <"$compartment_file"
   if [[ -n $compartment && $compartment != "none" ]]; then
-    if [[ -n ${prompt:-} ]]; then
+    if [[ -n ${prompt:-} && $inline == "true" ]]; then
       exec omarchy-compartment "$compartment" prompt "$prompt"
+    elif [[ -n ${prompt:-} ]]; then
+      exec omarchy-launch-tui --app-id=org.omarchy.agent omarchy-compartment "$compartment" prompt "$prompt"
     elif [[ $inline == "true" ]]; then
       exec omarchy-compartment "$compartment" agent
     else
