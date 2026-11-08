@@ -230,7 +230,12 @@ Item {
   function applySelected(row) {
     if (!row) return
     root.opened = false
-    if (row.entryType === "image") {
+    if (row.entryType === "file") {
+      // A copied or cut file is only a path here. Putting it back as text would
+      // replace the file clipboard and lose its copy/cut state, so leave the
+      // clipboard alone and let the file manager paste it itself.
+      Quickshell.execDetached([root.refocusScript, root.targetWindow, "true"])
+    } else if (row.entryType === "image") {
       Quickshell.execDetached([root.refocusScript, root.targetWindow, root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
     } else if (row.fullText) {
       Quickshell.execDetached([root.refocusScript, root.targetWindow, root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])

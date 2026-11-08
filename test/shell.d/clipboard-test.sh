@@ -136,6 +136,10 @@ assertDeepEqual(
   'clipboard display rows carry the text image candidate'
 )
 
+const qmlSource = require('fs').readFileSync(path.join(root, 'shell/plugins/clipboard/Clipboard.qml'), 'utf8')
+const applySelected = qmlSource.slice(qmlSource.indexOf('function applySelected'), qmlSource.indexOf('function copySelected'))
+assert(/entryType === "file"[\s\S]*?"true"\]\)[\s\S]*?entryType === "image"/.test(applySelected), 'clipboard paste leaves the clipboard alone for copied file entries')
+
 assertDeepEqual(clipboard.displayRows(history, '', 0), [], 'clipboard display rows supports zero result limit')
 assertDeepEqual(clipboard.addEntry(history, 'next', 0), [], 'clipboard addEntry supports zero history limit')
 

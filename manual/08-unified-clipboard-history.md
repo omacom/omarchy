@@ -24,6 +24,26 @@ The clipboard history is provided by the Omarchy shell and works for both text a
 
 When the highlighted entry is a path to an image (like `~/Pictures/photo.png`) or a link to one (like `https://example.com/photo.png`), the preview shows the image itself. A link is only fetched once you highlight it.
 
+Copied or cut files show up in the history as their path. Picking one closes the history and leaves the clipboard alone, so the file manager can still paste or move the file itself.
+
+If you rebind the clipboard history to `Ctrl + V` or `Super + V`, file managers will no longer receive the paste, so cut and copied files can't be pasted into them. Have your binding send the key straight through when a file manager is focused, in `~/.config/hypr/bindings.lua`:
+
+```lua
+local function clipboard_or_native_paste()
+  local window = hl.get_active_window()
+  local class = window and window.class or ""
+  if class:lower():find("nautilus", 1, true) then
+    hl.dispatch(hl.dsp.send_key_state({ mods = "CTRL", key = "V", state = "down" }))
+    hl.timer(function()
+      hl.dispatch(hl.dsp.send_key_state({ mods = "CTRL", key = "V", state = "up" }))
+    end, { timeout = 50, type = "oneshot" })
+  else
+    hl.exec_cmd("omarchy-shell shell toggle omarchy.clipboard")
+  end
+end
+o.rebind("SUPER + CTRL + V", "Clipboard history", clipboard_or_native_paste)
+```
+
 You can also search the history just by starting to type:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
