@@ -52,6 +52,10 @@ It was installed as `/etc/udev/rules.d/71-macbook-lid-wakeup.rules`. `udevadm ve
 
 The initial evidence records two instrumented physical lid cycles, one before and one after the EC change, in addition to the three RTC comparison cycles. The later failure contradicts treating the EC setting as a confirmed fix; lid-open wake remains unresolved. The single successful cycle does not establish causation. It does not establish the same requirement on other Macs or measure overnight battery behavior and other possible EC wake sources. The local EC rule is a separate configuration change; it is not part of the unchanged module/package tested above.
 
+Subsequent physical tests also failed with the module plus the earlier Thunderbolt D3cold guard, and then with the complete pre-module hook setup restored, the shim unloaded/removed and EC wake reverted. The latter comparison was performed in the same running boot; a cold start of the restored setup remains untested. The old hook executed its controller removal and recovery successfully, and Ethernet returned at `5000M`. These results do not establish the shim as the cause of the lid-wake failure.
+
+A targeted kernel trace during a failed module cycle recorded `_PSW(1)` and entry into the ACPI EC write handler with `0x01` at offset `0x68`, the firmware table's lid-open wake bit. The lid notification appeared only after the kernel left `machine_suspend`; GPE `0x6F`, named by the lid's `_PRW`, remained at zero. This verifies that the kernel requested arming the lid wake bit, not that firmware accepted it or produced a physical wake signal. The user also observed keyboard backlighting on lid opening, which alone does not establish that Linux resumed.
+
 ## Interpretation and limits
 
 The initial user-reported 30–60 second wake delay was not fully explained by the 5.5-second device trace. The confirmed results are the measured device timings and subsequent quick screen wake.
