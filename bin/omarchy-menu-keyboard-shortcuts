@@ -13,7 +13,6 @@ CHECK="✓"
 # the menu, the validation and the Hyprland bindings all agree on.
 options=(
   "ALT + SHIFT"
-  "LEFT ALT"
   "SUPER + I"
 )
 
@@ -45,13 +44,7 @@ stored=""
 IFS= read -r stored < "$CONFIG" || true
 stored="$(trim "$stored")"
 
-# "LEFT ALT + RIGHT ALT" was renamed to "LEFT ALT" (a lone tap of Left Alt);
-# input-method.lua maps the old name the same way, so old config files keep
-# their shortcut.
 current="$stored"
-if [[ $current == "LEFT ALT + RIGHT ALT" ]]; then
-  current="LEFT ALT"
-fi
 
 # Anything else unrecognised behaves as the default in input-method.lua, so that
 # is the row that should carry the tick.
@@ -70,10 +63,8 @@ for opt in "${options[@]}"; do
   fi
 done
 
-select_bin="${OMARCHY_PATH:+$OMARCHY_PATH/bin/}omarchy-menu-select"
-
 # Escape / closing the menu is not an error, it just leaves everything as is.
-picked="$("$select_bin" "$(omarchy-i18n keyboard.inputLanguageShortcut)" "${labels[@]}")" || exit 0
+picked="$("$OMARCHY_PATH/bin/omarchy-menu-select" "Language shortcut" "${labels[@]}")" || exit 0
 
 # Strip the tick and padding again to get back the real shortcut name.
 picked="$(trim "$picked")"
@@ -83,20 +74,17 @@ picked="$(trim "${picked%"$CHECK"}")"
 if ! is_known "$picked"; then
   echo "Unknown input language shortcut: $picked" >&2
   exit 1
-fi
-
-if [[ $picked == $stored ]]; then
+elif [[ $picked == $stored ]]; then
   printf 'Input language switcher is already %s\n' "$picked"
-  exit 0
+else
+  # Persist the choice to the config file the Hyprland config reads. Write to a
+  # temp file and rename so Hyprland never reads a half-written file.
+  tmp="$(mktemp "$CONFIG.XXXXXX")"
+  printf '%s\n' "$picked" > "$tmp"
+  mv -f "$tmp" "$CONFIG"
+
+  # Reload Hyprland so the new binding takes effect immediately.
+  hyprctl reload >/dev/null 2>&1 || true
+
+  printf 'Input language switcher set to %s\n' "$picked"
 fi
-
-# Persist the choice to the config file the Hyprland config reads. Write to a
-# temp file and rename so Hyprland never reads a half-written file.
-tmp="$(mktemp "$CONFIG.XXXXXX")"
-printf '%s\n' "$picked" > "$tmp"
-mv -f "$tmp" "$CONFIG"
-
-# Reload Hyprland so the new binding takes effect immediately.
-hyprctl reload >/dev/null 2>&1 || true
-
-printf 'Input language switcher set to %s\n' "$picked"

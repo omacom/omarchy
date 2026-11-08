@@ -38,11 +38,6 @@ local function read_input_language_shortcut()
     return default
   end
 
-  -- "LEFT ALT + RIGHT ALT" was renamed to "LEFT ALT"; keep old files working.
-  if line == "LEFT ALT + RIGHT ALT" then
-    return "LEFT ALT"
-  end
-
   return line
 end
 
@@ -54,14 +49,6 @@ local shortcut = read_input_language_shortcut()
 -- row the menu ticks for it.
 if shortcut == "ALT + SHIFT" then
   o.bind("ALT + SHIFT", "Switch input language", "omarchy-input-method cycle")
-elseif shortcut == "LEFT ALT" then
-  -- Left Alt on its own: fire when the key is released, so Alt still works as
-  -- a modifier for every other shortcut. This is a release binding, which
-  -- o.bind doesn't expose, so it goes straight to Hyprland.
-  hl.bind("ALT + Alt_L", hl.dsp.exec_cmd("omarchy-input-method cycle"), {
-    release = true,
-    description = "Switch input language",
-  })
 else
   o.bind("SUPER + I", "Switch input language", "omarchy-input-method cycle")
 end
