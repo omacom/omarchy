@@ -51,11 +51,41 @@ prefix_running() {
 }
 
 match_dpi_to_monitor_scale() {
-  local scale dpi
+  local scale dpi file tmp
+  file="$PREFIX/user.reg"
+  [[ -f $file ]] || return 0
   scale=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true).scale')
   [[ $scale =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 0
   dpi=$(awk -v scale="$scale" 'BEGIN { printf "%d", scale * 96 + 0.5 }')
-  sed -i "s/^\"LogPixels\"=dword:[0-9a-f]\{8\}$/\"LogPixels\"=dword:$(printf '%08x' "$dpi")/" "$PREFIX/user.reg"
+  tmp=$(mktemp "$file.XXXXXX")
+  if ! awk -v value="$(printf '%08x' "$dpi")" -v now="${EPOCHSECONDS:-0}" '
+    function is_desktop(line, header) {
+      return index(line, header) == 1 && (length(line) == length(header) || substr(line, length(header) + 1, 1) ~ /[ \t]/)
+    }
+    BEGIN { header = "[Control Panel\\\\Desktop]"; found = 0; in_desktop = 0 }
+    /^\[/ {
+      in_desktop = is_desktop($0, header)
+      print
+      if (in_desktop) {
+        print "\"LogPixels\"=dword:" value
+        found = 1
+      }
+      next
+    }
+    in_desktop && /^"LogPixels"=/ { next }
+    { print }
+    END {
+      if (!found) {
+        print ""
+        print header " " now
+        print "\"LogPixels\"=dword:" value
+      }
+    }
+  ' "$file" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$file"
 }
 
 if ! prefix_running; then
