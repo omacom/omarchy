@@ -24,7 +24,7 @@ fi
 
 omarchy-agent-account-state registry "$1" | jq -r '
   if .switch == "auto" then
-    "\(.name) switches new sessions to the account with the most headroom at \(.threshold)%."
+    "\(.name) switches at \(.threshold)% to the account under it whose limits reset soonest, and early, from \(.threshold - 15)%, to one at least 30 points under it."
   else
     "\(.name) notifies at \(.threshold)% and switches when you say so."
   end'
