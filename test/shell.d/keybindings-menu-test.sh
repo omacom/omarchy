@@ -39,7 +39,9 @@ stub_hyprctl() {
     echo 'BINDS'
     echo '  ;;'
     echo '  devices) echo "active keymap: English (US)" ;;'
+    echo '  getoption) cat "'"$stub_bin"'/option-${2#input:}" 2>/dev/null ;;'
     echo '  -j) [[ $2 == getoption ]] && cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null ;;'
+    echo '  --batch) IFS=";" read -ra requests <<<"$2"; for request in "${requests[@]}"; do "$0" $request; done ;;'
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
