@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Manage AI compartments (thin-fork VMs with confined agents)
+# omarchy:args=<compartment> [attach|agent|status|up|down|push|pull|seal] [args]
+# omarchy:examples=omarchy compartment hermes-coding attach | omarchy compartment list | omarchy compartment hermes-coding agent "write hello.py"
+
+set -euo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+export PATH="$ROOT/scripts:$PATH"
+exec vmctl "$@"
