@@ -94,6 +94,27 @@ function G.near_tile(box, area, gaps, slack)
   return nil
 end
 
+-- A box moved inside an area: as large as fits, and wholly inside it.
+function G.fit(box, area)
+  local w, h = math.min(box.w, area.w), math.min(box.h, area.h)
+  local x = math.max(area.x, math.min(box.x, area.x + area.w - w))
+  local y = math.max(area.y, math.min(box.y, area.y + area.h - h))
+  return { x = round(x), y = round(y), w = round(w), h = round(h) }
+end
+
+-- Where an outer box goes when its window is moved from one area to another (a
+-- monitor's): a box in a tile, or close to one (within `slack`), takes that tile
+-- there; any other keeps its place and size relative to the area. Returns the
+-- box, and the tile when there is one.
+function G.carry(box, from, to, gaps, slack)
+  local tile = G.tile_of(box, from, gaps) or G.near_tile(box, from, gaps, slack)
+  if tile then
+    return G.tile_box(to, tile, gaps), tile
+  end
+  local sx, sy = to.w / from.w, to.h / from.h
+  return G.fit({ x = to.x + (box.x - from.x) * sx, y = to.y + (box.y - from.y) * sy, w = box.w * sx, h = box.h * sy }, to), nil
+end
+
 -- Which tile an outer box fills, if any (within a pixel).
 function G.tile_of(box, area, gaps)
   for _, tile in ipairs(G.TILES) do

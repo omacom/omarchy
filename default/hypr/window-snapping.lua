@@ -14,6 +14,8 @@
 --                    the half used last (the third terminal takes a quarter).
 --   Close a window   that held a quarter: the window sharing its half grows back.
 --   Super + L        into floating, windows keep the places tiling gave them.
+--   Another monitor  moved there by key, a window keeps its tile, or its place
+--                    and size relative to the screen; let go there, it fits.
 --                    Only snapped windows are arranged; nothing else moves.
 --
 -- The tile maths is in window-snapping-geometry.lua. The drags come from the
@@ -280,7 +282,7 @@ end
 
 local function begin(window)
   placing[window.address] = nil -- a drag supersedes a placement still settling
-  drag = { address = window.address, snaps = snappable(window), generation = 0 }
+  drag = { address = window.address, snaps = snappable(window), generation = 0, from = window.monitor and window.monitor.name }
 end
 
 local function moved(window, x, y)
@@ -332,7 +334,30 @@ local function dropped(window)
   local current = drag
   drag = nil
   announce(nil)
-  if not current or not current.snaps or not current.zone or current.address ~= window.address then
+  if not current or not current.snaps or current.address ~= window.address then
+    return
+  end
+  if not current.zone then
+    -- Let go on another monitor, it stays where it was put, as much of it as
+    -- fits that screen.
+    hl.timer(function()
+      local target = by_address(current.address)
+      local monitor = target and target.monitor
+      if not monitor or monitor.name == current.from or (target.fullscreen or 0) ~= 0 then
+        return
+      end
+      local around = extents(target)
+      local outer = G.outer_box(client_of(target), around)
+      local inside = G.fit(outer, area(monitor))
+      if inside.w == outer.w and inside.h == outer.h and inside.x == outer.x and inside.y == outer.y then
+        return
+      end
+      local client = G.client_box(inside, around)
+      if fits(target, client) ~= false then
+        hl.dispatch(hl.dsp.window.resize({ x = client.w, y = client.h, relative = false, window = target }))
+      end
+      hl.dispatch(hl.dsp.window.move({ x = client.x, y = client.y, relative = false, window = target }))
+    end, { type = "oneshot", timeout = 1 })
     return
   end
   -- After Hyprland's own drop handling.
@@ -508,6 +533,36 @@ function M.join(entries)
       end
     end
   end, { type = "oneshot", timeout = 1 })
+end
+
+-- A window moved to another monitor by key (o.workspaces.move_window_to_monitor)
+-- fits that monitor instead of keeping its size: one in a tile, or close to one,
+-- takes that tile there, any other keeps its place and size relative to the
+-- screen. `from` is the monitor it left and `before` its client box there, read
+-- before it moved: Hyprland moves it keeping its size, and Lua learns of the
+-- move only afterwards.
+function M.carried(address, from, before)
+  local window = by_address(address)
+  if not window or not from or not before or not snappable(window) or (window.fullscreen or 0) ~= 0 then
+    return
+  end
+  local to = window.monitor
+  if not to or to.name == from.name then
+    return
+  end
+  local around = extents(window)
+  local from_area = area(from)
+  local outer, tile = G.carry(G.outer_box(before, around), from_area, area(to), gaps(), math.floor(math.min(from_area.w, from_area.h) * 0.05))
+  if tile and takes(window, tile, to) then
+    M.place(window, tile, to)
+    return
+  end
+  local client = G.client_box(outer, around)
+  if fits(window, client) == false then
+    client.w, client.h = before.w, before.h -- its own limits win over the screen's
+  end
+  hl.dispatch(hl.dsp.window.resize({ x = client.w, y = client.h, relative = false, window = window }))
+  hl.dispatch(hl.dsp.window.move({ x = client.x, y = client.y, relative = false, window = window }))
 end
 
 hl.on("window.close", function(window)
