@@ -1,0 +1,20 @@
+[Unit]
+Description=Unload BCM4377 Wi-Fi before system sleep
+Before=sleep.target
+DefaultDependencies=no
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# pre runs before suspend, hibernate, hybrid-sleep, and suspend-then-hibernate.
+# post is ExecStop, so the module is probed again only after sleep.target has
+# stopped and the device is back in D0. A system-sleep hook that modprobes
+# brcmfmac earlier has hard-crashed this chip.
+ExecStart=/usr/bin/omarchy-wifi-bcm4377-sleep pre
+ExecStop=/usr/bin/omarchy-wifi-bcm4377-sleep post
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+
+[Install]
+RequiredBy=sleep.target
