@@ -74,7 +74,7 @@
   "system.reboot": {"icon":"󰜉","label":"Reboot","alt":"system.firmware","action":"omarchy-system reboot"},
   // Stands in for Reboot while Alt is held.
   "system.firmware": {"icon":"󰘚","label":"Reboot to BIOS","description":"Restart into the UEFI firmware setup","when":"[[ -d /sys/firmware/efi ]]","action":"omarchy-system firmware"},
-  "system.reboot-reopen": {"icon":"󰑓","label":"Reboot & Reopen Windows","when":"! omarchy-toggle-enabled reopen-windows","action":"omarchy-session-save --always && omarchy-system reboot"},
+  "system.reboot-reopen": {"icon":"󰑓","label":"Reboot & Reopen Windows","when":"! omarchy-toggle-enabled reopen-windows","action":"timeout 10s omarchy-session-save --always; omarchy-system reboot"},
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system shutdown"},
 
   // Learn
