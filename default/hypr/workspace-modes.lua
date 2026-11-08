@@ -24,6 +24,7 @@ local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
+local TITLEBAR_HEIGHT = 30
 
 local M = {}
 
@@ -474,7 +475,7 @@ local function titlebars()
       hyprbars = {
         enabled = true,
         workspace_tag = WORKSPACE_TAG,
-        bar_height = 30,
+        bar_height = TITLEBAR_HEIGHT,
         bar_color = colors.titlebar,
         col = { text = colors.foreground },
         bar_text_font = "monospace",
@@ -547,6 +548,200 @@ function M.apply()
   end
 end
 
+local function monitor_span(monitor)
+  local scale = monitor.scale
+  if not scale or scale == 0 then
+    scale = 1
+  end
+  local width = monitor.width / scale
+  local height = monitor.height / scale
+  if (monitor.transform or 0) % 2 == 1 then
+    width, height = height, width
+  end
+  return width, height
+end
+
+local function ranges_overlap(a1, a2, b1, b2)
+  return math.min(a2, b2) - math.max(a1, b1) > 0.5
+end
+
+local function monitor_titlebar_range(monitor, bar)
+  local _, height = monitor_span(monitor)
+  local reserved = monitor.reserved
+  local top = 0
+  local bottom = 0
+  if type(reserved) == "table" then
+    top = reserved.top or 0
+    bottom = reserved.bottom or 0
+  end
+  local min_y = monitor.y + top + bar
+  local max_y = monitor.y + height - bottom
+  if max_y < min_y then
+    max_y = min_y
+  end
+  return min_y, max_y
+end
+
+local function listed(list, monitor)
+  for _, item in ipairs(list) do
+    if item == monitor or (item.name and item.name == monitor.name) then
+      return true
+    end
+  end
+  return false
+end
+
+-- at.y is the client top. The title bar hangs above it, so at.y is the bottom
+-- of the title bar. A monitor stacked on this one joins the range once the
+-- title bar is against the shared edge, so the drag can cross onto it. The
+-- outer edges of the column still stop.
+local function titlebar_limits(window, monitors, bar)
+  local x1 = window.at.x
+  local x2 = window.at.x + window.size.x
+  local pool = {}
+
+  for _, monitor in ipairs(monitors) do
+    if monitor.width then
+      local width = monitor_span(monitor)
+      if ranges_overlap(x1, x2, monitor.x, monitor.x + width) then
+        table.insert(pool, monitor)
+      end
+    end
+  end
+
+  if #pool == 0 and window.monitor and window.monitor.width then
+    pool = { window.monitor }
+  end
+  if #pool == 0 then
+    return window.at.y, window.at.y
+  end
+
+  local touched = {}
+  local bar_top = window.at.y - bar
+  for _, monitor in ipairs(pool) do
+    local _, height = monitor_span(monitor)
+    if ranges_overlap(bar_top, window.at.y, monitor.y, monitor.y + height) then
+      table.insert(touched, monitor)
+    end
+  end
+
+  if #touched == 0 then
+    touched = pool
+  else
+    local extra = {}
+    for _, monitor in ipairs(touched) do
+      local min_y, max_y = monitor_titlebar_range(monitor, bar)
+      local width, height = monitor_span(monitor)
+      for _, other in ipairs(pool) do
+        if not listed(touched, other) and not listed(extra, other) then
+          local owidth, oheight = monitor_span(other)
+          local shares_column = ranges_overlap(monitor.x, monitor.x + width, other.x, other.x + owidth)
+          local above = other.y + oheight <= monitor.y + 1
+          local below = other.y >= monitor.y + height - 1
+          if shares_column and ((above and window.at.y <= min_y + 1) or (below and window.at.y >= max_y - 1)) then
+            table.insert(extra, other)
+          end
+        end
+      end
+    end
+    for _, monitor in ipairs(extra) do
+      table.insert(touched, monitor)
+    end
+  end
+
+  local columns = {}
+  local column_of = {}
+  for i, monitor in ipairs(touched) do
+    local width = monitor_span(monitor)
+    local found
+    for j = 1, i - 1 do
+      local other = touched[j]
+      local owidth = monitor_span(other)
+      if ranges_overlap(monitor.x, monitor.x + width, other.x, other.x + owidth) then
+        found = column_of[j]
+        break
+      end
+    end
+    if not found then
+      found = {}
+      table.insert(columns, found)
+    end
+    column_of[i] = found
+    local min_y, max_y = monitor_titlebar_range(monitor, bar)
+    if not found.min_y or min_y < found.min_y then
+      found.min_y = min_y
+    end
+    if not found.max_y or max_y > found.max_y then
+      found.max_y = max_y
+    end
+  end
+
+  local min_y, max_y
+  for _, column in ipairs(columns) do
+    min_y = min_y and math.max(min_y, column.min_y) or column.min_y
+    max_y = max_y and math.min(max_y, column.max_y) or column.max_y
+  end
+
+  if not min_y then
+    return window.at.y, window.at.y
+  end
+  if max_y < min_y then
+    if window.monitor then
+      return monitor_titlebar_range(window.monitor, bar)
+    end
+    return min_y, min_y
+  end
+  return min_y, max_y
+end
+
+-- The drag position is absolute from where the drag started. The pointer has
+-- to move with the window, or the next motion puts the window back past the
+-- limit and it flashes. Only a visible window under the pointer does that.
+local function keep_titlebars_on_screen(bar)
+  -- The layout tests call the timer immediately with a partial hl, and a
+  -- missing cursor must not stop floating mode from loading.
+  if type(hl.get_cursor_pos) ~= "function" or type(hl.get_monitors) ~= "function" then
+    return
+  end
+
+  local cursor = hl.get_cursor_pos()
+  local monitors = hl.get_monitors()
+
+  for _, window in ipairs(hl.get_windows({ tag = WORKSPACE_TAG })) do
+    if window.floating and window.mapped and not window.hidden and (window.fullscreen or 0) == 0 and window.monitor then
+      local min_y, max_y = titlebar_limits(window, monitors, bar)
+      local target_y = window.at.y
+      if target_y < min_y then
+        target_y = min_y
+      elseif target_y > max_y then
+        target_y = max_y
+      end
+
+      local dy = target_y - window.at.y
+      if dy > 0.5 or dy < -0.5 then
+        local on_title = window.visible ~= false
+          and cursor
+          and cursor.x >= window.at.x
+          and cursor.x <= window.at.x + window.size.x
+          and cursor.y >= window.at.y - bar
+          and cursor.y <= window.at.y + bar
+
+        hl.dispatch(hl.dsp.window.move({
+          window = window,
+          x = window.at.x,
+          y = target_y,
+          relative = false,
+        }))
+
+        if on_title and hl.dsp.cursor and hl.dsp.cursor.move then
+          cursor.y = cursor.y + dy
+          hl.dispatch(hl.dsp.cursor.move({ x = cursor.x, y = cursor.y }))
+        end
+      end
+    end
+  end
+end
+
 -- What floating workspaces need on top of the rest of the config: shadows,
 -- opaque windows, and titlebars. Run while the config loads when something
 -- floats already, and otherwise the moment a workspace starts floating, so
@@ -574,6 +769,14 @@ set_up_floating = function()
   end
 
   titlebars()
+
+  -- A personal config that keeps title bars on screen skips itself when this
+  -- is already set. That config is loaded after the defaults.
+  o.titlebar_keep_on_screen = true
+  local bar = titlebars_installed() and TITLEBAR_HEIGHT or 0
+  hl.timer(function()
+    keep_titlebars_on_screen(bar)
+  end, { timeout = 16, type = "repeat" })
 end
 
 return M
