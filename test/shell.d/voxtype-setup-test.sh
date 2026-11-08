@@ -55,7 +55,12 @@ case $name in
     fi
     ;;
   systemctl)
+    if [[ $* == "--user is-active --quiet voxtype.service" ]]; then exit "${VOXTYPE_INACTIVE:-1}"; fi
     if [[ $* == *"is-active"* ]]; then exit 1; fi
+    if [[ $* == "--user restart voxtype.service" && ${VOXTYPE_RESTART_FAILS:-0} == 1 ]]; then
+      dropin="$HOME/.config/systemd/user/voxtype.service.d/40-omarchy-cohere.conf"
+      if [[ -f $dropin ]] && grep -q '^Wants=voxtype-cohere-vulkan.service$' "$dropin"; then exit 1; fi
+    fi
     if [[ $* == *"restart voxtype-cohere-vulkan.service"* ]]; then exit "${SERVICE_FAILURE:-0}"; fi
     ;;
   voxtype)
@@ -78,7 +83,7 @@ reset_fixture() {
   rm -rf "$HOME/.config/voxtype" "$HOME/.config/systemd" "$HOME/.local/share/voxtype"
   : >"$VOXTYPE_TEST_LOG"
   printf 'idle\n' >"$XDG_RUNTIME_DIR/voxtype/state"
-  unset NO_VULKAN PACKAGE_FAILURE PROBE_FAILURE DOWNLOAD_FAILURE HASH_FAILURE SERVICE_FAILURE RECORD_DURING_PROBE
+  unset NO_VULKAN PACKAGE_FAILURE PROBE_FAILURE DOWNLOAD_FAILURE HASH_FAILURE SERVICE_FAILURE RECORD_DURING_PROBE VOXTYPE_INACTIVE VOXTYPE_RESTART_FAILS
 }
 
 reset_fixture
@@ -114,6 +119,19 @@ export SERVICE_FAILURE=1
 if omarchy-voxtype-cohere enable >/dev/null 2>&1; then fail "failed service rejects activation"; fi
 [[ $(<"$dropin") == "previous drop-in" && $(<"$service") == "previous service" ]] || fail "failed activation restores existing unit"
 pass "failed activation preserves previous service and drop-in"
+
+reset_fixture
+mkdir -p "${dropin%/*}"
+printf 'previous drop-in\n' >"$dropin"
+printf 'previous service\n' >"$service"
+if VOXTYPE_INACTIVE=0 VOXTYPE_RESTART_FAILS=1 omarchy-voxtype-cohere enable >/dev/null 2>&1; then
+  fail "failed Voxtype restart rejects activation"
+fi
+[[ $(<"$dropin") == "previous drop-in" && $(<"$service") == "previous service" ]] ||
+  fail "failed Voxtype restart restores both previous files"
+[[ $(grep -Fxc 'systemctl --user restart voxtype.service' "$VOXTYPE_TEST_LOG") == 2 ]] ||
+  fail "Voxtype is restarted with the restored configuration"
+pass "failed Voxtype restart restores and restarts the previous configuration"
 
 reset_fixture
 printf 'recording\n' >"$XDG_RUNTIME_DIR/voxtype/state"
