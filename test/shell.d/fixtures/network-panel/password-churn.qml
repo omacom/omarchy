@@ -129,6 +129,7 @@ ShellRoot {
       test.check(test.fieldInView(list, test.field), "the passphrase field is scrolled into view")
       test.scrollY = list.contentY
       test.hadFocus = !!test.field && test.field.activeFocus
+      test.check(test.hadFocus, "the passphrase field takes focus when the prompt opens")
       console.log("before scan: index " + test.targetIndex + ", contentY " + list.contentY + ", field focused " + test.hadFocus)
       if (test.field) test.field.text = "hunt"
 
@@ -156,7 +157,7 @@ ShellRoot {
       test.check(list.contentY === test.scrollY, "the list does not scroll under the prompt (was " + test.scrollY + ", now " + list.contentY + ")")
       test.check(!!field && field === test.field, "the passphrase field is not rebuilt")
       test.check(!!field && field.text === "hunt", "typed passphrase survives")
-      if (test.hadFocus) test.check(!!field && field.activeFocus, "the passphrase field keeps focus")
+      test.check(!!field && field.activeFocus, "the passphrase field keeps focus")
 
       panel.cancelPasswordPrompt()
       Qt.callLater(test.closedChecks)
