@@ -98,10 +98,11 @@ Item {
     if (source === lastPowerSource) return
     lastPowerSource = source
     pendingPowerSourceHook = source
-    if (!powerSourceHookProcess.running) runPendingPowerSourceHook()
+    runPendingPowerSourceHook()
   }
 
   function runPendingPowerSourceHook() {
+    if (pendingPowerSourceHook === "" || powerSourceHookProcess.running) return
     powerSourceHookProcess.command = ["omarchy-hook", "power-source-change", pendingPowerSourceHook]
     pendingPowerSourceHook = ""
     powerSourceHookProcess.running = true
@@ -151,7 +152,7 @@ Item {
 
   Process {
     id: powerSourceHookProcess
-    onExited: if (root.pendingPowerSourceHook !== "") root.runPendingPowerSourceHook()
+    onExited: if (root.pendingPowerSourceHook !== "") Qt.callLater(root.runPendingPowerSourceHook)
   }
 
   Timer {
