@@ -114,9 +114,11 @@ read_limits() {
   read -r result addr < <(smu_request "${psmu[@]}" $msg_table_addr 3)
   (( result == 1 && addr != 0 )) || return 1
 
-  # Raven-family SMUs skip the refresh on the first transfer after boot.
+  # Raven-family SMUs skip the refresh on the first transfer after boot, so
+  # transfer twice, and trust the table only when both transfers succeeded.
   for i in 1 2; do
-    smu_request "${psmu[@]}" $msg_table_transfer 3 >/dev/null
+    read -r result _ < <(smu_request "${psmu[@]}" $msg_table_transfer 3)
+    (( result == 1 )) || return 1
     sleep 0.01
   done
 
@@ -125,6 +127,10 @@ read_limits() {
   table=$(dd if=/dev/mem bs=4096 skip=$(( addr / 4096 )) count=1 status=none 2>/dev/null | od -An -v -t f4 -j $(( addr % 4096 )) -N 24 | tr '\n' ' ')
   read -r -a table <<<"$table"
   (( ${#table[@]} == 6 )) || return 1
+
+  # An unrefreshed or unreadable table holds zeros or junk, never real limits.
+  awk -v a="${table[0]}" -v b="${table[2]}" -v c="${table[4]}" \
+    'BEGIN { exit !(a >= 5 && a <= 60 && b >= 5 && b <= 60 && c >= 5 && c <= 60) }' || return 1
 
   echo "${table[0]} ${table[2]} ${table[4]}"
 }
@@ -151,46 +157,56 @@ record_stock() {
   logger -t omarchy-cpu-limits "Recorded the stock $source limits: STAPM ${stapm} W, fast ${fast} W, slow ${slow} W"
 }
 
+# Any response other than 1 is a failure, including 0, which means the SMU never answered.
 set_limits() {
-  local result failed=0
+  local msg value result failures=""
 
-  read -r result _ < <(smu_request "${mp1[@]}" $msg_stapm "$1")
-  (( result == 1 )) || failed=$result
-  read -r result _ < <(smu_request "${mp1[@]}" $msg_fast "$2")
-  (( result == 1 )) || failed=$result
-  read -r result _ < <(smu_request "${mp1[@]}" $msg_slow "$3")
-  (( result == 1 )) || failed=$result
+  for msg in "$msg_stapm $1" "$msg_fast $2" "$msg_slow $3"; do
+    read -r msg value <<<"$msg"
+    read -r result _ < <(smu_request "${mp1[@]}" "$msg" "$value")
+    (( result == 1 )) || failures+=" $(printf '0x%x' "$msg")=$(printf '0x%x' "$result")"
+  done
 
-  if (( failed != 0 )); then
-    logger -t omarchy-cpu-limits "The SMU refused a power limit (response $failed)"
+  if [[ -n $failures ]]; then
+    logger -t omarchy-cpu-limits "The SMU did not accept every power limit (message=response:$failures; 0x0 is a timeout)"
     return 1
   fi
+}
+
+# The SMN index/data pair is shared state: hold this around every SMU access.
+lock_hardware() {
+  mkdir -p "$run_dir"
+  exec 9>"$run_dir/lock"
+  flock 9
+}
+
+unlock_hardware() {
+  exec 9>&-
 }
 
 apply() {
   local stock stapm fast slow
 
-  mkdir -p "$run_dir"
-  exec 9>"$run_dir/lock"
-  flock 9
-
+  lock_hardware
   record_stock
 
   if [[ $(active_profile) == "power-saver" ]]; then
-    set_limits $cap_stapm $cap_fast $cap_slow && touch "$run_dir/capped"
+    # Mark before writing: if only some limits are accepted, leaving power-saver must still restore.
+    touch "$run_dir/capped"
+    set_limits $cap_stapm $cap_fast $cap_slow
   elif [[ -e $run_dir/capped ]]; then
+    # Only this power source's own record: AC and battery limits can differ.
     stock="$state_dir/stock-$(power_source)"
-    [[ -s $stock ]] || stock=$(ls "$state_dir"/stock-* 2>/dev/null | head -n 1)
 
     if [[ -s $stock ]]; then
       read -r stapm fast slow <"$stock"
       set_limits "$stapm" "$fast" "$slow" && rm -f "$run_dir/capped"
     else
-      logger -t omarchy-cpu-limits "No recorded stock limits, so the power-saver cap stays until the firmware resets it"
+      logger -t omarchy-cpu-limits "No recorded stock $(power_source) limits, so the power-saver cap stays until the firmware resets it"
     fi
   fi
 
-  exec 9>&-
+  unlock_hardware
 }
 
 watch() {
@@ -234,12 +250,14 @@ status() {
     fi
   done
 
+  lock_hardware
   if limits=$(read_limits); then
     read -r stapm fast slow <<<"$limits"
     echo "Live:     STAPM ${stapm} W, fast ${fast} W, slow ${slow} W"
   else
     echo "Live:     unreadable without iomem=relaxed"
   fi
+  unlock_hardware
 }
 
 case $action in
