@@ -36,16 +36,30 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+validate_revision() (
+  local dir="$1" revision="$2" checkout
+  checkout=$(mktemp -d) || return 1
+  trap '
+    status=$?
+    git -C "$dir" worktree remove --force "$checkout" >/dev/null 2>&1 || rmdir "$checkout" 2>/dev/null || true
+    exit "$status"
+  ' EXIT
+  git -C "$dir" worktree add --quiet --detach "$checkout" "$revision" || return 1
+  omarchy-plugin-validate "$checkout"
+)
+
 update_one() {
   local id="$1"
-  local dir="$PLUGINS_DIR/$id"
+  local dir="$PLUGINS_DIR/$id" current incoming
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
     return 1
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+  current=$(git -C "$dir" rev-parse HEAD) || return 1
+  incoming=$(git -C "$dir" rev-parse FETCH_HEAD) || return 1
+  if [[ $current == "$incoming" ]]; then
     echo "$id is up to date."
     return 0
   fi
@@ -53,9 +67,9 @@ update_one() {
   if (( ! ASSUME_YES )); then
     echo "Changes for $id:"
     if omarchy-cmd-present delta; then
-      git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
+      git -C "$dir" diff "$current" "$incoming" | delta --paging=never
     else
-      git -C "$dir" diff HEAD FETCH_HEAD
+      git -C "$dir" diff "$current" "$incoming"
     fi
     echo
     confirm "Update $id?" || {
@@ -64,14 +78,15 @@ update_one() {
     }
   fi
 
-  if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
-    echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
+  # Validate the incoming files before changing the installed checkout. A
+  # fast-forward can keep local edits that a hard reset would then discard.
+  if ! validate_revision "$dir" "$incoming"; then
+    echo "omarchy-plugin-update: update of '$id' failed validation; keeping the installed version" >&2
     return 1
   fi
 
-  if ! omarchy-plugin-validate "$dir"; then
-    git -C "$dir" reset --hard ORIG_HEAD >/dev/null
-    echo "omarchy-plugin-update: update of '$id' failed validation; rolled back" >&2
+  if ! git -C "$dir" merge --ff-only "$incoming" >/dev/null 2>&1; then
+    echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
 
