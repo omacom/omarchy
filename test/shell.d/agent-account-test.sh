@@ -74,6 +74,7 @@ SH
 
 cat >"$mock_bin/agy" <<'SH'
 #!/bin/bash
+printf 'HOME=%s DBUS=%s\n' "$HOME" "$DBUS_SESSION_BUS_ADDRESS" >>"${OMARCHY_TEST_AGY_ENV:-/dev/null}"
 "${BROWSER:-omarchy-test-default-browser}" "https://accounts.google.com/o/oauth2/auth"
 home=${AGY_DIR:-$HOME/.gemini/antigravity-cli}
 mkdir -p "$home"
@@ -98,6 +99,7 @@ SH
 
 cat >"$mock_bin/omarchy-launch-browser" <<'SH'
 #!/bin/bash
+printf 'HOME=%s DBUS=%s\n' "$HOME" "$DBUS_SESSION_BUS_ADDRESS" >>"${OMARCHY_TEST_BROWSER_ENV:-/dev/null}"
 printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_LOG"
 SH
 
@@ -138,6 +140,9 @@ export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
 # a run from inside one (an agent working on Omarchy) must not inherit it.
 unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME AGY_DIR BROWSER DBUS_SESSION_BUS_ADDRESS
 unset OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME OMARCHY_AGENT_AGY_HOME
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$test_tmp/bus"
+export OMARCHY_TEST_AGY_ENV="$test_tmp/agy_env"
+export OMARCHY_TEST_BROWSER_ENV="$test_tmp/browser_env"
 
 accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
 
@@ -286,6 +291,10 @@ OMARCHY_TEST_LOGIN_UUID=u-agyside OMARCHY_TEST_LOGIN_EMAIL=agyside@example.com \
   fail "an Antigravity account shares conversations with the primary"
 grep -qx -- "--private https://accounts.google.com/o/oauth2/auth" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a second Antigravity login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+grep -qE "HOME=$accounts/agy/\.pending/.* DBUS=unix:path=/dev/null" "$OMARCHY_TEST_AGY_ENV" ||
+  fail "agy runs isolated in its account home with null dbus" "$(cat "$OMARCHY_TEST_AGY_ENV")"
+grep -q "HOME=$HOME DBUS=$DBUS_SESSION_BUS_ADDRESS" "$OMARCHY_TEST_BROWSER_ENV" ||
+  fail "browser wrapper restores the desktop home and session bus" "$(cat "$OMARCHY_TEST_BROWSER_ENV")"
 omarchy-agent-account-use agy side >/dev/null
 [[ $(omarchy-agent-account-exec agy --version) == "agy home=$accounts/agy/side args=--version" ]] || fail "agy starts as the active Antigravity account" "$(omarchy-agent-account-exec agy --version)"
 grep -q "agyside@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Side token was synced to primary home"

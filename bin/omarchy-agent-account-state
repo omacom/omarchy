@@ -25,6 +25,7 @@ import fcntl
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -867,12 +868,41 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
     cli_link.unlink()
   cli_link.symlink_to("..")
 
+  # Capture desktop environment to restore in the browser child wrapper.
+  # agy runs isolated with its account directory as HOME and no session bus so
+  # it cannot touch the desktop keyring, but omarchy-launch-browser needs the
+  # desktop HOME for settings and a live session bus for systemd-run --user.
+  desktop_vars = [
+    "HOME",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_RUNTIME_DIR",
+    "XDG_DATA_DIRS",
+    "XDG_CONFIG_DIRS",
+    "PATH",
+  ]
+  restore_stmts = []
+  for var in desktop_vars:
+    if var in os.environ:
+      restore_stmts.append(f"export {var}={shlex.quote(os.environ[var])}")
+    else:
+      restore_stmts.append(f"unset {var}")
+  restore_stmts.append("unset AGY_DIR")
+  if "BROWSER" in os.environ:
+    restore_stmts.append(f"export BROWSER={shlex.quote(os.environ['BROWSER'])}")
+  else:
+    restore_stmts.append("unset BROWSER")
+  restore_block = "\n".join(restore_stmts)
+
   # Prepare temporary wrapper for xdg-open so browser opens in requested mode
   # and prints the full URL for the panel / terminal.
   tmp_bin = tempfile.mkdtemp(prefix="omarchy-agy-login-")
   wrapper_path = Path(tmp_bin) / "xdg-open"
   browser_cmd = "omarchy-launch-browser --private \"$1\"" if private else "omarchy-launch-browser \"$1\""
-  wrapper_path.write_text(f"#!/bin/bash\nprintf '%s\\n' \"$1\"\nexec {browser_cmd}\n")
+  wrapper_path.write_text(f"#!/bin/bash\nprintf '%s\\n' \"$1\"\n{restore_block}\nexec {browser_cmd}\n")
   wrapper_path.chmod(0o755)
 
   env = os.environ.copy()
