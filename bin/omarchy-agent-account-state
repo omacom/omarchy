@@ -891,6 +891,7 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
     else:
       restore_stmts.append(f"unset {var}")
   restore_stmts.append("unset AGY_DIR")
+  restore_stmts.append("unset OMARCHY_AGENT_LOGIN")
   if "BROWSER" in os.environ:
     restore_stmts.append(f"export BROWSER={shlex.quote(os.environ['BROWSER'])}")
   else:
@@ -905,13 +906,19 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
   wrapper_path.write_text(f"#!/bin/bash\nprintf '%s\\n' \"$1\"\n{restore_block}\nexec {browser_cmd}\n")
   wrapper_path.chmod(0o755)
 
+  # Filter out mise command-wrappers so we launch the real agy CLI directly
+  # without invoking omarchy-agent-account-exec and account synchronization.
+  clean_path = ":".join(p for p in os.environ.get("PATH", "").split(":") if "command-wrappers" not in p)
+  agy_bin = shutil.which("agy", path=clean_path) or "agy"
+
   env = os.environ.copy()
   env["HOME"] = str(home)
   env["AGY_DIR"] = str(home)
   env["BROWSER"] = str(wrapper_path)
   # Prevent agy from reading or modifying the host Secret Service keyring
   env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/dev/null"
-  env["PATH"] = f"{tmp_bin}:{env.get('PATH', '')}"
+  env["PATH"] = f"{tmp_bin}:{clean_path}"
+  env["OMARCHY_AGENT_LOGIN"] = "1"
 
   master, slave = pty.openpty()
   pid = os.fork()
@@ -922,7 +929,7 @@ def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> 
     os.dup2(slave, 1)
     os.dup2(slave, 2)
     os.close(slave)
-    os.execvpe("agy", ["agy"], env)
+    os.execvpe(agy_bin, ["agy"], env)
     os._exit(1)
 
   os.close(slave)

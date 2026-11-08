@@ -136,6 +136,19 @@ for provider in claude codex grok; do
   pass "$provider works without an account registry"
 done
 
+select_account agy side
+output=$(run_isolated agy)
+[[ $output == "$test_tmp/accounts/agy side" ]] || fail "agy dispatch selects the active account" "$output"
+pass "agy dispatch selects the active account"
+
+output=$(run_isolated env AGY_DIR=/explicit/account agy)
+[[ $output == /explicit/account ]] || fail "agy preserves an explicit account home" "$output"
+pass "agy preserves an explicit account home"
+
+output=$(run_isolated env OMARCHY_AGENT_LOGIN=1 agy)
+[[ $output == "$test_tmp/accounts/agy side" ]] || fail "agy dispatch respects login mode" "$output"
+pass "agy dispatch respects login mode"
+
 select_account claude side
 output=$(run_isolated python3 -c 'import subprocess; print(subprocess.check_output(["claude", "-p", "review"], text=True), end="")')
 [[ $output == "$(printf '%s\n' "$test_tmp/accounts/claude side" -p review)" ]] ||

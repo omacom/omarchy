@@ -338,6 +338,22 @@ printf '{"auth_method":"consumer","id_token_email":"me@example.com","token":{"ac
 omarchy-agent-account-state refresh agy
 pass "Antigravity accounts are added and used like the others"
 
+# Verify that isolated login bypasses mise command-wrappers on PATH and does not trigger sync
+wrapper_dir="$test_tmp/data/mise/command-wrappers/bin"
+mkdir -p "$wrapper_dir"
+cat >"$wrapper_dir/agy" <<'SH'
+#!/bin/bash
+echo "FAIL: invoked command wrapper during login" >&2
+exit 1
+SH
+chmod +x "$wrapper_dir/agy"
+PATH="$wrapper_dir:$PATH" OMARCHY_TEST_LOGIN_UUID=u-agywrapper OMARCHY_TEST_LOGIN_EMAIL=agywrapper@example.com \
+  omarchy-agent-account-add agy Wrapper </dev/null >/dev/null
+[[ $(omarchy-agent-account-list agy --json | jq -r '.[0].accounts[] | select(.id == "wrapper") | .email') == "agywrapper@example.com" ]] ||
+  fail "login bypasses command-wrappers on PATH"
+omarchy-agent-account-remove agy wrapper </dev/null >/dev/null
+rm -rf "$test_tmp/data/mise/command-wrappers"
+
 # ---------------------------------------------------------------------- routing
 
 omarchy-agent-account-use claude work >/dev/null

@@ -24,7 +24,8 @@ shift
 # finds the real CLI (or its first-run installer) rather than this wrapper.
 # Pin the resolved home for children, including an implicit Main account.
 # Explicit provider homes still take precedence.
-if [[ -z ${!account_env:-} ]]; then
+explicit_home=${!account_env:-}
+if [[ -z $explicit_home ]]; then
   account_home=$(omarchy-agent-account-home "$provider")
   export "OMARCHY_AGENT_${provider^^}_HOME=$account_home"
   if [[ -n $account_home ]]; then
@@ -32,7 +33,7 @@ if [[ -z ${!account_env:-} ]]; then
   fi
 fi
 
-if [[ $provider == "agy" ]]; then
+if [[ $provider == "agy" && -z $explicit_home && -z ${OMARCHY_AGENT_LOGIN:-} ]]; then
   omarchy-agent-account-state sync agy >/dev/null 2>&1 || true
 fi
 
