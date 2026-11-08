@@ -34,11 +34,52 @@ r = kb.evaluate(r.state, 1, 7 * s, cfg)
 assertEqual(r.set, 2, 'turns on in the dark at the maximum level')
 state = r.state
 
-// Dead band: between the thresholds nothing changes
-r = kb.evaluate(state, 30, 20 * s, cfg)
-r = kb.evaluate(r.state, 30, 30 * s, cfg)
-assertEqual(r.set, null, 'leaves the backlight alone between thresholds')
+// Dead band: with dimming off, nothing changes between the thresholds
+const fixed = kb.config({ settleSeconds: 5, brightClearMinutes: 10, manualOffMaxHours: 8, dimming: false })
+r = kb.evaluate(state, 30, 20 * s, fixed)
+r = kb.evaluate(r.state, 30, 30 * s, fixed)
+assertEqual(r.set, null, 'leaves the backlight alone between thresholds without dimming')
 assertEqual(r.nextCheckMs, -1, 'schedules nothing when settled')
+
+// Dimming: lit, it fades with the light between the thresholds, settling
+// like a switch does, and never below the lowest lit step before turning off.
+r = kb.evaluate(state, 30, 20 * s, cfg)
+assertEqual(r.set, null, 'waits for a dimmer level to settle')
+assertEqual(r.nextCheckMs, 5 * s, 'checks again once the dimmer level has settled')
+r = kb.evaluate(r.state, 32, 25 * s, cfg)
+assertEqual(r.set, 1, 'dims halfway between the thresholds')
+r = kb.evaluate(r.state, 48, 30 * s, cfg)
+r = kb.evaluate(r.state, 48, 35 * s, cfg)
+assertEqual(r.set, null, 'stays at the lowest lit step just before turning off')
+r = kb.evaluate(r.state, 5, 40 * s, cfg)
+r = kb.evaluate(r.state, 5, 45 * s, cfg)
+assertEqual(r.set, 2, 'brightens back to full in the dark')
+assertEqual(r.nextCheckMs, -1, 'schedules nothing once at full')
+let dimmed = r.state
+
+// Many levels: small changes in the light aren't worth a write
+const many = kb.evaluate(kb.evaluate(kb.initialState(0, 255, 0), 1, 0, cfg).state, 1, 5 * s, cfg)
+assertEqual(many.set, 255, 'turns on at full on a keyboard with many levels')
+r = kb.evaluate(many.state, 30, 10 * s, cfg)
+r = kb.evaluate(r.state, 30, 15 * s, cfg)
+assertEqual(r.set, 128, 'dims a keyboard with many levels smoothly')
+r = kb.evaluate(r.state, 31, 20 * s, cfg)
+r = kb.evaluate(r.state, 31, 25 * s, cfg)
+assertEqual(r.set, null, 'skips a change too small to see')
+
+// A level picked while lit stops the fading until the next switch
+dimmed = kb.observeBrightness(dimmed, 1, 50 * s)
+r = kb.evaluate(dimmed, 5, 55 * s, cfg)
+r = kb.evaluate(r.state, 5, 60 * s, cfg)
+assertEqual(r.set, null, 'leaves a level picked while lit alone')
+r = kb.evaluate(r.state, 70, 61 * s, cfg)
+r = kb.evaluate(r.state, 70, 66 * s, cfg)
+r = kb.evaluate(r.state, 1, 70 * s, cfg)
+r = kb.evaluate(r.state, 1, 75 * s, cfg)
+assertEqual(r.set, 1, 'turns on at the picked level after the next switch')
+r = kb.evaluate(r.state, 40, 80 * s, cfg)
+r = kb.evaluate(r.state, 40, 85 * s, cfg)
+assertEqual(r.state.dimHeld, false, 'fades again after the next switch')
 
 // Manual off in the dark is held through a short bright spell
 state = kb.observeBrightness(state, 0, 40 * s)

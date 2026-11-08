@@ -1,16 +1,20 @@
 // Turns the keyboard backlight on in the dark and off in bright light, from
-// ambient light sensor readings. It only acts when the room crosses from dark
-// to bright or back, so a level the user picks sticks until the lighting
-// actually changes. Turning the backlight off while it's dark is held (across
-// restarts too) until the room has been bright for a while, a maximum age
-// passes, or the user turns it back on.
+// ambient light sensor readings. While it's on, the level fades with the light
+// between the two thresholds, from full in the dark down to the lowest lit
+// step just before it turns off. Switching on and off only happens when the
+// room crosses from dark to bright or back, and a level the user picks stops
+// the fading until it does, so a choice sticks until the lighting actually
+// changes. Turning the backlight off while it's dark is held (across restarts
+// too) until the room has been bright for a while, a maximum age passes, or the
+// user turns it back on.
 
 var DEFAULTS = {
   onBelowLux: 10,
   offAboveLux: 50,
   settleSeconds: 5,
   brightClearMinutes: 10,
-  manualOffMaxHours: 8
+  manualOffMaxHours: 8,
+  dimming: true
 }
 
 function positiveNumber(value, fallback) {
@@ -29,7 +33,8 @@ function config(raw) {
     offAboveLux: offAboveLux,
     settleMs: positiveNumber(raw.settleSeconds, DEFAULTS.settleSeconds) * 1000,
     brightClearMs: positiveNumber(raw.brightClearMinutes, DEFAULTS.brightClearMinutes) * 60000,
-    manualOffMaxMs: positiveNumber(raw.manualOffMaxHours, DEFAULTS.manualOffMaxHours) * 3600000
+    manualOffMaxMs: positiveNumber(raw.manualOffMaxHours, DEFAULTS.manualOffMaxHours) * 3600000,
+    dimming: raw.dimming !== false
   }
 }
 
@@ -58,7 +63,12 @@ function initialState(brightness, maxLevel, manualOffSince, lastLevel, now) {
     expected: brightness,
     level: brightness > 0 ? brightness : maxLevel,
     manualOffSince: manualOffSince > 0 ? manualOffSince : 0,
-    held: false
+    held: false,
+    // A dimmed level waiting out the settle time (-1 for none), and whether a
+    // level the user picked has stopped the fading until the next switch.
+    dimTarget: -1,
+    dimSince: 0,
+    dimHeld: false
   }
   if (lastLevel === null || lastLevel === undefined || brightness === null || brightness === undefined) return state
 
@@ -99,6 +109,8 @@ function observeBrightness(state, brightness, now) {
     next.level = brightness
     next.manualOffSince = 0
     next.held = false
+    next.dimHeld = next.applied === "on"
+    next.dimTarget = -1
   }
   return next
 }
@@ -106,6 +118,8 @@ function observeBrightness(state, brightness, now) {
 function apply(state, want, now, cfg) {
   var next = copy(state)
   next.pending = ""
+  next.dimHeld = false
+  next.dimTarget = -1
 
   if (want === "off") {
     // Deciding off again (after a wake) continues a bright period already
@@ -146,7 +160,45 @@ function resume(state, brightness) {
   next.applied = ""
   next.pending = ""
   next.held = false
+  next.dimHeld = false
+  next.dimTarget = -1
   return next
+}
+
+// The level for this light while on: the full level up to onBelowLux, fading
+// linearly to the lowest lit step at offAboveLux.
+function dimmedLevel(level, lux, cfg) {
+  if (lux <= cfg.onBelowLux) return level
+  var fraction = Math.max(0, (cfg.offAboveLux - lux) / (cfg.offAboveLux - cfg.onBelowLux))
+  return Math.max(1, Math.round(level * fraction))
+}
+
+// Fades a lit backlight with the light. A new level has to hold for the settle
+// time like a switch does, and on keyboards with many levels a change of less
+// than a twentieth of the full level isn't worth a write.
+function dim(state, lux, now, cfg) {
+  if (!cfg.dimming || lux === null || lux === undefined || state.applied !== "on" || state.held || state.dimHeld ||
+      state.manualOffSince > 0 || state.pending !== "" || !(state.expected > 0)) {
+    if (state.dimTarget < 0) return { state: state, set: null }
+    var cleared = copy(state)
+    cleared.dimTarget = -1
+    return { state: cleared, set: null }
+  }
+
+  var next = copy(state)
+  var target = dimmedLevel(next.level, lux, cfg)
+  var step = Math.max(1, Math.round(next.level / 20))
+  if (Math.abs(target - next.expected) < step) {
+    next.dimTarget = -1
+  } else if (target !== next.dimTarget) {
+    next.dimTarget = target
+    next.dimSince = now
+  } else if (now - next.dimSince >= cfg.settleMs) {
+    next.dimTarget = -1
+    next.expected = target
+    return { state: next, set: target }
+  }
+  return { state: next, set: null }
 }
 
 // The room has been bright since brightSince, and it isn't already settling
@@ -178,6 +230,7 @@ function uninterrupt(state, now) {
 function nextCheckMs(state, now, cfg) {
   var delays = []
   if (state.pending !== "") delays.push(Math.max(0, state.pendingSince + cfg.settleMs - now))
+  if (state.dimTarget >= 0) delays.push(Math.max(0, state.dimSince + cfg.settleMs - now))
   if (brightClearing(state)) delays.push(Math.max(0, state.brightSince + cfg.brightClearMs - now))
   if (state.held && state.manualOffSince > 0) delays.push(Math.max(0, state.manualOffSince + cfg.manualOffMaxMs - now))
   return delays.length ? Math.min.apply(null, delays) : -1
@@ -207,6 +260,8 @@ function evaluate(state, lux, now, cfg) {
   } else if (now - next.pendingSince >= cfg.settleMs) {
     result = apply(next, want, now, cfg)
   }
+
+  if (result.set === null) result = dim(result.state, lux, now, cfg)
 
   result.nextCheckMs = nextCheckMs(result.state, now, cfg)
   return result

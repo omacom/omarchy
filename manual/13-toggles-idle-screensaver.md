@@ -60,9 +60,9 @@ Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~
 
 ### Automatic keyboard backlight
 
-On laptops with an ambient light sensor, Omarchy turns the keyboard backlight on when the room gets dark and off again when it gets bright. It's on by default wherever the hardware supports it, and the _Auto Keyboard Backlight_ entry in the Toggle menu only shows up on those machines.
+On laptops with an ambient light sensor, Omarchy turns the keyboard backlight on when the room gets dark and off again when it gets bright. In between, it dims the keys as the room brightens, from full in the dark down to the lowest setting just before it turns them off. It's on by default wherever the hardware supports it, and the _Auto Keyboard Backlight_ entry in the Toggle menu only shows up on those machines.
 
-It only acts when the room crosses from dark to bright or back, so the backlight keys still work as usual. A brightness you pick is reused the next time the room gets dark, until the shell restarts. While the lock screen has the display blanked it leaves the keyboard alone, then decides again from the room's light when you wake the machine. The same goes for a closed lid, such as when you're docked to an external monitor, since the sensor sits in the lid and reads dark. If you turn the backlight off in the dark, it stays off until the room has been bright for ten minutes, or eight hours have passed, or you turn it back on yourself. That's the "I'm in a dark room on purpose" case, without leaving it off forever if you forget.
+The backlight keys still work as usual. A brightness you pick while the keys are lit stops the dimming until the room next turns dark or bright, and it's reused the next time the room gets dark, until the shell restarts. While the lock screen has the display blanked it leaves the keyboard alone, then decides again from the room's light when you wake the machine. The same goes for a closed lid, such as when you're docked to an external monitor, since the sensor sits in the lid and reads dark. If you turn the backlight off in the dark, it stays off until the room has been bright for ten minutes, or eight hours have passed, or you turn it back on yourself. That's the "I'm in a dark room on purpose" case, without leaving it off forever if you forget.
 
 `omarchy toggle keyboard backlight auto` turns the whole thing off, which also releases the light sensor. The flag it sets is `keyboard-backlight-auto-off`.
 
@@ -75,7 +75,7 @@ The defaults suit most rooms, but you can tune them by adding a `keyboardBacklig
 }
 ```
 
-The light has to stay past a threshold for five seconds (`settleSeconds`) before anything changes, so a passing shadow or a phone screen doesn't flip it. `brightClearMinutes` and `manualOffMaxHours` set how long a manual off is held. To see what your sensor reads in a given room, run `monitor-sensor --light`.
+The light has to stay put for five seconds (`settleSeconds`) before anything changes, so a passing shadow or a phone screen doesn't flip it. Add `"dimming": false` to keep the keys at full brightness until they turn off. `brightClearMinutes` and `manualOffMaxHours` set how long a manual off is held. To see what your sensor reads in a given room, run `monitor-sensor --light`.
 
 ### Do not disturb
 
