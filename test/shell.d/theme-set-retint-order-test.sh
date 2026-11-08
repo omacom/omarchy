@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'touch "$test_tmp/release" "$test_tmp/intro-done"; rm -rf "$test_tmp"' EXIT
+trap 'touch "$test_tmp/release" "$test_tmp/visible-release" "$test_tmp/intro-done"; rm -rf "$test_tmp"' EXIT
 home="$test_tmp/home"
 state="$home/.local/state/omarchy/current"
 themes="$home/.config/omarchy/themes"
@@ -43,6 +43,20 @@ if [[ $name == omarchy-theme-set-browser ]]; then
   if [[ -n ${TEST_READ_STDIN:-} ]] && read -r -t 1 line; then
     echo "browser-stdin $line" >>"$TEST_LOG"
   fi
+fi
+# The tmux one is on screen, so it runs before the switch returns. With
+# TEST_HOLD_VISIBLE_THEME it reads that theme once, holds until released, as a
+# tmux server slow to take its colours would, and logs the theme it applies.
+if [[ $name == omarchy-theme-set-tmux && -n ${TEST_HOLD_VISIBLE_THEME:-} ]]; then
+  theme=$(<"$TEST_STATE/theme.name")
+  if [[ $theme == "$TEST_HOLD_VISIBLE_THEME" && ! -f $TEST_TMP/visible-held ]]; then
+    touch "$TEST_TMP/visible-held"
+    for attempt in {1..250}; do
+      [[ ! -f $TEST_TMP/visible-release ]] || break
+      sleep 0.02
+    done
+  fi
+  echo "tmux-for $theme" >>"$TEST_LOG"
 fi
 echo "$name" >>"$TEST_LOG"
 # With TEST_SLOW_HOOK_THEME, that theme's hook writes to stderr only once the
@@ -128,6 +142,15 @@ wait_held() {
   fail "the held browser retint starts"
 }
 
+# The held tmux retint has started, so its switch is still in its visible batch.
+wait_visible_held() {
+  for attempt in {1..250}; do
+    [[ ! -f $test_tmp/visible-held ]] || return 0
+    sleep 0.02
+  done
+  fail "the held tmux retint starts"
+}
+
 wait_logged() {
   for attempt in {1..250}; do
     grep -q "$1" "$log" && return 0
@@ -194,6 +217,31 @@ wait_for_detached_work
 [[ $(grep '^browser-for ' "$log" | tr '\n' ' ') == "browser-for alpha browser-for beta " ]] ||
   fail "an older switch's retints finish before a newer one's start" "$(cat "$log")"
 pass "retint batches from quick switches run in order"
+
+# Alpha's tmux retint is slow. Beta, picked meanwhile, must not retint tmux
+# first and then be overwritten by alpha's late write, which would leave tmux
+# on alpha under a desktop showing beta.
+rm -f "$test_tmp/held" "$test_tmp/visible-held" "$test_tmp/visible-release"
+touch "$test_tmp/release"
+TEST_HOLD_VISIBLE_THEME=alpha OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha &
+wait_visible_held
+TEST_HOLD_VISIBLE_THEME=alpha OMARCHY_THEME_SKIP_BACKGROUND=1 switch_theme beta &
+# Once beta is in place, its tmux retint would start at once if nothing held
+# it behind alpha's, so give it a second to show up before alpha's finishes.
+for attempt in {1..250}; do
+  [[ $(<"$state/theme.name") != "beta" ]] || break
+  sleep 0.02
+done
+for attempt in {1..50}; do
+  ! grep -qx 'tmux-for beta' "$log" || break
+  sleep 0.02
+done
+touch "$test_tmp/visible-release"
+wait
+wait_for_detached_work
+[[ $(grep '^tmux-for ' "$log" | tr '\n' ' ') == "tmux-for alpha tmux-for beta " ]] ||
+  fail "an older switch's terminal retints finish before a newer one's start" "$(cat "$log")"
+pass "visible retints from quick switches run in order"
 
 # Beta and then alpha are picked while alpha's first batch holds the retints.
 # Beta's batch finds its theme already replaced and leaves the apps alone.
