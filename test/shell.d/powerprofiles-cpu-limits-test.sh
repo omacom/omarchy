@@ -4,6 +4,13 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Every check here drives the commands through fixtures (a cpuinfo file and a
+# fake SMU), and root deliberately ignores both.
+if (( EUID == 0 )); then
+  skip "cpu-limits fixtures are ignored by root; skipping the CPU power-limit tests"
+  exit 0
+fi
+
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
@@ -42,6 +49,27 @@ raven && fail "family 19h is not Raven-family"
 cpuinfo GenuineIntel 23 24
 raven && fail "an Intel CPU is not Raven-family"
 pass "other CPUs are not detected as Raven-family"
+
+# Root reads only the live /proc/cpuinfo: as a user namespace's root, a fixture
+# claiming the opposite of the real CPU must not change the answer.
+if unshare --user --map-root-user true 2>/dev/null; then
+  if "$ROOT/bin/omarchy-hw-amd-raven"; then
+    live=yes
+    cpuinfo GenuineIntel 6 140
+  else
+    live=no
+    cpuinfo AuthenticAMD 23 24
+  fi
+  if OMARCHY_CPUINFO_PATH="$tmp_dir/cpuinfo" unshare --user --map-root-user "$ROOT/bin/omarchy-hw-amd-raven"; then
+    as_root=yes
+  else
+    as_root=no
+  fi
+  [[ $as_root == "$live" ]] || fail "root ignores a fixture cpuinfo in its environment"
+  pass "root ignores a fixture cpuinfo in its environment"
+else
+  skip "user namespaces unavailable; skipping the root fixture check"
+fi
 
 cpuinfo AuthenticAMD 23 96
 for action in apply status; do
