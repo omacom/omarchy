@@ -54,6 +54,7 @@ function initialState(brightness, maxLevel, manualOffSince, lastLevel, now) {
     pending: "",
     pendingSince: 0,
     brightSince: 0,
+    interruptedAt: 0,
     expected: brightness,
     level: brightness > 0 ? brightness : maxLevel,
     manualOffSince: manualOffSince > 0 ? manualOffSince : 0,
@@ -107,8 +108,10 @@ function apply(state, want, now, cfg) {
   next.pending = ""
 
   if (want === "off") {
+    // Deciding off again (after a wake) continues a bright period already
+    // under way rather than starting a new one.
     next.applied = "off"
-    next.brightSince = now
+    if (next.brightSince === 0) next.brightSince = now
     next.held = false
     next.expected = 0
     return { state: next, set: 0 }
@@ -153,11 +156,22 @@ function brightClearing(state) {
 }
 
 // Readings stop being evaluated while the session has the keys blanked or the
-// lid is closed, so the room can't be known to have stayed bright meanwhile:
-// the bright period starts over at the next bright reading.
-function interrupt(state) {
+// lid is closed, so the room can't be known to have stayed bright meanwhile.
+// That time is left out of the bright period: it's shifted forward by however
+// long the interruption lasted, so a momentary one (a wake with no blank
+// before it) costs nothing.
+function interrupt(state, now) {
+  if (state.interruptedAt > 0) return state
   var next = copy(state)
-  next.brightSince = 0
+  next.interruptedAt = now
+  return next
+}
+
+function uninterrupt(state, now) {
+  if (!(state.interruptedAt > 0)) return state
+  var next = copy(state)
+  if (next.brightSince > 0) next.brightSince += Math.max(0, now - next.interruptedAt)
+  next.interruptedAt = 0
   return next
 }
 
@@ -182,7 +196,6 @@ function evaluate(state, lux, now, cfg) {
   if (brightClearing(next) && now - next.brightSince >= cfg.brightClearMs) next.manualOffSince = 0
 
   var want = lux === null || lux === undefined ? "" : wantFor(lux, cfg)
-  if (want === "off" && next.applied === "off" && next.brightSince === 0) next.brightSince = now
 
   if (want === "on" && next.applied === "on" && next.held && next.manualOffSince === 0) {
     result = apply(next, "on", now, cfg)
@@ -208,6 +221,7 @@ if (typeof module !== "undefined") {
     observeBrightness: observeBrightness,
     resume: resume,
     interrupt: interrupt,
+    uninterrupt: uninterrupt,
     evaluate: evaluate
   }
 }

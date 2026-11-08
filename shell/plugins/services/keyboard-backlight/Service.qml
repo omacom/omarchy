@@ -209,7 +209,8 @@ Item {
 
   function applyLid(closed) {
     var opened = root.lidClosed && !closed
-    if (closed && !root.lidClosed && root.state) root.state = KeyboardBacklightModel.interrupt(root.state)
+    if (root.state && closed && !root.lidClosed) root.state = KeyboardBacklightModel.interrupt(root.state, Date.now())
+    if (root.state && opened && !root.paused) root.state = KeyboardBacklightModel.uninterrupt(root.state, Date.now())
     root.lidClosed = closed
     if (root.lidRecheck) {
       root.lidRecheck = false
@@ -233,7 +234,7 @@ Item {
   function pause() {
     if (root.active && root.state && !root.paused) {
       observe(Date.now())
-      root.state = KeyboardBacklightModel.interrupt(root.state)
+      root.state = KeyboardBacklightModel.interrupt(root.state, Date.now())
       save()
     }
     root.paused = true
@@ -243,7 +244,8 @@ Item {
   function resume() {
     root.paused = false
     if (!root.active || !root.state) return
-    root.state = KeyboardBacklightModel.resume(root.state, readBrightness())
+    var state = root.lidClosed ? root.state : KeyboardBacklightModel.uninterrupt(root.state, Date.now())
+    root.state = KeyboardBacklightModel.resume(state, readBrightness())
     step()
   }
 

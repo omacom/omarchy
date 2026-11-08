@@ -124,26 +124,45 @@ r = kb.evaluate(r.state, 1, 5 * s, cfg)
 state = kb.observeBrightness(r.state, 0, 10 * s)
 r = kb.evaluate(state, 70, 1 * min, cfg)
 r = kb.evaluate(r.state, 70, 1 * min + 5 * s, cfg)
-state = kb.resume(kb.interrupt(r.state), 0)
+state = kb.interrupt(r.state, 2 * min)
+state = kb.resume(kb.uninterrupt(state, 20 * min), 0)
 r = kb.evaluate(state, 1, 20 * min, cfg)
 r = kb.evaluate(r.state, 1, 20 * min + 5 * s, cfg)
 assertEqual(r.set, null, 'a blank does not count as bright time')
 assertEqual(r.state.held, true, 'keeps holding after a blank that followed a short bright spell')
 
-// The same under a closed lid, where nothing is re-applied: the bright period
-// starts over at the first bright reading after it opens.
+// The same under a closed lid, where nothing is re-applied: only the bright
+// time on either side of it counts.
 state = kb.initialState(2, 2, 0)
 r = kb.evaluate(state, 1, 0, cfg)
 r = kb.evaluate(r.state, 1, 5 * s, cfg)
 state = kb.observeBrightness(r.state, 0, 10 * s)
 r = kb.evaluate(state, 70, 1 * min, cfg)
 r = kb.evaluate(r.state, 70, 1 * min + 5 * s, cfg)
-state = kb.interrupt(r.state)
-r = kb.evaluate(state, 70, 20 * min, cfg)
+state = kb.uninterrupt(kb.interrupt(r.state, 6 * min + 5 * s), 26 * min + 5 * s)
+r = kb.evaluate(state, 70, 26 * min + 5 * s, cfg)
 assertEqual(r.state.manualOffSince, 10 * s, 'a closed lid does not count as bright time')
-assertEqual(r.nextCheckMs, 10 * min, 'the bright period starts over when the lid opens')
-r = kb.evaluate(r.state, 70, 30 * min, cfg)
-assertEqual(r.state.manualOffSince, 0, 'clears the hold once bright long enough after the lid opens')
+assertEqual(r.nextCheckMs, 5 * min, 'counts the bright time from before the lid closed')
+r = kb.evaluate(r.state, 70, 31 * min + 5 * s, cfg)
+assertEqual(r.state.manualOffSince, 0, 'clears the hold once bright long enough in all')
+
+// A wake with no blank before it pauses only for a moment, and deciding off
+// again afterward continues the bright period rather than restarting it, so
+// waking every few minutes doesn't keep a hold from clearing.
+state = kb.initialState(2, 2, 0)
+r = kb.evaluate(state, 1, 0, cfg)
+r = kb.evaluate(r.state, 1, 5 * s, cfg)
+state = kb.observeBrightness(r.state, 0, 10 * s)
+r = kb.evaluate(state, 70, 1 * min, cfg)
+r = kb.evaluate(r.state, 70, 1 * min + 5 * s, cfg)
+for (const wake of [4 * min, 8 * min]) {
+  state = kb.interrupt(r.state, wake)
+  state = kb.resume(kb.uninterrupt(state, wake + 100), 0)
+  r = kb.evaluate(state, 70, wake + 1 * s, cfg)
+  r = kb.evaluate(r.state, 70, wake + 6 * s, cfg)
+}
+r = kb.evaluate(r.state, 70, 11 * min + 5 * s + 200, cfg)
+assertEqual(r.state.manualOffSince, 0, 'wakes without a blank do not restart the bright period')
 
 // Session wake: the restored level is a baseline, not the user's choice.
 // Blanked while bright and off, woken in the dark with 0 restored: turns on.
