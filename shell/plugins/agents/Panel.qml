@@ -356,7 +356,7 @@ Panel {
     for (var i = 0; i < providers.length; i++) {
       var window = bindingWindow(providers[i])
       if (window && window.percent >= 0.9) return true
-      if (balanceAlarming(providers[i].balance)) return true
+      if (balanceAlarming(providers[i])) return true
     }
     return false
   }
@@ -897,8 +897,12 @@ Panel {
 
   // A prepaid account runs low the way a subscription window fills up: the
   // last 10% of the funded credits lights the same alarm.
-  function balanceAlarming(b) {
-    return !!b && b.funded > 0 && b.remaining / b.funded <= 0.1
+  function balanceAlarming(provider) {
+    var balance = provider && provider.balance
+    if (!balance) return false
+    // OpenRouter reports lifetime purchases. Only an exhausted balance alarms.
+    if (provider.providerId === "openrouter") return balance.remaining <= 0
+    return balance.funded > 0 && balance.remaining / balance.funded <= 0.1
   }
 
   function currencyPrefix(currency) {
@@ -2016,7 +2020,7 @@ Panel {
           anchors.rightMargin: Style.spacing.md
           anchors.verticalCenter: parent.verticalCenter
           value: section.balance && section.balance.funded > 0 ? section.balance.remaining / section.balance.funded : -1
-          alarming: root.balanceAlarming(section.balance)
+          alarming: root.balanceAlarming(section.provider)
         }
 
         Text {
@@ -2027,7 +2031,7 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
           horizontalAlignment: Text.AlignRight
           text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
-          color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
+          color: root.balanceAlarming(section.provider) ? root.urgent : root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
         }
