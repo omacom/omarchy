@@ -24,3 +24,9 @@ o.transparent_window("(omawrite|1[pP]assword|com\\.onepassword\\.OnePassword|org
 
 -- The transparency hotkey opts otherwise opaque windows in with this tag.
 o.transparent_window({ tag = "transparent" })
+
+-- Keep windows from blurring what is behind them unless Window Opacity is
+-- set to Glassy. A Glassy bar enables the compositor's blur globally, and
+-- without this even the slightly transparent default windows would turn
+-- glassy, including ones already running when glassiness is turned off.
+o.window(".*", { no_blur = true })
