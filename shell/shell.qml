@@ -1523,8 +1523,6 @@ ShellRoot {
     pluginWidgetComponents = ({})
   }
 
-  // Each installed plugin's manifest, as text, from before a rescan.
-  property var pluginFingerprints: null
   // A rescan asked for while another scan ran; it stays a rescan.
   property bool pluginRescanPending: false
 
@@ -1540,24 +1538,16 @@ ShellRoot {
     return false
   }
 
-  function pluginFingerprintMap() {
-    var map = ({})
-    var installed = shell.pluginRegistry.installedPlugins || ({})
-    for (var id in installed) map[id] = JSON.stringify(installed[id])
-    return map
-  }
-
-  // Pick up plugins that appeared without closing anything: the syncs after
-  // the scan add them beside what is running. Only a plugin the shell already
-  // had changing or going away needs the full reload, which closes every panel
-  // and unloads every service. A first login linking a new plugin's panel
-  // (Superwhisper's setup) otherwise closed the menu and blanked the wallpaper.
+  // Rescan without closing anything: the syncs after the scan add, update and
+  // drop plugins in place. Only fresh code needs the full reload, which closes
+  // every panel and unloads every service. A first login linking a new
+  // plugin's panel (Superwhisper's setup) otherwise closed the menu and
+  // blanked the wallpaper.
   function rescanPlugins() {
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginRescanPending = true
       return
     }
-    shell.pluginFingerprints = shell.pluginFingerprintMap()
     shell.pluginRegistry.rescan()
   }
 
@@ -1597,22 +1587,9 @@ ShellRoot {
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
-        shell.pluginFingerprints = null
         shell.pluginRescanPending = false
         Qt.callLater(shell.reloadPlugins)
         return
-      }
-      if (shell.pluginFingerprints !== null) {
-        var before = shell.pluginFingerprints
-        shell.pluginFingerprints = null
-        var after = shell.pluginFingerprintMap()
-        for (var known in before) {
-          if (after[known] !== before[known]) {
-            shell.pluginRescanPending = false
-            Qt.callLater(shell.reloadPlugins)
-            return
-          }
-        }
       }
       shell.pluginReloading = false
       shell._syncServices()
@@ -1881,7 +1858,7 @@ ShellRoot {
       return Commons.InputMethodState.cycle(direction === "back") ? "ok" : "not running"
     }
 
-    // Adds new plugins in place; reloads everything only if a loaded one changed.
+    // Adds, updates and drops plugins in place, leaving running ones alone.
     function rescanPlugins(): void {
       shell.rescanPlugins()
     }
