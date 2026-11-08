@@ -173,6 +173,17 @@ function currentMode(availableModes, width, height, refreshRate) {
   return ""
 }
 
+// What a state read means for a display mode on trial, given the display as
+// that read shows it: "end" when it's still on the mode it had, so the
+// command refused the new one or changed nothing; "ask" for anything else,
+// including a read that failed or doesn't list the display, which a mode it
+// can't take may drop for a moment; and "wait" once asking, since only an
+// answer or the countdown may end the trial then.
+function modeTrialStep(trial, display, asking) {
+  if (asking) return "wait"
+  return display && display.mode === trial.mode ? "end" : "ask"
+}
+
 // ---- Layout ----
 // Rects are { name, x, y, w, h } in Hyprland's layout space: logical pixels,
 // after each display's scale.
@@ -370,6 +381,7 @@ if (typeof module !== "undefined") {
     resolutionLabel: resolutionLabel,
     refreshOptions: refreshOptions,
     currentMode: currentMode,
+    modeTrialStep: modeTrialStep,
     displayTitle: displayTitle,
     logicalRect: logicalRect,
     copyRects: copyRects,

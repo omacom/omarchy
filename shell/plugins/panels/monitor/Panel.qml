@@ -549,9 +549,9 @@ Panel {
   // the next login. So a new mode goes back unless it's kept within
   // keepSeconds. modeTrial holds the display with the mode and scale it had
   // before the first pick; a second pick before the answer still goes back to
-  // there, and picks on another display are ignored until then. The countdown
-  // starts once a state read shows the new mode, so a mode the command refused
-  // asks nothing.
+  // there, and picks on another display are ignored until then. The first
+  // state read after the change starts the countdown, unless it shows the
+  // display still on its old mode; see Model.modeTrialStep.
   readonly property int keepSeconds: 15
   property var modeTrial: null
   property int keepCountdown: 0
@@ -559,11 +559,9 @@ Panel {
 
   // On a state read that started after every command had landed.
   function settleModeTrial() {
-    var display = segmentNamed(modeTrial.name)
-    if (!display) endModeTrial()
-    else if (keepCountdown > 0) return
-    else if (display.mode === modeTrial.mode) endModeTrial()
-    else keepCountdown = keepSeconds
+    var step = Model.modeTrialStep(modeTrial, segmentNamed(modeTrial.name), keepCountdown > 0)
+    if (step === "end") endModeTrial()
+    else if (step === "ask") keepCountdown = keepSeconds
   }
 
   function endModeTrial() {
@@ -572,13 +570,14 @@ Panel {
   }
 
   // The scale goes back too: the new mode may have rounded it to one it takes,
-  // and the old mode would keep that one.
+  // and the old mode would keep that one. Without a read to compare against,
+  // it's set again to be sure.
   function revertMode() {
     var trial = modeTrial
     var display = segmentNamed(trial.name)
     endModeTrial()
     runAction(["omarchy-hyprland-monitor-resolution", "--monitor", trial.name, trial.mode])
-    if (display && Model.normalizeScale(display.scale) !== Model.normalizeScale(trial.scale))
+    if (!display || Model.normalizeScale(display.scale) !== Model.normalizeScale(trial.scale))
       runAction(["omarchy-hyprland-monitor-scaling", "--monitor", trial.name, String(trial.scale)])
   }
 
