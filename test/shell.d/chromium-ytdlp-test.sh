@@ -167,6 +167,8 @@ notify_argv="$TMPDIR/notify-argv"
 cat >"$fake_root/bin/yt-dlp" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$YTDLP_ARGV_LOG"
+# A page yt-dlp has no extractor for fails, as it would for real.
+[[ -n ${YTDLP_UNSUPPORTED:-} && ${*: -1} == "$YTDLP_UNSUPPORTED" ]] && exit 1
 for arg in "$@"; do
   if [[ $arg == "--no-simulate" ]]; then
     printf 'OMARCHY_FILE\t%s\n' "$YTDLP_FAKE_FILE"
@@ -237,3 +239,65 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
 grep -qF -- "Download complete Real_Clip [id]" "$notify_argv" ||
   fail "yt-dlp native host falls back to the filename when no title record arrives" "$(cat "$notify_argv")"
 pass "yt-dlp native host falls back to the filename when no title record arrives"
+
+# --- Stream fallback ---
+
+stream_payload='{"url":"https://course.test/lesson","stream":"https://cdn.test/master.m3u8?sig=1","referer":"https://player.test/","title":"Lesson 3"}'
+[[ $(host_fn parse_field "$stream_payload" stream) == "https://cdn.test/master.m3u8?sig=1" ]] ||
+  fail "yt-dlp native host reads the stream the extension saw"
+[[ -z $(host_fn parse_field '{"stream":["https://cdn.test/a.m3u8"]}' stream) ]] ||
+  fail "yt-dlp native host ignores a stream that is not a string"
+pass "yt-dlp native host reads the stream fields from the extension's message"
+
+[[ $(host_fn output_template_from_title "Lesson 3: Setup") == "Lesson 3: Setup.%(ext)s" ]] ||
+  fail "yt-dlp native host names a stream download after the tab title"
+[[ $(host_fn output_template_from_title "--100% ../../etc/x"$'\n') == "100%% ..-..-etc-x.%(ext)s" ]] ||
+  fail "yt-dlp native host keeps a tab title from becoming an option, a path or a template" "$(host_fn output_template_from_title "--100% ../../etc/x"$'\n')"
+[[ $(host_fn output_template_from_title "") == "%(title)s.%(ext)s" ]] ||
+  fail "yt-dlp native host falls back to yt-dlp's title without a tab title"
+pass "yt-dlp native host names stream downloads safely after the tab title"
+
+# A page yt-dlp can't read falls back to the stream, with the player's referer.
+: >"$notify_argv"
+: >"$ytdlp_argv"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  YTDLP_UNSUPPORTED="https://course.test/lesson" OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2" "$3" "$4" "$5"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://course.test/lesson" \
+  "https://cdn.test/master.m3u8?sig=1" "https://player.test/" "Lesson 3" >/dev/null 2>&1
+
+download_run=$(grep -- '--no-simulate' "$ytdlp_argv" || true)
+[[ $download_run == *"-o Lesson 3.%(ext)s --referer https://player.test/ "* && $download_run == *"-- https://cdn.test/master.m3u8?sig=1" ]] ||
+  fail "yt-dlp native host downloads the page's stream when yt-dlp can't read the page" "$(cat "$ytdlp_argv")"
+grep -qF -- "Download complete Lesson 3 -t" "$notify_argv" ||
+  fail "yt-dlp native host toasts a stream download with the tab title" "$(cat "$notify_argv")"
+pass "yt-dlp native host falls back to the page's stream when yt-dlp can't read the page"
+
+# A page yt-dlp reads keeps its own URL even when a stream was seen.
+: >"$ytdlp_argv"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2" "$3" "$4" "$5"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" \
+  "https://cdn.test/master.m3u8" "https://player.test/" "Clip" >/dev/null 2>&1
+download_run=$(grep -- '--no-simulate' "$ytdlp_argv" || true)
+[[ $download_run == *"-o %(title)s.%(ext)s --print"* && $download_run == *"-- https://example.test/watch" && $download_run != *"--referer"* ]] ||
+  fail "yt-dlp native host prefers the page URL when yt-dlp supports it" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host prefers the page URL when yt-dlp supports it"
+
+# Without a stream, an unreadable page still reports that nothing was found.
+: >"$notify_argv"
+: >"$ytdlp_argv"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  YTDLP_UNSUPPORTED="https://course.test/lesson" OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://course.test/lesson" >/dev/null 2>&1
+grep -qF -- "No video found for download" "$notify_argv" && ! grep -q -- '--no-simulate' "$ytdlp_argv" ||
+  fail "yt-dlp native host reports no video when there is neither a page nor a stream to download" "$(cat "$notify_argv")"
+pass "yt-dlp native host reports no video when there is neither a page nor a stream to download"
