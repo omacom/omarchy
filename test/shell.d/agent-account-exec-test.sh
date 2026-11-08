@@ -29,6 +29,9 @@ esac
 if (($#)); then
   printf '%s\n' "$@"
 fi
+if [[ -n ${OMARCHY_TEST_SHOW_PATH:-} ]]; then
+  printf '%s\n' "$PATH"
+fi
 if [[ ${OMARCHY_TEST_SWITCH_ACCOUNT:-} == "yes" ]]; then
   unset OMARCHY_TEST_SWITCH_ACCOUNT
   omarchy-agent-account-state use "${0##*/}" "${OMARCHY_TEST_SWITCH_TO:-side}" >/dev/null
@@ -53,7 +56,7 @@ done
 # would try to fetch the real CLI instead of reaching the fake one.
 mise_system_config="$test_tmp/etc/mise"
 mkdir -p "$mise_system_config/conf.d"
-cp "$ROOT/etc/mise/conf.d/omarchy-agent-accounts.toml" "$mise_system_config/conf.d/"
+cp "$ROOT/etc/mise/conf.d/omarchy-agent-accounts.toml" "$ROOT/etc/mise/conf.d/omarchy.toml" "$mise_system_config/conf.d/"
 
 run_isolated() {
   env -i HOME="$account_test_home" \
@@ -165,6 +168,17 @@ pass "SSH-style mise tool shims route through account dispatch in a custom data 
 output=$(run_isolated bash -c 'eval "$(mise env -s bash)"; [[ $PATH == *"/installs/claude/"* ]] || exit 99; claude')
 [[ $output == "$test_tmp/accounts/claude side" ]] || fail "mise PATH activation retains account dispatch" "$output"
 pass "mise PATH activation retains account dispatch"
+
+# A login shell carries the mise shims after the system directories (see
+# env-bootstrap), and mise places the tool directories where the shims are
+# when it builds the wrapper's PATH. The agent must still see mise's tools
+# ahead of /usr/bin, as the terminal that launched it does.
+output=$(run_isolated env OMARCHY_TEST_SHOW_PATH=1 PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:/usr/bin:$mise_data/shims" claude)
+agent_path=${output#*$'\n'}
+before_tools=${agent_path%%/installs/claude/*}
+before_system=${agent_path%%/usr/bin*}
+(( ${#before_tools} < ${#before_system} )) || fail "an agent sees mise tool directories ahead of /usr/bin" "$agent_path"
+pass "an agent sees mise tool directories ahead of /usr/bin"
 
 status=0
 run_isolated env OMARCHY_TEST_AGENT_EXIT=42 claude >/dev/null || status=$?
