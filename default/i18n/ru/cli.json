@@ -45,6 +45,8 @@
   "agents.switchedBody": "Новые сессии %1 теперь используют %2 (%3%).\nЗапущенные сессии останутся на %4.",
   "animations.disabled": "Анимации выключены",
   "animations.enabled": "Анимации включены",
+  "animations.softwareRendering": "Без GPU анимации выключены",
+  "animations.softwareRenderingBody": "GPU не используется, поэтому анимации, размытие и тени выключены. Вернуть их можно через «Внешний вид» > «Анимации включены».",
   "audio.micMuted": "Микрофон выключен",
   "audio.micOn": "Микрофон включён",
   "audio.noDevices": "Аудиоустройства не найдены",
