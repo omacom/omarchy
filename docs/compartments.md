@@ -152,6 +152,10 @@ omarchy compartment-drill                       # integrity watch drill
 
 ## Troubleshooting
 
+Field notes from live provisioning — every gotcha hit and fixed — live in
+[`docs/compartments-bringup.md`](compartments-bringup.md). Read it before a
+clean rebuild.
+
 - `omarchy compartment <name> status` → both services `active`?
 - First boot provisioning log inside guest: `journalctl -u bootstrap-firstboot` / `/var/log/provision.log`
 - Prompt path: `omarchy compartment <name> prompt "say ok"` → `ok` through DLP
