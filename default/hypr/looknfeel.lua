@@ -4,8 +4,8 @@ local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, a
 local inactive_border_color = "rgba(595959aa)"
 
 -- Login holds the boot splash's colour until the shell's cover is up, rather
--- than black.
-local splash_background = o.splash_background()
+-- than black. Loaded on its own, without Omarchy's helpers, it keeps black.
+local splash_background = o and o.splash_background()
 
 hl.config({
   general = {
